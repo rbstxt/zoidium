@@ -1,0 +1,13 @@
+node_modules/
+dist/
+dist-electron/
+.DS_Store
+*.log
+.env
+
+# Development documentation (60MB+, not for production)
+docs/
+
+# Internal docs
+REWRITE.md
+README.md
