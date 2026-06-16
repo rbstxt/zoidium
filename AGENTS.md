@@ -174,7 +174,7 @@ u.bloomStrength.value = this.properties.bloomStrength.get(e);
 
 ### 5.2 `dynamic: !0` を必ず付ける
 
-Panzoid 純正では 14% が `dynamic:!0` なし (OPTION での "off;on" 切替のみ)。 **Zoidium では全プロパティに `dynamic:!0` を付ける** (Zoidium 方針)。 キーフレーム化できないと創造性を損なうため。 例外はない。
+Panzoid 純正では 14% が `dynamic:!0` なし (OPTION での "off;on" 切替のみ)。 **Zoidium では全プロパティに `dynamic:!0` を付ける** (Zoidium 方針)。 キーフレーム化できないと創造性を損なうため。
 
 ### 5.3 step 値 (Panzoid 統計の上位)
 
@@ -324,23 +324,13 @@ PZ.effect.fnList[name] = Promise.resolve(function () {
 
 Panzoid core は `await fnList[type].call(this)` で factory を呼ぶ。 factory 内の `this` は `parentProject` 等がセット済みの Panzoid 側インスタンス。 トップレベルで `new PZ.effect()` して factory を呼ぶと `parentProject` が null で失敗する。
 
-### 6.3 `THREE.BoxBlurPass` などの Panzoid 拡張は触らない
-
-Panzoid core が `THREE.BoxBlurPass` をグローバルに定義している (boxblur.js 内)。 カスタムエフェクトで同じパターン (`THREE.MyPass`) を追加するのはアリだが、 Panzoid 内部の同名 Pass と衝突する可能性があるので、 別の名前にする (`THREE.StackBlurPass` 等)。
-
-### 6.4 renderer パイプラインに乗せる
+### 6.3 renderer パイプラインに乗せる
 
 カスタムエフェクトで `THREE.WebGLRenderTarget` を自前で立ててマルチパス処理するのは Panzoid の EffectComposer と統合する難易度が高い。 実例: dropshadow.js は Panzoid 由来の `THREE.ShaderPass` を使いつつ、 内部で `THREE.WebGLRenderTarget` を使って合成パスを実現している。 **`window.open` で `download.html` を直接開く方式** (file URL ではない) は動作確認済み (cf. save ボタン → download.html 起動 → FileSaver.js で保存)。
 
-### 6.5 ブランド表記のファイル
-
-- `<title>` は `index.html` に直書き
-- バージョン表記は `ui-1.0.72.js` 内の `name+" "+PZTOOLVERSION+"<br>Core "+PZVERSION+"<br>UI 1.0.72<br>Zoidium 0.0.1` 形式
-- Copyright は同ファイルの `Copyright 2019 Panzoid · modded by zoidnerd`
-
 ---
 
-## 10. 関連ドキュメント
+## 7. 関連ドキュメント
 
 - `README.md` — 英語版
 - `README.ja.md` — 日本語版
