@@ -93,10 +93,8 @@ zoidium/
 │   ├── images/             # Icons & favicon
 │   ├── shaders/            # 39 GLSL shaders
 │   └── textures/particles/ # 36 particle textures
-├── docs/                   # Format specs & development notes
 ├── README.md               # English
-├── README.ja.md            # 日本語
-└── REWRITE.md              # Long-term rewrite strategy
+└── README.ja.md            # 日本語
 ```
 
 ---
@@ -111,7 +109,7 @@ Zoidium is a static site with no build step. To deploy:
    - **Build output directory:** `/` (project root)
 3. Deploy.
 
-`node_modules/`, `dist/`, and the heavy `docs/` files are excluded via `.gitignore` and `.cfignore` so deploys stay lean.
+`node_modules/` and `dist/` are excluded via `.gitignore` and `.cfignore` so deploys stay lean.
 
 ### URL structure
 
@@ -150,13 +148,13 @@ To add a new effect:
 
 ### Inspecting the legacy Panzoid code
 
-The bundled `js/*.js` files are minified. For readable reference, see [`docs/PZ_FORMAT.md`](./docs/PZ_FORMAT.md) (Gen2) and [`docs/PZ_FORMAT_V3.md`](./docs/PZ_FORMAT_V3.md) (Gen3) for the `.pz` file format, and [`docs/TWEEN_LOCATIONS_SUMMARY.md`](./docs/TWEEN_LOCATIONS_SUMMARY.md) for a tween/easing catalog.
+The bundled `js/*.js` files are minified. Reverse-engineering notes and format specs live in a separate repository.
 
 ---
 
 ## Roadmap
 
-See [`REWRITE.md`](./REWRITE.md) for the long-term strategy: porting the legacy minified bundles to TypeScript + React + Vite while keeping wire-format compatibility with `.pz` files.
+Long-term strategy: port the legacy minified bundles to TypeScript + React + Vite while keeping wire-format compatibility with `.pz` files.
 
 ---
 
