@@ -5,8 +5,8 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "web": "npx serve . -p 8123 -s",
-    "dev": "npx serve . -p 8123 -s & sleep 1 && open http://localhost:8123",
+    "web": "npx serve . -p 8123",
+    "dev": "npx serve . -p 8123 & sleep 1 && open http://localhost:8123",
     "dist": "electron-builder"
   },
   "build": {
