@@ -27,5 +27,4 @@ Thumbs.db
 *.swo
 
 # Cloudflare Pages
-_redirects
 _headers

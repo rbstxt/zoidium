@@ -1,8 +1,8 @@
 # Zoidium
 
-> **Panzoid Clipmaker Gen3** のローカル・スタンドアロン・ミラー — オフライン利用、プライバシー重視、将来的な拡張のために再構築。
+> **Panzoid Clipmaker Gen3** の改造版。
 
-Zoidium は Panzoid Clipmaker（WebGL 動画エディタ）一式をバンドルし、**ネットワーク通信なし・テレメトリなし・広告なし**でローカル動作する。ブラウザアプリ / Electron デスクトップアプリ / 静的 Web デプロイ（Cloudflare Pages など任意の静的ホスト）の 3 形態で提供。
+Zoidium は Panzoid Clipmaker Gen3一式をバンドルし、**ネットワーク通信なし・テレメトリなし・広告なし**でローカル動作する。ブラウザアプリ / Electron デスクトップアプリ / 静的 Web デプロイ（Cloudflare Pages など任意の静的ホスト）の 3 形態で提供。
 
 ---
 
