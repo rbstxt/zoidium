@@ -1,8 +1,8 @@
 # Zoidium
 
-> A local, standalone mirror of **Panzoid Clipmaker Gen3** — rebuilt for offline use, privacy-first, and future extensibility.
+> A modified version of **Panzoid Clipmaker Gen3**.
 
-Zoidium bundles the entire Panzoid Clipmaker (WebGL video editor) so you can run it locally with **no network calls, no telemetry, and no ads**. Available as a browser app, an Electron desktop app, or a static deploy on Cloudflare Pages / any static host.
+Zoidium bundles the full Panzoid Clipmaker Gen3 and runs entirely locally with **no network calls, no telemetry, and no ads**. Available as a browser app, an Electron desktop app, or a static deploy on Cloudflare Pages or any static host.
 
 ---
 
