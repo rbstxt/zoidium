@@ -21,6 +21,7 @@
       "pz.all-35.css",
       "js/**/*",
       "effect/**/*",
+      "effect-custom/**/*",
       "material/**/*",
       "worker/**/*",
       "assets/**/*",
