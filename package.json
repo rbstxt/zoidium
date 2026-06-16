@@ -1,0 +1,51 @@
+{
+  "name": "zoidium",
+  "version": "1.0.0",
+  "description": "Offline Panzoid Clipmaker Gen3 mirror",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "web": "npx serve . -p 8123 -s",
+    "dev": "npx serve . -p 8123 -s & sleep 1 && open http://localhost:8123",
+    "dist": "electron-builder"
+  },
+  "build": {
+    "appId": "com.zoidium.app",
+    "productName": "Zoidium",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "index.html",
+      "main.js",
+      "pz.all-35.css",
+      "js/**/*",
+      "effect/**/*",
+      "material/**/*",
+      "worker/**/*",
+      "assets/**/*",
+      "fonts/**/*"
+    ],
+    "mac": {
+      "target": [
+        "dmg"
+      ]
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ]
+    }
+  },
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.1",
+    "serve": "^14.2.6",
+    "serve-handler": "^6.1.7"
+  }
+}
