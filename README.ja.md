@@ -95,8 +95,7 @@ zoidium/
 │   └── textures/particles/ # 36 種のパーティクルテクスチャ
 ├── docs/                   # フォーマット仕様 & 開発ノート
 ├── README.md               # English
-├── README.ja.md            # 日本語
-└── REWRITE.md              # 長期的リライト戦略
+└── README.ja.md            # 日本語
 ```
 
 ---
@@ -160,7 +159,7 @@ Zoidium はビルドステップなしの静的サイト。
 
 ## ロードマップ
 
-[`REWRITE.md`](./REWRITE.md) を参照。レガシー minified バンドルを TypeScript + React + Vite に移植しつつ、`.pz` ファイルとのワイヤー形式互換性を維持する長期戦略。
+レガシー minified バンドルを TypeScript + React + Vite に移植しつつ、 `.pz` ファイルとのワイヤー形式互換性を維持する長期戦略。
 
 ---
 
