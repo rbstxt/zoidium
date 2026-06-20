@@ -28,3 +28,9 @@ Thumbs.db
 
 # Cloudflare Pages
 _headers
+
+# Local test artifacts (screenshots, dev outputs)
+.zoidium_test/
+
+# Raw Panzoid creation downloads (source of group preset conversions)
+/sync.json
