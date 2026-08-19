@@ -17,14 +17,15 @@
     },
     "files": [
       "index.html",
+      "fonts.png",
       "main.js",
       "pz.all-35.css",
       "docs/**/*",
       "js/**/*",
       "effect/**/*",
-      "effect-custom/**/*",
       "effect-custom-bezier-editor/**/*",
       "material/**/*",
+      "plugins/**/*",
       "worker/**/*",
       "assets/**/*",
       "fonts/**/*"
