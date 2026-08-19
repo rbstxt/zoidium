@@ -1,0 +1,107 @@
+.zoidium-plugin-panel {
+  background-color: #2a2a2a;
+  box-sizing: border-box;
+  height: 100%;
+  overflow-y: auto;
+  width: 100%;
+}
+
+.zoidium-plugin-panel[hidden] {
+  display: none;
+}
+
+.zoidium-plugin-row {
+  align-items: center;
+  min-height: 44px;
+}
+
+.zoidium-plugin-copy {
+  min-width: 0;
+}
+
+.zoidium-plugin-name {
+  color: #ccc;
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zoidium-plugin-meta {
+  color: #969696;
+  display: block;
+  font-size: 13px;
+  margin-top: 3px;
+}
+
+.zoidium-plugin-state[data-state="enabled"] {
+  color: #93a6d3;
+}
+
+.zoidium-plugin-state[data-state="error"] {
+  color: #d58b8b;
+}
+
+.zoidium-plugin-description,
+.zoidium-plugin-note {
+  color: #969696;
+  display: block;
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.zoidium-plugin-switch {
+  cursor: pointer;
+  display: inline-flex;
+  margin: 0 3px 0 8px;
+  position: relative;
+}
+
+.zoidium-plugin-switch input {
+  height: 1px;
+  opacity: 0;
+  position: absolute;
+  width: 1px;
+}
+
+.zoidium-plugin-track {
+  background-color: #202020;
+  border: 1px solid #4a4a4a;
+  border-radius: 10px;
+  box-sizing: border-box;
+  display: block;
+  height: 20px;
+  position: relative;
+  width: 36px;
+}
+
+.zoidium-plugin-track::after {
+  background-color: #aaa;
+  border-radius: 50%;
+  content: "";
+  height: 14px;
+  left: 2px;
+  position: absolute;
+  top: 2px;
+  width: 14px;
+}
+
+.zoidium-plugin-switch input:checked + .zoidium-plugin-track {
+  background-color: #384668;
+  border-color: #65769f;
+}
+
+.zoidium-plugin-switch input:checked + .zoidium-plugin-track::after {
+  background-color: #ddd;
+  left: 18px;
+}
+
+.zoidium-plugin-switch input:focus-visible + .zoidium-plugin-track {
+  outline: 2px solid #7182aa;
+  outline-offset: 1px;
+}
+
+.zoidium-plugin-switch input:disabled + .zoidium-plugin-track {
+  cursor: wait;
+  opacity: 0.55;
+}

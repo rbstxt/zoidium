@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "plugins": [
+    {
+      "id": "alipfx-shader-pack-4",
+      "name": "AlipFX Shader Pack 4",
+      "author": "AlipFX",
+      "version": "4",
+      "effectCount": 174,
+      "format": "GLSL",
+      "description": "A complete collection of native Panzoid shader effects.",
+      "manifest": "./plugins/alipfx/manifest.json"
+    }
+  ]
+}
