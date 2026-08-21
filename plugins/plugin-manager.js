@@ -3,7 +3,21 @@
 
   const REGISTRY_URL = "./plugins/registry.json";
   const STORAGE_PREFIX = "zoidium.plugin.enabled.";
+  const SHADER_PLUGIN_MARKER = "// @zoidium-plugin ";
   const pluginStates = new Map();
+  const trackedPluginEffects = new Set();
+  let projectHooksInstalled = false;
+  let registryReadySettled = false;
+  let resolveRegistryReady;
+  const registryReady = new Promise((resolve) => {
+    resolveRegistryReady = resolve;
+  });
+
+  function settleRegistryReady() {
+    if (registryReadySettled) return;
+    registryReadySettled = true;
+    resolveRegistryReady();
+  }
 
   function storageKey(pluginId) {
     return `${STORAGE_PREFIX}${pluginId}`;
@@ -62,7 +76,40 @@
     return miscIndex < 0 ? effects.length : miscIndex;
   }
 
-  function createLazyEffectData(effect, cache) {
+  function createPluginMarker(plugin, effect) {
+    return `${SHADER_PLUGIN_MARKER}${JSON.stringify({
+      id: plugin.id,
+      name: plugin.name,
+      author: plugin.author,
+      version: String(plugin.version),
+      effect: effect.id,
+    })}`;
+  }
+
+  function readPluginMarker(shader) {
+    if (shader && typeof shader === "object") shader = shader.value;
+    if (typeof shader !== "string") return null;
+    const markerIndex = shader.lastIndexOf(SHADER_PLUGIN_MARKER);
+    if (markerIndex < 0) return null;
+    const marker = shader
+      .slice(markerIndex + SHADER_PLUGIN_MARKER.length)
+      .split(/\r?\n/, 1)[0];
+    try {
+      const metadata = JSON.parse(marker);
+      if (!metadata || typeof metadata.id !== "string") return null;
+      return {
+        id: metadata.id,
+        name: typeof metadata.name === "string" ? metadata.name : metadata.id,
+        author: typeof metadata.author === "string" ? metadata.author : "",
+        version: String(metadata.version || ""),
+        effect: typeof metadata.effect === "string" ? metadata.effect : "",
+      };
+    } catch (_error) {
+      return null;
+    }
+  }
+
+  function createLazyEffectData(plugin, effect, cache) {
     return async function () {
       if (!cache.has(effect.id)) {
         cache.set(
@@ -72,7 +119,10 @@
               if (preset.type !== 1 || !preset.properties) {
                 throw new Error(`Invalid shader preset: ${effect.id}`);
               }
-              preset.properties.fragShader = shader;
+              preset.properties.fragShader = `${shader.replace(/\s+$/, "")}\n${createPluginMarker(
+                plugin,
+                effect
+              )}\n`;
               return preset;
             }
           )
@@ -97,7 +147,7 @@
         name: effect.name,
         desc: effect.description || `${effect.name} — ${manifest.name}`,
         type: 1,
-        data: createLazyEffectData(effect, state.effectCache),
+        data: createLazyEffectData(plugin, effect, state.effectCache),
         _zoidiumPluginId: plugin.id,
         _zoidiumPluginEffectId: effect.id,
       })),
@@ -129,6 +179,150 @@
         detail: { pluginId, enabled, effectCount },
       })
     );
+  }
+
+  function pluginIsEnabled(state) {
+    return state?.card?.dataset.phase === "enabled";
+  }
+
+  function normalizeProjectPlugins(plugins) {
+    if (!Array.isArray(plugins)) return [];
+    const seen = new Set();
+    return plugins.flatMap((plugin) => {
+      const descriptor =
+        typeof plugin === "string"
+          ? { id: plugin }
+          : plugin && typeof plugin === "object"
+            ? plugin
+            : null;
+      if (!descriptor || typeof descriptor.id !== "string" || seen.has(descriptor.id)) return [];
+      seen.add(descriptor.id);
+      return [
+        {
+          id: descriptor.id,
+          name: typeof descriptor.name === "string" ? descriptor.name : descriptor.id,
+          version: descriptor.version == null ? "" : String(descriptor.version),
+          author: typeof descriptor.author === "string" ? descriptor.author : "",
+          effects: Array.isArray(descriptor.effects)
+            ? descriptor.effects.filter((effect) => typeof effect === "string")
+            : [],
+        },
+      ];
+    });
+  }
+
+  async function activateProjectPlugins(project, plugins) {
+    await registryReady;
+    for (const requested of plugins) {
+      const state = pluginStates.get(requested.id);
+      if (!state) {
+        window.alert(
+          `このプロジェクトに必要なプラグイン「${requested.name}」${
+            requested.version ? ` v${requested.version}` : ""
+          }は、このZoidiumにはインストールされていません。`
+        );
+        continue;
+      }
+      if (pluginIsEnabled(state)) continue;
+
+      const installedVersion = String(state.plugin.version || "");
+      const versionNote =
+        requested.version && requested.version !== installedVersion
+          ? `\nプロジェクトのバージョン: ${requested.version}\nインストール済み: ${installedVersion}`
+          : installedVersion
+            ? ` v${installedVersion}`
+            : "";
+      const approved = window.confirm(
+        `このプロジェクトはプラグイン「${state.plugin.name}」${versionNote}を使用しています。\n\nこのプラグインを有効にしますか？`
+      );
+      if (approved) await enablePlugin(state, true);
+    }
+    project._zoidiumPluginActivationPending = null;
+  }
+
+  function collectProjectPlugins(project) {
+    const used = new Map();
+    for (const effect of trackedPluginEffects) {
+      let belongsToProject = false;
+      try {
+        belongsToProject = effect.parentProject === project;
+      } catch (_error) {
+        // Detached effects are removed by their unload hook.
+      }
+      if (!belongsToProject || !effect._zoidiumPluginMetadata) continue;
+      const metadata = effect._zoidiumPluginMetadata;
+      let entry = used.get(metadata.id);
+      if (!entry) {
+        const installed = pluginStates.get(metadata.id)?.plugin;
+        entry = {
+          id: metadata.id,
+          name: installed?.name || metadata.name || metadata.id,
+          version: String(installed?.version || metadata.version || ""),
+          author: installed?.author || metadata.author || "",
+          effects: new Set(),
+        };
+        used.set(metadata.id, entry);
+      }
+      if (metadata.effect) entry.effects.add(metadata.effect);
+    }
+    return Array.from(used.values(), (entry) => ({
+      id: entry.id,
+      name: entry.name,
+      version: entry.version,
+      author: entry.author,
+      effects: Array.from(entry.effects).sort(),
+    })).sort((a, b) => a.id.localeCompare(b.id));
+  }
+
+  function installProjectPluginHooks() {
+    if (projectHooksInstalled || !PZ.project?.prototype || !PZ.effect?.shader?.prototype) return;
+    projectHooksInstalled = true;
+
+    const shaderPrototype = PZ.effect.shader.prototype;
+    const originalShaderLoad = shaderPrototype.load;
+    shaderPrototype.load = async function (data) {
+      const metadata = readPluginMarker(data?.properties?.fragShader);
+      if (metadata) {
+        this._zoidiumPluginMetadata = metadata;
+        trackedPluginEffects.add(this);
+      } else {
+        delete this._zoidiumPluginMetadata;
+        trackedPluginEffects.delete(this);
+      }
+      return originalShaderLoad.apply(this, arguments);
+    };
+
+    const originalShaderUnload = shaderPrototype.unload;
+    shaderPrototype.unload = function () {
+      trackedPluginEffects.delete(this);
+      return originalShaderUnload.apply(this, arguments);
+    };
+
+    const projectPrototype = PZ.project.prototype;
+    const originalProjectToJSON = projectPrototype.toJSON;
+    projectPrototype.toJSON = function () {
+      const json = originalProjectToJSON.apply(this, arguments);
+      json.plugins = collectProjectPlugins(this);
+      return json;
+    };
+
+    const originalProjectLoad = projectPrototype.load;
+    projectPrototype.load = function (data) {
+      const result = originalProjectLoad.apply(this, arguments);
+      const plugins = normalizeProjectPlugins(data?.plugins);
+      Object.defineProperty(this, "_zoidiumProjectPlugins", {
+        configurable: true,
+        writable: true,
+        value: plugins,
+      });
+      if (plugins.length > 0) {
+        this._zoidiumPluginActivationPending = activateProjectPlugins(this, plugins).catch((error) => {
+          this._zoidiumPluginActivationPending = null;
+          console.error("[Zoidium] failed to activate project plugins:", error);
+        });
+      }
+      return result;
+    };
   }
 
   async function enablePlugin(state, persist) {
@@ -247,11 +441,10 @@
     tab.title = "Plugins";
     tab.pz_tab = pluginPanel;
     tab.pz_container = panel;
-    tab.innerHTML = `
-      <svg aria-hidden="true">
-        <use href="./assets/images/zoidium.plugins.svg#plugin-manager"></use>
-      </svg>
-      <span>Plugins</span>`;
+    tab.appendChild(PZ.ui.generateIcon("plugin-manager"));
+    const tabLabel = document.createElement("span");
+    tabLabel.textContent = "Plugins";
+    tab.appendChild(tabLabel);
 
     const aboutTab = Array.from(tabs.children).find((item) => item.title === "About");
     tabs.insertBefore(tab, aboutTab || null);
@@ -266,7 +459,12 @@
       setTimeout(initialize, 50);
       return;
     }
-    if (document.querySelector(".zoidium-plugin-tab")) return;
+    if (document.querySelector(".zoidium-plugin-tab")) {
+      settleRegistryReady();
+      return;
+    }
+
+    installProjectPluginHooks();
 
     try {
       const registry = await fetchJson(REGISTRY_URL);
@@ -281,6 +479,8 @@
       }
     } catch (error) {
       console.error("[Zoidium] plugin manager failed to initialize:", error);
+    } finally {
+      settleRegistryReady();
     }
   }
 
