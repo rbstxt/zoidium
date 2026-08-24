@@ -1,7 +1,7 @@
 (function () {
   "use strict";
 
-  const REGISTRY_URL = "./plugins/registry.json?v=6";
+  const REGISTRY_URL = "./plugins/registry.json?v=7";
   const STORAGE_PREFIX = "zoidium.plugin.enabled.";
   const SHADER_PLUGIN_MARKER = "// @zoidium-plugin ";
   const NATIVE_FX_PLUGIN_ID = "native-fx";
@@ -14,6 +14,7 @@
     "native-fx": "#c56b3d",
     "light-plus": "#2f9b86",
     "alipfx-shader-pack-4": "#a04ed1",
+    "player-plus": "#4f7dbf",
   });
   const pluginStates = new Map();
   const trackedNativeEffects = new Set();
