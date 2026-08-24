@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "native-fx",
+  "name": "Native FX",
+  "author": "Zoidium",
+  "version": "1",
+  "category": "NATIVE FX",
+  "nativeEffects": [
+    {
+      "id": "radialblurspin",
+      "name": "Radial Blur (Spin)",
+      "description": "Applies a radial spin blur around an adjustable center.",
+      "source": "./plugins/native-fx/effects/radialblurspin.js"
+    },
+    {
+      "id": "dropshadow",
+      "name": "Drop Shadow",
+      "description": "Adds a colored, offset, blurred shadow behind the layer.",
+      "source": "./plugins/native-fx/effects/dropshadow.js"
+    }
+  ]
+}

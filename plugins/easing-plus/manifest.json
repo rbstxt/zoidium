@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "id": "easing-plus",
+  "name": "Easing+",
+  "author": "Zoidium",
+  "version": "6",
+  "modules": [
+    {
+      "id": "curve-editor",
+      "source": "./plugins/easing-plus/easing-plus.js?v=6"
+    }
+  ]
+}

@@ -34,6 +34,10 @@
   margin-top: 3px;
 }
 
+.zoidium-plugin-state {
+  display: none;
+}
+
 .zoidium-plugin-state[data-state="enabled"] {
   color: #93a6d3;
 }
@@ -42,12 +46,46 @@
   color: #d58b8b;
 }
 
-.zoidium-plugin-description,
-.zoidium-plugin-note {
+.zoidium-effect-plugin-badge {
+  background-color: var(--zoidium-plugin-background, rgba(113, 130, 170, 0.2));
+  border: 1px solid var(--zoidium-plugin-border, rgba(113, 130, 170, 0.6));
+  border-radius: 999px;
+  color: var(--zoidium-plugin-color, #7182aa);
+  display: inline-block;
+  font-size: 0.72em;
+  line-height: 1.05;
+  margin-left: 7px;
+  padding: 1px 4px;
+  transform: translate(2px, -2px);
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.pz-options > li .zoidium-effect-plugin-badge {
+  color: var(--zoidium-plugin-color, #7182aa) !important;
+  display: inline-block;
+  font-size: 0.72em !important;
+  line-height: 1.05 !important;
+  margin-top: 0;
+}
+
+.zoidium-plugin-description {
   color: #969696;
   display: block;
   font-size: 14px;
   line-height: 1.35;
+}
+
+.zoidium-plugin-warning-row {
+  background: rgba(120, 34, 34, 0.18);
+  border-left: 3px solid #a94b4b;
+}
+
+.zoidium-plugin-warning {
+  color: #df9b9b;
+  display: block;
+  font-size: 13px;
+  line-height: 1.4;
 }
 
 .zoidium-plugin-switch {
