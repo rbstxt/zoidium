@@ -2,12 +2,52 @@
   "schemaVersion": 1,
   "plugins": [
     {
+      "id": "easing-plus",
+      "name": "Easing+",
+      "author": "Zoidium",
+      "version": "6",
+      "itemCount": 1,
+      "format": "curve editor",
+      "tagline": "Extended Bezier Easing",
+      "color": "#384668",
+      "description": "A normalized cubic Bezier editor with a focused set of reusable presets.",
+      "manifest": "./plugins/easing-plus/manifest.json?v=6"
+    },
+    {
+      "id": "native-fx",
+      "name": "Native FX",
+      "author": "Zoidium",
+      "version": "1",
+      "itemCount": 2,
+      "format": "native effects",
+      "tagline": "Native AfterClip Effects",
+      "color": "#c56b3d",
+      "description": "Adds native multi-pass effects using AfterClip-compatible effect types.",
+      "warning": "Native FX effects are not compatible with vanilla Panzoid Clipmaker 3. Projects using this pack require Zoidium or AfterClip.",
+      "manifest": "./plugins/native-fx/manifest.json"
+    },
+    {
+      "id": "light-plus",
+      "name": "Light+",
+      "author": "Zoidium",
+      "version": "1",
+      "itemCount": 4,
+      "format": "3D lights",
+      "tagline": "Expanded Light Types",
+      "color": "#2f9b86",
+      "description": "Upgrades the standard Light button with a chooser for Spot, Point, Directional, and Hemisphere lights.",
+      "manifest": "./plugins/light-plus/manifest.json"
+    },
+    {
       "id": "alipfx-shader-pack-4",
       "name": "Afterzoid Shader Pack 4",
       "author": "AlipFX",
       "version": "4",
       "effectCount": 174,
       "format": "GLSL",
+      "tagline": "Shader Preset Pack",
+      "badgeName": "Afterzoid",
+      "color": "#a04ed1",
       "description": "A complete collection of native Panzoid shader effects.",
       "manifest": "./plugins/alipfx/manifest.json"
     }
