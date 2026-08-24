@@ -14,6 +14,18 @@
       "manifest": "./plugins/easing-plus/manifest.json?v=6"
     },
     {
+      "id": "player-plus",
+      "name": "Player+",
+      "author": "Zoidium",
+      "version": "1",
+      "itemCount": 1,
+      "format": "playback controls",
+      "tagline": "Playback Quality Controls",
+      "color": "#4f7dbf",
+      "description": "Adds a drawing pause button and preview quality controls to the playback bar.",
+      "manifest": "./plugins/player-plus/manifest.json?v=1"
+    },
+    {
       "id": "native-fx",
       "name": "Native FX",
       "author": "Zoidium",

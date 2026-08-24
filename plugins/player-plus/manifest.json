@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "id": "player-plus",
+  "name": "Player+",
+  "author": "Zoidium",
+  "version": "1",
+  "modules": [
+    {
+      "id": "player-controls",
+      "source": "./plugins/player-plus/player-plus.js?v=1"
+    }
+  ]
+}
