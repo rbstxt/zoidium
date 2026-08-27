@@ -1,0 +1,417 @@
+{
+  "type": 1,
+  "properties": {
+    "name": "Chevron",
+    "enabled": {
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 1,
+          "frame": 0,
+          "tween": 0,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    }
+  },
+  "customProperties": [
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Opacity"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 1,
+          "frame": 0,
+          "tween": 1
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "group": true,
+        "dynamic": true,
+        "objects": [
+          {
+            "dynamic": true,
+            "name": "X",
+            "type": 0,
+            "value": 1
+          },
+          {
+            "dynamic": true,
+            "name": "Y",
+            "type": 0,
+            "value": 1
+          }
+        ],
+        "type": 1
+      },
+      "properties": {
+        "name": "Scale"
+      },
+      "objects": [
+        {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 1,
+              "frame": 0,
+              "tween": 1
+            }
+          ]
+        },
+        {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 1,
+              "frame": 0,
+              "tween": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Rotation"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 0,
+          "frame": 0,
+          "tween": 1
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Offset"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 0,
+          "frame": 0,
+          "tween": 1
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Offset2"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 0,
+          "frame": 0,
+          "tween": 1
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0,
+        "min": 0,
+        "max": 1
+      },
+      "properties": {
+        "name": "Margin"
+      },
+      "keyframes": [
+        {
+          "value": 0.15,
+          "frame": 0,
+          "tween": 1
+        }
+      ],
+      "animated": false
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0,
+        "min": 0.01
+      },
+      "properties": {
+        "name": "StripeWidth"
+      },
+      "keyframes": [
+        {
+          "value": 5,
+          "frame": 0,
+          "tween": 1
+        }
+      ],
+      "animated": false
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0,
+        "min": 0,
+        "max": 1
+      },
+      "properties": {
+        "name": "StripeMargin"
+      },
+      "keyframes": [
+        {
+          "value": 0.5,
+          "frame": 0,
+          "tween": 1
+        }
+      ],
+      "animated": false
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "StripeOffset"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 0,
+          "frame": 0,
+          "tween": 1
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "StripeRotation"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 0,
+          "frame": 0,
+          "tween": 1
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "PatternRotation"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 0,
+          "frame": 0,
+          "tween": 1
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "group": true,
+        "dynamic": true,
+        "objects": [
+          {
+            "dynamic": true,
+            "name": "X",
+            "type": 0,
+            "value": 0.5
+          },
+          {
+            "dynamic": true,
+            "name": "Y",
+            "type": 0,
+            "value": 0.5
+          }
+        ],
+        "type": 1
+      },
+      "properties": {
+        "name": "PatternScale"
+      },
+      "objects": [
+        {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 0.5,
+              "frame": 0,
+              "tween": 1
+            }
+          ]
+        },
+        {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 0.5,
+              "frame": 0,
+              "tween": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "group": true,
+        "dynamic": true,
+        "objects": [
+          {
+            "dynamic": true,
+            "name": "X",
+            "type": 0,
+            "value": 0
+          },
+          {
+            "dynamic": true,
+            "name": "Y",
+            "type": 0,
+            "value": 0
+          }
+        ],
+        "type": 1
+      },
+      "properties": {
+        "name": "Position"
+      },
+      "objects": [
+        {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 0,
+              "frame": 0,
+              "tween": 1
+            }
+          ]
+        },
+        {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 0,
+              "frame": 0,
+              "tween": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "group": true,
+        "dynamic": true,
+        "objects": [
+          {
+            "dynamic": true,
+            "name": "R",
+            "type": 0,
+            "value": 1
+          },
+          {
+            "dynamic": true,
+            "name": "G",
+            "type": 0,
+            "value": 1
+          },
+          {
+            "dynamic": true,
+            "name": "B",
+            "type": 0,
+            "value": 1
+          }
+        ],
+        "type": 4
+      },
+      "properties": {
+        "name": "Color"
+      },
+      "objects": [
+        {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 1,
+              "frame": 0,
+              "tween": 1
+            }
+          ]
+        },
+        {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 1,
+              "frame": 0,
+              "tween": 1
+            }
+          ]
+        },
+        {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 1,
+              "frame": 0,
+              "tween": 1
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

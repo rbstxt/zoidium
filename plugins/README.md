@@ -9,6 +9,20 @@ UI-only plugins use a manifest `modules` array. Each module exports `activate(co
 and may export `deactivate()`. The plugin manager runs activation only while the pack
 is enabled and restores the original UI behavior when it is disabled.
 
+Shader packs may also declare `effects` and `groups`. An effect references one preset
+JSON and one GLSL file. A group references a group preset plus any inline shader files;
+the manager hydrates those shaders before passing the data to Panzoid's built-in group
+effect. This keeps group presets optional and self-contained inside the plugin pack.
+
+The optional AfterClip pack is generated from the separate AfterClip source tree with:
+
+```bash
+node tools/build-afterclip-plugin.js "/path/to/AfterClip/src"
+```
+
+It includes the non-VHS, non-Twitch AfterClip shaders and group presets, normalized for
+Zoidium's WebGL 1 and premultiplied source-over conventions.
+
 ## Project metadata
 
 Saved project JSON has a root-level `plugins` array only when an incompatible

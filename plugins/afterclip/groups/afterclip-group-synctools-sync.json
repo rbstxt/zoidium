@@ -1,0 +1,2954 @@
+{
+  "type": 0,
+  "properties": {
+    "name": "SyncTools v2",
+    "enabled": {
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 1,
+          "frame": -450,
+          "tween": 0,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    }
+  },
+  "customProperties": [
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Sync"
+      },
+      "animated": true,
+      "keyframes": [
+        {
+          "value": 33,
+          "frame": 0,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        },
+        {
+          "value": 34,
+          "frame": 28,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        },
+        {
+          "value": 35,
+          "frame": 56,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        },
+        {
+          "value": 36,
+          "frame": 84,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        },
+        {
+          "value": 37,
+          "frame": 113,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        },
+        {
+          "value": 38,
+          "frame": 141,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        },
+        {
+          "value": 39,
+          "frame": 169,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        },
+        {
+          "value": 40,
+          "frame": 197,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        },
+        {
+          "value": 41,
+          "frame": 225,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        },
+        {
+          "value": 41.5,
+          "frame": 256,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "group": true,
+        "dynamic": true,
+        "objects": [
+          {
+            "dynamic": true,
+            "name": "X",
+            "type": 0,
+            "value": 0
+          },
+          {
+            "dynamic": true,
+            "name": "Y",
+            "type": 0,
+            "value": 0
+          }
+        ],
+        "type": 1
+      },
+      "properties": {
+        "name": "Shake"
+      },
+      "objects": [
+        {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 1,
+              "frame": -450,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 4,
+              "frame": -450,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "In Power - Shake"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 2.5,
+          "frame": -450,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Out Power - Shake"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 2,
+          "frame": -450,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "In Ratio - Shake"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 0.3,
+          "frame": -450,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "group": true,
+        "dynamic": true,
+        "objects": [
+          {
+            "dynamic": true,
+            "name": "X",
+            "type": 0,
+            "value": 0
+          },
+          {
+            "dynamic": true,
+            "name": "Y",
+            "type": 0,
+            "value": 0
+          }
+        ],
+        "type": 1
+      },
+      "properties": {
+        "name": "Zoom"
+      },
+      "objects": [
+        {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 0,
+              "frame": -450,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 0.2,
+              "frame": -450,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "In Power - Zoom"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 2.5,
+          "frame": -450,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Out Power - Zoom"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 2,
+          "frame": -450,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "In Ratio - Zoom"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 0.3,
+          "frame": -450,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "group": true,
+        "dynamic": true,
+        "objects": [
+          {
+            "dynamic": true,
+            "name": "X",
+            "type": 0,
+            "value": 0
+          },
+          {
+            "dynamic": true,
+            "name": "Y",
+            "type": 0,
+            "value": 0
+          }
+        ],
+        "type": 1
+      },
+      "properties": {
+        "name": "Bloom"
+      },
+      "objects": [
+        {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 0,
+              "frame": -450,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 0.01,
+              "frame": -450,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "In Power - Bloom"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 1.5,
+          "frame": -450,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Out Power - Bloom"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 2,
+          "frame": -450,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "In Ratio - Bloom"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 0.2,
+          "frame": -450,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "group": true,
+        "dynamic": true,
+        "objects": [
+          {
+            "dynamic": true,
+            "name": "X",
+            "type": 0,
+            "value": 0
+          },
+          {
+            "dynamic": true,
+            "name": "Y",
+            "type": 0,
+            "value": 0
+          }
+        ],
+        "type": 1
+      },
+      "properties": {
+        "name": "Directional"
+      },
+      "objects": [
+        {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 0,
+              "frame": -450,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 10.45,
+              "frame": -450,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "In Power - Directional"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 4,
+          "frame": -450,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Out Power - Directional"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 15,
+          "frame": -450,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "In Ratio - Directional"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 0.1,
+          "frame": -450,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "group": true,
+        "dynamic": true,
+        "objects": [
+          {
+            "dynamic": true,
+            "name": "X",
+            "type": 0,
+            "value": 0
+          },
+          {
+            "dynamic": true,
+            "name": "Y",
+            "type": 0,
+            "value": 0
+          }
+        ],
+        "type": 1
+      },
+      "properties": {
+        "name": "RGB Shift"
+      },
+      "objects": [
+        {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 0,
+              "frame": -450,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 0.38,
+              "frame": -450,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "In Power - RGB Shift"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 4,
+          "frame": -450,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Out Power - RGB Shift"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 15,
+          "frame": -450,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "In Ratio - RGB Shift"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 0.1,
+          "frame": -450,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "group": true,
+        "dynamic": true,
+        "objects": [
+          {
+            "dynamic": true,
+            "name": "X",
+            "type": 0,
+            "value": 0
+          },
+          {
+            "dynamic": true,
+            "name": "Y",
+            "type": 0,
+            "value": 0
+          }
+        ],
+        "type": 1
+      },
+      "properties": {
+        "name": "Brightness"
+      },
+      "objects": [
+        {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 0,
+              "frame": -450,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 0.1,
+              "frame": -450,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "In Power - Brightness"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 15,
+          "frame": -450,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Out Power - Brightness"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 15,
+          "frame": -450,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "In Ratio - Brightness"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 0.5,
+          "frame": -450,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "group": true,
+        "dynamic": true,
+        "objects": [
+          {
+            "dynamic": true,
+            "name": "X",
+            "type": 0,
+            "value": 0
+          },
+          {
+            "dynamic": true,
+            "name": "Y",
+            "type": 0,
+            "value": 0
+          }
+        ],
+        "type": 1
+      },
+      "properties": {
+        "name": "Contrast"
+      },
+      "objects": [
+        {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 1,
+              "frame": -450,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 1.1,
+              "frame": -450,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "In Power - Contrast"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 15,
+          "frame": -450,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Out Power - Contrast"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 15,
+          "frame": -450,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "In Ratio - Contrast"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 0.5,
+          "frame": -450,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    }
+  ],
+  "objects": [
+    {
+      "type": 0,
+      "properties": {
+        "name": "Expressions",
+        "enabled": {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 1,
+              "frame": -450,
+              "tween": 0,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        }
+      },
+      "customProperties": [
+        {
+          "type": {
+            "custom": true,
+            "group": true,
+            "dynamic": true,
+            "objects": [
+              {
+                "dynamic": true,
+                "name": "R",
+                "type": 0,
+                "value": 1,
+                "min": 0,
+                "max": 1
+              },
+              {
+                "dynamic": true,
+                "name": "G",
+                "type": 0,
+                "value": 1,
+                "min": 0,
+                "max": 1
+              },
+              {
+                "dynamic": true,
+                "name": "B",
+                "type": 0,
+                "value": 1,
+                "min": 0,
+                "max": 1
+              }
+            ],
+            "type": 4
+          },
+          "properties": {
+            "name": "--- Code ---"
+          },
+          "objects": [
+            {
+              "animated": false,
+              "keyframes": [
+                {
+                  "value": 1,
+                  "frame": -450,
+                  "tween": 1,
+                  "controlPoints": [
+                    [
+                      -10,
+                      0
+                    ],
+                    [
+                      10,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "animated": false,
+              "keyframes": [
+                {
+                  "value": 0,
+                  "frame": -450,
+                  "tween": 1,
+                  "controlPoints": [
+                    [
+                      -10,
+                      0
+                    ],
+                    [
+                      10,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "animated": false,
+              "keyframes": [
+                {
+                  "value": 0,
+                  "frame": -450,
+                  "tween": 1,
+                  "controlPoints": [
+                    [
+                      -10,
+                      0
+                    ],
+                    [
+                      10,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": {
+            "custom": true,
+            "dynamic": true,
+            "type": 0
+          },
+          "properties": {
+            "name": "Shake"
+          },
+          "expression": "var p1 = properties[\"In Power - Shake\"];\nvar p2 = properties[\"Out Power - Shake\"];\nvar s = properties[\"Sync\"]%1;\nvar r = 1-properties[\"In Ratio - Shake\"];\nvar min = properties[\"Shake\"][0];\nvar max = properties[\"Shake\"][1];\nvar s1 = (s-r)/(1-r);\nvar s1 = pow((s1*(0<s1)),p1);\nvar s2 = 1-s/r;\nvar s2 = pow((s2*(0<s2)),p2);\n(s1+s2)*(max-min)+min;",
+          "animated": "var p1 = properties[\"In Power - Shake\"];\nvar p2 = properties[\"Out Power - Shake\"];\nvar s = properties[\"Sync\"]%1;\nvar r = 1-properties[\"In Ratio - Shake\"];\nvar min = properties[\"Shake\"][0];\nvar max = properties[\"Shake\"][1];\nvar s1 = (s-r)/(1-r);\nvar s1 = pow((s1*(0<s1)),p1);\nvar s2 = 1-s/r;\nvar s2 = pow((s2*(0<s2)),p2);\n(s1+s2)*(max-min)+min;",
+          "keyframes": [
+            {
+              "value": 0,
+              "frame": -450,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "type": {
+            "custom": true,
+            "dynamic": true,
+            "type": 0
+          },
+          "properties": {
+            "name": "Zoom"
+          },
+          "expression": "var p1 = properties[\"In Power - Zoom\"];\nvar p2 = properties[\"Out Power - Zoom\"];\nvar s = properties[\"Sync\"]%1;\nvar r = 1-properties[\"In Ratio - Zoom\"];\nvar min = properties[\"Zoom\"][0];\nvar max = properties[\"Zoom\"][1];\nvar s1 = (s-r)/(1-r);\nvar s1 = pow((s1*(0<s1)),p1);\nvar s2 = 1-s/r;\nvar s2 = pow((s2*(0<s2)),p2);\n(s1+s2)*(max-min)+min;",
+          "animated": "var p1 = properties[\"In Power - Zoom\"];\nvar p2 = properties[\"Out Power - Zoom\"];\nvar s = properties[\"Sync\"]%1;\nvar r = 1-properties[\"In Ratio - Zoom\"];\nvar min = properties[\"Zoom\"][0];\nvar max = properties[\"Zoom\"][1];\nvar s1 = (s-r)/(1-r);\nvar s1 = pow((s1*(0<s1)),p1);\nvar s2 = 1-s/r;\nvar s2 = pow((s2*(0<s2)),p2);\n(s1+s2)*(max-min)+min;",
+          "keyframes": [
+            {
+              "value": 0,
+              "frame": -450,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "type": {
+            "custom": true,
+            "dynamic": true,
+            "type": 0
+          },
+          "properties": {
+            "name": "Bloom"
+          },
+          "expression": "var p1 = properties[\"In Power - Bloom\"];\nvar p2 = properties[\"Out Power - Bloom\"];\nvar s = properties[\"Sync\"]%1;\nvar r = 1-properties[\"In Ratio - Bloom\"];\nvar min = properties[\"Bloom\"][0];\nvar max = properties[\"Bloom\"][1];\nvar s1 = (s-r)/(1-r);\nvar s1 = pow((s1*(0<s1)),p1);\nvar s2 = 1-s/r;\nvar s2 = pow((s2*(0<s2)),p2);\n(s1+s2)*(max-min)+min;",
+          "animated": "var p1 = properties[\"In Power - Bloom\"];\nvar p2 = properties[\"Out Power - Bloom\"];\nvar s = properties[\"Sync\"]%1;\nvar r = 1-properties[\"In Ratio - Bloom\"];\nvar min = properties[\"Bloom\"][0];\nvar max = properties[\"Bloom\"][1];\nvar s1 = (s-r)/(1-r);\nvar s1 = pow((s1*(0<s1)),p1);\nvar s2 = 1-s/r;\nvar s2 = pow((s2*(0<s2)),p2);\n(s1+s2)*(max-min)+min;",
+          "keyframes": [
+            {
+              "value": 0,
+              "frame": -450,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "type": {
+            "custom": true,
+            "dynamic": true,
+            "type": 0
+          },
+          "properties": {
+            "name": "Directional"
+          },
+          "expression": "var p1 = properties[\"In Power - Directional\"];\nvar p2 = properties[\"Out Power - Directional\"];\nvar s = properties[\"Sync\"]%1;\nvar r = 1-properties[\"In Ratio - Directional\"];\nvar min = properties[\"Directional\"][0];\nvar max = properties[\"Directional\"][1];\nvar s1 = (s-r)/(1-r);\nvar s1 = pow((s1*(0<s1)),p1);\nvar s2 = 1-s/r;\nvar s2 = pow((s2*(0<s2)),p2);\n(s1+s2)*(max-min)+min;",
+          "animated": "var p1 = properties[\"In Power - Directional\"];\nvar p2 = properties[\"Out Power - Directional\"];\nvar s = properties[\"Sync\"]%1;\nvar r = 1-properties[\"In Ratio - Directional\"];\nvar min = properties[\"Directional\"][0];\nvar max = properties[\"Directional\"][1];\nvar s1 = (s-r)/(1-r);\nvar s1 = pow((s1*(0<s1)),p1);\nvar s2 = 1-s/r;\nvar s2 = pow((s2*(0<s2)),p2);\n(s1+s2)*(max-min)+min;",
+          "keyframes": [
+            {
+              "value": 0,
+              "frame": -450,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "type": {
+            "custom": true,
+            "dynamic": true,
+            "type": 0
+          },
+          "properties": {
+            "name": "RGB Shift"
+          },
+          "expression": "var p1 = properties[\"In Power - RGB Shift\"];\nvar p2 = properties[\"Out Power - RGB Shift\"];\nvar s = properties[\"Sync\"]%1;\nvar r = 1-properties[\"In Ratio - RGB Shift\"];\nvar min = properties[\"RGB Shift\"][0];\nvar max = properties[\"RGB Shift\"][1];\nvar s1 = (s-r)/(1-r);\nvar s1 = pow((s1*(0<s1)),p1);\nvar s2 = 1-s/r;\nvar s2 = pow((s2*(0<s2)),p2);\n(s1+s2)*(max-min)+min;",
+          "animated": "var p1 = properties[\"In Power - RGB Shift\"];\nvar p2 = properties[\"Out Power - RGB Shift\"];\nvar s = properties[\"Sync\"]%1;\nvar r = 1-properties[\"In Ratio - RGB Shift\"];\nvar min = properties[\"RGB Shift\"][0];\nvar max = properties[\"RGB Shift\"][1];\nvar s1 = (s-r)/(1-r);\nvar s1 = pow((s1*(0<s1)),p1);\nvar s2 = 1-s/r;\nvar s2 = pow((s2*(0<s2)),p2);\n(s1+s2)*(max-min)+min;",
+          "keyframes": [
+            {
+              "value": 0,
+              "frame": -450,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "type": {
+            "custom": true,
+            "dynamic": true,
+            "type": 0
+          },
+          "properties": {
+            "name": "Brightness"
+          },
+          "expression": "var p1 = properties[\"In Power - Brightness\"];\nvar p2 = properties[\"Out Power - Brightness\"];\nvar s = properties[\"Sync\"]%1;\nvar r = 1-properties[\"In Ratio - Brightness\"];\nvar min = properties[\"Brightness\"][0];\nvar max = properties[\"Brightness\"][1];\nvar s1 = (s-r)/(1-r);\nvar s1 = pow((s1*(0<s1)),p1);\nvar s2 = 1-s/r;\nvar s2 = pow((s2*(0<s2)),p2);\n(s1+s2)*(max-min)+min;",
+          "animated": "var p1 = properties[\"In Power - Brightness\"];\nvar p2 = properties[\"Out Power - Brightness\"];\nvar s = properties[\"Sync\"]%1;\nvar r = 1-properties[\"In Ratio - Brightness\"];\nvar min = properties[\"Brightness\"][0];\nvar max = properties[\"Brightness\"][1];\nvar s1 = (s-r)/(1-r);\nvar s1 = pow((s1*(0<s1)),p1);\nvar s2 = 1-s/r;\nvar s2 = pow((s2*(0<s2)),p2);\n(s1+s2)*(max-min)+min;",
+          "keyframes": [
+            {
+              "value": 0,
+              "frame": -450,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "type": {
+            "custom": true,
+            "dynamic": true,
+            "type": 0
+          },
+          "properties": {
+            "name": "Contrast"
+          },
+          "expression": "var p1 = properties[\"In Power - Contrast\"];\nvar p2 = properties[\"Out Power - Contrast\"];\nvar s = properties[\"Sync\"]%1;\nvar r = 1-properties[\"In Ratio - Contrast\"];\nvar min = properties[\"Contrast\"][0];\nvar max = properties[\"Contrast\"][1];\nvar s1 = (s-r)/(1-r);\nvar s1 = pow((s1*(0<s1)),p1);\nvar s2 = 1-s/r;\nvar s2 = pow((s2*(0<s2)),p2);\n(s1+s2)*(max-min)+min;",
+          "animated": "var p1 = properties[\"In Power - Contrast\"];\nvar p2 = properties[\"Out Power - Contrast\"];\nvar s = properties[\"Sync\"]%1;\nvar r = 1-properties[\"In Ratio - Contrast\"];\nvar min = properties[\"Contrast\"][0];\nvar max = properties[\"Contrast\"][1];\nvar s1 = (s-r)/(1-r);\nvar s1 = pow((s1*(0<s1)),p1);\nvar s2 = 1-s/r;\nvar s2 = pow((s2*(0<s2)),p2);\n(s1+s2)*(max-min)+min;",
+          "keyframes": [
+            {
+              "value": 0,
+              "frame": -450,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        }
+      ],
+      "objects": [
+        {
+          "type": 0,
+          "properties": {
+            "name": "Ultimate Sync Expression",
+            "enabled": {
+              "animated": false,
+              "keyframes": [
+                {
+                  "value": 1,
+                  "frame": -450,
+                  "tween": 0,
+                  "controlPoints": [
+                    [
+                      -10,
+                      0
+                    ],
+                    [
+                      10,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            }
+          },
+          "customProperties": [
+            {
+              "type": {
+                "custom": true,
+                "dynamic": true,
+                "type": 0
+              },
+              "properties": {
+                "name": "Made by SkooArtz"
+              },
+              "animated": false,
+              "keyframes": [
+                {
+                  "value": 0,
+                  "frame": -450,
+                  "tween": 1,
+                  "controlPoints": [
+                    [
+                      -10,
+                      0
+                    ],
+                    [
+                      10,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "type": {
+                "custom": true,
+                "dynamic": true,
+                "type": 0
+              },
+              "properties": {
+                "name": "Notes [Open Code Window]"
+              },
+              "expression": "0;\n// To lower randomness on the main shake,\n// go to the shake and reduce the Noise\n// levels at the very bottom and if you\n// want to change the shake settings, you\n// do it in the shake effect. \n\n// If you want to customize the\n// directional blur direction\n// yourself, you can click on the\n// stopwatch on the left of the\n// property, so that the\n// expression \"time\" has\n// has disappeared.",
+              "animated": "0;\n// To lower randomness on the main shake,\n// go to the shake and reduce the Noise\n// levels at the very bottom and if you\n// want to change the shake settings, you\n// do it in the shake effect. \n\n// If you want to customize the\n// directional blur direction\n// yourself, you can click on the\n// stopwatch on the left of the\n// property, so that the\n// expression \"time\" has\n// has disappeared.",
+              "keyframes": [
+                {
+                  "value": 0,
+                  "frame": -450,
+                  "tween": 1,
+                  "controlPoints": [
+                    [
+                      -10,
+                      0
+                    ],
+                    [
+                      10,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "type": {
+                "custom": true,
+                "dynamic": true,
+                "type": 0
+              },
+              "properties": {
+                "name": "-------- Main FX --------"
+              },
+              "animated": false,
+              "keyframes": [
+                {
+                  "value": 0,
+                  "frame": -450,
+                  "tween": 1,
+                  "controlPoints": [
+                    [
+                      -10,
+                      0
+                    ],
+                    [
+                      10,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "type": {
+                "custom": true,
+                "dynamic": true,
+                "type": 0
+              },
+              "properties": {
+                "name": "Zoom"
+              },
+              "expression": "properties[\"Zoom\"]",
+              "animated": "properties[\"Zoom\"]",
+              "keyframes": [
+                {
+                  "value": 0,
+                  "frame": -450,
+                  "tween": 1,
+                  "controlPoints": [
+                    [
+                      -10,
+                      0
+                    ],
+                    [
+                      10,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "type": {
+                "custom": true,
+                "dynamic": true,
+                "type": 0
+              },
+              "properties": {
+                "name": "Main Shake"
+              },
+              "expression": "properties[\"Shake\"]",
+              "animated": "properties[\"Shake\"]",
+              "keyframes": [
+                {
+                  "value": 1,
+                  "frame": -450,
+                  "tween": 1,
+                  "controlPoints": [
+                    [
+                      -10,
+                      0
+                    ],
+                    [
+                      10,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "type": {
+                "custom": true,
+                "dynamic": true,
+                "type": 0
+              },
+              "properties": {
+                "name": "Main Shake Speed"
+              },
+              "animated": false,
+              "keyframes": [
+                {
+                  "value": 4,
+                  "frame": -450,
+                  "tween": 1,
+                  "controlPoints": [
+                    [
+                      -10,
+                      0
+                    ],
+                    [
+                      10,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "type": {
+                "custom": true,
+                "dynamic": true,
+                "type": 0
+              },
+              "properties": {
+                "name": "Twitch Shake"
+              },
+              "animated": false,
+              "keyframes": [
+                {
+                  "value": 0,
+                  "frame": -450,
+                  "tween": 1,
+                  "controlPoints": [
+                    [
+                      -10,
+                      0
+                    ],
+                    [
+                      10,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "type": {
+                "custom": true,
+                "dynamic": true,
+                "type": 0
+              },
+              "properties": {
+                "name": "Bloom"
+              },
+              "expression": "properties[\"Bloom\"]",
+              "animated": "properties[\"Bloom\"]",
+              "keyframes": [
+                {
+                  "value": 0,
+                  "frame": -450,
+                  "tween": 1,
+                  "controlPoints": [
+                    [
+                      -10,
+                      0
+                    ],
+                    [
+                      10,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "type": {
+                "custom": true,
+                "dynamic": true,
+                "type": 0
+              },
+              "properties": {
+                "name": "Bloom Radius"
+              },
+              "animated": false,
+              "keyframes": [
+                {
+                  "value": 0.75,
+                  "frame": -450,
+                  "tween": 1,
+                  "controlPoints": [
+                    [
+                      -10,
+                      0
+                    ],
+                    [
+                      10,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "type": {
+                "custom": true,
+                "dynamic": true,
+                "type": 0
+              },
+              "properties": {
+                "name": "Bloom Threshold"
+              },
+              "animated": false,
+              "keyframes": [
+                {
+                  "value": 0,
+                  "frame": -450,
+                  "tween": 1,
+                  "controlPoints": [
+                    [
+                      -10,
+                      0
+                    ],
+                    [
+                      10,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "type": {
+                "custom": true,
+                "dynamic": true,
+                "type": 0
+              },
+              "properties": {
+                "name": "Directional Blur"
+              },
+              "expression": "properties[\"Directional\"]",
+              "animated": "properties[\"Directional\"]",
+              "keyframes": [
+                {
+                  "value": 0,
+                  "frame": -450,
+                  "tween": 1,
+                  "controlPoints": [
+                    [
+                      -10,
+                      0
+                    ],
+                    [
+                      10,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "type": {
+                "custom": true,
+                "dynamic": true,
+                "type": 0
+              },
+              "properties": {
+                "name": "Directional Blur Direction"
+              },
+              "expression": "time*5",
+              "animated": "time*5",
+              "keyframes": [
+                {
+                  "value": 0,
+                  "frame": -450,
+                  "tween": 1,
+                  "controlPoints": [
+                    [
+                      -10,
+                      0
+                    ],
+                    [
+                      10,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "type": {
+                "custom": true,
+                "dynamic": true,
+                "type": 0
+              },
+              "properties": {
+                "name": "RGB Shift Amount"
+              },
+              "expression": "properties[\"RGB Shift\"]",
+              "animated": "properties[\"RGB Shift\"]",
+              "keyframes": [
+                {
+                  "value": 0,
+                  "frame": -450,
+                  "tween": 1,
+                  "controlPoints": [
+                    [
+                      -10,
+                      0
+                    ],
+                    [
+                      10,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "type": {
+                "custom": true,
+                "dynamic": true,
+                "type": 0
+              },
+              "properties": {
+                "name": "RGB Shift Angle"
+              },
+              "expression": "time*5",
+              "animated": "time*5",
+              "keyframes": [
+                {
+                  "value": 90,
+                  "frame": -450,
+                  "tween": 1,
+                  "controlPoints": [
+                    [
+                      -10,
+                      0
+                    ],
+                    [
+                      10,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "type": {
+                "custom": true,
+                "dynamic": true,
+                "type": 0
+              },
+              "properties": {
+                "name": "RGB Shift Color"
+              },
+              "animated": false,
+              "keyframes": [
+                {
+                  "value": 0.2,
+                  "frame": -450,
+                  "tween": 1,
+                  "controlPoints": [
+                    [
+                      -10,
+                      0
+                    ],
+                    [
+                      10,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "type": {
+                "custom": true,
+                "dynamic": true,
+                "type": 0
+              },
+              "properties": {
+                "name": "Brightness"
+              },
+              "expression": "properties[\"Brightness\"]",
+              "animated": "properties[\"Brightness\"]",
+              "keyframes": [
+                {
+                  "value": 0,
+                  "frame": -450,
+                  "tween": 1,
+                  "controlPoints": [
+                    [
+                      -10,
+                      0
+                    ],
+                    [
+                      10,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "type": {
+                "custom": true,
+                "dynamic": true,
+                "type": 0
+              },
+              "properties": {
+                "name": "Contrast"
+              },
+              "expression": "properties[\"Contrast\"]",
+              "animated": "properties[\"Contrast\"]",
+              "keyframes": [
+                {
+                  "value": 0,
+                  "frame": -450,
+                  "tween": 1,
+                  "controlPoints": [
+                    [
+                      -10,
+                      0
+                    ],
+                    [
+                      10,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            }
+          ],
+          "objects": [
+            {
+              "type": "duplicate",
+              "properties": {
+                "name": "Duplicate",
+                "enabled": {
+                  "animated": false,
+                  "keyframes": [
+                    {
+                      "value": 1,
+                      "frame": -450,
+                      "tween": 0,
+                      "controlPoints": [
+                        [
+                          -10,
+                          0
+                        ],
+                        [
+                          10,
+                          0
+                        ]
+                      ]
+                    }
+                  ]
+                },
+                "offset": {
+                  "objects": [
+                    {
+                      "animated": false,
+                      "keyframes": [
+                        {
+                          "value": 0,
+                          "frame": -450,
+                          "tween": 1,
+                          "controlPoints": [
+                            [
+                              -10,
+                              0
+                            ],
+                            [
+                              10,
+                              0
+                            ]
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "animated": false,
+                      "keyframes": [
+                        {
+                          "value": 0,
+                          "frame": -450,
+                          "tween": 1,
+                          "controlPoints": [
+                            [
+                              -10,
+                              0
+                            ],
+                            [
+                              10,
+                              0
+                            ]
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                "multiplier": {
+                  "expression": "[-properties[\"Zoom\"]+1,-properties[\"Zoom\"]+1]",
+                  "objects": [
+                    {
+                      "animated": "[-properties[\"Zoom\"]+1,-properties[\"Zoom\"]+1]",
+                      "keyframes": [
+                        {
+                          "value": 1,
+                          "frame": -450,
+                          "tween": 1,
+                          "controlPoints": [
+                            [
+                              -10,
+                              0
+                            ],
+                            [
+                              10,
+                              0
+                            ]
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "animated": "[-properties[\"Zoom\"]+1,-properties[\"Zoom\"]+1]",
+                      "keyframes": [
+                        {
+                          "value": 1,
+                          "frame": -450,
+                          "tween": 1,
+                          "controlPoints": [
+                            [
+                              -10,
+                              0
+                            ],
+                            [
+                              10,
+                              0
+                            ]
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                "rotation": {
+                  "animated": false,
+                  "keyframes": [
+                    {
+                      "value": 0,
+                      "frame": -450,
+                      "tween": 1,
+                      "controlPoints": [
+                        [
+                          -10,
+                          0
+                        ],
+                        [
+                          10,
+                          0
+                        ]
+                      ]
+                    }
+                  ]
+                },
+                "repeat": 1
+              }
+            },
+            {
+              "type": "shake",
+              "properties": {
+                "name": "Shake",
+                "enabled": {
+                  "animated": false,
+                  "keyframes": [
+                    {
+                      "value": 1,
+                      "frame": -450,
+                      "tween": 0,
+                      "controlPoints": [
+                        [
+                          -10,
+                          0
+                        ],
+                        [
+                          10,
+                          0
+                        ]
+                      ]
+                    }
+                  ]
+                },
+                "amplitude": {
+                  "expression": "properties[\"Main Shake\"]/300",
+                  "animated": "properties[\"Main Shake\"]/300",
+                  "keyframes": [
+                    {
+                      "value": 0.01,
+                      "frame": -450,
+                      "tween": 1,
+                      "controlPoints": [
+                        [
+                          -10,
+                          0
+                        ],
+                        [
+                          10,
+                          0
+                        ]
+                      ]
+                    }
+                  ]
+                },
+                "speed": {
+                  "expression": "properties[\"Main Shake Speed\"]",
+                  "animated": "properties[\"Main Shake Speed\"]",
+                  "keyframes": [
+                    {
+                      "value": 8,
+                      "frame": -450,
+                      "tween": 1,
+                      "controlPoints": [
+                        [
+                          -10,
+                          0
+                        ],
+                        [
+                          10,
+                          0
+                        ]
+                      ]
+                    }
+                  ]
+                },
+                "zoom": {
+                  "animated": false,
+                  "keyframes": [
+                    {
+                      "value": 0,
+                      "frame": -450,
+                      "tween": 1,
+                      "controlPoints": [
+                        [
+                          -10,
+                          0
+                        ],
+                        [
+                          10,
+                          0
+                        ]
+                      ]
+                    }
+                  ]
+                },
+                "wrap": 2,
+                "shake": {
+                  "mode": 0,
+                  "amplitude": [
+                    14,
+                    11.4,
+                    300,
+                    15.8
+                  ],
+                  "frequency": [
+                    0.73,
+                    0.73,
+                    1.12,
+                    0.79
+                  ],
+                  "phase": [
+                    12.3,
+                    25.9,
+                    34.8,
+                    70.5
+                  ],
+                  "noise": [
+                    3.01,
+                    2.9,
+                    3.25,
+                    3.24
+                  ],
+                  "smooth": [
+                    1,
+                    1,
+                    1,
+                    1
+                  ]
+                }
+              }
+            },
+            {
+              "type": "bloom",
+              "properties": {
+                "name": "Bloom",
+                "enabled": {
+                  "animated": false,
+                  "keyframes": [
+                    {
+                      "value": 1,
+                      "frame": -450,
+                      "tween": 0,
+                      "controlPoints": [
+                        [
+                          -10,
+                          0
+                        ],
+                        [
+                          10,
+                          0
+                        ]
+                      ]
+                    }
+                  ]
+                },
+                "amount": {
+                  "animated": false,
+                  "keyframes": [
+                    {
+                      "value": 1,
+                      "frame": -450,
+                      "tween": 1,
+                      "controlPoints": [
+                        [
+                          -10,
+                          0
+                        ],
+                        [
+                          10,
+                          0
+                        ]
+                      ]
+                    }
+                  ]
+                },
+                "inner": {
+                  "objects": [
+                    {
+                      "animated": false,
+                      "keyframes": [
+                        {
+                          "value": 1,
+                          "frame": -450,
+                          "tween": 1,
+                          "controlPoints": [
+                            [
+                              -10,
+                              0
+                            ],
+                            [
+                              10,
+                              0
+                            ]
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "animated": false,
+                      "keyframes": [
+                        {
+                          "value": 1,
+                          "frame": -450,
+                          "tween": 1,
+                          "controlPoints": [
+                            [
+                              -10,
+                              0
+                            ],
+                            [
+                              10,
+                              0
+                            ]
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "animated": false,
+                      "keyframes": [
+                        {
+                          "value": 1,
+                          "frame": -450,
+                          "tween": 1,
+                          "controlPoints": [
+                            [
+                              -10,
+                              0
+                            ],
+                            [
+                              10,
+                              0
+                            ]
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                "outer": {
+                  "objects": [
+                    {
+                      "animated": false,
+                      "keyframes": [
+                        {
+                          "value": 1,
+                          "frame": -450,
+                          "tween": 1,
+                          "controlPoints": [
+                            [
+                              -10,
+                              0
+                            ],
+                            [
+                              10,
+                              0
+                            ]
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "animated": false,
+                      "keyframes": [
+                        {
+                          "value": 1,
+                          "frame": -450,
+                          "tween": 1,
+                          "controlPoints": [
+                            [
+                              -10,
+                              0
+                            ],
+                            [
+                              10,
+                              0
+                            ]
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "animated": false,
+                      "keyframes": [
+                        {
+                          "value": 1,
+                          "frame": -450,
+                          "tween": 1,
+                          "controlPoints": [
+                            [
+                              -10,
+                              0
+                            ],
+                            [
+                              10,
+                              0
+                            ]
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                "strength": {
+                  "expression": "properties[\"Bloom\"]/1.5",
+                  "animated": "properties[\"Bloom\"]/1.5",
+                  "keyframes": [
+                    {
+                      "value": 0.75,
+                      "frame": -450,
+                      "tween": 1,
+                      "controlPoints": [
+                        [
+                          -10,
+                          0
+                        ],
+                        [
+                          10,
+                          0
+                        ]
+                      ]
+                    }
+                  ]
+                },
+                "radius": {
+                  "expression": "properties[\"Bloom Radius\"]",
+                  "animated": "properties[\"Bloom Radius\"]",
+                  "keyframes": [
+                    {
+                      "value": 0.8,
+                      "frame": -450,
+                      "tween": 1,
+                      "controlPoints": [
+                        [
+                          -10,
+                          0
+                        ],
+                        [
+                          10,
+                          0
+                        ]
+                      ]
+                    }
+                  ]
+                },
+                "threshold": {
+                  "expression": "properties[\"Bloom Threshold\"]",
+                  "animated": "properties[\"Bloom Threshold\"]",
+                  "keyframes": [
+                    {
+                      "value": 0.4,
+                      "frame": -450,
+                      "tween": 1,
+                      "controlPoints": [
+                        [
+                          -10,
+                          0
+                        ],
+                        [
+                          10,
+                          0
+                        ]
+                      ]
+                    }
+                  ]
+                },
+                "soften": {
+                  "animated": false,
+                  "keyframes": [
+                    {
+                      "value": 0.4,
+                      "frame": -450,
+                      "tween": 1,
+                      "controlPoints": [
+                        [
+                          -10,
+                          0
+                        ],
+                        [
+                          10,
+                          0
+                        ]
+                      ]
+                    }
+                  ]
+                },
+                "blendThreshold": {
+                  "animated": false,
+                  "keyframes": [
+                    {
+                      "value": 1,
+                      "frame": -450,
+                      "tween": 1,
+                      "controlPoints": [
+                        [
+                          -10,
+                          0
+                        ],
+                        [
+                          10,
+                          0
+                        ]
+                      ]
+                    }
+                  ]
+                },
+                "blendSoften": {
+                  "animated": false,
+                  "keyframes": [
+                    {
+                      "value": 1,
+                      "frame": -450,
+                      "tween": 1,
+                      "controlPoints": [
+                        [
+                          -10,
+                          0
+                        ],
+                        [
+                          10,
+                          0
+                        ]
+                      ]
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "type": "directionalblur",
+              "properties": {
+                "name": "Directional Blur",
+                "enabled": {
+                  "animated": false,
+                  "keyframes": [
+                    {
+                      "value": 1,
+                      "frame": -450,
+                      "tween": 0,
+                      "controlPoints": [
+                        [
+                          -10,
+                          0
+                        ],
+                        [
+                          10,
+                          0
+                        ]
+                      ]
+                    }
+                  ]
+                },
+                "delta": {
+                  "expression": "properties[\"Directional Blur\"]",
+                  "animated": "properties[\"Directional Blur\"]",
+                  "keyframes": [
+                    {
+                      "value": 0,
+                      "frame": -450,
+                      "tween": 1,
+                      "controlPoints": [
+                        [
+                          -10,
+                          0
+                        ],
+                        [
+                          10,
+                          0
+                        ]
+                      ]
+                    }
+                  ]
+                },
+                "direction": {
+                  "expression": "properties[\"Directional Blur Direction\"]",
+                  "animated": "properties[\"Directional Blur Direction\"]",
+                  "keyframes": [
+                    {
+                      "value": 0,
+                      "frame": -450,
+                      "tween": 1,
+                      "controlPoints": [
+                        [
+                          -10,
+                          0
+                        ],
+                        [
+                          10,
+                          0
+                        ]
+                      ]
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "type": "hueshift",
+              "properties": {
+                "name": "Color Shift",
+                "enabled": {
+                  "animated": false,
+                  "keyframes": [
+                    {
+                      "value": 1,
+                      "frame": -450,
+                      "tween": 0,
+                      "controlPoints": [
+                        [
+                          -10,
+                          0
+                        ],
+                        [
+                          10,
+                          0
+                        ]
+                      ]
+                    }
+                  ]
+                },
+                "amount": {
+                  "expression": "properties[\"RGB Shift Color\"]",
+                  "animated": "properties[\"RGB Shift Color\"]",
+                  "keyframes": [
+                    {
+                      "value": 0.75,
+                      "frame": -450,
+                      "tween": 1,
+                      "controlPoints": [
+                        [
+                          -10,
+                          0
+                        ],
+                        [
+                          10,
+                          0
+                        ]
+                      ]
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "type": "rgbshift",
+              "properties": {
+                "name": "RGB Shift",
+                "enabled": {
+                  "animated": false,
+                  "keyframes": [
+                    {
+                      "value": 1,
+                      "frame": -450,
+                      "tween": 0,
+                      "controlPoints": [
+                        [
+                          -10,
+                          0
+                        ],
+                        [
+                          10,
+                          0
+                        ]
+                      ]
+                    }
+                  ]
+                },
+                "amount": {
+                  "expression": "properties[\"RGB Shift Amount\"]",
+                  "animated": "properties[\"RGB Shift Amount\"]",
+                  "keyframes": [
+                    {
+                      "value": 5,
+                      "frame": -450,
+                      "tween": 1,
+                      "controlPoints": [
+                        [
+                          -10,
+                          0
+                        ],
+                        [
+                          10,
+                          0
+                        ]
+                      ]
+                    }
+                  ]
+                },
+                "angle": {
+                  "expression": "properties[\"RGB Shift Angle\"]/57.2958",
+                  "animated": "properties[\"RGB Shift Angle\"]/57.2958",
+                  "keyframes": [
+                    {
+                      "value": 0,
+                      "frame": -450,
+                      "tween": 1,
+                      "controlPoints": [
+                        [
+                          -10,
+                          0
+                        ],
+                        [
+                          10,
+                          0
+                        ]
+                      ]
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "type": "hueshift",
+              "properties": {
+                "name": "Color Shift",
+                "enabled": {
+                  "animated": false,
+                  "keyframes": [
+                    {
+                      "value": 1,
+                      "frame": -450,
+                      "tween": 0,
+                      "controlPoints": [
+                        [
+                          -10,
+                          0
+                        ],
+                        [
+                          10,
+                          0
+                        ]
+                      ]
+                    }
+                  ]
+                },
+                "amount": {
+                  "expression": "-properties[\"RGB Shift Color\"]",
+                  "animated": "-properties[\"RGB Shift Color\"]",
+                  "keyframes": [
+                    {
+                      "value": 0.75,
+                      "frame": -450,
+                      "tween": 1,
+                      "controlPoints": [
+                        [
+                          -10,
+                          0
+                        ],
+                        [
+                          10,
+                          0
+                        ]
+                      ]
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "type": "brightnesscontrast",
+              "properties": {
+                "name": "Brightness + Contrast",
+                "enabled": {
+                  "animated": false,
+                  "keyframes": [
+                    {
+                      "value": 1,
+                      "frame": -450,
+                      "tween": 0,
+                      "controlPoints": [
+                        [
+                          -10,
+                          0
+                        ],
+                        [
+                          10,
+                          0
+                        ]
+                      ]
+                    }
+                  ]
+                },
+                "brightness": {
+                  "expression": "properties[\"Brightness\"]",
+                  "animated": "properties[\"Brightness\"]",
+                  "keyframes": [
+                    {
+                      "value": 0.38,
+                      "frame": -450,
+                      "tween": 1,
+                      "controlPoints": [
+                        [
+                          -10,
+                          0
+                        ],
+                        [
+                          10,
+                          0
+                        ]
+                      ]
+                    }
+                  ]
+                },
+                "contrast": {
+                  "expression": "properties[\"Contrast\"]",
+                  "animated": "properties[\"Contrast\"]",
+                  "keyframes": [
+                    {
+                      "value": 1.53,
+                      "frame": -450,
+                      "tween": 1,
+                      "controlPoints": [
+                        [
+                          -10,
+                          0
+                        ],
+                        [
+                          10,
+                          0
+                        ]
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "name": "SyncTools v2",
+  "desc": "Synchronization controls group preset.",
+  "category": "AFTERCLIP · PRESETS · SYNCTOOLS"
+}

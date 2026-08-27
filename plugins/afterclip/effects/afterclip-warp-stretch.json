@@ -1,0 +1,64 @@
+{
+  "type": 1,
+  "properties": {
+    "name": "Stretch",
+    "enabled": {
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 1,
+          "frame": 0,
+          "tween": 0,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    }
+  },
+  "customProperties": [
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Angle"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 45,
+          "frame": 0,
+          "tween": 1
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Stretch"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 1.53,
+          "frame": 0,
+          "tween": 1
+        }
+      ]
+    }
+  ]
+}

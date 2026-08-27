@@ -1,7 +1,7 @@
 (function () {
   "use strict";
 
-  const REGISTRY_URL = "./plugins/registry.json?v=7";
+  const REGISTRY_URL = "./plugins/registry.json?v=8";
   const STORAGE_PREFIX = "zoidium.plugin.enabled.";
   const SHADER_PLUGIN_MARKER = "// @zoidium-plugin ";
   const NATIVE_FX_PLUGIN_ID = "native-fx";
@@ -14,6 +14,7 @@
     "native-fx": "#c56b3d",
     "light-plus": "#2f9b86",
     "alipfx-shader-pack-4": "#a04ed1",
+    afterclip: "#d35a76",
     "player-plus": "#4f7dbf",
   });
   const pluginStates = new Map();
@@ -72,11 +73,13 @@
       throw new Error(`Invalid plugin manifest: ${plugin.id}`);
     }
     const effects = manifest.effects || [];
+    const groups = manifest.groups || [];
     const objectTypes = manifest.objectTypes || [];
     const nativeEffects = manifest.nativeEffects || [];
     const modules = manifest.modules || [];
     if (
       !Array.isArray(effects) ||
+      !Array.isArray(groups) ||
       !Array.isArray(objectTypes) ||
       !Array.isArray(nativeEffects) ||
       !Array.isArray(modules)
@@ -85,6 +88,7 @@
     }
     if (
       effects.length === 0 &&
+      groups.length === 0 &&
       objectTypes.length === 0 &&
       nativeEffects.length === 0 &&
       modules.length === 0
@@ -94,6 +98,16 @@
     for (const effect of effects) {
       if (!effect.id || !effect.name || !effect.shader || !effect.preset) {
         throw new Error(`Invalid effect entry in ${plugin.id}`);
+      }
+    }
+    for (const group of groups) {
+      if (
+        !group.id ||
+        !group.name ||
+        !group.preset ||
+        (group.shaders != null && !Array.isArray(group.shaders))
+      ) {
+        throw new Error(`Invalid group entry in ${plugin.id}`);
       }
     }
     for (const effect of nativeEffects) {
@@ -348,6 +362,49 @@
     };
   }
 
+  function hydrateGroupShaders(value, shaderByPath, plugin, group) {
+    if (!value || typeof value !== "object") return value;
+    if (Array.isArray(value)) {
+      return value.map((item) => hydrateGroupShaders(item, shaderByPath, plugin, group));
+    }
+    const result = {};
+    for (const [key, child] of Object.entries(value)) {
+      if (key === "_zoidiumShader") continue;
+      result[key] = hydrateGroupShaders(child, shaderByPath, plugin, group);
+    }
+    if (result.type === 1 && value._zoidiumShader) {
+      const shader = shaderByPath.get(value._zoidiumShader);
+      if (typeof shader !== "string") {
+        throw new Error(`Missing group shader: ${group.id} (${value._zoidiumShader})`);
+      }
+      if (!result.properties) result.properties = {};
+      result.properties.fragShader = `${shader.replace(/\s+$/, "")}\n${createPluginMarker(
+        plugin,
+        group
+      )}\n`;
+    }
+    return result;
+  }
+
+  async function loadGroupData(plugin, group, cache) {
+    if (!cache.has(group.id)) {
+      cache.set(
+        group.id,
+        Promise.all([
+          fetchJson(group.preset),
+          ...(group.shaders || []).map(async (source) => [source, await fetchText(source)]),
+        ]).then(([preset, ...shaderEntries]) => {
+          if (preset.type !== 0 || !preset.properties || !Array.isArray(preset.objects)) {
+            throw new Error(`Invalid group preset: ${group.id}`);
+          }
+          const shaders = new Map(shaderEntries);
+          return hydrateGroupShaders(preset, shaders, plugin, group);
+        })
+      );
+    }
+    return cloneJson(await cache.get(group.id));
+  }
+
   function cloneJson(value) {
     return JSON.parse(JSON.stringify(value));
   }
@@ -511,7 +568,11 @@
     const effects = getEffectTypes();
     if (!effects.some((entry) => entry?._zoidiumPluginId === plugin.id)) {
       const pluginEffects = manifest.effects || [];
-      if (pluginEffects.length > 0) {
+      const pluginGroups = manifest.groups || [];
+      if (pluginEffects.length > 0 || pluginGroups.length > 0) {
+        const groupData = await Promise.all(
+          pluginGroups.map((group) => loadGroupData(plugin, group, state.groupCache))
+        );
         const entries = [
           {
             name: manifest.category || manifest.name.toUpperCase(),
@@ -525,6 +586,14 @@
             data: createLazyEffectData(plugin, effect, state.effectCache),
             _zoidiumPluginId: plugin.id,
             _zoidiumPluginEffectId: effect.id,
+          })),
+          ...pluginGroups.map((group, index) => ({
+            name: group.name,
+            desc: group.description || `${group.name} — ${manifest.name}`,
+            type: 0,
+            data: groupData[index],
+            _zoidiumPluginId: plugin.id,
+            _zoidiumPluginEffectId: group.id,
           })),
         ];
         effects.splice(insertionIndex(effects), 0, ...entries);
@@ -623,12 +692,13 @@
 
   function manifestFeatureCount(manifest) {
     const effectCount = (manifest.effects || []).length;
+    const groupCount = (manifest.groups || []).length;
     const nativeEffectCount = (manifest.nativeEffects || []).length;
     const objectCount = (manifest.objectTypes || []).reduce(
       (count, entry) => count + (entry.list || []).length,
       0
     );
-    return effectCount + nativeEffectCount + objectCount + (manifest.modules || []).length;
+    return effectCount + groupCount + nativeEffectCount + objectCount + (manifest.modules || []).length;
   }
 
   function updateCard(state, phase, message) {
@@ -912,6 +982,7 @@
       status: card.querySelector(".zoidium-plugin-state"),
       manifest: null,
       effectCache: new Map(),
+      groupCache: new Map(),
       replacedObjectTypes: [],
       runtimeModules: [],
       enablePromise: null,
