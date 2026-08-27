@@ -1,0 +1,100 @@
+{
+  "type": 1,
+  "properties": {
+    "name": "Line Wave Mask",
+    "enabled": {
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 1,
+          "frame": 0,
+          "tween": 0,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    }
+  },
+  "customProperties": [
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Time"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 0.5,
+          "frame": 0,
+          "tween": 1
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Delay"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 0.3,
+          "frame": 0,
+          "tween": 1
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Power"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 3,
+          "frame": 0,
+          "tween": 1
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Step"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 11,
+          "frame": 0,
+          "tween": 1
+        }
+      ]
+    }
+  ]
+}

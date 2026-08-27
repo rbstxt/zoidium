@@ -1,0 +1,1445 @@
+{
+  "type": 0,
+  "properties": {
+    "name": "Fractal Burst",
+    "enabled": {
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 1,
+          "frame": 0,
+          "tween": 0,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    }
+  },
+  "customProperties": [],
+  "objects": [
+    {
+      "type": 1,
+      "properties": {
+        "name": "Fractal Noise",
+        "enabled": {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 1,
+              "frame": 0,
+              "tween": 0,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        }
+      },
+      "customProperties": [
+        {
+          "type": {
+            "custom": true,
+            "group": true,
+            "dynamic": true,
+            "objects": [
+              {
+                "dynamic": true,
+                "name": "X",
+                "type": 0,
+                "value": 0
+              },
+              {
+                "dynamic": true,
+                "name": "Y",
+                "type": 0,
+                "value": 0
+              }
+            ],
+            "type": 1
+          },
+          "properties": {
+            "name": "NoisePosition"
+          },
+          "objects": [
+            {
+              "animated": false,
+              "keyframes": [
+                {
+                  "value": 0,
+                  "frame": 0,
+                  "tween": 1,
+                  "controlPoints": [
+                    [
+                      -10,
+                      0
+                    ],
+                    [
+                      10,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "animated": false,
+              "keyframes": [
+                {
+                  "value": 0,
+                  "frame": 0,
+                  "tween": 1,
+                  "controlPoints": [
+                    [
+                      -10,
+                      0
+                    ],
+                    [
+                      10,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": {
+            "custom": true,
+            "group": true,
+            "dynamic": true,
+            "objects": [
+              {
+                "dynamic": true,
+                "name": "X",
+                "type": 0,
+                "value": 0
+              },
+              {
+                "dynamic": true,
+                "name": "Y",
+                "type": 0,
+                "value": 0
+              }
+            ],
+            "type": 1
+          },
+          "properties": {
+            "name": "NoiseScale"
+          },
+          "objects": [
+            {
+              "animated": false,
+              "keyframes": [
+                {
+                  "value": 15.56,
+                  "frame": 0,
+                  "tween": 1,
+                  "controlPoints": [
+                    [
+                      -10,
+                      0
+                    ],
+                    [
+                      10,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "animated": false,
+              "keyframes": [
+                {
+                  "value": 0.36,
+                  "frame": 0,
+                  "tween": 1,
+                  "controlPoints": [
+                    [
+                      -10,
+                      0
+                    ],
+                    [
+                      10,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": {
+            "custom": true,
+            "dynamic": true,
+            "type": 0
+          },
+          "properties": {
+            "name": "Step"
+          },
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 0,
+              "frame": 0,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "type": {
+            "custom": true,
+            "dynamic": true,
+            "type": 0
+          },
+          "properties": {
+            "name": "Evolution"
+          },
+          "expression": "time",
+          "animated": "time",
+          "keyframes": [
+            {
+              "value": 6.7,
+              "frame": 0,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "type": {
+            "custom": true,
+            "dynamic": true,
+            "type": 0
+          },
+          "properties": {
+            "name": "Complexity"
+          },
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 9.96,
+              "frame": 0,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "type": {
+            "custom": true,
+            "dynamic": true,
+            "type": 0
+          },
+          "properties": {
+            "name": "Strength"
+          },
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 0,
+              "frame": 0,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "type": {
+            "custom": true,
+            "dynamic": true,
+            "type": 0
+          },
+          "properties": {
+            "name": "Angle"
+          },
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 14.02,
+              "frame": 0,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "type": {
+            "custom": true,
+            "dynamic": true,
+            "type": 0
+          },
+          "properties": {
+            "name": "AngleNoise"
+          },
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 0.5,
+              "frame": 0,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "type": {
+            "custom": true,
+            "group": true,
+            "dynamic": true,
+            "objects": [
+              {
+                "dynamic": true,
+                "name": "R",
+                "type": 0,
+                "value": 1,
+                "min": 0,
+                "max": 1
+              },
+              {
+                "dynamic": true,
+                "name": "G",
+                "type": 0,
+                "value": 1,
+                "min": 0,
+                "max": 1
+              },
+              {
+                "dynamic": true,
+                "name": "B",
+                "type": 0,
+                "value": 1,
+                "min": 0,
+                "max": 1
+              }
+            ],
+            "type": 4
+          },
+          "properties": {
+            "name": "StartColor"
+          },
+          "objects": [
+            {
+              "animated": false,
+              "keyframes": [
+                {
+                  "value": 1,
+                  "frame": 0,
+                  "tween": 1,
+                  "controlPoints": [
+                    [
+                      -10,
+                      0
+                    ],
+                    [
+                      10,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "animated": false,
+              "keyframes": [
+                {
+                  "value": 1,
+                  "frame": 0,
+                  "tween": 1,
+                  "controlPoints": [
+                    [
+                      -10,
+                      0
+                    ],
+                    [
+                      10,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "animated": false,
+              "keyframes": [
+                {
+                  "value": 1,
+                  "frame": 0,
+                  "tween": 1,
+                  "controlPoints": [
+                    [
+                      -10,
+                      0
+                    ],
+                    [
+                      10,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": {
+            "custom": true,
+            "group": true,
+            "dynamic": true,
+            "objects": [
+              {
+                "dynamic": true,
+                "name": "R",
+                "type": 0,
+                "value": 1,
+                "min": 0,
+                "max": 1
+              },
+              {
+                "dynamic": true,
+                "name": "G",
+                "type": 0,
+                "value": 1,
+                "min": 0,
+                "max": 1
+              },
+              {
+                "dynamic": true,
+                "name": "B",
+                "type": 0,
+                "value": 1,
+                "min": 0,
+                "max": 1
+              }
+            ],
+            "type": 4
+          },
+          "properties": {
+            "name": "EndColor"
+          },
+          "objects": [
+            {
+              "animated": false,
+              "keyframes": [
+                {
+                  "value": 0,
+                  "frame": 0,
+                  "tween": 1,
+                  "controlPoints": [
+                    [
+                      -10,
+                      0
+                    ],
+                    [
+                      10,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "animated": false,
+              "keyframes": [
+                {
+                  "value": 0,
+                  "frame": 0,
+                  "tween": 1,
+                  "controlPoints": [
+                    [
+                      -10,
+                      0
+                    ],
+                    [
+                      10,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "animated": false,
+              "keyframes": [
+                {
+                  "value": 0,
+                  "frame": 0,
+                  "tween": 1,
+                  "controlPoints": [
+                    [
+                      -10,
+                      0
+                    ],
+                    [
+                      10,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "_zoidiumShader": "./plugins/afterclip/shaders/afterclip-warp-fractal-noise.glsl"
+    },
+    {
+      "type": 1,
+      "properties": {
+        "name": "Polar Coordinates",
+        "enabled": {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 1,
+              "frame": 0,
+              "tween": 0,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        }
+      },
+      "customProperties": [],
+      "_zoidiumShader": "./plugins/afterclip/shaders/afterclip-warp-polar-coordinates.glsl"
+    },
+    {
+      "type": "mask",
+      "properties": {
+        "name": "Mask",
+        "enabled": {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 1,
+              "frame": 0,
+              "tween": 0,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        },
+        "mode": 1,
+        "position": {
+          "objects": [
+            {
+              "animated": false,
+              "keyframes": [
+                {
+                  "value": 0,
+                  "frame": 0,
+                  "tween": 1,
+                  "controlPoints": [
+                    [
+                      -10,
+                      0
+                    ],
+                    [
+                      10,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "animated": false,
+              "keyframes": [
+                {
+                  "value": 0,
+                  "frame": 0,
+                  "tween": 1,
+                  "controlPoints": [
+                    [
+                      -10,
+                      0
+                    ],
+                    [
+                      10,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "size": {
+          "objects": [
+            {
+              "animated": false,
+              "keyframes": [
+                {
+                  "value": 540,
+                  "frame": 0,
+                  "tween": 1,
+                  "controlPoints": [
+                    [
+                      -10,
+                      0
+                    ],
+                    [
+                      10,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "animated": false,
+              "keyframes": [
+                {
+                  "value": 540,
+                  "frame": 0,
+                  "tween": 1,
+                  "controlPoints": [
+                    [
+                      -10,
+                      0
+                    ],
+                    [
+                      10,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "rotation": {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 0,
+              "frame": 0,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        },
+        "invert": 0,
+        "feather": {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 0.83,
+              "frame": 0,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        },
+        "opacity": {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 1,
+              "frame": 0,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "mask",
+      "properties": {
+        "name": "Mask",
+        "enabled": {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 1,
+              "frame": 0,
+              "tween": 0,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        },
+        "mode": 1,
+        "position": {
+          "objects": [
+            {
+              "animated": false,
+              "keyframes": [
+                {
+                  "value": 0,
+                  "frame": 0,
+                  "tween": 1,
+                  "controlPoints": [
+                    [
+                      -10,
+                      0
+                    ],
+                    [
+                      10,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "animated": false,
+              "keyframes": [
+                {
+                  "value": 0,
+                  "frame": 0,
+                  "tween": 1,
+                  "controlPoints": [
+                    [
+                      -10,
+                      0
+                    ],
+                    [
+                      10,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "size": {
+          "objects": [
+            {
+              "animated": false,
+              "keyframes": [
+                {
+                  "value": 200,
+                  "frame": 0,
+                  "tween": 1,
+                  "controlPoints": [
+                    [
+                      -10,
+                      0
+                    ],
+                    [
+                      10,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "animated": false,
+              "keyframes": [
+                {
+                  "value": 200,
+                  "frame": 0,
+                  "tween": 1,
+                  "controlPoints": [
+                    [
+                      -10,
+                      0
+                    ],
+                    [
+                      10,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "rotation": {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 0,
+              "frame": 0,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        },
+        "invert": 1,
+        "feather": {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 1,
+              "frame": 0,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        },
+        "opacity": {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 1,
+              "frame": 0,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "brightnesscontrast",
+      "properties": {
+        "name": "Brightness + Contrast",
+        "enabled": {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 1,
+              "frame": 0,
+              "tween": 0,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        },
+        "brightness": {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 0,
+              "frame": 0,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        },
+        "contrast": {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 4,
+              "frame": 0,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "lumakey",
+      "properties": {
+        "name": "Luma Key",
+        "enabled": {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 1,
+              "frame": 0,
+              "tween": 0,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        },
+        "threshold": {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 0.521,
+              "frame": 0,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        },
+        "soften": {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 0.1,
+              "frame": 0,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        },
+        "invert": 0,
+        "mask": 0
+      }
+    },
+    {
+      "type": "colorgrading",
+      "properties": {
+        "name": "Color Grading",
+        "enabled": {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 1,
+              "frame": 0,
+              "tween": 0,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        },
+        "shadows": {
+          "objects": [
+            {
+              "animated": false,
+              "keyframes": [
+                {
+                  "value": 1,
+                  "frame": 0,
+                  "tween": 1,
+                  "controlPoints": [
+                    [
+                      -10,
+                      0
+                    ],
+                    [
+                      10,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "animated": false,
+              "keyframes": [
+                {
+                  "value": 1,
+                  "frame": 0,
+                  "tween": 1,
+                  "controlPoints": [
+                    [
+                      -10,
+                      0
+                    ],
+                    [
+                      10,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "animated": false,
+              "keyframes": [
+                {
+                  "value": 1,
+                  "frame": 0,
+                  "tween": 1,
+                  "controlPoints": [
+                    [
+                      -10,
+                      0
+                    ],
+                    [
+                      10,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "midtones": {
+          "objects": [
+            {
+              "animated": false,
+              "keyframes": [
+                {
+                  "value": 1,
+                  "frame": 0,
+                  "tween": 1,
+                  "controlPoints": [
+                    [
+                      -10,
+                      0
+                    ],
+                    [
+                      10,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "animated": false,
+              "keyframes": [
+                {
+                  "value": 1,
+                  "frame": 0,
+                  "tween": 1,
+                  "controlPoints": [
+                    [
+                      -10,
+                      0
+                    ],
+                    [
+                      10,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "animated": false,
+              "keyframes": [
+                {
+                  "value": 1,
+                  "frame": 0,
+                  "tween": 1,
+                  "controlPoints": [
+                    [
+                      -10,
+                      0
+                    ],
+                    [
+                      10,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "highlights": {
+          "objects": [
+            {
+              "animated": false,
+              "keyframes": [
+                {
+                  "value": 1,
+                  "frame": 0,
+                  "tween": 1,
+                  "controlPoints": [
+                    [
+                      -10,
+                      0
+                    ],
+                    [
+                      10,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "animated": false,
+              "keyframes": [
+                {
+                  "value": 0.514,
+                  "frame": 0,
+                  "tween": 1,
+                  "controlPoints": [
+                    [
+                      -10,
+                      0
+                    ],
+                    [
+                      10,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "animated": false,
+              "keyframes": [
+                {
+                  "value": 0.514,
+                  "frame": 0,
+                  "tween": 1,
+                  "controlPoints": [
+                    [
+                      -10,
+                      0
+                    ],
+                    [
+                      10,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "radialblur",
+      "properties": {
+        "name": "Radial Blur",
+        "enabled": {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 1,
+              "frame": 0,
+              "tween": 0,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        },
+        "density": {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 0,
+              "frame": 0,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        },
+        "dither": {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 0.5,
+              "frame": 0,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        },
+        "decay": {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 0.9,
+              "frame": 0,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        },
+        "center": {
+          "objects": [
+            {
+              "animated": false,
+              "keyframes": [
+                {
+                  "value": 0,
+                  "frame": 0,
+                  "tween": 1,
+                  "controlPoints": [
+                    [
+                      -10,
+                      0
+                    ],
+                    [
+                      10,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "animated": false,
+              "keyframes": [
+                {
+                  "value": 0,
+                  "frame": 0,
+                  "tween": 1,
+                  "controlPoints": [
+                    [
+                      -10,
+                      0
+                    ],
+                    [
+                      10,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "overbright": 1,
+        "weight": {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 0.095,
+              "frame": 0,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "name": "Fractal Burst",
+  "desc": "Animated fractal burst group preset.",
+  "category": "AFTERCLIP · PRESETS · EFFECTS"
+}

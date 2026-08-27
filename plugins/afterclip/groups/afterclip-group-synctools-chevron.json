@@ -1,0 +1,242 @@
+{
+  "type": 0,
+  "properties": {
+    "name": "ChevSync",
+    "enabled": {
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 1,
+          "frame": 0,
+          "tween": 0,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    }
+  },
+  "customProperties": [
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Sync"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 0.5,
+          "frame": 0,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Ratio"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 0.5,
+          "frame": 0,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Power"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 3,
+          "frame": 0,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "group": true,
+        "dynamic": true,
+        "objects": [
+          {
+            "dynamic": true,
+            "name": "X",
+            "type": 0,
+            "value": 0
+          },
+          {
+            "dynamic": true,
+            "name": "Y",
+            "type": 0,
+            "value": 0
+          }
+        ],
+        "type": 1
+      },
+      "properties": {
+        "name": "Amount"
+      },
+      "objects": [
+        {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 0.2,
+              "frame": 0,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 0.4,
+              "frame": 0,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "objects": [
+    {
+      "type": 0,
+      "properties": {
+        "name": "Code",
+        "enabled": {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 1,
+              "frame": 0,
+              "tween": 0,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        }
+      },
+      "customProperties": [
+        {
+          "type": {
+            "custom": true,
+            "dynamic": true,
+            "type": 0
+          },
+          "properties": {
+            "name": "v"
+          },
+          "expression": "// === プロパティ定義と初期化 ===\nvar m = properties[\"Ratio\"]; // m (分割比率) は0~1\nvar p = properties[\"Power\"]; // p (パワー)\nvar s = properties[\"Sync\"]; // Sync値\nvar amount_eased = properties[\"Amount\"][0]; // イージングして増加する量\nvar amount_linear = properties[\"Amount\"][1]; // 一次関数的に加算される量\n\n// === 1. Syncを整数部と小数部に分解 ===\nvar I = (s >= 0) ? (s - s % 1) : (s - s % 1 - (s % 1 != 0 ? 1 : 0));\nvar s_frac = s - I;\n\n// === 2. ゼロ除算回避の分母設定 ===\nvar EPSILON = 0.000001; \n\n// m_safe: Outイージングの分母\nvar m_is_zero = (m < EPSILON) ? 1 : 0;\nvar m_safe = m * (1 - m_is_zero) + EPSILON * m_is_zero; \n\n// m1_safe: Inイージングの分母\nvar m1 = 1 - m;\nvar m1_is_zero = (m1 < EPSILON) ? 1 : 0;\nvar m1_safe = m1 * (1 - m1_is_zero) + EPSILON * m1_is_zero; \n\n// === 3. Easing Shape の計算 ===\n\n// --- Outイージング (0 <= s_frac < m) ---\nvar x1 = s_frac / m_safe;\nvar v1 = (1 - pow(1 - x1, p)) * 0.5;\n\n// --- Inイージング (m <= s_frac < 1) ---\nvar x2 = (s_frac - m) / m1_safe;\nvar v2 = 0.5 + pow(x2, p) * 0.5;\n\n// 区間フラグ\nvar flag1 = (s_frac < m) ? 1 : 0;\nvar flag2 = (s_frac >= m) ? 1 : 0;\n\n// E_shape (0から1へ Out-In イージングで変化)\nvar E_shape = v1 * flag1 + v2 * flag2;\n\n// === 4. 最終結果の計算 ===\n// イージング成分: (整数部 + イージング小数部) × amount_eased\n// リニア成分: Sync × amount_linear\n(I + E_shape) * amount_eased + s * amount_linear;",
+          "animated": "// === プロパティ定義と初期化 ===\nvar m = properties[\"Ratio\"]; // m (分割比率) は0~1\nvar p = properties[\"Power\"]; // p (パワー)\nvar s = properties[\"Sync\"]; // Sync値\nvar amount_eased = properties[\"Amount\"][0]; // イージングして増加する量\nvar amount_linear = properties[\"Amount\"][1]; // 一次関数的に加算される量\n\n// === 1. Syncを整数部と小数部に分解 ===\nvar I = (s >= 0) ? (s - s % 1) : (s - s % 1 - (s % 1 != 0 ? 1 : 0));\nvar s_frac = s - I;\n\n// === 2. ゼロ除算回避の分母設定 ===\nvar EPSILON = 0.000001; \n\n// m_safe: Outイージングの分母\nvar m_is_zero = (m < EPSILON) ? 1 : 0;\nvar m_safe = m * (1 - m_is_zero) + EPSILON * m_is_zero; \n\n// m1_safe: Inイージングの分母\nvar m1 = 1 - m;\nvar m1_is_zero = (m1 < EPSILON) ? 1 : 0;\nvar m1_safe = m1 * (1 - m1_is_zero) + EPSILON * m1_is_zero; \n\n// === 3. Easing Shape の計算 ===\n\n// --- Outイージング (0 <= s_frac < m) ---\nvar x1 = s_frac / m_safe;\nvar v1 = (1 - pow(1 - x1, p)) * 0.5;\n\n// --- Inイージング (m <= s_frac < 1) ---\nvar x2 = (s_frac - m) / m1_safe;\nvar v2 = 0.5 + pow(x2, p) * 0.5;\n\n// 区間フラグ\nvar flag1 = (s_frac < m) ? 1 : 0;\nvar flag2 = (s_frac >= m) ? 1 : 0;\n\n// E_shape (0から1へ Out-In イージングで変化)\nvar E_shape = v1 * flag1 + v2 * flag2;\n\n// === 4. 最終結果の計算 ===\n// イージング成分: (整数部 + イージング小数部) × amount_eased\n// リニア成分: Sync × amount_linear\n(I + E_shape) * amount_eased + s * amount_linear;",
+          "keyframes": [
+            {
+              "value": 2.8,
+              "frame": 0,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        }
+      ],
+      "objects": []
+    }
+  ],
+  "name": "ChevSync",
+  "desc": "Chevron synchronization group preset.",
+  "category": "AFTERCLIP · PRESETS · SYNCTOOLS"
+}

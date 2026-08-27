@@ -1,0 +1,1189 @@
+{
+  "type": 0,
+  "properties": {
+    "name": "Burst",
+    "enabled": {
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 1,
+          "frame": 0,
+          "tween": 0,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    }
+  },
+  "customProperties": [
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Start"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 0,
+          "frame": 0,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "group": true,
+        "dynamic": true,
+        "objects": [
+          {
+            "dynamic": true,
+            "name": "R",
+            "type": 0,
+            "value": 1,
+            "min": 0,
+            "max": 1
+          },
+          {
+            "dynamic": true,
+            "name": "G",
+            "type": 0,
+            "value": 1,
+            "min": 0,
+            "max": 1
+          },
+          {
+            "dynamic": true,
+            "name": "B",
+            "type": 0,
+            "value": 1,
+            "min": 0,
+            "max": 1
+          }
+        ],
+        "type": 4
+      },
+      "properties": {
+        "name": "Color"
+      },
+      "objects": [
+        {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 1,
+              "frame": 0,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 1,
+              "frame": 0,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 1,
+              "frame": 0,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Width"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 0.03,
+          "frame": 0,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Angle"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 0,
+          "frame": 0,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Margin"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 0.5,
+          "frame": 0,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Scale"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 1,
+          "frame": 0,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Length"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 1,
+          "frame": 0,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Time"
+      },
+      "expression": "time",
+      "animated": "time",
+      "keyframes": [
+        {
+          "value": 0,
+          "frame": 0,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    }
+  ],
+  "objects": [
+    {
+      "type": 1,
+      "properties": {
+        "name": "Triangle",
+        "enabled": {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 1,
+              "frame": 0,
+              "tween": 0,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        }
+      },
+      "customProperties": [
+        {
+          "type": {
+            "custom": true,
+            "dynamic": true,
+            "type": 0
+          },
+          "properties": {
+            "name": "Opacity"
+          },
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 1,
+              "frame": 0,
+              "tween": 1
+            }
+          ]
+        },
+        {
+          "type": {
+            "custom": true,
+            "group": true,
+            "dynamic": true,
+            "objects": [
+              {
+                "dynamic": true,
+                "name": "X",
+                "type": 0,
+                "value": 1
+              },
+              {
+                "dynamic": true,
+                "name": "Y",
+                "type": 0,
+                "value": 1
+              }
+            ],
+            "type": 1
+          },
+          "properties": {
+            "name": "Scale"
+          },
+          "objects": [
+            {
+              "animated": false,
+              "keyframes": [
+                {
+                  "value": 1,
+                  "frame": 0,
+                  "tween": 1
+                }
+              ]
+            },
+            {
+              "animated": false,
+              "keyframes": [
+                {
+                  "value": 1,
+                  "frame": 0,
+                  "tween": 1
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": {
+            "custom": true,
+            "dynamic": true,
+            "type": 0
+          },
+          "properties": {
+            "name": "Rotation"
+          },
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 0,
+              "frame": 0,
+              "tween": 1
+            }
+          ]
+        },
+        {
+          "type": {
+            "custom": true,
+            "group": true,
+            "dynamic": true,
+            "objects": [
+              {
+                "dynamic": true,
+                "name": "X",
+                "type": 0,
+                "value": 0
+              },
+              {
+                "dynamic": true,
+                "name": "Y",
+                "type": 0,
+                "value": 0
+              }
+            ],
+            "type": 1
+          },
+          "properties": {
+            "name": "Position"
+          },
+          "objects": [
+            {
+              "animated": false,
+              "keyframes": [
+                {
+                  "value": 0,
+                  "frame": 0,
+                  "tween": 1
+                }
+              ]
+            },
+            {
+              "animated": false,
+              "keyframes": [
+                {
+                  "value": 0,
+                  "frame": 0,
+                  "tween": 1
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": {
+            "custom": true,
+            "group": true,
+            "dynamic": true,
+            "objects": [
+              {
+                "dynamic": true,
+                "name": "X",
+                "type": 0,
+                "value": 0
+              },
+              {
+                "dynamic": true,
+                "name": "Y",
+                "type": 0,
+                "value": 0
+              }
+            ],
+            "type": 1
+          },
+          "properties": {
+            "name": "P1"
+          },
+          "objects": [
+            {
+              "animated": false,
+              "keyframes": [
+                {
+                  "value": 0,
+                  "frame": 0,
+                  "tween": 1,
+                  "controlPoints": [
+                    [
+                      -10,
+                      0
+                    ],
+                    [
+                      10,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "animated": false,
+              "keyframes": [
+                {
+                  "value": 0,
+                  "frame": 0,
+                  "tween": 1,
+                  "controlPoints": [
+                    [
+                      -10,
+                      0
+                    ],
+                    [
+                      10,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": {
+            "custom": true,
+            "group": true,
+            "dynamic": true,
+            "objects": [
+              {
+                "dynamic": true,
+                "name": "X",
+                "type": 0,
+                "value": 0
+              },
+              {
+                "dynamic": true,
+                "name": "Y",
+                "type": 0,
+                "value": 0
+              }
+            ],
+            "type": 1
+          },
+          "properties": {
+            "name": "P2"
+          },
+          "objects": [
+            {
+              "animated": false,
+              "keyframes": [
+                {
+                  "value": 300,
+                  "frame": 0,
+                  "tween": 1,
+                  "controlPoints": [
+                    [
+                      -10,
+                      0
+                    ],
+                    [
+                      10,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "animated": false,
+              "keyframes": [
+                {
+                  "value": 0,
+                  "frame": 0,
+                  "tween": 1,
+                  "controlPoints": [
+                    [
+                      -10,
+                      0
+                    ],
+                    [
+                      10,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": {
+            "custom": true,
+            "group": true,
+            "dynamic": true,
+            "objects": [
+              {
+                "dynamic": true,
+                "name": "X",
+                "type": 0,
+                "value": 0
+              },
+              {
+                "dynamic": true,
+                "name": "Y",
+                "type": 0,
+                "value": 0
+              }
+            ],
+            "type": 1
+          },
+          "properties": {
+            "name": "P3"
+          },
+          "objects": [
+            {
+              "animated": false,
+              "keyframes": [
+                {
+                  "value": 500,
+                  "frame": 0,
+                  "tween": 1,
+                  "controlPoints": [
+                    [
+                      -10,
+                      0
+                    ],
+                    [
+                      10,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "animated": false,
+              "keyframes": [
+                {
+                  "value": -183.48,
+                  "frame": 0,
+                  "tween": 1,
+                  "controlPoints": [
+                    [
+                      -10,
+                      0
+                    ],
+                    [
+                      10,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": {
+            "custom": true,
+            "group": true,
+            "dynamic": true,
+            "objects": [
+              {
+                "dynamic": true,
+                "name": "R",
+                "type": 0,
+                "value": 1,
+                "min": 0,
+                "max": 1
+              },
+              {
+                "dynamic": true,
+                "name": "G",
+                "type": 0,
+                "value": 1,
+                "min": 0,
+                "max": 1
+              },
+              {
+                "dynamic": true,
+                "name": "B",
+                "type": 0,
+                "value": 1,
+                "min": 0,
+                "max": 1
+              }
+            ],
+            "type": 4
+          },
+          "properties": {
+            "name": "Color"
+          },
+          "expression": "properties[\"Color\"]",
+          "objects": [
+            {
+              "animated": "properties[\"Color\"]",
+              "keyframes": [
+                {
+                  "value": 1,
+                  "frame": 0,
+                  "tween": 1,
+                  "controlPoints": [
+                    [
+                      -10,
+                      0
+                    ],
+                    [
+                      10,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "animated": "properties[\"Color\"]",
+              "keyframes": [
+                {
+                  "value": 0,
+                  "frame": 0,
+                  "tween": 1,
+                  "controlPoints": [
+                    [
+                      -10,
+                      0
+                    ],
+                    [
+                      10,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "animated": "properties[\"Color\"]",
+              "keyframes": [
+                {
+                  "value": 0,
+                  "frame": 0,
+                  "tween": 1,
+                  "controlPoints": [
+                    [
+                      -10,
+                      0
+                    ],
+                    [
+                      10,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": {
+            "custom": true,
+            "dynamic": true,
+            "type": 0
+          },
+          "properties": {
+            "name": "GeometryScale"
+          },
+          "expression": "var t = (properties[\"Time\"]-properties[\"Start\"])/properties[\"Length\"];\n\n(1-pow(1-t,5)*(t<1))*(0<t)*properties[\"Scale\"];",
+          "animated": "var t = (properties[\"Time\"]-properties[\"Start\"])/properties[\"Length\"];\n\n(1-pow(1-t,5)*(t<1))*(0<t)*properties[\"Scale\"];",
+          "keyframes": [
+            {
+              "value": 0,
+              "frame": 0,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        }
+      ],
+      "_zoidiumShader": "./plugins/afterclip/shaders/afterclip-shape-triangle.glsl"
+    },
+    {
+      "type": 1,
+      "properties": {
+        "name": "Triangle Mask",
+        "enabled": {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 1,
+              "frame": 0,
+              "tween": 0,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        }
+      },
+      "customProperties": [
+        {
+          "type": {
+            "custom": true,
+            "group": true,
+            "dynamic": true,
+            "objects": [
+              {
+                "dynamic": true,
+                "name": "X",
+                "type": 0,
+                "value": 0
+              },
+              {
+                "dynamic": true,
+                "name": "Y",
+                "type": 0,
+                "value": 0
+              }
+            ],
+            "type": 1
+          },
+          "properties": {
+            "name": "P1"
+          },
+          "objects": [
+            {
+              "animated": false,
+              "keyframes": [
+                {
+                  "value": 0,
+                  "frame": 0,
+                  "tween": 1,
+                  "controlPoints": [
+                    [
+                      -10,
+                      0
+                    ],
+                    [
+                      10,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "animated": false,
+              "keyframes": [
+                {
+                  "value": 0,
+                  "frame": 0,
+                  "tween": 1,
+                  "controlPoints": [
+                    [
+                      -10,
+                      0
+                    ],
+                    [
+                      10,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": {
+            "custom": true,
+            "group": true,
+            "dynamic": true,
+            "objects": [
+              {
+                "dynamic": true,
+                "name": "X",
+                "type": 0,
+                "value": 0
+              },
+              {
+                "dynamic": true,
+                "name": "Y",
+                "type": 0,
+                "value": 0
+              }
+            ],
+            "type": 1
+          },
+          "properties": {
+            "name": "P2"
+          },
+          "objects": [
+            {
+              "animated": false,
+              "keyframes": [
+                {
+                  "value": 300,
+                  "frame": 0,
+                  "tween": 1,
+                  "controlPoints": [
+                    [
+                      -10,
+                      0
+                    ],
+                    [
+                      10,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "animated": false,
+              "keyframes": [
+                {
+                  "value": 0,
+                  "frame": 0,
+                  "tween": 1,
+                  "controlPoints": [
+                    [
+                      -10,
+                      0
+                    ],
+                    [
+                      10,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": {
+            "custom": true,
+            "group": true,
+            "dynamic": true,
+            "objects": [
+              {
+                "dynamic": true,
+                "name": "X",
+                "type": 0,
+                "value": 0
+              },
+              {
+                "dynamic": true,
+                "name": "Y",
+                "type": 0,
+                "value": 0
+              }
+            ],
+            "type": 1
+          },
+          "properties": {
+            "name": "P3"
+          },
+          "objects": [
+            {
+              "animated": false,
+              "keyframes": [
+                {
+                  "value": 500,
+                  "frame": 0,
+                  "tween": 1,
+                  "controlPoints": [
+                    [
+                      -10,
+                      0
+                    ],
+                    [
+                      10,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "animated": false,
+              "keyframes": [
+                {
+                  "value": -183.48,
+                  "frame": 0,
+                  "tween": 1,
+                  "controlPoints": [
+                    [
+                      -10,
+                      0
+                    ],
+                    [
+                      10,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": {
+            "custom": true,
+            "dynamic": true,
+            "type": 0
+          },
+          "properties": {
+            "name": "GeometryScale"
+          },
+          "expression": "var t = (properties[\"Time\"]-(properties[\"Start\"]+0.2))/properties[\"Length\"];\n\n(1-pow(1-t,3)*(t<1))*(0<t)*properties[\"Scale\"];",
+          "animated": "var t = (properties[\"Time\"]-(properties[\"Start\"]+0.2))/properties[\"Length\"];\n\n(1-pow(1-t,3)*(t<1))*(0<t)*properties[\"Scale\"];",
+          "keyframes": [
+            {
+              "value": 1,
+              "frame": 0,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        }
+      ],
+      "_zoidiumShader": "./plugins/afterclip/shaders/groups/afterclip-group-effects-burst-triangle-mask.glsl"
+    },
+    {
+      "type": 1,
+      "properties": {
+        "name": "Radial Repeat",
+        "enabled": {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 1,
+              "frame": 0,
+              "tween": 0,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        }
+      },
+      "customProperties": [
+        {
+          "type": {
+            "custom": true,
+            "dynamic": true,
+            "type": 0
+          },
+          "properties": {
+            "name": "Repeat"
+          },
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 18,
+              "frame": 0,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "type": {
+            "custom": true,
+            "dynamic": true,
+            "type": 0
+          },
+          "properties": {
+            "name": "Wide"
+          },
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 20,
+              "frame": 0,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "type": {
+            "custom": true,
+            "dynamic": true,
+            "type": 0,
+            "min": 0,
+            "max": 1
+          },
+          "properties": {
+            "name": "BlendOrder"
+          },
+          "keyframes": [
+            {
+              "value": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        }
+      ],
+      "_zoidiumShader": "./plugins/afterclip/shaders/afterclip-repeat-radial-repeat.glsl"
+    }
+  ],
+  "name": "Burst",
+  "desc": "Animated burst group preset.",
+  "category": "AFTERCLIP · PRESETS · EFFECTS"
+}

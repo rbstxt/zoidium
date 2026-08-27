@@ -1,0 +1,759 @@
+{
+  "type": 0,
+  "properties": {
+    "name": "Square DotWave",
+    "enabled": {
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 1,
+          "frame": 0,
+          "tween": 0,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    }
+  },
+  "customProperties": [],
+  "objects": [
+    {
+      "type": 1,
+      "properties": {
+        "name": "Grayscale Gradient",
+        "enabled": {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 1,
+              "frame": 0,
+              "tween": 0,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        }
+      },
+      "customProperties": [
+        {
+          "type": {
+            "custom": true,
+            "dynamic": true,
+            "type": 0
+          },
+          "properties": {
+            "name": "Power"
+          },
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 2,
+              "frame": 0,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        }
+      ],
+      "_zoidiumShader": "./plugins/afterclip/shaders/groups/afterclip-group-dot-waves-circular-dotwave-grayscale-gradient.glsl"
+    },
+    {
+      "type": "duplicate",
+      "properties": {
+        "name": "Duplicate",
+        "enabled": {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 1,
+              "frame": 0,
+              "tween": 0,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        },
+        "offset": {
+          "expression": "[-time,0]",
+          "objects": [
+            {
+              "animated": false,
+              "keyframes": [
+                {
+                  "value": 0,
+                  "frame": 0,
+                  "tween": 1,
+                  "controlPoints": [
+                    [
+                      -10,
+                      0
+                    ],
+                    [
+                      10,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "animated": false,
+              "keyframes": [
+                {
+                  "value": 0,
+                  "frame": 0,
+                  "tween": 1,
+                  "controlPoints": [
+                    [
+                      -10,
+                      0
+                    ],
+                    [
+                      10,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "multiplier": {
+          "objects": [
+            {
+              "animated": false,
+              "keyframes": [
+                {
+                  "value": 5.23,
+                  "frame": 0,
+                  "tween": 1,
+                  "controlPoints": [
+                    [
+                      -10,
+                      0
+                    ],
+                    [
+                      10,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "animated": false,
+              "keyframes": [
+                {
+                  "value": 1,
+                  "frame": 0,
+                  "tween": 1,
+                  "controlPoints": [
+                    [
+                      -10,
+                      0
+                    ],
+                    [
+                      10,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "rotation": {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 0,
+              "frame": 0,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        },
+        "repeat": 1
+      }
+    },
+    {
+      "type": 1,
+      "properties": {
+        "name": "Mirror (Fixed Bugs)",
+        "enabled": {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 1,
+              "frame": 0,
+              "tween": 0,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        }
+      },
+      "customProperties": [
+        {
+          "type": {
+            "custom": true,
+            "dynamic": true,
+            "type": 0
+          },
+          "properties": {
+            "name": "Segments"
+          },
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 4,
+              "frame": 0,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        }
+      ],
+      "_zoidiumShader": "./plugins/afterclip/shaders/afterclip-warp-mirror-fixed-bugs.glsl"
+    },
+    {
+      "type": "duplicate",
+      "properties": {
+        "name": "Duplicate",
+        "enabled": {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 1,
+              "frame": 0,
+              "tween": 0,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        },
+        "offset": {
+          "objects": [
+            {
+              "animated": false,
+              "keyframes": [
+                {
+                  "value": 0,
+                  "frame": 0,
+                  "tween": 1,
+                  "controlPoints": [
+                    [
+                      -10,
+                      0
+                    ],
+                    [
+                      10,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "animated": false,
+              "keyframes": [
+                {
+                  "value": 0,
+                  "frame": 0,
+                  "tween": 1,
+                  "controlPoints": [
+                    [
+                      -10,
+                      0
+                    ],
+                    [
+                      10,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "multiplier": {
+          "objects": [
+            {
+              "animated": false,
+              "keyframes": [
+                {
+                  "value": 0.88,
+                  "frame": 0,
+                  "tween": 1,
+                  "controlPoints": [
+                    [
+                      -10,
+                      0
+                    ],
+                    [
+                      10,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "animated": false,
+              "keyframes": [
+                {
+                  "value": 0.88,
+                  "frame": 0,
+                  "tween": 1,
+                  "controlPoints": [
+                    [
+                      -10,
+                      0
+                    ],
+                    [
+                      10,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "rotation": {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 0,
+              "frame": 0,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        },
+        "repeat": 0
+      }
+    },
+    {
+      "type": 1,
+      "properties": {
+        "name": "DotWave Warp",
+        "enabled": {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 1,
+              "frame": 0,
+              "tween": 0,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        }
+      },
+      "customProperties": [
+        {
+          "type": {
+            "custom": true,
+            "dynamic": true,
+            "type": 0
+          },
+          "properties": {
+            "name": "Opacity"
+          },
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 1,
+              "frame": 0,
+              "tween": 1
+            }
+          ]
+        },
+        {
+          "type": {
+            "custom": true,
+            "group": true,
+            "dynamic": true,
+            "objects": [
+              {
+                "dynamic": true,
+                "name": "X",
+                "type": 0,
+                "value": 1
+              },
+              {
+                "dynamic": true,
+                "name": "Y",
+                "type": 0,
+                "value": 1
+              }
+            ],
+            "type": 1
+          },
+          "properties": {
+            "name": "Scale"
+          },
+          "objects": [
+            {
+              "animated": false,
+              "keyframes": [
+                {
+                  "value": 1,
+                  "frame": 0,
+                  "tween": 1
+                }
+              ]
+            },
+            {
+              "animated": false,
+              "keyframes": [
+                {
+                  "value": 1,
+                  "frame": 0,
+                  "tween": 1
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": {
+            "custom": true,
+            "dynamic": true,
+            "type": 0
+          },
+          "properties": {
+            "name": "Rotation"
+          },
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 0,
+              "frame": 0,
+              "tween": 1
+            }
+          ]
+        },
+        {
+          "type": {
+            "custom": true,
+            "group": true,
+            "dynamic": true,
+            "objects": [
+              {
+                "dynamic": true,
+                "name": "X",
+                "type": 0,
+                "value": 0
+              },
+              {
+                "dynamic": true,
+                "name": "Y",
+                "type": 0,
+                "value": 0
+              }
+            ],
+            "type": 1
+          },
+          "properties": {
+            "name": "Position"
+          },
+          "objects": [
+            {
+              "animated": false,
+              "keyframes": [
+                {
+                  "value": 0,
+                  "frame": 0,
+                  "tween": 1
+                }
+              ]
+            },
+            {
+              "animated": false,
+              "keyframes": [
+                {
+                  "value": 0,
+                  "frame": 0,
+                  "tween": 1
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": {
+            "custom": true,
+            "dynamic": true,
+            "type": 0
+          },
+          "properties": {
+            "name": "GridSize"
+          },
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 10,
+              "frame": 0,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "type": {
+            "custom": true,
+            "dynamic": true,
+            "type": 0
+          },
+          "properties": {
+            "name": "BoxScaleMin"
+          },
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 0,
+              "frame": 0,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "type": {
+            "custom": true,
+            "dynamic": true,
+            "type": 0
+          },
+          "properties": {
+            "name": "BoxScaleMax"
+          },
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 0.95,
+              "frame": 0,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "type": {
+            "custom": true,
+            "group": true,
+            "dynamic": true,
+            "objects": [
+              {
+                "dynamic": true,
+                "name": "R",
+                "type": 0,
+                "value": 1,
+                "min": 0,
+                "max": 1
+              },
+              {
+                "dynamic": true,
+                "name": "G",
+                "type": 0,
+                "value": 1,
+                "min": 0,
+                "max": 1
+              },
+              {
+                "dynamic": true,
+                "name": "B",
+                "type": 0,
+                "value": 1,
+                "min": 0,
+                "max": 1
+              }
+            ],
+            "type": 4
+          },
+          "properties": {
+            "name": "Color"
+          },
+          "objects": [
+            {
+              "animated": false,
+              "keyframes": [
+                {
+                  "value": 1,
+                  "frame": 0,
+                  "tween": 1,
+                  "controlPoints": [
+                    [
+                      -10,
+                      0
+                    ],
+                    [
+                      10,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "animated": false,
+              "keyframes": [
+                {
+                  "value": 1,
+                  "frame": 0,
+                  "tween": 1,
+                  "controlPoints": [
+                    [
+                      -10,
+                      0
+                    ],
+                    [
+                      10,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "animated": false,
+              "keyframes": [
+                {
+                  "value": 1,
+                  "frame": 0,
+                  "tween": 1,
+                  "controlPoints": [
+                    [
+                      -10,
+                      0
+                    ],
+                    [
+                      10,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "_zoidiumShader": "./plugins/afterclip/shaders/groups/afterclip-group-dot-waves-circular-dotwave-dotwave-warp.glsl"
+    }
+  ],
+  "name": "Square DotWave",
+  "desc": "Square dot-wave group preset.",
+  "category": "AFTERCLIP · PRESETS · DOT WAVES"
+}

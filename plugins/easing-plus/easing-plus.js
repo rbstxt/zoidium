@@ -126,9 +126,29 @@ const EasingPlus = (() => {
     };
   }
 
+  function hasNativeBezierDefaults(start, end) {
+    const outgoing = start?.controlPoints?.[1];
+    const incoming = end?.controlPoints?.[0];
+    return (
+      Array.isArray(outgoing) &&
+      Array.isArray(incoming) &&
+      Math.abs(outgoing[0] - 10) < EPSILON &&
+      Math.abs(outgoing[1]) < EPSILON &&
+      Math.abs(incoming[0] + 10) < EPSILON &&
+      Math.abs(incoming[1]) < EPSILON
+    );
+  }
+
   function curveFromSegment(property, start, end) {
     const duration = end.frame - start.frame;
     if (!(duration > 0)) return cubic(0.333, 0.333, 0.667, 0.667);
+    // Panzoid stores a newly-created Bezier as frame-relative handles
+    // [-10, 0] and [10, 0].  That representation is not a stable normalized
+    // default across segment lengths, so Easing+ presents the neutral Linear
+    // curve until the user changes the handles.
+    if (hasNativeBezierDefaults(start, end)) {
+      return clonePoints(PRESETS[0].points);
+    }
     const correction = window.PZ?.tween?.correctCurve
       ? window.PZ.tween.correctCurve(start, end)
       : Math.min(
@@ -198,22 +218,40 @@ const EasingPlus = (() => {
       const start = channel.getKeyframe(localFrame);
       if (!start) continue;
 
-      // Easing+ always edits the outgoing segment from the current keyframe.
-      // Panzoid returns the current keyframe when there is no next keyframe,
-      // so the frame comparison below also excludes the final keyframe.
-      const end = channel.getNextKeyframe(start.frame);
+      // Easing+ edits the outgoing segment from the current keyframe.  At the
+      // final keyframe there is no outgoing segment, so use the immediately
+      // preceding segment instead.  This keeps the easing button useful on
+      // the final keyframe and matches Panzoid's convention that a keyframe's
+      // tween describes the segment ending at that keyframe.
+      let segmentStart = start;
+      let end = channel.getNextKeyframe(start.frame);
+      let finalKeyframe = false;
+      if ((!end || end.frame <= start.frame) && start.frame === localFrame) {
+        const previous = channel.getPreviousKeyframe(start.frame);
+        if (previous && previous.frame < start.frame) {
+          segmentStart = previous;
+          end = start;
+          finalKeyframe = true;
+        }
+      }
       if (
         !end ||
-        end.frame <= start.frame ||
-        !Number.isFinite(start.value) ||
+        end.frame <= segmentStart.frame ||
+        !Number.isFinite(segmentStart.value) ||
         !Number.isFinite(end.value)
       ) {
         continue;
       }
-      targets.push({ property: channel, start, end });
+      targets.push({ property: channel, start: segmentStart, end, finalKeyframe });
     }
     if (targets.length === 0) return null;
-    return { editor, property, localFrame, targets };
+    return {
+      editor,
+      property,
+      localFrame,
+      targets,
+      defaultCurve: targets.some((target) => target.finalKeyframe),
+    };
   }
 
   function applyCurveToTarget(target, points, propertyOps) {
@@ -765,7 +803,12 @@ const EasingPlus = (() => {
     document.body.appendChild(shell);
 
     const first = context.targets[0];
-    const initialPoints = curveFromSegment(first.property, first.start, first.end);
+    // A final-keyframe click edits the preceding segment, but should not
+    // inherit that segment's existing easing.  Start from the normal default
+    // curve so the editor opens in a predictable, neutral state.
+    const initialPoints = context.defaultCurve
+      ? clonePoints(PRESETS[0].points)
+      : curveFromSegment(first.property, first.start, first.end);
     const session = {
       ...context,
       root: shell,
@@ -936,6 +979,7 @@ const EasingPlus = (() => {
       miniGeometry,
       overshootForPoints,
       shouldPreserveCrossingX,
+      hasNativeBezierDefaults,
       PRESETS,
     },
   };

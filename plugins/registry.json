@@ -51,6 +51,21 @@
       "manifest": "./plugins/light-plus/manifest.json"
     },
     {
+      "id": "afterclip",
+      "name": "AfterClip",
+      "author": "AfterClip",
+      "version": "1",
+      "itemCount": 43,
+      "effectCount": 32,
+      "groupCount": 11,
+      "format": "GLSL + groups",
+      "tagline": "AfterClip Shader Pack",
+      "color": "#d35a76",
+      "description": "Adds AfterClip custom shaders and group presets, normalized for Zoidium.",
+      "warning": "AfterClip effects use Zoidium's premultiplied source-over convention and are not vanilla Panzoid-compatible.",
+      "manifest": "./plugins/afterclip/manifest.json?v=1"
+    },
+    {
       "id": "alipfx-shader-pack-4",
       "name": "Afterzoid Shader Pack 4",
       "author": "AlipFX",

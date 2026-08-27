@@ -12,6 +12,8 @@ Panzoid's frame-relative and value-relative `controlPoints` representation. For
 equal start/end values, it stores the curve as a deviation from the linear
 baseline (`y - x`). A linear curve therefore stays still, while a non-linear
 curve creates a finite out-and-back motion without dividing by a zero value span.
+Untouched Panzoid Bezier handles open as the normalized Linear default
+(`0.333, 0.333, 0.667, 0.667`) so the initial curve does not depend on segment length.
 
 Both handle X coordinates move independently across the full 0–1 interval.
 While Easing+ is enabled, Panzoid's automatic crossing-handle correction is

@@ -1,0 +1,205 @@
+{
+  "type": 1,
+  "properties": {
+    "name": "Duplicate (Extended)",
+    "enabled": {
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 1,
+          "frame": 0,
+          "tween": 0,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    }
+  },
+  "customProperties": [
+    {
+      "type": {
+        "custom": true,
+        "group": true,
+        "dynamic": true,
+        "objects": [
+          {
+            "dynamic": true,
+            "name": "X",
+            "type": 0,
+            "value": 0
+          },
+          {
+            "dynamic": true,
+            "name": "Y",
+            "type": 0,
+            "value": 0
+          }
+        ],
+        "type": 1
+      },
+      "properties": {
+        "name": "Offset"
+      },
+      "objects": [
+        {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 0,
+              "frame": 0,
+              "tween": 1
+            }
+          ]
+        },
+        {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 0,
+              "frame": 0,
+              "tween": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "RepeatMode"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 2,
+          "frame": 0,
+          "tween": 1
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Rotation"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 0,
+          "frame": 0,
+          "tween": 1
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "group": true,
+        "dynamic": true,
+        "objects": [
+          {
+            "dynamic": true,
+            "name": "X",
+            "type": 0,
+            "value": 1
+          },
+          {
+            "dynamic": true,
+            "name": "Y",
+            "type": 0,
+            "value": 1
+          }
+        ],
+        "type": 1
+      },
+      "properties": {
+        "name": "Multiplier"
+      },
+      "objects": [
+        {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 1,
+              "frame": 0,
+              "tween": 1
+            }
+          ]
+        },
+        {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 1,
+              "frame": 0,
+              "tween": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "group": true,
+        "dynamic": true,
+        "objects": [
+          {
+            "dynamic": true,
+            "name": "X",
+            "type": 0,
+            "value": 0
+          },
+          {
+            "dynamic": true,
+            "name": "Y",
+            "type": 0,
+            "value": 0
+          }
+        ],
+        "type": 1
+      },
+      "properties": {
+        "name": "Anchor"
+      },
+      "objects": [
+        {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 0,
+              "frame": 0,
+              "tween": 1
+            }
+          ]
+        },
+        {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 0,
+              "frame": 0,
+              "tween": 1
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
