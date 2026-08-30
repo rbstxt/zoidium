@@ -2,8 +2,8 @@
 
 const JapaneseLocalization = (() => {
   const LOCALE = "ja";
-  const CORE_CATALOG_URL = "./plugins/japanese-localization/locales/ja.json?v=24";
-  const REGISTRY_URL = "./plugins/registry.json?v=10";
+  const CORE_CATALOG_URL = "./plugins/japanese-localization/locales/ja.json?v=25";
+  const REGISTRY_URL = "./plugins/registry.json?v=11";
   const TRANSLATABLE_ATTRIBUTES = Object.freeze([
     "title",
     "aria-label",
@@ -56,7 +56,7 @@ const JapaneseLocalization = (() => {
   }
 
   async function fetchJson(url) {
-    const response = await fetch(url, { cache: "no-store" });
+    const response = await fetch(url, { cache: "default" });
     if (!response.ok) throw new Error(`${response.status} ${response.statusText}: ${url}`);
     return response.json();
   }
@@ -147,6 +147,9 @@ const JapaneseLocalization = (() => {
 
     const definitions = await Promise.all(
       registry.plugins.map(async (plugin) => {
+        if (typeof plugin?.locale === "string" && plugin.locale.trim()) {
+          return { id: plugin.id, source: plugin.locale };
+        }
         if (!plugin?.manifest) return null;
         try {
           const manifest = await fetchJson(plugin.manifest);
@@ -157,9 +160,11 @@ const JapaneseLocalization = (() => {
         }
       }),
     );
-    for (const definition of definitions) {
-      if (definition?.source) await loadCatalog(definition.source);
-    }
+    await Promise.all(
+      definitions
+        .filter((definition) => definition?.source)
+        .map((definition) => loadCatalog(definition.source))
+    );
   }
 
   const PATTERNS = Object.freeze([

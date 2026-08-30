@@ -1,7 +1,7 @@
 (function () {
   "use strict";
 
-  const REGISTRY_URL = "./plugins/registry.json?v=10";
+  const REGISTRY_URL = "./plugins/registry.json?v=11";
   const STORAGE_PREFIX = "zoidium.plugin.enabled.";
   const SHADER_PLUGIN_MARKER = "// @zoidium-plugin ";
   const EFFECT_UUID_PROPERTY = "_zoidiumEffectUuid";
@@ -70,15 +70,49 @@
   }
 
   async function fetchJson(url) {
-    const response = await fetch(url, { cache: "no-store" });
+    const response = await fetch(url, { cache: "default" });
     if (!response.ok) throw new Error(`HTTP ${response.status}: ${url}`);
     return response.json();
   }
 
   async function fetchText(url) {
-    const response = await fetch(url, { cache: "no-store" });
+    const response = await fetch(url, { cache: "default" });
     if (!response.ok) throw new Error(`HTTP ${response.status}: ${url}`);
     return response.text();
+  }
+
+  function pluginAssetKey(url) {
+    const source = String(url || "").split(/[?#]/, 1)[0].replace(/\\/g, "/");
+    return `/${source.replace(/^\.\//, "").replace(/^\/+/, "")}`;
+  }
+
+  function getPluginAsset(assets, kind, url) {
+    if (!assets || !assets[kind] || typeof assets[kind] !== "object") return undefined;
+    const map = assets[kind];
+    const key = pluginAssetKey(url);
+    if (Object.prototype.hasOwnProperty.call(map, key)) return map[key];
+    if (Object.prototype.hasOwnProperty.call(map, url)) return map[url];
+    return undefined;
+  }
+
+  function createPluginAssetResolver(assets) {
+    return (kind, url) => getPluginAsset(assets, kind, url);
+  }
+
+  function bundledText(assets, url, description) {
+    const value = getPluginAsset(assets, "text", url);
+    if (typeof value !== "string") {
+      throw new Error(`Missing bundled text asset: ${description || url}`);
+    }
+    return value;
+  }
+
+  function bundledJson(assets, url, description) {
+    const value = getPluginAsset(assets, "json", url);
+    if (!value || typeof value !== "object") {
+      throw new Error(`Missing bundled JSON asset: ${description || url}`);
+    }
+    return value;
   }
 
   function validateManifest(plugin, manifest) {
@@ -97,13 +131,15 @@
     const nativeEffects = manifest.nativeEffects || [];
     const materialTypes = manifest.materialTypes || [];
     const modules = manifest.modules || [];
+    const resources = manifest.resources || [];
     if (
       !Array.isArray(effects) ||
       !Array.isArray(groups) ||
       !Array.isArray(objectTypes) ||
       !Array.isArray(nativeEffects) ||
       !Array.isArray(materialTypes) ||
-      !Array.isArray(modules)
+      !Array.isArray(modules) ||
+      !Array.isArray(resources)
     ) {
       throw new Error(`Invalid plugin features: ${plugin.id}`);
     }
@@ -145,6 +181,15 @@
     for (const module of modules) {
       if (!module.id || !module.source) {
         throw new Error(`Invalid module entry in ${plugin.id}`);
+      }
+    }
+    for (const resource of resources) {
+      if (
+        !resource.id ||
+        !resource.source ||
+        !["text", "json"].includes(resource.type)
+      ) {
+        throw new Error(`Invalid resource entry in ${plugin.id}`);
       }
     }
     for (const entry of objectTypes) {
@@ -470,13 +515,15 @@
     }
   }
 
-  function createLazyEffectData(plugin, effect, cache) {
+  function createLazyEffectData(plugin, effect, cache, assets) {
     return async function () {
       if (!cache.has(effect.id)) {
-        cache.set(
-          effect.id,
-          Promise.all([fetchJson(effect.preset), fetchText(effect.shader)]).then(
-            ([preset, shader]) => {
+        if (assets) {
+          cache.set(
+            effect.id,
+            Promise.resolve().then(() => {
+              const preset = cloneJson(bundledJson(assets, effect.preset, `effect preset ${effect.id}`));
+              const shader = bundledText(assets, effect.shader, `effect shader ${effect.id}`);
               if (preset.type !== 1 || !preset.properties) {
                 throw new Error(`Invalid shader preset: ${effect.id}`);
               }
@@ -485,9 +532,25 @@
                 effect
               )}\n`;
               return preset;
-            }
-          )
-        );
+            })
+          );
+        } else {
+          cache.set(
+            effect.id,
+            Promise.all([fetchJson(effect.preset), fetchText(effect.shader)]).then(
+              ([preset, shader]) => {
+                if (preset.type !== 1 || !preset.properties) {
+                  throw new Error(`Invalid shader preset: ${effect.id}`);
+                }
+                preset.properties.fragShader = `${shader.replace(/\s+$/, "")}\n${createPluginMarker(
+                  plugin,
+                  effect
+                )}\n`;
+                return preset;
+              }
+            )
+          );
+        }
       }
       const data = await cache.get(effect.id);
       return JSON.parse(JSON.stringify(data));
@@ -518,21 +581,38 @@
     return result;
   }
 
-  async function loadGroupData(plugin, group, cache) {
+  async function loadGroupData(plugin, group, cache, assets) {
     if (!cache.has(group.id)) {
-      cache.set(
-        group.id,
-        Promise.all([
-          fetchJson(group.preset),
-          ...(group.shaders || []).map(async (source) => [source, await fetchText(source)]),
-        ]).then(([preset, ...shaderEntries]) => {
-          if (preset.type !== 0 || !preset.properties || !Array.isArray(preset.objects)) {
-            throw new Error(`Invalid group preset: ${group.id}`);
-          }
-          const shaders = new Map(shaderEntries);
-          return hydrateGroupShaders(preset, shaders, plugin, group);
-        })
-      );
+      if (assets) {
+        cache.set(
+          group.id,
+          Promise.resolve().then(() => {
+            const preset = cloneJson(bundledJson(assets, group.preset, `group preset ${group.id}`));
+            const shaderEntries = (group.shaders || []).map((source) => [
+              source,
+              bundledText(assets, source, `group shader ${group.id}`),
+            ]);
+            if (preset.type !== 0 || !preset.properties || !Array.isArray(preset.objects)) {
+              throw new Error(`Invalid group preset: ${group.id}`);
+            }
+            return hydrateGroupShaders(preset, new Map(shaderEntries), plugin, group);
+          })
+        );
+      } else {
+        cache.set(
+          group.id,
+          Promise.all([
+            fetchJson(group.preset),
+            ...(group.shaders || []).map(async (source) => [source, await fetchText(source)]),
+          ]).then(([preset, ...shaderEntries]) => {
+            if (preset.type !== 0 || !preset.properties || !Array.isArray(preset.objects)) {
+              throw new Error(`Invalid group preset: ${group.id}`);
+            }
+            const shaders = new Map(shaderEntries);
+            return hydrateGroupShaders(preset, shaders, plugin, group);
+          })
+        );
+      }
     }
     return cloneJson(await cache.get(group.id));
   }
@@ -625,11 +705,12 @@
     for (const [type, name] of NATIVE_FX_EFFECTS) installMissingNativeFactory(type, name);
   }
 
-  function registerNativeFactory(plugin, effect, source) {
+  function registerNativeFactory(plugin, effect, source, getAsset) {
     setNativeFactory(
       effect.id,
       function () {
         const instance = this;
+        instance._zoidiumGetAsset = getAsset;
         new Function(source).call(instance);
         const originalLoad = instance.load;
         const originalUnload = instance.unload;
@@ -800,12 +881,53 @@
     }
   }
 
+  async function loadPluginPackage(plugin) {
+    if (typeof plugin.bundle === "string" && plugin.bundle.trim()) {
+      const bundle = await fetchJson(plugin.bundle);
+      if (
+        !bundle ||
+        bundle.schemaVersion !== 1 ||
+        !bundle.manifest ||
+        !bundle.assets ||
+        typeof bundle.assets !== "object" ||
+        Array.isArray(bundle.assets)
+      ) {
+        throw new Error(`Invalid plugin bundle: ${plugin.id}`);
+      }
+      if (bundle.manifest.id !== plugin.id) {
+        throw new Error(`Plugin bundle id mismatch: ${plugin.id}`);
+      }
+      validateManifest(plugin, bundle.manifest);
+      return { manifest: bundle.manifest, assets: bundle.assets };
+    }
+
+    if (typeof plugin.manifest !== "string" || !plugin.manifest.trim()) {
+      throw new Error(`Plugin has no bundle or manifest: ${plugin.id}`);
+    }
+    const manifest = await fetchJson(plugin.manifest);
+    validateManifest(plugin, manifest);
+    return { manifest, assets: null };
+  }
+
+  function loadPluginPackageForState(state) {
+    if (!state.packagePromise) {
+      state.packagePromise = loadPluginPackage(state.plugin).catch((error) => {
+        state.packagePromise = null;
+        throw error;
+      });
+    }
+    return state.packagePromise;
+  }
+
   async function registerManifest(plugin, manifest, state) {
+    const getAsset = createPluginAssetResolver(state.bundleAssets);
     if (state.runtimeModules.length === 0) {
       const sources = await Promise.all(
         (manifest.modules || []).map(async (definition) => [
           definition,
-          await fetchText(definition.source),
+          state.bundleAssets
+            ? bundledText(state.bundleAssets, definition.source, `module ${definition.id}`)
+            : await fetchText(definition.source),
         ])
       );
       for (const [definition, source] of sources) {
@@ -815,7 +937,15 @@
         if (!runtime || typeof runtime.activate !== "function") {
           throw new Error(`Plugin module has no activate() export: ${definition.id}`);
         }
-        await runtime.activate({ plugin, manifest, editor: window.CM, PZ, document, window });
+        await runtime.activate({
+          plugin,
+          manifest,
+          editor: window.CM,
+          PZ,
+          document,
+          window,
+          getAsset,
+        });
         state.runtimeModules.push(runtime);
       }
     }
@@ -826,7 +956,9 @@
       const pluginGroups = manifest.groups || [];
       if (pluginEffects.length > 0 || pluginGroups.length > 0) {
         const groupData = await Promise.all(
-          pluginGroups.map((group) => loadGroupData(plugin, group, state.groupCache))
+          pluginGroups.map((group) =>
+            loadGroupData(plugin, group, state.groupCache, state.bundleAssets)
+          )
         );
         const entries = [
           {
@@ -838,7 +970,7 @@
             name: effect.name,
             desc: effect.description || `${effect.name} — ${manifest.name}`,
             type: 1,
-            data: createLazyEffectData(plugin, effect, state.effectCache),
+            data: createLazyEffectData(plugin, effect, state.effectCache, state.bundleAssets),
             _zoidiumPluginId: plugin.id,
             _zoidiumPluginEffectId: effect.id,
           })),
@@ -866,9 +998,16 @@
       )
     ) {
       const sources = await Promise.all(
-        nativeEffects.map(async (effect) => [effect, await fetchText(effect.source)])
+        nativeEffects.map(async (effect) => [
+          effect,
+          state.bundleAssets
+            ? bundledText(state.bundleAssets, effect.source, `native effect ${effect.id}`)
+            : await fetchText(effect.source),
+        ])
       );
-      for (const [effect, source] of sources) registerNativeFactory(plugin, effect, source);
+      for (const [effect, source] of sources) {
+        registerNativeFactory(plugin, effect, source, getAsset);
+      }
       const entries = [
         {
           name: manifest.category || "NATIVE FX",
@@ -1295,8 +1434,9 @@
       updateCard(state, "loading", "Loading…");
       try {
         if (!state.manifest) {
-          state.manifest = await fetchJson(state.plugin.manifest);
-          validateManifest(state.plugin, state.manifest);
+          const pluginPackage = await loadPluginPackageForState(state);
+          state.manifest = pluginPackage.manifest;
+          state.bundleAssets = pluginPackage.assets;
         }
         await registerManifest(state.plugin, state.manifest, state);
         await restoreMissingNativeEffects(state.plugin.id);
@@ -1377,6 +1517,8 @@
       toggle: card.querySelector("input"),
       status: card.querySelector(".zoidium-plugin-state"),
       manifest: null,
+      bundleAssets: null,
+      packagePromise: null,
       effectCache: new Map(),
       groupCache: new Map(),
       replacedObjectTypes: [],
@@ -1565,7 +1707,19 @@
       createTab(panel);
       installEffectPickerBadges();
 
-      for (const state of pluginStates.values()) {
+      const persistedStates = Array.from(pluginStates.values()).filter((state) =>
+        isPersistedEnabled(state.plugin.id)
+      );
+      await Promise.all(
+        persistedStates.map(async (state) => {
+          try {
+            await loadPluginPackageForState(state);
+          } catch (error) {
+            console.error(`[Zoidium] failed to preload ${state.plugin.name}:`, error);
+          }
+        })
+      );
+      for (const state of persistedStates) {
         if (isPersistedEnabled(state.plugin.id)) await enablePlugin(state, false);
       }
     } catch (error) {

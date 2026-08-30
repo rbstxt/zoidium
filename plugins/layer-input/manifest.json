@@ -3,10 +3,22 @@
   "id": "layer-input",
   "name": "Layer Input",
   "author": "Zoidium",
-  "version": "2",
+  "version": "3",
   "locales": {
-    "ja": "./plugins/layer-input/locales/ja.json?v=2"
+    "ja": "./plugins/layer-input/locales/ja.json?v=3"
   },
+  "resources": [
+    {
+      "id": "layer-input-shader",
+      "type": "text",
+      "source": "./plugins/layer-input/layer-input.glsl?v=3"
+    },
+    {
+      "id": "layer-input-displacement-shader",
+      "type": "text",
+      "source": "./plugins/layer-input/layer-input-displacement.glsl?v=3"
+    }
+  ],
   "materialTypes": [
     {
       "id": "layersource",
@@ -17,7 +29,7 @@
   "modules": [
     {
       "id": "layer-input-runtime",
-      "source": "./plugins/layer-input/layer-input.js?v=2"
+      "source": "./plugins/layer-input/layer-input.js?v=3"
     }
   ],
   "nativeEffects": [
@@ -25,13 +37,13 @@
       "id": "layerinput",
       "name": "Layer Input",
       "description": "Composites a selected video track into the current layer.",
-      "source": "./plugins/layer-input/layer-input-effect.js?v=2"
+      "source": "./plugins/layer-input/layer-input-effect.js?v=3"
     },
     {
       "id": "layerinputdisplacement",
       "name": "Layer Input Displacement Map",
       "description": "Uses a selected video track as a displacement map.",
-      "source": "./plugins/layer-input/layer-input-displacement-effect.js?v=2"
+      "source": "./plugins/layer-input/layer-input-displacement-effect.js?v=3"
     }
   ]
 }

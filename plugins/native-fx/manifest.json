@@ -3,10 +3,17 @@
   "id": "native-fx",
   "name": "Native FX",
   "author": "Zoidium",
-  "version": "1",
+  "version": "2",
   "locales": {
-    "ja": "./plugins/native-fx/locales/ja.json?v=1"
+    "ja": "./plugins/native-fx/locales/ja.json?v=2"
   },
+  "resources": [
+    {
+      "id": "radialblurspin-shader",
+      "type": "text",
+      "source": "/plugins/native-fx/shaders/fx_radialblurspin.glsl"
+    }
+  ],
   "category": "NATIVE FX",
   "nativeEffects": [
     {

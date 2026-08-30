@@ -26,9 +26,6 @@ Thumbs.db
 *.swp
 *.swo
 
-# Cloudflare Pages
-_headers
-
 # Local test artifacts (screenshots, dev outputs)
 .zoidium_test/
 
