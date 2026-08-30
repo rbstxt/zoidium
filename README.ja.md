@@ -1,186 +1,126 @@
 # Zoidium
 
-> **Panzoid Clipmaker Gen3** の改造版。
+> CM3の体験を拡張するためのオープンソースツール集。
 
-Zoidium は Panzoid Clipmaker Gen3一式をバンドルし、**ネットワーク通信なし・テレメトリなし・広告なし**でローカル動作する。ブラウザアプリ / Electron デスクトップアプリ / 静的 Web デプロイ（Cloudflare Pages など任意の静的ホスト）の 3 形態で提供。
+Zoidiumは、Clipmaker Gen3（CM3）の外側で動作する拡張レイヤーです。
+プラグイン、ローカル優先のアダプター、クリエイター向けツール、ブラウザ・
+デスクトップ向けのパッケージングを提供します。
 
----
-
-## 特徴
-
-- 🎬 **Clipmaker Gen3 完全同梱** — Three.js r91 レンダラ、43 エフェクト、39 シェーダ、4 マテリアル、パーティクルシステム
-- 🌐 **100% オフライン** — API 通信なし、広告なし、テレメトリなし、全アセット同梱
-- 🪟 **3 つの実行形態** — ブラウザ、Electron デスクトップ、静的 Web デプロイ
-- 💾 **プロジェクト保存/読込** — `.pz` ファイルは Zoidium とオリジナル Panzoid 双方で動作
-- 🔒 **プライバシー最優先** — アカウント不要、分析なし、リモートリクエストなし
-- 📦 **クロスプラットフォームビルド** — macOS (`.dmg`)、Windows (`.exe`)、Linux (`.AppImage`)
-
----
+リポジトリには、CM3のランタイム、エフェクト、マテリアル、ワーカー、
+シェーダー、テクスチャ、フォント、アイコン、ダウンロードページを一切
+含めません。`npm run setup`または開発・ビルドの開始時に、
+`tools/runtime-resources.js` が設定されたCM3ソースページと同一オリジンの
+リソースグラフをGit管理外の`.zoidium-resources/`へ取得します。キャッシュは
+ローカルサーバー終了後も保持し、静的デプロイではそのデプロイに必要な生成物だけが残ります。
 
 ## クイックスタート
 
-### 前提条件
-
-- Node.js 18+ および npm
-- macOS / Windows / Linux
-
-### 1. インストール
+前提: Node.js 18+ と npm。
 
 ```bash
-git clone https://github.com/zoidnerd/zoidium.git
-cd zoidium
 npm install
+npm run setup     # CM3リソースキャッシュを取得・更新
+npm run web       # キャッシュを準備して http://localhost:8123 で配信
+npm run dev       # 同じ処理を行い、ブラウザも開く
+npm start         # Electron開発モード（キャッシュを使用）
 ```
 
-### 2. ブラウザで実行
+リポジトリの`index.html`を`file://`で直接開かないでください。これは
+ブートストラップ用のプレースホルダーであり、実際のCM3ページは実行時
+ステージへ生成されます。Web WorkerとWASMにはHTTPオリジンが必要です。
+
+## ビルドとデプロイ
+
+静的サイトを作る場合:
 
 ```bash
-npm run web
-# → http://localhost:8123
+npm run build:web
 ```
 
-ブラウザを自動で開く場合:
+生成先は`dist/web/`です（Gitの対象外）。Cloudflare Pagesなどの静的ホストでは、
+Build commandを`npm run build:web`、出力ディレクトリを`dist/web`に設定します。
+ビルド時にCM3ソースグラフを取得するため、ビルド環境にはネットワーク接続が必要です。
 
-```bash
-npm run dev
-```
-
-> ⚠️ **`file://` で `index.html` を直接開かないこと。** Web Worker と WASM モジュールは適切な HTTP オリジンが必要。
-
-### 3. Electron アプリとして実行
-
-```bash
-npm start
-# → ネイティブウィンドウ + 内蔵 HTTP サーバ
-```
-
-### 4. 配布用バイナリのビルド
+デスクトップ配布物を作る場合:
 
 ```bash
 npm run dist
 ```
 
-`dist/` に成果物が出力される:
+Electronビルダーは、キャッシュ済みのCM3リソースを一時的なアプリツリーへ展開して
+インストーラーを作り、その一時ツリーを削除します。インストーラーにはその
+ビルドに必要なランタイムが含まれますが、ソースリポジトリには含まれません。
 
-- `dist/mac/` — macOS `.dmg` (arm64 / x64)
-- `dist/win/` — Windows `.exe` (NSIS インストーラ)
-- `dist/linux/` — Linux `.AppImage`
+ビルドまたはローカル実行時に互換ソースを差し替える場合は、
+`ZOIDIUM_CM3_SOURCE_PAGE`を設定します。既定値は次のURLです。
 
----
+`https://panzoid.com/legacy/gen3/clipmaker.html`
 
-## プロジェクト構成
+## ランタイムのライフサイクル
 
-```
-zoidium/
-├── index.html              # エントリポイント
-├── pz.all-35.css           # メインスタイルシート（Panzoid pz.all-35.css のミラー）
-├── main.js                 # Electron メインプロセス
-├── package.json            # npm マニフェスト + electron-builder 設定
-├── js/                     # コアエンジン & UI スクリプト（Panzoid minified）
-│   ├── core-1.0.102.js
-│   ├── ui-1.0.72.js
-│   ├── clipmaker-3.0.106.js
-│   └── three.r91.min.js
-├── effect/                 # 43 種のポストプロセッシングエフェクト（vanilla JS）
-├── material/               # 4 種のマテリアル
-├── worker/                 # WASM ワーカ（tar, av/FFmpeg）
-├── fonts/                  # Open Sans & Source Code Pro (woff2)
-│   ├── fonts.css
-│   ├── open-sans-regular.woff2
-│   └── source-code-pro-regular.woff2
-├── assets/
-│   ├── fonts/2d/           # 28 種の TTF フォント
-│   ├── images/             # アイコン & ファビコン
-│   ├── shaders/            # 39 個の GLSL シェーダ
-│   └── textures/particles/ # 36 種のパーティクルテクスチャ
-├── docs/                   # フォーマット仕様 & 開発ノート
-├── README.md               # English
-└── README.ja.md            # 日本語
-```
+処理の流れは次のとおりです。
 
----
+1. キャッシュがない、または更新を指定した場合に、設定されたCM3 HTMLページを取得する。
+2. 同一オリジンのCSS・JavaScriptリンクと静的ランタイム参照を検出する。
+3. URLパスを維持したまま、取得物をGit管理外のキャッシュへ保存する。
+4. ステージ内の`index.html`をパッチし、CM3の初期化を遅延してZoidium拡張層を注入する。
+5. ステージを配信またはパッケージ化する。
+6. ローカルサーバー終了後もキャッシュを保持し、ビルド処理用の一時ツリーだけを終了時に削除する。
 
-## 静的デプロイ（Cloudflare Pages, Vercel, Netlify など）
+コミット済みのリソースマニフェストやソースページのコピーはありません。
+`npm run setup`で現在のHTMLとランタイムグラフからキャッシュを更新し、通常の実行は
+そのキャッシュを再利用します。キャッシュがない場合は`web`やビルドが自動作成します。
 
-Zoidium は静的サイト。プラグインの生成済みバンドルをコミットしているため、
-静的ホスト側のビルドステップは不要。
+保存・書き出し時は、CM3側の旧来のダウンロードページ遷移を
+`zoidium/direct-download.js`が捕捉し、生成済みBlobをその場でブラウザの
+ダウンロード機構へ渡します。別ページや新しいウィンドウは開きません。
 
-1. リポジトリを Git プロバイダにプッシュ
-2. 静的ホストで以下を設定:
-   - **Build command:** *(空欄)*
-   - **Build output directory:** `/`（プロジェクトルート）
-3. デプロイ
+## リポジトリ構成
 
-`node_modules/`、`dist/`、巨大な `docs/` ファイルは `.gitignore` と `.cfignore` で除外されるためデプロイが軽量に保たれる。バージョン付きプラグインバンドルは有効化したプラグインごとに1リクエストで取得され、静的ホストの標準HTTP圧縮が適用される。
-
-### URL 構造
-
-全アセットをプロジェクトルートから配信する、オリジナルの Panzoid と同じレイアウト:
-
-```
-/                          → index.html
-/pz.all-35.css             → メインスタイルシート
-/fonts/fonts.css           → ローカルフォント定義
-/fonts/open-sans-regular.woff2
-/fonts/source-code-pro-regular.woff2
-/js/core-1.0.102.js
-/js/ui-1.0.72.js
-/js/clipmaker-3.0.106.js
-/js/three.r91.min.js
-/effect/...
-/material/...
-/worker/...
-/assets/...
+```text
+Zoidium/
+├── index.html                  # ブートストラップ用プレースホルダー
+├── main.js                     # Electronプロセスとキャッシュ利用サーバー
+├── package.json                # npmスクリプトとElectron設定
+├── tools/
+│   ├── runtime-resources.js    # CM3グラフの取得・キャッシュ・検出・パッチ
+│   ├── serve-with-resources.js # キャッシュ利用Webサーバー
+│   ├── build-web.js            # 静的デプロイ用ビルダー
+│   └── build-electron.js       # 一時ステージ用Electronビルダー
+├── zoidium/
+│   ├── runtime-config.js       # 拡張プロファイル
+│   ├── runtime-loader.js       # 拡張ブートストラップ
+│   ├── runtime-policy.js       # ローカル優先のポリシーアダプター
+│   └── direct-download.js      # その場でのBlobダウンロード
+├── plugins/                    # 拡張ソースと生成済みプラグインバンドル
+├── fonts/                      # ZoidiumのUIフォント
+└── about/                      # 通知とプロジェクト情報
 ```
 
-このため、`<link>` と `<script>` タグをそのまま任意の HTML（例: 最小限の "Graph editor" スタイルガイドなど）に埋め込めば、Zoidium / AfterClip / 他の Panzoid ミラーでアセット解決が共通になる。
+## プラグイン
 
----
-
-## 開発
-
-### プラグインバンドルの生成
-
-プラグインのマニフェスト、実行モジュール、プリセット、GLSLを、プラグインごとに1つの `bundle.json` へまとめる:
+プラグインはCM3を拡張する任意のツールです。ソース、マニフェスト、プリセット、
+日本語カタログは`plugins/`に置き、通常の実行時には有効化されたプラグインごとに
+生成済みの`bundle.json`を1回取得します。
 
 ```bash
 npm run build:plugin-bundles
 npm run check:plugin-bundles
 ```
 
-`npm run dist` の前にも自動実行される。翻訳カタログだけは、無関係な巨大シェーダーデータを取得しないよう、遅延ロードする別リソースとして維持する。
+`npm run dist`ではバンドル生成も自動実行されます。バンドルと日本語化の規約は
+[`plugins/README.md`](./plugins/README.md)を参照してください。
 
-### エフェクト / マテリアルの編集
+## 位置づけと帰属
 
-`effect/*.js` と `material/*.js` のエフェクト・マテリアルは Panzoid ランタイムが読み込む vanilla JS モジュール。`PZ.effect()` / `PZ.material()` ファクトリを export する — 既存ファイル（例: `brightnesscontrast.js`）を参照すれば API 形状が分かる。
+Zoidiumは独立したオープンソースツール集であり、CM3またはPanzoidの公式製品
+ではありません。CM3のソースファイルは設定された上流ページから実行時・ビルド時に
+取得され、それぞれの権利者の通知と利用条件に従います。Zoidiumの拡張コード、
+プラグイン、ドキュメント、ビルドツールは別個に管理しています。最新の通知は
+[`about/acknowledgements/`](./about/acknowledgements/)を確認してください。
 
-新規エフェクトの追加:
+## 関連ファイル
 
-1. `effect/myneweffect.js` を既存と同じ形式で作成
-2. Panzoid ランタイムが `effect/` と `material/` 内のファイルを自動検出
-
-### レガシー Panzoid コードの調査
-
-同梱の `js/*.js` は minify 済み。可読なリファレンスとして:
-
-- [`docs/PZ_FORMAT.md`](./docs/PZ_FORMAT.md) — Gen2 `.pz` ファイル形式
-- [`docs/PZ_FORMAT_V3.md`](./docs/PZ_FORMAT_V3.md) — Gen3 `.pz` ファイル形式
-- [`docs/TWEEN_LOCATIONS_SUMMARY.md`](./docs/TWEEN_LOCATIONS_SUMMARY.md) — トゥイーン/イージング一覧
-
----
-
-## ロードマップ
-
-レガシー minified バンドルを TypeScript + React + Vite に移植しつつ、 `.pz` ファイルとのワイヤー形式互換性を維持する長期戦略。
-
----
-
-## ライセンス
-
-本プロジェクトは Panzoid レガシーエディタの派生物。全ての原著作権は Panzoid に帰属。Zoidium はオフラインモード用のシム（テレメトリ・広告・リモート API 呼び出しの無効化）とパッケージングのみを追加している。
-
----
-
-## 関連
-
-- [English README](./README.md) — 英語版
+- [`README.md`](./README.md) — English README
+- [`zoidium/README.md`](./zoidium/README.md) — ステージ実装メモ
+- [`AGENTS.md`](./AGENTS.md) — コントリビューター／エージェント向け規約

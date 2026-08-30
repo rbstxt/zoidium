@@ -13,8 +13,10 @@
   <body>
     <nav aria-label="サイト内リンク">
       <a href="/">Zoidium</a>
-      <a href="/about/terms">Terms</a>
-      <a href="/about/privacy">Privacy</a>
+      <a href="/about/terms/ja">利用規約</a>
+      <a href="/about/privacy/ja">プライバシーポリシー</a>
+      <a href="/about/copyright/ja">著作権</a>
+      <a href="/about/acknowledgements/ja">謝辞</a>
     </nav>
 
     <p class="language-switch"><a href="/about/privacy">English version</a></p>
@@ -23,6 +25,10 @@
       <h1>プライバシーポリシー</h1>
       <p class="meta">最終更新日: 2026年8月31日</p>
     </header>
+
+    <div class="notice language-authority">
+      すべての記載について厳密な解釈が必要な場合は、日本語版を参照してください。本ページの日本語版を正文とします。
+    </div>
 
     <aside class="summary" aria-label="要約">
       <strong>参考用の要約（これはプライバシーポリシー本文ではありません）</strong>
@@ -35,9 +41,9 @@
       このプライバシーポリシー（以下「本ポリシー」）は、1zworks（以下「運営者」）が提供する Zoidium（以下「Zoidium」）における情報の取扱いを説明するものです。
     </p>
 
-    <h2>1. 本家PanzoidのPrivacyについて</h2>
+    <h2>1. Panzoidの公式Privacyについて</h2>
     <p>
-      Panzoid のサービス、Web サイト、アカウント、または Panzoid が管理する機能を利用する場合は、Zoidium とは別に <a href="https://panzoid.com/privacy" target="_blank" rel="noopener noreferrer">本家PanzoidのPrivacy</a> を確認してください。本家Panzoid の情報の取扱いは、本ポリシーの対象ではありません。Terms については <a href="https://panzoid.com/terms" target="_blank" rel="noopener noreferrer">本家PanzoidのTerms</a> を確認してください。
+      Panzoid のサービス、Web サイト、アカウント、または Panzoid が管理する機能を利用する場合は、Zoidium とは別に <a href="https://panzoid.com/privacy" target="_blank" rel="noopener noreferrer">Panzoidの公式Privacy</a> を確認してください。Panzoid の情報の取扱いは、本ポリシーの対象ではありません。Terms については <a href="https://panzoid.com/terms" target="_blank" rel="noopener noreferrer">Panzoidの公式Terms</a> を確認してください。
     </p>
 
     <h2>2. Zoidium が意図的に収集しない情報</h2>
@@ -59,6 +65,9 @@
     </p>
     <p>
       ブラウザや OS が行う保存、キャッシュ、権限管理については、それぞれの提供者の仕様が適用されます。Electron 版では、アプリと内蔵サーバーが利用者の端末上で動作します。
+    </p>
+    <p>
+      CM3を起動するため、Web版とElectron開発版は、キャッシュがない場合または更新を指定した場合に、設定されたCM3ソースページと同一オリジンのランタイムリソースをGit管理外の`.zoidium-resources/`キャッシュへ取得します。`npm run build:web`と`npm run dist`も、このキャッシュを再利用または作成してビルドします。このブートストラップではIPアドレスやユーザーエージェントなど通常の通信メタデータがソース提供元に届く場合がありますが、プロジェクト内容や編集データは送信しません。ローカルサーバー終了後もキャッシュは端末に残り、削除されるのは使い捨てのビルド用ツリーだけです。静的デプロイ物にはそのデプロイに必要な生成ファイルが含まれます。
     </p>
 
     <h2>4. Web 版での Cloudflare の利用</h2>
@@ -82,7 +91,7 @@
 
     <h2>6. 外部リンク</h2>
     <p>
-      本ページには本家Panzoid や Cloudflare など第三者のページへのリンクがあります。リンク先での情報の取扱いは、各サービス提供者のポリシーに従います。リンクを開くことで、Zoidium からそのサービスへ移動します。
+      本ページにはPanzoid や Cloudflare など第三者のページへのリンクがあります。リンク先での情報の取扱いは、各サービス提供者のポリシーに従います。リンクを開くことで、Zoidium からそのサービスへ移動します。
     </p>
 
     <h2>7. 本ポリシーの変更</h2>
@@ -90,12 +99,5 @@
       運営者は、サービスの変更や法令への対応に応じて本ポリシーを更新することがあります。変更後の内容は、このページに掲載した時点から適用されます。重要な変更がある場合は、可能な範囲で分かりやすく表示します。
     </p>
 
-    <footer>
-      <a href="/about/terms">Terms</a>
-      <span aria-hidden="true"> · </span>
-      <a href="/about/privacy">English version</a>
-      <span aria-hidden="true"> · </span>
-      <a href="/">Zoidium</a>
-    </footer>
   </body>
 </html>

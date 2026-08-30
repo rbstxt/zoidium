@@ -15,6 +15,8 @@
       <a href="/">Zoidium</a>
       <a href="/about/terms">Terms</a>
       <a href="/about/privacy">Privacy</a>
+      <a href="/about/copyright">Copyright</a>
+      <a href="/about/acknowledgements">Acknowledgements</a>
     </nav>
 
     <p class="language-switch">日本語でも読めます。<a href="/about/privacy/ja">日本語版</a></p>
@@ -23,6 +25,10 @@
       <h1>Privacy Policy</h1>
       <p class="meta">Last updated: August 31, 2026</p>
     </header>
+
+    <div class="notice language-authority">
+      If a precise interpretation of any provision is required, please refer to the Japanese version. The Japanese version is authoritative.
+    </div>
 
     <aside class="summary" aria-label="Reference summary">
       <strong>Reference summary (this is not the Privacy Policy text)</strong>
@@ -35,7 +41,7 @@
       This Privacy Policy (the “Policy”) explains how information is handled in Zoidium, provided by 1zworks (the “Operator”).
     </p>
 
-    <h2>1. The original Panzoid Privacy Policy</h2>
+    <h2>1. Panzoid's official Privacy Policy</h2>
     <p>
       If you use Panzoid's services, website, account, or features managed by Panzoid, please separately read <a href="https://panzoid.com/privacy" target="_blank" rel="noopener noreferrer">Panzoid's official Privacy Policy</a>. Panzoid's handling of information is outside this Policy. For its Terms, see <a href="https://panzoid.com/terms" target="_blank" rel="noopener noreferrer">Panzoid's official Terms</a>.
     </p>
@@ -55,10 +61,13 @@
 
     <h2>3. Information stored on your device</h2>
     <p>
-      In the browser version, settings, plugin enablement, and recovery data for work in progress may be stored in local storage such as localStorage. Project files are saved to and loaded from locations you choose. This information is not sent to the Operator's servers; you manage it through your browser settings and file operations.
+      In the browser version, settings and plugin enablement may be stored in local storage such as localStorage. Project files are saved to and loaded from locations you choose. This information is not sent to the Operator's servers; you manage it through your browser settings and file operations.
     </p>
     <p>
       Storage, caching, and permission behavior provided by your browser or operating system are governed by their respective providers' specifications. In the Electron version, the application and its embedded server run on your device.
+    </p>
+    <p>
+      To start CM3, the Web and development Electron modes fetch the configured CM3 source page and its same-origin runtime resources into the Git-ignored `.zoidium-resources/` cache when it is absent or refreshed. `npm run build:web` and `npm run dist` reuse or create the same cache during their build. This bootstrap can expose the usual request metadata, such as IP address and user agent, to the source host, but it does not send project contents or editing data. The cache remains on the development machine after the local server ends; only disposable build trees are removed, and a static deployment contains the generated files required by that deployment.
     </p>
 
     <h2>4. Cloudflare on the Web version</h2>
@@ -82,7 +91,7 @@
 
     <h2>6. External links</h2>
     <p>
-      This page links to third-party pages such as the original Panzoid and Cloudflare. Information handling on those pages is governed by each provider's policy. Opening a link takes you from Zoidium to that service.
+      This page links to third-party pages such as Panzoid and Cloudflare. Information handling on those pages is governed by each provider's policy. Opening a link takes you from Zoidium to that service.
     </p>
 
     <h2>7. Changes to this Policy</h2>
@@ -90,12 +99,5 @@
       The Operator may update this Policy when the service changes or to respond to legal requirements. Updated content takes effect when posted on this page. For important changes, we will make the update clear where reasonably possible.
     </p>
 
-    <footer>
-      <a href="/about/terms">Terms</a>
-      <span aria-hidden="true"> · </span>
-      <a href="/about/privacy/ja">日本語版</a>
-      <span aria-hidden="true"> · </span>
-      <a href="/">Zoidium</a>
-    </footer>
   </body>
 </html>

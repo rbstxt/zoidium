@@ -1,185 +1,134 @@
 # Zoidium
 
-> A modified version of **Panzoid Clipmaker Gen3**.
+> An open-source collection of tools for extending the CM3 experience.
 
-Zoidium bundles the full Panzoid Clipmaker Gen3 and runs entirely locally with **no network calls, no telemetry, and no ads**. Available as a browser app, an Electron desktop app, or a static deploy on Cloudflare Pages or any static host.
+Zoidium is an external extension layer for Clipmaker Gen3 (CM3). It provides
+plugins, local-first adapters, creator tools, and packaging for browser and
+desktop use.
 
----
+The repository intentionally contains no CM3 runtime, effect, material,
+worker, shader, texture, font, icon, or download-page files. When the app is
+started or a deployment is built, `tools/runtime-resources.js` fetches the
+configured CM3 source page and its same-origin resource graph into the
+Git-ignored `.zoidium-resources/` cache. The cache is retained between local
+runs; a static deployment keeps only the generated build output required by
+that deployment.
 
-## Features
+## Quick start
 
-- 🎬 **Full Clipmaker Gen3** — Three.js r91 renderer, 43 effects, 39 shaders, 4 materials, particle system
-- 🌐 **100% offline** — no API calls, no ads, no telemetry; all assets bundled
-- 🪟 **Three run modes** — browser, Electron desktop app, or static web deploy
-- 💾 **Project save/load** — `.pz` files work in both Zoidium and the original Panzoid
-- 🔒 **Privacy-first** — no accounts, no analytics, no remote requests
-- 📦 **Cross-platform builds** — macOS (`.dmg`), Windows (`.exe`), Linux (`.AppImage`)
-
----
-
-## Quick Start
-
-### Prerequisites
-
-- Node.js 18+ and npm
-- macOS / Windows / Linux
-
-### 1. Install
+Requirements: Node.js 18+ and npm.
 
 ```bash
-git clone https://github.com/zoidnerd/zoidium.git
-cd zoidium
 npm install
+npm run setup      # download/update the CM3 resource cache
+npm run web       # ensures the cache and serves http://localhost:8123
+npm run dev       # same, then opens the browser
+npm start         # Electron development mode; ensures the cache is ready
 ```
 
-### 2. Run in your browser
+Do not open the repository's `index.html` with `file://`. It is a bootstrap
+placeholder; the actual CM3 page is generated into the runtime stage, and
+workers/WASM require an HTTP origin.
+
+## Build and deployment
+
+Build a static deployment with:
 
 ```bash
-npm run web
-# → http://localhost:8123
+npm run build:web
 ```
 
-Or auto-open the browser:
+The generated site is written to `dist/web/` and is ignored by Git. For a
+static host such as Cloudflare Pages, use `npm run build:web` as the build
+command and `dist/web` as the output directory. Network access is required in
+the build environment because the CM3 source graph is fetched at build time.
 
-```bash
-npm run dev
-```
-
-> ⚠️ **Do not open `index.html` directly via `file://`.** Web Workers and WASM modules require a proper HTTP origin.
-
-### 3. Run as an Electron app
-
-```bash
-npm start
-# → native window with built-in HTTP server
-```
-
-### 4. Build a distributable
+Build desktop installers with:
 
 ```bash
 npm run dist
 ```
 
-This produces installable bundles in `dist/`:
+The Electron builder first creates a temporary application tree containing the
+fetched CM3 stage, builds the installer, and removes that temporary tree. The
+installer necessarily contains the runtime needed by that particular build;
+the source repository does not.
 
-- `dist/mac/` — macOS `.dmg` (arm64 / x64)
-- `dist/win/` — Windows `.exe` (NSIS installer)
-- `dist/linux/` — Linux `.AppImage`
+Set `ZOIDIUM_CM3_SOURCE_PAGE` to use another compatible source page during a
+build or local run. The default is:
 
----
+`https://panzoid.com/legacy/gen3/clipmaker.html`
 
-## Project Structure
+## Runtime lifecycle
 
-```
-zoidium/
-├── index.html              # Entry point
-├── pz.all-35.css           # Main stylesheet (mirrors Panzoid's pz.all-35.css)
-├── main.js                 # Electron main process
-├── package.json            # npm manifest + electron-builder config
-├── js/                     # Core engine & UI scripts (Panzoid minified bundles)
-│   ├── core-1.0.102.js
-│   ├── ui-1.0.72.js
-│   ├── clipmaker-3.0.106.js
-│   └── three.r91.min.js
-├── effect/                 # 43 post-processing effects (vanilla JS)
-├── material/               # 4 material types
-├── worker/                 # WASM workers (tar, av/FFmpeg)
-├── fonts/                  # Open Sans & Source Code Pro (woff2)
-│   ├── fonts.css
-│   ├── open-sans-regular.woff2
-│   └── source-code-pro-regular.woff2
-├── assets/
-│   ├── fonts/2d/           # 28 bundled TTF fonts
-│   ├── images/             # Icons & favicon
-│   ├── shaders/            # 39 GLSL shaders
-│   └── textures/particles/ # 36 particle textures
-├── README.md               # English
-└── README.ja.md            # 日本語
-```
+The staging pipeline is:
 
----
+1. Fetch the configured CM3 HTML page when the cache is absent or refreshed.
+2. Discover same-origin stylesheet/script links and static runtime references.
+3. Fetch those files into the Git-ignored cache while preserving their URL paths.
+4. Add the Zoidium bootstrap to the staged `index.html`, deferring CM3
+   initialization until the extension layer is ready.
+5. Serve or package the staged tree.
+6. Keep the resource cache after the local server exits; remove only temporary
+   build staging directories when their build process ends.
 
-## Static Deployment (Cloudflare Pages, Vercel, Netlify, …)
+There is no checked-in resource manifest and no checked-in copy of the source
+page. `npm run setup` refreshes the cache from the current HTML and runtime
+graph; normal runs reuse that cache and automatically create it if necessary.
 
-Zoidium is a static site. Generated plugin bundles are committed, so a static
-host does not need a build step. To deploy:
+The extension layer supplies local account/API/adapters, plugin loading, and
+the in-place download bridge. CM3's legacy download navigation is intercepted
+by `zoidium/direct-download.js`; the generated Blob is sent to the browser's
+download mechanism without opening another page.
 
-1. Push the repo to your Git provider.
-2. In your static host, set:
-   - **Build command:** *(empty)*
-   - **Build output directory:** `/` (project root)
-3. Deploy.
+## Repository layout
 
-`node_modules/` and `dist/` are excluded via `.gitignore` and `.cfignore` so deploys stay lean.
-Versioned plugin bundles are served as one request per enabled plugin and are
-compressed by the static host's standard HTTP compression.
-
-### URL structure
-
-All assets are served from the project root, matching the original Panzoid layout:
-
-```
-/                          → index.html
-/pz.all-35.css             → main stylesheet
-/fonts/fonts.css           → local font face definitions
-/fonts/open-sans-regular.woff2
-/fonts/source-code-pro-regular.woff2
-/js/core-1.0.102.js
-/js/ui-1.0.72.js
-/js/clipmaker-3.0.106.js
-/js/three.r91.min.js
-/effect/...
-/material/...
-/worker/...
-/assets/...
+```text
+Zoidium/
+├── index.html                 # bootstrap placeholder; replaced in a build stage
+├── main.js                    # Electron process and disposable local server
+├── package.json               # scripts and Electron build configuration
+├── tools/
+│   ├── runtime-resources.js   # fetch, cache, discover, patch, and stage CM3
+│   ├── serve-with-resources.js# cache-backed browser server
+│   ├── build-web.js           # static deployment builder
+│   └── build-electron.js      # temporary-stage Electron builder
+├── zoidium/
+│   ├── runtime-config.js      # extension profile
+│   ├── runtime-loader.js      # overlay bootstrap
+│   ├── runtime-policy.js      # local-first policy adapters
+│   └── direct-download.js     # in-place Blob download bridge
+├── plugins/                   # extension sources and generated plugin bundles
+├── fonts/                     # Zoidium interface fonts
+└── about/                     # notices and project information
 ```
 
-This means you can drop the exact same `<link>` and `<script>` tags into any HTML page (e.g. a minimal "Graph editor" styleguide) and the assets resolve identically across Zoidium, AfterClip, and other Panzoid-mirror projects.
+## Plugins
 
----
-
-## Development
-
-### Building plugin bundles
-
-Plugin source files are packed into one generated `bundle.json` per plugin:
+Plugins are optional CM3 extension tools. Their source, manifests, presets, and
+Japanese catalogs live under `plugins/`; the runtime normally loads each
+enabled plugin through one generated `bundle.json` request.
 
 ```bash
 npm run build:plugin-bundles
 npm run check:plugin-bundles
 ```
 
-`npm run dist` runs the bundle build before packaging. Locale catalogs remain
-separate lazy resources so the localization plugin does not download unrelated
-shader data.
+`npm run dist` runs the bundle build automatically. See
+[`plugins/README.md`](./plugins/README.md) for the bundle and localization
+contracts.
 
-### Editing effects / materials
+## Scope and attribution
 
-Effects in `effect/*.js` and materials in `material/*.js` are vanilla JS modules loaded by the Panzoid runtime. They export a `PZ.effect()` / `PZ.material()` factory — see the existing files for the shape of the API.
+Zoidium is an independent open-source tool collection, not an official CM3 or
+Panzoid product. CM3 source files are obtained at runtime/build time from the
+configured upstream page and remain subject to their respective rights-holder
+notices and terms. Zoidium's extension code, plugins, documentation, and build
+tools are maintained separately. See
+[`about/acknowledgements/`](./about/acknowledgements/) for the current notices.
 
-To add a new effect:
+## Related files
 
-1. Create `effect/myneweffect.js` mirroring the shape of an existing one (e.g. `brightnesscontrast.js`).
-2. The Panzoid runtime auto-discovers files in `effect/` and `material/`.
-
-### Inspecting the legacy Panzoid code
-
-The bundled `js/*.js` files are minified. Reverse-engineering notes and format specs live in a separate repository.
-
----
-
-## Roadmap
-
-Long-term strategy: port the legacy minified bundles to TypeScript + React + Vite while keeping wire-format compatibility with `.pz` files.
-
----
-
-## License
-
-This is a derivative work of the Panzoid legacy editor. All original credits belong to Panzoid. Zoidium adds only the offline-mode shims (no telemetry, no ads, no remote API calls) and packaging.
-
----
-
-## See also
-
-- [日本語版 README](./README.ja.md) — Japanese version
+- [`README.ja.md`](./README.ja.md) — Japanese README
+- [`zoidium/README.md`](./zoidium/README.md) — staging implementation notes
+- [`AGENTS.md`](./AGENTS.md) — repository rules for contributors and agents

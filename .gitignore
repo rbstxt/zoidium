@@ -6,6 +6,9 @@ dist/
 dist-electron/
 out/
 
+# Local CM3 runtime cache (never commit fetched resources)
+.zoidium-resources/
+
 # Logs
 *.log
 npm-debug.log*

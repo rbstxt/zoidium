@@ -78,6 +78,14 @@ ul {
   background: #2a2a2a;
 }
 
+.commitment {
+  border-color: #9ecbff;
+}
+
+.commitment p:last-child {
+  margin-bottom: 0;
+}
+
 .summary {
   border-color: #9ecbff;
   padding: 16px 18px;
@@ -90,12 +98,4 @@ ul {
 
 .summary p {
   margin-bottom: 0;
-}
-
-footer {
-  margin-top: 56px;
-  border-top: 1px solid #555;
-  padding-top: 20px;
-  color: #aaa;
-  font-size: 0.9rem;
 }

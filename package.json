@@ -1,16 +1,18 @@
 {
   "name": "zoidium",
   "version": "1.0.0",
-  "description": "Offline Panzoid Clipmaker Gen3 mirror",
+  "description": "Open-source toolkit for extending Clipmaker Gen3 (CM3)",
   "main": "main.js",
   "scripts": {
+    "setup": "node tools/runtime-resources.js --setup",
     "start": "electron .",
-    "web": "npx serve . -p 8123",
-    "dev": "npx serve . -p 8123 & sleep 1 && open http://localhost:8123",
+    "web": "node tools/serve-with-resources.js --port=8123",
+    "dev": "node tools/serve-with-resources.js --port=8123 --open",
+    "build:web": "node tools/build-web.js",
     "build:plugin-bundles": "node tools/build-plugin-bundles.js",
     "check:plugin-bundles": "node tools/build-plugin-bundles.js --check",
     "pre-dist": "npm run build:plugin-bundles",
-    "dist": "electron-builder"
+    "dist": "node tools/build-electron.js"
   },
   "build": {
     "appId": "com.zoidium.app",
@@ -19,25 +21,11 @@
       "output": "dist"
     },
     "files": [
-      "index.html",
-      "fonts.png",
-      "main.js",
-      "pz.all-35.css",
-      "about/**/*",
-      "docs/**/*",
-      "js/**/*",
-      "effect/**/*",
-      "effect-custom-bezier-editor/**/*",
-      "material/**/*",
-      "plugins/registry.json",
-      "plugins/plugin-manager.js",
-      "plugins/plugin-manager.css",
-      "plugins/core-patches/**/*",
-      "plugins/*/bundle.json",
-      "plugins/*/locales/**/*",
-      "worker/**/*",
-      "assets/**/*",
-      "fonts/**/*"
+      "**/*",
+      "!node_modules{,/**/*}",
+      "!dist{,/**/*}",
+      "!README*",
+      "!AGENTS.md"
     ],
     "mac": {
       "target": [

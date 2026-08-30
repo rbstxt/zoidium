@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Zoidium acknowledgements and third-party notices" />
+    <link rel="alternate" hreflang="en" href="/about/acknowledgements" />
+    <link rel="alternate" hreflang="ja" href="/about/acknowledgements/ja" />
+    <link rel="stylesheet" href="/fonts/fonts.css" />
+    <link rel="stylesheet" href="/about/legal.css" />
+    <title>Acknowledgements | Zoidium</title>
+  </head>
+  <body>
+    <nav aria-label="Site links">
+      <a href="/">Zoidium</a>
+      <a href="/about/terms">Terms</a>
+      <a href="/about/privacy">Privacy</a>
+      <a href="/about/copyright">Copyright</a>
+      <a href="/about/acknowledgements">Acknowledgements</a>
+    </nav>
+
+    <p class="language-switch">日本語でも読めます。<a href="/about/acknowledgements/ja">日本語版</a></p>
+
+    <header>
+      <h1>Acknowledgements</h1>
+      <p class="meta">Last updated: August 31, 2026</p>
+    </header>
+
+    <p>
+      Zoidium is an open-source collection of tools for extending Clipmaker Gen3 (CM3). This page records the principal third-party works and libraries used by the extension layer. The original licenses and notices for each work remain controlling.
+    </p>
+
+    <p>
+      The CM3 source page and its runtime resource graph are not stored in this repository. The setup command, web and desktop development servers, and build jobs fetch the configured source graph into the Git-ignored <code>.zoidium-resources/</code> cache when needed. A generated deployment or installer may contain the files needed by that particular build; the source checkout does not.
+    </p>
+
+    <h2>Original software and creative work</h2>
+    <ul>
+      <li>
+        <strong><a href="https://panzoid.com/" target="_blank" rel="noopener noreferrer">Panzoid</a></strong>
+        — created Panzoid Clipmaker 3 (Clipmaker Gen3), the CM3 runtime around which Zoidium's extension tools are organized. Panzoid is not affiliated with or endorsing Zoidium.
+      </li>
+      <li>
+        <strong>AlipFX</strong>
+        — created the Afterzoid Shader Pack. Zoidium includes the Afterzoid Shader Pack 4 plugin, generated from the source pack used for this distribution and credited to AlipFX.
+      </li>
+    </ul>
+
+    <h2>Open-source software</h2>
+    <ul>
+      <li>
+        <strong><a href="https://threejs.org/" target="_blank" rel="noopener noreferrer">Three.js r91</a></strong>
+        — the WebGL renderer used by the CM3 runtime. MIT License. It is obtained as part of the configured CM3 source graph during staging.
+      </li>
+      <li>
+        <strong><a href="https://ffmpeg.org/" target="_blank" rel="noopener noreferrer">FFmpeg</a></strong>
+        — the media encoding and decoding runtime used by CM3. Most of FFmpeg is covered by the GNU LGPL version 2.1 or later; some components use MIT, X11, or BSD-style licenses. See the <a href="https://ffmpeg.org/legal.html" target="_blank" rel="noopener noreferrer">FFmpeg legal information</a>.
+      </li>
+      <li>
+        <strong><a href="https://www.libarchive.org/" target="_blank" rel="noopener noreferrer">libarchive tar</a></strong>
+        — the archive worker used for <code>.pz</code> project files. BSD 2-Clause License.
+      </li>
+      <li>
+        <strong><a href="https://www.electronjs.org/" target="_blank" rel="noopener noreferrer">Electron 28.3.3</a></strong>
+        — the desktop application runtime. MIT License.
+      </li>
+      <li>
+        <strong><a href="https://github.com/electron-userland/electron-builder" target="_blank" rel="noopener noreferrer">electron-builder 24.13.3</a></strong>
+        — the application packaging tool. MIT License.
+      </li>
+      <li>
+        <strong><a href="https://github.com/expressjs/compression" target="_blank" rel="noopener noreferrer">compression 1.8.1</a></strong>
+        — HTTP compression middleware used by the embedded server. MIT License.
+      </li>
+      <li>
+        <strong><a href="https://github.com/vercel/serve" target="_blank" rel="noopener noreferrer">serve 14.2.6</a></strong>
+        and <strong><a href="https://github.com/vercel/serve-handler" target="_blank" rel="noopener noreferrer">serve-handler 6.1.7</a></strong>
+        — local HTTP serving for development and the desktop application. MIT License.
+      </li>
+    </ul>
+
+    <h2>Fonts and other assets</h2>
+    <p>
+      The interface includes Open Sans and Source Code Pro font files. CM3 runtime fonts, textures, shaders, icons, workers, and download-page files are not included in the repository; when needed, they are obtained through the configured CM3 staging process and remain subject to their respective rights-holder terms and notices.
+    </p>
+
+    <p>
+      This is a principal acknowledgements list, not a replacement for the license text of any third-party work. Direct JavaScript package versions are recorded in <code>package-lock.json</code>; transitive dependencies may carry additional notices.
+    </p>
+  </body>
+</html>

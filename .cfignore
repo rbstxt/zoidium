@@ -2,6 +2,7 @@ node_modules/
 dist/
 dist-electron/
 out/
+.zoidium-resources/
 
 # Logs
 *.log
