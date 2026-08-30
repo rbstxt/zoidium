@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "id": "japanese-localization",
+  "name": "日本語化",
+  "author": "Zoidium",
+  "version": "24",
+  "locales": {
+    "ja": "./plugins/japanese-localization/locales/ja.json?v=24"
+  },
+  "modules": [
+    {
+      "id": "japanese-localization",
+      "source": "./plugins/japanese-localization/japanese-localization.js?v=24"
+    }
+  ]
+}

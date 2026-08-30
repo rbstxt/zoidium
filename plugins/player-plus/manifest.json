@@ -4,6 +4,9 @@
   "name": "Player+",
   "author": "Zoidium",
   "version": "1",
+  "locales": {
+    "ja": "./plugins/player-plus/locales/ja.json?v=1"
+  },
   "modules": [
     {
       "id": "player-controls",

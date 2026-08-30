@@ -3,7 +3,14 @@
   box-sizing: border-box;
   height: 100%;
   overflow-y: auto;
+  scrollbar-gutter: stable;
   width: 100%;
+
+  --zoidium-scrollbar-width: 12px;
+
+  --zoidium-plugin-warning-background: rgba(120, 34, 34, 0.18);
+  --zoidium-plugin-warning-border: #a94b4b;
+  --zoidium-plugin-warning-color: #df9b9b;
 }
 
 .zoidium-plugin-panel[hidden] {
@@ -76,13 +83,73 @@
   line-height: 1.35;
 }
 
+.zoidium-plugin-search {
+  box-sizing: border-box;
+  padding: 4px;
+}
+
+.zoidium-plugin-panel:not(.zoidium-plugin-panel--scrolling) .zoidium-plugin-search {
+  width: calc(100% + var(--zoidium-scrollbar-width));
+}
+
+.zoidium-plugin-panel > .proprow,
+.zoidium-plugin-list > .zoidium-plugin-entry {
+  box-sizing: border-box;
+  width: calc(100% + var(--zoidium-scrollbar-width));
+}
+
+.zoidium-plugin-panel .proprow {
+  padding-right: calc(5px + var(--zoidium-scrollbar-width)) !important;
+}
+
+.zoidium-plugin-category {
+  box-sizing: border-box;
+  margin-top: 0;
+  width: calc(100% + var(--zoidium-scrollbar-width));
+}
+
+.zoidium-plugin-category:not([open]) {
+  border-bottom: 1px solid #242424;
+}
+
+.zoidium-plugin-category > summary {
+  box-sizing: border-box;
+  color: #ccc;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: bold;
+  list-style-position: inside;
+  padding: 11px calc(8px + var(--zoidium-scrollbar-width)) 8px 8px;
+  user-select: none;
+}
+
+.zoidium-plugin-category > summary::marker {
+  color: #93a6d3;
+}
+
+.zoidium-plugin-category-description {
+  background: var(--zoidium-plugin-warning-background);
+  border-bottom: 1px solid #242424;
+  border-left: 3px solid var(--zoidium-plugin-warning-border);
+  border-top: 1px solid #242424;
+  box-sizing: border-box;
+  color: var(--zoidium-plugin-warning-color);
+  font-size: 13px;
+  line-height: 1.4;
+  padding: 5px calc(5px + var(--zoidium-scrollbar-width)) 5px 5px;
+}
+
+.zoidium-plugin-category-list {
+  padding-bottom: 4px;
+}
+
 .zoidium-plugin-warning-row {
-  background: rgba(120, 34, 34, 0.18);
-  border-left: 3px solid #a94b4b;
+  background: var(--zoidium-plugin-warning-background);
+  border-left: 3px solid var(--zoidium-plugin-warning-border);
 }
 
 .zoidium-plugin-warning {
-  color: #df9b9b;
+  color: var(--zoidium-plugin-warning-color);
   display: block;
   font-size: 13px;
   line-height: 1.4;
@@ -91,7 +158,7 @@
 .zoidium-plugin-switch {
   cursor: pointer;
   display: inline-flex;
-  margin: 0 3px 0 8px;
+  margin: 0 0 0 8px;
   position: relative;
 }
 

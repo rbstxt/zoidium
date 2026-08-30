@@ -199,6 +199,46 @@ JSON スキーマ詳細 / expression で使える関数 (`shake`, `wave`, `lerp`
 4. `PZ.ui.objectTypes.get(PZ.effect).push({...})` で UI タブ登録 (適切なカテゴリ位置に挿入)
 5. 既存の同名エントリがあれば重複スキップ
 
+### 4.5 プラグインの日本語化は必須
+
+`plugins/` に新しいプラグインを追加するときは、英語UIと同時に日本語カタログも追加する。日本語化プラグイン側の単語分解や自動翻訳には依存しない。
+
+1. `plugins/<id>/locales/ja.json` を作成する:
+
+```json
+{
+  "schemaVersion": 1,
+  "locale": "ja",
+  "namespace": "<plugin-id>",
+  "messages": {
+    "English source text": "日本語訳"
+  }
+}
+```
+
+2. `plugins/<id>/manifest.json` の `locales` からカタログを宣言する。キャッシュバスターはプラグインのバージョンと揃える:
+
+```json
+{
+  "version": "1",
+  "locales": {
+    "ja": "./plugins/<id>/locales/ja.json?v=1"
+  }
+}
+```
+
+3. `messages` のキーには、DOM・マニフェスト・プリセット・ランタイムが実際に表示する英語原文を完全一致で書く。少なくとも次をすべて収録する:
+   - registry の `name` / `tagline` / `format` / `description` / `warning`
+   - effect / group / object / material の名前、カテゴリ、説明
+   - `properties` / `customProperties` の入力名と OPTION の選択肢
+   - プラグインが生成するボタン、ツールチップ、プレースホルダー、ダイアログ、エラー文
+
+4. 製品名・アルゴリズム名・API名など、意図して英語のまま残す語はカタログへ入れない。プラグインからフォントを上書きせず、未翻訳の英字はエディター既定の Source Code Pro を維持する。
+
+5. プラグインとカタログを変更したら version と参照URLの `?v=` を更新し、日本語化をオンにした状態とオフへ戻した状態の両方を確認する。
+
+日本語化ランタイムは英語原文をキーにしたカタログの完全一致だけを適用する。新しい表示文を日本語化ランタイム本体の「単語帳」へ追加したり、camelCase・単語単位で自動翻訳する処理を復活させたりしない。
+
 ---
 
 ## 5. Uniform ガイドライン

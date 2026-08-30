@@ -4,6 +4,9 @@
   "name": "Native FX",
   "author": "Zoidium",
   "version": "1",
+  "locales": {
+    "ja": "./plugins/native-fx/locales/ja.json?v=1"
+  },
   "category": "NATIVE FX",
   "nativeEffects": [
     {

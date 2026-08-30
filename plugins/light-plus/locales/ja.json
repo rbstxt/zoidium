@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "locale": "ja",
+  "namespace": "light-plus",
+  "messages": {
+    "3D lights": "3Dライト",
+    "Choose a light type for a 3D scene.": "3Dシーンのライトの種類を選択します。",
+    "Directional light": "指向性ライト",
+    "Expanded Light Types": "ライト種類を拡張",
+    "Hemisphere light": "半球ライト",
+    "Light": "ライト",
+    "Light+": "ライト＋",
+    "Point light": "ポイントライト",
+    "Spot light": "スポットライト",
+    "Upgrades the standard Light button with a chooser for Spot, Point, Directional, and Hemisphere lights.": "標準のライトボタンを、スポット、ポイント、指向性、半球ライトを選べるボタンに拡張します。"
+  }
+}

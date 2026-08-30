@@ -4,6 +4,9 @@
   "name": "Easing+",
   "author": "Zoidium",
   "version": "6",
+  "locales": {
+    "ja": "./plugins/easing-plus/locales/ja.json?v=6"
+  },
   "modules": [
     {
       "id": "curve-editor",
