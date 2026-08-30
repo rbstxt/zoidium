@@ -26,8 +26,8 @@ this automatically); the repository's `_headers` and Electron server also set
 long-lived caching for versioned bundles and locale catalogs.
 
 Japanese locale catalogs intentionally remain separate, small, lazy language
-chunks. This prevents enabling Japanese UI from downloading the full AfterClip
-or Afterzoid shader pack when only translations are needed.
+chunks. This prevents enabling Japanese UI from downloading a full shader pack
+when only translations are needed.
 
 UI-only plugins use a manifest `modules` array. Each module exports `activate(context)`
 and may export `deactivate()`. The plugin manager runs activation only while the pack
@@ -157,8 +157,8 @@ Zoidium's WebGL 1 and premultiplied source-over conventions.
 ## Project metadata
 
 Saved project JSON has a root-level `plugins` array only when an incompatible
-plugin is actually used. Vanilla-compatible packs such as Light+ and Afterzoid
-are never recorded as dependencies:
+plugin is actually used. Vanilla-compatible packs such as Light+ are never
+recorded as dependencies:
 
 ```json
 {
@@ -183,9 +183,3 @@ Project-provided paths are never loaded.
 `Light+` is disabled by default. It provides an extended light chooser for Spot,
 Point, Directional, and Hemisphere lights. Objects added through that chooser are
 saved as ordinary CM3 light data and do not create a plugin dependency.
-
-Afterzoid Shader Pack 4 is generated from the user-provided source pack with:
-
-```bash
-node tools/build-alipfx-plugin.js "/path/to/Afterzoid Shader Pack 4"
-```
