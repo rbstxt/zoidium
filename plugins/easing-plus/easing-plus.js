@@ -2,7 +2,7 @@
 
 const EasingPlus = (() => {
   const STYLE_ID = "zoidium-easing-plus-style";
-  const STYLE_URL = "./plugins/easing-plus/easing-plus.css?v=7";
+  const STYLE_URL = "./plugins/easing-plus/easing-plus.css?v=8";
   const EPSILON = 1e-8;
   const BEZIER_TWEEN = 257;
   // Overshoot is an intentional, two-stage gesture.  Keeping these in screen
@@ -19,6 +19,9 @@ const EasingPlus = (() => {
     originalCorrectCurve: null,
     patchedCorrectCurve: null,
     keydown: null,
+    easeButtons: new Set(),
+    originalCreateKeyframeControls: null,
+    patchedCreateKeyframeControls: null,
   };
 
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -252,6 +255,150 @@ const EasingPlus = (() => {
       targets,
       defaultCurve: targets.some((target) => target.finalKeyframe),
     };
+  }
+
+  // The native easing control always keeps its SVG as children[0]; Panzoid's
+  // refresh code calls PZ.ui.switchIcon(this.children[0], ...).  Easing+ only
+  // changes the visual treatment with a pseudo-element, so those native
+  // updates continue to work while the button clearly advertises the custom
+  // editor as “Ez+”.
+  function interpolationButtonFor(easeButton) {
+    const row = easeButton?.parentElement;
+    if (!row) return null;
+    const buttons = row.querySelectorAll?.("button.pz-tweens") || [];
+    for (const button of buttons) {
+      if (button !== easeButton) return button;
+    }
+    return null;
+  }
+
+  function isBezierEaseButton(easeButton) {
+    const interpolationButton = interpolationButtonFor(easeButton);
+    if (!interpolationButton) return false;
+    if (interpolationButton.pz_value === 1) return true;
+    const interpolationIcon =
+      interpolationButton.querySelector?.("use")?.getAttribute("xlink:href") ||
+      interpolationButton.querySelector?.("use")?.getAttribute("href") ||
+      "";
+    return interpolationIcon.endsWith("#interp_1");
+  }
+
+  function updateEaseButtonLabel(easeButton) {
+    if (!easeButton || !easeButton.classList) return;
+    if (isBezierEaseButton(easeButton)) {
+      easeButton.dataset.easingPlus = "true";
+      easeButton.classList.add("easing-plus-ease-button");
+      if (!Object.prototype.hasOwnProperty.call(easeButton, "__easingPlusAriaLabel")) {
+        easeButton.__easingPlusAriaLabel = easeButton.getAttribute("aria-label");
+      }
+      easeButton.setAttribute("aria-label", "Easing+");
+      return;
+    }
+    delete easeButton.dataset.easingPlus;
+    easeButton.classList.remove("easing-plus-ease-button");
+    if (Object.prototype.hasOwnProperty.call(easeButton, "__easingPlusAriaLabel")) {
+      const originalAriaLabel = easeButton.__easingPlusAriaLabel;
+      if (originalAriaLabel == null) easeButton.removeAttribute("aria-label");
+      else easeButton.setAttribute("aria-label", originalAriaLabel);
+      delete easeButton.__easingPlusAriaLabel;
+    }
+  }
+
+  function decorateEaseButton(easeButton) {
+    if (!easeButton || !easeButton.classList) return;
+    state.easeButtons.add(easeButton);
+    if (
+      typeof easeButton.pz_update === "function" &&
+      !easeButton.__easingPlusPatchedEaseUpdate
+    ) {
+      const originalUpdate = easeButton.pz_update;
+      const patchedUpdate = function () {
+        const result = originalUpdate.apply(this, arguments);
+        updateEaseButtonLabel(this);
+        return result;
+      };
+      easeButton.__easingPlusOriginalEaseUpdate = originalUpdate;
+      easeButton.__easingPlusPatchedEaseUpdate = patchedUpdate;
+      easeButton.pz_update = patchedUpdate;
+    }
+
+    const interpolationButton = interpolationButtonFor(easeButton);
+    if (
+      interpolationButton &&
+      typeof interpolationButton.pz_update === "function" &&
+      !interpolationButton.__easingPlusPatchedInterpolationUpdate
+    ) {
+      const originalUpdate = interpolationButton.pz_update;
+      const patchedUpdate = function () {
+        const result = originalUpdate.apply(this, arguments);
+        updateEaseButtonLabel(easeButton);
+        return result;
+      };
+      interpolationButton.__easingPlusOriginalInterpolationUpdate = originalUpdate;
+      interpolationButton.__easingPlusPatchedInterpolationUpdate = patchedUpdate;
+      interpolationButton.pz_update = patchedUpdate;
+      state.easeButtons.add(interpolationButton);
+    }
+    updateEaseButtonLabel(easeButton);
+  }
+
+  function decorateEaseButtons(root = document) {
+    if (!root?.querySelectorAll) return;
+    root
+      .querySelectorAll(
+        'button.pz-tweens[title="easing"], button.pz-tweens[data-easing-plus="true"]'
+      )
+      .forEach(decorateEaseButton);
+  }
+
+  function installEaseButtonLabels() {
+    decorateEaseButtons();
+    const controls = window.PZ?.ui?.controls;
+    if (typeof controls?.createKeyframeControls !== "function") return;
+    state.originalCreateKeyframeControls = controls.createKeyframeControls;
+    state.patchedCreateKeyframeControls = function () {
+      const row = state.originalCreateKeyframeControls.apply(this, arguments);
+      decorateEaseButtons(row);
+      return row;
+    };
+    controls.createKeyframeControls = state.patchedCreateKeyframeControls;
+  }
+
+  function uninstallEaseButtonLabels() {
+    if (
+      window.PZ?.ui?.controls?.createKeyframeControls === state.patchedCreateKeyframeControls
+    ) {
+      window.PZ.ui.controls.createKeyframeControls = state.originalCreateKeyframeControls;
+    }
+    state.easeButtons.forEach((button) => {
+      if (
+        button.__easingPlusPatchedEaseUpdate &&
+        button.pz_update === button.__easingPlusPatchedEaseUpdate
+      ) {
+        button.pz_update = button.__easingPlusOriginalEaseUpdate;
+      }
+      if (
+        button.__easingPlusPatchedInterpolationUpdate &&
+        button.pz_update === button.__easingPlusPatchedInterpolationUpdate
+      ) {
+        button.pz_update = button.__easingPlusOriginalInterpolationUpdate;
+      }
+      delete button.__easingPlusPatchedEaseUpdate;
+      delete button.__easingPlusOriginalEaseUpdate;
+      delete button.__easingPlusPatchedInterpolationUpdate;
+      delete button.__easingPlusOriginalInterpolationUpdate;
+      delete button.dataset.easingPlus;
+      button.classList?.remove("easing-plus-ease-button");
+      if (Object.prototype.hasOwnProperty.call(button, "__easingPlusAriaLabel")) {
+        const originalAriaLabel = button.__easingPlusAriaLabel;
+        if (originalAriaLabel == null) button.removeAttribute("aria-label");
+        else button.setAttribute("aria-label", originalAriaLabel);
+        delete button.__easingPlusAriaLabel;
+      }
+    });
+    state.easeButtons.clear();
+    state.originalCreateKeyframeControls = null;
+    state.patchedCreateKeyframeControls = null;
   }
 
   function applyCurveToTarget(target, points, propertyOps) {
@@ -945,6 +1092,7 @@ const EasingPlus = (() => {
       createDialog(targets, button);
     };
     window.PZ.editor.showEaseDropDown = state.patchedEaseDropDown;
+    installEaseButtonLabels();
     state.keydown = (event) => {
       if (event.key === "Escape" && state.dialog) {
         event.preventDefault();
@@ -958,6 +1106,7 @@ const EasingPlus = (() => {
   function deactivate() {
     if (!state.active) return;
     closeDialog();
+    uninstallEaseButtonLabels();
     if (window.PZ?.editor?.showEaseDropDown === state.patchedEaseDropDown) {
       window.PZ.editor.showEaseDropDown = state.originalEaseDropDown;
     }

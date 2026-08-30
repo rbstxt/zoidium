@@ -3,21 +3,21 @@
   "id": "easing-plus",
   "name": "Easing+",
   "author": "Zoidium",
-  "version": "7",
+  "version": "8",
   "locales": {
-    "ja": "./plugins/easing-plus/locales/ja.json?v=7"
+    "ja": "./plugins/easing-plus/locales/ja.json?v=8"
   },
   "resources": [
     {
       "id": "style",
       "type": "text",
-      "source": "./plugins/easing-plus/easing-plus.css?v=7"
+      "source": "./plugins/easing-plus/easing-plus.css?v=8"
     }
   ],
   "modules": [
     {
       "id": "curve-editor",
-      "source": "./plugins/easing-plus/easing-plus.js?v=7"
+      "source": "./plugins/easing-plus/easing-plus.js?v=8"
     }
   ]
 }

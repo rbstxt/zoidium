@@ -23,6 +23,7 @@
       "fonts.png",
       "main.js",
       "pz.all-35.css",
+      "about/**/*",
       "docs/**/*",
       "js/**/*",
       "effect/**/*",
