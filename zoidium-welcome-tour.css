@@ -10,7 +10,7 @@
   z-index: 30000;
   inset: 0;
   color: #DADADA;
-  font-family: "Source Code Pro", monospace;
+  font-family: "Zoidium CM3 Mono", monospace;
   pointer-events: auto;
 }
 
@@ -140,7 +140,7 @@
 .zoidium-welcome-tour__title {
   margin: 0;
   color: #DADADA;
-  font-family: "Source Code Pro", monospace;
+  font-family: "Zoidium CM3 Mono", monospace;
   font-size: 24px;
   font-weight: 400;
   letter-spacing: 0;
@@ -180,7 +180,7 @@
   align-items: center;
   gap: 9px;
   color: var(--zoidium-tour-muted);
-  font-family: "Source Code Pro", monospace;
+  font-family: "Zoidium CM3 Mono", monospace;
   font-size: 11px;
   letter-spacing: 0.04em;
 }

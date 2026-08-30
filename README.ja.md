@@ -12,6 +12,9 @@ Zoidiumは、Clipmaker Gen3（CM3）の外側で動作する拡張レイヤー�
 `tools/runtime-resources.js` が設定されたCM3ソースページと同一オリジンの
 リソースグラフをGit管理外の`.zoidium-resources/`へ取得します。キャッシュは
 ローカルサーバー終了後も保持し、静的デプロイではそのデプロイに必要な生成物だけが残ります。
+CM3とZoidiumの拡張レイヤーは、このキャッシュに取得したCM3リソースを使用します。
+フォントも取得済みのCM3フォントプリセットを優先し、取得できない場合だけ
+システムフォントへフォールバックします。
 
 ## クイックスタート
 
@@ -90,10 +93,10 @@ Zoidium/
 ├── zoidium/
 │   ├── runtime-config.js       # 拡張プロファイル
 │   ├── runtime-loader.js       # 拡張ブートストラップ
+│   ├── runtime-fonts.css       # 取得済みCM3フォントプリセットを使用
 │   ├── runtime-policy.js       # ローカル優先のポリシーアダプター
 │   └── direct-download.js      # その場でのBlobダウンロード
 ├── plugins/                    # 拡張ソースと生成済みプラグインバンドル
-├── fonts/                      # ZoidiumのUIフォント
 └── about/                      # 通知とプロジェクト情報
 ```
 

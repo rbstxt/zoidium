@@ -4,9 +4,9 @@
   var defaults = {
     overlayStyles: [
       "./zoidium/ui-overrides.css",
-      "./fonts/fonts.css",
       "./plugins/plugin-manager.css?v=9",
-      "./zoidium-welcome-tour.css?v=11"
+      "./zoidium-welcome-tour.css?v=11",
+      "./zoidium/runtime-fonts.css"
     ],
     preInitScripts: [
       "./plugins/core-patches/project-media-fps.js",
