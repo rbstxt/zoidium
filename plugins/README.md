@@ -1,11 +1,13 @@
 # Zoidium plugins
 
-Plugins register optional effects and 3D object features without modifying Panzoid's bundled JavaScript.
+Plugins are optional CM3 extension tools. They add effects, materials, 3D object
+classes, localization, and UI integrations from an external layer around the
+runtime.
 The plugin manager loads only `registry.json` at startup. When a pack is enabled,
 it fetches that pack's generated single-line `bundle.json` once. The bundle contains the
 manifest, runtime modules, presets, and text assets, so enabling a pack does not
 fan out into dozens of small requests. Shader effect data remains lazy at the
-Panzoid object level: the manager parses and clones an effect preset only when
+CM3 object level: the manager parses and clones an effect preset only when
 the user adds that effect to a project.
 
 `bundle.json` files are generated artifacts. Source manifests and assets remain
@@ -29,11 +31,44 @@ or Afterzoid shader pack when only translations are needed.
 
 UI-only plugins use a manifest `modules` array. Each module exports `activate(context)`
 and may export `deactivate()`. The plugin manager runs activation only while the pack
-is enabled and restores the original UI behavior when it is disabled.
+is enabled and removes its integration when it is disabled.
+
+## Custom 3D object classes
+
+Plugins that add new 3D object classes declare an `objectClasses` array and a runtime
+module. Each class uses the stable type namespace
+`zoidium:<plugin-id>/<object-id>`, so it can be serialized without colliding with
+CM3's numeric object types:
+
+```json
+{
+  "objectClasses": [
+    {
+      "id": "rounded-box",
+      "type": "zoidium:geometry-plus/rounded-box",
+      "name": "Rounded Box",
+      "description": "A box with rounded corners.",
+      "schemaVersion": 1
+    }
+  ]
+}
+```
+
+The module receives a scoped `context.object3d` API. Its `registerClass()` factory
+must return a `PZ.object3d` subclass (or an instance), including `load()`, `toJSON()`,
+`update()`, `prepare()`, and `unload()` lifecycle methods. The plugin manager adds
+the declared classes to the 3D picker and stores their object IDs in project
+metadata. If a project is opened while the class is unavailable, Zoidium keeps the
+serialized data in a non-rendering Missing 3D Object placeholder and restores it
+after the providing plugin is enabled.
+
+`Geometry+` is the reference implementation. It registers a procedurally generated
+Rounded Box and a selectable low-poly Polyhedron through this API. It is disabled by
+default and can be enabled from the Plugin Manager.
 
 `日本語化` is an offline, catalog-driven UI localization pack. It loads its core
 Japanese catalog plus the `locales.ja` catalog declared by every plugin manifest,
-then translates exact source messages in the editor DOM, dynamically generated UI,
+then translates exact source messages in the CM3 editor DOM, dynamically generated UI,
 dialogs, and same-origin popup windows. It does not split identifiers or translate
 individual words at runtime. The pack is disabled by default and does not override
 the editor font, so untranslated Latin text continues to use the original Source Code
@@ -77,7 +112,7 @@ in their manifest catalog.
 
 Shader packs may also declare `effects` and `groups`. An effect references one preset
 JSON and one GLSL file. A group references a group preset plus any inline shader files;
-the manager hydrates those shaders before passing the data to Panzoid's built-in group
+the manager hydrates those shaders before passing the data to CM3's built-in group
 effect. The bundle builder embeds all of those references in the single plugin bundle.
 
 If a module or native effect needs a file that is not expressed by the standard
@@ -107,8 +142,8 @@ a source. The runtime builds an isolated capture for the selected track and reus
 for the effect/material during the current frame. Self-references and graph cycles are
 rejected in the picker and are also guarded at render time; a cycle loaded from old or
 hand-edited JSON is cleared from the offending source property and marked as circular.
-The plugin is intentionally Zoidium-only because it extends the compositor and material
-factory APIs.
+The plugin is intentionally Zoidium-only because it uses the CM3 compositor and material
+factory extension APIs.
 
 The optional AfterClip pack is generated from the separate AfterClip source tree with:
 
@@ -145,10 +180,9 @@ keeps the original effect data in a non-rendering Missing Native FX placeholder;
 enabling the pack later restores those effects without reopening the project.
 Project-provided paths are never loaded.
 
-`Light+` is disabled by default. The standard `Light` object creates a Spot Light
-directly; enabling `Light+` replaces that picker entry with a chooser for Spot,
+`Light+` is disabled by default. It provides an extended light chooser for Spot,
 Point, Directional, and Hemisphere lights. Objects added through that chooser are
-saved as ordinary Panzoid light data and do not create a plugin dependency.
+saved as ordinary CM3 light data and do not create a plugin dependency.
 
 Afterzoid Shader Pack 4 is generated from the user-provided source pack with:
 

@@ -2,8 +2,8 @@
 
 const JapaneseLocalization = (() => {
   const LOCALE = "ja";
-  const CORE_CATALOG_URL = "./plugins/japanese-localization/locales/ja.json?v=26";
-  const REGISTRY_URL = "./plugins/registry.json?v=11";
+  const CORE_CATALOG_URL = "./plugins/japanese-localization/locales/ja.json?v=29";
+  const REGISTRY_URL = "./plugins/registry.json?v=12";
   const TRANSLATABLE_ATTRIBUTES = Object.freeze([
     "title",
     "aria-label",

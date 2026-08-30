@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "id": "geometry-plus",
+  "name": "Geometry+",
+  "author": "Zoidium",
+  "version": "1",
+  "locales": {
+    "ja": "./plugins/geometry-plus/locales/ja.json?v=1"
+  },
+  "objectCategory": "GEOMETRY+",
+  "objectClasses": [
+    {
+      "id": "rounded-box",
+      "type": "zoidium:geometry-plus/rounded-box",
+      "name": "Rounded Box",
+      "description": "A box with rounded corners.",
+      "schemaVersion": 1,
+      "defaultData": {
+        "type": "zoidium:geometry-plus/rounded-box",
+        "schemaVersion": 1
+      }
+    },
+    {
+      "id": "polyhedron",
+      "type": "zoidium:geometry-plus/polyhedron",
+      "name": "Polyhedron",
+      "description": "A low-poly solid with selectable regular polyhedron geometry.",
+      "schemaVersion": 1,
+      "defaultData": {
+        "type": "zoidium:geometry-plus/polyhedron",
+        "schemaVersion": 1
+      }
+    }
+  ],
+  "modules": [
+    {
+      "id": "geometry-plus-runtime",
+      "source": "./plugins/geometry-plus/geometry-plus.js?v=1"
+    }
+  ]
+}

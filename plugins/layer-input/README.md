@@ -19,6 +19,6 @@ has a depth and in-progress guard so malformed project data cannot recurse indef
 
 The current MVP selects top-level video tracks. It captures the selected track through a
 nested `PZ.compositor` and caches the result per root compositor, frame, and resolution.
-This keeps the implementation outside Panzoid's bundled files and also covers preview and
-export-style compositor instances. Projects containing the effect or material record the
+This keeps the implementation in an external extension layer around CM3 and also covers
+preview and export-style compositor instances. Projects containing the effect or material record the
 `layer-input` dependency in root-level project metadata.

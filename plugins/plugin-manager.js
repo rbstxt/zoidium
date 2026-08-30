@@ -1,7 +1,7 @@
 (function () {
   "use strict";
 
-  const REGISTRY_URL = "./plugins/registry.json?v=11";
+  const REGISTRY_URL = "./plugins/registry.json?v=12";
   const STORAGE_PREFIX = "zoidium.plugin.enabled.";
   const SHADER_PLUGIN_MARKER = "// @zoidium-plugin ";
   const EFFECT_UUID_PROPERTY = "_zoidiumEffectUuid";
@@ -26,12 +26,15 @@
     afterclip: "#d35a76",
     "player-plus": "#4f7dbf",
     "layer-input": "#4f9db6",
+    "geometry-plus": "#6b86c5",
   });
   const pluginStates = new Map();
   const trackedNativeEffects = new Set();
   const missingNativeEffects = new Set();
   const trackedPluginMaterials = new Set();
   const missingPluginMaterials = new Set();
+  const trackedPluginObjects = new Set();
+  const missingPluginObjects = new Set();
   const effectUuidByEntry = new WeakMap();
   let projectHooksInstalled = false;
   let editorHooksInstalled = false;
@@ -128,6 +131,7 @@
     const effects = manifest.effects || [];
     const groups = manifest.groups || [];
     const objectTypes = manifest.objectTypes || [];
+    const objectClasses = manifest.objectClasses || [];
     const nativeEffects = manifest.nativeEffects || [];
     const materialTypes = manifest.materialTypes || [];
     const modules = manifest.modules || [];
@@ -136,6 +140,7 @@
       !Array.isArray(effects) ||
       !Array.isArray(groups) ||
       !Array.isArray(objectTypes) ||
+      !Array.isArray(objectClasses) ||
       !Array.isArray(nativeEffects) ||
       !Array.isArray(materialTypes) ||
       !Array.isArray(modules) ||
@@ -147,6 +152,7 @@
       effects.length === 0 &&
       groups.length === 0 &&
       objectTypes.length === 0 &&
+      objectClasses.length === 0 &&
       nativeEffects.length === 0 &&
       materialTypes.length === 0 &&
       modules.length === 0
@@ -212,6 +218,19 @@
         (typeof entry.replace.name !== "string" || typeof entry.replace.type !== "number")
       ) {
         throw new Error(`Invalid 3D object replacement in ${plugin.id}`);
+      }
+    }
+    for (const objectClass of objectClasses) {
+      if (
+        !objectClass ||
+        typeof objectClass.type !== "string" ||
+        !/^zoidium:[a-z0-9][a-z0-9-]*\/[a-z0-9][a-z0-9-]*$/.test(objectClass.type) ||
+        !objectClass.type.startsWith(`zoidium:${plugin.id}/`) ||
+        !objectClass.name ||
+        (objectClass.schemaVersion != null &&
+          (!Number.isInteger(objectClass.schemaVersion) || objectClass.schemaVersion < 1))
+      ) {
+        throw new Error(`Invalid 3D object class entry in ${plugin.id}`);
       }
     }
   }
@@ -784,6 +803,42 @@
     missingPluginMaterials.delete(material);
   }
 
+  function updatePluginObjectUsageUi(pluginId) {
+    const state = pluginStates.get(pluginId);
+    if (!state || !pluginIsEnabled(state)) return;
+    const inUse = Array.from(trackedPluginObjects).some(
+      (object) => object._zoidiumPluginMetadata?.id === pluginId && !missingPluginObjects.has(object)
+    );
+    state.toggle.disabled = inUse;
+    state.status.textContent = inUse
+      ? "In use by this project"
+      : `${manifestFeatureCount(state.manifest)} active`;
+  }
+
+  function trackPluginObject(object, metadata, missing) {
+    if (!metadata?.id) return;
+    object._zoidiumPluginMetadata = metadata;
+    trackedPluginObjects.add(object);
+    if (missing) missingPluginObjects.add(object);
+    else missingPluginObjects.delete(object);
+    updatePluginObjectUsageUi(metadata.id);
+  }
+
+  function untrackPluginObject(object, metadata) {
+    trackedPluginObjects.delete(object);
+    missingPluginObjects.delete(object);
+    updatePluginObjectUsageUi(metadata?.id || object._zoidiumPluginMetadata?.id);
+  }
+
+  function installObject3DUsageTracker() {
+    const registry = PZ.zoidium?.object3d;
+    if (!registry?.setUsageTracker) return;
+    registry.setUsageTracker({
+      track: trackPluginObject,
+      untrack: untrackPluginObject,
+    });
+  }
+
   function setMaterialFactory(type, factory, mode) {
     const promise = Promise.resolve(factory);
     promise._zoidiumMaterialMode = mode;
@@ -945,6 +1000,7 @@
           document,
           window,
           getAsset,
+          object3d: PZ.zoidium?.object3d?.forPlugin?.(plugin, manifest, getAsset) || null,
         });
         state.runtimeModules.push(runtime);
       }
@@ -1073,6 +1129,38 @@
         objectTypes.push(entry);
       }
     }
+
+    const objectClasses = manifest.objectClasses || [];
+    const objectClassEntries = getObjectTypes("object3d");
+    if (
+      objectClasses.length > 0 &&
+      !objectClassEntries.some(
+        (entry) => entry?._zoidiumPluginId === plugin.id && entry?._zoidiumPluginObjectClass
+      )
+    ) {
+      objectClassEntries.push(
+        {
+          name: manifest.objectCategory || manifest.name,
+          category: true,
+          _zoidiumPluginId: plugin.id,
+          _zoidiumPluginObjectClass: true,
+        },
+        ...objectClasses.map((objectClass) => {
+          const data = cloneJson(objectClass.defaultData || {});
+          if (!data.type) data.type = objectClass.type;
+          if (!data.schemaVersion) data.schemaVersion = objectClass.schemaVersion || 1;
+          return {
+            name: objectClass.name,
+            desc: objectClass.description || `${objectClass.name} — ${manifest.name}`,
+            type: objectClass.type,
+            data,
+            _zoidiumPluginId: plugin.id,
+            _zoidiumPluginObjectClass: true,
+            _zoidiumPluginObjectId: objectClass.id || objectClass.type.split("/").pop(),
+          };
+        })
+      );
+    }
     if (effectBadgeObserver) scheduleEffectPickerBadges();
   }
 
@@ -1092,6 +1180,11 @@
       }
     }
     if (state) state.runtimeModules = [];
+    try {
+      PZ.zoidium?.object3d?.unregisterPlugin?.(pluginId);
+    } catch (error) {
+      console.error(`[Zoidium] failed to unregister 3D object classes for ${pluginId}:`, error);
+    }
     for (const replacement of state?.replacedObjectTypes || []) {
       const index = Math.min(replacement.index, replacement.entries.length);
       replacement.entries.splice(index, 0, replacement.entry);
@@ -1114,12 +1207,14 @@
       (count, entry) => count + (entry.list || []).length,
       0
     );
+    const objectClassCount = (manifest.objectClasses || []).length;
     const materialCount = (manifest.materialTypes || []).length;
     return (
       effectCount +
       groupCount +
       nativeEffectCount +
       objectCount +
+      objectClassCount +
       materialCount +
       (manifest.modules || []).length
     );
@@ -1173,6 +1268,9 @@
           materials: Array.isArray(descriptor.materials)
             ? descriptor.materials.filter((material) => typeof material === "string")
             : [],
+          objects: Array.isArray(descriptor.objects)
+            ? descriptor.objects.filter((object) => typeof object === "string")
+            : [],
         },
       ];
     });
@@ -1207,11 +1305,45 @@
     return found;
   }
 
+  function parsePluginObjectType(type) {
+    const parser = PZ.zoidium?.object3d?.parseType;
+    if (typeof parser === "function") return parser(type);
+    const match = typeof type === "string"
+      ? type.match(/^zoidium:([a-z0-9][a-z0-9-]*)\/([a-z0-9][a-z0-9-]*)$/)
+      : null;
+    return match ? { pluginId: match[1], objectId: match[2] } : null;
+  }
+
+  function findPluginObjectTypes(value, found = new Map(), visited = new WeakSet()) {
+    if (!value || typeof value !== "object") return found;
+    if (visited.has(value)) return found;
+    visited.add(value);
+    if (typeof value.type === "string") {
+      const parsed = parsePluginObjectType(value.type);
+      if (parsed) {
+        if (!found.has(parsed.pluginId)) found.set(parsed.pluginId, new Set());
+        found.get(parsed.pluginId).add(parsed.objectId);
+      }
+    }
+    if (Array.isArray(value)) {
+      for (const item of value) findPluginObjectTypes(item, found, visited);
+    } else {
+      for (const key of Object.keys(value)) findPluginObjectTypes(value[key], found, visited);
+    }
+    return found;
+  }
+
   function projectPluginRequirements(data) {
     const plugins = normalizeProjectPlugins(data?.plugins);
     const detectedEffects = Array.from(findNativeFxTypes(data)).sort();
     const detectedLayerInput = findLayerInputFeatures(data);
-    if (detectedEffects.length === 0 && detectedLayerInput.effects.size === 0 && detectedLayerInput.materials.size === 0) {
+    const detectedObjectTypes = findPluginObjectTypes(data);
+    if (
+      detectedEffects.length === 0 &&
+      detectedLayerInput.effects.size === 0 &&
+      detectedLayerInput.materials.size === 0 &&
+      detectedObjectTypes.size === 0
+    ) {
       return plugins;
     }
     const existing = plugins.find((plugin) => plugin.id === NATIVE_FX_PLUGIN_ID);
@@ -1242,6 +1374,23 @@
           author: "Zoidium",
           effects,
           materials,
+        });
+      }
+    }
+    for (const [pluginId, objectTypes] of detectedObjectTypes) {
+      const objects = Array.from(objectTypes).sort();
+      const objectPlugin = plugins.find((plugin) => plugin.id === pluginId);
+      if (objectPlugin) {
+        objectPlugin.objects = Array.from(new Set([...objectPlugin.objects, ...objects])).sort();
+      } else {
+        plugins.push({
+          id: pluginId,
+          name: pluginId,
+          version: "",
+          author: "",
+          effects: [],
+          materials: [],
+          objects,
         });
       }
     }
@@ -1332,6 +1481,7 @@
           author: installed?.author || metadata.author || "",
           effects: new Set(),
           materials: new Set(),
+          objects: new Set(),
         };
         used.set(metadata.id, entry);
       }
@@ -1364,6 +1514,19 @@
       if (metadata.material) entry.materials.add(metadata.material);
     }
 
+    for (const object of trackedPluginObjects) {
+      let belongsToProject = false;
+      try {
+        belongsToProject = object.parentProject === project;
+      } catch (_error) {
+        // Detached objects are removed by their unload hook.
+      }
+      if (!belongsToProject || !object._zoidiumPluginMetadata) continue;
+      const metadata = object._zoidiumPluginMetadata;
+      const entry = getEntry(metadata);
+      if (metadata.object) entry.objects.add(metadata.object);
+    }
+
     return Array.from(used.values(), (entry) => ({
       id: entry.id,
       name: entry.name,
@@ -1371,6 +1534,7 @@
       author: entry.author,
       effects: Array.from(entry.effects).sort(),
       materials: Array.from(entry.materials).sort(),
+      objects: Array.from(entry.objects).sort(),
     })).sort((a, b) => a.id.localeCompare(b.id));
   }
 
@@ -1439,12 +1603,14 @@
           state.bundleAssets = pluginPackage.assets;
         }
         await registerManifest(state.plugin, state.manifest, state);
+        await PZ.zoidium?.object3d?.restoreMissing?.(state.plugin.id);
         await restoreMissingNativeEffects(state.plugin.id);
         await restoreMissingPluginMaterials(state.plugin.id);
         const featureCount = manifestFeatureCount(state.manifest);
         if (persist) persistEnabled(state.plugin.id, true);
         updateCard(state, "enabled", featureCount + " active");
         updateNativeFxUsageUi();
+        updatePluginObjectUsageUi(state.plugin.id);
         emitState(state.plugin.id, true, featureCount);
       } catch (error) {
         unregisterPlugin(state.plugin.id);
@@ -1465,6 +1631,11 @@
       ) ||
       Array.from(trackedPluginMaterials).some(
         (material) => material._zoidiumPluginMetadata?.id === state.plugin.id
+      ) ||
+      Array.from(trackedPluginObjects).some(
+        (object) =>
+          object._zoidiumPluginMetadata?.id === state.plugin.id &&
+          !missingPluginObjects.has(object)
       ) ||
       (state.runtimeModules || []).some((runtime) => runtime.isInUse?.());
     if (inUse) {
@@ -1592,10 +1763,10 @@
           categories.get(categoryId) || { id: categoryId, name: categoryId }
         );
         categorySections.set(categoryId, category);
-        list.appendChild(category.section);
       }
       category.list.appendChild(createPluginCard(plugin));
     }
+    for (const category of categorySections.values()) list.appendChild(category.section);
 
     let categoryOpenState = null;
     const updateFilter = () => {
@@ -1693,6 +1864,7 @@
     installProjectPluginHooks();
     installEditorPluginHooks();
     PZ.zoidium = PZ.zoidium || {};
+    installObject3DUsageTracker();
     PZ.zoidium.trackPluginMaterial = trackPluginMaterial;
     PZ.zoidium.untrackPluginMaterial = untrackPluginMaterial;
     installMissingNativeFactories();
