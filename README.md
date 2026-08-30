@@ -101,7 +101,8 @@ zoidium/
 
 ## Static Deployment (Cloudflare Pages, Vercel, Netlify, …)
 
-Zoidium is a static site with no build step. To deploy:
+Zoidium is a static site. Generated plugin bundles are committed, so a static
+host does not need a build step. To deploy:
 
 1. Push the repo to your Git provider.
 2. In your static host, set:
@@ -110,6 +111,8 @@ Zoidium is a static site with no build step. To deploy:
 3. Deploy.
 
 `node_modules/` and `dist/` are excluded via `.gitignore` and `.cfignore` so deploys stay lean.
+Versioned plugin bundles are served as one request per enabled plugin and are
+compressed by the static host's standard HTTP compression.
 
 ### URL structure
 
@@ -136,6 +139,19 @@ This means you can drop the exact same `<link>` and `<script>` tags into any HTM
 ---
 
 ## Development
+
+### Building plugin bundles
+
+Plugin source files are packed into one generated `bundle.json` per plugin:
+
+```bash
+npm run build:plugin-bundles
+npm run check:plugin-bundles
+```
+
+`npm run dist` runs the bundle build before packaging. Locale catalogs remain
+separate lazy resources so the localization plugin does not download unrelated
+shader data.
 
 ### Editing effects / materials
 

@@ -230,11 +230,21 @@ function updateLayerInputDisplacementWrap(effect, frame) {
     this._zoidiumLoading = true;
     this.aspect = 16 / 9;
     try {
-      const response = await fetch("./plugins/layer-input/layer-input-displacement.glsl?v=2", {
-        cache: "no-store",
-      });
-      if (!response.ok) throw new Error(`HTTP ${response.status}: layer-input-displacement.glsl`);
-      const fragmentShader = await response.text();
+      const bundledShader = this._zoidiumGetAsset?.(
+        "text",
+        "./plugins/layer-input/layer-input-displacement.glsl?v=3"
+      );
+      const response = typeof bundledShader === "string"
+        ? null
+        : await fetch("./plugins/layer-input/layer-input-displacement.glsl?v=3", {
+            cache: "default",
+          });
+      if (response && !response.ok) {
+        throw new Error(`HTTP ${response.status}: layer-input-displacement.glsl`);
+      }
+      const fragmentShader = typeof bundledShader === "string"
+        ? bundledShader
+        : await response.text();
       const emptySourceTexture = new THREE.DataTexture(
         new Uint8Array([0, 0, 0, 0]),
         1,

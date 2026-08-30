@@ -97,7 +97,14 @@
   this.properties.addAll(this.propertyDefinitions, this),
   (this.load = async function (data) {
     this.vertShader = new PZ.asset.shader(this.parentProject.assets.load(this.vertShader));
-    this.fragShader = new PZ.asset.shader(this.parentProject.assets.load(this.fragShader));
+    const bundledFragmentShader = this._zoidiumGetAsset?.("text", this.shaderUrl);
+    if (typeof bundledFragmentShader === "string") {
+      this._zoidiumBundledFragShader = true;
+      this.fragShader = { getShader: async () => bundledFragmentShader };
+    } else {
+      this._zoidiumBundledFragShader = false;
+      this.fragShader = new PZ.asset.shader(this.parentProject.assets.load(this.fragShader));
+    }
     const material = new THREE.ShaderMaterial({
       uniforms: {
         tDiffuse: { type: "t", value: null },
@@ -123,7 +130,7 @@
   }),
   (this.unload = function () {
     this.parentProject.assets.unload(this.vertShader);
-    this.parentProject.assets.unload(this.fragShader);
+    if (!this._zoidiumBundledFragShader) this.parentProject.assets.unload(this.fragShader);
   }),
   (this.update = function (frame) {
     if (!this.pass) return;

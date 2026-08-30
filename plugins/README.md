@@ -1,9 +1,31 @@
 # Zoidium plugins
 
 Plugins register optional effects and 3D object features without modifying Panzoid's bundled JavaScript.
-The plugin manager loads only `registry.json` at startup. A pack manifest is fetched
-when that pack is enabled, and the selected effect's preset and GLSL source are
-loaded only when the user adds it to a project.
+The plugin manager loads only `registry.json` at startup. When a pack is enabled,
+it fetches that pack's generated single-line `bundle.json` once. The bundle contains the
+manifest, runtime modules, presets, and text assets, so enabling a pack does not
+fan out into dozens of small requests. Shader effect data remains lazy at the
+Panzoid object level: the manager parses and clones an effect preset only when
+the user adds that effect to a project.
+
+`bundle.json` files are generated artifacts. Source manifests and assets remain
+in the plugin directory for editing and rebuilding, but are not part of the
+normal runtime load path:
+
+```bash
+npm run build:plugin-bundles
+npm run check:plugin-bundles
+```
+
+The builder updates the versioned `bundle`, `manifest`, and `locale` URLs in
+`registry.json`. `npm run dist` runs the bundle build automatically. Static
+hosts should serve the bundles with HTTP compression (Cloudflare Pages does
+this automatically); the repository's `_headers` and Electron server also set
+long-lived caching for versioned bundles and locale catalogs.
+
+Japanese locale catalogs intentionally remain separate, small, lazy language
+chunks. This prevents enabling Japanese UI from downloading the full AfterClip
+or Afterzoid shader pack when only translations are needed.
 
 UI-only plugins use a manifest `modules` array. Each module exports `activate(context)`
 and may export `deactivate()`. The plugin manager runs activation only while the pack
@@ -56,7 +78,27 @@ in their manifest catalog.
 Shader packs may also declare `effects` and `groups`. An effect references one preset
 JSON and one GLSL file. A group references a group preset plus any inline shader files;
 the manager hydrates those shaders before passing the data to Panzoid's built-in group
-effect. This keeps group presets optional and self-contained inside the plugin pack.
+effect. The bundle builder embeds all of those references in the single plugin bundle.
+
+If a module or native effect needs a file that is not expressed by the standard
+manifest fields, declare it with `resources`:
+
+```json
+{
+  "resources": [
+    {
+      "id": "style",
+      "type": "text",
+      "source": "./plugins/example/example.css?v=1"
+    }
+  ]
+}
+```
+
+Runtime modules receive `context.getAsset(type, source)`. Native effect factories
+receive the same resolver as `this._zoidiumGetAsset`. Both return the bundled
+asset synchronously, or `undefined` for legacy non-bundled manifests, so a
+versioned network fallback can be retained when necessary.
 
 `Layer Input` adds source-track selectors to its Layer Input and Layer Input Displacement
 Map effects and Layer Source material. The first implementation targets top-level video
@@ -89,7 +131,7 @@ are never recorded as dependencies:
     {
       "id": "native-fx",
       "name": "Native FX",
-      "version": "1",
+      "version": "2",
       "author": "Zoidium",
       "effects": ["dropshadow", "radialblurspin"]
     }

@@ -30,12 +30,14 @@ npm run dist     # 配布物 (.dmg / .exe / .AppImage) ビルド
 逆に、**変更して良い領域**:
 
 - `index.html` (script タグの追加)
+- `main.js` (Electronローカルサーバーの配信設定)
+- `plugins/` (プラグインのソース、マニフェスト、生成バンドル)
 - `effect-custom/` (カスタムエフェクト置き場)
   - `effect-custom/groups/` (Group プリセット JSON 置き場)
 - `assets/shaders/fragment/preset/` (カスタムシェーダ)
 - `package.json` (electron-builder 設定、 scripts)
 - ブランド表記 (タイトル、 About、 Copyright)
-- `_redirects` / `.cfignore` (Cloudflare Pages デプロイ設定)
+- `_redirects` / `_headers` / `.cfignore` (Cloudflare Pages デプロイ設定)
 
 ---
 
@@ -70,6 +72,10 @@ Zoidium/
 │   ├── polygonecho.js          # 例: 雛形 A ベース、 multi-uniform
 │   ├── dropshadow.js           # 例: 雛形 B ベース、 multi-pass + RT
 │   └── README.md               # エフェクト追加の詳細手順
+├── plugins/                    # 任意機能プラグイン
+│   ├── registry.json           # プラグイン一覧・バージョン付きURL
+│   ├── plugin-manager.js       # プラグインローダー
+│   └── <id>/bundle.json        # 生成済みの1プラグイン1ファイルバンドル
 └── fonts/                      # Open Sans / Source Code Pro (woff2)
 ```
 
@@ -238,6 +244,27 @@ JSON スキーマ詳細 / expression で使える関数 (`shake`, `wave`, `lerp`
 5. プラグインとカタログを変更したら version と参照URLの `?v=` を更新し、日本語化をオンにした状態とオフへ戻した状態の両方を確認する。
 
 日本語化ランタイムは英語原文をキーにしたカタログの完全一致だけを適用する。新しい表示文を日本語化ランタイム本体の「単語帳」へ追加したり、camelCase・単語単位で自動翻訳する処理を復活させたりしない。
+
+### 4.6 プラグインのバンドル配信（必須）
+
+プラグインは **1プラグイン1ファイル** の1行JSON（整形なし）で配信する。`plugins/<id>/manifest.json`、実行モジュール、エフェクト／Group のプリセット、GLSL、追加リソースを、生成済みの `plugins/<id>/bundle.json` にまとめる。`bundle.json` は手編集せず、ソースを変更したら必ず次を実行する:
+
+```bash
+npm run build:plugin-bundles
+npm run check:plugin-bundles
+```
+
+`npm run dist` はバンドル生成を自動実行する。生成された `bundle.json` は静的デプロイでビルドステップなしに配信するため、リポジトリへコミットする。`plugins/registry.json` の `bundle` / `manifest` / `locale` URLと `version` はビルダーが更新するため、手動で不整合を作らない。
+
+プラグイン有効化時の通常のロードは、バージョン付き `bundle.json` の1リクエストだけとする。バンドル内のエフェクトデータはメモリから読み、エフェクトをプロジェクトへ追加する時点までプリセットのclone／展開を遅延できる。バンドルにない旧形式のマニフェストを読む互換フォールバックは維持する。
+
+標準のマニフェスト項目に含まれないファイル（CSSなど）は `resources` に `type: "text"` または `type: "json"` で宣言する。ランタイムモジュールは `context.getAsset(type, source)`、native effect は `this._zoidiumGetAsset(type, source)` を使い、バンドル時に追加の `fetch()` を発生させない。旧形式を直接実行する場合に限り、バージョン付きURLへのネットワークフォールバックを許可する。
+
+日本語カタログは意図的に `bundle.json` へ含めず、`locale` の小さな遅延ロードとして分離する。日本語化を有効にするだけで AfterClip／Afterzoid の巨大なシェーダーデータを取得させないためである。
+
+配信時はHTTP圧縮を有効にする。静的ホストでは標準の gzip／Brotli 圧縮と [`_headers`](_headers) の長期キャッシュを使い、ElectronのローカルHTTPサーバーでは `compression`、ETag、`Cache-Control: public, max-age=31536000, immutable` を維持する。バージョン付きバンドル／ロケールを `cache: "no-store"` で取得してはならない。
+
+Electron配布物には、編集用のプラグイン元ファイルやマニフェストを含めず、`bundle.json` と `locales/**/*` のみを含める。バンドル変更後は `check:plugin-bundles`、JavaScript構文チェック、必要に応じてElectronの `app.asar` 収録内容を確認する。
 
 ---
 

@@ -2,7 +2,7 @@
 
 const EasingPlus = (() => {
   const STYLE_ID = "zoidium-easing-plus-style";
-  const STYLE_URL = "./plugins/easing-plus/easing-plus.css?v=6";
+  const STYLE_URL = "./plugins/easing-plus/easing-plus.css?v=7";
   const EPSILON = 1e-8;
   const BEZIER_TWEEN = 257;
   // Overshoot is an intentional, two-stage gesture.  Keeping these in screen
@@ -907,6 +907,14 @@ const EasingPlus = (() => {
 
   function installStyle() {
     if (document.getElementById(STYLE_ID)) return;
+    const bundledStyle = state.getAsset?.("text", STYLE_URL);
+    if (typeof bundledStyle === "string") {
+      const style = document.createElement("style");
+      style.id = STYLE_ID;
+      style.textContent = bundledStyle;
+      document.head.appendChild(style);
+      return;
+    }
     const link = document.createElement("link");
     link.id = STYLE_ID;
     link.rel = "stylesheet";
@@ -921,6 +929,7 @@ const EasingPlus = (() => {
   function activate(context) {
     if (state.active) return;
     state.active = true;
+    state.getAsset = context.getAsset;
     state.editor = context.editor || window.CM;
     installStyle();
     state.originalCorrectCurve = window.PZ.tween.correctCurve;
@@ -959,6 +968,7 @@ const EasingPlus = (() => {
     uninstallStyle();
     state.active = false;
     state.editor = null;
+    state.getAsset = null;
     state.originalEaseDropDown = null;
     state.patchedEaseDropDown = null;
     state.originalCorrectCurve = null;
