@@ -22,7 +22,6 @@
     "easing-plus": "#384668",
     "native-fx": "#c56b3d",
     "light-plus": "#2f9b86",
-    "alipfx-shader-pack-4": "#a04ed1",
     afterclip: "#d35a76",
     "player-plus": "#4f7dbf",
     "layer-input": "#4f9db6",
