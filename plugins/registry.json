@@ -1,5 +1,12 @@
 {
   "schemaVersion": 1,
+  "categories": [
+    {
+      "id": "experimental",
+      "name": "Experimental",
+      "description": "These features are extremely experimental and may cause unexpected crashes."
+    }
+  ],
   "plugins": [
     {
       "id": "easing-plus",
@@ -35,7 +42,7 @@
       "tagline": "Native AfterClip Effects",
       "color": "#c56b3d",
       "description": "Adds native multi-pass effects using AfterClip-compatible effect types.",
-      "warning": "Native FX effects are not compatible with vanilla Panzoid Clipmaker 3. Projects using this pack require Zoidium or AfterClip.",
+      "warning": "Native FX effects are not compatible with vanilla Panzoid Clipmaker 3. Projects using this pack require Zoidium.",
       "manifest": "./plugins/native-fx/manifest.json"
     },
     {
@@ -62,7 +69,7 @@
       "tagline": "AfterClip Shader Pack",
       "color": "#d35a76",
       "description": "Adds AfterClip custom shaders and group presets, normalized for Zoidium.",
-      "warning": "AfterClip effects use Zoidium's premultiplied source-over convention and are not vanilla Panzoid-compatible.",
+      "warning": "This is a temporary plugin to help AfterClip users migrate to Zoidium. The Zoidium Shader Pack will be developed soon, and this plugin will become outdated.",
       "manifest": "./plugins/afterclip/manifest.json?v=1"
     },
     {
@@ -77,6 +84,33 @@
       "color": "#a04ed1",
       "description": "A complete collection of native Panzoid shader effects.",
       "manifest": "./plugins/alipfx/manifest.json"
+    },
+    {
+      "id": "japanese-localization",
+      "name": "日本語化",
+      "author": "Zoidium",
+      "version": "24",
+      "itemCount": 1,
+      "format": "UI language",
+      "tagline": "Zoidiumを日本語で表示",
+      "color": "#c75a8a",
+      "category": "experimental",
+      "description": "標準UI、エフェクト、プロパティ、ダイアログなどを日本語にします。オン／オフはいつでも切り替えられます。",
+      "manifest": "./plugins/japanese-localization/manifest.json?v=24"
+    },
+    {
+      "id": "layer-input",
+      "name": "Layer Input",
+      "author": "Zoidium",
+      "version": "2",
+      "itemCount": 4,
+      "format": "layer sources",
+      "tagline": "Layer-to-Layer Inputs",
+      "color": "#4f9db6",
+      "category": "experimental",
+      "description": "Lets effects and 3D materials use another video track as an information source.",
+      "warning": "Layer Input projects require Zoidium. This feature is extremely experimental and may cause unexpected crashes.",
+      "manifest": "./plugins/layer-input/manifest.json?v=2"
     }
   ]
 }

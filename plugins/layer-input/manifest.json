@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "id": "layer-input",
+  "name": "Layer Input",
+  "author": "Zoidium",
+  "version": "2",
+  "locales": {
+    "ja": "./plugins/layer-input/locales/ja.json?v=2"
+  },
+  "materialTypes": [
+    {
+      "id": "layersource",
+      "name": "Layer Source",
+      "description": "Uses another video track as a texture for a 3D material."
+    }
+  ],
+  "modules": [
+    {
+      "id": "layer-input-runtime",
+      "source": "./plugins/layer-input/layer-input.js?v=2"
+    }
+  ],
+  "nativeEffects": [
+    {
+      "id": "layerinput",
+      "name": "Layer Input",
+      "description": "Composites a selected video track into the current layer.",
+      "source": "./plugins/layer-input/layer-input-effect.js?v=2"
+    },
+    {
+      "id": "layerinputdisplacement",
+      "name": "Layer Input Displacement Map",
+      "description": "Uses a selected video track as a displacement map.",
+      "source": "./plugins/layer-input/layer-input-displacement-effect.js?v=2"
+    }
+  ]
+}

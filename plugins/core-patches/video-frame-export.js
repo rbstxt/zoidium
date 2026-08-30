@@ -180,8 +180,11 @@
   PZ.export.prototype.getVideoFrame = async function getDeterministicVideoFrame(output) {
     if (this.framesRendered >= this.totalFrames) return 0;
 
-    const projectFrame =
-      this.params.start + this.framesRendered * this.frameAdvance;
+    // Image export uses rate=0. In that mode frameAdvance is Infinity, so
+    // calculating the first frame as 0 * Infinity produces NaN. The export
+    // constructor already initializes `frame` to the requested start frame;
+    // keep using that value so Single Frame Capture also prepares frame 0.
+    const projectFrame = this.frame;
 
     this.frame = projectFrame;
     this.frameWaiting = projectFrame;
@@ -227,7 +230,7 @@
     }
 
     this.framesRendered += 1;
-    this.frame = this.params.start + this.framesRendered * this.frameAdvance;
+    this.frame += this.frameAdvance;
     this.frameWaiting = -1;
     this.framePromise = null;
     return 1;

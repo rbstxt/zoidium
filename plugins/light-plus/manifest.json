@@ -4,6 +4,9 @@
   "name": "Light+",
   "author": "Zoidium",
   "version": "1",
+  "locales": {
+    "ja": "./plugins/light-plus/locales/ja.json?v=1"
+  },
   "objectTypes": [
     {
       "target": "object3d",
