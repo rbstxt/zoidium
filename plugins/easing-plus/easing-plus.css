@@ -11,6 +11,32 @@
   z-index: 10020;
 }
 
+/* Keep the native SVG in place for Panzoid's icon-refresh code, but make the
+   Bezier easing control unmistakably open Easing+ when the plugin is active. */
+.pz-tweens.easing-plus-ease-button {
+  min-width: 42px;
+  position: relative;
+  text-align: center;
+}
+
+.pz-tweens.easing-plus-ease-button > svg {
+  visibility: hidden;
+}
+
+.pz-tweens.easing-plus-ease-button::after {
+  color: #aeb9d1;
+  content: "Ez+";
+  display: block;
+  font-family: "Source Code Pro", monospace;
+  font-size: 11px;
+  font-weight: 600;
+  inset: 1px 4px;
+  line-height: 23px;
+  pointer-events: none;
+  position: absolute;
+  text-align: center;
+}
+
 .easing-plus-dialog {
   background: var(--ep-bg);
   border: 1px solid #40577f;

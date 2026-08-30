@@ -12,15 +12,15 @@
       "id": "easing-plus",
       "name": "Easing+",
       "author": "Zoidium",
-      "version": "7",
+      "version": "8",
       "itemCount": 1,
       "format": "curve editor",
       "tagline": "Extended Bezier Easing",
       "color": "#384668",
       "description": "A normalized cubic Bezier editor with a focused set of reusable presets.",
-      "manifest": "./plugins/easing-plus/manifest.json?v=7",
-      "bundle": "./plugins/easing-plus/bundle.json?v=7",
-      "locale": "./plugins/easing-plus/locales/ja.json?v=7"
+      "manifest": "./plugins/easing-plus/manifest.json?v=8",
+      "bundle": "./plugins/easing-plus/bundle.json?v=8",
+      "locale": "./plugins/easing-plus/locales/ja.json?v=8"
     },
     {
       "id": "player-plus",
@@ -101,16 +101,16 @@
       "id": "japanese-localization",
       "name": "日本語化",
       "author": "Zoidium",
-      "version": "25",
+      "version": "26",
       "itemCount": 1,
       "format": "UI language",
       "tagline": "Zoidiumを日本語で表示",
       "color": "#c75a8a",
       "category": "experimental",
       "description": "標準UI、エフェクト、プロパティ、ダイアログなどを日本語にします。オン／オフはいつでも切り替えられます。",
-      "manifest": "./plugins/japanese-localization/manifest.json?v=25",
-      "bundle": "./plugins/japanese-localization/bundle.json?v=25",
-      "locale": "./plugins/japanese-localization/locales/ja.json?v=25"
+      "manifest": "./plugins/japanese-localization/manifest.json?v=26",
+      "bundle": "./plugins/japanese-localization/bundle.json?v=26",
+      "locale": "./plugins/japanese-localization/locales/ja.json?v=26"
     },
     {
       "id": "layer-input",

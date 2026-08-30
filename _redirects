@@ -1,1 +1,5 @@
 # /download is served by /download/index.html (Cloudflare Pages auto-index)
+/terms/ja /about/terms/ja 301
+/privacy/ja /about/privacy/ja 301
+/terms /about/terms 301
+/privacy /about/privacy 301
