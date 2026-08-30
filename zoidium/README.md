@@ -20,6 +20,11 @@ inside `dist/web/`, the browser development stage, and the temporary Electron
 build tree. The fixed resource manifest and remote-resource bridge were removed;
 the current HTML and runtime graph are the source of truth for each run.
 
+`runtime-fonts.css` is part of the extension layer, but its font files are not.
+It points at the CM3 font presets fetched into `assets/fonts/2d/` in the local
+cache, so CM3 and Zoidium overlays use the same setup-time font resources. A
+system font is only the fallback when a fetched preset is unavailable.
+
 ## Cache and output stages
 
 `npm run setup` creates or refreshes `.zoidium-resources/`. `npm run web` and

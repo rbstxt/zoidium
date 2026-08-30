@@ -17,14 +17,13 @@ const defaultResourceCacheRoot = path.resolve(
 const requestUserAgent = "Zoidium CM3 runtime staging/1.0";
 const temporaryPrefix = "zoidium-runtime-";
 const cacheMetadataName = ".zoidium-cache.json";
-const cacheSchemaVersion = 2;
+const cacheSchemaVersion = 3;
 
 const commonProjectEntries = [
   "404.html",
   "_headers",
   "_redirects",
   "about",
-  "fonts",
   "zoidium",
   "zoidium-welcome-tour.css",
   "zoidium-welcome-tour.js",
@@ -350,7 +349,6 @@ function patchIndexHtml(sourceHtml) {
 
   const headBootstrap = [
     "<!-- Zoidium extension bootstrap; CM3 files are staged outside the repository. -->",
-    '<link rel="stylesheet" href="./fonts/fonts.css">',
     '<script src="./zoidium/runtime-config.js"></script>',
     '<script src="./zoidium/runtime-policy.js"></script>',
   ].join("\n");

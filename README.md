@@ -10,9 +10,11 @@ The repository intentionally contains no CM3 runtime, effect, material,
 worker, shader, texture, font, icon, or download-page files. When the app is
 started or a deployment is built, `tools/runtime-resources.js` fetches the
 configured CM3 source page and its same-origin resource graph into the
-Git-ignored `.zoidium-resources/` cache. The cache is retained between local
-runs; a static deployment keeps only the generated build output required by
-that deployment.
+Git-ignored `.zoidium-resources/` cache. CM3 and the Zoidium extension layer
+then use the fetched resources from that cache, including the CM3 font presets;
+system fonts are fallback only. The cache is retained between local runs; a
+static deployment keeps only the generated build output required by that
+deployment.
 
 ## Quick start
 
@@ -96,10 +98,10 @@ Zoidium/
 ├── zoidium/
 │   ├── runtime-config.js      # extension profile
 │   ├── runtime-loader.js      # overlay bootstrap
+│   ├── runtime-fonts.css      # uses setup-fetched CM3 font presets
 │   ├── runtime-policy.js      # local-first policy adapters
 │   └── direct-download.js     # in-place Blob download bridge
 ├── plugins/                   # extension sources and generated plugin bundles
-├── fonts/                     # Zoidium interface fonts
 └── about/                     # notices and project information
 ```
 
