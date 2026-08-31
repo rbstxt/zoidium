@@ -99,6 +99,21 @@
       "locale": "./plugins/afterclip/locales/ja.json?v=1"
     },
     {
+      "id": "alipfx-shader-pack-4",
+      "name": "Afterzoid Shader Pack 4",
+      "author": "AlipFX",
+      "version": "4",
+      "effectCount": 174,
+      "format": "GLSL",
+      "tagline": "Shader Preset Pack",
+      "badgeName": "Afterzoid",
+      "color": "#a04ed1",
+      "description": "A complete collection of native Panzoid shader effects.",
+      "manifest": "./plugins/alipfx/manifest.json?v=4",
+      "bundle": "./plugins/alipfx/bundle.json?v=4",
+      "locale": "./plugins/alipfx/locales/ja.json?v=4"
+    },
+    {
       "id": "japanese-localization",
       "name": "日本語化",
       "author": "Zoidium",

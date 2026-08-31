@@ -20,10 +20,11 @@ inside `dist/web/`, the browser development stage, and the temporary Electron
 build tree. The fixed resource manifest and remote-resource bridge were removed;
 the current HTML and runtime graph are the source of truth for each run.
 
-`runtime-fonts.css` is part of the extension layer, but its font files are not.
-It points at the CM3 font presets fetched into `assets/fonts/2d/` in the local
-cache, so CM3 and Zoidium overlays use the same setup-time font resources. A
-system font is only the fallback when a fetched preset is unavailable.
+`runtime-fonts.css` imports the locally bundled `../fonts/fonts.css` and applies
+the same `Source Code Pro` family used by CM3's editor. The WOFF2 file is kept
+under `fonts/` with its SIL Open Font License 1.1 notice; it is not fetched from
+Panzoid and does not require a font CDN. CM3-specific font presets, if any,
+remain separate fetched resources in the Git-ignored runtime cache.
 
 ## Cache and output stages
 

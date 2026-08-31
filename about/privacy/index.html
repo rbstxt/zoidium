@@ -69,6 +69,9 @@
     <p>
       To start CM3, the Web and development Electron modes fetch the configured CM3 source page and its same-origin runtime resources into the Git-ignored `.zoidium-resources/` cache when it is absent or refreshed. `npm run build:web` and `npm run dist` reuse or create the same cache during their build. This bootstrap can expose the usual request metadata, such as IP address and user agent, to the source host, but it does not send project contents or editing data. The cache remains on the development machine after the local server ends; only disposable build trees are removed, and a static deployment contains the generated files required by that deployment.
     </p>
+    <p>
+      Zoidium's Source Code Pro UI font is bundled in the application under the SIL Open Font License 1.1. The UI does not request a font from a CDN.
+    </p>
 
     <h2>4. Cloudflare on the Web version</h2>
     <p>

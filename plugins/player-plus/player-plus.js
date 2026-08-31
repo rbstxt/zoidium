@@ -100,7 +100,7 @@ const PlayerPlus = (() => {
         box-sizing: border-box;
         color: #acacac;
         cursor: pointer;
-        font-family: "Zoidium CM3 Mono", monospace;
+        font-family: "Source Code Pro", monospace;
         font-size: 12px;
         height: 27px;
         line-height: 25px;

@@ -40,10 +40,18 @@
         <strong><a href="https://panzoid.com/" target="_blank" rel="noopener noreferrer">Panzoid</a></strong>
         — created Panzoid Clipmaker 3 (Clipmaker Gen3), the CM3 runtime around which Zoidium's extension tools are organized. Panzoid is not affiliated with or endorsing Zoidium.
       </li>
+      <li>
+        <strong>AlipFX</strong>
+        — created the Afterzoid Shader Pack. Zoidium includes the Afterzoid Shader Pack 4 plugin, generated from the source pack used for this distribution and credited to AlipFX.
+      </li>
     </ul>
 
     <h2>Open-source software</h2>
     <ul>
+      <li>
+        <strong><a href="https://github.com/adobe-fonts/source-code-pro" target="_blank" rel="noopener noreferrer">Source Code Pro</a></strong>
+        — the monospaced UI font used by CM3's editor and Zoidium's extension layer. The unmodified Regular WOFF2 is bundled locally under <code>fonts/</code> under the SIL Open Font License 1.1; see the <a href="/fonts/LICENSE.md">bundled license notice</a>. It is not fetched from Panzoid, and no font CDN is used.
+      </li>
       <li>
         <strong><a href="https://threejs.org/" target="_blank" rel="noopener noreferrer">Three.js r91</a></strong>
         — the WebGL renderer used by the CM3 runtime. MIT License. It is obtained as part of the configured CM3 source graph during staging.
@@ -77,7 +85,7 @@
 
     <h2>Runtime assets</h2>
     <p>
-      CM3 runtime fonts, textures, shaders, icons, workers, and download-page files are not included in the repository; when needed, they are obtained through the configured CM3 staging process and remain subject to their respective rights-holder terms and notices. The extension layer uses the fetched CM3 font presets when available, with system fallbacks.
+      CM3 runtime fonts, textures, shaders, icons, workers, and download-page files are not included in the repository; when needed, they are obtained through the configured CM3 staging process and remain subject to their respective rights-holder terms and notices. Source Code Pro is the separately licensed local font described above; the extension layer uses that bundled family and does not request a font CDN.
     </p>
 
     <p>
