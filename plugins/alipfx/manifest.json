@@ -1,0 +1,1407 @@
+{
+  "schemaVersion": 1,
+  "id": "alipfx-shader-pack-4",
+  "name": "Afterzoid Shader Pack 4",
+  "author": "AlipFX",
+  "version": "4",
+  "locales": {
+    "ja": "./plugins/alipfx/locales/ja.json?v=4"
+  },
+  "category": "ALIPFX · SHADER PACK 4",
+  "description": "A collection of native Panzoid GLSL shader effects.",
+  "effectCount": 174,
+  "effects": [
+    {
+      "id": "take-on-me-paper",
+      "name": "\"Take On Me\" Paper",
+      "description": "Converts the source into a pencil-and-paper illustration with luminance-based hatching, adjustable hatch density, outline strength, and shadow darkness.",
+      "source": "Take On Me Paper (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/take-on-me-paper.glsl",
+      "preset": "./plugins/alipfx/effects/take-on-me-paper.json"
+    },
+    {
+      "id": "4-color-gradient",
+      "name": "4-Color Gradient",
+      "description": "Composes a four-point color gradient with independently positioned color stops, jitter, blend amount, opacity, and selectable blend mode.",
+      "source": "4-Color Gradient (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/4-color-gradient.glsl",
+      "preset": "./plugins/alipfx/effects/4-color-gradient.json"
+    },
+    {
+      "id": "8bit-pixcam",
+      "name": "8Bit PixCam",
+      "description": "Pixelates the image and quantizes it through a four-color palette with Bayer dithering, brightness/contrast controls, and optional grid lines.",
+      "source": "8Bit PixCam (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/8bit-pixcam.glsl",
+      "preset": "./plugins/alipfx/effects/8bit-pixcam.json"
+    },
+    {
+      "id": "a-bayangan",
+      "name": "A_Bayangan",
+      "description": "Builds a soft colored shadow from the source alpha, with distance, angle, softness, unmultiplied compositing, inversion, and HSL colorization controls.",
+      "source": "A_Bayangan (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/a-bayangan.glsl",
+      "preset": "./plugins/alipfx/effects/a-bayangan.json"
+    },
+    {
+      "id": "a-glossy",
+      "name": "A_Glossy",
+      "description": "Creates a glossy alpha-derived highlight using blurred contours, configurable multi-color fills, angle, gap, distance, choking, roundness, and blend mode.",
+      "source": "A_Glossy (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/a-glossy.glsl",
+      "preset": "./plugins/alipfx/effects/a-glossy.json"
+    },
+    {
+      "id": "a-halfdots",
+      "name": "A_HalfDots",
+      "description": "Renders the image as configurable half-tone dots or shapes with grid spacing, rotation, randomization, source or ramp coloring, and compositing controls.",
+      "source": "A_HalfDots (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/a-halfdots.glsl",
+      "preset": "./plugins/alipfx/effects/a-halfdots.json"
+    },
+    {
+      "id": "a-innergradation",
+      "name": "A_InnerGradation",
+      "description": "Applies layered inner gradients to selected source colors, supporting up to ten color selections with tolerance, local transforms, softness, distance, and angle controls.",
+      "source": "A_InnerGradation (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/a-innergradation.glsl",
+      "preset": "./plugins/alipfx/effects/a-innergradation.json"
+    },
+    {
+      "id": "a-outline",
+      "name": "A_Outline",
+      "description": "Generates one or two alpha-based outlines with independent colors, offsets, sizes, opacity, sharpness, and long-shadow settings.",
+      "source": "A_Outline (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/a-outline.glsl",
+      "preset": "./plugins/alipfx/effects/a-outline.json"
+    },
+    {
+      "id": "a-wiggle",
+      "name": "A_Wiggle",
+      "description": "Animates position, scale, and rotation with procedural noise, offering separate axis amplitudes and frequencies, anchor control, and a random seed.",
+      "source": "A_Wiggle (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/a-wiggle.glsl",
+      "preset": "./plugins/alipfx/effects/a-wiggle.json"
+    },
+    {
+      "id": "after-effects-mirror",
+      "name": "After Effects Mirror",
+      "description": "Reflects the layer across a user-positioned, user-rotated mirror axis while preserving transparent regions outside the mirrored source.",
+      "source": "AE Mirror (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/after-effects-mirror.glsl",
+      "preset": "./plugins/alipfx/effects/after-effects-mirror.json"
+    },
+    {
+      "id": "analogtv",
+      "name": "AnalogTV",
+      "description": "Simulates an analog CRT signal with scanlines, dot mask, gamma, halation, bloom, chromatic offsets, bleed, noise, jitter, hum bars, geometry, and vignette.",
+      "source": "Analog TV (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/analogtv.glsl",
+      "preset": "./plugins/alipfx/effects/analogtv.json"
+    },
+    {
+      "id": "apple-ii-pixelated-dhgr",
+      "name": "Apple II Pixelated DHGR",
+      "description": "Maps the image to an Apple II DHGR-like 16-color palette with coarse pixel blocks and ordered dithering.",
+      "source": "Apple II Pixelated DHGR (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/apple-ii-pixelated-dhgr.glsl",
+      "preset": "./plugins/alipfx/effects/apple-ii-pixelated-dhgr.json"
+    },
+    {
+      "id": "apple-ii-pixelated-hgr",
+      "name": "Apple II Pixelated HGR",
+      "description": "Creates Apple II HGR-style pixelation by sampling the source on an adjustable pixel grid.",
+      "source": "Apple II Pixelated HGR (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/apple-ii-pixelated-hgr.glsl",
+      "preset": "./plugins/alipfx/effects/apple-ii-pixelated-hgr.json"
+    },
+    {
+      "id": "ascii",
+      "name": "ASCII",
+      "description": "Replaces image cells with procedural ASCII glyphs, with selectable character set, column detail, font geometry, contrast, brightness, inversion, and image-colored text.",
+      "source": "ASCII (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/ascii.glsl",
+      "preset": "./plugins/alipfx/effects/ascii.json"
+    },
+    {
+      "id": "az-bend-it",
+      "name": "AZ Bend It",
+      "description": "Bends the layer between configurable start and end points, with pre-start rendering and additional distortion controls for the bend field.",
+      "source": "AZ Bend It (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/az-bend-it.glsl",
+      "preset": "./plugins/alipfx/effects/az-bend-it.json"
+    },
+    {
+      "id": "az-bender",
+      "name": "AZ Bender",
+      "description": "Applies selectable geometric bend styles, including Bend, Marilyn, Sharp, and Boxer, with distance-aware shaping between top and base points.",
+      "source": "AZ Bender (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/az-bender.glsl",
+      "preset": "./plugins/alipfx/effects/az-bender.json"
+    },
+    {
+      "id": "az-blobbylize",
+      "name": "AZ Blobbylize",
+      "description": "Fuses nearby source regions into soft blobby forms using a selected color or alpha channel, with adjustable fusion strength, softness, and cutaway.",
+      "source": "AZ Blobbylize (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/az-blobbylize.glsl",
+      "preset": "./plugins/alipfx/effects/az-blobbylize.json"
+    },
+    {
+      "id": "az-block-load",
+      "name": "AZ Block Load",
+      "description": "Reveals the image through a progressive grid of blocks, controlling completion, scan count, cleared start state, and bilinear block interpolation.",
+      "source": "AZ Block Load (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/az-block-load.glsl",
+      "preset": "./plugins/alipfx/effects/az-block-load.json"
+    },
+    {
+      "id": "az-bubbles",
+      "name": "AZ Bubbles",
+      "description": "Overlays animated, wobbling bubbles with configurable amount, speed, size, reflections, and liquid or metallic shading modes.",
+      "source": "AZ Bubbles (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/az-bubbles.glsl",
+      "preset": "./plugins/alipfx/effects/az-bubbles.json"
+    },
+    {
+      "id": "az-burn-film",
+      "name": "AZ Burn Film",
+      "description": "Creates a film-burn transition using animated fractal and Voronoi noise around a movable center, with burn amount and randomized motion.",
+      "source": "AZ Burn Film (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/az-burn-film.glsl",
+      "preset": "./plugins/alipfx/effects/az-burn-film.json"
+    },
+    {
+      "id": "az-cross-blur",
+      "name": "AZ Cross Blur",
+      "description": "Blurs the source along independent horizontal and vertical cross axes with radius, repeated-edge behavior, and selectable transfer mode.",
+      "source": "AZ Cross Blur (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/az-cross-blur.glsl",
+      "preset": "./plugins/alipfx/effects/az-cross-blur.json"
+    },
+    {
+      "id": "az-cylinder",
+      "name": "AZ Cylinder",
+      "description": "Wraps the layer around a rotatable 3D cylinder with radius, XYZ position, Euler rotation order, and front/back render mode controls.",
+      "source": "AZ Cylinder (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/az-cylinder.glsl",
+      "preset": "./plugins/alipfx/effects/az-cylinder.json"
+    },
+    {
+      "id": "az-drizzle",
+      "name": "AZ Drizzle",
+      "description": "Simulates animated raindrop ripples and spreading rings over the layer, controlled by drip rate, longevity, displacement, ripple height, and spreading.",
+      "source": "AZ Drizzle (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/az-drizzle.glsl",
+      "preset": "./plugins/alipfx/effects/az-drizzle.json"
+    },
+    {
+      "id": "az-glass",
+      "name": "AZ Glass",
+      "description": "Builds a glass-like relief from a height field, refracting the source with displacement and lighting while controlling property selection, height, softness, and edge gating.",
+      "source": "AZ Glass (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/az-glass.glsl",
+      "preset": "./plugins/alipfx/effects/az-glass.json"
+    },
+    {
+      "id": "az-grid-wipe",
+      "name": "AZ Grid Wipe",
+      "description": "Performs a tiled grid transition with adjustable completion, center, rotation, tile count, tile shape, borders, and reversed direction.",
+      "source": "AZ Grid Wipe (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/az-grid-wipe.glsl",
+      "preset": "./plugins/alipfx/effects/az-grid-wipe.json"
+    },
+    {
+      "id": "az-griddler",
+      "name": "AZ Griddler",
+      "description": "Rearranges the image into scaled and rotated tiles with independent horizontal/vertical scale, pixel tile size, and optional tile cutting.",
+      "source": "AZ Griddler (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/az-griddler.glsl",
+      "preset": "./plugins/alipfx/effects/az-griddler.json"
+    },
+    {
+      "id": "az-hextile",
+      "name": "AZ HexTile",
+      "description": "Reprojects the layer into a hexagonal tile layout with tile radius, center locking, rotation, and selectable tile folding or seam-smearing modes.",
+      "source": "AZ HexTile (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/az-hextile.glsl",
+      "preset": "./plugins/alipfx/effects/az-hextile.json"
+    },
+    {
+      "id": "az-jaws",
+      "name": "AZ Jaws",
+      "description": "Reveals or conceals the layer through a directional jaws-shaped wipe with animated completion, center, width, height, and shape controls.",
+      "source": "AZ Jaws (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/az-jaws.glsl",
+      "preset": "./plugins/alipfx/effects/az-jaws.json"
+    },
+    {
+      "id": "az-kaleida",
+      "name": "AZ Kaleida",
+      "description": "Creates a kaleidoscopic reflection from a movable region with selectable mirroring patterns, rotation, size, and floating-center behavior.",
+      "source": "AZ Kaleida (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/az-kaleida.glsl",
+      "preset": "./plugins/alipfx/effects/az-kaleida.json"
+    },
+    {
+      "id": "az-lens",
+      "name": "AZ Lens",
+      "description": "Applies a lens-style radial warp around a pixel-positioned center, with size and convergence controls and transparent-border handling.",
+      "source": "AZ Lens (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/az-lens.glsl",
+      "preset": "./plugins/alipfx/effects/az-lens.json"
+    },
+    {
+      "id": "az-light-burst-2-5",
+      "name": "AZ Light Burst 2.5",
+      "description": "Adds a source-aware radial light burst with rays, halo, burst length, intensity, optional colorization, and a movable center.",
+      "source": "AZ Light Burst 2.5 (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/az-light-burst-2-5.glsl",
+      "preset": "./plugins/alipfx/effects/az-light-burst-2-5.json"
+    },
+    {
+      "id": "az-light-rays",
+      "name": "AZ Light Rays",
+      "description": "Draws directional or radial light rays from a center using selectable geometric shapes, source-color sampling, radius, softness, transfer mode, and intensity.",
+      "source": "AZ Light Rays (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/az-light-rays.glsl",
+      "preset": "./plugins/alipfx/effects/az-light-rays.json"
+    },
+    {
+      "id": "az-light-sweep",
+      "name": "AZ Light Sweep",
+      "description": "Sweeps a colored light band across the layer with selectable profile shape, direction, width, edge intensity/thickness, and source reception.",
+      "source": "AZ Light Sweep (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/az-light-sweep.glsl",
+      "preset": "./plugins/alipfx/effects/az-light-sweep.json"
+    },
+    {
+      "id": "az-light-wipe",
+      "name": "AZ Light Wipe",
+      "description": "Reveals the source with a directional light-shaped wipe, controlling completion, center, shape, intensity, color sourcing, and reverse transition.",
+      "source": "AZ Light Wipe (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/az-light-wipe.glsl",
+      "preset": "./plugins/alipfx/effects/az-light-wipe.json"
+    },
+    {
+      "id": "az-line-sweep",
+      "name": "AZ Line Sweep",
+      "description": "Reveals the layer with a slanted moving line whose completion, direction, thickness, slant, and flip direction are adjustable.",
+      "source": "AZ Line Sweep (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/az-line-sweep.glsl",
+      "preset": "./plugins/alipfx/effects/az-line-sweep.json"
+    },
+    {
+      "id": "az-plastic",
+      "name": "AZ Plastic",
+      "description": "Creates a plastic-like surface response from source edges and an environment map, with height, softness, expansion cutoffs, and displacement controls.",
+      "source": "AZ Plastic (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/az-plastic.glsl",
+      "preset": "./plugins/alipfx/effects/az-plastic.json"
+    },
+    {
+      "id": "az-radial-blur",
+      "name": "AZ Radial Blur",
+      "description": "Applies a center-based radial or spin blur with selectable type, amount, quality, center, and randomized sampling.",
+      "source": "AZ Radial Blur (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/az-radial-blur.glsl",
+      "preset": "./plugins/alipfx/effects/az-radial-blur.json"
+    },
+    {
+      "id": "az-radial-fast-blur",
+      "name": "AZ Radial Fast Blur",
+      "description": "Provides a lightweight radial zoom blur from a pixel-positioned center with amount, zoom, and standard/brightest/darkest accumulation modes.",
+      "source": "AZ Radial Fast Blur (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/az-radial-fast-blur.glsl",
+      "preset": "./plugins/alipfx/effects/az-radial-fast-blur.json"
+    },
+    {
+      "id": "az-radial-scalewipe",
+      "name": "AZ Radial ScaleWipe",
+      "description": "Transitions the layer through a radial scale expansion from a chosen center, with completion and reverse-direction controls.",
+      "source": "AZ Radial ScaleWipe (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/az-radial-scalewipe.glsl",
+      "preset": "./plugins/alipfx/effects/az-radial-scalewipe.json"
+    },
+    {
+      "id": "az-rainfall",
+      "name": "AZ Rainfall",
+      "description": "Generates animated falling raindrops over the source with controllable count, size, depth, speed, wind, spread, color, and opacity.",
+      "source": "AZ Rainfall (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/az-rainfall.glsl",
+      "preset": "./plugins/alipfx/effects/az-rainfall.json"
+    },
+    {
+      "id": "az-scale-wipe",
+      "name": "AZ Scale Wipe",
+      "description": "Reveals the image through a directional scale-based wipe with adjustable stretch, center, and direction.",
+      "source": "AZ Scale Wipe (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/az-scale-wipe.glsl",
+      "preset": "./plugins/alipfx/effects/az-scale-wipe.json"
+    },
+    {
+      "id": "az-scatterize",
+      "name": "AZ Scatterize",
+      "description": "Scatters source samples using a randomized displacement field with independent left/right twists, scatter amount, and transfer mode.",
+      "source": "AZ Scatterize (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/az-scatterize.glsl",
+      "preset": "./plugins/alipfx/effects/az-scatterize.json"
+    },
+    {
+      "id": "az-slant",
+      "name": "AZ Slant",
+      "description": "Slants the layer along a selected axis with stretch and floor controls, optionally filling the exposed region with a chosen color.",
+      "source": "AZ Slant (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/az-slant.glsl",
+      "preset": "./plugins/alipfx/effects/az-slant.json"
+    },
+    {
+      "id": "az-snowfall",
+      "name": "AZ Snowfall",
+      "description": "Overlays animated snowflakes with depth-based size and speed variation, wind, spread, wiggle, flatness, color, and opacity controls.",
+      "source": "AZ Snowfall (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/az-snowfall.glsl",
+      "preset": "./plugins/alipfx/effects/az-snowfall.json"
+    },
+    {
+      "id": "az-sphere",
+      "name": "AZ Sphere",
+      "description": "Maps the layer onto a rotating 3D sphere with XYZ rotation, radius, offset, rotation order, and inside/outside render modes.",
+      "source": "AZ Sphere/AZ Sphere (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/az-sphere.glsl",
+      "preset": "./plugins/alipfx/effects/az-sphere.json"
+    },
+    {
+      "id": "az-split",
+      "name": "AZ Split",
+      "description": "Splits the layer along a line between two points, with adjustable split distance and source-preserving behavior around the seam.",
+      "source": "AZ Split (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/az-split.glsl",
+      "preset": "./plugins/alipfx/effects/az-split.json"
+    },
+    {
+      "id": "az-split-2",
+      "name": "AZ Split 2",
+      "description": "Creates a two-stage directional split using two points and two split distances, with preset profiles for the separation behavior.",
+      "source": "AZ Split 2 (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/az-split-2.glsl",
+      "preset": "./plugins/alipfx/effects/az-split-2.json"
+    },
+    {
+      "id": "az-threads",
+      "name": "AZ Threads",
+      "description": "Renders the image as overlapping directional threads with width, height, overlap, coverage, center, direction, shadowing, and texture controls.",
+      "source": "AZ Threads (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/az-threads.glsl",
+      "preset": "./plugins/alipfx/effects/az-threads.json"
+    },
+    {
+      "id": "az-threshold",
+      "name": "AZ Threshold",
+      "description": "Converts the source to a thresholded mask using luminance, saturation, or a selected channel, with inversion and original-image blending.",
+      "source": "AZ Threshold (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/az-threshold.glsl",
+      "preset": "./plugins/alipfx/effects/az-threshold.json"
+    },
+    {
+      "id": "az-threshold-rgb",
+      "name": "AZ Threshold RGB",
+      "description": "Thresholds red, green, and blue independently with per-channel levels, inversion switches, and blend-back control.",
+      "source": "AZ Threshold RGB (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/az-threshold-rgb.glsl",
+      "preset": "./plugins/alipfx/effects/az-threshold-rgb.json"
+    },
+    {
+      "id": "az-tiler",
+      "name": "AZ Tiler",
+      "description": "Repeats and scales the source around a chosen center, with adjustable tile scale and blend amount against the original.",
+      "source": "AZ Tiler (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/az-tiler.glsl",
+      "preset": "./plugins/alipfx/effects/az-tiler.json"
+    },
+    {
+      "id": "az-toner",
+      "name": "AZ Toner",
+      "description": "Maps luminance into duotone, tritone, pentone, or solid color ramps with selectable tone colors and original-image blending.",
+      "source": "AZ Toner (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/az-toner.glsl",
+      "preset": "./plugins/alipfx/effects/az-toner.json"
+    },
+    {
+      "id": "az-vector-blur",
+      "name": "AZ Vector Blur",
+      "description": "Blurs along a vector field derived from a selected source channel, offering direction modes, amount, revolutions, ridge smoothing, and map softness.",
+      "source": "AZ Vector Blur (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/az-vector-blur.glsl",
+      "preset": "./plugins/alipfx/effects/az-vector-blur.json"
+    },
+    {
+      "id": "bcc-ripple-dissolve",
+      "name": "BCC Ripple Dissolve",
+      "description": "Dissolves the layer with a propagating ripple ring, controlling progress, radius, wave width/height, speed, falloff, pinning, and rim lighting.",
+      "source": "BCC Ripple Dissolve (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/bcc-ripple-dissolve.glsl",
+      "preset": "./plugins/alipfx/effects/bcc-ripple-dissolve.json"
+    },
+    {
+      "id": "better-ramp",
+      "name": "Better Ramp",
+      "description": "Builds a linear or radial two-color ramp with opacity endpoints, color swapping, perceptual mixing, bias, scatter, radial highlights, and blend mode.",
+      "source": "Better Ramp (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/better-ramp.glsl",
+      "preset": "./plugins/alipfx/effects/better-ramp.json"
+    },
+    {
+      "id": "better-ramp-v2",
+      "name": "Better Ramp V2",
+      "description": "Creates a multi-stop linear or radial gradient with up to eight colors, reverse/offset controls, warp and scatter, highlights, and blend opacity.",
+      "source": "Better Ramp V2 (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/better-ramp-v2.glsl",
+      "preset": "./plugins/alipfx/effects/better-ramp-v2.json"
+    },
+    {
+      "id": "bevel-alpha",
+      "name": "Bevel Alpha",
+      "description": "Adds a beveled edge from the source alpha with thickness, light angle, light color, softness, opacity, and optional inner/outer shading.",
+      "source": "Bevel Alpha (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/bevel-alpha.glsl",
+      "preset": "./plugins/alipfx/effects/bevel-alpha.json"
+    },
+    {
+      "id": "block-dissolve",
+      "name": "Block Dissolve",
+      "description": "Reveals or removes the source in randomized rectangular blocks with adjustable completion, block size, softness, and edge behavior.",
+      "source": "Block Dissolve (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/block-dissolve.glsl",
+      "preset": "./plugins/alipfx/effects/block-dissolve.json"
+    },
+    {
+      "id": "brush-strokes",
+      "name": "Brush Strokes",
+      "description": "Repaints the source as randomized brush-like strokes with adjustable size, length, angle, density, color variation, and scattering.",
+      "source": "Brush Strokes (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/brush-strokes.glsl",
+      "preset": "./plugins/alipfx/effects/brush-strokes.json"
+    },
+    {
+      "id": "cartoon",
+      "name": "Cartoon",
+      "description": "Produces a cartoon treatment by flattening color regions and extracting softened edges, with selectable fill/edge output, threshold, radius, and edge controls.",
+      "source": "Cartoon (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/cartoon.glsl",
+      "preset": "./plugins/alipfx/effects/cartoon.json"
+    },
+    {
+      "id": "change-color",
+      "name": "Change Color",
+      "description": "Selects pixels by hue, RGB distance, and chroma distance, then shifts their hue, saturation, and lightness with feathered tolerance controls.",
+      "source": "Change Color (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/change-color.glsl",
+      "preset": "./plugins/alipfx/effects/change-color.json"
+    },
+    {
+      "id": "change-to-color",
+      "name": "Change To Color",
+      "description": "Replaces or transforms a selected color range using hue, saturation, and lightness masks while preserving luminance and controlling feather softness.",
+      "source": "Change To Color (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/change-to-color.glsl",
+      "preset": "./plugins/alipfx/effects/change-to-color.json"
+    },
+    {
+      "id": "channel-mixer",
+      "name": "Channel Mixer",
+      "description": "Remixes output channels from independent red, green, blue, and constant channel contributions with per-channel monochrome and alpha controls.",
+      "source": "Channel Mixer (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/channel-mixer.glsl",
+      "preset": "./plugins/alipfx/effects/channel-mixer.json"
+    },
+    {
+      "id": "checkerboard",
+      "name": "Checkerboard",
+      "description": "Generates a checkerboard pattern from configurable size, anchor, rotation, colors, opacity, and blend mode settings.",
+      "source": "Checkerboard (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/checkerboard.glsl",
+      "preset": "./plugins/alipfx/effects/checkerboard.json"
+    },
+    {
+      "id": "chromabba",
+      "name": "ChromAbba",
+      "description": "Separates and curves RGB channels around a configurable center, with radius, edge mode, directional vectors, and channel-specific aberration controls.",
+      "source": "ChromAbba (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/chromabba.glsl",
+      "preset": "./plugins/alipfx/effects/chromabba.json"
+    },
+    {
+      "id": "circle",
+      "name": "Circle",
+      "description": "Draws a positioned circle, ring, or soft edge mask with pixel radius, feathering, fill/stroke colors, blend mode, and source compositing controls.",
+      "source": "Circle (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/circle.glsl",
+      "preset": "./plugins/alipfx/effects/circle.json"
+    },
+    {
+      "id": "clay",
+      "name": "Clay",
+      "description": "Gives the image a molded clay appearance through color flattening, procedural wrinkles, displaced sampling, and directional matte emboss shading.",
+      "source": "Clay (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/clay.glsl",
+      "preset": "./plugins/alipfx/effects/clay.json"
+    },
+    {
+      "id": "color-balance",
+      "name": "Color Balance",
+      "description": "Adjusts shadows, midtones, and highlights using tone-weighted luminance-preserving color balance controls for red, green, and blue channels.",
+      "source": "Color Balance (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/color-balance.glsl",
+      "preset": "./plugins/alipfx/effects/color-balance.json"
+    },
+    {
+      "id": "color-balance-hsl",
+      "name": "Color Balance (HSL)",
+      "description": "Performs HSL color balancing with separate hue rotation, lightness offset, and saturation offset controls.",
+      "source": "Color Balance (HSL) (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/color-balance-hsl.glsl",
+      "preset": "./plugins/alipfx/effects/color-balance-hsl.json"
+    },
+    {
+      "id": "colorama",
+      "name": "Colorama",
+      "description": "Maps luminance or color through a configurable cyclic color palette with phase, cycle count, modify/mask modes, and selectable combination behavior.",
+      "source": "Colorama (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/colorama.glsl",
+      "preset": "./plugins/alipfx/effects/colorama.json"
+    },
+    {
+      "id": "colorvsn",
+      "name": "ColorVSN",
+      "description": "Applies selectable scientific and artistic color maps, including viridis, plasma, turbo, HSV, and grayscale variants, with source-channel selection and blend controls.",
+      "source": "ColorVSN (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/colorvsn.glsl",
+      "preset": "./plugins/alipfx/effects/colorvsn.json"
+    },
+    {
+      "id": "corner-pin",
+      "name": "Corner Pin",
+      "description": "Warps the source into an arbitrary quadrilateral using inverse bilinear corner pinning with independently positioned corners.",
+      "source": "Corner Pin (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/corner-pin.glsl",
+      "preset": "./plugins/alipfx/effects/corner-pin.json"
+    },
+    {
+      "id": "cr-lumaramp",
+      "name": "CR-LumaRamp",
+      "description": "Remaps luminance through a color ramp interpolated in selectable HSV, Lab, or HCL-style color spaces with preset or custom colors.",
+      "source": "CR-LumaRamp (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/cr-lumaramp.glsl",
+      "preset": "./plugins/alipfx/effects/cr-lumaramp.json"
+    },
+    {
+      "id": "crtx-lite",
+      "name": "CRTX Lite",
+      "description": "Simulates a lightweight CRT display with curvature, chromatic temperature, RGB bleed/glitch, scanline-style masking, noise, and vignette controls.",
+      "source": "CRTX Lite (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/crtx-lite.glsl",
+      "preset": "./plugins/alipfx/effects/crtx-lite.json"
+    },
+    {
+      "id": "curl-noise",
+      "name": "Curl Noise",
+      "description": "Distorts the layer with a procedural curl-noise flow field, exposing noise scale, evolution, turbulence, curl strength, and flow direction controls.",
+      "source": "Curl Noise (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/curl-noise.glsl",
+      "preset": "./plugins/alipfx/effects/curl-noise.json"
+    },
+    {
+      "id": "curves",
+      "name": "Curves",
+      "description": "Applies an adjustable cubic curve to RGB, individual channels, or alpha using four AE-style control points and a selectable channel.",
+      "source": "Curves (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/curves.glsl",
+      "preset": "./plugins/alipfx/effects/curves.json"
+    },
+    {
+      "id": "cyanotype",
+      "name": "Cyanotype",
+      "description": "Creates a cyanotype print treatment with selectable chemistry presets, blue toning, paper fibers, water stains, grain, and blend intensity.",
+      "source": "Cyanotype (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/cyanotype.glsl",
+      "preset": "./plugins/alipfx/effects/cyanotype.json"
+    },
+    {
+      "id": "deep-glow",
+      "name": "Deep Glow",
+      "description": "Builds a deep multi-directional glow from bright and chromatic source regions with linear-light processing, tint, width, threshold, and blend controls.",
+      "source": "Deep Glow (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/deep-glow.glsl",
+      "preset": "./plugins/alipfx/effects/deep-glow.json"
+    },
+    {
+      "id": "dot-pixel",
+      "name": "Dot Pixel",
+      "description": "Converts the image into pixel-sized spherical or ring-shaped dots with adjustable size, spacing, angle, color source, and optional edge behavior.",
+      "source": "Dot Pixel (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/dot-pixel.glsl",
+      "preset": "./plugins/alipfx/effects/dot-pixel.json"
+    },
+    {
+      "id": "drop-shadow",
+      "name": "Drop Shadow",
+      "description": "Generates a filtered alpha drop shadow with color, angle, distance, blur, opacity, spread, and transparent-edge handling.",
+      "source": "Drop Shadow (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/drop-shadow.glsl",
+      "preset": "./plugins/alipfx/effects/drop-shadow.json"
+    },
+    {
+      "id": "echo",
+      "name": "Echo",
+      "description": "Layers time-offset samples of the source into a controllable echo trail with echo count, starting opacity, time offset, decay, and blend mode.",
+      "source": "Echo By AlipFX (Static).txt",
+      "shader": "./plugins/alipfx/shaders/echo.glsl",
+      "preset": "./plugins/alipfx/effects/echo.json"
+    },
+    {
+      "id": "echo-2",
+      "name": "Echo",
+      "description": "Creates a second echo variant that composites repeated time-offset frames with configurable count, offset, opacity decay, and color blending.",
+      "source": "Echo V2 By AlipFX (with ObjPos).txt",
+      "shader": "./plugins/alipfx/shaders/echo-2.glsl",
+      "preset": "./plugins/alipfx/effects/echo-2.json"
+    },
+    {
+      "id": "element-glow",
+      "name": "Element Glow",
+      "description": "Extracts a selectable source range and builds a colored gradient glow with threshold, mask strength, width, channel widths, and alpha compositing controls.",
+      "source": "Element Glow (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/element-glow.glsl",
+      "preset": "./plugins/alipfx/effects/element-glow.json"
+    },
+    {
+      "id": "ellipse",
+      "name": "Ellipse",
+      "description": "Draws a positioned ellipse or elliptical ring with independent radii, rotation, feather, stroke width, fill color, and blend/composite settings.",
+      "source": "Ellipse (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/ellipse.glsl",
+      "preset": "./plugins/alipfx/effects/ellipse.json"
+    },
+    {
+      "id": "engraving",
+      "name": "Engraving",
+      "description": "Simulates an engraved print by quantizing luminance into directional hatch marks and adding randomized wear-and-tear grain.",
+      "source": "Engraving (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/engraving.glsl",
+      "preset": "./plugins/alipfx/effects/engraving.json"
+    },
+    {
+      "id": "exposure",
+      "name": "Exposure",
+      "description": "Applies AE-style exposure, offset, and gamma correction either globally or independently to red, green, and blue channels.",
+      "source": "Exposure (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/exposure.glsl",
+      "preset": "./plugins/alipfx/effects/exposure.json"
+    },
+    {
+      "id": "fast-box-blur",
+      "name": "Fast Box Blur",
+      "description": "Performs a premultiplied-alpha box blur horizontally, vertically, or both with adjustable pixel radius, quality, and edge repetition.",
+      "source": "Fast Box Blur (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/fast-box-blur.glsl",
+      "preset": "./plugins/alipfx/effects/fast-box-blur.json"
+    },
+    {
+      "id": "fill",
+      "name": "Fill",
+      "description": "Overlays a chosen color onto the source with adjustable opacity and a selectable source/alpha compositing mode.",
+      "source": "Fill (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/fill.glsl",
+      "preset": "./plugins/alipfx/effects/fill.json"
+    },
+    {
+      "id": "find-edges",
+      "name": "Find Edges",
+      "description": "Extracts normalized Sobel edges in linear color space and converts the result back to display space with adjustable original-image blending.",
+      "source": "Find Edges (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/find-edges.glsl",
+      "preset": "./plugins/alipfx/effects/find-edges.json"
+    },
+    {
+      "id": "fractal-noise",
+      "name": "Fractal Noise",
+      "description": "Generates configurable fractal, turbulence, ridged, or domain-warped noise with scale, complexity, evolution, overflow, color, and blend controls.",
+      "source": "Fractal Noise (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/fractal-noise.glsl",
+      "preset": "./plugins/alipfx/effects/fractal-noise.json"
+    },
+    {
+      "id": "gamma-pedestal-gain",
+      "name": "Gamma/Pedestal/Gain",
+      "description": "Adjusts black pedestal, gamma, and gain independently per channel, including shadow stretch for controlled tonal shaping.",
+      "source": "Gamma Pedestal Gain (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/gamma-pedestal-gain.glsl",
+      "preset": "./plugins/alipfx/effects/gamma-pedestal-gain.json"
+    },
+    {
+      "id": "gaussian-blur",
+      "name": "Gaussian Blur",
+      "description": "Applies a separable Gaussian blur horizontally, vertically, or in both directions with pixel radius, quality, and edge controls.",
+      "source": "Gaussian Blur (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/gaussian-blur.glsl",
+      "preset": "./plugins/alipfx/effects/gaussian-blur.json"
+    },
+    {
+      "id": "glasswork",
+      "name": "Glasswork",
+      "description": "Creates patterned frosted glass using procedural strips, zigzags, rhombuses, or waves with noise, blur, displacement, and pattern controls.",
+      "source": "Glasswork (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/glasswork.glsl",
+      "preset": "./plugins/alipfx/effects/glasswork.json"
+    },
+    {
+      "id": "glow",
+      "name": "Glow",
+      "description": "Builds a customizable source-derived glow from two colors using selectable sawtooth or triangle color cycles, threshold, width, and blend operation.",
+      "source": "Glow (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/glow.glsl",
+      "preset": "./plugins/alipfx/effects/glow.json"
+    },
+    {
+      "id": "gradient-ramp",
+      "name": "Gradient Ramp",
+      "description": "Applies a linear or radial two-color gradient between positioned endpoints with interpolation, opacity, ramp offset, and original blending.",
+      "source": "Gradient Ramp (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/gradient-ramp.glsl",
+      "preset": "./plugins/alipfx/effects/gradient-ramp.json"
+    },
+    {
+      "id": "grid",
+      "name": "Grid",
+      "description": "Draws a configurable grid over the image with anchor, width/height sizing, line thickness, rotation, color, opacity, and blend mode controls.",
+      "source": "Grid (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/grid.glsl",
+      "preset": "./plugins/alipfx/effects/grid.json"
+    },
+    {
+      "id": "heisei-vhs",
+      "name": "HEISEI-VHS",
+      "description": "Emulates a worn VHS signal with YIQ color processing, scanline and tracking artifacts, chromatic noise, jitter, head switching, and tape distortion.",
+      "source": "HEISEI-VHS (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/heisei-vhs.glsl",
+      "preset": "./plugins/alipfx/effects/heisei-vhs.json"
+    },
+    {
+      "id": "hotwave",
+      "name": "Hotwave",
+      "description": "Distorts the layer with animated multi-octave hot-air wave noise, controlling wave direction, amplitude, scale, blur, evolution, and edge behavior.",
+      "source": "Hotwave (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/hotwave.glsl",
+      "preset": "./plugins/alipfx/effects/hotwave.json"
+    },
+    {
+      "id": "hsl-noise",
+      "name": "HSL Noise",
+      "description": "Adds procedural noise independently to hue, saturation, and lightness, with uniform, squared, or grain noise modes and animated seed control.",
+      "source": "HSL Noise (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/hsl-noise.glsl",
+      "preset": "./plugins/alipfx/effects/hsl-noise.json"
+    },
+    {
+      "id": "hsl-noise-auto",
+      "name": "HSL Noise Auto",
+      "description": "Automatically animates HSL noise over time, offering uniform, squared, or grain distributions and independent hue, saturation, and lightness intensity.",
+      "source": "HSL Noise Auto (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/hsl-noise-auto.glsl",
+      "preset": "./plugins/alipfx/effects/hsl-noise-auto.json"
+    },
+    {
+      "id": "hydrochrome",
+      "name": "Hydrochrome",
+      "description": "Applies an animated hydrochromic color distortion with directional rotation, manual or automatic evolution, strength, and alpha-preserving compositing.",
+      "source": "Hydrochrome (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/hydrochrome.glsl",
+      "preset": "./plugins/alipfx/effects/hydrochrome.json"
+    },
+    {
+      "id": "impact-lines",
+      "name": "Impact Lines",
+      "description": "Generates animated radial or speed lines from a pixel-positioned center with line count, length, width, taper, randomness, color, and opacity controls.",
+      "source": "Impact Lines (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/impact-lines.glsl",
+      "preset": "./plugins/alipfx/effects/impact-lines.json"
+    },
+    {
+      "id": "invert",
+      "name": "Invert",
+      "description": "Inverts or remaps selected color channels, luminance, hue, saturation, lightness, or alpha with channel selection, amount, and blend controls.",
+      "source": "Invert (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/invert.glsl",
+      "preset": "./plugins/alipfx/effects/invert.json"
+    },
+    {
+      "id": "iris-wipe",
+      "name": "Iris Wipe",
+      "description": "Reveals the layer through a polygonal iris opening with adjustable center, spike count, size, feather, rotation, and reverse direction.",
+      "source": "Iris Wipe (AlipFX) (dull version).txt",
+      "shader": "./plugins/alipfx/shaders/iris-wipe.glsl",
+      "preset": "./plugins/alipfx/effects/iris-wipe.json"
+    },
+    {
+      "id": "iris-wipe-2",
+      "name": "Iris Wipe",
+      "description": "Creates a sharper star-shaped iris transition with controllable polygon points, outer radius, spike distortion, rotation, and feathering.",
+      "source": "Iris Wipe V2 (AlipFX) (sharp version).txt",
+      "shader": "./plugins/alipfx/shaders/iris-wipe-2.glsl",
+      "preset": "./plugins/alipfx/effects/iris-wipe-2.json"
+    },
+    {
+      "id": "leave-color",
+      "name": "Leave Color",
+      "description": "Preserves a selected color range while progressively decolorizing other pixels using luminance, hue/RGB tolerance, and edge softness.",
+      "source": "Leave Color (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/leave-color.glsl",
+      "preset": "./plugins/alipfx/effects/leave-color.json"
+    },
+    {
+      "id": "lens-flare",
+      "name": "Lens Flare",
+      "description": "Renders a procedural lens flare at a pixel position with selectable camera profile, intensity, glow radius, color, streaks, and opacity.",
+      "source": "Lens Flare (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/lens-flare.glsl",
+      "preset": "./plugins/alipfx/effects/lens-flare.json"
+    },
+    {
+      "id": "levels",
+      "name": "Levels",
+      "description": "Applies input/output black and white points plus gamma to RGB, individual channels, or alpha with selectable channel targeting.",
+      "source": "Levels (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/levels.glsl",
+      "preset": "./plugins/alipfx/effects/levels.json"
+    },
+    {
+      "id": "levels-individual-controls",
+      "name": "Levels (Individual Controls)",
+      "description": "Provides separate input/output levels and gamma controls for RGB, red, green, blue, and alpha, with optional local smoothing.",
+      "source": "Levels (Individual Controls) (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/levels-individual-controls.glsl",
+      "preset": "./plugins/alipfx/effects/levels-individual-controls.json"
+    },
+    {
+      "id": "linear-wipe",
+      "name": "Linear Wipe",
+      "description": "Reveals or hides the source along a rotated linear boundary with completion, feather width, direction, and edge softness controls.",
+      "source": "Linear Wipe (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/linear-wipe.glsl",
+      "preset": "./plugins/alipfx/effects/linear-wipe.json"
+    },
+    {
+      "id": "liquid-glass",
+      "name": "Liquid Glass",
+      "description": "Creates a liquid-glass refraction from the source alpha using quality-controlled mask blur, chromatic offsets, distortion, and lighting.",
+      "source": "Liquid Glass (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/liquid-glass.glsl",
+      "preset": "./plugins/alipfx/effects/liquid-glass.json"
+    },
+    {
+      "id": "lumetri-color",
+      "name": "Lumetri Color",
+      "description": "Provides a broad Lumetri-style grade with white balance, exposure, contrast, tonal controls, saturation, vibrance, curves, split tone, secondary HSL keying, and vignette.",
+      "source": "Lumetri Color (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/lumetri-color.glsl",
+      "preset": "./plugins/alipfx/effects/lumetri-color.json"
+    },
+    {
+      "id": "mangatone",
+      "name": "MangaTone",
+      "description": "Creates a manga-toned image by posterizing luminance, adding rotated screen patterns, and extracting Sobel-style ink outlines.",
+      "source": "MangaTone (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/mangatone.glsl",
+      "preset": "./plugins/alipfx/effects/mangatone.json"
+    },
+    {
+      "id": "median",
+      "name": "Median",
+      "description": "Reduces speckle noise with exact or approximate median filtering over selectable neighborhoods and channels, preserving edges better than a blur.",
+      "source": "Median (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/median.glsl",
+      "preset": "./plugins/alipfx/effects/median.json"
+    },
+    {
+      "id": "minimax",
+      "name": "Minimax",
+      "description": "Applies morphological maximum, minimum, opening, or closing filters along horizontal and vertical paths with channel selection, radius, angle, and softness.",
+      "source": "Minimax (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/minimax.glsl",
+      "preset": "./plugins/alipfx/effects/minimax.json"
+    },
+    {
+      "id": "minimax-2",
+      "name": "Minimax",
+      "description": "Applies a directional one-pass morphological maximum, minimum, opening, or closing filter with adjustable radius, channel, angle, and blend behavior.",
+      "source": "Minimax V2 (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/minimax-2.glsl",
+      "preset": "./plugins/alipfx/effects/minimax-2.json"
+    },
+    {
+      "id": "mosaic",
+      "name": "Mosaic",
+      "description": "Pixelates the image by averaging or sampling texel-centered blocks with adjustable block size and quality-aware source buffer mapping.",
+      "source": "Mosaic (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/mosaic.glsl",
+      "preset": "./plugins/alipfx/effects/mosaic.json"
+    },
+    {
+      "id": "motion-tile",
+      "name": "Motion Tile",
+      "description": "Repeats the layer beyond its bounds with mirror tiling, offset, anchor, motion angle, and separate horizontal/vertical expansion controls.",
+      "source": "Motion Tile (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/motion-tile.glsl",
+      "preset": "./plugins/alipfx/effects/motion-tile.json"
+    },
+    {
+      "id": "mt-s-pixelsorter",
+      "name": "Mt's PixelSorter",
+      "description": "Sorts pixels along a chosen direction by brightness, saturation, hue, or RGB using threshold ranges, length, displacement, and true-sort controls.",
+      "source": "Mt's PixelSorter (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/mt-s-pixelsorter.glsl",
+      "preset": "./plugins/alipfx/effects/mt-s-pixelsorter.json"
+    },
+    {
+      "id": "multislicer",
+      "name": "MultiSlicer",
+      "description": "Slices the layer into many horizontal or vertical strips and offsets them with seeded random positions, speed, width, anchor, and edge controls.",
+      "source": "MultiSlicer (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/multislicer.glsl",
+      "preset": "./plugins/alipfx/effects/multislicer.json"
+    },
+    {
+      "id": "nesprite",
+      "name": "NeSprite",
+      "description": "Converts the source into an NES-style sprite using a limited palette, pixelation, selectable Bayer dithering matrix, and sprite scaling controls.",
+      "source": "NeSprite (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/nesprite.glsl",
+      "preset": "./plugins/alipfx/effects/nesprite.json"
+    },
+    {
+      "id": "night-vision",
+      "name": "Night Vision",
+      "description": "Simulates night vision with green luminance conversion, animated sensor noise, bloom, vignette, scanline structure, and adjustable gain.",
+      "source": "Night Vision (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/night-vision.glsl",
+      "preset": "./plugins/alipfx/effects/night-vision.json"
+    },
+    {
+      "id": "nimble-nimbus",
+      "name": "Nimble Nimbus",
+      "description": "Generates a layered procedural cloud or nimbus texture with noise-based cloud design, top/bottom shaping, lighting, color, and animation controls.",
+      "source": "Nimble Nimbus (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/nimble-nimbus.glsl",
+      "preset": "./plugins/alipfx/effects/nimble-nimbus.json"
+    },
+    {
+      "id": "nisai-stroke",
+      "name": "Nisai Stroke",
+      "description": "Applies a stylized multi-directional stroke treatment using configurable direction, length, spacing, offset, color, opacity, and alpha behavior.",
+      "source": "Nisai Stroke (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/nisai-stroke.glsl",
+      "preset": "./plugins/alipfx/effects/nisai-stroke.json"
+    },
+    {
+      "id": "noise",
+      "name": "Noise",
+      "description": "Adds animated mono or RGB procedural noise with adjustable amount, scale, monochrome mode, blend mode, and opacity.",
+      "source": "Noise (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/noise.glsl",
+      "preset": "./plugins/alipfx/effects/noise.json"
+    },
+    {
+      "id": "optics-compensation",
+      "name": "Optics Compensation",
+      "description": "Corrects or exaggerates lens distortion by applying a field-of-view-based radial warp with zoom, center, and horizontal/vertical/diagonal orientation.",
+      "source": "Optics Compensation (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/optics-compensation.glsl",
+      "preset": "./plugins/alipfx/effects/optics-compensation.json"
+    },
+    {
+      "id": "oscilloscope",
+      "name": "Oscilloscope",
+      "description": "Renders the image as a glowing CRT oscilloscope display with beam thickness, phosphor color, flicker, persistence, curvature, and scanline controls.",
+      "source": "Oscilloscope (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/oscilloscope.glsl",
+      "preset": "./plugins/alipfx/effects/oscilloscope.json"
+    },
+    {
+      "id": "photocopy-scan-lines",
+      "name": "Photocopy Scan Lines",
+      "description": "Creates a photocopy look by converting to monochrome, adding noisy streaks and scan lines, and controlling contrast, threshold, blur, and paper tone.",
+      "source": "Photocopy Scan Lines (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/photocopy-scan-lines.glsl",
+      "preset": "./plugins/alipfx/effects/photocopy-scan-lines.json"
+    },
+    {
+      "id": "pro-line-extract",
+      "name": "Pro Line Extract",
+      "description": "Extracts stylized lines using XDoG anime, XDoG manga, or multiply-blur modes with radius, threshold, softness, and edge color controls.",
+      "source": "Pro Line Extract (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/pro-line-extract.glsl",
+      "preset": "./plugins/alipfx/effects/pro-line-extract.json"
+    },
+    {
+      "id": "progradient",
+      "name": "proGradient",
+      "description": "Builds a multi-stop gradient with linear, radial, or contour mapping, perceptual OKLCH color interpolation, dithering, tiling, and alpha-aware blending.",
+      "source": "ProGradient (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/progradient.glsl",
+      "preset": "./plugins/alipfx/effects/progradient.json"
+    },
+    {
+      "id": "qc-color-analyzer",
+      "name": "QC Color Analyzer",
+      "description": "Displays sampled color analysis overlays including RGB, HSV, and LCH readouts, a sampling circle, swatch, background opacity, and scale/offset controls.",
+      "source": "QC Color Analyzer (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/qc-color-analyzer.glsl",
+      "preset": "./plugins/alipfx/effects/qc-color-analyzer.json"
+    },
+    {
+      "id": "radial-blur",
+      "name": "Radial Blur",
+      "description": "Applies a center-based spin or zoom blur with adjustable amount, quality, center, antialiasing, and randomized sample distribution.",
+      "source": "Radial Blur (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/radial-blur.glsl",
+      "preset": "./plugins/alipfx/effects/radial-blur.json"
+    },
+    {
+      "id": "radial-wipe",
+      "name": "Radial Wipe",
+      "description": "Reveals the layer around a radial angle from a chosen center with transition completion, wipe direction, feather, and start angle.",
+      "source": "Radial Wipe (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/radial-wipe.glsl",
+      "preset": "./plugins/alipfx/effects/radial-wipe.json"
+    },
+    {
+      "id": "reramp",
+      "name": "ReRamp",
+      "description": "Re-ramp colors through up to eight stops with perceptual Kubelka–Munk/OKLab-style mixing, tiling, bias, quantization, dithering, and source mapping.",
+      "source": "ReRamp (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/reramp.glsl",
+      "preset": "./plugins/alipfx/effects/reramp.json"
+    },
+    {
+      "id": "ripple",
+      "name": "Ripple",
+      "description": "Creates an animated radial ripple distortion with symmetric or asymmetric wave profiles, radius, speed, width, height, phase, and center controls.",
+      "source": "Ripple (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/ripple.glsl",
+      "preset": "./plugins/alipfx/effects/ripple.json"
+    },
+    {
+      "id": "risograph",
+      "name": "Risograph",
+      "description": "Simulates a risograph print with separate dark/light inks, paper color, halftone screening, misregistration, roughness, and tone lift.",
+      "source": "Risograph (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/risograph.glsl",
+      "preset": "./plugins/alipfx/effects/risograph.json"
+    },
+    {
+      "id": "s-edgecolorize",
+      "name": "S_EdgeColorize",
+      "description": "Colorizes image edges from four directional colors after linear-light blurred edge detection with subpixel smoothing and brightness control.",
+      "source": "S_EdgeColorize (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/s-edgecolorize.glsl",
+      "preset": "./plugins/alipfx/effects/s-edgecolorize.json"
+    },
+    {
+      "id": "s-glint",
+      "name": "S_Glint",
+      "description": "Adds animated directional glints to bright source regions with hue shifting, RGB and diagonal ray sizes, threshold blur, alpha sourcing, and background brightness.",
+      "source": "S_Glint (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/s-glint.glsl",
+      "preset": "./plugins/alipfx/effects/s-glint.json"
+    },
+    {
+      "id": "s-glow",
+      "name": "S_Glow",
+      "description": "Builds a thresholded, channel-separated glow with selectable combine/blend modes, atmosphere noise, width controls, and source/alpha compositing options.",
+      "source": "S_Glow (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/s-glow.glsl",
+      "preset": "./plugins/alipfx/effects/s-glow.json"
+    },
+    {
+      "id": "s-halftone",
+      "name": "S_HalfTone",
+      "description": "Renders a rotated halftone screen with adjustable dot frequency, width, sharpness, shift, lighten mode, source smoothing, and two ink colors.",
+      "source": "S_HalfTone (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/s-halftone.glsl",
+      "preset": "./plugins/alipfx/effects/s-halftone.json"
+    },
+    {
+      "id": "s-kaleido",
+      "name": "S_Kaleido",
+      "description": "Creates configurable kaleidoscopic tiling with selectable geometric fold patterns, center/depth transforms, inner transforms, wrapping, and kaleido amount.",
+      "source": "S_Kaleido (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/s-kaleido.glsl",
+      "preset": "./plugins/alipfx/effects/s-kaleido.json"
+    },
+    {
+      "id": "s-kaleidopolar",
+      "name": "S_KaleidoPolar",
+      "description": "Maps the image into repeated polar kaleidoscope sectors with center, depth, rotation, stretch, inner shift, repeat count, and kaleido amount.",
+      "source": "S_KaleidoPolar (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/s-kaleidopolar.glsl",
+      "preset": "./plugins/alipfx/effects/s-kaleidopolar.json"
+    },
+    {
+      "id": "s-kaleidoradial",
+      "name": "S_KaleidoRadial",
+      "description": "Generates animated radial kaleidoscope slices with configurable slice count, center/depth, rotations, inner motion, shifting, wrapping, and fold amount.",
+      "source": "S_KaleidoRadial (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/s-kaleidoradial.glsl",
+      "preset": "./plugins/alipfx/effects/s-kaleidoradial.json"
+    },
+    {
+      "id": "s-shake",
+      "name": "S_Shake",
+      "description": "Animates layered translation, rotation, depth, motion blur, cropping, and independent RGB jitter using selectable procedural shake styles.",
+      "source": "S_Shake (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/s-shake.glsl",
+      "preset": "./plugins/alipfx/effects/s-shake.json"
+    },
+    {
+      "id": "s-shape",
+      "name": "S_Shape",
+      "description": "Draws a configurable polygon or rounded star shape with points, pointiness, roundness, swirl, rotation, blur, gradient colors, and compositing.",
+      "source": "S_Shape (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/s-shape.glsl",
+      "preset": "./plugins/alipfx/effects/s-shape.json"
+    },
+    {
+      "id": "s-wipeblobs",
+      "name": "S_WipeBlobs",
+      "description": "Performs a noisy organic blob wipe using animated fractal noise, frequency, edge softness, gradient direction, and optional colored border.",
+      "source": "S_WipeBlobs (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/s-wipeblobs.glsl",
+      "preset": "./plugins/alipfx/effects/s-wipeblobs.json"
+    },
+    {
+      "id": "s-wipecells",
+      "name": "S_WipeCells",
+      "description": "Wipes through animated Voronoi cells with cell count, noise frequency, edge softness, gradient direction, and optional border styling.",
+      "source": "S_WipeCells (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/s-wipecells.glsl",
+      "preset": "./plugins/alipfx/effects/s-wipecells.json"
+    },
+    {
+      "id": "s-wipedoublewedge",
+      "name": "S_WipeDoubleWedge",
+      "description": "Reveals the layer with a symmetrical double-wedge wipe whose angle, pointiness, edge softness, direction, and border are adjustable.",
+      "source": "S_WipeDoubleWedge (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/s-wipedoublewedge.glsl",
+      "preset": "./plugins/alipfx/effects/s-wipedoublewedge.json"
+    },
+    {
+      "id": "s-wipefourwedges",
+      "name": "S_WipeFourWedges",
+      "description": "Reveals the layer through four directional wedges with angle, aspect scaling, edge softness, direction, and border controls.",
+      "source": "S_WipeFourWedges (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/s-wipefourwedges.glsl",
+      "preset": "./plugins/alipfx/effects/s-wipefourwedges.json"
+    },
+    {
+      "id": "s-wipemoire",
+      "name": "S_WipeMoire",
+      "description": "Creates a moiré-ring wipe from two independently positioned and rotated radial patterns with phase animation, frequency, edge softness, and border styling.",
+      "source": "S_WipeMoire (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/s-wipemoire.glsl",
+      "preset": "./plugins/alipfx/effects/s-wipemoire.json"
+    },
+    {
+      "id": "s-wipepixelate",
+      "name": "S_WipePixelate",
+      "description": "Wipes the source through progressively ordered pixel cells with angle, frequency, cell width, chunky variation, edge width, and time/manual control.",
+      "source": "S_WipePixelate (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/s-wipepixelate.glsl",
+      "preset": "./plugins/alipfx/effects/s-wipepixelate.json"
+    },
+    {
+      "id": "s-wipeplasma",
+      "name": "S_WipePlasma",
+      "description": "Uses animated multi-octave plasma noise as a wipe field with frequency, layers, gradient direction, phase speed, edge softness, and border controls.",
+      "source": "S_WipePlasma (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/s-wipeplasma.glsl",
+      "preset": "./plugins/alipfx/effects/s-wipeplasma.json"
+    },
+    {
+      "id": "s-wipetiles",
+      "name": "S_WipeTiles",
+      "description": "Wipes through morphing triangular, hexagonal, diamond, or tiled shapes with snapping, rotation, frequency, edge softness, gradients, and borders.",
+      "source": "S_WipeTiles (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/s-wipetiles.glsl",
+      "preset": "./plugins/alipfx/effects/s-wipetiles.json"
+    },
+    {
+      "id": "s-wipeweave",
+      "name": "S_WipeWeave",
+      "description": "Creates a woven-strand wipe from animated fractal noise with strand count, frequency, length, motion speeds, edge softness, gradient, and border controls.",
+      "source": "S_WipeWeave (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/s-wipeweave.glsl",
+      "preset": "./plugins/alipfx/effects/s-wipeweave.json"
+    },
+    {
+      "id": "scl-film-strip",
+      "name": "scl_Film Strip",
+      "description": "Draws repeated film-strip geometry with independently configurable base, main, and sub-strip copies, scales, offsets, roundedness, positions, colors, and strokes.",
+      "source": "scl_Film Strip (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/scl-film-strip.glsl",
+      "preset": "./plugins/alipfx/effects/scl-film-strip.json"
+    },
+    {
+      "id": "sepia",
+      "name": "Sepia",
+      "description": "Applies a sepia print treatment by mixing luminance with ink tone and controlling tint density and print definition.",
+      "source": "Sepia (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/sepia.glsl",
+      "preset": "./plugins/alipfx/effects/sepia.json"
+    },
+    {
+      "id": "simple-choker",
+      "name": "Simple Choker",
+      "description": "Chokes or expands the source alpha matte with a controllable pixel radius and optional matte-only preview.",
+      "source": "Simple Choker (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/simple-choker.glsl",
+      "preset": "./plugins/alipfx/effects/simple-choker.json"
+    },
+    {
+      "id": "star-trail-motion",
+      "name": "Star Trail Motion",
+      "description": "Generates animated star trails with randomized length, width, range, rotation, dash, color gradient, speed, and opacity variation.",
+      "source": "Star Trail Motion (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/star-trail-motion.glsl",
+      "preset": "./plugins/alipfx/effects/star-trail-motion.json"
+    },
+    {
+      "id": "stretch",
+      "name": "Stretch",
+      "description": "Stretches or compresses the layer from an anchor point along a chosen direction with angle and shift controls.",
+      "source": "Stretch (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/stretch.glsl",
+      "preset": "./plugins/alipfx/effects/stretch.json"
+    },
+    {
+      "id": "texgraph",
+      "name": "TexGraph",
+      "description": "Renders the source as a compact procedural 3x5 character graph with scaling, erosion, dithering, source-derived text/background colors, and alpha control.",
+      "source": "TexGraph (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/texgraph.glsl",
+      "preset": "./plugins/alipfx/effects/texgraph.json"
+    },
+    {
+      "id": "the-matrix",
+      "name": "The Matrix",
+      "description": "Generates animated green Matrix-style character rain with adjustable stream frequency, speed, brightness, and alpha mode.",
+      "source": "The Matrix (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/the-matrix.glsl",
+      "preset": "./plugins/alipfx/effects/the-matrix.json"
+    },
+    {
+      "id": "the-matrix-2",
+      "name": "The Matrix",
+      "description": "Renders a more detailed Matrix rain field with procedural rune glyphs, animated streams, density, speed, color, and alpha-mode controls.",
+      "source": "The Matrix V2 (originally made by TimelordQ from Shadertoy).txt",
+      "shader": "./plugins/alipfx/shaders/the-matrix-2.glsl",
+      "preset": "./plugins/alipfx/effects/the-matrix-2.json"
+    },
+    {
+      "id": "threshold",
+      "name": "Threshold",
+      "description": "Converts the source to a Rec.709 luminance threshold mask with an adjustable level.",
+      "source": "Threshold (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/threshold.glsl",
+      "preset": "./plugins/alipfx/effects/threshold.json"
+    },
+    {
+      "id": "tint",
+      "name": "Tint",
+      "description": "Maps source luminance between configurable black and white colors with adjustable tint amount and color swapping.",
+      "source": "Tint (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/tint.glsl",
+      "preset": "./plugins/alipfx/effects/tint.json"
+    },
+    {
+      "id": "transform",
+      "name": "Transform",
+      "description": "Applies AE-style 2D transform sampling with position, anchor, independent scale, skew, rotation, opacity, shutter-angle motion blur, and sampling quality.",
+      "source": "Transform (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/transform.glsl",
+      "preset": "./plugins/alipfx/effects/transform.json"
+    },
+    {
+      "id": "tritone",
+      "name": "Tritone",
+      "description": "Maps Rec.709 luminance into independently colored shadow, midtone, and highlight regions with original-image blending.",
+      "source": "Tritone (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/tritone.glsl",
+      "preset": "./plugins/alipfx/effects/tritone.json"
+    },
+    {
+      "id": "turbulent-displace",
+      "name": "Turbulent Displace",
+      "description": "Displaces the source with animated simplex fractal noise, controlling displacement axis, amount, size, complexity, evolution, pinning, and layer resizing.",
+      "source": "Turbulent Displace (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/turbulent-displace.glsl",
+      "preset": "./plugins/alipfx/effects/turbulent-displace.json"
+    },
+    {
+      "id": "turbulent-noise",
+      "name": "Turbulent Noise",
+      "description": "Generates 3D fractal turbulence with selectable noise/fractal type, domain warping, scaling, evolution, overflow, color, opacity, and blend mode.",
+      "source": "Turbulent Noise (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/turbulent-noise.glsl",
+      "preset": "./plugins/alipfx/effects/turbulent-noise.json"
+    },
+    {
+      "id": "twirl",
+      "name": "Twirl",
+      "description": "Applies a localized rotational twirl around a pixel-positioned center with adjustable angle and radius.",
+      "source": "Twirl (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/twirl.glsl",
+      "preset": "./plugins/alipfx/effects/twirl.json"
+    },
+    {
+      "id": "unmult",
+      "name": "Unmult",
+      "description": "Removes black or white matte contamination by reconstructing color and alpha from luminance, with black level, softness, color-removal, and HDR clipping controls.",
+      "source": "Unmult (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/unmult.glsl",
+      "preset": "./plugins/alipfx/effects/unmult.json"
+    },
+    {
+      "id": "unsharp-mask",
+      "name": "Unsharp Mask",
+      "description": "Sharpens the source with a Gaussian high-pass mask gated by luma threshold, exposing amount, radius, and threshold controls.",
+      "source": "Unsharp Mask (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/unsharp-mask.glsl",
+      "preset": "./plugins/alipfx/effects/unsharp-mask.json"
+    },
+    {
+      "id": "venetian-blinds",
+      "name": "Venetian Blinds",
+      "description": "Reveals the layer through angled Venetian-blind slats with completion, direction, slat width, and feather controls.",
+      "source": "Venetian Blinds (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/venetian-blinds.glsl",
+      "preset": "./plugins/alipfx/effects/venetian-blinds.json"
+    },
+    {
+      "id": "warp",
+      "name": "Warp",
+      "description": "Applies selectable radial, bend, and axis-based warp models with horizontal/vertical distortion, bend amount, and warp-axis controls.",
+      "source": "Warp (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/warp.glsl",
+      "preset": "./plugins/alipfx/effects/warp.json"
+    },
+    {
+      "id": "wave-warp",
+      "name": "Wave Warp",
+      "description": "Distorts the layer with animated directional waves using selectable wave shape, height, width, speed, phase, pinning, and antialiasing controls.",
+      "source": "Wave Warp (AlipFX).txt",
+      "shader": "./plugins/alipfx/shaders/wave-warp.glsl",
+      "preset": "./plugins/alipfx/effects/wave-warp.json"
+    }
+  ]
+}

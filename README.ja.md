@@ -7,14 +7,16 @@ Zoidiumは、Clipmaker Gen3（CM3）の外側で動作する拡張レイヤー�
 デスクトップ向けのパッケージングを提供します。
 
 リポジトリには、CM3のランタイム、エフェクト、マテリアル、ワーカー、
-シェーダー、テクスチャ、フォント、アイコン、ダウンロードページを一切
-含めません。`npm run setup`または開発・ビルドの開始時に、
+シェーダー、テクスチャ、CM3由来のフォント、アイコン、ダウンロードページを
+含めません。一方、`fonts/`には別ライセンスで利用できるSource Code Proを
+同梱しています。これはPanzoid/CM3リソースではありません。`npm run setup`または
+開発・ビルドの開始時に、
 `tools/runtime-resources.js` が設定されたCM3ソースページと同一オリジンの
 リソースグラフをGit管理外の`.zoidium-resources/`へ取得します。キャッシュは
 ローカルサーバー終了後も保持し、静的デプロイではそのデプロイに必要な生成物だけが残ります。
 CM3とZoidiumの拡張レイヤーは、このキャッシュに取得したCM3リソースを使用します。
-フォントも取得済みのCM3フォントプリセットを優先し、取得できない場合だけ
-システムフォントへフォールバックします。
+CM3固有のフォントプリセットはキャッシュから使いますが、Zoidiumの拡張レイヤーは
+ローカル同梱のSource Code Proを使います。フォントCDNへのリクエストは発生しません。
 
 ## クイックスタート
 
@@ -98,6 +100,11 @@ Zoidium/
 ├── index.html                  # ブートストラップ用プレースホルダー
 ├── main.js                     # Electronプロセスとキャッシュ利用サーバー
 ├── package.json                # npmスクリプトとElectron設定
+├── fonts/
+│   ├── fonts.css               # ローカルSource Code Pro
+│   ├── source-code-pro-regular.woff2
+│   ├── LICENSE.md              # Source Code ProのSIL Open Font License
+│   └── README.md               # 出典とライセンスの詳細
 ├── tools/
 │   ├── runtime-resources.js    # CM3グラフの取得・キャッシュ・検出・パッチ
 │   ├── serve-with-resources.js # キャッシュ利用Webサーバー
@@ -106,7 +113,7 @@ Zoidium/
 ├── zoidium/
 │   ├── runtime-config.js       # 拡張プロファイル
 │   ├── runtime-loader.js       # 拡張ブートストラップ
-│   ├── runtime-fonts.css       # 取得済みCM3フォントプリセットを使用
+│   ├── runtime-fonts.css       # ローカルSource Code Proを適用
 │   ├── runtime-policy.js       # ローカル優先のポリシーアダプター
 │   └── direct-download.js      # その場でのBlobダウンロード
 ├── plugins/                    # 拡張ソースと生成済みプラグインバンドル

@@ -7,14 +7,15 @@ plugins, local-first adapters, creator tools, and packaging for browser and
 desktop use.
 
 The repository intentionally contains no CM3 runtime, effect, material,
-worker, shader, texture, font, icon, or download-page files. When the app is
-started or a deployment is built, `tools/runtime-resources.js` fetches the
-configured CM3 source page and its same-origin resource graph into the
-Git-ignored `.zoidium-resources/` cache. CM3 and the Zoidium extension layer
-then use the fetched resources from that cache, including the CM3 font presets;
-system fonts are fallback only. The cache is retained between local runs; a
-static deployment keeps only the generated build output required by that
-deployment.
+worker, shader, texture, CM3 font, icon, or download-page files. It does
+include the separately licensed Source Code Pro UI font under `fonts/`; it is
+not a Panzoid/CM3 resource. When the app is started or a deployment is built,
+`tools/runtime-resources.js` fetches the configured CM3 source page and its
+same-origin resource graph into the Git-ignored `.zoidium-resources/` cache.
+CM3-specific font presets remain in that cache, while the Zoidium extension
+layer uses the locally bundled Source Code Pro family. No font CDN request is
+needed. The cache is retained between local runs; a static
+deployment keeps only the generated build output required by that deployment.
 
 ## Quick start
 
@@ -104,6 +105,11 @@ Zoidium/
 ├── index.html                 # bootstrap placeholder; replaced in a build stage
 ├── main.js                    # Electron process and disposable local server
 ├── package.json               # scripts and Electron build configuration
+├── fonts/
+│   ├── fonts.css              # local Source Code Pro face
+│   ├── source-code-pro-regular.woff2
+│   ├── LICENSE.md             # Source Code Pro SIL Open Font License
+│   └── README.md              # source and license details
 ├── tools/
 │   ├── runtime-resources.js   # fetch, cache, discover, patch, and stage CM3
 │   ├── serve-with-resources.js# cache-backed browser server
@@ -112,7 +118,7 @@ Zoidium/
 ├── zoidium/
 │   ├── runtime-config.js      # extension profile
 │   ├── runtime-loader.js      # overlay bootstrap
-│   ├── runtime-fonts.css      # uses setup-fetched CM3 font presets
+│   ├── runtime-fonts.css      # applies the local Source Code Pro family
 │   ├── runtime-policy.js      # local-first policy adapters
 │   └── direct-download.js     # in-place Blob download bridge
 ├── plugins/                   # extension sources and generated plugin bundles

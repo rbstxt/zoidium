@@ -1,0 +1,8 @@
+/* Local UI fonts for Zoidium. No web-font CDN is used. */
+@font-face {
+  font-family: "Source Code Pro";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./source-code-pro-regular.woff2") format("woff2");
+}

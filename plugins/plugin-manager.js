@@ -1,7 +1,7 @@
 (function () {
   "use strict";
 
-  const REGISTRY_URL = "./plugins/registry.json?v=12";
+  const REGISTRY_URL = "./plugins/registry.json?v=14";
   const STORAGE_PREFIX = "zoidium.plugin.enabled.";
   const SHADER_PLUGIN_MARKER = "// @zoidium-plugin ";
   const EFFECT_UUID_PROPERTY = "_zoidiumEffectUuid";
@@ -22,6 +22,7 @@
     "easing-plus": "#384668",
     "native-fx": "#c56b3d",
     "light-plus": "#2f9b86",
+    "alipfx-shader-pack-4": "#a04ed1",
     afterclip: "#d35a76",
     "player-plus": "#4f7dbf",
     "layer-input": "#4f9db6",

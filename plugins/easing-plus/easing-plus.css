@@ -5,7 +5,7 @@
   --ep-text: #d7d7d7;
   --ep-accent: #384668;
   background: transparent;
-  font-family: "Zoidium CM3 Mono", monospace;
+  font-family: "Source Code Pro", monospace;
   inset: 0;
   position: fixed;
   z-index: 10020;
@@ -27,7 +27,7 @@
   color: #aeb9d1;
   content: "Ez+";
   display: block;
-  font-family: "Zoidium CM3 Mono", monospace;
+  font-family: "Source Code Pro", monospace;
   font-size: 11px;
   font-weight: 600;
   inset: 1px 4px;

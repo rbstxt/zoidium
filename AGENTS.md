@@ -25,8 +25,11 @@ Keep this checkout limited to Zoidium-owned source and build tooling. The
 external CM3 runtime files belong only in the Git-ignored cache or generated
 outputs. This includes the source HTML, download page, JavaScript bundles,
 effects, materials, workers/WASM, shaders, textures, CM3 fonts, icons, and
-favicons. Resource paths must be discovered from the configured source page,
-not maintained as a second copy in the repository.
+favicons. The separately licensed Source Code Pro file used by the Zoidium UI
+and extension layer is an explicit non-CM3 font dependency under `fonts/`; it
+is not fetched from Panzoid. No other CM3 font files may be added there. Resource paths must
+be discovered from the configured source page, not maintained as a second copy
+in the repository.
 
 The only source-resource fetch path is `tools/runtime-resources.js`:
 
@@ -55,6 +58,10 @@ Zoidium-owned runtime files that may be edited:
 - `zoidium/runtime-policy.js` — local-first account/API/ad adapters;
 - `zoidium/direct-download.js` — in-place Blob download adapter;
 - `plugins/` — extension source, generated bundles, and locale catalogs;
+- `plugins/alipfx/` — the generated Afterzoid Shader Pack 4 plugin payload and
+  its rebuild metadata; keep the original source-pack dumps and CM3 runtime
+  directories out of the repository;
+- `fonts/` — the locally bundled Source Code Pro UI font with its license notice;
 - `README*`, `about/`, `_headers`, `_redirects`, and package configuration.
 
 `index.html` is a no-resource placeholder. The build pipeline replaces it only
@@ -63,6 +70,9 @@ inside a stage. Do not turn it into a local copy of the CM3 page.
 ## Runtime staging rules
 
 - Keep the source URL configurable through `ZOIDIUM_CM3_SOURCE_PAGE`.
+- Copy the checked-in `fonts/` directory into every runtime or deployment
+  stage; it contains the local Source Code Pro dependency for the extension
+  layer.
 - Resolve and fetch only same-origin paths below the configured source page's
   directory. Reject path traversal and never write outside the stage root.
 - Preserve the paths expected by the CM3 client in the generated stage; do not

@@ -24,6 +24,7 @@ const commonProjectEntries = [
   "_headers",
   "_redirects",
   "about",
+  "fonts",
   "zoidium",
   "zoidium-welcome-tour.css",
   "zoidium-welcome-tour.js",

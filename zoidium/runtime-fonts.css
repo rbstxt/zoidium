@@ -1,32 +1,15 @@
-/*
- * The font files are deliberately not part of the repository. The setup-time
- * CM3 resource graph provides these files in ../assets/fonts/2d/.
- */
-@font-face {
-  font-family: "Zoidium CM3 Sans";
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url("../assets/fonts/2d/droid%20sans.ttf") format("truetype");
-}
-
-@font-face {
-  font-family: "Zoidium CM3 Mono";
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url("../assets/fonts/2d/inconsolata.ttf") format("truetype");
-}
+/* Keep the extension UI aligned with CM3's Source Code Pro editor font. */
+@import "../fonts/fonts.css";
 
 html,
 body {
-  font-family: "Zoidium CM3 Sans", system-ui, sans-serif;
+  font-family: "Source Code Pro", monospace;
 }
 
 div.post_message {
-  font-family: "Zoidium CM3 Sans", system-ui, sans-serif;
+  font-family: "Source Code Pro", monospace;
 }
 
 .editorwindow {
-  font-family: "Zoidium CM3 Mono", monospace;
+  font-family: "Source Code Pro", monospace;
 }
