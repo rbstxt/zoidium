@@ -37,13 +37,27 @@ workers/WASM require an HTTP origin.
 Build a static deployment with:
 
 ```bash
-npm run build:web
+npm run build
 ```
 
 The generated site is written to `dist/web/` and is ignored by Git. For a
-static host such as Cloudflare Pages, use `npm run build:web` as the build
-command and `dist/web` as the output directory. Network access is required in
-the build environment because the CM3 source graph is fetched at build time.
+static host such as Cloudflare Pages, use `npm run build` as the build command
+and `dist/web` as the output directory. `npm run build` is the deployment
+entrypoint and runs the same CM3-fetching builder as `npm run build:web`.
+`wrangler.jsonc` records `dist/web` as the Pages output directory for direct
+Wrangler-based deployments. Network access is required in the build
+environment because the CM3 source graph is fetched at build time. Do not
+deploy the repository root: its `index.html` is intentionally only a source
+checkout placeholder.
+
+For a direct Cloudflare Pages deployment, run:
+
+```bash
+npm run deploy
+```
+
+This builds the fetched stage first and uploads only `dist/web/`. Wrangler
+authentication and access to the `zoidium` Pages project are required.
 
 Build desktop installers with:
 
