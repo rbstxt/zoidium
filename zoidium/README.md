@@ -33,6 +33,13 @@ process exits. `npm run build:web` copies the cache into the ignored
 `dist/web/` deployment tree. `npm run dist` uses a separate temporary Electron
 input tree and removes only that tree after packaging.
 
+The generic `npm run build` hook delegates to `npm run build:web`, so a static
+host's normal build step also fetches CM3 and publishes the generated stage.
+Cloudflare Pages/Wrangler is configured to publish `dist/web/`; the repository
+root remains a no-resource source placeholder and must not be deployed.
+`npm run deploy` runs that build and uploads only `dist/web/` for a direct
+Cloudflare Pages deployment.
+
 The source page can be overridden with `ZOIDIUM_CM3_SOURCE_PAGE` for compatible
 development or build environments. This is the only intended source-resource
 configuration point; no fetched bytes or URL manifest should be committed.

@@ -76,6 +76,10 @@ inside a stage. Do not turn it into a local copy of the CM3 page.
 - The local server must leave `.zoidium-resources/` in place when it shuts down;
   only disposable build trees are removed after their build.
 - `npm run build:web` writes the ignored deployment tree at `dist/web/`.
+- `npm run build` is the generic deployment build hook and delegates to
+  `npm run build:web`; Cloudflare Pages/Wrangler must publish `dist/web/`.
+- `npm run deploy` builds that stage first and uploads only `dist/web/` with
+  Wrangler; never upload the repository root.
 - `npm run dist` builds from a separate temporary tree and removes that tree
   after Electron Builder finishes.
 

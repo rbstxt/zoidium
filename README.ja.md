@@ -37,12 +37,25 @@ npm start         # Electron開発モード（キャッシュを使用）
 静的サイトを作る場合:
 
 ```bash
-npm run build:web
+npm run build
 ```
 
 生成先は`dist/web/`です（Gitの対象外）。Cloudflare Pagesなどの静的ホストでは、
-Build commandを`npm run build:web`、出力ディレクトリを`dist/web`に設定します。
-ビルド時にCM3ソースグラフを取得するため、ビルド環境にはネットワーク接続が必要です。
+Build commandを`npm run build`、出力ディレクトリを`dist/web`に設定します。
+`npm run build`は`npm run build:web`と同じCM3 Fetch処理を行うDeployの入口です。
+`wrangler.jsonc`にもPagesの出力先として`dist/web`を記録しています。ビルド時に
+CM3ソースグラフを取得するため、ビルド環境にはネットワーク接続が必要です。
+リポジトリ直下をDeployしないでください。直下の`index.html`はソースチェックアウト用の
+プレースホルダーであり、Deploy対象は生成された`dist/web/`です。
+
+Cloudflare Pagesへ直接Deployする場合は次を実行します。
+
+```bash
+npm run deploy
+```
+
+CM3ステージを先に生成し、`dist/web/`だけをWranglerで公開します。
+Wranglerの認証と`zoidium` Pagesプロジェクトへのアクセス権が必要です。
 
 デスクトップ配布物を作る場合:
 

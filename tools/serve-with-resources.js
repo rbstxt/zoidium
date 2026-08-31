@@ -87,6 +87,7 @@ async function main() {
         cleanUrls: false,
         etag: true,
         public: runtime.root,
+        rewrites: [{ source: "/", destination: "/index.html" }],
       }).catch((error) => {
         console.error("[Zoidium] local server request failed:", error);
         if (!response.headersSent) response.writeHead(500, { "Content-Type": "text/plain" });
