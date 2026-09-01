@@ -8,6 +8,10 @@
     "ja": "./plugins/geometry-plus/locales/ja.json?v=1"
   },
   "objectCategory": "GEOMETRY+",
+  "objectClassParent": {
+    "name": "Shape",
+    "type": 0
+  },
   "objectClasses": [
     {
       "id": "rounded-box",

@@ -136,6 +136,7 @@
     const materialTypes = manifest.materialTypes || [];
     const modules = manifest.modules || [];
     const resources = manifest.resources || [];
+    const objectClassParent = manifest.objectClassParent;
     if (
       !Array.isArray(effects) ||
       !Array.isArray(groups) ||
@@ -147,6 +148,16 @@
       !Array.isArray(resources)
     ) {
       throw new Error(`Invalid plugin features: ${plugin.id}`);
+    }
+    if (
+      objectClassParent != null &&
+      (typeof objectClassParent !== "object" ||
+        Array.isArray(objectClassParent) ||
+        typeof objectClassParent.name !== "string" ||
+        !objectClassParent.name.trim() ||
+        typeof objectClassParent.type !== "number")
+    ) {
+      throw new Error(`Invalid 3D object class parent in ${plugin.id}`);
     }
     if (
       effects.length === 0 &&
@@ -1131,35 +1142,61 @@
     }
 
     const objectClasses = manifest.objectClasses || [];
+    const objectClassParent = manifest.objectClassParent;
     const objectClassEntries = getObjectTypes("object3d");
+    const objectClassMenuEntryAlreadyRegistered = objectClassEntries.some(
+      (entry) =>
+        entry?._zoidiumPluginId === plugin.id && entry?._zoidiumPluginObjectClass
+    ) || objectClassEntries.some(
+      (entry) =>
+        Array.isArray(entry?.list) &&
+        entry.list.some(
+          (item) =>
+            item?._zoidiumPluginId === plugin.id && item?._zoidiumPluginObjectClass
+        )
+    );
     if (
       objectClasses.length > 0 &&
-      !objectClassEntries.some(
-        (entry) => entry?._zoidiumPluginId === plugin.id && entry?._zoidiumPluginObjectClass
-      )
+      !objectClassMenuEntryAlreadyRegistered
     ) {
-      objectClassEntries.push(
-        {
-          name: manifest.objectCategory || manifest.name,
-          category: true,
+      const objectClassMenuItems = objectClasses.map((objectClass) => {
+        const data = cloneJson(objectClass.defaultData || {});
+        if (!data.type) data.type = objectClass.type;
+        if (!data.schemaVersion) data.schemaVersion = objectClass.schemaVersion || 1;
+        return {
+          name: objectClass.name,
+          desc: objectClass.description || `${objectClass.name} — ${manifest.name}`,
+          type: objectClass.type,
+          data,
           _zoidiumPluginId: plugin.id,
           _zoidiumPluginObjectClass: true,
-        },
-        ...objectClasses.map((objectClass) => {
-          const data = cloneJson(objectClass.defaultData || {});
-          if (!data.type) data.type = objectClass.type;
-          if (!data.schemaVersion) data.schemaVersion = objectClass.schemaVersion || 1;
-          return {
-            name: objectClass.name,
-            desc: objectClass.description || `${objectClass.name} — ${manifest.name}`,
-            type: objectClass.type,
-            data,
+          _zoidiumPluginObjectId: objectClass.id || objectClass.type.split("/").pop(),
+        };
+      });
+      if (objectClassParent) {
+        const parent = objectClassEntries.find(
+          (entry) =>
+            !entry?._zoidiumPluginId &&
+            entry?.name === objectClassParent.name &&
+            entry?.type === objectClassParent.type
+        );
+        if (!parent || !Array.isArray(parent.list)) {
+          throw new Error(
+            `3D object class parent was not found for ${plugin.id}: ${objectClassParent.name}`
+          );
+        }
+        parent.list.push(...objectClassMenuItems);
+      } else {
+        objectClassEntries.push(
+          {
+            name: manifest.objectCategory || manifest.name,
+            category: true,
             _zoidiumPluginId: plugin.id,
             _zoidiumPluginObjectClass: true,
-            _zoidiumPluginObjectId: objectClass.id || objectClass.type.split("/").pop(),
-          };
-        })
-      );
+          },
+          ...objectClassMenuItems
+        );
+      }
     }
     if (effectBadgeObserver) scheduleEffectPickerBadges();
   }
@@ -1168,7 +1205,15 @@
     const registries = [getEffectTypes(), getMaterialTypes(), PZ.ui.objectTypes.get(PZ.object3d)];
     for (const entries of registries) {
       for (let index = entries.length - 1; index >= 0; index -= 1) {
-        if (entries[index]?._zoidiumPluginId === pluginId) entries.splice(index, 1);
+        const entry = entries[index];
+        if (Array.isArray(entry?.list)) {
+          for (let itemIndex = entry.list.length - 1; itemIndex >= 0; itemIndex -= 1) {
+            if (entry.list[itemIndex]?._zoidiumPluginId === pluginId) {
+              entry.list.splice(itemIndex, 1);
+            }
+          }
+        }
+        if (entry?._zoidiumPluginId === pluginId) entries.splice(index, 1);
       }
     }
     const state = pluginStates.get(pluginId);

@@ -24,7 +24,7 @@ Requirements: Node.js 18+ and npm.
 ```bash
 npm install
 npm run setup      # download/update the CM3 resource cache
-npm run web       # ensures the cache and serves http://localhost:8123
+npm run web       # ensures the cache and serves http://127.0.0.1:8123 and http://localhost:8123
 npm run dev       # same, then opens the browser
 npm start         # Electron development mode; ensures the cache is ready
 ```
