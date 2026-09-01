@@ -3,9 +3,9 @@
   "id": "geometry-plus",
   "name": "Geometry+",
   "author": "Zoidium",
-  "version": "1",
+  "version": "2",
   "locales": {
-    "ja": "./plugins/geometry-plus/locales/ja.json?v=1"
+    "ja": "./plugins/geometry-plus/locales/ja.json?v=2"
   },
   "objectCategory": "GEOMETRY+",
   "objectClassParent": {
@@ -34,12 +34,67 @@
         "type": "zoidium:geometry-plus/polyhedron",
         "schemaVersion": 1
       }
+    },
+    {
+      "id": "cone",
+      "type": "zoidium:geometry-plus/cone",
+      "name": "Cone",
+      "description": "A cone or frustum with adjustable top and bottom radii.",
+      "schemaVersion": 1,
+      "defaultData": {
+        "type": "zoidium:geometry-plus/cone",
+        "schemaVersion": 1
+      }
+    },
+    {
+      "id": "capsule",
+      "type": "zoidium:geometry-plus/capsule",
+      "name": "Capsule",
+      "description": "A capsule with hemispherical ends.",
+      "schemaVersion": 1,
+      "defaultData": {
+        "type": "zoidium:geometry-plus/capsule",
+        "schemaVersion": 1
+      }
+    },
+    {
+      "id": "tube",
+      "type": "zoidium:geometry-plus/tube",
+      "name": "Tube",
+      "description": "A hollow cylinder with adjustable wall thickness.",
+      "schemaVersion": 1,
+      "defaultData": {
+        "type": "zoidium:geometry-plus/tube",
+        "schemaVersion": 1
+      }
+    },
+    {
+      "id": "gear",
+      "type": "zoidium:geometry-plus/gear",
+      "name": "Gear",
+      "description": "A procedural gear with adjustable teeth and bevel.",
+      "schemaVersion": 1,
+      "defaultData": {
+        "type": "zoidium:geometry-plus/gear",
+        "schemaVersion": 1
+      }
+    },
+    {
+      "id": "helix",
+      "type": "zoidium:geometry-plus/helix",
+      "name": "Helix",
+      "description": "A helical tube generated from numeric parameters.",
+      "schemaVersion": 1,
+      "defaultData": {
+        "type": "zoidium:geometry-plus/helix",
+        "schemaVersion": 1
+      }
     }
   ],
   "modules": [
     {
       "id": "geometry-plus-runtime",
-      "source": "./plugins/geometry-plus/geometry-plus.js?v=1"
+      "source": "./plugins/geometry-plus/geometry-plus.js?v=2"
     }
   ]
 }
