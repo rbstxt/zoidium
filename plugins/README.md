@@ -66,9 +66,9 @@ To add class entries as variants inside an existing 3D picker entry, a manifest 
 set `objectClassParent` to that entry's source `name` and numeric `type`. The class
 items are appended to the parent's existing `list` while the plugin is enabled.
 
-`Geometry+` is the reference implementation. It registers a procedurally generated
-Rounded Box and a selectable low-poly Polyhedron through this API. It is disabled by
-default and can be enabled from the Plugin Manager.
+`Geometry+` is the reference implementation. It registers procedurally generated
+Rounded Box, low-poly Polyhedron, Cone, Capsule, Tube, Gear, and Helix objects through
+this API. It is disabled by default and can be enabled from the Plugin Manager.
 
 `日本語化` is an offline, catalog-driven UI localization pack. It loads its core
 Japanese catalog plus the `locales.ja` catalog declared by every plugin manifest,
