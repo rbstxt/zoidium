@@ -26,7 +26,8 @@ function printHelp() {
   console.log(`Usage: node tools/serve-with-resources.js [options]
 
 Ensures the CM3 resource graph is available in the Git-ignored cache, then
-serves its patched index.html. The cache remains after the server stops.
+serves its patched index.html on both local loopback addresses. The cache
+remains after the server stops.
 
 Options:
   --port=<number>      listen port (default: 8123)
@@ -45,7 +46,7 @@ function openBrowser(url) {
   child.unref();
 }
 
-function listen(server, port) {
+function listen(server, port, host) {
   return new Promise((resolve, reject) => {
     const onError = (error) => {
       server.off("listening", onListening);
@@ -57,7 +58,7 @@ function listen(server, port) {
     };
     server.once("error", onError);
     server.once("listening", onListening);
-    server.listen(port, "127.0.0.1");
+    server.listen(port, host);
   });
 }
 
@@ -71,6 +72,16 @@ function close(server) {
   });
 }
 
+function waitForClose(server) {
+  return new Promise((resolve) => {
+    if (!server.listening) {
+      resolve();
+      return;
+    }
+    server.once("close", resolve);
+  });
+}
+
 async function main() {
   const options = parseOptions(process.argv.slice(2));
   if (options.help) {
@@ -81,7 +92,7 @@ async function main() {
   const runtime = await prepareRuntimeStage();
   let shuttingDown = false;
   const compressionMiddleware = compression();
-  const server = http.createServer((request, response) => {
+  const handleRequest = (request, response) => {
     compressionMiddleware(request, response, () => {
       handler(request, response, {
         cleanUrls: false,
@@ -94,24 +105,30 @@ async function main() {
         response.end("Internal Server Error");
       });
     });
-  });
+  };
+  const listeners = [
+    { host: "127.0.0.1", server: http.createServer(handleRequest) },
+    { host: "::1", server: http.createServer(handleRequest) },
+  ];
 
   const shutdown = async (exitCode = 0) => {
     if (shuttingDown) return;
     shuttingDown = true;
-    await close(server);
+    await Promise.all(listeners.map(({ server }) => close(server)));
     process.exitCode = exitCode;
   };
   process.once("SIGINT", () => shutdown(0).then(() => process.exit()));
   process.once("SIGTERM", () => shutdown(0).then(() => process.exit()));
 
   try {
-    const port = await listen(server, options.port);
+    const port = await listen(listeners[0].server, options.port, listeners[0].host);
+    await listen(listeners[1].server, port, listeners[1].host);
     const url = `http://127.0.0.1:${port}`;
     console.log(`[Zoidium] CM3 resource cache: ${runtime.root}`);
     console.log(`[Zoidium] local server: ${url}`);
+    console.log(`[Zoidium] localhost alias: http://localhost:${port}`);
     if (options.open) openBrowser(url);
-    await new Promise((resolve) => server.once("close", resolve));
+    await Promise.all(listeners.map(({ server }) => waitForClose(server)));
   } catch (error) {
     await shutdown(1);
     throw error;

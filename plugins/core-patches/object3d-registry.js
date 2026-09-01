@@ -151,6 +151,12 @@
     }
 
     instance.type = definition.type;
+    if (definition.name) {
+      // The object picker name is the persisted default name for a new object.
+      // Keep it aligned with the manifest entry instead of CM3's generic
+      // "3D Object" fallback.
+      instance.defaultName = definition.name;
+    }
     trackObject(instance, getObjectMetadata(definition.type, definition, false), false);
 
     var originalLoad = instance.load;
@@ -245,13 +251,15 @@
       getAsset = manifest;
       manifest = null;
     }
-    var declaredTypes = new Set(
-      manifest && Array.isArray(manifest.objectClasses)
-        ? manifest.objectClasses.map(function (definition) {
-            return definition && definition.type;
-          })
-        : []
-    );
+    var declaredTypes = new Set();
+    var declaredNames = new Map();
+    if (manifest && Array.isArray(manifest.objectClasses)) {
+      manifest.objectClasses.forEach(function (definition) {
+        if (!definition) return;
+        declaredTypes.add(definition.type);
+        if (definition.name) declaredNames.set(definition.type, definition.name);
+      });
+    }
     return {
       registerClass: function (definition) {
         definition = definition || {};
@@ -277,7 +285,7 @@
           pluginVersion: plugin.version || "",
           pluginAuthor: plugin.author || "",
           objectId: definition.objectId || parsed.objectId,
-          name: definition.name || parsed.objectId,
+          name: declaredNames.get(type) || definition.name || parsed.objectId,
         });
       },
       parseType: parseType,

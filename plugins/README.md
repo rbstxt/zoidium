@@ -62,6 +62,10 @@ metadata. If a project is opened while the class is unavailable, Zoidium keeps t
 serialized data in a non-rendering Missing 3D Object placeholder and restores it
 after the providing plugin is enabled.
 
+To add class entries as variants inside an existing 3D picker entry, a manifest may
+set `objectClassParent` to that entry's source `name` and numeric `type`. The class
+items are appended to the parent's existing `list` while the plugin is enabled.
+
 `Geometry+` is the reference implementation. It registers a procedurally generated
 Rounded Box and a selectable low-poly Polyhedron through this API. It is disabled by
 default and can be enabled from the Plugin Manager.

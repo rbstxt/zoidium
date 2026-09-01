@@ -8,7 +8,10 @@ module.exports = {
 
     const unregister = [];
     const markGeometryDirty = function () {
-      if (this.parentObject) this.parentObject.geometryNeedsUpdate = true;
+      if (this.parentObject) {
+        this.parentObject.geometryNeedsUpdate = true;
+        this.parentObject._geometrySignature = undefined;
+      }
     };
 
     function numberValue(value, fallback) {
@@ -40,6 +43,7 @@ module.exports = {
           this.threeObj.castShadow = true;
           this.threeObj.receiveShadow = true;
           this.geometryNeedsUpdate = true;
+          this._geometrySignature = undefined;
           this.materials = new PZ.objectSingleton(this, PZ.material);
           this.properties.addAll({
             position: PZ.property.create(shapeDefinitions.position),
@@ -67,6 +71,7 @@ module.exports = {
             material.loading = material.load();
           }
           this.geometryNeedsUpdate = true;
+          this._geometrySignature = undefined;
           this.parentChanged();
         }
 
@@ -88,18 +93,24 @@ module.exports = {
         }
 
         update(frame) {
-          if (this.geometryNeedsUpdate) {
-            this.updateGeometry(this.generateGeometry());
+          const currentFrame = Number.isFinite(Number(frame)) ? Number(frame) : 0;
+          const geometrySignature = this.getGeometrySignature(currentFrame);
+          if (
+            this.geometryNeedsUpdate ||
+            geometrySignature !== this._geometrySignature
+          ) {
+            this.updateGeometry(this.generateGeometry(currentFrame));
+            this._geometrySignature = geometrySignature;
             this.geometryNeedsUpdate = false;
           }
-          const position = this.properties.position.get(frame);
-          const rotation = this.properties.rotation.get(frame);
-          const scale = this.properties.scale.get(frame);
+          const position = this.properties.position.get(currentFrame);
+          const rotation = this.properties.rotation.get(currentFrame);
+          const scale = this.properties.scale.get(currentFrame);
           this.threeObj.position.set(position[0], position[1], position[2]);
           this.threeObj.rotation.set(rotation[0], rotation[1], rotation[2]);
           this.threeObj.scale.set(scale[0], scale[1], scale[2]);
-          this.threeObj.rotation.order = this.properties.eulerOrder.get(frame);
-          if (this.material) this.material.update(frame);
+          this.threeObj.rotation.order = this.properties.eulerOrder.get(currentFrame);
+          if (this.material) this.material.update(currentFrame);
         }
 
         async prepare(frame) {
@@ -115,6 +126,10 @@ module.exports = {
           this.threeObj.geometry.buffersNeedUpdate = true;
         }
 
+        getGeometrySignature() {
+          return null;
+        }
+
         generateGeometry() {
           return new THREE.Geometry();
         }
@@ -126,6 +141,7 @@ module.exports = {
     class RoundedBoxObject extends GeometryObject {
       constructor() {
         super();
+        this.defaultName = "Rounded Box";
         this.properties.addAll({
           size: PZ.property.create({
             dynamic: !0,
@@ -186,28 +202,38 @@ module.exports = {
         this.properties.name.set("Rounded Box");
       }
 
-      generateGeometry() {
-        const size = vectorValue(this.properties.size.get(), [40, 24, 6]);
+      getGeometrySignature(frame) {
+        return JSON.stringify([
+          this.properties.size.get(frame),
+          this.properties.cornerRadius.get(frame),
+          this.properties.cornerSegments.get(frame),
+          this.properties.bevelSize.get(frame),
+          this.properties.bevelSegments.get(frame),
+        ]);
+      }
+
+      generateGeometry(frame) {
+        const size = vectorValue(this.properties.size.get(frame), [40, 24, 6]);
         const width = Math.max(0.1, Math.abs(size[0]));
         const height = Math.max(0.1, Math.abs(size[1]));
         const depth = Math.max(0.1, Math.abs(size[2]));
         const radius = Math.min(
-          Math.max(0, numberValue(this.properties.cornerRadius.get(), 3)),
+          Math.max(0, numberValue(this.properties.cornerRadius.get(frame), 3)),
           width / 2,
           height / 2
         );
         const cornerSegments = integerValue(
-          this.properties.cornerSegments.get(),
+          this.properties.cornerSegments.get(frame),
           6,
           1
         );
         const bevelLimit = Math.min(width, height, depth) / 2;
         const bevel = Math.min(
-          Math.max(0, numberValue(this.properties.bevelSize.get(), 0.6)),
+          Math.max(0, numberValue(this.properties.bevelSize.get(frame), 0.6)),
           bevelLimit
         );
         const bevelSegments = integerValue(
-          this.properties.bevelSegments.get(),
+          this.properties.bevelSegments.get(frame),
           2,
           0
         );
@@ -264,6 +290,7 @@ module.exports = {
     class PolyhedronObject extends GeometryObject {
       constructor() {
         super();
+        this.defaultName = "Polyhedron";
         this.properties.addAll({
           shape: PZ.property.create({
             dynamic: !0,
@@ -306,12 +333,21 @@ module.exports = {
         this.properties.name.set("Polyhedron");
       }
 
-      generateGeometry() {
-        const shape = integerValue(this.properties.shape.get(), 0, 0);
-        const radius = Math.max(0.1, numberValue(this.properties.radius.get(), 12));
+      getGeometrySignature(frame) {
+        return JSON.stringify([
+          this.properties.shape.get(frame),
+          this.properties.radius.get(frame),
+          this.properties.detail.get(frame),
+          this.properties.shading.get(frame),
+        ]);
+      }
+
+      generateGeometry(frame) {
+        const shape = integerValue(this.properties.shape.get(frame), 0, 0);
+        const radius = Math.max(0.1, numberValue(this.properties.radius.get(frame), 12));
         const detail = Math.min(
           5,
-          integerValue(this.properties.detail.get(), 0, 0)
+          integerValue(this.properties.detail.get(frame), 0, 0)
         );
         const constructors = [
           THREE.TetrahedronGeometry,
@@ -321,7 +357,7 @@ module.exports = {
         ];
         const GeometryConstructor = constructors[shape] || constructors[0];
         const geometry = new GeometryConstructor(radius, detail);
-        if (integerValue(this.properties.shading.get(), 0, 0) === 0) {
+        if (integerValue(this.properties.shading.get(frame), 0, 0) === 0) {
           if (typeof geometry.computeFlatVertexNormals === "function") {
             geometry.computeFlatVertexNormals();
           } else {

@@ -25,7 +25,7 @@ CM3固有のフォントプリセットはキャッシュから使いますが�
 ```bash
 npm install
 npm run setup     # CM3リソースキャッシュを取得・更新
-npm run web       # キャッシュを準備して http://localhost:8123 で配信
+npm run web       # キャッシュを準備して http://127.0.0.1:8123 と http://localhost:8123 で配信
 npm run dev       # 同じ処理を行い、ブラウザも開く
 npm start         # Electron開発モード（キャッシュを使用）
 ```

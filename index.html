@@ -3,19 +3,175 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <link rel="stylesheet" href="./fonts/fonts.css" />
-    <title>Zoidium · CM3 Extension Tools</title>
+    <meta name="robots" content="noindex, nofollow" />
+    <title>Error · Runtime unavailable</title>
     <style>
-      :root { color-scheme: dark; font-family: "Source Code Pro", monospace; }
-      body { display: grid; min-height: 100vh; margin: 0; place-items: center; background: #202124; color: #e8eaed; }
-      main { width: min(36rem, calc(100% - 3rem)); padding: 2rem; border: 1px solid #444; border-radius: 12px; background: #292a2d; }
-      code { color: #f6c86e; }
+      :root {
+        color-scheme: dark;
+        font-family: "Source Code Pro", "SFMono-Regular", Menlo, Monaco, Consolas, monospace;
+        --background: #252525;
+        --surface: #303030;
+        --surface-raised: #373737;
+        --border: #454545;
+        --text: #eeeeee;
+        --muted: #c7c7c7;
+        --subtle: #979797;
+        --error: #d83b3b;
+        --error-muted: #e06b6b;
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        display: grid;
+        min-height: 100vh;
+        margin: 0;
+        padding: clamp(16px, 4vw, 56px);
+        place-items: center;
+        background:
+          radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.045), transparent 46%),
+          var(--background);
+        color: var(--text);
+      }
+
+      main {
+        width: min(1060px, 100%);
+        padding: clamp(26px, 4.5vw, 56px) clamp(24px, 5vw, 60px) clamp(24px, 4vw, 42px);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        background: var(--surface);
+        box-shadow:
+          0 2px 0 rgba(255, 255, 255, 0.025) inset,
+          0 22px 55px rgba(0, 0, 0, 0.34),
+          0 4px 12px rgba(0, 0, 0, 0.2);
+      }
+
+      .heading {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin: 0 0 clamp(20px, 3vw, 32px);
+        color: var(--error);
+        font-size: clamp(14px, 1.8vw, 18px);
+        font-weight: 700;
+        letter-spacing: 0.08em;
+      }
+
+      .heading::first-letter { font-size: 1.15em; }
+
+      h1 {
+        margin: 0;
+        color: var(--error);
+        font-size: clamp(36px, 5.2vw, 72px);
+        font-weight: 700;
+        letter-spacing: normal;
+        line-height: 0.98;
+      }
+
+      .message {
+        max-width: 52ch;
+        margin: clamp(18px, 3vw, 28px) 0 0;
+        color: var(--muted);
+        font-size: clamp(15px, 1.7vw, 19px);
+        font-weight: 700;
+        line-height: 1.5;
+      }
+
+      .details {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        margin-top: clamp(28px, 4vw, 42px);
+        border: 1px solid var(--border);
+        border-radius: 9px;
+        background: var(--surface-raised);
+      }
+
+      .detail {
+        min-width: 0;
+        padding: 14px 16px;
+      }
+
+      .detail + .detail { border-left: 1px solid var(--border); }
+
+      .label {
+        display: block;
+        margin-bottom: 8px;
+        color: var(--subtle);
+        font-size: 10px;
+        letter-spacing: 0.12em;
+        line-height: 1.4;
+        text-transform: uppercase;
+      }
+
+      .value {
+        display: block;
+        overflow: hidden;
+        color: var(--text);
+        font-size: 12px;
+        line-height: 1.5;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .value.error { color: var(--error); }
+
+      footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 20px;
+        margin-top: 16px;
+        color: var(--subtle);
+        font-size: 10px;
+        line-height: 1.6;
+      }
+
+      footer span:last-child { color: var(--error-muted); }
+
+      @media (max-width: 640px) {
+        body { padding: 14px; }
+
+        main {
+          padding: 30px 24px 24px;
+          border-radius: 12px;
+        }
+
+        .details { grid-template-columns: 1fr; }
+        .detail + .detail { border-top: 1px solid var(--border); border-left: 0; }
+
+        footer {
+          align-items: flex-start;
+          flex-direction: column;
+          gap: 4px;
+        }
+      }
     </style>
   </head>
   <body>
-    <main>
-      <h1>Zoidium</h1>
-      <p>This source checkout contains the open-source extension layer. Prepare the Git-ignored CM3 resource cache with <code>npm run setup</code>, or let <code>npm run web</code> and <code>npm run build:web</code> prepare it when needed.</p>
+    <main aria-labelledby="error-title">
+      <p class="heading"><span aria-hidden="true">×</span> Error</p>
+      <h1 id="error-title">Runtime unavailable.</h1>
+      <p class="message">CM3 is not bundled.</p>
+
+      <section class="details" aria-label="Runtime status">
+        <div class="detail">
+          <span class="label">Status</span>
+          <strong class="value error">Unavailable</strong>
+        </div>
+        <div class="detail">
+          <span class="label">Required</span>
+          <strong class="value">CM3 runtime</strong>
+        </div>
+        <div class="detail">
+          <span class="label">Error code</span>
+          <strong class="value">CM3_NOT_BUNDLED</strong>
+        </div>
+      </section>
+
+      <footer>
+        <span>Zoidium · External extension layer for CM3</span>
+        <span>Startup halted</span>
+      </footer>
     </main>
   </body>
 </html>
