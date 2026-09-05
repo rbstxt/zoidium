@@ -6,6 +6,12 @@ Zoidium is an external extension layer for Clipmaker Gen3 (CM3). It provides
 plugins, local-first adapters, creator tools, and packaging for browser and
 desktop use.
 
+The Zoidium source code, plugins, documentation, and build tools are licensed
+under the [MIT License](./LICENSE). The bundled Source Code Pro font has its
+own [SIL Open Font License 1.1](./fonts/LICENSE.md) notice. CM3 resources
+fetched at runtime or build time remain subject to their respective rights
+holders' notices and terms.
+
 The repository intentionally contains no CM3 runtime, effect, material,
 worker, shader, texture, CM3 font, icon, or download-page files. It does
 include the separately licensed Source Code Pro UI font under `fonts/`; it is
@@ -103,6 +109,7 @@ download mechanism without opening another page.
 ```text
 Zoidium/
 ├── index.html                 # bootstrap placeholder; replaced in a build stage
+├── LICENSE                    # MIT License for Zoidium-owned work
 ├── main.js                    # Electron process and disposable local server
 ├── package.json               # scripts and Electron build configuration
 ├── fonts/
@@ -146,7 +153,7 @@ Zoidium is an independent open-source tool collection, not an official CM3 or
 Panzoid product. CM3 source files are obtained at runtime/build time from the
 configured upstream page and remain subject to their respective rights-holder
 notices and terms. Zoidium's extension code, plugins, documentation, and build
-tools are maintained separately. See
+tools are licensed under the MIT License. See
 [`about/acknowledgements/`](./about/acknowledgements/) for the current notices.
 
 ## Related files

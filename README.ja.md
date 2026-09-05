@@ -6,6 +6,11 @@ Zoidiumは、Clipmaker Gen3（CM3）の外側で動作する拡張レイヤー�
 プラグイン、ローカル優先のアダプター、クリエイター向けツール、ブラウザ・
 デスクトップ向けのパッケージングを提供します。
 
+Zoidiumのソースコード、プラグイン、ドキュメント、ビルドツールは
+[MIT License](./LICENSE)で許諾されます。同梱のSource Code Proフォントには
+独自の[SIL Open Font License 1.1](./fonts/LICENSE.md)が適用されます。
+実行時またはビルド時に取得するCM3リソースは、それぞれの権利者の通知と利用条件に従います。
+
 リポジトリには、CM3のランタイム、エフェクト、マテリアル、ワーカー、
 シェーダー、テクスチャ、CM3由来のフォント、アイコン、ダウンロードページを
 含めません。一方、`fonts/`には別ライセンスで利用できるSource Code Proを
@@ -98,6 +103,7 @@ Electronビルダーは、キャッシュ済みのCM3リソースを一時的な
 ```text
 Zoidium/
 ├── index.html                  # ブートストラップ用プレースホルダー
+├── LICENSE                     # Zoidiumが保有する部分のMIT License
 ├── main.js                     # Electronプロセスとキャッシュ利用サーバー
 ├── package.json                # npmスクリプトとElectron設定
 ├── fonts/
@@ -139,7 +145,7 @@ npm run check:plugin-bundles
 Zoidiumは独立したオープンソースツール集であり、CM3またはPanzoidの公式製品
 ではありません。CM3のソースファイルは設定された上流ページから実行時・ビルド時に
 取得され、それぞれの権利者の通知と利用条件に従います。Zoidiumの拡張コード、
-プラグイン、ドキュメント、ビルドツールは別個に管理しています。最新の通知は
+プラグイン、ドキュメント、ビルドツールはMIT Licenseで許諾されます。最新の通知は
 [`about/acknowledgements/`](./about/acknowledgements/)を確認してください。
 
 ## 関連ファイル
