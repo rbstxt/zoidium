@@ -2,16 +2,22 @@
   "use strict";
 
   var defaults = {
+    version: "1.0.0",
     overlayStyles: [
       "./zoidium/ui-overrides.css",
-      "./plugins/plugin-manager.css?v=9",
+      "./plugins/plugin-manager.css?v=12",
       "./zoidium-welcome-tour.css?v=11",
       "./zoidium/runtime-fonts.css"
     ],
     preInitScripts: [
+      "./zoidium/debug-log.js?v=2",
+      "./plugins/core-patches/window-stylesheet-guard.js?v=1",
       "./plugins/core-patches/project-media-fps.js",
       "./plugins/core-patches/video-frame-export.js",
       "./plugins/core-patches/render-aspect-ratio.js",
+      "./plugins/core-patches/export-fps.js?v=2",
+      "./plugins/core-patches/image-export-options.js?v=1",
+      "./plugins/core-patches/precise-time-left.js?v=1",
       "./plugins/core-patches/about-attribution.js",
       "./plugins/core-patches/text-shape-winding.js",
       "./plugins/core-patches/object3d-registry.js",
@@ -21,8 +27,8 @@
       "./zoidium/direct-download.js"
     ],
     postInitScripts: [
-      "./plugins/plugin-manager.js?v=26",
-      "./zoidium-welcome-tour.js?v=7"
+      "./plugins/plugin-manager.js?v=33",
+      "./zoidium-welcome-tour.js?v=8"
     ],
     policy: {
       ads: "block",

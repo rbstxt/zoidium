@@ -13,6 +13,7 @@
       done: "Done",
       steps: [
         {
+          notice: "UNOFFICIAL PROJECT — Zoidium is not affiliated with or endorsed by Panzoid.",
           title: "Welcome to Zoidium!",
           copy:
             "Zoidium is an open-source collection of tools that extends the CM3 experience through plugins and an external extension layer.",
@@ -31,7 +32,10 @@
             { text: "Privacy Policy", href: "/about/privacy" },
             { text: ", and " },
             { text: "Copyright Notice", href: "/about/copyright" },
-            { text: "." },
+            {
+              text:
+                ". If you find a bug, we'd appreciate it if you reported it to @1zworks.com on Discord and uploaded the debug log from the Info tab.",
+            },
           ],
         },
       ],
@@ -45,6 +49,7 @@
       done: "完了",
       steps: [
         {
+          notice: "非公式プロジェクト — ZoidiumはPanzoidと提携・承認関係にありません。",
           title: "Zoidiumへようこそ！",
           copy:
             "Zoidiumは、プラグインと外部拡張レイヤーでCM3の体験を拡張するオープンソースツール集です。",
@@ -62,7 +67,10 @@
             { text: "プライバシー", href: "/about/privacy/ja" },
             { text: "、" },
             { text: "著作権に関する注意書き", href: "/about/copyright/ja" },
-            { text: "をお読みください。" },
+            {
+              text:
+                "をお読みください。バグを見つけた場合は、Discordの@1zworks.comにInfoタブからダウンロードしたデバッグログをアップロードして、問題を報告していただけると助かります。",
+            },
           ],
         },
       ],
@@ -70,11 +78,7 @@
   };
 
   function detectLocale() {
-    var language =
-      Array.isArray(navigator.languages) && navigator.languages.length > 0
-        ? navigator.languages[0]
-        : navigator.language;
-    return /^ja(?:[-_]|$)/i.test(String(language || "")) ? "ja" : "en";
+    return window.ZoidiumI18n && window.ZoidiumI18n.locale === "ja" ? "ja" : "en";
   }
 
   var state = {
@@ -95,6 +99,15 @@
     paneWasInert: false,
     paneHadInertAttribute: false,
   };
+
+  function handleLocaleChange() {
+    var locale = detectLocale();
+    if (locale === state.locale) return;
+    state.locale = locale;
+    if (!state.active) return;
+    renderStep();
+    focusFirstControl();
+  }
 
   function readLocalCompletion() {
     try {
@@ -142,8 +155,9 @@
       '<div class="zoidium-welcome-tour__backdrop zoidium-welcome-tour__backdrop--left" aria-hidden="true"></div>' +
       '<div class="zoidium-welcome-tour__backdrop zoidium-welcome-tour__backdrop--right" aria-hidden="true"></div>' +
       '<div class="zoidium-welcome-tour__spotlight" aria-hidden="true"></div>' +
-      '<section class="zoidium-welcome-tour__dialog" role="dialog" aria-modal="true" aria-labelledby="zoidium-welcome-tour-title" aria-describedby="zoidium-welcome-tour-copy">' +
+      '<section class="zoidium-welcome-tour__dialog" role="dialog" aria-modal="true" aria-labelledby="zoidium-welcome-tour-title" aria-describedby="zoidium-welcome-tour-notice zoidium-welcome-tour-copy">' +
       '  <div class="zoidium-welcome-tour__content">' +
+      '    <p class="zoidium-welcome-tour__notice" id="zoidium-welcome-tour-notice" data-tour-notice hidden></p>' +
       '    <h2 class="zoidium-welcome-tour__title" id="zoidium-welcome-tour-title" data-tour-title></h2>' +
       '    <p class="zoidium-welcome-tour__copy" id="zoidium-welcome-tour-copy" data-tour-copy></p>' +
       '    <div class="zoidium-welcome-tour__footer">' +
@@ -212,6 +226,11 @@
     var content = translations[state.locale];
     var current = content.steps[state.step];
     state.root.classList.toggle("zoidium-welcome-tour--targeted", state.step === 1);
+    var notice = state.root.querySelector("[data-tour-notice]");
+    if (notice) {
+      notice.textContent = current.notice || "";
+      notice.hidden = !current.notice;
+    }
     setText("[data-tour-title]", current.title);
     renderCopy(current);
     setText(
@@ -438,6 +457,8 @@
       if (show) open();
     });
   }
+
+  document.addEventListener("zoidium:locale-change", handleLocaleChange);
 
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", start, { once: true });

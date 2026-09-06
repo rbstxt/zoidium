@@ -12,21 +12,22 @@
       "id": "easing-plus",
       "name": "Easing+",
       "author": "Zoidium",
-      "version": "8",
+      "version": "9",
       "itemCount": 1,
       "format": "curve editor",
       "tagline": "Extended Bezier Easing",
       "color": "#384668",
       "description": "A normalized cubic Bezier editor with a focused set of reusable presets.",
-      "manifest": "./plugins/easing-plus/manifest.json?v=8",
-      "bundle": "./plugins/easing-plus/bundle.json?v=8",
-      "locale": "./plugins/easing-plus/locales/ja.json?v=8"
+      "manifest": "./plugins/easing-plus/manifest.json?v=9",
+      "bundle": "./plugins/easing-plus/bundle.json?v=9",
+      "locale": "./plugins/easing-plus/locales/ja.json?v=9"
     },
     {
       "id": "player-plus",
       "name": "Player+",
       "author": "Zoidium",
       "version": "1",
+      "defaultEnabled": true,
       "itemCount": 1,
       "format": "playback controls",
       "tagline": "Playback Quality Controls",
@@ -107,7 +108,7 @@
       "tagline": "Shader Preset Pack",
       "badgeName": "Afterzoid",
       "color": "#a04ed1",
-      "description": "A complete collection of native Panzoid shader effects.",
+      "description": "AlipFXによる豊富なシェーダープリセットのパック。",
       "manifest": "./plugins/alipfx/manifest.json?v=4",
       "bundle": "./plugins/alipfx/bundle.json?v=4",
       "locale": "./plugins/alipfx/locales/ja.json?v=4"
@@ -116,16 +117,16 @@
       "id": "japanese-localization",
       "name": "日本語化",
       "author": "Zoidium",
-      "version": "29",
+      "version": "32",
       "itemCount": 1,
       "format": "UI language",
       "tagline": "Zoidiumを日本語で表示",
       "color": "#c75a8a",
       "category": "experimental",
       "description": "標準UI、エフェクト、プロパティ、ダイアログなどを日本語にします。オン／オフはいつでも切り替えられます。",
-      "manifest": "./plugins/japanese-localization/manifest.json?v=29",
-      "bundle": "./plugins/japanese-localization/bundle.json?v=29",
-      "locale": "./plugins/japanese-localization/locales/ja.json?v=29"
+      "manifest": "./plugins/japanese-localization/manifest.json?v=32",
+      "bundle": "./plugins/japanese-localization/bundle.json?v=32",
+      "locale": "./plugins/japanese-localization/locales/ja.json?v=32"
     },
     {
       "id": "layer-input",
@@ -142,6 +143,21 @@
       "manifest": "./plugins/layer-input/manifest.json?v=3",
       "bundle": "./plugins/layer-input/bundle.json?v=3",
       "locale": "./plugins/layer-input/locales/ja.json?v=3"
+    },
+    {
+      "id": "particles-plus",
+      "name": "Particles+",
+      "author": "Zoidium",
+      "version": "3",
+      "itemCount": 54,
+      "format": "particle sprites",
+      "tagline": "Extra Particle Sprites",
+      "color": "#6b5b8f",
+      "description": "Adds original monochrome particle sprites: geometric shapes, pattern textures, and glow/flare variants.",
+      "warning": "Particles+ projects require Zoidium and are not compatible with vanilla Panzoid Clipmaker 3.",
+      "manifest": "./plugins/particles-plus/manifest.json?v=3",
+      "bundle": "./plugins/particles-plus/bundle.json?v=3",
+      "locale": "./plugins/particles-plus/locales/ja.json?v=3"
     }
   ]
 }

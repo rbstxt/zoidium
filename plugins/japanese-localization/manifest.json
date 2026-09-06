@@ -3,14 +3,14 @@
   "id": "japanese-localization",
   "name": "日本語化",
   "author": "Zoidium",
-  "version": "29",
+  "version": "32",
   "locales": {
-    "ja": "./plugins/japanese-localization/locales/ja.json?v=29"
+    "ja": "./plugins/japanese-localization/locales/ja.json?v=32"
   },
   "modules": [
     {
       "id": "japanese-localization",
-      "source": "./plugins/japanese-localization/japanese-localization.js?v=29"
+      "source": "./plugins/japanese-localization/japanese-localization.js?v=31"
     }
   ]
 }
