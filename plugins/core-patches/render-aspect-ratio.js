@@ -403,9 +403,9 @@
 
     const OriginalExport = PZ.export;
     const Export = function exportWithAspectRatio(sequence, params) {
-      const settings = params?.__zoidiumDeviceRender
-        ? syncExportParams(params)
-        : null;
+      const isAspectRender =
+        params?.__zoidiumDeviceRender || params?.__zoidiumAspectRender;
+      const settings = isAspectRender ? syncExportParams(params) : null;
       const result = OriginalExport.apply(this, arguments);
       if (this.compositor) {
         if (settings) this.compositor.__zoidiumRenderSettings = settings;

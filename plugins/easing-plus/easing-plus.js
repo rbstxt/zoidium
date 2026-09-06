@@ -404,7 +404,7 @@ const EasingPlus = (() => {
   function applyCurveToTarget(target, points, propertyOps) {
     const { property, start, end } = target;
     const plan = planCurve(property, start, end, points);
-    if (!plan) throw new Error("この区間には適用できません。");
+    if (!plan) throw new Error("Easing+ cannot be applied to this keyframe range.");
     const address = property.getAddress();
     const startControlPoints = [start.controlPoints[0].slice(), plan.points[0].outgoing.slice()];
     const last = plan.points[plan.points.length - 1];

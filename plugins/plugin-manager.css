@@ -210,3 +210,81 @@
   cursor: wait;
   opacity: 0.55;
 }
+
+/* ---- plugin panel entries (accordion detail rows) ---- */
+
+.zoidium-plugin-entry > .zp-detail-body {
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.zp-detail-body > summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.zp-detail-body > summary::-webkit-details-marker {
+  display: none;
+}
+
+.zoidium-plugin-compat {
+  border: 1px solid;
+  border-radius: 999px;
+  display: inline-block;
+  font-size: 0.72em;
+  line-height: 1.05;
+  margin-left: 6px;
+  padding: 1px 5px;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.zoidium-plugin-compat[data-compat="cm3"] {
+  background-color: rgba(113, 130, 170, 0.2);
+  border-color: rgba(113, 130, 170, 0.6);
+  color: #a8b4d4;
+}
+
+.zoidium-plugin-compat[data-compat="zoidium"] {
+  background-color: var(--zoidium-plugin-warning-background);
+  border-color: var(--zoidium-plugin-warning-border);
+  color: var(--zoidium-plugin-warning-color);
+}
+
+.zoidium-plugin-experimental-badge {
+  background-color: rgba(197, 107, 61, 0.2);
+  border: 1px solid rgba(197, 107, 61, 0.6);
+  border-radius: 999px;
+  color: #d8a583;
+  display: inline-block;
+  font-size: 0.72em;
+  line-height: 1.05;
+  margin-left: 5px;
+  padding: 1px 5px;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.zoidium-plugin-entry .zoidium-plugin-state {
+  display: inline;
+  font-size: 12px;
+  margin-left: 6px;
+  white-space: nowrap;
+}
+
+.zoidium-plugin-entry .zoidium-plugin-state[data-state="disabled"] {
+  color: #6f6f6f;
+}
+
+.zoidium-plugin-entry .zoidium-plugin-state[data-state="loading"] {
+  color: #969696;
+}
+
+.zp-detail-content {
+  box-sizing: border-box;
+  padding: 2px calc(8px + var(--zoidium-scrollbar-width)) 10px 8px;
+}
+
+.zp-detail-content .zoidium-plugin-warning-row {
+  margin-top: 6px;
+}

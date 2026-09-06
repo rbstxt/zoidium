@@ -3,9 +3,9 @@
   "id": "easing-plus",
   "name": "Easing+",
   "author": "Zoidium",
-  "version": "8",
+  "version": "9",
   "locales": {
-    "ja": "./plugins/easing-plus/locales/ja.json?v=8"
+    "ja": "./plugins/easing-plus/locales/ja.json?v=9"
   },
   "resources": [
     {
@@ -17,7 +17,7 @@
   "modules": [
     {
       "id": "curve-editor",
-      "source": "./plugins/easing-plus/easing-plus.js?v=8"
+      "source": "./plugins/easing-plus/easing-plus.js?v=9"
     }
   ]
 }

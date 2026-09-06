@@ -137,6 +137,18 @@
   padding: 28px 30px 22px;
 }
 
+.zoidium-welcome-tour__notice {
+  margin: 0 0 18px;
+  padding: 11px 13px;
+  border: 1px solid #B78A3E;
+  background: #352D20;
+  color: #F1D69A;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 1.55;
+}
+
 .zoidium-welcome-tour__title {
   margin: 0;
   color: #DADADA;

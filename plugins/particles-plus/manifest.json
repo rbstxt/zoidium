@@ -1,0 +1,289 @@
+{
+  "schemaVersion": 1,
+  "id": "particles-plus",
+  "name": "Particles+",
+  "author": "Zoidium",
+  "version": "3",
+  "description": "Adds original monochrome particle sprites: geometric shapes, pattern textures, and glow/flare variants.",
+  "locales": {
+    "ja": "./plugins/particles-plus/locales/ja.json?v=3"
+  },
+  "resources": [
+    {
+      "id": "sprite-circle",
+      "type": "image",
+      "source": "./plugins/particles-plus/sprites/circle.png?v=2"
+    },
+    {
+      "id": "sprite-square",
+      "type": "image",
+      "source": "./plugins/particles-plus/sprites/square.png?v=2"
+    },
+    {
+      "id": "sprite-triangle",
+      "type": "image",
+      "source": "./plugins/particles-plus/sprites/triangle.png?v=2"
+    },
+    {
+      "id": "sprite-pentagon",
+      "type": "image",
+      "source": "./plugins/particles-plus/sprites/pentagon.png?v=2"
+    },
+    {
+      "id": "sprite-hexagon",
+      "type": "image",
+      "source": "./plugins/particles-plus/sprites/hexagon.png?v=2"
+    },
+    {
+      "id": "sprite-octagon",
+      "type": "image",
+      "source": "./plugins/particles-plus/sprites/octagon.png?v=2"
+    },
+    {
+      "id": "sprite-diamond",
+      "type": "image",
+      "source": "./plugins/particles-plus/sprites/diamond.png?v=2"
+    },
+    {
+      "id": "sprite-ring_outline",
+      "type": "image",
+      "source": "./plugins/particles-plus/sprites/ring_outline.png?v=2"
+    },
+    {
+      "id": "sprite-ring_double",
+      "type": "image",
+      "source": "./plugins/particles-plus/sprites/ring_double.png?v=2"
+    },
+    {
+      "id": "sprite-triangle_outline",
+      "type": "image",
+      "source": "./plugins/particles-plus/sprites/triangle_outline.png?v=2"
+    },
+    {
+      "id": "sprite-square_outline",
+      "type": "image",
+      "source": "./plugins/particles-plus/sprites/square_outline.png?v=2"
+    },
+    {
+      "id": "sprite-rounded_square",
+      "type": "image",
+      "source": "./plugins/particles-plus/sprites/rounded_square.png?v=2"
+    },
+    {
+      "id": "sprite-rounded_square_outline",
+      "type": "image",
+      "source": "./plugins/particles-plus/sprites/rounded_square_outline.png?v=2"
+    },
+    {
+      "id": "sprite-hexagon_outline",
+      "type": "image",
+      "source": "./plugins/particles-plus/sprites/hexagon_outline.png?v=2"
+    },
+    {
+      "id": "sprite-plus",
+      "type": "image",
+      "source": "./plugins/particles-plus/sprites/plus.png?v=2"
+    },
+    {
+      "id": "sprite-plus_cut_square",
+      "type": "image",
+      "source": "./plugins/particles-plus/sprites/plus_cut_square.png?v=2"
+    },
+    {
+      "id": "sprite-cross",
+      "type": "image",
+      "source": "./plugins/particles-plus/sprites/cross.png?v=2"
+    },
+    {
+      "id": "sprite-cross_outline",
+      "type": "image",
+      "source": "./plugins/particles-plus/sprites/cross_outline.png?v=2"
+    },
+    {
+      "id": "sprite-line_horizontal",
+      "type": "image",
+      "source": "./plugins/particles-plus/sprites/line_horizontal.png?v=2"
+    },
+    {
+      "id": "sprite-line_vertical",
+      "type": "image",
+      "source": "./plugins/particles-plus/sprites/line_vertical.png?v=2"
+    },
+    {
+      "id": "sprite-grid",
+      "type": "image",
+      "source": "./plugins/particles-plus/sprites/grid.png?v=2"
+    },
+    {
+      "id": "sprite-dot_grid",
+      "type": "image",
+      "source": "./plugins/particles-plus/sprites/dot_grid.png?v=2"
+    },
+    {
+      "id": "sprite-radial_lines",
+      "type": "image",
+      "source": "./plugins/particles-plus/sprites/radial_lines.png?v=2"
+    },
+    {
+      "id": "sprite-spiral",
+      "type": "image",
+      "source": "./plugins/particles-plus/sprites/spiral.png?v=2"
+    },
+    {
+      "id": "sprite-snowflake",
+      "type": "image",
+      "source": "./plugins/particles-plus/sprites/snowflake.png?v=2"
+    },
+    {
+      "id": "sprite-lattice",
+      "type": "image",
+      "source": "./plugins/particles-plus/sprites/lattice.png?v=2"
+    },
+    {
+      "id": "sprite-concentric_rings",
+      "type": "image",
+      "source": "./plugins/particles-plus/sprites/concentric_rings.png?v=2"
+    },
+    {
+      "id": "sprite-broken_ring",
+      "type": "image",
+      "source": "./plugins/particles-plus/sprites/broken_ring.png?v=2"
+    },
+    {
+      "id": "sprite-star_5",
+      "type": "image",
+      "source": "./plugins/particles-plus/sprites/star_5.png?v=2"
+    },
+    {
+      "id": "sprite-star_6",
+      "type": "image",
+      "source": "./plugins/particles-plus/sprites/star_6.png?v=2"
+    },
+    {
+      "id": "sprite-star_8",
+      "type": "image",
+      "source": "./plugins/particles-plus/sprites/star_8.png?v=2"
+    },
+    {
+      "id": "sprite-flare_glow_ring",
+      "type": "image",
+      "source": "./plugins/particles-plus/sprites/flare_glow_ring.png?v=2"
+    },
+    {
+      "id": "sprite-flare_halo",
+      "type": "image",
+      "source": "./plugins/particles-plus/sprites/flare_halo.png?v=2"
+    },
+    {
+      "id": "sprite-flare_double_halo",
+      "type": "image",
+      "source": "./plugins/particles-plus/sprites/flare_double_halo.png?v=2"
+    },
+    {
+      "id": "sprite-flare_blob",
+      "type": "image",
+      "source": "./plugins/particles-plus/sprites/flare_blob.png?v=2"
+    },
+    {
+      "id": "sprite-flare_orb_soft",
+      "type": "image",
+      "source": "./plugins/particles-plus/sprites/flare_orb_soft.png?v=2"
+    },
+    {
+      "id": "sprite-flare_burst",
+      "type": "image",
+      "source": "./plugins/particles-plus/sprites/flare_burst.png?v=2"
+    },
+    {
+      "id": "sprite-flare_burst_soft",
+      "type": "image",
+      "source": "./plugins/particles-plus/sprites/flare_burst_soft.png?v=2"
+    },
+    {
+      "id": "sprite-flare_needles",
+      "type": "image",
+      "source": "./plugins/particles-plus/sprites/flare_needles.png?v=2"
+    },
+    {
+      "id": "sprite-flare_starburst_fine",
+      "type": "image",
+      "source": "./plugins/particles-plus/sprites/flare_starburst_fine.png?v=2"
+    },
+    {
+      "id": "sprite-flare_starburst_dust",
+      "type": "image",
+      "source": "./plugins/particles-plus/sprites/flare_starburst_dust.png?v=2"
+    },
+    {
+      "id": "sprite-flare_eight_ray",
+      "type": "image",
+      "source": "./plugins/particles-plus/sprites/flare_eight_ray.png?v=2"
+    },
+    {
+      "id": "sprite-flare_streak_thin",
+      "type": "image",
+      "source": "./plugins/particles-plus/sprites/flare_streak_thin.png?v=2"
+    },
+    {
+      "id": "sprite-flare_streak_wide",
+      "type": "image",
+      "source": "./plugins/particles-plus/sprites/flare_streak_wide.png?v=2"
+    },
+    {
+      "id": "sprite-flare_streak_glow",
+      "type": "image",
+      "source": "./plugins/particles-plus/sprites/flare_streak_glow.png?v=2"
+    },
+    {
+      "id": "sprite-flare_vertical_streak",
+      "type": "image",
+      "source": "./plugins/particles-plus/sprites/flare_vertical_streak.png?v=2"
+    },
+    {
+      "id": "sprite-flare_crossbeam",
+      "type": "image",
+      "source": "./plugins/particles-plus/sprites/flare_crossbeam.png?v=2"
+    },
+    {
+      "id": "sprite-flare_fourdot",
+      "type": "image",
+      "source": "./plugins/particles-plus/sprites/flare_fourdot.png?v=2"
+    },
+    {
+      "id": "sprite-flare_fourdot_soft",
+      "type": "image",
+      "source": "./plugins/particles-plus/sprites/flare_fourdot_soft.png?v=2"
+    },
+    {
+      "id": "sprite-flare_sixdot",
+      "type": "image",
+      "source": "./plugins/particles-plus/sprites/flare_sixdot.png?v=2"
+    },
+    {
+      "id": "sprite-flare_ring_streak",
+      "type": "image",
+      "source": "./plugins/particles-plus/sprites/flare_ring_streak.png?v=2"
+    },
+    {
+      "id": "sprite-flare_ripple",
+      "type": "image",
+      "source": "./plugins/particles-plus/sprites/flare_ripple.png?v=2"
+    },
+    {
+      "id": "sprite-flare_spectral",
+      "type": "image",
+      "source": "./plugins/particles-plus/sprites/flare_spectral.png?v=2"
+    },
+    {
+      "id": "sprite-flare_glint",
+      "type": "image",
+      "source": "./plugins/particles-plus/sprites/flare_glint.png?v=2"
+    }
+  ],
+  "modules": [
+    {
+      "id": "particles-plus",
+      "source": "./plugins/particles-plus/particles-plus.js?v=2"
+    }
+  ]
+}

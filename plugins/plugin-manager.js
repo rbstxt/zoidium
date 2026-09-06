@@ -1,7 +1,7 @@
 (function () {
   "use strict";
 
-  const REGISTRY_URL = "./plugins/registry.json?v=14";
+  const REGISTRY_URL = "./plugins/registry.json?v=19";
   const STORAGE_PREFIX = "zoidium.plugin.enabled.";
   const SHADER_PLUGIN_MARKER = "// @zoidium-plugin ";
   const EFFECT_UUID_PROPERTY = "_zoidiumEffectUuid";
@@ -27,6 +27,7 @@
     "player-plus": "#4f7dbf",
     "layer-input": "#4f9db6",
     "geometry-plus": "#6b86c5",
+    "particles-plus": "#6b5b8f",
   });
   const pluginStates = new Map();
   const trackedNativeEffects = new Set();
@@ -35,6 +36,8 @@
   const missingPluginMaterials = new Set();
   const trackedPluginObjects = new Set();
   const missingPluginObjects = new Set();
+  const trackedPluginResources = new Set();
+  const missingPluginResources = new Set();
   const effectUuidByEntry = new WeakMap();
   let projectHooksInstalled = false;
   let editorHooksInstalled = false;
@@ -61,6 +64,53 @@
       return localStorage.getItem(storageKey(pluginId)) === "true";
     } catch (_error) {
       return false;
+    }
+  }
+
+  function isExplicitlyDisabled(pluginId) {
+    try {
+      return localStorage.getItem(storageKey(pluginId)) === "false";
+    } catch (_error) {
+      return false;
+    }
+  }
+
+  // Plugins flagged "defaultEnabled" in the registry start enabled on first
+  // run; an explicit persisted choice always wins over the default.
+  function shouldStartEnabled(plugin) {
+    if (isExplicitlyDisabled(plugin.id)) return false;
+    if (isPersistedEnabled(plugin.id)) return true;
+    return plugin.defaultEnabled === true;
+  }
+
+  // Native alert()/confirm() dialogs bypass the DOM, so the Japanese
+  // localization plugin cannot translate them; branch on its locale instead.
+  function prefersJapaneseMessages() {
+    try {
+      return window.ZoidiumI18n?.locale === "ja";
+    } catch (_error) {
+      return false;
+    }
+  }
+
+  function isSaveApprovalRemembered(pluginId) {
+    try {
+      return (
+        localStorage.getItem(`zoidium.plugin.saveApproved.${pluginId}`) === "true"
+      );
+    } catch (_error) {
+      return false;
+    }
+  }
+
+  function rememberSaveApproval(pluginId) {
+    try {
+      localStorage.setItem(
+        `zoidium.plugin.saveApproved.${pluginId}`,
+        "true"
+      );
+    } catch (_error) {
+      // Ask again on the next save if persistence is unavailable.
     }
   }
 
@@ -204,7 +254,7 @@
       if (
         !resource.id ||
         !resource.source ||
-        !["text", "json"].includes(resource.type)
+        !["text", "json", "image"].includes(resource.type)
       ) {
         throw new Error(`Invalid resource entry in ${plugin.id}`);
       }
@@ -651,14 +701,18 @@
     return JSON.parse(JSON.stringify(value));
   }
 
+  function setPluginUsageUi(state, inUse) {
+    const message = inUse
+      ? "In use by this project"
+      : `${manifestFeatureCount(state.manifest)} active`;
+    state.toggle.disabled = inUse;
+    state.status.textContent = message;
+  }
+
   function updateNativeFxUsageUi() {
     const state = pluginStates.get(NATIVE_FX_PLUGIN_ID);
     if (!state || !pluginIsEnabled(state)) return;
-    const inUse = trackedNativeEffects.size > 0;
-    state.toggle.disabled = inUse;
-    state.status.textContent = inUse
-      ? "In use by this project"
-      : `${manifestFeatureCount(state.manifest)} active`;
+    setPluginUsageUi(state, trackedNativeEffects.size > 0);
   }
 
   function trackNativeEffect(effect, metadata, missing) {
@@ -820,10 +874,7 @@
     const inUse = Array.from(trackedPluginObjects).some(
       (object) => object._zoidiumPluginMetadata?.id === pluginId && !missingPluginObjects.has(object)
     );
-    state.toggle.disabled = inUse;
-    state.status.textContent = inUse
-      ? "In use by this project"
-      : `${manifestFeatureCount(state.manifest)} active`;
+    setPluginUsageUi(state, inUse);
   }
 
   function trackPluginObject(object, metadata, missing) {
@@ -839,6 +890,35 @@
     trackedPluginObjects.delete(object);
     missingPluginObjects.delete(object);
     updatePluginObjectUsageUi(metadata?.id || object._zoidiumPluginMetadata?.id);
+  }
+
+  function updatePluginResourceUsageUi(pluginId) {
+    const state = pluginStates.get(pluginId);
+    if (!state || !pluginIsEnabled(state)) return;
+    const inUse = Array.from(trackedPluginResources).some(
+      (resource) =>
+        resource._zoidiumPluginResourceMetadata?.id === pluginId &&
+        !missingPluginResources.has(resource)
+    );
+    setPluginUsageUi(state, inUse);
+  }
+
+  function trackPluginResource(resource, metadata, missing) {
+    if (!resource || !metadata?.id) return;
+    resource._zoidiumPluginResourceMetadata = metadata;
+    trackedPluginResources.add(resource);
+    if (missing) missingPluginResources.add(resource);
+    else missingPluginResources.delete(resource);
+    updatePluginResourceUsageUi(metadata.id);
+  }
+
+  function untrackPluginResource(resource, metadata) {
+    if (!resource) return;
+    trackedPluginResources.delete(resource);
+    missingPluginResources.delete(resource);
+    updatePluginResourceUsageUi(
+      metadata?.id || resource._zoidiumPluginResourceMetadata?.id
+    );
   }
 
   function installObject3DUsageTracker() {
@@ -1287,6 +1367,39 @@
     return state?.card?.dataset.phase === "enabled";
   }
 
+  function debugErrorSummary(error) {
+    const summary = {
+      name: String(error?.name || "Error"),
+      message: String(error?.message || error || "Unknown error"),
+    };
+    if (error?.stack) summary.stack = String(error.stack);
+    if (error?.code != null) summary.code = String(error.code);
+    return summary;
+  }
+
+  function rememberPluginError(state, operation, error) {
+    if (!state) return;
+    state.lastError = {
+      operation,
+      at: new Date().toISOString(),
+      ...debugErrorSummary(error),
+    };
+  }
+
+  function getDebugPlugins() {
+    return Array.from(pluginStates.values(), (state) => ({
+      id: state.plugin.id,
+      name: state.plugin.name,
+      version: String(state.plugin.version || ""),
+      author: state.plugin.author || "",
+      enabled: pluginIsEnabled(state),
+      phase: state.card?.dataset.phase || "disabled",
+      persistedEnabled: isPersistedEnabled(state.plugin.id),
+      featureCount: state.manifest ? manifestFeatureCount(state.manifest) : null,
+      lastError: state.lastError || null,
+    })).sort((a, b) => a.id.localeCompare(b.id));
+  }
+
   function normalizeProjectPlugins(plugins) {
     if (!Array.isArray(plugins)) return [];
     const seen = new Set();
@@ -1315,6 +1428,9 @@
             : [],
           objects: Array.isArray(descriptor.objects)
             ? descriptor.objects.filter((object) => typeof object === "string")
+            : [],
+          sprites: Array.isArray(descriptor.sprites)
+            ? descriptor.sprites.filter((sprite) => typeof sprite === "string")
             : [],
         },
       ];
@@ -1486,10 +1602,11 @@
     for (const requested of plugins) {
       const state = pluginStates.get(requested.id);
       if (!state) {
+        const versionSuffix = requested.version ? ` v${requested.version}` : "";
         window.alert(
-          `このプロジェクトに必要なプラグイン「${requested.name}」${
-            requested.version ? ` v${requested.version}` : ""
-          }は、このZoidiumにはインストールされていません。`
+          prefersJapaneseMessages()
+            ? `このプロジェクトに必要なプラグイン「${requested.name}」${versionSuffix}は、このZoidiumにはインストールされていません。`
+            : `This project requires the plugin "${requested.name}"${versionSuffix}, which is not installed in this Zoidium.`
         );
         continue;
       }
@@ -1501,12 +1618,16 @@
       const installedVersion = String(state.plugin.version || "");
       const versionNote =
         requested.version && requested.version !== installedVersion
-          ? `\nプロジェクトのバージョン: ${requested.version}\nインストール済み: ${installedVersion}`
+          ? prefersJapaneseMessages()
+            ? `\nプロジェクトのバージョン: ${requested.version}\nインストール済み: ${installedVersion}`
+            : `\nProject version: ${requested.version}\nInstalled: ${installedVersion}`
           : installedVersion
             ? ` v${installedVersion}`
             : "";
       const approved = window.confirm(
-        `このプロジェクトは純正Panzoid Clipmaker 3と互換性のないプラグイン「${state.plugin.name}」${versionNote}を使用しています。\n\nこのプラグインを有効にしますか？\n拒否した場合、対象エフェクトはMissing ${state.plugin.name}として保持されます。`
+        prefersJapaneseMessages()
+          ? `このプロジェクトは純正Panzoid Clipmaker 3と互換性のないプラグイン「${state.plugin.name}」${versionNote}を使用しています。\n\nこのプラグインを有効にしますか？\n拒否した場合、対象エフェクトはMissing ${state.plugin.name}として保持されます。`
+          : `This project uses the plugin "${state.plugin.name}"${versionNote}, which is not compatible with vanilla Panzoid Clipmaker 3.\n\nEnable this plugin?\nIf you decline, the affected effects are kept as Missing ${state.plugin.name}.`
       );
       if (approved) await enablePlugin(state, true);
     }
@@ -1527,6 +1648,7 @@
           effects: new Set(),
           materials: new Set(),
           objects: new Set(),
+          sprites: new Set(),
         };
         used.set(metadata.id, entry);
       }
@@ -1572,15 +1694,32 @@
       if (metadata.object) entry.objects.add(metadata.object);
     }
 
-    return Array.from(used.values(), (entry) => ({
-      id: entry.id,
-      name: entry.name,
-      version: entry.version,
-      author: entry.author,
-      effects: Array.from(entry.effects).sort(),
-      materials: Array.from(entry.materials).sort(),
-      objects: Array.from(entry.objects).sort(),
-    })).sort((a, b) => a.id.localeCompare(b.id));
+    for (const resource of trackedPluginResources) {
+      let belongsToProject = false;
+      try {
+        belongsToProject = resource.parentProject === project;
+      } catch (_error) {
+        // Detached resources are removed by their unload hook.
+      }
+      if (!belongsToProject || !resource._zoidiumPluginResourceMetadata) continue;
+      const metadata = resource._zoidiumPluginResourceMetadata;
+      const entry = getEntry(metadata);
+      if (metadata.sprite) entry.sprites.add(metadata.sprite);
+    }
+
+    return Array.from(used.values(), (entry) => {
+      const descriptor = {
+        id: entry.id,
+        name: entry.name,
+        version: entry.version,
+        author: entry.author,
+        effects: Array.from(entry.effects).sort(),
+        materials: Array.from(entry.materials).sort(),
+        objects: Array.from(entry.objects).sort(),
+      };
+      if (entry.sprites.size > 0) descriptor.sprites = Array.from(entry.sprites).sort();
+      return descriptor;
+    }).sort((a, b) => a.id.localeCompare(b.id));
   }
 
   function installProjectPluginHooks() {
@@ -1623,15 +1762,20 @@
     const originalSave = PZ.ui.editor.prototype.save;
     PZ.ui.editor.prototype.save = async function () {
       const plugins = collectProjectPlugins(this.project);
-      if (
-        plugins.length > 0 &&
-        !window.confirm(
-          `このプロジェクトは互換性のないプラグイン（${plugins
-            .map((plugin) => plugin.name)
-            .join(", ")}）を使用しています。\nZoidiumが必要です。\n\nこのまま保存しますか？`
-        )
-      ) {
-        return;
+      const unacknowledged = plugins.filter(
+        (plugin) => !isSaveApprovalRemembered(plugin.id)
+      );
+      if (unacknowledged.length > 0) {
+        const names = unacknowledged
+          .map((plugin) => plugin.name)
+          .join(", ");
+        const approved = window.confirm(
+          prefersJapaneseMessages()
+            ? `このプロジェクトは互換性のないプラグイン（${names}）を使用しています。\nZoidiumが必要です。\n\nこのまま保存しますか？`
+            : `This project uses plugin(s) incompatible with vanilla Panzoid Clipmaker 3 (${names}).\nZoidium is required.\n\nSave anyway?`
+        );
+        if (!approved) return;
+        for (const plugin of unacknowledged) rememberSaveApproval(plugin.id);
       }
       return originalSave.apply(this, arguments);
     };
@@ -1652,14 +1796,17 @@
         await restoreMissingNativeEffects(state.plugin.id);
         await restoreMissingPluginMaterials(state.plugin.id);
         const featureCount = manifestFeatureCount(state.manifest);
+        state.lastError = null;
         if (persist) persistEnabled(state.plugin.id, true);
         updateCard(state, "enabled", featureCount + " active");
         updateNativeFxUsageUi();
         updatePluginObjectUsageUi(state.plugin.id);
+        updatePluginResourceUsageUi(state.plugin.id);
         emitState(state.plugin.id, true, featureCount);
       } catch (error) {
         unregisterPlugin(state.plugin.id);
         persistEnabled(state.plugin.id, false);
+        rememberPluginError(state, "enable", error);
         updateCard(state, "error", "Load failed");
         console.error(`[Zoidium] failed to enable ${state.plugin.name}:`, error);
       } finally {
@@ -1682,6 +1829,11 @@
           object._zoidiumPluginMetadata?.id === state.plugin.id &&
           !missingPluginObjects.has(object)
       ) ||
+      Array.from(trackedPluginResources).some(
+        (resource) =>
+          resource._zoidiumPluginResourceMetadata?.id === state.plugin.id &&
+          !missingPluginResources.has(resource)
+      ) ||
       (state.runtimeModules || []).some((runtime) => runtime.isInUse?.());
     if (inUse) {
       state.toggle.checked = true;
@@ -1695,6 +1847,26 @@
     emitState(state.plugin.id, false, 0);
   }
 
+  function compatBadgeHtml(plugin) {
+    if (plugin.warning) {
+      return `<span class="zoidium-plugin-compat" data-compat="zoidium" title="${plugin.warning}">Zoidium only</span>`;
+    }
+    return `<span class="zoidium-plugin-compat" data-compat="cm3" title="Usable in vanilla Panzoid Clipmaker 3">CM3 compatible</span>`;
+  }
+
+  function experimentalBadgeHtml(plugin) {
+    return plugin.category === "experimental"
+      ? `<span class="zoidium-plugin-experimental-badge" title="Contains experimental features">Experimental</span>`
+      : "";
+  }
+
+  function pluginSwitchHtml(plugin) {
+    return `<label class="zoidium-plugin-switch" title="Toggle ${plugin.name}">
+          <input type="checkbox" role="switch" aria-label="Enable ${plugin.name}">
+          <span class="zoidium-plugin-track" aria-hidden="true"></span>
+        </label>`;
+  }
+
   function createPluginCard(plugin) {
     const card = document.createElement("div");
     card.className = "zoidium-plugin-entry";
@@ -1704,28 +1876,27 @@
         .filter(Boolean)
         .join(" ")
     );
-    card.dataset.enabled = "false";
+    card.dataset.enabled = String(shouldStartEnabled(plugin));
     card.innerHTML = `
-      <div class="proprow noselect zoidium-plugin-row">
-        <span class="zoidium-plugin-copy">
-          <span class="zoidium-plugin-name">${plugin.name}</span>
-          <span class="zoidium-plugin-meta">${plugin.tagline || ""}<span class="zoidium-plugin-state" data-state="disabled" aria-hidden="true">Disabled</span></span>
-        </span>
-        <label class="zoidium-plugin-switch" title="Toggle ${plugin.name}">
-          <input type="checkbox" role="switch" aria-label="Enable ${plugin.name}">
-          <span class="zoidium-plugin-track" aria-hidden="true"></span>
-        </label>
-      </div>
-      <div class="proprow noselect">
-        <span class="zoidium-plugin-description">${plugin.description}</span>
-      </div>
-      ${
-        plugin.warning
-          ? `<div class="proprow noselect zoidium-plugin-warning-row">
-        <span class="zoidium-plugin-warning">${plugin.warning}</span>
-      </div>`
-          : ""
-      }`;
+      <details class="zp-detail-body">
+        <summary class="proprow noselect zoidium-plugin-row">
+          <span class="zoidium-plugin-copy">
+            <span class="zoidium-plugin-name">${plugin.name}${compatBadgeHtml(plugin)}${experimentalBadgeHtml(plugin)}</span>
+            <span class="zoidium-plugin-meta">${plugin.tagline || ""}<span class="zoidium-plugin-state" data-state="disabled" aria-hidden="true">Disabled</span></span>
+          </span>
+          <span class="zp-detail-switch">${pluginSwitchHtml(plugin)}</span>
+        </summary>
+        <div class="zp-detail-content">
+          <span class="zoidium-plugin-description">${plugin.description}</span>
+          ${
+            plugin.warning
+              ? `<div class="zoidium-plugin-warning-row">
+            <span class="zoidium-plugin-warning">${plugin.warning}</span>
+          </div>`
+              : ""
+          }
+        </div>
+      </details>`;
 
     const state = {
       plugin,
@@ -1740,37 +1911,20 @@
       replacedObjectTypes: [],
       runtimeModules: [],
       enablePromise: null,
+      lastError: null,
     };
     pluginStates.set(plugin.id, state);
+    state.toggle.checked = shouldStartEnabled(plugin);
 
+    card.querySelector(".zp-detail-switch").addEventListener("click", (event) => {
+      // The switch sits inside <summary>; keep clicks from folding the entry.
+      event.stopPropagation();
+    });
     state.toggle.addEventListener("change", () => {
       if (state.toggle.checked) enablePlugin(state, true);
       else disablePlugin(state, true);
     });
     return card;
-  }
-
-  function createPluginCategory(category) {
-    const section = document.createElement("details");
-    section.className = "zoidium-plugin-category";
-    section.dataset.categoryId = category.id;
-
-    const summary = document.createElement("summary");
-    summary.className = "zoidium-plugin-category-title";
-    summary.textContent = category.name || category.id;
-    section.appendChild(summary);
-
-    if (category.description) {
-      const description = document.createElement("div");
-      description.className = "zoidium-plugin-category-description";
-      description.textContent = category.description;
-      section.appendChild(description);
-    }
-
-    const categoryList = document.createElement("div");
-    categoryList.className = "zoidium-plugin-category-list";
-    section.appendChild(categoryList);
-    return { section, list: categoryList };
   }
 
   function createPanel(registry) {
@@ -1790,50 +1944,15 @@
 
     const search = panel.querySelector(".zoidium-plugin-search .pz-filterbox");
     const list = panel.querySelector(".zoidium-plugin-list");
-    const categories = new Map(
-      (Array.isArray(registry.categories) ? registry.categories : [])
-        .filter((category) => category && typeof category.id === "string" && category.id)
-        .map((category) => [category.id, category])
-    );
-    const categorySections = new Map();
     for (const plugin of registry.plugins) {
-      const categoryId = typeof plugin.category === "string" ? plugin.category : "";
-      if (!categoryId) {
-        list.appendChild(createPluginCard(plugin));
-        continue;
-      }
-      let category = categorySections.get(categoryId);
-      if (!category) {
-        category = createPluginCategory(
-          categories.get(categoryId) || { id: categoryId, name: categoryId }
-        );
-        categorySections.set(categoryId, category);
-      }
-      category.list.appendChild(createPluginCard(plugin));
+      list.appendChild(createPluginCard(plugin));
     }
-    for (const category of categorySections.values()) list.appendChild(category.section);
 
-    let categoryOpenState = null;
     const updateFilter = () => {
       const query = normalizePickerLabel(search.value);
-      if (query && !categoryOpenState) {
-        categoryOpenState = new Map(
-          Array.from(categorySections, ([categoryId, category]) => [categoryId, category.section.open])
-        );
+      for (const entry of list.querySelectorAll(".zoidium-plugin-entry")) {
+        entry.hidden = Boolean(query) && !entry.dataset.searchText.includes(query);
       }
-
-      for (const card of list.querySelectorAll(".zoidium-plugin-entry")) {
-        card.hidden = Boolean(query) && !card.dataset.searchText.includes(query);
-      }
-
-      for (const [categoryId, category] of categorySections) {
-        const hasVisiblePlugin = Boolean(category.list.querySelector(".zoidium-plugin-entry:not([hidden])"));
-        category.section.hidden = Boolean(query) && !hasVisiblePlugin;
-        if (query) category.section.open = hasVisiblePlugin;
-        else if (categoryOpenState) category.section.open = categoryOpenState.get(categoryId);
-      }
-
-      if (!query) categoryOpenState = null;
     };
     search.addEventListener("input", updateFilter);
     search.addEventListener("keydown", (event) => {
@@ -1909,9 +2028,12 @@
     installProjectPluginHooks();
     installEditorPluginHooks();
     PZ.zoidium = PZ.zoidium || {};
+    PZ.zoidium.getDebugPlugins = getDebugPlugins;
     installObject3DUsageTracker();
     PZ.zoidium.trackPluginMaterial = trackPluginMaterial;
     PZ.zoidium.untrackPluginMaterial = untrackPluginMaterial;
+    PZ.zoidium.trackPluginResource = trackPluginResource;
+    PZ.zoidium.untrackPluginResource = untrackPluginResource;
     installMissingNativeFactories();
     configureBundledLightDefault();
 
@@ -1924,20 +2046,21 @@
       createTab(panel);
       installEffectPickerBadges();
 
-      const persistedStates = Array.from(pluginStates.values()).filter((state) =>
-        isPersistedEnabled(state.plugin.id)
+      const startupStates = Array.from(pluginStates.values()).filter((state) =>
+        shouldStartEnabled(state.plugin)
       );
       await Promise.all(
-        persistedStates.map(async (state) => {
+        startupStates.map(async (state) => {
           try {
             await loadPluginPackageForState(state);
           } catch (error) {
+            rememberPluginError(state, "preload", error);
             console.error(`[Zoidium] failed to preload ${state.plugin.name}:`, error);
           }
         })
       );
-      for (const state of persistedStates) {
-        if (isPersistedEnabled(state.plugin.id)) await enablePlugin(state, false);
+      for (const state of startupStates) {
+        if (shouldStartEnabled(state.plugin)) await enablePlugin(state, false);
       }
     } catch (error) {
       console.error("[Zoidium] plugin manager failed to initialize:", error);

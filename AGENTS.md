@@ -123,6 +123,29 @@ plugin manager for declared resources. Do not add runtime `fetch()` calls that
 fan out into the plugin source tree when the asset can be embedded in the
 bundle. Keep plugin IDs and serialized object types stable once published.
 
+## User-facing text language
+
+Write all user-facing text in English by default. This applies to UI copy,
+badges, statuses, descriptions, warnings, native `alert()`/`confirm()` dialogs,
+and console/debug messages in Zoidium-owned runtime code. Never hardcode
+Japanese outside the Japanese localization plugin.
+
+Japanese is an overlay provided by the `japanese-localization` plugin:
+
+- DOM text gets Japanese through exact-key entries in that plugin's
+  `locales/ja.json` catalog, so any English string rendered into the DOM should
+  have a matching catalog entry.
+- Text the catalog cannot reach — native `alert()`/`confirm()` and other
+  non-DOM messages — must branch at the call site on
+  `window.ZoidiumI18n?.locale === "ja"` and provide both an English and a
+  Japanese variant.
+- Standalone scripts that render their own UI (such as the welcome tour and the
+  debug log) keep paired `en`/`ja` copy objects and detect the locale the same
+  way.
+
+Debug logs are shared with bug reports, so console messages must stay in
+English even when the localization plugin is active.
+
 ## Code quality and verification
 
 Before handing off changes:

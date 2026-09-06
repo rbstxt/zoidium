@@ -8,6 +8,15 @@
     return new URL(value, document.baseURI).href;
   }
 
+  function setDebugPhase(value) {
+    try {
+      var debugLog = global.ZOIDIUM_DEBUG_LOG;
+      if (debugLog && typeof debugLog.setPhase === "function") debugLog.setPhase(value);
+    } catch (_error) {
+      // Diagnostics must never prevent the extension layer from starting.
+    }
+  }
+
   function loadStylesheet(url) {
     return new Promise(function (resolve, reject) {
       var link = document.createElement("link");
@@ -53,14 +62,17 @@
     try {
       var overlayStyles = config.overlayStyles || [];
       for (var i = 0; i < overlayStyles.length; i += 1) {
+        setDebugPhase("loading overlay stylesheet: " + overlayStyles[i]);
         await loadStylesheet(resolveLocal(overlayStyles[i]));
       }
 
       var preInitScripts = config.preInitScripts || [];
       for (var j = 0; j < preInitScripts.length; j += 1) {
+        setDebugPhase("loading pre-init script: " + preInitScripts[j]);
         await loadScript(resolveLocal(preInitScripts[j]));
       }
 
+      setDebugPhase("initializing CM3");
       if (typeof global.initTool !== "function") {
         throw new Error("CM3 runtime did not expose initTool()");
       }
@@ -68,9 +80,11 @@
 
       var postInitScripts = config.postInitScripts || [];
       for (var k = 0; k < postInitScripts.length; k += 1) {
+        setDebugPhase("loading post-init script: " + postInitScripts[k]);
         await loadScript(resolveLocal(postInitScripts[k]));
       }
 
+      setDebugPhase("ready");
       global.dispatchEvent(new CustomEvent("zoidium:ready"));
     } catch (error) {
       showFailure(error);

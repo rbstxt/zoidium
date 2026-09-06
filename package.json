@@ -2,6 +2,7 @@
   "name": "zoidium",
   "version": "1.0.0",
   "license": "MIT",
+  "packageManager": "pnpm@11.1.2",
   "description": "Open-source toolkit for extending Clipmaker Gen3 (CM3)",
   "main": "main.js",
   "scripts": {
@@ -9,12 +10,13 @@
     "start": "electron .",
     "web": "node tools/serve-with-resources.js --port=8123",
     "dev": "node tools/serve-with-resources.js --port=8123 --open",
-    "build": "npm run build:web",
+    "build": "pnpm run build:web",
     "build:web": "node tools/build-web.js",
-    "deploy": "npm run build && npx wrangler pages deploy ./dist/web",
+    "deploy": "pnpm run build && pnpm exec wrangler pages deploy ./dist/web",
     "build:plugin-bundles": "node tools/build-plugin-bundles.js",
+    "build:sprites": "node tools/build-particles-plus-sprites.js",
     "check:plugin-bundles": "node tools/build-plugin-bundles.js --check",
-    "pre-dist": "npm run build:plugin-bundles",
+    "pre-dist": "pnpm run build:plugin-bundles",
     "dist": "node tools/build-electron.js"
   },
   "build": {

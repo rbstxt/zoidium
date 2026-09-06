@@ -5,7 +5,8 @@
  *
  * The source manifests and asset files remain readable authoring inputs. The
  * generated bundle is the only runtime package fetched by the plugin manager:
- * it contains the manifest plus the text and JSON assets referenced by it.
+ * it contains the manifest plus the text, JSON, and embedded image assets
+ * referenced by it.
  * Japanese locale catalogs intentionally stay outside the bundle so enabling
  * localization does not download a multi-megabyte shader pack just to read
  * its translations.
@@ -93,6 +94,25 @@ function addJsonAsset(assets, source, description) {
   addAsset(assets.json, source, readAssetJson(source), description);
 }
 
+const IMAGE_MIME_TYPES = {
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".gif": "image/gif",
+  ".webp": "image/webp",
+};
+
+function addImageAsset(assets, source, description) {
+  if (typeof source !== "string" || !source.trim()) {
+    throw new Error(`Missing image asset source for ${description}`);
+  }
+  const ext = path.extname(stripUrlQuery(source)).toLowerCase();
+  const mime = IMAGE_MIME_TYPES[ext];
+  if (!mime) throw new Error(`Unsupported image asset type for ${description}: ${source}`);
+  const data = fs.readFileSync(localPath(source));
+  addAsset(assets.text, source, `data:${mime};base64,${data.toString("base64")}`, description);
+}
+
 function sortObject(value) {
   return Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b, "en")));
 }
@@ -119,6 +139,7 @@ function buildBundle(manifest) {
   for (const resource of manifest.resources || []) {
     if (resource.type === "text") addTextAsset(assets, resource.source, `resource ${resource.id}`);
     else if (resource.type === "json") addJsonAsset(assets, resource.source, `resource ${resource.id}`);
+    else if (resource.type === "image") addImageAsset(assets, resource.source, `resource ${resource.id}`);
     else throw new Error(`Unsupported plugin resource type for ${resource.id}: ${resource.type}`);
   }
 
