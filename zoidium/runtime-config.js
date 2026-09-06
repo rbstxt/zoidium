@@ -5,12 +5,12 @@
     version: "1.0.0",
     overlayStyles: [
       "./zoidium/ui-overrides.css",
-      "./plugins/plugin-manager.css?v=12",
+      "./plugins/plugin-manager.css?v=15",
       "./zoidium-welcome-tour.css?v=11",
       "./zoidium/runtime-fonts.css"
     ],
     preInitScripts: [
-      "./zoidium/debug-log.js?v=2",
+      "./zoidium/debug-log.js?v=3",
       "./plugins/core-patches/window-stylesheet-guard.js?v=1",
       "./plugins/core-patches/project-media-fps.js",
       "./plugins/core-patches/video-frame-export.js",
@@ -27,8 +27,8 @@
       "./zoidium/direct-download.js"
     ],
     postInitScripts: [
-      "./plugins/plugin-manager.js?v=33",
-      "./zoidium-welcome-tour.js?v=8"
+      "./plugins/plugin-manager.js?v=37",
+      "./zoidium-welcome-tour.js?v=9"
     ],
     policy: {
       ads: "block",

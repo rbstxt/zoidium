@@ -1,7 +1,7 @@
 (function () {
   "use strict";
 
-  const REGISTRY_URL = "./plugins/registry.json?v=19";
+  const REGISTRY_URL = "./plugins/registry.json?v=22";
   const STORAGE_PREFIX = "zoidium.plugin.enabled.";
   const SHADER_PLUGIN_MARKER = "// @zoidium-plugin ";
   const EFFECT_UUID_PROPERTY = "_zoidiumEffectUuid";
@@ -83,16 +83,6 @@
     return plugin.defaultEnabled === true;
   }
 
-  // Native alert()/confirm() dialogs bypass the DOM, so the Japanese
-  // localization plugin cannot translate them; branch on its locale instead.
-  function prefersJapaneseMessages() {
-    try {
-      return window.ZoidiumI18n?.locale === "ja";
-    } catch (_error) {
-      return false;
-    }
-  }
-
   function isSaveApprovalRemembered(pluginId) {
     try {
       return (
@@ -171,12 +161,6 @@
   function validateManifest(plugin, manifest) {
     if (manifest.schemaVersion !== 1 || manifest.id !== plugin.id) {
       throw new Error(`Invalid plugin manifest: ${plugin.id}`);
-    }
-    const japaneseLocale = manifest.locales?.ja;
-    const japaneseLocaleSource =
-      typeof japaneseLocale === "string" ? japaneseLocale : japaneseLocale?.source;
-    if (typeof japaneseLocaleSource !== "string" || !japaneseLocaleSource.trim()) {
-      throw new Error(`Plugin has no valid Japanese locale: ${plugin.id}`);
     }
     const effects = manifest.effects || [];
     const groups = manifest.groups || [];
@@ -1604,9 +1588,7 @@
       if (!state) {
         const versionSuffix = requested.version ? ` v${requested.version}` : "";
         window.alert(
-          prefersJapaneseMessages()
-            ? `このプロジェクトに必要なプラグイン「${requested.name}」${versionSuffix}は、このZoidiumにはインストールされていません。`
-            : `This project requires the plugin "${requested.name}"${versionSuffix}, which is not installed in this Zoidium.`
+          `This project requires the plugin "${requested.name}"${versionSuffix}, which is not installed in this Zoidium.`
         );
         continue;
       }
@@ -1618,16 +1600,12 @@
       const installedVersion = String(state.plugin.version || "");
       const versionNote =
         requested.version && requested.version !== installedVersion
-          ? prefersJapaneseMessages()
-            ? `\nプロジェクトのバージョン: ${requested.version}\nインストール済み: ${installedVersion}`
-            : `\nProject version: ${requested.version}\nInstalled: ${installedVersion}`
+          ? `\nProject version: ${requested.version}\nInstalled: ${installedVersion}`
           : installedVersion
             ? ` v${installedVersion}`
             : "";
       const approved = window.confirm(
-        prefersJapaneseMessages()
-          ? `このプロジェクトは純正Panzoid Clipmaker 3と互換性のないプラグイン「${state.plugin.name}」${versionNote}を使用しています。\n\nこのプラグインを有効にしますか？\n拒否した場合、対象エフェクトはMissing ${state.plugin.name}として保持されます。`
-          : `This project uses the plugin "${state.plugin.name}"${versionNote}, which is not compatible with vanilla Panzoid Clipmaker 3.\n\nEnable this plugin?\nIf you decline, the affected effects are kept as Missing ${state.plugin.name}.`
+        `This project uses the plugin "${state.plugin.name}"${versionNote}, which is not compatible with vanilla Panzoid Clipmaker 3.\n\nEnable this plugin?\nIf you decline, the affected effects are kept as Missing ${state.plugin.name}.`
       );
       if (approved) await enablePlugin(state, true);
     }
@@ -1770,9 +1748,7 @@
           .map((plugin) => plugin.name)
           .join(", ");
         const approved = window.confirm(
-          prefersJapaneseMessages()
-            ? `このプロジェクトは互換性のないプラグイン（${names}）を使用しています。\nZoidiumが必要です。\n\nこのまま保存しますか？`
-            : `This project uses plugin(s) incompatible with vanilla Panzoid Clipmaker 3 (${names}).\nZoidium is required.\n\nSave anyway?`
+          `This project uses plugin(s) incompatible with vanilla Panzoid Clipmaker 3 (${names}).\nZoidium is required.\n\nSave anyway?`
         );
         if (!approved) return;
         for (const plugin of unacknowledged) rememberSaveApproval(plugin.id);
@@ -1848,8 +1824,11 @@
   }
 
   function compatBadgeHtml(plugin) {
-    if (plugin.warning) {
-      return `<span class="zoidium-plugin-compat" data-compat="zoidium" title="${plugin.warning}">Zoidium only</span>`;
+    if (plugin.zoidiumOnly || plugin.warning) {
+      return `<span class="zoidium-plugin-compat" data-compat="zoidium" title="${
+        plugin.warning ||
+        "Requires Zoidium; not compatible with vanilla Panzoid Clipmaker 3."
+      }">Zoidium only</span>`;
     }
     return `<span class="zoidium-plugin-compat" data-compat="cm3" title="Usable in vanilla Panzoid Clipmaker 3">CM3 compatible</span>`;
   }
@@ -1858,6 +1837,13 @@
     return plugin.category === "experimental"
       ? `<span class="zoidium-plugin-experimental-badge" title="Contains experimental features">Experimental</span>`
       : "";
+  }
+
+  // Panel order: CM3-compatible packs first, then Zoidium-only packs, then
+  // experimental ones. Registry order is kept inside each group.
+  function pluginDisplayOrder(plugin) {
+    if (plugin.category === "experimental") return 2;
+    return plugin.warning || plugin.zoidiumOnly ? 1 : 0;
   }
 
   function pluginSwitchHtml(plugin) {
@@ -1888,14 +1874,14 @@
         </summary>
         <div class="zp-detail-content">
           <span class="zoidium-plugin-description">${plugin.description}</span>
-          ${
-            plugin.warning
-              ? `<div class="zoidium-plugin-warning-row">
-            <span class="zoidium-plugin-warning">${plugin.warning}</span>
-          </div>`
-              : ""
-          }
         </div>
+        ${
+          plugin.warning
+            ? `<div class="zoidium-plugin-warning-row">
+          <span class="zoidium-plugin-warning">${plugin.warning}</span>
+        </div>`
+            : ""
+        }
       </details>`;
 
     const state = {
@@ -1944,7 +1930,15 @@
 
     const search = panel.querySelector(".zoidium-plugin-search .pz-filterbox");
     const list = panel.querySelector(".zoidium-plugin-list");
-    for (const plugin of registry.plugins) {
+    const orderedPlugins = registry.plugins
+      .map((plugin, index) => ({ plugin, index }))
+      .sort(
+        (a, b) =>
+          pluginDisplayOrder(a.plugin) - pluginDisplayOrder(b.plugin) ||
+          a.index - b.index,
+      )
+      .map((item) => item.plugin);
+    for (const plugin of orderedPlugins) {
       list.appendChild(createPluginCard(plugin));
     }
 

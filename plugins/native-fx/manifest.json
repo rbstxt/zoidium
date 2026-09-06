@@ -3,10 +3,7 @@
   "id": "native-fx",
   "name": "Native FX",
   "author": "Zoidium",
-  "version": "2",
-  "locales": {
-    "ja": "./plugins/native-fx/locales/ja.json?v=2"
-  },
+  "version": "3",
   "resources": [
     {
       "id": "radialblurspin-shader",

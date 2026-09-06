@@ -3,10 +3,7 @@
   "id": "layer-input",
   "name": "Layer Input",
   "author": "Zoidium",
-  "version": "3",
-  "locales": {
-    "ja": "./plugins/layer-input/locales/ja.json?v=3"
-  },
+  "version": "4",
   "resources": [
     {
       "id": "layer-input-shader",

@@ -44,14 +44,6 @@
       success: "Debug log downloaded",
       failure: "Debug log download failed",
     },
-    ja: {
-      section: "デバッグ情報",
-      description:
-        "不具合報告用に、OS・ブラウザ・有効なプラグイン・直近のエラーを保存します。プロジェクトの内容は含めません。共有前に確認してください。",
-      button: "デバッグログをダウンロード",
-      success: "デバッグログをダウンロードしました",
-      failure: "デバッグログのダウンロードに失敗しました",
-    },
   };
 
   function text(value, fallback = "") {
@@ -273,15 +265,8 @@
     }
   }
 
-  function isJapaneseLocalizationActive() {
-    return Boolean(
-      global.ZoidiumI18n?.locale === "ja" ||
-        global.document?.documentElement?.classList?.contains("zoidium-japanese")
-    );
-  }
-
   function copy() {
-    return isJapaneseLocalizationActive() ? COPY.ja : COPY.en;
+    return COPY.en;
   }
 
   function installWindowErrorListeners(context) {

@@ -231,6 +231,266 @@ module.exports = {
       );
     }
 
+    const SPLINE_MAX_POINTS = 32;
+    const SPLINE_DEFAULT_POINTS = 2;
+
+    function cross3(a, b) {
+      return [
+        a[1] * b[2] - a[2] * b[1],
+        a[2] * b[0] - a[0] * b[2],
+        a[0] * b[1] - a[1] * b[0],
+      ];
+    }
+
+    function normalize3(value, fallback) {
+      const length = Math.hypot(value[0], value[1], value[2]);
+      if (!(length > 1e-9)) return fallback.slice();
+      return [value[0] / length, value[1] / length, value[2] / length];
+    }
+
+    function isZero3(value) {
+      return Math.hypot(value[0], value[1], value[2]) <= 1e-9;
+    }
+
+    function sampleLinearSpline(points, amount) {
+      const scaled = Math.min(Math.max(amount, 0), 1) * (points.length - 1);
+      const index = Math.min(Math.floor(scaled), points.length - 2);
+      const t = scaled - index;
+      const a = points[index];
+      const b = points[index + 1];
+      return [
+        a[0] + (b[0] - a[0]) * t,
+        a[1] + (b[1] - a[1]) * t,
+        a[2] + (b[2] - a[2]) * t,
+      ];
+    }
+
+    function sampleCatmullRomSpline(points, amount) {
+      const spans = points.length - 1;
+      const scaled = Math.min(Math.max(amount, 0), 1) * spans;
+      const index = Math.min(Math.floor(scaled), spans - 1);
+      const t = scaled - index;
+      const t2 = t * t;
+      const t3 = t2 * t;
+      const p0 = points[Math.max(index - 1, 0)];
+      const p1 = points[index];
+      const p2 = points[index + 1];
+      const p3 = points[Math.min(index + 2, points.length - 1)];
+      const axis = (a, b, c, d) =>
+        0.5 *
+        (2 * b +
+          (-a + c) * t +
+          (2 * a - 5 * b + 4 * c - d) * t2 +
+          (-a + 3 * b - 3 * c + d) * t3);
+      return [
+        axis(p0[0], p1[0], p2[0], p3[0]),
+        axis(p0[1], p1[1], p2[1], p3[1]),
+        axis(p0[2], p1[2], p2[2], p3[2]),
+      ];
+    }
+
+    function sampleAkimaSpline(points, amount) {
+      const count = points.length;
+      const spans = count - 1;
+      const scaled = Math.min(Math.max(amount, 0), 1) * spans;
+      const index = Math.min(Math.floor(scaled), spans - 1);
+      const t = scaled - index;
+      const t2 = t * t;
+      const t3 = t2 * t;
+      const tangents = [];
+      for (let axis = 0; axis < 3; axis++) {
+        const values = points.map((point) => point[axis]);
+        // Slopes s[k] = values[k + 1] - values[k], extended as s[-2], s[-1],
+        // s[n - 1], s[n] following the classic Akima boundary handling.
+        const slopes = new Array(count + 4).fill(0);
+        for (let k = 0; k <= count - 2; k++) slopes[k + 2] = values[k + 1] - values[k];
+        slopes[1] = 2 * slopes[2] - slopes[3];
+        slopes[0] = 2 * slopes[1] - slopes[2];
+        slopes[count + 1] = 2 * slopes[count] - slopes[count - 1];
+        slopes[count + 2] = 2 * slopes[count + 1] - slopes[count];
+        const pointTangents = [];
+        for (let k = 0; k < count; k++) {
+          const w1 = Math.abs(slopes[k + 3] - slopes[k + 2]);
+          const w2 = Math.abs(slopes[k + 1] - slopes[k]);
+          pointTangents.push(
+            w1 + w2 < 1e-12
+              ? (slopes[k + 1] + slopes[k + 2]) / 2
+              : (w1 * slopes[k + 1] + w2 * slopes[k + 2]) / (w1 + w2)
+          );
+        }
+        const y0 = values[index];
+        const y1 = values[index + 1];
+        const m0 = pointTangents[index];
+        const m1 = pointTangents[index + 1];
+        tangents.push(
+          (2 * t3 - 3 * t2 + 1) * y0 +
+            (t3 - 2 * t2 + t) * m0 +
+            (-2 * t3 + 3 * t2) * y1 +
+            (t3 - t2) * m1
+        );
+      }
+      return tangents;
+    }
+
+    function sampleBSplineSpline(points, amount) {
+      const count = points.length;
+      const degree = 3;
+      const spans = count - degree;
+      // Open-uniform knot vector: u_j = 0 for j <= degree, j - degree for
+      // degree < j < count, spans for j >= count. The ends are clamped, so
+      // the curve starts at the first point and ends at the last point.
+      const knot = (j) => (j <= degree ? 0 : j >= count ? spans : j - degree);
+      let t = Math.min(Math.max(amount, 0), 1) * spans;
+      if (t >= spans) t = spans - 1e-9;
+      let span = degree;
+      while (span < count - 1 && t >= knot(span + 1)) span += 1;
+      const d = [];
+      for (let j = 0; j <= degree; j++) d.push(points[j + span - degree].slice());
+      for (let r = 1; r <= degree; r++) {
+        for (let j = degree; j >= r; j--) {
+          const i = j + span - degree;
+          const denom = knot(j + 1 + span - r) - knot(i);
+          const alpha = denom > 1e-12 ? (t - knot(i)) / denom : 0;
+          for (let axis = 0; axis < 3; axis++) {
+            d[j][axis] = (1 - alpha) * d[j - 1][axis] + alpha * d[j][axis];
+          }
+        }
+      }
+      return d[degree];
+    }
+
+    function sampleSplineCurve(points, interpolation, amount) {
+      if (points.length === 2) return sampleLinearSpline(points, amount);
+      if (interpolation === "Linear") return sampleLinearSpline(points, amount);
+      if (interpolation === "Akima") return sampleAkimaSpline(points, amount);
+      if (interpolation === "B-Spline" && points.length >= 4) {
+        return sampleBSplineSpline(points, amount);
+      }
+      return sampleCatmullRomSpline(points, amount);
+    }
+
+    function createSplineTubeGeometry(centerline, tubeRadius, radialSegments, caps) {
+      const geometry = new THREE.Geometry();
+      const ringCount = centerline.length;
+      if (ringCount < 2) return geometry;
+      const segmentCount = Math.max(3, radialSegments);
+
+      const diffs = [];
+      for (let i = 0; i < ringCount - 1; i++) {
+        diffs.push(
+          normalize3(
+            [
+              centerline[i + 1][0] - centerline[i][0],
+              centerline[i + 1][1] - centerline[i][1],
+              centerline[i + 1][2] - centerline[i][2],
+            ],
+            [0, 0, 0]
+          )
+        );
+      }
+      const tangents = [];
+      for (let i = 0; i < ringCount; i++) {
+        let tangent = i < ringCount - 1 && !isZero3(diffs[i]) ? diffs[i] : null;
+        if (!tangent) tangent = i > 0 && !isZero3(diffs[i - 1]) ? diffs[i - 1] : null;
+        tangents.push(tangent || [1, 0, 0]);
+      }
+
+      const normals = [];
+      let normal = null;
+      for (let i = 0; i < ringCount; i++) {
+        const tangent = tangents[i];
+        if (!normal) {
+          const reference = Math.abs(tangent[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0];
+          normal = normalize3(cross3(tangent, reference), [1, 0, 0]);
+        } else {
+          const dot =
+            normal[0] * tangent[0] +
+            normal[1] * tangent[1] +
+            normal[2] * tangent[2];
+          normal = normalize3(
+            [
+              normal[0] - tangent[0] * dot,
+              normal[1] - tangent[1] * dot,
+              normal[2] - tangent[2] * dot,
+            ],
+            normal
+          );
+        }
+        normals.push(normal);
+      }
+
+      const rings = [];
+      for (let i = 0; i < ringCount; i++) {
+        const center = centerline[i];
+        const tangent = tangents[i];
+        const up = normals[i];
+        const binormal = cross3(up, tangent);
+        const ring = [];
+        for (let j = 0; j < segmentCount; j++) {
+          const angle = (Math.PI * 2 * j) / segmentCount;
+          const cos = Math.cos(angle);
+          const sin = Math.sin(angle);
+          ring.push(geometry.vertices.length);
+          geometry.vertices.push(
+            new THREE.Vector3(
+              center[0] + tubeRadius * (cos * up[0] + sin * binormal[0]),
+              center[1] + tubeRadius * (cos * up[1] + sin * binormal[1]),
+              center[2] + tubeRadius * (cos * up[2] + sin * binormal[2])
+            )
+          );
+        }
+        rings.push(ring);
+      }
+
+      for (let i = 0; i < ringCount - 1; i++) {
+        for (let j = 0; j < segmentCount; j++) {
+          const next = (j + 1) % segmentCount;
+          geometry.faces.push(
+            new THREE.Face3(rings[i][j], rings[i + 1][j], rings[i + 1][next]),
+            new THREE.Face3(rings[i][j], rings[i + 1][next], rings[i][next])
+          );
+        }
+      }
+
+      if (caps !== "None") {
+        const addCap = (ring, center, flip) => {
+          const capCenter = geometry.vertices.length;
+          geometry.vertices.push(new THREE.Vector3(center[0], center[1], center[2]));
+          for (let j = 0; j < segmentCount; j++) {
+            const next = (j + 1) % segmentCount;
+            geometry.faces.push(
+              flip
+                ? new THREE.Face3(capCenter, ring[next], ring[j])
+                : new THREE.Face3(capCenter, ring[j], ring[next])
+            );
+          }
+        };
+        if (caps === "Both" || caps === "Start") {
+          addCap(rings[0], centerline[0], false);
+        }
+        if (caps === "Both" || caps === "End") {
+          addCap(rings[ringCount - 1], centerline[ringCount - 1], true);
+        }
+      }
+
+      geometry.computeFaceNormals();
+      return geometry;
+    }
+
+    function splinePointDefinition(index) {
+      return {
+        name: "Point " + index,
+        dynamic: true,
+        group: true,
+        type: PZ.property.type.VECTOR3,
+        objects: [
+          { dynamic: true, name: "X", type: PZ.property.type.NUMBER, value: 0, step: 1 },
+          { dynamic: true, name: "Y", type: PZ.property.type.NUMBER, value: 0, step: 1 },
+          { dynamic: true, name: "Z", type: PZ.property.type.NUMBER, value: 0, step: 1 },
+        ],
+      };
+    }
+
     function createMeshObjectBase() {
       const shapeDefinitions = PZ.object3d.shape.propertyDefinitions;
 
@@ -1072,6 +1332,224 @@ module.exports = {
       }
     }
 
+    class SplineObject extends GeometryObject {
+      constructor() {
+        super();
+        this.defaultName = "Spline";
+        this.properties.addAll({
+          points: PZ.property.create({
+            name: "Points",
+            type: PZ.property.type.NUMBER,
+            value: SPLINE_DEFAULT_POINTS,
+            min: 2,
+            max: SPLINE_MAX_POINTS,
+            step: 1,
+            decimals: 0,
+            changed: function () {
+              const object = this.parentObject;
+              if (object) {
+                object.syncSplinePoints(integerValue(this.value, SPLINE_DEFAULT_POINTS, 2));
+              }
+            },
+          }),
+          interpolation: PZ.property.create({
+            name: "Interpolation",
+            type: PZ.property.type.LIST,
+            value: "Cubic",
+            items: [
+              { name: "Linear", value: "Linear" },
+              { name: "Cubic", value: "Cubic" },
+              { name: "Akima", value: "Akima" },
+              { name: "B-Spline", value: "B-Spline" },
+            ],
+            changed: markGeometryDirty,
+          }),
+          start: numericProperty({
+            name: "Start",
+            type: PZ.property.type.NUMBER,
+            value: 0,
+            min: 0,
+            max: 1,
+            step: 0.01,
+            decimals: 2,
+          }),
+          end: numericProperty({
+            name: "End",
+            type: PZ.property.type.NUMBER,
+            value: 1,
+            min: 0,
+            max: 1,
+            step: 0.01,
+            decimals: 2,
+          }),
+          thickness: numericProperty({
+            name: "Thickness",
+            type: PZ.property.type.NUMBER,
+            value: 2,
+            min: 0,
+            step: 0.5,
+            decimals: 2,
+          }),
+          pathSegments: numericProperty({
+            name: "Path segments",
+            type: PZ.property.type.NUMBER,
+            value: 16,
+            min: 1,
+            max: 256,
+            step: 1,
+            decimals: 0,
+          }),
+          radialSegments: numericProperty({
+            name: "Radial segments",
+            type: PZ.property.type.NUMBER,
+            value: 8,
+            min: 3,
+            max: 32,
+            step: 1,
+            decimals: 0,
+          }),
+          caps: PZ.property.create({
+            name: "Caps",
+            type: PZ.property.type.LIST,
+            value: "Both",
+            items: [
+              { name: "None", value: "None" },
+              { name: "Both", value: "Both" },
+              { name: "Start", value: "Start" },
+              { name: "End", value: "End" },
+            ],
+            changed: markGeometryDirty,
+          }),
+          shading: shadingProperty(),
+        });
+        this.syncSplinePoints(SPLINE_DEFAULT_POINTS);
+        this.properties.name.set("Spline");
+      }
+
+      load(data) {
+        const serialized = data && data.properties;
+        let desired = SPLINE_DEFAULT_POINTS;
+        if (serialized && serialized.points) {
+          const entry = serialized.points;
+          const raw = Object.prototype.hasOwnProperty.call(entry, "value")
+            ? entry.value
+            : entry.keyframes && entry.keyframes[0]
+              ? entry.keyframes[0].value
+              : undefined;
+          if (Number.isFinite(Number(raw))) {
+            desired = Math.min(SPLINE_MAX_POINTS, Math.max(2, Math.round(Number(raw))));
+          }
+        }
+        this.syncSplinePoints(desired);
+        super.load(data);
+      }
+
+      syncSplinePoints(count) {
+        const target = Math.min(
+          SPLINE_MAX_POINTS,
+          Math.max(2, integerValue(count, SPLINE_DEFAULT_POINTS, 2))
+        );
+        for (let index = 1; index <= SPLINE_MAX_POINTS; index++) {
+          const key = "point" + index;
+          const exists = Boolean(this.properties[key]);
+          const wanted = index <= target;
+          if (wanted && !exists) {
+            const property = PZ.property.create(splinePointDefinition(index));
+            property.load();
+            this.properties.add(key, property);
+          } else if (!wanted && exists) {
+            this.properties.remove(key);
+          }
+        }
+        this.geometryNeedsUpdate = true;
+        this._geometrySignature = undefined;
+      }
+
+      activePointCount() {
+        return Math.min(
+          SPLINE_MAX_POINTS,
+          Math.max(2, integerValue(this.properties.points.value, SPLINE_DEFAULT_POINTS, 2))
+        );
+      }
+
+      getGeometrySignature(frame) {
+        const count = this.activePointCount();
+        const points = [];
+        for (let index = 1; index <= count; index++) {
+          points.push(this.properties["point" + index].get(frame));
+        }
+        return JSON.stringify([
+          points,
+          this.properties.interpolation.value,
+          this.properties.start.get(frame),
+          this.properties.end.get(frame),
+          this.properties.thickness.get(frame),
+          this.properties.pathSegments.get(frame),
+          this.properties.radialSegments.get(frame),
+          this.properties.caps.value,
+          this.properties.shading.get(frame),
+        ]);
+      }
+
+      generateGeometry(frame) {
+        const count = this.activePointCount();
+        const points = [];
+        for (let index = 1; index <= count; index++) {
+          const entry = this.properties["point" + index];
+          if (!entry) break;
+          const value = entry.get(frame);
+          points.push([
+            numberValue(value[0], 0),
+            numberValue(value[1], 0),
+            numberValue(value[2], 0),
+          ]);
+        }
+        if (points.length < 2) return new THREE.Geometry();
+
+        const interpolation = String(this.properties.interpolation.value || "Cubic");
+        let start = Math.min(1, Math.max(0, numberValue(this.properties.start.get(frame), 0)));
+        let end = Math.min(1, Math.max(0, numberValue(this.properties.end.get(frame), 1)));
+        if (end < start) {
+          const swap = start;
+          start = end;
+          end = swap;
+        }
+        if (end - start < 1e-4) return new THREE.Geometry();
+
+        const spans =
+          interpolation === "B-Spline" && points.length >= 4
+            ? points.length - 3
+            : points.length - 1;
+        const pathSegments = integerValue(
+          this.properties.pathSegments.get(frame),
+          16,
+          1
+        );
+        const radialSegments = integerValue(
+          this.properties.radialSegments.get(frame),
+          8,
+          3
+        );
+        const thickness = Math.max(0, numberValue(this.properties.thickness.get(frame), 2));
+        const tubeRadius = Math.max(thickness / 2, 1e-4);
+        const caps = String(this.properties.caps.value || "Both");
+
+        const totalSegments = Math.max(1, Math.round(spans * pathSegments));
+        const centerline = [];
+        for (let k = 0; k <= totalSegments; k++) {
+          const amount = start + ((end - start) * k) / totalSegments;
+          centerline.push(sampleSplineCurve(points, interpolation, amount));
+        }
+        const geometry = createSplineTubeGeometry(
+          centerline,
+          tubeRadius,
+          radialSegments,
+          caps
+        );
+        return applyShading(geometry, this.properties.shading.get(frame));
+      }
+    }
+
     unregister.push(
       object3d.registerClass({
         type: "zoidium:geometry-plus/rounded-box",
@@ -1126,6 +1604,14 @@ module.exports = {
         schemaVersion: 1,
         name: "Helix",
         factory: () => new HelixObject(),
+      })
+    );
+    unregister.push(
+      object3d.registerClass({
+        type: "zoidium:geometry-plus/spline",
+        schemaVersion: 1,
+        name: "Spline",
+        factory: () => new SplineObject(),
       })
     );
 

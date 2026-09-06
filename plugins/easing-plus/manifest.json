@@ -3,10 +3,7 @@
   "id": "easing-plus",
   "name": "Easing+",
   "author": "Zoidium",
-  "version": "9",
-  "locales": {
-    "ja": "./plugins/easing-plus/locales/ja.json?v=9"
-  },
+  "version": "10",
   "resources": [
     {
       "id": "style",

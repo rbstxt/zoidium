@@ -3,11 +3,8 @@
   "id": "particles-plus",
   "name": "Particles+",
   "author": "Zoidium",
-  "version": "3",
+  "version": "4",
   "description": "Adds original monochrome particle sprites: geometric shapes, pattern textures, and glow/flare variants.",
-  "locales": {
-    "ja": "./plugins/particles-plus/locales/ja.json?v=3"
-  },
   "resources": [
     {
       "id": "sprite-circle",

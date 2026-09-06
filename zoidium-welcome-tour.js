@@ -40,51 +40,12 @@
         },
       ],
     },
-    ja: {
-      ariaLabel: "Zoidium のウェルカムツアー",
-      progressLabel: "ツアーの進行状況",
-      back: "戻る",
-      skip: "スキップ",
-      next: "次へ",
-      done: "完了",
-      steps: [
-        {
-          notice: "非公式プロジェクト — ZoidiumはPanzoidと提携・承認関係にありません。",
-          title: "Zoidiumへようこそ！",
-          copy:
-            "Zoidiumは、プラグインと外部拡張レイヤーでCM3の体験を拡張するオープンソースツール集です。",
-        },
-        {
-          title: "プラグインで拡張",
-          copy:
-            "Zoidiumにはプラグインシステムがあり、お好みでZoidiumをカスタマイズできます！日本語化プラグインもあります。",
-        },
-        {
-          title: "始めましょう！",
-          copyParts: [
-            { text: "利用規約", href: "/about/terms/ja" },
-            { text: "、" },
-            { text: "プライバシー", href: "/about/privacy/ja" },
-            { text: "、" },
-            { text: "著作権に関する注意書き", href: "/about/copyright/ja" },
-            {
-              text:
-                "をお読みください。バグを見つけた場合は、Discordの@1zworks.comにInfoタブからダウンロードしたデバッグログをアップロードして、問題を報告していただけると助かります。",
-            },
-          ],
-        },
-      ],
-    },
   };
-
-  function detectLocale() {
-    return window.ZoidiumI18n && window.ZoidiumI18n.locale === "ja" ? "ja" : "en";
-  }
 
   var state = {
     active: false,
     completed: false,
-    locale: detectLocale(),
+    locale: "en",
     step: 0,
     root: null,
     dialog: null,
@@ -99,15 +60,6 @@
     paneWasInert: false,
     paneHadInertAttribute: false,
   };
-
-  function handleLocaleChange() {
-    var locale = detectLocale();
-    if (locale === state.locale) return;
-    state.locale = locale;
-    if (!state.active) return;
-    renderStep();
-    focusFirstControl();
-  }
 
   function readLocalCompletion() {
     try {
@@ -170,9 +122,9 @@
       '        <span data-tour-progress></span>' +
       "      </div>" +
       '      <div class="zoidium-welcome-tour__actions">' +
-      '        <button class="zoidium-welcome-tour__button zoidium-welcome-tour__button--back" type="button" data-tour-back hidden><span data-tour-back-label>戻る</span></button>' +
-      '        <button class="zoidium-welcome-tour__button zoidium-welcome-tour__button--skip" type="button" data-tour-skip>スキップ</button>' +
-      '        <button class="zoidium-welcome-tour__button zoidium-welcome-tour__button--next" type="button" data-tour-next><span data-tour-next-label>次へ</span><span class="zoidium-welcome-tour__button-arrow" aria-hidden="true">→</span></button>' +
+      '        <button class="zoidium-welcome-tour__button zoidium-welcome-tour__button--back" type="button" data-tour-back hidden><span data-tour-back-label>Back</span></button>' +
+      '        <button class="zoidium-welcome-tour__button zoidium-welcome-tour__button--skip" type="button" data-tour-skip>Skip</button>' +
+      '        <button class="zoidium-welcome-tour__button zoidium-welcome-tour__button--next" type="button" data-tour-next><span data-tour-next-label>Next</span><span class="zoidium-welcome-tour__button-arrow" aria-hidden="true">→</span></button>' +
       "      </div>" +
       "    </div>" +
       "  </div>" +
@@ -457,8 +409,6 @@
       if (show) open();
     });
   }
-
-  document.addEventListener("zoidium:locale-change", handleLocaleChange);
 
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", start, { once: true });
