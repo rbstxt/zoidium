@@ -1,5 +1,2 @@
 /plugins/*/bundle.json
   Cache-Control: public, max-age=31536000, immutable
-
-/plugins/*/locales/*.json
-  Cache-Control: public, max-age=31536000, immutable
