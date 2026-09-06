@@ -3,10 +3,7 @@
   "id": "geometry-plus",
   "name": "Geometry+",
   "author": "Zoidium",
-  "version": "2",
-  "locales": {
-    "ja": "./plugins/geometry-plus/locales/ja.json?v=2"
-  },
+  "version": "4",
   "objectCategory": "GEOMETRY+",
   "objectClassParent": {
     "name": "Shape",
@@ -87,6 +84,17 @@
       "schemaVersion": 1,
       "defaultData": {
         "type": "zoidium:geometry-plus/helix",
+        "schemaVersion": 1
+      }
+    },
+    {
+      "id": "spline",
+      "type": "zoidium:geometry-plus/spline",
+      "name": "Spline",
+      "description": "A tube swept along a 3D spline defined by editable points, with selectable interpolation, draw range, and thickness.",
+      "schemaVersion": 1,
+      "defaultData": {
+        "type": "zoidium:geometry-plus/spline",
         "schemaVersion": 1
       }
     }

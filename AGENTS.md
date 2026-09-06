@@ -57,7 +57,7 @@ Zoidium-owned runtime files that may be edited:
 - `zoidium/runtime-loader.js` — overlay bootstrap;
 - `zoidium/runtime-policy.js` — local-first account/API/ad adapters;
 - `zoidium/direct-download.js` — in-place Blob download adapter;
-- `plugins/` — extension source, generated bundles, and locale catalogs;
+- `plugins/` — extension source and generated bundles;
 - `plugins/alipfx/` — the generated Afterzoid Shader Pack 4 plugin payload and
   its rebuild metadata; keep the original source-pack dumps and CM3 runtime
   directories out of the repository;
@@ -113,10 +113,6 @@ npm run check:plugin-bundles
 
 Each plugin's normal runtime path is one generated `bundle.json`; source
 manifests and editable sources are not copied into the Electron application.
-Locale catalogs remain separate lazy resources. Every user-visible English
-message introduced by a plugin must have an exact-key Japanese translation in
-`plugins/<id>/locales/ja.json`, and the manifest's versioned locale URL must be
-updated when the catalog changes.
 
 Plugin modules and native effects must use the bundle asset API provided by the
 plugin manager for declared resources. Do not add runtime `fetch()` calls that
@@ -125,26 +121,12 @@ bundle. Keep plugin IDs and serialized object types stable once published.
 
 ## User-facing text language
 
-Write all user-facing text in English by default. This applies to UI copy,
-badges, statuses, descriptions, warnings, native `alert()`/`confirm()` dialogs,
-and console/debug messages in Zoidium-owned runtime code. Never hardcode
-Japanese outside the Japanese localization plugin.
-
-Japanese is an overlay provided by the `japanese-localization` plugin:
-
-- DOM text gets Japanese through exact-key entries in that plugin's
-  `locales/ja.json` catalog, so any English string rendered into the DOM should
-  have a matching catalog entry.
-- Text the catalog cannot reach — native `alert()`/`confirm()` and other
-  non-DOM messages — must branch at the call site on
-  `window.ZoidiumI18n?.locale === "ja"` and provide both an English and a
-  Japanese variant.
-- Standalone scripts that render their own UI (such as the welcome tour and the
-  debug log) keep paired `en`/`ja` copy objects and detect the locale the same
-  way.
-
-Debug logs are shared with bug reports, so console messages must stay in
-English even when the localization plugin is active.
+Zoidium has no localization layer. Write every piece of user-facing text — UI
+copy, badges, statuses, descriptions, warnings, native `alert()`/`confirm()`
+dialogs, and console/debug messages — in English. Never hardcode or render any
+other language in Zoidium-owned runtime code, and do not reintroduce locale
+catalogs, runtime translation dictionaries, or locale-detection branches such as
+`window.ZoidiumI18n`.
 
 ## Code quality and verification
 

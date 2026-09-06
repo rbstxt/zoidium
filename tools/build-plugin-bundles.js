@@ -7,9 +7,6 @@
  * generated bundle is the only runtime package fetched by the plugin manager:
  * it contains the manifest plus the text, JSON, and embedded image assets
  * referenced by it.
- * Japanese locale catalogs intentionally stay outside the bundle so enabling
- * localization does not download a multi-megabyte shader pack just to read
- * its translations.
  */
 
 "use strict";
@@ -163,13 +160,6 @@ function manifestUrl(manifestPath, version) {
   return `./${relative.split(path.sep).join("/")}?v=${encodeURIComponent(String(version))}`;
 }
 
-function localeSource(manifest) {
-  const definition = manifest.locales?.ja;
-  if (typeof definition === "string") return definition;
-  if (definition && typeof definition.source === "string") return definition.source;
-  return null;
-}
-
 function writeIfChanged(filePath, content) {
   if (fs.existsSync(filePath) && fs.readFileSync(filePath, "utf8") === content) return false;
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
@@ -212,11 +202,9 @@ function main() {
 
     const nextBundle = bundleUrl(manifestPath, manifest.version);
     const nextManifest = manifestUrl(manifestPath, manifest.version);
-    const nextLocale = localeSource(manifest);
     if (
       plugin.bundle !== nextBundle ||
       plugin.manifest !== nextManifest ||
-      plugin.locale !== nextLocale ||
       String(plugin.version ?? "") !== String(manifest.version ?? "")
     ) {
       if (checkOnly) {
@@ -224,7 +212,7 @@ function main() {
       }
       plugin.bundle = nextBundle;
       plugin.manifest = nextManifest;
-      plugin.locale = nextLocale;
+      delete plugin.locale;
       plugin.version = String(manifest.version ?? "");
       changedRegistry = true;
     }

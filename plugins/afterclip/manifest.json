@@ -3,10 +3,7 @@
   "id": "afterclip",
   "name": "AfterClip",
   "author": "AfterClip",
-  "version": "1",
-  "locales": {
-    "ja": "./plugins/afterclip/locales/ja.json?v=1"
-  },
+  "version": "2",
   "category": "AFTERCLIP",
   "description": "AfterClip-compatible shader effects and group presets, normalized for Zoidium.",
   "effectCount": 32,

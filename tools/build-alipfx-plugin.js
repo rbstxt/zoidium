@@ -111,9 +111,6 @@ const manifest = {
   name: "Afterzoid Shader Pack 4",
   author: "AlipFX",
   version: "4",
-  locales: {
-    ja: "./plugins/alipfx/locales/ja.json?v=4",
-  },
   category: "ALIPFX · SHADER PACK 4",
   description: "A collection of native Panzoid GLSL shader effects.",
   effectCount: effects.length,

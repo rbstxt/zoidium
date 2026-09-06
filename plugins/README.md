@@ -1,8 +1,7 @@
 # Zoidium plugins
 
 Plugins are optional CM3 extension tools. They add effects, materials, 3D object
-classes, localization, and UI integrations from an external layer around the
-runtime.
+classes, and UI integrations from an external layer around the runtime.
 The plugin manager loads only `registry.json` at startup. When a pack is enabled,
 it fetches that pack's generated single-line `bundle.json` once. The bundle contains the
 manifest, runtime modules, presets, and text assets, so enabling a pack does not
@@ -19,15 +18,11 @@ npm run build:plugin-bundles
 npm run check:plugin-bundles
 ```
 
-The builder updates the versioned `bundle`, `manifest`, and `locale` URLs in
+The builder updates the versioned `bundle` and `manifest` URLs in
 `registry.json`. `npm run dist` runs the bundle build automatically. Static
 hosts should serve the bundles with HTTP compression (Cloudflare Pages does
 this automatically); the repository's `_headers` and Electron server also set
-long-lived caching for versioned bundles and locale catalogs.
-
-Japanese locale catalogs intentionally remain separate, small, lazy language
-chunks. This prevents enabling Japanese UI from downloading the full AfterClip
-or Afterzoid shader pack when only translations are needed.
+long-lived caching for versioned bundles.
 
 UI-only plugins use a manifest `modules` array. Each module exports `activate(context)`
 and may export `deactivate()`. The plugin manager runs activation only while the pack
@@ -69,50 +64,6 @@ items are appended to the parent's existing `list` while the plugin is enabled.
 `Geometry+` is the reference implementation. It registers procedurally generated
 Rounded Box, low-poly Polyhedron, Cone, Capsule, Tube, Gear, and Helix objects through
 this API. It is disabled by default and can be enabled from the Plugin Manager.
-
-`日本語化` is an offline, catalog-driven UI localization pack. It loads its core
-Japanese catalog plus the `locales.ja` catalog declared by every plugin manifest,
-then translates exact source messages in the CM3 editor DOM, dynamically generated UI,
-dialogs, and same-origin popup windows. It does not split identifiers or translate
-individual words at runtime. The pack is disabled by default and does not override
-the editor font, so untranslated Latin text continues to use the original Source Code
-Pro font.
-
-## Localization catalogs
-
-Every plugin must ship a Japanese catalog and declare it in its manifest:
-
-```json
-{
-  "version": "1",
-  "locales": {
-    "ja": "./plugins/example/locales/ja.json?v=1"
-  }
-}
-```
-
-The catalog uses the exact English source message as its key:
-
-```json
-{
-  "schemaVersion": 1,
-  "locale": "ja",
-  "namespace": "example",
-  "messages": {
-    "Example Effect": "サンプルエフェクト",
-    "Controls the effect amount.": "エフェクト量を調整します。",
-    "Amount": "量"
-  }
-}
-```
-
-Catalogs must cover registry metadata, effect/group/object/material names and
-descriptions, property and option labels, and text created by plugin modules. When a
-plugin version changes, update both its locale URL cachebuster and any translated
-source messages that changed. The active localization API is also available as
-`window.ZoidiumI18n`; modules may call `t(message, variables)` for direct lookup or
-`registerCatalog(catalog, source)` when they create messages that cannot be declared
-in their manifest catalog.
 
 Shader packs may also declare `effects` and `groups`. An effect references one preset
 JSON and one GLSL file. A group references a group preset plus any inline shader files;
