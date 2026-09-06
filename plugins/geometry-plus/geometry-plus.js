@@ -1632,19 +1632,20 @@ module.exports = {
 
       load(data) {
         const serialized = data && data.properties;
+        const entry = serialized && serialized.points;
         let desired = SPLINE_DEFAULT_POINTS;
-        if (serialized && serialized.points) {
-          const entry = serialized.points;
+        if (typeof entry === "number" && Number.isFinite(entry)) {
+          // Static properties serialize as bare values ("points": 5).
+          desired = entry;
+        } else if (entry && typeof entry === "object") {
           const raw = Object.prototype.hasOwnProperty.call(entry, "value")
             ? entry.value
             : entry.keyframes && entry.keyframes[0]
               ? entry.keyframes[0].value
               : undefined;
-          if (Number.isFinite(Number(raw))) {
-            desired = Math.min(SPLINE_MAX_POINTS, Math.max(2, Math.round(Number(raw))));
-          }
+          if (Number.isFinite(Number(raw))) desired = Number(raw);
         }
-        this.syncSplinePoints(desired);
+        this.syncSplinePoints(Math.min(SPLINE_MAX_POINTS, Math.max(2, Math.round(desired))));
         super.load(data);
       }
 
