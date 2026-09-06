@@ -13,6 +13,7 @@
   <body>
     <nav aria-label="Site links">
       <a href="/">Zoidium</a>
+      <a href="/about/faq">FAQ</a>
       <a href="/about/terms">Terms</a>
       <a href="/about/privacy">Privacy</a>
       <a href="/about/copyright">Copyright</a>
@@ -67,7 +68,10 @@
       Storage, caching, and permission behavior provided by your browser or operating system are governed by their respective providers' specifications. In the Electron version, the application and its embedded server run on your device.
     </p>
     <p>
-      To start CM3, the Web and development Electron modes fetch the configured CM3 source page and its same-origin runtime resources into the Git-ignored `.zoidium-resources/` cache when it is absent or refreshed. `npm run build:web` and `npm run dist` reuse or create the same cache during their build. This bootstrap can expose the usual request metadata, such as IP address and user agent, to the source host, but it does not send project contents or editing data. The cache remains on the development machine after the local server ends; only disposable build trees are removed, and a static deployment contains the generated files required by that deployment.
+      To resolve problems that occur in your environment, Zoidium includes a feature to download a debug log. The log is never sent to a server automatically. The intended use is for you to contact the developer directly and attach the log. It will not be used for any purpose other than fixing bugs.
+    </p>
+    <p>
+      The optional <code>Download debug log</code> control in the Info tab creates a JSON file locally only when you click it. The file may contain the OS and browser, Zoidium and CM3 versions, enabled and installed plugin IDs and versions, plugin load failures, captured uncaught exceptions, unhandled promise rejections, console warnings and errors, loader phases, and whether separate same-origin or <code>about:blank</code> windows were opened. It does not upload the file and does not intentionally include project content, account data, cookies, local storage, IP addresses, browsing history, or unfiltered child-window URLs. Error text and stack traces may still contain technical details from a failure, so review the file before sharing it.
     </p>
     <p>
       Zoidium's Source Code Pro UI font is bundled in the application under the SIL Open Font License 1.1. The UI does not request a font from a CDN.

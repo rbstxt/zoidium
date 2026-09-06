@@ -6,6 +6,7 @@ const http = require("http");
 const { spawn } = require("child_process");
 const compression = require("compression");
 const handler = require("serve-handler");
+const { resolveDirectoryIndexUrl } = require("./directory-index");
 const { prepareRuntimeStage } = require("./runtime-resources");
 
 function parseOptions(argv) {
@@ -93,9 +94,19 @@ async function main() {
   let shuttingDown = false;
   const compressionMiddleware = compression();
   const handleRequest = (request, response) => {
-    compressionMiddleware(request, response, () => {
+    compressionMiddleware(request, response, async () => {
+      try {
+        const directoryIndexUrl = await resolveDirectoryIndexUrl(request.url, runtime.root);
+        if (directoryIndexUrl) request.url = directoryIndexUrl;
+      } catch (error) {
+        console.error("[Zoidium] local server request failed:", error);
+        if (!response.headersSent) response.writeHead(500, { "Content-Type": "text/plain" });
+        response.end("Internal Server Error");
+        return;
+      }
       handler(request, response, {
         cleanUrls: false,
+        directoryListing: false,
         etag: true,
         public: runtime.root,
         rewrites: [{ source: "/", destination: "/index.html" }],
