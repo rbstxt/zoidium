@@ -5,6 +5,7 @@ const path = require("path");
 const { promisify } = require("util");
 const compression = require("compression");
 const handler = require("serve-handler");
+const { resolveDirectoryIndexUrl } = require("./tools/directory-index");
 const {
   preparePackagedStage,
   prepareRuntimeStage,
@@ -70,9 +71,12 @@ async function createServer() {
   const localServer = http.createServer(async (request, response) => {
     try {
       await compressResponse(request, response);
+      const directoryIndexUrl = await resolveDirectoryIndexUrl(request.url, stage.root);
+      if (directoryIndexUrl) request.url = directoryIndexUrl;
       await handler(request, response, {
         public: stage.root,
         etag: true,
+        directoryListing: false,
         headers: [
           {
             source: "/plugins/*/bundle.json",

@@ -13,3 +13,9 @@ div.post_message {
 .editorwindow {
   font-family: "Source Code Pro", monospace;
 }
+
+.zoidium-debug-log,
+.zoidium-debug-log .proprow,
+.zoidium-debug-log button {
+  font-family: "Source Code Pro", monospace;
+}

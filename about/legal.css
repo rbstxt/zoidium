@@ -1,7 +1,24 @@
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("fonts/inter-latin-variable.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("fonts/inter-latin-variable.woff2") format("woff2");
+}
+
 :root {
   color: #ccc;
   background-color: #333;
-  font-family: "Source Code Pro", monospace;
+  font-family: "Inter", "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic",
+    "Meiryo", sans-serif;
   line-height: 1.8;
 }
 
@@ -10,6 +27,8 @@ body {
   margin: 0 auto;
   padding: 48px 24px 72px;
   background-color: #333;
+  font-family: "Inter", "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic",
+    "Meiryo", sans-serif;
 }
 
 header {
