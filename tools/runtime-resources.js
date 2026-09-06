@@ -399,7 +399,6 @@ async function copyPluginRuntime(stageRoot) {
   for (const entry of entries) {
     if (!entry.isDirectory() || entry.name === "core-patches") continue;
     await copyEntry(stageRoot, `plugins/${entry.name}/bundle.json`);
-    await copyEntry(stageRoot, `plugins/${entry.name}/locales`);
   }
 }
 

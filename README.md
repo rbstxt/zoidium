@@ -135,8 +135,8 @@ Zoidium/
 ## Plugins
 
 Plugins are optional CM3 extension tools. Their source, manifests, presets, and
-Japanese catalogs live under `plugins/`; the runtime normally loads each
-enabled plugin through one generated `bundle.json` request.
+presets live under `plugins/`; the runtime normally loads each enabled plugin
+through one generated `bundle.json` request.
 
 ```bash
 npm run build:plugin-bundles
@@ -144,8 +144,7 @@ npm run check:plugin-bundles
 ```
 
 `npm run dist` runs the bundle build automatically. See
-[`plugins/README.md`](./plugins/README.md) for the bundle and localization
-contracts.
+[`plugins/README.md`](./plugins/README.md) for the bundle contract.
 
 ## Scope and attribution
 

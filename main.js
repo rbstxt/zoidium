@@ -84,20 +84,11 @@ async function createServer() {
               {
                 key: "Cache-Control",
                 value: "public, max-age=31536000, immutable",
-              },
-            ],
-          },
-          {
-            source: "/plugins/*/locales/*.json",
-            headers: [
-              {
-                key: "Cache-Control",
-                value: "public, max-age=31536000, immutable",
-              },
-            ],
           },
         ],
-      });
+      },
+    ],
+  });
     } catch (error) {
       console.error("[Zoidium] local server request failed:", error);
       if (!response.headersSent) {
