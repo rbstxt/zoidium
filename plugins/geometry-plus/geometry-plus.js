@@ -252,12 +252,66 @@ module.exports = {
       return Math.hypot(value[0], value[1], value[2]) <= 1e-9;
     }
 
-    function sampleLinearSpline(points, amount) {
-      const scaled = Math.min(Math.max(amount, 0), 1) * (points.length - 1);
-      const index = Math.min(Math.floor(scaled), points.length - 2);
+    // Gradient sampling mirrors the CM3 gradient rasterizer used by native
+    // particle size: colors are parsed from "rgba(...)", interpolated linearly
+    // between stops, and the scalar comes from the premultiplied red channel.
+    function parseRgbaColor(text) {
+      const parts = String(text || "")
+        .split("(")[1]
+        .split(")")[0]
+        .split(",");
+      const number = (value, fallback) => {
+        const parsed = Number(value);
+        return Number.isFinite(parsed) ? parsed : fallback;
+      };
+      return {
+        r: number(parseInt(parts[0], 10), 0),
+        g: number(parseInt(parts[1], 10), 0),
+        b: number(parseInt(parts[2], 10), 0),
+        a: parts.length > 3 ? number(parseFloat(parts[3]), 1) : 1,
+      };
+    }
+
+    function premultipliedRed(color) {
+      return Math.min(1, Math.max(0, (color.r * color.a) / 255));
+    }
+
+    function sampleThicknessGradient(stops, position) {
+      if (!Array.isArray(stops) || stops.length === 0) return 1;
+      const parsed = stops
+        .map((stop) => ({
+          position: Math.min(1, Math.max(0, numberValue(stop.position, 0))),
+          color: parseRgbaColor(stop.color),
+        }))
+        .sort((a, b) => a.position - b.position);
+      const amount = Math.min(1, Math.max(0, numberValue(position, 0)));
+      const first = parsed[0];
+      const last = parsed[parsed.length - 1];
+      if (amount <= first.position) return premultipliedRed(first.color);
+      if (amount >= last.position) return premultipliedRed(last.color);
+      for (let index = 0; index < parsed.length - 1; index++) {
+        const lower = parsed[index];
+        const upper = parsed[index + 1];
+        if (amount >= lower.position && amount <= upper.position) {
+          const span = upper.position - lower.position;
+          const frac = span > 1e-9 ? (amount - lower.position) / span : 0;
+          return premultipliedRed({
+            r: lower.color.r + (upper.color.r - lower.color.r) * frac,
+            a: lower.color.a + (upper.color.a - lower.color.a) * frac,
+          });
+        }
+      }
+      return premultipliedRed(last.color);
+    }
+
+    function sampleLinearSpline(points, amount, closed) {
+      const count = points.length;
+      const spans = closed ? count : count - 1;
+      const scaled = Math.min(Math.max(amount, 0), 1) * spans;
+      const index = Math.min(Math.floor(scaled), spans - 1);
       const t = scaled - index;
-      const a = points[index];
-      const b = points[index + 1];
+      const a = points[index % count];
+      const b = points[(index + 1) % count];
       return [
         a[0] + (b[0] - a[0]) * t,
         a[1] + (b[1] - a[1]) * t,
@@ -265,23 +319,18 @@ module.exports = {
       ];
     }
 
-    function sampleCatmullRomSpline(points, amount) {
-      const spans = points.length - 1;
-      const scaled = Math.min(Math.max(amount, 0), 1) * spans;
-      const index = Math.min(Math.floor(scaled), spans - 1);
-      const t = scaled - index;
+    function sampleHermiteSpan(p0, p1, p2, p3, t, tension) {
       const t2 = t * t;
       const t3 = t2 * t;
-      const p0 = points[Math.max(index - 1, 0)];
-      const p1 = points[index];
-      const p2 = points[index + 1];
-      const p3 = points[Math.min(index + 2, points.length - 1)];
-      const axis = (a, b, c, d) =>
-        0.5 *
-        (2 * b +
-          (-a + c) * t +
-          (2 * a - 5 * b + 4 * c - d) * t2 +
-          (-a + 3 * b - 3 * c + d) * t3);
+      const h00 = 2 * t3 - 3 * t2 + 1;
+      const h10 = t3 - 2 * t2 + t;
+      const h01 = -2 * t3 + 3 * t2;
+      const h11 = t3 - t2;
+      const axis = (a, b, c, d) => {
+        const m1 = (tension * (c - a)) / 2;
+        const m2 = (tension * (d - b)) / 2;
+        return h00 * b + h10 * m1 + h01 * c + h11 * m2;
+      };
       return [
         axis(p0[0], p1[0], p2[0], p3[0]),
         axis(p0[1], p1[1], p2[1], p3[1]),
@@ -289,9 +338,26 @@ module.exports = {
       ];
     }
 
-    function sampleAkimaSpline(points, amount) {
+    function sampleCatmullRomSpline(points, amount, closed, tension) {
       const count = points.length;
-      const spans = count - 1;
+      const spans = closed ? count : count - 1;
+      const scaled = Math.min(Math.max(amount, 0), 1) * spans;
+      const index = Math.min(Math.floor(scaled), spans - 1);
+      const t = scaled - index;
+      const p1 = points[index % count];
+      const p2 = points[(index + 1) % count];
+      const p0 = closed
+        ? points[(index - 1 + count) % count]
+        : points[Math.max(index - 1, 0)];
+      const p3 = closed
+        ? points[(index + 2) % count]
+        : points[Math.min(index + 2, count - 1)];
+      return sampleHermiteSpan(p0, p1, p2, p3, t, tension);
+    }
+
+    function sampleAkimaSpline(points, amount, closed) {
+      const count = points.length;
+      const spans = closed ? count : count - 1;
       const scaled = Math.min(Math.max(amount, 0), 1) * spans;
       const index = Math.min(Math.floor(scaled), spans - 1);
       const t = scaled - index;
@@ -300,28 +366,47 @@ module.exports = {
       const tangents = [];
       for (let axis = 0; axis < 3; axis++) {
         const values = points.map((point) => point[axis]);
-        // Slopes s[k] = values[k + 1] - values[k], extended as s[-2], s[-1],
-        // s[n - 1], s[n] following the classic Akima boundary handling.
-        const slopes = new Array(count + 4).fill(0);
-        for (let k = 0; k <= count - 2; k++) slopes[k + 2] = values[k + 1] - values[k];
-        slopes[1] = 2 * slopes[2] - slopes[3];
-        slopes[0] = 2 * slopes[1] - slopes[2];
-        slopes[count + 1] = 2 * slopes[count] - slopes[count - 1];
-        slopes[count + 2] = 2 * slopes[count + 1] - slopes[count];
         const pointTangents = [];
-        for (let k = 0; k < count; k++) {
-          const w1 = Math.abs(slopes[k + 3] - slopes[k + 2]);
-          const w2 = Math.abs(slopes[k + 1] - slopes[k]);
-          pointTangents.push(
-            w1 + w2 < 1e-12
-              ? (slopes[k + 1] + slopes[k + 2]) / 2
-              : (w1 * slopes[k + 1] + w2 * slopes[k + 2]) / (w1 + w2)
-          );
+        if (closed) {
+          // Cyclic slopes and tangents: neighbors wrap around the loop.
+          const slopes = [];
+          for (let k = 0; k < count; k++) {
+            slopes.push(values[(k + 1) % count] - values[k]);
+          }
+          for (let k = 0; k < count; k++) {
+            const s0 = slopes[(k - 2 + count) % count];
+            const s1 = slopes[(k - 1 + count) % count];
+            const s2 = slopes[k];
+            const s3 = slopes[(k + 1) % count];
+            const w1 = Math.abs(s3 - s2);
+            const w2 = Math.abs(s1 - s0);
+            pointTangents.push(
+              w1 + w2 < 1e-12 ? (s1 + s2) / 2 : (w1 * s1 + w2 * s2) / (w1 + w2)
+            );
+          }
+        } else {
+          // Slopes s[k] = values[k + 1] - values[k], extended as s[-2], s[-1],
+          // s[n - 1], s[n] following the classic Akima boundary handling.
+          const slopes = new Array(count + 4).fill(0);
+          for (let k = 0; k <= count - 2; k++) slopes[k + 2] = values[k + 1] - values[k];
+          slopes[1] = 2 * slopes[2] - slopes[3];
+          slopes[0] = 2 * slopes[1] - slopes[2];
+          slopes[count + 1] = 2 * slopes[count] - slopes[count - 1];
+          slopes[count + 2] = 2 * slopes[count + 1] - slopes[count];
+          for (let k = 0; k < count; k++) {
+            const w1 = Math.abs(slopes[k + 3] - slopes[k + 2]);
+            const w2 = Math.abs(slopes[k + 1] - slopes[k]);
+            pointTangents.push(
+              w1 + w2 < 1e-12
+                ? (slopes[k + 1] + slopes[k + 2]) / 2
+                : (w1 * slopes[k + 1] + w2 * slopes[k + 2]) / (w1 + w2)
+            );
+          }
         }
         const y0 = values[index];
-        const y1 = values[index + 1];
+        const y1 = values[(index + 1) % count];
         const m0 = pointTangents[index];
-        const m1 = pointTangents[index + 1];
+        const m1 = pointTangents[(index + 1) % count];
         tangents.push(
           (2 * t3 - 3 * t2 + 1) * y0 +
             (t3 - 2 * t2 + t) * m0 +
@@ -332,14 +417,36 @@ module.exports = {
       return tangents;
     }
 
-    function sampleBSplineSpline(points, amount) {
+    function sampleBSplineSpline(points, amount, closed) {
       const count = points.length;
       const degree = 3;
-      const spans = count - degree;
+      if (closed) {
+        // Cyclic uniform B-spline: control point access wraps around the loop
+        // so the curve closes smoothly on itself.
+        const spans = count;
+        const scaled = Math.min(Math.max(amount, 0), 1) * spans;
+        const index = Math.min(Math.floor(scaled), spans - 1);
+        const t = scaled - index;
+        const t2 = t * t;
+        const t3 = t2 * t;
+        const at = (offset) => points[(index + offset) % count];
+        const axis = (a, b, c, d) =>
+          ((1 - t) * (1 - t) * (1 - t) * a +
+            (3 * t3 - 6 * t2 + 4) * b +
+            (-3 * t3 + 3 * t2 + 3 * t + 1) * c +
+            t3 * d) /
+          6;
+        return [
+          axis(at(0)[0], at(1)[0], at(2)[0], at(3)[0]),
+          axis(at(0)[1], at(1)[1], at(2)[1], at(3)[1]),
+          axis(at(0)[2], at(1)[2], at(2)[2], at(3)[2]),
+        ];
+      }
       // Open-uniform knot vector: u_j = 0 for j <= degree, j - degree for
       // degree < j < count, spans for j >= count. The ends are clamped, so
       // the curve starts at the first point and ends at the last point.
       const knot = (j) => (j <= degree ? 0 : j >= count ? spans : j - degree);
+      const spans = count - degree;
       let t = Math.min(Math.max(amount, 0), 1) * spans;
       if (t >= spans) t = spans - 1e-9;
       let span = degree;
@@ -359,17 +466,17 @@ module.exports = {
       return d[degree];
     }
 
-    function sampleSplineCurve(points, interpolation, amount) {
-      if (points.length === 2) return sampleLinearSpline(points, amount);
-      if (interpolation === "Linear") return sampleLinearSpline(points, amount);
-      if (interpolation === "Akima") return sampleAkimaSpline(points, amount);
-      if (interpolation === "B-Spline" && points.length >= 4) {
-        return sampleBSplineSpline(points, amount);
+    function sampleSplineCurve(points, interpolation, amount, closed, tension) {
+      if (!closed && points.length === 2) {
+        return sampleLinearSpline(points, amount, false);
       }
-      return sampleCatmullRomSpline(points, amount);
+      if (interpolation === "Linear") return sampleLinearSpline(points, amount, closed);
+      if (interpolation === "Akima") return sampleAkimaSpline(points, amount, closed);
+      if (interpolation === "B-Spline") return sampleBSplineSpline(points, amount, closed);
+      return sampleCatmullRomSpline(points, amount, closed, tension);
     }
 
-    function createSplineTubeGeometry(centerline, tubeRadius, radialSegments, caps) {
+    function createSplineTubeGeometry(centerline, radii, radialSegments, caps, capStyle) {
       const geometry = new THREE.Geometry();
       const ringCount = centerline.length;
       if (ringCount < 2) return geometry;
@@ -425,6 +532,7 @@ module.exports = {
         const tangent = tangents[i];
         const up = normals[i];
         const binormal = cross3(up, tangent);
+        const radius = Math.max(radii[i], 1e-4);
         const ring = [];
         for (let j = 0; j < segmentCount; j++) {
           const angle = (Math.PI * 2 * j) / segmentCount;
@@ -433,9 +541,9 @@ module.exports = {
           ring.push(geometry.vertices.length);
           geometry.vertices.push(
             new THREE.Vector3(
-              center[0] + tubeRadius * (cos * up[0] + sin * binormal[0]),
-              center[1] + tubeRadius * (cos * up[1] + sin * binormal[1]),
-              center[2] + tubeRadius * (cos * up[2] + sin * binormal[2])
+              center[0] + radius * (cos * up[0] + sin * binormal[0]),
+              center[1] + radius * (cos * up[1] + sin * binormal[1]),
+              center[2] + radius * (cos * up[2] + sin * binormal[2])
             )
           );
         }
@@ -452,25 +560,80 @@ module.exports = {
         }
       }
 
-      if (caps !== "None") {
-        const addCap = (ring, center, flip) => {
-          const capCenter = geometry.vertices.length;
-          geometry.vertices.push(new THREE.Vector3(center[0], center[1], center[2]));
+      const addFlatCap = (ring, center, flip) => {
+        const capCenter = geometry.vertices.length;
+        geometry.vertices.push(new THREE.Vector3(center[0], center[1], center[2]));
+        for (let j = 0; j < segmentCount; j++) {
+          const next = (j + 1) % segmentCount;
+          geometry.faces.push(
+            flip
+              ? new THREE.Face3(capCenter, ring[next], ring[j])
+              : new THREE.Face3(capCenter, ring[j], ring[next])
+          );
+        }
+      };
+
+      const addRoundCap = (ringIndex, direction) => {
+        const baseRing = rings[ringIndex];
+        const baseCenter = centerline[ringIndex];
+        const tangent = tangents[ringIndex];
+        const up = normals[ringIndex];
+        const binormal = cross3(up, tangent);
+        const capRadius = Math.max(radii[ringIndex], 1e-4);
+        const steps = 6;
+        let previousRing = baseRing;
+        for (let step = 1; step <= steps; step++) {
+          const angle = (Math.PI / 2) * (step / steps);
+          const radius = capRadius * Math.cos(angle);
+          const offset = capRadius * Math.sin(angle) * direction;
+          const capCenter = [
+            baseCenter[0] + tangent[0] * offset,
+            baseCenter[1] + tangent[1] * offset,
+            baseCenter[2] + tangent[2] * offset,
+          ];
+          if (radius <= 1e-4) {
+            const poleIndex = geometry.vertices.length;
+            geometry.vertices.push(new THREE.Vector3(capCenter[0], capCenter[1], capCenter[2]));
+            for (let j = 0; j < segmentCount; j++) {
+              const next = (j + 1) % segmentCount;
+              geometry.faces.push(
+                new THREE.Face3(poleIndex, previousRing[next], previousRing[j])
+              );
+            }
+            return;
+          }
+          const ring = [];
+          for (let j = 0; j < segmentCount; j++) {
+            const theta = (Math.PI * 2 * j) / segmentCount;
+            const cos = Math.cos(theta);
+            const sin = Math.sin(theta) * direction;
+            ring.push(geometry.vertices.length);
+            geometry.vertices.push(
+              new THREE.Vector3(
+                capCenter[0] + radius * (cos * up[0] + sin * binormal[0]),
+                capCenter[1] + radius * (cos * up[1] + sin * binormal[1]),
+                capCenter[2] + radius * (cos * up[2] + sin * binormal[2])
+              )
+            );
+          }
           for (let j = 0; j < segmentCount; j++) {
             const next = (j + 1) % segmentCount;
             geometry.faces.push(
-              flip
-                ? new THREE.Face3(capCenter, ring[next], ring[j])
-                : new THREE.Face3(capCenter, ring[j], ring[next])
+              new THREE.Face3(previousRing[j], ring[j], ring[next]),
+              new THREE.Face3(previousRing[j], ring[next], previousRing[next])
             );
           }
-        };
-        if (caps === "Both" || caps === "Start") {
-          addCap(rings[0], centerline[0], false);
+          previousRing = ring;
         }
-        if (caps === "Both" || caps === "End") {
-          addCap(rings[ringCount - 1], centerline[ringCount - 1], true);
-        }
+      };
+
+      if (caps === "Both" || caps === "Start") {
+        if (capStyle === "Round") addRoundCap(0, -1);
+        else addFlatCap(rings[0], centerline[0], false);
+      }
+      if (caps === "Both" || caps === "End") {
+        if (capStyle === "Round") addRoundCap(ringCount - 1, 1);
+        else addFlatCap(rings[ringCount - 1], centerline[ringCount - 1], true);
       }
 
       geometry.computeFaceNormals();
@@ -1364,6 +1527,12 @@ module.exports = {
             ],
             changed: markGeometryDirty,
           }),
+          closed: numericProperty({
+            name: "Closed",
+            type: PZ.property.type.OPTION,
+            items: "off;on",
+            value: 0,
+          }),
           start: numericProperty({
             name: "Start",
             type: PZ.property.type.NUMBER,
@@ -1388,6 +1557,31 @@ module.exports = {
             value: 2,
             min: 0,
             step: 0.5,
+            decimals: 2,
+          }),
+          thicknessMap: PZ.property.create({
+            name: "Thickness map",
+            type: PZ.property.type.GRADIENT,
+            value: [{ position: 0, color: "rgba(255,255,255,1.0)" }],
+            changed: markGeometryDirty,
+          }),
+          gradientSpace: PZ.property.create({
+            name: "Gradient space",
+            type: PZ.property.type.LIST,
+            value: "Curve",
+            items: [
+              { name: "Curve", value: "Curve" },
+              { name: "Trimmed", value: "Trimmed" },
+            ],
+            changed: markGeometryDirty,
+          }),
+          tension: numericProperty({
+            name: "Tension",
+            type: PZ.property.type.NUMBER,
+            value: 1,
+            min: 0,
+            max: 2,
+            step: 0.05,
             decimals: 2,
           }),
           pathSegments: numericProperty({
@@ -1417,6 +1611,16 @@ module.exports = {
               { name: "Both", value: "Both" },
               { name: "Start", value: "Start" },
               { name: "End", value: "End" },
+            ],
+            changed: markGeometryDirty,
+          }),
+          capStyle: PZ.property.create({
+            name: "Cap style",
+            type: PZ.property.type.LIST,
+            value: "Flat",
+            items: [
+              { name: "Flat", value: "Flat" },
+              { name: "Round", value: "Round" },
             ],
             changed: markGeometryDirty,
           }),
@@ -1481,12 +1685,17 @@ module.exports = {
         return JSON.stringify([
           points,
           this.properties.interpolation.value,
+          this.properties.closed.get(frame),
           this.properties.start.get(frame),
           this.properties.end.get(frame),
           this.properties.thickness.get(frame),
+          this.properties.thicknessMap.value,
+          this.properties.gradientSpace.value,
+          this.properties.tension.get(frame),
           this.properties.pathSegments.get(frame),
           this.properties.radialSegments.get(frame),
           this.properties.caps.value,
+          this.properties.capStyle.value,
           this.properties.shading.get(frame),
         ]);
       }
@@ -1507,6 +1716,7 @@ module.exports = {
         if (points.length < 2) return new THREE.Geometry();
 
         const interpolation = String(this.properties.interpolation.value || "Cubic");
+        const closed = integerValue(this.properties.closed.get(frame), 0, 0) === 1;
         let start = Math.min(1, Math.max(0, numberValue(this.properties.start.get(frame), 0)));
         let end = Math.min(1, Math.max(0, numberValue(this.properties.end.get(frame), 1)));
         if (end < start) {
@@ -1516,10 +1726,6 @@ module.exports = {
         }
         if (end - start < 1e-4) return new THREE.Geometry();
 
-        const spans =
-          interpolation === "B-Spline" && points.length >= 4
-            ? points.length - 3
-            : points.length - 1;
         const pathSegments = integerValue(
           this.properties.pathSegments.get(frame),
           16,
@@ -1532,19 +1738,37 @@ module.exports = {
         );
         const thickness = Math.max(0, numberValue(this.properties.thickness.get(frame), 2));
         const tubeRadius = Math.max(thickness / 2, 1e-4);
-        const caps = String(this.properties.caps.value || "Both");
+        const caps = closed ? "None" : String(this.properties.caps.value || "Both");
+        const capStyle = String(this.properties.capStyle.value || "Flat");
+        const tension = Math.min(2, Math.max(0, numberValue(this.properties.tension.get(frame), 1)));
+        const thicknessMap = this.properties.thicknessMap.value;
+        const gradientSpace = String(this.properties.gradientSpace.value || "Curve");
+        const spans = closed
+          ? points.length
+          : interpolation === "B-Spline" && points.length >= 4
+            ? points.length - 3
+            : points.length - 1;
 
         const totalSegments = Math.max(1, Math.round(spans * pathSegments));
         const centerline = [];
+        const radii = [];
         for (let k = 0; k <= totalSegments; k++) {
           const amount = start + ((end - start) * k) / totalSegments;
-          centerline.push(sampleSplineCurve(points, interpolation, amount));
+          centerline.push(sampleSplineCurve(points, interpolation, amount, closed, tension));
+          const gradientPosition =
+            gradientSpace === "Trimmed"
+              ? (amount - start) / Math.max(end - start, 1e-9)
+              : amount;
+          radii.push(
+            tubeRadius * sampleThicknessGradient(thicknessMap, gradientPosition)
+          );
         }
         const geometry = createSplineTubeGeometry(
           centerline,
-          tubeRadius,
+          radii,
           radialSegments,
-          caps
+          caps,
+          capStyle
         );
         return applyShading(geometry, this.properties.shading.get(frame));
       }
