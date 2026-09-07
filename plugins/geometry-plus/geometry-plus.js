@@ -1646,7 +1646,20 @@ module.exports = {
           if (Number.isFinite(Number(raw))) desired = Number(raw);
         }
         this.syncSplinePoints(Math.min(SPLINE_MAX_POINTS, Math.max(2, Math.round(desired))));
+        this.resetSplinePointKeyframes();
         super.load(data);
+      }
+
+      resetSplinePointKeyframes() {
+        for (let index = 1; index <= SPLINE_MAX_POINTS; index++) {
+          const property = this.properties["point" + index];
+          if (!property || !property.objects) continue;
+          for (const component of property.objects) {
+            if (component.keyframes && component.keyframes.length) {
+              component.keyframes.splice(0, component.keyframes.length);
+            }
+          }
+        }
       }
 
       syncSplinePoints(count) {
