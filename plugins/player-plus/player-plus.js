@@ -18,6 +18,7 @@ const PlayerPlus = (() => {
     toolbar: null,
     pauseButton: null,
     pauseIcon: null,
+    renderOnceButton: null,
     qualitySelect: null,
     toolbarObserver: null,
     style: null,
@@ -58,12 +59,13 @@ const PlayerPlus = (() => {
     style.id = STYLE_ID;
     style.textContent = `
       .zoidium-player-plus-toolbar {
-        padding-left: 40px !important;
+        padding-left: 70px !important;
         padding-right: 125px !important;
         position: absolute !important;
       }
 
-      .zoidium-player-plus-pause {
+      .zoidium-player-plus-pause,
+      .zoidium-player-plus-render-once {
         background: transparent !important;
         border: 2px solid transparent !important;
         box-sizing: border-box;
@@ -77,16 +79,37 @@ const PlayerPlus = (() => {
         width: 30px;
       }
 
-      .zoidium-player-plus-pause:focus-visible {
+      .zoidium-player-plus-pause {
+        left: 5px;
+      }
+
+      .zoidium-player-plus-render-once {
+        left: 40px;
+      }
+
+      .zoidium-player-plus-pause:focus,
+      .zoidium-player-plus-render-once:focus {
         border-color: #384668 !important;
         outline: 0;
       }
 
-      .zoidium-player-plus-pause svg {
+      .zoidium-player-plus-render-once {
+        height: 26px !important;
+        width: 27px;
+        top: 6px;
+      }
+
+      .zoidium-player-plus-pause svg,
+      .zoidium-player-plus-render-once svg {
         fill: #acacac;
         height: 25px;
         pointer-events: none;
         width: 25px;
+      }
+
+      .zoidium-player-plus-render-once svg {
+        height: 23px;
+        width: 23px;
       }
 
       .zoidium-player-plus-pause.is-paused svg {
@@ -207,11 +230,15 @@ const PlayerPlus = (() => {
     state.patchedRenderPipeline = function () {
       registerViewport(this);
       if (this.__zoidiumPlayerPlusPaused) {
-        if (this.animFrameReq != null) {
-          state.window.cancelAnimationFrame(this.animFrameReq);
-          this.animFrameReq = null;
+        if (this.__zoidiumPlayerPlusRenderOnce) {
+          this.__zoidiumPlayerPlusRenderOnce = false;
+        } else {
+          if (this.animFrameReq != null) {
+            state.window.cancelAnimationFrame(this.animFrameReq);
+            this.animFrameReq = null;
+          }
+          return;
         }
-        return;
       }
       return state.originalRenderPipeline.apply(this, arguments);
     };
@@ -241,6 +268,7 @@ const PlayerPlus = (() => {
       delete viewport.__zoidiumPlayerPlusFrame;
       delete viewport.__zoidiumPlayerPlusOriginalFrame;
       delete viewport.__zoidiumPlayerPlusPaused;
+      delete viewport.__zoidiumPlayerPlusRenderOnce;
     }
     state.viewports.clear();
     state.viewportPrototype = null;
@@ -281,6 +309,23 @@ const PlayerPlus = (() => {
     }
   }
 
+  function renderViewportOnce(viewport) {
+    if (!viewport?.enabled || typeof viewport._render !== "function") return;
+    const frame = viewport.editor?.playback?.currentFrame;
+    viewport.__zoidiumPlayerPlusRenderOnce = true;
+    try {
+      viewport.widget2d?.update?.(frame);
+      viewport.widget3d?.update?.(frame);
+      viewport._render();
+    } finally {
+      viewport.__zoidiumPlayerPlusRenderOnce = false;
+    }
+  }
+
+  function renderOnce() {
+    for (const viewport of getViewports()) renderViewportOnce(viewport);
+  }
+
   function createPauseButton(toolbar) {
     const button = state.document.createElement("button");
     button.className = "zoidium-player-plus-pause";
@@ -292,6 +337,19 @@ const PlayerPlus = (() => {
     state.pauseButton = button;
     state.pauseIcon = icon;
     updatePauseButton();
+  }
+
+  function createRenderOnceButton(toolbar) {
+    const button = state.document.createElement("button");
+    button.className = "zoidium-player-plus-render-once";
+    button.type = "button";
+    button.title = "Render once";
+    button.setAttribute("aria-label", button.title);
+    button.addEventListener("click", renderOnce);
+    const icon = state.PZ.ui.generateIcon("reset");
+    button.appendChild(icon);
+    toolbar.insertBefore(button, state.pauseButton?.nextSibling || toolbar.firstElementChild);
+    state.renderOnceButton = button;
   }
 
   function createQualitySelect(toolbar) {
@@ -321,11 +379,13 @@ const PlayerPlus = (() => {
     if (!toolbar) return;
     if (toolbar.dataset.zoidiumPlayerPlus === "true") {
       const pauseButton = toolbar.querySelector(".zoidium-player-plus-pause");
+      const renderOnceButton = toolbar.querySelector(".zoidium-player-plus-render-once");
       const qualitySelect = toolbar.querySelector(".zoidium-player-plus-quality");
-      if (pauseButton && qualitySelect) {
+      if (pauseButton && renderOnceButton && qualitySelect) {
         state.toolbar = toolbar;
         state.pauseButton = pauseButton;
         state.pauseIcon = pauseButton.querySelector("svg");
+        state.renderOnceButton = renderOnceButton;
         state.qualitySelect = qualitySelect;
         updatePauseButton();
         return;
@@ -336,6 +396,7 @@ const PlayerPlus = (() => {
     toolbar.classList.add("zoidium-player-plus-toolbar");
     state.toolbar = toolbar;
     createPauseButton(toolbar);
+    createRenderOnceButton(toolbar);
     createQualitySelect(toolbar);
     applyQualityToAllViewports();
   }
@@ -362,10 +423,12 @@ const PlayerPlus = (() => {
       delete state.toolbar.dataset.zoidiumPlayerPlus;
     }
     state.pauseButton?.remove();
+    state.renderOnceButton?.remove();
     state.qualitySelect?.remove();
     state.toolbar = null;
     state.pauseButton = null;
     state.pauseIcon = null;
+    state.renderOnceButton = null;
     state.qualitySelect = null;
   }
 

@@ -5,17 +5,28 @@
   "packageManager": "pnpm@11.1.2",
   "description": "Open-source toolkit for extending Clipmaker Gen3 (CM3)",
   "main": "main.js",
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "setup": "node tools/runtime-resources.js --setup",
     "start": "electron .",
     "web": "node tools/serve-with-resources.js --port=8123",
     "dev": "node tools/serve-with-resources.js --port=8123 --open",
     "build": "pnpm run build:web",
+    "prebuild:web": "pnpm run build:plugin-bundles",
     "build:web": "node tools/build-web.js",
     "deploy": "pnpm run build && pnpm exec wrangler pages deploy ./dist/web",
     "build:plugin-bundles": "node tools/build-plugin-bundles.js",
     "build:sprites": "node tools/build-particles-plus-sprites.js",
+    "generate:pzicon-sheet": "node tools/generate-pzicon-sheet.js --png",
+    "generate:afterclip": "node tools/build-afterclip-plugin.js",
+    "generate:alipfx": "node tools/build-alipfx-plugin.js",
+    "check:plugin-manifests": "node tools/validate-plugin-manifests.js",
     "check:plugin-bundles": "node tools/build-plugin-bundles.js --check",
+    "check:syntax": "node tools/check-syntax.js",
+    "test": "node --test",
+    "verify": "node tools/verify.js",
     "pre-dist": "pnpm run build:plugin-bundles",
     "dist": "node tools/build-electron.js"
   },
@@ -52,6 +63,7 @@
     "compression": "^1.8.1"
   },
   "devDependencies": {
+    "ajv": "^8.18.0",
     "electron": "^28.0.0",
     "electron-builder": "^24.9.1",
     "serve": "^14.2.6",

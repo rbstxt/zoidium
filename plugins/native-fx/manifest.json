@@ -3,7 +3,7 @@
   "id": "native-fx",
   "name": "Native FX",
   "author": "Zoidium",
-  "version": "3",
+  "version": "4",
   "resources": [
     {
       "id": "radialblurspin-shader",
@@ -24,6 +24,18 @@
       "name": "Drop Shadow",
       "description": "Adds a colored, offset, blurred shadow behind the layer.",
       "source": "./plugins/native-fx/effects/dropshadow.js"
+    },
+    {
+      "id": "timeoffset",
+      "name": "Time Offset",
+      "description": "Evaluates the layer at a deterministic time offset; on an Adjustment layer, affects every lower track.",
+      "source": "./plugins/native-fx/effects/timeoffset.js"
+    },
+    {
+      "id": "posterizetime",
+      "name": "Posterize Time",
+      "description": "Evaluates the layer on a deterministic lower frame-rate clock; on an Adjustment layer, affects every lower track.",
+      "source": "./plugins/native-fx/effects/posterizetime.js"
     }
   ]
 }

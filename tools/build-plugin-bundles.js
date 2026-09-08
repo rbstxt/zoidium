@@ -13,6 +13,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const { validateManifest } = require("./validate-plugin-manifests");
 
 const projectRoot = path.resolve(__dirname, "..");
 const registryPath = path.join(projectRoot, "plugins", "registry.json");
@@ -182,7 +183,8 @@ function main() {
 
     const manifestPath = localPath(plugin.manifest);
     const manifest = readJson(manifestPath);
-    if (manifest.schemaVersion !== 1 || manifest.id !== plugin.id) {
+    validateManifest(manifest, path.relative(projectRoot, manifestPath));
+    if (manifest.id !== plugin.id) {
       throw new Error(`Manifest does not match registry entry: ${plugin.id}`);
     }
     const bundle = buildBundle(manifest);

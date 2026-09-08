@@ -14,7 +14,7 @@ Zoidiumのソースコード、プラグイン、ドキュメント、ビルド�
 リポジトリには、CM3のランタイム、エフェクト、マテリアル、ワーカー、
 シェーダー、テクスチャ、CM3由来のフォント、アイコン、ダウンロードページを
 含めません。一方、`fonts/`には別ライセンスで利用できるSource Code Proを
-同梱しています。これはPanzoid/CM3リソースではありません。`npm run setup`または
+同梱しています。これはPanzoid/CM3リソースではありません。`pnpm run setup`または
 開発・ビルドの開始時に、
 `tools/runtime-resources.js` が設定されたCM3ソースページと同一オリジンの
 リソースグラフをGit管理外の`.zoidium-resources/`へ取得します。キャッシュは
@@ -25,15 +25,23 @@ CM3固有のフォントプリセットはキャッシュから使いますが�
 
 ## クイックスタート
 
-前提: Node.js 18+ と npm。
+前提: Node.js 18+ と pnpm 11.1.2。リポジトリの`package.json`でpnpmのバージョンを固定しています。
 
 ```bash
-npm install
-npm run setup     # CM3リソースキャッシュを取得・更新
-npm run web       # キャッシュを準備して http://127.0.0.1:8123 と http://localhost:8123 で配信
-npm run dev       # 同じ処理を行い、ブラウザも開く
-npm start         # Electron開発モード（キャッシュを使用）
+corepack enable
+pnpm install --frozen-lockfile
+pnpm run setup     # CM3リソースキャッシュを取得・更新
+pnpm run web       # キャッシュを準備して http://127.0.0.1:8123 と http://localhost:8123 で配信
+pnpm run dev       # 同じ処理を行い、ブラウザも開く
+pnpm start         # Electron開発モード（キャッシュを使用）
+pnpm run verify    # マニフェスト、バンドル、構文、テストを確認
 ```
+
+ローカルWebサーバーはZoidium管理の実行時ファイルをチェックアウトから
+直接配信するため、サーバーを再起動せずにブラウザを再読み込みすれば編集内容が
+反映されます。プラグインのソースやマニフェストを変更した場合は
+`pnpm run build:plugin-bundles`で生成済みバンドルを更新してください。次の再読み込み
+からすぐに使用されます。
 
 リポジトリの`index.html`を`file://`で直接開かないでください。これは
 ブートストラップ用のプレースホルダーであり、実際のCM3ページは実行時
@@ -44,12 +52,12 @@ npm start         # Electron開発モード（キャッシュを使用）
 静的サイトを作る場合:
 
 ```bash
-npm run build
+pnpm run build
 ```
 
 生成先は`dist/web/`です（Gitの対象外）。Cloudflare Pagesなどの静的ホストでは、
-Build commandを`npm run build`、出力ディレクトリを`dist/web`に設定します。
-`npm run build`は`npm run build:web`と同じCM3 Fetch処理を行うDeployの入口です。
+Build commandを`pnpm run build`、出力ディレクトリを`dist/web`に設定します。
+`pnpm run build`は`pnpm run build:web`と同じCM3 Fetch処理を行うDeployの入口です。
 `wrangler.jsonc`にもPagesの出力先として`dist/web`を記録しています。ビルド時に
 CM3ソースグラフを取得するため、ビルド環境にはネットワーク接続が必要です。
 リポジトリ直下をDeployしないでください。直下の`index.html`はソースチェックアウト用の
@@ -58,7 +66,7 @@ CM3ソースグラフを取得するため、ビルド環境にはネットワ�
 Cloudflare Pagesへ直接Deployする場合は次を実行します。
 
 ```bash
-npm run deploy
+pnpm run deploy
 ```
 
 CM3ステージを先に生成し、`dist/web/`だけをWranglerで公開します。
@@ -67,7 +75,7 @@ Wranglerの認証と`zoidium` Pagesプロジェクトへのアクセス権が必
 デスクトップ配布物を作る場合:
 
 ```bash
-npm run dist
+pnpm run dist
 ```
 
 Electronビルダーは、キャッシュ済みのCM3リソースを一時的なアプリツリーへ展開して
@@ -91,12 +99,17 @@ Electronビルダーは、キャッシュ済みのCM3リソースを一時的な
 6. ローカルサーバー終了後もキャッシュを保持し、ビルド処理用の一時ツリーだけを終了時に削除する。
 
 コミット済みのリソースマニフェストやソースページのコピーはありません。
-`npm run setup`で現在のHTMLとランタイムグラフからキャッシュを更新し、通常の実行は
+`pnpm run setup`で現在のHTMLとランタイムグラフからキャッシュを更新し、通常の実行は
 そのキャッシュを再利用します。キャッシュがない場合は`web`やビルドが自動作成します。
 
 保存・書き出し時は、CM3側の旧来のダウンロードページ遷移を
 `zoidium/direct-download.js`が捕捉し、生成済みBlobをその場でブラウザの
 ダウンロード機構へ渡します。別ページや新しいウィンドウは開きません。
+
+`tools/runtime-resources.js`はCM3ファイルを取得する唯一の処理です。設定された
+ソースページを取得し、同一オリジンの参照ファイルを検出し、Git管理外のキャッシュへ
+保存します。その後、Zoidiumのファイルをステージへコピーし、CM3の初期化を遅延させる
+パッチを適用します。ブラウザサーバー、Webビルダー、Electronビルダーはこの処理を共有します。
 
 ## リポジトリ構成
 
@@ -105,7 +118,7 @@ Zoidium/
 ├── index.html                  # ブートストラップ用プレースホルダー
 ├── LICENSE                     # Zoidiumが保有する部分のMIT License
 ├── main.js                     # Electronプロセスとキャッシュ利用サーバー
-├── package.json                # npmスクリプトとElectron設定
+├── package.json                # pnpmスクリプトとElectron設定
 ├── fonts/
 │   ├── fonts.css               # ローカルSource Code Pro
 │   ├── source-code-pro-regular.woff2
@@ -129,15 +142,16 @@ Zoidium/
 ## プラグイン
 
 プラグインはCM3を拡張する任意のツールです。ソース、マニフェスト、プリセット、
-日本語カタログは`plugins/`に置き、通常の実行時には有効化されたプラグインごとに
+編集用アセットは`plugins/`に置き、通常の実行時には有効化されたプラグインごとに
 生成済みの`bundle.json`を1回取得します。
 
 ```bash
-npm run build:plugin-bundles
-npm run check:plugin-bundles
+pnpm run build:plugin-bundles
+pnpm run check:plugin-manifests
+pnpm run check:plugin-bundles
 ```
 
-`npm run dist`ではバンドル生成も自動実行されます。バンドルと日本語化の規約は
+`pnpm run build`と`pnpm run dist`ではバンドル生成も自動実行されます。バンドルの規約は
 [`plugins/README.md`](./plugins/README.md)を参照してください。
 
 ## 位置づけと帰属
@@ -151,5 +165,7 @@ Zoidiumは独立したオープンソースツール集であり、CM3またはP
 ## 関連ファイル
 
 - [`README.md`](./README.md) — English README
+- [`CONTRIBUTING.md`](./CONTRIBUTING.md) — コントリビューター向け手順
+- [`ARCHITECTURE.md`](./ARCHITECTURE.md) — ランタイムとプラグインの構造
 - [`zoidium/README.md`](./zoidium/README.md) — ステージ実装メモ
 - [`AGENTS.md`](./AGENTS.md) — コントリビューター／エージェント向け規約

@@ -28,17 +28,17 @@ remain separate fetched resources in the Git-ignored runtime cache.
 
 ## Cache and output stages
 
-`npm run setup` creates or refreshes `.zoidium-resources/`. `npm run web` and
+`pnpm run setup` creates or refreshes `.zoidium-resources/`. `pnpm run web` and
 development Electron runs reuse that cache and leave it in place after the
-process exits. `npm run build:web` copies the cache into the ignored
-`dist/web/` deployment tree. `npm run dist` uses a separate temporary Electron
+process exits. `pnpm run build:web` copies the cache into the ignored
+`dist/web/` deployment tree. `pnpm run dist` uses a separate temporary Electron
 input tree and removes only that tree after packaging.
 
-The generic `npm run build` hook delegates to `npm run build:web`, so a static
+The generic `pnpm run build` hook delegates to `pnpm run build:web`, so a static
 host's normal build step also fetches CM3 and publishes the generated stage.
 Cloudflare Pages/Wrangler is configured to publish `dist/web/`; the repository
 root remains a no-resource source placeholder and must not be deployed.
-`npm run deploy` runs that build and uploads only `dist/web/` for a direct
+`pnpm run deploy` runs that build and uploads only `dist/web/` for a direct
 Cloudflare Pages deployment.
 
 The source page can be overridden with `ZOIDIUM_CM3_SOURCE_PAGE` for compatible
@@ -54,5 +54,5 @@ downloads the pending Blob in the current page. It is intentionally a small
 Zoidium-owned adapter and does not copy or serve a download page.
 
 The plugin manager and plugin bundles are staged separately from plugin source
-files. See [`../plugins/README.md`](../plugins/README.md) for their bundle and
-localization contracts.
+files. See [`../plugins/README.md`](../plugins/README.md) for the bundle
+contract.

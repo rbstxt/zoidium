@@ -7,14 +7,16 @@ copy of the CM3 source page or its runtime resources.
 ## Quick start
 
 ```bash
-npm install
-npm run setup    # download/update the Git-ignored CM3 resource cache
-npm run web      # reuse the cache and serve it on localhost
-npm start        # Electron development mode; reuse/create the cache
-npm run dist     # fetches into a temporary Electron build tree
+corepack enable
+pnpm install --frozen-lockfile
+pnpm run setup    # download/update the Git-ignored CM3 resource cache
+pnpm run web      # reuse the cache and serve it on localhost
+pnpm start        # Electron development mode; reuse/create the cache
+pnpm run dist     # fetches into a temporary Electron build tree
+pnpm run verify   # verify manifests, bundles, syntax, and tests
 ```
 
-`npm run web` requires network access because it obtains the configured CM3
+`pnpm run web` requires network access because it obtains the configured CM3
 source page when the cache is absent or refreshed. Stop it with Ctrl-C; the
 cache remains available for the next run. Do not open the repository
 `index.html` with `file://`.
@@ -41,7 +43,7 @@ The only source-resource fetch path is `tools/runtime-resources.js`:
 5. serve/package the stage and clean it up when the local process exits.
 
 The source page and graph are intentionally fetched only by the web server,
-Electron development startup, `npm run build:web`, or `npm run dist`. A build
+Electron development startup, `pnpm run build:web`, or `pnpm run dist`. A build
 artifact may contain the runtime required by that artifact; the Git repository
 must not.
 
@@ -58,6 +60,10 @@ Zoidium-owned runtime files that may be edited:
 - `zoidium/runtime-policy.js` — local-first account/API/ad adapters;
 - `zoidium/direct-download.js` — in-place Blob download adapter;
 - `plugins/` — extension source and generated bundles;
+- `plugins/manifest.schema.json` — source manifest schema;
+- `tools/validate-plugin-manifests.js` — manifest validation;
+- `tools/check-syntax.js` and `tools/verify.js` — local verification;
+- `CONTRIBUTING.md` and `ARCHITECTURE.md` — contributor and architecture notes;
 - `plugins/alipfx/` — the generated Afterzoid Shader Pack 4 plugin payload and
   its rebuild metadata; keep the original source-pack dumps and CM3 runtime
   directories out of the repository;
@@ -85,12 +91,12 @@ inside a stage. Do not turn it into a local copy of the CM3 page.
   clear in user-facing copy.
 - The local server must leave `.zoidium-resources/` in place when it shuts down;
   only disposable build trees are removed after their build.
-- `npm run build:web` writes the ignored deployment tree at `dist/web/`.
-- `npm run build` is the generic deployment build hook and delegates to
-  `npm run build:web`; Cloudflare Pages/Wrangler must publish `dist/web/`.
-- `npm run deploy` builds that stage first and uploads only `dist/web/` with
+- `pnpm run build:web` writes the ignored deployment tree at `dist/web/`.
+- `pnpm run build` is the generic deployment build hook and delegates to
+  `pnpm run build:web`; Cloudflare Pages/Wrangler must publish `dist/web/`.
+- `pnpm run deploy` builds that stage first and uploads only `dist/web/` with
   Wrangler; never upload the repository root.
-- `npm run dist` builds from a separate temporary tree and removes that tree
+- `pnpm run dist` builds from a separate temporary tree and removes that tree
   after Electron Builder finishes.
 
 ## Download behavior
@@ -107,8 +113,10 @@ Plugins are the normal place for new Zoidium features. Keep source files and
 generated artifacts consistent:
 
 ```bash
-npm run build:plugin-bundles
-npm run check:plugin-bundles
+pnpm run build:plugin-bundles
+pnpm run check:plugin-manifests
+pnpm run check:plugin-bundles
+pnpm run verify
 ```
 
 Each plugin's normal runtime path is one generated `bundle.json`; source
@@ -133,19 +141,10 @@ catalogs, runtime translation dictionaries, or locale-detection branches such as
 Before handing off changes:
 
 ```bash
-npm run check:plugin-bundles
-node --check main.js
-node --check tools/runtime-resources.js
-node --check tools/serve-with-resources.js
-node --check tools/build-web.js
-node --check tools/build-electron.js
-node --check zoidium/runtime-config.js
-node --check zoidium/runtime-loader.js
-node --check zoidium/runtime-policy.js
-node --check zoidium/direct-download.js
+pnpm run verify
 ```
 
-When network access is available, run `npm run build:web`, inspect the generated
+When network access is available, run `pnpm run build:web`, inspect the generated
 `dist/web/` tree, and remove it after inspection if it is not needed. Confirm
 that the repository itself has no CM3 runtime directories or generated stage.
 
