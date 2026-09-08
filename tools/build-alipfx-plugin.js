@@ -32,6 +32,14 @@ function writeJson(filePath, value) {
   fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`);
 }
 
+function descriptionFor(id, displayName) {
+  const description = descriptions[id];
+  if (typeof description !== "string" || !description.trim()) {
+    throw new Error(`Missing description for ${displayName} (${id})`);
+  }
+  return description.trim();
+}
+
 let descriptions = {};
 if (fs.existsSync(descriptionsPath)) {
   try {
@@ -93,10 +101,7 @@ for (const sourcePath of sourceFiles) {
   effects.push({
     id,
     name: displayName,
-    description:
-      typeof descriptions[id] === "string" && descriptions[id].trim()
-        ? descriptions[id].trim()
-        : `${displayName} effect rendered by an AlipFX GLSL shader.`,
+    description: descriptionFor(id, displayName),
     source: relativeSource,
     shader: `./plugins/alipfx/${shaderFile}`,
     preset: `./plugins/alipfx/${presetFile}`,

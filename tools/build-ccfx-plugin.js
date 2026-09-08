@@ -72,6 +72,58 @@ const DISPLAY_NAMES = {
   "Part 2/CC Bend It.txt": "CC Bend It",
 };
 
+const EFFECT_DESCRIPTIONS = Object.freeze({
+  "Part 1/Backgrounds/Sunburst.txt":
+    "Generates an animated radial sunburst with adjustable ray shape and color.",
+  "Part 1/Backgrounds/Voronoi Cell Pattern.txt":
+    "Generates evolving Voronoi patterns in several cell styles.",
+  "Part 1/Distort/Puddle.txt":
+    "Distorts the image with concentric ripples.",
+  "Part 1/Distort/Skew V2.txt":
+    "Skews and tiles the image along a chosen angle.",
+  "Part 1/Distort/Warp waves.txt":
+    "Warps the image with an animated directional wave.",
+  "Part 1/Transitions/s_wipechecker.txt":
+    "Transitions images with a checkerboard wipe.",
+  "Part 1/Transitions/s_wipedots.txt":
+    "Wipes the image with growing or shrinking dots.",
+  "Part 1/Transitions/s_wiperings.txt":
+    "Wipes the image with expanding concentric rings.",
+  "Part 1/Transitions/s_wipestripes.txt":
+    "Transitions images with an angled stripe wipe.",
+  "Part 2/CC Light Sweep.txt":
+    "Adds a linear or circular light sweep.",
+  "Part 2/Lens Flare Lite.txt":
+    "Generates anamorphic, geometric, or orb lens flares.",
+  "Part 2/Plexus V1.txt":
+    "Creates an animated network of glowing points and lines.",
+});
+
+const GROUP_DESCRIPTIONS = Object.freeze({
+  "Part 1/Backgrounds/MxsterFX Halfdots BG.txt":
+    "Creates a dotted background with a radial wave.",
+  "Part 1/Backgrounds/MxsterFX Square BG.txt":
+    "Creates a tiled square background with a radial wave.",
+  "Part 1/Miscellaneous/Extrude.txt":
+    "Creates a layered extrusion from the source image.",
+  "Part 2/CC Bend It.txt":
+    "Bends the image between two configurable points.",
+  "Part 2/Hexagon Array.txt":
+    "Overlays a configurable hexagonal pattern.",
+  "Part 2/Plexus V2.txt":
+    "Creates an animated plexus of dots and lines.",
+  "Part 2/Warp.txt":
+    "Warps the image with selectable geometric profiles.",
+});
+
+function descriptionFor(descriptions, relative, kind) {
+  const description = descriptions[relative];
+  if (typeof description !== "string" || !description.trim()) {
+    throw new Error(`Missing ${kind} description for ${relative}`);
+  }
+  return description;
+}
+
 function displayNameFor(filePath, object) {
   const relative = relativeSource(filePath);
   return DISPLAY_NAMES[relative] || object?.properties?.name || path.basename(relative, ".txt");
@@ -167,7 +219,7 @@ for (const filePath of sourceFiles) {
     effects.push({
       id,
       name,
-      description: `${name} effect from the CCFX Shader Pack.`,
+      description: descriptionFor(EFFECT_DESCRIPTIONS, relative, "effect"),
       category: categoryFor(relative),
       source: relative,
       shader: `./plugins/ccfx/${shaderFile}`,
@@ -187,7 +239,7 @@ for (const filePath of sourceFiles) {
     groups.push({
       id,
       name,
-      description: `${name} group from the CCFX Shader Pack.`,
+      description: descriptionFor(GROUP_DESCRIPTIONS, relative, "group"),
       category: categoryFor(relative),
       source: relative,
       preset: `./plugins/ccfx/${presetFile}`,
