@@ -7,7 +7,64 @@ const { spawn } = require("child_process");
 const compression = require("compression");
 const handler = require("serve-handler");
 const { resolveDirectoryIndexUrl } = require("./directory-index");
-const { prepareRuntimeStage } = require("./runtime-resources");
+const { prepareRuntimeStage, projectRoot } = require("./runtime-resources");
+
+const liveProjectEntries = [
+  "404.html",
+  "_headers",
+  "_redirects",
+  "about",
+  "fonts",
+  "plugins/core-patches",
+  "plugins/plugin-manager.css",
+  "plugins/plugin-manager.js",
+  "plugins/registry.json",
+  "zoidium",
+  "zoidium-welcome-tour.css",
+  "zoidium-welcome-tour.js",
+];
+const liveProjectBundlePattern = /^plugins\/[^/]+\/bundle\.json$/;
+const liveProjectHeaders = [
+  {
+    source: "**",
+    headers: [{ key: "Cache-Control", value: "no-cache" }],
+  },
+];
+
+function requestPathname(requestUrl) {
+  let parsed;
+  try {
+    parsed = new URL(requestUrl, "http://zoidium.invalid");
+  } catch (_error) {
+    return null;
+  }
+  if (parsed.origin !== "http://zoidium.invalid") return null;
+
+  let pathname;
+  try {
+    pathname = decodeURIComponent(parsed.pathname);
+  } catch (_error) {
+    return null;
+  }
+  if (pathname.includes("\u0000") || pathname.includes("\\")) return null;
+
+  const segments = pathname.split("/").filter(Boolean);
+  if (segments.some((segment) => segment === "." || segment === "..")) return null;
+  return segments.join("/");
+}
+
+function isLiveProjectPath(relativePath) {
+  if (!relativePath) return false;
+  if (liveProjectBundlePattern.test(relativePath)) return true;
+  return liveProjectEntries.some(
+    (entry) => relativePath === entry || relativePath.startsWith(`${entry}/`)
+  );
+}
+
+function shouldServeFromProject(requestUrl) {
+  const relativePath = requestPathname(requestUrl);
+  return relativePath != null && isLiveProjectPath(relativePath);
+}
 
 function parseOptions(argv) {
   const options = { open: false, port: 8123 };
@@ -27,8 +84,10 @@ function printHelp() {
   console.log(`Usage: node tools/serve-with-resources.js [options]
 
 Ensures the CM3 resource graph is available in the Git-ignored cache, then
-serves its patched index.html on both local loopback addresses. The cache
-remains after the server stops.
+serves its patched index.html on both local loopback addresses. Zoidium-owned
+runtime files are served directly from the repository so a browser reload sees
+source changes without restarting this server. The cache remains after the
+server stops.
 
 Options:
   --port=<number>      listen port (default: 8123)
@@ -96,25 +155,30 @@ async function main() {
   const handleRequest = (request, response) => {
     compressionMiddleware(request, response, async () => {
       try {
-        const directoryIndexUrl = await resolveDirectoryIndexUrl(request.url, runtime.root);
+        const liveProjectFile = shouldServeFromProject(request.url);
+        const publicRoot = liveProjectFile ? projectRoot : runtime.root;
+        const directoryIndexUrl = await resolveDirectoryIndexUrl(request.url, publicRoot);
         if (directoryIndexUrl) request.url = directoryIndexUrl;
+
+        const headers = publicRoot === projectRoot ? liveProjectHeaders : undefined;
+        handler(request, response, {
+          cleanUrls: false,
+          directoryListing: false,
+          etag: true,
+          headers,
+          public: publicRoot,
+          rewrites: [{ source: "/", destination: "/index.html" }],
+        }).catch((error) => {
+          console.error("[Zoidium] local server request failed:", error);
+          if (!response.headersSent) response.writeHead(500, { "Content-Type": "text/plain" });
+          response.end("Internal Server Error");
+        });
       } catch (error) {
         console.error("[Zoidium] local server request failed:", error);
         if (!response.headersSent) response.writeHead(500, { "Content-Type": "text/plain" });
         response.end("Internal Server Error");
         return;
       }
-      handler(request, response, {
-        cleanUrls: false,
-        directoryListing: false,
-        etag: true,
-        public: runtime.root,
-        rewrites: [{ source: "/", destination: "/index.html" }],
-      }).catch((error) => {
-        console.error("[Zoidium] local server request failed:", error);
-        if (!response.headersSent) response.writeHead(500, { "Content-Type": "text/plain" });
-        response.end("Internal Server Error");
-      });
     });
   };
   const listeners = [
@@ -146,7 +210,15 @@ async function main() {
   }
 }
 
-main().catch((error) => {
-  console.error(`[Zoidium] ${error.stack || error.message || error}`);
-  process.exitCode = 1;
-});
+if (require.main === module) {
+  main().catch((error) => {
+    console.error(`[Zoidium] ${error.stack || error.message || error}`);
+    process.exitCode = 1;
+  });
+}
+
+module.exports = {
+  isLiveProjectPath,
+  requestPathname,
+  shouldServeFromProject,
+};

@@ -1,7 +1,7 @@
 (function () {
   "use strict";
 
-  const REGISTRY_URL = "./plugins/registry.json?v=22";
+  const REGISTRY_URL = "./plugins/registry.json?v=23";
   const STORAGE_PREFIX = "zoidium.plugin.enabled.";
   const SHADER_PLUGIN_MARKER = "// @zoidium-plugin ";
   const EFFECT_UUID_PROPERTY = "_zoidiumEffectUuid";
@@ -17,6 +17,8 @@
   const NATIVE_FX_EFFECTS = new Map([
     ["radialblurspin", "Radial Blur (Spin)"],
     ["dropshadow", "Drop Shadow"],
+    ["timeoffset", "Time Offset"],
+    ["posterizetime", "Posterize Time"],
   ]);
   const DEFAULT_PLUGIN_COLORS = Object.freeze({
     "easing-plus": "#384668",
@@ -254,7 +256,12 @@
         throw new Error(`Invalid 3D object entry in ${plugin.id}`);
       }
       for (const item of entry.list) {
-        if (!item.name || typeof item.type !== "number" || !item.data) {
+        const validVariantType =
+          typeof item.type === "number" ||
+          (typeof item.type === "string" &&
+            item.type.startsWith(`zoidium:${plugin.id}/`) &&
+            /^zoidium:[a-z0-9][a-z0-9-]*\/[a-z0-9][a-z0-9-]*$/.test(item.type));
+        if (!item.name || !validVariantType || !item.data) {
           throw new Error(`Invalid 3D object variant in ${plugin.id}`);
         }
       }
@@ -1240,7 +1247,7 @@
       if (objectClassParent) {
         const parent = objectClassEntries.find(
           (entry) =>
-            !entry?._zoidiumPluginId &&
+            (!entry?._zoidiumPluginId || entry?._zoidiumPluginId === plugin.id) &&
             entry?.name === objectClassParent.name &&
             entry?.type === objectClassParent.type
         );
@@ -1249,7 +1256,12 @@
             `3D object class parent was not found for ${plugin.id}: ${objectClassParent.name}`
           );
         }
-        parent.list.push(...objectClassMenuItems);
+        const existingTypes = new Set(
+          parent.list.map((item) => item?.type).filter((type) => typeof type === "string")
+        );
+        parent.list.push(
+          ...objectClassMenuItems.filter((item) => !existingTypes.has(item.type))
+        );
       } else {
         objectClassEntries.push(
           {

@@ -51,10 +51,11 @@ project still uses one of its sprites.
 ## Regenerating and checking
 
 ```bash
-npm run build:sprites
+pnpm run build:sprites
 node tools/build-particles-plus-sprites.js --check --sheet /private/tmp/particles-plus-sheet.png
-npm run build:plugin-bundles
-npm run check:plugin-bundles
+pnpm run build:plugin-bundles
+pnpm run check:plugin-manifests
+pnpm run check:plugin-bundles
 ```
 
 When the catalog or plugin code changes, bump the manifest and registry

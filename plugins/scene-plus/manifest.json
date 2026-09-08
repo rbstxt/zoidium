@@ -1,0 +1,87 @@
+{
+  "schemaVersion": 1,
+  "id": "repeater",
+  "name": "Repeater",
+  "author": "Zoidium",
+  "version": "5",
+  "objectCategory": "REPEATER",
+  "objectClassParent": {
+    "name": "Repeater",
+    "type": 5
+  },
+  "objectTypes": [
+    {
+      "target": "object3d",
+      "name": "Repeater",
+      "desc": "Create repeated copies of one or more 3D objects.",
+      "type": 5,
+      "list": [
+        {
+          "name": "Repeater",
+          "type": "zoidium:repeater/repeater",
+          "data": {
+            "type": "zoidium:repeater/repeater",
+            "schemaVersion": 1,
+            "properties": {
+              "name": "Repeater"
+            },
+            "objects": []
+          }
+        },
+        {
+          "name": "Linear Repeater",
+          "type": "zoidium:repeater/linear-repeater",
+          "data": {
+            "type": "zoidium:repeater/linear-repeater",
+            "schemaVersion": 1,
+            "properties": {
+              "name": "Linear Repeater"
+            },
+            "objects": []
+          }
+        },
+        {
+          "name": "Random Repeater",
+          "type": "zoidium:repeater/random-repeater",
+          "data": {
+            "type": "zoidium:repeater/random-repeater",
+            "schemaVersion": 1,
+            "properties": {
+              "name": "Random Repeater"
+            },
+            "objects": []
+          }
+        }
+      ]
+    }
+  ],
+  "objectClasses": [
+    {
+      "id": "repeater",
+      "type": "zoidium:repeater/repeater",
+      "name": "Repeater",
+      "description": "Copies source objects by a fixed transform step.",
+      "schemaVersion": 1
+    },
+    {
+      "id": "linear-repeater",
+      "type": "zoidium:repeater/linear-repeater",
+      "name": "Linear Repeater",
+      "description": "Copies source objects evenly between the first and last transform.",
+      "schemaVersion": 1
+    },
+    {
+      "id": "random-repeater",
+      "type": "zoidium:repeater/random-repeater",
+      "name": "Random Repeater",
+      "description": "Copies source objects with deterministic random transforms inside ranges.",
+      "schemaVersion": 1
+    }
+  ],
+  "modules": [
+    {
+      "id": "repeater-runtime",
+      "source": "./plugins/scene-plus/scene-plus.js?v=5"
+    }
+  ]
+}

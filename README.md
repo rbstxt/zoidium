@@ -25,15 +25,23 @@ deployment keeps only the generated build output required by that deployment.
 
 ## Quick start
 
-Requirements: Node.js 18+ and npm.
+Requirements: Node.js 18+ and pnpm 11.1.2. The repository pins pnpm in
+`package.json`.
 
 ```bash
-npm install
-npm run setup      # download/update the CM3 resource cache
-npm run web       # ensures the cache and serves http://127.0.0.1:8123 and http://localhost:8123
-npm run dev       # same, then opens the browser
-npm start         # Electron development mode; ensures the cache is ready
+corepack enable
+pnpm install --frozen-lockfile
+pnpm run setup      # download/update the CM3 resource cache
+pnpm run web        # ensures the cache and serves http://127.0.0.1:8123 and http://localhost:8123
+pnpm run dev        # same, then opens the browser
+pnpm start          # Electron development mode; ensures the cache is ready
+pnpm run verify     # check manifests, bundles, syntax, and tests
 ```
+
+The local web server reads Zoidium-owned runtime files directly from the
+checkout, so reloading the browser picks up edits without restarting the
+server. If a plugin source or manifest changed, rebuild its generated bundle
+with `pnpm run build:plugin-bundles`; the next reload then uses it immediately.
 
 Do not open the repository's `index.html` with `file://`. It is a bootstrap
 placeholder; the actual CM3 page is generated into the runtime stage, and
@@ -44,13 +52,13 @@ workers/WASM require an HTTP origin.
 Build a static deployment with:
 
 ```bash
-npm run build
+pnpm run build
 ```
 
 The generated site is written to `dist/web/` and is ignored by Git. For a
-static host such as Cloudflare Pages, use `npm run build` as the build command
-and `dist/web` as the output directory. `npm run build` is the deployment
-entrypoint and runs the same CM3-fetching builder as `npm run build:web`.
+static host such as Cloudflare Pages, use `pnpm run build` as the build command
+and `dist/web` as the output directory. `pnpm run build` is the deployment
+entrypoint and runs the same CM3-fetching builder as `pnpm run build:web`.
 `wrangler.jsonc` records `dist/web` as the Pages output directory for direct
 Wrangler-based deployments. Network access is required in the build
 environment because the CM3 source graph is fetched at build time. Do not
@@ -60,7 +68,7 @@ checkout placeholder.
 For a direct Cloudflare Pages deployment, run:
 
 ```bash
-npm run deploy
+pnpm run deploy
 ```
 
 This builds the fetched stage first and uploads only `dist/web/`. Wrangler
@@ -69,7 +77,7 @@ authentication and access to the `zoidium` Pages project are required.
 Build desktop installers with:
 
 ```bash
-npm run dist
+pnpm run dist
 ```
 
 The Electron builder first creates a temporary application tree containing the
@@ -96,13 +104,18 @@ The staging pipeline is:
    build staging directories when their build process ends.
 
 There is no checked-in resource manifest and no checked-in copy of the source
-page. `npm run setup` refreshes the cache from the current HTML and runtime
+page. `pnpm run setup` refreshes the cache from the current HTML and runtime
 graph; normal runs reuse that cache and automatically create it if necessary.
 
 The extension layer supplies local account/API/adapters, plugin loading, and
 the in-place download bridge. CM3's legacy download navigation is intercepted
 by `zoidium/direct-download.js`; the generated Blob is sent to the browser's
 download mechanism without opening another page.
+
+`tools/runtime-resources.js` is the only CM3 fetch path. It downloads the
+configured source page, discovers same-origin files, writes them to the ignored
+cache, copies Zoidium-owned files into a stage, and patches the staged HTML.
+The browser server, Web builder, and Electron builder all use the same module.
 
 ## Repository layout
 
@@ -111,7 +124,7 @@ Zoidium/
 ├── index.html                 # bootstrap placeholder; replaced in a build stage
 ├── LICENSE                    # MIT License for Zoidium-owned work
 ├── main.js                    # Electron process and disposable local server
-├── package.json               # scripts and Electron build configuration
+├── package.json               # pnpm scripts and Electron build configuration
 ├── fonts/
 │   ├── fonts.css              # local Source Code Pro face
 │   ├── source-code-pro-regular.woff2
@@ -121,7 +134,10 @@ Zoidium/
 │   ├── runtime-resources.js   # fetch, cache, discover, patch, and stage CM3
 │   ├── serve-with-resources.js# cache-backed browser server
 │   ├── build-web.js           # static deployment builder
-│   └── build-electron.js      # temporary-stage Electron builder
+│   ├── build-electron.js      # temporary-stage Electron builder
+│   ├── validate-plugin-manifests.js # manifest schema checker
+│   ├── check-syntax.js        # JavaScript syntax checker
+│   └── verify.js               # local verification entry point
 ├── zoidium/
 │   ├── runtime-config.js      # extension profile
 │   ├── runtime-loader.js      # overlay bootstrap
@@ -139,11 +155,12 @@ presets live under `plugins/`; the runtime normally loads each enabled plugin
 through one generated `bundle.json` request.
 
 ```bash
-npm run build:plugin-bundles
-npm run check:plugin-bundles
+pnpm run build:plugin-bundles
+pnpm run check:plugin-manifests
+pnpm run check:plugin-bundles
 ```
 
-`npm run dist` runs the bundle build automatically. See
+`pnpm run build` and `pnpm run dist` run the bundle build automatically. See
 [`plugins/README.md`](./plugins/README.md) for the bundle contract.
 
 ## Scope and attribution
@@ -158,5 +175,7 @@ tools are licensed under the MIT License. See
 ## Related files
 
 - [`README.ja.md`](./README.ja.md) — Japanese README
+- [`CONTRIBUTING.md`](./CONTRIBUTING.md) — contributor workflow
+- [`ARCHITECTURE.md`](./ARCHITECTURE.md) — runtime and plugin structure
 - [`zoidium/README.md`](./zoidium/README.md) — staging implementation notes
 - [`AGENTS.md`](./AGENTS.md) — repository rules for contributors and agents

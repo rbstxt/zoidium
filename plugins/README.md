@@ -14,12 +14,14 @@ in the plugin directory for editing and rebuilding, but are not part of the
 normal runtime load path:
 
 ```bash
-npm run build:plugin-bundles
-npm run check:plugin-bundles
+pnpm run build:plugin-bundles
+pnpm run check:plugin-manifests
+pnpm run check:plugin-bundles
 ```
 
 The builder updates the versioned `bundle` and `manifest` URLs in
-`registry.json`. `npm run dist` runs the bundle build automatically. Static
+`registry.json`. `pnpm run build` and `pnpm run dist` run the bundle build
+automatically. Static
 hosts should serve the bundles with HTTP compression (Cloudflare Pages does
 this automatically); the repository's `_headers` and Electron server also set
 long-lived caching for versioned bundles.
@@ -103,7 +105,7 @@ factory extension APIs.
 The optional AfterClip pack is generated from the separate AfterClip source tree with:
 
 ```bash
-node tools/build-afterclip-plugin.js "/path/to/AfterClip/src"
+pnpm run generate:afterclip -- "/path/to/AfterClip/src"
 ```
 
 It includes the non-VHS, non-Twitch AfterClip shaders and group presets, normalized for
@@ -112,12 +114,19 @@ Zoidium's WebGL 1 and premultiplied source-over conventions.
 Afterzoid Shader Pack 4 is generated from the user-provided source pack with:
 
 ```bash
-node tools/build-alipfx-plugin.js "/path/to/Afterzoid Shader Pack 4"
+pnpm run generate:alipfx -- "/path/to/Afterzoid Shader Pack 4"
 ```
 
 The generated plugin keeps the pack's GLSL and preset data under `plugins/alipfx/`.
 The original source-pack dumps and CM3 runtime directories are not included in the
 repository.
+
+## Manifest schema
+
+Every registered manifest must match [`manifest.schema.json`](./manifest.schema.json).
+The bundle builder and `pnpm run verify` validate the schema. The schema covers
+effects, groups, native effects, materials, modules, resources, 3D object types,
+and 3D object classes.
 
 ## Project metadata
 
@@ -131,16 +140,16 @@ are never recorded as dependencies:
     {
       "id": "native-fx",
       "name": "Native FX",
-      "version": "2",
+      "version": "4",
       "author": "Zoidium",
-      "effects": ["dropshadow", "radialblurspin"]
+      "effects": ["dropshadow", "radialblurspin", "timeoffset", "posterizetime"]
     }
   ]
 }
 ```
 
-On load, Zoidium detects Native FX both from dependency metadata and from the
-AfterClip-compatible effect types. It asks before enabling the pack. Declining
+On load, Zoidium detects Native FX both from dependency metadata and from its
+native effect types. It asks before enabling the pack. Declining
 keeps the original effect data in a non-rendering Missing Native FX placeholder;
 enabling the pack later restores those effects without reopening the project.
 Project-provided paths are never loaded.
@@ -148,3 +157,9 @@ Project-provided paths are never loaded.
 `Light+` is disabled by default. It provides an extended light chooser for Spot,
 Point, Directional, and Hemisphere lights. Objects added through that chooser are
 saved as ordinary CM3 light data and do not create a plugin dependency.
+
+`Repeater` adds Repeater objects to 3D Scene. Repeater copies its source objects by
+a fixed transform step, Linear Repeater interpolates between the first and last
+copy, and Random Repeater uses deterministic seeded ranges so the layout does
+not flicker while the timeline plays. Generated copies are runtime-only; project
+JSON stores the repeater controls and source objects once.
