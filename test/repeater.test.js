@@ -33,6 +33,28 @@ test("count is dynamic and is evaluated at the current frame", () => {
   assert.equal(_test.getCount({ get: () => 1000 }, 0), 128);
 });
 
+test("echo frames are derived from the requested frame, never playback history", () => {
+  const definitions = _test.makeProperties(
+    { property: { type: { NUMBER: 0 } } },
+    "echo",
+    () => {},
+  );
+
+  assert.equal(definitions.delay.dynamic, true);
+  assert.equal(definitions.delay.value, 5);
+  assert.deepEqual(_test.getEchoFrames(12, 4, 3), [12, 9, 6, 3]);
+  assert.deepEqual(_test.getEchoFrames(2, 4, 3), [2, 0, 0, 0]);
+
+  const requested = [12, 2, 7];
+  const forward = requested.map((frame) => _test.getEchoFrame(frame, 2, 3));
+  const reverse = requested
+    .slice()
+    .reverse()
+    .map((frame) => _test.getEchoFrame(frame, 2, 3))
+    .reverse();
+  assert.deepEqual(reverse, forward);
+});
+
 test("step repeater uses the configured transform step", () => {
   const result = _test.getTransform(
     "step",

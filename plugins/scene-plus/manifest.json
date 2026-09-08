@@ -3,7 +3,7 @@
   "id": "repeater",
   "name": "Repeater",
   "author": "Zoidium",
-  "version": "5",
+  "version": "6",
   "objectCategory": "REPEATER",
   "objectClassParent": {
     "name": "Repeater",
@@ -51,6 +51,18 @@
             },
             "objects": []
           }
+        },
+        {
+          "name": "Echo Repeater",
+          "type": "zoidium:repeater/echo-repeater",
+          "data": {
+            "type": "zoidium:repeater/echo-repeater",
+            "schemaVersion": 1,
+            "properties": {
+              "name": "Echo Repeater"
+            },
+            "objects": []
+          }
         }
       ]
     }
@@ -76,12 +88,19 @@
       "name": "Random Repeater",
       "description": "Copies source objects with deterministic random transforms inside ranges.",
       "schemaVersion": 1
+    },
+    {
+      "id": "echo-repeater",
+      "type": "zoidium:repeater/echo-repeater",
+      "name": "Echo Repeater",
+      "description": "Copies source objects from explicitly evaluated earlier frames.",
+      "schemaVersion": 1
     }
   ],
   "modules": [
     {
       "id": "repeater-runtime",
-      "source": "./plugins/scene-plus/scene-plus.js?v=5"
+      "source": "./plugins/scene-plus/scene-plus.js?v=6"
     }
   ]
 }

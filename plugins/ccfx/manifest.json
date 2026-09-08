@@ -1,0 +1,201 @@
+{
+  "schemaVersion": 1,
+  "id": "ccfx-shader-pack",
+  "name": "CCFX Shader Pack",
+  "author": "CCFX",
+  "version": "1",
+  "category": "CCFX SHADER PACK",
+  "description": "A collection of CCFX GLSL shader effects and group presets.",
+  "effectCount": 12,
+  "groupCount": 7,
+  "effects": [
+    {
+      "id": "part-1-backgrounds-sunburst",
+      "name": "Sunburst V2",
+      "description": "Sunburst V2 effect from the CCFX Shader Pack.",
+      "category": "CCFX · BACKGROUNDS",
+      "source": "Part 1/Backgrounds/Sunburst.txt",
+      "shader": "./plugins/ccfx/shaders/part-1-backgrounds-sunburst.glsl",
+      "preset": "./plugins/ccfx/effects/part-1-backgrounds-sunburst.json"
+    },
+    {
+      "id": "part-1-backgrounds-voronoi-cell-pattern",
+      "name": "Voronoi Cell Pattern",
+      "description": "Voronoi Cell Pattern effect from the CCFX Shader Pack.",
+      "category": "CCFX · BACKGROUNDS",
+      "source": "Part 1/Backgrounds/Voronoi Cell Pattern.txt",
+      "shader": "./plugins/ccfx/shaders/part-1-backgrounds-voronoi-cell-pattern.glsl",
+      "preset": "./plugins/ccfx/effects/part-1-backgrounds-voronoi-cell-pattern.json"
+    },
+    {
+      "id": "part-1-distort-puddle",
+      "name": "Puddle",
+      "description": "Puddle effect from the CCFX Shader Pack.",
+      "category": "CCFX · DISTORT",
+      "source": "Part 1/Distort/Puddle.txt",
+      "shader": "./plugins/ccfx/shaders/part-1-distort-puddle.glsl",
+      "preset": "./plugins/ccfx/effects/part-1-distort-puddle.json"
+    },
+    {
+      "id": "part-1-distort-skew-v2",
+      "name": "Skew V2",
+      "description": "Skew V2 effect from the CCFX Shader Pack.",
+      "category": "CCFX · DISTORT",
+      "source": "Part 1/Distort/Skew V2.txt",
+      "shader": "./plugins/ccfx/shaders/part-1-distort-skew-v2.glsl",
+      "preset": "./plugins/ccfx/effects/part-1-distort-skew-v2.json"
+    },
+    {
+      "id": "part-1-distort-warp-waves",
+      "name": "Warp Waves",
+      "description": "Warp Waves effect from the CCFX Shader Pack.",
+      "category": "CCFX · DISTORT",
+      "source": "Part 1/Distort/Warp waves.txt",
+      "shader": "./plugins/ccfx/shaders/part-1-distort-warp-waves.glsl",
+      "preset": "./plugins/ccfx/effects/part-1-distort-warp-waves.json"
+    },
+    {
+      "id": "part-1-transitions-s-wipechecker",
+      "name": "Wipe Checker",
+      "description": "Wipe Checker effect from the CCFX Shader Pack.",
+      "category": "CCFX · TRANSITIONS",
+      "source": "Part 1/Transitions/s_wipechecker.txt",
+      "shader": "./plugins/ccfx/shaders/part-1-transitions-s-wipechecker.glsl",
+      "preset": "./plugins/ccfx/effects/part-1-transitions-s-wipechecker.json"
+    },
+    {
+      "id": "part-1-transitions-s-wipedots",
+      "name": "Wipe Dots",
+      "description": "Wipe Dots effect from the CCFX Shader Pack.",
+      "category": "CCFX · TRANSITIONS",
+      "source": "Part 1/Transitions/s_wipedots.txt",
+      "shader": "./plugins/ccfx/shaders/part-1-transitions-s-wipedots.glsl",
+      "preset": "./plugins/ccfx/effects/part-1-transitions-s-wipedots.json"
+    },
+    {
+      "id": "part-1-transitions-s-wiperings",
+      "name": "Wipe Rings",
+      "description": "Wipe Rings effect from the CCFX Shader Pack.",
+      "category": "CCFX · TRANSITIONS",
+      "source": "Part 1/Transitions/s_wiperings.txt",
+      "shader": "./plugins/ccfx/shaders/part-1-transitions-s-wiperings.glsl",
+      "preset": "./plugins/ccfx/effects/part-1-transitions-s-wiperings.json"
+    },
+    {
+      "id": "part-1-transitions-s-wipestripes",
+      "name": "Wipe Stripes",
+      "description": "Wipe Stripes effect from the CCFX Shader Pack.",
+      "category": "CCFX · TRANSITIONS",
+      "source": "Part 1/Transitions/s_wipestripes.txt",
+      "shader": "./plugins/ccfx/shaders/part-1-transitions-s-wipestripes.glsl",
+      "preset": "./plugins/ccfx/effects/part-1-transitions-s-wipestripes.json"
+    },
+    {
+      "id": "part-2-cc-light-sweep",
+      "name": "CC Light Sweep",
+      "description": "CC Light Sweep effect from the CCFX Shader Pack.",
+      "category": "CCFX · PART 2",
+      "source": "Part 2/CC Light Sweep.txt",
+      "shader": "./plugins/ccfx/shaders/part-2-cc-light-sweep.glsl",
+      "preset": "./plugins/ccfx/effects/part-2-cc-light-sweep.json"
+    },
+    {
+      "id": "part-2-lens-flare-lite",
+      "name": "Lens Flare Lite",
+      "description": "Lens Flare Lite effect from the CCFX Shader Pack.",
+      "category": "CCFX · PART 2",
+      "source": "Part 2/Lens Flare Lite.txt",
+      "shader": "./plugins/ccfx/shaders/part-2-lens-flare-lite.glsl",
+      "preset": "./plugins/ccfx/effects/part-2-lens-flare-lite.json"
+    },
+    {
+      "id": "part-2-plexus-v1",
+      "name": "Plexus V1",
+      "description": "Plexus V1 effect from the CCFX Shader Pack.",
+      "category": "CCFX · PART 2",
+      "source": "Part 2/Plexus V1.txt",
+      "shader": "./plugins/ccfx/shaders/part-2-plexus-v1.glsl",
+      "preset": "./plugins/ccfx/effects/part-2-plexus-v1.json"
+    }
+  ],
+  "groups": [
+    {
+      "id": "group-part-1-backgrounds-mxsterfx-halfdots-bg",
+      "name": "MxsterFX Dot BG (By CCFX)",
+      "description": "MxsterFX Dot BG (By CCFX) group from the CCFX Shader Pack.",
+      "category": "CCFX · BACKGROUNDS",
+      "source": "Part 1/Backgrounds/MxsterFX Halfdots BG.txt",
+      "preset": "./plugins/ccfx/groups/group-part-1-backgrounds-mxsterfx-halfdots-bg.json",
+      "shaders": [
+        "./plugins/ccfx/shaders/groups/group-part-1-backgrounds-mxsterfx-halfdots-bg-0-bg-proper.glsl"
+      ]
+    },
+    {
+      "id": "group-part-1-backgrounds-mxsterfx-square-bg",
+      "name": "MxsterFX Square BG (By CCFX)",
+      "description": "MxsterFX Square BG (By CCFX) group from the CCFX Shader Pack.",
+      "category": "CCFX · BACKGROUNDS",
+      "source": "Part 1/Backgrounds/MxsterFX Square BG.txt",
+      "preset": "./plugins/ccfx/groups/group-part-1-backgrounds-mxsterfx-square-bg.json",
+      "shaders": [
+        "./plugins/ccfx/shaders/groups/group-part-1-backgrounds-mxsterfx-square-bg-0-bg-proper.glsl"
+      ]
+    },
+    {
+      "id": "group-part-1-miscellaneous-extrude",
+      "name": "Extrude",
+      "description": "Extrude group from the CCFX Shader Pack.",
+      "category": "CCFX · MISCELLANEOUS",
+      "source": "Part 1/Miscellaneous/Extrude.txt",
+      "preset": "./plugins/ccfx/groups/group-part-1-miscellaneous-extrude.json",
+      "shaders": [
+        "./plugins/ccfx/shaders/groups/group-part-1-miscellaneous-extrude-0-extrude.glsl"
+      ]
+    },
+    {
+      "id": "group-part-2-cc-bend-it",
+      "name": "CC Bend It",
+      "description": "CC Bend It group from the CCFX Shader Pack.",
+      "category": "CCFX · PART 2",
+      "source": "Part 2/CC Bend It.txt",
+      "preset": "./plugins/ccfx/groups/group-part-2-cc-bend-it.json",
+      "shaders": [
+        "./plugins/ccfx/shaders/groups/group-part-2-cc-bend-it-0-bend.glsl"
+      ]
+    },
+    {
+      "id": "group-part-2-hexagon-array",
+      "name": "Hexagon Array",
+      "description": "Hexagon Array group from the CCFX Shader Pack.",
+      "category": "CCFX · PART 2",
+      "source": "Part 2/Hexagon Array.txt",
+      "preset": "./plugins/ccfx/groups/group-part-2-hexagon-array.json",
+      "shaders": [
+        "./plugins/ccfx/shaders/groups/group-part-2-hexagon-array-0-shader.glsl"
+      ]
+    },
+    {
+      "id": "group-part-2-plexus-v2",
+      "name": "Plexus V2",
+      "description": "Plexus V2 group from the CCFX Shader Pack.",
+      "category": "CCFX · PART 2",
+      "source": "Part 2/Plexus V2.txt",
+      "preset": "./plugins/ccfx/groups/group-part-2-plexus-v2.json",
+      "shaders": [
+        "./plugins/ccfx/shaders/groups/group-part-2-plexus-v2-0-dots.glsl",
+        "./plugins/ccfx/shaders/groups/group-part-2-plexus-v2-1-lines.glsl"
+      ]
+    },
+    {
+      "id": "group-part-2-warp",
+      "name": "AE Warp",
+      "description": "AE Warp group from the CCFX Shader Pack.",
+      "category": "CCFX · PART 2",
+      "source": "Part 2/Warp.txt",
+      "preset": "./plugins/ccfx/groups/group-part-2-warp.json",
+      "shaders": [
+        "./plugins/ccfx/shaders/groups/group-part-2-warp-0-shader.glsl"
+      ]
+    }
+  ]
+}

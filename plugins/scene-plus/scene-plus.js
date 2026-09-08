@@ -18,6 +18,22 @@ function getCount(property, frame) {
   return integerValue(property?.get?.(currentFrame), 1, 1, MAX_REPEATS);
 }
 
+function getEchoFrame(frame, index, delay) {
+  const currentFrame = Math.max(0, numberValue(frame, 0));
+  const copyIndex = Math.max(0, Math.trunc(numberValue(index, 0)));
+  const frameDelay = Math.max(0, numberValue(delay, 0));
+  return Math.max(0, currentFrame - copyIndex * frameDelay);
+}
+
+function getEchoFrames(frame, count, delay) {
+  const copies = integerValue(count, 1, 1, MAX_REPEATS);
+  const frames = [];
+  for (let index = 0; index < copies; index += 1) {
+    frames.push(getEchoFrame(frame, index, delay));
+  }
+  return frames;
+}
+
 function vectorValue(value, fallback) {
   if (!Array.isArray(value)) return fallback.slice();
   return [
@@ -208,7 +224,7 @@ function makeProperties(PZ, mode, markDirty) {
       step: 0.01,
       decimals: 3,
     });
-  } else {
+  } else if (mode === "random") {
     properties.positionMin = vectorDefinition(PZ, {
       name: "Minimum position",
       value: [-10, -10, -10],
@@ -258,6 +274,22 @@ function makeProperties(PZ, mode, markDirty) {
     };
   }
 
+  if (mode === "echo") {
+    properties.delay = {
+      dynamic: true,
+      name: "Time offset (frames)",
+      type: PZ.property.type.NUMBER,
+      value: 5,
+      min: 0,
+      max: 100000,
+      step: 1,
+      decimals: 3,
+      changed: function () {
+        markDirty(this.parentObject);
+      },
+    };
+  }
+
   return properties;
 }
 
@@ -288,6 +320,40 @@ function copyObjectState(source, target) {
   for (let index = 0; index < length; index += 1) {
     copyObjectState(source.children[index], target.children[index]);
   }
+}
+
+function cloneMaterial(material) {
+  return material && typeof material.clone === "function"
+    ? material.clone()
+    : material;
+}
+
+function cloneRenderTree(source) {
+  const clone = source.clone(true);
+  clone.traverse((node) => {
+    if (node.geometry && typeof node.geometry.clone === "function") {
+      node.geometry = node.geometry.clone();
+    }
+    if (Array.isArray(node.material)) {
+      node.material = node.material.map(cloneMaterial);
+    } else if (node.material) {
+      node.material = cloneMaterial(node.material);
+    }
+  });
+  return clone;
+}
+
+function disposeClonedResources(root) {
+  if (!root?.traverse) return;
+  root.traverse((node) => {
+    node.geometry?.dispose?.();
+    const materials = Array.isArray(node.material)
+      ? node.material
+      : node.material
+        ? [node.material]
+        : [];
+    for (const material of materials) material?.dispose?.();
+  });
 }
 
 function defaultSourceData(data) {
@@ -351,16 +417,56 @@ function createRepeaterClass(PZ, THREE, mode, type) {
       await super.prepare(frame);
       await Promise.all(this.objects.map((source) => source?.loading));
       this.detachTemplateObjects();
-      this.rebuildInstances(frame);
+      if (this._mode === "echo") this.rebuildEchoInstances(frame);
+      else this.rebuildInstances(frame);
     }
 
     clearInstances() {
       if (this.threeObj) {
         for (const instance of this._instanceRoots) {
+          if (this._mode === "echo") disposeClonedResources(instance.root);
           this.threeObj.remove(instance.root);
         }
       }
       this._instanceRoots = [];
+    }
+
+    rebuildEchoInstances(frame) {
+      if (!this.threeObj) return;
+      this.clearInstances();
+      const currentFrame = Math.max(0, numberValue(frame, 0));
+      const count = getCount(this.properties.count, currentFrame);
+      const delay = Math.max(
+        0,
+        numberValue(this.properties.delay?.get?.(currentFrame), 0),
+      );
+      const sources = this.objects.filter((source) => source?.threeObj);
+      const echoFrames = getEchoFrames(currentFrame, count, delay);
+
+      for (let index = 0; index < echoFrames.length; index += 1) {
+        const root = new THREE.Object3D();
+        root.name = `${this.defaultName || "Echo Repeater"} ${index + 1}`;
+        const clones = [];
+        const sourceFrame = echoFrames[index];
+
+        // Echoes are evaluated from an explicit source frame. No result from
+        // an earlier playback tick is used to construct the current output.
+        try {
+          for (const source of sources) source.update(sourceFrame);
+          for (const source of sources) {
+            const clone = cloneRenderTree(source.threeObj);
+            root.add(clone);
+            clones.push({ source: source.threeObj, clone });
+          }
+        } finally {
+          for (const source of sources) source.update(currentFrame);
+        }
+
+        this.threeObj.add(root);
+        this._instanceRoots.push({ root, clones, sourceFrame });
+      }
+
+      this._cloneDirty = false;
     }
 
     rebuildInstances(frame) {
@@ -389,6 +495,10 @@ function createRepeaterClass(PZ, THREE, mode, type) {
     update(frame) {
       super.update(frame);
       this.detachTemplateObjects();
+      if (this._mode === "echo") {
+        this.rebuildEchoInstances(frame);
+        return;
+      }
       const sources = this.objects.filter((source) => source?.threeObj);
       const signatureParts = [];
       for (const source of sources) objectSignature(source.threeObj, signatureParts);
@@ -463,6 +573,7 @@ function activate(context) {
     ["step", "zoidium:repeater/repeater", "Repeater"],
     ["linear", "zoidium:repeater/linear-repeater", "Linear Repeater"],
     ["random", "zoidium:repeater/random-repeater", "Random Repeater"],
+    ["echo", "zoidium:repeater/echo-repeater", "Echo Repeater"],
   ];
   for (const [mode, type, name] of definitions) {
     const RepeaterObject = createRepeaterClass(PZ, THREE, mode, type);
@@ -495,6 +606,8 @@ module.exports = {
   _test: {
     defaultSourceData,
     getCount,
+    getEchoFrame,
+    getEchoFrames,
     getTransform,
     makeProperties,
     seededRandom,

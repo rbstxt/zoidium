@@ -80,16 +80,16 @@
       "id": "repeater",
       "name": "Repeater",
       "author": "Zoidium",
-      "version": "5",
+      "version": "6",
       "defaultEnabled": true,
-      "itemCount": 3,
+      "itemCount": 4,
       "format": "3D repeaters",
       "tagline": "Procedural Scene Copies",
       "color": "#6c7fb5",
-      "description": "Adds Repeater, Linear Repeater, and Random Repeater objects to 3D Scene.",
+      "description": "Adds Repeater, Linear Repeater, Random Repeater, and Echo Repeater objects to 3D Scene.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/scene-plus/manifest.json?v=5",
-      "bundle": "./plugins/scene-plus/bundle.json?v=5"
+      "manifest": "./plugins/scene-plus/manifest.json?v=6",
+      "bundle": "./plugins/scene-plus/bundle.json?v=6"
     },
     {
       "id": "material-plus",
@@ -135,6 +135,22 @@
       "description": "A rich shader preset pack by AlipFX.",
       "manifest": "./plugins/alipfx/manifest.json?v=5",
       "bundle": "./plugins/alipfx/bundle.json?v=5"
+    },
+    {
+      "id": "ccfx-shader-pack",
+      "name": "CCFX Shader Pack",
+      "author": "CCFX",
+      "version": "1",
+      "itemCount": 19,
+      "effectCount": 12,
+      "groupCount": 7,
+      "format": "GLSL + groups",
+      "tagline": "CCFX Shader Pack",
+      "badgeName": "CCFX",
+      "color": "#2c8fa3",
+      "description": "Adds CCFX shader effects and group presets.",
+      "manifest": "./plugins/ccfx/manifest.json?v=1",
+      "bundle": "./plugins/ccfx/bundle.json?v=1"
     },
     {
       "id": "layer-input",

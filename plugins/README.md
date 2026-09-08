@@ -121,6 +121,16 @@ The generated plugin keeps the pack's GLSL and preset data under `plugins/alipfx
 The original source-pack dumps and CM3 runtime directories are not included in the
 repository.
 
+CCFX Shader Pack is generated from the user-provided source pack with:
+
+```bash
+pnpm run generate:ccfx -- "/path/to/CCFX Shader Pack"
+```
+
+The generated plugin keeps the pack's GLSL, presets, and group data under
+`plugins/ccfx/`. The original source-pack dumps and project files are not included
+in the repository.
+
 ## Manifest schema
 
 Every registered manifest must match [`manifest.schema.json`](./manifest.schema.json).
@@ -160,6 +170,8 @@ saved as ordinary CM3 light data and do not create a plugin dependency.
 
 `Repeater` adds Repeater objects to 3D Scene. Repeater copies its source objects by
 a fixed transform step, Linear Repeater interpolates between the first and last
-copy, and Random Repeater uses deterministic seeded ranges so the layout does
-not flicker while the timeline plays. Generated copies are runtime-only; project
-JSON stores the repeater controls and source objects once.
+copy, Random Repeater uses deterministic seeded ranges so the layout does
+not flicker while the timeline plays, and Echo Repeater evaluates each copy from
+an explicit earlier frame using its time offset. Echo never depends on the
+previous playback tick's rendered result. Generated copies are runtime-only;
+project JSON stores the repeater controls and source objects once.
