@@ -13,6 +13,7 @@
       "./zoidium/debug-log.js?v=3",
       "./plugins/core-patches/window-stylesheet-guard.js?v=1",
       "./plugins/core-patches/project-media-fps.js",
+      "./plugins/core-patches/audio-track-visibility.js?v=1",
       "./plugins/core-patches/default-project-settings.js?v=1",
       "./plugins/core-patches/particle-defaults.js?v=2",
       "./plugins/core-patches/temporal-render.js?v=1",
