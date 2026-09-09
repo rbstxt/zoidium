@@ -11,6 +11,9 @@ const projectRoot = path.resolve(__dirname, "..");
 const defaultSourcePage =
   process.env.ZOIDIUM_CM3_SOURCE_PAGE ||
   "https://panzoid.com/legacy/gen3/clipmaker.html";
+const defaultVideoEditorSourcePage =
+  process.env.ZOIDIUM_VIDEO_EDITOR_SOURCE_PAGE ||
+  "https://panzoid.com/legacy/gen3/videoeditor.html";
 const defaultResourceCacheRoot = path.resolve(
   process.env.ZOIDIUM_RESOURCE_DIR || path.join(projectRoot, ".zoidium-resources")
 );
@@ -18,7 +21,8 @@ const requestUserAgent = "Zoidium CM3 runtime staging/2.0";
 const temporaryPrefix = "zoidium-runtime-";
 const cacheTemporaryPrefix = ".zoidium-cache-";
 const cacheMetadataName = ".zoidium-cache.json";
-const cacheSchemaVersion = 5;
+const runtimeProfilesName = "zoidium-runtime-profiles.js";
+const cacheSchemaVersion = 6;
 const defaultFetchTimeoutMs = 30_000;
 const defaultFetchConcurrency = 8;
 const maximumFetchConcurrency = 32;
@@ -34,24 +38,13 @@ const commonProjectEntries = [
   "zoidium-welcome-tour.js",
 ];
 
-const packagedResourceEntries = [
-  "index.html",
-  "pz.all-35.css",
-  "pz.icons29.svg",
-  "fonts.png",
-  "js",
-  "effect",
-  "material",
-  "worker",
-  "assets",
-];
-
 // These paths belong to Zoidium or to the stage itself. A CM3 response must
 // never be allowed to replace them by writing a same-origin resource with a
 // colliding path.
 const protectedResourcePrefixes = [
   "index.html",
   cacheMetadataName,
+  runtimeProfilesName,
   "404.html",
   "_headers",
   "_redirects",
@@ -418,6 +411,22 @@ function discoverHtmlReferences(html, sourcePageUrl, resourceRoot) {
   return references;
 }
 
+function discoverEditorEntryScript(html, sourcePageUrl, layout) {
+  const resourceRoot = resourceRootFor(sourcePageUrl);
+  const references = discoverHtmlReferences(html, sourcePageUrl, resourceRoot);
+  const prefix = layout === "videoeditor" ? "videoeditor-" : "clipmaker-";
+  const matches = Array.from(references.values()).filter((reference) => {
+    const basename = path.posix.basename(reference.sourcePath).toLowerCase();
+    return basename.startsWith(prefix) && basename.endsWith(".js");
+  });
+  if (matches.length !== 1) {
+    throw new Error(
+      `CM3 ${layout} source page must expose exactly one ${prefix}*.js entry script`
+    );
+  }
+  return matches[0];
+}
+
 function discoverTextReferences(
   source,
   baseUrl,
@@ -670,6 +679,7 @@ async function fetchResourceGraph({
   fetchImpl = globalThis.fetch,
   fetchTimeoutMs = defaultFetchTimeoutMs,
   concurrency = defaultFetchConcurrency,
+  existingResources = [],
 }) {
   const normalizedSourcePageUrl = normalizeSourcePageUrl(sourcePageUrl);
   const normalizedBaseUrl = normalizeHttpUrl(sourceBaseUrl, "CM3 source page");
@@ -685,7 +695,9 @@ async function fetchResourceGraph({
     resourceRoot
   );
   const pending = Array.from(references.values());
-  const fetched = new Map();
+  const fetched = new Map(
+    Array.from(existingResources || [], (resource) => [resource.sourcePath, resource])
+  );
 
   await runConcurrentQueue(pending, concurrency, async (reference) => {
     const sourcePath = assertFetchedResourcePath(reference.sourcePath);
@@ -783,6 +795,7 @@ function patchIndexHtml(sourceHtml) {
 
   const headBootstrap = [
     "<!-- Zoidium extension bootstrap; CM3 files are staged outside the repository. -->",
+    `<script src="./${runtimeProfilesName}"></script>`,
     '<script src="./zoidium/runtime-config.js"></script>',
     '<script src="./zoidium/runtime-policy.js"></script>',
   ].join("\n");
@@ -794,12 +807,13 @@ function patchIndexHtml(sourceHtml) {
   );
 
   const loaderTag = '<script src="./zoidium/runtime-loader.js"></script>';
-  const clipmakerPattern = /<script\b[^>]*src=["'][^"']*clipmaker-[^"']+\.js[^"']*["'][^>]*>\s*<\/script>/i;
-  clipmakerPattern.lastIndex = 0;
-  const clipmakerMatch = clipmakerPattern.exec(html);
-  if (!clipmakerMatch) throw new Error("CM3 source page has no Clipmaker script tag");
-  const clipmakerEnd = clipmakerMatch.index + clipmakerMatch[0].length;
-  html = `${html.slice(0, clipmakerEnd)}\n${loaderTag}${html.slice(clipmakerEnd)}`;
+  const editorPattern = /<script\b[^>]*src=["'][^"']*(?:clipmaker|videoeditor)-[^"']+\.js[^"']*["'][^>]*>\s*<\/script>/i;
+  editorPattern.lastIndex = 0;
+  if (!editorPattern.test(html)) {
+    throw new Error("CM3 source page has no supported editor entry script tag");
+  }
+  editorPattern.lastIndex = 0;
+  html = html.replace(editorPattern, loaderTag);
 
   if (html === originalHtml) throw new Error("CM3 source page patch made no changes");
   return html;
@@ -901,6 +915,7 @@ function stageResultFromMetadata(metadata, root, cached) {
     cached: Boolean(cached),
     cleanup: () => Promise.resolve(),
     page: metadata.page,
+    profiles: metadata.profiles,
     resourceRoot: metadata.resourceRoot,
     resources: metadata.resources,
     root,
@@ -916,36 +931,116 @@ function assertPageResponseWithinRoot(pageUrl, sourcePageUrl) {
   }
 }
 
+function runtimeProfilesSource(profiles) {
+  return [
+    "(function (global) {",
+    '  "use strict";',
+    `  global.ZOIDIUM_RUNTIME_PROFILES = ${JSON.stringify(profiles, null, 2)};`,
+    "})(window);",
+    "",
+  ].join("\n");
+}
+
+function pageMetadata(pageResponse) {
+  return {
+    bytes: pageResponse.bytes.length,
+    sha256: sha256(pageResponse.bytes),
+    url: pageResponse.finalUrl,
+  };
+}
+
 async function buildResourceStage(
   stageRoot,
   sourcePageUrl,
-  { fetchImpl = globalThis.fetch, fetchTimeoutMs = defaultFetchTimeoutMs, concurrency = defaultFetchConcurrency } = {}
+  {
+    fetchImpl = globalThis.fetch,
+    fetchTimeoutMs = defaultFetchTimeoutMs,
+    concurrency = defaultFetchConcurrency,
+    videoEditorSourcePageUrl = defaultVideoEditorSourcePage,
+  } = {}
 ) {
   const resolvedStageRoot = await assertStageRootSafe(stageRoot);
   const normalizedSourcePageUrl = normalizeSourcePageUrl(sourcePageUrl);
-  const sourceOrigin = new URL(normalizedSourcePageUrl).origin;
+  const normalizedVideoEditorSourcePageUrl = normalizeSourcePageUrl(
+    videoEditorSourcePageUrl
+  );
+  const resourceRoot = resourceRootFor(normalizedSourcePageUrl);
+  if (resourceRootFor(normalizedVideoEditorSourcePageUrl) !== resourceRoot) {
+    throw new Error("Clipmaker and Video Editor source pages must share a resource directory");
+  }
   await fs.promises.mkdir(resolvedStageRoot, { recursive: true });
   await copyProjectFiles(resolvedStageRoot);
 
-  const pageResponse = await fetchBytes(normalizedSourcePageUrl, {
-    allowedOrigin: sourceOrigin,
-    fetchImpl,
-    timeoutMs: fetchTimeoutMs,
-  });
-  assertPageResponseWithinRoot(pageResponse.finalUrl, normalizedSourcePageUrl);
-  const sourceHtml = pageResponse.bytes.toString("utf8");
+  const [clipmakerPageResponse, videoEditorPageResponse] = await Promise.all([
+    fetchBytes(normalizedSourcePageUrl, {
+      allowedOrigin: new URL(normalizedSourcePageUrl).origin,
+      fetchImpl,
+      timeoutMs: fetchTimeoutMs,
+    }),
+    fetchBytes(normalizedVideoEditorSourcePageUrl, {
+      allowedOrigin: new URL(normalizedVideoEditorSourcePageUrl).origin,
+      fetchImpl,
+      timeoutMs: fetchTimeoutMs,
+    }),
+  ]);
+  assertPageResponseWithinRoot(clipmakerPageResponse.finalUrl, normalizedSourcePageUrl);
+  assertPageResponseWithinRoot(
+    videoEditorPageResponse.finalUrl,
+    normalizedVideoEditorSourcePageUrl
+  );
+
+  const sourceHtml = clipmakerPageResponse.bytes.toString("utf8");
+  const videoEditorHtml = videoEditorPageResponse.bytes.toString("utf8");
+  const clipmakerEntry = discoverEditorEntryScript(
+    sourceHtml,
+    clipmakerPageResponse.finalUrl,
+    "clipmaker"
+  );
+  const videoEditorEntry = discoverEditorEntryScript(
+    videoEditorHtml,
+    videoEditorPageResponse.finalUrl,
+    "videoeditor"
+  );
   const patchedHtml = patchIndexHtml(sourceHtml);
-  const graph = await fetchResourceGraph({
+  const clipmakerGraph = await fetchResourceGraph({
     concurrency,
     fetchImpl,
     fetchTimeoutMs,
-    sourceBaseUrl: pageResponse.finalUrl,
+    sourceBaseUrl: clipmakerPageResponse.finalUrl,
     sourceHtml,
     sourcePageUrl: normalizedSourcePageUrl,
     stageRoot: resolvedStageRoot,
   });
+  const graph = await fetchResourceGraph({
+    concurrency,
+    existingResources: clipmakerGraph.resources,
+    fetchImpl,
+    fetchTimeoutMs,
+    sourceBaseUrl: videoEditorPageResponse.finalUrl,
+    sourceHtml: videoEditorHtml,
+    sourcePageUrl: normalizedVideoEditorSourcePageUrl,
+    stageRoot: resolvedStageRoot,
+  });
+
+  const runtimeProfiles = {
+    defaultLayout: "clipmaker",
+    layouts: {
+      clipmaker: {
+        editorGlobal: "CM",
+        entryScript: `./${clipmakerEntry.sourcePath}`,
+        label: "Clipmaker 3",
+      },
+      videoeditor: {
+        editorGlobal: "VE",
+        entryScript: `./${videoEditorEntry.sourcePath}`,
+        label: "Video Editor 2",
+      },
+    },
+  };
+  const runtimeProfilesBytes = Buffer.from(runtimeProfilesSource(runtimeProfiles), "utf8");
   const indexBytes = Buffer.from(patchedHtml, "utf8");
   await writeStageFile(resolvedStageRoot, "index.html", indexBytes);
+  await writeStageFile(resolvedStageRoot, runtimeProfilesName, runtimeProfilesBytes);
 
   const metadata = {
     generatedAt: new Date().toISOString(),
@@ -953,10 +1048,23 @@ async function buildResourceStage(
       bytes: indexBytes.length,
       sha256: sha256(indexBytes),
     },
-    page: {
-      bytes: pageResponse.bytes.length,
-      sha256: sha256(pageResponse.bytes),
-      url: pageResponse.finalUrl,
+    page: pageMetadata(clipmakerPageResponse),
+    profiles: {
+      clipmaker: {
+        entryScript: clipmakerEntry.sourcePath,
+        page: pageMetadata(clipmakerPageResponse),
+        sourcePageUrl: normalizedSourcePageUrl,
+      },
+      videoeditor: {
+        entryScript: videoEditorEntry.sourcePath,
+        page: pageMetadata(videoEditorPageResponse),
+        sourcePageUrl: normalizedVideoEditorSourcePageUrl,
+      },
+    },
+    runtimeProfiles: {
+      bytes: runtimeProfilesBytes.length,
+      path: runtimeProfilesName,
+      sha256: sha256(runtimeProfilesBytes),
     },
     resourceRoot: graph.resourceRoot,
     resources: graph.resources.map((resource) => ({
@@ -1007,13 +1115,18 @@ function isSha256(value) {
 async function inspectResourceCache({
   cacheRoot = defaultResourceCacheRoot,
   sourcePageUrl = defaultSourcePage,
+  videoEditorSourcePageUrl = defaultVideoEditorSourcePage,
   verifyHashes = true,
 } = {}) {
   let resolvedCacheRoot;
   let normalizedSourcePageUrl;
+  let normalizedVideoEditorSourcePageUrl;
   try {
     resolvedCacheRoot = assertSafeDirectoryTarget(cacheRoot, "CM3 resource cache");
     normalizedSourcePageUrl = normalizeSourcePageUrl(sourcePageUrl);
+    normalizedVideoEditorSourcePageUrl = normalizeSourcePageUrl(
+      videoEditorSourcePageUrl
+    );
     await assertExistingDirectory(resolvedCacheRoot, "CM3 resource cache");
     await readRegularFile(resolvedCacheRoot, cacheMetadataName);
   } catch (error) {
@@ -1036,6 +1149,9 @@ async function inspectResourceCache({
     if (metadata.resourceRoot !== expectedResourceRoot) {
       return cacheInspection(false, "CM3 resource cache root does not match");
     }
+    if (resourceRootFor(normalizedVideoEditorSourcePageUrl) !== expectedResourceRoot) {
+      return cacheInspection(false, "CM3 layout source pages do not share a resource root");
+    }
     if (
       !metadata.page ||
       !Number.isInteger(metadata.page.bytes) ||
@@ -1043,6 +1159,11 @@ async function inspectResourceCache({
       !metadata.index ||
       !Number.isInteger(metadata.index.bytes) ||
       !isSha256(metadata.index.sha256) ||
+      !metadata.runtimeProfiles ||
+      metadata.runtimeProfiles.path !== runtimeProfilesName ||
+      !Number.isInteger(metadata.runtimeProfiles.bytes) ||
+      !isSha256(metadata.runtimeProfiles.sha256) ||
+      !metadata.profiles ||
       !Array.isArray(metadata.resources)
     ) {
       return cacheInspection(false, "CM3 resource cache metadata is incomplete");
@@ -1056,6 +1177,40 @@ async function inspectResourceCache({
       const indexBytes = await fs.promises.readFile(index.filePath);
       if (sha256(indexBytes) !== metadata.index.sha256) {
         return cacheInspection(false, "Cached index.html hash does not match metadata");
+      }
+    }
+
+    const runtimeProfiles = await readRegularFile(
+      resolvedCacheRoot,
+      runtimeProfilesName
+    );
+    if (runtimeProfiles.stat.size !== metadata.runtimeProfiles.bytes) {
+      return cacheInspection(false, "Cached runtime profile manifest size does not match metadata");
+    }
+    if (verifyHashes) {
+      const runtimeProfilesBytes = await fs.promises.readFile(runtimeProfiles.filePath);
+      if (sha256(runtimeProfilesBytes) !== metadata.runtimeProfiles.sha256) {
+        return cacheInspection(false, "Cached runtime profile manifest hash does not match metadata");
+      }
+    }
+
+    const expectedProfiles = {
+      clipmaker: normalizedSourcePageUrl,
+      videoeditor: normalizedVideoEditorSourcePageUrl,
+    };
+    for (const [layout, expectedSourcePageUrl] of Object.entries(expectedProfiles)) {
+      const profile = metadata.profiles[layout];
+      if (
+        !profile ||
+        profile.sourcePageUrl !== expectedSourcePageUrl ||
+        typeof profile.entryScript !== "string" ||
+        profile.entryScript !== normalizeResourcePath(profile.entryScript) ||
+        !profile.page ||
+        !Number.isInteger(profile.page.bytes) ||
+        !isSha256(profile.page.sha256) ||
+        typeof profile.page.url !== "string"
+      ) {
+        return cacheInspection(false, `CM3 ${layout} cache metadata is invalid`);
       }
     }
 
@@ -1098,14 +1253,23 @@ async function inspectResourceCache({
         }
       }
     }
+    for (const [layout, profile] of Object.entries(metadata.profiles)) {
+      if (!paths.has(profile.entryScript)) {
+        return cacheInspection(false, `CM3 ${layout} entry script is missing from the cache`);
+      }
+    }
     return cacheInspection(true, "CM3 resource cache is valid", metadata);
   } catch (error) {
     return cacheInspection(false, error.message);
   }
 }
 
-async function readCacheMetadata(cacheRoot, sourcePageUrl) {
-  const inspection = await inspectResourceCache({ cacheRoot, sourcePageUrl });
+async function readCacheMetadata(cacheRoot, sourcePageUrl, videoEditorSourcePageUrl) {
+  const inspection = await inspectResourceCache({
+    cacheRoot,
+    sourcePageUrl,
+    videoEditorSourcePageUrl,
+  });
   return inspection.valid ? inspection.metadata : null;
 }
 
@@ -1123,12 +1287,22 @@ async function refreshCachedProjectFiles(cacheRoot) {
   await copyProjectFiles(cacheRoot);
 }
 
-async function copyCachedRuntime(cacheRoot, destinationRoot, metadata) {
+async function copyCachedRuntime(
+  cacheRoot,
+  destinationRoot,
+  metadata,
+  { includeMetadata = false } = {}
+) {
   const resolvedCacheRoot = await assertStageRootSafe(cacheRoot);
   const resolvedDestinationRoot = await assertStageRootSafe(destinationRoot);
   await fs.promises.mkdir(resolvedDestinationRoot, { recursive: true });
 
-  const entries = ["index.html", ...metadata.resources.map((resource) => resource.sourcePath)];
+  const entries = [
+    "index.html",
+    runtimeProfilesName,
+    ...metadata.resources.map((resource) => resource.sourcePath),
+  ];
+  if (includeMetadata) entries.push(cacheMetadataName);
   for (const entry of entries) {
     const source = safeStagePath(resolvedCacheRoot, entry);
     const destination = safeStagePath(resolvedDestinationRoot, entry);
@@ -1176,6 +1350,7 @@ async function ensureResourceCache({
   force = false,
   offline = false,
   sourcePageUrl = defaultSourcePage,
+  videoEditorSourcePageUrl = defaultVideoEditorSourcePage,
   fetchImpl = globalThis.fetch,
   fetchTimeoutMs = defaultFetchTimeoutMs,
   concurrency = defaultFetchConcurrency,
@@ -1189,6 +1364,7 @@ async function ensureResourceCache({
     const inspection = await inspectResourceCache({
       cacheRoot: resolvedCacheRoot,
       sourcePageUrl: normalizedSourcePageUrl,
+      videoEditorSourcePageUrl,
     });
     if (inspection.valid) {
       await refreshCachedProjectFiles(resolvedCacheRoot);
@@ -1212,6 +1388,7 @@ async function ensureResourceCache({
       concurrency,
       fetchImpl,
       fetchTimeoutMs,
+      videoEditorSourcePageUrl,
     });
     await replaceDirectoryAtomically(temporaryStage, resolvedCacheRoot);
     return stageResultFromMetadata(metadata, resolvedCacheRoot, false);
@@ -1225,6 +1402,7 @@ async function prepareRuntimeStage({
   destinationRoot = null,
   includeElectronFiles = false,
   sourcePageUrl = defaultSourcePage,
+  videoEditorSourcePageUrl = defaultVideoEditorSourcePage,
   offline = false,
   fetchImpl = globalThis.fetch,
   fetchTimeoutMs = defaultFetchTimeoutMs,
@@ -1237,12 +1415,15 @@ async function prepareRuntimeStage({
     fetchTimeoutMs,
     offline,
     sourcePageUrl,
+    videoEditorSourcePageUrl,
   });
   if (destinationRoot == null) return cache;
 
   const stageRoot = await assertStageRootSafe(destinationRoot);
   if (stageRoot !== cache.root) {
-    await copyCachedRuntime(cache.root, stageRoot, cache);
+    await copyCachedRuntime(cache.root, stageRoot, cache, {
+      includeMetadata: includeElectronFiles,
+    });
   }
   await copyProjectFiles(stageRoot, { includeElectronFiles });
   return { ...cache, root: stageRoot };
@@ -1254,8 +1435,18 @@ async function preparePackagedStage() {
     const resolvedStageRoot = await assertStageRootSafe(stageRoot);
     await fs.promises.mkdir(resolvedStageRoot, { recursive: true });
     await copyProjectFiles(resolvedStageRoot);
-    for (const entry of packagedResourceEntries) {
-      await copyEntry(resolvedStageRoot, entry, { required: false });
+    const metadataPath = path.join(projectRoot, cacheMetadataName);
+    const metadata = JSON.parse(await fs.promises.readFile(metadataPath, "utf8"));
+    if (metadata.schemaVersion !== cacheSchemaVersion || !Array.isArray(metadata.resources)) {
+      throw new Error("Packaged CM3 resource metadata is invalid");
+    }
+    const entries = [
+      "index.html",
+      runtimeProfilesName,
+      ...metadata.resources.map((resource) => resource.sourcePath),
+    ];
+    for (const entry of entries) {
+      await copyEntry(resolvedStageRoot, entry, { required: true });
     }
     return {
       cleanup: () => cleanupStage(resolvedStageRoot),
@@ -1282,6 +1473,9 @@ function parseCliArgs(argumentsList) {
     else if (argument === "--setup") options.setup = true;
     else if (argument.startsWith("--output=")) options.output = argument.slice(9);
     else if (argument.startsWith("--source=")) options.source = argument.slice(9);
+    else if (argument.startsWith("--video-editor-source=")) {
+      options.videoEditorSource = argument.slice(22);
+    }
     else throw new Error(`Unknown option: ${argument}`);
   }
   if (options.refresh) options.setup = true;
@@ -1309,6 +1503,8 @@ Options:
   --output=<directory>  copy the cache into this runtime stage
   --electron            include Electron entry files in the output stage
   --source=<url>        override ZOIDIUM_CM3_SOURCE_PAGE
+  --video-editor-source=<url>
+                        override ZOIDIUM_VIDEO_EDITOR_SOURCE_PAGE
   --help                show this help
 `);
 }
@@ -1321,10 +1517,13 @@ async function main() {
   }
 
   const sourcePageUrl = options.source || defaultSourcePage;
+  const videoEditorSourcePageUrl =
+    options.videoEditorSource || defaultVideoEditorSourcePage;
   if (options.setup) {
     const result = await ensureResourceCache({
       force: true,
       sourcePageUrl,
+      videoEditorSourcePageUrl,
     });
     console.log(
       `[Zoidium] CM3 resource cache ready at ${result.root} (${result.resources.length} resources)`
@@ -1337,6 +1536,7 @@ async function main() {
     includeElectronFiles: options.electron,
     offline: options.offline,
     sourcePageUrl,
+    videoEditorSourcePageUrl,
   });
   console.log(
     `[Zoidium] CM3 runtime available at ${result.root} (${result.resources.length} resources)`
@@ -1356,6 +1556,8 @@ module.exports = {
   defaultFetchTimeoutMs,
   defaultResourceCacheRoot,
   defaultSourcePage,
+  defaultVideoEditorSourcePage,
+  discoverEditorEntryScript,
   discoverHtmlReferences,
   discoverTextReferences,
   ensureResourceCache,

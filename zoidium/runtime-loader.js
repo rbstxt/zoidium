@@ -1,6 +1,7 @@
 (function (global) {
   "use strict";
 
+  var SETTINGS_STORAGE_KEY = "zoidium.editor-settings";
   var started = false;
   var config = global.ZOIDIUM_RUNTIME || {};
 
@@ -30,17 +31,61 @@
     });
   }
 
-  function loadScript(url) {
+  function loadScript(url, label) {
     return new Promise(function (resolve, reject) {
       var script = document.createElement("script");
       script.src = url;
       script.async = false;
       script.onload = resolve;
       script.onerror = function () {
-        reject(new Error("Could not load Zoidium extension: " + url));
+        reject(new Error("Could not load " + (label || "Zoidium extension") + ": " + url));
       };
       document.head.appendChild(script);
     });
+  }
+
+  function readStoredLayout() {
+    try {
+      var raw = global.localStorage.getItem(SETTINGS_STORAGE_KEY);
+      var settings = raw ? JSON.parse(raw) : null;
+      return settings && typeof settings.layout === "string" ? settings.layout : null;
+    } catch (_error) {
+      return null;
+    }
+  }
+
+  function selectRuntimeProfile() {
+    var manifest = global.ZOIDIUM_RUNTIME_PROFILES || {};
+    var layouts = manifest.layouts || {};
+    var fallback = manifest.defaultLayout || "clipmaker";
+    var requested = readStoredLayout() || fallback;
+    var layout = layouts[requested] ? requested : fallback;
+    var profile = layouts[layout];
+    if (!profile || typeof profile.entryScript !== "string") {
+      throw new Error("The selected editor layout is missing from the runtime stage");
+    }
+    return { layout: layout, profile: profile };
+  }
+
+  function exposeActiveEditor(layout, profile) {
+    var editor = global[profile.editorGlobal];
+    if (!editor || typeof editor !== "object") {
+      throw new Error("The selected editor layout did not expose its editor instance");
+    }
+
+    // Video Editor uses VE while Zoidium and the shared CM3 extensions use CM.
+    // Both are PZ.ui.editor instances, so expose the active instance through
+    // the established CM name before any extension patch runs.
+    global.CM = editor;
+    global.ZOIDIUM_EDITOR = editor;
+    global.ZOIDIUM_LAYOUT = layout;
+    if (global.PZ) {
+      global.PZ.zoidium = global.PZ.zoidium || {};
+      global.PZ.zoidium.runtime = {
+        editor: editor,
+        layout: layout,
+      };
+    }
   }
 
   function showFailure(error) {
@@ -60,6 +105,17 @@
     started = true;
 
     try {
+      var selected = selectRuntimeProfile();
+      global.ZOIDIUM_LAYOUT = selected.layout;
+      if (document.documentElement) {
+        document.documentElement.dataset.zoidiumLayout = selected.layout;
+      }
+      await loadScript(
+        resolveLocal(selected.profile.entryScript),
+        selected.profile.label || "editor layout"
+      );
+      exposeActiveEditor(selected.layout, selected.profile);
+
       var overlayStyles = config.overlayStyles || [];
       for (var i = 0; i < overlayStyles.length; i += 1) {
         setDebugPhase("loading overlay stylesheet: " + overlayStyles[i]);
@@ -72,9 +128,9 @@
         await loadScript(resolveLocal(preInitScripts[j]));
       }
 
-      setDebugPhase("initializing CM3");
+      setDebugPhase("initializing " + (selected.profile.label || "editor"));
       if (typeof global.initTool !== "function") {
-        throw new Error("CM3 runtime did not expose initTool()");
+        throw new Error("The selected editor runtime did not expose initTool()");
       }
       await global.initTool();
 

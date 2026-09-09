@@ -702,7 +702,7 @@
     }, 4000);
   }
 
-  function createInfoControls(panel) {
+  function createControls(panel) {
     if (!panel?.appendChild || panel.querySelector?.("[data-zoidium-debug-log]")) return false;
     const legacy = PZ.ui?.controls?.legacy;
     if (!legacy?.generateDescription || !legacy?.generateButton) return false;
@@ -752,37 +752,6 @@
     return true;
   }
 
-  function findAboutPanel() {
-    const tabs = global.document?.querySelector(".elevatortabs");
-    if (!tabs) return null;
-    const aboutTab = Array.from(tabs.children).find(
-      (item) => item.title === "About" || item.pz_tab?.title === "About"
-    );
-    return aboutTab?.pz_container || aboutTab?.pz_tab?.el || null;
-  }
-
-  function installAboutPatch() {
-    const about = PZ.ui?.about;
-    const prototype = about?.prototype;
-    if (!prototype || typeof prototype.create !== "function") return false;
-    if (prototype.create.__zoidiumDebugLogPatch) return true;
-    const originalCreate = prototype.create;
-    const patchedCreate = function (...args) {
-      const result = originalCreate.apply(this, args);
-      createInfoControls(this.el);
-      return result;
-    };
-    patchedCreate.__zoidiumDebugLogPatch = true;
-    prototype.create = patchedCreate;
-    return true;
-  }
-
-  function installInfoButton() {
-    const patched = installAboutPatch();
-    const existing = createInfoControls(findAboutPanel());
-    return patched || existing;
-  }
-
   function installEventListeners() {
     installWindowHooks(mainWindowContext);
     global.addEventListener("zoidium:extension-load-error", (event) => {
@@ -813,14 +782,10 @@
     },
     getSnapshot: snapshot,
     download,
-    installInfoButton,
+    createControls,
   });
 
   global.ZOIDIUM_DEBUG_LOG = api;
   PZ.zoidium.debugLog = api;
   installEventListeners();
-  installAboutPatch();
-  global.addEventListener("zoidium:ready", () => {
-    global.setTimeout(installInfoButton, 0);
-  });
 })(window);

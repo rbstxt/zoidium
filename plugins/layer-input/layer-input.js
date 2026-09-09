@@ -25,6 +25,20 @@ const LayerInput = (() => {
     viewportPrototype: null,
     originalViewportRender: null,
     patchedViewportRender: null,
+    shaderPrototype: null,
+    originalShaderLoad: null,
+    patchedShaderLoad: null,
+    originalShaderUpdate: null,
+    patchedShaderUpdate: null,
+    originalShaderUpdateFragmentShader: null,
+    patchedShaderUpdateFragmentShader: null,
+    originalShaderUnload: null,
+    patchedShaderUnload: null,
+    shaderWatchers: new Map(),
+    shaderEmptyTexture: null,
+    propertyTypeList: null,
+    propertyTypeEntry: null,
+    propertyTypeEntryAdded: false,
     style: null,
     contextStack: [],
     consumers: new Set(),
@@ -161,29 +175,48 @@ const LayerInput = (() => {
     }
   }
 
-  function getSourceProperty(consumer) {
-    return consumer?.properties?.source || null;
+  function getSourceProperties(consumer) {
+    if (!consumer) return [];
+    const customProperties = consumer.customProperties;
+    if (customProperties && consumer.type === 1) {
+      const properties = Array.from(customProperties).filter(
+        (property) => property?.definition?._zoidiumLayerSource
+      );
+      if (properties.length > 0) return properties;
+    }
+    const property = consumer.properties?.source;
+    return property ? [property] : [];
   }
 
-  function getConsumerTrack(consumer) {
+  function getSourceProperty(consumer, sourceProperty) {
+    return sourceProperty || getSourceProperties(consumer)[0] || null;
+  }
+
+  function getSourceState(consumer, sourceProperty) {
+    const property = getSourceProperty(consumer, sourceProperty);
+    return property && property !== consumer?.properties?.source ? property : consumer;
+  }
+
+  function getConsumerTrack(consumer, sourceProperty) {
     if (!consumer) return null;
+    const property = getSourceProperty(consumer, sourceProperty);
+    const sourceState = getSourceState(consumer, property);
     const project = getProject(consumer) || state.editor?.project;
-    if (isAttachedTrack(consumer?._zoidiumSourceTrack, project)) {
-      return consumer._zoidiumSourceTrack;
+    if (isAttachedTrack(sourceState?._zoidiumSourceTrack, project)) {
+      return sourceState._zoidiumSourceTrack;
     }
-    const property = getSourceProperty(consumer);
     const track = resolveTrackToken(consumer, property?.get?.());
-    consumer._zoidiumSourceTrack = track || null;
+    if (sourceState) sourceState._zoidiumSourceTrack = track || null;
     if (property?.get?.()) {
-      consumer._zoidiumSourceError = track ? "" : "missing";
-    } else if (consumer._zoidiumSourceError !== "cycle") {
-      consumer._zoidiumSourceError = "";
+      if (sourceState) sourceState._zoidiumSourceError = track ? "" : "missing";
+    } else if (sourceState?._zoidiumSourceError !== "cycle" && sourceState) {
+      sourceState._zoidiumSourceError = "";
     }
     return track;
   }
 
-  function getSourceError(consumer) {
-    return consumer?._zoidiumSourceError || "";
+  function getSourceError(consumer, sourceProperty) {
+    return getSourceState(consumer, sourceProperty)?._zoidiumSourceError || "";
   }
 
   function getProjectTracks(project) {
@@ -191,19 +224,24 @@ const LayerInput = (() => {
     return tracks && typeof tracks.length === "number" ? Array.from(tracks) : [];
   }
 
-  function getConsumerEdges(project, overrideConsumer, overrideTrack) {
+  function getConsumerEdges(project, overrideConsumer, overrideTrack, overrideProperty) {
     const edges = new Map();
     for (const consumer of state.consumers) {
       if (getProject(consumer) !== project) continue;
       const owner = getOwnerTrack(consumer);
       if (!owner) continue;
-      const target = consumer === overrideConsumer ? overrideTrack : getConsumerTrack(consumer);
-      if (!target) continue;
-      const targets = edges.get(owner) || new Set();
-      targets.add(target);
-      edges.set(owner, targets);
+      for (const property of getSourceProperties(consumer)) {
+        const target =
+          consumer === overrideConsumer && property === overrideProperty
+            ? overrideTrack
+            : getConsumerTrack(consumer, property);
+        if (!target) continue;
+        const targets = edges.get(owner) || new Set();
+        targets.add(target);
+        edges.set(owner, targets);
+      }
     }
-    if (overrideConsumer && overrideTrack) {
+    if (overrideConsumer && overrideTrack && !getSourceProperties(overrideConsumer).includes(overrideProperty)) {
       const owner = getOwnerTrack(overrideConsumer);
       if (owner) {
         const targets = edges.get(owner) || new Set();
@@ -230,70 +268,74 @@ const LayerInput = (() => {
     return false;
   }
 
-  function wouldCreateCycle(consumer, target) {
+  function wouldCreateCycle(consumer, target, sourceProperty) {
     const project = getProject(consumer) || state.editor?.project;
     const owner = getOwnerTrack(consumer);
     if (!project || !owner || !target) return false;
-    const edges = getConsumerEdges(project, consumer, target);
+    const property = getSourceProperty(consumer, sourceProperty);
+    const edges = getConsumerEdges(project, consumer, target, property);
     return canReach(edges, target, owner);
   }
 
-  function clearSourceProperty(consumer) {
-    const property = getSourceProperty(consumer);
-    if (!property || !property.get?.() || consumer._zoidiumSourceUpdating) return;
-    consumer._zoidiumSourceUpdating = true;
+  function clearSourceProperty(consumer, sourceProperty) {
+    const property = getSourceProperty(consumer, sourceProperty);
+    const sourceState = getSourceState(consumer, property);
+    if (!property || !property.get?.() || sourceState?._zoidiumSourceUpdating) return;
+    sourceState._zoidiumSourceUpdating = true;
     try {
       property.set("");
     } finally {
-      consumer._zoidiumSourceUpdating = false;
+      sourceState._zoidiumSourceUpdating = false;
     }
   }
 
   function setConsumerSource(consumer, value, options = {}) {
     if (!consumer) return false;
-    const property = getSourceProperty(consumer);
+    const property = getSourceProperty(consumer, options.sourceProperty);
+    const sourceState = getSourceState(consumer, property);
     const sourceValue = typeof value === "string" ? value : "";
     if (!sourceValue) {
-      consumer._zoidiumSourceTrack = null;
-      consumer._zoidiumSourceError = "";
+      sourceState._zoidiumSourceTrack = null;
+      sourceState._zoidiumSourceError = "";
       return true;
     }
 
     const target = resolveTrackToken(consumer, sourceValue);
     if (!target) {
-      consumer._zoidiumSourceTrack = null;
-      consumer._zoidiumSourceError = "missing";
-      if (options.fromUser && !consumer._zoidiumSourceUpdating) {
-        clearSourceProperty(consumer);
-        consumer._zoidiumSourceError = "missing";
+      sourceState._zoidiumSourceTrack = null;
+      sourceState._zoidiumSourceError = "missing";
+      if (options.fromUser && !sourceState._zoidiumSourceUpdating) {
+        clearSourceProperty(consumer, property);
+        sourceState._zoidiumSourceError = "missing";
       }
       return false;
     }
-    if (wouldCreateCycle(consumer, target)) {
-      consumer._zoidiumSourceTrack = null;
-      consumer._zoidiumSourceError = "cycle";
-      clearSourceProperty(consumer);
-      consumer._zoidiumSourceError = "cycle";
+    if (wouldCreateCycle(consumer, target, property)) {
+      sourceState._zoidiumSourceTrack = null;
+      sourceState._zoidiumSourceError = "cycle";
+      clearSourceProperty(consumer, property);
+      sourceState._zoidiumSourceError = "cycle";
       return false;
     }
 
-    consumer._zoidiumSourceTrack = target;
-    consumer._zoidiumSourceError = "";
-    if (property && property.get?.() !== sourceValue && !consumer._zoidiumSourceUpdating) {
-      consumer._zoidiumSourceUpdating = true;
+    sourceState._zoidiumSourceTrack = target;
+    sourceState._zoidiumSourceError = "";
+    if (property && property.get?.() !== sourceValue && !sourceState._zoidiumSourceUpdating) {
+      sourceState._zoidiumSourceUpdating = true;
       try {
         property.set(sourceValue);
       } finally {
-        consumer._zoidiumSourceUpdating = false;
+        sourceState._zoidiumSourceUpdating = false;
       }
     }
     scheduleValidation(getProject(consumer) || state.editor?.project);
     return true;
   }
 
-  function getCurrentSourceToken(consumer) {
-    const target = getConsumerTrack(consumer);
-    return target ? trackToken(target) : getSourceProperty(consumer)?.get?.() || "";
+  function getCurrentSourceToken(consumer, sourceProperty) {
+    const property = getSourceProperty(consumer, sourceProperty);
+    const target = getConsumerTrack(consumer, property);
+    return target ? trackToken(target) : property?.get?.() || "";
   }
 
   function getClipLabel(track) {
@@ -306,7 +348,7 @@ const LayerInput = (() => {
     }
   }
 
-  function getSourceOptions(consumer) {
+  function getSourceOptions(consumer, sourceProperty) {
     const project = getProject(consumer) || state.editor?.project;
     const owner = getOwnerTrack(consumer);
     const options = [{ value: "", label: "(No source)", disabled: false }];
@@ -316,18 +358,18 @@ const LayerInput = (() => {
       options.push({
         value: trackToken(track),
         label: `Track ${index + 1}${suffix}`,
-        disabled: track === owner || wouldCreateCycle(consumer, track),
+        disabled: track === owner || wouldCreateCycle(consumer, track, sourceProperty),
       });
     }
-    const current = getCurrentSourceToken(consumer);
+    const current = getCurrentSourceToken(consumer, sourceProperty);
     if (current && !options.some((option) => option.value === current)) {
       options.push({ value: current, label: "(Missing source)", disabled: true });
     }
     return options;
   }
 
-  function getSourceStatus(consumer) {
-    switch (getSourceError(consumer)) {
+  function getSourceStatus(consumer, sourceProperty) {
+    switch (getSourceError(consumer, sourceProperty)) {
       case "cycle":
         return "Circular source reference";
       case "missing":
@@ -448,7 +490,7 @@ const LayerInput = (() => {
       return null;
     }
 
-    const clip = track.enabled === false ? null : track.getCurrentClip?.(projectFrame);
+    const clip = track.getCurrentClip?.(projectFrame);
     if (!clip?.object) {
       runtime.cache.set(key, null);
       return null;
@@ -529,6 +571,16 @@ const LayerInput = (() => {
     return renderTrackSource(context.root, track, frame, context);
   }
 
+  function resolveShaderSource(shader, sourceProperty, frame) {
+    const context = currentContext();
+    if (!context) return null;
+    const track = getConsumerTrack(shader, sourceProperty);
+    if (!track) return null;
+    const clip = shader?.tryGetParentOfType?.(state.PZ?.clip);
+    const projectFrame = clip && Number.isFinite(frame) ? clip.start + frame : context.frame;
+    return renderTrackSource(context.root, track, projectFrame, context);
+  }
+
   function serializeConsumer(consumer) {
     const properties = JSON.parse(JSON.stringify(consumer.properties));
     const track = getConsumerTrack(consumer);
@@ -539,8 +591,9 @@ const LayerInput = (() => {
   function registerConsumer(consumer) {
     if (!consumer) return;
     state.consumers.add(consumer);
-    const property = getSourceProperty(consumer);
-    if (property?.get?.()) setConsumerSource(consumer, property.get());
+    for (const property of getSourceProperties(consumer)) {
+      if (property?.get?.()) setConsumerSource(consumer, property.get(), { sourceProperty: property });
+    }
   }
 
   function unregisterConsumer(consumer) {
@@ -551,13 +604,16 @@ const LayerInput = (() => {
     if (!project) return;
     for (const consumer of state.consumers) {
       if (getProject(consumer) !== project) continue;
-      const target = getConsumerTrack(consumer);
-      if (!target) continue;
-      if (wouldCreateCycle(consumer, target)) {
-        consumer._zoidiumSourceTrack = null;
-        consumer._zoidiumSourceError = "cycle";
-        clearSourceProperty(consumer);
-        consumer._zoidiumSourceError = "cycle";
+      for (const property of getSourceProperties(consumer)) {
+        const target = getConsumerTrack(consumer, property);
+        if (!target) continue;
+        if (wouldCreateCycle(consumer, target, property)) {
+          const sourceState = getSourceState(consumer, property);
+          sourceState._zoidiumSourceTrack = null;
+          sourceState._zoidiumSourceError = "cycle";
+          clearSourceProperty(consumer, property);
+          sourceState._zoidiumSourceError = "cycle";
+        }
       }
     }
   }
@@ -683,7 +739,7 @@ const LayerInput = (() => {
     let signature = "";
     function refresh(frame) {
       const consumer = property.parentObject;
-      const options = getSourceOptions(consumer);
+      const options = getSourceOptions(consumer, property);
       const nextSignature = options
         .map((option) => `${option.value}\u0000${option.label}\u0000${option.disabled}`)
         .join("\u0001");
@@ -698,11 +754,11 @@ const LayerInput = (() => {
           select.appendChild(element);
         }
       }
-      const current = getCurrentSourceToken(consumer) || property.get(frame) || "";
+      const current = getCurrentSourceToken(consumer, property) || property.get(frame) || "";
       if (state.document.activeElement !== select) select.value = current;
-      const error = getSourceError(consumer);
+      const error = getSourceError(consumer, property);
       select.dataset.error = error;
-      select.title = getSourceStatus(consumer) || "Select a source track";
+      select.title = getSourceStatus(consumer, property) || "Select a source track";
     }
 
     select.onchange = function () {
@@ -711,7 +767,7 @@ const LayerInput = (() => {
       const frame = container.pz_frame;
       const value = select.value;
       property.set(value, frame);
-      setConsumerSource(consumer, value, { fromUser: true });
+      setConsumerSource(consumer, value, { fromUser: true, sourceProperty: property });
       PZ.ui.controls.editFinish.call(this, property);
       refresh(frame);
     };
@@ -730,6 +786,159 @@ const LayerInput = (() => {
     };
     state.patchedListInput.__zoidiumLayerInput = true;
     controls.generateListInput = state.patchedListInput;
+  }
+
+  function getShaderSourceProperties(shader) {
+    return getSourceProperties(shader).filter(
+      (property) => property?.definition?._zoidiumShaderLayerSource
+    );
+  }
+
+  function getShaderPropertyName(shader, property) {
+    const name = property?.properties?.name?.get?.() || property?.definition?.name || "";
+    return typeof shader?.fixPropertyName === "function"
+      ? shader.fixPropertyName(String(name))
+      : String(name).replace(/\s/g, "_");
+  }
+
+  function getShaderEmptyTexture() {
+    if (!state.shaderEmptyTexture) {
+      const texture = new THREE.DataTexture(
+        new Uint8Array([0, 0, 0, 0]),
+        1,
+        1,
+        THREE.RGBAFormat
+      );
+      texture.minFilter = THREE.LinearFilter;
+      texture.magFilter = THREE.LinearFilter;
+      texture.generateMipmaps = false;
+      texture.needsUpdate = true;
+      state.shaderEmptyTexture = texture;
+    }
+    return state.shaderEmptyTexture;
+  }
+
+  function patchShaderInputUniforms(shader) {
+    if (!shader?.pass?.uniforms) return;
+    for (const property of getShaderSourceProperties(shader)) {
+      const name = getShaderPropertyName(shader, property);
+      const uniform = shader.pass.uniforms[name] || { type: "t", value: null };
+      uniform.type = "t";
+      uniform.value = getShaderEmptyTexture();
+      shader.pass.uniforms[name] = uniform;
+    }
+  }
+
+  function updateShaderInputUniforms(shader, frame) {
+    if (!shader?.pass?.uniforms) return;
+    for (const property of getShaderSourceProperties(shader)) {
+      const uniform = shader.pass.uniforms[getShaderPropertyName(shader, property)];
+      if (!uniform) continue;
+      const source = resolveShaderSource(shader, property, frame);
+      uniform.value = source?.texture || getShaderEmptyTexture();
+    }
+  }
+
+  function removeShaderWatcher(shader) {
+    const watcher = state.shaderWatchers.get(shader);
+    if (!watcher) return;
+    try {
+      watcher.observable.unwatch(watcher.callback);
+    } catch (_error) {
+      // Detached shader properties are harmless during project replacement.
+    }
+    state.shaderWatchers.delete(shader);
+  }
+
+  function registerShaderInstance(shader) {
+    if (!shader || state.shaderWatchers.has(shader)) {
+      if (shader) registerConsumer(shader);
+      return;
+    }
+    const observable = shader.customProperties?.onObjectAdded;
+    const callback = (property) => {
+      if (!property?.definition?._zoidiumShaderLayerSource) return;
+      registerConsumer(shader);
+      scheduleValidation(getProject(shader) || state.editor?.project);
+    };
+    if (observable?.watch) {
+      observable.watch(callback);
+      state.shaderWatchers.set(shader, { observable, callback });
+    }
+    registerConsumer(shader);
+  }
+
+  function installShaderPropertyType() {
+    const propertyTypes = state.PZ.ui.objectTypes.get(state.PZ.property);
+    if (!Array.isArray(propertyTypes)) return;
+    state.propertyTypeList = propertyTypes;
+    const existing = propertyTypes.find(
+      (entry) => entry?.type?._zoidiumShaderLayerSource
+    );
+    if (existing) {
+      state.propertyTypeEntry = existing;
+      return;
+    }
+    const type = {
+      custom: true,
+      type: state.PZ.property.type.LIST,
+      value: "",
+      items: [{ name: "(No source)", value: "" }],
+      _zoidiumLayerSource: true,
+      _zoidiumShaderLayerSource: true,
+      changed: function () {
+        const shader = this.parentObject;
+        if (shader?._zoidiumLoading) return;
+        state.api?.setSource(shader, this.value || "", { sourceProperty: this });
+      },
+    };
+    const entry = { name: "Layer Input", type };
+    const dynamicIndex = propertyTypes.findIndex(
+      (item) => item?.category && item.name === "DYNAMIC"
+    );
+    if (dynamicIndex >= 0) propertyTypes.splice(dynamicIndex, 0, entry);
+    else propertyTypes.push(entry);
+    state.propertyTypeEntry = entry;
+    state.propertyTypeEntryAdded = true;
+  }
+
+  function installShaderPatches() {
+    const prototype = state.PZ.effect?.shader?.prototype;
+    if (!prototype || prototype.update === state.patchedShaderUpdate) return;
+    state.shaderPrototype = prototype;
+    state.originalShaderLoad = prototype.load;
+    state.originalShaderUpdate = prototype.update;
+    state.originalShaderUpdateFragmentShader = prototype.updateFragmentShader;
+    state.originalShaderUnload = prototype.unload;
+    state.patchedShaderLoad = async function () {
+      const result = await state.originalShaderLoad.apply(this, arguments);
+      registerShaderInstance(this);
+      return result;
+    };
+    state.patchedShaderUpdateFragmentShader = function () {
+      const result = state.originalShaderUpdateFragmentShader.apply(this, arguments);
+      patchShaderInputUniforms(this);
+      return result;
+    };
+    state.patchedShaderUpdate = function (frame) {
+      const result = state.originalShaderUpdate.apply(this, arguments);
+      updateShaderInputUniforms(this, frame);
+      return result;
+    };
+    state.patchedShaderUnload = function () {
+      removeShaderWatcher(this);
+      unregisterConsumer(this);
+      return state.originalShaderUnload.apply(this, arguments);
+    };
+    prototype.load = state.patchedShaderLoad;
+    prototype.updateFragmentShader = state.patchedShaderUpdateFragmentShader;
+    prototype.update = state.patchedShaderUpdate;
+    prototype.unload = state.patchedShaderUnload;
+
+    const project = state.editor?.project;
+    project?.traverse?.((object) => {
+      if (object instanceof state.PZ.effect.shader) registerShaderInstance(object);
+    });
   }
 
   function createLayerSourceMaterialFactory() {
@@ -930,6 +1139,23 @@ const LayerInput = (() => {
     if (state.trackPrototype?.toJSON === state.patchedTrackToJSON) {
       state.trackPrototype.toJSON = state.originalTrackToJSON;
     }
+    for (const shader of Array.from(state.shaderWatchers.keys())) removeShaderWatcher(shader);
+    if (state.shaderPrototype?.load === state.patchedShaderLoad) {
+      state.shaderPrototype.load = state.originalShaderLoad;
+    }
+    if (state.shaderPrototype?.update === state.patchedShaderUpdate) {
+      state.shaderPrototype.update = state.originalShaderUpdate;
+    }
+    if (state.shaderPrototype?.updateFragmentShader === state.patchedShaderUpdateFragmentShader) {
+      state.shaderPrototype.updateFragmentShader = state.originalShaderUpdateFragmentShader;
+    }
+    if (state.shaderPrototype?.unload === state.patchedShaderUnload) {
+      state.shaderPrototype.unload = state.originalShaderUnload;
+    }
+    if (state.propertyTypeEntryAdded && state.propertyTypeList && state.propertyTypeEntry) {
+      const index = state.propertyTypeList.indexOf(state.propertyTypeEntry);
+      if (index >= 0) state.propertyTypeList.splice(index, 1);
+    }
     state.compositorPrototype = null;
     state.originalRenderSequence = null;
     state.patchedRenderSequence = null;
@@ -945,6 +1171,18 @@ const LayerInput = (() => {
     state.patchedTrackLoad = null;
     state.originalTrackToJSON = null;
     state.patchedTrackToJSON = null;
+    state.shaderPrototype = null;
+    state.originalShaderLoad = null;
+    state.patchedShaderLoad = null;
+    state.originalShaderUpdate = null;
+    state.patchedShaderUpdate = null;
+    state.originalShaderUpdateFragmentShader = null;
+    state.patchedShaderUpdateFragmentShader = null;
+    state.originalShaderUnload = null;
+    state.patchedShaderUnload = null;
+    state.propertyTypeList = null;
+    state.propertyTypeEntry = null;
+    state.propertyTypeEntryAdded = false;
   }
 
   function disposeAllRuntimes() {
@@ -978,6 +1216,8 @@ const LayerInput = (() => {
     installStyle();
     installTrackIdentityPatch();
     installSourceInputPatch();
+    installShaderPropertyType();
+    installShaderPatches();
     installLayerSourceMaterial();
     installCompositorPatch();
     installViewportPatch();
@@ -994,6 +1234,8 @@ const LayerInput = (() => {
     state.validationTimers.clear();
     disposeAllRuntimes();
     restorePatches();
+    state.shaderEmptyTexture?.dispose?.();
+    state.shaderEmptyTexture = null;
     state.style?.remove();
     for (const consumer of state.consumers) {
       if (consumer?.__zoidiumLayerInputMaterial) {

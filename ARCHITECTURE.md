@@ -6,9 +6,9 @@ Zoidium adds the extension layer around that runtime.
 ## Runtime flow
 
 ```text
-CM3 source page
-      |
-      v
+Clipmaker 3 page + Video Editor 2 page
+                  |
+                  v
 tools/runtime-resources.js
       |
       +--> .zoidium-resources/       local cache
@@ -19,14 +19,17 @@ tools/runtime-resources.js
 The repository stores only Zoidium-owned files. The staging tool does the
 following:
 
-1. Fetches the configured CM3 HTML page.
-2. Finds same-origin CSS, JavaScript, worker, shader, texture, and font
-   references used by the page.
+1. Fetches the configured Clipmaker 3 and Video Editor 2 HTML pages.
+2. Finds and deduplicates their same-origin CSS, JavaScript, worker, shader,
+   texture, and font references.
 3. Writes those files to the cache while keeping the paths CM3 expects.
 4. Copies the Zoidium overlay files and generated plugin bundles into the stage.
-5. Removes eager CM3 initialization from the staged HTML.
-6. Loads Zoidium policy before CM3, then loads the extension layer after CM3
-   exposes `initTool()`.
+5. Removes the fixed editor entry script and eager initialization from the
+   staged HTML.
+6. Generates a stage-only profile map for the discovered Clipmaker and Video
+   Editor entry scripts.
+7. Loads the layout selected in Settings, aliases its editor instance to `CM`,
+   and starts the Zoidium extension layer around it.
 
 The cache remains after a browser or development Electron process exits. A
 temporary packaging stage is removed after Electron Builder finishes.

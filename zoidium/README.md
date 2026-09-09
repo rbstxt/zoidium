@@ -5,15 +5,18 @@ not contain a copy of the CM3 source page or any CM3 runtime resources.
 
 ## Bootstrap order
 
-`tools/runtime-resources.js` fetches the configured CM3 page and discovers its
-same-origin resource graph. It writes the graph into the Git-ignored
+`tools/runtime-resources.js` fetches the configured Clipmaker 3 and Video Editor
+2 pages and discovers their shared same-origin resource graph. It writes the
+graph into the Git-ignored
 `.zoidium-resources/` cache, then copies it into a disposable output stage when
 one is needed and adds the Zoidium bootstrap to that stage's `index.html` to:
 
 1. remove the upstream page's eager initialization and advertising bootstrap;
-2. load `runtime-config.js` and the local-first `runtime-policy.js`;
-3. load the CM3 runtime in its original order;
-4. run `runtime-loader.js` after the CM3 page exposes `initTool()`.
+2. load the generated runtime profile map, `runtime-config.js`, and the
+   local-first `runtime-policy.js`;
+3. load the editor entry script selected in Settings;
+4. expose the selected editor through the shared `CM` reference;
+5. initialize the editor and load the Zoidium extension scripts.
 
 The checked-in `index.html` is only a no-resource placeholder. It is replaced
 inside `dist/web/`, the browser development stage, and the temporary Electron
@@ -21,10 +24,12 @@ build tree. The fixed resource manifest and remote-resource bridge were removed;
 the current HTML and runtime graph are the source of truth for each run.
 
 `runtime-fonts.css` imports the locally bundled `../fonts/fonts.css` and applies
-the same `Source Code Pro` family used by CM3's editor. The WOFF2 file is kept
-under `fonts/` with its SIL Open Font License 1.1 notice; it is not fetched from
-Panzoid and does not require a font CDN. CM3-specific font presets, if any,
-remain separate fetched resources in the Git-ignored runtime cache.
+the font selected in the Settings tab to the editor chrome. Source Code Pro,
+Geist, Geist Mono, JetBrains Mono, IBM Plex Sans, IBM Plex Mono, Cascadia Mono,
+and Fira Code are bundled under the SIL Open Font License 1.1; the generic
+system monospace option is resolved only from the user's operating system. None
+require a font CDN. CM3-specific font presets, if any, remain separate fetched
+resources in the Git-ignored runtime cache.
 
 ## Cache and output stages
 
@@ -41,9 +46,10 @@ root remains a no-resource source placeholder and must not be deployed.
 `pnpm run deploy` runs that build and uploads only `dist/web/` for a direct
 Cloudflare Pages deployment.
 
-The source page can be overridden with `ZOIDIUM_CM3_SOURCE_PAGE` for compatible
-development or build environments. This is the only intended source-resource
-configuration point; no fetched bytes or URL manifest should be committed.
+The source pages can be overridden with `ZOIDIUM_CM3_SOURCE_PAGE` and
+`ZOIDIUM_VIDEO_EDITOR_SOURCE_PAGE` for compatible development or build
+environments. No fetched bytes or generated runtime profile map should be
+committed.
 
 ## Extension hooks
 

@@ -93,12 +93,14 @@ asset synchronously, or `undefined` for legacy non-bundled manifests, so a
 versioned network fallback can be retained when necessary.
 
 `Layer Input` adds source-track selectors to its Layer Input and Layer Input Displacement
-Map effects and Layer Source material. The first implementation targets top-level video
-tracks and stores references as stable track IDs, so reordering tracks does not retarget
-a source. The runtime builds an isolated capture for the selected track and reuses it
-for the effect/material during the current frame. Self-references and graph cycles are
-rejected in the picker and are also guarded at render time; a cycle loaded from old or
-hand-edited JSON is cleared from the offending source property and marked as circular.
+Map effects, Layer Source material, and Custom Shader properties. A Custom Shader Layer
+Input is exposed to GLSL as a `sampler2D`, like an image input. The first implementation
+targets top-level video tracks and stores references as stable track IDs, so reordering
+tracks does not retarget a source. The runtime builds an isolated capture for the selected
+track and reuses it for the effect, material, or shader during the current frame. Hidden
+video tracks are still captured. Self-references and graph cycles are rejected in the
+picker and are also guarded at render time; a cycle loaded from old or hand-edited JSON is
+cleared from the offending source property and marked as circular.
 The plugin is intentionally Zoidium-only because it uses the CM3 compositor and material
 factory extension APIs.
 

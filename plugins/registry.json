@@ -12,28 +12,28 @@
       "id": "easing-plus",
       "name": "Easing+",
       "author": "Zoidium",
-      "version": "10",
+      "version": "11",
       "itemCount": 1,
       "format": "curve editor",
       "tagline": "Extended Bezier Easing",
       "color": "#384668",
       "description": "A normalized cubic Bezier editor with a focused set of reusable presets.",
-      "manifest": "./plugins/easing-plus/manifest.json?v=10",
-      "bundle": "./plugins/easing-plus/bundle.json?v=10"
+      "manifest": "./plugins/easing-plus/manifest.json?v=11",
+      "bundle": "./plugins/easing-plus/bundle.json?v=11"
     },
     {
       "id": "player-plus",
       "name": "Player+",
       "author": "Zoidium",
-      "version": "3",
+      "version": "4",
       "defaultEnabled": true,
       "itemCount": 1,
       "format": "playback controls",
       "tagline": "Playback Quality Controls",
       "color": "#4f7dbf",
       "description": "Adds drawing pause, single-render, and preview quality controls to the playback bar.",
-      "manifest": "./plugins/player-plus/manifest.json?v=3",
-      "bundle": "./plugins/player-plus/bundle.json?v=3"
+      "manifest": "./plugins/player-plus/manifest.json?v=4",
+      "bundle": "./plugins/player-plus/bundle.json?v=4"
     },
     {
       "id": "native-fx",
@@ -156,17 +156,17 @@
       "id": "layer-input",
       "name": "Layer Input",
       "author": "Zoidium",
-      "version": "4",
+      "version": "5",
       "itemCount": 4,
       "format": "layer sources",
       "tagline": "Layer-to-Layer Inputs",
       "color": "#4f9db6",
       "category": "experimental",
-      "description": "Lets effects and 3D materials use another video track as an information source.",
+      "description": "Lets effects, 3D materials, and Custom Shaders use another video track as an information source.",
       "zoidiumOnly": true,
       "warning": "Layer Input projects require Zoidium. This feature is extremely experimental and may cause unexpected crashes.",
-      "manifest": "./plugins/layer-input/manifest.json?v=4",
-      "bundle": "./plugins/layer-input/bundle.json?v=4"
+      "manifest": "./plugins/layer-input/manifest.json?v=5",
+      "bundle": "./plugins/layer-input/bundle.json?v=5"
     },
     {
       "id": "particles-plus",

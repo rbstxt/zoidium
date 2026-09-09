@@ -34,7 +34,7 @@
             { text: "Copyright Notice", href: "/about/copyright" },
             {
               text:
-                ". If you find a bug, we'd appreciate it if you reported it to @1zworks.com on Discord and uploaded the debug log from the Info tab.",
+                ". If you find a bug, we'd appreciate it if you reported it to @1zworks.com on Discord and uploaded the debug log from the Settings tab.",
             },
           ],
         },

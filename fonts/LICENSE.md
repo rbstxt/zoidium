@@ -1,3 +1,17 @@
+This file contains the SIL Open Font License 1.1 text for the bundled font
+software. The bundled families and copyright notices are:
+
+- Source Code Pro — © 2023 Adobe, with Reserved Font Name 'Source'.
+- Geist — Copyright 2024 The Geist Project Authors.
+- Geist Mono — Vercel and the Geist font contributors.
+- IBM Plex Sans and IBM Plex Mono — Copyright © 2017 IBM Corp. with Reserved Font Name "Plex".
+- JetBrains Mono — Copyright 2020 The JetBrains Mono Project Authors.
+- Cascadia Mono — Copyright (c) 2019 - Present, Microsoft Corporation, with Reserved Font Name Cascadia Code.
+- Fira Code — Copyright (c) 2014, The Fira Code Project Authors.
+
+The font files are distributed under this license; the family-specific source
+notices and links are documented in `fonts/README.md`.
+
 © 2023 Adobe (http://www.adobe.com/), with Reserved Font Name 'Source'. All Rights Reserved. Source is a trademark of Adobe in the United States and/or other countries.
 
 This Font Software is licensed under the SIL Open Font License, Version 1.1.

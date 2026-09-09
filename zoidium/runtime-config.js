@@ -4,13 +4,13 @@
   var defaults = {
     version: "1.0.0",
     overlayStyles: [
-      "./zoidium/ui-overrides.css",
+      "./zoidium/ui-overrides.css?v=20",
       "./plugins/plugin-manager.css?v=15",
       "./zoidium-welcome-tour.css?v=11",
-      "./zoidium/runtime-fonts.css"
+      "./zoidium/runtime-fonts.css?v=4"
     ],
     preInitScripts: [
-      "./zoidium/debug-log.js?v=3",
+      "./zoidium/debug-log.js?v=4",
       "./plugins/core-patches/window-stylesheet-guard.js?v=1",
       "./plugins/core-patches/project-media-fps.js",
       "./plugins/core-patches/audio-track-visibility.js?v=3",
@@ -27,10 +27,15 @@
       "./plugins/core-patches/object3d-registry.js",
       "./plugins/core-patches/disable-recovery.js",
       "./plugins/core-patches/remove-ad-panel.js",
+      "./plugins/core-patches/remove-videoeditor-legacy-message.js?v=1",
+      "./plugins/core-patches/restore-videoeditor-controls.js?v=1",
       "./plugins/core-patches/remove-community-media.js",
-      "./zoidium/direct-download.js"
+      "./zoidium/direct-download.js",
+      "./plugins/core-patches/project-files.js?v=3"
     ],
     postInitScripts: [
+      "./zoidium/project-restore.js?v=7",
+      "./zoidium/settings.js?v=16",
       "./plugins/plugin-manager.js?v=37",
       "./zoidium-welcome-tour.js?v=9"
     ],

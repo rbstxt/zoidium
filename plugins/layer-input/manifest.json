@@ -3,7 +3,7 @@
   "id": "layer-input",
   "name": "Layer Input",
   "author": "Zoidium",
-  "version": "4",
+  "version": "5",
   "resources": [
     {
       "id": "layer-input-shader",

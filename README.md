@@ -7,20 +7,22 @@ plugins, local-first adapters, creator tools, and packaging for browser and
 desktop use.
 
 The Zoidium source code, plugins, documentation, and build tools are licensed
-under the [MIT License](./LICENSE). The bundled Source Code Pro font has its
-own [SIL Open Font License 1.1](./fonts/LICENSE.md) notice. CM3 resources
+under the [MIT License](./LICENSE). The bundled Source Code Pro, Geist, Geist
+Mono, JetBrains Mono, IBM Plex Sans, IBM Plex Mono, Cascadia Mono, and Fira Code fonts have
+their own [SIL Open Font License 1.1](./fonts/LICENSE.md) notice. CM3 resources
 fetched at runtime or build time remain subject to their respective rights
 holders' notices and terms.
 
 The repository intentionally contains no CM3 runtime, effect, material,
 worker, shader, texture, CM3 font, icon, or download-page files. It does
-include the separately licensed Source Code Pro UI font under `fonts/`; it is
+include the separately licensed UI font families under `fonts/`; they are
 not a Panzoid/CM3 resource. When the app is started or a deployment is built,
-`tools/runtime-resources.js` fetches the configured CM3 source page and its
-same-origin resource graph into the Git-ignored `.zoidium-resources/` cache.
+`tools/runtime-resources.js` fetches the configured Clipmaker 3 and Video Editor
+2 source pages and their shared same-origin resource graph into the Git-ignored
+`.zoidium-resources/` cache.
 CM3-specific font presets remain in that cache, while the Zoidium extension
-layer uses the locally bundled Source Code Pro family. No font CDN request is
-needed. The cache is retained between local runs; a static
+layer uses the locally bundled font selected in Settings. No font CDN request
+is needed. The cache is retained between local runs; a static
 deployment keeps only the generated build output required by that deployment.
 
 ## Quick start
@@ -85,10 +87,12 @@ fetched CM3 stage, builds the installer, and removes that temporary tree. The
 installer necessarily contains the runtime needed by that particular build;
 the source repository does not.
 
-Set `ZOIDIUM_CM3_SOURCE_PAGE` to use another compatible source page during a
-build or local run. The default is:
+Set `ZOIDIUM_CM3_SOURCE_PAGE` or `ZOIDIUM_VIDEO_EDITOR_SOURCE_PAGE` to use
+compatible source pages during a build or local run. The defaults are:
 
 `https://panzoid.com/legacy/gen3/clipmaker.html`
+
+`https://panzoid.com/legacy/gen3/videoeditor.html`
 
 ## Runtime lifecycle
 
@@ -126,7 +130,14 @@ Zoidium/
 ├── main.js                    # Electron process and disposable local server
 ├── package.json               # pnpm scripts and Electron build configuration
 ├── fonts/
-│   ├── fonts.css              # local Source Code Pro face
+│   ├── fonts.css              # local UI font faces
+│   ├── cascadia-mono-regular.woff2
+│   ├── fira-code-regular.woff2
+│   ├── geist-sans-variable.woff2
+│   ├── geist-mono-variable.woff2
+│   ├── ibm-plex-sans-regular.woff2
+│   ├── ibm-plex-mono-regular.woff2
+│   ├── jetbrains-mono-variable.woff2
 │   ├── source-code-pro-regular.woff2
 │   ├── LICENSE.md             # Source Code Pro SIL Open Font License
 │   └── README.md              # source and license details
@@ -141,7 +152,8 @@ Zoidium/
 ├── zoidium/
 │   ├── runtime-config.js      # extension profile
 │   ├── runtime-loader.js      # overlay bootstrap
-│   ├── runtime-fonts.css      # applies the local Source Code Pro family
+│   ├── runtime-fonts.css      # applies the selected local/system UI font
+│   ├── settings.js             # editor settings tab
 │   ├── runtime-policy.js      # local-first policy adapters
 │   └── direct-download.js     # in-place Blob download bridge
 ├── plugins/                   # extension sources and generated plugin bundles

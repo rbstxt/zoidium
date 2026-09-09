@@ -1,21 +1,45 @@
-/* Keep the extension UI aligned with CM3's Source Code Pro editor font. */
-@import "../fonts/fonts.css";
+/* Keep the extension UI aligned with the editor font selected in Settings. */
+@import "../fonts/fonts.css?v=3";
+
+:root {
+  --zoidium-font-family: "Source Code Pro", monospace;
+  --zoidium-code-font-family: "Source Code Pro", monospace;
+}
 
 html,
 body {
-  font-family: "Source Code Pro", monospace;
+  font-family: var(--zoidium-font-family);
+}
+
+/* Keep CM3's editor chrome regular across all selectable font families. */
+html,
+body,
+html body * {
+  font-weight: 400 !important;
+  font-synthesis: none;
 }
 
 div.post_message {
-  font-family: "Source Code Pro", monospace;
+  font-family: var(--zoidium-font-family);
 }
 
 .editorwindow {
-  font-family: "Source Code Pro", monospace;
+  font-family: var(--zoidium-font-family);
 }
 
 .zoidium-debug-log,
 .zoidium-debug-log .proprow,
-.zoidium-debug-log button {
-  font-family: "Source Code Pro", monospace;
+.zoidium-debug-log button,
+.zoidium-settings-panel,
+.zoidium-settings-panel * {
+  font-family: var(--zoidium-font-family);
+}
+
+/* Code-oriented surfaces follow the matching monospace family. */
+pre,
+code,
+textarea,
+.zoidium-code-editor,
+.zoidium-code-editor * {
+  font-family: var(--zoidium-code-font-family) !important;
 }

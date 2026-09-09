@@ -7,21 +7,23 @@ Zoidiumは、Clipmaker Gen3（CM3）の外側で動作する拡張レイヤー�
 デスクトップ向けのパッケージングを提供します。
 
 Zoidiumのソースコード、プラグイン、ドキュメント、ビルドツールは
-[MIT License](./LICENSE)で許諾されます。同梱のSource Code Proフォントには
-独自の[SIL Open Font License 1.1](./fonts/LICENSE.md)が適用されます。
+[MIT License](./LICENSE)で許諾されます。同梱のSource Code Pro、Geist、Geist Mono、
+JetBrains Mono、IBM Plex Sans、IBM Plex Mono、Cascadia Mono、Fira Codeフォントには独自の
+[SIL Open Font License 1.1](./fonts/LICENSE.md)が適用されます。
 実行時またはビルド時に取得するCM3リソースは、それぞれの権利者の通知と利用条件に従います。
 
 リポジトリには、CM3のランタイム、エフェクト、マテリアル、ワーカー、
 シェーダー、テクスチャ、CM3由来のフォント、アイコン、ダウンロードページを
-含めません。一方、`fonts/`には別ライセンスで利用できるSource Code Proを
+含めません。一方、`fonts/`には別ライセンスで利用できるUIフォントを
 同梱しています。これはPanzoid/CM3リソースではありません。`pnpm run setup`または
 開発・ビルドの開始時に、
-`tools/runtime-resources.js` が設定されたCM3ソースページと同一オリジンの
-リソースグラフをGit管理外の`.zoidium-resources/`へ取得します。キャッシュは
+`tools/runtime-resources.js` が設定されたClipmaker 3とVideo Editor 2のソースページ、
+および両者が使う同一オリジンのリソースグラフをGit管理外の
+`.zoidium-resources/`へ取得します。キャッシュは
 ローカルサーバー終了後も保持し、静的デプロイではそのデプロイに必要な生成物だけが残ります。
 CM3とZoidiumの拡張レイヤーは、このキャッシュに取得したCM3リソースを使用します。
 CM3固有のフォントプリセットはキャッシュから使いますが、Zoidiumの拡張レイヤーは
-ローカル同梱のSource Code Proを使います。フォントCDNへのリクエストは発生しません。
+Settingsで選択したローカルまたはシステムのフォントを使います。フォントCDNへのリクエストは発生しません。
 
 ## クイックスタート
 
@@ -83,9 +85,12 @@ Electronビルダーは、キャッシュ済みのCM3リソースを一時的な
 ビルドに必要なランタイムが含まれますが、ソースリポジトリには含まれません。
 
 ビルドまたはローカル実行時に互換ソースを差し替える場合は、
-`ZOIDIUM_CM3_SOURCE_PAGE`を設定します。既定値は次のURLです。
+`ZOIDIUM_CM3_SOURCE_PAGE`または`ZOIDIUM_VIDEO_EDITOR_SOURCE_PAGE`を設定します。
+既定値は次のURLです。
 
 `https://panzoid.com/legacy/gen3/clipmaker.html`
+
+`https://panzoid.com/legacy/gen3/videoeditor.html`
 
 ## ランタイムのライフサイクル
 
@@ -120,7 +125,14 @@ Zoidium/
 ├── main.js                     # Electronプロセスとキャッシュ利用サーバー
 ├── package.json                # pnpmスクリプトとElectron設定
 ├── fonts/
-│   ├── fonts.css               # ローカルSource Code Pro
+│   ├── fonts.css               # ローカルUIフォント
+│   ├── cascadia-mono-regular.woff2
+│   ├── fira-code-regular.woff2
+│   ├── geist-sans-variable.woff2
+│   ├── geist-mono-variable.woff2
+│   ├── ibm-plex-sans-regular.woff2
+│   ├── ibm-plex-mono-regular.woff2
+│   ├── jetbrains-mono-variable.woff2
 │   ├── source-code-pro-regular.woff2
 │   ├── LICENSE.md              # Source Code ProのSIL Open Font License
 │   └── README.md               # 出典とライセンスの詳細
@@ -132,7 +144,8 @@ Zoidium/
 ├── zoidium/
 │   ├── runtime-config.js       # 拡張プロファイル
 │   ├── runtime-loader.js       # 拡張ブートストラップ
-│   ├── runtime-fonts.css       # ローカルSource Code Proを適用
+│   ├── runtime-fonts.css       # 選択したローカル/システムフォントを適用
+│   ├── settings.js             # エディター設定タブ
 │   ├── runtime-policy.js       # ローカル優先のポリシーアダプター
 │   └── direct-download.js      # その場でのBlobダウンロード
 ├── plugins/                    # 拡張ソースと生成済みプラグインバンドル

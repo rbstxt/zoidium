@@ -3,6 +3,7 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 const {
+  discoverEditorEntryScript,
   discoverTextReferences,
   normalizeResourcePath,
   patchIndexHtml,
@@ -39,8 +40,26 @@ test("the source page patch defers CM3 initialization and adds the bootstrap", (
 
   const patched = patchIndexHtml(source);
   assert.match(patched, /zoidium\/runtime-config\.js/);
+  assert.match(patched, /zoidium-runtime-profiles\.js/);
   assert.match(patched, /zoidium\/runtime-policy\.js/);
   assert.match(patched, /zoidium\/runtime-loader\.js/);
+  assert.doesNotMatch(patched, /src="clipmaker-1\.0\.0\.js"/);
   assert.doesNotMatch(patched, /PZ\.ui\.ads\.init\s*\(\)\s*;/);
   assert.doesNotMatch(patched, /initTool\s*\(\)\s*;/);
+});
+
+test("layout entry scripts are discovered from their source pages", () => {
+  const clipmaker = discoverEditorEntryScript(
+    '<script src="./clipmaker-3.0.106.js"></script>',
+    "https://panzoid.com/legacy/gen3/clipmaker.html",
+    "clipmaker"
+  );
+  const videoEditor = discoverEditorEntryScript(
+    '<script src="./videoeditor-2.0.69.js"></script>',
+    "https://panzoid.com/legacy/gen3/videoeditor.html",
+    "videoeditor"
+  );
+
+  assert.equal(clipmaker.sourcePath, "clipmaker-3.0.106.js");
+  assert.equal(videoEditor.sourcePath, "videoeditor-2.0.69.js");
 });

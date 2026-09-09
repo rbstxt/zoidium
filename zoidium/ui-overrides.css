@@ -24,3 +24,392 @@
 ::-webkit-scrollbar-corner {
   background-color: transparent;
 }
+
+.zoidium-project-name {
+  display: block;
+  grid-column: 1;
+  min-width: 0;
+  width: 100%;
+}
+
+.zoidium-project-toolbar {
+  align-items: center;
+  column-gap: 0;
+  display: grid;
+  grid-template-columns: minmax(100px, 1fr) auto minmax(0, 1fr);
+  padding: 5px !important;
+  text-align: left !important;
+  white-space: nowrap;
+}
+
+.zoidium-project-actions {
+  align-items: center;
+  display: flex;
+  gap: 0;
+  grid-column: 2;
+  justify-content: center;
+  min-width: max-content;
+}
+
+.zoidium-restore-tab > svg {
+  /* The reset glyph is visually low in the shared 50px elevator row. */
+  top: 8px;
+}
+
+.zoidium-project-name input {
+  display: block;
+  min-width: 0;
+  width: 100%;
+  height: 29px;
+  padding: 2px 5px;
+  overflow: hidden;
+  color: #7e8fb9;
+  font-family: inherit;
+  font-size: 16px;
+  line-height: 23px;
+  text-align: start;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zoidium-restore-panel {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow-y: auto;
+  scrollbar-gutter: auto;
+  background-color: #2a2a2a;
+  --zoidium-scrollbar-width: 12px;
+  --zoidium-plugin-warning-background: rgba(120, 34, 34, 0.18);
+  --zoidium-plugin-warning-border: #a94b4b;
+  --zoidium-plugin-warning-color: #df9b9b;
+}
+
+.zoidium-restore-panel .zoidium-restore-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 5px calc(5px + var(--zoidium-scrollbar-width)) 5px 0 !important;
+  box-sizing: border-box;
+}
+
+.zoidium-restore-title {
+  color: #ccc;
+  font-size: 18px;
+  font-weight: bold;
+}
+
+.zoidium-restore-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: auto;
+}
+
+.zoidium-restore-delete-footer {
+  width: 100%;
+}
+
+.zoidium-restore-backup-control {
+  width: 100%;
+}
+
+.zoidium-delete-all {
+  display: block;
+  width: 100% !important;
+  min-width: 0;
+  margin: 0 !important;
+}
+
+.zoidium-delete-all:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.zoidium-backup-now {
+  display: block;
+  width: 100% !important;
+  min-width: 0;
+  margin: 0 !important;
+}
+
+.zoidium-restore-note {
+  width: 100%;
+  padding: 5px calc(5px + var(--zoidium-scrollbar-width)) 5px 5px;
+  color: #969696;
+  font-size: 12px;
+  border-bottom: 1px solid #242424;
+  box-sizing: border-box;
+}
+
+.zoidium-backup-setting {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.zoidium-backup-setting > span {
+  min-width: 0;
+  overflow: hidden;
+  color: #ccc;
+  font-size: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zoidium-backup-interval {
+  flex: 0 0 116px;
+  width: 116px !important;
+  min-width: 0;
+}
+
+.zoidium-restore-warning {
+  background: var(--zoidium-plugin-warning-background);
+  border-left: 3px solid var(--zoidium-plugin-warning-border);
+  border-top: 1px solid #242424;
+  border-bottom: 1px solid #242424;
+  box-sizing: border-box;
+  color: var(--zoidium-plugin-warning-color);
+  font-size: 13px;
+  line-height: 1.4;
+  margin-bottom: 0;
+  padding: 5px calc(8px + var(--zoidium-scrollbar-width)) 5px 8px;
+  width: 100%;
+}
+
+.zoidium-restore-list {
+  min-height: 0;
+}
+
+.zoidium-restore-section-title {
+  display: block;
+  width: 100%;
+  padding: 4px 5px;
+  color: #6d6d6d;
+  background-color: #222;
+  border-bottom: 1px solid #1d1d1d;
+  box-sizing: border-box;
+  font-size: 15px;
+}
+
+.zoidium-restore-entry {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+  min-height: 44px;
+  padding: 5px calc(5px + var(--zoidium-scrollbar-width)) 5px 5px;
+  color: #ccc;
+  border-bottom: 1px solid #242424;
+  box-sizing: border-box;
+}
+
+.zoidium-restore-entry:hover {
+  background-color: #333;
+}
+
+.zoidium-restore-copy {
+  min-width: 0;
+}
+
+.zoidium-restore-name {
+  overflow: hidden;
+  color: #eee;
+  font-size: 16px;
+  font-weight: bold;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zoidium-restore-meta {
+  overflow: hidden;
+  color: #969696;
+  font-size: 13px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zoidium-restore-actions {
+  display: flex;
+  gap: 3px;
+  align-items: center;
+}
+
+.zoidium-restore-action {
+  width: 27px;
+  height: 27px;
+  color: #acacac;
+  border: 2px solid transparent;
+  box-sizing: border-box;
+}
+
+.zoidium-restore-action:hover {
+  background-color: #2f2f2f;
+}
+
+.zoidium-restore-action:focus {
+  border-color: #384668;
+  outline: 0;
+}
+
+.zoidium-restore-action svg {
+  width: 20px;
+  height: 20px;
+  fill: #acacac;
+  pointer-events: none;
+}
+
+.zoidium-restore-empty {
+  padding: 22px 10px;
+  color: #777;
+  text-align: center;
+}
+
+.zoidium-restore-empty.is-error {
+  color: #c58989;
+}
+
+.zoidium-project-toast {
+  position: fixed;
+  top: 14px;
+  right: 14px;
+  z-index: 2147483000;
+  width: min(360px, calc(100vw - 28px));
+  padding: 10px;
+  color: #ccc;
+  background-color: #242424;
+  border: 2px solid #384668;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+  box-sizing: border-box;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(calc(100% + 20px));
+  transition: opacity 0.18s ease-out, transform 0.18s ease-out;
+}
+
+.zoidium-project-toast.is-visible {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(0);
+}
+
+.zoidium-project-toast.is-error {
+  border-color: #8a2828;
+}
+
+.zoidium-project-toast-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.zoidium-project-toast-title {
+  color: #eee;
+  font-size: 16px;
+  font-weight: bold;
+}
+
+.zoidium-project-toast-close {
+  width: 24px;
+  height: 24px;
+  color: #acacac;
+  font-size: 23px;
+  line-height: 20px;
+  border: 2px solid transparent;
+}
+
+/* Apply the selected Panzoid-style color profile to the editor chrome. */
+.zoidium-editor-window {
+  filter: hue-rotate(var(--zoidium-theme-hue, 0deg)) !important;
+}
+
+/* Preview/project output should keep its native colors even though it lives
+   inside the editor. Only the canvas is exempt so selection outlines and
+   editor overlays in the same panel remain themed. */
+.zoidium-color-profile-exempt {
+  filter: hue-rotate(calc(-1 * var(--zoidium-theme-hue, 0deg))) !important;
+}
+
+/* Keep playback glyphs neutral while the surrounding toolbar follows the
+   selected profile. */
+.zoidium-editor-window .zoidium-player-plus-toolbar button {
+  filter: hue-rotate(calc(-1 * var(--zoidium-theme-hue, 0deg))) !important;
+}
+
+/* Keep track/keyframe state icons neutral while the track and selection
+   outline follow the selected profile. These controls can be created late. */
+.zoidium-editor-window .actionbutton[title="disable track"],
+.zoidium-editor-window .actionbutton[title="delete track"],
+.zoidium-editor-window .actionbutton[title="toggle animation"] {
+  filter: hue-rotate(calc(-1 * var(--zoidium-theme-hue, 0deg))) !important;
+}
+
+.zoidium-settings-panel {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow-y: auto;
+  scrollbar-gutter: auto;
+  background-color: #2a2a2a;
+}
+
+.zoidium-project-toast-close:focus {
+  border-color: #384668;
+  outline: 0;
+}
+
+.zoidium-project-toast-message {
+  margin-top: 3px;
+  overflow-wrap: anywhere;
+  color: #aaa;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.zoidium-project-toast-actions {
+  display: flex;
+  gap: 5px;
+  margin-top: 8px;
+}
+
+.zoidium-project-toast-actions[hidden] {
+  display: none;
+}
+
+.zoidium-project-toast-actions button {
+  width: auto;
+  min-width: 74px;
+  margin: 0;
+  padding: 4px 7px;
+  font-size: 12px;
+}
+
+@media (max-width: 520px) {
+  .zoidium-restore-entry {
+    gap: 4px;
+    padding-left: 5px;
+    padding-right: 5px;
+  }
+
+  .zoidium-restore-name {
+    font-size: 14px;
+  }
+
+  .zoidium-restore-meta {
+    font-size: 11px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .zoidium-project-toast {
+    transition: none;
+  }
+}
