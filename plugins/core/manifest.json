@@ -1,0 +1,114 @@
+{
+  "schemaVersion": 1,
+  "id": "core",
+  "name": "Zoidium Core",
+  "author": "Zoidium",
+  "version": "1",
+  "kind": "core",
+  "visibility": "hidden",
+  "alwaysEnabled": true,
+  "phase": "pre-init",
+  "description": "Hidden built-in extensions that always run before the editor starts. Not shown in the Plugins panel and never stored in projects.",
+  "coreScripts": [
+    {
+      "id": "window-stylesheet-guard",
+      "source": "./plugins/core/window-stylesheet-guard.js",
+      "phase": "pre-init"
+    },
+    {
+      "id": "project-media-fps",
+      "source": "./plugins/core/project-media-fps.js",
+      "phase": "pre-init"
+    },
+    {
+      "id": "audio-track-visibility",
+      "source": "./plugins/core/audio-track-visibility.js",
+      "phase": "pre-init"
+    },
+    {
+      "id": "default-project-settings",
+      "source": "./plugins/core/default-project-settings.js",
+      "phase": "pre-init"
+    },
+    {
+      "id": "particle-defaults",
+      "source": "./plugins/core/particle-defaults.js",
+      "phase": "pre-init"
+    },
+    {
+      "id": "temporal-render",
+      "source": "./plugins/core/temporal-render.js",
+      "phase": "pre-init"
+    },
+    {
+      "id": "video-frame-export",
+      "source": "./plugins/core/video-frame-export.js",
+      "phase": "pre-init"
+    },
+    {
+      "id": "render-aspect-ratio",
+      "source": "./plugins/core/render-aspect-ratio.js",
+      "phase": "pre-init"
+    },
+    {
+      "id": "export-fps",
+      "source": "./plugins/core/export-fps.js",
+      "phase": "pre-init"
+    },
+    {
+      "id": "image-export-options",
+      "source": "./plugins/core/image-export-options.js",
+      "phase": "pre-init"
+    },
+    {
+      "id": "precise-time-left",
+      "source": "./plugins/core/precise-time-left.js",
+      "phase": "pre-init"
+    },
+    {
+      "id": "about-attribution",
+      "source": "./plugins/core/about-attribution.js",
+      "phase": "pre-init"
+    },
+    {
+      "id": "text-shape-winding",
+      "source": "./plugins/core/text-shape-winding.js",
+      "phase": "pre-init"
+    },
+    {
+      "id": "object3d-registry",
+      "source": "./plugins/core/object3d-registry.js",
+      "phase": "pre-init"
+    },
+    {
+      "id": "disable-recovery",
+      "source": "./plugins/core/disable-recovery.js",
+      "phase": "pre-init"
+    },
+    {
+      "id": "remove-ad-panel",
+      "source": "./plugins/core/remove-ad-panel.js",
+      "phase": "pre-init"
+    },
+    {
+      "id": "remove-videoeditor-legacy-message",
+      "source": "./plugins/core/remove-videoeditor-legacy-message.js",
+      "phase": "pre-init"
+    },
+    {
+      "id": "restore-videoeditor-controls",
+      "source": "./plugins/core/restore-videoeditor-controls.js",
+      "phase": "pre-init"
+    },
+    {
+      "id": "remove-community-media",
+      "source": "./plugins/core/remove-community-media.js",
+      "phase": "pre-init"
+    },
+    {
+      "id": "project-files",
+      "source": "./plugins/core/project-files.js",
+      "phase": "pre-init"
+    }
+  ]
+}

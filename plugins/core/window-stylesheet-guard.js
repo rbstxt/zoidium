@@ -65,5 +65,5 @@
 
   GuardedWindow.prototype = OriginalWindow.prototype;
   PZ.ui.window = GuardedWindow;
-  PZ.zoidium.define("windowStylesheetGuard", true, "core-patches/window-stylesheet-guard");
+  PZ.zoidium.define("windowStylesheetGuard", true, "core/window-stylesheet-guard");
 })(window);

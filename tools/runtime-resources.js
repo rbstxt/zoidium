@@ -866,7 +866,7 @@ async function copyPluginRuntime(stageRoot) {
     "plugins/registry.json",
     "plugins/plugin-manager.js",
     "plugins/plugin-manager.css",
-    "plugins/core-patches",
+    "plugins/core",
   ]) {
     await copyEntry(stageRoot, entry, { required: true });
   }

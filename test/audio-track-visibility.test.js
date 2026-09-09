@@ -50,7 +50,7 @@ class Element {
 
 function loadPatch() {
   const source = fs.readFileSync(
-    path.join(root, "plugins", "core-patches", "audio-track-visibility.js"),
+    path.join(root, "plugins", "core", "audio-track-visibility.js"),
     "utf8",
   );
   const Tracks = function Tracks() {};
@@ -185,4 +185,61 @@ test("disabled audio tracks are omitted from generated audio schedules", () => {
   assert.equal(combined.length, 2);
   assert.equal(combined[0], enabled);
   assert.equal(combined[1], video);
+});
+
+function loadPersistencePatch() {
+  const source = fs.readFileSync(
+    path.join(root, "plugins", "core", "audio-track-visibility.js"),
+    "utf8",
+  );
+  // Mirror the CM3 track base class: toJSON carries {type, clips} only.
+  function Track() {}
+  Track.prototype.toJSON = function () {
+    return { type: this.type, clips: this.clips };
+  };
+  Track.prototype.load = function (data) {
+    if (data) this.clips = data.clips;
+  };
+  const context = { PZ: { track: Track } };
+  context.window = context;
+  vm.runInNewContext(source, context);
+  return Track;
+}
+
+test("track visibility and mute state survive a save/load roundtrip", () => {
+  const Track = loadPersistencePatch();
+  const hidden = new Track();
+  hidden.type = 0;
+  hidden.clips = [];
+  hidden.enabled = false;
+  const saved = JSON.parse(JSON.stringify(hidden.toJSON()));
+  assert.equal(saved.enabled, false);
+
+  const restored = new Track();
+  restored.type = 0;
+  restored.clips = [];
+  restored.enabled = true;
+  restored.load(saved);
+  assert.equal(restored.enabled, false);
+
+  const muted = new Track();
+  muted.type = 1;
+  muted.clips = [];
+  muted.enabled = false;
+  assert.equal(JSON.parse(JSON.stringify(muted.toJSON())).enabled, false);
+});
+
+test("tracks saved before this change load as enabled", () => {
+  const Track = loadPersistencePatch();
+  const legacy = new Track();
+  legacy.type = 0;
+  legacy.clips = [];
+  legacy.enabled = true;
+  legacy.load({ type: 0, clips: [] });
+  assert.equal(legacy.enabled, true);
+
+  const fresh = new Track();
+  fresh.type = 1;
+  fresh.clips = [];
+  assert.equal(fresh.toJSON().enabled, true);
 });

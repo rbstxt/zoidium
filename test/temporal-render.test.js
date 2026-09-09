@@ -7,7 +7,7 @@ const {
   clampLocalFrame,
   mapTemporalFrameWithScopes,
   quantizeLocalFrame,
-} = require("../plugins/core-patches/temporal-render");
+} = require("../plugins/core/temporal-render");
 
 test("quantizes local time from the project clock, not from render cadence", () => {
   const mapped = [0, 1, 2, 3, 4, 5, 6, 7, 8].map((frame) =>

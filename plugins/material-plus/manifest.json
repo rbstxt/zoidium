@@ -3,7 +3,8 @@
   "id": "material-plus",
   "name": "Material+",
   "author": "Zoidium",
-  "version": "2",
+  "version": "3",
+  "kind": "material-pack",
   "description": "Adds Matcap and physically based material extensions for 3D objects.",
   "materialTypes": [
     {
@@ -21,22 +22,22 @@
     {
       "id": "matcap-vertex-shader",
       "type": "text",
-      "source": "./plugins/material-plus/shaders/matcap.vert.glsl?v=2"
+      "source": "./plugins/material-plus/shaders/matcap.vert.glsl?v=3"
     },
     {
       "id": "matcap-fragment-shader",
       "type": "text",
-      "source": "./plugins/material-plus/shaders/matcap.frag.glsl?v=2"
+      "source": "./plugins/material-plus/shaders/matcap.frag.glsl?v=3"
     }
   ],
   "modules": [
     {
       "id": "material-plus-runtime",
-      "source": "./plugins/material-plus/material-plus.js?v=2"
+      "source": "./plugins/material-plus/material-plus.js?v=3"
     },
     {
       "id": "material-plus-pbr-runtime",
-      "source": "./plugins/material-plus/pbr-plus.js?v=2"
+      "source": "./plugins/material-plus/pbr-plus.js?v=3"
     }
   ]
 }

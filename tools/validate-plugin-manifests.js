@@ -47,6 +47,36 @@ function validateManifest(manifest, label = "manifest") {
     throw new Error(`${label} failed manifest schema: ${formatSchemaErrors(validateSchema.errors)}`);
   }
 
+  // Per-kind contract: when a manifest declares its plugin kind, the sections
+  // required by that kind must be present. Extra sections are allowed so
+  // hybrid plugins (for example Layer Input, which ships native effects and
+  // a material type) keep working while declaring their primary kind.
+  const hasItems = (value) => Array.isArray(value) && value.length > 0;
+  if (typeof manifest.kind === "string") {
+    const kindRequirements = {
+      "shader-pack": hasItems(manifest.effects) || hasItems(manifest.groups),
+      "native-fx": hasItems(manifest.nativeEffects),
+      "object": hasItems(manifest.objectClasses) || hasItems(manifest.objectTypes),
+      "material-pack": hasItems(manifest.materialTypes),
+      "extension": hasItems(manifest.modules) || hasItems(manifest.resources),
+      "core": true,
+    };
+    if (!Object.prototype.hasOwnProperty.call(kindRequirements, manifest.kind)) {
+      throw new Error(`${label} declares an unknown plugin kind: ${manifest.kind}`);
+    }
+    if (!kindRequirements[manifest.kind]) {
+      throw new Error(`${label} declares kind "${manifest.kind}" but has none of its required sections`);
+    }
+    if (manifest.kind === "core") {
+      if (manifest.visibility !== "hidden") {
+        throw new Error(`${label} is a core plugin and must use visibility "hidden"`);
+      }
+      if (manifest.alwaysEnabled !== true) {
+        throw new Error(`${label} is a core plugin and must set alwaysEnabled to true`);
+      }
+    }
+  }
+
   for (const objectClass of manifest.objectClasses || []) {
     if (!objectClass.type.startsWith(`zoidium:${manifest.id}/`)) {
       throw new Error(

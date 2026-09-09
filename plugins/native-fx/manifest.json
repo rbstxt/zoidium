@@ -3,12 +3,13 @@
   "id": "native-fx",
   "name": "Native FX",
   "author": "Zoidium",
-  "version": "4",
+  "version": "5",
+  "kind": "native-fx",
   "resources": [
     {
       "id": "radialblurspin-shader",
       "type": "text",
-      "source": "/plugins/native-fx/shaders/fx_radialblurspin.glsl?v=4"
+      "source": "/plugins/native-fx/shaders/fx_radialblurspin.glsl?v=5"
     }
   ],
   "category": "NATIVE FX",
@@ -17,25 +18,25 @@
       "id": "radialblurspin",
       "name": "Radial Blur (Spin)",
       "description": "Applies a radial spin blur around an adjustable center.",
-      "source": "./plugins/native-fx/effects/radialblurspin.js?v=4"
+      "source": "./plugins/native-fx/effects/radialblurspin.js?v=5"
     },
     {
       "id": "dropshadow",
       "name": "Drop Shadow",
       "description": "Adds a colored, offset, blurred shadow behind the layer.",
-      "source": "./plugins/native-fx/effects/dropshadow.js?v=4"
+      "source": "./plugins/native-fx/effects/dropshadow.js?v=5"
     },
     {
       "id": "timeoffset",
       "name": "Time Offset",
       "description": "Evaluates the layer at a deterministic time offset; on an Adjustment layer, time-shifts only the image fed into that layer.",
-      "source": "./plugins/native-fx/effects/timeoffset.js?v=4"
+      "source": "./plugins/native-fx/effects/timeoffset.js?v=5"
     },
     {
       "id": "posterizetime",
       "name": "Posterize Time",
       "description": "Evaluates the layer on a deterministic lower frame-rate clock; on an Adjustment layer, quantizes only the image fed into that layer.",
-      "source": "./plugins/native-fx/effects/posterizetime.js?v=4"
+      "source": "./plugins/native-fx/effects/posterizetime.js?v=5"
     }
   ]
 }

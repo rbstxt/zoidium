@@ -23,6 +23,7 @@
     "generate:afterclip": "node tools/build-afterclip-plugin.js",
     "generate:ccfx": "node tools/build-ccfx-plugin.js",
     "generate:alipfx": "node tools/build-alipfx-plugin.js",
+    "new:plugin": "node tools/new-plugin.js",
     "check:plugin-manifests": "node tools/validate-plugin-manifests.js",
     "check:plugin-bundles": "node tools/build-plugin-bundles.js --check",
     "check:syntax": "node tools/check-syntax.js",

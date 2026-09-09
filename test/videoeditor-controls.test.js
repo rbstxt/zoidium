@@ -11,7 +11,7 @@ const patchSource = fs.readFileSync(
     __dirname,
     "..",
     "plugins",
-    "core-patches",
+    "core",
     "restore-videoeditor-controls.js"
   ),
   "utf8"

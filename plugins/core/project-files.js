@@ -390,5 +390,5 @@
     fingerprintArchive: fingerprintArchive,
     triggerDownload: triggerDownload,
     saveProject: saveProject,
-  }, "core-patches/project-files");
+  }, "core/project-files");
 })(window);

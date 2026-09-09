@@ -15,7 +15,7 @@ const liveProjectEntries = [
   "_redirects",
   "about",
   "fonts",
-  "plugins/core-patches",
+  "plugins/core",
   "plugins/plugin-manager.css",
   "plugins/plugin-manager.js",
   "plugins/registry.json",

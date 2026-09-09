@@ -3,7 +3,8 @@
   "id": "repeater",
   "name": "Repeater",
   "author": "Zoidium",
-  "version": "6",
+  "version": "7",
+  "kind": "object",
   "objectCategory": "REPEATER",
   "objectClassParent": {
     "name": "Repeater",
@@ -100,7 +101,7 @@
   "modules": [
     {
       "id": "repeater-runtime",
-      "source": "./plugins/scene-plus/scene-plus.js?v=6"
+      "source": "./plugins/scene-plus/scene-plus.js?v=7"
     }
   ]
 }

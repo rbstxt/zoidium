@@ -141,6 +141,15 @@ function buildBundle(manifest) {
     else throw new Error(`Unsupported plugin resource type for ${resource.id}: ${resource.type}`);
   }
 
+  // Core plugins run as plain pre-init scripts (see zoidium/runtime-config.js),
+  // but their sources are embedded here too so the bundle stays a complete
+  // integrity snapshot of the plugin. Core script URLs are intentionally not
+  // version-normalized: the runtime loader cache-busts them with the shared
+  // assetVersion instead of per-file ?v= queries.
+  for (const script of manifest.coreScripts || []) {
+    addTextAsset(assets, script.source, `core script ${script.id}`);
+  }
+
   return {
     schemaVersion: 1,
     manifest,
@@ -279,8 +288,6 @@ function main() {
 
   const summary = checkOnly ? "Verified" : "Built " + changedBundles + " changed (" + changedManifests + " manifests normalized)";
   console.log(summary + " " + registry.plugins.length + " plugin bundles.");
-  const action = checkOnly ? "Verified" : "Built " + changedBundles + " changed (" + changedManifests + " manifests normalized)";
-  console.log(action + " " + registry.plugins.length + " plugin bundles.");
 }
 
 try {

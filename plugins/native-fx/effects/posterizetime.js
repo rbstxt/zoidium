@@ -1,17 +1,12 @@
 "use strict";
 
-  this.defaultName = "Posterize Time";
-  this._zoidiumTemporal = {
-    kind: "posterize-time",
-    getOperator(effect, frame) {
-      return {
-        kind: "posterize-time",
-        enabled: effect.properties.enabled.get(frame) === 1,
-        fps: Number(effect.properties.fps.get(frame)) || 1,
-      };
-    },
-  };
-  this.properties.addAll({
+// Native FX (temporal): declares a deterministic frame-rate quantizer.
+// The host applies it in plugins/core/temporal-render.js; this file only
+// describes properties and how to read the operator for a frame.
+ZoidiumPluginApis.defineTemporal.call(this, {
+  kind: "posterize-time",
+  displayName: "Posterize Time",
+  properties: {
     enabled: {
       dynamic: true,
       name: "Enabled",
@@ -29,16 +24,12 @@
       step: 1,
       decimals: 0,
     },
-  });
-
-  this.load = function load(data) {
-    this.properties.load(data && data.properties);
-  };
-
-  this.update = function update() {};
-  this.prepare = async function prepare() {};
-  this.resize = function resize() {};
-  this.unload = function unload() {};
-  this.toJSON = function toJSON() {
-    return { type: this.type, properties: this.properties };
-  };
+  },
+  getOperator(effect, frame) {
+    return {
+      kind: "posterize-time",
+      enabled: effect.properties.enabled.get(frame) === 1,
+      fps: Number(effect.properties.fps.get(frame)) || 1,
+    };
+  },
+});

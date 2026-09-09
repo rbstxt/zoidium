@@ -11,7 +11,7 @@ const patchSource = fs.readFileSync(
     __dirname,
     "..",
     "plugins",
-    "core-patches",
+    "core",
     "remove-videoeditor-legacy-message.js"
   ),
   "utf8"

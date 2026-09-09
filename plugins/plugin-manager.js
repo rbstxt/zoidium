@@ -1,7 +1,7 @@
 (function () {
   "use strict";
 
-  const REGISTRY_URL = "./plugins/registry.json?v=23";
+  const REGISTRY_URL = "./plugins/registry.json?v=24";
   const STORAGE_PREFIX = "zoidium.plugin.enabled.";
   const SHADER_PLUGIN_MARKER = "// @zoidium-plugin ";
   const EFFECT_UUID_PROPERTY = "_zoidiumEffectUuid";
@@ -80,6 +80,9 @@
   // Plugins flagged "defaultEnabled" in the registry start enabled on first
   // run; an explicit persisted choice always wins over the default.
   function shouldStartEnabled(plugin) {
+    // Hidden core plugins always run: they are not shown in the panel, never
+    // persisted, and cannot be disabled.
+    if (plugin.alwaysEnabled === true || plugin.visibility === "hidden") return true;
     if (isExplicitlyDisabled(plugin.id)) return false;
     if (isPersistedEnabled(plugin.id)) return true;
     return plugin.defaultEnabled === true;
@@ -202,7 +205,9 @@
       objectClasses.length === 0 &&
       nativeEffects.length === 0 &&
       materialTypes.length === 0 &&
-      modules.length === 0
+      modules.length === 0 &&
+      resources.length === 0 &&
+      manifest.kind !== "core"
     ) {
       throw new Error(`Plugin has no features: ${plugin.id}`);
     }
@@ -639,7 +644,13 @@
       result[key] = hydrateGroupShaders(child, shaderByPath, plugin, group);
     }
     if (result.type === 1 && value._zoidiumShader) {
-      const shader = shaderByPath.get(value._zoidiumShader);
+      // Group presets reference shaders without the ?v asset version that
+      // manifest URLs carry, so match on the normalized key as well.
+      const reference = value._zoidiumShader;
+      const shader =
+        shaderByPath.get(reference) !== undefined
+          ? shaderByPath.get(reference)
+          : shaderByPath.get(pluginAssetKey(reference));
       if (typeof shader !== "string") {
         throw new Error(`Missing group shader: ${group.id} (${value._zoidiumShader})`);
       }
@@ -650,6 +661,18 @@
       )}\n`;
     }
     return result;
+  }
+
+  // Index group shaders by both the raw manifest URL and the normalized
+  // asset key so versioned (?v=) manifest entries match the unversioned
+  // _zoidiumShader references stored inside group presets.
+  function indexGroupShaders(shaderEntries) {
+    const byPath = new Map();
+    for (const [source, text] of shaderEntries) {
+      byPath.set(source, text);
+      byPath.set(pluginAssetKey(source), text);
+    }
+    return byPath;
   }
 
   async function loadGroupData(plugin, group, cache, assets) {
@@ -666,7 +689,7 @@
             if (preset.type !== 0 || !preset.properties || !Array.isArray(preset.objects)) {
               throw new Error(`Invalid group preset: ${group.id}`);
             }
-            return hydrateGroupShaders(preset, new Map(shaderEntries), plugin, group);
+            return hydrateGroupShaders(preset, indexGroupShaders(shaderEntries), plugin, group);
           })
         );
       } else {
@@ -679,7 +702,7 @@
             if (preset.type !== 0 || !preset.properties || !Array.isArray(preset.objects)) {
               throw new Error(`Invalid group preset: ${group.id}`);
             }
-            const shaders = new Map(shaderEntries);
+            const shaders = indexGroupShaders(shaderEntries);
             return hydrateGroupShaders(preset, shaders, plugin, group);
           })
         );
@@ -693,6 +716,9 @@
   }
 
   function setPluginUsageUi(state, inUse) {
+    // Hidden plugins (Zoidium Core) have no panel card; usage text is
+    // panel-only, so there is nothing to update for them.
+    if (!state.card || !state.toggle || !state.status) return;
     const message = inUse
       ? "In use by this project"
       : `${manifestFeatureCount(state.manifest)} active`;
@@ -1077,6 +1103,7 @@
         await runtime.activate({
           plugin,
           manifest,
+          apis: window.ZoidiumPluginApis || null,
           editor: window.CM,
           PZ,
           document,
@@ -1342,6 +1369,13 @@
   }
 
   function updateCard(state, phase, message) {
+    // Hidden plugins (Zoidium Core) have no panel card; track the phase on
+    // the state so the debug log still reports them.
+    if (!state.card) {
+      state.phase = phase;
+      state.statusMessage = message || phase;
+      return;
+    }
     const enabled = phase === "enabled";
     state.card.dataset.enabled = String(enabled);
     state.card.dataset.phase = phase;
@@ -1360,7 +1394,9 @@
   }
 
   function pluginIsEnabled(state) {
-    return state?.card?.dataset.phase === "enabled";
+    if (!state) return false;
+    if (!state.card) return state.phase === "enabled";
+    return state.card.dataset.phase === "enabled";
   }
 
   function debugErrorSummary(error) {
@@ -1388,8 +1424,11 @@
       name: state.plugin.name,
       version: String(state.plugin.version || ""),
       author: state.plugin.author || "",
+      kind: state.manifest?.kind || state.plugin.kind || null,
+      visibility: state.plugin.visibility || state.manifest?.visibility || "visible",
+      hidden: (state.plugin.visibility || state.manifest?.visibility) === "hidden" || !state.card,
       enabled: pluginIsEnabled(state),
-      phase: state.card?.dataset.phase || "disabled",
+      phase: state.card ? state.card.dataset.phase || "disabled" : state.phase || "disabled",
       persistedEnabled: isPersistedEnabled(state.plugin.id),
       featureCount: state.manifest ? manifestFeatureCount(state.manifest) : null,
       lastError: state.lastError || null,
@@ -1604,7 +1643,7 @@
         );
         continue;
       }
-      if (state.card.dataset.phase === "loading" && state.enablePromise) {
+      if (state.card && state.card.dataset.phase === "loading" && state.enablePromise) {
         await state.enablePromise;
       }
       if (pluginIsEnabled(state)) continue;
@@ -1793,7 +1832,11 @@
         emitState(state.plugin.id, true, featureCount);
       } catch (error) {
         unregisterPlugin(state.plugin.id);
-        persistEnabled(state.plugin.id, false);
+        // Hidden core plugins are never persisted; avoid writing a
+        // disabled flag that shouldStartEnabled must ignore anyway.
+        if (state.plugin.visibility !== "hidden" && state.plugin.alwaysEnabled !== true) {
+          persistEnabled(state.plugin.id, false);
+        }
         rememberPluginError(state, "enable", error);
         updateCard(state, "error", "Load failed");
         console.error(`[Zoidium] failed to enable ${state.plugin.name}:`, error);
@@ -1805,6 +1848,9 @@
   }
 
   function disablePlugin(state, persist) {
+    // Hidden core plugins cannot be disabled; there is no toggle for them.
+    if (!state) return;
+    if (state.plugin.alwaysEnabled === true || state.plugin.visibility === "hidden" || !state.card) return;
     const inUse =
       Array.from(trackedNativeEffects).some(
         (effect) => effect._zoidiumPluginMetadata?.id === state.plugin.id
@@ -1925,6 +1971,30 @@
     return card;
   }
 
+  // Hidden plugins (Zoidium Core) never appear in the panel. They still get
+  // a state entry so the debug log reports them and startup enables them.
+  function createHiddenPluginState(plugin) {
+    const state = {
+      plugin,
+      card: null,
+      toggle: null,
+      status: null,
+      phase: "disabled",
+      statusMessage: "Disabled",
+      manifest: null,
+      bundleAssets: null,
+      packagePromise: null,
+      effectCache: new Map(),
+      groupCache: new Map(),
+      replacedObjectTypes: [],
+      runtimeModules: [],
+      enablePromise: null,
+      lastError: null,
+    };
+    pluginStates.set(plugin.id, state);
+    return state;
+  }
+
   function createPanel(registry) {
     const panel = document.createElement("section");
     panel.className = "editorpanel zoidium-plugin-panel";
@@ -1952,6 +2022,10 @@
       )
       .map((item) => item.plugin);
     for (const plugin of orderedPlugins) {
+      if (plugin.visibility === "hidden" || plugin.alwaysEnabled === true) {
+        createHiddenPluginState(plugin);
+        continue;
+      }
       list.appendChild(createPluginCard(plugin));
     }
 

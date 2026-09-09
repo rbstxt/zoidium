@@ -10,7 +10,7 @@ const root = path.join(__dirname, "..");
 
 function readPatch(name) {
   return fs.readFileSync(
-    path.join(root, "plugins", "core-patches", name),
+    path.join(root, "plugins", "core", name),
     "utf8",
   );
 }

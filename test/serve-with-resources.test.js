@@ -10,7 +10,7 @@ const {
 test("development server recognizes live Zoidium runtime files", () => {
   assert.equal(requestPathname("/zoidium/runtime-loader.js?v=1"), "zoidium/runtime-loader.js");
   assert.equal(shouldServeFromProject("/zoidium/runtime-loader.js?v=1"), true);
-  assert.equal(shouldServeFromProject("/plugins/core-patches/temporal-render.js"), true);
+  assert.equal(shouldServeFromProject("/plugins/core/temporal-render.js"), true);
   assert.equal(shouldServeFromProject("/plugins/player-plus/bundle.json?v=3"), true);
 });
 

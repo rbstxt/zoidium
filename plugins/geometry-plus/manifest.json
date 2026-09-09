@@ -3,7 +3,8 @@
   "id": "geometry-plus",
   "name": "Geometry+",
   "author": "Zoidium",
-  "version": "5",
+  "version": "6",
+  "kind": "object",
   "objectCategory": "GEOMETRY+",
   "objectClassParent": {
     "name": "Shape",
@@ -102,7 +103,7 @@
   "modules": [
     {
       "id": "geometry-plus-runtime",
-      "source": "./plugins/geometry-plus/geometry-plus.js?v=5"
+      "source": "./plugins/geometry-plus/geometry-plus.js?v=6"
     }
   ]
 }

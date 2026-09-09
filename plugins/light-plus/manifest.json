@@ -3,7 +3,8 @@
   "id": "light-plus",
   "name": "Light+",
   "author": "Zoidium",
-  "version": "2",
+  "version": "3",
+  "kind": "object",
   "objectTypes": [
     {
       "target": "object3d",

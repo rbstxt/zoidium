@@ -2,12 +2,46 @@
   "use strict";
 
   var PZ = global.PZ;
+  if (!PZ || !PZ.track) return;
+
+  // Persist timeline track visibility (video eye toggle) and audio mute
+  // state in the project file. CM3 serializes tracks as {type, clips} only,
+  // so the runtime enabled flag was lost on save/load. Store it alongside
+  // the track and restore it on load; projects saved before this change
+  // have no field and keep the historical default of enabled.
+  if (
+    PZ.track.prototype &&
+    !PZ.track.prototype.__zoidiumTrackEnabledPersistence
+  ) {
+    var originalTrackToJSON = PZ.track.prototype.toJSON;
+    var originalTrackLoad = PZ.track.prototype.load;
+
+    PZ.track.prototype.toJSON = function () {
+      var data = originalTrackToJSON
+        ? originalTrackToJSON.call(this)
+        : { type: this.type, clips: this.clips };
+      data.enabled = this.enabled !== false;
+      return data;
+    };
+
+    PZ.track.prototype.load = function (data) {
+      var result;
+      if (typeof originalTrackLoad === "function") {
+        result = originalTrackLoad.call(this, data);
+      }
+      if (data && typeof data === "object") {
+        this.enabled = data.enabled !== false;
+      }
+      return result;
+    };
+
+    PZ.track.prototype.__zoidiumTrackEnabledPersistence = true;
+  }
+
   var tracks = PZ && PZ.ui && PZ.ui.timeline && PZ.ui.timeline.tracks;
 
   if (
-    !PZ ||
     !PZ.schedule ||
-    !PZ.track ||
     !PZ.track.audio ||
     !tracks ||
     !tracks.prototype ||

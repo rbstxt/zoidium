@@ -431,7 +431,7 @@
     parseType: parseType,
   };
 
-  PZ.zoidium.define("object3d", api, "core-patches/object3d-registry");
+  PZ.zoidium.define("object3d", api, "core/object3d-registry");
   PZ.object3d.create = function (type) {
     if (isPluginType(type)) {
       var definition = classRegistry.get(type);
