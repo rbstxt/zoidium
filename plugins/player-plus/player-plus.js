@@ -89,7 +89,7 @@ const PlayerPlus = (() => {
 
       .zoidium-player-plus-pause:focus,
       .zoidium-player-plus-render-once:focus {
-        border-color: #384668 !important;
+        border-color: var(--zoidium-theme-focus, #384668) !important;
         outline: 0;
       }
 
@@ -137,7 +137,7 @@ const PlayerPlus = (() => {
       }
 
       .zoidium-player-plus-quality:focus-visible {
-        border-color: #384668;
+        border-color: var(--zoidium-theme-focus, #384668);
         outline: 0;
       }
 

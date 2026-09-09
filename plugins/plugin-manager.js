@@ -1931,17 +1931,41 @@
     panel.setAttribute("aria-label", "Plugin Manager");
     panel.tabIndex = 0;
     panel.style.display = "none";
-    panel.innerHTML = `
-      <div class="proprow proptitle noselect" style="text-overflow: ellipsis; overflow: hidden; white-space: nowrap; padding-right: 5px;">
-        <span class="proplabel" title="Plugins" style="font-size: 18px; font-weight: bold;">Plugins</span>
-      </div>
-      <div class="zoidium-plugin-search">
-        <input class="pz-filterbox" type="text" placeholder="type to filter" aria-label="Filter plugins">
-      </div>
-      <div class="zoidium-plugin-list"></div>`;
+    // Page headers share one builder so Plugins and Restore render the
+    // same CM3 proprow/proptitle chrome.
+    const header = typeof ZoidiumUI !== "undefined" && ZoidiumUI && typeof ZoidiumUI.createPageHeader === "function"
+      ? ZoidiumUI.createPageHeader("Plugins")
+      : null;
+    if (header) {
+      panel.appendChild(header);
+    } else {
+      panel.insertAdjacentHTML("beforeend", `
+        <div class="proprow proptitle noselect" style="text-overflow: ellipsis; overflow: hidden; white-space: nowrap; padding-right: 5px;">
+          <span class="proplabel" title="Plugins" style="font-size: 18px; font-weight: bold;">Plugins</span>
+        </div>`);
+    }
+    panel.insertAdjacentHTML("beforeend", `<div class="zoidium-plugin-list"></div>`);
 
-    const search = panel.querySelector(".zoidium-plugin-search .pz-filterbox");
+    // The filter search row shares one builder so every panel list
+    // filters the same way.
+    const useKitSearch = typeof ZoidiumUI !== "undefined" && ZoidiumUI
+      && typeof ZoidiumUI.createSearchBox === "function"
+      && typeof ZoidiumUI.attachSearchFilter === "function";
+    let search;
+    let updateFilter;
     const list = panel.querySelector(".zoidium-plugin-list");
+    if (useKitSearch) {
+      const box = ZoidiumUI.createSearchBox({ placeholder: "type to filter", ariaLabel: "Filter plugins" });
+      panel.insertBefore(box.wrap, list);
+      search = box.input;
+    } else {
+      panel.insertAdjacentHTML("beforeend", `
+        <div class="zoidium-plugin-search">
+          <input class="pz-filterbox" type="text" placeholder="type to filter" aria-label="Filter plugins">
+        </div>`);
+      panel.appendChild(list);
+      search = panel.querySelector(".zoidium-plugin-search .pz-filterbox");
+    }
     const orderedPlugins = registry.plugins
       .map((plugin, index) => ({ plugin, index }))
       .sort(
@@ -1954,18 +1978,22 @@
       list.appendChild(createPluginCard(plugin));
     }
 
-    const updateFilter = () => {
-      const query = normalizePickerLabel(search.value);
-      for (const entry of list.querySelectorAll(".zoidium-plugin-entry")) {
-        entry.hidden = Boolean(query) && !entry.dataset.searchText.includes(query);
-      }
-    };
-    search.addEventListener("input", updateFilter);
-    search.addEventListener("keydown", (event) => {
-      if (event.key !== "Escape") return;
-      search.value = "";
-      updateFilter();
-    });
+    if (useKitSearch) {
+      updateFilter = ZoidiumUI.attachSearchFilter(search, list);
+    } else {
+      updateFilter = () => {
+        const query = normalizePickerLabel(search.value);
+        for (const entry of list.querySelectorAll(".zoidium-plugin-entry")) {
+          entry.hidden = Boolean(query) && !entry.dataset.searchText.includes(query);
+        }
+      };
+      search.addEventListener("input", updateFilter);
+      search.addEventListener("keydown", (event) => {
+        if (event.key !== "Escape") return;
+        search.value = "";
+        updateFilter();
+      });
+    }
 
     const scheduleScrollStateSync = () => {
       requestAnimationFrame(() => syncPluginPanelScrollState(panel));
@@ -1985,6 +2013,18 @@
   }
 
   function createTab(panel) {
+    // Elevator tab chrome lives in the shared UI kit so every panel
+    // creates menubar tabs the same way.
+    if (typeof ZoidiumUI !== "undefined" && ZoidiumUI && typeof ZoidiumUI.createMenubarTab === "function") {
+      const tab = ZoidiumUI.createMenubarTab({
+        title: "Plugins",
+        icon: "fragment",
+        panel,
+        tabClass: "zoidium-plugin-tab",
+      });
+      if (!tab) throw new Error("Zoidium sidebar is unavailable");
+      return;
+    }
     const tabs = document.querySelector(".elevatortabs");
     const controls = document.querySelector(".elevatorcontrols");
     if (!tabs || !controls) throw new Error("Zoidium sidebar is unavailable");
@@ -1992,7 +2032,6 @@
     if (!elevator || typeof elevator.changeTab !== "function") {
       throw new Error("Zoidium elevator controller is unavailable");
     }
-
     const pluginPanel = {
       title: "Plugins",
       icon: "fragment",
@@ -2002,7 +2041,6 @@
       needsResize: false,
       resize() {},
     };
-
     const tab = document.createElement("a");
     tab.className = "zoidium-plugin-tab";
     tab.title = "Plugins";
@@ -2012,7 +2050,6 @@
     const tabLabel = document.createElement("span");
     tabLabel.textContent = "Plugins";
     tab.appendChild(tabLabel);
-
     const aboutTab = Array.from(tabs.children).find((item) => item.title === "About");
     tabs.insertBefore(tab, aboutTab || null);
     controls.appendChild(panel);

@@ -63,7 +63,7 @@
   height: 29px;
   padding: 2px 5px;
   overflow: hidden;
-  color: #7e8fb9;
+  color: var(--zoidium-theme-link, #7e8fb9);
   font-family: inherit;
   font-size: 16px;
   line-height: 23px;
@@ -135,35 +135,24 @@
   margin: 0 !important;
 }
 
-.zoidium-restore-note {
-  width: 100%;
-  padding: 5px calc(5px + var(--zoidium-scrollbar-width)) 5px 5px;
-  color: #969696;
-  font-size: 12px;
-  border-bottom: 1px solid #242424;
-  box-sizing: border-box;
-}
-
+/* The backup interval row shares the .proprow grid chrome with Settings
+   rows, so the label stays left and the select pins to the right edge. */
 .zoidium-backup-setting {
-  display: flex;
-  align-items: center;
-  gap: 8px;
   width: 100%;
+  box-sizing: border-box;
 }
 
 .zoidium-backup-setting > span {
   min-width: 0;
   overflow: hidden;
-  color: #ccc;
-  font-size: 16px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .zoidium-backup-interval {
-  flex: 0 0 116px;
   width: 116px !important;
   min-width: 0;
+  justify-self: end;
 }
 
 .zoidium-restore-warning {
@@ -254,7 +243,7 @@
 }
 
 .zoidium-restore-action:focus {
-  border-color: #384668;
+  border-color: var(--zoidium-theme-focus, #384668);
   outline: 0;
 }
 
@@ -284,7 +273,7 @@
   padding: 10px;
   color: #ccc;
   background-color: #242424;
-  border: 2px solid #384668;
+  border: 2px solid var(--zoidium-theme-focus, #384668);
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
   box-sizing: border-box;
   opacity: 0;
@@ -325,30 +314,104 @@
   border: 2px solid transparent;
 }
 
-/* Apply the selected Panzoid-style color profile to the editor chrome. */
+/* Color profiles remap CM3's chrome palette directly. Never use a CSS filter
+   on an editor ancestor: it also colorizes Preview and waveform canvases. */
 .zoidium-editor-window {
-  filter: hue-rotate(var(--zoidium-theme-hue, 0deg)) !important;
+  filter: none !important;
 }
 
-/* Preview/project output should keep its native colors even though it lives
-   inside the editor. Only the canvas is exempt so selection outlines and
-   editor overlays in the same panel remain themed. */
-.zoidium-color-profile-exempt {
-  filter: hue-rotate(calc(-1 * var(--zoidium-theme-hue, 0deg))) !important;
+.zoidium-editor-window .editorpanel:focus,
+.zoidium-editor-window .editorpanel:focus-within,
+.zoidium-editor-window .elevator button:focus,
+.zoidium-editor-window .actionbutton:focus,
+.zoidium-editor-window .proprow.propbutton:focus,
+.zoidium-editor-window .backbutton:focus,
+.zoidium-editor-window .pzinput:focus,
+.zoidium-editor-window .pz-inputbox:focus,
+.zoidium-editor-window .pz-tweens:focus,
+.zoidium-editor-window .pz-textarea:focus,
+.zoidium-editor-window .pz-filterbox:focus,
+.zoidium-editor-window button.pz-option:focus {
+  border-color: var(--zoidium-theme-focus, #384668) !important;
 }
 
-/* Keep playback glyphs neutral while the surrounding toolbar follows the
-   selected profile. */
-.zoidium-editor-window .zoidium-player-plus-toolbar button {
-  filter: hue-rotate(calc(-1 * var(--zoidium-theme-hue, 0deg))) !important;
+.zoidium-editor-window .media-item.selected,
+.zoidium-editor-window .elevator a.selected,
+.zoidium-editor-window ul.tree li.selected {
+  background-color: var(--zoidium-theme-focus, #384668) !important;
 }
 
-/* Keep track/keyframe state icons neutral while the track and selection
-   outline follow the selected profile. These controls can be created late. */
-.zoidium-editor-window .actionbutton[title="disable track"],
-.zoidium-editor-window .actionbutton[title="delete track"],
-.zoidium-editor-window .actionbutton[title="toggle animation"] {
-  filter: hue-rotate(calc(-1 * var(--zoidium-theme-hue, 0deg))) !important;
+.zoidium-editor-window .proprow a,
+.zoidium-editor-window .pzinput,
+.zoidium-editor-window .pz-inputbox {
+  color: var(--zoidium-theme-link, #7e8fb9);
+}
+
+/* Text labels carry no inline style, while font-preview sprite spans always
+   do (PZ sets an inline background-image on them). Scope the reset to
+   style-less spans so sprite previews can never be bleached white here. */
+.zoidium-editor-window .pz-dropdown span:not([style]),
+.zoidium-editor-window .pz-tweens span:not([style]) {
+  color: var(--zoidium-theme-link, #7e8fb9) !important;
+  filter: none;
+}
+
+.zoidium-editor-window .pz-dropdown li.pz-active {
+  background-color: var(--zoidium-theme-focus, #384668) !important;
+}
+
+/* PZ.editor.showEaseDropDown/showFontDropDown append ul.pz-dropdown to
+   document.body, outside .zoidium-editor-window. Theme those copies too;
+   the variables resolve from :root (see settings.js). Native dropdowns
+   carry no stroke, so only the label color and the active highlight
+   follow the theme here. */
+body > .pz-dropdown > li.pz-active {
+  background-color: var(--zoidium-theme-focus, #384668) !important;
+}
+
+body > .pz-dropdown span:not([style]) {
+  color: var(--zoidium-theme-link, #7e8fb9) !important;
+  filter: none !important;
+}
+
+/* Font previews are a white-on-transparent fonts.png sprite, not text, so
+   `color` cannot tint them and the `filter: none` resets above would leave
+   them white. Re-apply CM3's tint filter plus the active theme hue shift.
+   PZ always sets an inline background style on sprite spans while ease-name
+   text spans carry none, so match on the font button title and on the
+   presence of an inline style instead of a URL substring. */
+.zoidium-editor-window button.pz-tweens[title="font"] > span,
+body > .pz-dropdown li > span[style],
+.zoidium-editor-window .pz-dropdown li > span[style] {
+  color: transparent !important;
+  filter: invert(41%) sepia(13%) saturate(861%) hue-rotate(185deg) brightness(93%) contrast(92%) hue-rotate(var(--zoidium-theme-hue-shift, 0deg)) saturate(var(--zoidium-theme-saturation, 1)) !important;
+}
+
+.zoidium-editor-window select {
+  color: var(--zoidium-theme-link, #7e8fb9);
+}
+
+.zoidium-editor-window .pz-progress span {
+  background-color: var(--zoidium-theme-focus, #384668);
+}
+
+/* Timeline clips are chrome, while its ruler, red playhead, green markers,
+   and waveform canvas retain their CM3 colors. */
+.zoidium-editor-window .clip {
+  background-color: var(--zoidium-theme-clip, #526183);
+}
+
+.zoidium-editor-window .clip.selected {
+  background-color: var(--zoidium-theme-clip-selected, #7f94c7);
+  border-color: var(--zoidium-theme-focus, #384668);
+}
+
+.zoidium-editor-window .clipselected {
+  background: var(--zoidium-theme-clip-selection, #273465) !important;
+}
+
+.zoidium-editor-window .clip > .handle.selected {
+  border-color: var(--zoidium-theme-focus, #384668);
 }
 
 .zoidium-settings-panel {
@@ -362,7 +425,7 @@
 }
 
 .zoidium-project-toast-close:focus {
-  border-color: #384668;
+  border-color: var(--zoidium-theme-focus, #384668);
   outline: 0;
 }
 

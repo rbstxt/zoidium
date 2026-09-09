@@ -12,28 +12,28 @@
       "id": "easing-plus",
       "name": "Easing+",
       "author": "Zoidium",
-      "version": "11",
+      "version": "13",
       "itemCount": 1,
       "format": "curve editor",
       "tagline": "Extended Bezier Easing",
       "color": "#384668",
       "description": "A normalized cubic Bezier editor with a focused set of reusable presets.",
-      "manifest": "./plugins/easing-plus/manifest.json?v=11",
-      "bundle": "./plugins/easing-plus/bundle.json?v=11"
+      "manifest": "./plugins/easing-plus/manifest.json?v=13",
+      "bundle": "./plugins/easing-plus/bundle.json?v=13"
     },
     {
       "id": "player-plus",
       "name": "Player+",
       "author": "Zoidium",
-      "version": "4",
+      "version": "5",
       "defaultEnabled": true,
       "itemCount": 1,
       "format": "playback controls",
       "tagline": "Playback Quality Controls",
       "color": "#4f7dbf",
       "description": "Adds drawing pause, single-render, and preview quality controls to the playback bar.",
-      "manifest": "./plugins/player-plus/manifest.json?v=4",
-      "bundle": "./plugins/player-plus/bundle.json?v=4"
+      "manifest": "./plugins/player-plus/manifest.json?v=5",
+      "bundle": "./plugins/player-plus/bundle.json?v=5"
     },
     {
       "id": "native-fx",

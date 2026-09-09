@@ -4,9 +4,9 @@
   var defaults = {
     version: "1.0.0",
     overlayStyles: [
-      "./zoidium/ui-overrides.css?v=20",
-      "./plugins/plugin-manager.css?v=15",
-      "./zoidium-welcome-tour.css?v=11",
+      "./zoidium/ui-overrides.css?v=29",
+      "./plugins/plugin-manager.css?v=17",
+      "./zoidium-welcome-tour.css?v=13",
       "./zoidium/runtime-fonts.css?v=4"
     ],
     preInitScripts: [
@@ -34,9 +34,10 @@
       "./plugins/core-patches/project-files.js?v=3"
     ],
     postInitScripts: [
-      "./zoidium/project-restore.js?v=7",
-      "./zoidium/settings.js?v=16",
-      "./plugins/plugin-manager.js?v=37",
+      "./zoidium/ui-kit.js?v=3",
+      "./zoidium/project-restore.js?v=10",
+      "./zoidium/settings.js?v=27",
+      "./plugins/plugin-manager.js?v=39",
       "./zoidium-welcome-tour.js?v=9"
     ],
     policy: {

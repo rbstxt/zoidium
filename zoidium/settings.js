@@ -7,6 +7,7 @@
     font: "source-code-pro",
     theme: "panzoid",
     hue: 0,
+    saturation: 100,
   };
 
   var LAYOUT_OPTIONS = [
@@ -68,7 +69,8 @@
     { value: "ember", label: "Ember Console", hue: 154 },
     { value: "moss", label: "Moss Terminal", hue: 78 },
     { value: "rose", label: "Rose Signal", hue: -72 },
-    { value: "custom", label: "Custom hue", hue: 0 },
+    { value: "gray", label: "Gray", hue: 0 },
+    { value: "custom", label: "Custom", hue: 0 },
   ];
 
   var state = {
@@ -77,8 +79,30 @@
     controls: null,
   };
 
+  var THEME_PALETTE = {
+    focus: 0x384668,
+    link: 0x7e8fb9,
+    clip: 0x526183,
+    clipSelected: 0x7f94c7,
+    clipSelection: 0x273465,
+  };
+
   function clamp(value, min, max) {
     return Math.min(max, Math.max(min, value));
+  }
+
+  function clampSaturation(value) {
+    var number = Number(value);
+    if (!Number.isFinite(number)) return 100;
+    return clamp(number, 0, 200);
+  }
+
+  function effectiveSaturation() {
+    // Gray mode drops all saturation. Preset profiles keep full saturation;
+    // only the Custom profile follows the stored saturation value.
+    if (state.settings.theme === "gray") return 0;
+    if (state.settings.theme === "custom") return clampSaturation(state.settings.saturation) / 100;
+    return 1;
   }
 
   function readStorage() {
@@ -115,6 +139,7 @@
     if (!hasValue(FONT_OPTIONS, settings.font)) settings.font = DEFAULTS.font;
     if (!hasValue(THEME_OPTIONS, settings.theme)) settings.theme = DEFAULTS.theme;
     settings.hue = clamp(Number.isFinite(Number(settings.hue)) ? Number(settings.hue) : 0, -180, 180);
+    settings.saturation = clampSaturation(settings.saturation);
     return settings;
   }
 
@@ -136,29 +161,125 @@
       || global.document.querySelector(".editorwindow");
   }
 
-  function markColorProfileExemptions(editorWindow) {
-    if (!editorWindow) return;
+  function colorToHex(color) {
+    return "#" + color.toString(16).padStart(6, "0");
+  }
 
-    // CM3 can rebuild panels while this script remains alive. Remove stale
-    // marks before identifying the current preview surface.
-    Array.from(editorWindow.querySelectorAll(".zoidium-color-profile-exempt"))
-      .forEach(function (element) {
-        element.classList.remove("zoidium-color-profile-exempt");
-      });
+  function colorToRgbString(color) {
+    return [color >> 16 & 255, color >> 8 & 255, color & 255].join(" ");
+  }
 
-    function exempt(element) {
-      if (element) element.classList.add("zoidium-color-profile-exempt");
+  function shiftThemeColor(color, degrees, saturationScale) {
+    var red = (color >> 16 & 255) / 255;
+    var green = (color >> 8 & 255) / 255;
+    var blue = (color & 255) / 255;
+    var max = Math.max(red, green, blue);
+    var min = Math.min(red, green, blue);
+    var lightness = (max + min) / 2;
+    var saturation = 0;
+    var hue = 0;
+
+    if (max !== min) {
+      var delta = max - min;
+      saturation = lightness > 0.5
+        ? delta / (2 - max - min)
+        : delta / (max + min);
+      if (max === red) hue = (green - blue) / delta + (green < blue ? 6 : 0);
+      else if (max === green) hue = (blue - red) / delta + 2;
+      else hue = (red - green) / delta + 4;
+      hue /= 6;
     }
 
-    // Project output is not editor chrome and must retain its original
-    // colors. Timeline tracks and selection outlines stay under the root
-    // filter so their theme colors remain visible.
-    Array.from(editorWindow.querySelectorAll(".editorpanel")).forEach(function (panel) {
-      // The timeline also owns a waveform canvas. Keep that panel themed;
-      // only the large project-output canvas is a color-profile exemption.
-      var canvas = panel.querySelector("canvas");
-      if (canvas && !panel.querySelector(".timelabel")) exempt(canvas);
+    hue = (hue + degrees / 360) % 1;
+    if (hue < 0) hue += 1;
+
+    var scale = Number(saturationScale);
+    saturation = clamp(saturation * (Number.isFinite(scale) ? scale : 1), 0, 1);
+
+    function hueToRgb(first, second, value) {
+      if (value < 0) value += 1;
+      if (value > 1) value -= 1;
+      if (value < 1 / 6) return first + (second - first) * 6 * value;
+      if (value < 1 / 2) return second;
+      if (value < 2 / 3) return first + (second - first) * (2 / 3 - value) * 6;
+      return first;
+    }
+
+    if (saturation === 0) {
+      red = green = blue = lightness;
+    } else {
+      var second = lightness < 0.5
+        ? lightness * (1 + saturation)
+        : lightness + saturation - lightness * saturation;
+      var first = 2 * lightness - second;
+      red = hueToRgb(first, second, hue + 1 / 3);
+      green = hueToRgb(first, second, hue);
+      blue = hueToRgb(first, second, hue - 1 / 3);
+    }
+
+    return (Math.round(red * 255) << 16)
+      | (Math.round(green * 255) << 8)
+      | Math.round(blue * 255);
+  }
+
+  function applyThemePalette(editorWindow) {
+    // Body-level dropdowns (ease/font pickers) inherit from :root, so the
+    // palette must reach documentElement even before the editor window
+    // exists.
+    var hosts = [];
+    if (editorWindow) hosts.push(editorWindow);
+    if (global.document && global.document.documentElement
+        && hosts.indexOf(global.document.documentElement) === -1) {
+      hosts.push(global.document.documentElement);
+    }
+    if (hosts.length === 0) return;
+    // Gray mode ignores the hue shift and removes all saturation instead.
+    var hue = state.settings.theme === "gray" ? 0 : state.settings.hue;
+    var saturation = effectiveSaturation();
+    var palette = {
+      "--zoidium-theme-focus": THEME_PALETTE.focus,
+      "--zoidium-theme-link": THEME_PALETTE.link,
+      "--zoidium-theme-clip": THEME_PALETTE.clip,
+      "--zoidium-theme-clip-selected": THEME_PALETTE.clipSelected,
+      "--zoidium-theme-clip-selection": THEME_PALETTE.clipSelection,
+    };
+
+    Object.keys(palette).forEach(function (property) {
+      var value = colorToHex(shiftThemeColor(palette[property], hue, saturation));
+      hosts.forEach(function (host) {
+        host.style.setProperty(property, value);
+      });
     });
+    hosts.forEach(function (host) {
+      host.style.setProperty(
+        "--zoidium-theme-focus-rgb",
+        colorToRgbString(shiftThemeColor(THEME_PALETTE.focus, hue, saturation)),
+      );
+    });
+
+    // Font previews are a raster sprite tinted with a CSS filter (see
+    // ui-overrides.css). Expose the hue shift so the filter can follow themes.
+    hosts.forEach(function (host) {
+      host.style.setProperty("--zoidium-theme-hue-shift", hue + "deg");
+    });
+
+    // The font sprite filter also follows desaturation (used by Gray mode
+    // and low Custom saturation values).
+    hosts.forEach(function (host) {
+      host.style.setProperty("--zoidium-theme-saturation", String(saturation));
+    });
+
+    // Older versions marked broad ancestors for CSS filtering. A child canvas
+    // cannot cancel a parent filter, so remove those marks unconditionally.
+    if (editorWindow) {
+      Array.from(editorWindow.querySelectorAll(
+        ".zoidium-color-profile-target, .zoidium-color-profile-exempt"
+      )).forEach(function (element) {
+        element.classList.remove("zoidium-color-profile-target");
+        element.classList.remove("zoidium-color-profile-exempt");
+        element.style.removeProperty("filter");
+      });
+    }
   }
 
   function applySettings() {
@@ -172,18 +293,17 @@
       root.dataset.zoidiumTheme = state.settings.theme;
     }
     if (editorWindow) {
-      var hue = state.settings.hue + "deg";
       editorWindow.classList.add("zoidium-editor-window");
-      editorWindow.style.setProperty("--zoidium-theme-hue", hue);
-      editorWindow.style.setProperty("filter", "hue-rotate(" + hue + ")", "important");
+      editorWindow.style.removeProperty("filter");
       editorWindow.dataset.zoidiumTheme = state.settings.theme;
-      markColorProfileExemptions(editorWindow);
     }
+    applyThemePalette(editorWindow);
     refreshControls();
   }
 
   function persistAndApply() {
     state.settings.hue = clamp(Number(state.settings.hue) || 0, -180, 180);
+    state.settings.saturation = clampSaturation(state.settings.saturation);
     writeStorage(state.settings);
     applySettings();
   }
@@ -198,21 +318,50 @@
 
   function refreshControls() {
     updateGeneratedRows();
+    updateCustomRowsVisibility();
   }
 
   function notifyReloadRequired() {
     var option = LAYOUT_OPTIONS.find(function (item) {
       return item.value === state.settings.layout;
     });
+    var detail = {
+      title: "Reload required.",
+      message: "Reload Zoidium to use " + (option ? option.label : "the selected layout") + ".",
+      reload: true,
+    };
+    // Toast delivery goes through the shared UI kit when available.
+    if (global.ZoidiumUI && typeof global.ZoidiumUI.notify === "function") {
+      global.ZoidiumUI.notify(detail);
+      return;
+    }
     global.dispatchEvent(new CustomEvent("zoidium:notification", {
-      detail: {
-        title: "Reload required.",
-        message: "Reload Zoidium to use " + (option ? option.label : "the selected layout") + ".",
-      },
+      detail: detail,
     }));
   }
 
   function createLayoutRow(legacy) {
+    if (global.ZoidiumUI && typeof global.ZoidiumUI.createDropdownRow === "function") {
+      return global.ZoidiumUI.createDropdownRow({
+        title: "Editor layout",
+        items: LAYOUT_OPTIONS.map(function (layout) { return layout.label; }),
+        scope: state,
+        get: function () {
+          return Math.max(0, LAYOUT_OPTIONS.findIndex(function (layout) {
+            return layout.value === state.settings.layout;
+          }));
+        },
+        set: function (index) {
+          if (!LAYOUT_OPTIONS[index]) return;
+          var layout = LAYOUT_OPTIONS[index].value;
+          if (layout === state.settings.layout) return;
+          state.settings.layout = layout;
+          writeStorage(state.settings);
+          refreshControls();
+          notifyReloadRequired();
+        },
+      });
+    }
     return legacy.generateDropdown(
       {
         title: "Editor layout",
@@ -237,6 +386,23 @@
   }
 
   function createFontRow(legacy) {
+    if (global.ZoidiumUI && typeof global.ZoidiumUI.createDropdownRow === "function") {
+      return global.ZoidiumUI.createDropdownRow({
+        title: "Editor font",
+        items: FONT_OPTIONS.map(function (font) { return font.label; }),
+        scope: state,
+        get: function () {
+          return Math.max(0, FONT_OPTIONS.findIndex(function (font) {
+            return font.value === state.settings.font;
+          }));
+        },
+        set: function (index) {
+          if (!FONT_OPTIONS[index]) return;
+          state.settings.font = FONT_OPTIONS[index].value;
+          persistAndApply();
+        },
+      });
+    }
     return legacy.generateDropdown(
       {
         title: "Editor font",
@@ -257,6 +423,24 @@
   }
 
   function createThemeRow(legacy) {
+    if (global.ZoidiumUI && typeof global.ZoidiumUI.createDropdownRow === "function") {
+      return global.ZoidiumUI.createDropdownRow({
+        title: "Color profile",
+        items: THEME_OPTIONS.map(function (theme) { return theme.label; }),
+        scope: state,
+        get: function () {
+          return Math.max(0, THEME_OPTIONS.findIndex(function (theme) {
+            return theme.value === state.settings.theme;
+          }));
+        },
+        set: function (index) {
+          if (!THEME_OPTIONS[index]) return;
+          state.settings.theme = THEME_OPTIONS[index].value;
+          if (state.settings.theme !== "custom") state.settings.hue = THEME_OPTIONS[index].hue;
+          persistAndApply();
+        },
+      });
+    }
     return legacy.generateDropdown(
       {
         title: "Color profile",
@@ -278,9 +462,28 @@
   }
 
   function createHueRow(legacy) {
-    return legacy.generateTextInput(
+    // The legacy helper fixes the input at 250px. Keep this numeric field
+    // as compact as the Frame rate field on the Device render panel.
+    if (global.ZoidiumUI && typeof global.ZoidiumUI.createTextInputRow === "function") {
+      return global.ZoidiumUI.createTextInputRow({
+        title: "Hue shift",
+        scope: state,
+        inputWidth: "80px",
+        get: function () {
+          return String(Math.round(state.settings.hue));
+        },
+        set: function (value) {
+          var hue = Number(value);
+          if (!Number.isFinite(hue)) return;
+          state.settings.theme = "custom";
+          state.settings.hue = clamp(hue, -180, 180);
+          persistAndApply();
+        },
+      });
+    }
+    var row = legacy.generateTextInput(
       {
-        title: "Hue shift (-180 to 180)",
+        title: "Hue shift",
         get: function () {
           return String(Math.round(state.settings.hue));
         },
@@ -294,6 +497,59 @@
       },
       state,
     );
+    var hueInput = row && row.querySelector ? row.querySelector("input") : null;
+    if (hueInput) hueInput.style.width = "80px";
+    return row;
+  }
+
+  function createSaturationRow(legacy) {
+    if (global.ZoidiumUI && typeof global.ZoidiumUI.createTextInputRow === "function") {
+      return global.ZoidiumUI.createTextInputRow({
+        title: "Saturation",
+        scope: state,
+        inputWidth: "80px",
+        get: function () {
+          return String(Math.round(clampSaturation(state.settings.saturation)));
+        },
+        set: function (value) {
+          var saturation = Number(value);
+          if (!Number.isFinite(saturation)) return;
+          state.settings.theme = "custom";
+          state.settings.saturation = clampSaturation(saturation);
+          persistAndApply();
+        },
+      });
+    }
+    var row = legacy.generateTextInput(
+      {
+        title: "Saturation",
+        get: function () {
+          return String(Math.round(clampSaturation(state.settings.saturation)));
+        },
+        set: function (value) {
+          var saturation = Number(value);
+          if (!Number.isFinite(saturation)) return;
+          state.settings.theme = "custom";
+          state.settings.saturation = clampSaturation(saturation);
+          persistAndApply();
+        },
+      },
+      state,
+    );
+    var saturationInput = row && row.querySelector ? row.querySelector("input") : null;
+    if (saturationInput) saturationInput.style.width = "80px";
+    return row;
+  }
+
+  function updateCustomRowsVisibility() {
+    if (!state.controls) return;
+    // Hue and saturation only apply to the Custom profile. Preset and Gray
+    // profiles fix both values, so their rows stay hidden.
+    var display = state.settings.theme === "custom" ? "" : "none";
+    ["hueRow", "saturationRow"].forEach(function (key) {
+      var row = state.controls[key];
+      if (row && row.style) row.style.display = display;
+    });
   }
 
   function createCategoryHeader(title) {
@@ -314,32 +570,43 @@
     panel.tabIndex = 0;
     panel.style.display = "none";
 
-    var title = legacy.generateTitle({ title: "Settings" });
-    var layoutTitle = createCategoryHeader("LAYOUT");
+    // Title, description, spacer, and button rows share the UI kit so
+    // every panel builds the same CM3 chrome instead of calling the
+    // legacy helpers directly.
+    var kit = global.ZoidiumUI || {};
+    var title = typeof kit.createTitleRow === "function"
+      ? kit.createTitleRow("Settings")
+      : legacy.generateTitle({ title: "Settings" });
     var layoutRow = createLayoutRow(legacy);
-    var layoutNote = legacy.generateDescription({
-      content: "Changing the editor layout takes effect after Zoidium is reloaded.",
-    });
+    var layoutNote = typeof kit.createDescriptionRow === "function"
+      ? kit.createDescriptionRow("Changing the editor layout takes effect after Zoidium is reloaded.")
+      : legacy.generateDescription({
+        content: "Changing the editor layout takes effect after Zoidium is reloaded.",
+      });
     var fontRow = createFontRow(legacy);
     var themeRow = createThemeRow(legacy);
     var hueRow = createHueRow(legacy);
-    var resetButton = legacy.generateButton({
-      title: "Reset settings",
-      clickfn: function () {
+    var saturationRow = createSaturationRow(legacy);
+    var onReset = function () {
         var layoutChanged = state.settings.layout !== DEFAULTS.layout;
         state.settings = Object.assign({}, DEFAULTS);
         persistAndApply();
         if (layoutChanged) notifyReloadRequired();
-      },
-    }, state);
+    };
+    var resetButton = typeof kit.createButton === "function"
+      ? kit.createButton({ title: "Reset settings", onClick: onReset })
+      : legacy.generateButton({
+        title: "Reset settings",
+        clickfn: onReset,
+      }, state);
 
     panel.appendChild(title);
-    panel.appendChild(layoutTitle);
     panel.appendChild(layoutRow);
     panel.appendChild(layoutNote);
     panel.appendChild(fontRow);
     panel.appendChild(themeRow);
     panel.appendChild(hueRow);
+    panel.appendChild(saturationRow);
 
     state.panel = panel;
     state.controls = {
@@ -347,14 +614,17 @@
       fontRow: fontRow,
       themeRow: themeRow,
       hueRow: hueRow,
+      saturationRow: saturationRow,
     };
-    updateGeneratedRows();
+    refreshControls();
 
     var debugHost = global.document.createElement("div");
     debugHost.className = "zoidium-settings-debug-section";
     panel.appendChild(debugHost);
     addDebugControls(debugHost);
-    panel.appendChild(legacy.generateSpacer());
+    panel.appendChild(typeof kit.createSpacer === "function"
+      ? kit.createSpacer()
+      : legacy.generateSpacer());
     panel.appendChild(resetButton);
     return panel;
   }
@@ -370,21 +640,29 @@
   }
 
   function createTab(panel) {
+    // Elevator tab chrome lives in the shared UI kit. Settings docks after
+    // the About tab while Restore and Plugins dock before it.
+    if (global.ZoidiumUI && typeof global.ZoidiumUI.createMenubarTab === "function") {
+      return !!global.ZoidiumUI.createMenubarTab({
+        title: "Settings",
+        icon: "settings",
+        panel: panel,
+        tabClass: "zoidium-settings-tab",
+        position: "afterAbout",
+      });
+    }
     var tabs = global.document.querySelector(".elevatortabs");
     var controls = global.document.querySelector(".elevatorcontrols");
     if (!tabs || !controls) return false;
     if (global.document.querySelector(".zoidium-settings-tab")) return true;
-
     var elevator = tabs.parentElement && tabs.parentElement.parentElement
       ? tabs.parentElement.parentElement.pz_panel
       : null;
     if (!elevator || typeof elevator.changeTab !== "function") return false;
-
     panel.style.top = "0";
     panel.style.left = "0";
     panel.style.width = "100%";
     panel.style.height = "100%";
-
     var settingsPanel = {
       title: "Settings",
       icon: "settings",
@@ -403,7 +681,6 @@
     var label = global.document.createElement("span");
     label.textContent = "Settings";
     tab.appendChild(label);
-
     var aboutTab = Array.from(tabs.children).find(function (item) {
       return item.title === "About";
     });

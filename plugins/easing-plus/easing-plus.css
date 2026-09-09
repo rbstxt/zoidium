@@ -3,7 +3,9 @@
   --ep-border: #3c3c3c;
   --ep-grid: #343434;
   --ep-text: #d7d7d7;
-  --ep-accent: #384668;
+  --ep-accent: var(--zoidium-theme-focus, #384668);
+  --ep-accent-rgb: var(--zoidium-theme-focus-rgb, 56 70 104);
+  --ep-link: var(--zoidium-theme-link, #aeb9d1);
   background: transparent;
   font-family: var(--zoidium-font-family, monospace);
   inset: 0;
@@ -13,7 +15,10 @@
 
 /* Keep the native SVG in place for Panzoid's icon-refresh code, but make the
    Bezier easing control unmistakably open Easing+ when the plugin is active. */
+/* The button itself carries the theme color so the label can never fall
+   back to the UA button text color (black) when the theme is unavailable. */
 .pz-tweens.easing-plus-ease-button {
+  color: var(--zoidium-theme-link, #aeb9d1);
   min-width: 42px;
   position: relative;
   text-align: center;
@@ -23,8 +28,10 @@
   visibility: hidden;
 }
 
+/* The button lives outside .easing-plus-shell, so --ep-link is undefined
+   here. Read the theme directly with a flat fallback. */
 .pz-tweens.easing-plus-ease-button::after {
-  color: #aeb9d1;
+  color: var(--zoidium-theme-link, #aeb9d1);
   content: "Ez+";
   display: block;
   font-family: var(--zoidium-font-family, monospace);
@@ -39,7 +46,7 @@
 
 .easing-plus-dialog {
   background: var(--ep-bg);
-  border: 1px solid #40577f;
+  border: 1px solid var(--ep-accent);
   border-radius: 2px;
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.52);
   color: var(--ep-text);
@@ -139,14 +146,14 @@
 }
 
 .easing-plus-graph .ep-overshoot-zone-active {
-  fill: rgba(56, 70, 104, 0.12);
-  stroke: rgba(56, 70, 104, 0.58);
+  fill: rgb(var(--ep-accent-rgb) / 0.12);
+  stroke: rgb(var(--ep-accent-rgb) / 0.58);
   stroke-width: 1;
 }
 
 .easing-plus-graph .ep-overshoot-zone-pending {
-  fill: rgba(56, 70, 104, 0.2);
-  stroke: #384668;
+  fill: rgb(var(--ep-accent-rgb) / 0.2);
+  stroke: var(--ep-accent);
   stroke-dasharray: 7 6;
   stroke-width: 1.5;
 }
@@ -176,7 +183,7 @@
 .easing-plus-graph .ep-handle {
   cursor: grab;
   fill: var(--ep-accent);
-  stroke: #8895b4;
+  stroke: var(--ep-link);
   stroke-width: 1.4;
   vector-effect: non-scaling-stroke;
 }
@@ -184,7 +191,7 @@
 .easing-plus-graph .ep-anchor {
   cursor: grab;
   fill: var(--ep-accent);
-  stroke: #8895b4;
+  stroke: var(--ep-link);
   stroke-width: 1.8;
   vector-effect: non-scaling-stroke;
 }
@@ -217,7 +224,7 @@
   background: #232323;
   border: 1px solid #393939;
   border-radius: 0;
-  color: #aebee1;
+  color: var(--ep-link);
   font-family: inherit;
   font-size: 9px;
   min-width: 0;
@@ -226,7 +233,7 @@
 }
 
 .easing-plus-coordinate:focus {
-  border-color: #5875aa;
+  border-color: var(--ep-accent);
   outline: none;
 }
 
@@ -239,7 +246,7 @@
 }
 
 .easing-plus-presets-title {
-  color: #9ba9c6;
+  color: var(--ep-link);
   font-size: 10px;
   padding: 2px 2px 0;
 }
@@ -260,7 +267,7 @@
   background: #282828;
   border: 1px solid #373737;
   border-radius: 0;
-  color: #aeb9d1;
+  color: var(--ep-link);
   cursor: pointer;
   display: grid;
   font-family: inherit;
@@ -302,7 +309,7 @@
 .easing-plus-preset .ep-mini-anchor,
 .easing-plus-preset .ep-mini-handle {
   fill: var(--ep-accent);
-  stroke: #9aa5c0;
+  stroke: var(--ep-link);
   stroke-width: 0.7;
 }
 

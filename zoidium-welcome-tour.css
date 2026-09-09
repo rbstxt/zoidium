@@ -1,7 +1,7 @@
 .zoidium-welcome-tour {
-  --zoidium-tour-accent: #384668;
+  --zoidium-tour-accent: var(--zoidium-theme-focus, #384668);
   --zoidium-tour-accent-bright: #DADADA;
-  --zoidium-tour-link: #7E8FB9;
+  --zoidium-tour-link: var(--zoidium-theme-link, #7E8FB9);
   --zoidium-tour-surface: #2A2A2A;
   --zoidium-tour-line: #333333;
   --zoidium-tour-muted: #DADADA;

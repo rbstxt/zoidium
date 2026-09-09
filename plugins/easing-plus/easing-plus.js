@@ -2,7 +2,7 @@
 
 const EasingPlus = (() => {
   const STYLE_ID = "zoidium-easing-plus-style";
-  const STYLE_URL = "./plugins/easing-plus/easing-plus.css?v=8";
+  const STYLE_URL = "./plugins/easing-plus/easing-plus.css?v=11";
   const EPSILON = 1e-8;
   const BEZIER_TWEEN = 257;
   // Overshoot is an intentional, two-stage gesture.  Keeping these in screen
