@@ -15,8 +15,8 @@
       "description": "Draws a circular dot-wave pattern.",
       "category": "AFTERCLIP · SHADERS · REPEAT",
       "source": "Shaders/Repeat/Circle Dot Wave.txt",
-      "shader": "./plugins/afterclip/shaders/afterclip-repeat-circle-dot-wave.glsl",
-      "preset": "./plugins/afterclip/effects/afterclip-repeat-circle-dot-wave.json"
+      "shader": "./plugins/afterclip/shaders/afterclip-repeat-circle-dot-wave.glsl?v=2",
+      "preset": "./plugins/afterclip/effects/afterclip-repeat-circle-dot-wave.json?v=2"
     },
     {
       "id": "afterclip-repeat-dot-wave",
@@ -24,8 +24,8 @@
       "description": "Draws an animated dot-wave pattern.",
       "category": "AFTERCLIP · SHADERS · REPEAT",
       "source": "Shaders/Repeat/Dot Wave.txt",
-      "shader": "./plugins/afterclip/shaders/afterclip-repeat-dot-wave.glsl",
-      "preset": "./plugins/afterclip/effects/afterclip-repeat-dot-wave.json"
+      "shader": "./plugins/afterclip/shaders/afterclip-repeat-dot-wave.glsl?v=2",
+      "preset": "./plugins/afterclip/effects/afterclip-repeat-dot-wave.json?v=2"
     },
     {
       "id": "afterclip-repeat-duplicate-extended",
@@ -33,8 +33,8 @@
       "description": "Duplicates the source with extended repeat modes.",
       "category": "AFTERCLIP · SHADERS · REPEAT",
       "source": "Shaders/Repeat/Duplicate (Extended).txt",
-      "shader": "./plugins/afterclip/shaders/afterclip-repeat-duplicate-extended.glsl",
-      "preset": "./plugins/afterclip/effects/afterclip-repeat-duplicate-extended.json"
+      "shader": "./plugins/afterclip/shaders/afterclip-repeat-duplicate-extended.glsl?v=2",
+      "preset": "./plugins/afterclip/effects/afterclip-repeat-duplicate-extended.json?v=2"
     },
     {
       "id": "afterclip-repeat-gradient-linear-repeat",
@@ -42,8 +42,8 @@
       "description": "Repeats the source through a color gradient.",
       "category": "AFTERCLIP · SHADERS · REPEAT",
       "source": "Shaders/Repeat/Gradient Linear Repeat.txt",
-      "shader": "./plugins/afterclip/shaders/afterclip-repeat-gradient-linear-repeat.glsl",
-      "preset": "./plugins/afterclip/effects/afterclip-repeat-gradient-linear-repeat.json"
+      "shader": "./plugins/afterclip/shaders/afterclip-repeat-gradient-linear-repeat.glsl?v=2",
+      "preset": "./plugins/afterclip/effects/afterclip-repeat-gradient-linear-repeat.json?v=2"
     },
     {
       "id": "afterclip-repeat-hex-dot-wave",
@@ -51,8 +51,8 @@
       "description": "Draws a hexagonal dot-wave pattern.",
       "category": "AFTERCLIP · SHADERS · REPEAT",
       "source": "Shaders/Repeat/Hex Dot Wave.txt",
-      "shader": "./plugins/afterclip/shaders/afterclip-repeat-hex-dot-wave.glsl",
-      "preset": "./plugins/afterclip/effects/afterclip-repeat-hex-dot-wave.json"
+      "shader": "./plugins/afterclip/shaders/afterclip-repeat-hex-dot-wave.glsl?v=2",
+      "preset": "./plugins/afterclip/effects/afterclip-repeat-hex-dot-wave.json?v=2"
     },
     {
       "id": "afterclip-repeat-linear-repeat",
@@ -60,8 +60,8 @@
       "description": "Repeats the source along a linear path.",
       "category": "AFTERCLIP · SHADERS · REPEAT",
       "source": "Shaders/Repeat/Linear Repeat.txt",
-      "shader": "./plugins/afterclip/shaders/afterclip-repeat-linear-repeat.glsl",
-      "preset": "./plugins/afterclip/effects/afterclip-repeat-linear-repeat.json"
+      "shader": "./plugins/afterclip/shaders/afterclip-repeat-linear-repeat.glsl?v=2",
+      "preset": "./plugins/afterclip/effects/afterclip-repeat-linear-repeat.json?v=2"
     },
     {
       "id": "afterclip-repeat-radial-repeat",
@@ -69,8 +69,8 @@
       "description": "Repeats the source around a radial path.",
       "category": "AFTERCLIP · SHADERS · REPEAT",
       "source": "Shaders/Repeat/Radial Repeat.txt",
-      "shader": "./plugins/afterclip/shaders/afterclip-repeat-radial-repeat.glsl",
-      "preset": "./plugins/afterclip/effects/afterclip-repeat-radial-repeat.json"
+      "shader": "./plugins/afterclip/shaders/afterclip-repeat-radial-repeat.glsl?v=2",
+      "preset": "./plugins/afterclip/effects/afterclip-repeat-radial-repeat.json?v=2"
     },
     {
       "id": "afterclip-repeat-stroke-extended",
@@ -78,8 +78,8 @@
       "description": "Draws an extended alpha stroke around the source.",
       "category": "AFTERCLIP · SHADERS · REPEAT",
       "source": "Shaders/Repeat/Stroke (Extended).txt",
-      "shader": "./plugins/afterclip/shaders/afterclip-repeat-stroke-extended.glsl",
-      "preset": "./plugins/afterclip/effects/afterclip-repeat-stroke-extended.json"
+      "shader": "./plugins/afterclip/shaders/afterclip-repeat-stroke-extended.glsl?v=2",
+      "preset": "./plugins/afterclip/effects/afterclip-repeat-stroke-extended.json?v=2"
     },
     {
       "id": "afterclip-shape-arrow",
@@ -87,8 +87,8 @@
       "description": "Draws a controllable arrow-shaped overlay.",
       "category": "AFTERCLIP · SHADERS · SHAPE",
       "source": "Shaders/Shape/Arrow.txt",
-      "shader": "./plugins/afterclip/shaders/afterclip-shape-arrow.glsl",
-      "preset": "./plugins/afterclip/effects/afterclip-shape-arrow.json"
+      "shader": "./plugins/afterclip/shaders/afterclip-shape-arrow.glsl?v=2",
+      "preset": "./plugins/afterclip/effects/afterclip-shape-arrow.json?v=2"
     },
     {
       "id": "afterclip-shape-chevron",
@@ -96,8 +96,8 @@
       "description": "Draws a controllable chevron pattern.",
       "category": "AFTERCLIP · SHADERS · SHAPE",
       "source": "Shaders/Shape/Chevron.txt",
-      "shader": "./plugins/afterclip/shaders/afterclip-shape-chevron.glsl",
-      "preset": "./plugins/afterclip/effects/afterclip-shape-chevron.json"
+      "shader": "./plugins/afterclip/shaders/afterclip-shape-chevron.glsl?v=2",
+      "preset": "./plugins/afterclip/effects/afterclip-shape-chevron.json?v=2"
     },
     {
       "id": "afterclip-shape-cle",
@@ -105,8 +105,8 @@
       "description": "Draws repeated circular line segments.",
       "category": "AFTERCLIP · SHADERS · SHAPE",
       "source": "Shaders/Shape/CLE.txt",
-      "shader": "./plugins/afterclip/shaders/afterclip-shape-cle.glsl",
-      "preset": "./plugins/afterclip/effects/afterclip-shape-cle.json"
+      "shader": "./plugins/afterclip/shaders/afterclip-shape-cle.glsl?v=2",
+      "preset": "./plugins/afterclip/effects/afterclip-shape-cle.json?v=2"
     },
     {
       "id": "afterclip-shape-gradient-overlay-easeable",
@@ -114,8 +114,8 @@
       "description": "Fills the source with an easeable color gradient.",
       "category": "AFTERCLIP · SHADERS · SHAPE",
       "source": "Shaders/Shape/Gradient Overlay (Easeable).txt",
-      "shader": "./plugins/afterclip/shaders/afterclip-shape-gradient-overlay-easeable.glsl",
-      "preset": "./plugins/afterclip/effects/afterclip-shape-gradient-overlay-easeable.json"
+      "shader": "./plugins/afterclip/shaders/afterclip-shape-gradient-overlay-easeable.glsl?v=2",
+      "preset": "./plugins/afterclip/effects/afterclip-shape-gradient-overlay-easeable.json?v=2"
     },
     {
       "id": "afterclip-shape-hex-net",
@@ -123,8 +123,8 @@
       "description": "Draws a hexagonal net overlay.",
       "category": "AFTERCLIP · SHADERS · SHAPE",
       "source": "Shaders/Shape/Hex Net.txt",
-      "shader": "./plugins/afterclip/shaders/afterclip-shape-hex-net.glsl",
-      "preset": "./plugins/afterclip/effects/afterclip-shape-hex-net.json"
+      "shader": "./plugins/afterclip/shaders/afterclip-shape-hex-net.glsl?v=2",
+      "preset": "./plugins/afterclip/effects/afterclip-shape-hex-net.json?v=2"
     },
     {
       "id": "afterclip-shape-line-wave-mask",
@@ -132,8 +132,8 @@
       "description": "Reveals the source with an animated line wave.",
       "category": "AFTERCLIP · SHADERS · SHAPE",
       "source": "Shaders/Shape/Line Wave Mask.txt",
-      "shader": "./plugins/afterclip/shaders/afterclip-shape-line-wave-mask.glsl",
-      "preset": "./plugins/afterclip/effects/afterclip-shape-line-wave-mask.json"
+      "shader": "./plugins/afterclip/shaders/afterclip-shape-line-wave-mask.glsl?v=2",
+      "preset": "./plugins/afterclip/effects/afterclip-shape-line-wave-mask.json?v=2"
     },
     {
       "id": "afterclip-shape-line-wave",
@@ -141,8 +141,8 @@
       "description": "Draws animated line-wave colors over the source.",
       "category": "AFTERCLIP · SHADERS · SHAPE",
       "source": "Shaders/Shape/Line Wave.txt",
-      "shader": "./plugins/afterclip/shaders/afterclip-shape-line-wave.glsl",
-      "preset": "./plugins/afterclip/effects/afterclip-shape-line-wave.json"
+      "shader": "./plugins/afterclip/shaders/afterclip-shape-line-wave.glsl?v=2",
+      "preset": "./plugins/afterclip/effects/afterclip-shape-line-wave.json?v=2"
     },
     {
       "id": "afterclip-shape-lines",
@@ -150,8 +150,8 @@
       "description": "Draws a repeated diagonal line pattern.",
       "category": "AFTERCLIP · SHADERS · SHAPE",
       "source": "Shaders/Shape/Lines.txt",
-      "shader": "./plugins/afterclip/shaders/afterclip-shape-lines.glsl",
-      "preset": "./plugins/afterclip/effects/afterclip-shape-lines.json"
+      "shader": "./plugins/afterclip/shaders/afterclip-shape-lines.glsl?v=2",
+      "preset": "./plugins/afterclip/effects/afterclip-shape-lines.json?v=2"
     },
     {
       "id": "afterclip-shape-net",
@@ -159,8 +159,8 @@
       "description": "Draws a repeated two-direction line net.",
       "category": "AFTERCLIP · SHADERS · SHAPE",
       "source": "Shaders/Shape/Net.txt",
-      "shader": "./plugins/afterclip/shaders/afterclip-shape-net.glsl",
-      "preset": "./plugins/afterclip/effects/afterclip-shape-net.json"
+      "shader": "./plugins/afterclip/shaders/afterclip-shape-net.glsl?v=2",
+      "preset": "./plugins/afterclip/effects/afterclip-shape-net.json?v=2"
     },
     {
       "id": "afterclip-shape-pinwheel",
@@ -168,8 +168,8 @@
       "description": "Draws repeated pinwheel sectors.",
       "category": "AFTERCLIP · SHADERS · SHAPE",
       "source": "Shaders/Shape/PinWheel.txt",
-      "shader": "./plugins/afterclip/shaders/afterclip-shape-pinwheel.glsl",
-      "preset": "./plugins/afterclip/effects/afterclip-shape-pinwheel.json"
+      "shader": "./plugins/afterclip/shaders/afterclip-shape-pinwheel.glsl?v=2",
+      "preset": "./plugins/afterclip/effects/afterclip-shape-pinwheel.json?v=2"
     },
     {
       "id": "afterclip-shape-plain-wave-mask",
@@ -177,8 +177,8 @@
       "description": "Reveals the source with a plain wave.",
       "category": "AFTERCLIP · SHADERS · SHAPE",
       "source": "Shaders/Shape/Plain Wave Mask.txt",
-      "shader": "./plugins/afterclip/shaders/afterclip-shape-plain-wave-mask.glsl",
-      "preset": "./plugins/afterclip/effects/afterclip-shape-plain-wave-mask.json"
+      "shader": "./plugins/afterclip/shaders/afterclip-shape-plain-wave-mask.glsl?v=2",
+      "preset": "./plugins/afterclip/effects/afterclip-shape-plain-wave-mask.json?v=2"
     },
     {
       "id": "afterclip-shape-plain-wave",
@@ -186,8 +186,8 @@
       "description": "Draws a plain animated wave over the source.",
       "category": "AFTERCLIP · SHADERS · SHAPE",
       "source": "Shaders/Shape/Plain Wave.txt",
-      "shader": "./plugins/afterclip/shaders/afterclip-shape-plain-wave.glsl",
-      "preset": "./plugins/afterclip/effects/afterclip-shape-plain-wave.json"
+      "shader": "./plugins/afterclip/shaders/afterclip-shape-plain-wave.glsl?v=2",
+      "preset": "./plugins/afterclip/effects/afterclip-shape-plain-wave.json?v=2"
     },
     {
       "id": "afterclip-shape-polygon-echo",
@@ -195,8 +195,8 @@
       "description": "Draws repeated polygon rings with stripes.",
       "category": "AFTERCLIP · SHADERS · SHAPE",
       "source": "Shaders/Shape/Polygon Echo.txt",
-      "shader": "./plugins/afterclip/shaders/afterclip-shape-polygon-echo.glsl",
-      "preset": "./plugins/afterclip/effects/afterclip-shape-polygon-echo.json"
+      "shader": "./plugins/afterclip/shaders/afterclip-shape-polygon-echo.glsl?v=2",
+      "preset": "./plugins/afterclip/effects/afterclip-shape-polygon-echo.json?v=2"
     },
     {
       "id": "afterclip-shape-polygon",
@@ -204,8 +204,8 @@
       "description": "Draws a polygon ring overlay.",
       "category": "AFTERCLIP · SHADERS · SHAPE",
       "source": "Shaders/Shape/Polygon.txt",
-      "shader": "./plugins/afterclip/shaders/afterclip-shape-polygon.glsl",
-      "preset": "./plugins/afterclip/effects/afterclip-shape-polygon.json"
+      "shader": "./plugins/afterclip/shaders/afterclip-shape-polygon.glsl?v=2",
+      "preset": "./plugins/afterclip/effects/afterclip-shape-polygon.json?v=2"
     },
     {
       "id": "afterclip-shape-repeating-dots",
@@ -213,8 +213,8 @@
       "description": "Draws a row of repeating dots.",
       "category": "AFTERCLIP · SHADERS · SHAPE",
       "source": "Shaders/Shape/Repeating Dots.txt",
-      "shader": "./plugins/afterclip/shaders/afterclip-shape-repeating-dots.glsl",
-      "preset": "./plugins/afterclip/effects/afterclip-shape-repeating-dots.json"
+      "shader": "./plugins/afterclip/shaders/afterclip-shape-repeating-dots.glsl?v=2",
+      "preset": "./plugins/afterclip/effects/afterclip-shape-repeating-dots.json?v=2"
     },
     {
       "id": "afterclip-shape-roundedstar",
@@ -222,8 +222,8 @@
       "description": "RoundedStar from AfterClip.",
       "category": "AFTERCLIP · SHADERS · SHAPE",
       "source": "Shaders/Shape/RoundedStar.txt",
-      "shader": "./plugins/afterclip/shaders/afterclip-shape-roundedstar.glsl",
-      "preset": "./plugins/afterclip/effects/afterclip-shape-roundedstar.json"
+      "shader": "./plugins/afterclip/shaders/afterclip-shape-roundedstar.glsl?v=2",
+      "preset": "./plugins/afterclip/effects/afterclip-shape-roundedstar.json?v=2"
     },
     {
       "id": "afterclip-shape-shockwave",
@@ -231,8 +231,8 @@
       "description": "Draws a polygonal shockwave ring.",
       "category": "AFTERCLIP · SHADERS · SHAPE",
       "source": "Shaders/Shape/Shockwave.txt",
-      "shader": "./plugins/afterclip/shaders/afterclip-shape-shockwave.glsl",
-      "preset": "./plugins/afterclip/effects/afterclip-shape-shockwave.json"
+      "shader": "./plugins/afterclip/shaders/afterclip-shape-shockwave.glsl?v=2",
+      "preset": "./plugins/afterclip/effects/afterclip-shape-shockwave.json?v=2"
     },
     {
       "id": "afterclip-shape-triangle",
@@ -240,8 +240,8 @@
       "description": "Draws a triangle overlay.",
       "category": "AFTERCLIP · SHADERS · SHAPE",
       "source": "Shaders/Shape/Triangle.txt",
-      "shader": "./plugins/afterclip/shaders/afterclip-shape-triangle.glsl",
-      "preset": "./plugins/afterclip/effects/afterclip-shape-triangle.json"
+      "shader": "./plugins/afterclip/shaders/afterclip-shape-triangle.glsl?v=2",
+      "preset": "./plugins/afterclip/effects/afterclip-shape-triangle.json?v=2"
     },
     {
       "id": "afterclip-warp-fractal-noise",
@@ -249,8 +249,8 @@
       "description": "Generates fractal noise patterns.",
       "category": "AFTERCLIP · SHADERS · WARP",
       "source": "Shaders/Warp/Fractal Noise.txt",
-      "shader": "./plugins/afterclip/shaders/afterclip-warp-fractal-noise.glsl",
-      "preset": "./plugins/afterclip/effects/afterclip-warp-fractal-noise.json"
+      "shader": "./plugins/afterclip/shaders/afterclip-warp-fractal-noise.glsl?v=2",
+      "preset": "./plugins/afterclip/effects/afterclip-warp-fractal-noise.json?v=2"
     },
     {
       "id": "afterclip-warp-fractal-warp",
@@ -258,8 +258,8 @@
       "description": "Warps the source using fractal noise.",
       "category": "AFTERCLIP · SHADERS · WARP",
       "source": "Shaders/Warp/Fractal Warp.txt",
-      "shader": "./plugins/afterclip/shaders/afterclip-warp-fractal-warp.glsl",
-      "preset": "./plugins/afterclip/effects/afterclip-warp-fractal-warp.json"
+      "shader": "./plugins/afterclip/shaders/afterclip-warp-fractal-warp.glsl?v=2",
+      "preset": "./plugins/afterclip/effects/afterclip-warp-fractal-warp.json?v=2"
     },
     {
       "id": "afterclip-warp-mirror-fixed-bugs",
@@ -267,8 +267,8 @@
       "description": "Reflects the source with the corrected mirror behavior.",
       "category": "AFTERCLIP · SHADERS · WARP",
       "source": "Shaders/Warp/Mirror (Fixed Bugs).txt",
-      "shader": "./plugins/afterclip/shaders/afterclip-warp-mirror-fixed-bugs.glsl",
-      "preset": "./plugins/afterclip/effects/afterclip-warp-mirror-fixed-bugs.json"
+      "shader": "./plugins/afterclip/shaders/afterclip-warp-mirror-fixed-bugs.glsl?v=2",
+      "preset": "./plugins/afterclip/effects/afterclip-warp-mirror-fixed-bugs.json?v=2"
     },
     {
       "id": "afterclip-warp-polar-coordinates",
@@ -276,8 +276,8 @@
       "description": "Converts the source to polar coordinates.",
       "category": "AFTERCLIP · SHADERS · WARP",
       "source": "Shaders/Warp/Polar Coordinates.txt",
-      "shader": "./plugins/afterclip/shaders/afterclip-warp-polar-coordinates.glsl",
-      "preset": "./plugins/afterclip/effects/afterclip-warp-polar-coordinates.json"
+      "shader": "./plugins/afterclip/shaders/afterclip-warp-polar-coordinates.glsl?v=2",
+      "preset": "./plugins/afterclip/effects/afterclip-warp-polar-coordinates.json?v=2"
     },
     {
       "id": "afterclip-warp-stretch",
@@ -285,8 +285,8 @@
       "description": "Stretches the source along a controlled angle.",
       "category": "AFTERCLIP · SHADERS · WARP",
       "source": "Shaders/Warp/Stretch.txt",
-      "shader": "./plugins/afterclip/shaders/afterclip-warp-stretch.glsl",
-      "preset": "./plugins/afterclip/effects/afterclip-warp-stretch.json"
+      "shader": "./plugins/afterclip/shaders/afterclip-warp-stretch.glsl?v=2",
+      "preset": "./plugins/afterclip/effects/afterclip-warp-stretch.json?v=2"
     },
     {
       "id": "afterclip-warp-wavy-extended",
@@ -294,8 +294,8 @@
       "description": "Applies the extended animated wave distortion.",
       "category": "AFTERCLIP · SHADERS · WARP",
       "source": "Shaders/Warp/Wavy (Extended).txt",
-      "shader": "./plugins/afterclip/shaders/afterclip-warp-wavy-extended.glsl",
-      "preset": "./plugins/afterclip/effects/afterclip-warp-wavy-extended.json"
+      "shader": "./plugins/afterclip/shaders/afterclip-warp-wavy-extended.glsl?v=2",
+      "preset": "./plugins/afterclip/effects/afterclip-warp-wavy-extended.json?v=2"
     }
   ],
   "groups": [
@@ -305,11 +305,11 @@
       "description": "Circular dot-wave group preset.",
       "category": "AFTERCLIP · PRESETS · DOT WAVES",
       "source": "Presets/Dot Waves/Circular DotWave.txt",
-      "preset": "./plugins/afterclip/groups/afterclip-group-dot-waves-circular-dotwave.json",
+      "preset": "./plugins/afterclip/groups/afterclip-group-dot-waves-circular-dotwave.json?v=2",
       "shaders": [
-        "./plugins/afterclip/shaders/afterclip-warp-polar-coordinates.glsl",
-        "./plugins/afterclip/shaders/groups/afterclip-group-dot-waves-circular-dotwave-dotwave-warp.glsl",
-        "./plugins/afterclip/shaders/groups/afterclip-group-dot-waves-circular-dotwave-grayscale-gradient.glsl"
+        "./plugins/afterclip/shaders/afterclip-warp-polar-coordinates.glsl?v=2",
+        "./plugins/afterclip/shaders/groups/afterclip-group-dot-waves-circular-dotwave-dotwave-warp.glsl?v=2",
+        "./plugins/afterclip/shaders/groups/afterclip-group-dot-waves-circular-dotwave-grayscale-gradient.glsl?v=2"
       ]
     },
     {
@@ -318,11 +318,11 @@
       "description": "Hexagonal dot-wave group preset.",
       "category": "AFTERCLIP · PRESETS · DOT WAVES",
       "source": "Presets/Dot Waves/Hex DotWave.txt",
-      "preset": "./plugins/afterclip/groups/afterclip-group-dot-waves-hex-dotwave.json",
+      "preset": "./plugins/afterclip/groups/afterclip-group-dot-waves-hex-dotwave.json?v=2",
       "shaders": [
-        "./plugins/afterclip/shaders/afterclip-repeat-hex-dot-wave.glsl",
-        "./plugins/afterclip/shaders/afterclip-warp-mirror-fixed-bugs.glsl",
-        "./plugins/afterclip/shaders/groups/afterclip-group-dot-waves-circular-dotwave-grayscale-gradient.glsl"
+        "./plugins/afterclip/shaders/afterclip-repeat-hex-dot-wave.glsl?v=2",
+        "./plugins/afterclip/shaders/afterclip-warp-mirror-fixed-bugs.glsl?v=2",
+        "./plugins/afterclip/shaders/groups/afterclip-group-dot-waves-circular-dotwave-grayscale-gradient.glsl?v=2"
       ]
     },
     {
@@ -331,11 +331,11 @@
       "description": "Square dot-wave group preset.",
       "category": "AFTERCLIP · PRESETS · DOT WAVES",
       "source": "Presets/Dot Waves/Square DotWave.txt",
-      "preset": "./plugins/afterclip/groups/afterclip-group-dot-waves-square-dotwave.json",
+      "preset": "./plugins/afterclip/groups/afterclip-group-dot-waves-square-dotwave.json?v=2",
       "shaders": [
-        "./plugins/afterclip/shaders/afterclip-warp-mirror-fixed-bugs.glsl",
-        "./plugins/afterclip/shaders/groups/afterclip-group-dot-waves-circular-dotwave-dotwave-warp.glsl",
-        "./plugins/afterclip/shaders/groups/afterclip-group-dot-waves-circular-dotwave-grayscale-gradient.glsl"
+        "./plugins/afterclip/shaders/afterclip-warp-mirror-fixed-bugs.glsl?v=2",
+        "./plugins/afterclip/shaders/groups/afterclip-group-dot-waves-circular-dotwave-dotwave-warp.glsl?v=2",
+        "./plugins/afterclip/shaders/groups/afterclip-group-dot-waves-circular-dotwave-grayscale-gradient.glsl?v=2"
       ]
     },
     {
@@ -344,10 +344,10 @@
       "description": "Animated arrow group preset.",
       "category": "AFTERCLIP · PRESETS · EFFECTS",
       "source": "Presets/Effects/Arrow.txt",
-      "preset": "./plugins/afterclip/groups/afterclip-group-effects-arrow.json",
+      "preset": "./plugins/afterclip/groups/afterclip-group-effects-arrow.json?v=2",
       "shaders": [
-        "./plugins/afterclip/shaders/afterclip-repeat-radial-repeat.glsl",
-        "./plugins/afterclip/shaders/afterclip-shape-arrow.glsl"
+        "./plugins/afterclip/shaders/afterclip-repeat-radial-repeat.glsl?v=2",
+        "./plugins/afterclip/shaders/afterclip-shape-arrow.glsl?v=2"
       ]
     },
     {
@@ -356,11 +356,11 @@
       "description": "Animated burst group preset.",
       "category": "AFTERCLIP · PRESETS · EFFECTS",
       "source": "Presets/Effects/Burst.txt",
-      "preset": "./plugins/afterclip/groups/afterclip-group-effects-burst.json",
+      "preset": "./plugins/afterclip/groups/afterclip-group-effects-burst.json?v=2",
       "shaders": [
-        "./plugins/afterclip/shaders/afterclip-repeat-radial-repeat.glsl",
-        "./plugins/afterclip/shaders/afterclip-shape-triangle.glsl",
-        "./plugins/afterclip/shaders/groups/afterclip-group-effects-burst-triangle-mask.glsl"
+        "./plugins/afterclip/shaders/afterclip-repeat-radial-repeat.glsl?v=2",
+        "./plugins/afterclip/shaders/afterclip-shape-triangle.glsl?v=2",
+        "./plugins/afterclip/shaders/groups/afterclip-group-effects-burst-triangle-mask.glsl?v=2"
       ]
     },
     {
@@ -369,10 +369,10 @@
       "description": "Animated fractal burst group preset.",
       "category": "AFTERCLIP · PRESETS · EFFECTS",
       "source": "Presets/Effects/Fractal Burst.txt",
-      "preset": "./plugins/afterclip/groups/afterclip-group-effects-fractal-burst.json",
+      "preset": "./plugins/afterclip/groups/afterclip-group-effects-fractal-burst.json?v=2",
       "shaders": [
-        "./plugins/afterclip/shaders/afterclip-warp-fractal-noise.glsl",
-        "./plugins/afterclip/shaders/afterclip-warp-polar-coordinates.glsl"
+        "./plugins/afterclip/shaders/afterclip-warp-fractal-noise.glsl?v=2",
+        "./plugins/afterclip/shaders/afterclip-warp-polar-coordinates.glsl?v=2"
       ]
     },
     {
@@ -381,10 +381,10 @@
       "description": "Animated fireworks group preset.",
       "category": "AFTERCLIP · PRESETS · EFFECTS",
       "source": "Presets/Effects/fw.txt",
-      "preset": "./plugins/afterclip/groups/afterclip-group-effects-fw.json",
+      "preset": "./plugins/afterclip/groups/afterclip-group-effects-fw.json?v=2",
       "shaders": [
-        "./plugins/afterclip/shaders/afterclip-repeat-radial-repeat.glsl",
-        "./plugins/afterclip/shaders/groups/afterclip-group-effects-fw-line.glsl"
+        "./plugins/afterclip/shaders/afterclip-repeat-radial-repeat.glsl?v=2",
+        "./plugins/afterclip/shaders/groups/afterclip-group-effects-fw-line.glsl?v=2"
       ]
     },
     {
@@ -393,10 +393,10 @@
       "description": "Animated line-wave group preset.",
       "category": "AFTERCLIP · PRESETS · EFFECTS",
       "source": "Presets/Effects/Line Waves.txt",
-      "preset": "./plugins/afterclip/groups/afterclip-group-effects-line-waves.json",
+      "preset": "./plugins/afterclip/groups/afterclip-group-effects-line-waves.json?v=2",
       "shaders": [
-        "./plugins/afterclip/shaders/afterclip-shape-line-wave-mask.glsl",
-        "./plugins/afterclip/shaders/afterclip-shape-line-wave.glsl"
+        "./plugins/afterclip/shaders/afterclip-shape-line-wave-mask.glsl?v=2",
+        "./plugins/afterclip/shaders/afterclip-shape-line-wave.glsl?v=2"
       ]
     },
     {
@@ -405,11 +405,11 @@
       "description": "Animated spiral group preset.",
       "category": "AFTERCLIP · PRESETS · EFFECTS",
       "source": "Presets/Effects/Spiral.txt",
-      "preset": "./plugins/afterclip/groups/afterclip-group-effects-spiral.json",
+      "preset": "./plugins/afterclip/groups/afterclip-group-effects-spiral.json?v=2",
       "shaders": [
-        "./plugins/afterclip/shaders/afterclip-shape-plain-wave-mask.glsl",
-        "./plugins/afterclip/shaders/afterclip-shape-plain-wave.glsl",
-        "./plugins/afterclip/shaders/afterclip-warp-polar-coordinates.glsl"
+        "./plugins/afterclip/shaders/afterclip-shape-plain-wave-mask.glsl?v=2",
+        "./plugins/afterclip/shaders/afterclip-shape-plain-wave.glsl?v=2",
+        "./plugins/afterclip/shaders/afterclip-warp-polar-coordinates.glsl?v=2"
       ]
     },
     {
@@ -418,7 +418,7 @@
       "description": "Chevron synchronization group preset.",
       "category": "AFTERCLIP · PRESETS · SYNCTOOLS",
       "source": "Presets/SyncTools/Chevron.txt",
-      "preset": "./plugins/afterclip/groups/afterclip-group-synctools-chevron.json",
+      "preset": "./plugins/afterclip/groups/afterclip-group-synctools-chevron.json?v=2",
       "shaders": []
     },
     {
@@ -427,7 +427,7 @@
       "description": "Synchronization controls group preset.",
       "category": "AFTERCLIP · PRESETS · SYNCTOOLS",
       "source": "Presets/SyncTools/Sync.txt",
-      "preset": "./plugins/afterclip/groups/afterclip-group-synctools-sync.json",
+      "preset": "./plugins/afterclip/groups/afterclip-group-synctools-sync.json?v=2",
       "shaders": []
     }
   ]

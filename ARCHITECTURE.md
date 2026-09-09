@@ -52,11 +52,30 @@ Each plugin has an editable `manifest.json` and source assets. The bundle builde
 validates the manifest against `plugins/manifest.schema.json`, embeds declared
 assets, and writes one generated `bundle.json`. The runtime plugin manager loads
 the registry first and fetches a plugin bundle when the plugin is enabled.
+The builder also normalizes every embedded asset URL to the manifest version,
+so authors bump only the manifest `version` instead of hand-editing per-file
+cache-busting queries. First-party styles and scripts share one `assetVersion`
+counter in `zoidium/runtime-config.js` that the runtime loader appends automatically.
 
 The manifest schema describes the fields shared by shader effects, groups,
 native effects, materials, modules, resources, 3D object types, and 3D object
 classes. The validator also checks that a 3D object class stays inside its
 plugin namespace.
+
+## Extension startup and shared namespace
+
+Extension startup treats the entry script, editor exposure, `initTool()`, and the
+shared UI kit (`zoidium/ui-kit.js`) as fatal: nothing works without them. Overlay
+stylesheets and every other pre/post-init script load in isolation: a failure is
+recorded, reported through `zoidium:extension-script-error`, and the remaining scripts
+still load. `zoidium:ready` carries the failure list so the debug log (and agents)
+can tell a clean boot from a degraded one.
+
+Every Zoidium-owned integration registers on the shared `PZ.zoidium` namespace
+through `PZ.zoidium.define(name, api, owner)` instead of direct assignment. A collision
+warns with both owners while keeping last-wins behavior; `PZ.zoidium.ownerOf(name)`
+reports the current owner. The policy layer installs `define()` before any other
+Zoidium script runs.
 
 ## Change boundaries
 

@@ -11,7 +11,7 @@ const loaderSource = fs.readFileSync(
   "utf8"
 );
 
-async function startLayout(layout) {
+async function startLayout(layout, postInitScripts, runtimeOverrides) {
   let domReady;
   let initialized = false;
   const loadedScripts = [];
@@ -38,12 +38,20 @@ async function startLayout(layout) {
         this.detail = options && options.detail;
       }
     },
-    PZ: {},
+    PZ: {
+      zoidium: {
+        define(name, api) {
+          this[name] = api;
+          return api;
+        },
+      },
+    },
     URL,
     ZOIDIUM_RUNTIME: {
       overlayStyles: [],
-      postInitScripts: [],
+      postInitScripts: postInitScripts || [],
       preInitScripts: [],
+      ...(runtimeOverrides || {}),
     },
     ZOIDIUM_RUNTIME_PROFILES: {
       defaultLayout: "clipmaker",
@@ -62,7 +70,7 @@ async function startLayout(layout) {
     },
     console,
     dispatchEvent(event) {
-      dispatchedEvents.push(event.type);
+      dispatchedEvents.push(event);
     },
     document,
     localStorage: {
@@ -74,14 +82,22 @@ async function startLayout(layout) {
   context.window = context;
   document.head = {
     appendChild(element) {
+      const failing =
+        typeof element.src === "string" && element.src.includes("failing");
       if (element.tagName === "SCRIPT") {
         loadedScripts.push(element.src);
-        const editor = { name: layout };
-        if (layout === "videoeditor") context.VE = editor;
-        else context.CM = editor;
-        context.initTool = async function () {
-          initialized = true;
-        };
+        if (!failing) {
+          const editor = { name: layout };
+          if (layout === "videoeditor") context.VE = editor;
+          else context.CM = editor;
+          context.initTool = async function () {
+            initialized = true;
+          };
+        }
+      }
+      if (failing) {
+        if (typeof element.onerror === "function") element.onerror(new Error("mock load failure"));
+        return;
       }
       if (typeof element.onload === "function") element.onload();
     },
@@ -100,7 +116,7 @@ test("runtime loader selects Clipmaker by layout setting", async () => {
   assert.equal(result.context.ZOIDIUM_EDITOR, result.context.CM);
   assert.equal(result.context.ZOIDIUM_LAYOUT, "clipmaker");
   assert.equal(result.initialized, true);
-  assert.ok(result.dispatchedEvents.includes("zoidium:ready"));
+  assert.ok(result.dispatchedEvents.some((event) => event.type === "zoidium:ready"));
 });
 
 test("runtime loader aliases Video Editor to CM for existing extensions", async () => {
@@ -112,4 +128,42 @@ test("runtime loader aliases Video Editor to CM for existing extensions", async 
   assert.equal(result.context.PZ.zoidium.runtime.editor, result.context.VE);
   assert.equal(result.context.ZOIDIUM_LAYOUT, "videoeditor");
   assert.equal(result.initialized, true);
+  assert.ok(result.dispatchedEvents.some((event) => event.type === "zoidium:ready"));
+});
+
+test("a failing non-critical script still reaches ready with a failure list", async () => {
+  const result = await startLayout("clipmaker", [
+    "./ui-kit.js",
+    "./failing-settings.js",
+    "./welcome.js",
+  ]);
+
+  assert.equal(result.initialized, true);
+  const ready = result.dispatchedEvents.find((event) => event.type === "zoidium:ready");
+  assert.ok(ready);
+  assert.equal(ready.detail.degraded, true);
+  assert.equal(ready.detail.failedScripts.length, 1);
+  assert.equal(ready.detail.failedScripts[0].phase, "post-init");
+  assert.match(ready.detail.failedScripts[0].script, /failing-settings\.js$/);
+  const errors = result.dispatchedEvents.filter(
+    (event) => event.type === "zoidium:extension-script-error"
+  );
+  assert.equal(errors.length, 1);
+  assert.match(errors[0].detail.script, /failing-settings\.js$/);
+});
+
+test("a failing UI kit aborts startup instead of cascading", async () => {
+  const result = await startLayout("clipmaker", ["./ui-kit.js?failing=1"]);
+
+  const types = result.dispatchedEvents.map((event) => event.type);
+  assert.ok(types.includes("zoidium:extension-load-error"));
+  assert.ok(!types.includes("zoidium:ready"));
+});
+
+test("the loader appends the shared asset version to bare URLs", async () => {
+  const result = await startLayout("clipmaker", ["./ui-kit.js"], { assetVersion: 99 });
+
+  const kit = result.loadedScripts.find((src) => src.includes("ui-kit.js"));
+  assert.match(kit, /\?v=99$/);
+  assert.ok(result.dispatchedEvents.some((event) => event.type === "zoidium:ready"));
 });

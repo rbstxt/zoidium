@@ -21,22 +21,22 @@
     {
       "id": "matcap-vertex-shader",
       "type": "text",
-      "source": "./plugins/material-plus/shaders/matcap.vert.glsl?v=1"
+      "source": "./plugins/material-plus/shaders/matcap.vert.glsl?v=2"
     },
     {
       "id": "matcap-fragment-shader",
       "type": "text",
-      "source": "./plugins/material-plus/shaders/matcap.frag.glsl?v=1"
+      "source": "./plugins/material-plus/shaders/matcap.frag.glsl?v=2"
     }
   ],
   "modules": [
     {
       "id": "material-plus-runtime",
-      "source": "./plugins/material-plus/material-plus.js?v=1"
+      "source": "./plugins/material-plus/material-plus.js?v=2"
     },
     {
       "id": "material-plus-pbr-runtime",
-      "source": "./plugins/material-plus/pbr-plus.js?v=1"
+      "source": "./plugins/material-plus/pbr-plus.js?v=2"
     }
   ]
 }

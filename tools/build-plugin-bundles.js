@@ -168,6 +168,51 @@ function writeIfChanged(filePath, content) {
   return true;
 }
 
+function versionedSource(value, version) {
+  const base = stripUrlQuery(value);
+  return base + "?v=" + encodeURIComponent(String(version));
+}
+
+// Plugin authors bump only the manifest version: every asset URL the bundle
+// embeds (modules, native effects, effect shaders and presets, group presets
+// and shaders, resources) is rewritten here to the manifest version. Hand-written
+// per-file counters drift apart, so the builder owns the number and check mode
+// rejects a manifest that was edited without rebuilding. Bundle asset keys ignore
+// the query, so this only changes the embedded manifest, never the payload.
+function normalizeManifestSources(manifest) {
+  const version = manifest.version;
+  let changed = 0;
+  const fixField = (holder, key) => {
+    if (holder && typeof holder[key] === "string") {
+      const next = versionedSource(holder[key], version);
+      if (holder[key] !== next) {
+        holder[key] = next;
+        changed += 1;
+      }
+    }
+  };
+  for (const definition of manifest.modules || []) fixField(definition, "source");
+  for (const definition of manifest.nativeEffects || []) fixField(definition, "source");
+  for (const definition of manifest.effects || []) {
+    fixField(definition, "shader");
+    fixField(definition, "preset");
+  }
+  for (const definition of manifest.groups || []) {
+    fixField(definition, "preset");
+    (definition.shaders || []).forEach((shader, index) => {
+      if (typeof shader === "string") {
+        const next = versionedSource(shader, version);
+        if (definition.shaders[index] !== next) {
+          definition.shaders[index] = next;
+          changed += 1;
+        }
+      }
+    });
+  }
+  for (const resource of manifest.resources || []) fixField(resource, "source");
+  return changed;
+}
+
 function main() {
   const registry = readJson(registryPath);
   if (registry.schemaVersion !== 1 || !Array.isArray(registry.plugins)) {
@@ -175,6 +220,7 @@ function main() {
   }
 
   let changedBundles = 0;
+  let changedManifests = 0;
   let changedRegistry = false;
   for (const plugin of registry.plugins) {
     if (!plugin?.id || typeof plugin.manifest !== "string") {
@@ -186,6 +232,13 @@ function main() {
     validateManifest(manifest, path.relative(projectRoot, manifestPath));
     if (manifest.id !== plugin.id) {
       throw new Error(`Manifest does not match registry entry: ${plugin.id}`);
+    }
+    const relativeManifest = path.relative(projectRoot, manifestPath);
+    if (normalizeManifestSources(manifest) > 0) {
+      if (checkOnly) {
+        throw new Error("Plugin manifest asset URLs are stale (run pnpm run build:plugin-bundles): " + relativeManifest);
+      }
+      if (writeIfChanged(manifestPath, JSON.stringify(manifest, null, 2) + "\n")) changedManifests += 1;
     }
     const bundle = buildBundle(manifest);
     const bundlePath = path.join(path.dirname(manifestPath), "bundle.json");
@@ -224,8 +277,10 @@ function main() {
     fs.writeFileSync(registryPath, `${JSON.stringify(registry, null, 2)}\n`);
   }
 
-  const action = checkOnly ? "Verified" : `Built ${changedBundles} changed`;
-  console.log(`${action} ${registry.plugins.length} plugin bundles.`);
+  const summary = checkOnly ? "Verified" : "Built " + changedBundles + " changed (" + changedManifests + " manifests normalized)";
+  console.log(summary + " " + registry.plugins.length + " plugin bundles.");
+  const action = checkOnly ? "Verified" : "Built " + changedBundles + " changed (" + changedManifests + " manifests normalized)";
+  console.log(action + " " + registry.plugins.length + " plugin bundles.");
 }
 
 try {

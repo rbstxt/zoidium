@@ -49,5 +49,43 @@
     return undefined;
   };
 
+  // Shared extension namespace. Every Zoidium-owned integration registers
+  // here through define() instead of assigning properties directly, so a
+  // collision is reported with both owners instead of silently overwriting.
+  // This layer loads before every other Zoidium script, so define() is
+  // always available to later files.
+  var zoidiumNamespaceOwners = {};
+  PZ.zoidium = PZ.zoidium || {};
+  function zoidiumOwnerLabel(owner) {
+    return owner ? " (" + owner + ")" : "";
+  }
+  if (typeof PZ.zoidium.define !== "function") {
+    PZ.zoidium.define = function (name, api, owner) {
+      if (typeof name !== "string" || !name) {
+        throw new Error("Zoidium namespace name must be a non-empty string");
+      }
+      if (
+        Object.prototype.hasOwnProperty.call(PZ.zoidium, name) &&
+        PZ.zoidium[name] !== api
+      ) {
+        console.warn(
+          "[Zoidium] namespace collision on PZ.zoidium." + name +
+          ": previously registered" + zoidiumOwnerLabel(zoidiumNamespaceOwners[name]) +
+          ", now overwritten" + zoidiumOwnerLabel(owner)
+        );
+      }
+      zoidiumNamespaceOwners[name] = owner || null;
+      PZ.zoidium[name] = api;
+      return api;
+    };
+  }
+  if (typeof PZ.zoidium.ownerOf !== "function") {
+    PZ.zoidium.ownerOf = function (name) {
+      return Object.prototype.hasOwnProperty.call(zoidiumNamespaceOwners, name)
+        ? zoidiumNamespaceOwners[name]
+        : null;
+    };
+  }
+
   global.__ZOIDIUM_AD_BLOCK__ = true;
 })(window);

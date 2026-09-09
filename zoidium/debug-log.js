@@ -758,9 +758,24 @@
       phase = "bootstrap-error";
       recordException("extension bootstrap", event?.detail);
     });
-    global.addEventListener("zoidium:ready", () => {
-      phase = "ready";
-      record("lifecycle", { message: "Zoidium extension ready" });
+    global.addEventListener("zoidium:extension-script-error", (event) => {
+      const detail = event?.detail || {};
+      record("script-error", {
+        script: redact(detail.script),
+        phase: redact(detail.phase),
+        message: redact(detail.message),
+      });
+    });
+    global.addEventListener("zoidium:ready", (event) => {
+      const failedScripts = event?.detail?.failedScripts || [];
+      phase = failedScripts.length === 0 ? "ready" : "ready-degraded";
+      record("lifecycle", {
+        message: failedScripts.length === 0
+          ? "Zoidium extension ready"
+          : "Zoidium extension ready with " + failedScripts.length + " failed scripts",
+        degraded: failedScripts.length > 0,
+        failedScriptCount: failedScripts.length,
+      });
     });
     global.document?.addEventListener("zoidium:plugin-state-change", (event) => {
       const detail = event?.detail || {};
@@ -786,6 +801,6 @@
   });
 
   global.ZOIDIUM_DEBUG_LOG = api;
-  PZ.zoidium.debugLog = api;
+  PZ.zoidium.define("debugLog", api, "zoidium/debug-log");
   installEventListeners();
 })(window);

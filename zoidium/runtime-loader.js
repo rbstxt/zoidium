@@ -5,8 +5,15 @@
   var started = false;
   var config = global.ZOIDIUM_RUNTIME || {};
 
-  function resolveLocal(value) {
-    return new URL(value, document.baseURI).href;
+  // Every first-party URL shares one cache-busting counter from
+  // ZOIDIUM_RUNTIME.assetVersion (see zoidium/runtime-config.js). Authors
+  // never hand-edit per-file ?v= queries: the loader appends the version,
+  // and a URL that already carries a query is left untouched.
+  function resolveAsset(value) {
+    var href = new URL(value, document.baseURI).href;
+    var version = config.assetVersion;
+    if (version === undefined || version === null || /[?#]/.test(value)) return href;
+    return href + "?v=" + encodeURIComponent(String(version));
   }
 
   function setDebugPhase(value) {
@@ -80,11 +87,14 @@
     global.ZOIDIUM_EDITOR = editor;
     global.ZOIDIUM_LAYOUT = layout;
     if (global.PZ) {
-      global.PZ.zoidium = global.PZ.zoidium || {};
-      global.PZ.zoidium.runtime = {
+      var namespace = global.PZ.zoidium;
+      if (!namespace || typeof namespace.define !== "function") {
+        throw new Error("The Zoidium policy layer is missing: PZ.zoidium.define() is unavailable");
+      }
+      namespace.define("runtime", {
         editor: editor,
         layout: layout,
-      };
+      }, "zoidium/runtime-loader");
     }
   }
 
@@ -100,9 +110,60 @@
     global.dispatchEvent(new CustomEvent("zoidium:extension-load-error", { detail: error }));
   }
 
+  // Startup policy: the entry script, the editor exposure, initTool(), and
+  // the shared UI kit are fatal — nothing works without them. Overlay
+  // stylesheets and every other pre/post-init script are isolated: a failure
+  // is recorded, reported through zoidium:extension-script-error, and the
+  // remaining scripts still load. zoidium:ready always carries the failure
+  // list so the debug log (and agents) can tell a clean boot from a
+  // degraded one.
+  function isUiKitScript(url) {
+    return /(^|\/)ui-kit\.js$/.test(String(url).split(/[?#]/, 1)[0]);
+  }
+
+  function reportScriptError(failures, script, phase, error) {
+    var message = error && error.message ? error.message : String(error);
+    console.error("[Zoidium] failed to load " + phase + " file: " + script, error);
+    failures.push({ script: script, phase: phase, message: message });
+    try {
+      global.dispatchEvent(new CustomEvent("zoidium:extension-script-error", {
+        detail: { script: script, phase: phase, message: message },
+      }));
+    } catch (_dispatchError) {
+      // Diagnostics must never prevent the extension layer from starting.
+    }
+  }
+
+  async function loadIsolated(failures, url, phase) {
+    try {
+      if (phase === "stylesheet") {
+        setDebugPhase("loading overlay stylesheet: " + url);
+        await loadStylesheet(resolveAsset(url));
+      } else {
+        setDebugPhase("loading " + phase + " script: " + url);
+        await loadScript(resolveAsset(url), url);
+      }
+      return true;
+    } catch (error) {
+      reportScriptError(failures, url, phase, error);
+      return false;
+    }
+  }
+
+  function dispatchReady(failures) {
+    var failedScripts = failures.map(function (failure) {
+      return { script: failure.script, phase: failure.phase, message: failure.message };
+    });
+    setDebugPhase(failedScripts.length === 0 ? "ready" : "ready (degraded)");
+    global.dispatchEvent(new CustomEvent("zoidium:ready", {
+      detail: { degraded: failedScripts.length > 0, failedScripts: failedScripts },
+    }));
+  }
+
   async function bootstrap() {
     if (started) return;
     started = true;
+    var failures = [];
 
     try {
       var selected = selectRuntimeProfile();
@@ -111,21 +172,19 @@
         document.documentElement.dataset.zoidiumLayout = selected.layout;
       }
       await loadScript(
-        resolveLocal(selected.profile.entryScript),
+        resolveAsset(selected.profile.entryScript),
         selected.profile.label || "editor layout"
       );
       exposeActiveEditor(selected.layout, selected.profile);
 
       var overlayStyles = config.overlayStyles || [];
       for (var i = 0; i < overlayStyles.length; i += 1) {
-        setDebugPhase("loading overlay stylesheet: " + overlayStyles[i]);
-        await loadStylesheet(resolveLocal(overlayStyles[i]));
+        await loadIsolated(failures, overlayStyles[i], "stylesheet");
       }
 
       var preInitScripts = config.preInitScripts || [];
       for (var j = 0; j < preInitScripts.length; j += 1) {
-        setDebugPhase("loading pre-init script: " + preInitScripts[j]);
-        await loadScript(resolveLocal(preInitScripts[j]));
+        await loadIsolated(failures, preInitScripts[j], "pre-init");
       }
 
       setDebugPhase("initializing " + (selected.profile.label || "editor"));
@@ -136,12 +195,22 @@
 
       var postInitScripts = config.postInitScripts || [];
       for (var k = 0; k < postInitScripts.length; k += 1) {
-        setDebugPhase("loading post-init script: " + postInitScripts[k]);
-        await loadScript(resolveLocal(postInitScripts[k]));
+        // The UI kit is required by every later panel: a missing kit would
+        // only cascade into follow-up failures, so it stays fatal here.
+        if (isUiKitScript(postInitScripts[k])) {
+          setDebugPhase("loading post-init script: " + postInitScripts[k]);
+          try {
+            await loadScript(resolveAsset(postInitScripts[k]), postInitScripts[k]);
+          } catch (error) {
+            throw new Error("The shared UI kit failed to load; Settings, Restore, and Plugins depend on it: " +
+              (error && error.message ? error.message : String(error)));
+          }
+          continue;
+        }
+        await loadIsolated(failures, postInitScripts[k], "post-init");
       }
 
-      setDebugPhase("ready");
-      global.dispatchEvent(new CustomEvent("zoidium:ready"));
+      dispatchReady(failures);
     } catch (error) {
       showFailure(error);
     }

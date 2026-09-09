@@ -8,13 +8,13 @@
     {
       "id": "style",
       "type": "text",
-      "source": "./plugins/easing-plus/easing-plus.css?v=11"
+      "source": "./plugins/easing-plus/easing-plus.css?v=13"
     }
   ],
   "modules": [
     {
       "id": "curve-editor",
-      "source": "./plugins/easing-plus/easing-plus.js?v=12"
+      "source": "./plugins/easing-plus/easing-plus.js?v=13"
     }
   ]
 }

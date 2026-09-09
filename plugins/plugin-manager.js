@@ -1932,40 +1932,17 @@
     panel.tabIndex = 0;
     panel.style.display = "none";
     // Page headers share one builder so Plugins and Restore render the
-    // same CM3 proprow/proptitle chrome.
-    const header = typeof ZoidiumUI !== "undefined" && ZoidiumUI && typeof ZoidiumUI.createPageHeader === "function"
-      ? ZoidiumUI.createPageHeader("Plugins")
-      : null;
-    if (header) {
-      panel.appendChild(header);
-    } else {
-      panel.insertAdjacentHTML("beforeend", `
-        <div class="proprow proptitle noselect" style="text-overflow: ellipsis; overflow: hidden; white-space: nowrap; padding-right: 5px;">
-          <span class="proplabel" title="Plugins" style="font-size: 18px; font-weight: bold;">Plugins</span>
-        </div>`);
-    }
+    // same CM3 proprow/proptitle chrome. ZoidiumUI always loads before the
+    // plugin manager (see postInitScripts in zoidium/runtime-config.js).
+    panel.appendChild(ZoidiumUI.createPageHeader("Plugins"));
     panel.insertAdjacentHTML("beforeend", `<div class="zoidium-plugin-list"></div>`);
 
     // The filter search row shares one builder so every panel list
     // filters the same way.
-    const useKitSearch = typeof ZoidiumUI !== "undefined" && ZoidiumUI
-      && typeof ZoidiumUI.createSearchBox === "function"
-      && typeof ZoidiumUI.attachSearchFilter === "function";
-    let search;
-    let updateFilter;
     const list = panel.querySelector(".zoidium-plugin-list");
-    if (useKitSearch) {
-      const box = ZoidiumUI.createSearchBox({ placeholder: "type to filter", ariaLabel: "Filter plugins" });
-      panel.insertBefore(box.wrap, list);
-      search = box.input;
-    } else {
-      panel.insertAdjacentHTML("beforeend", `
-        <div class="zoidium-plugin-search">
-          <input class="pz-filterbox" type="text" placeholder="type to filter" aria-label="Filter plugins">
-        </div>`);
-      panel.appendChild(list);
-      search = panel.querySelector(".zoidium-plugin-search .pz-filterbox");
-    }
+    const box = ZoidiumUI.createSearchBox({ placeholder: "type to filter", ariaLabel: "Filter plugins" });
+    panel.insertBefore(box.wrap, list);
+    const search = box.input;
     const orderedPlugins = registry.plugins
       .map((plugin, index) => ({ plugin, index }))
       .sort(
@@ -1978,22 +1955,7 @@
       list.appendChild(createPluginCard(plugin));
     }
 
-    if (useKitSearch) {
-      updateFilter = ZoidiumUI.attachSearchFilter(search, list);
-    } else {
-      updateFilter = () => {
-        const query = normalizePickerLabel(search.value);
-        for (const entry of list.querySelectorAll(".zoidium-plugin-entry")) {
-          entry.hidden = Boolean(query) && !entry.dataset.searchText.includes(query);
-        }
-      };
-      search.addEventListener("input", updateFilter);
-      search.addEventListener("keydown", (event) => {
-        if (event.key !== "Escape") return;
-        search.value = "";
-        updateFilter();
-      });
-    }
+    let updateFilter = ZoidiumUI.attachSearchFilter(search, list);
 
     const scheduleScrollStateSync = () => {
       requestAnimationFrame(() => syncPluginPanelScrollState(panel));
@@ -2013,49 +1975,16 @@
   }
 
   function createTab(panel) {
-    // Elevator tab chrome lives in the shared UI kit so every panel
-    // creates menubar tabs the same way.
-    if (typeof ZoidiumUI !== "undefined" && ZoidiumUI && typeof ZoidiumUI.createMenubarTab === "function") {
-      const tab = ZoidiumUI.createMenubarTab({
-        title: "Plugins",
-        icon: "fragment",
-        panel,
-        tabClass: "zoidium-plugin-tab",
-      });
-      if (!tab) throw new Error("Zoidium sidebar is unavailable");
-      return;
-    }
-    const tabs = document.querySelector(".elevatortabs");
-    const controls = document.querySelector(".elevatorcontrols");
-    if (!tabs || !controls) throw new Error("Zoidium sidebar is unavailable");
-    const elevator = tabs.parentElement?.parentElement?.pz_panel;
-    if (!elevator || typeof elevator.changeTab !== "function") {
-      throw new Error("Zoidium elevator controller is unavailable");
-    }
-    const pluginPanel = {
+    // Elevator tab chrome lives in the shared UI kit, which always loads
+    // before the plugin manager (see postInitScripts in
+    // zoidium/runtime-config.js).
+    const tab = ZoidiumUI.createMenubarTab({
       title: "Plugins",
       icon: "fragment",
-      el: panel,
-      editor: elevator.editor,
-      enabled: false,
-      needsResize: false,
-      resize() {},
-    };
-    const tab = document.createElement("a");
-    tab.className = "zoidium-plugin-tab";
-    tab.title = "Plugins";
-    tab.pz_tab = pluginPanel;
-    tab.pz_container = panel;
-    tab.appendChild(PZ.ui.generateIcon("fragment"));
-    const tabLabel = document.createElement("span");
-    tabLabel.textContent = "Plugins";
-    tab.appendChild(tabLabel);
-    const aboutTab = Array.from(tabs.children).find((item) => item.title === "About");
-    tabs.insertBefore(tab, aboutTab || null);
-    controls.appendChild(panel);
-    elevator.panels.push(pluginPanel);
-    tab.onclick = elevator.buttonClick.bind(elevator);
-    tab.onkeydown = elevator.buttonKeyDown;
+      panel,
+      tabClass: "zoidium-plugin-tab",
+    });
+    if (!tab) throw new Error("Zoidium sidebar is unavailable");
   }
 
   async function initialize() {
@@ -2070,13 +1999,12 @@
 
     installProjectPluginHooks();
     installEditorPluginHooks();
-    PZ.zoidium = PZ.zoidium || {};
-    PZ.zoidium.getDebugPlugins = getDebugPlugins;
+    PZ.zoidium.define("getDebugPlugins", getDebugPlugins, "plugin-manager");
     installObject3DUsageTracker();
-    PZ.zoidium.trackPluginMaterial = trackPluginMaterial;
-    PZ.zoidium.untrackPluginMaterial = untrackPluginMaterial;
-    PZ.zoidium.trackPluginResource = trackPluginResource;
-    PZ.zoidium.untrackPluginResource = untrackPluginResource;
+    PZ.zoidium.define("trackPluginMaterial", trackPluginMaterial, "plugin-manager");
+    PZ.zoidium.define("untrackPluginMaterial", untrackPluginMaterial, "plugin-manager");
+    PZ.zoidium.define("trackPluginResource", trackPluginResource, "plugin-manager");
+    PZ.zoidium.define("untrackPluginResource", untrackPluginResource, "plugin-manager");
     installMissingNativeFactories();
     configureBundledLightDefault();
 

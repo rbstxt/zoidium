@@ -5,6 +5,11 @@
   // headers, and notifications should go through this module instead of
   // copying the elevator/legacy boilerplate into each feature file.
   //
+  // This module is a required dependency: zoidium/runtime-config.js loads it
+  // before every consumer (project-restore, settings, plugin-manager), so
+  // callers use ZoidiumUI directly and must not reimplement its builders as
+  // a fallback. A missing UI kit is a fatal startup error, not a silent skip.
+  //
   // Usage:
   //   var header = global.ZoidiumUI.createPageHeader("My Panel");
   //   panel.appendChild(header);
@@ -23,25 +28,6 @@
   //   global.ZoidiumUI.attachSearchFilter(search.input, list);
   //
   //   var button = global.ZoidiumUI.createButton({ title: "Download", onClick: onDownload });
-  //
-  //   var layoutRow = global.ZoidiumUI.createDropdownRow({
-  //     title: "Editor layout", items: ["A", "B"],
-  //     get: function () { return 0; },
-  //     set: function (index) {},
-  //   });
-  //
-  //   var hueRow = global.ZoidiumUI.createTextInputRow({
-  //     title: "Hue shift", get: function () { return "0"; },
-  //     set: function (value) {}, inputWidth: "80px",
-  //   });
-  //
-  //   var interval = global.ZoidiumUI.createSelectRow({
-  //     title: "Automatic backup interval",
-  //     options: [{ value: "5", label: "5 minutes" }],
-  //     value: "5",
-  //     onChange: function (value) {},
-  //   });
-  //   panel.appendChild(interval.row);
 
   function getElevator() {
     if (!global.document) return null;
@@ -217,206 +203,6 @@
     return button;
   }
 
-  // Builds the panel title row (Settings header, debug-log section
-  // header). Prefers the legacy builder so titles stay identical to
-  // CM3 panels; the fallback carries the same proprow/proptitle chrome.
-  function createTitleRow(title) {
-    var legacy = legacyControls();
-    if (legacy && typeof legacy.generateTitle === "function") {
-      return legacy.generateTitle({ title: title || "" });
-    }
-    var row = global.document.createElement("div");
-    row.className = "proprow proptitle noselect";
-    row.style.textOverflow = "ellipsis";
-    row.style.overflow = "hidden";
-    row.style.whiteSpace = "nowrap";
-    row.style.paddingRight = "5px";
-    var label = global.document.createElement("span");
-    label.className = "proplabel";
-    label.title = title || "";
-    label.textContent = title || "";
-    label.style.fontSize = "18px";
-    label.style.fontWeight = "bold";
-    row.appendChild(label);
-    return row;
-  }
-
-  // Builds the small explanatory row below a setting (Settings layout
-  // note, debug-log description). Accepts either a plain string or
-  // { content, get, scope } for live text.
-  function createDescriptionRow(options) {
-    var legacy = legacyControls();
-    var config = (typeof options === "string") ? { content: options } : (options || {});
-    if (legacy && typeof legacy.generateDescription === "function") {
-      var descriptor = {};
-      if (typeof config.get === "function") descriptor.get = config.get;
-      else descriptor.content = config.content || "";
-      return legacy.generateDescription(descriptor, config.scope || {});
-    }
-    var row = global.document.createElement("div");
-    row.className = "proprow noselect";
-    var text = global.document.createElement("span");
-    row.appendChild(text);
-    row.pz_update = function () {
-      text.innerHTML = typeof config.get === "function"
-        ? config.get.call(config.scope || {})
-        : (config.content || "");
-    };
-    row.pz_update();
-    return row;
-  }
-
-  // Builds the spacer row between panel sections. Prefers the legacy
-  // builder; the fallback carries the same proprow/spacer chrome.
-  function createSpacer() {
-    var legacy = legacyControls();
-    if (legacy && typeof legacy.generateSpacer === "function") {
-      return legacy.generateSpacer();
-    }
-    var spacer = global.document.createElement("div");
-    spacer.className = "proprow spacer";
-    return spacer;
-  }
-
-  // Builds an index-based dropdown row with the same chrome as CM3
-  // native panels (Settings rows, Device render selects): label on the
-  // left, control pinned to the right edge by the shared .proprow grid.
-  // items is an array of labels; get returns the selected index and set
-  // receives it. Falls back to identical DOM when legacy is unavailable.
-  function createDropdownRow(options) {
-    var config = options || {};
-    var legacy = legacyControls();
-    var items = Array.isArray(config.items) ? config.items : [];
-    var scope = config.scope || {};
-    var get = typeof config.get === "function" ? config.get : function () { return 0; };
-    var set = typeof config.set === "function" ? config.set : function () {};
-    if (legacy && typeof legacy.generateDropdown === "function") {
-      return legacy.generateDropdown({
-        title: config.title || "",
-        items: items.join(";"),
-        get: function () { return get.call(scope); },
-        set: function (index) { set.call(scope, index); },
-      }, scope);
-    }
-    var row = global.document.createElement("div");
-    row.className = "proprow noselect";
-    if (config.rowClass) row.classList.add(config.rowClass);
-    var label = global.document.createElement("span");
-    label.textContent = config.title || "";
-    row.appendChild(label);
-    var holder = global.document.createElement("div");
-    var select = global.document.createElement("select");
-    select.className = "pz-inputbox";
-    if (config.selectClass) select.classList.add(config.selectClass);
-    if (config.ariaLabel || config.title) {
-      select.setAttribute("aria-label", config.ariaLabel || config.title);
-    }
-    items.forEach(function (item) {
-      var option = global.document.createElement("option");
-      option.textContent = item;
-      select.appendChild(option);
-    });
-    select.addEventListener("change", function () {
-      set.call(scope, select.selectedIndex);
-    });
-    holder.appendChild(select);
-    row.appendChild(holder);
-    row.pz_update = function () {
-      select.selectedIndex = get.call(scope);
-    };
-    row.pz_update();
-    return row;
-  }
-
-  // Builds a text-input row with the same chrome as CM3 native panels.
-  // inputWidth overrides the 250px legacy default; numeric fields such
-  // as Hue shift use "80px" to match the Frame rate field on the Device
-  // render panel.
-  function createTextInputRow(options) {
-    var config = options || {};
-    var legacy = legacyControls();
-    var scope = config.scope || {};
-    var get = typeof config.get === "function" ? config.get : function () { return ""; };
-    var set = typeof config.set === "function" ? config.set : function () {};
-    if (legacy && typeof legacy.generateTextInput === "function") {
-      var row = legacy.generateTextInput({
-        title: config.title || "",
-        get: function () { return get.call(scope); },
-        set: function (value) { set.call(scope, value); },
-      }, scope);
-      if (config.inputWidth && row && row.querySelector) {
-        var legacyInput = row.querySelector("input");
-        if (legacyInput) legacyInput.style.width = config.inputWidth;
-      }
-      if (config.rowClass && row && row.classList) row.classList.add(config.rowClass);
-      return row;
-    }
-    var fallback = global.document.createElement("div");
-    fallback.className = "proprow noselect";
-    if (config.rowClass) fallback.classList.add(config.rowClass);
-    var label = global.document.createElement("span");
-    label.textContent = config.title || "";
-    fallback.appendChild(label);
-    var input = global.document.createElement("input");
-    input.className = "pz-inputbox";
-    input.style.width = config.inputWidth || "250px";
-    if (config.ariaLabel || config.title) {
-      input.setAttribute("aria-label", config.ariaLabel || config.title);
-    }
-    input.addEventListener("change", function () {
-      set.call(scope, input.value);
-    });
-    input.addEventListener("keydown", function (event) {
-      if (event.key === "Enter") input.blur();
-    });
-    fallback.appendChild(input);
-    fallback.pz_update = function () {
-      input.value = get.call(scope);
-    };
-    fallback.pz_update();
-    return fallback;
-  }
-
-  // Builds a value-based select row for hand-rolled dropdowns that the
-  // legacy index-based builder cannot express (Restore backup
-  // interval). Same .proprow grid chrome as createDropdownRow, so the
-  // control pins to the right edge like every Settings row. Returns
-  // { row, select, sync } so callers can set options and read changes.
-  function createSelectRow(options) {
-    var config = options || {};
-    var row = global.document.createElement("div");
-    row.className = "proprow noselect";
-    if (config.rowClass) row.classList.add(config.rowClass);
-    var label = global.document.createElement("span");
-    label.textContent = config.title || "";
-    row.appendChild(label);
-    var select = global.document.createElement("select");
-    select.className = "pz-inputbox";
-    if (config.selectClass) select.classList.add(config.selectClass);
-    select.setAttribute("aria-label", config.ariaLabel || config.title || "");
-    (Array.isArray(config.options) ? config.options : []).forEach(function (item) {
-      var option = global.document.createElement("option");
-      option.value = String(item.value);
-      option.textContent = item.label;
-      select.appendChild(option);
-    });
-    var initial = typeof config.get === "function"
-      ? config.get()
-      : (config.value !== undefined ? config.value : "");
-    select.value = String(initial);
-    select.addEventListener("change", function () {
-      if (typeof config.onChange === "function") config.onChange(select.value, select);
-    });
-    row.appendChild(select);
-    function sync(value) {
-      select.value = String(value);
-    }
-    row.pz_update = function () {
-      if (typeof config.get === "function") select.value = String(config.get());
-    };
-    return { row: row, select: select, sync: sync };
-  }
-
   global.ZoidiumUI = Object.freeze({
     getElevator: getElevator,
     createMenubarTab: createMenubarTab,
@@ -425,11 +211,5 @@
     createSearchBox: createSearchBox,
     attachSearchFilter: attachSearchFilter,
     createButton: createButton,
-    createTitleRow: createTitleRow,
-    createDescriptionRow: createDescriptionRow,
-    createSpacer: createSpacer,
-    createDropdownRow: createDropdownRow,
-    createTextInputRow: createTextInputRow,
-    createSelectRow: createSelectRow,
   });
 })(window);

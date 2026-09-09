@@ -438,23 +438,21 @@
     panel.tabIndex = 0;
     panel.style.display = "none";
     // Page headers share one builder so Restore and Plugins render the
-    // same CM3 proprow/proptitle chrome.
-    var header = global.ZoidiumUI && typeof global.ZoidiumUI.createPageHeader === "function"
-      ? global.ZoidiumUI.createPageHeader("Restore")
-      : null;
-    if (header) {
-      header.classList.add("zoidium-restore-header");
-      var headerLabel = header.querySelector(".proplabel");
-      if (headerLabel) headerLabel.classList.add("zoidium-restore-title");
-      panel.appendChild(header);
-    } else {
-      panel.insertAdjacentHTML("beforeend",
-        '<div class="proprow proptitle noselect zoidium-restore-header">' +
-        '<span class="proplabel zoidium-restore-title" title="Restore">Restore</span>' +
-        "</div>");
-    }
+    // same CM3 proprow/proptitle chrome. ZoidiumUI always loads before
+    // this file (see postInitScripts in zoidium/runtime-config.js).
+    var header = global.ZoidiumUI.createPageHeader("Restore");
+    header.classList.add("zoidium-restore-header");
+    var headerLabel = header.querySelector(".proplabel");
+    if (headerLabel) headerLabel.classList.add("zoidium-restore-title");
+    panel.appendChild(header);
     panel.innerHTML =
       panel.innerHTML +
+      '<div class="zoidium-restore-note">' +
+      '<label class="zoidium-backup-setting">' +
+      '<span>Automatic backup interval</span>' +
+      '<select class="pz-inputbox zoidium-backup-interval" aria-label="Automatic backup interval"></select>' +
+      '</label>' +
+      '</div>' +
       '<div class="zoidium-restore-warning">' +
       'Restore is designed to prevent project data loss caused by unexpected crashes and is not intended as a location for permanent file storage. ' +
       'It may be easily lost over time, during computer cleanup, or through other actions.' +
@@ -467,11 +465,16 @@
       '<div class="zoidium-restore-delete-footer">' +
       '<button type="button" class="proprow propbutton zoidium-delete-all">Delete all</button>' +
       '</div>';
-    // The backup interval uses the shared select row so it renders with
-    // the same .proprow grid chrome as Settings rows: label left,
-    // control pinned to the right edge.
-    function onIntervalChange(rawValue) {
-      var value = Number(rawValue);
+    var intervalSelect = panel.querySelector(".zoidium-backup-interval");
+    BACKUP_INTERVAL_OPTIONS.forEach(function (option) {
+      var element = global.document.createElement("option");
+      element.value = String(option.value);
+      element.textContent = option.label;
+      intervalSelect.appendChild(element);
+    });
+    intervalSelect.value = String(state.backupIntervalMs);
+    intervalSelect.addEventListener("change", function () {
+      var value = Number(intervalSelect.value);
       if (!isBackupInterval(value)) return;
       state.backupIntervalMs = value;
       writeBackupInterval(value);
@@ -480,44 +483,7 @@
         title: "Saved.",
         message: value ? "Automatic backup: " + backupIntervalLabel(value) + "." : "Automatic backup disabled.",
       });
-    }
-    var intervalSelect;
-    var kit = global.ZoidiumUI || {};
-    if (typeof kit.createSelectRow === "function") {
-      var intervalRow = kit.createSelectRow({
-        title: "Automatic backup interval",
-        rowClass: "zoidium-backup-setting",
-        selectClass: "zoidium-backup-interval",
-        options: BACKUP_INTERVAL_OPTIONS.map(function (option) {
-          return { value: String(option.value), label: option.label };
-        }),
-        value: String(state.backupIntervalMs),
-        onChange: onIntervalChange,
-      });
-      panel.insertBefore(intervalRow.row, panel.querySelector(".zoidium-restore-warning"));
-      intervalSelect = intervalRow.select;
-    } else {
-      var fallback = global.document.createElement("div");
-      fallback.className = "proprow noselect zoidium-backup-setting";
-      var fallbackLabel = global.document.createElement("span");
-      fallbackLabel.textContent = "Automatic backup interval";
-      fallback.appendChild(fallbackLabel);
-      intervalSelect = global.document.createElement("select");
-      intervalSelect.className = "pz-inputbox zoidium-backup-interval";
-      intervalSelect.setAttribute("aria-label", "Automatic backup interval");
-      BACKUP_INTERVAL_OPTIONS.forEach(function (option) {
-        var element = global.document.createElement("option");
-        element.value = String(option.value);
-        element.textContent = option.label;
-        intervalSelect.appendChild(element);
-      });
-      intervalSelect.value = String(state.backupIntervalMs);
-      intervalSelect.addEventListener("change", function () {
-        onIntervalChange(intervalSelect.value);
-      });
-      fallback.appendChild(intervalSelect);
-      panel.insertBefore(fallback, panel.querySelector(".zoidium-restore-warning"));
-    }
+    });
     state.intervalSelect = intervalSelect;
     state.deleteAllButton = panel.querySelector(".zoidium-delete-all");
     state.deleteAllButton.addEventListener("click", function () {
@@ -751,55 +717,15 @@
   }
 
   function createTab(panel) {
-    // Elevator tab chrome lives in the shared UI kit so every panel
-    // creates menubar tabs the same way.
-    if (global.ZoidiumUI && typeof global.ZoidiumUI.createMenubarTab === "function") {
-      global.ZoidiumUI.createMenubarTab({
-        title: "Restore",
-        icon: "reset",
-        panel: panel,
-        tabClass: "zoidium-restore-tab",
-        editor: editor,
-      });
-      return;
-    }
-    var tabs = global.document.querySelector(".elevatortabs");
-    var controls = global.document.querySelector(".elevatorcontrols");
-    if (!tabs || !controls) return;
-    var elevator = tabs.parentElement && tabs.parentElement.parentElement
-      ? tabs.parentElement.parentElement.pz_panel
-      : null;
-    if (!elevator || typeof elevator.changeTab !== "function") return;
-    panel.style.top = "0";
-    panel.style.left = "0";
-    panel.style.width = "100%";
-    panel.style.height = "100%";
-    var restorePanel = {
+    // Elevator tab chrome lives in the shared UI kit, which always loads
+    // before this file (see postInitScripts in zoidium/runtime-config.js).
+    global.ZoidiumUI.createMenubarTab({
       title: "Restore",
       icon: "reset",
-      el: panel,
+      panel: panel,
+      tabClass: "zoidium-restore-tab",
       editor: editor,
-      enabled: false,
-      needsResize: false,
-      resize: function () {},
-    };
-    var tab = global.document.createElement("a");
-    tab.className = "zoidium-restore-tab";
-    tab.title = "Restore";
-    tab.pz_tab = restorePanel;
-    tab.pz_container = panel;
-    tab.appendChild(PZ.ui.generateIcon("reset"));
-    var label = global.document.createElement("span");
-    label.textContent = "Restore";
-    tab.appendChild(label);
-    var aboutTab = Array.from(tabs.children).find(function (item) {
-      return item.title === "About";
     });
-    tabs.insertBefore(tab, aboutTab || null);
-    controls.appendChild(panel);
-    elevator.panels.push(restorePanel);
-    tab.onclick = elevator.buttonClick.bind(elevator);
-    tab.onkeydown = elevator.buttonKeyDown;
   }
 
   function installProjectNameField() {

@@ -43,6 +43,9 @@ pnpm run verify
 The generated `bundle.json` is the normal runtime package. Keep its contents
 in sync with the source manifest. Keep plugin IDs and serialized object types
 stable after publication.
+Bump only the manifest `version` when a plugin asset changes; the bundle builder
+rewrites embedded asset URLs to that version. Never hand-edit per-file cache-busting
+queries.
 
 For generated packs, use the named scripts and pass the source directory after
 `--`:

@@ -102,7 +102,7 @@
   "modules": [
     {
       "id": "geometry-plus-runtime",
-      "source": "./plugins/geometry-plus/geometry-plus.js?v=2"
+      "source": "./plugins/geometry-plus/geometry-plus.js?v=5"
     }
   ]
 }

@@ -8,12 +8,12 @@
     {
       "id": "layer-input-shader",
       "type": "text",
-      "source": "./plugins/layer-input/layer-input.glsl?v=3"
+      "source": "./plugins/layer-input/layer-input.glsl?v=5"
     },
     {
       "id": "layer-input-displacement-shader",
       "type": "text",
-      "source": "./plugins/layer-input/layer-input-displacement.glsl?v=3"
+      "source": "./plugins/layer-input/layer-input-displacement.glsl?v=5"
     }
   ],
   "materialTypes": [
@@ -26,7 +26,7 @@
   "modules": [
     {
       "id": "layer-input-runtime",
-      "source": "./plugins/layer-input/layer-input.js?v=3"
+      "source": "./plugins/layer-input/layer-input.js?v=5"
     }
   ],
   "nativeEffects": [
@@ -34,13 +34,13 @@
       "id": "layerinput",
       "name": "Layer Input",
       "description": "Composites a selected video track into the current layer.",
-      "source": "./plugins/layer-input/layer-input-effect.js?v=3"
+      "source": "./plugins/layer-input/layer-input-effect.js?v=5"
     },
     {
       "id": "layerinputdisplacement",
       "name": "Layer Input Displacement Map",
       "description": "Uses a selected video track as a displacement map.",
-      "source": "./plugins/layer-input/layer-input-displacement-effect.js?v=3"
+      "source": "./plugins/layer-input/layer-input-displacement-effect.js?v=5"
     }
   ]
 }

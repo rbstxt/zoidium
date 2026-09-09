@@ -380,7 +380,7 @@
     }, ".pz");
   };
 
-  PZ.zoidium.projectFiles = {
+  PZ.zoidium.define("projectFiles", {
     defaultProjectName: DEFAULT_PROJECT_NAME,
     getProjectName: getProjectName,
     setProjectName: setProjectName,
@@ -390,5 +390,5 @@
     fingerprintArchive: fingerprintArchive,
     triggerDownload: triggerDownload,
     saveProject: saveProject,
-  };
+  }, "core-patches/project-files");
 })(window);

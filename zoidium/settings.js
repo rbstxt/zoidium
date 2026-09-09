@@ -330,38 +330,12 @@
       message: "Reload Zoidium to use " + (option ? option.label : "the selected layout") + ".",
       reload: true,
     };
-    // Toast delivery goes through the shared UI kit when available.
-    if (global.ZoidiumUI && typeof global.ZoidiumUI.notify === "function") {
-      global.ZoidiumUI.notify(detail);
-      return;
-    }
-    global.dispatchEvent(new CustomEvent("zoidium:notification", {
-      detail: detail,
-    }));
+    // Toast delivery goes through the shared UI kit, which always loads
+    // before Settings (see postInitScripts in zoidium/runtime-config.js).
+    global.ZoidiumUI.notify(detail);
   }
 
   function createLayoutRow(legacy) {
-    if (global.ZoidiumUI && typeof global.ZoidiumUI.createDropdownRow === "function") {
-      return global.ZoidiumUI.createDropdownRow({
-        title: "Editor layout",
-        items: LAYOUT_OPTIONS.map(function (layout) { return layout.label; }),
-        scope: state,
-        get: function () {
-          return Math.max(0, LAYOUT_OPTIONS.findIndex(function (layout) {
-            return layout.value === state.settings.layout;
-          }));
-        },
-        set: function (index) {
-          if (!LAYOUT_OPTIONS[index]) return;
-          var layout = LAYOUT_OPTIONS[index].value;
-          if (layout === state.settings.layout) return;
-          state.settings.layout = layout;
-          writeStorage(state.settings);
-          refreshControls();
-          notifyReloadRequired();
-        },
-      });
-    }
     return legacy.generateDropdown(
       {
         title: "Editor layout",
@@ -386,23 +360,6 @@
   }
 
   function createFontRow(legacy) {
-    if (global.ZoidiumUI && typeof global.ZoidiumUI.createDropdownRow === "function") {
-      return global.ZoidiumUI.createDropdownRow({
-        title: "Editor font",
-        items: FONT_OPTIONS.map(function (font) { return font.label; }),
-        scope: state,
-        get: function () {
-          return Math.max(0, FONT_OPTIONS.findIndex(function (font) {
-            return font.value === state.settings.font;
-          }));
-        },
-        set: function (index) {
-          if (!FONT_OPTIONS[index]) return;
-          state.settings.font = FONT_OPTIONS[index].value;
-          persistAndApply();
-        },
-      });
-    }
     return legacy.generateDropdown(
       {
         title: "Editor font",
@@ -423,24 +380,6 @@
   }
 
   function createThemeRow(legacy) {
-    if (global.ZoidiumUI && typeof global.ZoidiumUI.createDropdownRow === "function") {
-      return global.ZoidiumUI.createDropdownRow({
-        title: "Color profile",
-        items: THEME_OPTIONS.map(function (theme) { return theme.label; }),
-        scope: state,
-        get: function () {
-          return Math.max(0, THEME_OPTIONS.findIndex(function (theme) {
-            return theme.value === state.settings.theme;
-          }));
-        },
-        set: function (index) {
-          if (!THEME_OPTIONS[index]) return;
-          state.settings.theme = THEME_OPTIONS[index].value;
-          if (state.settings.theme !== "custom") state.settings.hue = THEME_OPTIONS[index].hue;
-          persistAndApply();
-        },
-      });
-    }
     return legacy.generateDropdown(
       {
         title: "Color profile",
@@ -462,25 +401,6 @@
   }
 
   function createHueRow(legacy) {
-    // The legacy helper fixes the input at 250px. Keep this numeric field
-    // as compact as the Frame rate field on the Device render panel.
-    if (global.ZoidiumUI && typeof global.ZoidiumUI.createTextInputRow === "function") {
-      return global.ZoidiumUI.createTextInputRow({
-        title: "Hue shift",
-        scope: state,
-        inputWidth: "80px",
-        get: function () {
-          return String(Math.round(state.settings.hue));
-        },
-        set: function (value) {
-          var hue = Number(value);
-          if (!Number.isFinite(hue)) return;
-          state.settings.theme = "custom";
-          state.settings.hue = clamp(hue, -180, 180);
-          persistAndApply();
-        },
-      });
-    }
     var row = legacy.generateTextInput(
       {
         title: "Hue shift",
@@ -497,29 +417,14 @@
       },
       state,
     );
+    // The legacy helper fixes the input at 250px. Keep this numeric field
+    // as compact as the Frame rate field on the Device render panel.
     var hueInput = row && row.querySelector ? row.querySelector("input") : null;
     if (hueInput) hueInput.style.width = "80px";
     return row;
   }
 
   function createSaturationRow(legacy) {
-    if (global.ZoidiumUI && typeof global.ZoidiumUI.createTextInputRow === "function") {
-      return global.ZoidiumUI.createTextInputRow({
-        title: "Saturation",
-        scope: state,
-        inputWidth: "80px",
-        get: function () {
-          return String(Math.round(clampSaturation(state.settings.saturation)));
-        },
-        set: function (value) {
-          var saturation = Number(value);
-          if (!Number.isFinite(saturation)) return;
-          state.settings.theme = "custom";
-          state.settings.saturation = clampSaturation(saturation);
-          persistAndApply();
-        },
-      });
-    }
     var row = legacy.generateTextInput(
       {
         title: "Saturation",
@@ -536,6 +441,7 @@
       },
       state,
     );
+    // Match the compact numeric width of the Hue shift field.
     var saturationInput = row && row.querySelector ? row.querySelector("input") : null;
     if (saturationInput) saturationInput.style.width = "80px";
     return row;
@@ -570,35 +476,24 @@
     panel.tabIndex = 0;
     panel.style.display = "none";
 
-    // Title, description, spacer, and button rows share the UI kit so
-    // every panel builds the same CM3 chrome instead of calling the
-    // legacy helpers directly.
-    var kit = global.ZoidiumUI || {};
-    var title = typeof kit.createTitleRow === "function"
-      ? kit.createTitleRow("Settings")
-      : legacy.generateTitle({ title: "Settings" });
+    var title = legacy.generateTitle({ title: "Settings" });
     var layoutRow = createLayoutRow(legacy);
-    var layoutNote = typeof kit.createDescriptionRow === "function"
-      ? kit.createDescriptionRow("Changing the editor layout takes effect after Zoidium is reloaded.")
-      : legacy.generateDescription({
-        content: "Changing the editor layout takes effect after Zoidium is reloaded.",
-      });
+    var layoutNote = legacy.generateDescription({
+      content: "Changing the editor layout takes effect after Zoidium is reloaded.",
+    });
     var fontRow = createFontRow(legacy);
     var themeRow = createThemeRow(legacy);
     var hueRow = createHueRow(legacy);
     var saturationRow = createSaturationRow(legacy);
-    var onReset = function () {
+    var resetButton = legacy.generateButton({
+      title: "Reset settings",
+      clickfn: function () {
         var layoutChanged = state.settings.layout !== DEFAULTS.layout;
         state.settings = Object.assign({}, DEFAULTS);
         persistAndApply();
         if (layoutChanged) notifyReloadRequired();
-    };
-    var resetButton = typeof kit.createButton === "function"
-      ? kit.createButton({ title: "Reset settings", onClick: onReset })
-      : legacy.generateButton({
-        title: "Reset settings",
-        clickfn: onReset,
-      }, state);
+      },
+    }, state);
 
     panel.appendChild(title);
     panel.appendChild(layoutRow);
@@ -622,9 +517,7 @@
     debugHost.className = "zoidium-settings-debug-section";
     panel.appendChild(debugHost);
     addDebugControls(debugHost);
-    panel.appendChild(typeof kit.createSpacer === "function"
-      ? kit.createSpacer()
-      : legacy.generateSpacer());
+    panel.appendChild(legacy.generateSpacer());
     panel.appendChild(resetButton);
     return panel;
   }
@@ -640,57 +533,17 @@
   }
 
   function createTab(panel) {
-    // Elevator tab chrome lives in the shared UI kit. Settings docks after
-    // the About tab while Restore and Plugins dock before it.
-    if (global.ZoidiumUI && typeof global.ZoidiumUI.createMenubarTab === "function") {
-      return !!global.ZoidiumUI.createMenubarTab({
-        title: "Settings",
-        icon: "settings",
-        panel: panel,
-        tabClass: "zoidium-settings-tab",
-        position: "afterAbout",
-      });
-    }
-    var tabs = global.document.querySelector(".elevatortabs");
-    var controls = global.document.querySelector(".elevatorcontrols");
-    if (!tabs || !controls) return false;
-    if (global.document.querySelector(".zoidium-settings-tab")) return true;
-    var elevator = tabs.parentElement && tabs.parentElement.parentElement
-      ? tabs.parentElement.parentElement.pz_panel
-      : null;
-    if (!elevator || typeof elevator.changeTab !== "function") return false;
-    panel.style.top = "0";
-    panel.style.left = "0";
-    panel.style.width = "100%";
-    panel.style.height = "100%";
-    var settingsPanel = {
+    // Elevator tab chrome lives in the shared UI kit, which always loads
+    // before Settings (see postInitScripts in zoidium/runtime-config.js).
+    // Settings docks after the About tab while Restore and Plugins dock
+    // before it.
+    return !!global.ZoidiumUI.createMenubarTab({
       title: "Settings",
       icon: "settings",
-      el: panel,
-      editor: elevator.editor,
-      enabled: false,
-      needsResize: false,
-      resize: function () {},
-    };
-    var tab = global.document.createElement("a");
-    tab.className = "zoidium-settings-tab";
-    tab.title = "Settings";
-    tab.pz_tab = settingsPanel;
-    tab.pz_container = panel;
-    tab.appendChild(global.PZ.ui.generateIcon("settings"));
-    var label = global.document.createElement("span");
-    label.textContent = "Settings";
-    tab.appendChild(label);
-    var aboutTab = Array.from(tabs.children).find(function (item) {
-      return item.title === "About";
+      panel: panel,
+      tabClass: "zoidium-settings-tab",
+      position: "afterAbout",
     });
-    if (aboutTab && aboutTab.nextElementSibling) tabs.insertBefore(tab, aboutTab.nextElementSibling);
-    else tabs.appendChild(tab);
-    controls.appendChild(panel);
-    elevator.panels.push(settingsPanel);
-    tab.onclick = elevator.buttonClick.bind(elevator);
-    tab.onkeydown = elevator.buttonKeyDown;
-    return true;
   }
 
   function install() {
