@@ -157,9 +157,9 @@ are never recorded as dependencies:
     {
       "id": "native-fx",
       "name": "Native FX",
-      "version": "4",
+      "version": "7",
       "author": "Zoidium",
-      "effects": ["dropshadow", "radialblurspin", "timeoffset", "posterizetime"]
+      "effects": ["colorcurves", "dropshadow", "echo", "radialblurspin", "timeoffset", "posterizetime"]
     }
   ]
 }
@@ -182,3 +182,12 @@ not flicker while the timeline plays, and Echo Repeater evaluates each copy from
 an explicit earlier frame using its time offset. Echo never depends on the
 previous playback tick's rendered result. Generated copies are runtime-only;
 project JSON stores the repeater controls and source objects once.
+
+Native FX `Echo` brings the same explicit-frame rule to 2D Adjustment layers.
+For every requested output frame, it re-evaluates the tracks below the
+Adjustment at exact earlier frame numbers. It never builds the image from a
+rolling playback-history buffer. The effect controls the number of echoes,
+their frame delay, first-echo opacity, opacity decay, and composite mode.
+`Over` is the default so trails remain visible when the accumulated Adjustment
+input has an opaque background. `Behind (alpha)` is available when the input
+keeps useful transparency.

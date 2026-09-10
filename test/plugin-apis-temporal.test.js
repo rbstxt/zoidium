@@ -49,6 +49,22 @@ function makeHostInstance() {
   return host;
 }
 
+function frameSamplerSpec() {
+  return {
+    displayName: "Echo",
+    properties: {
+      enabled: { dynamic: true, name: "Enabled", value: 1 },
+      echoes: { dynamic: true, name: "Echoes", value: 4 },
+    },
+    getRequest(effect, frame) {
+      return {
+        count: effect.properties.echoes.get(frame),
+        offsetFrames: -3,
+      };
+    },
+  };
+}
+
 test("defineTemporal replaces the inherited host load so CM3 base load terminates", async () => {
   const host = makeHostInstance();
   let baseCalls = 0;
@@ -99,4 +115,42 @@ test("defineTemporal keeps explicit lifecycle overrides", () => {
 test("defineTemporal rejects unknown time kinds", () => {
   const host = makeHostInstance();
   assert.throws(() => apis.defineTemporal.call(host, temporalSpec("freeze")), /kind/);
+});
+
+test("defineFrameSampler installs a deterministic request descriptor", () => {
+  const host = makeHostInstance();
+  apis.defineFrameSampler.call(host, frameSamplerSpec());
+
+  assert.equal(host.defaultName, "Echo");
+  assert.equal(typeof host._zoidiumFrameSampler.getRequest, "function");
+  assert.deepEqual(Object.keys(host.properties.added), ["enabled", "echoes"]);
+  for (const name of ["load", "update", "prepare", "resize", "unload", "toJSON"]) {
+    assert.equal(Object.prototype.hasOwnProperty.call(host, name), true, name);
+  }
+});
+
+test("defineFrameSampler rejects effects without a request function", () => {
+  const host = makeHostInstance();
+  const spec = frameSamplerSpec();
+  delete spec.getRequest;
+  assert.throws(() => apis.defineFrameSampler.call(host, spec), /getRequest/);
+});
+
+test("defineFrameSampler delegates asynchronous source preparation to the host", async () => {
+  const host = makeHostInstance();
+  const calls = [];
+  global.PZ.zoidium = {
+    temporal: {
+      async prepareFrameSamples(effect, frame, context) {
+        calls.push({ effect, frame, context });
+      },
+    },
+  };
+  apis.defineFrameSampler.call(host, frameSamplerSpec());
+  const context = { id: "export" };
+
+  await host.prepare(18, context);
+
+  assert.deepEqual(calls, [{ effect: host, frame: 18, context }]);
+  delete global.PZ.zoidium;
 });

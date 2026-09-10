@@ -1,7 +1,7 @@
 (function () {
   "use strict";
 
-  const REGISTRY_URL = "./plugins/registry.json?v=24";
+  const REGISTRY_URL = "./plugins/registry.json?v=25";
   const STORAGE_PREFIX = "zoidium.plugin.enabled.";
   const SHADER_PLUGIN_MARKER = "// @zoidium-plugin ";
   const EFFECT_UUID_PROPERTY = "_zoidiumEffectUuid";
@@ -16,6 +16,8 @@
   ]);
   const NATIVE_FX_EFFECTS = new Map([
     ["radialblurspin", "Radial Blur (Spin)"],
+    ["colorcurves", "Color Curves"],
+    ["echo", "Echo"],
     ["dropshadow", "Drop Shadow"],
     ["timeoffset", "Time Offset"],
     ["posterizetime", "Posterize Time"],
@@ -45,6 +47,7 @@
   let editorHooksInstalled = false;
   let effectBadgeObserver = null;
   let effectBadgeUpdateScheduled = false;
+  let nativeFxSearchPatched = false;
   let registryReadySettled = false;
   let resolveRegistryReady;
   const registryReady = new Promise((resolve) => {
@@ -477,6 +480,7 @@
   }
 
   function decorateEffectPicker() {
+    installNativeFxSearchPriority();
     const effectTypes = getEffectTypes();
     if (!Array.isArray(effectTypes)) return;
     const lookup = buildEffectPickerLookup(effectTypes);
@@ -526,8 +530,52 @@
     });
   }
 
+  function isNativeFxSearchEntry(value) {
+    const entry =
+      value && typeof value === "object" && "item" in value ? value.item : value;
+    return !!entry && entry._zoidiumPluginId === NATIVE_FX_PLUGIN_ID;
+  }
+
+  function prioritizeNativeFxResults(results) {
+    if (!Array.isArray(results) || results.length < 2) return results;
+    let nativeCount = 0;
+    for (const item of results) {
+      if (isNativeFxSearchEntry(item)) nativeCount += 1;
+    }
+    if (nativeCount === 0 || nativeCount === results.length) return results;
+    const native = [];
+    const rest = [];
+    for (const item of results) {
+      if (isNativeFxSearchEntry(item)) native.push(item);
+      else rest.push(item);
+    }
+    return [...native, ...rest];
+  }
+
+  function installNativeFxSearchPriority() {
+    if (nativeFxSearchPatched) return;
+    const scope = typeof globalThis !== "undefined" ? globalThis : window;
+    const FuseApi = scope ? scope.Fuse : null;
+    const originalSearch =
+      FuseApi && FuseApi.prototype && FuseApi.prototype.search;
+    if (typeof originalSearch !== "function") return;
+    nativeFxSearchPatched = true;
+    FuseApi.prototype.search = function () {
+      const results = originalSearch.apply(
+        this,
+        Array.prototype.slice.call(arguments)
+      );
+      try {
+        return prioritizeNativeFxResults(results);
+      } catch (_error) {
+        return results;
+      }
+    };
+  }
+
   function installEffectPickerBadges() {
     if (effectBadgeObserver) return;
+    installNativeFxSearchPriority();
     decorateEffectPicker();
     effectBadgeObserver = new MutationObserver(scheduleEffectPickerBadges);
     effectBadgeObserver.observe(document.body, { childList: true, subtree: true });
@@ -806,13 +854,103 @@
     for (const [type, name] of NATIVE_FX_EFFECTS) installMissingNativeFactory(type, name);
   }
 
+  // Native effect sources ship inside plugin bundles while the API surface
+  // they run against ships in the extension shell (zoidium/plugin-apis.js).
+  // The two are versioned independently, so a stale shell can evaluate a
+  // newer bundle. That used to surface as an uncaught
+  // "Cannot read properties of undefined (reading 'call')" from inside the
+  // evaluated source. Detect the skew up front when the manifest declares
+  // it, and contain any other evaluation failure, so the effect degrades to
+  // an explicit placeholder instead of breaking effect loading.
+  function nativeEffectMissingApis(requiresApis, apis) {
+    if (!Array.isArray(requiresApis) || requiresApis.length === 0) return [];
+    const missing = [];
+    for (const name of requiresApis) {
+      if (typeof name !== "string" || !name) continue;
+      if (!apis || apis[name] === undefined) missing.push(name);
+    }
+    return missing;
+  }
+
+  function describeNativeEffectSkew(plugin, manifestEffect, missingApis, error) {
+    const pluginName = plugin?.name || plugin?.id || "Unknown plugin";
+    const pluginVersion = plugin?.version ? ` v${plugin.version}` : "";
+    const cause =
+      missingApis && missingApis.length > 0
+        ? `missing extension APIs: ${missingApis.join(", ")}`
+        : `failed to start: ${error?.message || error}`;
+    return `"${manifestEffect?.name || manifestEffect?.id}" from ${pluginName}${pluginVersion} could not start (${cause}). Refresh to update the Zoidium extension layer, then try again.`;
+  }
+
+  function applyIncompatibleNativeEffect(effect, plugin, manifestEffect, missingApis, error) {
+    const metadata = getNativeEffectMetadata(
+      plugin,
+      manifestEffect,
+      manifestEffect?.id,
+      manifestEffect?.name
+    );
+    const message = describeNativeEffectSkew(plugin, manifestEffect, missingApis, error);
+    effect._zoidiumIncompatibleNativeFx = true;
+    effect._zoidiumIncompatibleDetail = message;
+    effect.properties.add("incompatibleRuntime", {
+      name: "Incompatible Runtime",
+      readOnly: true,
+      type: PZ.property.type.TEXT,
+      value: message,
+    });
+    effect.load = function (data) {
+      effect._zoidiumMissingData = cloneJson(data || { type: manifestEffect?.id });
+      effect.properties.name.set(`Incompatible ${metadata.name}: ${metadata.effectName}`);
+      effect.properties.incompatibleRuntime.load();
+      trackNativeEffect(effect, metadata, true);
+      console.error(`[Zoidium] ${message}`, error || "");
+    };
+    effect.toJSON = function () {
+      return cloneJson(effect._zoidiumMissingData || { type: manifestEffect?.id });
+    };
+    effect.update = function () {};
+    effect.resize = function () {};
+    effect.prepare = async function () {};
+    effect.unload = function () {
+      untrackNativeEffect(effect);
+    };
+  }
+
+  function installIncompatibleNativeFactory(plugin, manifestEffect, missingApis, error) {
+    const type = manifestEffect?.id;
+    if (!type) return;
+    const message = describeNativeEffectSkew(plugin, manifestEffect, missingApis, error);
+    console.error(`[Zoidium] ${message}`, error || "");
+    setNativeFactory(
+      type,
+      function () {
+        applyIncompatibleNativeEffect(this, plugin, manifestEffect, missingApis, error);
+      },
+      "incompatible"
+    );
+  }
+
   function registerNativeFactory(plugin, effect, source, getAsset) {
+    const apisScope = typeof globalThis !== "undefined" ? globalThis : window;
+    const missingApis = nativeEffectMissingApis(
+      effect.requiresApis,
+      apisScope?.ZoidiumPluginApis
+    );
+    if (missingApis.length > 0) {
+      installIncompatibleNativeFactory(plugin, effect, missingApis, null);
+      return;
+    }
     setNativeFactory(
       effect.id,
       function () {
         const instance = this;
         instance._zoidiumGetAsset = getAsset;
-        new Function(source).call(instance);
+        try {
+          new Function(source).call(instance);
+        } catch (error) {
+          applyIncompatibleNativeEffect(instance, plugin, effect, [], error);
+          return;
+        }
         const originalLoad = instance.load;
         const originalUnload = instance.unload;
         instance.load = async function () {
