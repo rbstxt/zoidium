@@ -62,6 +62,42 @@
     });
   }
 
+  function getProjectRevision(editor) {
+    var project = editor && editor.project;
+    if (!project) return 0;
+    if (editor._zoidiumRevisionProject === project) {
+      return editor._zoidiumProjectRevision || 0;
+    }
+
+    var previousProject = editor._zoidiumRevisionProject;
+    var previousWatcher = editor._zoidiumRevisionWatcher;
+    if (
+      previousProject &&
+      previousProject.ui &&
+      previousProject.ui.onChanged &&
+      typeof previousProject.ui.onChanged.unwatch === "function" &&
+      previousWatcher
+    ) {
+      previousProject.ui.onChanged.unwatch(previousWatcher);
+    }
+
+    editor._zoidiumRevisionProject = project;
+    editor._zoidiumProjectRevision = 0;
+    editor._zoidiumRevisionWatcher = function () {
+      if (editor._zoidiumRevisionProject === project) {
+        editor._zoidiumProjectRevision += 1;
+      }
+    };
+    if (
+      project.ui &&
+      project.ui.onChanged &&
+      typeof project.ui.onChanged.watch === "function"
+    ) {
+      project.ui.onChanged.watch(editor._zoidiumRevisionWatcher);
+    }
+    return 0;
+  }
+
   function decodeArchiveMetadata(archive) {
     if (!archive || typeof archive.peekFile !== "function") return null;
     var entry = archive.peekFile("zoidium.json");
@@ -143,7 +179,7 @@
     return fingerprintBytes(combined);
   }
 
-  async function createArchive(editor) {
+  async function createArchiveUnlocked(editor) {
     if (!editor || !editor.project) {
       throw new Error("There is no project to save.");
     }
@@ -169,7 +205,10 @@
     }
 
     var fingerprint = await fingerprintArchive(archive);
-    var blob = await archive.tar();
+    var io = PZ.zoidiumIoSerialization;
+    var blob = io && typeof io.tarWithoutLock === "function"
+      ? await io.tarWithoutLock(archive)
+      : await archive.tar();
     if (!blob) throw new Error("Could not create the project archive.");
     return {
       blob: blob,
@@ -178,6 +217,16 @@
       packagedAssetCount: packagedAssetCount,
       fingerprint: fingerprint,
     };
+  }
+
+  function createArchive(editor) {
+    var io = PZ.zoidiumIoSerialization;
+    if (io && typeof io.run === "function" && typeof io.tarWithoutLock === "function") {
+      return io.run("project-save", function () {
+        return createArchiveUnlocked(editor);
+      });
+    }
+    return createArchiveUnlocked(editor);
   }
 
   function triggerDownload(blob, filename) {
@@ -220,7 +269,7 @@
     });
   }
 
-  async function saveProject(editor) {
+  async function runSaveProject(editor) {
     var projectName = getProjectName(editor);
     var filename = fileNameForProject(projectName);
     var handle = editor._zoidiumSaveFileHandle || null;
@@ -257,6 +306,8 @@
       filename = pickedHandle.name.trim();
     }
 
+    var savedProject = editor.project;
+    var savedRevision = getProjectRevision(editor);
     var archiveResult = null;
     try {
       archiveResult = await createArchive(editor);
@@ -294,9 +345,14 @@
       await writable.close();
       editor._zoidiumSaveFileHandle = targetHandle;
       editor._zoidiumSaveFileName = filename;
-      PZ.downloadBlob = archiveResult.blob;
-      PZ.downloadFilename = filename;
-      if (editor.project && editor.project.ui) editor.project.ui.dirty = false;
+      if (
+        editor.project === savedProject &&
+        getProjectRevision(editor) === savedRevision &&
+        editor.project &&
+        editor.project.ui
+      ) {
+        editor.project.ui.dirty = false;
+      }
       dispatch("zoidium:project-saved", {
         editor: editor,
         filename: filename,
@@ -317,6 +373,29 @@
       });
       return null;
     }
+  }
+
+  function saveProject(editor) {
+    if (editor._zoidiumSavePromise) return editor._zoidiumSavePromise;
+
+    // runSaveProject reaches showSaveFilePicker before its first await. Keep
+    // this wrapper synchronous so the initiating click or Ctrl+S retains its
+    // transient user activation.
+    var operation = runSaveProject(editor);
+    editor._zoidiumSavePromise = operation;
+    operation.then(
+      function () {
+        if (editor._zoidiumSavePromise === operation) {
+          editor._zoidiumSavePromise = null;
+        }
+      },
+      function () {
+        if (editor._zoidiumSavePromise === operation) {
+          editor._zoidiumSavePromise = null;
+        }
+      },
+    );
+    return operation;
   }
 
   // CM3's toolbar calls editor.save(). Route that action through the

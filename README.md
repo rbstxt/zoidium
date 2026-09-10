@@ -113,8 +113,10 @@ graph; normal runs reuse that cache and automatically create it if necessary.
 
 The extension layer supplies local account/API/adapters, plugin loading, and
 the in-place download bridge. CM3's legacy download navigation is intercepted
-by `zoidium/direct-download.js`; the generated Blob is sent to the browser's
-download mechanism without opening another page.
+by `zoidium/direct-download.js`. Each completed video or image page keeps its
+own Blob and filename, so a later render or project save cannot replace its
+download. Render and archive workers share one origin-private output path;
+Zoidium serializes those operations across tabs before they reach the workers.
 
 `tools/runtime-resources.js` is the only CM3 fetch path. It downloads the
 configured source page, discovers same-origin files, writes them to the ignored

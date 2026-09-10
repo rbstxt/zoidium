@@ -587,11 +587,29 @@
   }
 
   function createSnapshot(showResult, automatic) {
-    if (state.snapshotPromise) return state.snapshotPromise;
-
     var isAutomatic = automatic !== false;
+    if (state.snapshotPromise) {
+      // A manual request must not inherit the metadata and result UI of an
+      // automatic snapshot already in flight. Queue one manual point behind
+      // it; repeated clicks still join the same queued operation.
+      if (!isAutomatic && state.snapshotAutomatic !== false) {
+        if (!state.manualSnapshotPromise) {
+          state.manualSnapshotPromise = state.snapshotPromise
+            .catch(function () {})
+            .then(function () {
+              return createSnapshot(true, false);
+            })
+            .finally(function () {
+              state.manualSnapshotPromise = null;
+            });
+        }
+        return state.manualSnapshotPromise;
+      }
+      return state.snapshotPromise;
+    }
 
     var archiveResult = null;
+    state.snapshotAutomatic = isAutomatic;
     state.snapshotPromise = (async function () {
       // refreshSnapshots normally completes before this runs, but loading here
       // also covers a very fast startup timer or a delayed IndexedDB response.
@@ -599,7 +617,7 @@
       archiveResult = await projectFiles.createArchive(editor);
       var fingerprint = archiveResult.fingerprint;
       var latest = state.snapshots[0] || null;
-      if (await matchesSnapshot(latest, fingerprint)) {
+      if (isAutomatic && await matchesSnapshot(latest, fingerprint)) {
         if (showResult) {
           showToast({ title: "No changes.", message: "Restore point not created." });
         }
@@ -645,6 +663,7 @@
       })
       .finally(function () {
         state.snapshotPromise = null;
+        state.snapshotAutomatic = null;
       });
     return state.snapshotPromise;
   }

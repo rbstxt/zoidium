@@ -56,8 +56,11 @@ committed.
 `runtime-config.js` lists the overlay styles and pre/post initialization scripts.
 `runtime-policy.js` supplies local account, API, and advertising adapters.
 `direct-download.js` catches the CM3 client's legacy download-page navigation and
-downloads the pending Blob in the current page. It is intentionally a small
-Zoidium-owned adapter and does not copy or serve a download page.
+binds each completed export to its own Blob and filename in the current page.
+`plugins/core/io-serialization.js` coordinates video, image, archive, and cleanup
+operations. It uses an origin-wide lock for the output path shared by the CM3
+workers. These are Zoidium-owned adapters; they do not copy or serve a download
+page.
 
 The plugin manager and plugin bundles are staged separately from plugin source
 files. See [`../plugins/README.md`](../plugins/README.md) for the bundle

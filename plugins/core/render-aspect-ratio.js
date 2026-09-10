@@ -302,6 +302,7 @@
     const originalRenderSequence = prototype.renderSequence;
     const originalRenderLayer = prototype.renderLayer;
     const originalCompositeScene = prototype.compositeScene;
+    const originalUnload = prototype.unload;
 
     prototype.renderSequence = function renderSequenceWithAspectRatio(frame) {
       const config = createCompositorConfig(this);
@@ -394,6 +395,19 @@
         context.patchAllBuffers();
       }
     };
+
+    if (typeof originalUnload === "function") {
+      prototype.unload = function unloadAllRenderTargets() {
+        const accumulationTargets = (this.accumBuffers || []).slice();
+        const canvasTexture = this.canvasTexture;
+        const result = originalUnload.apply(this, arguments);
+        for (const target of accumulationTargets) target?.dispose?.();
+        canvasTexture?.dispose?.();
+        this.accumBuffers = accumulationTargets.map(() => null);
+        this.canvasTexture = null;
+        return result;
+      };
+    }
 
     prototype[PATCH_MARKER] = true;
   }

@@ -2,7 +2,15 @@
 
 const assert = require("node:assert/strict");
 const test = require("node:test");
-const { createIoSerializer, install } = require("../plugins/core/io-serialization");
+const {
+  MINIMUM_WORKSPACE_BYTES,
+  createIoSerializer,
+  createWebLockRunner,
+  estimateArchiveStorageBytes,
+  estimateVideoStorageBytes,
+  install,
+  requestPersistentQuota,
+} = require("../plugins/core/io-serialization");
 
 function deferred() {
   let resolve;
@@ -22,6 +30,27 @@ function flush(rounds = 10) {
   return chain;
 }
 
+function videoBlob() {
+  return new Blob([new Uint8Array([0x1a, 0x45, 0xdf, 0xa3, 1, 2, 3])]);
+}
+
+function archiveBlob() {
+  return new Blob([new Uint8Array([0x1f, 0x8b, 8, 0, 1, 2, 3])]);
+}
+
+class SharedLockManager {
+  constructor() {
+    this.tails = new Map();
+  }
+
+  request(name, _options, callback) {
+    const previous = this.tails.get(name) || Promise.resolve();
+    const result = previous.then(callback, callback);
+    this.tails.set(name, result.catch(() => {}));
+    return result;
+  }
+}
+
 test("a save waits while a render holds the shared workspace", async () => {
   const waits = [];
   const io = createIoSerializer({
@@ -31,11 +60,14 @@ test("a save waits while a render holds the shared workspace", async () => {
   const renderGate = deferred();
   const encode = io.wrapEncode(() => {
     order.push("encode-start");
-    return renderGate.promise.then(() => order.push("encode-end"));
+    return renderGate.promise.then(() => {
+      order.push("encode-end");
+      return videoBlob();
+    });
   });
   const tar = io.wrapTar(() => {
     order.push("tar-run");
-    return "tar-blob";
+    return archiveBlob();
   });
 
   const encodeResult = encode();
@@ -44,12 +76,12 @@ test("a save waits while a render holds the shared workspace", async () => {
   await flush();
   assert.deepEqual(order, ["encode-start"]);
   assert.equal(waits.length, 1);
-  assert.equal(waits[0].kind, "tar");
+  assert.equal(waits[0].kind, "archive");
   assert.equal(waits[0].snapshot.running, "encode");
 
   renderGate.resolve();
-  assert.equal(await tarResult, "tar-blob");
-  await encodeResult;
+  assert.equal((await tarResult).size, archiveBlob().size);
+  assert.equal((await encodeResult).size, videoBlob().size);
   assert.deepEqual(order, ["encode-start", "encode-end", "tar-run"]);
 });
 
@@ -65,7 +97,7 @@ test("stopping a cancelled render releases the next operation", async () => {
   });
   const tar = io.wrapTar(() => {
     order.push("tar-run");
-    return "saved";
+    return archiveBlob();
   });
 
   encode().catch(() => {});
@@ -75,9 +107,26 @@ test("stopping a cancelled render releases the next operation", async () => {
   assert.deepEqual(order, ["encode-start"]);
 
   stop();
-  assert.equal(await tarResult, "saved");
+  assert.equal((await tarResult).size, archiveBlob().size);
   assert.deepEqual(order, ["encode-start", "stop-run", "tar-run"]);
   assert.equal(io.state().running, null);
+});
+
+test("an internal completion stop does not cancel the encode result", async () => {
+  const io = createIoSerializer({});
+  let stop;
+  const encode = io.wrapEncode(
+    () =>
+      new Promise((resolve) => {
+        setImmediate(() => {
+          stop();
+          resolve(videoBlob());
+        });
+      }),
+  );
+  stop = io.wrapStop(() => {});
+
+  assert.equal((await encode()).size, videoBlob().size);
 });
 
 test("stop never releases a save or cleanup holder", async () => {
@@ -91,7 +140,7 @@ test("stop never releases a save or cleanup holder", async () => {
   const tarGate = deferred();
   const tar = io.wrapTar(() => {
     order.push("tar-run");
-    return tarGate.promise;
+    return tarGate.promise.then(archiveBlob);
   });
   const stop = io.wrapStop(() => {});
   const cleanup = io.wrapCleanUp(() => {});
@@ -120,7 +169,7 @@ test("cleanup waits for the render before deleting the workspace", async () => {
   const renderGate = deferred();
   const encode = io.wrapEncode(() => {
     order.push("encode-start");
-    return renderGate.promise;
+    return renderGate.promise.then(videoBlob);
   });
   const cleanUp = io.wrapCleanUp(() => {});
 
@@ -135,62 +184,244 @@ test("cleanup waits for the render before deleting the workspace", async () => {
   assert.deepEqual(order, ["encode-start", "delete-out"]);
 });
 
+test("image export shares the page-local render queue", async () => {
+  const io = createIoSerializer({});
+  const gate = deferred();
+  const order = [];
+  const encode = io.wrapEncode(() => {
+    order.push("video-start");
+    return gate.promise.then(videoBlob);
+  });
+  const image = io.wrapImageEncode(() => {
+    order.push("image-run");
+    return new Blob(["image"]);
+  });
+
+  const videoResult = encode();
+  await flush();
+  const imageResult = image();
+  await flush();
+  assert.deepEqual(order, ["video-start"]);
+  gate.resolve();
+  await videoResult;
+  await imageResult;
+  assert.deepEqual(order, ["video-start", "image-run"]);
+});
+
+test("two serializers use one Web Lock across tabs", async () => {
+  const lockManager = new SharedLockManager();
+  const runExclusive = createWebLockRunner(lockManager);
+  const first = createIoSerializer({ runExclusive });
+  const second = createIoSerializer({ runExclusive });
+  const gate = deferred();
+  const order = [];
+  const encode = first.wrapEncode(() => {
+    order.push("tab-a-render");
+    return gate.promise.then(videoBlob);
+  });
+  const tar = second.wrapTar(() => {
+    order.push("tab-b-save");
+    return archiveBlob();
+  });
+
+  const firstResult = encode();
+  await flush();
+  const secondResult = tar();
+  await flush();
+  assert.deepEqual(order, ["tab-a-render"]);
+  gate.resolve();
+  await firstResult;
+  await secondResult;
+  assert.deepEqual(order, ["tab-a-render", "tab-b-save"]);
+});
+
+test("cancelling a render releases its Web Lock for another tab", async () => {
+  const lockManager = new SharedLockManager();
+  const runExclusive = createWebLockRunner(lockManager);
+  const first = createIoSerializer({ runExclusive });
+  const second = createIoSerializer({ runExclusive });
+  const order = [];
+  const encode = first.wrapEncode(() => {
+    order.push("tab-a-render");
+    return new Promise(() => {});
+  });
+  const stop = first.wrapStop(() => order.push("tab-a-stop"));
+  const tar = second.wrapTar(() => {
+    order.push("tab-b-save");
+    return archiveBlob();
+  });
+
+  encode().catch(() => {});
+  await flush();
+  const save = tar();
+  await flush();
+  assert.deepEqual(order, ["tab-a-render"]);
+  stop();
+  await save;
+  assert.deepEqual(order, ["tab-a-render", "tab-a-stop", "tab-b-save"]);
+});
+
 test("a failed operation still hands the workspace to the next one", async () => {
   const io = createIoSerializer({});
   const tar = io.wrapTar(() => Promise.reject(new Error("tar failed")));
-  const second = io.wrapTar(() => "recovered");
+  const second = io.wrapTar(archiveBlob);
 
   await assert.rejects(tar(), /tar failed/);
-  assert.equal(await second(), "recovered");
+  assert.equal((await second()).size, archiveBlob().size);
 });
 
-test("install wraps the render and save entry points exactly once", () => {
+test("integrity checks reject output from the wrong worker", async () => {
+  const io = createIoSerializer({});
+  const badVideo = io.wrapEncode(archiveBlob);
+  const badArchive = io.wrapTar(videoBlob);
+
+  await assert.rejects(badVideo(), /Video output failed its file-integrity check/);
+  await assert.rejects(
+    badArchive(),
+    /Project archive output failed its file-integrity check/,
+  );
+});
+
+test("storage estimates scale beyond the old fixed 100 MB quota", () => {
+  assert.equal(estimateArchiveStorageBytes([]), MINIMUM_WORKSPACE_BYTES);
+  assert.ok(
+    estimateArchiveStorageBytes([{ data: { size: 200 * 1024 * 1024 } }]) >
+      200 * 1024 * 1024,
+  );
+  assert.ok(
+    estimateVideoStorageBytes({
+      width: 3840,
+      height: 2160,
+      rate: 60,
+      length: 60 * 60 * 10,
+      quality: 4,
+    }) > MINIMUM_WORKSPACE_BYTES,
+  );
+});
+
+test("quota denial rejects instead of continuing with a truncated output", async () => {
+  const fakeWindow = {
+    navigator: {
+      webkitPersistentStorage: {
+        requestQuota(_bytes, success) {
+          success(1024);
+        },
+      },
+    },
+  };
+  await assert.rejects(
+    requestPersistentQuota(fakeWindow, MINIMUM_WORKSPACE_BYTES),
+    /did not grant enough temporary storage/,
+  );
+});
+
+test("remux calls cannot overwrite the shared callback slot", async () => {
+  const io = createIoSerializer({});
+  const firstGate = deferred();
+  const order = [];
+  const remux = io.wrapRemux((name) => {
+    order.push(name + "-start");
+    if (name === "first") {
+      return firstGate.promise.then(() => order.push(name + "-end"));
+    }
+    order.push(name + "-end");
+  });
+
+  const first = remux("first");
+  const second = remux("second");
+  await flush();
+  assert.deepEqual(order, ["first-start"]);
+  firstGate.resolve();
+  await Promise.all([first, second]);
+  assert.deepEqual(order, [
+    "first-start",
+    "first-end",
+    "second-start",
+    "second-end",
+  ]);
+});
+
+test("stopping an encode clears a remux callback left by that worker", async () => {
+  const io = createIoSerializer({});
+  const calls = [];
+  const remux = io.wrapRemux((name) => {
+    calls.push(name);
+    return name === "old-worker" ? new Promise(() => {}) : Promise.resolve(name);
+  });
+  const stop = io.wrapStop(() => {});
+
+  remux("old-worker").catch(() => {});
+  await flush();
+  stop();
+  assert.equal(await remux("new-worker"), "new-worker");
+  assert.deepEqual(calls, ["old-worker", "new-worker"]);
+});
+
+test("install wraps every export entry point exactly once", async () => {
   const calls = [];
   const PZ = {};
   const av = {
+    profiles: [{ bitrate: 1, abr: 1 }],
     encode() {
       calls.push(["encode", this === av]);
-      return Promise.resolve("video");
+      return Promise.resolve(videoBlob());
+    },
+    remux() {
+      calls.push(["remux", this === av]);
+      return Promise.resolve("audio");
     },
     stop() {
       calls.push(["stop", this === av]);
     },
   };
   const archive = {
+    files: [],
     tar() {
       calls.push(["tar", this === archive]);
-      return Promise.resolve("project");
+      return Promise.resolve(archiveBlob());
     },
   };
   const file = {
     cleanUp() {
       calls.push("stock-cleanup-must-not-run");
     },
+    getQuota() {
+      calls.push("quota");
+    },
+  };
+  const imageEncoder = {
+    encode() {
+      calls.push(["image", this === imageEncoder]);
+      return Promise.resolve(new Blob(["image"]));
+    },
   };
 
-  assert.equal(install({ PZ, av, archive, file }), true);
-  assert.equal(install({ PZ, av, archive, file }), true);
+  assert.equal(install({ PZ, av, archive, file, imageEncoder }), true);
+  assert.equal(install({ PZ, av, archive, file, imageEncoder }), true);
   assert.ok(PZ.zoidiumIoSerialization);
   assert.equal(typeof PZ.zoidiumIoSerialization.state, "function");
+  assert.equal(typeof PZ.zoidiumIoSerialization.run, "function");
 
-  return (async () => {
-    assert.equal(await av.encode(), "video");
-    av.stop();
-    assert.equal(await archive.tar(), "project");
-    await file.cleanUp();
-    assert.deepEqual(calls, [
-      ["encode", true],
-      ["stop", true],
-      ["tar", true],
-    ]);
-  })();
+  assert.equal((await av.encode()).size, videoBlob().size);
+  av.stop();
+  assert.equal((await archive.tar()).size, archiveBlob().size);
+  await imageEncoder.encode();
+  await file.cleanUp();
+  assert.deepEqual(calls, [
+    "quota",
+    ["encode", true],
+    ["stop", true],
+    "quota",
+    ["tar", true],
+    ["image", true],
+  ]);
 });
 
 test("install refuses incomplete targets", () => {
   assert.equal(install(null), false);
   assert.equal(install({}), false);
   assert.equal(
-    install({ av: {}, archive: {}, file: {}, PZ: {} }),
+    install({ av: {}, archive: {}, file: {}, imageEncoder: {}, PZ: {} }),
     false,
   );
 });

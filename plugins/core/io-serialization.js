@@ -2,20 +2,308 @@
   "use strict";
 
   const PATCH_MARKER = "__zoidiumIoSerializationPatch";
+  const ORIGINAL_MARKER = "__zoidiumIoSerializationOriginal";
   const RETRY_DELAY_MS = 100;
   const MAX_ATTEMPTS = 200;
   const CLEANUP_TIMEOUT_MS = 5000;
   const DIAGNOSTICS_KEY = "zoidiumIoSerialization";
+  const CROSS_TAB_LOCK_NAME = "zoidium-export-workspace-v2";
+  const MINIMUM_WORKSPACE_BYTES = 100 * 1024 * 1024;
+  const ARCHIVE_HEADROOM_BYTES = 16 * 1024 * 1024;
+  const LEASE_DATABASE_NAME = "zoidium-coordination";
+  const LEASE_STORE_NAME = "locks";
+  const LEASE_DURATION_MS = 5 * 60 * 1000;
+  const LEASE_RENEW_MS = 30 * 1000;
+  const LEASE_RETRY_MS = 250;
+  const CANCELLED = Object.freeze({ cancelled: true });
 
-  // The CM3 video encoder worker (worker/av.js) and the project archive
-  // worker (worker/tar.js) share one origin-private file named "out":
-  // each job removes, recreates, and streams through that path with no
-  // locking. A project save (Ctrl+S) started while a video render is in
-  // flight interleaves gzip tar bytes into the WebM output, so the
-  // exported file starts with a gzip header and players report damage.
-  // Serialize every "out" user behind one main-thread FIFO mutex. The
-  // workers themselves are fetched runtime resources, so patching their
-  // bytes is not an option; the extension layer owns this fix instead.
+  function delay(milliseconds) {
+    return new Promise((resolve) => setTimeout(resolve, milliseconds));
+  }
+
+  function createWebLockRunner(lockManager) {
+    return function runWithWebLock(_kind, task, cancellation) {
+      const options = { mode: "exclusive" };
+      if (cancellation && cancellation.signal) {
+        options.signal = cancellation.signal;
+      }
+
+      return Promise.resolve()
+        .then(() =>
+          lockManager.request(CROSS_TAB_LOCK_NAME, options, function () {
+            if (cancellation && cancellation.isCancelled()) return CANCELLED;
+            const result = Promise.resolve().then(task);
+            return cancellation
+              ? Promise.race([result, cancellation.promise])
+              : result;
+          }),
+        )
+        .catch((error) => {
+          if (
+            cancellation &&
+            cancellation.isCancelled() &&
+            error &&
+            error.name === "AbortError"
+          ) {
+            return CANCELLED;
+          }
+          throw error;
+        });
+    };
+  }
+
+  function openLeaseDatabase(indexedDb) {
+    return new Promise((resolve, reject) => {
+      const request = indexedDb.open(LEASE_DATABASE_NAME, 1);
+      request.onupgradeneeded = function () {
+        if (!request.result.objectStoreNames.contains(LEASE_STORE_NAME)) {
+          request.result.createObjectStore(LEASE_STORE_NAME);
+        }
+      };
+      request.onsuccess = function () {
+        resolve(request.result);
+      };
+      request.onerror = function () {
+        reject(request.error || new Error("Could not open the export coordination database."));
+      };
+      request.onblocked = function () {
+        reject(new Error("The export coordination database is blocked by another tab."));
+      };
+    });
+  }
+
+  function createIndexedDbLockRunner(globalObject) {
+    const indexedDb = globalObject && globalObject.indexedDB;
+    if (!indexedDb || typeof indexedDb.open !== "function") return null;
+
+    const databasePromise = openLeaseDatabase(indexedDb);
+    const ownerPrefix =
+      String(Date.now()) + "-" + Math.random().toString(36).slice(2);
+    let requestCounter = 0;
+
+    async function updateLease(token, action) {
+      const database = await databasePromise;
+      return new Promise((resolve, reject) => {
+        const transaction = database.transaction(LEASE_STORE_NAME, "readwrite");
+        const store = transaction.objectStore(LEASE_STORE_NAME);
+        const request = store.get(CROSS_TAB_LOCK_NAME);
+        let result = { acquired: false, expiresAt: 0 };
+
+        request.onsuccess = function () {
+          const now = Date.now();
+          const current = request.result;
+          if (action === "claim") {
+            if (!current || current.expiresAt <= now || current.owner === token) {
+              const expiresAt = now + LEASE_DURATION_MS;
+              store.put({ owner: token, expiresAt }, CROSS_TAB_LOCK_NAME);
+              result = { acquired: true, expiresAt };
+            } else {
+              result.expiresAt = current.expiresAt;
+            }
+            return;
+          }
+
+          if (!current || current.owner !== token) return;
+          if (action === "renew") {
+            const expiresAt = now + LEASE_DURATION_MS;
+            store.put({ owner: token, expiresAt }, CROSS_TAB_LOCK_NAME);
+            result = { acquired: true, expiresAt };
+          } else if (action === "release") {
+            store.delete(CROSS_TAB_LOCK_NAME);
+            result = { acquired: true, expiresAt: 0 };
+          }
+        };
+        request.onerror = function () {
+          try {
+            transaction.abort();
+          } catch (_error) {
+            // The transaction may already have failed.
+          }
+        };
+        transaction.oncomplete = function () {
+          resolve(result);
+        };
+        transaction.onerror = function () {
+          reject(
+            transaction.error ||
+              request.error ||
+              new Error("Could not coordinate export access between tabs."),
+          );
+        };
+        transaction.onabort = transaction.onerror;
+      });
+    }
+
+    return async function runWithIndexedDbLease(_kind, task, cancellation) {
+      const token = ownerPrefix + "-" + String(++requestCounter);
+      let acquired = false;
+      while (!acquired) {
+        if (cancellation && cancellation.isCancelled()) return CANCELLED;
+        const attempt = await updateLease(token, "claim");
+        acquired = attempt.acquired;
+        if (!acquired) {
+          const wait = Math.max(
+            25,
+            Math.min(LEASE_RETRY_MS, attempt.expiresAt - Date.now()),
+          );
+          if (cancellation) {
+            const result = await Promise.race([delay(wait), cancellation.promise]);
+            if (result === CANCELLED) return CANCELLED;
+          } else {
+            await delay(wait);
+          }
+        }
+      }
+
+      const renewTimer = setInterval(function () {
+        updateLease(token, "renew").catch(function () {});
+      }, LEASE_RENEW_MS);
+      try {
+        if (cancellation) {
+          return await Promise.race([
+            Promise.resolve().then(task),
+            cancellation.promise,
+          ]);
+        }
+        return await task();
+      } finally {
+        clearInterval(renewTimer);
+        await updateLease(token, "release").catch(function () {});
+      }
+    };
+  }
+
+  function createOriginLockRunner(globalObject) {
+    const lockManager =
+      globalObject && globalObject.navigator && globalObject.navigator.locks;
+    if (lockManager && typeof lockManager.request === "function") {
+      return {
+        mode: "web-locks",
+        run: createWebLockRunner(lockManager),
+      };
+    }
+
+    const indexedDbRunner = createIndexedDbLockRunner(globalObject);
+    if (indexedDbRunner) {
+      return { mode: "indexeddb-lease", run: indexedDbRunner };
+    }
+
+    return {
+      mode: "page-only",
+      run: function runWithoutCrossTabLock(_kind, task, cancellation) {
+        const result = Promise.resolve().then(task);
+        return cancellation
+          ? Promise.race([result, cancellation.promise])
+          : result;
+      },
+    };
+  }
+
+  function byteLength(value) {
+    if (!value) return 0;
+    if (Number.isFinite(Number(value.size))) return Math.max(0, Number(value.size));
+    if (Number.isFinite(Number(value.byteLength))) {
+      return Math.max(0, Number(value.byteLength));
+    }
+    return 0;
+  }
+
+  function estimateArchiveStorageBytes(files) {
+    let inputBytes = 0;
+    for (const file of files || []) inputBytes += byteLength(file && file.data);
+    return Math.max(
+      MINIMUM_WORKSPACE_BYTES,
+      Math.ceil(inputBytes * 1.25 + ARCHIVE_HEADROOM_BYTES),
+    );
+  }
+
+  function estimateVideoStorageBytes(params, profiles) {
+    params = params || {};
+    const width = Math.max(1, Number(params.width) || 640);
+    const height = Math.max(1, Number(params.height) || 360);
+    const rate = Math.max(1, Number(params.rate) || 30);
+    const frames = Math.max(0, Number(params.length) || 0);
+    const quality = Math.max(0, Math.floor(Number(params.quality) || 0));
+    const profile = profiles && profiles[quality] ? profiles[quality] : {};
+    const bitrateScale = Number(profile.bitrate) || 1;
+    const audioScale = Number(profile.abr) || 1;
+    let videoBitrate = (width / 640) * (height / 360) * 1000000;
+    if (rate > 30) videoBitrate *= 1.5;
+    videoBitrate *= bitrateScale;
+    const audioBitrate = 64000 * audioScale;
+    const expectedOutput = ((videoBitrate + audioBitrate) * (frames / rate)) / 8;
+    return Math.max(
+      MINIMUM_WORKSPACE_BYTES,
+      Math.ceil(expectedOutput * 1.5 + ARCHIVE_HEADROOM_BYTES),
+    );
+  }
+
+  function requestPersistentQuota(globalObject, requestedBytes, fallback) {
+    const requested = Math.max(
+      MINIMUM_WORKSPACE_BYTES,
+      Math.ceil(Number(requestedBytes) || MINIMUM_WORKSPACE_BYTES),
+    );
+    const storage =
+      globalObject &&
+      globalObject.navigator &&
+      globalObject.navigator.webkitPersistentStorage;
+    if (!storage || typeof storage.requestQuota !== "function") {
+      return typeof fallback === "function"
+        ? Promise.resolve().then(() => fallback(requested))
+        : Promise.resolve(requested);
+    }
+
+    return new Promise((resolve, reject) => {
+      try {
+        storage.requestQuota(
+          requested,
+          function (grantedBytes) {
+            const granted = Number(grantedBytes);
+            if (Number.isFinite(granted) && granted < requested) {
+              reject(
+                new Error(
+                  "The browser did not grant enough temporary storage for this export.",
+                ),
+              );
+              return;
+            }
+            resolve(Number.isFinite(granted) ? granted : requested);
+          },
+          function (error) {
+            reject(
+              error instanceof Error
+                ? error
+                : new Error("The browser denied temporary storage for this export."),
+            );
+          },
+        );
+      } catch (error) {
+        reject(error);
+      }
+    });
+  }
+
+  async function assertBlobPrefix(blob, expected, description) {
+    if (!blob) return blob;
+    if (byteLength(blob) < expected.length) {
+      throw new Error(description + " output was empty or incomplete.");
+    }
+    if (!blob.slice || typeof blob.slice(0, expected.length).arrayBuffer !== "function") {
+      return blob;
+    }
+    const prefix = new Uint8Array(await blob.slice(0, expected.length).arrayBuffer());
+    for (let index = 0; index < expected.length; index += 1) {
+      if (prefix[index] !== expected[index]) {
+        throw new Error(description + " output failed its file-integrity check.");
+      }
+    }
+    return blob;
+  }
+
+  // The CM3 video and archive workers both remove, recreate, and stream
+  // through the origin-private file named "out". This serializer protects
+  // that file across tabs and also keeps all renderers in one tab from
+  // mutating the same sequence and media elements at the same time.
   function createIoSerializer(hooks) {
     hooks = hooks || {};
     const notifyWaiter =
@@ -24,17 +312,29 @@
       typeof hooks.deleteOutFile === "function"
         ? hooks.deleteOutFile
         : defaultDeleteOutFile;
+    const coordination = hooks.runExclusive
+      ? { mode: hooks.coordinationMode || "custom", run: hooks.runExclusive }
+      : createOriginLockRunner(global);
+    const ensureQuota =
+      typeof hooks.ensureQuota === "function"
+        ? hooks.ensureQuota
+        : function () {
+            return Promise.resolve();
+          };
 
     let tail = Promise.resolve();
     let queued = 0;
     let running = null;
     let completed = 0;
+    let originalTar = null;
+    let resetRemuxQueue = null;
 
     function state() {
       return {
         queued,
         running: running ? running.kind : null,
         completed,
+        coordination: coordination.mode,
       };
     }
 
@@ -44,12 +344,13 @@
       if (running === holder) running = null;
     }
 
-    function enqueue(kind, task) {
+    function enqueue(kind, task, options) {
+      options = options || {};
       const previous = tail;
       let releaseTail = null;
       let tailReleased = false;
       tail = new Promise((resolve) => {
-        releaseTail = () => {
+        releaseTail = function () {
           if (tailReleased) return;
           tailReleased = true;
           resolve();
@@ -59,34 +360,74 @@
         notifyWaiter(kind, state());
       }
       queued += 1;
+
+      let resolveCancellation = null;
+      const abortController =
+        typeof AbortController === "function" ? new AbortController() : null;
+      const cancellationPromise = new Promise((resolve) => {
+        resolveCancellation = resolve;
+      });
       const holder = {
         kind,
-        running: false,
+        taskSettled: false,
+        encodeSettled: false,
+        cancelled: false,
         settled: false,
-        release: () => {
-          settle(holder);
-          releaseTail();
+        releaseTail,
+        cancel: function () {
+          if (holder.cancelled || holder.taskSettled) return;
+          holder.cancelled = true;
+          if (abortController) abortController.abort();
+          resolveCancellation(CANCELLED);
         },
       };
-      const start = () => {
+      const cancellation = {
+        promise: cancellationPromise,
+        signal: abortController && abortController.signal,
+        isCancelled: function () {
+          return holder.cancelled;
+        },
+      };
+
+      const start = function () {
         queued -= 1;
-        holder.running = true;
         running = holder;
-        let result;
-        try {
-          result = task();
-        } catch (error) {
-          holder.release();
-          throw error;
-        }
-        return Promise.resolve(result).then(
+        const guardedTask = function () {
+          if (holder.cancelled) return CANCELLED;
+          let taskResult;
+          try {
+            taskResult = task(holder);
+          } catch (error) {
+            holder.taskSettled = true;
+            throw error;
+          }
+          return Promise.resolve(taskResult).then(
+            (value) => {
+              holder.taskSettled = true;
+              return value;
+            },
+            (error) => {
+              holder.taskSettled = true;
+              throw error;
+            },
+          );
+        };
+        const operation =
+          options.crossTab === false
+            ? Promise.race([guardedTask(), cancellationPromise])
+            : coordination.run(kind, guardedTask, cancellation);
+
+        return Promise.resolve(operation).then(
           (value) => {
-            holder.release();
+            holder.releaseTail();
+            settle(holder);
+            if (value === CANCELLED) return new Promise(function () {});
             completed += 1;
             return value;
           },
           (error) => {
-            holder.release();
+            holder.releaseTail();
+            settle(holder);
             throw error;
           },
         );
@@ -94,41 +435,90 @@
       return previous.then(start, start);
     }
 
-    // PZ.av.stop() terminates the encoder worker without settling the
-    // in-flight encode promise (cancel and waveform paths pend forever by
-    // design), so a cancelled render must force-release its mutex slot or
-    // every later save and render would wait forever. Only an encode
-    // holder is released here; save and cleanup holders are never owned
-    // by the encoder and must keep their turn.
+    // PZ.av.stop() also runs inside the encoder's normal completion handler.
+    // Release the page-local queue immediately, then wait one task before
+    // treating the call as cancellation. A successful encode settles during
+    // the same callback; a user-cancelled encode never settles on its own.
     function releaseEncodeHolder() {
-      if (running && running.kind === "encode" && running.running) {
-        running.release();
-      }
+      const holder = running;
+      if (!holder || holder.kind !== "encode" || holder.settled) return;
+      holder.releaseTail();
+      setTimeout(function () {
+        if (!holder.encodeSettled) holder.cancel();
+      }, 0);
     }
 
-    function wrapEncode(original) {
+    function wrapEncode(original, profiles) {
       if (typeof original !== "function" || original[PATCH_MARKER]) {
         return original;
       }
       const wrapped = function zoidiumSerializedEncode() {
         const receiver = this;
         const args = Array.prototype.slice.call(arguments);
-        return enqueue("encode", () => original.apply(receiver, args));
+        return enqueue("encode", async function (holder) {
+          await ensureQuota(estimateVideoStorageBytes(args[1], profiles));
+          let blob;
+          try {
+            blob = await original.apply(receiver, args);
+          } finally {
+            holder.encodeSettled = true;
+          }
+          return assertBlobPrefix(blob, [0x1a, 0x45, 0xdf, 0xa3], "Video");
+        });
       };
       wrapped[PATCH_MARKER] = true;
+      wrapped[ORIGINAL_MARKER] = original;
       return wrapped;
     }
 
-    function wrapTar(original) {
+    function wrapImageEncode(original) {
       if (typeof original !== "function" || original[PATCH_MARKER]) {
         return original;
       }
+      const wrapped = function zoidiumSerializedImageEncode() {
+        const receiver = this;
+        const args = Array.prototype.slice.call(arguments);
+        // Image encoding does not use the shared "out" file, so tabs may run
+        // images independently. It still joins the page-local queue because
+        // video and image export share sequence state and HTMLMediaElements.
+        return enqueue(
+          "image",
+          () => original.apply(receiver, args),
+          { crossTab: false },
+        );
+      };
+      wrapped[PATCH_MARKER] = true;
+      wrapped[ORIGINAL_MARKER] = original;
+      return wrapped;
+    }
+
+    async function runTar(original, receiver, args) {
+      await ensureQuota(estimateArchiveStorageBytes(receiver && receiver.files));
+      const blob = await original.apply(receiver, args || []);
+      return assertBlobPrefix(blob, [0x1f, 0x8b], "Project archive");
+    }
+
+    function tarWithoutLock(receiver, args) {
+      if (typeof originalTar !== "function") {
+        return Promise.reject(new Error("The project archive writer is unavailable."));
+      }
+      return runTar(originalTar, receiver, args);
+    }
+
+    function wrapTar(original) {
+      if (typeof original !== "function") return original;
+      if (original[PATCH_MARKER]) {
+        if (!originalTar) originalTar = original[ORIGINAL_MARKER];
+        return original;
+      }
+      if (!originalTar) originalTar = original;
       const wrapped = function zoidiumSerializedTar() {
         const receiver = this;
         const args = Array.prototype.slice.call(arguments);
-        return enqueue("tar", () => original.apply(receiver, args));
+        return enqueue("archive", () => runTar(original, receiver, args));
       };
       wrapped[PATCH_MARKER] = true;
+      wrapped[ORIGINAL_MARKER] = original;
       return wrapped;
     }
 
@@ -140,23 +530,56 @@
         try {
           return original.apply(this, arguments);
         } finally {
+          if (resetRemuxQueue) resetRemuxQueue();
           releaseEncodeHolder();
         }
       };
       wrapped[PATCH_MARKER] = true;
+      wrapped[ORIGINAL_MARKER] = original;
       return wrapped;
     }
 
-    // PZ.file.cleanUp() deletes "out" through an untracked async callback.
-    // Running the stock version outside the mutex would let a stale delete
-    // land after a queued save recreates the file, so cleanup waits for
-    // its turn and releases the mutex only once the delete settles.
     function wrapCleanUp(original) {
-      void original;
+      if (typeof original === "function" && original[PATCH_MARKER]) {
+        return original;
+      }
       const wrapped = function zoidiumSerializedCleanUp() {
         return enqueue("cleanup", () => deleteOutFile());
       };
       wrapped[PATCH_MARKER] = true;
+      wrapped[ORIGINAL_MARKER] = original;
+      return wrapped;
+    }
+
+    function wrapRemux(original) {
+      if (typeof original !== "function" || original[PATCH_MARKER]) {
+        return original;
+      }
+      let remuxTail = Promise.resolve();
+      resetRemuxQueue = function () {
+        remuxTail = Promise.resolve();
+      };
+      const wrapped = function zoidiumSerializedRemux() {
+        const receiver = this;
+        const args = Array.prototype.slice.call(arguments);
+        const result = remuxTail.then(() => original.apply(receiver, args));
+        remuxTail = result.catch(function () {});
+        return result;
+      };
+      wrapped[PATCH_MARKER] = true;
+      wrapped[ORIGINAL_MARKER] = original;
+      return wrapped;
+    }
+
+    function wrapQuota(original) {
+      if (typeof original === "function" && original[PATCH_MARKER]) {
+        return original;
+      }
+      const wrapped = function zoidiumCheckedQuota(bytes) {
+        return ensureQuota(bytes || MINIMUM_WORKSPACE_BYTES);
+      };
+      wrapped[PATCH_MARKER] = true;
+      wrapped[ORIGINAL_MARKER] = original;
       return wrapped;
     }
 
@@ -164,8 +587,12 @@
       enqueue,
       releaseEncodeHolder,
       state,
+      tarWithoutLock,
       wrapCleanUp,
       wrapEncode,
+      wrapImageEncode,
+      wrapQuota,
+      wrapRemux,
       wrapStop,
       wrapTar,
     };
@@ -222,7 +649,7 @@
             (snapshot.running || "previous") +
             " file operation to finish before starting " +
             kind +
-            " (shared render/save workspace).",
+            ".",
         );
       }
     } catch (_error) {
@@ -246,26 +673,67 @@
   }
 
   function install(targets) {
-    if (!targets || !targets.av || !targets.archive || !targets.file) {
+    if (
+      !targets ||
+      !targets.av ||
+      !targets.archive ||
+      !targets.file ||
+      !targets.imageEncoder
+    ) {
       return false;
     }
     if (
       typeof targets.av.encode !== "function" ||
       typeof targets.av.stop !== "function" ||
+      typeof targets.av.remux !== "function" ||
       typeof targets.archive.tar !== "function" ||
-      typeof targets.file.cleanUp !== "function"
+      typeof targets.file.cleanUp !== "function" ||
+      typeof targets.imageEncoder.encode !== "function"
     ) {
       return false;
     }
+
+    let api = targets.PZ && targets.PZ[DIAGNOSTICS_KEY];
+    const existingSerializer = api && api._serializer;
+    const originalQuota = targets.file.getQuota;
     const serializer =
-      targets.serializer || createIoSerializer({ notifyWaiter });
-    targets.av.encode = serializer.wrapEncode(targets.av.encode);
+      targets.serializer ||
+      existingSerializer ||
+      createIoSerializer({
+        notifyWaiter,
+        ensureQuota: function (bytes) {
+          return requestPersistentQuota(
+            global,
+            bytes,
+            typeof originalQuota === "function"
+              ? originalQuota.bind(targets.file)
+              : null,
+          );
+        },
+      });
+
+    targets.av.encode = serializer.wrapEncode(
+      targets.av.encode,
+      targets.av.profiles,
+    );
+    targets.av.remux = serializer.wrapRemux(targets.av.remux);
     targets.av.stop = serializer.wrapStop(targets.av.stop);
     targets.archive.tar = serializer.wrapTar(targets.archive.tar);
     targets.file.cleanUp = serializer.wrapCleanUp(targets.file.cleanUp);
+    targets.file.getQuota = serializer.wrapQuota(targets.file.getQuota);
+    targets.imageEncoder.encode = serializer.wrapImageEncode(
+      targets.imageEncoder.encode,
+    );
+
     try {
-      if (targets.PZ && !targets.PZ[DIAGNOSTICS_KEY]) {
-        targets.PZ[DIAGNOSTICS_KEY] = { state: serializer.state };
+      if (targets.PZ && !existingSerializer) {
+        api = {
+          _serializer: serializer,
+          run: serializer.enqueue,
+          state: serializer.state,
+          tarWithoutLock: serializer.tarWithoutLock,
+        };
+        targets.PZ[DIAGNOSTICS_KEY] = api;
       }
     } catch (_error) {
       // Diagnostics are best effort.
@@ -284,13 +752,14 @@
         archive: PZ.archive && PZ.archive.prototype,
         av: PZ.av,
         file: PZ.file,
+        imageEncoder: PZ.imageEncoder,
       });
     if (ready || attempt >= MAX_ATTEMPTS) {
       if (!ready) {
         try {
           if (typeof console !== "undefined" && console.warn) {
             console.warn(
-              "Zoidium: render/save serialization is unavailable; concurrent saves during renders may damage video exports.",
+              "Zoidium: export serialization is unavailable. Do not render and save at the same time.",
             );
           }
         } catch (_error) {
@@ -304,11 +773,19 @@
 
   if (typeof module === "object" && module.exports) {
     module.exports = {
+      ARCHIVE_HEADROOM_BYTES,
       CLEANUP_TIMEOUT_MS,
+      CROSS_TAB_LOCK_NAME,
       MAX_ATTEMPTS,
+      MINIMUM_WORKSPACE_BYTES,
       RETRY_DELAY_MS,
       createIoSerializer,
+      createOriginLockRunner,
+      createWebLockRunner,
+      estimateArchiveStorageBytes,
+      estimateVideoStorageBytes,
       install,
+      requestPersistentQuota,
     };
     return;
   }
