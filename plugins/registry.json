@@ -51,15 +51,15 @@
       "id": "native-fx",
       "name": "Native FX",
       "author": "Zoidium",
-      "version": "7",
+      "version": "8",
       "itemCount": 6,
       "format": "native effects",
       "tagline": "Native Effects and Time Tools",
       "color": "#c56b3d",
       "description": "Adds native filters, direct visual controls, and time effects.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/native-fx/manifest.json?v=7",
-      "bundle": "./plugins/native-fx/bundle.json?v=7"
+      "manifest": "./plugins/native-fx/manifest.json?v=8",
+      "bundle": "./plugins/native-fx/bundle.json?v=8"
     },
     {
       "id": "light-plus",
