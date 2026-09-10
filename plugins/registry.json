@@ -24,14 +24,14 @@
       "id": "easing-plus",
       "name": "Easing+",
       "author": "Zoidium",
-      "version": "16",
+      "version": "17",
       "itemCount": 1,
       "format": "curve editor",
       "tagline": "Extended Bezier Easing",
       "color": "#384668",
       "description": "A normalized cubic Bezier editor with a focused set of reusable presets.",
-      "manifest": "./plugins/easing-plus/manifest.json?v=16",
-      "bundle": "./plugins/easing-plus/bundle.json?v=16"
+      "manifest": "./plugins/easing-plus/manifest.json?v=17",
+      "bundle": "./plugins/easing-plus/bundle.json?v=17"
     },
     {
       "id": "player-plus",

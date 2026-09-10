@@ -88,3 +88,74 @@ test("snapshot/restore rescales Y handles on value change", () => {
   assert.equal(k1.controlPoints[0][0], -10);
   assert.equal(k1.controlPoints[0][1], -8);
 });
+
+test("isEasingPlusLeftoverSegment matches only Easing+ curves", () => {
+  const { isEasingPlusLeftoverSegment } = EasingPlus.__test;
+  const start = { frame: 0, value: 0, controlPoints: [[0, 0], [10, 5]] };
+  const customEnd = (tween) => ({
+    frame: 30,
+    value: 10,
+    tween,
+    controlPoints: [[-10, -2], [0, 0]],
+  });
+  assert.equal(isEasingPlusLeftoverSegment(start, customEnd(257)), true);
+  assert.equal(isEasingPlusLeftoverSegment(start, customEnd(1)), false);
+  assert.equal(isEasingPlusLeftoverSegment(start, customEnd(262)), false);
+  assert.equal(
+    isEasingPlusLeftoverSegment(start, {
+      frame: 30,
+      value: 10,
+      tween: 257,
+      controlPoints: [[-10, 0], [0, 0]],
+    }),
+    true
+  );
+  assert.equal(
+    isEasingPlusLeftoverSegment(
+      { frame: 0, value: 0, controlPoints: [[0, 0], [10, 0]] },
+      { frame: 30, value: 10, tween: 257, controlPoints: [[-10, 0], [0, 0]] }
+    ),
+    false
+  );
+  assert.equal(isEasingPlusLeftoverSegment(start, null), false);
+});
+
+test("cleanupActionsForSet clears leftovers when leaving Bezier", () => {
+  const { cleanupActionsForSet } = EasingPlus.__test;
+  const previous = { frame: 0, value: 0, controlPoints: [[0, 0], [10, 5]] };
+  const current = {
+    frame: 30,
+    value: 10,
+    tween: 257,
+    controlPoints: [[-10, -2], [10, 4]],
+  };
+  const next = {
+    frame: 60,
+    value: 20,
+    tween: 257,
+    controlPoints: [[-10, -3], [0, 0]],
+  };
+  assert.deepEqual(cleanupActionsForSet(257, 0, previous, current, next), {
+    resetIncoming: true,
+    normalizeOutgoing: true,
+  });
+  assert.deepEqual(cleanupActionsForSet(1, 0, previous, current, next), {
+    resetIncoming: false,
+    normalizeOutgoing: true,
+  });
+  assert.deepEqual(cleanupActionsForSet(257, 1, previous, current, next), {
+    resetIncoming: false,
+    normalizeOutgoing: false,
+  });
+  const freshPrevious = { frame: 0, value: 0, controlPoints: [[0, 0], [10, 0]] };
+  const freshCurrent = {
+    frame: 30,
+    value: 10,
+    tween: 257,
+    controlPoints: [[-10, 0], [10, 0]],
+  };
+  assert.deepEqual(cleanupActionsForSet(257, 0, freshPrevious, freshCurrent, null), {
+    resetIncoming: false,
+    normalizeOutgoing: false,
+  });
+});

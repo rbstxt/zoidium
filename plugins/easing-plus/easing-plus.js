@@ -2,7 +2,7 @@
 
 const EasingPlus = (() => {
   const STYLE_ID = "zoidium-easing-plus-style";
-  const STYLE_URL = "./plugins/easing-plus/easing-plus.css?v=16";
+  const STYLE_URL = "./plugins/easing-plus/easing-plus.css?v=17";
   const EPSILON = 1e-8;
   const BEZIER_TWEEN = 257;
   // Overshoot is an intentional, two-stage gesture.  Keeping these in screen
@@ -561,6 +561,301 @@ const EasingPlus = (() => {
     return null;
   }
 
+  // Native PZ.keyframe defaults: controlPoints[0] is the incoming handle and
+  // controlPoints[1] is the outgoing handle.
+  const NATIVE_INCOMING_DEFAULT = [-10, 0];
+  const NATIVE_OUTGOING_DEFAULT = [10, 0];
+
+  function siblingTweenButton(button) {
+    const row = button?.parentElement;
+    if (!row) return null;
+    const buttons = row.querySelectorAll?.("button.pz-tweens") || [];
+    for (const entry of buttons) {
+      if (entry !== button) return entry;
+    }
+    return null;
+  }
+
+  function tweenButtonsInRow(row) {
+    if (!row?.querySelectorAll) return {};
+    const buttons = Array.from(row.querySelectorAll("button.pz-tweens"));
+    return {
+      interpolationButton:
+        buttons.find((button) => button.title === "interpolation") || buttons[0] || null,
+      easeButton: buttons.find((button) => button.title === "easing") || buttons[1] || null,
+    };
+  }
+
+  // An Easing+ apply always stores BEZIER_TWEEN with custom handles, so a
+  // following segment that still carries exactly that combination is an
+  // Easing+ leftover. While Bezier interpolation is active the native easing
+  // low byte is ignored, so that leftover would keep overriding (or later
+  // resurrect) the freshly picked normal easing.
+  function isEasingPlusLeftoverSegment(start, end) {
+    if (!start || !end) return false;
+    if (end.tween !== BEZIER_TWEEN) return false;
+    if (!Number.isFinite(start.value) || !Number.isFinite(end.value)) return false;
+    if (!(end.frame > start.frame)) return false;
+    try {
+      return !hasNativeBezierDefaults(start, end);
+    } catch (error) {
+      return false;
+    }
+  }
+
+  function cleanupActionsForSet(oldTween, newInterp, previous, current, next) {
+    const leavingBezier =
+      Number.isFinite(oldTween) && (oldTween >> 8) === 1 && newInterp === 0;
+    let resetIncoming = false;
+    let normalizeOutgoing = false;
+    if (leavingBezier && previous && current && previous.frame < current.frame) {
+      try {
+        resetIncoming = !hasNativeBezierDefaults(previous, current);
+      } catch (error) {
+        resetIncoming = false;
+      }
+    }
+    if (newInterp === 0 && isEasingPlusLeftoverSegment(current, next)) {
+      normalizeOutgoing = true;
+    }
+    return { resetIncoming, normalizeOutgoing };
+  }
+
+  function tweenSetContext(button) {
+    const rowDiv = button?.parentElement;
+    const propertyRow = rowDiv?.parentElement?.parentElement;
+    const property = propertyRow?.pz_object;
+    const controls = propertyRow?.parentElement?.pz_controls;
+    const editor = controls?.editor;
+    const propertyOps = controls?.propertyOps;
+    if (!property || !controls || !editor || !propertyOps || !window.PZ) return null;
+    let localFrame;
+    try {
+      localFrame = editor.playback.currentFrame - property.frameOffset;
+    } catch (error) {
+      return null;
+    }
+    if (!Number.isFinite(localFrame)) return null;
+    return { property, controls, editor, propertyOps, localFrame };
+  }
+
+  function channelsEditedAtFrame(property, localFrame) {
+    const dynamic = window.PZ?.property?.dynamic;
+    if (
+      dynamic?.group &&
+      property instanceof dynamic.group &&
+      Array.isArray(property.objects)
+    ) {
+      return property.objects.filter((entry) => {
+        try {
+          return !!entry?.hasKeyframe?.(localFrame);
+        } catch (error) {
+          return false;
+        }
+      });
+    }
+    return [property];
+  }
+
+  function snapshotTweens(channels, localFrame) {
+    const before = new Map();
+    for (const channel of channels) {
+      try {
+        const keyframe = channel?.getKeyframe?.(localFrame);
+        if (keyframe && Number.isFinite(keyframe.tween)) before.set(channel, keyframe.tween);
+      } catch (error) {
+        // A channel without a readable tween simply skips the cleanup below.
+      }
+    }
+    return before;
+  }
+
+  function resetIncomingHandles(propertyOps, address, previous, current) {
+    const previousIncoming = previous.controlPoints?.[0];
+    const currentOutgoing = current.controlPoints?.[1];
+    if (!Array.isArray(previousIncoming) || !Array.isArray(currentOutgoing)) return;
+    propertyOps.setControlPoints({
+      property: address,
+      frame: previous.frame,
+      controlPoints: [previousIncoming.slice(), NATIVE_OUTGOING_DEFAULT.slice()],
+    });
+    propertyOps.setControlPoints({
+      property: address,
+      frame: current.frame,
+      controlPoints: [NATIVE_INCOMING_DEFAULT.slice(), currentOutgoing.slice()],
+    });
+  }
+
+  function normalizeOutgoingLeftover(propertyOps, address, current, next, nextTween) {
+    const currentIncoming = current.controlPoints?.[0];
+    const nextOutgoing = next.controlPoints?.[1];
+    if (!Array.isArray(currentIncoming) || !Array.isArray(nextOutgoing)) return;
+    propertyOps.setTween({ property: address, frame: next.frame, tween: nextTween });
+    propertyOps.setControlPoints({
+      property: address,
+      frame: current.frame,
+      controlPoints: [currentIncoming.slice(), NATIVE_OUTGOING_DEFAULT.slice()],
+    });
+    propertyOps.setControlPoints({
+      property: address,
+      frame: next.frame,
+      controlPoints: [NATIVE_INCOMING_DEFAULT.slice(), nextOutgoing.slice()],
+    });
+  }
+
+  // Mirror the native keyframe-controls tween write inside one history
+  // operation, then clear the Easing+ leftovers that would otherwise keep
+  // overriding the picked normal easing. Easing+ edits the outgoing segment
+  // from the current keyframe while the native control writes the keyframe at
+  // the playhead, so leaving Bezier resets the incoming segment's custom
+  // handles and normalizes an outgoing segment that still carries an Easing+
+  // curve. Only the handles owned by the affected segments are touched; the
+  // neighboring segments keep their values.
+  function writeTweenWithCleanup(context, channels, before, newInterp, newEase) {
+    const { editor, propertyOps } = context;
+    editor.history.startOperation();
+    try {
+      for (const channel of channels) {
+        propertyOps.setTween({
+          property: channel.getAddress(),
+          frame: context.localFrame,
+          tween: (newInterp << 8) | newEase,
+        });
+      }
+      for (const channel of channels) {
+        try {
+          const oldTween = before.get(channel);
+          let current = null;
+          try {
+            current = channel.getKeyframe?.(context.localFrame);
+          } catch (error) {
+            current = null;
+          }
+          if (!current) continue;
+          let previous = null;
+          let next = null;
+          try {
+            previous = channel.getPreviousKeyframe?.(current.frame) || null;
+          } catch (error) {
+            previous = null;
+          }
+          try {
+            next = channel.getNextKeyframe?.(current.frame) || null;
+          } catch (error) {
+            next = null;
+          }
+          if (previous && !(previous.frame < current.frame)) previous = null;
+          const actions = cleanupActionsForSet(oldTween, newInterp, previous, current, next);
+          const address = channel.getAddress();
+          if (actions.resetIncoming && previous) {
+            resetIncomingHandles(propertyOps, address, previous, current);
+          }
+          if (actions.normalizeOutgoing && next) {
+            // Re-read after the incoming reset so the preserved handles are fresh.
+            let freshCurrent = current;
+            let freshNext = next;
+            try {
+              freshCurrent = channel.getKeyframe?.(context.localFrame) || current;
+            } catch (error) {
+              freshCurrent = current;
+            }
+            try {
+              freshNext = channel.getNextKeyframe?.(freshCurrent.frame) || next;
+            } catch (error) {
+              freshNext = next;
+            }
+            if (isEasingPlusLeftoverSegment(freshCurrent, freshNext)) {
+              normalizeOutgoingLeftover(propertyOps, address, freshCurrent, freshNext, newEase);
+            }
+          }
+        } catch (error) {
+          console.error("Easing+ could not clear the previous curve.", error);
+        }
+      }
+    } finally {
+      editor.history.finishOperation();
+    }
+  }
+
+  function patchedInterpSet(value) {
+    const sibling = siblingTweenButton(this);
+    const context = sibling ? tweenSetContext(this) : null;
+    if (!context || typeof sibling.pz_value === "undefined") {
+      return this.__easingPlusOriginalInterpSet.call(this, value);
+    }
+    const channels = channelsEditedAtFrame(context.property, context.localFrame);
+    const before = snapshotTweens(channels, context.localFrame);
+    const easeValue = Number.isFinite(sibling.pz_value) ? sibling.pz_value : 0;
+    this.pz_update(value << 8, true);
+    writeTweenWithCleanup(context, channels, before, value, easeValue);
+  }
+
+  function patchedEaseSet(value) {
+    const sibling = siblingTweenButton(this);
+    const context = sibling ? tweenSetContext(this) : null;
+    if (!context || !Number.isFinite(sibling.pz_value)) {
+      return this.__easingPlusOriginalEaseSet.call(this, value);
+    }
+    const channels = channelsEditedAtFrame(context.property, context.localFrame);
+    const before = snapshotTweens(channels, context.localFrame);
+    this.pz_update(value, true);
+    writeTweenWithCleanup(context, channels, before, sibling.pz_value, value);
+  }
+
+  function wrapTweenButtonSets(row) {
+    const { interpolationButton, easeButton } = tweenButtonsInRow(row);
+    if (!interpolationButton || !easeButton) return;
+    if (
+      typeof interpolationButton.pz_set === "function" &&
+      !interpolationButton.__easingPlusPatchedInterpSet
+    ) {
+      interpolationButton.__easingPlusOriginalInterpSet = interpolationButton.pz_set;
+      interpolationButton.__easingPlusPatchedInterpSet = patchedInterpSet;
+      interpolationButton.pz_set = patchedInterpSet;
+      state.easeButtons.add(interpolationButton);
+    }
+    if (
+      typeof easeButton.pz_set === "function" &&
+      !easeButton.__easingPlusPatchedEaseSet
+    ) {
+      easeButton.__easingPlusOriginalEaseSet = easeButton.pz_set;
+      easeButton.__easingPlusPatchedEaseSet = patchedEaseSet;
+      easeButton.pz_set = patchedEaseSet;
+      state.easeButtons.add(easeButton);
+    }
+  }
+
+  function wrapExistingTweenButtonSets(root = document) {
+    if (!root?.querySelectorAll) return;
+    const seen = new Set();
+    root.querySelectorAll('button.pz-tweens[title="interpolation"]').forEach((button) => {
+      const row = button.parentElement;
+      if (row && !seen.has(row)) {
+        seen.add(row);
+        wrapTweenButtonSets(row);
+      }
+    });
+  }
+
+  function unwrapTweenButtonSets(button) {
+    if (
+      button.__easingPlusPatchedInterpSet &&
+      button.pz_set === button.__easingPlusPatchedInterpSet
+    ) {
+      button.pz_set = button.__easingPlusOriginalInterpSet;
+    }
+    if (
+      button.__easingPlusPatchedEaseSet &&
+      button.pz_set === button.__easingPlusPatchedEaseSet
+    ) {
+      button.pz_set = button.__easingPlusOriginalEaseSet;
+    }
+    delete button.__easingPlusPatchedInterpSet;
+    delete button.__easingPlusOriginalInterpSet;
+    delete button.__easingPlusPatchedEaseSet;
+    delete button.__easingPlusOriginalEaseSet;
+  }
+
   function isBezierEaseButton(easeButton) {
     const interpolationButton = interpolationButtonFor(easeButton);
     if (!interpolationButton) return false;
@@ -642,12 +937,14 @@ const EasingPlus = (() => {
 
   function installEaseButtonLabels() {
     decorateEaseButtons();
+    wrapExistingTweenButtonSets();
     const controls = window.PZ?.ui?.controls;
     if (typeof controls?.createKeyframeControls !== "function") return;
     state.originalCreateKeyframeControls = controls.createKeyframeControls;
     state.patchedCreateKeyframeControls = function () {
       const row = state.originalCreateKeyframeControls.apply(this, arguments);
       decorateEaseButtons(row);
+      wrapTweenButtonSets(row);
       return row;
     };
     controls.createKeyframeControls = state.patchedCreateKeyframeControls;
@@ -660,6 +957,7 @@ const EasingPlus = (() => {
       window.PZ.ui.controls.createKeyframeControls = state.originalCreateKeyframeControls;
     }
     state.easeButtons.forEach((button) => {
+      unwrapTweenButtonSets(button);
       if (
         button.__easingPlusPatchedEaseUpdate &&
         button.pz_update === button.__easingPlusPatchedEaseUpdate
@@ -1431,6 +1729,8 @@ const EasingPlus = (() => {
       overshootForPoints,
       shouldPreserveCrossingX,
       hasNativeBezierDefaults,
+      isEasingPlusLeftoverSegment,
+      cleanupActionsForSet,
       rescaleSegmentHandles,
       snapshotChannelSegments,
       restoreChannelSegments,

@@ -24,6 +24,13 @@ values flattens its Y handles so it keeps playing still. Fresh native Bezier
 handles (`[10, 0]` / `[-10, 0]`) and segments formed by reordering keyframes
 keep native behavior.
 
+Picking a normal easing (or toggling interpolation back to linear) clears the
+Easing+ leftovers that would otherwise keep overriding the choice. The incoming
+segment's custom handles return to the native defaults, and an outgoing segment
+that still carries an Easing+ curve is normalized to the picked easing with
+default handles, all inside the same undoable operation. Other segments keep
+their values.
+
 Both handle X coordinates move independently across the full 0–1 interval.
 While Easing+ is enabled, the editor preserves crossing handles for normalized
 curves, so the saved native control points render and reopen with the edited shape.
