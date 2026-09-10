@@ -1,7 +1,7 @@
 (function () {
   "use strict";
 
-  const REGISTRY_URL = "./plugins/registry.json?v=24";
+  const REGISTRY_URL = "./plugins/registry.json?v=25";
   const STORAGE_PREFIX = "zoidium.plugin.enabled.";
   const SHADER_PLUGIN_MARKER = "// @zoidium-plugin ";
   const EFFECT_UUID_PROPERTY = "_zoidiumEffectUuid";
@@ -16,6 +16,8 @@
   ]);
   const NATIVE_FX_EFFECTS = new Map([
     ["radialblurspin", "Radial Blur (Spin)"],
+    ["colorcurves", "Color Curves"],
+    ["echo", "Echo"],
     ["dropshadow", "Drop Shadow"],
     ["timeoffset", "Time Offset"],
     ["posterizetime", "Posterize Time"],
@@ -45,6 +47,7 @@
   let editorHooksInstalled = false;
   let effectBadgeObserver = null;
   let effectBadgeUpdateScheduled = false;
+  let nativeFxSearchPatched = false;
   let registryReadySettled = false;
   let resolveRegistryReady;
   const registryReady = new Promise((resolve) => {
@@ -477,6 +480,7 @@
   }
 
   function decorateEffectPicker() {
+    installNativeFxSearchPriority();
     const effectTypes = getEffectTypes();
     if (!Array.isArray(effectTypes)) return;
     const lookup = buildEffectPickerLookup(effectTypes);
@@ -526,8 +530,52 @@
     });
   }
 
+  function isNativeFxSearchEntry(value) {
+    const entry =
+      value && typeof value === "object" && "item" in value ? value.item : value;
+    return !!entry && entry._zoidiumPluginId === NATIVE_FX_PLUGIN_ID;
+  }
+
+  function prioritizeNativeFxResults(results) {
+    if (!Array.isArray(results) || results.length < 2) return results;
+    let nativeCount = 0;
+    for (const item of results) {
+      if (isNativeFxSearchEntry(item)) nativeCount += 1;
+    }
+    if (nativeCount === 0 || nativeCount === results.length) return results;
+    const native = [];
+    const rest = [];
+    for (const item of results) {
+      if (isNativeFxSearchEntry(item)) native.push(item);
+      else rest.push(item);
+    }
+    return [...native, ...rest];
+  }
+
+  function installNativeFxSearchPriority() {
+    if (nativeFxSearchPatched) return;
+    const scope = typeof globalThis !== "undefined" ? globalThis : window;
+    const FuseApi = scope ? scope.Fuse : null;
+    const originalSearch =
+      FuseApi && FuseApi.prototype && FuseApi.prototype.search;
+    if (typeof originalSearch !== "function") return;
+    nativeFxSearchPatched = true;
+    FuseApi.prototype.search = function () {
+      const results = originalSearch.apply(
+        this,
+        Array.prototype.slice.call(arguments)
+      );
+      try {
+        return prioritizeNativeFxResults(results);
+      } catch (_error) {
+        return results;
+      }
+    };
+  }
+
   function installEffectPickerBadges() {
     if (effectBadgeObserver) return;
+    installNativeFxSearchPriority();
     decorateEffectPicker();
     effectBadgeObserver = new MutationObserver(scheduleEffectPickerBadges);
     effectBadgeObserver.observe(document.body, { childList: true, subtree: true });

@@ -4,12 +4,43 @@ const assert = require("node:assert/strict");
 const test = require("node:test");
 const {
   applyTemporalOperators,
+  buildFrameSamplePlan,
   clampLocalFrame,
   findScheduleItemAtFrame,
   isClipActiveAtProjectFrame,
   mapTemporalFrameWithScopes,
   quantizeLocalFrame,
 } = require("../plugins/core/temporal-render");
+
+test("builds echo samples directly from the requested frame", () => {
+  assert.deepEqual(
+    buildFrameSamplePlan(12, 4, -3, 0.8, 0.5, 0, 60),
+    [
+      { frame: 9, index: 1, opacity: 0.8 },
+      { frame: 6, index: 2, opacity: 0.4 },
+      { frame: 3, index: 3, opacity: 0.2 },
+      { frame: 0, index: 4, opacity: 0.1 },
+    ],
+  );
+  assert.deepEqual(
+    buildFrameSamplePlan(2, 3, -3, 1, 1, 0, 60).map((sample) => sample.frame),
+    [0, 0, 0],
+  );
+});
+
+test("frame samples do not depend on request order or playback history", () => {
+  const requested = [0, 1, 8, 12, 24];
+  const forward = requested.map((frame) =>
+    buildFrameSamplePlan(frame, 3, -2.5, 0.75, 0.6, 0, 60),
+  );
+  const reverse = requested
+    .slice()
+    .reverse()
+    .map((frame) => buildFrameSamplePlan(frame, 3, -2.5, 0.75, 0.6, 0, 60))
+    .reverse();
+
+  assert.deepEqual(reverse, forward);
+});
 
 test("quantizes local time from the project clock, not from render cadence", () => {
   const mapped = [0, 1, 2, 3, 4, 5, 6, 7, 8].map((frame) =>

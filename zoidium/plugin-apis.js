@@ -27,6 +27,80 @@
     return !!value && typeof value === "object" && !Array.isArray(value);
   }
 
+  var propertyControlRegistrations = Object.create(null);
+  var propertyControlPatches = Object.create(null);
+
+  function propertyControlGenerator(PZ, type) {
+    if (!PZ || !PZ.property || !PZ.property.type) return null;
+    var types = PZ.property.type;
+    if (type === types.NUMBER) return "generateInput";
+    if (type === types.VECTOR2) return "generateInput2";
+    if (type === types.VECTOR3) return "generateInput3";
+    if (type === types.VECTOR4) return "generateInput4";
+    if (type === types.COLOR) return "generateColorInput";
+    if (type === types.GRADIENT) return "generateGradientInput";
+    if (type === types.CURVE) return "generateCurveInput";
+    if (type === types.OPTION) return "generateOptionInput";
+    if (type === types.TEXT) return "generateTextInput";
+    if (type === types.ASSET) return "generateFileInput";
+    if (type === types.LIST) return "generateListInput";
+    if (type === types.SHADER) return "generateShaderInput";
+    return null;
+  }
+
+  // Custom property controls keep plugin-specific editors inside CM3's normal
+  // property list, history, and update flow. A property opts in with a stable
+  // `zoidiumControl` id while retaining a standard CM3 storage type.
+  // spec: { type: PZ.property.type.*, create(property, context) }
+  function registerPropertyControl(id, spec) {
+    if (typeof id !== "string" || !id.trim()) {
+      throw new Error("ZoidiumPluginApis.propertyControls.register requires an id");
+    }
+    if (!isObject(spec) || typeof spec.create !== "function") {
+      throw new Error("ZoidiumPluginApis.propertyControls.register requires create(property, context)");
+    }
+    var PZ = global.PZ;
+    var controls = PZ && PZ.ui && PZ.ui.controls;
+    var generator = propertyControlGenerator(PZ, spec.type);
+    if (!controls || !generator || typeof controls[generator] !== "function") {
+      throw new Error("ZoidiumPluginApis.propertyControls.register needs a supported CM3 property type");
+    }
+
+    var registration = { id: id, type: spec.type, create: spec.create };
+    propertyControlRegistrations[id] = registration;
+
+    if (!propertyControlPatches[generator]) {
+      var original = controls[generator];
+      var patched = function generateZoidiumPropertyControl(property) {
+        var controlId = property && property.definition
+          ? property.definition.zoidiumControl
+          : null;
+        var custom = controlId ? propertyControlRegistrations[controlId] : null;
+        if (custom && property.definition.type === custom.type) {
+          var result = custom.create.call(this, property, {
+            PZ: global.PZ,
+            THREE: global.THREE,
+            controls: controls,
+            document: global.document,
+            window: global,
+          });
+          if (result) return result;
+        }
+        return original.apply(this, arguments);
+      };
+      patched.__zoidiumPropertyControl = true;
+      patched.__zoidiumOriginal = original;
+      controls[generator] = patched;
+      propertyControlPatches[generator] = { original: original, patched: patched };
+    }
+
+    return function unregisterPropertyControl() {
+      if (propertyControlRegistrations[id] === registration) {
+        delete propertyControlRegistrations[id];
+      }
+    };
+  }
+
   // Install the no-op lifecycle methods every native effect needs so filter
   // and temporal authors only describe what is unique to their effect.
   // Defaults always win over inherited host methods: CM3 hands each factory
@@ -88,10 +162,52 @@
     return effect;
   }
 
+  // Frame sampler: an effect that needs explicitly evaluated frames in
+  // addition to the current input. The compositor owns frame evaluation and
+  // render-target reuse; the effect owns only its properties and pixel
+  // composition. This keeps frame sampling deterministic and avoids a
+  // playback-history cache in individual effects.
+  // spec: { displayName, properties, getRequest(effect, frame), lifecycle }
+  function defineFrameSampler(spec) {
+    var effect = this;
+    if (!isObject(spec) || !isObject(spec.properties)) {
+      throw new Error("ZoidiumPluginApis.defineFrameSampler requires a properties object");
+    }
+    if (typeof spec.getRequest !== "function") {
+      throw new Error("ZoidiumPluginApis.defineFrameSampler requires getRequest(effect, frame)");
+    }
+    if (typeof spec.displayName === "string" && spec.displayName) {
+      effect.defaultName = spec.displayName;
+    }
+    effect._zoidiumFrameSampler = { getRequest: spec.getRequest };
+    var PZ = global.PZ;
+    if (!PZ || !effect.properties || typeof effect.properties.addAll !== "function") {
+      throw new Error("ZoidiumPluginApis.defineFrameSampler needs a CM3 effect instance (this)");
+    }
+    effect.properties.addAll(spec.properties, effect);
+    installLifecycleDefaults(effect, spec.lifecycle);
+    var update = effect.update;
+    effect.update = function updateFrameSampler(frame) {
+      var value = Number(frame);
+      effect._zoidiumFrameSamplerFrame = Number.isFinite(value) ? value : 0;
+      return update.apply(effect, arguments);
+    };
+    var prepare = effect.prepare;
+    effect.prepare = async function prepareFrameSampler(frame, context) {
+      var temporal = global.PZ && global.PZ.zoidium && global.PZ.zoidium.temporal;
+      if (temporal && typeof temporal.prepareFrameSamples === "function") {
+        await temporal.prepareFrameSamples(effect, frame, context);
+      }
+      return prepare.apply(effect, arguments);
+    };
+    return effect;
+  }
+
   // Single-pass shader filter: the common native-fx shape (one fragment
   // shader, one THREE ShaderPass, per-frame uniform updates).
   // spec: { displayName, properties, fragShaderUrl, fragShader,
-  //         uniforms, defines, update(frame), resize(), onLoad(asset) }
+  //         uniforms, defines, update(frame), resize(), onLoad(effect),
+  //         onUnload(effect) }
   function defineFilter(spec) {
     var effect = this;
     if (!isObject(spec) || !isObject(spec.properties)) {
@@ -167,6 +283,7 @@
     };
 
     effect.unload = function unload() {
+      if (typeof spec.onUnload === "function") spec.onUnload(effect);
       if (effect.vertShader) effect.parentProject.assets.unload(effect.vertShader);
       if (!effect._zoidiumBundledFragShader && effect.fragShader) {
         effect.parentProject.assets.unload(effect.fragShader);
@@ -283,8 +400,12 @@
   var apis = {
     KINDS: KINDS,
     defineTemporal: defineTemporal,
+    defineFrameSampler: defineFrameSampler,
     defineFilter: defineFilter,
     installLifecycleDefaults: installLifecycleDefaults,
+    propertyControls: {
+      register: registerPropertyControl,
+    },
     objects: {
       numberValue: numberValue,
       integerValue: integerValue,

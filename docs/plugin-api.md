@@ -50,10 +50,20 @@ node tools/new-plugin.js --kind=native-fx --template=temporal --id=my-time-fx
 - filter (normal image effect): just call ZoidiumPluginApis.defineFilter
   with the shader URL, uniforms, properties, and update.
   See plugins/native-fx/effects/radialblurspin.js.
+- A filter that needs a direct visual editor can register a renderer with
+  `ZoidiumPluginApis.propertyControls.register()`. Keep a standard CM3 storage
+  type on the property and set its `zoidiumControl` field to the registered id.
+  The renderer stays inside CM3's property list and uses the normal history
+  hooks. See plugins/native-fx/effects/colorcurves.js.
 - temporal (time operation): just call ZoidiumPluginApis.defineTemporal
   with kind time-offset or posterize-time.
   The host (plugins/core/temporal-render.js) applies the operator, so authors
   never touch frames directly. See timeoffset.js and posterizetime.js.
+- frame sampler (multi-frame image effect): call
+  `ZoidiumPluginApis.defineFrameSampler` with properties and a deterministic
+  `getRequest(effect, frame)` function. The core compositor evaluates and
+  reuses the required offscreen targets. The effect only combines the returned
+  textures. See plugins/native-fx/effects/echo.js.
 - Complex multipass effects (such as Drop Shadow) can stay handwritten.
 
 ### object: objectClasses (plus objectTypes)
@@ -90,8 +100,8 @@ Current assumptions:
   Author source trees are never fanned out at runtime.
   Files come from inside the bundle through getAsset.
 - Bundles may reference only repository-local files. Remote URLs are rejected.
-- Temporal effects declare only offset or posterize; arbitrary frame rewrites
-  are not possible.
+- Temporal effects declare only offset or posterize. Frame samplers declare a
+  bounded list of frame offsets; arbitrary frame rewrites are not possible.
 
 Still missing before opening up to community plugins (not implemented):
 

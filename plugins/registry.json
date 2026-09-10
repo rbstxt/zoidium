@@ -51,15 +51,15 @@
       "id": "native-fx",
       "name": "Native FX",
       "author": "Zoidium",
-      "version": "5",
-      "itemCount": 4,
+      "version": "7",
+      "itemCount": 6,
       "format": "native effects",
-      "tagline": "Native Multi-pass Effects",
+      "tagline": "Native Effects and Time Tools",
       "color": "#c56b3d",
-      "description": "Adds native multi-pass effects.",
+      "description": "Adds native filters, direct visual controls, and time effects.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/native-fx/manifest.json?v=5",
-      "bundle": "./plugins/native-fx/bundle.json?v=5"
+      "manifest": "./plugins/native-fx/manifest.json?v=7",
+      "bundle": "./plugins/native-fx/bundle.json?v=7"
     },
     {
       "id": "light-plus",
