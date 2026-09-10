@@ -2,7 +2,7 @@
 
 const EasingPlus = (() => {
   const STYLE_ID = "zoidium-easing-plus-style";
-  const STYLE_URL = "./plugins/easing-plus/easing-plus.css?v=18";
+  const STYLE_URL = "./plugins/easing-plus/easing-plus.css?v=19";
   const EPSILON = 1e-8;
   const BEZIER_TWEEN = 257;
   // Overshoot is an intentional, two-stage gesture.  Keeping these in screen
@@ -20,6 +20,7 @@ const EasingPlus = (() => {
     patchedCorrectCurve: null,
     keydown: null,
     easeButtons: new Set(),
+    displayRows: new Set(),
     originalCreateKeyframeControls: null,
     patchedCreateKeyframeControls: null,
     originalMoveKeyframe: null,
@@ -572,33 +573,15 @@ const EasingPlus = (() => {
     };
   }
 
-  // An Easing+ apply always stores BEZIER_TWEEN with custom handles, so a
-  // following segment that still carries exactly that combination is an
-  // Easing+ leftover. While Bezier interpolation is active the native easing
-  // low byte is ignored, so that leftover would keep overriding (or later
-  // resurrect) the freshly picked normal easing.
-  function isEasingPlusLeftoverSegment(start, end) {
-    if (!start || !end) return false;
-    if (end.tween !== BEZIER_TWEEN) return false;
-    if (!Number.isFinite(start.value) || !Number.isFinite(end.value)) return false;
-    if (!(end.frame > start.frame)) return false;
-    try {
-      return !hasNativeBezierDefaults(start, end);
-    } catch (error) {
-      return false;
-    }
-  }
-
-  // Easing+ owns exactly one segment per keyframe: the outgoing segment from
-  // that keyframe to the next one. While the outgoing segment carries an
-  // Easing+ curve, an interpolation/easing pick made on its first keyframe
-  // targets that outgoing segment (written to the next keyframe with default
-  // handles), so the picked value takes effect during exactly that interval.
-  // Every other pick keeps the native write to the keyframe at the playhead.
-  // Either way one pick touches one segment; the previous segment is never
-  // modified here.
+  // The keyframe row is outgoing-oriented: a pick made while the playhead is
+  // on a keyframe edits the segment from that keyframe to the next one, so
+  // normal easings apply from the current keyframe to the next keyframe,
+  // exactly like Easing+ curves do. Only the final keyframe has no outgoing
+  // segment, so picks there keep the native write to the keyframe itself.
+  // Either way one pick touches exactly one segment; the previous segment
+  // is never modified here.
   function pickTargetForSet(current, next) {
-    return isEasingPlusLeftoverSegment(current, next) ? "outgoing" : "current";
+    return next ? "outgoing" : "current";
   }
 
   function keyframesAround(channel, localFrame) {
@@ -657,13 +640,17 @@ const EasingPlus = (() => {
   }
 
   // Write one picked (interp, ease) pair for a single channel. Returns
-  // "outgoing" when the pick was redirected to the Easing+-owned outgoing
-  // segment and "current" for the native write.
+  // "outgoing" when the pick was redirected to the outgoing segment and
+  // "current" for the native write. A redirected write normalizes the
+  // owned handles to the native defaults so a stale custom curve can never
+  // resurface later; handles that already match the defaults are left alone.
   function executeTweenWrite(propertyOps, address, localFrame, current, next, newInterp, newEase) {
     const pickTween = (newInterp << 8) | newEase;
     if (pickTargetForSet(current, next) === "outgoing") {
       propertyOps.setTween({ property: address, frame: next.frame, tween: pickTween });
-      resetOutgoingHandles(propertyOps, address, current, next);
+      if (!hasNativeBezierDefaults(current, next)) {
+        resetOutgoingHandles(propertyOps, address, current, next);
+      }
       return "outgoing";
     }
     propertyOps.setTween({ property: address, frame: localFrame, tween: pickTween });
@@ -721,13 +708,12 @@ const EasingPlus = (() => {
     const { editor, propertyOps } = context;
     editor.history.startOperation();
     try {
-      // The button display reflects the keyframe at the playhead, so only
-      // update it when at least one channel wrote there. A fully redirected
-      // pick leaves the incoming values (and their display) untouched.
-      let wroteCurrent = false;
+      // The row displays the outgoing segment (see applyOutgoingDisplay), so
+      // the picked value is always what the buttons should show afterwards.
+      let wroteAny = false;
       for (const entry of resolved) {
         try {
-          const target = executeTweenWrite(
+          executeTweenWrite(
             propertyOps,
             entry.address,
             context.localFrame,
@@ -736,12 +722,12 @@ const EasingPlus = (() => {
             value,
             easeValue
           );
-          if (target === "current") wroteCurrent = true;
+          wroteAny = true;
         } catch (error) {
           console.error("Easing+ could not apply the picked interpolation.", error);
         }
       }
-      if (wroteCurrent) this.pz_update(value << 8, true);
+      if (wroteAny) this.pz_update(value << 8, true);
     } finally {
       editor.history.finishOperation();
     }
@@ -761,10 +747,10 @@ const EasingPlus = (() => {
     const { editor, propertyOps } = context;
     editor.history.startOperation();
     try {
-      let wroteCurrent = false;
+      let wroteAny = false;
       for (const entry of resolved) {
         try {
-          const target = executeTweenWrite(
+          executeTweenWrite(
             propertyOps,
             entry.address,
             context.localFrame,
@@ -773,20 +759,117 @@ const EasingPlus = (() => {
             sibling.pz_value,
             value
           );
-          if (target === "current") wroteCurrent = true;
+          wroteAny = true;
         } catch (error) {
           console.error("Easing+ could not apply the picked easing.", error);
         }
       }
-      if (wroteCurrent) this.pz_update(value, true);
+      if (wroteAny) this.pz_update(value, true);
     } finally {
       editor.history.finishOperation();
     }
   }
 
+  // Collect the tween each channel would display under the outgoing rule:
+  // the next keyframe's tween when the playhead is on a keyframe that has
+  // one, otherwise the keyframe's own tween (final keyframe). Channels
+  // without a keyframe at the playhead are skipped, mirroring the native
+  // row update. Returns null when nothing is on the playhead.
+  function resolveDisplayTweens(channels, localFrame) {
+    const shown = [];
+    for (const channel of channels) {
+      const { current, next } = keyframesAround(channel, localFrame);
+      if (!current) continue;
+      const candidate = next ? next.tween : current.tween;
+      if (!Number.isFinite(candidate)) return null;
+      shown.push(candidate);
+    }
+    return shown;
+  }
+
+  // Reapply the outgoing rule to a keyframe row after the native row update
+  // ran. While the playhead is on a keyframe, the interpolation/easing
+  // buttons show the outgoing segment so the display always matches what a
+  // pick would edit. Between keyframes, on the final keyframe, and on any
+  // mismatch between grouped channels, the native result is kept (or the
+  // buttons are hidden on mismatch, exactly like the native update does).
+  // Returns true when the display was overridden.
+  function applyOutgoingDisplay(row) {
+    try {
+      const propertyRow = row?.parentElement?.parentElement;
+      const property = propertyRow?.pz_object;
+      const controls = propertyRow?.parentElement?.pz_controls;
+      const editor = controls?.editor;
+      if (!property || !editor || !window.PZ) return false;
+      let localFrame;
+      try {
+        localFrame = editor.playback.currentFrame - property.frameOffset;
+      } catch (error) {
+        return false;
+      }
+      if (!Number.isFinite(localFrame)) return false;
+      const dynamic = window.PZ.property?.dynamic;
+      const grouped = !!dynamic?.group && property instanceof dynamic.group;
+      const channels =
+        grouped && Array.isArray(property.objects) ? property.objects : [property];
+      const shown = resolveDisplayTweens(channels, localFrame);
+      if (!shown || shown.length === 0) return false;
+      const { interpolationButton, easeButton } = tweenButtonsInRow(row);
+      if (!interpolationButton || !easeButton) return false;
+      const first = shown[0];
+      if (!shown.every((tween) => tween === first)) {
+        interpolationButton.pz_update?.(-1, false);
+        easeButton.pz_update?.(-1, false);
+        return true;
+      }
+      // A channel on its final keyframe contributes its own tween above,
+      // which is exactly what the native update shows, so reaching here
+      // with no next keyframe anywhere reproduces the native display.
+      let visible = true;
+      if (!grouped) visible = !!property.definition?.interpolated;
+      interpolationButton.pz_update?.(first, visible);
+      easeButton.pz_update?.(first, visible);
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  function wrapRowDisplay(row) {
+    if (!row || typeof row.pz_update !== "function" || row.__easingPlusOriginalRowUpdate) {
+      return;
+    }
+    const original = row.pz_update;
+    const patched = function () {
+      const result = original.apply(this, arguments);
+      try {
+        applyOutgoingDisplay(this);
+      } catch (error) {
+        console.error("Easing+ could not refresh the easing display.", error);
+      }
+      return result;
+    };
+    row.__easingPlusOriginalRowUpdate = original;
+    row.__easingPlusPatchedRowUpdate = patched;
+    row.pz_update = patched;
+    state.displayRows.add(row);
+  }
+
+  function unwrapRowDisplay(row) {
+    if (
+      row?.__easingPlusPatchedRowUpdate &&
+      row.pz_update === row.__easingPlusPatchedRowUpdate
+    ) {
+      row.pz_update = row.__easingPlusOriginalRowUpdate;
+    }
+    delete row?.__easingPlusOriginalRowUpdate;
+    delete row?.__easingPlusPatchedRowUpdate;
+  }
+
   function wrapTweenButtonSets(row) {
     const { interpolationButton, easeButton } = tweenButtonsInRow(row);
     if (!interpolationButton || !easeButton) return;
+    wrapRowDisplay(row);
     if (
       typeof interpolationButton.pz_set === "function" &&
       !interpolationButton.__easingPlusPatchedInterpSet
@@ -966,6 +1049,14 @@ const EasingPlus = (() => {
       }
     });
     state.easeButtons.clear();
+    state.displayRows.forEach((row) => {
+      try {
+        unwrapRowDisplay(row);
+      } catch (error) {
+        // A detached row simply skips the restore.
+      }
+    });
+    state.displayRows.clear();
     state.originalCreateKeyframeControls = null;
     state.patchedCreateKeyframeControls = null;
   }
@@ -1709,11 +1800,12 @@ const EasingPlus = (() => {
       overshootForPoints,
       shouldPreserveCrossingX,
       hasNativeBezierDefaults,
-      isEasingPlusLeftoverSegment,
       pickTargetForSet,
       keyframesAround,
       resolveTweenWrites,
       executeTweenWrite,
+      resolveDisplayTweens,
+      applyOutgoingDisplay,
       rescaleSegmentHandles,
       snapshotChannelSegments,
       restoreChannelSegments,

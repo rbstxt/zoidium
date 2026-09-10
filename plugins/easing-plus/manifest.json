@@ -3,19 +3,19 @@
   "id": "easing-plus",
   "name": "Easing+",
   "author": "Zoidium",
-  "version": "18",
+  "version": "19",
   "kind": "extension",
   "resources": [
     {
       "id": "style",
       "type": "text",
-      "source": "./plugins/easing-plus/easing-plus.css?v=18"
+      "source": "./plugins/easing-plus/easing-plus.css?v=19"
     }
   ],
   "modules": [
     {
       "id": "curve-editor",
-      "source": "./plugins/easing-plus/easing-plus.js?v=18"
+      "source": "./plugins/easing-plus/easing-plus.js?v=19"
     }
   ]
 }
