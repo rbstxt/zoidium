@@ -2,7 +2,7 @@
 
 const EasingPlus = (() => {
   const STYLE_ID = "zoidium-easing-plus-style";
-  const STYLE_URL = "./plugins/easing-plus/easing-plus.css?v=17";
+  const STYLE_URL = "./plugins/easing-plus/easing-plus.css?v=18";
   const EPSILON = 1e-8;
   const BEZIER_TWEEN = 257;
   // Overshoot is an intentional, two-stage gesture.  Keeping these in screen
@@ -509,33 +509,19 @@ const EasingPlus = (() => {
       const start = channel.getKeyframe(localFrame);
       if (!start) continue;
 
-      // Easing+ edits the outgoing segment from the current keyframe.  At the
-      // final keyframe there is no outgoing segment, so use the immediately
-      // preceding segment instead.  This keeps the easing button useful on
-      // the final keyframe and matches Panzoid's convention that a keyframe's
-      // tween describes the segment ending at that keyframe.  The preceding
-      // segment's existing curve is still loaded below so reopening the
-      // editor always shows the active interpolation.
-      let segmentStart = start;
-      let end = channel.getNextKeyframe(start.frame);
-      let finalKeyframe = false;
-      if ((!end || end.frame <= start.frame) && start.frame === localFrame) {
-        const previous = channel.getPreviousKeyframe(start.frame);
-        if (previous && previous.frame < start.frame) {
-          segmentStart = previous;
-          end = start;
-          finalKeyframe = true;
-        }
-      }
+      // Easing+ always edits the outgoing segment from the current keyframe
+      // to the next keyframe. The final keyframe has no outgoing segment, so
+      // it keeps the standard control.
+      const end = channel.getNextKeyframe(start.frame);
       if (
         !end ||
-        end.frame <= segmentStart.frame ||
-        !Number.isFinite(segmentStart.value) ||
+        end.frame <= start.frame ||
+        !Number.isFinite(start.value) ||
         !Number.isFinite(end.value)
       ) {
         continue;
       }
-      targets.push({ property: channel, start: segmentStart, end, finalKeyframe });
+      targets.push({ property: channel, start, end });
     }
     if (targets.length === 0) return null;
     return {
@@ -603,22 +589,85 @@ const EasingPlus = (() => {
     }
   }
 
-  function cleanupActionsForSet(oldTween, newInterp, previous, current, next) {
-    const leavingBezier =
-      Number.isFinite(oldTween) && (oldTween >> 8) === 1 && newInterp === 0;
-    let resetIncoming = false;
-    let normalizeOutgoing = false;
-    if (leavingBezier && previous && current && previous.frame < current.frame) {
+  // Easing+ owns exactly one segment per keyframe: the outgoing segment from
+  // that keyframe to the next one. While the outgoing segment carries an
+  // Easing+ curve, an interpolation/easing pick made on its first keyframe
+  // targets that outgoing segment (written to the next keyframe with default
+  // handles), so the picked value takes effect during exactly that interval.
+  // Every other pick keeps the native write to the keyframe at the playhead.
+  // Either way one pick touches one segment; the previous segment is never
+  // modified here.
+  function pickTargetForSet(current, next) {
+    return isEasingPlusLeftoverSegment(current, next) ? "outgoing" : "current";
+  }
+
+  function keyframesAround(channel, localFrame) {
+    let current = null;
+    try {
+      current = channel.getKeyframe?.(localFrame) || null;
+    } catch (error) {
+      current = null;
+    }
+    if (!current) return { current: null, next: null };
+    let next = null;
+    try {
+      next = channel.getNextKeyframe?.(current.frame) || null;
+    } catch (error) {
+      next = null;
+    }
+    if (!next || !(next.frame > current.frame)) next = null;
+    return { current, next };
+  }
+
+  function resolveTweenWrites(context, channels) {
+    const resolved = [];
+    for (const channel of channels) {
       try {
-        resetIncoming = !hasNativeBezierDefaults(previous, current);
+        const { current, next } = keyframesAround(channel, context.localFrame);
+        if (!current) continue;
+        let address = null;
+        try {
+          address = channel.getAddress();
+        } catch (error) {
+          address = null;
+        }
+        if (!address) continue;
+        resolved.push({ channel, address, current, next });
       } catch (error) {
-        resetIncoming = false;
+        console.error("Easing+ could not resolve the edited keyframe.", error);
       }
     }
-    if (newInterp === 0 && isEasingPlusLeftoverSegment(current, next)) {
-      normalizeOutgoing = true;
+    return resolved;
+  }
+
+  function resetOutgoingHandles(propertyOps, address, current, next) {
+    const currentIncoming = current.controlPoints?.[0];
+    const nextOutgoing = next.controlPoints?.[1];
+    if (!Array.isArray(currentIncoming) || !Array.isArray(nextOutgoing)) return;
+    propertyOps.setControlPoints({
+      property: address,
+      frame: current.frame,
+      controlPoints: [currentIncoming.slice(), NATIVE_OUTGOING_DEFAULT.slice()],
+    });
+    propertyOps.setControlPoints({
+      property: address,
+      frame: next.frame,
+      controlPoints: [NATIVE_INCOMING_DEFAULT.slice(), nextOutgoing.slice()],
+    });
+  }
+
+  // Write one picked (interp, ease) pair for a single channel. Returns
+  // "outgoing" when the pick was redirected to the Easing+-owned outgoing
+  // segment and "current" for the native write.
+  function executeTweenWrite(propertyOps, address, localFrame, current, next, newInterp, newEase) {
+    const pickTween = (newInterp << 8) | newEase;
+    if (pickTargetForSet(current, next) === "outgoing") {
+      propertyOps.setTween({ property: address, frame: next.frame, tween: pickTween });
+      resetOutgoingHandles(propertyOps, address, current, next);
+      return "outgoing";
     }
-    return { resetIncoming, normalizeOutgoing };
+    propertyOps.setTween({ property: address, frame: localFrame, tween: pickTween });
+    return "current";
   }
 
   function tweenSetContext(button) {
@@ -657,126 +706,6 @@ const EasingPlus = (() => {
     return [property];
   }
 
-  function snapshotTweens(channels, localFrame) {
-    const before = new Map();
-    for (const channel of channels) {
-      try {
-        const keyframe = channel?.getKeyframe?.(localFrame);
-        if (keyframe && Number.isFinite(keyframe.tween)) before.set(channel, keyframe.tween);
-      } catch (error) {
-        // A channel without a readable tween simply skips the cleanup below.
-      }
-    }
-    return before;
-  }
-
-  function resetIncomingHandles(propertyOps, address, previous, current) {
-    const previousIncoming = previous.controlPoints?.[0];
-    const currentOutgoing = current.controlPoints?.[1];
-    if (!Array.isArray(previousIncoming) || !Array.isArray(currentOutgoing)) return;
-    propertyOps.setControlPoints({
-      property: address,
-      frame: previous.frame,
-      controlPoints: [previousIncoming.slice(), NATIVE_OUTGOING_DEFAULT.slice()],
-    });
-    propertyOps.setControlPoints({
-      property: address,
-      frame: current.frame,
-      controlPoints: [NATIVE_INCOMING_DEFAULT.slice(), currentOutgoing.slice()],
-    });
-  }
-
-  function normalizeOutgoingLeftover(propertyOps, address, current, next, nextTween) {
-    const currentIncoming = current.controlPoints?.[0];
-    const nextOutgoing = next.controlPoints?.[1];
-    if (!Array.isArray(currentIncoming) || !Array.isArray(nextOutgoing)) return;
-    propertyOps.setTween({ property: address, frame: next.frame, tween: nextTween });
-    propertyOps.setControlPoints({
-      property: address,
-      frame: current.frame,
-      controlPoints: [currentIncoming.slice(), NATIVE_OUTGOING_DEFAULT.slice()],
-    });
-    propertyOps.setControlPoints({
-      property: address,
-      frame: next.frame,
-      controlPoints: [NATIVE_INCOMING_DEFAULT.slice(), nextOutgoing.slice()],
-    });
-  }
-
-  // Mirror the native keyframe-controls tween write inside one history
-  // operation, then clear the Easing+ leftovers that would otherwise keep
-  // overriding the picked normal easing. Easing+ edits the outgoing segment
-  // from the current keyframe while the native control writes the keyframe at
-  // the playhead, so leaving Bezier resets the incoming segment's custom
-  // handles and normalizes an outgoing segment that still carries an Easing+
-  // curve. Only the handles owned by the affected segments are touched; the
-  // neighboring segments keep their values.
-  function writeTweenWithCleanup(context, channels, before, newInterp, newEase) {
-    const { editor, propertyOps } = context;
-    editor.history.startOperation();
-    try {
-      for (const channel of channels) {
-        propertyOps.setTween({
-          property: channel.getAddress(),
-          frame: context.localFrame,
-          tween: (newInterp << 8) | newEase,
-        });
-      }
-      for (const channel of channels) {
-        try {
-          const oldTween = before.get(channel);
-          let current = null;
-          try {
-            current = channel.getKeyframe?.(context.localFrame);
-          } catch (error) {
-            current = null;
-          }
-          if (!current) continue;
-          let previous = null;
-          let next = null;
-          try {
-            previous = channel.getPreviousKeyframe?.(current.frame) || null;
-          } catch (error) {
-            previous = null;
-          }
-          try {
-            next = channel.getNextKeyframe?.(current.frame) || null;
-          } catch (error) {
-            next = null;
-          }
-          if (previous && !(previous.frame < current.frame)) previous = null;
-          const actions = cleanupActionsForSet(oldTween, newInterp, previous, current, next);
-          const address = channel.getAddress();
-          if (actions.resetIncoming && previous) {
-            resetIncomingHandles(propertyOps, address, previous, current);
-          }
-          if (actions.normalizeOutgoing && next) {
-            // Re-read after the incoming reset so the preserved handles are fresh.
-            let freshCurrent = current;
-            let freshNext = next;
-            try {
-              freshCurrent = channel.getKeyframe?.(context.localFrame) || current;
-            } catch (error) {
-              freshCurrent = current;
-            }
-            try {
-              freshNext = channel.getNextKeyframe?.(freshCurrent.frame) || next;
-            } catch (error) {
-              freshNext = next;
-            }
-            if (isEasingPlusLeftoverSegment(freshCurrent, freshNext)) {
-              normalizeOutgoingLeftover(propertyOps, address, freshCurrent, freshNext, newEase);
-            }
-          }
-        } catch (error) {
-          console.error("Easing+ could not clear the previous curve.", error);
-        }
-      }
-    } finally {
-      editor.history.finishOperation();
-    }
-  }
-
   function patchedInterpSet(value) {
     const sibling = siblingTweenButton(this);
     const context = sibling ? tweenSetContext(this) : null;
@@ -784,10 +713,38 @@ const EasingPlus = (() => {
       return this.__easingPlusOriginalInterpSet.call(this, value);
     }
     const channels = channelsEditedAtFrame(context.property, context.localFrame);
-    const before = snapshotTweens(channels, context.localFrame);
+    const resolved = resolveTweenWrites(context, channels);
+    if (resolved.length === 0) {
+      return this.__easingPlusOriginalInterpSet.call(this, value);
+    }
     const easeValue = Number.isFinite(sibling.pz_value) ? sibling.pz_value : 0;
-    this.pz_update(value << 8, true);
-    writeTweenWithCleanup(context, channels, before, value, easeValue);
+    const { editor, propertyOps } = context;
+    editor.history.startOperation();
+    try {
+      // The button display reflects the keyframe at the playhead, so only
+      // update it when at least one channel wrote there. A fully redirected
+      // pick leaves the incoming values (and their display) untouched.
+      let wroteCurrent = false;
+      for (const entry of resolved) {
+        try {
+          const target = executeTweenWrite(
+            propertyOps,
+            entry.address,
+            context.localFrame,
+            entry.current,
+            entry.next,
+            value,
+            easeValue
+          );
+          if (target === "current") wroteCurrent = true;
+        } catch (error) {
+          console.error("Easing+ could not apply the picked interpolation.", error);
+        }
+      }
+      if (wroteCurrent) this.pz_update(value << 8, true);
+    } finally {
+      editor.history.finishOperation();
+    }
   }
 
   function patchedEaseSet(value) {
@@ -797,9 +754,34 @@ const EasingPlus = (() => {
       return this.__easingPlusOriginalEaseSet.call(this, value);
     }
     const channels = channelsEditedAtFrame(context.property, context.localFrame);
-    const before = snapshotTweens(channels, context.localFrame);
-    this.pz_update(value, true);
-    writeTweenWithCleanup(context, channels, before, sibling.pz_value, value);
+    const resolved = resolveTweenWrites(context, channels);
+    if (resolved.length === 0) {
+      return this.__easingPlusOriginalEaseSet.call(this, value);
+    }
+    const { editor, propertyOps } = context;
+    editor.history.startOperation();
+    try {
+      let wroteCurrent = false;
+      for (const entry of resolved) {
+        try {
+          const target = executeTweenWrite(
+            propertyOps,
+            entry.address,
+            context.localFrame,
+            entry.current,
+            entry.next,
+            sibling.pz_value,
+            value
+          );
+          if (target === "current") wroteCurrent = true;
+        } catch (error) {
+          console.error("Easing+ could not apply the picked easing.", error);
+        }
+      }
+      if (wroteCurrent) this.pz_update(value, true);
+    } finally {
+      editor.history.finishOperation();
+    }
   }
 
   function wrapTweenButtonSets(row) {
@@ -1537,12 +1519,10 @@ const EasingPlus = (() => {
     document.body.appendChild(shell);
 
     // Always load the edited segment's existing curve so a saved custom
-    // interpolation is shown again when the window is reopened.  For grouped
-    // properties prefer a non-final segment when the group mixes segment
-    // positions, so one channel sitting on its final keyframe cannot reset
-    // the display to Linear while the other channels still carry the edit.
-    const reference =
-      context.targets.find((target) => !target.finalKeyframe) || context.targets[0];
+    // interpolation is shown again when the window is reopened. Every target
+    // shares the playhead as its segment start, so the first target
+    // represents the edited interval.
+    const reference = context.targets[0];
     const initialPoints = curveFromSegment(reference.property, reference.start, reference.end);
     const session = {
       ...context,
@@ -1730,7 +1710,10 @@ const EasingPlus = (() => {
       shouldPreserveCrossingX,
       hasNativeBezierDefaults,
       isEasingPlusLeftoverSegment,
-      cleanupActionsForSet,
+      pickTargetForSet,
+      keyframesAround,
+      resolveTweenWrites,
+      executeTweenWrite,
       rescaleSegmentHandles,
       snapshotChannelSegments,
       restoreChannelSegments,

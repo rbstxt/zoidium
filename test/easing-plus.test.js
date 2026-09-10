@@ -120,42 +120,76 @@ test("isEasingPlusLeftoverSegment matches only Easing+ curves", () => {
   assert.equal(isEasingPlusLeftoverSegment(start, null), false);
 });
 
-test("cleanupActionsForSet clears leftovers when leaving Bezier", () => {
-  const { cleanupActionsForSet } = EasingPlus.__test;
-  const previous = { frame: 0, value: 0, controlPoints: [[0, 0], [10, 5]] };
-  const current = {
+test("pickTargetForSet keeps Easing+ picks on the outgoing segment", () => {
+  const { pickTargetForSet } = EasingPlus.__test;
+  const start = { frame: 0, value: 0, controlPoints: [[0, 0], [10, 5]] };
+  const easingEnd = {
     frame: 30,
     value: 10,
     tween: 257,
-    controlPoints: [[-10, -2], [10, 4]],
+    controlPoints: [[-10, -2], [0, 0]],
   };
+  assert.equal(pickTargetForSet(start, easingEnd), "outgoing");
+  assert.equal(pickTargetForSet(start, { ...easingEnd, tween: 1 }), "current");
+  assert.equal(pickTargetForSet(start, null), "current");
+  assert.equal(
+    pickTargetForSet(
+      { frame: 0, value: 0, controlPoints: [[0, 0], [10, 0]] },
+      { frame: 30, value: 10, tween: 257, controlPoints: [[-10, 0], [0, 0]] }
+    ),
+    "current"
+  );
+});
+
+test("executeTweenWrite redirects Easing+ outgoing picks to the next keyframe", () => {
+  const { executeTweenWrite } = EasingPlus.__test;
+  const calls = [];
+  const propertyOps = {
+    setTween(args) {
+      calls.push({ op: "tween", ...args });
+    },
+    setControlPoints(args) {
+      calls.push({ op: "handles", ...args });
+    },
+  };
+  const current = { frame: 30, value: 10, controlPoints: [[-1, -2], [10, 5]] };
   const next = {
     frame: 60,
     value: 20,
     tween: 257,
-    controlPoints: [[-10, -3], [0, 0]],
+    controlPoints: [[-10, -3], [4, 4]],
   };
-  assert.deepEqual(cleanupActionsForSet(257, 0, previous, current, next), {
-    resetIncoming: true,
-    normalizeOutgoing: true,
-  });
-  assert.deepEqual(cleanupActionsForSet(1, 0, previous, current, next), {
-    resetIncoming: false,
-    normalizeOutgoing: true,
-  });
-  assert.deepEqual(cleanupActionsForSet(257, 1, previous, current, next), {
-    resetIncoming: false,
-    normalizeOutgoing: false,
-  });
-  const freshPrevious = { frame: 0, value: 0, controlPoints: [[0, 0], [10, 0]] };
-  const freshCurrent = {
+  const target = executeTweenWrite(propertyOps, "addr", 30, current, next, 0, 3);
+  assert.equal(target, "outgoing");
+  assert.equal(calls.length, 3);
+  assert.deepEqual(calls[0], { op: "tween", property: "addr", frame: 60, tween: 3 });
+  assert.deepEqual(calls[1], {
+    op: "handles",
+    property: "addr",
     frame: 30,
-    value: 10,
-    tween: 257,
-    controlPoints: [[-10, 0], [10, 0]],
-  };
-  assert.deepEqual(cleanupActionsForSet(257, 0, freshPrevious, freshCurrent, null), {
-    resetIncoming: false,
-    normalizeOutgoing: false,
+    controlPoints: [[-1, -2], [10, 0]],
   });
+  assert.deepEqual(calls[2], {
+    op: "handles",
+    property: "addr",
+    frame: 60,
+    controlPoints: [[-10, 0], [4, 4]],
+  });
+});
+
+test("executeTweenWrite keeps native picks on the current keyframe", () => {
+  const { executeTweenWrite } = EasingPlus.__test;
+  const calls = [];
+  const propertyOps = {
+    setTween(args) {
+      calls.push({ op: "tween", ...args });
+    },
+    setControlPoints(args) {
+      calls.push({ op: "handles", ...args });
+    },
+  };
+  const current = { frame: 30, value: 10, controlPoints: [[0, 0], [10, 0]] };
+  const target = executeTweenWrite(propertyOps, "addr", 30, current, null, 0, 3);
+  assert.equal(target, "current");
+  assert.deepEqual(calls, [{ op: "tween", property: "addr", frame: 30, tween: 3 }]);
 });

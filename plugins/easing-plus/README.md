@@ -24,12 +24,14 @@ values flattens its Y handles so it keeps playing still. Fresh native Bezier
 handles (`[10, 0]` / `[-10, 0]`) and segments formed by reordering keyframes
 keep native behavior.
 
-Picking a normal easing (or toggling interpolation back to linear) clears the
-Easing+ leftovers that would otherwise keep overriding the choice. The incoming
-segment's custom handles return to the native defaults, and an outgoing segment
-that still carries an Easing+ curve is normalized to the picked easing with
-default handles, all inside the same undoable operation. Other segments keep
-their values.
+Picking a normal easing (or toggling interpolation back to linear) while the
+playhead is on a keyframe whose outgoing segment still carries an Easing+
+curve applies the pick to that outgoing segment: the picked easing is written
+to the next keyframe with default handles, so it takes effect during exactly
+that interval. Every other pick keeps the native write to the keyframe at the
+playhead. Either way one pick touches exactly one segment, so the previous
+segment is never modified. The final keyframe has no outgoing segment, so it
+keeps the standard control.
 
 Both handle X coordinates move independently across the full 0–1 interval.
 While Easing+ is enabled, the editor preserves crossing handles for normalized
