@@ -13,32 +13,35 @@
     return Number.isFinite(Number(value)) ? Number(value) : fallback;
   }
 
-  function clampLocalFrame(frame, clipLength) {
-    const value = Math.max(0, finiteNumber(frame, 0));
-    if (!(clipLength > 0)) return value;
-    return Math.min(value, Math.max(0, clipLength - EPSILON));
+  function clampLocalFrame(frame, clipLength, extrapolate) {
+    const value = finiteNumber(frame, 0);
+    if (extrapolate) return value;
+    const clamped = Math.max(0, value);
+    if (!(clipLength > 0)) return clamped;
+    return Math.min(clamped, Math.max(0, clipLength - EPSILON));
   }
 
-  function quantizeLocalFrame(localFrame, projectRate, targetRate) {
+  function quantizeLocalFrame(localFrame, projectRate, targetRate, extrapolate) {
     const rate = finiteNumber(projectRate, 30);
     const fps = finiteNumber(targetRate, 0);
-    if (!(rate > 0) || !(fps > 0)) return Math.max(0, finiteNumber(localFrame, 0));
+    const input = finiteNumber(localFrame, 0);
+    if (!(rate > 0) || !(fps > 0)) return extrapolate ? input : Math.max(0, input);
 
-    const seconds = Math.max(0, finiteNumber(localFrame, 0)) / rate;
+    const seconds = (extrapolate ? input : Math.max(0, input)) / rate;
     const quantizedSeconds = Math.floor(seconds * fps + EPSILON) / fps;
     return quantizedSeconds * rate;
   }
 
-  function applyTemporalOperators(localFrame, projectRate, operators, clipLength) {
-    let result = clampLocalFrame(localFrame, clipLength);
+  function applyTemporalOperators(localFrame, projectRate, operators, clipLength, extrapolate) {
+    let result = clampLocalFrame(localFrame, clipLength, extrapolate);
     for (const operator of operators || []) {
       if (!operator || operator.enabled === false) continue;
       if (operator.kind === "time-offset") {
         result += finiteNumber(operator.offsetFrames, 0);
       } else if (operator.kind === "posterize-time") {
-        result = quantizeLocalFrame(result, projectRate, operator.fps);
+        result = quantizeLocalFrame(result, projectRate, operator.fps, extrapolate);
       }
-      result = clampLocalFrame(result, clipLength);
+      result = clampLocalFrame(result, clipLength, extrapolate);
     }
     return result;
   }
@@ -50,6 +53,7 @@
     scopeOperators,
     clipLength,
     clipStart,
+    extrapolate,
   ) {
     const start = finiteNumber(clipStart, 0);
     const sourceLocalFrame = applyTemporalOperators(
@@ -57,13 +61,16 @@
       projectRate,
       operators,
       clipLength,
+      extrapolate,
     );
     const sourceProjectFrame = applyTemporalOperators(
       start + sourceLocalFrame,
       projectRate,
       scopeOperators,
+      undefined,
+      extrapolate,
     );
-    return clampLocalFrame(sourceProjectFrame - start, clipLength);
+    return clampLocalFrame(sourceProjectFrame - start, clipLength, extrapolate);
   }
 
   function getSequenceForLayer(layer) {
@@ -99,6 +106,32 @@
   function isSceneLayer(layer) {
     const SceneLayer = typeof PZ !== "undefined" ? PZ.layer?.scene : null;
     return Boolean(SceneLayer && layer instanceof SceneLayer);
+  }
+
+  function isExtrapolatableLayer(layer) {
+    // Procedural layers (Scene, Adjustment) can evaluate beyond their clip
+    // out-point: shader time keeps running and keyframed properties hold
+    // their end values. Media-backed content still clamps (freeze) because
+    // there are no frames beyond the media duration. Video texture seeks
+    // clamp independently in video-frame-export.js.
+    return isSceneLayer(layer) || isAdjustmentLayer(layer);
+  }
+
+  function findScheduleItemAtFrame(schedule, projectFrame) {
+    const items = schedule?.items;
+    if (!items || typeof items.length !== "number") return null;
+    if (!Number.isFinite(projectFrame)) return null;
+    const padding = finiteNumber(schedule?.padding, 0);
+    for (let index = 0; index < items.length; index += 1) {
+      const item = items[index];
+      if (!item) continue;
+      const start = finiteNumber(item.start, 0);
+      const length = finiteNumber(item.length, 0);
+      if (projectFrame >= start - padding && projectFrame < start + length) {
+        return { item, index };
+      }
+    }
+    return null;
   }
 
   function getVideoTrackIndex(sequence, layer) {
@@ -173,6 +206,7 @@
       scopeOperators,
       finiteNumber(clip?.length, 0),
       finiteNumber(clip?.start, 0),
+      true,
     );
   }
 
@@ -225,9 +259,15 @@
     const clip = getClipForLayer(layer);
     if (!isTopLevelClipLayer(layer, clip)) return null;
 
+    const rawLocalFrame = finiteNumber(localFrame, 0);
+    const outputProjectFrame = finiteNumber(clip.start, 0) + rawLocalFrame;
+    // The clip contributes nothing when the output frame is outside its
+    // range (its track layer is null and the compositor skips it). Mapping
+    // such frames would make hidden clips visible at a warped end-state.
+    if (!isClipActiveAtProjectFrame(clip, outputProjectFrame)) return null;
+
     const projectRate = getProjectRate(layer, sequence);
-    const outputLocalFrame = Math.max(0, finiteNumber(localFrame, 0));
-    const outputProjectFrame = finiteNumber(clip.start, 0) + outputLocalFrame;
+    const outputLocalFrame = rawLocalFrame;
     const operators = isAdjustmentLayer(layer)
       ? []
       : readTemporalOperators(layer, outputLocalFrame);
@@ -238,13 +278,15 @@
     );
     if (operators.length === 0 && scopeOperators.length === 0) return null;
 
+    const extrapolate = isExtrapolatableLayer(layer);
     const sourceFrame = mapTemporalFrameWithScopes(
-      localFrame,
+      rawLocalFrame,
       projectRate,
       operators,
       scopeOperators,
       finiteNumber(clip.length, 0),
       finiteNumber(clip.start, 0),
+      extrapolate,
     );
     return {
       clip,
@@ -256,10 +298,17 @@
   }
 
   function getScheduleSourceFrame(schedule, projectFrame) {
-    const clip = schedule?.currentItem?.clip;
+    if (!Number.isFinite(projectFrame)) return projectFrame;
+    // Use the item active at the output frame. Reading currentItem here
+    // would return the previous frame's item because the original prepare()
+    // has not run yet for this frame, which breaks mappings at clip
+    // boundaries.
+    const found = findScheduleItemAtFrame(schedule, projectFrame);
+    const clip = found?.item?.clip || schedule?.currentItem?.clip;
+    if (!found || !clip) return projectFrame;
     const layer = clip?.object;
-    if (!layer || !Number.isFinite(projectFrame)) return projectFrame;
-    const sequence = schedule?.currentItem?.clip?.parentProject?.sequence || null;
+    if (!layer) return projectFrame;
+    const sequence = clip?.parentProject?.sequence || null;
     const localFrame = projectFrame - finiteNumber(clip.start, 0);
     const mapped = getTemporalLayerFrame(layer, localFrame, sequence);
     return mapped ? mapped.projectFrame : projectFrame;
@@ -430,8 +479,43 @@
     state.schedulePrototype = prototype;
     state.originalSchedulePrepare = prototype.prepare;
     prototype.prepare = async function temporalSchedulePrepare(projectFrame) {
+      const args = Array.prototype.slice.call(arguments, 1);
+      const found = findScheduleItemAtFrame(this, projectFrame);
+      if (found?.item?.clip) {
+        const clip = found.item.clip;
+        const layer = clip?.object;
+        const sequence = clip?.parentProject?.sequence || null;
+        const localFrame = projectFrame - finiteNumber(clip.start, 0);
+        const mapped = layer ? getTemporalLayerFrame(layer, localFrame, sequence) : null;
+        const isProceduralSchedule =
+          this.type === PZ.schedule?.type?.NONE || !found.item.media;
+        if (mapped && isProceduralSchedule) {
+          // Procedural clips (Scene/Adjustment) can render beyond their
+          // out-point. The original prepare() would look up the schedule at
+          // the warped source frame, find no item, and leave the previous
+          // frame on screen (a long freeze). Evaluate the output-active
+          // clip directly at the warped source frame instead.
+          this.currentItem = found.item;
+          const itemIndex = Array.prototype.indexOf.call(this.items, found.item);
+          if (Number.isInteger(itemIndex) && itemIndex >= 0) this.index = itemIndex;
+          try {
+            clip.update(mapped.projectFrame);
+          } catch (_error) {
+            // A failing procedural update must not break the export loop.
+          }
+          try {
+            if (typeof clip.prepare === "function") await clip.prepare(mapped.projectFrame, args[0]);
+          } catch (_error) {
+            // Ignore prepare failures here; the compositor still renders.
+          }
+          return;
+        }
+        if (mapped) {
+          return state.originalSchedulePrepare.call(this, mapped.projectFrame, ...args);
+        }
+      }
       const sourceFrame = getScheduleSourceFrame(this, projectFrame);
-      return state.originalSchedulePrepare.call(this, sourceFrame, ...Array.prototype.slice.call(arguments, 1));
+      return state.originalSchedulePrepare.call(this, sourceFrame, ...args);
     };
     Object.defineProperty(prototype, SCHEDULE_PREPARE_MARKER, {
       configurable: true,
@@ -532,6 +616,8 @@
     module.exports = {
       applyTemporalOperators,
       clampLocalFrame,
+      findScheduleItemAtFrame,
+      isClipActiveAtProjectFrame,
       mapTemporalFrameWithScopes,
       quantizeLocalFrame,
     };

@@ -51,6 +51,11 @@
       "phase": "pre-init"
     },
     {
+      "id": "io-serialization",
+      "source": "./plugins/core/io-serialization.js",
+      "phase": "pre-init"
+    },
+    {
       "id": "export-fps",
       "source": "./plugins/core/export-fps.js",
       "phase": "pre-init"

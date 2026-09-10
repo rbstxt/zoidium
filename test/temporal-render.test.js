@@ -5,6 +5,8 @@ const test = require("node:test");
 const {
   applyTemporalOperators,
   clampLocalFrame,
+  findScheduleItemAtFrame,
+  isClipActiveAtProjectFrame,
   mapTemporalFrameWithScopes,
   quantizeLocalFrame,
 } = require("../plugins/core/temporal-render");
@@ -97,4 +99,68 @@ test("a temporal effect can remap an earlier effect's evaluation frame", () => {
     ),
     2.5,
   );
+});
+
+test("procedural layers extrapolate beyond their out-point instead of freezing", () => {
+  // project (26).pz: sequence length 1115, Time Offset ramps to +480.
+  // At output local 800 the warped source is 1280, past the 1115 end.
+  const frozen = mapTemporalFrameWithScopes(
+    800,
+    60,
+    [],
+    [{ kind: "time-offset", offsetFrames: 480 }],
+    1115,
+    0,
+  );
+  assert.ok(frozen < 1115, "media path still clamps");
+
+  const extrapolated = mapTemporalFrameWithScopes(
+    800,
+    60,
+    [],
+    [{ kind: "time-offset", offsetFrames: 480 }],
+    1115,
+    0,
+    true,
+  );
+  assert.equal(extrapolated, 1280);
+});
+
+test("extrapolation also allows negative sources for procedural layers", () => {
+  assert.equal(
+    applyTemporalOperators(4, 30, [{ kind: "time-offset", offsetFrames: -20 }], 30, true),
+    -16,
+  );
+  assert.equal(clampLocalFrame(-4, 30, true), -4);
+  assert.equal(
+    mapTemporalFrameWithScopes(4, 30, [], [{ kind: "time-offset", offsetFrames: -10 }], 30, 0, true),
+    -6,
+  );
+});
+
+test("schedule lookup uses the output frame instead of a stale currentItem", () => {
+  const clipA = { start: 0, length: 780 };
+  const clipB = { start: 780, length: 335 };
+  const schedule = {
+    padding: 0,
+    currentItem: { clip: clipA, start: 0, length: 780 },
+    items: [
+      { clip: clipA, start: 0, length: 780 },
+      { clip: clipB, start: 780, length: 335 },
+    ],
+  };
+  // At output 780 the stale currentItem still points at clip A, but the
+  // output-active item is clip B.
+  assert.equal(findScheduleItemAtFrame(schedule, 779).item.clip, clipA);
+  assert.equal(findScheduleItemAtFrame(schedule, 780).item.clip, clipB);
+  assert.equal(findScheduleItemAtFrame(schedule, 1114).item.clip, clipB);
+  assert.equal(findScheduleItemAtFrame(schedule, 1115), null);
+});
+
+test("inactive clips are not temporally mapped", () => {
+  const clip = { start: 780, length: 335 };
+  assert.equal(isClipActiveAtProjectFrame(clip, 779), false);
+  assert.equal(isClipActiveAtProjectFrame(clip, 780), true);
+  assert.equal(isClipActiveAtProjectFrame(clip, 1114), true);
+  assert.equal(isClipActiveAtProjectFrame(clip, 1115), false);
 });

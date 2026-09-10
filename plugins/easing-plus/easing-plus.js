@@ -2,7 +2,7 @@
 
 const EasingPlus = (() => {
   const STYLE_ID = "zoidium-easing-plus-style";
-  const STYLE_URL = "./plugins/easing-plus/easing-plus.css?v=11";
+  const STYLE_URL = "./plugins/easing-plus/easing-plus.css?v=16";
   const EPSILON = 1e-8;
   const BEZIER_TWEEN = 257;
   // Overshoot is an intentional, two-stage gesture.  Keeping these in screen
@@ -22,6 +22,17 @@ const EasingPlus = (() => {
     easeButtons: new Set(),
     originalCreateKeyframeControls: null,
     patchedCreateKeyframeControls: null,
+    originalMoveKeyframe: null,
+    patchedMoveKeyframe: null,
+    originalSetValue: null,
+    patchedSetValue: null,
+    originalStartMove: null,
+    patchedStartMove: null,
+    originalFinishMove: null,
+    patchedFinishMove: null,
+    originalScaleKeyframes: null,
+    patchedScaleKeyframes: null,
+    pendingDragShapes: new Map(),
   };
 
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -189,9 +200,286 @@ const EasingPlus = (() => {
     const incomingControlX = 1 + incomingX / duration;
     const outgoingValue = mapper.toActual(outgoingControlX, from.y + from.outY);
     const incomingValue = mapper.toActual(incomingControlX, to.y + to.inY);
-    planned[0].outgoing = [outgoingX, outgoingValue - start.value];
-    planned[1].incoming = [incomingX, incomingValue - end.value];
+    if (mapper.equal) {
+      // Panzoid evaluates Bezier handles as absolute value offsets, so any
+      // nonzero Y handle on an equal-value segment plays back as an
+      // out-and-back motion.  Every other interpolation stays still when the
+      // values match, so Easing+ stores zero Y offsets here: the segment
+      // always plays flat at its value, whatever curve is drawn.
+      planned[0].outgoing = [outgoingX, 0];
+      planned[1].incoming = [incomingX, 0];
+    } else {
+      planned[0].outgoing = [outgoingX, outgoingValue - start.value];
+      planned[1].incoming = [incomingX, incomingValue - end.value];
+    }
     return { frames, points: planned, equalValues: mapper.equal, valueScale: mapper.scale };
+  }
+
+  // Panzoid stores Bezier handles as absolute frame/value offsets, so moving
+  // a keyframe without touching the handles deforms the normalized curve.
+  // While Easing+ is active, keyframe moves rescale the handles of affected
+  // Bezier segments instead, preserving the edited shape.
+  function rescaleSegmentHandles(before, after, handles) {
+    const beforeDuration = before?.duration;
+    const afterDuration = after?.duration;
+    if (!(beforeDuration > 0) || !(afterDuration > 0)) return null;
+    const outX = handles?.outX;
+    const outY = handles?.outY;
+    const inX = handles?.inX;
+    const inY = handles?.inY;
+    if (![outX, outY, inX, inY].every(Number.isFinite)) return null;
+    const beforeDelta = before?.delta;
+    const afterDelta = after?.delta;
+    if (!Number.isFinite(beforeDelta) || !Number.isFinite(afterDelta)) return null;
+    const xScale = afterDuration / beforeDuration;
+    const beforeEqual = Math.abs(beforeDelta) <= EPSILON;
+    const afterEqual = Math.abs(afterDelta) <= EPSILON;
+    let newOutY = outY;
+    let newInY = inY;
+    if (!beforeEqual && !afterEqual) {
+      const yScale = afterDelta / beforeDelta;
+      newOutY = outY * yScale;
+      newInY = inY * yScale;
+    } else if (!beforeEqual && afterEqual) {
+      // Collapsing to equal values flattens the segment so it keeps playing
+      // still, matching what Easing+ stores for equal values.
+      newOutY = 0;
+      newInY = 0;
+    }
+    // Equal-to-anything keeps Y absolute (flat zeros stay zero), so the
+    // previous timing is retained while the curve re-diverges or stays flat.
+    return { outX: outX * xScale, outY: newOutY, inX: inX * xScale, inY: newInY };
+  }
+
+  function easingChannelsOf(target) {
+    if (!target) return [];
+    const dynamic = window.PZ?.property?.dynamic;
+    if (dynamic?.keyframes && target instanceof dynamic.keyframes) return [target];
+    if (dynamic?.group && target instanceof dynamic.group && Array.isArray(target.objects)) {
+      return target.objects.filter((entry) => entry instanceof dynamic.keyframes);
+    }
+    if (Array.isArray(target.objects)) {
+      return target.objects.filter((entry) => Array.isArray(entry?.keyframes));
+    }
+    if (Array.isArray(target.keyframes)) return [target];
+    return [];
+  }
+
+  function snapshotChannelSegments(channel) {
+    const keyframes = channel?.keyframes;
+    if (!Array.isArray(keyframes) || keyframes.length < 2) return [];
+    const sorted = [...keyframes].sort((a, b) => a.frame - b.frame);
+    const entries = [];
+    for (let index = 0; index < sorted.length - 1; index += 1) {
+      const start = sorted[index];
+      const end = sorted[index + 1];
+      if (!(end.frame - start.frame > 0)) continue;
+      if (!Number.isFinite(end.tween) || end.tween >> 8 !== 1) continue;
+      if (!Number.isFinite(start.value) || !Number.isFinite(end.value)) continue;
+      const outgoing = start.controlPoints?.[1];
+      const incoming = end.controlPoints?.[0];
+      if (!Array.isArray(outgoing) || !Array.isArray(incoming)) continue;
+      if (![...outgoing, ...incoming].every(Number.isFinite)) continue;
+      // Fresh native Bezier handles stay absolute; Easing+ keeps presenting
+      // them as the neutral Linear default.
+      if (hasNativeBezierDefaults(start, end)) continue;
+      entries.push({
+        start,
+        end,
+        duration: end.frame - start.frame,
+        delta: end.value - start.value,
+        outX: outgoing[0],
+        outY: outgoing[1],
+        inX: incoming[0],
+        inY: incoming[1],
+      });
+    }
+    return entries;
+  }
+
+  function restoreChannelSegments(channel, snapshot) {
+    if (!snapshot || snapshot.length === 0) return;
+    const keyframes = channel?.keyframes;
+    if (!Array.isArray(keyframes) || keyframes.length < 2) return;
+    const sorted = [...keyframes].sort((a, b) => a.frame - b.frame);
+    const touched = new Set();
+    for (let index = 0; index < sorted.length - 1; index += 1) {
+      const start = sorted[index];
+      const end = sorted[index + 1];
+      if (!(end.frame - start.frame > 0)) continue;
+      if (!Number.isFinite(end.tween) || end.tween >> 8 !== 1) continue;
+      if (!Number.isFinite(start.value) || !Number.isFinite(end.value)) continue;
+      const before = snapshot.find((entry) => entry.start === start && entry.end === end);
+      // Segments formed by reordering or fresh keyframes keep native behavior.
+      if (!before) continue;
+      const rescaled = rescaleSegmentHandles(
+        { duration: before.duration, delta: before.delta },
+        { duration: end.frame - start.frame, delta: end.value - start.value },
+        { outX: before.outX, outY: before.outY, inX: before.inX, inY: before.inY }
+      );
+      if (!rescaled) continue;
+      const outgoing = start.controlPoints?.[1];
+      const incoming = end.controlPoints?.[0];
+      if (!Array.isArray(outgoing) || !Array.isArray(incoming)) continue;
+      if (
+        Math.abs(outgoing[0] - rescaled.outX) <= 1e-9 &&
+        Math.abs(outgoing[1] - rescaled.outY) <= 1e-9 &&
+        Math.abs(incoming[0] - rescaled.inX) <= 1e-9 &&
+        Math.abs(incoming[1] - rescaled.inY) <= 1e-9
+      ) {
+        continue;
+      }
+      outgoing[0] = rescaled.outX;
+      outgoing[1] = rescaled.outY;
+      incoming[0] = rescaled.inX;
+      incoming[1] = rescaled.inY;
+      touched.add(start);
+      touched.add(end);
+    }
+    // The surrounding move already pushed its history command; these direct
+    // mutations fold the shape preservation into the same undoable step, and
+    // undo re-runs the wrapped operation so the ratios invert back.
+    touched.forEach((keyframe) => {
+      try {
+        channel.onKeyframeChanged?.update?.(keyframe);
+      } catch (error) {
+        // Never break a native keyframe move for a notification failure.
+      }
+    });
+  }
+
+  function snapshotForAddress(propertyOps, address) {
+    try {
+      const target = propertyOps?.editor?.project?.addressLookup(address);
+      return easingChannelsOf(target).map((channel) => ({
+        channel,
+        segments: snapshotChannelSegments(channel),
+      }));
+    } catch (error) {
+      return [];
+    }
+  }
+
+  function restoreSnapshots(snapshots) {
+    if (!Array.isArray(snapshots)) return;
+    for (const entry of snapshots) {
+      try {
+        restoreChannelSegments(entry.channel, entry.segments);
+      } catch (error) {
+        console.error("Easing+ could not preserve the curve shape.", error);
+      }
+    }
+  }
+
+  function installShapePreservation() {
+    const properties = window.PZ?.ui?.properties?.prototype;
+    if (properties && typeof properties.moveKeyframe === "function" && !state.patchedMoveKeyframe) {
+      state.originalMoveKeyframe = properties.moveKeyframe;
+      state.patchedMoveKeyframe = function (argument) {
+        const snapshots = snapshotForAddress(this, argument?.property);
+        const result = state.originalMoveKeyframe.apply(this, arguments);
+        restoreSnapshots(snapshots);
+        return result;
+      };
+      properties.moveKeyframe = state.patchedMoveKeyframe;
+    }
+    if (properties && typeof properties.setValue === "function" && !state.patchedSetValue) {
+      state.originalSetValue = properties.setValue;
+      state.patchedSetValue = function (argument) {
+        const snapshots = snapshotForAddress(this, argument?.property);
+        const result = state.originalSetValue.apply(this, arguments);
+        restoreSnapshots(snapshots);
+        return result;
+      };
+      properties.setValue = state.patchedSetValue;
+    }
+    if (properties && typeof properties.startMove === "function" && !state.patchedStartMove) {
+      state.originalStartMove = properties.startMove;
+      state.patchedStartMove = function (channel, count) {
+        try {
+          for (const entry of easingChannelsOf(channel)) {
+            state.pendingDragShapes.set(entry, snapshotChannelSegments(entry));
+          }
+        } catch (error) {
+          // Never break a native drag for a snapshot failure.
+        }
+        return state.originalStartMove.apply(this, arguments);
+      };
+      properties.startMove = state.patchedStartMove;
+    }
+    if (properties && typeof properties.finishMove === "function" && !state.patchedFinishMove) {
+      state.originalFinishMove = properties.finishMove;
+      state.patchedFinishMove = function (channel) {
+        const result = state.originalFinishMove.apply(this, arguments);
+        try {
+          for (const entry of easingChannelsOf(channel)) {
+            const snapshot = state.pendingDragShapes.get(entry);
+            if (snapshot) {
+              restoreChannelSegments(entry, snapshot);
+              state.pendingDragShapes.delete(entry);
+            }
+          }
+        } catch (error) {
+          console.error("Easing+ could not preserve the curve shape.", error);
+        }
+        return result;
+      };
+      properties.finishMove = state.patchedFinishMove;
+    }
+    const keyframesPrototype = window.PZ?.property?.dynamic?.keyframes?.prototype;
+    if (
+      keyframesPrototype &&
+      typeof keyframesPrototype.scaleKeyframes === "function" &&
+      !state.patchedScaleKeyframes
+    ) {
+      state.originalScaleKeyframes = keyframesPrototype.scaleKeyframes;
+      state.patchedScaleKeyframes = function () {
+        const snapshot = snapshotChannelSegments(this);
+        const result = state.originalScaleKeyframes.apply(this, arguments);
+        try {
+          restoreChannelSegments(this, snapshot);
+        } catch (error) {
+          console.error("Easing+ could not preserve the curve shape.", error);
+        }
+        return result;
+      };
+      keyframesPrototype.scaleKeyframes = state.patchedScaleKeyframes;
+    }
+  }
+
+  function uninstallShapePreservation() {
+    const properties = window.PZ?.ui?.properties?.prototype;
+    if (properties && state.patchedMoveKeyframe && properties.moveKeyframe === state.patchedMoveKeyframe) {
+      properties.moveKeyframe = state.originalMoveKeyframe;
+    }
+    if (properties && state.patchedSetValue && properties.setValue === state.patchedSetValue) {
+      properties.setValue = state.originalSetValue;
+    }
+    if (properties && state.patchedStartMove && properties.startMove === state.patchedStartMove) {
+      properties.startMove = state.originalStartMove;
+    }
+    if (properties && state.patchedFinishMove && properties.finishMove === state.patchedFinishMove) {
+      properties.finishMove = state.originalFinishMove;
+    }
+    const keyframesPrototype = window.PZ?.property?.dynamic?.keyframes?.prototype;
+    if (
+      keyframesPrototype &&
+      state.patchedScaleKeyframes &&
+      keyframesPrototype.scaleKeyframes === state.patchedScaleKeyframes
+    ) {
+      keyframesPrototype.scaleKeyframes = state.originalScaleKeyframes;
+    }
+    state.originalMoveKeyframe = null;
+    state.patchedMoveKeyframe = null;
+    state.originalSetValue = null;
+    state.patchedSetValue = null;
+    state.originalStartMove = null;
+    state.patchedStartMove = null;
+    state.originalFinishMove = null;
+    state.patchedFinishMove = null;
+    state.originalScaleKeyframes = null;
+    state.patchedScaleKeyframes = null;
+    state.pendingDragShapes.clear();
   }
 
   function resolveTargets(button) {
@@ -225,7 +513,9 @@ const EasingPlus = (() => {
       // final keyframe there is no outgoing segment, so use the immediately
       // preceding segment instead.  This keeps the easing button useful on
       // the final keyframe and matches Panzoid's convention that a keyframe's
-      // tween describes the segment ending at that keyframe.
+      // tween describes the segment ending at that keyframe.  The preceding
+      // segment's existing curve is still loaded below so reopening the
+      // editor always shows the active interpolation.
       let segmentStart = start;
       let end = channel.getNextKeyframe(start.frame);
       let finalKeyframe = false;
@@ -253,7 +543,6 @@ const EasingPlus = (() => {
       property,
       localFrame,
       targets,
-      defaultCurve: targets.some((target) => target.finalKeyframe),
     };
   }
 
@@ -949,13 +1238,14 @@ const EasingPlus = (() => {
       </section>`;
     document.body.appendChild(shell);
 
-    const first = context.targets[0];
-    // A final-keyframe click edits the preceding segment, but should not
-    // inherit that segment's existing easing.  Start from the normal default
-    // curve so the editor opens in a predictable, neutral state.
-    const initialPoints = context.defaultCurve
-      ? clonePoints(PRESETS[0].points)
-      : curveFromSegment(first.property, first.start, first.end);
+    // Always load the edited segment's existing curve so a saved custom
+    // interpolation is shown again when the window is reopened.  For grouped
+    // properties prefer a non-final segment when the group mixes segment
+    // positions, so one channel sitting on its final keyframe cannot reset
+    // the display to Linear while the other channels still carry the edit.
+    const reference =
+      context.targets.find((target) => !target.finalKeyframe) || context.targets[0];
+    const initialPoints = curveFromSegment(reference.property, reference.start, reference.end);
     const session = {
       ...context,
       root: shell,
@@ -1093,6 +1383,7 @@ const EasingPlus = (() => {
     };
     window.PZ.editor.showEaseDropDown = state.patchedEaseDropDown;
     installEaseButtonLabels();
+    installShapePreservation();
     state.keydown = (event) => {
       if (event.key === "Escape" && state.dialog) {
         event.preventDefault();
@@ -1107,6 +1398,7 @@ const EasingPlus = (() => {
     if (!state.active) return;
     closeDialog();
     uninstallEaseButtonLabels();
+    uninstallShapePreservation();
     if (window.PZ?.editor?.showEaseDropDown === state.patchedEaseDropDown) {
       window.PZ.editor.showEaseDropDown = state.originalEaseDropDown;
     }
@@ -1139,6 +1431,9 @@ const EasingPlus = (() => {
       overshootForPoints,
       shouldPreserveCrossingX,
       hasNativeBezierDefaults,
+      rescaleSegmentHandles,
+      snapshotChannelSegments,
+      restoreChannelSegments,
       PRESETS,
     },
   };

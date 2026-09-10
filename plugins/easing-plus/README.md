@@ -8,12 +8,21 @@ segment's first keyframe. The compact editor opens beside the easing button and
 commits edits as one undoable operation when it is closed.
 
 The editor works in normalized 0–1 coordinates, then converts the two handles to
-Panzoid's frame-relative and value-relative `controlPoints` representation. For
-equal start/end values, it stores the curve as a deviation from the linear
-baseline (`y - x`). A linear curve therefore stays still, while a non-linear
-curve creates a finite out-and-back motion without dividing by a zero value span.
-CM3 Bezier handles open as the normalized Linear default
-(`0.333, 0.333, 0.667, 0.667`) so the initial curve does not depend on segment length.
+Panzoid's frame-relative and value-relative `controlPoints` representation.
+Panzoid evaluates Bezier handles as absolute offsets, so any nonzero Y handle on
+an equal-value segment would play back as an out-and-back motion. Easing+ instead
+stores zero Y offsets there, so the segment always plays flat at its value, like
+every other interpolation. CM3 Bezier handles open as the normalized Linear
+default (`0.333, 0.333, 0.667, 0.667`) so the initial curve does not depend on
+segment length.
+
+While Easing+ is enabled, moving a keyframe (or changing its value) rescales the
+absolute handles of the affected Bezier segments instead of leaving them in
+place, so the normalized curve keeps its shape: handle X scales with the segment
+duration and handle Y scales with the value span. Collapsing a segment to equal
+values flattens its Y handles so it keeps playing still. Fresh native Bezier
+handles (`[10, 0]` / `[-10, 0]`) and segments formed by reordering keyframes
+keep native behavior.
 
 Both handle X coordinates move independently across the full 0–1 interval.
 While Easing+ is enabled, the editor preserves crossing handles for normalized
