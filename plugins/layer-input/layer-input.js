@@ -829,6 +829,20 @@ const LayerInput = (() => {
     }
   }
 
+  // The shader effect turns every static custom property into a
+  // material.defines entry, which THREE emits as "#define <name> <value>". A
+  // layer source property holds a track token (or an empty string), so the
+  // injected define is never valid GLSL. Drop the define before the renderer
+  // compiles the material; the uniform created above carries the texture.
+  function clearShaderInputDefines(shader) {
+    const defines = shader?.pass?.material?.defines;
+    if (!defines) return;
+    for (const property of getShaderSourceProperties(shader)) {
+      const name = getShaderPropertyName(shader, property);
+      if (Object.prototype.hasOwnProperty.call(defines, name)) delete defines[name];
+    }
+  }
+
   function updateShaderInputUniforms(shader, frame) {
     if (!shader?.pass?.uniforms) return;
     for (const property of getShaderSourceProperties(shader)) {
@@ -917,6 +931,7 @@ const LayerInput = (() => {
     };
     state.patchedShaderUpdateFragmentShader = function () {
       const result = state.originalShaderUpdateFragmentShader.apply(this, arguments);
+      clearShaderInputDefines(this);
       patchShaderInputUniforms(this);
       return result;
     };
