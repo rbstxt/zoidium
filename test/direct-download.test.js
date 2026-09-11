@@ -7,6 +7,42 @@ const {
   isDownloadPage,
 } = require("../zoidium/direct-download");
 
+function flush(rounds = 8) {
+  let chain = Promise.resolve();
+  for (let index = 0; index < rounds; index += 1) {
+    chain = chain.then(() => new Promise((resolve) => setImmediate(resolve)));
+  }
+  return chain;
+}
+
+// Mimics the File handle the CM3 workers post back for the origin-private file
+// named "out": it stays valid until a later render, save, or cleanup rewrites
+// the file, and then every read fails.
+function fileBackedExport(bytes) {
+  const data = new Uint8Array(bytes);
+  const state = { source: new Blob([data]) };
+  const blob = {
+    name: "out",
+    // A File handle keeps the length it reported when it was created.
+    size: data.length,
+    slice(start, end) {
+      return state.source.slice(start, end);
+    },
+    stream() {
+      return state.source.stream();
+    },
+    arrayBuffer() {
+      return state.source.arrayBuffer();
+    },
+  };
+  return {
+    blob,
+    invalidate() {
+      state.source = null;
+    },
+  };
+}
+
 class FakeButton {
   constructor(onclick) {
     this.tagName = "BUTTON";
@@ -90,7 +126,7 @@ test("download page detection accepts only the legacy local target", () => {
   assert.equal(isDownloadPage("project.pz", base), false);
 });
 
-test("each finished page downloads the Blob captured when it was created", () => {
+test("each finished page downloads the Blob captured when it was created", async () => {
   const { globalObject, DeviceExport, FrameExport, forwarded } = createWindow();
   const downloads = [];
   install(globalObject, {
@@ -114,6 +150,7 @@ test("each finished page downloads the Blob captured when it was created", () =>
   globalObject.PZ.downloadFilename = "project.pz";
   videoPage.button.click();
   imagePage.button.click();
+  await flush();
 
   assert.deepEqual(
     downloads.map((entry) => [entry.blob, entry.filename]),
@@ -125,7 +162,7 @@ test("each finished page downloads the Blob captured when it was created", () =>
   assert.deepEqual(forwarded, []);
 });
 
-test("cleanup of one render cannot invalidate another finished page", () => {
+test("cleanup of one render cannot invalidate another finished page", async () => {
   const { globalObject, DeviceExport } = createWindow();
   const downloads = [];
   install(globalObject, {
@@ -141,9 +178,64 @@ test("cleanup of one render cannot invalidate another finished page", () => {
   globalObject.PZ.downloadBlob = null;
   globalObject.PZ.downloadFilename = null;
   page.button.click();
+  await flush();
 
   assert.equal(downloads.length, 1);
   assert.equal(downloads[0].blob, first);
+});
+
+test("a file-backed export is copied before a save reuses the shared file", async () => {
+  const { globalObject, DeviceExport } = createWindow();
+  const downloads = [];
+  install(globalObject, {
+    downloadArtifact(blob, filename) {
+      downloads.push({ blob, filename });
+    },
+  });
+
+  const entry = fileBackedExport([1, 2, 3, 4, 5]);
+  globalObject.PZ.downloadBlob = entry.blob;
+  globalObject.PZ.downloadFilename = "video.webm";
+  const page = new DeviceExport().createFinishedPage();
+
+  // The copy starts while the render still owns the file, then a project save
+  // rewrites it before the user clicks Download.
+  await flush();
+  entry.invalidate();
+
+  page.button.click();
+  await flush();
+
+  assert.equal(downloads.length, 1);
+  assert.notEqual(downloads[0].blob, entry.blob);
+  assert.equal(downloads[0].filename, "video.webm");
+  assert.deepEqual(
+    new Uint8Array(await downloads[0].blob.arrayBuffer()),
+    new Uint8Array([1, 2, 3, 4, 5]),
+  );
+});
+
+test("an unreadable file-backed export reports an error instead of a wrong file", async () => {
+  const { errors, globalObject, DeviceExport } = createWindow();
+  const downloads = [];
+  install(globalObject, {
+    downloadArtifact(blob, filename) {
+      downloads.push({ blob, filename });
+    },
+  });
+
+  const entry = fileBackedExport([1, 2, 3]);
+  globalObject.PZ.downloadBlob = entry.blob;
+  globalObject.PZ.downloadFilename = "video.webm";
+  const page = new DeviceExport().createFinishedPage();
+  entry.invalidate();
+  await flush();
+
+  page.button.click();
+  await flush();
+
+  assert.deepEqual(downloads, []);
+  assert.ok(errors.some((message) => /temporary file/.test(message)));
 });
 
 test("a missing legacy Blob reports an error without opening a blank tab", () => {

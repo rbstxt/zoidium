@@ -25,55 +25,131 @@
     );
   }
 
+  // The CM3 workers hand back the File they wrote into the origin-private file
+  // system. That handle keeps reading the shared file named "out", so a later
+  // render, project save, or cleanup replaces the bytes of an export that was
+  // already captured. A File is also the only blob shape here that is backed by
+  // a file rather than by page memory.
+  function isFileBackedBlob(value) {
+    return Boolean(
+      isBlobLike(value) &&
+        typeof value.stream === "function" &&
+        typeof value.name === "string" &&
+        value.name.length > 0,
+    );
+  }
+
   function createDownloadManager(options) {
     options = options || {};
     var globalObject = options.globalObject || null;
     var documentObject = options.document || (globalObject && globalObject.document);
     var urlApi = options.URL || (globalObject && globalObject.URL);
+    var ResponseCtor =
+      options.Response ||
+      (globalObject && globalObject.Response) ||
+      (typeof Response === "function" ? Response : null);
     var downloadArtifact = options.downloadArtifact || null;
     var nextId = 0;
 
+    function detach(blob) {
+      if (!isFileBackedBlob(blob) || typeof ResponseCtor !== "function") {
+        return Promise.resolve(blob);
+      }
+      var expectedSize = Number(blob.size);
+      return Promise.resolve()
+        .then(function () {
+          // Stream instead of arrayBuffer(): a single ArrayBuffer cannot hold a
+          // long render, and the copy must not touch the shared file twice.
+          return new ResponseCtor(blob.stream()).blob();
+        })
+        .catch(function (error) {
+          var failure = new Error(
+            "The export could not be copied out of the browser's temporary file.",
+          );
+          failure.cause = error;
+          throw failure;
+        })
+        .then(function (copy) {
+          if (!isBlobLike(copy) || Number(copy.size) !== expectedSize) {
+            throw new Error(
+              "The export was copied incompletely out of the browser's temporary file.",
+            );
+          }
+          return copy;
+        });
+    }
+
     function capture(blob, filename) {
       if (!isBlobLike(blob)) return null;
+      var source = blob;
+      var copyError = null;
+      var copyPromise = null;
+      if (isFileBackedBlob(blob)) {
+        copyPromise = detach(blob).then(
+          function (copy) {
+            return copy;
+          },
+          function (error) {
+            copyError = error;
+            throw error;
+          },
+        );
+        // Not every finished page is downloaded. Keep a failed copy from
+        // surfacing as an unhandled rejection until the user clicks.
+        copyPromise.catch(function () {});
+      }
       return Object.freeze({
         id: ++nextId,
-        blob: blob,
+        blob: source,
         filename: String(filename || "zoidium-download"),
+        detached: function () {
+          return copyPromise || Promise.resolve(source);
+        },
+        copyError: function () {
+          return copyError;
+        },
       });
     }
 
     function trigger(artifact) {
-      if (!artifact || !isBlobLike(artifact.blob)) return false;
-      if (downloadArtifact) {
-        downloadArtifact(artifact.blob, artifact.filename, artifact.id);
-        return true;
-      }
-      if (
-        !documentObject ||
-        !documentObject.body ||
-        !urlApi ||
-        typeof urlApi.createObjectURL !== "function"
-      ) {
-        return false;
-      }
+      if (!artifact || !isBlobLike(artifact.blob)) return Promise.resolve(false);
+      var artifactBlob =
+        typeof artifact.detached === "function"
+          ? artifact.detached()
+          : artifact.blob;
+      return Promise.resolve(artifactBlob).then(function (blob) {
+        if (!isBlobLike(blob)) return false;
+        if (downloadArtifact) {
+          downloadArtifact(blob, artifact.filename, artifact.id);
+          return true;
+        }
+        if (
+          !documentObject ||
+          !documentObject.body ||
+          !urlApi ||
+          typeof urlApi.createObjectURL !== "function"
+        ) {
+          return false;
+        }
 
-      var objectUrl = urlApi.createObjectURL(artifact.blob);
-      var link = documentObject.createElement("a");
-      link.href = objectUrl;
-      link.download = artifact.filename;
-      link.rel = "noopener";
-      link.style.display = "none";
-      documentObject.body.appendChild(link);
-      link.click();
-      link.remove();
-      var setTimer =
-        globalObject && typeof globalObject.setTimeout === "function"
-          ? globalObject.setTimeout.bind(globalObject)
-          : setTimeout;
-      setTimer(function () {
-        urlApi.revokeObjectURL(objectUrl);
-      }, 1000);
-      return true;
+        var objectUrl = urlApi.createObjectURL(blob);
+        var link = documentObject.createElement("a");
+        link.href = objectUrl;
+        link.download = artifact.filename;
+        link.rel = "noopener";
+        link.style.display = "none";
+        documentObject.body.appendChild(link);
+        link.click();
+        link.remove();
+        var setTimer =
+          globalObject && typeof globalObject.setTimeout === "function"
+            ? globalObject.setTimeout.bind(globalObject)
+            : setTimeout;
+        setTimer(function () {
+          urlApi.revokeObjectURL(objectUrl);
+        }, 1000);
+        return true;
+      });
     }
 
     function bind(button, artifact) {
@@ -83,13 +159,22 @@
       button.addEventListener(
         "click",
         function downloadCapturedArtifact(event) {
-          if (!trigger(artifact)) return;
+          // Claim the click before the artifact is read: reading a file-backed
+          // export takes a moment, and the legacy download page must not open.
           if (event && typeof event.preventDefault === "function") {
             event.preventDefault();
           }
           if (event && typeof event.stopImmediatePropagation === "function") {
             event.stopImmediatePropagation();
           }
+          Promise.resolve(trigger(artifact)).then(
+            function (started) {
+              if (!started) emitDownloadError(globalObject, artifactError(artifact));
+            },
+            function (error) {
+              emitDownloadError(globalObject, error);
+            },
+          );
         },
         true,
       );
@@ -170,12 +255,26 @@
     return devicePatched || framePatched;
   }
 
-  function emitMissingArtifact(globalObject) {
+  function artifactError(artifact) {
+    var error =
+      artifact && typeof artifact.copyError === "function"
+        ? artifact.copyError()
+        : null;
+    return error && error.message
+      ? error
+      : new Error("The requested export is no longer available.");
+  }
+
+  function emitDownloadError(globalObject, error) {
+    var message =
+      error && error.message
+        ? error.message
+        : "The requested export is no longer available.";
     try {
       if (typeof globalObject.dispatchEvent === "function") {
         globalObject.dispatchEvent(
           new globalObject.CustomEvent("zoidium:download-error", {
-            detail: { message: "The requested export is no longer available." },
+            detail: { message: message },
           }),
         );
       }
@@ -184,13 +283,18 @@
     }
     try {
       if (globalObject.console && globalObject.console.error) {
-        globalObject.console.error(
-          "Zoidium: the requested export is no longer available.",
-        );
+        globalObject.console.error("Zoidium: " + message);
       }
     } catch (_error) {
       // Console diagnostics are optional.
     }
+  }
+
+  function emitMissingArtifact(globalObject) {
+    emitDownloadError(
+      globalObject,
+      new Error("The requested export is no longer available."),
+    );
   }
 
   function install(globalObject, options) {
@@ -212,8 +316,18 @@
       if (isDownloadPage(arguments[0], baseUrl)) {
         var pz = globalObject.PZ || {};
         var artifact = manager.capture(pz.downloadBlob, pz.downloadFilename);
-        if (artifact && manager.trigger(artifact)) return null;
-        emitMissingArtifact(globalObject);
+        if (!artifact) {
+          emitMissingArtifact(globalObject);
+          return null;
+        }
+        Promise.resolve(manager.trigger(artifact)).then(
+          function (started) {
+            if (!started) emitDownloadError(globalObject, artifactError(artifact));
+          },
+          function (error) {
+            emitDownloadError(globalObject, error);
+          },
+        );
         return null;
       }
       return typeof originalOpen === "function"

@@ -24,6 +24,7 @@ const liveProjectEntries = [
   "zoidium-welcome-tour.js",
 ];
 const liveProjectBundlePattern = /^plugins\/[^/]+\/bundle\.json$/;
+const portFallbackAttempts = 20;
 const liveProjectHeaders = [
   {
     source: "**",
@@ -90,7 +91,8 @@ source changes without restarting this server. The cache remains after the
 server stops.
 
 Options:
-  --port=<number>      listen port (default: 8123)
+  --port=<number>      preferred listen port (default: 8123); falls forward to
+                       the next free port when the preferred one is busy
   --open               open the local URL in the default browser
 `);
 }
@@ -130,6 +132,32 @@ function close(server) {
     }
     server.close(() => resolve());
   });
+}
+
+async function listenOnPort(listeners, port) {
+  const bound = [];
+  try {
+    for (const { server, host } of listeners) {
+      await listen(server, port, host);
+      bound.push(server);
+    }
+    return port;
+  } catch (error) {
+    await Promise.all(bound.map((server) => close(server)));
+    throw error;
+  }
+}
+
+async function listenOnAvailablePort(listeners, preferredPort, attempts = portFallbackAttempts) {
+  const lastPort = Math.min(preferredPort + attempts, 65535);
+  for (let port = preferredPort; ; port += 1) {
+    try {
+      return await listenOnPort(listeners, port);
+    } catch (error) {
+      const canFallForward = error && error.code === "EADDRINUSE" && port < lastPort;
+      if (!canFallForward) throw error;
+    }
+  }
 }
 
 function waitForClose(server) {
@@ -196,8 +224,10 @@ async function main() {
   process.once("SIGTERM", () => shutdown(0).then(() => process.exit()));
 
   try {
-    const port = await listen(listeners[0].server, options.port, listeners[0].host);
-    await listen(listeners[1].server, port, listeners[1].host);
+    const port = await listenOnAvailablePort(listeners, options.port);
+    if (port !== options.port) {
+      console.log(`[Zoidium] port ${options.port} is already in use; using ${port}`);
+    }
     const url = `http://127.0.0.1:${port}`;
     console.log(`[Zoidium] CM3 resource cache: ${runtime.root}`);
     console.log(`[Zoidium] local server: ${url}`);
@@ -219,6 +249,7 @@ if (require.main === module) {
 
 module.exports = {
   isLiveProjectPath,
+  listenOnAvailablePort,
   requestPathname,
   shouldServeFromProject,
 };

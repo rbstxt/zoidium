@@ -8,7 +8,7 @@
     // loader appends it automatically, so per-file ?v= queries are never
     // hand-edited here. Plugin asset URLs are versioned separately by
     // tools/build-plugin-bundles.js from each manifest's own version.
-    assetVersion: 47,
+    assetVersion: 48,
     overlayStyles: [
       "./zoidium/ui-overrides.css",
       "./plugins/plugin-manager.css",

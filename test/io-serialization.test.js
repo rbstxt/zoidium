@@ -38,6 +38,36 @@ function archiveBlob() {
   return new Blob([new Uint8Array([0x1f, 0x8b, 8, 0, 1, 2, 3])]);
 }
 
+// Mimics the File handle the CM3 workers post back for the origin-private file
+// named "out": it stays valid until a later render, save, or cleanup rewrites
+// the file, and then every read fails.
+function fileBackedExport(bytes) {
+  const data = new Uint8Array(bytes);
+  const state = { source: new Blob([data]) };
+  const blob = {
+    name: "out",
+    // A File handle keeps the length it reported when it was created.
+    size: data.length,
+    slice(start, end) {
+      return state.source.slice(start, end);
+    },
+    stream() {
+      if (!state.source) throw new Error("NotReadableError");
+      return state.source.stream();
+    },
+    arrayBuffer() {
+      if (!state.source) throw new Error("NotReadableError");
+      return state.source.arrayBuffer();
+    },
+  };
+  return {
+    blob,
+    invalidate() {
+      state.source = null;
+    },
+  };
+}
+
 class SharedLockManager {
   constructor() {
     this.tails = new Map();
@@ -280,6 +310,53 @@ test("integrity checks reject output from the wrong worker", async () => {
     badArchive(),
     /Project archive output failed its file-integrity check/,
   );
+});
+
+test("a render is copied out of the shared workspace file before it is returned", async () => {
+  const io = createIoSerializer({});
+  const entry = fileBackedExport([0x1a, 0x45, 0xdf, 0xa3, 9, 9, 9]);
+  const encode = io.wrapEncode(() => entry.blob);
+
+  const result = await encode();
+  // The next render, save, or cleanup rewrites the shared file named "out".
+  entry.invalidate();
+
+  assert.notEqual(result, entry.blob);
+  assert.deepEqual(
+    new Uint8Array(await result.arrayBuffer()),
+    new Uint8Array([0x1a, 0x45, 0xdf, 0xa3, 9, 9, 9]),
+  );
+});
+
+test("a project archive is copied out of the shared workspace file", async () => {
+  const io = createIoSerializer({});
+  const entry = fileBackedExport([0x1f, 0x8b, 8, 0, 1, 2, 3]);
+  const tar = io.wrapTar(() => entry.blob);
+
+  const result = await tar();
+  entry.invalidate();
+
+  assert.notEqual(result, entry.blob);
+  assert.equal(result.size, 7);
+});
+
+test("an in-memory export is returned without another copy", async () => {
+  const io = createIoSerializer({});
+  const blob = videoBlob();
+  const encode = io.wrapEncode(() => blob);
+
+  assert.equal(await encode(), blob);
+});
+
+test("a render that cannot be read back fails instead of returning a stale file", async () => {
+  const io = createIoSerializer({});
+  const entry = fileBackedExport([0x1a, 0x45, 0xdf, 0xa3, 1]);
+  const encode = io.wrapEncode(() => {
+    entry.invalidate();
+    return entry.blob;
+  });
+
+  await assert.rejects(encode(), /could not be read back from the browser's temporary file/);
 });
 
 test("storage estimates scale beyond the old fixed 100 MB quota", () => {

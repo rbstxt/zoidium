@@ -235,6 +235,15 @@
   white-space: nowrap;
 }
 
+.zoidium-restore-entry.is-unusable .zoidium-restore-meta {
+  color: #c58989;
+  white-space: normal;
+}
+
+.zoidium-restore-entry.is-unusable .zoidium-restore-name {
+  color: #999;
+}
+
 .zoidium-restore-actions {
   display: flex;
   gap: 3px;
@@ -251,6 +260,10 @@
 
 .zoidium-restore-action:hover {
   background-color: #2f2f2f;
+}
+
+.zoidium-restore-action:disabled {
+  opacity: 0.4;
 }
 
 .zoidium-restore-action:focus {

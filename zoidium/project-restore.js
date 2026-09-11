@@ -281,10 +281,28 @@
     return projectFiles.fileNameForProject(snapshot.projectName);
   }
 
+  // Restore points recorded before exports were copied out of the shared
+  // temporary file kept the archive worker's live File handle instead of the
+  // archive bytes. That handle now exposes whatever the editor last wrote
+  // there, so such a record would restore the wrong project. It is reported as
+  // unusable and can only be deleted.
+  function isStaleFileReference(blob) {
+    return Boolean(
+      blob &&
+        typeof blob.name === "string" &&
+        blob.name.length > 0 &&
+        typeof blob.slice === "function",
+    );
+  }
+
+  var STALE_SNAPSHOT_MESSAGE =
+    "This restore point was recorded before exports were copied out of the browser's shared temporary file and can no longer be read. Delete it and create a new one.";
+
   async function matchesSnapshot(snapshot, fingerprint) {
     if (!snapshot) return false;
     if (snapshot.fingerprint) return snapshot.fingerprint === fingerprint;
     if (!snapshot.blob) return false;
+    if (isStaleFileReference(snapshot.blob)) return false;
     try {
       // Older restore points do not have a stored fingerprint. Rebuild their
       // archive index so they can still be compared to the current content.
@@ -561,6 +579,12 @@
       downloadButton.addEventListener("click", function () {
         projectFiles.triggerDownload(snapshot.blob, snapshotFilename(snapshot));
       });
+      if (isStaleFileReference(snapshot.blob)) {
+        entry.classList.add("is-unusable");
+        stats.textContent = STALE_SNAPSHOT_MESSAGE;
+        restoreButton.disabled = true;
+        downloadButton.disabled = true;
+      }
       var deleteButton = createButton(
         "delete",
         "Delete " + (snapshot.projectName || "project"),
@@ -670,6 +694,14 @@
 
   async function restoreSnapshot(snapshot) {
     if (!snapshot || !snapshot.blob) return;
+    if (isStaleFileReference(snapshot.blob)) {
+      showProjectError({
+        message: STALE_SNAPSHOT_MESSAGE,
+        retry: null,
+        download: null,
+      });
+      return;
+    }
     if (!editor.confirmIfDirty()) return;
 
     try {

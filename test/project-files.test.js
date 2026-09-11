@@ -40,6 +40,36 @@ class Observable {
   }
 }
 
+// Mimics the File handle the CM3 archive worker posts back for the
+// origin-private file named "out": it stays valid until a later render or
+// cleanup rewrites the file, and then every read fails.
+function fileBackedExport(bytes) {
+  const data = new Uint8Array(bytes);
+  const state = { source: new Blob([data]) };
+  const blob = {
+    name: "out",
+    // A File handle keeps the length it reported when it was created.
+    size: data.length,
+    slice(start, end) {
+      return state.source.slice(start, end);
+    },
+    stream() {
+      if (!state.source) throw new Error("NotReadableError");
+      return state.source.stream();
+    },
+    arrayBuffer() {
+      if (!state.source) throw new Error("NotReadableError");
+      return state.source.arrayBuffer();
+    },
+  };
+  return {
+    blob,
+    invalidate() {
+      state.source = null;
+    },
+  };
+}
+
 function createHarness() {
   const events = [];
   let tarCalls = 0;
@@ -107,6 +137,7 @@ function createHarness() {
   const context = vm.createContext({
     ArrayBuffer,
     Blob,
+    Response,
     CustomEvent: class CustomEvent {
       constructor(type, options) {
         this.type = type;
@@ -244,4 +275,59 @@ test("project construction and tar run inside one coordinated operation", async 
     "project-save-end",
   ]);
   assert.equal(harness.tarCalls(), 0);
+});
+
+test("the archive is copied out of the shared workspace file before it is written", async () => {
+  const harness = createHarness();
+  const entry = fileBackedExport([0x1f, 0x8b, 8, 0, 1, 2, 3]);
+  harness.PZ.archive.prototype.tar = () => Promise.resolve(entry.blob);
+  const editor = harness.makeEditor();
+  let written = null;
+  editor._zoidiumSaveFileHandle = {
+    name: "project.pz",
+    async createWritable() {
+      return {
+        async write(blob) {
+          written = blob;
+        },
+        async close() {},
+      };
+    },
+  };
+
+  const result = await editor.save();
+  // A render or cleanup rewrites the shared file after the save captured it.
+  entry.invalidate();
+
+  assert.notEqual(result.blob, entry.blob);
+  assert.notEqual(written, entry.blob);
+  assert.deepEqual(
+    new Uint8Array(await result.blob.arrayBuffer()),
+    new Uint8Array([0x1f, 0x8b, 8, 0, 1, 2, 3]),
+  );
+  assert.equal(written.size, 7);
+});
+
+test("a project archive that cannot be read back fails the save", async () => {
+  const harness = createHarness();
+  const entry = fileBackedExport([0x1f, 0x8b, 8, 0, 1, 2, 3]);
+  harness.PZ.archive.prototype.tar = () => {
+    entry.invalidate();
+    return Promise.resolve(entry.blob);
+  };
+  const editor = harness.makeEditor();
+  editor._zoidiumSaveFileHandle = {
+    name: "project.pz",
+    async createWritable() {
+      return {
+        async write() {},
+        async close() {},
+      };
+    },
+  };
+
+  assert.equal(await editor.save(), null);
+  const error = harness.events.find((event) => event.type === "zoidium:project-error");
+  assert.ok(error, "the save reports a project error");
+  assert.match(error.detail.message, /temporary file/);
 });

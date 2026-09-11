@@ -300,6 +300,46 @@
     return blob;
   }
 
+  // The video worker and the archive worker both stream through the same
+  // origin-private file named "out" and resolve with a File handle to it. That
+  // handle stays live: the next render, project save, or cleanup rewrites or
+  // removes the file and the captured bytes change under the caller. Copy the
+  // export into page memory while the worker still owns the file.
+  function isFileBackedBlob(value) {
+    return Boolean(
+      value &&
+        Number.isFinite(Number(value.size)) &&
+        typeof value.slice === "function" &&
+        typeof value.stream === "function" &&
+        typeof value.name === "string" &&
+        value.name.length > 0,
+    );
+  }
+
+  async function detachFileBackedBlob(blob, description) {
+    if (!isFileBackedBlob(blob)) return blob;
+    if (typeof Response !== "function" || byteLength(blob) === 0) return blob;
+
+    let copy;
+    try {
+      // Reading through a stream avoids materializing a single ArrayBuffer,
+      // which caps out well below the size of a long render.
+      copy = await new Response(blob.stream()).blob();
+    } catch (error) {
+      const failure = new Error(
+        description + " could not be read back from the browser's temporary file.",
+      );
+      failure.cause = error;
+      throw failure;
+    }
+    if (!copy || byteLength(copy) !== byteLength(blob)) {
+      throw new Error(
+        description + " was copied incompletely from the browser's temporary file.",
+      );
+    }
+    return copy;
+  }
+
   // The CM3 video and archive workers both remove, recreate, and stream
   // through the origin-private file named "out". This serializer protects
   // that file across tabs and also keeps all renderers in one tab from
@@ -463,7 +503,11 @@
           } finally {
             holder.encodeSettled = true;
           }
-          return assertBlobPrefix(blob, [0x1a, 0x45, 0xdf, 0xa3], "Video");
+          return assertBlobPrefix(
+            await detachFileBackedBlob(blob, "The rendered video"),
+            [0x1a, 0x45, 0xdf, 0xa3],
+            "Video",
+          );
         });
       };
       wrapped[PATCH_MARKER] = true;
@@ -495,7 +539,11 @@
     async function runTar(original, receiver, args) {
       await ensureQuota(estimateArchiveStorageBytes(receiver && receiver.files));
       const blob = await original.apply(receiver, args || []);
-      return assertBlobPrefix(blob, [0x1f, 0x8b], "Project archive");
+      return assertBlobPrefix(
+        await detachFileBackedBlob(blob, "The project archive"),
+        [0x1f, 0x8b],
+        "Project archive",
+      );
     }
 
     function tarWithoutLock(receiver, args) {
@@ -729,6 +777,7 @@
       if (targets.PZ && !existingSerializer) {
         api = {
           _serializer: serializer,
+          detachBlob: detachFileBackedBlob,
           run: serializer.enqueue,
           state: serializer.state,
           tarWithoutLock: serializer.tarWithoutLock,
@@ -782,9 +831,11 @@
       createIoSerializer,
       createOriginLockRunner,
       createWebLockRunner,
+      detachFileBackedBlob,
       estimateArchiveStorageBytes,
       estimateVideoStorageBytes,
       install,
+      isFileBackedBlob,
       requestPersistentQuota,
     };
     return;

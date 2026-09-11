@@ -135,6 +135,47 @@
     throw new Error("Could not inspect a project file.");
   }
 
+  // CM3 streams the serialized project through the same origin-private file
+  // named "out" that the video worker uses, and hands back a live File handle
+  // to it. A later render or cleanup rewrites the bytes behind that handle, so
+  // copy the archive into page memory before it reaches the save picker, a
+  // download link, or a restore point.
+  function isFileBackedBlob(value) {
+    return Boolean(
+      value &&
+        Number.isFinite(Number(value.size)) &&
+        typeof value.slice === "function" &&
+        typeof value.stream === "function" &&
+        typeof value.name === "string" &&
+        value.name.length > 0,
+    );
+  }
+
+  async function detachArchiveBlob(blob) {
+    if (!isFileBackedBlob(blob)) return blob;
+    var io = PZ.zoidiumIoSerialization;
+    if (io && typeof io.detachBlob === "function") {
+      return io.detachBlob(blob, "The project archive");
+    }
+    if (typeof Response !== "function" || Number(blob.size) <= 0) return blob;
+    var copy;
+    try {
+      copy = await new Response(blob.stream()).blob();
+    } catch (error) {
+      var failure = new Error(
+        "The project archive could not be copied out of the browser's temporary file.",
+      );
+      failure.cause = error;
+      throw failure;
+    }
+    if (!copy || Number(copy.size) !== Number(blob.size)) {
+      throw new Error(
+        "The project archive was copied incompletely out of the browser's temporary file.",
+      );
+    }
+    return copy;
+  }
+
   async function fingerprintBytes(bytes) {
     if (global.crypto && global.crypto.subtle) {
       var digest = await global.crypto.subtle.digest("SHA-256", bytes);
@@ -210,6 +251,7 @@
       ? await io.tarWithoutLock(archive)
       : await archive.tar();
     if (!blob) throw new Error("Could not create the project archive.");
+    blob = await detachArchiveBlob(blob);
     return {
       blob: blob,
       projectName: projectName,
