@@ -25,6 +25,7 @@ Character Transform and Selected Character Transform have:
 - `Position` on X, Y, and Z.
 - `Scale` on X, Y, and Z.
 - `Rotation` on X, Y, and Z, plus `Rotation order`.
+- `Pivot` with `Character` and `Text` choices.
 - `Delay`, `Delay order`, and `Seed`.
 
 Gradient Transform has:
@@ -42,6 +43,7 @@ Character Shake and Selected Character Shake have:
 
 - `Amplitude`, `Period`, and `Phase`.
 - `Axis` as an X/Y/Z vector in character-local 3D space.
+- `Pivot` with `Character` and `Text` choices.
 - `Phase offset`, `Offset order`, and `Seed`.
 
 Every Scale control links X, Y, and Z. Editing one value updates the other two.
@@ -85,24 +87,33 @@ export, and repeated renders.
 ## Selected characters
 
 The selected variants have a `Characters` text field. Enter one-based
-numbers separated by commas, such as `1,4,5`, to affect the first, fourth, and
-fifth characters. Spaces and full-width commas are accepted. Duplicate,
-invalid, and out-of-range numbers are ignored. Delay order runs across the
-selected characters only, so `1,4,5` with a 3-frame delay produces offsets of
-0, 3, and 6 frames.
+numbers separated by commas or periods. For example, `1,4,5` and `1.4.5.` both
+affect the first, fourth, and fifth characters. Spaces, full-width commas, and
+full-width periods are also accepted. Duplicate, invalid, and out-of-range
+numbers are ignored. Delay order runs across the selected characters only, so
+`1,4,5` with a 3-frame delay produces offsets of 0, 3, and 6 frames.
 
 ## Random scatter
 
 `Random Scatter` has `Amount`, `Seed`, and `Min` and `Max` ranges for position,
-rotation, and scale. Each character receives one deterministic value
-inside every range. Changing `Seed` creates another layout without flicker.
+rotation, and scale. It also has the same `Pivot` choices. Each character
+receives one deterministic value inside every range. Changing `Seed` creates
+another layout without flicker.
 
 `Amount` is animatable. At 0, characters keep their original transforms. At 1,
 they reach their assigned random transforms. Values above 1 continue moving,
 rotating, and scaling in the same direction. This makes one Amount animation
 enough to spread or gather all characters. Random Scatter evaluates the
-transform in its parent space around each character center, so overlapping Text
+transform in its parent space around the selected pivot, so overlapping Text
 layers with different local depth or scale stay aligned.
+
+## Pivot
+
+Every parent except Gradient Transform has a `Pivot` control. `Character`
+rotates and scales each character around its own geometry center. `Text` uses
+the center of the full rendered text bounds, independent of the Text object's
+Center point setting. Position is unchanged by the pivot choice.
+The Text pivot also works when a source Text scale axis is zero.
 
 ## Nesting
 

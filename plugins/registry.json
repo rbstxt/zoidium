@@ -184,7 +184,7 @@
       "id": "text-plus",
       "name": "Text+",
       "author": "Zoidium",
-      "version": "12",
+      "version": "14",
       "defaultEnabled": true,
       "itemCount": 6,
       "format": "3D text containers",
@@ -192,8 +192,8 @@
       "color": "#b2704f",
       "description": "Adds separate Text+ parents for character transforms, gradients, shake, selection, and random scatter.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/text-plus/manifest.json?v=12",
-      "bundle": "./plugins/text-plus/bundle.json?v=12"
+      "manifest": "./plugins/text-plus/manifest.json?v=14",
+      "bundle": "./plugins/text-plus/bundle.json?v=14"
     },
     {
       "id": "particles-plus",

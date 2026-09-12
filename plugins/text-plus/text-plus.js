@@ -7,22 +7,22 @@
  * geometry is replaced while it has a Text+ ancestor.
  */
 
-const SCHEMA_VERSION = 4;
+const SCHEMA_VERSION = 5;
 const TEXT_PLUS_TYPE = "zoidium:text-plus/text-plus";
 const TEXT_PLUS_NAME = "Character Transform";
 const GRADIENT_TRANSFORM_SCHEMA_VERSION = 1;
 const GRADIENT_TRANSFORM_TYPE = "zoidium:text-plus/gradient-transform";
 const GRADIENT_TRANSFORM_NAME = "Gradient Transform";
-const CHARACTER_SHAKE_SCHEMA_VERSION = 3;
+const CHARACTER_SHAKE_SCHEMA_VERSION = 4;
 const CHARACTER_SHAKE_TYPE = "zoidium:text-plus/character-shake";
 const CHARACTER_SHAKE_NAME = "Character Shake";
-const SELECTED_TRANSFORM_SCHEMA_VERSION = 2;
+const SELECTED_TRANSFORM_SCHEMA_VERSION = 3;
 const SELECTED_TRANSFORM_TYPE = "zoidium:text-plus/selected-transform";
 const SELECTED_TRANSFORM_NAME = "Selected Character Transform";
-const SELECTED_SHAKE_SCHEMA_VERSION = 3;
+const SELECTED_SHAKE_SCHEMA_VERSION = 4;
 const SELECTED_SHAKE_TYPE = "zoidium:text-plus/selected-shake";
 const SELECTED_SHAKE_NAME = "Selected Character Shake";
-const RANDOM_SCATTER_SCHEMA_VERSION = 2;
+const RANDOM_SCATTER_SCHEMA_VERSION = 3;
 const RANDOM_SCATTER_TYPE = "zoidium:text-plus/random-scatter";
 const RANDOM_SCATTER_NAME = "Random Scatter";
 const DELAY_ORDERS = ["start", "end", "middle", "random"];
@@ -32,6 +32,7 @@ const DELAY_ORDER_LABELS = [
   "Center out",
   "Random",
 ];
+const PIVOT_LABELS = ["Character", "Text"];
 const MAX_ANCESTOR_DEPTH = 64;
 const RANDOM_ORDER_CACHE_LIMIT = 64;
 const DEGREES_TO_RADIANS = Math.PI / 180;
@@ -394,6 +395,16 @@ function getCenterOffset(bounds, positionMode) {
   return offset;
 }
 
+function getTextCenter(bounds, centerOffset) {
+  if (!bounds || !bounds.min || !bounds.max) return [0, 0, 0];
+  const minimum = vector3(bounds.min, [0, 0, 0]);
+  const maximum = vector3(bounds.max, [0, 0, 0]);
+  const offset = vector3(centerOffset, [0, 0, 0]);
+  return minimum.map(
+    (value, index) => (value + maximum[index]) / 2 + offset[index]
+  );
+}
+
 function getAncestorObject(object) {
   if (!object) return null;
   try {
@@ -516,6 +527,7 @@ function createTransformPropertyDefinitions(PZ, selectedOnly) {
       value: "XYZ",
       items: PZ.object3d.eulerOrders,
     },
+    pivot: pivotDefinition(PZ),
     delayPerCharacter: dynamicNumberDefinition(
       PZ,
       "Delay",
@@ -539,6 +551,15 @@ function createTransformPropertyDefinitions(PZ, selectedOnly) {
       step: 1,
       decimals: 0,
     },
+  };
+}
+
+function pivotDefinition(PZ) {
+  return {
+    name: "Pivot",
+    type: PZ.property.type.OPTION,
+    items: PIVOT_LABELS.join(";"),
+    value: 0,
   };
 }
 
@@ -629,6 +650,7 @@ function createShakePropertyDefinitions(PZ, selectedOnly) {
       step: 0.1,
       decimals: 3,
     }),
+    pivot: pivotDefinition(PZ),
     shakeDelayPerCharacter: dynamicNumberDefinition(
       PZ,
       "Phase offset",
@@ -668,6 +690,7 @@ function createRandomScatterPropertyDefinitions(PZ) {
       step: 0.05,
       decimals: 2,
     },
+    pivot: pivotDefinition(PZ),
     positionMin: vectorDefinition(PZ, {
       name: "Min position",
       value: [-10, -10, -10],
@@ -778,6 +801,7 @@ function neutralCharacterControls(frame) {
     scale: [1, 1, 1],
     rotation: [0, 0, 0],
     eulerOrder: "XYZ",
+    pivot: "character",
     shakeAxis: [0, 0, 1],
     shake: 0,
   };
@@ -804,6 +828,7 @@ function getCharacterTransformControls(textPlus, frame, index, count) {
     scale: vector3(read("charScale", [1, 1, 1]), [1, 1, 1]),
     rotation: vector3(read("charRotation", [0, 0, 0]), [0, 0, 0]),
     eulerOrder: String(read("charEulerOrder", "XYZ")),
+    pivot: getPivot(read("pivot", 0)),
   };
 }
 
@@ -832,7 +857,12 @@ function getCharacterShakeControls(textPlus, frame, index, count) {
     shakePhaseOffset: phaseOffset,
     shakeAxis: vector3(read("shakeAxis", [0, 0, 1]), [0, 0, 1]),
     shake: getShakeAngle(amplitude, period, phase),
+    pivot: getPivot(read("pivot", 0)),
   };
+}
+
+function getPivot(value) {
+  return Math.round(numberValue(value, 0)) === 1 ? "text" : "character";
 }
 
 function lerpVector(start, end, amount, fallback) {
@@ -885,7 +915,9 @@ function parseCharacterSelection(value, count) {
   );
   const selected = [];
   const seen = new Set();
-  const parts = String(value == null ? "" : value).split(/[,\uFF0C\s]+/);
+  const parts = String(value == null ? "" : value).split(
+    /[,.\u3002\uFF0C\uFF0E\s]+/
+  );
 
   for (const part of parts) {
     if (!/^\d+$/.test(part)) continue;
@@ -943,6 +975,7 @@ function getRandomScatterControls(scatter, frame, index) {
     scale: transform.scale,
     rotation: transform.rotation,
     eulerOrder: "XYZ",
+    pivot: getPivot(read("pivot", 0)),
     shakeAxis: [0, 0, 1],
     shake: 0,
   };
@@ -1116,10 +1149,19 @@ function buildCharacterRendering(textObject, splitState, layers) {
   }
 
   const positionMode = propertyValue(textObject.properties?.positionMode, 0, 0);
-  const centerOffset = getCenterOffset(bounds.empty ? null : bounds, positionMode);
+  const centerOffset = getCenterOffset(
+    bounds.empty ? null : bounds,
+    positionMode
+  );
   const renderRoot = new THREE.Object3D();
   renderRoot.name = "Text+ characters";
   renderRoot.zoidiumTextPlusCharacters = true;
+  const textPivot = new THREE.Object3D();
+  textPivot.name = "Text center";
+  textPivot.position.set(
+    ...getTextCenter(bounds.empty ? null : bounds, centerOffset)
+  );
+  renderRoot.add(textPivot);
   const entries = [];
 
   for (const item of pending) {
@@ -1165,6 +1207,7 @@ function buildCharacterRendering(textObject, splitState, layers) {
       character: item.unit.character,
       geometry: item.geometry,
       anchor,
+      textPivot,
       nodes,
       mesh,
     });
@@ -1209,7 +1252,8 @@ function applyReferenceSpaceCharacterTransform(
   THREE,
   node,
   controls,
-  referenceObject
+  referenceObject,
+  pivotObject
 ) {
   if (
     !THREE?.Matrix4 ||
@@ -1229,6 +1273,10 @@ function applyReferenceSpaceCharacterTransform(
     referenceObject
   );
   if (!parentToReference) return false;
+  const pivotToReference = pivotObject
+    ? getMatrixToAncestor(THREE, pivotObject, referenceObject)
+    : parentToReference;
+  if (!pivotToReference) return false;
   if (
     typeof parentToReference.determinant === "function" &&
     Math.abs(parentToReference.determinant()) < 1e-12
@@ -1239,7 +1287,7 @@ function applyReferenceSpaceCharacterTransform(
   const order = PZ_EULER_ORDERS.has(controls.eulerOrder)
     ? controls.eulerOrder
     : "XYZ";
-  const pivot = new THREE.Vector3(0, 0, 0).applyMatrix4(parentToReference);
+  const pivot = new THREE.Vector3(0, 0, 0).applyMatrix4(pivotToReference);
   const position = new THREE.Vector3(...controls.position);
   const scale = new THREE.Vector3(...controls.scale);
   const rotation = new THREE.Euler(
@@ -1249,8 +1297,19 @@ function applyReferenceSpaceCharacterTransform(
     order
   );
   const quaternion = new THREE.Quaternion().setFromEuler(rotation);
+  const shake = numberValue(controls.shake, 0);
+  if (shake !== 0) {
+    const shakeAxis = new THREE.Vector3(
+      ...vector3(controls.shakeAxis, [0, 0, 1])
+    );
+    if (shakeAxis.lengthSq() > 1e-12) {
+      quaternion.multiply(
+        new THREE.Quaternion().setFromAxisAngle(shakeAxis.normalize(), shake)
+      );
+    }
+  }
   const transform = new THREE.Matrix4().compose(position, quaternion, scale);
-  const aroundCharacterCenter = new THREE.Matrix4()
+  const aroundPivot = new THREE.Matrix4()
     .makeTranslation(pivot.x, pivot.y, pivot.z)
     .multiply(transform)
     .multiply(
@@ -1258,7 +1317,7 @@ function applyReferenceSpaceCharacterTransform(
     );
   const localTransform = new THREE.Matrix4()
     .getInverse(parentToReference)
-    .multiply(aroundCharacterCenter)
+    .multiply(aroundPivot)
     .multiply(parentToReference);
 
   node.matrixAutoUpdate = false;
@@ -1267,14 +1326,28 @@ function applyReferenceSpaceCharacterTransform(
   return true;
 }
 
-function applyCharacterTransform(node, controls, textPlus) {
+function getCharacterTransformReference(textPlus, controls, textPivot) {
+  const pivotObject = controls.pivot === "text" ? textPivot : null;
+  return {
+    pivotObject,
+    referenceObject: pivotObject?.parent || textPlus?.threeObj || null,
+  };
+}
+
+function applyCharacterTransform(node, controls, textPlus, textPivot) {
+  const { pivotObject, referenceObject } = getCharacterTransformReference(
+    textPlus,
+    controls,
+    textPivot
+  );
   if (
-    textPlus?.zoidiumTextPlusMode === "random-scatter" &&
+    (textPlus?.zoidiumTextPlusMode === "random-scatter" || pivotObject) &&
     applyReferenceSpaceCharacterTransform(
       state.THREE,
       node,
       controls,
-      textPlus.threeObj
+      referenceObject,
+      pivotObject
     )
   ) {
     return;
@@ -1316,7 +1389,12 @@ function updateCharacterRendering(textObject, splitState, layers, frame) {
         entry.index,
         entry.count
       );
-      applyCharacterTransform(entry.nodes[index], controls, layers[index]);
+      applyCharacterTransform(
+        entry.nodes[index],
+        controls,
+        layers[index],
+        entry.textPivot
+      );
     }
   }
 }
@@ -1614,6 +1692,7 @@ module.exports = {
     getCharacterDelay,
     getCharacterShakeControls,
     getCharacterTransformControls,
+    getCharacterTransformReference,
     getDelayRank,
     getMatrixToAncestor,
     getGradientTransformControls,
@@ -1623,6 +1702,7 @@ module.exports = {
     getSelectedCharacterContext,
     getShakeAngle,
     getTextLayout,
+    getTextCenter,
     getTextPlusProperties,
     getTextPlusControls,
     parseCharacterSelection,

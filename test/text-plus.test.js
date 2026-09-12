@@ -8,7 +8,7 @@ const { _test } = plugin;
 test("new Character Transform objects keep the published serialized type", () => {
   const data = _test.defaultObjectData(null);
   assert.equal(data.type, _test.TEXT_PLUS_TYPE);
-  assert.equal(data.schemaVersion, 4);
+  assert.equal(data.schemaVersion, 5);
   assert.deepEqual(data.objects, []);
   assert.deepEqual(data.customProperties, []);
   assert.deepEqual(data.properties, { name: "Character Transform" });
@@ -21,19 +21,19 @@ test("split shake and selection parents carry independent serialized types", () 
       _test.defaultCharacterShakeData,
       _test.CHARACTER_SHAKE_TYPE,
       "Character Shake",
-      3,
+      4,
     ],
     [
       _test.defaultSelectedTransformData,
       _test.SELECTED_TRANSFORM_TYPE,
       "Selected Character Transform",
-      2,
+      3,
     ],
     [
       _test.defaultSelectedShakeData,
       _test.SELECTED_SHAKE_TYPE,
       "Selected Character Shake",
-      3,
+      4,
     ],
   ];
 
@@ -51,7 +51,7 @@ test("split shake and selection parents carry independent serialized types", () 
 test("new Random Scatter objects carry their own serialized type", () => {
   const data = _test.defaultRandomScatterData(null);
   assert.equal(data.type, _test.RANDOM_SCATTER_TYPE);
-  assert.equal(data.schemaVersion, 2);
+  assert.equal(data.schemaVersion, 3);
   assert.deepEqual(data.objects, []);
   assert.deepEqual(data.customProperties, []);
   assert.deepEqual(data.properties, { name: "Random Scatter" });
@@ -147,6 +147,7 @@ test("transform delays properties while shake offsets its user-controlled phase"
       charScale: animated(transformReadFrames, [1, 1, 1]),
       charRotation: animated(transformReadFrames, [0, 0, 0]),
       charEulerOrder: animated(transformReadFrames, "XYZ"),
+      pivot: animated(transformReadFrames, 1),
     },
   };
   const shake = {
@@ -158,6 +159,7 @@ test("transform delays properties while shake offsets its user-controlled phase"
       shakeAmplitude: animated(shakeReadFrames, Math.PI / 2),
       shakePeriod: animated(shakeReadFrames, 4),
       shakePhase: animated(shakeReadFrames, 3),
+      pivot: animated(shakeReadFrames, 1),
     },
   };
   const transformControls = _test.getCharacterTransformControls(
@@ -171,6 +173,7 @@ test("transform delays properties while shake offsets its user-controlled phase"
   assert.equal(transformControls.transformFrame, 4);
   assert.deepEqual(transformControls.position, [4, 0, 0]);
   assert.equal(transformControls.shake, 0);
+  assert.equal(transformControls.pivot, "text");
   assert.equal(shakeControls.shakeFrame, 10);
   assert.equal(shakeControls.shakePhaseOffset, 2);
   assert.equal(shakeControls.shakePhase, 1);
@@ -178,6 +181,7 @@ test("transform delays properties while shake offsets its user-controlled phase"
   assert.deepEqual(shakeControls.scale, [1, 1, 1]);
   assert.deepEqual(shakeControls.shakeAxis, [0, 1, 0]);
   assert.ok(Math.abs(shakeControls.shake - Math.PI / 2) < 1e-9);
+  assert.equal(shakeControls.pivot, "text");
   assert.ok(transformReadFrames.includes(10));
   assert.ok(transformReadFrames.includes(4));
   assert.ok(shakeReadFrames.every((readFrame) => readFrame === 10));
@@ -235,6 +239,8 @@ test("shake phase offsets work immediately without an initial hold", () => {
 
 test("character number input is one-based, ordered, and ignores invalid entries", () => {
   assert.deepEqual(_test.parseCharacterSelection("1,4,5", 5), [0, 3, 4]);
+  assert.deepEqual(_test.parseCharacterSelection("1.2.3.", 5), [0, 1, 2]);
+  assert.deepEqual(_test.parseCharacterSelection("5．4。2", 5), [1, 3, 4]);
   assert.deepEqual(_test.parseCharacterSelection("5, 1, 1，3 2", 5), [
     0,
     1,
@@ -242,7 +248,7 @@ test("character number input is one-based, ordered, and ignores invalid entries"
     4,
   ]);
   assert.deepEqual(
-    _test.parseCharacterSelection("0,-1,2.5,text,6,3", 5),
+    _test.parseCharacterSelection("0,-1,2x5,text,6,3", 5),
     [2]
   );
   assert.deepEqual(_test.parseCharacterSelection("", 5), []);
@@ -411,6 +417,18 @@ test("random scatter is deterministic and keeps values inside ordered ranges", (
   assert.ok(first.scale[2] >= 1 && first.scale[2] <= 2);
 });
 
+test("Random Scatter reads the shared pivot choice", () => {
+  const property = (value) => ({ get: () => value });
+  const scatter = {
+    characterProperties: {
+      amount: property(0),
+      pivot: property(1),
+      seed: property(1),
+    },
+  };
+  assert.equal(_test.getRandomScatterControls(scatter, 0, 0).pivot, "text");
+});
+
 test("Random Scatter applies one parent-space movement around matching character centers", () => {
   class Matrix4 {
     constructor() {
@@ -485,6 +503,14 @@ test("Random Scatter applies one parent-space movement around matching character
     setFromEuler() {
       return this;
     }
+
+    setFromAxisAngle() {
+      return this;
+    }
+
+    multiply() {
+      return this;
+    }
   }
 
   const THREE = { Matrix4, Vector3, Euler, Quaternion };
@@ -506,8 +532,17 @@ test("Random Scatter applies one parent-space movement around matching character
         offset: anchorOffset,
       }),
     };
+    const textPivot = {
+      parent: source,
+      matrixAutoUpdate: false,
+      matrix: Object.assign(new Matrix4(), {
+        scale: 1,
+        offset: sourceScale === 2 ? 30 : 15,
+      }),
+    };
     return {
       parentToReference: _test.getMatrixToAncestor(THREE, anchor, reference),
+      textPivot,
       node: {
         parent: anchor,
         matrix: new Matrix4(),
@@ -556,6 +591,105 @@ test("Random Scatter applies one parent-space movement around matching character
   assert.equal(back.node.matrix.offset, 1.5);
   assert.equal(front.node.matrixAutoUpdate, false);
   assert.equal(front.node.matrixWorldNeedsUpdate, true);
+
+  const textPivotControls = {
+    position: [0, 0, 0],
+    rotation: [0, 0, 0],
+    scale: [2, 1, 1],
+    eulerOrder: "XYZ",
+    shakeAxis: [0, 0, 1],
+    shake: 0,
+  };
+  assert.equal(
+    _test.applyReferenceSpaceCharacterTransform(
+      THREE,
+      front.node,
+      textPivotControls,
+      reference,
+      front.textPivot
+    ),
+    true
+  );
+  assert.equal(
+    _test.applyReferenceSpaceCharacterTransform(
+      THREE,
+      back.node,
+      textPivotControls,
+      reference,
+      back.textPivot
+    ),
+    true
+  );
+  const frontScaledCenter = new Vector3(0, 0, 0)
+    .applyMatrix4(front.node.matrix)
+    .applyMatrix4(front.parentToReference).x;
+  const backScaledCenter = new Vector3(0, 0, 0)
+    .applyMatrix4(back.node.matrix)
+    .applyMatrix4(back.parentToReference).x;
+  assert.equal(frontScaledCenter, 80);
+  assert.equal(backScaledCenter, 80);
+  assert.equal(front.node.matrix.offset, -20);
+  assert.equal(back.node.matrix.offset, -10);
+
+  const singularSource = {
+    parent: reference,
+    matrixAutoUpdate: false,
+    matrix: Object.assign(new Matrix4(), { scale: 0, offset: 100 }),
+  };
+  const renderRoot = {
+    parent: singularSource,
+    matrixAutoUpdate: false,
+    matrix: new Matrix4(),
+  };
+  const localAnchor = {
+    parent: renderRoot,
+    matrixAutoUpdate: false,
+    matrix: Object.assign(new Matrix4(), { scale: 1, offset: 10 }),
+  };
+  const localTextPivot = {
+    parent: renderRoot,
+    matrixAutoUpdate: false,
+    matrix: new Matrix4(),
+  };
+  const localNode = {
+    parent: localAnchor,
+    matrix: new Matrix4(),
+    matrixAutoUpdate: true,
+    matrixWorldNeedsUpdate: false,
+  };
+  assert.equal(
+    _test.applyReferenceSpaceCharacterTransform(
+      THREE,
+      localNode,
+      textPivotControls,
+      renderRoot,
+      localTextPivot
+    ),
+    true
+  );
+  assert.equal(localNode.matrix.offset, 10);
+});
+
+test("Text pivot uses the render root instead of a singular Text transform", () => {
+  const renderRoot = {};
+  const textPivot = { parent: renderRoot };
+  const textPlus = { threeObj: {} };
+  assert.deepEqual(
+    _test.getCharacterTransformReference(
+      textPlus,
+      { pivot: "text" },
+      textPivot
+    ),
+    { pivotObject: textPivot, referenceObject: renderRoot }
+  );
+  assert.deepEqual(
+    _test.getCharacterTransformReference(
+      textPlus,
+      { pivot: "character" },
+      textPivot
+    ),
+    { pivotObject: null, referenceObject: textPlus.threeObj }
+  );
 });
 
 test("3D text layout follows the font advance and line-height rules", () => {
@@ -600,6 +734,9 @@ test("center point modes match the native 3D Text anchor rules", () => {
   assert.deepEqual(_test.getCenterOffset(bounds, 5), [-10, -10, -6]);
   assert.deepEqual(_test.getCenterOffset(bounds, 6), [-10, -10, 0]);
   assert.deepEqual(_test.getCenterOffset(null, 0), [0, 0, 0]);
+  assert.deepEqual(_test.getTextCenter(bounds, [-10, -10, -3]), [0, 0, 0]);
+  assert.deepEqual(_test.getTextCenter(bounds, [0, -10, -3]), [10, 0, 0]);
+  assert.deepEqual(_test.getTextCenter(null, [4, 5, 6]), [0, 0, 0]);
 });
 
 test("transform and shake parents expose separate 3D controls", () => {
@@ -632,6 +769,9 @@ test("transform and shake parents expose separate 3D controls", () => {
     )
   );
   assert.equal(transform.delayPerCharacter.interpolated, true);
+  assert.equal(transform.pivot.name, "Pivot");
+  assert.equal(transform.pivot.items, "Character;Text");
+  assert.equal(transform.pivot.value, 0);
   assert.equal(transform.randomSeed.dynamic, undefined);
   assert.equal(transform.shakeAmplitude, undefined);
 
@@ -642,6 +782,7 @@ test("transform and shake parents expose separate 3D controls", () => {
   assert.equal(shake.shakePhase.interpolated, true);
   assert.equal(shake.shakeDelayPerCharacter.interpolated, true);
   assert.equal(shake.shakeRandomSeed.dynamic, undefined);
+  assert.equal(shake.pivot.name, "Pivot");
   assert.equal(shake.charPosition, undefined);
 
   assert.equal(
@@ -679,6 +820,7 @@ test("transform and shake parents expose separate 3D controls", () => {
   assert.equal(gradient.gradientEulerOrder.name, "Rotation order");
   assert.equal(gradient.firstScale.linkRatio, true);
   assert.equal(gradient.lastScale.linkRatio, true);
+  assert.equal(gradient.pivot, undefined);
   for (const name of [
     "firstPosition",
     "firstScale",
@@ -702,6 +844,7 @@ test("Random Scatter controls match the requested transform ranges", () => {
       type: {
         NUMBER: 0,
         VECTOR3: 2,
+        OPTION: 6,
       },
     },
   };
@@ -711,6 +854,8 @@ test("Random Scatter controls match the requested transform ranges", () => {
   assert.equal(definitions.amount.dynamic, true);
   assert.equal(definitions.amount.interpolated, true);
   assert.equal(definitions.amount.value, 0);
+  assert.equal(definitions.pivot.name, "Pivot");
+  assert.equal(definitions.pivot.items, "Character;Text");
   assert.equal(definitions.positionMin.name, "Min position");
   assert.equal(definitions.positionMax.name, "Max position");
   assert.equal(definitions.rotationMin.name, "Min rotation");
@@ -866,6 +1011,12 @@ test("Text+ registers six independent group parent types", () => {
     assert.equal(transform.characterProperties.shakeAmplitude, undefined);
     assert.equal(shake.characterProperties.charPosition, undefined);
     assert.equal(scatter.characterProperties.amount.name, "Amount");
+    assert.equal(transform.characterProperties.pivot.name, "Pivot");
+    assert.equal(shake.characterProperties.pivot.name, "Pivot");
+    assert.equal(selectedTransform.characterProperties.pivot.name, "Pivot");
+    assert.equal(selectedShake.characterProperties.pivot.name, "Pivot");
+    assert.equal(scatter.characterProperties.pivot.name, "Pivot");
+    assert.equal(gradient.characterProperties.pivot, undefined);
     assert.equal(
       gradient.characterProperties.firstPosition.name,
       "First position"
@@ -879,7 +1030,7 @@ test("Text+ registers six independent group parent types", () => {
       charPosition: { animated: true },
     });
     const serialized = transform.toJSON();
-    assert.equal(serialized.schemaVersion, 4);
+    assert.equal(serialized.schemaVersion, 5);
     assert.equal(serialized.characterProperties, transform.characterProperties);
   } finally {
     plugin.deactivate();
