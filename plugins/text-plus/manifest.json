@@ -1,0 +1,157 @@
+{
+  "schemaVersion": 1,
+  "id": "text-plus",
+  "name": "Text+",
+  "author": "Zoidium",
+  "version": "12",
+  "kind": "object",
+  "description": "Adds separate Text+ parents for character transforms, gradients, shake, selection, and random scatter.",
+  "objectClassParent": {
+    "name": "Text+",
+    "type": 5
+  },
+  "objectTypes": [
+    {
+      "target": "object3d",
+      "name": "Text+",
+      "desc": "Transform, blend, shake, select, or scatter descendant 3D Text characters.",
+      "type": 5,
+      "list": [
+        {
+          "name": "Character Transform",
+          "type": "zoidium:text-plus/text-plus",
+          "data": {
+            "type": "zoidium:text-plus/text-plus",
+            "schemaVersion": 4,
+            "properties": {
+              "name": "Character Transform"
+            },
+            "characterProperties": {},
+            "customProperties": [],
+            "objects": []
+          }
+        },
+        {
+          "name": "Gradient Transform",
+          "type": "zoidium:text-plus/gradient-transform",
+          "data": {
+            "type": "zoidium:text-plus/gradient-transform",
+            "schemaVersion": 1,
+            "properties": {
+              "name": "Gradient Transform"
+            },
+            "characterProperties": {},
+            "customProperties": [],
+            "objects": []
+          }
+        },
+        {
+          "name": "Character Shake",
+          "type": "zoidium:text-plus/character-shake",
+          "data": {
+            "type": "zoidium:text-plus/character-shake",
+            "schemaVersion": 3,
+            "properties": {
+              "name": "Character Shake"
+            },
+            "characterProperties": {},
+            "customProperties": [],
+            "objects": []
+          }
+        },
+        {
+          "name": "Selected Character Transform",
+          "type": "zoidium:text-plus/selected-transform",
+          "data": {
+            "type": "zoidium:text-plus/selected-transform",
+            "schemaVersion": 2,
+            "properties": {
+              "name": "Selected Character Transform"
+            },
+            "characterProperties": {},
+            "customProperties": [],
+            "objects": []
+          }
+        },
+        {
+          "name": "Selected Character Shake",
+          "type": "zoidium:text-plus/selected-shake",
+          "data": {
+            "type": "zoidium:text-plus/selected-shake",
+            "schemaVersion": 3,
+            "properties": {
+              "name": "Selected Character Shake"
+            },
+            "characterProperties": {},
+            "customProperties": [],
+            "objects": []
+          }
+        },
+        {
+          "name": "Random Scatter",
+          "type": "zoidium:text-plus/random-scatter",
+          "data": {
+            "type": "zoidium:text-plus/random-scatter",
+            "schemaVersion": 2,
+            "properties": {
+              "name": "Random Scatter"
+            },
+            "characterProperties": {},
+            "customProperties": [],
+            "objects": []
+          }
+        }
+      ]
+    }
+  ],
+  "objectClasses": [
+    {
+      "id": "text-plus",
+      "type": "zoidium:text-plus/text-plus",
+      "name": "Character Transform",
+      "description": "Applies position, rotation, scale, and staggered timing to every text character.",
+      "schemaVersion": 4
+    },
+    {
+      "id": "gradient-transform",
+      "type": "zoidium:text-plus/gradient-transform",
+      "name": "Gradient Transform",
+      "description": "Interpolates position, rotation, and scale from the first character to the last.",
+      "schemaVersion": 1
+    },
+    {
+      "id": "character-shake",
+      "type": "zoidium:text-plus/character-shake",
+      "name": "Character Shake",
+      "description": "Applies phase-driven axis-based rotational shake with per-character phase offsets.",
+      "schemaVersion": 3
+    },
+    {
+      "id": "selected-transform",
+      "type": "zoidium:text-plus/selected-transform",
+      "name": "Selected Character Transform",
+      "description": "Applies position, rotation, scale, and staggered timing only to the entered character numbers.",
+      "schemaVersion": 2
+    },
+    {
+      "id": "selected-shake",
+      "type": "zoidium:text-plus/selected-shake",
+      "name": "Selected Character Shake",
+      "description": "Applies phase-driven axis-based rotational shake only to the entered character numbers.",
+      "schemaVersion": 3
+    },
+    {
+      "id": "random-scatter",
+      "type": "zoidium:text-plus/random-scatter",
+      "name": "Random Scatter",
+      "description": "Applies deterministic random position, rotation, and scale ranges to each text character.",
+      "schemaVersion": 2
+    }
+  ],
+  "modules": [
+    {
+      "id": "text-plus-runtime",
+      "source": "./plugins/text-plus/text-plus.js?v=12"
+    }
+  ]
+}

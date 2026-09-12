@@ -2,7 +2,7 @@
 
 const EasingPlus = (() => {
   const STYLE_ID = "zoidium-easing-plus-style";
-  const STYLE_URL = "./plugins/easing-plus/easing-plus.css?v=19";
+  const STYLE_URL = "./plugins/easing-plus/easing-plus.css?v=20";
   const EPSILON = 1e-8;
   const BEZIER_TWEEN = 257;
   // Overshoot is an intentional, two-stage gesture.  Keeping these in screen
@@ -787,6 +787,13 @@ const EasingPlus = (() => {
     return shown;
   }
 
+  function isPropertyInterpolated(property) {
+    if (typeof property?.interpolated === "boolean") {
+      return property.interpolated;
+    }
+    return property?.definition?.interpolated === true;
+  }
+
   // Reapply the outgoing rule to a keyframe row after the native row update
   // ran. While the playhead is on a keyframe, the interpolation/easing
   // buttons show the outgoing segment so the display always matches what a
@@ -826,7 +833,7 @@ const EasingPlus = (() => {
       // which is exactly what the native update shows, so reaching here
       // with no next keyframe anywhere reproduces the native display.
       let visible = true;
-      if (!grouped) visible = !!property.definition?.interpolated;
+      if (!grouped) visible = isPropertyInterpolated(property);
       interpolationButton.pz_update?.(first, visible);
       easeButton.pz_update?.(first, visible);
       return true;
@@ -1805,6 +1812,7 @@ const EasingPlus = (() => {
       resolveTweenWrites,
       executeTweenWrite,
       resolveDisplayTweens,
+      isPropertyInterpolated,
       applyOutgoingDisplay,
       rescaleSegmentHandles,
       snapshotChannelSegments,

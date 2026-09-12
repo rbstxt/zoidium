@@ -3,7 +3,7 @@
   "id": "repeater",
   "name": "Repeater",
   "author": "Zoidium",
-  "version": "7",
+  "version": "9",
   "kind": "object",
   "objectCategory": "REPEATER",
   "objectClassParent": {
@@ -22,10 +22,11 @@
           "type": "zoidium:repeater/repeater",
           "data": {
             "type": "zoidium:repeater/repeater",
-            "schemaVersion": 1,
+            "schemaVersion": 2,
             "properties": {
               "name": "Repeater"
             },
+            "repeaterProperties": {},
             "objects": []
           }
         },
@@ -34,10 +35,11 @@
           "type": "zoidium:repeater/linear-repeater",
           "data": {
             "type": "zoidium:repeater/linear-repeater",
-            "schemaVersion": 1,
+            "schemaVersion": 2,
             "properties": {
               "name": "Linear Repeater"
             },
+            "repeaterProperties": {},
             "objects": []
           }
         },
@@ -46,10 +48,11 @@
           "type": "zoidium:repeater/random-repeater",
           "data": {
             "type": "zoidium:repeater/random-repeater",
-            "schemaVersion": 1,
+            "schemaVersion": 2,
             "properties": {
               "name": "Random Repeater"
             },
+            "repeaterProperties": {},
             "objects": []
           }
         },
@@ -58,10 +61,11 @@
           "type": "zoidium:repeater/echo-repeater",
           "data": {
             "type": "zoidium:repeater/echo-repeater",
-            "schemaVersion": 1,
+            "schemaVersion": 2,
             "properties": {
               "name": "Echo Repeater"
             },
+            "repeaterProperties": {},
             "objects": []
           }
         }
@@ -74,34 +78,34 @@
       "type": "zoidium:repeater/repeater",
       "name": "Repeater",
       "description": "Copies source objects by a fixed transform step.",
-      "schemaVersion": 1
+      "schemaVersion": 2
     },
     {
       "id": "linear-repeater",
       "type": "zoidium:repeater/linear-repeater",
       "name": "Linear Repeater",
       "description": "Copies source objects evenly between the first and last transform.",
-      "schemaVersion": 1
+      "schemaVersion": 2
     },
     {
       "id": "random-repeater",
       "type": "zoidium:repeater/random-repeater",
       "name": "Random Repeater",
       "description": "Copies source objects with deterministic random transforms inside ranges.",
-      "schemaVersion": 1
+      "schemaVersion": 2
     },
     {
       "id": "echo-repeater",
       "type": "zoidium:repeater/echo-repeater",
       "name": "Echo Repeater",
       "description": "Copies source objects from explicitly evaluated earlier frames.",
-      "schemaVersion": 1
+      "schemaVersion": 2
     }
   ],
   "modules": [
     {
       "id": "repeater-runtime",
-      "source": "./plugins/scene-plus/scene-plus.js?v=7"
+      "source": "./plugins/scene-plus/scene-plus.js?v=9"
     }
   ]
 }

@@ -223,7 +223,7 @@ test("executeTweenWrite keeps native picks on the current keyframe", () => {
   assert.deepEqual(calls, [{ op: "tween", property: "addr", frame: 30, tween: 3 }]);
 });
 
-test("applyOutgoingDisplay shows the outgoing segment on its first keyframe", () => {
+test("runtime interpolation enables easing for native scalar properties", () => {
   const { applyOutgoingDisplay } = EasingPlus.__test;
   const realWindow = globalThis.window;
   const mockChannel = (keyframes) => ({
@@ -269,7 +269,8 @@ test("applyOutgoingDisplay shows the outgoing segment on its first keyframe", ()
     const calls = [];
     const property = {
       frameOffset: 0,
-      definition: { interpolated: true },
+      interpolated: true,
+      definition: {},
     };
     property.getKeyframe = mockChannel([
       { frame: 30, tween: 1 },
@@ -294,7 +295,11 @@ test("applyOutgoingDisplay shows the outgoing segment on its first keyframe", ()
     assert.equal(applyOutgoingDisplay(mockRow(property, 45, awayCalls)), false);
     assert.deepEqual(awayCalls, []);
     const hiddenCalls = [];
-    const still = { frameOffset: 0, definition: { interpolated: false } };
+    const still = {
+      frameOffset: 0,
+      interpolated: false,
+      definition: { interpolated: true },
+    };
     still.getKeyframe = property.getKeyframe;
     still.getNextKeyframe = property.getNextKeyframe;
     assert.equal(applyOutgoingDisplay(mockRow(still, 30, hiddenCalls)), true);
@@ -306,6 +311,26 @@ test("applyOutgoingDisplay shows the outgoing segment on its first keyframe", ()
     if (typeof realWindow === "undefined") delete globalThis.window;
     else globalThis.window = realWindow;
   }
+});
+
+test("runtime interpolation wins over definition metadata", () => {
+  const { isPropertyInterpolated } = EasingPlus.__test;
+  assert.equal(
+    isPropertyInterpolated({ interpolated: true, definition: {} }),
+    true
+  );
+  assert.equal(
+    isPropertyInterpolated({
+      interpolated: false,
+      definition: { interpolated: true },
+    }),
+    false
+  );
+  assert.equal(
+    isPropertyInterpolated({ definition: { interpolated: true } }),
+    true
+  );
+  assert.equal(isPropertyInterpolated({ definition: {} }), false);
 });
 
 test("applyOutgoingDisplay hides grouped channels that disagree", () => {

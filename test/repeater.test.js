@@ -5,7 +5,10 @@ const test = require("node:test");
 const { _test } = require("../plugins/scene-plus/scene-plus.js");
 
 test("new repeaters start without an implicit Shape source", () => {
-  assert.deepEqual(_test.defaultSourceData({ type: "zoidium:repeater/repeater" }).objects, []);
+  const data = _test.defaultSourceData({ type: "zoidium:repeater/repeater" });
+  assert.deepEqual(data.objects, []);
+  assert.deepEqual(data.repeaterProperties, {});
+  assert.equal(data.schemaVersion, 2);
   assert.deepEqual(
     _test.defaultSourceData({
       type: "zoidium:repeater/repeater",
@@ -13,6 +16,78 @@ test("new repeaters start without an implicit Shape source", () => {
     }).objects,
     [{ type: 0, objectType: 1 }]
   );
+});
+
+test("Repeater controls live in a separate named category", () => {
+  class PropertyList {
+    constructor(definitions, parent) {
+      this.parent = parent;
+      Object.assign(this, definitions || {});
+    }
+
+    load(data) {
+      this.loadedData = data;
+    }
+  }
+
+  class Group {
+    constructor() {
+      this.properties = new PropertyList({}, this);
+      this.customProperties = [];
+      this.objects = [];
+      this.objects.onListChanged = { watch() {}, unwatch() {} };
+      this.children = [this.properties, this.customProperties, this.objects];
+    }
+
+    load(data) {
+      this.properties.load(data.properties);
+    }
+
+    toJSON() {
+      return {
+        properties: this.properties,
+        customProperties: this.customProperties,
+        objects: this.objects,
+      };
+    }
+  }
+
+  const PZ = {
+    propertyList: PropertyList,
+    property: { type: { NUMBER: 0, VECTOR3: 2 } },
+    object3d: { group: Group },
+  };
+  const Repeater = _test.createRepeaterClass(
+    PZ,
+    {},
+    "step",
+    "zoidium:repeater/repeater"
+  );
+  const repeater = new Repeater();
+
+  assert.equal(repeater.repeaterProperties._zoidiumCategoryName, "Repeater");
+  assert.equal(
+    Object.keys(repeater.repeaterProperties).includes("_zoidiumCategoryName"),
+    false
+  );
+  assert.equal(repeater.children[1], repeater.repeaterProperties);
+  assert.equal(repeater.properties.count, undefined);
+  assert.equal(repeater.repeaterProperties.count.name, "Count");
+  assert.equal(repeater.repeaterProperties.positionStep.name, "Position");
+  assert.equal(repeater.repeaterProperties.rotationStep.name, "Rotation");
+  assert.equal(repeater.repeaterProperties.scaleStep.name, "Scale");
+
+  repeater.load({
+    properties: {},
+    repeaterProperties: { count: { animated: true } },
+    objects: [],
+  });
+  assert.deepEqual(repeater.repeaterProperties.loadedData, {
+    count: { animated: true },
+  });
+  const serialized = repeater.toJSON();
+  assert.equal(serialized.schemaVersion, 2);
+  assert.equal(serialized.repeaterProperties, repeater.repeaterProperties);
 });
 
 test("count is dynamic and is evaluated at the current frame", () => {
@@ -31,6 +106,40 @@ test("count is dynamic and is evaluated at the current frame", () => {
   assert.equal(_test.getCount(count, 0), 2);
   assert.equal(_test.getCount(count, 10), 4);
   assert.equal(_test.getCount({ get: () => 1000 }, 0), 128);
+});
+
+test("every Repeater scale control links its three axes", () => {
+  const PZ = { property: { type: { NUMBER: 0, VECTOR3: 2 } } };
+  const step = _test.makeProperties(PZ, "step", () => {});
+  const linear = _test.makeProperties(PZ, "linear", () => {});
+  const random = _test.makeProperties(PZ, "random", () => {});
+
+  assert.equal(step.scaleStep.linkRatio, true);
+  assert.equal(linear.scaleEnd.linkRatio, true);
+  assert.equal(random.scaleMin.linkRatio, true);
+  assert.equal(random.scaleMax.linkRatio, true);
+});
+
+test("Repeater labels stay short inside their category", () => {
+  const PZ = { property: { type: { NUMBER: 0, VECTOR3: 2 } } };
+  const step = _test.makeProperties(PZ, "step", () => {});
+  const linear = _test.makeProperties(PZ, "linear", () => {});
+  const random = _test.makeProperties(PZ, "random", () => {});
+  const echo = _test.makeProperties(PZ, "echo", () => {});
+
+  assert.equal(step.positionStep.name, "Position");
+  assert.equal(step.rotationStep.name, "Rotation");
+  assert.equal(step.scaleStep.name, "Scale");
+  assert.equal(linear.positionEnd.name, "Position");
+  assert.equal(linear.rotationEnd.name, "Rotation");
+  assert.equal(linear.scaleEnd.name, "Scale");
+  assert.equal(random.positionMin.name, "Min position");
+  assert.equal(random.positionMax.name, "Max position");
+  assert.equal(random.rotationMin.name, "Min rotation");
+  assert.equal(random.rotationMax.name, "Max rotation");
+  assert.equal(random.scaleMin.name, "Min scale");
+  assert.equal(random.scaleMax.name, "Max scale");
+  assert.equal(echo.delay.name, "Offset");
 });
 
 test("echo frames are derived from the requested frame, never playback history", () => {

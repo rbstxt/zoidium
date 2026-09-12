@@ -9,7 +9,7 @@ Full documentation comes later; this file covers the contract and how-to.
 | --- | --- | --- | --- |
 | shader-pack | Single shaders and multi-shader groups | AlipFX, CCFX, AfterClip | No |
 | native-fx | Multipass effects including time ops | Native FX, Layer Input | Yes |
-| object | 3D shapes and containers | Geometry+, Repeater, Light+ | Shapes yes |
+| object | 3D shapes and containers | Geometry+, Repeater, Text+, Light+ | Shapes yes |
 | material-pack | 3D materials | Material+ | Yes |
 | extension | Anything, including panels | Player+, Easing+, Particles+ | Yes |
 | core | Hidden built-in extensions | Zoidium Core | Yes |

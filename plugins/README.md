@@ -182,6 +182,27 @@ not flicker while the timeline plays, and Echo Repeater evaluates each copy from
 an explicit earlier frame using its time offset. Echo never depends on the
 previous playback tick's rendered result. Generated copies are runtime-only;
 project JSON stores the repeater controls and source objects once.
+All Repeater scale controls link X, Y, and Z, so editing one value updates the
+other two. Parent transforms stay under `Properties`. Copy controls live in a
+separate `Repeater` category and use short names such as `Position`, `Rotation`,
+and `Scale`.
+
+`Text+` adds Group-like parent objects to 3D Scene. Character Transform uses a
+per-character property delay. Gradient Transform blends position, rotation,
+and scale from the first character to the last. Character Shake is controlled
+by an animatable Phase and gives each character a configurable phase offset.
+Selected Character Transform and
+Selected Character Shake limit the same controls to one-based character numbers
+entered as a comma-separated list such as `1,4,5`. Random Scatter assigns each
+character a deterministic position, rotation, and scale inside configured ranges,
+then animates their shared strength with Amount. Its transform is evaluated around
+each character center in the Random Scatter parent's space, so overlapping Text
+layers stay aligned even when their local depth or scale differs. Nested Text+
+objects compose their character transforms outermost first.
+The generated character meshes are runtime-only; project JSON keeps the original
+Text objects and Text+ controls.
+All Text+ scale controls link X, Y, and Z. Parent transforms stay under
+`Properties`, while per-character controls live under `Character`.
 
 Native FX `Echo` brings the same explicit-frame rule to 2D Adjustment layers.
 For every requested output frame, it re-evaluates the tracks below the

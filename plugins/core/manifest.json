@@ -3,7 +3,7 @@
   "id": "core",
   "name": "Zoidium Core",
   "author": "Zoidium",
-  "version": "1",
+  "version": "2",
   "kind": "core",
   "visibility": "hidden",
   "alwaysEnabled": true,
@@ -83,6 +83,11 @@
     {
       "id": "object3d-registry",
       "source": "./plugins/core/object3d-registry.js",
+      "phase": "pre-init"
+    },
+    {
+      "id": "named-property-lists",
+      "source": "./plugins/core/named-property-lists.js",
       "phase": "pre-init"
     },
     {

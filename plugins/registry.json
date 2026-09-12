@@ -12,26 +12,26 @@
       "id": "core",
       "name": "Zoidium Core",
       "author": "Zoidium",
-      "version": "1",
+      "version": "2",
       "visibility": "hidden",
       "alwaysEnabled": true,
       "tagline": "Built-in core extensions",
       "description": "Hidden built-in extensions that always run. Not shown in the Plugins panel and never stored in projects.",
-      "manifest": "./plugins/core/manifest.json?v=1",
-      "bundle": "./plugins/core/bundle.json?v=1"
+      "manifest": "./plugins/core/manifest.json?v=2",
+      "bundle": "./plugins/core/bundle.json?v=2"
     },
     {
       "id": "easing-plus",
       "name": "Easing+",
       "author": "Zoidium",
-      "version": "19",
+      "version": "20",
       "itemCount": 1,
       "format": "curve editor",
       "tagline": "Extended Bezier Easing",
       "color": "#384668",
       "description": "A normalized cubic Bezier editor with a focused set of reusable presets.",
-      "manifest": "./plugins/easing-plus/manifest.json?v=19",
-      "bundle": "./plugins/easing-plus/bundle.json?v=19"
+      "manifest": "./plugins/easing-plus/manifest.json?v=20",
+      "bundle": "./plugins/easing-plus/bundle.json?v=20"
     },
     {
       "id": "player-plus",
@@ -92,7 +92,7 @@
       "id": "repeater",
       "name": "Repeater",
       "author": "Zoidium",
-      "version": "7",
+      "version": "9",
       "defaultEnabled": true,
       "itemCount": 4,
       "format": "3D repeaters",
@@ -100,8 +100,8 @@
       "color": "#6c7fb5",
       "description": "Adds Repeater, Linear Repeater, Random Repeater, and Echo Repeater objects to 3D Scene.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/scene-plus/manifest.json?v=7",
-      "bundle": "./plugins/scene-plus/bundle.json?v=7"
+      "manifest": "./plugins/scene-plus/manifest.json?v=9",
+      "bundle": "./plugins/scene-plus/bundle.json?v=9"
     },
     {
       "id": "material-plus",
@@ -179,6 +179,21 @@
       "warning": "Layer Input projects require Zoidium. This feature is extremely experimental and may cause unexpected crashes.",
       "manifest": "./plugins/layer-input/manifest.json?v=7",
       "bundle": "./plugins/layer-input/bundle.json?v=7"
+    },
+    {
+      "id": "text-plus",
+      "name": "Text+",
+      "author": "Zoidium",
+      "version": "12",
+      "defaultEnabled": true,
+      "itemCount": 6,
+      "format": "3D text containers",
+      "tagline": "Character Transforms, Gradients, Shake, and Scatter",
+      "color": "#b2704f",
+      "description": "Adds separate Text+ parents for character transforms, gradients, shake, selection, and random scatter.",
+      "zoidiumOnly": true,
+      "manifest": "./plugins/text-plus/manifest.json?v=12",
+      "bundle": "./plugins/text-plus/bundle.json?v=12"
     },
     {
       "id": "particles-plus",

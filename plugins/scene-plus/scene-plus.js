@@ -1,7 +1,7 @@
 "use strict";
 
 const MAX_REPEATS = 128;
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 
 function numberValue(value, fallback) {
   const number = Number(value);
@@ -156,12 +156,24 @@ function vectorDefinition(PZ, definition) {
     name: definition.name,
     type: PZ.property.type.VECTOR3,
     ...(definition.scaleFactor ? { scaleFactor: definition.scaleFactor } : {}),
+    ...(definition.linkRatio ? { linkRatio: true } : {}),
     objects: [
       axisDefinition(0, "X"),
       axisDefinition(1, "Y"),
       axisDefinition(2, "Z"),
     ],
   };
+}
+
+function createPropertyCategory(PZ, owner, name, definitions) {
+  const properties = new PZ.propertyList(definitions, owner);
+  Object.defineProperty(properties, "_zoidiumCategoryName", {
+    value: name,
+    configurable: true,
+  });
+  const propertyIndex = owner.children.indexOf(owner.properties);
+  owner.children.splice(propertyIndex + 1, 0, properties);
+  return properties;
 }
 
 function makeProperties(PZ, mode, markDirty) {
@@ -184,86 +196,90 @@ function makeProperties(PZ, mode, markDirty) {
   const rotation = Math.PI / 180;
   if (mode === "step") {
     properties.positionStep = vectorDefinition(PZ, {
-      name: "Position step",
+      name: "Position",
       value: [10, 0, 0],
       step: 1,
       decimals: 2,
     });
     properties.rotationStep = vectorDefinition(PZ, {
-      name: "Rotation step",
+      name: "Rotation",
       value: [0, 0, 0],
       scaleFactor: rotation,
       step: 1,
       decimals: 1,
     });
     properties.scaleStep = vectorDefinition(PZ, {
-      name: "Scale multiplier",
+      name: "Scale",
       value: [1, 1, 1],
       min: [0.001, 0.001, 0.001],
       step: 0.01,
       decimals: 3,
+      linkRatio: true,
     });
   } else if (mode === "linear") {
     properties.positionEnd = vectorDefinition(PZ, {
-      name: "Position at last copy",
+      name: "Position",
       value: [40, 0, 0],
       step: 1,
       decimals: 2,
     });
     properties.rotationEnd = vectorDefinition(PZ, {
-      name: "Rotation at last copy",
+      name: "Rotation",
       value: [0, 0, 90],
       scaleFactor: rotation,
       step: 1,
       decimals: 1,
     });
     properties.scaleEnd = vectorDefinition(PZ, {
-      name: "Scale at last copy",
+      name: "Scale",
       value: [1, 1, 1],
       min: [0.001, 0.001, 0.001],
       step: 0.01,
       decimals: 3,
+      linkRatio: true,
     });
   } else if (mode === "random") {
     properties.positionMin = vectorDefinition(PZ, {
-      name: "Minimum position",
+      name: "Min position",
       value: [-10, -10, -10],
       step: 1,
       decimals: 2,
     });
     properties.positionMax = vectorDefinition(PZ, {
-      name: "Maximum position",
+      name: "Max position",
       value: [10, 10, 10],
       step: 1,
       decimals: 2,
     });
     properties.rotationMin = vectorDefinition(PZ, {
-      name: "Minimum rotation",
+      name: "Min rotation",
       value: [0, 0, 0],
       scaleFactor: rotation,
       step: 1,
       decimals: 1,
     });
     properties.rotationMax = vectorDefinition(PZ, {
-      name: "Maximum rotation",
+      name: "Max rotation",
       value: [0, 0, 0],
       scaleFactor: rotation,
       step: 1,
       decimals: 1,
     });
     properties.scaleMin = vectorDefinition(PZ, {
-      name: "Minimum scale",
+      name: "Min scale",
       value: [1, 1, 1],
       min: [0.001, 0.001, 0.001],
       step: 0.01,
       decimals: 3,
+      linkRatio: true,
     });
     properties.scaleMax = vectorDefinition(PZ, {
-      name: "Maximum scale",
+      name: "Max scale",
       value: [1, 1, 1],
       min: [0.001, 0.001, 0.001],
       step: 0.01,
       decimals: 3,
+      linkRatio: true,
     });
     properties.seed = {
       name: "Seed",
@@ -277,7 +293,7 @@ function makeProperties(PZ, mode, markDirty) {
   if (mode === "echo") {
     properties.delay = {
       dynamic: true,
-      name: "Time offset (frames)",
+      name: "Offset",
       type: PZ.property.type.NUMBER,
       value: 5,
       min: 0,
@@ -362,7 +378,13 @@ function defaultSourceData(data) {
   if (!normalized.properties || typeof normalized.properties !== "object") {
     normalized.properties = {};
   }
-  if (!normalized.schemaVersion) normalized.schemaVersion = SCHEMA_VERSION;
+  if (
+    !normalized.repeaterProperties ||
+    typeof normalized.repeaterProperties !== "object"
+  ) {
+    normalized.repeaterProperties = {};
+  }
+  normalized.schemaVersion = SCHEMA_VERSION;
   return normalized;
 }
 
@@ -378,7 +400,12 @@ function createRepeaterClass(PZ, THREE, mode, type) {
       this._cloneDirty = true;
       this._cloneSignature = "";
       this.objects.name = "Source objects";
-      this.properties.addAll(propertyDefinitions);
+      this.repeaterProperties = createPropertyCategory(
+        PZ,
+        this,
+        "Repeater",
+        propertyDefinitions
+      );
       this._onObjectsChanged = () => {
         this.markRepeaterDirty();
         Promise.resolve().then(() => this.detachTemplateObjects());
@@ -401,7 +428,9 @@ function createRepeaterClass(PZ, THREE, mode, type) {
     }
 
     load(data) {
-      super.load(defaultSourceData(data));
+      const normalized = defaultSourceData(data);
+      super.load(normalized);
+      this.repeaterProperties.load(normalized.repeaterProperties);
       this.detachTemplateObjects();
       this.markRepeaterDirty();
     }
@@ -410,6 +439,7 @@ function createRepeaterClass(PZ, THREE, mode, type) {
       const data = super.toJSON();
       data.type = this.type;
       data.schemaVersion = SCHEMA_VERSION;
+      data.repeaterProperties = this.repeaterProperties;
       return data;
     }
 
@@ -435,10 +465,10 @@ function createRepeaterClass(PZ, THREE, mode, type) {
       if (!this.threeObj) return;
       this.clearInstances();
       const currentFrame = Math.max(0, numberValue(frame, 0));
-      const count = getCount(this.properties.count, currentFrame);
+      const count = getCount(this.repeaterProperties.count, currentFrame);
       const delay = Math.max(
         0,
-        numberValue(this.properties.delay?.get?.(currentFrame), 0),
+        numberValue(this.repeaterProperties.delay?.get?.(currentFrame), 0),
       );
       const sources = this.objects.filter((source) => source?.threeObj);
       const echoFrames = getEchoFrames(currentFrame, count, delay);
@@ -472,7 +502,7 @@ function createRepeaterClass(PZ, THREE, mode, type) {
     rebuildInstances(frame) {
       if (!this.threeObj) return;
       this.clearInstances();
-      const count = getCount(this.properties.count, frame);
+      const count = getCount(this.repeaterProperties.count, frame);
       const sources = this.objects.filter((source) => source?.threeObj);
       for (let index = 0; index < count; index += 1) {
         const root = new THREE.Object3D();
@@ -503,7 +533,7 @@ function createRepeaterClass(PZ, THREE, mode, type) {
       const signatureParts = [];
       for (const source of sources) objectSignature(source.threeObj, signatureParts);
       const signature = signatureParts.join("|");
-      const count = getCount(this.properties.count, frame);
+      const count = getCount(this.repeaterProperties.count, frame);
       if (
         this._cloneDirty ||
         signature !== this._cloneSignature ||
@@ -513,7 +543,7 @@ function createRepeaterClass(PZ, THREE, mode, type) {
       }
 
       const controls = this.readControls(frame);
-      const seed = numberValue(this.properties.seed?.get?.(), 1);
+      const seed = numberValue(this.repeaterProperties.seed?.get?.(), 1);
       for (let index = 0; index < this._instanceRoots.length; index += 1) {
         const instance = this._instanceRoots[index];
         const transform = getTransform(this._mode, index, count, controls, seed);
@@ -527,7 +557,7 @@ function createRepeaterClass(PZ, THREE, mode, type) {
 
     readControls(frame) {
       const read = (name, fallback) =>
-        vectorValue(this.properties[name]?.get?.(frame), fallback);
+        vectorValue(this.repeaterProperties[name]?.get?.(frame), fallback);
       if (this._mode === "linear") {
         return {
           positionEnd: read("positionEnd", [0, 0, 0]),
@@ -605,6 +635,8 @@ module.exports = {
   deactivate,
   _test: {
     defaultSourceData,
+    createPropertyCategory,
+    createRepeaterClass,
     getCount,
     getEchoFrame,
     getEchoFrames,
