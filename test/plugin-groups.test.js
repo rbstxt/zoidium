@@ -362,3 +362,11 @@ test("the panel wires pack sections, master switches, and filtered groups", () =
   assert.match(group, /addEventListener\("change", \(\) => \{\s*setGroupEnabled\(group, group\.toggle\.checked\);/, "the master switch toggles the pack");
   assert.match(group, /zoidium-plugin-category-switch/, "the switch lives in the pack summary");
 });
+
+test("plugin cards show credits below descriptions without active counts", () => {
+  assert.equal(pluginEntry("alipfx-shader-pack-4").credits, "Credits: AlipFX");
+  assert.equal(pluginEntry("ccfx-shader-pack").credits, "Credits: CCFX");
+  assert.equal(pluginEntry("text-plus").credits, "Credits: DaviFX");
+  assert.match(managerSource, /zoidium-plugin-credits/, "credits have a dedicated line");
+  assert.doesNotMatch(managerSource, /\b(?:active|Enabled|Disabled)\b/, "plugin cards no longer expose status labels");
+});
