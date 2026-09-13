@@ -7,6 +7,7 @@ const {
   discoverTextReferences,
   normalizeResourcePath,
   patchIndexHtml,
+  patchThreeR91Source,
 } = require("../tools/runtime-resources");
 
 test("resource paths reject traversal outside the stage", () => {
@@ -62,4 +63,26 @@ test("layout entry scripts are discovered from their source pages", () => {
 
   assert.equal(clipmaker.sourcePath, "clipmaker-3.0.106.js");
   assert.equal(videoEditor.sourcePath, "videoeditor-2.0.69.js");
+});
+
+test("the staged three.js patch adds the four extended bevel options", () => {
+  const source = [
+    "E=void 0!==b.UVGenerator?b.UVGenerator:fb.WorldUVGenerator;",
+    "y||(v=q=x=0);",
+    "V=Xa.triangulateShape(a,O),X=a;Q=0;for(M=O.length;Q<M;Q++)S=O[Q],a=a.concat(S);",
+    "for(R=0;R<x;R++){W=R/x;var fa=q*Math.cos(W*Math.PI/2);U=v*Math.sin(W*Math.PI/2);",
+    "ha=c(S[J],ca[J],U),f(ha.x,ha.y,-fa)",
+    "ha=y?c(a[J],ea[J],U):a[J]",
+    "ha=y?c(a[J],ea[J],U):a[J]",
+    "for(R=x-1;0<=R;R--){W=R/x;fa=q*Math.cos(W*Math.PI/2);U=v*Math.sin(W*Math.PI/2);",
+    "ha=c(S[J],ca[J],U),A?f(ha.x,ha.y+H[B-1].y,H[B-1].x+fa):f(ha.x,ha.y,m+fa)",
+  ].join("\n");
+
+  const patched = patchThreeR91Source(source);
+  assert.match(patched, /bevelProfilePow/);
+  assert.match(patched, /bevelRound/);
+  assert.match(patched, /bevelSizeInner/);
+  assert.match(patched, /bevelShift/);
+  assert.match(patched, /verticesSizes/);
+  assert.equal(patchThreeR91Source(patched), patched);
 });

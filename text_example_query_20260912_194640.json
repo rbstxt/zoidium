@@ -1,0 +1,12 @@
+[
+  {
+    "title": "r/writing on Reddit: 161 Examples of Successful Query Letters from Famous Authors",
+    "href": "https://www.reddit.com/r/writing/comments/wtae8f/161_examples_of_successful_query_letters_from/",
+    "body": "August 20, 2022 - On the road to traditional publication, your query letter plays a central role in getting literary agents and publishers to notice your book. To help inspire you, we’ve collected 161 examples of successful query letters from famous authors spanning various genres, from crime fiction, to fantasy, to young adult."
+  },
+  {
+    "title": "SELECT Examples (Transact-SQL) - SQL Server | Microsoft Learn",
+    "href": "https://learn.microsoft.com/en-us/sql/t-sql/queries/select-examples-transact-sql?view=sql-server-ver17",
+    "body": "July 20, 2026 - The following example finds the total of each sales order in the database. USE AdventureWorks2025; GO SELECT SalesOrderID, SUM(LineTotal) AS SubTotal FROM Sales.SalesOrderDetail GROUP BY SalesOrderID ORDER BY SalesOrderID; GO · Because of the GROUP BY clause, the query returns only one row containing the sum of all sales for each sales order."
+  }
+]

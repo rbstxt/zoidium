@@ -88,15 +88,16 @@
 
 .zoidium-plugin-search {
   box-sizing: border-box;
-  padding: 4px;
+  /* No bottom inset: the row below owns the gap so every boundary in the
+     panel is spaced by the rows themselves, never by stacked padding. */
+  padding: 4px 4px 0;
 }
 
 .zoidium-plugin-panel:not(.zoidium-plugin-panel--scrolling) .zoidium-plugin-search {
   width: calc(100% + var(--zoidium-scrollbar-width));
 }
 
-.zoidium-plugin-panel > .proprow,
-.zoidium-plugin-list > .zoidium-plugin-entry {
+.zoidium-plugin-panel > .proprow {
   box-sizing: border-box;
   width: calc(100% + var(--zoidium-scrollbar-width));
 }
@@ -105,45 +106,109 @@
   padding-right: calc(5px + var(--zoidium-scrollbar-width)) !important;
 }
 
+/* ---- plugin groups (one collapsible pack per registry category) ---- */
+
 .zoidium-plugin-category {
   box-sizing: border-box;
   margin-top: 0;
   width: calc(100% + var(--zoidium-scrollbar-width));
 }
 
-.zoidium-plugin-category:not([open]) {
-  border-bottom: 1px solid #242424;
+.zoidium-plugin-category[hidden] {
+  display: none;
 }
 
+/* Every row owns exactly one bottom border, the same 1px the CM3 .proprow
+   rows use, so no two rows can double up on a boundary. The vertical padding
+   is symmetric and no neighbouring row adds spacing of its own, which keeps
+   the pack heading optically centered. The right inset matches the per-plugin
+   rows (5px + gutter), so every switch in the panel shares one right edge. */
 .zoidium-plugin-category > summary {
+  align-items: center;
+  border-bottom: 1px solid #242424;
   box-sizing: border-box;
   color: #ccc;
   cursor: pointer;
+  display: flex;
   font-size: 15px;
   font-weight: bold;
-  list-style-position: inside;
-  padding: 11px calc(8px + var(--zoidium-scrollbar-width)) 8px 8px;
+  gap: 8px;
+  list-style: none;
+  padding: 9px calc(5px + var(--zoidium-scrollbar-width)) 9px 8px;
   user-select: none;
 }
 
-.zoidium-plugin-category > summary::marker {
-  color: var(--zoidium-theme-link, #93a6d3);
+.zoidium-plugin-category > summary::-webkit-details-marker {
+  display: none;
+}
+
+/* The disclosure triangle is drawn here because a flex summary drops the
+   native marker in Chromium. */
+.zoidium-plugin-category > summary::before {
+  border-bottom: 5px solid transparent;
+  border-left: 6px solid var(--zoidium-theme-link, #93a6d3);
+  border-top: 5px solid transparent;
+  content: "";
+  flex: none;
+  height: 0;
+  transition: transform 120ms ease;
+  width: 0;
+}
+
+.zoidium-plugin-category[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+.zoidium-plugin-category-heading {
+  align-items: baseline;
+  display: flex;
+  flex: 1 1 auto;
+  gap: 8px;
+  min-width: 0;
+}
+
+.zoidium-plugin-category-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zoidium-plugin-category-count {
+  color: #8a8a8a;
+  flex: none;
+  font-size: 12px;
+  font-weight: normal;
+}
+
+.zoidium-plugin-category-switch {
+  align-items: center;
+  display: flex;
+  flex: none;
 }
 
 .zoidium-plugin-category-description {
-  background: var(--zoidium-plugin-warning-background);
+  background: #242424;
   border-bottom: 1px solid #242424;
-  border-left: 3px solid var(--zoidium-plugin-warning-border);
-  border-top: 1px solid #242424;
+  border-left: 3px solid #3d3d3d;
   box-sizing: border-box;
-  color: var(--zoidium-plugin-warning-color);
+  color: #969696;
   font-size: 13px;
   line-height: 1.4;
   padding: 5px calc(5px + var(--zoidium-scrollbar-width)) 5px 5px;
 }
 
-.zoidium-plugin-category-list {
-  padding-bottom: 4px;
+.zoidium-plugin-category-description[data-tone="warning"] {
+  background: var(--zoidium-plugin-warning-background);
+  border-left-color: var(--zoidium-plugin-warning-border);
+  color: var(--zoidium-plugin-warning-color);
+}
+
+/* The category section is already widened under the scrollbar gutter, so its
+   entries fill it instead of widening a second time (which would push the row
+   switches past the visible edge). */
+.zoidium-plugin-category-list > .zoidium-plugin-entry {
+  box-sizing: border-box;
+  width: 100%;
 }
 
 .zoidium-plugin-warning-row {
@@ -213,6 +278,22 @@
 .zoidium-plugin-switch input:disabled + .zoidium-plugin-track {
   cursor: wait;
   opacity: 0.55;
+}
+
+/* Mixed state: a group master switch whose pack is only partly enabled. */
+.zoidium-plugin-switch input:indeterminate + .zoidium-plugin-track {
+  background-color: #2f2f2f;
+  border-color: #5f5f5f;
+}
+
+.zoidium-plugin-switch input:indeterminate + .zoidium-plugin-track::after {
+  background-color: #bbb;
+  border-radius: 2px;
+  height: 4px;
+  left: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 18px;
 }
 
 .zp-detail-switch {

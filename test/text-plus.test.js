@@ -724,6 +724,56 @@ test("3D text layout follows the font advance and line-height rules", () => {
   );
 });
 
+test("3D text layout applies horizontal spacing between characters", () => {
+  const font = {
+    resolution: 1000,
+    boundingBox: { yMin: -200, yMax: 800 },
+    underlineThickness: 50,
+    glyphs: { A: { ha: 600 } },
+  };
+  const layout = _test.getTextLayout("AA", font, 100, 5);
+
+  assert.deepEqual(
+    layout.units.map(({ character, x, advance }) => ({ character, x, advance })),
+    [
+      { character: "A", x: 0, advance: 60 },
+      { character: "A", x: 65, advance: 60 },
+    ]
+  );
+});
+
+test("Text geometry options map advanced bevel controls to ExtrudeGeometry", () => {
+  const property = (value) => ({ get: () => value });
+  const options = _test.textGeometryOptions(
+    {
+      properties: {
+        size: property([30, 4]),
+        detail: property(7),
+        bevel: property(1),
+        bevelSize: property([1.25, 2.5]),
+        bevelSide: property(1),
+        bevelDetail: property(8),
+        bevelProfile: property(0),
+        bevelTension: property(0.2),
+      },
+    },
+    { data: {} }
+  );
+
+  assert.equal(options.size, 30);
+  assert.equal(options.height, 4);
+  assert.equal(options.amount, 4);
+  assert.equal(options.curveSegments, 7);
+  assert.equal(options.bevelEnabled, true);
+  assert.equal(options.bevelThickness, 1.25);
+  assert.equal(options.bevelSize, 2.5);
+  assert.equal(options.bevelSizeInner, 2.5);
+  assert.equal(options.bevelShift, 2.5);
+  assert.equal(options.bevelSegments, 8);
+  assert.equal(options.bevelRound, false);
+  assert.equal(options.bevelProfile, 0.2);
+});
+
 test("center point modes match the native 3D Text anchor rules", () => {
   const bounds = { min: [-10, -20, -2], max: [30, 40, 8] };
   assert.deepEqual(_test.getCenterOffset(bounds, 0), [-10, -10, -3]);
@@ -925,6 +975,17 @@ test("Text+ registers six independent group parent types", () => {
     update() {}
     unload() {}
   }
+  const originalTextPropertyDefinitions = {
+    bevelSize: {
+      value: [0.1, 0.5],
+      subtitle1: "size",
+      subtitle2: "thickness",
+      min: 0.01,
+      step: 0.1,
+    },
+  };
+  TextObject.propertyDefinitions = originalTextPropertyDefinitions;
+  TextObject.changeFn = function changeText() {};
   const PZ = {
     object3d: {
       group: Group,
@@ -934,6 +995,7 @@ test("Text+ registers six independent group parent types", () => {
     property: {
       type: {
         NUMBER: 0,
+        VECTOR2: 1,
         VECTOR3: 2,
         OPTION: 6,
         LIST: 9,
@@ -1021,6 +1083,15 @@ test("Text+ registers six independent group parent types", () => {
       gradient.characterProperties.firstPosition.name,
       "First position"
     );
+    assert.equal(TextObject.propertyDefinitions.spacing.name, "Horizontal spacing");
+    assert.equal(TextObject.propertyDefinitions.spacing.step, 0.5);
+    assert.equal(TextObject.propertyDefinitions.bevelSize.subtitle1, "thickness");
+    assert.equal(TextObject.propertyDefinitions.bevelSize.subtitle2, "width");
+    assert.equal(TextObject.propertyDefinitions.bevelSize.min, 0);
+    assert.equal(TextObject.propertyDefinitions.bevelSide.items, "outside;inside");
+    assert.equal(TextObject.propertyDefinitions.bevelDetail.value, 3);
+    assert.equal(TextObject.propertyDefinitions.bevelProfile.items, "flat;round");
+    assert.equal(TextObject.propertyDefinitions.bevelTension.value, 0.5);
     transform.load({
       properties: {},
       characterProperties: { charPosition: { animated: true } },
@@ -1044,6 +1115,7 @@ test("Text+ registers six independent group parent types", () => {
     _test.SELECTED_SHAKE_TYPE,
     _test.RANDOM_SCATTER_TYPE,
   ]);
+  assert.equal(TextObject.propertyDefinitions, originalTextPropertyDefinitions);
 });
 
 test("nested Text+ objects are collected outermost first through normal groups", () => {

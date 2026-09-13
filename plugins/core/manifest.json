@@ -3,7 +3,7 @@
   "id": "core",
   "name": "Zoidium Core",
   "author": "Zoidium",
-  "version": "2",
+  "version": "6",
   "kind": "core",
   "visibility": "hidden",
   "alwaysEnabled": true,
@@ -111,8 +111,28 @@
       "phase": "pre-init"
     },
     {
+      "id": "videoeditor-timeline-defaults",
+      "source": "./plugins/core/videoeditor-timeline-defaults.js",
+      "phase": "pre-init"
+    },
+    {
       "id": "remove-community-media",
       "source": "./plugins/core/remove-community-media.js",
+      "phase": "pre-init"
+    },
+    {
+      "id": "composite-video-materials",
+      "source": "./plugins/core/composite-video-materials.js",
+      "phase": "pre-init"
+    },
+    {
+      "id": "playback-seek-sync",
+      "source": "./plugins/core/playback-seek-sync.js",
+      "phase": "pre-init"
+    },
+    {
+      "id": "export-audio-trace",
+      "source": "./plugins/core/export-audio-trace.js",
       "phase": "pre-init"
     },
     {

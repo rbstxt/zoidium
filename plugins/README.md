@@ -9,6 +9,15 @@ fan out into dozens of small requests. Shader effect data remains lazy at the
 CM3 object level: the manager parses and clones an effect preset only when
 the user adds that effect to a project.
 
+The Plugins panel renders one collapsible pack per entry in the registry
+`categories` array, with a master switch that enables or disables every plugin
+in the pack at once. Every visible plugin sets `category` to one of those ids;
+`pnpm run check:plugin-manifests` rejects a visible plugin whose category is
+missing or undeclared. Group order follows the `categories` array, and the
+registry order of the plugins themselves is kept inside each pack. Packs open
+by default; a category adds `collapsed: true` to start folded, as
+`experimental` does.
+
 `bundle.json` files are generated artifacts. Source manifests and assets remain
 in the plugin directory for editing and rebuilding, but are not part of the
 normal runtime load path:

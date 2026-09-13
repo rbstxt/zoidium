@@ -3,7 +3,8 @@
 Text+ adds six parent objects to 3D Scene. Put one or more 3D Text objects
 inside any parent, directly or through ordinary Groups, and Text+ renders
 each character as an independent 3D mesh. Non-text descendants keep their
-normal Group behavior.
+normal Group behavior. Text+ also adds advanced bevel controls to the native
+Text object and uses them when it rebuilds character meshes.
 
 - `Character Transform` controls keyframed position, scale, rotation, and delay.
 - `Gradient Transform` blends transforms from the first character to the last.
@@ -15,6 +16,25 @@ normal Group behavior.
 The source Text object still owns its text, font, extrusion, bevel, material,
 center point, and object transform. Text+ preserves those settings and adds the
 following animated controls around each character's own geometry center.
+
+## Text geometry and bevels
+
+Text objects have these geometry controls:
+
+- `Horizontal spacing` shifts each following character left or right. It also
+  applies to the per-character meshes rendered by Text+.
+- `Bevel size` contains `thickness` and `width`. Width controls how far the
+  bevel travels across the front and back faces.
+- `Bevel side` chooses `outside` for the usual outward bevel or `inside` to
+  keep the bevel inside the original outline.
+- `Bevel subdivision` controls the number of bevel segments from 1 to 100.
+- `Cap profile` chooses `flat` or `round` bevel walls.
+- `Bevel tension` changes the curve of a round profile. Values near 0 and 1
+  put more of the curve near opposite ends of the bevel.
+
+The added controls keep the existing Text property names and serialized
+values. Projects that do not use the new fields continue to use the original
+outside, round, three-segment defaults.
 
 The standard `Properties` category contains the parent layer's transform.
 Text+ puts every per-character control in a separate `Character` category, so

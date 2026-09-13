@@ -218,6 +218,9 @@ async function main() {
     if (shuttingDown) return;
     shuttingDown = true;
     await Promise.all(listeners.map(({ server }) => close(server)));
+    await runtime.cleanup().catch((error) => {
+      console.error("[Zoidium] could not clean up the development runtime stage:", error);
+    });
     process.exitCode = exitCode;
   };
   process.once("SIGINT", () => shutdown(0).then(() => process.exit()));
