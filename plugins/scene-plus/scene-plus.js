@@ -339,9 +339,37 @@ function copyObjectState(source, target) {
 }
 
 function cloneMaterial(material) {
-  return material && typeof material.clone === "function"
+  const clone = material && typeof material.clone === "function"
     ? material.clone()
     : material;
+  if (clone === material || !material?.uniforms || !clone?.uniforms) return clone;
+
+  // ShaderMaterial.clone() in Three.js r91 clones Texture uniforms into new
+  // Texture objects whose upload version is zero. Reuse the source textures
+  // while keeping scalar and vector uniforms, such as particle time, isolated
+  // for each echo.
+  for (const [name, sourceUniform] of Object.entries(material.uniforms)) {
+    if (sourceUniform?.value?.isTexture && clone.uniforms[name]) {
+      clone.uniforms[name].value = sourceUniform.value;
+    }
+  }
+  return clone;
+}
+
+function copyRenderCallbacks(source, target) {
+  if (!source || !target) return;
+  for (const name of ["onBeforeRender", "onAfterRender"]) {
+    if (Object.prototype.hasOwnProperty.call(source, name)) {
+      target[name] = source[name];
+    }
+  }
+  const length = Math.min(
+    source.children?.length || 0,
+    target.children?.length || 0
+  );
+  for (let index = 0; index < length; index += 1) {
+    copyRenderCallbacks(source.children[index], target.children[index]);
+  }
 }
 
 function cloneRenderTree(source) {
@@ -356,6 +384,7 @@ function cloneRenderTree(source) {
       node.material = cloneMaterial(node.material);
     }
   });
+  copyRenderCallbacks(source, clone);
   return clone;
 }
 
@@ -637,6 +666,8 @@ module.exports = {
     defaultSourceData,
     createPropertyCategory,
     createRepeaterClass,
+    cloneMaterial,
+    cloneRenderTree,
     getCount,
     getEchoFrame,
     getEchoFrames,

@@ -164,6 +164,53 @@ test("echo frames are derived from the requested frame, never playback history",
   assert.deepEqual(reverse, forward);
 });
 
+test("echo material clones share particle textures but isolate time uniforms", () => {
+  const texture = { isTexture: true, version: 1 };
+  const clonedTexture = { isTexture: true, version: 0 };
+  const material = {
+    uniforms: {
+      image: { value: texture },
+      time: { value: 12 },
+    },
+    clone() {
+      return {
+        uniforms: {
+          image: { value: clonedTexture },
+          time: { value: this.uniforms.time.value },
+        },
+      };
+    },
+  };
+
+  const clone = _test.cloneMaterial(material);
+  assert.equal(clone.uniforms.image.value, texture);
+  clone.uniforms.time.value = 6;
+  assert.equal(material.uniforms.time.value, 12);
+});
+
+test("echo render clones retain particle render callbacks", () => {
+  const onBeforeRender = function () {};
+  const onAfterRender = function () {};
+  const clonedNode = {
+    children: [],
+    traverse(callback) {
+      callback(this);
+    },
+  };
+  const source = {
+    children: [],
+    onBeforeRender,
+    onAfterRender,
+    clone() {
+      return clonedNode;
+    },
+  };
+
+  const clone = _test.cloneRenderTree(source);
+  assert.equal(clone.onBeforeRender, onBeforeRender);
+  assert.equal(clone.onAfterRender, onAfterRender);
+});
+
 test("step repeater uses the configured transform step", () => {
   const result = _test.getTransform(
     "step",

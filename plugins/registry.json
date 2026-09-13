@@ -53,15 +53,15 @@
       "category": "utilities",
       "name": "Player+",
       "author": "Zoidium",
-      "version": "7",
+      "version": "9",
       "defaultEnabled": true,
       "itemCount": 1,
       "format": "playback controls",
       "tagline": "Playback Quality Controls",
       "color": "#4f7dbf",
       "description": "Adds drawing pause, single-render, and preview quality controls to the playback bar.",
-      "manifest": "./plugins/player-plus/manifest.json?v=7",
-      "bundle": "./plugins/player-plus/bundle.json?v=7"
+      "manifest": "./plugins/player-plus/manifest.json?v=9",
+      "bundle": "./plugins/player-plus/bundle.json?v=9"
     },
     {
       "id": "native-fx",
@@ -112,7 +112,7 @@
       "category": "scene",
       "name": "Repeater",
       "author": "Zoidium",
-      "version": "9",
+      "version": "10",
       "defaultEnabled": true,
       "itemCount": 4,
       "format": "3D repeaters",
@@ -120,8 +120,8 @@
       "color": "#6c7fb5",
       "description": "Adds Repeater, Linear Repeater, Random Repeater, and Echo Repeater objects to 3D Scene.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/scene-plus/manifest.json?v=9",
-      "bundle": "./plugins/scene-plus/bundle.json?v=9"
+      "manifest": "./plugins/scene-plus/manifest.json?v=10",
+      "bundle": "./plugins/scene-plus/bundle.json?v=10"
     },
     {
       "id": "material-plus",
