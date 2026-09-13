@@ -537,9 +537,6 @@
       content: "Changing the editor layout takes effect after Zoidium is reloaded.",
     });
     var defaultFrameRateRow = createDefaultFrameRateRow(legacy);
-    var defaultFrameRateNote = legacy.generateDescription({
-      content: "Used for new projects only. Existing projects keep their current frame rate.",
-    });
     var fontRow = createFontRow(legacy);
     var themeRow = createThemeRow(legacy);
     var hueRow = createHueRow(legacy);
@@ -558,7 +555,6 @@
     panel.appendChild(layoutRow);
     panel.appendChild(layoutNote);
     panel.appendChild(defaultFrameRateRow);
-    panel.appendChild(defaultFrameRateNote);
     panel.appendChild(fontRow);
     panel.appendChild(themeRow);
     panel.appendChild(hueRow);

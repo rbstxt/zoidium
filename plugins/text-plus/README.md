@@ -102,7 +102,8 @@ Each parent has its own order control with these choices:
 
 Each parent also has its own random seed. A seed selects a deterministic
 shuffle, so its delay or phase-offset order stays identical during playback,
-export, and repeated renders.
+export, and repeated renders. Seed is animatable, and fractional values are
+kept as distinct random states instead of being rounded to integers.
 
 ## Selected characters
 
@@ -118,7 +119,8 @@ numbers are ignored. Delay order runs across the selected characters only, so
 `Random Scatter` has `Amount`, `Seed`, and `Min` and `Max` ranges for position,
 rotation, and scale. It also has the same `Pivot` choices. Each character
 receives one deterministic value inside every range. Changing `Seed` creates
-another layout without flicker.
+another layout without flicker, and animating it can use fractional values to
+select distinct layouts between integer keyframes.
 
 `Amount` is animatable. At 0, characters keep their original transforms. At 1,
 they reach their assigned random transforms. Values above 1 continue moving,

@@ -39,6 +39,7 @@ const DEGREES_TO_RADIANS = Math.PI / 180;
 const PZ_EULER_ORDERS = new Set(["XYZ", "YZX", "ZXY", "XZY", "YXZ", "ZYX"]);
 
 const randomOrderCache = new Map();
+const seedBits = new DataView(new ArrayBuffer(8));
 
 const state = {
   PZ: null,
@@ -155,8 +156,38 @@ function defaultRandomScatterData(data) {
 
 /* ------------------------------------------------------------------- delay */
 
+function seedHash(seed) {
+  const numericSeed = numberValue(seed, 1);
+  if (Number.isInteger(numericSeed)) return Math.trunc(numericSeed) | 0;
+
+  // Keep every fractional bit in the seed identity. Math.trunc(seed) made
+  // animated values such as 1.1 and 1.9 produce the same random state.
+  seedBits.setFloat64(0, numericSeed, true);
+  let value =
+    seedBits.getUint32(0, true) ^
+    Math.imul(seedBits.getUint32(4, true), 0x9e3779b9);
+  value ^= value >>> 16;
+  value = Math.imul(value, 0x45d9f3b);
+  value ^= value >>> 16;
+  return value | 0;
+}
+
+function seedCacheKey(seed) {
+  const numericSeed = numberValue(seed, 1);
+  if (Number.isInteger(numericSeed)) {
+    return "i:" + (Math.trunc(numericSeed) | 0);
+  }
+  seedBits.setFloat64(0, numericSeed, true);
+  return (
+    "f:" +
+    seedBits.getUint32(4, true).toString(16) +
+    ":" +
+    seedBits.getUint32(0, true).toString(16)
+  );
+}
+
 function seededRandom(seed, index, channel) {
-  let value = (Math.trunc(seed) | 0) ^ Math.imul(index + 1, 0x45d9f3b);
+  let value = seedHash(seed) ^ Math.imul(index + 1, 0x45d9f3b);
   value ^= Math.imul(channel + 1, 0x27d4eb2d);
   value = Math.imul(value ^ (value >>> 16), 0x45d9f3b);
   value = Math.imul(value ^ (value >>> 16), 0x45d9f3b);
@@ -266,7 +297,7 @@ function getRandomScatterTransform(amount, ranges, seed, index) {
 
 function getRandomOrder(count, seed) {
   const characters = Math.max(0, Math.trunc(numberValue(count, 0)));
-  const key = characters + ":" + (Math.trunc(seed) | 0);
+  const key = characters + ":" + seedCacheKey(seed);
   const cached = randomOrderCache.get(key);
   if (cached) return cached;
 
@@ -499,6 +530,13 @@ function characterSelectionDefinition(PZ) {
   };
 }
 
+function seedDefinition(PZ) {
+  return dynamicNumberDefinition(PZ, "Seed", 1, {
+    step: 0.01,
+    decimals: 2,
+  });
+}
+
 function createTransformPropertyDefinitions(PZ, selectedOnly) {
   const type = PZ.property.type;
 
@@ -550,13 +588,7 @@ function createTransformPropertyDefinitions(PZ, selectedOnly) {
       items: DELAY_ORDER_LABELS.join(";"),
       value: 0,
     },
-    randomSeed: {
-      name: "Seed",
-      type: type.NUMBER,
-      value: 1,
-      step: 1,
-      decimals: 0,
-    },
+    randomSeed: seedDefinition(PZ),
   };
 }
 
@@ -673,13 +705,7 @@ function createShakePropertyDefinitions(PZ, selectedOnly) {
       items: DELAY_ORDER_LABELS.join(";"),
       value: 0,
     },
-    shakeRandomSeed: {
-      name: "Seed",
-      type: type.NUMBER,
-      value: 1,
-      step: 1,
-      decimals: 0,
-    },
+    shakeRandomSeed: seedDefinition(PZ),
   };
 }
 
@@ -739,13 +765,7 @@ function createRandomScatterPropertyDefinitions(PZ) {
       decimals: 3,
       linkRatio: true,
     }),
-    seed: {
-      name: "Seed",
-      type: type.NUMBER,
-      value: 1,
-      step: 1,
-      decimals: 0,
-    },
+    seed: seedDefinition(PZ),
   };
 }
 
