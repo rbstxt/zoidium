@@ -26,13 +26,13 @@
       "id": "core",
       "name": "Zoidium Core",
       "author": "Zoidium",
-      "version": "6",
+      "version": "7",
       "visibility": "hidden",
       "alwaysEnabled": true,
       "tagline": "Built-in core extensions",
       "description": "Hidden built-in extensions that always run. Not shown in the Plugins panel and never stored in projects.",
-      "manifest": "./plugins/core/manifest.json?v=6",
-      "bundle": "./plugins/core/bundle.json?v=6"
+      "manifest": "./plugins/core/manifest.json?v=7",
+      "bundle": "./plugins/core/bundle.json?v=7"
     },
     {
       "id": "easing-plus",
@@ -167,6 +167,7 @@
       "badgeName": "Afterzoid",
       "color": "#a04ed1",
       "description": "A rich shader preset pack by AlipFX.",
+      "credits": "Credits: AlipFX",
       "manifest": "./plugins/alipfx/manifest.json?v=6",
       "bundle": "./plugins/alipfx/bundle.json?v=6"
     },
@@ -184,6 +185,7 @@
       "badgeName": "CCFX",
       "color": "#2c8fa3",
       "description": "Adds CCFX shader effects and group presets.",
+      "credits": "Credits: CCFX",
       "manifest": "./plugins/ccfx/manifest.json?v=2",
       "bundle": "./plugins/ccfx/bundle.json?v=2"
     },
@@ -215,6 +217,7 @@
       "tagline": "Per-character controls and advanced 3D text bevels",
       "color": "#b2704f",
       "description": "Adds per-character controls and advanced bevel options to editable 3D Text.",
+      "credits": "Credits: DaviFX",
       "zoidiumOnly": true,
       "manifest": "./plugins/text-plus/manifest.json?v=15",
       "bundle": "./plugins/text-plus/bundle.json?v=15"

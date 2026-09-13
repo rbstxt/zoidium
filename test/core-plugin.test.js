@@ -65,7 +65,7 @@ test("hidden plugins never touch panel cards", () => {
     "utf8"
   );
   assert.ok(
-    source.includes("if (!state.card || !state.toggle || !state.status) return;"),
+    source.includes("if (!state.card || !state.toggle) return;"),
     "usage UI skips hidden plugins without cards"
   );
 });

@@ -1,7 +1,7 @@
 (function () {
   "use strict";
 
-  const REGISTRY_URL = "./plugins/registry.json?v=29";
+  const REGISTRY_URL = "./plugins/registry.json?v=30";
   const STORAGE_PREFIX = "zoidium.plugin.enabled.";
   const SHADER_PLUGIN_MARKER = "// @zoidium-plugin ";
   const EFFECT_UUID_PROPERTY = "_zoidiumEffectUuid";
@@ -766,14 +766,9 @@
   }
 
   function setPluginUsageUi(state, inUse) {
-    // Hidden plugins (Zoidium Core) have no panel card; usage text is
-    // panel-only, so there is nothing to update for them.
-    if (!state.card || !state.toggle || !state.status) return;
-    const message = inUse
-      ? "In use by this project"
-      : `${manifestFeatureCount(state.manifest)} active`;
+    // Hidden plugins (Zoidium Core) have no panel card.
+    if (!state.card || !state.toggle) return;
     state.toggle.disabled = inUse;
-    state.status.textContent = message;
   }
 
   function updateNativeFxUsageUi() {
@@ -1508,12 +1503,11 @@
     );
   }
 
-  function updateCard(state, phase, message) {
+  function updateCard(state, phase) {
     // Hidden plugins (Zoidium Core) have no panel card; track the phase on
     // the state so the debug log still reports them.
     if (!state.card) {
       state.phase = phase;
-      state.statusMessage = message || phase;
       return;
     }
     const enabled = phase === "enabled";
@@ -1521,8 +1515,6 @@
     state.card.dataset.phase = phase;
     state.toggle.checked = enabled;
     state.toggle.disabled = phase === "loading";
-    state.status.dataset.state = phase;
-    state.status.textContent = message || phase;
     // Keep the pack master switch in step with single-plugin toggles.
     syncGroupForPlugin(state.plugin.id);
   }
@@ -1953,7 +1945,7 @@
   async function enablePlugin(state, persist) {
     if (state.enablePromise) return state.enablePromise;
     state.enablePromise = (async () => {
-      updateCard(state, "loading", "Loading…");
+      updateCard(state, "loading");
       try {
         if (!state.manifest) {
           const pluginPackage = await loadPluginPackageForState(state);
@@ -1967,7 +1959,7 @@
         const featureCount = manifestFeatureCount(state.manifest);
         state.lastError = null;
         if (persist) persistEnabled(state.plugin.id, true);
-        updateCard(state, "enabled", featureCount + " active");
+        updateCard(state, "enabled");
         updateNativeFxUsageUi();
         updatePluginObjectUsageUi(state.plugin.id);
         updatePluginResourceUsageUi(state.plugin.id);
@@ -1980,7 +1972,7 @@
           persistEnabled(state.plugin.id, false);
         }
         rememberPluginError(state, "enable", error);
-        updateCard(state, "error", "Load failed");
+        updateCard(state, "error");
         console.error(`[Zoidium] failed to enable ${state.plugin.name}:`, error);
       } finally {
         state.enablePromise = null;
@@ -2014,12 +2006,11 @@
     if (inUse) {
       state.toggle.checked = true;
       state.toggle.disabled = true;
-      state.status.textContent = "In use by this project";
       return;
     }
     unregisterPlugin(state.plugin.id);
     if (persist) persistEnabled(state.plugin.id, false);
-    updateCard(state, "disabled", "Disabled");
+    updateCard(state, "disabled");
     emitState(state.plugin.id, false, 0);
   }
 
@@ -2059,7 +2050,16 @@
     card.className = "zoidium-plugin-entry";
     card.dataset.pluginId = plugin.id;
     card.dataset.searchText = normalizePickerLabel(
-      [plugin.id, plugin.name, plugin.author, plugin.format, plugin.tagline, plugin.description, plugin.warning]
+      [
+        plugin.id,
+        plugin.name,
+        plugin.author,
+        plugin.format,
+        plugin.tagline,
+        plugin.description,
+        plugin.credits,
+        plugin.warning,
+      ]
         .filter(Boolean)
         .join(" ")
     );
@@ -2069,7 +2069,7 @@
         <summary class="proprow noselect zoidium-plugin-row">
           <span class="zoidium-plugin-copy">
             <span class="zoidium-plugin-name">${plugin.name}${compatBadgeHtml(plugin)}${experimentalBadgeHtml(plugin)}</span>
-            <span class="zoidium-plugin-meta">${plugin.tagline || ""}<span class="zoidium-plugin-state" data-state="disabled" aria-hidden="true">Disabled</span></span>
+            <span class="zoidium-plugin-meta">${plugin.tagline || ""}</span>
           </span>
           <span class="zp-detail-switch">${pluginSwitchHtml({
             title: `Toggle ${plugin.name}`,
@@ -2078,6 +2078,11 @@
         </summary>
         <div class="zp-detail-content">
           <span class="zoidium-plugin-description">${plugin.description}</span>
+          ${
+            plugin.credits
+              ? `<span class="zoidium-plugin-credits">${plugin.credits}</span>`
+              : ""
+          }
         </div>
         ${
           plugin.warning
@@ -2092,7 +2097,6 @@
       plugin,
       card,
       toggle: card.querySelector("input"),
-      status: card.querySelector(".zoidium-plugin-state"),
       manifest: null,
       bundleAssets: null,
       packagePromise: null,
@@ -2124,9 +2128,7 @@
       plugin,
       card: null,
       toggle: null,
-      status: null,
       phase: "disabled",
-      statusMessage: "Disabled",
       manifest: null,
       bundleAssets: null,
       packagePromise: null,

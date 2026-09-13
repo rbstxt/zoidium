@@ -3,7 +3,7 @@
   "id": "core",
   "name": "Zoidium Core",
   "author": "Zoidium",
-  "version": "6",
+  "version": "7",
   "kind": "core",
   "visibility": "hidden",
   "alwaysEnabled": true,
@@ -28,6 +28,11 @@
     {
       "id": "default-project-settings",
       "source": "./plugins/core/default-project-settings.js",
+      "phase": "pre-init"
+    },
+    {
+      "id": "preview-context-menu",
+      "source": "./plugins/core/preview-context-menu.js",
       "phase": "pre-init"
     },
     {

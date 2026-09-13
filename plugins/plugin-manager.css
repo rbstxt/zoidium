@@ -44,18 +44,6 @@
   margin-top: 3px;
 }
 
-.zoidium-plugin-state {
-  display: none;
-}
-
-.zoidium-plugin-state[data-state="enabled"] {
-  color: var(--zoidium-theme-link, #93a6d3);
-}
-
-.zoidium-plugin-state[data-state="error"] {
-  color: #d58b8b;
-}
-
 .zoidium-effect-plugin-badge {
   background-color: var(--zoidium-plugin-background, rgba(113, 130, 170, 0.2));
   border: 1px solid var(--zoidium-plugin-border, rgba(113, 130, 170, 0.6));
@@ -84,6 +72,14 @@
   display: block;
   font-size: 14px;
   line-height: 1.35;
+}
+
+.zoidium-plugin-credits {
+  color: #969696;
+  display: block;
+  font-size: 14px;
+  line-height: 1.35;
+  margin-top: 3px;
 }
 
 .zoidium-plugin-search {
@@ -355,21 +351,6 @@
   padding: 1px 5px;
   vertical-align: middle;
   white-space: nowrap;
-}
-
-.zoidium-plugin-entry .zoidium-plugin-state {
-  display: inline;
-  font-size: 12px;
-  margin-left: 6px;
-  white-space: nowrap;
-}
-
-.zoidium-plugin-entry .zoidium-plugin-state[data-state="disabled"] {
-  color: #6f6f6f;
-}
-
-.zoidium-plugin-entry .zoidium-plugin-state[data-state="loading"] {
-  color: #969696;
 }
 
 .zp-detail-content {
