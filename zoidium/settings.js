@@ -2,12 +2,16 @@
   "use strict";
 
   var STORAGE_KEY = "zoidium.editor-settings";
+  var DEFAULT_FRAME_RATE = 30;
+  var MIN_FRAME_RATE = 1;
+  var MAX_FRAME_RATE = 240;
   var DEFAULTS = {
     layout: "clipmaker",
     font: "source-code-pro",
     theme: "panzoid",
     hue: 0,
     saturation: 100,
+    defaultFrameRate: DEFAULT_FRAME_RATE,
   };
 
   var LAYOUT_OPTIONS = [
@@ -97,6 +101,23 @@
     return clamp(number, 0, 200);
   }
 
+  function normalizeDecimalText(value) {
+    return String(value)
+      .trim()
+      .replace(/[０-９]/g, function (digit) {
+        return String.fromCharCode(digit.charCodeAt(0) - 0xfee0);
+      })
+      .replace(/[．，,]/g, ".");
+  }
+
+  function readFrameRate(value, fallback) {
+    var text = normalizeDecimalText(value);
+    if (!text) return fallback;
+    var number = Number(text);
+    if (!Number.isFinite(number)) return fallback;
+    return clamp(number, MIN_FRAME_RATE, MAX_FRAME_RATE);
+  }
+
   function effectiveSaturation() {
     // Gray mode drops all saturation. Preset profiles keep full saturation;
     // only the Custom profile follows the stored saturation value.
@@ -140,6 +161,7 @@
     if (!hasValue(THEME_OPTIONS, settings.theme)) settings.theme = DEFAULTS.theme;
     settings.hue = clamp(Number.isFinite(Number(settings.hue)) ? Number(settings.hue) : 0, -180, 180);
     settings.saturation = clampSaturation(settings.saturation);
+    settings.defaultFrameRate = readFrameRate(settings.defaultFrameRate, DEFAULT_FRAME_RATE);
     return settings;
   }
 
@@ -304,7 +326,15 @@
   function persistAndApply() {
     state.settings.hue = clamp(Number(state.settings.hue) || 0, -180, 180);
     state.settings.saturation = clampSaturation(state.settings.saturation);
+    state.settings.defaultFrameRate = readFrameRate(
+      state.settings.defaultFrameRate,
+      DEFAULT_FRAME_RATE,
+    );
     writeStorage(state.settings);
+    var defaultProjectSettings = global.ZoidiumDefaultProjectSettings;
+    if (defaultProjectSettings && typeof defaultProjectSettings.setFrameRate === "function") {
+      defaultProjectSettings.setFrameRate(state.settings.defaultFrameRate);
+    }
     applySettings();
   }
 
@@ -447,6 +477,31 @@
     return row;
   }
 
+  function createDefaultFrameRateRow(legacy) {
+    var row = legacy.generateTextInput(
+      {
+        title: "Default frame rate",
+        get: function () {
+          return String(state.settings.defaultFrameRate);
+        },
+        set: function (value) {
+          var frameRate = readFrameRate(value, NaN);
+          if (!Number.isFinite(frameRate)) return;
+          state.settings.defaultFrameRate = frameRate;
+          persistAndApply();
+        },
+      },
+      state,
+    );
+    var frameRateInput = row && row.querySelector ? row.querySelector("input") : null;
+    if (frameRateInput) {
+      frameRateInput.style.width = "90px";
+      frameRateInput.inputMode = "decimal";
+      frameRateInput.setAttribute("aria-label", "Default frame rate (FPS)");
+    }
+    return row;
+  }
+
   function updateCustomRowsVisibility() {
     if (!state.controls) return;
     // Hue and saturation only apply to the Custom profile. Preset and Gray
@@ -481,6 +536,10 @@
     var layoutNote = legacy.generateDescription({
       content: "Changing the editor layout takes effect after Zoidium is reloaded.",
     });
+    var defaultFrameRateRow = createDefaultFrameRateRow(legacy);
+    var defaultFrameRateNote = legacy.generateDescription({
+      content: "Used for new projects only. Existing projects keep their current frame rate.",
+    });
     var fontRow = createFontRow(legacy);
     var themeRow = createThemeRow(legacy);
     var hueRow = createHueRow(legacy);
@@ -498,6 +557,8 @@
     panel.appendChild(title);
     panel.appendChild(layoutRow);
     panel.appendChild(layoutNote);
+    panel.appendChild(defaultFrameRateRow);
+    panel.appendChild(defaultFrameRateNote);
     panel.appendChild(fontRow);
     panel.appendChild(themeRow);
     panel.appendChild(hueRow);
@@ -506,6 +567,7 @@
     state.panel = panel;
     state.controls = {
       layoutRow: layoutRow,
+      defaultFrameRateRow: defaultFrameRateRow,
       fontRow: fontRow,
       themeRow: themeRow,
       hueRow: hueRow,
