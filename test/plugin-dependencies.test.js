@@ -59,7 +59,7 @@ function loadDependencyHelpers() {
             id: "text-plus",
             name: "Text+",
             author: "Zoidium",
-            version: "16",
+            version: "17",
           },
         },
       ],
@@ -172,7 +172,7 @@ test("Text+ detects horizontal spacing without tagging untouched Text", () => {
   assert.equal(pluginById({ objects: [textObject()] }, "text-plus"), undefined);
   const plugin = pluginById({ objects: [textObject({ spacing: 12.5 })] }, "text-plus");
   assert.deepEqual(plugin.features, ["text-spacing"]);
-  assert.equal(plugin.version, "16");
+  assert.equal(plugin.version, "17");
 });
 
 test("live Text property objects are scanned before JSON.stringify runs", () => {

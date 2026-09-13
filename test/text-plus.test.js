@@ -121,6 +121,30 @@ test("random delay order is a stable permutation", () => {
   assert.deepEqual(_test.getRandomOrder(8, 1234), _test.getRandomOrder(8, 1234));
 });
 
+test("fractional seed values produce distinct random states", () => {
+  assert.notEqual(
+    _test.seededRandom(1, 0, 20),
+    _test.seededRandom(1.0000000000000002, 0, 20)
+  );
+  assert.notDeepEqual(
+    _test.getRandomOrder(8, 1234),
+    _test.getRandomOrder(8, 1234.0000000000002)
+  );
+
+  const ranges = {
+    positionMin: [-10, -10, -10],
+    positionMax: [10, 10, 10],
+    rotationMin: [-1, -1, -1],
+    rotationMax: [1, 1, 1],
+    scaleMin: [0.5, 0.5, 0.5],
+    scaleMax: [1.5, 1.5, 1.5],
+  };
+  assert.notDeepEqual(
+    _test.getRandomScatterTransform(1, ranges, 7, 2),
+    _test.getRandomScatterTransform(1, ranges, 7.000000000000001, 2)
+  );
+});
+
 test("delay offsets the animation frame by the configured step", () => {
   assert.equal(_test.getCharacterDelay("start", 0, 4, 3, 1), 0);
   assert.equal(_test.getCharacterDelay("start", 1, 4, 3, 1), 3);
@@ -858,7 +882,8 @@ test("transform and shake parents expose separate 3D controls", () => {
   assert.equal(transform.pivot.name, "Pivot");
   assert.equal(transform.pivot.items, "Character;Text");
   assert.equal(transform.pivot.value, 0);
-  assert.equal(transform.randomSeed.dynamic, undefined);
+  assert.equal(transform.randomSeed.dynamic, true);
+  assert.equal(transform.randomSeed.interpolated, true);
   assert.equal(transform.shakeAmplitude, undefined);
 
   assert.equal(shake.shakeAxis.type, PZ.property.type.VECTOR3);
@@ -867,7 +892,8 @@ test("transform and shake parents expose separate 3D controls", () => {
   assert.equal(shake.shakePeriod.interpolated, true);
   assert.equal(shake.shakePhase.interpolated, true);
   assert.equal(shake.shakeDelayPerCharacter.interpolated, true);
-  assert.equal(shake.shakeRandomSeed.dynamic, undefined);
+  assert.equal(shake.shakeRandomSeed.dynamic, true);
+  assert.equal(shake.shakeRandomSeed.interpolated, true);
   assert.equal(shake.pivot.name, "Pivot");
   assert.equal(shake.charPosition, undefined);
 
@@ -972,7 +998,8 @@ test("Random Scatter controls match the requested transform ranges", () => {
     );
   }
   assert.equal(definitions.seed.name, "Seed");
-  assert.equal(definitions.seed.dynamic, undefined);
+  assert.equal(definitions.seed.dynamic, true);
+  assert.equal(definitions.seed.interpolated, true);
 });
 
 test("Text+ registers six independent group parent types", () => {
