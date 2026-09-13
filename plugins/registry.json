@@ -53,15 +53,15 @@
       "category": "utilities",
       "name": "Player+",
       "author": "Zoidium",
-      "version": "6",
+      "version": "7",
       "defaultEnabled": true,
       "itemCount": 1,
       "format": "playback controls",
       "tagline": "Playback Quality Controls",
       "color": "#4f7dbf",
       "description": "Adds drawing pause, single-render, and preview quality controls to the playback bar.",
-      "manifest": "./plugins/player-plus/manifest.json?v=6",
-      "bundle": "./plugins/player-plus/bundle.json?v=6"
+      "manifest": "./plugins/player-plus/manifest.json?v=7",
+      "bundle": "./plugins/player-plus/bundle.json?v=7"
     },
     {
       "id": "native-fx",
@@ -194,7 +194,7 @@
       "category": "experimental",
       "name": "Layer Input",
       "author": "Zoidium",
-      "version": "8",
+      "version": "9",
       "itemCount": 4,
       "format": "layer sources",
       "tagline": "Layer-to-Layer Inputs",
@@ -202,8 +202,8 @@
       "description": "Lets effects, 3D materials, and Custom Shaders use another video track as an information source.",
       "zoidiumOnly": true,
       "warning": "Layer Input projects require Zoidium. This feature is extremely experimental and may cause unexpected crashes.",
-      "manifest": "./plugins/layer-input/manifest.json?v=8",
-      "bundle": "./plugins/layer-input/bundle.json?v=8"
+      "manifest": "./plugins/layer-input/manifest.json?v=9",
+      "bundle": "./plugins/layer-input/bundle.json?v=9"
     },
     {
       "id": "text-plus",

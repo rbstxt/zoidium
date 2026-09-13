@@ -2,9 +2,9 @@
 
 Easing+ is an optional CM3 extension that provides a focused easing editor for
 Bezier interpolation (`interp_1`). Linear interpolation continues to use the
-standard control. The edited interval is always the outgoing segment from the
-current keyframe to the next keyframe; open Easing+ while the playhead is on the
-segment's first keyframe. The compact editor opens beside the easing button and
+standard control. The edited interval is always the incoming segment from the
+previous keyframe to the current keyframe; open Easing+ while the playhead is on the
+segment's last keyframe. The compact editor opens beside the easing button and
 commits edits as one undoable operation when it is closed.
 
 The editor works in normalized 0–1 coordinates, then converts the two handles to
@@ -24,13 +24,14 @@ values flattens its Y handles so it keeps playing still. Fresh native Bezier
 handles (`[10, 0]` / `[-10, 0]`) and segments formed by reordering keyframes
 keep native behavior.
 
-The keyframe row is outgoing-oriented: while the playhead is on a keyframe,
-the interpolation/easing buttons show the segment from that keyframe to the
-next one, and any pick applies there. Normal easings therefore take effect
-from the current keyframe to the next keyframe, exactly like Easing+ curves
-do. A redirected pick normalizes the owned handles to the native defaults
-inside the same undoable operation; other segments keep their values. The
-final keyframe has no outgoing segment, so it keeps the standard control.
+The keyframe row follows CM3's incoming-keyframe behavior: while the playhead
+is on a keyframe, the interpolation/easing buttons show the segment from the
+previous keyframe to the current one, and any pick applies there. Normal
+easings therefore take effect up to the selected keyframe, exactly like
+Easing+ curves do. A pick on a Bezier segment normalizes the owned handles to
+the native defaults inside the same undoable operation; other segments keep
+their values. The first keyframe has no incoming segment, so it keeps the
+standard control.
 
 Both handle X coordinates move independently across the full 0–1 interval.
 While Easing+ is enabled, the editor preserves crossing handles for normalized

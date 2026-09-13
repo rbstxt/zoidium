@@ -507,22 +507,22 @@ const EasingPlus = (() => {
     const targets = [];
     for (const channel of properties) {
       if (!(channel instanceof window.PZ.property.dynamic.keyframes)) continue;
-      const start = channel.getKeyframe(localFrame);
-      if (!start) continue;
+      const current = channel.getKeyframe(localFrame);
+      if (!current) continue;
 
-      // Easing+ always edits the outgoing segment from the current keyframe
-      // to the next keyframe. The final keyframe has no outgoing segment, so
-      // it keeps the standard control.
-      const end = channel.getNextKeyframe(start.frame);
+      // Easing+ edits the incoming segment from the previous keyframe to the
+      // current keyframe. The first keyframe has no incoming segment, so it
+      // keeps the standard control.
+      const previous = channel.getPreviousKeyframe(current.frame);
       if (
-        !end ||
-        end.frame <= start.frame ||
-        !Number.isFinite(start.value) ||
-        !Number.isFinite(end.value)
+        !previous ||
+        current.frame <= previous.frame ||
+        !Number.isFinite(previous.value) ||
+        !Number.isFinite(current.value)
       ) {
         continue;
       }
-      targets.push({ property: channel, start, end });
+      targets.push({ property: channel, start: previous, end: current });
     }
     if (targets.length === 0) return null;
     return {
@@ -573,15 +573,12 @@ const EasingPlus = (() => {
     };
   }
 
-  // The keyframe row is outgoing-oriented: a pick made while the playhead is
-  // on a keyframe edits the segment from that keyframe to the next one, so
-  // normal easings apply from the current keyframe to the next keyframe,
-  // exactly like Easing+ curves do. Only the final keyframe has no outgoing
-  // segment, so picks there keep the native write to the keyframe itself.
-  // Either way one pick touches exactly one segment; the previous segment
-  // is never modified here.
-  function pickTargetForSet(current, next) {
-    return next ? "outgoing" : "current";
+  // Native tween values belong to the incoming segment. A pick made while
+  // the playhead is on a keyframe therefore edits the segment from the
+  // previous keyframe to the current keyframe. The first keyframe has no
+  // incoming segment, so its native write is kept as-is.
+  function pickTargetForSet(current, previous) {
+    return previous ? "incoming" : "current";
   }
 
   function keyframesAround(channel, localFrame) {
@@ -591,22 +588,22 @@ const EasingPlus = (() => {
     } catch (error) {
       current = null;
     }
-    if (!current) return { current: null, next: null };
-    let next = null;
+    if (!current) return { current: null, previous: null };
+    let previous = null;
     try {
-      next = channel.getNextKeyframe?.(current.frame) || null;
+      previous = channel.getPreviousKeyframe?.(current.frame) || null;
     } catch (error) {
-      next = null;
+      previous = null;
     }
-    if (!next || !(next.frame > current.frame)) next = null;
-    return { current, next };
+    if (!previous || !(previous.frame < current.frame)) previous = null;
+    return { current, previous };
   }
 
   function resolveTweenWrites(context, channels) {
     const resolved = [];
     for (const channel of channels) {
       try {
-        const { current, next } = keyframesAround(channel, context.localFrame);
+        const { current, previous } = keyframesAround(channel, context.localFrame);
         if (!current) continue;
         let address = null;
         try {
@@ -615,7 +612,7 @@ const EasingPlus = (() => {
           address = null;
         }
         if (!address) continue;
-        resolved.push({ channel, address, current, next });
+        resolved.push({ channel, address, current, previous });
       } catch (error) {
         console.error("Easing+ could not resolve the edited keyframe.", error);
       }
@@ -623,37 +620,38 @@ const EasingPlus = (() => {
     return resolved;
   }
 
-  function resetOutgoingHandles(propertyOps, address, current, next) {
-    const currentIncoming = current.controlPoints?.[0];
-    const nextOutgoing = next.controlPoints?.[1];
-    if (!Array.isArray(currentIncoming) || !Array.isArray(nextOutgoing)) return;
+  function resetSegmentHandles(propertyOps, address, start, end) {
+    const startIncoming = start.controlPoints?.[0];
+    const endOutgoing = end.controlPoints?.[1];
+    if (!Array.isArray(startIncoming) || !Array.isArray(endOutgoing)) return;
     propertyOps.setControlPoints({
       property: address,
-      frame: current.frame,
-      controlPoints: [currentIncoming.slice(), NATIVE_OUTGOING_DEFAULT.slice()],
+      frame: start.frame,
+      controlPoints: [startIncoming.slice(), NATIVE_OUTGOING_DEFAULT.slice()],
     });
     propertyOps.setControlPoints({
       property: address,
-      frame: next.frame,
-      controlPoints: [NATIVE_INCOMING_DEFAULT.slice(), nextOutgoing.slice()],
+      frame: end.frame,
+      controlPoints: [NATIVE_INCOMING_DEFAULT.slice(), endOutgoing.slice()],
     });
   }
 
   // Write one picked (interp, ease) pair for a single channel. Returns
-  // "outgoing" when the pick was redirected to the outgoing segment and
-  // "current" for the native write. A redirected write normalizes the
-  // owned handles to the native defaults so a stale custom curve can never
-  // resurface later; handles that already match the defaults are left alone.
-  function executeTweenWrite(propertyOps, address, localFrame, current, next, newInterp, newEase) {
+  // "incoming" when the pick selects the segment ending at the current
+  // keyframe and "current" for the first keyframe's native write. An
+  // incoming pick normalizes the owned handles to the native defaults so a
+  // stale custom curve can never resurface later; handles that already match
+  // the defaults are left alone.
+  function executeTweenWrite(propertyOps, address, localFrame, current, previous, newInterp, newEase) {
     const pickTween = (newInterp << 8) | newEase;
-    if (pickTargetForSet(current, next) === "outgoing") {
-      propertyOps.setTween({ property: address, frame: next.frame, tween: pickTween });
-      if (!hasNativeBezierDefaults(current, next)) {
-        resetOutgoingHandles(propertyOps, address, current, next);
+    if (pickTargetForSet(current, previous) === "incoming") {
+      propertyOps.setTween({ property: address, frame: current.frame, tween: pickTween });
+      if (!hasNativeBezierDefaults(previous, current)) {
+        resetSegmentHandles(propertyOps, address, previous, current);
       }
-      return "outgoing";
+      return "incoming";
     }
-    propertyOps.setTween({ property: address, frame: localFrame, tween: pickTween });
+    propertyOps.setTween({ property: address, frame: current.frame, tween: pickTween });
     return "current";
   }
 
@@ -708,7 +706,7 @@ const EasingPlus = (() => {
     const { editor, propertyOps } = context;
     editor.history.startOperation();
     try {
-      // The row displays the outgoing segment (see applyOutgoingDisplay), so
+      // The row displays the incoming segment (see applyIncomingDisplay), so
       // the picked value is always what the buttons should show afterwards.
       let wroteAny = false;
       for (const entry of resolved) {
@@ -718,7 +716,7 @@ const EasingPlus = (() => {
             entry.address,
             context.localFrame,
             entry.current,
-            entry.next,
+            entry.previous,
             value,
             easeValue
           );
@@ -755,7 +753,7 @@ const EasingPlus = (() => {
             entry.address,
             context.localFrame,
             entry.current,
-            entry.next,
+            entry.previous,
             sibling.pz_value,
             value
           );
@@ -770,17 +768,16 @@ const EasingPlus = (() => {
     }
   }
 
-  // Collect the tween each channel would display under the outgoing rule:
-  // the next keyframe's tween when the playhead is on a keyframe that has
-  // one, otherwise the keyframe's own tween (final keyframe). Channels
-  // without a keyframe at the playhead are skipped, mirroring the native
-  // row update. Returns null when nothing is on the playhead.
+  // Collect the tween each channel would display under the incoming rule:
+  // the current keyframe's tween, which controls the segment ending there.
+  // Channels without a keyframe at the playhead are skipped, mirroring the
+  // native row update. Returns null when nothing is on the playhead.
   function resolveDisplayTweens(channels, localFrame) {
     const shown = [];
     for (const channel of channels) {
-      const { current, next } = keyframesAround(channel, localFrame);
+      const { current } = keyframesAround(channel, localFrame);
       if (!current) continue;
-      const candidate = next ? next.tween : current.tween;
+      const candidate = current.tween;
       if (!Number.isFinite(candidate)) return null;
       shown.push(candidate);
     }
@@ -794,14 +791,14 @@ const EasingPlus = (() => {
     return property?.definition?.interpolated === true;
   }
 
-  // Reapply the outgoing rule to a keyframe row after the native row update
+  // Reapply the incoming rule to a keyframe row after the native row update
   // ran. While the playhead is on a keyframe, the interpolation/easing
-  // buttons show the outgoing segment so the display always matches what a
-  // pick would edit. Between keyframes, on the final keyframe, and on any
-  // mismatch between grouped channels, the native result is kept (or the
-  // buttons are hidden on mismatch, exactly like the native update does).
+  // buttons show the segment ending at that keyframe so the display always
+  // matches what a pick would edit. Between keyframes and on any mismatch
+  // between grouped channels, the native result is kept (or the buttons are
+  // hidden on mismatch, exactly like the native update does).
   // Returns true when the display was overridden.
-  function applyOutgoingDisplay(row) {
+  function applyIncomingDisplay(row) {
     try {
       const propertyRow = row?.parentElement?.parentElement;
       const property = propertyRow?.pz_object;
@@ -829,9 +826,6 @@ const EasingPlus = (() => {
         easeButton.pz_update?.(-1, false);
         return true;
       }
-      // A channel on its final keyframe contributes its own tween above,
-      // which is exactly what the native update shows, so reaching here
-      // with no next keyframe anywhere reproduces the native display.
       let visible = true;
       if (!grouped) visible = isPropertyInterpolated(property);
       interpolationButton.pz_update?.(first, visible);
@@ -850,7 +844,7 @@ const EasingPlus = (() => {
     const patched = function () {
       const result = original.apply(this, arguments);
       try {
-        applyOutgoingDisplay(this);
+        applyIncomingDisplay(this);
       } catch (error) {
         console.error("Easing+ could not refresh the easing display.", error);
       }
@@ -1618,8 +1612,8 @@ const EasingPlus = (() => {
 
     // Always load the edited segment's existing curve so a saved custom
     // interpolation is shown again when the window is reopened. Every target
-    // shares the playhead as its segment start, so the first target
-    // represents the edited interval.
+    // shares the playhead as its segment end, so the first target represents
+    // the edited interval.
     const reference = context.targets[0];
     const initialPoints = curveFromSegment(reference.property, reference.start, reference.end);
     const session = {
@@ -1813,7 +1807,7 @@ const EasingPlus = (() => {
       executeTweenWrite,
       resolveDisplayTweens,
       isPropertyInterpolated,
-      applyOutgoingDisplay,
+      applyIncomingDisplay,
       rescaleSegmentHandles,
       snapshotChannelSegments,
       restoreChannelSegments,
