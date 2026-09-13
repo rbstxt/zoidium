@@ -167,6 +167,14 @@ const PlayerPlus = (() => {
     const constructor = viewportConstructor();
     if (!viewport || !constructor || !(viewport instanceof constructor)) return null;
     state.viewports.add(viewport);
+    if (
+      !viewport.__zoidiumPlayerPlusQualityEditChanged &&
+      viewport.onEditChanged?.watch
+    ) {
+      const qualityEditChanged = () => applyQualityToViewport(viewport);
+      viewport.onEditChanged.watch(qualityEditChanged);
+      viewport.__zoidiumPlayerPlusQualityEditChanged = qualityEditChanged;
+    }
     if (!viewport.__zoidiumPlayerPlusFrame) {
       const originalFrame = viewport._renderFn;
       if (typeof originalFrame === "function") {
@@ -197,6 +205,16 @@ const PlayerPlus = (() => {
     return Array.from(viewports).map(registerViewport).filter(Boolean);
   }
 
+  function isScenePreview(viewport) {
+    // CM3 sets renderMode while showing the free 3D editor camera. The edit
+    // flag covers the short transition before renderMode is updated.
+    return viewport?.renderMode === true || viewport?.edit === true;
+  }
+
+  function getViewportQuality(viewport, quality) {
+    return isScenePreview(viewport) ? 1 : quality;
+  }
+
   function applyQualityToViewport(viewport) {
     if (!viewport?.renderer || !viewport.canvas || !viewport.compositor) return;
     const cssWidth = parseFloat(viewport.canvas.style.width) || viewport.canvas.clientWidth;
@@ -204,8 +222,9 @@ const PlayerPlus = (() => {
     if (!(cssWidth > 0) || !(cssHeight > 0)) return;
 
     const devicePixelRatio = state.window?.devicePixelRatio || 1;
-    const width = Math.max(1, Math.round(cssWidth * devicePixelRatio * state.quality));
-    const height = Math.max(1, Math.round(cssHeight * devicePixelRatio * state.quality));
+    const quality = getViewportQuality(viewport, state.quality);
+    const width = Math.max(1, Math.round(cssWidth * devicePixelRatio * quality));
+    const height = Math.max(1, Math.round(cssHeight * devicePixelRatio * quality));
     if (viewport.canvas.width !== width || viewport.canvas.height !== height) {
       viewport.renderer.setDrawingBufferSize(width, height, 1);
       viewport.compositor.setSize(viewport.canvas.width, viewport.canvas.height);
@@ -262,9 +281,16 @@ const PlayerPlus = (() => {
     }
     if (prototype.resize === state.patchedResize) prototype.resize = state.originalResize;
     for (const viewport of state.viewports) {
+      if (
+        viewport.__zoidiumPlayerPlusQualityEditChanged &&
+        viewport.onEditChanged?.unwatch
+      ) {
+        viewport.onEditChanged.unwatch(viewport.__zoidiumPlayerPlusQualityEditChanged);
+      }
       if (viewport.__zoidiumPlayerPlusFrame === viewport._renderFn) {
         viewport._renderFn = viewport.__zoidiumPlayerPlusOriginalFrame;
       }
+      delete viewport.__zoidiumPlayerPlusQualityEditChanged;
       delete viewport.__zoidiumPlayerPlusFrame;
       delete viewport.__zoidiumPlayerPlusOriginalFrame;
       delete viewport.__zoidiumPlayerPlusPaused;
@@ -465,7 +491,11 @@ const PlayerPlus = (() => {
     state.paused = false;
   }
 
-  return { activate, deactivate };
+  return {
+    activate,
+    deactivate,
+    _test: { getViewportQuality, isScenePreview },
+  };
 })();
 
 module.exports = PlayerPlus;

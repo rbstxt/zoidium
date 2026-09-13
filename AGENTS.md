@@ -4,6 +4,10 @@ Zoidium is an open-source collection of tools for extending the Clipmaker Gen3
 (CM3) experience. The repository contains the Zoidium extension layer, not a
 copy of the CM3 source page or its runtime resources.
 
+## Skill restriction
+
+Do not use the `panzoid-shader` skill in this repository.
+
 ## Quick start
 
 ```bash

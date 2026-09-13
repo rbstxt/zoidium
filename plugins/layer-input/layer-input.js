@@ -4,6 +4,13 @@ const LayerInput = (() => {
   const MAX_SOURCE_DEPTH = 32;
   const SOURCE_PREFIX = "track:";
   const SOURCE_ID_PREFIX = "track:id:";
+  const DEFAULT_SOURCE_MODE = "effects-masks";
+  const SOURCE_MODE_OPTIONS = Object.freeze([
+    { value: "source", label: "Source" },
+    { value: "masks", label: "Masks" },
+    { value: DEFAULT_SOURCE_MODE, label: "Effects & Masks" },
+  ]);
+  const SOURCE_MODE_VALUES = new Set(SOURCE_MODE_OPTIONS.map((option) => option.value));
   const state = {
     active: false,
     editor: null,
@@ -13,6 +20,8 @@ const LayerInput = (() => {
     compositorPrototype: null,
     originalRenderSequence: null,
     patchedRenderSequence: null,
+    originalRenderEffects: null,
+    patchedRenderEffects: null,
     originalUnload: null,
     patchedUnload: null,
     originalListInput: null,
@@ -217,6 +226,51 @@ const LayerInput = (() => {
 
   function getSourceError(consumer, sourceProperty) {
     return getSourceState(consumer, sourceProperty)?._zoidiumSourceError || "";
+  }
+
+  function normalizeSourceMode(value) {
+    const mode = typeof value === "string" ? value.trim().toLowerCase() : "";
+    return SOURCE_MODE_VALUES.has(mode) ? mode : DEFAULT_SOURCE_MODE;
+  }
+
+  function getSourceMode(consumer, sourceProperty) {
+    const property = getSourceProperty(consumer, sourceProperty);
+    const sourceState = getSourceState(consumer, property);
+    return normalizeSourceMode(
+      sourceState?._zoidiumSourceMode ??
+        property?._zoidiumSourceMode ??
+        property?.type?._zoidiumLayerInputMode ??
+        property?.definition?._zoidiumLayerInputMode
+    );
+  }
+
+  function setSourceMode(consumer, value, options = {}) {
+    if (!consumer) return false;
+    const property = getSourceProperty(consumer, options.sourceProperty);
+    if (!property) return false;
+
+    const sourceState = getSourceState(consumer, property);
+    const previous = getSourceMode(consumer, property);
+    const mode = normalizeSourceMode(value);
+    if (sourceState) sourceState._zoidiumSourceMode = mode;
+    property._zoidiumSourceMode = mode;
+
+    // Custom shader properties serialize their custom type definition. Keep
+    // the selected mode on a per-property copy so separate inputs do not
+    // mutate the shared Layer Input picker definition.
+    if (property.type && typeof property.type === "object") {
+      property.type = { ...property.type, _zoidiumLayerInputMode: mode };
+    }
+
+    if (previous !== mode) {
+      consumer.fragmentShaderNeedsUpdate = true;
+      property.onChanged?.update?.(property.get?.());
+    }
+    return true;
+  }
+
+  function getSourceModeOptions() {
+    return SOURCE_MODE_OPTIONS.map((option) => ({ ...option }));
   }
 
   function getProjectTracks(project) {
@@ -430,8 +484,34 @@ const LayerInput = (() => {
     return runtime.copyPass;
   }
 
-  function getSourceTarget(runtime, track, width, height) {
-    let target = runtime.targetPool.get(track);
+  function isLayerMaskEffect(effect) {
+    return effect?.type === "mask" || effect?.__zoidiumLayerInputMask === true;
+  }
+
+  function renderSelectedEffects(compositor, effects, width, height, mode) {
+    if (mode === "source") return;
+
+    for (const effect of effects || []) {
+      const Group = state.PZ?.effect?.group;
+      if (Group && effect instanceof Group) {
+        if (effect.enabled) {
+          renderSelectedEffects(compositor, effect.objects, width, height, mode);
+        }
+        continue;
+      }
+      if (mode === "masks" && !isLayerMaskEffect(effect)) continue;
+
+      const pass = effect?.pass;
+      if (!pass || !pass.enabled) continue;
+      if (pass.uniforms?.uvScale) pass.uniforms.uvScale.value.set(width, height);
+      pass.render(compositor.renderer, compositor.writeBuffer, compositor.readBuffer, true);
+      if (pass.needsSwap) compositor.swapBuffers();
+    }
+  }
+
+  function getSourceTarget(runtime, track, width, height, sourceMode) {
+    const targetKey = `${trackToken(track)}|${normalizeSourceMode(sourceMode)}`;
+    let target = runtime.targetPool.get(targetKey);
     if (!target) {
       target = new THREE.WebGLRenderTarget(width, height, {
         minFilter: THREE.LinearFilter,
@@ -441,7 +521,7 @@ const LayerInput = (() => {
         stencilBuffer: false,
       });
       target.texture.generateMipmaps = false;
-      runtime.targetPool.set(track, target);
+      runtime.targetPool.set(targetKey, target);
     } else if (target.width !== width || target.height !== height) {
       target.setSize(width, height);
     }
@@ -475,14 +555,21 @@ const LayerInput = (() => {
     return state.contextStack[state.contextStack.length - 1] || null;
   }
 
-  function renderTrackSource(root, track, projectFrame, parentContext) {
+  function renderTrackSource(
+    root,
+    track,
+    projectFrame,
+    parentContext,
+    sourceMode = DEFAULT_SOURCE_MODE
+  ) {
     const runtime = getRuntime(root);
     if (!runtime || !root.renderer || !root.readBuffer || !root._sequence) return null;
     if (parentContext.depth >= MAX_SOURCE_DEPTH) return null;
 
+    const mode = normalizeSourceMode(sourceMode);
     const width = root.readBuffer.width;
     const height = root.readBuffer.height;
-    const key = `${trackToken(track)}|${frameKey(projectFrame)}|${width}x${height}`;
+    const key = `${trackToken(track)}|${mode}|${frameKey(projectFrame)}|${width}x${height}`;
     if (runtime.cache.has(key)) return runtime.cache.get(key);
     if (runtime.inProgress.has(key)) {
       console.warn("[Layer Input] runtime cycle guard blocked", key);
@@ -496,7 +583,7 @@ const LayerInput = (() => {
       return null;
     }
 
-    const target = getSourceTarget(runtime, track, width, height);
+    const target = getSourceTarget(runtime, track, width, height, mode);
     const capture = getCaptureCompositor(runtime, parentContext.depth + 1, width, height, root._sequence);
     if (!capture) {
       runtime.cache.set(key, null);
@@ -509,10 +596,12 @@ const LayerInput = (() => {
     const previousClearAlpha = root.renderer.getClearAlpha
       ? root.renderer.getClearAlpha()
       : null;
+    const previousSourceMode = capture.__zoidiumLayerInputMode;
     runtime.inProgress.add(key);
     try {
       root.renderer.setClearColor(0, 0);
       capture.clear(0);
+      capture.__zoidiumLayerInputMode = mode;
       const context = {
         root,
         compositor: capture,
@@ -542,6 +631,11 @@ const LayerInput = (() => {
       runtime.cache.set(key, null);
       return null;
     } finally {
+      if (typeof previousSourceMode === "undefined") {
+        delete capture.__zoidiumLayerInputMode;
+      } else {
+        capture.__zoidiumLayerInputMode = previousSourceMode;
+      }
       if (previousClearColor) {
         root.renderer.setClearColor(
           previousClearColor,
@@ -558,7 +652,13 @@ const LayerInput = (() => {
     const track = getConsumerTrack(consumer);
     if (!track) return null;
     const frame = getConsumerFrame(consumer, context);
-    return renderTrackSource(context.root, track, frame, context);
+    return renderTrackSource(
+      context.root,
+      track,
+      frame,
+      context,
+      getSourceMode(consumer)
+    );
   }
 
   function resolveMaterial(material, localFrame) {
@@ -578,7 +678,13 @@ const LayerInput = (() => {
     if (!track) return null;
     const clip = shader?.tryGetParentOfType?.(state.PZ?.clip);
     const projectFrame = clip && Number.isFinite(frame) ? clip.start + frame : context.frame;
-    return renderTrackSource(context.root, track, projectFrame, context);
+    return renderTrackSource(
+      context.root,
+      track,
+      projectFrame,
+      context,
+      getSourceMode(shader, sourceProperty)
+    );
   }
 
   function serializeConsumer(consumer) {
@@ -702,9 +808,23 @@ const LayerInput = (() => {
         max-width: 240px;
         width: 200px;
       }
+      .zoidium-layer-input-controls .zoidium-layer-input-source {
+        max-width: 160px;
+        width: 160px;
+      }
       .zoidium-layer-input-source[data-error="cycle"],
       .zoidium-layer-input-source[data-error="missing"] {
         border-color: #a04e4e;
+      }
+      .zoidium-layer-input-mode {
+        max-width: 150px;
+        width: 150px;
+      }
+      .zoidium-layer-input-controls {
+        align-items: center;
+        display: flex;
+        gap: 5px;
+        max-width: 315px;
       }
     `;
     state.document.head.appendChild(style);
@@ -738,10 +858,25 @@ const LayerInput = (() => {
     container.classList.add("editbox");
     const select = state.document.createElement("select");
     select.classList.add("pz-inputbox", "zoidium-layer-input-source");
-    select.setAttribute("aria-label", property.definition.name || "Source Layer");
-    container.appendChild(select);
+    const sourceName = property.definition.name || "Source Layer";
+    select.setAttribute("aria-label", `${sourceName} source track`);
+    const isShaderLayerInput = Boolean(property.definition?._zoidiumShaderLayerSource);
+    let modeSelect = null;
+    if (isShaderLayerInput) {
+      const controls = state.document.createElement("div");
+      controls.classList.add("zoidium-layer-input-controls");
+      modeSelect = state.document.createElement("select");
+      modeSelect.classList.add("pz-inputbox", "zoidium-layer-input-mode");
+      modeSelect.setAttribute("aria-label", `${sourceName} input mode`);
+      controls.appendChild(select);
+      controls.appendChild(modeSelect);
+      container.appendChild(controls);
+    } else {
+      container.appendChild(select);
+    }
 
     let signature = "";
+    let modeSignature = "";
     function refresh(frame) {
       const consumer = property.parentObject;
       const options = getSourceOptions(consumer, property);
@@ -758,6 +893,27 @@ const LayerInput = (() => {
           element.disabled = Boolean(option.disabled);
           select.appendChild(element);
         }
+      }
+      if (modeSelect) {
+        const modeOptions = getSourceModeOptions();
+        const nextModeSignature = modeOptions
+          .map((option) => `${option.value}\u0000${option.label}`)
+          .join("\u0001");
+        if (nextModeSignature !== modeSignature && state.document.activeElement !== modeSelect) {
+          modeSignature = nextModeSignature;
+          modeSelect.replaceChildren();
+          for (const option of modeOptions) {
+            const element = state.document.createElement("option");
+            element.value = option.value;
+            element.textContent = option.label;
+            modeSelect.appendChild(element);
+          }
+        }
+        const currentMode = getSourceMode(consumer, property);
+        if (state.document.activeElement !== modeSelect) modeSelect.value = currentMode;
+        modeSelect.title = `Input mode: ${
+          modeOptions.find((option) => option.value === currentMode)?.label || "Effects & Masks"
+        }`;
       }
       const current = getCurrentSourceToken(consumer, property) || property.get(frame) || "";
       if (state.document.activeElement !== select) select.value = current;
@@ -776,6 +932,15 @@ const LayerInput = (() => {
       PZ.ui.controls.editFinish.call(this, property);
       refresh(frame);
     };
+    if (modeSelect) {
+      modeSelect.onchange = function () {
+        const consumer = property.parentObject;
+        const frame = container.pz_frame;
+        const value = modeSelect.value;
+        setSourceMode(consumer, value, { sourceProperty: property });
+        refresh(frame);
+      };
+    }
     container.pz_update = refresh;
     refresh(0);
     return container;
@@ -917,6 +1082,7 @@ const LayerInput = (() => {
       items: [{ name: "(No source)", value: "" }],
       _zoidiumLayerSource: true,
       _zoidiumShaderLayerSource: true,
+      _zoidiumLayerInputMode: DEFAULT_SOURCE_MODE,
       changed: function () {
         const shader = this.parentObject;
         if (shader?._zoidiumLoading) return;
@@ -1066,9 +1232,16 @@ const LayerInput = (() => {
 
   function installCompositorPatch() {
     const prototype = state.PZ.compositor?.prototype;
-    if (!prototype || prototype.renderSequence === state.patchedRenderSequence) return;
+    if (
+      !prototype ||
+      typeof prototype.renderEffects !== "function" ||
+      prototype.renderSequence === state.patchedRenderSequence
+    ) {
+      return;
+    }
     state.compositorPrototype = prototype;
     state.originalRenderSequence = prototype.renderSequence;
+    state.originalRenderEffects = prototype.renderEffects;
     state.patchedRenderSequence = function (frame) {
       const runtime = getRuntime(this);
       runtime.cache.clear();
@@ -1084,6 +1257,15 @@ const LayerInput = (() => {
       }
     };
     prototype.renderSequence = state.patchedRenderSequence;
+
+    state.patchedRenderEffects = function (effects, width, height) {
+      const mode = this.__zoidiumLayerInputMode;
+      if (!mode || normalizeSourceMode(mode) === DEFAULT_SOURCE_MODE) {
+        return state.originalRenderEffects.apply(this, arguments);
+      }
+      return renderSelectedEffects(this, effects, width, height, normalizeSourceMode(mode));
+    };
+    prototype.renderEffects = state.patchedRenderEffects;
 
     state.originalUnload = prototype.unload;
     state.patchedUnload = function () {
@@ -1156,6 +1338,9 @@ const LayerInput = (() => {
     if (state.compositorPrototype?.renderSequence === state.patchedRenderSequence) {
       state.compositorPrototype.renderSequence = state.originalRenderSequence;
     }
+    if (state.compositorPrototype?.renderEffects === state.patchedRenderEffects) {
+      state.compositorPrototype.renderEffects = state.originalRenderEffects;
+    }
     if (state.compositorPrototype?.unload === state.patchedUnload) {
       state.compositorPrototype.unload = state.originalUnload;
     }
@@ -1191,6 +1376,8 @@ const LayerInput = (() => {
     state.compositorPrototype = null;
     state.originalRenderSequence = null;
     state.patchedRenderSequence = null;
+    state.originalRenderEffects = null;
+    state.patchedRenderEffects = null;
     state.originalUnload = null;
     state.patchedUnload = null;
     state.viewportPrototype = null;
@@ -1242,6 +1429,9 @@ const LayerInput = (() => {
       getSourceOptions,
       getSourceStatus,
       getSourceToken: getCurrentSourceToken,
+      getSourceMode,
+      setSourceMode,
+      getSourceModeOptions,
       resolveEffect: resolveConsumer,
       resolveMaterial,
       serializeConsumer,

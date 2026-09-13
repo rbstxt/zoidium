@@ -89,37 +89,37 @@ test("snapshot/restore rescales Y handles on value change", () => {
   assert.equal(k1.controlPoints[0][1], -8);
 });
 
-test("pickTargetForSet sends every pick to the outgoing segment", () => {
+test("pickTargetForSet sends picks to the incoming segment", () => {
   const { pickTargetForSet } = EasingPlus.__test;
-  const start = { frame: 0, value: 0, controlPoints: [[0, 0], [10, 5]] };
-  const easingEnd = {
+  const previous = { frame: 0, value: 0, controlPoints: [[0, 0], [10, 5]] };
+  const current = {
     frame: 30,
     value: 10,
     tween: 257,
     controlPoints: [[-10, -2], [0, 0]],
   };
-  assert.equal(pickTargetForSet(start, easingEnd), "outgoing");
-  assert.equal(pickTargetForSet(start, { ...easingEnd, tween: 1 }), "outgoing");
-  assert.equal(pickTargetForSet(start, null), "current");
+  assert.equal(pickTargetForSet(current, previous), "incoming");
+  assert.equal(pickTargetForSet(current, { ...previous, frame: 15 }), "incoming");
+  assert.equal(pickTargetForSet(current, null), "current");
   assert.equal(
     pickTargetForSet(
       { frame: 0, value: 0, controlPoints: [[0, 0], [10, 0]] },
-      { frame: 30, value: 10, tween: 257, controlPoints: [[-10, 0], [0, 0]] }
+      null
     ),
-    "outgoing"
+    "current"
   );
 });
 
-test("resolveDisplayTweens follows the outgoing rule per channel", () => {
+test("resolveDisplayTweens follows the incoming rule per channel", () => {
   const { resolveDisplayTweens } = EasingPlus.__test;
   const mockChannel = (keyframes) => ({
     getKeyframe(frame) {
       return keyframes.find((entry) => entry.frame === frame) || null;
     },
-    getNextKeyframe(frame) {
+    getPreviousKeyframe(frame) {
       const rest = keyframes
-        .filter((entry) => entry.frame > frame)
-        .sort((a, b) => a.frame - b.frame);
+        .filter((entry) => entry.frame < frame)
+        .sort((a, b) => b.frame - a.frame);
       return rest[0] || null;
     },
   });
@@ -128,8 +128,8 @@ test("resolveDisplayTweens follows the outgoing rule per channel", () => {
     { frame: 30, tween: 5 },
     { frame: 60, tween: 9 },
   ]);
-  assert.deepEqual(resolveDisplayTweens([channel], 0), [5]);
-  assert.deepEqual(resolveDisplayTweens([channel], 30), [9]);
+  assert.deepEqual(resolveDisplayTweens([channel], 0), [1]);
+  assert.deepEqual(resolveDisplayTweens([channel], 30), [5]);
   assert.deepEqual(resolveDisplayTweens([channel], 60), [9]);
   assert.deepEqual(resolveDisplayTweens([channel], 15), []);
   const group = [
@@ -139,15 +139,15 @@ test("resolveDisplayTweens follows the outgoing rule per channel", () => {
     ]),
     mockChannel([{ frame: 30, tween: 7 }]),
   ];
-  assert.deepEqual(resolveDisplayTweens(group, 30), [5, 7]);
+  assert.deepEqual(resolveDisplayTweens(group, 30), [1, 7]);
   const broken = mockChannel([
     { frame: 30, tween: 1 },
     { frame: 60 },
   ]);
-  assert.equal(resolveDisplayTweens([broken], 30), null);
+  assert.deepEqual(resolveDisplayTweens([broken], 30), [1]);
 });
 
-test("executeTweenWrite redirects picks to the next keyframe", () => {
+test("executeTweenWrite writes picks to the current keyframe", () => {
   const { executeTweenWrite } = EasingPlus.__test;
   const calls = [];
   const propertyOps = {
@@ -158,22 +158,22 @@ test("executeTweenWrite redirects picks to the next keyframe", () => {
       calls.push({ op: "handles", ...args });
     },
   };
-  const current = { frame: 30, value: 10, controlPoints: [[-1, -2], [10, 5]] };
-  const next = {
+  const previous = { frame: 0, value: 0, controlPoints: [[0, 0], [10, 5]] };
+  const current = {
     frame: 60,
     value: 20,
     tween: 257,
     controlPoints: [[-10, -3], [4, 4]],
   };
-  const target = executeTweenWrite(propertyOps, "addr", 30, current, next, 0, 3);
-  assert.equal(target, "outgoing");
+  const target = executeTweenWrite(propertyOps, "addr", 60, current, previous, 0, 3);
+  assert.equal(target, "incoming");
   assert.equal(calls.length, 3);
   assert.deepEqual(calls[0], { op: "tween", property: "addr", frame: 60, tween: 3 });
   assert.deepEqual(calls[1], {
     op: "handles",
     property: "addr",
-    frame: 30,
-    controlPoints: [[-1, -2], [10, 0]],
+    frame: 0,
+    controlPoints: [[0, 0], [10, 0]],
   });
   assert.deepEqual(calls[2], {
     op: "handles",
@@ -194,15 +194,15 @@ test("executeTweenWrite skips handle writes that already match the defaults", ()
       calls.push({ op: "handles", ...args });
     },
   };
-  const current = { frame: 30, value: 10, controlPoints: [[-1, -2], [10, 0]] };
-  const next = {
+  const previous = { frame: 0, value: 0, controlPoints: [[0, 0], [10, 0]] };
+  const current = {
     frame: 60,
     value: 20,
     tween: 1,
     controlPoints: [[-10, 0], [4, 4]],
   };
-  const target = executeTweenWrite(propertyOps, "addr", 30, current, next, 0, 3);
-  assert.equal(target, "outgoing");
+  const target = executeTweenWrite(propertyOps, "addr", 60, current, previous, 0, 3);
+  assert.equal(target, "incoming");
   assert.deepEqual(calls, [{ op: "tween", property: "addr", frame: 60, tween: 3 }]);
 });
 
@@ -224,16 +224,16 @@ test("executeTweenWrite keeps native picks on the current keyframe", () => {
 });
 
 test("runtime interpolation enables easing for native scalar properties", () => {
-  const { applyOutgoingDisplay } = EasingPlus.__test;
+  const { applyIncomingDisplay } = EasingPlus.__test;
   const realWindow = globalThis.window;
   const mockChannel = (keyframes) => ({
     getKeyframe(frame) {
       return keyframes.find((entry) => entry.frame === frame) || null;
     },
-    getNextKeyframe(frame) {
+    getPreviousKeyframe(frame) {
       const rest = keyframes
-        .filter((entry) => entry.frame > frame)
-        .sort((a, b) => a.frame - b.frame);
+        .filter((entry) => entry.frame < frame)
+        .sort((a, b) => b.frame - a.frame);
       return rest[0] || null;
     },
   });
@@ -276,23 +276,23 @@ test("runtime interpolation enables easing for native scalar properties", () => 
       { frame: 30, tween: 1 },
       { frame: 60, tween: 5 },
     ]).getKeyframe;
-    property.getNextKeyframe = mockChannel([
+    property.getPreviousKeyframe = mockChannel([
       { frame: 30, tween: 1 },
       { frame: 60, tween: 5 },
-    ]).getNextKeyframe;
-    assert.equal(applyOutgoingDisplay(mockRow(property, 30, calls)), true);
+    ]).getPreviousKeyframe;
+    assert.equal(applyIncomingDisplay(mockRow(property, 30, calls)), true);
     assert.deepEqual(calls, [
-      ["interp", 5, true],
-      ["ease", 5, true],
+      ["interp", 1, true],
+      ["ease", 1, true],
     ]);
     const finalCalls = [];
-    assert.equal(applyOutgoingDisplay(mockRow(property, 60, finalCalls)), true);
+    assert.equal(applyIncomingDisplay(mockRow(property, 60, finalCalls)), true);
     assert.deepEqual(finalCalls, [
       ["interp", 5, true],
       ["ease", 5, true],
     ]);
     const awayCalls = [];
-    assert.equal(applyOutgoingDisplay(mockRow(property, 45, awayCalls)), false);
+    assert.equal(applyIncomingDisplay(mockRow(property, 45, awayCalls)), false);
     assert.deepEqual(awayCalls, []);
     const hiddenCalls = [];
     const still = {
@@ -301,11 +301,11 @@ test("runtime interpolation enables easing for native scalar properties", () => 
       definition: { interpolated: true },
     };
     still.getKeyframe = property.getKeyframe;
-    still.getNextKeyframe = property.getNextKeyframe;
-    assert.equal(applyOutgoingDisplay(mockRow(still, 30, hiddenCalls)), true);
+    still.getPreviousKeyframe = property.getPreviousKeyframe;
+    assert.equal(applyIncomingDisplay(mockRow(still, 30, hiddenCalls)), true);
     assert.deepEqual(hiddenCalls, [
-      ["interp", 5, false],
-      ["ease", 5, false],
+      ["interp", 1, false],
+      ["ease", 1, false],
     ]);
   } finally {
     if (typeof realWindow === "undefined") delete globalThis.window;
@@ -333,8 +333,8 @@ test("runtime interpolation wins over definition metadata", () => {
   assert.equal(isPropertyInterpolated({ definition: {} }), false);
 });
 
-test("applyOutgoingDisplay hides grouped channels that disagree", () => {
-  const { applyOutgoingDisplay } = EasingPlus.__test;
+test("applyIncomingDisplay hides grouped channels that disagree", () => {
+  const { applyIncomingDisplay } = EasingPlus.__test;
   const realWindow = globalThis.window;
   class Group {}
   globalThis.window = { PZ: { property: { dynamic: { group: Group } } } };
@@ -343,10 +343,10 @@ test("applyOutgoingDisplay hides grouped channels that disagree", () => {
       getKeyframe(frame) {
         return keyframes.find((entry) => entry.frame === frame) || null;
       },
-      getNextKeyframe(frame) {
+      getPreviousKeyframe(frame) {
         const rest = keyframes
-          .filter((entry) => entry.frame > frame)
-          .sort((a, b) => a.frame - b.frame);
+          .filter((entry) => entry.frame < frame)
+          .sort((a, b) => b.frame - a.frame);
         return rest[0] || null;
       },
     });
@@ -359,7 +359,7 @@ test("applyOutgoingDisplay hides grouped channels that disagree", () => {
         { frame: 60, tween: 5 },
       ]),
       mockChannel([
-        { frame: 30, tween: 1 },
+        { frame: 30, tween: 9 },
         { frame: 60, tween: 9 },
       ]),
     ];
@@ -387,7 +387,7 @@ test("applyOutgoingDisplay hides grouped channels that disagree", () => {
         ];
       },
     };
-    assert.equal(applyOutgoingDisplay(row), true);
+    assert.equal(applyIncomingDisplay(row), true);
     assert.deepEqual(calls, [
       ["interp", -1, false],
       ["ease", -1, false],
