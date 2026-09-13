@@ -15,7 +15,7 @@ function readPatch(name) {
   );
 }
 
-test("new projects use a 60 FPS default", () => {
+test("new projects use a 30 FPS default", () => {
   function Editor() {}
   Editor.prototype.new = function () {
     this.createdRate = this.defaultProject.sequence.properties.rate;
@@ -35,9 +35,54 @@ test("new projects use a 60 FPS default", () => {
   editor.defaultProject = { sequence: { properties: { rate: 30 } } };
   editor.new();
 
-  assert.equal(editor.createdRate, 60);
-  assert.equal(context.CM.defaultProject.sequence.properties.rate, 60);
-  assert.equal(context.PZ.sequence.propertyDefinitions.rate.value, 60);
+  assert.equal(editor.createdRate, 30);
+  assert.equal(context.CM.defaultProject.sequence.properties.rate, 30);
+  assert.equal(context.PZ.sequence.propertyDefinitions.rate.value, 30);
+});
+
+test("new projects use the stored default frame rate", () => {
+  function Editor() {}
+  Editor.prototype.new = function () {
+    this.createdRate = this.defaultProject.sequence.properties.rate;
+  };
+
+  const storage = {
+    value: JSON.stringify({ defaultFrameRate: 29.97 }),
+    getItem() {
+      return this.value;
+    },
+    setItem(_key, value) {
+      this.value = value;
+    },
+  };
+  const context = {
+    localStorage: storage,
+    PZ: {
+      ui: { editor: Editor },
+      sequence: { propertyDefinitions: { rate: { value: 30 } } },
+    },
+    CM: { defaultProject: { sequence: { properties: { rate: 30 } } } },
+  };
+  context.window = context;
+  vm.runInNewContext(readPatch("default-project-settings.js"), context);
+
+  const editor = new Editor();
+  editor.defaultProject = { sequence: { properties: { rate: 30 } } };
+  editor.new();
+
+  assert.equal(editor.createdRate, 29.97);
+  assert.equal(context.CM.defaultProject.sequence.properties.rate, 29.97);
+  assert.equal(context.PZ.sequence.propertyDefinitions.rate.value, 29.97);
+
+  storage.setItem(
+    "zoidium.editor-settings",
+    JSON.stringify({ defaultFrameRate: 120 }),
+  );
+  context.ZoidiumDefaultProjectSettings.setFrameRate(120);
+  assert.equal(context.CM.defaultProject.sequence.properties.rate, 120);
+  assert.equal(context.PZ.sequence.propertyDefinitions.rate.value, 120);
+  editor.new();
+  assert.equal(editor.createdRate, 120);
 });
 
 test("new particles use reset defaults and only the time expression", () => {
