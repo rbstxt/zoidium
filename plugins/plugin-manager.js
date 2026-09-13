@@ -1,7 +1,7 @@
 (function () {
   "use strict";
 
-  const REGISTRY_URL = "./plugins/registry.json?v=30";
+  const REGISTRY_URL = "./plugins/registry.json?v=31";
   const STORAGE_PREFIX = "zoidium.plugin.enabled.";
   const SHADER_PLUGIN_MARKER = "// @zoidium-plugin ";
   const EFFECT_UUID_PROPERTY = "_zoidiumEffectUuid";
@@ -10,6 +10,12 @@
   const LAYER_INPUT_EFFECT_ID = "layerinput";
   const LAYER_INPUT_DISPLACEMENT_EFFECT_ID = "layerinputdisplacement";
   const LAYER_INPUT_MATERIAL_ID = "layersource";
+  const MATERIAL_PLUS_PLUGIN_ID = "material-plus";
+  const TEXT_PLUS_PLUGIN_ID = "text-plus";
+  const PARTICLES_PLUS_PLUGIN_ID = "particles-plus";
+  const LAYER_INPUT_SHADER_FEATURE_ID = "shader-layer-input";
+  const TEXT_PLUS_SPACING_FEATURE_ID = "text-spacing";
+  const TEXT_PLUS_BEVEL_FEATURE_ID = "advanced-bevel";
   const LAYER_INPUT_EFFECT_IDS = new Set([
     LAYER_INPUT_EFFECT_ID,
     LAYER_INPUT_DISPLACEMENT_EFFECT_ID,
@@ -21,6 +27,19 @@
     ["dropshadow", "Drop Shadow"],
     ["timeoffset", "Time Offset"],
     ["posterizetime", "Posterize Time"],
+  ]);
+  const PLUGIN_MATERIAL_TYPES = new Map([
+    ["matcap", { pluginId: MATERIAL_PLUS_PLUGIN_ID, name: "Matcap Material" }],
+    ["pbrplus", { pluginId: MATERIAL_PLUS_PLUGIN_ID, name: "PBR+ Material" }],
+    ["uvcustom", { pluginId: MATERIAL_PLUS_PLUGIN_ID, name: "UV Custom Material" }],
+    [LAYER_INPUT_MATERIAL_ID, { pluginId: LAYER_INPUT_PLUGIN_ID, name: "Layer Source" }],
+  ]);
+  const PLUGIN_DEPENDENCY_INFO = new Map([
+    [NATIVE_FX_PLUGIN_ID, { name: "Native FX", author: "Zoidium" }],
+    [LAYER_INPUT_PLUGIN_ID, { name: "Layer Input", author: "Zoidium" }],
+    [MATERIAL_PLUS_PLUGIN_ID, { name: "Material+", author: "Zoidium" }],
+    [TEXT_PLUS_PLUGIN_ID, { name: "Text+", author: "Zoidium" }],
+    [PARTICLES_PLUS_PLUGIN_ID, { name: "Particles+", author: "Zoidium" }],
   ]);
   const DEFAULT_PLUGIN_COLORS = Object.freeze({
     "easing-plus": "#384668",
@@ -1571,38 +1590,89 @@
 
   function normalizeProjectPlugins(plugins) {
     if (!Array.isArray(plugins)) return [];
-    const seen = new Set();
-    return plugins.flatMap((plugin) => {
+    const normalized = new Map();
+    for (const plugin of plugins) {
       const descriptor =
         typeof plugin === "string"
           ? { id: plugin }
           : plugin && typeof plugin === "object"
             ? plugin
             : null;
-      if (!descriptor || typeof descriptor.id !== "string" || !descriptor.id || seen.has(descriptor.id)) {
-        return [];
+      if (!descriptor || typeof descriptor.id !== "string" || !descriptor.id) {
+        continue;
       }
-      seen.add(descriptor.id);
-      return [
-        {
+      let entry = normalized.get(descriptor.id);
+      if (!entry) {
+        entry = {
           id: descriptor.id,
           name: typeof descriptor.name === "string" ? descriptor.name : descriptor.id,
           version: descriptor.version == null ? "" : String(descriptor.version),
           author: typeof descriptor.author === "string" ? descriptor.author : "",
-          effects: Array.isArray(descriptor.effects)
-            ? descriptor.effects.filter((effect) => typeof effect === "string")
-            : [],
-          materials: Array.isArray(descriptor.materials)
-            ? descriptor.materials.filter((material) => typeof material === "string")
-            : [],
-          objects: Array.isArray(descriptor.objects)
-            ? descriptor.objects.filter((object) => typeof object === "string")
-            : [],
-          sprites: Array.isArray(descriptor.sprites)
-            ? descriptor.sprites.filter((sprite) => typeof sprite === "string")
-            : [],
-        },
-      ];
+          effects: [],
+          materials: [],
+          objects: [],
+          sprites: [],
+          features: [],
+        };
+        normalized.set(descriptor.id, entry);
+      } else {
+        if (entry.name === entry.id && typeof descriptor.name === "string") {
+          entry.name = descriptor.name;
+        }
+        if (!entry.version && descriptor.version != null) {
+          entry.version = String(descriptor.version);
+        }
+        if (!entry.author && typeof descriptor.author === "string") {
+          entry.author = descriptor.author;
+        }
+      }
+      for (const field of ["effects", "materials", "objects", "sprites", "features"]) {
+        if (!Array.isArray(descriptor[field])) continue;
+        entry[field].push(...descriptor[field].filter((item) => typeof item === "string"));
+      }
+    }
+    return Array.from(normalized.values(), (entry) => {
+      for (const field of ["effects", "materials", "objects", "sprites", "features"]) {
+        entry[field] = Array.from(new Set(entry[field])).sort();
+      }
+      return entry;
+    });
+  }
+
+  function getProjectPluginDescriptor(plugins, pluginId) {
+    let descriptor = plugins.find((plugin) => plugin.id === pluginId);
+    if (descriptor) return descriptor;
+    const installed = pluginStates.get(pluginId)?.plugin;
+    const fallback = PLUGIN_DEPENDENCY_INFO.get(pluginId) || {};
+    descriptor = {
+      id: pluginId,
+      name: installed?.name || fallback.name || pluginId,
+      version: String(installed?.version || ""),
+      author: installed?.author || fallback.author || "",
+      effects: [],
+      materials: [],
+      objects: [],
+      sprites: [],
+      features: [],
+    };
+    plugins.push(descriptor);
+    return descriptor;
+  }
+
+  function mergeDetectedPluginItems(plugins, pluginId, field, items) {
+    if (!items || items.size === 0) return;
+    const descriptor = getProjectPluginDescriptor(plugins, pluginId);
+    descriptor[field] = Array.from(
+      new Set([...(descriptor[field] || []), ...items])
+    ).sort();
+  }
+
+  function serializeProjectPlugins(plugins) {
+    return plugins.map((plugin) => {
+      const descriptor = { ...plugin };
+      if (!descriptor.sprites?.length) delete descriptor.sprites;
+      if (!descriptor.features?.length) delete descriptor.features;
+      return descriptor;
     });
   }
 
@@ -1621,16 +1691,129 @@
     return found;
   }
 
-  function findLayerInputFeatures(value, found = { effects: new Set(), materials: new Set() }, visited = new WeakSet()) {
+  function findLayerInputFeatures(
+    value,
+    found = { effects: new Set(), features: new Set() },
+    visited = new WeakSet()
+  ) {
     if (!value || typeof value !== "object") return found;
     if (visited.has(value)) return found;
     visited.add(value);
     if (LAYER_INPUT_EFFECT_IDS.has(value.type)) found.effects.add(value.type);
-    if (value.type === LAYER_INPUT_MATERIAL_ID) found.materials.add(LAYER_INPUT_MATERIAL_ID);
+    if (
+      value._zoidiumShaderLayerSource === true ||
+      value.definition?._zoidiumShaderLayerSource === true ||
+      value.type?._zoidiumShaderLayerSource === true
+    ) {
+      found.features.add(LAYER_INPUT_SHADER_FEATURE_ID);
+    }
     if (Array.isArray(value)) {
       for (const item of value) findLayerInputFeatures(item, found, visited);
     } else {
       for (const key of Object.keys(value)) findLayerInputFeatures(value[key], found, visited);
+    }
+    return found;
+  }
+
+  function findPluginMaterialTypes(value, found = new Map(), visited = new WeakSet()) {
+    if (!value || typeof value !== "object") return found;
+    if (visited.has(value)) return found;
+    visited.add(value);
+    const material = PLUGIN_MATERIAL_TYPES.get(value.type);
+    if (material) {
+      if (!found.has(material.pluginId)) found.set(material.pluginId, new Set());
+      found.get(material.pluginId).add(value.type);
+    }
+    if (Array.isArray(value)) {
+      for (const item of value) findPluginMaterialTypes(item, found, visited);
+    } else {
+      for (const key of Object.keys(value)) findPluginMaterialTypes(value[key], found, visited);
+    }
+    return found;
+  }
+
+  function serializedPropertyValues(value) {
+    if (value === undefined) return [];
+    if (!value || typeof value !== "object" || Array.isArray(value)) return [value];
+    const values = [];
+    if (Object.prototype.hasOwnProperty.call(value, "value")) values.push(value.value);
+    if (Array.isArray(value.keyframes)) {
+      for (const keyframe of value.keyframes) {
+        if (keyframe && Object.prototype.hasOwnProperty.call(keyframe, "value")) {
+          values.push(keyframe.value);
+        }
+      }
+    }
+    return values;
+  }
+
+  function serializedPropertyDiffers(value, expected) {
+    return serializedPropertyValues(value).some((candidate) => {
+      if (typeof expected === "number") {
+        return !Number.isFinite(Number(candidate)) || Number(candidate) !== expected;
+      }
+      return candidate !== expected;
+    });
+  }
+
+  function isSerializedTextObject(value) {
+    const properties = value?.properties;
+    return (
+      value?.type === 1 &&
+      properties &&
+      typeof properties === "object" &&
+      Object.prototype.hasOwnProperty.call(properties, "text") &&
+      Object.prototype.hasOwnProperty.call(properties, "font") &&
+      Object.prototype.hasOwnProperty.call(properties, "bevelSize")
+    );
+  }
+
+  function findTextPlusFeatures(value, found = new Set(), visited = new WeakSet()) {
+    if (!value || typeof value !== "object") return found;
+    if (visited.has(value)) return found;
+    visited.add(value);
+    if (isSerializedTextObject(value)) {
+      const properties = value.properties;
+      if (
+        Object.prototype.hasOwnProperty.call(properties, "spacing") &&
+        serializedPropertyDiffers(properties.spacing, 0)
+      ) {
+        found.add(TEXT_PLUS_SPACING_FEATURE_ID);
+      }
+      for (const [name, expected] of [
+        ["bevelSide", 0],
+        ["bevelDetail", 3],
+        ["bevelProfile", 1],
+        ["bevelTension", 0.5],
+      ]) {
+        if (
+          Object.prototype.hasOwnProperty.call(properties, name) &&
+          serializedPropertyDiffers(properties[name], expected)
+        ) {
+          found.add(TEXT_PLUS_BEVEL_FEATURE_ID);
+          break;
+        }
+      }
+    }
+    if (Array.isArray(value)) {
+      for (const item of value) findTextPlusFeatures(item, found, visited);
+    } else {
+      for (const key of Object.keys(value)) findTextPlusFeatures(value[key], found, visited);
+    }
+    return found;
+  }
+
+  function findParticlesPlusSprites(value, found = new Set(), visited = new WeakSet()) {
+    if (!value || typeof value !== "object") return found;
+    if (visited.has(value)) return found;
+    visited.add(value);
+    if (typeof value._zoidiumParticlesPlusSprite === "string") {
+      found.add(value._zoidiumParticlesPlusSprite);
+    }
+    if (Array.isArray(value)) {
+      for (const item of value) findParticlesPlusSprites(item, found, visited);
+    } else {
+      for (const key of Object.keys(value)) findParticlesPlusSprites(value[key], found, visited);
     }
     return found;
   }
@@ -1667,63 +1850,57 @@
     const plugins = normalizeProjectPlugins(data?.plugins);
     const detectedEffects = Array.from(findNativeFxTypes(data)).sort();
     const detectedLayerInput = findLayerInputFeatures(data);
+    const detectedMaterialTypes = findPluginMaterialTypes(data);
     const detectedObjectTypes = findPluginObjectTypes(data);
+    const detectedTextPlusFeatures = findTextPlusFeatures(data);
+    const detectedParticlesPlusSprites = findParticlesPlusSprites(data);
     if (
       detectedEffects.length === 0 &&
       detectedLayerInput.effects.size === 0 &&
-      detectedLayerInput.materials.size === 0 &&
-      detectedObjectTypes.size === 0
+      detectedLayerInput.features.size === 0 &&
+      detectedMaterialTypes.size === 0 &&
+      detectedObjectTypes.size === 0 &&
+      detectedTextPlusFeatures.size === 0 &&
+      detectedParticlesPlusSprites.size === 0
     ) {
       return plugins;
     }
-    const existing = plugins.find((plugin) => plugin.id === NATIVE_FX_PLUGIN_ID);
-    if (detectedEffects.length > 0 && existing) {
-      existing.effects = Array.from(new Set([...existing.effects, ...detectedEffects])).sort();
-    } else if (detectedEffects.length > 0) {
-      plugins.push({
-        id: NATIVE_FX_PLUGIN_ID,
-        name: "Native FX",
-        version: "",
-        author: "",
-        effects: detectedEffects,
-        materials: [],
-      });
-    }
-    if (detectedLayerInput.effects.size > 0 || detectedLayerInput.materials.size > 0) {
-      const layerInput = plugins.find((plugin) => plugin.id === LAYER_INPUT_PLUGIN_ID);
-      const effects = Array.from(detectedLayerInput.effects).sort();
-      const materials = Array.from(detectedLayerInput.materials).sort();
-      if (layerInput) {
-        layerInput.effects = Array.from(new Set([...layerInput.effects, ...effects])).sort();
-        layerInput.materials = Array.from(new Set([...layerInput.materials, ...materials])).sort();
-      } else {
-        plugins.push({
-          id: LAYER_INPUT_PLUGIN_ID,
-          name: "Layer Input",
-          version: "",
-          author: "Zoidium",
-          effects,
-          materials,
-        });
-      }
+    mergeDetectedPluginItems(
+      plugins,
+      NATIVE_FX_PLUGIN_ID,
+      "effects",
+      new Set(detectedEffects)
+    );
+    mergeDetectedPluginItems(
+      plugins,
+      LAYER_INPUT_PLUGIN_ID,
+      "effects",
+      detectedLayerInput.effects
+    );
+    mergeDetectedPluginItems(
+      plugins,
+      LAYER_INPUT_PLUGIN_ID,
+      "features",
+      detectedLayerInput.features
+    );
+    for (const [pluginId, materialTypes] of detectedMaterialTypes) {
+      mergeDetectedPluginItems(plugins, pluginId, "materials", materialTypes);
     }
     for (const [pluginId, objectTypes] of detectedObjectTypes) {
-      const objects = Array.from(objectTypes).sort();
-      const objectPlugin = plugins.find((plugin) => plugin.id === pluginId);
-      if (objectPlugin) {
-        objectPlugin.objects = Array.from(new Set([...objectPlugin.objects, ...objects])).sort();
-      } else {
-        plugins.push({
-          id: pluginId,
-          name: pluginId,
-          version: "",
-          author: "",
-          effects: [],
-          materials: [],
-          objects,
-        });
-      }
+      mergeDetectedPluginItems(plugins, pluginId, "objects", objectTypes);
     }
+    mergeDetectedPluginItems(
+      plugins,
+      TEXT_PLUS_PLUGIN_ID,
+      "features",
+      detectedTextPlusFeatures
+    );
+    mergeDetectedPluginItems(
+      plugins,
+      PARTICLES_PLUS_PLUGIN_ID,
+      "sprites",
+      detectedParticlesPlusSprites
+    );
     return plugins;
   }
 
@@ -1752,9 +1929,10 @@
         const manifestMaterial = state?.manifest?.materialTypes?.find(
           (material) => material.id === materialId
         );
+        const knownMaterial = PLUGIN_MATERIAL_TYPES.get(materialId);
         installMissingMaterialFactory(
           materialId,
-          manifestMaterial?.name || materialId,
+          manifestMaterial?.name || knownMaterial?.name || materialId,
           {
             id: requested.id,
             name: requested.name || state?.plugin?.name || requested.id,
@@ -1812,6 +1990,7 @@
           materials: new Set(),
           objects: new Set(),
           sprites: new Set(),
+          features: new Set(),
         };
         used.set(metadata.id, entry);
       }
@@ -1868,6 +2047,7 @@
       const metadata = resource._zoidiumPluginResourceMetadata;
       const entry = getEntry(metadata);
       if (metadata.sprite) entry.sprites.add(metadata.sprite);
+      if (metadata.feature) entry.features.add(metadata.feature);
     }
 
     return Array.from(used.values(), (entry) => {
@@ -1881,6 +2061,7 @@
         objects: Array.from(entry.objects).sort(),
       };
       if (entry.sprites.size > 0) descriptor.sprites = Array.from(entry.sprites).sort();
+      if (entry.features.size > 0) descriptor.features = Array.from(entry.features).sort();
       return descriptor;
     }).sort((a, b) => a.id.localeCompare(b.id));
   }
@@ -1893,8 +2074,9 @@
     const originalProjectToJSON = projectPrototype.toJSON;
     projectPrototype.toJSON = function () {
       const json = originalProjectToJSON.apply(this, arguments);
-      const plugins = collectProjectPlugins(this);
-      if (plugins.length > 0) json.plugins = plugins;
+      const trackedPlugins = collectProjectPlugins(this);
+      const plugins = projectPluginRequirements({ ...json, plugins: trackedPlugins });
+      if (plugins.length > 0) json.plugins = serializeProjectPlugins(plugins);
       else delete json.plugins;
       return json;
     };
@@ -1924,7 +2106,7 @@
     editorHooksInstalled = true;
     const originalSave = PZ.ui.editor.prototype.save;
     PZ.ui.editor.prototype.save = async function () {
-      const plugins = collectProjectPlugins(this.project);
+      const plugins = normalizeProjectPlugins(this.project?.toJSON?.().plugins);
       const unacknowledged = plugins.filter(
         (plugin) => !isSaveApprovalRemembered(plugin.id)
       );

@@ -590,8 +590,13 @@ const LayerInput = (() => {
 
   function registerConsumer(consumer) {
     if (!consumer) return;
+    const sourceProperties = getSourceProperties(consumer);
+    if (consumer.type === 1 && sourceProperties.length === 0) {
+      state.consumers.delete(consumer);
+      return;
+    }
     state.consumers.add(consumer);
-    for (const property of getSourceProperties(consumer)) {
+    for (const property of sourceProperties) {
       if (property?.get?.()) setConsumerSource(consumer, property.get(), { sourceProperty: property });
     }
   }
@@ -856,30 +861,42 @@ const LayerInput = (() => {
   function removeShaderWatcher(shader) {
     const watcher = state.shaderWatchers.get(shader);
     if (!watcher) return;
-    try {
-      watcher.observable.unwatch(watcher.callback);
-    } catch (_error) {
-      // Detached shader properties are harmless during project replacement.
+    for (const [observable, callback] of watcher.watches) {
+      try {
+        observable.unwatch(callback);
+      } catch (_error) {
+        // Detached shader properties are harmless during project replacement.
+      }
     }
     state.shaderWatchers.delete(shader);
   }
 
+  function syncShaderConsumer(shader) {
+    if (getShaderSourceProperties(shader).length > 0) registerConsumer(shader);
+    else unregisterConsumer(shader);
+  }
+
   function registerShaderInstance(shader) {
     if (!shader || state.shaderWatchers.has(shader)) {
-      if (shader) registerConsumer(shader);
+      if (shader) syncShaderConsumer(shader);
       return;
     }
-    const observable = shader.customProperties?.onObjectAdded;
-    const callback = (property) => {
+    const watches = [];
+    const changed = (property) => {
       if (!property?.definition?._zoidiumShaderLayerSource) return;
-      registerConsumer(shader);
+      syncShaderConsumer(shader);
       scheduleValidation(getProject(shader) || state.editor?.project);
     };
-    if (observable?.watch) {
-      observable.watch(callback);
-      state.shaderWatchers.set(shader, { observable, callback });
+    for (const observable of [
+      shader.customProperties?.onObjectAdded,
+      shader.customProperties?.onObjectRemoved,
+    ]) {
+      if (!observable?.watch) continue;
+      observable.watch(changed);
+      watches.push([observable, changed]);
     }
-    registerConsumer(shader);
+    if (watches.length > 0) state.shaderWatchers.set(shader, { watches });
+    syncShaderConsumer(shader);
   }
 
   function installShaderPropertyType() {
@@ -1204,6 +1221,13 @@ const LayerInput = (() => {
     for (const root of Array.from(state.runtimes)) disposeRuntime(root);
   }
 
+  function isInUse() {
+    if (!state.active) return false;
+    return Array.from(state.consumers).some(
+      (consumer) => getProject(consumer) === state.editor?.project
+    );
+  }
+
   function activate(context) {
     if (state.active) return state.api;
     state.active = true;
@@ -1222,10 +1246,7 @@ const LayerInput = (() => {
       resolveMaterial,
       serializeConsumer,
       validateProject,
-      isInUse: () =>
-        Array.from(state.consumers).some(
-          (consumer) => getProject(consumer) === state.editor?.project
-        ),
+      isInUse,
     };
     state.PZ.layerInput = state.api;
     installStyle();
@@ -1270,7 +1291,7 @@ const LayerInput = (() => {
     state.style = null;
   }
 
-  return { activate, deactivate };
+  return { activate, deactivate, isInUse };
 })();
 
 module.exports = LayerInput;
