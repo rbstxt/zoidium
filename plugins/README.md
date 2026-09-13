@@ -174,6 +174,13 @@ are never recorded as dependencies:
 }
 ```
 
+The manager derives this metadata from both live plugin objects and the serialized
+project tree. The serialized scan covers native effect and material types,
+`zoidium:<plugin>/<object>` object classes, Custom Shader Layer Input properties,
+Text+ horizontal spacing and non-default advanced bevel controls, and Particles+
+sprite markers. Module-only uses are stored in an optional `features` array, such
+as `"shader-layer-input"`, `"text-spacing"`, or `"advanced-bevel"`.
+
 On load, Zoidium detects Native FX both from dependency metadata and from its
 native effect types. It asks before enabling the pack. Declining
 keeps the original effect data in a non-rendering Missing Native FX placeholder;

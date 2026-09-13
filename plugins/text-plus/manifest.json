@@ -3,7 +3,7 @@
   "id": "text-plus",
   "name": "Text+",
   "author": "Zoidium",
-  "version": "15",
+  "version": "16",
   "kind": "object",
   "description": "Adds per-character controls and advanced bevel options to editable 3D Text.",
   "objectClassParent": {
@@ -151,7 +151,7 @@
   "modules": [
     {
       "id": "text-plus-runtime",
-      "source": "./plugins/text-plus/text-plus.js?v=15"
+      "source": "./plugins/text-plus/text-plus.js?v=16"
     }
   ]
 }

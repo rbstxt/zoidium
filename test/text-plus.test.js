@@ -774,6 +774,42 @@ test("Text geometry options map advanced bevel controls to ExtrudeGeometry", () 
   assert.equal(options.bevelProfile, 0.2);
 });
 
+test("Text+ usage detection ignores defaults and catches spacing or advanced bevel values", () => {
+  const property = (value) => ({ get: () => value });
+  const makeText = (overrides = {}) => ({
+    properties: {
+      spacing: property(0),
+      bevelSide: property(0),
+      bevelDetail: property(3),
+      bevelProfile: property(1),
+      bevelTension: property(0.5),
+      ...overrides,
+    },
+  });
+
+  assert.equal(_test.textUsesExtendedProperties(makeText()), false);
+  assert.equal(
+    _test.textUsesExtendedProperties(makeText({ spacing: property(5) })),
+    true
+  );
+  assert.equal(
+    _test.textUsesExtendedProperties(makeText({ bevelSide: property(1) })),
+    true
+  );
+  assert.equal(
+    _test.textUsesExtendedProperties(makeText({ bevelDetail: property(8) })),
+    true
+  );
+  assert.equal(
+    _test.textUsesExtendedProperties(makeText({ bevelProfile: property(0) })),
+    true
+  );
+  assert.equal(
+    _test.textUsesExtendedProperties(makeText({ bevelTension: property(0.2) })),
+    true
+  );
+});
+
 test("center point modes match the native 3D Text anchor rules", () => {
   const bounds = { min: [-10, -20, -2], max: [30, 40, 8] };
   assert.deepEqual(_test.getCenterOffset(bounds, 0), [-10, -10, -3]);

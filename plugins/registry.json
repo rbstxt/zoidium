@@ -194,7 +194,7 @@
       "category": "experimental",
       "name": "Layer Input",
       "author": "Zoidium",
-      "version": "7",
+      "version": "8",
       "itemCount": 4,
       "format": "layer sources",
       "tagline": "Layer-to-Layer Inputs",
@@ -202,15 +202,15 @@
       "description": "Lets effects, 3D materials, and Custom Shaders use another video track as an information source.",
       "zoidiumOnly": true,
       "warning": "Layer Input projects require Zoidium. This feature is extremely experimental and may cause unexpected crashes.",
-      "manifest": "./plugins/layer-input/manifest.json?v=7",
-      "bundle": "./plugins/layer-input/bundle.json?v=7"
+      "manifest": "./plugins/layer-input/manifest.json?v=8",
+      "bundle": "./plugins/layer-input/bundle.json?v=8"
     },
     {
       "id": "text-plus",
       "category": "scene",
       "name": "Text+",
       "author": "Zoidium",
-      "version": "15",
+      "version": "16",
       "defaultEnabled": true,
       "itemCount": 6,
       "format": "3D text containers",
@@ -219,23 +219,23 @@
       "description": "Adds per-character controls and advanced bevel options to editable 3D Text.",
       "credits": "Credits: DaviFX",
       "zoidiumOnly": true,
-      "manifest": "./plugins/text-plus/manifest.json?v=15",
-      "bundle": "./plugins/text-plus/bundle.json?v=15"
+      "manifest": "./plugins/text-plus/manifest.json?v=16",
+      "bundle": "./plugins/text-plus/bundle.json?v=16"
     },
     {
       "id": "particles-plus",
       "category": "scene",
       "name": "Particles+",
       "author": "Zoidium",
-      "version": "5",
+      "version": "6",
       "itemCount": 54,
       "format": "particle sprites",
       "tagline": "Extra Particle Sprites",
       "color": "#6b5b8f",
       "description": "Adds original monochrome particle sprites: geometric shapes, pattern textures, and glow/flare variants.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/particles-plus/manifest.json?v=5",
-      "bundle": "./plugins/particles-plus/bundle.json?v=5"
+      "manifest": "./plugins/particles-plus/manifest.json?v=6",
+      "bundle": "./plugins/particles-plus/bundle.json?v=6"
     }
   ]
 }

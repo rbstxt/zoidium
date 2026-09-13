@@ -27,6 +27,8 @@ const ParticlesPlus = (() => {
     particlePrototype: null,
     originalTextureChanged: null,
     patchedTextureChanged: null,
+    originalParticleToJSON: null,
+    patchedParticleToJSON: null,
     originalParticleUnload: null,
     patchedParticleUnload: null,
     originalGenerateTextureInput: null,
@@ -149,6 +151,15 @@ const ParticlesPlus = (() => {
 
   function patchParticleUnload() {
     state.particlePrototype = state.PZ.object3d.particles.prototype;
+    state.originalParticleToJSON = state.particlePrototype.toJSON;
+    state.patchedParticleToJSON = function () {
+      const data = state.originalParticleToJSON.apply(this, arguments);
+      const sprite = spriteIdForProperty(getTextureProperty(this));
+      if (sprite && data && typeof data === 'object') {
+        data._zoidiumParticlesPlusSprite = sprite;
+      }
+      return data;
+    };
     state.originalParticleUnload = state.particlePrototype.unload;
     state.patchedParticleUnload = function () {
       untrackParticle(this);
@@ -156,6 +167,7 @@ const ParticlesPlus = (() => {
         ? state.originalParticleUnload.apply(this, arguments)
         : undefined;
     };
+    state.particlePrototype.toJSON = state.patchedParticleToJSON;
     state.particlePrototype.unload = state.patchedParticleUnload;
   }
 
@@ -267,6 +279,9 @@ const ParticlesPlus = (() => {
     if (state.particlePrototype?.unload === state.patchedParticleUnload) {
       state.particlePrototype.unload = state.originalParticleUnload;
     }
+    if (state.particlePrototype?.toJSON === state.patchedParticleToJSON) {
+      state.particlePrototype.toJSON = state.originalParticleToJSON;
+    }
     for (const patch of state.pickerPatches) {
       if (patch.select?.onchange === patch.patchedOnchange) patch.select.onchange = patch.originalOnchange;
       if (patch.container?.pz_update === patch.patchedPzUpdate) patch.container.pz_update = patch.originalPzUpdate;
@@ -294,6 +309,8 @@ const ParticlesPlus = (() => {
     state.particlePrototype = null;
     state.originalTextureChanged = null;
     state.patchedTextureChanged = null;
+    state.originalParticleToJSON = null;
+    state.patchedParticleToJSON = null;
     state.originalParticleUnload = null;
     state.patchedParticleUnload = null;
     state.originalGenerateTextureInput = null;

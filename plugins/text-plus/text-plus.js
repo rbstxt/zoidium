@@ -43,6 +43,7 @@ const randomOrderCache = new Map();
 const state = {
   PZ: null,
   THREE: null,
+  editor: null,
   objectClasses: [],
   unregisterObjectClasses: [],
   textPropertyDefinitionsOriginal: null,
@@ -1897,6 +1898,40 @@ function restoreTextPatches() {
   state.textUnloadPatched = null;
 }
 
+function textUsesExtendedProperties(textObject) {
+  const properties = textObject?.properties;
+  if (!properties) return false;
+  const differs = (name, expected) => {
+    const property = properties[name];
+    if (!property || typeof property.get !== "function") return false;
+    try {
+      return numberValue(property.get(), Number.NaN) !== expected;
+    } catch (_error) {
+      return false;
+    }
+  };
+  return (
+    differs("spacing", 0) ||
+    differs("bevelSide", 0) ||
+    differs("bevelDetail", 3) ||
+    differs("bevelProfile", 1) ||
+    differs("bevelTension", 0.5)
+  );
+}
+
+function isInUse() {
+  const project = state.editor?.project;
+  const TextObject = state.PZ?.object3d?.text;
+  if (!project || !TextObject || typeof project.forEachItemOfType !== "function") {
+    return false;
+  }
+  let used = false;
+  project.forEachItemOfType(TextObject, (textObject) => {
+    if (textUsesExtendedProperties(textObject)) used = true;
+  });
+  return used;
+}
+
 function activate(context) {
   if (state.PZ) return;
   const { PZ, window, object3d } = context || {};
@@ -1913,6 +1948,7 @@ function activate(context) {
 
   state.PZ = PZ;
   state.THREE = THREE;
+  state.editor = context.editor || null;
   if (!installTextPatches(PZ)) {
     deactivate();
     throw new Error("Text+ could not install its 3D Text bindings.");
@@ -1951,6 +1987,7 @@ function deactivate() {
   }
   state.PZ = null;
   state.THREE = null;
+  state.editor = null;
   state.objectClasses = [];
   state.unregisterObjectClasses = [];
   state.splitStates = new WeakMap();
@@ -1960,6 +1997,7 @@ function deactivate() {
 module.exports = {
   activate,
   deactivate,
+  isInUse,
   _test: {
     CHARACTER_SHAKE_TYPE,
     DELAY_ORDERS,
@@ -1973,6 +2011,7 @@ module.exports = {
     createRandomScatterPropertyDefinitions,
     createGradientTransformPropertyDefinitions,
     createPropertyCategory,
+    textUsesExtendedProperties,
     createShakePropertyDefinitions,
     createTransformPropertyDefinitions,
     defaultCharacterShakeData,
