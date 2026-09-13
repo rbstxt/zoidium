@@ -819,6 +819,107 @@ function patchIndexHtml(sourceHtml) {
   return html;
 }
 
+function replaceThreePatchAnchor(
+  source,
+  search,
+  replacement,
+  label,
+  expectedCount = 1
+) {
+  const count = source.split(search).length - 1;
+  if (count !== expectedCount) {
+    throw new Error(
+      `CM3 three.js bevel patch expected ${expectedCount} ${label} anchors, found ${count}`
+    );
+  }
+  return source.split(search).join(replacement);
+}
+
+function patchThreeR91Source(source) {
+  const original = String(source);
+  if (
+    original.includes("bevelProfilePow") &&
+    original.includes("bevelSizeInner") &&
+    original.includes("bevelShift") &&
+    original.includes("bevelRound")
+  ) {
+    return original;
+  }
+
+  let patched = original;
+  patched = replaceThreePatchAnchor(
+    patched,
+    "E=void 0!==b.UVGenerator?b.UVGenerator:fb.WorldUVGenerator;",
+    "E=void 0!==b.UVGenerator?b.UVGenerator:fb.WorldUVGenerator;var bevelProfile=void 0!==b.bevelProfile?b.bevelProfile:.5,bevelRound=void 0!==b.bevelRound?b.bevelRound:!0,bevelSizeInner=void 0!==b.bevelSizeInner?b.bevelSizeInner:v,bevelShift=void 0!==b.bevelShift?b.bevelShift:0,bevelProfilePow=Math.pow(2,(bevelProfile-.5)*4);",
+    "option defaults"
+  );
+  patched = replaceThreePatchAnchor(
+    patched,
+    "y||(v=q=x=0);",
+    "y||(v=q=x=0,bevelSizeInner=0,bevelShift=0);",
+    "disabled-bevel defaults"
+  );
+  patched = replaceThreePatchAnchor(
+    patched,
+    "V=Xa.triangulateShape(a,O),X=a;Q=0;for(M=O.length;Q<M;Q++)S=O[Q],a=a.concat(S);",
+    "V=Xa.triangulateShape(a,O),X=a;Q=0;for(M=O.length;Q<M;Q++)S=O[Q],a=a.concat(S);var verticesSizes=[];for(var vi=0;vi<X.length;vi++)verticesSizes[vi]=v-bevelShift;for(Q=0;Q<M;Q++){S=O[Q];for(var hi=0,hil=S.length;hi<hil;hi++)verticesSizes.push(bevelSizeInner-bevelShift)}",
+    "per-contour bevel sizes"
+  );
+  patched = replaceThreePatchAnchor(
+    patched,
+    "for(R=0;R<x;R++){W=R/x;var fa=q*Math.cos(W*Math.PI/2);U=v*Math.sin(W*Math.PI/2);",
+    "for(R=0;R<x;R++){W=R/x;W=bevelRound?Math.pow(W,bevelProfilePow):W;var fa=bevelRound?q*Math.cos(W*Math.PI/2):q*(1-W);U=bevelRound?v*Math.sin(W*Math.PI/2)-bevelShift:v*W-bevelShift;var bsInner=bevelRound?bevelSizeInner*Math.sin(W*Math.PI/2)-bevelShift:bevelSizeInner*W-bevelShift;",
+    "front bevel profile"
+  );
+  patched = replaceThreePatchAnchor(
+    patched,
+    "ha=c(S[J],ca[J],U),f(ha.x,ha.y,-fa)",
+    "ha=c(S[J],ca[J],bsInner),f(ha.x,ha.y,-fa)",
+    "front inner bevel"
+  );
+  patched = replaceThreePatchAnchor(
+    patched,
+    "ha=y?c(a[J],ea[J],U):a[J]",
+    "ha=y?c(a[J],ea[J],verticesSizes[J]):a[J]",
+    "cap contour bevel size",
+    2
+  );
+  patched = replaceThreePatchAnchor(
+    patched,
+    "for(R=x-1;0<=R;R--){W=R/x;fa=q*Math.cos(W*Math.PI/2);U=v*Math.sin(W*Math.PI/2);",
+    "for(R=x-1;0<=R;R--){W=R/x;W=bevelRound?Math.pow(W,bevelProfilePow):W;var fa=bevelRound?q*Math.cos(W*Math.PI/2):q*(1-W);U=bevelRound?v*Math.sin(W*Math.PI/2)-bevelShift:v*W-bevelShift;var bsInner=bevelRound?bevelSizeInner*Math.sin(W*Math.PI/2)-bevelShift:bevelSizeInner*W-bevelShift;",
+    "back bevel profile"
+  );
+  patched = replaceThreePatchAnchor(
+    patched,
+    "ha=c(S[J],ca[J],U),A?f(ha.x,ha.y+H[B-1].y,H[B-1].x+fa):f(ha.x,ha.y,m+fa)",
+    "ha=c(S[J],ca[J],bsInner),A?f(ha.x,ha.y+H[B-1].y,H[B-1].x+fa):f(ha.x,ha.y,m+fa)",
+    "back inner bevel"
+  );
+  return patched;
+}
+
+async function patchThreeRuntimeStage(stageRoot, resources) {
+  const candidates = (resources || []).filter((resource) => {
+    const sourcePath = String(resource?.sourcePath || "");
+    return sourcePath === "three.r91.min.js" || sourcePath.endsWith("/three.r91.min.js");
+  });
+  if (candidates.length !== 1) {
+    throw new Error(
+      `CM3 three.js r91 runtime is not uniquely identified in the staged resource graph (${candidates.length} matches)`
+    );
+  }
+
+  const sourcePath = normalizeResourcePath(candidates[0].sourcePath);
+  const filePath = safeStagePath(stageRoot, sourcePath);
+  const source = await fs.promises.readFile(filePath, "utf8");
+  const patched = patchThreeR91Source(source);
+  if (patched !== source) {
+    await writeStageFile(stageRoot, sourcePath, Buffer.from(patched, "utf8"));
+  }
+  return sourcePath;
+}
+
 async function copyPath(stageRoot, source, destination, { required = true } = {}) {
   let sourceStat;
   try {
@@ -1417,16 +1518,29 @@ async function prepareRuntimeStage({
     sourcePageUrl,
     videoEditorSourcePageUrl,
   });
-  if (destinationRoot == null) return cache;
-
-  const stageRoot = await assertStageRootSafe(destinationRoot);
-  if (stageRoot !== cache.root) {
-    await copyCachedRuntime(cache.root, stageRoot, cache, {
-      includeMetadata: includeElectronFiles,
-    });
+  const ownsStage = destinationRoot == null;
+  const stageRoot = await assertStageRootSafe(
+    ownsStage
+      ? await fs.promises.mkdtemp(path.join(os.tmpdir(), temporaryPrefix))
+      : destinationRoot
+  );
+  try {
+    if (stageRoot !== cache.root) {
+      await copyCachedRuntime(cache.root, stageRoot, cache, {
+        includeMetadata: includeElectronFiles,
+      });
+    }
+    await copyProjectFiles(stageRoot, { includeElectronFiles });
+    await patchThreeRuntimeStage(stageRoot, cache.resources);
+    return {
+      ...cache,
+      cleanup: ownsStage ? () => cleanupStage(stageRoot) : cache.cleanup,
+      root: stageRoot,
+    };
+  } catch (error) {
+    if (ownsStage) await cleanupStage(stageRoot).catch(() => {});
+    throw error;
   }
-  await copyProjectFiles(stageRoot, { includeElectronFiles });
-  return { ...cache, root: stageRoot };
 }
 
 async function preparePackagedStage() {
@@ -1448,6 +1562,7 @@ async function preparePackagedStage() {
     for (const entry of entries) {
       await copyEntry(resolvedStageRoot, entry, { required: true });
     }
+    await patchThreeRuntimeStage(resolvedStageRoot, metadata.resources);
     return {
       cleanup: () => cleanupStage(resolvedStageRoot),
       root: resolvedStageRoot,
@@ -1538,9 +1653,13 @@ async function main() {
     sourcePageUrl,
     videoEditorSourcePageUrl,
   });
-  console.log(
-    `[Zoidium] CM3 runtime available at ${result.root} (${result.resources.length} resources)`
-  );
+  try {
+    console.log(
+      `[Zoidium] CM3 runtime available at ${result.root} (${result.resources.length} resources)`
+    );
+  } finally {
+    await result.cleanup();
+  }
 }
 
 if (require.main === module) {
@@ -1566,6 +1685,8 @@ module.exports = {
   normalizeResourcePath,
   normalizeSourcePageUrl,
   patchIndexHtml,
+  patchThreeR91Source,
+  patchThreeRuntimeStage,
   preparePackagedStage,
   prepareRuntimeStage,
   projectRoot,

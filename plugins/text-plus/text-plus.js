@@ -45,6 +45,10 @@ const state = {
   THREE: null,
   objectClasses: [],
   unregisterObjectClasses: [],
+  textPropertyDefinitionsOriginal: null,
+  textPropertyDefinitionsPatched: null,
+  textUpdateGeometryOriginal: null,
+  textUpdateGeometryPatched: null,
   textUpdateOriginal: null,
   textUpdatePatched: null,
   textUnloadOriginal: null,
@@ -323,10 +327,11 @@ function getShakeAngle(amplitude, period, phase) {
 // THREE r91 lays out text from the font's horizontal advance values. Keep the
 // same UTF-16 unit iteration here so the generated character meshes occupy the
 // same positions as the untouched TextGeometry.
-function getTextLayout(text, fontData, size) {
+function getTextLayout(text, fontData, size, spacing = 0) {
   const data = fontData && typeof fontData === "object" ? fontData : {};
   const resolution = numberValue(data.resolution, 1000);
   const scale = resolution !== 0 ? numberValue(size, 100) / resolution : 0;
+  const characterSpacing = numberValue(spacing, 0);
   const bounds = data.boundingBox || {};
   const lineHeight =
     (numberValue(bounds.yMax, 0) -
@@ -356,7 +361,7 @@ function getTextLayout(text, fontData, size) {
       y: cursorY,
       advance,
     });
-    cursorX += advance;
+    cursorX += advance + characterSpacing;
   }
 
   return { units, count: units.length, lineHeight };
@@ -1022,6 +1027,97 @@ function getTextPlusControls(textPlus, frame, index, count) {
 
 /* ----------------------------------------------------------- text rendering */
 
+function createTextShapes(font, text, size, divisions, spacing = 0) {
+  const THREE = state.THREE;
+  const data = font?.data;
+  if (!data) {
+    return typeof font?.generateShapes === "function"
+      ? font.generateShapes(text, size, divisions)
+      : [];
+  }
+  if (!THREE?.ShapePath) return [];
+
+  const resolution = numberValue(data.resolution, 1000);
+  const scale = resolution !== 0 ? numberValue(size, 100) / resolution : 0;
+  const bounds = data.boundingBox || {};
+  const lineHeight =
+    (numberValue(bounds.yMax, 0) -
+      numberValue(bounds.yMin, 0) +
+      numberValue(data.underlineThickness, 0)) *
+    scale;
+  const glyphs = data.glyphs || {};
+  const characters = String(text == null ? "" : text).split("");
+  const shapes = [];
+  let offsetX = 0;
+  let offsetY = 0;
+
+  for (const character of characters) {
+    if (character === "\n") {
+      offsetX = 0;
+      offsetY -= lineHeight;
+      continue;
+    }
+
+    const glyph = glyphs[character] || glyphs["?"];
+    if (!glyph) continue;
+
+    if (glyph.o) {
+      const path = new THREE.ShapePath();
+      const outline =
+        glyph._cachedOutline || (glyph._cachedOutline = glyph.o.split(" "));
+
+      for (let index = 0; index < outline.length; ) {
+        const action = outline[index++];
+        let x;
+        let y;
+        let cpx;
+        let cpy;
+        let cpx1;
+        let cpy1;
+        let cpx2;
+        let cpy2;
+
+        switch (action) {
+          case "m":
+            x = numberValue(outline[index++], 0) * scale + offsetX;
+            y = numberValue(outline[index++], 0) * scale + offsetY;
+            path.moveTo(x, y);
+            break;
+          case "l":
+            x = numberValue(outline[index++], 0) * scale + offsetX;
+            y = numberValue(outline[index++], 0) * scale + offsetY;
+            path.lineTo(x, y);
+            break;
+          case "q":
+            cpx = numberValue(outline[index++], 0) * scale + offsetX;
+            cpy = numberValue(outline[index++], 0) * scale + offsetY;
+            cpx1 = numberValue(outline[index++], 0) * scale + offsetX;
+            cpy1 = numberValue(outline[index++], 0) * scale + offsetY;
+            path.quadraticCurveTo(cpx1, cpy1, cpx, cpy);
+            break;
+          case "b":
+            cpx = numberValue(outline[index++], 0) * scale + offsetX;
+            cpy = numberValue(outline[index++], 0) * scale + offsetY;
+            cpx1 = numberValue(outline[index++], 0) * scale + offsetX;
+            cpy1 = numberValue(outline[index++], 0) * scale + offsetY;
+            cpx2 = numberValue(outline[index++], 0) * scale + offsetX;
+            cpy2 = numberValue(outline[index++], 0) * scale + offsetY;
+            path.bezierCurveTo(cpx1, cpy1, cpx2, cpy2, cpx, cpy);
+            break;
+          default:
+            break;
+        }
+      }
+
+      for (const shape of path.toShapes()) shapes.push(shape);
+    }
+
+    offsetX += numberValue(glyph.ha, 0) * scale + numberValue(spacing, 0);
+  }
+
+  return shapes;
+}
+
 function sameObjects(left, right) {
   if (!left || !right || left.length !== right.length) return false;
   for (let index = 0; index < left.length; index += 1) {
@@ -1073,6 +1169,13 @@ function textGeometryOptions(textObject, font) {
     [0.1, 0.5]
   );
   const bevelSize = Array.isArray(rawBevelSize) ? rawBevelSize : [0.1, 0.5];
+  const bevelWidth = numberValue(bevelSize[1], 0.5);
+  const bevelSide = Math.round(
+    numberValue(propertyValue(textObject.properties?.bevelSide, 0, 0), 0)
+  );
+  const bevelProfile = Math.round(
+    numberValue(propertyValue(textObject.properties?.bevelProfile, 0, 1), 1)
+  );
   return {
     size: numberValue(size[0], 20),
     height: numberValue(size[1], 3),
@@ -1080,10 +1183,41 @@ function textGeometryOptions(textObject, font) {
     font,
     bevelEnabled: Boolean(propertyValue(textObject.properties?.bevel, 0, 0)),
     bevelThickness: numberValue(bevelSize[0], 0.1),
-    bevelSize: numberValue(bevelSize[1], 0.5),
+    bevelSize: bevelWidth,
+    bevelSizeInner: bevelWidth,
+    bevelShift: bevelSide === 1 ? bevelWidth : 0,
+    bevelSegments: Math.max(
+      1,
+      Math.round(numberValue(propertyValue(textObject.properties?.bevelDetail, 0, 3), 3))
+    ),
+    bevelRound: bevelProfile === 1,
+    bevelProfile: numberValue(
+      propertyValue(textObject.properties?.bevelTension, 0, 0.5),
+      0.5
+    ),
+    amount: numberValue(size[1], 3),
     material: 0,
     extrudeMaterial: 1,
   };
+}
+
+function createCharacterGeometry(character, options) {
+  const THREE = state.THREE;
+  const font = options.font;
+  if (typeof THREE?.ExtrudeGeometry === "function") {
+    const shapes = createTextShapes(
+      font,
+      character,
+      options.size,
+      options.curveSegments,
+      0
+    );
+    return new THREE.ExtrudeGeometry(shapes, options);
+  }
+  if (typeof THREE?.TextGeometry === "function") {
+    return new THREE.TextGeometry(character, options);
+  }
+  return null;
 }
 
 function copyMeshState(source, target) {
@@ -1121,7 +1255,8 @@ function buildCharacterRendering(textObject, splitState, layers) {
   const rawText = propertyValue(textObject.properties?.text, 0, "");
   const rawSize = propertyValue(textObject.properties?.size, 0, [20, 3]);
   const size = Array.isArray(rawSize) ? numberValue(rawSize[0], 20) : 20;
-  const layout = getTextLayout(rawText, font.data, size);
+  const spacing = propertyValue(textObject.properties?.spacing, 0, 0);
+  const layout = getTextLayout(rawText, font.data, size, spacing);
   const options = textGeometryOptions(textObject, font);
   const bounds = {
     min: [Infinity, Infinity, Infinity],
@@ -1134,7 +1269,7 @@ function buildCharacterRendering(textObject, splitState, layers) {
     for (const unit of layout.units) {
       let geometry = null;
       let box = null;
-      geometry = new THREE.TextGeometry(unit.character, options);
+      geometry = createCharacterGeometry(unit.character, options);
       box = finiteBox(geometry);
       if (!box) {
         geometry.dispose?.();
@@ -1553,11 +1688,159 @@ function getTextParentDefinitions() {
   ];
 }
 
+function getTextPropertyDefinitions(PZ) {
+  const textClass = PZ.object3d.text;
+  const original = textClass.propertyDefinitions || {};
+  const changeFn = textClass.changeFn;
+  const type = PZ.property.type;
+  const originalBevelSize = original.bevelSize || {};
+
+  const spacingDefinition = {
+      name: "Horizontal spacing",
+      type: type.NUMBER,
+      value: 0,
+      changed: changeFn,
+      max: 200,
+      min: -200,
+      step: 0.5,
+      decimals: 2,
+  };
+  const bevelSizeDefinition = {
+      ...originalBevelSize,
+      name: "Bevel size",
+      type: type.VECTOR2,
+      value: Array.isArray(originalBevelSize.value)
+        ? originalBevelSize.value.slice()
+        : [0.1, 0.5],
+      subtitle1: "thickness",
+      subtitle2: "width",
+      changed: changeFn,
+      min: 0,
+      step: 0.05,
+      decimals: 2,
+  };
+  const advancedBevelDefinitions = {
+    bevelSide: {
+      name: "Bevel side",
+      type: type.OPTION,
+      value: 0,
+      items: "outside;inside",
+      changed: changeFn,
+    },
+    bevelDetail: {
+      name: "Bevel subdivision",
+      type: type.NUMBER,
+      value: 3,
+      changed: changeFn,
+      max: 100,
+      min: 1,
+      step: 1,
+      decimals: 0,
+    },
+    bevelProfile: {
+      name: "Cap profile",
+      type: type.OPTION,
+      value: 1,
+      items: "flat;round",
+      changed: changeFn,
+    },
+    bevelTension: {
+      name: "Bevel tension",
+      type: type.NUMBER,
+      value: 0.5,
+      changed: changeFn,
+      min: 0,
+      max: 1,
+      step: 0.01,
+      decimals: 2,
+    },
+  };
+
+  const definitions = {};
+  let spacingInserted = false;
+  let bevelInserted = false;
+  for (const [name, definition] of Object.entries(original)) {
+    if (name === "spacing") continue;
+    if (Object.prototype.hasOwnProperty.call(advancedBevelDefinitions, name)) {
+      continue;
+    }
+    if (name === "bevelSize") {
+      definitions.bevelSize = bevelSizeDefinition;
+      definitions.bevelSide = advancedBevelDefinitions.bevelSide;
+      definitions.bevelDetail = advancedBevelDefinitions.bevelDetail;
+      definitions.bevelProfile = advancedBevelDefinitions.bevelProfile;
+      definitions.bevelTension = advancedBevelDefinitions.bevelTension;
+      bevelInserted = true;
+    } else {
+      definitions[name] = definition;
+    }
+    if (name === "detail") {
+      definitions.spacing = spacingDefinition;
+      spacingInserted = true;
+    }
+  }
+  if (!spacingInserted) definitions.spacing = spacingDefinition;
+  if (!bevelInserted) {
+    definitions.bevelSize = bevelSizeDefinition;
+    Object.assign(definitions, advancedBevelDefinitions);
+  }
+  return definitions;
+}
+
+function installTextPropertyPatches(PZ) {
+  const textClass = PZ.object3d?.text;
+  if (!textClass || !textClass.propertyDefinitions) return;
+  const original = textClass.propertyDefinitions;
+  const patched = getTextPropertyDefinitions(PZ);
+  textClass.propertyDefinitions = patched;
+  state.textPropertyDefinitionsOriginal = original;
+  state.textPropertyDefinitionsPatched = patched;
+}
+
 function installTextPatches(PZ) {
-  const prototype = PZ.object3d?.text?.prototype;
+  const textClass = PZ.object3d?.text;
+  const prototype = textClass?.prototype;
   if (!prototype || typeof prototype.update !== "function") return false;
   const originalUpdate = prototype.update;
+  const originalUpdateGeometry = prototype.updateGeometry;
   const originalUnload = prototype.unload;
+
+  installTextPropertyPatches(PZ);
+
+  if (typeof originalUpdateGeometry === "function") {
+    const patchedUpdateGeometry = function updateGeometry() {
+      const font = this.font?.font3d;
+      const THREE = state.THREE;
+      if (
+        !font ||
+        !this.threeObj ||
+        typeof THREE?.ExtrudeGeometry !== "function"
+      ) {
+        return originalUpdateGeometry.apply(this, arguments);
+      }
+
+      const options = textGeometryOptions(this, font);
+      const shapes = createTextShapes(
+        font,
+        propertyValue(this.properties?.text, 0, ""),
+        options.size,
+        options.curveSegments,
+        propertyValue(this.properties?.spacing, 0, 0)
+      );
+      const geometry = new THREE.ExtrudeGeometry(shapes, options);
+      const previousGeometry = this.threeObj.geometry;
+      if (previousGeometry && previousGeometry !== geometry) {
+        previousGeometry.dispose?.();
+      }
+      this.threeObj.geometry = geometry;
+      geometry.buffersNeedUpdate = true;
+      this.center?.();
+    };
+    patchedUpdateGeometry._zoidiumTextPlusPatched = true;
+    prototype.updateGeometry = patchedUpdateGeometry;
+    state.textUpdateGeometryOriginal = originalUpdateGeometry;
+    state.textUpdateGeometryPatched = patchedUpdateGeometry;
+  }
 
   const patchedUpdate = function update(frame) {
     originalUpdate.call(this, frame);
@@ -1591,12 +1874,23 @@ function installTextPatches(PZ) {
 function restoreTextPatches() {
   const PZ = state.PZ;
   const prototype = PZ?.object3d?.text?.prototype;
+  const textClass = PZ?.object3d?.text;
+  if (prototype?.updateGeometry === state.textUpdateGeometryPatched) {
+    prototype.updateGeometry = state.textUpdateGeometryOriginal;
+  }
   if (prototype?.update === state.textUpdatePatched) {
     prototype.update = state.textUpdateOriginal;
   }
   if (prototype?.unload === state.textUnloadPatched) {
     prototype.unload = state.textUnloadOriginal;
   }
+  if (textClass?.propertyDefinitions === state.textPropertyDefinitionsPatched) {
+    textClass.propertyDefinitions = state.textPropertyDefinitionsOriginal;
+  }
+  state.textPropertyDefinitionsOriginal = null;
+  state.textPropertyDefinitionsPatched = null;
+  state.textUpdateGeometryOriginal = null;
+  state.textUpdateGeometryPatched = null;
   state.textUpdateOriginal = null;
   state.textUpdatePatched = null;
   state.textUnloadOriginal = null;
@@ -1693,6 +1987,8 @@ module.exports = {
     getCharacterShakeControls,
     getCharacterTransformControls,
     getCharacterTransformReference,
+    createTextShapes,
+    getTextPropertyDefinitions,
     getDelayRank,
     getMatrixToAncestor,
     getGradientTransformControls,
@@ -1702,6 +1998,7 @@ module.exports = {
     getSelectedCharacterContext,
     getShakeAngle,
     getTextLayout,
+    textGeometryOptions,
     getTextCenter,
     getTextPlusProperties,
     getTextPlusControls,

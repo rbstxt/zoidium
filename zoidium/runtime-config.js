@@ -8,7 +8,7 @@
     // loader appends it automatically, so per-file ?v= queries are never
     // hand-edited here. Plugin asset URLs are versioned separately by
     // tools/build-plugin-bundles.js from each manifest's own version.
-    assetVersion: 48,
+    assetVersion: 57,
     overlayStyles: [
       "./zoidium/ui-overrides.css",
       "./plugins/plugin-manager.css",
@@ -37,7 +37,11 @@
       "./plugins/core/remove-ad-panel.js",
       "./plugins/core/remove-videoeditor-legacy-message.js",
       "./plugins/core/restore-videoeditor-controls.js",
+      "./plugins/core/videoeditor-timeline-defaults.js",
       "./plugins/core/remove-community-media.js",
+      "./plugins/core/composite-video-materials.js",
+      "./plugins/core/playback-seek-sync.js",
+      "./plugins/core/export-audio-trace.js",
       "./zoidium/direct-download.js",
       "./plugins/core/project-files.js"
     ],

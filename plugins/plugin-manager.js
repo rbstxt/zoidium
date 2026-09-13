@@ -1,7 +1,7 @@
 (function () {
   "use strict";
 
-  const REGISTRY_URL = "./plugins/registry.json?v=25";
+  const REGISTRY_URL = "./plugins/registry.json?v=29";
   const STORAGE_PREFIX = "zoidium.plugin.enabled.";
   const SHADER_PLUGIN_MARKER = "// @zoidium-plugin ";
   const EFFECT_UUID_PROPERTY = "_zoidiumEffectUuid";
@@ -34,6 +34,8 @@
     "particles-plus": "#6b5b8f",
   });
   const pluginStates = new Map();
+  const pluginGroups = [];
+  const pluginGroupByPluginId = new Map();
   const trackedNativeEffects = new Set();
   const missingNativeEffects = new Set();
   const trackedPluginMaterials = new Set();
@@ -1521,6 +1523,8 @@
     state.toggle.disabled = phase === "loading";
     state.status.dataset.state = phase;
     state.status.textContent = message || phase;
+    // Keep the pack master switch in step with single-plugin toggles.
+    syncGroupForPlugin(state.plugin.id);
   }
 
   function emitState(pluginId, enabled, effectCount) {
@@ -2020,7 +2024,10 @@
   }
 
   function compatBadgeHtml(plugin) {
-    if (plugin.zoidiumOnly || plugin.warning) {
+    // Only an explicit zoidiumOnly flag marks a plugin as Zoidium-only.
+    // warning text is advisory (migration notices, experimental caveats) and
+    // must not change the compatibility badge on its own.
+    if (plugin.zoidiumOnly === true) {
       return `<span class="zoidium-plugin-compat" data-compat="zoidium" title="${
         plugin.warning ||
         "Requires Zoidium; not compatible with vanilla Panzoid Clipmaker 3."
@@ -2035,16 +2042,14 @@
       : "";
   }
 
-  // Panel order: CM3-compatible packs first, then Zoidium-only packs, then
-  // experimental ones. Registry order is kept inside each group.
-  function pluginDisplayOrder(plugin) {
-    if (plugin.category === "experimental") return 2;
-    return plugin.warning || plugin.zoidiumOnly ? 1 : 0;
-  }
-
-  function pluginSwitchHtml(plugin) {
-    return `<label class="zoidium-plugin-switch" title="Toggle ${plugin.name}">
-          <input type="checkbox" role="switch" aria-label="Enable ${plugin.name}">
+  // Shared switch markup for plugin rows and group master switches. Group
+  // switches drop role="switch" so a native checkbox can expose the mixed
+  // (indeterminate) state of a partially enabled group.
+  function pluginSwitchHtml(options) {
+    const config = options || {};
+    const role = config.role === false ? "" : ` role="${config.role || "switch"}"`;
+    return `<label class="zoidium-plugin-switch" title="${config.title || ""}">
+          <input type="checkbox"${role} aria-label="${config.ariaLabel || config.title || ""}">
           <span class="zoidium-plugin-track" aria-hidden="true"></span>
         </label>`;
   }
@@ -2066,7 +2071,10 @@
             <span class="zoidium-plugin-name">${plugin.name}${compatBadgeHtml(plugin)}${experimentalBadgeHtml(plugin)}</span>
             <span class="zoidium-plugin-meta">${plugin.tagline || ""}<span class="zoidium-plugin-state" data-state="disabled" aria-hidden="true">Disabled</span></span>
           </span>
-          <span class="zp-detail-switch">${pluginSwitchHtml(plugin)}</span>
+          <span class="zp-detail-switch">${pluginSwitchHtml({
+            title: `Toggle ${plugin.name}`,
+            ariaLabel: `Enable ${plugin.name}`,
+          })}</span>
         </summary>
         <div class="zp-detail-content">
           <span class="zoidium-plugin-description">${plugin.description}</span>
@@ -2133,6 +2141,113 @@
     return state;
   }
 
+  // ---- plugin groups -------------------------------------------------
+  //
+  // The panel renders one collapsible section per registry category, and
+  // each section carries a master switch that enables or disables every
+  // plugin inside it. Group membership and order come from registry.json
+  // (categories[] order, then registry order inside a category), so adding a
+  // plugin to a pack stays a registry-only change.
+
+  // Group tallies follow the card's own phase, falling back to the initial
+  // data-enabled flag before the first enable/disable pass writes a phase.
+  function pluginEnabledForGroup(state) {
+    if (!state) return false;
+    if (!state.card) return state.phase === "enabled";
+    if (state.card.dataset.phase) return state.card.dataset.phase === "enabled";
+    return state.card.dataset.enabled === "true";
+  }
+
+  function createGroupSection(category) {
+    const section = document.createElement("details");
+    section.className = "zoidium-plugin-category";
+    section.dataset.categoryId = category.id;
+    // Packs open by default; a category may opt into starting folded.
+    section.open = category.collapsed !== true;
+    section.innerHTML = `
+      <summary class="noselect">
+        <span class="zoidium-plugin-category-heading">
+          <span class="zoidium-plugin-category-name">${category.name}</span>
+          <span class="zoidium-plugin-category-count"></span>
+        </span>
+        <span class="zoidium-plugin-category-switch">${pluginSwitchHtml({
+          role: false,
+          title: `Toggle every plugin in ${category.name}`,
+          ariaLabel: `Enable every plugin in ${category.name}`,
+        })}</span>
+      </summary>
+      ${
+        category.description
+          ? `<div class="zoidium-plugin-category-description"${
+              category.warning === true ? ' data-tone="warning"' : ""
+            }>${category.description}</div>`
+          : ""
+      }
+      <div class="zoidium-plugin-category-list"></div>`;
+    return section;
+  }
+
+  function createPluginGroup(category) {
+    const section = createGroupSection(category);
+    const group = {
+      id: category.id,
+      name: category.name,
+      section,
+      list: section.querySelector(".zoidium-plugin-category-list"),
+      toggle: section.querySelector(".zoidium-plugin-category-switch input"),
+      count: section.querySelector(".zoidium-plugin-category-count"),
+      members: [],
+      busy: false,
+      openBeforeSearch: null,
+    };
+    group.toggle.addEventListener("change", () => {
+      setGroupEnabled(group, group.toggle.checked);
+    });
+    // The master switch sits inside <summary>; keep clicks from folding the
+    // section, exactly like the per-plugin switches.
+    section
+      .querySelector(".zoidium-plugin-category-switch")
+      .addEventListener("click", (event) => {
+        event.stopPropagation();
+      });
+    pluginGroups.push(group);
+    return group;
+  }
+
+  function syncGroupSwitch(group) {
+    const total = group.members.length;
+    const on = group.members.filter(pluginEnabledForGroup).length;
+    group.toggle.disabled = group.busy;
+    group.toggle.checked = total > 0 && on === total;
+    group.toggle.indeterminate = on > 0 && on < total;
+    group.count.textContent = total === 0 ? "" : `${on} of ${total} on`;
+  }
+
+  function syncGroupForPlugin(pluginId) {
+    const group = pluginGroupByPluginId.get(pluginId);
+    if (group) syncGroupSwitch(group);
+  }
+
+  // Enables or disables a whole pack. Plugins in use by the current project
+  // refuse to unload (see disablePlugin) and leave the master switch mixed.
+  async function setGroupEnabled(group, enabled) {
+    if (group.busy || group.members.length === 0) return;
+    group.busy = true;
+    syncGroupSwitch(group);
+    try {
+      for (const state of group.members) {
+        if (enabled) {
+          if (!pluginEnabledForGroup(state)) await enablePlugin(state, true);
+        } else if (pluginEnabledForGroup(state)) {
+          disablePlugin(state, true);
+        }
+      }
+    } finally {
+      group.busy = false;
+      syncGroupSwitch(group);
+    }
+  }
+
   function createPanel(registry) {
     const panel = document.createElement("section");
     panel.className = "editorpanel zoidium-plugin-panel";
@@ -2151,23 +2266,68 @@
     const box = ZoidiumUI.createSearchBox({ placeholder: "type to filter", ariaLabel: "Filter plugins" });
     panel.insertBefore(box.wrap, list);
     const search = box.input;
-    const orderedPlugins = registry.plugins
-      .map((plugin, index) => ({ plugin, index }))
-      .sort(
-        (a, b) =>
-          pluginDisplayOrder(a.plugin) - pluginDisplayOrder(b.plugin) ||
-          a.index - b.index,
-      )
-      .map((item) => item.plugin);
-    for (const plugin of orderedPlugins) {
+
+    pluginGroups.length = 0;
+    pluginGroupByPluginId.clear();
+    const groupsById = new Map();
+    for (const category of Array.isArray(registry.categories) ? registry.categories : []) {
+      if (!category || typeof category.id !== "string" || !category.id) continue;
+      if (groupsById.has(category.id)) continue;
+      const group = createPluginGroup(category);
+      groupsById.set(category.id, group);
+      list.appendChild(group.section);
+    }
+    // A plugin whose category is missing or unknown still renders, in a
+    // trailing section named after the raw value, instead of disappearing.
+    const groupForPlugin = (plugin) => {
+      const categoryId =
+        typeof plugin.category === "string" && plugin.category ? plugin.category : "other";
+      let group = groupsById.get(categoryId);
+      if (!group) {
+        group = createPluginGroup({
+          id: categoryId,
+          name: categoryId === "other" ? "Other" : categoryId,
+        });
+        groupsById.set(categoryId, group);
+        list.appendChild(group.section);
+      }
+      return group;
+    };
+
+    for (const plugin of registry.plugins) {
       if (plugin.visibility === "hidden" || plugin.alwaysEnabled === true) {
         createHiddenPluginState(plugin);
         continue;
       }
-      list.appendChild(createPluginCard(plugin));
+      const group = groupForPlugin(plugin);
+      group.list.appendChild(createPluginCard(plugin));
+      group.members.push(pluginStates.get(plugin.id));
+      pluginGroupByPluginId.set(plugin.id, group);
     }
 
-    let updateFilter = ZoidiumUI.attachSearchFilter(search, list);
+    for (const group of pluginGroups) {
+      if (group.members.length === 0) group.section.remove();
+      else syncGroupSwitch(group);
+    }
+
+    // Groups with no matching entry disappear while filtering, and a match
+    // inside a folded section is revealed instead of staying hidden.
+    const syncGroupSearchState = () => {
+      const query = String(search.value || "").trim();
+      for (const group of pluginGroups) {
+        if (!group.section.isConnected) continue;
+        const visible = Array.from(group.list.children).filter((entry) => !entry.hidden).length;
+        group.section.hidden = visible === 0;
+        if (query) {
+          if (group.openBeforeSearch === null) group.openBeforeSearch = group.section.open;
+          if (visible > 0) group.section.open = true;
+        } else if (group.openBeforeSearch !== null) {
+          group.section.open = group.openBeforeSearch;
+          group.openBeforeSearch = null;
+        }
+      }
+    };
+    ZoidiumUI.attachSearchFilter(search, list, { onUpdate: syncGroupSearchState });
 
     const scheduleScrollStateSync = () => {
       requestAnimationFrame(() => syncPluginPanelScrollState(panel));

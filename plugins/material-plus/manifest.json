@@ -3,9 +3,9 @@
   "id": "material-plus",
   "name": "Material+",
   "author": "Zoidium",
-  "version": "3",
+  "version": "5",
   "kind": "material-pack",
-  "description": "Adds Matcap and physically based material extensions for 3D objects.",
+  "description": "Adds Matcap, physically based, and corrected-UV material extensions for 3D objects.",
   "materialTypes": [
     {
       "id": "matcap",
@@ -16,28 +16,37 @@
       "id": "pbrplus",
       "name": "PBR+ Material",
       "description": "Applies a physically based material with texture maps for surface properties."
+    },
+    {
+      "id": "uvcustom",
+      "name": "UV Custom Material",
+      "description": "Like Custom Material, with evenly spaced texture UVs on 3D Text and extruded shapes."
     }
   ],
   "resources": [
     {
       "id": "matcap-vertex-shader",
       "type": "text",
-      "source": "./plugins/material-plus/shaders/matcap.vert.glsl?v=3"
+      "source": "./plugins/material-plus/shaders/matcap.vert.glsl?v=5"
     },
     {
       "id": "matcap-fragment-shader",
       "type": "text",
-      "source": "./plugins/material-plus/shaders/matcap.frag.glsl?v=3"
+      "source": "./plugins/material-plus/shaders/matcap.frag.glsl?v=5"
     }
   ],
   "modules": [
     {
       "id": "material-plus-runtime",
-      "source": "./plugins/material-plus/material-plus.js?v=3"
+      "source": "./plugins/material-plus/material-plus.js?v=5"
     },
     {
       "id": "material-plus-pbr-runtime",
-      "source": "./plugins/material-plus/pbr-plus.js?v=3"
+      "source": "./plugins/material-plus/pbr-plus.js?v=5"
+    },
+    {
+      "id": "material-plus-uv-custom-runtime",
+      "source": "./plugins/material-plus/uv-custom.js?v=5"
     }
   ]
 }

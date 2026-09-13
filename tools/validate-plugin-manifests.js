@@ -96,11 +96,50 @@ function manifestFiles() {
     .filter((filePath) => fs.existsSync(filePath));
 }
 
+// The panel groups visible plugins by category, so a typo in either the
+// category id or a plugin's category reference would silently change how the
+// pack list renders.
+function validateRegistryCategories(registry) {
+  const categories = Array.isArray(registry.categories) ? registry.categories : [];
+  const ids = new Set();
+  for (const category of categories) {
+    if (!category || typeof category.id !== "string" || !category.id) {
+      throw new Error("Every registry category needs a string id");
+    }
+    if (typeof category.name !== "string" || !category.name) {
+      throw new Error(`Registry category "${category.id}" needs a name`);
+    }
+    if (category.collapsed !== undefined && typeof category.collapsed !== "boolean") {
+      throw new Error(
+        `Registry category "${category.id}" must use a boolean collapsed flag`
+      );
+    }
+    if (ids.has(category.id)) {
+      throw new Error(`Duplicate registry category id: ${category.id}`);
+    }
+    ids.add(category.id);
+  }
+
+  for (const plugin of registry.plugins) {
+    if (!plugin || typeof plugin.id !== "string") continue;
+    if (plugin.visibility === "hidden" || plugin.alwaysEnabled === true) continue;
+    if (typeof plugin.category !== "string" || !plugin.category) {
+      throw new Error(`Visible plugin "${plugin.id}" must declare a category`);
+    }
+    if (!ids.has(plugin.category)) {
+      throw new Error(
+        `Plugin "${plugin.id}" references unknown category "${plugin.category}"`
+      );
+    }
+  }
+}
+
 function validateRegisteredManifests() {
   const registry = readJson(registryPath);
   if (registry.schemaVersion !== 1 || !Array.isArray(registry.plugins)) {
     throw new Error("Invalid plugin registry");
   }
+  validateRegistryCategories(registry);
 
   const registeredPaths = new Set();
   for (const plugin of registry.plugins) {
@@ -139,5 +178,6 @@ if (require.main === module) {
 
 module.exports = {
   validateManifest,
+  validateRegistryCategories,
   validateRegisteredManifests,
 };

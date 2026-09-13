@@ -3,9 +3,9 @@
   "id": "text-plus",
   "name": "Text+",
   "author": "Zoidium",
-  "version": "14",
+  "version": "15",
   "kind": "object",
-  "description": "Adds separate Text+ parents for character transforms, gradients, shake, selection, and random scatter.",
+  "description": "Adds per-character controls and advanced bevel options to editable 3D Text.",
   "objectClassParent": {
     "name": "Text+",
     "type": 5
@@ -109,7 +109,7 @@
       "id": "text-plus",
       "type": "zoidium:text-plus/text-plus",
       "name": "Character Transform",
-      "description": "Applies position, rotation, scale, and staggered timing to every text character.",
+      "description": "Applies position, rotation, scale, and staggered timing to every text character while preserving Text geometry settings.",
       "schemaVersion": 5
     },
     {
@@ -151,7 +151,7 @@
   "modules": [
     {
       "id": "text-plus-runtime",
-      "source": "./plugins/text-plus/text-plus.js?v=14"
+      "source": "./plugins/text-plus/text-plus.js?v=15"
     }
   ]
 }

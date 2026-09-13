@@ -158,8 +158,10 @@
 
   // Filters list children as the user types. Entries match against
   // dataset.searchText when present, otherwise their text content.
-  // Escape clears the query. Returns the update function so callers can
-  // re-run it after the list changes.
+  // Escape clears the query. onUpdate runs after every pass so callers can
+  // react to the visible set (for example hiding empty group headers).
+  // Returns the update function so callers can re-run it after the list
+  // changes.
   function attachSearchFilter(input, list, options) {
     var config = options || {};
     var entrySelector = config.entrySelector || ".zoidium-plugin-entry";
@@ -173,6 +175,7 @@
       Array.from(list.querySelectorAll(entrySelector)).forEach(function (entry) {
         entry.hidden = Boolean(query) && entryText(entry).indexOf(query) === -1;
       });
+      if (typeof config.onUpdate === "function") config.onUpdate();
     }
     input.addEventListener("input", update);
     input.addEventListener("keydown", function (event) {

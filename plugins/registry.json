@@ -2,8 +2,22 @@
   "schemaVersion": 1,
   "categories": [
     {
+      "id": "utilities",
+      "name": "Utilities"
+    },
+    {
+      "id": "scene",
+      "name": "Scene Extensions"
+    },
+    {
+      "id": "adjustment",
+      "name": "Adjustment Extensions"
+    },
+    {
       "id": "experimental",
       "name": "Experimental",
+      "collapsed": true,
+      "warning": true,
       "description": "These features are extremely experimental and may cause unexpected crashes."
     }
   ],
@@ -12,16 +26,17 @@
       "id": "core",
       "name": "Zoidium Core",
       "author": "Zoidium",
-      "version": "2",
+      "version": "6",
       "visibility": "hidden",
       "alwaysEnabled": true,
       "tagline": "Built-in core extensions",
       "description": "Hidden built-in extensions that always run. Not shown in the Plugins panel and never stored in projects.",
-      "manifest": "./plugins/core/manifest.json?v=2",
-      "bundle": "./plugins/core/bundle.json?v=2"
+      "manifest": "./plugins/core/manifest.json?v=6",
+      "bundle": "./plugins/core/bundle.json?v=6"
     },
     {
       "id": "easing-plus",
+      "category": "utilities",
       "name": "Easing+",
       "author": "Zoidium",
       "version": "20",
@@ -35,6 +50,7 @@
     },
     {
       "id": "player-plus",
+      "category": "utilities",
       "name": "Player+",
       "author": "Zoidium",
       "version": "6",
@@ -49,6 +65,7 @@
     },
     {
       "id": "native-fx",
+      "category": "adjustment",
       "name": "Native FX",
       "author": "Zoidium",
       "version": "8",
@@ -63,6 +80,7 @@
     },
     {
       "id": "light-plus",
+      "category": "scene",
       "name": "Light+",
       "author": "Zoidium",
       "version": "3",
@@ -76,6 +94,7 @@
     },
     {
       "id": "geometry-plus",
+      "category": "scene",
       "name": "Geometry+",
       "author": "Zoidium",
       "version": "6",
@@ -90,6 +109,7 @@
     },
     {
       "id": "repeater",
+      "category": "scene",
       "name": "Repeater",
       "author": "Zoidium",
       "version": "9",
@@ -105,20 +125,22 @@
     },
     {
       "id": "material-plus",
+      "category": "scene",
       "name": "Material+",
       "author": "Zoidium",
-      "version": "3",
-      "itemCount": 2,
+      "version": "5",
+      "itemCount": 3,
       "format": "3D materials",
-      "tagline": "Matcap & PBR+ Material",
+      "tagline": "Matcap, PBR+ & UV Custom Materials",
       "color": "#b36bca",
-      "description": "Adds Matcap and physically based materials for 3D objects.",
+      "description": "Adds Matcap, PBR+, and corrected-UV materials for 3D objects.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/material-plus/manifest.json?v=3",
-      "bundle": "./plugins/material-plus/bundle.json?v=3"
+      "manifest": "./plugins/material-plus/manifest.json?v=5",
+      "bundle": "./plugins/material-plus/bundle.json?v=5"
     },
     {
       "id": "afterclip",
+      "category": "adjustment",
       "name": "AfterClip",
       "author": "AfterClip",
       "version": "3",
@@ -128,14 +150,14 @@
       "format": "GLSL + groups",
       "tagline": "AfterClip Shader Pack",
       "color": "#d35a76",
-      "description": "Adds AfterClip custom shaders and group presets, normalized for Zoidium.",
-      "zoidiumOnly": true,
+      "description": "Adds AfterClip custom shaders and group presets.",
       "warning": "This is a temporary plugin to help AfterClip users migrate to Zoidium. The Zoidium Shader Pack will be developed soon, and this plugin will become outdated.",
       "manifest": "./plugins/afterclip/manifest.json?v=3",
       "bundle": "./plugins/afterclip/bundle.json?v=3"
     },
     {
       "id": "alipfx-shader-pack-4",
+      "category": "adjustment",
       "name": "Afterzoid Shader Pack 4",
       "author": "AlipFX",
       "version": "6",
@@ -150,6 +172,7 @@
     },
     {
       "id": "ccfx-shader-pack",
+      "category": "adjustment",
       "name": "CCFX Shader Pack",
       "author": "CCFX",
       "version": "2",
@@ -166,6 +189,7 @@
     },
     {
       "id": "layer-input",
+      "category": "experimental",
       "name": "Layer Input",
       "author": "Zoidium",
       "version": "7",
@@ -173,7 +197,6 @@
       "format": "layer sources",
       "tagline": "Layer-to-Layer Inputs",
       "color": "#4f9db6",
-      "category": "experimental",
       "description": "Lets effects, 3D materials, and Custom Shaders use another video track as an information source.",
       "zoidiumOnly": true,
       "warning": "Layer Input projects require Zoidium. This feature is extremely experimental and may cause unexpected crashes.",
@@ -182,21 +205,23 @@
     },
     {
       "id": "text-plus",
+      "category": "scene",
       "name": "Text+",
       "author": "Zoidium",
-      "version": "14",
+      "version": "15",
       "defaultEnabled": true,
       "itemCount": 6,
       "format": "3D text containers",
-      "tagline": "Character Transforms, Gradients, Shake, and Scatter",
+      "tagline": "Per-character controls and advanced 3D text bevels",
       "color": "#b2704f",
-      "description": "Adds separate Text+ parents for character transforms, gradients, shake, selection, and random scatter.",
+      "description": "Adds per-character controls and advanced bevel options to editable 3D Text.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/text-plus/manifest.json?v=14",
-      "bundle": "./plugins/text-plus/bundle.json?v=14"
+      "manifest": "./plugins/text-plus/manifest.json?v=15",
+      "bundle": "./plugins/text-plus/bundle.json?v=15"
     },
     {
       "id": "particles-plus",
+      "category": "scene",
       "name": "Particles+",
       "author": "Zoidium",
       "version": "5",

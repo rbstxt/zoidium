@@ -47,10 +47,23 @@ function readmeFor(id, name, kind) {
   return `# ${name}\n\nA Zoidium ${kind} plugin. See docs/plugin-api.md for the ${kind} contract.\n\n\`\`\`bash\n# after adding the registry entry printed by the generator\npnpm run build:plugin-bundles\npnpm run verify\n\`\`\`\n`;
 }
 
-function registrySnippet(id, name, author) {
+// The panel renders one collapsible pack per registry category, and the
+// manifest check rejects a visible plugin without one, so the printed entry
+// has to carry a category the registry already declares.
+function registryCategoryIds() {
+  const registry = JSON.parse(
+    fs.readFileSync(path.join(projectRoot, "plugins", "registry.json"), "utf8")
+  );
+  return (Array.isArray(registry.categories) ? registry.categories : [])
+    .map((category) => category && category.id)
+    .filter((id) => typeof id === "string" && id);
+}
+
+function registrySnippet(id, name, author, category) {
   return JSON.stringify(
     {
       id,
+      category,
       name,
       author,
       version: "1",
@@ -359,7 +372,10 @@ function main() {
   console.log("[Zoidium] next steps:");
   console.log("  1. Fill in TODO descriptions and starter sources.");
   console.log("  2. Add this entry to plugins/registry.json:");
-  console.log(registrySnippet(id, name, manifest.author));
+  const categoryIds = registryCategoryIds();
+  const defaultCategory = categoryIds.includes("utilities") ? "utilities" : categoryIds[0];
+  console.log(registrySnippet(id, name, manifest.author, defaultCategory));
+  console.log(`     category must be one of: ${categoryIds.join(", ")}`);
   console.log("  3. Run pnpm run build:plugin-bundles && pnpm run verify.");
 }
 
