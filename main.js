@@ -7,6 +7,12 @@ const compression = require("compression");
 const handler = require("serve-handler");
 const { resolveDirectoryIndexUrl } = require("./tools/directory-index");
 const {
+  appendCrashDiagnostic,
+  mergeDebugSession,
+  readCrashDiagnostics,
+  readDebugJournal,
+} = require("./tools/electron-crash-store");
+const {
   preparePackagedStage,
   prepareRuntimeStage,
 } = require("./tools/runtime-resources");
@@ -18,6 +24,31 @@ let quitting = false;
 
 const compressResponse = promisify(compression());
 const welcomeTourStateFile = () => path.join(app.getPath("userData"), "welcome-tour.json");
+const crashDiagnosticsFile = () => path.join(app.getPath("userData"), "crash-diagnostics.json");
+const debugJournalFile = () => path.join(app.getPath("userData"), "debug-journal.json");
+
+function recordElectronCrash(details) {
+  appendCrashDiagnostic(crashDiagnosticsFile(), {
+    at: new Date().toISOString(),
+    ...details,
+  });
+}
+
+ipcMain.handle("zoidium:debug-log:get-crashes", async () => {
+  return readCrashDiagnostics(crashDiagnosticsFile());
+});
+
+ipcMain.handle("zoidium:debug-log:get-journal", async () => {
+  return readDebugJournal(debugJournalFile());
+});
+
+ipcMain.on("zoidium:debug-log:persist-session", (_event, session) => {
+  mergeDebugSession(debugJournalFile(), session);
+});
+
+ipcMain.on("zoidium:debug-log:persist-session-sync", (event, session) => {
+  event.returnValue = mergeDebugSession(debugJournalFile(), session);
+});
 
 ipcMain.handle("zoidium:welcome-tour:get-completed", async () => {
   try {
@@ -149,6 +180,15 @@ async function createWindow() {
     },
   });
 
+  win.webContents.on("render-process-gone", (_event, details) => {
+    if (quitting || details?.reason === "clean-exit") return;
+    recordElectronCrash({
+      processType: "renderer",
+      reason: details?.reason || "unknown",
+      exitCode: details?.exitCode,
+    });
+  });
+
   try {
     await win.loadURL(`http://127.0.0.1:${port}`);
   } catch (error) {
@@ -167,6 +207,26 @@ app.whenReady().then(() => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow().catch((error) => console.error("[Zoidium] failed to reopen:", error));
     }
+  });
+});
+
+app.on("child-process-gone", (_event, details) => {
+  if (quitting || details?.reason === "clean-exit") return;
+  recordElectronCrash({
+    processType: details?.type || "child",
+    reason: details?.reason || "unknown",
+    exitCode: details?.exitCode,
+    name: details?.name,
+    serviceName: details?.serviceName,
+  });
+});
+
+process.on("uncaughtExceptionMonitor", (error) => {
+  recordElectronCrash({
+    processType: "browser",
+    reason: "uncaught-exception",
+    exitCode: 1,
+    error,
   });
 });
 
