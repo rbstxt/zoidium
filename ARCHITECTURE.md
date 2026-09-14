@@ -77,6 +77,16 @@ warns with both owners while keeping last-wins behavior; `PZ.zoidium.ownerOf(nam
 reports the current owner. The policy layer installs `define()` before any other
 Zoidium script runs.
 
+`zoidium/debug-log.js` writes a bounded diagnostic journal to localStorage.
+Uncaught errors, rejected promises, loader phases, plugin usage milestones, and
+health signals are written as they occur. A later page load marks a still-active
+session as interrupted and includes its retained exceptions in the downloaded
+log. The preload bridge mirrors the current session to the Electron application
+data directory, so changing the embedded server port on an app restart does not
+lose it. Electron also records renderer and child-process termination reasons
+through `tools/electron-crash-store.js`. Project diagnostics contain plugin item
+IDs and counts, not project names or content.
+
 ## Change boundaries
 
 - CM3 resources belong in the ignored cache or generated stages.

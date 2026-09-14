@@ -63,6 +63,7 @@
   const missingPluginObjects = new Set();
   const trackedPluginResources = new Set();
   const missingPluginResources = new Set();
+  const debugUsageCounts = new Map();
   const effectUuidByEntry = new WeakMap();
   let projectHooksInstalled = false;
   let editorHooksInstalled = false;
@@ -79,6 +80,25 @@
     if (registryReadySettled) return;
     registryReadySettled = true;
     resolveRegistryReady();
+  }
+
+  function updateDebugUsage(metadata, kind, itemId, itemName, delta) {
+    if (!metadata?.id || !itemId) return;
+    const key = `${metadata.id}\u0000${kind}\u0000${itemId}`;
+    const count = Math.max(0, (debugUsageCounts.get(key) || 0) + delta);
+    if (count > 0) debugUsageCounts.set(key, count);
+    else debugUsageCounts.delete(key);
+    if (delta <= 0 || (count & (count - 1)) !== 0) return;
+    document.dispatchEvent(new CustomEvent("zoidium:plugin-usage-progress", {
+      detail: {
+        pluginId: metadata.id,
+        pluginName: metadata.name || metadata.id,
+        kind,
+        itemId,
+        itemName: itemName || itemId,
+        count,
+      },
+    }));
   }
 
   function storageKey(pluginId) {
@@ -797,16 +817,25 @@
   }
 
   function trackNativeEffect(effect, metadata, missing) {
+    const newlyTracked = !trackedNativeEffects.has(effect);
     effect._zoidiumPluginMetadata = metadata;
     trackedNativeEffects.add(effect);
     if (missing) missingNativeEffects.add(effect);
     else missingNativeEffects.delete(effect);
+    if (newlyTracked) {
+      updateDebugUsage(metadata, "effect", metadata.effect, metadata.effectName, 1);
+    }
     updateNativeFxUsageUi();
   }
 
   function untrackNativeEffect(effect) {
+    const metadata = effect?._zoidiumPluginMetadata;
+    const wasTracked = trackedNativeEffects.has(effect);
     trackedNativeEffects.delete(effect);
     missingNativeEffects.delete(effect);
+    if (wasTracked) {
+      updateDebugUsage(metadata, "effect", metadata?.effect, metadata?.effectName, -1);
+    }
     updateNativeFxUsageUi();
   }
 
@@ -1028,15 +1057,24 @@
   }
 
   function trackPluginMaterial(material, metadata, missing) {
+    const newlyTracked = !trackedPluginMaterials.has(material);
     material._zoidiumPluginMetadata = metadata;
     trackedPluginMaterials.add(material);
     if (missing) missingPluginMaterials.add(material);
     else missingPluginMaterials.delete(material);
+    if (newlyTracked) {
+      updateDebugUsage(metadata, "material", metadata.material, metadata.materialName, 1);
+    }
   }
 
   function untrackPluginMaterial(material) {
+    const metadata = material?._zoidiumPluginMetadata;
+    const wasTracked = trackedPluginMaterials.has(material);
     trackedPluginMaterials.delete(material);
     missingPluginMaterials.delete(material);
+    if (wasTracked) {
+      updateDebugUsage(metadata, "material", metadata?.material, metadata?.materialName, -1);
+    }
   }
 
   function updatePluginObjectUsageUi(pluginId) {
@@ -1050,16 +1088,31 @@
 
   function trackPluginObject(object, metadata, missing) {
     if (!metadata?.id) return;
+    const newlyTracked = !trackedPluginObjects.has(object);
     object._zoidiumPluginMetadata = metadata;
     trackedPluginObjects.add(object);
     if (missing) missingPluginObjects.add(object);
     else missingPluginObjects.delete(object);
+    if (newlyTracked) {
+      updateDebugUsage(metadata, "object", metadata.object, metadata.objectName, 1);
+    }
     updatePluginObjectUsageUi(metadata.id);
   }
 
   function untrackPluginObject(object, metadata) {
+    const currentMetadata = metadata || object?._zoidiumPluginMetadata;
+    const wasTracked = trackedPluginObjects.has(object);
     trackedPluginObjects.delete(object);
     missingPluginObjects.delete(object);
+    if (wasTracked) {
+      updateDebugUsage(
+        currentMetadata,
+        "object",
+        currentMetadata?.object,
+        currentMetadata?.objectName,
+        -1
+      );
+    }
     updatePluginObjectUsageUi(metadata?.id || object._zoidiumPluginMetadata?.id);
   }
 
@@ -1076,17 +1129,38 @@
 
   function trackPluginResource(resource, metadata, missing) {
     if (!resource || !metadata?.id) return;
+    const newlyTracked = !trackedPluginResources.has(resource);
     resource._zoidiumPluginResourceMetadata = metadata;
     trackedPluginResources.add(resource);
     if (missing) missingPluginResources.add(resource);
     else missingPluginResources.delete(resource);
+    if (newlyTracked) {
+      updateDebugUsage(
+        metadata,
+        metadata.feature ? "feature" : "sprite",
+        metadata.feature || metadata.sprite,
+        metadata.featureName || metadata.spriteName,
+        1
+      );
+    }
     updatePluginResourceUsageUi(metadata.id);
   }
 
   function untrackPluginResource(resource, metadata) {
     if (!resource) return;
+    const currentMetadata = metadata || resource._zoidiumPluginResourceMetadata;
+    const wasTracked = trackedPluginResources.has(resource);
     trackedPluginResources.delete(resource);
     missingPluginResources.delete(resource);
+    if (wasTracked) {
+      updateDebugUsage(
+        currentMetadata,
+        currentMetadata?.feature ? "feature" : "sprite",
+        currentMetadata?.feature || currentMetadata?.sprite,
+        currentMetadata?.featureName || currentMetadata?.spriteName,
+        -1
+      );
+    }
     updatePluginResourceUsageUi(
       metadata?.id || resource._zoidiumPluginResourceMetadata?.id
     );
@@ -1588,6 +1662,108 @@
     })).sort((a, b) => a.id.localeCompare(b.id));
   }
 
+  function debugItemBelongsToProject(item, project) {
+    if (!project) return true;
+    try {
+      return item?.parentProject === project;
+    } catch (_error) {
+      return false;
+    }
+  }
+
+  function summarizeDebugUsage(items, missingItems, kind, idKey, nameKey, project) {
+    const counts = new Map();
+    for (const item of items) {
+      if (!debugItemBelongsToProject(item, project)) continue;
+      const metadata = kind === "resource"
+        ? item?._zoidiumPluginResourceMetadata
+        : item?._zoidiumPluginMetadata;
+      if (!metadata?.id) continue;
+      let itemKind = kind;
+      let itemId = metadata[idKey] || "unknown";
+      let itemName = metadata[nameKey] || itemId;
+      if (kind === "resource") {
+        if (metadata.feature) {
+          itemKind = "feature";
+          itemId = metadata.feature;
+          itemName = metadata.featureName || itemId;
+        } else if (metadata.sprite) {
+          itemKind = "sprite";
+          itemId = metadata.sprite;
+          itemName = metadata.spriteName || itemId;
+        }
+      }
+      const key = `${metadata.id}\u0000${itemKind}\u0000${itemId}`;
+      let entry = counts.get(key);
+      if (!entry) {
+        entry = {
+          pluginId: metadata.id,
+          pluginName: metadata.name || metadata.id,
+          kind: itemKind,
+          itemId,
+          itemName,
+          count: 0,
+          missingCount: 0,
+        };
+        counts.set(key, entry);
+      }
+      entry.count += 1;
+      if (missingItems.has(item)) entry.missingCount += 1;
+    }
+    return Array.from(counts.values()).sort((left, right) =>
+      right.count - left.count ||
+      left.pluginId.localeCompare(right.pluginId) ||
+      left.itemId.localeCompare(right.itemId)
+    );
+  }
+
+  function getDebugProjectUsage() {
+    const project = window.CM?.project || null;
+    const items = [
+      ...summarizeDebugUsage(
+        trackedNativeEffects,
+        missingNativeEffects,
+        "effect",
+        "effect",
+        "effectName",
+        project
+      ),
+      ...summarizeDebugUsage(
+        trackedPluginMaterials,
+        missingPluginMaterials,
+        "material",
+        "material",
+        "materialName",
+        project
+      ),
+      ...summarizeDebugUsage(
+        trackedPluginObjects,
+        missingPluginObjects,
+        "object",
+        "object",
+        "objectName",
+        project
+      ),
+      ...summarizeDebugUsage(
+        trackedPluginResources,
+        missingPluginResources,
+        "resource",
+        "resource",
+        "resourceName",
+        project
+      ),
+    ].sort((left, right) =>
+      right.count - left.count ||
+      left.pluginId.localeCompare(right.pluginId) ||
+      left.itemId.localeCompare(right.itemId)
+    );
+    return {
+      totalInstances: items.reduce((total, item) => total + item.count, 0),
+      missingInstances: items.reduce((total, item) => total + item.missingCount, 0),
+      items,
+    };
+  }
+
   function normalizeProjectPlugins(plugins) {
     if (!Array.isArray(plugins)) return [];
     const normalized = new Map();
@@ -2085,7 +2261,18 @@
     projectPrototype.load = function (data) {
       const plugins = projectPluginRequirements(data);
       installMissingFactoriesForRequirements(plugins);
-      const result = originalProjectLoad.apply(this, arguments);
+      document.dispatchEvent(new CustomEvent("zoidium:project-load-start", {
+        detail: { pluginCount: plugins.length },
+      }));
+      let result;
+      try {
+        result = originalProjectLoad.apply(this, arguments);
+      } catch (error) {
+        document.dispatchEvent(new CustomEvent("zoidium:project-load-error", {
+          detail: { error, pluginCount: plugins.length },
+        }));
+        throw error;
+      }
       Object.defineProperty(this, "_zoidiumProjectPlugins", {
         configurable: true,
         writable: true,
@@ -2097,6 +2284,9 @@
           console.error("[Zoidium] failed to activate project plugins:", error);
         });
       }
+      document.dispatchEvent(new CustomEvent("zoidium:project-load-complete", {
+        detail: { pluginCount: plugins.length },
+      }));
       return result;
     };
   }
@@ -2556,6 +2746,7 @@
     installProjectPluginHooks();
     installEditorPluginHooks();
     PZ.zoidium.define("getDebugPlugins", getDebugPlugins, "plugin-manager");
+    PZ.zoidium.define("getDebugProjectUsage", getDebugProjectUsage, "plugin-manager");
     installObject3DUsageTracker();
     PZ.zoidium.define("trackPluginMaterial", trackPluginMaterial, "plugin-manager");
     PZ.zoidium.define("untrackPluginMaterial", untrackPluginMaterial, "plugin-manager");

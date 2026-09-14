@@ -299,6 +299,7 @@
     var filename = fileNameForProject(getProjectName(editor));
     dispatch("zoidium:project-error", {
       editor: editor,
+      error: error,
       message: errorMessage(error, "Could not save the project."),
       blob: archiveResult && archiveResult.blob,
       filename: filename,
@@ -491,6 +492,7 @@
       } catch (error) {
         dispatch("zoidium:project-error", {
           editor: editor,
+          error: error,
           message: errorMessage(error, "Could not open the project."),
           retry: function () {
             return editor.open();
