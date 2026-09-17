@@ -102,8 +102,24 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           tag="main-${GITHUB_RUN_NUMBER}"
-          gh release create "$tag" release-assets/* \
+          gh release create "$tag" \
             --target "$GITHUB_SHA" \
             --title "Zoidium main ${GITHUB_RUN_NUMBER}" \
             --notes "Automated desktop build for ${GITHUB_SHA}. CM3 resources were fetched during the build and are included in the installers." \
             --latest=false
+
+          for asset in release-assets/*; do
+            uploaded=false
+            for attempt in 1 2 3 4 5; do
+              if gh release upload "$tag" "$asset" --clobber; then
+                uploaded=true
+                break
+              fi
+              echo "Upload failed for ${asset}; retrying in ${attempt}s (attempt ${attempt}/5)"
+              sleep "$attempt"
+            done
+            if [[ "$uploaded" != true ]]; then
+              echo "Failed to upload ${asset} after 5 attempts" >&2
+              exit 1
+            fi
+          done
