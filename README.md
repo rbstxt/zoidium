@@ -36,7 +36,7 @@ pnpm install --frozen-lockfile
 pnpm run setup      # download/update the CM3 resource cache
 pnpm run web        # ensures the cache and serves http://127.0.0.1:8123 and http://localhost:8123
 pnpm run dev        # same, then opens the browser
-pnpm start          # Electron development mode; ensures the cache is ready
+pnpm run desktop:start # Electron development mode; stages the cached runtime
 pnpm run verify     # check manifests, bundles, syntax, and tests
 ```
 
@@ -76,16 +76,24 @@ pnpm run deploy
 This builds the fetched stage first and uploads only `dist/web/`. Wrangler
 authentication and access to the `zoidium` Pages project are required.
 
-Build desktop installers with:
+Build the desktop installer for the current runner with:
 
 ```bash
-pnpm run dist
+pnpm run desktop:build
 ```
 
-The Electron builder first creates a temporary application tree containing the
-fetched CM3 stage, builds the installer, and removes that temporary tree. The
-installer necessarily contains the runtime needed by that particular build;
-the source repository does not.
+The desktop build always refreshes the CM3 resource graph before creating a
+temporary application tree. The installer contains the fetched CM3 runtime and
+the Zoidium extension layer. The temporary source tree is removed after the
+build, and the fetched runtime is never committed to the repository.
+The packaged app uses a fixed loopback origin so local editor data survives a
+restart. Set `ZOIDIUM_DESKTOP_PORT` only when the default port is unavailable.
+
+Every push to `main` runs the native macOS, Windows, and Linux builds in
+`.github/workflows/release.yml` and publishes their installers as a GitHub
+Release. Pull requests run verification but do not publish a release.
+The workflow currently produces unsigned installers. Add the platform signing
+and notarization secrets before distributing them to end users.
 
 Set `ZOIDIUM_CM3_SOURCE_PAGE` or `ZOIDIUM_VIDEO_EDITOR_SOURCE_PAGE` to use
 compatible source pages during a build or local run. The defaults are:
@@ -121,7 +129,7 @@ Zoidium serializes those operations across tabs before they reach the workers.
 `tools/runtime-resources.js` is the only CM3 fetch path. It downloads the
 configured source page, discovers same-origin files, writes them to the ignored
 cache, copies Zoidium-owned files into a stage, and patches the staged HTML.
-The browser server, Web builder, and Electron builder all use the same module.
+The browser server, Web builder, and desktop builder all use the same module.
 
 ## Repository layout
 
@@ -129,7 +137,8 @@ The browser server, Web builder, and Electron builder all use the same module.
 Zoidium/
 ├── index.html                 # bootstrap placeholder; replaced in a build stage
 ├── LICENSE                    # MIT License for Zoidium-owned work
-├── main.js                    # Electron process and disposable local server
+├── desktop/
+│   └── main.cjs               # Electron process and local HTTP server
 ├── package.json               # pnpm scripts and Electron build configuration
 ├── fonts/
 │   ├── fonts.css              # local UI font faces
@@ -147,7 +156,8 @@ Zoidium/
 │   ├── runtime-resources.js   # fetch, cache, discover, patch, and stage CM3
 │   ├── serve-with-resources.js# cache-backed browser server
 │   ├── build-web.js           # static deployment builder
-│   ├── build-electron.js      # temporary-stage Electron builder
+│   ├── build-electron.js      # fetches CM3 and builds the desktop installer
+│   ├── start-electron.js      # stages CM3 and starts Electron for development
 │   ├── validate-plugin-manifests.js # manifest schema checker
 │   ├── check-syntax.js        # JavaScript syntax checker
 │   └── verify.js               # local verification entry point
@@ -174,7 +184,7 @@ pnpm run check:plugin-manifests
 pnpm run check:plugin-bundles
 ```
 
-`pnpm run build` and `pnpm run dist` run the bundle build automatically. See
+`pnpm run build` and `pnpm run desktop:build` run the bundle build automatically. See
 [`plugins/README.md`](./plugins/README.md) for the bundle contract.
 
 ## Scope and attribution

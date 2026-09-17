@@ -22,10 +22,10 @@ dependency versions change.
 ```bash
 pnpm run setup                 # fetch or refresh the CM3 resource cache
 pnpm run dev                   # serve the staged app and open a browser
-pnpm start                     # run the Electron app
+pnpm run desktop:start         # stage CM3 and run the Electron app
 pnpm run verify                # run schema, bundle, syntax, and unit checks
 pnpm run build                 # build the ignored dist/web deployment tree
-pnpm run dist                  # build desktop installers
+pnpm run desktop:build         # fetch CM3 and build the desktop installer
 ```
 
 The repository `index.html` is a placeholder. Test the app through the local

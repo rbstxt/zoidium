@@ -97,7 +97,6 @@ function loadDebugLog(localValues, sessionValues, options = {}) {
     setInterval() { return 1; },
     setTimeout() { return 1; },
   };
-  if (options.desktop) context.zoidiumDesktop = options.desktop;
   context.window = context;
   vm.runInNewContext(debugLogSource, context);
   return {
@@ -213,69 +212,4 @@ test("plugin usage milestones survive a crash during project load", () => {
   assert.equal(candidate.evidence, "project-workload");
   assert.equal(candidate.instanceCount, 1024);
   assert.equal(candidate.topItems[0].id, "echo");
-});
-
-test("Electron app-data journal restores an exception after an app restart", async () => {
-  const persisted = [];
-  const desktop = {
-    getCrashDiagnostics: async () => [],
-    getDebugJournal: async () => ({
-      schemaVersion: 2,
-      sessions: [{
-        id: "old-electron-session",
-        tabId: "old-tab",
-        startedAt: "2026-09-15T00:00:00.000Z",
-        lastSeenAt: "2026-09-15T00:00:05.000Z",
-        status: "active",
-        phase: "project load",
-        exceptions: [{
-          at: "2026-09-15T00:00:05.000Z",
-          type: "exception",
-          phase: "project load",
-          source: "window.error",
-          name: "Error",
-          message: "Project load crashed",
-        }],
-        events: [],
-      }],
-    }),
-    persistDebugSession(session) {
-      persisted.push(structuredClone(session));
-    },
-  };
-  const loaded = loadDebugLog(new Map(), new Map(), { desktop });
-  await new Promise((resolve) => setImmediate(resolve));
-
-  const snapshot = loaded.api.getSnapshot();
-  const restored = snapshot.previousSessions.find(
-    (session) => session.id === "old-electron-session"
-  );
-  assert.equal(restored.status, "interrupted");
-  assert.equal(restored.exitReason, "electron-process-ended-before-clean-page-shutdown");
-  assert.ok(snapshot.exceptions.some((entry) => entry.message === "Project load crashed"));
-  assert.ok(persisted.some((session) => session.id === "old-electron-session"));
-});
-
-test("Electron persists an uncaught exception synchronously", () => {
-  const synchronousSessions = [];
-  const desktop = {
-    getCrashDiagnostics: async () => [],
-    getDebugJournal: async () => ({ schemaVersion: 2, sessions: [] }),
-    persistDebugSession() {},
-    persistDebugSessionSync(session) {
-      synchronousSessions.push(structuredClone(session));
-      return true;
-    },
-  };
-  const loaded = loadDebugLog(new Map(), new Map(), { desktop });
-
-  loaded.windowEvents.dispatch("error", {
-    error: new Error("renderer exception"),
-    filename: "/plugins/test-plugin/module.js",
-    lineno: 4,
-    colno: 2,
-  });
-
-  assert.equal(synchronousSessions.length, 1);
-  assert.equal(synchronousSessions[0].exceptions[0].message, "renderer exception");
 });

@@ -19,7 +19,7 @@ one is needed and adds the Zoidium bootstrap to that stage's `index.html` to:
 5. initialize the editor and load the Zoidium extension scripts.
 
 The checked-in `index.html` is only a no-resource placeholder. It is replaced
-inside `dist/web/`, the browser development stage, and the temporary Electron
+inside `dist/web/`, the browser development stage, and the temporary desktop
 build tree. The fixed resource manifest and remote-resource bridge were removed;
 the current HTML and runtime graph are the source of truth for each run.
 
@@ -34,10 +34,11 @@ resources in the Git-ignored runtime cache.
 ## Cache and output stages
 
 `pnpm run setup` creates or refreshes `.zoidium-resources/`. `pnpm run web` and
-development Electron runs reuse that cache and leave it in place after the
+development desktop runs reuse that cache and leave it in place after the
 process exits. `pnpm run build:web` copies the cache into the ignored
-`dist/web/` deployment tree. `pnpm run dist` uses a separate temporary Electron
-input tree and removes only that tree after packaging.
+`dist/web/` deployment tree. `pnpm run desktop:build` refreshes CM3 first, then
+uses a separate temporary desktop input tree and removes only that tree after
+packaging.
 
 The generic `pnpm run build` hook delegates to `pnpm run build:web`, so a static
 host's normal build step also fetches CM3 and publishes the generated stage.

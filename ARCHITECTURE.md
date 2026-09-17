@@ -13,7 +13,7 @@ tools/runtime-resources.js
       |
       +--> .zoidium-resources/       local cache
       +--> dist/web/                 static deployment stage
-      +--> temporary Electron stage  desktop packaging input
+      +--> temporary desktop stage   Electron packaging input
 ```
 
 The repository stores only Zoidium-owned files. The staging tool does the
@@ -31,7 +31,7 @@ following:
 7. Loads the layout selected in Settings, aliases its editor instance to `CM`,
    and starts the Zoidium extension layer around it.
 
-The cache remains after a browser or development Electron process exits. A
+The cache remains after a browser or development desktop process exits. A
 temporary packaging stage is removed after Electron Builder finishes.
 
 ## Browser and Electron entry points
@@ -39,9 +39,10 @@ temporary packaging stage is removed after Electron Builder finishes.
 `tools/serve-with-resources.js` serves the cached stage over HTTP. Workers and
 WASM depend on that HTTP origin.
 
-`main.js` prepares the same kind of stage, serves it on a loopback HTTP server,
-and opens it in Electron. It removes the temporary packaged stage when the app
-closes.
+`desktop/main.cjs` serves the packaged stage on a fixed loopback HTTP port and
+opens it in Electron. The stable origin keeps localStorage available across
+restarts. The build stage contains the fetched CM3 graph, so the packaged
+application does not fetch CM3 again at launch.
 
 `tools/build-web.js` copies the cached stage to `dist/web/`. The repository root
 is not a deployment directory because its `index.html` is only a placeholder.
@@ -81,11 +82,8 @@ Zoidium script runs.
 Uncaught errors, rejected promises, loader phases, plugin usage milestones, and
 health signals are written as they occur. A later page load marks a still-active
 session as interrupted and includes its retained exceptions in the downloaded
-log. The preload bridge mirrors the current session to the Electron application
-data directory, so changing the embedded server port on an app restart does not
-lose it. Electron also records renderer and child-process termination reasons
-through `tools/electron-crash-store.js`. Project diagnostics contain plugin item
-IDs and counts, not project names or content.
+log. Project diagnostics contain plugin item IDs and counts, not project names
+or content.
 
 ## Change boundaries
 

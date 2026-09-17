@@ -53,11 +53,10 @@ const protectedResourcePrefixes = [
   "plugins",
   "tools",
   "zoidium",
+  "desktop",
   "zoidium-welcome-tour.css",
   "zoidium-welcome-tour.js",
-  "main.js",
   "package.json",
-  "preload.js",
 ];
 
 function sha256(bytes) {
@@ -993,17 +992,16 @@ async function copyPluginRuntime(stageRoot) {
   }
 }
 
-async function copyProjectFiles(stageRoot, { includeElectronFiles = false } = {}) {
+async function copyProjectFiles(stageRoot, { includeDesktopFiles = false } = {}) {
   const resolvedStageRoot = await assertStageRootSafe(stageRoot);
   for (const entry of commonProjectEntries) {
     await copyEntry(resolvedStageRoot, entry, { required: true });
   }
   await copyPluginRuntime(resolvedStageRoot);
-  if (!includeElectronFiles) return;
-  for (const entry of ["main.js", "package.json", "preload.js"]) {
+  if (!includeDesktopFiles) return;
+  for (const entry of ["desktop", "package.json"]) {
     await copyEntry(resolvedStageRoot, entry, { required: true });
   }
-  await copyEntry(resolvedStageRoot, "tools/runtime-resources.js", { required: true });
 }
 
 function cleanupStage(stageRoot) {
@@ -1501,7 +1499,7 @@ async function ensureResourceCache({
 async function prepareRuntimeStage({
   cacheRoot = defaultResourceCacheRoot,
   destinationRoot = null,
-  includeElectronFiles = false,
+  includeDesktopFiles = false,
   sourcePageUrl = defaultSourcePage,
   videoEditorSourcePageUrl = defaultVideoEditorSourcePage,
   offline = false,
@@ -1527,10 +1525,10 @@ async function prepareRuntimeStage({
   try {
     if (stageRoot !== cache.root) {
       await copyCachedRuntime(cache.root, stageRoot, cache, {
-        includeMetadata: includeElectronFiles,
+        includeMetadata: false,
       });
     }
-    await copyProjectFiles(stageRoot, { includeElectronFiles });
+    await copyProjectFiles(stageRoot, { includeDesktopFiles });
     await patchThreeRuntimeStage(stageRoot, cache.resources);
     return {
       ...cache,
@@ -1543,46 +1541,16 @@ async function prepareRuntimeStage({
   }
 }
 
-async function preparePackagedStage() {
-  const stageRoot = await fs.promises.mkdtemp(path.join(os.tmpdir(), temporaryPrefix));
-  try {
-    const resolvedStageRoot = await assertStageRootSafe(stageRoot);
-    await fs.promises.mkdir(resolvedStageRoot, { recursive: true });
-    await copyProjectFiles(resolvedStageRoot);
-    const metadataPath = path.join(projectRoot, cacheMetadataName);
-    const metadata = JSON.parse(await fs.promises.readFile(metadataPath, "utf8"));
-    if (metadata.schemaVersion !== cacheSchemaVersion || !Array.isArray(metadata.resources)) {
-      throw new Error("Packaged CM3 resource metadata is invalid");
-    }
-    const entries = [
-      "index.html",
-      runtimeProfilesName,
-      ...metadata.resources.map((resource) => resource.sourcePath),
-    ];
-    for (const entry of entries) {
-      await copyEntry(resolvedStageRoot, entry, { required: true });
-    }
-    await patchThreeRuntimeStage(resolvedStageRoot, metadata.resources);
-    return {
-      cleanup: () => cleanupStage(resolvedStageRoot),
-      root: resolvedStageRoot,
-    };
-  } catch (error) {
-    await cleanupStage(stageRoot).catch(() => {});
-    throw error;
-  }
-}
-
 function parseCliArgs(argumentsList) {
   const options = {
-    electron: false,
+    desktop: false,
     offline: false,
     refresh: false,
     setup: false,
   };
   for (const argument of argumentsList) {
     if (argument === "--help" || argument === "-h") options.help = true;
-    else if (argument === "--electron") options.electron = true;
+    else if (argument === "--desktop") options.desktop = true;
     else if (argument === "--offline") options.offline = true;
     else if (argument === "--refresh") options.refresh = true;
     else if (argument === "--setup") options.setup = true;
@@ -1597,8 +1565,8 @@ function parseCliArgs(argumentsList) {
   if (options.setup && options.output) {
     throw new Error("--setup/--refresh cannot be combined with --output");
   }
-  if (options.setup && options.electron) {
-    throw new Error("--setup/--refresh cannot be combined with --electron");
+  if (options.setup && options.desktop) {
+    throw new Error("--setup/--refresh cannot be combined with --desktop");
   }
   if (options.setup && options.offline) {
     throw new Error("--offline cannot be combined with --setup or --refresh");
@@ -1616,7 +1584,7 @@ Options:
   --setup, --refresh    refresh the local CM3 resource cache
   --offline             require a valid existing cache and do not fetch
   --output=<directory>  copy the cache into this runtime stage
-  --electron            include Electron entry files in the output stage
+  --desktop             include desktop entry files in the output stage
   --source=<url>        override ZOIDIUM_CM3_SOURCE_PAGE
   --video-editor-source=<url>
                         override ZOIDIUM_VIDEO_EDITOR_SOURCE_PAGE
@@ -1648,7 +1616,7 @@ async function main() {
 
   const result = await prepareRuntimeStage({
     destinationRoot: options.output || null,
-    includeElectronFiles: options.electron,
+    includeDesktopFiles: options.desktop,
     offline: options.offline,
     sourcePageUrl,
     videoEditorSourcePageUrl,
@@ -1687,7 +1655,6 @@ module.exports = {
   patchIndexHtml,
   patchThreeR91Source,
   patchThreeRuntimeStage,
-  preparePackagedStage,
   prepareRuntimeStage,
   projectRoot,
   resourceRootFor,
