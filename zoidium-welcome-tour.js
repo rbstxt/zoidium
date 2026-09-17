@@ -2,7 +2,6 @@
   "use strict";
 
   var STORAGE_KEY = "zoidium.welcome-tour.completed";
-  var DESKTOP_API = "zoidiumDesktop";
   var translations = {
     en: {
       ariaLabel: "Zoidium welcome tour",
@@ -73,26 +72,12 @@
     try {
       window.localStorage.setItem(STORAGE_KEY, "true");
     } catch (_error) {
-      // The desktop preference below still persists the choice in Electron.
+      // The tour remains dismissible for the current page session.
     }
-  }
-
-  function desktopPreference() {
-    var api = window[DESKTOP_API];
-    if (!api || typeof api.getWelcomeTourCompleted !== "function") return null;
-    return api;
   }
 
   function persistCompletion() {
     writeLocalCompletion();
-    var api = desktopPreference();
-    if (!api || typeof api.setWelcomeTourCompleted !== "function") return;
-    try {
-      var result = api.setWelcomeTourCompleted();
-      if (result && typeof result.catch === "function") result.catch(function () {});
-    } catch (_error) {
-      // The tour is still dismissed for the current session.
-    }
   }
 
   function createMarkup() {
@@ -392,16 +377,7 @@
   }
 
   async function shouldShow() {
-    if (readLocalCompletion()) return false;
-    var api = desktopPreference();
-    if (!api || typeof api.getWelcomeTourCompleted !== "function") return true;
-    try {
-      var completed = await api.getWelcomeTourCompleted();
-      if (completed) writeLocalCompletion();
-      return completed !== true;
-    } catch (_error) {
-      return true;
-    }
+    return !readLocalCompletion();
   }
 
   function start() {

@@ -29,10 +29,10 @@ pnpm run check:plugin-bundles
 ```
 
 The builder updates the versioned `bundle` and `manifest` URLs in
-`registry.json`. `pnpm run build` and `pnpm run dist` run the bundle build
+`registry.json`. `pnpm run build` and `pnpm run desktop:build` run the bundle build
  automatically. Static hosts should serve the bundles with HTTP compression
-(Cloudflare Pages does this automatically); the repository's `_headers` and Electron
-server also set long-lived caching for versioned bundles.
+(Cloudflare Pages does this automatically); the repository's `_headers` and
+desktop server also set long-lived caching for versioned bundles.
 
 Asset URLs inside the manifest (module and native-effect sources, effect shaders
 and presets, group presets and shaders, resource sources) are normalized to the

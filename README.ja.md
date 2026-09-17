@@ -35,7 +35,7 @@ pnpm install --frozen-lockfile
 pnpm run setup     # CM3リソースキャッシュを取得・更新
 pnpm run web       # キャッシュを準備して http://127.0.0.1:8123 と http://localhost:8123 で配信
 pnpm run dev       # 同じ処理を行い、ブラウザも開く
-pnpm start         # Electron開発モード（キャッシュを使用）
+pnpm run desktop:start # CM3をステージしてElectronを起動
 pnpm run verify    # マニフェスト、バンドル、構文、テストを確認
 ```
 
@@ -74,15 +74,24 @@ pnpm run deploy
 CM3ステージを先に生成し、`dist/web/`だけをWranglerで公開します。
 Wranglerの認証と`zoidium` Pagesプロジェクトへのアクセス権が必要です。
 
-デスクトップ配布物を作る場合:
+現在のRunner向けデスクトップ配布物を作る場合:
 
 ```bash
-pnpm run dist
+pnpm run desktop:build
 ```
 
-Electronビルダーは、キャッシュ済みのCM3リソースを一時的なアプリツリーへ展開して
-インストーラーを作り、その一時ツリーを削除します。インストーラーにはその
-ビルドに必要なランタイムが含まれますが、ソースリポジトリには含まれません。
+デスクトップビルドはElectronのビルド前にCM3リソースグラフを毎回更新します。
+取得したCM3ランタイムとZoidiumの拡張レイヤーを一時アプリツリーへ入れて
+インストーラーを作り、ビルド後に一時ツリーを削除します。取得物はリポジトリへ
+コミットしません。
+パッケージ版は固定のloopbackオリジンを使うため、再起動してもエディターの
+localStorageを引き継ぎます。既定ポートが使えない場合だけ`ZOIDIUM_DESKTOP_PORT`を設定してください。
+
+`main`へのpushごとに`.github/workflows/release.yml`がmacOS、Windows、Linuxの
+ネイティブRunnerでビルドし、生成したインストーラーをGitHub Releaseへ公開します。
+Pull Requestでは検証だけを行い、Releaseは作りません。
+現在のワークフローは署名なしの配布物を作ります。一般配布の前に、各OSの署名と
+macOSのnotarization用SecretsをActionsへ追加してください。
 
 ビルドまたはローカル実行時に互換ソースを差し替える場合は、
 `ZOIDIUM_CM3_SOURCE_PAGE`または`ZOIDIUM_VIDEO_EDITOR_SOURCE_PAGE`を設定します。
@@ -116,7 +125,7 @@ Blobとファイル名を保持するため、後続のレンダーやプロジ�
 `tools/runtime-resources.js`はCM3ファイルを取得する唯一の処理です。設定された
 ソースページを取得し、同一オリジンの参照ファイルを検出し、Git管理外のキャッシュへ
 保存します。その後、Zoidiumのファイルをステージへコピーし、CM3の初期化を遅延させる
-パッチを適用します。ブラウザサーバー、Webビルダー、Electronビルダーはこの処理を共有します。
+パッチを適用します。ブラウザサーバー、Webビルダー、デスクトップビルダーはこの処理を共有します。
 
 ## リポジトリ構成
 
@@ -124,7 +133,8 @@ Blobとファイル名を保持するため、後続のレンダーやプロジ�
 Zoidium/
 ├── index.html                  # ブートストラップ用プレースホルダー
 ├── LICENSE                     # Zoidiumが保有する部分のMIT License
-├── main.js                     # Electronプロセスとキャッシュ利用サーバー
+├── desktop/
+│   └── main.cjs                # ElectronプロセスとローカルHTTPサーバー
 ├── package.json                # pnpmスクリプトとElectron設定
 ├── fonts/
 │   ├── fonts.css               # ローカルUIフォント
@@ -142,7 +152,8 @@ Zoidium/
 │   ├── runtime-resources.js    # CM3グラフの取得・キャッシュ・検出・パッチ
 │   ├── serve-with-resources.js # キャッシュ利用Webサーバー
 │   ├── build-web.js            # 静的デプロイ用ビルダー
-│   └── build-electron.js       # 一時ステージ用Electronビルダー
+│   ├── build-electron.js       # CM3取得とデスクトップビルド
+│   └── start-electron.js       # 開発用Electron起動
 ├── zoidium/
 │   ├── runtime-config.js       # 拡張プロファイル
 │   ├── runtime-loader.js       # 拡張ブートストラップ
@@ -166,7 +177,7 @@ pnpm run check:plugin-manifests
 pnpm run check:plugin-bundles
 ```
 
-`pnpm run build`と`pnpm run dist`ではバンドル生成も自動実行されます。バンドルの規約は
+`pnpm run build`と`pnpm run desktop:build`ではバンドル生成も自動実行されます。バンドルの規約は
 [`plugins/README.md`](./plugins/README.md)を参照してください。
 
 ## 位置づけと帰属

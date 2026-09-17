@@ -8,8 +8,7 @@ const { spawnSync } = require("child_process");
 
 const projectRoot = path.resolve(__dirname, "..");
 const sourceRoots = [
-  "main.js",
-  "preload.js",
+  "desktop",
   "zoidium-welcome-tour.js",
   "tools",
   "zoidium",
@@ -20,13 +19,17 @@ function collectJavaScriptFiles(relativePath) {
   const absolutePath = path.join(projectRoot, relativePath);
   if (!fs.existsSync(absolutePath)) return [];
   const stat = fs.statSync(absolutePath);
-  if (stat.isFile()) return absolutePath.endsWith(".js") ? [absolutePath] : [];
+  if (stat.isFile()) return /\.(?:cjs|js)$/.test(absolutePath) ? [absolutePath] : [];
 
   return fs
     .readdirSync(absolutePath, { withFileTypes: true })
     .flatMap((entry) => {
       const child = path.join(relativePath, entry.name);
-      return entry.isDirectory() ? collectJavaScriptFiles(child) : child.endsWith(".js") ? [path.join(projectRoot, child)] : [];
+      return entry.isDirectory()
+        ? collectJavaScriptFiles(child)
+        : /\.(?:cjs|js)$/.test(child)
+          ? [path.join(projectRoot, child)]
+          : [];
     });
 }
 

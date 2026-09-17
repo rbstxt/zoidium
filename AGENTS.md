@@ -15,8 +15,8 @@ corepack enable
 pnpm install --frozen-lockfile
 pnpm run setup    # download/update the Git-ignored CM3 resource cache
 pnpm run web      # reuse the cache and serve it on localhost
-pnpm start        # Electron development mode; reuse/create the cache
-pnpm run dist     # fetches into a temporary Electron build tree
+pnpm run desktop:start # stage CM3 and run Electron in development
+pnpm run desktop:build # fetches CM3 before building the desktop installer
 pnpm run verify   # verify manifests, bundles, syntax, and tests
 ```
 
@@ -47,7 +47,7 @@ The only source-resource fetch path is `tools/runtime-resources.js`:
 5. serve/package the stage and clean it up when the local process exits.
 
 The source page and graph are intentionally fetched only by the web server,
-Electron development startup, `pnpm run build:web`, or `pnpm run dist`. A build
+desktop development startup, `pnpm run build:web`, or `pnpm run desktop:build`. A build
 artifact may contain the runtime required by that artifact; the Git repository
 must not.
 
@@ -58,7 +58,8 @@ Zoidium-owned runtime files that may be edited:
 - `tools/runtime-resources.js` — fetch, discovery, staging, and index bootstrap;
 - `tools/serve-with-resources.js` — temporary-stage browser server;
 - `tools/build-web.js` and `tools/build-electron.js` — disposable builders;
-- `main.js` — Electron server lifecycle and cleanup;
+- `tools/start-electron.js` — desktop development staging and startup;
+- `desktop/main.cjs` — Electron server lifecycle and cleanup;
 - `zoidium/runtime-config.js` — overlay profile;
 - `zoidium/runtime-loader.js` — overlay bootstrap;
 - `zoidium/runtime-policy.js` — local-first account/API/ad adapters;
@@ -100,7 +101,8 @@ inside a stage. Do not turn it into a local copy of the CM3 page.
   `pnpm run build:web`; Cloudflare Pages/Wrangler must publish `dist/web/`.
 - `pnpm run deploy` builds that stage first and uploads only `dist/web/` with
   Wrangler; never upload the repository root.
-- `pnpm run dist` builds from a separate temporary tree and removes that tree
+- `pnpm run desktop:build` fetches CM3, builds from a separate temporary tree,
+  and removes that tree
   after Electron Builder finishes.
 
 ## Download behavior

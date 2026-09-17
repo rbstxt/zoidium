@@ -25,9 +25,6 @@
   let tabId = null;
   let persistenceAvailable = false;
   let persistenceError = null;
-  let desktopCrashes = [];
-  let desktopCrashLoadPromise = null;
-  let desktopJournalLoadPromise = null;
   let longTaskObserver = null;
   let childWindowSequence = 0;
   let phase = "pre-init";
@@ -276,7 +273,7 @@
     }
   }
 
-  function writeJournal(syncDesktop = false) {
+  function writeJournal() {
     if (!currentSession) return false;
     currentSession.lastSeenAt = new Date().toISOString();
     currentSession.phase = phase;
@@ -292,18 +289,6 @@
         persistenceAvailable = false;
         persistenceError = errorDetails(error);
       }
-    }
-    try {
-      const persistDesktopSession = global.zoidiumDesktop?.persistDebugSession;
-      const persistDesktopSessionSync = global.zoidiumDesktop?.persistDebugSessionSync;
-      if (syncDesktop && typeof persistDesktopSessionSync === "function") {
-        saved = persistDesktopSessionSync(currentSession) !== false || saved;
-      } else if (typeof persistDesktopSession === "function") {
-        persistDesktopSession(currentSession);
-        saved = true;
-      }
-    } catch (error) {
-      if (!persistenceError) persistenceError = errorDetails(error);
     }
     return saved;
   }
@@ -394,7 +379,7 @@
       currentSession.exceptions.push({ ...entry });
       currentSession.exceptions = currentSession.exceptions.slice(-MAX_PERSISTED_EXCEPTIONS);
     }
-    writeJournal(isException);
+    writeJournal();
     return entry;
   }
 
@@ -582,7 +567,6 @@
 
   function detectBrowser(userAgent) {
     const candidates = [
-      ["Electron", /\bElectron\/([\d.]+)/i],
       ["Microsoft Edge", /\b(?:Edg|EdgA|EdgiOS)\/([\d.]+)/i],
       ["Opera", /\b(?:OPR|Opera)\/([\d.]+)/i],
       ["Firefox", /\b(?:Firefox|FxiOS)\/([\d.]+)/i],
@@ -872,92 +856,6 @@
     }
   }
 
-  function safeDesktopCrash(value) {
-    if (!value || typeof value !== "object") return null;
-    const result = {
-      at: redact(value.at),
-      processType: redact(value.processType),
-      reason: redact(value.reason),
-      exitCode: Number.isFinite(value.exitCode) ? value.exitCode : null,
-    };
-    if (value.name) result.name = redact(value.name);
-    if (value.serviceName) result.serviceName = redact(value.serviceName);
-    if (value.error) result.error = errorDetails(value.error);
-    return result;
-  }
-
-  async function refreshDesktopCrashes() {
-    const provider = global.zoidiumDesktop?.getCrashDiagnostics;
-    if (typeof provider !== "function") return desktopCrashes;
-    if (!desktopCrashLoadPromise) {
-      desktopCrashLoadPromise = Promise.resolve()
-        .then(() => provider())
-        .then((values) => {
-          desktopCrashes = Array.isArray(values)
-            ? values.map(safeDesktopCrash).filter(Boolean).slice(-20)
-            : [];
-          return desktopCrashes;
-        })
-        .catch((error) => {
-          recordException("Electron crash diagnostic collection", error);
-          return desktopCrashes;
-        });
-    }
-    return desktopCrashLoadPromise;
-  }
-
-  async function refreshDesktopJournal() {
-    const provider = global.zoidiumDesktop?.getDebugJournal;
-    if (typeof provider !== "function") return journal;
-    if (!desktopJournalLoadPromise) {
-      desktopJournalLoadPromise = Promise.resolve()
-        .then(() => provider())
-        .then((value) => {
-          const remoteSessions = value?.schemaVersion === 2 && Array.isArray(value.sessions)
-            ? value.sessions.filter((session) => session && typeof session.id === "string")
-            : [];
-          const sessionsById = new Map(
-            journal.sessions.map((session) => [session.id, session])
-          );
-          const persistDesktopSession = global.zoidiumDesktop?.persistDebugSession;
-          for (const remote of remoteSessions) {
-            if (remote.id === currentSession?.id) continue;
-            if (remote.status === "active") {
-              remote.status = "interrupted";
-              remote.exitReason = "electron-process-ended-before-clean-page-shutdown";
-              remote.recoveredAt = startedAt;
-              try {
-                if (typeof persistDesktopSession === "function") persistDesktopSession(remote);
-              } catch (_error) {
-                // The local journal still receives the recovered session below.
-              }
-            }
-            const local = sessionsById.get(remote.id);
-            const localTime = Date.parse(local?.lastSeenAt || "") || 0;
-            const remoteTime = Date.parse(remote.lastSeenAt || "") || 0;
-            if (!local || remoteTime >= localTime) sessionsById.set(remote.id, remote);
-          }
-          sessionsById.set(currentSession.id, currentSession);
-          journal.sessions = Array.from(sessionsById.values())
-            .sort((left, right) =>
-              String(left.startedAt || "").localeCompare(String(right.startedAt || ""))
-            )
-            .slice(-MAX_PERSISTED_SESSIONS);
-          writeJournal();
-          return journal;
-        })
-        .catch((error) => {
-          recordException("Electron debug journal collection", error);
-          return journal;
-        });
-    }
-    return desktopJournalLoadPromise;
-  }
-
-  async function refreshPersistentDiagnostics() {
-    await Promise.all([refreshDesktopCrashes(), refreshDesktopJournal()]);
-  }
-
   function readCm3Version(kind) {
     try {
       if (kind === "tool" && typeof PZTOOLVERSION !== "undefined") return PZTOOLVERSION;
@@ -971,7 +869,7 @@
   function collectRuntime() {
     const config = global.ZOIDIUM_RUNTIME || {};
     return {
-      mode: global.zoidiumDesktop ? "Electron" : "Browser",
+      mode: "Browser",
       zoidiumVersion: redact(config.version || "unknown"),
       cm3: {
         toolVersion: primitive(readCm3Version("tool")),
@@ -1280,21 +1178,6 @@
     const assessed = candidates.find((session) =>
       session.status === "interrupted" || exceptionEvents(session).length > 0
     ) || candidates[0] || null;
-    const assessedStart = Date.parse(assessed?.startedAt || "");
-    const assessedLastSeen = Date.parse(assessed?.lastSeenAt || "");
-    const currentStart = Date.parse(startedAt);
-    const matchingDesktopCrashes = desktopCrashes.filter((entry) => {
-      const crashAt = Date.parse(entry.at || "");
-      if (!Number.isFinite(crashAt)) return false;
-      if (Number.isFinite(assessedStart)) {
-        const latestRelevantTime = Number.isFinite(assessedLastSeen)
-          ? Math.min(currentStart + 60000, assessedLastSeen + 300000)
-          : currentStart + 60000;
-        return crashAt >= assessedStart - 5000 && crashAt <= latestRelevantTime;
-      }
-      return crashAt >= currentStart - 86400000 && crashAt <= currentStart + 60000;
-    });
-    const latestDesktopCrash = matchingDesktopCrashes.at(-1) || null;
     const errors = exceptionEvents(assessed);
     const lastError = errors.at(-1) || null;
     const health = assessed?.health || safeStoredHealth(null);
@@ -1303,29 +1186,7 @@
     let confidence = "low";
     let summary = "No crash signal was found in the retained sessions.";
 
-    if (latestDesktopCrash?.reason === "oom") {
-      category = "memory-exhaustion";
-      confidence = "high";
-      summary = "Electron terminated a process because it ran out of memory.";
-      evidence.push(`Electron ${latestDesktopCrash.processType} exit reason: oom`);
-    } else if (latestDesktopCrash?.error) {
-      category = "electron-process-exception";
-      confidence = "high";
-      summary = `Electron recorded an uncaught process error: ${truncate(latestDesktopCrash.error.message, 400)}`;
-      evidence.push(`Electron process type: ${latestDesktopCrash.processType}`);
-    } else if (latestDesktopCrash?.processType === "renderer" && latestDesktopCrash.reason) {
-      category = "renderer-crash";
-      confidence = "high";
-      summary = `Electron reported that the renderer process ended with reason "${latestDesktopCrash.reason}".`;
-      evidence.push(`Electron renderer exit code: ${latestDesktopCrash.exitCode ?? "unknown"}`);
-    } else if (latestDesktopCrash && latestDesktopCrash.processType !== "renderer") {
-      category = latestDesktopCrash.processType.toLowerCase() === "gpu"
-        ? "gpu-process-crash"
-        : "child-process-crash";
-      confidence = "high";
-      summary = `Electron reported that its ${latestDesktopCrash.processType} process ended with reason "${latestDesktopCrash.reason}".`;
-      evidence.push(`Electron child process exit code: ${latestDesktopCrash.exitCode ?? "unknown"}`);
-    } else if (lastError) {
+    if (lastError) {
       category = "uncaught-exception";
       confidence = "high";
       summary = `The session recorded an uncaught error: ${truncate(lastError.message || "Unknown error", 400)}`;
@@ -1393,16 +1254,6 @@
         ...event,
       }))
     );
-    const desktopExceptions = desktopCrashes
-      .filter((entry) => entry.error)
-      .map((entry) => ({
-        sessionId: null,
-        at: entry.at,
-        type: "exception",
-        phase: "Electron process",
-        source: `Electron ${entry.processType}`,
-        ...entry.error,
-      }));
     return {
       schemaVersion: 2,
       product: "Zoidium debug log",
@@ -1412,12 +1263,8 @@
         startedAt,
         phase,
         persistence: {
-          available:
-            persistenceAvailable ||
-            typeof global.zoidiumDesktop?.persistDebugSession === "function",
+          available: persistenceAvailable,
           localStorage: persistenceAvailable,
-          electronAppData:
-            typeof global.zoidiumDesktop?.persistDebugSession === "function",
           ...(persistenceError ? { error: persistenceError } : {}),
         },
       },
@@ -1426,15 +1273,13 @@
       plugins,
       windows,
       crashAnalysis: analyzeCrash(retainedSessions),
-      electronProcessCrashes: desktopCrashes.map((entry) => ({ ...entry })),
       previousSessions: retainedSessions,
-      exceptions: [...desktopExceptions, ...retainedExceptions, ...currentExceptions],
+      exceptions: [...retainedExceptions, ...currentExceptions],
       events: allEvents,
     };
   }
 
   async function download() {
-    await refreshPersistentDiagnostics();
     const payload = `${JSON.stringify(snapshot(), null, 2)}\n`;
     const blob = new Blob([payload], { type: "application/json;charset=utf-8" });
     const url = global.URL.createObjectURL(blob);
@@ -1624,7 +1469,6 @@
     sampleHealth();
     global.setInterval(sampleHealth, HEALTH_SAMPLE_INTERVAL_MS);
     installLongTaskObserver();
-    refreshPersistentDiagnostics();
   }
 
   const api = Object.freeze({
