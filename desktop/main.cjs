@@ -1,14 +1,36 @@
 "use strict";
 
 const { app, BrowserWindow, shell } = require("electron");
+const fs = require("node:fs");
 const http = require("node:http");
 const path = require("node:path");
-const compression = require("compression");
-const handler = require("serve-handler");
+const { pipeline } = require("node:stream/promises");
 
 const applicationRoot = path.resolve(__dirname, "..");
-const compressResponse = compression();
 const desktopPort = Number(process.env.ZOIDIUM_DESKTOP_PORT || 17823);
+
+const MIME_TYPES = new Map([
+  [".css", "text/css; charset=utf-8"],
+  [".gif", "image/gif"],
+  [".html", "text/html; charset=utf-8"],
+  [".ico", "image/x-icon"],
+  [".jpeg", "image/jpeg"],
+  [".jpg", "image/jpeg"],
+  [".js", "text/javascript; charset=utf-8"],
+  [".json", "application/json; charset=utf-8"],
+  [".mjs", "text/javascript; charset=utf-8"],
+  [".mp3", "audio/mpeg"],
+  [".mp4", "video/mp4"],
+  [".png", "image/png"],
+  [".svg", "image/svg+xml"],
+  [".ttf", "font/ttf"],
+  [".txt", "text/plain; charset=utf-8"],
+  [".wasm", "application/wasm"],
+  [".webm", "video/webm"],
+  [".webp", "image/webp"],
+  [".woff", "font/woff"],
+  [".woff2", "font/woff2"],
+]);
 
 if (!Number.isInteger(desktopPort) || desktopPort < 1024 || desktopPort > 65535) {
   throw new Error("ZOIDIUM_DESKTOP_PORT must be an integer between 1024 and 65535");
@@ -36,34 +58,88 @@ function listen(localServer, port) {
   });
 }
 
+function requestedPath(requestUrl) {
+  let pathname;
+  try {
+    pathname = decodeURIComponent(new URL(requestUrl, "http://zoidium.invalid").pathname);
+  } catch (_error) {
+    return null;
+  }
+  if (pathname.includes("\u0000") || pathname.includes("\\")) return null;
+  const segments = pathname.split("/").filter(Boolean);
+  if (segments.some((segment) => segment === "." || segment === "..")) return null;
+  return segments.join("/");
+}
+
+function safePath(relativePath) {
+  const root = `${applicationRoot}${path.sep}`;
+  const target = path.resolve(applicationRoot, relativePath || "index.html");
+  if (target !== applicationRoot && !target.startsWith(root)) {
+    throw new Error("Requested path escapes the application root");
+  }
+  return target;
+}
+
+function etagFor(stat) {
+  return `\"${stat.size.toString(16)}-${Math.trunc(stat.mtimeMs).toString(16)}\"`;
+}
+
+async function serveRequest(request, response) {
+  if (request.method !== "GET" && request.method !== "HEAD") {
+    response.writeHead(405, { Allow: "GET, HEAD" });
+    response.end("Method Not Allowed");
+    return;
+  }
+
+  const relativePath = requestedPath(request.url);
+  if (relativePath == null) {
+    response.writeHead(400, { "Content-Type": "text/plain; charset=utf-8" });
+    response.end("Bad Request");
+    return;
+  }
+
+  let filePath = safePath(relativePath);
+  let stat = await fs.promises.stat(filePath);
+  if (stat.isDirectory()) {
+    filePath = safePath(path.join(relativePath, "index.html"));
+    stat = await fs.promises.stat(filePath);
+  }
+  if (!stat.isFile()) throw new Error("Requested path is not a file");
+
+  const etag = etagFor(stat);
+  const headers = {
+    "Cache-Control": /^plugins\/[^/]+\/bundle\.json$/.test(relativePath)
+      ? "public, max-age=31536000, immutable"
+      : "no-cache",
+    "Content-Length": stat.size,
+    "Content-Type": MIME_TYPES.get(path.extname(filePath).toLowerCase()) || "application/octet-stream",
+    ETag: etag,
+  };
+  if (request.headers["if-none-match"] === etag) {
+    response.writeHead(304, { ETag: etag, "Cache-Control": headers["Cache-Control"] });
+    response.end();
+    return;
+  }
+
+  response.writeHead(200, headers);
+  if (request.method === "HEAD") {
+    response.end();
+    return;
+  }
+  await pipeline(fs.createReadStream(filePath), response);
+}
+
 async function startServer() {
   const localServer = http.createServer(async (request, response) => {
     try {
-      await new Promise((resolve, reject) => {
-        compressResponse(request, response, (error) => (error ? reject(error) : resolve()));
-      });
-      await handler(request, response, {
-        public: applicationRoot,
-        etag: true,
-        directoryListing: false,
-        headers: [
-          {
-            source: "/plugins/*/bundle.json",
-            headers: [
-              {
-                key: "Cache-Control",
-                value: "public, max-age=31536000, immutable",
-              },
-            ],
-          },
-        ],
-      });
+      await serveRequest(request, response);
     } catch (error) {
       console.error("[Zoidium] local server request failed:", error);
       if (!response.headersSent) {
-        response.writeHead(500, { "Content-Type": "text/plain; charset=utf-8" });
+        const status = error?.code === "ENOENT" ? 404 : 500;
+        response.writeHead(status, { "Content-Type": "text/plain; charset=utf-8" });
       }
-      response.end("Internal Server Error");
+      response.end(error?.code === "ENOENT" ? "Not Found" : "Internal Server Error");
     }
   });
 
