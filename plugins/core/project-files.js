@@ -200,27 +200,67 @@
       return left.name < right.name ? -1 : left.name > right.name ? 1 : 0;
     });
     var encoder = new TextEncoder();
-    var parts = [];
-    var totalLength = 0;
+    var manifest = [];
 
     for (var index = 0; index < entries.length; index += 1) {
       var entry = entries[index];
       var bytes = await bytesForData(entry.data);
-      var header = encoder.encode(entry.name + "\u0000" + bytes.length + "\u0000");
-      parts.push(header, bytes);
-      totalLength += header.length + bytes.length;
+      // Hash each entry independently. The old implementation retained every
+      // asset in `parts` and then allocated one more buffer for the complete
+      // archive fingerprint. A manifest of entry digests has the same change
+      // detection semantics without retaining the whole project in memory.
+      manifest.push(
+        entry.name + "\u0000" + bytes.length + "\u0000" +
+          await fingerprintBytes(bytes),
+      );
     }
 
-    var combined = new Uint8Array(totalLength);
-    var offset = 0;
-    parts.forEach(function (part) {
-      combined.set(part, offset);
-      offset += part.length;
-    });
-    return fingerprintBytes(combined);
+    return fingerprintBytes(encoder.encode(manifest.join("\n")));
   }
 
-  async function createArchiveUnlocked(editor) {
+  function isWorkerBlob(value) {
+    return Boolean(
+      value &&
+        Number.isFinite(Number(value.size)) &&
+        typeof value.slice === "function" &&
+        typeof value.arrayBuffer === "function",
+    );
+  }
+
+  async function materializeArchive(archive) {
+    var materialized = new PZ.archive();
+    var entries = archive.files || [];
+    for (var index = 0; index < entries.length; index += 1) {
+      var entry = entries[index];
+      var data = entry.data;
+      // WORKERFS requires Blob-like entries. Reuse existing Blob/File values;
+      // only the small serialized Uint8Array entries need wrapping. This
+      // avoids reading every asset into a second Uint8Array before TAR starts.
+      if (!isWorkerBlob(data)) {
+        if (data && typeof data.arrayBuffer === "function") {
+          data = new Blob([await data.arrayBuffer()]);
+        } else if (data instanceof ArrayBuffer || ArrayBuffer.isView(data)) {
+          data = new Blob([data]);
+        } else {
+          throw new Error("Could not prepare a project file for archiving.");
+        }
+      }
+      materialized.addFile(entry.name, data);
+    }
+    return materialized;
+  }
+
+  async function tarArchive(archive) {
+    var materialized = await materializeArchive(archive);
+    var io = PZ.zoidiumIoSerialization;
+    var blob = io && typeof io.tarWithoutLock === "function"
+      ? await io.tarWithoutLock(materialized)
+      : await materialized.tar();
+    if (!blob) throw new Error("Could not create the project archive.");
+    return detachArchiveBlob(blob);
+  }
+
+  async function prepareProjectArchive(editor) {
     if (!editor || !editor.project) {
       throw new Error("There is no project to save.");
     }
@@ -233,42 +273,168 @@
       name: projectName,
     }));
 
-    var assets = listAssets(editor.project);
+    return {
+      archive: archive,
+      projectName: projectName,
+      assets: listAssets(editor.project),
+    };
+  }
+
+  function assetArchiveName(asset) {
+    return asset && (asset.sha256 || asset.key);
+  }
+
+  async function assetContentId(asset) {
+    var declared = asset && asset.sha256 != null
+      ? String(asset.sha256).trim().toLowerCase()
+      : "";
+    if (/^(?:sha256:)?[0-9a-f]{64}$/.test(declared)) {
+      return declared.indexOf("sha256:") === 0 ? declared : "sha256:" + declared;
+    }
+    return fingerprintBytes(await bytesForData(asset.file));
+  }
+
+  async function collectAssetEntries(assets, archive) {
+    var entries = [];
+    var names = Object.create(null);
     var packagedAssetCount = 0;
+
     for (var index = 0; index < assets.length; index += 1) {
       var asset = assets[index];
       if (!asset || !asset.file) continue;
 
-      var assetName = asset.sha256 || asset.key;
-      if (!assetName || archive.fileExists(assetName)) continue;
-      archive.addFile(assetName, asset.file);
+      var assetName = assetArchiveName(asset);
+      if (!assetName || names[assetName] || (archive && archive.fileExists(assetName))) {
+        continue;
+      }
+      names[assetName] = true;
+
+      var entry = {
+        id: await assetContentId(asset),
+        name: assetName,
+        size: Number.isFinite(Number(asset.file.size)) ? Number(asset.file.size) : null,
+        type: typeof asset.file.type === "string" ? asset.file.type : "",
+        file: asset.file,
+      };
+      entries.push(entry);
+      if (archive) archive.addFile(assetName, asset.file);
       packagedAssetCount += 1;
     }
 
-    var fingerprint = await fingerprintArchive(archive);
-    var io = PZ.zoidiumIoSerialization;
-    var blob = io && typeof io.tarWithoutLock === "function"
-      ? await io.tarWithoutLock(archive)
-      : await archive.tar();
-    if (!blob) throw new Error("Could not create the project archive.");
-    blob = await detachArchiveBlob(blob);
+    return {
+      entries: entries,
+      packagedAssetCount: packagedAssetCount,
+    };
+  }
+
+  function publicAssetRefs(entries) {
+    return entries.map(function (entry) {
+      return {
+        id: entry.id,
+        name: entry.name,
+        size: entry.size,
+        type: entry.type,
+      };
+    });
+  }
+
+  async function fingerprintRestorePoint(projectFingerprint, assetRefs) {
+    var refs = assetRefs.slice().sort(function (left, right) {
+      return left.name < right.name ? -1 : left.name > right.name ? 1 : 0;
+    });
+    var lines = ["project\u0000" + projectFingerprint];
+    refs.forEach(function (ref) {
+      lines.push("asset\u0000" + ref.name + "\u0000" + ref.id + "\u0000" + ref.size);
+    });
+    return fingerprintBytes(new TextEncoder().encode(lines.join("\n")));
+  }
+
+  async function createArchiveUnlocked(editor) {
+    var prepared = await prepareProjectArchive(editor);
+    var assetResult = await collectAssetEntries(prepared.assets, prepared.archive);
+    var fingerprint = await fingerprintArchive(prepared.archive);
+    var blob = await tarArchive(prepared.archive);
     return {
       blob: blob,
-      projectName: projectName,
-      assetCount: assets.length,
-      packagedAssetCount: packagedAssetCount,
+      projectName: prepared.projectName,
+      assetCount: prepared.assets.length,
+      packagedAssetCount: assetResult.packagedAssetCount,
       fingerprint: fingerprint,
     };
   }
 
-  function createArchive(editor) {
+  async function createRestorePointUnlocked(editor) {
+    var prepared = await prepareProjectArchive(editor);
+    // Automatic backups store the project archive separately from the media.
+    // The media is placed in the restore-point content store by the restore
+    // layer, so unchanged assets are never copied into every snapshot.
+    var assetResult = await collectAssetEntries(prepared.assets, null);
+    var projectFingerprint = await fingerprintArchive(prepared.archive);
+    var assetRefs = publicAssetRefs(assetResult.entries);
+    var fingerprint = await fingerprintRestorePoint(projectFingerprint, assetRefs);
+    var projectBlob = await tarArchive(prepared.archive);
+    return {
+      version: 2,
+      projectBlob: projectBlob,
+      projectName: prepared.projectName,
+      assetCount: prepared.assets.length,
+      packagedAssetCount: assetResult.packagedAssetCount,
+      archiveSize: projectBlob.size + assetResult.entries.reduce(function (total, entry) {
+        return total + (Number(entry.size) || 0);
+      }, 0),
+      assetRefs: assetRefs,
+      assets: assetResult.entries,
+      fingerprint: fingerprint,
+    };
+  }
+
+  function runArchiveOperation(kind, task) {
     var io = PZ.zoidiumIoSerialization;
     if (io && typeof io.run === "function" && typeof io.tarWithoutLock === "function") {
-      return io.run("project-save", function () {
-        return createArchiveUnlocked(editor);
-      });
+      return io.run(kind, task);
     }
-    return createArchiveUnlocked(editor);
+    return task();
+  }
+
+  function createArchive(editor) {
+    return runArchiveOperation("project-save", function () {
+      return createArchiveUnlocked(editor);
+    });
+  }
+
+  function createRestorePoint(editor) {
+    return runArchiveOperation("project-backup", function () {
+      return createRestorePointUnlocked(editor);
+    });
+  }
+
+  async function restorePointToArchive(point, assetRecords) {
+    if (!point || !point.projectBlob || !Array.isArray(point.assetRefs)) {
+      throw new Error("This restore point is incomplete.");
+    }
+
+    var byId = Object.create(null);
+    (assetRecords || []).forEach(function (record) {
+      if (record && record.id && record.blob) byId[record.id] = record.blob;
+    });
+
+    var archive = new PZ.archive();
+    await archive.untar(point.projectBlob);
+    point.assetRefs.forEach(function (ref) {
+      var blob = byId[ref.id];
+      if (!blob) {
+        throw new Error("Restore point asset is missing: " + ref.name);
+      }
+      archive.addFile(ref.name, blob);
+    });
+    return archive;
+  }
+
+  function createArchiveFromRestorePoint(point, assetRecords) {
+    return runArchiveOperation("restore-download", async function () {
+      var archive = await restorePointToArchive(point, assetRecords);
+      return tarArchive(archive);
+    });
   }
 
   function triggerDownload(blob, filename) {
@@ -508,8 +674,12 @@
     getProjectName: getProjectName,
     setProjectName: setProjectName,
     setRawProjectName: setRawProjectName,
+    getProjectRevision: getProjectRevision,
     fileNameForProject: fileNameForProject,
     createArchive: createArchive,
+    createRestorePoint: createRestorePoint,
+    restorePointToArchive: restorePointToArchive,
+    createArchiveFromRestorePoint: createArchiveFromRestorePoint,
     fingerprintArchive: fingerprintArchive,
     triggerDownload: triggerDownload,
     saveProject: saveProject,

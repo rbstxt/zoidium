@@ -7,13 +7,17 @@
   if (!PZ || !editor || !projectFiles) return;
 
   var DB_NAME = "zoidium-restore-points";
-  var DB_VERSION = 1;
+  var DB_VERSION = 2;
   var STORE_NAME = "snapshots";
+  var ASSET_STORE_NAME = "assets";
   var MAX_AUTOMATIC_PER_TITLE = 12;
   var MAX_AUTOMATIC_TOTAL = 24;
   var HOUR_MS = 60 * 60 * 1000;
   var TIME_BUCKET_LIMITS = [4, 3, 2];
   var BACKUP_INTERVAL_MS = 5 * 60 * 1000;
+  var AUTOMATIC_HEAP_LIMIT = 0.72;
+  var IDLE_BACKUP_TIMEOUT_MS = 15000;
+  var STARTUP_BACKUP_DELAY_MS = 10000;
   var BACKUP_INTERVAL_STORAGE_KEY = "zoidium.restore.interval";
   var BACKUP_INTERVAL_OPTIONS = [
     { value: 1 * 60 * 1000, label: "1 minute" },
@@ -36,6 +40,13 @@
     snapshotPromise: null,
     backupTimer: null,
     startupTimer: null,
+    idleBackupHandle: null,
+    idleBackupKind: null,
+    lastBackupProject: null,
+    lastBackupRevision: null,
+    lastBackupName: null,
+    projectLoadInProgress: false,
+    pendingAutomaticBackup: false,
   };
 
   function isBackupInterval(value) {
@@ -102,6 +113,9 @@
           var store = database.createObjectStore(STORE_NAME, { keyPath: "id" });
           store.createIndex("createdAt", "createdAt");
         }
+        if (!database.objectStoreNames.contains(ASSET_STORE_NAME)) {
+          database.createObjectStore(ASSET_STORE_NAME, { keyPath: "id" });
+        }
       };
       request.onsuccess = function () {
         resolve(request.result);
@@ -129,11 +143,158 @@
     return !snapshot || snapshot.automatic !== false;
   }
 
+  function snapshotMetadata(record) {
+    var metadata = {};
+    Object.keys(record || {}).forEach(function (key) {
+      if (key === "blob" || key === "projectBlob" || key === "assets") return;
+      metadata[key] = record[key];
+    });
+    if (record && record.blob) metadata.legacy = true;
+    return metadata;
+  }
+
   async function listSnapshots() {
     var database = await openDatabase();
     var transaction = database.transaction(STORE_NAME, "readonly");
-    var records = await requestPromise(transaction.objectStore(STORE_NAME).getAll());
+    var records = await new Promise(function (resolve, reject) {
+      var values = [];
+      var request = transaction.objectStore(STORE_NAME).openCursor();
+      request.onsuccess = function (event) {
+        var cursor = event.target.result;
+        if (!cursor) {
+          resolve(values);
+          return;
+        }
+        // Do not retain legacy full archive Blobs in the page state. The
+        // complete record is loaded only when the user restores or downloads.
+        values.push(snapshotMetadata(cursor.value));
+        cursor.continue();
+      };
+      request.onerror = function () {
+        reject(request.error || new Error("Could not list restore points."));
+      };
+    });
     return records.sort(compareSnapshots);
+  }
+
+  function getSnapshot(id) {
+    return openDatabase().then(function (database) {
+      var transaction = database.transaction(STORE_NAME, "readonly");
+      return requestPromise(transaction.objectStore(STORE_NAME).get(id));
+    });
+  }
+
+  function saveAssets(entries) {
+    var unique = Object.create(null);
+    var pending = (entries || []).filter(function (entry) {
+      if (!entry || !entry.id || !entry.file || unique[entry.id]) return false;
+      unique[entry.id] = true;
+      return true;
+    });
+    if (!pending.length) return Promise.resolve();
+
+    return openDatabase().then(function (database) {
+      return new Promise(function (resolve, reject) {
+        var transaction = database.transaction(ASSET_STORE_NAME, "readwrite");
+        var store = transaction.objectStore(ASSET_STORE_NAME);
+        pending.forEach(function (entry) {
+          var request = store.get(entry.id);
+          request.onsuccess = function () {
+            if (request.result) return;
+            store.put({
+              id: entry.id,
+              blob: entry.file,
+              size: entry.size,
+              type: entry.type,
+            });
+          };
+          request.onerror = function () {
+            try {
+              transaction.abort();
+            } catch (_error) {
+              // The transaction may already be aborting.
+            }
+          };
+        });
+        transaction.oncomplete = resolve;
+        transaction.onerror = function () {
+          reject(transaction.error || new Error("Could not store restore-point assets."));
+        };
+        transaction.onabort = function () {
+          reject(transaction.error || new Error("Could not store restore-point assets."));
+        };
+      });
+    });
+  }
+
+  function loadAssets(refs) {
+    refs = Array.isArray(refs) ? refs : [];
+    if (!refs.length) return Promise.resolve([]);
+
+    return openDatabase().then(function (database) {
+      return new Promise(function (resolve, reject) {
+        var transaction = database.transaction(ASSET_STORE_NAME, "readonly");
+        var store = transaction.objectStore(ASSET_STORE_NAME);
+        var records = new Array(refs.length);
+        var missing = null;
+
+        refs.forEach(function (ref, index) {
+          var request = store.get(ref.id);
+          request.onsuccess = function () {
+            if (!request.result || !request.result.blob) {
+              missing = missing || new Error("Restore point asset is missing: " + ref.name);
+              return;
+            }
+            records[index] = {
+              id: ref.id,
+              blob: request.result.blob,
+            };
+          };
+          request.onerror = function () {
+            missing = missing || request.error || new Error("Could not read a restore-point asset.");
+          };
+        });
+        transaction.oncomplete = function () {
+          if (missing) reject(missing);
+          else resolve(records);
+        };
+        transaction.onerror = function () {
+          reject(transaction.error || new Error("Could not read restore-point assets."));
+        };
+      });
+    });
+  }
+
+  async function deleteOrphanAssets() {
+    var snapshots = await listSnapshots();
+    var referenced = Object.create(null);
+    snapshots.forEach(function (snapshot) {
+      (snapshot.assetRefs || []).forEach(function (ref) {
+        if (ref && ref.id) referenced[ref.id] = true;
+      });
+    });
+
+    var database = await openDatabase();
+    return new Promise(function (resolve, reject) {
+      var transaction = database.transaction(ASSET_STORE_NAME, "readwrite");
+      var store = transaction.objectStore(ASSET_STORE_NAME);
+      var request = store.getAllKeys();
+      request.onsuccess = function () {
+        request.result.forEach(function (id) {
+          if (!referenced[id]) store.delete(id);
+        });
+      };
+      request.onerror = function () {
+        reject(request.error || new Error("Could not organize restore-point assets."));
+      };
+      transaction.oncomplete = resolve;
+      transaction.onerror = function () {
+        reject(transaction.error || new Error("Could not organize restore-point assets."));
+      };
+      transaction.onabort = function () {
+        reject(transaction.error || new Error("Could not organize restore-point assets."));
+      };
+    });
   }
 
   function saveSnapshot(record) {
@@ -159,8 +320,13 @@
       return new Promise(function (resolve, reject) {
         var transaction = database.transaction(STORE_NAME, "readwrite");
         transaction.objectStore(STORE_NAME).delete(id);
-        transaction.oncomplete = resolve;
+        transaction.oncomplete = function () {
+          deleteOrphanAssets().then(resolve, reject);
+        };
         transaction.onerror = function () {
+          reject(transaction.error || new Error("Could not delete the restore point."));
+        };
+        transaction.onabort = function () {
           reject(transaction.error || new Error("Could not delete the restore point."));
         };
       });
@@ -172,7 +338,17 @@
       return new Promise(function (resolve, reject) {
         var transaction = database.transaction(STORE_NAME, "readwrite");
         transaction.objectStore(STORE_NAME).clear();
-        transaction.oncomplete = resolve;
+        transaction.oncomplete = function () {
+          var assetTransaction = database.transaction(ASSET_STORE_NAME, "readwrite");
+          assetTransaction.objectStore(ASSET_STORE_NAME).clear();
+          assetTransaction.oncomplete = resolve;
+          assetTransaction.onerror = function () {
+            reject(assetTransaction.error || new Error("Could not delete restore-point assets."));
+          };
+          assetTransaction.onabort = function () {
+            reject(assetTransaction.error || new Error("Could not delete restore-point assets."));
+          };
+        };
         transaction.onerror = function () {
           reject(transaction.error || new Error("Could not delete the restore points."));
         };
@@ -242,6 +418,7 @@
 
     if (!removedIds.length) return records;
     await deleteSnapshots(removedIds);
+    await deleteOrphanAssets();
     return listSnapshots();
   }
 
@@ -301,16 +478,50 @@
   async function matchesSnapshot(snapshot, fingerprint) {
     if (!snapshot) return false;
     if (snapshot.fingerprint) return snapshot.fingerprint === fingerprint;
-    if (!snapshot.blob) return false;
-    if (isStaleFileReference(snapshot.blob)) return false;
+    var record = snapshot.blob ? snapshot : await getSnapshot(snapshot.id);
+    if (!record || !record.blob) return false;
+    if (isStaleFileReference(record.blob)) return false;
     try {
       // Older restore points do not have a stored fingerprint. Rebuild their
       // archive index so they can still be compared to the current content.
       var archive = new PZ.archive();
-      await archive.untar(snapshot.blob);
+      await archive.untar(record.blob);
       return (await projectFiles.fingerprintArchive(archive)) === fingerprint;
     } catch (_error) {
       return false;
+    }
+  }
+
+  async function loadSnapshotForAction(snapshot) {
+    if (!snapshot) throw new Error("The restore point is unavailable.");
+    if (snapshot.blob || snapshot.projectBlob) return snapshot;
+    var record = await getSnapshot(snapshot.id);
+    if (!record) throw new Error("The restore point is unavailable.");
+    return record;
+  }
+
+  async function downloadSnapshot(snapshot) {
+    try {
+      var record = await loadSnapshotForAction(snapshot);
+      if (record.blob) {
+        if (isStaleFileReference(record.blob)) {
+          throw new Error(STALE_SNAPSHOT_MESSAGE);
+        }
+        projectFiles.triggerDownload(record.blob, snapshotFilename(record));
+        return;
+      }
+
+      var assets = await loadAssets(record.assetRefs);
+      var blob = await projectFiles.createArchiveFromRestorePoint(record, assets);
+      projectFiles.triggerDownload(blob, snapshotFilename(record));
+    } catch (error) {
+      showProjectError({
+        message: error && error.message ? error.message : "Could not download the restore point.",
+        retry: function () {
+          return downloadSnapshot(snapshot);
+        },
+        download: null,
+      });
     }
   }
 
@@ -427,6 +638,96 @@
     });
   }
 
+  function emitBackupEvent(name, detail) {
+    try {
+      global.dispatchEvent(new CustomEvent("zoidium:restore-backup-" + name, {
+        detail: detail || {},
+      }));
+    } catch (_error) {
+      // Diagnostics must never interrupt a backup.
+    }
+  }
+
+  function currentBackupState() {
+    var revision = typeof projectFiles.getProjectRevision === "function"
+      ? projectFiles.getProjectRevision(editor)
+      : null;
+    return {
+      project: editor.project,
+      revision: revision,
+      name: projectFiles.getProjectName(editor),
+    };
+  }
+
+  function projectChangedSinceLastBackup() {
+    var current = currentBackupState();
+    return (
+      current.project !== state.lastBackupProject ||
+      current.revision !== state.lastBackupRevision ||
+      current.name !== state.lastBackupName
+    );
+  }
+
+  function automaticBackupMemoryAvailable() {
+    var memory = global.performance && global.performance.memory;
+    if (!memory) return true;
+    var used = Number(memory.usedJSHeapSize);
+    var limit = Number(memory.jsHeapSizeLimit);
+    if (!Number.isFinite(used) || !Number.isFinite(limit) || limit <= 0) return true;
+    return used / limit < AUTOMATIC_HEAP_LIMIT;
+  }
+
+  function installProjectLoadGuard() {
+    if (!global.document || typeof global.document.addEventListener !== "function") return;
+    global.document.addEventListener("zoidium:project-load-start", function () {
+      state.projectLoadInProgress = true;
+      state.pendingAutomaticBackup = true;
+      cancelIdleBackup();
+    });
+    function onProjectLoadSettled() {
+      state.projectLoadInProgress = false;
+      if (state.pendingAutomaticBackup && state.backupIntervalMs) {
+        state.pendingAutomaticBackup = false;
+        queueAutomaticBackup();
+      }
+    }
+    global.document.addEventListener("zoidium:project-load-complete", onProjectLoadSettled);
+    global.document.addEventListener("zoidium:project-load-error", onProjectLoadSettled);
+  }
+
+  function cancelIdleBackup() {
+    if (state.idleBackupHandle === null) return;
+    if (state.idleBackupKind === "idle" && typeof global.cancelIdleCallback === "function") {
+      global.cancelIdleCallback(state.idleBackupHandle);
+    } else {
+      global.clearTimeout(state.idleBackupHandle);
+    }
+    state.idleBackupHandle = null;
+    state.idleBackupKind = null;
+  }
+
+  function queueAutomaticBackup() {
+    if (state.projectLoadInProgress) {
+      state.pendingAutomaticBackup = true;
+      return;
+    }
+    if (state.idleBackupHandle !== null) return;
+    var run = function () {
+      state.idleBackupHandle = null;
+      state.idleBackupKind = null;
+      createSnapshot(false, true).catch(function () {});
+    };
+    if (typeof global.requestIdleCallback === "function") {
+      state.idleBackupKind = "idle";
+      state.idleBackupHandle = global.requestIdleCallback(run, {
+        timeout: IDLE_BACKUP_TIMEOUT_MS,
+      });
+    } else {
+      state.idleBackupKind = "timeout";
+      state.idleBackupHandle = global.setTimeout(run, 1000);
+    }
+  }
+
   function scheduleBackups(includeStartup) {
     if (state.startupTimer) {
       global.clearTimeout(state.startupTimer);
@@ -436,16 +737,17 @@
       global.clearInterval(state.backupTimer);
       state.backupTimer = null;
     }
+    cancelIdleBackup();
     if (!state.backupIntervalMs) return;
 
     if (includeStartup) {
       state.startupTimer = global.setTimeout(function () {
         state.startupTimer = null;
-        createSnapshot(false, true).catch(function () {});
-      }, 2500);
+        queueAutomaticBackup();
+      }, STARTUP_BACKUP_DELAY_MS);
     }
     state.backupTimer = global.setInterval(function () {
-      createSnapshot(false, true).catch(function () {});
+      queueAutomaticBackup();
     }, state.backupIntervalMs);
   }
 
@@ -577,14 +879,10 @@
         "Download " + (snapshot.projectName || "project"),
       );
       downloadButton.addEventListener("click", function () {
-        projectFiles.triggerDownload(snapshot.blob, snapshotFilename(snapshot));
+        downloadSnapshot(snapshot);
       });
-      if (isStaleFileReference(snapshot.blob)) {
-        entry.classList.add("is-unusable");
-        stats.textContent = STALE_SNAPSHOT_MESSAGE;
-        restoreButton.disabled = true;
-        downloadButton.disabled = true;
-      }
+      // Legacy records are checked lazily because their full archive Blob is
+      // deliberately not kept in the list state.
       var deleteButton = createButton(
         "delete",
         "Delete " + (snapshot.projectName || "project"),
@@ -632,14 +930,36 @@
       return state.snapshotPromise;
     }
 
-    var archiveResult = null;
+    if (isAutomatic) {
+      // A backup that cannot improve the last point only adds serialization
+      // and GC pressure. Also defer automatic work while the heap is already
+      // under pressure; a manual "Backup now" remains available.
+      if (!projectChangedSinceLastBackup()) {
+        emitBackupEvent("skipped", { reason: "unchanged" });
+        return Promise.resolve(null);
+      }
+      if (!automaticBackupMemoryAvailable()) {
+        emitBackupEvent("skipped", { reason: "heap-pressure" });
+        return Promise.resolve(null);
+      }
+    }
+
+    var backupState = currentBackupState();
+    var startedAt = global.performance && typeof global.performance.now === "function"
+      ? global.performance.now()
+      : Date.now();
+    emitBackupEvent("start", {
+      automatic: isAutomatic,
+      projectName: backupState.name,
+    });
+    var restorePoint = null;
     state.snapshotAutomatic = isAutomatic;
     state.snapshotPromise = (async function () {
       // refreshSnapshots normally completes before this runs, but loading here
       // also covers a very fast startup timer or a delayed IndexedDB response.
       if (!state.snapshots.length) state.snapshots = await listSnapshots();
-      archiveResult = await projectFiles.createArchive(editor);
-      var fingerprint = archiveResult.fingerprint;
+      restorePoint = await projectFiles.createRestorePoint(editor);
+      var fingerprint = restorePoint.fingerprint;
       var latest = state.snapshots[0] || null;
       if (isAutomatic && await matchesSnapshot(latest, fingerprint)) {
         if (showResult) {
@@ -650,14 +970,30 @@
       var record = {
         id: String(Date.now()) + "-" + Math.random().toString(36).slice(2),
         createdAt: Date.now(),
-        projectName: archiveResult.projectName,
-        size: archiveResult.blob.size,
-        assetCount: archiveResult.assetCount,
-        blob: archiveResult.blob,
+        format: 2,
+        projectName: restorePoint.projectName,
+        size: restorePoint.archiveSize,
+        assetCount: restorePoint.assetCount,
+        projectBlob: restorePoint.projectBlob,
+        assetRefs: restorePoint.assetRefs,
         fingerprint: fingerprint,
         automatic: isAutomatic,
       };
+      await saveAssets(restorePoint.assets);
       await saveSnapshot(record);
+      state.lastBackupProject = backupState.project;
+      state.lastBackupRevision = backupState.revision;
+      state.lastBackupName = backupState.name;
+      var finishedAt = global.performance && typeof global.performance.now === "function"
+        ? global.performance.now()
+        : Date.now();
+      emitBackupEvent("complete", {
+        automatic: isAutomatic,
+        durationMs: Math.max(0, finishedAt - startedAt),
+        size: record.size,
+        assetCount: record.assetCount,
+        assetReferenceCount: record.assetRefs.length,
+      });
       // Manual points are not counted toward the automatic retention limits,
       // but creating one still triggers cleanup of old automatic points.
       state.snapshots = await pruneAutomaticSnapshots();
@@ -668,20 +1004,20 @@
       return record;
     })()
       .catch(function (error) {
-        var download = archiveResult && archiveResult.blob
-          ? function () {
-              projectFiles.triggerDownload(
-                archiveResult.blob,
-                projectFiles.fileNameForProject(archiveResult.projectName),
-              );
-            }
-          : null;
+        var failedAt = global.performance && typeof global.performance.now === "function"
+          ? global.performance.now()
+          : Date.now();
+        emitBackupEvent("error", {
+          automatic: isAutomatic,
+          durationMs: Math.max(0, failedAt - startedAt),
+          message: error && error.message ? error.message : "Could not create a restore point.",
+        });
         showProjectError({
           message: error && error.message ? error.message : "Could not create a restore point.",
           retry: function () {
             return createSnapshot(true, isAutomatic);
           },
-          download: download,
+          download: null,
         });
         throw error;
       })
@@ -693,27 +1029,29 @@
   }
 
   async function restoreSnapshot(snapshot) {
-    if (!snapshot || !snapshot.blob) return;
-    if (isStaleFileReference(snapshot.blob)) {
-      showProjectError({
-        message: STALE_SNAPSHOT_MESSAGE,
-        retry: null,
-        download: null,
-      });
-      return;
-    }
+    if (!snapshot) return;
     if (!editor.confirmIfDirty()) return;
 
     try {
-      var archive = new PZ.archive();
-      await archive.untar(snapshot.blob);
+      var record = await loadSnapshotForAction(snapshot);
+      var archive;
+      if (record.blob) {
+        if (isStaleFileReference(record.blob)) {
+          throw new Error(STALE_SNAPSHOT_MESSAGE);
+        }
+        archive = new PZ.archive();
+        await archive.untar(record.blob);
+      } else {
+        var assets = await loadAssets(record.assetRefs);
+        archive = await projectFiles.restorePointToArchive(record, assets);
+      }
       var restoredProject = await editor.loadProject(archive);
       editor.project = restoredProject;
       editor._zoidiumSaveFileHandle = null;
       editor._zoidiumSaveFileName = null;
-      projectFiles.setProjectName(editor, snapshot.projectName || "project");
+      projectFiles.setProjectName(editor, record.projectName || "project");
       if (restoredProject.ui) restoredProject.ui.dirty = true;
-      showToast({ title: "Restored.", message: snapshot.projectName || "project" });
+      showToast({ title: "Restored.", message: record.projectName || "project" });
     } catch (error) {
       showProjectError({
         message: error && error.message ? error.message : "Could not restore the project.",
@@ -721,7 +1059,7 @@
           return restoreSnapshot(snapshot);
         },
         download: function () {
-          projectFiles.triggerDownload(snapshot.blob, snapshotFilename(snapshot));
+          return downloadSnapshot(snapshot);
         },
       });
     }
@@ -742,7 +1080,7 @@
           return removeSnapshot(snapshot);
         },
         download: function () {
-          projectFiles.triggerDownload(snapshot.blob, snapshotFilename(snapshot));
+          return downloadSnapshot(snapshot);
         },
       });
     }
@@ -873,12 +1211,14 @@
   createTab(panel);
   state.backupIntervalMs = readBackupInterval();
   if (state.intervalSelect) state.intervalSelect.value = String(state.backupIntervalMs);
+  installProjectLoadGuard();
   refreshSnapshots();
   scheduleBackups(true);
 
   global.addEventListener("beforeunload", function () {
     if (state.backupTimer) global.clearInterval(state.backupTimer);
     if (state.startupTimer) global.clearTimeout(state.startupTimer);
+    cancelIdleBackup();
     toolbarObserver.disconnect();
   });
 })(window);
