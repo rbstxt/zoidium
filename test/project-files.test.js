@@ -277,6 +277,47 @@ test("project construction and tar run inside one coordinated operation", async 
   assert.equal(harness.tarCalls(), 0);
 });
 
+test("restore points keep project data separate from deduplicated asset references", async () => {
+  const harness = createHarness();
+  harness.PZ.zoidiumIoSerialization = {
+    run(_kind, task) {
+      return Promise.resolve(task());
+    },
+    tarWithoutLock(archive) {
+      assert.ok(archive.files.every((entry) => entry.data instanceof Blob));
+      return Promise.resolve(new Blob([new Uint8Array([0x1f, 0x8b, 8, 0, 1])]));
+    },
+  };
+  const editor = harness.makeEditor();
+  const sharedBytes = new Blob(["same asset"]);
+  editor.project.assets.list = {
+    first: { key: "asset-one", file: sharedBytes },
+    second: { key: "asset-two", file: sharedBytes },
+  };
+
+  const point = await harness.projectFiles.createRestorePoint(editor);
+
+  assert.ok(point.projectBlob instanceof Blob);
+  assert.equal(point.assetRefs.length, 2);
+  assert.equal(point.assets.length, 2);
+  assert.equal(point.assetRefs[0].id, point.assetRefs[1].id);
+  assert.equal("blob" in point, false);
+  assert.equal(point.archiveSize, point.projectBlob.size + sharedBytes.size * 2);
+
+  harness.PZ.archive.prototype.untar = async function () {
+    this.files = [{
+      name: "project",
+      data: new TextEncoder().encode('{"title":"test"}'),
+    }];
+  };
+  const restoredArchive = await harness.projectFiles.restorePointToArchive(
+    point,
+    point.assets.map((entry) => ({ id: entry.id, blob: entry.file })),
+  );
+  assert.equal(restoredArchive.files.length, 3);
+  assert.ok(restoredArchive.files.every((entry) => entry.data));
+});
+
 test("the archive is copied out of the shared workspace file before it is written", async () => {
   const harness = createHarness();
   const entry = fileBackedExport([0x1f, 0x8b, 8, 0, 1, 2, 3]);

@@ -1455,6 +1455,43 @@
       });
       checkpointDiagnostics("project-load-error");
     });
+    global.addEventListener("zoidium:restore-backup-start", (event) => {
+      record("restore-backup-start", {
+        automatic: Boolean(event?.detail?.automatic),
+        projectName: redact(event?.detail?.projectName),
+      });
+    });
+    global.addEventListener("zoidium:restore-backup-complete", (event) => {
+      record("restore-backup-complete", {
+        automatic: Boolean(event?.detail?.automatic),
+        durationMs: Number.isFinite(event?.detail?.durationMs)
+          ? event.detail.durationMs
+          : null,
+        size: Number.isFinite(event?.detail?.size) ? event.detail.size : null,
+        assetCount: Number.isFinite(event?.detail?.assetCount)
+          ? event.detail.assetCount
+          : null,
+        assetReferenceCount: Number.isFinite(event?.detail?.assetReferenceCount)
+          ? event.detail.assetReferenceCount
+          : null,
+      });
+      checkpointDiagnostics("restore-backup-complete");
+    });
+    global.addEventListener("zoidium:restore-backup-skipped", (event) => {
+      record("restore-backup-skipped", {
+        reason: redact(event?.detail?.reason),
+      });
+    });
+    global.addEventListener("zoidium:restore-backup-error", (event) => {
+      record("restore-backup-error", {
+        automatic: Boolean(event?.detail?.automatic),
+        durationMs: Number.isFinite(event?.detail?.durationMs)
+          ? event.detail.durationMs
+          : null,
+        message: redact(event?.detail?.message),
+      });
+      checkpointDiagnostics("restore-backup-error");
+    });
     global.addEventListener("zoidium:project-opened", () => {
       record("project-opened");
       checkpointDiagnostics("project-opened");
