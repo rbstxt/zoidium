@@ -87,6 +87,7 @@
     if (config.tabClass) tab.className = config.tabClass;
     tab.title = config.title;
     tab.pz_tab = descriptor;
+    tab.pz_elevator = hosts.elevator;
     tab.pz_container = panel;
     tab.appendChild(PZ.ui.generateIcon(descriptor.icon));
     var label = global.document.createElement("span");
@@ -107,6 +108,47 @@
     tab.onclick = hosts.elevator.buttonClick.bind(hosts.elevator);
     tab.onkeydown = hosts.elevator.buttonKeyDown;
     return tab;
+  }
+
+  var previewOwners = new WeakMap();
+  // One custom editor may borrow a viewport at a time.
+  function acquirePreview(viewport, close) {
+    if (!viewport) return function () {};
+    var previous = previewOwners.get(viewport);
+    if (previous) previous.close();
+    var owner = { close: close };
+    previewOwners.set(viewport, owner);
+    return function () {
+      if (previewOwners.get(viewport) === owner) previewOwners.delete(viewport);
+    };
+  }
+
+  // Removes a tab returned by createMenubarTab and releases its panel.
+  function removeMenubarTab(tab) {
+    if (!tab || !tab.pz_tab) return false;
+    var descriptor = tab.pz_tab;
+    var elevator = tab.pz_elevator;
+    var tabs = tab.parentElement;
+    if (elevator && elevator.activePanel === descriptor) {
+      var replacement = tabs && Array.from(tabs.children).find(function (candidate) {
+        return candidate !== tab && candidate.pz_tab && !candidate.disabled;
+      });
+      if (replacement) elevator.changeTab(replacement);
+      else elevator.activePanel = null;
+    }
+    descriptor.enabled = false;
+    if (elevator && Array.isArray(elevator.panels)) {
+      var index = elevator.panels.indexOf(descriptor);
+      if (index >= 0) elevator.panels.splice(index, 1);
+    }
+    tab.onclick = null;
+    tab.onkeydown = null;
+    if (tab.pz_container) tab.pz_container.remove();
+    tab.remove();
+    tab.pz_tab = null;
+    tab.pz_container = null;
+    tab.pz_elevator = null;
+    return true;
   }
 
   // Builds the standard page header used at the top of sidebar panels such
@@ -209,6 +251,8 @@
   global.ZoidiumUI = Object.freeze({
     getElevator: getElevator,
     createMenubarTab: createMenubarTab,
+    removeMenubarTab: removeMenubarTab,
+    acquirePreview: acquirePreview,
     createPageHeader: createPageHeader,
     notify: notify,
     createSearchBox: createSearchBox,

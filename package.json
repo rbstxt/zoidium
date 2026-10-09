@@ -7,11 +7,12 @@
   "description": "Open-source toolkit for extending Clipmaker Gen3 (CM3)",
   "main": "desktop/main.cjs",
   "engines": {
-    "node": ">=18"
+    "node": ">=22.12.0"
   },
   "scripts": {
     "setup": "node tools/runtime-resources.js --setup",
     "desktop:start": "node tools/start-electron.js",
+    "desktop:dev": "pnpm run desktop:start",
     "web": "node tools/serve-with-resources.js --port=8123",
     "dev": "node tools/serve-with-resources.js --port=8123 --open",
     "build": "pnpm run build:web",
@@ -68,8 +69,8 @@
   },
   "devDependencies": {
     "ajv": "^8.18.0",
-    "electron": "^28.0.0",
-    "electron-builder": "^24.9.1",
+    "electron": "^44.4.3",
+    "electron-builder": "^26.15.3",
     "serve": "^14.2.6",
     "serve-handler": "^6.1.7"
   }

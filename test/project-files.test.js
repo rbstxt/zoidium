@@ -73,6 +73,7 @@ function fileBackedExport(bytes) {
 function createHarness() {
   const events = [];
   let tarCalls = 0;
+  let downloads = 0;
 
   class Archive {
     constructor() {
@@ -130,7 +131,26 @@ function createHarness() {
     dispatchEvent(event) {
       events.push(event);
     },
-    document: {},
+    document: {
+      body: {
+        appendChild() {},
+      },
+      createElement() {
+        return {
+          style: {},
+          click() {
+            downloads += 1;
+          },
+          remove() {},
+        };
+      },
+    },
+    URL: {
+      createObjectURL() {
+        return "blob:test";
+      },
+      revokeObjectURL() {},
+    },
     setTimeout,
   };
   windowObject.window = windowObject;
@@ -177,6 +197,7 @@ function createHarness() {
     makeEditor,
     projectFiles: PZ.zoidium.projectFiles,
     tarCalls: () => tarCalls,
+    downloads: () => downloads,
     windowObject,
   };
 }
@@ -219,6 +240,49 @@ test("rapid saves join one picker, archive, and write operation", async () => {
   assert.equal(await harness.PZ.downloadBlob.text(), "finished video");
 });
 
+test("a user-gesture picker failure falls back to downloading the project", async () => {
+  const harness = createHarness();
+  harness.windowObject.showSaveFilePicker = function () {
+    const error = new Error(
+      "Failed to execute 'showSaveFilePicker' on 'Window': Must be handling a user gesture to show a file picker.",
+    );
+    error.name = "SecurityError";
+    return Promise.reject(error);
+  };
+  const editor = harness.makeEditor();
+
+  const result = await editor.save();
+
+  assert.ok(result);
+  assert.equal(harness.downloads(), 1);
+  assert.equal(editor.project.ui.dirty, false);
+  const saved = harness.events.find((event) => event.type === "zoidium:project-saved");
+  assert.equal(saved.detail.delivery, "download");
+  assert.equal(
+    harness.events.some((event) => event.type === "zoidium:project-error"),
+    false,
+  );
+});
+
+test("project names keep their real value in UI labels", () => {
+  const harness = createHarness();
+
+  assert.equal(harness.projectFiles.displayNameForUi("project"), "project");
+  assert.equal(harness.projectFiles.displayNameForUi("うお"), "うお");
+  assert.equal(
+    harness.projectFiles.displayNameForUi("Project [U+3046 U+304A]"),
+    "うお",
+  );
+  assert.equal(
+    harness.projectFiles.displayNameForUi("Project [U+3046] custom"),
+    "Project [U+3046] custom",
+  );
+  assert.equal(
+    harness.projectFiles.fileNameForProject("うお"),
+    "うお.pz",
+  );
+});
+
 test("an edit made while a save is writing stays dirty", async () => {
   const harness = createHarness();
   const writeGate = deferred();
@@ -251,6 +315,7 @@ test("an edit made while a save is writing stays dirty", async () => {
 test("project construction and tar run inside one coordinated operation", async () => {
   const harness = createHarness();
   const calls = [];
+  let tarInput = null;
   harness.PZ.zoidiumIoSerialization = {
     run(kind, task) {
       calls.push(kind + "-start");
@@ -259,7 +324,8 @@ test("project construction and tar run inside one coordinated operation", async 
         return value;
       });
     },
-    tarWithoutLock() {
+    tarWithoutLock(archive) {
+      tarInput = archive;
       calls.push("tar-with-permit");
       return Promise.resolve(
         new Blob([new Uint8Array([0x1f, 0x8b, 8, 0, 1])]),
@@ -275,6 +341,13 @@ test("project construction and tar run inside one coordinated operation", async 
     "project-save-end",
   ]);
   assert.equal(harness.tarCalls(), 0);
+  assert.ok(tarInput);
+  assert.ok(tarInput.files.every((entry) => entry.data instanceof Blob));
+  const projectEntry = tarInput.files.find((entry) => entry.name === "project");
+  assert.deepEqual(
+    new Uint8Array(await projectEntry.data.arrayBuffer()),
+    new TextEncoder().encode('{"title":"test"}'),
+  );
 });
 
 test("the archive is copied out of the shared workspace file before it is written", async () => {
@@ -330,4 +403,34 @@ test("a project archive that cannot be read back fails the save", async () => {
   const error = harness.events.find((event) => event.type === "zoidium:project-error");
   assert.ok(error, "the save reports a project error");
   assert.match(error.detail.message, /temporary file/);
+});
+
+
+test("project TAR entries reuse stable media Blobs without reading a second full copy", async () => {
+  const harness = createHarness();
+  const media = new Blob(["media bytes"]);
+  let reads = 0;
+  const original = media.arrayBuffer.bind(media);
+  media.arrayBuffer = function () { reads += 1; return original(); };
+  harness.PZ.project.save = function (archive) { archive.addFile("media", media); };
+  let captured;
+  harness.PZ.archive.prototype.tar = function () { captured = this; return Promise.resolve(new Blob(["archive"])); };
+  const result = await harness.projectFiles.createArchive(harness.makeEditor());
+  assert.equal(captured.files.find((entry) => entry.name === "media").data, media);
+  assert.equal(reads, 1, "hashing reads the media once; materialization reuses it");
+  assert.match(result.fingerprint, /^entries-v2:/);
+});
+
+test("archive fingerprints are independent of entry insertion order", async () => {
+  const harness = createHarness();
+  const files = [["b", "second"], ["a", "first"]];
+  const editor = harness.makeEditor();
+  harness.PZ.project.save = (archive) => { for (const [name, text] of files) archive.addFile(name, new Blob([text])); };
+  const first = await harness.projectFiles.createArchive(editor);
+  files.reverse();
+  const second = await harness.projectFiles.createArchive(editor);
+  assert.equal(first.fingerprint, second.fingerprint);
+  files[0][1] = "changed";
+  const third = await harness.projectFiles.createArchive(editor);
+  assert.notEqual(first.fingerprint, third.fingerprint);
 });

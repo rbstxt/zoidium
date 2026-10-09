@@ -120,8 +120,7 @@
       return Promise.resolve(artifactBlob).then(function (blob) {
         if (!isBlobLike(blob)) return false;
         if (downloadArtifact) {
-          downloadArtifact(blob, artifact.filename, artifact.id);
-          return true;
+          return Promise.resolve(downloadArtifact(blob, artifact.filename, artifact.id)).then(function () { return true; });
         }
         if (
           !documentObject ||
@@ -139,15 +138,18 @@
         link.rel = "noopener";
         link.style.display = "none";
         documentObject.body.appendChild(link);
-        link.click();
-        link.remove();
         var setTimer =
           globalObject && typeof globalObject.setTimeout === "function"
             ? globalObject.setTimeout.bind(globalObject)
             : setTimeout;
-        setTimer(function () {
-          urlApi.revokeObjectURL(objectUrl);
-        }, 1000);
+        try {
+          link.click();
+        } finally {
+          link.remove();
+          setTimer(function () {
+            urlApi.revokeObjectURL(objectUrl);
+          }, 60000);
+        }
         return true;
       });
     }
@@ -156,6 +158,7 @@
       if (!button || !artifact || typeof button.addEventListener !== "function") {
         return false;
       }
+      var downloading = false;
       button.addEventListener(
         "click",
         function downloadCapturedArtifact(event) {
@@ -167,11 +170,19 @@
           if (event && typeof event.stopImmediatePropagation === "function") {
             event.stopImmediatePropagation();
           }
-          Promise.resolve(trigger(artifact)).then(
+          if (downloading || button.disabled) return;
+          downloading = true;
+          var wasDisabled = button.disabled;
+          button.disabled = true;
+          Promise.resolve().then(function () { return trigger(artifact); }).then(
             function (started) {
+              downloading = false;
+              button.disabled = wasDisabled;
               if (!started) emitDownloadError(globalObject, artifactError(artifact));
             },
             function (error) {
+              downloading = false;
+              button.disabled = wasDisabled;
               emitDownloadError(globalObject, error);
             },
           );

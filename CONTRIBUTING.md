@@ -6,7 +6,7 @@ the ignored `.zoidium-resources/` cache or a temporary stage.
 
 ## Environment
 
-Use Node.js 18 or newer and pnpm 11. The repository records the package
+Use Node.js 22.12 or newer and pnpm 11. The repository records the package
 manager in `package.json`.
 
 ```bash
@@ -23,6 +23,7 @@ dependency versions change.
 pnpm run setup                 # fetch or refresh the CM3 resource cache
 pnpm run dev                   # serve the staged app and open a browser
 pnpm run desktop:start         # stage CM3 and run the Electron app
+pnpm run desktop:dev           # alias for the Electron development app
 pnpm run verify                # run schema, bundle, syntax, and unit checks
 pnpm run build                 # build the ignored dist/web deployment tree
 pnpm run desktop:build         # fetch CM3 and build the desktop installer

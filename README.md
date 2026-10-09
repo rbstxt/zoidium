@@ -27,7 +27,7 @@ deployment keeps only the generated build output required by that deployment.
 
 ## Quick start
 
-Requirements: Node.js 18+ and pnpm 11.1.2. The repository pins pnpm in
+Requirements: Node.js 22.12+ and pnpm 11.1.2. The repository pins pnpm in
 `package.json`.
 
 ```bash
@@ -37,6 +37,7 @@ pnpm run setup      # download/update the CM3 resource cache
 pnpm run web        # ensures the cache and serves http://127.0.0.1:8123 and http://localhost:8123
 pnpm run dev        # same, then opens the browser
 pnpm run desktop:start # Electron development mode; stages the cached runtime
+pnpm run desktop:dev   # alias for the Electron development app
 pnpm run verify     # check manifests, bundles, syntax, and tests
 ```
 

@@ -28,6 +28,8 @@
   let longTaskObserver = null;
   let childWindowSequence = 0;
   let phase = "pre-init";
+  let emergencyBanner = null;
+  let emergencyMountQueued = false;
 
   const REDACTIONS = [
     [
@@ -52,7 +54,7 @@
     en: {
       section: "Debug information",
       description:
-        "Saves your OS, browser, enabled plugins, and recent crash evidence for a bug report. Crash data survives a reload. Project content is not included; review before sharing.",
+        "Saves your OS, browser, enabled plugins, and recent crash evidence for a bug report. Crash data survives a reload. Project content is not included; review before sharing. Desktop users can use the Debug menu if this panel is unavailable.",
       button: "Download debug log",
       success: "Debug log downloaded",
       failure: "Debug log download failed",
@@ -384,11 +386,19 @@
   }
 
   function recordException(source, error, details = {}) {
+    const normalizedSource = text(source, "unknown");
     record("exception", {
-      source: text(source, "unknown"),
+      source: normalizedSource,
       ...errorDetails(error),
       ...details,
     });
+    if (/^(?:window\.error|unhandledrejection|extension bootstrap|project load|project operation|project plugin activation)$/i.test(normalizedSource)) {
+      try {
+        mountEmergencyControls(normalizedSource, error);
+      } catch (_mountError) {
+        // The emergency UI is optional and must never replace the original error.
+      }
+    }
   }
 
   function recordConsole(level, args, context = mainWindowContext) {
@@ -432,6 +442,84 @@
 
   function copy() {
     return COPY.en;
+  }
+
+  function mountEmergencyControls(source, error) {
+    const documentObject = global.document;
+    if (!documentObject?.createElement) return;
+    const mount = () => {
+      if (
+        emergencyBanner ||
+        !documentObject.body ||
+        documentObject.querySelector?.("[data-zoidium-bootstrap-error]")
+      ) return;
+
+      const banner = documentObject.createElement("section");
+      banner.className = "zoidium-debug-emergency";
+      banner.setAttribute("role", "alert");
+      banner.style.cssText =
+        "position:fixed;z-index:2147483646;right:16px;bottom:16px;max-width:520px;" +
+        "padding:12px 14px;background:#231d1d;color:#f4dddd;border:1px solid #a94b4b;" +
+        "border-radius:4px;box-shadow:0 4px 18px rgba(0,0,0,.45);font:13px/1.45 sans-serif";
+
+      const title = documentObject.createElement("strong");
+      title.textContent = "Zoidium recorded an error";
+      title.style.display = "block";
+      title.style.marginBottom = "4px";
+      banner.appendChild(title);
+
+      const message = documentObject.createElement("div");
+      const details = errorDetails(error);
+      message.textContent = truncate(
+        details.message + " (" + source + "). Download the log and attach it to the report.",
+        500,
+      );
+      banner.appendChild(message);
+
+      const actions = documentObject.createElement("div");
+      actions.style.cssText = "display:flex;gap:8px;margin-top:10px";
+      const downloadButton = documentObject.createElement("button");
+      downloadButton.type = "button";
+      downloadButton.textContent = copy().button;
+      downloadButton.style.cssText =
+        "padding:6px 9px;background:#3a2b2b;color:#ffe4e4;border:1px solid #dca8a8;" +
+        "border-radius:3px;cursor:pointer;font:inherit";
+      downloadButton.addEventListener("click", async () => {
+        downloadButton.disabled = true;
+        downloadButton.textContent = "Preparing debug log...";
+        try {
+          await download();
+          downloadButton.textContent = copy().success;
+        } catch (downloadError) {
+          recordException("debug log download", downloadError);
+          downloadButton.disabled = false;
+          downloadButton.textContent = copy().failure;
+        }
+      });
+      actions.appendChild(downloadButton);
+
+      const dismissButton = documentObject.createElement("button");
+      dismissButton.type = "button";
+      dismissButton.textContent = "Dismiss";
+      dismissButton.style.cssText =
+        "padding:6px 9px;background:transparent;color:#d6bcbc;border:1px solid #765555;" +
+        "border-radius:3px;cursor:pointer;font:inherit";
+      dismissButton.addEventListener("click", () => {
+        banner.remove();
+        emergencyBanner = null;
+      });
+      actions.appendChild(dismissButton);
+      banner.appendChild(actions);
+      documentObject.body.appendChild(banner);
+      emergencyBanner = banner;
+    };
+
+    if (documentObject.body) {
+      mount();
+    } else if (!emergencyMountQueued && documentObject.addEventListener) {
+      emergencyMountQueued = true;
+      documentObject.addEventListener("DOMContentLoaded", mount, { once: true });
+    }
   }
 
   function installWindowErrorListeners(context) {
@@ -1398,6 +1486,16 @@
         phase: redact(detail.phase),
         message: redact(detail.message),
       });
+      if (/^(?:pre-init|post-init)$/.test(String(detail.phase || ""))) {
+        try {
+          mountEmergencyControls(
+            "extension script",
+            new Error(detail.message || "A Zoidium extension script failed to load."),
+          );
+        } catch (_mountError) {
+          // The emergency UI is optional.
+        }
+      }
     });
     global.addEventListener("zoidium:ready", (event) => {
       const failedScripts = event?.detail?.failedScripts || [];
@@ -1432,38 +1530,71 @@
       });
     });
     global.document?.addEventListener("zoidium:project-load-start", (event) => {
+      const detail = event?.detail || {};
       record("project-load-start", {
-        pluginCount: Number.isFinite(event?.detail?.pluginCount)
-          ? event.detail.pluginCount
-          : null,
+        pluginCount: Number.isFinite(detail.pluginCount) ? detail.pluginCount : null,
+        pluginIds: Array.isArray(detail.pluginIds)
+          ? detail.pluginIds.slice(0, 100).map((pluginId) => redact(pluginId))
+          : [],
+        pluginVersions: Array.isArray(detail.pluginVersions)
+          ? detail.pluginVersions.slice(0, 100).map((version) => redact(version))
+          : [],
       });
     });
     global.document?.addEventListener("zoidium:project-load-complete", (event) => {
+      const detail = event?.detail || {};
       record("project-load-complete", {
-        pluginCount: Number.isFinite(event?.detail?.pluginCount)
-          ? event.detail.pluginCount
-          : null,
+        pluginCount: Number.isFinite(detail.pluginCount) ? detail.pluginCount : null,
+        pluginIds: Array.isArray(detail.pluginIds)
+          ? detail.pluginIds.slice(0, 100).map((pluginId) => redact(pluginId))
+          : [],
       });
       checkpointDiagnostics("project-load-complete");
       global.setTimeout(() => checkpointDiagnostics("project-load-settled"), 1000);
     });
     global.document?.addEventListener("zoidium:project-load-error", (event) => {
-      recordException("project load", event?.detail?.error, {
-        pluginCount: Number.isFinite(event?.detail?.pluginCount)
-          ? event.detail.pluginCount
-          : null,
+      const detail = event?.detail || {};
+      recordException("project load", detail.error, {
+        pluginCount: Number.isFinite(detail.pluginCount) ? detail.pluginCount : null,
+        pluginIds: Array.isArray(detail.pluginIds)
+          ? detail.pluginIds.slice(0, 100).map((pluginId) => redact(pluginId))
+          : [],
       });
       checkpointDiagnostics("project-load-error");
     });
-    global.addEventListener("zoidium:project-opened", () => {
-      record("project-opened");
+    global.document?.addEventListener("zoidium:project-plugin-activation-error", (event) => {
+      const detail = event?.detail || {};
+      recordException("project plugin activation", detail.error, {
+        pluginIds: Array.isArray(detail.pluginIds)
+          ? detail.pluginIds.slice(0, 100).map((pluginId) => redact(pluginId))
+          : [],
+      });
+      checkpointDiagnostics("project-plugin-activation-error");
+    });
+    global.addEventListener("zoidium:project-opened", (event) => {
+      const detail = event?.detail || {};
+      record("project-opened", {
+        filename: redact(detail.filename),
+        size: Number.isFinite(detail.size) ? detail.size : null,
+        type: redact(detail.type),
+        lastModified: Number.isFinite(detail.lastModified) ? detail.lastModified : null,
+      });
       checkpointDiagnostics("project-opened");
     });
     global.addEventListener("zoidium:project-error", (event) => {
-      if (event?.detail?.error) {
-        recordException("project operation", event.detail.error);
+      const detail = event?.detail || {};
+      if (detail.error) {
+        recordException("project operation", detail.error, {
+          filename: redact(detail.filename),
+          size: Number.isFinite(detail.size) ? detail.size : null,
+          type: redact(detail.type),
+        });
       } else {
-        record("project-error", { message: redact(event?.detail?.message) });
+        record("project-error", {
+          message: redact(detail.message),
+          filename: redact(detail.filename),
+          size: Number.isFinite(detail.size) ? detail.size : null,
+        });
       }
     });
     sampleHealth();

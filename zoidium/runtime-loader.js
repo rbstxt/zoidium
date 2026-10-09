@@ -98,15 +98,99 @@
     }
   }
 
+  function errorDetails(error) {
+    var details = {
+      name: error && error.name ? String(error.name) : "Error",
+      message: error && error.message ? String(error.message) : String(error),
+    };
+    if (error && error.stack) details.stack = String(error.stack);
+    if (error && error.code != null) details.code = String(error.code);
+    return details;
+  }
+
+  function fallbackDebugDownload(error) {
+    var debugLog = global.ZOIDIUM_DEBUG_LOG;
+    if (debugLog && typeof debugLog.download === "function") {
+      return debugLog.download();
+    }
+
+    var payload = {
+      schemaVersion: 1,
+      product: "Zoidium bootstrap debug log",
+      generatedAt: new Date().toISOString(),
+      phase: "bootstrap-error",
+      error: errorDetails(error),
+      runtime: {
+        userAgent: global.navigator && global.navigator.userAgent
+          ? String(global.navigator.userAgent)
+          : "unknown",
+        platform: global.navigator && global.navigator.platform
+          ? String(global.navigator.platform)
+          : "unknown",
+        location: global.location && global.location.href
+          ? String(global.location.href).replace(/([?&](?:token|csrf|password|secret)=[^&#]*)/gi, "$1[redacted]")
+          : "unknown",
+      },
+    };
+    var contents = JSON.stringify(payload, null, 2) + "\n";
+    var blob = new Blob([contents], { type: "application/json;charset=utf-8" });
+    var url = global.URL.createObjectURL(blob);
+    var link = global.document.createElement("a");
+    var stamp = new Date().toISOString().replace(/[:.]/g, "-");
+    link.href = url;
+    link.download = "zoidium-bootstrap-debug-" + stamp + ".json";
+    link.rel = "noopener";
+    link.style.display = "none";
+    global.document.body.appendChild(link);
+    link.click();
+    link.remove();
+    global.setTimeout(function () {
+      global.URL.revokeObjectURL(url);
+    }, 1000);
+    return Promise.resolve({ filename: link.download, bytes: contents.length });
+  }
+
+  function addFailureActions(box, error) {
+    if (!global.document || !box || typeof box.appendChild !== "function" || !global.document.createElement) return;
+    var actions = global.document.createElement("div");
+    if (!actions || typeof actions.appendChild !== "function") return;
+    actions.style.cssText = "display:flex;gap:8px;align-items:center;margin-top:12px";
+    var button = global.document.createElement("button");
+    if (!button) return;
+    button.type = "button";
+    button.textContent = "Download debug log";
+    button.style.cssText = "padding:7px 10px;border:1px solid #dca8a8;border-radius:3px;" +
+      "background:#3a2020;color:#ffd6d6;font:inherit;cursor:pointer";
+    button.onclick = function () {
+      button.disabled = true;
+      button.textContent = "Preparing debug log...";
+      Promise.resolve()
+        .then(function () { return fallbackDebugDownload(error); })
+        .then(function () {
+          button.textContent = "Debug log downloaded";
+        })
+        .catch(function (downloadError) {
+          console.error("[Zoidium] bootstrap debug log download failed:", downloadError);
+          button.disabled = false;
+          button.textContent = "Download debug log";
+        });
+    };
+    actions.appendChild(button);
+    box.appendChild(actions);
+  }
+
   function showFailure(error) {
     var message = error && error.message ? error.message : String(error);
+    setDebugPhase("bootstrap-error");
     console.error("[Zoidium] extension bootstrap failed:", error);
     var box = document.createElement("pre");
+    if (box.dataset) box.dataset.zoidiumBootstrapError = "true";
     box.textContent = "Zoidium could not start its CM3 extension layer.\n\n" + message;
     box.style.cssText =
       "position:fixed;z-index:2147483647;inset:16px;padding:16px;overflow:auto;" +
       "background:#221b1b;color:#ffd6d6;font:13px/1.5 monospace;white-space:pre-wrap";
-    document.body.appendChild(box);
+    addFailureActions(box, error);
+    if (document.body) document.body.appendChild(box);
     global.dispatchEvent(new CustomEvent("zoidium:extension-load-error", { detail: error }));
   }
 
@@ -134,19 +218,22 @@
     }
   }
 
-  async function loadIsolated(failures, url, phase) {
-    try {
-      if (phase === "stylesheet") {
-        setDebugPhase("loading overlay stylesheet: " + url);
-        await loadStylesheet(resolveAsset(url));
-      } else {
-        setDebugPhase("loading " + phase + " script: " + url);
-        await loadScript(resolveAsset(url), url);
-      }
-      return true;
-    } catch (error) {
-      reportScriptError(failures, url, phase, error);
-      return false;
+  async function loadOrdered(failures, urls, phase) {
+    // Append in declaration order. async=false preserves classic-script
+    // execution order while the browser fetches the scripts concurrently.
+    // Convert failures immediately so a later fast failure cannot reject
+    // unhandled while an earlier request is still pending.
+    var pending = urls.map(function (url) {
+      setDebugPhase("loading " + phase + " file: " + url);
+      return Promise.resolve().then(function () {
+        return phase === "stylesheet" ? loadStylesheet(resolveAsset(url)) :
+          loadScript(resolveAsset(url), url);
+      }).then(function () { return { ok: true }; },
+        function (error) { return { ok: false, error: error }; });
+    });
+    for (var i = 0; i < pending.length; i += 1) {
+      var result = await pending[i];
+      if (!result.ok) reportScriptError(failures, urls[i], phase, result.error);
     }
   }
 
@@ -177,15 +264,8 @@
       );
       exposeActiveEditor(selected.layout, selected.profile);
 
-      var overlayStyles = config.overlayStyles || [];
-      for (var i = 0; i < overlayStyles.length; i += 1) {
-        await loadIsolated(failures, overlayStyles[i], "stylesheet");
-      }
-
-      var preInitScripts = config.preInitScripts || [];
-      for (var j = 0; j < preInitScripts.length; j += 1) {
-        await loadIsolated(failures, preInitScripts[j], "pre-init");
-      }
+      await loadOrdered(failures, config.overlayStyles || [], "stylesheet");
+      await loadOrdered(failures, config.preInitScripts || [], "pre-init");
 
       setDebugPhase("initializing " + (selected.profile.label || "editor"));
       if (typeof global.initTool !== "function") {
@@ -194,10 +274,13 @@
       await global.initTool();
 
       var postInitScripts = config.postInitScripts || [];
+      var isolated = [];
       for (var k = 0; k < postInitScripts.length; k += 1) {
         // The UI kit is required by every later panel: a missing kit would
         // only cascade into follow-up failures, so it stays fatal here.
         if (isUiKitScript(postInitScripts[k])) {
+          await loadOrdered(failures, isolated, "post-init");
+          isolated = [];
           setDebugPhase("loading post-init script: " + postInitScripts[k]);
           try {
             await loadScript(resolveAsset(postInitScripts[k]), postInitScripts[k]);
@@ -207,9 +290,10 @@
           }
           continue;
         }
-        await loadIsolated(failures, postInitScripts[k], "post-init");
+        isolated.push(postInitScripts[k]);
       }
 
+      await loadOrdered(failures, isolated, "post-init");
       dispatchReady(failures);
     } catch (error) {
       showFailure(error);

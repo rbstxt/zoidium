@@ -27,7 +27,7 @@ Settingsで選択したローカルまたはシステムのフォントを使い
 
 ## クイックスタート
 
-前提: Node.js 18+ と pnpm 11.1.2。リポジトリの`package.json`でpnpmのバージョンを固定しています。
+前提: Node.js 22.12+ と pnpm 11.1.2。リポジトリの`package.json`でpnpmのバージョンを固定しています。
 
 ```bash
 corepack enable
@@ -36,6 +36,7 @@ pnpm run setup     # CM3リソースキャッシュを取得・更新
 pnpm run web       # キャッシュを準備して http://127.0.0.1:8123 と http://localhost:8123 で配信
 pnpm run dev       # 同じ処理を行い、ブラウザも開く
 pnpm run desktop:start # CM3をステージしてElectronを起動
+pnpm run desktop:dev # Electron開発アプリの起動（desktop:startの別名）
 pnpm run verify    # マニフェスト、バンドル、構文、テストを確認
 ```
 

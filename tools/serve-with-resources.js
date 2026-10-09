@@ -105,6 +105,9 @@ function openBrowser(url) {
       : "xdg-open";
   const args = process.platform === "win32" ? ["/c", "start", "", url] : [url];
   const child = spawn(command, args, { detached: true, stdio: "ignore" });
+  child.once("error", (error) => {
+    console.warn(`[Zoidium] could not open the browser: ${error.message}`);
+  });
   child.unref();
 }
 
@@ -136,12 +139,19 @@ function close(server) {
 
 async function listenOnPort(listeners, port) {
   const bound = [];
+  let assignedPort = port;
   try {
     for (const { server, host } of listeners) {
-      await listen(server, port, host);
-      bound.push(server);
+      try {
+        assignedPort = await listen(server, assignedPort, host);
+        bound.push(server);
+      } catch (error) {
+        if (host === "::1" && error && ["EADDRNOTAVAIL", "EAFNOSUPPORT"].includes(error.code)) continue;
+        throw error;
+      }
     }
-    return port;
+    if (!bound.length) throw new Error("No local loopback address is available");
+    return assignedPort;
   } catch (error) {
     await Promise.all(bound.map((server) => close(server)));
     throw error;
@@ -149,13 +159,12 @@ async function listenOnPort(listeners, port) {
 }
 
 async function listenOnAvailablePort(listeners, preferredPort, attempts = portFallbackAttempts) {
-  const lastPort = Math.min(preferredPort + attempts, 65535);
-  for (let port = preferredPort; ; port += 1) {
+  for (let attempt = 0; ; attempt += 1) {
+    const port = preferredPort === 0 ? 0 : preferredPort + attempt;
     try {
       return await listenOnPort(listeners, port);
     } catch (error) {
-      const canFallForward = error && error.code === "EADDRINUSE" && port < lastPort;
-      if (!canFallForward) throw error;
+      if (!error || error.code !== "EADDRINUSE" || attempt >= attempts || port >= 65535) throw error;
     }
   }
 }
@@ -228,7 +237,7 @@ async function main() {
 
   try {
     const port = await listenOnAvailablePort(listeners, options.port);
-    if (port !== options.port) {
+    if (options.port !== 0 && port !== options.port) {
       console.log(`[Zoidium] port ${options.port} is already in use; using ${port}`);
     }
     const url = `http://127.0.0.1:${port}`;

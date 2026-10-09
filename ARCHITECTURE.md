@@ -44,6 +44,12 @@ opens it in Electron. The stable origin keeps localStorage available across
 restarts. The build stage contains the fetched CM3 graph, so the packaged
 application does not fetch CM3 again at launch.
 
+The Electron main process writes a bounded JSON Lines diagnostic log to
+`app.getPath("logs")/zoidium-main.log`. On macOS this is normally inside
+`~/Library/Logs/Zoidium/`. Native Electron crash dumps are collected locally
+with uploads disabled. The Debug application menu can open the log directory
+or request the renderer's downloadable debug log.
+
 `tools/build-web.js` copies the cached stage to `dist/web/`. The repository root
 is not a deployment directory because its `index.html` is only a placeholder.
 
