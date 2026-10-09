@@ -3,7 +3,7 @@
   "id": "core",
   "name": "Zoidium Core",
   "author": "Zoidium",
-  "version": "13",
+  "version": "14",
   "kind": "core",
   "visibility": "hidden",
   "alwaysEnabled": true,
@@ -103,6 +103,11 @@
     {
       "id": "remove-ad-panel",
       "source": "./plugins/core/remove-ad-panel.js",
+      "phase": "pre-init"
+    },
+    {
+      "id": "layer-unload-dispose",
+      "source": "./plugins/core/layer-unload-dispose.js",
       "phase": "pre-init"
     },
     {
