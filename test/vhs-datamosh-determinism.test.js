@@ -124,7 +124,7 @@ function createSandbox({ adjustmentLayer = true } = {}) {
   const sandbox = {
     console,
     PZ: {
-      property: { type: { NUMBER: 0, VECTOR2: 1, OPTION: 9, TEXT: 15 } },
+      property: { type: { NUMBER: 0, VECTOR2: 1, OPTION: 9, LIST: 10, TEXT: 15 } },
       expression: function Expression(source) {
         this.source = source;
       },
@@ -315,7 +315,7 @@ function setProperties(effect, values) {
 
 test("datamosh: keyframe frames pass the source through with no samples", () => {
   const effect = createDatamosh();
-  setProperties(effect, { interval: 30, samples: 6 });
+  setProperties(effect, { algorithm: 0, interval: 30, samples: 6 });
   const draws = renderFrame(effect, 60);
   assert.equal(draws.length, 1, "only the warp pass runs");
   assert.equal(draws[0].program, "materialWarp");
@@ -324,7 +324,7 @@ test("datamosh: keyframe frames pass the source through with no samples", () => 
 
 test("datamosh: request windows stay inside the segment and within the sample cap", () => {
   const effect = createDatamosh();
-  setProperties(effect, { interval: 30, samples: 6 });
+  setProperties(effect, { algorithm: 0, interval: 30, samples: 6 });
   for (let t = 0; t < 200; t += 1) {
     const request = effect._zoidiumFrameSampler.getRequest(effect, t);
     const segmentStart = Math.floor(t / 30) * 30;
@@ -346,14 +346,18 @@ test("datamosh: request windows stay inside the segment and within the sample ca
 });
 
 test("datamosh: same frame renders identically regardless of render history", () => {
-  const fresh = renderFrame(createDatamosh(), 40);
+  const initial = createDatamosh();
+  setProperties(initial, { algorithm: 0 });
+  const fresh = renderFrame(initial, 40);
   assert.ok(fresh.length > 1, "the segment frame runs motion passes");
 
   const used = createDatamosh();
+  setProperties(used, { algorithm: 0 });
   for (const frame of [3, 17, 41, 39, 12, 99]) renderFrame(used, frame);
   assert.deepEqual(renderFrame(used, 40), fresh);
 
   const reversed = createDatamosh();
+  setProperties(reversed, { algorithm: 0 });
   for (let frame = 80; frame >= 40; frame -= 1) renderFrame(reversed, frame);
   assert.deepEqual(renderFrame(reversed, 40), fresh);
 });
@@ -372,7 +376,7 @@ test("datamosh: no pass reads a texture it did not write in the same call", () =
   }
 });
 
-test("datamosh: without an Adjustment layer the frame passes through", () => {
+test("datamosh: an unavailable sampler falls back to the current frame", () => {
   const effect = createDatamosh({ adjustmentLayer: false });
   const draws = renderFrame(effect, 45);
   assert.equal(draws.length, 1);
@@ -413,7 +417,7 @@ test("datamosh: motion-mode indexes stay within the nine modes", () => {
 
 test("datamosh: all donor looks are available and skip unnecessary motion search", () => {
   const effect = createDatamosh();
-  assert.equal(effect.properties.algorithm.definition.items.split(";").length, 81);
+  assert.equal(effect.properties.algorithm.definition.items.length, 81);
   for (let look = 1; look <= 80; look += 1) {
     setProperties(effect, { algorithm: look, hold: 0.35, speed: 2 });
     const first = renderFrame(effect, 47);
@@ -482,7 +486,20 @@ test("vhs: trails average source frames, never the previous output", () => {
   assert.equal(signal.uniforms.tPrev, "trailTargets[" + ((sampled.length - 1) % 2) + "].texture");
 });
 
-test("vhs: without an Adjustment layer the signal renders with no trail", () => {
+test("vhs: clip-sized inputs retain their active pixel size through the signal and trail passes", () => {
+  const effect = createVhs();
+  effect.pass.uniforms.uvScale.value.set(0.5, 0.25);
+  const draws = renderFrame(effect, 30, { width: 128, height: 192 });
+  const signal = draws.find(draw => draw.program === "materialSignal");
+  assert.deepEqual(signal.uniforms.resolution, [64, 48]);
+  assert.deepEqual(signal.uniforms.uvScale, [0.5, 0.25]);
+  assert.ok(draws.filter(draw => draw.program === "materialAccumulate")
+    .every(draw => draw.uniforms.uvScale[0] === 0.5 && draw.uniforms.uvScale[1] === 0.25));
+  assert.match(effect.pass.materialAccumulate.fragmentShader, /texture2D\(tBase, vUv \* uvScale\)/);
+  assert.match(effect.pass.materialSignal.fragmentShader, /texture2D\(tPrev,.*\* uvScale\)/);
+});
+
+test("vhs: an unavailable sampler still renders the signal without a trail", () => {
   const effect = createVhs({ adjustmentLayer: false });
   const draws = renderFrame(effect, 30);
   assert.deepEqual(draws.map((draw) => draw.program), ["materialSignal", "materialTube"]);
@@ -498,15 +515,10 @@ test("vhs: no pass reads a texture it did not write in the same call", () => {
 });
 
 test("vhs: stateless signal still changes with time", () => {
-  // The real "time" property is an expression tied to the playhead. The mock
-  // stores a plain value, so set it per frame the way playback would.
   const effect = createVhs({ adjustmentLayer: false });
-  effect.properties.time.set(10 / 30);
   const a = renderFrame(effect, 10)[0].uniforms.time;
-  effect.properties.time.set(11 / 30);
   const b = renderFrame(effect, 11)[0].uniforms.time;
   assert.notEqual(a, b);
-  effect.properties.time.set(10 / 30);
   assert.equal(renderFrame(effect, 10)[0].uniforms.time, a, "same time, same uniform");
 });
 
@@ -573,4 +585,72 @@ test("datamosh: analytic donor looks request only their segment anchor", () => {
   const request = effect._zoidiumFrameSampler.getRequest(effect, 47);
   assert.equal(request.count, 1);
   assert.equal(request.offsetFrames, -17);
+});
+
+test("new temporal damage effects use clip-local seconds and a numeric offset", () => {
+  for (const make of [createDatamosh, createVhs]) {
+    const effect = make();
+    effect.parentProject = { sequence: { properties: { rate: { get: () => 24 } } } };
+    assert.equal(effect.properties.time.definition.name, "Time Offset");
+    assert.equal(effect.properties.time.definition.value, 0);
+    effect.properties.time.set(0.5);
+    effect.update(48);
+    const uniforms = effect.pass.warpUniforms || effect.pass.signalUniforms;
+    assert.equal(uniforms.time.value, 2.5);
+    effect.update(24);
+    assert.equal(uniforms.time.value, 1.5);
+    effect.update(48);
+    assert.equal(uniforms.time.value, 2.5);
+  }
+});
+
+test("saved explicit clocks remain absolute and save their compatibility mode", () => {
+  for (const make of [createDatamosh, createVhs]) {
+    const effect = make();
+    effect.load({ properties: { time: { value: 7, animated: true, expression: "time * 2" } } });
+    effect.update(48);
+    const uniforms = effect.pass.warpUniforms || effect.pass.signalUniforms;
+    assert.equal(uniforms.time.value, 7);
+    assert.equal(effect.properties.timeMode.get(), 0);
+    effect.load({ properties: { time: 7, timeMode: 0 } });
+    effect.update(90);
+    assert.equal((effect.pass.warpUniforms || effect.pass.signalUniforms).time.value, 7);
+  }
+});
+
+test("old default time expressions become offsets and new Datamosh defaults keep the donor intent", () => {
+  for (const make of [createDatamosh, createVhs]) {
+    const effect = make();
+    effect.load({ properties: { time: { animated: true, expression: "time", keyframes: [] } } });
+    assert.equal(effect.properties.time.get(), 0);
+    assert.equal(effect.properties.time.expression, null);
+    effect.update(60);
+    assert.equal((effect.pass.warpUniforms || effect.pass.signalUniforms).time.value, 2);
+  }
+  const effect = createDatamosh();
+  assert.equal(effect.properties.algorithm.get(), 12);
+  assert.equal(effect.properties.hold.get(), 0.15);
+  assert.equal(effect.properties.samples.get(), 4);
+  const options = effect.properties.algorithm.definition.items;
+  assert.equal(options.find(o => o.value === 12).name, "Random");
+  assert.equal(new Set(options.map(o => o.value)).size, 81);
+  assert.deepEqual([...new Set(options.map(o => o.group))], ["", "Motion", "Multiply", "Wave", "Random", "Average", "Mirror", "Sweep"]);
+  assert.equal(createVhs().properties.persistence.definition.max, 1);
+});
+
+test("legacy expression-only clocks gain a numeric keyframe when their expression is removed", () => {
+  for (const type of ["datamosh", "vhs"]) {
+    const sandbox = createSandbox();
+    sandbox.PZ.keyframe = class { constructor(value, frame) { Object.assign(this, { value, frame }); } };
+    const effect = instantiate(sandbox, "plugins/openzoid-legacy/effects/" + type + ".js", type);
+    effect.properties.time.keyframes = [];
+    effect.load({ properties: { time: { expression: "time", animated: true, keyframes: [] } } });
+    assert.equal(effect.properties.time.keyframes.length, 1);
+    assert.equal(effect.properties.time.keyframes[0].value, 0);
+    effect.update(30);
+    assert.equal((effect.pass.warpUniforms || effect.pass.signalUniforms).time.value, 1);
+    effect.load({ properties: { time: { expression: "time", animated: true,
+      keyframes: [{ value: 7, frame: 10 }] } } });
+    assert.equal(effect.properties.timeMode.get(), 0, "custom saved animation is preserved");
+  }
 });

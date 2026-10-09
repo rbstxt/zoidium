@@ -30,7 +30,7 @@ const SECTIONS = [
   { title: "Motion", keys: ["algorithm", "motion", "intensity", "acceleration", "blockSize", "threshold", "blend"] },
 ];
 
-const SETUP_NOTE = "Datamosh reads earlier frames, so it needs an Adjustment layer. Elsewhere the frame passes through unchanged.";
+const SETUP_NOTE = "Datamosh reads earlier clip frames. On an Adjustment layer it samples the composite below it.";
 
 function sameValue(a, b) {
   return Math.abs(Number(a) - Number(b)) < 1e-9;
@@ -38,7 +38,7 @@ function sameValue(a, b) {
 
 function hostsFrameSampling(PZ, effect) {
   try {
-    const adjustment = PZ.layer && PZ.layer.adjustment;
+    const adjustment = PZ.layer;
     return Boolean(adjustment && effect.tryGetParentOfType && effect.tryGetParentOfType(adjustment));
   } catch (_error) {
     return false;
@@ -101,6 +101,7 @@ module.exports = {
     }
 
     function buildWindow(body, effect) {
+      body.style.flexBasis = "0px";
       const props = effect.properties;
       const rows = [];
       let presetControl = null;
@@ -180,15 +181,16 @@ module.exports = {
       // Motion mode is an option stored as its index in the item list.
       function motionFor(key) {
         const property = props[key];
-        const items = String(property.definition.items || "").split(";");
+        const rawItems = property.definition.items || "";
+        const items = Array.isArray(rawItems) ? rawItems : String(rawItems).split(";");
         const grouped = items.length > 20;
         const control = controls.select({
           label: property.definition.name || key,
           value: String(valueOf(key)),
           options: items.map((label, index) => ({
-            value: String(index),
-            label: label,
-            group: grouped ? lookGroup(label, index) : "",
+            value: String(typeof label === "object" ? label.value : index),
+            label: typeof label === "object" ? label.name : label,
+            group: typeof label === "object" ? label.group : grouped ? lookGroup(label, index) : "",
           })),
           onChange(value) {
             recordChanges([{ property: property, value: Number(value), previous: valueOf(key) }]);
@@ -223,12 +225,12 @@ module.exports = {
         if (spec.seedButton) {
           section.body.appendChild(controls.buttonRow([{
             title: "New Seed",
-            hint: "Store a new random seed for the block pattern",
+            hint: "Store a new seed for the block pattern",
             onClick() {
-              // The random draw happens once, on this click, and is stored.
+              // Advance the stored seed once per click; playback never changes it.
               recordChanges([{
                 property: props.seed,
-                value: Math.floor(Math.random() * 10000),
+                value: ((Math.round(valueOf("seed")) || 0) + 7919) % 10000,
                 previous: valueOf("seed"),
               }]);
               refresh();
@@ -256,9 +258,9 @@ module.exports = {
         id: id,
         title: "Datamosh Setup",
         subtitle: "Segment motion",
-        persistKey: "datamosh-setup",
-        width: 340,
-        height: 560,
+        persistKey: "datamosh-setup-v2",
+        width: 420,
+        height: 780,
         minHeight: 240,
         mount(body) {
           return buildWindow(body, effect);

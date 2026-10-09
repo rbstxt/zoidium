@@ -1,7 +1,36 @@
 // OpenZoid Legacy — Jpeg Damage.
-// Ported from the OpenZoid effect/jpegdamage.js implementation. The output is a
-// pure function of the input pixels, the properties and the explicit Time
-// property: the error pattern is hashed from block coordinates, Rand Seed and
+// Ported from the OpenZoid effect/jpegdamage.js implementation.
+// New effects use a clip-local clock plus an offset. Older explicit clocks
+// retain their absolute value, including custom expressions and keyframes.
+function effectTime(effect, frame) {
+    const props = effect.properties;
+    const rate = Number(effect.parentProject?.sequence?.properties?.rate?.get?.()) || 30;
+    const value = Number(props.time.get(frame));
+    const clock = Number.isFinite(value) ? value : 0;
+    return props.timeMode.get() === 0 ? clock : Number(frame || 0) / rate + clock;
+}
+
+function loadEffectTime(effect, saved) {
+    if (!saved || saved.time === undefined || saved.timeMode !== undefined) return;
+    const entry = saved.time;
+    const expression = entry && entry.expression;
+    const source = typeof expression === "string" ? expression : expression?.source;
+    const customKeys = Array.isArray(entry?.keyframes) && entry.keyframes.some((key) =>
+        Number(key.value || 0) !== 0 || Number(key.frame || 0) !== 0);
+    if (source?.trim() === "time" && !customKeys) {
+        const property = effect.properties.time;
+        property.expression = null;
+        property.animated = false;
+        // The donor expression default serialized an empty keyframe list.
+        if (property.keyframes?.length === 0) property.keyframes.push(new PZ.keyframe(0, 0));
+        property.set(0, 0);
+    } else {
+        effect.properties.timeMode.set(0);
+    }
+}
+
+// Output depends on input pixels, properties and clip-local time.
+// The error pattern is hashed from block coordinates, Rand Seed and
 // the Jitter Frames bucket of Time. Nothing is carried between renders.
 // The fragment shader comes from this plugin's bundle. The vertex shader is the
 // host's shared vertex asset, resolved through the asset pipeline.
@@ -30,15 +59,10 @@ this.propertyDefinitions = {
         value: 1,
         items: "off;on",
     },
+    timeMode: { visible: false, name: "Time mode", type: PZ.property.type.NUMBER, value: 1 },
     time: {
-        dynamic: true,
-        name: "Time",
-        type: PZ.property.type.NUMBER,
-        value: (e) => {
-            e.animated = true;
-            e.expression = new PZ.expression("time");
-        },
-        step: 0.01,
+        dynamic: true, name: "Time Offset", type: PZ.property.type.NUMBER,
+        value: 0, step: 0.01, decimals: 2,
     },
     amount: jpegNum("Amount", 1, 0, 1, 0.01, 2),
     quality: jpegNum("Quality", 0.1, 0.01, 1, 0.01, 2),
@@ -145,6 +169,7 @@ async function jpegBuildPass(effect, data, generation) {
     effect.pass = jpegPipeline(material);
     effect.resize();
     effect.properties.load(data && data.properties);
+    loadEffectTime(effect, data && data.properties);
 }
 
 
@@ -339,9 +364,7 @@ this.update = function (e) {
     if (!this.pass) {
         return;
     }
-    let rawT = this.properties.time.get(e);
-    let t = Number(rawT);
-    if (!isFinite(t)) t = 0;
+    let t = effectTime(this, e);
     let u = this.pass.uniforms;
     u.time.value = t;
     u.amount.value = jpegClamp01(this.properties.amount.get(e));
