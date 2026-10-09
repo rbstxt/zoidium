@@ -208,7 +208,7 @@ test("jpeg damage no longer carries a copy of the host vertex shader", () => {
 
 test("manifest declares only existing sources and stable effect ids", () => {
   const manifest = JSON.parse(read("manifest.json"));
-  assert.equal(manifest.version, "11");
+  assert.equal(manifest.version, "12");
   assert.deepEqual(
     manifest.nativeEffects.map((e) => e.id),
     ["echo-legacy", "posterizetime-legacy", "jpegdamage", "vhs", "datamosh", "tracery", "ascii"]

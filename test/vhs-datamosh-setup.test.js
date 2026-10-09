@@ -79,13 +79,21 @@ function loadModule(relative) {
   return module.exports;
 }
 
+// The property control is a flex row holding the setup button.
+function setupButton(control) {
+  return control.children.length ? control.children[0] : control;
+}
+
 function fakeElement() {
   const element = {
     style: {},
     className: "",
     classList: { add() {} },
     listeners: {},
-    appendChild() {},
+    children: [],
+    appendChild(child) {
+      element.children.push(child);
+    },
     addEventListener(type, handler) {
       element.listeners[type] = handler;
     },
@@ -203,7 +211,7 @@ function openFromButton(harness, registrationId, effect) {
   const spec = harness.registrations[registrationId];
   assert.ok(spec, `${registrationId} registered`);
   const property = { parentObject: effect, definition: {} };
-  const button = spec.create(property);
+  const button = setupButton(spec.create(property));
   button.listeners.click({ preventDefault() {}, stopPropagation() {} });
   assert.equal(harness.windows.length, 1, "the button opens exactly one window");
   return harness.windows[0];
@@ -326,7 +334,7 @@ test("vhs: closing the window clears its timer and the plugin removes the button
 test("vhs: a button on an unrelated effect is disabled", () => {
   const h = setupHarness("vhs-setup.js", "openzoid-legacy.vhs-setup", "effects/vhs.js", "vhs");
   const spec = h.registrations["openzoid-legacy.vhs-setup"];
-  const button = spec.create({ parentObject: { type: "echo-legacy", properties: {} } });
+  const button = setupButton(spec.create({ parentObject: { type: "echo-legacy", properties: {} } }));
   assert.equal(button.disabled, true);
 });
 

@@ -3,7 +3,7 @@
   "id": "openzoid-legacy",
   "name": "OpenZoid Legacy",
   "author": "DaviFX",
-  "version": "11",
+  "version": "12",
   "kind": "native-fx",
   "description": "OpenZoid effects ported to Zoidium's deterministic render path: Echo (Legacy) and Posterize Time (Legacy) on the core temporal APIs, Jpeg Damage, VHS and Datamosh, Tracery tracking callouts and ASCII character cells, with floating setup windows.",
   "category": "SETUP LEGACY",
@@ -12,7 +12,7 @@
       "id": "echo-legacy",
       "name": "Echo (Legacy)",
       "description": "Smear, maximum, additive and screen echoes of earlier frames, sampled through the core frame sampler (up to 16 echoes).",
-      "source": "./plugins/openzoid-legacy/effects/echo-legacy.js?v=11",
+      "source": "./plugins/openzoid-legacy/effects/echo-legacy.js?v=12",
       "requiresApis": [
         "defineFrameSampler"
       ]
@@ -21,19 +21,19 @@
       "id": "posterizetime-legacy",
       "name": "Posterize Time (Legacy)",
       "description": "Frame-rate quantizer in the Posterize Time style, applied as a deterministic core time operator.",
-      "source": "./plugins/openzoid-legacy/effects/posterizetime-legacy.js?v=11"
+      "source": "./plugins/openzoid-legacy/effects/posterizetime-legacy.js?v=12"
     },
     {
       "id": "jpegdamage",
       "name": "Jpeg Damage",
       "description": "JPEG compression-break simulation with frequency and error controls, driven by clip-local time with an optional offset.",
-      "source": "./plugins/openzoid-legacy/effects/jpegdamage.js?v=11"
+      "source": "./plugins/openzoid-legacy/effects/jpegdamage.js?v=12"
     },
     {
       "id": "vhs",
       "name": "VHS",
       "description": "Signal-chain rebuild: tape, noise, tracking and chroma distortions, plus persistence averaged from sampled clip frames or the composite below an Adjustment layer. Setup window included.",
-      "source": "./plugins/openzoid-legacy/effects/vhs.js?v=11",
+      "source": "./plugins/openzoid-legacy/effects/vhs.js?v=12",
       "requiresApis": [
         "defineFrameSampler"
       ]
@@ -42,7 +42,7 @@
       "id": "datamosh",
       "name": "Datamosh",
       "description": "Deterministic datamosh: keyframe-interval segments with motion warped from a bounded set of sampled source frames. Setup window included.",
-      "source": "./plugins/openzoid-legacy/effects/datamosh.js?v=11",
+      "source": "./plugins/openzoid-legacy/effects/datamosh.js?v=12",
       "requiresApis": [
         "defineFrameSampler"
       ]
@@ -51,39 +51,39 @@
       "id": "tracery",
       "name": "Tracery",
       "description": "Tracking callouts: boxes, markers, spline connection lines, arrows, labels, grid and key detection.",
-      "source": "./plugins/openzoid-legacy/effects/tracery.js?v=11"
+      "source": "./plugins/openzoid-legacy/effects/tracery.js?v=12"
     },
     {
       "id": "ascii",
       "name": "ASCII",
       "description": "Character-cell video: resampled glyph grid with band mapping, color modes, waves, noise, and scroll.",
-      "source": "./plugins/openzoid-legacy/effects/ascii.js?v=11"
+      "source": "./plugins/openzoid-legacy/effects/ascii.js?v=12"
     }
   ],
   "modules": [
     {
       "id": "vhs-setup",
-      "source": "./plugins/openzoid-legacy/vhs-setup.js?v=11"
+      "source": "./plugins/openzoid-legacy/vhs-setup.js?v=12"
     },
     {
       "id": "datamosh-setup",
-      "source": "./plugins/openzoid-legacy/datamosh-setup.js?v=11"
+      "source": "./plugins/openzoid-legacy/datamosh-setup.js?v=12"
     },
     {
       "id": "effect-windows",
-      "source": "./plugins/openzoid-legacy/effect-windows.js?v=11"
+      "source": "./plugins/openzoid-legacy/effect-windows.js?v=12"
     }
   ],
   "resources": [
     {
       "id": "echo-shader",
       "type": "text",
-      "source": "./plugins/openzoid-legacy/shaders/fx_echo.glsl?v=11"
+      "source": "./plugins/openzoid-legacy/shaders/fx_echo.glsl?v=12"
     },
     {
       "id": "jpegdamage-shader",
       "type": "text",
-      "source": "./plugins/openzoid-legacy/shaders/fx_jpegdamage.glsl?v=11"
+      "source": "./plugins/openzoid-legacy/shaders/fx_jpegdamage.glsl?v=12"
     }
   ]
 }

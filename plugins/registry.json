@@ -301,15 +301,15 @@
       "category": "adjustment",
       "name": "OpenZoid Legacy",
       "author": "DaviFX",
-      "version": "11",
+      "version": "12",
       "itemCount": 12,
       "format": "native effects",
       "tagline": "Echo, Posterize Time, JPEG, VHS, Datamosh, Tracery",
       "color": "#8f6bc5",
       "description": "OpenZoid effects on Zoidium deterministic rendering: Echo and Posterize Time (Legacy), Jpeg Damage, VHS, Datamosh, Tracery and ASCII, with floating setup windows.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/openzoid-legacy/manifest.json?v=11",
-      "bundle": "./plugins/openzoid-legacy/bundle.json?v=11"
+      "manifest": "./plugins/openzoid-legacy/manifest.json?v=12",
+      "bundle": "./plugins/openzoid-legacy/bundle.json?v=12"
     },
     {
       "id": "magic-looks",
