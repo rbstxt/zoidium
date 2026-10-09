@@ -808,6 +808,28 @@ function insertBeforeFirst(html, pattern, content, label) {
   return `${html.slice(0, match.index)}${content}\n${html.slice(match.index)}`;
 }
 
+// The staged page has no favicon file of its own. An empty data: icon stops
+// the browser requesting /favicon.ico (and logging a 404) without shipping any
+// CM3 icon. It is added only when the source page declares no icon link.
+const FAVICON_PLACEHOLDER = '<link rel="icon" href="data:,">';
+
+function hasIconLink(html) {
+  for (const match of String(html).matchAll(/<link\b[^>]*>/gi)) {
+    const rel = /\srel\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i.exec(match[0]);
+    if (!rel) continue;
+    const tokens = String(rel[1] ?? rel[2] ?? rel[3] ?? "").toLowerCase().split(/\s+/);
+    if (tokens.includes("icon")) return true;
+  }
+  return false;
+}
+
+function insertFaviconPlaceholder(html) {
+  if (/<\/head>/i.test(html)) {
+    return html.replace(/<\/head>/i, `${FAVICON_PLACEHOLDER}\n</head>`);
+  }
+  return insertBeforeFirst(html, /<script\b/i, FAVICON_PLACEHOLDER, "head");
+}
+
 function patchIndexHtml(sourceHtml) {
   let html = String(sourceHtml);
   const originalHtml = html;
@@ -850,6 +872,8 @@ function patchIndexHtml(sourceHtml) {
   }
   editorPattern.lastIndex = 0;
   html = html.replace(editorPattern, loaderTag);
+
+  if (!hasIconLink(originalHtml)) html = insertFaviconPlaceholder(html);
 
   if (html === originalHtml) throw new Error("CM3 source page patch made no changes");
   return html;

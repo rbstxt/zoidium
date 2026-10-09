@@ -365,13 +365,13 @@ textarea.zoidium-text {
   border-bottom: 1px solid #242424;
 }
 
+/* Buttons size to their labels and wrap onto the next line when the row is
+   narrow. Labels are never truncated with an ellipsis. */
 .zoidium-button-row .zoidium-button {
-  flex: 1 1 72px;
-  min-width: 0;
-  padding: 5px 4px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  flex: 1 1 auto;
+  min-width: min-content;
+  padding: 5px 8px;
+  white-space: normal;
 }
 
 /* Sections, tabs, lists ---------------------------------------------- */

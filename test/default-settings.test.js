@@ -85,7 +85,7 @@ test("new projects use the stored default frame rate", () => {
   assert.equal(editor.createdRate, 120);
 });
 
-test("new particles use reset defaults and only the time expression", () => {
+test("new particles use emitter defaults and only the time expression", () => {
   class Property {}
   class DynamicGroup extends Property {}
   class DynamicKeyframes extends Property {}
@@ -95,7 +95,7 @@ test("new particles use reset defaults and only the time expression", () => {
       color: { definition: { value: [{ position: 0, color: "white" }] } },
       position: new DynamicGroup(),
       time: new DynamicKeyframes(),
-      number: new DynamicKeyframes(),
+      number: { definition: { value: 0 } },
     };
     this.properties.position.definition = { objects: [] };
     this.properties.position.objects = [
@@ -106,8 +106,6 @@ test("new particles use reset defaults and only the time expression", () => {
     ];
     this.properties.time.definition = { value: 0 };
     this.properties.time.defaultTween = 1;
-    this.properties.number.definition = { value: 0 };
-    this.properties.number.defaultTween = 1;
   }
   Particle.prototype.load = function (data) {
     this.loadedData = data;
@@ -127,7 +125,8 @@ test("new particles use reset defaults and only the time expression", () => {
   particle.load();
 
   assert.deepEqual(JSON.parse(JSON.stringify(particle.loadedData.properties.color)), [
-    { position: 0, color: "white" },
+    { position: 0, color: "rgba(255,255,255,1)" },
+    { position: 1, color: "rgba(255,255,255,0)" },
   ]);
   assert.deepEqual(
     JSON.parse(JSON.stringify(particle.loadedData.properties.position.objects[0].keyframes)),
@@ -135,9 +134,7 @@ test("new particles use reset defaults and only the time expression", () => {
     { frame: 0, value: [1, 2, 3], tween: 1 },
     ],
   );
-  assert.deepEqual(JSON.parse(JSON.stringify(particle.loadedData.properties.number.keyframes)), [
-    { frame: 0, value: 0, tween: 1 },
-  ]);
+  assert.equal(particle.loadedData.properties.number, 400);
   assert.deepEqual(JSON.parse(JSON.stringify(particle.loadedData.properties.time)), {
     animated: true,
     expression: "time",

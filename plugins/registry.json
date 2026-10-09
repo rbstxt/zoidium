@@ -26,13 +26,13 @@
       "id": "core",
       "name": "Zoidium Core",
       "author": "Zoidium",
-      "version": "14",
+      "version": "15",
       "visibility": "hidden",
       "alwaysEnabled": true,
       "tagline": "Built-in core extensions",
       "description": "Hidden built-in extensions that always run. Not shown in the Plugins panel and never stored in projects.",
-      "manifest": "./plugins/core/manifest.json?v=14",
-      "bundle": "./plugins/core/bundle.json?v=14"
+      "manifest": "./plugins/core/manifest.json?v=15",
+      "bundle": "./plugins/core/bundle.json?v=15"
     },
     {
       "id": "easing-plus",
@@ -68,15 +68,15 @@
       "category": "utilities",
       "name": "Precomp+",
       "author": "DaviFX",
-      "version": "2",
+      "version": "3",
       "itemCount": 1,
       "format": "workflow",
       "tagline": "Pre-compose and nested compositions",
       "color": "#4f9db6",
       "description": "Pre-compose selected video clips into compositions, manage them in a Compositions window, and render them nested in Main.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/precomp-plus/manifest.json?v=2",
-      "bundle": "./plugins/precomp-plus/bundle.json?v=2"
+      "manifest": "./plugins/precomp-plus/manifest.json?v=3",
+      "bundle": "./plugins/precomp-plus/bundle.json?v=3"
     },
     {
       "id": "light-plus",
@@ -97,15 +97,15 @@
       "category": "scene",
       "name": "Geometry+",
       "author": "Zoidium",
-      "version": "6",
-      "itemCount": 7,
+      "version": "7",
+      "itemCount": 8,
       "format": "3D geometry",
       "tagline": "Procedural 3D Shapes",
       "color": "#6b86c5",
       "description": "Adds rounded boxes, low-poly polyhedra, and procedural primitives to 3D Scene.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/geometry-plus/manifest.json?v=6",
-      "bundle": "./plugins/geometry-plus/bundle.json?v=6"
+      "manifest": "./plugins/geometry-plus/manifest.json?v=7",
+      "bundle": "./plugins/geometry-plus/bundle.json?v=7"
     },
     {
       "id": "repeater",
