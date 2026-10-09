@@ -25,6 +25,47 @@ const LEGACY_EFFECTOR_TYPES = Object.freeze({
   9: VORONOI_TYPE,
 });
 
+// Preset shape kinds CM3's PZ.object3d.shape.createMesh() names, keyed by the
+// serialized objectType. New source shapes added to a repeater are named from
+// this table so the tree shows "Box"/"Sphere" instead of the generic "Shape".
+const SHAPE_KIND_NAMES = Object.freeze({
+  0: "Shape",
+  1: "Box",
+  2: "Cylinder",
+  3: "Rectangle",
+  4: "Circle",
+  5: "Sphere",
+  6: "Donut",
+  7: "Wire",
+  99: "Geometry",
+});
+
+function isPresetShape(object) {
+  return Boolean(
+    object &&
+    typeof object.objectType === "number" &&
+    object.properties &&
+    object.properties.geometryProperties
+  );
+}
+
+// CM3's shape.load() calls properties.load() with the picker data, which resets
+// the name createMesh() set to the generic default. Restore the kind name for
+// freshly added source shapes only; children restored from saved data are
+// tagged by load() and keep their stored names.
+function nameNewSourceShapes(objects) {
+  if (!objects || typeof objects.length !== "number") return;
+  for (const source of objects) {
+    if (!isPresetShape(source) || source.__zoidiumSourceFromData) continue;
+    const name = source.properties.name;
+    if (!name || typeof name.set !== "function" || typeof name.get !== "function") continue;
+    const current = name.get();
+    if (current !== "Shape" && current !== source.defaultName) continue;
+    const kind = SHAPE_KIND_NAMES[source.objectType];
+    if (kind && kind !== "Shape") name.set(kind);
+  }
+}
+
 function numberValue(value, fallback) {
   const number = Number(value);
   return Number.isFinite(number) ? number : fallback;
@@ -189,6 +230,11 @@ function vectorDefinition(PZ, definition) {
     value: definition.value[index],
     ...(definition.min ? { min: definition.min[index] } : {}),
     ...(definition.max ? { max: definition.max[index] } : {}),
+    // CM3's own rotation vectors carry the degree-to-radian scaleFactor on the
+    // group (used to render the row in degrees while the stored value is in
+    // radians) and on each axis (used by the per-axis keyframe controls).
+    // Mirror both so the units match CM3's shape rotation.
+    ...(definition.scaleFactor ? { scaleFactor: definition.scaleFactor } : {}),
     step: definition.step || 1,
     decimals: definition.decimals ?? 2,
   });
@@ -268,7 +314,9 @@ function makeProperties(PZ, mode, markDirty) {
     });
     properties.rotationEnd = vectorDefinition(PZ, {
       name: "Rotation",
-      value: [0, 0, 90],
+      // Rotation vectors store radians, like CM3's own shape rotation. 90
+      // degrees is the intended default, so store Math.PI / 2.
+      value: [0, 0, Math.PI / 2],
       scaleFactor: rotation,
       step: 1,
       decimals: 1,
@@ -461,6 +509,11 @@ function createEffectorBaseClass(PZ, THREE) {
       if (!this.objects) this.objects = new PZ.objectList(this, PZ.object3d);
       this.objects.name = "Source objects";
       if (!this.children.includes(this.objects)) this.children.push(this.objects);
+      // Name freshly added source shapes after their kind, as the repeaters do.
+      this._onObjectsChanged = () => {
+        Promise.resolve().then(() => nameNewSourceShapes(this.objects));
+      };
+      this.objects.onListChanged?.watch?.(this._onObjectsChanged);
       if (PZ.object3d.group?.propertyDefinitions) {
         this.properties.addAll(PZ.object3d.group.propertyDefinitions);
       }
@@ -503,6 +556,8 @@ function createEffectorBaseClass(PZ, THREE) {
           child.loading = child.load(childData);
         }
       }
+      // Restored children keep their stored names; later additions are renamed.
+      for (const source of this.objects) source.__zoidiumSourceFromData = true;
       this.properties.name.set(PZ.object3d.getName(this));
       this.parentChanged();
     }
@@ -556,6 +611,7 @@ function createEffectorBaseClass(PZ, THREE) {
 
     unload() {
       restoreDeformedTree(this.threeObj);
+      this.objects.onListChanged?.unwatch?.(this._onObjectsChanged);
       for (const child of this.objects) child.unload();
       if (this.threeObj?.parent) this.threeObj.parent.remove(this.threeObj);
       this.threeObj = null;
@@ -1265,7 +1321,10 @@ function createRepeaterClass(PZ, THREE, mode, type) {
       );
       this._onObjectsChanged = () => {
         this.markRepeaterDirty();
-        Promise.resolve().then(() => this.detachTemplateObjects());
+        Promise.resolve().then(() => {
+          this.nameAddedSourceShapes();
+          this.detachTemplateObjects();
+        });
       };
       this.objects.onListChanged.watch(this._onObjectsChanged);
       this.type = type;
@@ -1273,6 +1332,12 @@ function createRepeaterClass(PZ, THREE, mode, type) {
 
     markRepeaterDirty() {
       this._cloneDirty = true;
+    }
+
+    // Name a freshly added source shape after its kind. Children restored from
+    // saved data are tagged in load() and are never renamed.
+    nameAddedSourceShapes() {
+      nameNewSourceShapes(this.objects);
     }
 
     detachTemplateObjects() {
@@ -1287,6 +1352,9 @@ function createRepeaterClass(PZ, THREE, mode, type) {
     load(data) {
       const normalized = defaultSourceData(data);
       super.load(normalized);
+      // Children restored from saved data keep their stored names; mark them so
+      // the deferred namer treats later additions only.
+      for (const source of this.objects) source.__zoidiumSourceFromData = true;
       this.repeaterProperties.load(normalized.repeaterProperties);
       this.detachTemplateObjects();
       this.markRepeaterDirty();
@@ -1569,6 +1637,7 @@ module.exports = {
     defaultSourceData,
     createPropertyCategory,
     createRepeaterClass,
+    nameNewSourceShapes,
     cloneMaterial,
     cloneRenderTree,
     createDeformationSupport,
