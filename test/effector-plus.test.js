@@ -1,9 +1,7 @@
 "use strict";
 
-// Coverage for the Effector+ deformers: the extracted framework classes
-// evaluate against a stub runtime, Twist/Warp deform math behaves, the
-// create wrapper dispatches 7/8/9 with delegation + restore, and the Scene
-// layer update runs the deform chain.
+// Effector+ is a compatibility layer: it maps numeric object types 7/8/9 from
+// Davidium projects onto the Effector classes and adds no menu entries.
 
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
@@ -13,157 +11,67 @@ const test = require("node:test");
 const projectRoot = path.resolve(__dirname, "..");
 const pluginDir = path.join(projectRoot, "plugins/effector-plus");
 
-function numberProperty(value) {
-  return { get: () => value, set() {} };
-}
-
-function createPZ() {
-  class StubObject {}
-  class StubObjectList extends Array {}
-  class StubObject3D extends StubObject {
-    constructor() {
-      super();
-      this.properties = {
-        defs: {},
-        addAll(defs) { Object.assign(this.defs, defs); return this; },
-        load() {},
-      };
-      this.children = [];
-    }
-    static create(type) {
-      const t = new StubObject3D();
-      t.type = type;
-      return t;
-    }
-  }
-  const PZ = {
-    object: StubObject,
-    objectList: StubObjectList,
-    object3d: StubObject3D,
-    property: { type: { NUMBER: 1, OPTION: 2, TEXT: 3 }, create: (def) => ({ def }) },
-    propertyList: function () { return {}; },
-    layer: { scene: function () {} },
-  };
-  PZ.layer.scene.prototype = { update() { return "orig-update"; } };
-  return PZ;
-}
-
-function evalSources(PZ, THREE = {}) {
-  const g = globalThis;
-  const keepPZ = g.PZ;
-  const keepTHREE = g.THREE;
-  g.PZ = PZ;
-  g.THREE = THREE;
-  try {
-    for (const file of ["deform-framework.js", "deformer-objects.js"]) {
-      const source = fs.readFileSync(path.join(pluginDir, file), "utf8");
-      new Function("PZ", "THREE", source)(PZ, THREE);
-    }
-  } finally {
-    if (keepPZ === undefined) delete g.PZ;
-    else g.PZ = keepPZ;
-    if (keepTHREE === undefined) delete g.THREE;
-    else g.THREE = keepTHREE;
-  }
-}
-
 function loadRuntime() {
   const full = path.join(pluginDir, "effector-runtime.js");
   delete require.cache[require.resolve(full)];
   return require(full);
 }
 
-test("framework and deformer classes evaluate against a stub runtime", () => {
-  const PZ = createPZ();
-  evalSources(PZ);
-  for (const key of ["deform", "deformer", "twist", "warp", "voronoi"]) {
-    assert.ok(PZ.object3d[key], key + " defined");
-  }
-  assert.equal(typeof PZ.object3d.deform.apply, "function");
-  assert.equal(typeof PZ.object3d.deform.fieldWeight, "function");
-  assert.equal(PZ.object3d.twist.prototype.defaultName, "Twist");
-  assert.equal(PZ.object3d.voronoi.prototype.defaultName, "Voronoi Fracture");
-});
-
-test("twist rotates positions around the axis pivot", () => {
-  const PZ = createPZ();
-  evalSources(PZ);
-  const tw = new PZ.object3d.twist();
-  // Axis Y (1), raw angle pi/2, pivot at y=0 for points spanning -1..1.
-  // theta = angle * ((y - pivot) / size); pair for Y is [2, 0] (z, x).
-  tw.properties = {
-    angle: numberProperty(Math.PI / 2),
-    axis: numberProperty(1),
-    offset: numberProperty(0),
+function createPZ() {
+  const original = (type) => ({ created: type });
+  return {
+    object3d: { create: original },
+    original,
   };
-  const positions = new Float32Array([1, 1, 0]);
-  const data = { min: [-1, -1, -1], max: [1, 1, 1] };
-  const out = tw.deformPositions(positions, 0, data, null);
-  const theta = (Math.PI / 2) * ((1 - 0) / 2);
-  const cos = Math.cos(theta);
-  const sin = Math.sin(theta);
-  assert.ok(Math.abs(out[0] - (0 * sin + 1 * cos)) < 1e-6, "x rotated: " + out[0]);
-  assert.ok(Math.abs(out[2] - (0 * cos - 1 * sin)) < 1e-6, "z rotated: " + out[2]);
-  assert.equal(out[1], 1);
-  // Zero angle returns the input untouched.
-  tw.properties.angle = numberProperty(0);
-  assert.equal(tw.deformPositions(positions, 0, data, null), positions);
-});
+}
 
-test("warp is identity at zero strength and bends otherwise", () => {
+test("numeric types 7, 8, and 9 resolve to the namespaced Effector classes", () => {
   const PZ = createPZ();
-  evalSources(PZ);
-  const warp = new PZ.object3d.warp();
-  warp.properties = {
-    amount: numberProperty(0),
-    axis: numberProperty(0),
-    offset: numberProperty(0),
-    field: numberProperty(0),
-    fieldPosition: numberProperty([0, 0, 0]),
-    fieldScale: numberProperty([1, 1, 1]),
-  };
-  const positions = new Float32Array([0.5, 0.2, 0.3]);
-  const data = { min: [0, 0, 0], max: [1, 1, 1] };
-  assert.equal(warp.deformPositions(positions, 0, data, null), positions);
-  warp.properties.amount = numberProperty(90);
-  const bent = warp.deformPositions(new Float32Array([0.5, 0.2, 0.3]), 0, data, null);
-  assert.ok(bent[0] !== 0.5 || bent[1] !== 0.2, "warp displaces vertices");
-});
-
-test("create wrapper dispatches 7/8/9, delegates, and restores", () => {
-  const PZ = createPZ();
-  const getAsset = (kind, url) => {
-    const key = String(url).split(/[?#]/, 1)[0].replace(/^\.\//, "");
-    return fs.readFileSync(path.join(projectRoot, key), "utf8");
-  };
   const runtime = loadRuntime();
-  const originalCreate = PZ.object3d.create;
-  const context = { PZ, window: { THREE: {} }, getAsset };
-  runtime.activate(context);
-  for (const [type, key] of [[7, "twist"], [8, "warp"], [9, "voronoi"]]) {
-    const inst = PZ.object3d.create(type);
-    assert.ok(inst instanceof PZ.object3d[key], "create(" + type + ")");
-    assert.equal(inst.type, type);
-  }
-  const other = PZ.object3d.create(0);
-  assert.equal(other.type, 0);
-  assert.ok(!(other instanceof PZ.object3d.twist));
-  // Scene layer update runs the deform chain.
-  let applied = null;
-  PZ.object3d.deform.apply = (layer, time) => { applied = { layer, time }; };
-  const fakeLayer = {};
-  const out = PZ.layer.scene.prototype.update.call(fakeLayer, 42);
-  assert.equal(out, "orig-update");
-  assert.deepEqual(applied, { layer: fakeLayer, time: 42 });
+  runtime.activate({ PZ });
+  assert.deepEqual(PZ.object3d.create(7), { created: "zoidium:repeater/twist" });
+  assert.deepEqual(PZ.object3d.create(8), { created: "zoidium:repeater/warp" });
+  assert.deepEqual(PZ.object3d.create(9), { created: "zoidium:repeater/voronoi-fracture" });
+  assert.deepEqual(PZ.object3d.create(0), { created: 0 }, "other numeric types pass through");
+  assert.deepEqual(PZ.object3d.create("zoidium:repeater/twist"), { created: "zoidium:repeater/twist" });
   runtime.deactivate();
-  assert.equal(PZ.object3d.create, originalCreate);
 });
 
-test("manifest declares the 3D EFFECTS picker entries", () => {
+test("deactivation restores the previous create and releases the claim", () => {
+  const PZ = createPZ();
+  const runtime = loadRuntime();
+  runtime.activate({ PZ });
+  assert.equal(PZ.zoidium.legacyObject3dTypes.get(7), "effector-plus");
+  runtime.deactivate();
+  assert.equal(PZ.object3d.create, PZ.original);
+  assert.equal(PZ.zoidium.legacyObject3dTypes.has(7), false);
+});
+
+test("activation refuses to take numeric types already claimed by another plugin", () => {
+  const PZ = createPZ();
+  PZ.zoidium = { legacyObject3dTypes: new Map([[8, "some-other-plugin"]]) };
+  const runtime = loadRuntime();
+  assert.throws(() => runtime.activate({ PZ }), /already claimed by another plugin/);
+  assert.equal(PZ.object3d.create, PZ.original, "no wrapper installed on failure");
+  assert.equal(PZ.zoidium.legacyObject3dTypes.get(8), "some-other-plugin");
+});
+
+test("re-activation after deactivation installs the mapping again", () => {
+  const PZ = createPZ();
+  const runtime = loadRuntime();
+  runtime.activate({ PZ });
+  runtime.deactivate();
+  runtime.activate({ PZ });
+  assert.deepEqual(PZ.object3d.create(7), { created: "zoidium:repeater/twist" });
+  runtime.deactivate();
+});
+
+test("the manifest is an extension without picker entries, so there are no duplicate menu items", () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(pluginDir, "manifest.json"), "utf8"));
-  const byType = new Map(manifest.objectTypes.map((e) => [e.type, e]));
-  for (const [type, name] of [[7, "Twist"], [8, "Warp"], [9, "Voronoi Fracture"]]) {
-    assert.ok(byType.has(type), name + " entry declared");
-    assert.ok(byType.get(type).list.length >= 1);
-  }
+  assert.equal(manifest.kind, "extension");
+  assert.equal(manifest.objectTypes, undefined);
+  assert.equal(manifest.objectClasses, undefined);
+  assert.deepEqual(manifest.modules.map((module) => module.id), ["effector-runtime"]);
+  assert.equal(fs.existsSync(path.join(pluginDir, "deform-framework.js")), false, "Davidium framework removed");
+  assert.equal(fs.existsSync(path.join(pluginDir, "deformer-objects.js")), false, "Davidium deformers removed");
 });

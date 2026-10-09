@@ -1,61 +1,118 @@
 # Rowbyte & Red Giant Suite
 
-A Zoidium `object` plugin. It adds the OpenZoid Trapcode 3D objects with
-their original behavior preserved, plus C4D-style lights.
+A Zoidium `object` plugin. It adds Trapcode-style 3D objects (Particular, Form,
+Plexus) and C4D-style lights to the CM3 object picker, with floating designer
+windows and the wiggle expression upgrade. It is an external extension layer
+around CM3; it is not part of, and not endorsed by, Panzoid.
 
-- Trapcode Particular (type 10) — full 3D particle system with emitter,
-  physics, fields, layer maps, audio reactors, and per-system presets
-  (burst, fountain, snow). Streak controls: velocity inherited from
-  emitter motion, mass / air-resistance families (random, size-affects,
-  rotational), spin (rotate, degrees/sec, random) with orient-to-motion
-  blending, and motion-direction stretch rendered as elongated sprites.
-- Trapcode Form (type 11) — static particle lattice with disperse, twist,
-  spherical, fractal, and fluid deformation.
-- Plexus (type 12) — points connected as lines, facets, triangulation,
-  and beams with geometry sources and effectors.
-- Trapcode Lights — replaces the Light picker with 8 C4D types (Spot,
-  Point, Infinite, Area, Dome, Photometric IES, Physical Sun, Portal),
-  extra light properties, per-frame THREE sync, and legacy Hemisphere
-  migration.
-- Trapcode designer — fullscreen preset/block/transport/parameter windows
-  for the three object families, opened from the object-panel gear button
-  (`designer.openFirst(kind)` is also available once enabled). The windows
-  share the SaaS theme of the Legacy setup editors (Inter type, silk
-  backdrop, gold suite accents, pill controls) with a bundled Inter
-  variable font the runtime installs on enable. The presets
-  column includes a PALETTE section with shared color schemes (Fire,
-  Sunset, Ocean, Ice, Forest, Neon, Candy, Royal, Toxic, Smoke) that apply
-  to the current system: color gradients for Particular/Form and base +
-  secondary colors for Plexus effectors/renderers.
-- Expression upgrade — the OpenZoid expression methods stock CM3 lacks
-  (`wiggle` and companions: `loopIn`/`loopOut`/`pingPong`, `toFixed`,
-  `radiansToDegrees`/`degreesToRadians`, `easeIn`/`easeOut`/`easeInOut`,
-  `valueAtTime`, `property`), plus the evaluation context (current
-  frame/property/value) and the property passthrough it depends on. Methods
-  install missing-only; everything restores when the pack is disabled.
+## Objects
 
-The `trapcode-runtime` module evaluates the bundled sources in dependency
-order through the plugin bundle asset API, so enabling the pack never fans
-out into runtime fetches, and teaches `PZ.object3d.create` the Trapcode
-numeric types. The picker entries are declared in the manifest and owned by
-the plugin manager: disabling the pack removes them and restores the
-original Light entry.
+- **Trapcode Particular** (type 10) — 3D particle system with emitter, physics,
+  fields, layer maps, audio reactors, and per-system presets (burst, fountain,
+  snow). Streaks: velocity inherited from emitter motion, mass / air-resistance
+  families, spin with orient-to-motion blending, motion-direction stretch.
+- **Trapcode Form** (type 11) — particle lattice (box, sphere, sphere grid,
+  cylinder, circle, plane, 3D model, text/mask image) deformed by disperse,
+  twist, spherical fields, a fractal field, fluid motion and kaleidospace
+  mirrors. Layer maps drive color/alpha, displacement, size, fractal strength,
+  disperse and rotate. Strings connect neighbouring points.
+- **Plexus** (type 12) — points connected as points, lines, facets,
+  triangulation or beams. Geometry sources (layers, paths, OBJ, primitives,
+  instances, slicer), effectors (noise, spherical field, container, transform,
+  color map, shade, sound) and renderers.
 
-Optical Flares (type 13) is a separate pack and is not part of this plugin.
+## Lights
 
-Known limitations (later phases):
+The Light picker is replaced by six C4D-style types. Each name matches the
+THREE backend that renders it:
 
-- Projects that use Trapcode objects record a plugin dependency and prompt
-  to enable this pack; loading such data with the pack disabled still
-  fails, as with any unknown numeric type in vanilla CM3. C4D light ids
-  are not recorded: keep the pack enabled for those scenes.
+| Picker name | Backend |
+| --- | --- |
+| Point Light (Omni) | PointLight |
+| Spot Light | SpotLight |
+| Infinite Light (Directional) | DirectionalLight |
+| Area Light | RectAreaLight when THREE's LTC tables are installed; otherwise a PointLight approximation (named as such) |
+| Hemisphere Light (Sky/Ground) | HemisphereLight |
+| Sun (Directional) | DirectionalLight tinted by sun elevation |
+
+Legacy ids that are no longer listed still load: id 6 (IES) as a spot light and
+id 8 (Portal) as an area light. Stock CM3 Light types 1–3 keep their behavior;
+stock Hemisphere (type 4) migrates to Hemisphere on load. Disabling the pack
+restores the stock Light methods and removes the added property definitions.
+Scenes that use Area or the legacy ids need the pack enabled to render.
+
+## Designer
+
+Each object opens a **floating window** from the object-panel gear button
+(`designer.openFirst(kind)` is also available). The window follows the CM3
+panel style and has the same layout for all three objects:
+
+- **Target** — the system/object picker and the "add" buttons.
+- **Presets** — preset list; a click applies the preset.
+- **Palette** — shared color schemes (Fire, Sunset, Ocean, Ice, Forest, Neon,
+  Candy, Royal, Toxic, Smoke) when the target has colors to set.
+- **Parameters** — one tab per property group.
+
+The editor viewport stays the live preview. Every edit is written through the
+object's properties and recorded in CM3 history, so undo and redo work. Slider
+drags preview live and record one undo step on release.
+
+## Audio
+
+Audio reactors and the Plexus sound effector read decoded audio at an explicit
+media time through `T.audioAnalysis` (offline FFT, 0–1 level). They do not read
+a live analyser, so a frame depends only on the project and the audio file.
+Audio is decoded in `prepare()`, which export awaits. Until a source is decoded,
+its level is neutral (0.5); outside the clip window the level is 0.
+
+Particular audio properties (per system):
+
+- **Audio layer** — the audio or video asset to analyse.
+- **Audio offset (seconds)** — shifts where the clip starts on the timeline.
+- **Audio trim in / out (seconds)** — selects the media range. Trim in is the
+  media time at the clip start; trim out ends the reactor (0 disables it).
+
+The Plexus sound effector has the same audio layer, offset and trim properties.
+Without an audio layer it uses a time-based wave, so it stays deterministic.
+
+## Simulation limits (Particular)
+
+Particular simulates on a fixed 1/60 s grid, so a frame depends only on the
+project time. To keep evaluation bounded:
+
+- time is clamped to 600 seconds per evaluation;
+- particle life is clamped to 30 seconds;
+- at most 20,000 particles are simulated per system (the newest are kept).
+
+## Expression upgrade
+
+The OpenZoid expression methods stock CM3 lacks: `wiggle` and companions
+(`loopIn`, `loopOut`, `pingPong`), `toFixed`, `radiansToDegrees` /
+`degreesToRadians`, `easeIn` / `easeOut` / `easeInOut`, `valueAtTime`, and
+`property`, plus the evaluation context (current frame, property and value).
+Methods install missing-only and are removed when the pack is disabled.
+
+## Runtime
+
+The `trapcode-runtime` module evaluates the bundled sources in dependency order
+through the plugin bundle asset API, so enabling the pack never fetches at
+runtime. It teaches `PZ.object3d.create` the Trapcode numeric types and removes
+them, the expression support, the lights and any open designer windows on
+disable. Activation failures roll back what was installed.
+
+Known limitations:
+
+- Projects that use Trapcode objects record a plugin dependency and prompt to
+  enable this pack; loading them with the pack disabled fails, as with any
+  unknown numeric type in vanilla CM3. C4D light ids are not recorded: keep the
+  pack enabled for scenes with Area or legacy light types.
 - Do not enable Light+ at the same time: both providers replace the Light
   entry and the last one enabled wins the picker.
-- Particle sprite names resolve through the CM3 asset pipeline; names the
-  upstream runtime does not ship fall back to whatever the host provides.
+- Plexus link renderers use the first 12,000 points (lines) or 4,000 points
+  (facets, triangulation); the cap keeps a frame's cost bounded.
 
 ```bash
-# after adding the registry entry
+# after changing sources or the manifest
 pnpm run build:plugin-bundles
 pnpm run verify
 ```

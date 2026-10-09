@@ -1,96 +1,459 @@
-// OpenZoid Trapcode Suite — designer windows (ported verbatim from designer.js).
-// Entry points (Object-panel gear wiring) arrive with the designer/UI phase;
-// designer.openFirst(kind) is available as soon as the plugin is enabled.
+// OpenZoid Trapcode Suite — designer windows.
 /*
  * designer.js
  *
- * Trapcode-style full-screen Designer windows for the Particular, Form and
- * Plexus object3d types. Mirrors the structure shown in the reference
- * screenshots: title bar, PRESETS column, BLOCKS toggle, live preview,
- * transport bar, systems strip and a parameter panel.
+ * One designer window per Trapcode object (Particular, Form, Plexus). The
+ * window is a floating ZoidiumUI window above the editor, so the main
+ * viewport stays the live preview. Layout, top to bottom:
  *
- * SaaS theme (v7): Inter type, silk-gradient backdrop, gold suite accents,
- * pill controls, staggered rise-in motion, and slim scrollbars. All DOM
- * structure and class names are unchanged; this is a CSS-only reskin.
+ *   Target   system/object picker and the "add" buttons from the config
+ *   Presets  preset list (applies on click), then a PALETTE list when the
+ *            target has colors the palettes can set
+ *   Blocks   a tab per property group; each row is a CM3 property control
  *
- * Reuses the main viewport for the preview (like the VHS setup window) and
- * PZ.ui.edit for the parameter tree.
+ * Every edit is written through the object's properties with CM3 history
+ * records, so undo/redo works. Slider drags preview live and record one undo
+ * step on release. Structural changes (adding a system or object) push their
+ * own history commands.
+ *
+ * The config contract (registerConfig) is shared with the object modules:
+ *   title, targets(root), targetName(item, index), addKinds [{name, create(root)}],
+ *   blocks(target) -> [{key, name}], groupFor(target, key),
+ *   presets [{name}], applyPreset(root, target, preset), customOpen(root, designer)
  */
 
 var PZ = PZ || {};
 
 (function () {
     var T = PZ.trapcode;
-
-    var CSS = [
-        ".tc-designer{position:fixed;top:0;left:0;right:0;bottom:0;z-index:1000;display:flex;flex-direction:column;background:radial-gradient(900px 480px at 10% -6%,rgba(201,161,59,.15),transparent 60%),radial-gradient(760px 520px at 97% 108%,rgba(74,144,217,.10),transparent 62%),linear-gradient(180deg,#101014 0%,#0a0b0e 55%,#060708 100%);color:#e8e9eb;font-family:Inter,'Segoe UI',system-ui,-apple-system,sans-serif;font-size:12px;animation:tcFade .28s ease;}",
-        ".tc-designer button{font-family:inherit;}",
-        "@keyframes tcFade{from{opacity:0;}to{opacity:1;}}",
-        "@keyframes tcRise{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:none;}}",
-        ".tc-titlebar{flex:0 0 46px;display:flex;align-items:center;gap:8px;background:rgba(14,16,20,.78);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:1px solid rgba(255,255,255,.08);padding:0 12px;animation:tcRise .32s ease;}",
-        ".tc-title{display:flex;align-items:center;gap:10px;padding:0 4px;font-weight:600;font-size:13px;letter-spacing:2px;color:#f2f3f5;flex:1;}",
-        ".tc-title:before{content:'';width:9px;height:9px;border-radius:50%;background:linear-gradient(135deg,#e8c56a,#c9a13b);box-shadow:0 0 12px rgba(201,161,59,.8);flex:0 0 auto;}",
-        ".tc-titlebar button{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.10);color:#d6d8dc;font-size:10px;letter-spacing:2px;padding:7px 16px;cursor:pointer;border-radius:999px;transition:background .15s ease,border-color .15s ease,color .15s ease,transform .15s ease;}",
-        ".tc-titlebar button:hover{background:rgba(201,161,59,.16);border-color:rgba(201,161,59,.55);color:#fff;transform:translateY(-1px);}",
-        ".tc-titlebar button:active{transform:none;}",
-        ".tc-titlebar button:focus-visible{outline:2px solid #c9a13b;outline-offset:2px;}",
-        ".tc-body{flex:1;display:flex;min-height:0;gap:10px;padding:10px;box-sizing:border-box;}",
-        ".tc-presets{flex:0 0 208px;background:rgba(20,22,27,.86);border:1px solid rgba(255,255,255,.08);border-radius:14px;overflow-y:auto;padding:10px;animation:tcRise .36s ease;box-shadow:0 12px 32px rgba(0,0,0,.45);}",
-        ".tc-presets.hidden{display:none;}",
-        ".tc-preset{padding:8px 12px;cursor:pointer;border-radius:9px;color:#c9cdd4;font-size:11px;font-weight:500;letter-spacing:.3px;border:1px solid transparent;transition:background .15s ease,color .15s ease,transform .15s ease,border-color .15s ease;}",
-        ".tc-preset:hover{background:rgba(201,161,59,.13);border-color:rgba(201,161,59,.35);color:#fff;transform:translateX(2px);}",
-        ".tc-palettes-title{padding:12px 12px 6px;color:#e0b060;font-size:10px;font-weight:700;letter-spacing:2px;}",
-        ".tc-palette{display:flex;align-items:center;gap:10px;padding:6px 10px;cursor:pointer;border-radius:9px;border:1px solid transparent;transition:background .15s ease,border-color .15s ease,transform .15s ease;}",
-        ".tc-palette:hover{background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.10);transform:translateX(2px);}",
-        ".tc-swatches{flex:0 0 64px;height:16px;border-radius:5px;border:1px solid rgba(0,0,0,.6);box-shadow:inset 0 0 0 1px rgba(255,255,255,.12);}",
-        ".tc-palette span{color:#c9cdd4;font-size:11px;font-weight:500;}",
-        ".tc-palette:hover span{color:#fff;}",
-        ".tc-main{flex:1;display:flex;flex-direction:column;min-width:0;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.08);border-radius:14px;overflow:hidden;box-shadow:0 12px 32px rgba(0,0,0,.5);animation:tcRise .4s ease;}",
-        ".tc-screen{flex:1;position:relative;min-height:0;background:#000;overflow:hidden;}",
-        ".tc-screen .editorpanel{position:absolute!important;top:0!important;left:0!important;width:100%!important;height:100%!important;border:0!important;background:#000!important;}",
-        ".tc-placeholder{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#9aa0a8;font-size:12px;letter-spacing:1px;background:rgba(255,255,255,.04);border:1px dashed rgba(255,255,255,.16);padding:14px 22px;border-radius:12px;white-space:nowrap;}",
-        ".tc-transport{flex:0 0 46px;display:flex;align-items:center;gap:8px;padding:0 12px;background:rgba(16,18,22,.9);border-top:1px solid rgba(255,255,255,.07);}",
-        ".tc-transport button{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:#e8e9eb;font-size:11px;padding:6px 12px;cursor:pointer;border-radius:999px;transition:background .15s ease,border-color .15s ease,color .15s ease;}",
-        ".tc-transport button:hover{background:rgba(201,161,59,.2);border-color:rgba(201,161,59,.6);color:#fff;}",
-        ".tc-transport button:focus-visible{outline:2px solid #c9a13b;outline-offset:2px;}",
-        ".tc-time{margin-left:auto;color:#e8c56a;font-variant-numeric:tabular-nums;font-weight:600;letter-spacing:1px;}",
-        ".tc-strip{flex:0 0 104px;display:flex;gap:8px;padding:10px 12px;background:rgba(13,15,18,.9);border-top:1px solid rgba(255,255,255,.07);overflow-x:auto;}",
-        ".tc-block{flex:0 0 82px;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.10);border-radius:11px;cursor:pointer;color:#cfd3d9;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:1px;padding:6px;text-align:center;height:100%;box-sizing:border-box;transition:border-color .15s ease,transform .15s ease,box-shadow .15s ease;}",
-        ".tc-block:hover{border-color:rgba(201,161,59,.5);transform:translateY(-2px);}",
-        ".tc-block .tc-thumb{flex:1;width:100%;border-radius:7px;margin-bottom:6px;background:linear-gradient(135deg,#3a3220,#14161c);box-shadow:inset 0 0 0 1px rgba(255,255,255,.06);}",
-        ".tc-block.active{border-color:#c9a13b;color:#fff;box-shadow:0 0 0 1px #c9a13b,0 6px 18px rgba(201,161,59,.35);}",
-        ".tc-block.off{opacity:.45;}",
-        ".tc-systems{flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:8px 12px;background:rgba(13,15,18,.9);border-top:1px solid rgba(255,255,255,.07);overflow-x:auto;}",
-        ".tc-system{padding:6px 14px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.11);border-radius:999px;cursor:pointer;color:#c9cdd4;font-weight:500;white-space:nowrap;transition:background .15s ease,border-color .15s ease,color .15s ease;}",
-        ".tc-system:hover{color:#fff;border-color:rgba(201,161,59,.5);}",
-        ".tc-system.active{background:#c9a13b;color:#191919;border-color:#c9a13b;font-weight:700;box-shadow:0 4px 14px rgba(201,161,59,.4);}",
-        ".tc-system.remove{padding:6px 12px;color:#e89a9a;}",
-        ".tc-system.remove:hover{background:rgba(217,138,138,.14);border-color:rgba(217,138,138,.5);color:#fff;}",
-        ".tc-system.add{color:#9ae6a0;border-style:dashed;}",
-        ".tc-system.add:hover{background:rgba(138,217,138,.12);border-color:rgba(138,217,138,.5);color:#fff;}",
-        ".tc-params{flex:0 0 380px;background:rgba(20,22,27,.86);border:1px solid rgba(255,255,255,.08);border-radius:14px;overflow-y:auto;animation:tcRise .44s ease;box-shadow:0 12px 32px rgba(0,0,0,.45);}",
-        ".tc-params.hidden{display:none;}",
-        ".tc-params.hint{padding:10px;color:#9aa0a8;}",
-        ".tc-presets::-webkit-scrollbar,.tc-params::-webkit-scrollbar,.tc-strip::-webkit-scrollbar,.tc-systems::-webkit-scrollbar{width:10px;height:10px;}",
-        ".tc-presets::-webkit-scrollbar-track,.tc-params::-webkit-scrollbar-track,.tc-strip::-webkit-scrollbar-track,.tc-systems::-webkit-scrollbar-track{background:transparent;}",
-        ".tc-presets::-webkit-scrollbar-thumb,.tc-params::-webkit-scrollbar-thumb,.tc-strip::-webkit-scrollbar-thumb,.tc-systems::-webkit-scrollbar-thumb{background:rgba(255,255,255,.14);border-radius:8px;border:2px solid transparent;background-clip:content-box;}",
-        ".tc-presets::-webkit-scrollbar-thumb:hover,.tc-params::-webkit-scrollbar-thumb:hover,.tc-strip::-webkit-scrollbar-thumb:hover,.tc-systems::-webkit-scrollbar-thumb:hover{background:rgba(201,161,59,.5);border:2px solid transparent;background-clip:content-box;}",
-        "@media (prefers-reduced-motion:reduce){.tc-designer *{animation:none!important;transition:none!important;}}",
-    ].join("\n");
-
-    function injectStyle() {
-        if (document.getElementById("tc-designer-style")) return;
-        var style = document.createElement("style");
-        style.id = "tc-designer-style";
-        style.textContent = CSS;
-        document.head.appendChild(style);
-    }
+    var WINDOW_PREFIX = "trapcode-suite:designer:";
+    var REFRESH_MS = 300;
 
     var CONFIGS = {};
+    var handles = {};
+    var nextKey = 1;
 
     function configFor(root) {
         if (!root) return null;
         return root.constructor && root.constructor.designer ? root.constructor.designer : null;
+    }
+
+    function ui() {
+        return typeof window !== "undefined" && window.ZoidiumUI ? window.ZoidiumUI : null;
+    }
+
+    function frame() {
+        var playback = typeof CM !== "undefined" && CM ? CM.playback : null;
+        var value = playback ? Number(playback.currentFrame) : 0;
+        return Number.isFinite(value) ? Math.max(0, Math.round(value)) : 0;
+    }
+
+    function snapshot(property) {
+        return JSON.parse(JSON.stringify(property.get(frame())));
+    }
+
+    function sameValue(a, b) {
+        return JSON.stringify(a) === JSON.stringify(b);
+    }
+
+    // Runs fn inside one CM3 history operation. Nested calls join the outer one.
+    function operate(fn) {
+        var history = typeof CM !== "undefined" && CM ? CM.history : null;
+        if (!history || typeof history.startOperation !== "function" || history.operation) {
+            return fn();
+        }
+        history.startOperation();
+        try {
+            return fn();
+        } finally {
+            history.finishOperation();
+        }
+    }
+
+    function recordSetValue(property, value, oldValue) {
+        var ops = new PZ.ui.properties(CM);
+        ops.setValue({ property: property.getAddress(), frame: frame(), value: value, oldValue: oldValue });
+    }
+
+    // Commits one edit. `before` is the value captured when a drag started;
+    // live previews have already written the new value.
+    function commitEdit(property, value, before) {
+        var old = before === undefined ? snapshot(property) : before;
+        if (sameValue(old, value)) return;
+        operate(function () { recordSetValue(property, value, old); });
+    }
+
+    // Live-preview and commit pair for one property.
+    function propertyEditor(property) {
+        var before;
+        return {
+            input: function (value) {
+                if (before === undefined) before = snapshot(property);
+                property.set(value, frame());
+            },
+            change: function (value) {
+                var old = before;
+                before = undefined;
+                commitEdit(property, value, old);
+            },
+        };
+    }
+
+    // Leaf properties under a list or a group, in definition order.
+    function collectLeaves(list, out) {
+        out = out || [];
+        if (!list) return out;
+        if (list instanceof PZ.property) {
+            if (list.objects && list.objects.length) list.objects.forEach(function (child) { collectLeaves(child, out); });
+            else out.push(list);
+            return out;
+        }
+        if (list instanceof PZ.propertyList) {
+            Object.keys(list).forEach(function (key) { collectLeaves(list[key], out); });
+        }
+        return out;
+    }
+
+    // Runs a config callback (presets, palettes) and records every property it
+    // changed as one undo step.
+    function recordChanges(target, fn) {
+        var leaves = collectLeaves(target.properties);
+        var before = leaves.map(snapshot);
+        var result = fn();
+        operate(function () {
+            leaves.forEach(function (property, index) {
+                var now = snapshot(property);
+                if (!sameValue(before[index], now)) recordSetValue(property, now, before[index]);
+            });
+        });
+        return result;
+    }
+
+    function rgbToHex(rgb) {
+        var parts = [0, 1, 2].map(function (i) {
+            var v = Math.round(Math.max(0, Math.min(1, Number(rgb[i]) || 0)) * 255);
+            return (v < 16 ? "0" : "") + v.toString(16);
+        });
+        return "#" + parts.join("");
+    }
+
+    function hexToRgb(hex) {
+        var n = parseInt(String(hex).slice(1), 16);
+        return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
+    }
+
+    // Each control built here is tracked so the window can re-read values
+    // while the frame changes (animated properties).
+    function Session(root, config, body, win) {
+        this.root = root;
+        this.config = config;
+        this.body = body;
+        this.win = win;
+        this.target = null;
+        this.block = null;
+        this.tracked = [];
+        this.frameLabel = null;
+        this.timer = 0;
+    }
+
+    Session.prototype.targets = function () {
+        var list = this.config.targets ? this.config.targets(this.root) : null;
+        return list ? Array.prototype.slice.call(list) : [];
+    };
+
+    Session.prototype.targetList = function () {
+        return this.config.targets ? this.config.targets(this.root) : null;
+    };
+
+    Session.prototype.track = function (control, read) {
+        this.tracked.push({ control: control, read: read });
+        return control;
+    };
+
+    Session.prototype.refresh = function () {
+        var active = typeof document !== "undefined" ? document.activeElement : null;
+        this.tracked.forEach(function (entry) {
+            var element = entry.control.element;
+            if (active && element && element.contains && element.contains(active)) return;
+            try { entry.control.set(entry.read()); } catch (_error) { /* property gone */ }
+        });
+        if (this.frameLabel) this.frameLabel.textContent = "Frame " + frame();
+    };
+
+    Session.prototype.rebuild = function () {
+        var targets = this.targets();
+        if (!this.target || targets.indexOf(this.target) < 0) {
+            this.target = targets.length ? targets[0] : this.root;
+            this.block = null;
+        }
+        this.tracked = [];
+        this.body.textContent = "";
+        var C = ui().controls;
+        this.body.appendChild(this.targetSection(targets, C).element);
+        this.body.appendChild(this.presetSection(C).element);
+        if (T.supportsPalette(this.target) && T.palettes && T.palettes.length) {
+            this.body.appendChild(this.paletteSection(C).element);
+        }
+        this.body.appendChild(this.blockSection(C).element);
+        this.frameLabel = C.note("Frame " + frame()).element;
+        this.body.appendChild(this.frameLabel);
+        this.refresh();
+    };
+
+    Session.prototype.targetSection = function (targets, C) {
+        var self = this;
+        var section = C.section({ title: "Target" });
+        var options = targets.map(function (item, index) {
+            var name = self.config.targetName ? self.config.targetName(item, index) : "System " + (index + 1);
+            return { value: String(index), label: name };
+        });
+        var current = targets.indexOf(this.target);
+        if (options.length) {
+            section.body.appendChild(C.select({
+                label: "Object",
+                value: String(current < 0 ? 0 : current),
+                options: options,
+                onChange: function (value) {
+                    self.target = targets[Number(value)] || self.target;
+                    self.block = null;
+                    self.rebuild();
+                },
+            }).element);
+        } else {
+            section.body.appendChild(C.note("Nothing to edit yet.").element);
+        }
+        var kinds = this.config.addKinds || [];
+        if (kinds.length) {
+            section.body.appendChild(C.buttonRow(kinds.map(function (kind) {
+                return {
+                    title: kind.name,
+                    onClick: function () { self.addTarget(kind); },
+                };
+            })).element);
+        }
+        return section;
+    };
+
+    // Structural add: the new item is recorded so undo removes it again.
+    Session.prototype.addTarget = function (kind) {
+        var self = this;
+        var list = this.targetList();
+        var created = null;
+        operate(function () {
+            created = kind.create(self.root);
+            if (created && list) pushInsertUndo(list, created);
+        });
+        if (created) {
+            this.target = created;
+            this.block = null;
+            this.rebuild();
+        }
+    };
+
+    function pushInsertUndo(list, item) {
+        var history = CM.history;
+        if (!history || !history.operation) return;
+        history.pushCommand(removeCommand, { list: list, item: item });
+    }
+
+    function removeCommand(payload) {
+        var index = payload.list.indexOf(payload.item);
+        if (index < 0) return;
+        payload.list.splice(index, 1);
+        CM.history.pushCommand(insertCommand, { list: payload.list, item: payload.item, index: index });
+    }
+
+    function insertCommand(payload) {
+        payload.list.splice(payload.index, 0, payload.item);
+        CM.history.pushCommand(removeCommand, { list: payload.list, item: payload.item });
+    }
+
+    Session.prototype.presetSection = function (C) {
+        var self = this;
+        var section = C.section({ title: "Presets" });
+        var presets = this.config.presets || [];
+        var list = C.list({
+            items: presets.map(function (preset, index) {
+                return { id: index, title: preset.name, detail: "" };
+            }),
+            emptyText: "No presets.",
+            onSelect: function (index) {
+                var preset = presets[index];
+                if (!preset || !self.target || !self.config.applyPreset) return;
+                recordChanges(self.target, function () {
+                    self.config.applyPreset(self.root, self.target, preset);
+                });
+                self.rebuild();
+            },
+        });
+        section.body.appendChild(list.element);
+        return section;
+    };
+
+    Session.prototype.paletteSection = function (C) {
+        var self = this;
+        var section = C.section({ title: "Palette" });
+        var schemes = T.palettes;
+        var list = C.list({
+            items: schemes.map(function (scheme, index) {
+                return { id: index, title: scheme.name, detail: "" };
+            }),
+            emptyText: "No palettes.",
+            onSelect: function (index) {
+                var scheme = schemes[index];
+                if (!scheme || !self.target) return;
+                recordChanges(self.target, function () {
+                    T.applyPalette(self.target, scheme);
+                });
+                self.refresh();
+            },
+        });
+        section.body.appendChild(list.element);
+        return section;
+    };
+
+    Session.prototype.blockSection = function (C) {
+        var self = this;
+        var section = C.section({ title: "Parameters" });
+        var blocks = (this.config.blocks ? this.config.blocks(this.target) : []) || [];
+        if (!blocks.length) {
+            section.body.appendChild(C.note("No parameters.").element);
+            return section;
+        }
+        if (!this.block || !blocks.some(function (b) { return b.key === self.block; })) {
+            this.block = blocks[0].key;
+        }
+        var tabs = C.tabs({
+            value: this.block,
+            tabs: blocks.map(function (block) {
+                return {
+                    id: block.key,
+                    title: block.name,
+                    render: function (panel) {
+                        var group = self.config.groupFor
+                            ? self.config.groupFor(self.target, block.key)
+                            : self.target.properties[block.key];
+                        self.renderGroup(group, panel, C);
+                    },
+                };
+            }),
+            onChange: function (id) { self.block = id; },
+        });
+        section.body.appendChild(tabs.element);
+        return section;
+    };
+
+    Session.prototype.renderGroup = function (group, panel, C) {
+        if (!group) return;
+        var self = this;
+        Object.keys(group).forEach(function (key) {
+            var property = group[key];
+            if (!(property instanceof PZ.property)) return;
+            if (property.definition && property.definition.visible === false) return;
+            self.renderProperty(property, panel, C);
+        });
+    };
+
+    Session.prototype.renderProperty = function (property, panel, C) {
+        var self = this;
+        var def = property.definition || {};
+        var label = def.name || "";
+        var types = PZ.property.type;
+
+        if (property.objects && property.objects.length) {
+            if (def.type === types.COLOR) {
+                this.renderColor(property, panel, C);
+            } else {
+                property.objects.forEach(function (child) { self.renderProperty(child, panel, C); });
+            }
+            return;
+        }
+
+        if (def.type === types.NUMBER) {
+            var edit = propertyEditor(property);
+            var number = C.number({
+                label: label,
+                value: property.get(frame()),
+                min: def.min,
+                max: def.max,
+                step: def.step || 1,
+                onInput: edit.input,
+                onChange: edit.change,
+            });
+            panel.appendChild(number.element);
+            this.track(number, function () { return property.get(frame()); });
+        } else if (def.type === types.OPTION) {
+            var items = String(def.items || "").split(";").map(function (text, index) {
+                return { value: String(index), label: text };
+            });
+            var select = C.select({
+                label: label,
+                value: String(Math.round(property.get(frame()))),
+                options: items,
+                onChange: function (value) { commitEdit(property, Number(value)); },
+            });
+            panel.appendChild(select.element);
+            this.track(select, function () { return String(Math.round(property.get(frame()))); });
+        } else if (def.type === types.TEXT) {
+            panel.appendChild(C.text({
+                label: label,
+                value: property.get(frame()),
+                onChange: function (value) { commitEdit(property, value); },
+            }).element);
+        } else {
+            var current = property.get(frame());
+            var summary = typeof current === "string" && current ? current : "none";
+            panel.appendChild(C.note(label + ": " + summary + ". Assign curves, gradients and assets in the Edit panel.").element);
+        }
+    };
+
+    Session.prototype.renderColor = function (group, panel, C) {
+        var children = group.objects;
+        var before = null;
+        var read = function () {
+            return rgbToHex(children.map(function (child) { return child.get(frame()); }));
+        };
+        var control = C.color({
+            label: group.definition.name || "Color",
+            value: read(),
+            onInput: function (hex) {
+                var rgb = hexToRgb(hex);
+                if (!before) before = children.map(snapshot);
+                children.forEach(function (child, i) { child.set(rgb[i], frame()); });
+            },
+            onChange: function (hex) {
+                var rgb = hexToRgb(hex);
+                var old = before || children.map(snapshot);
+                before = null;
+                operate(function () {
+                    children.forEach(function (child, i) {
+                        if (!sameValue(old[i], rgb[i])) recordSetValue(child, rgb[i], old[i]);
+                    });
+                });
+            },
+        });
+        panel.appendChild(control.element);
+        this.track(control, read);
+    };
+
+    // Builds the window content for one object and returns the teardown.
+    function mountDesigner(root, config, body, win) {
+        var session = new Session(root, config, body, win);
+        session.target = session.targets()[0] || root;
+        session.rebuild();
+        session.timer = setInterval(function () { session.refresh(); }, REFRESH_MS);
+        return {
+            rebuild: function () { session.rebuild(); },
+            dispose: function () {
+                clearInterval(session.timer);
+                session.tracked = [];
+            },
+        };
+    }
+
+    function windowIdFor(root) {
+        if (!root.__trapcodeDesignerKey) root.__trapcodeDesignerKey = nextKey++;
+        return WINDOW_PREFIX + root.__trapcodeDesignerKey;
     }
 
     var designer = {
@@ -99,7 +462,7 @@ var PZ = PZ || {};
     };
 
     designer.openFirst = function (kind) {
-        if (typeof CM === "undefined" || !CM.project) return;
+        if (typeof CM === "undefined" || !CM.project) return null;
         var found = null;
         CM.project.forEachItemOfType(PZ.object3d, function (object) {
             if (found) return;
@@ -112,322 +475,55 @@ var PZ = PZ || {};
 
     designer.open = function (root) {
         var config = configFor(root);
-        if (!config) return;
-        if (designer.current && designer.current.root === root) {
-            designer.current.refresh();
-            return;
-        }
-        if (designer.current) designer.current.close();
+        if (!config) return null;
         if (config.customOpen) {
             config.customOpen(root, designer);
-            return;
+            return null;
         }
-        injectStyle();
+        var host = ui();
+        if (!host || typeof host.openWindow !== "function") return null;
 
-        var make = function (tag, cls, text) {
-            var el = document.createElement(tag);
-            if (cls) el.className = cls;
-            if (text !== undefined) el.textContent = text;
-            return el;
-        };
-        var frame = function () {
-            return CM.playback ? CM.playback.currentFrame : 0;
-        };
+        var id = windowIdFor(root);
+        var handle = handles[id];
+        if (handle && handle.win && handle.win.isOpen()) {
+            handle.win.focus();
+            handle.refresh();
+            designer.current = handle;
+            return handle.win;
+        }
 
-        var state = {
-            root: root,
-            config: config,
-            target: null,
-            block: null,
-            viewport: CM.mainViewport || null,
-            viewportParent: null,
-            viewportStyle: null,
-            wasEdit: null,
-            interval: null,
-            edit: null,
-        };
-
-        var targets = config.targets(root);
-        state.target = targets && targets.length ? targets[0] : root;
-
-        var rootEl = make("div", "tc-designer");
-        var titlebar = make("div", "tc-titlebar");
-        var presetsToggle = make("button", "", "PRESETS");
-        presetsToggle.style.color = "#e0b060";
-        var title = make("div", "tc-title", "Trapcode Designer");
-        var blocksToggle = make("button", "", "BLOCKS");
-        var closeButton = make("button", "", "\u2715");
-        titlebar.appendChild(presetsToggle);
-        titlebar.appendChild(title);
-        titlebar.appendChild(blocksToggle);
-        titlebar.appendChild(closeButton);
-
-        var body = make("div", "tc-body");
-        var presets = make("div", "tc-presets");
-        var main = make("div", "tc-main");
-        var screen = make("div", "tc-screen");
-        var placeholder = make("div", "tc-placeholder", "no preview");
-        screen.appendChild(placeholder);
-        var transport = make("div", "tc-transport");
-        var blocksStrip = make("div", "tc-strip");
-        var systemsStrip = make("div", "tc-systems");
-        var params = make("div", "tc-params");
-
-        var playButton = make("button", "", "\u25B6");
-        var pauseButton = make("button", "", "\u23F8");
-        var prevButton = make("button", "", "\u23EA");
-        var nextButton = make("button", "", "\u23E9");
-        var timeLabel = make("span", "tc-time", "0000");
-        transport.appendChild(prevButton);
-        transport.appendChild(playButton);
-        transport.appendChild(pauseButton);
-        transport.appendChild(nextButton);
-        transport.appendChild(timeLabel);
-
-        var blocksFor = config.blocks || function () {
-            return [];
-        };
-        var groupFor = config.groupFor || function (target, key) {
-            return target.properties ? target.properties[key] : null;
-        };
-
-        var currentGroup = function () {
-            if (!state.target) return null;
-            return groupFor(state.target, state.block);
-        };
-
-        var edit = new PZ.ui.edit(CM, {
-            childFilter: function () {
-                return true;
+        handle = { root: root, win: null, refresh: function () {}, close: function () {} };
+        handles[id] = handle;
+        var name = root.properties && root.properties.name ? root.properties.name.get() : "";
+        var win = host.openWindow({
+            id: id,
+            title: config.title || "Trapcode Designer",
+            subtitle: name || "",
+            persistKey: "trapcode-designer:" + String(config.title || "designer").toLowerCase().replace(/[^a-z0-9]+/g, "-"),
+            width: 360,
+            height: 560,
+            minWidth: 300,
+            minHeight: 260,
+            className: "trapcode-designer-window",
+            mount: function (body, win) {
+                var session = mountDesigner(root, config, body, win);
+                handle.refresh = session.rebuild;
+                return session.dispose;
             },
-            skipSingleChildren: false,
-            showListItemButtons: false,
-            emptyMessage: "no parameters",
-            objectFilter: function () {
-                return !!currentGroup();
-            },
-            objectMap: function () {
-                return currentGroup();
-            },
+            isValid: function () { return root.parent != null; },
         });
-        edit.title = "Parameters";
-        edit.icon = "settings";
-        state.edit = edit;
-        params.appendChild(edit.el);
-        edit.objects = new PZ.objectList();
-        edit.objects.push(root);
-        edit.enabled = true;
-
-        var buildBlocks = function () {
-            blocksStrip.innerHTML = "";
-            var blocks = blocksFor(state.target) || [];
-            if (!state.block && blocks.length) state.block = blocks[0].key;
-            blocks.forEach(function (block) {
-                var el = make("div", "tc-block");
-                el.appendChild(make("div", "tc-thumb"));
-                el.appendChild(make("span", "", block.name));
-                el.classList.toggle("active", block.key === state.block);
-                el.onclick = function () {
-                    state.block = block.key;
-                    buildBlocks();
-                    refreshParams();
-                };
-                blocksStrip.appendChild(el);
-            });
-        };
-
-        var refreshParams = function () {
-            if (edit.objects && edit.objects.length) edit.objectsChanged();
-        };
-
-        var buildSystems = function () {
-            systemsStrip.innerHTML = "";
-            var list = config.targets(root);
-            if (list && list.length) {
-                list.forEach(function (item, index) {
-                    var el = make("div", "tc-system");
-                    el.textContent = config.targetName ? config.targetName(item, index) : "System " + (index + 1);
-                    el.classList.toggle("active", item === state.target);
-                    el.onclick = function () {
-                        state.target = item;
-                        state.block = null;
-                        buildBlocks();
-                        buildSystems();
-                        buildPalettes();
-                        refreshParams();
-                    };
-                    systemsStrip.appendChild(el);
-                });
-            }
-            var kinds = config.addKinds || [];
-            kinds.forEach(function (kind) {
-                var addEl = make("div", "tc-system add", "+ " + kind.name);
-                addEl.onclick = function () {
-                    var created = kind.create(root);
-                    if (created) {
-                        state.target = created;
-                        state.block = null;
-                        buildBlocks();
-                        buildSystems();
-                        refreshParams();
-                    }
-                };
-                systemsStrip.appendChild(addEl);
-            });
-        };
-
-        var buildPresets = function () {
-            presets.innerHTML = "";
-            var list = (config.presets || []).slice();
-            list.forEach(function (preset) {
-                var el = make("div", "tc-preset", preset.name);
-                el.onclick = function () {
-                    if (config.applyPreset) config.applyPreset(root, state.target, preset);
-                    buildBlocks();
-                    buildSystems();
-                    refreshParams();
-                };
-                presets.appendChild(el);
-            });
-            buildPalettes();
-        };
-
-        var buildPalettes = function () {
-            var schemes = (T && T.palettes) || [];
-            var supported = !!(state.target && T && typeof T.supportsPalette === "function" &&
-                T.supportsPalette(state.target)) && schemes.length > 0;
-            var old = null;
-            try {
-                old = presets.querySelector ? presets.querySelector(".tc-palettes") : null;
-            } catch (e) {}
-            if (old) {
-                if (supported && old.__tcBuiltFor === state.target) return;
-                if (old.parentElement) old.parentElement.removeChild(old);
-            }
-            if (!supported) return;
-            var wrap = make("div", "tc-palettes");
-            wrap.__tcBuiltFor = state.target;
-            wrap.appendChild(make("div", "tc-palettes-title", "PALETTE"));
-            schemes.forEach(function (scheme) {
-                var row = make("div", "tc-palette");
-                var bar = make("div", "tc-swatches");
-                try {
-                    bar.style.background = T.paletteCSS(scheme);
-                } catch (e) {}
-                row.appendChild(bar);
-                row.appendChild(make("span", "", scheme.name));
-                row.onclick = function () {
-                    try {
-                        if (typeof T.applyPalette === "function") {
-                            T.applyPalette(state.target, scheme);
-                        }
-                    } catch (e) {}
-                    refreshParams();
-                };
-                wrap.appendChild(row);
-            });
-            presets.appendChild(wrap);
-        };
-
-        var refresh = function () {
-            timeLabel.textContent = String(Math.max(0, Math.round(frame()))).padStart(4, "0");
-            buildPalettes();
-        };
-
-        playButton.onclick = function () {
-            if (CM.playback) CM.playback.speed = 1;
-        };
-        pauseButton.onclick = function () {
-            if (CM.playback) CM.playback.speed = 0;
-        };
-        prevButton.onclick = function () {
-            if (CM.playback) {
-                CM.playback.speed = 0;
-                CM.playback.currentFrame = Math.max(0, frame() - 1);
-            }
-        };
-        nextButton.onclick = function () {
-            if (CM.playback) {
-                CM.playback.speed = 0;
-                CM.playback.currentFrame = frame() + 1;
-            }
-        };
-        presetsToggle.onclick = function () {
-            presets.classList.toggle("hidden");
-        };
-        blocksToggle.onclick = function () {
-            params.classList.toggle("hidden");
-        };
-
-        main.appendChild(screen);
-        main.appendChild(transport);
-        main.appendChild(blocksStrip);
-        main.appendChild(systemsStrip);
-        body.appendChild(presets);
-        body.appendChild(main);
-        body.appendChild(params);
-        rootEl.appendChild(titlebar);
-        rootEl.appendChild(body);
-        document.body.appendChild(rootEl);
-
-        title.textContent = config.title || "Trapcode Designer";
-
-        if (state.viewport && state.viewport.el) {
-            state.viewportParent = state.viewport.el.parentElement;
-            state.viewportStyle = state.viewport.el.getAttribute("style");
-            state.wasEdit = state.viewport.edit;
-            state.viewport.edit = false;
-            screen.appendChild(state.viewport.el);
-            placeholder.remove();
-            requestAnimationFrame(function () {
-                if (state.viewport) state.viewport.resize();
-            });
+        if (!win) {
+            delete handles[id];
+            return null;
         }
-
-        var close = function () {
-            if (state.interval) {
-                clearInterval(state.interval);
-                state.interval = null;
-            }
-            if (edit) edit.enabled = false;
-            if (state.viewport && state.viewportParent) {
-                state.viewport.el.setAttribute("style", state.viewportStyle || "");
-                state.viewportParent.appendChild(state.viewport.el);
-                state.viewport.edit = state.wasEdit;
-                state.viewport.resize();
-            }
-            window.removeEventListener("resize", onResize);
-            document.removeEventListener("keydown", onKeydown);
-            rootEl.remove();
-            designer.current = null;
-        };
-        var onResize = function () {
-            if (state.viewport) state.viewport.resize();
-        };
-        var onKeydown = function (event) {
-            if (event.key === "Escape") close();
-        };
-        closeButton.onclick = close;
-        window.addEventListener("resize", onResize);
-        document.addEventListener("keydown", onKeydown);
-
-        buildPresets();
-        buildBlocks();
-        buildSystems();
-        edit.objectsChanged();
-        refresh();
-        state.interval = setInterval(refresh, 200);
-
-        designer.current = {
-            root: root,
-            close: close,
-            refresh: function () {
-                buildBlocks();
-                buildSystems();
-                refreshParams();
-                refresh();
-            },
-        };
+        handle.win = win;
+        handle.close = function () { win.close(); };
+        win.onClose(function () {
+            if (handles[id] === handle) delete handles[id];
+            if (designer.current === handle) designer.current = null;
+        });
+        designer.current = handle;
+        return win;
     };
 
     designer.registerConfig = function (cls, config) {

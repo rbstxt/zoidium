@@ -1,118 +1,89 @@
 {
   "schemaVersion": 1,
   "id": "openzoid-legacy",
-  "name": "Setup Legacy",
+  "name": "OpenZoid Legacy",
   "author": "Zoidium",
-  "version": "8",
+  "version": "9",
   "kind": "native-fx",
-  "description": "History-buffer ports of the OpenZoid effects: Echo (Legacy), Posterize Time (Legacy), Jpeg Damage, VHS, Datamosh, Tracery tracking callouts, and ASCII character cells, plus setup windows.",
+  "description": "OpenZoid effects ported to Zoidium's deterministic render path: Echo (Legacy) and Posterize Time (Legacy) on the core temporal APIs, Jpeg Damage, VHS and Datamosh, Tracery tracking callouts and ASCII character cells, with floating setup windows.",
   "category": "SETUP LEGACY",
   "nativeEffects": [
     {
       "id": "echo-legacy",
       "name": "Echo (Legacy)",
-      "description": "Rolling history-buffer echo with smear, maximum, additive, and screen modes.",
-      "source": "./plugins/openzoid-legacy/effects/echo-legacy.js?v=8"
+      "description": "Smear, maximum, additive and screen echoes of earlier frames, sampled through the core frame sampler (up to 16 echoes).",
+      "source": "./plugins/openzoid-legacy/effects/echo-legacy.js?v=9",
+      "requiresApis": [
+        "defineFrameSampler"
+      ]
     },
     {
       "id": "posterizetime-legacy",
       "name": "Posterize Time (Legacy)",
-      "description": "Hold-buffer frame-rate quantizer in the Posterize Time style.",
-      "source": "./plugins/openzoid-legacy/effects/posterizetime-legacy.js?v=8"
+      "description": "Frame-rate quantizer in the Posterize Time style, applied as a deterministic core time operator.",
+      "source": "./plugins/openzoid-legacy/effects/posterizetime-legacy.js?v=9"
     },
     {
       "id": "jpegdamage",
       "name": "Jpeg Damage",
-      "description": "JPEG compression-break simulation with frequency and error controls.",
-      "source": "./plugins/openzoid-legacy/effects/jpegdamage.js?v=8"
+      "description": "JPEG compression-break simulation with frequency and error controls, driven by an explicit time value.",
+      "source": "./plugins/openzoid-legacy/effects/jpegdamage.js?v=9"
     },
     {
       "id": "vhs",
       "name": "VHS",
-      "description": "Full VHS signal-chain rebuild: tracking, chroma crawl, snow, tears, and OSD.",
-      "source": "./plugins/openzoid-legacy/effects/vhs.js?v=8"
+      "description": "Signal-chain rebuild: tape, noise, tracking and chroma distortions, plus persistence averaged from sampled source frames (Adjustment layer). Setup window included.",
+      "source": "./plugins/openzoid-legacy/effects/vhs.js?v=9",
+      "requiresApis": [
+        "defineFrameSampler"
+      ]
     },
     {
       "id": "datamosh",
       "name": "Datamosh",
-      "description": "Feedback motion-vector smear with algorithm presets and hold controls.",
-      "source": "./plugins/openzoid-legacy/effects/datamosh.js?v=8"
+      "description": "Deterministic datamosh: keyframe-interval segments with motion warped from a bounded set of sampled source frames. Setup window included.",
+      "source": "./plugins/openzoid-legacy/effects/datamosh.js?v=9",
+      "requiresApis": [
+        "defineFrameSampler"
+      ]
     },
     {
       "id": "tracery",
       "name": "Tracery",
-      "description": "Tracking callouts: boxes, markers, spline connection lines, arrows, labels, and grid.",
-      "source": "./plugins/openzoid-legacy/effects/tracery.js?v=8"
+      "description": "Tracking callouts: boxes, markers, spline connection lines, arrows, labels, grid and key detection.",
+      "source": "./plugins/openzoid-legacy/effects/tracery.js?v=9"
     },
     {
       "id": "ascii",
       "name": "ASCII",
-      "description": "Character-cell video: resampled glyph grid with mapping, waves, noise, and scroll.",
-      "source": "./plugins/openzoid-legacy/effects/ascii.js?v=8"
+      "description": "Character-cell video: resampled glyph grid with band mapping, color modes, waves, noise, and scroll.",
+      "source": "./plugins/openzoid-legacy/effects/ascii.js?v=9"
     }
   ],
   "modules": [
     {
-      "id": "datamosh-export",
-      "source": "./plugins/openzoid-legacy/datamosh-export.js?v=8"
-    },
-    {
       "id": "vhs-setup",
-      "source": "./plugins/openzoid-legacy/vhs-setup.js?v=8"
+      "source": "./plugins/openzoid-legacy/vhs-setup.js?v=9"
     },
     {
       "id": "datamosh-setup",
-      "source": "./plugins/openzoid-legacy/datamosh-setup.js?v=8"
+      "source": "./plugins/openzoid-legacy/datamosh-setup.js?v=9"
     },
     {
-      "id": "tracery-setup",
-      "source": "./plugins/openzoid-legacy/tracery-setup.js?v=8"
-    },
-    {
-      "id": "ascii-setup",
-      "source": "./plugins/openzoid-legacy/ascii-setup.js?v=8"
+      "id": "effect-windows",
+      "source": "./plugins/openzoid-legacy/effect-windows.js?v=9"
     }
   ],
   "resources": [
     {
-      "id": "common-vertex",
-      "type": "text",
-      "source": "./plugins/openzoid-legacy/shaders/common.glsl?v=8"
-    },
-    {
       "id": "echo-shader",
       "type": "text",
-      "source": "./plugins/openzoid-legacy/shaders/fx_echo.glsl?v=8"
-    },
-    {
-      "id": "posterizetime-shader",
-      "type": "text",
-      "source": "./plugins/openzoid-legacy/shaders/fx_posterizetime.glsl?v=8"
+      "source": "./plugins/openzoid-legacy/shaders/fx_echo.glsl?v=9"
     },
     {
       "id": "jpegdamage-shader",
       "type": "text",
-      "source": "./plugins/openzoid-legacy/shaders/fx_jpegdamage.glsl?v=8"
-    },
-    {
-      "id": "datamosh-render",
-      "type": "text",
-      "source": "./plugins/openzoid-legacy/datamosh-render.js?v=8"
-    },
-    {
-      "id": "setup-style",
-      "type": "text",
-      "source": "./plugins/openzoid-legacy/vhs-setup.css?v=8"
-    },
-    {
-      "id": "tracery-style",
-      "type": "text",
-      "source": "./plugins/openzoid-legacy/tracery-setup.css?v=8"
-    },
-    {
-      "id": "ascii-style",
-      "type": "text",
-      "source": "./plugins/openzoid-legacy/ascii-setup.css?v=8"
+      "source": "./plugins/openzoid-legacy/shaders/fx_jpegdamage.glsl?v=9"
     }
   ]
 }

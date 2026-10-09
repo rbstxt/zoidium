@@ -3,9 +3,9 @@
   "id": "trapcode-suite",
   "name": "Rowbyte & Red Giant Suite",
   "author": "Zoidium",
-  "version": "7",
+  "version": "8",
   "kind": "object",
-  "description": "Trapcode Particular, Form, and Plexus 3D objects with the SaaS-themed Trapcode designer plus C4D-style lights. Includes designer color palettes and the wiggle expression upgrade.",
+  "description": "Trapcode Particular, Form, and Plexus 3D objects with floating designer windows, plus C4D-style lights. Includes designer color palettes and the wiggle expression upgrade.",
   "category": "TRAPCODE",
   "objectTypes": [
     {
@@ -114,31 +114,17 @@
           }
         },
         {
-          "name": "Dome Light (Sky/HDRI)",
+          "name": "Hemisphere Light (Sky/Ground)",
           "type": 3,
           "data": {
             "objectType": 5
           }
         },
         {
-          "name": "Photometric IES Light",
-          "type": 3,
-          "data": {
-            "objectType": 6
-          }
-        },
-        {
-          "name": "Physical Sun",
+          "name": "Sun (Directional)",
           "type": 3,
           "data": {
             "objectType": 7
-          }
-        },
-        {
-          "name": "Portal Light",
-          "type": 3,
-          "data": {
-            "objectType": 8
           }
         }
       ]
@@ -147,43 +133,43 @@
   "modules": [
     {
       "id": "trapcode-runtime",
-      "source": "./plugins/trapcode-suite/trapcode-runtime.js?v=7"
+      "source": "./plugins/trapcode-suite/trapcode-runtime.js?v=8"
     },
     {
       "id": "designer-gear",
-      "source": "./plugins/trapcode-suite/designer-gear.js?v=7"
+      "source": "./plugins/trapcode-suite/designer-gear.js?v=8"
     }
   ],
   "resources": [
     {
       "id": "trapcode-common",
       "type": "text",
-      "source": "./plugins/trapcode-suite/trapcode-common.js?v=7"
+      "source": "./plugins/trapcode-suite/trapcode-common.js?v=8"
     },
     {
       "id": "trapcode-designer",
       "type": "text",
-      "source": "./plugins/trapcode-suite/designer.js?v=7"
+      "source": "./plugins/trapcode-suite/designer.js?v=8"
     },
     {
       "id": "trapcode-particular",
       "type": "text",
-      "source": "./plugins/trapcode-suite/particular.js?v=7"
+      "source": "./plugins/trapcode-suite/particular.js?v=8"
     },
     {
       "id": "trapcode-form",
       "type": "text",
-      "source": "./plugins/trapcode-suite/form.js?v=7"
+      "source": "./plugins/trapcode-suite/form.js?v=8"
     },
     {
       "id": "trapcode-plexus",
       "type": "text",
-      "source": "./plugins/trapcode-suite/plexus.js?v=7"
+      "source": "./plugins/trapcode-suite/plexus.js?v=8"
     },
     {
       "id": "trapcode-lights",
       "type": "text",
-      "source": "./plugins/trapcode-suite/lights-c4d.js?v=7"
+      "source": "./plugins/trapcode-suite/lights-c4d.js?v=8"
     }
   ]
 }

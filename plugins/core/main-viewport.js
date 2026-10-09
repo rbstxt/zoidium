@@ -25,6 +25,16 @@
       super(...args);
       instances.push(this);
     }
+
+    // CM3 disposes a viewport's renderer in unload(). Release the tracked
+    // reference and any editor alias pointing at it so a retired viewport is
+    // never kept alive or handed to a plugin window as its preview.
+    unload(...args) {
+      const index = instances.indexOf(this);
+      if (index >= 0) instances.splice(index, 1);
+      if (this.editor && this.editor.mainViewport === this) this.editor.mainViewport = null;
+      return typeof super.unload === "function" ? super.unload(...args) : undefined;
+    }
   }
   try {
     Object.defineProperty(TrackedViewport, "name", { value: Original.name || "viewport" });

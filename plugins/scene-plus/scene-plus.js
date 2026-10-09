@@ -5,13 +5,25 @@ const SCHEMA_VERSION = 2;
 const EFFECTOR_SCHEMA_VERSION = 1;
 const TWIST_TYPE = "zoidium:repeater/twist";
 const WARP_TYPE = "zoidium:repeater/warp";
-const DEFORM_DATA_KEY = "__zoidiumEffectorDeform";
 const DEGREES_TO_RADIANS = Math.PI / 180;
 const CURVE_QUALITY_LOW = 0;
 const CURVE_QUALITY_SMOOTH = 1;
 const MIN_SMOOTH_POLYGON_COUNT = 1;
 const DEFAULT_SMOOTH_POLYGON_COUNT = 16;
 const MAX_SMOOTH_POLYGON_COUNT = 256;
+const VORONOI_TYPE = "zoidium:repeater/voronoi-fracture";
+const DEFAULT_FRACTURE_CELLS = 24;
+const MAX_FRACTURE_CELLS = 200;
+const FRACTURE_LIMITS = Object.freeze({
+  maxSourceTriangles: 40000,
+  maxOutputTriangles: 400000,
+  maxCapVertices: 512,
+});
+const LEGACY_EFFECTOR_TYPES = Object.freeze({
+  7: TWIST_TYPE,
+  8: WARP_TYPE,
+  9: VORONOI_TYPE,
+});
 
 function numberValue(value, fallback) {
   const number = Number(value);
@@ -439,58 +451,6 @@ function markGeneratedRenderTree(root) {
   });
 }
 
-function disposeDeformedCloneResources(root) {
-  root?.traverse?.((node) => {
-    const data = node?.userData?.[DEFORM_DATA_KEY];
-    if (!data || data.geometry !== node.geometry) return;
-    const baseGeometry = data.baseGeometry || data.geometry;
-    if (data.geometry !== baseGeometry) data.geometry.dispose?.();
-    baseGeometry.dispose?.();
-    delete node.userData[DEFORM_DATA_KEY];
-  });
-}
-
-function propertyValue(property, frame, fallback) {
-  if (!property) return fallback;
-  try {
-    const value = typeof property.get === "function" ? property.get(frame) : property.value;
-    return value === undefined ? fallback : value;
-  } catch (_error) {
-    return fallback;
-  }
-}
-
-function numberPropertyValue(property, frame, fallback) {
-  return numberValue(propertyValue(property, frame, fallback), fallback);
-}
-
-function optionPropertyValue(property, frame, fallback) {
-  return Math.round(numberPropertyValue(property, frame, fallback));
-}
-
-function fieldWeight(x, y, z, type, position, scale) {
-  if (!type) return 1;
-  let weight = 1;
-  if (type === 1) {
-    const distance = x - position[0];
-    weight = 1 - Math.max(0, distance) / (scale[0] || 1);
-  } else if (type === 2) {
-    const coordinates = [x, y, z];
-    let distance = 0;
-    for (let axis = 0; axis < 3; axis += 1) {
-      const half = 0.5 * (scale[axis] || 1);
-      distance = Math.max(distance, Math.abs(coordinates[axis] - position[axis]) / half);
-    }
-    weight = distance <= 1 ? 1 : 1 - (distance - 1);
-  } else if (type === 3) {
-    const dx = x - position[0];
-    const dy = y - position[1];
-    const dz = z - position[2];
-    weight = 1 - Math.sqrt(dx * dx + dy * dy + dz * dz) / (Math.abs(scale[0]) || 1);
-  }
-  return Math.max(0, Math.min(1, weight));
-}
-
 function createEffectorBaseClass(PZ, THREE) {
   const GroupBase = PZ.object3d.group || PZ.object3d;
   return class EffectorObject extends GroupBase {
@@ -600,23 +560,55 @@ function createEffectorBaseClass(PZ, THREE) {
   };
 }
 
-function rotatePositionsAroundAxis(positions, axis, angle) {
-  if (!angle) return positions;
-  const pairs = [
-    [1, 2],
-    [2, 0],
-    [0, 1],
-  ];
-  const [first, second] = pairs[axis];
-  const cosine = Math.cos(angle);
-  const sine = Math.sin(angle);
-  for (let index = 0; index + 2 < positions.length; index += 3) {
-    const firstValue = positions[index + first];
-    const secondValue = positions[index + second];
-    positions[index + first] = firstValue * cosine - secondValue * sine;
-    positions[index + second] = firstValue * sine + secondValue * cosine;
+function propertyValue(property, frame, fallback) {
+  if (!property) return fallback;
+  try {
+    const value = typeof property.get === "function" ? property.get(frame) : property.value;
+    return value === undefined ? fallback : value;
+  } catch (_error) {
+    return fallback;
   }
-  return positions;
+}
+
+function numberPropertyValue(property, frame, fallback) {
+  return numberValue(propertyValue(property, frame, fallback), fallback);
+}
+
+function optionPropertyValue(property, frame, fallback) {
+  return Math.round(numberPropertyValue(property, frame, fallback));
+}
+
+function fieldFromProperties(properties, frame) {
+  return {
+    type: optionPropertyValue(properties.field, frame, 0),
+    position: vectorValue(propertyValue(properties.fieldPosition, frame, [0, 0, 0]), [0, 0, 0]),
+    scale: vectorValue(propertyValue(properties.fieldScale, frame, [100, 100, 100]), [100, 100, 100]),
+  };
+}
+
+// Pure evaluation lives in effector-core.js and effector-fracture.js. These
+// holders are set by loadEffectorLibrary() and are read at evaluation time.
+let library = loadLibraryFromRequire();
+let meshDeformerCache = null;
+let meshDeformerThree = null;
+const warnedMessages = new Set();
+
+function warnOnceFor(key, message) {
+  if (warnedMessages.has(key)) return;
+  warnedMessages.add(key);
+  console.warn(message);
+}
+
+function getMeshDeformer(THREE) {
+  if (!meshDeformerCache || meshDeformerThree !== THREE) {
+    meshDeformerCache = library.mesh.createMeshDeformer(THREE);
+    meshDeformerThree = THREE;
+  }
+  return meshDeformerCache;
+}
+
+function restoreDeformedTree(root) {
+  if (meshDeformerCache) meshDeformerCache.restoreTree(root);
 }
 
 function createTwistClass(PZ, THREE, type = TWIST_TYPE) {
@@ -669,59 +661,16 @@ function createTwistClass(PZ, THREE, type = TWIST_TYPE) {
       this.type = type;
     }
 
-    deformPositions(positions, frame, data, _mesh, context) {
+    // Pure function of (positions, angle, axis, offset) at this frame.
+    deformPositions(positions, frame) {
       const angle = numberPropertyValue(this.properties.angle, frame, 0);
       if (!angle) return positions;
-
-      const axis = Math.max(0, Math.min(2, optionPropertyValue(this.properties.axis, frame, 1)));
-      const minimum = data.min[axis];
-      const maximum = data.max[axis];
-      const size = maximum - minimum;
-      if (!(size > 0)) return positions;
-
-      const offset = numberPropertyValue(this.properties.offset, frame, 0);
-      const cache = data.twistCache || (data.twistCache = new Map());
-      const previous = cache.get(this);
-      if (
-        context?.canUseOffsetRotation &&
-        previous &&
-        previous.angle === angle &&
-        previous.axis === axis &&
-        previous.size === size &&
-        previous.positions.length === positions.length
-      ) {
-        positions.set(previous.positions);
-        rotatePositionsAroundAxis(
-          positions,
-          axis,
-          -angle * (offset - previous.offset) / size
-        );
-        cache.set(this, { angle, axis, offset, size, positions: new Float32Array(positions) });
-        return positions;
-      }
-
-      const pivot = 0.5 * (minimum + maximum) + offset;
-      const pairs = [
-        [1, 2],
-        [2, 0],
-        [0, 1],
-      ];
-      const [first, second] = pairs[axis];
-      for (let index = 0; index + 2 < positions.length; index += 3) {
-        const theta = angle * ((positions[index + axis] - pivot) / size);
-        const cosine = Math.cos(theta);
-        const sine = Math.sin(theta);
-        const firstValue = positions[index + first];
-        const secondValue = positions[index + second];
-        positions[index + first] = firstValue * cosine - secondValue * sine;
-        positions[index + second] = firstValue * sine + secondValue * cosine;
-      }
-      if (context?.canUseOffsetRotation) {
-        cache.set(this, { angle, axis, offset, size, positions: new Float32Array(positions) });
-      } else {
-        cache.delete(this);
-      }
-      return positions;
+      return library.core.twistPositions(
+        positions,
+        angle,
+        optionPropertyValue(this.properties.axis, frame, 1),
+        numberPropertyValue(this.properties.offset, frame, 0)
+      );
     }
   }
 
@@ -800,53 +749,16 @@ function createWarpClass(PZ, THREE, type = WARP_TYPE) {
       this.type = type;
     }
 
-    deformPositions(positions, frame, data) {
+    deformPositions(positions, frame) {
       const strength = numberPropertyValue(this.properties.amount, frame, 0);
       if (!strength) return positions;
-
-      const axis = Math.max(0, Math.min(1, optionPropertyValue(this.properties.axis, frame, 0)));
-      const [alongAxis, bendAxis] = axis === 0 ? [0, 1] : [0, 2];
-      const minimum = data.min[alongAxis];
-      const maximum = data.max[alongAxis];
-      const size = maximum - minimum;
-      if (!(size > 0)) return positions;
-
-      const pivot =
-        0.5 * (minimum + maximum) + numberPropertyValue(this.properties.offset, frame, 0);
-      const curvature = strength / size;
-      const fieldType = optionPropertyValue(this.properties.field, frame, 0);
-      const fieldPosition = vectorValue(
-        propertyValue(this.properties.fieldPosition, frame, [0, 0, 0]),
-        [0, 0, 0]
+      return library.core.warpPositions(
+        positions,
+        strength,
+        optionPropertyValue(this.properties.axis, frame, 0),
+        numberPropertyValue(this.properties.offset, frame, 0),
+        fieldFromProperties(this.properties, frame)
       );
-      const fieldScale = vectorValue(
-        propertyValue(this.properties.fieldScale, frame, [100, 100, 100]),
-        [100, 100, 100]
-      );
-
-      for (let index = 0; index + 2 < positions.length; index += 3) {
-        let weight = 1;
-        if (fieldType) {
-          weight = fieldWeight(
-            positions[index],
-            positions[index + 1],
-            positions[index + 2],
-            fieldType,
-            fieldPosition,
-            fieldScale
-          );
-          if (weight <= 0) continue;
-        }
-
-        const effectiveCurvature = curvature * weight;
-        if (!effectiveCurvature) continue;
-        const radius = 1 / effectiveCurvature;
-        const along = positions[index + alongAxis] - pivot;
-        const theta = along * effectiveCurvature;
-        positions[index + alongAxis] = pivot + radius * Math.sin(theta);
-        positions[index + bendAxis] += radius * (1 - Math.cos(theta));
-      }
-      return positions;
     }
   }
 
@@ -854,221 +766,172 @@ function createWarpClass(PZ, THREE, type = WARP_TYPE) {
   return WarpObject;
 }
 
-function ensureMeshUserData(mesh) {
-  if (!mesh.userData || typeof mesh.userData !== "object") mesh.userData = {};
-  return mesh.userData;
-}
-
-const polygonTemplateCache = new Map();
-
-function midpoint(first, second) {
-  return [
-    0.5 * (first[0] + second[0]),
-    0.5 * (first[1] + second[1]),
-    0.5 * (first[2] + second[2]),
-  ];
-}
-
-function splitTriangleFour([first, second, third]) {
-  const firstSecond = midpoint(first, second);
-  const secondThird = midpoint(second, third);
-  const thirdFirst = midpoint(third, first);
-  return [
-    [first, firstSecond, thirdFirst],
-    [firstSecond, second, secondThird],
-    [thirdFirst, secondThird, third],
-    [firstSecond, secondThird, thirdFirst],
-  ];
-}
-
-function barycentricDistanceSquared(first, second) {
-  const x = first[0] - second[0];
-  const y = first[1] - second[1];
-  const z = first[2] - second[2];
-  return x * x + y * y + z * z;
-}
-
-function splitTriangleTwo([first, second, third]) {
-  const firstSecondLength = barycentricDistanceSquared(first, second);
-  const secondThirdLength = barycentricDistanceSquared(second, third);
-  const thirdFirstLength = barycentricDistanceSquared(third, first);
-  if (firstSecondLength >= secondThirdLength && firstSecondLength >= thirdFirstLength) {
-    const edge = midpoint(first, second);
-    return [
-      [first, edge, third],
-      [edge, second, third],
-    ];
-  }
-  if (secondThirdLength >= thirdFirstLength) {
-    const edge = midpoint(second, third);
-    return [
-      [second, edge, first],
-      [edge, third, first],
-    ];
-  }
-  const edge = midpoint(third, first);
-  return [
-    [third, edge, second],
-    [edge, first, second],
-  ];
-}
-
-function getSubdivisionTriangles(polygonCount) {
-  const target = integerValue(
-    polygonCount,
-    DEFAULT_SMOOTH_POLYGON_COUNT,
-    MIN_SMOOTH_POLYGON_COUNT,
-    MAX_SMOOTH_POLYGON_COUNT
-  );
-  if (polygonTemplateCache.has(target)) return polygonTemplateCache.get(target);
-
-  let triangles = [{ vertices: [[1, 0, 0], [0, 1, 0], [0, 0, 1]], depth: 0 }];
-  while (triangles.length * 4 <= target) {
-    const next = [];
-    for (const triangle of triangles) {
-      for (const vertices of splitTriangleFour(triangle.vertices)) {
-        next.push({ vertices, depth: triangle.depth + 1 });
-      }
+function createVoronoiClass(PZ, THREE, type = VORONOI_TYPE) {
+  const BaseEffector = createEffectorBaseClass(PZ, THREE);
+  class VoronoiObject extends BaseEffector {
+    constructor() {
+      super();
+      this.properties.addAll({
+        cells: {
+          name: "Cells",
+          type: PZ.property.type.NUMBER,
+          value: DEFAULT_FRACTURE_CELLS,
+          min: 1,
+          max: MAX_FRACTURE_CELLS,
+          step: 1,
+          decimals: 0,
+        },
+        seed: {
+          name: "Seed",
+          type: PZ.property.type.NUMBER,
+          value: 1,
+          step: 1,
+          decimals: 0,
+        },
+        closed: {
+          name: "Inner faces",
+          type: PZ.property.type.OPTION,
+          value: 1,
+          items: "open;closed",
+        },
+        colors: {
+          name: "Fragment colors",
+          type: PZ.property.type.OPTION,
+          value: 1,
+          items: "material;random",
+        },
+        distance: {
+          dynamic: true,
+          name: "Distance",
+          type: PZ.property.type.NUMBER,
+          value: 0,
+          min: -1000,
+          max: 1000,
+          step: 1,
+          decimals: 2,
+        },
+        offset: {
+          dynamic: true,
+          name: "Offset fragments",
+          type: PZ.property.type.NUMBER,
+          value: 0,
+          min: 0,
+          max: 100,
+          step: 1,
+          decimals: 1,
+        },
+        scatter: {
+          dynamic: true,
+          name: "Scatter",
+          type: PZ.property.type.NUMBER,
+          value: 0,
+          min: -1000,
+          max: 1000,
+          step: 1,
+          decimals: 2,
+        },
+        spin: {
+          dynamic: true,
+          name: "Spin",
+          type: PZ.property.type.NUMBER,
+          value: 0,
+          min: -3600,
+          max: 3600,
+          step: 1,
+          decimals: 1,
+          scaleFactor: DEGREES_TO_RADIANS,
+        },
+        field: {
+          name: "Field",
+          type: PZ.property.type.OPTION,
+          value: 0,
+          items: "infinite;linear;box;sphere",
+        },
+        fieldPosition: {
+          name: "Field position",
+          type: PZ.property.type.VECTOR3,
+          value: [0, 0, 0],
+          step: 1,
+          decimals: 1,
+        },
+        fieldScale: {
+          name: "Field scale",
+          type: PZ.property.type.VECTOR3,
+          value: [100, 100, 100],
+          min: 0.01,
+          step: 1,
+          decimals: 1,
+        },
+      });
+      this.type = type;
     }
-    triangles = next;
-  }
-  while (triangles.length < target) {
-    let splitIndex = 0;
-    for (let index = 1; index < triangles.length; index += 1) {
-      if (triangles[index].depth < triangles[splitIndex].depth) splitIndex = index;
-    }
-    const triangle = triangles[splitIndex];
-    const nextDepth = triangle.depth + 1;
-    triangles.splice(
-      splitIndex,
-      1,
-      ...splitTriangleTwo(triangle.vertices).map((vertices) => ({
-        vertices,
-        depth: nextDepth,
-      }))
-    );
-  }
 
-  const result = triangles.map((triangle) => triangle.vertices);
-  polygonTemplateCache.set(target, result);
-  return result;
-}
-
-function materialIndexAtOffset(geometry, offset) {
-  for (const group of geometry.groups || []) {
-    if (offset >= group.start && offset < group.start + group.count) {
-      return Number.isFinite(group.materialIndex) ? group.materialIndex : 0;
-    }
-  }
-  return 0;
-}
-
-function attributeComponent(attribute, vertex, component) {
-  const index = vertex * attribute.itemSize + component;
-  return Number(attribute.array[index]) || 0;
-}
-
-function subdivideGeometry(THREE, geometry, polygonCount) {
-  // Nonlinear deformation can only bend the vertices it receives. Refine the
-  // triangles first so Smooth mode does not turn large text faces into visible
-  // low-poly wedges. The requested count is per source triangle.
-  if (
-    polygonCount <= MIN_SMOOTH_POLYGON_COUNT ||
-    !geometry ||
-    geometry.__zoidiumEffectorSubdivided ||
-    !geometry.attributes?.position ||
-    typeof THREE?.BufferGeometry !== "function" ||
-    typeof THREE?.BufferAttribute !== "function"
-  ) {
-    return geometry;
-  }
-
-  const attributes = Object.entries(geometry.attributes).filter(
-    ([, attribute]) => attribute?.array && Number.isInteger(attribute.itemSize)
-  );
-  const position = geometry.attributes.position;
-  if (!attributes.length || position.itemSize < 3) return geometry;
-
-  const indexArray = geometry.index?.array || geometry.index || null;
-  const vertexCount = indexArray
-    ? indexArray.length
-    : position.count ?? position.array.length / position.itemSize;
-  const triangleCount = Math.floor(vertexCount / 3);
-  if (!triangleCount) return geometry;
-
-  const triangles = getSubdivisionTriangles(polygonCount);
-  const output = new Map(attributes.map(([name]) => [name, []]));
-  const outputGroups = [];
-  let outputVertexCount = 0;
-
-  const appendGroup = (start, materialIndex, count) => {
-    const previous = outputGroups[outputGroups.length - 1];
-    if (
-      previous &&
-      previous.materialIndex === materialIndex &&
-      previous.start + previous.count === start
-    ) {
-      previous.count += count;
-    } else {
-      outputGroups.push({ start, count, materialIndex });
-    }
-  };
-
-  for (let triangleIndex = 0; triangleIndex < triangleCount; triangleIndex += 1) {
-    const offset = triangleIndex * 3;
-    const sourceVertices = [
-      indexArray ? Number(indexArray[offset]) : offset,
-      indexArray ? Number(indexArray[offset + 1]) : offset + 1,
-      indexArray ? Number(indexArray[offset + 2]) : offset + 2,
-    ];
-    const materialIndex = materialIndexAtOffset(geometry, offset);
-    const groupStart = outputVertexCount;
-    for (const smallTriangle of triangles) {
-      for (const weights of smallTriangle) {
-        for (const [name, attribute] of attributes) {
-          const values = output.get(name);
-          for (let component = 0; component < attribute.itemSize; component += 1) {
-            values.push(
-              weights[0] * attributeComponent(attribute, sourceVertices[0], component) +
-              weights[1] * attributeComponent(attribute, sourceVertices[1], component) +
-              weights[2] * attributeComponent(attribute, sourceVertices[2], component)
-            );
-          }
+    // Topology stage: cached by the mesh deformer per (input, cells, seed, closed).
+    produceStage(positions, stage, frame, derive) {
+      const cells = Math.min(
+        MAX_FRACTURE_CELLS,
+        Math.max(1, Math.round(numberPropertyValue(this.properties.cells, frame, DEFAULT_FRACTURE_CELLS)))
+      );
+      const seed = Math.trunc(numberPropertyValue(this.properties.seed, frame, 1));
+      const closed = optionPropertyValue(this.properties.closed, frame, 1) === 1;
+      const key = ["voronoi", cells, seed, closed ? 1 : 0].join(":");
+      return derive(stage, key, positions, () => {
+        const result = library.fracture.buildVoronoiFracture(
+          { positions, index: stage.index, uvs: stage.uvs },
+          { cells, seed, closed },
+          FRACTURE_LIMITS
+        );
+        if (result.error) {
+          warnOnceFor(
+            "voronoi:" + result.error,
+            "Voronoi Fracture skipped this mesh: " + fractureErrorText(result.error) + "."
+          );
+          return null;
         }
-        outputVertexCount += 1;
-      }
+        return result;
+      });
     }
-    appendGroup(groupStart, materialIndex, triangles.length * 3);
+
+    surfaceOptions(frame) {
+      return { vertexColors: optionPropertyValue(this.properties.colors, frame, 1) === 1 };
+    }
+
+    // Per-frame motion of the cached pieces. Pure in (time, properties).
+    deformPositions(positions, frame, context) {
+      const stage = context && context.stage;
+      if (!stage || !stage.pieceIds) return positions;
+      return library.fracture.applyFragmentMotion(
+        positions,
+        stage,
+        {
+          distance: numberPropertyValue(this.properties.distance, frame, 0),
+          scatter: numberPropertyValue(this.properties.scatter, frame, 0),
+          offset: numberPropertyValue(this.properties.offset, frame, 0),
+          spin: numberPropertyValue(this.properties.spin, frame, 0),
+          field: fieldFromProperties(this.properties, frame),
+        },
+        context.matrix || null
+      );
+    }
   }
 
-  const result = new THREE.BufferGeometry();
-  for (const [name, attribute] of attributes) {
-    const values = output.get(name);
-    const resultAttribute = new THREE.BufferAttribute(
-      new Float32Array(values),
-      attribute.itemSize,
-      attribute.normalized
-    );
-    if (typeof result.addAttribute === "function") result.addAttribute(name, resultAttribute);
-    else result.setAttribute?.(name, resultAttribute);
-  }
-  if (geometry.groups?.length && typeof result.addGroup === "function") {
-    result.clearGroups?.();
-    for (const group of outputGroups) {
-      result.addGroup(group.start, group.count, group.materialIndex);
-    }
-  }
-  result.name = geometry.name;
-  result.computeBoundingBox?.();
-  result.computeBoundingSphere?.();
-  if (!result.attributes.normal) result.computeVertexNormals?.();
-  result.__zoidiumEffectorSubdivided = true;
-  return result;
+  VoronoiObject.prototype.defaultName = "Voronoi Fracture";
+  return VoronoiObject;
 }
 
-function curvePolygonCount(chain, frame) {
+function fractureErrorText(code) {
+  if (code === "source-limit") return "the source mesh has more than " + FRACTURE_LIMITS.maxSourceTriangles + " triangles";
+  if (code === "output-limit") return "the fracture would exceed " + FRACTURE_LIMITS.maxOutputTriangles + " triangles";
+  if (code === "empty") return "the mesh has no triangles";
+  if (code === "degenerate") return "the mesh has no extent";
+  return "the geometry is invalid";
+}
+
+// Smooth curve quality applies to the largest requested polygon count in the
+// chain, skipping effectors whose intensity is zero at this frame.
+function curvePolygonCount(effectors, frame) {
   let polygonCount = CURVE_QUALITY_LOW;
-  for (const effector of chain) {
+  for (const effector of effectors) {
     if (!effector.properties?.curveQuality) continue;
     const intensityProperty = effector.properties.angle || effector.properties.amount;
     if (intensityProperty && !numberPropertyValue(intensityProperty, frame, 0)) continue;
@@ -1077,11 +940,7 @@ function curvePolygonCount(chain, frame) {
       polygonCount = Math.max(
         polygonCount,
         integerValue(
-          numberPropertyValue(
-            effector.properties.polygonCount,
-            frame,
-            DEFAULT_SMOOTH_POLYGON_COUNT
-          ),
+          numberPropertyValue(effector.properties.polygonCount, frame, DEFAULT_SMOOTH_POLYGON_COUNT),
           DEFAULT_SMOOTH_POLYGON_COUNT,
           MIN_SMOOTH_POLYGON_COUNT,
           MAX_SMOOTH_POLYGON_COUNT
@@ -1090,189 +949,6 @@ function curvePolygonCount(chain, frame) {
     }
   }
   return polygonCount;
-}
-
-function releaseDeformedMesh(mesh) {
-  const data = mesh?.userData?.[DEFORM_DATA_KEY];
-  if (!data) return;
-  restoreDeformedMesh(mesh);
-  if (
-    data.baseGeometry &&
-    data.geometry !== data.baseGeometry &&
-    mesh.geometry === data.geometry
-  ) {
-    const workingGeometry = data.geometry;
-    mesh.geometry = data.baseGeometry;
-    workingGeometry.dispose?.();
-    data.geometry = data.baseGeometry;
-    data.positions = new Float32Array(data.baseGeometry.attributes.position.array);
-    data.normals = data.baseGeometry.attributes.normal?.array
-      ? new Float32Array(data.baseGeometry.attributes.normal.array)
-      : null;
-    data.minimum = data.min;
-    data.maximum = data.max;
-    data.polygonCount = CURVE_QUALITY_LOW;
-  }
-}
-
-function getDeformMeshData(THREE, mesh, polygonCount = CURVE_QUALITY_LOW) {
-  const userData = ensureMeshUserData(mesh);
-  let data = userData[DEFORM_DATA_KEY];
-  if (data && data.geometry !== mesh.geometry) {
-    data = null;
-    delete userData[DEFORM_DATA_KEY];
-  }
-  let geometry = mesh.geometry;
-  if (!geometry) return null;
-  if (data && data.polygonCount === polygonCount) return data;
-  if (data) {
-    releaseDeformedMesh(mesh);
-    data = null;
-    delete userData[DEFORM_DATA_KEY];
-    geometry = mesh.geometry;
-  }
-  if (mesh.__zoidiumEffectorGeneratedClone && typeof geometry.clone === "function") {
-    geometry = geometry.clone();
-    mesh.geometry = geometry;
-  }
-  if (geometry.isGeometry && THREE.BufferGeometry && typeof THREE.BufferGeometry === "function") {
-    const converted = new THREE.BufferGeometry().fromGeometry(geometry);
-    geometry.dispose?.();
-    mesh.geometry = converted;
-    geometry = converted;
-  }
-  const baseGeometry = geometry;
-  const subdividedGeometry = subdivideGeometry(THREE, geometry, polygonCount);
-  if (subdividedGeometry !== geometry) {
-    mesh.geometry = subdividedGeometry;
-    geometry = subdividedGeometry;
-  }
-  const position = geometry.attributes?.position;
-  if (!position?.array) return null;
-
-  const positions = new Float32Array(position.array);
-  const minimum = [Infinity, Infinity, Infinity];
-  const maximum = [-Infinity, -Infinity, -Infinity];
-  for (let index = 0; index + 2 < positions.length; index += 3) {
-    for (let axis = 0; axis < 3; axis += 1) {
-      minimum[axis] = Math.min(minimum[axis], positions[index + axis]);
-      maximum[axis] = Math.max(maximum[axis], positions[index + axis]);
-    }
-  }
-  data = {
-    geometry,
-    positions,
-    normals: geometry.attributes?.normal?.array
-      ? new Float32Array(geometry.attributes.normal.array)
-      : null,
-    minimum,
-    maximum,
-    frustumCulled: mesh.frustumCulled,
-    baseGeometry,
-    polygonCount,
-  };
-  // Keep the short property names used by the imported deformer algorithms.
-  data.min = minimum;
-  data.max = maximum;
-  userData[DEFORM_DATA_KEY] = data;
-  return data;
-}
-
-function restoreDeformedMesh(mesh) {
-  const data = mesh?.userData?.[DEFORM_DATA_KEY];
-  if (!data || data.geometry !== mesh.geometry) return;
-  const position = data.geometry.attributes?.position;
-  if (position?.array && position.array.length === data.positions.length) {
-    position.array.set(data.positions);
-    position.needsUpdate = true;
-  }
-  const normal = data.geometry.attributes?.normal;
-  if (normal?.array && data.normals && normal.array.length === data.normals.length) {
-    normal.array.set(data.normals);
-    normal.needsUpdate = true;
-  }
-  data.geometry.computeBoundingSphere?.();
-}
-
-function materialGroupForVertex(geometry, vertex) {
-  for (const group of geometry.groups || []) {
-    if (vertex >= group.start && vertex < group.start + group.count) {
-      return Number.isFinite(group.materialIndex) ? group.materialIndex : 0;
-    }
-  }
-  return 0;
-}
-
-function computeSmoothVertexNormals(geometry) {
-  const position = geometry?.attributes?.position;
-  const normal = geometry?.attributes?.normal;
-  if (!position?.array || !normal?.array || position.itemSize < 3 || normal.itemSize < 3) return;
-
-  const sums = new Map();
-  const coordinates = (vertex) => [
-    position.array[vertex * position.itemSize],
-    position.array[vertex * position.itemSize + 1],
-    position.array[vertex * position.itemSize + 2],
-  ];
-  const keyFor = (vertex) => {
-    const point = coordinates(vertex);
-    const group = materialGroupForVertex(geometry, vertex);
-    return `${group}:${Math.round(point[0] * 100000)}:${Math.round(point[1] * 100000)}:${Math.round(point[2] * 100000)}`;
-  };
-
-  for (let vertex = 0; vertex + 2 < position.count; vertex += 3) {
-    const first = coordinates(vertex);
-    const second = coordinates(vertex + 1);
-    const third = coordinates(vertex + 2);
-    const ab = [second[0] - first[0], second[1] - first[1], second[2] - first[2]];
-    const ac = [third[0] - first[0], third[1] - first[1], third[2] - first[2]];
-    const faceNormal = [
-      ab[1] * ac[2] - ab[2] * ac[1],
-      ab[2] * ac[0] - ab[0] * ac[2],
-      ab[0] * ac[1] - ab[1] * ac[0],
-    ];
-    for (let offset = 0; offset < 3; offset += 1) {
-      const key = keyFor(vertex + offset);
-      const sum = sums.get(key) || [0, 0, 0];
-      sum[0] += faceNormal[0];
-      sum[1] += faceNormal[1];
-      sum[2] += faceNormal[2];
-      sums.set(key, sum);
-    }
-  }
-
-  for (let vertex = 0; vertex < position.count; vertex += 1) {
-    const sum = sums.get(keyFor(vertex)) || [0, 0, 1];
-    const length = Math.hypot(sum[0], sum[1], sum[2]) || 1;
-    normal.array[vertex * normal.itemSize] = sum[0] / length;
-    normal.array[vertex * normal.itemSize + 1] = sum[1] / length;
-    normal.array[vertex * normal.itemSize + 2] = sum[2] / length;
-  }
-  normal.needsUpdate = true;
-}
-
-function setDeformedMeshPositions(mesh, positions) {
-  const data = mesh?.userData?.[DEFORM_DATA_KEY];
-  if (!data || data.geometry !== mesh.geometry) return;
-  const attribute = data.geometry.attributes?.position;
-  if (!attribute?.array || attribute.array.length !== positions.length) return;
-  let changed = false;
-  for (let index = 0; index < positions.length; index += 1) {
-    if (attribute.array[index] !== positions[index]) {
-      changed = true;
-      break;
-    }
-  }
-  if (!changed) return;
-  attribute.array.set(positions);
-  attribute.needsUpdate = true;
-  if (data.polygonCount > MIN_SMOOTH_POLYGON_COUNT) {
-    if (!data.geometry.attributes.normal) data.geometry.computeVertexNormals?.();
-    computeSmoothVertexNormals(data.geometry);
-  } else {
-    data.geometry.computeVertexNormals?.();
-  }
-  data.geometry.computeBoundingSphere?.();
 }
 
 function traverseDeformMeshes(root, callback) {
@@ -1314,33 +990,24 @@ function createDeformationSupport(PZ, THREE) {
 
   const layers = new Set();
   const originalUpdate = prototype.update;
+  const meshDeformer = getMeshDeformer(THREE);
 
-  function deformMesh(mesh, chain, frame) {
-    if (!chain.length) {
-      restoreDeformedMesh(mesh);
-      return;
-    }
-    const polygonCount = curvePolygonCount(chain, frame);
-    const data = getDeformMeshData(THREE, mesh, polygonCount);
-    if (!data) return;
-    let positions = new Float32Array(data.positions);
-    for (let index = 0; index < chain.length; index += 1) {
-      const effector = chain[index];
-      if (typeof effector.deformPositions !== "function") continue;
-      positions = effector.deformPositions(positions, frame, data, mesh, {
-        index,
-        canUseOffsetRotation: index === 0,
-      }) || positions;
-    }
-    setDeformedMeshPositions(mesh, positions);
+  function deformMeshesUnder(root, chain, frame) {
+    const polygonCount = curvePolygonCount(chain.map((entry) => entry.effector), frame);
+    traverseDeformMeshes(root, (mesh) => meshDeformer.deformMesh(mesh, chain, frame, polygonCount));
   }
 
+  // The chain lists enabled deformers from outermost to innermost. Each entry
+  // keeps the render node that carries the deformer's transform, so deformers
+  // evaluate in their own frame.
   function walkRenderedObject(object, chain, frame, renderRoot) {
     if (!object) return;
     const isDeformer = typeof object.deformPositions === "function";
     const enabled = !object.properties?.enabled ||
       optionPropertyValue(object.properties.enabled, frame, 1) === 1;
-    const nextChain = isDeformer && enabled ? chain.concat(object) : chain;
+    const nextChain = isDeformer && enabled
+      ? chain.concat({ effector: object, node: renderRoot || object.threeObj })
+      : chain;
 
     if (object.__zoidiumRepeater) {
       const sources = object.objects && typeof object.objects.length === "number"
@@ -1352,7 +1019,7 @@ function createDeformationSupport(PZ, THREE) {
           if (sourceObject) {
             walkRenderedObject(sourceObject, nextChain, frame, clone.clone);
           } else {
-            traverseDeformMeshes(clone.clone, (mesh) => deformMesh(mesh, nextChain, frame));
+            deformMeshesUnder(clone.clone, nextChain, frame);
           }
         }
       }
@@ -1368,7 +1035,7 @@ function createDeformationSupport(PZ, THREE) {
       }
       return;
     }
-    traverseDeformMeshes(renderRoot || object.threeObj, (mesh) => deformMesh(mesh, nextChain, frame));
+    deformMeshesUnder(renderRoot || object.threeObj, nextChain, frame);
   }
 
   function walk(objects, chain, frame) {
@@ -1382,11 +1049,9 @@ function createDeformationSupport(PZ, THREE) {
     if (!object || seen.has(object)) return;
     seen.add(object);
     if (object.__zoidiumRepeater) {
-      for (const instance of object._instanceRoots || []) {
-        traverseDeformMeshes(instance.root, restoreDeformedMesh);
-      }
+      for (const instance of object._instanceRoots || []) restoreDeformedTree(instance.root);
     }
-    traverseDeformMeshes(object.threeObj, restoreDeformedMesh);
+    restoreDeformedTree(object.threeObj);
     if (object.objects && typeof object.objects.length === "number") {
       for (const child of object.objects) restoreRenderedObject(child, seen);
     }
@@ -1404,7 +1069,6 @@ function createDeformationSupport(PZ, THREE) {
     for (const object of layer.objects) restoreRenderedObject(object, seen);
   }
 
-  const support = { apply, restore };
   const patchedUpdate = function updateWithEffectors(frame) {
     originalUpdate.call(this, frame);
     apply(this, frame);
@@ -1412,18 +1076,7 @@ function createDeformationSupport(PZ, THREE) {
   patchedUpdate.__zoidiumEffectorDeformPatch = true;
   prototype.update = patchedUpdate;
   prototype.__zoidiumEffectorDeformPatch = true;
-  prototype.__zoidiumEffectorDeformSupport = support;
-
-  const previousDeform = PZ.object3d.deform;
-  const deformApi = previousDeform && typeof previousDeform === "object"
-    ? previousDeform
-    : {};
-  const previousApply = deformApi.apply;
-  const previousRestore = deformApi.restore;
-  deformApi.apply = apply;
-  deformApi.restore = restore;
-  deformApi.__zoidiumEffectorSupport = true;
-  PZ.object3d.deform = deformApi;
+  prototype.__zoidiumEffectorDeformSupport = { apply, restore };
 
   return {
     apply,
@@ -1433,16 +1086,56 @@ function createDeformationSupport(PZ, THREE) {
       if (prototype.update === patchedUpdate) prototype.update = originalUpdate;
       delete prototype.__zoidiumEffectorDeformPatch;
       delete prototype.__zoidiumEffectorDeformSupport;
-      if (previousDeform) {
-        if (previousApply === undefined) delete previousDeform.apply;
-        else previousDeform.apply = previousApply;
-        if (previousRestore === undefined) delete previousDeform.restore;
-        else previousDeform.restore = previousRestore;
-        delete previousDeform.__zoidiumEffectorSupport;
-      } else if (PZ.object3d.deform === deformApi) {
-        delete PZ.object3d.deform;
-      }
     },
+  };
+}
+
+// Numeric types 7/8/9 come from the Davidium Effector+ project format. They
+// load as the namespaced classes, and saving writes the namespaced type.
+function migrateLegacyEffectorRecord(data) {
+  if (!data || typeof data !== "object") return data;
+  const mapped = LEGACY_EFFECTOR_TYPES[data.type];
+  return mapped ? { ...data, type: mapped } : data;
+}
+
+// Loads the pure library from the CommonJS require when running under Node
+// tests. Returns null in the Zoidium runtime, where require is undefined.
+function loadLibraryFromRequire() {
+  if (typeof require !== "function") return null;
+  try {
+    return {
+      core: require("./effector-core.js"),
+      fracture: require("./effector-fracture.js"),
+      mesh: require("./effector-mesh.js"),
+    };
+  } catch (_error) {
+    return null;
+  }
+}
+
+// Evaluates the bundled library sources. Each file receives a small require
+// shim that resolves sibling names in the same bundle.
+function loadLibraryFromAssets(getAsset) {
+  if (typeof getAsset !== "function") {
+    throw new Error("Effector requires the plugin bundle asset resolver.");
+  }
+  const cache = new Map();
+  const load = (id) => {
+    const name = String(id).replace(/^\.\//, "");
+    if (cache.has(name)) return cache.get(name).exports;
+    const source = getAsset("text", "./plugins/scene-plus/" + name);
+    if (typeof source !== "string") {
+      throw new Error("Effector is missing its bundled source: " + name);
+    }
+    const module = { exports: {} };
+    cache.set(name, module);
+    new Function("module", "exports", "require", source)(module, module.exports, load);
+    return module.exports;
+  };
+  return {
+    core: load("effector-core.js"),
+    fracture: load("effector-fracture.js"),
+    mesh: load("effector-mesh.js"),
   };
 }
 
@@ -1530,7 +1223,7 @@ function createRepeaterClass(PZ, THREE, mode, type) {
       if (this.threeObj) {
         for (const instance of this._instanceRoots) {
           if (this._mode === "echo") disposeClonedResources(instance.root);
-          else disposeDeformedCloneResources(instance.root);
+          else restoreDeformedTree(instance.root);
           this.threeObj.remove(instance.root);
         }
       }
@@ -1668,12 +1361,14 @@ function createRepeaterClass(PZ, THREE, mode, type) {
   };
 }
 
+
 function activate(context) {
   const { PZ, window, object3d } = context;
   const THREE = window?.THREE;
   if (!PZ || !THREE || !object3d || !PZ.objectList) {
     throw new Error("Effector requires the Zoidium 3D object registry.");
   }
+  if (!library) library = loadLibraryFromAssets(context.getAsset);
 
   const unregister = [];
   const deformationSupport = createDeformationSupport(PZ, THREE);
@@ -1695,24 +1390,22 @@ function activate(context) {
         })
       );
     }
-    const TwistObject = createTwistClass(PZ, THREE);
-    const WarpObject = createWarpClass(PZ, THREE);
-    unregister.push(
-      object3d.registerClass({
-        type: TWIST_TYPE,
-        schemaVersion: EFFECTOR_SCHEMA_VERSION,
-        name: "Twist",
-        factory: () => new TwistObject(),
-      })
-    );
-    unregister.push(
-      object3d.registerClass({
-        type: WARP_TYPE,
-        schemaVersion: EFFECTOR_SCHEMA_VERSION,
-        name: "Warp",
-        factory: () => new WarpObject(),
-      })
-    );
+    const effectorClasses = [
+      [TWIST_TYPE, "Twist", createTwistClass(PZ, THREE)],
+      [WARP_TYPE, "Warp", createWarpClass(PZ, THREE)],
+      [VORONOI_TYPE, "Voronoi Fracture", createVoronoiClass(PZ, THREE)],
+    ];
+    for (const [type, name, EffectorClass] of effectorClasses) {
+      unregister.push(
+        object3d.registerClass({
+          type,
+          schemaVersion: EFFECTOR_SCHEMA_VERSION,
+          name,
+          migrate: migrateLegacyEffectorRecord,
+          factory: () => new EffectorClass(),
+        })
+      );
+    }
   } catch (error) {
     for (const unregisterClass of unregister.reverse()) {
       try {
@@ -1752,17 +1445,20 @@ module.exports = {
     cloneRenderTree,
     createDeformationSupport,
     createEffectorBaseClass,
-    getCount,
     createTwistClass,
     createWarpClass,
-    fieldWeight,
-    getDeformMeshData,
-    restoreDeformedMesh,
-    setDeformedMeshPositions,
+    createVoronoiClass,
+    curvePolygonCount,
+    fieldFromProperties,
+    getCount,
     getEchoFrame,
     getEchoFrames,
     getTransform,
     makeProperties,
+    migrateLegacyEffectorRecord,
     seededRandom,
+    getMeshDeformer,
+    loadLibraryFromAssets,
+    library: () => library,
   },
 };

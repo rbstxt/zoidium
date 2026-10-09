@@ -1,41 +1,53 @@
 # Camera+
 
-A Zoidium `extension` plugin. It ports the OpenZoid camera system with
-original behavior preserved.
+A Zoidium extension that adds a separate camera object for scenes. It does not
+replace or patch the CM3 camera. Turning the plugin on or off leaves projects
+that do not use Camera+ rendering exactly as CM3 renders them.
 
-- C4D camera object — film system (projection, focal length, film gates,
-  equivalent focal length, field of view, zoom, film offsets), camera
-  vibrate, and depth-of-field properties (aperture, focus distance with
-  Link/Set/Unlink buttons, focus area, near/far blur).
-- Camera layers (type 9) — dedicated tracking-only layers whose camera
-  drives every 3D-enabled scene through the shared camera.
-- Shared-camera 3D tracking — scenes borrow the master camera, flat video
-  layers follow through Transform effects or tracked-video rectangles,
-  with 3D-card awareness and per-frame parallax without 1-frame lag.
-- Depth of field — per-object SceneDof pass driven by the active camera,
-  wired through the render pass. DOF lives on camera objects only: the
-  sequence carries no DOF controls, and the global pass reads on/off,
-  aperture, focus distance, and clip range from the shared (Camera layer)
-  camera. With no master camera, or its DOF off, each scene falls back to
-  its own camera-driven pass. Motion-blur track frames are unchanged.
-- Focus tools — focus target menu, focusDistanceTo expression method, and
-  the focus property-button actions.
-- 3D toggle — track headers gain the 3D switch that bootstraps the
-  Transform follow for the current clip.
+## Adding a Camera+
 
-The `camera-runtime` module evaluates the bundled sources through the
-plugin bundle asset API and chains every patch with save-and-restore
-semantics, so disabling the pack removes its classes, methods, and UI.
+Add a Camera+ to a Scene from the 3D picker: **Camera > Camera+**.
 
-Known limitations (later phases):
+- **Active Camera** (`off`/`on`): a scene renders through the first active
+  Camera+ among its direct child objects, in list order. Inactive Camera+ objects
+  are ignored. When a scene has no active Camera+, it uses its CM3 camera
+  unchanged.
+- Film controls: position, rotation and rotation order, focal length, sensor
+  size (film gate), zoom, and film offsets. Perspective projection only.
+- **Depth of Field**: on/off, focus distance, aperture, focus area width, and
+  near/far blur levels. The blur is a per-scene post pass that reads the scene's
+  depth. It runs only while a Camera+ enables it.
+- **Vibrate**: seeded camera shake for position and rotation. Each offset is a
+  pure function of the seed, the amplitude and frequency settings, and the
+  current time. The shake does not accumulate between frames.
+- **Focus Tools...** (under Depth of Field) opens a floating window. Pick an
+  object in the same scene, then:
+  - **Link** keeps the focus distance following the target. It writes the
+    expression `focusDistanceTo([camera address], [target address])`.
+  - **Set Once** writes the current distance as a keyframe at the playhead.
+  - **Unlink** removes the expression.
 
-- Opening a project that uses Camera layers or camera DOF without the
-  pack enabled records the dependency and prompts to enable it; loading
-  such data with the pack disabled still fails, as with any unknown
-  numeric type in vanilla CM3.
+Targets are limited to the camera's own scene. This keeps every link reading
+transforms that were updated for the same time. Links store object addresses, so
+moving the camera or target to another track or group breaks the link until it
+is relinked.
 
-```bash
-# after adding the registry entry
-pnpm run build:plugin-bundles
-pnpm run verify
-```
+## Not included in this beta
+
+- Dedicated Camera layers and shared-camera 3D tracking. They required replacing
+  CM3's compositor and sequence methods, which this plugin no longer does.
+- Video motion blur. It mixed a ring of previously rendered frames, so the output
+  depended on render history. Use CM3 motion blur or the core temporal APIs.
+- Camera+ objects nested inside groups. Only direct scene children are active.
+
+## Migrating Davidium projects
+
+- Vanilla CM3 camera objects that carry Davidium depth-of-field or vibrate
+  fields load normally. The extra fields are ignored. Re-create the settings as a
+  Camera+ if you need them.
+- Davidium Camera layers (layer type 9) load as inert placeholders while Camera+
+  is enabled. They draw nothing and do not change any scene camera. Their saved
+  camera data is not migrated. Camera+ stays in use while such a layer exists in
+  the project, so the plugin cannot be disabled until the layer is removed.
+- Davidium 3D track flags and the layer depth and motion-blur properties are not
+  read. They are dropped on the next save.

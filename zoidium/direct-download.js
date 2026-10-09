@@ -119,6 +119,11 @@
           : artifact.blob;
       return Promise.resolve(artifactBlob).then(function (blob) {
         if (!isBlobLike(blob)) return false;
+        // An empty file is never a valid export. Report it instead of saving a
+        // zero-byte download that looks like a successful render.
+        if (!(Number(blob.size) > 0)) {
+          throw new Error("The export is empty, so nothing was downloaded. Render it again and retry.");
+        }
         if (downloadArtifact) {
           return Promise.resolve(downloadArtifact(blob, artifact.filename, artifact.id)).then(function () { return true; });
         }

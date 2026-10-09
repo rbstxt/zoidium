@@ -89,7 +89,7 @@ const PlayerPlus = (() => {
 
       .zoidium-player-plus-pause:focus,
       .zoidium-player-plus-render-once:focus {
-        border-color: var(--zoidium-theme-focus, #384668) !important;
+        border-color: #384668 !important;
         outline: 0;
       }
 
@@ -113,17 +113,17 @@ const PlayerPlus = (() => {
       }
 
       .zoidium-player-plus-pause.is-paused svg {
-        fill: #4f7dbf;
+        fill: #7e8fb9;
       }
 
       .zoidium-player-plus-quality {
-        background: #2a2a2a;
-        border: 1px solid #555;
-        border-radius: 2px;
+        background-color: #202020;
+        border: 1px solid #1b1b1b;
+        border-radius: 0;
         box-sizing: border-box;
-        color: #acacac;
+        color: #7e8fb9;
         cursor: pointer;
-        font-family: var(--zoidium-font-family, monospace);
+        font-family: "Source Code Pro", monospace;
         font-size: 12px;
         height: 27px;
         line-height: 25px;
@@ -137,12 +137,12 @@ const PlayerPlus = (() => {
       }
 
       .zoidium-player-plus-quality:focus-visible {
-        border-color: var(--zoidium-theme-focus, #384668);
+        border-color: #384668;
         outline: 0;
       }
 
       .zoidium-player-plus-quality option {
-        background: #2a2a2a;
+        background-color: #202020;
         color: #ccc;
       }
     `;
@@ -305,7 +305,7 @@ const PlayerPlus = (() => {
     button.setAttribute("aria-label", button.title);
     if (state.pauseIcon && state.PZ?.ui?.switchIcon) {
       state.PZ.ui.switchIcon(state.pauseIcon, state.paused ? "play" : "pause");
-      state.pauseIcon.style.fill = state.paused ? "#4f7dbf" : "#acacac";
+      state.pauseIcon.style.fill = state.paused ? "#7e8fb9" : "#acacac";
     }
   }
 
@@ -354,7 +354,7 @@ const PlayerPlus = (() => {
 
   function createQualitySelect(toolbar) {
     const select = state.document.createElement("select");
-    select.className = "zoidium-player-plus-quality";
+    select.className = "pz-inputbox zoidium-player-plus-quality";
     select.title = "Preview quality";
     select.setAttribute("aria-label", "Preview quality");
     for (const option of QUALITY_OPTIONS) {

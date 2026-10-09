@@ -1,21 +1,16 @@
 "use strict";
 
-// Precomp+ — composition tabs engine runtime.
-//
-// Evaluates the bundled comps subsystem (PZ.ui.comps + compsPanel), hooks
-// save/backup, exposes precomposeSelection, appends the timeline clip-menu
-// items (Pre-compose, Open source composition, Back to Main), and docks a
-// Comps tab when the host UI allows it.
+// Precomp+ runtime: the Comps tab, the Compositions window and the
+// Pre-compose dialog. The composition model lives in comps.js (PZ.precomp).
+// Every user-facing string is English.
 
-let installedPZ = null;
-let installedMenu = null;
-let installedTab = null;
+const MAIN_KEY = "__main__";
+let session = null;
 
-function installSources(context, PZ) {
-  const getAsset = context && typeof context.getAsset === "function"
-    ? context.getAsset.bind(context)
-    : null;
-  if (!getAsset) {
+function installEngine(context, PZ) {
+  if (PZ.precomp && PZ.precomp.version === 2) return PZ.precomp;
+  const getAsset = context.getAsset;
+  if (typeof getAsset !== "function") {
     throw new Error("Precomp+ needs the plugin bundle asset resolver.");
   }
   const source = getAsset("text", "./plugins/precomp-plus/comps.js");
@@ -23,215 +18,344 @@ function installSources(context, PZ) {
     throw new Error("Precomp+ is missing its bundled source: comps.js.");
   }
   new Function("PZ", source)(PZ);
+  if (!PZ.precomp) throw new Error("Precomp+ could not define its composition engine.");
+  return PZ.precomp;
 }
 
-function hookEditor(CM, PZ) {
-  if (!CM || !CM.project) return;
-  try {
-    PZ.ui.comps.attachSaveHook(CM);
-  } catch (_error) { /* best effort */ }
-  if (typeof CM.precomposeSelection !== "function") {
-    try {
-      CM.precomposeSelection = function () {
-        return PZ.ui.comps.precomposeFromSelection(CM);
-      };
-    } catch (_error) { /* best effort */ }
+function kitOf(context) {
+  const kit = (context.window || globalThis).ZoidiumUI;
+  if (!kit || typeof kit.openWindow !== "function") {
+    throw new Error("Precomp+ needs the Zoidium UI kit.");
   }
+  return kit;
 }
 
-function findMenuOwners(PZ) {
-  const tracks = PZ && PZ.ui && PZ.ui.timeline && PZ.ui.timeline.tracks;
-  const candidates = [];
-  if (tracks && tracks.prototype &&
-      typeof tracks.prototype.clipContextMenu === "function") {
-    candidates.push(tracks.prototype);
+function rowKey(row) {
+  return row.isMain ? MAIN_KEY : row.id;
+}
+
+function plural(count, one, many) {
+  return count + " " + (count === 1 ? one : many);
+}
+
+function subtitleText() {
+  const name = session.engine.activeName(session.editor);
+  return name ? "Editing " + name : "Main";
+}
+
+function breadcrumbText() {
+  const name = session.engine.activeName(session.editor);
+  return name ? "Main > " + name : "Main";
+}
+
+// ---------------------------------------------------------------------------
+// Pre-compose dialog
+
+function openPrecomposeDialog() {
+  if (!session) return null;
+  const existing = session.context.ui.getWindow("precompose");
+  if (existing) {
+    existing.focus();
+    return existing;
   }
-  // Fallback: bounded scan for any other owner (mirrors designer-gear.js).
-  const ui = PZ && PZ.ui;
-  if (ui) {
-    const seen = new Set();
-    const queue = [{ obj: ui, depth: 0 }];
-    let budget = 800;
-    while (queue.length && budget-- > 0) {
-      const { obj, depth } = queue.shift();
-      if (!obj || seen.has(obj)) continue;
-      seen.add(obj);
-      let owns = false;
-      try {
-        owns = Object.prototype.hasOwnProperty.call(obj, "clipContextMenu") &&
-          typeof obj.clipContextMenu === "function";
-      } catch (_error) { /* unreadable node */ }
-      if (owns && !candidates.includes(obj)) candidates.push(obj);
-      if (depth >= 4) continue;
-      let proto = null;
-      try { proto = Object.getPrototypeOf(obj); } catch (_error) { /* none */ }
-      if (proto && proto !== Object.prototype && proto !== Function.prototype) {
-        queue.push({ obj: proto, depth: depth + 1 });
+  const kit = session.kit;
+  const engine = session.engine;
+  const editor = session.editor;
+  const summary = engine.selectionSummary(editor);
+  let name = engine.nextCompName(editor.project);
+  let message = null;
+  let win = null;
+
+  function submit() {
+    const result = engine.precompose(editor, name);
+    if (!result.ok) {
+      message.className = "zoidium-note warning";
+      message.textContent = result.message;
+      return;
+    }
+    const detail = "Moved " + plural(result.moved, "video clip", "video clips") +
+      ' into "' + result.name + '". Main now has one clip for it.' +
+      (result.audioKept
+        ? " " + plural(result.audioKept, "other selected clip stayed", "other selected clips stayed") + " on Main."
+        : "");
+    kit.notify({ title: "Pre-composed " + result.name, message: detail });
+    win.close();
+  }
+
+  win = session.context.ui.openWindow({
+    id: "precompose",
+    title: "Pre-compose",
+    subtitle: "New composition",
+    width: 330,
+    height: 210,
+    minHeight: 180,
+    resizable: false,
+    mount(body) {
+      const field = kit.controls.text({
+        label: "Name",
+        value: name,
+        placeholder: "Comp 1",
+        onInput: function (value) { name = value; },
+      });
+      const input = field.element.querySelector("input");
+      if (input) {
+        input.addEventListener("keydown", function (event) {
+          if (event.key === "Enter") submit();
+        });
       }
-      if (typeof obj === "function" && obj.prototype && typeof obj.prototype === "object") {
-        queue.push({ obj: obj.prototype, depth: depth + 1 });
-      }
-      if (depth >= 3) continue;
-      let keys = [];
-      try { keys = Object.keys(obj); } catch (_error) { /* none */ }
-      for (const key of keys.slice(0, 60)) {
-        let value = null;
-        try { value = obj[key]; } catch (_error) { continue; }
-        if (value && (typeof value === "object" || typeof value === "function") && !value.nodeType) {
-          queue.push({ obj: value, depth: depth + 1 });
-        }
+      body.appendChild(field.element);
+      const counts = summary.ready
+        ? "Moves " + plural(summary.video, "video clip", "video clips") + " into this composition." +
+          (summary.other ? " " + plural(summary.other, "other selected clip stays", "other selected clips stay") + " on Main." : "")
+        : "The timeline is not ready. Try again in a moment.";
+      body.appendChild(kit.controls.note(counts).element);
+      message = kit.controls.note("").element;
+      body.appendChild(message);
+      return null;
+    },
+    footer: [
+      { title: "Pre-compose", variant: "primary", onClick: function () { submit(); } },
+      { title: "Cancel", onClick: function () { win.close(); } },
+    ],
+  });
+  return win;
+}
+
+// ---------------------------------------------------------------------------
+// Compositions window
+
+function openCompsWindow() {
+  if (!session) return null;
+  const existing = session.context.ui.getWindow("compositions");
+  if (existing) {
+    existing.focus();
+    return existing;
+  }
+  const kit = session.kit;
+  const engine = session.engine;
+  const editor = session.editor;
+  let selectedKey = MAIN_KEY;
+  let win = null;
+  let body = null;
+  let renderQueued = false;
+
+  function report(title, result) {
+    if (!result.ok) kit.notify({ title: title, message: result.message });
+  }
+
+  function afterChange(result, title) {
+    report(title, result);
+    render();
+  }
+
+  function openRow(row) {
+    // The open composition's own button returns to Main.
+    const target = row.isMain || row.editing ? null : row.id;
+    selectedKey = target === null ? MAIN_KEY : row.id;
+    const result = engine.openComp(editor, target);
+    if (result.ok && target) {
+      kit.notify({
+        title: "Editing " + row.name,
+        message: "Changes are kept in this composition. Back to Main returns to the main timeline.",
+      });
+    }
+    afterChange(result, "Compositions");
+  }
+
+  function duplicate(row) {
+    const result = engine.duplicateComp(editor, row.id);
+    if (result.ok) selectedKey = result.id;
+    afterChange(result, "Duplicate");
+  }
+
+  function remove(row) {
+    const host = session.context.window || globalThis;
+    if (!host.confirm('Delete composition "' + row.name + '"?')) return;
+    const result = engine.removeComp(editor, row.id);
+    if (result.ok) selectedKey = MAIN_KEY;
+    afterChange(result, "Delete");
+  }
+
+  function rename(row, value) {
+    afterChange(engine.renameComp(editor, row.id, value), "Rename");
+  }
+
+  function actionsFor(row) {
+    let title;
+    if (row.isMain) title = row.editing ? "Main is open" : "Back to Main";
+    else title = row.editing ? "Back to Main" : "Open";
+    const actions = [{
+      title: title,
+      variant: "primary",
+      onClick: function () { openRow(row); },
+    }];
+    if (!row.isMain) {
+      actions.push({ title: "Duplicate", onClick: function () { duplicate(row); } });
+      actions.push({ title: "Delete", variant: "danger", onClick: function () { remove(row); } });
+    }
+    return actions;
+  }
+
+  function render() {
+    if (!body) return;
+    if (win && !win.isOpen()) return;
+    renderQueued = false;
+    body.textContent = "";
+    if (win) win.setSubtitle(subtitleText());
+    const rows = engine.entries(editor);
+    body.appendChild(kit.controls.note("Location: " + breadcrumbText()).element);
+    if (rows.length <= 1) {
+      body.appendChild(kit.controls.note(
+        "Select video clips on the timeline and click Pre-compose. They move into a composition, " +
+        "and Main keeps one clip for it. Double-click a composition to edit its clips."
+      ).element);
+    }
+    const items = rows.map(function (row) {
+      const title = (row.isMain ? "Main" : row.name) + (row.editing ? "  (editing)" : "");
+      const detail = row.isMain
+        ? plural(row.length, "frame", "frames")
+        : plural(row.length, "frame", "frames") + " · " +
+          (row.uses ? "used by " + plural(row.uses, "clip", "clips") : "unused");
+      return { id: rowKey(row), title: title, detail: detail };
+    });
+    const current = rows.find(function (row) { return rowKey(row) === selectedKey; }) ||
+      rows.find(function (row) { return row.editing; }) || rows[0];
+    selectedKey = rowKey(current);
+    body.appendChild(kit.controls.list({
+      items: items,
+      value: selectedKey,
+      emptyText: "No compositions yet.",
+      onSelect: function (key) {
+        selectedKey = key;
+        render();
+      },
+      onActivate: function (key) {
+        const row = rows.find(function (candidate) { return rowKey(candidate) === key; });
+        if (row) openRow(row);
+      },
+    }).element);
+    if (!current.isMain) {
+      body.appendChild(kit.controls.text({
+        label: "Name",
+        value: current.name,
+        onChange: function (value) { rename(current, value); },
+      }).element);
+      if (current.uses) {
+        body.appendChild(kit.controls.note(
+          "Used by " + plural(current.uses, "clip", "clips") +
+          ". Remove those clips from the timeline before deleting this composition."
+        ).element);
       }
     }
+    body.appendChild(kit.controls.buttonRow(actionsFor(current)).element);
+    body.appendChild(kit.controls.note(
+      "Undo is cleared when you switch between Main and a composition. Export renders the open timeline, so return to Main first."
+    ).element);
   }
-  return candidates;
+
+  function scheduleRender() {
+    if (renderQueued) return;
+    renderQueued = true;
+    setTimeout(render, 0);
+  }
+
+  win = session.context.ui.openWindow({
+    id: "compositions",
+    title: "Compositions",
+    subtitle: subtitleText(),
+    persistKey: "compositions",
+    width: 340,
+    height: 460,
+    minWidth: 280,
+    minHeight: 260,
+    mount(root) {
+      body = root;
+      const project = editor.project;
+      const unsubscribe = engine.subscribe(scheduleRender);
+      const projectListener = scheduleRender;
+      if (project && project.ui && project.ui.onChanged) project.ui.onChanged.watch(projectListener);
+      editor.onProjectChanged.watch(projectListener);
+      render();
+      return function cleanup() {
+        unsubscribe();
+        try { editor.onProjectChanged.unwatch(projectListener); } catch (error) { /* project replaced */ }
+        try { if (project && project.ui) project.ui.onChanged.unwatch(projectListener); } catch (error) { /* ignore */ }
+      };
+    },
+    footer: [
+      { title: "Pre-compose selection", variant: "primary", onClick: function () { openPrecomposeDialog(); } },
+      { title: "Close", onClick: function () { win.close(); } },
+    ],
+  });
+  return win;
 }
 
-function buildMenuItem(label, fn, title) {
-  const li = document.createElement("li");
-  li.innerText = label;
-  if (title) li.title = title;
-  li.onmousedown = (ev) => ev.stopPropagation();
-  li.onclick = (ev) => {
-    ev.stopPropagation();
-    ev.preventDefault();
-    try {
-      const ul = ev.currentTarget && ev.currentTarget.closest
-        ? ev.currentTarget.closest("ul.pz-dropdown")
-        : null;
-      if (ul) ul.remove();
-    } catch (_error) { /* ignore */ }
-    if (fn) fn();
-  };
-  li.onmouseenter = function () {
-    try {
-      Array.from(this.parentElement.children).forEach((c) => c.classList.remove("pz-active"));
-      this.classList.add("pz-active");
-    } catch (_error) { /* ignore */ }
-  };
-  return li;
+// ---------------------------------------------------------------------------
+// Comps tab
+
+function buildTabPanel(context, kit) {
+  const doc = context.document;
+  const panel = doc.createElement("div");
+  panel.className = "precomp-plus-panel";
+  panel.appendChild(kit.createPageHeader("Compositions"));
+  panel.appendChild(kit.controls.note(
+    "Pre-compose moves the selected video clips into a composition that Main keeps as one clip. " +
+    "Open a composition to edit its clips."
+  ).element);
+  panel.appendChild(kit.controls.buttonRow([
+    { title: "Open Compositions", variant: "primary", onClick: function () { openCompsWindow(); } },
+    { title: "Pre-compose selection", onClick: function () { openPrecomposeDialog(); } },
+  ]).element);
+  return panel;
 }
 
-function installMenu(PZ) {
-  const owners = findMenuOwners(PZ);
-  if (!owners.length) {
-    throw new Error("Precomp+ needs the timeline clip menu from the CM3 runtime.");
+function installTab(context) {
+  const kit = kitOf(context);
+  if (typeof kit.createMenubarTab !== "function") return null;
+  const tab = kit.createMenubarTab({
+    title: "Comps",
+    icon: "layers",
+    panel: buildTabPanel(context, kit),
+    tabClass: "precomp-plus-tab",
+    position: "afterAbout",
+  });
+  if (!tab) {
+    console.warn("[Precomp+] the sidebar is unavailable; the Compositions window is not reachable.");
+    return null;
   }
-  for (const owner of owners) {
-    if (owner.clipContextMenu.__precompPlus) continue;
-    const original = owner.clipContextMenu;
-    const patched = function (e) {
-      const out = original.call(this, e);
-      try {
-        if (patched.__precompPlusDead) return out;
-        const menu = this._clipMenu;
-        if (!menu || typeof menu.appendChild !== "function") return out;
-        if (menu.querySelector && menu.querySelector("li[data-precomp-plus]")) return out;
-        const self = this;
-        const editor = self && self.timeline && self.timeline.editor;
-        const target = e && e.currentTarget;
-        const clip = target ? target.pz_object : null;
-        const mark = (li) => {
-          try { li.setAttribute("data-precomp-plus", "1"); } catch (_err) { /* ignore */ }
-          return li;
-        };
-        const hasComps = !!(PZ.ui && PZ.ui.comps && PZ.ui.comps.precomposeFromSelection);
-        if (hasComps) {
-          menu.appendChild(mark(buildMenuItem("Pre-compose selected", () => {
-            try {
-              if (editor && editor.precomposeSelection) editor.precomposeSelection();
-              else if (PZ.ui.comps) PZ.ui.comps.precomposeFromSelection(editor);
-            } catch (_err) { /* ignore */ }
-          }, "Move selected clips into a new composition")));
-          menu.appendChild(mark(buildMenuItem("Open source composition", () => {
-            try {
-              if (PZ.ui.comps && PZ.ui.comps.openSourceOfClip) {
-                PZ.ui.comps.openSourceOfClip(editor, clip);
-              }
-            } catch (_err) { /* ignore */ }
-          }, "If this clip came from a composition, open it")));
-          try {
-            if (editor && editor.activeComp) {
-              menu.appendChild(mark(buildMenuItem("Back to Main composition", () => {
-                try {
-                  PZ.ui.comps.switchTo(editor, null);
-                } catch (_err) { /* ignore */ }
-              }, "Return to the main composition")));
-            }
-          } catch (_err) { /* ignore */ }
-        }
-      } catch (_err) { /* never break the clip menu */ }
-      return out;
-    };
-    patched.__precompPlus = true;
-    owner.clipContextMenu = patched;
-    if (!installedMenu) installedMenu = [];
-    installedMenu.push({ owner, original, patched });
-  }
+  return { tab: tab, kit: kit };
 }
 
-function uninstallMenu() {
-  for (const { owner, original, patched } of installedMenu || []) {
-    try {
-      patched.__precompPlusDead = true;
-      if (owner.clipContextMenu === patched) {
-        owner.clipContextMenu = original;
-      }
-    } catch (_error) { /* best effort */ }
-  }
-  installedMenu = null;
-}
-
-function installTab(CM, PZ) {
-  try {
-    const kit = globalThis.ZoidiumUI;
-    if (!kit || typeof kit.createMenubarTab !== "function") return;
-    if (typeof PZ.ui.compsPanel !== "function") return;
-    if (document.querySelector(".precomp-plus-tab")) return;
-    const panel = new PZ.ui.compsPanel(CM);
-    const ok = kit.createMenubarTab({
-      title: "Comps",
-      icon: "layers",
-      panel: panel,
-      tabClass: "precomp-plus-tab",
-      position: "afterAbout",
-    });
-    if (ok) installedTab = panel;
-  } catch (_error) { /* menu-driven flow still works */ }
+// Keeps the tab label showing the open composition, so editing mode stays
+// visible when the Compositions window is closed.
+function updateTabLabel(tabInfo) {
+  if (!session || !tabInfo || !tabInfo.tab) return;
+  const name = session.engine.activeName(session.editor);
+  const label = tabInfo.tab.querySelector && tabInfo.tab.querySelector("span");
+  if (label) label.textContent = name ? "Comps: " + name : "Comps";
+  tabInfo.tab.title = name ? "Editing " + name : "Compositions";
 }
 
 module.exports = {
   activate(context) {
-    const PZ = (context && context.PZ) ||
-      (typeof globalThis !== "undefined" ? globalThis.PZ : null);
-    if (!PZ || !PZ.ui) {
+    const PZ = context.PZ || (typeof globalThis !== "undefined" ? globalThis.PZ : null);
+    if (!PZ || !PZ.ui || !PZ.track || !PZ.layer || !PZ.layer.composite) {
       throw new Error("Precomp+ needs the CM3 runtime.");
     }
-    if (PZ.ui.comps && PZ.ui.comps.precomposeFromSelection && PZ.ui.compsPanel) {
-      // Already installed (for example by a second enable); refresh hooks.
-    } else {
-      installSources(context, PZ);
+    if (!context.editor) throw new Error("Precomp+ needs the open editor.");
+    const engine = installEngine(context, PZ);
+    context.lifecycle.onDispose(engine.install());
+    session = { context: context, PZ: PZ, editor: context.editor, engine: engine, kit: kitOf(context) };
+    context.lifecycle.onDispose(function () { session = null; });
+    const tabInfo = installTab(context);
+    if (tabInfo) {
+      context.lifecycle.onDispose(function () { tabInfo.kit.removeMenubarTab(tabInfo.tab); });
+      context.lifecycle.onDispose(engine.subscribe(function () { updateTabLabel(tabInfo); }));
+      updateTabLabel(tabInfo);
     }
-    if (!PZ.ui.comps || !PZ.ui.comps.precomposeFromSelection) {
-      throw new Error("Precomp+ could not define its composition engine.");
-    }
-    const CM = (context && context.editor) ||
-      (typeof globalThis !== "undefined" ? globalThis.CM : null);
-    if (CM) hookEditor(CM, PZ);
-    installMenu(PZ);
-    if (CM) installTab(CM, PZ);
-    installedPZ = PZ;
   },
-  deactivate() {
-    try {
-      uninstallMenu();
-      if (installedTab) {
-        try {
-          if (installedTab.el && installedTab.el.remove) installedTab.el.remove();
-        } catch (_error) { /* best effort */ }
-        installedTab = null;
-      }
-    } finally {
-      installedPZ = null;
-    }
+  // Disabling is refused while the project holds compositions.
+  isInUse() {
+    return !!session && session.engine.hasComps(session.editor.project);
   },
 };

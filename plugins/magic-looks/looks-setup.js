@@ -1,41 +1,35 @@
 "use strict";
 
-// Magic Looks — Looks-style color setup window.
+// Magic Looks — setup window.
 //
-// SaaS fullscreen editor hosting all 29 Looks tools with the reference
-// panel design (italic serif titles, orange underline, preset row, editable
-// readouts, shared color-wheel palette) plus the pack motion language:
-// the panel re-rises on every tool switch and wheels tween on every set.
-// UI-first: tool state is fully interactive and serializable (export/import
-// a look as JSON) but does not grade footage yet.
+// A floating window (zoidium/ui-kit.js) opened from the "Setup" button on the
+// effect's property list. Nothing opens on plugin enable. The window edits the
+// effect's own properties: live drags write for preview, and each finished edit
+// is committed once through the editor history so undo/redo works.
+//
+// Activation touches only this module's state: it patches the property-list
+// renderer to add the button (restored on disable) and installs one stylesheet
+// while a window is open (removed when the last window closes).
 
 const STYLE_ID = "zoidium-looks-setup-style";
-const FONT_STYLE_ID = "zoidium-looks-font-style";
 const STYLE_URL = "./plugins/magic-looks/looks-setup.css";
-const FONT_URL = "./plugins/magic-looks/inter-font.css";
-
 const SOURCE_ORDER = ["looks-color.js", "looks-tools.js", "looks-widgets.js"];
+const SNAPSHOT_MS = 400;
 
 const state = {
   active: false,
-  editor: null,
-  effect: null,
-  getAsset: null,
-  windowEl: null,
   Looks: null,
-  look: null,
-  activeTool: "color-contrast",
-  widgets: [],
-  onKey: null,
-  installedWrapper: null,
-  viewport: null,
-  viewportParent: null,
-  viewportStyle: null,
-  wasEdit: null,
-  refreshTimer: null,
-  pushing: false,
-  pushQueued: false,
-  pushTimer: null,
+  PZ: null,
+  editor: null,
+  ui: null,
+  getAsset: null,
+  patchedCreate: null,
+  originalCreate: null,
+  styleUsers: 0,
+  ops: null,
+  openWindows: new Set(),
+  windowIds: new WeakMap(),
+  nextWindowId: 1,
 };
 
 function loadSources(getAsset) {
@@ -47,40 +41,29 @@ function loadSources(getAsset) {
     }
     new Function("Looks", source)(Looks);
   }
-  if (!Looks.color || !Looks.tools || !Looks.widgets) {
+  if (!Looks.color || !Looks.tools || !Looks.widgets || !Looks.grade) {
     throw new Error("Magic Looks sources did not define their namespaces.");
   }
   return Looks;
 }
 
-function installStyle(getAsset, id, url) {
-  if (typeof document === "undefined" || document.getElementById(id)) return;
-  const bundled = getAsset ? getAsset("text", url) : undefined;
-  if (typeof bundled === "string") {
-    const style = document.createElement("style");
-    style.id = id;
-    style.textContent = bundled;
-    document.head.appendChild(style);
-  }
+function acquireStyle() {
+  state.styleUsers += 1;
+  if (state.styleUsers > 1 || typeof document === "undefined") return;
+  if (document.getElementById(STYLE_ID)) return;
+  const css = state.getAsset ? state.getAsset("text", STYLE_URL) : undefined;
+  if (typeof css !== "string") return;
+  const style = document.createElement("style");
+  style.id = STYLE_ID;
+  style.textContent = css;
+  document.head.appendChild(style);
 }
 
-function installFont(getAsset) {
-  installStyle(getAsset, FONT_STYLE_ID, FONT_URL);
-  try {
-    if (document.fonts && typeof document.fonts.load === "function") {
-      document.fonts.load("700 21px Georgia");
-      document.fonts.load("700 14px Inter");
-      document.fonts.load("400 12px Inter");
-    }
-  } catch (_err) { /* font is decorative */ }
-}
-
-function uninstallStyles() {
-  if (typeof document === "undefined") return;
-  for (const id of [STYLE_ID, FONT_STYLE_ID]) {
-    const el = document.getElementById(id);
-    if (el) el.remove();
-  }
+function releaseStyle() {
+  state.styleUsers = Math.max(0, state.styleUsers - 1);
+  if (state.styleUsers > 0 || typeof document === "undefined") return;
+  const el = document.getElementById(STYLE_ID);
+  if (el) el.remove();
 }
 
 function make(tag, cls, text) {
@@ -90,1189 +73,870 @@ function make(tag, cls, text) {
   return el;
 }
 
-function fmtParam(schema, value) {
-  const C = state.Looks.color;
-  if (schema.kind === "toggle") return value ? "On" : "Off";
-  // OPTION properties carry indices; the catalog default is the label.
-  if (schema.kind === "choice") return String((schema.options || [])[value] || value);
-  return C.fmtNum(value, schema.decimals, schema);
+function round(v) {
+  return Math.round(Number(v) * 1e6) / 1e6;
 }
 
-function defaultLookState() {
-  return state.Looks.tools.defaultState();
+function cloneValue(v) {
+  return v === undefined ? v : JSON.parse(JSON.stringify(v));
 }
 
-function isTweaked(tool) {
-  const fresh = state.Looks.tools.defaultToolState(tool);
-  return JSON.stringify(state.look.tools[tool.id]) !== JSON.stringify(fresh);
-}
-
-// ---------- global look presets (applied across tools) ----------
-
-const LOOK_PRESETS = {
-  None: null,
-  Blockbuster: {
-    "contrast": { p: { contrast: 0.25 } },
-    "lift-gamma-gain": { w: { gain: { rgb: [1.12, 1.04, 0.92] } } },
-    "vignette": { p: { strength: 0.5 } },
-    "four-way": { w: { shadows: { rgb: [0.92, 1.02, 1.08] }, highlights: { rgb: [1.08, 1.0, 0.9] } } },
-  },
-  Noir: {
-    "contrast": { p: { contrast: 0.5, pivot: 0.16 } },
-    "ranged-saturation": { p: { satHighlight: 0, satMidtone: 0, satShadow: 0 } },
-    "crush": { p: { gamma: 2.8 } },
-  },
-  Daylight: {
-    "warm-cool": { p: { warmCool: 0.2, tint: 0.02 } },
-    "pop": { p: { pop: 0.2 } },
-    "diffusion": { p: { glow: 0.2 } },
-  },
-};
-
-function applyLookPreset(name) {
-  const C = state.Looks.color;
-  state.look.preset = name;
-  const preset = LOOK_PRESETS[name];
-  if (!preset) return;
-  for (const toolId of Object.keys(preset)) {
-    const tool = state.Looks.tools.byId(toolId);
-    if (!tool) continue;
-    const patch = preset[toolId];
-    const st = state.look.tools[toolId];
-    if (patch.p) {
-      for (const k of Object.keys(patch.p)) {
-        if (st.p[k] !== undefined) st.p[k] = patch.p[k];
-      }
-    }
-    if (patch.w) {
-      for (const k of Object.keys(patch.w)) {
-        if (st.w[k] && patch.w[k].rgb) {
-          st.w[k].rgb = patch.w[k].rgb.slice();
-          st.w[k].dot = C.tintToDot(st.w[k].rgb[0], st.w[k].rgb[1], st.w[k].rgb[2]);
-        }
-      }
-    }
-  }
-}
-
-// ---------- panel builders ----------
-
-function disposeWidgets() {
-  for (const w of state.widgets) {
-    try { w.destroy(); } catch (_err) { /* best effort */ }
-  }
-  state.widgets = [];
-}
-
-function track(widget) {
-  state.widgets.push(widget);
-  return widget;
-}
-
-function editableValue(parent, get, set, schema) {
-  const span = make("span", "lk-pval", fmtParam(schema, get()));
-  span.title = "Click to edit";
-  span.onclick = function (e) {
-    e.stopPropagation();
-    if (span.querySelector("input")) return;
-    const input = document.createElement("input");
-    input.value = fmtParam(schema, get());
-    span.textContent = "";
-    span.appendChild(input);
-    input.focus();
-    try { input.select(); } catch (_err) {}
-    function commit() {
-      const parsed = state.Looks.color.parseNum(input.value, schema);
-      if (parsed !== null) set(parsed);
-      refreshPanel();
-    }
-    input.onkeydown = function (ev) {
-      if (ev.key === "Enter") commit();
-      else if (ev.key === "Escape") refreshPanel();
-      ev.stopPropagation();
-    };
-    input.onblur = commit;
-  };
-  parent.appendChild(span);
-  return span;
-}
-
-function buildParamRow(panel, tool, prm, toolState, onSet) {
-  if (prm.kind === "section") {
-    if (prm.label) panel.appendChild(make("div", "lk-section", prm.label));
-    return;
-  }
-  if (prm.kind === "toggle") {
-    const row = make("div", "lk-prow");
-    row.appendChild(make("span", "lk-plabel", prm.label));
-    const btn = make("button", "lk-toggle" + (toolState.p[prm.key] ? " on" : ""), toolState.p[prm.key] ? "On" : "Off");
-    btn.onclick = function () {
-      toolState.p[prm.key] = toolState.p[prm.key] ? 0 : 1;
-      refreshPanel();
-    };
-    row.appendChild(btn);
-    panel.appendChild(row);
-    return;
-  }
-  if (prm.kind === "choice") {
-    const row = make("div", "lk-prow");
-    row.appendChild(make("span", "lk-plabel", prm.label));
-    const sel = make("select", "lk-select");
-    (prm.options || []).forEach(function (opt, i) {
-      const o = make("option", "", opt);
-      o.value = String(i);
-      if (i === toolState.p[prm.key]) o.selected = true;
-      sel.appendChild(o);
-    });
-    sel.onchange = function () {
-      toolState.p[prm.key] = Number(sel.value) || 0;
-      if (onSet) onSet(prm.key);
-      refreshPanel();
-    };
-    row.appendChild(sel);
-    panel.appendChild(row);
-    return;
-  }
-  const row = make("div", "lk-prow");
-  row.appendChild(make("span", "lk-plabel", prm.label));
-  editableValue(row, function () { return toolState.p[prm.key]; }, function (v) {
-    toolState.p[prm.key] = v;
-    if (onSet) onSet(prm.key);
-  }, prm);
-  panel.appendChild(row);
-}
-
-function rgbReadout(parent, getRgb, setRgb) {
-  const C = state.Looks.color;
-  const box = make("div", "lk-rgb");
-  const cells = {};
-  ["R", "G", "B"].forEach(function (k, i) {
-    const row = make("div", "lk-rgb-row");
-    row.appendChild(make("span", "lk-rgb-k", k));
-    const v = make("span", "lk-rgb-v", getRgb()[i].toFixed(3));
-    v.title = "Click to edit";
-    v.onclick = function (e) {
-      e.stopPropagation();
-      if (v.querySelector("input")) return;
-      const input = document.createElement("input");
-      input.value = getRgb()[i].toFixed(3);
-      v.textContent = "";
-      v.appendChild(input);
-      input.focus();
-      try { input.select(); } catch (_err) {}
-      function commit() {
-        const parsed = C.parseNum(input.value, { min: 0, max: 4 });
-        if (parsed !== null) {
-          const rgb = getRgb().slice();
-          rgb[i] = Math.round(parsed * 1000) / 1000;
-          setRgb(rgb);
-        }
-        refreshPanel();
-      }
-      input.onkeydown = function (ev) {
-        if (ev.key === "Enter") commit();
-        else if (ev.key === "Escape") refreshPanel();
-        ev.stopPropagation();
-      };
-      input.onblur = commit;
-    };
-    row.appendChild(v);
-    cells[k] = v;
-    box.appendChild(row);
-  });
-  parent.appendChild(box);
-  return cells;
-}
-
-function buildWheelRow(panel, toolState, wdef) {
-  const C = state.Looks.color;
-  const row = make("div", "lk-wheelrow");
-  const holder = make("div", "");
-  row.appendChild(holder);
-  const wheel = track(new state.Looks.widgets.ColorWheel(holder, {
-    size: 190,
-    initial: toolState.w[wdef.key].dot,
-  }));
-  const getRgb = function () { return toolState.w[wdef.key].rgb; };
-  rgbReadout(row, getRgb, function (rgb) {
-    toolState.w[wdef.key].rgb = rgb;
-    toolState.w[wdef.key].dot = C.tintToDot(rgb[0], rgb[1], rgb[2]);
-    wheel.set(toolState.w[wdef.key].dot);
-  });
-  wheel.onInput(function (dot, rgb) {
-    toolState.w[wdef.key].dot = { angle: Math.round(dot.angle * 10) / 10, radius: Math.round(dot.radius * 1000) / 1000 };
-    toolState.w[wdef.key].rgb = [rgb[0], rgb[1], rgb[2]].map(function (v) { return Math.round(v * 1000) / 1000; });
-    refreshReadoutsOnly(panel, toolState, wdef);
-  });
-  panel.appendChild(row);
-}
-
-// Lightweight readout refresh while dragging (no full rebuild).
-function refreshReadoutsOnly(panel, toolState, wdef) {
-  const rgb = toolState.w[wdef.key].rgb;
-  const cells = panel.querySelectorAll(".lk-wheelrow .lk-rgb-v");
-  const vals = [rgb[0].toFixed(3), rgb[1].toFixed(3), rgb[2].toFixed(3)];
-  for (let i = 0; i < cells.length && i < 3; i++) {
-    if (!cells[i].querySelector("input")) cells[i].textContent = vals[i];
-  }
-  paintTweakFlags();
-  schedulePush();
-}
-
-function buildCustom(panel, tool, toolState) {
-  const W = state.Looks.widgets;
-  const C = state.Looks.color;
-  if (tool.custom === "hsl") {
-    const holder = make("div", "");
-    panel.appendChild(holder);
-    const hsl = track(new W.HSLWheels(holder, { values: toolState.x.hsl }));
-    // Section titles between the wheels + table, like the reference.
-    const kids = Array.prototype.slice.call(holder.children);
-    if (kids[0]) holder.insertBefore(make("div", "lk-section", "Hue/Saturation"), kids[0]);
-    if (kids[1]) holder.insertBefore(make("div", "lk-section", "Hue/Lightness"), kids[1]);
-    hsl.onInput(function (vals) {
-      toolState.x.hsl = vals;
-      paintTweakFlags();
-      schedulePush();
-    });
-  } else if (tool.custom === "curves") {
-    const holder = make("div", "");
-    panel.appendChild(holder);
-    const pad = track(new W.CurvesPad(holder, { state: toolState.x.curves }));
-    pad.onInput(function () { paintTweakFlags(); schedulePush(); });
-    panel.appendChild(make("div", "lk-chan-note", "Double-click adds a point, right-click removes one."));
-  } else if (tool.custom === "scurve") {
-    const holder = make("div", "");
-    panel.appendChild(holder);
-    const pad = track(new W.SCurvePad(holder, { state: toolState.x.scurve }));
-    const rows = make("div", "");
-    panel.appendChild(rows);
-    function paintRows() {
-      rows.innerHTML = "";
-      const s = toolState.x.scurve;
-      const defs = [
-        ["Black Point:", s.black, 3, function (v) { s.black = v; s.p0.y = C.clamp(v, 0, 1); pad.set(s); }],
-        ["White Point:", s.white, 3, function (v) { s.white = v; s.p3.y = C.clamp(v, 0, 1); pad.set(s); }],
-        ["Contrast:", s.contrast, 3, function (v) { s.contrast = v; reshapeFromParams(); }],
-        ["Midpoint:", s.midpoint, 3, function (v) { s.midpoint = v; reshapeFromParams(); }],
-        ["Brightness:", s.brightness, 3, function (v) { s.brightness = v; reshapeFromParams(); }],
-      ];
-      defs.forEach(function (d) {
-        const row = make("div", "lk-prow");
-        row.appendChild(make("span", "lk-plabel", d[0]));
-        editableValue(row, (function (v) { return function () { return v; }; })(d[1]), d[3], { kind: "number", decimals: d[2] });
-        rows.appendChild(row);
-      });
-    }
-    function reshapeFromParams() {
-      const s = toolState.x.scurve;
-      const m = C.clamp(s.midpoint, 0.05, 0.95);
-      const k = C.clamp(s.contrast, 0.2, 4);
-      const b = (C.clamp(s.brightness, 0, 1) - 0.5) * 0.5;
-      s.c1 = { x: C.clamp(m - 0.28, 0, 1), y: C.clamp(m - 0.28 * k * 0.45 + b, 0, 1) };
-      s.c2 = { x: C.clamp(m + 0.28, 0, 1), y: C.clamp(m + 0.28 * k * 0.45 + b, 0, 1) };
-      s.p0 = { x: 0, y: C.clamp(s.black, 0, 1) };
-      s.p3 = { x: 1, y: C.clamp(s.white, 0, 1) };
-      pad.set(s);
-      paintRows();
-      paintTweakFlags();
-      schedulePush();
-    }
-    pad.onInput(function () {
-      paintRows();
-      paintTweakFlags();
-      schedulePush();
-    });
-    paintRows();
-  } else if (tool.custom === "fourway") {
-    const fw = toolState.x.fourway;
-    for (const k of ["shadows", "midtones", "highlights", "global"]) {
-      if (!fw[k]) fw[k] = { rgb: [1, 1, 1], dot: { angle: 0, radius: 0 } };
-    }
-    const grid = make("div", "lk-fourway");
-    panel.appendChild(grid);
-    const defs = [
-      ["Midtones", "midtones", "Sat: 100.0%", true],
-      ["Shadows", "shadows", "Sat: 100.0%", false],
-      ["Highlights", "highlights", "Sat: 100.0%", false],
-      ["Global", "global", "Sat: 100.0%", true],
-    ];
-    const wheelRefs = {};
-    defs.forEach(function (d) {
-      const col = make("div", "lk-four-col" + (d[3] ? " mid" : ""));
-      col.appendChild(make("div", "lk-four-name", d[0]));
-      const holder = make("div", "");
-      col.appendChild(holder);
-      const wheel = track(new W.ColorWheel(holder, { size: 118, initial: fw[d[1]].dot }));
-      wheelRefs[d[1]] = wheel;
-      wheel.onInput(function (dot, rgb) {
-        fw[d[1]] = {
-          dot: { angle: Math.round(dot.angle * 10) / 10, radius: Math.round(dot.radius * 1000) / 1000 },
-          rgb: rgb.map(function (v) { return Math.round(v * 1000) / 1000; }),
-        };
-        paintTweakFlags();
-        schedulePush();
-      });
-      col.appendChild(make("div", "lk-four-sat", d[2]));
-      grid.appendChild(col);
-    });
-    const rangesRow = make("div", "lk-prow");
-    rangesRow.appendChild(make("span", "lk-plabel", "Ranges"));
-    const prevWrap = make("span", "lk-plabel", "Preview:");
-    prevWrap.style.flex = "0 0 auto";
-    rangesRow.appendChild(prevWrap);
-    const prev = make("button", "lk-toggle" + (fw.preview ? " on" : ""), fw.preview ? "On" : "Off");
-    prev.onclick = function () {
-      fw.preview = fw.preview ? 0 : 1;
-      refreshPanel();
-    };
-    rangesRow.appendChild(prev);
-    panel.appendChild(rangesRow);
-    const gholder = make("div", "");
-    panel.appendChild(gholder);
-    track(new W.RangesGraph(gholder, {}));
-  } else if (tool.custom === "warmcool") {
-    const holder = make("div", "");
-    holder.style.textAlign = "center";
-    panel.appendChild(holder);
-    const pad = track(new W.WarmCoolPad(holder, {
-      x: toolState.x.warmcool.x,
-      y: toolState.x.warmcool.y,
-    }));
-    pad.onInput(function (p) {
-      toolState.p.warmCool = Math.round(p.x * 1000) / 1000;
-      toolState.p.tint = Math.round(p.y * 1000) / 1000;
-      toolState.x.warmcool = { x: p.x, y: p.y };
-      refreshPanel();
-    });
-    toolState._padLive = pad;
-  } else if (tool.custom === "angledial") {
-    const holder = make("div", "");
-    panel.appendChild(holder);
-    const dial = track(new W.AngleDial(holder, { angle: toolState.x.angle }));
-    dial.onInput(function (a) {
-      toolState.x.angle = a;
-      paintTweakFlags();
-      schedulePush();
-    });
-  } else if (tool.custom === "lut") {
-    const lut = toolState.x.lut;
-    const row = make("div", "lk-prow");
-    row.appendChild(make("span", "lk-plabel", "LUT:"));
-    const nameRow = make("div", "lk-lut-row");
-    nameRow.appendChild(make("span", "lk-lut-name", lut.name));
-    const x = make("button", "lk-lut-x", "✕");
-    x.title = "Clear LUT";
-    x.onclick = function () {
-      lut.name = "None";
-      refreshPanel();
-    };
-    nameRow.appendChild(x);
-    panel.appendChild(nameRow);
-    buildParamRow(panel, tool, { kind: "number", key: "__strength", label: "Strength:", def: 1, min: 0, max: 1, step: 0.01, decimals: 1, percent: true, fraction: true },
-      { p: { __strength: lut.strength } });
-    // Route the generic strength row back into lut state.
-    const strengthCells = panel.querySelectorAll(".lk-pval");
-    const last = strengthCells[strengthCells.length - 1];
-    if (last) {
-      last.onclick = function (e) {
-        e.stopPropagation();
-        if (last.querySelector("input")) return;
-        const input = document.createElement("input");
-        input.value = state.Looks.color.fmtNum(lut.strength, 1, { percent: true, fraction: true });
-        last.textContent = "";
-        last.appendChild(input);
-        input.focus();
-        try { input.select(); } catch (_err) {}
-        function commit() {
-          const parsed = state.Looks.color.parseNum(input.value, { percent: true, fraction: true });
-          if (parsed !== null) lut.strength = parsed;
-          refreshPanel();
-        }
-        input.onkeydown = function (ev) {
-          if (ev.key === "Enter") commit();
-          else if (ev.key === "Escape") refreshPanel();
-          ev.stopPropagation();
-        };
-        input.onblur = commit;
-      };
-    }
-    buildParamRow(panel, tool, { kind: "choice", key: "__gamma", label: "LUT Gamma:", def: lut.gamma, options: lut.gammaOptions },
-      { p: { __gamma: lut.gamma } });
-    const sels = panel.querySelectorAll("select.lk-select");
-    const gsel = sels[sels.length - 1];
-    if (gsel) {
-      gsel.onchange = function () {
-        lut.gamma = gsel.value;
-        refreshPanel();
-      };
-    }
-  }
-}
-
-function paintTweakFlags() {
-  if (!state.windowEl) return;
-  const items = state.windowEl.querySelectorAll(".lk-tool");
-  Array.prototype.forEach.call(items, function (el) {
-    const tool = state.Looks.tools.byId(el.getAttribute("data-tool"));
-    if (!tool) return;
-    let flag = el.querySelector(".lk-tool-tweaked");
-    if (isTweaked(tool)) {
-      if (!flag) {
-        flag = make("span", "lk-tool-tweaked", "●");
-        el.appendChild(flag);
-      }
-    } else if (flag) {
-      flag.remove();
-    }
-  });
-}
-
-function refreshPanel() {
-  if (!state.windowEl) return;
-  disposeWidgets();
-  const inner = state.windowEl.querySelector(".lk-panel-inner");
-  inner.innerHTML = "";
-  buildPanel(inner);
-  paintTweakFlags();
-  refreshChain();
-  schedulePush();
-}
-
-function buildPanel(inner) {
-  const Looks = state.Looks;
-  const tool = Looks.tools.byId(state.activeTool) || Looks.tools.TOOLS[0];
-  const toolState = state.look.tools[tool.id];
-
-  const head = make("div", "lk-toolhead");
-  head.appendChild(make("h2", "lk-tool-title", tool.name));
-  const reset = make("button", "lk-reset", "↻");
-  reset.title = "Reset " + tool.name;
-  reset.onclick = function () {
-    state.look.tools[tool.id] = Looks.tools.defaultToolState(tool);
-    // Drop any live widget handles (warm/cool pad etc).
-    refreshPanel();
-  };
-  head.appendChild(reset);
-  inner.appendChild(head);
-
-  // Preset row (per-tool factory presets: None only for now; Custom shown
-  // automatically once the tool differs from defaults).
-  const prow = make("div", "lk-preset-row");
-  prow.appendChild(make("span", "lk-preset-label", "Preset:"));
-  const sel = make("select", "lk-select");
-  const none = make("option", "", "None");
-  none.value = "None";
-  sel.appendChild(none);
-  if (isTweaked(tool)) {
-    const custom = make("option", "", "Custom");
-    custom.value = "Custom";
-    custom.selected = true;
-    sel.appendChild(custom);
-  } else {
-    none.selected = true;
-  }
-  sel.onchange = function () {
-    if (sel.value === "None") {
-      state.look.tools[tool.id] = Looks.tools.defaultToolState(tool);
-      refreshPanel();
-    }
-  };
-  prow.appendChild(sel);
-  inner.appendChild(prow);
-
-  // Params in catalog order; wheels render at their section breaks.
-  // Warm/Cool numbers also move the pad dot (params -> pad direction; the
-  // pad -> params direction is wired in buildCustom).
-  const syncPad = tool.custom === "warmcool" ? function () {
-    const t = state.look.tools[tool.id];
-    t.x.warmcool = { x: t.p.warmCool, y: t.p.tint };
-    if (t._padLive) {
-      try { t._padLive.set(t.x.warmcool); } catch (_err) { /* rebuilt below */ }
-    }
-  } : null;
-  let wheelQueue = (tool.wheels || []).slice();
-  const extraGroups = (tool.extraWheels || []).slice();
-  for (const prm of tool.params || []) {
-    if (prm.kind === "section" && wheelQueue.length) {
-      inner.appendChild(make("div", "lk-section", prm.label));
-      const wdef = wheelQueue.shift();
-      buildWheelRow(inner, toolState, wdef);
-      continue;
-    }
-    buildParamRow(inner, tool, prm, toolState, syncPad);
-  }
-  for (const wdef of wheelQueue) {
-    buildWheelRow(inner, toolState, wdef);
-  }
-  for (const grp of extraGroups) {
-    if (grp.section) inner.appendChild(make("div", "lk-section", grp.section));
-    for (const wdef of grp.wheels || []) {
-      buildWheelRow(inner, toolState, wdef);
-    }
-  }
-  buildCustom(inner, tool, toolState);
-
-  const foot = make("div", "lk-foot");
-  foot.appendChild(make("span", "lk-foot-dot"));
-  foot.appendChild(make("span", "",
-    state.effect
-      ? "Bound to the Magic Looks effect — edits grade the preview live"
-      : "Not bound — add the Magic Looks effect to a clip to grade footage"));
-  inner.appendChild(foot);
-}
-
-function buildSidebar(side) {
-  const Looks = state.Looks;
-  const search = make("input", "lk-search");
-  search.placeholder = "Search tools…";
-  search.oninput = function () {
-    const q = search.value.trim().toLowerCase();
-    Array.prototype.forEach.call(side.querySelectorAll(".lk-tool"), function (el) {
-      const tool = Looks.tools.byId(el.getAttribute("data-tool"));
-      el.classList.toggle("hidden", !!q && tool.name.toLowerCase().indexOf(q) === -1);
-    });
-  };
-  side.appendChild(search);
-  for (const grp of Looks.tools.GROUPS) {
-    side.appendChild(make("div", "lk-group-name", grp.name));
-    const wrap = make("div", "lk-group");
-    for (const tool of Looks.tools.TOOLS) {
-      if (tool.group !== grp.id) continue;
-      const btn = make("button", "lk-tool" + (tool.id === state.activeTool ? " active" : ""), tool.name);
-      btn.setAttribute("data-tool", tool.id);
-      btn.prepend(make("span", "lk-tool-dot"));
-      btn.onclick = function () {
-        selectTool(tool.id);
-      };
-      wrap.appendChild(btn);
-    }
-    side.appendChild(wrap);
-  }
-}
-
-function exportLook() {
-  const blob = new Blob([JSON.stringify(state.look, null, 2)], { type: "application/json" });
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = "magic-looks-look.json";
-  document.body.appendChild(a);
-  a.click();
-  setTimeout(function () {
-    try { URL.revokeObjectURL(a.href); } catch (_err) {}
-    a.remove();
-  }, 1000);
-}
-
-function importLook(file) {
-  const reader = new FileReader();
-  reader.onload = function () {
-    try {
-      const data = JSON.parse(String(reader.result || ""));
-      if (!data || typeof data !== "object" || !data.tools) throw new Error("bad look");
-      const fresh = defaultLookState();
-      for (const id of Object.keys(fresh.tools)) {
-        if (data.tools[id]) {
-          // Merge over defaults so missing keys stay valid.
-          const merged = fresh.tools[id];
-          const src = data.tools[id];
-          if (src.p) for (const k of Object.keys(src.p)) if (merged.p[k] !== undefined) merged.p[k] = src.p[k];
-          if (src.w) for (const k of Object.keys(src.w)) if (merged.w[k] && src.w[k].rgb) {
-            merged.w[k].rgb = src.w[k].rgb.slice(0, 3).map(Number);
-            merged.w[k].dot = state.Looks.color.tintToDot(merged.w[k].rgb[0], merged.w[k].rgb[1], merged.w[k].rgb[2]);
-          }
-          if (src.x) fresh.tools[id].x = src.x;
-        }
-      }
-      state.look = fresh;
-      state.look.preset = "None";
-      syncLookSelect();
-      refreshPanel();
-    } catch (_err) {
-      try { alert("That file is not a Magic Looks look."); } catch (_e) {}
-    }
-  };
-  reader.readAsText(file);
-}
-
-function syncLookSelect() {
-  if (!state.windowEl) return;
-  const sel = state.windowEl.querySelector(".lk-head-select");
-  if (sel) sel.value = state.look.preset || "None";
-}
-
-// ---------- tool chain strip (LOOKS | Input | slots | TOOLS) ----------
-
-// Forward-compatible enable sync: updates local state now, and writes the
-// effect property once the setup is bound to a live effect instance.
-function syncToolEnable(id) {
-  paintTweakFlags();
-  refreshChain();
-  schedulePush();
-}
-
-function syncChainBypass() {
-  refreshChain();
-  schedulePush();
-}
-
-function currentFrame() {
+function currentEditorFrame() {
   const CM = state.editor;
   return CM && CM.playback ? CM.playback.currentFrame : 0;
 }
 
-function frameOffsetOf(p) {
-  return (p && p.frameOffset) || 0;
+function propOf(effect, key) {
+  return effect && effect.properties ? effect.properties[key] || null : null;
 }
 
-function getEffectProp(key) {
-  const e = state.effect;
-  if (!e) return undefined;
-  const p = e.properties[key];
+function frameOf(prop) {
+  return currentEditorFrame() - (prop.frameOffset || 0);
+}
+
+function readProp(effect, key) {
+  const p = propOf(effect, key);
   if (!p) return undefined;
   try {
-    return p.get(currentFrame());
+    return p.get(frameOf(p));
   } catch (_err) {
     return undefined;
   }
 }
 
-function getEffectText(key) {
-  const v = getEffectProp(key);
-  return typeof v === "string" ? v : undefined;
+function readNum(effect, key, fallback) {
+  const v = Number(readProp(effect, key));
+  return isFinite(v) ? v : fallback;
 }
 
-function setEffectProp(key, value) {
-  const e = state.effect;
-  if (!e) return false;
-  const p = e.properties[key];
-  if (!p || typeof p.set !== "function") return false;
-  try {
-    p.set(value, currentFrame() - frameOffsetOf(p));
-    return true;
-  } catch (_err) {
-    return false;
-  }
-}
-
-// ---------- live-effect binding ----------
-
-function findLooks() {
-  const CM = state.editor;
-  const found = [];
-  const walk = function (list) {
-    if (!list) return;
-    for (let i = 0; i < list.length; i++) {
-      const fx = list[i];
-      if (!fx) continue;
-      if (fx.type === "looks") {
-        found.push(fx);
-        continue;
+// Edit session for one effect: live writes for preview, one undoable commit
+// per finished edit.
+function createSession(effect) {
+  const pending = new Map();
+  const session = {
+    onCommit: null,
+    live(key, value) {
+      const p = propOf(effect, key);
+      if (!p) return;
+      if (!pending.has(key)) pending.set(key, { old: cloneValue(readProp(effect, key)) });
+      try { p.set(value, frameOf(p)); } catch (_err) { /* property rejected the value */ }
+    },
+    commit(writes) {
+      const CM = state.editor;
+      const ops = state.ops;
+      if (!CM || !ops) return false;
+      const entries = [];
+      for (const w of writes) {
+        const p = propOf(effect, w.key);
+        if (!p) { pending.delete(w.key); continue; }
+        const pend = pending.get(w.key);
+        pending.delete(w.key);
+        const old = pend ? pend.old : cloneValue(readProp(effect, w.key));
+        if (JSON.stringify(old) === JSON.stringify(w.value)) continue;
+        entries.push({ p: p, value: w.value, old: old });
       }
-      if (fx.effects) walk(fx.effects);
-    }
+      if (!entries.length) return false;
+      CM.history.startOperation();
+      try {
+        for (const en of entries) {
+          ops.setValue({
+            property: en.p.getAddress(),
+            frame: frameOf(en.p),
+            value: en.value,
+            oldValue: en.old,
+          });
+        }
+      } finally {
+        CM.history.finishOperation();
+      }
+      if (session.onCommit) session.onCommit();
+      return true;
+    },
+    // Commits any live preview that was not committed (window closed mid-drag).
+    flush() {
+      const writes = Array.from(pending.keys()).map(function (key) {
+        return { key: key, value: readProp(effect, key) };
+      });
+      if (writes.length) session.commit(writes);
+    },
   };
-  const selection = CM && CM.timelineSelection;
-  if (selection) {
-    for (let i = 0; i < selection.length; i++) {
-      const clip = selection[i];
-      const layer = clip && (clip.object || clip);
-      if (layer && layer.effects) walk(layer.effects);
-    }
-  }
-  if (!found.length && CM && CM.project) {
-    CM.project.traverse(function (e) { if (e.type === "looks") found.push(e); });
-  }
-  return found;
+  return session;
 }
 
-function pullFromEffect() {
+// ---------- look presets and resets (all undoable through the session) ----------
+
+function toolKeys(effect) {
   const Looks = state.Looks;
-  if (!state.effect || !state.look) return;
-  const map = Looks.tools.propMap();
-  try {
-    const gl = getEffectProp("enabled");
-    if (gl !== undefined) state.look.enabled = gl ? 1 : 0;
-    for (const tool of Looks.tools.TOOLS) {
-      const rec = map[tool.id];
-      const st = state.look.tools[tool.id];
-      if (!st) continue;
-      const en = getEffectProp(rec.enable);
-      if (en !== undefined) state.look.on[tool.id] = en ? 1 : 0;
-      const schemas = {};
-      for (const p of tool.params || []) schemas[p.key] = p;
-      for (const k of Object.keys(rec.params)) {
-        const v = getEffectProp(rec.params[k]);
-        if (v === undefined) continue;
-        const schema = schemas[k];
-        if (!schema) continue;
-        if (schema.kind === "number") {
-          const n = Number(v);
-          if (isFinite(n)) st.p[k] = n;
-        } else {
-          st.p[k] = Math.round(Number(v)) || 0;
-        }
-      }
-      for (const k of Object.keys(rec.wheels)) {
-        const t = rec.wheels[k];
-        const rgb = [getEffectProp(t[0]), getEffectProp(t[1]), getEffectProp(t[2])];
-        if (rgb.every((v) => v !== undefined && isFinite(Number(v)))) {
-          st.w[k].rgb = rgb.map(Number);
-          st.w[k].dot = Looks.color.tintToDot(st.w[k].rgb[0], st.w[k].rgb[1], st.w[k].rgb[2]);
-        }
-      }
-      const cx = rec.custom;
-      if (cx.hsl) {
-        cx.hsl.sat.forEach((key, i) => {
-          const v = getEffectProp(key);
-          if (v !== undefined && isFinite(Number(v))) st.x.hsl[i].sat = Number(v);
-        });
-        cx.hsl.light.forEach((key, i) => {
-          const v = getEffectProp(key);
-          if (v !== undefined && isFinite(Number(v))) st.x.hsl[i].light = Number(v);
-        });
-      }
-      if (cx.curvesJson) {
-        const s = getEffectText(cx.curvesJson);
-        if (s) {
-          try {
-            const ch = JSON.parse(s);
-            if (ch && ch.Red && ch.Green && ch.Blue) st.x.curves.channels = ch;
-          } catch (_e) { /* keep local curves */ }
-        }
-      }
-      if (cx.scurveJson) {
-        const s = getEffectText(cx.scurveJson);
-        if (s) {
-          try {
-            const sh = JSON.parse(s);
-            // Shape + range travel; contrast/midpoint/brightness stay as
-            // local display shaping until the user edits them again.
-            for (const k of ["black", "white", "p0", "c1", "c2", "p3"]) {
-              if (sh[k] !== undefined) st.x.scurve[k] = sh[k];
-            }
-          } catch (_e2) { /* keep local shape */ }
-        }
-      }
-      if (cx.fourway) {
-        const pv = getEffectProp(cx.fourwayPreview);
-        if (pv !== undefined) st.x.fourway.preview = pv ? 1 : 0;
-        for (const slot of Object.keys(cx.fourway)) {
-          const t = cx.fourway[slot];
-          const rgb = [getEffectProp(t[0]), getEffectProp(t[1]), getEffectProp(t[2])];
-          if (rgb.every((v) => v !== undefined && isFinite(Number(v)))) {
-            st.x.fourway[slot] = {
-              rgb: rgb.map(Number),
-              dot: Looks.color.tintToDot(rgb[0], rgb[1], rgb[2]),
-            };
-          }
-        }
-      }
-      if (cx.angle) {
-        const v = getEffectProp(cx.angle);
-        if (v !== undefined && isFinite(Number(v))) st.x.angle = Number(v);
-      }
-      if (cx.lutName) {
-        const nm = getEffectText(cx.lutName);
-        if (nm) st.x.lut.name = nm;
-        const ss = getEffectProp(cx.lutStrength);
-        if (ss !== undefined && isFinite(Number(ss))) st.x.lut.strength = Number(ss);
-        const gi = getEffectProp(cx.lutGamma);
-        if (gi !== undefined) {
-          const idx = Math.round(Number(gi)) || 0;
-          st.x.lut.gamma = st.x.lut.gammaOptions[idx] || st.x.lut.gamma;
-        }
-      }
-    }
-  } catch (_err) { /* partial pull still leaves a usable panel */ }
+  const keep = {};
+  keep[Looks.tools.ENABLED_KEY] = true;
+  keep[Looks.tools.CHAIN_KEY] = true;
+  return Object.keys(effect.propertyDefinitions || {}).filter(function (key) { return !keep[key]; });
 }
 
-function pushFullState() {
-  const Looks = state.Looks;
-  if (!state.effect || !state.look) return;
-  const map = Looks.tools.propMap();
-  setEffectProp("enabled", state.look.enabled === false ? 0 : 1);
-  for (const tool of Looks.tools.TOOLS) {
-    const rec = map[tool.id];
-    const st = state.look.tools[tool.id];
-    if (!st) continue;
-    setEffectProp(rec.enable, state.look.on[tool.id] ? 1 : 0);
-    for (const k of Object.keys(rec.params)) {
-      setEffectProp(rec.params[k], st.p[k]);
-    }
-    for (const k of Object.keys(rec.wheels)) {
-      const t = rec.wheels[k];
-      const rgb = (st.w[k] && st.w[k].rgb) || [1, 1, 1];
-      setEffectProp(t[0], rgb[0]);
-      setEffectProp(t[1], rgb[1]);
-      setEffectProp(t[2], rgb[2]);
-    }
-    const cx = rec.custom;
-    if (cx.hsl) {
-      cx.hsl.sat.forEach((key, i) => setEffectProp(key, st.x.hsl[i].sat));
-      cx.hsl.light.forEach((key, i) => setEffectProp(key, st.x.hsl[i].light));
-    }
-    if (cx.curvesJson && st.x.curves) {
-      setEffectProp(cx.curvesJson, JSON.stringify(st.x.curves.channels));
-    }
-    if (cx.scurveJson && st.x.scurve) {
-      const s = st.x.scurve;
-      setEffectProp(cx.scurveJson, JSON.stringify({
-        black: s.black, white: s.white, p0: s.p0, c1: s.c1, c2: s.c2, p3: s.p3,
-      }));
-    }
-    if (cx.fourway) {
-      setEffectProp(cx.fourwayPreview, st.x.fourway.preview ? 1 : 0);
-      for (const slot of Object.keys(cx.fourway)) {
-        const t = cx.fourway[slot];
-        const fw = st.x.fourway[slot] || { rgb: [1, 1, 1] };
-        const rgb = fw.rgb || fw;
-        setEffectProp(t[0], rgb[0]);
-        setEffectProp(t[1], rgb[1]);
-        setEffectProp(t[2], rgb[2]);
-      }
-    }
-    if (cx.angle) setEffectProp(cx.angle, st.x.angle);
-    if (cx.lutName && st.x.lut) {
-      setEffectProp(cx.lutName, st.x.lut.name);
-      setEffectProp(cx.lutStrength, st.x.lut.strength);
-      setEffectProp(cx.lutGamma, Math.max(0, st.x.lut.gammaOptions.indexOf(st.x.lut.gamma)));
-    }
-  }
-}
-
-// Coarse debounced write-through: every panel mutation already funnels
-// through refreshPanel, so one hook covers all controls.
-function schedulePush() {
-  if (!state.effect || !state.windowEl) return;
-  if (state.pushTimer) return;
-  state.pushTimer = setTimeout(function () {
-    state.pushTimer = null;
-    if (!state.effect || !state.windowEl || state.pushing) return;
-    state.pushing = true;
-    try {
-      pushFullState();
-    } catch (_err) { /* best effort */ }
-    finally {
-      state.pushing = false;
-    }
-  }, 150);
-}
-
-function routeSetupAction(action, list, target) {
-  const editor = (list && list.editor) || state.editor || globalThis.CM;
-  if (!editor) return false;
-  if (action === "magicLooksSetup" && typeof editor.openMagicLooks === "function") {
-    editor.openMagicLooks(target && target.parentObject);
-    return true;
-  }
-  return false;
-}
-
-function ensureDispatcher(PZ) {
-  const controls = PZ && PZ.ui && PZ.ui.controls;
-  if (!controls) {
-    throw new Error("Setup windows need PZ.ui.controls from the CM3 runtime.");
-  }
-  if (typeof controls.runPropertyAction === "function") return controls;
-  controls.runPropertyAction = function (list, target, action, el) {
-    routeSetupAction(action, list, target);
-  };
-  controls.runPropertyAction.__magicLooksCompat = true;
-  return controls;
-}
-
-function wrapDispatcher(PZ) {
-  // Chain above whatever dispatcher is installed (ours, a sibling's, or
-  // upstream's): route magicLooksSetup here, delegate the rest.
-  const controls = PZ && PZ.ui && PZ.ui.controls;
-  if (!controls || typeof controls.runPropertyAction !== "function") return;
-  if (state.installedWrapper) return;
-  const original = controls.runPropertyAction;
-  const patched = function (list, target, action, el) {
-    if (patched.__magicLooksDead) {
-      return original.call(this, list, target, action, el);
-    }
-    if (routeSetupAction(action, list, target)) return;
-    return original.call(this, list, target, action, el);
-  };
-  patched.__magicLooksOriginal = original;
-  controls.runPropertyAction = patched;
-  state.installedWrapper = patched;
-}
-
-function unpatchDispatcher(PZ) {
-  if (state.installedWrapper) {
-    state.installedWrapper.__magicLooksDead = true;
-    const controls = PZ && PZ.ui && PZ.ui.controls;
-    if (controls && controls.runPropertyAction === state.installedWrapper) {
-      controls.runPropertyAction = controls.runPropertyAction.__magicLooksOriginal || controls.runPropertyAction;
-    }
-    state.installedWrapper = null;
-  }
-}
-
-function buildChain(strip) {
-  const Looks = state.Looks;
-  strip.innerHTML = "";
-  strip.appendChild(make("div", "lk-chain-looks", "LOOKS"));
-
-  // Input slot: click toggles the whole-chain bypass.
-  const input = make("button", "lk-slot lk-slot-input", "");
-  input.title = "Input · Output - Rec.709 (click to bypass the chain)";
-  const ibox = make("div", "lk-thumbbox");
-  const icanvas = document.createElement("canvas");
-  ibox.appendChild(icanvas);
-  try { Looks.widgets.paintChainThumb(icanvas, { kind: "input" }); } catch (_err) {}
-  input.appendChild(ibox);
-  input.appendChild(make("div", "lk-slot-name", "Input"));
-  input.appendChild(make("div", "lk-slot-sub", "Output - Rec.709"));
-  input.onclick = function () {
-    state.look.enabled = state.look.enabled === false ? 1 : 0;
-    syncChainBypass();
-  };
-  strip.appendChild(input);
-  strip.appendChild(make("div", "lk-sep"));
-
-  for (const tool of Looks.tools.TOOLS) {
-    const slot = make("button", "lk-slot", "");
-    slot.setAttribute("data-tool", tool.id);
-    slot.title = tool.name + " (click to edit, badge to bypass)";
-    const box = make("div", "lk-thumbbox");
-    const canvas = document.createElement("canvas");
-    box.appendChild(canvas);
-    try { Looks.widgets.paintChainThumb(canvas, tool.thumb || { kind: "dot" }); } catch (_err) {}
-    const badge = make("div", "lk-badge", "⊘");
-    badge.title = "Bypass " + tool.name;
-    badge.onclick = function (e) {
-      e.stopPropagation();
-      state.look.on[tool.id] = state.look.on[tool.id] ? 0 : 1;
-      syncToolEnable(tool.id);
-    };
-    box.appendChild(badge);
-    slot.appendChild(box);
-    slot.appendChild(make("div", "lk-slot-name", tool.name));
-    slot.onclick = function () {
-      selectTool(tool.id);
-    };
-    strip.appendChild(slot);
-  }
-  strip.appendChild(make("div", "lk-sep"));
-  const add = make("button", "lk-slot lk-slot-add", "");
-  add.title = "All tools are in the chain — search them";
-  add.appendChild(make("div", "lk-add-plus", "+"));
-  add.appendChild(make("div", "lk-slot-name", "TOOLS"));
-  add.onclick = function () {
-    const search = state.windowEl && state.windowEl.querySelector(".lk-search");
-    if (search) search.focus();
-  };
-  strip.appendChild(add);
-  const cap = make("div", "lk-chain-tools", "TOOLS");
-  strip.appendChild(cap);
-  refreshChain();
-}
-
-function refreshChain() {
-  if (!state.windowEl) return;
-  const strip = state.windowEl.querySelector(".lk-chain");
-  if (!strip) return;
-  const bypassed = state.look.enabled === false;
-  strip.classList.toggle("bypassed", bypassed);
-  const input = strip.querySelector(".lk-slot-input");
-  if (input) input.classList.toggle("off", bypassed);
-  Array.prototype.forEach.call(strip.querySelectorAll(".lk-slot[data-tool]"), function (el) {
-    const id = el.getAttribute("data-tool");
-    el.classList.toggle("active", id === state.activeTool);
-    el.classList.toggle("off", !state.look.on[id]);
+// Writes that put every tool value back to its definition default.
+function resetWrites(effect) {
+  const defs = effect.propertyDefinitions || {};
+  return toolKeys(effect).map(function (key) {
+    return { key: key, value: defs[key] ? cloneValue(defs[key].value) : undefined };
   });
 }
 
-function selectTool(id) {
-  if (!state.windowEl || state.activeTool === id) return;
-  state.activeTool = id;
-  const side = state.windowEl.querySelector(".lk-side");
-  if (side) {
-    Array.prototype.forEach.call(side.querySelectorAll(".lk-tool"), function (x) {
-      x.classList.toggle("active", x.getAttribute("data-tool") === id);
-    });
-  }
-  const inner = state.windowEl.querySelector(".lk-panel-inner");
-  inner.classList.remove("swap");
-  void inner.offsetWidth;
-  refreshPanel();
-  inner.classList.add("swap");
-  refreshChain();
-}
-
-function openWindow() {
-  closeWindow();
-  disposeWidgets();
+function presetWrites(effect, preset) {
   const Looks = state.Looks;
-
-  const root = make("div", "lk-window");
-  const header = make("div", "lk-header");
-  header.appendChild(make("div", "lk-head-title", "Magic Looks"));
-  const group = make("div", "lk-head-group");
-  group.appendChild(make("span", "lk-head-label", "Look:"));
-  const lookSel = make("select", "lk-head-select");
-  for (const name of Object.keys(LOOK_PRESETS)) {
-    const o = make("option", "", name);
-    o.value = name;
-    lookSel.appendChild(o);
-  }
-  lookSel.value = state.look.preset || "None";
-  lookSel.onchange = function () {
-    applyLookPreset(lookSel.value);
-    refreshPanel();
+  const map = Looks.tools.propMap();
+  const writes = resetWrites(effect);
+  const byKey = {};
+  writes.forEach(function (w) { byKey[w.key] = w; });
+  const setKey = function (key, value) {
+    if (byKey[key]) byKey[key].value = value;
   };
-  group.appendChild(lookSel);
-  const exp = make("button", "lk-head-btn", "Export");
-  exp.onclick = exportLook;
-  group.appendChild(exp);
-  const imp = make("button", "lk-head-btn", "Import");
-  imp.onclick = function () {
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = "application/json,.json";
-    input.onchange = function () {
-      if (input.files && input.files[0]) importLook(input.files[0]);
-    };
-    input.click();
-  };
-  group.appendChild(imp);
-  const close = make("button", "lk-close", "✕");
-  close.title = "Close (Esc)";
-  close.onclick = closeWindow;
-  group.appendChild(close);
-  header.appendChild(group);
-  root.appendChild(header);
-
-  const chain = make("div", "lk-chain");
-  buildChain(chain);
-  root.appendChild(chain);
-
-  const body = make("div", "lk-body");
-  const side = make("div", "lk-side");
-  buildSidebar(side);
-  body.appendChild(side);
-
-  // Render preview: the main viewport transplanted into the setup, like
-  // the VHS/Datamosh windows. It shows the project with the bound Magic
-  // Looks effect applied; unbound it shows the placeholder.
-  const prev = make("div", "lk-preview");
-  const screen = make("div", "lk-screen");
-  screen.appendChild(make("div", "lk-screen-placeholder", "no preview"));
-  prev.appendChild(screen);
-  const bar = make("div", "lk-preview-bar");
-  const statusEl = make("div", "lk-status", "No Looks effect");
-  bar.appendChild(statusEl);
-  const frameEl = make("span", "lk-time", "0000");
-  bar.appendChild(frameEl);
-  const addBtn = make("button", "lk-mini-btn", "Add Looks");
-  addBtn.title = "Add the Magic Looks effect to the selected clip";
-  addBtn.onclick = function () {
-    const CM = state.editor;
-    const fx = CM && CM.addLooksToSelection ? CM.addLooksToSelection() : null;
-    if (fx) {
-      state.effect = fx;
-      pullFromEffect();
-      refreshPanel();
-    }
-    refreshPreviewBar();
-  };
-  bar.appendChild(addBtn);
-  const bypassBtn = make("button", "lk-mini-btn", "Bypass");
-  bypassBtn.title = "Bypass the whole chain";
-  bypassBtn.onclick = function () {
-    state.look.enabled = state.look.enabled === false ? 1 : 0;
-    syncChainBypass();
-    refreshPreviewBar();
-  };
-  bar.appendChild(bypassBtn);
-  prev.appendChild(bar);
-  body.appendChild(prev);
-
-  const panel = make("div", "lk-panel");
-  const inner = make("div", "lk-panel-inner swap");
-  panel.appendChild(inner);
-  body.appendChild(panel);
-  root.appendChild(body);
-  document.body.appendChild(root);
-  state.windowEl = root;
-  buildPanel(inner);
-  paintTweakFlags();
-
-  // Transplant the main viewport into the preview screen.
-  state.viewport = (state.editor && state.editor.mainViewport) || null;
-  if (state.viewport && state.viewport.el) {
-    state.viewportParent = state.viewport.el.parentElement;
-    state.viewportStyle = state.viewport.el.getAttribute("style");
-    state.wasEdit = state.viewport.edit;
-    state.viewport.edit = false;
-    screen.appendChild(state.viewport.el);
-    const ph = screen.querySelector(".lk-screen-placeholder");
-    if (ph) ph.remove();
-    requestAnimationFrame(function () {
-      if (state.viewport) state.viewport.resize();
+  Object.keys(preset.tools).forEach(function (toolId) {
+    const rec = map[toolId];
+    const patch = preset.tools[toolId];
+    if (!rec || !patch) return;
+    Object.keys(patch.p || {}).forEach(function (k) {
+      if (rec.params[k]) setKey(rec.params[k], patch.p[k]);
     });
-  }
-
-  function refreshPreviewBar() {
-    if (statusEl) {
-      statusEl.textContent = state.effect ? "Magic Looks effect bound" : "No Looks effect";
-      statusEl.classList.toggle("bound", !!state.effect);
-    }
-    if (frameEl) {
-      frameEl.textContent = String(Math.max(0, Math.round(currentFrame()))).padStart(4, "0");
-    }
-    if (addBtn) addBtn.style.display = state.effect ? "none" : "";
-    if (bypassBtn) {
-      bypassBtn.classList.toggle("on", state.look && state.look.enabled === false);
-      bypassBtn.textContent = state.look && state.look.enabled === false ? "Engage" : "Bypass";
-    }
-    if (state.viewport) state.viewport.resize();
-  }
-  state.refreshPreviewBar = refreshPreviewBar;
-  refreshPreviewBar();
-  if (state.refreshTimer) clearInterval(state.refreshTimer);
-  state.refreshTimer = setInterval(refreshPreviewBar, 250);
-  window.addEventListener("resize", state.refreshPreviewBar);
-
-  state.onKey = function (e) {
-    if (e.key === "Escape") closeWindow();
-  };
-  document.addEventListener("keydown", state.onKey);
+    Object.keys(patch.w || {}).forEach(function (k) {
+      const triple = rec.wheels[k] || (rec.custom.fourway && rec.custom.fourway[k]);
+      const rgb = patch.w[k];
+      if (triple && rgb) {
+        setKey(triple[0], rgb[0]);
+        setKey(triple[1], rgb[1]);
+        setKey(triple[2], rgb[2]);
+      }
+    });
+  });
+  return writes;
 }
 
-function closeWindow() {
-  disposeWidgets();
-  if (state.refreshTimer) {
-    clearInterval(state.refreshTimer);
-    state.refreshTimer = null;
+// ---------- chain helpers ----------
+
+function readChain(effect) {
+  return state.Looks.tools.parseChain(readProp(effect, state.Looks.tools.CHAIN_KEY));
+}
+
+function chainWrite(list) {
+  return { key: state.Looks.tools.CHAIN_KEY, value: state.Looks.tools.serializeChain(list) };
+}
+
+function toolEnableKey(toolId) {
+  return state.Looks.tools.propMap()[toolId].enable;
+}
+
+// ---------- window contents ----------
+
+function numberValue(v, scale) {
+  return round(Number(v) * scale);
+}
+
+// Scrubbable number or slider for a numeric catalog param.
+function buildNumber(effect, session, prm, key, afterCommit) {
+  const C = state.ui.controls;
+  const pct = !!(prm.percent && prm.fraction);
+  const scale = pct ? 100 : 1;
+  const label = String(prm.label || key).replace(/:$/, "");
+  const value = readNum(effect, key, Number(prm.def) || 0);
+  const hasRange = isFinite(prm.min) && isFinite(prm.max);
+  const options = {
+    label: label,
+    value: numberValue(value, scale),
+    min: isFinite(prm.min) ? numberValue(prm.min, scale) : undefined,
+    max: isFinite(prm.max) ? numberValue(prm.max, scale) : undefined,
+    step: prm.step * scale,
+    unit: pct ? "%" : undefined,
+    onInput: function (v) { session.live(key, round(v / scale)); },
+    onChange: function (v) {
+      session.commit([{ key: key, value: round(v / scale) }]);
+      afterCommit();
+    },
+  };
+  if (hasRange) return C.slider(options);
+  return C.number(options);
+}
+
+function buildToggle(effect, session, prm, key, afterCommit) {
+  return state.ui.controls.checkbox({
+    label: String(prm.label || key).replace(/:$/, ""),
+    value: readNum(effect, key, prm.def) === 1,
+    onChange: function (on) {
+      session.commit([{ key: key, value: on ? 1 : 0 }]);
+      afterCommit();
+    },
+  });
+}
+
+function buildChoice(effect, session, prm, key, afterCommit) {
+  const options = (prm.options || []).map(function (label, i) {
+    return { value: String(i), label: label };
+  });
+  return state.ui.controls.select({
+    label: String(prm.label || key).replace(/:$/, ""),
+    value: String(Math.max(0, Math.round(readNum(effect, key, 0)))),
+    options: options,
+    onChange: function (v) {
+      session.commit([{ key: key, value: Number(v) || 0 }]);
+      afterCommit();
+    },
+  });
+}
+
+// Color wheel plus RGB readouts for one wheel triple (R, G, B prop keys).
+function buildWheel(effect, session, triple, label, widgets, afterCommit) {
+  const C = state.Looks.color;
+  const W = state.Looks.widgets;
+  const ctl = state.ui.controls;
+  const wrap = make("div", "lk-wheel-block");
+  const holder = make("div", "lk-wheel-holder");
+  wrap.appendChild(holder);
+  const readRgb = function () {
+    return triple.map(function (k) { return readNum(effect, k, 1); });
+  };
+  const rgb0 = readRgb();
+  const wheel = new W.ColorWheel(holder, {
+    size: 168,
+    initial: C.tintToDot(rgb0[0], rgb0[1], rgb0[2]),
+  });
+  widgets.push(wheel);
+  const readouts = [];
+  const names = ["R", "G", "B"];
+  const readoutsBox = make("div", "lk-readouts");
+  names.forEach(function (name, i) {
+    const row = ctl.number({
+      label: label + " " + name,
+      value: rgb0[i],
+      min: 0,
+      max: 4,
+      step: 0.005,
+      onInput: function (v) { session.live(triple[i], round(v)); },
+      onChange: function (v) {
+        session.commit([{ key: triple[i], value: round(v) }]);
+        afterCommit();
+      },
+    });
+    readouts.push(row);
+    readoutsBox.appendChild(row.element);
+  });
+  wrap.appendChild(readoutsBox);
+  wheel.onInput(function (dot, rgb) {
+    triple.forEach(function (k, i) { session.live(k, round(rgb[i])); });
+    readouts.forEach(function (row, i) { row.set(round(rgb[i])); });
+  });
+  wheel.onCommit(function (dot, rgb) {
+    session.commit(triple.map(function (k, i) { return { key: k, value: round(rgb[i]) }; }));
+    afterCommit();
+  });
+  return wrap;
+}
+
+function buildParams(effect, session, tool, body, afterCommit) {
+  const ctl = state.ui.controls;
+  const rec = state.Looks.tools.propMap()[tool.id];
+  let current = body;
+  for (const prm of tool.params || []) {
+    if (prm.kind === "section") {
+      if (prm.label) {
+        const sec = ctl.section({ title: prm.label });
+        body.appendChild(sec.element);
+        current = sec.body;
+      }
+      continue;
+    }
+    const key = rec.params[prm.key];
+    if (!key) continue;
+    let row = null;
+    if (prm.kind === "number") row = buildNumber(effect, session, prm, key, afterCommit);
+    else if (prm.kind === "toggle") row = buildToggle(effect, session, prm, key, afterCommit);
+    else if (prm.kind === "choice") row = buildChoice(effect, session, prm, key, afterCommit);
+    if (row) current.appendChild(row.element);
   }
-  if (state.refreshPreviewBar && typeof window !== "undefined") {
-    window.removeEventListener("resize", state.refreshPreviewBar);
-    state.refreshPreviewBar = null;
+}
+
+function buildWheels(effect, session, tool, body, widgets, afterCommit) {
+  const rec = state.Looks.tools.propMap()[tool.id];
+  const groups = [];
+  (tool.wheels || []).forEach(function (w) { groups.push({ title: w.label, wheel: w }); });
+  (tool.extraWheels || []).forEach(function (grp) {
+    (grp.wheels || []).forEach(function (w) {
+      groups.push({ title: grp.section || w.label, wheel: w });
+    });
+  });
+  groups.forEach(function (g) {
+    const triple = rec.wheels[g.wheel.key];
+    if (!triple) return;
+    const sec = state.ui.controls.section({ title: g.title });
+    sec.body.appendChild(buildWheel(effect, session, triple, g.title, widgets, afterCommit));
+    body.appendChild(sec.element);
+  });
+}
+
+function buildHsl(effect, session, tool, body, afterCommit) {
+  const ctl = state.ui.controls;
+  const rec = state.Looks.tools.propMap()[tool.id];
+  const hues = state.Looks.tools.HSL_HUES;
+  const groups = [
+    { title: "Hue/Saturation", keys: rec.custom.hsl.sat },
+    { title: "Hue/Lightness", keys: rec.custom.hsl.light },
+  ];
+  groups.forEach(function (g) {
+    const sec = ctl.section({ title: g.title });
+    g.keys.forEach(function (key, i) {
+      sec.body.appendChild(ctl.slider({
+        label: hues[i].name,
+        value: readNum(effect, key, 0),
+        min: -1, max: 1, step: 0.01,
+        onInput: function (v) { session.live(key, round(v)); },
+        onChange: function (v) {
+          session.commit([{ key: key, value: round(v) }]);
+          afterCommit();
+        },
+      }).element);
+    });
+    body.appendChild(sec.element);
+  });
+}
+
+function buildCurves(effect, session, tool, body, widgets, afterCommit, view) {
+  const ctl = state.ui.controls;
+  const W = state.Looks.widgets;
+  const rec = state.Looks.tools.propMap()[tool.id];
+  const key = rec.custom.curvesJson;
+  const channels = readCurves(effect, key);
+  const channelNames = ["RGB", "Red", "Green", "Blue"];
+  const sel = ctl.select({
+    label: "Channel",
+    value: view.curveChannel,
+    options: channelNames.map(function (n) { return { value: n, label: n }; }),
+    onChange: function (v) {
+      view.curveChannel = v;
+      pad.setChannel(v);
+    },
+  });
+  body.appendChild(sel.element);
+  const pad = new W.CurvesPad(body, { channels: channels, channel: view.curveChannel, width: 300, height: 200 });
+  widgets.push(pad);
+  pad.onInput(function (chs) { session.live(key, JSON.stringify(chs)); });
+  pad.onCommit(function (chs) {
+    session.commit([{ key: key, value: JSON.stringify(chs) }]);
+    afterCommit();
+  });
+  body.appendChild(ctl.buttonRow([{
+    title: "Reset curves",
+    onClick: function () {
+      session.commit([{ key: key, value: JSON.stringify(state.Looks.tools.defaultToolState(tool).x.curves.channels) }]);
+      afterCommit();
+    },
+  }]).element);
+  body.appendChild(ctl.note("Click adds a point, drag moves it, right-click removes it.").element);
+}
+
+function readCurves(effect, key) {
+  const raw = readProp(effect, key);
+  try {
+    const parsed = JSON.parse(String(raw || ""));
+    if (parsed && parsed.Red && parsed.Green && parsed.Blue) {
+      return { RGB: parsed.RGB || [{ x: 0, y: 0 }, { x: 1, y: 1 }], Red: parsed.Red, Green: parsed.Green, Blue: parsed.Blue };
+    }
+  } catch (_err) { /* identity below */ }
+  return { RGB: [{ x: 0, y: 0 }, { x: 1, y: 1 }], Red: [{ x: 0, y: 0 }, { x: 1, y: 1 }],
+    Green: [{ x: 0, y: 0 }, { x: 1, y: 1 }], Blue: [{ x: 0, y: 0 }, { x: 1, y: 1 }] };
+}
+
+function readScurve(effect, key) {
+  const def = state.Looks.tools.defaultScurve();
+  let shape = null;
+  try { shape = JSON.parse(String(readProp(effect, key) || "")); } catch (_err) { shape = null; }
+  if (!shape || typeof shape !== "object") return def;
+  return Object.assign(def, shape);
+}
+
+// S-curve controls edit numbers; the handle geometry is rederived from them.
+function reshapeScurve(s) {
+  const C = state.Looks.color;
+  const m = C.clamp(s.midpoint, 0.05, 0.95);
+  const k = C.clamp(s.contrast, 0.2, 4);
+  const b = (C.clamp(s.brightness, 0, 1) - 0.5) * 0.5;
+  const c1x = C.clamp(m - 0.28, 0, 1);
+  const c2x = C.clamp(m + 0.28, 0, 1);
+  s.c1 = { x: c1x, y: C.clamp(m + (c1x - m) * k + b, 0, 1) };
+  s.c2 = { x: c2x, y: C.clamp(m + (c2x - m) * k + b, 0, 1) };
+  s.p0 = { x: 0, y: C.clamp(s.black, 0, 1) };
+  s.p3 = { x: 1, y: C.clamp(s.white, 0, 1) };
+  return s;
+}
+
+function buildScurve(effect, session, tool, body, afterCommit) {
+  const ctl = state.ui.controls;
+  const rec = state.Looks.tools.propMap()[tool.id];
+  const key = rec.custom.scurveJson;
+  const defs = [
+    { k: "black", label: "Black Point", min: 0, max: 1, step: 0.005 },
+    { k: "white", label: "White Point", min: 0, max: 1, step: 0.005 },
+    { k: "contrast", label: "Contrast", min: 0.2, max: 4, step: 0.01 },
+    { k: "midpoint", label: "Midpoint", min: 0.05, max: 0.95, step: 0.005 },
+    { k: "brightness", label: "Brightness", min: 0, max: 1, step: 0.005 },
+  ];
+  const shape = readScurve(effect, key);
+  defs.forEach(function (d) {
+    body.appendChild(ctl.slider({
+      label: d.label,
+      value: Number(shape[d.k]) || 0,
+      min: d.min, max: d.max, step: d.step,
+      onInput: function (v) {
+        shape[d.k] = round(v);
+        session.live(key, JSON.stringify(reshapeScurve(shape)));
+      },
+      onChange: function (v) {
+        shape[d.k] = round(v);
+        session.commit([{ key: key, value: JSON.stringify(reshapeScurve(shape)) }]);
+        afterCommit();
+      },
+    }).element);
+  });
+}
+
+function buildFourway(effect, session, tool, body, widgets, afterCommit) {
+  const ctl = state.ui.controls;
+  const rec = state.Looks.tools.propMap()[tool.id];
+  const previewKey = rec.custom.fourwayPreview;
+  body.appendChild(ctl.checkbox({
+    label: "Ranges Preview",
+    value: readNum(effect, previewKey, 0) === 1,
+    onChange: function (on) {
+      session.commit([{ key: previewKey, value: on ? 1 : 0 }]);
+      afterCommit();
+    },
+  }).element);
+  const grid = make("div", "lk-fourway");
+  [["Shadows", "shadows"], ["Highlights", "highlights"], ["Midtones", "midtones"], ["Global", "global"]]
+    .forEach(function (pair) {
+      const cell = make("div", "lk-four-cell");
+      cell.appendChild(make("div", "lk-four-name", pair[0]));
+      cell.appendChild(buildWheel(effect, session, rec.custom.fourway[pair[1]], pair[0], widgets, afterCommit));
+      grid.appendChild(cell);
+    });
+  body.appendChild(grid);
+}
+
+function buildLut(effect, session, tool, body, afterCommit) {
+  const ctl = state.ui.controls;
+  const rec = state.Looks.tools.propMap()[tool.id];
+  const names = ["None", "Hot", "Cold", "Noir"];
+  body.appendChild(ctl.select({
+    label: "LUT",
+    value: String(readProp(effect, rec.custom.lutName) || "None"),
+    options: names.map(function (n) { return { value: n, label: n }; }),
+    onChange: function (v) {
+      session.commit([{ key: rec.custom.lutName, value: v }]);
+      afterCommit();
+    },
+  }).element);
+  body.appendChild(ctl.slider({
+    label: "Strength",
+    value: readNum(effect, rec.custom.lutStrength, 1),
+    min: 0, max: 1, step: 0.01,
+    onInput: function (v) { session.live(rec.custom.lutStrength, round(v)); },
+    onChange: function (v) {
+      session.commit([{ key: rec.custom.lutStrength, value: round(v) }]);
+      afterCommit();
+    },
+  }).element);
+  const gammaOptions = ["Same As Input", "Input", "Output"];
+  body.appendChild(ctl.select({
+    label: "LUT Gamma",
+    value: String(Math.max(0, Math.round(readNum(effect, rec.custom.lutGamma, 0)))),
+    options: gammaOptions.map(function (g, i) { return { value: String(i), label: g }; }),
+    onChange: function (v) {
+      session.commit([{ key: rec.custom.lutGamma, value: Number(v) || 0 }]);
+      afterCommit();
+    },
+  }).element);
+}
+
+// Window body. Returns a cleanup that destroys widgets and listeners.
+function buildBody(body, effect, session, view) {
+  const Looks = state.Looks;
+  const ctl = state.ui.controls;
+  const root = make("div", "lk-root");
+  body.appendChild(root);
+  let widgets = [];
+  let busy = false;
+  let lastSig = "";
+  let disposed = false;
+
+  function destroyWidgets() {
+    widgets.forEach(function (w) { if (w && w.destroy) w.destroy(); });
+    widgets = [];
   }
-  // Restore the transplanted viewport to its host layout.
-  if (state.viewport && state.viewportParent) {
+
+  function historySig() {
+    const h = state.editor && state.editor.history;
+    if (!h || !h.undoStack || !h.redoStack) return "";
+    return h.undoStack.length + "/" + h.redoStack.length;
+  }
+
+  session.onCommit = function () { lastSig = historySig(); };
+
+  function afterCommit() {
+    rebuild();
+  }
+
+  function section(title, collapsed) {
+    return ctl.section({ title: title, collapsed: !!collapsed });
+  }
+
+  function lookSection() {
+    const sec = section("Look");
+    const filter = { text: "", group: "All" };
+    const groups = [];
+    Looks.tools.PRESETS.forEach(function (p) {
+      if (groups.indexOf(p.group) < 0) groups.push(p.group);
+    });
+    const listBox = make("div");
+    function renderList() {
+      const items = Looks.tools.PRESETS.filter(function (p) {
+        if (filter.group !== "All" && p.group !== filter.group) return false;
+        if (filter.text && p.name.toLowerCase().indexOf(filter.text) < 0) return false;
+        return true;
+      }).map(function (p) { return { id: p.id, title: p.name, detail: p.group }; });
+      listBox.textContent = "";
+      const list = ctl.list({
+        items: items,
+        value: view.look,
+        emptyText: "No looks match.",
+        onSelect: function (id) {
+          const preset = Looks.tools.PRESETS.filter(function (p) { return p.id === id; })[0];
+          if (!preset) return;
+          view.look = id;
+          session.commit(presetWrites(effect, preset));
+          afterCommit();
+        },
+      });
+      listBox.appendChild(list.element);
+    }
+    sec.body.appendChild(ctl.text({
+      label: "Filter",
+      placeholder: "Search looks",
+      onInput: function (v) {
+        filter.text = String(v || "").trim().toLowerCase();
+        renderList();
+      },
+    }).element);
+    sec.body.appendChild(ctl.select({
+      label: "Group",
+      value: "All",
+      options: [{ value: "All", label: "All" }].concat(groups.map(function (g) { return { value: g, label: g }; })),
+      onChange: function (v) {
+        filter.group = v;
+        renderList();
+      },
+    }).element);
+    sec.body.appendChild(listBox);
+    renderList();
+    sec.body.appendChild(ctl.buttonRow([{
+      title: "Clear look",
+      hint: "Reset every tool to its neutral default (the chain order is kept)",
+      onClick: function () {
+        view.look = null;
+        session.commit(resetWrites(effect));
+        afterCommit();
+      },
+    }]).element);
+    return sec.element;
+  }
+
+  function chainSection() {
+    const sec = section("Tool Chain");
+    const chain = readChain(effect);
+    const toolsById = Looks.tools.byId;
+    const items = chain.map(function (id, i) {
+      const tool = toolsById(id);
+      const on = readNum(effect, toolEnableKey(id), Looks.tools.enabledDefault(tool)) === 1;
+      return { id: id, title: (i + 1) + ". " + tool.name, detail: on ? "On" : "Off" };
+    });
+    sec.body.appendChild(ctl.list({
+      items: items,
+      value: view.selectedTool,
+      emptyText: "The chain is empty. Add a tool below.",
+      onSelect: function (id) {
+        view.selectedTool = id;
+        rebuild();
+      },
+    }).element);
+
+    const idx = chain.indexOf(view.selectedTool);
+    const pinned = Looks.tools.PINNED_TOOL;
+    const canMove = idx >= 0 && view.selectedTool !== pinned;
+    const above = idx > 0 ? chain[idx - 1] : null;
+    const below = idx >= 0 && idx < chain.length - 1 ? chain[idx + 1] : null;
+    function swap(a, b) {
+      const next = chain.slice();
+      next[a] = chain[b];
+      next[b] = chain[a];
+      return next;
+    }
+    const buttons = [];
+    buttons.push({
+      title: "Up",
+      hint: "Move the selected tool earlier in the chain",
+      onClick: function () {
+        if (!canMove || !above || above === pinned) return;
+        session.commit([chainWrite(swap(idx - 1, idx))]);
+        afterCommit();
+      },
+    });
+    buttons.push({
+      title: "Down",
+      hint: "Move the selected tool later in the chain",
+      onClick: function () {
+        if (!canMove || !below) return;
+        session.commit([chainWrite(swap(idx, idx + 1))]);
+        afterCommit();
+      },
+    });
+    const selOn = idx >= 0 && readNum(effect, toolEnableKey(view.selectedTool), 1) === 1;
+    buttons.push({
+      title: selOn ? "Disable" : "Enable",
+      hint: "Toggle the selected tool without removing it",
+      onClick: function () {
+        if (!view.selectedTool) return;
+        const key = toolEnableKey(view.selectedTool);
+        session.commit([{ key: key, value: selOn ? 0 : 1 }]);
+        afterCommit();
+      },
+    });
+    buttons.push({
+      title: "Remove",
+      hint: "Take the selected tool out of the chain (its values are kept)",
+      variant: "danger",
+      onClick: function () {
+        if (idx < 0 || view.selectedTool === pinned) return;
+        const next = chain.slice();
+        next.splice(idx, 1);
+        view.selectedTool = next[0] || null;
+        session.commit([chainWrite(next)]);
+        afterCommit();
+      },
+    });
+    sec.body.appendChild(ctl.buttonRow(buttons).element);
+
+    const inChain = {};
+    chain.forEach(function (id) { inChain[id] = true; });
+    const available = Looks.tools.TOOLS.filter(function (t) { return !inChain[t.id]; });
+    if (available.length && chain.length < Looks.tools.MAX_CHAIN) {
+      sec.body.appendChild(ctl.select({
+        label: "Add tool",
+        value: "",
+        options: [{ value: "", label: "Choose a tool…" }].concat(available.map(function (t) {
+          return { value: t.id, label: t.name };
+        })),
+        onChange: function (id) {
+          if (!id) return;
+          view.selectedTool = id;
+          session.commit([chainWrite(chain.concat([id]))]);
+          afterCommit();
+        },
+      }).element);
+    }
+    sec.body.appendChild(ctl.note("Lens Distortion always runs first and cannot be moved.").element);
+    return sec.element;
+  }
+
+  function toolSection() {
+    const sec = section("Parameters");
+    const chain = readChain(effect);
+    let tool = view.selectedTool ? Looks.tools.byId(view.selectedTool) : null;
+    if (!tool) tool = Looks.tools.byId(chain[0] || Looks.tools.TOOLS[0].id);
+    if (!tool) return sec.element;
+    view.selectedTool = tool.id;
+    sec.setCollapsed(false);
+    const head = make("div", "lk-tool-head");
+    head.appendChild(make("span", "lk-tool-name", tool.name));
+    if (chain.indexOf(tool.id) < 0) {
+      head.appendChild(make("span", "lk-tool-note", "Not in chain"));
+    }
+    sec.body.appendChild(head);
+    sec.body.appendChild(ctl.buttonRow([{
+      title: "Reset " + tool.name,
+      hint: "Reset this tool's values to neutral",
+      onClick: function () {
+        const writes = resetWrites(effect).filter(function (w) {
+          return toolKeysOf(tool).indexOf(w.key) >= 0;
+        });
+        session.commit(writes);
+        afterCommit();
+      },
+    }]).element);
+    sec.body.appendChild(ctl.checkbox({
+      label: "Enabled",
+      value: readNum(effect, toolEnableKey(tool.id), Looks.tools.enabledDefault(tool)) === 1,
+      onChange: function (on) {
+        session.commit([{ key: toolEnableKey(tool.id), value: on ? 1 : 0 }]);
+        afterCommit();
+      },
+    }).element);
+    if (tool.custom === "hsl") buildHsl(effect, session, tool, sec.body, afterCommit);
+    else buildParams(effect, session, tool, sec.body, afterCommit);
+    if (tool.custom === "curves") buildCurves(effect, session, tool, sec.body, widgets, afterCommit, view);
+    else if (tool.custom === "scurve") buildScurve(effect, session, tool, sec.body, afterCommit);
+    else if (tool.custom === "fourway") buildFourway(effect, session, tool, sec.body, widgets, afterCommit);
+    else if (tool.custom === "lut") buildLut(effect, session, tool, sec.body, afterCommit);
+    buildWheels(effect, session, tool, sec.body, widgets, afterCommit);
+    return sec.element;
+  }
+
+  function toolKeysOf(tool) {
+    const rec = Looks.tools.propMap()[tool.id];
+    const keys = [rec.enable].concat(Object.keys(rec.params).map(function (k) { return rec.params[k]; }));
+    Object.keys(rec.wheels).forEach(function (k) { keys.push.apply(keys, rec.wheels[k]); });
+    if (rec.custom.hsl) keys.push.apply(keys, rec.custom.hsl.sat.concat(rec.custom.hsl.light));
+    if (rec.custom.curvesJson) keys.push(rec.custom.curvesJson);
+    if (rec.custom.scurveJson) keys.push(rec.custom.scurveJson);
+    if (rec.custom.fourwayPreview) keys.push(rec.custom.fourwayPreview);
+    if (rec.custom.fourway) {
+      Object.keys(rec.custom.fourway).forEach(function (s) { keys.push.apply(keys, rec.custom.fourway[s]); });
+    }
+    if (rec.custom.lutName) keys.push(rec.custom.lutName, rec.custom.lutStrength, rec.custom.lutGamma);
+    return keys;
+  }
+
+  function rebuild() {
+    if (disposed) return;
+    destroyWidgets();
+    root.textContent = "";
+    root.appendChild(lookSection());
+    root.appendChild(chainSection());
+    root.appendChild(toolSection());
+    lastSig = historySig();
+  }
+
+  function onDown() { busy = true; }
+  function onUp() { busy = false; }
+  root.addEventListener("pointerdown", onDown);
+  window.addEventListener("pointerup", onUp);
+  window.addEventListener("pointercancel", onUp);
+
+  // Undo/redo and external edits rebuild the contents. Our own commits update
+  // lastSig in session.onCommit, so they do not trigger a rebuild.
+  const timer = setInterval(function () {
+    if (busy || disposed) return;
+    if (historySig() !== lastSig) rebuild();
+  }, SNAPSHOT_MS);
+
+  rebuild();
+
+  return function cleanup() {
+    disposed = true;
+    clearInterval(timer);
+    destroyWidgets();
+    root.removeEventListener("pointerdown", onDown);
+    window.removeEventListener("pointerup", onUp);
+    window.removeEventListener("pointercancel", onUp);
+    session.onCommit = null;
+  };
+}
+
+function windowIdFor(effect) {
+  let id = state.windowIds.get(effect);
+  if (!id) {
+    id = "setup:" + state.nextWindowId++;
+    state.windowIds.set(effect, id);
+  }
+  return id;
+}
+
+// Opens (or refocuses) the setup window for one effect instance.
+function openSetup(effect) {
+  if (!effect || !state.ui || !state.Looks) return null;
+  const id = windowIdFor(effect);
+  if (state.ui.getWindow(id)) {
+    const existing = state.ui.getWindow(id);
+    existing.focus();
+    return existing;
+  }
+  const session = createSession(effect);
+  const view = { look: null, selectedTool: state.Looks.tools.defaultChain()[1], curveChannel: "RGB" };
+  let win = null;
+  acquireStyle();
+  try {
+    win = state.ui.openWindow({
+      id: id,
+      title: "Magic Looks",
+      subtitle: "Color grade",
+      persistKey: "looks-setup",
+      width: 360,
+      height: 620,
+      minWidth: 300,
+      minHeight: 260,
+      mount: function (body) {
+        return buildBody(body, effect, session, view);
+      },
+      isValid: function () { return effect.parent != null; },
+      onClose: function () {
+        session.flush();
+        if (win) state.openWindows.delete(win);
+        releaseStyle();
+      },
+      footer: [{
+        title: "Done",
+        variant: "primary",
+        onClick: function () { if (win) win.close(); },
+      }],
+    });
+  } catch (error) {
+    releaseStyle();
+    throw error;
+  }
+  if (!win) { releaseStyle(); return null; }
+  state.openWindows.add(win);
+  return win;
+}
+
+// Button rendered on the effect's Enabled row (definition key magicLooksSetup).
+function installPropertyButton(PZ) {
+  const controls = PZ && PZ.ui && PZ.ui.controls;
+  if (!controls || typeof controls.createControls !== "function") {
+    throw new Error("Magic Looks needs PZ.ui.controls.createControls from the CM3 runtime.");
+  }
+  const original = controls.createControls;
+  const patched = function (row, prop, hide) {
+    const out = original.call(this, row, prop, hide);
     try {
-      state.viewport.el.setAttribute("style", state.viewportStyle || "");
-      state.viewportParent.appendChild(state.viewport.el);
-      state.viewport.edit = state.wasEdit;
-      state.viewport.resize();
-    } catch (_err) { /* best effort */ }
+      if (patched.__magicLooksDead) return out;
+      const def = prop && prop.definition;
+      const host = row && row.children && row.children[1];
+      if (def && def.magicLooksSetup && host && typeof host.querySelector === "function" &&
+          !host.querySelector(".lk-open-button")) {
+        const btn = make("button", "proprow propbutton noselect lk-open-button", def.magicLooksSetup.name || "Setup");
+        btn.title = def.magicLooksSetup.title || "Open the Magic Looks setup window";
+        btn.onmousedown = function (ev) { ev.stopPropagation(); };
+        btn.onclick = function (ev) {
+          ev.preventDefault();
+          ev.stopPropagation();
+          const effect = prop.parentObject;
+          openSetup(effect);
+        };
+        host.appendChild(btn);
+      }
+    } catch (_err) { /* never break property rendering */ }
+    return out;
+  };
+  patched.__magicLooksDead = false;
+  controls.createControls = patched;
+  state.patchedCreate = patched;
+  state.originalCreate = original;
+}
+
+function removePropertyButton(PZ) {
+  const controls = PZ && PZ.ui && PZ.ui.controls;
+  const patched = state.patchedCreate;
+  if (!patched) return;
+  patched.__magicLooksDead = true;
+  if (controls && controls.createControls === patched) {
+    controls.createControls = state.originalCreate;
   }
-  state.viewport = null;
-  state.viewportParent = null;
-  if (state.onKey && typeof document !== "undefined") {
-    document.removeEventListener("keydown", state.onKey);
-    state.onKey = null;
-  }
-  if (state.windowEl) {
-    state.windowEl.remove();
-    state.windowEl = null;
-  }
+  state.patchedCreate = null;
+  state.originalCreate = null;
 }
 
 module.exports = {
@@ -1282,75 +946,50 @@ module.exports = {
       (typeof globalThis !== "undefined" ? globalThis.PZ : null);
     const CM = (context && context.editor) ||
       (typeof globalThis !== "undefined" ? globalThis.CM : null);
+    if (!PZ) throw new Error("Magic Looks needs the CM3 runtime.");
     if (!CM) throw new Error("Magic Looks needs the active editor instance.");
-    const getAsset = context && typeof context.getAsset === "function"
-      ? context.getAsset.bind(context)
-      : null;
-    state.editor = CM;
-    state.getAsset = getAsset;
-    state.Looks = loadSources(getAsset);
-    installStyle(getAsset, STYLE_ID, STYLE_URL);
-    installFont(getAsset);
-    state.look = defaultLookState();
-    if (PZ) {
-      ensureDispatcher(PZ);
-      wrapDispatcher(PZ);
+    if (!context.ui) throw new Error("Magic Looks needs the plugin window API.");
+    try {
+      state.getAsset = typeof context.getAsset === "function" ? context.getAsset.bind(context) : null;
+      state.Looks = loadSources(state.getAsset);
+      state.PZ = PZ;
+      state.editor = CM;
+      state.ui = context.ui;
+      state.ops = new PZ.ui.properties(CM);
+      installPropertyButton(PZ);
+      state.active = true;
+    } catch (error) {
+      removePropertyButton(PZ);
+      state.ops = null;
+      state.editor = null;
+      state.ui = null;
+      state.Looks = null;
+      throw error;
     }
-    if (!CM.findLooksEffects) {
-      CM.findLooksEffects = function () {
-        return findLooks();
-      };
-    }
-    if (!CM.addLooksToSelection) {
-      CM.addLooksToSelection = function () {
-        const selection = CM.timelineSelection;
-        if (!selection || !selection.length) return null;
-        for (let i = 0; i < selection.length; i++) {
-          const clip = selection[i];
-          const layer = clip && clip.object;
-          if (layer && layer.effects) {
-            const runtime = (typeof globalThis !== "undefined" ? globalThis.PZ : null);
-            if (!runtime || typeof runtime.effect.create !== "function") return null;
-            const effect = runtime.effect.create("looks");
-            layer.effects.push(effect);
-            effect.loading = effect.load({});
-            return effect;
-          }
-        }
-        return null;
-      };
-    }
-    CM.openMagicLooks = function (effect) {
-      state.effect = effect || findLooks()[0] || null;
-      if (state.effect) pullFromEffect();
-      openWindow();
-    };
-    openWindow();
-    state.active = true;
   },
   deactivate() {
+    if (!state.active) return;
     try {
-      closeWindow();
-      const PZ = (typeof globalThis !== "undefined" ? globalThis.PZ : null) || null;
-      const CM = state.editor;
-      if (PZ) {
-        try { unpatchDispatcher(PZ); } catch (_error) { /* best effort */ }
+      // Close our windows while the editor is still bound so pending live
+      // edits are committed; context.ui would close the rest afterwards.
+      Array.from(state.openWindows).forEach(function (win) {
+        try { win.close(); } catch (_err) { /* best effort */ }
+      });
+      state.openWindows.clear();
+      removePropertyButton(state.PZ);
+      if (typeof document !== "undefined") {
+        const el = document.getElementById(STYLE_ID);
+        if (el) el.remove();
       }
-      if (CM) {
-        for (const key of ["openMagicLooks", "addLooksToSelection", "findLooksEffects"]) {
-          if (CM[key]) {
-            try { delete CM[key]; } catch (_error) { /* best effort */ }
-          }
-        }
-      }
-      uninstallStyles();
     } finally {
+      state.styleUsers = 0;
       state.active = false;
+      state.PZ = null;
       state.editor = null;
-      state.effect = null;
+      state.ui = null;
+      state.ops = null;
       state.getAsset = null;
       state.Looks = null;
-      state.look = null;
     }
   },
 };

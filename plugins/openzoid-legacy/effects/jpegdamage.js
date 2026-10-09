@@ -1,18 +1,13 @@
 // OpenZoid Legacy — Jpeg Damage.
-// Ported from the OpenZoid effect/jpegdamage.js implementation. Behavior is
-// preserved exactly. Zoidium adaptation: shaders resolve from the plugin bundle
-// via this._zoidiumGetAsset, with fallback to the CM3 asset pipeline.
+// Ported from the OpenZoid effect/jpegdamage.js implementation. The output is a
+// pure function of the input pixels, the properties and the explicit Time
+// property: the error pattern is hashed from block coordinates, Rand Seed and
+// the Jitter Frames bucket of Time. Nothing is carried between renders.
+// The fragment shader comes from this plugin's bundle. The vertex shader is the
+// host's shared vertex asset, resolved through the asset pipeline.
 this.defaultName = "Jpeg Damage";
-this.shaderfile = "fx_jpegdamage";
-this.shaderUrl = "/assets/shaders/fragment/" + this.shaderfile + ".glsl";
-this.vertShader = this.parentProject.assets.createFromPreset(
-    PZ.asset.type.SHADER,
-    "/assets/shaders/vertex/common.glsl"
-);
-this.fragShader = this.parentProject.assets.createFromPreset(
-    PZ.asset.type.SHADER,
-    this.shaderUrl
-);
+const JPEG_FRAGMENT = "fx_jpegdamage";
+const JPEG_VERTEX_PRESET = "/assets/shaders/vertex/common.glsl";
 
 function jpegNum(name, value, min, max, step, decimals) {
     return {
@@ -39,12 +34,11 @@ this.propertyDefinitions = {
         dynamic: true,
         name: "Time",
         type: PZ.property.type.NUMBER,
-        value: 0,
-        step: 0.01,
         value: (e) => {
             e.animated = true;
             e.expression = new PZ.expression("time");
         },
+        step: 0.01,
     },
     amount: jpegNum("Amount", 1, 0, 1, 0.01, 2),
     quality: jpegNum("Quality", 0.1, 0.01, 1, 0.01, 2),
@@ -89,33 +83,20 @@ this.propertyDefinitions = {
 
 this.properties.addAll(this.propertyDefinitions, this);
 
-this.load = async function (e) {
-    // Zoidium bundle adaptation: prefer the plugin-bundled shader text so the
-    // effect never fans out into runtime fetches. Falls back to the CM3 asset
-    // pipeline when the bundle resolver is unavailable (legacy checkout).
-    var zoidiumGetAsset = (typeof this._zoidiumGetAsset === "function")
-        ? this._zoidiumGetAsset.bind(this)
-        : null;
-    var zoidiumBundledVert = zoidiumGetAsset
-        ? zoidiumGetAsset("text", "./plugins/openzoid-legacy/shaders/common.glsl")
+// Shader assets are loaded once; prepare() waits for them so a frame is never
+// rendered before the pass exists.
+async function jpegBuildPass(effect, data) {
+    var getAsset = effect._zoidiumGetAsset;
+    var fragSource = typeof getAsset === "function"
+        ? getAsset("text", "./plugins/openzoid-legacy/shaders/" + JPEG_FRAGMENT + ".glsl")
         : undefined;
-    var zoidiumBundledFrag = zoidiumGetAsset
-        ? zoidiumGetAsset("text", "./plugins/openzoid-legacy/shaders/" + this.shaderfile + ".glsl")
-        : undefined;
-    this._zoidiumBundledShaders = {
-        vert: typeof zoidiumBundledVert === "string",
-        frag: typeof zoidiumBundledFrag === "string",
-    };
-    this.vertShader = this._zoidiumBundledShaders.vert
-        ? { getShader: async function () { return zoidiumBundledVert; } }
-        : new PZ.asset.shader(
-            this.parentProject.assets.load(this.vertShader)
-        );
-    this.fragShader = this._zoidiumBundledShaders.frag
-        ? { getShader: async function () { return zoidiumBundledFrag; } }
-        : new PZ.asset.shader(
-            this.parentProject.assets.load(this.fragShader)
-        );
+    if (typeof fragSource !== "string") {
+        throw new Error("Jpeg Damage shader is missing from the plugin bundle.");
+    }
+    var vertPreset = effect.parentProject.assets.createFromPreset(PZ.asset.type.SHADER, JPEG_VERTEX_PRESET);
+    var vertShader = new PZ.asset.shader(effect.parentProject.assets.load(vertPreset));
+    effect._vertShader = vertShader;
+    var vertSource = await vertShader.getShader();
     var material = new THREE.ShaderMaterial({
         uniforms: {
             tDiffuse: { type: "t", value: null },
@@ -144,24 +125,45 @@ this.load = async function (e) {
             offsetDarks: { type: "f", value: 0 },
             saturation: { type: "f", value: 1 },
         },
-        vertexShader: await this.vertShader.getShader(),
-        fragmentShader: await this.fragShader.getShader(),
+        vertexShader: vertSource,
+        fragmentShader: fragSource,
     });
-    this.pass = new THREE.ShaderPass(material);
-    this.properties.load(e && e.properties);
+    material.premultipliedAlpha = true;
+    effect.pass = new THREE.ShaderPass(material);
+    effect.properties.load(data && data.properties);
+}
+
+this.load = function (e) {
+    this._loading = jpegBuildPass(this, e);
+    return this._loading;
+};
+
+this.prepare = async function () {
+    if (!this._loading) return;
+    try {
+        await this._loading;
+    } catch (error) {
+        console.error("[Zoidium] Jpeg Damage could not load its shaders:", error);
+    }
 };
 
 this.toJSON = function () {
     return { type: this.type, properties: this.properties };
 };
 
-this.unload = function (e) {
-    // Bundled shader shims are plain objects, not CM3 assets: nothing to unload.
-    if (!this._zoidiumBundledShaders || !this._zoidiumBundledShaders.vert) {
-        this.parentProject.assets.unload(this.vertShader);
+this.unload = function () {
+    var pass = this.pass;
+    this.pass = null;
+    this._loading = null;
+    if (pass) {
+        if (pass.material && typeof pass.material.dispose === "function") pass.material.dispose();
+        if (pass.quad && pass.quad.geometry && typeof pass.quad.geometry.dispose === "function") {
+            pass.quad.geometry.dispose();
+        }
     }
-    if (!this._zoidiumBundledShaders || !this._zoidiumBundledShaders.frag) {
-        this.parentProject.assets.unload(this.fragShader);
+    if (this._vertShader) {
+        this.parentProject.assets.unload(this._vertShader);
+        this._vertShader = null;
     }
 };
 

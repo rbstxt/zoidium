@@ -1,30 +1,38 @@
-﻿// OpenZoid Optical Flares — flare object (ported verbatim from optflares.js).
-/*
- * optflares.js
- *
- * A Video Copilot "Optical Flares" style lens flare implemented as a native
- * PZ.object3d type so it lives inside a normal 3D Scene layer next to
- * Shape / Light / Camera / Particular objects.
- *
- * The effect controls mirror the After Effects plugin layout:
- *   Flare Setup > Options (Position XY, Center Position, Brightness, Scale,
- *   Scale Offset, Rotation Offset, Color, Color Mode, Animation Evolution,
- *   GPU), Positioning Mode (Source Type, Foreground Layers, Flicker, Custom
- *   Layers, Preview BG Layer) and Motion Blur (Render Mode).
- *
- * The flare itself is a stack of procedural "lens objects" (Glow, Streak,
- * Iris, Multi Iris, Shimmer, Glint, Spike Ball, Sparkle, Ring, Hoop, Caustic,
- * Lens Orbs) rendered by one screen-space shader pass. The stack is edited in
- * the Optical Flares Options window (see optflares-editor.js).
- */
+"use strict";
+
+// OpenZoid Optical Flares - 3D flare object (numeric PZ.object3d type 13).
+//
+// The flare lives in a 3D scene layer. Its source is a 3D point: the flare's
+// own world position (Object 3D), a light in the same layer (Light), or a
+// screen offset kept for projects saved before the object was 3D (Screen 2D).
+//
+// Each frame has two phases:
+//   update(time)   evaluates properties at `time` and fills the element uniforms.
+//                  It reads property values only.
+//   render hook    runs when the layer's pass draws the flare quad, after every
+//                  object of the layer has been updated. It projects the source
+//                  through the camera drawing the pass (position, rotation, FOV,
+//                  aspect and any camera override all apply), then sets the
+//                  source, centre, depth and brightness uniforms.
+//
+// The flare is one screen-space quad drawn by the layer's own render pass. The
+// quad's depth is the source depth, so with Occlude on, scene geometry in front
+// of the source hides the flare through the depth buffer. No raycasts or mesh
+// caches are involved, and nothing is carried from one render to the next.
 
 var PZ = PZ || {};
 
 (function () {
-    var T = PZ.trapcode;
+    var math = PZ.opticalflares.math;
 
     var MAX_ELEMENTS = 24;
     var DEG = Math.PI / 180;
+    var DEFAULT_RESOLUTION = [1920, 1080];
+
+    // Live flare objects in the open project. The plugin manager asks this
+    // through isInUse() so the pack cannot be disabled under a project that
+    // still uses it.
+    var liveFlares = new Set();
 
     /* ------------------------------------------------------------------ */
     /* Property helpers                                                   */
@@ -82,24 +90,28 @@ var PZ = PZ || {};
         };
     }
 
+    function clampIndex(value, max) {
+        return Math.max(0, Math.min(max, Math.round(Number(value) || 0)));
+    }
+
     /* ------------------------------------------------------------------ */
     /* Lens object catalogue                                              */
     /* ------------------------------------------------------------------ */
 
-    // type indexes are referenced by the shader and by saved projects
+    // Type indexes are stored in projects and read by the shader: keep order.
     var ELEMENT_TYPES = [
-        { key: "glow", name: "Glow", scale: 100, distance: 5, aspect: 1, texture: 0, color: [1, 1, 1], seed: 5000 },
-        { key: "multiiris", name: "Multi Iris", scale: 60, distance: 38.5, aspect: 1, texture: 0, color: [0.62, 0.72, 0.95], seed: 5100 },
-        { key: "iris", name: "Iris", scale: 85, distance: 75, aspect: 1, texture: 0, color: [0.56, 0.62, 0.72], seed: 5200 },
-        { key: "streak", name: "Streak", scale: 90, distance: 0, aspect: 6, texture: 0, color: [0.55, 0.72, 1], seed: 5300 },
-        { key: "shimmer", name: "Shimmer", scale: 60, distance: 0, aspect: 1, texture: 0, color: [1, 1, 1], seed: 5400 },
-        { key: "glint", name: "Glint", scale: 55, distance: 0, aspect: 1, texture: 0, color: [1, 1, 1], seed: 5500 },
-        { key: "spikeball", name: "Spike Ball", scale: 55, distance: 0, aspect: 1, texture: 0, color: [0.92, 0.94, 1], seed: 5600 },
-        { key: "sparkle", name: "Sparkle", scale: 70, distance: 0, aspect: 1, texture: 0, color: [0.85, 0.9, 1], seed: 5700 },
-        { key: "ring", name: "Ring", scale: 85, distance: 120, aspect: 1, texture: 0, color: [0.9, 1, 0.95], seed: 5800 },
-        { key: "hoop", name: "Hoop", scale: 150, distance: 95, aspect: 1.8, texture: 0, color: [1, 1, 1], seed: 5900 },
-        { key: "caustic", name: "Caustic", scale: 90, distance: 110, aspect: 1, texture: 0, color: [0.85, 0.88, 0.92], seed: 6000 },
-        { key: "lensorbs", name: "Lens Orbs", scale: 100, distance: 150, aspect: 1, texture: 0, color: [0.82, 0.84, 0.9], seed: 6100 },
+        { key: "glow", name: "Glow", scale: 100, distance: 5, aspect: 1, color: [1, 1, 1], seed: 5000 },
+        { key: "multiiris", name: "Multi Iris", scale: 60, distance: 38.5, aspect: 1, color: [0.62, 0.72, 0.95], seed: 5100 },
+        { key: "iris", name: "Iris", scale: 85, distance: 75, aspect: 1, color: [0.56, 0.62, 0.72], seed: 5200 },
+        { key: "streak", name: "Streak", scale: 90, distance: 0, aspect: 6, color: [0.55, 0.72, 1], seed: 5300 },
+        { key: "shimmer", name: "Shimmer", scale: 60, distance: 0, aspect: 1, color: [1, 1, 1], seed: 5400 },
+        { key: "glint", name: "Glint", scale: 55, distance: 0, aspect: 1, color: [1, 1, 1], seed: 5500 },
+        { key: "spikeball", name: "Spike Ball", scale: 55, distance: 0, aspect: 1, color: [0.92, 0.94, 1], seed: 5600 },
+        { key: "sparkle", name: "Sparkle", scale: 70, distance: 0, aspect: 1, color: [0.85, 0.9, 1], seed: 5700 },
+        { key: "ring", name: "Ring", scale: 85, distance: 120, aspect: 1, color: [0.9, 1, 0.95], seed: 5800 },
+        { key: "hoop", name: "Hoop", scale: 150, distance: 95, aspect: 1.8, color: [1, 1, 1], seed: 5900 },
+        { key: "caustic", name: "Caustic", scale: 90, distance: 110, aspect: 1, color: [0.85, 0.88, 0.92], seed: 6000 },
+        { key: "lensorbs", name: "Lens Orbs", scale: 100, distance: 150, aspect: 1, color: [0.82, 0.84, 0.9], seed: 6100 },
     ];
 
     var ELEMENT_TYPE_ITEMS = ELEMENT_TYPES.map(function (t) {
@@ -114,21 +126,24 @@ var PZ = PZ || {};
     /* Shader                                                             */
     /* ------------------------------------------------------------------ */
 
+    // Vertex: the quad covers the screen. Its depth is the projected source depth
+    // (uDepth), and vP is the fragment position in layout units.
     var VERTEX_SHADER = [
-        "varying vec2 vUv;",
+        "uniform float uViewAspect;",
+        "uniform float uDepth;",
+        "varying vec2 vP;",
         "void main() {",
-        "vUv = uv;",
-        "gl_Position = vec4(position.xy, 0.0, 1.0);",
+        "vP = vec2(position.x * uViewAspect, position.y);",
+        "gl_Position = vec4(position.xy, uDepth, 1.0);",
         "}",
     ].join("\n");
 
     var FRAGMENT_SHADER = [
         "precision highp float;",
         "#define MAX_ELEMENTS " + MAX_ELEMENTS,
-        "varying vec2 vUv;",
-        "uniform vec2 uResolution;",
-        "uniform vec2 uLightPx;",
-        "uniform vec2 uCenterPx;",
+        "varying vec2 vP;",
+        "uniform vec2 uSource;",
+        "uniform vec2 uCenter;",
         "uniform float uBrightness;",
         "uniform float uScale;",
         "uniform float uAspect;",
@@ -218,14 +233,13 @@ var PZ = PZ || {};
         "return vec3(1.0);",
         "}",
         "void main() {",
-        "vec2 res = max(uResolution, vec2(1.0));",
-        "vec2 P = vUv * res;",
-        "vec2 axis = uCenterPx - uLightPx;",
+        "vec2 P = vP;",
+        "vec2 axis = uCenter - uSource;",
         "float axisLen = length(axis);",
-        "if (axisLen < 1.0) { axis = vec2(0.7071, -0.7071); axisLen = 1.0; }",
+        "if (axisLen < 0.000001) { axis = vec2(0.7071, -0.7071); axisLen = 0.0; }",
         "float baseAngle = atan(axis.y, axis.x) + uRotation;",
         "vec2 dir = vec2(cos(baseAngle), sin(baseAngle));",
-        "float baseSize = res.y * 0.15 * uScale;",
+        "float baseSize = 0.3 * uScale;",
         "float quality = mix(1.0, 2.0, uGpu);",
         "float time = uTime;",
         "vec3 col = vec3(0.0);",
@@ -246,7 +260,7 @@ var PZ = PZ || {};
         "int blend = int(D.y + 0.5);",
         "int texMode = int(B.w + 0.5);",
         "int matteShape = int(D.x + 0.5);",
-        "vec2 anchor = uLightPx + dir * axisLen * distance;",
+        "vec2 anchor = uSource + dir * axisLen * distance;",
         "vec2 dr = P - anchor;",
         "float ca = cos(rotation);",
         "float sa = sin(rotation);",
@@ -265,7 +279,7 @@ var PZ = PZ || {};
         "for (int j = 0; j < 7; j++) {",
         "float fj = float(j);",
         "float t = distance + (fj - 3.0) * 0.13 * (0.7 + 0.6 * hash11(seed + fj * 3.7));",
-        "vec2 a2 = uLightPx + dir * axisLen * t;",
+        "vec2 a2 = uSource + dir * axisLen * t;",
         "vec2 d2 = P - a2;",
         "vec2 r2 = vec2(ca * d2.x + sa * d2.y, -sa * d2.x + ca * d2.y);",
         "float sc = max(size * (0.09 + 0.36 * exp(-fj * 0.24)), 0.001);",
@@ -437,10 +451,6 @@ var PZ = PZ || {};
     /* Flare stack element                                                */
     /* ------------------------------------------------------------------ */
 
-    var elementPropertyDefinitions = {
-        name: { visible: false, name: "Name", type: PZ.property.type.TEXT, value: "Glow" },
-    };
-
     var elementDefinitions = {
         elementType: option("Type", 0, ELEMENT_TYPE_ITEMS),
         enabled: option("Enabled", 1, "off;on", true),
@@ -452,7 +462,7 @@ var PZ = PZ || {};
 
     var commonDefinitions = {
         scale: number("Scale", 100, { min: 0, max: 1000, step: 0.1, decimals: 1 }),
-        scaleOffset: option("Scale Offset", 0, "off;on", true),
+        scaleOffset: option("Scale With Distance", 0, "off;on", true),
         aspectRatio: number("Aspect Ratio", 1, { min: 0.01, max: 20, step: 0.01, decimals: 2 }),
         blendMode: option("Blend Mode", 0, BLEND_ITEMS, true),
         color: color("Color", [1, 1, 1]),
@@ -471,114 +481,7 @@ var PZ = PZ || {};
         falloff: number("Falloff", 0.5, { min: 0, max: 1, step: 0.01, decimals: 2 }),
     };
 
-    var optflaresElement = class extends PZ.object {
-        static create(subType) {
-            var index = typeof subType === "number" ? subType : 0;
-            var element = new optflaresElement();
-            element.applyType(index, true);
-            return element;
-        }
-        constructor() {
-            super();
-            this.type = 0;
-            this._initialized = false;
-            this.properties = new PZ.propertyList(
-                {
-                    name: PZ.property.create(elementPropertyDefinitions.name),
-                    element: new PZ.propertyList(elementDefinitions),
-                    globalParams: new PZ.propertyList(commonDefinitions),
-                    matteBox: new PZ.propertyList(matteDefinitions),
-                    lensTexture: new PZ.propertyList(lensDefinitions),
-                },
-                this
-            );
-            var groups = {
-                element: "Element Settings",
-                globalParams: "Common Settings",
-                matteBox: "Matte Box Controls",
-                lensTexture: "Lens Texture",
-            };
-            for (var g in groups) {
-                Object.defineProperty(this.properties[g], "displayName", { value: groups[g], writable: true });
-            }
-            var propertyList = this.properties;
-            Object.defineProperty(propertyList, "toJSON", {
-                value: function () {
-                    var result = {};
-                    var keys = Object.keys(this);
-                    for (var k = 0; k < keys.length; k++) result[keys[k]] = this[keys[k]];
-                    return result;
-                },
-                writable: true,
-            });
-            this.children = [this.properties];
-        }
-        get stackRoot() {
-            return this.tryGetParentOfType(PZ.object3d.optflares);
-        }
-        get time() {
-            return PZ.trapcode.currentTime;
-        }
-        applyType(index, applyDefaults) {
-            if (!this._initialized) {
-                this._initialized = true;
-                this.properties.load(null);
-            }
-            var def = ELEMENT_TYPES[index] || ELEMENT_TYPES[0];
-            this.type = ELEMENT_TYPES.indexOf(def);
-            this.properties.element.elementType.set(this.type);
-            this.properties.name.set(def.name);
-            if (!applyDefaults) return;
-            this.properties.element.distance.set(def.distance);
-            this.properties.element.rotation.set(0);
-            this.properties.element.opacity.set(100);
-            this.properties.element.animate.set(1);
-            this.properties.globalParams.scale.set(def.scale);
-            this.properties.globalParams.scaleOffset.set(0);
-            this.properties.globalParams.aspectRatio.set(def.aspect);
-            this.properties.globalParams.blendMode.set(0);
-            this.properties.globalParams.color.set(def.color.slice());
-            this.properties.globalParams.globalSeed.set(def.seed);
-            this.properties.matteBox.shape.set(0);
-            this.properties.matteBox.startRange.set(25);
-            this.properties.matteBox.fadeAmount.set(25);
-            this.properties.lensTexture.textureImage.set(def.texture);
-            this.properties.lensTexture.illuminationRadius.set(100);
-            this.properties.lensTexture.falloff.set(0.5);
-        }
-        load(e) {
-            var type = e && typeof e === "object" && typeof e.type === "number" ? e.type : 0;
-            this.type = type;
-            if (e && typeof e === "object" && e.properties && e.properties.element && typeof e.properties.element.elementType === "number") {
-                this.type = Math.max(0, Math.min(ELEMENT_TYPES.length - 1, Math.round(e.properties.element.elementType)));
-            }
-            this.properties.load(e && e.properties);
-            this._initialized = true;
-            if (!this.properties.name.get().length) {
-                this.properties.name.set((ELEMENT_TYPES[this.type] || ELEMENT_TYPES[0]).name);
-            }
-        }
-        toJSON() {
-            return { type: this.type, properties: this.properties };
-        }
-        unload() {}
-    };
-
-    optflaresElement.prototype.defaultName = "Element";
-
-    if (PZ.ui && PZ.ui.objectTypes) {
-        PZ.ui.objectTypes.set(
-            optflaresElement,
-            ELEMENT_TYPES.map(function (t, index) {
-                return { name: t.name, desc: t.name + " lens object.", type: index };
-            })
-        );
-    }
-
-    /* ------------------------------------------------------------------ */
-    /* Preset stacks                                                      */
-    /* ------------------------------------------------------------------ */
-
+    // Full description of one element type, used for new elements and presets.
     function spec(type, overrides) {
         var def = ELEMENT_TYPES[type];
         var out = {
@@ -586,7 +489,7 @@ var PZ = PZ || {};
             scale: def.scale,
             distance: def.distance,
             aspect: def.aspect,
-            texture: def.texture,
+            texture: 0,
             color: def.color,
             seed: def.seed,
             rotation: 0,
@@ -597,6 +500,98 @@ var PZ = PZ || {};
         if (overrides) for (var k in overrides) out[k] = overrides[k];
         return out;
     }
+
+    function applySpec(element, s) {
+        var p = element.properties;
+        p.element.elementType.set(s.type);
+        p.name.set(ELEMENT_TYPES[s.type].name);
+        p.element.distance.set(s.distance);
+        p.element.rotation.set(s.rotation || 0);
+        p.element.opacity.set(s.opacity);
+        p.element.enabled.set(s.enabled);
+        p.element.animate.set(1);
+        p.globalParams.scale.set(s.scale);
+        p.globalParams.scaleOffset.set(0);
+        p.globalParams.aspectRatio.set(s.aspect);
+        p.globalParams.blendMode.set(s.blend || 0);
+        p.globalParams.color.set(s.color.slice());
+        p.globalParams.globalSeed.set(s.seed);
+        p.matteBox.shape.set(0);
+        p.matteBox.startRange.set(25);
+        p.matteBox.fadeAmount.set(25);
+        p.lensTexture.textureImage.set(s.texture);
+        p.lensTexture.illuminationRadius.set(100);
+        p.lensTexture.falloff.set(0.5);
+    }
+
+    var optflaresElement = class extends PZ.object {
+        static create(subType) {
+            var element = new optflaresElement();
+            applySpec(element, spec(clampIndex(subType, ELEMENT_TYPES.length - 1)));
+            return element;
+        }
+        constructor() {
+            super();
+            this.properties = new PZ.propertyList(
+                {
+                    name: PZ.property.create({ visible: false, name: "Name", type: PZ.property.type.TEXT, value: "Glow" }),
+                    element: new PZ.propertyList(elementDefinitions),
+                    globalParams: new PZ.propertyList(commonDefinitions),
+                    matteBox: new PZ.propertyList(matteDefinitions),
+                    lensTexture: new PZ.propertyList(lensDefinitions),
+                },
+                this
+            );
+            this.properties.load(null);
+            Object.defineProperty(this.properties.element, "displayName", { value: "Element Settings", writable: true });
+            Object.defineProperty(this.properties.globalParams, "displayName", { value: "Common Settings", writable: true });
+            Object.defineProperty(this.properties.matteBox, "displayName", { value: "Matte Box Controls", writable: true });
+            Object.defineProperty(this.properties.lensTexture, "displayName", { value: "Lens Texture", writable: true });
+            // Serialize every child list, not only those parented to this list.
+            Object.defineProperty(this.properties, "toJSON", {
+                value: function () {
+                    var result = {};
+                    var keys = Object.keys(this);
+                    for (var k = 0; k < keys.length; k++) result[keys[k]] = this[keys[k]];
+                    return result;
+                },
+                writable: true,
+            });
+            this.children = [this.properties];
+        }
+        // The element type is stored in the Type property, so undo and redo of
+        // that property keep the type in step.
+        get type() {
+            return this.properties ? clampIndex(this.properties.element.elementType.get(), ELEMENT_TYPES.length - 1) : 0;
+        }
+        set type(value) {
+            if (this.properties) this.properties.element.elementType.set(clampIndex(value, ELEMENT_TYPES.length - 1));
+        }
+        load(e) {
+            this.properties.load(e && e.properties);
+            if (!this.properties.name.get().length) {
+                this.properties.name.set(ELEMENT_TYPES[this.type].name);
+            }
+        }
+        toJSON() {
+            return { type: this.type, properties: this.properties };
+        }
+        unload() {}
+    };
+
+    optflaresElement.prototype.defaultName = "Element";
+
+    /* ------------------------------------------------------------------ */
+    /* Presets                                                            */
+    /* ------------------------------------------------------------------ */
+
+    var PRESETS = [
+        { key: "default", name: "Default Lens Flare" },
+        { key: "anamorphic", name: "Anamorphic Blue" },
+        { key: "sparkle", name: "Sparkle Burst" },
+        { key: "cinematic", name: "Cinematic Warm" },
+        { key: "scifi", name: "Sci-Fi Plasma" },
+    ];
 
     var PRESET_STACKS = {
         default: [
@@ -650,34 +645,45 @@ var PZ = PZ || {};
         ],
     };
 
-    var OPTICAL_FLARES_PRESETS = [
-        { key: "default", name: "Default Lens Flare" },
-        { key: "anamorphic", name: "Anamorphic Blue" },
-        { key: "sparkle", name: "Sparkle Burst" },
-        { key: "cinematic", name: "Cinematic Warm" },
-        { key: "scifi", name: "Sci-Fi Plasma" },
-    ];
+    // Serialized element records for a preset. Used by load() and by the
+    // options window, so both paths build identical elements.
+    function presetData(key) {
+        var list = PRESET_STACKS[key] || PRESET_STACKS.default;
+        return list.map(function (s) {
+            var element = optflaresElement.create(s.type);
+            applySpec(element, s);
+            return JSON.parse(JSON.stringify(element));
+        });
+    }
+
+    function presetKeyFor(objectType) {
+        var preset = typeof objectType === "number" ? PRESETS[objectType] : null;
+        return preset ? preset.key : "default";
+    }
 
     /* ------------------------------------------------------------------ */
-    /* Optical Flares container                                           */
+    /* Optical Flares object                                              */
     /* ------------------------------------------------------------------ */
 
     var flareSetupDefinitions = {
         positionXY: vector2("Position XY", [0, 0]),
-        centerPosition: vector2("Center Position", [640, 360]),
+        centerPosition: vector2("Center Position", [0, 0]),
         brightness: number("Brightness", 100, { min: 0, max: 1000, step: 0.5, decimals: 1 }),
         scale: number("Scale", 100, { min: 0, max: 1000, step: 0.5, decimals: 1 }),
-        scaleOffset: option("Scale Offset", 0, "off;on", true),
         rotationOffset: number("Rotation Offset", 0, { step: 1, decimals: 1, vstep: 15 }),
         color: color("Color", [1, 1, 1]),
         colorMode: option("Color Mode", 0, "Tint;RGB;Alpha", true),
         animationEvolution: number("Animation Evolution", 0, { step: 1, decimals: 1, vstep: 15 }),
-        gpu: option("Use GPU", 1, "off;on", true),
+        gpu: option("High Quality", 1, "off;on", true),
     };
 
-    var foregroundDefinitions = {
+    var positioningDefinitions = {
+        sourceType: option("Source", 1, "Screen (2D);Object 3D;Light", true),
+        lightIndex: number("Light Index", 0, { min: 0, max: 32, step: 1, decimals: 0 }),
         occlude: option("Occlude", 0, "off;on", true),
-        fade: number("Fade Amount", 100, { min: 0, max: 100, step: 1, decimals: 0 }),
+        margin: number("Edge Margin", 0.25, { min: 0, max: 2, step: 0.01, decimals: 2 }),
+        distanceFalloff: number("Distance Falloff", 0, { min: 0, max: 2, step: 0.01, decimals: 2 }),
+        referenceDistance: number("Reference Distance", 10, { min: 0.01, max: 1000, step: 0.1, decimals: 1 }),
     };
 
     var flickerDefinitions = {
@@ -691,19 +697,13 @@ var PZ = PZ || {};
         layer3: asset("Custom Layer 3"),
     };
 
-    var positioningDefinitions = {
-        sourceType: option("Source Type", 0, "2D;3D;Light", true),
-        lightIndex: number("Light Index", 0, { min: 0, max: 32, step: 1, decimals: 0 }),
-        previewBg: asset("Preview BG Layer"),
-    };
-
     var motionBlurDefinitions = {
         renderMode: option("Render Mode", 0, "On Black;Transparent", true),
     };
 
     var globalDefinitions = {
         scale: number("Scale", 100, { min: 0, max: 1000, step: 0.1, decimals: 1 }),
-        scaleOffset: option("Scale Offset", 0, "off;on", true),
+        scaleOffset: option("Scale With Distance", 0, "off;on", true),
         aspectRatio: number("Aspect Ratio", 1, { min: 0.01, max: 20, step: 0.01, decimals: 2 }),
         blendMode: option("Blend Mode", 0, BLEND_ITEMS, true),
         color: color("Color", [1, 1, 1]),
@@ -748,6 +748,39 @@ var PZ = PZ || {};
         },
     };
 
+    // Shared by the source lookup and the render hook. Renders the quad's
+    // source uniforms without reading any state from a previous frame.
+    function worldPosition(object3d) {
+        if (!object3d || !object3d.threeObj) return null;
+        object3d.threeObj.updateWorldMatrix(true, false);
+        var e = object3d.threeObj.matrixWorld.elements;
+        return [e[12], e[13], e[14]];
+    }
+
+    // Quad render hook. Runs for each draw of the quad, including draws in
+    // another pass (cube maps) and the motion blur traversal, so the uniforms
+    // are rewritten from the camera that is drawing right now.
+    function hookRender(quad, onRender) {
+        var previous = null;
+        var hook = function (renderer, scene, camera, geometry, material, group) {
+            onRender(camera);
+            if (typeof previous === "function") {
+                previous.call(this, renderer, scene, camera, geometry, material, group);
+            }
+        };
+        Object.defineProperty(quad, "onBeforeRender", {
+            configurable: true,
+            get: function () {
+                return hook;
+            },
+            // Motion blur and other passes assign onBeforeRender on every object
+            // of the scene. Keep their handler and run it after ours.
+            set: function (value) {
+                previous = value;
+            },
+        });
+    }
+
     PZ.object3d.optflares = class extends PZ.object3d {
         constructor() {
             super();
@@ -761,10 +794,12 @@ var PZ = PZ || {};
             var positioning = new PZ.propertyList({
                 sourceType: positioningDefinitions.sourceType,
                 lightIndex: positioningDefinitions.lightIndex,
-                foreground: new PZ.propertyList(foregroundDefinitions),
+                distanceFalloff: positioningDefinitions.distanceFalloff,
+                referenceDistance: positioningDefinitions.referenceDistance,
+                margin: positioningDefinitions.margin,
+                foreground: new PZ.propertyList({ occlude: positioningDefinitions.occlude }),
                 flicker: new PZ.propertyList(flickerDefinitions),
                 customLayers: new PZ.propertyList(customLayerDefinitions),
-                previewBg: positioningDefinitions.previewBg,
             });
 
             this.properties.addAll({
@@ -778,47 +813,49 @@ var PZ = PZ || {};
             });
             var groups = {
                 flareSetup: "Flare Setup",
-                positioning: "Positioning Mode",
+                positioning: "Source",
                 motionBlur: "Motion Blur",
                 global: "Global Parameters",
             };
             for (var g in groups) {
-                if (this.properties[g]) {
-                    Object.defineProperty(this.properties[g], "displayName", { value: groups[g], writable: true });
-                }
+                Object.defineProperty(this.properties[g], "displayName", { value: groups[g], writable: true });
             }
             var subgroupNames = {
-                foreground: "Foreground Layers",
+                foreground: "Occlusion",
                 flicker: "Flicker",
                 customLayers: "Custom Layers",
             };
             for (var sub in subgroupNames) {
-                if (positioning[sub]) {
-                    Object.defineProperty(positioning[sub], "displayName", {
-                        value: subgroupNames[sub],
-                        writable: true,
-                    });
-                }
+                Object.defineProperty(positioning[sub], "displayName", { value: subgroupNames[sub], writable: true });
             }
 
             this.material = null;
             this.quad = null;
+            this._whiteTexture = null;
             this._customTextures = { uCustom1: null, uCustom2: null, uCustom3: null };
             this._customValues = {};
-            this._meshCache = null;
-            this._meshCacheStamp = -1;
-            this._designerPreview = null;
             this._dataA = new Float32Array(MAX_ELEMENTS * 4);
             this._dataB = new Float32Array(MAX_ELEMENTS * 4);
             this._dataC = new Float32Array(MAX_ELEMENTS * 4);
             this._dataD = new Float32Array(MAX_ELEMENTS * 4);
             this._dataColor = new Float32Array(MAX_ELEMENTS * 3);
+            // Per-frame values from update(); read by the render hook.
+            this._frame = {
+                sourceType: 1,
+                screenSource: [0, 0],
+                center: [0, 0],
+                light: null,
+                brightness: 1,
+                scale: 1,
+                margin: 0.25,
+                reference: 10,
+                falloff: 0,
+                occlude: false,
+                resolution: DEFAULT_RESOLUTION,
+            };
         }
         load(e) {
-            if (this.stack.length) {
-                for (var i = 0; i < this.stack.length; i++) this.stack[i].unload();
-                this.stack.splice(0, this.stack.length);
-            }
+            this.unloadStack();
             if (e && typeof e === "object" && typeof e.objectType === "number") {
                 this.objectType = e.objectType;
             }
@@ -830,66 +867,57 @@ var PZ = PZ || {};
                     element.loading = element.load(e.stack[k]);
                 }
             } else {
-                this.applyPreset(this.objectType || 0);
+                this.stack.push.apply(this.stack, this.elementsFor(presetKeyFor(this.objectType)));
             }
+            liveFlares.add(this);
             this.ensureMaterial();
             this.parentChanged();
         }
         toJSON() {
             return { type: this.type, objectType: this.objectType, properties: this.properties, stack: this.stack };
         }
+        isLive() {
+            return liveFlares.has(this);
+        }
         unload() {
-            for (var i = 0; i < this.stack.length; i++) this.stack[i].unload();
+            liveFlares.delete(this);
+            this.unloadStack();
             this.releaseCustomTextures();
             if (this.quad && this.quad.geometry) this.quad.geometry.dispose();
             if (this.material) this.material.dispose();
             if (this._whiteTexture) this._whiteTexture.dispose();
             this.material = null;
             this.quad = null;
+            this._whiteTexture = null;
+        }
+        unloadStack() {
+            for (var i = 0; i < this.stack.length; i++) this.stack[i].unload();
+            this.stack.splice(0, this.stack.length);
+        }
+        elementsFor(key) {
+            return presetData(key).map(function (data) {
+                var element = new PZ.object3d.optflares.element();
+                element.load(data);
+                return element;
+            });
         }
         applyPreset(key) {
-            var preset = null;
-            for (var i = 0; i < OPTICAL_FLARES_PRESETS.length; i++) {
-                if (OPTICAL_FLARES_PRESETS[i].key === key) preset = OPTICAL_FLARES_PRESETS[i];
-            }
-            if (!preset && typeof key === "number") preset = OPTICAL_FLARES_PRESETS[key] || null;
-            var specs = PRESET_STACKS[preset ? preset.key : "default"] || PRESET_STACKS.default;
-            for (var s = 0; s < this.stack.length; s++) this.stack[s].unload();
-            this.stack.splice(0, this.stack.length);
-            for (var j = 0; j < specs.length; j++) {
-                var element = new PZ.object3d.optflares.element();
-                element.applyType(specs[j].type, false);
-                var p = element.properties;
-                p.element.elementType.set(specs[j].type);
-                p.element.distance.set(specs[j].distance);
-                p.element.rotation.set(specs[j].rotation || 0);
-                p.element.opacity.set(specs[j].opacity);
-                p.element.enabled.set(specs[j].enabled);
-                p.element.animate.set(1);
-                p.globalParams.scale.set(specs[j].scale);
-                p.globalParams.aspectRatio.set(specs[j].aspect);
-                p.globalParams.blendMode.set(specs[j].blend || 0);
-                p.globalParams.color.set(specs[j].color.slice());
-                p.globalParams.globalSeed.set(specs[j].seed);
-                p.matteBox.shape.set(0);
-                p.lensTexture.textureImage.set(specs[j].texture);
-                p.lensTexture.illuminationRadius.set(100);
-                p.lensTexture.falloff.set(0.5);
-                this.stack.push(element);
-            }
+            this.unloadStack();
+            this.stack.push.apply(this.stack, this.elementsFor(key));
         }
         ensureMaterial() {
             if (this.material) return;
             if (!this._whiteTexture) this._whiteTexture = whiteTexture();
-            var accent = function (array) {
+            var vector4 = function (array) {
                 return { type: "v4", value: array };
             };
             this.material = new THREE.ShaderMaterial({
                 uniforms: {
-                    uResolution: { type: "v2", value: new THREE.Vector2(1920, 1080) },
-                    uLightPx: { type: "v2", value: new THREE.Vector2(-100000, -100000) },
-                    uCenterPx: { type: "v2", value: new THREE.Vector2(0, 0) },
-                    uBrightness: { type: "f", value: 1 },
+                    uSource: { type: "v2", value: new THREE.Vector2(0, 0) },
+                    uCenter: { type: "v2", value: new THREE.Vector2(0, 0) },
+                    uViewAspect: { type: "f", value: 16 / 9 },
+                    uDepth: { type: "f", value: 0 },
+                    uBrightness: { type: "f", value: 0 },
                     uScale: { type: "f", value: 1 },
                     uAspect: { type: "f", value: 1 },
                     uRotation: { type: "f", value: 0 },
@@ -903,10 +931,10 @@ var PZ = PZ || {};
                     uBlendGlobal: { type: "f", value: 0 },
                     uTint: { type: "v3", value: new THREE.Vector3(1, 1, 1) },
                     uElementCount: { type: "f", value: 0 },
-                    eDataA: accent(this._dataA),
-                    eDataB: accent(this._dataB),
-                    eDataC: accent(this._dataC),
-                    eDataD: accent(this._dataD),
+                    eDataA: vector4(this._dataA),
+                    eDataB: vector4(this._dataB),
+                    eDataC: vector4(this._dataC),
+                    eDataD: vector4(this._dataD),
                     eColor: { type: "v3", value: this._dataColor },
                     uCustom1: { type: "t", value: this._whiteTexture },
                     uCustom2: { type: "t", value: this._whiteTexture },
@@ -926,30 +954,28 @@ var PZ = PZ || {};
             this.quad.frustumCulled = false;
             this.quad.matrixAutoUpdate = false;
             this.quad.renderOrder = 9999;
+            var self = this;
+            hookRender(this.quad, function (camera) {
+                self.prepareFrame(camera);
+            });
             this.threeObj.add(this.quad);
-            this.applyGlobalBlending();
+            this.applyGlobalBlending(0);
         }
-        applyGlobalBlending() {
-            if (!this.material || !this.properties.global) return;
-            var mode = Math.round(this.properties.global.blendMode.get(PZ.trapcode.currentTime));
+        applyGlobalBlending(mode) {
+            if (!this.material) return;
             this.material.uniforms.uBlendGlobal.value = mode;
             if (this._appliedBlend === mode) return;
             this._appliedBlend = mode;
+            this.material.blending = THREE.CustomBlending;
+            this.material.blendSrc = THREE.OneFactor;
+            this.material.blendDst = THREE.OneFactor;
+            this.material.blendEquation = THREE.AddEquation;
             if (mode === 1) {
-                this.material.blending = THREE.CustomBlending;
-                this.material.blendSrc = THREE.OneFactor;
                 this.material.blendDst = THREE.OneMinusSrcColorFactor;
-                this.material.blendEquation = THREE.AddEquation;
             } else if (mode === 2) {
                 this.material.blending = THREE.NormalBlending;
-            } else {
-                this.material.blending = THREE.CustomBlending;
-                this.material.blendSrc = THREE.OneFactor;
-                this.material.blendDst = THREE.OneFactor;
-                this.material.blendEquation = THREE.AddEquation;
             }
             this.material.needsUpdate = true;
-            this.material.uniforms.uBlendGlobal.value = mode;
         }
         releaseCustomTextures() {
             var project = this.tryGetParentOfType(PZ.project);
@@ -961,7 +987,7 @@ var PZ = PZ || {};
                 }
                 this._customValues[key] = undefined;
             }
-            if (this.material) {
+            if (this.material && this._whiteTexture) {
                 this.material.uniforms.uCustom1.value = this._whiteTexture;
                 this.material.uniforms.uCustom2.value = this._whiteTexture;
                 this.material.uniforms.uCustom3.value = this._whiteTexture;
@@ -980,10 +1006,8 @@ var PZ = PZ || {};
             if (value && project) {
                 this._customTextures[uniformName] = new PZ.asset.image(project.assets.load(value));
             }
-            if (this.material) {
-                var texture = this._customTextures[uniformName];
-                this.material.uniforms[uniformName].value = texture ? texture.getTexture(true) : this._whiteTexture;
-            }
+            var texture = this._customTextures[uniformName];
+            this.material.uniforms[uniformName].value = texture ? texture.getTexture(true) : this._whiteTexture;
         }
         findLight(index) {
             var layer = this.tryGetParentOfType(PZ.layer);
@@ -995,52 +1019,14 @@ var PZ = PZ || {};
             if (!lights.length) return null;
             return lights[Math.max(0, Math.min(lights.length - 1, Math.round(index || 0)))] || null;
         }
-        refreshWorldMatrices() {
-            var root = this.threeObj;
-            var guard = 0;
-            while (root && root.parent && guard++ < 64) root = root.parent;
-            if (root) root.updateMatrixWorld(true);
-        }
-        worldPosition() {
-            var position = new THREE.Vector3();
-            if (!this.threeObj) return null;
-            this.threeObj.getWorldPosition(position);
-            return position;
-        }
-        collectMeshes(layer) {
-            if (!layer || !layer.threeObj) return [];
-            if (this._meshCache && this._meshCacheLayer === layer && this._meshCacheStamp === layer.objects.length) {
-                return this._meshCache;
-            }
-            var list = [];
-            layer.threeObj.traverse(function (object) {
-                if (object.isMesh && object !== this.quad && object.geometry) list.push(object);
-            }.bind(this));
-            this._meshCache = list;
-            this._meshCacheLayer = layer;
-            this._meshCacheStamp = layer.objects.length;
-            return list;
-        }
-        occlusionFactor(layer, camera, world) {
-            if (!camera || !world) return 1;
-            var origin = new THREE.Vector3().setFromMatrixPosition(camera.matrixWorld);
-            var direction = world.clone().sub(origin);
-            var distance = direction.length();
-            if (distance < 0.01) return 1;
-            direction.normalize();
-            var raycaster = this._raycaster || (this._raycaster = new THREE.Raycaster());
-            raycaster.set(origin, direction);
-            raycaster.near = 0.1;
-            raycaster.far = distance - 0.5;
-            var hits = raycaster.intersectObjects(this.collectMeshes(layer), false);
-            return hits && hits.length ? 0 : 1;
-        }
+        // Phase 1: property values at `time`. Nothing here depends on the
+        // camera or on other objects' transforms.
         update(time) {
-            PZ.trapcode.setTime(time);
             this.ensureMaterial();
             var props = this.properties;
             var setup = props.flareSetup;
             var positioning = props.positioning;
+            var frame = this._frame;
 
             if (props.position) {
                 var position = props.position.get(time);
@@ -1056,73 +1042,30 @@ var PZ = PZ || {};
             }
 
             var layer = this.tryGetParentOfType(PZ.layer);
-            var resolution = [1920, 1080];
+            var resolution = DEFAULT_RESOLUTION;
             if (layer && layer.properties && layer.properties.resolution) {
-                try {
-                    var res = layer.properties.resolution.get(time);
-                    if (res && res.length === 2) resolution = res;
-                } catch (err) {}
+                var res = layer.properties.resolution.get(time);
+                if (res && res.length === 2 && res[0] > 0 && res[1] > 0) resolution = res;
             }
             var sequence = this.tryGetParentOfType(PZ.sequence);
             var rate = sequence && sequence.properties.rate ? Math.max(1, sequence.properties.rate.get(time)) : 30;
 
             var sourceType = Math.round(positioning.sourceType.get(time));
-            var lightPx = null;
-            var lightWorld = null;
-            if (sourceType === 0) {
-                var xy = setup.positionXY.get(time);
-                lightPx = [resolution[0] * 0.5 + xy[0], resolution[1] * 0.5 - xy[1]];
-            } else {
-                if (sourceType === 1) {
-                    this.refreshWorldMatrices();
-                    lightWorld = this.worldPosition();
-                } else {
-                    var light = this.findLight(positioning.lightIndex.get(time));
-                    if (light) {
-                        this.refreshWorldMatrices();
-                        if (light.threeObj) lightWorld = new THREE.Vector3().setFromMatrixPosition(light.threeObj.matrixWorld);
-                    }
-                }
-                var camera = layer && layer.pass ? layer.pass.camera : null;
-                if (lightWorld && camera) {
-                    var view = lightWorld.clone().applyMatrix4(camera.matrixWorldInverse);
-                    if (view.z < 0) {
-                        var ndc = lightWorld.clone().project(camera);
-                        lightPx = [(ndc.x * 0.5 + 0.5) * resolution[0], (ndc.y * 0.5 + 0.5) * resolution[1]];
-                    }
-                }
-                this._lightWorld = lightWorld;
-                this._camera = camera;
-            }
-
-            var center = setup.centerPosition.get(time);
-            var centerPx = [resolution[0] * 0.5 + center[0], resolution[1] * 0.5 - center[1]];
-
-            var preview = this._designerPreview;
-            if (preview) {
-                if (lightPx) {
-                    lightPx[0] += preview.position[0];
-                    lightPx[1] -= preview.position[1];
-                }
-                centerPx[0] += preview.position[0];
-                centerPx[1] -= preview.position[1];
-            }
-
-            var visible = !!lightPx;
-            var brightness = (setup.brightness.get(time) / 100) * (preview ? preview.brightness : 1);
-            if (visible && positioning.foreground.occlude.get(time) === 1 && sourceType !== 0) {
-                var factor = this.occlusionFactor(layer, this._camera, lightWorld);
-                if (factor < 1) {
-                    brightness *= 1 - (positioning.foreground.fade.get(time) / 100) * (1 - factor);
-                }
-            }
+            frame.sourceType = sourceType;
+            frame.resolution = resolution;
+            frame.center = math.offsetToLayout(setup.centerPosition.get(time), resolution[1]);
+            frame.screenSource = math.offsetToLayout(setup.positionXY.get(time), resolution[1]);
+            frame.light = sourceType === 2 ? this.findLight(positioning.lightIndex.get(time)) : null;
+            frame.occlude = sourceType !== 0 && positioning.foreground.occlude.get(time) === 1;
+            frame.margin = Math.max(0, positioning.margin.get(time));
+            frame.reference = positioning.referenceDistance.get(time);
+            frame.falloff = Math.max(0, positioning.distanceFalloff.get(time));
+            frame.brightness = setup.brightness.get(time) / 100;
+            frame.scale = (setup.scale.get(time) / 100) * (props.global.scale.get(time) / 100);
 
             var u = this.material.uniforms;
-            u.uResolution.value.set(resolution[0], resolution[1]);
-            u.uLightPx.value.set(lightPx ? lightPx[0] : -100000, lightPx ? lightPx[1] : -100000);
-            u.uCenterPx.value.set(centerPx[0], centerPx[1]);
-            u.uBrightness.value = visible ? brightness : 0;
-            u.uScale.value = (setup.scale.get(time) / 100) * (props.global.scale.get(time) / 100) * (preview ? preview.scale : 1);
+            u.uCenter.value.set(frame.center[0], frame.center[1]);
+            u.uScale.value = frame.scale;
             u.uAspect.value = Math.max(0.01, props.global.aspectRatio.get(time));
             u.uRotation.value = setup.rotationOffset.get(time) * DEG;
             u.uEvolution.value = setup.animationEvolution.get(time) * DEG;
@@ -1134,7 +1077,7 @@ var PZ = PZ || {};
             u.uRenderMode.value = Math.round(props.motionBlur.renderMode.get(time));
             var tint = setup.color.get(time);
             u.uTint.value.set(tint[0], tint[1], tint[2]);
-            this.applyGlobalBlending();
+            this.applyGlobalBlending(Math.round(props.global.blendMode.get(time)));
 
             this.updateCustomTexture(positioning.customLayers.layer1, "uCustom1", time);
             this.updateCustomTexture(positioning.customLayers.layer2, "uCustom2", time);
@@ -1149,6 +1092,7 @@ var PZ = PZ || {};
             var rootOffset = props.global.scaleOffset.get(time) === 1;
             var seedBase = props.global.globalSeed.get(time) * 0.001;
             var globalColor = props.global.color.get(time);
+            var anyEnabled = false;
             for (var i = 0; i < count; i++) {
                 var element = this.stack[i];
                 var p = element.properties;
@@ -1171,14 +1115,56 @@ var PZ = PZ || {};
                 dataD[o] = Math.round(p.matteBox.shape.get(time));
                 dataD[o + 1] = Math.round(p.globalParams.blendMode.get(time));
                 dataD[o + 2] = Math.round(p.element.elementType.get(time));
-                dataD[o + 3] = p.element.enabled.get(time) === 1 ? 1 : 0;
+                var enabled = p.element.enabled.get(time) === 1;
+                dataD[o + 3] = enabled ? 1 : 0;
+                anyEnabled = anyEnabled || enabled;
                 var elementColor = p.globalParams.color.get(time);
                 dataColor[i * 3] = elementColor[0] * globalColor[0];
                 dataColor[i * 3 + 1] = elementColor[1] * globalColor[1];
                 dataColor[i * 3 + 2] = elementColor[2] * globalColor[2];
             }
             u.uElementCount.value = count;
-            if (this.quad) this.quad.visible = visible && checkElementVisible(this.stack);
+            this.quad.visible = anyEnabled;
+        }
+        // Phase 2, from the render hook of the quad: the camera drawing the
+        // pass and the world transforms of this frame. Everything is recomputed
+        // on every call.
+        prepareFrame(camera) {
+            var frame = this._frame;
+            var u = this.material.uniforms;
+            var resolution = frame.resolution;
+            var aspect = resolution[0] / resolution[1];
+            var state = null;
+            if (frame.sourceType === 0) {
+                state = { source: frame.screenSource, depth: null, fade: 1, scale: 1 };
+            } else if (camera && camera.matrixWorldInverse && camera.projectionMatrix) {
+                var world = frame.sourceType === 2
+                    ? worldPosition(frame.light)
+                    : worldPosition(this);
+                if (world) {
+                    state = math.screenState({
+                        world: world,
+                        view: camera.matrixWorldInverse.elements,
+                        proj: camera.projectionMatrix.elements,
+                        aspect: aspect,
+                        margin: frame.margin,
+                        reference: frame.reference,
+                        falloff: frame.falloff,
+                    });
+                }
+            }
+            u.uViewAspect.value = aspect;
+            if (state) {
+                u.uSource.value.set(state.source[0], state.source[1]);
+                u.uDepth.value = state.depth != null ? Math.max(-1, Math.min(1, state.depth)) : 0;
+                u.uBrightness.value = frame.brightness * state.fade;
+                u.uScale.value = frame.scale * state.scale;
+            } else {
+                u.uBrightness.value = 0;
+                u.uScale.value = frame.scale;
+            }
+            // Depth test only for 3D sources; the quad is at the source depth.
+            this.material.depthTest = frame.occlude && state !== null && state.depth != null;
         }
         async prepare() {
             var keys = ["uCustom1", "uCustom2", "uCustom3"];
@@ -1189,38 +1175,29 @@ var PZ = PZ || {};
         }
     };
 
-    function checkElementVisible(stack) {
-        var solo = false;
-        var i;
-        for (i = 0; i < stack.length; i++) {
-            if (stack[i]._solo) solo = true;
-        }
-        for (i = 0; i < stack.length; i++) {
-            var element = stack[i];
-            if (element.properties.element.enabled.get(PZ.trapcode.currentTime) !== 1) continue;
-            if (solo && !element._solo) continue;
-            return true;
-        }
-        return false;
-    }
-
     PZ.object3d.optflares.element = optflaresElement;
-    PZ.object3d.optflares.ELEMENT_TYPES = ELEMENT_TYPES;
-    PZ.object3d.optflares.PRESETS = OPTICAL_FLARES_PRESETS;
-    PZ.object3d.optflares.PRESET_STACKS = PRESET_STACKS;
     PZ.object3d.optflares.prototype.defaultName = "Optical Flares";
     PZ.object3d.optflares.propertyDefinitions = {
         name: { visible: false, name: "Name", type: PZ.property.type.TEXT, value: "Optical Flares" },
     };
 
-    if (PZ.trapcode && PZ.trapcode.designer) {
-        PZ.trapcode.designer.registerConfig(PZ.object3d.optflares, {
-            title: "Optical Flares Options",
-            customOpen: function (root, designer) {
-                if (PZ.opticalflares && PZ.opticalflares.open) {
-                    PZ.opticalflares.open(root, designer);
-                }
-            },
-        });
+    if (PZ.ui && PZ.ui.objectTypes) {
+        PZ.ui.objectTypes.set(
+            optflaresElement,
+            ELEMENT_TYPES.map(function (t, index) {
+                return { name: t.name, desc: t.name + " lens object.", type: index };
+            })
+        );
     }
+
+    PZ.opticalflares.ELEMENT_TYPES = ELEMENT_TYPES;
+    PZ.opticalflares.PRESETS = PRESETS;
+    PZ.opticalflares.presetData = presetData;
+    PZ.opticalflares.spec = spec;
+    PZ.opticalflares.isInUse = function () {
+        return liveFlares.size > 0;
+    };
+    PZ.opticalflares.liveCount = function () {
+        return liveFlares.size;
+    };
 })();

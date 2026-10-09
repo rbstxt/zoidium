@@ -1,21 +1,20 @@
-# Effector+
+# Effector+ (compatibility)
 
-A Zoidium `object` plugin. It adds the OpenZoid geometry deformers with
-their original behavior preserved.
+Effector+ is a thin compatibility layer. The Twist, Warp, and Voronoi Fracture
+objects are implemented in the Effector plugin (`repeater`), which provides
+the menu entries and the namespaced `zoidium:repeater/*` types.
 
-- Twist (type 7) — twists geometry around an axis with pivot and offset.
-- Warp (type 8) — bends geometry with field-weighted falloff.
-- Voronoi Fracture (type 9) — shatters geometry into cells.
+This plugin maps the numeric types used by Davidium Effector+ projects onto
+those namespaced classes:
 
-The `effector-runtime` module evaluates the bundled deformer framework
-(`PZ.object3d.deform`: mesh data, field weights, apply walk) plus the
-three object classes through the plugin bundle asset API, teaches
-`PZ.object3d.create` the deformer numeric types, and runs the deform
-chain in the 3D Scene layer update. Picker entries are declared in the
-manifest and owned by the plugin manager.
+- 7 → `zoidium:repeater/twist`
+- 8 → `zoidium:repeater/warp`
+- 9 → `zoidium:repeater/voronoi-fracture`
 
-```bash
-# after adding the registry entry
-pnpm run build:plugin-bundles
-pnpm run verify
-```
+Loaded objects are saved with the namespaced type, so a project is upgraded
+the first time it is saved. The plugin has no picker entries. It needs the
+Effector plugin to be enabled for these objects to resolve; if it is not, they
+load as missing objects and recover when Effector is enabled again.
+
+Numeric types are claimed in `PZ.zoidium.legacyObject3dTypes`. Activation
+fails rather than overriding a claim held by another plugin.

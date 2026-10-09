@@ -1,25 +1,20 @@
 // OpenZoid Magic Looks — full-chain color grading effect.
 //
-// One native effect hosting all 29 Looks tools in a fixed chain: lens
-// distortion first, then the color tools, curves/S-curve channel LUTs,
-// the LUT tool, light tools, and lens tools. Property definitions are
-// generated from the looks-tools.js catalog (single source of truth,
-// loaded from the plugin bundle), and the fragment shader mirrors the
-// Looks.grade JS reference pipeline op-for-op.
+// One native effect hosting the 29 Looks tools. Property definitions come from
+// the looks-tools.js catalog (single source of truth, loaded from the plugin
+// bundle). The shader is compiled once in load(); per frame only uniforms are
+// written, and the chain order and the curve tables are rebuilt only when their
+// stored text changes.
 //
-// UI-first note: every tool renders when enabled; defaults are neutral
-// except Color Contrast, whose fixed 0.37 amount is the tool character.
+// Defaults are identity. While every property holds its default value the
+// pass is disabled and the layer passes through untouched.
 
 var looksSelf = this;
 
 this.defaultName = "Magic Looks";
-this.shaderfile = "fx_looks";
-this.shaderUrl = "/assets/shaders/fragment/" + this.shaderfile + ".glsl";
 
-// The catalog (looks-color.js + looks-tools.js) loads from the plugin
-// bundle so properties, setup and tests share one schema. The manager
-// sets _zoidiumGetAsset before evaluating; without it the effect cannot
-// know its own surface.
+// The catalog (looks-color.js + looks-tools.js) loads from the plugin bundle.
+// The manager sets _zoidiumGetAsset before evaluating this file.
 var Looks = {};
 (function looksLoadCatalog() {
     var getAsset = (typeof looksSelf._zoidiumGetAsset === "function")
@@ -42,18 +37,26 @@ var Looks = {};
 })();
 
 this.propertyDefinitions = Looks.tools.buildPropertyDefinitions(PZ);
-
 this.properties.addAll(this.propertyDefinitions, this);
 
-// Uniform records mirror the catalog prop map: enables + numbers are
-// floats, wheel triples are vec3, the curves LUT is a 256x1 RGB texture.
+// Default values per property key: a value equal to its default is identity.
+this._looksDefaults = {};
+Object.keys(this.propertyDefinitions).forEach(function (key) {
+    var def = looksSelf.propertyDefinitions[key];
+    looksSelf._looksDefaults[key] = def ? def.value : undefined;
+});
+
+var LOOKS_CHAIN_KEY = Looks.tools.CHAIN_KEY;
+var LOOKS_CURVES_KEY = "curvCurvesJson";
+var LOOKS_SCURVE_KEY = "scvScurveJson";
+var LOOKS_LUT_SIZE = 256;
+
 function looksUniformName(prop) {
     return "u_" + prop;
 }
 
 // Wheel triples share their base with zone-position numbers in one tool
-// (color-ranges highlight/midtone/shadow), so vec3 tints take a Tint
-// suffix while the numbers keep the bare prop key.
+// (color-ranges highlight/midtone/shadow), so vec3 tints take a Tint suffix.
 function looksTintName(triple) {
     return "u_" + triple[0].slice(0, -1) + "Tint";
 }
@@ -61,9 +64,11 @@ function looksTintName(triple) {
 function looksBuildUniforms(propMap) {
     var uniforms = {
         tDiffuse: { type: "t", value: null },
-        uvScale: { type: "v2", value: new THREE.Vector2(1, 1) },
         resolution: { type: "v2", value: new THREE.Vector2(1, 1) },
         uCurvesLUT: { type: "t", value: null },
+        uSCurveLUT: { type: "t", value: null },
+        u_chain: { type: "fv1", value: new Array(Looks.tools.MAX_CHAIN).fill(-1) },
+        u_chainCount: { type: "f", value: 0 },
     };
     Object.keys(propMap).forEach(function (toolId) {
         var e = propMap[toolId];
@@ -93,9 +98,6 @@ function looksBuildUniforms(propMap) {
                 };
             });
         }
-        if (e.custom.angle) {
-            uniforms[looksUniformName(e.custom.angle)] = { type: "f", value: 45 };
-        }
         if (e.custom.lutName) {
             uniforms[looksUniformName(e.custom.lutName.replace(/Name$/, "Mode"))] = { type: "f", value: 0 };
             uniforms[looksUniformName(e.custom.lutStrength)] = { type: "f", value: 1 };
@@ -106,9 +108,9 @@ function looksBuildUniforms(propMap) {
 }
 
 this._looksPropMap = Looks.tools.propMap();
+this._looksToolIds = Object.keys(this._looksPropMap);
 
-// Exposed for unit tests and debugging (the file otherwise only installs
-// per-instance members when evaluated as an effect module).
+// Exposed for unit tests and debugging.
 this.looksTest = {
     propMap: this._looksPropMap,
     uniformName: looksUniformName,
@@ -130,121 +132,176 @@ function looksClamp01(v) {
 }
 
 this.load = async function (e) {
-    var zoidiumGetAsset = (typeof this._zoidiumGetAsset === "function")
+    var getAsset = (typeof this._zoidiumGetAsset === "function")
         ? this._zoidiumGetAsset.bind(this)
         : null;
-    var zoidiumBundledVert = zoidiumGetAsset
-        ? zoidiumGetAsset("text", "./plugins/magic-looks/looks-vert.glsl")
-        : undefined;
-    var zoidiumBundledFrag = zoidiumGetAsset
-        ? zoidiumGetAsset("text", "./plugins/magic-looks/looks-grade.glsl")
-        : undefined;
-    this._zoidiumBundledShaders = {
-        vert: typeof zoidiumBundledVert === "string",
-        frag: typeof zoidiumBundledFrag === "string",
-    };
-    var vertSource = this._zoidiumBundledShaders.vert
-        ? zoidiumBundledVert
-        : await this.parentProject.assets.load(
-            this.parentProject.assets.createFromPreset(PZ.asset.type.SHADER, "/assets/shaders/vertex/common.glsl")
-        ).getShader();
-    var fragSource = this._zoidiumBundledShaders.frag
-        ? zoidiumBundledFrag
-        : await this.parentProject.assets.load(this.shaderUrl).getShader();
-    var uniforms = looksBuildUniforms(this._looksPropMap);
-    var lutBytes = new Uint8Array(256 * 3);
-    for (var i = 0; i < 256; i++) {
-        lutBytes[i * 3] = i;
-        lutBytes[i * 3 + 1] = i;
-        lutBytes[i * 3 + 2] = i;
+    var vertSource = getAsset ? getAsset("text", "./plugins/magic-looks/looks-vert.glsl") : undefined;
+    var fragSource = getAsset ? getAsset("text", "./plugins/magic-looks/looks-grade.glsl") : undefined;
+    if (typeof vertSource !== "string" || typeof fragSource !== "string") {
+        throw new Error("Magic Looks shaders are missing from the plugin bundle.");
     }
-    var lutTexture = new THREE.DataTexture(lutBytes, 256, 1, THREE.RGBFormat);
-    lutTexture.magFilter = THREE.LinearFilter;
-    lutTexture.minFilter = THREE.LinearFilter;
-    lutTexture.wrapS = THREE.ClampToEdgeWrapping;
-    lutTexture.wrapT = THREE.ClampToEdgeWrapping;
-    lutTexture.needsUpdate = true;
-    uniforms.uCurvesLUT.value = lutTexture;
-    this._looksLutTexture = lutTexture;
-    this._looksLutBytes = lutBytes;
-    this._looksLutKeys = { curves: "", scurve: "" };
+    var uniforms = looksBuildUniforms(this._looksPropMap);
+    this._looksCurvesBytes = new Uint8Array(LOOKS_LUT_SIZE * 3);
+    this._looksScurveBytes = new Uint8Array(LOOKS_LUT_SIZE * 3);
+    this._looksCurvesTexture = looksLutTexture(this._looksCurvesBytes);
+    this._looksScurveTexture = looksLutTexture(this._looksScurveBytes);
+    this._looksLutKeys = { curves: null, scurve: null };
+    this._looksCurvesIdentity = true;
+    this._looksScurveIdentity = true;
+    this._looksChainText = null;
+    this._looksChainCount = 0;
+    uniforms.uCurvesLUT.value = this._looksCurvesTexture;
+    uniforms.uSCurveLUT.value = this._looksScurveTexture;
     var material = new THREE.ShaderMaterial({
         uniforms: uniforms,
         vertexShader: vertSource,
         fragmentShader: fragSource,
     });
+    material.premultipliedAlpha = true;
     this.pass = new THREE.ShaderPass(material);
     this.properties.load(e && e.properties);
 };
+
+// 256x1 RGB table; entry k is the output for input k/255.
+function looksLutTexture(bytes) {
+    var texture = new THREE.DataTexture(bytes, LOOKS_LUT_SIZE, 1, THREE.RGBFormat);
+    texture.magFilter = THREE.LinearFilter;
+    texture.minFilter = THREE.LinearFilter;
+    texture.wrapS = THREE.ClampToEdgeWrapping;
+    texture.wrapT = THREE.ClampToEdgeWrapping;
+    texture.needsUpdate = true;
+    return texture;
+}
 
 this.toJSON = function () {
     return { type: this.type, properties: this.properties };
 };
 
-this.unload = function (e) {
-    if (!this._zoidiumBundledShaders || !this._zoidiumBundledShaders.vert) {
-        this.parentProject.assets.unload(this.vertShader);
+this.unload = function () {
+    [this._looksCurvesTexture, this._looksScurveTexture].forEach(function (texture) {
+        if (texture && typeof texture.dispose === "function") texture.dispose();
+    });
+    if (this.pass && this.pass.material && typeof this.pass.material.dispose === "function") {
+        this.pass.material.dispose();
     }
-    if (!this._zoidiumBundledShaders || !this._zoidiumBundledShaders.frag) {
-        this.parentProject.assets.unload(this.fragShader);
-    }
+    this.pass = null;
 };
 
-function looksReadNum(instance, e, key, fallback) {
+function looksReadText(instance, e, key) {
     var p = instance.properties[key];
-    if (!p) return fallback;
-    return looksNumOr(p.get(e), fallback);
-}
-
-function looksReadOpt(instance, e, key, fallback) {
-    var p = instance.properties[key];
-    if (!p) return fallback;
-    var v = Math.round(looksNumOr(p.get(e), fallback));
-    return v ? 1 : 0;
-}
-
-function looksReadText(instance, e, key, fallback) {
-    var p = instance.properties[key];
-    if (!p) return fallback;
+    if (!p) return "";
     var v = p.get(e);
-    return typeof v === "string" ? v : fallback;
+    return typeof v === "string" ? v : "";
 }
 
-// Rebuild the 256x1 channel LUT texture from the Curves + S-curve JSON
-// props (cached on the parsed text; diagonal fallback on bad input).
+// Per-channel curves table: entries are bytes of the composed channel curves.
+function looksFillBytes(bytes, luts, sc) {
+    for (var i = 0; i < LOOKS_LUT_SIZE; i++) {
+        if (luts) {
+            bytes[i * 3] = Math.round(Looks.color.clamp(luts.Red[i], 0, 1) * 255);
+            bytes[i * 3 + 1] = Math.round(Looks.color.clamp(luts.Green[i], 0, 1) * 255);
+            bytes[i * 3 + 2] = Math.round(Looks.color.clamp(luts.Blue[i], 0, 1) * 255);
+        } else {
+            var v = Math.round(Looks.color.clamp(sc[i], 0, 1) * 255);
+            bytes[i * 3] = v;
+            bytes[i * 3 + 1] = v;
+            bytes[i * 3 + 2] = v;
+        }
+    }
+}
+
+// Identity tables (entry k == k) skip their pass entirely.
+function looksIsIdentity(bytes) {
+    for (var i = 0; i < LOOKS_LUT_SIZE; i++) {
+        if (bytes[i * 3] !== i || bytes[i * 3 + 1] !== i || bytes[i * 3 + 2] !== i) return false;
+    }
+    return true;
+}
+
+// Rebuild the curve and S-curve tables when their stored JSON changes. Bad
+// input falls back to identity.
 function looksRefreshLUT(instance, e) {
-    var curvesJson = looksReadText(instance, e, "curvCurvesJson", "");
-    var scurveJson = looksReadText(instance, e, "scvScurveJson", "");
-    if (curvesJson === instance._looksLutKeys.curves && scurveJson === instance._looksLutKeys.scurve) {
-        return;
+    var curvesJson = looksReadText(instance, e, LOOKS_CURVES_KEY);
+    var scurveJson = looksReadText(instance, e, LOOKS_SCURVE_KEY);
+    if (curvesJson !== instance._looksLutKeys.curves) {
+        instance._looksLutKeys.curves = curvesJson;
+        var channels = null;
+        try {
+            var parsed = JSON.parse(curvesJson);
+            if (parsed && parsed.Red && parsed.Green && parsed.Blue) channels = parsed;
+        } catch (_err) { /* identity below */ }
+        var curves = { channels: channels || Looks.tools.defaultToolState(Looks.tools.byId("curves")).x.curves.channels };
+        looksFillBytes(instance._looksCurvesBytes, Looks.grade.buildCurveLUTs(curves), null);
+        instance._looksCurvesIdentity = looksIsIdentity(instance._looksCurvesBytes);
+        if (instance._looksCurvesTexture) instance._looksCurvesTexture.needsUpdate = true;
     }
-    instance._looksLutKeys.curves = curvesJson;
-    instance._looksLutKeys.scurve = scurveJson;
-    var channels = null;
-    var scurve = null;
-    try {
-        var parsed = JSON.parse(curvesJson);
-        if (parsed && parsed.Red && parsed.Green && parsed.Blue) channels = parsed;
-    } catch (_err) { /* diagonal fallback below */ }
-    try {
-        var parsedS = JSON.parse(scurveJson);
-        if (parsedS && parsedS.p0 && parsedS.c1 && parsedS.c2 && parsedS.p3) scurve = parsedS;
-    } catch (_err2) { /* diagonal fallback below */ }
-    if (!channels) {
-        channels = {
-            Red: [{ x: 0, y: 0 }, { x: 1, y: 1 }],
-            Green: [{ x: 0, y: 0 }, { x: 1, y: 1 }],
-            Blue: [{ x: 0, y: 0 }, { x: 1, y: 1 }],
-        };
+    if (scurveJson !== instance._looksLutKeys.scurve) {
+        instance._looksLutKeys.scurve = scurveJson;
+        var shape = null;
+        try {
+            var parsedS = JSON.parse(scurveJson);
+            if (parsedS && parsedS.p0 && parsedS.c1 && parsedS.c2 && parsedS.p3) shape = parsedS;
+        } catch (_err2) { /* identity below */ }
+        var scurve = Looks.tools.defaultScurve();
+        if (shape) {
+            scurve.black = looksNumOr(shape.black, 0);
+            scurve.white = looksNumOr(shape.white, 1);
+            scurve.p0 = shape.p0;
+            scurve.c1 = shape.c1;
+            scurve.c2 = shape.c2;
+            scurve.p3 = shape.p3;
+        }
+        looksFillBytes(instance._looksScurveBytes, null, Looks.grade.buildScurveLUT(scurve));
+        instance._looksScurveIdentity = looksIsIdentity(instance._looksScurveBytes);
+        if (instance._looksScurveTexture) instance._looksScurveTexture.needsUpdate = true;
     }
-    var luts = Looks.grade.buildChannelLUTs({ channels: channels }, scurve);
-    var bytes = instance._looksLutBytes;
-    for (var i = 0; i < 256; i++) {
-        bytes[i * 3] = Math.round(Looks.color.clamp(luts.Red[i], 0, 1) * 255);
-        bytes[i * 3 + 1] = Math.round(Looks.color.clamp(luts.Green[i], 0, 1) * 255);
-        bytes[i * 3 + 2] = Math.round(Looks.color.clamp(luts.Blue[i], 0, 1) * 255);
+}
+
+// Chain order: a 29-slot float array plus a count. Rebuilt only when the
+// stored text changes; unknown or missing text falls back to the default.
+function looksRefreshChain(instance, e) {
+    var text = looksReadText(instance, e, LOOKS_CHAIN_KEY);
+    if (text === instance._looksChainText) return;
+    instance._looksChainText = text;
+    var order = Looks.tools.parseChain(text);
+    var slots = instance.pass.uniforms.u_chain.value;
+    for (var i = 0; i < slots.length; i++) slots[i] = -1;
+    for (var k = 0; k < order.length && k < slots.length; k++) {
+        slots[k] = Looks.tools.indexOf(order[k]);
     }
-    if (instance._looksLutTexture) instance._looksLutTexture.needsUpdate = true;
+    instance._looksChainCount = Math.min(order.length, slots.length);
+    instance._looksChainIsDefault = order.join(",") === Looks.tools.defaultChain().join(",");
+    instance.pass.uniforms.u_chainCount.value = instance._looksChainCount;
+}
+
+// Writes a numeric uniform and records whether the value differs from its
+// property default.
+function looksSetNum(instance, u, uniform, prop, e, fallback) {
+    var p = instance.properties[prop];
+    var v = p ? p.get(e) : fallback;
+    var n = looksNumOr(v, fallback);
+    if (u[uniform]) u[uniform].value = n;
+    if (p && n !== instance._looksDefaults[prop]) instance._looksDirty = true;
+    return n;
+}
+
+function looksSetOpt(instance, u, uniform, prop, e, fallback) {
+    var p = instance.properties[prop];
+    var raw = p ? p.get(e) : fallback;
+    var n = Math.round(looksNumOr(raw, fallback)) ? 1 : 0;
+    if (u[uniform]) u[uniform].value = n;
+    var def = Math.round(looksNumOr(instance._looksDefaults[prop], 0)) ? 1 : 0;
+    if (p && n !== def) instance._looksDirty = true;
+    return n;
+}
+
+function looksSetTint(instance, u, triple, e) {
+    var uniform = u[looksTintName(triple)];
+    if (!uniform || !uniform.value || typeof uniform.value.set !== "function") return;
+    var r = looksSetNum(instance, u, null, triple[0], e, 1);
+    var g = looksSetNum(instance, u, null, triple[1], e, 1);
+    var b = looksSetNum(instance, u, null, triple[2], e, 1);
+    uniform.value.set(Math.max(0, r), Math.max(0, g), Math.max(0, b));
 }
 
 this.update = function (e) {
@@ -253,81 +310,55 @@ this.update = function (e) {
     }
     var u = this.pass.uniforms;
     var map = this._looksPropMap;
+    var ids = this._looksToolIds;
     var self = this;
-    var anyOn = false;
-    Object.keys(map).forEach(function (toolId) {
-        var rec = map[toolId];
-        var enabled = looksReadOpt(self, e, rec.enable, 1);
-        if (u[looksUniformName(rec.enable)]) u[looksUniformName(rec.enable)].value = enabled;
-        if (enabled) anyOn = true;
-        Object.keys(rec.params).forEach(function (k) {
-            var key = rec.params[k];
-            if (u[looksUniformName(key)]) {
-                u[looksUniformName(key)].value = looksReadNum(self, e, key, 0);
-            }
-        });
-        Object.keys(rec.wheels).forEach(function (k) {
-            var triple = rec.wheels[k];
-            var base = looksTintName(triple);
-            if (u[base] && u[base].value && typeof u[base].value.set === "function") {
-                u[base].value.set(
-                    Math.max(0, looksReadNum(self, e, triple[0], 1)),
-                    Math.max(0, looksReadNum(self, e, triple[1], 1)),
-                    Math.max(0, looksReadNum(self, e, triple[2], 1))
-                );
-            }
-        });
+    this._looksDirty = false;
+    looksRefreshChain(this, e);
+    looksRefreshLUT(this, e);
+    if (!this._looksChainIsDefault) this._looksDirty = true;
+    for (var t = 0; t < ids.length; t++) {
+        var rec = map[ids[t]];
+        looksSetOpt(this, u, looksUniformName(rec.enable), rec.enable, e, 1);
+        var keys = Object.keys(rec.params);
+        for (var k = 0; k < keys.length; k++) {
+            var key = rec.params[keys[k]];
+            looksSetNum(this, u, looksUniformName(key), key, e, 0);
+        }
+        var wkeys = Object.keys(rec.wheels);
+        for (var w = 0; w < wkeys.length; w++) {
+            looksSetTint(this, u, rec.wheels[wkeys[w]], e);
+        }
         if (rec.custom.hsl) {
-            rec.custom.hsl.sat.forEach(function (key) {
-                if (u[looksUniformName(key)]) {
-                    u[looksUniformName(key)].value = looksReadNum(self, e, key, 0);
-                }
-            });
-            rec.custom.hsl.light.forEach(function (key) {
-                if (u[looksUniformName(key)]) {
-                    u[looksUniformName(key)].value = looksReadNum(self, e, key, 0);
-                }
-            });
+            for (var h = 0; h < 8; h++) {
+                looksSetNum(this, u, looksUniformName(rec.custom.hsl.sat[h]), rec.custom.hsl.sat[h], e, 0);
+                looksSetNum(this, u, looksUniformName(rec.custom.hsl.light[h]), rec.custom.hsl.light[h], e, 0);
+            }
         }
         if (rec.custom.fourway) {
-            if (u[looksUniformName(rec.custom.fourwayPreview)]) {
-                u[looksUniformName(rec.custom.fourwayPreview)].value =
-                    looksReadOpt(self, e, rec.custom.fourwayPreview, 0);
-            }
-            Object.keys(rec.custom.fourway).forEach(function (slot) {
-                var st = rec.custom.fourway[slot];
-                var b = looksTintName(st);
-                if (u[b] && u[b].value && typeof u[b].value.set === "function") {
-                    u[b].value.set(
-                        Math.max(0, looksReadNum(self, e, st[0], 1)),
-                        Math.max(0, looksReadNum(self, e, st[1], 1)),
-                        Math.max(0, looksReadNum(self, e, st[2], 1))
-                    );
-                }
-            });
-        }
-        if (rec.custom.angle) {
-            if (u[looksUniformName(rec.custom.angle)]) {
-                u[looksUniformName(rec.custom.angle)].value = looksReadNum(self, e, rec.custom.angle, 45);
+            looksSetOpt(this, u, looksUniformName(rec.custom.fourwayPreview), rec.custom.fourwayPreview, e, 0);
+            var slots = Object.keys(rec.custom.fourway);
+            for (var s = 0; s < slots.length; s++) {
+                looksSetTint(this, u, rec.custom.fourway[slots[s]], e);
             }
         }
         if (rec.custom.lutName) {
-            var lutName = looksReadText(self, e, rec.custom.lutName, "None");
+            var nameProp = this.properties[rec.custom.lutName];
+            var lutName = nameProp ? looksReadText(this, e, rec.custom.lutName) : "None";
             var mode = lutName === "Hot" ? 1 : lutName === "Cold" ? 2 : lutName === "Noir" ? 3 : 0;
             var modeKey = looksUniformName(rec.custom.lutName.replace(/Name$/, "Mode"));
             if (u[modeKey]) u[modeKey].value = mode;
-            if (u[looksUniformName(rec.custom.lutStrength)]) {
-                u[looksUniformName(rec.custom.lutStrength)].value =
-                    looksClamp01(looksReadNum(self, e, rec.custom.lutStrength, 1));
-            }
-            if (u[looksUniformName(rec.custom.lutGamma)]) {
-                u[looksUniformName(rec.custom.lutGamma)].value =
-                    Math.round(looksReadNum(self, e, rec.custom.lutGamma, 0));
-            }
+            if (mode !== 0) this._looksDirty = true;
+            looksSetNum(this, u, looksUniformName(rec.custom.lutStrength), rec.custom.lutStrength, e, 1);
+            var gi = Math.round(looksNumOr(this.properties[rec.custom.lutGamma] ? this.properties[rec.custom.lutGamma].get(e) : 0, 0));
+            if (u[looksUniformName(rec.custom.lutGamma)]) u[looksUniformName(rec.custom.lutGamma)].value = gi;
+            if (gi !== 0) this._looksDirty = true;
         }
-    });
-    looksRefreshLUT(this, e);
-    this.pass.enabled = this.properties.enabled.get(e) === 1 && anyOn;
+    }
+    // Enable flags of the two LUT stages also depend on their table content.
+    u.u_curvEnable.value *= this._looksCurvesIdentity ? 0 : 1;
+    u.u_scvEnable.value *= this._looksScurveIdentity ? 0 : 1;
+    var masterOn = this.properties.enabled.get(e) === 1;
+    this.pass.enabled = masterOn && this._looksDirty && this._looksChainCount > 0;
 };
 
 this.resize = function () {

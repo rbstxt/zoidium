@@ -1,348 +1,206 @@
-// Camera+ — C4D camera object with film system, vibrate link, and DOF
-// properties (extracted verbatim from the OpenZoid core).
-    (PZ.object3d.camera = class extends PZ.object3d {
-        constructor() {
-            super(),
-                (this.threeObj = null),
-                (this.objectType = 1),
-                (this.vibrate = new PZ.vibrate()),
-                (this._time = 0),
-                (this._loaded = false),
-                (this._resolutionWatched = false),
-                this.properties.addAll(PZ.object3d.camera.propertyDefinitions),
-                this.properties.add("vibrate", this.vibrate.properties),
-                (this.properties.equivFocalLength.hideAnimateToggle = true),
-                (this.properties.fovH.hideAnimateToggle = true),
-                (this.properties.fovV.hideAnimateToggle = true);
+// Camera+ object: a standalone perspective camera with film controls,
+// depth of field, and vibrate. It is a separate object type, so the CM3
+// camera (PZ.object3d.camera) keeps its vanilla class and behavior. A scene
+// renders through a Camera+ only while that object is active; see
+// camera-runtime.js for the selection rule.
+//
+// Evaluated with (PZ, THREE, parts) by camera-runtime.js; publishes parts.camera.
+parts.camera = (function () {
+  const OBJECT_TYPE = "zoidium:camera-plus/camera";
+  const FOCUS_CONTROL_ID = "camera-plus/focus-tools";
+  const SCHEMA_VERSION = 1;
+
+  const FILM_GATES = [
+    { name: "Classic 35 mm (36.0 mm)", value: 36 },
+    { name: "35 mm Photo (36.0 mm)", value: 36 },
+    { name: "35 mm Full Aperture (36.0 mm)", value: 36 },
+    { name: "35 mm Academy (21.95 mm)", value: 21.95 },
+    { name: "Super 35 (24.89 mm)", value: 24.89 },
+    { name: "APS-C (23.6 mm)", value: 23.6 },
+    { name: "APS-C Canon (22.3 mm)", value: 22.3 },
+    { name: "Micro Four Thirds (17.3 mm)", value: 17.3 },
+    { name: "1 inch (13.2 mm)", value: 13.2 },
+    { name: "2/3 inch (8.8 mm)", value: 8.8 },
+    { name: "Super 16 (12.52 mm)", value: 12.52 },
+    { name: "16 mm (10.26 mm)", value: 10.26 },
+  ];
+
+  // Fresh definition objects on every call: CM3 property.create may mutate
+  // the definition it receives.
+  function createDefinitions(PZ) {
+    const T = PZ.property.type;
+    return {
+      name: { visible: false, name: "Name", type: T.TEXT, value: "Camera+" },
+      active: { name: "Active Camera", type: T.OPTION, value: 1, items: "off;on" },
+      position: {
+        dynamic: true,
+        group: true,
+        objects: [
+          { dynamic: true, name: "Position.X", type: T.NUMBER, value: 0, step: 1, decimals: 2 },
+          { dynamic: true, name: "Position.Y", type: T.NUMBER, value: 0, step: 1, decimals: 2 },
+          { dynamic: true, name: "Position.Z", type: T.NUMBER, value: 80, step: 1, decimals: 2 },
+        ],
+        name: "Position",
+        type: T.VECTOR3,
+      },
+      rotation: {
+        dynamic: true,
+        group: true,
+        objects: [
+          { dynamic: true, name: "Rotation.X", type: T.NUMBER, value: 0, scaleFactor: Math.PI / 180, step: 1 },
+          { dynamic: true, name: "Rotation.Y", type: T.NUMBER, value: 0, scaleFactor: Math.PI / 180, step: 1 },
+          { dynamic: true, name: "Rotation.Z", type: T.NUMBER, value: 0, scaleFactor: Math.PI / 180, step: 1 },
+        ],
+        name: "Rotation",
+        type: T.VECTOR3,
+        scaleFactor: Math.PI / 180,
+      },
+      eulerOrder: {
+        name: "Rotation order",
+        type: T.LIST,
+        value: "XYZ",
+        items: PZ.object3d.eulerOrders,
+        changed: function () {
+          this.parentObject.threeObj.rotation.order = this.value;
+        },
+      },
+      focalLength: { dynamic: true, name: "Focal Length", type: T.NUMBER, value: 35, min: 1, max: 10000, step: 1, decimals: 2 },
+      filmGate: { name: "Sensor Size (Film Gate)", type: T.LIST, value: 36, items: FILM_GATES.map((gate) => ({ name: gate.name, value: gate.value })) },
+      zoom: { dynamic: true, name: "Zoom", type: T.NUMBER, value: 1, min: 0.01, max: 1000, step: 0.01, decimals: 2 },
+      filmOffsetX: { dynamic: true, name: "Film Offset X", type: T.NUMBER, value: 0, min: -1000, max: 1000, step: 0.1, decimals: 2 },
+      filmOffsetY: { dynamic: true, name: "Film Offset Y", type: T.NUMBER, value: 0, min: -1000, max: 1000, step: 0.1, decimals: 2 },
+    };
+  }
+
+  function createDepthOfFieldProperties(PZ) {
+    const T = PZ.property.type;
+    const list = new PZ.propertyList({
+      enabled: { dynamic: true, name: "Depth of Field", type: T.OPTION, value: 0, items: "off;on" },
+      focusDistance: { dynamic: true, name: "Focus Distance", type: T.NUMBER, value: 80, min: 0, max: 5000, step: 1, decimals: 1 },
+      aperture: { dynamic: true, name: "Aperture", type: T.NUMBER, value: 3, min: 0, max: 10, step: 0.1, decimals: 1 },
+      focusAreaWidth: { dynamic: true, name: "Focus Area Width", type: T.NUMBER, value: 0, min: 0, max: 4000, step: 1, decimals: 0 },
+      nearBlurLevel: { dynamic: true, name: "Near Blur Level", type: T.NUMBER, value: 100, min: 0, max: 400, step: 1, decimals: 0 },
+      farBlurLevel: { dynamic: true, name: "Far Blur Level", type: T.NUMBER, value: 100, min: 0, max: 400, step: 1, decimals: 0 },
+      focusTools: { name: "Focus", type: T.TEXT, value: "", zoidiumControl: FOCUS_CONTROL_ID },
+    });
+    Object.defineProperty(list, "displayName", { value: "Depth of Field", writable: true });
+    return list;
+  }
+
+  // Reads a dynamic property at time t, falling back when the value is not
+  // finite (for example a broken focus expression).
+  function readNumber(property, time, fallback) {
+    try {
+      const value = property.get(time);
+      return typeof value === "number" && isFinite(value) ? value : fallback;
+    } catch (_error) {
+      return fallback;
+    }
+  }
+
+  // World-space distance between two Camera+/object3d instances. Matrices
+  // are refreshed first so the result reflects the current transforms.
+  function worldDistance(THREE, from, to) {
+    from.threeObj.updateMatrixWorld(true);
+    to.threeObj.updateMatrixWorld(true);
+    const a = new THREE.Vector3();
+    const b = new THREE.Vector3();
+    from.threeObj.getWorldPosition(a);
+    to.threeObj.getWorldPosition(b);
+    return a.distanceTo(b);
+  }
+
+  function createClass(PZ, THREE, vibrate) {
+    class CameraPlus extends PZ.object3d {
+      constructor() {
+        super();
+        this.threeObj = new THREE.PerspectiveCamera(60, 1, 0.1, 5000);
+        this.vibrateProperties = vibrate.createProperties(PZ);
+        this._time = 0;
+        this.properties.addAll(createDefinitions(PZ));
+        this.properties.add("depthOfField", createDepthOfFieldProperties(PZ));
+        this.properties.add("vibrate", this.vibrateProperties);
+      }
+
+      load(data) {
+        this.properties.load(data && data.properties);
+        this.threeObj.rotation.order = this.properties.eulerOrder.get();
+        this.updateProjection(this._time);
+      }
+
+      toJSON() {
+        return { type: this.type, schemaVersion: SCHEMA_VERSION, properties: this.properties };
+      }
+
+      isActive() {
+        return this.properties.active.get() === 1;
+      }
+
+      // Perspective film model, matching the CM3 camera's film math.
+      updateProjection(time) {
+        const camera = this.threeObj;
+        const p = this.properties;
+        const resolution = this.getSequenceResolution();
+        const gate = p.filmGate.get(time);
+        const focal = p.focalLength.get(time);
+        const zoom = p.zoom.get(time);
+        const offsetX = p.filmOffsetX.get(time);
+        const offsetY = p.filmOffsetY.get(time);
+        camera.aspect = resolution[0] / Math.max(resolution[1], 1);
+        camera.filmGauge = gate;
+        camera.zoom = zoom;
+        camera.filmOffset = gate * (offsetX / 100);
+        if (focal > 0) {
+          camera.fov = 2 * Math.atan(camera.getFilmHeight() / 2 / focal) * (180 / Math.PI);
         }
-        load(e) {
-            let t = "object" == typeof e && 2 === e.objectType ? 2 : 1;
-            this.changeObjectType(t),
-                this.properties.load(e && e.properties),
-                (this._loaded = true),
-                this.changeObjectType(t),
-                this.properties.projection.set(2 === t ? "orthographic" : "perspective"),
-                this.resolutionChanged();
-        }
-        toJSON() {
-            return { type: this.type, objectType: this.objectType, properties: this.properties };
-        }
-        changeObjectType(e) {
-            if (this.threeObj && this.objectType === e) {
-                return;
-            }
-            let t = "Camera";
-            let r = this.threeObj;
-            switch (((this.objectType = e), this.objectType)) {
-                case 1:
-                    (t = "Perspective Camera"), (this.threeObj = new THREE.PerspectiveCamera(60, 1, 0.1, 5e3));
-                    break;
-                case 2:
-                    (t = "Orthographic Camera"),
-                        (this.threeObj = new THREE.OrthographicCamera(-0.05, 0.05, 0.05, -0.05, 0.1, 5e3));
-            }
-            r && r.parent && r.parent.remove(r),
-                this.properties.name.set(t),
-                this.parentChanged(),
-                // Camera objects can live in Scenes (drives that scene) or in
-                // dedicated Camera layers (drives every 3D scene). Camera
-                // layers have no render pass, so guard the pass assignment.
-                this.parentLayer && this.parentLayer.pass && (this.parentLayer.pass.camera = this.threeObj),
-                this._resolutionWatched ||
-                    ((this._resolutionWatched = true),
-                    this.parentLayer &&
-                        this.parentLayer.properties &&
-                        this.parentLayer.properties.resolution &&
-                        this.parentLayer.properties.resolution.onChanged.watch(this.resolutionChanged.bind(this))),
-                this.resolutionChanged();
-        }
-        resolutionChanged() {
-            if (!this.parentProject || !this.threeObj) {
-                return;
-            }
-            let e = this.parentProject.sequence.properties.resolution.get();
-            if (1 === this.objectType) {
-                this.threeObj.aspect = e[0] / e[1];
-            }
-            this.updateProjection(this._time);
-        }
-        updateProjection(e) {
-            let t = this.threeObj;
-            if (!t || !this._loaded) {
-                return;
-            }
-            let r = this.properties,
-                i = r.zoom.get(e),
-                a = r.filmOffsetX.get(e),
-                s = r.filmOffsetY.get(e);
-            if (1 === this.objectType) {
-                let n = r.filmGate.get(e),
-                    o = r.focalLength.get(e);
-                (t.filmGauge = n),
-                    (t.zoom = i),
-                    (t.filmOffset = n * (a / 100)),
-                    o > 0 && (t.fov = 2 * Math.atan(t.getFilmHeight() / 2 / o) * (180 / Math.PI)),
-                    t.updateProjectionMatrix(),
-                    s && (t.projectionMatrix.elements[9] += 2 * (s / 100));
-            } else {
-                let n = this.parentProject ? this.parentProject.sequence.properties.resolution.get() : [1920, 1080],
-                    o = (0.05 * n[1]) / Math.max(i, 1e-4),
-                    p = (0.05 * n[0]) / Math.max(i, 1e-4),
-                    l = p * 2 * (a / 100),
-                    h = o * 2 * (s / 100);
-                (t.left = -p - l),
-                    (t.right = p - l),
-                    (t.top = o + h),
-                    (t.bottom = -o + h),
-                    t.updateProjectionMatrix();
-            }
-        }
-        getFieldOfView(e) {
-            let t = this.threeObj;
-            if (!t || !t.isPerspectiveCamera) {
-                return [0, 0];
-            }
-            let r = t.getEffectiveFOV() * (Math.PI / 180),
-                i = 2 * Math.atan(Math.tan(r / 2) * t.aspect);
-            return [i * (180 / Math.PI), r * (180 / Math.PI)];
-        }
-        getEquivalentFocalLength(e) {
-            let t = this.properties.filmGate.get(e),
-                r = this.properties.focalLength.get(e);
-            return t > 0 ? r * (36 / t) : r;
-        }
-        update(e) {
-            (this._time = e), this.updateProjection(e);
-            let t = this.properties.position.get(e);
-            this.threeObj.position.set(t[0], t[1], t[2]);
-            let r = this.properties.rotation.get(e);
-            this.threeObj.rotation.set(r[0], r[1], r[2]), this.vibrate.apply(e, this.threeObj, t, r);
-        }
-    }),
-    (PZ.object3d.camera.filmGates = [
-        { name: "Classic 35 mm (36.0 mm)", value: 36 },
-        { name: "35 mm Photo (36.0 mm)", value: 36 },
-        { name: "35 mm Full Aperture (36.0 mm)", value: 36 },
-        { name: "35 mm Academy (21.95 mm)", value: 21.95 },
-        { name: "Super 35 (24.89 mm)", value: 24.89 },
-        { name: "APS-C (23.6 mm)", value: 23.6 },
-        { name: "APS-C Canon (22.3 mm)", value: 22.3 },
-        { name: "Micro Four Thirds (17.3 mm)", value: 17.3 },
-        { name: "1 inch (13.2 mm)", value: 13.2 },
-        { name: "2/3 inch (8.8 mm)", value: 8.8 },
-        { name: "Super 16 (12.52 mm)", value: 12.52 },
-        { name: "16 mm (10.26 mm)", value: 10.26 },
-    ]),
-    (PZ.object3d.camera.propertyDefinitions = {
-        name: { visible: false, name: "Name", type: PZ.property.type.TEXT, value: "Camera" },
-        position: {
-            dynamic: true,
-            group: true,
-            objects: [
-                { dynamic: true, name: "Position.X", type: PZ.property.type.NUMBER, value: 0, step: 1, decimals: 2 },
-                { dynamic: true, name: "Position.Y", type: PZ.property.type.NUMBER, value: 0, step: 1, decimals: 2 },
-                { dynamic: true, name: "Position.Z", type: PZ.property.type.NUMBER, value: 80, step: 1, decimals: 2 },
-            ],
-            name: "Position",
-            type: PZ.property.type.VECTOR3,
-        },
-        rotation: {
-            dynamic: true,
-            group: true,
-            objects: [
-                {
-                    dynamic: true,
-                    name: "Rotation.X",
-                    type: PZ.property.type.NUMBER,
-                    value: 0,
-                    scaleFactor: Math.PI / 180,
-                    step: 1,
-                },
-                {
-                    dynamic: true,
-                    name: "Rotation.Y",
-                    type: PZ.property.type.NUMBER,
-                    value: 0,
-                    scaleFactor: Math.PI / 180,
-                    step: 1,
-                },
-                {
-                    dynamic: true,
-                    name: "Rotation.Z",
-                    type: PZ.property.type.NUMBER,
-                    value: 0,
-                    scaleFactor: Math.PI / 180,
-                    step: 1,
-                },
-            ],
-            name: "Rotation",
-            type: PZ.property.type.VECTOR3,
-            scaleFactor: Math.PI / 180,
-        },
-        eulerOrder: {
-            name: "Rotation order",
-            type: PZ.property.type.LIST,
-            value: "XYZ",
-            items: PZ.object3d.eulerOrders,
-            changed: function () {
-                this.parentObject.threeObj.rotation.order = this.value;
-            },
-        },
-        projection: {
-            name: "Projection",
-            type: PZ.property.type.LIST,
-            value: "perspective",
-            items: [
-                { name: "Perspective", value: "perspective" },
-                { name: "Orthographic", value: "orthographic" },
-            ],
-            changed: function () {
-                this.parentObject.changeObjectType("orthographic" === this.value ? 2 : 1);
-            },
-        },
-        focalLength: {
-            dynamic: true,
-            name: "Focal Length",
-            type: PZ.property.type.NUMBER,
-            value: 35,
-            min: 1,
-            max: 1e4,
-            step: 1,
-            decimals: 2,
-        },
-        filmGate: {
-            name: "Sensor Size (Film Gate)",
-            type: PZ.property.type.LIST,
-            value: 36,
-            items: PZ.object3d.camera.filmGates,
-        },
-        equivFocalLength: {
-            dynamic: true,
-            name: "35mm Equiv. Focal Length",
-            type: PZ.property.type.NUMBER,
-            value: 35,
-            readOnly: true,
-            hideAnimateToggle: true,
-            decimals: 2,
-            getValue: function (e) {
-                return this.parentObject.getEquivalentFocalLength(e);
-            },
-        },
-        fovH: {
-            dynamic: true,
-            name: "Field of View (Horizontal)",
-            type: PZ.property.type.NUMBER,
-            value: 0,
-            readOnly: true,
-            hideAnimateToggle: true,
-            decimals: 4,
-            getValue: function (e) {
-                return this.parentObject.getFieldOfView(e)[0];
-            },
-        },
-        fovV: {
-            dynamic: true,
-            name: "Field of View (Vertical)",
-            type: PZ.property.type.NUMBER,
-            value: 0,
-            readOnly: true,
-            hideAnimateToggle: true,
-            decimals: 4,
-            getValue: function (e) {
-                return this.parentObject.getFieldOfView(e)[1];
-            },
-        },
-        zoom: {
-            dynamic: true,
-            name: "Zoom",
-            type: PZ.property.type.NUMBER,
-            value: 1,
-            min: 0.01,
-            max: 1e3,
-            step: 0.01,
-            decimals: 2,
-        },
-        filmOffsetX: {
-            dynamic: true,
-            name: "Film Offset X",
-            type: PZ.property.type.NUMBER,
-            value: 0,
-            min: -1e3,
-            max: 1e3,
-            step: 0.1,
-            decimals: 2,
-        },
-        filmOffsetY: {
-            dynamic: true,
-            name: "Film Offset Y",
-            type: PZ.property.type.NUMBER,
-            value: 0,
-            min: -1e3,
-            max: 1e3,
-            step: 0.1,
-            decimals: 2,
-        },
-        dof: {
-            dynamic: true,
-            name: "Depth of Field",
-            type: PZ.property.type.OPTION,
-            value: 0,
-            items: "off;on",
-        },
-        dofFocusDistance: {
-            dynamic: true,
-            name: "Focus Distance",
-            type: PZ.property.type.NUMBER,
-            value: 80,
-            min: 0,
-            max: 5e3,
-            step: 1,
-            decimals: 1,
-            buttons: [
-                { name: "Link", title: "Link Focus Distance to Layer", action: "focusDistanceLink" },
-                { name: "Set", title: "Set Focus Distance to Layer", action: "focusDistanceSet" },
-                { name: "Unlink", title: "Unlink Focus Distance", action: "focusDistanceUnlink" },
-            ],
-        },
-        dofAperture: {
-            dynamic: true,
-            name: "Aperture",
-            type: PZ.property.type.NUMBER,
-            value: 3,
-            min: 0,
-            max: 10,
-            step: 0.1,
-            decimals: 1,
-        },
-        dofFocusAreaWidth: {
-            dynamic: true,
-            name: "Focus Area Width",
-            type: PZ.property.type.NUMBER,
-            value: 0,
-            min: 0,
-            max: 4e3,
-            step: 1,
-            decimals: 0,
-        },
-        dofNearBlurLevel: {
-            dynamic: true,
-            name: "Near Blur Level",
-            type: PZ.property.type.NUMBER,
-            value: 100,
-            min: 0,
-            max: 400,
-            step: 1,
-            decimals: 0,
-        },
-        dofFarBlurLevel: {
-            dynamic: true,
-            name: "Far Blur Level",
-            type: PZ.property.type.NUMBER,
-            value: 100,
-            min: 0,
-            max: 400,
-            step: 1,
-            decimals: 0,
-        },
-    }),
-    (PZ.object3d.camera.prototype.defaultName = "Camera");
+        camera.updateProjectionMatrix();
+        if (offsetY) camera.projectionMatrix.elements[9] += 2 * (offsetY / 100);
+      }
+
+      getSequenceResolution() {
+        try {
+          const value = this.parentProject.sequence.properties.resolution.get();
+          if (value && value[0] > 0 && value[1] > 0) return value;
+        } catch (_error) { /* not in a project yet */ }
+        return [1920, 1080];
+      }
+
+      // Pose for time t: base transform first, then the stateless vibrate.
+      update(time) {
+        this._time = time;
+        this.updateProjection(time);
+        const position = this.properties.position.get(time);
+        const rotation = this.properties.rotation.get(time);
+        this.threeObj.position.set(position[0], position[1], position[2]);
+        this.threeObj.rotation.set(rotation[0], rotation[1], rotation[2]);
+        vibrate.applyVibrate(this.vibrateProperties, time, this.threeObj, position, rotation);
+      }
+
+      // Depth-of-field settings at time t, or null when DOF is off.
+      readDepthOfField(time) {
+        const d = this.properties.depthOfField;
+        if (readNumber(d.enabled, time, 0) !== 1) return null;
+        return {
+          near: this.threeObj.near,
+          far: this.threeObj.far,
+          aperture: readNumber(d.aperture, time, 0),
+          focusDistance: readNumber(d.focusDistance, time, 80),
+          focusAreaWidth: readNumber(d.focusAreaWidth, time, 0),
+          nearBlurLevel: readNumber(d.nearBlurLevel, time, 100) / 100,
+          farBlurLevel: readNumber(d.farBlurLevel, time, 100) / 100,
+        };
+      }
+    }
+    CameraPlus.prototype.defaultName = "Camera+";
+    return CameraPlus;
+  }
+
+  return {
+    OBJECT_TYPE: OBJECT_TYPE,
+    FOCUS_CONTROL_ID: FOCUS_CONTROL_ID,
+    SCHEMA_VERSION: SCHEMA_VERSION,
+    createDefinitions: createDefinitions,
+    createClass: createClass,
+    worldDistance: worldDistance,
+  };
+})();

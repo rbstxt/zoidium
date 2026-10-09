@@ -3,54 +3,54 @@
   "id": "magic-looks",
   "name": "Magic Looks",
   "author": "Zoidium",
-  "version": "2",
+  "version": "3",
   "kind": "extension",
-  "description": "Magic Bullet Looks-style color setup and grading effect: all 29 color tools with the shared color-wheel palette, HSL wheels, curves, 4-way diamond and look presets.",
+  "description": "Magic Bullet Looks-style color grading: 29 color, light and lens tools in a reorderable chain, with look presets and a floating setup window.",
   "category": "COLOR",
   "nativeEffects": [
     {
       "id": "looks",
       "name": "Magic Looks",
-      "description": "Full-chain color grade: lift/gamma/gain, contrast, saturation ranges, HSL, 4-way, curves, LUT, light and lens tools.",
-      "source": "./plugins/magic-looks/looks-fx.js?v=2"
+      "description": "Full-chain color grade: lens distortion first, then a reorderable chain of color, light and lens tools.",
+      "source": "./plugins/magic-looks/looks-fx.js?v=3"
     }
   ],
   "modules": [
     {
       "id": "looks-setup",
-      "source": "./plugins/magic-looks/looks-setup.js?v=2"
+      "source": "./plugins/magic-looks/looks-setup.js?v=3"
     }
   ],
   "resources": [
     {
       "id": "looks-color",
       "type": "text",
-      "source": "./plugins/magic-looks/looks-color.js?v=2"
+      "source": "./plugins/magic-looks/looks-color.js?v=3"
     },
     {
       "id": "looks-tools",
       "type": "text",
-      "source": "./plugins/magic-looks/looks-tools.js?v=2"
+      "source": "./plugins/magic-looks/looks-tools.js?v=3"
     },
     {
       "id": "looks-widgets",
       "type": "text",
-      "source": "./plugins/magic-looks/looks-widgets.js?v=2"
+      "source": "./plugins/magic-looks/looks-widgets.js?v=3"
     },
     {
       "id": "looks-style",
       "type": "text",
-      "source": "./plugins/magic-looks/looks-setup.css?v=2"
+      "source": "./plugins/magic-looks/looks-setup.css?v=3"
     },
     {
       "id": "looks-vert",
       "type": "text",
-      "source": "./plugins/magic-looks/looks-vert.glsl?v=2"
+      "source": "./plugins/magic-looks/looks-vert.glsl?v=3"
     },
     {
       "id": "looks-grade-shader",
       "type": "text",
-      "source": "./plugins/magic-looks/looks-grade.glsl?v=2"
+      "source": "./plugins/magic-looks/looks-grade.glsl?v=3"
     }
   ]
 }

@@ -1,131 +1,29 @@
 "use strict";
 
-// OpenZoid Optical Flares — runtime installer.
+// OpenZoid Optical Flares - runtime installer.
 //
-// Evaluates the bundled sources in dependency order (shared helpers, flare
-// object, Options window) and teaches PZ.object3d.create the Optical Flares
-// numeric type 13 that upstream CM3 does not know. The 3D picker entry is
-// declared in the plugin manifest and owned by the plugin manager.
+// Evaluates the bundled sources in dependency order and teaches
+// PZ.object3d.create the Optical Flares numeric type 13 that upstream CM3 does
+// not know. The object picker entries come from the plugin manifest.
+//
+// Host changes are registered with context.lifecycle.onDispose before they are
+// made, so a failed activation and a normal disable both run the same undo
+// steps in reverse order.
 
-const SOURCE_ORDER = [
-  "trapcode-common.js",
-  "optflares.js",
-  "optflares-editor.js",
-];
+const SOURCE_FOLDER = "./plugins/optical-flares/";
+const SOURCE_ORDER = ["optflares-math.js", "optflares.js", "optflares-window.js"];
+const FLARE_TYPE = 13;
+const GEAR_ATTRIBUTE = "data-designer-gear";
 
-const FONT_STYLE_ID = "zoidium-flares-font-style";
-const FONT_URL = "./plugins/optical-flares/inter-font.css";
-
-// The SaaS-themed Options window uses Inter type from the bundled
-// inter-font.css asset (same variable-font bytes as the Legacy pack's
-// tracery-font.css, duplicated so each pack stays self-contained).
-// Installed once per document; removed again on deactivate.
-function installFont(context) {
-  try {
-    if (typeof document === "undefined" || document.getElementById(FONT_STYLE_ID)) {
-      return;
-    }
-    const getAsset = context && typeof context.getAsset === "function"
-      ? context.getAsset.bind(context)
-      : null;
-    const bundled = getAsset ? getAsset("text", FONT_URL) : undefined;
-    if (typeof bundled === "string") {
-      const style = document.createElement("style");
-      style.id = FONT_STYLE_ID;
-      style.textContent = bundled;
-      document.head.appendChild(style);
-    }
-    if (document.fonts && typeof document.fonts.load === "function") {
-      document.fonts.load("600 20px Inter");
-      document.fonts.load("400 14px Inter");
-    }
-  } catch (_error) { /* font is decorative */ }
-}
-
-function uninstallFont() {
-  try {
-    if (typeof document === "undefined") return;
-    const el = document.getElementById(FONT_STYLE_ID);
-    if (el) el.remove();
-  } catch (_error) { /* best effort */ }
-}
-
-// The PZ instance seen at activate time. deactivate() must unwrap that same
-// instance instead of re-resolving globals, which may differ (or be gone).
-let installedPZ = null;
-// Our own create wrapper, so out-of-order disables still switch it off even
-// when another pack wrapped above us in the chain.
-let installedCreate = null;
-
-function runtimeGlobals(context) {
-  const PZ = (context && context.PZ) ||
-    (typeof globalThis !== "undefined" ? globalThis.PZ : null);
-  const THREE = (context && context.window && context.window.THREE) ||
-    (typeof globalThis !== "undefined" ? globalThis.THREE : null);
-  return { PZ, THREE };
-}
-
-function installSources(context, PZ, THREE) {
-  const getAsset = context && typeof context.getAsset === "function"
-    ? context.getAsset.bind(context)
-    : null;
-  if (!getAsset) {
-    throw new Error("Optical Flares needs the plugin bundle asset resolver.");
-  }
-  for (const file of SOURCE_ORDER) {
-    const source = getAsset("text", "./plugins/optical-flares/" + file);
-    if (typeof source !== "string") {
-      throw new Error("Optical Flares is missing its bundled source: " + file);
-    }
-    // Pass PZ/THREE as parameters: the legacy sources open with
-    // `var PZ = PZ || {}`, which under a bare eval would shadow the global
-    // with undefined and drop every definition. As parameters the var
-    // merges with the argument binding and definitions land on the runtime.
-    new Function("PZ", "THREE", source)(PZ, THREE);
-  }
-}
-
-function reconcileDesigner(PZ) {
-  // optflares.js registers its Options window with the Trapcode designer when
-  // the designer is already present. When this pack activates first, do it
-  // here so enable order never matters. Idempotent: registerConfig assigns.
-  if (
-    PZ.trapcode && PZ.trapcode.designer &&
-    PZ.object3d && PZ.object3d.optflares &&
-    !PZ.object3d.optflares.designer &&
-    PZ.opticalflares && typeof PZ.opticalflares.open === "function"
-  ) {
-    PZ.trapcode.designer.registerConfig(PZ.object3d.optflares, {
-      title: "Optical Flares Options",
-      customOpen: function (root, designer) {
-        if (PZ.opticalflares && PZ.opticalflares.open) {
-          PZ.opticalflares.open(root, designer);
-        }
-      },
-    });
-  }
-}
-
-function installCreateWrapper(PZ) {
+// Wraps PZ.object3d.create. Disabling leaves the wrapper in the chain as a
+// pass-through when another pack wrapped above it, so an out-of-order disable
+// never breaks the sibling's link.
+function installCreateWrapper(PZ, undo) {
   const object3d = PZ.object3d;
-  if (!object3d || typeof object3d.create !== "function") {
-    throw new Error("Optical Flares needs PZ.object3d.create from the CM3 runtime.");
-  }
-  if (object3d.create.__opticalFlares) {
-    // Already wrapped (for example by an earlier enable): revive the link
-    // instead of stacking a second wrapper.
-    object3d.create.__opticalFlaresAlive = true;
-    installedCreate = object3d.create;
-    return;
-  }
   const original = object3d.create;
+  let alive = true;
   const patched = function (type) {
-    // If another pack wrapped above us and we are disabled out of order,
-    // stay out of the way instead of intercepting a dead chain link.
-    if (!patched.__opticalFlaresAlive) {
-      return original.call(this, type);
-    }
-    if (type === 13 && object3d.optflares) {
+    if (alive && type === FLARE_TYPE) {
       const instance = new object3d.optflares();
       instance.type = type;
       return instance;
@@ -133,50 +31,124 @@ function installCreateWrapper(PZ) {
     return original.call(this, type);
   };
   patched.__opticalFlares = true;
-  patched.__opticalFlaresAlive = true;
-  patched.__opticalFlaresOriginal = original;
   object3d.create = patched;
-  installedCreate = patched;
+  undo.push(() => {
+    alive = false;
+    if (object3d.create === patched) object3d.create = original;
+  });
 }
 
-function uninstallCreateWrapper(PZ) {
-  if (installedCreate) {
-    installedCreate.__opticalFlaresAlive = false;
-  }
-  const object3d = PZ && PZ.object3d;
-  if (object3d && installedCreate && object3d.create === installedCreate) {
-    object3d.create = installedCreate.__opticalFlaresOriginal || object3d.create;
-  }
-  installedCreate = null;
+// Adds an options gear to each flare row in CM3 object lists. The gear uses the
+// same attribute as the Trapcode designer gear, so when both packs are active
+// only one button is rendered per row.
+function installGear(PZ, openWindow, undo) {
+  const prototype = PZ.ui.edit.prototype;
+  const original = prototype.generateItemCommands;
+  let alive = true;
+  const patched = function (item, target) {
+    const out = original.call(this, item, target);
+    if (!alive) return out;
+    try {
+      const Flare = PZ.object3d.optflares;
+      if (!Flare || !(target instanceof Flare)) return out;
+      if (!(target.parent instanceof PZ.objectList)) return out;
+      if (!this.options || !this.options.showListItemButtons) return out;
+      if (typeof this.generateButton !== "function") return out;
+      const host = item && item.children && item.children[1];
+      if (!host || typeof host.insertBefore !== "function") return out;
+      if (host.querySelector && host.querySelector("button[" + GEAR_ATTRIBUTE + "]")) return out;
+      const gear = this.generateButton("settings");
+      gear.title = "Optical Flares options";
+      gear.setAttribute(GEAR_ATTRIBUTE, "1");
+      gear.onclick = (event) => {
+        event.stopPropagation();
+        openWindow(target);
+      };
+      host.insertBefore(gear, host.firstElementChild);
+    } catch (error) {
+      console.error("Optical Flares could not add its options button", error);
+    }
+    return out;
+  };
+  patched.__opticalFlaresGear = true;
+  prototype.generateItemCommands = patched;
+  undo.push(() => {
+    alive = false;
+    if (prototype.generateItemCommands === patched) prototype.generateItemCommands = original;
+  });
 }
+
+let host = null;
 
 module.exports = {
   activate(context) {
-    const { PZ, THREE } = runtimeGlobals(context);
-    if (!PZ) {
-      throw new Error("Optical Flares needs the CM3 runtime.");
+    const PZ = (context && context.PZ) || (typeof globalThis !== "undefined" ? globalThis.PZ : null);
+    const THREE = (context && context.window && context.window.THREE) ||
+      (typeof globalThis !== "undefined" ? globalThis.THREE : null);
+    if (!PZ) throw new Error("Optical Flares needs the CM3 runtime.");
+    if (!THREE) throw new Error("Optical Flares needs the THREE global from the CM3 runtime.");
+    if (typeof context.getAsset !== "function") {
+      throw new Error("Optical Flares needs the plugin bundle asset resolver.");
     }
-    if (!THREE) {
-      throw new Error("Optical Flares needs the THREE global from the CM3 runtime.");
+    if (!PZ.object3d || typeof PZ.object3d.create !== "function") {
+      throw new Error("Optical Flares needs PZ.object3d.create from the CM3 runtime.");
     }
-    installSources(context, PZ, THREE);
-    if (!PZ.object3d.optflares || !PZ.opticalflares) {
+    if (!PZ.ui || !PZ.ui.edit || !PZ.ui.edit.prototype ||
+        typeof PZ.ui.edit.prototype.generateItemCommands !== "function") {
+      throw new Error("Optical Flares needs the CM3 object list editor.");
+    }
+    if (PZ.object3d.optflares || PZ.opticalflares) {
+      throw new Error("Optical Flares is already installed in this runtime.");
+    }
+
+    const undo = [];
+    context.lifecycle.onDispose(() => {
+      while (undo.length) {
+        try {
+          undo.pop()();
+        } catch (error) {
+          console.error("Optical Flares cleanup step failed", error);
+        }
+      }
+    });
+
+    undo.push(() => {
+      host = null;
+    });
+    undo.push(() => {
+      const element = PZ.object3d.optflares && PZ.object3d.optflares.element;
+      if (element && PZ.ui && PZ.ui.objectTypes) PZ.ui.objectTypes.delete(element);
+      delete PZ.object3d.optflares;
+      delete PZ.opticalflares;
+    });
+    for (const file of SOURCE_ORDER) {
+      const source = context.getAsset("text", SOURCE_FOLDER + file);
+      if (typeof source !== "string") {
+        throw new Error("Optical Flares is missing its bundled source: " + file);
+      }
+      // Sources take PZ and THREE as parameters, so their `var PZ = PZ || {}`
+      // merges with the runtime globals instead of shadowing them.
+      new Function("PZ", "THREE", source)(PZ, THREE);
+    }
+    if (!PZ.object3d.optflares || !PZ.opticalflares || !PZ.opticalflares.openWindow) {
       throw new Error("Optical Flares could not define its 3D object class.");
     }
-    reconcileDesigner(PZ);
-    installCreateWrapper(PZ);
-    installFont(context);
-    installedPZ = PZ;
+
+    const editor = () => (typeof window !== "undefined" && window.CM) || context.editor || null;
+    const openWindow = (root) => {
+      const target = editor();
+      if (!target) return null;
+      return PZ.opticalflares.openWindow(context.ui, target, root);
+    };
+    PZ.opticalflares.open = (root) => openWindow(root);
+
+    installCreateWrapper(PZ, undo);
+    installGear(PZ, openWindow, undo);
+    host = PZ;
   },
-  deactivate() {
-    try {
-      uninstallCreateWrapper(installedPZ);
-    } finally {
-      try {
-        uninstallFont();
-      } finally {
-        installedPZ = null;
-      }
-    }
+  // The plugin manager refuses to disable the pack while a flare is in the
+  // open project.
+  isInUse() {
+    return Boolean(host && host.opticalflares && host.opticalflares.isInUse && host.opticalflares.isInUse());
   },
 };

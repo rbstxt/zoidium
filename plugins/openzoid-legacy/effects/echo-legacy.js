@@ -1,443 +1,296 @@
 // OpenZoid Legacy — Echo (Legacy).
-// Ported from the OpenZoid effect/echo.js rolling history-buffer implementation.
-// Behavior is preserved exactly; it is intentionally distinct from Native FX
-// Echo, which re-evaluates explicit earlier frames instead of playback history.
-// Zoidium adaptation: shaders resolve from the plugin bundle via
-// this._zoidiumGetAsset, with fallback to the CM3 asset pipeline.
-this.defaultName = "Echo (Legacy)";
-this.shaderfile = "fx_echo";
-this.shaderUrl = "/assets/shaders/fragment/" + this.shaderfile + ".glsl";
-this.vertShader = this.parentProject.assets.createFromPreset(
-    PZ.asset.type.SHADER,
-    "/assets/shaders/vertex/common.glsl"
-);
-this.fragShader = this.parentProject.assets.createFromPreset(
-    PZ.asset.type.SHADER,
-    this.shaderUrl
-);
+// The OpenZoid echo blended a rolling history of rendered frames, so its image
+// depended on playback history. This port keeps the same look (smear,
+// maximum, additive and screen modes, decay, threshold, strength) but reads
+// each echo as an explicitly evaluated earlier frame through the core frame
+// sampler. The result for a given frame is the same however the timeline was
+// reached. The core sampler evaluates at most 16 echoes per frame.
+// The blend shader comes from the plugin bundle; the vertex shader comes from
+// the host asset pipeline, so no runtime fetch is issued.
+const echo = this;
+const ECHO_MAX = 16;
+const ECHO_MODES = 4;
 
-var ECHO_MAX = 100;
+function echoNumber(property, frame, fallback) {
+  try {
+    const value = Number(property.get(frame));
+    return Number.isFinite(value) ? value : fallback;
+  } catch (_error) {
+    return fallback;
+  }
+}
 
-this.propertyDefinitions = {
+function echoClamp01(value) {
+  return Math.min(1, Math.max(0, Number.isFinite(value) ? value : 0));
+}
+
+function createTarget(width, height) {
+  const target = new THREE.WebGLRenderTarget(width, height, {
+    minFilter: THREE.LinearFilter,
+    magFilter: THREE.LinearFilter,
+    format: THREE.RGBAFormat,
+    depthBuffer: false,
+    stencilBuffer: false,
+  });
+  target.texture.generateMipmaps = false;
+  return target;
+}
+
+const MIX_FRAGMENT = [
+  "uniform sampler2D tDry;",
+  "uniform sampler2D tWet;",
+  "uniform float strength;",
+  "varying vec2 vUv;",
+  "varying vec2 vUvScaled;",
+  "void main() {",
+  "  vec4 dry = texture2D(tDry, vUvScaled);",
+  "  vec4 wet = texture2D(tWet, vUv);",
+  "  gl_FragColor = mix(dry, wet, clamp(strength, 0.0, 1.0));",
+  "}",
+].join("\n");
+
+// Builds the blend pass. The pass is assigned only after both shaders exist;
+// prepare() waits for this promise so no frame is rendered against a
+// half-built effect.
+async function buildEchoPass(data) {
+  const getAsset = echo._zoidiumGetAsset;
+  const stepFragment =
+    typeof getAsset === "function"
+      ? getAsset("text", "./plugins/openzoid-legacy/shaders/fx_echo.glsl")
+      : undefined;
+  if (typeof stepFragment !== "string") {
+    throw new Error("Echo (Legacy) blend shader is missing from the plugin bundle.");
+  }
+  const vertPreset = echo.parentProject.assets.createFromPreset(
+    PZ.asset.type.SHADER,
+    "/assets/shaders/vertex/common.glsl",
+  );
+  const vertShader = new PZ.asset.shader(echo.parentProject.assets.load(vertPreset));
+  const vertexShader = await vertShader.getShader();
+
+  const stepMaterial = new THREE.ShaderMaterial({
+    uniforms: {
+      tBase: { type: "t", value: null },
+      tTap: { type: "t", value: null },
+      uvScale: { type: "v2", value: new THREE.Vector2(1, 1) },
+      weight: { type: "f", value: 0 },
+      threshold: { type: "f", value: 0 },
+      wsum: { type: "f", value: 1 },
+      finalize: { type: "f", value: 0 },
+      useScaledBase: { type: "f", value: 0 },
+    },
+    vertexShader,
+    fragmentShader: stepFragment,
+  });
+  stepMaterial.premultipliedAlpha = true;
+  stepMaterial.defines.ECHO_MODE = 1;
+
+  const mixMaterial = new THREE.ShaderMaterial({
+    uniforms: {
+      tDry: { type: "t", value: null },
+      tWet: { type: "t", value: null },
+      uvScale: { type: "v2", value: new THREE.Vector2(1, 1) },
+      strength: { type: "f", value: 1 },
+    },
+    vertexShader,
+    fragmentShader: MIX_FRAGMENT,
+  });
+  mixMaterial.premultipliedAlpha = true;
+
+  const quad = new THREE.Mesh(new THREE.PlaneBufferGeometry(2, 2), null);
+  quad.frustumCulled = false;
+  const scene = new THREE.Scene();
+  scene.add(quad);
+  const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+
+  const state = {
+    stepMaterial,
+    mixMaterial,
+    scene,
+    camera,
+    quad,
+    targets: [],
+    strength: 1,
+  };
+  echo._zoidiumEcho = state;
+  echo.pass = {
+    enabled: true,
+    needsSwap: true,
+    clear: false,
+    renderToScreen: false,
+    uniforms: { uvScale: { value: new THREE.Vector2(1, 1) } },
+    render(renderer, writeBuffer, readBuffer) {
+      const temporal = PZ.zoidium && PZ.zoidium.temporal;
+      const samples = (temporal && temporal.resolveFrameSamples
+        ? temporal.resolveFrameSamples(echo)
+        : null) || [];
+      const width = readBuffer.width;
+      const height = readBuffer.height;
+      for (let index = 0; index < 2; index += 1) {
+        const target = state.targets[index];
+        if (!target) {
+          state.targets[index] = createTarget(width, height);
+        } else if (target.width !== width || target.height !== height) {
+          target.setSize(width, height);
+        }
+      }
+      const output = writeBuffer || readBuffer;
+      let wsum = 1;
+      for (const sample of samples) wsum += sample.opacity;
+
+      let previous = null;
+      const su = state.stepMaterial.uniforms;
+      for (let index = 0; index < samples.length; index += 1) {
+        const sample = samples[index];
+        su.tBase.value = index === 0 ? readBuffer.texture : previous.texture;
+        su.useScaledBase.value = index === 0 ? 1 : 0;
+        su.tTap.value = sample.texture;
+        su.weight.value = sample.opacity;
+        su.wsum.value = wsum;
+        su.finalize.value = index === samples.length - 1 ? 1 : 0;
+        state.quad.material = state.stepMaterial;
+        const target = state.targets[index % 2];
+        renderer.render(state.scene, state.camera, target, true);
+        previous = target;
+      }
+
+      const mu = state.mixMaterial.uniforms;
+      mu.tDry.value = readBuffer.texture;
+      mu.tWet.value = previous ? previous.texture : readBuffer.texture;
+      mu.strength.value = previous ? state.strength : 0;
+      state.quad.material = state.mixMaterial;
+      renderer.render(state.scene, state.camera, output, true);
+    },
+  };
+  echo.properties.load(data && data.properties);
+}
+
+ZoidiumPluginApis.defineFrameSampler.call(echo, {
+  displayName: "Echo (Legacy)",
+  properties: {
     enabled: {
-        dynamic: true,
-        name: "Enabled",
-        type: PZ.property.type.OPTION,
-        value: 1,
-        items: "off;on",
+      dynamic: true,
+      name: "Enabled",
+      type: PZ.property.type.OPTION,
+      value: 1,
+      items: "off;on",
     },
     mode: {
-        name: "Mode",
-        type: PZ.property.type.OPTION,
-        value: 1,
-        changed: function () {
-            let e = this.parentObject;
-            if (e && e.pass && e.pass.stepMaterial) {
-                e.pass.stepMaterial.defines.ECHO_MODE = this.value;
-                e.pass.stepMaterial.needsUpdate = true;
-            }
-        },
-        items: "smear;maximum;additive;screen",
+      dynamic: true,
+      name: "Mode",
+      type: PZ.property.type.OPTION,
+      value: 1,
+      items: "smear;maximum;additive;screen",
     },
     echoes: {
-        dynamic: true,
-        name: "Number of Echoes",
-        type: PZ.property.type.NUMBER,
-        value: 6,
-        min: 0,
-        max: 100,
-        step: 1,
-        decimals: 0,
+      dynamic: true,
+      name: "Number of Echoes",
+      type: PZ.property.type.NUMBER,
+      value: 6,
+      min: 0,
+      max: ECHO_MAX,
+      step: 1,
+      decimals: 0,
     },
     decay: {
-        dynamic: true,
-        name: "Decay",
-        type: PZ.property.type.NUMBER,
-        value: 0.88,
-        min: 0,
-        max: 0.99,
-        step: 0.01,
-        decimals: 3,
+      dynamic: true,
+      name: "Decay",
+      type: PZ.property.type.NUMBER,
+      value: 0.88,
+      min: 0,
+      max: 0.99,
+      step: 0.01,
+      decimals: 3,
     },
     strength: {
-        dynamic: true,
-        name: "Strength",
-        type: PZ.property.type.NUMBER,
-        value: 1,
-        min: 0,
-        max: 1,
-        step: 0.01,
-        decimals: 3,
+      dynamic: true,
+      name: "Strength",
+      type: PZ.property.type.NUMBER,
+      value: 1,
+      min: 0,
+      max: 1,
+      step: 0.01,
+      decimals: 3,
     },
     threshold: {
-        dynamic: true,
-        name: "Threshold",
-        type: PZ.property.type.NUMBER,
-        value: 0,
-        min: 0,
-        max: 1,
-        step: 0.01,
-        decimals: 3,
+      dynamic: true,
+      name: "Threshold",
+      type: PZ.property.type.NUMBER,
+      value: 0,
+      min: 0,
+      max: 1,
+      step: 0.01,
+      decimals: 3,
     },
-    clearOnJump: {
-        name: "Clear On Jump",
-        type: PZ.property.type.OPTION,
-        value: 1,
-        items: "off;on",
+  },
+  // Echo k (1-based) samples the input k frames earlier with opacity decay^k,
+  // which matches the weights of the legacy history steps.
+  getRequest(effect, frame) {
+    const props = effect.properties;
+    const strength = echoClamp01(echoNumber(props.strength, frame, 1));
+    const echoes = Math.min(
+      ECHO_MAX,
+      Math.max(0, Math.round(echoNumber(props.echoes, frame, 6))),
+    );
+    const decay = Math.min(0.99, Math.max(0, echoNumber(props.decay, frame, 0.88)));
+    return {
+      enabled:
+        echoNumber(props.enabled, frame, 1) === 1 &&
+        strength > 0.0005 &&
+        echoes >= 1,
+      count: echoes,
+      offsetFrames: -1,
+      startOpacity: decay,
+      decay,
+    };
+  },
+  lifecycle: {
+    load(data) {
+      echo._zoidiumLoading = buildEchoPass(data);
+      return echo._zoidiumLoading;
     },
-};
-
-this.properties.addAll(this.propertyDefinitions, this);
-
-if (!THREE.EchoPass) {
-    THREE.EchoPass = function (stepMaterial, maxEchoes) {
-        THREE.Pass.call(this);
-        this.stepMaterial = stepMaterial;
-        this.uniforms = stepMaterial.uniforms;
-        this.maxEchoes = maxEchoes || 100;
-        this.slotOptions = {
-            minFilter: THREE.LinearFilter,
-            magFilter: THREE.LinearFilter,
-            format: THREE.RGBAFormat,
-            depthBuffer: false,
-            stencilBuffer: false,
-        };
-        this.slots = [];
-        this.tmpA = new THREE.WebGLRenderTarget(2, 2, this.slotOptions);
-        this.tmpA.texture.generateMipmaps = false;
-        this.tmpB = new THREE.WebGLRenderTarget(2, 2, this.slotOptions);
-        this.tmpB.texture.generateMipmaps = false;
-        this.head = 0;
-        this.valid = 0;
-        this.width = 2;
-        this.height = 2;
-        this.decayVal = 0.88;
-        this.strengthVal = 1;
-        this.echoCount = 6;
-        this.blank = new THREE.DataTexture(
-            new Uint8Array([0, 0, 0, 0]),
-            1,
-            1
-        );
-        this.blank.needsUpdate = true;
-        var holdVertex = [
-            "uniform vec2 uvScale;",
-            "varying vec2 vUv;",
-            "varying vec2 vUvScaled;",
-            "void main() {",
-            "vUv = uv;",
-            "vUvScaled = uv * uvScale;",
-            "gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );",
-            "}",
-        ].join("\n");
-        this.copyUniforms = {
-            tDiffuse: { type: "t", value: null },
-            uvScale: { type: "v2", value: new THREE.Vector2(1, 1) },
-        };
-        this.copyMaterial = new THREE.ShaderMaterial({
-            uniforms: this.copyUniforms,
-            vertexShader: holdVertex,
-            fragmentShader: [
-                "uniform sampler2D tDiffuse;",
-                "varying vec2 vUvScaled;",
-                "void main() {",
-                "gl_FragColor = texture2D( tDiffuse, vUvScaled );",
-                "}",
-            ].join("\n"),
-        });
-        this.copyMaterial.premultipliedAlpha = true;
-        this.mixUniforms = {
-            tDry: { type: "t", value: null },
-            tWet: { type: "t", value: null },
-            uvScale: { type: "v2", value: new THREE.Vector2(1, 1) },
-            strength: { type: "f", value: 1 },
-        };
-        this.mixMaterial = new THREE.ShaderMaterial({
-            uniforms: this.mixUniforms,
-            vertexShader: holdVertex,
-            fragmentShader: [
-                "uniform sampler2D tDry;",
-                "uniform sampler2D tWet;",
-                "uniform float strength;",
-                "varying vec2 vUv;",
-                "varying vec2 vUvScaled;",
-                "void main() {",
-                "vec4 dry = texture2D( tDry, vUvScaled );",
-                "vec4 wet = texture2D( tWet, vUv );",
-                "gl_FragColor = mix( dry, wet, clamp( strength, 0.0, 1.0 ) );",
-                "}",
-            ].join("\n"),
-        });
-        this.mixMaterial.premultipliedAlpha = true;
-        this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
-        this.scene = new THREE.Scene();
-        this.quad = new THREE.Mesh(new THREE.PlaneBufferGeometry(2, 2), null);
-        this.quad.frustumCulled = false;
-        this.scene.add(this.quad);
-        this.enabled = true;
-        this.needsSwap = true;
-        this.needsClear = false;
-        this.holdHistory = false;
-    };
-    THREE.EchoPass.prototype = Object.assign(
-        Object.create(THREE.Pass.prototype),
-        {
-            constructor: THREE.EchoPass,
-            setSize: function (e, t) {
-                this.width = Math.max(2, Math.round(e));
-                this.height = Math.max(2, Math.round(t));
-                for (let i = 0; i < this.slots.length; i++) {
-                    this.slots[i].setSize(this.width, this.height);
-                }
-                this.tmpA.setSize(this.width, this.height);
-                this.tmpB.setSize(this.width, this.height);
-            },
-            ensure: function (count) {
-                count = Math.max(0, Math.min(this.maxEchoes, Math.round(count) || 0));
-                if (count > this.slots.length) {
-                    for (let i = this.slots.length; i < count; i++) {
-                        let rt = new THREE.WebGLRenderTarget(
-                            this.width,
-                            this.height,
-                            this.slotOptions
-                        );
-                        rt.texture.generateMipmaps = false;
-                        this.slots.push(rt);
-                    }
-                    this.valid = 0;
-                    this.head = 0;
-                }
-            },
-            tapTexture: function (k) {
-                let alloc = this.slots.length;
-                if (alloc === 0 || k >= this.valid || k >= alloc) {
-                    return this.blank;
-                }
-                let idx = (this.head - k - 1 + alloc * 4096) % alloc;
-                return this.slots[idx].texture;
-            },
-            syncScales: function () {
-                let s = this.uniforms.uvScale.value;
-                this.copyUniforms.uvScale.value.copy(s);
-                this.mixUniforms.uvScale.value.copy(s);
-            },
-            pushCurrent: function (renderer, readBuffer) {
-                let alloc = this.slots.length;
-                if (alloc === 0) {
-                    return;
-                }
-                this.copyUniforms.tDiffuse.value = readBuffer.texture;
-                this.quad.material = this.copyMaterial;
-                renderer.render(this.scene, this.camera, this.slots[this.head], true);
-                this.head = (this.head + 1) % alloc;
-                this.valid = Math.min(this.valid + 1, 100000);
-            },
-            render: function (renderer, writeBuffer, readBuffer, delta, maskActive) {
-                let output = writeBuffer || readBuffer;
-                let su = this.uniforms;
-                if (this.needsClear) {
-                    this.valid = 0;
-                    this.needsClear = false;
-                }
-                this.syncScales();
-                let alloc = this.slots.length;
-                let K = Math.min(this.echoCount, this.valid, alloc);
-                let oldAutoClear = renderer.autoClear;
-                renderer.autoClear = false;
-                if (K <= 0) {
-                    this.copyUniforms.tDiffuse.value = readBuffer.texture;
-                    this.quad.material = this.copyMaterial;
-                    renderer.render(this.scene, this.camera, output, true);
-                } else {
-                    let decay = Math.min(0.99, Math.max(0, this.decayVal));
-                    let wsum = 1.0;
-                    let ww = decay;
-                    for (let c = 0; c < K; c++) {
-                        wsum += ww;
-                        ww *= decay;
-                    }
-                    let w = decay;
-                    let prev = null;
-                    for (let k = 1; k <= K; k++) {
-                        su.tBase.value = k === 1 ? readBuffer.texture : prev.texture;
-                        su.useScaledBase.value = k === 1 ? 1 : 0;
-                        su.tTap.value = this.tapTexture(k);
-                        su.weight.value = w;
-                        w *= decay;
-                        su.wsum.value = wsum;
-                        su.finalize.value = k === K ? 1 : 0;
-                        this.quad.material = this.stepMaterial;
-                        let dest = k % 2 === 1 ? this.tmpA : this.tmpB;
-                        renderer.render(this.scene, this.camera, dest, true);
-                        prev = dest;
-                    }
-                    this.mixUniforms.tDry.value = readBuffer.texture;
-                    this.mixUniforms.tWet.value = prev.texture;
-                    this.mixUniforms.strength.value = this.strengthVal;
-                    this.quad.material = this.mixMaterial;
-                    renderer.render(this.scene, this.camera, output, true);
-                }
-                if (!this.holdHistory) {
-                    this.pushCurrent(renderer, readBuffer);
-                }
-                renderer.autoClear = oldAutoClear;
-            },
-            dispose: function () {
-                for (let i = 0; i < this.slots.length; i++) {
-                    this.slots[i].dispose();
-                }
-                this.slots = [];
-                this.tmpA.dispose();
-                this.tmpB.dispose();
-                this.blank.dispose();
-                this.stepMaterial.dispose();
-                this.copyMaterial.dispose();
-                this.mixMaterial.dispose();
-                this.quad.geometry.dispose();
-            },
-        }
-    );
-}
-
-function echoClamp01(v) {
-    v = Number(v);
-    if (!isFinite(v)) return 0;
-    return Math.min(1, Math.max(0, v));
-}
-
-this.load = async function (e) {
-    // Zoidium bundle adaptation: prefer the plugin-bundled shader text so the
-    // effect never fans out into runtime fetches. Falls back to the CM3 asset
-    // pipeline when the bundle resolver is unavailable (legacy checkout).
-    var zoidiumGetAsset = (typeof this._zoidiumGetAsset === "function")
-        ? this._zoidiumGetAsset.bind(this)
-        : null;
-    var zoidiumBundledVert = zoidiumGetAsset
-        ? zoidiumGetAsset("text", "./plugins/openzoid-legacy/shaders/common.glsl")
-        : undefined;
-    var zoidiumBundledFrag = zoidiumGetAsset
-        ? zoidiumGetAsset("text", "./plugins/openzoid-legacy/shaders/" + this.shaderfile + ".glsl")
-        : undefined;
-    this._zoidiumBundledShaders = {
-        vert: typeof zoidiumBundledVert === "string",
-        frag: typeof zoidiumBundledFrag === "string",
-    };
-    this.vertShader = this._zoidiumBundledShaders.vert
-        ? { getShader: async function () { return zoidiumBundledVert; } }
-        : new PZ.asset.shader(
-            this.parentProject.assets.load(this.vertShader)
-        );
-    this.fragShader = this._zoidiumBundledShaders.frag
-        ? { getShader: async function () { return zoidiumBundledFrag; } }
-        : new PZ.asset.shader(
-            this.parentProject.assets.load(this.fragShader)
-        );
-    var stepMaterial = new THREE.ShaderMaterial({
-        uniforms: {
-            tBase: { type: "t", value: null },
-            tTap: { type: "t", value: null },
-            uvScale: { type: "v2", value: new THREE.Vector2(1, 1) },
-            weight: { type: "f", value: 0.88 },
-            threshold: { type: "f", value: 0 },
-            wsum: { type: "f", value: 1 },
-            finalize: { type: "f", value: 0 },
-            useScaledBase: { type: "f", value: 0 },
-        },
-        vertexShader: await this.vertShader.getShader(),
-        fragmentShader: await this.fragShader.getShader(),
-    });
-    stepMaterial.premultipliedAlpha = true;
-    stepMaterial.defines.ECHO_MODE = 1;
-    this.pass = new THREE.EchoPass(stepMaterial, ECHO_MAX);
-    this.pass.setSize(2, 2);
-    this._lastEchoTime = undefined;
-    this.properties.load(e && e.properties);
-    try {
-        this.pass.stepMaterial.defines.ECHO_MODE = this.properties.mode.get();
-        this.pass.stepMaterial.needsUpdate = true;
-    } catch (err) {}
-};
-
-this.toJSON = function () {
-    return { type: this.type, properties: this.properties };
-};
-
-this.unload = function (e) {
-    if (this.pass) {
-        this.pass.dispose();
-        this.pass = null;
-    }
-    // Bundled shader shims are plain objects, not CM3 assets: nothing to unload.
-    if (!this._zoidiumBundledShaders || !this._zoidiumBundledShaders.vert) {
-        this.parentProject.assets.unload(this.vertShader);
-    }
-    if (!this._zoidiumBundledShaders || !this._zoidiumBundledShaders.frag) {
-        this.parentProject.assets.unload(this.fragShader);
-    }
-};
-
-this.update = function (e) {
-    if (!this.pass) {
-        return;
-    }
-    let strength = echoClamp01(this.properties.strength.get(e));
-    let echoes = Math.max(
-        0,
-        Math.min(ECHO_MAX, Math.round(Number(this.properties.echoes.get(e)) || 0))
-    );
-    this.pass.uniforms.threshold.value = echoClamp01(
-        this.properties.threshold.get(e)
-    );
-    this.pass.decayVal = Math.min(
-        0.99,
-        Math.max(0, Number(this.properties.decay.get(e)) || 0)
-    );
-    this.pass.strengthVal = strength;
-    this.pass.echoCount = echoes;
-    this.pass.ensure(echoes);
-    let on =
-        this.properties.enabled.get(e) === 1 &&
+    update(frame) {
+      const state = echo._zoidiumEcho;
+      if (!state || !echo.pass) return;
+      const props = echo.properties;
+      const strength = echoClamp01(echoNumber(props.strength, frame, 1));
+      const echoes = Math.round(echoNumber(props.echoes, frame, 6));
+      echo.pass.enabled =
+        echoNumber(props.enabled, frame, 1) === 1 &&
         strength > 0.0005 &&
         echoes >= 1;
-    this.pass.enabled = on;
-    if (!on) {
-        this.pass.valid = 0;
-        this.pass.needsClear = false;
-        this.pass.holdHistory = false;
-        this._lastEchoTime = e;
-        return;
-    }
-    let t = Number(e);
-    if (isFinite(t)) {
-        if (this._lastEchoTime !== undefined) {
-            let dt = t - this._lastEchoTime;
-            if (dt === 0) {
-                this.pass.holdHistory = true;
-            } else {
-                this.pass.holdHistory = false;
-                if (dt < -0.000001 || dt > 10) {
-                    try {
-                        if (this.properties.clearOnJump.get(e) === 1) {
-                            this.pass.needsClear = true;
-                        }
-                    } catch (err) {
-                        this.pass.needsClear = true;
-                    }
-                }
-            }
-        } else {
-            this.pass.holdHistory = false;
-        }
-        this._lastEchoTime = t;
-    } else {
-        this.pass.holdHistory = false;
-    }
-};
-
-this.resize = function () {
-    if (!this.pass || !this.parentLayer) {
-        return;
-    }
-    let resolution = this.parentLayer.properties.resolution.get();
-    this.pass.setSize(resolution[0], resolution[1]);
-};
+      state.strength = strength;
+      state.stepMaterial.uniforms.threshold.value = echoClamp01(
+        echoNumber(props.threshold, frame, 0),
+      );
+      const mode = Math.min(
+        ECHO_MODES - 1,
+        Math.max(0, Math.round(echoNumber(props.mode, frame, 1))),
+      );
+      if (state.stepMaterial.defines.ECHO_MODE !== mode) {
+        state.stepMaterial.defines.ECHO_MODE = mode;
+        state.stepMaterial.needsUpdate = true;
+      }
+    },
+    async prepare() {
+      if (!echo._zoidiumLoading) return;
+      try {
+        await echo._zoidiumLoading;
+      } catch (error) {
+        console.error("[Zoidium] Echo (Legacy) could not load its pass:", error);
+      }
+    },
+    unload() {
+      const state = echo._zoidiumEcho;
+      if (state) {
+        for (const target of state.targets) target.dispose();
+        state.stepMaterial.dispose();
+        state.mixMaterial.dispose();
+        state.quad.geometry.dispose();
+      }
+      echo._zoidiumEcho = null;
+      echo._zoidiumLoading = null;
+      echo.pass = null;
+    },
+  },
+});

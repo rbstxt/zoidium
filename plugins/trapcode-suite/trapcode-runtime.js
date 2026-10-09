@@ -2,20 +2,19 @@
 
 // OpenZoid Trapcode Suite — runtime installer.
 //
-// Evaluates the bundled OpenZoid 3D sources in dependency order
-// (helpers, designer, Particular, Form, Plexus, C4D lights) and teaches
-// PZ.object3d.create the Trapcode numeric types 10/11/12 that upstream CM3
-// does not know. The 3D picker entries themselves are declared in the plugin
-// manifest and owned by the plugin manager.
+// Evaluates the bundled sources in dependency order (helpers, designer,
+// Particular, Form, Plexus, C4D lights) and teaches PZ.object3d.create the
+// Trapcode numeric types 10/11/12 that upstream CM3 does not know. The 3D
+// picker entries are declared in the plugin manifest and owned by the plugin
+// manager.
 //
 // Optical Flares (type 13) is a separate pack and is not installed here.
 //
-// The suite also restores the OpenZoid expression upgrade stock CM3
-// lacks: wiggle() and companion methods on PZ.expression.methods, the
-// evaluation context (current frame/property/value) in
-// PZ.expression.prototype.evaluate, and the property passthrough the
-// context depends on. Methods install missing-only; wrappers chain with
-// revive and restore, like the create wrapper above.
+// The suite also restores the OpenZoid expression upgrade stock CM3 lacks:
+// wiggle() and companion methods on PZ.expression.methods, the evaluation
+// context (current frame/property/value) in PZ.expression.prototype.evaluate,
+// and the property passthrough the context depends on. Methods install
+// missing-only; wrappers chain with revive and restore.
 
 const SOURCE_ORDER = [
   "trapcode-common.js",
@@ -32,8 +31,7 @@ const TRAPCODE_TYPES = [
   { type: 12, key: "plexus" },
 ];
 
-const FONT_STYLE_ID = "zoidium-trapcode-font-style";
-const FONT_URL = "./plugins/trapcode-suite/inter-font.css";
+const WINDOW_PREFIX = "trapcode-suite:";
 
 // The PZ instance seen at activate time. deactivate() must unwrap that same
 // instance instead of re-resolving globals, which may differ (or be gone).
@@ -68,41 +66,6 @@ function installSources(context, PZ, THREE) {
     // merges with the argument binding and definitions land on the runtime.
     new Function("PZ", "THREE", source)(PZ, THREE);
   }
-}
-
-// The SaaS-themed designer uses Inter type from the bundled inter-font.css
-// asset (same variable-font bytes as the Legacy pack's tracery-font.css,
-// duplicated so each pack stays self-contained). Installed once per document
-// like the Legacy setup modules do; the designer CSS falls back to Segoe UI
-// when the pack is disabled and the style element is removed.
-function installFont(context) {
-  try {
-    if (typeof document === "undefined" || document.getElementById(FONT_STYLE_ID)) {
-      return;
-    }
-    const getAsset = context && typeof context.getAsset === "function"
-      ? context.getAsset.bind(context)
-      : null;
-    const bundled = getAsset ? getAsset("text", FONT_URL) : undefined;
-    if (typeof bundled === "string") {
-      const style = document.createElement("style");
-      style.id = FONT_STYLE_ID;
-      style.textContent = bundled;
-      document.head.appendChild(style);
-    }
-    if (document.fonts && typeof document.fonts.load === "function") {
-      document.fonts.load("600 20px Inter");
-      document.fonts.load("400 14px Inter");
-    }
-  } catch (_error) { /* font is decorative */ }
-}
-
-function uninstallFont() {
-  try {
-    if (typeof document === "undefined") return;
-    const el = document.getElementById(FONT_STYLE_ID);
-    if (el) el.remove();
-  } catch (_error) { /* best effort */ }
 }
 
 function installCreateWrapper(PZ) {
@@ -171,6 +134,36 @@ function uninstallExpressionSupport(PZ) {
   } catch (_error) { /* best effort */ }
 }
 
+function installLights(PZ) {
+  const T = PZ.trapcode || {};
+  if (!T.lights || typeof T.lights.install !== "function") {
+    throw new Error("Trapcode Suite needs its C4D light bundle.");
+  }
+  T.lights.install(PZ);
+}
+
+function uninstallLights(PZ) {
+  try {
+    const T = (PZ && PZ.trapcode) || {};
+    if (T.lights && typeof T.lights.uninstall === "function") T.lights.uninstall();
+  } catch (_error) { /* best effort */ }
+}
+
+function closeWindows() {
+  try {
+    const ui = typeof globalThis !== "undefined" ? globalThis.ZoidiumUI : null;
+    if (ui && typeof ui.closeWindows === "function") ui.closeWindows(WINDOW_PREFIX);
+  } catch (_error) { /* best effort */ }
+}
+
+// Unwinds whatever an activation attempt managed to install, in reverse.
+function rollback(PZ) {
+  uninstallLights(PZ);
+  uninstallExpressionSupport(PZ);
+  uninstallCreateWrapper(PZ);
+  closeWindows();
+}
+
 module.exports = {
   activate(context) {
     const { PZ, THREE } = runtimeGlobals(context);
@@ -180,24 +173,31 @@ module.exports = {
     if (!THREE) {
       throw new Error("Trapcode Suite needs the THREE global from the CM3 runtime.");
     }
-    installSources(context, PZ, THREE);
-    if (!PZ.object3d.particular || !PZ.object3d.form || !PZ.object3d.plexus) {
-      throw new Error("Trapcode Suite could not define its 3D object classes.");
+    try {
+      installSources(context, PZ, THREE);
+      if (!PZ.object3d.particular || !PZ.object3d.form || !PZ.object3d.plexus) {
+        throw new Error("Trapcode Suite could not define its 3D object classes.");
+      }
+      installCreateWrapper(PZ);
+      installExpressionSupport(PZ);
+      installLights(PZ);
+    } catch (error) {
+      rollback(PZ);
+      throw error;
     }
-    installCreateWrapper(PZ);
-    installExpressionSupport(PZ);
-    installFont(context);
     installedPZ = PZ;
   },
   deactivate() {
+    const PZ = installedPZ;
     try {
-      uninstallCreateWrapper(installedPZ);
+      closeWindows();
+      uninstallLights(PZ);
     } finally {
       try {
-        uninstallExpressionSupport(installedPZ);
+        uninstallCreateWrapper(PZ);
       } finally {
         try {
-          uninstallFont();
+          uninstallExpressionSupport(PZ);
         } finally {
           installedPZ = null;
         }

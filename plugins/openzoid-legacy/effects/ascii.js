@@ -3,7 +3,9 @@
 // with contrast/brightness shaping, band character mapping, random
 // symbols, scale jitter, sine-wave motion, fractal noise displacement,
 // and vertical scroll trails. Rendered as a canvas overlay composited
-// over the layer image. See ascii-setup.js for the SaaS editor window.
+// over the layer image. Every frame is a pure function of the project
+// properties, the frame index and the input pixels. See effect-windows.js
+// for the setup window.
 
 this.defaultName = "ASCII";
 
@@ -80,13 +82,13 @@ this.propertyDefinitions = asciiMerge(
             type: PZ.property.type.OPTION,
             value: 1,
             items: "off;on",
-            buttons: [{ name: "Ascii Setup", title: "Open the ASCII setup window", action: "asciiSetup" }],
+            buttons: [{ name: "ASCII Setup", title: "Open the ASCII setup window", action: "asciiSetup" }],
         },
         backgroundColor: asciiColor("Background color", 0.03, 0.03, 0.04),
         blockSize: asciiNum("Block size", 23, 4, 64, 1, 0),
         contrast: asciiNum("Contrast", 1, 0, 4, 0.01, 2),
         brightness: asciiNum("Brightness", 0, -1, 1, 0.01, 2),
-        fontFamily: asciiOption("Font", 0, "consolas;courier;monospace;inter;serif"),
+        fontFamily: asciiOption("Font", 0, "source code pro;monospace"),
         charSize: asciiNum("Character size", 18, 8, 64, 1, 0),
         charset: asciiOption("Character set", 0, "standard;blocks;detailed;minimal;custom"),
         customChars: asciiText("Custom characters", "@%#*+=-:. "),
@@ -128,7 +130,7 @@ if (this.properties && typeof this.properties.addAll === "function") {
     this.properties.addAll(this.propertyDefinitions, this);
 }
 
-// Deterministic cell hash in [0,1): stable shimmer without Math.random.
+// Deterministic cell hash in [0,1): a pure function of (x, y, s), no random source.
 function asciiHash(x, y, s) {
     var h = (x * 374761393 + y * 668265263 + (s || 0) * 974634211) | 0;
     h = (h ^ (h >> 13)) | 0;
@@ -249,13 +251,10 @@ function asciiCss(rgb, a) {
     return "rgba(" + r + "," + g + "," + b + "," + a + ")";
 }
 
-var ASCII_FONTS = [
-    "Consolas, 'Courier New', monospace",
-    "'Courier New', Courier, monospace",
-    "monospace",
-    "Inter, system-ui, sans-serif",
-    "Georgia, serif",
-];
+// Glyph fonts are limited to the page's bundled Source Code Pro and the
+// generic monospace family. Any other saved index falls back to Source Code
+// Pro, so older projects keep loading.
+var ASCII_FONTS = ["'Source Code Pro', monospace", "monospace"];
 
 var ASCII_RANDOM_GLYPHS = "@#%&?*+=:;. ".split("");
 
@@ -328,7 +327,7 @@ function asciiCollectState(props, e, frame) {
                 fill: (fill || " ").slice(0, 2),
                 stroke: (stroke || "").slice(0, 2),
                 color: col(pre + "Color", [1, 1, 1]),
-                opacity: trOpacityFix(props, pre, e),
+                opacity: asciiOpacity(props, pre, e),
             });
         })(prefixes[b]);
     }
@@ -336,7 +335,7 @@ function asciiCollectState(props, e, frame) {
     return st;
 }
 
-function trOpacityFix(props, pre, e) {
+function asciiOpacity(props, pre, e) {
     try {
         var v = props[pre + "Opacity"].get(e);
         if (typeof v === "number" && isFinite(v)) return Math.max(0, Math.min(100, v)) / 100;
@@ -349,7 +348,7 @@ function asciiDrawOverlay(ctx, W, H, st, sample) {
     var cols = Math.max(1, Math.floor(W / block));
     var rows = Math.max(1, Math.floor(H / block));
     var ox = (W - cols * block) / 2;
-    var oy = (H - rows) * 0 + (H - rows * block) / 2;
+    var oy = (H - rows * block) / 2;
     ctx.clearRect(0, 0, W, H);
     ctx.fillStyle = asciiCss(st.backgroundColor, 1);
     ctx.fillRect(0, 0, W, H);
@@ -442,18 +441,28 @@ function asciiDrawOverlay(ctx, W, H, st, sample) {
     return { cols: cols, rows: rows };
 }
 
-function asciiSignature(st) {
-    try {
-        return JSON.stringify(st);
-    } catch (err) {
-        return String(Math.random());
-    }
+// Resolves once the glyph font is available. Canvas text drawn before the
+// page font face loads would fall back to a different glyph shape, so the
+// effect waits here (through prepare) before a frame is rendered.
+function asciiFontReady() {
+    var fonts = typeof document !== "undefined" ? document.fonts : null;
+    if (!fonts || typeof fonts.load !== "function") return Promise.resolve();
+    return Promise.resolve(fonts.load("20px 'Source Code Pro'")).then(
+        function () {},
+        function () {}
+    );
 }
 
 this.load = async function (e) {
     this.pass = new THREE.AsciiPass();
     this.pass.setSize(2, 2);
     this.properties.load(e && e.properties);
+    this._fontReady = asciiFontReady();
+    await this._fontReady;
+};
+
+this.prepare = async function () {
+    if (this._fontReady) await this._fontReady;
 };
 
 this.toJSON = function () {
@@ -465,35 +474,26 @@ this.unload = function (e) {
         this.pass.dispose();
     }
     this.pass = null;
-    this.sample = null;
 };
 
+// The overlay is recomputed for every rendered frame from the collected
+// state, so no output depends on earlier renders.
 this.update = function (e) {
     if (!this.pass) {
         return;
     }
-    var st;
+    var st = null;
     try {
         st = asciiCollectState(this.properties, e, e);
     } catch (err) {
         st = null;
-    }
-    if (st) {
-        var sig = asciiSignature(st);
-        if (sig !== this._asciiSignature) {
-            this._asciiSignature = sig;
-            this._asciiState = st;
-            this._asciiDirty = true;
-        }
     }
     var on = false;
     try {
         on = this.properties.enabled.get(e) === 1;
     } catch (err) {}
     this.pass.enabled = on;
-    this.pass.asciiState = this._asciiState;
-    this.pass.asciiDirty = !!this._asciiDirty;
-    this._asciiDirty = false;
+    this.pass.asciiState = st;
 };
 
 if (!THREE.AsciiPass) {
@@ -502,7 +502,6 @@ if (!THREE.AsciiPass) {
         this.needsSwap = true;
         this.opacity = 1;
         this.asciiState = null;
-        this.asciiDirty = false;
         this.canvas = null;
         this.canvasTexture = null;
         this.canvasWidth = 0;
@@ -607,7 +606,6 @@ if (!THREE.AsciiPass) {
                 this.canvasHeight = h;
                 if (this.canvasTexture) this.canvasTexture.dispose();
                 this.canvasTexture = new THREE.CanvasTexture(this.canvas);
-                this.asciiDirty = true;
             }
             if (!this.sampleTarget || this.sampleWidth !== cols || this.sampleHeight !== rows) {
                 if (this.sampleTarget) this.sampleTarget.dispose();
@@ -622,7 +620,7 @@ if (!THREE.AsciiPass) {
                 this.sampleHeight = rows;
                 this.samplePixels = new Uint8Array(cols * rows * 4);
             }
-            if ((this.asciiDirty || !this._drawnOnce) && st) {
+            if (st) {
                 try {
                     this.copyMaterial.uniforms.tDiffuse.value = readBuffer.texture;
                     var oldAutoClear = renderer.autoClear;
@@ -633,7 +631,6 @@ if (!THREE.AsciiPass) {
                         this.sampleTarget, 0, 0, cols, rows, this.samplePixels
                     );
                     var ctx = this.canvas.getContext("2d");
-                    var self = this;
                     var sw = cols;
                     var sh = rows;
                     var px = this.samplePixels;
@@ -643,13 +640,14 @@ if (!THREE.AsciiPass) {
                         var o = (sy * sw + sx) * 4;
                         return [px[o] / 255, px[o + 1] / 255, px[o + 2] / 255];
                     });
-                    this.asciiError = null;
+                    this.canvasTexture.needsUpdate = true;
                 } catch (err) {
-                    this.asciiError = String((err && err.stack) || err).slice(0, 300);
+                    var message = String((err && err.stack) || err).slice(0, 300);
+                    if (message !== this.lastError) {
+                        this.lastError = message;
+                        console.error("[Zoidium] ASCII overlay failed:", message);
+                    }
                 }
-                this.canvasTexture.needsUpdate = true;
-                this.asciiDirty = false;
-                this._drawnOnce = true;
             }
             this.uniforms.tDiffuse.value = readBuffer.texture;
             this.uniforms.tOverlay.value = this.canvasTexture ? this.canvasTexture : null;

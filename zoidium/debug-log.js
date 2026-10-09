@@ -8,6 +8,23 @@
   const MAX_PERSISTED_EXCEPTIONS = 30;
   const MAX_PERSISTED_SESSIONS = 4;
   const MAX_TEXT_LENGTH = 2400;
+  // Redaction scans at most this much input per value. A huge string logged
+  // to console.warn must not cost a full regex pass on the main thread.
+  const MAX_REDACT_INPUT = 8192;
+  // Journal writes are coalesced: every record() used to re-serialize the whole
+  // journal into localStorage synchronously. Pending writes flush after this
+  // delay, and immediately on pagehide, hidden visibility and session close.
+  const JOURNAL_WRITE_DELAY_MS = 250;
+  // Milestones that a crash analysis relies on persist without delay. They are
+  // rare: usage progress fires only at powers of two.
+  const IMMEDIATE_RECORD_TYPES = new Set([
+    "script-error",
+    "plugin-usage-progress",
+    "project-load-start",
+    "project-load-complete",
+    "project-opened",
+    "plugin-state",
+  ]);
   const JOURNAL_STORAGE_KEY = "zoidium.debug-log.journal.v2";
   const TAB_STORAGE_KEY = "zoidium.debug-log.tab.v1";
   const HEALTH_SAMPLE_INTERVAL_MS = 10000;
@@ -30,6 +47,7 @@
   let phase = "pre-init";
   let emergencyBanner = null;
   let emergencyMountQueued = false;
+  let journalWriteTimer = 0;
 
   const REDACTIONS = [
     [
@@ -75,7 +93,7 @@
   }
 
   function redact(value) {
-    let result = text(value);
+    let result = text(value).slice(0, MAX_REDACT_INPUT);
     for (const [pattern, replacement] of REDACTIONS) result = result.replace(pattern, replacement);
     return truncate(result);
   }
@@ -275,6 +293,23 @@
     }
   }
 
+  function scheduleJournalWrite() {
+    if (journalWriteTimer || !currentSession) return;
+    journalWriteTimer = global.setTimeout(function () {
+      journalWriteTimer = 0;
+      writeJournal();
+    }, JOURNAL_WRITE_DELAY_MS);
+  }
+
+  // Writes now and cancels any scheduled write. Used at session boundaries.
+  function flushJournal() {
+    if (journalWriteTimer) {
+      global.clearTimeout(journalWriteTimer);
+      journalWriteTimer = 0;
+    }
+    return writeJournal();
+  }
+
   function writeJournal() {
     if (!currentSession) return false;
     currentSession.lastSeenAt = new Date().toISOString();
@@ -336,7 +371,7 @@
       diagnostics: null,
     };
     journal.sessions.push(currentSession);
-    writeJournal();
+    flushJournal();
     if (interrupted) {
       record("previous-session-interrupted", {
         previousSessionId: redact(interrupted.id),
@@ -351,7 +386,7 @@
     currentSession.status = "closed";
     currentSession.exitReason = redact(reason || "pagehide");
     currentSession.endedAt = new Date().toISOString();
-    writeJournal();
+    flushJournal();
   }
 
   function resumeCurrentSession() {
@@ -359,7 +394,7 @@
     currentSession.status = "active";
     currentSession.exitReason = null;
     delete currentSession.endedAt;
-    writeJournal();
+    flushJournal();
   }
 
   function record(type, details = {}) {
@@ -381,7 +416,11 @@
       currentSession.exceptions.push({ ...entry });
       currentSession.exceptions = currentSession.exceptions.slice(-MAX_PERSISTED_EXCEPTIONS);
     }
-    writeJournal();
+    // Errors are rare and are the evidence a crash analysis needs, so they
+    // persist synchronously. Routine records (phase, usage, warnings) are
+    // coalesced so a burst of them costs one journal write.
+    if (isException || IMMEDIATE_RECORD_TYPES.has(entry.type)) flushJournal();
+    else scheduleJournalWrite();
     return entry;
   }
 
@@ -890,7 +929,7 @@
       projectUsage: collectProjectUsage(),
     };
     currentSession.diagnostics = diagnostics;
-    writeJournal();
+    scheduleJournalWrite();
     return diagnostics;
   }
 
@@ -918,7 +957,7 @@
       health.maxHeapRatio = Math.max(health.maxHeapRatio || 0, sample.heapRatio);
     }
     if (health.samples % 3 === 0) checkpointDiagnostics("periodic-health-sample");
-    writeJournal();
+    scheduleJournalWrite();
   }
 
   function installLongTaskObserver() {
@@ -936,7 +975,7 @@
             record("long-task", { durationMs: duration });
           }
         }
-        writeJournal();
+        scheduleJournalWrite();
       });
       longTaskObserver.observe({ type: "longtask", buffered: true });
     } catch (_error) {
@@ -1454,7 +1493,7 @@
         currentSession.status = "suspended";
         currentSession.exitReason = "back-forward-cache";
         currentSession.endedAt = new Date().toISOString();
-        writeJournal();
+        flushJournal();
         return;
       }
       closeCurrentSession("pagehide");
@@ -1463,6 +1502,8 @@
       if (event?.persisted) resumeCurrentSession();
     });
     global.document?.addEventListener("visibilitychange", () => {
+      // A hidden tab can be discarded without pagehide: persist pending events.
+      if (global.document.visibilityState === "hidden") flushJournal();
       sampleHealth();
     });
     global.document?.addEventListener("webglcontextlost", (event) => {

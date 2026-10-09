@@ -23,11 +23,11 @@
 .zoidium-color-curves-control {
   width: 100%;
   min-width: 0;
-  color: #aaa;
+  color: #ccc;
 }
 
 .zoidium-color-curves-editor {
-  --zoidium-curve-channel: var(--zoidium-theme-link, #7e8fb9);
+  --zoidium-curve-channel: #7e8fb9;
   width: 100%;
   min-width: 0;
   border: 1px solid #1b1b1b;
@@ -80,7 +80,7 @@
 
 .zoidium-color-curves-channel:focus-visible,
 .zoidium-color-curves-reset:focus-visible {
-  border-color: var(--zoidium-theme-focus, #384668);
+  border-color: #384668;
 }
 
 .zoidium-color-curves-channel.is-active {
@@ -120,18 +120,11 @@
   touch-action: none;
   cursor: crosshair;
   background-color: #202020;
-  background-image:
-    linear-gradient(to right, transparent calc(25% - 0.5px), #303030 25%, transparent calc(25% + 0.5px)),
-    linear-gradient(to right, transparent calc(50% - 0.5px), #353535 50%, transparent calc(50% + 0.5px)),
-    linear-gradient(to right, transparent calc(75% - 0.5px), #303030 75%, transparent calc(75% + 0.5px)),
-    linear-gradient(to bottom, transparent calc(25% - 0.5px), #303030 25%, transparent calc(25% + 0.5px)),
-    linear-gradient(to bottom, transparent calc(50% - 0.5px), #353535 50%, transparent calc(50% + 0.5px)),
-    linear-gradient(to bottom, transparent calc(75% - 0.5px), #303030 75%, transparent calc(75% + 0.5px));
   outline: 0;
 }
 
 .zoidium-color-curves-graph:focus-visible {
-  box-shadow: inset 0 0 0 2px var(--zoidium-theme-focus, #384668);
+  box-shadow: inset 0 0 0 1px #384668;
 }
 
 .zoidium-color-curves-svg {
@@ -139,6 +132,18 @@
   width: 100%;
   height: 100%;
   overflow: visible;
+}
+
+.zoidium-color-curves-grid {
+  fill: none;
+  pointer-events: none;
+  stroke: #2e2e2e;
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+}
+
+.zoidium-color-curves-grid-center {
+  stroke: #383838;
 }
 
 .zoidium-color-curves-diagonal,
@@ -192,7 +197,7 @@
   min-height: 24px;
   padding: 3px 6px;
   overflow: hidden;
-  color: #858585;
+  color: #7a7a7a;
   background: #242424;
   border-top: 1px solid #1b1b1b;
   font-size: 11px;
@@ -211,6 +216,6 @@
 }
 
 .zoidium-color-curves-hint {
-  color: #727272;
+  color: #6d6d6d;
   text-align: right;
 }

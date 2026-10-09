@@ -3,67 +3,13 @@
   "id": "effector-plus",
   "name": "Effector+",
   "author": "Zoidium",
-  "version": "1",
-  "kind": "object",
-  "description": "Geometry deformers: Twist, Warp, and Voronoi Fracture 3D effects.",
-  "category": "EFFECTORS",
-  "objectTypes": [
-    {
-      "target": "object3d",
-      "name": "Twist",
-      "desc": "Twists the geometry of the objects inside this group.",
-      "type": 7,
-      "list": [
-        {
-          "name": "Twist",
-          "type": 7,
-          "data": {}
-        }
-      ]
-    },
-    {
-      "target": "object3d",
-      "name": "Warp",
-      "desc": "Bends the geometry of the objects inside this group.",
-      "type": 8,
-      "list": [
-        {
-          "name": "Warp",
-          "type": 8,
-          "data": {}
-        }
-      ]
-    },
-    {
-      "target": "object3d",
-      "name": "Voronoi Fracture",
-      "desc": "Shatters the geometry of the objects inside this group.",
-      "type": 9,
-      "list": [
-        {
-          "name": "Voronoi Fracture",
-          "type": 9,
-          "data": {}
-        }
-      ]
-    }
-  ],
+  "version": "2",
+  "kind": "extension",
+  "description": "Compatibility layer for Effector+ projects that store Twist, Warp, and Voronoi Fracture as numeric types 7, 8, and 9.",
   "modules": [
     {
       "id": "effector-runtime",
-      "source": "./plugins/effector-plus/effector-runtime.js?v=1"
-    }
-  ],
-  "resources": [
-    {
-      "id": "deform-framework",
-      "type": "text",
-      "source": "./plugins/effector-plus/deform-framework.js?v=1"
-    },
-    {
-      "id": "deformer-objects",
-      "type": "text",
-      "source": "./plugins/effector-plus/deformer-objects.js?v=1"
+      "source": "./plugins/effector-plus/effector-runtime.js?v=2"
     }
   ]
 }
