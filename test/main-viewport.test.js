@@ -151,3 +151,27 @@ test("render exceptions cancel the scheduled frame and report once without loopi
   assert.equal(errors.length, 2);
   assert.equal(notices.length, 1, "one session notice across failed viewports");
 });
+
+test("project replacement clears retired render lists and viewport unload removes its watcher", () => {
+  const watchers = new Set();
+  let cleared = 0;
+  const editor = { onProjectChanged: {
+    watch: callback => watchers.add(callback),
+    unwatch: callback => watchers.delete(callback),
+  } };
+  class Viewport {
+    constructor(editor) {
+      this.editor = editor;
+      this.renderer = { renderLists: { dispose: () => cleared++ } };
+      this.compositor = {};
+    }
+    unload() {}
+  }
+  const context = { PZ: { ui: { viewport: Viewport } } };
+  vm.runInNewContext(fs.readFileSync(path.join(projectRoot, "plugins/core/main-viewport.js"), "utf8"), context);
+  const viewport = new context.PZ.ui.viewport(editor);
+  for (let reload = 0; reload < 20; reload++) for (const callback of watchers) callback();
+  assert.equal(cleared, 20);
+  viewport.unload();
+  assert.equal(watchers.size, 0);
+});

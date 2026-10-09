@@ -51,6 +51,10 @@ function buildEnv() {
       this.parent = null;
     }
     add(child) { this.children.push(child); child.parent = this; }
+    remove(child) {
+      this.children.splice(this.children.indexOf(child), 1);
+      child.parent = null;
+    }
     updateWorldMatrix() {}
   }
   class Mesh extends Object3D {
@@ -402,6 +406,31 @@ test("live flares are tracked for isInUse and released on unload", () => {
   assert.equal(material.disposed, true, "material disposed");
   assert.equal(quadGeometry.disposed, true, "geometry disposed");
   assert.equal(flare.material, null);
+  assert.equal(flare.threeObj.children.length, 0, "disposed quad detached");
+});
+
+test("custom image textures are disposed on replacement and unload", () => {
+  const { PZ, THREE } = buildEnv();
+  const flare = createFlare(PZ, { objectType: 0 });
+  const assets = { load: value => ({ value }), unload() {} };
+  flare.tryGetParentOfType = () => ({ assets });
+  PZ.asset.image = class {
+    constructor(asset) { this.asset = asset; }
+    getTexture() { return new THREE.DataTexture(); }
+  };
+  const property = { get: () => "first" };
+  flare.updateCustomTexture(property, "uCustom1", 0);
+  const first = flare.material.uniforms.uCustom1.value;
+  property.get = () => "second";
+  flare.updateCustomTexture(property, "uCustom1", 0);
+  assert.equal(first.disposed, true);
+  const second = flare.material.uniforms.uCustom1.value;
+  const white = flare._whiteTexture;
+  flare.releaseCustomTextures();
+  assert.equal(second.disposed, true);
+  assert.equal(white.disposed, false, "shared fallback remains live");
+  flare.unload();
+  assert.equal(white.disposed, true);
 });
 
 

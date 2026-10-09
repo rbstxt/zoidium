@@ -1195,6 +1195,7 @@ var PZ = PZ || {};
             this._textureValue = value;
             var project = T.findParent(this, PZ.project);
             if (this.texture) {
+                T.disposeImageUniform(this.material, "image");
                 project && project.assets.unload(this.texture);
                 this.texture = null;
                 this.material.uniforms.image.value = null;
@@ -1211,6 +1212,7 @@ var PZ = PZ || {};
             if (this[key + "Value"] === value && this[key]) return;
             this[key + "Value"] = value;
             if (this[key]) {
+                T.disposeImageUniform(this.material, uniformName);
                 project && project.assets.unload(this[key]);
                 this[key] = null;
             }
@@ -1286,6 +1288,9 @@ var PZ = PZ || {};
         unload() {
             if (this.threeObj && this.threeObj.parent) this.threeObj.parent.remove(this.threeObj);
             if (this.threeObj && this.threeObj.geometry) this.threeObj.geometry.dispose();
+            T.disposeImageUniform(this.material, "image");
+            T.disposeImageUniform(this.material, "layerColor");
+            T.disposeImageUniform(this.material, "layerSize");
             if (this.material) this.material.dispose();
             if (this.palettes) {
                 this.palettes.colorOverLife.dispose();

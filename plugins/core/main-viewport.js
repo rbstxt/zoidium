@@ -25,6 +25,12 @@
     constructor(...args) {
       super(...args);
       instances.push(this);
+      // THREE r91 retains render lists for every scene/camera pair. Flare
+      // callbacks in those lists retain their old project and timeline DOM.
+      // Reset only the CPU lists on project replacement; live GPU resources
+      // and the viewport renderer remain available for the next draw.
+      this.__zoidiumProjectChanged = () => this.renderer?.renderLists?.dispose?.();
+      this.editor?.onProjectChanged?.watch?.(this.__zoidiumProjectChanged);
     }
 
     render(...args) {
@@ -65,6 +71,7 @@
     // reference and any editor alias pointing at it so a retired viewport is
     // never kept alive or handed to a plugin window as its preview.
     unload(...args) {
+      this.editor?.onProjectChanged?.unwatch?.(this.__zoidiumProjectChanged);
       const index = instances.indexOf(this);
       if (index >= 0) instances.splice(index, 1);
       if (this.editor && this.editor.mainViewport === this) this.editor.mainViewport = null;

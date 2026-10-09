@@ -26,13 +26,13 @@
       "id": "core",
       "name": "Zoidium Core",
       "author": "Zoidium",
-      "version": "19",
+      "version": "20",
       "visibility": "hidden",
       "alwaysEnabled": true,
       "tagline": "Built-in core extensions",
       "description": "Hidden built-in extensions that always run. Not shown in the Plugins panel and never stored in projects.",
-      "manifest": "./plugins/core/manifest.json?v=19",
-      "bundle": "./plugins/core/bundle.json?v=19"
+      "manifest": "./plugins/core/manifest.json?v=20",
+      "bundle": "./plugins/core/bundle.json?v=20"
     },
     {
       "id": "easing-plus",
@@ -160,45 +160,45 @@
       "category": "scene",
       "name": "Particles+",
       "author": "Zoidium",
-      "version": "6",
+      "version": "7",
       "itemCount": 54,
       "format": "particle sprites",
       "tagline": "Extra Particle Sprites",
       "color": "#6b5b8f",
       "description": "Adds original monochrome particle sprites: geometric shapes, pattern textures, and glow/flare variants.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/particles-plus/manifest.json?v=6",
-      "bundle": "./plugins/particles-plus/bundle.json?v=6"
+      "manifest": "./plugins/particles-plus/manifest.json?v=7",
+      "bundle": "./plugins/particles-plus/bundle.json?v=7"
     },
     {
       "id": "trapcode-suite",
       "category": "scene",
       "name": "Rowbyte & Red Giant Suite",
       "author": "DaviFX",
-      "version": "9",
+      "version": "10",
       "itemCount": 14,
       "format": "3D objects",
       "tagline": "Particular, Form, Plexus and C4D lights",
       "color": "#c9a13b",
       "description": "Trapcode Particular, Form and Plexus 3D objects with floating designer windows, deterministic simulation and audio analysis, plus C4D-style lights.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/trapcode-suite/manifest.json?v=9",
-      "bundle": "./plugins/trapcode-suite/bundle.json?v=9"
+      "manifest": "./plugins/trapcode-suite/manifest.json?v=10",
+      "bundle": "./plugins/trapcode-suite/bundle.json?v=10"
     },
     {
       "id": "optical-flares",
       "category": "scene",
       "name": "Optical Flares",
       "author": "DaviFX",
-      "version": "4",
+      "version": "5",
       "itemCount": 5,
       "format": "3D objects",
       "tagline": "3D lens flares",
       "color": "#4a90d9",
       "description": "Video Copilot style lens flares placed in 3D space and projected through the scene camera, edited in one floating window.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/optical-flares/manifest.json?v=4",
-      "bundle": "./plugins/optical-flares/bundle.json?v=4"
+      "manifest": "./plugins/optical-flares/manifest.json?v=5",
+      "bundle": "./plugins/optical-flares/bundle.json?v=5"
     },
     {
       "id": "effector-plus",
