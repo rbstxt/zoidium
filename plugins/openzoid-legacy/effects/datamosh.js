@@ -17,7 +17,7 @@
 //
 // The result depends only on the source frames, the properties and the frame
 // index. It does not depend on playback direction, seeks, or earlier renders.
-// Frame sampling needs an Adjustment layer. Elsewhere the frame passes through.
+// Frame sampling reads clip content or the composite below an Adjustment.
 // The export-time byte-level renderer is gone, so preview and export match.
 // The "Setup" row opens the Datamosh Setup floating window (datamosh-setup.js).
 
@@ -177,14 +177,6 @@ vec4 legacyColor(vec4 orig) {
     float diff = abs(lC - lP);
     float act = smoothstep(threshold, threshold + 0.22, diff + (bh1 - 0.5) * 0.30 * intensity);
 
-    // REMOVE FRAMES: randomly freeze history (deleted I-frame = stuck P-chain)
-    float holdR = hash12(vec2(sF, 17.0));
-    if (holdR < hold * 0.65) {
-        vec3 frozen = texture2D(tAnchor, (vUv) * uvScale).rgb;
-        vec3 fmix = mix(orig.rgb, frozen, clamp(amount, 0.0, 1.0));
-        return vec4(fmix, orig.a);
-    }
-
     float a = algorithm - 1.0;
     vec2 n = vUv - 0.5;
     float r = max(length(n), 1e-4);
@@ -253,7 +245,11 @@ vec4 legacyColor(vec4 orig) {
         else if (a < 45.5) m = vec2(vUv.x < 0.5 ? 1.0 - vUv.x : vUv.x, vUv.y);
         else if (a < 46.5) m = vec2(vUv.x, vUv.y < 0.5 ? vUv.y : 1.0 - vUv.y);
         else m = vec2(vUv.x, vUv.y < 0.5 ? 1.0 - vUv.y : vUv.y);
+        m = vUv + (m - vUv) * speed;
         vec3 mc = texture2D(tAnchor, (clamp(m, 0.0, 1.0)) * uvScale).rgb;
+        vec3 delta = abs(orig.rgb - mc);
+        act = max(act, smoothstep(threshold, threshold + 0.22,
+            max(delta.r, max(delta.g, delta.b))));
         float mm = act * clamp(amount, 0.0, 1.0) * clamp(blend * 1.5, 0.0, 1.0);
         vec3 mout = mix(orig.rgb, mc, mm);
         return vec4(mout, orig.a);
@@ -266,6 +262,9 @@ vec4 legacyColor(vec4 orig) {
         else if (a < 51.5) s.y = fract(vUv.y + sp * inten * 2.0);
         else s.y = fract(vUv.y - sp * inten * 2.0);
         vec3 sc = texture2D(tAnchor, (clamp(s, 0.0, 1.0)) * uvScale).rgb;
+        vec3 delta = abs(orig.rgb - sc);
+        act = max(act, smoothstep(threshold, threshold + 0.22,
+            max(delta.r, max(delta.g, delta.b))));
         float sm = act * clamp(amount, 0.0, 1.0) * clamp(blend * 1.5, 0.0, 1.0);
         return vec4(mix(orig.rgb, sc, sm), orig.a);
     } else { // Sin / cos / oscillate / tapered families
@@ -324,6 +323,7 @@ vec4 legacyColor(vec4 orig) {
     else if (a >= 39.5 && a < 40.5) { taps = 5.0; addMix = 0.35; }
     else if (a >= 40.5 && a < 41.5) { taps = 10.0; addMix = 0.35; }
 
+    v *= speed;
     vec2 suv = vUv - v * act * 0.05;
     suv = clamp(suv, 0.0, 1.0);
     // macroblock pixelation: quantize the history fetch (the blocky logo look)
@@ -352,6 +352,11 @@ vec4 legacyColor(vec4 orig) {
     vec3 stretched = texture2D(tAnchor, (clamp(q - v * act * 0.05 * acceleration, 0.0, 1.0)) * uvScale).rgb;
     mosh = mix(mosh, stretched, clamp(acceleration * 0.45, 0.0, 0.8));
 
+    // A donor look can move a block into very different content even when
+    // the unwarped anchor has similar luminance. Gate against that result too.
+    vec3 colorDelta = abs(orig.rgb - mosh);
+    act = max(act, smoothstep(threshold, threshold + 0.22,
+        max(colorDelta.r, max(colorDelta.g, colorDelta.b))));
     float m = act * clamp(blend, 0.0, 1.0) * 1.4 * clamp(amount, 0.0, 1.0);
     m = clamp(m, 0.0, 1.0);
     vec3 col = mix(orig.rgb, mosh, m);
@@ -386,17 +391,24 @@ void main() {
         gl_FragColor = original;
         return;
     }
+    float cadence = floor(time * max(speed, 0.01) * 6.0) + seed * 17.0;
+    if (hash12(vec2(cadence, 17.0)) < hold) {
+        gl_FragColor = vec4(mix(original.rgb,
+            texture2D(tAnchor, vUv * uvScale).rgb, amount), original.a);
+        return;
+    }
 #ifdef DATAMOSH_LEGACY_LOOK
     gl_FragColor = legacyColor(original);
 #else
     vec2 p = vUv * resolution;
     vec2 block = floor(p / searchBlockSize);
     vec2 total = decodeVector(texture2D(tAccumulated, (block + 0.5) / blocks));
-    vec2 v = transformMotion(total, block, p);
+    vec2 v = transformMotion(total, block, p) * speed;
     vec3 moshed = texture2D(tAnchor, texCoord(p - v)).rgb;
     vec3 stretched = texture2D(tAnchor, texCoord(p - v * acceleration * 0.5)).rgb;
     moshed = mix(moshed, stretched, clamp(acceleration * 0.45, 0.0, 0.8));
-    float diff = abs(luma(original.rgb) - luma(moshed));
+    vec3 colorDelta = abs(original.rgb - moshed);
+    float diff = max(colorDelta.r, max(colorDelta.g, colorDelta.b));
     float jitter = (hash12(block + vec2(seed, segment)) - 0.5) * 0.30 * intensity;
     float act = smoothstep(threshold, threshold + 0.22, diff + jitter);
     float m = clamp(act * clamp(blend, 0.0, 1.0) * 1.4 * clamp(amount, 0.0, 1.0), 0.0, 1.0);
@@ -406,6 +418,50 @@ void main() {
 #endif
 }
 `;
+
+// New effects use a clip-local clock plus an offset. Older explicit clocks
+// retain their absolute value, including custom expressions and keyframes.
+function effectTime(effect, frame) {
+    const props = effect.properties;
+    const rate = Number(effect.parentProject?.sequence?.properties?.rate?.get?.()) || 30;
+    const value = Number(props.time.get(frame));
+    const clock = Number.isFinite(value) ? value : 0;
+    return props.timeMode.get() === 0 ? clock : Number(frame || 0) / rate + clock;
+}
+
+function loadEffectTime(effect, saved) {
+    if (!saved || saved.time === undefined || saved.timeMode !== undefined) return;
+    const entry = saved.time;
+    const expression = entry && entry.expression;
+    const source = typeof expression === "string" ? expression : expression?.source;
+    const customKeys = Array.isArray(entry?.keyframes) && entry.keyframes.some((key) =>
+        Number(key.value || 0) !== 0 || Number(key.frame || 0) !== 0);
+    if (source?.trim() === "time" && !customKeys) {
+        const property = effect.properties.time;
+        property.expression = null;
+        property.animated = false;
+        // The donor expression default serialized an empty keyframe list.
+        if (property.keyframes?.length === 0) property.keyframes.push(new PZ.keyframe(0, 0));
+        property.set(0, 0);
+    } else {
+        effect.properties.timeMode.set(0);
+    }
+}
+
+function datamoshLookGroup(label, index) {
+    if (index === 0) return "";
+    if (/^(Multiply by|Multiply$)/.test(label)) return "Multiply";
+    if (/^(Average|Add previous)/.test(label)) return "Average";
+    if (/^Mirror/.test(label)) return "Mirror";
+    if (/^Sweep/.test(label)) return "Sweep";
+    if (/sin|cos/i.test(label)) return "Wave";
+    if (/^(Random|Spatial)/.test(label)) return "Random";
+    return "Motion";
+}
+const lookGroups = ["", "Motion", "Multiply", "Wave", "Random", "Average", "Mirror", "Sweep"];
+const datamoshLookOptions = DATAMOSH_ALGORITHM_ITEMS.split(";")
+    .map((name, value) => ({ name, value, group: datamoshLookGroup(name, value) }))
+    .sort((a, b) => lookGroups.indexOf(a.group) - lookGroups.indexOf(b.group));
 
 function clamp01(v) {
     v = Number(v);
@@ -556,21 +612,19 @@ const datamoshProperties = {
         zoidiumControl: DATAMOSH_SETUP_CONTROL,
     },
     algorithm: {
-        dynamic: false, name: "Look", type: PZ.property.type.OPTION,
-        value: 0, items: DATAMOSH_ALGORITHM_ITEMS,
+        dynamic: false, name: "Look", type: PZ.property.type.LIST,
+        value: 12, items: datamoshLookOptions,
     },
-    hold: dmoshNum("Remove Frames (Hold)", 0, 0, 1, 0.01, 2),
+    hold: dmoshNum("Remove Frames (Hold)", 0.15, 0, 1, 0.01, 2),
     speed: dmoshNum("Speed", 1, 0, 5, 0.1, 1),
+    timeMode: { visible: false, name: "Time mode", type: PZ.property.type.NUMBER, value: 1 },
     time: {
-        dynamic: true, name: "Time", type: PZ.property.type.NUMBER, step: 0.01,
-        value(property) {
-            property.animated = true;
-            property.expression = new PZ.expression("time");
-        },
+        dynamic: true, name: "Time Offset", type: PZ.property.type.NUMBER,
+        value: 0, step: 0.01, decimals: 2,
     },
     amount: dmoshNum("Amount", 1, 0, 1, 0.01, 2),
     interval: dmoshStructural("I-frame Interval", 30, 2, 240),
-    samples: dmoshStructural("Motion Samples", 6, 1, DATAMOSH_MAX_STEPS),
+    samples: dmoshStructural("Motion Samples", 4, 1, DATAMOSH_MAX_STEPS),
     motion: {
         dynamic: false,
         name: "Motion",
@@ -720,7 +774,8 @@ DatamoshPass.prototype = Object.assign(Object.create(THREE.Pass.prototype), {
     },
     render: function (renderer, writeBuffer, readBuffer) {
         if (readBuffer.width > 0 && readBuffer.height > 0) {
-            this.resolution.set(readBuffer.width, readBuffer.height);
+            this.resolution.set(readBuffer.width * this.uniforms.uvScale.value.x,
+                readBuffer.height * this.uniforms.uvScale.value.y);
         }
         const oldAutoClear = renderer.autoClear;
         renderer.autoClear = false;
@@ -763,6 +818,7 @@ ZoidiumPluginApis.defineFrameSampler.call(datamoshEffect, {
             datamoshEffect.pass = new DatamoshPass(datamoshEffect);
             datamoshEffect.pass.setSize(2, 2);
             datamoshEffect.properties.load(migrateSavedProperties(data && data.properties));
+            loadEffectTime(datamoshEffect, data && data.properties);
         },
         update(e) {
             const pass = datamoshEffect.pass;
@@ -777,7 +833,7 @@ ZoidiumPluginApis.defineFrameSampler.call(datamoshEffect, {
             w.algorithm.value = clampInteger(readNumber(props.algorithm, e, 0), 0, 80, 0);
             w.hold.value = clamp01(readNumber(props.hold, e, 0));
             w.speed.value = Math.min(5, Math.max(0, readNumber(props.speed, e, 1)));
-            w.time.value = readNumber(props.time, e, f / 30);
+            w.time.value = effectTime(datamoshEffect, e);
             w.amount.value = amount;
             w.blend.value = clamp01(readNumber(props.blend, e, 0.8));
             w.intensity.value = Math.min(2, Math.max(0, readNumber(props.intensity, e, 0.6)));

@@ -40,7 +40,7 @@ const SECTIONS = [
 ];
 
 const TRAIL_HINT = "Averages earlier source frames. Needs an Adjustment layer.";
-const TRAIL_NOTE = "Persistence needs an Adjustment layer. The signal distortions still render.";
+const TRAIL_NOTE = "Persistence samples earlier clip frames, or the composite below an Adjustment layer.";
 
 function sameValue(a, b) {
   return Math.abs(Number(a) - Number(b)) < 1e-9;
@@ -48,7 +48,7 @@ function sameValue(a, b) {
 
 function hostsFrameSampling(PZ, effect) {
   try {
-    const adjustment = PZ.layer && PZ.layer.adjustment;
+    const adjustment = PZ.layer;
     return Boolean(adjustment && effect.tryGetParentOfType && effect.tryGetParentOfType(adjustment));
   } catch (_error) {
     return false;
@@ -191,6 +191,7 @@ module.exports = {
     }
 
     function buildWindow(body, effect) {
+      body.style.flexBasis = "0px";
       const props = effect.properties;
       const rows = [];
       let presetControl = null;
@@ -287,9 +288,9 @@ module.exports = {
         id: id,
         title: "VHS Setup",
         subtitle: "Signal chain",
-        persistKey: "vhs-setup",
-        width: 340,
-        height: 560,
+        persistKey: "vhs-setup-v2",
+        width: 420,
+        height: 780,
         minHeight: 240,
         mount(body) {
           return buildWindow(body, effect);

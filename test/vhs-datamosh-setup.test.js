@@ -236,7 +236,7 @@ test("vhs: the property button registers once and opens one window per effect", 
   assert.equal(h.registrations["openzoid-legacy.vhs-setup"].type, 15, "TEXT storage");
   const win = openFromButton(h, h.registrationId, h.effect);
   assert.equal(win.title, "VHS Setup");
-  assert.equal(win.persistKey, "vhs-setup");
+  assert.equal(win.persistKey, "vhs-setup-v2");
   assert.equal(typeof win.mount, "function");
   assert.equal(typeof win.isValid, "function");
   assert.equal(win.isValid(), true);

@@ -50,7 +50,7 @@ function harness({ pending = false, float = true, complete = true, limit = 8192 
     properties: {
       addAll(defs) {
         for (const [key, def] of Object.entries(defs)) {
-          this[key] = { value: typeof def.value === "function" ? 0 : def.value, get() { return this.value; } };
+          this[key] = { value: typeof def.value === "function" ? 0 : def.value, get() { return this.value; }, set(value) { this.value = value; } };
         }
       }, load(data) { for (const [key, value] of Object.entries(data || {})) this[key].value = value; },
     },
@@ -173,4 +173,19 @@ test("a packed atlas splits within a block row to respect small texture limits",
   assert.equal(h.frames[4].offset, 168, "batch boundary may fall inside the 191-block row");
   assert.equal(h.renderer.autoClear, true);
   h.effect.unload();
+});
+
+test("JPEG uses rendered local time plus a numeric offset and preserves saved custom clocks", async () => {
+  const h = harness();
+  h.effect.parentProject.sequence = { properties: { rate: { get: () => 24 } } };
+  await h.effect.load({});
+  h.effect.properties.time.set(0.5);
+  h.effect.update(48);
+  assert.equal(h.effect.pass.uniforms.time.value, 2.5);
+  h.effect.update(24);
+  assert.equal(h.effect.pass.uniforms.time.value, 1.5);
+  await h.effect.load({ properties: { time: 7 } });
+  h.effect.update(48);
+  assert.equal(h.effect.pass.uniforms.time.value, 7);
+  assert.equal(h.effect.properties.timeMode.get(), 0);
 });

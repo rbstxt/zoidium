@@ -5,7 +5,7 @@
 // functions of time, seed-like hashes and properties. Persistence (trails) is
 // the only temporal part. It averages earlier SOURCE frames requested through
 // the frame sampler, so it never reads this effect's previous output.
-// Trails need an Adjustment layer; elsewhere the stateless signal still renders.
+// Trails sample earlier clip content or the composite below an Adjustment.
 // The "Setup" row opens the VHS Setup floating window (vhs-setup.js).
 
 // ---------------------------------------------------------------------------
@@ -711,7 +711,7 @@ void main() {
     }
     // tPrev is the weighted average of sampled earlier source frames (or the
     // current source when hasHistory is 0), never this effect's output.
-    vec3 prev = texture2D(tPrev, clamp(vUv + vec2(0.0, 0.004 * roll), 0.0, 1.0)).rgb;
+    vec3 prev = texture2D(tPrev, clamp(vUv + vec2(0.0, 0.004 * roll), 0.0, 1.0) * uvScale).rgb;
     float frameMix = clamp((0.25 + persistence) * interlace * hasHistory * amount, 0.0, 0.85);
     col = mix(col, prev, frameMix);
 
@@ -798,9 +798,38 @@ uniform vec2 uvScale;
 uniform float factor;
 varying vec2 vUv;
 void main() {
-    gl_FragColor = mix(texture2D(tBase, vUv), texture2D(tSample, vUv * uvScale), factor);
+    gl_FragColor = mix(texture2D(tBase, vUv * uvScale), texture2D(tSample, vUv * uvScale), factor);
 }
 `;
+
+// New effects use a clip-local clock plus an offset. Older explicit clocks
+// retain their absolute value, including custom expressions and keyframes.
+function effectTime(effect, frame) {
+    const props = effect.properties;
+    const rate = Number(effect.parentProject?.sequence?.properties?.rate?.get?.()) || 30;
+    const value = Number(props.time.get(frame));
+    const clock = Number.isFinite(value) ? value : 0;
+    return props.timeMode.get() === 0 ? clock : Number(frame || 0) / rate + clock;
+}
+
+function loadEffectTime(effect, saved) {
+    if (!saved || saved.time === undefined || saved.timeMode !== undefined) return;
+    const entry = saved.time;
+    const expression = entry && entry.expression;
+    const source = typeof expression === "string" ? expression : expression?.source;
+    const customKeys = Array.isArray(entry?.keyframes) && entry.keyframes.some((key) =>
+        Number(key.value || 0) !== 0 || Number(key.frame || 0) !== 0);
+    if (source?.trim() === "time" && !customKeys) {
+        const property = effect.properties.time;
+        property.expression = null;
+        property.animated = false;
+        // The donor expression default serialized an empty keyframe list.
+        if (property.keyframes?.length === 0) property.keyframes.push(new PZ.keyframe(0, 0));
+        property.set(0, 0);
+    } else {
+        effect.properties.timeMode.set(0);
+    }
+}
 
 // Matches the mix factor applied by VHS_SIGNAL_SHADER (frameMix).
 function vhsTrailMix(amount, persistence, interlace) {
@@ -849,15 +878,10 @@ const vhsProperties = {
         value: "",
         zoidiumControl: VHS_TRAIL_SETUP_CONTROL,
     },
+    timeMode: { visible: false, name: "Time mode", type: PZ.property.type.NUMBER, value: 1 },
     time: {
-        dynamic: true,
-        name: "Time",
-        type: PZ.property.type.NUMBER,
-        value: (e) => {
-            e.animated = true;
-            e.expression = new PZ.expression("time");
-        },
-        step: 0.01,
+        dynamic: true, name: "Time Offset", type: PZ.property.type.NUMBER,
+        value: 0, step: 0.01, decimals: 2,
     },
     amount: vhsNum("Amount", 1, 0, 1, 0.01, 2),
     signalStrength: vhsNum("Signal Strength", 0.25, 0, 1, 0.01, 2),
@@ -898,7 +922,7 @@ const vhsProperties = {
         step: 0.1,
         decimals: 1,
     },
-    persistence: vhsNum("Persistence", 0.25, 0, 0.9, 0.01, 2),
+    persistence: vhsNum("Persistence", 0.25, 0, 1, 0.01, 2),
 };
 
 // Pass object assigned to effect.pass. The compositor calls render() once per
@@ -1050,6 +1074,12 @@ VhsPass.prototype = Object.assign(Object.create(THREE.Pass.prototype), {
         const oldAutoClear = renderer.autoClear;
         renderer.autoClear = false;
         const output = writeBuffer || readBuffer;
+        const scale = this.uniforms.uvScale.value;
+        const width = Math.round(readBuffer.width * scale.x);
+        const height = Math.round(readBuffer.height * scale.y);
+        this.resolution.set(width, height);
+        this.target.viewport?.set?.(0, 0, width, height);
+        this.trailTargets.forEach((target) => target.viewport?.set?.(0, 0, width, height));
         const trail = this.renderTrail(renderer);
         this.signalUniforms.tDiffuse.value = readBuffer.texture;
         this.signalUniforms.tPrev.value = trail ? trail.texture : readBuffer.texture;
@@ -1098,14 +1128,13 @@ ZoidiumPluginApis.defineFrameSampler.call(vhsEffect, {
             vhsEffect.pass = new VhsPass(vhsEffect);
             vhsEffect.pass.setSize(2, 2);
             vhsEffect.properties.load(data && data.properties);
+            loadEffectTime(vhsEffect, data && data.properties);
         },
         update(e) {
             const pass = vhsEffect.pass;
             if (!pass) return;
             const props = vhsEffect.properties;
-            const rawT = props.time.get(e);
-            let t = Number(rawT);
-            if (!isFinite(t)) t = 0;
+            const t = effectTime(vhsEffect, e);
             const amount = clamp01(props.amount.get(e));
             const s = pass.signalUniforms;
             s.time.value = t;
