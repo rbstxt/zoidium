@@ -82,7 +82,7 @@ function transitionHarness() {
   let cleanups = 0;
   const state = { plugin: { id: "fixture", name: "Fixture" }, manifest: {}, runtimeModules: [], card: {}, toggle: { checked: true } };
   const sandbox = {
-    PZ: {}, trackedNativeEffects: new Set(), trackedPluginMaterials: new Set(),
+    PZ: {}, NATIVE_FX_PLUGIN_ID: "native-fx", trackedNativeEffects: new Set(), trackedPluginMaterials: new Set(),
     trackedPluginObjects: new Set(), missingPluginObjects: new Set(),
     trackedPluginResources: new Set(), missingPluginResources: new Set(),
     projectUsesNumericPlugin: () => false,
