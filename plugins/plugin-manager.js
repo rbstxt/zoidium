@@ -1334,6 +1334,34 @@
     };
   }
 
+  // Plugin-scoped access to the shared floating windows. Windows opened
+  // through context.ui close automatically when the plugin is disabled.
+  function createModuleUi(plugin, lifecycle) {
+    const owned = new Set();
+    lifecycle.onDispose(() => {
+      for (const win of Array.from(owned)) win.close();
+      owned.clear();
+    });
+    return Object.freeze({
+      get controls() {
+        return ZoidiumUI.controls;
+      },
+      notify: (detail) => ZoidiumUI.notify(detail),
+      getWindow: (id) => ZoidiumUI.getWindow(`${plugin.id}:${id}`),
+      openWindow(options) {
+        const config = Object.assign({}, options || {});
+        config.id = `${plugin.id}:${config.id || "window"}`;
+        if (config.persistKey) config.persistKey = `${plugin.id}:${config.persistKey}`;
+        const win = ZoidiumUI.openWindow(config);
+        if (win && !owned.has(win)) {
+          owned.add(win);
+          win.onClose(() => owned.delete(win));
+        }
+        return win;
+      },
+    });
+  }
+
   async function registerManifest(plugin, manifest, state) {
     const getAsset = createPluginAssetResolver(state.bundleAssets);
     if (state.runtimeModules.length === 0) {
@@ -1371,6 +1399,7 @@
           plugin,
           manifest,
           apis: window.ZoidiumPluginApis || null,
+          ui: createModuleUi(plugin, lifecycle),
           editor: window.CM,
           PZ,
           document,

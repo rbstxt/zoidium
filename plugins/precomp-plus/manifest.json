@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "precomp-plus",
+  "name": "Precomp+",
+  "author": "Zoidium",
+  "version": "1",
+  "kind": "extension",
+  "description": "Composition tabs engine: pre-compose, nested comps, and safe drill-in navigation.",
+  "category": "UTILITIES",
+  "modules": [
+    {
+      "id": "precomp-runtime",
+      "source": "./plugins/precomp-plus/precomp-runtime.js?v=1"
+    }
+  ],
+  "resources": [
+    {
+      "id": "precomp-engine",
+      "type": "text",
+      "source": "./plugins/precomp-plus/comps.js?v=1"
+    }
+  ]
+}

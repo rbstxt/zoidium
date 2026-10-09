@@ -1,0 +1,229 @@
+.vhs-window {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            background: radial-gradient(900px 480px at 8% -6%, rgba(247,148,29,.13), transparent 60%),
+                radial-gradient(760px 520px at 98% 108%, rgba(74,144,217,.10), transparent 62%),
+                linear-gradient(180deg, #14161b 0%, #0c0d11 55%, #07080b 100%);
+            font-family: Inter, 'Segoe UI', system-ui, -apple-system, sans-serif;
+            color: #e8e9eb;
+            animation: vhsFade .28s ease;
+        }
+        .vhs-window button { font-family: inherit; }
+        @keyframes vhsFade { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes vhsRise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+        .vhs-titlebar {
+            flex: 0 0 54px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 0 14px;
+            background: rgba(14,16,20,.8);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-bottom: 1px solid rgba(247,148,29,.35);
+            animation: vhsRise .32s ease;
+        }
+        .vhs-title-left { display: flex; align-items: baseline; gap: 10px; }
+        .vhs-title {
+            font-size: 14px;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            color: #fff;
+            font-weight: 700;
+        }
+        .vhs-subtitle { font-size: 11px; letter-spacing: 1px; color: #f7941d; text-transform: uppercase; font-weight: 700; }
+        .vhs-live {
+            font-size: 10px; font-weight: 700; letter-spacing: 2px; padding: 4px 12px; border-radius: 999px;
+            background: rgba(255,255,255,.05); color: #8b9098; border: 1px solid rgba(255,255,255,.12);
+            transition: background .15s ease, color .15s ease, border-color .15s ease;
+        }
+        .vhs-live.on { background: #e8402a; color: #fff; border-color: #e8402a; box-shadow: 0 0 14px rgba(232,64,42,.55); }
+        .vhs-status { margin-left: auto; font-size: 11px; letter-spacing: 1px; color: #9aa0a8; text-transform: uppercase; font-weight: 500; }
+        .vhs-status-text { font-size: 11px; letter-spacing: 1px; color: #9aa0a8; text-transform: uppercase; }
+        .vhs-close {
+            width: 32px; height: 32px;
+            background: rgba(255,255,255,.05);
+            border: 1px solid rgba(255,255,255,.12);
+            border-radius: 999px;
+            color: #e6edf5;
+            font-size: 14px;
+            line-height: 1;
+            cursor: pointer;
+            font-family: inherit;
+            transition: background .15s ease, border-color .15s ease, color .15s ease;
+        }
+        .vhs-close:hover { background: rgba(232,64,42,.2); color: #fff; border-color: rgba(232,64,42,.6); }
+        .vhs-close:focus-visible { outline: 2px solid #f7941d; outline-offset: 2px; }
+        .vhs-body { flex: 1; display: flex; min-height: 0; gap: 10px; padding: 10px; box-sizing: border-box; }
+        .vhs-sidebar {
+            flex: 0 0 360px;
+            width: 360px;
+            background: rgba(20,22,27,.88);
+            border: 1px solid rgba(255,255,255,.08);
+            border-radius: 14px;
+            overflow-y: auto;
+            padding: 14px;
+            box-sizing: border-box;
+            box-shadow: 0 12px 32px rgba(0,0,0,.45);
+            animation: vhsRise .36s ease;
+        }
+        .vhs-main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+            background: rgba(0,0,0,.55);
+            border: 1px solid rgba(255,255,255,.08);
+            border-radius: 14px;
+            overflow: hidden;
+            box-shadow: 0 12px 32px rgba(0,0,0,.5);
+            animation: vhsRise .4s ease;
+        }
+        .vhs-screen { flex: 1; position: relative; min-height: 220px; background: #000; border-bottom: 1px solid rgba(255,255,255,.07); }
+        .vhs-screen .editorpanel {
+            position: absolute !important;
+            top: 0 !important; left: 0 !important;
+            width: 100% !important; height: 100% !important;
+            border: 0 !important;
+            background: #000 !important;
+        }
+        .vhs-screen-placeholder {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            color: #9aa0a8;
+            font-size: 12px;
+            font-weight: 500;
+            letter-spacing: 1px;
+            background: rgba(255,255,255,.04);
+            border: 1px dashed rgba(255,255,255,.16);
+            padding: 14px 22px;
+            border-radius: 12px;
+            white-space: nowrap;
+        }
+        .vhs-controls {
+            flex: 0 1 300px;
+            background: rgba(16,18,22,.9);
+            padding: 12px 14px 16px;
+            box-sizing: border-box;
+            overflow-y: auto;
+        }
+        .vhs-logo {
+            display: block;
+            height: 74px;
+            box-sizing: border-box;
+            overflow: hidden;
+            background: #000;
+            border: 3px solid #f7941d;
+            border-radius: 14px;
+            padding: 0;
+            margin-bottom: 12px;
+            box-shadow: 0 8px 24px rgba(0,0,0,.4), 0 0 20px rgba(247,148,29,.18);
+        }
+        .vhs-logo-cover {
+            display: block;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            object-position: center;
+        }
+        .vhs-section { margin: 14px 2px 8px; }
+        .vhs-section-title {
+            font-size: 11px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: #f7941d;
+            font-weight: 700;
+        }
+        .vhs-section-sub { font-size: 11px; color: #8b9098; margin-top: 2px; }
+        .vhs-presets { display: flex; flex-wrap: wrap; gap: 6px; }
+        .vhs-preset {
+            background: rgba(255,255,255,.05);
+            color: #e8e9eb;
+            border: 1px solid rgba(255,255,255,.12);
+            border-radius: 999px;
+            padding: 6px 14px;
+            font-size: 11px;
+            font-weight: 500;
+            font-family: inherit;
+            cursor: pointer;
+            letter-spacing: .5px;
+            transition: background .15s ease, border-color .15s ease, color .15s ease, transform .15s ease;
+        }
+        .vhs-preset:hover { background: rgba(247,148,29,.16); border-color: rgba(247,148,29,.55); color: #fff; transform: translateY(-1px); }
+        .vhs-preset.active { background: #f7941d; border-color: #f7941d; color: #191919; font-weight: 700; box-shadow: 0 4px 14px rgba(247,148,29,.4); }
+        .vhs-preset:focus-visible { outline: 2px solid #f7941d; outline-offset: 2px; }
+        .vhs-list { list-style: none; margin: 0; padding: 0; }
+        .vhs-info-list { list-style: none; margin: 0; padding: 0; }
+        .vhs-item { padding: 6px 8px; border-radius: 8px; transition: background .15s ease; }
+        .vhs-item:hover { background: rgba(255,255,255,.04); }
+        .vhs-info { cursor: default; padding: 6px 8px; border-radius: 8px; }
+        .vhs-info:hover { background: rgba(255,255,255,.04); }
+        .vhs-info-wrap .vhs-name { font-size: 12px; color: #f0f3f7; font-weight: 700; }
+        .vhs-hint { font-size: 11px; color: #8b9098; line-height: 1.4; margin-top: 1px; }
+        .vhs-group {
+            background: rgba(255,255,255,.035);
+            border: 1px solid rgba(255,255,255,.09);
+            border-radius: 12px;
+            padding: 10px 12px 6px;
+            margin-bottom: 12px;
+            box-shadow: 0 6px 18px rgba(0,0,0,.3);
+        }
+        .vhs-group-head { margin-bottom: 6px; padding-bottom: 6px; border-bottom: 1px solid rgba(255,255,255,.08); }
+        .vhs-group-title { font-size: 12px; letter-spacing: 2px; text-transform: uppercase; color: #fff; font-weight: 700; }
+        .vhs-group-sub { font-size: 11px; color: #8b9098; margin-top: 2px; }
+        .vhs-slider {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 5px 0;
+            min-width: 0;
+        }
+        .vhs-label-wrap { flex: 0 0 220px; min-width: 0; }
+        .vhs-slider label { font-size: 12px; color: #f0f3f7; font-weight: 700; }
+        .vhs-slider .vhs-hint { font-size: 10px; }
+        .vhs-slider input[type=range] { flex: 1; min-width: 0; height: 14px; accent-color: #f7941d; }
+        .vhs-slider input[type=range]:disabled { opacity: .4; }
+        .vhs-slider input[type=range]:focus-visible { outline: 2px solid #f7941d; outline-offset: 2px; }
+        .vhs-slider .vhs-value {
+            flex: 0 0 48px;
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+            color: #f0a83d;
+            font-size: 12px;
+            font-weight: 700;
+        }
+        .vhs-status-row {
+            display: flex; align-items: center; gap: 8px;
+            font-size: 11px; letter-spacing: 1px; text-transform: uppercase;
+            color: #9aa0a8; margin: 4px 2px 8px;
+        }
+        .vhs-dot { width: 8px; height: 8px; border-radius: 50%; background: #5b6b80; }
+        .vhs-dot.on { background: #53e07a; box-shadow: 0 0 6px #53e07a; }
+        .vhs-buttons { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+        .vhs-buttons button {
+            background: rgba(255,255,255,.06);
+            color: #e8e9eb;
+            border: 1px solid rgba(255,255,255,.12);
+            border-radius: 999px;
+            padding: 7px 14px;
+            font-size: 11px;
+            font-weight: 600;
+            font-family: inherit;
+            cursor: pointer;
+            letter-spacing: .5px;
+            transition: background .15s ease, border-color .15s ease, transform .15s ease;
+        }
+        .vhs-buttons button:hover { background: rgba(247,148,29,.16); border-color: rgba(247,148,29,.55); transform: translateY(-1px); }
+        .vhs-buttons button:focus-visible { outline: 2px solid #f7941d; outline-offset: 2px; }
+        .vhs-glitch-btn { background: #e8402a !important; border-color: #e8402a !important; color: #fff !important; font-weight: 700; }
+        .vhs-glitch-btn:hover { background: #f7543a !important; box-shadow: 0 4px 14px rgba(232,64,42,.45); }
+        .vhs-empty { font-size: 12px; color: #f0a83d; background: rgba(247,148,29,.1); border: 1px solid rgba(247,148,29,.4); border-radius: 10px; padding: 8px 10px; line-height: 1.5; margin-bottom: 6px; }
+        .vhs-sidebar::-webkit-scrollbar, .vhs-controls::-webkit-scrollbar { width: 10px; }
+        .vhs-sidebar::-webkit-scrollbar-track, .vhs-controls::-webkit-scrollbar-track { background: transparent; }
+        .vhs-sidebar::-webkit-scrollbar-thumb, .vhs-controls::-webkit-scrollbar-thumb { background: rgba(255,255,255,.14); border-radius: 8px; border: 2px solid transparent; background-clip: content-box; }
+        .vhs-sidebar::-webkit-scrollbar-thumb:hover, .vhs-controls::-webkit-scrollbar-thumb:hover { background: rgba(247,148,29,.5); border: 2px solid transparent; background-clip: content-box; }
+        @media (prefers-reduced-motion: reduce) { .vhs-window * { animation: none !important; transition: none !important; } }

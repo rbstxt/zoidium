@@ -39,7 +39,7 @@ test("every visible plugin belongs to a declared pack", () => {
   }
 
   assert.deepEqual(Object.fromEntries(packs), {
-    utilities: ["easing-plus", "player-plus"],
+    utilities: ["easing-plus", "player-plus", "precomp-plus"],
     scene: [
       "light-plus",
       "geometry-plus",
@@ -47,12 +47,18 @@ test("every visible plugin belongs to a declared pack", () => {
       "material-plus",
       "text-plus",
       "particles-plus",
+      "trapcode-suite",
+      "optical-flares",
+      "effector-plus",
+      "camera-plus",
     ],
     adjustment: [
       "native-fx",
       "afterclip",
       "alipfx-shader-pack-4",
       "ccfx-shader-pack",
+      "openzoid-legacy",
+      "magic-looks",
     ],
     experimental: ["layer-input"],
   });
