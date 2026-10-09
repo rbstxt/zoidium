@@ -1246,6 +1246,17 @@
     }
   }
 
+  const frameSamplerIdentities = new WeakMap();
+  let nextFrameSamplerIdentity = 1;
+  function frameSamplerIdentity(effect) {
+    let id = frameSamplerIdentities.get(effect);
+    if (!id) {
+      id = nextFrameSamplerIdentity++;
+      frameSamplerIdentities.set(effect, id);
+    }
+    return id;
+  }
+
   function installViewportPatch(state) {
     const prototype = PZ.ui?.viewport?.prototype;
     if (!prototype || prototype[VIEWPORT_RENDER_MARKER]) return;
@@ -1273,7 +1284,8 @@
         if (effects.length > 0) {
           // One bounded preparation per viewport. The serialization includes
           // clip timing, effect order, expressions, keys and sequence settings.
-          const key = JSON.stringify([frame, frameSamplerInputKey(sequence, this.compositor)]);
+          const key = JSON.stringify([frame, frameSamplerInputKey(sequence, this.compositor),
+            effects.map(({ effect }) => frameSamplerIdentity(effect))]);
           const runtime = getFrameSamplerRuntime(state, this.compositor);
           // Preparation temporarily updates effect uniforms and decoder textures.
           // Even a previously prepared frame must wait until that work finishes.
