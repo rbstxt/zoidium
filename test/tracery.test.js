@@ -96,7 +96,7 @@ test("tracery effect declares its full property surface", () => {
 test("tracery path routing hits endpoints and shapes", () => {
   const { fakeThis } = loadEffectThis();
   const paths = fakeThis.traceryPaths;
-  assert.deepEqual(Object.keys(paths).sort(), ["clean", "css", "detect", "draw", "point", "route"]);
+  assert.deepEqual(Object.keys(paths).sort(), ["clean", "css", "detect", "draw", "point", "region", "route"]);
   for (const type of [0, 1, 2, 3]) {
     const pts = paths.route(type, 0, 0, 100, 60, 0, 0, 0, 0.5);
     assert.ok(pts.length >= 2, "type " + type);
@@ -116,6 +116,34 @@ test("tracery path routing hits endpoints and shapes", () => {
   const tl = Math.sqrt(at0.dx * at0.dx + at0.dy * at0.dy);
   assert.ok(Math.abs(tl - 1) < 0.001);
   assert.equal(paths.css([1, 0.5, 0], 0.5), "rgba(255,128,0,0.5)");
+});
+
+test("tracery layer region follows the compositor uv scale and layer resolution", () => {
+  const { fakeThis } = loadEffectThis();
+  const region = fakeThis.traceryPaths.region;
+  // Layer occupies a third of the screen buffer; its own resolution wins when known.
+  assert.deepEqual(region(1095, 616, { x: 1 / 3, y: 1 / 3 }, [640, 360]), { width: 640, height: 360, sx: 1 / 3, sy: 1 / 3 });
+  assert.deepEqual(region(1095, 616, { x: 1 / 3, y: 1 / 3 }, null), { width: 365, height: 205, sx: 1 / 3, sy: 1 / 3 }, "buffer fallback");
+  assert.deepEqual(region(64, 36, { x: 1, y: 1 }, null), { width: 64, height: 36, sx: 1, sy: 1 });
+  assert.deepEqual(region(64, 36, null, undefined), { width: 64, height: 36, sx: 1, sy: 1 }, "no uniform");
+  assert.equal(region(64, 36, { x: 3, y: 0 }, null).sx, 1, "scale never exceeds the buffer");
+});
+
+test("tracery overlay samples its canvas over the layer frame and detection through the layer region", () => {
+  assert.ok(source.includes("texture2D(tOverlay, vUv)"), "overlay covers exactly the layer frame");
+  assert.ok(source.includes("texture2D(tDiffuse, (vUv + vec2(fi, fj) * texel) * uvScale)"), "detection reads the layer region");
+  assert.ok(source.includes("canvasTexture.minFilter = THREE.LinearFilter"), "no power-of-two resampling of the overlay");
+  assert.ok(source.includes("canvasTexture.generateMipmaps = false"));
+});
+
+test("a new Tracery effect starts with Point 1 on at the frame centre", () => {
+  const { fakeThis } = loadEffectThis();
+  const defs = fakeThis.propertyDefinitions;
+  assert.equal(defs.point1Enable.value, 1, "point 1 default on");
+  assert.equal(defs.point1X.value, 50);
+  assert.equal(defs.point1Y.value, 50);
+  for (let n = 2; n <= 6; n++) assert.equal(defs["point" + n + "Enable"].value, 0, "point " + n + " default off");
+  assert.equal(defs.detectEnable.value, 1, "detection defaults unchanged");
 });
 
 test("tracery detection labels connected regions", () => {

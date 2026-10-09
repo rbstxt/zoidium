@@ -113,7 +113,13 @@ function makeHarness(defs, effect) {
   const ui = {
     controls,
     openWindow(options) {
-      const win = { options, closed: false, close() { this.closed = true; } };
+      const win = {
+        options,
+        closed: false,
+        subtitle: "",
+        setSubtitle(text) { this.subtitle = text; },
+        close() { this.closed = true; },
+      };
       windows.push(win);
       return win;
     },
@@ -306,8 +312,9 @@ test("Tracery presets switch off unused points and set their point values", () =
   const before = h.edits.length;
   row.specs[4].onClick();
   const keys = h.edits.slice(before).map((e) => e.property);
-  for (let n = 1; n <= 6; n++) assert.ok(keys.includes("EFFECT/point" + n + "Enable"), "point " + n);
-  assert.equal(effect.properties.point1Enable.get(), 0, "Key Track is detection-only");
+  for (let n = 2; n <= 6; n++) assert.ok(keys.includes("EFFECT/point" + n + "Enable"), "point " + n);
+  assert.equal(effect.properties.point1Enable.get(), 1, "Key Track keeps Point 1 visible");
+  assert.equal(effect.properties.point1X.get(), 50, "a placed Point 1 is left where it is");
   row.specs[0].onClick();
   assert.equal(effect.properties.point1Enable.get(), 1);
   assert.equal(effect.properties.point1X.get(), 30);
@@ -346,4 +353,171 @@ test("window source keeps to the shared floating window API", () => {
   }
   assert.ok(source.includes("context.ui.openWindow"), "uses the plugin window API");
   assert.ok(!/Math\.random|Date\.now|performance\.now/.test(source), "no nondeterministic inputs");
+});
+
+// Point placement: a fake main viewport (1095x616 canvas over the 1920x1080
+// orthographic sequence) and a window-level event bus for the capture listeners.
+const PLACE_CANVAS_RECT = { left: 100, top: 50, width: 1095, height: 616 };
+const PLACE_CAMERA = { left: -960, right: 960, top: 540, bottom: -540 };
+
+function placementStubs() {
+  const handlers = new Map();
+  globalThis.window = {
+    addEventListener(type, fn) {
+      if (!handlers.has(type)) handlers.set(type, new Set());
+      handlers.get(type).add(fn);
+    },
+    removeEventListener(type, fn) {
+      const set = handlers.get(type);
+      if (set) set.delete(fn);
+    },
+    count() {
+      let n = 0;
+      for (const set of handlers.values()) n += set.size;
+      return n;
+    },
+  };
+  const timers = [];
+  globalThis.setTimeout = (fn) => { timers.push(fn); return timers.length; };
+  globalThis.clearTimeout = () => {};
+  const canvas = { style: { cursor: "" }, getBoundingClientRect: () => PLACE_CANVAS_RECT };
+  const quad = { matrixWorld: { elements: [640, 0, 0, 0, 0, 360, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1] } };
+  const viewport = { canvas, compositor: { camera: PLACE_CAMERA } };
+  return {
+    canvas,
+    quad,
+    viewport,
+    timers,
+    dispatch(type, target, extra) {
+      const event = Object.assign({
+        type,
+        target,
+        button: 0,
+        clientX: 0,
+        clientY: 0,
+        key: "",
+        defaultPrevented: false,
+        prevented: false,
+        stopped: false,
+        preventDefault() { this.prevented = true; this.defaultPrevented = true; },
+        stopPropagation() { this.stopped = true; },
+      }, extra || {});
+      for (const fn of [...(handlers.get(type) || [])]) fn(event);
+      return event;
+    },
+    count: () => window.count(),
+  };
+}
+
+function placementSetup() {
+  const defs = effectDefinitions("tracery.js");
+  const effect = makeEffect(defs);
+  effect.parent = { composite: null };
+  const h = makeHarness(defs, effect);
+  const stubs = placementStubs();
+  effect.parent.composite = { quad: stubs.quad };
+  h.context.editor.mainViewport = stubs.viewport;
+  const windows = loadWindows();
+  windows.activate(h.context);
+  h.PZ.ui.controls.runPropertyAction({}, { parentObject: effect }, "tracerySetup", null);
+  const { cleanup } = mountWindow(h, 0);
+  const place = (n) => h.made.find((r) => r.kind === "button" && r.opts.hint === "Click the preview to set point " + n).opts;
+  const pointAt = (fx, fy) => ({
+    clientX: PLACE_CANVAS_RECT.left + fx * PLACE_CANVAS_RECT.width,
+    clientY: PLACE_CANVAS_RECT.top + fy * PLACE_CANVAS_RECT.height,
+  });
+  return { h, effect, stubs, windows, cleanup, place, pointAt, win: h.windows[0] };
+}
+
+test("Points section lists a toggle and a Place button per point", () => {
+  const { h, windows, cleanup, place } = placementSetup();
+  for (let n = 1; n <= 6; n++) {
+    assert.ok(h.made.some((r) => r.kind === "checkbox" && r.opts.label === "Point " + n), "toggle " + n);
+    assert.equal(place(n).title, "Place");
+  }
+  cleanup();
+  windows.deactivate();
+  delete globalThis.window;
+});
+
+test("layerPercentAt maps a click to the layer frame, including layer transforms", () => {
+  const { windows, stubs, effect } = placementSetup();
+  const at = windows.layerPercentAt;
+  // Layer 640x360 at the sequence centre spans canvas fractions 1/3 to 2/3.
+  assert.deepEqual(at(stubs.viewport, effect.parent, 100 + 1095 / 2, 50 + 616 / 2), { x: 50, y: 50 });
+  assert.deepEqual(at(stubs.viewport, effect.parent, 100 + 1095 / 3, 50 + 616 / 3), { x: 0, y: 0 }, "top-left corner of the layer");
+  assert.deepEqual(at(stubs.viewport, effect.parent, 100 + 1095 * 0.4166, 50 + 616 * 0.4166), { x: 25, y: 25 }, "quarter of the layer");
+  // Outside the layer clamps to its edge.
+  assert.deepEqual(at(stubs.viewport, effect.parent, 100, 50), { x: 0, y: 0 });
+  // Layer moved to (200, -100) at half scale: its centre is at that sequence point.
+  effect.parent.composite.quad.matrixWorld.elements = [320, 0, 0, 0, 0, 180, 0, 0, 0, 0, 1, 0, 200, -100, 0, 1];
+  const cx = 100 + ((960 + 200) / 1920) * 1095;
+  const cy = 50 + ((540 + 100) / 1080) * 616;
+  assert.deepEqual(at(stubs.viewport, effect.parent, cx, cy), { x: 50, y: 50 }, "moved layer");
+  assert.equal(at(null, effect.parent, 0, 0), null, "no viewport");
+});
+
+test("Place arms a crosshair, one press sets X/Y/Enable in one history step, and the rest is swallowed", () => {
+  const { h, effect, stubs, cleanup, place, pointAt, win, windows } = placementSetup();
+  const canvasTarget = stubs.canvas;
+  place(2).onClick();
+  assert.equal(win.subtitle, "Click the preview to place P2 (Esc cancels)");
+  assert.equal(stubs.canvas.style.cursor, "crosshair");
+  assert.equal(stubs.count(), 7, "capture listeners installed");
+  const historyBefore = h.history.ops.length;
+  const editsBefore = h.edits.length;
+  // A press off the canvas (in a window, say) is not consumed.
+  const off = stubs.dispatch("pointerdown", {}, pointAt(0.5, 0.5));
+  assert.equal(off.prevented, false);
+  assert.equal(h.edits.length, editsBefore, "press off canvas does not place");
+  const press = stubs.dispatch("pointerdown", canvasTarget, pointAt(0.5, 0.5));
+  assert.equal(press.prevented, true, "press swallowed");
+  assert.equal(press.stopped, true);
+  assert.equal(effect.properties.point2Enable.get(), 1, "point turned on");
+  assert.equal(effect.properties.point2X.get(), 50);
+  assert.equal(effect.properties.point2Y.get(), 50);
+  assert.equal(h.edits.length, editsBefore + 3, "enable, X and Y written");
+  assert.deepEqual(h.history.ops.slice(historyBefore), ["start", "finish"], "one history step");
+  assert.equal(win.subtitle, "", "subtitle restored");
+  assert.equal(stubs.canvas.style.cursor, "", "cursor restored");
+  // The follow-up mouse events are swallowed until the click, which ends the placement.
+  for (const type of ["mousedown", "pointerup", "mouseup"]) {
+    assert.equal(stubs.dispatch(type, canvasTarget, { button: 0 }).stopped, true, type);
+  }
+  stubs.dispatch("click", canvasTarget, { button: 0 });
+  assert.equal(stubs.count(), 0, "all listeners removed after the click");
+  cleanup();
+  windows.deactivate();
+  delete globalThis.window;
+});
+
+test("Escape cancels a pending placement without writing anything", () => {
+  const { h, stubs, cleanup, place, pointAt, win, windows } = placementSetup();
+  place(3).onClick();
+  const edits = h.edits.length;
+  const ops = h.history.ops.length;
+  const esc = stubs.dispatch("keydown", stubs.canvas, { key: "Escape" });
+  assert.equal(esc.prevented, true, "Escape is consumed so the window stays open");
+  assert.equal(h.edits.length, edits);
+  assert.equal(h.history.ops.length, ops);
+  assert.equal(stubs.count(), 0, "listeners removed on cancel");
+  assert.equal(win.subtitle, "");
+  stubs.dispatch("pointerdown", stubs.canvas, pointAt(0.5, 0.5));
+  assert.equal(h.edits.length, edits, "a press after cancel does nothing");
+  cleanup();
+  windows.deactivate();
+  delete globalThis.window;
+});
+
+test("a second Place replaces the first and closing the window removes every listener", () => {
+  const { stubs, cleanup, place, win, windows } = placementSetup();
+  place(1).onClick();
+  place(4).onClick();
+  assert.equal(stubs.count(), 7, "only one placement armed");
+  assert.equal(win.subtitle, "Click the preview to place P4 (Esc cancels)");
+  cleanup();
+  assert.equal(stubs.count(), 0, "closing the window cancels");
+  assert.equal(stubs.canvas.style.cursor, "", "cursor restored on close");
+  windows.deactivate();
+  delete globalThis.window;
 });
