@@ -13,6 +13,7 @@ const LayerInput = (() => {
   const SOURCE_MODE_VALUES = new Set(SOURCE_MODE_OPTIONS.map((option) => option.value));
   const state = {
     active: false,
+    installation: null,
     editor: null,
     PZ: null,
     document: null,
@@ -61,6 +62,31 @@ const LayerInput = (() => {
     materialFactory: null,
     api: null,
   };
+
+  // Other plugins may retain our wrapper after an out-of-order disable.
+  // Each installation owns its callback and cannot become active again.
+  const PATCH = Symbol.for("zoidium.inactivePatch");
+
+  function unwrapInactivePatch(callback) {
+    while (callback?.[PATCH] && !callback[PATCH].installation.active) {
+      callback = callback[PATCH].original;
+    }
+    return callback;
+  }
+
+  function guardPatch(target, key, handler, original) {
+    const installation = state.installation;
+    const wrapper = function () {
+      if (!installation.active) {
+        const callback = unwrapInactivePatch(original);
+        if (target[key] === wrapper) target[key] = callback;
+        return callback.apply(this, arguments);
+      }
+      return handler.apply(this, arguments);
+    };
+    wrapper[PATCH] = { installation, original };
+    return wrapper;
+  }
 
   function isVideoTrack(value) {
     return Boolean(state.PZ?.track?.video && value instanceof state.PZ.track.video);
@@ -835,21 +861,23 @@ const LayerInput = (() => {
     const prototype = state.PZ.track?.video?.prototype;
     if (!prototype || prototype.load === state.patchedTrackLoad) return;
     state.trackPrototype = prototype;
-    state.originalTrackLoad = prototype.load;
-    state.originalTrackToJSON = prototype.toJSON;
+    const originalTrackLoad = state.originalTrackLoad = unwrapInactivePatch(prototype.load);
+    const originalTrackToJSON = state.originalTrackToJSON = unwrapInactivePatch(prototype.toJSON);
     state.patchedTrackLoad = function () {
       const data = arguments[0];
-      const result = state.originalTrackLoad.apply(this, arguments);
+      const result = originalTrackLoad.apply(this, arguments);
       ensureTrackId(this, data?._zoidiumLayerInputId);
       scheduleValidation(this.parentProject);
       return result;
     };
     state.patchedTrackToJSON = function () {
-      const result = state.originalTrackToJSON.apply(this, arguments);
+      const result = originalTrackToJSON.apply(this, arguments);
       result._zoidiumLayerInputId = ensureTrackId(this);
       return result;
     };
+    state.patchedTrackLoad = guardPatch(prototype, "load", state.patchedTrackLoad, originalTrackLoad);
     prototype.load = state.patchedTrackLoad;
+    state.patchedTrackToJSON = guardPatch(prototype, "toJSON", state.patchedTrackToJSON, originalTrackToJSON);
     prototype.toJSON = state.patchedTrackToJSON;
   }
 
@@ -948,12 +976,15 @@ const LayerInput = (() => {
 
   function installSourceInputPatch() {
     const controls = state.PZ.ui?.controls;
-    if (!controls?.generateListInput || controls.generateListInput.__zoidiumLayerInput) return;
-    state.originalListInput = controls.generateListInput;
+    if (!controls?.generateListInput) return;
+    controls.generateListInput = unwrapInactivePatch(controls.generateListInput);
+    if (controls.generateListInput.__zoidiumLayerInput) return;
+    const originalListInput = state.originalListInput = unwrapInactivePatch(controls.generateListInput);
     state.patchedListInput = function (property) {
       if (property?.definition?._zoidiumLayerSource) return createSourceInput(property);
-      return state.originalListInput.apply(this, arguments);
+      return originalListInput.apply(this, arguments);
     };
+    state.patchedListInput = guardPatch(controls, "generateListInput", state.patchedListInput, originalListInput);
     state.patchedListInput.__zoidiumLayerInput = true;
     controls.generateListInput = state.patchedListInput;
   }
@@ -1103,34 +1134,39 @@ const LayerInput = (() => {
     const prototype = state.PZ.effect?.shader?.prototype;
     if (!prototype || prototype.update === state.patchedShaderUpdate) return;
     state.shaderPrototype = prototype;
-    state.originalShaderLoad = prototype.load;
-    state.originalShaderUpdate = prototype.update;
-    state.originalShaderUpdateFragmentShader = prototype.updateFragmentShader;
-    state.originalShaderUnload = prototype.unload;
+    const originalShaderLoad = state.originalShaderLoad = unwrapInactivePatch(prototype.load);
+    const originalShaderUpdate = state.originalShaderUpdate = unwrapInactivePatch(prototype.update);
+    const originalShaderUpdateFragmentShader = state.originalShaderUpdateFragmentShader = unwrapInactivePatch(prototype.updateFragmentShader);
+    const originalShaderUnload = state.originalShaderUnload = unwrapInactivePatch(prototype.unload);
+    const installation = state.installation;
     state.patchedShaderLoad = async function () {
-      const result = await state.originalShaderLoad.apply(this, arguments);
-      registerShaderInstance(this);
+      const result = await originalShaderLoad.apply(this, arguments);
+      if (installation.active) registerShaderInstance(this);
       return result;
     };
     state.patchedShaderUpdateFragmentShader = function () {
-      const result = state.originalShaderUpdateFragmentShader.apply(this, arguments);
+      const result = originalShaderUpdateFragmentShader.apply(this, arguments);
       clearShaderInputDefines(this);
       patchShaderInputUniforms(this);
       return result;
     };
     state.patchedShaderUpdate = function (frame) {
-      const result = state.originalShaderUpdate.apply(this, arguments);
+      const result = originalShaderUpdate.apply(this, arguments);
       updateShaderInputUniforms(this, frame);
       return result;
     };
     state.patchedShaderUnload = function () {
       removeShaderWatcher(this);
       unregisterConsumer(this);
-      return state.originalShaderUnload.apply(this, arguments);
+      return originalShaderUnload.apply(this, arguments);
     };
+    state.patchedShaderLoad = guardPatch(prototype, "load", state.patchedShaderLoad, originalShaderLoad);
     prototype.load = state.patchedShaderLoad;
+    state.patchedShaderUpdateFragmentShader = guardPatch(prototype, "updateFragmentShader", state.patchedShaderUpdateFragmentShader, originalShaderUpdateFragmentShader);
     prototype.updateFragmentShader = state.patchedShaderUpdateFragmentShader;
+    state.patchedShaderUpdate = guardPatch(prototype, "update", state.patchedShaderUpdate, originalShaderUpdate);
     prototype.update = state.patchedShaderUpdate;
+    state.patchedShaderUnload = guardPatch(prototype, "unload", state.patchedShaderUnload, originalShaderUnload);
     prototype.unload = state.patchedShaderUnload;
 
     const project = state.editor?.project;
@@ -1240,8 +1276,8 @@ const LayerInput = (() => {
       return;
     }
     state.compositorPrototype = prototype;
-    state.originalRenderSequence = prototype.renderSequence;
-    state.originalRenderEffects = prototype.renderEffects;
+    const originalRenderSequence = state.originalRenderSequence = unwrapInactivePatch(prototype.renderSequence);
+    const originalRenderEffects = state.originalRenderEffects = unwrapInactivePatch(prototype.renderEffects);
     state.patchedRenderSequence = function (frame) {
       const runtime = getRuntime(this);
       runtime.cache.clear();
@@ -1249,31 +1285,34 @@ const LayerInput = (() => {
       const context = { root: this, compositor: this, frame, depth: 0 };
       pushContext(context);
       try {
-        return state.originalRenderSequence.apply(this, arguments);
+        return originalRenderSequence.apply(this, arguments);
       } finally {
         popContext();
         runtime.cache.clear();
         runtime.inProgress.clear();
       }
     };
+    state.patchedRenderSequence = guardPatch(prototype, "renderSequence", state.patchedRenderSequence, originalRenderSequence);
     prototype.renderSequence = state.patchedRenderSequence;
 
     state.patchedRenderEffects = function (effects, width, height) {
       const mode = this.__zoidiumLayerInputMode;
       if (!mode || normalizeSourceMode(mode) === DEFAULT_SOURCE_MODE) {
-        return state.originalRenderEffects.apply(this, arguments);
+        return originalRenderEffects.apply(this, arguments);
       }
       return renderSelectedEffects(this, effects, width, height, normalizeSourceMode(mode));
     };
+    state.patchedRenderEffects = guardPatch(prototype, "renderEffects", state.patchedRenderEffects, originalRenderEffects);
     prototype.renderEffects = state.patchedRenderEffects;
 
-    state.originalUnload = prototype.unload;
+    const originalUnload = state.originalUnload = unwrapInactivePatch(prototype.unload);
     state.patchedUnload = function () {
       disposeRuntime(this);
-      const result = state.originalUnload.apply(this, arguments);
+      const result = originalUnload.apply(this, arguments);
       disposeCompositorExtras(this);
       return result;
     };
+    state.patchedUnload = guardPatch(prototype, "unload", state.patchedUnload, originalUnload);
     prototype.unload = state.patchedUnload;
   }
 
@@ -1281,10 +1320,10 @@ const LayerInput = (() => {
     const prototype = state.PZ.ui?.viewport?.prototype;
     if (!prototype || prototype._render === state.patchedViewportRender) return;
     state.viewportPrototype = prototype;
-    state.originalViewportRender = prototype._render;
+    const originalViewportRender = state.originalViewportRender = unwrapInactivePatch(prototype._render);
     state.patchedViewportRender = function () {
       if (!this.renderMode || !this.compositor) {
-        return state.originalViewportRender.apply(this, arguments);
+        return originalViewportRender.apply(this, arguments);
       }
       const runtime = getRuntime(this.compositor);
       runtime.cache.clear();
@@ -1293,11 +1332,12 @@ const LayerInput = (() => {
       const context = { root: this.compositor, compositor: this.compositor, frame, depth: 0 };
       pushContext(context);
       try {
-        return state.originalViewportRender.apply(this, arguments);
+        return originalViewportRender.apply(this, arguments);
       } finally {
         popContext();
       }
     };
+    state.patchedViewportRender = guardPatch(prototype, "_render", state.patchedViewportRender, originalViewportRender);
     prototype._render = state.patchedViewportRender;
   }
 
@@ -1418,6 +1458,10 @@ const LayerInput = (() => {
   function activate(context) {
     if (state.active) return state.api;
     state.active = true;
+    const installation = state.installation = { active: true };
+    context.lifecycle?.onDispose(() => {
+      if (state.installation === installation) deactivate();
+    });
     state.editor = context.editor;
     state.PZ = context.PZ || context.window?.PZ || window.PZ;
     state.document = context.document || document;
@@ -1454,6 +1498,7 @@ const LayerInput = (() => {
   function deactivate() {
     if (!state.active) return;
     state.active = false;
+    state.installation.active = false;
     clearWatches(state.editorWatches);
     clearWatches(state.sequenceWatches);
     for (const timer of state.validationTimers.values()) state.window.clearTimeout(timer);

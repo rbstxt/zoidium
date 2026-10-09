@@ -21,12 +21,14 @@ function sameArray(a, b) {
   return true;
 }
 
-function createMeshDeformer(THREE) {
+function createMeshDeformer(THREE, jobs) {
   const convertedGeometries = new WeakMap();
   const sourceStages = new WeakMap();
   const derivedStages = new WeakMap();
   const meshStates = new WeakMap();
   const warnings = new Set();
+  const liveMeshes = new Set();
+  let sourceSerial = 0;
 
   function warnOnce(key, message) {
     if (warnings.has(key)) return;
@@ -53,7 +55,7 @@ function createMeshDeformer(THREE) {
       const attribute = base.attributes[name];
       if (!attribute || !attribute.array || !attribute.itemSize || name === "position") continue;
       attributes[name] = {
-        array: attribute.array,
+        array: new attribute.array.constructor(attribute.array),
         itemSize: attribute.itemSize,
         normalized: Boolean(attribute.normalized),
         ref: attribute,
@@ -66,12 +68,13 @@ function createMeshDeformer(THREE) {
       materialIndex: group.materialIndex,
     }));
     return {
+      sourceId: ++sourceSerial,
       kind: "source",
       smooth: false,
       count: Math.floor(positions.length / 3),
       positions,
       attributes,
-      index: base.index ? base.index.array : null,
+      index: base.index ? new base.index.array.constructor(base.index.array) : null,
       indexRef: base.index || null,
       groups,
       uvs: attributes.uv ? attributes.uv.array : null,
@@ -83,11 +86,15 @@ function createMeshDeformer(THREE) {
     const base = toBufferGeometry(geometry);
     const position = base.attributes && base.attributes.position;
     if (!position || !position.array || position.itemSize !== 3) return null;
-    const version = typeof position.version === "number" ? position.version : 0;
+    const names = Object.keys(base.attributes).sort();
+    const refs = [base.index, ...names.map(name => base.attributes[name])];
+    const versions = refs.map(attribute => attribute?.version || 0);
+    const arrays = refs.map(attribute => attribute?.array);
+    const layout = JSON.stringify([names, base.groups, ...refs.map(attribute => [attribute?.itemSize, attribute?.normalized])]);
     const cached = sourceStages.get(base);
-    if (cached && cached.version === version && cached.array === position.array) return cached.stage;
+    if (cached && cached.layout === layout && arrays.every((array, i) => array === cached.arrays[i] && versions[i] === cached.versions[i])) return cached.stage;
     const stage = buildSourceStage(base);
-    sourceStages.set(base, { version, array: position.array, stage });
+    sourceStages.set(base, { versions, arrays, layout, stage });
     return stage;
   }
 
@@ -120,11 +127,14 @@ function createMeshDeformer(THREE) {
   function buildWorking(stage) {
     const geometry = new THREE.BufferGeometry();
     geometry.addAttribute("position", new THREE.BufferAttribute(new Float32Array(stage.positions), 3));
+    // THREE r91 otherwise reallocates the GPU buffer on every changed frame.
+    geometry.attributes.position.dynamic = true;
     for (const name of Object.keys(stage.attributes)) {
       const attribute = stage.attributes[name];
       if (name === "normal") {
         // Normals are always rewritten, so this array must be owned.
         geometry.addAttribute(name, new THREE.BufferAttribute(new Float32Array(attribute.array), attribute.itemSize, attribute.normalized));
+        geometry.attributes[name].dynamic = true;
       } else if (attribute.ref && stage.kind === "source") {
         geometry.addAttribute(name, attribute.ref);
       } else {
@@ -144,50 +154,6 @@ function createMeshDeformer(THREE) {
       geometry.computeVertexNormals();
     }
     geometry.computeBoundingSphere();
-  }
-
-  // Averages face normals across coincident vertices of the same material group.
-  function computeSmoothVertexNormals(geometry) {
-    const position = geometry.attributes.position;
-    const normal = geometry.attributes.normal;
-    if (!position || !normal) return;
-    const sums = new Map();
-    const groupOf = (vertex) => {
-      for (const group of geometry.groups || []) {
-        if (vertex >= group.start && vertex < group.start + group.count) return group.materialIndex || 0;
-      }
-      return 0;
-    };
-    const keyFor = (vertex) => {
-      const x = position.array[vertex * 3];
-      const y = position.array[vertex * 3 + 1];
-      const z = position.array[vertex * 3 + 2];
-      return groupOf(vertex) + ":" + Math.round(x * 100000) + ":" + Math.round(y * 100000) + ":" + Math.round(z * 100000);
-    };
-    for (let vertex = 0; vertex + 2 < position.count; vertex += 3) {
-      const a = [position.array[vertex * 3], position.array[vertex * 3 + 1], position.array[vertex * 3 + 2]];
-      const b = [position.array[vertex * 3 + 3], position.array[vertex * 3 + 4], position.array[vertex * 3 + 5]];
-      const c = [position.array[vertex * 3 + 6], position.array[vertex * 3 + 7], position.array[vertex * 3 + 8]];
-      const ab = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
-      const ac = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
-      const face = [ab[1] * ac[2] - ab[2] * ac[1], ab[2] * ac[0] - ab[0] * ac[2], ab[0] * ac[1] - ab[1] * ac[0]];
-      for (let offset = 0; offset < 3; offset += 1) {
-        const key = keyFor(vertex + offset);
-        const sum = sums.get(key) || [0, 0, 0];
-        sum[0] += face[0];
-        sum[1] += face[1];
-        sum[2] += face[2];
-        sums.set(key, sum);
-      }
-    }
-    for (let vertex = 0; vertex < position.count; vertex += 1) {
-      const sum = sums.get(keyFor(vertex)) || [0, 0, 1];
-      const length = Math.hypot(sum[0], sum[1], sum[2]) || 1;
-      normal.array[vertex * 3] = sum[0] / length;
-      normal.array[vertex * 3 + 1] = sum[1] / length;
-      normal.array[vertex * 3 + 2] = sum[2] / length;
-    }
-    normal.needsUpdate = true;
   }
 
   function syncMaterial(mesh, state, wantFracture, vertexColors) {
@@ -237,8 +203,13 @@ function createMeshDeformer(THREE) {
   }
 
   function restoreMesh(mesh) {
+    jobs?.release(mesh);
+    liveMeshes.delete(mesh);
     const state = meshStates.get(mesh);
     if (state) releaseState(mesh, state);
+    if (state?.sourceId && !Array.from(liveMeshes).some(other => meshStates.get(other)?.sourceId === state.sourceId)) {
+      jobs?.forget?.(state.sourceId);
+    }
   }
 
   function restoreTree(root) {
@@ -253,23 +224,111 @@ function createMeshDeformer(THREE) {
   function deformMesh(mesh, chain, frame, requestedPolygonCount) {
     let state = meshStates.get(mesh);
     if (!chain.length) {
+      jobs?.release(mesh);
+      liveMeshes.delete(mesh);
       if (state) releaseState(mesh, state);
       return;
     }
-    if (state && mesh.geometry !== state.working) {
+    if (state && mesh.geometry !== state.working && !(state.asyncPending && mesh.geometry === state.source)) {
       // Something else replaced the geometry; the old working copy is stale.
-      releaseState(mesh, state);
-      state = null;
+      jobs?.release(mesh);
+      if (jobs && (state.asyncKey || state.asyncPending)) {
+        // Retain the material clone so changing source geometry does not drop
+        // THREE's last reference to its compiled shader program.
+        if (mesh.geometry !== state.source) {
+          state.working?.dispose();
+          state.working = null;
+          state.source = mesh.geometry;
+          state.asyncKey = null;
+          state.topologyKey = null;
+        }
+        state.asyncPending = true;
+      } else {
+        releaseState(mesh, state);
+        state = null;
+      }
     }
     const source = mesh.geometry;
     if (!source) return;
     const base = sourceStage(state ? state.source : source);
     if (!base || !base.count) return;
 
-    const triangleCount = Math.max(1, Math.floor(base.count / 3));
+    const triangleCount = Math.max(1, Math.floor((base.index ? base.index.length : base.count) / 3));
     const budget = Math.floor(core.MAX_SMOOTH_TRIANGLES / triangleCount);
     let polygonCount = Math.min(core.clampPolygonCount(requestedPolygonCount), budget);
     if (polygonCount < core.SMOOTH_TRIANGLE_BUDGET_MIN_POLYGONS) polygonCount = 1;
+    // Fracture and large curved meshes include topology, deformation, and normal
+    // averaging in the worker. Small Twist/Warp previews keep their cheap path.
+    if (jobs && (chain.some(entry => typeof entry.effector.produceStage === "function") ||
+      triangleCount * polygonCount >= 5000) && chain.every(entry => typeof entry.effector.workerCommand === "function")) {
+      const commands = chain.map(entry => ({
+        ...entry.effector.workerCommand(frame),
+        relation: core.relativeTransform(entry.node?.matrixWorld?.elements, mesh.matrixWorld?.elements),
+      }));
+      const key = base.sourceId + ":" + polygonCount + ":" + JSON.stringify(commands);
+      const lastFracture = commands.map(command => command.kind).lastIndexOf("fracture");
+      const topologyInputs = lastFracture < 0 ? [] : [commands.slice(0, lastFracture),
+        commands[lastFracture].topology, commands[lastFracture].limits];
+      const buildKey = base.sourceId + ":" + polygonCount + ":" + JSON.stringify(topologyInputs);
+      const colors = chain.reduce((options, entry) => entry.effector.surfaceOptions?.(frame) || options, null);
+      if (state?.asyncKey === key) {
+        jobs.release(mesh);
+        state.asyncPending = false;
+        mesh.geometry = state.working;
+        syncMaterial(mesh, state, state.fractured, colors?.vertexColors || false);
+        return;
+      }
+      const attributes = {};
+      for (const [name, attribute] of Object.entries(base.attributes)) {
+        attributes[name] = { array: attribute.array, itemSize: attribute.itemSize, normalized: attribute.normalized };
+      }
+      const input = { sourceId: base.sourceId, polygonCount, commands, buildKey,
+        base: { ...base, attributes, indexRef: null } };
+      const entry = jobs.request(mesh, key, input);
+      liveMeshes.add(mesh);
+      const completed = entry?.status === "done" ? entry : jobs.latest?.(buildKey);
+      if (!completed) {
+        // A completed result is valid only for its exact input key. Restore the
+        // pristine source when the user edits inputs while work is pending.
+        const pending = state || { source, working: null, material: null };
+        pending.asyncPending = true;
+        pending.sourceId = base.sourceId;
+        mesh.geometry = pending.source;
+        if (pending.material && mesh.material === pending.material.clone) mesh.material = pending.material.original;
+        meshStates.set(mesh, pending);
+        return;
+      }
+      const exact = completed === entry;
+      const result = completed.value;
+      for (const error of result.errors) warnOnce(error, "Effector skipped a fracture build: " + error + ".");
+      const next = state || { source, working: null, material: null };
+      const completedKey = completed.key || key;
+      if (next.asyncKey !== completedKey) {
+        if (!next.working || next.topologyKey !== result.topologyKey) {
+          next.working?.dispose();
+          next.working = buildWorking({ ...result, indexRef: result.index ? new THREE.BufferAttribute(result.index, 1) : null });
+        } else {
+          next.working.attributes.position.array.set(result.positions);
+          next.working.attributes.normal.array.set(result.attributes.normal.array);
+          next.working.attributes.position.needsUpdate = true;
+          next.working.attributes.normal.needsUpdate = true;
+        }
+        next.working.boundingSphere = new THREE.Sphere(new THREE.Vector3(...result.sphere.center), result.sphere.radius);
+        next.asyncKey = completedKey;
+        next.topologyKey = result.topologyKey;
+      }
+      next.stage = null;
+      next.sourceId = base.sourceId;
+      next.asyncPending = !exact;
+      next.fractured = result.kind === "fracture";
+      mesh.geometry = next.working;
+      syncMaterial(mesh, next, result.kind === "fracture", colors?.vertexColors || false);
+      meshStates.set(mesh, next);
+      if (exact) jobs.release(mesh);
+      return;
+    }
+    jobs?.release(mesh);
+    liveMeshes.delete(mesh);
     let stage = polygonCount > 1 ? subdivided(base, polygonCount) : base;
 
     // Reuse the per-mesh scratch buffer when the topology is unchanged. Effectors
@@ -341,7 +400,58 @@ function createMeshDeformer(THREE) {
     restoreMesh,
     restoreTree,
     warnOnce,
+    pending(meshes) { return jobs ? jobs.pending(meshes) : []; },
+    dispose() {
+      for (const mesh of liveMeshes) restoreMesh(mesh);
+      jobs?.dispose();
+    },
+    jobStats() { return jobs?.stats(); },
   };
 }
 
-module.exports = { createMeshDeformer };
+// Averages face normals across coincident vertices of the same material group.
+function computeSmoothVertexNormals(geometry) {
+  const position = geometry.attributes.position;
+  const normal = geometry.attributes.normal;
+  if (!position || !normal) return;
+  const sums = new Map();
+  const groupOf = (vertex) => {
+    for (const group of geometry.groups || []) {
+      if (vertex >= group.start && vertex < group.start + group.count) return group.materialIndex || 0;
+    }
+    return 0;
+  };
+  const keyFor = (vertex) => {
+    const x = position.array[vertex * 3];
+    const y = position.array[vertex * 3 + 1];
+    const z = position.array[vertex * 3 + 2];
+    return groupOf(vertex) + ":" + Math.round(x * 100000) + ":" + Math.round(y * 100000) + ":" + Math.round(z * 100000);
+  };
+  for (let vertex = 0; vertex + 2 < position.count; vertex += 3) {
+    const a = [position.array[vertex * 3], position.array[vertex * 3 + 1], position.array[vertex * 3 + 2]];
+    const b = [position.array[vertex * 3 + 3], position.array[vertex * 3 + 4], position.array[vertex * 3 + 5]];
+    const c = [position.array[vertex * 3 + 6], position.array[vertex * 3 + 7], position.array[vertex * 3 + 8]];
+    const ab = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+    const ac = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
+    const face = [ab[1] * ac[2] - ab[2] * ac[1], ab[2] * ac[0] - ab[0] * ac[2], ab[0] * ac[1] - ab[1] * ac[0]];
+    for (let offset = 0; offset < 3; offset += 1) {
+      const key = keyFor(vertex + offset);
+      const sum = sums.get(key) || [0, 0, 0];
+      sum[0] += face[0];
+      sum[1] += face[1];
+      sum[2] += face[2];
+      sums.set(key, sum);
+    }
+  }
+  for (let vertex = 0; vertex < position.count; vertex += 1) {
+    const sum = sums.get(keyFor(vertex)) || [0, 0, 1];
+    const length = Math.hypot(sum[0], sum[1], sum[2]) || 1;
+    normal.array[vertex * 3] = sum[0] / length;
+    normal.array[vertex * 3 + 1] = sum[1] / length;
+    normal.array[vertex * 3 + 2] = sum[2] / length;
+  }
+  normal.needsUpdate = true;
+}
+
+
+module.exports = { createMeshDeformer, computeSmoothVertexNormals };

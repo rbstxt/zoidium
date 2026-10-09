@@ -158,6 +158,19 @@ playback is running.
   separate object instead, as Camera+ does, so projects that do not use the
   plugin render exactly as in CM3.
 
+The manager retains cloned, unknown top-level fields and unknown `properties`
+entries loaded on media, layers and clips. On save it merges those fields into
+the host serializer's output; current host fields and properties take priority.
+A live extension's own data field takes priority over its retained snapshot.
+Reloading an instance replaces the snapshot. This covers disabled Precomp+
+`media.comp` and composite `compId`/`offset`, including older projects without a
+plugin descriptor. Composition data also adds the Precomp+ requirement on save.
+
+This preserves serialized metadata, not the disabled feature's rendering or
+editing behavior. Keep nested extension data in its own field; the manager does
+not merge missing items into host arrays or restore removed host objects.
+Unknown object/effect/material types use their separate missing-type adapters.
+
 ## Security and future community plugins
 
 Current assumptions:

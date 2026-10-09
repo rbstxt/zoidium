@@ -85,11 +85,10 @@ uniform vec2 outputResolution;
 uniform vec2 blockGrid;
 uniform vec2 atlasGrid;
 uniform vec2 sparseAxes;
-uniform float inputRange;
-uniform float outputRange;
+uniform float blockOffset;
+uniform float blockCount;
 
-vec2 atlasBlock(vec2 block) {
-    float index = block.y * blockGrid.x + block.x;
+vec2 atlasBlock(float index) {
     return vec2(mod(index, atlasGrid.x), floor(index / atlasGrid.x)) * vec2(8.0, 9.0);
 }
 
@@ -100,11 +99,15 @@ vec2 sourceBase(vec2 block) {
 }
 
 #ifdef JPEG_PACKED
-// Three RGBA8 texels store signed RGB independently at 24-bit precision.
-// The range follows the current frequency/error settings, never a prior frame.
+// Three RGBA8 texels store the exact float32 RGB values independently.
+// Arithmetic packing works on the WebGL 1 host without integer bit operators.
 float unpackValue(vec4 c) {
-    float n = dot(floor(c.rgb * 255.0 + 0.5), vec3(65536.0, 256.0, 1.0));
-    return (n / 16777215.0 * 2.0 - 1.0) * inputRange;
+    vec4 bytes = floor(c * 255.0 + 0.5);
+    if (dot(bytes, vec4(1.0)) == 0.0) return 0.0;
+    float signValue = bytes.a >= 128.0 ? -1.0 : 1.0;
+    float exponent = mod(bytes.a, 128.0) * 2.0 + floor(bytes.b / 128.0) - 127.0;
+    float mantissa = mod(bytes.b, 128.0) * 65536.0 + bytes.g * 256.0 + bytes.r;
+    return signValue * (1.0 + mantissa / 8388608.0) * exp2(exponent);
 }
 vec3 readStage(vec2 p) {
     vec2 size = atlasGrid * vec2(24.0, 9.0);
@@ -116,10 +119,17 @@ vec3 readStage(vec2 p) {
 vec4 writeStage(vec3 value) {
     float channel = mod(floor(gl_FragCoord.x), 3.0);
     float v = channel < 0.5 ? value.x : (channel < 1.5 ? value.y : value.z);
-    float n = floor(clamp(v / outputRange * 0.5 + 0.5, 0.0, 1.0) * 16777215.0 + 0.5);
-    float r = floor(n / 65536.0);
-    float g = floor((n - r * 65536.0) / 256.0);
-    return vec4(r, g, n - r * 65536.0 - g * 256.0, 255.0) / 255.0;
+    if (v == 0.0) return vec4(0.0);
+    float exponent = floor(log2(abs(v)));
+    float normalized = abs(v) * exp2(-exponent);
+    // Correct a log2 rounding at exact powers of two before extracting bits.
+    if (normalized < 1.0) { exponent -= 1.0; normalized *= 2.0; }
+    if (normalized >= 2.0) { exponent += 1.0; normalized *= 0.5; }
+    float mantissa = (normalized - 1.0) * 8388608.0;
+    float biased = exponent + 127.0;
+    return vec4(mod(mantissa, 256.0), mod(floor(mantissa / 256.0), 256.0),
+        floor(mantissa / 65536.0) + mod(biased, 2.0) * 128.0,
+        floor(biased / 2.0) + (v < 0.0 ? 128.0 : 0.0)) / 255.0;
 }
 #else
 vec3 readStage(vec2 p) {
@@ -135,7 +145,9 @@ void main() {
     vec2 lowCoord = clamp(floor(vv * lowResolution), vec2(0.0), lowResolution - 1.0);
     vec2 block = mix(floor(lowCoord / 8.0), floor(vv * outputResolution), sparseAxes);
     vec2 base = sourceBase(block);
-    vec2 at = atlasBlock(block);
+    float index = block.y * blockGrid.x + block.x - blockOffset;
+    if (index < 0.0 || index >= blockCount) discard;
+    vec2 at = atlasBlock(index);
     float lx = lowCoord.x - base.x;
     // The original clamps fractional last coordinates before the IDCT.
     float row = ceil(lowCoord.y - base.y);
@@ -160,7 +172,8 @@ void main() {
     vec2 at = floor(pixel / vec2(8.0, 9.0)) * vec2(8.0, 9.0);
     vec2 freq = pixel - at;
     float index = at.y / 9.0 * atlasGrid.x + at.x / 8.0;
-    if (index >= blockGrid.x * blockGrid.y) { gl_FragColor = writeStage(vec3(0.0)); return; }
+    if (index >= blockCount) { gl_FragColor = writeStage(vec3(0.0)); return; }
+    index += blockOffset;
     vec2 block = vec2(mod(index, blockGrid.x), floor(index / blockGrid.x));
     vec2 blockBase = sourceBase(block);
     vec3 result = vec3(0.0);

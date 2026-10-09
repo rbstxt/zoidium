@@ -280,3 +280,31 @@ test("random repeater is deterministic and stays inside its ranges", () => {
     assert.ok(first.scale[axis] <= controls.scaleMax[axis]);
   }
 });
+
+test("Echo Repeater retains completed render clones at the same frame and rebuilds on source edits", () => {
+  class Node {
+    constructor() { this.children = []; }
+    add(node) { this.children.push(node); }
+    remove(node) { this.children = this.children.filter(child => child !== node); }
+    traverse(callback) { callback(this); for (const child of this.children) child.traverse(callback); }
+  }
+  const PZ = { object3d: { group: class {} }, property: { type: { NUMBER: 0, VECTOR3: 2 } } };
+  const Echo = _test.createRepeaterClass(PZ, { Object3D: Node }, "echo", "zoidium:repeater/echo-repeater");
+  const echo = Object.assign(Object.create(Echo.prototype), {
+    threeObj: new Node(), _instanceRoots: [], _cloneDirty: true,
+    objects: [{ properties: { earlierKey: 1 }, threeObj: null }],
+    repeaterProperties: { count: { get: () => 2 }, delay: { get: () => 5 } },
+  });
+  echo.rebuildEchoInstances(20);
+  const first = echo._instanceRoots;
+  echo.rebuildEchoInstances(20);
+  assert.equal(echo._instanceRoots, first, "prepare and render reuse the same clones");
+  echo.objects[0].properties.earlierKey = 2;
+  echo.rebuildEchoInstances(20);
+  assert.notEqual(echo._instanceRoots, first, "an earlier animated-key edit invalidates the clones");
+  const edited = echo._instanceRoots;
+  echo.rebuildEchoInstances(7);
+  assert.notEqual(echo._instanceRoots, edited);
+  echo.clearInstances();echo.rebuildEchoInstances(7);
+  assert.equal(echo._instanceRoots.length, 2, "explicit clearing also invalidates the retained frame");
+});

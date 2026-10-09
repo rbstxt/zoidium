@@ -112,6 +112,8 @@ const THREE = {
   Material,
   DoubleSide: 2,
   Object3D: class {},
+  Vector3: class { constructor(x, y, z) { Object.assign(this, { x, y, z }); } },
+  Sphere: class { constructor(center, radius) { Object.assign(this, { center, radius }); } },
 };
 
 function identity() {
@@ -536,4 +538,105 @@ test("the bundled library evaluates through the asset loader with sibling requir
   assert.equal(typeof loaded.mesh.createMeshDeformer, "function");
   const stage = loaded.fracture.buildVoronoiFracture({ positions: Float32Array.from(cubePositions()) }, { cells: 4, seed: 1, closed: true });
   assert.equal(stage.error, undefined);
+});
+
+function controlledJobs() {
+  const entries = new Map(), users = new Map();
+  return {
+    entries,
+    request(mesh, key, input) {
+      let entry = entries.get(key);
+      if (!entry) { entry = { status: "queued", input }; entries.set(key, entry); }
+      users.set(mesh, entry); return entry;
+    },
+    release(mesh) { users.delete(mesh); },
+    complete() {
+      const { evaluateMesh } = require("../plugins/scene-plus/effector-evaluate.js");
+      for (const entry of entries.values()) if (entry.status === "queued") {
+        entry.value = evaluateMesh(entry.input); entry.status = "done";
+      }
+    },
+    pending(meshes) { return Array.from(meshes).filter(mesh => users.get(mesh)?.status === "queued"); },
+    dispose() { entries.clear(); users.clear(); },
+  };
+}
+
+test("pending fracture renders the source, then publishes the exact completed input", () => {
+  const jobs = controlledJobs();
+  const deformer = require("../plugins/scene-plus/effector-mesh.js").createMeshDeformer(THREE, jobs);
+  const Voronoi = _test.createVoronoiClass(createHarness(), THREE), effector = new Voronoi();
+  setProperty(effector, "cells", 8); setProperty(effector, "seed", 3);
+  const mesh = makeMesh(cubePositions()), source = mesh.geometry, originalMaterial = mesh.material;
+  const chain = [{ effector, node: nodeAt(identity()) }];
+  deformer.deformMesh(mesh, chain, 0, 1);
+  assert.equal(mesh.geometry, source);
+  assert.equal(mesh.material, originalMaterial);
+  jobs.complete(); deformer.deformMesh(mesh, chain, 0, 1);
+  assert.ok(mesh.geometry.attributes.position.count > source.attributes.position.count);
+  const completed = mesh.geometry, clone = mesh.material;
+  setProperty(effector, "seed", 9);
+  deformer.deformMesh(mesh, chain, 0, 1);
+  assert.equal(mesh.geometry, source, "changed input never shows stale fractured geometry");
+  assert.equal(mesh.material, originalMaterial);
+  assert.equal(clone.disposeCount, 0, "the pending build retains its compiled material");
+  jobs.complete(); deformer.deformMesh(mesh, chain, 0, 1);
+  assert.notEqual(mesh.geometry, completed);
+  assert.equal(mesh.material, clone);
+  assert.equal(completed.disposeCount, 1);
+  const latest = mesh.geometry;
+  setProperty(effector, "seed", 17);
+  deformer.deformMesh(mesh, chain, 0, 1);
+  assert.equal(mesh.geometry, source);
+  setProperty(effector, "seed", 9);
+  deformer.deformMesh(mesh, chain, 0, 1);
+  assert.equal(mesh.geometry, latest, "returning to the completed key restores its geometry immediately");
+  deformer.dispose();
+  assert.equal(mesh.geometry, source); assert.equal(mesh.material, originalMaterial);
+  assert.equal(clone.disposeCount, 1);
+});
+
+test("source replacement retains the fracture material while awaiting new geometry", () => {
+  const jobs = controlledJobs();
+  const deformer = require("../plugins/scene-plus/effector-mesh.js").createMeshDeformer(THREE, jobs);
+  const Voronoi = _test.createVoronoiClass(createHarness(), THREE), effector = new Voronoi();
+  setProperty(effector, "cells", 4);
+  const mesh = makeMesh(cubePositions()), chain = [{ effector, node: nodeAt(identity()) }];
+  deformer.deformMesh(mesh, chain, 0, 1);jobs.complete();deformer.deformMesh(mesh, chain, 0, 1);
+  const clone = mesh.material;
+  const replacement = makeMesh(cubePositions().map(value => value * 2)).geometry;
+  mesh.geometry = replacement;
+  deformer.deformMesh(mesh, chain, 0, 1);
+  assert.equal(mesh.geometry, replacement); assert.equal(clone.disposeCount, 0);
+  jobs.complete();deformer.deformMesh(mesh, chain, 0, 1);
+  assert.equal(mesh.material, clone);
+  deformer.restoreMesh(mesh);assert.equal(mesh.geometry, replacement);
+});
+
+test("source attribute revisions invalidate queued topology inputs without mutating their snapshots", () => {
+  const jobs = controlledJobs();
+  const deformer = require("../plugins/scene-plus/effector-mesh.js").createMeshDeformer(THREE, jobs);
+  const Voronoi = _test.createVoronoiClass(createHarness(), THREE), effector = new Voronoi();
+  const mesh = makeMesh(cubePositions()), chain = [{ effector, node: nodeAt(identity()) }];
+  const uv = new BufferAttribute(new Float32Array(24 * 3).fill(0.25), 2);mesh.geometry.addAttribute("uv", uv);
+  deformer.deformMesh(mesh, chain, 0, 1);
+  const old = Array.from(jobs.entries.values())[0].input;
+  uv.array.fill(0.75);uv.needsUpdate = true;
+  deformer.deformMesh(mesh, chain, 0, 1);
+  assert.equal(jobs.entries.size, 2);
+  assert.equal(old.base.attributes.uv.array[0], 0.25);
+  assert.equal(Array.from(jobs.entries.values())[1].input.base.attributes.uv.array[0], 0.75);
+  deformer.dispose();
+});
+
+test("indexed smooth meshes respect the 400k triangle cap before worker dispatch", () => {
+  const jobs = controlledJobs();
+  const deformer = require("../plugins/scene-plus/effector-mesh.js").createMeshDeformer(THREE, jobs);
+  const Twist = _test.createTwistClass(createHarness(), THREE), effector = new Twist();
+  const mesh = makeMesh([0, 0, 0, 1, 0, 0, 0, 1, 0]);
+  mesh.geometry.setIndex(new BufferAttribute(new Uint16Array(60000).map((_, i) => i % 3), 1));
+  deformer.deformMesh(mesh, [{ effector, node: nodeAt(identity()) }], 0, 50);
+  const entry = Array.from(jobs.entries.values())[0];
+  assert.equal(entry.input.polygonCount, 20);
+  assert.equal(entry.input.base.index.length / 3 * entry.input.polygonCount, 400000);
+  deformer.dispose();
 });
