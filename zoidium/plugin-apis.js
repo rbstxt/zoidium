@@ -425,12 +425,61 @@
   // registers while the picker is open is found by search but has no Map row,
   // and appendChild(undefined) throws. Searching a snapshot keeps the results
   // aligned with the rows the picker built.
+  //
+  // The picker's `name` key also carries a 0.4 weight on the description, so
+  // Fuse can rank "Time Offset" (its description mentions bevel) above "Bevel
+  // Alpha" for the query "Bevel". Instances keyed on `name` are therefore
+  // re-ordered by name match tier: exact, then prefix, then substring, then
+  // the rest. Fuse's order is kept inside each tier.
+  function fuseKeysIncludeName(keys) {
+    return Array.isArray(keys) && keys.some(function (key) {
+      return key === "name" || (!!key && typeof key === "object" && key.name === "name");
+    });
+  }
+
+  function nameMatchTier(name, query) {
+    if (name === query) return 0;
+    if (name.indexOf(query) === 0) return 1;
+    if (name.indexOf(query) !== -1) return 2;
+    return 3;
+  }
+
+  function rankByNameMatch(results, pattern, wrapped) {
+    if (!Array.isArray(results) || results.length < 2 || typeof pattern !== "string") return results;
+    var query = pattern.trim().toLowerCase();
+    if (!query) return results;
+    var tiers = [[], [], [], []];
+    results.forEach(function (result) {
+      var item = wrapped ? result && result.item : result;
+      var name = item && typeof item.name === "string" ? item.name.toLowerCase() : "";
+      tiers[nameMatchTier(name, query)].push(result);
+    });
+    return tiers[0].concat(tiers[1], tiers[2], tiers[3]);
+  }
+
   function installFuseSnapshots() {
     var OriginalFuse = global.Fuse;
     if (typeof OriginalFuse !== "function" || OriginalFuse.__zoidiumSnapshot) return;
     function SnapshotFuse(list, options) {
       var source = Array.isArray(list) ? list.slice() : list;
-      return Reflect.construct(OriginalFuse, [source, options], SnapshotFuse);
+      var fuse = Reflect.construct(OriginalFuse, [source, options], SnapshotFuse);
+      if (options && fuseKeysIncludeName(options.keys)) {
+        var wrapped = !!(Array.isArray(options.include) && options.include.length);
+        // Looked up at call time, so the Native FX prototype patch still applies.
+        Object.defineProperty(fuse, "search", {
+          configurable: true,
+          writable: true,
+          value: function search(pattern) {
+            var results = OriginalFuse.prototype.search.apply(this, arguments);
+            try {
+              return rankByNameMatch(results, pattern, wrapped);
+            } catch (_error) {
+              return results;
+            }
+          },
+        });
+      }
+      return fuse;
     }
     // Instances share CM3's prototype, so prototype patches (such as the
     // Native FX search priority) keep applying.
