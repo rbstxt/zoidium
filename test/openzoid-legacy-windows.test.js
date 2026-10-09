@@ -10,7 +10,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const test = require("node:test");
 
-const projectRoot = path.resolve(__dirname, "..");
+const projectRoot = "/Users/dia/Projects/GitHub/Zoidium";
 const legacyDir = path.join(projectRoot, "plugins/openzoid-legacy");
 const windowsPath = path.join(legacyDir, "effect-windows.js");
 
@@ -77,6 +77,11 @@ function makeHarness(defs, effect) {
     color: make("color"),
     text: make("text"),
     button: make("button"),
+    list(opts) {
+      const record = { kind: "list", opts, sets: [] };
+      made.push(record);
+      return { element: { children: [] }, get() { return undefined; }, set() {}, setItems() {} };
+    },
     buttonRow(specs) {
       const record = { kind: "buttonRow", specs };
       made.push(record);
@@ -273,10 +278,11 @@ test("a preset applies as one history step and refreshes the controls", () => {
   windows.activate(h.context);
   h.PZ.ui.controls.runPropertyAction({}, { parentObject: effect }, "asciiSetup", null);
   mountWindow(h, 0);
-  const row = h.made.find((r) => r.kind === "buttonRow");
-  assert.equal(row.specs.length, 5, "five ASCII looks");
+  const list = h.made.find((r) => r.kind === "list");
+  assert.equal(list.opts.items.length, 5, "five ASCII looks");
+  assert.deepEqual(list.opts.items.map((i) => i.title), ["Red Matrix", "Mono Paper", "Blueprint", "Neon Night", "Glitch Storm"]);
   const before = h.edits.length;
-  row.specs[1].onClick(); // Mono Paper: block size 18, courier-free monospace font
+  list.opts.onSelect(1); // Mono Paper: block size 18, courier-free monospace font
   assert.deepEqual(h.history.ops.slice(-2), ["start", "finish"], "preset is one history step");
   const applied = h.edits.slice(before);
   assert.ok(applied.length > 20, "preset writes its values");

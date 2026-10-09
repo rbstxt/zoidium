@@ -244,6 +244,13 @@ function asciiClamp01(v) {
     return v < 0 ? 0 : v > 1 ? 1 : v;
 }
 
+// A layer's share of the shared render buffer; anything out of range means the
+// whole buffer.
+function asciiShare(v) {
+    v = Number(v);
+    return v > 0 && v <= 1 ? v : 1;
+}
+
 function asciiCss(rgb, a) {
     var r = Math.max(0, Math.min(255, Math.round(rgb[0] * 255)));
     var g = Math.max(0, Math.min(255, Math.round(rgb[1] * 255)));
@@ -343,12 +350,33 @@ function asciiOpacity(props, pre, e) {
     return 1;
 }
 
-function asciiDrawOverlay(ctx, W, H, st, sample) {
-    var block = st.blockSize;
-    var cols = Math.max(1, Math.floor(W / block));
-    var rows = Math.max(1, Math.floor(H / block));
-    var ox = (W - cols * block) / 2;
-    var oy = (H - rows * block) / 2;
+// Cell grid for a layer region of cw x ch buffer pixels. Whole cells are
+// centred in the region, so no glyph is cut off by the frame edge.
+// ox/oy are the margins between the region edges and the grid.
+function asciiGrid(cw, ch, block) {
+    var b = Math.max(4, Math.round(block));
+    var cols = Math.max(1, Math.floor(cw / b));
+    var rows = Math.max(1, Math.floor(ch / b));
+    return {
+        cols: cols,
+        rows: rows,
+        block: b,
+        width: cw,
+        height: ch,
+        ox: (cw - cols * b) / 2,
+        oy: (ch - rows * b) / 2,
+    };
+}
+
+// Draws the glyph grid for one layer region. The region is the bottom-left
+// grid.width x grid.height part of the W x H canvas, which matches the layer's
+// place in CM3's shared render buffer (canvas row 0 is the buffer's top).
+function asciiDrawOverlay(ctx, W, H, st, sample, grid) {
+    var block = grid.block;
+    var cols = grid.cols;
+    var rows = grid.rows;
+    var ox = grid.ox;
+    var oy = H - grid.height + grid.oy;
     ctx.clearRect(0, 0, W, H);
     ctx.fillStyle = asciiCss(st.backgroundColor, 1);
     ctx.fillRect(0, 0, W, H);
@@ -368,6 +396,14 @@ function asciiDrawOverlay(ctx, W, H, st, sample) {
             if (lum < 0) lum = 0;
             if (lum > 1) lum = 1;
             if (st.colorMode === 4) lum = 1 - lum;
+            // Noise moves luminance before band and glyph selection, so it
+            // changes the characters in every color mode. The seed steps four
+            // times a second and depends only on the frame time and the cell.
+            if (st.noiseIntensity > 0) {
+                lum += (asciiHash(x + 911, y + 733, 21 + ((time * 4) | 0) * 131) - 0.5) * 2 * st.noiseIntensity * 0.35;
+                if (lum < 0) lum = 0;
+                if (lum > 1) lum = 1;
+            }
             band = asciiBand(lum);
             var spec = st.bands[band];
             if (!spec) continue;
@@ -387,9 +423,6 @@ function asciiDrawOverlay(ctx, W, H, st, sample) {
             if (st.randomScale > 0) {
                 size = size * (1 + (asciiHash(x + 57, y + 131, 7) - 0.5) * 2 * st.randomScale);
                 if (size < 4) size = 4;
-            }
-            if (st.noiseIntensity > 0) {
-                lum += (asciiHash(x + 911, y + 733, 21) - 0.5) * 2 * st.noiseIntensity * 0.35;
             }
             dx = 0;
             dy = 0;
@@ -552,9 +585,14 @@ if (!THREE.AsciiPass) {
         this.quad = new THREE.Mesh(new THREE.PlaneBufferGeometry(2, 2), material);
         this.quad.frustumCulled = false;
         this.scene.add(this.quad);
+        // Samples the layer at the grid cell centres. The sample target has one
+        // texel per cell; sampleOffset/sampleScale map its UVs onto the grid
+        // rectangle inside the shared buffer.
         var copyMaterial = new THREE.ShaderMaterial({
             uniforms: {
                 tDiffuse: { type: "t", value: null },
+                sampleOffset: { type: "v2", value: new THREE.Vector2(0, 0) },
+                sampleScale: { type: "v2", value: new THREE.Vector2(1, 1) },
             },
             vertexShader: [
                 "varying vec2 vUv;",
@@ -565,9 +603,11 @@ if (!THREE.AsciiPass) {
             ].join("\n"),
             fragmentShader: [
                 "uniform sampler2D tDiffuse;",
+                "uniform vec2 sampleOffset;",
+                "uniform vec2 sampleScale;",
                 "varying vec2 vUv;",
                 "void main() {",
-                "    gl_FragColor = texture2D(tDiffuse, vUv);",
+                "    gl_FragColor = texture2D(tDiffuse, sampleOffset + vUv * sampleScale);",
                 "}",
             ].join("\n"),
         });
@@ -582,11 +622,19 @@ if (!THREE.AsciiPass) {
         constructor: THREE.AsciiPass,
         setSize: function (e, t) {},
         gridFor: function (w, h, block) {
-            var b = Math.max(4, Math.round(block));
+            return asciiGrid(w, h, block);
+        },
+        // CM3 renders each layer into the shared, output-sized buffer and sets
+        // this pass's uvScale to the layer's share of that buffer (see
+        // renderEffects in the CM3 core). The layer occupies the bottom-left
+        // part of the buffer, so the grid is laid out over that part only.
+        layerRegion: function (w, h) {
+            var scale = this.uniforms.uvScale && this.uniforms.uvScale.value;
+            var sx = scale ? asciiShare(scale.x) : 1;
+            var sy = scale ? asciiShare(scale.y) : 1;
             return {
-                cols: Math.max(1, Math.floor(w / b)),
-                rows: Math.max(1, Math.floor(h / b)),
-                block: b,
+                width: Math.max(1, Math.min(w, Math.round(w * sx))),
+                height: Math.max(1, Math.min(h, Math.round(h * sy))),
             };
         },
         render: function (renderer, writeBuffer, readBuffer) {
@@ -595,7 +643,8 @@ if (!THREE.AsciiPass) {
             if (!w || !h) return;
             var st = this.asciiState;
             var block = st && st.blockSize ? st.blockSize : 23;
-            var grid = this.gridFor(w, h, block);
+            var region = this.layerRegion(w, h);
+            var grid = asciiGrid(region.width, region.height, block);
             var cols = grid.cols;
             var rows = grid.rows;
             if (!this.canvas || this.canvasWidth !== w || this.canvasHeight !== h) {
@@ -623,6 +672,13 @@ if (!THREE.AsciiPass) {
             if (st) {
                 try {
                     this.copyMaterial.uniforms.tDiffuse.value = readBuffer.texture;
+                    // Map the sample texels onto the grid rectangle, measured
+                    // from the buffer's bottom-left (texture) origin.
+                    var sampleUniforms = this.copyMaterial.uniforms;
+                    sampleUniforms.sampleOffset.value.x = grid.ox / w;
+                    sampleUniforms.sampleOffset.value.y = grid.oy / h;
+                    sampleUniforms.sampleScale.value.x = (cols * grid.block) / w;
+                    sampleUniforms.sampleScale.value.y = (rows * grid.block) / h;
                     var oldAutoClear = renderer.autoClear;
                     renderer.autoClear = false;
                     renderer.render(this.copyScene, this.camera, this.sampleTarget, true);
@@ -639,7 +695,7 @@ if (!THREE.AsciiPass) {
                         var sy = Math.max(0, Math.min(sh - 1, sh - 1 - y));
                         var o = (sy * sw + sx) * 4;
                         return [px[o] / 255, px[o + 1] / 255, px[o + 2] / 255];
-                    });
+                    }, grid);
                     this.canvasTexture.needsUpdate = true;
                 } catch (err) {
                     var message = String((err && err.stack) || err).slice(0, 300);

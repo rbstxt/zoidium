@@ -273,6 +273,7 @@ const SPECS = {
     height: 560,
     layout: ASCII_LAYOUT,
     presets: ASCII_PRESETS,
+    presetList: true,
     assignments: asciiAssignments,
   },
   tracerySetup: {
@@ -439,13 +440,24 @@ function bindControl(build, key) {
 
 function buildPresetRow(build) {
   const { spec, bridge, controls } = build;
+  const applyPreset = function (preset) {
+    bridge.apply(spec.assignments(preset));
+    syncBindings(build);
+  };
+  // ASCII looks are listed one per row so every name stays fully visible.
+  if (spec.presetList) {
+    const list = controls.list({
+      items: spec.presets.map(function (preset, index) {
+        return { id: index, title: preset.label };
+      }),
+      onSelect(index) { applyPreset(spec.presets[index]); },
+    });
+    return list.element;
+  }
   const row = controls.buttonRow(spec.presets.map(function (preset) {
     return {
       title: preset.label,
-      onClick() {
-        bridge.apply(spec.assignments(preset));
-        syncBindings(build);
-      },
+      onClick() { applyPreset(preset); },
     };
   }));
   return row.element;

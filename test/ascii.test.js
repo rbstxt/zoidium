@@ -249,3 +249,101 @@ test("ascii overlay depends only on the current frame and input", async () => {
     env.restore();
   }
 });
+
+function near(a, b) {
+  return Math.abs(a - b) < 1e-9;
+}
+
+// Draws one frame of an ASCII pass with the given property overrides and
+// returns the glyphs and positions it wrote, in draw order.
+async function drawGlyphs(fakeThis, env, overrides, frame, uvScale) {
+  const inst = {
+    type: "ascii",
+    properties: constantProps(fakeThis.propertyDefinitions, overrides),
+  };
+  await fakeThis.load.call(inst, {});
+  if (uvScale) {
+    inst.pass.uniforms.uvScale.value.x = uvScale[0];
+    inst.pass.uniforms.uvScale.value.y = uvScale[1];
+  }
+  env.calls.length = 0;
+  fakeThis.update.call(inst, frame);
+  inst.pass.render(env.renderer, env.readBuffer, env.readBuffer);
+  const fills = env.calls.filter((c) => c.startsWith("fillText|")).map((c) => c.split("|").slice(1));
+  return { pass: inst.pass, fills };
+}
+
+test("ascii noise changes the glyphs in every color mode", async () => {
+  const { fakeThis } = loadEffectThis();
+  // Constant footage, so only the noise seed (time and cell) varies.
+  const env = recordingEnvironment(() => 0);
+  try {
+    for (const colorMode of [0, 1, 3]) {
+      const clean = await drawGlyphs(fakeThis, env, { colorMode, noiseIntensity: 0 }, 12);
+      const noisy = await drawGlyphs(fakeThis, env, { colorMode, noiseIntensity: 0.8 }, 12);
+      assert.ok(clean.fills.length > 0, "clean overlay drawn for mode " + colorMode);
+      assert.notDeepEqual(
+        noisy.fills.map((f) => f[0]),
+        clean.fills.map((f) => f[0]),
+        "noise changes the glyph choice in color mode " + colorMode
+      );
+      const again = await drawGlyphs(fakeThis, env, { colorMode, noiseIntensity: 0.8 }, 12);
+      assert.deepEqual(again.fills, noisy.fills, "noise is deterministic for a frame");
+    }
+    // The noise seed steps four times a second, so frames 12 and 13 share a
+    // step while frame 42 (1.4 s) does not.
+    const sameStep = await drawGlyphs(fakeThis, env, { noiseIntensity: 0.8 }, 13);
+    const laterStep = await drawGlyphs(fakeThis, env, { noiseIntensity: 0.8 }, 42);
+    const base = await drawGlyphs(fakeThis, env, { noiseIntensity: 0.8 }, 12);
+    assert.deepEqual(sameStep.fills, base.fills, "noise holds within a step");
+    assert.notDeepEqual(laterStep.fills, base.fills, "noise shimmers over time");
+  } finally {
+    env.restore();
+  }
+});
+
+test("ascii grid is centred in the layer region of a shared buffer", async () => {
+  const { fakeThis } = loadEffectThis();
+  const env = recordingEnvironment(() => 0);
+  try {
+    // Layer covers the bottom-left half of a 160 x 90 buffer: 80 x 45 px.
+    const half = await drawGlyphs(fakeThis, env, { blockSize: 23, colorMode: 3 }, 0, [0.5, 0.5]);
+    assert.deepEqual(half.pass.layerRegion(160, 90), { width: 80, height: 45 });
+    assert.ok(half.fills.length > 0, "overlay drawn");
+    // Grid: 3 x 1 cells of 23 px, margins (80 - 69) / 2 and (45 - 23) / 2.
+    const xs = new Set(half.fills.map((f) => Number(f[1])));
+    const ys = new Set(half.fills.map((f) => Number(f[2])));
+    for (const x of xs) assert.ok([17, 40, 63].some((cx) => near(cx, x)), "x on grid " + x);
+    for (const y of ys) assert.ok(near(y, 67.5), "y in the layer's top row " + y);
+    const u = half.pass.copyMaterial.uniforms;
+    assert.ok(near(u.sampleOffset.value.x, 5.5 / 160), "sample offset x");
+    assert.ok(near(u.sampleOffset.value.y, 11 / 90), "sample offset y");
+    assert.ok(near(u.sampleScale.value.x, 69 / 160), "sample scale x");
+    assert.ok(near(u.sampleScale.value.y, 23 / 90), "sample scale y");
+    // Whole-buffer layer: 6 x 3 cells centred on the frame, top row included.
+    const full = await drawGlyphs(fakeThis, env, { blockSize: 23, colorMode: 3 }, 0);
+    assert.deepEqual(full.pass.layerRegion(160, 90), { width: 160, height: 90 });
+    const fullYs = new Set(full.fills.map((f) => Number(f[2])));
+    for (const y of fullYs) assert.ok([22, 45, 68].some((cy) => near(cy, y)), "full-frame y " + y);
+    const fullXs = new Set(full.fills.map((f) => Number(f[1])));
+    for (const x of fullXs) assert.ok([22.5, 45.5, 68.5, 91.5, 114.5, 137.5].some((cx) => near(cx, x)), "full-frame x " + x);
+  } finally {
+    env.restore();
+  }
+});
+
+test("ascii layer region falls back to the whole buffer for invalid shares", () => {
+  const { fakeThis } = loadEffectThis();
+  const inst = { type: "ascii", properties: constantProps(fakeThis.propertyDefinitions, {}) };
+  return fakeThis.load.call(inst, {}).then(() => {
+    const pass = inst.pass;
+    for (const value of [0, -1, 2, NaN, undefined]) {
+      pass.uniforms.uvScale.value.x = value;
+      pass.uniforms.uvScale.value.y = value;
+      assert.deepEqual(pass.layerRegion(160, 90), { width: 160, height: 90 }, "share " + value);
+    }
+    pass.uniforms.uvScale.value.x = 0.25;
+    pass.uniforms.uvScale.value.y = 1;
+    assert.deepEqual(pass.layerRegion(160, 90), { width: 40, height: 90 });
+  });
+});
