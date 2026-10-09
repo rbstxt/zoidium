@@ -65,6 +65,9 @@ function looksBuildUniforms(propMap) {
     var uniforms = {
         tDiffuse: { type: "t", value: null },
         resolution: { type: "v2", value: new THREE.Vector2(1, 1) },
+        // Set by the CM3 compositor: the layer occupies uv * uvScale of the
+        // shared render buffer, which may be larger than this layer.
+        uvScale: { type: "v2", value: new THREE.Vector2(1, 1) },
         uCurvesLUT: { type: "t", value: null },
         uSCurveLUT: { type: "t", value: null },
         u_chain: { type: "fv1", value: new Array(Looks.tools.MAX_CHAIN).fill(-1) },
@@ -320,7 +323,9 @@ this.update = function (e) {
     if (!this._looksChainIsDefault) this._looksDirty = true;
     for (var t = 0; t < ids.length; t++) {
         var rec = map[ids[t]];
+        this._looksDirty = false;
         var toolOn = looksSetOpt(this, u, looksUniformName(rec.enable), rec.enable, e, 1);
+        var enableChanged = this._looksDirty;
         // A disabled tool and an unchanged identity tool need no shader stage.
         this._looksDirty = false;
         var keys = Object.keys(rec.params);
@@ -357,7 +362,7 @@ this.update = function (e) {
             if (u[looksUniformName(rec.custom.lutGamma)]) u[looksUniformName(rec.custom.lutGamma)].value = gi;
             if (gi !== 0) this._looksDirty = true;
         }
-        var changed = this._looksDirty;
+        var changed = this._looksDirty || enableChanged;
         if (ids[t] === "curves") changed = changed || !this._looksCurvesIdentity;
         if (ids[t] === "s-curve") changed = changed || !this._looksScurveIdentity;
         this._looksActiveTools[ids[t]] = toolOn === 1 && changed;

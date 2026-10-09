@@ -312,7 +312,8 @@ var Looks = Looks || {};
         section(""),
         signedPct("centerX", "Center X:", 0, -1, 1, 0),
         signedPct("centerY", "Center Y:", 0, -1, 1, 0),
-        num("radius", "Radius:", 1, { min: 0, max: 3 }),
+        // Keep the neutral blur region inside the image so Blur Size works alone.
+        num("radius", "Radius:", 0.35, { min: 0, max: 3 }),
         num("aspect", "Aspect:", 1, { min: 0.1, max: 3 }),
         num("spread", "Spread:", 0.5, { min: 0, max: 1 }),
       ],

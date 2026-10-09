@@ -22,8 +22,10 @@ endorsed by Panzoid.
   - **Parameters**: the selected tool's values, plus its color wheels, HSL
     sliders, curves pad, S-curve sliders, four-way wheels, or LUT controls.
 - Every committed edit is one undo/redo step on the effect's properties. Live
-  drags only preview.
-- Disabling the plugin closes its windows, restores the property renderer, and
+  drags only preview. Setup keeps its scroll position, input focus and look filter
+  after edits, and removing a tool selects its neighbour.
+- The plugin cannot be disabled while a project uses its effect. After removing
+  its effects, disabling closes its windows, restores the property renderer, and
   removes its stylesheet.
 
 ## Tools
@@ -35,6 +37,10 @@ endorsed by Panzoid.
   Filter, Anamorphic Flare.
 - 5 lens tools: Lens Distortion, Shutter Streak, Edge Softness, Chromatic
   Aberration, Telecine Net.
+
+Vignette Strength darkens the edges; its Color wheel adds a tint. Edge Softness
+blurs outside its Radius. Size, range, and gamma-space controls shape an active
+tool; they may leave the image unchanged while its strength or tint is neutral.
 
 ## Files
 
@@ -63,6 +69,9 @@ endorsed by Panzoid.
 
 ## Compatibility with saved projects
 
+- Vignette now attenuates the edges with a neutral white tint. Existing looks
+  with nonzero Vignette Strength render darker at the edges. Fresh Edge Softness
+  tools use Radius 0.35 so Blur Size works immediately; stored radii are kept.
 - Projects saved with the Davidium build keep their values. Projects without a
   `chainOrder` property get the legacy pipeline order.
 - Two render fixes also change older projects: transparent pixels stay

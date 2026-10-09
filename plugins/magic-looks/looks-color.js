@@ -568,7 +568,8 @@ var Looks = Looks || {};
     var inner = vg.radius * (1 - vg.spread * 0.85);
     var vm = gSmooth(inner, Math.max(vg.radius, inner + 1e-4), dd);
     var vf = Math.pow(vm, Math.max(vg.falloff * 2 + 0.3, 0.05)) * clamp(vg.strength, 0, 1);
-    var r = [c[0] * lerp(1, vgt[0], vf), c[1] * lerp(1, vgt[1], vf), c[2] * lerp(1, vgt[2], vf)];
+    var fade = 1 - vf;
+    var r = [c[0] * fade * lerp(1, vgt[0], vf), c[1] * fade * lerp(1, vgt[1], vf), c[2] * fade * lerp(1, vgt[2], vf)];
     return gExposure(r, vg.exposure);
   };
 
