@@ -232,7 +232,15 @@ module.exports = {
     }
 
     const SPLINE_MAX_POINTS = 32;
-    const SPLINE_DEFAULT_POINTS = 2;
+    const SPLINE_DEFAULT_POINTS = 3;
+    // New splines start as a visible arch at the scale of the other Geometry+
+    // shapes (Helix radius 14, Corner radius 3). Only points beyond this list
+    // default to the origin. Loaded projects always carry their own values.
+    const SPLINE_DEFAULT_POINT_POSITIONS = [
+      [-20, 0, 0],
+      [0, 20, 0],
+      [20, 0, 0],
+    ];
 
     function cross3(a, b) {
       return [
@@ -641,15 +649,16 @@ module.exports = {
     }
 
     function splinePointDefinition(index) {
+      const position = SPLINE_DEFAULT_POINT_POSITIONS[index - 1] || [0, 0, 0];
       return {
         name: "Point " + index,
         dynamic: true,
         group: true,
         type: PZ.property.type.VECTOR3,
         objects: [
-          { dynamic: true, name: "X", type: PZ.property.type.NUMBER, value: 0, step: 1 },
-          { dynamic: true, name: "Y", type: PZ.property.type.NUMBER, value: 0, step: 1 },
-          { dynamic: true, name: "Z", type: PZ.property.type.NUMBER, value: 0, step: 1 },
+          { dynamic: true, name: "X", type: PZ.property.type.NUMBER, value: position[0], step: 1 },
+          { dynamic: true, name: "Y", type: PZ.property.type.NUMBER, value: position[1], step: 1 },
+          { dynamic: true, name: "Z", type: PZ.property.type.NUMBER, value: position[2], step: 1 },
         ],
       };
     }

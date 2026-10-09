@@ -169,6 +169,20 @@ function openCompsWindow() {
   }
 
   function remove(row) {
+    // Check usage before asking, so an in-use composition is explained rather
+    // than confirmed and then refused. removeComp repeats the check.
+    const current = engine.entries(editor).find(function (entry) { return entry.id === row.id; });
+    if (!current) {
+      report("Delete", { ok: false, message: "That composition no longer exists." });
+      render();
+      return;
+    }
+    if (current.uses > 0) {
+      // removeComp refuses before it changes anything while a composition is
+      // used, and it words the refusal with where the uses are.
+      report("Delete", engine.removeComp(editor, row.id));
+      return;
+    }
     const host = session.context.window || globalThis;
     if (!host.confirm('Delete composition "' + row.name + '"?')) return;
     const result = engine.removeComp(editor, row.id);
@@ -357,8 +371,16 @@ module.exports = {
       updateTabLabel(tabInfo);
     }
   },
-  // Disabling is refused while the project holds compositions.
+  // Disabling is refused while the project holds compositions. The reason is
+  // shown as the Plugins panel toggle's tooltip and when a disable is refused.
   isInUse() {
-    return !!session && session.engine.hasComps(session.editor.project);
+    return hasCompsInUse();
+  },
+  inUseReason() {
+    return hasCompsInUse() ? "Delete all compositions before disabling Precomp+." : "";
   },
 };
+
+function hasCompsInUse() {
+  return !!session && session.engine.hasComps(session.editor.project);
+}

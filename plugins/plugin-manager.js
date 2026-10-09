@@ -879,10 +879,33 @@
     return JSON.parse(JSON.stringify(value));
   }
 
-  function setPluginUsageUi(state, inUse) {
+  function setPluginUsageUi(state, inUse, reason) {
     // Hidden plugins (Zoidium Core) have no panel card.
     if (!state.card || !state.toggle) return;
     state.toggle.disabled = inUse;
+    state.usageReason = inUse ? reason || DEFAULT_IN_USE_REASON : "";
+    syncUsageTooltip(state);
+  }
+
+  // The switch label carries the explanation while the toggle is locked.
+  function syncUsageTooltip(state) {
+    const label = state.card && state.card.querySelector(".zoidium-plugin-switch");
+    if (!label) return;
+    if (!label.dataset.baseTitle) label.dataset.baseTitle = label.title;
+    label.title = state.toggle.disabled && state.usageReason ? state.usageReason : label.dataset.baseTitle;
+  }
+
+  // A locked toggle explains itself on click. The lock is re-checked first,
+  // so it clears once the project no longer uses the plugin.
+  function onLockedSwitchPointerDown(state) {
+    if (!state.toggle.disabled || state.card.dataset.phase === "loading") return;
+    const reason = pluginUsageReason(state);
+    if (!reason) {
+      setPluginUsageUi(state, false);
+      return;
+    }
+    setPluginUsageUi(state, true, reason);
+    ZoidiumUI.notify({ title: state.plugin.name, message: reason });
   }
 
   function updateNativeFxUsageUi() {
@@ -1460,6 +1483,7 @@
         // Own the module before it can mutate the host or throw midway.
         state.runtimeModules.push({
           isInUse: () => runtime.isInUse?.(),
+          inUseReason: () => runtime.inUseReason?.(),
           async deactivate() {
             if (deactivated) return;
             deactivated = true;
@@ -1756,6 +1780,7 @@
     state.card.dataset.phase = phase;
     state.toggle.checked = enabled;
     state.toggle.disabled = phase === "loading";
+    syncUsageTooltip(state);
     // Keep the pack master switch in step with single-plugin toggles.
     syncGroupForPlugin(state.plugin.id);
   }
@@ -2897,6 +2922,7 @@
           state.bundleAssets = pluginPackage.assets;
         }
         await registerManifest(state.plugin, state.manifest, state);
+        closeOpenAddPickers();
         await PZ.zoidium?.object3d?.restoreMissing?.(state.plugin.id);
         await restoreMissingNativeEffects(state.plugin.id);
         await restoreMissingPluginMaterials(state.plugin.id);
@@ -2936,27 +2962,12 @@
     // must join this cleanup rather than starting a second unregister pass.
     state.disablePromise = (async () => {
       if (state.enablePromise) await state.enablePromise;
-      const inUse =
-        Array.from(trackedNativeEffects).some(
-          (effect) => effect._zoidiumPluginMetadata?.id === state.plugin.id
-        ) ||
-        Array.from(trackedPluginMaterials).some(
-          (material) => material._zoidiumPluginMetadata?.id === state.plugin.id
-        ) ||
-        Array.from(trackedPluginObjects).some(
-          (object) =>
-            object._zoidiumPluginMetadata?.id === state.plugin.id &&
-            !missingPluginObjects.has(object)
-        ) ||
-        Array.from(trackedPluginResources).some(
-          (resource) =>
-            resource._zoidiumPluginResourceMetadata?.id === state.plugin.id &&
-            !missingPluginResources.has(resource)
-        ) ||
-        (state.runtimeModules || []).some((runtime) => runtime.isInUse?.());
-      if (inUse) {
+      const reason = pluginUsageReason(state);
+      if (reason) {
+        // Refused: keep the plugin on, lock the switch, and say why.
+        setPluginUsageUi(state, true, reason);
         state.toggle.checked = true;
-        state.toggle.disabled = true;
+        ZoidiumUI.notify({ title: state.plugin.name, message: reason });
         return;
       }
       updateCard(state, "loading");
@@ -2970,6 +2981,44 @@
     } finally {
       state.disablePromise = null;
     }
+  }
+
+  // Shown when a plugin's own module does not say why it is in use.
+  const DEFAULT_IN_USE_REASON = "This plugin is in use by the project. Remove its items before disabling it.";
+
+  // Why the plugin cannot be disabled right now, or "" when it can.
+  function pluginUsageReason(state) {
+    for (const runtime of state.runtimeModules || []) {
+      if (runtime.isInUse?.()) return runtime.inUseReason?.() || DEFAULT_IN_USE_REASON;
+    }
+    const pluginId = state.plugin.id;
+    const inUse =
+      Array.from(trackedNativeEffects).some((effect) => effect._zoidiumPluginMetadata?.id === pluginId) ||
+      Array.from(trackedPluginMaterials).some((material) => material._zoidiumPluginMetadata?.id === pluginId) ||
+      Array.from(trackedPluginObjects).some(
+        (object) => object._zoidiumPluginMetadata?.id === pluginId && !missingPluginObjects.has(object)
+      ) ||
+      Array.from(trackedPluginResources).some(
+        (resource) =>
+          resource._zoidiumPluginResourceMetadata?.id === pluginId && !missingPluginResources.has(resource)
+      );
+    return inUse ? DEFAULT_IN_USE_REASON : "";
+  }
+
+  // CM3's add picker builds its rows from the registry when it opens, so the
+  // entries this plugin just registered are missing from an open picker. The
+  // picker is closed instead; its Cancel button restores the editor's list and
+  // the next open shows the current registry.
+  function closeOpenAddPickers() {
+    if (typeof document === "undefined") return;
+    document.querySelectorAll("input.pz-filterbox").forEach((input) => {
+      const panel = input.parentElement;
+      if (!panel || !Array.from(panel.children).some((child) => child.classList.contains("pz-options"))) return;
+      const cancel = Array.from(panel.querySelectorAll("button")).find(
+        (button) => button.textContent.trim() === "Cancel"
+      );
+      if (cancel) cancel.click();
+    });
   }
 
   function compatBadgeHtml(plugin) {
@@ -3071,6 +3120,9 @@
     card.querySelector(".zp-detail-switch").addEventListener("click", (event) => {
       // The switch sits inside <summary>; keep clicks from folding the entry.
       event.stopPropagation();
+    });
+    card.querySelector(".zp-detail-switch").addEventListener("pointerdown", () => {
+      onLockedSwitchPointerDown(state);
     });
     state.toggle.addEventListener("change", () => {
       if (state.toggle.checked) enablePlugin(state, true);

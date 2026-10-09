@@ -310,8 +310,28 @@
       global.addEventListener("resize", function () {
         openWindows.forEach(function (win) { win._clamp(); });
       });
+      listenForOutsidePointerDown();
     }
     return windowLayer;
+  }
+
+  // Focusing a window moves DOM focus into it. Clicking the editor does not
+  // move focus back (CM3 keeps focus on its own elements), so editor shortcuts
+  // such as undo, Space, and Delete would stay blocked by the window's key
+  // isolation. A pointer-down outside every window releases that focus and the
+  // window's focused state.
+  function isInsideWindow(node) {
+    return !!(node && typeof node.closest === "function" && node.closest(".zoidium-window"));
+  }
+
+  function listenForOutsidePointerDown() {
+    global.document.addEventListener("pointerdown", function (event) {
+      if (isInsideWindow(event.target)) return;
+      var active = global.document.activeElement;
+      if (!isInsideWindow(active)) return;
+      if (typeof active.blur === "function") active.blur();
+      openWindows.forEach(function (win) { win.element.classList.remove("focused"); });
+    }, true);
   }
 
   function clampNumber(value, min, max) {

@@ -417,6 +417,54 @@
     if (texture && typeof texture.dispose === "function") texture.dispose();
   }
 
+  // CM3 add picker fixes ----------------------------------------------
+  //
+  // The Effects and Objects add picker (ui-1.0.72.js, generateAdd) builds a
+  // Map from the live registry array when it opens, then searches with
+  // `new Fuse(array)`. Fuse reads that array lazily, so an entry a plugin
+  // registers while the picker is open is found by search but has no Map row,
+  // and appendChild(undefined) throws. Searching a snapshot keeps the results
+  // aligned with the rows the picker built.
+  function installFuseSnapshots() {
+    var OriginalFuse = global.Fuse;
+    if (typeof OriginalFuse !== "function" || OriginalFuse.__zoidiumSnapshot) return;
+    function SnapshotFuse(list, options) {
+      var source = Array.isArray(list) ? list.slice() : list;
+      return Reflect.construct(OriginalFuse, [source, options], SnapshotFuse);
+    }
+    // Instances share CM3's prototype, so prototype patches (such as the
+    // Native FX search priority) keep applying.
+    SnapshotFuse.prototype = OriginalFuse.prototype;
+    Object.keys(OriginalFuse).forEach(function (key) { SnapshotFuse[key] = OriginalFuse[key]; });
+    Object.defineProperty(SnapshotFuse, "__zoidiumSnapshot", { value: true });
+    global.Fuse = SnapshotFuse;
+  }
+
+  // CM3's picker key handler moves the highlight through lastElementChild and
+  // nextElementSibling, then reads classList on the result. With no matching
+  // rows that result is null and the handler throws. Arrow keys in that state
+  // have nothing to move, so they stop before reaching CM3.
+  function installEmptyPickerArrowGuard() {
+    if (typeof global.addEventListener !== "function") return;
+    global.addEventListener("keydown", function (event) {
+      if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+      var input = event.target;
+      if (!input || !input.classList || !input.classList.contains("pz-filterbox")) return;
+      var panel = input.parentElement;
+      var children = panel && panel.children ? Array.prototype.slice.call(panel.children) : [];
+      var list = children.find(function (child) { return child.classList && child.classList.contains("pz-options"); });
+      var hasRows = !!list && Array.prototype.some.call(list.children, function (child) {
+        return child.tagName === "LI";
+      });
+      if (hasRows) return;
+      event.preventDefault();
+      event.stopPropagation();
+    }, true);
+  }
+
+  installFuseSnapshots();
+  installEmptyPickerArrowGuard();
+
   var apis = {
     KINDS: KINDS,
     defineTemporal: defineTemporal,
