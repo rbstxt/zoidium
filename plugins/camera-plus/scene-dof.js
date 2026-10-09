@@ -1,10 +1,13 @@
 // Camera+ depth of field: a per-scene post pass over the active camera.
 //
 // The scene is rendered twice into offscreen targets (color, then packed
-// depth). A single full-screen pass then gathers a disc of samples whose
-// radius follows the distance from the focus plane. The output depends only
-// on the current scene render and the configured uniforms, so it is a pure
-// function of the project state at time t.
+// depth). A single full-screen pass then gathers a deterministic golden-angle
+// disc of samples whose radius follows the distance from the focus plane.
+// Samples are averaged with their own alpha, so out-of-focus foregrounds
+// spread over the background instead of keeping hard edges. In-focus pixels
+// (sub-pixel radius) pass through untouched. The output depends only on the
+// current scene render and the configured uniforms, so it is a pure function
+// of the project state at time t.
 //
 // Evaluated with (PZ, THREE, parts) by camera-runtime.js; publishes parts.dof.
 parts.dof = (function () {
@@ -54,16 +57,16 @@ parts.dof = (function () {
     "    vec2 uv = vUvScaled;",
     "    vec2 texel = 1.0 / max( resolution, vec2( 1.0 ) );",
     "    vec4 centerColor = texture2D( tColor, uv );",
-    "    if ( centerColor.a < 0.02 ) {",
-    "        gl_FragColor = centerColor;",
-    "        return;",
-    "    }",
     "    float centerLinear = linearizeDepth( unpackDepth( texture2D( tDepth, uv ) ) );",
     "    float centerBlur = blurAmount( centerLinear );",
     "    float maxRadius = centerBlur * aperture * 0.02 * min( resolution.x, resolution.y );",
     "    maxRadius = min( maxRadius, min( resolution.x, resolution.y ) * 0.05 );",
-    "    vec3 accum = centerColor.rgb;",
-    "    float totalWeight = 1.0;",
+    "    if ( maxRadius < 0.5 || centerColor.a < 0.02 ) {",
+    "        gl_FragColor = centerColor;",
+    "        return;",
+    "    }",
+    "    vec3 accum = centerColor.rgb * centerColor.a;",
+    "    float totalWeight = centerColor.a;",
     "    const int SAMPLES = 32;",
     "    for ( int i = 1; i < SAMPLES; i ++ ) {",
     "        float fi = float( i );",
@@ -72,14 +75,12 @@ parts.dof = (function () {
     "        vec2 offset = vec2( cos( angle ), sin( angle ) ) * radius * maxRadius * texel;",
     "        vec2 sampleUV = clamp( uv + offset, vec2( 0.0 ), vec2( 1.0 ) );",
     "        vec4 sampleColor = texture2D( tColor, sampleUV );",
-    "        float sampleLinear = linearizeDepth( unpackDepth( texture2D( tDepth, sampleUV ) ) );",
-    "        float sampleBlur = blurAmount( sampleLinear );",
-    "        float weight = sampleColor.a * ( 1.0 - abs( sampleBlur - centerBlur ) );",
-    "        weight *= weight;",
-    "        accum += sampleColor.rgb * weight;",
-    "        totalWeight += weight;",
+    "        accum += sampleColor.rgb * sampleColor.a;",
+    "        totalWeight += sampleColor.a;",
     "    }",
-    "    gl_FragColor = vec4( accum / max( totalWeight, 0.0001 ), centerColor.a );",
+    "    float coverage = totalWeight / float( SAMPLES );",
+    "    vec3 sharp = accum / max( totalWeight, 0.0001 );",
+    "    gl_FragColor = vec4( sharp, coverage );",
     "}",
   ].join("\n");
 
@@ -105,8 +106,9 @@ parts.dof = (function () {
         vertexShader: VERTEX_SHADER,
         fragmentShader: FRAGMENT_SHADER,
       });
-      this.material.transparent = true;
-      this.material.premultipliedAlpha = true;
+      this.material.transparent = false;
+      this.material.depthTest = false;
+      this.material.depthWrite = false;
       this.scene = new THREE.Scene();
       this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
       this.scene.add(this.camera);
