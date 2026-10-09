@@ -125,6 +125,7 @@ function loadDebugLog(localValues, sessionValues, options = {}) {
   vm.runInNewContext(debugLogSource, context);
   return {
     api: context.ZOIDIUM_DEBUG_LOG,
+    context,
     documentEvents,
     runTimers: timers.run,
     windowEvents,
@@ -260,4 +261,52 @@ test("a burst of routine records costs one coalesced journal write", () => {
   assert.equal(journalWrites, before, "routine records wait for the scheduled write");
   first.runTimers();
   assert.equal(journalWrites, before + 1);
+});
+
+test("repeated global errors retain a count without synchronous writes or UI spam", () => {
+  const local = new Map();
+  const loaded = loadDebugLog(local, new Map());
+  let writes = 0;
+  let mounts = 0;
+  loaded.context.localStorage.setItem = (key, value) => { writes += 1; local.set(key, value); };
+  loaded.context.document.createElement = () => { mounts += 1; return {}; };
+  const error = new Error("Repeated render failure");
+  for (let i = 0; i < 100; i += 1) loaded.windowEvents.dispatch("error", { error });
+  assert.equal(writes, 1);
+  assert.equal(mounts, 0);
+  loaded.runTimers();
+  assert.equal(writes, 2);
+  const snapshot = loaded.api.getSnapshot();
+  const events = snapshot.events.filter((entry) => entry.source === "window.error");
+  assert.equal(events.length, 1);
+  assert.equal(events[0].repetitions, 100);
+  assert.equal(snapshot.exceptions.at(-1).repetitions, 100);
+  loaded.windowEvents.dispatch("unhandledrejection", { reason: new Error("Async failure") });
+  assert.ok(loaded.api.getSnapshot().exceptions.some((entry) => entry.message === "Async failure"));
+});
+
+test("WebGL diagnostics release their probe and reuse collected information", () => {
+  const loaded = loadDebugLog(new Map(), new Map());
+  let created = 0;
+  let released = 0;
+  loaded.context.document.createElement = () => {
+    created += 1;
+    return { getContext() { return { getExtension(name) {
+      return name === "WEBGL_lose_context" ? { loseContext() { released += 1; } } : null;
+    } }; } };
+  };
+  for (let i = 0; i < 25; i += 1) assert.equal(loaded.api.getSnapshot().environment.webgl.supported, true);
+  assert.equal(created, 1);
+  assert.equal(released, 1);
+});
+
+test("context loss records evidence and shows one save/reload notification", () => {
+  const loaded = loadDebugLog(new Map(), new Map());
+  const notifications = [];
+  loaded.context.ZoidiumUI = { notify: (detail) => notifications.push(detail) };
+  loaded.documentEvents.dispatch("webglcontextlost");
+  loaded.documentEvents.dispatch("webglcontextlost");
+  assert.equal(notifications.length, 1);
+  assert.match(notifications[0].message, /Save.*reload/);
+  assert.equal(loaded.api.getSnapshot().events.filter((entry) => entry.type === "webgl-context-lost").length, 2);
 });

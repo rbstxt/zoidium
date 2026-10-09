@@ -731,6 +731,40 @@
     };
   }
 
+  // Temporal operators must exist before the first schedule preparation.
+  // CM3 creates nested effects asynchronously but returns a project before
+  // those loads finish, so its first frame can bypass a saved time operator.
+  async function prepareProject(project) {
+    if (!project) return project;
+    if (project._zoidiumPluginActivationPending) {
+      await project._zoidiumPluginActivationPending;
+    }
+    var visited = new WeakSet();
+    async function visit(object) {
+      if (!object || typeof object !== "object" || visited.has(object)) return;
+      visited.add(object);
+      if (object.loading && typeof object.loading.then === "function") {
+        await object.loading;
+      }
+      var children = Array.isArray(object) ? object : object.children;
+      if (children) {
+        for (var index = 0; index < children.length; index += 1) {
+          await visit(children[index]);
+        }
+      }
+    }
+    await visit(project);
+    return project;
+  }
+
+  var originalLoadProject = editorPrototype.loadProject;
+  if (typeof originalLoadProject === "function") {
+    editorPrototype.loadProject = async function () {
+      var project = await originalLoadProject.apply(this, arguments);
+      return prepareProject(project);
+    };
+  }
+
   editorPrototype.open = function () {
     var editor = this;
     if (!editor.confirmIfDirty()) return;
@@ -797,6 +831,7 @@
     fileNameForProject: fileNameForProject,
     displayNameForUi: displayNameForUi,
     createArchive: createArchive,
+    prepareProject: prepareProject,
     fingerprintArchive: fingerprintArchive,
     getProjectRevision: getProjectRevision,
     validateProjectArchive: validateProjectArchive,

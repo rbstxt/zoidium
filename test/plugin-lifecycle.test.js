@@ -134,3 +134,18 @@ test("enable requested during pending disable waits for cleanup and activates ag
   assert.equal(h.events.at(-1), "enabled");
   assert.ok(h.events.indexOf("disabled") < h.events.indexOf("activate:2"));
 });
+test("unregister closes native setup windows before removing their factories", async () => {
+  const events = [];
+  const start = source.indexOf("  async function unregisterPlugin(");
+  const end = source.indexOf("  function manifestFeatureCount(", start);
+  const state = { runtimeModules: [{ deactivate: () => events.push("deactivate") }], replacedObjectTypes: [], manifest: {} };
+  const unregister = vm.runInNewContext(source.slice(start, end) + "\nunregisterPlugin", {
+    ZoidiumUI: { closeWindows: (prefix) => events.push(prefix) },
+    getEffectTypes: () => [], getMaterialTypes: () => [], pluginStates: new Map([["fixture", state]]),
+    PZ: { object3d: {}, ui: { objectTypes: { get: () => [] } }, zoidium: { object3d: { unregisterPlugin: () => events.push("unregister") } } },
+    effectBadgeObserver: null, console,
+  });
+  await unregister("fixture");
+  assert.deepEqual(events, ["fixture:", "deactivate", "unregister"]);
+  assert.equal(state.runtimeModules.length, 0);
+});

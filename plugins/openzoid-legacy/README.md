@@ -1,7 +1,6 @@
 # Setup Legacy
 
-A Zoidium `native-fx` plugin. It ports five OpenZoid effects with their
-original behavior preserved, plus the export-time true-datamosh renderer.
+A Zoidium `native-fx` plugin. It provides seven OpenZoid effects as an external extension layer around CM3.
 
 - Echo (Legacy) — smear, maximum, additive and screen echoes. Each echo is an
   explicitly evaluated earlier frame through the core frame sampler, so the
@@ -10,13 +9,15 @@ original behavior preserved, plus the export-time true-datamosh renderer.
   operator, with the same bucket rule as Native FX Posterize Time.
 - Jpeg Damage — JPEG compression-break simulation.
 - VHS — full signal-chain rebuild (tracking, chroma crawl, snow, tears, OSD).
-- Datamosh — feedback motion-vector smear with algorithm presets.
-- datamosh-export module — installs `PZ.datamoshRender` for byte-exact
-  I-frame removal on exported WebM/VP8/VP9 files.
-- VHS Setup window — fullscreen preset/slider/viewport editor for the VHS
-  effect, wired to the effect's `vhsSetup` property button.
+- Datamosh — deterministic segment motion matching with nine motion modes and
+  the 80 Davidium look entries. Mirror, sweep, random-block, spatial multiply,
+  tapered oscillation, neighbor blur and multi-tap smear families read a sampled
+  source anchor. Hold, Speed and Time remain editable; old look indices migrate
+  on load. The previous rendered output is never used.
+- VHS Setup window — floating preset/slider editor for every VHS signal and
+  motion control, wired to the effect's Setup property.
 - Datamosh Setup window — preset/slider/algorithm-dropdown editor for the
-  Datamosh effect, wired to the effect's `datamoshSetup` property button.
+  Datamosh effect, wired to the effect's Setup property.
 - Tracery — motion-tracking callout overlay: per-point boxes
   (rectangle/square/ellipse/circle with fill modes), markers
   (dot/plus/cross/polygon), spline/PCB/smooth/step connection lines with

@@ -194,3 +194,95 @@ test("the Camera+ pass selection is the same for direct and repeated evaluation"
   }
   runtime.deactivate();
 });
+
+
+test("a camera in an ordinary nested group uses its world transform", () => {
+  const { ctx, runtime, scene, makeCameraPlus } = setup();
+  runtime.activate(ctx.context);
+  const cameraPlus = makeCameraPlus();
+  scene.objects.splice(scene.objects.indexOf(cameraPlus), 1);
+  const group = new ctx.PZ.object3d();
+  group.threeObj = new ctx.THREE.Object3D();
+  group.threeObj.position.set(12, 3, -4);
+  group.objects = [cameraPlus];
+  group.threeObj.add(cameraPlus.threeObj);
+  group.update = (frame) => cameraPlus.update(frame);
+  scene.push(group);
+  scene.update(8);
+  assert.equal(scene.pass.camera, cameraPlus.threeObj);
+  const position = new ctx.THREE.Vector3();
+  scene.pass.camera.getWorldPosition(position);
+  assert.deepEqual([position.x, position.y, position.z], [12, 3, 76]);
+  runtime.deactivate();
+});
+
+test("camera blur samples fixed subframes and restores the output pose on every redraw", () => {
+  const { ctx, runtime, scene, makeCameraPlus } = setup();
+  runtime.activate(ctx.context);
+  const camera = makeCameraPlus();
+  camera.properties.motionBlur.enabled.set(1);
+  camera.properties.motionBlur.samples.set(4);
+  camera.properties.motionBlur.shutter.set(0.5);
+  const renderer = recordingRenderer();
+  renderer.getClearColor = () => ({ clone: () => ({ color: "original" }) });
+  renderer.getClearAlpha = () => 0.7;
+  renderer.setClearColor = () => {};
+  renderer.clearTarget = () => {};
+  const target = new ctx.THREE.WebGLRenderTarget(64, 48);
+  const evaluate = (frame) => {
+    scene.update(frame);
+    const start = scene.updates.length;
+    scene.pass.render(renderer, target, null, true);
+    return scene.updates.slice(start);
+  };
+  const expected = [19.8125, 19.9375, 20.0625, 20.1875, 20];
+  assert.deepEqual(evaluate(20), expected);
+  evaluate(3); evaluate(50);
+  assert.deepEqual(evaluate(20), expected);
+  assert.equal(camera._time, 20);
+  const blur = scene.pass.__cameraPlusState.blur;
+  runtime.deactivate();
+  assert.equal(blur.sampleTarget, null);
+  assert.equal(blur.accumTarget, null);
+});
+
+test("failed blur sampling still restores time, clear settings and the sampling guard", () => {
+  const { ctx, runtime, scene, makeCameraPlus } = setup();
+  runtime.activate(ctx.context);
+  const camera = makeCameraPlus();
+  camera.properties.motionBlur.enabled.set(1);
+  scene.update(20);
+  const colors = [];
+  const renderer = {
+    getClearColor: () => ({ clone: () => "original" }), getClearAlpha: () => 0.4,
+    setClearColor: (...args) => colors.push(args), clearTarget() {},
+    render() { throw new Error("GPU failure"); },
+  };
+  assert.throws(() => scene.pass.render(renderer, new ctx.THREE.WebGLRenderTarget(8, 8), null, true), /GPU failure/);
+  assert.equal(camera._time, 20);
+  assert.equal(scene.pass.__cameraPlusState.sampling, false);
+  assert.deepEqual(colors.at(-1), ["original", 0.4]);
+  runtime.deactivate();
+});
+
+test("native velocity capture starts with the deterministic future Camera+ view", () => {
+  const { ctx, runtime, scene, makeCameraPlus } = setup();
+  const original = ctx.PZ.layer.scene.prototype.update;
+  const captured = [];
+  ctx.PZ.layer.scene.prototype.update = function (time) {
+    captured.push(this.pass.camera.matrixWorldInverse.sampleTime);
+    return original.call(this, time);
+  };
+  runtime.activate(ctx.context);
+  const camera = makeCameraPlus();
+  camera.threeObj.matrixWorld = {};
+  camera.threeObj.matrixWorldInverse = { getInverse(matrix) {
+    assert.equal(matrix, camera.threeObj.matrixWorld);
+    this.sampleTime = camera._time;
+  } };
+  scene.motionBlur = { velocityBuffer: {} };
+  for (const time of [20, 3, 50, 20]) scene.update(time);
+  assert.deepEqual(captured, [20.5, 3.5, 50.5, 20.5]);
+  assert.equal(camera._time, 20);
+  runtime.deactivate();
+});

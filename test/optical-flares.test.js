@@ -343,15 +343,17 @@ test("the render hook projects the source through the camera drawing the pass", 
   assert.equal(u().uBrightness.value, 0, "a source behind the camera is hidden");
 });
 
-test("the render hook keeps a motion blur or other handler assigned to the quad", () => {
+test("the render hook can be saved and restored without chaining itself", () => {
   const { PZ } = buildEnv();
   const flare = createFlare(PZ, { objectType: 0 });
   placeFlare(flare, [0, 0, -10]);
   flare.update(0);
   let calls = 0;
+  const projection = flare.quad.onBeforeRender;
   flare.quad.onBeforeRender = function () { calls += 1; };
+  flare.quad.onBeforeRender = projection;
   flare.quad.onBeforeRender({}, null, camera([0, 0, 0], 0));
-  assert.equal(calls, 1, "the earlier handler still runs");
+  assert.equal(calls, 0, "the temporary velocity callback is removed");
   assert.ok(flare.material.uniforms.uBrightness.value > 0, "the flare still updates");
 });
 
@@ -400,4 +402,33 @@ test("live flares are tracked for isInUse and released on unload", () => {
   assert.equal(material.disposed, true, "material disposed");
   assert.equal(quadGeometry.disposed, true, "geometry disposed");
   assert.equal(flare.material, null);
+});
+
+
+test("THREE r91 sources refresh the ancestor matrices without updateWorldMatrix", () => {
+  const { PZ } = buildEnv();
+  const flare = createFlare(PZ, { objectType: 0 });
+  placeFlare(flare, [0, 0, -10]);
+  flare.threeObj.updateWorldMatrix = undefined;
+  let updated = false;
+  flare.threeObj.parent = { parent: null, updateMatrixWorld(force) { updated = force; } };
+  flare.update(0);
+  flare.quad.onBeforeRender({}, null, camera([0, 0, 0], 0));
+  assert.equal(updated, true);
+  assert.ok(flare.material.uniforms.uBrightness.value > 0);
+});
+
+test("element identity always reads a concrete frame and loading replaces default keys", () => {
+  const { PZ } = buildEnv();
+  const element = new PZ.object3d.optflares.element();
+  const prop = element.properties.element.elementType;
+  prop.get = (frame) => { assert.equal(frame, 0); return 3; };
+  assert.equal(element.toJSON().type, 3);
+  prop.keyframes = [{ frame: 0, value: 0 }];
+  const load = prop.load;
+  prop.load = function (data) {
+    assert.equal(this.keyframes.length, 0, "old default keys removed before CM3 load appends saved keys");
+    load.call(this, data);
+  };
+  element.load({ properties: { element: { elementType: 3 } } });
 });

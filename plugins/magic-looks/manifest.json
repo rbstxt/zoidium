@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "magic-looks",
   "name": "Magic Looks",
-  "author": "Zoidium",
+  "author": "DaviFX",
   "version": "3",
   "kind": "extension",
   "description": "Magic Bullet Looks-style color grading: 29 color, light and lens tools in a reorderable chain, with look presets and a floating setup window.",

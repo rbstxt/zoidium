@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "optical-flares",
   "name": "Optical Flares",
-  "author": "Zoidium",
+  "author": "DaviFX",
   "version": "3",
   "kind": "object",
   "description": "Lens flares placed in 3D space: the source is a 3D point projected through the layer camera, with a preset-driven element stack and a single options window.",

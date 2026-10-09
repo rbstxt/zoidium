@@ -13,9 +13,9 @@
 //     padded box. Only half-spaces that actually cut the cell are kept.
 //  2. Every source triangle is clipped by each cell's half-spaces, so the
 //     fragments of a triangle partition it exactly: no holes and no overlaps.
-//  3. For each piece, the boundary edges that come from cell cuts (not from the
-//     open border of the source mesh) form closed loops. Each loop is capped by
-//     an ear-clipped polygon in its Newell plane, with a centroid fan fallback.
+//  3. Clip each source surface one bisector plane at a time and cap its planar
+//     cut loops before the next plane. Existing caps are clipped too, giving
+//     watertight ridges and retaining cells inside the source volume.
 
 const core = require("./effector-core.js");
 
@@ -159,7 +159,7 @@ function buildCells(sites, low, high, eps) {
       const target = sites[other];
       const delta = [target[0] - site[0], target[1] - site[1], target[2] - site[2]];
       const length = Math.sqrt(dot3(delta, delta));
-      if (!(length > MIN_TRIANGLE_LENGTH)) continue;
+      if (!(length > 1e-28)) continue;
       const plane = {
         nx: delta[0] / length,
         ny: delta[1] / length,
@@ -182,13 +182,16 @@ function buildCells(sites, low, high, eps) {
         }
       }
     }
-    return { planes, min, max };
+    // Earlier cuts can be made redundant by a later neighbor. Only retain
+    // planes that still bound a face, avoiding needless cap subdivisions.
+    const activePlanes = planes.filter((plane) => faces.some((face) =>
+      face.length >= 3 && face.every((p) => Math.abs(plane.nx * p[0] + plane.ny * p[1] + plane.nz * p[2] - plane.d) < eps * 16)
+    ));
+    return { planes: activePlanes, min, max };
   });
 }
 
-// Source triangle corners carry position, optional uv, and the source edge ids
-// they lie on. An edge id is 3 * triangle + local edge, so a fragment edge that
-// lies on a source edge can be classified as open border or interior.
+// Source triangle corners carry position and optional UV coordinates.
 function clipRecords(polygon, plane, eps) {
   const count = polygon.length;
   const signed = new Float64Array(count);
@@ -212,13 +215,6 @@ function clipRecords(polygon, plane, eps) {
   return output;
 }
 
-function sharedEdge(a, b) {
-  for (const edge of a.e) {
-    if (edge >= 0 && (b.e[0] === edge || b.e[1] === edge)) return edge;
-  }
-  return -1;
-}
-
 function intersectRecords(a, b, si, sj) {
   const t = si / (si - sj);
   const point = [
@@ -229,8 +225,7 @@ function intersectRecords(a, b, si, sj) {
   const uv = a.uv && b.uv
     ? [a.uv[0] + (b.uv[0] - a.uv[0]) * t, a.uv[1] + (b.uv[1] - a.uv[1]) * t]
     : null;
-  const edge = sharedEdge(a, b);
-  return { p: point, uv, e: [edge, -1] };
+  return { p: point, uv };
 }
 
 // Closed boundary loops from undirected edges. A loop must return to its start;
@@ -279,11 +274,42 @@ function extractLoops(edges) {
   return loops;
 }
 
-function pointInTriangle2(px, py, ax, ay, bx, by, cx, cy) {
+// Weld cut endpoints using neighboring buckets rather than rounded keys alone:
+// two evaluations of a shared edge can fall on opposite sides of a bucket.
+function cutLoops(cuts, epsilon) {
+  const buckets = new Map();
+  const points = [];
+  function weld(point) {
+    const cell = point.map((v) => Math.floor(v / epsilon));
+    for (let x = -1; x <= 1; x += 1) for (let y = -1; y <= 1; y += 1) for (let z = -1; z <= 1; z += 1) {
+      const list = buckets.get([cell[0] + x, cell[1] + y, cell[2] + z].join(","));
+      for (const id of list || []) if (distanceSquared3(points[id], point) <= epsilon * epsilon) return id;
+    }
+    const key = cell.join(",");
+    const list = buckets.get(key) || [];
+    const id = points.length;
+    points.push(point);
+    list.push(id);
+    buckets.set(key, list);
+    return id;
+  }
+  const edges = new Map();
+  for (const [a, b] of cuts) {
+    const i = weld(a);
+    const j = weld(b);
+    if (i === j) continue;
+    const key = Math.min(i, j) + ":" + Math.max(i, j);
+    if (edges.has(key)) edges.delete(key);
+    else edges.set(key, [i, j]);
+  }
+  return extractLoops(Array.from(edges.values())).map((loop) => loop.reverse().map((id) => points[id]));
+}
+
+function pointInTriangle2(px, py, ax, ay, bx, by, cx, cy, epsilon) {
   const d1 = (bx - ax) * (py - ay) - (by - ay) * (px - ax);
   const d2 = (cx - bx) * (py - by) - (cy - by) * (px - bx);
   const d3 = (ax - cx) * (py - cy) - (ay - cy) * (px - cx);
-  return d1 >= 0 && d2 >= 0 && d3 >= 0;
+  return d1 >= -epsilon && d2 >= -epsilon && d3 >= -epsilon;
 }
 
 // Ear clipping in the loop's own plane. Returns index triples into `points`,
@@ -299,6 +325,7 @@ function earClip(points, normal) {
     px[index] = dot3(points[index], u);
     py[index] = dot3(points[index], v);
   }
+  const epsilon = Math.max(...px.map(Math.abs), ...py.map(Math.abs), 1) ** 2 * 1e-12;
   const remaining = [];
   for (let index = 0; index < count; index += 1) remaining.push(index);
   const triangles = [];
@@ -311,11 +338,11 @@ function earClip(points, normal) {
       const next = remaining[(position + 1) % size];
       const cross = (px[current] - px[previous]) * (py[next] - py[previous]) -
         (py[current] - py[previous]) * (px[next] - px[previous]);
-      if (!(cross > 0)) continue;
+      if (!(cross > epsilon)) continue;
       let blocked = false;
       for (const other of remaining) {
         if (other === previous || other === current || other === next) continue;
-        if (pointInTriangle2(px[other], py[other], px[previous], py[previous], px[current], py[current], px[next], py[next])) {
+        if (pointInTriangle2(px[other], py[other], px[previous], py[previous], px[current], py[current], px[next], py[next], epsilon)) {
           blocked = true;
           break;
         }
@@ -333,9 +360,18 @@ function earClip(points, normal) {
 }
 
 // Caps one closed loop. Returns triangles as triples of point arrays. Ear
-// clipping is preferred. A centroid fan is used when the loop is too large or
-// not simple in its plane. Fan triangles are oriented to the loop normal, so
-// a non-star-shaped loop still yields a closed, consistently facing cap.
+// clipping handles concave planar loops. Convex loops use an interior centroid
+// fan that retains collinear boundary subdivisions. The bounded fallback is
+// used for oversized or non-planar loops; valid cell cuts are planar.
+function convexLoop(points, normal, diameter) {
+  for (let i = 0; i < points.length; i += 1) {
+    const a = points[i], b = points[(i + 1) % points.length], c = points[(i + 2) % points.length];
+    const turn = dot3(cross3([b[0] - a[0], b[1] - a[1], b[2] - a[2]], [c[0] - b[0], c[1] - b[1], c[2] - b[2]]), normal);
+    if (turn < -diameter * diameter * 1e-12) return false;
+  }
+  return true;
+}
+
 function triangulateLoop(points, maxCapVertices) {
   let area = [0, 0, 0];
   for (let index = 0; index < points.length; index += 1) {
@@ -347,7 +383,7 @@ function triangulateLoop(points, maxCapVertices) {
       area[2] + (a[0] - b[0]) * (a[1] + b[1]),
     ];
   }
-  if (!(dot3(area, area) > MIN_TRIANGLE_LENGTH)) return [];
+  if (!(dot3(area, area) > 1e-28)) return [];
   const normal = normalize3(area, [0, 0, 1]);
   const centroid = [0, 0, 0];
   for (const point of points) {
@@ -366,7 +402,8 @@ function triangulateLoop(points, maxCapVertices) {
   if (points.length === 3) {
     indexTriples = [[0, 1, 2]];
   } else if (points.length <= maxCapVertices && deviation <= diameter * 1e-4) {
-    indexTriples = earClip(points, normal);
+    const convex = convexLoop(points, normal, diameter);
+    if (!convex) indexTriples = earClip(points, normal);
   }
   if (indexTriples) {
     return indexTriples.map((triple) => triple.map((value) => points[value]));
@@ -378,7 +415,7 @@ function triangulateLoop(points, maxCapVertices) {
     const edgeA = [a[0] - centroid[0], a[1] - centroid[1], a[2] - centroid[2]];
     const edgeB = [b[0] - centroid[0], b[1] - centroid[1], b[2] - centroid[2]];
     const triangleNormal = cross3(edgeA, edgeB);
-    if (!(dot3(triangleNormal, triangleNormal) > MIN_TRIANGLE_LENGTH)) continue;
+    if (!(dot3(triangleNormal, triangleNormal) > 1e-28)) continue;
     triangles.push(dot3(triangleNormal, normal) < 0 ? [centroid, b, a] : [centroid, a, b]);
   }
   return triangles;
@@ -457,168 +494,98 @@ function buildVoronoiFracture(source, options, limits) {
   const high = bounds.max.map((value) => value + padding);
   const cellInfo = buildCells(sites, low, high, planeEpsilon);
 
-  // Welding: exact-position identity with a quantized key. Cut points on the
-  // same source edge are computed from identical endpoints, so they match.
-  const weldMap = new Map();
-  const weldPoints = [];
-  const weld = (x, y, z) => {
-    const key = Math.round(x / weldEpsilon) + "," + Math.round(y / weldEpsilon) + "," + Math.round(z / weldEpsilon);
-    let id = weldMap.get(key);
-    if (id === undefined) {
-      id = weldPoints.length / 3;
-      weldMap.set(key, id);
-      weldPoints.push(x, y, z);
-    }
-    return id;
-  };
-
-  // Open source edges (count 1) are the mesh border. Their fragment edges are
-  // not cap edges.
-  const sourceEdgeCounts = new Map();
-  const sourceEdgeWelds = new Int32Array(triangleCount * 3 * 2);
+  // Clip a closed surface one plane at a time. Caps made on an earlier plane
+  // participate in the next cut, so cell ridges join two planar caps. Capping
+  // only the final source boundary would incorrectly fill a non-planar loop
+  // and lose cells entirely inside the source volume.
+  const sourcePolygons = [];
   for (let triangle = 0; triangle < triangleCount; triangle += 1) {
-    for (let corner = 0; corner < 3; corner += 1) {
-      const vertex = vertexAt(triangle, corner);
-      sourceEdgeWelds[(triangle * 3 + corner) * 2] = weld(positions[vertex * 3], positions[vertex * 3 + 1], positions[vertex * 3 + 2]);
+    const points = [];
+    for (let local = 0; local < 3; local += 1) {
+      const vertex = vertexAt(triangle, local);
+      points.push({
+        p: [positions[vertex * 3], positions[vertex * 3 + 1], positions[vertex * 3 + 2]],
+        uv: uvs ? [uvs[vertex * 2], uvs[vertex * 2 + 1]] : null,
+      });
     }
+    sourcePolygons.push({ points, cap: false });
   }
-  const weldCount = () => weldPoints.length / 3;
-  for (let triangle = 0; triangle < triangleCount; triangle += 1) {
-    for (let edge = 0; edge < 3; edge += 1) {
-      const a = sourceEdgeWelds[(triangle * 3 + edge) * 2];
-      const b = sourceEdgeWelds[(triangle * 3 + ((edge + 1) % 3)) * 2];
-      const key = a < b ? a * 0x100000 + b : b * 0x100000 + a;
-      sourceEdgeCounts.set(key, (sourceEdgeCounts.get(key) || 0) + 1);
-    }
-  }
-  const openEdge = new Uint8Array(triangleCount * 3);
-  for (let triangle = 0; triangle < triangleCount; triangle += 1) {
-    for (let edge = 0; edge < 3; edge += 1) {
-      const a = sourceEdgeWelds[(triangle * 3 + edge) * 2];
-      const b = sourceEdgeWelds[(triangle * 3 + ((edge + 1) % 3)) * 2];
-      const key = a < b ? a * 0x100000 + b : b * 0x100000 + a;
-      openEdge[triangle * 3 + edge] = sourceEdgeCounts.get(key) === 1 ? 1 : 0;
-    }
-  }
-
-  const corner = (triangle, local) => {
-    const vertex = vertexAt(triangle, local);
-    return {
-      p: [positions[vertex * 3], positions[vertex * 3 + 1], positions[vertex * 3 + 2]],
-      uv: uvs ? [uvs[vertex * 2], uvs[vertex * 2 + 1]] : null,
-      e: [triangle * 3 + local, triangle * 3 + ((local + 2) % 3)],
-    };
-  };
-
-  // Fragment output: positions, welded ids, open-edge flags, piece per triangle.
   const fragmentPositions = [];
   const fragmentUvs = [];
-  const fragmentWelds = [];
-  const fragmentOpen = [];
   const fragmentPiece = [];
-  const maxOutput = limit.maxOutputTriangles;
-  const emitPolygon = (polygon, piece) => {
-    for (let fan = 1; fan + 1 < polygon.length; fan += 1) {
-      const triple = [polygon[0], polygon[fan], polygon[fan + 1]];
-      const edgeA = [triple[1].p[0] - triple[0].p[0], triple[1].p[1] - triple[0].p[1], triple[1].p[2] - triple[0].p[2]];
-      const edgeB = [triple[2].p[0] - triple[0].p[0], triple[2].p[1] - triple[0].p[1], triple[2].p[2] - triple[0].p[2]];
-      const area = cross3(edgeA, edgeB);
-      if (!(dot3(area, area) > 0)) continue;
-      for (let k = 0; k < 3; k += 1) {
-        const point = triple[k].p;
-        fragmentPositions.push(point[0], point[1], point[2]);
-        fragmentWelds.push(weld(point[0], point[1], point[2]));
-        if (uvs) fragmentUvs.push(triple[k].uv ? triple[k].uv[0] : 0, triple[k].uv ? triple[k].uv[1] : 0);
-        fragmentPiece.push(piece);
-      }
-      for (let k = 0; k < 3; k += 1) {
-        const a = triple[k];
-        const b = triple[(k + 1) % 3];
-        const shared = sharedEdge(a, b);
-        fragmentOpen.push(shared >= 0 && openEdge[shared] === 1 ? 1 : 0);
-      }
-    }
-  };
-
-  // Clip every triangle by every cell whose bounding box it touches.
-  for (let triangle = 0; triangle < triangleCount; triangle += 1) {
-    const corners = [corner(triangle, 0), corner(triangle, 1), corner(triangle, 2)];
-    const low3 = [Infinity, Infinity, Infinity];
-    const high3 = [-Infinity, -Infinity, -Infinity];
-    for (const item of corners) {
-      for (let axis = 0; axis < 3; axis += 1) {
-        if (item.p[axis] < low3[axis]) low3[axis] = item.p[axis];
-        if (item.p[axis] > high3[axis]) high3[axis] = item.p[axis];
-      }
-    }
-    for (let cell = 0; cell < cells; cell += 1) {
-      const info = cellInfo[cell];
-      if (!info || info.min[0] > info.max[0]) continue;
-      if (high3[0] < info.min[0] - planeEpsilon || low3[0] > info.max[0] + planeEpsilon) continue;
-      if (high3[1] < info.min[1] - planeEpsilon || low3[1] > info.max[1] + planeEpsilon) continue;
-      if (high3[2] < info.min[2] - planeEpsilon || low3[2] > info.max[2] + planeEpsilon) continue;
-      let polygon = corners;
-      for (const plane of info.planes) {
-        polygon = clipRecords(polygon, plane, planeEpsilon);
-        if (polygon.length < 3) break;
-      }
-      if (polygon.length >= 3) emitPolygon(polygon, cell);
-      if (fragmentPiece.length / 3 > maxOutput) return { error: "output-limit" };
-    }
-  }
-
-  const fragmentTriangles = fragmentPiece.length / 3;
-  if (!fragmentTriangles) return { error: "empty" };
-
-  // Group fragment triangles by piece, then cap each piece's cut loops.
-  const pieceTriangles = Array.from({ length: cells }, () => []);
-  for (let triangle = 0; triangle < fragmentTriangles; triangle += 1) {
-    pieceTriangles[fragmentPiece[triangle * 3]].push(triangle);
-  }
   const capPositions = [];
   const capPieces = [];
   let capTriangleCount = 0;
-  const weldStride = Math.max(1, weldCount());
-  if (closed) {
-    for (let piece = 0; piece < cells; piece += 1) {
-      const triangles = pieceTriangles[piece];
-      if (!triangles.length) continue;
-      const edgeMap = new Map();
-      const edges = [];
-      for (const triangle of triangles) {
-        for (let edge = 0; edge < 3; edge += 1) {
-          const a = fragmentWelds[triangle * 3 + edge];
-          const b = fragmentWelds[triangle * 3 + ((edge + 1) % 3)];
-          const key = a < b ? a * weldStride + b : b * weldStride + a;
-          const record = edgeMap.get(key);
-          if (record) {
-            record.count += 1;
+  const maxOutput = limit.maxOutputTriangles;
+
+  for (let piece = 0; piece < cells; piece += 1) {
+    let surface = sourcePolygons;
+    for (const plane of cellInfo[piece].planes) {
+      const next = [];
+      const cuts = [];
+      for (const polygon of surface) {
+        const points = clipRecords(polygon.points, plane, planeEpsilon);
+        if (points.length < 3) continue;
+        next.push({ points, cap: polygon.cap });
+        if (!closed || points === polygon.points) continue;
+        for (let i = 0; i < points.length; i += 1) {
+          const a = points[i].p;
+          const b = points[(i + 1) % points.length].p;
+          const onPlane = (p) => Math.abs(plane.nx * p[0] + plane.ny * p[1] + plane.nz * p[2] - plane.d) <= planeEpsilon * 4;
+          if (onPlane(a) && onPlane(b)) cuts.push([a, b]);
+        }
+      }
+      if (closed && cuts.length) {
+        for (const loop of cutLoops(cuts, weldEpsilon)) {
+          // Keep convex caps intact through later cuts to avoid subdividing
+          // their internal fan diagonals. Concave loops need triangulation.
+          if (convexLoop(loop, [plane.nx, plane.ny, plane.nz], maxExtent)) {
+            next.push({ cap: true, points: loop.map((p) => ({ p, uv: null })) });
           } else {
-            const created = { a, b, count: 1, open: fragmentOpen[triangle * 3 + edge] };
-            edgeMap.set(key, created);
-            edges.push(created);
+            for (const triple of triangulateLoop(loop, limit.maxCapVertices)) {
+              next.push({ cap: true, points: triple.map((p) => ({ p, uv: null })) });
+            }
           }
         }
       }
-      const boundary = [];
-      for (const edge of edges) {
-        if (edge.count === 1 && !edge.open) boundary.push([edge.a, edge.b]);
+      surface = next;
+      if (!surface.length) break;
+      if (surface.length > maxOutput) return { error: "output-limit" };
+    }
+    for (const polygon of surface) {
+      let triples;
+      if (polygon.cap) {
+        triples = triangulateLoop(polygon.points.map((point) => point.p), limit.maxCapVertices)
+          .map((triple) => triple.map((p) => ({ p, uv: null })));
+      } else {
+        triples = [];
+        for (let fan = 1; fan + 1 < polygon.points.length; fan += 1) {
+          triples.push([polygon.points[0], polygon.points[fan], polygon.points[fan + 1]]);
+        }
       }
-      for (const loop of extractLoops(boundary)) {
-        // The walk follows each boundary edge in its fragment direction. A cap
-        // must traverse those edges the other way round, so the loop is reversed.
-        const points = loop
-          .map((id) => [weldPoints[id * 3], weldPoints[id * 3 + 1], weldPoints[id * 3 + 2]])
-          .reverse();
-        for (const triple of triangulateLoop(points, limit.maxCapVertices)) {
-          for (const point of triple) capPositions.push(point[0], point[1], point[2]);
+      for (const triple of triples) {
+        const a = triple[0].p;
+        const b = triple[1].p;
+        const c = triple[2].p;
+        const area = cross3([b[0] - a[0], b[1] - a[1], b[2] - a[2]], [c[0] - a[0], c[1] - a[1], c[2] - a[2]]);
+        if (!(dot3(area, area) > 1e-28 * maxExtent ** 4)) continue;
+        for (const point of triple) {
+          const target = polygon.cap ? capPositions : fragmentPositions;
+          target.push(...point.p);
+          if (!polygon.cap) {
+            fragmentPiece.push(piece);
+            if (uvs) fragmentUvs.push(...(point.uv || [0, 0]));
+          }
+        }
+        if (polygon.cap) {
           capPieces.push(piece);
           capTriangleCount += 1;
-          if (fragmentTriangles + capTriangleCount > maxOutput) return { error: "output-limit" };
         }
+        if (fragmentPiece.length / 3 + capTriangleCount > maxOutput) return { error: "output-limit" };
       }
     }
   }
+  if (!fragmentPiece.length && !capTriangleCount) return { error: "empty" };
 
   return assembleStage({
     cells,

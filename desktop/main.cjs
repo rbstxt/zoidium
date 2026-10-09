@@ -1,6 +1,6 @@
 "use strict";
 
-const { app, BrowserWindow, Menu, crashReporter, dialog, shell } = require("electron");
+const { app, BrowserWindow, Menu, crashReporter, dialog, shell, screen } = require("electron");
 const fs = require("node:fs");
 const http = require("node:http");
 const path = require("node:path");
@@ -56,8 +56,10 @@ process.on("exit", (code) => {
 let server = null;
 let serverOrigin = null;
 let mainWindow = null;
+let mainRecovery = null;
 let closingPromise = null;
 let quitting = false;
+let quitRequested = false;
 let mainLogPath = null;
 let mainLogDirectory = null;
 let pendingMainLogLines = [];
@@ -76,6 +78,7 @@ function errorDetails(error) {
 function appendMainLogLine(line) {
   if (!mainLogPath) {
     pendingMainLogLines.push(line);
+    if (pendingMainLogLines.length > 200) pendingMainLogLines.shift();
     return;
   }
   try {
@@ -407,15 +410,200 @@ function confirmLeaveWindow(window, event) {
     event.preventDefault();
     logMain("info", "window closed after the user chose to leave with unsaved changes");
   } else {
+    quitRequested = false;
     logMain("info", "window close cancelled; the user chose to stay");
   }
 }
 
+function installRendererRecovery(window) {
+  let prompt = null;
+  let generation = 0;
+  let expectedTermination = false;
+  let unresponsiveReported = false;
+  let heartbeat = null;
+  let heartbeatTimer = null;
+  function cancelHeartbeat() {
+    if (heartbeat) clearTimeout(heartbeat.timeout);
+    heartbeat = null;
+  }
+  async function recover(crashed) {
+    if (quitting || window.isDestroyed() || prompt) return;
+    const currentGeneration = generation;
+    const closing = quitRequested;
+    try {
+      prompt = dialog.showMessageBox(window, {
+        type: "warning",
+        title: crashed ? "Editor stopped" : "Editor is not responding",
+        message: crashed ? "The editor process stopped unexpectedly." : "The editor is taking too long to respond.",
+        detail: closing
+          ? "Closing discards unsaved changes. Choose Wait to keep the window open, or Close to quit the editor."
+          : "Reloading discards unsaved changes. Choose Wait to keep the window open, or Reload to restart the editor.",
+        buttons: [closing ? "Close" : "Reload", "Wait"],
+        defaultId: 1,
+        cancelId: 1,
+        noLink: true,
+      });
+      const { response } = await prompt;
+      if (response !== 0) {
+        if (quitRequested) quitRequested = false;
+        return;
+      }
+      if (quitting || window.isDestroyed()) return;
+      if (generation !== currentGeneration) {
+        if (quitRequested) app.quit();
+        return;
+      }
+      if (quitRequested) {
+        window.destroy();
+        return;
+      }
+      // A hung renderer cannot process reload or beforeunload. Stop it first,
+      // after the user has explicitly accepted losing unsaved changes.
+      if (!crashed) {
+        expectedTermination = true;
+        window.webContents.forcefullyCrashRenderer();
+        // Reload only after Chromium confirms termination. Reloading while
+        // the hung process is still exiting can leave an empty window.
+        return;
+      }
+      window.webContents.reload();
+    } catch (error) {
+      expectedTermination = false;
+      logMain("error", "could not recover the renderer", errorDetails(error));
+    } finally {
+      prompt = null;
+    }
+  }
+  window.webContents.on("render-process-gone", (_event, details) => {
+    if (expectedTermination) {
+      expectedTermination = false;
+      logMain("info", "renderer stopped for the requested reload");
+      if (!quitting && !window.isDestroyed()) {
+        try {
+          if (quitRequested) window.destroy();
+          else window.webContents.reload();
+        } catch (error) {
+          logMain("error", "could not reload after stopping the renderer", errorDetails(error));
+        }
+      }
+      return;
+    }
+    if (quitting || details?.reason === "clean-exit") return;
+    logMain("fatal", "renderer process ended", details);
+    recover(true);
+  });
+  function onUnresponsive() {
+    if (unresponsiveReported) return;
+    unresponsiveReported = true;
+    logMain("error", "renderer became unresponsive");
+    recover(false);
+  }
+  function onResponsive() {
+    unresponsiveReported = false;
+    generation += 1;
+    logMain("info", "renderer became responsive");
+  }
+  window.on("unresponsive", onUnresponsive);
+  window.webContents.on("unresponsive", onUnresponsive);
+  window.on("responsive", onResponsive);
+  window.webContents.on("responsive", onResponsive);
+  window.webContents.on("did-start-loading", () => {
+    generation += 1;
+    unresponsiveReported = false;
+    cancelHeartbeat();
+  });
+  window.webContents.on("did-finish-load", () => {
+    expectedTermination = false;
+    if (heartbeatTimer) return;
+    // Native unresponsive events depend on OS interaction and may never fire
+    // for a busy JavaScript loop. Keep at most one small liveness request in
+    // flight, and ask the user when it cannot respond within five seconds.
+    heartbeatTimer = setInterval(() => {
+      if (heartbeat || quitting || window.isDestroyed() || window.webContents.isLoading()) return;
+      const token = { timeout: null };
+      heartbeat = token;
+      token.timeout = setTimeout(() => {
+        if (heartbeat === token) onUnresponsive();
+      }, 5000);
+      window.webContents.executeJavaScript("true").then(() => {
+        if (heartbeat !== token) return;
+        cancelHeartbeat();
+        if (unresponsiveReported) onResponsive();
+      }, () => {
+        if (heartbeat === token) cancelHeartbeat();
+      });
+    }, 10000);
+    heartbeatTimer.unref?.();
+  });
+  window.on("closed", () => {
+    generation += 1;
+    cancelHeartbeat();
+    if (heartbeatTimer) clearInterval(heartbeatTimer);
+  });
+  return {
+    isUnresponsive: () => unresponsiveReported,
+    requestQuit: () => recover(false),
+  };
+}
+
+function readWindowState() {
+  try {
+    const state = JSON.parse(fs.readFileSync(path.join(app.getPath("userData"), "window-state.json"), "utf8"));
+    const bounds = state.bounds;
+    if (!bounds || ![bounds.x, bounds.y, bounds.width, bounds.height].every(Number.isInteger)) return null;
+    if (bounds.width < 960 || bounds.height < 640 || bounds.width > 16384 || bounds.height > 16384) return null;
+    const visible = screen?.getAllDisplays().some(({ workArea }) =>
+      bounds.x < workArea.x + workArea.width - 80 && bounds.x + bounds.width > workArea.x + 80 &&
+      bounds.y >= workArea.y && bounds.y < workArea.y + workArea.height - 32);
+    // Retain size, but let the OS center a window from a disconnected display.
+    return { bounds: visible ? bounds : { width: bounds.width, height: bounds.height }, maximized: state.maximized === true };
+  } catch (_error) {
+    return null;
+  }
+}
+
+function saveWindowState(window) {
+  try {
+    const state = { bounds: window.getNormalBounds(), maximized: window.isMaximized() };
+    const filename = path.join(app.getPath("userData"), "window-state.json");
+    fs.mkdirSync(path.dirname(filename), { recursive: true });
+    fs.writeFileSync(filename, JSON.stringify(state), { mode: 0o600 });
+  } catch (error) {
+    logMain("warn", "could not save window state", errorDetails(error));
+  }
+}
+
+function createRendererConsoleLogger() {
+  const recent = new Map();
+  return (_event, level, message, line, sourceId) => {
+    const names = ["debug", "info", "warn", "error", "error"];
+    message = String(message ?? "").slice(0, 8192);
+    sourceId = String(sourceId ?? "").slice(0, 2048);
+    const key = [level, message, line, sourceId].join("\n");
+    const previous = recent.get(key);
+    const now = Date.now();
+    if (previous && now - previous.time < 10000) {
+      previous.repetitions += 1;
+      return;
+    }
+    if (recent.size >= 100) recent.delete(recent.keys().next().value);
+    recent.set(key, { time: now, repetitions: 0 });
+    logMain(names[level] || "info", "renderer console message", {
+      message,
+      line,
+      sourceId,
+      ...(previous?.repetitions ? { suppressedRepetitions: previous.repetitions } : {}),
+    });
+  };
+}
+
 async function createWindow() {
   const port = server ? Number(new URL(serverOrigin).port) : await startServer();
+  const state = readWindowState();
   const window = new BrowserWindow({
     width: 1440,
     height: 900,
+    ...state?.bounds,
     minWidth: 960,
     minHeight: 640,
     backgroundColor: "#111318",
@@ -426,6 +614,8 @@ async function createWindow() {
       webSecurity: true,
     },
   });
+  if (state?.maximized) window.maximize();
+  window.on("close", () => saveWindowState(window));
 
   window.webContents.setWindowOpenHandler(({ url }) => {
     if (isLocalUrl(url)) return { action: "allow" };
@@ -437,14 +627,7 @@ async function createWindow() {
     event.preventDefault();
     openExternal(url);
   });
-  window.webContents.on("console-message", (_event, level, message, line, sourceId) => {
-    const names = ["debug", "info", "warn", "error", "error"];
-    logMain(names[level] || "info", "renderer console message", {
-      message,
-      line,
-      sourceId,
-    });
-  });
+  window.webContents.on("console-message", createRendererConsoleLogger());
   window.webContents.on("did-fail-load", (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
     logMain("error", "renderer failed to load", {
       errorCode,
@@ -453,23 +636,23 @@ async function createWindow() {
       isMainFrame,
     });
   });
-  window.webContents.on("render-process-gone", (_event, details) => {
-    if (quitting || details?.reason === "clean-exit") return;
-    logMain("fatal", "renderer process ended", details);
-  });
-  window.webContents.on("unresponsive", () => {
-    logMain("error", "renderer became unresponsive");
-  });
-  window.webContents.on("responsive", () => {
-    logMain("info", "renderer became responsive");
-  });
+  mainRecovery = installRendererRecovery(window);
   window.webContents.on("did-finish-load", () => {
     logMain("info", "renderer finished loading", { url: window.webContents.getURL() });
   });
 
   mainWindow = window;
   window.on("closed", () => {
-    if (mainWindow === window) mainWindow = null;
+    if (mainWindow === window) {
+      mainWindow = null;
+      mainRecovery = null;
+    }
+    // Electron can cancel its quit while processing beforeunload even when
+    // will-prevent-unload subsequently allows the window to close. Resume
+    // the explicit quit after that close, including on macOS.
+    if (quitRequested) setImmediate(() => {
+      if (quitRequested && BrowserWindow.getAllWindows().length === 0) app.quit();
+    });
   });
   await window.loadURL(`http://127.0.0.1:${port}/`);
 }
@@ -553,6 +736,20 @@ if (!app.requestSingleInstanceLock()) {
     }
   });
 
+  app.on("before-quit", (event) => {
+    quitRequested = true;
+    if (quitting || BrowserWindow.getAllWindows().length === 0) return;
+    // Cancel Electron's pending quit before asking windows to close. A hung
+    // beforeunload otherwise leaves Electron in a quit that subsequent calls
+    // cannot restart after the user chooses Wait in the recovery dialog.
+    event.preventDefault();
+    if (mainRecovery?.isUnresponsive()) mainRecovery.requestQuit();
+    else for (const window of BrowserWindow.getAllWindows()) {
+      if (!quitRequested) break;
+      window.close();
+    }
+  });
+
   // Shut the local server down only once the quit is certain. Windows are
   // closed (and may prompt for unsaved changes) before will-quit runs, and a
   // "Stay" choice cancels the quit; if the server had been closed earlier, the
@@ -568,6 +765,6 @@ if (!app.requestSingleInstanceLock()) {
   });
 
   app.on("window-all-closed", () => {
-    if (process.platform !== "darwin") app.quit();
+    if (quitRequested || process.platform !== "darwin") app.quit();
   });
 }

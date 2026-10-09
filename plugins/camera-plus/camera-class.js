@@ -64,6 +64,7 @@ parts.camera = (function () {
           this.parentObject.threeObj.rotation.order = this.value;
         },
       },
+      projection: { name: "Projection", type: T.LIST, value: "perspective", items: [{ name: "Perspective", value: "perspective" }, { name: "Orthographic", value: "orthographic" }] },
       focalLength: { dynamic: true, name: "Focal Length", type: T.NUMBER, value: 35, min: 1, max: 10000, step: 1, decimals: 2 },
       filmGate: { name: "Sensor Size (Film Gate)", type: T.LIST, value: 36, items: FILM_GATES.map((gate) => ({ name: gate.name, value: gate.value })) },
       zoom: { dynamic: true, name: "Zoom", type: T.NUMBER, value: 1, min: 0.01, max: 1000, step: 0.01, decimals: 2 },
@@ -84,6 +85,17 @@ parts.camera = (function () {
       focusTools: { name: "Focus", type: T.TEXT, value: "", zoidiumControl: FOCUS_CONTROL_ID },
     });
     Object.defineProperty(list, "displayName", { value: "Depth of Field", writable: true });
+    return list;
+  }
+
+  function createMotionBlurProperties(PZ) {
+    const T = PZ.property.type;
+    const list = new PZ.propertyList({
+      enabled: { name: "Camera Motion Blur", type: T.OPTION, value: 0, items: "off;on" },
+      samples: { name: "Samples", type: T.NUMBER, value: 4, min: 1, max: 8, step: 1, decimals: 0 },
+      shutter: { dynamic: true, name: "Shutter (frames)", type: T.NUMBER, value: 0.5, min: 0, max: 2, step: 0.05, decimals: 2 },
+    });
+    Object.defineProperty(list, "displayName", { value: "Motion Blur", writable: true });
     return list;
   }
 
@@ -120,6 +132,7 @@ parts.camera = (function () {
         this.properties.addAll(createDefinitions(PZ));
         this.properties.add("depthOfField", createDepthOfFieldProperties(PZ));
         this.properties.add("vibrate", this.vibrateProperties);
+        this.properties.add("motionBlur", createMotionBlurProperties(PZ));
       }
 
       load(data) {
@@ -138,14 +151,36 @@ parts.camera = (function () {
 
       // Perspective film model, matching the CM3 camera's film math.
       updateProjection(time) {
-        const camera = this.threeObj;
         const p = this.properties;
+        const orthographic = p.projection.get() === "orthographic";
+        if (orthographic !== Boolean(this.threeObj.isOrthographicCamera)) {
+          const previous = this.threeObj;
+          const parent = previous.parent;
+          this.threeObj = orthographic
+            ? new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 5000)
+            : new THREE.PerspectiveCamera(60, 1, 0.1, 5000);
+          this.threeObj.rotation.order = p.eulerOrder.get();
+          if (parent) { parent.remove(previous); parent.add(this.threeObj); }
+        }
+        const camera = this.threeObj;
         const resolution = this.getSequenceResolution();
         const gate = p.filmGate.get(time);
         const focal = p.focalLength.get(time);
         const zoom = p.zoom.get(time);
         const offsetX = p.filmOffsetX.get(time);
         const offsetY = p.filmOffsetY.get(time);
+        if (orthographic) {
+          const halfWidth = 0.05 * resolution[0] / Math.max(zoom, 0.0001);
+          const halfHeight = 0.05 * resolution[1] / Math.max(zoom, 0.0001);
+          const x = 2 * halfWidth * offsetX / 100;
+          const y = 2 * halfHeight * offsetY / 100;
+          camera.left = -halfWidth - x;
+          camera.right = halfWidth - x;
+          camera.top = halfHeight + y;
+          camera.bottom = -halfHeight + y;
+          camera.updateProjectionMatrix();
+          return;
+        }
         camera.aspect = resolution[0] / Math.max(resolution[1], 1);
         camera.filmGauge = gate;
         camera.zoom = zoom;
@@ -176,11 +211,20 @@ parts.camera = (function () {
         vibrate.applyVibrate(this.vibrateProperties, time, this.threeObj, position, rotation);
       }
 
+      readMotionBlur(time) {
+        const p = this.properties.motionBlur;
+        if (readNumber(p.enabled, time, 0) !== 1) return null;
+        const shutter = Math.max(0, Math.min(2, readNumber(p.shutter, time, 0.5)));
+        const samples = Math.max(1, Math.min(8, Math.round(readNumber(p.samples, time, 4))));
+        return shutter > 0 && samples > 1 ? { shutter, samples } : null;
+      }
+
       // Depth-of-field settings at time t, or null when DOF is off.
       readDepthOfField(time) {
         const d = this.properties.depthOfField;
         if (readNumber(d.enabled, time, 0) !== 1) return null;
         return {
+          orthographic: Boolean(this.threeObj.isOrthographicCamera),
           near: this.threeObj.near,
           far: this.threeObj.far,
           aperture: readNumber(d.aperture, time, 0),

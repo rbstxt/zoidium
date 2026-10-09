@@ -69,6 +69,7 @@ function loadMainProcess({ dialogChoice = 1, dialogThrows = false, whenReady = t
     }
   }
   class FakeWindow extends EventEmitter {
+    static getAllWindows() { return windows; }
     constructor() {
       super();
       this.webContents = new FakeWebContents();
@@ -84,6 +85,7 @@ function loadMainProcess({ dialogChoice = 1, dialogThrows = false, whenReady = t
     isMinimized() {
       return false;
     }
+    close() { this.closeCalls = (this.closeCalls || 0) + 1; }
     restore() {}
     focus() {}
   }
@@ -251,7 +253,40 @@ test("quit proceeds immediately when the server never started", async () => {
   }
 });
 
-test("quit handling lives in will-quit, not before-quit", () => {
-  assert.equal(source.includes('app.on("before-quit"'), false);
-  assert.match(source, /app\.on\("will-quit"/);
+test("before-quit keeps the server available while windows confirm closing", async () => {
+  const main = loadMainProcess();
+  try {
+    await waitFor(() => main.windows.length === 1);
+    await waitUntilServing(main.port);
+    const before = createEvent();
+    main.app.emit("before-quit", before);
+    assert.equal(before.defaultPrevented, true, "native quit is cancelled before close can hang");
+    assert.equal(main.windows[0].closeCalls, 1);
+    assert.equal(await requestStatus(main.port), 200, "resources stay available if the user chooses Stay");
+    assert.equal(main.app.quitCalls, 0);
+    const confirmed = createEvent();
+    main.app.emit("will-quit", confirmed);
+    assert.equal(confirmed.defaultPrevented, true);
+    await waitFor(() => main.app.quitCalls === 1);
+    assert.equal(await requestStatus(main.port), null);
+  } finally {
+    main.cleanup();
+  }
+});
+
+test("an explicit quit resumes after Electron closes the last dirty window", async () => {
+  const main = loadMainProcess({ dialogChoice: 0 });
+  try {
+    await waitFor(() => main.windows.length === 1);
+    main.app.emit("before-quit", createEvent());
+    const window = main.windows[0];
+    window.webContents.emit("will-prevent-unload", createEvent());
+    window.emit("closed");
+    main.windows.splice(0);
+    await waitFor(() => main.app.quitCalls === 1);
+  } finally {
+    main.app.emit("will-quit", createEvent());
+    await waitFor(() => main.app.quitCalls >= 2);
+    main.cleanup();
+  }
 });

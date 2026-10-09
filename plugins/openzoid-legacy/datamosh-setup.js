@@ -11,23 +11,23 @@ const SETUP_CONTROL_ID = "openzoid-legacy.datamosh-setup";
 const SYNC_INTERVAL_MS = 300;
 
 const PRESETS = [
-  { id: "clean", label: "Clean Pass", values: { amount: 1, intensity: 0.25, acceleration: 0.2, blend: 0.5, threshold: 0.25, blockSize: 12, motion: 0, interval: 60, samples: 4 } },
-  { id: "blocky", label: "Blocky Mosh", values: { amount: 1, intensity: 0.85, acceleration: 0.45, blend: 0.85, threshold: 0.08, blockSize: 14, motion: 0, interval: 24, samples: 8 } },
-  { id: "classic", label: "Classic Mosh", values: { amount: 1, intensity: 0.7, acceleration: 0.35, blend: 0.8, threshold: 0.12, blockSize: 12, motion: 8, interval: 30, samples: 6 } },
-  { id: "iframe", label: "I-Frame Kill · Soupy", values: { amount: 1, intensity: 1.2, acceleration: 0.7, blend: 0.95, threshold: 0.05, blockSize: 10, motion: 0, interval: 90, samples: 12 } },
-  { id: "swap", label: "Swap Motion", values: { amount: 1, intensity: 0.9, acceleration: 0.4, blend: 0.85, threshold: 0.1, blockSize: 12, motion: 7, interval: 30, samples: 6 } },
-  { id: "zoom", label: "Zoom Smear", values: { amount: 1, intensity: 1, acceleration: 0.55, blend: 0.9, threshold: 0.08, blockSize: 12, motion: 4, interval: 40, samples: 8 } },
-  { id: "wave", label: "Sin Melt", values: { amount: 1, intensity: 1.1, acceleration: 0.5, blend: 0.9, threshold: 0.06, blockSize: 10, motion: 6, interval: 36, samples: 8 } },
-  { id: "drift", label: "Horizontal Drift", values: { amount: 1, intensity: 1, acceleration: 0.3, blend: 0.85, threshold: 0.08, blockSize: 8, motion: 3, interval: 48, samples: 10 } },
-  { id: "trail", label: "Long Trail", values: { amount: 1, intensity: 0.6, acceleration: 0.6, blend: 0.9, threshold: 0.1, blockSize: 12, motion: 0, interval: 120, samples: 15 } },
+  { id: "clean", label: "Clean Pass", values: { algorithm: 0, hold: 0, speed: 1, amount: 1, intensity: 0.25, acceleration: 0.2, blend: 0.5, threshold: 0.25, blockSize: 12, motion: 0, interval: 60, samples: 4 } },
+  { id: "blocky", label: "Blocky Mosh", values: { algorithm: 0, hold: 0, speed: 1, amount: 1, intensity: 0.85, acceleration: 0.45, blend: 0.85, threshold: 0.08, blockSize: 14, motion: 0, interval: 24, samples: 8 } },
+  { id: "classic", label: "Classic Mosh", values: { algorithm: 0, hold: 0, speed: 1, amount: 1, intensity: 0.7, acceleration: 0.35, blend: 0.8, threshold: 0.12, blockSize: 12, motion: 8, interval: 30, samples: 6 } },
+  { id: "iframe", label: "I-Frame Kill · Soupy", values: { algorithm: 0, hold: 0, speed: 1, amount: 1, intensity: 1.2, acceleration: 0.7, blend: 0.95, threshold: 0.05, blockSize: 10, motion: 0, interval: 90, samples: 12 } },
+  { id: "swap", label: "Swap Motion", values: { algorithm: 0, hold: 0, speed: 1, amount: 1, intensity: 0.9, acceleration: 0.4, blend: 0.85, threshold: 0.1, blockSize: 12, motion: 7, interval: 30, samples: 6 } },
+  { id: "zoom", label: "Zoom Smear", values: { algorithm: 0, hold: 0, speed: 1, amount: 1, intensity: 1, acceleration: 0.55, blend: 0.9, threshold: 0.08, blockSize: 12, motion: 4, interval: 40, samples: 8 } },
+  { id: "wave", label: "Sin Melt", values: { algorithm: 0, hold: 0, speed: 1, amount: 1, intensity: 1.1, acceleration: 0.5, blend: 0.9, threshold: 0.06, blockSize: 10, motion: 6, interval: 36, samples: 8 } },
+  { id: "drift", label: "Horizontal Drift", values: { algorithm: 0, hold: 0, speed: 1, amount: 1, intensity: 1, acceleration: 0.3, blend: 0.85, threshold: 0.08, blockSize: 8, motion: 3, interval: 48, samples: 10 } },
+  { id: "trail", label: "Long Trail", values: { algorithm: 0, hold: 0, speed: 1, amount: 1, intensity: 0.6, acceleration: 0.6, blend: 0.9, threshold: 0.1, blockSize: 12, motion: 0, interval: 120, samples: 15 } },
 ];
 
 // Sections list only keys; labels, ranges and steps come from the effect's
 // property definitions.
 const SECTIONS = [
   { title: "Master", keys: ["amount"] },
-  { title: "Cadence", keys: ["interval", "samples", "seed"], seedButton: true },
-  { title: "Motion", keys: ["motion", "intensity", "acceleration", "blockSize", "threshold", "blend"] },
+  { title: "Cadence", keys: ["interval", "samples", "seed", "hold", "speed", "time"], seedButton: true },
+  { title: "Motion", keys: ["algorithm", "motion", "intensity", "acceleration", "blockSize", "threshold", "blend"] },
 ];
 
 const SETUP_NOTE = "Datamosh reads earlier frames, so it needs an Adjustment layer. Elsewhere the frame passes through unchanged.";
@@ -165,14 +165,31 @@ module.exports = {
         return control.element;
       }
 
+      // Long look lists (the 80 legacy algorithms) are grouped by family.
+      function lookGroup(label, index) {
+        if (index === 0) return "";
+        if (/^(Multiply by|Multiply$)/.test(label)) return "Multiply";
+        if (/^(Average|Add previous)/.test(label)) return "Average";
+        if (/^Mirror/.test(label)) return "Mirror";
+        if (/^Sweep/.test(label)) return "Sweep";
+        if (/sin|cos/i.test(label)) return "Wave";
+        if (/^(Random|Spatial)/.test(label)) return "Random";
+        return "Motion";
+      }
+
       // Motion mode is an option stored as its index in the item list.
       function motionFor(key) {
         const property = props[key];
         const items = String(property.definition.items || "").split(";");
+        const grouped = items.length > 20;
         const control = controls.select({
           label: property.definition.name || key,
           value: String(valueOf(key)),
-          options: items.map((label, index) => ({ value: String(index), label: label })),
+          options: items.map((label, index) => ({
+            value: String(index),
+            label: label,
+            group: grouped ? lookGroup(label, index) : "",
+          })),
           onChange(value) {
             recordChanges([{ property: property, value: Number(value), previous: valueOf(key) }]);
             refresh();
@@ -201,7 +218,7 @@ module.exports = {
         if (keys.length === 0) return;
         const section = controls.section({ title: spec.title });
         keys.forEach((key) => {
-          section.body.appendChild(key === "motion" ? motionFor(key) : fieldFor(key));
+          section.body.appendChild((key === "motion" || key === "algorithm") ? motionFor(key) : fieldFor(key));
         });
         if (spec.seedButton) {
           section.body.appendChild(controls.buttonRow([{

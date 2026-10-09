@@ -8,6 +8,8 @@
 const assert = require("node:assert/strict");
 const path = require("node:path");
 const test = require("node:test");
+const fs = require("node:fs");
+const vm = require("node:vm");
 
 const projectRoot = path.resolve(__dirname, "..");
 
@@ -87,4 +89,65 @@ test("missing viewport class installs nothing and never throws", () => {
     if (keepWindow === undefined) delete g.window;
     else g.window = keepWindow;
   }
+});
+
+test("failed WebGL startup stops the render loop and can unload safely", () => {
+  let rendered = 0;
+  let resized = 0;
+  let unloaded = 0;
+  const cancelled = [];
+  class Viewport {
+    constructor() { this.enabled = true; this.animFrameReq = 42; }
+    render() { rendered += 1; }
+    resize() { resized += 1; }
+    unload() { unloaded += 1; }
+  }
+  const context = { PZ: { ui: { viewport: Viewport } }, cancelAnimationFrame: (id) => cancelled.push(id) };
+  vm.runInNewContext(fs.readFileSync(path.join(projectRoot, "plugins/core/main-viewport.js"), "utf8"), context);
+  const viewport = new context.PZ.ui.viewport();
+  viewport.render();
+  viewport.resize();
+  viewport.unload();
+  assert.equal(viewport.enabled, false);
+  assert.equal(rendered, 0);
+  assert.equal(resized, 0);
+  assert.equal(unloaded, 0);
+  assert.ok(cancelled.includes(42));
+  Object.assign(viewport, { widget2d: {}, widget3d: {}, renderer: {}, compositor: {}, camera: {} });
+  viewport.render();
+  viewport.resize();
+  viewport.unload();
+  assert.equal(rendered, 1);
+  assert.equal(resized, 1);
+  assert.equal(unloaded, 1);
+});
+
+test("render exceptions cancel the scheduled frame and report once without looping", () => {
+  const cancelled = [];
+  const errors = [];
+  const notices = [];
+  let rendered = 0;
+  class Viewport {
+    constructor() { Object.assign(this, { widget2d: {}, widget3d: {}, renderer: {}, compositor: {} }); }
+    render() { rendered += 1; this.animFrameReq = 0; throw new Error("Plugin render failed"); }
+  }
+  const context = {
+    PZ: { ui: { viewport: Viewport } },
+    cancelAnimationFrame: (id) => cancelled.push(id),
+    console: { error: (...args) => errors.push(args) },
+    ZoidiumUI: { notify: (notice) => notices.push(notice) },
+  };
+  vm.runInNewContext(fs.readFileSync(path.join(projectRoot, "plugins/core/main-viewport.js"), "utf8"), context);
+  const viewport = new context.PZ.ui.viewport();
+  for (let i = 0; i < 10; i += 1) viewport.render();
+  assert.equal(rendered, 1);
+  assert.equal(viewport.enabled, false);
+  assert.equal(viewport.animFrameReq, null);
+  assert.deepEqual(cancelled, [0]);
+  assert.equal(errors.length, 1);
+  assert.equal(notices.length, 1);
+  assert.match(notices[0].message, /Save your project/);
+  new context.PZ.ui.viewport().render();
+  assert.equal(errors.length, 2);
+  assert.equal(notices.length, 1, "one session notice across failed viewports");
 });

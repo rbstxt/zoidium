@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "precomp-plus",
   "name": "Precomp+",
-  "author": "Zoidium",
+  "author": "DaviFX",
   "version": "2",
   "kind": "extension",
   "description": "Pre-compose selected video clips into compositions, with a Compositions window and nested rendering.",

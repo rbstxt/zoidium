@@ -307,3 +307,115 @@ test("composition clips that carry footage keep the footage through a round trip
   const track = loaded.sequence.videoTracks[0];
   assert.equal(track.clips[0].object.compId, "X");
 });
+
+test("Media panel deletion guards references in Main and compositions and restores on uninstall", () => {
+  const env = createEnvironment();
+  env.uninstall();
+  const calls = [];
+  class MediaPanel {
+    deleteMedia(params) {
+      calls.push(params.address);
+      assert.ok(this.editor.history.operation, "native deletion keeps its history operation");
+      this.editor.history.pushCommand(() => {}, {});
+      this.editor.project.media.splice(params.address[1], 1);
+      return "deleted";
+    }
+  }
+  env.PZ.ui.media = MediaPanel;
+  const original = MediaPanel.prototype.deleteMedia;
+  const uninstall = env.engine.install();
+  const panel = new MediaPanel();
+  panel.editor = env.editor;
+  const previousAlert = globalThis.alert;
+  const messages = [];
+  globalThis.alert = (message) => messages.push(message);
+  try {
+    addCompMedia(env, "X", "Intro", [{ type: 0, clips: [] }]);
+    addCompMedia(env, "Y", "Outer", [{ type: 0, clips: [clipJSON(0, 30, "Nested", { compId: "X" })] }]);
+    addClip(env, 0, { start: 0, length: 30, compId: "X" });
+    panel.deleteMedia({ address: ["media", 0] });
+    assert.equal(calls.length, 0);
+    assert.match(messages[0], /Main.*Outer/);
+    env.engine.openComp(env.editor, "Y");
+    panel.deleteMedia({ address: ["media", 0] });
+    assert.equal(calls.length, 0, "checks Main's saved tracks while a comp is open");
+    env.engine.openComp(env.editor, null);
+    const unused = addCompMedia(env, "Z", "Unused", [{ type: 0, clips: [] }]);
+    env.engine.openComp(env.editor, "Z");
+    env.editor.history.startOperation();
+    assert.equal(panel.deleteMedia({ address: ["media", env.project.media.indexOf(unused)] }), "deleted");
+    env.editor.history.finishOperation();
+    assert.equal(env.engine.isEditing(env.project), false);
+  } finally {
+    globalThis.alert = previousAlert;
+    uninstall();
+  }
+  assert.equal(MediaPanel.prototype.deleteMedia, original);
+});
+
+test("video and frame exports block an open comp at options and Start, leaving Main export intact", () => {
+  const env = createEnvironment();
+  env.uninstall();
+  class ExportUI {
+    createOptionsPage() { return "options"; }
+    createProgressPage() { return "started"; }
+  }
+  const options = ExportUI.prototype.createOptionsPage;
+  const progress = ExportUI.prototype.createProgressPage;
+  env.PZ.ui.export = { device: ExportUI, frame: class extends ExportUI {} };
+  env.PZ.ui.controls = { legacy: { generateDescription: ({ content }) => content } };
+  const uninstall = env.engine.install();
+  try {
+    addCompMedia(env, "X", "Intro", [{ type: 0, clips: [] }]);
+    for (const kind of ["device", "frame"]) {
+      const exporter = new env.PZ.ui.export[kind]();
+      exporter.editor = env.editor;
+      exporter.export = { createPage: () => ({ appendChild(text) { this.message = text; } }) };
+      assert.equal(exporter.createOptionsPage(), "options");
+      env.engine.openComp(env.editor, "X");
+      assert.match(exporter.createOptionsPage().message, /Return to Main/);
+      assert.match(exporter.createProgressPage().message, /Return to Main/);
+      assert.equal(env.engine.isEditing(env.project), true, "blocking does not change the live timeline");
+      env.engine.openComp(env.editor, null);
+      assert.equal(exporter.createProgressPage(), "started");
+    }
+  } finally { uninstall(); }
+  assert.equal(ExportUI.prototype.createOptionsPage, options);
+  assert.equal(ExportUI.prototype.createProgressPage, progress);
+  assert.equal(Object.hasOwn(env.PZ.ui.export.frame.prototype, "createOptionsPage"), false);
+  assert.equal(Object.hasOwn(env.PZ.ui.export.frame.prototype, "createProgressPage"), false);
+});
+
+
+test("finds the timeline through native window split panels before any timeline event", () => {
+  const env = createEnvironment();
+  env.uninstall();
+  env.editor.windows = [{ panel: { panels: [{ panels: [env.editor.timeline] }] } }];
+  delete env.editor.timeline;
+  const uninstall = env.engine.install();
+  try {
+    assert.equal(env.engine.selectionSummary(env.editor).ready, true);
+  } finally { uninstall(); }
+});
+
+test("composition saves declare the plugin requirement, including while editing a comp", () => {
+  const env = createEnvironment();
+  assert.equal(env.project.toJSON().plugins, undefined);
+  addCompMedia(env, "X", "Intro", [{ type: 0, clips: [] }]);
+  let json = env.project.toJSON();
+  assert.equal(json.plugins.filter((plugin) => plugin.id === "precomp-plus").length, 1);
+  assert.deepEqual(json.plugins[0].features, ["compositions"]);
+  env.engine.openComp(env.editor, "X");
+  json = env.project.toJSON();
+  assert.equal(json.plugins.filter((plugin) => plugin.id === "precomp-plus").length, 1);
+});
+
+test("uninstall disables hooks even when another plugin wraps above them", () => {
+  const env = createEnvironment();
+  addCompMedia(env, "X", "Intro", [{ type: 0, clips: [] }]);
+  const ours = env.PZ.media.prototype.toJSON;
+  env.PZ.media.prototype.toJSON = function () { return ours.apply(this, arguments); };
+  assert.equal(env.project.media[0].toJSON().comp.id, "X");
+  env.uninstall();
+  assert.equal(env.project.media[0].toJSON().comp, undefined);
+});

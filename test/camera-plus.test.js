@@ -144,7 +144,7 @@ test("isInUse is true only while a legacy Davidium Camera layer is in the projec
   assert.equal(runtime.isInUse(), false);
 
   const legacy = ctx.PZ.layer.create(9);
-  assert.equal(legacy.type, 9);
+  assert.equal(legacy.type, 4);
   ctx.project.register([0, 0], legacy);
   assert.equal(runtime.isInUse(), true);
 

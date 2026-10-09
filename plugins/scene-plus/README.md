@@ -40,9 +40,10 @@ only updates vertices. Meshes above 40,000 source triangles, or output above
 Cells are convex regions around seeded sites, built exactly from bisector
 planes. Each source triangle is clipped against them, so fragments tile the
 original surface without holes or overlaps. Pieces are capped along their cut
-loops. Caps are an approximation: planar cut loops are capped exactly, while
-non-planar ones use a centroid fan. In rare configurations a cap edge can touch
-an existing fragment edge, so cap closure is not guaranteed for every input.
+planes. Each planar cut is capped before the next cell bisector is applied,
+so neighboring caps meet along cell ridges. Convex caps retain every boundary
+subdivision, while concave cuts use planar ear clipping. Interior cells are
+retained even when they do not touch the original surface.
 Open mesh borders (for example a flat plane) are never capped.
 
 Fragments are flat-shaded. With `Fragment colors` set to random, each piece has

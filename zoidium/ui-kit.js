@@ -511,6 +511,11 @@
       writeGeometry(config.persistKey, { x: x, y: y, width: width, height: height, collapsed: collapsed });
     }
 
+    var activePointerCleanup = null;
+    win.addCleanup(function () {
+      if (activePointerCleanup) activePointerCleanup();
+    });
+
     if (config.collapsible !== false) {
       actions.appendChild(titleButton("Collapse", "M3 7h10v2H3z", function () {
         win.setCollapsed(!collapsed);
@@ -524,6 +529,7 @@
     // Dragging by the title bar.
     titlebar.addEventListener("pointerdown", function (event) {
       if (event.button !== 0) return;
+      if (activePointerCleanup) activePointerCleanup();
       event.preventDefault();
       win.focus();
       var startX = event.clientX;
@@ -537,6 +543,7 @@
         win._clamp();
       }
       function up() {
+        if (activePointerCleanup === up) activePointerCleanup = null;
         root.classList.remove("dragging");
         global.removeEventListener("pointermove", move);
         global.removeEventListener("pointerup", up);
@@ -546,6 +553,7 @@
       global.addEventListener("pointermove", move);
       global.addEventListener("pointerup", up);
       global.addEventListener("pointercancel", up);
+      activePointerCleanup = up;
     });
 
     // Resizing from the right edge, bottom edge and corner.
@@ -555,6 +563,7 @@
         grip.className = "zoidium-window-grip zoidium-window-grip-" + edge;
         grip.addEventListener("pointerdown", function (event) {
           if (event.button !== 0) return;
+          if (activePointerCleanup) activePointerCleanup();
           event.preventDefault();
           event.stopPropagation();
           win.focus();
@@ -568,6 +577,7 @@
             win._clamp();
           }
           function up() {
+            if (activePointerCleanup === up) activePointerCleanup = null;
             global.removeEventListener("pointermove", move);
             global.removeEventListener("pointerup", up);
             global.removeEventListener("pointercancel", up);
@@ -576,6 +586,7 @@
           global.addEventListener("pointermove", move);
           global.addEventListener("pointerup", up);
           global.addEventListener("pointercancel", up);
+          activePointerCleanup = up;
         });
         root.appendChild(grip);
       });
@@ -652,7 +663,7 @@
   function labeledRow(label, hint) {
     var row = el("div", "zoidium-field");
     var name = el("span", "zoidium-field-label", label || "");
-    if (hint) name.title = hint;
+    name.title = hint || label || "";
     row.appendChild(name);
     var slot = el("div", "zoidium-field-control");
     row.appendChild(slot);
@@ -842,14 +853,26 @@
     var parts = labeledRow(config.label, config.hint);
     var node = el("select", "pz-inputbox zoidium-select");
     node.setAttribute("aria-label", config.label || "");
+    // Items with a `group` field are placed in <optgroup>s in first-seen order.
     function fill(list) {
       node.textContent = "";
+      var groups = {};
       (list || []).forEach(function (item) {
         var option = el("option");
         var value = item && typeof item === "object" ? item.value : item;
         option.value = String(value);
         option.textContent = item && typeof item === "object" ? String(item.label != null ? item.label : value) : String(item);
-        node.appendChild(option);
+        var group = item && typeof item === "object" && item.group ? String(item.group) : "";
+        if (!group) {
+          node.appendChild(option);
+          return;
+        }
+        if (!groups[group]) {
+          groups[group] = el("optgroup");
+          groups[group].label = group;
+          node.appendChild(groups[group]);
+        }
+        groups[group].appendChild(option);
       });
     }
     fill(config.options);
@@ -922,6 +945,7 @@
     var node = el("button", "proprow propbutton zoidium-button" + (config.variant ? " " + config.variant : ""), config.title || "");
     node.type = "button";
     if (config.hint) node.title = config.hint;
+    if (config.disabled) node.disabled = true;
     node.addEventListener("click", function (event) {
       if (typeof config.onClick === "function") config.onClick(event);
     });
@@ -1020,7 +1044,7 @@
         row.setAttribute("role", "option");
         row.dataset.id = String(item.id);
         row.appendChild(el("b", "", item.title || String(item.id)));
-        if (item.detail) row.appendChild(el("span", "", item.detail));
+        if (item.detail && item.detail !== item.title) row.appendChild(el("span", "", item.detail));
         row.addEventListener("click", function () {
           selected = item.id;
           Array.from(node.children).forEach(function (child) {

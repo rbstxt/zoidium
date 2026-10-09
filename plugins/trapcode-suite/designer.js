@@ -270,7 +270,7 @@ var PZ = PZ || {};
 
     Session.prototype.presetSection = function (C) {
         var self = this;
-        var section = C.section({ title: "Presets" });
+        var section = C.section({ title: "Presets", collapsed: true });
         var presets = this.config.presets || [];
         var list = C.list({
             items: presets.map(function (preset, index) {
@@ -292,7 +292,7 @@ var PZ = PZ || {};
 
     Session.prototype.paletteSection = function (C) {
         var self = this;
-        var section = C.section({ title: "Palette" });
+        var section = C.section({ title: "Palette", collapsed: true });
         var schemes = T.palettes;
         var list = C.list({
             items: schemes.map(function (scheme, index) {

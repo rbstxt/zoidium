@@ -16,6 +16,7 @@
 
   var Original = PZ.ui.viewport;
   var instances = [];
+  var renderErrorNotified = false;
 
   // Subclassing keeps `instanceof PZ.ui.viewport` (now this class) true and
   // preserves the prototype chain; upstream never `.call`s the constructor
@@ -26,6 +27,40 @@
       instances.push(this);
     }
 
+    render(...args) {
+      if (this.__zoidiumRenderFailed) return;
+      // CM3 schedules another frame even when WebGL initialization failed.
+      // Stop that loop instead of throwing on missing widgets every frame.
+      if (!this.widget2d || !this.widget3d || !this.renderer || !this.compositor) {
+        this.enabled = false;
+        if (this.animFrameReq) cancelAnimationFrame(this.animFrameReq);
+        return;
+      }
+      try {
+        return super.render(...args);
+      } catch (error) {
+        // Upstream schedules the next frame before drawing. A plugin error
+        // must not turn into an exception and CPU work on every frame.
+        this.__zoidiumRenderFailed = true;
+        this.enabled = false;
+        if (this.animFrameReq != null) cancelAnimationFrame(this.animFrameReq);
+        this.animFrameReq = null;
+        console.error("[Zoidium] Preview rendering stopped after an error", error);
+        if (!renderErrorNotified) {
+          renderErrorNotified = true;
+          globalThis.ZoidiumUI?.notify?.({
+            title: "Preview stopped",
+            message: "A rendering error stopped the preview. Save your project, then reload the editor. See the debug log for details.",
+          });
+        }
+      }
+    }
+
+    resize(...args) {
+      if (!this.renderer || !this.camera || !this.widget2d) return;
+      return super.resize(...args);
+    }
+
     // CM3 disposes a viewport's renderer in unload(). Release the tracked
     // reference and any editor alias pointing at it so a retired viewport is
     // never kept alive or handed to a plugin window as its preview.
@@ -33,6 +68,12 @@
       const index = instances.indexOf(this);
       if (index >= 0) instances.splice(index, 1);
       if (this.editor && this.editor.mainViewport === this) this.editor.mainViewport = null;
+      this.enabled = false;
+      if (this.animFrameReq) cancelAnimationFrame(this.animFrameReq);
+      if (!this.compositor) {
+        this.renderer?.dispose?.();
+        return;
+      }
       return typeof super.unload === "function" ? super.unload(...args) : undefined;
     }
   }

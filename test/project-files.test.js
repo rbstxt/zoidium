@@ -117,6 +117,7 @@ function createHarness() {
   function Editor() {}
   Editor.prototype.save = function () {};
   Editor.prototype.new = function () {};
+  Editor.prototype.loadProject = async function () { return this.loadedProject; };
   Editor.prototype.confirmIfDirty = function () {
     return true;
   };
@@ -457,4 +458,38 @@ test("archive fingerprints are independent of entry insertion order", async () =
   files[0][1] = "changed";
   const third = await harness.projectFiles.createArchive(editor);
   assert.notEqual(first.fingerprint, third.fingerprint);
+});
+
+
+test("project loading awaits plugin activation and lazily created nested effects", async () => {
+  const harness = createHarness();
+  const activation = deferred();
+  const layerLoad = deferred();
+  const effectLoad = deferred();
+  const effect = { loading: effectLoad.promise, children: [] };
+  const layer = { loading: layerLoad.promise, children: [] };
+  const project = { _zoidiumPluginActivationPending: activation.promise, children: [layer] };
+  const editor = harness.makeEditor();
+  editor.loadedProject = project;
+  let finished = false;
+  const loaded = editor.loadProject({}).then((value) => { finished = true; return value; });
+  await flush();
+  assert.equal(finished, false, "plugin activation finishes first");
+  activation.resolve();
+  await flush();
+  assert.equal(finished, false, "the layer load is awaited");
+  layer.children = [[effect, layer]];
+  layerLoad.resolve();
+  await flush();
+  assert.equal(finished, false, "nested effects created by the layer are awaited");
+  effectLoad.resolve();
+  assert.equal(await loaded, project);
+  assert.equal(finished, true);
+});
+
+test("failed nested effect loads reject the project handoff", async () => {
+  const harness = createHarness();
+  const editor = harness.makeEditor();
+  editor.loadedProject = { children: [{ loading: Promise.reject(new Error("Effect load failed.")) }] };
+  await assert.rejects(editor.loadProject({}), /Effect load failed/);
 });

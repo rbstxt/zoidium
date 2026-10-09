@@ -25,14 +25,21 @@ Main and a composition, because undo entries refer to the live clips.
 - Disabling Precomp+ is refused while the project has compositions.
 - Saving while a composition is open writes Main and the open composition
   correctly.
-- Export renders the open timeline. Return to Main before exporting.
+- Export is blocked with a message while a composition is open. Return to Main
+  before exporting video or capturing a frame.
+- The Media panel and Compositions window both refuse to delete compositions
+  that are used by clips in Main or another composition.
 
 ## Limitations
 
-- Audio inside a composition is stored but not played yet.
+- Audio inside a composition is stored but not played yet. Pre-compose leaves
+  selected audio clips on Main, where playback and export continue normally.
 - Compositions are created from video clips only; their clip links are not
   carried over.
-- Deleting a composition from the Media panel bypasses the usage check.
+- Enable Precomp+ before opening projects containing compositions. The host
+  prompts to enable the plugin using the saved project requirement, but does
+  not yet preserve unknown composition fields if it starts loading while the
+  plugin is disabled. Enable it first to avoid losing composition links.
 
 ## Files
 

@@ -27,7 +27,7 @@ test("a vanilla camera with Davidium depth-of-field and vibrate fields loads and
   runtime.deactivate();
 });
 
-test("a Davidium Camera layer (type 9) loads as an inert layer that draws nothing", () => {
+test("a Davidium Camera layer recovers its camera and DOF in a normal scene", () => {
   const ctx = harness.createContext();
   const runtime = harness.loadRuntime();
   runtime.activate(ctx.context);
@@ -40,9 +40,12 @@ test("a Davidium Camera layer (type 9) loads as an inert layer that draws nothin
       objects: [{ type: 6, objectType: 1, properties: { dof: 1 } }],
     });
   });
-  assert.equal(layer.type, 9);
-  assert.equal(layer.objects, undefined, "camera data inside the layer is not migrated");
-  assert.equal(layer.threeObj, undefined, "the layer owns no render object");
+  assert.equal(layer.type, 4);
+  assert.equal(layer.objects[0].type, TYPE);
+  assert.equal(layer.objects[0].properties.depthOfField.enabled.get(), 1);
+  layer.update(0);
+  assert.equal(layer.pass.camera, layer.objects[0].threeObj);
+  assert.equal(layer.pass.__cameraPlusDof.enabled, true);
   assert.equal(runtime.isInUse(), false, "no project attached in this fixture");
   runtime.deactivate();
 });

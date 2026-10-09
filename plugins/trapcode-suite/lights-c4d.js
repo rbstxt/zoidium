@@ -22,7 +22,7 @@
 //   8   legacy: Portal (same as Area)         as id 4 (not offered in the picker)
 //
 // Stock CM3 Light types 1-3 keep their stock behaviour. Stock type 4 (Hemisphere)
-// migrates to id 5 when it is loaded.
+// keeps its stock id and properties when it is loaded.
 
 (function () {
     "use strict";
@@ -211,6 +211,13 @@
         wrap("changeObjectType", changeType);
 
         function changeType(value) {
+            if (this._migratingLegacyHemi) {
+                this._migratingLegacyHemi = false;
+                // Keep vanilla Hemisphere projects editable and serializable
+                // with the pack disabled. Its sky property is named color.
+                clearLightProps(this);
+                return original.changeObjectType.call(this, 4);
+            }
             var e = normalizeType(value, this._migratingLegacyHemi);
             this._migratingLegacyHemi = false;
             this.objectType = e;
@@ -226,7 +233,7 @@
         }
 
         // Legacy Hemisphere (stock id 4, with groundColor and no width/height)
-        // loads as the Dome/Hemisphere type 5. Stock id 4 with a Trapcode Area
+        // keeps its stock backend and properties. Stock id 4 with a Trapcode Area
         // payload (width/height present) keeps meaning Area.
         wrap("load", function (data) {
             if (data && typeof data === "object" && data.objectType === 4) {

@@ -182,11 +182,14 @@ function openCompsWindow() {
 
   function actionsFor(row) {
     let title;
-    if (row.isMain) title = row.editing ? "Main is open" : "Back to Main";
+    if (row.isMain) title = "Back to Main";
     else title = row.editing ? "Back to Main" : "Open";
+    const current = row.isMain && row.editing;
     const actions = [{
-      title: title,
-      variant: "primary",
+      title: current ? "Open" : title,
+      variant: current ? undefined : "primary",
+      disabled: current,
+      hint: current ? "Main is already open." : undefined,
       onClick: function () { openRow(row); },
     }];
     if (!row.isMain) {
@@ -249,7 +252,7 @@ function openCompsWindow() {
     }
     body.appendChild(kit.controls.buttonRow(actionsFor(current)).element);
     body.appendChild(kit.controls.note(
-      "Undo is cleared when you switch between Main and a composition. Export renders the open timeline, so return to Main first."
+      "Undo is cleared when you switch between Main and a composition. Return to Main before exporting. Export is blocked while a composition is open."
     ).element);
   }
 

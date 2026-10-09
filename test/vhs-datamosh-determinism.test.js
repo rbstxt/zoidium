@@ -396,10 +396,10 @@ test("datamosh: legacy Davidium properties migrate to the new keys", () => {
   assert.equal(effect.properties.amount.get(), 0.5);
   assert.equal(effect.properties.intensity.get(), 0.9);
   assert.equal(effect.properties.interval.get(), 30, "new keys keep their defaults");
-  assert.equal(effect.properties.hold, undefined);
-  assert.equal(effect.properties.speed, undefined);
-  assert.equal(effect.properties.time, undefined);
-  assert.equal(effect.properties.algorithm, undefined);
+  assert.equal(effect.properties.hold.get(), 0.3);
+  assert.equal(effect.properties.speed.get(), 2);
+  assert.ok(effect.properties.time);
+  assert.equal(effect.properties.algorithm.get(), 12, "old Algorithm 11 keeps the Random look");
 });
 
 test("datamosh: motion-mode indexes stay within the nine modes", () => {
@@ -409,6 +409,29 @@ test("datamosh: motion-mode indexes stay within the nine modes", () => {
     const motion = effect.properties.motion.get();
     assert.ok(Number.isInteger(motion) && motion >= 0 && motion <= 8, `legacy ${legacy}`);
   }
+});
+
+test("datamosh: all donor looks are available and skip unnecessary motion search", () => {
+  const effect = createDatamosh();
+  assert.equal(effect.properties.algorithm.definition.items.split(";").length, 81);
+  for (let look = 1; look <= 80; look += 1) {
+    setProperties(effect, { algorithm: look, hold: 0.35, speed: 2 });
+    const first = renderFrame(effect, 47);
+    assert.equal(first.length, 1, "analytic looks only draw the warp pass");
+    assert.equal(first[0].uniforms.algorithm, look);
+    assertNoFeedback(first);
+    renderFrame(effect, 3);
+    assert.deepEqual(renderFrame(effect, 47), first);
+  }
+});
+
+test("datamosh: current saved look indices survive a reload without shifting", () => {
+  const effect = createDatamosh();
+  effect.load({ properties: { algorithm: 43, interval: 40, hold: 0.2, speed: 1.5 } });
+  assert.equal(effect.properties.algorithm.get(), 43);
+  assert.equal(effect.properties.interval.get(), 40);
+  assert.equal(effect.properties.hold.get(), 0.2);
+  assert.equal(effect.properties.speed.get(), 1.5);
 });
 
 // --- VHS -------------------------------------------------------------------
@@ -509,4 +532,45 @@ test("shader uniforms match the JS uniform objects and braces balance", () => {
       }
     }
   }
+});
+
+
+test("frame sampler effects restore the context dropped by CM3 layer.prepare", async () => {
+  for (const type of ["vhs", "datamosh"]) {
+    const sandbox = createSandbox();
+    const effect = instantiate(sandbox, "plugins/openzoid-legacy/effects/" + type + ".js", type);
+    const sequence = { properties: { rate: { get: () => 30 } } };
+    effect.parentProject = { sequence };
+    let received;
+    sandbox.PZ.zoidium.temporal.prepareFrameSamples = async (_effect, frame, context) => {
+      received = { frame, context };
+    };
+    await effect.prepare(17);
+    assert.equal(received.frame, 17);
+    assert.equal(received.context.sequence, sequence);
+    const supplied = { sequence, export: true };
+    await effect.prepare(18, supplied);
+    assert.equal(received.context, supplied, "an export context is kept intact");
+  }
+});
+
+
+test("datamosh: motion search stays bounded at 1080p and 4K with tiny blocks", () => {
+  const effect = createDatamosh();
+  setProperties(effect, { blockSize: 2, samples: 15 });
+  for (const size of [{ width: 1920, height: 1080 }, { width: 3840, height: 2160 }]) {
+    renderFrame(effect, 17, size);
+    const grid = effect.pass.motionUniforms.blocks.value;
+    assert.ok(grid.x <= 64 && grid.y <= 36);
+    assert.equal(effect.pass.warpUniforms.searchBlockSize.value, effect.pass.motionUniforms.blockSize.value);
+  }
+});
+
+
+test("datamosh: analytic donor looks request only their segment anchor", () => {
+  const effect = createDatamosh();
+  setProperties(effect, { algorithm: 43, interval: 30, samples: 15 });
+  const request = effect._zoidiumFrameSampler.getRequest(effect, 47);
+  assert.equal(request.count, 1);
+  assert.equal(request.offsetFrames, -17);
 });

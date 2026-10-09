@@ -345,6 +345,11 @@ test("effect update: chain order uniform is filled and reordering needs no recom
   const materialBefore = fakeThis.pass.material;
   store.chainOrder.v = JSON.stringify(["crush", "contrast"]);
   fakeThis.update({});
+  assert.equal(uniforms.u_chainCount.value, 0, "reordering identity tools stays identity");
+  assert.equal(fakeThis.pass.enabled, false);
+  store.cruGamma.v = 1.2;
+  store.conContrast.v = 0.3;
+  fakeThis.update({});
   assert.equal(uniforms.u_chainCount.value, 2);
   assert.equal(uniforms.u_chain.value[0], 3, "crush dispatch index");
   assert.equal(uniforms.u_chain.value[1], 4, "contrast dispatch index");
@@ -397,4 +402,18 @@ test("setup binding markers are present", () => {
   for (const fn of ["openSetup", "installPropertyButton", "createSession", "presetWrites", "chainSection", "buildCurves"]) {
     assert.ok(source.includes(fn), "setup references " + fn);
   }
+});
+
+
+test("effect update omits disabled and unchanged identity tools from the shader chain", async () => {
+  const { fakeThis, store } = loadEffect();
+  await fakeThis.load({});
+  store.conContrast.v = 0.3;
+  fakeThis.update({});
+  assert.equal(fakeThis.pass.uniforms.u_chainCount.value, 1);
+  assert.equal(fakeThis.pass.uniforms.u_chain.value[0], 4);
+  store.conEnable.v = 0;
+  fakeThis.update({});
+  assert.equal(fakeThis.pass.uniforms.u_chainCount.value, 0);
+  assert.equal(fakeThis.pass.enabled, false);
 });

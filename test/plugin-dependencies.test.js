@@ -321,3 +321,16 @@ test("save hooks rescan serialized JSON before metadata and warnings are produce
     /normalizeProjectPlugins\(this\.project\?\.toJSON\?\.\(\)\.plugins\)/
   );
 });
+test("live numeric properties do not mark a vanilla project as using legacy plugins", () => {
+  const project = { sequence: { properties: {
+    resolution: { type: 8, baseTypeString: "property", definition: { type: 8 }, value: [1920, 1080] },
+    rotation: { type: 9, baseTypeString: "property", definition: { type: 9 }, properties: {} },
+  }, videoTracks: [{ clips: [{ object: { type: 4, effects: [], properties: {}, objects: [{ type: 6, properties: {} }] } }] }] } };
+  const helpers = loadDependencyHelpers();
+  assert.equal(helpers.projectPluginRequirements(project).length, 0);
+  project.sequence.videoTracks[0].clips[0].object.objects.push({ type: 7, properties: {}, objects: [] });
+  const used = helpers.projectPluginRequirements(project);
+  assert.equal(used.length, 1);
+  assert.equal(used[0].id, "effector-plus");
+  assert.deepEqual(Array.from(used[0].objects), ["twist"]);
+});

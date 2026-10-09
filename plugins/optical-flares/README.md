@@ -23,6 +23,9 @@ out.
 scene geometry in front of the source hides it. This is per pixel and needs no
 raycasts.
 
+The flare quad is excluded from velocity and environment-map passes. Its
+projection callback is preserved during CM3's velocity updates.
+
 **Distance Falloff** (with **Reference Distance**) scales element size by
 `(reference / distance) ^ falloff`.
 
