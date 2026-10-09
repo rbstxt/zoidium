@@ -919,10 +919,10 @@
     ZoidiumUI.notify({ title: state.plugin.name, message: reason });
   }
 
+  // Native effects belong to Native FX and to effect packs such as OpenZoid
+  // Legacy, so a change re-derives every switch lock.
   function updateNativeFxUsageUi() {
-    const state = pluginStates.get(NATIVE_FX_PLUGIN_ID);
-    if (!state || !pluginIsEnabled(state)) return;
-    setPluginUsageUi(state, Array.from(trackedNativeEffects).some(ownedByActiveProject));
+    refreshPluginUsageLocks();
   }
 
   function trackNativeEffect(effect, metadata, missing) {
@@ -3043,9 +3043,12 @@
       if (runtime.isInUse?.()) return runtime.inUseReason?.() || DEFAULT_IN_USE_REASON;
     }
     const pluginId = state.plugin.id;
+    // Native FX hosts every native effect, whichever plugin declared it.
+    const hostsAllNativeEffects = pluginId === NATIVE_FX_PLUGIN_ID;
     const inUse =
       Array.from(trackedNativeEffects).some((effect) =>
-        ownedByActiveProject(effect) && effect._zoidiumPluginMetadata?.id === pluginId) ||
+        ownedByActiveProject(effect) &&
+        (hostsAllNativeEffects || effect._zoidiumPluginMetadata?.id === pluginId)) ||
       Array.from(trackedPluginMaterials).some((material) =>
         ownedByActiveProject(material) && material._zoidiumPluginMetadata?.id === pluginId) ||
       Array.from(trackedPluginObjects).some(

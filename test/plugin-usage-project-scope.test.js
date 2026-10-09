@@ -175,3 +175,22 @@ test("a loading card is left to its own enable or disable transition", () => {
   host.api.refreshPluginUsageLocks();
   assert.equal(state.toggle.disabled, true);
 });
+
+test("an effect pack switch unlocks as soon as its last native effect is removed", () => {
+  const host = createHost();
+  const legacy = host.addState("openzoid-legacy", "OpenZoid Legacy");
+  const nativeFx = host.addState("native-fx", "Native FX");
+  const effect = {
+    parentProject: host.oldProject,
+    _zoidiumPluginMetadata: { id: "openzoid-legacy", effect: "ascii", effectName: "ASCII" },
+  };
+  host.sandbox.trackedNativeEffects.add(effect);
+  host.api.updateNativeFxUsageUi();
+  assert.equal(legacy.toggle.disabled, true, "the pack is locked while its effect exists");
+  assert.equal(nativeFx.toggle.disabled, true, "Native FX hosts every native effect");
+
+  host.sandbox.trackedNativeEffects.delete(effect);
+  host.api.updateNativeFxUsageUi();
+  assert.equal(legacy.toggle.disabled, false, "removing the last effect unlocks the pack");
+  assert.equal(nativeFx.toggle.disabled, false);
+});
