@@ -432,3 +432,60 @@ test("element identity always reads a concrete frame and loading replaces defaul
   };
   element.load({ properties: { element: { elementType: 3 } } });
 });
+
+test("a new flare starts off-axis for the default CM3 camera, spread across the frame", () => {
+  const { PZ } = buildEnv();
+  const flare = createFlare(PZ, { objectType: 0 });
+  const world = flare.properties.position.get();
+  const view = viewMatrix([0, 0, 80], 0);
+  const proj = perspective(60, 16 / 9, 0.1, 5000);
+  const ndc = PZ.opticalflares.math.projectPoint(world, view, proj);
+  // About 62% of the way from the centre to the upper-left corner.
+  assert.ok(Math.abs(ndc.x + 0.62) < 0.02, "left of centre, about 62% of the way: " + ndc.x);
+  assert.ok(Math.abs(ndc.y - 0.62) < 0.02, "above centre, about 62% of the way: " + ndc.y);
+  assert.equal(flare.properties.flareSetup.brightness.get(), 70, "new flares start at 70% brightness");
+  assert.equal(flare.properties.flareSetup.scale.get(), 75, "new flares start at 75% scale");
+  assert.equal(flare.properties.positioning.sourceType.get(), 1, "the source stays Object 3D");
+});
+
+test("saved positions load unchanged, including the origin", () => {
+  const { PZ } = buildEnv();
+  const flare = createFlare(PZ, { objectType: 0 });
+  const saved = JSON.parse(JSON.stringify(flare));
+  saved.properties.position = [0, 0, 0];
+  const loaded = new PZ.object3d.optflares();
+  loaded.type = 13;
+  loaded.load(saved);
+  assert.deepEqual(loaded.properties.position.get(), [0, 0, 0]);
+});
+
+test("a saved empty stack stays empty; only a missing stack gets the default preset", () => {
+  const { PZ } = buildEnv();
+  const fresh = createFlare(PZ, { objectType: 0 });
+  assert.equal(fresh.stack.length, 15, "a new object starts from the default preset");
+
+  const saved = JSON.parse(JSON.stringify(fresh));
+  saved.stack = [];
+  const empty = new PZ.object3d.optflares();
+  empty.type = 13;
+  empty.load(saved);
+  assert.equal(empty.stack.length, 0, "the saved empty stack is respected");
+  empty.update(0);
+  assert.equal(empty.material.uniforms.uElementCount.value, 0, "renders no elements");
+  assert.deepEqual(JSON.parse(JSON.stringify(empty)).stack, [], "saves an empty stack again");
+
+  const withoutField = JSON.parse(JSON.stringify(fresh));
+  delete withoutField.stack;
+  const defaults = new PZ.object3d.optflares();
+  defaults.type = 13;
+  defaults.load(withoutField);
+  assert.equal(defaults.stack.length, 15, "a missing stack field still gets the preset");
+});
+
+test("the non-glow elements fade out when the source and centre coincide", () => {
+  const { PZ } = buildEnv();
+  const source = fs.readFileSync(path.join(flaresDir, "optflares.js"), "utf8");
+  assert.ok(source.includes("float axisFade = smoothstep(0.0, 0.02, axisLen);"), "shader fades by axis length");
+  assert.ok(source.includes('"c *= (etype == 0) ? 1.0 : axisFade;"'), "the glow keeps full intensity");
+  assert.ok(PZ.opticalflares.math.axisFade(0) === 0);
+});

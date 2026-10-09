@@ -268,6 +268,7 @@ function installControls(log) {
     button: (config) => ({ element: { kind: "button" }, config }),
     buttonRow(buttons) {
       log.buttons.push(...buttons);
+      log.rows.push(buttons.map((b) => b.title));
       return { element: { kind: "buttonRow" } };
     },
     section(options) {
@@ -280,13 +281,16 @@ function installControls(log) {
 function setup() {
   const fakes = createFakes();
   const { PZ, root, editor, history } = installCommon(fakes);
-  const log = { controls: [], buttons: [] };
+  const log = { controls: [], buttons: [], rows: [] };
   const ui = {
     controls: installControls(log),
     windows: [],
     openWindow(options) {
       this.windows.push(options);
-      return { close() { this.closed = true; } };
+      return {
+        close() { this.closed = true; },
+        setSubtitle(text) { this.subtitle = text; },
+      };
     },
   };
   const sandbox = { PZ, document: { createElement: () => ({ children: [], textContent: "", appendChild(c) { this.children.push(c); } }) } };
@@ -304,7 +308,7 @@ function openAndMount(env) {
   const options = env.ui.windows[0];
   const body = { children: [], appendChild(c) { this.children.push(c); } };
   const cleanup = options.mount(body, win);
-  return { options, cleanup, body };
+  return { options, cleanup, body, win };
 }
 
 function PZ_open(env) {
@@ -354,8 +358,8 @@ test("add, duplicate, move, and remove each commit as one undo step", () => {
     assert.equal(env.history.operations, before + 2);
 
     stack[1].properties.element.elementType.set(2);
-    buttonNamed(env, "Up").onClick();
-    assert.equal(stack[0].type, 2, "up moves the selected element to the front");
+    buttonNamed(env, "Move Up").onClick();
+    assert.equal(stack[0].type, 2, "move up moves the selected element to the front");
 
     buttonNamed(env, "Remove").onClick();
     assert.equal(stack.length, 1, "remove deletes the selected element");
@@ -413,6 +417,38 @@ test("editing the selected element's properties goes through its own property", 
     size.config.onChange(150);
     assert.equal(element.properties.globalParams.scale.get(), 150);
     assert.equal(env.root.stack[0].type, 0, "type unchanged");
+  } finally {
+    env.restore();
+  }
+});
+
+test("element rows read as position and type, and the action buttons form two rows", () => {
+  const env = setup();
+  try {
+    openAndMount(env);
+    buttonNamed(env, "Add").onClick();
+    buttonNamed(env, "Duplicate").onClick();
+    env.root.stack[1].properties.element.elementType.set(1);
+    const list = env.log.controls.find((c) => c.kind === "list" && c.config.emptyText);
+    assert.ok(list, "element list");
+    assert.deepEqual(list.items.map((item) => item.title), ["1. Glow", "2. Streak"]);
+    assert.ok(env.log.rows.some((row) => row.join(",") === "Add,Duplicate,Remove"), "first row");
+    assert.ok(env.log.rows.some((row) => row.join(",") === "Move Up,Move Down"), "second row");
+  } finally {
+    env.restore();
+  }
+});
+
+test("the window title is the product name and the flare's name is the subtitle", () => {
+  const env = setup();
+  try {
+    const { options, win } = openAndMount(env);
+    assert.equal(options.title, "Optical Flares");
+    assert.equal(options.subtitle, "", "the default name is not repeated");
+    env.root.properties.name.set("Anamorphic Blue");
+    assert.equal(win.subtitle, "Anamorphic Blue", "a renamed flare updates the subtitle");
+    env.root.properties.name.set("Optical Flares");
+    assert.equal(win.subtitle, "", "back to the default name clears it");
   } finally {
     env.restore();
   }

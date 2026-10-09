@@ -256,6 +256,28 @@ test("the options gear is added once to flare rows only", () => {
   dispose();
 });
 
+test("the options gear is not added to the 3D object list, which hides item buttons", () => {
+  const host = buildHost();
+  const runtime = loadRuntimeModule();
+  const { context, dispose } = makeContext(host, bundledSources());
+  runtime.activate(context);
+  const flare = host.PZ.object3d.create(13);
+  flare.load({ objectType: 0 });
+  flare.parent = new host.PZ.objectList(null, host.PZ.object3d.optflares.element);
+  const inserted = [];
+  const row = {
+    querySelector() { return null; },
+    firstElementChild: null,
+    insertBefore(node) { inserted.push(node); },
+  };
+  // CM3's 3D object list is created with showListItemButtons:false. The gear
+  // lives on the flare's header row in the Properties panel instead.
+  const list = { options: { showListItemButtons: false }, generateButton: host.PZ.ui.edit.prototype.generateButton };
+  host.PZ.ui.edit.prototype.generateItemCommands.call(list, { children: [null, row] }, flare);
+  assert.equal(inserted.length, 0, "no gear in the 3D object list");
+  dispose();
+});
+
 test("disabling restores the create wrapper, the item commands and the globals", () => {
   const host = buildHost();
   const runtime = loadRuntimeModule();

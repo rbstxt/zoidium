@@ -67,6 +67,7 @@
         { path: "matteBox.fadeAmount", label: "Matte fade", kind: "number" },
     ];
 
+    var TITLE = "Optical Flares";
     var windowSerial = 0;
     var windowIds = new WeakMap();
 
@@ -362,15 +363,24 @@
             });
         }
 
+        // Rows read "1. Glow", "2. Multi Iris": position in the stack, then type.
+        // A custom name, when one is stored, shows as detail.
         function elementItems() {
             return Array.from(root.stack).map(function (element, index) {
                 var enabled = read(element.properties.element.enabled) === 1;
                 var typeName = types[element.type].name;
                 var name = element.properties.name.get() || typeName;
-                var detail = name === typeName ? "" : typeName;
+                var detail = name === typeName ? "" : name;
                 if (!enabled) detail = detail ? detail + " (off)" : "Off";
-                return { id: String(index), title: name, detail: detail };
+                return { id: String(index), title: (index + 1) + ". " + typeName, detail: detail };
             });
+        }
+
+        // The window title is the product name; the flare's own name is the
+        // subtitle. The default name equals the title, so it is left blank.
+        function subtitleFor(name) {
+            var text = String(name || "");
+            return text === TITLE ? "" : text;
         }
 
         // Refreshes list text and selection only. Safe to call from property
@@ -461,21 +471,23 @@
                 { title: "Add", variant: "primary", onClick: addElement },
                 { title: "Duplicate", onClick: duplicateElement },
                 { title: "Remove", variant: "danger", onClick: removeElement },
-                { title: "Up", onClick: function () { moveElement(-1); } },
-                { title: "Down", onClick: function () { moveElement(1); } },
+            ]).element);
+            section.body.appendChild(ctl.buttonRow([
+                { title: "Move Up", onClick: function () { moveElement(-1); } },
+                { title: "Move Down", onClick: function () { moveElement(1); } },
             ]).element);
         }
 
         if (!windowIds.has(root)) windowIds.set(root, ++windowSerial);
         var win = ui.openWindow({
             id: "flares:" + windowIds.get(root),
-            title: "Optical Flares",
-            subtitle: root.properties.name.get(),
+            title: TITLE,
+            subtitle: subtitleFor(root.properties.name.get()),
             persistKey: "options",
             width: 360,
             height: 620,
             isValid: function () { return root.isLive(); },
-            mount: function (body) {
+            mount: function (body, handle) {
                 var presets = ctl.section({ title: "Presets", collapsed: true });
                 presetSection(presets);
                 var elements = ctl.section({ title: "Elements" });
@@ -493,6 +505,9 @@
                     body.appendChild(section.element);
                 });
 
+                staticScope.watch(root.properties.name.onChanged, function () {
+                    handle.setSubtitle(subtitleFor(root.properties.name.get()));
+                });
                 stackScope.watch(root.stack.onListChanged, renderStack);
                 renderStack();
                 return function () {
