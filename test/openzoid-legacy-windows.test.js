@@ -10,7 +10,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const test = require("node:test");
 
-const projectRoot = "/Users/dia/Projects/GitHub/Zoidium";
+const projectRoot = path.join(__dirname, "..");
 const legacyDir = path.join(projectRoot, "plugins/openzoid-legacy");
 const windowsPath = path.join(legacyDir, "effect-windows.js");
 
