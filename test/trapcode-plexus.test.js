@@ -161,3 +161,11 @@ test("facets and triangulation render without throwing on the default source", (
     assert.equal(root.mesh.geometry.index.length % 3, 0);
   }
 });
+
+test("triangulation never invents faces beyond the configured distance", () => {
+  const {PZ} = loadSuite(["trapcode-common.js", "plexus.js"]);
+  const plexus = new PZ.object3d.plexus();
+  plexus._work = new Float32Array([0,0,0, 100,0,0, 0,100,0]);
+  assert.deepEqual(plexus.triangulate(3, 1), []);
+  assert.ok(plexus.triangulate(3, 150).length >= 3);
+});

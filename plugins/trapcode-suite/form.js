@@ -205,12 +205,12 @@ var PZ = PZ || {};
                 if (!this.threeObj) return;
                 if (this.threeObj.parent) this.threeObj.parent.remove(this.threeObj);
                 if (!this.parent) return;
-                var parent = this.tryGetParentOfType(PZ.object3d);
+                var parent = T.findParent(this, PZ.object3d);
                 if (parent && parent.threeObj) parent.threeObj.add(this.threeObj);
             }.bind(this));
         }
         get formObject() {
-            return this.getParentOfType(PZ.object3d.form);
+            return T.findParent(this, PZ.object3d.form);
         }
         load(e, parent) {
             this.form = parent || this.form;
@@ -242,7 +242,7 @@ var PZ = PZ || {};
             }
             this._assets.clear();
             if (this.texture) {
-                var project = this.tryGetParentOfType(PZ.project);
+                var project = T.findParent(this, PZ.project);
                 project && project.assets.unload(this.texture);
                 this.texture = null;
             }
@@ -252,7 +252,7 @@ var PZ = PZ || {};
             var value = this.properties.particle.texture.get(PZ.trapcode.currentTime);
             if (this._textureValue === value && this.texture) return;
             this._textureValue = value;
-            var project = this.tryGetParentOfType(PZ.project);
+            var project = T.findParent(this, PZ.project);
             if (this.texture) {
                 project && project.assets.unload(this.texture);
                 this.texture = null;
@@ -348,7 +348,7 @@ var PZ = PZ || {};
             var t = PZ.trapcode.currentTime;
             var base = this.properties.base;
             var maps = this.properties.layerMaps;
-            var project = this.tryGetParentOfType(PZ.project);
+            var project = T.findParent(this, PZ.project);
             var entries = [];
             var type = base.baseFormType.get(t);
             if (type === 6) {

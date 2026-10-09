@@ -259,3 +259,70 @@ test("undecoded or missing sources keep reactors neutral", () => {
   audio.audioLayer.set("not-decoded.wav");
   assert.equal(simulation.audioLevel(system, 30), 0.5, "source not decoded");
 });
+
+
+test("all four reactor targets affect only their corresponding uniform and reset when disabled", () => {
+  const { system, T } = loadParticularSystem();
+  const audio = system.properties.audio;
+  system.material = { uniforms: Object.fromEntries(["audioLevel", "audioOpacity", "audioVelocity", "audioColor"].map(key => [key, {value: 1}])) };
+  audio.audioLayer.set("silence.wav");
+  T.audioAnalysis.register("silence.wav", silentBuffer());
+  for (let i = 1; i <= 4; i++) {
+    audio[`reactor${i}Enabled`].set(1);
+    audio[`reactor${i}Target`].set(i - 1);
+    audio[`reactor${i}Strength`].set(i * 10);
+  }
+  T.setTime(30); system.updateAudio();
+  for (const [i, key] of ["audioLevel", "audioOpacity", "audioVelocity", "audioColor"].entries()) {
+    assert.ok(Math.abs(system.material.uniforms[key].value - (1 - (i + 1) / 10)) < 1e-9);
+    audio[`reactor${i + 1}Enabled`].set(0);
+  }
+  system.updateAudio();
+  assert.deepEqual(Object.values(system.material.uniforms).map(u => u.value), [1,1,1,1]);
+});
+
+test("audio timeline mapping respects scene start, A1 start, trim time, and repeated clips", () => {
+  const { PZ } = require("./trapcode-env").loadSuite(["trapcode-common.js"]);
+  PZ.sequence = class {}; PZ.clip = class {};
+  const sequence = new PZ.sequence();
+  const scene = new PZ.clip(); scene.start = 30; scene.parent = sequence;
+  const source = "song";
+  const clip = {start: 60, length: 30, properties: {media: {get: () => source}, time: {get: f => 0.25 + f / 30}}};
+  sequence.audioTracks = [{clips: [clip, {...clip, start: 120}]}];
+  const system = {parent: scene};
+  assert.equal(PZ.trapcode.audioClipTime(system, source, 0, 30), -1);
+  assert.equal(PZ.trapcode.audioClipTime(system, source, 45, 30), 0.75);
+  assert.equal(PZ.trapcode.audioClipTime(system, source, 105, 30), 0.75);
+});
+
+
+test("preview starts shared offline decoding and final preparation awaits it", async () => {
+  const {system, T} = loadParticularSystem();
+  const savedWindow = global.window;
+  let finishDecode;
+  let decodes = 0;
+  let notifications = 0;
+  global.window = { OfflineAudioContext: class {
+    decodeAudioData(bytes, resolve) { decodes++; finishDecode = resolve; }
+  } };
+  T.findParent = () => ({assets: {load: () => ({file: {arrayBuffer: async () => new ArrayBuffer(1)}})}});
+  system.material = {uniforms: Object.fromEntries(["audioLevel", "audioOpacity", "audioVelocity", "audioColor"].map(key => [key, {value:1}]))};
+  system.properties.audio.audioLayer.onChanged = {update: () => notifications++};
+  system.properties.audio.audioLayer.set("pending.wav");
+  system.properties.audio.reactor1Enabled.set(1);
+  try {
+    system.updateAudio(); system.updateAudio();
+    let prepared = false;
+    const final = system.prepareAudio(30).then(() => {prepared = true;});
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(decodes, 1);
+    assert.equal(prepared, false);
+    assert.equal(system.material.uniforms.audioLevel.value, 1);
+    finishDecode(sineBuffer(880, 0.4));
+    await final;
+    assert.equal(notifications, 1);
+    assert.equal(T.audioAnalysis.has("pending.wav"), true);
+    T.setTime(30); system.updateAudio();
+    assert.notEqual(system.material.uniforms.audioLevel.value, 1);
+  } finally {global.window = savedWindow;}
+});

@@ -36,6 +36,8 @@ const WINDOW_PREFIX = "trapcode-suite:";
 // The PZ instance seen at activate time. deactivate() must unwrap that same
 // instance instead of re-resolving globals, which may differ (or be gone).
 let installedPZ = null;
+let unregisterClasses = [];
+let legacyClaims = null;
 // Our own create wrapper, so out-of-order disables still switch it off even
 // when another pack wrapped above us in the chain.
 let installedCreate = null;
@@ -49,6 +51,7 @@ function runtimeGlobals(context) {
 }
 
 function installSources(context, PZ, THREE) {
+  if (PZ.trapcode && PZ.trapcode.suiteSourcesInstalled) return;
   const getAsset = context && typeof context.getAsset === "function"
     ? context.getAsset.bind(context)
     : null;
@@ -66,9 +69,10 @@ function installSources(context, PZ, THREE) {
     // merges with the argument binding and definitions land on the runtime.
     new Function("PZ", "THREE", source)(PZ, THREE);
   }
+  Object.defineProperty(PZ.trapcode, "suiteSourcesInstalled", { value: true });
 }
 
-function installCreateWrapper(PZ) {
+function installCreateWrapper(PZ, useRegistry) {
   const object3d = PZ.object3d;
   if (!object3d || typeof object3d.create !== "function") {
     throw new Error("Trapcode Suite needs PZ.object3d.create from the CM3 runtime.");
@@ -88,9 +92,10 @@ function installCreateWrapper(PZ) {
       return original.call(this, type);
     }
     for (const entry of TRAPCODE_TYPES) {
-      if (type === entry.type && object3d[entry.key]) {
+      if ((type === entry.type || type === "zoidium:trapcode-suite/" + entry.key) && object3d[entry.key]) {
+        if (useRegistry) return original.call(this, "zoidium:trapcode-suite/" + entry.key);
         const instance = new object3d[entry.key]();
-        instance.type = type;
+        instance.type = "zoidium:trapcode-suite/" + entry.key;
         return instance;
       }
     }
@@ -134,12 +139,12 @@ function uninstallExpressionSupport(PZ) {
   } catch (_error) { /* best effort */ }
 }
 
-function installLights(PZ) {
+function installLights(PZ, context) {
   const T = PZ.trapcode || {};
   if (!T.lights || typeof T.lights.install !== "function") {
     throw new Error("Trapcode Suite needs its C4D light bundle.");
   }
-  T.lights.install(PZ);
+  T.lights.install(PZ, context.object3d);
 }
 
 function uninstallLights(PZ) {
@@ -158,6 +163,13 @@ function closeWindows() {
 
 // Unwinds whatever an activation attempt managed to install, in reverse.
 function rollback(PZ) {
+  for (const unregister of unregisterClasses.splice(0).reverse()) unregister();
+  if (legacyClaims) {
+    for (const entry of TRAPCODE_TYPES) {
+      if (legacyClaims.get(entry.type) === "trapcode-suite") legacyClaims.delete(entry.type);
+    }
+    legacyClaims = null;
+  }
   uninstallLights(PZ);
   uninstallExpressionSupport(PZ);
   uninstallCreateWrapper(PZ);
@@ -173,25 +185,53 @@ module.exports = {
     if (!THREE) {
       throw new Error("Trapcode Suite needs the THREE global from the CM3 runtime.");
     }
+    if (installedPZ === PZ) return;
+    context.lifecycle?.onDispose?.(() => { rollback(PZ); installedPZ = null; });
     try {
+      PZ.zoidium = PZ.zoidium || {};
+      const claims = PZ.zoidium.legacyObject3dTypes || (PZ.zoidium.legacyObject3dTypes = new Map());
+      for (const entry of TRAPCODE_TYPES) {
+        if (claims.has(entry.type) && claims.get(entry.type) !== "trapcode-suite") {
+          throw new Error("Trapcode Suite legacy type is already claimed: " + entry.type);
+        }
+      }
+      legacyClaims = claims;
+      for (const entry of TRAPCODE_TYPES) claims.set(entry.type, "trapcode-suite");
       installSources(context, PZ, THREE);
       if (!PZ.object3d.particular || !PZ.object3d.form || !PZ.object3d.plexus) {
         throw new Error("Trapcode Suite could not define its 3D object classes.");
       }
-      installCreateWrapper(PZ);
+      if (context.object3d?.registerClass) {
+        for (const entry of TRAPCODE_TYPES) {
+          unregisterClasses.push(context.object3d.registerClass({
+            type: "zoidium:trapcode-suite/" + entry.key, name: entry.key, schemaVersion: 1,
+            factory: () => new PZ.object3d[entry.key](),
+          }));
+        }
+      }
+      installCreateWrapper(PZ, !!context.object3d?.registerClass);
       installExpressionSupport(PZ);
-      installLights(PZ);
+      installLights(PZ, context);
     } catch (error) {
       rollback(PZ);
       throw error;
     }
     installedPZ = PZ;
   },
+  isInUse() {
+    const CM = globalThis.CM;
+    if (!installedPZ || !CM?.project) return false;
+    let used = false;
+    CM.project.forEachItemOfType(installedPZ.object3d, (object) => {
+      if (TRAPCODE_TYPES.some((entry) => object instanceof installedPZ.object3d[entry.key]) ||
+          String(object.type).startsWith("zoidium:trapcode-suite/")) used = true;
+    });
+    return used;
+  },
   deactivate() {
     const PZ = installedPZ;
     try {
-      closeWindows();
-      uninstallLights(PZ);
+      rollback(PZ);
     } finally {
       try {
         uninstallCreateWrapper(PZ);
