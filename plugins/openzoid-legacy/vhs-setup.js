@@ -65,8 +65,8 @@ function buildActionButtons(buttonDefs) {
   wrap.style = "display: flex; gap: 3px; margin-top: 3px; flex-wrap: wrap;";
   buttonDefs.forEach(function (spec) {
     const n = document.createElement("button");
-    n.classList.add("propbutton", "noselect");
-    n.style = "font-size: 10px; padding: 1px 6px;";
+    n.classList.add("proprow", "propbutton", "noselect");
+    n.style = "flex: 1 1 auto; width: auto; padding: 3px 7px;";
     n.innerText = spec.name;
     n.title = spec.title || spec.name;
     n.onmousedown = (ev) => ev.stopPropagation();
@@ -314,7 +314,8 @@ module.exports = {
           const effect = effectOf(property);
           const button = doc.createElement("button");
           button.type = "button";
-          button.className = "propbutton";
+          button.className = "proprow propbutton noselect";
+          button.style.cssText = "flex: 0 1 auto; width: auto; padding: 3px 12px;";
           button.textContent = "VHS Setup";
           button.title = "Open the VHS setup window";
           button.disabled = !effect;
@@ -324,7 +325,12 @@ module.exports = {
             event.stopPropagation();
             if (effect) openSetup(effect);
           });
-          return button;
+          // The flex row sizes the button to the value column, as CM3 does
+          // for its own property buttons.
+          const row = doc.createElement("div");
+          row.style.cssText = "display: flex; margin-top: 3px;";
+          row.appendChild(button);
+          return row;
         },
       });
       context.lifecycle.onDispose(unregister);
