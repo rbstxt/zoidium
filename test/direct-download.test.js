@@ -254,3 +254,53 @@ test("non-download windows still use the original open implementation", () => {
   assert.equal(globalObject.open("https://example.test/about"), "opened");
   assert.deepEqual(forwarded, [["https://example.test/about"]]);
 });
+
+test("download buttons suppress overlapping clicks and restore disabled state", async () => {
+  const { createDownloadManager } = require("../zoidium/direct-download");
+  let finish;
+  let calls = 0;
+  const manager = createDownloadManager({ downloadArtifact() { calls += 1; return new Promise((resolve) => { finish = resolve; }); } });
+  const button = new FakeButton();
+  button.disabled = false;
+  manager.bind(button, manager.capture(new Blob(["video"]), "video.webm"));
+  button.click(); button.click();
+  await flush();
+  assert.equal(calls, 1);
+  assert.equal(button.disabled, true);
+  finish(); await flush();
+  assert.equal(button.disabled, false);
+  button.disabled = true;
+  button.click(); await flush();
+  assert.equal(calls, 1);
+  assert.equal(button.disabled, true);
+});
+
+test("a rejected download reenables the button and permits retry", async () => {
+  const { globalObject, DeviceExport, errors } = createWindow();
+  let calls = 0;
+  install(globalObject, { downloadArtifact() { calls += 1; return Promise.reject(new Error("download failed")); } });
+  globalObject.PZ.downloadBlob = new Blob(["video"]);
+  const page = new DeviceExport().createFinishedPage();
+  page.button.disabled = false;
+  page.button.click(); await flush();
+  assert.equal(page.button.disabled, false);
+  page.button.click(); await flush();
+  assert.equal(calls, 2);
+  assert.ok(errors.some((message) => /download failed/.test(message)));
+});
+
+test("download object URLs remain available for sixty seconds", async () => {
+  const { createDownloadManager } = require("../zoidium/direct-download");
+  let delay;
+  let revoke;
+  let revoked = false;
+  const manager = createDownloadManager({
+    globalObject: { setTimeout(fn, ms) { revoke = fn; delay = ms; } },
+    document: { body: { appendChild() {} }, createElement() { return { style: {}, click() {}, remove() {} }; } },
+    URL: { createObjectURL() { return "blob:video"; }, revokeObjectURL() { revoked = true; } },
+  });
+  await manager.trigger(manager.capture(new Blob(["video"]), "video.webm"));
+  assert.equal(delay, 60000);
+  assert.equal(revoked, false);
+  revoke(); assert.equal(revoked, true);
+});

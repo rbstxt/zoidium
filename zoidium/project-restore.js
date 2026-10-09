@@ -281,6 +281,10 @@
     return projectFiles.fileNameForProject(snapshot.projectName);
   }
 
+  function snapshotDisplayName(snapshot) {
+    return projectFiles.displayNameForUi(snapshot && snapshot.projectName);
+  }
+
   // Restore points recorded before exports were copied out of the shared
   // temporary file kept the archive worker's live File handle instead of the
   // archive bytes. That handle now exposes whatever the editor last wrote
@@ -550,7 +554,7 @@
       copy.className = "zoidium-restore-copy";
       var name = global.document.createElement("div");
       name.className = "zoidium-restore-name";
-      name.textContent = snapshot.projectName || "project";
+      name.textContent = snapshotDisplayName(snapshot);
       name.title = name.textContent;
       var time = global.document.createElement("div");
       time.className = "zoidium-restore-meta";
@@ -567,14 +571,14 @@
       actions.className = "zoidium-restore-actions";
       var restoreButton = createButton(
         "reset",
-        "Restore " + (snapshot.projectName || "project"),
+        "Restore " + snapshotDisplayName(snapshot),
       );
       restoreButton.addEventListener("click", function () {
         restoreSnapshot(snapshot);
       });
       var downloadButton = createButton(
         "download",
-        "Download " + (snapshot.projectName || "project"),
+        "Download " + snapshotDisplayName(snapshot),
       );
       downloadButton.addEventListener("click", function () {
         projectFiles.triggerDownload(snapshot.blob, snapshotFilename(snapshot));
@@ -587,7 +591,7 @@
       }
       var deleteButton = createButton(
         "delete",
-        "Delete " + (snapshot.projectName || "project"),
+        "Delete " + snapshotDisplayName(snapshot),
       );
       deleteButton.addEventListener("click", function () {
         removeSnapshot(snapshot);
@@ -711,9 +715,12 @@
       editor.project = restoredProject;
       editor._zoidiumSaveFileHandle = null;
       editor._zoidiumSaveFileName = null;
-      projectFiles.setProjectName(editor, snapshot.projectName || "project");
+      projectFiles.setProjectName(
+        editor,
+        projectFiles.displayNameForUi(snapshot.projectName || "project"),
+      );
       if (restoredProject.ui) restoredProject.ui.dirty = true;
-      showToast({ title: "Restored.", message: snapshot.projectName || "project" });
+      showToast({ title: "Restored.", message: snapshotDisplayName(snapshot) });
     } catch (error) {
       showProjectError({
         message: error && error.message ? error.message : "Could not restore the project.",
@@ -798,14 +805,19 @@
       input.spellcheck = false;
       input.maxLength = 120;
       input.setAttribute("aria-label", "Project name");
-      input.value = projectFiles.getProjectName(editor);
+      input.value = projectFiles.displayNameForUi(projectFiles.getProjectName(editor));
       input.title = input.value;
       input.addEventListener("input", function () {
         projectFiles.setRawProjectName(editor, input.value);
         input.title = input.value;
       });
       input.addEventListener("blur", function () {
-        input.value = projectFiles.setProjectName(editor, input.value);
+        var currentName = projectFiles.getProjectName(editor);
+        var displayName = projectFiles.displayNameForUi(currentName);
+        if (input.value !== displayName) {
+          currentName = projectFiles.setProjectName(editor, input.value);
+        }
+        input.value = projectFiles.displayNameForUi(currentName);
         input.title = input.value;
       });
       input.addEventListener("keydown", function (event) {
@@ -821,7 +833,7 @@
       global.addEventListener("zoidium:project-name-changed", function (event) {
         var detail = event.detail || {};
         if (detail.editor !== editor || global.document.activeElement === input) return;
-        input.value = detail.name || projectFiles.defaultProjectName;
+        input.value = projectFiles.displayNameForUi(detail.name);
         input.title = input.value;
       });
     }
@@ -844,7 +856,13 @@
   global.addEventListener("zoidium:project-saved", function (event) {
     var detail = event.detail || {};
     if (detail.editor !== editor) return;
-    showToast({ title: "Saved.", message: detail.filename || "Project file updated." });
+    showToast({
+      title: detail.delivery === "download" ? "Downloaded." : "Saved.",
+      message:
+        detail.delivery === "download"
+          ? (detail.filename || "Project file downloaded.")
+          : (detail.filename || "Project file updated."),
+    });
   });
   global.addEventListener("zoidium:notification", function (event) {
     showToast(event.detail || {});

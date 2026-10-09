@@ -1,0 +1,116 @@
+different	ARCHITECTURE.md	4806	4550
+different	CONTRIBUTING.md	2669	2667
+different	README.ja.md	11769	11879
+different	README.md	9709	9847
+different	about/acknowledgements/index.html	7650	7779
+different	about/acknowledgements/ja/index.html	8686	8815
+different	about/privacy/index.html	8405	8029
+different	about/privacy/ja/index.html	10623	9972
+different	desktop/main.cjs	14181	12089
+different	docs/plugin-api.md	5315	5440
+different	docs/research/openzoid-dof-text-portability.md	19163	17526
+Davidium only	package-lock.json	0	192758
+different	package.json	2334	2359
+different	plugins/README.md	11573	11522
+different	plugins/afterclip/bundle.json	326204	332602
+different	plugins/alipfx/bundle.json	1602190	1660340
+Davidium only	plugins/camera-plus/README.md	0	1708
+Davidium only	plugins/camera-plus/bundle.json	0	130792
+Davidium only	plugins/camera-plus/camera-class.js	0	12892
+Davidium only	plugins/camera-plus/camera-layer.js	0	3305
+Davidium only	plugins/camera-plus/camera-runtime.js	0	55955
+Davidium only	plugins/camera-plus/depth-passes.js	0	6607
+Davidium only	plugins/camera-plus/focus-ui.js	0	3418
+Davidium only	plugins/camera-plus/manifest.json	0	1561
+Davidium only	plugins/camera-plus/render-layer.js	0	14888
+Davidium only	plugins/camera-plus/render-sequence.js	0	4294
+Davidium only	plugins/camera-plus/scene-dof.js	0	7673
+Davidium only	plugins/camera-plus/sequence-tracking.js	0	12494
+Davidium only	plugins/camera-plus/vibrate.js	0	3608
+different	plugins/ccfx/bundle.json	174702	179576
+different	plugins/core/bundle.json	212532	229313
+Davidium only	plugins/core/main-viewport.js	0	3626
+different	plugins/core/manifest.json	4082	4360
+different	plugins/core/project-files.js	21790	23246
+different	plugins/easing-plus/bundle.json	79620	83918
+Davidium only	plugins/effector-plus/README.md	0	805
+Davidium only	plugins/effector-plus/bundle.json	0	59958
+Davidium only	plugins/effector-plus/deform-framework.js	0	8281
+Davidium only	plugins/effector-plus/deformer-objects.js	0	44143
+Davidium only	plugins/effector-plus/effector-runtime.js	0	4954
+Davidium only	plugins/effector-plus/manifest.json	0	1503
+different	plugins/geometry-plus/bundle.json	66364	70102
+different	plugins/layer-input/bundle.json	73545	77719
+different	plugins/material-plus/bundle.json	62713	66431
+different	plugins/native-fx/bundle.json	55274	58472
+Davidium only	plugins/openzoid-legacy/README.md	0	1639
+Davidium only	plugins/openzoid-legacy/bundle.json	0	255138
+Davidium only	plugins/openzoid-legacy/datamosh-export.js	0	1174
+Davidium only	plugins/openzoid-legacy/datamosh-logo.svg	0	1243
+Davidium only	plugins/openzoid-legacy/datamosh-render.js	0	23276
+Davidium only	plugins/openzoid-legacy/datamosh-setup.js	0	30087
+Davidium only	plugins/openzoid-legacy/effects/datamosh.js	0	23695
+Davidium only	plugins/openzoid-legacy/effects/echo-legacy.js	0	16204
+Davidium only	plugins/openzoid-legacy/effects/jpegdamage.js	0	8880
+Davidium only	plugins/openzoid-legacy/effects/posterizetime-legacy.js	0	8376
+Davidium only	plugins/openzoid-legacy/effects/vhs.js	0	46993
+Davidium only	plugins/openzoid-legacy/manifest.json	0	3010
+Davidium only	plugins/openzoid-legacy/shaders/common.glsl	0	255
+Davidium only	plugins/openzoid-legacy/shaders/fx_echo.glsl	0	1330
+Davidium only	plugins/openzoid-legacy/shaders/fx_jpegdamage.glsl	0	13262
+Davidium only	plugins/openzoid-legacy/shaders/fx_posterizetime.glsl	0	135
+Davidium only	plugins/openzoid-legacy/vhs-logo.png	0	16791
+Davidium only	plugins/openzoid-legacy/vhs-setup.css	0	8101
+Davidium only	plugins/openzoid-legacy/vhs-setup.js	0	38871
+Davidium only	plugins/optical-flares/README.md	0	1811
+Davidium only	plugins/optical-flares/bundle.json	0	147106
+Davidium only	plugins/optical-flares/manifest.json	0	1757
+Davidium only	plugins/optical-flares/optflares-editor.js	0	70373
+Davidium only	plugins/optical-flares/optflares.js	0	57149
+Davidium only	plugins/optical-flares/optical-flares-runtime.js	0	4891
+Davidium only	plugins/optical-flares/trapcode-common.js	0	7980
+different	plugins/particles-plus/bundle.json	207991	208777
+different	plugins/player-plus/bundle.json	16231	17173
+different	plugins/plugin-manager.js	102111	120330
+Davidium only	plugins/precomp-plus/README.md	0	1218
+Davidium only	plugins/precomp-plus/bundle.json	0	39099
+Davidium only	plugins/precomp-plus/comps.js	0	29086
+Davidium only	plugins/precomp-plus/manifest.json	0	531
+Davidium only	plugins/precomp-plus/precomp-runtime.js	0	8318
+different	plugins/registry.json	8118	11415
+different	plugins/scene-plus/bundle.json	62199	24910
+different	plugins/scene-plus/manifest.json	4085	3095
+different	plugins/scene-plus/scene-plus.js	57398	21324
+different	plugins/text-plus/bundle.json	64528	68664
+Davidium only	plugins/trapcode-suite/README.md	0	2158
+Davidium only	plugins/trapcode-suite/bundle.json	0	290503
+Davidium only	plugins/trapcode-suite/designer-gear.js	0	5936
+Davidium only	plugins/trapcode-suite/designer.js	0	15419
+Davidium only	plugins/trapcode-suite/form.js	0	76026
+Davidium only	plugins/trapcode-suite/lights-c4d.js	0	18839
+Davidium only	plugins/trapcode-suite/manifest.json	0	4112
+Davidium only	plugins/trapcode-suite/particular.js	0	73920
+Davidium only	plugins/trapcode-suite/plexus.js	0	76334
+Davidium only	plugins/trapcode-suite/trapcode-common.js	0	7916
+Davidium only	plugins/trapcode-suite/trapcode-runtime.js	0	4478
+different	pnpm-lock.yaml	82380	86458
+different	pnpm-workspace.yaml	58	32
+Davidium only	test/camera-plus.test.js	0	13427
+Davidium only	test/designer-gear.test.js	0	6215
+Davidium only	test/effector-plus.test.js	0	6117
+Davidium only	test/main-viewport.test.js	0	3023
+different	test/plugin-dependencies.test.js	9429	13419
+different	test/plugin-groups.test.js	13951	14461
+Davidium only	test/plugin-object-types.test.js	0	3324
+Davidium only	test/precomp-plus.test.js	0	5880
+different	test/project-files.test.js	10410	10124
+Davidium only	test/setup-windows.test.js	0	7286
+different	tools/runtime-resources.js	54356	56563
+different	tools/serve-with-resources.js	7997	9851
+different	tools/start-electron.js	2240	1791
+different	zoidium/debug-log.js	58158	55533
+different	zoidium/direct-download.js	11826	13354
+different	zoidium/project-restore.js	33253	46255
+different	zoidium/runtime-config.js	3086	3208
+different	zoidium/runtime-loader.js	11972	10779
+different	zoidium/settings.js	20730	22020

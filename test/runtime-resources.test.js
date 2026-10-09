@@ -86,3 +86,57 @@ test("the staged three.js patch adds the four extended bevel options", () => {
   assert.match(patched, /verticesSizes/);
   assert.equal(patchThreeR91Source(patched), patched);
 });
+
+const { fetchBytes } = require("../tools/runtime-resources");
+
+test("resource fetch retries temporary HTTP errors within one timeout budget", async () => {
+  let calls = 0;
+  const result = await fetchBytes("https://example.test/cm3/script.js", {
+    timeoutMs: 2000,
+    fetchImpl: async () => ++calls === 1 ? new Response("busy", { status: 503, headers: { "Retry-After": "0" } }) : new Response("ready"),
+  });
+  assert.equal(calls, 2);
+  assert.equal(result.bytes.toString(), "ready");
+});
+
+test("permanent HTTP failures and policy violations are not retried", async () => {
+  for (const response of [
+    { ok: false, status: 404 },
+    { ok: true, url: "https://other.test/cm3/script.js" },
+    { ok: true, url: "https://example.test/outside/script.js" },
+  ]) {
+    let calls = 0;
+    await assert.rejects(fetchBytes("https://example.test/cm3/script.js", {
+      allowedOrigin: "https://example.test",
+      allowedDirectory: "https://example.test/cm3/",
+      fetchImpl: async () => { calls += 1; return response; },
+    }));
+    assert.equal(calls, 1);
+  }
+});
+
+test("retry-after waiting shares the fetch timeout and honors caller abort", async () => {
+  let calls = 0;
+  const busy = async () => { calls += 1; return new Response("busy", { status: 429, headers: { "Retry-After": "60" } }); };
+  await assert.rejects(fetchBytes("https://example.test/cm3/script.js", { fetchImpl: busy, timeoutMs: 20 }), /Timed out/);
+  assert.equal(calls, 1);
+  const controller = new AbortController();
+  const reason = new Error("caller cancelled");
+  const pending = fetchBytes("https://example.test/cm3/script.js", { fetchImpl: busy, timeoutMs: 1000, signal: controller.signal });
+  setTimeout(() => controller.abort(reason), 10);
+  await assert.rejects(pending, (error) => error === reason);
+  assert.equal(calls, 2);
+});
+
+test("a network error retries but a fetch AbortError does not", async () => {
+  let calls = 0;
+  await fetchBytes("https://example.test/cm3/script.js", {
+    fetchImpl: async () => { if (++calls === 1) throw new TypeError("fetch failed"); return new Response("ready"); },
+  });
+  assert.equal(calls, 2);
+  calls = 0;
+  await assert.rejects(fetchBytes("https://example.test/cm3/script.js", {
+    fetchImpl: async () => { calls += 1; throw new DOMException("cancelled", "AbortError"); },
+  }), { name: "AbortError" });
+  assert.equal(calls, 1);
+});

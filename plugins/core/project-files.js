@@ -33,6 +33,52 @@
     return normalizeProjectName(name);
   }
 
+  // Older desktop builds replaced non-ASCII names with labels such as
+  // "Project [U+3046 U+304A]" before the renderer's font path was fixed.
+  // Decode that exact legacy format at the UI boundary so existing restore
+  // points become readable without changing unrelated user-entered names.
+  function decodeLegacyDisplayName(value) {
+    var name = normalizeProjectName(value);
+    var match = /^Project \[((?:U\+[0-9A-Fa-f]{1,6})(?: U\+[0-9A-Fa-f]{1,6})*)\]$/.exec(name);
+    if (!match) return name;
+
+    var tokens = match[1].split(" ");
+    var codePoints = [];
+    for (var index = 0; index < tokens.length; index += 1) {
+      var codePoint = Number.parseInt(tokens[index].slice(2), 16);
+      if (!Number.isInteger(codePoint) || codePoint < 0 || codePoint > 0x10ffff) {
+        return name;
+      }
+      codePoints.push(codePoint);
+    }
+
+    try {
+      return String.fromCodePoint.apply(String, codePoints) || name;
+    } catch (_error) {
+      return name;
+    }
+  }
+
+  // Keep this as a single display-name hook so project-name rendering stays
+  // consistent across the toolbar, restore points, and accessibility labels.
+  // Electron's font backend is configured in the desktop main process; the
+  // renderer must not replace a user's real name with an artificial label.
+  function displayNameForUi(value) {
+    return decodeLegacyDisplayName(value);
+  }
+
+  function fileDiagnostics(file) {
+    if (!file) return {};
+    return {
+      filename: typeof file.name === "string" ? file.name : "",
+      size: Number.isFinite(Number(file.size)) ? Number(file.size) : null,
+      type: typeof file.type === "string" ? file.type : "",
+      lastModified: Number.isFinite(Number(file.lastModified))
+        ? Number(file.lastModified)
+        : null,
+    };
+  }
+
   function dispatch(type, detail) {
     try {
       global.dispatchEvent(new CustomEvent(type, { detail: detail || {} }));
@@ -200,24 +246,33 @@
       return left.name < right.name ? -1 : left.name > right.name ? 1 : 0;
     });
     var encoder = new TextEncoder();
-    var parts = [];
-    var totalLength = 0;
-
+    var summaries = [];
     for (var index = 0; index < entries.length; index += 1) {
       var entry = entries[index];
       var bytes = await bytesForData(entry.data);
-      var header = encoder.encode(entry.name + "\u0000" + bytes.length + "\u0000");
-      parts.push(header, bytes);
-      totalLength += header.length + bytes.length;
+      summaries.push([entry.name, bytes.length, await fingerprintBytes(bytes)]);
     }
+    // Version the new algorithm. Existing restore points remain readable;
+    // their old fingerprint can cause only one extra automatic snapshot.
+    return "entries-v2:" + await fingerprintBytes(encoder.encode(JSON.stringify(summaries)));
+  }
 
-    var combined = new Uint8Array(totalLength);
-    var offset = 0;
-    parts.forEach(function (part) {
-      combined.set(part, offset);
-      offset += part.length;
-    });
-    return fingerprintBytes(combined);
+  async function materializeArchive(archive) {
+    var materialized = new PZ.archive();
+    var entries = archive.files || [];
+    for (var index = 0; index < entries.length; index += 1) {
+      var entry = entries[index];
+      // WORKERFS requires size and slice. Reuse stable in-memory Blobs and
+      // detach live worker File handles before they can be overwritten.
+      var data = entry.data;
+      if (data && typeof data.slice === "function" && Number.isFinite(Number(data.size))) {
+        data = await detachArchiveBlob(data);
+      } else {
+        data = new Blob([await bytesForData(data)]);
+      }
+      materialized.addFile(entry.name, data);
+    }
+    return materialized;
   }
 
   async function createArchiveUnlocked(editor) {
@@ -226,7 +281,13 @@
     }
 
     var archive = new PZ.archive();
+    if (global.console && typeof global.console.info === "function") {
+      global.console.info("[Zoidium] project archive phase", "project-save-start");
+    }
     await PZ.project.save(archive, editor.project);
+    if (global.console && typeof global.console.info === "function") {
+      global.console.info("[Zoidium] project archive phase", "project-save-end");
+    }
     var projectName = getProjectName(editor);
     archive.addFileString("zoidium.json", JSON.stringify({
       version: 1,
@@ -234,6 +295,9 @@
     }));
 
     var assets = listAssets(editor.project);
+    if (global.console && typeof global.console.info === "function") {
+      global.console.info("[Zoidium] project archive phase", "assets-start", assets.length);
+    }
     var packagedAssetCount = 0;
     for (var index = 0; index < assets.length; index += 1) {
       var asset = assets[index];
@@ -246,10 +310,17 @@
     }
 
     var fingerprint = await fingerprintArchive(archive);
+    if (global.console && typeof global.console.info === "function") {
+      global.console.info("[Zoidium] project archive phase", "fingerprint-end");
+    }
+    var materialized = await materializeArchive(archive);
+    if (global.console && typeof global.console.info === "function") {
+      global.console.info("[Zoidium] project archive phase", "materialize-end");
+    }
     var io = PZ.zoidiumIoSerialization;
     var blob = io && typeof io.tarWithoutLock === "function"
-      ? await io.tarWithoutLock(archive)
-      : await archive.tar();
+      ? await io.tarWithoutLock(materialized)
+      : await materialized.tar();
     if (!blob) throw new Error("Could not create the project archive.");
     blob = await detachArchiveBlob(blob);
     return {
@@ -308,8 +379,45 @@
         ? function () {
             triggerDownload(archiveResult.blob, filename);
           }
-        : null,
+      : null,
     });
+  }
+
+  function isUserGesturePickerError(error) {
+    if (!error || error.name !== "SecurityError") return false;
+    return /showSaveFilePicker|user gesture|user activation/i.test(
+      String(error.message || ""),
+    );
+  }
+
+  function markProjectSavedIfUnchanged(editor, savedProject, savedRevision) {
+    if (
+      editor.project === savedProject &&
+      getProjectRevision(editor) === savedRevision &&
+      editor.project &&
+      editor.project.ui
+    ) {
+      editor.project.ui.dirty = false;
+    }
+  }
+
+  function saveAsDownloadFallback(
+    editor,
+    archiveResult,
+    filename,
+    savedProject,
+    savedRevision,
+  ) {
+    triggerDownload(archiveResult.blob, filename);
+    markProjectSavedIfUnchanged(editor, savedProject, savedRevision);
+    dispatch("zoidium:project-saved", {
+      editor: editor,
+      filename: filename,
+      size: archiveResult.blob.size,
+      assetCount: archiveResult.assetCount,
+      delivery: "download",
+    });
+    return archiveResult;
   }
 
   async function runSaveProject(editor) {
@@ -361,6 +469,23 @@
       return null;
     }
 
+    if (pickerError && isUserGesturePickerError(pickerError)) {
+      try {
+        return saveAsDownloadFallback(
+          editor,
+          archiveResult,
+          filename,
+          savedProject,
+          savedRevision,
+        );
+      } catch (error) {
+        emitError(editor, error, archiveResult, function () {
+          return saveProject(editor);
+        });
+        return null;
+      }
+    }
+
     if (pickerError) {
       emitError(editor, pickerError, archiveResult, function () {
         return saveProject(editor);
@@ -388,14 +513,7 @@
       await writable.close();
       editor._zoidiumSaveFileHandle = targetHandle;
       editor._zoidiumSaveFileName = filename;
-      if (
-        editor.project === savedProject &&
-        getProjectRevision(editor) === savedRevision &&
-        editor.project &&
-        editor.project.ui
-      ) {
-        editor.project.ui.dirty = false;
-      }
+      markProjectSavedIfUnchanged(editor, savedProject, savedRevision);
       dispatch("zoidium:project-saved", {
         editor: editor,
         filename: filename,
@@ -468,8 +586,21 @@
     if (!editor.confirmIfDirty()) return;
 
     editor.showFilePicker(async function (event) {
-      var file = event.currentTarget.files && event.currentTarget.files[0];
+      var fileInput = event.currentTarget;
+      var file = fileInput && fileInput.files && fileInput.files[0];
       if (!file) return;
+
+      var originalFilename = typeof file.name === "string" ? file.name : "";
+      // Some macOS/Electron combinations can crash while laying out a
+      // non-ASCII filename in the native file input. Keep the selected File
+      // and its real name for parsing/diagnostics, but remove the filename
+      // from the live DOM control immediately after the user picks it.
+      try {
+        if (fileInput) fileInput.value = "";
+      } catch (_error) {
+        // Clearing the presentation is best effort; the file operation still
+        // uses the already captured File object below.
+      }
 
       try {
         var archive = new PZ.archive();
@@ -483,17 +614,18 @@
           editor,
           metadata && metadata.name
             ? metadata.name
-            : projectNameFromFileName(file.name),
+            : projectNameFromFileName(originalFilename),
         );
         dispatch("zoidium:project-opened", {
           editor: editor,
-          filename: file.name,
+          ...fileDiagnostics(file),
         });
       } catch (error) {
         dispatch("zoidium:project-error", {
           editor: editor,
           error: error,
           message: errorMessage(error, "Could not open the project."),
+          ...fileDiagnostics(file),
           retry: function () {
             return editor.open();
           },
@@ -509,6 +641,7 @@
     setProjectName: setProjectName,
     setRawProjectName: setRawProjectName,
     fileNameForProject: fileNameForProject,
+    displayNameForUi: displayNameForUi,
     createArchive: createArchive,
     fingerprintArchive: fingerprintArchive,
     triggerDownload: triggerDownload,

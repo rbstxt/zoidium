@@ -545,12 +545,15 @@ function getHeader(response, name) {
     : null;
 }
 
+// The configured timeout covers all attempts, response bodies, and backoff.
 async function fetchBytes(
   url,
   {
     fetchImpl = globalThis.fetch,
     timeoutMs = defaultFetchTimeoutMs,
     allowedOrigin = null,
+    allowedDirectory = null,
+    signal = null,
   } = {}
 ) {
   const requestUrl = normalizeHttpUrl(url, "CM3 resource");
@@ -558,48 +561,81 @@ async function fetchBytes(
   if (typeof fetchImpl !== "function") {
     throw new Error("This Node.js runtime does not provide fetch() for CM3 resources");
   }
-
   const controller = new AbortController();
+  const onAbort = () => controller.abort(signal.reason);
+  if (signal) {
+    if (signal.aborted) onAbort();
+    else signal.addEventListener("abort", onAbort, { once: true });
+  }
   const timer = setTimeout(() => controller.abort(), timeout);
   try {
-    const response = await fetchImpl(requestUrl, {
-      headers: {
-        accept: "*/*",
-        "user-agent": requestUserAgent,
-      },
-      redirect: "follow",
-      signal: controller.signal,
-    });
-    if (!response || !response.ok) {
-      throw new Error(`HTTP ${response ? response.status : "unknown"} for ${requestUrl}`);
+    for (let attempt = 0; ; attempt += 1) {
+      controller.signal.throwIfAborted();
+      let response;
+      let bytes;
+      let retryDelay = 300 * 2 ** attempt;
+      try {
+        response = await fetchImpl(requestUrl, {
+          headers: { accept: "*/*", "user-agent": requestUserAgent },
+          redirect: "follow",
+          signal: controller.signal,
+        });
+        const finalUrl = normalizeHttpUrl(response && response.url || requestUrl, "CM3 resource response");
+        if (allowedOrigin && new URL(finalUrl).origin !== allowedOrigin) {
+          throw new Error(`CM3 resource redirect crossed origin boundary: ${requestUrl} -> ${finalUrl}`);
+        }
+        if (allowedDirectory && !new URL(finalUrl).pathname.startsWith(new URL(allowedDirectory).pathname)) {
+          throw new Error(`CM3 resource redirect left the configured source directory: ${requestUrl} -> ${finalUrl}`);
+        }
+        if (!response || !response.ok) {
+          const error = new Error(`HTTP ${response ? response.status : "unknown"} for ${requestUrl}`);
+          error.retryable = Boolean(response && [408, 429, 500, 502, 503, 504].includes(response.status));
+          const retryAfter = getHeader(response, "retry-after");
+          if (retryAfter != null) {
+            const seconds = Number(retryAfter);
+            const milliseconds = Number.isFinite(seconds) && seconds >= 0
+              ? seconds * 1000 : Date.parse(retryAfter) - Date.now();
+            if (Number.isFinite(milliseconds)) retryDelay = Math.max(retryDelay, milliseconds);
+          }
+          if (response && response.body && typeof response.body.cancel === "function") {
+            await response.body.cancel().catch(() => {});
+          }
+          throw error;
+        }
+        bytes = Buffer.from(await response.arrayBuffer());
+        return {
+          bytes,
+          contentType: getHeader(response, "content-type"),
+          etag: getHeader(response, "etag"),
+          finalUrl,
+          lastModified: getHeader(response, "last-modified"),
+        };
+      } catch (error) {
+        const code = error && (error.code || error.cause && error.cause.code);
+        const transient = error && error.retryable ||
+          error instanceof TypeError && /fetch failed|network|terminated/i.test(error.message) ||
+          ["ECONNRESET", "ECONNREFUSED", "EAI_AGAIN", "ETIMEDOUT", "UND_ERR_CONNECT_TIMEOUT", "UND_ERR_SOCKET"].includes(code);
+        if (controller.signal.aborted || error && error.name === "AbortError" || !transient || attempt >= 2) throw error;
+        await new Promise((resolve, reject) => {
+          const abort = () => { clearTimeout(delayTimer); reject(controller.signal.reason); };
+          const delayTimer = setTimeout(() => {
+            controller.signal.removeEventListener("abort", abort);
+            resolve();
+          }, Math.min(retryDelay, timeout));
+          controller.signal.addEventListener("abort", abort, { once: true });
+          if (controller.signal.aborted) abort();
+        });
+      }
     }
-
-    const finalUrl = normalizeHttpUrl(
-      response.url || requestUrl,
-      "CM3 resource response"
-    );
-    const finalOrigin = new URL(finalUrl).origin;
-    if (allowedOrigin && finalOrigin !== allowedOrigin) {
-      throw new Error(
-        `CM3 resource redirect crossed origin boundary: ${requestUrl} -> ${finalUrl}`
-      );
-    }
-    return {
-      bytes: Buffer.from(await response.arrayBuffer()),
-      contentType: getHeader(response, "content-type"),
-      etag: getHeader(response, "etag"),
-      finalUrl,
-      lastModified: getHeader(response, "last-modified"),
-    };
   } catch (error) {
+    if (signal && signal.aborted) throw signal.reason || error;
     if (controller.signal.aborted) {
-      throw new Error(`Timed out fetching CM3 resource after ${timeout} ms: ${requestUrl}`, {
-        cause: error,
-      });
+      throw new Error(`Timed out fetching CM3 resource after ${timeout} ms: ${requestUrl}`, { cause: error });
     }
     throw error;
   } finally {
     clearTimeout(timer);
+    if (signal) signal.removeEventListener("abort", onAbort);
   }
 }
 
@@ -706,6 +742,7 @@ async function fetchResourceGraph({
     try {
       response = await fetchBytes(reference.url, {
         allowedOrigin: sourceOrigin,
+        allowedDirectory: resourceRoot,
         fetchImpl,
         timeoutMs: fetchTimeoutMs,
       });
@@ -1649,6 +1686,7 @@ module.exports = {
   discoverTextReferences,
   ensureResourceCache,
   fetchResourceGraph,
+  fetchBytes,
   inspectResourceCache,
   normalizeResourcePath,
   normalizeSourcePageUrl,

@@ -11,7 +11,7 @@ const loaderSource = fs.readFileSync(
   "utf8"
 );
 
-async function startLayout(layout, postInitScripts, runtimeOverrides) {
+async function startLayout(layout, postInitScripts, runtimeOverrides, loading) {
   let domReady;
   let initialized = false;
   const loadedScripts = [];
@@ -95,6 +95,7 @@ async function startLayout(layout, postInitScripts, runtimeOverrides) {
           };
         }
       }
+      if (loading && loading(element)) return;
       if (failing) {
         if (typeof element.onerror === "function") element.onerror(new Error("mock load failure"));
         return;
@@ -166,4 +167,26 @@ test("the loader appends the shared asset version to bare URLs", async () => {
   const kit = result.loadedScripts.find((src) => src.includes("ui-kit.js"));
   assert.match(kit, /\?v=99$/);
   assert.ok(result.dispatchedEvents.some((event) => event.type === "zoidium:ready"));
+});
+
+
+test("a fast later failure is handled while an earlier script is pending", async () => {
+  const unhandled = [];
+  const onUnhandled = (error) => unhandled.push(error);
+  process.on("unhandledRejection", onUnhandled);
+  let appendedLater = false;
+  try {
+    const result = await startLayout("clipmaker", [], { preInitScripts: ["./slow.js", "./failing-later.js", "./last.js"] }, (element) => {
+      if (element.src && element.src.includes("last.js")) appendedLater = true;
+      if (element.src && element.src.includes("slow.js")) {
+        setTimeout(() => { assert.equal(appendedLater, true); element.onload(); }, 20);
+        return true;
+      }
+      return false;
+    });
+    assert.deepEqual(unhandled, []);
+    const ready = result.dispatchedEvents.find((event) => event.type === "zoidium:ready");
+    assert.equal(ready.detail.degraded, true);
+    assert.equal(ready.detail.failedScripts[0].script, "./failing-later.js");
+  } finally { process.off("unhandledRejection", onUnhandled); }
 });

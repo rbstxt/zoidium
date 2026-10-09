@@ -26,13 +26,13 @@
       "id": "core",
       "name": "Zoidium Core",
       "author": "Zoidium",
-      "version": "11",
+      "version": "12",
       "visibility": "hidden",
       "alwaysEnabled": true,
       "tagline": "Built-in core extensions",
       "description": "Hidden built-in extensions that always run. Not shown in the Plugins panel and never stored in projects.",
-      "manifest": "./plugins/core/manifest.json?v=11",
-      "bundle": "./plugins/core/bundle.json?v=11"
+      "manifest": "./plugins/core/manifest.json?v=12",
+      "bundle": "./plugins/core/bundle.json?v=12"
     },
     {
       "id": "easing-plus",
@@ -110,18 +110,18 @@
     {
       "id": "repeater",
       "category": "scene",
-      "name": "Repeater",
+      "name": "Effector",
       "author": "Zoidium",
-      "version": "10",
+      "version": "12",
       "defaultEnabled": true,
-      "itemCount": 4,
-      "format": "3D repeaters",
-      "tagline": "Procedural Scene Copies",
+      "itemCount": 6,
+      "format": "3D effectors",
+      "tagline": "Repeaters and Mesh Deformers",
       "color": "#6c7fb5",
-      "description": "Adds Repeater, Linear Repeater, Random Repeater, and Echo Repeater objects to 3D Scene.",
+      "description": "Adds procedural repeaters plus Twist and Warp effectors to 3D Scene.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/scene-plus/manifest.json?v=10",
-      "bundle": "./plugins/scene-plus/bundle.json?v=10"
+      "manifest": "./plugins/scene-plus/manifest.json?v=12",
+      "bundle": "./plugins/scene-plus/bundle.json?v=12"
     },
     {
       "id": "material-plus",

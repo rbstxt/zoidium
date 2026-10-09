@@ -619,14 +619,42 @@
     return true;
   }
 
+  var installTimer = null;
+  var installStopped = false;
+  var installDeadline = 0;
+  var installEditor = null;
+
+  function stopInstall() {
+    installStopped = true;
+    if (installTimer !== null) global.clearTimeout(installTimer);
+    installTimer = null;
+  }
+
   function retryInstall() {
+    installTimer = null;
+    if (installStopped || installEditor && (global.CM !== installEditor || installEditor.destroyed || installEditor._destroyed)) return;
+    if (!installEditor && global.CM) installEditor = global.CM;
     if (install()) return;
-    global.setTimeout(retryInstall, 50);
+    var remaining = installDeadline - Date.now();
+    if (remaining <= 0) {
+      try {
+        global.dispatchEvent(new CustomEvent("zoidium:extension-script-error", {
+          detail: { script: "zoidium/settings.js", phase: "post-init", message: "Settings panel could not attach within 30 seconds." },
+        }));
+      } catch (_error) {
+        // Diagnostics must not prevent startup.
+      }
+      return;
+    }
+    installTimer = global.setTimeout(retryInstall, Math.min(250, remaining));
   }
 
   function start() {
     state.settings = readSettings();
     applySettings();
+    installDeadline = Date.now() + 30000;
+    installEditor = global.CM || null;
+    if (typeof global.addEventListener === "function") global.addEventListener("pagehide", stopInstall, { once: true });
     retryInstall();
   }
 

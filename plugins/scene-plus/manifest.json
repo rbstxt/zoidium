@@ -1,20 +1,20 @@
 {
   "schemaVersion": 1,
   "id": "repeater",
-  "name": "Repeater",
+  "name": "Effector",
   "author": "Zoidium",
-  "version": "10",
+  "version": "12",
   "kind": "object",
-  "objectCategory": "REPEATER",
+  "objectCategory": "EFFECTOR",
   "objectClassParent": {
-    "name": "Repeater",
+    "name": "Effector",
     "type": 5
   },
   "objectTypes": [
     {
       "target": "object3d",
-      "name": "Repeater",
-      "desc": "Create repeated copies of one or more 3D objects.",
+      "name": "Effector",
+      "desc": "Create repeated, twisted, and warped 3D object groups.",
       "type": 5,
       "list": [
         {
@@ -68,6 +68,30 @@
             "repeaterProperties": {},
             "objects": []
           }
+        },
+        {
+          "name": "Twist",
+          "type": "zoidium:repeater/twist",
+          "data": {
+            "type": "zoidium:repeater/twist",
+            "schemaVersion": 1,
+            "properties": {
+              "name": "Twist"
+            },
+            "objects": []
+          }
+        },
+        {
+          "name": "Warp",
+          "type": "zoidium:repeater/warp",
+          "data": {
+            "type": "zoidium:repeater/warp",
+            "schemaVersion": 1,
+            "properties": {
+              "name": "Warp"
+            },
+            "objects": []
+          }
         }
       ]
     }
@@ -100,12 +124,26 @@
       "name": "Echo Repeater",
       "description": "Copies source objects from explicitly evaluated earlier frames.",
       "schemaVersion": 2
+    },
+    {
+      "id": "twist",
+      "type": "zoidium:repeater/twist",
+      "name": "Twist",
+      "description": "Bends descendant 3D meshes around the selected axis with selectable curve quality and polygon density.",
+      "schemaVersion": 1
+    },
+    {
+      "id": "warp",
+      "type": "zoidium:repeater/warp",
+      "name": "Warp",
+      "description": "Bends descendant 3D meshes with selectable curve quality, polygon density, and an optional falloff field.",
+      "schemaVersion": 1
     }
   ],
   "modules": [
     {
-      "id": "repeater-runtime",
-      "source": "./plugins/scene-plus/scene-plus.js?v=10"
+      "id": "effector-runtime",
+      "source": "./plugins/scene-plus/scene-plus.js?v=12"
     }
   ]
 }

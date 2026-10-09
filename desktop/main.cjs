@@ -1,6 +1,6 @@
 "use strict";
 
-const { app, BrowserWindow, shell } = require("electron");
+const { app, BrowserWindow, Menu, crashReporter, shell } = require("electron");
 const fs = require("node:fs");
 const http = require("node:http");
 const path = require("node:path");
@@ -8,6 +8,12 @@ const { pipeline } = require("node:stream/promises");
 
 const applicationRoot = path.resolve(__dirname, "..");
 const desktopPort = Number(process.env.ZOIDIUM_DESKTOP_PORT || 17823);
+
+// Keep the renderer on Chromium's legacy font path on macOS while the bundled
+// Electron runtime and the host OS are validated against Fontations changes.
+if (process.platform === "darwin") {
+  app.commandLine.appendSwitch("disable-features", "FontationsFontBackend");
+}
 
 const MIME_TYPES = new Map([
   [".css", "text/css; charset=utf-8"],
@@ -36,11 +42,172 @@ if (!Number.isInteger(desktopPort) || desktopPort < 1024 || desktopPort > 65535)
   throw new Error("ZOIDIUM_DESKTOP_PORT must be an integer between 1024 and 65535");
 }
 
+process.on("uncaughtException", (error) => {
+  logMain("fatal", "uncaught main-process exception", errorDetails(error));
+  setImmediate(() => app.quit());
+});
+process.on("unhandledRejection", (reason) => {
+  logMain("error", "unhandled main-process rejection", errorDetails(reason));
+});
+process.on("exit", (code) => {
+  logMain("info", "main process exiting", { code });
+});
+
 let server = null;
 let serverOrigin = null;
 let mainWindow = null;
 let closingPromise = null;
 let quitting = false;
+let mainLogPath = null;
+let mainLogDirectory = null;
+let pendingMainLogLines = [];
+const MAIN_LOG_MAX_BYTES = 5 * 1024 * 1024;
+
+function errorDetails(error) {
+  if (!error || typeof error !== "object") return { message: String(error) };
+  return {
+    name: error.name || "Error",
+    message: error.message || String(error),
+    ...(error.code != null ? { code: error.code } : {}),
+    ...(error.stack ? { stack: error.stack } : {}),
+  };
+}
+
+function appendMainLogLine(line) {
+  if (!mainLogPath) {
+    pendingMainLogLines.push(line);
+    return;
+  }
+  try {
+    let currentBytes = 0;
+    try {
+      currentBytes = fs.statSync(mainLogPath).size;
+    } catch (error) {
+      if (error?.code !== "ENOENT") throw error;
+    }
+    if (currentBytes + Buffer.byteLength(line, "utf8") > MAIN_LOG_MAX_BYTES) {
+      const rotatedPath = `${mainLogPath}.1`;
+      fs.rmSync(rotatedPath, { force: true });
+      fs.renameSync(mainLogPath, rotatedPath);
+    }
+    fs.appendFileSync(mainLogPath, line, { encoding: "utf8", mode: 0o600 });
+  } catch (error) {
+    try {
+      process.stderr.write(`[Zoidium] could not write the main log: ${error.stack || error}\n`);
+    } catch (_writeError) {
+      // There is nowhere else to report a logging failure.
+    }
+  }
+}
+
+function logMain(level, message, details) {
+  const entry = {
+    at: new Date().toISOString(),
+    level,
+    message: String(message),
+    ...(details === undefined ? {} : { details }),
+  };
+  let line;
+  try {
+    line = `${JSON.stringify(entry)}\n`;
+  } catch (error) {
+    line = `${JSON.stringify({
+      at: entry.at,
+      level: "error",
+      message: "Could not serialize a main-process log entry",
+      details: errorDetails(error),
+    })}\n`;
+  }
+  appendMainLogLine(line);
+}
+
+function initializeMainLog() {
+  try {
+    mainLogDirectory = app.getPath("logs");
+    fs.mkdirSync(mainLogDirectory, { recursive: true, mode: 0o700 });
+    mainLogPath = path.join(mainLogDirectory, "zoidium-main.log");
+    const pending = pendingMainLogLines;
+    pendingMainLogLines = [];
+    if (pending.length > 0) appendMainLogLine(pending.join(""));
+    logMain("info", "main process started", {
+      platform: process.platform,
+      arch: process.arch,
+      electron: process.versions.electron,
+      chrome: process.versions.chrome,
+      node: process.versions.node,
+      logPath: mainLogPath,
+    });
+  } catch (error) {
+    process.stderr.write(`[Zoidium] could not initialize the main log: ${error.stack || error}\n`);
+  }
+}
+
+function initializeCrashReporter() {
+  try {
+    crashReporter.start({
+      productName: "Zoidium",
+      uploadToServer: false,
+      compress: false,
+      globalExtra: { log_mode: "local-only" },
+    });
+    logMain("info", "native crash reporter started", {
+      crashDumpsPath: app.getPath("crashDumps"),
+      uploadToServer: false,
+    });
+  } catch (error) {
+    logMain("error", "failed to start native crash reporter", errorDetails(error));
+  }
+}
+
+function openLogFolder() {
+  if (!mainLogDirectory) {
+    logMain("warn", "debug log folder requested before the main log was ready");
+    return;
+  }
+  shell.openPath(mainLogDirectory).then((errorMessage) => {
+    if (errorMessage) logMain("error", "failed to open the debug log folder", { errorMessage });
+  });
+}
+
+function downloadRendererDebugLog() {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    logMain("warn", "renderer debug log requested without a window");
+    return;
+  }
+  mainWindow.webContents
+    .executeJavaScript(
+      "(async function () {" +
+      "if (!window.ZOIDIUM_DEBUG_LOG || typeof window.ZOIDIUM_DEBUG_LOG.download !== 'function') " +
+      "throw new Error('Renderer debug log is not available');" +
+      "return window.ZOIDIUM_DEBUG_LOG.download();" +
+      "})()",
+      true,
+    )
+    .then((result) => logMain("info", "renderer debug log requested from application menu", result))
+    .catch((error) => logMain("error", "renderer debug log request failed", errorDetails(error)));
+}
+
+function installApplicationMenu() {
+  const template = [
+    process.platform === "darwin"
+      ? { role: "appMenu" }
+      : { label: "File", submenu: [{ role: "quit" }] },
+    {
+      label: "Debug",
+      submenu: [
+        { label: "Download debug log", click: downloadRendererDebugLog },
+        { label: "Open debug log folder", click: openLogFolder },
+      ],
+    },
+    { role: "editMenu" },
+    { role: "viewMenu" },
+  ];
+  if (process.platform === "darwin") template.push({ role: "windowMenu" });
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
+
+initializeMainLog();
+initializeCrashReporter();
 
 function listen(localServer, port) {
   return new Promise((resolve, reject) => {
@@ -84,6 +251,26 @@ function etagFor(stat) {
   return `\"${stat.size.toString(16)}-${Math.trunc(stat.mtimeMs).toString(16)}\"`;
 }
 
+function parseByteRange(value, size) {
+  if (!value || !value.startsWith("bytes=")) return null;
+  const match = /^bytes=(\d*)-(\d*)$/.exec(value);
+  if (!match || (!match[1] && !match[2]) || size === 0) return false;
+  let start;
+  let end;
+  if (!match[1]) {
+    const suffix = Number(match[2]);
+    if (!Number.isSafeInteger(suffix) || suffix <= 0) return false;
+    start = Math.max(0, size - suffix);
+    end = size - 1;
+  } else {
+    start = Number(match[1]);
+    end = match[2] ? Number(match[2]) : size - 1;
+    if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start >= size || end < start) return false;
+    end = Math.min(end, size - 1);
+  }
+  return { start, end };
+}
+
 async function serveRequest(request, response) {
   if (request.method !== "GET" && request.method !== "HEAD") {
     response.writeHead(405, { Allow: "GET, HEAD" });
@@ -114,6 +301,8 @@ async function serveRequest(request, response) {
     "Content-Length": stat.size,
     "Content-Type": MIME_TYPES.get(path.extname(filePath).toLowerCase()) || "application/octet-stream",
     ETag: etag,
+    "Last-Modified": stat.mtime.toUTCString(),
+    "Accept-Ranges": "bytes",
   };
   if (request.headers["if-none-match"] === etag) {
     response.writeHead(304, { ETag: etag, "Cache-Control": headers["Cache-Control"] });
@@ -121,12 +310,28 @@ async function serveRequest(request, response) {
     return;
   }
 
-  response.writeHead(200, headers);
+  const ifRange = request.headers["if-range"];
+  const ifRangeDate = ifRange ? Date.parse(ifRange) : NaN;
+  const rangeAllowed = !ifRange || ifRange === etag ||
+    (Number.isFinite(ifRangeDate) && Math.floor(stat.mtimeMs / 1000) <= Math.floor(ifRangeDate / 1000));
+  const range = request.method === "GET" && rangeAllowed
+    ? parseByteRange(request.headers.range, stat.size)
+    : null;
+  if (range === false) {
+    response.writeHead(416, { ...headers, "Content-Length": 0, "Content-Range": `bytes */${stat.size}` });
+    response.end();
+    return;
+  }
+  if (range) {
+    headers["Content-Range"] = `bytes ${range.start}-${range.end}/${stat.size}`;
+    headers["Content-Length"] = range.end - range.start + 1;
+  }
+  response.writeHead(range ? 206 : 200, headers);
   if (request.method === "HEAD") {
     response.end();
     return;
   }
-  await pipeline(fs.createReadStream(filePath), response);
+  await pipeline(fs.createReadStream(filePath, range || undefined), response);
 }
 
 async function startServer() {
@@ -134,7 +339,8 @@ async function startServer() {
     try {
       await serveRequest(request, response);
     } catch (error) {
-      console.error("[Zoidium] local server request failed:", error);
+      if (response.destroyed || error?.code === "ERR_STREAM_PREMATURE_CLOSE") return;
+      logMain("error", "local server request failed", errorDetails(error));
       if (!response.headersSent) {
         const status = error?.code === "ENOENT" ? 404 : 500;
         response.writeHead(status, { "Content-Type": "text/plain; charset=utf-8" });
@@ -146,7 +352,7 @@ async function startServer() {
   const port = await listen(localServer, desktopPort);
   server = localServer;
   serverOrigin = `http://127.0.0.1:${port}`;
-  console.log(`[Zoidium] desktop server running at ${serverOrigin}`);
+  logMain("info", "desktop server running", { origin: serverOrigin });
   return port;
 }
 
@@ -161,7 +367,10 @@ function isLocalUrl(value) {
 
 function openExternal(value) {
   shell.openExternal(value).catch((error) => {
-    console.error("[Zoidium] failed to open external URL:", error);
+    logMain("error", "failed to open external URL", {
+      url: value,
+      ...errorDetails(error),
+    });
   });
 }
 
@@ -191,9 +400,34 @@ async function createWindow() {
     event.preventDefault();
     openExternal(url);
   });
+  window.webContents.on("console-message", (_event, level, message, line, sourceId) => {
+    const names = ["debug", "info", "warn", "error", "error"];
+    logMain(names[level] || "info", "renderer console message", {
+      message,
+      line,
+      sourceId,
+    });
+  });
+  window.webContents.on("did-fail-load", (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+    logMain("error", "renderer failed to load", {
+      errorCode,
+      errorDescription,
+      validatedURL,
+      isMainFrame,
+    });
+  });
   window.webContents.on("render-process-gone", (_event, details) => {
     if (quitting || details?.reason === "clean-exit") return;
-    console.error("[Zoidium] renderer process ended:", details);
+    logMain("fatal", "renderer process ended", details);
+  });
+  window.webContents.on("unresponsive", () => {
+    logMain("error", "renderer became unresponsive");
+  });
+  window.webContents.on("responsive", () => {
+    logMain("info", "renderer became responsive");
+  });
+  window.webContents.on("did-finish-load", () => {
+    logMain("info", "renderer finished loading", { url: window.webContents.getURL() });
   });
 
   mainWindow = window;
@@ -203,12 +437,31 @@ async function createWindow() {
   await window.loadURL(`http://127.0.0.1:${port}/`);
 }
 
+function closeHttpServer(localServer, timeoutMs = 2000) {
+  return new Promise((resolve) => {
+    let timer;
+    let finished = false;
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timer);
+      resolve();
+    };
+    timer = setTimeout(() => {
+      localServer.closeAllConnections?.();
+      finish();
+    }, timeoutMs);
+    localServer.close(finish);
+    localServer.closeIdleConnections?.();
+  });
+}
+
 function closeServer() {
   if (!server || !server.listening) return Promise.resolve();
   const localServer = server;
   server = null;
   serverOrigin = null;
-  return new Promise((resolve) => localServer.close(resolve));
+  return closeHttpServer(localServer);
 }
 
 function closeApplicationServer() {
@@ -222,20 +475,34 @@ function closeApplicationServer() {
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
+  app.on("child-process-gone", (_event, details) => {
+    logMain("fatal", "child process ended", {
+      type: details?.type,
+      name: details?.name,
+      reason: details?.reason,
+      exitCode: details?.exitCode,
+      serviceName: details?.serviceName,
+    });
+  });
+
   app.on("second-instance", () => {
+    logMain("info", "second instance requested focus");
     if (!mainWindow) return;
     if (mainWindow.isMinimized()) mainWindow.restore();
     mainWindow.focus();
   });
 
-  app.whenReady().then(() => createWindow()).catch((error) => {
-    console.error("[Zoidium] failed to start desktop application:", error);
+  app.whenReady().then(() => {
+    installApplicationMenu();
+    return createWindow();
+  }).catch((error) => {
+    logMain("fatal", "failed to start desktop application", errorDetails(error));
     app.quit();
   });
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow().catch((error) => console.error("[Zoidium] failed to reopen:", error));
+      createWindow().catch((error) => logMain("error", "failed to reopen", errorDetails(error)));
     }
   });
 
@@ -244,7 +511,7 @@ if (!app.requestSingleInstanceLock()) {
     event.preventDefault();
     quitting = true;
     closeApplicationServer()
-      .catch((error) => console.error("[Zoidium] failed to close local server:", error))
+      .catch((error) => logMain("error", "failed to close local server", errorDetails(error)))
       .finally(() => app.quit());
   });
 

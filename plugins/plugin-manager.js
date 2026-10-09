@@ -1310,6 +1310,30 @@
     return state.packagePromise;
   }
 
+  function createModuleLifecycle(pluginId) {
+    const cleanups = [];
+    let disposed = false;
+    return {
+      onDispose(cleanup) {
+        if (typeof cleanup !== "function") throw new TypeError("Plugin cleanup must be a function.");
+        if (disposed) throw new Error("Plugin lifecycle has already ended.");
+        cleanups.push(cleanup);
+        return cleanup;
+      },
+      async dispose() {
+        if (disposed) return;
+        disposed = true;
+        for (const cleanup of cleanups.splice(0).reverse()) {
+          try {
+            await cleanup();
+          } catch (error) {
+            console.error(`[Zoidium] failed to clean up ${pluginId}:`, error);
+          }
+        }
+      },
+    };
+  }
+
   async function registerManifest(plugin, manifest, state) {
     const getAsset = createPluginAssetResolver(state.bundleAssets);
     if (state.runtimeModules.length === 0) {
@@ -1328,6 +1352,21 @@
         if (!runtime || typeof runtime.activate !== "function") {
           throw new Error(`Plugin module has no activate() export: ${definition.id}`);
         }
+        const lifecycle = createModuleLifecycle(plugin.id);
+        let deactivated = false;
+        // Own the module before it can mutate the host or throw midway.
+        state.runtimeModules.push({
+          isInUse: () => runtime.isInUse?.(),
+          async deactivate() {
+            if (deactivated) return;
+            deactivated = true;
+            try {
+              await runtime.deactivate?.();
+            } finally {
+              await lifecycle.dispose();
+            }
+          },
+        });
         await runtime.activate({
           plugin,
           manifest,
@@ -1337,9 +1376,9 @@
           document,
           window,
           getAsset,
+          lifecycle,
           object3d: PZ.zoidium?.object3d?.forPlugin?.(plugin, manifest, getAsset) || null,
         });
-        state.runtimeModules.push(runtime);
       }
     }
 
@@ -1438,7 +1477,8 @@
 
     for (const definition of manifest.objectTypes || []) {
       const objectTypes = getObjectTypes(definition.target);
-      if (objectTypes.some((entry) => entry?._zoidiumPluginId === plugin.id)) continue;
+      if (objectTypes.some((entry) => entry?._zoidiumPluginId === plugin.id &&
+          entry?.name === definition.name && entry?.type === definition.type)) continue;
       const entry = JSON.parse(JSON.stringify(definition));
       delete entry.target;
       delete entry.replace;
@@ -1532,7 +1572,7 @@
     if (effectBadgeObserver) scheduleEffectPickerBadges();
   }
 
-  function unregisterPlugin(pluginId) {
+  async function unregisterPlugin(pluginId) {
     const registries = [getEffectTypes(), getMaterialTypes(), PZ.ui.objectTypes.get(PZ.object3d)];
     for (const entries of registries) {
       for (let index = entries.length - 1; index >= 0; index -= 1) {
@@ -1550,7 +1590,7 @@
     const state = pluginStates.get(pluginId);
     for (let index = (state?.runtimeModules?.length || 0) - 1; index >= 0; index -= 1) {
       try {
-        state.runtimeModules[index].deactivate?.();
+        await state.runtimeModules[index].deactivate?.();
       } catch (error) {
         console.error(`[Zoidium] failed to deactivate ${pluginId}:`, error);
       }
@@ -2261,15 +2301,26 @@
     projectPrototype.load = function (data) {
       const plugins = projectPluginRequirements(data);
       installMissingFactoriesForRequirements(plugins);
+      const pluginIds = plugins.map((plugin) => plugin.id);
+      const pluginVersions = plugins.map((plugin) => plugin.version || "");
       document.dispatchEvent(new CustomEvent("zoidium:project-load-start", {
-        detail: { pluginCount: plugins.length },
+        detail: {
+          pluginCount: plugins.length,
+          pluginIds,
+          pluginVersions,
+        },
       }));
       let result;
       try {
         result = originalProjectLoad.apply(this, arguments);
       } catch (error) {
         document.dispatchEvent(new CustomEvent("zoidium:project-load-error", {
-          detail: { error, pluginCount: plugins.length },
+          detail: {
+            error,
+            pluginCount: plugins.length,
+            pluginIds,
+            pluginVersions,
+          },
         }));
         throw error;
       }
@@ -2281,11 +2332,14 @@
       if (plugins.length > 0) {
         this._zoidiumPluginActivationPending = activateProjectPlugins(this, plugins).catch((error) => {
           this._zoidiumPluginActivationPending = null;
+          document.dispatchEvent(new CustomEvent("zoidium:project-plugin-activation-error", {
+            detail: { error, pluginIds, pluginVersions },
+          }));
           console.error("[Zoidium] failed to activate project plugins:", error);
         });
       }
       document.dispatchEvent(new CustomEvent("zoidium:project-load-complete", {
-        detail: { pluginCount: plugins.length },
+        detail: { pluginCount: plugins.length, pluginIds, pluginVersions },
       }));
       return result;
     };
@@ -2315,6 +2369,7 @@
   }
 
   async function enablePlugin(state, persist) {
+    if (state.disablePromise) await state.disablePromise;
     if (state.enablePromise) return state.enablePromise;
     state.enablePromise = (async () => {
       updateCard(state, "loading");
@@ -2337,7 +2392,7 @@
         updatePluginResourceUsageUi(state.plugin.id);
         emitState(state.plugin.id, true, featureCount);
       } catch (error) {
-        unregisterPlugin(state.plugin.id);
+        await unregisterPlugin(state.plugin.id);
         // Hidden core plugins are never persisted; avoid writing a
         // disabled flag that shouldStartEnabled must ignore anyway.
         if (state.plugin.visibility !== "hidden" && state.plugin.alwaysEnabled !== true) {
@@ -2353,37 +2408,49 @@
     return state.enablePromise;
   }
 
-  function disablePlugin(state, persist) {
+  async function disablePlugin(state, persist) {
     // Hidden core plugins cannot be disabled; there is no toggle for them.
     if (!state) return;
+    if (state.disablePromise) return state.disablePromise;
     if (state.plugin.alwaysEnabled === true || state.plugin.visibility === "hidden" || !state.card) return;
-    const inUse =
-      Array.from(trackedNativeEffects).some(
-        (effect) => effect._zoidiumPluginMetadata?.id === state.plugin.id
-      ) ||
-      Array.from(trackedPluginMaterials).some(
-        (material) => material._zoidiumPluginMetadata?.id === state.plugin.id
-      ) ||
-      Array.from(trackedPluginObjects).some(
-        (object) =>
-          object._zoidiumPluginMetadata?.id === state.plugin.id &&
-          !missingPluginObjects.has(object)
-      ) ||
-      Array.from(trackedPluginResources).some(
-        (resource) =>
-          resource._zoidiumPluginResourceMetadata?.id === state.plugin.id &&
-          !missingPluginResources.has(resource)
-      ) ||
-      (state.runtimeModules || []).some((runtime) => runtime.isInUse?.());
-    if (inUse) {
-      state.toggle.checked = true;
-      state.toggle.disabled = true;
-      return;
+    // Reserve the transition before awaiting activation. Concurrent requests
+    // must join this cleanup rather than starting a second unregister pass.
+    state.disablePromise = (async () => {
+      if (state.enablePromise) await state.enablePromise;
+      const inUse =
+        Array.from(trackedNativeEffects).some(
+          (effect) => effect._zoidiumPluginMetadata?.id === state.plugin.id
+        ) ||
+        Array.from(trackedPluginMaterials).some(
+          (material) => material._zoidiumPluginMetadata?.id === state.plugin.id
+        ) ||
+        Array.from(trackedPluginObjects).some(
+          (object) =>
+            object._zoidiumPluginMetadata?.id === state.plugin.id &&
+            !missingPluginObjects.has(object)
+        ) ||
+        Array.from(trackedPluginResources).some(
+          (resource) =>
+            resource._zoidiumPluginResourceMetadata?.id === state.plugin.id &&
+            !missingPluginResources.has(resource)
+        ) ||
+        (state.runtimeModules || []).some((runtime) => runtime.isInUse?.());
+      if (inUse) {
+        state.toggle.checked = true;
+        state.toggle.disabled = true;
+        return;
+      }
+      updateCard(state, "loading");
+      await unregisterPlugin(state.plugin.id);
+      if (persist) persistEnabled(state.plugin.id, false);
+      updateCard(state, "disabled");
+      emitState(state.plugin.id, false, 0);
+    })();
+    try {
+      await state.disablePromise;
+    } finally {
+      state.disablePromise = null;
     }
-    unregisterPlugin(state.plugin.id);
-    if (persist) persistEnabled(state.plugin.id, false);
-    updateCard(state, "disabled");
-    emitState(state.plugin.id, false, 0);
   }
 
   function compatBadgeHtml(plugin) {
@@ -2613,7 +2680,7 @@
         if (enabled) {
           if (!pluginEnabledForGroup(state)) await enablePlugin(state, true);
         } else if (pluginEnabledForGroup(state)) {
-          disablePlugin(state, true);
+          await disablePlugin(state, true);
         }
       }
     } finally {

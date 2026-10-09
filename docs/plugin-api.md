@@ -9,7 +9,7 @@ Full documentation comes later; this file covers the contract and how-to.
 | --- | --- | --- | --- |
 | shader-pack | Single shaders and multi-shader groups | AlipFX, CCFX, AfterClip | No |
 | native-fx | Multipass effects including time ops | Native FX, Layer Input | Yes |
-| object | 3D shapes and containers | Geometry+, Repeater, Text+, Light+ | Shapes yes |
+| object | 3D shapes and containers | Geometry+, Effector, Text+, Light+ | Shapes yes |
 | material-pack | 3D materials | Material+ | Yes |
 | extension | Anything, including panels | Player+, Easing+, Particles+ | Yes |
 | core | Hidden built-in extensions | Zoidium Core | Yes |
@@ -87,8 +87,31 @@ node tools/new-plugin.js --kind=native-fx --template=temporal --id=my-time-fx
 
 ### extension: modules
 
-- Each module exports activate(context); deactivate() is optional.
-  Modules receive context.apis. See Player+ and Easing+.
+- Each module exports `activate(context)`; `deactivate()` is optional. Both may
+  be async. Modules receive `context.apis` and a bundle `context.getAsset`.
+- Register owned DOM, watchers, timers, and prototype patches with
+  `context.lifecycle.onDispose(cleanup)` before mutating the host. The manager
+  owns the module before calling `activate()`, so cleanup runs even if activation
+  fails halfway. Cleanup callbacks are awaited in reverse registration order,
+  run once, and continue if another cleanup fails. A module's `deactivate()` runs
+  first; callbacks must tolerate resources it already removed.
+- Unload only patches still owned by the module. Retain the original descriptor
+  or function, and restore it only if the host still references your replacement.
+- `isInUse()` may return true to prevent disabling a module whose project data
+  would otherwise lose its implementation. This supplements managed object and
+  resource tracking.
+- `ZoidiumUI.createMenubarTab({ panel: panel.el, ... })` accepts the panel DOM
+  element. Retain the returned tab and pass it to `removeMenubarTab(tab)` on
+  disposal. Removal also updates the elevator's panel list and active tab.
+- A custom editor borrowing a viewport can call
+  `ZoidiumUI.acquirePreview(viewport, close)`. The previous owner is closed
+  before a new lease is returned. Release the lease when the editor closes.
+  Scope temporary render properties to a preview draw and restore them in
+  `finally`; do not persist designer-only state in normal rendering.
+
+See Player+ and Easing+ for ordinary extension modules. A separate settings-page
+API has not been added. Existing property controls and explicit UI ownership
+cover the concrete fixes in the Davidium review.
 
 ### core: the hidden plugin
 
