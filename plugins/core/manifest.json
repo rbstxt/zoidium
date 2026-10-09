@@ -3,7 +3,7 @@
   "id": "core",
   "name": "Zoidium Core",
   "author": "Zoidium",
-  "version": "15",
+  "version": "16",
   "kind": "core",
   "visibility": "hidden",
   "alwaysEnabled": true,
@@ -108,6 +108,11 @@
     {
       "id": "layer-unload-dispose",
       "source": "./plugins/core/layer-unload-dispose.js",
+      "phase": "pre-init"
+    },
+    {
+      "id": "display-labels",
+      "source": "./plugins/core/display-labels.js",
       "phase": "pre-init"
     },
     {
