@@ -34,17 +34,24 @@ Flicker and shimmer use only time and seeds, never random numbers or clocks.
 
 ## Editing
 
-The options window opens from the gear on the flare's row in the object list
-(or `PZ.opticalflares.open(root)`). It is one floating window with:
+The options window opens from the gear on the flare's header row in the
+Properties panel (title "Optical Flares options"), or `PZ.opticalflares.open(root)`.
+The 3D Objects list hides row buttons, so the gear does not appear there. The
+window title is "Optical Flares" and the flare's name is the subtitle. It has:
 
 - **Presets**: replace the whole element stack with a preset.
-- **Elements**: add, duplicate, remove, and move elements.
+- **Elements**: rows read "1. Glow", "2. Multi Iris" in stack order. Add,
+  Duplicate and Remove form one row of buttons; Move Up and Move Down the next.
 - **Selected element**: type, enabled, color, size, brightness, position along
   the axis, rotation, aspect, blend, scale with distance, animation, seed, and a
   collapsed **Shape** section (texture, illumination, falloff, matte).
 - **Source**, **Global**, **Advanced**: source settings, brightness, scale,
-  color, rotation, evolution, flicker, quality, and the per-object common
-  parameters.
+  color, rotation, evolution, flicker, quality, and the settings shared by all
+  elements.
+
+Property panel labels are unique: "2D Position" (only used by the 2D source),
+"Flare Scale", "Flare Color", "Flare Brightness", "Element Scale", "Element
+Color", "Seed" (shared) and "Element Seed" (per element).
 
 Every change goes through the flare's own properties and CM3's history, so undo
 and redo work. Dragging previews live and records one undo step on release.
@@ -54,14 +61,25 @@ and redo work. Dragging previews live and records one undo step on release.
 - `optflares-math.js`: pure projection and layout math (no globals).
 - `optflares.js`: the flare object, element catalogue, presets and shader.
 - `optflares-window.js`: the options window.
-- `optical-flares-runtime.js`: installs type 13, the gear, and the options
-  entry point. Disabling restores every host change, and a failed activation
+- `optical-flares-runtime.js`: installs type 13, the Properties header gear
+  (the options entry point). Disabling restores every host change, and a failed activation
   rolls back.
 
 ## Compatibility
 
 Saved properties and element records keep their names, so projects saved with
-Davidium load. Changes in version 3:
+Davidium load. Changes in version 4:
+
+- A new flare is placed at (-50.9, 28.6, 0), about 62% of the way from the
+  centre to the upper-left corner of the default CM3 camera, so its elements
+  run across the frame. New flares start at Flare Brightness 70 and Flare Scale
+  75. Saved values are unchanged.
+- When the source and the centre coincide, the non-glow elements fade out
+  instead of stacking into a white blob.
+- A saved empty element stack loads empty. Presets only fill a new object.
+- Display names changed; stored property keys did not.
+
+Changes in version 3:
 
 - The default **Center Position** is now the screen centre (0, 0). Stored
   values keep their meaning: they are offsets from the centre.
@@ -71,10 +89,6 @@ Davidium load. Changes in version 3:
 - The fullscreen Options window and the Inter font were removed.
 - Custom Layers 1-3 keep working. Elements that referenced Custom 1-3 still
   read the same layer slots.
-
-The Rowbyte & Red Giant Suite pack also registers a Trapcode designer gear for
-this object when that pack is enabled. The flare's own gear and the designer
-gear never render on the same row.
 
 ```bash
 pnpm run build:plugin-bundles

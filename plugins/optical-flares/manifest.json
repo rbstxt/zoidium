@@ -3,7 +3,7 @@
   "id": "optical-flares",
   "name": "Optical Flares",
   "author": "DaviFX",
-  "version": "3",
+  "version": "4",
   "kind": "object",
   "description": "Lens flares placed in 3D space: the source is a 3D point projected through the layer camera, with a preset-driven element stack and a single options window.",
   "category": "OPTICAL FLARES",
@@ -55,24 +55,24 @@
   "modules": [
     {
       "id": "optical-flares-runtime",
-      "source": "./plugins/optical-flares/optical-flares-runtime.js?v=3"
+      "source": "./plugins/optical-flares/optical-flares-runtime.js?v=4"
     }
   ],
   "resources": [
     {
       "id": "optical-flares-math",
       "type": "text",
-      "source": "./plugins/optical-flares/optflares-math.js?v=3"
+      "source": "./plugins/optical-flares/optflares-math.js?v=4"
     },
     {
       "id": "optical-flares-object",
       "type": "text",
-      "source": "./plugins/optical-flares/optflares.js?v=3"
+      "source": "./plugins/optical-flares/optflares.js?v=4"
     },
     {
       "id": "optical-flares-window",
       "type": "text",
-      "source": "./plugins/optical-flares/optflares-window.js?v=3"
+      "source": "./plugins/optical-flares/optflares-window.js?v=4"
     }
   ]
 }

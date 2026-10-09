@@ -237,3 +237,18 @@ test("screen state is a pure function of its inputs", () => {
   math.screenState({ ...options, world: [9, 9, -5] });
   assert.equal(JSON.stringify(math.screenState(options)), first);
 });
+
+test("the axis fade is zero when the source and centre coincide and smooth beyond 0.02", () => {
+  assert.equal(math.axisFade(0), 0, "coincident source and centre");
+  assert.ok(math.axisFade(0.000001) < 1e-6, "effectively coincident");
+  assert.equal(math.axisFade(0.02), 1);
+  assert.equal(math.axisFade(0.67), 1, "the default layout is fully visible");
+  const mid = math.axisFade(0.01);
+  assert.ok(mid > 0 && mid < 1, "smooth in between");
+  let last = -1;
+  for (let i = 0; i <= 40; i += 1) {
+    const value = math.axisFade(i * 0.0005);
+    assert.ok(value >= last, "monotonic");
+    last = value;
+  }
+});

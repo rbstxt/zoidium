@@ -237,6 +237,9 @@ var PZ = PZ || {};
         "vec2 axis = uCenter - uSource;",
         "float axisLen = length(axis);",
         "if (axisLen < 0.000001) { axis = vec2(0.7071, -0.7071); axisLen = 0.0; }",
+        // Source and centre coincide: every element anchors on the source, so
+        // the non-glow elements fade out instead of stacking into a white blob.
+        "float axisFade = smoothstep(0.0, 0.02, axisLen);",
         "float baseAngle = atan(axis.y, axis.x) + uRotation;",
         "vec2 dir = vec2(cos(baseAngle), sin(baseAngle));",
         "float baseSize = 0.3 * uScale;",
@@ -416,6 +419,7 @@ var PZ = PZ || {};
         "float fade = max(C.w, 0.001) * 0.01;",
         "c *= 1.0 - smoothstep(start, start + fade, md);",
         "}",
+        "c *= (etype == 0) ? 1.0 : axisFade;",
         "c *= opacity;",
         "if (blend == 0) {",
         "col += c;",
@@ -466,7 +470,7 @@ var PZ = PZ || {};
         aspectRatio: number("Aspect Ratio", 1, { min: 0.01, max: 20, step: 0.01, decimals: 2 }),
         blendMode: option("Blend Mode", 0, BLEND_ITEMS, true),
         color: color("Color", [1, 1, 1]),
-        globalSeed: number("Global Seed", 1000, { min: 0, max: 10000, step: 1, decimals: 0, vstep: 50 }),
+        globalSeed: number("Element Seed", 1000, { min: 0, max: 10000, step: 1, decimals: 0, vstep: 50 }),
     };
 
     var matteDefinitions = {
@@ -682,12 +686,12 @@ var PZ = PZ || {};
     /* ------------------------------------------------------------------ */
 
     var flareSetupDefinitions = {
-        positionXY: vector2("Position XY", [0, 0]),
+        positionXY: vector2("2D Position", [0, 0]),
         centerPosition: vector2("Center Position", [0, 0]),
-        brightness: number("Brightness", 100, { min: 0, max: 1000, step: 0.5, decimals: 1 }),
-        scale: number("Scale", 100, { min: 0, max: 1000, step: 0.5, decimals: 1 }),
+        brightness: number("Flare Brightness", 70, { min: 0, max: 1000, step: 0.5, decimals: 1 }),
+        scale: number("Flare Scale", 75, { min: 0, max: 1000, step: 0.5, decimals: 1 }),
         rotationOffset: number("Rotation Offset", 0, { step: 1, decimals: 1, vstep: 15 }),
-        color: color("Color", [1, 1, 1]),
+        color: color("Flare Color", [1, 1, 1]),
         colorMode: option("Color Mode", 0, "Tint;RGB;Alpha", true),
         animationEvolution: number("Animation Evolution", 0, { step: 1, decimals: 1, vstep: 15 }),
         gpu: option("High Quality", 1, "off;on", true),
@@ -717,14 +721,24 @@ var PZ = PZ || {};
         renderMode: option("Render Mode", 0, "On Black;Transparent", true),
     };
 
+    // Applies to every element of the stack. Element-level names are kept
+    // distinct from these so each label is unique in the property panel.
     var globalDefinitions = {
-        scale: number("Scale", 100, { min: 0, max: 1000, step: 0.1, decimals: 1 }),
-        scaleOffset: option("Scale With Distance", 0, "off;on", true),
-        aspectRatio: number("Aspect Ratio", 1, { min: 0.01, max: 20, step: 0.01, decimals: 2 }),
-        blendMode: option("Blend Mode", 0, BLEND_ITEMS, true),
-        color: color("Color", [1, 1, 1]),
-        globalSeed: number("Global Seed", 5000, { min: 0, max: 10000, step: 1, decimals: 0, vstep: 50 }),
+        scale: number("Element Scale", 100, { min: 0, max: 1000, step: 0.1, decimals: 1 }),
+        scaleOffset: option("Element Scale With Distance", 0, "off;on", true),
+        aspectRatio: number("Element Aspect Ratio", 1, { min: 0.01, max: 20, step: 0.01, decimals: 2 }),
+        blendMode: option("Element Blend Mode", 0, BLEND_ITEMS, true),
+        color: color("Element Color", [1, 1, 1]),
+        globalSeed: number("Seed", 5000, { min: 0, max: 10000, step: 1, decimals: 0, vstep: 50 }),
     };
+
+    // Default position of a new flare. The default CM3 camera sits at Z 80 with
+    // a 60 degree vertical fov on a 16:9 frame, so the half height at the
+    // origin's depth is tan(30) * 80 = 46.19 and the half width is 82.13. This
+    // point projects 62% of the way from the centre to the upper-left corner
+    // (NDC -0.62, 0.62), so the element chain runs across the frame. Saved
+    // positions are unaffected.
+    var NEW_FLARE_POSITION = [-50.9, 28.6, 0];
 
     var transformDefinitions = {
         position: {
@@ -733,9 +747,9 @@ var PZ = PZ || {};
             name: "Position",
             type: PZ.property.type.VECTOR3,
             objects: [
-                { dynamic: true, name: "Position.X", type: PZ.property.type.NUMBER, value: 0 },
-                { dynamic: true, name: "Position.Y", type: PZ.property.type.NUMBER, value: 0 },
-                { dynamic: true, name: "Position.Z", type: PZ.property.type.NUMBER, value: 0 },
+                { dynamic: true, name: "Position.X", type: PZ.property.type.NUMBER, value: NEW_FLARE_POSITION[0] },
+                { dynamic: true, name: "Position.Y", type: PZ.property.type.NUMBER, value: NEW_FLARE_POSITION[1] },
+                { dynamic: true, name: "Position.Z", type: PZ.property.type.NUMBER, value: NEW_FLARE_POSITION[2] },
             ],
         },
         rotation: {
@@ -872,7 +886,9 @@ var PZ = PZ || {};
                 this.objectType = e.objectType;
             }
             loadProperties(this.properties, e && e.properties);
-            if (e && typeof e === "object" && e.stack && e.stack.length) {
+            // A saved stack is authoritative, even when empty. Presets only seed
+            // a brand-new object, which has no stack field yet.
+            if (e && typeof e === "object" && Array.isArray(e.stack)) {
                 for (var k = 0; k < e.stack.length; k++) {
                     var element = new PZ.object3d.optflares.element();
                     this.stack.push(element);

@@ -92,6 +92,14 @@ const flareMath = (function () {
         };
     };
 
+    // Intensity of the non-glow elements for a source-to-centre distance in
+    // layout units. Mirrors `axisFade` in the fragment shader: 0 when the two
+    // coincide, 1 from 0.02 units (about 1% of the frame height) outwards.
+    math.axisFade = function (length) {
+        const t = clamp(length / 0.02, 0, 1);
+        return t * t * (3 - 2 * t);
+    };
+
     // Anchor of one element along the layout axis. This mirrors the fragment
     // shader: elements sit on the line from the source through the centre,
     // rotated by the Rotation Offset, at `distance` (1 = the centre).
