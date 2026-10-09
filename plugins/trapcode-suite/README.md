@@ -62,17 +62,22 @@ drags preview live and record one undo step on release.
 Audio reactors and the Plexus sound effector read decoded audio at an explicit
 media time through `T.audioAnalysis` (offline FFT, 0–1 level). They do not read
 a live analyser, so a frame depends only on the project and the audio file.
-Audio is decoded in `prepare()`, which export awaits. Until a source is decoded,
+Preview starts one cached asynchronous decode per asset. Export awaits the same
+analysis in `prepare()`. Until a source is decoded,
 its level is neutral (0.5); outside the clip window the level is 0.
 
 Particular audio properties (per system):
 
 - **Audio layer** — the audio or video asset to analyse.
-- **Audio offset (seconds)** — shifts where the clip starts on the timeline.
+- **Audio offset (seconds)** — adds a delay relative to the matching audio clip on the sequence timeline.
+  When the asset has no audio clip, it shifts the start relative to the scene.
 - **Audio trim in / out (seconds)** — selects the media range. Trim in is the
   media time at the clip start; trim out ends the reactor (0 disables it).
 
-The Plexus sound effector has the same audio layer, offset and trim properties.
+All four Particular reactors independently target size, opacity, velocity or color
+brightness. Reactors aimed at the same target multiply their modulation.
+
+The Plexus sound effector has audio layer, offset and trim properties.
 Without an audio layer it uses a time-based wave, so it stays deterministic.
 
 ## Simulation limits (Particular)

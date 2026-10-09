@@ -79,8 +79,12 @@ var PZ = PZ || {};
     // live previews have already written the new value.
     function commitEdit(property, value, before) {
         var old = before === undefined ? snapshot(property) : before;
-        if (sameValue(old, value)) return;
+        if (sameValue(old, value)) {
+            property.onChanged?.update(frame());
+            return;
+        }
         operate(function () { recordSetValue(property, value, old); });
+        property.onChanged?.update(frame());
     }
 
     // Live-preview and commit pair for one property.
@@ -171,6 +175,16 @@ var PZ = PZ || {};
     };
 
     Session.prototype.refresh = function () {
+        var targets = this.targets();
+        var names = targets.map(function (item, index) {
+            return this.config.targetName ? this.config.targetName(item, index) : String(index);
+        }, this).join("|");
+        if (!this._targets || targets.length !== this._targets.length || targets.some(function (item, i) { return item !== this._targets[i]; }, this) || names !== this._targetNames) {
+            this._targets = targets;
+            this._targetNames = names;
+            this.rebuild();
+            return;
+        }
         var active = typeof document !== "undefined" ? document.activeElement : null;
         this.tracked.forEach(function (entry) {
             var element = entry.control.element;
@@ -403,7 +417,13 @@ var PZ = PZ || {};
         } else {
             var current = property.get(frame());
             var summary = typeof current === "string" && current ? current : "none";
-            panel.appendChild(C.note(label + ": " + summary + ". Assign curves, gradients and assets in the Edit panel.").element);
+            if (def.type === types.ASSET && current) {
+                var project = T.findParent(this.root, PZ.project);
+                var asset = project && project.assets && project.assets.load(current);
+                summary = asset && (asset.name || asset.file?.name || asset.filename) || "Assigned asset";
+                if (asset) project.assets.unload(asset);
+            }
+            panel.appendChild(C.note(label + ": " + summary + ". Assign curves, gradients and assets in the Objects panel.").element);
         }
     };
 
@@ -500,9 +520,9 @@ var PZ = PZ || {};
             title: config.title || "Trapcode Designer",
             subtitle: name || "",
             persistKey: "trapcode-designer:" + String(config.title || "designer").toLowerCase().replace(/[^a-z0-9]+/g, "-"),
-            width: 360,
+            width: 620,
             height: 560,
-            minWidth: 300,
+            minWidth: 480,
             minHeight: 260,
             className: "trapcode-designer-window",
             mount: function (body, win) {

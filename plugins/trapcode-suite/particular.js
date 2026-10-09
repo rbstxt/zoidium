@@ -75,6 +75,9 @@ var PZ = PZ || {};
         "uniform sampler2D sizeOverLife;",
         "uniform sampler2D opacityOverLife;",
         "uniform float audioLevel;",
+        "uniform float audioOpacity;",
+        "uniform float audioVelocity;",
+        "uniform float audioColor;",
         "uniform float layerColorMix;",
         "uniform float layerSizeStrength;",
         "#ifdef USE_LAYER_COLOR",
@@ -147,6 +150,8 @@ var PZ = PZ || {};
         "float wAge = age;",
         "float wPid = pid;",
         "#endif",
+        "worldPos += wVel * wAge * (audioVelocity - 1.0);",
+        "wVel *= audioVelocity;",
         "float wK = max(rotAir, 0.0);",
         "float wDamp = wK > 0.0001 ? (1.0 - exp(-wK * wAge)) / wK : wAge;",
         "float wR1 = rand(vec2(wPid, 11.0));",
@@ -188,6 +193,8 @@ var PZ = PZ || {};
         "float layerAlpha = mix(1.0, layerSample.a, layerColorMix);",
         "float sizeCull = step(0.004, lifeSize);",
         "vColor = vec4(baseRgb * colorTint.rgb, lifeColor.a * colorTint.a * lifeOpacity * layerAlpha) * (alive * sizeCull);",
+        "vColor.rgb *= audioColor;",
+        "vColor.a *= audioOpacity;",
         "vGlow = glow;",
         "vec4 mvPosition = modelViewMatrix * vec4(worldPos, 1.0);",
         "#ifdef USE_CPU",
@@ -845,7 +852,7 @@ var PZ = PZ || {};
         var audio = system.properties.audio;
         var source = audio.audioLayer ? audio.audioLayer.get(frame) : null;
         if (!source) return 0.5;
-        var local = frame / system.sceneRate() - simNumber(audio.audioOffset, frame, 0);
+        var local = T.audioClipTime(system, source, frame, system.sceneRate()) - simNumber(audio.audioOffset, frame, 0);
         var trimIn = Math.max(simNumber(audio.audioTrimIn, frame, 0), 0);
         var trimOut = Math.max(simNumber(audio.audioTrimOut, frame, 0), 0);
         var media = trimIn + local;
@@ -997,6 +1004,20 @@ var PZ = PZ || {};
                 },
                 this
             );
+            // CM3 subscribes numeric controls to onChanged when it is present.
+            // Bridge native history notifications for the reactor strengths too.
+            if (PZ.observable) {
+                for (var reactor = 1; reactor <= 4; reactor++) {
+                    var strength = this.properties.audio["reactor" + reactor + "Strength"];
+                    // Dynamic values come from keyframes, not a static value.
+                    // CM3 must not eagerly read the control before load seeds them.
+                    strength.value = undefined;
+                    if (!strength.onChanged) strength.onChanged = new PZ.observable();
+                    if (strength.onKeyframeChanged) strength.onKeyframeChanged.watch(function () {
+                        this.onChanged.update(PZ.trapcode.currentTime);
+                    }.bind(strength));
+                }
+            }
             var groups = {
                 emitter: "Emitter",
                 particle: "Particle",
@@ -1029,13 +1050,13 @@ var PZ = PZ || {};
                     if (!this.threeObj) return;
                     if (this.threeObj.parent) this.threeObj.parent.remove(this.threeObj);
                     if (!this.parent) return;
-                    var particular = this.tryGetParentOfType(PZ.object3d.particular);
+                    var particular = T.findParent(this, PZ.object3d.particular);
                     if (particular && particular.threeObj) particular.threeObj.add(this.threeObj);
                 }.bind(this)
             );
         }
         get parentParticular() {
-            return this.getParentOfType(PZ.object3d.particular);
+            return T.findParent(this, PZ.object3d.particular);
         }
         get parentSystemIndex() {
             var emitter = this.properties && this.properties.emitter;
@@ -1149,6 +1170,9 @@ var PZ = PZ || {};
                     rotAir: { type: "f", value: 0 },
                     stretch: { type: "f", value: 0 },
                     audioLevel: { type: "f", value: 1 },
+                    audioOpacity: { type: "f", value: 1 },
+                    audioVelocity: { type: "f", value: 1 },
+                    audioColor: { type: "f", value: 1 },
                     layerColorMix: { type: "f", value: 1 },
                     layerSizeStrength: { type: "f", value: 1 },
                     layerColor: { type: "t", value: this.layerColorTex || null },
@@ -1169,7 +1193,7 @@ var PZ = PZ || {};
             var value = this.properties.particle.texture.get(PZ.trapcode.currentTime);
             if (this._textureValue === value && this.texture) return;
             this._textureValue = value;
-            var project = this.tryGetParentOfType(PZ.project);
+            var project = T.findParent(this, PZ.project);
             if (this.texture) {
                 project && project.assets.unload(this.texture);
                 this.texture = null;
@@ -1182,7 +1206,7 @@ var PZ = PZ || {};
             this.material.needsUpdate = true;
         }
         loadLayerTexture(property, key, uniformName) {
-            var project = this.tryGetParentOfType(PZ.project);
+            var project = T.findParent(this, PZ.project);
             var value = property ? property.get(PZ.trapcode.currentTime) : null;
             if (this[key + "Value"] === value && this[key]) return;
             this[key + "Value"] = value;
@@ -1217,13 +1241,31 @@ var PZ = PZ || {};
             if (!this.material) return;
             var audio = this.properties.audio;
             var frame = PZ.trapcode.currentTime;
-            if (!audioReactorsOn(audio, frame)) {
-                this.material.uniforms.audioLevel.value = 1;
-                return;
+            var factors = [1, 1, 1, 1];
+            if (audioReactorsOn(audio, frame)) {
+                var source = audio.audioLayer.get(frame);
+                if (source && !T.audioAnalysis.has(source) && this._audioRequest !== source) {
+                    this._audioRequest = source;
+                    var project = T.findParent(this, PZ.project);
+                    T.audioAnalysis.load(project, source).then(function () {
+                        // A paused preview must redraw when the asset becomes ready.
+                        audio.audioLayer.onChanged?.update();
+                    }, function (error) {
+                        console.warn("Trapcode Particular: audio analysis failed; reactors stay neutral.", error);
+                    });
+                }
+                var level = audioReactorLevel(this, frame);
+                for (var i = 1; i <= 4; i++) {
+                    if (audio["reactor" + i + "Enabled"].get(frame) !== 1) continue;
+                    var target = Math.round(audio["reactor" + i + "Target"].get(frame));
+                    var strength = audio["reactor" + i + "Strength"].get(frame) / 100;
+                    if (target >= 0 && target < 4) factors[target] *= Math.max(0, 1 + (level - 0.5) * 2 * strength);
+                }
             }
-            var level = audioReactorLevel(this, frame);
-            var strength = audio.reactor1Strength.get(frame) / 100;
-            this.material.uniforms.audioLevel.value = 1 + (level - 0.5) * 2 * strength;
+            this.material.uniforms.audioLevel.value = factors[0];
+            this.material.uniforms.audioOpacity.value = factors[1];
+            this.material.uniforms.audioVelocity.value = factors[2];
+            this.material.uniforms.audioColor.value = factors[3];
         }
 
         load(e, parent) {
@@ -1252,13 +1294,13 @@ var PZ = PZ || {};
                 this.palettes = null;
             }
             if (this.texture) {
-                var project = this.tryGetParentOfType(PZ.project);
+                var project = T.findParent(this, PZ.project);
                 project && project.assets.unload(this.texture);
                 this.texture = null;
             }
             var unloadLayer = function (self, key) {
                 if (self[key]) {
-                    var p = self.tryGetParentOfType(PZ.project);
+                    var p = T.findParent(self, PZ.project);
                     p && p.assets.unload(self[key]);
                     self[key] = null;
                 }
@@ -1326,7 +1368,7 @@ var PZ = PZ || {};
             };
         }
         sceneRate() {
-            var sequence = this.tryGetParentOfType(PZ.sequence);
+            var sequence = T.findParent(this, PZ.sequence);
             return sequence ? sequence.properties.rate.get(PZ.trapcode.currentTime) || 1 : 1;
         }
         needsCPU() {
@@ -1371,7 +1413,7 @@ var PZ = PZ || {};
             // particle count is doubled, so its effective particles/sec doubles.
             // Primary System (index 0) is unaffected.
             try {
-                var particular = this.tryGetParentOfType(PZ.object3d.particular);
+                var particular = T.findParent(this, PZ.object3d.particular);
                 if (!particular || !particular.systems || !particular.systems.indexOf) return 1;
                 return particular.systems.indexOf(this) > 0 ? 2 : 1;
             } catch (err) {
@@ -1565,7 +1607,7 @@ var PZ = PZ || {};
             if (!audioReactorsOn(audio, e)) return;
             var source = audio.audioLayer.get(e);
             if (!source || T.audioAnalysis.has(source)) return;
-            var project = this.tryGetParentOfType(PZ.project);
+            var project = T.findParent(this, PZ.project);
             try {
                 await T.audioAnalysis.load(project, source);
             } catch (err) {

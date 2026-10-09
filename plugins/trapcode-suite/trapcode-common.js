@@ -138,6 +138,40 @@ var PZ = PZ || {};
         });
     }
 
+    // Walk raw parents, including detached object lists, without host getters.
+    T.findParent = function (object, Type) {
+        var current = object && object.parent;
+        var seen = new Set();
+        while (current && !seen.has(current)) {
+            if (typeof Type === "function" && current instanceof Type) return current;
+            seen.add(current);
+            current = current.parent;
+        }
+        return null;
+    };
+
+    T.audioClipTime = function (object, source, frame, fps) {
+        var sequence = T.findParent(object, PZ.sequence);
+        var sceneClip = T.findParent(object, PZ.clip);
+        var projectFrame = frame + (sceneClip ? sceneClip.start : 0);
+        var tracks = sequence && sequence.audioTracks;
+        if (tracks) {
+            var first = null;
+            for (var i = 0; i < tracks.length; i++) {
+                var clips = tracks[i].clips || [];
+                for (var j = 0; j < clips.length; j++) {
+                    var clip = clips[j];
+                    if (!clip.properties.media || clip.properties.media.get(projectFrame) !== source) continue;
+                    if (!first) first = clip;
+                    if (projectFrame < clip.start || projectFrame >= clip.start + clip.length) continue;
+                    return clip.properties.time ? clip.properties.time.get(projectFrame - clip.start) : (projectFrame - clip.start) / fps;
+                }
+            }
+            if (first) return -1;
+        }
+        return frame / fps;
+    };
+
     T.audioAnalysis = {
         fftSize: AUDIO_FFT_SIZE,
         has: function (source) {
@@ -860,7 +894,7 @@ var PZ = PZ || {};
                     var time = 0;
                     try {
                         var clip = t && t.tryGetParentOfType && PZ.clip
-                            ? t.tryGetParentOfType(PZ.clip)
+                            ? T.findParent(t, PZ.clip)
                             : null;
                         time = clip ? clip.properties.time.get(e) : 0;
                     } catch (_e) { /* keep default */ }

@@ -1,9 +1,8 @@
 // OpenZoid Trapcode Suite — C4D-style lights.
 //
-// Installs the Trapcode light types onto the CM3 Light class. install() and
-// uninstall() are called by the suite runtime, so disabling the pack restores
-// the stock Light prototype methods and removes the property definitions this
-// file added. The picker entries live in the plugin manifest.
+// Separate namespaced CM3 Light subclasses. Only legacy load dispatch is
+// installed on stock Light; creating and updating vanilla lights stays stock.
+// install() and uninstall() are owned by the suite runtime lifecycle.
 //
 // Each type names the THREE backend it really renders with. Legacy ids that are
 // no longer offered in the picker keep loading as the backend they were saved
@@ -85,14 +84,6 @@
         });
     }
 
-    function addProps(PZ, light, keys) {
-        var defs = {};
-        keys.forEach(function (key) {
-            defs[key] = PZ.property.create(PZ.object3d.light.propertyDefinitions[key]);
-        });
-        light.properties.addAll(defs);
-    }
-
     function setupShadows(threeObj, cast) {
         if (cast) {
             threeObj.castShadow = true;
@@ -163,96 +154,82 @@
         },
     };
 
-    function normalizeType(value, migratingHemi) {
-        var e = parseInt(value, 10) || 1;
-        if (e === 4 && migratingHemi) return 5;
-        if (e < 1 || e > 8) return e === 4 ? 5 : 1;
-        return e;
+    var lightClasses = null;
+    var LIGHT_TYPES = { 1: "spot-light", 2: "point-light", 3: "infinite-light", 4: "area-light",
+        5: "hemisphere-light", 6: "ies-light", 7: "sun-light", 8: "portal-light" };
+
+    function legacyType(data) {
+        var props = data.properties || {};
+        var id = Number(data.objectType);
+        if (id === 4) {
+            if (props.width !== undefined || props.height !== undefined) return 4;
+            if (props.groundColor !== undefined || props.color === undefined) return null;
+            return 4;
+        }
+        if (id >= 4 && id <= 8) return id;
+        if (id >= 1 && id <= 3 && (props.distance !== undefined || props.penumbra !== undefined || props.decay !== undefined)) return id;
+        return null;
     }
 
-    function install(PZ) {
+    function install(PZ, registry) {
         if (installed) return;
-        var Light = PZ.object3d && PZ.object3d.light;
-        if (!Light || !Light.prototype || typeof Light.prototype.changeObjectType !== "function") {
-            throw new Error("Trapcode lights need PZ.object3d.light from the CM3 runtime.");
-        }
-        if (typeof THREE === "undefined") throw new Error("Trapcode lights need the THREE global.");
-
-        var proto = Light.prototype;
-        var original = {
-            changeObjectType: proto.changeObjectType,
-            update: proto.update,
-            load: proto.load,
-        };
-        var wrappers = {};
-        var addedDefinitions = [];
-        var definitions = Light.propertyDefinitions;
-        var extra = propertyDefinitions(PZ);
-        Object.keys(extra).forEach(function (key) {
-            if (definitions[key] === undefined) {
-                definitions[key] = extra[key];
-                addedDefinitions.push(key);
-            }
-        });
-
-        // Each wrapper checks its own alive flag, so a disabled pack falls
-        // through to the stock method even if another pack wrapped above it.
-        function wrap(name, handler) {
-            var wrapper = function () {
-                if (!wrapper.__trapcodeSuiteAlive) return original[name].apply(this, arguments);
-                return handler.apply(this, arguments);
-            };
-            wrapper.__trapcodeSuiteLights = true;
-            wrapper.__trapcodeSuiteAlive = true;
-            wrappers[name] = wrapper;
-            proto[name] = wrapper;
-        }
-
-        wrap("changeObjectType", changeType);
-
-        function changeType(value) {
-            if (this._migratingLegacyHemi) {
-                this._migratingLegacyHemi = false;
-                // Keep vanilla Hemisphere projects editable and serializable
-                // with the pack disabled. Its sky property is named color.
-                clearLightProps(this);
-                return original.changeObjectType.call(this, 4);
-            }
-            var e = normalizeType(value, this._migratingLegacyHemi);
-            this._migratingLegacyHemi = false;
-            this.objectType = e;
-            clearLightProps(this);
-            var backend = BACKENDS[e]();
-            this.threeObj = backend.object;
-            addProps(PZ, this, backend.props);
-            setupShadows(this.threeObj, !!backend.cast);
-            if (this.properties.name && this.properties.name.set) {
-                try { this.properties.name.set(backend.name); } catch (_error) { /* display only */ }
-            }
-            if (typeof this.parentChanged === "function") this.parentChanged();
-        }
-
-        // Legacy Hemisphere (stock id 4, with groundColor and no width/height)
-        // keeps its stock backend and properties. Stock id 4 with a Trapcode Area
-        // payload (width/height present) keeps meaning Area.
-        wrap("load", function (data) {
-            if (data && typeof data === "object" && data.objectType === 4) {
-                var props = data.properties || {};
-                if (props.groundColor !== undefined && props.width === undefined && props.height === undefined) {
-                    this._migratingLegacyHemi = true;
+        var Light = PZ.object3d.light;
+        if (!Light) throw new Error("Trapcode lights need the CM3 Light class.");
+        if (!lightClasses) {
+            lightClasses = {};
+            Object.keys(LIGHT_TYPES).forEach(function (key) {
+                var id = Number(key);
+                class TrapcodeLight extends Light {
+                    constructor() { super(); this.objectType = id; this.type = "zoidium:trapcode-suite/" + LIGHT_TYPES[id]; }
+                    changeObjectType() {
+                        this.objectType = id;
+                        clearLightProps(this);
+                        var backend = BACKENDS[id]();
+                        this.threeObj = backend.object;
+                        var defs = Object.assign({}, Light.propertyDefinitions, propertyDefinitions(PZ));
+                        var props = {};
+                        backend.props.forEach(function (key) { props[key] = PZ.property.create(defs[key]); });
+                        this.properties.addAll(props);
+                        setupShadows(this.threeObj, !!backend.cast);
+                        if (this.parentChanged) this.parentChanged();
+                    }
+                    load(data) {
+                        this.changeObjectType();
+                        this.properties.load(data && data.properties);
+                        // Names belong to the project once saved.
+                        if (!data || !data.properties || data.properties.name === undefined) {
+                            this.properties.name.set(CATALOGUE.find(function (entry) { return entry.id === id; }).name);
+                        }
+                    }
+                    toJSON() { return { type: this.type, objectType: id, properties: this.properties }; }
+                    update(time) { syncLight.call(this, time); }
                 }
+                TrapcodeLight.prototype.defaultName = CATALOGUE.find(function (entry) { return entry.id === id; }).name;
+                lightClasses[id] = TrapcodeLight;
+            });
+        }
+        var original = Light.prototype.load;
+        var patched = function (data) {
+            var id = patched.alive && data && legacyType(data);
+            if (id) {
+                Object.setPrototypeOf(this, lightClasses[id].prototype);
+                this.type = "zoidium:trapcode-suite/" + LIGHT_TYPES[id];
+                return this.load(data);
             }
-            return original.load.call(this, data);
-        });
-
-        wrap("update", function (time) {
-            try {
-                syncLight.call(this, time);
-            } catch (_error) {
-                original.update.call(this, time);
-            }
-        });
-
+            return original.apply(this, arguments);
+        };
+        patched.alive = true;
+        var unregister = [];
+        installed = { Light: Light, original: original, patched: patched, unregister: unregister };
+        Light.prototype.load = patched;
+        if (registry && registry.registerClass) {
+            Object.keys(LIGHT_TYPES).forEach(function (key) {
+                var id = Number(key);
+                unregister.push(registry.registerClass({ type: "zoidium:trapcode-suite/" + LIGHT_TYPES[id],
+                    name: lightClasses[id].prototype.defaultName, schemaVersion: 1,
+                    factory: function () { return new lightClasses[id](); } }));
+            });
+        }
         function syncLight(time) {
             var o = this.threeObj;
             if (!o) return;
@@ -300,26 +277,19 @@
             if (p.height && o.height !== undefined) o.height = Math.max(0.1, p.height.get(time));
         }
 
-        installed = { PZ: PZ, Light: Light, original: original, wrappers: wrappers, addedDefinitions: addedDefinitions };
     }
 
     function uninstall() {
         var state = installed;
         installed = null;
         if (!state) return;
-        var proto = state.Light.prototype;
-        Object.keys(state.wrappers).forEach(function (name) {
-            var wrapper = state.wrappers[name];
-            wrapper.__trapcodeSuiteAlive = false;
-            if (proto[name] === wrapper) proto[name] = state.original[name];
-        });
-        state.addedDefinitions.forEach(function (key) {
-            delete state.Light.propertyDefinitions[key];
-        });
+        state.patched.alive = false;
+        if (state.Light.prototype.load === state.patched) state.Light.prototype.load = state.original;
+        state.unregister.reverse().forEach(function (fn) { fn(); });
     }
 
     var T = (typeof PZ !== "undefined" && PZ.trapcode) || null;
     if (T) {
-        T.lights = { install: install, uninstall: uninstall, catalogue: CATALOGUE };
+        T.lights = { install: install, uninstall: uninstall, catalogue: CATALOGUE, legacyType: legacyType };
     }
 })();

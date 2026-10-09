@@ -65,16 +65,14 @@ test("every objectTypes entry of one pack registers on the same target", () => {
   assert.ok(names.includes("Trapcode Particular"), "Particular entry missing: " + names.join(","));
   assert.ok(names.includes("Trapcode Form"), "Form entry missing: " + names.join(","));
   assert.ok(names.includes("Plexus"), "Plexus entry missing: " + names.join(","));
-  const light = harness.store.object3d.find((entry) => entry.name === "Light");
-  assert.ok(light, "Light entry missing");
+  const lights = harness.store.object3d.find((entry) => entry.name === "Trapcode Lights");
+  assert.ok(lights, "Trapcode Lights entry missing");
   // Six C4D types are offered; legacy IES (6) and Portal (8) still load but are not listed.
-  assert.equal(light.list.length, 6, "Light replacement must carry 6 C4D entries");
-  const ids = light.list.map((entry) => entry.data.objectType).sort();
-  assert.equal(JSON.stringify(ids), "[1,2,3,4,5,7]");
-  assert.equal(light._zoidiumPluginId, "trapcode-suite");
-  // The vanilla Light entry was displaced with restore bookkeeping.
-  assert.equal(harness.state.replacedObjectTypes.length, 1);
-  assert.equal(harness.state.replacedObjectTypes[0].entry, harness.vanillaLight);
+  assert.equal(lights.list.length, 6, "Trapcode Lights must carry 6 C4D entries");
+  assert.equal(lights._zoidiumPluginId, "trapcode-suite");
+  // The stock Light entry is never displaced: Trapcode lights are separate types.
+  assert.ok(harness.store.object3d.includes(harness.vanillaLight), "stock Light entry must stay");
+  assert.equal(harness.state.replacedObjectTypes.length, 0);
 });
 
 test("re-running registration adds no duplicates", () => {
@@ -83,5 +81,5 @@ test("re-running registration adds no duplicates", () => {
   const before = JSON.stringify(harness.store.object3d);
   runLoop(manifest, harness);
   assert.equal(JSON.stringify(harness.store.object3d), before);
-  assert.equal(harness.state.replacedObjectTypes.length, 1);
+  assert.equal(harness.state.replacedObjectTypes.length, 0);
 });

@@ -87,132 +87,64 @@ function setup(files = ["trapcode-common.js", "lights-c4d.js"]) {
   return { PZ, THREE, stock, stockPrototype, Light: PZ.object3d.light };
 }
 
-test("install wraps the Light prototype and uninstall restores the stock methods", () => {
-  const env = setup();
-  const { Light, stock, PZ } = env;
-  assert.equal(Light.propertyDefinitions.decay, undefined, "no extra definitions before install");
-  env.PZ.trapcode.lights.install(PZ);
-  assert.notEqual(Light.prototype.changeObjectType, stock.changeObjectType);
-  assert.notEqual(Light.prototype.update, stock.update);
-  assert.notEqual(Light.prototype.load, stock.load);
-  assert.ok(Light.propertyDefinitions.decay, "decay definition added");
-  env.PZ.trapcode.lights.uninstall();
+test("stock methods remain untouched and legacy load wrapper restores on disable", () => {
+  const { PZ, Light, stock } = setup();
+  PZ.trapcode.lights.install(PZ);
   assert.equal(Light.prototype.changeObjectType, stock.changeObjectType);
   assert.equal(Light.prototype.update, stock.update);
+  assert.equal(Light.propertyDefinitions.decay, undefined);
+  PZ.trapcode.lights.uninstall();
   assert.equal(Light.prototype.load, stock.load);
-  assert.equal(Light.propertyDefinitions.decay, undefined, "definitions removed on uninstall");
-  assert.equal(Light.propertyDefinitions.sunElevation, undefined);
 });
 
-test("install is idempotent and uninstall without install is a no-op", () => {
-  const env = setup();
-  const { PZ, Light } = env;
-  env.PZ.trapcode.lights.uninstall();
-  env.PZ.trapcode.lights.install(PZ);
-  const wrapped = Light.prototype.changeObjectType;
-  env.PZ.trapcode.lights.install(PZ);
-  assert.equal(Light.prototype.changeObjectType, wrapped, "second install does not stack");
-  env.PZ.trapcode.lights.uninstall();
-  env.PZ.trapcode.lights.uninstall();
-});
-
-test("spot and point and directional types keep their stock backends", () => {
-  const env = setup();
-  const { PZ, THREE, Light } = env;
-  env.PZ.trapcode.lights.install(PZ);
-  const spot = new Light();
-  spot.load({ objectType: 1, properties: {} });
-  assert.ok(spot.threeObj instanceof THREE.SpotLight);
-  assert.equal(spot.properties.name.get(), "Spot Light");
-  const point = new Light();
-  point.load({ objectType: 2, properties: {} });
-  assert.ok(point.threeObj instanceof THREE.PointLight);
-  const sun = new Light();
-  sun.load({ objectType: 3, properties: {} });
-  assert.ok(sun.threeObj instanceof THREE.DirectionalLight);
-  env.PZ.trapcode.lights.uninstall();
-});
-
-test("area light renders as RectAreaLight only when the LTC tables exist", () => {
-  const env = setup();
-  const { PZ, THREE, Light } = env;
-  env.PZ.trapcode.lights.install(PZ);
-  const area = new Light();
-  area.load({ objectType: 4, properties: {} });
-  assert.ok(area.threeObj instanceof THREE.PointLight, "no LTC tables: point approximation");
-  assert.equal(area.properties.name.get(), "Area Light (point approximation)");
-
-  THREE.UniformsLib.LTC_1 = {};
-  THREE.UniformsLib.LTC_2 = {};
-  try {
-    const real = new Light();
-    real.load({ objectType: 4, properties: {} });
-    assert.ok(real.threeObj instanceof THREE.RectAreaLight);
-    assert.equal(real.properties.name.get(), "Area Light");
-  } finally {
-    delete THREE.UniformsLib.LTC_1;
-    delete THREE.UniformsLib.LTC_2;
-  }
-  env.PZ.trapcode.lights.uninstall();
-});
-
-test("legacy ids keep loading: IES as spot, Portal as area, stock Hemisphere stays vanilla", () => {
-  const env = setup();
-  const { PZ, THREE, Light } = env;
-  env.PZ.trapcode.lights.install(PZ);
-  const ies = new Light();
-  ies.load({ objectType: 6, properties: {} });
-  assert.ok(ies.threeObj instanceof THREE.SpotLight);
-  assert.equal(ies.properties.name.get(), "Spot Light (legacy IES)");
-  const portal = new Light();
-  portal.load({ objectType: 8, properties: {} });
-  assert.equal(portal.properties.name.get(), "Area Light (legacy Portal) (point approximation)");
-  // Stock Hemisphere (id 4) payloads carry groundColor and no width/height.
-  const hemi = new Light();
-  hemi.load({ objectType: 4, properties: { color: [0.3, 0.5, 0.8], groundColor: [0, 0, 0] } });
-  assert.equal(hemi.objectType, 4);
-  assert.equal(hemi.properties.color.get().join(","), "0.3,0.5,0.8");
-  assert.ok(hemi.threeObj instanceof THREE.HemisphereLight);
-  env.PZ.trapcode.lights.uninstall();
-  assert.equal(hemi.objectType, 4, "serialized type remains vanilla after disable");
-  env.PZ.trapcode.lights.uninstall();
-});
-
-test("update writes properties to the THREE light and aims rect lights after moving them", () => {
-  const env = setup();
-  const { PZ, THREE, Light } = env;
-  env.PZ.trapcode.lights.install(PZ);
-  THREE.UniformsLib.LTC_1 = {};
-  THREE.UniformsLib.LTC_2 = {};
-  try {
-    const light = new Light();
-    light.load({ objectType: 4, properties: {} });
-    light.properties.position.set([3, 4, 5]);
-    light.properties.target.set([7, 8, 9]);
+for (const [label, data, backend, expectedType] of [
+  ["Light+ alone Hemisphere", { objectType: 4, properties: { color: [0.3, 0.5, 0.8], groundColor: [0, 0, 0], name: "Saved hemisphere" } }, "HemisphereLight", 3],
+  ["both enabled Hemisphere", { objectType: 4, properties: { color: [0.3, 0.5, 0.8], groundColor: [0, 0, 0], name: "Saved hemisphere" } }, "HemisphereLight", 3],
+  ["DaviFX Area", { objectType: 4, properties: { width: 20, height: 30, color: [1, 0, 0], name: "Saved area" } }, "PointLight", "zoidium:trapcode-suite/area-light"],
+  ["both enabled Area", { objectType: 4, properties: { width: 20, height: 30, name: "Saved area" } }, "PointLight", "zoidium:trapcode-suite/area-light"],
+  ["DaviFX Hemisphere", { objectType: 5, properties: { skyColor: [0.3, 0.5, 0.8], groundColor: [0, 0, 0], name: "Saved sky" } }, "HemisphereLight", "zoidium:trapcode-suite/hemisphere-light"],
+  ["legacy IES", { objectType: 6, properties: { name: "Saved IES" } }, "SpotLight", "zoidium:trapcode-suite/ies-light"],
+  ["legacy Portal", { objectType: 8, properties: { name: "Saved portal" } }, "PointLight", "zoidium:trapcode-suite/portal-light"],
+]) {
+  test(label + " loads without changing its saved name", () => {
+    const { PZ, THREE, Light } = setup();
+    PZ.trapcode.lights.install(PZ);
+    const light = new Light(); light.type = 3; light.load(data); light.update(0);
+    assert.ok(light.threeObj instanceof THREE[backend]);
+    assert.equal(light.type, expectedType);
+    assert.equal(light.properties.name.get(), data.properties.name);
+    PZ.trapcode.lights.uninstall();
     light.update(0);
-    assert.deepEqual([light.threeObj.position.x, light.threeObj.position.y, light.threeObj.position.z], [3, 4, 5]);
-    // lookAt reads the position written just before it, so the aim uses the new spot.
-    assert.deepEqual(light.threeObj.lookedAt, [7, 8, 9]);
-    assert.ok(light.threeObj.matrixUpdates >= 1, "matrix refreshed after the sync");
-    light.properties.intensity.set(2.5);
-    light.update(0);
-    assert.equal(light.threeObj.intensity, 2.5);
-  } finally {
-    delete THREE.UniformsLib.LTC_1;
-    delete THREE.UniformsLib.LTC_2;
-    env.PZ.trapcode.lights.uninstall();
+  });
+}
+
+test("new Trapcode lights have separate namespaced factories and type-specific names", () => {
+  const { PZ, Light, stock } = setup();
+  const registrations = new Map();
+  PZ.trapcode.lights.install(PZ, { registerClass(entry) {
+    registrations.set(entry.type, entry); return () => registrations.delete(entry.type);
+  } });
+  for (const entry of registrations.values()) {
+    const light = entry.factory(); light.load(null); light.update(0);
+    assert.equal(light.toJSON().type, entry.type);
+    assert.equal(light.properties.name.get(), entry.name);
   }
+  const hemi = new Light(); hemi.load({objectType: 4, properties: {groundColor: [0,0,0]}});
+  assert.equal(hemi.changeObjectType, stock.changeObjectType);
+  assert.ok(hemi.threeObj.groundColor);
+  PZ.trapcode.lights.uninstall();
+  assert.equal(registrations.size, 0);
 });
 
-test("picker catalogue lists six offered types", () => {
-  const env = setup();
-  const listed = env.PZ.trapcode.lights.catalogue.filter((entry) => entry.listed).map((entry) => entry.id).sort((a, b) => a - b);
-  assert.equal(JSON.stringify(listed), "[1,2,3,4,5,7]");
-});
 
-test("createPZ and createTHREE expose the surface the lights need", () => {
-  const PZ = createPZ();
-  const THREE = createTHREE();
-  assert.equal(typeof PZ.propertyList, "function");
-  assert.equal(typeof THREE.SpotLight, "function");
+test("adding Light+ Hemisphere with no stored properties uses the stock backend", () => {
+  const {PZ, THREE, Light, stock} = setup();
+  PZ.trapcode.lights.install(PZ);
+  const light = new Light(); light.type = 3;
+  light.load({objectType: 4});
+  assert.equal(light.type, 3);
+  assert.equal(light.changeObjectType, stock.changeObjectType);
+  assert.ok(light.threeObj instanceof THREE.HemisphereLight);
+  light.update(0);
+  PZ.trapcode.lights.uninstall();
 });

@@ -362,9 +362,9 @@ var PZ = PZ || {};
                 fragmentShader: MESH_FRAGMENT,
                 transparent: true,
                 depthTest: true,
-                depthWrite: false,
+                depthWrite: true,
                 side: THREE.DoubleSide,
-                blending: THREE.AdditiveBlending,
+                blending: THREE.NormalBlending,
             });
             this.mesh = new THREE.Mesh(new THREE.BufferGeometry(), this.meshMaterial);
             this.mesh.frustumCulled = false;
@@ -687,15 +687,6 @@ var PZ = PZ || {};
                     }
                 }
             }
-            // Fallback: if maxDistance was tiny relative to spacing, emit
-            // consecutive triples so Triangulation never renders empty.
-            if (!indices.length && n >= 3) {
-                for (var f = 0; f + 2 < n && indices.length < MAX_TRIANGLES * 3; f += 3) {
-                    if (triangleAreaSq(work, f, f + 1, f + 2) >= 1e-8) {
-                        indices.push(f, f + 1, f + 2);
-                    }
-                }
-            }
             return indices;
         }
         async prepare(e) {
@@ -799,6 +790,8 @@ var PZ = PZ || {};
                 this.objectKind = KIND_RENDERER;
                 this.subType = 3;
                 r.rendererType.set(3);
+                r.opacity.set(35);
+                r.maxDistance.set(100);
                 c.name.set("Triangulation");
             } else if (name === "beams") {
                 this.objectKind = KIND_RENDERER;
@@ -831,7 +824,7 @@ var PZ = PZ || {};
             if (this.isEffector()) {
                 if (Math.round(this.properties.effector.effectorType.get(t)) !== 6) return out;
                 var audioValue = this.properties.effector.audioLayer.get(t);
-                var audioProject = this.tryGetParentOfType(PZ.project);
+                var audioProject = T.findParent(this, PZ.project);
                 var audioEntry = this._assets.request("audio", audioValue, function (value) {
                     return T.audioAnalysis.load(audioProject, value).then(function () { return true; }, function () { return null; });
                 });
@@ -841,7 +834,7 @@ var PZ = PZ || {};
             if (!this.isGeometry()) return out;
             var g = this.properties.geometry;
             var type = g.geometryType.get(t);
-            var project = this.tryGetParentOfType(PZ.project);
+            var project = T.findParent(this, PZ.project);
             var entry = null;
             if (type === 0) {
                 entry = this._assets.request("layer", g.imageLayer.get(t), function (value) {
@@ -1256,7 +1249,7 @@ var PZ = PZ || {};
             for (var i = 0; i < count * 3; i++) pos[i] *= scale;
         }
         sceneRate() {
-            var sequence = this.tryGetParentOfType(PZ.sequence);
+            var sequence = T.findParent(this, PZ.sequence);
             return sequence ? sequence.properties.rate.get(PZ.trapcode.currentTime) || 1 : 1;
         }
         applyToState(state) {
@@ -1629,7 +1622,13 @@ var PZ = PZ || {};
                 return root.objects;
             },
             targetName: function (object, index) {
-                return (object.properties.common.name.get(PZ.trapcode.currentTime) || "Object") + " (" + index + ")";
+                var name = object.properties.common.name.get(PZ.trapcode.currentTime);
+                if (!name || name === "Object") {
+                    if (object.isRenderer()) name = ["Points", "Lines", "Facets", "Triangulation", "Beams"][object.subType];
+                    else if (object.isEffector()) name = "Effector";
+                    else name = "Geometry";
+                }
+                return name || "Object";
             },
             addKinds: [
                 { name: "Add Geometry", create: function (root) { return addPlexusObject(root, 0, 3, "Primitives"); } },
