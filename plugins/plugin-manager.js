@@ -879,6 +879,17 @@
     return JSON.parse(JSON.stringify(value));
   }
 
+  // The project the editor is showing. A native item keeps the project it was
+  // loaded into, so a switch lock counts only items owned by this project.
+  // Without a known project, every tracked item counts (the conservative case).
+  function activeEditorProject() {
+    return window.CM?.project || null;
+  }
+
+  function ownedByActiveProject(item) {
+    return debugItemBelongsToProject(item, activeEditorProject());
+  }
+
   function setPluginUsageUi(state, inUse, reason) {
     // Hidden plugins (Zoidium Core) have no panel card.
     if (!state.card || !state.toggle) return;
@@ -911,7 +922,7 @@
   function updateNativeFxUsageUi() {
     const state = pluginStates.get(NATIVE_FX_PLUGIN_ID);
     if (!state || !pluginIsEnabled(state)) return;
-    setPluginUsageUi(state, trackedNativeEffects.size > 0);
+    setPluginUsageUi(state, Array.from(trackedNativeEffects).some(ownedByActiveProject));
   }
 
   function trackNativeEffect(effect, metadata, missing) {
@@ -1179,7 +1190,8 @@
     const state = pluginStates.get(pluginId);
     if (!state || !pluginIsEnabled(state)) return;
     const inUse = Array.from(trackedPluginObjects).some(
-      (object) => object._zoidiumPluginMetadata?.id === pluginId && !missingPluginObjects.has(object)
+      (object) => ownedByActiveProject(object) &&
+        object._zoidiumPluginMetadata?.id === pluginId && !missingPluginObjects.has(object)
     );
     setPluginUsageUi(state, inUse);
   }
@@ -1219,6 +1231,7 @@
     if (!state || !pluginIsEnabled(state)) return;
     const inUse = Array.from(trackedPluginResources).some(
       (resource) =>
+        ownedByActiveProject(resource) &&
         resource._zoidiumPluginResourceMetadata?.id === pluginId &&
         !missingPluginResources.has(resource)
     );
@@ -2757,6 +2770,42 @@
       if (typeof descriptor?.value === "function") prototypes.add(descriptor.value.prototype);
     }
     const owns = (value, key) => Object.prototype.hasOwnProperty.call(value, key);
+    // Runtime-only fields are never part of the saved document. A media item
+    // loaded from an import carries a Blob thumbnail; cloning it yields {},
+    // and re-emitting that {} makes the next reopen fail, because CM3 passes
+    // any truthy non-string thumbnail to URL.createObjectURL. Keep plain JSON
+    // values only, and never retain a thumbnail.
+    const RUNTIME_ONLY_FIELDS = new Set(["thumbnail"]);
+    const isJsonValue = (value, depth) => {
+      if (value === null || typeof value === "string" || typeof value === "boolean") return true;
+      if (typeof value === "number") return Number.isFinite(value);
+      if (typeof value !== "object" || depth > 32) return false;
+      if (Array.isArray(value)) return value.every((item) => isJsonValue(item, depth + 1));
+      // A plain object's prototype is a root Object.prototype (its own
+      // prototype is null). Class instances, Blobs, and Files all sit deeper.
+      const proto = Object.getPrototypeOf(value);
+      if (proto !== null && Object.getPrototypeOf(proto) !== null) return false;
+      return Object.keys(value).every((key) => isJsonValue(value[key], depth + 1));
+    };
+    const retainableSnapshot = (source) => {
+      const snapshot = {};
+      for (const key of Object.keys(source)) {
+        if (RUNTIME_ONLY_FIELDS.has(key)) continue;
+        const value = source[key];
+        if (key === "properties" && value && typeof value === "object" && !Array.isArray(value)) {
+          // Keep the properties that are plain JSON; a stray Blob must not
+          // discard the rest of the authored properties.
+          const properties = {};
+          for (const name of Object.keys(value)) {
+            if (isJsonValue(value[name], 0)) properties[name] = value[name];
+          }
+          snapshot[key] = properties;
+        } else if (isJsonValue(value, 0)) {
+          snapshot[key] = value;
+        }
+      }
+      return cloneJson(snapshot);
+    };
     for (const prototype of prototypes) {
       if (!prototype || !owns(prototype, "load") || typeof prototype.toJSON !== "function") continue;
       const preserved = new WeakMap();
@@ -2765,7 +2814,7 @@
       prototype.load = function (data) {
         // Capture before the host or a plugin can mutate the caller's input.
         let snapshot = data && typeof data === "object" && typeof data.then !== "function"
-          ? cloneJson(data) : null;
+          ? retainableSnapshot(data) : null;
         preserved.delete(this);
         const retain = (source) => {
           if (!source || typeof source !== "object") return;
@@ -2785,7 +2834,7 @@
         const args = Array.from(arguments);
         if (data && typeof data.then === "function") {
           args[0] = Promise.resolve(data).then((source) => {
-            snapshot = source && typeof source === "object" ? cloneJson(source) : null;
+            snapshot = source && typeof source === "object" ? retainableSnapshot(source) : null;
             return source;
           });
         }
@@ -2823,6 +2872,8 @@
   function installProjectPluginHooks() {
     if (projectHooksInstalled || !PZ.project?.prototype) return;
     projectHooksInstalled = true;
+    // project-files.js and project-restore.js announce every editor.project swap.
+    window.addEventListener("zoidium:project-changed", refreshPluginUsageLocks);
     installSerializedFieldPreservation();
 
     const projectPrototype = PZ.project.prototype;
@@ -2993,16 +3044,31 @@
     }
     const pluginId = state.plugin.id;
     const inUse =
-      Array.from(trackedNativeEffects).some((effect) => effect._zoidiumPluginMetadata?.id === pluginId) ||
-      Array.from(trackedPluginMaterials).some((material) => material._zoidiumPluginMetadata?.id === pluginId) ||
+      Array.from(trackedNativeEffects).some((effect) =>
+        ownedByActiveProject(effect) && effect._zoidiumPluginMetadata?.id === pluginId) ||
+      Array.from(trackedPluginMaterials).some((material) =>
+        ownedByActiveProject(material) && material._zoidiumPluginMetadata?.id === pluginId) ||
       Array.from(trackedPluginObjects).some(
-        (object) => object._zoidiumPluginMetadata?.id === pluginId && !missingPluginObjects.has(object)
+        (object) => ownedByActiveProject(object) &&
+          object._zoidiumPluginMetadata?.id === pluginId && !missingPluginObjects.has(object)
       ) ||
       Array.from(trackedPluginResources).some(
-        (resource) =>
+        (resource) => ownedByActiveProject(resource) &&
           resource._zoidiumPluginResourceMetadata?.id === pluginId && !missingPluginResources.has(resource)
       );
     return inUse ? DEFAULT_IN_USE_REASON : "";
+  }
+
+  // Re-derives every enabled plugin's switch lock. Runs when the editor swaps
+  // projects (New, Open, Restore): the previous project's items stop counting,
+  // so their switches unlock without waiting for another item event.
+  function refreshPluginUsageLocks() {
+    for (const state of pluginStates.values()) {
+      if (!state.card || !state.toggle || !pluginIsEnabled(state)) continue;
+      if (state.card.dataset.phase === "loading") continue;
+      const reason = pluginUsageReason(state);
+      setPluginUsageUi(state, Boolean(reason), reason);
+    }
   }
 
   // CM3's add picker builds its rows from the registry when it opens, so the

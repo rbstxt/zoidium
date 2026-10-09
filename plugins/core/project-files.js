@@ -317,6 +317,43 @@
     return { legacy: false, mediaCount: document.media.length };
   }
 
+  // CM3 gives a media item's thumbnail to URL.createObjectURL unless it is a
+  // string, and a thumbnail only exists at runtime (CM3 never writes one). An
+  // older build saved a Blob thumbnail as {}, which then broke every reopen.
+  // Drop any non-string thumbnail so CM3 falls back to the media icon. Only the
+  // in-memory "project" entry is rewritten; a saved file on disk is untouched.
+  // Returns the number of thumbnails removed.
+  async function sanitizeProjectArchive(archive) {
+    var entry = archive.peekFile(PROJECT_ENTRY);
+    if (!entry || entry.data == null || isLegacyArchive(archive)) return 0;
+    var document;
+    try {
+      document = JSON.parse(String(await decodeEntryText(entry.data)).trim());
+    } catch (_error) {
+      // Unreadable project data is reported by validation, not repaired here.
+      return 0;
+    }
+    if (!isPlainObject(document) || !Array.isArray(document.media)) return 0;
+
+    var removed = 0;
+    document.media.forEach(function (media) {
+      if (isPlainObject(media) && "thumbnail" in media && typeof media.thumbnail !== "string") {
+        delete media.thumbnail;
+        removed += 1;
+      }
+    });
+    if (removed === 0) return 0;
+
+    // Store the entry as bytes, as CM3's addFileString does. PZ.project.load
+    // reads it with getFileString, which yields nothing from a Blob.
+    var index = archive.files.indexOf(entry);
+    archive.files[index] = {
+      name: PROJECT_ENTRY,
+      data: new TextEncoder().encode(JSON.stringify(document)),
+    };
+    return removed;
+  }
+
   // Unpacks a saved project (or restore point) and checks its project data
   // before anything is loaded from it. Every failure is a ProjectDataError with
   // an English message.
@@ -331,6 +368,7 @@
       throw projectDataError(mode, "The archive is not readable");
     }
     await validateProjectArchive(archive, mode);
+    await sanitizeProjectArchive(archive);
     return archive;
   }
 
@@ -424,6 +462,8 @@
     var archive = new PZ.archive();
     logPhase("project-save-start");
     await serializeProject(archive, editor.project);
+    // Runtime-only media thumbnails must never reach a saved file.
+    await sanitizeProjectArchive(archive);
     // Refuse to continue with a missing, empty, or "undefined" project entry.
     // Nothing has been written to disk or to a restore point at this point.
     await validateProjectArchive(archive, "save");
@@ -726,6 +766,7 @@
         this._zoidiumSaveFileHandle = null;
         this._zoidiumSaveFileName = null;
         setProjectName(this, DEFAULT_PROJECT_NAME);
+        dispatch("zoidium:project-changed", { editor: this, reason: "new" });
       }
       return result;
     };
@@ -794,6 +835,7 @@
         editor.project = project;
         editor._zoidiumSaveFileHandle = null;
         editor._zoidiumSaveFileName = null;
+        dispatch("zoidium:project-changed", { editor: editor, reason: "open" });
         var metadata = decodeArchiveMetadata(archive);
         setProjectName(
           editor,
@@ -835,6 +877,7 @@
     fingerprintArchive: fingerprintArchive,
     getProjectRevision: getProjectRevision,
     validateProjectArchive: validateProjectArchive,
+    sanitizeProjectArchive: sanitizeProjectArchive,
     openValidatedArchive: openValidatedArchive,
     isProjectDataError: isProjectDataError,
     triggerDownload: triggerDownload,

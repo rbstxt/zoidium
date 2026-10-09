@@ -3,7 +3,7 @@
   "id": "core",
   "name": "Zoidium Core",
   "author": "Zoidium",
-  "version": "16",
+  "version": "17",
   "kind": "core",
   "visibility": "hidden",
   "alwaysEnabled": true,
