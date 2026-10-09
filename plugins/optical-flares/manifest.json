@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "id": "optical-flares",
+  "name": "Optical Flares",
+  "author": "Zoidium",
+  "version": "2",
+  "kind": "object",
+  "description": "Video Copilot style lens flares with a full element stack and SaaS-themed Options window.",
+  "category": "OPTICAL FLARES",
+  "objectTypes": [
+    {
+      "target": "object3d",
+      "name": "Optical Flares",
+      "desc": "Video Copilot style lens flares with a full element stack editor.",
+      "type": 13,
+      "list": [
+        {
+          "name": "Optical Flares",
+          "type": 13,
+          "data": {
+            "objectType": 0
+          }
+        },
+        {
+          "name": "Anamorphic Blue",
+          "type": 13,
+          "data": {
+            "objectType": 1
+          }
+        },
+        {
+          "name": "Sparkle Burst",
+          "type": 13,
+          "data": {
+            "objectType": 2
+          }
+        },
+        {
+          "name": "Cinematic Warm",
+          "type": 13,
+          "data": {
+            "objectType": 3
+          }
+        },
+        {
+          "name": "Sci-Fi Plasma",
+          "type": 13,
+          "data": {
+            "objectType": 4
+          }
+        }
+      ]
+    }
+  ],
+  "modules": [
+    {
+      "id": "optical-flares-runtime",
+      "source": "./plugins/optical-flares/optical-flares-runtime.js?v=2"
+    }
+  ],
+  "resources": [
+    {
+      "id": "optical-flares-common",
+      "type": "text",
+      "source": "./plugins/optical-flares/trapcode-common.js?v=2"
+    },
+    {
+      "id": "optical-flares-object",
+      "type": "text",
+      "source": "./plugins/optical-flares/optflares.js?v=2"
+    },
+    {
+      "id": "optical-flares-editor",
+      "type": "text",
+      "source": "./plugins/optical-flares/optflares-editor.js?v=2"
+    }
+  ]
+}

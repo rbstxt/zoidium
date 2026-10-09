@@ -35,7 +35,7 @@ test("a module that fails partway through activation is owned and cleaned up", a
   const state = { runtimeModules: [] };
   const sandbox = {
     state, plugin: { id: "fixture" }, manifest: {}, window: {}, document: {}, PZ: {},
-    getAsset() {}, createModuleLifecycle: lifecycleFactory(events),
+    getAsset() {}, createModuleLifecycle: lifecycleFactory(events), createModuleUi: () => ({}),
     sources: [[{ id: "broken" }, `module.exports = {
       activate(context) {
         context.lifecycle.onDispose(async () => { await Promise.resolve(); context.window.dirty = false; });
