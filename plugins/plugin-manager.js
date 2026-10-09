@@ -2058,16 +2058,12 @@
     return found;
   }
 
-  // Numeric 3D-object types (7-13) from packs that extend the numeric type
-  // namespace. Layer nodes always carry an effects array while object
-  // entries never do, which keeps Camera layers (type 9) from colliding
-  // with Voronoi objects (type 9) in flat project JSON. Live property objects
-  // also have numeric type IDs; they must never create plugin dependencies.
-  function findNumericObjectTypes(value, found = new Map(), visited = new WeakSet()) {
-    if (!value || typeof value !== "object") return found;
-    if (visited.has(value)) return found;
+  // Only authored 3D object lists claim legacy numeric ids. Flare stack
+  // elements and property definitions have their own unrelated numeric ids.
+  function findNumericObjectTypes(value, found = new Map(), visited = new WeakSet(), authoredObject = true) {
+    if (!value || typeof value !== "object" || visited.has(value)) return found;
     visited.add(value);
-    if (typeof value.type === "number" && NUMERIC_OBJECT_TYPES.has(value.type) &&
+    if (authoredObject && typeof value.type === "number" && NUMERIC_OBJECT_TYPES.has(value.type) &&
         !Array.isArray(value.effects) && (value.properties || Array.isArray(value.objects)) && !value.definition &&
         (!value.baseTypeString || value.baseTypeString === "object3d")) {
       const entry = NUMERIC_OBJECT_TYPES.get(value.type);
@@ -2075,9 +2071,12 @@
       found.get(entry.pluginId).add(entry.objectId);
     }
     if (Array.isArray(value)) {
-      for (const item of value) findNumericObjectTypes(item, found, visited);
+      for (const item of value) findNumericObjectTypes(item, found, visited, authoredObject);
     } else {
-      for (const key of Object.keys(value)) findNumericObjectTypes(value[key], found, visited);
+      for (const key of ["sequence", "videoTracks", "audioTracks", "clips", "object", "objects", "media", "data"]) {
+        const childIsObject = key === "objects" || (key === "data" && value.baseType === "object3d");
+        findNumericObjectTypes(value[key], found, visited, childIsObject);
+      }
     }
     return found;
   }
@@ -2106,6 +2105,8 @@
     if (data && typeof data === "object") {
       visitTracks(data.videoTracks);
       visitTracks(data.audioTracks);
+      visitTracks(data.sequence?.videoTracks);
+      visitTracks(data.sequence?.audioTracks);
       if (Array.isArray(data.media)) {
         for (const media of data.media) {
           if (media && typeof media === "object" && Array.isArray(media.data)) {
@@ -2268,6 +2269,22 @@
     return found;
   }
 
+  function findCompositionFeatures(data) {
+    const found = new Set();
+    const visited = new WeakSet();
+    function visit(value) {
+      if (!value || typeof value !== "object" || visited.has(value)) return;
+      visited.add(value);
+      if ((value.comp && typeof value.comp.id === "string") ||
+          (value.type === 2 && typeof value.compId === "string")) {
+        found.add("compositions");
+      }
+      for (const child of Object.values(value)) visit(child);
+    }
+    visit(data);
+    return found;
+  }
+
   function projectPluginRequirements(data) {
     const plugins = normalizeProjectPlugins(data?.plugins);
     const detectedEffects = Array.from(findNativeFxTypes(data)).sort();
@@ -2280,6 +2297,7 @@
     const detectedC4DLights = findC4DLights(data);
     const detectedTextPlusFeatures = findTextPlusFeatures(data);
     const detectedParticlesPlusSprites = findParticlesPlusSprites(data);
+    const detectedCompositions = findCompositionFeatures(data);
     if (
       detectedEffects.length === 0 &&
       detectedPluginNative.size === 0 &&
@@ -2291,7 +2309,8 @@
       detectedNumericLayers.size === 0 &&
       detectedC4DLights.size === 0 &&
       detectedTextPlusFeatures.size === 0 &&
-      detectedParticlesPlusSprites.size === 0
+      detectedParticlesPlusSprites.size === 0 &&
+      detectedCompositions.size === 0
     ) {
       return plugins;
     }
@@ -2328,6 +2347,7 @@
     for (const [pluginId, layerIds] of detectedNumericLayers) {
       mergeDetectedPluginItems(plugins, pluginId, "objects", layerIds);
     }
+    mergeDetectedPluginItems(plugins, "precomp-plus", "features", detectedCompositions);
     mergeDetectedPluginItems(plugins, TRAPCODE_SUITE_PLUGIN_ID, "features", detectedC4DLights);
     mergeDetectedPluginItems(
       plugins,
@@ -2605,7 +2625,7 @@
             ? ` v${installedVersion}`
             : "";
       const approved = window.confirm(
-        `This project uses the plugin "${state.plugin.name}"${versionNote}, which is not compatible with vanilla Panzoid Clipmaker 3.\n\nEnable this plugin?\nIf you decline, the affected effects are kept as Missing ${state.plugin.name}.`
+        `This project uses the plugin "${state.plugin.name}"${versionNote}, which is not compatible with vanilla Panzoid Clipmaker 3.\n\nEnable this plugin?\nIf you decline, plugin features will be unavailable and the project may render differently. Enable the plugin before editing those features.`
       );
       if (approved) await enablePlugin(state, true);
     }
@@ -2703,9 +2723,82 @@
     }).sort((a, b) => a.id.localeCompare(b.id));
   }
 
+  function installSerializedFieldPreservation() {
+    // Keep authored extensions out of live host properties. Weak keys release
+    // the snapshot with its media/layer/clip, including detached projects.
+    const prototypes = new Set([PZ.media?.prototype, PZ.clip?.prototype, PZ.layer?.prototype]);
+    for (const key of Object.keys(PZ.layer || {})) {
+      const descriptor = Object.getOwnPropertyDescriptor(PZ.layer, key);
+      if (typeof descriptor?.value === "function") prototypes.add(descriptor.value.prototype);
+    }
+    const owns = (value, key) => Object.prototype.hasOwnProperty.call(value, key);
+    for (const prototype of prototypes) {
+      if (!prototype || !owns(prototype, "load") || typeof prototype.toJSON !== "function") continue;
+      const preserved = new WeakMap();
+      const originalLoad = prototype.load;
+      const originalToJSON = prototype.toJSON;
+      prototype.load = function (data) {
+        // Capture before the host or a plugin can mutate the caller's input.
+        let snapshot = data && typeof data === "object" && typeof data.then !== "function"
+          ? cloneJson(data) : null;
+        preserved.delete(this);
+        const retain = (source) => {
+          if (!source || typeof source !== "object") return;
+          const json = originalToJSON.call(this);
+          if (!json || typeof json !== "object") return;
+          const fields = Object.create(null);
+          for (const key of Object.keys(source)) {
+            if (!owns(json, key)) fields[key] = source[key];
+          }
+          const properties = Object.create(null);
+          const hostProperties = json.properties?.toJSON?.() || json.properties || {};
+          for (const key of Object.keys(source.properties || {})) {
+            if (!owns(hostProperties, key)) properties[key] = source.properties[key];
+          }
+          preserved.set(this, { fields, properties });
+        };
+        const args = Array.from(arguments);
+        if (data && typeof data.then === "function") {
+          args[0] = Promise.resolve(data).then((source) => {
+            snapshot = source && typeof source === "object" ? cloneJson(source) : null;
+            return source;
+          });
+        }
+        const result = originalLoad.apply(this, args);
+        if (result && typeof result.then === "function") {
+          return result.then((value) => {
+            retain(snapshot);
+            return value;
+          });
+        }
+        retain(snapshot);
+        return result;
+      };
+      prototype.toJSON = function () {
+        const json = originalToJSON.apply(this, arguments);
+        const extra = preserved.get(this);
+        if (!extra || !json || typeof json !== "object") return json;
+        for (const key of Object.keys(extra.fields)) {
+          if (owns(json, key)) continue;
+          // An enabled extension may have edited a field since load.
+          const live = Object.getOwnPropertyDescriptor(this, key);
+          const value = live && owns(live, "value") ? live.value : extra.fields[key];
+          if (value !== undefined) Object.defineProperty(json, key, {
+            value: cloneJson(value), enumerable: true, configurable: true, writable: true,
+          });
+        }
+        if (Object.keys(extra.properties).length && json.properties) {
+          json.properties = { ...cloneJson(extra.properties), ...cloneJson(json.properties) };
+        }
+        return json;
+      };
+    }
+  }
+
   function installProjectPluginHooks() {
     if (projectHooksInstalled || !PZ.project?.prototype) return;
     projectHooksInstalled = true;
+    installSerializedFieldPreservation();
 
     const projectPrototype = PZ.project.prototype;
     const originalProjectToJSON = projectPrototype.toJSON;
@@ -2715,7 +2808,7 @@
       // host's own result and passes through untouched.
       if (!json || typeof json !== "object") return json;
       const trackedPlugins = collectProjectPlugins(this);
-      const plugins = projectPluginRequirements({ ...json, plugins: trackedPlugins });
+      const plugins = projectPluginRequirements({ ...cloneJson(json), plugins: trackedPlugins });
       if (plugins.length > 0) json.plugins = serializeProjectPlugins(plugins);
       else delete json.plugins;
       return json;

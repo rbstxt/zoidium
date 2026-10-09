@@ -28,12 +28,29 @@ instead of producing NaN.
 
 Smooth curve quality refines triangles before a nonlinear deformer runs. The
 total output is capped at 400,000 triangles, so a dense mesh falls back to fewer
-polygons per triangle instead of stalling the editor.
+polygons per triangle. The budget counts indexed source triangles as well.
 
 Voronoi Fracture topology is cached by source geometry, seed, cell count, and
 the input positions. Animating distance, scatter, spin, offset, or the field
 only updates vertices. Meshes above 40,000 source triangles, or output above
 400,000 triangles, are left unfractured and a console warning explains why.
+
+Fracture builds run in a persistent Blob Worker, using source text supplied by
+the plugin bundle asset API. Large Twist/Warp meshes, subdivision, normal
+averaging, and bounds also run there. Interactive preview shows the pristine
+source or a completed result of the same topology while work is pending and
+redraws after completion. Motion changes keep an active topology build alive
+and replace obsolete queued motion frames. Object
+and scene `prepare()` await that work before CM3 exports a frame.
+
+Identical input keys share a job. Changed inputs cancel work with no remaining
+consumer, and unloading objects or disabling the plugin disposes their jobs.
+Only one build runs at a time. The worker retains at most four topology stages
+within 64 MiB; the main thread retains at most four unused frame results within
+96 MiB. Pending inputs refer to source buffers until dispatch, and completed
+meshes keep their normal render geometry. Source buffers are never transferred
+out of the editor. Material clones remain alive during pending builds so
+editing inputs does not discard their compiled shader programs.
 
 ## Voronoi Fracture
 

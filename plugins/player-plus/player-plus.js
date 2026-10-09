@@ -11,6 +11,7 @@ const PlayerPlus = (() => {
   ];
   const state = {
     active: false,
+    installation: null,
     editor: null,
     PZ: null,
     document: null,
@@ -31,6 +32,31 @@ const PlayerPlus = (() => {
     originalResize: null,
     patchedResize: null,
   };
+
+  // Other plugins may retain our wrapper after an out-of-order disable.
+  // Each installation owns its callback and cannot become active again.
+  const PATCH = Symbol.for("zoidium.inactivePatch");
+
+  function unwrapInactivePatch(callback) {
+    while (callback?.[PATCH] && !callback[PATCH].installation.active) {
+      callback = callback[PATCH].original;
+    }
+    return callback;
+  }
+
+  function guardPatch(target, key, handler, original) {
+    const installation = state.installation;
+    const wrapper = function () {
+      if (!installation.active) {
+        const callback = unwrapInactivePatch(original);
+        if (target[key] === wrapper) target[key] = callback;
+        return callback.apply(this, arguments);
+      }
+      return handler.apply(this, arguments);
+    };
+    wrapper[PATCH] = { installation, original };
+    return wrapper;
+  }
 
   function readStoredQuality() {
     try {
@@ -170,7 +196,9 @@ const PlayerPlus = (() => {
     if (!viewport.__zoidiumPlayerPlusFrame) {
       const originalFrame = viewport._renderFn;
       if (typeof originalFrame === "function") {
+        const installation = state.installation;
         const guardedFrame = () => {
+          if (!installation.active) return originalFrame();
           if (viewport.__zoidiumPlayerPlusPaused) {
             viewport.animFrameReq = null;
             return;
@@ -226,7 +254,7 @@ const PlayerPlus = (() => {
     if (!prototype || state.viewportPrototype === prototype) return;
     state.viewportPrototype = prototype;
 
-    state.originalRenderPipeline = prototype._render;
+    const originalRenderPipeline = state.originalRenderPipeline = unwrapInactivePatch(prototype._render);
     state.patchedRenderPipeline = function () {
       registerViewport(this);
       if (this.__zoidiumPlayerPlusPaused) {
@@ -240,17 +268,19 @@ const PlayerPlus = (() => {
           return;
         }
       }
-      return state.originalRenderPipeline.apply(this, arguments);
+      return originalRenderPipeline.apply(this, arguments);
     };
+    state.patchedRenderPipeline = guardPatch(prototype, "_render", state.patchedRenderPipeline, originalRenderPipeline);
     prototype._render = state.patchedRenderPipeline;
 
-    state.originalResize = prototype.resize;
+    const originalResize = state.originalResize = unwrapInactivePatch(prototype.resize);
     state.patchedResize = function () {
       registerViewport(this);
-      const result = state.originalResize.apply(this, arguments);
+      const result = originalResize.apply(this, arguments);
       applyQualityToViewport(this);
       return result;
     };
+    state.patchedResize = guardPatch(prototype, "resize", state.patchedResize, originalResize);
     prototype.resize = state.patchedResize;
   }
 
@@ -435,6 +465,10 @@ const PlayerPlus = (() => {
   async function activate(context) {
     if (state.active) return;
     state.active = true;
+    const installation = state.installation = { active: true };
+    context.lifecycle?.onDispose(() => {
+      if (state.installation === installation) deactivate();
+    });
     state.editor = context.editor;
     state.window = context.window || window;
     state.document = context.document || document;
@@ -444,15 +478,20 @@ const PlayerPlus = (() => {
     installViewportPatches();
     watchForToolbar();
     // The initial project may finish sizing the viewport just after activation.
-    state.window.requestAnimationFrame(applyQualityToAllViewports);
+    state.window.requestAnimationFrame(() => {
+      if (installation.active) applyQualityToAllViewports();
+    });
   }
 
   function deactivate() {
     if (!state.active) return;
     state.active = false;
+    state.installation.active = false;
     state.toolbarObserver?.disconnect();
     state.toolbarObserver = null;
     setDrawingPaused(false);
+    state.quality = 1;
+    applyQualityToAllViewports();
     removeControls();
     restoreViewportPatches();
     state.style?.remove();

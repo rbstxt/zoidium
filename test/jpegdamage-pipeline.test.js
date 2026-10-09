@@ -6,7 +6,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const source = fs.readFileSync(path.join(__dirname, "../plugins/openzoid-legacy/effects/jpegdamage.js"), "utf8");
 
-function harness({ pending = false, float = true, complete = true } = {}) {
+function harness({ pending = false, float = true, complete = true, limit = 8192 } = {}) {
   let finish;
   const disposed = [];
   const frames = [];
@@ -37,9 +37,9 @@ function harness({ pending = false, float = true, complete = true } = {}) {
       this.camera = {};
       this.quad = { material, geometry: { dispose() { disposed.push(this); } } };
     }
-    render(renderer, write, read) {
+    render(renderer, write, read, clear) {
       this.uniforms.tDiffuse.value = read.texture;
-      renderer.render(this.scene, this.camera, write);
+      renderer.render(this.scene, this.camera, write, clear);
     }
   }
   const THREE = { Vector2, ShaderMaterial, DataTexture, WebGLRenderTarget, ShaderPass,
@@ -60,14 +60,16 @@ function harness({ pending = false, float = true, complete = true } = {}) {
   const screen = {};
   let current = screen;
   const renderer = {
-    capabilities: { maxTextureSize: 8192 }, extensions: { get: () => float },
+    autoClear: true,
+    capabilities: { maxTextureSize: limit }, extensions: { get: () => float },
     getContext: () => ({ FRAMEBUFFER: 1, FRAMEBUFFER_COMPLETE: 2, checkFramebufferStatus: () => complete ? 2 : 0 }),
     getRenderTarget: () => current, setRenderTarget(target) { current = target; },
-    render(scene, camera, target) {
+    clearTarget() {},
+    render(scene, camera, target, clear) {
       current = target;
       const pass = scene.pass;
       frames.push({ stage: pass.quad.material.defines.JPEG_STAGE, target, input: pass.uniforms.tStage.value,
-        source: pass.uniforms.tDiffuse.value, range: pass.uniforms.outputRange.value });
+        clear: this.autoClear || clear, source: pass.uniforms.tDiffuse.value, offset: pass.uniforms.blockOffset.value });
     },
   };
   return { effect, renderer, finish: () => finish("host vertex"), frames, disposed, assets, screen };
@@ -137,8 +139,11 @@ for (const [name, options] of [["missing float extension", { float: false }], ["
     assert.equal(pass.uniforms.sparseAxes.value.x, 1);
     assert.equal(pass.uniforms.blockGrid.value.x, 1920);
     assert.ok(pass.targets[0].width <= 8192 && pass.targets[0].height <= 8192);
-    assert.ok(h.frames[1].range > h.frames[0].range);
-    assert.ok(h.frames[2].range > h.frames[1].range);
+    assert.ok(pass.targets[0].width * pass.targets[0].height < 32768 * 24 * 9 + 8192 * 9);
+    assert.ok(h.frames.length > 4, "large sparse grids render independent bands");
+    assert.ok(h.frames[4].offset > h.frames[0].offset);
+    assert.ok(h.frames.filter((f) => f.stage === 3).every((f) => f.clear === false), "later bands preserve prior output");
+    assert.equal(h.renderer.autoClear, true);
     h.effect.unload();
   });
 }
@@ -148,9 +153,24 @@ test("JPEG pass restores renderer state after an intermediate draw fails", async
   await h.effect.load({});
   h.effect.update(0);
   const render = h.renderer.render;
-  h.renderer.render = (...args) => { render(...args); throw new Error("draw failed"); };
-  assert.throws(() => h.effect.pass.render(h.renderer, {}, { texture: {} }), /draw failed/);
+  h.renderer.render = (...args) => { render.apply(h.renderer, args); throw new Error("draw failed"); };
+  assert.throws(() => h.effect.pass.render(h.renderer, { width: 1920, height: 1080 }, { texture: {}, width: 1920, height: 1080 }), /draw failed/);
   assert.equal(h.renderer.getRenderTarget(), h.screen);
+  assert.equal(h.renderer.autoClear, true);
   assert.equal(h.effect.pass.quad.material, h.effect.pass.material);
+  h.effect.unload();
+});
+
+
+test("a packed atlas splits within a block row to respect small texture limits", async () => {
+  const h = harness({ float: false, limit: 192 });
+  await h.effect.load({ properties: { resRelX: 0.01 } });
+  h.effect.update(0);
+  const target = { texture: {}, width: 191, height: 181 };
+  h.effect.pass.render(h.renderer, target, { ...target, texture: {} }, true);
+  assert.ok(h.effect.pass.targets.every((t) => t.width <= 192 && t.height <= 192));
+  assert.ok(h.frames.length > 4);
+  assert.equal(h.frames[4].offset, 168, "batch boundary may fall inside the 191-block row");
+  assert.equal(h.renderer.autoClear, true);
   h.effect.unload();
 });

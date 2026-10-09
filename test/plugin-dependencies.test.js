@@ -314,7 +314,7 @@ test("empty optional dependency fields are omitted from saved project metadata",
 test("save hooks rescan serialized JSON before metadata and warnings are produced", () => {
   assert.match(
     managerSource,
-    /projectPluginRequirements\(\{ \.\.\.json, plugins: trackedPlugins \}\)/
+    /projectPluginRequirements\(\{ \.\.\.cloneJson\(json\), plugins: trackedPlugins \}\)/
   );
   assert.match(
     managerSource,
@@ -333,4 +333,42 @@ test("live numeric properties do not mark a vanilla project as using legacy plug
   assert.equal(used.length, 1);
   assert.equal(used[0].id, "effector-plus");
   assert.deepEqual(Array.from(used[0].objects), ["twist"]);
+});
+
+
+test("composition media and composite references detect Precomp+ without descriptors", () => {
+  for (const data of [
+    { media: [{ comp: { id: "comp-1", clipLinks: [] } }] },
+    { sequence: { videoTracks: [{ clips: [{ object: { type: 2, compId: "comp-1", offset: 12 } }] }] } },
+  ]) {
+    assert.deepEqual(pluginById(data, "precomp-plus").features, ["compositions"]);
+  }
+  assert.equal(pluginById({ object: { type: 4, compId: 7 } }, "precomp-plus"), undefined);
+});
+
+
+test("Optical Flares stack enums do not add Effector+ or Trapcode requirements", () => {
+  const flare = { type: 13, properties: {}, stack: [
+    { type: 7, properties: { name: "Lens element" } },
+    { type: 10, properties: { name: "Another element" } },
+  ] };
+  const data = { sequence: { videoTracks: [{ clips: [{ object: { type: 4, effects: [], objects: [flare] } }] }] } };
+  assert.deepEqual(requirements(data).map((plugin) => plugin.id), ["optical-flares"]);
+  data.sequence.videoTracks[0].clips[0].object.objects.push({ type: 7, properties: {}, objects: [] });
+  assert.deepEqual(requirements(data).map((plugin) => plugin.id).sort(), ["effector-plus", "optical-flares"]);
+});
+
+test("legacy numeric objects are found in nested groups and composition media", () => {
+  const data = { media: [{ baseType: "track", data: [{ clips: [{ object: {
+    type: 4, effects: [], objects: [{ type: 5, properties: {}, objects: [{ type: 10, properties: {} }] }],
+  } }] }] }] };
+  assert.deepEqual(pluginById(data, "trapcode-suite").objects, ["particular"]);
+});
+
+test("legacy Camera layers are detected inside the project's sequence", () => {
+  const data = { sequence: { videoTracks: [{ clips: [{ object: {
+    type: 9, effects: [], properties: {}, objects: [],
+  } }] }] } };
+  assert.deepEqual(requirements(data).map((plugin) => plugin.id), ["camera-plus"]);
+  assert.deepEqual(pluginById(data, "camera-plus").objects, ["camera-layer"]);
 });

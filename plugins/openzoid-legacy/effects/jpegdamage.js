@@ -112,8 +112,8 @@ async function jpegBuildPass(effect, data, generation) {
             blockGrid: { value: new THREE.Vector2(1, 1) },
             atlasGrid: { value: new THREE.Vector2(1, 1) },
             sparseAxes: { value: new THREE.Vector2(0, 0) },
-            inputRange: { value: 1 },
-            outputRange: { value: 1 },
+            blockOffset: { value: 0 },
+            blockCount: { value: 1 },
             uvScale: { type: "v2", value: new THREE.Vector2(1, 1) },
             resolution: { type: "v2", value: new THREE.Vector2(1, 1) },
             time: { type: "f", value: 0 },
@@ -237,9 +237,14 @@ function jpegPipeline(material) {
         var blocksY = Math.min(Math.ceil(lowY / 8), outputHeight);
         var limit = renderer.capabilities.maxTextureSize;
         var texelWidth = packed ? 24 : 8;
+        // Limit intermediate memory even for very narrow blocks or large exports.
+        // Bands are independent and overwrite their output pixels exactly once.
+        var capacity = Math.min(32768, Math.floor(limit / texelWidth) * Math.floor(limit / 9));
+        var totalBlocks = blocksX * blocksY;
+        var bandSize = Math.min(totalBlocks, capacity);
         var columns = Math.min(Math.floor(limit / texelWidth), Math.max(1,
-            Math.ceil(Math.sqrt(blocksX * blocksY * 9 / texelWidth))));
-        var rows = Math.ceil(blocksX * blocksY / columns);
+            Math.ceil(Math.sqrt(bandSize * 9 / texelWidth))));
+        var rows = Math.ceil(bandSize / columns);
         u.outputResolution.value.set(outputWidth, outputHeight);
         u.lowResolution.value.set(lowX, lowY);
         u.blockGrid.value.set(blocksX, blocksY);
@@ -247,40 +252,34 @@ function jpegPipeline(material) {
         u.sparseAxes.value.set(Math.ceil(lowX / 8) > outputWidth ? 1 : 0,
             Math.ceil(lowY / 8) > outputHeight ? 1 : 0);
         for (var i = 0; i < targets.length; i++) targets[i].setSize(columns * texelWidth, rows * 9);
-        // Conservative bounds for packed signed intermediates. They account for
-        // all controls and the six additive corruption slots, including DC.
-        var frequency = u.allFreq.value * Math.max(1, u.xFreq.value) * Math.max(1, u.yFreq.value) *
-            Math.max(u.lowFreq.value, u.midFreq.value, u.highFreq.value);
-        var gain = Math.max(1, 1 + (frequency - 1) * u.affectLuma.value,
-            1 + (frequency - 1) * u.affectChroma.value);
-        var qq = u.quality.value * 100;
-        var quant = Math.max(1, Math.floor((121 * (qq < 50 ? 5000 / qq : 200 - 2 * qq) + 50) / 100));
-        var coefficientRange = 2040 * gain + quant * 0.5 +
-            6 * u.errAmp.value * (1 + u.errRate.value * 0.25) * quant + 1;
-        var rowRange = 1021;
-        var inverseRange = 8 * coefficientRange;
         var previous = renderer.getRenderTarget();
+        var autoClear = renderer.autoClear;
         try {
             u.tDiffuse.value = readBuffer.texture;
-            u.outputRange.value = rowRange;
-            pass.quad.material = materials[0];
-            renderer.render(pass.scene, pass.camera, targets[0], true);
-            u.tStage.value = targets[0].texture;
-            u.inputRange.value = rowRange;
-            u.outputRange.value = coefficientRange;
-            pass.quad.material = materials[1];
-            renderer.render(pass.scene, pass.camera, targets[1], true);
-            u.tStage.value = targets[1].texture;
-            u.inputRange.value = coefficientRange;
-            u.outputRange.value = inverseRange;
-            pass.quad.material = materials[2];
-            renderer.render(pass.scene, pass.camera, targets[0], true);
-            u.tStage.value = targets[0].texture;
-            u.inputRange.value = inverseRange;
-            pass.quad.material = material;
-            originalRender.call(pass, renderer, writeBuffer, readBuffer, delta, maskActive);
+            var banded = bandSize < totalBlocks;
+            if (banded) {
+                renderer.autoClear = false;
+                renderer.clearTarget(writeBuffer, true, true, true);
+            }
+            for (var offset = 0; offset < totalBlocks; offset += bandSize) {
+                u.blockOffset.value = offset;
+                u.blockCount.value = Math.min(bandSize, totalBlocks - offset);
+                u.tStage.value = null;
+                pass.quad.material = materials[0];
+                renderer.render(pass.scene, pass.camera, targets[0], true);
+                u.tStage.value = targets[0].texture;
+                pass.quad.material = materials[1];
+                renderer.render(pass.scene, pass.camera, targets[1], true);
+                u.tStage.value = targets[1].texture;
+                pass.quad.material = materials[2];
+                renderer.render(pass.scene, pass.camera, targets[0], true);
+                u.tStage.value = targets[0].texture;
+                pass.quad.material = material;
+                originalRender.call(pass, renderer, writeBuffer, readBuffer, banded ? false : delta, maskActive);
+            }
         } finally {
             pass.quad.material = material;
+            renderer.autoClear = autoClear;
             renderer.setRenderTarget(previous);
         }
     };

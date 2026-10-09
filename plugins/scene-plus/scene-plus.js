@@ -434,6 +434,7 @@ function cloneRenderTree(source) {
 
 function disposeClonedResources(root) {
   if (!root?.traverse) return;
+  restoreDeformedTree(root);
   root.traverse((node) => {
     node.geometry?.dispose?.();
     const materials = Array.isArray(node.material)
@@ -550,9 +551,11 @@ function createEffectorBaseClass(PZ, THREE) {
         await child.loading;
         await child.prepare(frame);
       }
+      await deformationSupport?.prepareObject?.(this, frame);
     }
 
     unload() {
+      restoreDeformedTree(this.threeObj);
       for (const child of this.objects) child.unload();
       if (this.threeObj?.parent) this.threeObj.parent.remove(this.threeObj);
       this.threeObj = null;
@@ -591,6 +594,9 @@ function fieldFromProperties(properties, frame) {
 let library = loadLibraryFromRequire();
 let meshDeformerCache = null;
 let meshDeformerThree = null;
+let meshJobs = null;
+let deformationSupport = null;
+let cancelRedraw = null;
 const warnedMessages = new Set();
 
 function warnOnceFor(key, message) {
@@ -601,7 +607,7 @@ function warnOnceFor(key, message) {
 
 function getMeshDeformer(THREE) {
   if (!meshDeformerCache || meshDeformerThree !== THREE) {
-    meshDeformerCache = library.mesh.createMeshDeformer(THREE);
+    meshDeformerCache = library.mesh.createMeshDeformer(THREE, meshJobs);
     meshDeformerThree = THREE;
   }
   return meshDeformerCache;
@@ -659,6 +665,11 @@ function createTwistClass(PZ, THREE, type = TWIST_TYPE) {
         },
       });
       this.type = type;
+    }
+
+    workerCommand(frame) {
+      return { kind: "twist", angle: numberPropertyValue(this.properties.angle, frame, 0),
+        axis: optionPropertyValue(this.properties.axis, frame, 1), offset: numberPropertyValue(this.properties.offset, frame, 0) };
     }
 
     // Pure function of (positions, angle, axis, offset) at this frame.
@@ -747,6 +758,12 @@ function createWarpClass(PZ, THREE, type = WARP_TYPE) {
         },
       });
       this.type = type;
+    }
+
+    workerCommand(frame) {
+      return { kind: "warp", strength: numberPropertyValue(this.properties.amount, frame, 0),
+        axis: optionPropertyValue(this.properties.axis, frame, 0), offset: numberPropertyValue(this.properties.offset, frame, 0),
+        field: fieldFromProperties(this.properties, frame) };
     }
 
     deformPositions(positions, frame) {
@@ -864,6 +881,20 @@ function createVoronoiClass(PZ, THREE, type = VORONOI_TYPE) {
         },
       });
       this.type = type;
+    }
+
+    workerCommand(frame) {
+      return { kind: "fracture", topology: {
+        cells: library.fracture.clampCells(numberPropertyValue(this.properties.cells, frame, DEFAULT_FRACTURE_CELLS)),
+        seed: Math.trunc(numberPropertyValue(this.properties.seed, frame, 1)),
+        closed: optionPropertyValue(this.properties.closed, frame, 1) === 1,
+      }, limits: FRACTURE_LIMITS, motion: {
+        distance: numberPropertyValue(this.properties.distance, frame, 0),
+        scatter: numberPropertyValue(this.properties.scatter, frame, 0),
+        offset: numberPropertyValue(this.properties.offset, frame, 0),
+        spin: numberPropertyValue(this.properties.spin, frame, 0),
+        field: fieldFromProperties(this.properties, frame),
+      } };
     }
 
     // Topology stage: cached by the mesh deformer per (input, cells, seed, closed).
@@ -985,16 +1016,23 @@ function createDeformationSupport(PZ, THREE) {
     return {
       deactivate() {},
       apply: prototype.__zoidiumEffectorDeformSupport?.apply,
+      prepareObject: prototype.__zoidiumEffectorDeformSupport?.prepareObject,
     };
   }
 
   const layers = new Set();
   const originalUpdate = prototype.update;
+  const originalPrepare = prototype.prepare;
+  const originalUnload = prototype.unload;
   const meshDeformer = getMeshDeformer(THREE);
 
+  let preparingMeshes = null;
   function deformMeshesUnder(root, chain, frame) {
     const polygonCount = curvePolygonCount(chain.map((entry) => entry.effector), frame);
-    traverseDeformMeshes(root, (mesh) => meshDeformer.deformMesh(mesh, chain, frame, polygonCount));
+    traverseDeformMeshes(root, (mesh) => {
+      preparingMeshes?.add(mesh);
+      meshDeformer.deformMesh(mesh, chain, frame, polygonCount);
+    });
   }
 
   // The chain lists enabled deformers from outermost to innermost. Each entry
@@ -1069,6 +1107,48 @@ function createDeformationSupport(PZ, THREE) {
     for (const object of layer.objects) restoreRenderedObject(object, seen);
   }
 
+  // CM3 calls Scene.prepare from sequence.prepare before export getVideoFrame.
+  // Update after child preparation to capture animated/generated source meshes.
+  async function settle(evaluate) {
+    for (;;) {
+      const meshes = new Set();
+      preparingMeshes = meshes;
+      try { evaluate(); } finally { preparingMeshes = null; }
+      const pending = meshDeformer.pending(meshes);
+      if (!pending.length) return;
+      await Promise.all(pending);
+    }
+  }
+
+  async function prepareObject(object, frame) {
+    if (!meshJobs || object.__zoidiumRepeater) return;
+    // The outer effector prepares the full chain after its children are ready.
+    for (let parent = object.parent; parent && parent !== object; parent = parent.parent) {
+      if (typeof parent.deformPositions === "function" || parent.__zoidiumRepeater) return;
+      if (parent === parent.parent) break;
+    }
+    object.update(frame);
+    object.parentLayer?.threeObj?.updateMatrixWorld?.(true);
+    await settle(() => walkRenderedObject(object, [], frame, object.threeObj));
+  }
+
+  const patchedPrepare = async function prepareWithEffectors(frame, ...args) {
+    await originalPrepare?.call(this, frame, ...args);
+    if (!meshJobs) return;
+    const affected = objects => Array.from(objects || []).some(object =>
+      typeof object?.deformPositions === "function" || affected(object?.objects));
+    if (!affected(this.objects)) return;
+    originalUpdate.call(this, frame);
+    await settle(() => apply(this, frame));
+  };
+  const patchedUnload = function unloadWithEffectors(...args) {
+    restore(this);
+    layers.delete(this);
+    return originalUnload?.apply(this, args);
+  };
+  prototype.prepare = patchedPrepare;
+  prototype.unload = patchedUnload;
+
   const patchedUpdate = function updateWithEffectors(frame) {
     originalUpdate.call(this, frame);
     apply(this, frame);
@@ -1076,13 +1156,17 @@ function createDeformationSupport(PZ, THREE) {
   patchedUpdate.__zoidiumEffectorDeformPatch = true;
   prototype.update = patchedUpdate;
   prototype.__zoidiumEffectorDeformPatch = true;
-  prototype.__zoidiumEffectorDeformSupport = { apply, restore };
+  prototype.__zoidiumEffectorDeformSupport = { apply, restore, prepareObject };
 
   return {
     apply,
+    prepareObject,
     deactivate() {
       for (const layer of layers) restore(layer);
       layers.clear();
+      meshDeformer.dispose();
+      if (prototype.prepare === patchedPrepare) prototype.prepare = originalPrepare;
+      if (prototype.unload === patchedUnload) prototype.unload = originalUnload;
       if (prototype.update === patchedUpdate) prototype.update = originalUpdate;
       delete prototype.__zoidiumEffectorDeformPatch;
       delete prototype.__zoidiumEffectorDeformSupport;
@@ -1136,6 +1220,10 @@ function loadLibraryFromAssets(getAsset) {
     core: load("effector-core.js"),
     fracture: load("effector-fracture.js"),
     mesh: load("effector-mesh.js"),
+    jobs: load("effector-jobs.js"),
+    workerSource: load("effector-jobs.js").createWorkerSource(Object.fromEntries(
+      ["effector-core.js", "effector-fracture.js", "effector-mesh.js", "effector-evaluate.js"].map(name =>
+        [name, getAsset("text", "./plugins/scene-plus/" + name)]))),
   };
 }
 
@@ -1165,6 +1253,7 @@ function createRepeaterClass(PZ, THREE, mode, type) {
       this.__zoidiumRepeater = true;
       this._mode = mode;
       this._instanceRoots = [];
+      this._echoKey = null;
       this._cloneDirty = true;
       this._cloneSignature = "";
       this.objects.name = "Source objects";
@@ -1228,10 +1317,16 @@ function createRepeaterClass(PZ, THREE, mode, type) {
         }
       }
       this._instanceRoots = [];
+      this._echoKey = null;
     }
 
     rebuildEchoInstances(frame) {
       if (!this.threeObj) return;
+      // Preparation and rendering evaluate the same frame. Reuse those clones
+      // so a completed asynchronous deformation survives the render update.
+      // Authored source data catches edits to earlier animated keys as well.
+      const echoKey = JSON.stringify([frame, this.objects]);
+      if (!this._cloneDirty && this._echoKey === echoKey) return;
       this.clearInstances();
       const currentFrame = Math.max(0, numberValue(frame, 0));
       const count = getCount(this.repeaterProperties.count, currentFrame);
@@ -1266,6 +1361,7 @@ function createRepeaterClass(PZ, THREE, mode, type) {
       }
 
       this._cloneDirty = false;
+      this._echoKey = echoKey;
     }
 
     rebuildInstances(frame) {
@@ -1371,8 +1467,28 @@ function activate(context) {
   if (!library) library = loadLibraryFromAssets(context.getAsset);
 
   const unregister = [];
-  const deformationSupport = createDeformationSupport(PZ, THREE);
+  context.lifecycle?.onDispose?.(() => deactivate.call(this));
+  if (library.workerSource) {
+    let redrawRequest = null;
+    cancelRedraw = () => {
+      if (redrawRequest !== null) window.cancelAnimationFrame(redrawRequest);
+      redrawRequest = null;
+    };
+    const jobs = library.jobs.createMeshJobs(library.workerSource, window, () => {
+      const viewport = window.CM?.mainViewport;
+      if (!viewport?.enabled || redrawRequest !== null) return;
+      redrawRequest = window.requestAnimationFrame(() => {
+        redrawRequest = null;
+        if (!viewport.enabled || meshJobs !== jobs) return;
+        viewport.__zoidiumPlayerPlusRenderOnce = true;
+        try { viewport._render?.(); } finally { viewport.__zoidiumPlayerPlusRenderOnce = false; }
+      });
+    });
+    meshJobs = jobs;
+    meshDeformerCache = null;
+  }
   try {
+    deformationSupport = createDeformationSupport(PZ, THREE);
     const definitions = [
       ["step", "zoidium:repeater/repeater", "Repeater"],
       ["linear", "zoidium:repeater/linear-repeater", "Linear Repeater"],
@@ -1414,7 +1530,13 @@ function activate(context) {
         // Preserve the registration error while best-effort cleaning up.
       }
     }
-    deformationSupport.deactivate();
+    deformationSupport?.deactivate();
+    cancelRedraw?.();
+    cancelRedraw = null;
+    meshJobs?.dispose();
+    deformationSupport = null;
+    meshJobs = null;
+    meshDeformerCache = null;
     throw error;
   }
   this.__zoidiumRepeaterUnregister = unregister;
@@ -1422,6 +1544,8 @@ function activate(context) {
 }
 
 function deactivate() {
+  cancelRedraw?.();
+  cancelRedraw = null;
   for (const unregister of this.__zoidiumRepeaterUnregister || []) {
     try {
       unregister();
@@ -1432,6 +1556,10 @@ function deactivate() {
   this.__zoidiumRepeaterUnregister = [];
   this.__zoidiumEffectorSupport?.deactivate?.();
   this.__zoidiumEffectorSupport = null;
+  deformationSupport = null;
+  meshJobs?.dispose();
+  meshJobs = null;
+  meshDeformerCache = null;
 }
 
 module.exports = {
