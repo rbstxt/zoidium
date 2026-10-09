@@ -18,6 +18,15 @@ var PZ = PZ || {};
         T.currentTime = time;
     };
 
+    // getTexture() creates a THREE texture owned by the consumer, independently
+    // of the decoded image asset's reference count.
+    T.disposeImageUniform = function (material, name) {
+        var uniform = material && material.uniforms && material.uniforms[name];
+        if (!uniform || !uniform.value) return;
+        if (typeof uniform.value.dispose === "function") uniform.value.dispose();
+        uniform.value = null;
+    };
+
     T.clamp = function (value, min, max) {
         return value < min ? min : value > max ? max : value;
     };

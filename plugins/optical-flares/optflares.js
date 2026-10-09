@@ -911,6 +911,7 @@ var PZ = PZ || {};
             liveFlares.delete(this);
             this.unloadStack();
             this.releaseCustomTextures();
+            if (this.quad && this.quad.parent) this.quad.parent.remove(this.quad);
             if (this.quad && this.quad.geometry) this.quad.geometry.dispose();
             if (this.material) this.material.dispose();
             if (this._whiteTexture) this._whiteTexture.dispose();
@@ -1011,6 +1012,7 @@ var PZ = PZ || {};
             for (var key in this._customTextures) {
                 var texture = this._customTextures[key];
                 if (texture) {
+                    this.disposeCustomTexture(key);
                     if (project) project.assets.unload(texture);
                     this._customTextures[key] = null;
                 }
@@ -1022,12 +1024,20 @@ var PZ = PZ || {};
                 this.material.uniforms.uCustom3.value = this._whiteTexture;
             }
         }
+        disposeCustomTexture(key) {
+            var uniform = this.material && this.material.uniforms[key];
+            if (uniform && uniform.value && uniform.value !== this._whiteTexture) {
+                uniform.value.dispose();
+                uniform.value = this._whiteTexture;
+            }
+        }
         updateCustomTexture(property, uniformName, time) {
             var project = this.tryGetParentOfType(PZ.project);
             var value = property ? property.get(time) : null;
             if (this._customValues[uniformName] === value) return;
             var old = this._customTextures[uniformName];
             if (old) {
+                this.disposeCustomTexture(uniformName);
                 if (project) project.assets.unload(old);
                 this._customTextures[uniformName] = null;
             }

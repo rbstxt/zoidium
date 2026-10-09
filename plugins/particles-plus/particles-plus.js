@@ -23,6 +23,7 @@ const ParticlesPlus = (() => {
     trackedParticles: new Map(),
     watchedProperties: new Map(),
     pickerPatches: new Set(),
+    pickerPatchData: new WeakMap(),
     textureDefinition: null,
     particlePrototype: null,
     originalTextureChanged: null,
@@ -118,6 +119,30 @@ const ParticlesPlus = (() => {
     state.watchedProperties.set(property, callback);
   }
 
+  function unwatchProperty(property) {
+    const callback = state.watchedProperties.get(property);
+    if (!callback) return;
+    property.onChanged?.unwatch?.(callback);
+    state.watchedProperties.delete(property);
+  }
+
+  function restorePickers(predicate = () => true) {
+    for (const reference of state.pickerPatches) {
+      const container = reference.deref();
+      const patch = container && state.pickerPatchData.get(container);
+      if (!patch) {
+        state.pickerPatches.delete(reference);
+        continue;
+      }
+      if (!predicate(patch)) continue;
+      if (patch.select?.onchange === patch.patchedOnchange) patch.select.onchange = patch.originalOnchange;
+      if (container.pz_update === patch.patchedPzUpdate) container.pz_update = patch.originalPzUpdate;
+      if (patch.fileControl?.onchange === patch.patchedFileOnchange) patch.fileControl.onchange = patch.originalFileOnchange;
+      state.pickerPatchData.delete(container);
+      state.pickerPatches.delete(reference);
+    }
+  }
+
   function scanProject(project) {
     const particles = new Set();
     const particleType = state.PZ.object3d?.particles;
@@ -131,6 +156,10 @@ const ParticlesPlus = (() => {
     for (const particle of Array.from(state.trackedParticles.keys())) {
       if (!particles.has(particle) || getProject(particle) !== project) untrackParticle(particle);
     }
+    for (const property of state.watchedProperties.keys()) {
+      if (!particles.has(property.parentObject) || getProject(property) !== project) unwatchProperty(property);
+    }
+    restorePickers((patch) => getProject(patch.property) !== project);
   }
 
   function patchTextureDefinition() {
@@ -162,6 +191,9 @@ const ParticlesPlus = (() => {
     };
     state.originalParticleUnload = state.particlePrototype.unload;
     state.patchedParticleUnload = function () {
+      const property = getTextureProperty(this);
+      unwatchProperty(property);
+      restorePickers((patch) => patch.property === property);
       untrackParticle(this);
       return typeof state.originalParticleUnload === 'function'
         ? state.originalParticleUnload.apply(this, arguments)
@@ -252,7 +284,8 @@ const ParticlesPlus = (() => {
         fileControl.onchange = patchedFileOnchange;
       }
 
-      state.pickerPatches.add({
+      state.pickerPatchData.set(container, {
+        property,
         container,
         originalPzUpdate,
         patchedPzUpdate,
@@ -263,6 +296,7 @@ const ParticlesPlus = (() => {
         originalFileOnchange,
         patchedFileOnchange,
       });
+      state.pickerPatches.add(new WeakRef(container));
       return result;
     };
     controls.generateTextureInput = state.patchedGenerateTextureInput;
@@ -282,12 +316,7 @@ const ParticlesPlus = (() => {
     if (state.particlePrototype?.toJSON === state.patchedParticleToJSON) {
       state.particlePrototype.toJSON = state.originalParticleToJSON;
     }
-    for (const patch of state.pickerPatches) {
-      if (patch.select?.onchange === patch.patchedOnchange) patch.select.onchange = patch.originalOnchange;
-      if (patch.container?.pz_update === patch.patchedPzUpdate) patch.container.pz_update = patch.originalPzUpdate;
-      if (patch.fileControl?.onchange === patch.patchedFileOnchange) patch.fileControl.onchange = patch.originalFileOnchange;
-    }
-    state.pickerPatches.clear();
+    restorePickers();
     for (const [property, callback] of state.watchedProperties) property.onChanged?.unwatch?.(callback);
     state.watchedProperties.clear();
   }
@@ -340,6 +369,7 @@ const ParticlesPlus = (() => {
     state.plugin = plugin;
     state.manifest = manifest;
     state.active = true;
+    context.lifecycle.onDispose(deactivate);
 
     try {
       const version = String(manifest.version || plugin.version || '1');

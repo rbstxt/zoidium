@@ -232,6 +232,7 @@ var PZ = PZ || {};
             if (this.threeObj && this.threeObj.parent) this.threeObj.parent.remove(this.threeObj);
             if (this.points && this.points.geometry) this.points.geometry.dispose();
             if (this.strings && this.strings.geometry) this.strings.geometry.dispose();
+            T.disposeImageUniform(this.material, "image");
             if (this.material) this.material.dispose();
             if (this.stringMaterial) this.stringMaterial.dispose();
             if (this.palettes) {
@@ -254,6 +255,7 @@ var PZ = PZ || {};
             this._textureValue = value;
             var project = T.findParent(this, PZ.project);
             if (this.texture) {
+                T.disposeImageUniform(this.material, "image");
                 project && project.assets.unload(this.texture);
                 this.texture = null;
                 this.material.uniforms.image.value = null;
