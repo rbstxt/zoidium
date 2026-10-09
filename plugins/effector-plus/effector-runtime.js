@@ -40,6 +40,20 @@ module.exports = {
     if (!object3d || typeof object3d.create !== "function") {
       throw new Error("Effector+ needs PZ.object3d.create from the CM3 runtime.");
     }
+    // Register rollback before claiming numeric ids or wrapping the factory.
+    let state = null;
+    const dispose = () => {
+      if (!state) return;
+      const { original, patched, claims } = state;
+      patched.alive = false;
+      if (PZ.object3d.create === patched) PZ.object3d.create = original;
+      for (const type of Object.keys(LEGACY_TYPES)) {
+        if (claims.get(Number(type)) === OWNER) claims.delete(Number(type));
+      }
+      if (active === state) active = null;
+      state = null;
+    };
+    context.lifecycle?.onDispose?.(dispose);
     const claims = claimLegacyTypes(PZ);
     const original = object3d.create;
     const patched = function create(type) {
@@ -49,17 +63,17 @@ module.exports = {
       return original.apply(this, arguments);
     };
     patched.alive = true;
-    object3d.create = patched;
-    active = { PZ, original, patched, claims };
+    state = { PZ, original, patched, claims, dispose };
+    try {
+      object3d.create = patched;
+    } catch (error) {
+      dispose();
+      throw error;
+    }
+    active = state;
   },
   deactivate() {
     if (!active) return;
-    const { PZ, original, patched, claims } = active;
-    patched.alive = false;
-    if (PZ.object3d.create === patched) PZ.object3d.create = original;
-    for (const type of Object.keys(LEGACY_TYPES)) {
-      if (claims.get(Number(type)) === OWNER) claims.delete(Number(type));
-    }
-    active = null;
+    active.dispose();
   },
 };

@@ -315,3 +315,59 @@ test("a later pack that wrapped create keeps its link when flares are disabled",
   assert.equal(above(99), "above:99");
   assert.equal(above(7), "original:7", "our wrapper passes through once disabled");
 });
+
+test("velocity and environment renders exclude flares and restore visibility on failure", () => {
+  const host = buildHost();
+  const quad = { __zoidiumOpticalFlareQuad: true, visible: true };
+  const mesh = { visible: true };
+  class Pass {
+    constructor() { this.scene = { traverse(fn) { fn(quad); fn(mesh); } }; }
+    render(fail) {
+      assert.equal(quad.visible, false);
+      assert.equal(mesh.visible, true);
+      if (fail) throw new Error("render failed");
+      return "drawn";
+    }
+  }
+  host.PZ.motionBlur = Pass;
+  host.PZ.envMap = class extends Pass {};
+  const original = Pass.prototype.render;
+  const runtime = loadRuntimeModule();
+  const { context, dispose } = makeContext(host, bundledSources());
+  runtime.activate(context);
+  assert.equal(new host.PZ.motionBlur().render(), "drawn");
+  assert.equal(quad.visible, true);
+  assert.throws(() => new host.PZ.envMap().render(true), /render failed/);
+  assert.equal(quad.visible, true);
+  quad.visible = false;
+  new host.PZ.motionBlur().render();
+  assert.equal(quad.visible, false, "initially hidden quads stay hidden");
+  dispose();
+  assert.equal(Pass.prototype.render, original);
+});
+
+test("velocity updates preserve the flare projection callback even on failure", () => {
+  const host = buildHost();
+  const projection = () => "projection";
+  const quad = { __zoidiumOpticalFlareQuad: true, onBeforeRender: projection };
+  const mesh = { onBeforeRender: null };
+  class Velocity {
+    constructor() { this.scene = { traverse(fn) { fn(quad); fn(mesh); } }; }
+    update(fail) {
+      this.scene.traverse(node => { node.onBeforeRender = () => "velocity"; });
+      if (fail) throw new Error("update failed");
+    }
+  }
+  host.PZ.motionBlur = Velocity;
+  const original = Velocity.prototype.update;
+  const runtime = loadRuntimeModule();
+  const { context, dispose } = makeContext(host, bundledSources());
+  runtime.activate(context);
+  new Velocity().update();
+  assert.equal(quad.onBeforeRender, projection);
+  assert.equal(mesh.onBeforeRender(), "velocity");
+  assert.throws(() => new Velocity().update(true), /update failed/);
+  assert.equal(quad.onBeforeRender, projection);
+  dispose();
+  assert.equal(Velocity.prototype.update, original);
+});

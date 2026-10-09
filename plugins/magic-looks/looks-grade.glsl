@@ -301,7 +301,7 @@ vec3 lkBox(vec2 uv, float r, float diag) {
 // Average of `count` taps spanning [-r, r] along dir (half = count / 2).
 vec3 lkLine(vec2 uv, float r, vec2 dir, int count) {
   int hl = count / 2;
-  float div = float(max(hl, 1));
+  float div = max(float(hl), 1.0);
   vec3 acc = vec3(0.0);
   float n = 0.0;
   for (int i = -4; i <= 4; i++) {

@@ -75,3 +75,27 @@ test("the manifest is an extension without picker entries, so there are no dupli
   assert.equal(fs.existsSync(path.join(pluginDir, "deform-framework.js")), false, "Davidium framework removed");
   assert.equal(fs.existsSync(path.join(pluginDir, "deformer-objects.js")), false, "Davidium deformers removed");
 });
+
+
+test("lifecycle rollback is registered before host mutation and is idempotent", () => {
+  const PZ = createPZ();
+  const runtime = loadRuntime();
+  let dispose;
+  runtime.activate({ PZ, lifecycle: { onDispose(fn) {
+    assert.equal(PZ.object3d.create, PZ.original);
+    assert.equal(PZ.zoidium, undefined);
+    dispose = fn;
+  } } });
+  dispose(); dispose();
+  assert.equal(PZ.object3d.create, PZ.original);
+  assert.equal(PZ.zoidium.legacyObject3dTypes.size, 0);
+  runtime.deactivate();
+});
+
+test("a failed factory patch releases the numeric claims immediately", () => {
+  const PZ = createPZ();
+  Object.defineProperty(PZ.object3d, "create", { get: () => PZ.original, set() { throw new Error("read-only factory"); } });
+  const runtime = loadRuntime();
+  assert.throws(() => runtime.activate({ PZ }), /read-only factory/);
+  assert.equal(PZ.zoidium.legacyObject3dTypes.size, 0);
+});

@@ -109,9 +109,15 @@ node tools/new-plugin.js --kind=native-fx --template=temporal --id=my-time-fx
   Scope temporary render properties to a preview draw and restore them in
   `finally`; do not persist designer-only state in normal rendering.
 
+- Editors, setup dialogs and designers open as floating windows through
+  `context.ui.openWindow()` and are built from `context.ui.controls`. Windows
+  opened this way close when the plugin is disabled. Fullscreen overlays,
+  private themes, bundled UI fonts and borrowed preview viewports are not
+  accepted. See [Plugin UI](plugin-ui.md).
+
 See Player+ and Easing+ for ordinary extension modules. A separate settings-page
-API has not been added. Existing property controls and explicit UI ownership
-cover the concrete fixes in the Davidium review.
+API has not been added; persistent per-object settings belong in project
+properties edited through a window.
 
 ### core: the hidden plugin
 
@@ -120,6 +126,37 @@ cover the concrete fixes in the Davidium review.
 - Still listed in the debug log (PZ.zoidium.getDebugPlugins()).
 - A failing core script does not abort startup; it lands in the
   failure list carried by zoidium:ready (degraded boot).
+
+## Rendering contract
+
+Every plugin that draws must be deterministic. For a fixed project, assets,
+settings, seed and target time, the rendered frame must not depend on earlier
+renders, playback direction, repeated redraws, wall-clock time or whether
+playback is running.
+
+- Evaluate analytically at the frame, or replay from a defined start with
+  fixed steps. Caches and checkpoints are allowed only as acceleration and
+  must be keyed by every input that affects the result.
+- Effects that need other frames request them with `defineFrameSampler` or
+  `defineTemporal`. Never feed the previous output back as history.
+- Randomness comes from seeded hashes of (seed, index, frame), never from
+  `Math.random()`.
+- Audio-reactive features analyze decoded audio at the project time
+  (see `T.audioAnalysis` in Trapcode Suite), never a live `AnalyserNode`.
+- Asynchronous assets are awaited in `prepare()` before a frame is complete.
+
+## Compatibility and serialized types
+
+- New object classes use namespaced string types (`zoidium:<plugin>/<name>`).
+  Numeric types collide with CM3 and other plugins and are reserved for
+  loading older projects.
+- A plugin that must load legacy numeric types claims them in
+  `PZ.zoidium.legacyObject3dTypes` (refusing activation on a collision), maps
+  them onto the namespaced class, and saves the namespaced type. Effector+
+  is the reference.
+- Do not replace or patch vanilla CM3 classes to add features to them. Add a
+  separate object instead, as Camera+ does, so projects that do not use the
+  plugin render exactly as in CM3.
 
 ## Security and future community plugins
 

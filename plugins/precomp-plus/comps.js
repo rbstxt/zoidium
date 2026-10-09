@@ -275,7 +275,10 @@ function findTimelineTracks(editor) {
   const Tracks = PZ.ui && PZ.ui.timeline && PZ.ui.timeline.tracks;
   if (typeof Tracks !== "function" || !editor) return null;
   if (cachedTracks && cachedTracks.timeline && cachedTracks.timeline.editor === editor) return cachedTracks;
-  const queue = [editor];
+  // CM3 keeps the timeline under the main window's split panels, rather
+  // than directly on the editor. Start there before scanning other objects.
+  const queue = Array.from(editor.windows || []).map(function (win) { return win.panel; });
+  queue.push(editor);
   const seen = new Set();
   let budget = 5000;
   while (queue.length && budget > 0) {
@@ -839,10 +842,18 @@ function patch(target, key, makeWrapper) {
     throw new Error("Precomp+ needs " + key + " from the CM3 runtime.");
   }
   const original = target[key];
-  const wrapper = makeWrapper(original);
+  const descriptor = Object.getOwnPropertyDescriptor(target, key);
+  const handler = makeWrapper(original);
+  let active = true;
+  const wrapper = function () {
+    return (active ? handler : original).apply(this, arguments);
+  };
   target[key] = wrapper;
   return function restore() {
-    if (target[key] === wrapper) target[key] = original;
+    active = false;
+    if (target[key] !== wrapper) return;
+    if (descriptor) Object.defineProperty(target, key, descriptor);
+    else delete target[key];
   };
 }
 
@@ -896,7 +907,15 @@ function install() {
     }));
     restores.push(patch(PZ.project.prototype, "toJSON", function (original) {
       return function () {
-        return activeProjectJSON(this, original.apply(this, arguments));
+        const json = activeProjectJSON(this, original.apply(this, arguments));
+        if (json && typeof json === "object" && compMedia(this).length) {
+          const plugins = Array.isArray(json.plugins) ? json.plugins.slice() : [];
+          if (!plugins.some(function (plugin) { return plugin.id === "precomp-plus"; })) {
+            plugins.push({ id: "precomp-plus", name: "Precomp+", features: ["compositions"] });
+          }
+          return Object.assign({}, json, { plugins: plugins });
+        }
+        return json;
       };
     }));
     const Tracks = PZ.ui && PZ.ui.timeline && PZ.ui.timeline.tracks;
@@ -910,6 +929,58 @@ function install() {
         }));
       });
     }
+    const MediaPanel = PZ.ui && PZ.ui.media;
+    if (MediaPanel && typeof MediaPanel.prototype.deleteMedia === "function") {
+      restores.push(patch(MediaPanel.prototype, "deleteMedia", function (original) {
+        return function (params) {
+          const project = this.editor.project;
+          const media = project.media[params.address[1]];
+          if (isCompMedia(media)) {
+            const session = sessionOf(project);
+            const usage = usageOf(project, session, media.comp.id);
+            if (usage.length) {
+              globalThis.alert(compName(media) + " is used by " + describeUsage(usage) +
+                ". Remove those clips before deleting it.");
+              return;
+            }
+            if (session.activeId === media.comp.id) {
+              const operation = this.editor.history.operation;
+              const left = openComp(this.editor, null);
+              // The Media panel already started a native history operation.
+              // openComp clears history, so retain this deletion's operation.
+              this.editor.history.operation = operation;
+              if (!left.ok) {
+                globalThis.alert(left.message);
+                return;
+              }
+            }
+          }
+          const out = original.apply(this, arguments);
+          notifyListeners();
+          return out;
+        };
+      }));
+    }
+    // Check both entry and Start: the user can switch timelines with the
+    // export options still open. Never export a composition by accident.
+    ["device", "frame"].forEach(function (kind) {
+      const Export = PZ.ui && PZ.ui.export && PZ.ui.export[kind];
+      if (!Export) return;
+      ["createOptionsPage", "createProgressPage"].forEach(function (key) {
+        restores.push(patch(Export.prototype, key, function (original) {
+          return function () {
+            if (sessionOf(this.editor.project).activeId !== null) {
+              const page = this.export.createPage("Export Main", true);
+              page.appendChild(PZ.ui.controls.legacy.generateDescription({
+                content: "A composition is open. Return to Main in the Compositions window before exporting.",
+              }));
+              return page;
+            }
+            return original.apply(this, arguments);
+          };
+        }));
+      });
+    });
   } catch (error) {
     restores.reverse().forEach(function (restore) { restore(); });
     throw error;

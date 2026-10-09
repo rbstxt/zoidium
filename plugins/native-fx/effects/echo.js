@@ -246,3 +246,15 @@ ZoidiumPluginApis.defineFrameSampler.call(echoEffect, {
     },
   },
 });
+
+// CM3's layer prepare() does not forward its render context to effects.
+// Lower-track media preparation still needs the sequence and project rate.
+const prepareWithContext = this.prepare;
+if (typeof prepareWithContext === "function") {
+    this.prepare = function (frame, context) {
+        if (!context || !context.sequence) {
+            context = Object.assign({}, context, { sequence: this.parentProject.sequence });
+        }
+        return prepareWithContext.call(this, frame, context);
+    };
+}

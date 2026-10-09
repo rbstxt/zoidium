@@ -150,6 +150,7 @@ this.load = async function (e) {
     this._looksScurveIdentity = true;
     this._looksChainText = null;
     this._looksChainCount = 0;
+    this._looksActiveTools = {};
     uniforms.uCurvesLUT.value = this._looksCurvesTexture;
     uniforms.uSCurveLUT.value = this._looksScurveTexture;
     var material = new THREE.ShaderMaterial({
@@ -269,6 +270,7 @@ function looksRefreshChain(instance, e) {
     for (var k = 0; k < order.length && k < slots.length; k++) {
         slots[k] = Looks.tools.indexOf(order[k]);
     }
+    instance._looksChainOrder = order;
     instance._looksChainCount = Math.min(order.length, slots.length);
     instance._looksChainIsDefault = order.join(",") === Looks.tools.defaultChain().join(",");
     instance.pass.uniforms.u_chainCount.value = instance._looksChainCount;
@@ -318,7 +320,9 @@ this.update = function (e) {
     if (!this._looksChainIsDefault) this._looksDirty = true;
     for (var t = 0; t < ids.length; t++) {
         var rec = map[ids[t]];
-        looksSetOpt(this, u, looksUniformName(rec.enable), rec.enable, e, 1);
+        var toolOn = looksSetOpt(this, u, looksUniformName(rec.enable), rec.enable, e, 1);
+        // A disabled tool and an unchanged identity tool need no shader stage.
+        this._looksDirty = false;
         var keys = Object.keys(rec.params);
         for (var k = 0; k < keys.length; k++) {
             var key = rec.params[keys[k]];
@@ -353,12 +357,27 @@ this.update = function (e) {
             if (u[looksUniformName(rec.custom.lutGamma)]) u[looksUniformName(rec.custom.lutGamma)].value = gi;
             if (gi !== 0) this._looksDirty = true;
         }
+        var changed = this._looksDirty;
+        if (ids[t] === "curves") changed = changed || !this._looksCurvesIdentity;
+        if (ids[t] === "s-curve") changed = changed || !this._looksScurveIdentity;
+        this._looksActiveTools[ids[t]] = toolOn === 1 && changed;
     }
     // Enable flags of the two LUT stages also depend on their table content.
     u.u_curvEnable.value *= this._looksCurvesIdentity ? 0 : 1;
     u.u_scvEnable.value *= this._looksScurveIdentity ? 0 : 1;
+    // Compact the stored chain without changing its order. Running all 29
+    // identity stages for one edited tool is especially costly on software GL.
+    var slots = u.u_chain.value;
+    var count = 0;
+    var order = this._looksChainOrder || [];
+    for (var c = 0; c < order.length; c++) {
+        if (this._looksActiveTools[order[c]]) slots[count++] = Looks.tools.indexOf(order[c]);
+    }
+    for (var unused = count; unused < slots.length; unused++) slots[unused] = -1;
+    u.u_chainCount.value = count;
+    this._looksChainCount = count;
     var masterOn = this.properties.enabled.get(e) === 1;
-    this.pass.enabled = masterOn && this._looksDirty && this._looksChainCount > 0;
+    this.pass.enabled = masterOn && count > 0;
 };
 
 this.resize = function () {

@@ -1,4 +1,4 @@
-// Camera+ depth of field: a per-scene post pass over a perspective camera.
+// Camera+ depth of field: a per-scene post pass over the active camera.
 //
 // The scene is rendered twice into offscreen targets (color, then packed
 // depth). A single full-screen pass then gathers a disc of samples whose
@@ -23,6 +23,7 @@ parts.dof = (function () {
     "uniform sampler2D tColor;",
     "uniform sampler2D tDepth;",
     "uniform vec2 resolution;",
+    "uniform float orthographic;",
     "uniform float near;",
     "uniform float far;",
     "uniform float aperture;",
@@ -38,6 +39,7 @@ parts.dof = (function () {
     "    return dot( rgba, UnpackFactors );",
     "}",
     "float linearizeDepth( const in float depth ) {",
+    "    if ( orthographic > 0.5 ) return mix( near, far, depth );",
     "    float z = depth * 2.0 - 1.0;",
     "    return ( 2.0 * near * far ) / ( far + near - z * ( far - near ) );",
     "}",
@@ -91,6 +93,7 @@ parts.dof = (function () {
           tDepth: { type: "t", value: null },
           resolution: { type: "v2", value: new THREE.Vector2(1, 1) },
           uvScale: { type: "v2", value: new THREE.Vector2(1, 1) },
+          orthographic: { type: "f", value: 0 },
           near: { type: "f", value: 0.1 },
           far: { type: "f", value: 5000 },
           aperture: { type: "f", value: 0 },
@@ -115,6 +118,7 @@ parts.dof = (function () {
 
     SceneDof.prototype.configure = function (settings) {
       const u = this.material.uniforms;
+      u.orthographic.value = settings.orthographic ? 1 : 0;
       u.near.value = settings.near;
       u.far.value = settings.far;
       u.aperture.value = settings.aperture;
@@ -147,10 +151,22 @@ parts.dof = (function () {
       this.setSize(target.width, target.height);
       this.colorTarget.viewport.copy(viewport);
       this.depthTarget.viewport.copy(viewport);
+      const previous = scene.overrideMaterial;
       renderer.render(scene, camera, this.colorTarget, forceClear);
-      scene.overrideMaterial = this.depthMaterial;
-      renderer.render(scene, camera, this.depthTarget, forceClear);
-      scene.overrideMaterial = null;
+      const hidden = [];
+      scene.traverse?.((node) => {
+        if (node.__zoidiumOpticalFlareQuad) {
+          hidden.push([node, node.visible]);
+          node.visible = false;
+        }
+      });
+      try {
+        scene.overrideMaterial = this.depthMaterial;
+        renderer.render(scene, camera, this.depthTarget, forceClear);
+      } finally {
+        scene.overrideMaterial = previous;
+        for (const [node, visible] of hidden) node.visible = visible;
+      }
       this.material.uniforms.tColor.value = this.colorTarget.texture;
       this.material.uniforms.tDepth.value = this.depthTarget.texture;
       this.material.uniforms.resolution.value.set(viewport.z, viewport.w);
@@ -165,6 +181,7 @@ parts.dof = (function () {
       this.depthTarget = null;
       if (this.material) this.material.dispose();
       if (this.depthMaterial) this.depthMaterial.dispose();
+      this.quad.geometry.dispose();
       this.enabled = false;
     };
 

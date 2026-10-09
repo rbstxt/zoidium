@@ -1677,6 +1677,10 @@
   }
 
   async function unregisterPlugin(pluginId) {
+    // Native effect setup windows use the same plugin prefix as module
+    // windows. Close them before their factories and resources are removed,
+    // including activation rollback.
+    ZoidiumUI.closeWindows(`${pluginId}:`);
     const registries = [getEffectTypes(), getMaterialTypes(), PZ.ui.objectTypes.get(PZ.object3d)];
     for (const entries of registries) {
       for (let index = entries.length - 1; index >= 0; index -= 1) {
@@ -2057,13 +2061,15 @@
   // Numeric 3D-object types (7-13) from packs that extend the numeric type
   // namespace. Layer nodes always carry an effects array while object
   // entries never do, which keeps Camera layers (type 9) from colliding
-  // with Voronoi objects (type 9) in flat project JSON.
+  // with Voronoi objects (type 9) in flat project JSON. Live property objects
+  // also have numeric type IDs; they must never create plugin dependencies.
   function findNumericObjectTypes(value, found = new Map(), visited = new WeakSet()) {
     if (!value || typeof value !== "object") return found;
     if (visited.has(value)) return found;
     visited.add(value);
     if (typeof value.type === "number" && NUMERIC_OBJECT_TYPES.has(value.type) &&
-        !Array.isArray(value.effects)) {
+        !Array.isArray(value.effects) && (value.properties || Array.isArray(value.objects)) && !value.definition &&
+        (!value.baseTypeString || value.baseTypeString === "object3d")) {
       const entry = NUMERIC_OBJECT_TYPES.get(value.type);
       if (!found.has(entry.pluginId)) found.set(entry.pluginId, new Set());
       found.get(entry.pluginId).add(entry.objectId);

@@ -50,6 +50,7 @@ class Object3D {
     child.parent = null;
     return this;
   }
+  traverse(fn) { fn(this); for (const child of this.children) child.traverse(fn); }
   updateMatrixWorld() {}
   // Translation-only world transform: enough for distance checks.
   getWorldPosition(target) {
@@ -132,7 +133,24 @@ function createTHREE() {
     renderer.render(this.scene, this.camera, target, forceClear);
     this.scene.overrideMaterial = null;
   };
+  class ShaderPass {
+    constructor(material) {
+      this.material = material;
+      this.uniforms = material.uniforms;
+      this.scene = new Scene();
+      this.camera = new OrthographicCamera();
+      this.quad = new Mesh({ dispose() {} }, material);
+      this.scene.add(this.quad);
+    }
+    render(renderer, target, readTarget, forceClear) {
+      if (readTarget) this.uniforms.tDiffuse.value = readTarget.texture;
+      renderer.render(this.scene, this.camera, target, forceClear);
+    }
+  }
   return {
+    ShaderPass,
+    CopyShader: { uniforms: { tDiffuse: { value: null }, opacity: { value: 1 }, uvScale: { value: new Vec2(1, 1) } } },
+    UniformsUtils: { clone(uniforms) { return Object.fromEntries(Object.entries(uniforms).map(([k, u]) => [k, { value: u.value instanceof Vec2 ? new Vec2(u.value.x, u.value.y) : u.value }])); } },
     Vector2: Vec2,
     Vector3: Vec3,
     Vector4: Vec4,
@@ -142,7 +160,7 @@ function createTHREE() {
     OrthographicCamera,
     Scene,
     Mesh,
-    PlaneBufferGeometry: function PlaneBufferGeometry() {},
+    PlaneBufferGeometry: class PlaneBufferGeometry { dispose() { this.disposed = true; } },
     MeshDepthMaterial: function MeshDepthMaterial(options) { return new Material(options); },
     ShaderMaterial: Material,
     WebGLRenderTarget: RenderTarget,
@@ -379,6 +397,14 @@ function createPZ(THREE) {
       if (object instanceof PZ.object3d.camera) object.parentLayer = this;
       return object;
     }
+    load(data) {
+      super.load(data);
+      for (const saved of data.objects || []) {
+        const object = PZ.object3d.create(saved.type);
+        this.push(object);
+        object.load(saved);
+      }
+    }
     update(time) {
       this.updates.push(time);
       for (const object of this.objects) object.update(time);
@@ -529,6 +555,7 @@ function createContext(overrides = {}) {
   const project = createProject();
   const editor = createEditor(project);
   const registry = createObject3DRegistry();
+  PZ.object3d.create = (type) => registry.isRegistered(type) ? registry.instantiate(type) : new PZ.object3d.camera();
   const apis = { propertyControls: createPropertyControls() };
   const disposers = [];
   const zoidiumUI = createZoidiumUI();

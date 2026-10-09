@@ -66,6 +66,7 @@ body > .pz-dropdown {
 
 .zoidium-window-title {
   flex: 0 1 auto;
+  max-width: 100%;
   min-width: 0;
   overflow: hidden;
   font-weight: bold;
@@ -75,7 +76,7 @@ body > .pz-dropdown {
 }
 
 .zoidium-window-subtitle {
-  flex: 1 1 auto;
+  flex: 1 1 0;
   min-width: 0;
   overflow: hidden;
   color: #7e8fb9;
@@ -188,7 +189,7 @@ body > .pz-dropdown {
 
 .zoidium-field {
   display: grid;
-  grid-template-columns: minmax(80px, 38%) minmax(0, 1fr);
+  grid-template-columns: minmax(96px, 44%) minmax(0, 1fr);
   align-items: center;
   column-gap: 8px;
   min-height: 30px;
@@ -358,14 +359,19 @@ textarea.zoidium-text {
 
 .zoidium-button-row {
   display: flex;
+  flex-wrap: wrap;
   gap: 5px;
   padding: 5px 8px;
   border-bottom: 1px solid #242424;
 }
 
 .zoidium-button-row .zoidium-button {
-  flex: 1 1 0;
+  flex: 1 1 72px;
   min-width: 0;
+  padding: 5px 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Sections, tabs, lists ---------------------------------------------- */
@@ -443,8 +449,19 @@ textarea.zoidium-text {
   display: none;
 }
 
+.zoidium-list {
+  max-height: 232px;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+
 .zoidium-list > li {
   outline: 0;
+}
+
+.zoidium-list > li > span {
+  margin-top: 2px;
+  font-size: 13px;
 }
 
 .zoidium-list > li b {

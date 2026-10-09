@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "trapcode-suite",
   "name": "Rowbyte & Red Giant Suite",
-  "author": "Zoidium",
+  "author": "DaviFX",
   "version": "8",
   "kind": "object",
   "description": "Trapcode Particular, Form, and Plexus 3D objects with floating designer windows, plus C4D-style lights. Includes designer color palettes and the wiggle expression upgrade.",

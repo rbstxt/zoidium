@@ -364,12 +364,12 @@
 
         function elementItems() {
             return Array.from(root.stack).map(function (element, index) {
-                var enabled = element.properties.element.enabled.get() === 1;
-                return {
-                    id: String(index),
-                    title: element.properties.name.get() || types[element.type].name,
-                    detail: types[element.type].name + (enabled ? "" : " (off)"),
-                };
+                var enabled = read(element.properties.element.enabled) === 1;
+                var typeName = types[element.type].name;
+                var name = element.properties.name.get() || typeName;
+                var detail = name === typeName ? "" : typeName;
+                if (!enabled) detail = detail ? detail + " (off)" : "Off";
+                return { id: String(index), title: name, detail: detail };
             });
         }
 

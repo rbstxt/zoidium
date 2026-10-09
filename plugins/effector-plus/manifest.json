@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "effector-plus",
   "name": "Effector+",
-  "author": "Zoidium",
+  "author": "DaviFX",
   "version": "2",
   "kind": "extension",
   "description": "Compatibility layer for Effector+ projects that store Twist, Warp, and Voronoi Fracture as numeric types 7, 8, and 9.",

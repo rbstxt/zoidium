@@ -121,20 +121,24 @@ function fakeJpegEnvironment() {
   const created = [];
   const unloaded = [];
   const THREE = {
-    Vector2: function (x, y) { this.x = x; this.y = y; this.set = () => {}; },
+    Vector2: function (x, y) { this.x = x; this.y = y; this.set = (x, y) => { this.x = x; this.y = y; }; },
     ShaderMaterial: function (opts) {
       this.uniforms = opts.uniforms;
-      this.defines = {};
+      this.defines = opts.defines || {};
       this.vertexShader = opts.vertexShader;
       this.fragmentShader = opts.fragmentShader;
       this.dispose = () => disposed.push("material");
     },
     ShaderPass: function (material) {
       this.material = material;
+      this.uniforms = material.uniforms;
+      this.render = () => {};
       this.enabled = true;
       this.quad = { geometry: { dispose: () => disposed.push("geometry") } };
     },
   };
+  THREE.DataTexture = function () { this.dispose = () => disposed.push("texture"); };
+  THREE.WebGLRenderTarget = function () { this.texture = {}; this.dispose = () => disposed.push("target"); };
   const PZ = {
     property: { type: PZ_TYPES },
     expression: function () {},
@@ -174,7 +178,7 @@ test("jpeg damage disposes its material and geometry on unload", async () => {
   );
   await env.effect.load({});
   env.effect.unload();
-  assert.deepEqual(env.disposed.sort(), ["geometry", "material"]);
+  assert.deepEqual(env.disposed.sort(), ["geometry", "material", "material", "material", "material", "target", "target", "texture"]);
   assert.equal(env.effect.pass, null);
   assert.deepEqual(env.unloaded, ["/assets/shaders/vertex/common.glsl"]);
 });
@@ -232,4 +236,17 @@ test("pack description is English and describes the current behaviour", () => {
   const manifest = JSON.parse(read("manifest.json"));
   assert.ok(!/history-buffer/i.test(manifest.nativeEffects.find((e) => e.id === "echo-legacy").description));
   assert.ok(/^[\x00-\x7f]*$/.test(manifest.description), "ASCII-only description");
+});
+
+
+test("Echo Legacy supplies a sequence when the host omits the preparation context", async () => {
+  const { apis, PZ } = loadPluginApis();
+  const sequence = {};
+  let received;
+  PZ.zoidium = { temporal: { prepareFrameSamples: async (_effect, _frame, context) => { received = context; } } };
+  const effect = fakeEffect({});
+  effect.parentProject = { sequence };
+  const echo = evaluateEffect("effects/echo-legacy.js", effect, apis, PZ);
+  await echo.prepare(12);
+  assert.equal(received.sequence, sequence);
 });

@@ -48,6 +48,9 @@
   let emergencyBanner = null;
   let emergencyMountQueued = false;
   let journalWriteTimer = 0;
+  const recentErrors = new Map();
+  let webglInfo = null;
+  let contextLossNotified = false;
 
   const REDACTIONS = [
     [
@@ -404,6 +407,27 @@
       phase,
       ...safeRecordDetails(details),
     };
+    // A failing frame callback can report the same error sixty times a
+    // second. Keep its evidence and count without synchronous storage work
+    // on every frame, or an error can itself make the editor unresponsive.
+    const errorEvent = entry.type === "exception" || (entry.type === "console" && entry.level === "error");
+    if (errorEvent) {
+      const key = [entry.type, entry.source, entry.windowId, entry.message, entry.stack].join("\n");
+      const previous = recentErrors.get(key);
+      const now = Date.now();
+      if (previous && now - previous.time < 10000) {
+        previous.entry.repetitions = (previous.entry.repetitions || 1) + 1;
+        previous.entry.lastAt = entry.at;
+        if (previous.persisted) Object.assign(previous.persisted, {
+          repetitions: previous.entry.repetitions,
+          lastAt: entry.at,
+        });
+        scheduleJournalWrite();
+        return previous.entry;
+      }
+      if (recentErrors.size >= 100) recentErrors.delete(recentErrors.keys().next().value);
+      recentErrors.set(key, { time: now, entry, persisted: null });
+    }
     events.push(entry);
     if (events.length > MAX_EVENTS) events.splice(0, events.length - MAX_EVENTS);
     const isException =
@@ -415,6 +439,8 @@
         : [];
       currentSession.exceptions.push({ ...entry });
       currentSession.exceptions = currentSession.exceptions.slice(-MAX_PERSISTED_EXCEPTIONS);
+      const key = [entry.type, entry.source, entry.windowId, entry.message, entry.stack].join("\n");
+      recentErrors.get(key).persisted = currentSession.exceptions.at(-1);
     }
     // Errors are rare and are the evidence a crash analysis needs, so they
     // persist synchronously. Routine records (phase, usage, warnings) are
@@ -431,7 +457,7 @@
       ...errorDetails(error),
       ...details,
     });
-    if (/^(?:window\.error|unhandledrejection|extension bootstrap|project load|project operation|project plugin activation)$/i.test(normalizedSource)) {
+    if (/^(?:extension bootstrap|project load|project operation|project plugin activation)$/i.test(normalizedSource)) {
       try {
         mountEmergencyControls(normalizedSource, error);
       } catch (_mountError) {
@@ -659,10 +685,11 @@
     let context = windowContexts.get(targetWindow);
     const reused = Boolean(context);
     if (!context) {
+      const reference = new WeakRef(targetWindow);
       context = {
         id: `popup-${++childWindowSequence}`,
         kind: "popup",
-        window: targetWindow,
+        get window() { return reference.deref(); },
         openedAt: new Date().toISOString(),
         requestedUrl: requested,
         currentUrl: requested,
@@ -673,6 +700,8 @@
       };
       windowContexts.set(targetWindow, context);
       childWindows.push(context);
+      // Retain a bounded diagnostic history without retaining popup heaps.
+      if (childWindows.length > 50) childWindows.splice(0, childWindows.length - 50);
       installWindowHooks(context);
     }
 
@@ -751,11 +780,13 @@
   }
 
   function collectWebgl() {
+    if (webglInfo) return { ...webglInfo };
     const documentObject = global.document;
     if (!documentObject?.createElement) return { supported: false };
+    let context = null;
     try {
       const canvas = documentObject.createElement("canvas");
-      const context = canvas.getContext("webgl2") || canvas.getContext("webgl");
+      context = canvas.getContext("webgl2") || canvas.getContext("webgl");
       if (!context) return { supported: false };
       const debugInfo = context.getExtension("WEBGL_debug_renderer_info");
       const info = {
@@ -770,9 +801,14 @@
         info.vendor = redact(context.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL));
         info.renderer = redact(context.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL));
       }
-      return info;
+      webglInfo = info;
+      return { ...info };
     } catch (_error) {
       return { supported: false };
+    } finally {
+      // Diagnostic probes own their contexts. Leaving one alive per snapshot
+      // can exhaust the browser's context limit and evict the editor's GPU.
+      try { context?.getExtension("WEBGL_lose_context")?.loseContext(); } catch (_error) {}
     }
   }
 
@@ -1026,7 +1062,7 @@
     return childWindows.map((context) => {
       let closed = false;
       try {
-        closed = Boolean(context.window?.closed);
+        closed = !context.window || Boolean(context.window.closed);
       } catch (_error) {
         closed = false;
       }
@@ -1511,6 +1547,17 @@
       record("webgl-context-lost", {
         statusMessage: redact(event?.statusMessage || ""),
       });
+      if (!contextLossNotified) {
+        contextLossNotified = true;
+        const detail = {
+          title: "Graphics context lost",
+          message: "The preview may stop responding. Save your project, then reload the editor to restore graphics.",
+        };
+        try {
+          if (global.ZoidiumUI?.notify) global.ZoidiumUI.notify(detail);
+          else global.dispatchEvent(new CustomEvent("zoidium:notification", { detail }));
+        } catch (_error) { /* Diagnostics must not interrupt the editor. */ }
+      }
     }, true);
     global.document?.addEventListener("webglcontextrestored", () => {
       if (currentSession?.health) currentSession.health.webglContextRestores += 1;

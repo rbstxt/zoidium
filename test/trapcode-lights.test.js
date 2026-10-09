@@ -52,13 +52,14 @@ function stockLightClass(PZ, THREE) {
     }
     changeObjectType(e) {
       this.objectType = e;
-      this.threeObj = new THREE.SpotLight(16777215, 1, 0, Math.PI / 3, 0.5, 1);
+      this.threeObj = e === 4 ? new THREE.HemisphereLight(16777215, 16777215, 1) : new THREE.SpotLight(16777215, 1, 0, Math.PI / 3, 0.5, 1);
       this.properties.addAll({
         color: PZ.property.create(defs.color),
         position: PZ.property.create(defs.position),
         target: PZ.property.create(defs.target),
         intensity: PZ.property.create(defs.intensity),
         angle: PZ.property.create(defs.angle),
+        ...(e === 4 ? { groundColor: PZ.property.create(defs.groundColor) } : {}),
       });
       this.properties.name.set("Light");
       this.parentChanged();
@@ -155,7 +156,7 @@ test("area light renders as RectAreaLight only when the LTC tables exist", () =>
   env.PZ.trapcode.lights.uninstall();
 });
 
-test("legacy ids keep loading: IES as spot, Portal as area, stock Hemisphere migrates", () => {
+test("legacy ids keep loading: IES as spot, Portal as area, stock Hemisphere stays vanilla", () => {
   const env = setup();
   const { PZ, THREE, Light } = env;
   env.PZ.trapcode.lights.install(PZ);
@@ -168,9 +169,12 @@ test("legacy ids keep loading: IES as spot, Portal as area, stock Hemisphere mig
   assert.equal(portal.properties.name.get(), "Area Light (legacy Portal) (point approximation)");
   // Stock Hemisphere (id 4) payloads carry groundColor and no width/height.
   const hemi = new Light();
-  hemi.load({ objectType: 4, properties: { groundColor: [0, 0, 0] } });
-  assert.equal(hemi.objectType, 5);
+  hemi.load({ objectType: 4, properties: { color: [0.3, 0.5, 0.8], groundColor: [0, 0, 0] } });
+  assert.equal(hemi.objectType, 4);
+  assert.equal(hemi.properties.color.get().join(","), "0.3,0.5,0.8");
   assert.ok(hemi.threeObj instanceof THREE.HemisphereLight);
+  env.PZ.trapcode.lights.uninstall();
+  assert.equal(hemi.objectType, 4, "serialized type remains vanilla after disable");
   env.PZ.trapcode.lights.uninstall();
 });
 

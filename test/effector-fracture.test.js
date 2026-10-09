@@ -57,7 +57,7 @@ function signedVolumeByPiece(stage) {
 // is shared by exactly two of its triangles.
 function nonManifoldEdgeCount(stage) {
   const key = (triangle, corner) =>
-    [0, 1, 2].map((c) => Math.round(stage.positions[(triangle * 3 + corner) * 3 + c] * 1e5)).join(",");
+    [0, 1, 2].map((c) => Math.round(stage.positions[(triangle * 3 + corner) * 3 + c] * 1e7)).join(",");
   const maps = Array.from({ length: stage.pieceCount }, () => new Map());
   for (let triangle = 0; triangle < stage.count / 3; triangle += 1) {
     for (let edge = 0; edge < 3; edge += 1) {
@@ -98,14 +98,23 @@ test("two cells cut a cube into two closed pieces whose volumes sum to the cube"
   for (const volume of volumes) assert.ok(volume >= -1e-9, "no inverted piece");
 });
 
-test("caps close most pieces; output has no NaN and every triangle is consistently sized", () => {
-  for (const [cells, seed] of [[8, 3], [8, 9], [24, 3]]) {
+test("every fragment of a closed cube is watertight with outward caps", () => {
+  for (const [cells, seed] of [[8, 3], [8, 9], [24, 3], [60, 3], [60, 11]]) {
     const stage = fracture.buildVoronoiFracture({ positions: cubePositions() }, { cells, seed, closed: true });
     assert.equal(stage.error, undefined);
-    assert.ok(stage.positions.every(Number.isFinite), "finite positions");
-    assert.equal(stage.pieceCount, cells, "piece count equals cell count");
-    assert.ok(stage.capTriangleCount > 0, "caps generated");
-    for (const centroid of stage.pieceCentroids) assert.ok(Number.isFinite(centroid));
+    assert.equal(nonManifoldEdgeCount(stage), 0, `cells ${cells} seed ${seed}`);
+    const volumes = signedVolumeByPiece(stage);
+    assert.ok(Math.abs(volumes.reduce((a, b) => a + b, 0) - 1) < 1e-5, "volume conserved");
+    for (const volume of volumes) assert.ok(volume > 0, "all cells have outward oriented caps, including interior cells");
+    // Opposite edge directions, not just incidence counts, prove consistent winding.
+    const edges = new Map();
+    const key = (v) => Array.from(stage.positions.slice(v * 3, v * 3 + 3), x => Math.round(x * 1e7)).join(",");
+    for (let v = 0; v < stage.count; v += 3) for (let j = 0; j < 3; j += 1) {
+      const a = key(v + j), b = key(v + (j + 1) % 3);
+      const id = stage.pieceIds[v] + ":" + (a < b ? a + "|" + b : b + "|" + a);
+      edges.set(id, (edges.get(id) || 0) + (a < b ? 1 : -1));
+    }
+    for (const winding of edges.values()) assert.equal(winding, 0, "each shared edge has opposite winding");
   }
 });
 
@@ -152,7 +161,7 @@ test("cells are clamped to the supported range", () => {
 test("ear clipping caps a planar loop and the fan caps a non-planar one", () => {
   const square = [[0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0]];
   const planar = fracture.triangulateLoop(square, 512);
-  assert.equal(planar.length, 2);
+  assert.equal(planar.length, 4);
   const area = planar.reduce((sum, [a, b, c]) => {
     const ab = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
     const ac = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
@@ -223,4 +232,59 @@ test("a deformer frame changes where pieces are pushed, not the topology", () =>
   const identityMatrix = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
   const withMatrix = fracture.applyFragmentMotion(new Float32Array(stage.positions), stage, motion, identityMatrix);
   assert.deepEqual(Array.from(plain), Array.from(withMatrix));
+});
+
+test("planar caps close a concave prism and disconnected closed components", () => {
+  const polygon = [[0, 0], [2, 0], [2, 1], [1, 1], [1, 2], [0, 2]];
+  const faces = [[0, 1, 3], [1, 2, 3], [0, 3, 5], [3, 4, 5]];
+  const prism = [];
+  for (const face of faces) {
+    for (const i of face.slice().reverse()) prism.push(...polygon[i], 0);
+    for (const i of face) prism.push(...polygon[i], 1);
+  }
+  for (let i = 0; i < polygon.length; i++) {
+    const a = polygon[i], b = polygon[(i + 1) % polygon.length];
+    prism.push(...a, 0, ...b, 0, ...b, 1, ...a, 0, ...b, 1, ...a, 1);
+  }
+  const cube = cubePositions();
+  const separate = new Float32Array([...cube, ...Array.from(cube, (v, i) => v + (i % 3 === 0 ? 2 : 0))]);
+  for (const [positions, volume] of [[new Float32Array(prism), 3], [separate, 2]]) {
+    for (const seed of [3, 11]) {
+      const stage = fracture.buildVoronoiFracture({ positions }, { cells: 12, seed, closed: true });
+      assert.equal(stage.error, undefined);
+      assert.equal(nonManifoldEdgeCount(stage), 0);
+      assert.ok(Math.abs(signedVolumeByPiece(stage).reduce((a, b) => a + b, 0) - volume) < 1e-5);
+    }
+  }
+});
+
+test("curved closed surfaces keep every edge shared by exactly two faces", () => {
+  let triangles = [
+    [[1, 0, 0], [0, 1, 0], [0, 0, 1]],
+    [[0, 1, 0], [-1, 0, 0], [0, 0, 1]],
+    [[-1, 0, 0], [0, -1, 0], [0, 0, 1]],
+    [[0, -1, 0], [1, 0, 0], [0, 0, 1]],
+    [[0, 1, 0], [1, 0, 0], [0, 0, -1]],
+    [[-1, 0, 0], [0, 1, 0], [0, 0, -1]],
+    [[0, -1, 0], [-1, 0, 0], [0, 0, -1]],
+    [[1, 0, 0], [0, -1, 0], [0, 0, -1]],
+  ];
+  const midpoint = (a, b) => {
+    const p = a.map((v, i) => v + b[i]);
+    const length = Math.hypot(...p);
+    return p.map(v => v / length);
+  };
+  for (let level = 0; level < 2; level++) triangles = triangles.flatMap(([a, b, c]) => {
+    const ab = midpoint(a, b), bc = midpoint(b, c), ca = midpoint(c, a);
+    return [[a, ab, ca], [ab, b, bc], [ca, bc, c], [ab, bc, ca]];
+  });
+  const positions = new Float32Array(triangles.flat(2));
+  const source = fracture.buildVoronoiFracture({ positions }, { cells: 1, closed: true });
+  const volume = signedVolumeByPiece(source)[0];
+  for (const seed of [3, 11]) {
+    const stage = fracture.buildVoronoiFracture({ positions }, { cells: 24, seed, closed: true });
+    assert.equal(stage.error, undefined);
+    assert.equal(nonManifoldEdgeCount(stage), 0);
+    assert.ok(Math.abs(signedVolumeByPiece(stage).reduce((a, b) => a + b, 0) - volume) < 1e-5);
+  }
 });

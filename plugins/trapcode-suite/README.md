@@ -37,7 +37,7 @@ THREE backend that renders it:
 
 Legacy ids that are no longer listed still load: id 6 (IES) as a spot light and
 id 8 (Portal) as an area light. Stock CM3 Light types 1–3 keep their behavior;
-stock Hemisphere (type 4) migrates to Hemisphere on load. Disabling the pack
+stock Hemisphere (type 4) keeps its original type and sky tint on load. Disabling the pack
 restores the stock Light methods and removes the added property definitions.
 Scenes that use Area or the legacy ids need the pack enabled to render.
 

@@ -78,6 +78,56 @@ function installGear(PZ, openWindow, undo) {
   });
 }
 
+// Screen-space flare quads have no geometry velocity and are not environment
+// geometry. Hide them only for these auxiliary passes, restoring visibility
+// even when the host render throws.
+function installAuxiliaryPasses(PZ, undo) {
+  // CM3's velocity update replaces every node's onBeforeRender callback.
+  // Preserve the flare's projection callback for the subsequent color pass.
+  const velocity = PZ.motionBlur && PZ.motionBlur.prototype;
+  if (velocity && typeof velocity.update === "function") {
+    const original = velocity.update;
+    let alive = true;
+    const patched = function () {
+      if (!alive) return original.apply(this, arguments);
+      const callbacks = [];
+      this.scene?.traverse?.((node) => {
+        if (node.__zoidiumOpticalFlareQuad) callbacks.push([node, node.onBeforeRender]);
+      });
+      try { return original.apply(this, arguments); }
+      finally { for (const [node, callback] of callbacks) node.onBeforeRender = callback; }
+    };
+    velocity.update = patched;
+    undo.push(() => {
+      alive = false;
+      if (velocity.update === patched) velocity.update = original;
+    });
+  }
+  for (const Class of [PZ.motionBlur, PZ.envMap]) {
+    const prototype = Class && Class.prototype;
+    if (!prototype || typeof prototype.render !== "function") continue;
+    const original = prototype.render;
+    let alive = true;
+    const patched = function () {
+      if (!alive) return original.apply(this, arguments);
+      const hidden = [];
+      this.scene?.traverse?.((node) => {
+        if (node.__zoidiumOpticalFlareQuad) {
+          hidden.push([node, node.visible]);
+          node.visible = false;
+        }
+      });
+      try { return original.apply(this, arguments); }
+      finally { for (const [node, visible] of hidden) node.visible = visible; }
+    };
+    prototype.render = patched;
+    undo.push(() => {
+      alive = false;
+      if (prototype.render === patched) prototype.render = original;
+    });
+  }
+}
+
 let host = null;
 
 module.exports = {
@@ -143,6 +193,7 @@ module.exports = {
     PZ.opticalflares.open = (root) => openWindow(root);
 
     installCreateWrapper(PZ, undo);
+    installAuxiliaryPasses(PZ, undo);
     installGear(PZ, openWindow, undo);
     host = PZ;
   },

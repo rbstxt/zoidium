@@ -429,6 +429,20 @@ test("Voronoi Fracture output is deterministic for a frame and clones its materi
   assert.equal(clone.disposeCount, 1, "the clone is disposed");
 });
 
+test("regenerated source geometry replaces the cached pristine mesh", () => {
+  const deformer = require("../plugins/scene-plus/effector-mesh.js").createMeshDeformer(THREE);
+  const mesh = makeMesh([1, -1, 0, 1, 1, 0, 0, 0, 1]);
+  const effector = { deformPositions(positions) { for (let i = 0; i < positions.length; i++) positions[i] *= 2; return positions; } };
+  const chain = [{ effector, node: nodeAt(identity()) }];
+  deformer.deformMesh(mesh, chain, 0, 1);
+  const replacement = makeMesh([3, -1, 0, 3, 1, 0, 0, 0, 1]).geometry;
+  mesh.geometry = replacement;
+  deformer.deformMesh(mesh, chain, 1, 1);
+  assert.equal(mesh.geometry.attributes.position.array[0], 6);
+  deformer.deformMesh(mesh, [], 1, 1);
+  assert.equal(mesh.geometry, replacement);
+});
+
 test("switching smooth subdivision on and off disposes the superseded working geometry", () => {
   const PZ = createHarness();
   const Twist = _test.createTwistClass(PZ, THREE);

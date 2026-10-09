@@ -69,3 +69,20 @@ test("Echo requests explicit earlier frames with animated opacity decay", () => 
     },
   );
 });
+
+
+test("Echo restores the preparation context omitted by CM3's layer", async () => {
+  const sequence = {};
+  const effect = { parentProject: { sequence } };
+  let received;
+  const apis = { defineFrameSampler() {
+    this.prepare = async function (_frame, context) { received = context; };
+  } };
+  const source = fs.readFileSync(path.join(__dirname, "../plugins/native-fx/effects/echo.js"), "utf8");
+  new Function("PZ", "ZoidiumPluginApis", source).call(effect, { property: { type: { NUMBER: 0, OPTION: 10 } } }, apis);
+  await effect.prepare(17);
+  assert.equal(received.sequence, sequence);
+  const context = { sequence, export: true };
+  await effect.prepare(18, context);
+  assert.equal(received, context);
+});

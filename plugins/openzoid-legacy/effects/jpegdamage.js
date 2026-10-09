@@ -85,7 +85,7 @@ this.properties.addAll(this.propertyDefinitions, this);
 
 // Shader assets are loaded once; prepare() waits for them so a frame is never
 // rendered before the pass exists.
-async function jpegBuildPass(effect, data) {
+async function jpegBuildPass(effect, data, generation) {
     var getAsset = effect._zoidiumGetAsset;
     var fragSource = typeof getAsset === "function"
         ? getAsset("text", "./plugins/openzoid-legacy/shaders/" + JPEG_FRAGMENT + ".glsl")
@@ -97,9 +97,23 @@ async function jpegBuildPass(effect, data) {
     var vertShader = new PZ.asset.shader(effect.parentProject.assets.load(vertPreset));
     effect._vertShader = vertShader;
     var vertSource = await vertShader.getShader();
+    if (effect._jpegGeneration !== generation) return;
     var material = new THREE.ShaderMaterial({
+        defines: { JPEG_STAGE: 3 },
+        depthTest: false,
+        depthWrite: false,
+        blending: THREE.NoBlending,
         uniforms: {
             tDiffuse: { type: "t", value: null },
+            tStage: { value: null },
+            quantTable: { value: null },
+            outputResolution: { value: new THREE.Vector2(1, 1) },
+            lowResolution: { value: new THREE.Vector2(1, 1) },
+            blockGrid: { value: new THREE.Vector2(1, 1) },
+            atlasGrid: { value: new THREE.Vector2(1, 1) },
+            sparseAxes: { value: new THREE.Vector2(0, 0) },
+            inputRange: { value: 1 },
+            outputRange: { value: 1 },
             uvScale: { type: "v2", value: new THREE.Vector2(1, 1) },
             resolution: { type: "v2", value: new THREE.Vector2(1, 1) },
             time: { type: "f", value: 0 },
@@ -128,13 +142,161 @@ async function jpegBuildPass(effect, data) {
         vertexShader: vertSource,
         fragmentShader: fragSource,
     });
-    material.premultipliedAlpha = true;
-    effect.pass = new THREE.ShaderPass(material);
+    effect.pass = jpegPipeline(material);
+    effect.resize();
     effect.properties.load(data && data.properties);
 }
 
+
+// The quantization tables are uploaded once, avoiding dynamic GLSL array
+// indexing on the WebGL 1 host. Values are the original JPEG quality-50 tables.
+function jpegQuantTexture() {
+    var luma = [16,11,10,16,24,40,51,61,12,12,14,19,26,58,60,55,
+        14,13,16,24,40,57,69,56,14,17,22,29,51,87,80,62,
+        18,22,37,56,68,109,103,77,24,35,55,64,81,104,113,92,
+        49,64,78,87,103,121,120,101,72,92,95,98,112,100,103,99];
+    var chroma = [17,18,24,47,99,99,99,99,18,21,26,66,99,99,99,99,
+        24,26,56,99,99,99,99,99,47,66,99,99,99,99,99,99];
+    var bytes = new Uint8Array(64 * 4);
+    for (var i = 0; i < 64; i++) {
+        bytes[i * 4] = luma[i];
+        bytes[i * 4 + 1] = i < chroma.length ? chroma[i] : 99;
+        bytes[i * 4 + 3] = 255;
+    }
+    var texture = new THREE.DataTexture(bytes, 8, 8, THREE.RGBAFormat);
+    texture.minFilter = texture.magFilter = THREE.NearestFilter;
+    texture.generateMipmaps = false;
+    texture.needsUpdate = true;
+    return texture;
+}
+
+function jpegPipeline(material) {
+    var pass = new THREE.ShaderPass(material);
+    var originalRender = pass.render;
+    var u = pass.uniforms;
+    var materials = [];
+    for (var stage = 0; stage < 3; stage++) {
+        materials.push(new THREE.ShaderMaterial({
+            uniforms: u, vertexShader: material.vertexShader,
+            fragmentShader: material.fragmentShader, defines: { JPEG_STAGE: stage },
+            depthTest: false, depthWrite: false, blending: THREE.NoBlending,
+        }));
+    }
+    materials.push(material);
+    var table = jpegQuantTexture();
+    u.quantTable.value = table;
+    var targets = [0, 1].map(function () {
+        var target = new THREE.WebGLRenderTarget(1, 1, {
+            minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter,
+            format: THREE.RGBAFormat, type: THREE.UnsignedByteType,
+            depthBuffer: false, stencilBuffer: false,
+        });
+        target.texture.generateMipmaps = false;
+        return target;
+    });
+    pass.targets = targets;
+    pass.materials = materials;
+    pass.storage = null;
+    pass.needsSwap = true;
+    // Storage is selected against the actual renderer, including framebuffer
+    // completeness. Half floats lose coefficient precision near quantization
+    // thresholds, so RGBA8 packing is the precision-preserving fallback.
+    function selectStorage(renderer) {
+        var gl = renderer.getContext();
+        var previous = renderer.getRenderTarget();
+        var floatOK = false;
+        if (renderer.extensions.get("OES_texture_float")) {
+            targets[0].texture.type = THREE.FloatType;
+            try {
+                renderer.setRenderTarget(targets[0]);
+                floatOK = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
+            } finally {
+                renderer.setRenderTarget(previous);
+            }
+            targets[0].dispose();
+        }
+        pass.storage = floatOK ? "float" : "packed";
+        for (var i = 0; i < targets.length; i++) {
+            targets[i].texture.type = floatOK ? THREE.FloatType : THREE.UnsignedByteType;
+        }
+        for (var j = 0; j < materials.length; j++) {
+            if (!floatOK) materials[j].defines.JPEG_PACKED = 1;
+            materials[j].needsUpdate = true;
+        }
+    }
+    pass.render = function (renderer, writeBuffer, readBuffer, delta, maskActive) {
+        if (!pass.storage) selectStorage(renderer);
+        var packed = pass.storage === "packed";
+        var width = Math.max(1, Math.round(u.resolution.value.x));
+        var height = Math.max(1, Math.round(u.resolution.value.y));
+        var lowX = Math.max(width / (u.resFactor.value * u.resRelX.value), 1);
+        var lowY = Math.max(height / u.resFactor.value, 1);
+        var outputWidth = writeBuffer ? writeBuffer.width : readBuffer.width;
+        var outputHeight = writeBuffer ? writeBuffer.height : readBuffer.height;
+        var blocksX = Math.min(Math.ceil(lowX / 8), outputWidth);
+        var blocksY = Math.min(Math.ceil(lowY / 8), outputHeight);
+        var limit = renderer.capabilities.maxTextureSize;
+        var texelWidth = packed ? 24 : 8;
+        var columns = Math.min(Math.floor(limit / texelWidth), Math.max(1,
+            Math.ceil(Math.sqrt(blocksX * blocksY * 9 / texelWidth))));
+        var rows = Math.ceil(blocksX * blocksY / columns);
+        u.outputResolution.value.set(outputWidth, outputHeight);
+        u.lowResolution.value.set(lowX, lowY);
+        u.blockGrid.value.set(blocksX, blocksY);
+        u.atlasGrid.value.set(columns, rows);
+        u.sparseAxes.value.set(Math.ceil(lowX / 8) > outputWidth ? 1 : 0,
+            Math.ceil(lowY / 8) > outputHeight ? 1 : 0);
+        for (var i = 0; i < targets.length; i++) targets[i].setSize(columns * texelWidth, rows * 9);
+        // Conservative bounds for packed signed intermediates. They account for
+        // all controls and the six additive corruption slots, including DC.
+        var frequency = u.allFreq.value * Math.max(1, u.xFreq.value) * Math.max(1, u.yFreq.value) *
+            Math.max(u.lowFreq.value, u.midFreq.value, u.highFreq.value);
+        var gain = Math.max(1, 1 + (frequency - 1) * u.affectLuma.value,
+            1 + (frequency - 1) * u.affectChroma.value);
+        var qq = u.quality.value * 100;
+        var quant = Math.max(1, Math.floor((121 * (qq < 50 ? 5000 / qq : 200 - 2 * qq) + 50) / 100));
+        var coefficientRange = 2040 * gain + quant * 0.5 +
+            6 * u.errAmp.value * (1 + u.errRate.value * 0.25) * quant + 1;
+        var rowRange = 1021;
+        var inverseRange = 8 * coefficientRange;
+        var previous = renderer.getRenderTarget();
+        try {
+            u.tDiffuse.value = readBuffer.texture;
+            u.outputRange.value = rowRange;
+            pass.quad.material = materials[0];
+            renderer.render(pass.scene, pass.camera, targets[0], true);
+            u.tStage.value = targets[0].texture;
+            u.inputRange.value = rowRange;
+            u.outputRange.value = coefficientRange;
+            pass.quad.material = materials[1];
+            renderer.render(pass.scene, pass.camera, targets[1], true);
+            u.tStage.value = targets[1].texture;
+            u.inputRange.value = coefficientRange;
+            u.outputRange.value = inverseRange;
+            pass.quad.material = materials[2];
+            renderer.render(pass.scene, pass.camera, targets[0], true);
+            u.tStage.value = targets[0].texture;
+            u.inputRange.value = inverseRange;
+            pass.quad.material = material;
+            originalRender.call(pass, renderer, writeBuffer, readBuffer, delta, maskActive);
+        } finally {
+            pass.quad.material = material;
+            renderer.setRenderTarget(previous);
+        }
+    };
+    pass.dispose = function () {
+        targets.forEach(function (target) { target.dispose(); });
+        materials.forEach(function (entry) { entry.dispose(); });
+        table.dispose();
+        if (pass.quad && pass.quad.geometry) pass.quad.geometry.dispose();
+    };
+    return pass;
+}
+
 this.load = function (e) {
-    this._loading = jpegBuildPass(this, e);
+    this.unload();
+    var generation = this._jpegGeneration;
+    this._loading = jpegBuildPass(this, e, generation);
     return this._loading;
 };
 
@@ -152,15 +314,11 @@ this.toJSON = function () {
 };
 
 this.unload = function () {
+    this._jpegGeneration = (this._jpegGeneration || 0) + 1;
     var pass = this.pass;
     this.pass = null;
     this._loading = null;
-    if (pass) {
-        if (pass.material && typeof pass.material.dispose === "function") pass.material.dispose();
-        if (pass.quad && pass.quad.geometry && typeof pass.quad.geometry.dispose === "function") {
-            pass.quad.geometry.dispose();
-        }
-    }
+    if (pass) pass.dispose();
     if (this._vertShader) {
         this.parentProject.assets.unload(this._vertShader);
         this._vertShader = null;

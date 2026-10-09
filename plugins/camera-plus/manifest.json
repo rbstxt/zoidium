@@ -2,10 +2,10 @@
   "schemaVersion": 1,
   "id": "camera-plus",
   "name": "Camera+",
-  "author": "Zoidium",
+  "author": "DaviFX",
   "version": "3",
   "kind": "object",
-  "description": "A separate Camera+ object for scenes, with depth of field, seeded vibrate, and focus tools. Leaves the CM3 camera unchanged.",
+  "description": "A separate Camera+ object for scenes, with depth of field, fixed shutter sampling, seeded vibrate, and focus tools.",
   "category": "CAMERA",
   "objectClassParent": {
     "name": "Camera",
@@ -53,6 +53,11 @@
       "id": "camera-focus-ui",
       "type": "text",
       "source": "./plugins/camera-plus/focus-ui.js?v=3"
+    },
+    {
+      "id": "camera-motion-blur",
+      "type": "text",
+      "source": "./plugins/camera-plus/scene-motion-blur.js?v=3"
     }
   ]
 }

@@ -251,7 +251,7 @@ function createMeshDeformer(THREE) {
   // deformers run in their own local space (node.matrixWorld relative to the
   // mesh), so transformed effectors and nested groups act in their own frame.
   function deformMesh(mesh, chain, frame, requestedPolygonCount) {
-    const state = meshStates.get(mesh);
+    let state = meshStates.get(mesh);
     if (!chain.length) {
       if (state) releaseState(mesh, state);
       return;
@@ -259,6 +259,7 @@ function createMeshDeformer(THREE) {
     if (state && mesh.geometry !== state.working) {
       // Something else replaced the geometry; the old working copy is stale.
       releaseState(mesh, state);
+      state = null;
     }
     const source = mesh.geometry;
     if (!source) return;

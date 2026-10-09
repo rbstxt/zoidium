@@ -501,27 +501,43 @@ var PZ = PZ || {};
         return out;
     }
 
+    // CM3's dynamic load appends keyframes. Elements initialize defaults so
+    // they can be used by the picker immediately; replace those defaults when
+    // loading saved data or a preset rather than leaving duplicate frame zero.
+    function loadProperties(list, data) {
+        function reset(node) {
+            if (node instanceof PZ.propertyList) {
+                for (var key of Object.keys(node)) reset(node[key]);
+            } else if (node) {
+                if (node.keyframes) node.keyframes.splice(0, node.keyframes.length);
+                if (node.objects) for (var child of node.objects) reset(child);
+            }
+        }
+        reset(list);
+        list.load(data);
+    }
+
     function applySpec(element, s) {
         var p = element.properties;
-        p.element.elementType.set(s.type);
-        p.name.set(ELEMENT_TYPES[s.type].name);
-        p.element.distance.set(s.distance);
-        p.element.rotation.set(s.rotation || 0);
-        p.element.opacity.set(s.opacity);
-        p.element.enabled.set(s.enabled);
-        p.element.animate.set(1);
-        p.globalParams.scale.set(s.scale);
-        p.globalParams.scaleOffset.set(0);
-        p.globalParams.aspectRatio.set(s.aspect);
-        p.globalParams.blendMode.set(s.blend || 0);
-        p.globalParams.color.set(s.color.slice());
-        p.globalParams.globalSeed.set(s.seed);
-        p.matteBox.shape.set(0);
-        p.matteBox.startRange.set(25);
-        p.matteBox.fadeAmount.set(25);
-        p.lensTexture.textureImage.set(s.texture);
-        p.lensTexture.illuminationRadius.set(100);
-        p.lensTexture.falloff.set(0.5);
+        p.element.elementType.set(s.type, 0);
+        p.name.set(ELEMENT_TYPES[s.type].name, 0);
+        p.element.distance.set(s.distance, 0);
+        p.element.rotation.set(s.rotation || 0, 0);
+        p.element.opacity.set(s.opacity, 0);
+        p.element.enabled.set(s.enabled, 0);
+        p.element.animate.set(1, 0);
+        p.globalParams.scale.set(s.scale, 0);
+        p.globalParams.scaleOffset.set(0, 0);
+        p.globalParams.aspectRatio.set(s.aspect, 0);
+        p.globalParams.blendMode.set(s.blend || 0, 0);
+        p.globalParams.color.set(s.color.slice(), 0);
+        p.globalParams.globalSeed.set(s.seed, 0);
+        p.matteBox.shape.set(0, 0);
+        p.matteBox.startRange.set(25, 0);
+        p.matteBox.fadeAmount.set(25, 0);
+        p.lensTexture.textureImage.set(s.texture, 0);
+        p.lensTexture.illuminationRadius.set(100, 0);
+        p.lensTexture.falloff.set(0.5, 0);
     }
 
     var optflaresElement = class extends PZ.object {
@@ -562,13 +578,13 @@ var PZ = PZ || {};
         // The element type is stored in the Type property, so undo and redo of
         // that property keep the type in step.
         get type() {
-            return this.properties ? clampIndex(this.properties.element.elementType.get(), ELEMENT_TYPES.length - 1) : 0;
+            return this.properties ? clampIndex(this.properties.element.elementType.get(0), ELEMENT_TYPES.length - 1) : 0;
         }
         set type(value) {
-            if (this.properties) this.properties.element.elementType.set(clampIndex(value, ELEMENT_TYPES.length - 1));
+            if (this.properties) this.properties.element.elementType.set(clampIndex(value, ELEMENT_TYPES.length - 1), 0);
         }
         load(e) {
-            this.properties.load(e && e.properties);
+            loadProperties(this.properties, e && e.properties);
             if (!this.properties.name.get().length) {
                 this.properties.name.set(ELEMENT_TYPES[this.type].name);
             }
@@ -752,33 +768,29 @@ var PZ = PZ || {};
     // source uniforms without reading any state from a previous frame.
     function worldPosition(object3d) {
         if (!object3d || !object3d.threeObj) return null;
-        object3d.threeObj.updateWorldMatrix(true, false);
+        var node = object3d.threeObj;
+        if (typeof node.updateWorldMatrix === "function") {
+            node.updateWorldMatrix(true, false);
+        } else {
+            // CM3 ships THREE r91, before updateWorldMatrix was introduced.
+            // Refresh the ancestor chain as well as the source's local matrix.
+            while (node.parent) node = node.parent;
+            node.updateMatrixWorld(true);
+        }
         var e = object3d.threeObj.matrixWorld.elements;
         return [e[12], e[13], e[14]];
     }
 
-    // Quad render hook. Runs for each draw of the quad, including draws in
-    // another pass (cube maps) and the motion blur traversal, so the uniforms
-    // are rewritten from the camera that is drawing right now.
+    // Rewrite uniforms from the camera drawing the color pass. The runtime
+    // preserves this callback around CM3's velocity traversal.
     function hookRender(quad, onRender) {
-        var previous = null;
-        var hook = function (renderer, scene, camera, geometry, material, group) {
+        var previous = quad.onBeforeRender;
+        quad.onBeforeRender = function (renderer, scene, camera, geometry, material, group) {
             onRender(camera);
             if (typeof previous === "function") {
                 previous.call(this, renderer, scene, camera, geometry, material, group);
             }
         };
-        Object.defineProperty(quad, "onBeforeRender", {
-            configurable: true,
-            get: function () {
-                return hook;
-            },
-            // Motion blur and other passes assign onBeforeRender on every object
-            // of the scene. Keep their handler and run it after ours.
-            set: function (value) {
-                previous = value;
-            },
-        });
     }
 
     PZ.object3d.optflares = class extends PZ.object3d {
@@ -859,7 +871,7 @@ var PZ = PZ || {};
             if (e && typeof e === "object" && typeof e.objectType === "number") {
                 this.objectType = e.objectType;
             }
-            this.properties.load(e && e.properties);
+            loadProperties(this.properties, e && e.properties);
             if (e && typeof e === "object" && e.stack && e.stack.length) {
                 for (var k = 0; k < e.stack.length; k++) {
                     var element = new PZ.object3d.optflares.element();
@@ -951,6 +963,7 @@ var PZ = PZ || {};
                 blendEquation: THREE.AddEquation,
             });
             this.quad = new THREE.Mesh(new THREE.PlaneBufferGeometry(2, 2), this.material);
+            this.quad.__zoidiumOpticalFlareQuad = true;
             this.quad.frustumCulled = false;
             this.quad.matrixAutoUpdate = false;
             this.quad.renderOrder = 9999;
