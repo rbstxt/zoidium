@@ -16,6 +16,7 @@ this.traceryPaths = {
     css: trCss,
     draw: trDrawOverlay,
     detect: trDetectRegions,
+    region: trLayerRegion,
 };
 
 function trNum(name, value, min, max, step, decimals) {
@@ -61,7 +62,9 @@ function trText(name, value) {
 
 function trPointDefs(n) {
     return {
-        ["point" + n + "Enable"]: trOption("Point " + n, 0, "off;on"),
+        // Point 1 starts on at the frame centre, so a new effect shows a marker
+        // at once. Saved projects keep the value they were saved with.
+        ["point" + n + "Enable"]: trOption("Point " + n, n === 1 ? 1 : 0, "off;on"),
         ["point" + n + "X"]: trNum("Point " + n + " X [%]", 50, 0, 100, 0.1, 1),
         ["point" + n + "Y"]: trNum("Point " + n + " Y [%]", 50, 0, 100, 0.1, 1),
         ["point" + n + "Size"]: trNum("Point " + n + " size", 120, 1, 2000, 1, 0),
@@ -156,6 +159,19 @@ function trClamp01(v) {
     v = Number(v);
     if (!isFinite(v)) return 0;
     return v < 0 ? 0 : v > 1 ? 1 : v;
+}
+
+// The pass receives the whole screen buffer, but the layer occupies only the
+// part given by uvScale (the compositor sets it per effect). Overlays are drawn
+// in the layer's own resolution, so Point X/Y percentages and sizes refer to the
+// layer frame and do not change with the preview zoom. Falls back to the buffer
+// region when the layer resolution is unknown.
+function trLayerRegion(w, h, uv, res) {
+    var sx = uv && uv.x > 0 ? Math.min(1, uv.x) : 1;
+    var sy = uv && uv.y > 0 ? Math.min(1, uv.y) : 1;
+    var width = res && res[0] > 0 ? Math.round(res[0]) : Math.max(1, Math.round(w * sx));
+    var height = res && res[1] > 0 ? Math.round(res[1]) : Math.max(1, Math.round(h * sy));
+    return { width: width, height: height, sx: sx, sy: sy };
 }
 
 function trNum3(prop, e, fb) {
@@ -808,9 +824,19 @@ this.update = function (e) {
     try {
         on = this.properties.enabled.get(e) === 1;
     } catch (err) {}
+    // The effect sits under a small list of effects before its layer.
+    var res = null;
+    try {
+        var owner = this.parent;
+        for (var depth = 0; owner && depth < 8 && !(owner.properties && owner.properties.resolution); depth++) {
+            owner = owner.parent;
+        }
+        if (owner) res = owner.properties.resolution.get(e);
+    } catch (err) {}
     this.pass.enabled = on;
     this.pass.opacity = 1;
     this.pass.overlayState = this._overlayState;
+    this.pass.layerResolution = Array.isArray(res) && res.length >= 2 ? res : null;
 };
 
 if (!THREE.TraceryPass) {
@@ -828,6 +854,7 @@ if (!THREE.TraceryPass) {
         this.detectPixels = null;
         this.detectWidth = 0;
         this.detectHeight = 0;
+        this.layerResolution = null;
         var material = new THREE.ShaderMaterial({
             uniforms: {
                 tDiffuse: { type: "t", value: null },
@@ -855,7 +882,8 @@ if (!THREE.TraceryPass) {
                 "varying vec2 vUvScaled;",
                 "void main() {",
                 "    vec4 bg = texture2D(tDiffuse, vUvScaled);",
-                "    vec4 ov = texture2D(tOverlay, vUvScaled);",
+                // The overlay covers exactly the layer frame, so it is sampled unscaled.
+                "    vec4 ov = texture2D(tOverlay, vUv);",
                 "    float a = clamp(ov.a * opacity, 0.0, 1.0);",
                 "    vec3 rgb = mix(mix(bg.rgb, ov.rgb, a), ov.rgb, alphaOnly);",
                 "    float alpha = mix(max(bg.a, a), ov.a, alphaOnly);",
@@ -878,6 +906,7 @@ if (!THREE.TraceryPass) {
                 keyColor: { type: "v3", value: new THREE.Vector3(1, 1, 1) },
                 blurR: { type: "f", value: 0 },
                 texel: { type: "v2", value: new THREE.Vector2(1 / 64, 1 / 64) },
+                uvScale: { type: "v2", value: new THREE.Vector2(1, 1) },
             },
             vertexShader: [
                 "varying vec2 vUv;",
@@ -891,6 +920,7 @@ if (!THREE.TraceryPass) {
                 "uniform vec3 keyColor;",
                 "uniform float blurR;",
                 "uniform vec2 texel;",
+                "uniform vec2 uvScale;",
                 "varying vec2 vUv;",
                 "void main() {",
                 "    vec3 acc = vec3(0.0);",
@@ -900,7 +930,7 @@ if (!THREE.TraceryPass) {
                 "            float fi = float(i);",
                 "            float fj = float(j);",
                 "            if (abs(fi) <= blurR && abs(fj) <= blurR) {",
-                "                acc += texture2D(tDiffuse, vUv + vec2(fi, fj) * texel).rgb;",
+                "                acc += texture2D(tDiffuse, (vUv + vec2(fi, fj) * texel) * uvScale).rgb;",
                 "                n += 1.0;",
                 "            }",
                 "        }",
@@ -925,19 +955,26 @@ if (!THREE.TraceryPass) {
             var w = readBuffer ? readBuffer.width : 0;
             var h = readBuffer ? readBuffer.height : 0;
             if (!w || !h) return;
-            if (!this.canvas || this.canvasWidth !== w || this.canvasHeight !== h) {
+            var region = trLayerRegion(w, h, this.uniforms.uvScale.value, this.layerResolution);
+            var lw = region.width;
+            var lh = region.height;
+            if (!this.canvas || this.canvasWidth !== lw || this.canvasHeight !== lh) {
                 this.canvas = document.createElement("canvas");
-                this.canvas.width = w;
-                this.canvas.height = h;
-                this.canvasWidth = w;
-                this.canvasHeight = h;
+                this.canvas.width = lw;
+                this.canvas.height = lh;
+                this.canvasWidth = lw;
+                this.canvasHeight = lh;
                 if (this.canvasTexture) this.canvasTexture.dispose();
                 this.canvasTexture = new THREE.CanvasTexture(this.canvas);
+                // Without mipmaps a non-power-of-two canvas is uploaded at its own
+                // size instead of being resampled, so thin strokes keep their position.
+                this.canvasTexture.generateMipmaps = false;
+                this.canvasTexture.minFilter = THREE.LinearFilter;
                 this.drawnState = null;
             }
             var st = this.overlayState;
             var detect = !!(st && st.detectEnable);
-            var regions = detect ? this.detectRegions(renderer, readBuffer, st) || [] : [];
+            var regions = detect ? this.detectRegions(renderer, readBuffer, st, region) || [] : [];
             // Detected regions follow the footage, so detection redraws every frame.
             if (st && (detect || st !== this.drawnState)) {
                 try {
@@ -955,7 +992,7 @@ if (!THREE.TraceryPass) {
                         }
                         drawState.points = merged;
                     }
-                    trDrawOverlay(ctx, w, h, drawState);
+                    trDrawOverlay(ctx, lw, lh, drawState);
                     this.canvasTexture.needsUpdate = true;
                     this.drawnState = st;
                 } catch (err) {
@@ -979,7 +1016,7 @@ if (!THREE.TraceryPass) {
             renderer.render(this.scene, this.camera, writeBuffer || readBuffer, true);
             renderer.autoClear = oldAutoClear;
         },
-        detectRegions: function (renderer, readBuffer, st) {
+        detectRegions: function (renderer, readBuffer, st, region) {
             var sizes = this.detectSizes();
             var q = Math.max(0, Math.min(3, st.detectionQuality || 0));
             var dw = sizes[q][0];
@@ -1002,6 +1039,7 @@ if (!THREE.TraceryPass) {
             this.detectUniforms.keyColor.value.set(st.keyColor[0], st.keyColor[1], st.keyColor[2]);
             this.detectUniforms.blurR.value = Math.max(0, Math.min(8, st.blurStrength));
             this.detectUniforms.texel.value.set(1 / dw, 1 / dh);
+            this.detectUniforms.uvScale.value.set(region.sx, region.sy);
             this.quad.material = this.detectMaterial;
             var oldAutoClear = renderer.autoClear;
             renderer.autoClear = false;
@@ -1018,12 +1056,12 @@ if (!THREE.TraceryPass) {
             }
             var minArea = Math.max(4, Math.round((dw * dh) / 4000));
             var found = trDetectRegions(grid, dw, dh, st.threshold, minArea, 24);
-            var S = readBuffer.height / 1080;
+            var S = region.height / 1080;
             var pts = [];
             for (var i = 0; i < found.length; i++) {
                 (function (g, n) {
-                    var bw = Math.max(8, (g.maxX - g.minX + 1) * (readBuffer.width / dw));
-                    var bh = Math.max(8, (g.maxY - g.minY + 1) * (readBuffer.height / dh));
+                    var bw = Math.max(8, (g.maxX - g.minX + 1) * (region.width / dw));
+                    var bh = Math.max(8, (g.maxY - g.minY + 1) * (region.height / dh));
                     pts.push({
                         enable: true,
                         x: ((g.minX + g.maxX + 1) / 2 / dw) * 100,

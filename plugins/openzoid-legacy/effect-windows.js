@@ -215,7 +215,8 @@ const TRACERY_PRESETS = [
     points: [{ enable: 1, x: 50, y: 50, size: 120, dx: 160, dy: -80 }],
   },
   {
-    // Detection-only: every manual point is switched off.
+    // Detection-only: points 2 to 6 are switched off, Point 1 stays visible
+    // (kept as placed, or put at the frame centre when it is off).
     label: "Key Track",
     clearPoints: true,
     values: {
@@ -243,14 +244,21 @@ function asciiAssignments(preset) {
   return out;
 }
 
-function traceryAssignments(preset) {
+// `read(key)` returns the current value of a property (used to keep a point the
+// user placed when a preset only switches other points off).
+function traceryAssignments(preset, read) {
   const out = Object.assign({}, preset.values);
   const colorKeys = { line: "lineColor", marker: "markerColor", box: "boxColor", label: "labelColor" };
   for (const name of Object.keys(colorKeys)) {
     if (preset.colors && preset.colors[name]) out[colorKeys[name]] = preset.colors[name];
   }
   if (preset.clearPoints) {
-    for (let n = 1; n <= 6; n++) out["point" + n + "Enable"] = 0;
+    for (let n = 2; n <= 6; n++) out["point" + n + "Enable"] = 0;
+    if (!read || Number(read("point1Enable")) !== 1) {
+      out.point1Enable = 1;
+      out.point1X = 50;
+      out.point1Y = 50;
+    }
   }
   (preset.points || []).forEach(function (pt, index) {
     const n = index + 1;
@@ -438,10 +446,122 @@ function bindControl(build, key) {
   return control.element;
 }
 
+// Converts a client point over the main viewport into percent coordinates of
+// the layer frame (0-100, origin top-left). The compositor camera is orthographic
+// over the sequence, and the layer's composite quad carries its position, scale
+// and rotation, so the inverse of the quad's world transform gives the position
+// in the layer's own unit square.
+function roundPercent(value) {
+  return Math.round(Math.max(0, Math.min(100, value)) * 10) / 10;
+}
+
+// The layer that owns an effect: the nearest ancestor with a composite quad.
+function layerOfEffect(effect) {
+  let owner = effect && effect.parent;
+  for (let depth = 0; owner && depth < 8; depth++) {
+    if (owner.composite && owner.composite.quad) return owner;
+    owner = owner.parent;
+  }
+  return null;
+}
+
+function layerPercentAt(viewport, layer, clientX, clientY) {
+  const canvas = viewport && viewport.canvas;
+  const quad = layer && layer.composite && layer.composite.quad;
+  const camera = viewport && viewport.compositor && viewport.compositor.camera;
+  if (!canvas || !quad || !quad.matrixWorld || !camera) return null;
+  const rect = canvas.getBoundingClientRect();
+  if (!(rect.width > 0 && rect.height > 0)) return null;
+  const fx = (clientX - rect.left) / rect.width;
+  const fy = (clientY - rect.top) / rect.height;
+  const wx = camera.left + fx * (camera.right - camera.left);
+  const wy = camera.top - fy * (camera.top - camera.bottom);
+  // Column-major 2D affine part of the quad's world matrix: a, b, c, d and translation.
+  const m = quad.matrixWorld.elements;
+  const det = m[0] * m[5] - m[1] * m[4];
+  if (!det) return null;
+  const dx = wx - m[12];
+  const dy = wy - m[13];
+  const lx = (m[5] * dx - m[4] * dy) / det;
+  const ly = (-m[1] * dx + m[0] * dy) / det;
+  return { x: roundPercent((lx + 0.5) * 100), y: roundPercent((0.5 - ly) * 100) };
+}
+
+// One-shot point placement. While armed, the next primary press on the main
+// viewport sets the point and its X/Y/Enable land in one history step. The press
+// and its follow-up mouse events are swallowed so CM3 does not also select or
+// orbit; the swallow ends at the click or after a short timeout. Escape, a second
+// Place button, closing the window or disabling the plugin cancels, and every
+// listener added here is removed by disarmPlacement.
+const PLACEMENT_EVENTS = ["pointerdown", "pointerup", "mousedown", "mouseup", "click", "dblclick", "keydown"];
+const PLACEMENT_SWALLOW_MS = 800;
+
+function disarmPlacement(build) {
+  const placement = build.placement;
+  if (!placement) return;
+  build.placement = null;
+  clearTimeout(placement.timer);
+  for (const type of PLACEMENT_EVENTS) window.removeEventListener(type, placement.handler, true);
+  placement.canvas.style.cursor = placement.cursor;
+  if (build.win && typeof build.win.setSubtitle === "function") build.win.setSubtitle("");
+}
+
+function armPlacement(build, index) {
+  disarmPlacement(build);
+  const viewport = build.context.editor.mainViewport;
+  const canvas = viewport && viewport.canvas;
+  if (!canvas) {
+    if (build.win) build.win.setSubtitle("No preview is available to click.");
+    return;
+  }
+  const placement = { canvas, cursor: canvas.style.cursor, armed: true, timer: null };
+  const pointKey = "point" + index;
+  placement.handler = function (event) {
+    if (event.type === "keydown") {
+      if (placement.armed && event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        disarmPlacement(build);
+      }
+      return;
+    }
+    if (event.target !== canvas) return;
+    if (placement.armed && event.type === "pointerdown" && event.button === 0) {
+      event.preventDefault();
+      event.stopPropagation();
+      placement.armed = false;
+      const at = layerPercentAt(viewport, layerOfEffect(build.effect), event.clientX, event.clientY);
+      if (at) {
+        build.bridge.apply({
+          [pointKey + "Enable"]: 1,
+          [pointKey + "X"]: at.x,
+          [pointKey + "Y"]: at.y,
+        });
+        syncBindings(build);
+      }
+      if (build.win) build.win.setSubtitle("");
+      canvas.style.cursor = placement.cursor;
+      placement.timer = setTimeout(function () { disarmPlacement(build); }, PLACEMENT_SWALLOW_MS);
+      return;
+    }
+    if (placement.armed && event.button !== undefined && event.button !== 0) return;
+    if (!placement.armed) {
+      // Swallow the rest of the click that placed the point.
+      event.preventDefault();
+      event.stopPropagation();
+      if (event.type === "click") disarmPlacement(build);
+    }
+  };
+  build.placement = placement;
+  canvas.style.cursor = "crosshair";
+  if (build.win) build.win.setSubtitle("Click the preview to place P" + index + " (Esc cancels)");
+  for (const type of PLACEMENT_EVENTS) window.addEventListener(type, placement.handler, true);
+}
+
 function buildPresetRow(build) {
   const { spec, bridge, controls } = build;
   const applyPreset = function (preset) {
-    bridge.apply(spec.assignments(preset));
+    bridge.apply(spec.assignments(preset, bridge.read));
     syncBindings(build);
   };
   // ASCII looks are listed one per row so every name stays fully visible.
@@ -468,6 +588,29 @@ function buildGroup(build, group) {
   if (group.presets) {
     section.body.appendChild(buildPresetRow(build));
   } else if (group.points) {
+    // One row per point: its on/off checkbox and a compact Place button. The
+    // detail tabs below keep the numeric fields.
+    for (let n = 1; n <= 6; n++) {
+      const toggle = bindControl(build, "point" + n + "Enable");
+      const place = build.controls.button({
+        title: "Place",
+        hint: "Click the preview to set point " + n,
+        onClick() { armPlacement(build, n); },
+      }).element;
+      if (!toggle || !toggle.ownerDocument) {
+        if (toggle) section.body.appendChild(toggle);
+        section.body.appendChild(place);
+        continue;
+      }
+      const line = toggle.ownerDocument.createElement("div");
+      line.style.cssText = "display: flex; align-items: center; border-bottom: 1px solid #242424;";
+      toggle.style.flex = "1 1 auto";
+      toggle.style.borderBottom = "0";
+      place.style.cssText = "flex: 0 0 auto; width: auto; margin: 0 8px 0 0; padding: 2px 12px;";
+      line.appendChild(toggle);
+      line.appendChild(place);
+      section.body.appendChild(line);
+    }
     const tabs = [];
     for (let n = 1; n <= 6; n++) {
       tabs.push({
@@ -504,20 +647,24 @@ function syncBindings(build) {
   }
 }
 
-function mountWindow(context, spec, effect, body) {
+function mountWindow(context, spec, effect, body, win) {
   const build = {
+    context,
     spec,
     effect,
+    win,
     PZ: context.PZ,
     controls: context.ui.controls,
     bridge: createBridge(context, effect),
     bindings: [],
+    placement: null,
   };
   for (const group of spec.layout) body.appendChild(buildGroup(build, group));
   syncBindings(build);
   const timer = setInterval(function () { syncBindings(build); }, SYNC_INTERVAL_MS);
   return function cleanup() {
     clearInterval(timer);
+    disarmPlacement(build);
   };
 }
 
@@ -528,8 +675,8 @@ function openSetupWindow(context, spec, effect) {
     persistKey: spec.persistKey,
     width: spec.width,
     height: spec.height,
-    mount(body) {
-      return mountWindow(context, spec, effect, body);
+    mount(body, openedWindow) {
+      return mountWindow(context, spec, effect, body, openedWindow || win);
     },
     isValid: function () { return effect.parent != null; },
     footer: [{ title: "Done", variant: "primary", onClick: function () { win.close(); } }],
@@ -561,6 +708,7 @@ function removeDispatcher(install) {
 const state = { active: false, dispatcher: null };
 
 module.exports = {
+  layerPercentAt,
   activate(context) {
     if (state.active) return;
     const PZ = context.PZ;
