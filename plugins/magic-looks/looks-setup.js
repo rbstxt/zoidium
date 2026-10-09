@@ -109,6 +109,11 @@ function readNum(effect, key, fallback) {
   return isFinite(v) ? v : fallback;
 }
 
+function effectInProject(effect) {
+  return !!(effect && effect.parent && (!("parentProject" in effect) ||
+    effect.parentProject === (state.editor && state.editor.project)));
+}
+
 // Edit session for one effect: live writes for preview, one undoable commit
 // per finished edit.
 function createSession(effect) {
@@ -116,6 +121,7 @@ function createSession(effect) {
   const session = {
     onCommit: null,
     live(key, value) {
+      if (!effectInProject(effect)) return;
       const p = propOf(effect, key);
       if (!p) return;
       if (!pending.has(key)) pending.set(key, { old: cloneValue(readProp(effect, key)) });
@@ -124,7 +130,7 @@ function createSession(effect) {
     commit(writes) {
       const CM = state.editor;
       const ops = state.ops;
-      if (!CM || !ops) return false;
+      if (!CM || !ops || !effectInProject(effect)) return false;
       const entries = [];
       for (const w of writes) {
         const p = propOf(effect, w.key);
@@ -587,7 +593,7 @@ function buildBody(body, effect, session, view) {
 
   function lookSection() {
     const sec = section("Look");
-    const filter = { text: "", group: "All" };
+    const filter = view.filter;
     const groups = [];
     Looks.tools.PRESETS.forEach(function (p) {
       if (groups.indexOf(p.group) < 0) groups.push(p.group);
@@ -617,6 +623,7 @@ function buildBody(body, effect, session, view) {
     sec.body.appendChild(ctl.text({
       label: "Filter",
       placeholder: "Search looks",
+      value: filter.text,
       onInput: function (v) {
         filter.text = String(v || "").trim().toLowerCase();
         renderList();
@@ -624,7 +631,7 @@ function buildBody(body, effect, session, view) {
     }).element);
     sec.body.appendChild(ctl.select({
       label: "Group",
-      value: "All",
+      value: filter.group,
       options: [{ value: "All", label: "All" }].concat(groups.map(function (g) { return { value: g, label: g }; })),
       onChange: function (v) {
         filter.group = v;
@@ -713,7 +720,7 @@ function buildBody(body, effect, session, view) {
         if (idx < 0 || view.selectedTool === pinned) return;
         const next = chain.slice();
         next.splice(idx, 1);
-        view.selectedTool = next[0] || null;
+        view.selectedTool = next[Math.min(idx, next.length - 1)] || null;
         session.commit([chainWrite(next)]);
         afterCommit();
       },
@@ -802,11 +809,37 @@ function buildBody(body, effect, session, view) {
 
   function rebuild() {
     if (disposed) return;
+    // Rebuilding controls must not move the user's scroll or drop a typed
+    // field's focus. Remember the control's position within this tool panel.
+    const fields = Array.from(root.querySelectorAll("input, select, textarea, button"));
+    const active = document.activeElement;
+    const focusIndex = fields.indexOf(active);
+    const focusTool = root.dataset.tool;
+    const selection = active && typeof active.selectionStart === "number"
+      ? [active.selectionStart, active.selectionEnd] : null;
+    const scrollers = [body].concat(Array.from(root.querySelectorAll("*")));
+    const scroll = scrollers.map(function (el) { return [el.scrollLeft || 0, el.scrollTop || 0]; });
     destroyWidgets();
     root.textContent = "";
     root.appendChild(lookSection());
     root.appendChild(chainSection());
     root.appendChild(toolSection());
+    root.dataset.tool = view.selectedTool || "";
+    if (focusIndex >= 0 && focusTool === root.dataset.tool) {
+      const field = root.querySelectorAll("input, select, textarea, button")[focusIndex];
+      if (field && typeof field.focus === "function") {
+        field.focus({ preventScroll: true });
+        if (selection && typeof field.setSelectionRange === "function") {
+          try { field.setSelectionRange(selection[0], selection[1]); } catch (_err) { /* numeric input */ }
+        }
+      }
+    }
+    const nextScrollers = [body].concat(Array.from(root.querySelectorAll("*")));
+    scroll.forEach(function (pos, i) {
+      if (!nextScrollers[i]) return;
+      nextScrollers[i].scrollLeft = pos[0];
+      nextScrollers[i].scrollTop = pos[1];
+    });
     lastSig = historySig();
   }
 
@@ -847,7 +880,7 @@ function windowIdFor(effect) {
 
 // Opens (or refocuses) the setup window for one effect instance.
 function openSetup(effect) {
-  if (!effect || !state.ui || !state.Looks) return null;
+  if (!effectInProject(effect) || !state.ui || !state.Looks) return null;
   const id = windowIdFor(effect);
   if (state.ui.getWindow(id)) {
     const existing = state.ui.getWindow(id);
@@ -855,7 +888,7 @@ function openSetup(effect) {
     return existing;
   }
   const session = createSession(effect);
-  const view = { look: null, selectedTool: state.Looks.tools.defaultChain()[1], curveChannel: "RGB" };
+  const view = { look: null, selectedTool: state.Looks.tools.defaultChain()[1], curveChannel: "RGB", filter: { text: "", group: "All" } };
   let win = null;
   acquireStyle();
   try {
@@ -871,7 +904,7 @@ function openSetup(effect) {
       mount: function (body) {
         return buildBody(body, effect, session, view);
       },
-      isValid: function () { return effect.parent != null; },
+      isValid: function () { return effectInProject(effect); },
       onClose: function () {
         session.flush();
         if (win) state.openWindows.delete(win);
@@ -956,6 +989,9 @@ module.exports = {
       state.editor = CM;
       state.ui = context.ui;
       state.ops = new PZ.ui.properties(CM);
+      if (context.lifecycle && typeof context.lifecycle.onDispose === "function") {
+        context.lifecycle.onDispose(function () { module.exports.deactivate(); });
+      }
       installPropertyButton(PZ);
       state.active = true;
     } catch (error) {
@@ -978,6 +1014,9 @@ module.exports = {
       state.openWindows.clear();
       removePropertyButton(state.PZ);
       if (typeof document !== "undefined") {
+        if (typeof document.querySelectorAll === "function") {
+          document.querySelectorAll(".lk-open-button").forEach(function (button) { button.remove(); });
+        }
         const el = document.getElementById(STYLE_ID);
         if (el) el.remove();
       }

@@ -25,6 +25,7 @@
 
 uniform sampler2D tDiffuse;
 uniform vec2 resolution;
+uniform vec2 uvScale;
 uniform sampler2D uCurvesLUT;
 uniform sampler2D uSCurveLUT;
 uniform float u_chain[29];
@@ -279,7 +280,7 @@ vec2 lkTexel() {
 
 // Straight color of a premultiplied texel (zero where alpha is zero).
 vec3 lkTap(vec2 uv) {
-  vec4 t = texture2D(tDiffuse, clamp(uv, vec2(0.0), vec2(1.0)));
+  vec4 t = texture2D(tDiffuse, clamp(uv, vec2(0.0), vec2(1.0)) * uvScale);
   return t.a > 0.000001 ? t.rgb / t.a : vec3(0.0);
 }
 
@@ -500,7 +501,7 @@ vec3 fxVig(vec3 c, vec2 uv) {
   float inner = u_vigRadius * (1.0 - u_vigSpread * 0.85);
   float vm = lkSmooth(inner, max(u_vigRadius, inner + 0.0001), dd);
   float vf = pow(vm, max(u_vigFalloff * 2.0 + 0.3, 0.05)) * clamp(u_vigStrength, 0.0, 1.0);
-  return lkExposure(c * mix(vec3(1.0), u_vigColorTint, vf), u_vigExposure);
+  return lkExposure(c * (1.0 - vf) * mix(vec3(1.0), u_vigColorTint, vf), u_vigExposure);
 }
 
 vec3 fxHaze(vec3 c, vec2 uv) {
@@ -674,7 +675,7 @@ void main() {
     uv = vec2(0.5 + off.x * f, 0.5 + off.y * (1.0 + u_lensDistortion * r2 * 4.0 * u_lensFlatten));
   }
 
-  vec4 src = texture2D(tDiffuse, clamp(uv, vec2(0.0), vec2(1.0)));
+  vec4 src = texture2D(tDiffuse, clamp(uv, vec2(0.0), vec2(1.0)) * uvScale);
   float a = src.a;
   vec3 c = a > 0.000001 ? src.rgb / a : vec3(0.0);
 
