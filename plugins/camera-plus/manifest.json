@@ -3,7 +3,7 @@
   "id": "camera-plus",
   "name": "Camera+",
   "author": "DaviFX",
-  "version": "3",
+  "version": "4",
   "kind": "object",
   "description": "A separate Camera+ object for scenes, with depth of field, fixed shutter sampling, seeded vibrate, and focus tools.",
   "category": "CAMERA",
@@ -30,34 +30,34 @@
   "modules": [
     {
       "id": "camera-runtime",
-      "source": "./plugins/camera-plus/camera-runtime.js?v=3"
+      "source": "./plugins/camera-plus/camera-runtime.js?v=4"
     }
   ],
   "resources": [
     {
       "id": "camera-vibrate",
       "type": "text",
-      "source": "./plugins/camera-plus/vibrate.js?v=3"
+      "source": "./plugins/camera-plus/vibrate.js?v=4"
     },
     {
       "id": "camera-dof",
       "type": "text",
-      "source": "./plugins/camera-plus/scene-dof.js?v=3"
+      "source": "./plugins/camera-plus/scene-dof.js?v=4"
     },
     {
       "id": "camera-class",
       "type": "text",
-      "source": "./plugins/camera-plus/camera-class.js?v=3"
+      "source": "./plugins/camera-plus/camera-class.js?v=4"
     },
     {
       "id": "camera-focus-ui",
       "type": "text",
-      "source": "./plugins/camera-plus/focus-ui.js?v=3"
+      "source": "./plugins/camera-plus/focus-ui.js?v=4"
     },
     {
       "id": "camera-motion-blur",
       "type": "text",
-      "source": "./plugins/camera-plus/scene-motion-blur.js?v=3"
+      "source": "./plugins/camera-plus/scene-motion-blur.js?v=4"
     }
   ]
 }

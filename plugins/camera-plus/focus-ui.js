@@ -119,8 +119,11 @@ parts.focus = (function () {
         return null;
       }
       if (!camera._focusWindowKey) camera._focusWindowKey = options.nextKey();
-      let selected = null;
-      const targets = listTargets();
+      let selectedId = null;
+      let current = listTargets();
+      function selectedObject() {
+        return selectedId !== null ? current.byId.get(selectedId) || null : null;
+      }
       const controls = ui.controls;
       return ui.openWindow({
         id: WINDOW_PREFIX + camera._focusWindowKey,
@@ -132,10 +135,10 @@ parts.focus = (function () {
         mount(body) {
           const section = controls.section("Target object");
           const picker = controls.list({
-            items: targets.items,
+            items: current.items,
             emptyText: "No other 3D objects in this scene.",
             onSelect(id) {
-              selected = targets.byId.get(id) || null;
+              selectedId = id;
             },
           });
           section.body.appendChild(picker.element);
@@ -143,20 +146,67 @@ parts.focus = (function () {
           body.appendChild(controls.note(
             "Link keeps the focus distance following the target. Set Once writes the current distance at the playhead.",
           ).element);
+          // The list is captured when the window opens, but objects can be
+          // added or removed while it stays open (reopening the same id only
+          // focuses the window). Refresh on every scene-object change and on
+          // every validity poll so the list never goes stale.
+          function refresh() {
+            const fresh = listTargets();
+            current = fresh;
+            if (picker && typeof picker.setItems === "function") picker.setItems(fresh.items);
+            if (selectedId !== null && !fresh.byId.has(selectedId)) {
+              selectedId = null;
+              if (picker && typeof picker.set === "function") picker.set(null);
+            }
+          }
+          let unwatch = null;
+          try {
+            const scene = camera.tryGetParentOfType(PZ.layer);
+            const list = scene && scene.objects;
+            if (list && list.onListChanged && typeof list.onListChanged.watch === "function") {
+              const onChange = function () {
+                refresh();
+              };
+              list.onListChanged.watch(onChange);
+              unwatch = function () {
+                if (typeof list.onListChanged.unwatch === "function") list.onListChanged.unwatch(onChange);
+              };
+            }
+          } catch (_error) {
+            unwatch = null;
+          }
+          camera._focusRefreshTargets = refresh;
           return function cleanup() {
-            selected = null;
+            selectedId = null;
+            if (camera._focusRefreshTargets === refresh) camera._focusRefreshTargets = null;
+            if (unwatch) unwatch();
           };
         },
-        isValid: () => camera.parent != null,
+        isValid: () => {
+          if (typeof camera._focusRefreshTargets === "function") {
+            try {
+              camera._focusRefreshTargets();
+            } catch (_error) { /* a stale list is better than a closed window */ }
+          }
+          return camera.parent != null;
+        },
         footer: [
           {
             title: "Link",
             variant: "primary",
-            onClick: () => (selected ? link(selected) : notify("Select a target object first.")),
+            onClick: () => {
+              const target = selectedObject();
+              if (target) link(target);
+              else notify("Select a target object first.");
+            },
           },
           {
             title: "Set Once",
-            onClick: () => (selected ? setOnce(selected) : notify("Select a target object first.")),
+            onClick: () => {
+              const target = selectedObject();
+              if (target) setOnce(target);
+              else notify("Select a target object first.");
+            },
           },
           { title: "Unlink", onClick: () => unlink() },
         ],

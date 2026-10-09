@@ -220,15 +220,15 @@
       "category": "scene",
       "name": "Camera+",
       "author": "DaviFX",
-      "version": "3",
+      "version": "4",
       "itemCount": 1,
       "format": "camera rig",
       "tagline": "Separate camera with DOF",
       "color": "#3d7bc5",
       "description": "Adds a separate Camera+ object with depth of field, seeded vibrate and focus tools. The default CM3 camera is left unchanged.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/camera-plus/manifest.json?v=3",
-      "bundle": "./plugins/camera-plus/bundle.json?v=3"
+      "manifest": "./plugins/camera-plus/manifest.json?v=4",
+      "bundle": "./plugins/camera-plus/bundle.json?v=4"
     },
     {
       "id": "native-fx",

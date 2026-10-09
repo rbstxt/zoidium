@@ -11,18 +11,18 @@ parts.camera = (function () {
   const SCHEMA_VERSION = 1;
 
   const FILM_GATES = [
-    { name: "Classic 35 mm (36.0 mm)", value: 36 },
-    { name: "35 mm Photo (36.0 mm)", value: 36 },
-    { name: "35 mm Full Aperture (36.0 mm)", value: 36 },
-    { name: "35 mm Academy (21.95 mm)", value: 21.95 },
-    { name: "Super 35 (24.89 mm)", value: 24.89 },
-    { name: "APS-C (23.6 mm)", value: 23.6 },
-    { name: "APS-C Canon (22.3 mm)", value: 22.3 },
-    { name: "Micro Four Thirds (17.3 mm)", value: 17.3 },
-    { name: "1 inch (13.2 mm)", value: 13.2 },
-    { name: "2/3 inch (8.8 mm)", value: 8.8 },
-    { name: "Super 16 (12.52 mm)", value: 12.52 },
-    { name: "16 mm (10.26 mm)", value: 10.26 },
+    { name: "Classic 35 (36mm)", value: 36 },
+    { name: "Photo 35 (36mm)", value: 36 },
+    { name: "Full 35 (36mm)", value: 36 },
+    { name: "Academy (21.95mm)", value: 21.95 },
+    { name: "Super 35 (24.89mm)", value: 24.89 },
+    { name: "APS-C (23.6mm)", value: 23.6 },
+    { name: "APS-C C (22.3mm)", value: 22.3 },
+    { name: "MFT (17.3mm)", value: 17.3 },
+    { name: "1 inch (13.2mm)", value: 13.2 },
+    { name: "2/3 inch (8.8mm)", value: 8.8 },
+    { name: "Super 16 (12.52mm)", value: 12.52 },
+    { name: "16 mm (10.26mm)", value: 10.26 },
   ];
 
   // Fresh definition objects on every call: CM3 property.create may mutate
@@ -66,7 +66,7 @@ parts.camera = (function () {
       },
       projection: { name: "Projection", type: T.LIST, value: "perspective", items: [{ name: "Perspective", value: "perspective" }, { name: "Orthographic", value: "orthographic" }] },
       focalLength: { dynamic: true, name: "Focal Length", type: T.NUMBER, value: 35, min: 1, max: 10000, step: 1, decimals: 2 },
-      filmGate: { name: "Sensor Size (Film Gate)", type: T.LIST, value: 36, items: FILM_GATES.map((gate) => ({ name: gate.name, value: gate.value })) },
+      filmGate: { name: "Sensor", type: T.LIST, value: 36, items: FILM_GATES.map((gate) => ({ name: gate.name, value: gate.value })) },
       zoom: { dynamic: true, name: "Zoom", type: T.NUMBER, value: 1, min: 0.01, max: 1000, step: 0.01, decimals: 2 },
       filmOffsetX: { dynamic: true, name: "Film Offset X", type: T.NUMBER, value: 0, min: -1000, max: 1000, step: 0.1, decimals: 2 },
       filmOffsetY: { dynamic: true, name: "Film Offset Y", type: T.NUMBER, value: 0, min: -1000, max: 1000, step: 0.1, decimals: 2 },
@@ -77,9 +77,9 @@ parts.camera = (function () {
     const T = PZ.property.type;
     const list = new PZ.propertyList({
       enabled: { dynamic: true, name: "Depth of Field", type: T.OPTION, value: 0, items: "off;on" },
-      focusDistance: { dynamic: true, name: "Focus Distance", type: T.NUMBER, value: 80, min: 0, max: 5000, step: 1, decimals: 1 },
-      aperture: { dynamic: true, name: "Aperture", type: T.NUMBER, value: 3, min: 0, max: 10, step: 0.1, decimals: 1 },
-      focusAreaWidth: { dynamic: true, name: "Focus Area Width", type: T.NUMBER, value: 0, min: 0, max: 4000, step: 1, decimals: 0 },
+      focusDistance: { dynamic: true, name: "Focus Distance", type: T.NUMBER, value: 80, min: 0, max: 5000, step: 1, decimals: 2 },
+      aperture: { dynamic: true, name: "Aperture", type: T.NUMBER, value: 3, min: 0, max: 40, step: 0.1, decimals: 1 },
+      focusAreaWidth: { dynamic: true, name: "Focus Width", type: T.NUMBER, value: 0, min: 0, max: 4000, step: 1, decimals: 0 },
       nearBlurLevel: { dynamic: true, name: "Near Blur Level", type: T.NUMBER, value: 100, min: 0, max: 400, step: 1, decimals: 0 },
       farBlurLevel: { dynamic: true, name: "Far Blur Level", type: T.NUMBER, value: 100, min: 0, max: 400, step: 1, decimals: 0 },
       focusTools: { name: "Focus", type: T.TEXT, value: "", zoidiumControl: FOCUS_CONTROL_ID },
