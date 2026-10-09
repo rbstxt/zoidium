@@ -48,6 +48,26 @@
     return null;
   }
 
+  // CM3's property list looks up the row's first ".editbox" and binds its
+  // pz_update to the property's onChanged, so every control must provide one.
+  // Custom controls that only render buttons or canvases get a no-op update.
+  function ensureEditbox(element) {
+    if (!element || typeof element !== "object") return element;
+    var editbox = element.classList && element.classList.contains("editbox")
+      ? element
+      : (typeof element.querySelector === "function" ? element.querySelector(".editbox") : null);
+    if (!editbox && element.classList) {
+      element.classList.add("editbox");
+      editbox = element;
+    }
+    if (editbox && typeof editbox.pz_update !== "function") {
+      editbox.pz_update = typeof element.pz_refresh === "function"
+        ? function () { element.pz_refresh(); }
+        : function () {};
+    }
+    return element;
+  }
+
   // Custom property controls keep plugin-specific editors inside CM3's normal
   // property list, history, and update flow. A property opts in with a stable
   // `zoidiumControl` id while retaining a standard CM3 storage type.
@@ -84,7 +104,7 @@
             document: global.document,
             window: global,
           });
-          if (result) return result;
+          if (result) return ensureEditbox(result);
         }
         return original.apply(this, arguments);
       };
