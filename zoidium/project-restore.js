@@ -812,6 +812,9 @@
       editor.project = restoredProject;
       editor._zoidiumSaveFileHandle = null;
       editor._zoidiumSaveFileName = null;
+      global.dispatchEvent(new CustomEvent("zoidium:project-changed", {
+        detail: { editor: editor, reason: "restore" },
+      }));
       projectFiles.setProjectName(
         editor,
         projectFiles.displayNameForUi(snapshot.projectName || "project"),
