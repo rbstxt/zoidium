@@ -3,7 +3,7 @@
   "id": "repeater",
   "name": "Effector",
   "author": "Zoidium",
-  "version": "12",
+  "version": "13",
   "kind": "object",
   "objectCategory": "EFFECTOR",
   "objectClassParent": {
@@ -14,7 +14,7 @@
     {
       "target": "object3d",
       "name": "Effector",
-      "desc": "Create repeated, twisted, and warped 3D object groups.",
+      "desc": "Create repeated, twisted, warped, and fractured 3D object groups.",
       "type": 5,
       "list": [
         {
@@ -92,6 +92,18 @@
             },
             "objects": []
           }
+        },
+        {
+          "name": "Voronoi Fracture",
+          "type": "zoidium:repeater/voronoi-fracture",
+          "data": {
+            "type": "zoidium:repeater/voronoi-fracture",
+            "schemaVersion": 1,
+            "properties": {
+              "name": "Voronoi Fracture"
+            },
+            "objects": []
+          }
         }
       ]
     }
@@ -129,7 +141,7 @@
       "id": "twist",
       "type": "zoidium:repeater/twist",
       "name": "Twist",
-      "description": "Bends descendant 3D meshes around the selected axis with selectable curve quality and polygon density.",
+      "description": "Twists descendant 3D meshes around the selected axis in the effector frame with selectable curve quality.",
       "schemaVersion": 1
     },
     {
@@ -138,12 +150,37 @@
       "name": "Warp",
       "description": "Bends descendant 3D meshes with selectable curve quality, polygon density, and an optional falloff field.",
       "schemaVersion": 1
+    },
+    {
+      "id": "voronoi-fracture",
+      "type": "zoidium:repeater/voronoi-fracture",
+      "name": "Voronoi Fracture",
+      "description": "Shatters descendant closed meshes into seeded Voronoi fragments with optional cap faces.",
+      "schemaVersion": 1
     }
   ],
   "modules": [
     {
       "id": "effector-runtime",
-      "source": "./plugins/scene-plus/scene-plus.js?v=12"
+      "source": "./plugins/scene-plus/scene-plus.js?v=13"
+    }
+  ],
+  "description": "Procedural repeaters plus Twist, Warp, and Voronoi Fracture effectors.",
+  "resources": [
+    {
+      "id": "effector-core",
+      "type": "text",
+      "source": "./plugins/scene-plus/effector-core.js?v=13"
+    },
+    {
+      "id": "effector-fracture",
+      "type": "text",
+      "source": "./plugins/scene-plus/effector-fracture.js?v=13"
+    },
+    {
+      "id": "effector-mesh",
+      "type": "text",
+      "source": "./plugins/scene-plus/effector-mesh.js?v=13"
     }
   ]
 }

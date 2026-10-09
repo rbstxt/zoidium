@@ -1,242 +1,100 @@
-// OpenZoid Trapcode Suite — C4D-style lights (adapted from lights-c4d.js).
-// Zoidium adaptation: the 3D picker list is owned by this plugin's manifest
-// Light replacement entry, so the imperative picker rewrite from the OpenZoid
-// checkout is disabled at the bottom of this file. The light catalogue,
-// property definitions, prototype patches, and legacy Hemisphere migration
-// are unchanged. Safe to evaluate more than once (guarded below).
-/*
- * lights-c4d.js
- *
- * Cinema 4D-style light types for OpenZoid / Panzoid Clipmaker.
- *
- * What this does:
- * 1. Clicking "Light" in the 3D-objects add-menu now drills into a
- *    sub-menu with 8 choices (hidelist removed) instead of instantly
- *    creating a default Spot light.
- * 2. Adds 8 C4D light types, each mapped to the closest THREE.js
- *    (r91) light available in this project:
- *
- *    id  UI name (objectType)              THREE backend
- *    --  --------------------------------  -----------------------------
- *    1   Spot Light                      -> THREE.SpotLight
- *    2   Point Light (Omni)              -> THREE.PointLight
- *    3   Infinite Light (Directional)    -> THREE.DirectionalLight
- *    4   Area Light                      -> THREE.RectAreaLight (fallback PointLight)
- *    5   Dome Light (Sky/HDRI)           -> THREE.HemisphereLight (+ ambient feel)
- *    6   Photometric IES Light           -> THREE.SpotLight + IES profile label
- *    7   Physical Sun                    -> THREE.DirectionalLight + sun-elevation tint
- *    8   Portal Light                    -> THREE.RectAreaLight (fallback DirectionalLight)
- *
- * Backward compatibility:
- * - Old projects used objectType 1=Spot, 2=Point, 3=Directional,
- *   4=Hemisphere. Types 1-3 are unchanged.
- * - Old type 4 (Hemisphere) auto-migrates to new type 5 (Dome),
- *   which uses the same HemisphereLight backend so old scenes look identical.
- *
- * Loaded AFTER core-1.0.102.js and ui-1.0.72.js (see clipmaker.html).
- */
+// OpenZoid Trapcode Suite — C4D-style lights.
+//
+// Installs the Trapcode light types onto the CM3 Light class. install() and
+// uninstall() are called by the suite runtime, so disabling the pack restores
+// the stock Light prototype methods and removes the property definitions this
+// file added. The picker entries live in the plugin manifest.
+//
+// Each type names the THREE backend it really renders with. Legacy ids that are
+// no longer offered in the picker keep loading as the backend they were saved
+// with, so existing projects still open.
+//
+//   id  picker name                           THREE backend
+//   --  ------------------------------------  ------------------------------------
+//   1   Spot Light                            SpotLight
+//   2   Point Light (Omni)                    PointLight
+//   3   Infinite Light (Directional)          DirectionalLight
+//   4   Area Light                            RectAreaLight when the LTC tables
+//                                             are present, else a PointLight
+//   5   Hemisphere Light (Sky/Ground)         HemisphereLight
+//   7   Sun (Directional)                     DirectionalLight, tinted by elevation
+//   6   legacy: IES (no photometric data)     SpotLight (not offered in the picker)
+//   8   legacy: Portal (same as Area)         as id 4 (not offered in the picker)
+//
+// Stock CM3 Light types 1-3 keep their stock behaviour. Stock type 4 (Hemisphere)
+// migrates to id 5 when it is loaded.
 
 (function () {
-    if (typeof PZ === "undefined" || !PZ.object3d || !PZ.object3d.light) return;
+    "use strict";
 
-    var Light = PZ.object3d.light;
-
-    // The Trapcode Suite module may evaluate this file again on re-enable.
-    // The prototype wraps below capture their predecessors, so run once.
-    if (
-        Light.prototype.changeObjectType &&
-        Light.prototype.changeObjectType.__trapcodeSuiteLights
-    ) {
-        return;
-    }
-
-    // ------------------------------------------------------------------
-    // 1. Catalogue (single source of truth for menu + backend)
-    // ------------------------------------------------------------------
-
-    Light.C4D_TYPES = [
-        {
-            id: 2,
-            name: "Point Light (Omni)",
-            desc: "Emits light uniformly in all directions from a single, infinitesimally small point in space, like a bare lightbulb.",
-        },
-        {
-            id: 1,
-            name: "Spot Light",
-            desc: "Emits directional light restricted within a cone shape, useful for focused beams or theatrical spotlights.",
-        },
-        {
-            id: 3,
-            name: "Infinite Light (Directional)",
-            desc: "Simulates a light source infinitely far away (like the sun). Rays are parallel and do not decay over distance.",
-        },
-        {
-            id: 4,
-            name: "Area Light",
-            desc: "Features a physical size and rectangular shape, perfect for realistic soft shadows and studio reflections.",
-        },
-        {
-            id: 5,
-            name: "Dome Light (Sky/HDRI)",
-            desc: "Enrounds the entire scene with a large sphere to illuminate objects using an HDRI image environment.",
-        },
-        {
-            id: 6,
-            name: "Photometric IES Light",
-            desc: "Uses real-world manufacturer .ies profile data to accurately simulate specific architectural light fixtures.",
-        },
-        {
-            id: 7,
-            name: "Physical Sun",
-            desc: "Mimics precise natural sunlight and changes color temperature based on its angle of incidence.",
-        },
-        {
-            id: 8,
-            name: "Portal Light",
-            desc: "Optimizes global illumination by guiding indirect ambient light through tight openings like window frames.",
-        },
+    var CATALOGUE = [
+        { id: 2, name: "Point Light (Omni)", listed: true },
+        { id: 1, name: "Spot Light", listed: true },
+        { id: 3, name: "Infinite Light (Directional)", listed: true },
+        { id: 4, name: "Area Light", listed: true },
+        { id: 5, name: "Hemisphere Light (Sky/Ground)", listed: true },
+        { id: 7, name: "Sun (Directional)", listed: true },
+        { id: 6, name: "Spot Light (legacy IES)", listed: false },
+        { id: 8, name: "Area Light (legacy Portal)", listed: false },
     ];
 
-    Light.C4D_NAMES = {
-        1: "Spot Light",
-        2: "Point Light",
-        3: "Infinite Light",
-        4: "Area Light",
-        5: "Dome Light",
-        6: "IES Light",
-        7: "Physical Sun",
-        8: "Portal Light",
+    var EXTRA_DEFINITIONS = {
+        distance: { dynamic: true, name: "Distance", type: 0, value: 0, min: 0, max: 5000, step: 1, decimals: 0 },
+        decay: { dynamic: true, name: "Decay", type: 0, value: 1, min: 0, max: 4, step: 0.1, decimals: 2 },
+        penumbra: { dynamic: true, name: "Penumbra", type: 0, value: 0.5, min: 0, max: 1, step: 0.05, decimals: 2 },
+        width: { dynamic: true, name: "Width", type: 0, value: 10, min: 0.1, max: 200, step: 0.5, decimals: 1 },
+        height: { dynamic: true, name: "Height", type: 0, value: 10, min: 0.1, max: 200, step: 0.5, decimals: 1 },
+        sunElevation: { dynamic: true, name: "Sun Elevation", type: 0, value: 45, min: 0, max: 90, step: 1, decimals: 0 },
+        iesProfile: { dynamic: false, name: "IES Profile", type: 7, value: "default.ies" },
     };
 
-    // ------------------------------------------------------------------
-    // 2. Extra property definitions (only new keys; old ones are kept)
-    // ------------------------------------------------------------------
-
-    var D = Light.propertyDefinitions;
-
-    if (!D.distance) {
-        D.distance = {
-            dynamic: true,
-            name: "Distance",
-            type: PZ.property.type.NUMBER,
-            value: 0,
-            min: 0,
-            max: 5000,
-            step: 1,
-            decimals: 0,
-        };
-    }
-    if (!D.decay) {
-        D.decay = {
-            dynamic: true,
-            name: "Decay",
-            type: PZ.property.type.NUMBER,
-            value: 1,
-            min: 0,
-            max: 4,
-            step: 0.1,
-            decimals: 2,
-        };
-    }
-    if (!D.penumbra) {
-        D.penumbra = {
-            dynamic: true,
-            name: "Penumbra",
-            type: PZ.property.type.NUMBER,
-            value: 0.5,
-            min: 0,
-            max: 1,
-            step: 0.05,
-            decimals: 2,
-        };
-    }
-    if (!D.width) {
-        D.width = {
-            dynamic: true,
-            name: "Width",
-            type: PZ.property.type.NUMBER,
-            value: 10,
-            min: 0.1,
-            max: 200,
-            step: 0.5,
-            decimals: 1,
-        };
-    }
-    if (!D.height) {
-        D.height = {
-            dynamic: true,
-            name: "Height",
-            type: PZ.property.type.NUMBER,
-            value: 10,
-            min: 0.1,
-            max: 200,
-            step: 0.5,
-            decimals: 1,
-        };
-    }
-    if (!D.sunElevation) {
-        D.sunElevation = {
-            dynamic: true,
-            name: "Sun Elevation",
-            type: PZ.property.type.NUMBER,
-            value: 45,
-            min: 0,
-            max: 90,
-            step: 1,
-            decimals: 0,
-        };
-    }
-    if (!D.iesProfile) {
-        D.iesProfile = {
-            dynamic: false,
-            name: "IES Profile",
-            type: PZ.property.type.TEXT,
-            value: "default.ies",
-        };
-    }
-
     var LIGHT_PROP_KEYS = [
-        "position",
-        "target",
-        "color",
-        "skyColor",
-        "groundColor",
-        "intensity",
-        "angle",
-        "distance",
-        "decay",
-        "penumbra",
-        "width",
-        "height",
-        "sunElevation",
-        "iesProfile",
+        "position", "target", "color", "skyColor", "groundColor", "intensity", "angle",
+        "distance", "decay", "penumbra", "width", "height", "sunElevation", "iesProfile",
     ];
 
-    function clearLightProps(light) {
-        for (var i = 0; i < LIGHT_PROP_KEYS.length; i++) {
-            var k = LIGHT_PROP_KEYS[i];
-            if (k === "name") continue;
-            if (light.properties[k]) {
-                try {
-                    light.properties.remove(k);
-                } catch (e) {
-                    delete light.properties[k];
-                }
-            }
-        }
+    var installed = null;
+
+    function hasLtcTables() {
+        var uniforms = typeof THREE !== "undefined" ? THREE.UniformsLib : null;
+        return !!(uniforms && uniforms.LTC_1 && uniforms.LTC_2);
     }
 
-    function addProps(light, keys) {
+    function propertyDefinitions(PZ) {
+        var numberType = PZ.property.type.NUMBER;
+        var textType = PZ.property.type.TEXT;
+        var out = {};
+        Object.keys(EXTRA_DEFINITIONS).forEach(function (key) {
+            var def = EXTRA_DEFINITIONS[key];
+            out[key] = {};
+            Object.keys(def).forEach(function (field) {
+                out[key][field] = field === "type" ? (def.type === 7 ? textType : numberType) : def[field];
+            });
+        });
+        return out;
+    }
+
+    function clearLightProps(light) {
+        LIGHT_PROP_KEYS.forEach(function (key) {
+            if (!light.properties[key]) return;
+            try {
+                light.properties.remove(key);
+            } catch (_error) {
+                delete light.properties[key];
+            }
+        });
+    }
+
+    function addProps(PZ, light, keys) {
         var defs = {};
-        for (var i = 0; i < keys.length; i++) {
-            defs[keys[i]] = PZ.property.create(Light.propertyDefinitions[keys[i]]);
-        }
+        keys.forEach(function (key) {
+            defs[key] = PZ.property.create(PZ.object3d.light.propertyDefinitions[key]);
+        });
         light.properties.addAll(defs);
     }
 
-    function setupShadows(threeObj, opts) {
-        opts = opts || {};
-        if (opts.cast) {
+    function setupShadows(threeObj, cast) {
+        if (cast) {
             threeObj.castShadow = true;
             threeObj.shadow = threeObj.shadow || {};
             threeObj.shadow.mapSize = threeObj.shadow.mapSize || {};
@@ -245,9 +103,7 @@
             if (threeObj.shadow.camera) {
                 threeObj.shadow.camera.near = 5;
                 threeObj.shadow.camera.far = 1500;
-                if (threeObj.shadow.camera.fov !== undefined) {
-                    threeObj.shadow.camera.fov = 60;
-                }
+                if (threeObj.shadow.camera.fov !== undefined) threeObj.shadow.camera.fov = 60;
             }
             if (threeObj.shadow.bias === undefined) threeObj.shadow.bias = 0;
         } else if (threeObj.castShadow !== undefined) {
@@ -261,212 +117,202 @@
         return [1, 0.55 + 0.45 * t, 0.3 + 0.7 * t];
     }
 
-    // ------------------------------------------------------------------
-    // 3. Backend: create the right THREE object per type
-    //    (keeps 1/2/3 identical to the original implementation)
-    // ------------------------------------------------------------------
+    // Area backend: RectAreaLight when the LTC tables exist, else a PointLight
+    // whose name says so. label is the picker name for the rect case.
+    function areaBackend(width, height, label) {
+        if (hasLtcTables()) {
+            return { object: new THREE.RectAreaLight(16777215, 1, width, height), name: label };
+        }
+        return { object: new THREE.PointLight(16777215, 1, 0), name: label + " (point approximation)" };
+    }
 
-    var origChange = Light.prototype.changeObjectType;
-    var origUpdate = Light.prototype.update;
-    var origLoad = Light.prototype.load;
+    var BACKENDS = {
+        1: function () {
+            return { object: new THREE.SpotLight(16777215, 1, 0, Math.PI / 3, 0.5, 1), name: "Spot Light", cast: true,
+                props: ["color", "position", "target", "intensity", "angle", "penumbra", "distance", "decay"] };
+        },
+        2: function () {
+            return { object: new THREE.PointLight(16777215, 1, 0), name: "Point Light", cast: true,
+                props: ["color", "position", "intensity", "distance", "decay"] };
+        },
+        3: function () {
+            return { object: new THREE.DirectionalLight(16777215, 1), name: "Infinite Light", cast: true,
+                props: ["color", "position", "target", "intensity"] };
+        },
+        4: function () {
+            var backend = areaBackend(10, 10, "Area Light");
+            backend.props = ["color", "position", "target", "intensity", "width", "height"];
+            return backend;
+        },
+        5: function () {
+            return { object: new THREE.HemisphereLight(16777215, 16777215, 1), name: "Hemisphere Light (Sky/Ground)",
+                cast: false, props: ["skyColor", "groundColor", "intensity"] };
+        },
+        6: function () {
+            return { object: new THREE.SpotLight(16777215, 1, 0, Math.PI / 4, 0.4, 1), name: "Spot Light (legacy IES)", cast: true,
+                props: ["color", "position", "target", "intensity", "angle", "penumbra", "distance", "decay", "iesProfile"] };
+        },
+        7: function () {
+            return { object: new THREE.DirectionalLight(16777215, 2), name: "Sun (Directional)", cast: true,
+                props: ["color", "position", "target", "intensity", "sunElevation"] };
+        },
+        8: function () {
+            var backend = areaBackend(6, 8, "Area Light (legacy Portal)");
+            backend.props = ["color", "position", "target", "intensity", "width", "height"];
+            return backend;
+        },
+    };
 
-    Light.prototype.changeObjectType = function (e) {
-        e = parseInt(e, 10) || 1;
-        // Legacy Hemisphere (old id 4) -> new Dome (id 5). Same look.
-        if (e === 4 && this._migratingLegacyHemi) {
-            e = 5;
+    function normalizeType(value, migratingHemi) {
+        var e = parseInt(value, 10) || 1;
+        if (e === 4 && migratingHemi) return 5;
+        if (e < 1 || e > 8) return e === 4 ? 5 : 1;
+        return e;
+    }
+
+    function install(PZ) {
+        if (installed) return;
+        var Light = PZ.object3d && PZ.object3d.light;
+        if (!Light || !Light.prototype || typeof Light.prototype.changeObjectType !== "function") {
+            throw new Error("Trapcode lights need PZ.object3d.light from the CM3 runtime.");
+        }
+        if (typeof THREE === "undefined") throw new Error("Trapcode lights need the THREE global.");
+
+        var proto = Light.prototype;
+        var original = {
+            changeObjectType: proto.changeObjectType,
+            update: proto.update,
+            load: proto.load,
+        };
+        var wrappers = {};
+        var addedDefinitions = [];
+        var definitions = Light.propertyDefinitions;
+        var extra = propertyDefinitions(PZ);
+        Object.keys(extra).forEach(function (key) {
+            if (definitions[key] === undefined) {
+                definitions[key] = extra[key];
+                addedDefinitions.push(key);
+            }
+        });
+
+        // Each wrapper checks its own alive flag, so a disabled pack falls
+        // through to the stock method even if another pack wrapped above it.
+        function wrap(name, handler) {
+            var wrapper = function () {
+                if (!wrapper.__trapcodeSuiteAlive) return original[name].apply(this, arguments);
+                return handler.apply(this, arguments);
+            };
+            wrapper.__trapcodeSuiteLights = true;
+            wrapper.__trapcodeSuiteAlive = true;
+            wrappers[name] = wrapper;
+            proto[name] = wrapper;
+        }
+
+        wrap("changeObjectType", changeType);
+
+        function changeType(value) {
+            var e = normalizeType(value, this._migratingLegacyHemi);
             this._migratingLegacyHemi = false;
-        } else if (e < 1 || e > 8) {
-            // Unknown id (e.g. very old data): fall back to Spot.
-            // Old id 4 Hemisphere no longer exists here; anything
-            // hitting this branch that carries groundColor is Dome-like.
-            if (e === 4) e = 5;
-            else e = 1;
-        }
-        this.objectType = e;
-        clearLightProps(this);
-
-        var label = Light.C4D_NAMES[e] || "Light";
-        var t = label;
-
-        switch (e) {
-            case 1: // Spot (original behaviour preserved)
-                t = "Spot Light";
-                this.threeObj = new THREE.SpotLight(16777215, 1, 0, Math.PI / 3, 0.5, 1);
-                addProps(this, ["color", "position", "target", "intensity", "angle", "penumbra", "distance", "decay"]);
-                setupShadows(this.threeObj, { cast: true });
-                break;
-
-            case 2: // Point / Omni (original behaviour preserved)
-                t = "Point Light";
-                this.threeObj = new THREE.PointLight(16777215, 1, 0);
-                addProps(this, ["color", "position", "intensity", "distance", "decay"]);
-                setupShadows(this.threeObj, { cast: true });
-                break;
-
-            case 3: // Infinite / Directional (original behaviour preserved)
-                t = "Infinite Light";
-                this.threeObj = new THREE.DirectionalLight(16777215, 1);
-                addProps(this, ["color", "position", "target", "intensity"]);
-                setupShadows(this.threeObj, { cast: true });
-                break;
-
-            case 4: // Area (rectangular, soft studio light)
-                t = "Area Light";
-                if (typeof THREE.RectAreaLight !== "undefined") {
-                    this.threeObj = new THREE.RectAreaLight(16777215, 1, 10, 10);
-                } else {
-                    this.threeObj = new THREE.PointLight(16777215, 1, 0);
-                }
-                addProps(this, ["color", "position", "target", "intensity", "width", "height"]);
-                setupShadows(this.threeObj, { cast: false });
-                break;
-
-            case 5: // Dome / Sky (hemisphere backend = same as old type 4)
-                t = "Dome Light";
-                this.threeObj = new THREE.HemisphereLight(16777215, 16777215, 1);
-                addProps(this, ["skyColor", "groundColor", "intensity"]);
-                // Expose a plain "color" alias? No - Dome uses sky/ground pair.
-                setupShadows(this.threeObj, { cast: false });
-                break;
-
-            case 6: // IES photometric (spot backend + profile tag)
-                t = "IES Light";
-                this.threeObj = new THREE.SpotLight(16777215, 1, 0, Math.PI / 4, 0.4, 1);
-                addProps(this, ["color", "position", "target", "intensity", "angle", "penumbra", "distance", "decay", "iesProfile"]);
-                setupShadows(this.threeObj, { cast: true });
-                break;
-
-            case 7: // Physical Sun (directional backend + elevation tint)
-                t = "Physical Sun";
-                this.threeObj = new THREE.DirectionalLight(16777215, 2);
-                addProps(this, ["color", "position", "target", "intensity", "sunElevation"]);
-                setupShadows(this.threeObj, { cast: true });
-                break;
-
-            case 8: // Portal (rect-area backend guiding light through openings)
-                t = "Portal Light";
-                if (typeof THREE.RectAreaLight !== "undefined") {
-                    this.threeObj = new THREE.RectAreaLight(16777215, 1, 6, 8);
-                } else {
-                    this.threeObj = new THREE.DirectionalLight(16777215, 1);
-                }
-                addProps(this, ["color", "position", "target", "intensity", "width", "height"]);
-                setupShadows(this.threeObj, { cast: false });
-                break;
+            this.objectType = e;
+            clearLightProps(this);
+            var backend = BACKENDS[e]();
+            this.threeObj = backend.object;
+            addProps(PZ, this, backend.props);
+            setupShadows(this.threeObj, !!backend.cast);
+            if (this.properties.name && this.properties.name.set) {
+                try { this.properties.name.set(backend.name); } catch (_error) { /* display only */ }
+            }
+            if (typeof this.parentChanged === "function") this.parentChanged();
         }
 
-        if (this.properties.name && this.properties.name.set) {
+        // Legacy Hemisphere (stock id 4, with groundColor and no width/height)
+        // loads as the Dome/Hemisphere type 5. Stock id 4 with a Trapcode Area
+        // payload (width/height present) keeps meaning Area.
+        wrap("load", function (data) {
+            if (data && typeof data === "object" && data.objectType === 4) {
+                var props = data.properties || {};
+                if (props.groundColor !== undefined && props.width === undefined && props.height === undefined) {
+                    this._migratingLegacyHemi = true;
+                }
+            }
+            return original.load.call(this, data);
+        });
+
+        wrap("update", function (time) {
             try {
-                this.properties.name.set(t);
-            } catch (err) { /* name is display-only */ }
-        }
-        if (typeof this.parentChanged === "function") this.parentChanged();
-    };
-    Light.prototype.changeObjectType.__trapcodeSuiteLights = true;
-
-    // Legacy migration hook: old Hemisphere JSON -> Dome.
-    Light.prototype.load = function (e) {
-        if (e && typeof e === "object" && e.objectType === 4) {
-            var props = e.properties || {};
-            // Old Hemisphere payloads carry groundColor and no width/height.
-            // New id 4 is Area Light (width/height), so this must be legacy.
-            if (props.groundColor !== undefined && props.width === undefined && props.height === undefined) {
-                this._migratingLegacyHemi = true;
+                syncLight.call(this, time);
+            } catch (_error) {
+                original.update.call(this, time);
             }
-        }
-        return origLoad.call(this, e);
-    };
+        });
 
-    // ------------------------------------------------------------------
-    // 4. Per-frame sync of PZ properties -> THREE object
-    // ------------------------------------------------------------------
-
-    Light.prototype.update = function (time) {
-        var t;
-        var o = this.threeObj;
-        if (!o) return;
-        try {
-            if (this.properties.position) {
-                t = this.properties.position.get(time);
-                if (o.position) o.position.set(t[0], t[1], t[2]);
+        function syncLight(time) {
+            var o = this.threeObj;
+            if (!o) return;
+            var p = this.properties;
+            var t;
+            if (p.position && o.position) {
+                t = p.position.get(time);
+                o.position.set(t[0], t[1], t[2]);
             }
-            if (this.properties.target && o.target) {
-                t = this.properties.target.get(time);
+            if (p.target && o.target) {
+                t = p.target.get(time);
                 o.target.position.set(t[0], t[1], t[2]);
-                if (o.target.updateMatrixWorld) o.target.updateMatrixWorld();
+                o.target.updateMatrixWorld();
             }
-            // RectAreaLight (Area / Portal) aims via lookAt.
-            // r91 may not set isRectAreaLight, so detect by width/height too.
-            var isRect = o.isRectAreaLight || o.type === "RectAreaLight" ||
-                (o.width !== undefined && o.height !== undefined &&
-                    (this.objectType === 4 || this.objectType === 8));
-            if (isRect && o.lookAt) {
-                if (this.properties.target) {
-                    t = this.properties.target.get(time);
-                    // lookAt needs a world-space point; target position works here.
-                    try { o.lookAt(t[0], t[1], t[2]); } catch (err) {}
-                }
+            // Rect lights aim with lookAt(), which reads the object's local
+            // position, so the position above must be set first. The matrix is
+            // refreshed afterwards so later readers see this frame's transform.
+            if (o.isRectAreaLight && p.target && o.lookAt) {
+                t = p.target.get(time);
+                o.lookAt(t[0], t[1], t[2]);
             }
-            if (this.properties.color && o.color) {
-                t = this.properties.color.get(time);
-                // Physical Sun tints base color by elevation.
-                if (this.objectType === 7 && this.properties.sunElevation) {
-                    var elev = this.properties.sunElevation.get(time);
-                    var tint = sunTint(elev);
-                    o.color.setRGB(
-                        Math.min(1, t[0] * tint[0]),
-                        Math.min(1, t[1] * tint[1]),
-                        Math.min(1, t[2] * tint[2])
-                    );
+            o.updateMatrixWorld();
+            if (p.color && o.color) {
+                t = p.color.get(time);
+                if (this.objectType === 7 && p.sunElevation) {
+                    var tint = sunTint(p.sunElevation.get(time));
+                    o.color.setRGB(Math.min(1, t[0] * tint[0]), Math.min(1, t[1] * tint[1]), Math.min(1, t[2] * tint[2]));
                 } else {
                     o.color.setRGB(t[0], t[1], t[2]);
                 }
-            } else if (this.properties.skyColor && o.color) {
-                // Dome Light uses skyColor as the main color.
-                t = this.properties.skyColor.get(time);
+            } else if (p.skyColor && o.color) {
+                t = p.skyColor.get(time);
                 o.color.setRGB(t[0], t[1], t[2]);
             }
-            if (this.properties.groundColor && o.groundColor) {
-                t = this.properties.groundColor.get(time);
+            if (p.groundColor && o.groundColor) {
+                t = p.groundColor.get(time);
                 o.groundColor.setRGB(t[0], t[1], t[2]);
             }
-            if (this.properties.intensity && o.intensity !== undefined) {
-                o.intensity = this.properties.intensity.get(time);
-            }
-            if (this.properties.angle && o.angle !== undefined) {
-                o.angle = (this.properties.angle.get(time) * Math.PI) / 180;
-            }
-            if (this.properties.penumbra !== undefined && o.penumbra !== undefined && this.properties.penumbra) {
-                o.penumbra = this.properties.penumbra.get(time);
-            }
-            if (this.properties.distance !== undefined && o.distance !== undefined && this.properties.distance) {
-                o.distance = this.properties.distance.get(time);
-            }
-            if (this.properties.decay !== undefined && o.decay !== undefined && this.properties.decay) {
-                o.decay = this.properties.decay.get(time);
-            }
-            if (this.properties.width && o.width !== undefined) {
-                o.width = Math.max(0.1, this.properties.width.get(time));
-            }
-            if (this.properties.height && o.height !== undefined) {
-                o.height = Math.max(0.1, this.properties.height.get(time));
-            }
-        } catch (err) {
-            // Fall back to original updater if anything unexpected happens.
-            try { origUpdate.call(this, time); } catch (e2) {}
+            if (p.intensity && o.intensity !== undefined) o.intensity = p.intensity.get(time);
+            if (p.angle && o.angle !== undefined) o.angle = (p.angle.get(time) * Math.PI) / 180;
+            if (p.penumbra && o.penumbra !== undefined) o.penumbra = p.penumbra.get(time);
+            if (p.distance && o.distance !== undefined) o.distance = p.distance.get(time);
+            if (p.decay && o.decay !== undefined) o.decay = p.decay.get(time);
+            if (p.width && o.width !== undefined) o.width = Math.max(0.1, p.width.get(time));
+            if (p.height && o.height !== undefined) o.height = Math.max(0.1, p.height.get(time));
         }
-    };
 
-    // ------------------------------------------------------------------
-    // 5. Picker list ownership (Zoidium adaptation).
-    //
-    // The OpenZoid checkout rewrote the Light picker entry imperatively here.
-    // In Zoidium that list is owned by this plugin's manifest Light
-    // replacement entry, which the plugin manager installs on enable and
-    // restores on disable. Rewriting it here as well would fight the manager
-    // (and other Light providers such as Light+), so this section is
-    // intentionally a no-op. The C4D_TYPES catalogue above stays as the
-    // single source of truth mirrored by the manifest.
-    // ------------------------------------------------------------------
+        installed = { PZ: PZ, Light: Light, original: original, wrappers: wrappers, addedDefinitions: addedDefinitions };
+    }
+
+    function uninstall() {
+        var state = installed;
+        installed = null;
+        if (!state) return;
+        var proto = state.Light.prototype;
+        Object.keys(state.wrappers).forEach(function (name) {
+            var wrapper = state.wrappers[name];
+            wrapper.__trapcodeSuiteAlive = false;
+            if (proto[name] === wrapper) proto[name] = state.original[name];
+        });
+        state.addedDefinitions.forEach(function (key) {
+            delete state.Light.propertyDefinitions[key];
+        });
+    }
+
+    var T = (typeof PZ !== "undefined" && PZ.trapcode) || null;
+    if (T) {
+        T.lights = { install: install, uninstall: uninstall, catalogue: CATALOGUE };
+    }
 })();

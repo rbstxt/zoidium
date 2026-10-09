@@ -1,11 +1,12 @@
 // OpenZoid Legacy — VHS.
-// Ported verbatim from the OpenZoid effect/vhs.js implementation. All shaders
-// are inline, so no bundle adaptation was needed beyond this header.
-// Known limitation: the "VHS Setup" button action (vhsSetup) is handled by the
-// OpenZoid editor window, which arrives with the designer phase. Until then the
-// button has no handler in upstream CM3 and every parameter remains editable
-// directly in the property list.
-this.defaultName = "VHS";
+// Ported from the OpenZoid effect/vhs.js signal chain. All shaders are inline.
+//
+// Determinism: the tape, noise, tracking and chroma distortions are pure
+// functions of time, seed-like hashes and properties. Persistence (trails) is
+// the only temporal part. It averages earlier SOURCE frames requested through
+// the frame sampler, so it never reads this effect's previous output.
+// Trails need an Adjustment layer; elsewhere the stateless signal still renders.
+// The "Setup" row opens the VHS Setup floating window (vhs-setup.js).
 
 // ---------------------------------------------------------------------------
 // VHS — Quality rebuild, screenshot-identical pass (Color + Image)
@@ -708,6 +709,8 @@ void main() {
         float blind = step(0.5, fract(vUv.y * resolution.y * 0.5));
         col *= 1.0 - blinds * blind * 0.5;
     }
+    // tPrev is the weighted average of sampled earlier source frames (or the
+    // current source when hasHistory is 0), never this effect's output.
     vec3 prev = texture2D(tPrev, clamp(vUv + vec2(0.0, 0.004 * roll), 0.0, 1.0)).rgb;
     float frameMix = clamp((0.25 + persistence) * interlace * hasHistory * amount, 0.0, 0.85);
     col = mix(col, prev, frameMix);
@@ -780,144 +783,43 @@ void main() {
 }
 `;
 
-const VHS_COPY_SHADER = `
-uniform sampler2D tDiffuse;
+
+// Persistence ("trails") is an explicit weighted average of earlier SOURCE
+// frames. The frame sampler evaluates those frames at fixed one-frame offsets,
+// and the averaging passes below blend them into one texture. Nothing reads
+// this effect's previous output, so a frame renders the same in any order.
+const VHS_TRAIL_DECAY = 0.6;
+const VHS_TRAIL_SETUP_CONTROL = "openzoid-legacy.vhs-setup";
+
+const VHS_ACCUMULATE_SHADER = `
+uniform sampler2D tBase;
+uniform sampler2D tSample;
+uniform vec2 uvScale;
+uniform float factor;
 varying vec2 vUv;
 void main() {
-    gl_FragColor = texture2D(tDiffuse, vUv);
+    gl_FragColor = mix(texture2D(tBase, vUv), texture2D(tSample, vUv * uvScale), factor);
 }
 `;
 
-if (!THREE.VHSPass) {
-    THREE.VHSPass = function () {
-        THREE.Pass.call(this);
-        this.resolution = new THREE.Vector2(2, 2);
-        this.uniforms = {
-            uvScale: { type: "v2", value: new THREE.Vector2(1, 1) },
-        };
-        this.signalUniforms = {
-            tDiffuse: { type: "t", value: null },
-            tPrev: { type: "t", value: null },
-            resolution: { type: "v2", value: this.resolution },
-            uvScale: this.uniforms.uvScale,
-            time: { type: "f", value: 0 },
-            amount: { type: "f", value: 1 },
-            hasHistory: { type: "f", value: 0 },
-            persistence: { type: "f", value: 0.25 },
-            signalStrength: { type: "f", value: 0.25 },
-            colorStripes: { type: "f", value: 0.25 },
-            chromaCrawl: { type: "f", value: 0.2 },
-            chromaLoss: { type: "f", value: 0.05 },
-            flicker: { type: "f", value: 0.08 },
-            vhsSharpen: { type: "f", value: 0.35 },
-            interlace: { type: "f", value: 0.4 },
-            staticWarp: { type: "f", value: 0.2 },
-            fastForward: { type: "f", value: 0 },
-            tracking: { type: "f", value: 0.25 },
-            anisotropyWarp: { type: "f", value: 0 },
-            rgbSplit: { type: "f", value: 0.12 },
-            tear: { type: "f", value: 0.12 },
-            humBar: { type: "f", value: 0.1 },
-            blueScreen: { type: "f", value: 0 },
-            skew: { type: "f", value: 0.25 },
-            crease: { type: "f", value: 0 },
-            ghost: { type: "f", value: 0.08 },
-            osd: { type: "f", value: 0 },
-            noiseEvo: { type: "f", value: 0.5 },
-            noiseOpacity: { type: "f", value: 0.4 },
-            blinds: { type: "f", value: 0 },
-            snowDots: { type: "f", value: 0 },
-            speedDots: { type: "f", value: 0 },
-            anisoSnow: { type: "f", value: 0 },
-            jitterX: { type: "f", value: 0.3 },
-            jitterY: { type: "f", value: 0.3 },
-            roll: { type: "f", value: 0 },
-            rollSpeed: { type: "f", value: 1.5 },
-        };
-        this.tubeUniforms = {
-            tDiffuse: { type: "t", value: null },
-            uvScale: this.uniforms.uvScale,
-            time: { type: "f", value: 0 },
-            amount: { type: "f", value: 1 },
-        };
-        this.copyUniforms = {
-            tDiffuse: { type: "t", value: null },
-        };
-        var options = {
-            minFilter: THREE.LinearFilter,
-            magFilter: THREE.LinearFilter,
-            format: THREE.RGBAFormat,
-            depthBuffer: false,
-            stencilBuffer: false,
-        };
-        this.target = new THREE.WebGLRenderTarget(2, 2, options);
-        this.target.texture.generateMipmaps = false;
-        this.history = new THREE.WebGLRenderTarget(2, 2, options);
-        this.history.texture.generateMipmaps = false;
-        this.materialSignal = new THREE.ShaderMaterial({
-            uniforms: this.signalUniforms,
-            vertexShader: VHS_VERTEX_SHADER,
-            fragmentShader: VHS_SIGNAL_SHADER,
-        });
-        this.materialSignal.premultipliedAlpha = true;
-        this.materialTube = new THREE.ShaderMaterial({
-            uniforms: this.tubeUniforms,
-            vertexShader: VHS_VERTEX_SHADER,
-            fragmentShader: VHS_TUBE_SHADER,
-        });
-        this.materialTube.premultipliedAlpha = true;
-        this.materialCopy = new THREE.ShaderMaterial({
-            uniforms: this.copyUniforms,
-            vertexShader: VHS_VERTEX_SHADER,
-            fragmentShader: VHS_COPY_SHADER,
-        });
-        this.materialCopy.premultipliedAlpha = true;
-        this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
-        this.scene = new THREE.Scene();
-        this.quad = new THREE.Mesh(new THREE.PlaneBufferGeometry(2, 2), null);
-        this.quad.frustumCulled = false;
-        this.scene.add(this.quad);
-        this.enabled = true;
-        this.needsSwap = true;
-        this.initialized = false;
-    };
-    THREE.VHSPass.prototype = Object.assign(Object.create(THREE.Pass.prototype), {
-        constructor: THREE.VHSPass,
-        setSize: function (e, t) {
-            let r = Math.max(2, Math.round(e));
-            let i = Math.max(2, Math.round(t));
-            this.resolution.set(r, i);
-            this.target.setSize(r, i);
-            this.history.setSize(r, i);
-        },
-        setMask: function () {},
-        render: function (renderer, writeBuffer, readBuffer, delta, maskActive) {
-            let oldAutoClear = renderer.autoClear;
-            renderer.autoClear = false;
-            let output = writeBuffer || readBuffer;
-            this.signalUniforms.tDiffuse.value = readBuffer.texture;
-            this.signalUniforms.tPrev.value = this.history.texture;
-            this.signalUniforms.hasHistory.value = this.initialized ? 1 : 0;
-            this.quad.material = this.materialSignal;
-            renderer.render(this.scene, this.camera, this.target, true);
-            this.tubeUniforms.tDiffuse.value = this.target.texture;
-            this.quad.material = this.materialTube;
-            renderer.render(this.scene, this.camera, output, true);
-            this.copyUniforms.tDiffuse.value = output.texture;
-            this.quad.material = this.materialCopy;
-            renderer.render(this.scene, this.camera, this.history, true);
-            this.initialized = true;
-            renderer.autoClear = oldAutoClear;
-        },
-        dispose: function () {
-            this.target.dispose();
-            this.history.dispose();
-            this.materialSignal.dispose();
-            this.materialTube.dispose();
-            this.materialCopy.dispose();
-            this.quad.geometry.dispose();
-        },
-    });
+// Matches the mix factor applied by VHS_SIGNAL_SHADER (frameMix).
+function vhsTrailMix(amount, persistence, interlace) {
+    return Math.min(0.85, Math.max(0, (0.25 + persistence) * interlace * amount));
+}
+
+function clamp01(v) {
+    v = Number(v);
+    if (!isFinite(v)) return 0;
+    return Math.min(1, Math.max(0, v));
+}
+
+function readNumber(property, frame, fallback) {
+    try {
+        const value = Number(property && property.get ? property.get(frame) : NaN);
+        return Number.isFinite(value) ? value : fallback;
+    } catch (_error) {
+        return fallback;
+    }
 }
 
 function vhsNum(name, value, min, max, step, decimals) {
@@ -933,25 +835,29 @@ function vhsNum(name, value, min, max, step, decimals) {
     };
 }
 
-this.propertyDefinitions = {
+const vhsProperties = {
     enabled: {
         dynamic: true,
         name: "Enabled",
         type: PZ.property.type.OPTION,
         value: 1,
         items: "off;on",
-        buttons: [{ name: "VHS Setup", title: "Open the VHS setup window", action: "vhsSetup" }],
+    },
+    setup: {
+        name: "Setup",
+        type: PZ.property.type.TEXT,
+        value: "",
+        zoidiumControl: VHS_TRAIL_SETUP_CONTROL,
     },
     time: {
         dynamic: true,
         name: "Time",
         type: PZ.property.type.NUMBER,
-        value: 0,
-        step: 0.01,
         value: (e) => {
             e.animated = true;
             e.expression = new PZ.expression("time");
         },
+        step: 0.01,
     },
     amount: vhsNum("Amount", 1, 0, 1, 0.01, 2),
     signalStrength: vhsNum("Signal Strength", 0.25, 0, 1, 0.01, 2),
@@ -995,82 +901,262 @@ this.propertyDefinitions = {
     persistence: vhsNum("Persistence", 0.25, 0, 0.9, 0.01, 2),
 };
 
-this.properties.addAll(this.propertyDefinitions, this);
-
-function clamp01(v) {
-    v = Number(v);
-    if (!isFinite(v)) return 0;
-    return Math.min(1, Math.max(0, v));
+// Pass object assigned to effect.pass. The compositor calls render() once per
+// output frame. Trails come from frame-sampler results only.
+function VhsPass(effect) {
+    THREE.Pass.call(this);
+    this.effect = effect;
+    this.resolution = new THREE.Vector2(2, 2);
+    this.uniforms = {
+        uvScale: { type: "v2", value: new THREE.Vector2(1, 1) },
+    };
+    this.signalUniforms = {
+        tDiffuse: { type: "t", value: null },
+        tPrev: { type: "t", value: null },
+        resolution: { type: "v2", value: this.resolution },
+        uvScale: this.uniforms.uvScale,
+        time: { type: "f", value: 0 },
+        amount: { type: "f", value: 1 },
+        hasHistory: { type: "f", value: 0 },
+        persistence: { type: "f", value: 0.25 },
+        signalStrength: { type: "f", value: 0.25 },
+        colorStripes: { type: "f", value: 0.25 },
+        chromaCrawl: { type: "f", value: 0.2 },
+        chromaLoss: { type: "f", value: 0.05 },
+        flicker: { type: "f", value: 0.08 },
+        vhsSharpen: { type: "f", value: 0.35 },
+        interlace: { type: "f", value: 0.4 },
+        staticWarp: { type: "f", value: 0.2 },
+        fastForward: { type: "f", value: 0 },
+        tracking: { type: "f", value: 0.25 },
+        anisotropyWarp: { type: "f", value: 0 },
+        rgbSplit: { type: "f", value: 0.12 },
+        tear: { type: "f", value: 0.12 },
+        humBar: { type: "f", value: 0.1 },
+        blueScreen: { type: "f", value: 0 },
+        skew: { type: "f", value: 0.25 },
+        crease: { type: "f", value: 0 },
+        ghost: { type: "f", value: 0.08 },
+        osd: { type: "f", value: 0 },
+        noiseEvo: { type: "f", value: 0.5 },
+        noiseOpacity: { type: "f", value: 0.4 },
+        blinds: { type: "f", value: 0 },
+        snowDots: { type: "f", value: 0 },
+        speedDots: { type: "f", value: 0 },
+        anisoSnow: { type: "f", value: 0 },
+        jitterX: { type: "f", value: 0.3 },
+        jitterY: { type: "f", value: 0.3 },
+        roll: { type: "f", value: 0 },
+        rollSpeed: { type: "f", value: 1.5 },
+    };
+    this.tubeUniforms = {
+        tDiffuse: { type: "t", value: null },
+        uvScale: this.uniforms.uvScale,
+        time: { type: "f", value: 0 },
+        amount: { type: "f", value: 1 },
+    };
+    this.accumulateUniforms = {
+        tBase: { type: "t", value: null },
+        tSample: { type: "t", value: null },
+        uvScale: this.uniforms.uvScale,
+        factor: { type: "f", value: 1 },
+    };
+    const options = {
+        minFilter: THREE.LinearFilter,
+        magFilter: THREE.LinearFilter,
+        format: THREE.RGBAFormat,
+        depthBuffer: false,
+        stencilBuffer: false,
+    };
+    this.target = new THREE.WebGLRenderTarget(2, 2, options);
+    this.target.texture.generateMipmaps = false;
+    this.trailTargets = [
+        new THREE.WebGLRenderTarget(2, 2, options),
+        new THREE.WebGLRenderTarget(2, 2, options),
+    ];
+    this.trailTargets.forEach(function (target) {
+        target.texture.generateMipmaps = false;
+    });
+    this.materialSignal = new THREE.ShaderMaterial({
+        uniforms: this.signalUniforms,
+        vertexShader: VHS_VERTEX_SHADER,
+        fragmentShader: VHS_SIGNAL_SHADER,
+    });
+    this.materialSignal.premultipliedAlpha = true;
+    this.materialTube = new THREE.ShaderMaterial({
+        uniforms: this.tubeUniforms,
+        vertexShader: VHS_VERTEX_SHADER,
+        fragmentShader: VHS_TUBE_SHADER,
+    });
+    this.materialTube.premultipliedAlpha = true;
+    this.materialAccumulate = new THREE.ShaderMaterial({
+        uniforms: this.accumulateUniforms,
+        vertexShader: VHS_VERTEX_SHADER,
+        fragmentShader: VHS_ACCUMULATE_SHADER,
+    });
+    this.materialAccumulate.premultipliedAlpha = true;
+    this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+    this.scene = new THREE.Scene();
+    this.quad = new THREE.Mesh(new THREE.PlaneBufferGeometry(2, 2), null);
+    this.quad.frustumCulled = false;
+    this.scene.add(this.quad);
+    this.enabled = true;
+    this.needsSwap = true;
 }
 
-this.load = async function (e) {
-    this.pass = new THREE.VHSPass();
-    this.pass.setSize(2, 2);
-    this.properties.load(e && e.properties);
-};
+VhsPass.prototype = Object.assign(Object.create(THREE.Pass.prototype), {
+    constructor: VhsPass,
+    setSize: function (width, height) {
+        const w = Math.max(2, Math.round(width));
+        const h = Math.max(2, Math.round(height));
+        this.resolution.set(w, h);
+        this.target.setSize(w, h);
+        this.trailTargets.forEach(function (target) {
+            target.setSize(w, h);
+        });
+    },
+    setMask: function () {},
+    // Averages the sampled source frames into one texture. Returns null when
+    // the host supplies no samples (no Adjustment layer, or no trail requested).
+    renderTrail: function (renderer) {
+        const temporal = PZ.zoidium && PZ.zoidium.temporal;
+        const samples = temporal && temporal.resolveFrameSamples
+            ? temporal.resolveFrameSamples(this.effect) || []
+            : [];
+        let current = null;
+        let total = 0;
+        let slot = 0;
+        for (let index = 0; index < samples.length; index += 1) {
+            const sample = samples[index];
+            const weight = Number(sample && sample.opacity);
+            if (!sample || !sample.texture || !(weight > 0)) continue;
+            total += weight;
+            const target = this.trailTargets[slot % 2];
+            slot += 1;
+            this.accumulateUniforms.tBase.value = current ? current.texture : sample.texture;
+            this.accumulateUniforms.tSample.value = sample.texture;
+            this.accumulateUniforms.factor.value = current ? weight / total : 1;
+            this.quad.material = this.materialAccumulate;
+            renderer.render(this.scene, this.camera, target, true);
+            current = target;
+        }
+        return current;
+    },
+    render: function (renderer, writeBuffer, readBuffer) {
+        if (readBuffer.width > 0 && readBuffer.height > 0 &&
+            (this.target.width !== readBuffer.width || this.target.height !== readBuffer.height)) {
+            this.setSize(readBuffer.width, readBuffer.height);
+        }
+        const oldAutoClear = renderer.autoClear;
+        renderer.autoClear = false;
+        const output = writeBuffer || readBuffer;
+        const trail = this.renderTrail(renderer);
+        this.signalUniforms.tDiffuse.value = readBuffer.texture;
+        this.signalUniforms.tPrev.value = trail ? trail.texture : readBuffer.texture;
+        this.signalUniforms.hasHistory.value = trail ? 1 : 0;
+        this.quad.material = this.materialSignal;
+        renderer.render(this.scene, this.camera, this.target, true);
+        this.tubeUniforms.tDiffuse.value = this.target.texture;
+        this.quad.material = this.materialTube;
+        renderer.render(this.scene, this.camera, output, true);
+        renderer.autoClear = oldAutoClear;
+    },
+    dispose: function () {
+        this.target.dispose();
+        this.trailTargets.forEach(function (target) {
+            target.dispose();
+        });
+        this.materialSignal.dispose();
+        this.materialTube.dispose();
+        this.materialAccumulate.dispose();
+        this.quad.geometry.dispose();
+    },
+});
 
-this.toJSON = function () {
-    return { type: this.type, properties: this.properties };
-};
+const vhsEffect = this;
 
-this.unload = function (e) {
-    if (this.pass) {
-        this.pass.dispose();
-    }
-};
+ZoidiumPluginApis.defineFrameSampler.call(vhsEffect, {
+    displayName: "VHS",
+    properties: vhsProperties,
+    // Trail taps are source frames at -1, -2, ... frames. Count grows with
+    // Persistence; the host caps frame samples at 16 and we stay below 10.
+    getRequest(effect, frame) {
+        const amount = clamp01(readNumber(effect.properties.amount, frame, 1));
+        const persistence = clamp01(readNumber(effect.properties.persistence, frame, 0.25));
+        const interlace = clamp01(readNumber(effect.properties.interlace, frame, 0.4));
+        const enabled = readNumber(effect.properties.enabled, frame, 1) === 1;
+        return {
+            enabled: enabled && vhsTrailMix(amount, persistence, interlace) > 0.001,
+            count: 2 + Math.round(persistence * 8),
+            offsetFrames: -1,
+            startOpacity: 1,
+            decay: VHS_TRAIL_DECAY,
+        };
+    },
+    lifecycle: {
+        load(data) {
+            vhsEffect.pass = new VhsPass(vhsEffect);
+            vhsEffect.pass.setSize(2, 2);
+            vhsEffect.properties.load(data && data.properties);
+        },
+        update(e) {
+            const pass = vhsEffect.pass;
+            if (!pass) return;
+            const props = vhsEffect.properties;
+            const rawT = props.time.get(e);
+            let t = Number(rawT);
+            if (!isFinite(t)) t = 0;
+            const amount = clamp01(props.amount.get(e));
+            const s = pass.signalUniforms;
+            s.time.value = t;
+            s.amount.value = amount;
+            s.persistence.value = clamp01(props.persistence.get(e));
+            s.signalStrength.value = clamp01(props.signalStrength.get(e));
+            s.colorStripes.value = clamp01(props.colorStripes.get(e));
+            s.chromaCrawl.value = clamp01(props.chromaCrawl.get(e));
+            s.chromaLoss.value = clamp01(props.chromaLoss.get(e));
+            s.flicker.value = clamp01(props.flicker.get(e));
+            s.vhsSharpen.value = clamp01(props.vhsSharpen.get(e));
+            s.interlace.value = clamp01(props.interlace.get(e));
+            s.staticWarp.value = clamp01(props.staticWarp.get(e));
+            s.fastForward.value = clamp01(props.fastForward.get(e));
+            s.tracking.value = clamp01(props.tracking.get(e));
+            s.anisotropyWarp.value = clamp01(props.anisotropyWarp.get(e));
+            s.rgbSplit.value = clamp01(props.rgbSplit.get(e));
+            s.tear.value = clamp01(props.tear.get(e));
+            s.humBar.value = clamp01(props.humBar.get(e));
+            s.blueScreen.value = clamp01(props.blueScreen.get(e));
+            s.skew.value = clamp01(props.skew.get(e));
+            s.crease.value = clamp01(props.crease.get(e));
+            s.ghost.value = clamp01(props.ghost.get(e));
+            s.osd.value = clamp01(props.osd.get(e));
+            s.noiseEvo.value = clamp01(props.noiseEvo.get(e));
+            s.noiseOpacity.value = clamp01(props.noiseOpacity.get(e));
+            s.blinds.value = clamp01(props.blinds.get(e));
+            s.snowDots.value = clamp01(props.snowDots.get(e));
+            s.speedDots.value = clamp01(props.speedDots.get(e));
+            s.anisoSnow.value = clamp01(props.anisoSnow.get(e));
+            s.jitterX.value = clamp01(props.jitterX.get(e));
+            s.jitterY.value = clamp01(props.jitterY.get(e));
+            s.roll.value = clamp01(props.roll.get(e));
+            const rs = Number(props.rollSpeed.get(e));
+            s.rollSpeed.value = isFinite(rs) ? Math.min(5, Math.max(0, rs)) : 0;
 
-this.update = function (e) {
-    if (!this.pass) {
-        return;
-    }
-    let rawT = this.properties.time.get(e);
-    let t = Number(rawT);
-    if (!isFinite(t)) t = 0;
-    let amount = clamp01(this.properties.amount.get(e));
-    let s = this.pass.signalUniforms;
-    s.time.value = t;
-    s.amount.value = amount;
-    s.persistence.value = clamp01(this.properties.persistence.get(e));
-    s.signalStrength.value = clamp01(this.properties.signalStrength.get(e));
-    s.colorStripes.value = clamp01(this.properties.colorStripes.get(e));
-    s.chromaCrawl.value = clamp01(this.properties.chromaCrawl.get(e));
-    s.chromaLoss.value = clamp01(this.properties.chromaLoss.get(e));
-    s.flicker.value = clamp01(this.properties.flicker.get(e));
-    s.vhsSharpen.value = clamp01(this.properties.vhsSharpen.get(e));
-    s.interlace.value = clamp01(this.properties.interlace.get(e));
-    s.staticWarp.value = clamp01(this.properties.staticWarp.get(e));
-    s.fastForward.value = clamp01(this.properties.fastForward.get(e));
-    s.tracking.value = clamp01(this.properties.tracking.get(e));
-    s.anisotropyWarp.value = clamp01(this.properties.anisotropyWarp.get(e));
-    s.rgbSplit.value = clamp01(this.properties.rgbSplit.get(e));
-    s.tear.value = clamp01(this.properties.tear.get(e));
-    s.humBar.value = clamp01(this.properties.humBar.get(e));
-    s.blueScreen.value = clamp01(this.properties.blueScreen.get(e));
-    s.skew.value = clamp01(this.properties.skew.get(e));
-    s.crease.value = clamp01(this.properties.crease.get(e));
-    s.ghost.value = clamp01(this.properties.ghost.get(e));
-    s.osd.value = clamp01(this.properties.osd.get(e));
-    s.noiseEvo.value = clamp01(this.properties.noiseEvo.get(e));
-    s.noiseOpacity.value = clamp01(this.properties.noiseOpacity.get(e));
-    s.blinds.value = clamp01(this.properties.blinds.get(e));
-    s.snowDots.value = clamp01(this.properties.snowDots.get(e));
-    s.speedDots.value = clamp01(this.properties.speedDots.get(e));
-    s.anisoSnow.value = clamp01(this.properties.anisoSnow.get(e));
-    s.jitterX.value = clamp01(this.properties.jitterX.get(e));
-    s.jitterY.value = clamp01(this.properties.jitterY.get(e));
-    s.roll.value = clamp01(this.properties.roll.get(e));
-    let rs = Number(this.properties.rollSpeed.get(e));
-    s.rollSpeed.value = isFinite(rs) ? Math.min(5, Math.max(0, rs)) : 0;
-
-    this.pass.tubeUniforms.time.value = t;
-    this.pass.tubeUniforms.amount.value = amount;
-    this.pass.enabled = this.properties.enabled.get(e) === 1 && amount !== 0;
-};
-
-this.resize = function () {
-    if (!this.pass || !this.parentLayer) {
-        return;
-    }
-    let resolution = this.parentLayer.properties.resolution.get();
-    this.pass.setSize(resolution[0], resolution[1]);
-};
+            pass.tubeUniforms.time.value = t;
+            pass.tubeUniforms.amount.value = amount;
+            pass.enabled = props.enabled.get(e) === 1 && amount !== 0;
+        },
+        unload() {
+            if (vhsEffect.pass) {
+                vhsEffect.pass.dispose();
+            }
+        },
+        resize() {
+            if (!vhsEffect.pass || !vhsEffect.parentLayer) {
+                return;
+            }
+            const resolution = vhsEffect.parentLayer.properties.resolution.get();
+            vhsEffect.pass.setSize(resolution[0], resolution[1]);
+        },
+    },
+});

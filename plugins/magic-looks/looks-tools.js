@@ -1,8 +1,12 @@
 "use strict";
 
-// Magic Looks — tool catalog. All 29 Looks tools with their parameter
-// schema, defaults (transcribed from the reference panels), color wheels
-// and custom control kinds. Pure data + defaults; no DOM.
+// Magic Looks — tool catalog. The 29 Looks tools with their parameter
+// schema, neutral defaults, wheel and custom control kinds, the default tool
+// chain, and the look presets. Pure data + defaults; no DOM.
+//
+// Defaults are identity: a freshly added effect renders the source unchanged.
+// Color Contrast is the one tool shipped switched off, because its fixed
+// contrast amount is part of its character.
 
 var Looks = Looks || {};
 
@@ -31,27 +35,46 @@ var Looks = Looks || {};
   function wheel(key, label, r, g, b) {
     return { key: key, label: label, rgb: [r, g, b] };
   }
+  // Percent-style fields: stored as fractions, shown as percentages.
+  function pct(key, label, def, min, max, decimals) {
+    return num(key, label, def, {
+      percent: true, fraction: true, min: min, max: max,
+      step: 0.01, decimals: decimals === undefined ? 1 : decimals,
+    });
+  }
+  function signedPct(key, label, def, min, max, decimals) {
+    return num(key, label, def, {
+      percent: true, fraction: true, signed: true, min: min, max: max,
+      step: 0.01, decimals: decimals === undefined ? 1 : decimals,
+    });
+  }
+  function exposure() {
+    return num("exposure", "Exposure Compensation:", 0, {
+      signed: true, min: -5, max: 5, step: 0.05, decimals: 2,
+    });
+  }
 
+  // Catalog order is the shader dispatch index (see looks-grade.glsl).
   var TOOLS = [
     {
-      id: "color-contrast", name: "Color Contrast", group: "color", pfx: "cc", thumb: { kind: "wheel" },
+      id: "color-contrast", name: "Color Contrast", group: "color", pfx: "cc",
+      off: true,
       params: [
         num("pivot", "Pivot:", 0.18, { min: 0, max: 1 }),
-        num("exposure", "Exposure Compensation:", 0, { signed: true, min: -5, max: 5, step: 0.05, decimals: 2 }),
+        exposure(),
         section("Contrast"),
       ],
       wheels: [wheel("contrast", "Contrast", 1, 1, 1)],
     },
     {
-      id: "hsl-colors", name: "HSL Colors", group: "color", pfx: "hsl", thumb: { kind: "wheel" },
+      id: "hsl-colors", name: "HSL Colors", group: "color", pfx: "hsl",
       params: [section("Hue/Saturation"), section("Hue/Lightness")],
       custom: "hsl",
     },
     {
-      id: "color-ranges", name: "Color Ranges", group: "color", pfx: "cr", thumb: { kind: "dots3" },
+      id: "color-ranges", name: "Color Ranges", group: "color", pfx: "cr",
       params: [
-        num("strength", "Strength:", 1, { percent: true, fraction: true, min: 0, max: 2, step: 0.01, decimals: 1 }),
-        num("threshold", "Threshold", 0, {}),
+        pct("strength", "Strength:", 1, 0, 2),
         num("highlight", "Highlight:", 0.15, { min: 0, max: 1 }),
         num("midtone", "Midtone:", 0.2, { min: 0, max: 1 }),
         num("shadow", "Shadow:", 0.3, { min: 0, max: 1 }),
@@ -65,42 +88,36 @@ var Looks = Looks || {};
       ],
     },
     {
-      id: "crush", name: "Crush", group: "color", pfx: "cru", thumb: { kind: "letter", text: "C" },
+      id: "crush", name: "Crush", group: "color", pfx: "cru",
       params: [
         num("gamma", "Gamma:", 1, { min: 0.1, max: 5, step: 0.05, decimals: 2 }),
-        num("exposure", "Exposure Compensation:", 0, { signed: true, min: -5, max: 5, step: 0.05, decimals: 2 }),
+        exposure(),
         section("Color"),
       ],
       wheels: [wheel("color", "Color", 1, 1, 1)],
     },
     {
-      id: "contrast", name: "Contrast", group: "color", pfx: "con", thumb: { kind: "contrast" },
+      id: "contrast", name: "Contrast", group: "color", pfx: "con",
       params: [
         num("contrast", "Contrast:", 0, { signed: true, min: -1, max: 2, step: 0.005 }),
         num("pivot", "Pivot:", 0.18, { min: 0, max: 1 }),
-        num("exposure", "Exposure Compensation:", 0, { signed: true, min: -5, max: 5, step: 0.05, decimals: 2 }),
+        exposure(),
       ],
     },
     {
-      id: "color-reversal", name: "Color Reversal", group: "color", pfx: "crev", thumb: { kind: "hsplit" },
-      params: [
-        num("strength", "Strength:", 0, { percent: true, fraction: true, min: 0, max: 1, step: 0.01, decimals: 1 }),
-        num("exposure", "Exposure Compensation:", 0, { signed: true, min: -5, max: 5, step: 0.05, decimals: 2 }),
-      ],
+      id: "color-reversal", name: "Color Reversal", group: "color", pfx: "crev",
+      params: [pct("strength", "Strength:", 0, 0, 1), exposure()],
     },
     {
-      id: "three-strip", name: "3-Strip Process", group: "color", pfx: "strip", thumb: { kind: "thirds" },
-      params: [
-        num("strength", "Strength:", 0, { percent: true, fraction: true, signed: true, min: -1, max: 1, step: 0.01, decimals: 2 }),
-        num("exposure", "Exposure Compensation:", 0, { signed: true, min: -5, max: 5, step: 0.05, decimals: 2 }),
-      ],
+      id: "three-strip", name: "3-Strip Process", group: "color", pfx: "strip",
+      params: [signedPct("strength", "Strength:", 0, -1, 1, 2), exposure()],
     },
     {
-      id: "lift-gamma-gain", name: "Lift-Gamma-Gain", group: "color", pfx: "lgg", thumb: { kind: "splitdisc" },
+      id: "lift-gamma-gain", name: "Lift-Gamma-Gain", group: "color", pfx: "lgg",
       params: [
         num("gammaSpace", "Gamma Space:", 2.2, { min: 1, max: 3, step: 0.05, decimals: 2 }),
-        num("strength", "Strength:", 1, { percent: true, fraction: true, min: 0, max: 1, step: 0.01, decimals: 1 }),
-        num("exposure", "Exposure Compensation:", 0, { signed: true, min: -5, max: 5, step: 0.05, decimals: 2 }),
+        pct("strength", "Strength:", 1, 0, 1),
+        exposure(),
         section("Lift"),
       ],
       wheels: [wheel("lift", "Lift", 1, 1, 1)],
@@ -110,169 +127,162 @@ var Looks = Looks || {};
       ],
     },
     {
-      id: "ranged-saturation", name: "Ranged Saturation", group: "color", pfx: "rsat", thumb: { kind: "bars3" },
+      id: "ranged-saturation", name: "Ranged Saturation", group: "color", pfx: "rsat",
       params: [
-        num("satHighlight", "Saturation Highlight:", 1, { percent: true, fraction: true, min: 0, max: 2, step: 0.01, decimals: 1 }),
-        num("satMidtone", "Midtone:", 1, { percent: true, fraction: true, min: 0, max: 2, step: 0.01, decimals: 1 }),
-        num("satShadow", "Shadow:", 1, { percent: true, fraction: true, min: 0, max: 2, step: 0.01, decimals: 1 }),
+        pct("satHighlight", "Saturation Highlight:", 1, 0, 2),
+        pct("satMidtone", "Midtone:", 1, 0, 2),
+        pct("satShadow", "Shadow:", 1, 0, 2),
         section("Threshold"),
         num("thresholdHighlight", "Highlight:", 0.15, { min: 0, max: 1 }),
         num("thresholdMidtone", "Midtone:", 0.05, { min: 0, max: 1 }),
         num("thresholdShadow", "Shadow:", 0.3, { min: 0, max: 1 }),
         toggle("showThreshold", "Show Threshold:", 0),
-        num("exposure", "Exposure Compensation:", 0, { signed: true, min: -5, max: 5, step: 0.05, decimals: 2 }),
+        exposure(),
         section("Component Balance"),
       ],
       wheels: [wheel("balance", "Component Balance", 1, 1, 1)],
     },
     {
-      id: "warm-cool", name: "Warm/Cool", group: "color", pfx: "wc", thumb: { kind: "grad2d" },
+      id: "warm-cool", name: "Warm/Cool", group: "color", pfx: "wc",
       params: [
         num("warmCool", "Warm/Cool:", 0, { signed: true, min: -1, max: 1 }),
         num("tint", "Tint:", 0, { signed: true, min: -1, max: 1 }),
-        num("exposure", "Exposure Compensation:", 0, { signed: true, min: -5, max: 5, step: 0.05, decimals: 2 }),
+        exposure(),
       ],
-      custom: "warmcool",
     },
     {
-      id: "four-way", name: "4-Way Color", group: "color", pfx: "fw4", thumb: { kind: "diamond" },
+      id: "four-way", name: "4-Way Color", group: "color", pfx: "fw4",
       params: [
         num("exposure", "Exposure:", 0, { signed: true, min: -5, max: 5, step: 0.05, decimals: 2 }),
         num("contrast", "Contrast:", 0, { signed: true, min: -1, max: 2, step: 0.005 }),
-        num("strength", "Strength:", 1, { percent: true, fraction: true, min: 0, max: 1, step: 0.01, decimals: 1 }),
+        pct("strength", "Strength:", 1, 0, 1),
       ],
       custom: "fourway",
     },
     {
-      id: "mojo", name: "Mojo II", group: "color", pfx: "mojo", thumb: { kind: "letter", text: "M" },
+      id: "mojo", name: "Mojo II", group: "color", pfx: "mojo",
       params: [
-        num("mojo", "Mojo:", 0, { percent: true, fraction: true, min: 0, max: 1, step: 0.01, decimals: 1 }),
-        num("tint", "Tint:", 0, { percent: true, fraction: true, min: -1, max: 1, step: 0.01, decimals: 1 }),
-        num("punch", "Punch:", 0, { percent: true, fraction: true, min: 0, max: 1, step: 0.01, decimals: 1 }),
-        num("bleach", "Bleach:", 0, { percent: true, fraction: true, min: 0, max: 1, step: 0.01, decimals: 1 }),
-        num("fade", "Fade:", 0, { percent: true, fraction: true, min: 0, max: 1, step: 0.01, decimals: 1 }),
-        num("blueSqueeze", "Blue Squeeze:", 0.25, { percent: true, fraction: true, min: 0, max: 1, step: 0.01, decimals: 1 }),
-        num("skinSqueeze", "Skin Squeeze:", 0.25, { percent: true, fraction: true, min: 0, max: 1, step: 0.01, decimals: 1 }),
+        pct("mojo", "Mojo:", 0, 0, 1),
+        pct("punch", "Punch:", 0, 0, 1),
+        pct("bleach", "Bleach:", 0, 0, 1),
+        pct("fade", "Fade:", 0, 0, 1),
+        pct("blueSqueeze", "Blue Squeeze:", 0.25, 0, 1),
+        pct("skinSqueeze", "Skin Squeeze:", 0.25, 0, 1),
         section("Exposure"),
         num("exposure", "Exposure:", 0, { signed: true, min: -5, max: 5, step: 0.05, decimals: 2 }),
-        num("coolWarm", "Cool/Warm:", 0, { percent: true, fraction: true, min: -1, max: 1, step: 0.01, decimals: 1 }),
-        num("greenMagenta", "Green/Magenta:", 0, { percent: true, fraction: true, min: -1, max: 1, step: 0.01, decimals: 1 }),
-        num("skinYellowPink", "Skin Yellow/Pink:", 0, { percent: true, fraction: true, min: -1, max: 1, step: 0.01, decimals: 1 }),
+        signedPct("coolWarm", "Cool/Warm:", 0, -1, 1),
+        signedPct("greenMagenta", "Green/Magenta:", 0, -1, 1),
+        signedPct("skinYellowPink", "Skin Yellow/Pink:", 0, -1, 1),
         section("Strength"),
-        num("strength", "Strength:", 1, { percent: true, fraction: true, min: 0, max: 1, step: 0.01, decimals: 1 }),
+        pct("strength", "Strength:", 1, 0, 1),
       ],
     },
     {
-      id: "auto-shoulder", name: "Auto Shoulder", group: "color", pfx: "ash", thumb: { kind: "smini" },
-      params: [
-        num("strength", "Strength:", 0, { percent: true, fraction: true, min: 0, max: 1, step: 0.01, decimals: 1 }),
-      ],
+      id: "auto-shoulder", name: "Auto Shoulder", group: "color", pfx: "ash",
+      params: [pct("strength", "Strength:", 0, 0, 1)],
     },
     {
-      id: "curves", name: "Curves", group: "color", pfx: "curv", thumb: { kind: "diagonal" },
+      id: "curves", name: "Curves", group: "color", pfx: "curv",
       params: [],
       custom: "curves",
     },
     {
-      id: "s-curve", name: "S Curve", group: "color", pfx: "scv", thumb: { kind: "sbezier" },
-      params: [choice("log", "Log:", "Off", ["Off", "On"])],
+      id: "s-curve", name: "S Curve", group: "color", pfx: "scv",
+      params: [],
       custom: "scurve",
     },
     {
-      id: "lut", name: "LUT", group: "color", pfx: "lut", thumb: { kind: "cube" },
+      id: "lut", name: "LUT", group: "color", pfx: "lut",
       params: [],
       custom: "lut",
     },
     {
-      id: "lightflex", name: "Lightflex", group: "light", pfx: "lfl", thumb: { kind: "letter", text: "L" },
+      id: "lightflex", name: "Lightflex", group: "light", pfx: "lfl",
       params: [
         num("boost", "Boost:", 0, { signed: true, min: -10, max: 10, step: 0.05, decimals: 2 }),
-        num("exposure", "Exposure Compensation:", 0, { signed: true, min: -5, max: 5, step: 0.05, decimals: 2 }),
+        exposure(),
         section("Color"),
       ],
       wheels: [wheel("color", "Color", 1, 1, 1)],
     },
     {
-      id: "deflare", name: "Deflare", group: "light", pfx: "dfl", thumb: { kind: "letter", text: "F" },
+      id: "deflare", name: "Deflare", group: "light", pfx: "dfl",
       params: [
-        num("size", "Size:", 0.5, { percent: true, fraction: true, min: 0, max: 2, step: 0.005, decimals: 1 }),
-        num("strength", "Strength:", 0, { percent: true, fraction: true, min: 0, max: 1, step: 0.005, decimals: 2 }),
-        num("exposure", "Exposure Compensation:", 0, { signed: true, min: -5, max: 5, step: 0.05, decimals: 2 }),
+        pct("strength", "Strength:", 0, 0, 1, 2),
+        exposure(),
       ],
     },
     {
-      id: "vignette", name: "Vignette", group: "light", pfx: "vig", thumb: { kind: "radial" },
+      id: "vignette", name: "Vignette", group: "light", pfx: "vig",
       params: [
-        num("centerX", "Center X:", 0, { percent: true, fraction: true, signed: true, min: -1, max: 1, decimals: 0 }),
-        num("centerY", "Center Y:", 0, { percent: true, fraction: true, signed: true, min: -1, max: 1, decimals: 0 }),
+        signedPct("centerX", "Center X:", 0, -1, 1, 0),
+        signedPct("centerY", "Center Y:", 0, -1, 1, 0),
         num("radius", "Radius:", 1, { min: 0, max: 3 }),
         num("aspect", "Aspect:", 1, { min: 0.1, max: 3 }),
         num("spread", "Spread:", 1, { min: 0, max: 3 }),
         num("falloff", "Falloff:", 0.5, { min: 0, max: 1 }),
-        num("strength", "Strength:", 0, { percent: true, fraction: true, min: 0, max: 1, step: 0.01, decimals: 1 }),
-        num("exposure", "Exposure Compensation:", 0, { signed: true, min: -5, max: 5, step: 0.05, decimals: 2 }),
+        pct("strength", "Strength:", 0, 0, 1),
+        exposure(),
         section("Color"),
       ],
       wheels: [wheel("color", "Color", 1, 1, 1)],
     },
     {
-      id: "haze-flare", name: "Haze/Flare", group: "light", pfx: "haze", thumb: { kind: "hstreak" },
+      id: "haze-flare", name: "Haze/Flare", group: "light", pfx: "haze",
       params: [
-        num("spillage", "Spillage:", 0, { percent: true, fraction: true, min: 0, max: 1, step: 0.01, decimals: 1 }),
-        num("softness", "Softness:", 0.1, { percent: true, fraction: true, min: 0, max: 1, step: 0.01, decimals: 1 }),
-        num("reach", "Reach:", 0.5, { percent: true, fraction: true, min: 0, max: 1, step: 0.01, decimals: 1 }),
+        pct("spillage", "Spillage:", 0, 0, 1),
+        pct("softness", "Softness:", 0.1, 0, 1),
+        pct("reach", "Reach:", 0.5, 0, 1),
         num("exposure", "Exposure:", 0, { signed: true, min: -5, max: 5, step: 0.05, decimals: 2 }),
         num("reflectionExposure", "Reflection Exposure:", 0, { signed: true, min: -5, max: 5, step: 0.05, decimals: 2 }),
         toggle("reflection", "Reflection:", 1),
-        num("matteBoxSize", "Matte Box Size:", 0.5, { percent: true, fraction: true, min: 0, max: 1, step: 0.01, decimals: 1 }),
-        num("matteBoxShade", "Matte Box Shade:", 0.75, { percent: true, fraction: true, min: 0, max: 1, step: 0.01, decimals: 1 }),
+        pct("matteBoxSize", "Matte Box Size:", 0.5, 0, 1),
+        pct("matteBoxShade", "Matte Box Shade:", 0.75, 0, 1),
         section("Tint Color"),
       ],
       wheels: [wheel("tint", "Tint Color", 1, 1, 1)],
     },
     {
-      id: "pop", name: "Pop", group: "light", pfx: "pop", thumb: { kind: "dot", size: 8 },
+      id: "pop", name: "Pop", group: "light", pfx: "pop",
       params: [
-        num("pop", "Pop:", 0, { percent: true, fraction: true, signed: true, min: -1, max: 1, decimals: 0 }),
-        num("size", "Size:", 1, { percent: true, fraction: true, min: 0, max: 3, step: 0.01, decimals: 1 }),
-        num("preserveDetail", "Preserve Detail:", 0.3, { percent: true, fraction: true, min: 0, max: 1, step: 0.01, decimals: 1 }),
+        signedPct("pop", "Pop:", 0, -1, 1, 0),
+        pct("size", "Size:", 1, 0, 3),
+        pct("preserveDetail", "Preserve Detail:", 0.3, 0, 1),
       ],
     },
     {
-      id: "diffusion", name: "Diffusion", group: "light", pfx: "dif", thumb: { kind: "softdot" },
+      id: "diffusion", name: "Diffusion", group: "light", pfx: "dif",
       params: [
-        num("size", "Size:", 0.3, { percent: true, fraction: true, min: 0, max: 1, step: 0.01, decimals: 1 }),
+        pct("size", "Size:", 0.3, 0, 1),
         num("grade", "Grade:", 3, { min: 0, max: 10, step: 0.05, decimals: 2 }),
-        num("glow", "Glow:", 0, { percent: true, fraction: true, min: 0, max: 1, step: 0.01, decimals: 1 }),
-        num("highlightsOnly", "Highlights Only:", 0.75, { percent: true, fraction: true, min: 0, max: 1, step: 0.01, decimals: 1 }),
+        pct("glow", "Glow:", 0, 0, 1),
+        pct("highlightsOnly", "Highlights Only:", 0.75, 0, 1),
         num("highlightBias", "Highlight Bias:", 0, { min: -2, max: 2 }),
-        num("exposure", "Exposure Compensation:", 0, { signed: true, min: -5, max: 5, step: 0.05, decimals: 2 }),
+        exposure(),
         section("Color"),
       ],
       wheels: [wheel("color", "Color", 1, 1, 1)],
     },
     {
-      id: "star-filter", name: "Star Filter", group: "light", pfx: "star", thumb: { kind: "star" },
+      id: "star-filter", name: "Star Filter", group: "light", pfx: "star",
       params: [
-        num("size", "Size:", 0.1, { percent: true, fraction: true, min: 0, max: 1, step: 0.01, decimals: 2 }),
+        pct("size", "Size:", 0.1, 0, 1, 2),
         num("boost", "Boost:", 0, { signed: true, min: -10, max: 10, step: 0.05, decimals: 2 }),
         num("threshold", "Threshold:", 0.9, { min: 0, max: 1 }),
         toggle("showThreshold", "Show Threshold:", 0),
-        num("thresholdSoftness", "Threshold Softness:", 0.2, { min: 0, max: 1 }),
         section("Angle"),
+        num("angle", "Angle:", 45, { min: -180, max: 180, step: 0.05, decimals: 2 }),
       ],
-      custom: "angledial",
       wheels: [],
       extraWheels: [{ section: "Color", wheels: [wheel("color", "Color", 1, 1, 1)] }],
     },
     {
-      id: "anamorphic-flare", name: "Anamorphic Flare", group: "light", pfx: "ana", thumb: { kind: "hstreak" },
+      id: "anamorphic-flare", name: "Anamorphic Flare", group: "light", pfx: "ana",
       params: [
-        num("size", "Size:", 2, { percent: true, fraction: true, min: 0, max: 5, step: 0.01, decimals: 2 }),
+        pct("size", "Size:", 2, 0, 5, 2),
         num("boost", "Boost:", 0, { signed: true, min: -10, max: 10, step: 0.05, decimals: 2 }),
         num("threshold", "Threshold:", 0.9, { min: 0, max: 1 }),
         toggle("showThreshold", "Show Threshold:", 0),
-        num("thresholdSoftness", "Threshold Softness:", 0.2, { min: 0, max: 1 }),
         toggle("reflection", "Reflection:", 0),
         num("reflectionBoost", "Reflection Boost:", -2, { signed: true, min: -10, max: 10, step: 0.05, decimals: 2 }),
         section("Color"),
@@ -280,35 +290,35 @@ var Looks = Looks || {};
       wheels: [wheel("color", "Color", 1, 1, 1)],
     },
     {
-      id: "lens-distortion", name: "Lens Distortion", group: "lens", pfx: "lens", thumb: { kind: "circle" },
+      id: "lens-distortion", name: "Lens Distortion", group: "lens", pfx: "lens",
       params: [
-        num("distortion", "Distortion:", 0, { percent: true, fraction: true, signed: true, min: -1, max: 1, step: 0.005, decimals: 1 }),
-        num("flatten", "Flatten:", 0, { percent: true, fraction: true, min: 0, max: 1, step: 0.01, decimals: 1 }),
+        signedPct("distortion", "Distortion:", 0, -1, 1, 1),
+        pct("flatten", "Flatten:", 0, 0, 1),
       ],
     },
     {
-      id: "shutter-streak", name: "Shutter Streak", group: "lens", pfx: "shut", thumb: { kind: "hstreak" },
+      id: "shutter-streak", name: "Shutter Streak", group: "lens", pfx: "shut",
       params: [
-        num("size", "Size:", 0.75, { percent: true, fraction: true, min: 0, max: 2, step: 0.005, decimals: 2 }),
+        pct("size", "Size:", 0.75, 0, 2, 2),
         num("boost", "Boost:", 0, { signed: true, min: -10, max: 10, step: 0.05, decimals: 2 }),
         num("falloff", "Falloff:", 0, { min: 0, max: 1, step: 0.05, decimals: 2 }),
       ],
     },
     {
-      id: "edge-softness", name: "Edge Softness", group: "lens", pfx: "edge", thumb: { kind: "circle", dashed: true },
+      id: "edge-softness", name: "Edge Softness", group: "lens", pfx: "edge",
       params: [
-        num("blurSize", "Blur Size:", 0, { percent: true, fraction: true, min: 0, max: 0.5, step: 0.0025, decimals: 2 }),
+        pct("blurSize", "Blur Size:", 0, 0, 0.5, 2),
         num("quality", "Quality:", 3, { min: 1, max: 8, step: 1, decimals: 0 }),
         section(""),
-        num("centerX", "Center X:", 0, { percent: true, fraction: true, signed: true, min: -1, max: 1, decimals: 0 }),
-        num("centerY", "Center Y:", 0, { percent: true, fraction: true, signed: true, min: -1, max: 1, decimals: 0 }),
+        signedPct("centerX", "Center X:", 0, -1, 1, 0),
+        signedPct("centerY", "Center Y:", 0, -1, 1, 0),
         num("radius", "Radius:", 1, { min: 0, max: 3 }),
         num("aspect", "Aspect:", 1, { min: 0.1, max: 3 }),
         num("spread", "Spread:", 0.5, { min: 0, max: 1 }),
       ],
     },
     {
-      id: "chromatic-aberration", name: "Chromatic Aberration", group: "lens", pfx: "ca", thumb: { kind: "rgblines" },
+      id: "chromatic-aberration", name: "Chromatic Aberration", group: "lens", pfx: "ca",
       params: [
         num("redCyan", "Red/Cyan:", 0, { signed: true, min: -5, max: 5 }),
         num("greenMagenta", "Green/Magenta:", 0, { signed: true, min: -5, max: 5 }),
@@ -316,11 +326,11 @@ var Looks = Looks || {};
       ],
     },
     {
-      id: "telecine-net", name: "Telecine Net", group: "lens", pfx: "tele", thumb: { kind: "grid" },
+      id: "telecine-net", name: "Telecine Net", group: "lens", pfx: "tele",
       params: [
-        num("size", "Size:", 0.05, { percent: true, fraction: true, min: 0, max: 0.5, step: 0.0025, decimals: 2 }),
-        num("strength", "Strength:", 0, { percent: true, fraction: true, min: 0, max: 1, step: 0.005, decimals: 1 }),
-        num("exposure", "Exposure Compensation:", 0, { signed: true, min: -5, max: 5, step: 0.05, decimals: 2 }),
+        pct("size", "Size:", 0.05, 0, 0.5, 2),
+        pct("strength", "Strength:", 0, 0, 1, 2),
+        exposure(),
       ],
     },
   ];
@@ -343,6 +353,34 @@ var Looks = Looks || {};
     { name: "magenta", hue: 300 },
   ];
 
+  // 4-way wheel slots (fixed order for properties + shader uniforms).
+  var FOURWAY_SLOTS = ["shadows", "midtones", "highlights", "global"];
+
+  // Lens Distortion is a geometric resample and always runs before the
+  // chain; every other tool is reorderable.
+  var PINNED_TOOL = "lens-distortion";
+  var CHAIN_KEY = "chainOrder";
+  var ENABLED_KEY = "enabled";
+  var MAX_CHAIN = 29;
+
+  function byId(id) {
+    for (var i = 0; i < TOOLS.length; i++) {
+      if (TOOLS[i].id === id) return TOOLS[i];
+    }
+    return null;
+  }
+
+  function indexOfTool(id) {
+    for (var i = 0; i < TOOLS.length; i++) {
+      if (TOOLS[i].id === id) return i;
+    }
+    return -1;
+  }
+
+  function enabledDefault(tool) {
+    return tool.off ? 0 : 1;
+  }
+
   // Factory default state for one tool: numbers, wheel dots + rgb, customs.
   function defaultToolState(tool) {
     var st = { p: {}, w: {}, x: {} };
@@ -362,26 +400,20 @@ var Looks = Looks || {};
       st.x.hsl = HSL_HUES.map(function () { return { sat: 0, light: 0 }; });
     } else if (tool.custom === "curves") {
       st.x.curves = {
-        channel: "RGB",
         channels: {
           RGB: [{ x: 0, y: 0 }, { x: 1, y: 1 }],
           Red: [{ x: 0, y: 0 }, { x: 1, y: 1 }],
           Green: [{ x: 0, y: 0 }, { x: 1, y: 1 }],
           Blue: [{ x: 0, y: 0 }, { x: 1, y: 1 }],
         },
-        selected: 1,
       };
     } else if (tool.custom === "scurve") {
-      st.x.scurve = {
-        black: 0, white: 1, contrast: 1, midpoint: 0.5, brightness: 0.5,
-        p0: { x: 0, y: 0 }, c1: { x: 0.333, y: 0.333 }, c2: { x: 0.667, y: 0.667 }, p3: { x: 1, y: 1 },
-      };
+      st.x.scurve = defaultScurve();
     } else if (tool.custom === "fourway") {
       st.x.fourway = { preview: 0 };
-    } else if (tool.custom === "warmcool") {
-      st.x.warmcool = { x: 0, y: 0 };
-    } else if (tool.custom === "angledial") {
-      st.x.angle = 45;
+      FOURWAY_SLOTS.forEach(function (slot) {
+        addWheel({ key: slot, rgb: [1, 1, 1] });
+      });
     } else if (tool.custom === "lut") {
       st.x.lut = {
         name: "None", strength: 1,
@@ -392,24 +424,45 @@ var Looks = Looks || {};
     return st;
   }
 
+  // S-curve shape. Endpoints sit on the diagonal and the handles are placed
+  // on it too, so the default curve is the identity.
+  function defaultScurve() {
+    return {
+      black: 0, white: 1, contrast: 1, midpoint: 0.5, brightness: 0.5,
+      p0: { x: 0, y: 0 }, c1: { x: 0.22, y: 0.22 }, c2: { x: 0.78, y: 0.78 }, p3: { x: 1, y: 1 },
+    };
+  }
+
+  // Default chain = the fixed Looks pipeline that Davidium projects were
+  // rendered with, so legacy projects keep their look.
+  var DEFAULT_CHAIN = [
+    "lens-distortion", "lift-gamma-gain", "contrast", "color-contrast", "crush",
+    "color-ranges", "ranged-saturation", "mojo", "three-strip", "color-reversal",
+    "auto-shoulder", "hsl-colors", "warm-cool", "four-way", "curves", "s-curve",
+    "lut", "lightflex", "deflare", "vignette", "haze-flare", "pop", "diffusion",
+    "star-filter", "anamorphic-flare", "edge-softness", "chromatic-aberration",
+    "shutter-streak", "telecine-net",
+  ];
+
+  function defaultChain() {
+    return DEFAULT_CHAIN.slice();
+  }
+
   function defaultState() {
     var tools = {};
     var on = {};
     TOOLS.forEach(function (t) {
       tools[t.id] = defaultToolState(t);
-      on[t.id] = 1;
+      on[t.id] = enabledDefault(t);
     });
-    return { v: 1, preset: "None", enabled: 1, on: on, tools: tools };
+    return { v: 2, preset: "None", enabled: 1, chain: defaultChain(), on: on, tools: tools };
   }
 
   function cap(key) {
     return key.charAt(0).toUpperCase() + key.slice(1);
   }
 
-  // 4-way wheel slots (fixed order for properties + shader uniforms).
-  var FOURWAY_SLOTS = ["shadows", "midtones", "highlights", "global"];
-
-  // Canonical catalog-key -> effect-property-key map. The setup shell and
+  // Canonical catalog-key -> effect-property-key map. The setup window and
   // the effect file both derive from this; tests assert they agree.
   function propMap() {
     var map = {};
@@ -450,8 +503,6 @@ var Looks = Looks || {};
             t.pfx + cap(slot) + "B",
           ];
         });
-      } else if (t.custom === "angledial") {
-        e.custom.angle = t.pfx + "Angle";
       } else if (t.custom === "lut") {
         e.custom.lutName = t.pfx + "Name";
         e.custom.lutStrength = t.pfx + "Strength";
@@ -491,7 +542,7 @@ var Looks = Looks || {};
   }
 
   // Effect property definitions generated from the catalog: the single
-  // source of truth shared by the effect file and the setup shell.
+  // source of truth shared by the effect file and the setup window.
   function buildPropertyDefinitions(PZ) {
     var defs = {
       enabled: {
@@ -500,11 +551,13 @@ var Looks = Looks || {};
         type: PZ.property.type.OPTION,
         value: 1,
         items: "off;on",
-        buttons: [{ name: "Magic Looks Setup", title: "Open the Magic Looks setup window", action: "magicLooksSetup" }],
+        // Rendered by the setup window renderer in looks-setup.js.
+        magicLooksSetup: { name: "Setup", title: "Open the Magic Looks setup window" },
       },
     };
+    defs[CHAIN_KEY] = lkText(PZ, "Tool chain order", JSON.stringify(defaultChain()));
     TOOLS.forEach(function (t) {
-      defs[t.pfx + "Enable"] = lkOpt(PZ, t.name + " Enable", 1, "off;on");
+      defs[t.pfx + "Enable"] = lkOpt(PZ, t.name + " Enable", enabledDefault(t), "off;on");
       (t.params || []).forEach(function (p) {
         if (p.kind === "section") return;
         var key = t.pfx + cap(p.key);
@@ -519,8 +572,7 @@ var Looks = Looks || {};
       });
       function addWheel(w) {
         var base = t.pfx + cap(w.key);
-        var channels = ["R", "G", "B"];
-        channels.forEach(function (s, i) {
+        ["R", "G", "B"].forEach(function (s, i) {
           defs[base + s] = lkNum(PZ, t.name + " " + w.label + " " + s, w.rgb[i], 0, 4, 0.005, 3);
         });
       }
@@ -536,10 +588,7 @@ var Looks = Looks || {};
       } else if (t.custom === "curves") {
         defs[t.pfx + "CurvesJson"] = lkText(PZ, t.name + " curves", JSON.stringify(defaultToolState(t).x.curves.channels));
       } else if (t.custom === "scurve") {
-        var s = defaultToolState(t).x.scurve;
-        defs[t.pfx + "ScurveJson"] = lkText(PZ, t.name + " shape", JSON.stringify({
-          black: s.black, white: s.white, p0: s.p0, c1: s.c1, c2: s.c2, p3: s.p3,
-        }));
+        defs[t.pfx + "ScurveJson"] = lkText(PZ, t.name + " shape", JSON.stringify(defaultScurve()));
       } else if (t.custom === "fourway") {
         defs[t.pfx + "Preview"] = lkOpt(PZ, t.name + " Ranges Preview", 0, "off;on");
         FOURWAY_SLOTS.forEach(function (slot) {
@@ -547,8 +596,6 @@ var Looks = Looks || {};
             defs[t.pfx + cap(slot) + ch] = lkNum(PZ, t.name + " " + slot + " " + ch, 1, 0, 4, 0.005, 3);
           });
         });
-      } else if (t.custom === "angledial") {
-        defs[t.pfx + "Angle"] = lkNum(PZ, t.name + " Angle", 45, -180, 180, 0.05, 2);
       } else if (t.custom === "lut") {
         defs[t.pfx + "Name"] = lkText(PZ, t.name + " file", "None");
         defs[t.pfx + "Strength"] = lkNum(PZ, t.name + " Strength", 1, 0, 1, 0.01, 2);
@@ -558,20 +605,103 @@ var Looks = Looks || {};
     return defs;
   }
 
+  // ---------- chain helpers (pure) ----------
+
+  // Parses the stored chain text. Unknown and duplicate ids are dropped; a
+  // missing or malformed value falls back to the default chain, which is also
+  // what legacy projects without the property get.
+  function parseChain(text) {
+    var list = null;
+    try {
+      var parsed = JSON.parse(String(text == null ? "" : text));
+      if (Array.isArray(parsed)) list = parsed;
+    } catch (_err) { list = null; }
+    if (!list) return defaultChain();
+    var seen = {};
+    var out = [];
+    list.forEach(function (id) {
+      if (typeof id !== "string" || seen[id] || indexOfTool(id) < 0) return;
+      seen[id] = true;
+      out.push(id);
+    });
+    return out;
+  }
+
+  function serializeChain(list) {
+    return JSON.stringify(list.slice(0, MAX_CHAIN));
+  }
+
+  // Look presets. Each preset names the tool values it sets on top of the
+  // neutral defaults; applying one resets the other tool values but keeps the
+  // chain order.
+  var PRESETS = [
+    {
+      id: "blockbuster", name: "Blockbuster", group: "Cinematic",
+      tools: {
+        "contrast": { p: { contrast: 0.25 } },
+        "lift-gamma-gain": { w: { gain: [1.12, 1.04, 0.92] } },
+        "vignette": { p: { strength: 0.5 } },
+        "four-way": { w: { shadows: [0.92, 1.02, 1.08], highlights: [1.08, 1.0, 0.9] } },
+      },
+    },
+    {
+      id: "teal-orange", name: "Teal & Orange", group: "Cinematic",
+      tools: {
+        "contrast": { p: { contrast: 0.1 } },
+        "four-way": { w: { shadows: [0.85, 1.0, 1.1], highlights: [1.12, 1.02, 0.9] } },
+      },
+    },
+    {
+      id: "noir", name: "Noir", group: "Monochrome",
+      tools: {
+        "contrast": { p: { contrast: 0.5, pivot: 0.16 } },
+        "ranged-saturation": { p: { satHighlight: 0, satMidtone: 0, satShadow: 0 } },
+        "crush": { p: { gamma: 2.8 } },
+      },
+    },
+    {
+      id: "daylight", name: "Daylight", group: "Warm",
+      tools: {
+        "warm-cool": { p: { warmCool: 0.2, tint: 0.02 } },
+        "pop": { p: { pop: 0.2 } },
+        "diffusion": { p: { glow: 0.2 } },
+      },
+    },
+    {
+      id: "faded-film", name: "Faded Film", group: "Film",
+      tools: {
+        "contrast": { p: { contrast: -0.1 } },
+        "mojo": { p: { mojo: 0.4, fade: 0.3, bleach: 0.2 } },
+      },
+    },
+    {
+      id: "bleach-bypass", name: "Bleach Bypass", group: "Film",
+      tools: {
+        "mojo": { p: { mojo: 0.5, bleach: 0.6, punch: 0.1 } },
+      },
+    },
+  ];
+
   Looks.tools = {
     TOOLS: TOOLS,
     GROUPS: GROUPS,
     HSL_HUES: HSL_HUES,
     FOURWAY_SLOTS: FOURWAY_SLOTS,
+    PINNED_TOOL: PINNED_TOOL,
+    CHAIN_KEY: CHAIN_KEY,
+    ENABLED_KEY: ENABLED_KEY,
+    MAX_CHAIN: MAX_CHAIN,
+    PRESETS: PRESETS,
     defaultToolState: defaultToolState,
+    defaultScurve: defaultScurve,
     defaultState: defaultState,
+    defaultChain: defaultChain,
+    parseChain: parseChain,
+    serializeChain: serializeChain,
+    enabledDefault: enabledDefault,
     propMap: propMap,
     buildPropertyDefinitions: buildPropertyDefinitions,
-    byId: function (id) {
-      for (var i = 0; i < TOOLS.length; i++) {
-        if (TOOLS[i].id === id) return TOOLS[i];
-      }
-      return null;
-    },
+    indexOf: indexOfTool,
+    byId: byId,
   };
 })(Looks);

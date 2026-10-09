@@ -3,7 +3,7 @@
   "id": "core",
   "name": "Zoidium Core",
   "author": "Zoidium",
-  "version": "12",
+  "version": "13",
   "kind": "core",
   "visibility": "hidden",
   "alwaysEnabled": true,
@@ -148,6 +148,11 @@
     {
       "id": "panel-fullscreen-shortcut",
       "source": "./plugins/core/panel-fullscreen-shortcut.js",
+      "phase": "pre-init"
+    },
+    {
+      "id": "main-viewport",
+      "source": "./plugins/core/main-viewport.js",
       "phase": "pre-init"
     }
   ]

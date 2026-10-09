@@ -1,4 +1,4 @@
-// OpenZoid Trapcode Suite — Plexus (ported verbatim from plexus.js).
+// OpenZoid Trapcode Suite — Plexus.
 /*
  * plexus.js
  *
@@ -6,12 +6,27 @@
  * point cloud, effectors deform it, and renderers connect the points as
  * points, lines, facets, triangulation or beams. Lives inside a normal 3D
  * Scene layer and uses the shared property system.
+ *
+ * Data flow per frame (all buffers are reused between frames):
+ *   geometry sources  -> cached Float32Array per source (keyed by its inputs)
+ *   gather            -> one work buffer of positions and colors
+ *   effectors         -> in-place edits of the work buffer
+ *   renderers         -> points, or links found with a spatial hash
+ *
+ * Link renderers only consider the first MAX_LINK_POINTS (lines) or
+ * MAX_MESH_POINTS (facets, triangulation) points; the cap keeps the cost of
+ * a frame bounded for very large sources.
  */
 
 var PZ = PZ || {};
 
 (function () {
     var T = PZ.trapcode;
+
+    var MAX_LINK_POINTS = 12000;
+    var MAX_MESH_POINTS = 4000;
+    var MAX_TRIANGLES = 20000;
+    var MAX_NEAR = 64;
 
     var POINT_VERTEX = [
         "uniform vec2 resolution;",
@@ -116,6 +131,12 @@ var PZ = PZ || {};
         return Math.abs(Math.sin(seed * 12.9898) * 43758.5453) % 1;
     }
 
+    // Numeric property value at a time, or the fallback when it is missing.
+    function numberOr(property, time, fallback) {
+        var value = property ? Number(property.get(time)) : NaN;
+        return Number.isFinite(value) ? value : fallback;
+    }
+
     function clamp(v, a, b) {
         return v < a ? a : v > b ? b : v;
     }
@@ -155,6 +176,82 @@ var PZ = PZ || {};
         return norm > 0 ? sum / norm : 0;
     }
 
+    // Spatial hash over a flat xyz buffer. Cells are cell-sized cubes; the
+    // table is a power-of-two list of buckets with chained point indices, so
+    // a rebuild allocates nothing once the arrays have grown.
+    function SpatialGrid() {
+        this.head = new Int32Array(16);
+        this.next = new Int32Array(16);
+        this.mask = 15;
+        this.cell = 1;
+        this.points = null;
+        this.count = 0;
+    }
+
+    SpatialGrid.prototype.bucket = function (cx, cy, cz) {
+        return (Math.imul(cx, 73856093) ^ Math.imul(cy, 19349663) ^ Math.imul(cz, 83492791)) & this.mask;
+    };
+
+    SpatialGrid.prototype.build = function (points, count, cell) {
+        var size = 16;
+        while (size < count * 2) size <<= 1;
+        if (this.head.length < size) this.head = new Int32Array(size);
+        this.head.fill(-1, 0, size);
+        this.mask = size - 1;
+        if (this.next.length < count) this.next = new Int32Array(Math.max(count, this.next.length * 2));
+        this.points = points;
+        this.count = count;
+        this.cell = cell;
+        for (var i = 0; i < count; i++) {
+            var b = this.bucket(
+                Math.floor(points[i * 3] / cell),
+                Math.floor(points[i * 3 + 1] / cell),
+                Math.floor(points[i * 3 + 2] / cell)
+            );
+            this.next[i] = this.head[b];
+            this.head[b] = i;
+        }
+    };
+
+    // Collects the points in the 27 cells around point i (optionally only the
+    // ones with a higher index) that lie within maxDistance. Writes indices to
+    // out and returns how many were written, at most `limit`.
+    SpatialGrid.prototype.near = function (i, maxDistance, above, out, limit) {
+        var points = this.points;
+        var cell = this.cell;
+        var ax = points[i * 3];
+        var ay = points[i * 3 + 1];
+        var az = points[i * 3 + 2];
+        var cx = Math.floor(ax / cell);
+        var cy = Math.floor(ay / cell);
+        var cz = Math.floor(az / cell);
+        var maxSq = maxDistance * maxDistance;
+        var found = 0;
+        for (var ox = -1; ox <= 1; ox++) {
+            for (var oy = -1; oy <= 1; oy++) {
+                for (var oz = -1; oz <= 1; oz++) {
+                    var j = this.head[this.bucket(cx + ox, cy + oy, cz + oz)];
+                    while (j >= 0 && found < limit) {
+                        if (j !== i && (!above || j > i)) {
+                            var px = points[j * 3];
+                            var py = points[j * 3 + 1];
+                            var pz = points[j * 3 + 2];
+                            if (Math.floor(px / cell) === cx + ox && Math.floor(py / cell) === cy + oy &&
+                                Math.floor(pz / cell) === cz + oz) {
+                                var dx = px - ax;
+                                var dy = py - ay;
+                                var dz = pz - az;
+                                if (dx * dx + dy * dy + dz * dz < maxSq) out[found++] = j;
+                            }
+                        }
+                        j = this.next[j];
+                    }
+                }
+            }
+        }
+        return found;
+    };
+
     PZ.object3d.plexus = class extends PZ.object3d {
         constructor() {
             super();
@@ -162,16 +259,23 @@ var PZ = PZ || {};
             this.objects = new PZ.objectList(this, PZ.object3d.plexus.object);
             this.objects.name = "Plexus Objects";
             this.children.push(this.objects);
-            this._points = [];
-            this._colors = [];
+            this._work = new Float32Array(0);
+            this._colors = new Float32Array(0);
+            this._count = 0;
+            this._time = undefined;
+            this._renderedRevision = -1;
+            this._grid = new SpatialGrid();
+            this._candidates = new Int32Array(0);
+            this._near = new Int32Array(MAX_NEAR);
+            this._seen = new Set();
+            this._segments = null;
             this.pointCloud = null;
             this.lineMesh = null;
             this.mesh = null;
-            this._cache = {};
         }
         load(e) {
             this.properties.load(e && e.properties);
-            if ("object" == typeof e && e.objects && e.objects.length) {
+            if (e && "object" == typeof e && e.objects && e.objects.length) {
                 for (var i = 0; i < e.objects.length; i++) {
                     var object = new PZ.object3d.plexus.object();
                     this.objects.push(object);
@@ -196,6 +300,15 @@ var PZ = PZ || {};
         unload() {
             for (var i = 0; i < this.objects.length; i++) this.objects[i].unload();
             this.disposeRenderers();
+        }
+        assetRevision() {
+            var total = 0;
+            for (var i = 0; i < this.objects.length; i++) total += this.objects[i]._assets.revision;
+            return total;
+        }
+        // An asset settled after the last rendered frame: re-run that frame.
+        assetSettled() {
+            if (this._time !== undefined && this.pointCloud) this.update(this._time);
         }
         rebuildRenderers() {
             this.disposeRenderers();
@@ -275,30 +388,40 @@ var PZ = PZ || {};
             this.lineMaterial = null;
             this.meshMaterial = null;
         }
-        collectPoints() {
-            var points = [];
-            var colors = [];
+        // Concatenates the enabled geometry sources into the work buffer.
+        gatherPoints() {
+            var t = PZ.trapcode.currentTime;
+            var sources = [];
+            var total = 0;
             for (var i = 0; i < this.objects.length; i++) {
                 var object = this.objects[i];
-                if (object.isGeometry() && object.properties.common.enabled.get(PZ.trapcode.currentTime) === 1) {
-                    var generated = object.generatePoints(this);
-                    for (var p = 0; p < generated.length; p++) {
-                        points.push(generated[p]);
-                        colors.push([1, 1, 1]);
-                    }
-                }
+                if (!object.isGeometry() || object.properties.common.enabled.get(t) !== 1) continue;
+                var points = object.sourcePoints();
+                sources.push(points);
+                total += points.length / 3;
             }
-            this._colors = colors;
-            return points;
+            if (this._work.length < total * 3) {
+                var capacity = Math.max(total * 3, Math.ceil(this._work.length * 1.5));
+                this._work = new Float32Array(capacity);
+                this._colors = new Float32Array(capacity);
+            }
+            var offset = 0;
+            for (var s = 0; s < sources.length; s++) {
+                this._work.set(sources[s], offset);
+                offset += sources[s].length;
+            }
+            this._colors.fill(1, 0, total * 3);
+            this._count = total;
+            return total;
         }
-        applyEffectors(points, colors, time) {
+        applyEffectors(count) {
+            var t = PZ.trapcode.currentTime;
             for (var i = 0; i < this.objects.length; i++) {
                 var object = this.objects[i];
-                if (object.isEffector() && object.properties.common.enabled.get(PZ.trapcode.currentTime) === 1) {
-                    object.applyTo(points, colors, time, this);
+                if (object.isEffector() && object.properties.common.enabled.get(t) === 1) {
+                    object.applyTo(this._work, this._colors, count);
                 }
             }
-            return points;
         }
         rendererState() {
             var state = {
@@ -316,9 +439,10 @@ var PZ = PZ || {};
                 diffuse: 0.75,
                 specular: 0,
             };
+            var t = PZ.trapcode.currentTime;
             for (var i = 0; i < this.objects.length; i++) {
                 var object = this.objects[i];
-                if (object.isRenderer() && object.properties.common.enabled.get(PZ.trapcode.currentTime) === 1) {
+                if (object.isRenderer() && object.properties.common.enabled.get(t) === 1) {
                     object.applyToState(state);
                 }
             }
@@ -326,17 +450,16 @@ var PZ = PZ || {};
         }
         update(e) {
             PZ.trapcode.setTime(e);
+            this._time = e;
             if (!this.pointCloud) this.rebuildRenderers();
-            var points = this.collectPoints();
-            var colors = this._colors;
-            this.applyEffectors(points, colors, e);
-            this._points = points;
+            for (var o = 0; o < this.objects.length; o++) this.objects[o].requestAssets();
+            var count = this.gatherPoints();
+            this.applyEffectors(count);
             var state = this.rendererState();
             this.pointCloud.visible = state.points;
             this.lineMesh.visible = state.lines || state.beams;
             this.mesh.visible = state.mesh || state.triangulation;
-            // Opacity UI is 0..100, shaders expect 0..1 (old code passed 80
-            // straight through, so everything looked fully opaque).
+            // Opacity UI is 0..100, shaders expect 0..1.
             var alpha = Math.max(0, Math.min(1, state.opacity / 100));
             // Geometry Size is the volume scale; renderer Point Size (0..10)
             // is the point sprite scale. Keep them independent.
@@ -348,104 +471,118 @@ var PZ = PZ || {};
             this.meshMaterial.uniforms.diffuse.value = state.diffuse;
             this.meshMaterial.uniforms.specular.value = state.specular;
 
-            var count = points.length;
-            this.updateBuffer(this.pointCloud, points, colors, count);
-            if (state.lines || state.beams) this.buildLines(points, colors, state);
-            if (state.mesh || state.triangulation) this.buildMesh(points, colors, state);
+            this.updateBuffer(this.pointCloud, count);
+            if (state.lines || state.beams) this.buildLines(count, state);
+            if (state.mesh || state.triangulation) this.buildMesh(count, state);
+            this._renderedRevision = this.assetRevision();
         }
-        updateBuffer(target, points, colors, count) {
-            var positionAttribute = target.geometry.attributes.position;
-            if (!positionAttribute || positionAttribute.count !== count) {
-                target.geometry.dispose();
-                var geometry = new THREE.BufferGeometry();
-                geometry.addAttribute("position", new THREE.BufferAttribute(new Float32Array(count * 3), 3));
-                geometry.addAttribute("vcolor", new THREE.BufferAttribute(new Float32Array(count * 3), 3));
-                geometry.setDrawRange(0, count);
+        // Copies the work buffer into a point geometry, growing it when needed.
+        updateBuffer(target, count) {
+            var geometry = target.geometry;
+            var position = geometry.attributes.position;
+            if (!position || position.array.length < count * 3) {
+                if (geometry.dispose) geometry.dispose();
+                var capacity = Math.max(count, 64);
+                geometry = new THREE.BufferGeometry();
+                geometry.addAttribute("position", new THREE.BufferAttribute(new Float32Array(capacity * 3), 3));
+                geometry.addAttribute("vcolor", new THREE.BufferAttribute(new Float32Array(capacity * 3), 3));
                 target.geometry = geometry;
-            } else {
-                target.geometry.setDrawRange(0, count);
             }
-            var positions = target.geometry.attributes.position.array;
-            var vertexColors = target.geometry.attributes.vcolor.array;
-            for (var i = 0; i < count; i++) {
-                positions[i * 3] = points[i][0];
-                positions[i * 3 + 1] = points[i][1];
-                positions[i * 3 + 2] = points[i][2];
-                var c = colors[i] || [1, 1, 1];
-                vertexColors[i * 3] = c[0];
-                vertexColors[i * 3 + 1] = c[1];
-                vertexColors[i * 3 + 2] = c[2];
-            }
-            target.geometry.attributes.position.needsUpdate = true;
-            target.geometry.attributes.vcolor.needsUpdate = true;
-            // Setting needsUpdate recompiles the shader every frame; only do
-            // it when the define actually changes.
+            geometry.attributes.position.array.set(this._work.subarray(0, count * 3));
+            geometry.attributes.vcolor.array.set(this._colors.subarray(0, count * 3));
+            geometry.attributes.position.needsUpdate = true;
+            geometry.attributes.vcolor.needsUpdate = true;
+            geometry.setDrawRange(0, count);
+            // Setting needsUpdate recompiles the shader; only do it when the
+            // define actually changes.
             if (!target.material.defines.USE_VCOLOR) {
                 target.material.defines.USE_VCOLOR = 1;
                 target.material.needsUpdate = true;
             }
         }
-        buildLines(points, colors, state) {
-            var segments = [];
-            var segmentColors = [];
-            var limit = points.length;
+        // Points used for links are the first `limit` points of the work buffer.
+        linkCount(limit) {
+            return Math.min(this._count, limit);
+        }
+        ensureLineGeometry(vertexCount) {
+            var geometry = this.lineMesh.geometry;
+            if (!geometry.attributes.position || geometry.attributes.position.array.length < vertexCount * 3) {
+                if (geometry.dispose) geometry.dispose();
+                var capacity = Math.max(vertexCount, 1024);
+                geometry = new THREE.BufferGeometry();
+                geometry.addAttribute("position", new THREE.BufferAttribute(new Float32Array(capacity * 3), 3));
+                geometry.addAttribute("vcolor", new THREE.BufferAttribute(new Float32Array(capacity * 3), 3));
+                this.lineMesh.geometry = geometry;
+            }
+            return geometry;
+        }
+        buildLines(count, state) {
             var maxDistance = Math.max(0, state.maxDistance);
             var maxConnections = Math.max(0, Math.min(10, Math.round(state.maxConnections)));
-            if (!limit || !maxDistance || !maxConnections) {
-                if (this.lineMesh.geometry) this.lineMesh.geometry.dispose();
-                var empty = new THREE.BufferGeometry();
-                empty.addAttribute("position", new THREE.BufferAttribute(new Float32Array(3), 3));
-                empty.addAttribute("vcolor", new THREE.BufferAttribute(new Float32Array(3), 3));
-                empty.setDrawRange(0, 0);
-                this.lineMesh.geometry = empty;
-                return;
-            }
+            var n = this.linkCount(MAX_LINK_POINTS);
             var beams = state.beams;
-            var cell = Math.max(maxDistance, 0.0001);
-            var maxDistSq = maxDistance * maxDistance;
-            var grid = {};
-            var i;
-            for (i = 0; i < limit; i++) {
-                var key = Math.floor(points[i][0] / cell) + "," + Math.floor(points[i][1] / cell) + "," + Math.floor(points[i][2] / cell);
-                (grid[key] || (grid[key] = [])).push(i);
-            }
-            for (i = 0; i < limit; i++) {
-                var ax = points[i][0];
-                var ay = points[i][1];
-                var az = points[i][2];
-                var acx = Math.floor(ax / cell);
-                var acy = Math.floor(ay / cell);
-                var acz = Math.floor(az / cell);
-                var connections = 0;
-                for (var ox = -1; ox <= 1 && connections < maxConnections; ox++) {
-                    for (var oy = -1; oy <= 1 && connections < maxConnections; oy++) {
-                        for (var oz = -1; oz <= 1 && connections < maxConnections; oz++) {
-                            var bucket = grid[acx + ox + "," + (acy + oy) + "," + (acz + oz)];
-                            if (!bucket) continue;
-                            for (var bi = 0; bi < bucket.length && connections < maxConnections; bi++) {
-                                var j = bucket[bi];
-                                if (j <= i) continue;
-                                var dx = ax - points[j][0];
-                                var dy = ay - points[j][1];
-                                var dz = az - points[j][2];
-                                if (dx * dx + dy * dy + dz * dz >= maxDistSq) continue;
-                                segments.push(ax, ay, az);
-                                segments.push(points[j][0], points[j][1], points[j][2]);
-                                var ci = colors[i] || [1, 1, 1];
-                                var cj = colors[j] || [1, 1, 1];
-                                segmentColors.push(ci[0], ci[1], ci[2], cj[0], cj[1], cj[2]);
-                                connections++;
+            var geometry = this.ensureLineGeometry(n * maxConnections * 2);
+            var positions = geometry.attributes.position.array;
+            var colors = geometry.attributes.vcolor.array;
+            var verts = 0;
+            if (n > 0 && maxDistance > 0 && maxConnections > 0) {
+                var work = this._work;
+                var colorsIn = this._colors;
+                var grid = this._grid;
+                grid.build(work, n, Math.max(maxDistance, 0.0001));
+                var cell = grid.cell;
+                var maxSq = maxDistance * maxDistance;
+                for (var i = 0; i < n; i++) {
+                    var ax = work[i * 3];
+                    var ay = work[i * 3 + 1];
+                    var az = work[i * 3 + 2];
+                    var acx = Math.floor(ax / cell);
+                    var acy = Math.floor(ay / cell);
+                    var acz = Math.floor(az / cell);
+                    var connections = 0;
+                    for (var ox = -1; ox <= 1 && connections < maxConnections; ox++) {
+                        for (var oy = -1; oy <= 1 && connections < maxConnections; oy++) {
+                            for (var oz = -1; oz <= 1 && connections < maxConnections; oz++) {
+                                var j = grid.head[grid.bucket(acx + ox, acy + oy, acz + oz)];
+                                while (j >= 0 && connections < maxConnections) {
+                                    if (j > i) {
+                                        var bx = work[j * 3];
+                                        var by = work[j * 3 + 1];
+                                        var bz = work[j * 3 + 2];
+                                        var dx = ax - bx;
+                                        var dy = ay - by;
+                                        var dz = az - bz;
+                                        if (dx * dx + dy * dy + dz * dz < maxSq &&
+                                            Math.floor(bx / cell) === acx + ox &&
+                                            Math.floor(by / cell) === acy + oy &&
+                                            Math.floor(bz / cell) === acz + oz) {
+                                            var v = verts * 3;
+                                            positions[v] = ax;
+                                            positions[v + 1] = ay;
+                                            positions[v + 2] = az;
+                                            positions[v + 3] = bx;
+                                            positions[v + 4] = by;
+                                            positions[v + 5] = bz;
+                                            colors[v] = colorsIn[i * 3];
+                                            colors[v + 1] = colorsIn[i * 3 + 1];
+                                            colors[v + 2] = colorsIn[i * 3 + 2];
+                                            colors[v + 3] = colorsIn[j * 3];
+                                            colors[v + 4] = colorsIn[j * 3 + 1];
+                                            colors[v + 5] = colorsIn[j * 3 + 2];
+                                            verts += 2;
+                                            connections++;
+                                        }
+                                    }
+                                    j = grid.next[j];
+                                }
                             }
                         }
                     }
                 }
             }
-            if (this.lineMesh.geometry) this.lineMesh.geometry.dispose();
-            var geometry = new THREE.BufferGeometry();
-            geometry.addAttribute("position", new THREE.BufferAttribute(new Float32Array(segments.length ? segments : [0, 0, 0]), 3));
-            geometry.addAttribute("vcolor", new THREE.BufferAttribute(new Float32Array(segmentColors.length ? segmentColors : [1, 1, 1]), 3));
-            if (!segments.length) geometry.setDrawRange(0, 0);
-            this.lineMesh.geometry = geometry;
+            geometry.setDrawRange(0, verts);
+            geometry.attributes.position.needsUpdate = true;
+            geometry.attributes.vcolor.needsUpdate = true;
             var wantVColor = !beams;
             var hasVColor = !!this.lineMaterial.defines.USE_VCOLOR;
             if (wantVColor !== hasVColor) {
@@ -454,32 +591,124 @@ var PZ = PZ || {};
                 this.lineMaterial.needsUpdate = true;
             }
         }
-        buildMesh(points, colors, state) {
+        buildMesh(count, state) {
+            var n = this.linkCount(MAX_MESH_POINTS);
+            var maxDistance = Math.max(0, state.maxDistance);
             var indices;
             if (state.triangulation && !state.mesh) {
-                indices = triangulate(points, state.maxDistance);
+                indices = this.triangulate(n, maxDistance);
             } else {
-                indices = facets(points, state.maxDistance, state.maxConnections);
+                indices = this.facets(n, maxDistance, state.maxConnections);
             }
-            if (this.mesh.geometry) this.mesh.geometry.dispose();
-            var geometry = new THREE.BufferGeometry();
-            var positions = new Float32Array(points.length * 3);
-            for (var i = 0; i < points.length; i++) {
-                positions[i * 3] = points[i][0];
-                positions[i * 3 + 1] = points[i][1];
-                positions[i * 3 + 2] = points[i][2];
+            var geometry = this.mesh.geometry;
+            if (!geometry.attributes.position || geometry.attributes.position.array.length < n * 3) {
+                if (geometry.dispose) geometry.dispose();
+                geometry = new THREE.BufferGeometry();
+                geometry.addAttribute("position", new THREE.BufferAttribute(new Float32Array(Math.max(n, 64) * 3), 3));
+                this.mesh.geometry = geometry;
             }
-            geometry.addAttribute("position", new THREE.BufferAttribute(positions, 3));
-            geometry.setIndex(indices && indices.length ? indices : []);
-            if (points.length >= 3 && indices && indices.length >= 3) {
+            geometry.attributes.position.array.set(this._work.subarray(0, n * 3));
+            geometry.attributes.position.needsUpdate = true;
+            geometry.setIndex(indices.length ? indices : []);
+            geometry.setDrawRange(0, indices.length);
+            if (n >= 3 && indices.length >= 3) {
                 geometry.computeVertexNormals();
             }
-            this.mesh.geometry = geometry;
             // Keep mesh visible even when triangulation yields few tris so the
             // renderer does not look dead; empty geometry simply draws nothing.
             this.mesh.visible = true;
         }
-        async prepare(e) {}
+        // Connects each point to up to maxConnections higher-index neighbours,
+        // emitting one triangle per consecutive pair.
+        facets(n, maxDistance, maxConnections) {
+            var indices = [];
+            maxConnections = Math.max(0, Math.min(10, Math.round(maxConnections)));
+            if (n < 1 || !maxDistance || !maxConnections) return indices;
+            var grid = this._grid;
+            grid.build(this._work, n, maxDistance);
+            this.ensureCandidates(n);
+            var found = this._candidates;
+            for (var i = 0; i < n; i++) {
+                var m = grid.near(i, maxDistance, true, found, n);
+                if (m < 2) continue;
+                var sorted = found.subarray(0, m).sort();
+                var take = Math.min(m, maxConnections);
+                for (var k = 0; k < take - 1; k += 2) {
+                    indices.push(i, sorted[k], sorted[k + 1]);
+                }
+            }
+            return indices;
+        }
+        ensureCandidates(n) {
+            if (this._candidates.length < n) this._candidates = new Int32Array(Math.max(n, this._candidates.length * 2));
+        }
+        triangulate(n, maxDistance) {
+            var indices = [];
+            if (n < 3) return indices;
+            maxDistance = Math.max(maxDistance, 0.0001);
+            var work = this._work;
+            var grid = this._grid;
+            grid.build(work, n, maxDistance);
+            var near = this._near;
+            var seen = this._seen;
+            seen.clear();
+            var maxSq = maxDistance * maxDistance;
+            for (var a = 0; a < n && indices.length < MAX_TRIANGLES * 3; a++) {
+                var found = grid.near(a, maxDistance, false, near, MAX_NEAR);
+                if (found < 2) continue;
+                // Insertion sort by distance to a (at most MAX_NEAR entries).
+                for (var s = 1; s < found; s++) {
+                    var item = near[s];
+                    var key = pointDistSq(work, item, a);
+                    var p = s - 1;
+                    while (p >= 0 && pointDistSq(work, near[p], a) > key) {
+                        near[p + 1] = near[p];
+                        p--;
+                    }
+                    near[p + 1] = item;
+                }
+                var candidates = Math.min(found, 10);
+                for (var mi = 0; mi < candidates && indices.length < MAX_TRIANGLES * 3; mi++) {
+                    for (var ni = mi + 1; ni < candidates && indices.length < MAX_TRIANGLES * 3; ni++) {
+                        var b = near[mi];
+                        var c = near[ni];
+                        if (b === a || c === a || b === c) continue;
+                        if (pointDistSq(work, b, c) > maxSq) continue;
+                        // Skip degenerate (zero-area) triangles.
+                        if (triangleAreaSq(work, a, b, c) < 1e-8) continue;
+                        var t = [a, b, c].sort(function (x, y) { return x - y; });
+                        var tkey = (t[0] * n + t[1]) * n + t[2];
+                        if (seen.has(tkey)) continue;
+                        seen.add(tkey);
+                        indices.push(t[0], t[1], t[2]);
+                        // One fan triangle per neighbor pair is enough; cap fan-out
+                        // so dense clouds do not explode into overlapping sheets.
+                        if (ni - mi > 4) break;
+                    }
+                }
+            }
+            // Fallback: if maxDistance was tiny relative to spacing, emit
+            // consecutive triples so Triangulation never renders empty.
+            if (!indices.length && n >= 3) {
+                for (var f = 0; f + 2 < n && indices.length < MAX_TRIANGLES * 3; f += 3) {
+                    if (triangleAreaSq(work, f, f + 1, f + 2) >= 1e-8) {
+                        indices.push(f, f + 1, f + 2);
+                    }
+                }
+            }
+            return indices;
+        }
+        async prepare(e) {
+            PZ.trapcode.setTime(e);
+            var waits = [];
+            for (var i = 0; i < this.objects.length; i++) {
+                this.objects[i].requestAssets().forEach(function (entry) { waits.push(entry.promise); });
+            }
+            await Promise.all(waits);
+            if (!this.pointCloud || this._time !== e || this._renderedRevision !== this.assetRevision()) {
+                this.update(e);
+            }
+        }
     };
 
     PZ.object3d.plexus.prototype.defaultName = "Plexus";
@@ -500,8 +729,9 @@ var PZ = PZ || {};
             this.plexus = null;
             this.objectKind = KIND_GEOMETRY;
             this.subType = 0;
-            this._imageSample = null;
-            this._imageLoading = false;
+            this._assets = new T.AssetCache(this.assetSettled.bind(this));
+            this._sourceKey = null;
+            this._sourcePoints = null;
             this.properties = new PZ.propertyList(
                 {
                     name: PZ.property.create(PZ.object3d.plexus.object.propertyDefinitions.name),
@@ -522,6 +752,9 @@ var PZ = PZ || {};
                 Object.defineProperty(this.properties[g], "displayName", { value: groups[g], writable: true });
             }
             this.children = [this.properties];
+        }
+        assetSettled() {
+            if (this.plexus) this.plexus.assetSettled();
         }
         isGeometry() {
             return this.objectKind === KIND_GEOMETRY;
@@ -547,8 +780,7 @@ var PZ = PZ || {};
             } else if (name === "lines") {
                 this.objectKind = KIND_RENDERER;
                 this.subType = 1;
-                this.properties.renderer.rendererType.set(1);
-                r.lineType.set(0);
+                r.rendererType.set(1);
                 r.maxDistance.set(200);
                 r.maxConnections.set(5);
                 c.name.set("Lines");
@@ -590,32 +822,101 @@ var PZ = PZ || {};
             }
             c.enabled.set(1);
         }
-        generatePoints(plexus) {
+        // Asset requests for the current frame: a layer image or OBJ mesh for
+        // geometry sources, an audio layer for the sound effector.
+        requestAssets() {
+            var out = [];
+            var t = PZ.trapcode.currentTime;
+            if (this.properties.common.enabled.get(t) !== 1) return out;
+            if (this.isEffector()) {
+                if (Math.round(this.properties.effector.effectorType.get(t)) !== 6) return out;
+                var audioValue = this.properties.effector.audioLayer.get(t);
+                var audioProject = this.tryGetParentOfType(PZ.project);
+                var audioEntry = this._assets.request("audio", audioValue, function (value) {
+                    return T.audioAnalysis.load(audioProject, value).then(function () { return true; }, function () { return null; });
+                });
+                if (audioEntry) out.push(audioEntry);
+                return out;
+            }
+            if (!this.isGeometry()) return out;
             var g = this.properties.geometry;
-            var rawCount = 200;
-            try {
-                rawCount = g.primitiveCount.get(PZ.trapcode.currentTime);
-            } catch (err) {}
-            var count = Math.max(0, Math.round(rawCount));
-            count = clamp(count, 0, 60000);
+            var type = g.geometryType.get(t);
+            var project = this.tryGetParentOfType(PZ.project);
+            var entry = null;
+            if (type === 0) {
+                entry = this._assets.request("layer", g.imageLayer.get(t), function (value) {
+                    return T.sampleImageAsset(project, value, 256);
+                });
+            } else if (type === 2) {
+                entry = this._assets.request("obj", g.objFile.get(t), function (value) {
+                    return loadMeshVertices(project, value);
+                });
+            }
+            if (entry) out.push(entry);
+            return out;
+        }
+        // Source points as a flat xyz Float32Array, cached until the inputs
+        // (properties at this time and asset status) change. Callers must not
+        // modify the returned array.
+        sourcePoints() {
+            var t = PZ.trapcode.currentTime;
+            var g = this.properties.geometry;
+            var type = g.geometryType.get(t);
+            var key = this.sourceKey(type);
+            if (this._sourcePoints && this._sourceKey === key) return this._sourcePoints;
+            var points = this.generatePoints(type);
+            var flat = new Float32Array(points.length * 3);
+            for (var i = 0; i < points.length; i++) {
+                flat[i * 3] = points[i][0];
+                flat[i * 3 + 1] = points[i][1];
+                flat[i * 3 + 2] = points[i][2];
+            }
+            this._sourceKey = key;
+            this._sourcePoints = flat;
+            return flat;
+        }
+        sourceKey(type) {
+            var t = PZ.trapcode.currentTime;
+            var g = this.properties.geometry;
+            var parts = [
+                type,
+                g.primitiveCount.get(t),
+                g.randomSeed.get(t),
+                g.primitiveShape.get(t),
+                g.primitiveSize.get(t).join(","),
+                g.position.get(t).join(","),
+                g.pathTurns.get(t),
+            ];
+            if (type === 0) {
+                var layer = g.imageLayer.get(t);
+                parts.push(layer, this._assets.status("layer", layer));
+            } else if (type === 2) {
+                var mesh = g.objFile.get(t);
+                parts.push(mesh, this._assets.status("obj", mesh));
+            }
+            return parts.join("|");
+        }
+        generatePoints(type) {
+            var t = PZ.trapcode.currentTime;
+            var g = this.properties.geometry;
+            var count = clamp(Math.max(0, Math.round(g.primitiveCount.get(t))), 0, 60000);
             if (!count) return [];
-            var seed = g.randomSeed.get(PZ.trapcode.currentTime);
-            var size = g.primitiveSize.get(PZ.trapcode.currentTime);
-            var offset = g.position.get(PZ.trapcode.currentTime);
-            var type = g.geometryType.get(PZ.trapcode.currentTime);
+            var seed = g.randomSeed.get(t);
+            var size = g.primitiveSize.get(t);
+            var offset = g.position.get(t);
             var points;
             if (type === 0) {
-                points = this.sampleImage(plexus, count, size);
+                points = this.sampleImage(count, size, seed);
             } else if (type === 1) {
                 points = this.generatePath(count, size, g);
             } else if (type === 2) {
-                points = this.sampleOBJ(plexus, count, size);
+                points = this.sampleOBJ(count, size, seed);
             } else if (type === 4) {
-                points = this.generateInstances(count, size, g);
+                points = this.generateInstances(count, size);
             } else if (type === 5) {
-                points = this.generateSlicer(count, size, g);
+                points = this.generateSlicer(count, size);
             } else {
-                points = this.generatePrimitive(count, seed, size, g.primitiveShape.get(PZ.trapcode.currentTime));
+                points = this.generatePrimitive(count, seed, size, g.primitiveShape.get(t));
             }
             for (var i = 0; i < points.length; i++) {
                 points[i][0] += offset[0];
@@ -631,9 +932,6 @@ var PZ = PZ || {};
             if (shape === 0) {
                 // box: structured 3D lattice filling the full Size volume.
                 // Size is the volume scale, Count is density (independent).
-                // Old code used (ix+0.5)*size/perAxis-size/2, which shrinks the
-                // cloud for small counts (e.g. Count 8 filled only the middle
-                // half), making Size look like it depends on Count.
                 var perAxis = Math.max(1, Math.round(Math.cbrt(count)));
                 var total = perAxis * perAxis * perAxis;
                 for (i = 0; i < total && points.length < count; i++) {
@@ -707,8 +1005,8 @@ var PZ = PZ || {};
             var rawTurns = 3;
             try {
                 if (g && g.pathTurns) rawTurns = g.pathTurns.get(PZ.trapcode.currentTime);
-            } catch (err) {}
-            // Allow 0 turns (straight radial line); was clamped to >=1 so 0 did nothing.
+            } catch (err) { /* keep default */ }
+            // 0 turns is a straight radial line.
             var turns = Math.max(0, Math.round(rawTurns));
             var sx = (size && size[0] !== undefined) ? Math.abs(size[0]) : 500;
             var sy = (size && size[1] !== undefined) ? size[1] : 500;
@@ -719,15 +1017,11 @@ var PZ = PZ || {};
                 var t = count > 1 ? i / (count - 1) : 0;
                 var angle = t * Math.PI * 2 * turns;
                 var r = radius * (0.4 + 0.6 * t);
-                points.push([
-                    Math.cos(angle) * r,
-                    (t - 0.5) * sy,
-                    Math.sin(angle) * r,
-                ]);
+                points.push([Math.cos(angle) * r, (t - 0.5) * sy, Math.sin(angle) * r]);
             }
             return points;
         }
-        generateInstances(count, size, g) {
+        generateInstances(count, size) {
             var points = [];
             if (!count || count <= 0) return points;
             var perAxis = Math.max(1, Math.round(Math.cbrt(count)));
@@ -743,7 +1037,7 @@ var PZ = PZ || {};
             }
             return points;
         }
-        generateSlicer(count, size, g) {
+        generateSlicer(count, size) {
             var points = [];
             var bands = Math.max(1, Math.round(Math.sqrt(count)));
             var perBand = Math.max(1, Math.floor(count / bands));
@@ -756,11 +1050,11 @@ var PZ = PZ || {};
             }
             return points;
         }
-        sampleImage(plexus, count, size) {
-            if (!this._imageSample && !this._imageLoading) this.loadImageSample(plexus);
-            if (!this._imageSample) return this.generatePrimitive(count, this.properties.geometry.randomSeed.get(PZ.trapcode.currentTime), size, 1);
+        sampleImage(count, size, seed) {
+            var t = PZ.trapcode.currentTime;
+            var sample = this._assets.ready("layer", this.properties.geometry.imageLayer.get(t));
+            if (!sample) return this.generatePrimitive(count, seed, size, 1);
             var points = [];
-            var sample = this._imageSample;
             var attempts = 0;
             while (points.length < count && attempts < count * 20) {
                 attempts++;
@@ -777,73 +1071,23 @@ var PZ = PZ || {};
             }
             return points;
         }
-        loadImageSample(plexus) {
-            this._imageLoading = true;
-            var self = this;
-            var value = this.properties.geometry.imageLayer.get(PZ.trapcode.currentTime);
-            var project = this.tryGetParentOfType(PZ.project);
-            if (!value || !project) {
-                this._imageLoading = false;
-                return;
-            }
-            var asset = new PZ.asset.image(project.assets.load(value));
-            asset.loading
-                .then(function () {
-                    var image = asset.data.image;
-                    var canvas = document.createElement("canvas");
-                    var width = Math.min(image.width || 256, 256);
-                    var height = Math.min(image.height || 256, 256);
-                    canvas.width = width;
-                    canvas.height = height;
-                    var context = canvas.getContext("2d");
-                    context.drawImage(image, 0, 0, width, height);
-                    self._imageSample = {
-                        data: context.getImageData(0, 0, width, height).data,
-                        width: width,
-                        height: height,
-                    };
-                    self._imageLoading = false;
-                })
-                .catch(function () {
-                    self._imageLoading = false;
-                });
-        }
-        sampleOBJ(plexus, count, size) {
-            if (!count || count <= 0) return [];
-            var objValue = null;
-            try {
-                objValue = this.properties.geometry.objFile.get(PZ.trapcode.currentTime);
-            } catch (err) {}
-            // Reload when the picked file changes (otherwise a stale mesh sticks).
-            if (objValue !== this._objFileKey && !this._objLoading) {
-                this._meshVertices = null;
-                this._meshBounds = null;
-                this.loadOBJ(plexus);
-            } else if (!this._meshVertices && !this._objLoading) {
-                this.loadOBJ(plexus);
-            }
-            if (!this._meshVertices || !this._meshVertices.length) {
-                var seed = 0;
-                try {
-                    seed = this.properties.geometry.randomSeed.get(PZ.trapcode.currentTime);
-                } catch (err) {}
-                return this.generatePrimitive(count, seed, size, 1);
-            }
-            var source = this._meshVertices;
+        sampleOBJ(count, size, seed) {
+            var t = PZ.trapcode.currentTime;
+            var source = this._assets.ready("obj", this.properties.geometry.objFile.get(t));
+            if (!source || source.length < 3) return this.generatePrimitive(count, seed, size, 1);
             var vertexCount = source.length / 3;
             // Normalize OBJ bounds to [-0.5, 0.5] so Size maps predictably
-            // regardless of the .obj authoring scale (old code did raw*size*0.01).
-            if (!this._meshBounds) this._meshBounds = computeBounds(source);
-            var bounds = this._meshBounds;
+            // regardless of the .obj authoring scale.
+            var bounds = computeBounds(source);
             var spanX = Math.max(bounds.maxX - bounds.minX, 0.0001);
             var spanY = Math.max(bounds.maxY - bounds.minY, 0.0001);
             var spanZ = Math.max(bounds.maxZ - bounds.minZ, 0.0001);
             var cx = (bounds.minX + bounds.maxX) / 2;
             var cy = (bounds.minY + bounds.maxY) / 2;
             var cz = (bounds.minZ + bounds.maxZ) / 2;
-            var sx = (size && size[0] !== undefined) ? size[0] : 500;
-            var sy = (size && size[1] !== undefined) ? size[1] : 500;
-            var sz = (size && size[2] !== undefined) ? size[2] : 500;
+            var sx = size[0] !== undefined ? size[0] : 500;
+            var sy = size[1] !== undefined ? size[1] : 500;
+            var sz = size[2] !== undefined ? size[2] : 500;
             var points = [];
             for (var i = 0; i < count; i++) {
                 // Prime stride spreads samples evenly even for small counts.
@@ -856,148 +1100,79 @@ var PZ = PZ || {};
             }
             return points;
         }
-        loadOBJ(plexus) {
-            var self = this;
-            var value = null;
-            try {
-                value = this.properties.geometry.objFile.get(PZ.trapcode.currentTime);
-            } catch (err) {}
-            var project = this.tryGetParentOfType(PZ.project);
-            if (!value || !project) return;
-            this._objFileKey = value;
-            this._objLoading = true;
-            var asset = null;
-            try {
-                asset = new PZ.asset.geometry(project.assets.load(value));
-            } catch (err) {
-                self._objLoading = false;
-                return;
-            }
-            var done = function (positions) {
-                if (positions && positions.length >= 3) {
-                    self._meshVertices = positions;
-                    self._meshBounds = null;
-                }
-                self._objLoading = false;
-            };
-            // PZ.asset.geometry.getGeometry() only understands JSON
-            // (BufferGeometry JSON). For real .obj files read the raw text and
-            // parse with THREE.OBJLoader (or a minimal `v ` fallback).
-            var readText = null;
-            try {
-                readText = asset.readFile();
-            } catch (err) {
-                readText = null;
-            }
-            if (readText && typeof readText.then === "function") {
-                readText
-                    .then(function (text) {
-                        var positions = parseGeometryText(text);
-                        if (positions) {
-                            done(positions);
-                            return;
-                        }
-                        // Fall back to the JSON loader for legacy .json models.
-                        asset.getGeometry().then(function (geometry) {
-                            if (geometry && geometry.attributes && geometry.attributes.position) {
-                                done(Array.prototype.slice.call(geometry.attributes.position.array));
-                            } else {
-                                self._objLoading = false;
-                            }
-                        }).catch(function () {
-                            self._objLoading = false;
-                        });
-                    })
-                    .catch(function () {
-                        self._objLoading = false;
-                    });
-            } else {
-                asset.getGeometry()
-                    .then(function (geometry) {
-                        if (geometry && geometry.attributes && geometry.attributes.position) {
-                            self._meshVertices = Array.prototype.slice.call(geometry.attributes.position.array);
-                            self._meshBounds = null;
-                        }
-                        self._objLoading = false;
-                    })
-                    .catch(function () {
-                        self._objLoading = false;
-                    });
-            }
-        }
-        applyTo(points, colors, time, plexus) {
+        // Effector pass over the flat work buffer (positions and colors).
+        applyTo(pos, col, count) {
+            var t = PZ.trapcode.currentTime;
             var e = this.properties.effector;
-            // NOTE: subType is only the creation-time hint. The live dropdown
-            // is effectorType, so dispatch on the property (fixes all effectors
-            // except noise appearing dead after switching the dropdown).
-            var effType = this.subType;
-            try {
-                if (e && e.effectorType) effType = e.effectorType.get(PZ.trapcode.currentTime);
-            } catch (err) {}
-            effType = Math.max(0, Math.round(effType));
-            this.subType = effType;
+            var effType = Math.max(0, Math.round(e.effectorType.get(t)));
             if (effType === 0) {
-                var nAmount = e.noiseAmount.get(PZ.trapcode.currentTime);
-                var scale = Math.max(e.noiseScale.get(PZ.trapcode.currentTime), 0.0001);
-                var flow = time * 0.05;
-                for (var i = 0; i < points.length; i++) {
-                    var n = fbm2(points[i][0] * 0.01 / scale, points[i][2] * 0.01 / scale + flow, 0);
-                    points[i][1] += n * nAmount;
-                }
+                this.applyNoise(pos, count, e);
             } else if (effType === 1) {
-                this.applySpherical(points, e.strength.get(PZ.trapcode.currentTime) / 100, e.position.get(PZ.trapcode.currentTime), e.radius.get(PZ.trapcode.currentTime));
+                this.applySpherical(pos, count, e.strength.get(t) / 100, e.position.get(t), e.radius.get(t));
             } else if (effType === 2) {
-                this.applyContainer(points, e);
+                this.applyContainer(pos, count, e);
             } else if (effType === 3) {
-                this.applyTransform(points, e);
+                this.applyTransform(pos, count, e);
             } else if (effType === 4) {
-                this.applyColorMap(points, colors, e);
+                this.applyColorMap(pos, col, count, e);
             } else if (effType === 5) {
-                this.applyShade(points, colors, e);
+                this.applyShade(pos, col, count, e);
             } else if (effType === 6) {
-                this.applySound(points, time, e);
+                this.applySound(pos, count, e);
             }
         }
-        applySpherical(points, strength, center, radius) {
+        applyNoise(pos, count, e) {
+            var t = PZ.trapcode.currentTime;
+            var amount = e.noiseAmount.get(t);
+            var scale = Math.max(e.noiseScale.get(t), 0.0001);
+            var flow = t * 0.05;
+            for (var i = 0; i < count; i++) {
+                var n = fbm2(pos[i * 3] * 0.01 / scale, pos[i * 3 + 2] * 0.01 / scale + flow, 0);
+                pos[i * 3 + 1] += n * amount;
+            }
+        }
+        applySpherical(pos, count, strength, center, radius) {
             radius = Math.max(radius, 0.0001);
             strength = Math.max(-4, Math.min(4, strength));
-            for (var i = 0; i < points.length; i++) {
-                var dx = points[i][0] - center[0];
-                var dy = points[i][1] - center[1];
-                var dz = points[i][2] - center[2];
+            for (var i = 0; i < count; i++) {
+                var dx = pos[i * 3] - center[0];
+                var dy = pos[i * 3 + 1] - center[1];
+                var dz = pos[i * 3 + 2] - center[2];
                 var dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
                 if (dist < 0.0001) {
-                    // Push degenerate points out along +X so strength is visible.
-                    points[i][0] = center[0] + radius * 0.05 * (strength >= 0 ? 1 : -1);
+                    // Push degenerate points out along X so strength is visible.
+                    pos[i * 3] = center[0] + radius * 0.05 * (strength >= 0 ? 1 : -1);
                     continue;
                 }
                 // Visible falloff: full strength at center, zero at radius.
-                // Old formula (radius/dist)*0.05 was ~2% at dist==radius.
                 var falloff = Math.max(0, 1 - dist / radius);
                 var f = 1 + strength * falloff;
                 // Outside the radius keep a gentle push so large clouds still move.
                 if (falloff <= 0) f = 1 + strength * (radius / dist) * 0.1;
-                points[i][0] = center[0] + dx * f;
-                points[i][1] = center[1] + dy * f;
-                points[i][2] = center[2] + dz * f;
+                pos[i * 3] = center[0] + dx * f;
+                pos[i * 3 + 1] = center[1] + dy * f;
+                pos[i * 3 + 2] = center[2] + dz * f;
             }
         }
-        applyContainer(points, e) {
-            var center = e.position.get(PZ.trapcode.currentTime);
-            var half = e.containerSize.get(PZ.trapcode.currentTime);
-            for (var i = 0; i < points.length; i++) {
+        applyContainer(pos, count, e) {
+            var t = PZ.trapcode.currentTime;
+            var center = e.position.get(t);
+            var half = e.containerSize.get(t);
+            for (var i = 0; i < count; i++) {
                 for (var axis = 0; axis < 3; axis++) {
                     var halfSize = Math.max(half[axis] / 2, 0.0001);
                     var min = center[axis] - halfSize;
                     var max = center[axis] + halfSize;
-                    if (points[i][axis] < min) points[i][axis] = min;
-                    else if (points[i][axis] > max) points[i][axis] = max;
+                    var k = i * 3 + axis;
+                    if (pos[k] < min) pos[k] = min;
+                    else if (pos[k] > max) pos[k] = max;
                 }
             }
         }
-        applyTransform(points, e) {
-            var scale = e.transformScale.get(PZ.trapcode.currentTime) / 100;
-            var rotation = e.transformRotation.get(PZ.trapcode.currentTime);
+        applyTransform(pos, count, e) {
+            var t = PZ.trapcode.currentTime;
+            var scale = e.transformScale.get(t) / 100;
+            var rotation = e.transformRotation.get(t);
             var rx = (rotation[0] * Math.PI) / 180;
             var ry = (rotation[1] * Math.PI) / 180;
             var rz = (rotation[2] * Math.PI) / 180;
@@ -1007,11 +1182,11 @@ var PZ = PZ || {};
             var sy = Math.sin(ry);
             var cz = Math.cos(rz);
             var sz = Math.sin(rz);
-            var offset = e.position.get(PZ.trapcode.currentTime);
-            for (var i = 0; i < points.length; i++) {
-                var x = points[i][0] * scale;
-                var y = points[i][1] * scale;
-                var z = points[i][2] * scale;
+            var offset = e.position.get(t);
+            for (var i = 0; i < count; i++) {
+                var x = pos[i * 3] * scale;
+                var y = pos[i * 3 + 1] * scale;
+                var z = pos[i * 3 + 2] * scale;
                 var t1 = y * cx - z * sx;
                 var t2 = y * sx + z * cx;
                 y = t1;
@@ -1024,97 +1199,97 @@ var PZ = PZ || {};
                 t2 = x * sz + y * cz;
                 x = t1;
                 y = t2;
-                points[i][0] = x + offset[0];
-                points[i][1] = y + offset[1];
-                points[i][2] = z + offset[2];
+                pos[i * 3] = x + offset[0];
+                pos[i * 3 + 1] = y + offset[1];
+                pos[i * 3 + 2] = z + offset[2];
             }
         }
-        applyColorMap(points, colors, e) {
-            if (!colors) return;
-            var mode = e.colorMapMode ? e.colorMapMode.get(PZ.trapcode.currentTime) : 0;
-            var a = e.color.get(PZ.trapcode.currentTime);
-            var b = e.color2 ? e.color2.get(PZ.trapcode.currentTime) : [1, 1, 1];
-            var min = 0;
-            var max = 1;
-            for (var i = 0; i < points.length; i++) {
+        applyColorMap(pos, col, count, e) {
+            var t = PZ.trapcode.currentTime;
+            var mode = e.colorMapMode.get(t);
+            var a = e.color.get(t);
+            var b = e.color2 ? e.color2.get(t) : [1, 1, 1];
+            for (var i = 0; i < count; i++) {
                 var value;
-                if (mode === 0) value = i / Math.max(points.length - 1, 1);
-                else if (mode === 1) value = points[i][1] * 0.001 + 0.5;
-                else value = Math.sqrt(points[i][0] * points[i][0] + points[i][1] * points[i][1] + points[i][2] * points[i][2]) * 0.001;
-                value = clamp(value, min, max);
-                colors[i] = [
-                    a[0] + (b[0] - a[0]) * value,
-                    a[1] + (b[1] - a[1]) * value,
-                    a[2] + (b[2] - a[2]) * value,
-                ];
+                if (mode === 0) value = i / Math.max(count - 1, 1);
+                else if (mode === 1) value = pos[i * 3 + 1] * 0.001 + 0.5;
+                else value = Math.sqrt(pos[i * 3] * pos[i * 3] + pos[i * 3 + 1] * pos[i * 3 + 1] + pos[i * 3 + 2] * pos[i * 3 + 2]) * 0.001;
+                value = clamp(value, 0, 1);
+                col[i * 3] = a[0] + (b[0] - a[0]) * value;
+                col[i * 3 + 1] = a[1] + (b[1] - a[1]) * value;
+                col[i * 3 + 2] = a[2] + (b[2] - a[2]) * value;
             }
         }
-        applyShade(points, colors, e) {
-            if (!colors) return;
+        applyShade(pos, col, count, e) {
             var a = e.color.get(PZ.trapcode.currentTime);
-            for (var i = 0; i < points.length; i++) {
-                var dist = Math.sqrt(points[i][0] * points[i][0] + points[i][1] * points[i][1] + points[i][2] * points[i][2]);
+            for (var i = 0; i < count; i++) {
+                var dist = Math.sqrt(pos[i * 3] * pos[i * 3] + pos[i * 3 + 1] * pos[i * 3 + 1] + pos[i * 3 + 2] * pos[i * 3 + 2]);
                 var shade = clamp(1 - dist / 800, 0.1, 1);
-                colors[i] = [a[0] * shade, a[1] * shade, a[2] * shade];
+                col[i * 3] = a[0] * shade;
+                col[i * 3 + 1] = a[1] * shade;
+                col[i * 3 + 2] = a[2] * shade;
             }
         }
-        applySound(points, time, e) {
-            var amplitude = 0.5;
-            if (typeof CM !== "undefined" && CM.playback && CM.playback.audioDst) {
-                try {
-                    var analyser = CM.playback.audioDst;
-                    var buffer = new Uint8Array(analyser.frequencyBinCount);
-                    analyser.getByteFrequencyData(buffer);
-                    var sum = 0;
-                    for (var i = 0; i < buffer.length; i++) sum += buffer[i];
-                    amplitude = sum / buffer.length / 255;
-                } catch (err) {
-                    amplitude = 0.5 + Math.sin(time * 0.1) * 0.5;
+        // Without an audio layer the level is a time-based wave. With one, it is
+        // the offline analysis at the media time (T.audioAnalysis, decoded in
+        // prepare()); 0.5 while the source is not decoded yet, as in Particular.
+        applySound(pos, count, e) {
+            var t = PZ.trapcode.currentTime;
+            var audioValue = e.audioLayer ? e.audioLayer.get(t) : null;
+            var level = 0.5 + Math.sin(t * 0.1) * 0.5;
+            if (audioValue) {
+                // Same clip mapping as Particular: offset shifts the clip start,
+                // trim in/out select the media range; silence outside it.
+                var local = t / this.sceneRate() - numberOr(e.audioOffset, t, 0);
+                var trimIn = Math.max(numberOr(e.audioTrimIn, t, 0), 0);
+                var trimOut = Math.max(numberOr(e.audioTrimOut, t, 0), 0);
+                var media = trimIn + local;
+                if (local < 0 || (trimOut > 0 && media >= trimOut)) {
+                    level = 0;
+                } else {
+                    var analysed = T.audioAnalysis.levelAt(audioValue, Math.max(0, media));
+                    level = analysed === null ? 0.5 : analysed;
                 }
-            } else {
-                amplitude = 0.5 + Math.sin(time * 0.1) * 0.5;
             }
-            var strength = e.soundStrength ? e.soundStrength.get(PZ.trapcode.currentTime) : 100;
-            var scale = 1 + amplitude * (strength / 100);
-            for (var j = 0; j < points.length; j++) {
-                points[j][0] *= scale;
-                points[j][1] *= scale;
-                points[j][2] *= scale;
-            }
+            var strength = e.soundStrength ? e.soundStrength.get(t) : 100;
+            var scale = 1 + clamp(level, 0, 1) * (strength / 100);
+            for (var i = 0; i < count * 3; i++) pos[i] *= scale;
+        }
+        sceneRate() {
+            var sequence = this.tryGetParentOfType(PZ.sequence);
+            return sequence ? sequence.properties.rate.get(PZ.trapcode.currentTime) || 1 : 1;
         }
         applyToState(state) {
+            var t = PZ.trapcode.currentTime;
             var r = this.properties.renderer;
-            var color = r.color.get(PZ.trapcode.currentTime);
+            var color = r.color.get(t);
             state.color = [color[0], color[1], color[2]];
-            state.opacity = r.opacity.get(PZ.trapcode.currentTime);
-            var type = r.rendererType.get(PZ.trapcode.currentTime);
-            // Keep subType in sync so designer labels stay correct.
-            this.subType = Math.max(0, Math.round(type));
+            state.opacity = r.opacity.get(t);
+            var type = r.rendererType.get(t);
             if (type === 0) {
                 state.points = true;
-                var sz = r.size.get(PZ.trapcode.currentTime);
-                state.size = Math.max(0, Math.min(10, sz));
+                state.size = Math.max(0, Math.min(10, r.size.get(t)));
             } else if (type === 1) {
                 state.lines = true;
-                state.maxDistance = Math.max(0, r.maxDistance.get(PZ.trapcode.currentTime));
-                state.maxConnections = Math.max(0, Math.min(10, Math.round(r.maxConnections.get(PZ.trapcode.currentTime))));
+                state.maxDistance = Math.max(0, r.maxDistance.get(t));
+                state.maxConnections = Math.max(0, Math.min(10, Math.round(r.maxConnections.get(t))));
             } else if (type === 2) {
                 state.mesh = true;
-                state.maxDistance = Math.max(0, r.maxDistance.get(PZ.trapcode.currentTime));
-                state.maxConnections = Math.max(0, Math.min(10, Math.round(r.maxConnections.get(PZ.trapcode.currentTime))));
-                state.ambient = r.ambient.get(PZ.trapcode.currentTime) / 100;
-                state.diffuse = r.diffuse.get(PZ.trapcode.currentTime) / 100;
-                state.specular = r.specular.get(PZ.trapcode.currentTime) / 100;
+                state.maxDistance = Math.max(0, r.maxDistance.get(t));
+                state.maxConnections = Math.max(0, Math.min(10, Math.round(r.maxConnections.get(t))));
+                state.ambient = r.ambient.get(t) / 100;
+                state.diffuse = r.diffuse.get(t) / 100;
+                state.specular = r.specular.get(t) / 100;
             } else if (type === 3) {
                 state.triangulation = true;
-                state.maxDistance = Math.max(0, r.maxDistance.get(PZ.trapcode.currentTime));
-                state.ambient = r.ambient.get(PZ.trapcode.currentTime) / 100;
-                state.diffuse = r.diffuse.get(PZ.trapcode.currentTime) / 100;
-                state.specular = r.specular.get(PZ.trapcode.currentTime) / 100;
+                state.maxDistance = Math.max(0, r.maxDistance.get(t));
+                state.ambient = r.ambient.get(t) / 100;
+                state.diffuse = r.diffuse.get(t) / 100;
+                state.specular = r.specular.get(t) / 100;
             } else if (type === 4) {
                 state.beams = true;
-                state.maxDistance = Math.max(0, r.maxDistance.get(PZ.trapcode.currentTime));
-                state.maxConnections = Math.max(0, Math.min(10, Math.round(r.maxConnections.get(PZ.trapcode.currentTime))));
+                state.maxDistance = Math.max(0, r.maxDistance.get(t));
+                state.maxConnections = Math.max(0, Math.min(10, Math.round(r.maxConnections.get(t))));
             }
         }
         load(e, parent) {
@@ -1128,10 +1303,11 @@ var PZ = PZ || {};
                 hasSavedType = !!(e.properties && e.properties.geometry && e.properties.geometry.geometryType !== undefined);
             }
             this.properties.load(e && e.properties);
+            var t = PZ.trapcode.currentTime;
             if (this.objectKind === KIND_GEOMETRY) {
                 var type;
                 if (hasSavedType) {
-                    type = this.properties.geometry.geometryType.get(PZ.trapcode.currentTime);
+                    type = this.properties.geometry.geometryType.get(t);
                 } else if (oldSub >= 0 && oldSub <= 5) {
                     // Fresh "Add Geometry" items already use 0..5 == geometryType.
                     type = oldSub;
@@ -1147,19 +1323,14 @@ var PZ = PZ || {};
                 this.subType = type;
                 this.properties.geometry.geometryType.set(type);
             } else if (this.objectKind === KIND_EFFECTOR) {
-                // Keep creation hint in sync with the live dropdown.
-                try {
-                    var et = this.properties.effector.effectorType.get(PZ.trapcode.currentTime);
-                    if (et !== undefined && et !== null) this.subType = Math.max(0, Math.min(6, Math.round(et)));
-                } catch (err) {}
+                var et = this.properties.effector.effectorType.get(t);
+                if (et !== undefined && et !== null) this.subType = Math.max(0, Math.min(6, Math.round(et)));
             } else if (this.objectKind === KIND_RENDERER) {
-                try {
-                    var rt = this.properties.renderer.rendererType.get(PZ.trapcode.currentTime);
-                    if (rt !== undefined && rt !== null) this.subType = Math.max(0, Math.min(4, Math.round(rt)));
-                } catch (err) {}
+                var rt = this.properties.renderer.rendererType.get(t);
+                if (rt !== undefined && rt !== null) this.subType = Math.max(0, Math.min(4, Math.round(rt)));
             }
-            if (!this.properties.common.name.get(PZ.trapcode.currentTime)) {
-                this.properties.common.name.set(this.properties.name.get(PZ.trapcode.currentTime) || "Object");
+            if (!this.properties.common.name.get(t)) {
+                this.properties.common.name.set(this.properties.name.get(t) || "Object");
             }
         }
         toJSON() {
@@ -1171,12 +1342,9 @@ var PZ = PZ || {};
             };
         }
         unload() {
-            this._imageSample = null;
-            this._imageLoading = false;
-            this._meshVertices = null;
-            this._meshBounds = null;
-            this._objLoading = false;
-            this._objFileKey = null;
+            this._assets.clear();
+            this._sourceKey = null;
+            this._sourcePoints = null;
         }
     };
 
@@ -1211,13 +1379,6 @@ var PZ = PZ || {};
             assetType: PZ.asset.type.GEOMETRY,
             accept: ".obj",
             value: null,
-            changed: function () {
-                // Drop cached vertices so a newly picked .obj reloads.
-                if (this.parentObject) {
-                    this.parentObject._meshVertices = null;
-                    this.parentObject._objLoading = false;
-                }
-            },
         },
         randomSeed: number("Random seed", 0, { step: 1, decimals: 0 }),
     };
@@ -1225,7 +1386,6 @@ var PZ = PZ || {};
     PZ.object3d.plexus.object.effectorDefinitions = {
         name: { name: "Name", type: PZ.property.type.TEXT, value: "Effector", visible: false },
         effectorType: option("Effector type", 0, "noise;spherical field;container;transform;color map;shade;sound", true),
-        amount: number("Amount", 100, { step: 1 }),
         noiseAmount: number("Noise amount", 40, { step: 0.1, decimals: 1 }),
         noiseScale: number("Noise scale", 1, { min: 0.0001, step: 0.01, decimals: 2 }),
         strength: number("Strength[%]", 50, { step: 1 }),
@@ -1257,6 +1417,16 @@ var PZ = PZ || {};
             name: "Color 2",
             type: PZ.property.type.COLOR,
         },
+        audioLayer: {
+            name: "Audio layer",
+            type: PZ.property.type.ASSET,
+            assetType: PZ.asset.type.AV,
+            accept: "audio/*,video/*",
+            value: null,
+        },
+        audioOffset: number("Audio offset (seconds)", 0, { min: 0, step: 0.01, decimals: 3 }),
+        audioTrimIn: number("Audio trim in (seconds)", 0, { min: 0, step: 0.01, decimals: 3 }),
+        audioTrimOut: number("Audio trim out (seconds)", 0, { min: 0, step: 0.01, decimals: 3 }),
         soundStrength: number("Sound strength", 100, { min: 0, step: 1 }),
     };
 
@@ -1264,7 +1434,6 @@ var PZ = PZ || {};
         name: { name: "Name", type: PZ.property.type.TEXT, value: "Renderer", visible: false },
         rendererType: option("Renderer type", 1, "points;lines;facets;triangulation;beams", true),
         size: number("Point size", 4, { min: 0, max: 10, step: 0.1, decimals: 2 }),
-        lineType: option("Line type", 0, "distance;adjacency;shape", true),
         maxDistance: number("Max distance", 200, { min: 0, step: 1 }),
         maxConnections: number("Max connections", 5, { min: 0, max: 10, step: 1, decimals: 0 }),
         opacity: number("Opacity", 80, { min: 0, max: 100, step: 0.1, decimals: 1 }),
@@ -1283,6 +1452,45 @@ var PZ = PZ || {};
             type: PZ.property.type.COLOR,
         },
     };
+
+    // Requests the vertices of an OBJ (or JSON BufferGeometry) asset. Resolves
+    // to a flat xyz array or null.
+    function loadMeshVertices(project, value) {
+        if (!project || !value) return Promise.resolve(null);
+        var asset = project.assets.load(value);
+        if (!asset) return Promise.resolve(null);
+        var finish = function (result) {
+            try { project.assets.unload(asset); } catch (_error) { /* best effort */ }
+            return result;
+        };
+        var geometryAsset;
+        try {
+            geometryAsset = new PZ.asset.geometry(asset);
+        } catch (_error) {
+            return Promise.resolve(finish(null));
+        }
+        var fromJson = function () {
+            return geometryAsset.getGeometry().then(function (geometry) {
+                var position = geometry && geometry.attributes && geometry.attributes.position;
+                return position ? Array.prototype.slice.call(position.array) : null;
+            });
+        };
+        var readText = null;
+        try {
+            readText = geometryAsset.readFile();
+        } catch (_error) {
+            readText = null;
+        }
+        if (readText && typeof readText.then === "function") {
+            return readText
+                .then(function (text) {
+                    var positions = parseGeometryText(text);
+                    return positions || fromJson();
+                })
+                .then(finish, function () { return finish(null); });
+        }
+        return fromJson().then(finish, function () { return finish(null); });
+    }
 
     function computeBounds(source) {
         var minX = Infinity, minY = Infinity, minZ = Infinity;
@@ -1315,7 +1523,7 @@ var PZ = PZ || {};
                 if (geo && geo.attributes && geo.attributes.position) {
                     return Array.prototype.slice.call(geo.attributes.position.array);
                 }
-            } catch (err) {}
+            } catch (err) { /* not a geometry */ }
             return null;
         }
         // Real .obj: prefer THREE.OBJLoader (returns Group of Meshes).
@@ -1326,20 +1534,15 @@ var PZ = PZ || {};
                 var collected = [];
                 if (group && group.traverse) {
                     group.traverse(function (child) {
-                        if (child && child.geometry && child.geometry.attributes && child.geometry.attributes.position) {
-                            var arr = child.geometry.attributes.position.array;
-                            for (var i = 0; i < arr.length; i++) collected.push(arr[i]);
-                        } else if (child && child.isMesh && child.geometry) {
-                            var pos = child.geometry.attributes && child.geometry.attributes.position;
-                            if (pos) {
-                                for (var j = 0; j < pos.array.length; j++) collected.push(pos.array[j]);
-                            }
+                        var pos = child && child.geometry && child.geometry.attributes && child.geometry.attributes.position;
+                        if (pos) {
+                            for (var i = 0; i < pos.array.length; i++) collected.push(pos.array[i]);
                         }
                     });
                 }
                 if (collected.length >= 3) return collected;
             }
-        } catch (err) {}
+        } catch (err) { /* fall through to the minimal parser */ }
         // Minimal `v x y z` fallback when OBJLoader is unavailable/strict.
         try {
             var verts = [];
@@ -1353,161 +1556,28 @@ var PZ = PZ || {};
                 }
             }
             if (verts.length >= 3) return verts;
-        } catch (err) {}
+        } catch (err) { /* no vertices */ }
         return null;
     }
 
-    function facets(points, maxDistance, maxConnections) {
-        var indices = [];
-        var limit = Math.min(points.length, 4000);
-        var maxConnections = Math.max(0, Math.min(10, Math.round(maxConnections)));
-        if (!limit || !maxDistance || !maxConnections) return indices;
-        for (var i = 0; i < limit; i++) {
-            var connections = [];
-            for (var j = i + 1; j < limit && connections.length < maxConnections; j++) {
-                var dx = points[i][0] - points[j][0];
-                var dy = points[i][1] - points[j][1];
-                var dz = points[i][2] - points[j][2];
-                if (dx * dx + dy * dy + dz * dz < maxDistance * maxDistance) connections.push(j);
-            }
-            for (var k = 0; k < connections.length - 1; k += 2) {
-                indices.push(i, connections[k], connections[k + 1]);
-            }
-        }
-        return indices;
-    }
-
-    function triangulate(points, maxDistance) {
-        var limit = Math.min(points.length, 4000);
-        if (limit < 3) return [];
-        maxDistance = Math.max(maxDistance, 0.0001);
-        var cell = maxDistance;
-        var grid = {};
-        function key(cx, cy, cz) {
-            return cx + "," + cy + "," + cz;
-        }
-        for (var i = 0; i < limit; i++) {
-            var cx = Math.floor(points[i][0] / cell);
-            var cy = Math.floor(points[i][1] / cell);
-            var cz = Math.floor(points[i][2] / cell);
-            var k = key(cx, cy, cz);
-            (grid[k] || (grid[k] = [])).push(i);
-        }
-        var indices = [];
-        var seen = {};
-        var maxDistSq = maxDistance * maxDistance;
-        var maxTriangles = 20000;
-        for (var a = 0; a < limit && indices.length < maxTriangles * 3; a++) {
-            var ax = points[a][0];
-            var ay = points[a][1];
-            var az = points[a][2];
-            var acx = Math.floor(ax / cell);
-            var acy = Math.floor(ay / cell);
-            var acz = Math.floor(az / cell);
-            var near = [];
-            for (var ox = -1; ox <= 1; ox++) {
-                for (var oy = -1; oy <= 1; oy++) {
-                    for (var oz = -1; oz <= 1; oz++) {
-                        var bucket = grid[key(acx + ox, acy + oy, acz + oz)];
-                        if (bucket) {
-                            for (var bi = 0; bi < bucket.length; bi++) {
-                                var idx = bucket[bi];
-                                if (idx === a) continue;
-                                var ddx = points[idx][0] - ax;
-                                var ddy = points[idx][1] - ay;
-                                var ddz = points[idx][2] - az;
-                                if (ddx * ddx + ddy * ddy + ddz * ddz <= maxDistSq) near.push(idx);
-                            }
-                        }
-                        if (near.length > 64) break;
-                    }
-                    if (near.length > 64) break;
-                }
-                if (near.length > 64) break;
-            }
-            if (near.length < 2) continue;
-            near.sort(function (p, q) {
-                var pdx = points[p][0] - ax;
-                var pdy = points[p][1] - ay;
-                var pdz = points[p][2] - az;
-                var qdx = points[q][0] - ax;
-                var qdy = points[q][1] - ay;
-                var qdz = points[q][2] - az;
-                return pdx * pdx + pdy * pdy + pdz * pdz - (qdx * qdx + qdy * qdy + qdz * qdz);
-            });
-            var candidates = near.slice(0, 10);
-            for (var m = 0; m < candidates.length && indices.length < maxTriangles * 3; m++) {
-                for (var n = m + 1; n < candidates.length && indices.length < maxTriangles * 3; n++) {
-                    var b = candidates[m];
-                    var c = candidates[n];
-                    if (b === a || c === a || b === c) continue;
-                    if (pointDistSq(points, b, c) > maxDistSq) continue;
-                    // Skip degenerate (zero-area) triangles.
-                    if (triangleAreaSq(points, a, b, c) < 1e-8) continue;
-                    // Normalize key so each triangle is emitted once.
-                    var t = [a, b, c].sort(function (x, y) { return x - y; });
-                    var tkey = t[0] + "_" + t[1] + "_" + t[2];
-                    if (seen[tkey]) continue;
-                    seen[tkey] = 1;
-                    indices.push(t[0], t[1], t[2]);
-                    // One fan triangle per neighbor pair is enough; cap fan-out
-                    // so dense clouds do not explode into overlapping sheets.
-                    if ((n - m) > 4) break;
-                }
-            }
-        }
-        // Fallback: if maxDistance was tiny relative to spacing, connect
-        // k-nearest anyway so Triangulation never renders completely empty.
-        if (!indices.length && limit >= 3) {
-            for (var f = 0; f + 2 < limit && indices.length < maxTriangles * 3; f += 3) {
-                if (triangleAreaSq(points, f, f + 1, f + 2) >= 1e-8) {
-                    indices.push(f, f + 1, f + 2);
-                }
-            }
-        }
-        return indices;
+    function pointDistSq(points, i, j) {
+        var dx = points[i * 3] - points[j * 3];
+        var dy = points[i * 3 + 1] - points[j * 3 + 1];
+        var dz = points[i * 3 + 2] - points[j * 3 + 2];
+        return dx * dx + dy * dy + dz * dz;
     }
 
     function triangleAreaSq(points, i, j, k) {
-        var ax = points[j][0] - points[i][0];
-        var ay = points[j][1] - points[i][1];
-        var az = points[j][2] - points[i][2];
-        var bx = points[k][0] - points[i][0];
-        var by = points[k][1] - points[i][1];
-        var bz = points[k][2] - points[i][2];
+        var ax = points[j * 3] - points[i * 3];
+        var ay = points[j * 3 + 1] - points[i * 3 + 1];
+        var az = points[j * 3 + 2] - points[i * 3 + 2];
+        var bx = points[k * 3] - points[i * 3];
+        var by = points[k * 3 + 1] - points[i * 3 + 1];
+        var bz = points[k * 3 + 2] - points[i * 3 + 2];
         var cx = ay * bz - az * by;
         var cy = az * bx - ax * bz;
         var cz = ax * by - ay * bx;
         return cx * cx + cy * cy + cz * cz;
-    }
-
-    function pointDistSq(points, i, j) {
-        var dx = points[i][0] - points[j][0];
-        var dy = points[i][1] - points[j][1];
-        var dz = points[i][2] - points[j][2];
-        return dx * dx + dy * dy + dz * dz;
-    }
-
-    function hasPointInside(points, limit, i, j, k) {
-        var ax = points[i][0];
-        var ay = points[i][1];
-        var bx = points[j][0];
-        var by = points[j][1];
-        var cx = points[k][0];
-        var cy = points[k][1];
-        var d = (by - cy) * (ax - cx) + (cx - bx) * (ay - cy);
-        if (Math.abs(d) < 0.00001) return true;
-        var checks = Math.min(limit, 40);
-        for (var p = 0; p < checks; p++) {
-            if (p === i || p === j || p === k) continue;
-            var px = points[p][0];
-            var py = points[p][1];
-            var l1 = ((by - cy) * (px - cx) + (cx - bx) * (py - cy)) / d;
-            var l2 = ((cy - ay) * (px - cx) + (ax - cx) * (py - cy)) / d;
-            var l3 = 1 - l1 - l2;
-            if (l1 > 0 && l2 > 0 && l3 > 0) return true;
-        }
-        return false;
     }
 
     T.registerObjectTypes(PZ.object3d.plexus.object, [
@@ -1606,14 +1676,15 @@ var PZ = PZ || {};
             lines = null,
             points = null,
             noise = null;
+        var t = PZ.trapcode.currentTime;
         for (var i = 0; i < root.objects.length; i++) {
             var o = root.objects[i];
-            if (o.isGeometry && o.isGeometry()) {
+            if (o.isGeometry()) {
                 if (!geo) geo = o;
-            } else if (o.isEffector && o.isEffector()) {
+            } else if (o.isEffector()) {
                 if (!noise) noise = o;
-            } else if (o.isRenderer && o.isRenderer()) {
-                var type = o.properties.renderer.rendererType.get(PZ.trapcode.currentTime);
+            } else if (o.isRenderer()) {
+                var type = o.properties.renderer.rendererType.get(t);
                 if (type === 1 && !lines) lines = o;
                 else if (type === 0 && !points) points = o;
             }
@@ -1655,7 +1726,6 @@ var PZ = PZ || {};
             object.properties.geometry.geometryType.set(subType);
         }
         if (kind === 2 && subType === 1) {
-            object.properties.renderer.lineType.set(0);
             object.properties.renderer.maxDistance.set(200);
         }
         root.update(0);

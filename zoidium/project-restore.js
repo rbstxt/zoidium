@@ -36,6 +36,9 @@
     snapshotPromise: null,
     backupTimer: null,
     startupTimer: null,
+    // Identity of the project state covered by the newest automatic check.
+    lastBackup: null,
+    backupQueued: false,
   };
 
   function isBackupInterval(value) {
@@ -344,6 +347,7 @@
       '<div class="zoidium-project-toast-actions">' +
       '<button type="button" class="proprow propbutton" data-toast-action="retry">Retry</button>' +
       '<button type="button" class="proprow propbutton" data-toast-action="download">Download</button>' +
+      '<button type="button" class="proprow propbutton" data-toast-action="recover">Restore backup</button>' +
       '<button type="button" class="proprow propbutton" data-toast-action="reload">Reload</button>' +
       "</div>";
     global.document.body.appendChild(toast);
@@ -355,6 +359,9 @@
     });
     toast.querySelector('[data-toast-action="download"]').addEventListener("click", function () {
       runToastAction(toast._zoidiumDownload);
+    });
+    toast.querySelector('[data-toast-action="recover"]').addEventListener("click", function () {
+      runToastAction(toast._zoidiumRecover);
     });
     toast.querySelector('[data-toast-action="reload"]').addEventListener("click", function () {
       hideToast();
@@ -369,6 +376,7 @@
     state.toast.classList.remove("is-visible");
     state.toast._zoidiumRetry = null;
     state.toast._zoidiumDownload = null;
+    state.toast._zoidiumRecover = null;
   }
 
   function runToastAction(action) {
@@ -397,6 +405,7 @@
     var actions = toast.querySelector(".zoidium-project-toast-actions");
     var retryButton = actions.querySelector('[data-toast-action="retry"]');
     var downloadButton = actions.querySelector('[data-toast-action="download"]');
+    var recoverButton = actions.querySelector('[data-toast-action="recover"]');
     var reloadButton = actions.querySelector('[data-toast-action="reload"]');
     // Each action button appears only when its handler exists. Retry and
     // Download apply to error toasts; Reload appears for reload prompts
@@ -404,15 +413,19 @@
     // hidden instead of rendering as disabled controls.
     var hasRetry = isError && typeof detail.retry === "function";
     var hasDownload = isError && typeof detail.download === "function";
+    var hasRecover = isError && typeof detail.recover === "function";
     var hasReload = !!detail.reload;
     retryButton.hidden = !hasRetry;
     downloadButton.hidden = !hasDownload;
+    recoverButton.hidden = !hasRecover;
     reloadButton.hidden = !hasReload;
     retryButton.disabled = !hasRetry;
     downloadButton.disabled = !hasDownload;
-    actions.hidden = !hasRetry && !hasDownload && !hasReload;
+    recoverButton.disabled = !hasRecover;
+    actions.hidden = !hasRetry && !hasDownload && !hasRecover && !hasReload;
     toast._zoidiumRetry = detail.retry || null;
     toast._zoidiumDownload = detail.download || null;
+    toast._zoidiumRecover = hasRecover ? detail.recover : null;
     toast.classList.add("is-visible");
     if (toastHideTimer) global.clearTimeout(toastHideTimer);
     // Reload prompts stay visible until dismissed so the action cannot be
@@ -428,6 +441,7 @@
       message: detail.message || "The project operation failed.",
       retry: detail.retry,
       download: detail.download,
+      recover: detail.recoverable ? recoverFromLatestBackup : null,
     });
   }
 
@@ -445,12 +459,10 @@
     if (includeStartup) {
       state.startupTimer = global.setTimeout(function () {
         state.startupTimer = null;
-        createSnapshot(false, true).catch(function () {});
+        requestAutomaticBackup();
       }, 2500);
     }
-    state.backupTimer = global.setInterval(function () {
-      createSnapshot(false, true).catch(function () {});
-    }, state.backupIntervalMs);
+    state.backupTimer = global.setInterval(requestAutomaticBackup, state.backupIntervalMs);
   }
 
   function createPanel() {
@@ -614,6 +626,52 @@
     }
   }
 
+  // Automatic checks compare the project identity, its change counter, name,
+  // and asset count against the state of the last check. An unchanged project
+  // is not serialized at all, which keeps the periodic timer cheap.
+  function currentBackupKey() {
+    var project = editor.project;
+    var assets = project && project.assets && project.assets.list;
+    return {
+      project: project || null,
+      revision: projectFiles.getProjectRevision(editor),
+      name: projectFiles.getProjectName(editor),
+      assetCount: assets && typeof assets === "object" ? Object.keys(assets).length : 0,
+    };
+  }
+
+  function unchangedSinceLastBackup() {
+    var last = state.lastBackup;
+    var current = currentBackupKey();
+    return Boolean(
+      last &&
+        last.project === current.project &&
+        last.revision === current.revision &&
+        last.name === current.name &&
+        last.assetCount === current.assetCount,
+    );
+  }
+
+  // Runs work when the browser is idle so an automatic backup does not start
+  // while the user is interacting. The timeout guarantees it still runs.
+  function runWhenIdle(task) {
+    if (typeof global.requestIdleCallback === "function") {
+      global.requestIdleCallback(task, { timeout: 30000 });
+    } else {
+      global.setTimeout(task, 0);
+    }
+  }
+
+  function requestAutomaticBackup() {
+    if (state.snapshotPromise || state.backupQueued) return;
+    if (unchangedSinceLastBackup()) return;
+    state.backupQueued = true;
+    runWhenIdle(function () {
+      state.backupQueued = false;
+      createSnapshot(false, true).catch(function () {});
+    });
+  }
+
   function createSnapshot(showResult, automatic) {
     var isAutomatic = automatic !== false;
     if (state.snapshotPromise) {
@@ -637,15 +695,24 @@
     }
 
     var archiveResult = null;
+    // Captured before serialization starts: an edit made while the archive is
+    // being built must still count as a change for the next automatic check.
+    var startKey = currentBackupKey();
     state.snapshotAutomatic = isAutomatic;
     state.snapshotPromise = (async function () {
       // refreshSnapshots normally completes before this runs, but loading here
       // also covers a very fast startup timer or a delayed IndexedDB response.
       if (!state.snapshots.length) state.snapshots = await listSnapshots();
-      archiveResult = await projectFiles.createArchive(editor);
-      var fingerprint = archiveResult.fingerprint;
-      var latest = state.snapshots[0] || null;
-      if (isAutomatic && await matchesSnapshot(latest, fingerprint)) {
+      if (isAutomatic && unchangedSinceLastBackup()) return null;
+      // The archive builder validates the project data first and only builds
+      // the TAR when the content differs from the newest restore point.
+      archiveResult = await projectFiles.createArchive(editor, {
+        shouldSkip: function (fingerprint) {
+          return isAutomatic && matchesSnapshot(state.snapshots[0] || null, fingerprint);
+        },
+      });
+      if (archiveResult.skipped) {
+        state.lastBackup = startKey;
         if (showResult) {
           showToast({ title: "No changes.", message: "Restore point not created." });
         }
@@ -658,10 +725,11 @@
         size: archiveResult.blob.size,
         assetCount: archiveResult.assetCount,
         blob: archiveResult.blob,
-        fingerprint: fingerprint,
+        fingerprint: archiveResult.fingerprint,
         automatic: isAutomatic,
       };
       await saveSnapshot(record);
+      state.lastBackup = startKey;
       // Manual points are not counted toward the automatic retention limits,
       // but creating one still triggers cleanup of old automatic points.
       state.snapshots = await pruneAutomaticSnapshots();
@@ -696,6 +764,36 @@
     return state.snapshotPromise;
   }
 
+  // Newest restore point whose archive opens and passes the project-data
+  // checks. Points recorded before the file-copy fix are skipped.
+  async function findLatestValidSnapshot() {
+    var records = await listSnapshots();
+    for (var index = 0; index < records.length; index += 1) {
+      var record = records[index];
+      if (!record || !record.blob || isStaleFileReference(record.blob)) continue;
+      try {
+        await projectFiles.openValidatedArchive(record.blob, "restore");
+        return record;
+      } catch (_error) {
+        // Keep looking for an older point that can still be read.
+      }
+    }
+    return null;
+  }
+
+  async function recoverFromLatestBackup() {
+    var record = await findLatestValidSnapshot();
+    if (!record) {
+      showProjectError({
+        message: "No valid restore point is available to recover from.",
+        retry: null,
+        download: null,
+      });
+      return;
+    }
+    return restoreSnapshot(record);
+  }
+
   async function restoreSnapshot(snapshot) {
     if (!snapshot || !snapshot.blob) return;
     if (isStaleFileReference(snapshot.blob)) {
@@ -709,8 +807,7 @@
     if (!editor.confirmIfDirty()) return;
 
     try {
-      var archive = new PZ.archive();
-      await archive.untar(snapshot.blob);
+      var archive = await projectFiles.openValidatedArchive(snapshot.blob, "restore");
       var restoredProject = await editor.loadProject(archive);
       editor.project = restoredProject;
       editor._zoidiumSaveFileHandle = null;
@@ -730,6 +827,7 @@
         download: function () {
           projectFiles.triggerDownload(snapshot.blob, snapshotFilename(snapshot));
         },
+        recoverable: projectFiles.isProjectDataError(error),
       });
     }
   }

@@ -387,13 +387,16 @@
     var saved = config.persistKey ? readGeometry()[config.persistKey] : null;
     var width = Number(saved && saved.width) || Number(config.width) || 340;
     var height = Number(saved && saved.height) || Number(config.height) || 420;
-    var defaultX = viewportWidth - width - 380 - cascade * 24;
-    var defaultY = 70 + cascade * 24;
+    var defaultX = viewportWidth - width - 380 - cascade * 36;
+    var defaultY = 70 + cascade * 36;
     cascade = (cascade + 1) % 6;
-    var x = Number.isFinite(Number(saved && saved.x)) ? Number(saved.x)
-      : Number.isFinite(Number(config.x)) ? Number(config.x) : defaultX;
-    var y = Number.isFinite(Number(saved && saved.y)) ? Number(saved.y)
-      : Number.isFinite(Number(config.y)) ? Number(config.y) : defaultY;
+    function pick(key, fallback) {
+      if (saved && Number.isFinite(saved[key])) return saved[key];
+      if (config[key] != null && Number.isFinite(Number(config[key]))) return Number(config[key]);
+      return fallback;
+    }
+    var x = pick("x", defaultX);
+    var y = pick("y", defaultY);
     var collapsed = Boolean(saved && saved.collapsed);
 
     var root = doc.createElement("section");

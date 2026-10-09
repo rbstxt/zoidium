@@ -146,7 +146,10 @@ async function listenOnPort(listeners, port) {
         assignedPort = await listen(server, assignedPort, host);
         bound.push(server);
       } catch (error) {
-        if (host === "::1" && error && ["EADDRNOTAVAIL", "EAFNOSUPPORT"].includes(error.code)) continue;
+        if (host === "::1" && error && ["EADDRNOTAVAIL", "EAFNOSUPPORT"].includes(error.code)) {
+          console.warn(`[Zoidium] IPv6 loopback unavailable (${error.code}); serving on 127.0.0.1 only`);
+          continue;
+        }
         throw error;
       }
     }

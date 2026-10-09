@@ -1,8 +1,9 @@
 // Tracery — motion-tracking callout overlay (boxes, markers, spline
 // connection lines, arrows, labels, grid) rendered as a canvas overlay
 // composited over the layer image. Points are manual track markers the
-// user animates (keyframes or wiggle expressions); see tracery-setup.js
-// for the SaaS editor window.
+// user animates (keyframes or wiggle expressions); see effect-windows.js
+// for the setup window. Output is a pure function of the properties and the
+// input pixels of the current frame; no state survives between renders.
 
 this.defaultName = "Tracery";
 
@@ -75,6 +76,12 @@ function trMerge(dst, src) {
     return dst;
 }
 
+function trPointSet() {
+    var defs = {};
+    for (var n = 1; n <= 6; n++) trMerge(defs, trPointDefs(n));
+    return defs;
+}
+
 this.propertyDefinitions = trMerge(
     {
         enabled: {
@@ -138,16 +145,7 @@ this.propertyDefinitions = trMerge(
         labelColor: trColor("Label color", 1, 1, 1),
         labelOpacity: trNum("Label opacity", 1, 0, 1, 0.01, 2),
     },
-    trMerge(
-        trMerge(
-            trMerge(
-                trMerge(trMerge(trPointDefs(1), trPointDefs(2)), trPointDefs(3)),
-                trMerge(trPointDefs(4), trPointDefs(5))
-            ),
-            trPointDefs(6)
-        ),
-        {}
-    )
+    trPointSet()
 );
 
 if (this.properties && typeof this.properties.addAll === "function") {
@@ -635,7 +633,7 @@ function trDrawLabel(ctx, lx, ly, pt, idx, st, S, W, H) {
         text = pt.label || text;
     }
     var px = Math.max(8, st.labelFontSize * S);
-    var font = "600 " + px + "px Inter, system-ui, sans-serif";
+    var font = "600 " + px + "px 'Source Code Pro', monospace";
     ctx.save();
     ctx.font = font;
     ctx.textBaseline = "middle";
@@ -755,18 +753,26 @@ function trCollectState(props, e) {
     return st;
 }
 
-function trSignature(st) {
-    try {
-        return JSON.stringify(st);
-    } catch (err) {
-        return String(Math.random());
-    }
+// Resolves once the label font is available (see ascii.js for the rationale).
+function trFontReady() {
+    var fonts = typeof document !== "undefined" ? document.fonts : null;
+    if (!fonts || typeof fonts.load !== "function") return Promise.resolve();
+    return Promise.resolve(fonts.load("600 20px 'Source Code Pro'")).then(
+        function () {},
+        function () {}
+    );
 }
 
 this.load = async function (e) {
     this.pass = new THREE.TraceryPass();
     this.pass.setSize(2, 2);
     this.properties.load(e && e.properties);
+    this._fontReady = trFontReady();
+    await this._fontReady;
+};
+
+this.prepare = async function () {
+    if (this._fontReady) await this._fontReady;
 };
 
 this.toJSON = function () {
@@ -778,9 +784,11 @@ this.unload = function (e) {
         this.pass.dispose();
     }
     this.pass = null;
-    this.overlay = null;
 };
 
+// The state object keeps its identity while its serialized form is
+// unchanged, so the overlay canvas is redrawn only when the state changes
+// (or when detection, which follows the footage, is enabled).
 this.update = function (e) {
     if (!this.pass) {
         return;
@@ -791,11 +799,10 @@ this.update = function (e) {
     } catch (err) {
         st = { points: [] };
     }
-    var sig = trSignature(st);
-    if (sig !== this._overlaySignature) {
+    var sig = JSON.stringify(st);
+    if (sig !== this._overlaySignature || !this._overlayState) {
         this._overlaySignature = sig;
         this._overlayState = st;
-        this._overlayDirty = true;
     }
     var on = false;
     try {
@@ -804,8 +811,6 @@ this.update = function (e) {
     this.pass.enabled = on;
     this.pass.opacity = 1;
     this.pass.overlayState = this._overlayState;
-    this.pass.overlayDirty = !!this._overlayDirty;
-    this._overlayDirty = false;
 };
 
 if (!THREE.TraceryPass) {
@@ -814,7 +819,7 @@ if (!THREE.TraceryPass) {
         this.needsSwap = true;
         this.opacity = 1;
         this.overlayState = null;
-        this.overlayDirty = false;
+        this.drawnState = null;
         this.canvas = null;
         this.canvasTexture = null;
         this.canvasWidth = 0;
@@ -823,7 +828,6 @@ if (!THREE.TraceryPass) {
         this.detectPixels = null;
         this.detectWidth = 0;
         this.detectHeight = 0;
-        this.lastRegionCount = 0;
         var material = new THREE.ShaderMaterial({
             uniforms: {
                 tDiffuse: { type: "t", value: null },
@@ -929,17 +933,13 @@ if (!THREE.TraceryPass) {
                 this.canvasHeight = h;
                 if (this.canvasTexture) this.canvasTexture.dispose();
                 this.canvasTexture = new THREE.CanvasTexture(this.canvas);
-                this.overlayDirty = true;
+                this.drawnState = null;
             }
             var st = this.overlayState;
-            var regions = [];
-            if (st && st.detectEnable) {
-                regions = this.detectRegions(renderer, readBuffer, st) || [];
-                // Detected regions move with the footage: redraw every frame.
-                this.overlayDirty = true;
-            }
-            this.lastRegionCount = regions.length;
-            if (this.overlayDirty && st) {
+            var detect = !!(st && st.detectEnable);
+            var regions = detect ? this.detectRegions(renderer, readBuffer, st) || [] : [];
+            // Detected regions follow the footage, so detection redraws every frame.
+            if (st && (detect || st !== this.drawnState)) {
                 try {
                     var ctx = this.canvas.getContext("2d");
                     var drawState = st;
@@ -956,12 +956,15 @@ if (!THREE.TraceryPass) {
                         drawState.points = merged;
                     }
                     trDrawOverlay(ctx, w, h, drawState);
-                    this.overlayError = null;
+                    this.canvasTexture.needsUpdate = true;
+                    this.drawnState = st;
                 } catch (err) {
-                    this.overlayError = String((err && err.stack) || err).slice(0, 300);
+                    var message = String((err && err.stack) || err).slice(0, 300);
+                    if (message !== this.lastError) {
+                        this.lastError = message;
+                        console.error("[Zoidium] Tracery overlay failed:", message);
+                    }
                 }
-                this.canvasTexture.needsUpdate = true;
-                this.overlayDirty = false;
             }
             this.uniforms.tDiffuse.value = readBuffer.texture;
             if (st && st.showMask && st.detectEnable && this.detectTarget) {

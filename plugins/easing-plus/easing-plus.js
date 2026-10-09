@@ -2,7 +2,7 @@
 
 const EasingPlus = (() => {
   const STYLE_ID = "zoidium-easing-plus-style";
-  const STYLE_URL = "./plugins/easing-plus/easing-plus.css?v=20";
+  const STYLE_URL = "./plugins/easing-plus/easing-plus.css?v=21";
   const EPSILON = 1e-8;
   const BEZIER_TWEEN = 257;
   // Overshoot is an intentional, two-stage gesture.  Keeping these in screen
@@ -18,7 +18,7 @@ const EasingPlus = (() => {
     patchedEaseDropDown: null,
     originalCorrectCurve: null,
     patchedCorrectCurve: null,
-    keydown: null,
+    ui: null,
     easeButtons: new Set(),
     displayRows: new Set(),
     originalCreateKeyframeControls: null,
@@ -1349,13 +1349,11 @@ const EasingPlus = (() => {
       end.x + end.inX,
       end.y + end.inY,
     ];
-    session.coordinateInputs.forEach((input, inputIndex) => {
-      if (document.activeElement !== input) input.value = round(values[inputIndex], 4);
-    });
+    session.coordinateControls.forEach((control, inputIndex) => control.set(round(values[inputIndex], 4)));
   }
 
   function updateSegmentFromInputs(session) {
-    const values = session.coordinateInputs.map((input) => Number(input.value));
+    const values = session.coordinateControls.map((control) => Number(control.get()));
     if (values.some((value) => !Number.isFinite(value))) return;
     const index = selectedSegment(session);
     const start = session.points[index];
@@ -1562,53 +1560,13 @@ const EasingPlus = (() => {
     return button;
   }
 
-  function positionDialog(session) {
-    const dialog = session.root.querySelector(".easing-plus-dialog");
-    const anchorRect = session.anchor.getBoundingClientRect();
-    const dialogRect = dialog.getBoundingClientRect();
-    const gap = 7;
-    const margin = 8;
-    let left = anchorRect.right + gap;
-    if (left + dialogRect.width > window.innerWidth - margin) {
-      left = anchorRect.left - dialogRect.width - gap;
-    }
-    left = clamp(left, margin, Math.max(margin, window.innerWidth - dialogRect.width - margin));
-    let top = anchorRect.top - 8;
-    top = clamp(top, margin, Math.max(margin, window.innerHeight - dialogRect.height - margin));
-    dialog.style.left = `${Math.round(left)}px`;
-    dialog.style.top = `${Math.round(top)}px`;
-  }
-
-  function createDialog(context, anchor) {
+  function createDialog(context) {
     closeDialog();
-    const shell = document.createElement("div");
-    shell.className = "easing-plus-shell";
-    shell.innerHTML = `
-      <section class="easing-plus-dialog" role="dialog" aria-labelledby="easing-plus-title">
-        <header class="easing-plus-header">
-          <span class="easing-plus-title" id="easing-plus-title">Easing+</span>
-          <button class="easing-plus-close" type="button" aria-label="Close">×</button>
-        </header>
-        <div class="easing-plus-main">
-          <section class="easing-plus-editor" aria-label="Curve editor">
-            <div class="easing-plus-graph-wrap">
-              <svg class="easing-plus-graph" viewBox="0 0 520 420" preserveAspectRatio="none" aria-label="Bezier curve editor"></svg>
-            </div>
-            <div class="easing-plus-coordinates">
-              <span class="easing-plus-coordinate-label">C</span>
-              <input class="easing-plus-coordinate" type="number" step="0.01" aria-label="First control X">
-              <input class="easing-plus-coordinate" type="number" step="0.01" aria-label="First control Y">
-              <input class="easing-plus-coordinate" type="number" step="0.01" aria-label="Second control X">
-              <input class="easing-plus-coordinate" type="number" step="0.01" aria-label="Second control Y">
-            </div>
-          </section>
-          <aside class="easing-plus-presets" aria-label="Easing presets">
-            <div class="easing-plus-presets-title">Presets</div>
-            <div class="easing-plus-preset-grid"></div>
-          </aside>
-        </div>
-      </section>`;
-    document.body.appendChild(shell);
+    const ui = state.ui;
+    if (!ui || typeof ui.openWindow !== "function") {
+      console.error("Easing+ requires the plugin window API (context.ui).");
+      return;
+    }
 
     // Always load the edited segment's existing curve so a saved custom
     // interpolation is shown again when the window is reopened. Every target
@@ -1616,80 +1574,148 @@ const EasingPlus = (() => {
     // the edited interval.
     const reference = context.targets[0];
     const initialPoints = curveFromSegment(reference.property, reference.start, reference.end);
-    const session = {
-      ...context,
-      root: shell,
-      anchor,
-      graph: shell.querySelector(".easing-plus-graph"),
-      points: initialPoints,
-      coordinateInputs: Array.from(shell.querySelectorAll(".easing-plus-coordinate")),
-      presetButtons: [],
-      selectedAnchor: 0,
-      selectedSegment: 0,
-      selectedPreset: -1,
-      drag: null,
-      overshoot: overshootForPoints(initialPoints),
-      pendingOvershoot: { bottom: false, top: false },
-      overshootPull: {
-        bottom: { armed: false, offset: 0 },
-        top: { armed: false, offset: 0 },
+    const propertyName = context.property?.definition?.name || "";
+    let session = null;
+
+    state.dialog = null;
+    const win = ui.openWindow({
+      id: "curve-editor",
+      title: "Easing+",
+      subtitle: propertyName,
+      className: "easing-plus-window",
+      persistKey: "curve-editor",
+      width: 560,
+      height: 430,
+      minWidth: 420,
+      minHeight: 300,
+      isValid: () => context.targets.every((target) => {
+        try {
+          return Boolean(target.property.parentObject);
+        } catch (_error) {
+          return false;
+        }
+      }),
+      onClose: () => finishDialog(session),
+      mount(body, handle) {
+        const controls = ui.controls;
+        const main = document.createElement("div");
+        main.className = "easing-plus-main";
+
+        const editor = document.createElement("section");
+        editor.className = "easing-plus-editor";
+        editor.setAttribute("aria-label", "Curve editor");
+        const graphWrap = document.createElement("div");
+        graphWrap.className = "easing-plus-graph-wrap";
+        const graph = svgElement("svg", { class: "easing-plus-graph", preserveAspectRatio: "none" });
+        graph.setAttribute("aria-label", "Bezier curve editor");
+        graphWrap.appendChild(graph);
+        editor.appendChild(graphWrap);
+        const handles = document.createElement("div");
+        handles.className = "easing-plus-handles";
+        editor.appendChild(handles);
+
+        const presets = controls.section({ title: "Presets" });
+        presets.element.classList.add("easing-plus-presets");
+        const grid = document.createElement("div");
+        grid.className = "easing-plus-preset-grid";
+        presets.body.appendChild(grid);
+
+        main.appendChild(editor);
+        main.appendChild(presets.element);
+        body.appendChild(main);
+
+        session = {
+          ...context,
+          dialogWindow: handle,
+          graph,
+          points: initialPoints,
+          coordinateControls: [],
+          presetButtons: [],
+          selectedAnchor: 0,
+          selectedSegment: 0,
+          selectedPreset: -1,
+          drag: null,
+          overshoot: overshootForPoints(initialPoints),
+          pendingOvershoot: { bottom: false, top: false },
+          overshootPull: {
+            bottom: { armed: false, offset: 0 },
+            top: { armed: false, offset: 0 },
+          },
+          dirty: false,
+          resizeObserver: null,
+        };
+        state.dialog = session;
+
+        // Handle coordinates are scrubbable CM3-style numbers. Dragging or
+        // committing a typed value updates the curve immediately; the edit is
+        // recorded once when the window closes.
+        const coordinateLabels = [
+          ["Out X", "Outgoing handle X of the edited segment's start"],
+          ["Out Y", "Outgoing handle Y of the edited segment's start"],
+          ["In X", "Incoming handle X of the edited segment's end"],
+          ["In Y", "Incoming handle Y of the edited segment's end"],
+        ];
+        for (const [label, hint] of coordinateLabels) {
+          const control = controls.number({
+            label,
+            hint,
+            value: 0,
+            step: 0.001,
+            onInput: () => updateSegmentFromInputs(session),
+            onChange: () => updateSegmentFromInputs(session),
+          });
+          session.coordinateControls.push(control);
+          handles.appendChild(control.element);
+        }
+
+        graph.addEventListener("pointerdown", (event) => graphPointerDown(session, event));
+        graph.addEventListener("pointermove", (event) => graphPointerMove(session, event));
+        graph.addEventListener("pointerup", (event) => graphPointerUp(session, event));
+        graph.addEventListener("pointercancel", (event) => graphPointerUp(session, event));
+        session.pointerRelease = (event) => graphPointerUp(session, event);
+        session.pointerLost = (event) => graphPointerUp(session, event);
+        session.windowBlur = () => graphPointerUp(session);
+        // Capture at the window as well as on the SVG. This covers releasing
+        // the mouse outside the window and WebKit's lost-pointer-capture case.
+        window.addEventListener("pointerup", session.pointerRelease, true);
+        window.addEventListener("pointercancel", session.pointerRelease, true);
+        window.addEventListener("blur", session.windowBlur);
+        graph.addEventListener("lostpointercapture", session.pointerLost);
+
+        PRESETS.forEach((preset, index) => {
+          const button = createPresetButton(session, preset, index);
+          session.presetButtons.push(button);
+          grid.appendChild(button);
+        });
+
+        renderGraph(session);
+        // The plot's aspect follows the window size, so re-plot on resize.
+        if (typeof ResizeObserver === "function") {
+          session.resizeObserver = new ResizeObserver(() => {
+            if (state.dialog === session) renderGraph(session);
+          });
+          session.resizeObserver.observe(graph);
+        }
+
+        return () => {
+          session.resizeObserver?.disconnect();
+          session.resizeObserver = null;
+          window.removeEventListener("pointerup", session.pointerRelease, true);
+          window.removeEventListener("pointercancel", session.pointerRelease, true);
+          window.removeEventListener("blur", session.windowBlur);
+          graph.removeEventListener("lostpointercapture", session.pointerLost);
+        };
       },
-      dirty: false,
-      reposition: null,
-      pointerRelease: null,
-      pointerLost: null,
-      windowBlur: null,
-    };
-    state.dialog = session;
-
-    shell.querySelector(".easing-plus-close").addEventListener("click", closeDialog);
-    shell.addEventListener("click", (event) => {
-      if (event.target === shell) closeDialog();
     });
-    session.graph.addEventListener("pointerdown", (event) => graphPointerDown(session, event));
-    session.graph.addEventListener("pointermove", (event) => graphPointerMove(session, event));
-    session.graph.addEventListener("pointerup", (event) => graphPointerUp(session, event));
-    session.graph.addEventListener("pointercancel", (event) => graphPointerUp(session, event));
-    session.pointerRelease = (event) => graphPointerUp(session, event);
-    session.pointerLost = (event) => graphPointerUp(session, event);
-    session.windowBlur = () => graphPointerUp(session);
-    // Capture at the window as well as on the SVG.  This covers releasing the
-    // mouse outside the popover and WebKit's lost-pointer-capture edge case.
-    window.addEventListener("pointerup", session.pointerRelease, true);
-    window.addEventListener("pointercancel", session.pointerRelease, true);
-    window.addEventListener("blur", session.windowBlur);
-    session.graph.addEventListener("lostpointercapture", session.pointerLost);
-    session.coordinateInputs.forEach((input) => {
-      input.addEventListener("input", () => updateSegmentFromInputs(session));
-      input.addEventListener("change", () => updateSegmentFromInputs(session));
-      input.addEventListener("keydown", (event) => {
-        if (event.key === "Enter") input.blur();
-        event.stopPropagation();
-      });
-    });
-
-    const grid = shell.querySelector(".easing-plus-preset-grid");
-    PRESETS.forEach((preset, index) => {
-      const button = createPresetButton(session, preset, index);
-      session.presetButtons.push(button);
-      grid.appendChild(button);
-    });
-
-    renderGraph(session);
-    session.reposition = () => {
-      positionDialog(session);
-      renderGraph(session);
-    };
-    window.addEventListener("resize", session.reposition);
-    positionDialog(session);
-    requestAnimationFrame(session.reposition);
-    shell.querySelector(".easing-plus-close").focus();
+    if (!win) state.dialog = null;
   }
 
-  function closeDialog() {
-    const session = state.dialog;
-    if (!session) return;
-    if (session.coordinateInputs.includes(document.activeElement)) document.activeElement.blur();
+  // Closing the window (close button, Escape, or plugin teardown) commits the
+  // edited curve once as a single native history operation.
+  function finishDialog(session) {
+    if (!session || state.dialog !== session) return;
+    const active = document.activeElement;
+    if (active && session.dialogWindow.element.contains(active)) active.blur();
     if (session.dirty) {
       const propertyOps = new window.PZ.ui.properties(session.editor);
       session.editor.history.startOperation();
@@ -1701,15 +1727,11 @@ const EasingPlus = (() => {
         session.editor.history.finishOperation();
       }
     }
-    if (session.reposition) window.removeEventListener("resize", session.reposition);
-    if (session.pointerRelease) {
-      window.removeEventListener("pointerup", session.pointerRelease, true);
-      window.removeEventListener("pointercancel", session.pointerRelease, true);
-    }
-    if (session.windowBlur) window.removeEventListener("blur", session.windowBlur);
-    if (session.pointerLost) session.graph.removeEventListener("lostpointercapture", session.pointerLost);
-    session.root.remove();
     state.dialog = null;
+  }
+
+  function closeDialog() {
+    state.dialog?.dialogWindow.close();
   }
 
   function installStyle() {
@@ -1737,6 +1759,7 @@ const EasingPlus = (() => {
     if (state.active) return;
     state.active = true;
     state.getAsset = context.getAsset;
+    state.ui = context.ui || null;
     state.editor = context.editor || window.CM;
     installStyle();
     state.originalCorrectCurve = window.PZ.tween.correctCurve;
@@ -1749,19 +1772,11 @@ const EasingPlus = (() => {
     state.patchedEaseDropDown = function (button) {
       const targets = resolveTargets(button);
       if (!targets) return state.originalEaseDropDown.apply(this, arguments);
-      createDialog(targets, button);
+      createDialog(targets);
     };
     window.PZ.editor.showEaseDropDown = state.patchedEaseDropDown;
     installEaseButtonLabels();
     installShapePreservation();
-    state.keydown = (event) => {
-      if (event.key === "Escape" && state.dialog) {
-        event.preventDefault();
-        event.stopPropagation();
-        closeDialog();
-      }
-    };
-    document.addEventListener("keydown", state.keydown, true);
   }
 
   function deactivate() {
@@ -1775,7 +1790,6 @@ const EasingPlus = (() => {
     if (window.PZ?.tween?.correctCurve === state.patchedCorrectCurve) {
       window.PZ.tween.correctCurve = state.originalCorrectCurve;
     }
-    if (state.keydown) document.removeEventListener("keydown", state.keydown, true);
     uninstallStyle();
     state.active = false;
     state.editor = null;
@@ -1784,7 +1798,7 @@ const EasingPlus = (() => {
     state.patchedEaseDropDown = null;
     state.originalCorrectCurve = null;
     state.patchedCorrectCurve = null;
-    state.keydown = null;
+    state.ui = null;
   }
 
   return {

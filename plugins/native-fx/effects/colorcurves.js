@@ -6,6 +6,9 @@
   const STYLE_URL = "/plugins/native-fx/colorcurves.css";
   const STYLE_ID = "zoidium-color-curves-style";
   const LUT_SIZE = 256;
+  // Quarter-step guides drawn inside the plot (256-unit viewBox).
+  const GRID_PATH = "M64 0V256M192 0V256M0 64H256M0 192H256";
+  const GRID_CENTER_PATH = "M128 0V256M0 128H256";
   const MAX_POINTS = 16;
   const CHANNELS = [
     { id: "composite", shortName: "RGB", name: "RGB" },
@@ -254,6 +257,12 @@
     svg.setAttribute("viewBox", "0 0 256 256");
     svg.setAttribute("preserveAspectRatio", "none");
     graph.appendChild(svg);
+    const grid = svgElement(document, "path", "zoidium-color-curves-grid");
+    grid.setAttribute("d", GRID_PATH);
+    svg.appendChild(grid);
+    const gridCenter = svgElement(document, "path", "zoidium-color-curves-grid zoidium-color-curves-grid-center");
+    gridCenter.setAttribute("d", GRID_CENTER_PATH);
+    svg.appendChild(gridCenter);
     const diagonal = svgElement(document, "path", "zoidium-color-curves-diagonal");
     diagonal.setAttribute("d", "M0 256 L256 0");
     svg.appendChild(diagonal);

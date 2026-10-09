@@ -1,28 +1,49 @@
 # Precomp+
 
-A Zoidium `extension` plugin. It ports the OpenZoid composition engine
-with original behavior preserved, plus one navigation fix.
+A Zoidium `extension` plugin. It adds compositions: groups of timeline clips
+that Main keeps as one clip, and that you can open and edit.
 
-- Pre-compose selected — moves timeline clips into a new comp tab,
-  keeping multi-track layering, keyframe offsets, and track switches.
-- Composition tabs — Main plus one tab per comp with New comp,
-  Pre-compose, open, and delete, plus save/backup hooks so edits and
-  undo survive tab switches.
-- Open source composition — jumps from a clip into the comp it came from.
-- Back to Main composition — returns from inside a nested comp.
-- Drill-in fix — the project-changed watcher only resets comp state when
-  the project object is replaced (new/open). Comp switches mutate the
-  same sequence in place, so entering an asset no longer pops back out
-  to the main layers.
+## Workflow
 
-The `precomp-runtime` module evaluates the bundled engine through the
-plugin bundle asset API, hooks save/backup, appends the timeline
-clip-menu items, and docks a Comps tab when the host UI allows it.
-Disabling the pack unwraps the menu; the engine namespace stays
-available and inert without use.
+1. Select one or more **video** clips on the timeline.
+2. Click **Pre-compose** in the Comps tab or in the Compositions window, then
+   name the composition (default `Comp 1`). The selected clips move into the
+   composition, and Main gets one clip that plays it. Audio clips stay on Main.
+3. Open **Compositions** (Comps tab) to see Main and every composition, with
+   their length and how many clips use them. Double-click a composition, or
+   press **Open**, to edit its clips. The window subtitle, the tab label and the
+   location line show that you are editing it. **Back to Main** returns.
+4. Rename, duplicate or delete compositions from the same window. A composition
+   that a clip uses cannot be deleted; the message names the clips to remove.
+
+Pre-compose is undoable as one step. Undo is cleared when you switch between
+Main and a composition, because undo entries refer to the live clips.
+
+## Rules
+
+- A composition cannot contain itself, directly or through another composition.
+- Disabling Precomp+ is refused while the project has compositions.
+- Saving while a composition is open writes Main and the open composition
+  correctly.
+- Export renders the open timeline. Return to Main before exporting.
+
+## Limitations
+
+- Audio inside a composition is stored but not played yet.
+- Compositions are created from video clips only; their clip links are not
+  carried over.
+- Deleting a composition from the Media panel bypasses the usage check.
+
+## Files
+
+- `comps.js` — the engine (`PZ.precomp`): model, pre-compose, undo steps,
+  nested rendering and scheduling, serialization hooks.
+- `precomp-runtime.js` — the Comps tab, the Compositions window and the
+  Pre-compose dialog.
+
+Build and verify:
 
 ```bash
-# after adding the registry entry
 pnpm run build:plugin-bundles
 pnpm run verify
 ```

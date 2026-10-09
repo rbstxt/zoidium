@@ -70,6 +70,16 @@ function fileBackedExport(bytes) {
   };
 }
 
+// Writes the "meta" and "project" entries that CM3 writes for a project, so
+// tests that replace PZ.project.save still produce a valid archive.
+function addProjectEntries(archive, project) {
+  archive.addFile("meta", new TextEncoder().encode(JSON.stringify({ version: "1.0.102" })));
+  archive.addFile(
+    "project",
+    new TextEncoder().encode(JSON.stringify(project || { assets: {}, media: [], sequence: {} })),
+  );
+}
+
 function createHarness() {
   const events = [];
   let tarCalls = 0;
@@ -92,6 +102,10 @@ function createHarness() {
       return this.files.some((entry) => entry.name === name);
     }
 
+    peekFile(name) {
+      return this.files.find((entry) => entry.name === name);
+    }
+
     tar() {
       tarCalls += 1;
       return Promise.resolve(
@@ -111,10 +125,18 @@ function createHarness() {
   const PZ = {
     archive: Archive,
     project: {
+      // Mirrors CM3: a "meta" entry plus a "project" entry shaped like
+      // PZ.project.prototype.toJSON ({ assets, media, sequence }).
       save(archive, project) {
         archive.addFile(
+          "meta",
+          new TextEncoder().encode(JSON.stringify({ version: "1.0.102" })),
+        );
+        archive.addFile(
           "project",
-          new TextEncoder().encode(JSON.stringify(project.data)),
+          new TextEncoder().encode(
+            JSON.stringify({ assets: {}, media: [], sequence: {}, data: project.data }),
+          ),
         );
       },
     },
@@ -346,7 +368,9 @@ test("project construction and tar run inside one coordinated operation", async 
   const projectEntry = tarInput.files.find((entry) => entry.name === "project");
   assert.deepEqual(
     new Uint8Array(await projectEntry.data.arrayBuffer()),
-    new TextEncoder().encode('{"title":"test"}'),
+    new TextEncoder().encode(
+      JSON.stringify({ assets: {}, media: [], sequence: {}, data: { title: "test" } }),
+    ),
   );
 });
 
@@ -412,20 +436,20 @@ test("project TAR entries reuse stable media Blobs without reading a second full
   let reads = 0;
   const original = media.arrayBuffer.bind(media);
   media.arrayBuffer = function () { reads += 1; return original(); };
-  harness.PZ.project.save = function (archive) { archive.addFile("media", media); };
+  harness.PZ.project.save = function (archive) { addProjectEntries(archive); archive.addFile("media", media); };
   let captured;
   harness.PZ.archive.prototype.tar = function () { captured = this; return Promise.resolve(new Blob(["archive"])); };
   const result = await harness.projectFiles.createArchive(harness.makeEditor());
   assert.equal(captured.files.find((entry) => entry.name === "media").data, media);
   assert.equal(reads, 1, "hashing reads the media once; materialization reuses it");
-  assert.match(result.fingerprint, /^entries-v2:/);
+  assert.match(result.fingerprint, /^entries-v3:/);
 });
 
 test("archive fingerprints are independent of entry insertion order", async () => {
   const harness = createHarness();
   const files = [["b", "second"], ["a", "first"]];
   const editor = harness.makeEditor();
-  harness.PZ.project.save = (archive) => { for (const [name, text] of files) archive.addFile(name, new Blob([text])); };
+  harness.PZ.project.save = (archive) => { addProjectEntries(archive); for (const [name, text] of files) archive.addFile(name, new Blob([text])); };
   const first = await harness.projectFiles.createArchive(editor);
   files.reverse();
   const second = await harness.projectFiles.createArchive(editor);

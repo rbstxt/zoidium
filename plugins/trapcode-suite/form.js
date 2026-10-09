@@ -1,11 +1,19 @@
-﻿// OpenZoid Trapcode Suite — Form (ported verbatim from form.js).
+// OpenZoid Trapcode Suite — Form.
 /*
  * form.js
  *
  * A Trapcode Form style object3d: a static lattice of particles whose base
  * form (box grid, sphere, cylinder, ...) can be deformed by disperse, twist,
- * spherical field and fractal field. Strings connect neighbouring points.
- * Lives inside a normal 3D Scene layer and uses the shared property system.
+ * spherical fields, a fractal field, fluid motion and kaleidospace mirrors.
+ * Layer maps and a 3D model or mask image drive the base shape. Strings
+ * connect neighbouring points.
+ *
+ * Determinism: the output of update(e) is a pure function of the property
+ * values at time e and of the decoded asset data. Base geometry is rebuilt
+ * when its signature (grid counts, base type, size, model/mask status)
+ * changes, never because of frame history. Assets load through prepare(e),
+ * which the host awaits before rendering, and update(e) runs again after the
+ * data settles, so a frame never mixes fallback and loaded data.
  */
 
 var PZ = PZ || {};
@@ -66,6 +74,20 @@ var PZ = PZ || {};
         "}",
     ].join("\n");
 
+    // Layer maps: [enabled property, layer property, role].
+    var LAYER_MAPS = [
+        ["colorAlphaEnabled", "colorAlphaLayer"],
+        ["displacementEnabled", "displacementLayer"],
+        ["sizeEnabled", "sizeLayer"],
+        ["fractalStrengthEnabled", "fractalStrengthLayer"],
+        ["disperseEnabled", "disperseLayer"],
+        ["rotateEnabled", "rotateLayer"],
+    ];
+
+    // Scratch buffers reused by every frame (single-threaded render path).
+    var MAP_RGBA = new Float64Array(4);
+    var SPHERE_OUT = new Float64Array(3);
+
     PZ.object3d.form = class extends PZ.object3d {
         constructor() {
             super();
@@ -76,7 +98,7 @@ var PZ = PZ || {};
         }
         load(e) {
             this.properties.load(e && e.properties);
-            if ("object" == typeof e && e.forms && e.forms.length) {
+            if (e && "object" == typeof e && e.forms && e.forms.length) {
                 for (var i = 0; i < e.forms.length; i++) {
                     var instance = new PZ.object3d.form.instance();
                     this.forms.push(instance);
@@ -99,6 +121,7 @@ var PZ = PZ || {};
             for (var i = 0; i < this.forms.length; i++) this.forms[i].update(e);
         }
         async prepare(e) {
+            PZ.trapcode.setTime(e);
             for (var i = 0; i < this.forms.length; i++) await this.forms[i].prepare(e);
         }
     };
@@ -123,8 +146,17 @@ var PZ = PZ || {};
             this.strings = null;
             this.stringMaterial = null;
             this.basePositions = null;
-            this.fractions = null;
-            this._count = -1;
+            this.outPositions = null;
+            this.sizeModArray = null;
+            this.alphaModArray = null;
+            this.colorArray = null;
+            this.colorAttribute = null;
+            this._baseSig = null;
+            this._stringKey = null;
+            this._useVColor = false;
+            this._time = undefined;
+            this._renderedRevision = -1;
+            this._assets = new T.AssetCache(this.assetSettled.bind(this));
             this.palettes = {
                 colorOver: T.createPalette(),
                 sizeOver: T.createPalette(),
@@ -135,14 +167,12 @@ var PZ = PZ || {};
                     name: PZ.property.create(PZ.object3d.form.instance.propertyDefinitions.name),
                     base: new PZ.propertyList(PZ.object3d.form.instance.baseDefinitions),
                     particle: new PZ.propertyList(PZ.object3d.form.instance.particleDefinitions),
-                    shading: new PZ.propertyList(PZ.object3d.form.instance.shadingDefinitions),
                     disperse: new PZ.propertyList(PZ.object3d.form.instance.disperseDefinitions),
                     fluid: new PZ.propertyList(PZ.object3d.form.instance.fluidDefinitions),
                     fractal: new PZ.propertyList(PZ.object3d.form.instance.fractalDefinitions),
                     spherical: new PZ.propertyList(PZ.object3d.form.instance.sphericalDefinitions),
                     kaleidospace: new PZ.propertyList(PZ.object3d.form.instance.kaleidoDefinitions),
                     layerMaps: new PZ.propertyList(PZ.object3d.form.instance.layerMapDefinitions),
-                    audio: new PZ.propertyList(PZ.object3d.form.instance.audioDefinitions),
                     transform: new PZ.propertyList(PZ.object3d.form.instance.transformDefinitions),
                 },
                 this
@@ -150,14 +180,12 @@ var PZ = PZ || {};
             var groups = {
                 base: "Base Form",
                 particle: "Particle",
-                shading: "Shading",
                 disperse: "Disperse and Twist",
                 fluid: "Fluid",
                 fractal: "Fractal Field",
                 spherical: "Spherical Field",
                 kaleidospace: "Kaleidospace",
                 layerMaps: "Layer Maps",
-                audio: "Audio React",
                 transform: "Transform",
             };
             for (var g in groups) {
@@ -194,7 +222,8 @@ var PZ = PZ || {};
                 parentForm.threeObj.add(this.threeObj);
             }
             this.redrawTexture();
-            this._count = -1;
+            this._baseSig = null;
+            this._stringKey = null;
         }
         toJSON() {
             return { type: this.type, properties: this.properties };
@@ -211,6 +240,7 @@ var PZ = PZ || {};
                 this.palettes.opacityOver.dispose();
                 this.palettes = null;
             }
+            this._assets.clear();
             if (this.texture) {
                 var project = this.tryGetParentOfType(PZ.project);
                 project && project.assets.unload(this.texture);
@@ -247,6 +277,7 @@ var PZ = PZ || {};
                     opacity: { type: "f", value: 1 },
                     colorTint: { type: "v4", value: new THREE.Vector4(1, 1, 1, 1) },
                 },
+                defines: {},
                 vertexShader: VERTEX_SHADER,
                 fragmentShader: FRAGMENT_SHADER,
                 transparent: true,
@@ -276,9 +307,10 @@ var PZ = PZ || {};
         }
         gridCounts() {
             var base = this.properties.base;
-            var cx = Math.max(1, Math.round(base.particlesX.get(PZ.trapcode.currentTime)));
-            var cy = Math.max(1, Math.round(base.particlesY.get(PZ.trapcode.currentTime)));
-            var cz = Math.max(1, Math.round(base.particlesZ.get(PZ.trapcode.currentTime)));
+            var t = PZ.trapcode.currentTime;
+            var cx = Math.max(1, Math.round(base.particlesX.get(t)));
+            var cy = Math.max(1, Math.round(base.particlesY.get(t)));
+            var cz = Math.max(1, Math.round(base.particlesZ.get(t)));
             var total = cx * cy * cz;
             if (total > PZ.object3d.form.instance.maxPoints) {
                 var factor = Math.cbrt(PZ.object3d.form.instance.maxPoints / total);
@@ -294,153 +326,159 @@ var PZ = PZ || {};
             }
             return [cx, cy, cz];
         }
-        basePointCount() {
-            var counts = this.gridCounts();
-            return counts[0] * counts[1] * counts[2];
-        }
-        rebuildPoints() {
-            if (!this.points) this.rebuildMaterial();
+        // Everything that shapes the base lattice. Asset status is part of the
+        // signature, so the lattice rebuilds once a model or mask settles.
+        baseSignature(counts) {
+            var t = PZ.trapcode.currentTime;
             var base = this.properties.base;
-            var counts = this.gridCounts();
-            var count = counts[0] * counts[1] * counts[2];
-            this._count = count;
-            var size = base.baseFormSize.get(PZ.trapcode.currentTime);
-            var positions = new Float32Array(count * 3);
+            var modelValue = base.modelAsset.get(t);
+            var maskValue = base.maskAsset.get(t);
+            return [
+                counts.join(","),
+                base.baseFormType.get(t),
+                base.baseFormSize.get(t).join(","),
+                base.modelScale.get(t),
+                modelValue, this._assets.status("model", modelValue),
+                maskValue, this._assets.status("mask", maskValue),
+            ].join("|");
+        }
+        // Asset requests for the current frame. Loads start here; the entries
+        // are returned so prepare() can wait on them.
+        requestAssets() {
+            var t = PZ.trapcode.currentTime;
+            var base = this.properties.base;
+            var maps = this.properties.layerMaps;
+            var project = this.tryGetParentOfType(PZ.project);
+            var entries = [];
+            var type = base.baseFormType.get(t);
+            if (type === 6) {
+                entries.push(this._assets.request("model", base.modelAsset.get(t), function (value) {
+                    return T.loadGeometryPositions(project, value);
+                }));
+            }
+            if (type === 7) {
+                entries.push(this._assets.request("mask", base.maskAsset.get(t), function (value) {
+                    return T.sampleImageAsset(project, value, 256);
+                }));
+            }
+            for (var i = 0; i < LAYER_MAPS.length; i++) {
+                if (maps[LAYER_MAPS[i][0]].get(t) !== 1) continue;
+                var layer = maps[LAYER_MAPS[i][1]].get(t);
+                entries.push(this._assets.request("layer", layer, function (value) {
+                    return T.sampleImageAsset(project, value, 128);
+                }));
+            }
+            return entries.filter(Boolean);
+        }
+        // Called when any asset settles: re-run the frame that was last shown.
+        assetSettled() {
+            if (this._time !== undefined && this.material) this.update(this._time);
+        }
+        // Rebuilds the particle attributes for a new grid size.
+        ensureGeometry(count) {
+            if (!this.points) this.rebuildMaterial();
+            var geometry = this.points.geometry;
+            if (geometry.attributes.position && geometry.attributes.position.count === count) return;
+            if (geometry.dispose) geometry.dispose();
             var fractions = new Float32Array(count);
             var pid = new Float32Array(count);
+            for (var i = 0; i < count; i++) {
+                fractions[i] = count > 1 ? i / (count - 1) : 0;
+                pid[i] = i;
+            }
+            this.outPositions = new Float32Array(count * 3);
+            this.sizeModArray = new Float32Array(count).fill(1);
+            this.alphaModArray = new Float32Array(count).fill(1);
+            this.colorArray = new Float32Array(count * 3).fill(1);
+            geometry = new THREE.BufferGeometry();
+            geometry.addAttribute("position", new THREE.BufferAttribute(this.outPositions, 3));
+            geometry.addAttribute("fraction", new THREE.BufferAttribute(fractions, 1));
+            geometry.addAttribute("pid", new THREE.BufferAttribute(pid, 1));
+            geometry.addAttribute("aSizeM", new THREE.BufferAttribute(this.sizeModArray, 1));
+            geometry.addAttribute("aAlphaM", new THREE.BufferAttribute(this.alphaModArray, 1));
+            this.colorAttribute = new THREE.BufferAttribute(this.colorArray, 3);
+            geometry.addAttribute("vcolor", this.colorAttribute);
+            this.points.geometry = geometry;
+            this._stringKey = null;
+        }
+        // Fills basePositions for the current grid and base type.
+        fillBase(counts) {
+            var t = PZ.trapcode.currentTime;
+            var base = this.properties.base;
+            var count = counts[0] * counts[1] * counts[2];
+            var size = base.baseFormSize.get(t);
+            var type = base.baseFormType.get(t);
+            if (!this.basePositions || this.basePositions.length !== count * 3) {
+                this.basePositions = new Float32Array(count * 3);
+            }
+            var positions = this.basePositions;
             var index = 0;
+            var write = function (p) {
+                positions[index * 3] = p[0];
+                positions[index * 3 + 1] = p[1];
+                positions[index * 3 + 2] = p[2];
+                index++;
+            };
+            if (type === 6 || type === 7) {
+                var sampled = type === 6
+                    ? this.sampleModel(count, size, this._assets.ready("model", base.modelAsset.get(t)))
+                    : this.sampleMask(count, size, this._assets.ready("mask", base.maskAsset.get(t)));
+                for (var m = 0; m < count; m++) write(sampled[m] || [0, 0, 0]);
+                return;
+            }
             var totalX = counts[0] - 1;
             var totalY = counts[1] - 1;
             var totalZ = counts[2] - 1;
-            var type = base.baseFormType.get(PZ.trapcode.currentTime);
-
-            if (type === 6) {
-                var meshPoints = this.sampleModel(count, size);
-                for (var m = 0; m < count; m++) {
-                    var mp = meshPoints[m] || [0, 0, 0];
-                    positions[index * 3] = mp[0];
-                    positions[index * 3 + 1] = mp[1];
-                    positions[index * 3 + 2] = mp[2];
-                    fractions[index] = count > 1 ? index / (count - 1) : 0;
-                    pid[index] = index;
-                    index++;
-                }
-            } else if (type === 7) {
-                var maskPoints = this.sampleMask(count, size);
-                for (var n = 0; n < count; n++) {
-                    var np = maskPoints[n] || [0, 0, 0];
-                    positions[index * 3] = np[0];
-                    positions[index * 3 + 1] = np[1];
-                    positions[index * 3 + 2] = np[2];
-                    fractions[index] = count > 1 ? index / (count - 1) : 0;
-                    pid[index] = index;
-                    index++;
-                }
-            } else {
-                for (var z = 0; z < counts[2]; z++) {
-                    for (var y = 0; y < counts[1]; y++) {
-                        for (var x = 0; x < counts[0]; x++) {
-                            var p;
-                            if (type === 1) {
-                                p = spherePoint(x, y, z, counts, size);
-                            } else if (type === 2) {
-                                p = sphereGridPoint(x, y, z, counts, size);
-                            } else if (type === 3) {
-                                p = cylinderPoint(x, y, z, counts, size);
-                            } else if (type === 4) {
-                                p = circlePoint(x, y, z, counts, size);
-                            } else if (type === 5) {
-                                p = planePoint(x, y, z, counts, size);
-                            } else {
-                                p = boxPoint(x, y, z, totalX, totalY, totalZ, size);
-                            }
-                            positions[index * 3] = p[0];
-                            positions[index * 3 + 1] = p[1];
-                            positions[index * 3 + 2] = p[2];
-                            fractions[index] = count > 1 ? index / (count - 1) : 0;
-                            pid[index] = index;
-                            index++;
-                        }
+            for (var z = 0; z < counts[2]; z++) {
+                for (var y = 0; y < counts[1]; y++) {
+                    for (var x = 0; x < counts[0]; x++) {
+                        var p;
+                        if (type === 1) p = spherePoint(x, y, z, counts, size);
+                        else if (type === 2) p = sphereGridPoint(x, y, z, counts, size);
+                        else if (type === 3) p = cylinderPoint(x, y, z, counts, size);
+                        else if (type === 4) p = circlePoint(x, y, z, counts, size);
+                        else if (type === 5) p = planePoint(x, y, z, counts, size);
+                        else p = boxPoint(x, y, z, totalX, totalY, totalZ, size);
+                        write(p);
                     }
                 }
             }
-            this.basePositions = positions;
-            this.fractions = fractions;
-            if (this.points.geometry) this.points.geometry.dispose();
-            var geometry = new THREE.BufferGeometry();
-            geometry.addAttribute("position", new THREE.BufferAttribute(new Float32Array(positions), 3));
-            geometry.addAttribute("fraction", new THREE.BufferAttribute(fractions, 1));
-            geometry.addAttribute("pid", new THREE.BufferAttribute(pid, 1));
-            var ones = new Float32Array(count);
-            for (var q = 0; q < count; q++) ones[q] = 1;
-            geometry.addAttribute("aSizeM", new THREE.BufferAttribute(new Float32Array(ones), 1));
-            geometry.addAttribute("aAlphaM", new THREE.BufferAttribute(new Float32Array(ones), 1));
-            this.points.geometry = geometry;
-            this.rebuildStrings(counts);
         }
-        sampleModel(count, size) {
+        rebuildBase(counts, signature) {
+            this.ensureGeometry(counts[0] * counts[1] * counts[2]);
+            this.fillBase(counts);
+            this._baseSig = signature;
+        }
+        sampleModel(count, size, vertices) {
             var base = this.properties.base;
-            if (!this._modelVertices) this.loadModel();
-            if (!this._modelVertices || !this._modelVertices.length) {
-                var fallback = [];
+            var t = PZ.trapcode.currentTime;
+            var points = [];
+            if (!vertices || !vertices.length) {
                 for (var f = 0; f < count; f++) {
-                    fallback.push([
+                    points.push([
                         (rand(f * 3) - 0.5) * size[0],
                         (rand(f * 3 + 1) - 0.5) * size[1],
                         (rand(f * 3 + 2) - 0.5) * size[2],
                     ]);
                 }
-                return fallback;
+                return points;
             }
-            var source = this._modelVertices;
-            var vertexCount = source.length / 3;
-            var points = [];
-            var scaleX = (base.modelScale ? base.modelScale.get(PZ.trapcode.currentTime) : 100) / 100;
+            var vertexCount = vertices.length / 3;
+            var scale = (base.modelScale ? base.modelScale.get(t) : 100) / 100;
             for (var i = 0; i < count; i++) {
                 var vi = (i * 7) % vertexCount;
-                points.push([
-                    source[vi * 3] * scaleX,
-                    source[vi * 3 + 1] * scaleX,
-                    source[vi * 3 + 2] * scaleX,
-                ]);
+                points.push([vertices[vi * 3] * scale, vertices[vi * 3 + 1] * scale, vertices[vi * 3 + 2] * scale]);
             }
             return points;
         }
-        loadModel() {
-            var self = this;
-            var base = this.properties.base;
-            var value = base.modelAsset ? base.modelAsset.get(PZ.trapcode.currentTime) : null;
-            var project = this.tryGetParentOfType(PZ.project);
-            if (!value || !project || this._modelLoading) return;
-            this._modelLoading = true;
-            var asset = new PZ.asset.geometry(project.assets.load(value));
-            asset.getGeometry()
-                .then(function (geometry) {
-                    if (geometry && geometry.attributes && geometry.attributes.position) {
-                        self._modelVertices = geometry.attributes.position.array;
-                        self._count = -1;
-                    }
-                    self._modelLoading = false;
-                })
-                .catch(function () {
-                    self._modelLoading = false;
-                });
-        }
-        sampleMask(count, size) {
-            if (!this._maskSample && !this._maskLoading) this.loadMask();
-            if (!this._maskSample) {
-                var fallback = [];
-                for (var f = 0; f < count; f++) {
-                    fallback.push([
-                        (rand(f * 3) - 0.5) * size[0],
-                        (rand(f * 3 + 1) - 0.5) * size[1],
-                        0,
-                    ]);
-                }
-                return fallback;
-            }
-            var sample = this._maskSample;
+        sampleMask(count, size, sample) {
             var points = [];
+            if (!sample) {
+                for (var f = 0; f < count; f++) {
+                    points.push([(rand(f * 3) - 0.5) * size[0], (rand(f * 3 + 1) - 0.5) * size[1], 0]);
+                }
+                return points;
+            }
             var attempts = 0;
             while (points.length < count && attempts < count * 20) {
                 attempts++;
@@ -458,84 +496,18 @@ var PZ = PZ || {};
             }
             return points;
         }
-        loadMask() {
-            var self = this;
-            var base = this.properties.base;
-            var value = base.maskAsset ? base.maskAsset.get(PZ.trapcode.currentTime) : null;
-            var project = this.tryGetParentOfType(PZ.project);
-            if (!value || !project) return;
-            this._maskLoading = true;
-            var asset = new PZ.asset.image(project.assets.load(value));
-            asset.loading
-                .then(function () {
-                    var image = asset.data.image;
-                    var canvas = document.createElement("canvas");
-                    var width = Math.min(image.width || 256, 256);
-                    var height = Math.min(image.height || 256, 256);
-                    canvas.width = width;
-                    canvas.height = height;
-                    var context = canvas.getContext("2d");
-                    context.drawImage(image, 0, 0, width, height);
-                    self._maskSample = {
-                        data: context.getImageData(0, 0, width, height).data,
-                        width: width,
-                        height: height,
-                    };
-                    self._count = -1;
-                    self._maskLoading = false;
-                })
-                .catch(function () {
-                    self._maskLoading = false;
-                });
-        }
-        sampleLayerMap(property) {
-            var project = this.tryGetParentOfType(PZ.project);
+        layerSample(property) {
             var value = property ? property.get(PZ.trapcode.currentTime) : null;
-            if (!value || !project) return null;
-            var cacheKey = value;
-            var cached = this._layerCache && this._layerCache[cacheKey];
-            if (cached) return cached;
-            var asset = new PZ.asset.image(project.assets.load(value));
-            var placeholder = { data: null, width: 0, height: 0, ready: false };
-            if (!this._layerCache) this._layerCache = {};
-            this._layerCache[cacheKey] = placeholder;
-            asset.loading
-                .then(function () {
-                    var image = asset.data.image;
-                    var canvas = document.createElement("canvas");
-                    var width = Math.min(image.width || 128, 128);
-                    var height = Math.min(image.height || 128, 128);
-                    canvas.width = width;
-                    canvas.height = height;
-                    var context = canvas.getContext("2d");
-                    context.drawImage(image, 0, 0, width, height);
-                    placeholder.data = context.getImageData(0, 0, width, height).data;
-                    placeholder.width = width;
-                    placeholder.height = height;
-                    placeholder.ready = true;
-                })
-                .catch(function () {});
-            return placeholder;
+            return this._assets.ready("layer", value);
         }
-        layerMapValue(sample, u, v) {
-            if (!sample || !sample.ready || !sample.data) return null;
-            var x = Math.floor(clamp01(u) * (sample.width - 1));
-            var y = Math.floor((1 - clamp01(v)) * (sample.height - 1));
-            var index = (y * sample.width + x) * 4;
-            return [
-                sample.data[index] / 255,
-                sample.data[index + 1] / 255,
-                sample.data[index + 2] / 255,
-                sample.data[index + 3] / 255,
-            ];
-        }
-        rebuildStrings(counts) {
-            var strings = this.properties.base.stringEnabled.get(PZ.trapcode.currentTime);
-            this.strings.visible = strings === 1;
-            if (strings !== 1) return;
+        rebuildStrings(counts, on) {
+            this._stringKey = counts.join(",") + "|" + on;
+            this.strings.visible = on;
+            if (!on) return;
             var nx = counts[0];
             var ny = counts[1];
             var nz = counts[2];
+            var count = nx * ny * nz;
             var indices = [];
             function id(x, y, z) {
                 return z * nx * ny + y * nx + x;
@@ -557,41 +529,43 @@ var PZ = PZ || {};
             if (this.strings.geometry) this.strings.geometry.dispose();
             var geometry = new THREE.BufferGeometry();
             geometry.setIndex(indices);
-            geometry.addAttribute("position", new THREE.BufferAttribute(new Float32Array(this.basePositions.length), 3));
+            geometry.addAttribute("position", new THREE.BufferAttribute(new Float32Array(count * 3), 3));
+            geometry.addAttribute("color", new THREE.BufferAttribute(new Float32Array(count * 3), 3));
             this.strings.geometry = geometry;
         }
         updatePalettes() {
+            var t = PZ.trapcode.currentTime;
             var particle = this.properties.particle;
-            var colorOver = particle.colorOver.get(PZ.trapcode.currentTime);
+            var colorOver = particle.colorOver.get(t);
             if (this._colorSig !== T.signature(colorOver)) {
                 this._colorSig = T.signature(colorOver);
                 T.fillGradient(this.palettes.colorOver, colorOver);
             }
-            var sizeCurve = particle.sizeCurve.get(PZ.trapcode.currentTime);
-            var sizeEnabled = particle.sizeOverEnabled.get(PZ.trapcode.currentTime);
+            var sizeCurve = particle.sizeCurve.get(t);
+            var sizeEnabled = particle.sizeOverEnabled.get(t);
             if (this._sizeSig !== sizeEnabled + "|" + T.signature(sizeCurve)) {
                 this._sizeSig = sizeEnabled + "|" + T.signature(sizeCurve);
                 T.fillCurve(this.palettes.sizeOver, sizeCurve, sizeEnabled);
             }
-            var opacityCurve = particle.opacityCurve.get(PZ.trapcode.currentTime);
-            var opacityEnabled = particle.opacityOverEnabled.get(PZ.trapcode.currentTime);
+            var opacityCurve = particle.opacityCurve.get(t);
+            var opacityEnabled = particle.opacityOverEnabled.get(t);
             if (this._opacitySig !== opacityEnabled + "|" + T.signature(opacityCurve)) {
                 this._opacitySig = opacityEnabled + "|" + T.signature(opacityCurve);
                 T.fillCurve(this.palettes.opacityOver, opacityCurve, opacityEnabled);
             }
         }
-        applyDeformations() {
-            if (!this.basePositions) return;
-            var count = this.basePositions.length / 3;
-            var out = new Float32Array(this.basePositions);
+        applyDeformations(count) {
+            var out = this.outPositions;
+            out.set(this.basePositions);
+            var t = PZ.trapcode.currentTime;
             var base = this.properties.base;
             var disperse = this.properties.disperse;
             var spherical = this.properties.spherical;
             var fractal = this.properties.fractal;
-            var seed = fractal.randomSeed ? fractal.randomSeed.get(PZ.trapcode.currentTime) : 0;
+            var seed = fractal.randomSeed.get(t);
 
-            var rotation = base.rotation.get(PZ.trapcode.currentTime);
-            var basePosition = base.position.get(PZ.trapcode.currentTime);
+            var rotation = base.rotation.get(t);
+            var basePosition = base.position.get(t);
             var cosX = Math.cos((rotation[0] * Math.PI) / 180);
             var sinX = Math.sin((rotation[0] * Math.PI) / 180);
             var cosY = Math.cos((rotation[1] * Math.PI) / 180);
@@ -599,97 +573,95 @@ var PZ = PZ || {};
             var cosZ = Math.cos((rotation[2] * Math.PI) / 180);
             var sinZ = Math.sin((rotation[2] * Math.PI) / 180);
 
-            var disperseAmount = disperse.disperse.get(PZ.trapcode.currentTime);
-            var twist = disperse.twist.get(PZ.trapcode.currentTime);
-            var sphereStrength = spherical.strength.get(PZ.trapcode.currentTime) / 100;
-            var sphereCenterRaw = spherical.position.get(PZ.trapcode.currentTime);
-            var sphereRadius = spherical.radius.get(PZ.trapcode.currentTime);
-            var sphereFeather = Math.max(spherical.feather.get(PZ.trapcode.currentTime) / 100, 0.001);
+            var disperseAmount = disperse.disperse.get(t);
+            var twist = disperse.twist.get(t);
+            var sphereStrength = spherical.strength.get(t) / 100;
+            var sphereCenterRaw = spherical.position.get(t);
+            var sphereRadius = spherical.radius.get(t);
+            var sphereFeather = Math.max(spherical.feather.get(t) / 100, 0.001);
             var sphereScale = [
-                Math.max(spherical.scaleX.get(PZ.trapcode.currentTime) / 100, 0.001),
-                Math.max(spherical.scaleY.get(PZ.trapcode.currentTime) / 100, 0.001),
-                Math.max(spherical.scaleZ.get(PZ.trapcode.currentTime) / 100, 0.001),
+                Math.max(spherical.scaleX.get(t) / 100, 0.001),
+                Math.max(spherical.scaleY.get(t) / 100, 0.001),
+                Math.max(spherical.scaleZ.get(t) / 100, 0.001),
             ];
             var sphereRot = [
-                (spherical.rotationX.get(PZ.trapcode.currentTime) * Math.PI) / 180,
-                (spherical.rotationY.get(PZ.trapcode.currentTime) * Math.PI) / 180,
-                (spherical.rotationZ.get(PZ.trapcode.currentTime) * Math.PI) / 180,
+                (spherical.rotationX.get(t) * Math.PI) / 180,
+                (spherical.rotationY.get(t) * Math.PI) / 180,
+                (spherical.rotationZ.get(t) * Math.PI) / 180,
             ];
-            var sphere2On = spherical.sphereEnabled.get(PZ.trapcode.currentTime) === 1;
-            var sphere2Strength = spherical.sphere2Strength.get(PZ.trapcode.currentTime) / 100;
-            var sphere2CenterRaw = spherical.sphere2Position.get(PZ.trapcode.currentTime);
-            var sphere2Radius = spherical.sphere2Radius.get(PZ.trapcode.currentTime);
-            var fractalAmount = fractal.displace.get(PZ.trapcode.currentTime);
-            var fractalY = fractal.yDisplace.get(PZ.trapcode.currentTime);
-            var fractalZ = fractal.zDisplace.get(PZ.trapcode.currentTime);
-            var dispMode = fractal.displacementMode ? fractal.displacementMode.get(PZ.trapcode.currentTime) : 0;
-            var affectSize = fractal.affectSize ? fractal.affectSize.get(PZ.trapcode.currentTime) : 0;
-            var affectOpacity = fractal.affectOpacity ? fractal.affectOpacity.get(PZ.trapcode.currentTime) : 0;
-            var fScale = fractal.fScale.get(PZ.trapcode.currentTime);
-            var fTime = PZ.trapcode.currentTime / 30;
+            var sphere2On = spherical.sphereEnabled.get(t) === 1;
+            var sphere2Strength = spherical.sphere2Strength.get(t) / 100;
+            var sphere2CenterRaw = spherical.sphere2Position.get(t);
+            var sphere2Radius = spherical.sphere2Radius.get(t);
+            var fractalAmount = fractal.displace.get(t);
+            var fractalY = fractal.yDisplace.get(t);
+            var fractalZ = fractal.zDisplace.get(t);
+            var dispMode = fractal.displacementMode.get(t);
+            var affectSize = fractal.affectSize.get(t);
+            var affectOpacity = fractal.affectOpacity.get(t);
+            var fScale = fractal.fScale.get(t);
+            var fTime = t / 30;
             var fluid = this.properties.fluid;
             var kaleido = this.properties.kaleidospace;
-            var fluidOn = fluid && fluid.fluidMotion.get(PZ.trapcode.currentTime) === 1;
-            var buoyancy = fluidOn ? fluid.buoyancy.get(PZ.trapcode.currentTime) : 0;
-            var swirlOn = fluidOn && fluid.randomSwirl.get(PZ.trapcode.currentTime) === 1;
-            var swirlScale = fluidOn ? fluid.swirlScale.get(PZ.trapcode.currentTime) : 10;
-            var fluidSeed = fluidOn ? fluid.randomSeed.get(PZ.trapcode.currentTime) : 0;
-            var vortexStrength = fluidOn ? fluid.vortexStrength.get(PZ.trapcode.currentTime) / 100 : 0;
-            var vortexCore = fluidOn ? fluid.vortexCoreSize.get(PZ.trapcode.currentTime) : 50;
-            var vortexTilt = fluidOn ? (fluid.vortexTilt.get(PZ.trapcode.currentTime) * Math.PI) / 180 : 0;
-            var vortexRotate = fluidOn ? (fluid.vortexRotate.get(PZ.trapcode.currentTime) * Math.PI) / 180 : 0;
-            var mirrorX = kaleido.mirrorX.get(PZ.trapcode.currentTime) === 1;
-            var mirrorY = kaleido.mirrorY.get(PZ.trapcode.currentTime) === 1;
-            var mirrorZ = kaleido.mirrorZ.get(PZ.trapcode.currentTime) === 1;
-            var kaleidoBehaviour = kaleido.behaviour.get(PZ.trapcode.currentTime);
-            var kaleidoCenterRaw = kaleido.center.get(PZ.trapcode.currentTime);
+            var fluidOn = fluid.fluidMotion.get(t) === 1;
+            var buoyancy = fluidOn ? fluid.buoyancy.get(t) : 0;
+            var swirlOn = fluidOn && fluid.randomSwirl.get(t) === 1;
+            var swirlScale = fluidOn ? fluid.swirlScale.get(t) : 10;
+            var fluidSeed = fluidOn ? fluid.randomSeed.get(t) : 0;
+            var vortexStrength = fluidOn ? fluid.vortexStrength.get(t) / 100 : 0;
+            var vortexCore = fluidOn ? fluid.vortexCoreSize.get(t) : 50;
+            var vortexTilt = fluidOn ? (fluid.vortexTilt.get(t) * Math.PI) / 180 : 0;
+            var vortexRotate = fluidOn ? (fluid.vortexRotate.get(t) * Math.PI) / 180 : 0;
+            var mirrorX = kaleido.mirrorX.get(t) === 1;
+            var mirrorY = kaleido.mirrorY.get(t) === 1;
+            var mirrorZ = kaleido.mirrorZ.get(t) === 1;
+            var kaleidoBehaviour = kaleido.behaviour.get(t);
+            var kaleidoCenterRaw = kaleido.center.get(t);
             // Sphere / kaleido positions are authored in comp pixels (default 720,540).
             // Form particles live around local origin, so map comp coords -> local.
-            function compToLocal(c) {
+            var compToLocal = function (c) {
                 if (!c) return [0, 0, 0];
                 var looksLikeComp = Math.abs(c[0]) > 400 || Math.abs(c[1]) > 400;
                 if (looksLikeComp) return [c[0] - 720, -(c[1] - 540), c[2] || 0];
                 return [c[0], c[1], c[2] || 0];
-            }
+            };
             var sphereCenter = compToLocal(sphereCenterRaw);
             var sphere2Center = compToLocal(sphere2CenterRaw);
             var kaleidoCenter = compToLocal(kaleidoCenterRaw);
             var fractalParams = {
-                complexity: fractal.complexity.get(PZ.trapcode.currentTime),
-                octaveMultiplier: fractal.octaveMultiplier.get(PZ.trapcode.currentTime),
-                octaveScale: fractal.octaveScale.get(PZ.trapcode.currentTime),
-                flowX: fractal.flowX.get(PZ.trapcode.currentTime),
-                flowY: fractal.flowY.get(PZ.trapcode.currentTime),
-                flowZ: fractal.flowZ.get(PZ.trapcode.currentTime),
-                flowEvolution: fractal.flowEvolution.get(PZ.trapcode.currentTime) * 0.01,
-                fractalSum: fractal.fractalSum.get(PZ.trapcode.currentTime),
-                gamma: fractal.gamma.get(PZ.trapcode.currentTime),
-                addSubtract: fractal.addSubtract.get(PZ.trapcode.currentTime),
-                min: fractal.min.get(PZ.trapcode.currentTime),
-                max: fractal.max.get(PZ.trapcode.currentTime),
-                seed: fractal.randomSeed.get(PZ.trapcode.currentTime),
+                complexity: fractal.complexity.get(t),
+                octaveMultiplier: fractal.octaveMultiplier.get(t),
+                octaveScale: fractal.octaveScale.get(t),
+                flowX: fractal.flowX.get(t),
+                flowY: fractal.flowY.get(t),
+                flowZ: fractal.flowZ.get(t),
+                flowEvolution: fractal.flowEvolution.get(t) * 0.01,
+                fractalSum: fractal.fractalSum.get(t),
+                gamma: fractal.gamma.get(t),
+                addSubtract: fractal.addSubtract.get(t),
+                min: fractal.min.get(t),
+                max: fractal.max.get(t),
+                seed: seed,
+                sum: fractal.fractalSum.get(t),
             };
-            fractalParams.sum = fractal.fractalSum.get(PZ.trapcode.currentTime);
             var fractalScale = Math.max(fScale, 0.01) * 0.0005;
             var useFractal = fractalAmount !== 0 || fractalY !== 0 || fractalZ !== 0 || affectSize !== 0 || affectOpacity !== 0;
             var maps = this.properties.layerMaps;
-            var fractalStrengthMapOn = maps.fractalStrengthEnabled.get(PZ.trapcode.currentTime) === 1;
-            var fractalStrengthSample = fractalStrengthMapOn ? this.sampleLayerMap(maps.fractalStrengthLayer) : null;
-            var displacementMapOn = maps.displacementEnabled.get(PZ.trapcode.currentTime) === 1;
-            var displacementSample = displacementMapOn ? this.sampleLayerMap(maps.displacementLayer) : null;
-            var rotateMapOn = maps.rotateEnabled.get(PZ.trapcode.currentTime) === 1;
-            var rotateSample = rotateMapOn ? this.sampleLayerMap(maps.rotateLayer) : null;
-            var colorMapSample = maps.colorAlphaEnabled.get(PZ.trapcode.currentTime) === 1 ? this.sampleLayerMap(maps.colorAlphaLayer) : null;
-            var sizeMapSample = maps.sizeEnabled.get(PZ.trapcode.currentTime) === 1 ? this.sampleLayerMap(maps.sizeLayer) : null;
-            var disperseMapSample = maps.disperseEnabled.get(PZ.trapcode.currentTime) === 1 ? this.sampleLayerMap(maps.disperseLayer) : null;
+            var fractalStrengthSample = maps.fractalStrengthEnabled.get(t) === 1 ? this.layerSample(maps.fractalStrengthLayer) : null;
+            var displacementSample = maps.displacementEnabled.get(t) === 1 ? this.layerSample(maps.displacementLayer) : null;
+            var rotateSample = maps.rotateEnabled.get(t) === 1 ? this.layerSample(maps.rotateLayer) : null;
+            var colorMapSample = maps.colorAlphaEnabled.get(t) === 1 ? this.layerSample(maps.colorAlphaLayer) : null;
+            var sizeMapSample = maps.sizeEnabled.get(t) === 1 ? this.layerSample(maps.sizeLayer) : null;
+            var disperseMapSample = maps.disperseEnabled.get(t) === 1 ? this.layerSample(maps.disperseLayer) : null;
             var useColors = !!colorMapSample;
-            if (useColors && !this.colorArray) this.colorArray = new Float32Array(count * 3);
-            if (useColors && this.colorArray.length !== count * 3) this.colorArray = new Float32Array(count * 3);
-            if (!this.sizeModArray || this.sizeModArray.length !== count) this.sizeModArray = new Float32Array(count);
-            if (!this.alphaModArray || this.alphaModArray.length !== count) this.alphaModArray = new Float32Array(count);
+            this.setVertexColors(useColors);
+
+            var sizeMod = this.sizeModArray;
+            var alphaMod = this.alphaModArray;
+            var colors = this.colorArray;
             for (var zz = 0; zz < count; zz++) {
-                this.sizeModArray[zz] = 1;
-                this.alphaModArray[zz] = 1;
+                sizeMod[zz] = 1;
+                alphaMod[zz] = 1;
             }
 
             var cosSX = Math.cos(-sphereRot[0]);
@@ -698,7 +670,8 @@ var PZ = PZ || {};
             var sinSY = Math.sin(-sphereRot[1]);
             var cosSZ = Math.cos(-sphereRot[2]);
             var sinSZ = Math.sin(-sphereRot[2]);
-            function applySphere(px, py, pz, cx, cy, cz, strength, radius, featherAmt) {
+            // Writes the displaced point to SPHERE_OUT.
+            var applySphere = function (px, py, pz, cx, cy, cz, strength, radius, featherAmt) {
                 var dx = px - cx;
                 var dy = py - cy;
                 var dz = pz - cz;
@@ -725,7 +698,10 @@ var PZ = PZ || {};
                 var influence;
                 if (dist <= sr) influence = 1;
                 else influence = Math.max(0, 1 - (dist - sr) / Math.max(sr * feather, 0.0001));
-                if (influence <= 0 || strength === 0) return [px, py, pz];
+                SPHERE_OUT[0] = px;
+                SPHERE_OUT[1] = py;
+                SPHERE_OUT[2] = pz;
+                if (influence <= 0 || strength === 0) return;
                 var ox = px - cx;
                 var oy = py - cy;
                 var oz = pz - cz;
@@ -737,12 +713,14 @@ var PZ = PZ || {};
                     olen = 1;
                 }
                 var push = strength * influence * sr;
-                return [px + (ox / olen) * push, py + (oy / olen) * push, pz + (oz / olen) * push];
-            }
+                SPHERE_OUT[0] = px + (ox / olen) * push;
+                SPHERE_OUT[1] = py + (oy / olen) * push;
+                SPHERE_OUT[2] = pz + (oz / olen) * push;
+            };
             var swirlFreq = Math.max(swirlScale, 0.01) * 0.002;
-            var buoyOffset = buoyancy * (PZ.trapcode.currentTime / 30) * 4.0;
+            var buoyOffset = buoyancy * (t / 30) * 4.0;
             var vortexCorePx = 20 + (Math.max(0, Math.min(100, vortexCore)) / 100) * 220;
-            var tSec = PZ.trapcode.currentTime / 30;
+            var tSec = t / 30;
 
             for (var i = 0; i < count; i++) {
                 var x = out[i * 3];
@@ -759,13 +737,11 @@ var PZ = PZ || {};
 
                 var dispMod = 1;
                 var fracMod = 1;
-                if (disperseMapSample) {
-                    var dm0 = this.layerMapValue(disperseMapSample, u, v);
-                    if (dm0) dispMod = (dm0[0] + dm0[1] + dm0[2]) / 3;
+                if (disperseMapSample && sampleMap(disperseMapSample, u, v)) {
+                    dispMod = (MAP_RGBA[0] + MAP_RGBA[1] + MAP_RGBA[2]) / 3;
                 }
-                if (fractalStrengthSample) {
-                    var fm0 = this.layerMapValue(fractalStrengthSample, u, v);
-                    if (fm0) fracMod = (fm0[0] + fm0[1] + fm0[2]) / 3;
+                if (fractalStrengthSample && sampleMap(fractalStrengthSample, u, v)) {
+                    fracMod = (MAP_RGBA[0] + MAP_RGBA[1] + MAP_RGBA[2]) / 3;
                 }
 
                 if (disperseAmount !== 0) {
@@ -830,44 +806,35 @@ var PZ = PZ || {};
                     if (affectSize !== 0) {
                         var sm = 1 + nMain * 0.5 * (affectSize / 100);
                         if (sm < 0.05) sm = 0.05;
-                        this.sizeModArray[i] = sm;
+                        sizeMod[i] = sm;
                     }
                     if (affectOpacity !== 0) {
                         var am = 1 + nMain * 0.5 * (affectOpacity / 100);
                         if (am < 0) am = 0;
                         if (am > 1) am = 1;
-                        this.alphaModArray[i] = am;
+                        alphaMod[i] = am;
                     }
                     // Layer-map size modulation
-                    if (sizeMapSample) {
-                        var smv = this.layerMapValue(sizeMapSample, u, v);
-                        if (smv) {
-                            var lum = (smv[0] + smv[1] + smv[2]) / 3;
-                            this.sizeModArray[i] *= 0.2 + lum * 1.6;
-                            this.alphaModArray[i] *= 0.25 + smv[3] * 0.75;
-                        }
+                    if (sizeMapSample && sampleMap(sizeMapSample, u, v)) {
+                        var lum = (MAP_RGBA[0] + MAP_RGBA[1] + MAP_RGBA[2]) / 3;
+                        sizeMod[i] *= 0.2 + lum * 1.6;
+                        alphaMod[i] *= 0.25 + MAP_RGBA[3] * 0.75;
                     }
-                } else if (sizeMapSample) {
-                    var smv2 = this.layerMapValue(sizeMapSample, u, v);
-                    if (smv2) {
-                        var lum2 = (smv2[0] + smv2[1] + smv2[2]) / 3;
-                        this.sizeModArray[i] = 0.2 + lum2 * 1.6;
-                        this.alphaModArray[i] = 0.25 + smv2[3] * 0.75;
-                    }
+                } else if (sizeMapSample && sampleMap(sizeMapSample, u, v)) {
+                    var lum2 = (MAP_RGBA[0] + MAP_RGBA[1] + MAP_RGBA[2]) / 3;
+                    sizeMod[i] = 0.2 + lum2 * 1.6;
+                    alphaMod[i] = 0.25 + MAP_RGBA[3] * 0.75;
                 }
 
                 // Layer-map displacement (along normal-ish Z + slight XY)
-                if (displacementSample) {
-                    var dpm = this.layerMapValue(displacementSample, u, v);
-                    if (dpm) {
-                        var dlum = (dpm[0] + dpm[1] + dpm[2]) / 3 - 0.5;
-                        x += dlum * 60;
-                        y += dlum * 60;
-                        z += (dpm[3] - 0.5) * 120;
-                    }
+                if (displacementSample && sampleMap(displacementSample, u, v)) {
+                    var dlum = (MAP_RGBA[0] + MAP_RGBA[1] + MAP_RGBA[2]) / 3 - 0.5;
+                    x += dlum * 60;
+                    y += dlum * 60;
+                    z += (MAP_RGBA[3] - 0.5) * 120;
                 }
 
-                // Fluid: buoyancy + random swirl + vortex (previously no-ops)
+                // Fluid: buoyancy + random swirl + vortex
                 if (fluidOn) {
                     if (buoyancy !== 0) y += buoyOffset;
                     if (swirlOn) {
@@ -899,9 +866,8 @@ var PZ = PZ || {};
 
                 if (twist !== 0) {
                     var rotExtra = 0;
-                    if (rotateSample) {
-                        var rm = this.layerMapValue(rotateSample, u, v);
-                        if (rm) rotExtra = ((rm[0] + rm[1] + rm[2]) / 3 - 0.5) * 180;
+                    if (rotateSample && sampleMap(rotateSample, u, v)) {
+                        rotExtra = ((MAP_RGBA[0] + MAP_RGBA[1] + MAP_RGBA[2]) / 3 - 0.5) * 180;
                     }
                     var angle = (y * 0.01) * ((twist + rotExtra) * Math.PI) / 180;
                     var ca = Math.cos(angle);
@@ -913,35 +879,26 @@ var PZ = PZ || {};
                 }
 
                 if (sphereStrength !== 0) {
-                    var res = applySphere(x, y, z, sphereCenter[0], sphereCenter[1], sphereCenter[2], sphereStrength, sphereRadius, sphereFeather);
-                    x = res[0];
-                    y = res[1];
-                    z = res[2];
+                    applySphere(x, y, z, sphereCenter[0], sphereCenter[1], sphereCenter[2], sphereStrength, sphereRadius, sphereFeather);
+                    x = SPHERE_OUT[0];
+                    y = SPHERE_OUT[1];
+                    z = SPHERE_OUT[2];
                 }
                 if (sphere2On && sphere2Strength !== 0) {
-                    var res2 = applySphere(x, y, z, sphere2Center[0], sphere2Center[1], sphere2Center[2], sphere2Strength, sphere2Radius, sphereFeather);
-                    x = res2[0];
-                    y = res2[1];
-                    z = res2[2];
+                    applySphere(x, y, z, sphere2Center[0], sphere2Center[1], sphere2Center[2], sphere2Strength, sphere2Radius, sphereFeather);
+                    x = SPHERE_OUT[0];
+                    y = SPHERE_OUT[1];
+                    z = SPHERE_OUT[2];
                 }
 
-                // Kaleidospace (previously no-op)
+                // Kaleidospace
                 if (mirrorX || mirrorY || mirrorZ) {
                     if (kaleidoBehaviour === 1) {
                         // mirror and keep: distribute folded copies on both sides
                         var keep = (i % 2 === 0) ? 1 : -1;
-                        if (mirrorX) {
-                            var kdx = x - kaleidoCenter[0];
-                            x = kaleidoCenter[0] + Math.abs(kdx) * keep;
-                        }
-                        if (mirrorY) {
-                            var kdy = y - kaleidoCenter[1];
-                            y = kaleidoCenter[1] + Math.abs(kdy) * keep;
-                        }
-                        if (mirrorZ) {
-                            var kdz = z - kaleidoCenter[2];
-                            z = kaleidoCenter[2] + Math.abs(kdz) * keep;
-                        }
+                        if (mirrorX) x = kaleidoCenter[0] + Math.abs(x - kaleidoCenter[0]) * keep;
+                        if (mirrorY) y = kaleidoCenter[1] + Math.abs(y - kaleidoCenter[1]) * keep;
+                        if (mirrorZ) z = kaleidoCenter[2] + Math.abs(z - kaleidoCenter[2]) * keep;
                     } else {
                         if (mirrorX) x = kaleidoCenter[0] + Math.abs(x - kaleidoCenter[0]);
                         if (mirrorY) y = kaleidoCenter[1] + Math.abs(y - kaleidoCenter[1]);
@@ -967,107 +924,97 @@ var PZ = PZ || {};
                 out[i * 3 + 2] = z + basePosition[2];
 
                 if (useColors) {
-                    var cm = this.layerMapValue(colorMapSample, u, v);
-                    if (cm) {
-                        this.colorArray[i * 3] = cm[0];
-                        this.colorArray[i * 3 + 1] = cm[1];
-                        this.colorArray[i * 3 + 2] = cm[2];
+                    if (sampleMap(colorMapSample, u, v)) {
+                        colors[i * 3] = MAP_RGBA[0];
+                        colors[i * 3 + 1] = MAP_RGBA[1];
+                        colors[i * 3 + 2] = MAP_RGBA[2];
                     } else {
-                        this.colorArray[i * 3] = 1;
-                        this.colorArray[i * 3 + 1] = 1;
-                        this.colorArray[i * 3 + 2] = 1;
+                        colors[i * 3] = 1;
+                        colors[i * 3 + 1] = 1;
+                        colors[i * 3 + 2] = 1;
                     }
                 }
             }
 
-            var attribute = this.points.geometry.attributes.position;
-            attribute.array.set(out);
-            attribute.needsUpdate = true;
-            if (this.points.geometry.attributes.aSizeM) {
-                if (this.points.geometry.attributes.aSizeM.count !== count) {
-                    this.points.geometry.addAttribute("aSizeM", new THREE.BufferAttribute(new Float32Array(count), 1));
-                    this.points.geometry.addAttribute("aAlphaM", new THREE.BufferAttribute(new Float32Array(count), 1));
-                }
-                this.points.geometry.attributes.aSizeM.array.set(this.sizeModArray);
-                this.points.geometry.attributes.aSizeM.needsUpdate = true;
-                this.points.geometry.attributes.aAlphaM.array.set(this.alphaModArray);
-                this.points.geometry.attributes.aAlphaM.needsUpdate = true;
-            }
+            var geometry = this.points.geometry;
+            geometry.attributes.position.needsUpdate = true;
+            geometry.attributes.aSizeM.needsUpdate = true;
+            geometry.attributes.aAlphaM.needsUpdate = true;
             if (useColors) {
-                if (!this.points.geometry.attributes.vcolor) {
-                    this.points.geometry.addAttribute(
-                        "vcolor",
-                        new THREE.BufferAttribute(new Float32Array(count * 3), 3)
-                    );
-                }
-                if (this.points.geometry.attributes.vcolor.count !== count) {
-                    this.points.geometry.addAttribute(
-                        "vcolor",
-                        new THREE.BufferAttribute(new Float32Array(count * 3), 3)
-                    );
-                }
-                this.points.geometry.attributes.vcolor.array.set(this.colorArray);
-                this.points.geometry.attributes.vcolor.needsUpdate = true;
-                this.material.defines.USE_VCOLOR = 1;
-                this.material.needsUpdate = true;
-            } else if (this.points.geometry.attributes.vcolor) {
-                this.points.geometry.removeAttribute("vcolor");
-                delete this.material.defines.USE_VCOLOR;
-                this.material.needsUpdate = true;
+                this.colorAttribute.needsUpdate = true;
             }
             if (this.strings && this.strings.visible) {
-                var stringAttribute = this.strings.geometry.attributes.position;
-                stringAttribute.array.set(out);
-                stringAttribute.needsUpdate = true;
-                if (!this.strings.geometry.attributes.color) {
-                    this.strings.geometry.addAttribute(
-                        "color",
-                        new THREE.BufferAttribute(new Float32Array(count * 3), 3)
-                    );
-                }
-                var grad = this.properties.particle.colorOver.get(PZ.trapcode.currentTime);
-                var cols = this.strings.geometry.attributes.color.array;
-                for (var s = 0; s < count; s++) {
-                    var fr = count > 1 ? s / (count - 1) : 0;
-                    var gc = T.gradientColor(grad, fr);
-                    cols[s * 3] = gc[0];
-                    cols[s * 3 + 1] = gc[1];
-                    cols[s * 3 + 2] = gc[2];
-                }
-                this.strings.geometry.attributes.color.needsUpdate = true;
+                this.updateStrings(count);
             }
+        }
+        // Copies the displaced lattice into the string geometry and colors each
+        // point from the color-over ramp (sampled from the palette texture).
+        updateStrings(count) {
+            var geometry = this.strings.geometry;
+            geometry.attributes.position.array.set(this.outPositions);
+            geometry.attributes.position.needsUpdate = true;
+            var ramp = this.palettes.colorOver.image.data;
+            var cols = geometry.attributes.color.array;
+            for (var s = 0; s < count; s++) {
+                var ri = Math.round((count > 1 ? s / (count - 1) : 0) * 255) * 4;
+                cols[s * 3] = ramp[ri] / 255;
+                cols[s * 3 + 1] = ramp[ri + 1] / 255;
+                cols[s * 3 + 2] = ramp[ri + 2] / 255;
+            }
+            geometry.attributes.color.needsUpdate = true;
+        }
+        setVertexColors(on) {
+            if (on === this._useVColor) return;
+            this._useVColor = on;
+            if (on) this.material.defines.USE_VCOLOR = 1;
+            else delete this.material.defines.USE_VCOLOR;
+            this.material.needsUpdate = true;
         }
         update(e) {
             PZ.trapcode.setTime(e);
+            this._time = e;
             if (!this.material) this.rebuildMaterial();
+            var t = PZ.trapcode.currentTime;
             var base = this.properties.base;
             var counts = this.gridCounts();
             var count = counts[0] * counts[1] * counts[2];
-            if (this._count !== count) this.rebuildPoints();
-            else if (this.strings.visible !== (base.stringEnabled.get(PZ.trapcode.currentTime) === 1)) this.rebuildStrings(counts);
+            this.requestAssets();
+            var signature = this.baseSignature(counts);
+            if (signature !== this._baseSig) this.rebuildBase(counts, signature);
+            var stringsOn = base.stringEnabled.get(t) === 1;
+            if (this._stringKey !== counts.join(",") + "|" + stringsOn) this.rebuildStrings(counts, stringsOn);
             this.updatePalettes();
-            if (this.stringMaterial) {
-                var sOn = this.properties.base.stringEnabled.get(PZ.trapcode.currentTime) === 1;
-                this.stringMaterial.opacity = sOn ? this.properties.particle.opacity.get(PZ.trapcode.currentTime) / 100 : 0.5;
-                this.stringMaterial.blending = this.properties.particle.blending.get(PZ.trapcode.currentTime) === 1 ? THREE.AdditiveBlending : THREE.NormalBlending;
-                this.stringMaterial.needsUpdate = true;
-            }
-            this.applyDeformations();
+            this.applyDeformations(count);
+
+            var particle = this.properties.particle;
             var u = this.material.uniforms;
-            u.size.value = this.properties.particle.size.get(PZ.trapcode.currentTime);
-            u.sizeRandom.value = this.properties.particle.sizeRandom.get(PZ.trapcode.currentTime) / 100;
-            u.opacity.value = this.properties.particle.opacity.get(PZ.trapcode.currentTime) / 100;
-            var tint = this.properties.particle.color.get(PZ.trapcode.currentTime);
+            u.size.value = particle.size.get(t);
+            u.sizeRandom.value = particle.sizeRandom.get(t) / 100;
+            u.opacity.value = particle.opacity.get(t) / 100;
+            var tint = particle.color.get(t);
             u.colorTint.value.set(tint[0], tint[1], tint[2], 1);
-            this.material.blending = this.properties.particle.blending.get(PZ.trapcode.currentTime) === 1 ? THREE.AdditiveBlending : THREE.NormalBlending;
-            this.material.needsUpdate = true;
+            var additive = particle.blending.get(t) === 1;
+            this.material.blending = additive ? THREE.AdditiveBlending : THREE.NormalBlending;
+            if (this.stringMaterial) {
+                this.stringMaterial.opacity = stringsOn ? particle.opacity.get(t) / 100 : 0.5;
+                this.stringMaterial.blending = additive ? THREE.AdditiveBlending : THREE.NormalBlending;
+            }
             var transform = this.properties.transform;
-            this.threeObj.position.set(transform.offsetX.get(PZ.trapcode.currentTime), transform.offsetY.get(PZ.trapcode.currentTime), transform.offsetZ.get(PZ.trapcode.currentTime));
-            var scale = transform.scale.get(PZ.trapcode.currentTime) / 100;
+            this.threeObj.position.set(transform.offsetX.get(t), transform.offsetY.get(t), transform.offsetZ.get(t));
+            var scale = transform.scale.get(t) / 100;
             this.threeObj.scale.set(scale, scale, scale);
+            this._renderedRevision = this._assets.revision;
         }
+        // Waits for every asset this frame needs, then makes sure the frame was
+        // computed with the settled data.
         async prepare(e) {
-            if (this.texture) await this.texture.loading;
+            PZ.trapcode.setTime(e);
+            var waits = this.requestAssets().map(function (entry) { return entry.promise; });
+            if (this.texture && this.texture.loading) waits.push(this.texture.loading);
+            await Promise.all(waits);
+            if (!this.material || this._time !== e || this._renderedRevision !== this._assets.revision) {
+                this.update(e);
+            }
         }
     };
 
@@ -1135,19 +1082,28 @@ var PZ = PZ || {};
             freq *= octaveScale;
         }
         var value = norm > 0 ? sum / norm : 0;
-        value = (value - params.addSubtract);
+        value = value - params.addSubtract;
         if (params.gamma !== 1) {
             var sign = value < 0 ? -1 : 1;
             value = sign * Math.pow(Math.abs(value), params.gamma);
         }
-        var range = (params.max - params.min);
+        var range = params.max - params.min;
         if (range !== 0) value = value * range * 0.5 + (params.max + params.min) * 0.5;
         return value;
     }
 
-    function noise3(x, y, z) {
-        var n = Math.sin(x * 12.9898 + y * 78.233 + z * 37.719) * 43758.5453;
-        return (n - Math.floor(n)) * 2 - 1;
+    // Samples a decoded layer map at (u, v) into MAP_RGBA. Returns false when
+    // the map has no data.
+    function sampleMap(sample, u, v) {
+        if (!sample || !sample.data) return false;
+        var x = Math.floor(clamp01(u) * (sample.width - 1));
+        var y = Math.floor((1 - clamp01(v)) * (sample.height - 1));
+        var index = (y * sample.width + x) * 4;
+        MAP_RGBA[0] = sample.data[index] / 255;
+        MAP_RGBA[1] = sample.data[index + 1] / 255;
+        MAP_RGBA[2] = sample.data[index + 2] / 255;
+        MAP_RGBA[3] = sample.data[index + 3] / 255;
+        return true;
     }
 
     function rand(seed) {
@@ -1195,13 +1151,13 @@ var PZ = PZ || {};
         return [Math.cos(angle) * radius, height, Math.sin(angle) * radius];
     }
 
-        function circlePoint(x, y, z, counts, size) {
-            var angle = (y / counts[1]) * Math.PI * 2;
-            var ring = counts[0] > 1 ? x / (counts[0] - 1) : 0;
-            var radius = ((size[0] + size[1]) / 4) * ring;
-            var depth = (counts[2] > 1 ? z / (counts[2] - 1) - 0.5 : 0) * size[2];
-            return [Math.cos(angle) * radius, Math.sin(angle) * radius, depth];
-        }
+    function circlePoint(x, y, z, counts, size) {
+        var angle = (y / counts[1]) * Math.PI * 2;
+        var ring = counts[0] > 1 ? x / (counts[0] - 1) : 0;
+        var radius = ((size[0] + size[1]) / 4) * ring;
+        var depth = (counts[2] > 1 ? z / (counts[2] - 1) - 0.5 : 0) * size[2];
+        return [Math.cos(angle) * radius, Math.sin(angle) * radius, depth];
+    }
 
     function planePoint(x, y, z, counts, size) {
         var p = boxPoint(x, y, 0, counts[0] - 1, counts[1] - 1, 0, size);
@@ -1229,21 +1185,12 @@ var PZ = PZ || {};
         position: vector3("Position", [0, 0, 0], { step: 1 }),
         rotation: vector3("Rotation", [0, 0, 0], { step: 1 }),
         stringEnabled: option("Strings", 0, "off;on"),
-        stringSize: number("String size", 0, { min: 0, step: 0.01, decimals: 2 }),
-        stringDensity: number("String density", 15, { min: 0, step: 1 }),
-        stringSizeRandom: number("String size random", 0, { min: 0, step: 0.01, decimals: 2 }),
-        stringPosition: number("String position distribution", 0, { min: 0, step: 0.01, decimals: 2 }),
         modelAsset: {
             name: "3D model",
             type: PZ.property.type.ASSET,
             assetType: PZ.asset.type.GEOMETRY,
             accept: ".json,application/json",
             value: null,
-            changed: function () {
-                this.parentObject._modelVertices = null;
-                this.parentObject._count = -1;
-                this.parentObject.loadModel();
-            },
         },
         modelScale: number("Model scale", 100, { min: 0, step: 1 }),
         maskAsset: {
@@ -1252,18 +1199,11 @@ var PZ = PZ || {};
             assetType: PZ.asset.type.IMAGE,
             accept: "image/*",
             value: null,
-            changed: function () {
-                this.parentObject._maskSample = null;
-                this.parentObject._count = -1;
-                this.parentObject.loadMask();
-            },
         },
     };
 
     PZ.object3d.form.instance.particleDefinitions = {
         name: { name: "Name", type: PZ.property.type.TEXT, value: "Particle", visible: false },
-        particleType: option("Particle Type", 0, "sphere;box;plane;sprite;text", true),
-        sphereFeather: number("Sphere Feather", 50, { min: 0, max: 100, step: 0.1, decimals: 1 }),
         texture: {
             name: "Texture",
             type: PZ.property.type.ASSET,
@@ -1276,18 +1216,13 @@ var PZ = PZ || {};
                 this.parentObject.redrawTexture();
             },
         },
-        rotation: number("Rotation", 0, { step: 1 }),
         size: number("Size", 2, { min: 0, step: 0.1, decimals: 2 }),
         sizeRandom: number("Size Random", 0, { min: 0, max: 100, step: 0.1, decimals: 1 }),
         sizeOverEnabled: option("Size Over", 0, "off;on"),
         sizeCurve: curveProperty("Size Curve"),
-        sizeCurveOffset: number("Size Curve Offset", 100, { step: 0.1, decimals: 1 }),
         opacity: number("Opacity", 100, { min: 0, max: 100, step: 0.1, decimals: 1 }),
-        opacityRandom: number("Opacity Random", 0, { min: 0, max: 100, step: 0.1, decimals: 1 }),
         opacityOverEnabled: option("Opacity Over", 0, "off;on"),
         opacityCurve: curveProperty("Opacity Curve"),
-        opacityCurveOffset: number("Opacity Curve Offset", 100, { step: 0.1, decimals: 1 }),
-        setColor: option("Set Color", 0, "solid color;over;random", true),
         color: {
             dynamic: true,
             group: true,
@@ -1299,43 +1234,19 @@ var PZ = PZ || {};
             name: "Color",
             type: PZ.property.type.COLOR,
         },
-        colorRandom: number("Color Random", 0, { min: 0, max: 100, step: 0.1, decimals: 1 }),
         colorOver: gradientProperty("Color Over"),
-        blending: option("Blend Mode", 0, "normal;add;screen;multiply", true),
-        unmult: option("Unmult", 0, "off;on", false),
-        streaklet: option("Streaklet", 0, "off;on", true),
-        randomSeed: number("Random Seed", 0, { step: 1, decimals: 0 }),
-    };
-
-    PZ.object3d.form.instance.shadingDefinitions = {
-        name: { name: "Name", type: PZ.property.type.TEXT, value: "Shading", visible: false },
-        shading: option("Shading", 0, "off;on", true),
-        lightFalloff: option("Light Falloff", 0, "natural (lux);inverse square;inverse cube;none", false),
-        nominalDistance: number("Nominal Distance", 250, { step: 1 }),
-        ambient: number("Ambient", 20, { min: 0, max: 100, step: 0.1, decimals: 1 }),
-        diffuse: number("Diffuse", 80, { min: 0, max: 100, step: 0.1, decimals: 1 }),
-        specularAmount: number("Specular Amount", 0, { min: 0, max: 100, step: 0.1, decimals: 1 }),
-        specularSharpness: number("Specular Sharpness", 100, { min: 0, max: 100, step: 0.1, decimals: 1 }),
-        reflectionStrength: number("Reflection Strength", 100, { min: 0, step: 0.1, decimals: 1 }),
-        shadowlet: option("Shadowlet", 0, "off;on", false),
+        blending: option("Blend Mode", 0, "normal;add", true),
     };
 
     PZ.object3d.form.instance.disperseDefinitions = {
         name: { name: "Name", type: PZ.property.type.TEXT, value: "Disperse", visible: false },
         disperse: number("Disperse", 0, { step: 1 }),
-        disperseStrengthOver: option("Disperse Strength Over", 0, "off;life;velocity;position", false),
-        disperseStrengthCurve: curveProperty("Disperse Strength Curve"),
-        disperseStrengthOffset: number("Disperse Strength Offset", 100, { step: 0.1, decimals: 1 }),
         twist: number("Twist", 0, { step: 1 }),
     };
 
     PZ.object3d.form.instance.fluidDefinitions = {
         name: { name: "Name", type: PZ.property.type.TEXT, value: "Fluid", visible: false },
         fluidMotion: option("Fluid Motion", 0, "off;on", true),
-        fluidForce: option("Fluid Force", 0, "buoyancy & swirl only;position;direction;vortex", false),
-        applyForce: option("Apply Force", 0, "continuously;once", false),
-        forceLifetime: number("Force Lifetime", 15, { step: 0.1, decimals: 1 }),
-        forceRegionScale: number("Force Region Scale", 100, { step: 0.1, decimals: 1 }),
         buoyancy: number("Buoyancy", 5, { step: 0.01, decimals: 2 }),
         randomSwirl: option("Random Swirl", 0, "off;on", false),
         swirlScale: number("Swirl Scale", 10, { step: 0.01, decimals: 2 }),
@@ -1354,16 +1265,10 @@ var PZ = PZ || {};
         displace: number("Displace", 0, { step: 1 }),
         yDisplace: number("Y Displace", 0, { step: 1 }),
         zDisplace: number("Z Displace", 0, { step: 1 }),
-        fractalStrengthOver: option("Fractal Strength Over", 0, "off;life;velocity;position", false),
-        fractalStrengthCurve: curveProperty("Fractal Strength Curve"),
-        fractalStrengthOffset: number("Fractal Strength Offset", 100, { step: 0.1, decimals: 1 }),
         flowX: number("Flow X", 0, { step: 0.01, decimals: 2 }),
         flowY: number("Flow Y", 0, { step: 0.01, decimals: 2 }),
         flowZ: number("Flow Z", 0, { step: 0.01, decimals: 2 }),
         flowEvolution: number("Flow Evolution", 50, { step: 0.1, decimals: 1 }),
-        offsetEvolution: number("Offset Evolution", 0, { step: 0.1, decimals: 1 }),
-        flowLoop: option("Flow Loop", 0, "off;on", false),
-        loopTime: number("Loop Time [sec]", 5, { step: 0.1, decimals: 1 }),
         fractalSum: option("Fractal Sum", 0, "noise;abs;sin;cos", false),
         gamma: number("Gamma", 1, { step: 0.01, decimals: 2 }),
         addSubtract: number("Add/Subtract", 0, { step: 0.01, decimals: 2 }),
@@ -1419,28 +1324,8 @@ var PZ = PZ || {};
         rotateLayer: imageAsset("Rotate Layer"),
     };
 
-    PZ.object3d.form.instance.audioDefinitions = {
-        name: { name: "Name", type: PZ.property.type.TEXT, value: "Audio React", visible: false },
-        audioLayer: {
-            name: "Audio Layer",
-            type: PZ.property.type.ASSET,
-            assetType: PZ.asset.type.AV,
-            accept: "audio/*,video/*",
-            value: null,
-        },
-        reactor1: option("Reactor 1", 0, "off;on", true),
-        reactor2: option("Reactor 2", 0, "off;on", true),
-        reactor3: option("Reactor 3", 0, "off;on", true),
-        reactor4: option("Reactor 4", 0, "off;on", true),
-        reactor5: option("Reactor 5", 0, "off;on", true),
-    };
-
     PZ.object3d.form.instance.transformDefinitions = {
         name: { name: "Name", type: PZ.property.type.TEXT, value: "Transform", visible: false },
-        rotationW: number("Rotation W", 0, { step: 1 }),
-        rotationX: number("Rotation X", 0, { step: 1 }),
-        rotationY: number("Rotation Y", 0, { step: 1 }),
-        rotationZ: number("Rotation Z", 0, { step: 1 }),
         scale: number("Scale", 100, { min: 0, step: 1 }),
         offsetX: number("X Offset", 0, { step: 1 }),
         offsetY: number("Y Offset", 0, { step: 1 }),
@@ -1477,14 +1362,12 @@ var PZ = PZ || {};
                 return [
                     { key: "base", name: "Type" },
                     { key: "particle", name: "Particle" },
-                    { key: "shading", name: "Shading" },
                     { key: "disperse", name: "Disperse" },
                     { key: "fluid", name: "Fluid" },
                     { key: "fractal", name: "Fractal" },
                     { key: "spherical", name: "Spherical" },
                     { key: "kaleidospace", name: "Kaleido" },
                     { key: "layerMaps", name: "Layer Maps" },
-                    { key: "audio", name: "Audio" },
                     { key: "transform", name: "Transform" },
                 ];
             },
@@ -1528,10 +1411,9 @@ var PZ = PZ || {};
                     disperse.disperse.set(20);
                     disperse.twist.set(30);
                 }
-                target._count = -1;
+                target._baseSig = null;
                 target.update(0);
             },
         });
     }
 })();
-

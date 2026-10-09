@@ -1,37 +1,82 @@
 # Magic Looks
 
-A Zoidium `extension` plugin. It adds a Magic Bullet Looks-style color
-setup window plus the Magic Looks grading effect with all 29 Looks
-color tools: the shared color-wheel palette design, HSL wheels,
-curves/S-curve editors, the 4-way diamond with ranges graph, Warm/Cool
-pad, Star Filter angle dial, per-tool presets and reset, global look
-presets, and look export/import as JSON.
+A Zoidium `extension` plugin: a Magic Bullet Looks-style color grading effect
+with 29 tools, an ordered tool chain, look presets, and a floating setup window.
+It is an external extension layer around CM3; it is not affiliated with or
+endorsed by Panzoid.
 
-The `looks` native effect hosts the whole tool chain in one pass
-(lens distortion, color tools, channel LUTs, LUT looks, light tools,
-lens tools) and appears in the effects picker beside the COLOR
-effects. The setup window binds to the first Magic Looks effect on the
-selection (or adds one via Add Looks), mirrors every control to live
-effect properties, and renders the project through a transplanted main
-viewport preview inside the window. Unbound, the setup still edits a
-local look that can be exported as JSON.
+## Using it
 
-- 16 Color tools: Color Contrast, HSL Colors, Color Ranges, Crush,
-  Contrast, Color Reversal, 3-Strip Process, Lift-Gamma-Gain, Ranged
-  Saturation, Warm/Cool, 4-Way Color, Mojo II, Auto Shoulder, Curves,
-  S Curve, LUT.
-- 8 Light tools: Lightflex, Deflare, Vignette, Haze/Flare, Pop,
-  Diffusion, Star Filter, Anamorphic Flare.
-- 5 Lens tools: Lens Distortion, Shutter Streak, Edge Softness,
-  Chromatic Aberration, Telecine Net.
+- Enabling the plugin only makes the **Magic Looks** effect available (COLOR
+  category). Nothing is displayed or applied until the effect is added to a layer.
+- A fresh effect renders the source unchanged. Color Contrast ships switched off
+  because its fixed contrast amount is part of its character.
+- The **Setup** button on the effect's Enabled row opens a floating window
+  (zoidium/ui-kit.js). The viewport behind it is the live preview.
+  - **Look**: presets, filterable and grouped. Choosing one resets every tool to
+    neutral and applies the preset as one undoable step. **Clear look** resets
+    the tools and keeps the chain order.
+  - **Tool Chain**: the tools in order, with Up, Down, Enable/Disable and Remove
+    for the selected tool, and an Add tool menu. Lens Distortion always runs
+    first and cannot be moved.
+  - **Parameters**: the selected tool's values, plus its color wheels, HSL
+    sliders, curves pad, S-curve sliders, four-way wheels, or LUT controls.
+- Every committed edit is one undo/redo step on the effect's properties. Live
+  drags only preview.
+- Disabling the plugin closes its windows, restores the property renderer, and
+  removes its stylesheet.
 
-The `looks-setup` module evaluates the bundled sources in dependency
-order through the plugin bundle asset API, so enabling the pack never
-fans out into runtime fetches. The canvas widgets depend only on DOM
-and canvas; the color math, tool catalog, grade reference pipeline,
-and effect surface are covered by `test/looks-catalog.test.js` and
-`test/looks-grade.test.js` (including a headless-WebGL shader/JS
-parity probe pattern).
+## Tools
+
+- 16 color tools: Color Contrast, HSL Colors, Color Ranges, Crush, Contrast,
+  Color Reversal, 3-Strip Process, Lift-Gamma-Gain, Ranged Saturation, Warm/Cool,
+  4-Way Color, Mojo II, Auto Shoulder, Curves, S Curve, LUT.
+- 8 light tools: Lightflex, Deflare, Vignette, Haze/Flare, Pop, Diffusion, Star
+  Filter, Anamorphic Flare.
+- 5 lens tools: Lens Distortion, Shutter Streak, Edge Softness, Chromatic
+  Aberration, Telecine Net.
+
+## Files
+
+- `looks-tools.js`: catalog, neutral defaults, default chain, look presets, and
+  property definitions (single source of truth).
+- `looks-color.js`: color math and the JS reference grade. It mirrors the shader
+  tool-for-tool and is what the tests check.
+- `looks-grade.glsl` / `looks-vert.glsl`: the grade shader. It is compiled once.
+  Per-frame work is uniform updates only; the chain order and the curve tables
+  are re-uploaded only when their stored text changes.
+- `looks-fx.js`: the native effect (properties, uniforms, pass gating).
+- `looks-setup.js`, `looks-setup.css`, `looks-widgets.js`: the setup window, its
+  stylesheet, and the two custom canvases (color wheel, curves pad).
+
+## Rendering rules
+
+- Math is on straight color. Premultiplied input is unpremultiplied once,
+  graded, clamped to [0,1], and premultiplied on output. Alpha passes through.
+- Each tool is gated by its enable property. While every property holds its
+  default, the pass is disabled and the layer is untouched.
+- Lens Distortion is a geometric resample and runs before the chain. The other
+  tools run in the order stored in the `chainOrder` property.
+- Tools with a fixed contrast or threshold (Color Contrast, zone thresholds)
+  use the values documented in the catalog; no hidden state is kept between
+  frames.
+
+## Compatibility with saved projects
+
+- Projects saved with the Davidium build keep their values. Projects without a
+  `chainOrder` property get the legacy pipeline order.
+- Two render fixes also change older projects: transparent pixels stay
+  transparent (the old shader forced alpha to 1), and the LUT gamma setting
+  only applies when a LUT is selected.
+- Removed controls (Mojo II tint, Deflare size, the Star Filter and Anamorphic
+  threshold softness, the Color Ranges threshold, and the S-curve Log choice)
+  are no longer in the catalog. Their stored values are ignored.
+- Color Ranges zone tints now apply in their own tool. Previously they were
+  applied inside Ranged Saturation, so a project that set those wheels will
+  look different. Other projects are unaffected.
+- The S-curve tool now applies its black/white levels after the Curves tool.
+  Previously they came before it. Projects that set black or white points away
+  from 0 and 1 may differ slightly.
 
 ```bash
 pnpm run build:plugin-bundles

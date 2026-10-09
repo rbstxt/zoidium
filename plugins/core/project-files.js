@@ -222,6 +222,131 @@
     return copy;
   }
 
+  var PROJECT_ENTRY = "project";
+  var META_ENTRY = "meta";
+  var CONTENT_ADDRESSED_NAME = /^[0-9a-f]{64}$/;
+  var VALIDATION_PREFIX = {
+    save: "Nothing was saved.",
+    open: "This project file cannot be opened.",
+    restore: "This restore point cannot be opened.",
+  };
+
+  function isPlainObject(value) {
+    return value !== null && typeof value === "object" && !Array.isArray(value);
+  }
+
+  function isProjectDataError(error) {
+    return Boolean(error && error.name === "ProjectDataError");
+  }
+
+  function projectDataError(mode, detail) {
+    var error = new Error((VALIDATION_PREFIX[mode] || VALIDATION_PREFIX.open) + " " + detail + ".");
+    error.name = "ProjectDataError";
+    return error;
+  }
+
+  // Reads an archive entry without removing it. CM3's getFile() splices the
+  // entry out of the archive, so the validator must never use it.
+  async function decodeEntryText(data) {
+    if (typeof data === "string") return data;
+    return new TextDecoder().decode(await bytesForData(data));
+  }
+
+  async function readJsonEntry(archive, name, mode, label) {
+    var entry = archive.peekFile(name);
+    if (!entry || entry.data == null) {
+      throw projectDataError(mode, label + " is missing from the archive");
+    }
+    var text;
+    try {
+      text = await decodeEntryText(entry.data);
+    } catch (_error) {
+      throw projectDataError(mode, label + " could not be read");
+    }
+    var trimmed = String(text).trim();
+    if (!trimmed) throw projectDataError(mode, label + " is empty");
+    // JSON.stringify(undefined) is undefined, and a Blob built from it holds
+    // the text "undefined". Name that cause instead of a parser message.
+    if (trimmed === "undefined") {
+      throw projectDataError(mode, label + " contains the placeholder text \"undefined\" instead of JSON");
+    }
+    try {
+      return JSON.parse(trimmed);
+    } catch (_error) {
+      throw projectDataError(mode, label + " is not valid JSON");
+    }
+  }
+
+  // Archives written by the pre-Gen3 CM2 and BG4 builds have their own layout
+  // and are handled by CM3's compatibility loaders, so the Gen3 structure
+  // checks do not apply to them.
+  function isLegacyArchive(archive) {
+    var compatibility = PZ.compatibility;
+    if (!compatibility) return false;
+    return Boolean(
+      (compatibility.CM2 && compatibility.CM2.check(archive)) ||
+        (compatibility.BG4 && compatibility.BG4.check(archive)),
+    );
+  }
+
+  // Checks that an archive holds the project document CM3 would parse. The
+  // "save" mode runs before anything is written; "open" and "restore" run
+  // before the document is handed to the loader, so damaged files fail with a
+  // clear message instead of a JSON.parse error.
+  async function validateProjectArchive(archive, mode) {
+    if (!archive || typeof archive.peekFile !== "function") {
+      throw projectDataError(mode, "The project archive is not available");
+    }
+    if (mode !== "save" && isLegacyArchive(archive)) {
+      return { legacy: true, mediaCount: 0 };
+    }
+
+    var document = await readJsonEntry(archive, PROJECT_ENTRY, mode, "The project data");
+    // Shape of PZ.project.prototype.toJSON: { assets, media, sequence }.
+    if (!isPlainObject(document) || !isPlainObject(document.sequence) || !Array.isArray(document.media)) {
+      throw projectDataError(mode, "The project data has no sequence or media list");
+    }
+
+    if (mode === "save" || archive.peekFile(META_ENTRY)) {
+      var meta = await readJsonEntry(archive, META_ENTRY, mode, "The project metadata");
+      // Saves always write a version; older files opened by CM3 may not have one.
+      if (!isPlainObject(meta) || (mode === "save" && meta.version == null)) {
+        throw projectDataError(mode, "The project metadata has no version");
+      }
+    }
+    return { legacy: false, mediaCount: document.media.length };
+  }
+
+  // Unpacks a saved project (or restore point) and checks its project data
+  // before anything is loaded from it. Every failure is a ProjectDataError with
+  // an English message.
+  async function openValidatedArchive(source, mode) {
+    if (!(Number(source && source.size) > 0)) {
+      throw projectDataError(mode, "The archive is empty");
+    }
+    var archive = new PZ.archive();
+    try {
+      await archive.untar(source);
+    } catch (_error) {
+      throw projectDataError(mode, "The archive is not readable");
+    }
+    await validateProjectArchive(archive, mode);
+    return archive;
+  }
+
+  // Runs CM3's project serializer and turns a thrown error (for example a
+  // plugin toJSON that throws) into a save failure with a clear cause.
+  async function serializeProject(archive, project) {
+    try {
+      await PZ.project.save(archive, project);
+    } catch (error) {
+      throw projectDataError(
+        "save",
+        "The project could not be serialized (" + errorMessage(error, "unknown error") + ")",
+      );
+    }
+  }
+
   async function fingerprintBytes(bytes) {
     if (global.crypto && global.crypto.subtle) {
       var digest = await global.crypto.subtle.digest("SHA-256", bytes);
@@ -249,12 +374,19 @@
     var summaries = [];
     for (var index = 0; index < entries.length; index += 1) {
       var entry = entries[index];
+      // Media is stored under its SHA-256 name, so its name already identifies
+      // its bytes. Re-hashing every asset on each automatic check was the
+      // largest cost of a backup, so only the name and size are summarized.
+      if (CONTENT_ADDRESSED_NAME.test(entry.name) && Number.isFinite(Number(entry.data && entry.data.size))) {
+        summaries.push([entry.name, Number(entry.data.size), "content-addressed"]);
+        continue;
+      }
       var bytes = await bytesForData(entry.data);
       summaries.push([entry.name, bytes.length, await fingerprintBytes(bytes)]);
     }
-    // Version the new algorithm. Existing restore points remain readable;
-    // their old fingerprint can cause only one extra automatic snapshot.
-    return "entries-v2:" + await fingerprintBytes(encoder.encode(JSON.stringify(summaries)));
+    // Version the algorithm. Restore points with an older fingerprint can cause
+    // only one extra automatic snapshot.
+    return "entries-v3:" + await fingerprintBytes(encoder.encode(JSON.stringify(summaries)));
   }
 
   async function materializeArchive(archive) {
@@ -275,19 +407,28 @@
     return materialized;
   }
 
-  async function createArchiveUnlocked(editor) {
+  function logPhase() {
+    if (global.console && typeof global.console.info === "function") {
+      global.console.info.apply(global.console, ["[Zoidium] project archive phase"].concat(Array.prototype.slice.call(arguments)));
+    }
+  }
+
+  // options.shouldSkip(fingerprint) lets automatic backups stop before the
+  // TAR is produced when the content is already stored. The result then has
+  // skipped: true and no blob.
+  async function createArchiveUnlocked(editor, options) {
     if (!editor || !editor.project) {
       throw new Error("There is no project to save.");
     }
 
     var archive = new PZ.archive();
-    if (global.console && typeof global.console.info === "function") {
-      global.console.info("[Zoidium] project archive phase", "project-save-start");
-    }
-    await PZ.project.save(archive, editor.project);
-    if (global.console && typeof global.console.info === "function") {
-      global.console.info("[Zoidium] project archive phase", "project-save-end");
-    }
+    logPhase("project-save-start");
+    await serializeProject(archive, editor.project);
+    // Refuse to continue with a missing, empty, or "undefined" project entry.
+    // Nothing has been written to disk or to a restore point at this point.
+    await validateProjectArchive(archive, "save");
+    logPhase("project-save-end");
+
     var projectName = getProjectName(editor);
     archive.addFileString("zoidium.json", JSON.stringify({
       version: 1,
@@ -295,9 +436,7 @@
     }));
 
     var assets = listAssets(editor.project);
-    if (global.console && typeof global.console.info === "function") {
-      global.console.info("[Zoidium] project archive phase", "assets-start", assets.length);
-    }
+    logPhase("assets-start", assets.length);
     var packagedAssetCount = 0;
     for (var index = 0; index < assets.length; index += 1) {
       var asset = assets[index];
@@ -310,40 +449,47 @@
     }
 
     var fingerprint = await fingerprintArchive(archive);
-    if (global.console && typeof global.console.info === "function") {
-      global.console.info("[Zoidium] project archive phase", "fingerprint-end");
-    }
-    var materialized = await materializeArchive(archive);
-    if (global.console && typeof global.console.info === "function") {
-      global.console.info("[Zoidium] project archive phase", "materialize-end");
-    }
-    var io = PZ.zoidiumIoSerialization;
-    var blob = io && typeof io.tarWithoutLock === "function"
-      ? await io.tarWithoutLock(materialized)
-      : await materialized.tar();
-    if (!blob) throw new Error("Could not create the project archive.");
-    blob = await detachArchiveBlob(blob);
-    return {
-      blob: blob,
+    logPhase("fingerprint-end");
+    var result = {
+      blob: null,
+      skipped: false,
       projectName: projectName,
       assetCount: assets.length,
       packagedAssetCount: packagedAssetCount,
       fingerprint: fingerprint,
     };
+    if (options && typeof options.shouldSkip === "function" && await options.shouldSkip(fingerprint)) {
+      result.skipped = true;
+      return result;
+    }
+
+    var materialized = await materializeArchive(archive);
+    logPhase("materialize-end");
+    var io = PZ.zoidiumIoSerialization;
+    var blob = io && typeof io.tarWithoutLock === "function"
+      ? await io.tarWithoutLock(materialized)
+      : await materialized.tar();
+    if (!blob || !(Number(blob.size) > 0)) {
+      throw new Error("Could not create the project archive. Nothing was saved.");
+    }
+    result.blob = await detachArchiveBlob(blob);
+    return result;
   }
 
-  function createArchive(editor) {
+  function createArchive(editor, options) {
     var io = PZ.zoidiumIoSerialization;
     if (io && typeof io.run === "function" && typeof io.tarWithoutLock === "function") {
       return io.run("project-save", function () {
-        return createArchiveUnlocked(editor);
+        return createArchiveUnlocked(editor, options);
       });
     }
-    return createArchiveUnlocked(editor);
+    return createArchiveUnlocked(editor, options);
   }
 
   function triggerDownload(blob, filename) {
-    if (!blob) throw new Error("No project archive is available to download.");
+    if (!blob || !(Number(blob.size) > 0)) {
+      throw new Error("No project archive is available to download.");
+    }
 
     var url = URL.createObjectURL(blob);
     var link = global.document.createElement("a");
@@ -375,6 +521,7 @@
       blob: archiveResult && archiveResult.blob,
       filename: filename,
       retry: retry,
+      recoverable: false,
       download: archiveResult && archiveResult.blob
         ? function () {
             triggerDownload(archiveResult.blob, filename);
@@ -469,7 +616,10 @@
       return null;
     }
 
-    if (pickerError && isUserGesturePickerError(pickerError)) {
+    // Browsers without the File System Access picker (and picker calls the
+    // browser refuses without a user gesture) save through a download instead.
+    var pickerUnavailable = typeof global.showSaveFilePicker !== "function";
+    if (pickerError && (pickerUnavailable || isUserGesturePickerError(pickerError))) {
       try {
         return saveAsDownloadFallback(
           editor,
@@ -603,8 +753,9 @@
       }
 
       try {
-        var archive = new PZ.archive();
-        await archive.untar(file);
+        // Validation runs before CM3's loader, which would otherwise fail with
+        // "undefined is not valid JSON" for a missing or damaged entry.
+        var archive = await openValidatedArchive(file, "open");
         var project = await editor.loadProject(archive);
         editor.project = project;
         editor._zoidiumSaveFileHandle = null;
@@ -629,6 +780,9 @@
           retry: function () {
             return editor.open();
           },
+          // Damaged content can be replaced from a restore point; the restore
+          // layer decides whether a usable one exists.
+          recoverable: isProjectDataError(error),
           download: null,
         });
       }
@@ -644,6 +798,10 @@
     displayNameForUi: displayNameForUi,
     createArchive: createArchive,
     fingerprintArchive: fingerprintArchive,
+    getProjectRevision: getProjectRevision,
+    validateProjectArchive: validateProjectArchive,
+    openValidatedArchive: openValidatedArchive,
+    isProjectDataError: isProjectDataError,
     triggerDownload: triggerDownload,
     saveProject: saveProject,
   }, "core/project-files");

@@ -304,3 +304,19 @@ test("download object URLs remain available for sixty seconds", async () => {
   assert.equal(revoked, false);
   revoke(); assert.equal(revoked, true);
 });
+
+test("an empty export is refused with an English error instead of a zero-byte download", async () => {
+  const { createDownloadManager } = require("../zoidium/direct-download");
+  const downloads = [];
+  const manager = createDownloadManager({
+    globalObject: { setTimeout() {} },
+    document: { body: { appendChild() {} }, createElement() { return { style: {}, click() {}, remove() {} }; } },
+    URL: { createObjectURL() { return "blob:empty"; }, revokeObjectURL() {} },
+    downloadArtifact(blob, filename) { downloads.push(filename); },
+  });
+  await assert.rejects(
+    () => manager.trigger(manager.capture(new Blob([]), "empty.webm")),
+    /The export is empty, so nothing was downloaded/,
+  );
+  assert.deepEqual(downloads, []);
+});

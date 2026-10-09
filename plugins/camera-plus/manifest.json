@@ -3,61 +3,56 @@
   "id": "camera-plus",
   "name": "Camera+",
   "author": "Zoidium",
-  "version": "2",
-  "kind": "extension",
-  "description": "C4D camera with depth of field and vibrate, dedicated Camera layers, shared-camera 3D tracking, and focus tools.",
+  "version": "3",
+  "kind": "object",
+  "description": "A separate Camera+ object for scenes, with depth of field, seeded vibrate, and focus tools. Leaves the CM3 camera unchanged.",
   "category": "CAMERA",
+  "objectClassParent": {
+    "name": "Camera",
+    "type": 6
+  },
+  "objectClasses": [
+    {
+      "id": "camera",
+      "type": "zoidium:camera-plus/camera",
+      "name": "Camera+",
+      "description": "A scene camera with film controls, depth of field, and vibrate. Renders the scene while it is the first active Camera+ in that scene.",
+      "schemaVersion": 1,
+      "defaultData": {
+        "type": "zoidium:camera-plus/camera",
+        "schemaVersion": 1,
+        "properties": {
+          "name": "Camera+"
+        }
+      }
+    }
+  ],
   "modules": [
     {
       "id": "camera-runtime",
-      "source": "./plugins/camera-plus/camera-runtime.js?v=2"
+      "source": "./plugins/camera-plus/camera-runtime.js?v=3"
     }
   ],
   "resources": [
     {
       "id": "camera-vibrate",
       "type": "text",
-      "source": "./plugins/camera-plus/vibrate.js?v=2"
-    },
-    {
-      "id": "camera-class",
-      "type": "text",
-      "source": "./plugins/camera-plus/camera-class.js?v=2"
-    },
-    {
-      "id": "camera-layer",
-      "type": "text",
-      "source": "./plugins/camera-plus/camera-layer.js?v=2"
+      "source": "./plugins/camera-plus/vibrate.js?v=3"
     },
     {
       "id": "camera-dof",
       "type": "text",
-      "source": "./plugins/camera-plus/scene-dof.js?v=2"
+      "source": "./plugins/camera-plus/scene-dof.js?v=3"
     },
     {
-      "id": "camera-tracking",
+      "id": "camera-class",
       "type": "text",
-      "source": "./plugins/camera-plus/sequence-tracking.js?v=2"
-    },
-    {
-      "id": "camera-render-layer",
-      "type": "text",
-      "source": "./plugins/camera-plus/render-layer.js?v=2"
-    },
-    {
-      "id": "camera-render-sequence",
-      "type": "text",
-      "source": "./plugins/camera-plus/render-sequence.js?v=2"
-    },
-    {
-      "id": "camera-depth",
-      "type": "text",
-      "source": "./plugins/camera-plus/depth-passes.js?v=2"
+      "source": "./plugins/camera-plus/camera-class.js?v=3"
     },
     {
       "id": "camera-focus-ui",
       "type": "text",
-      "source": "./plugins/camera-plus/focus-ui.js?v=2"
+      "source": "./plugins/camera-plus/focus-ui.js?v=3"
     }
   ]
 }

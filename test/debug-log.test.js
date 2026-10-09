@@ -36,7 +36,30 @@ function eventTarget() {
   };
 }
 
+// Timers are deferred: a test decides when coalesced journal writes run.
+function createTimers() {
+  const pending = new Map();
+  let lastId = 0;
+  return {
+    setTimeout(callback) {
+      lastId += 1;
+      pending.set(lastId, callback);
+      return lastId;
+    },
+    clearTimeout(id) {
+      pending.delete(id);
+    },
+    run() {
+      for (const [id, callback] of [...pending]) {
+        pending.delete(id);
+        callback();
+      }
+    },
+  };
+}
+
 function loadDebugLog(localValues, sessionValues, options = {}) {
+  const timers = createTimers();
   const windowEvents = eventTarget();
   const documentEvents = eventTarget();
   const document = {
@@ -95,13 +118,15 @@ function loadDebugLog(localValues, sessionValues, options = {}) {
     screen: { height: 1080, width: 1920 },
     sessionStorage: storage(sessionValues),
     setInterval() { return 1; },
-    setTimeout() { return 1; },
+    setTimeout: timers.setTimeout,
+    clearTimeout: timers.clearTimeout,
   };
   context.window = context;
   vm.runInNewContext(debugLogSource, context);
   return {
     api: context.ZOIDIUM_DEBUG_LOG,
     documentEvents,
+    runTimers: timers.run,
     windowEvents,
   };
 }
@@ -179,6 +204,7 @@ test("health samples are retained for memory-pressure analysis", () => {
     },
   });
 
+  first.runTimers();
   const second = loadDebugLog(localValues, sessionValues, { idStart: 20 });
   const snapshot = second.api.getSnapshot();
 
@@ -212,4 +238,26 @@ test("plugin usage milestones survive a crash during project load", () => {
   assert.equal(candidate.evidence, "project-workload");
   assert.equal(candidate.instanceCount, 1024);
   assert.equal(candidate.topItems[0].id, "echo");
+});
+
+test("a burst of routine records costs one coalesced journal write", () => {
+  const localValues = new Map();
+  const sessionValues = new Map();
+  let journalWrites = 0;
+  class CountingMap extends Map {
+    set(key, value) {
+      if (key === "zoidium.debug-log.journal.v2") journalWrites += 1;
+      return super.set(key, value);
+    }
+  }
+  const countingValues = new CountingMap();
+  const first = loadDebugLog(countingValues, sessionValues);
+  first.runTimers();
+  const before = journalWrites;
+  for (let index = 0; index < 300; index += 1) {
+    first.api.record("noise", { index });
+  }
+  assert.equal(journalWrites, before, "routine records wait for the scheduled write");
+  first.runTimers();
+  assert.equal(journalWrites, before + 1);
 });

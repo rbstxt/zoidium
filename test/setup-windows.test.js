@@ -1,9 +1,10 @@
 "use strict";
 
-// Coverage for the VHS/Datamosh setup windows: module activation installs
-// data, hooks, styles and logos; the property-button dispatcher and the
-// button renderer work on vanilla upstream CM3 (which has neither) and
-// compose with an OpenZoid-style runtime (which ships its own dispatcher).
+// Coverage for the VHS setup module's contract with the rest of the pack: it
+// registers the VHS property control through propertyControls, owns the shared
+// legacy `buttons` renderer (createControls) that effect-windows.js relies on,
+// and leaves the existing runPropertyAction dispatcher untouched. Window
+// behaviour is covered by vhs-datamosh-setup.test.js.
 
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
@@ -50,7 +51,7 @@ function fakeElement(tag) {
   return el;
 }
 
-function createHarness({ dispatcher } = {}) {
+function createHarness() {
   const styles = [];
   const byId = {};
   const g = globalThis;
@@ -60,21 +61,18 @@ function createHarness({ dispatcher } = {}) {
   }
   const CM = { playback: { currentFrame: 0 }, project: { traverse() {} }, timelineSelection: [] };
   const controls = {};
-  if (dispatcher === "openzoid") {
-    controls.runPropertyAction = function (list, target, action) {
-      if (action === "otherAction") return "foreign-orig";
-      return undefined;
-    };
-  }
-  if (dispatcher === "wrapped") {
-    controls.runPropertyAction = function () { return "outer"; };
-  }
+  // A foreign dispatcher, as installed by another pack. VHS must not replace it.
+  controls.runPropertyAction = function () { return "foreign"; };
   const created = [];
   controls.createControls = function (e, t, i) {
     created.push([e, t, i]);
     return "controls-out";
   };
-  const PZ = { ui: { controls }, effect: { create: () => ({ type: "x" }) } };
+  const PZ = {
+    ui: { controls },
+    effect: { create: () => ({ type: "x" }) },
+    property: { type: { NUMBER: 0, OPTION: 9, TEXT: 15 } },
+  };
   g.document = {
     createElement: (tag) => fakeElement(tag),
     getElementById: (id) => byId[id] || null,
@@ -92,7 +90,30 @@ function createHarness({ dispatcher } = {}) {
   g.clearInterval = () => {};
   g.PZ = PZ;
   g.CM = CM;
-  const context = { PZ, editor: CM, window: g.window, getAsset: (kind, url) => bundleAsset(url) };
+  const registrations = {};
+  const unregistered = [];
+  const disposers = [];
+  const context = {
+    PZ,
+    editor: CM,
+    document: g.document,
+    window: g.window,
+    getAsset: (kind, url) => bundleAsset(url),
+    apis: {
+      propertyControls: {
+        register(id, spec) {
+          registrations[id] = spec;
+          return () => unregistered.push(id);
+        },
+      },
+    },
+    lifecycle: { onDispose: (fn) => disposers.push(fn) },
+    ui: {
+      controls: {},
+      openWindow: () => null,
+      getWindow: () => null,
+    },
+  };
   return {
     CM,
     PZ,
@@ -100,6 +121,12 @@ function createHarness({ dispatcher } = {}) {
     context,
     styles,
     created,
+    registrations,
+    unregistered,
+    disposers,
+    runDisposers() {
+      for (const dispose of disposers.splice(0).reverse()) dispose();
+    },
     restore() {
       for (const k of ["document", "window", "requestAnimationFrame", "setInterval", "clearInterval", "PZ", "CM"]) {
         if (keep[k] === undefined) delete g[k];
@@ -115,59 +142,45 @@ function loadModule(file) {
   return require(full);
 }
 
-test("setup modules install data, hooks, styles, and windows on vanilla CM3", () => {
+test("vhs setup registers its property control and leaves the dispatcher alone", () => {
   const h = createHarness();
   try {
+    const dispatcher = h.controls.runPropertyAction;
     const vhs = loadModule("vhs-setup.js");
-    const dmo = loadModule("datamosh-setup.js");
     vhs.activate(h.context);
-    dmo.activate(h.context);
-    assert.equal(Object.keys(h.CM.vhsPresets).length, 15);
-    assert.equal(h.CM.vhsSliders.length, 31);
-    assert.equal(Object.keys(h.CM.datamoshPresets).length, 10);
-    assert.equal(h.CM.datamoshAlgos.length, 80);
-    assert.equal(typeof h.CM.openVhsSetup, "function");
-    assert.equal(typeof h.CM.openDatamoshSetup, "function");
-    // Compat dispatcher installed (upstream has none) and routes both actions.
-    assert.equal(typeof h.controls.runPropertyAction, "function");
-    assert.equal(h.controls.runPropertyAction.__openzoidLegacyCompat, true);
-    h.controls.runPropertyAction({ editor: h.CM }, { parentObject: null }, "vhsSetup", null);
-    h.controls.runPropertyAction({ editor: h.CM }, { parentObject: null }, "datamoshSetup", null);
-    assert.ok(h.CM.vhsWindow);
-    assert.ok(h.CM.datamoshWindow);
-    // Shared stylesheet installed once for both modules.
-    assert.equal(h.styles.filter((s) => s.id === "zoidium-vhs-setup-style").length, 1);
-    // Buttons renderer wraps once with a shared refcount.
-    assert.equal(h.controls.createControls.__openzoidLegacyButtons, true);
-    assert.equal(h.controls.createControls.__openzoidLegacyRefs, 2);
-    // First deactivate keeps the shared renderer; the second removes it.
-    vhs.deactivate();
-    assert.equal(typeof h.controls.createControls, "function");
-    assert.equal(h.controls.createControls.__openzoidLegacyButtons, true);
-    dmo.deactivate();
-    assert.equal(h.controls.createControls.__openzoidLegacyButtons, undefined);
-    assert.equal(h.CM.vhsWindow, null);
-    assert.equal(h.CM.datamoshWindow, null);
+    const spec = h.registrations["openzoid-legacy.vhs-setup"];
+    assert.ok(spec, "VHS property control registered");
+    assert.equal(spec.type, 15, "TEXT storage type");
+    assert.equal(typeof spec.create, "function");
+    assert.equal(h.controls.runPropertyAction, dispatcher, "no dispatcher is installed by VHS");
+    h.runDisposers();
+    assert.deepEqual(h.unregistered, ["openzoid-legacy.vhs-setup"]);
   } finally {
     h.restore();
   }
 });
 
-test("setup actions compose with an OpenZoid-style dispatcher", () => {
-  const h = createHarness({ dispatcher: "openzoid" });
+test("the shared button renderer is refcounted across activations and restored last", () => {
+  const h = createHarness();
   try {
-    const vhs = loadModule("vhs-setup.js");
-    const dmo = loadModule("datamosh-setup.js");
-    vhs.activate(h.context);
-    dmo.activate(h.context);
-    h.controls.runPropertyAction({ editor: h.CM }, { parentObject: null }, "vhsSetup", null);
-    h.controls.runPropertyAction({ editor: h.CM }, { parentObject: null }, "datamoshSetup", null);
-    assert.ok(h.CM.vhsWindow);
-    assert.ok(h.CM.datamoshWindow);
-    // Foreign cases still delegate to the original dispatcher.
-    assert.equal(h.controls.runPropertyAction({}, {}, "otherAction", null), "foreign-orig");
-    vhs.deactivate();
-    dmo.deactivate();
+    const original = h.controls.createControls;
+    const first = loadModule("vhs-setup.js");
+    const second = loadModule("vhs-setup.js");
+    // Each activation registers its own disposers; collect them per owner.
+    const before = h.disposers.length;
+    first.activate(h.context);
+    const firstOwned = h.disposers.slice(before);
+    const mark = h.disposers.length;
+    second.activate(h.context);
+    const secondOwned = h.disposers.slice(mark);
+    assert.equal(h.controls.createControls.__openzoidLegacyButtons, true);
+    assert.equal(h.controls.createControls.__openzoidLegacyRefs, 2);
+    // Dispose the first owner only: the renderer stays for the second.
+    firstOwned.forEach((dispose) => dispose());
+    assert.equal(h.controls.createControls.__openzoidLegacyButtons, true);
+    assert.equal(h.controls.createControls.__openzoidLegacyRefs, 1);
+    secondOwned.forEach((dispose) => dispose());
+    assert.equal(h.controls.createControls, original, "original renderer restored");
   } finally {
     h.restore();
   }
@@ -183,7 +196,7 @@ test("createControls wrapper appends declared property buttons", () => {
     const property = {
       definition: {
         type: "OPTION",
-        buttons: [{ name: "VHS Setup", title: "Open", action: "vhsSetup" }],
+        buttons: [{ name: "Tracery Setup", title: "Open", action: "tracerySetup" }],
       },
     };
     const out = h.controls.createControls(row, property, false);
@@ -194,7 +207,7 @@ test("createControls wrapper appends declared property buttons", () => {
     // A second render into the same host does not duplicate the buttons.
     h.controls.createControls(row, property, false);
     assert.equal(host.children.filter((c) => c.className === "vhs-setup-buttons").length, 1);
-    vhs.deactivate();
+    h.runDisposers();
   } finally {
     h.restore();
   }

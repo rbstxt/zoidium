@@ -47,7 +47,7 @@
 .zoidium-effect-plugin-badge {
   background-color: var(--zoidium-plugin-background, rgba(113, 130, 170, 0.2));
   border: 1px solid var(--zoidium-plugin-border, rgba(113, 130, 170, 0.6));
-  border-radius: 999px;
+  border-radius: 2px;
   color: var(--zoidium-plugin-color, #7182aa);
   display: inline-block;
   font-size: 0.72em;
@@ -314,7 +314,7 @@
 
 .zoidium-plugin-compat {
   border: 1px solid;
-  border-radius: 999px;
+  border-radius: 2px;
   display: inline-block;
   font-size: 0.72em;
   line-height: 1.05;
@@ -342,7 +342,7 @@
 .zoidium-plugin-experimental-badge {
   background-color: rgba(197, 107, 61, 0.2);
   border: 1px solid rgba(197, 107, 61, 0.6);
-  border-radius: 999px;
+  border-radius: 2px;
   color: #d8a583;
   display: inline-block;
   font-size: 0.72em;

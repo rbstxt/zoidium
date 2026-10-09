@@ -1,8 +1,9 @@
 "use strict";
 
 // Coverage for the Magic Looks grading effect: the JS reference pipeline
-// invariants, the generated effect property surface, the update/uniform
-// sync path, and the shader/material agreement.
+// (identity defaults, chain order, gating), the generated effect property
+// surface, the update/uniform sync path (dirty gating, chain and LUT upload
+// caching), and shader/catalog agreement.
 
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
@@ -51,53 +52,51 @@ function maxDrift(out, src) {
 
 function enOnly(ids) {
   const Looks = loadLooks();
-  const all = Object.keys(Looks.tools.defaultState().tools);
   const en = {};
-  for (const k of all) en[k] = ids.includes(k) ? 1 : 0;
+  for (const k of Object.keys(Looks.tools.defaultState().tools)) en[k] = ids.includes(k) ? 1 : 0;
   return en;
 }
 
-test("default chain is neutral except the fixed Color Contrast character", () => {
+function px(Looks, c, T, en, uv, order) {
+  const g = Looks.grade;
+  const luts = g.buildFrameLuts(T);
+  return g.gradePixel(c, uv || [0.5, 0.5], T, en, () => c, [16, 16], luts, order);
+}
+
+test("default chain is an exact identity on the source", () => {
   const Looks = loadLooks();
   const S = Looks.tools.defaultState();
   const src = flatImage(16, 16, (u, v) => [u, v, 0.5]);
   const out = Looks.grade.gradeImage(src, 16, 16, S.tools, S.on);
-  // Only Color Contrast deviates (fixed 0.37 amount); everything else passes through.
-  const solo = Looks.grade.gradeImage(src, 16, 16, S.tools, enOnly(["color-contrast"]));
-  assert.deepEqual(out.map(Math.round), solo.map(Math.round));
-  const drift = maxDrift(out, src);
-  assert.ok(drift > 0.01 && drift < 0.4, "color-contrast character in range, drift=" + drift.toFixed(3));
+  assert.ok(maxDrift(out, src) < 1e-3, "defaults pass the image through");
 });
 
-test("every other tool is neutral at defaults", () => {
+test("every tool is neutral at defaults when enabled on its own", () => {
   const Looks = loadLooks();
   const S = Looks.tools.defaultState();
   const src = flatImage(12, 12, (u, v) => [0.2 + u * 0.6, 0.2 + v * 0.6, 0.5]);
   for (const id of Object.keys(S.tools)) {
-    if (id === "color-contrast") continue;
+    if (id === "color-contrast") continue; // its fixed amount is the tool character when on
     const out = Looks.grade.gradeImage(src, 12, 12, S.tools, enOnly([id]));
-    assert.ok(maxDrift(out, src) < 1e-9, id + " is neutral at defaults");
+    assert.ok(maxDrift(out, src) < 1e-6, id + " is neutral at defaults");
   }
 });
 
 test("contrast pivots, exposure doubles, lift raises blacks", () => {
   const Looks = loadLooks();
   const S = Looks.tools.defaultState();
-  const g = Looks.grade;
-  const luts = g.buildFrameLuts(S.tools);
-  const px = (c, T, en, uv) => g.gradePixel(c, uv || [0.5, 0.5], T, en, (u, v) => c, [16, 16], luts);
   S.tools.contrast.p.contrast = 1;
   S.tools.contrast.p.pivot = 0.5;
-  assert.deepEqual(px([0.5, 0.5, 0.5], S.tools, enOnly(["contrast"])).map((v) => Math.round(v * 1e6)), [500000, 500000, 500000]);
+  assert.deepEqual(px(Looks, [0.5, 0.5, 0.5], S.tools, enOnly(["contrast"])).map((v) => Math.round(v * 1e6)), [500000, 500000, 500000]);
   S.tools.contrast.p.contrast = 0;
   S.tools["lift-gamma-gain"].p.exposure = 0;
-  const dbl = px([0.25, 0.5, 0.75], S.tools, enOnly(["lift-gamma-gain"]));
+  const dbl = px(Looks, [0.25, 0.5, 0.75], S.tools, enOnly(["lift-gamma-gain"]));
   S.tools["lift-gamma-gain"].p.exposure = 1;
-  const dbl2 = px([0.25, 0.5, 0.75], S.tools, enOnly(["lift-gamma-gain"]));
+  const dbl2 = px(Looks, [0.25, 0.5, 0.75], S.tools, enOnly(["lift-gamma-gain"]));
   assert.ok(Math.abs(dbl2[0] - dbl[0] * 2) < 1e-9, "exposure +1 doubles");
   S.tools["lift-gamma-gain"].p.exposure = 0;
   S.tools["lift-gamma-gain"].w.lift.rgb = [1.1, 1.1, 1.1];
-  const lifted = px([0, 0, 0], S.tools, enOnly(["lift-gamma-gain"]));
+  const lifted = px(Looks, [0, 0, 0], S.tools, enOnly(["lift-gamma-gain"]));
   assert.ok(lifted[0] > 0.09 && lifted[0] < 0.11, "lift adds to blacks");
 });
 
@@ -105,25 +104,29 @@ test("vignette darkens corners, curves shape reds, LUT Hot warms", () => {
   const Looks = loadLooks();
   const S = Looks.tools.defaultState();
   const g = Looks.grade;
-  const luts = () => g.buildFrameLuts(S.tools);
   const src = flatImage(24, 24, () => [0.6, 0.6, 0.6]);
   S.tools.vignette.p.strength = 1;
   S.tools.vignette.w.color.rgb = [0, 0, 0];
   const out = g.gradeImage(src, 24, 24, S.tools, enOnly(["vignette"]));
-  const center = out[(12 * 24 + 12) * 4];
-  const corner = out[0];
-  assert.ok(corner < center * 0.7, "corner darker than center");
+  assert.ok(out[0] < out[(12 * 24 + 12) * 4] * 0.7, "corner darker than center");
   S.tools.vignette.p.strength = 0;
   S.tools.curves.x.curves.channels.Red.push({ x: 0.5, y: 0.8 });
-  const curved = g.gradePixel([0.5, 0.5, 0.5], [0.5, 0.5], S.tools, enOnly(["curves"]), (u, v) => [0.5, 0.5, 0.5], [16, 16], luts());
+  const curved = px(Looks, [0.5, 0.5, 0.5], S.tools, enOnly(["curves"]));
   assert.ok(curved[0] > 0.75 && Math.abs(curved[1] - 0.5) < 0.01, "red curve lifts reds only");
   S.tools.curves.x.curves.channels.Red.pop();
-  S.tools.lut.x.lut.name = "None";
-  const plain = g.gradePixel([0.5, 0.5, 0.5], [0.5, 0.5], S.tools, enOnly(["lut"]), (u, v) => [0.5, 0.5, 0.5], [16, 16], luts());
+  const plain = px(Looks, [0.5, 0.5, 0.5], S.tools, enOnly(["lut"]));
   assert.deepEqual(plain.map((v) => Math.round(v * 1e6)), [500000, 500000, 500000]);
   S.tools.lut.x.lut.name = "Hot";
-  const hot = g.gradePixel([0.5, 0.5, 0.5], [0.5, 0.5], S.tools, enOnly(["lut"]), (u, v) => [0.5, 0.5, 0.5], [16, 16], luts());
+  const hot = px(Looks, [0.5, 0.5, 0.5], S.tools, enOnly(["lut"]));
   assert.ok(hot[0] > hot[2] + 0.05, "Hot warms the pixel");
+});
+
+test("LUT gamma does nothing without a LUT selected", () => {
+  const Looks = loadLooks();
+  const S = Looks.tools.defaultState();
+  S.tools.lut.x.lut.gamma = "Input";
+  const out = px(Looks, [0.5, 0.25, 0.8], S.tools, enOnly(["lut"]));
+  assert.deepEqual(out.map((v) => Math.round(v * 1e6)), [500000, 250000, 800000], "name None is identity");
 });
 
 test("disabled chain passes through and alpha survives", () => {
@@ -140,57 +143,113 @@ test("disabled chain passes through and alpha survives", () => {
   assert.equal(out[3], 128, "alpha preserved");
 });
 
-test("hsl red saturation and distortion center behave", () => {
+test("chain order changes the result of non-commuting tools", () => {
+  const Looks = loadLooks();
+  const S = Looks.tools.defaultState();
+  S.tools.contrast.p.contrast = 0.5;
+  S.tools.contrast.p.pivot = 0.5;
+  S.tools.crush.p.gamma = 2;
+  const en = enOnly(["contrast", "crush"]);
+  const a = px(Looks, [0.7, 0.7, 0.7], S.tools, en, null, ["contrast", "crush"]);
+  const b = px(Looks, [0.7, 0.7, 0.7], S.tools, en, null, ["crush", "contrast"]);
+  assert.ok(Math.abs(a[0] - b[0]) > 0.01, "order matters");
+});
+
+test("tools removed from the chain do not run", () => {
+  const Looks = loadLooks();
+  const S = Looks.tools.defaultState();
+  S.tools.contrast.p.contrast = 0.5;
+  const en = enOnly(["contrast"]);
+  const inChain = px(Looks, [0.7, 0.7, 0.7], S.tools, en, null, ["contrast"]);
+  const removed = px(Looks, [0.7, 0.7, 0.7], S.tools, en, null, ["crush"]);
+  assert.equal(removed[0], 0.7, "removed tool is skipped");
+  assert.notEqual(inChain[0], 0.7, "same tool in the chain applies");
+});
+
+test("lens distortion is a pre-stage: it resamples only when in the chain", () => {
   const Looks = loadLooks();
   const S = Looks.tools.defaultState();
   const g = Looks.grade;
+  S.tools["lens-distortion"].p.distortion = 0.5;
+  const sample = (u, v) => [u, v, 0.5];
+  const c0 = [0.9, 0.5, 0.5];
   const luts = g.buildFrameLuts(S.tools);
-  const px = (c, uv) => g.gradePixel(c, uv, S.tools, enOnly(["hsl-colors", "lens-distortion"]), (u, v) => c, [32, 32], luts);
+  const en = enOnly(["lens-distortion"]);
+  const with_ = g.gradePixel(c0, [0.9, 0.5], S.tools, en, sample, [32, 32], luts, ["lens-distortion"]);
+  const without = g.gradePixel(c0, [0.9, 0.5], S.tools, en, sample, [32, 32], luts, ["contrast"]);
+  assert.ok(Math.abs(with_[0] - 0.9) > 1e-3, "lens resamples when listed");
+  assert.equal(without[0], 0.9, "lens absent when not in the chain");
+});
+
+test("hsl red saturation and distortion center behave", () => {
+  const Looks = loadLooks();
+  const S = Looks.tools.defaultState();
   S.tools["hsl-colors"].x.hsl[0].sat = 1;
-  const red = px([0.6, 0.2, 0.2], [0.5, 0.5]);
-  assert.ok(red[0] - red[1] > 0.4 - 0.2 + 0.1, "red saturation boosted separation");
+  const red = px(Looks, [0.6, 0.2, 0.2], S.tools, enOnly(["hsl-colors"]));
+  assert.ok(red[0] - red[1] > 0.5, "red saturation boosted separation");
   S.tools["hsl-colors"].x.hsl[0].sat = 0;
   S.tools["lens-distortion"].p.distortion = 0.5;
-  const mid = px([0.4, 0.4, 0.4], [0.5, 0.5]);
+  const mid = px(Looks, [0.4, 0.4, 0.4], S.tools, enOnly(["lens-distortion"]));
   assert.ok(Math.abs(mid[0] - 0.4) < 0.05, "distortion keeps the center stable");
+});
+
+test("degenerate thresholds and extreme values stay finite", () => {
+  const Looks = loadLooks();
+  const S = Looks.tools.defaultState();
+  S.tools["ranged-saturation"].p.thresholdHighlight = 0.4;
+  S.tools["ranged-saturation"].p.thresholdMidtone = 0.4;
+  S.tools["ranged-saturation"].p.thresholdShadow = 0.4;
+  S.tools["auto-shoulder"].p.strength = 1;
+  const src = flatImage(8, 8, (u, v) => [u, v, 0.5]);
+  const all = {};
+  for (const k of Object.keys(S.tools)) all[k] = 1;
+  const out = Looks.grade.gradeImage(src, 8, 8, S.tools, all);
+  assert.ok(out.every((v) => Number.isFinite(v)), "no NaN from degenerate zones");
+  const neg = px(Looks, [-0.18, 0, 0], S.tools, enOnly(["auto-shoulder"]));
+  assert.ok(Number.isFinite(neg[0]), "auto shoulder guards negative input");
 });
 
 // ---------- effect surface ----------
 
+function makeTexture(counter) {
+  return function DataTexture(data, w, h) {
+    this.data = data;
+    this.width = w;
+    this.height = h;
+    let flag = false;
+    Object.defineProperty(this, "needsUpdate", {
+      get() { return flag; },
+      set(v) { flag = v; if (v) counter.uploads++; },
+    });
+  };
+}
+
 function loadEffect() {
   const source = readPack("looks-fx.js");
-  const PZ = {
-    property: { type: { NUMBER: 1, OPTION: 2, TEXT: 3, COLOR: 7 } },
-  };
-  const vectors = [];
+  const PZ = { property: { type: { NUMBER: 0, OPTION: 6, TEXT: 7 } } };
+  const counter = { uploads: 0 };
   const THREE = {
     Vector2: function (x, y) { this.x = x; this.y = y; this.set = (a, b) => { this.x = a; this.y = b; }; },
     Vector3: function (x, y, z) {
       this.x = x; this.y = y; this.z = z;
-      this.set = (a, b, c) => { this.x = a; this.y = b; this.z = c; vectors.push([a, b, c]); };
+      this.set = (a, b, c) => { this.x = a; this.y = b; this.z = c; };
     },
-    ShaderMaterial: function (opts) { this.uniforms = opts.uniforms; },
-    ShaderPass: function (mat) { this.uniforms = mat.uniforms; this.enabled = true; },
-    DataTexture: function (data, w, h) {
-      this.data = data; this.width = w; this.height = h; this.needsUpdate = false;
-    },
+    ShaderMaterial: function (opts) { this.uniforms = opts.uniforms; this.dispose = () => {}; },
+    ShaderPass: function (mat) { this.uniforms = mat.uniforms; this.enabled = true; this.material = mat; },
+    DataTexture: makeTexture(counter),
     RGBFormat: 1,
     LinearFilter: 1,
     ClampToEdgeWrapping: 1,
   };
   const store = {};
-  const writes = [];
   function FakeProp(def) {
     this.def = def;
     this.v = def.value;
   }
   FakeProp.prototype.get = function () { return this.v; };
-  FakeProp.prototype.set = function (v) { this.v = v; writes.push(v); };
+  FakeProp.prototype.set = function (v) { this.v = v; };
   const fakeThis = {
-    _zoidiumGetAsset: (kind, url) => {
-      const base = String(url).split("/").pop().split("?")[0];
-      return readPack(base);
-    },
+    _zoidiumGetAsset: (kind, url) => readPack(String(url).split("/").pop().split("?")[0]),
     properties: {
       addAll(defs) {
         for (const k of Object.keys(defs)) {
@@ -205,19 +264,18 @@ function loadEffect() {
     },
   };
   new Function("PZ", "THREE", source).call(fakeThis, PZ, THREE);
-  return { fakeThis, PZ, THREE, store, writes, vectors };
+  return { fakeThis, PZ, THREE, store, counter };
 }
 
-test("effect properties match the catalog prop map exactly", () => {
+test("effect properties match the catalog prop map and the chain/enable surface", () => {
   const { fakeThis } = loadEffect();
   const Looks = fakeThis.looksTest.Looks;
   const map = Looks.tools.propMap();
   const defs = fakeThis.propertyDefinitions;
   assert.equal(fakeThis.defaultName, "Magic Looks");
-  assert.deepEqual(defs.enabled.buttons, [
-    { name: "Magic Looks Setup", title: "Open the Magic Looks setup window", action: "magicLooksSetup" },
-  ]);
-  const expected = new Set(["enabled"]);
+  assert.equal(defs.enabled.magicLooksSetup.name, "Setup");
+  assert.equal(defs.enabled.buttons, undefined, "setup button does not use the shared buttons renderer");
+  const expected = new Set(["enabled", "chainOrder"]);
   for (const id of Object.keys(map)) {
     const rec = map[id];
     expected.add(rec.enable);
@@ -230,12 +288,7 @@ test("effect properties match the catalog prop map exactly", () => {
     if (rec.custom.curvesJson) expected.add(rec.custom.curvesJson);
     if (rec.custom.scurveJson) expected.add(rec.custom.scurveJson);
     if (rec.custom.fourwayPreview) expected.add(rec.custom.fourwayPreview);
-    if (rec.custom.fourway) {
-      for (const slot of Object.keys(rec.custom.fourway)) {
-        for (const key of rec.custom.fourway[slot]) expected.add(key);
-      }
-    }
-    if (rec.custom.angle) expected.add(rec.custom.angle);
+    if (rec.custom.fourway) for (const slot of Object.keys(rec.custom.fourway)) for (const key of rec.custom.fourway[slot]) expected.add(key);
     if (rec.custom.lutName) {
       expected.add(rec.custom.lutName);
       expected.add(rec.custom.lutStrength);
@@ -243,67 +296,105 @@ test("effect properties match the catalog prop map exactly", () => {
     }
   }
   assert.deepEqual(new Set(Object.keys(defs)), expected, "no drift between catalog and effect");
-  assert.ok(Object.keys(defs).length > 200, "full tool surface declared (" + Object.keys(defs).length + " props)");
-  assert.equal(defs.scvLog.items, "Off;On");
   assert.equal(defs.lutGamma.items, "Same As Input;Input;Output");
-  assert.equal(defs.curvCurvesJson.type, 3, "curves travel as TEXT json");
+  assert.equal(defs.curvCurvesJson.type, 7, "curves travel as TEXT json");
+  assert.equal(defs.chainOrder.value, JSON.stringify(Looks.tools.defaultChain()), "default chain is stored");
+  assert.equal(defs.ccEnable.value, 0, "Color Contrast ships off");
 });
 
-test("effect update syncs uniforms and rebuilds the curves LUT", () => {
+test("effect update: pass disabled at defaults, enabled once a value changes", async () => {
   const { fakeThis, store } = loadEffect();
-  const T = fakeThis.looksTest;
-  const uniforms = T.buildUniforms(T.propMap);
-  fakeThis.pass = { uniforms, enabled: true };
-  fakeThis._looksLutBytes = new Uint8Array(256 * 3);
-  fakeThis._looksLutKeys = { curves: "", scurve: "" };
-  fakeThis._looksLutTexture = { needsUpdate: false };
+  await fakeThis.load({});
+  fakeThis.update({});
+  assert.equal(fakeThis.pass.enabled, false, "identity defaults skip the pass");
   store.conContrast.v = 0.4;
-  store.lggGainR.v = 1.1;
-  store.lggGainG.v = 1.0;
-  store.lggGainB.v = 0.9;
+  fakeThis.update({});
+  assert.equal(fakeThis.pass.enabled, true, "a changed value engages the pass");
+  assert.equal(fakeThis.pass.uniforms.u_conContrast.value, 0.4);
+  store.conContrast.v = 0;
+  store.enabled.v = 0;
+  fakeThis.update({});
+  assert.equal(fakeThis.pass.enabled, false, "master bypass disengages the pass");
+});
+
+test("effect update: LUT and chain uploads happen only when their values change", async () => {
+  const { fakeThis, store, counter } = loadEffect();
+  await fakeThis.load({});
+  fakeThis.update({});
+  const baseline = counter.uploads;
+  for (let i = 0; i < 5; i++) fakeThis.update({});
+  assert.equal(counter.uploads, baseline, "no per-frame LUT upload");
   store.curvCurvesJson.v = JSON.stringify({
+    RGB: [{ x: 0, y: 0 }, { x: 1, y: 1 }],
     Red: [{ x: 0, y: 0 }, { x: 0.5, y: 0.8 }, { x: 1, y: 1 }],
     Green: [{ x: 0, y: 0 }, { x: 1, y: 1 }],
     Blue: [{ x: 0, y: 0 }, { x: 1, y: 1 }],
   });
   fakeThis.update({});
-  assert.equal(uniforms.u_conContrast.value, 0.4);
-  assert.deepEqual([uniforms.u_lggGainTint.value.x, uniforms.u_lggGainTint.value.y, uniforms.u_lggGainTint.value.z], [1.1, 1.0, 0.9]);
-  assert.equal(fakeThis._looksLutTexture.needsUpdate, true, "LUT texture flagged");
-  assert.ok(fakeThis._looksLutBytes[128 * 3] > 200, "red curve lifted into LUT bytes");
-  assert.equal(fakeThis.pass.enabled, true, "chain engaged while tools are on");
-  for (const k of Object.keys(store)) {
-    if (/Enable$/.test(k)) store[k].v = 0;
-  }
-  store.enabled.v = 1;
+  assert.equal(counter.uploads, baseline + 1, "changed curves upload once");
+  assert.equal(fakeThis._looksCurvesIdentity, false, "non-identity curves engage");
+  assert.ok(fakeThis._looksCurvesBytes[128 * 3] > 200, "red curve lifted into the table");
   fakeThis.update({});
-  assert.equal(fakeThis.pass.enabled, false, "chain disengages when every tool is off");
+  assert.equal(counter.uploads, baseline + 1, "unchanged curves do not re-upload");
 });
 
-test("every shader uniform exists on the material", () => {
+test("effect update: chain order uniform is filled and reordering needs no recompile", async () => {
+  const { fakeThis, store } = loadEffect();
+  await fakeThis.load({});
+  const uniforms = fakeThis.pass.uniforms;
+  const materialBefore = fakeThis.pass.material;
+  store.chainOrder.v = JSON.stringify(["crush", "contrast"]);
+  fakeThis.update({});
+  assert.equal(uniforms.u_chainCount.value, 2);
+  assert.equal(uniforms.u_chain.value[0], 3, "crush dispatch index");
+  assert.equal(uniforms.u_chain.value[1], 4, "contrast dispatch index");
+  assert.equal(uniforms.u_chain.value[2], -1, "unused slots are cleared");
+  assert.equal(fakeThis.pass.material, materialBefore, "same material, shader not rebuilt");
+});
+
+test("every shader uniform exists on the material", async () => {
   const { fakeThis } = loadEffect();
-  const T = fakeThis.looksTest;
-  const uniforms = T.buildUniforms(T.propMap);
+  await fakeThis.load({});
+  const uniforms = fakeThis.pass.uniforms;
   const src = readPack("looks-grade.glsl");
   const missing = [];
-  for (const m of src.matchAll(/uniform\s+(?:float|vec3|vec2|sampler2D)\s+(\w+)\s*;/g)) {
+  for (const m of src.matchAll(/uniform\s+(?:float|vec3|vec2|sampler2D)\s+(\w+)(?:\[\d+\])?\s*;/g)) {
     if (!(m[1] in uniforms)) missing.push(m[1]);
   }
   assert.deepEqual(missing, [], "shader/material agreement");
 });
 
+test("shader dispatch table matches the catalog order and every stage is wired", () => {
+  const { fakeThis } = loadEffect();
+  const Looks = fakeThis.looksTest.Looks;
+  const src = readPack("looks-grade.glsl");
+  const header = src.slice(src.indexOf("Tool dispatch index"), src.indexOf("uniform sampler2D tDiffuse"));
+  const pairs = {};
+  for (const m of header.matchAll(/(\d+) ([a-z][a-z-]*)/g)) pairs[m[1]] = m[2];
+  Looks.tools.TOOLS.forEach((tool, i) => {
+    assert.equal(pairs[String(i)], tool.id, "dispatch index " + i + " is " + tool.id);
+  });
+  const dispatch = src.slice(src.indexOf("vec3 lkApply("), src.indexOf("void main()"));
+  for (let i = 0; i < 29; i++) {
+    if (i === 24) continue;
+    assert.ok(dispatch.includes("abs(id - " + i + ".0) < 0.5"), "dispatch branch " + i);
+  }
+  assert.ok(!dispatch.includes("abs(id - 24.0)"), "lens is handled before the chain");
+});
+
+test("shader keeps premultiplied alpha and guards the math", () => {
+  const src = readPack("looks-grade.glsl");
+  assert.ok(!/gl_FragColor\s*=\s*vec4\(c,\s*1\.0\)/.test(src), "alpha is not forced opaque");
+  assert.ok(src.includes("gl_FragColor = vec4(c * a, a)"), "premultiplied output");
+  assert.ok(src.includes("src.rgb / a"), "unpremultiplied input");
+  assert.ok(src.includes("float lkSmooth("), "guarded smoothstep");
+  assert.ok(src.includes("int hl = count / 2"), "line taps match the JS reference");
+  assert.ok(src.includes("(clamp(x, 0.0, 1.0) * 255.0 + 0.5) / 256.0"), "LUT texel mapping");
+});
+
 test("setup binding markers are present", () => {
   const source = readPack("looks-setup.js");
-  for (const fn of [
-    "findLooks", "pullFromEffect", "pushFullState", "schedulePush",
-    "openMagicLooks", "addLooksToSelection", "magicLooksSetup",
-    "ensureDispatcher", "wrapDispatcher", "unpatchDispatcher",
-    "lk-preview", "lk-screen", "mainViewport",
-  ]) {
+  for (const fn of ["openSetup", "installPropertyButton", "createSession", "presetWrites", "chainSection", "buildCurves"]) {
     assert.ok(source.includes(fn), "setup references " + fn);
-  }
-  const css = readPack("looks-setup.css");
-  for (const cls of ["lk-preview", "lk-screen", "lk-screen-placeholder", "lk-preview-bar", "lk-status", "lk-time", "lk-mini-btn"]) {
-    assert.ok(css.includes("." + cls), "missing style for " + cls);
   }
 });

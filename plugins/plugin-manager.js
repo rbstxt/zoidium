@@ -1,7 +1,10 @@
 (function () {
   "use strict";
 
-  const REGISTRY_URL = "./plugins/registry.json?v=31";
+  // zoidium/runtime-config.js owns this URL and preloads it at startup.
+  const REGISTRY_URL =
+    (window.ZOIDIUM_RUNTIME && window.ZOIDIUM_RUNTIME.registryUrl) ||
+    "./plugins/registry.json?v=31";
   const STORAGE_PREFIX = "zoidium.plugin.enabled.";
   const SHADER_PLUGIN_MARKER = "// @zoidium-plugin ";
   const EFFECT_UUID_PROPERTY = "_zoidiumEffectUuid";
@@ -13,6 +16,11 @@
   const MATERIAL_PLUS_PLUGIN_ID = "material-plus";
   const TEXT_PLUS_PLUGIN_ID = "text-plus";
   const PARTICLES_PLUS_PLUGIN_ID = "particles-plus";
+  const OPENZOID_LEGACY_PLUGIN_ID = "openzoid-legacy";
+  const TRAPCODE_SUITE_PLUGIN_ID = "trapcode-suite";
+  const OPTICAL_FLARES_PLUGIN_ID = "optical-flares";
+  const EFFECTOR_PLUS_PLUGIN_ID = "effector-plus";
+  const CAMERA_PLUS_PLUGIN_ID = "camera-plus";
   const LAYER_INPUT_SHADER_FEATURE_ID = "shader-layer-input";
   const TEXT_PLUS_SPACING_FEATURE_ID = "text-spacing";
   const TEXT_PLUS_BEVEL_FEATURE_ID = "advanced-bevel";
@@ -34,12 +42,50 @@
     ["uvcustom", { pluginId: MATERIAL_PLUS_PLUGIN_ID, name: "UV Custom Material" }],
     [LAYER_INPUT_MATERIAL_ID, { pluginId: LAYER_INPUT_PLUGIN_ID, name: "Layer Source" }],
   ]);
+  // Native effect id -> owning plugin, across all packs (extends the
+  // hardcoded native-fx set above for project dependency scans).
+  const NATIVE_EFFECT_PLUGINS = new Map([
+    ["radialblurspin", NATIVE_FX_PLUGIN_ID],
+    ["colorcurves", NATIVE_FX_PLUGIN_ID],
+    ["echo", NATIVE_FX_PLUGIN_ID],
+    ["dropshadow", NATIVE_FX_PLUGIN_ID],
+    ["timeoffset", NATIVE_FX_PLUGIN_ID],
+    ["posterizetime", NATIVE_FX_PLUGIN_ID],
+    [LAYER_INPUT_EFFECT_ID, LAYER_INPUT_PLUGIN_ID],
+    [LAYER_INPUT_DISPLACEMENT_EFFECT_ID, LAYER_INPUT_PLUGIN_ID],
+    ["echo-legacy", OPENZOID_LEGACY_PLUGIN_ID],
+    ["posterizetime-legacy", OPENZOID_LEGACY_PLUGIN_ID],
+    ["jpegdamage", OPENZOID_LEGACY_PLUGIN_ID],
+    ["vhs", OPENZOID_LEGACY_PLUGIN_ID],
+    ["datamosh", OPENZOID_LEGACY_PLUGIN_ID],
+  ]);
+  // Numeric 3D-object type -> owning pack. Layers always carry an effects
+  // array while object entries never do, so the scan below tells them apart.
+  const NUMERIC_OBJECT_TYPES = new Map([
+    [7, { pluginId: EFFECTOR_PLUS_PLUGIN_ID, objectId: "twist" }],
+    [8, { pluginId: EFFECTOR_PLUS_PLUGIN_ID, objectId: "warp" }],
+    [9, { pluginId: EFFECTOR_PLUS_PLUGIN_ID, objectId: "voronoi" }],
+    [10, { pluginId: TRAPCODE_SUITE_PLUGIN_ID, objectId: "particular" }],
+    [11, { pluginId: TRAPCODE_SUITE_PLUGIN_ID, objectId: "form" }],
+    [12, { pluginId: TRAPCODE_SUITE_PLUGIN_ID, objectId: "plexus" }],
+    [13, { pluginId: OPTICAL_FLARES_PLUGIN_ID, objectId: "optical-flares" }],
+  ]);
+  // Numeric layer type -> owning pack, scanned along track clip paths only
+  // (type 9 is ambiguous in flat JSON: Voronoi object vs Camera layer).
+  const NUMERIC_LAYER_TYPES = new Map([
+    [9, { pluginId: CAMERA_PLUS_PLUGIN_ID, layerId: "camera-layer" }],
+  ]);
   const PLUGIN_DEPENDENCY_INFO = new Map([
     [NATIVE_FX_PLUGIN_ID, { name: "Native FX", author: "Zoidium" }],
     [LAYER_INPUT_PLUGIN_ID, { name: "Layer Input", author: "Zoidium" }],
     [MATERIAL_PLUS_PLUGIN_ID, { name: "Material+", author: "Zoidium" }],
     [TEXT_PLUS_PLUGIN_ID, { name: "Text+", author: "Zoidium" }],
     [PARTICLES_PLUS_PLUGIN_ID, { name: "Particles+", author: "Zoidium" }],
+    [OPENZOID_LEGACY_PLUGIN_ID, { name: "Setup Legacy", author: "Zoidium" }],
+    [TRAPCODE_SUITE_PLUGIN_ID, { name: "Rowbyte & Red Giant Suite", author: "Zoidium" }],
+    [OPTICAL_FLARES_PLUGIN_ID, { name: "Optical Flares", author: "Zoidium" }],
+    [EFFECTOR_PLUS_PLUGIN_ID, { name: "Effector+", author: "Zoidium" }],
+    [CAMERA_PLUS_PLUGIN_ID, { name: "Camera+", author: "Zoidium" }],
   ]);
   const DEFAULT_PLUGIN_COLORS = Object.freeze({
     "easing-plus": "#384668",
@@ -63,6 +109,8 @@
   const missingPluginObjects = new Set();
   const trackedPluginResources = new Set();
   const missingPluginResources = new Set();
+  const missingNumericObjects = new Set();
+  const missingNumericLayers = new Set();
   const debugUsageCounts = new Map();
   const effectUuidByEntry = new WeakMap();
   let projectHooksInstalled = false;
@@ -614,11 +662,38 @@
     };
   }
 
+  // The body-wide observer sees every DOM change in the editor. Only mutations
+  // that touch an open picker list (.pz-options) can add rows, so everything
+  // else is ignored instead of rebuilding the whole effect lookup.
+  function isPickerMutation(record) {
+    const target = record.target;
+    if (target && target.nodeType === Node.ELEMENT_NODE && target.closest(".pz-options")) {
+      return true;
+    }
+    if (target && target.nodeType === Node.TEXT_NODE && target.parentElement?.closest(".pz-options")) {
+      return true;
+    }
+    for (const node of record.addedNodes) {
+      if (node.nodeType !== Node.ELEMENT_NODE) continue;
+      if (node.matches(".pz-options") || node.querySelector(".pz-options")) return true;
+    }
+    return false;
+  }
+
+  function onBodyMutations(records) {
+    for (const record of records) {
+      if (isPickerMutation(record)) {
+        scheduleEffectPickerBadges();
+        return;
+      }
+    }
+  }
+
   function installEffectPickerBadges() {
     if (effectBadgeObserver) return;
     installNativeFxSearchPriority();
     decorateEffectPicker();
-    effectBadgeObserver = new MutationObserver(scheduleEffectPickerBadges);
+    effectBadgeObserver = new MutationObserver(onBodyMutations);
     effectBadgeObserver.observe(document.body, { childList: true, subtree: true });
   }
 
@@ -1960,6 +2035,102 @@
     return found;
   }
 
+  // Like findNativeFxTypes, but attributes every registered native effect
+  // id (all packs) to its owning plugin instead of only the native-fx set.
+  function findPluginNativeEffects(value, found = new Map(), visited = new WeakSet()) {
+    if (!value || typeof value !== "object") return found;
+    if (visited.has(value)) return found;
+    visited.add(value);
+    if (typeof value.type === "string" && NATIVE_EFFECT_PLUGINS.has(value.type)) {
+      const pluginId = NATIVE_EFFECT_PLUGINS.get(value.type);
+      if (!found.has(pluginId)) found.set(pluginId, new Set());
+      found.get(pluginId).add(value.type);
+    }
+    if (Array.isArray(value)) {
+      for (const item of value) findPluginNativeEffects(item, found, visited);
+    } else {
+      for (const key of Object.keys(value)) findPluginNativeEffects(value[key], found, visited);
+    }
+    return found;
+  }
+
+  // Numeric 3D-object types (7-13) from packs that extend the numeric type
+  // namespace. Layer nodes always carry an effects array while object
+  // entries never do, which keeps Camera layers (type 9) from colliding
+  // with Voronoi objects (type 9) in flat project JSON.
+  function findNumericObjectTypes(value, found = new Map(), visited = new WeakSet()) {
+    if (!value || typeof value !== "object") return found;
+    if (visited.has(value)) return found;
+    visited.add(value);
+    if (typeof value.type === "number" && NUMERIC_OBJECT_TYPES.has(value.type) &&
+        !Array.isArray(value.effects)) {
+      const entry = NUMERIC_OBJECT_TYPES.get(value.type);
+      if (!found.has(entry.pluginId)) found.set(entry.pluginId, new Set());
+      found.get(entry.pluginId).add(entry.objectId);
+    }
+    if (Array.isArray(value)) {
+      for (const item of value) findNumericObjectTypes(item, found, visited);
+    } else {
+      for (const key of Object.keys(value)) findNumericObjectTypes(value[key], found, visited);
+    }
+    return found;
+  }
+
+  // Numeric layer types along track clip paths (clips[].object nodes).
+  function findNumericLayerTypes(data, found = new Map()) {
+    const visited = new WeakSet();
+    const visitTracks = (tracks) => {
+      if (!Array.isArray(tracks)) return;
+      for (const track of tracks) {
+        if (!track || typeof track !== "object" || visited.has(track)) continue;
+        visited.add(track);
+        if (!Array.isArray(track.clips)) continue;
+        for (const clip of track.clips) {
+          const layer = clip && clip.object;
+          if (!layer || typeof layer !== "object" || visited.has(layer)) continue;
+          visited.add(layer);
+          if (typeof layer.type === "number" && NUMERIC_LAYER_TYPES.has(layer.type)) {
+            const entry = NUMERIC_LAYER_TYPES.get(layer.type);
+            if (!found.has(entry.pluginId)) found.set(entry.pluginId, new Set());
+            found.get(entry.pluginId).add(entry.layerId);
+          }
+        }
+      }
+    };
+    if (data && typeof data === "object") {
+      visitTracks(data.videoTracks);
+      visitTracks(data.audioTracks);
+      if (Array.isArray(data.media)) {
+        for (const media of data.media) {
+          if (media && typeof media === "object" && Array.isArray(media.data)) {
+            visitTracks(media.data);
+          }
+        }
+      }
+    }
+    return found;
+  }
+
+  // C4D light ids on vanilla light objects (type 3, objectType 5-8).
+  // Legacy Hemisphere payloads (objectType 4) are intentionally ignored:
+  // they are indistinguishable from vanilla Hemisphere lights in JSON and
+  // render identically without the pack.
+  function findC4DLights(value, found = new Set(), visited = new WeakSet()) {
+    if (!value || typeof value !== "object") return found;
+    if (visited.has(value)) return found;
+    visited.add(value);
+    if (value.type === 3 && typeof value.objectType === "number" &&
+        value.objectType >= 5 && value.objectType <= 8) {
+      found.add("c4d-lights");
+    }
+    if (Array.isArray(value)) {
+      for (const item of value) findC4DLights(item, found, visited);
+    } else {
+      for (const key of Object.keys(value)) findC4DLights(value[key], found, visited);
+    }
+    return found;
+  }
+
   function findPluginMaterialTypes(value, found = new Map(), visited = new WeakSet()) {
     if (!value || typeof value !== "object") return found;
     if (visited.has(value)) return found;
@@ -2094,17 +2265,25 @@
   function projectPluginRequirements(data) {
     const plugins = normalizeProjectPlugins(data?.plugins);
     const detectedEffects = Array.from(findNativeFxTypes(data)).sort();
+    const detectedPluginNative = findPluginNativeEffects(data);
     const detectedLayerInput = findLayerInputFeatures(data);
     const detectedMaterialTypes = findPluginMaterialTypes(data);
     const detectedObjectTypes = findPluginObjectTypes(data);
+    const detectedNumericObjects = findNumericObjectTypes(data);
+    const detectedNumericLayers = findNumericLayerTypes(data);
+    const detectedC4DLights = findC4DLights(data);
     const detectedTextPlusFeatures = findTextPlusFeatures(data);
     const detectedParticlesPlusSprites = findParticlesPlusSprites(data);
     if (
       detectedEffects.length === 0 &&
+      detectedPluginNative.size === 0 &&
       detectedLayerInput.effects.size === 0 &&
       detectedLayerInput.features.size === 0 &&
       detectedMaterialTypes.size === 0 &&
       detectedObjectTypes.size === 0 &&
+      detectedNumericObjects.size === 0 &&
+      detectedNumericLayers.size === 0 &&
+      detectedC4DLights.size === 0 &&
       detectedTextPlusFeatures.size === 0 &&
       detectedParticlesPlusSprites.size === 0
     ) {
@@ -2116,6 +2295,9 @@
       "effects",
       new Set(detectedEffects)
     );
+    for (const [pluginId, effectIds] of detectedPluginNative) {
+      mergeDetectedPluginItems(plugins, pluginId, "effects", effectIds);
+    }
     mergeDetectedPluginItems(
       plugins,
       LAYER_INPUT_PLUGIN_ID,
@@ -2134,6 +2316,13 @@
     for (const [pluginId, objectTypes] of detectedObjectTypes) {
       mergeDetectedPluginItems(plugins, pluginId, "objects", objectTypes);
     }
+    for (const [pluginId, objectIds] of detectedNumericObjects) {
+      mergeDetectedPluginItems(plugins, pluginId, "objects", objectIds);
+    }
+    for (const [pluginId, layerIds] of detectedNumericLayers) {
+      mergeDetectedPluginItems(plugins, pluginId, "objects", layerIds);
+    }
+    mergeDetectedPluginItems(plugins, TRAPCODE_SUITE_PLUGIN_ID, "features", detectedC4DLights);
     mergeDetectedPluginItems(
       plugins,
       TEXT_PLUS_PLUGIN_ID,
@@ -2147,6 +2336,203 @@
       detectedParticlesPlusSprites
     );
     return plugins;
+  }
+
+  // Numeric-type placeholders: projects may reference 3D object or layer
+  // types whose pack is disabled (or was never enabled). The vanilla
+  // factories throw for unknown numerics, which would abort the whole
+  // project load, so the manager substitutes data-preserving dummies and
+  // swaps the real thing back in when the owning pack enables.
+  function trackMissingNumericObject(instance) {
+    missingNumericObjects.add(instance);
+  }
+
+  function untrackMissingNumericObject(instance) {
+    missingNumericObjects.delete(instance);
+  }
+
+  function createMissingNumericObject(type, pluginId, objectId) {
+    const placeholder = new PZ.object3d();
+    placeholder.type = type;
+    placeholder._zoidiumMissingNumeric = { kind: "object", pluginId, objectId, type, data: null };
+    placeholder.load = async function (data) {
+      try {
+        this._zoidiumMissingNumeric.data = cloneJson(data);
+      } catch (_error) {
+        this._zoidiumMissingNumeric.data = { type };
+      }
+    };
+    placeholder.toJSON = function () {
+      try {
+        const data = this._zoidiumMissingNumeric.data;
+        if (data && typeof data === "object") return cloneJson(data);
+      } catch (_error) { /* fall through */ }
+      return { type: this._zoidiumMissingNumeric.type };
+    };
+    placeholder.update = function () {};
+    placeholder.prepare = async function () {};
+    placeholder.unload = function () {};
+    placeholder._zoidiumMissingNumericPlaceholder = true;
+    trackMissingNumericObject(placeholder);
+    return placeholder;
+  }
+
+  function createMissingNumericLayer(type, pluginId, layerId) {
+    const layer = new PZ.layer();
+    layer.type = type;
+    layer._zoidiumMissingNumeric = { kind: "layer", pluginId, layerId, type, data: null };
+    layer.load = async function (data) {
+      try {
+        this._zoidiumMissingNumeric.data = cloneJson(data);
+      } catch (_error) {
+        this._zoidiumMissingNumeric.data = { type };
+      }
+    };
+    layer.toJSON = function () {
+      try {
+        const data = this._zoidiumMissingNumeric.data;
+        if (data && typeof data === "object") return cloneJson(data);
+      } catch (_error) { /* fall through */ }
+      return { type: this._zoidiumMissingNumeric.type };
+    };
+    layer.update = function () {};
+    layer.prepare = async function () {};
+    layer.unload = function () {};
+    layer._zoidiumMissingNumericPlaceholder = true;
+    missingNumericLayers.add(layer);
+    return layer;
+  }
+
+  function installNumericFallbacks() {
+    if (typeof PZ === "undefined") return false;
+    let installed = true;
+    if (PZ.object3d && typeof PZ.object3d.create === "function" &&
+        !PZ.object3d.create.__zoidiumNumericFallback) {
+      const originalCreate = PZ.object3d.create;
+      const patched = function (type) {
+        try {
+          return originalCreate.call(this, type);
+        } catch (error) {
+          if (typeof type === "number" && NUMERIC_OBJECT_TYPES.has(type)) {
+            const entry = NUMERIC_OBJECT_TYPES.get(type);
+            return createMissingNumericObject(type, entry.pluginId, entry.objectId);
+          }
+          throw error;
+        }
+      };
+      patched.__zoidiumNumericFallback = true;
+      PZ.object3d.create = patched;
+    } else if (!PZ.object3d || typeof PZ.object3d.create !== "function") {
+      installed = false;
+    }
+    if (PZ.layer && typeof PZ.layer.create === "function" &&
+        !PZ.layer.create.__zoidiumNumericFallback) {
+      const originalLayerCreate = PZ.layer.create;
+      const patchedLayer = function (type) {
+        try {
+          return originalLayerCreate.call(this, type);
+        } catch (error) {
+          if (typeof type === "number" && NUMERIC_LAYER_TYPES.has(type)) {
+            const entry = NUMERIC_LAYER_TYPES.get(type);
+            return createMissingNumericLayer(type, entry.pluginId, entry.layerId);
+          }
+          throw error;
+        }
+      };
+      patchedLayer.__zoidiumNumericFallback = true;
+      PZ.layer.create = patchedLayer;
+    } else if (!PZ.layer || typeof PZ.layer.create !== "function") {
+      installed = false;
+    }
+    return installed;
+  }
+
+  async function restoreMissingNumericObjects(pluginId) {
+    for (const missing of Array.from(missingNumericObjects)) {
+      const meta = missing && missing._zoidiumMissingNumeric;
+      if (!meta || (pluginId && meta.pluginId !== pluginId)) continue;
+      const parent = missing.parent;
+      const index = parent && typeof parent.indexOf === "function" ? parent.indexOf(missing) : -1;
+      let data = null;
+      try {
+        data = missing.toJSON();
+      } catch (_error) {
+        data = { type: meta.type };
+      }
+      try {
+        if (typeof missing.unload === "function") missing.unload();
+      } catch (_error) { /* best effort */ }
+      untrackMissingNumericObject(missing);
+      let replacement = null;
+      try {
+        replacement = PZ.object3d.create(meta.type);
+      } catch (error) {
+        console.error("[Zoidium] could not restore numeric 3D object of type " + meta.type, error);
+        trackMissingNumericObject(missing);
+        continue;
+      }
+      if (index >= 0 && parent && typeof parent.splice === "function") {
+        parent.splice(index, 1, replacement);
+      }
+      try {
+        await replacement.load(data);
+      } catch (error) {
+        console.error("[Zoidium] could not load restored numeric 3D object of type " + meta.type, error);
+      }
+    }
+  }
+
+  function eachKnownProject(rootEditors) {
+    const out = [];
+    const editors = rootEditors || [];
+    for (const editor of editors) {
+      if (editor && editor.project && !out.includes(editor.project)) out.push(editor.project);
+    }
+    return out;
+  }
+
+  async function restoreMissingNumericLayers(pluginId) {
+    const globals = typeof globalThis !== "undefined" ? globalThis : {};
+    const projects = eachKnownProject([globals.CM, globals.ZOIDIUM_EDITOR, globals.VE]);
+    for (const project of projects) {
+      const sequences = [];
+      if (project.sequence) sequences.push(project.sequence);
+      for (const sequence of sequences) {
+        for (const trackKind of ["videoTracks", "audioTracks"]) {
+          const tracks = sequence[trackKind];
+          if (!Array.isArray(tracks)) continue;
+          for (const track of tracks) {
+            const layer = track && track.layer;
+            const meta = layer && layer._zoidiumMissingNumeric;
+            if (!meta || meta.kind !== "layer" || (pluginId && meta.pluginId !== pluginId)) continue;
+            let data = null;
+            try {
+              data = layer.toJSON();
+            } catch (_error) {
+              data = { type: meta.type };
+            }
+            try {
+              if (typeof layer.unload === "function") layer.unload();
+            } catch (_error) { /* best effort */ }
+            missingNumericLayers.delete(layer);
+            let replacement = null;
+            try {
+              replacement = PZ.layer.create(meta.type);
+            } catch (error) {
+              console.error("[Zoidium] could not restore numeric layer of type " + meta.type, error);
+              missingNumericLayers.add(layer);
+              continue;
+            }
+            track.layer = replacement;
+            try {
+              await replacement.load(data);
+            } catch (error) {
+              console.error("[Zoidium] could not load restored numeric layer of type " + meta.type, error);
+            }
+          }
+        }
+      }
+    }
   }
 
   function installMissingFactoriesForRequirements(plugins) {
@@ -2319,6 +2705,9 @@
     const originalProjectToJSON = projectPrototype.toJSON;
     projectPrototype.toJSON = function () {
       const json = originalProjectToJSON.apply(this, arguments);
+      // Only an object can carry the plugin descriptor. Anything else is the
+      // host's own result and passes through untouched.
+      if (!json || typeof json !== "object") return json;
       const trackedPlugins = collectProjectPlugins(this);
       const plugins = projectPluginRequirements({ ...json, plugins: trackedPlugins });
       if (plugins.length > 0) json.plugins = serializeProjectPlugins(plugins);
@@ -2412,6 +2801,8 @@
         await PZ.zoidium?.object3d?.restoreMissing?.(state.plugin.id);
         await restoreMissingNativeEffects(state.plugin.id);
         await restoreMissingPluginMaterials(state.plugin.id);
+        await restoreMissingNumericObjects(state.plugin.id);
+        await restoreMissingNumericLayers(state.plugin.id);
         const featureCount = manifestFeatureCount(state.manifest);
         state.lastError = null;
         if (persist) persistEnabled(state.plugin.id, true);
@@ -2849,6 +3240,7 @@
     PZ.zoidium.define("trackPluginResource", trackPluginResource, "plugin-manager");
     PZ.zoidium.define("untrackPluginResource", untrackPluginResource, "plugin-manager");
     installMissingNativeFactories();
+    installNumericFallbacks();
     configureBundledLightDefault();
 
     try {

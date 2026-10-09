@@ -1,2 +1,7 @@
 /plugins/*/bundle.json
   Cache-Control: public, max-age=31536000, immutable
+
+# Bundled fonts are stable file names that are not query-versioned. A one-week
+# cache avoids revalidating them on every visit.
+/fonts/*
+  Cache-Control: public, max-age=604800

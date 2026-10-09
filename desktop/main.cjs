@@ -1,6 +1,6 @@
 "use strict";
 
-const { app, BrowserWindow, Menu, crashReporter, shell } = require("electron");
+const { app, BrowserWindow, Menu, crashReporter, dialog, shell } = require("electron");
 const fs = require("node:fs");
 const http = require("node:http");
 const path = require("node:path");
@@ -374,6 +374,43 @@ function openExternal(value) {
   });
 }
 
+// Chromium reports a page whose beforeunload handler tries to cancel the close
+// (the editor does this while the project has unsaved changes). Electron cancels
+// the close silently unless this event is prevented, which looked like a window
+// that could not be closed. Ask the user instead. Electron only honors
+// preventDefault when it is called synchronously, so the dialog is synchronous.
+// The window stays open unless the user picks "Leave".
+const UNLOAD_CHOICE_LEAVE = 0;
+const UNLOAD_CHOICE_STAY = 1;
+
+function confirmLeaveWindow(window, event) {
+  let choice = UNLOAD_CHOICE_STAY;
+  try {
+    choice = dialog.showMessageBoxSync(window, {
+      type: "question",
+      title: "Unsaved changes",
+      message: "Leave this project with unsaved changes?",
+      detail:
+        "Changes made since the last save will be lost if you leave now. " +
+        "Choose Stay to keep working and save the project first.",
+      buttons: ["Leave", "Stay"],
+      defaultId: UNLOAD_CHOICE_STAY,
+      cancelId: UNLOAD_CHOICE_STAY,
+      noLink: true,
+    });
+  } catch (error) {
+    // Do not trap the user in a window whose prompt cannot be shown.
+    logMain("error", "could not show the unsaved-changes dialog; closing", errorDetails(error));
+    choice = UNLOAD_CHOICE_LEAVE;
+  }
+  if (choice === UNLOAD_CHOICE_LEAVE) {
+    event.preventDefault();
+    logMain("info", "window closed after the user chose to leave with unsaved changes");
+  } else {
+    logMain("info", "window close cancelled; the user chose to stay");
+  }
+}
+
 async function createWindow() {
   const port = server ? Number(new URL(serverOrigin).port) : await startServer();
   const window = new BrowserWindow({
@@ -457,10 +494,12 @@ function closeHttpServer(localServer, timeoutMs = 2000) {
 }
 
 function closeServer() {
-  if (!server || !server.listening) return Promise.resolve();
+  // Clear the references even when the server never started listening. The
+  // will-quit handler relies on this so that it cannot re-run indefinitely.
   const localServer = server;
   server = null;
   serverOrigin = null;
+  if (!localServer || !localServer.listening) return Promise.resolve();
   return closeHttpServer(localServer);
 }
 
@@ -485,6 +524,14 @@ if (!app.requestSingleInstanceLock()) {
     });
   });
 
+  // Every window, including child windows opened by the page, gets the
+  // unsaved-changes prompt. Attaching it here avoids a silent cancel in any of them.
+  app.on("browser-window-created", (_event, createdWindow) => {
+    createdWindow.webContents.on("will-prevent-unload", (event) => {
+      confirmLeaveWindow(createdWindow, event);
+    });
+  });
+
   app.on("second-instance", () => {
     logMain("info", "second instance requested focus");
     if (!mainWindow) return;
@@ -506,8 +553,13 @@ if (!app.requestSingleInstanceLock()) {
     }
   });
 
-  app.on("before-quit", (event) => {
-    if (quitting || !server) return;
+  // Shut the local server down only once the quit is certain. Windows are
+  // closed (and may prompt for unsaved changes) before will-quit runs, and a
+  // "Stay" choice cancels the quit; if the server had been closed earlier, the
+  // window would be left without its resources. closeHttpServer always resolves within its timeout,
+  // so this cannot keep the application from quitting.
+  app.on("will-quit", (event) => {
+    if (!server) return;
     event.preventDefault();
     quitting = true;
     closeApplicationServer()

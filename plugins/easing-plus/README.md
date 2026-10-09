@@ -4,8 +4,9 @@ Easing+ is an optional CM3 extension that provides a focused easing editor for
 Bezier interpolation (`interp_1`). Linear interpolation continues to use the
 standard control. The edited interval is always the incoming segment from the
 previous keyframe to the current keyframe; open Easing+ while the playhead is on the
-segment's last keyframe. The compact editor opens beside the easing button and
-commits edits as one undoable operation when it is closed.
+segment's last keyframe. The curve editor opens as a floating window above the
+editor (close it with its close button or Escape); the viewport stays live behind
+it. Edits commit as one undoable operation when the window closes.
 
 The editor works in normalized 0–1 coordinates, then converts the two handles to
 Panzoid's frame-relative and value-relative `controlPoints` representation.

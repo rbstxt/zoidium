@@ -1,41 +1,79 @@
 # Optical Flares
 
-A Zoidium `object` plugin. It adds the OpenZoid Optical Flares 3D object
-with its original behavior preserved.
+An object plugin that adds a 3D lens flare (numeric type 13, the same type
+Davidium saves) to 3D scene layers.
 
-- Optical Flares (type 13) — screen-space lens flare stack with 12 element
-  types (Glow, Streak, Iris, Multi Iris, Shimmer, Glint, Spike Ball,
-  Sparkle, Ring, Hoop, Caustic, Orbs), up to 24 elements, light tracking,
-  positioning modes, flicker, and motion blur. Ships with five presets:
-  Default, Anamorphic Blue, Sparkle Burst, Cinematic Warm, Sci-Fi Plasma.
-- Options window — Preview, Stack, Editor, and Browser panels through
-  `PZ.opticalflares.open(root, designer)` and the object-panel gear button
-  (installed by the Rowbyte & Red Giant Suite pack). The window shares the
-  SaaS theme of the Legacy setup editors (Inter type, silk backdrop, blue
-  flare accents, pill controls) with a bundled Inter variable font the
-  runtime installs on enable. Registers itself with
-  the Trapcode designer when that pack is (or becomes) available, whatever
-  order the packs are enabled in.
+## How the flare is placed
 
-The `optical-flares-runtime` module evaluates the bundled sources in
-dependency order through the plugin bundle asset API, so enabling the pack
-never fans out into runtime fetches, and teaches `PZ.object3d.create` the
-Optical Flares numeric type. The picker entry is declared in the manifest
-and owned by the plugin manager: disabling the pack removes it. The
-create wrapper survives out-of-order disables against sibling packs.
+The flare has a 3D source, chosen with **Source** in the Source section:
 
-Works with or without Trapcode Suite (shared helpers are bundled in both).
+- **Object 3D** (default): the flare object's own world position, so it moves
+  with its parent transform and keyframes.
+- **Light**: the light object at **Light index** in the same layer.
+- **Screen (2D)**: a fixed screen offset. Kept so older projects render the
+  same; new flares should use a 3D source.
 
-Known limitations (later phases):
+Each frame the source is projected through the camera that draws the layer
+(position, rotation, FOV, aspect and camera overrides all apply). The elements
+are laid out on the line from the projected source through the screen centre
+(**Center**). A source behind the camera, or past the **Edge Margin**, fades
+out.
 
-- Projects that use Optical Flares record a plugin dependency and prompt
-  to enable this pack; loading such data with the pack disabled still
-  fails, as with any unknown numeric type in vanilla CM3.
-- Object-panel gear wiring for the Options window lives in the Rowbyte &
-  Red Giant Suite pack; enable it alongside this pack for the gear button.
+**Occlude** uses the depth buffer: the flare is drawn at the source depth, so
+scene geometry in front of the source hides it. This is per pixel and needs no
+raycasts.
+
+**Distance Falloff** (with **Reference Distance**) scales element size by
+`(reference / distance) ^ falloff`.
+
+Rendering is a pure function of the scene state at the frame being drawn.
+Flicker and shimmer use only time and seeds, never random numbers or clocks.
+
+## Editing
+
+The options window opens from the gear on the flare's row in the object list
+(or `PZ.opticalflares.open(root)`). It is one floating window with:
+
+- **Presets**: replace the whole element stack with a preset.
+- **Elements**: add, duplicate, remove, and move elements.
+- **Selected element**: type, enabled, color, size, brightness, position along
+  the axis, rotation, aspect, blend, scale with distance, animation, seed, and a
+  collapsed **Shape** section (texture, illumination, falloff, matte).
+- **Source**, **Global**, **Advanced**: source settings, brightness, scale,
+  color, rotation, evolution, flicker, quality, and the per-object common
+  parameters.
+
+Every change goes through the flare's own properties and CM3's history, so undo
+and redo work. Dragging previews live and records one undo step on release.
+
+## Files
+
+- `optflares-math.js`: pure projection and layout math (no globals).
+- `optflares.js`: the flare object, element catalogue, presets and shader.
+- `optflares-window.js`: the options window.
+- `optical-flares-runtime.js`: installs type 13, the gear, and the options
+  entry point. Disabling restores every host change, and a failed activation
+  rolls back.
+
+## Compatibility
+
+Saved properties and element records keep their names, so projects saved with
+Davidium load. Changes in version 3:
+
+- The default **Center Position** is now the screen centre (0, 0). Stored
+  values keep their meaning: they are offsets from the centre.
+- The **Preview BG Layer**, the element solo state, and the **Occlusion Fade**
+  setting were removed. Stored values are ignored. Occlusion is now a depth
+  test, so it hides the flare fully instead of fading it.
+- The fullscreen Options window and the Inter font were removed.
+- Custom Layers 1-3 keep working. Elements that referenced Custom 1-3 still
+  read the same layer slots.
+
+The Rowbyte & Red Giant Suite pack also registers a Trapcode designer gear for
+this object when that pack is enabled. The flare's own gear and the designer
+gear never render on the same row.
 
 ```bash
-# after adding the registry entry
 pnpm run build:plugin-bundles
 pnpm run verify
 ```
