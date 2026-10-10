@@ -310,37 +310,37 @@ function openCompsWindow() {
 // ---------------------------------------------------------------------------
 // Comps tab
 
-function buildTabPanel(context, kit) {
-  const doc = context.document;
-  const panel = doc.createElement("div");
-  panel.className = "precomp-plus-panel";
-  panel.appendChild(kit.createPageHeader("Compositions"));
-  panel.appendChild(kit.controls.note(
+function fillTabPanel(body, kit) {
+  body.appendChild(kit.controls.note(
     "Pre-compose moves the selected video clips into a composition that Main keeps as one clip. " +
     "Open a composition to edit its clips."
   ).element);
-  panel.appendChild(kit.controls.buttonRow([
+  body.appendChild(kit.controls.buttonRow([
     { title: "Open Compositions", variant: "primary", onClick: function () { openCompsWindow(); } },
     { title: "Pre-compose selection", onClick: function () { openPrecomposeDialog(); } },
   ]).element);
-  return panel;
 }
 
+// The Comps sidebar panel uses the standard side-panel chrome (header,
+// background and scrolling shared with every Zoidium panel).
 function installTab(context) {
   const kit = kitOf(context);
-  if (typeof kit.createMenubarTab !== "function") return null;
-  const tab = kit.createMenubarTab({
-    title: "Comps",
-    icon: "layers",
-    panel: buildTabPanel(context, kit),
-    tabClass: "precomp-plus-tab",
-    position: "afterAbout",
-  });
-  if (!tab) {
+  const side = context.ui && typeof context.ui.sidePanel === "function"
+    ? context.ui.sidePanel({
+      title: "Compositions",
+      tabTitle: "Comps",
+      icon: "layers",
+      className: "precomp-plus-panel",
+      tabClass: "precomp-plus-tab",
+      position: "afterAbout",
+    })
+    : null;
+  if (!side) {
     console.warn("[Precomp+] the sidebar is unavailable; the Compositions window is not reachable.");
     return null;
   }
-  return { tab: tab, kit: kit };
+  fillTabPanel(side.body, kit);
+  return { tab: side.tab, side: side, kit: kit };
 }
 
 // Keeps the tab label showing the open composition, so editing mode stays
@@ -366,7 +366,6 @@ module.exports = {
     context.lifecycle.onDispose(function () { session = null; });
     const tabInfo = installTab(context);
     if (tabInfo) {
-      context.lifecycle.onDispose(function () { tabInfo.kit.removeMenubarTab(tabInfo.tab); });
       context.lifecycle.onDispose(engine.subscribe(function () { updateTabLabel(tabInfo); }));
       updateTabLabel(tabInfo);
     }

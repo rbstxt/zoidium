@@ -1,13 +1,41 @@
-/* Floating windows and form controls shared by every Zoidium editor.
-   Colors, type and spacing follow the CM3 editor panels so plugin editors
-   read as part of the host rather than as separate applications. */
+/* Floating windows, side panels and form controls shared by every Zoidium
+   editor. Colors, type and spacing follow the CM3 editor panels so plugin
+   editors read as part of the host rather than as separate applications.
+
+   Theme tokens. Every Zoidium surface and plugin widget reads these instead of
+   literal colors, so the editor theme (Settings > theme, hue, saturation) and
+   the chosen UI font reach windows, side panels and custom widgets. The accent
+   and value colors follow the theme palette written by zoidium/settings.js. */
+
+:root {
+  --zui-font: var(--zoidium-font-family, "Source Code Pro", monospace);
+  --zui-accent: var(--zoidium-theme-focus, #384668);
+  --zui-accent-rgb: var(--zoidium-theme-focus-rgb, 56 70 104);
+  --zui-accent-strong: color-mix(in srgb, var(--zui-accent) 70%, #fff);
+  --zui-value: var(--zoidium-theme-link, #7e8fb9);
+  --zui-value-strong: color-mix(in srgb, var(--zui-value) 60%, #fff);
+  --zui-bg: #2a2a2a;
+  --zui-bg-title: #222;
+  --zui-bg-title-focused: color-mix(in srgb, var(--zui-accent) 22%, #222);
+  --zui-bg-input: #202020;
+  --zui-bg-sunken: #1d1d1d;
+  --zui-border: #1b1b1b;
+  --zui-border-soft: #242424;
+  --zui-hover: #333;
+  --zui-text: #ccc;
+  --zui-text-strong: #dadada;
+  --zui-text-bright: #e4e4e4;
+  --zui-text-muted: #9a9a9a;
+  --zui-text-faint: #6d6d6d;
+  --zui-danger: #df9b9b;
+}
 
 .zoidium-window-layer {
   position: fixed;
   inset: 0;
   z-index: 900;
   pointer-events: none;
-  font-family: "Source Code Pro", monospace;
+  font-family: var(--zui-font);
 }
 
 /* CM3 dropdowns opened from a window must stay above it. */
@@ -16,7 +44,7 @@ body > .pz-dropdown {
 }
 
 .zoidium-window {
-  --zoidium-window-accent: #384668;
+  --zoidium-window-accent: var(--zui-accent);
   position: absolute;
   display: flex;
   flex-direction: column;
@@ -24,10 +52,10 @@ body > .pz-dropdown {
   min-width: 0;
   overflow: hidden;
   pointer-events: auto;
-  color: #ccc;
+  color: var(--zui-text);
   font-size: 14px;
-  background-color: #2a2a2a;
-  border: 1px solid #333;
+  background-color: var(--zui-bg);
+  border: 1px solid var(--zui-hover);
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.55);
   outline: 0;
 }
@@ -55,13 +83,13 @@ body > .pz-dropdown {
   height: 30px;
   padding: 0 2px 0 9px;
   gap: 8px;
-  background-color: #222;
-  border-bottom: 1px solid #1b1b1b;
+  background-color: var(--zui-bg-title);
+  border-bottom: 1px solid var(--zui-border);
   cursor: move;
 }
 
 .zoidium-window.focused .zoidium-window-titlebar {
-  background-color: #262a36;
+  background-color: var(--zui-bg-title-focused);
 }
 
 .zoidium-window-title {
@@ -70,7 +98,7 @@ body > .pz-dropdown {
   min-width: 0;
   overflow: hidden;
   font-weight: bold;
-  color: #dadada;
+  color: var(--zui-text-strong);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -79,7 +107,7 @@ body > .pz-dropdown {
   flex: 1 1 0;
   min-width: 0;
   overflow: hidden;
-  color: #7e8fb9;
+  color: var(--zui-value);
   font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -104,20 +132,20 @@ body > .pz-dropdown {
 .zoidium-window-titlebutton svg {
   width: 12px;
   height: 12px;
-  fill: #9a9a9a;
+  fill: var(--zui-text-muted);
   pointer-events: none;
 }
 
 .zoidium-window-titlebutton:hover {
-  background-color: #333;
+  background-color: var(--zui-hover);
 }
 
 .zoidium-window-titlebutton:hover svg {
-  fill: #ddd;
+  fill: var(--zui-text-bright);
 }
 
 .zoidium-window-titlebutton:focus-visible {
-  border-color: #384668;
+  border-color: var(--zui-accent);
 }
 
 .zoidium-window-body {
@@ -133,8 +161,8 @@ body > .pz-dropdown {
   flex: 0 0 auto;
   gap: 5px;
   padding: 5px;
-  background-color: #222;
-  border-top: 1px solid #1b1b1b;
+  background-color: var(--zui-bg-title);
+  border-top: 1px solid var(--zui-border);
 }
 
 .zoidium-window-footer[hidden] {
@@ -194,7 +222,7 @@ body > .pz-dropdown {
   column-gap: 8px;
   min-height: 30px;
   padding: 3px 8px;
-  border-bottom: 1px solid #242424;
+  border-bottom: 1px solid var(--zui-border-soft);
   box-sizing: border-box;
 }
 
@@ -210,7 +238,7 @@ body > .pz-dropdown {
 .zoidium-field-label {
   min-width: 0;
   overflow: hidden;
-  color: #ccc;
+  color: var(--zui-text);
   text-overflow: ellipsis;
   white-space: nowrap;
   cursor: default;
@@ -225,7 +253,7 @@ body > .pz-dropdown {
 }
 
 .zoidium-field-unit {
-  color: #6d6d6d;
+  color: var(--zui-text-faint);
   font-size: 12px;
 }
 
@@ -244,7 +272,7 @@ body > .pz-dropdown {
 }
 
 .zoidium-number:hover:not(.edit):not(:disabled) {
-  border-color: #333;
+  border-color: var(--zui-hover);
 }
 
 .zoidium-range {
@@ -259,15 +287,15 @@ body > .pz-dropdown {
 
 .zoidium-range::-webkit-slider-runnable-track {
   height: 4px;
-  background-color: #1b1b1b;
-  border: 1px solid #333;
+  background-color: var(--zui-border);
+  border: 1px solid var(--zui-hover);
 }
 
 .zoidium-range::-webkit-slider-thumb {
   width: 10px;
   height: 14px;
   margin-top: -6px;
-  background-color: #7e8fb9;
+  background-color: var(--zui-value);
   border: 0;
   -webkit-appearance: none;
   appearance: none;
@@ -278,19 +306,19 @@ body > .pz-dropdown {
 }
 
 .zoidium-range:focus::-webkit-slider-thumb {
-  background-color: #a5b4dc;
+  background-color: var(--zui-value-strong);
 }
 
 .zoidium-range::-moz-range-track {
   height: 4px;
-  background-color: #1b1b1b;
-  border: 1px solid #333;
+  background-color: var(--zui-border);
+  border: 1px solid var(--zui-hover);
 }
 
 .zoidium-range::-moz-range-thumb {
   width: 10px;
   height: 14px;
-  background-color: #7e8fb9;
+  background-color: var(--zui-value);
   border: 0;
   border-radius: 0;
 }
@@ -299,7 +327,7 @@ body > .pz-dropdown {
   width: 16px;
   height: 16px;
   margin: 0;
-  accent-color: #384668;
+  accent-color: var(--zui-accent);
 }
 
 .zoidium-select,
@@ -317,8 +345,8 @@ textarea.zoidium-text {
 }
 
 .zoidium-select option {
-  color: #ccc;
-  background-color: #202020;
+  color: var(--zui-text);
+  background-color: var(--zui-bg-input);
 }
 
 .zoidium-color {
@@ -326,11 +354,11 @@ textarea.zoidium-text {
   height: 22px;
   padding: 0;
   background: transparent;
-  border: 1px solid #1b1b1b;
+  border: 1px solid var(--zui-border);
 }
 
 .zoidium-color-hex {
-  color: #7e8fb9;
+  color: var(--zui-value);
   font-size: 13px;
 }
 
@@ -340,16 +368,16 @@ textarea.zoidium-text {
 }
 
 .zoidium-button.primary {
-  background-color: #384668;
-  color: #e4e4e4;
+  background-color: var(--zui-accent);
+  color: var(--zui-text-bright);
 }
 
 .zoidium-button.primary:hover {
-  border-color: #5a6c99;
+  border-color: var(--zui-accent-strong);
 }
 
 .zoidium-button.danger {
-  color: #df9b9b;
+  color: var(--zui-danger);
 }
 
 .zoidium-button:disabled {
@@ -362,7 +390,7 @@ textarea.zoidium-text {
   flex-wrap: wrap;
   gap: 5px;
   padding: 5px 8px;
-  border-bottom: 1px solid #242424;
+  border-bottom: 1px solid var(--zui-border-soft);
 }
 
 /* Buttons size to their labels and wrap onto the next line when the row is
@@ -383,24 +411,24 @@ textarea.zoidium-text {
   width: 100%;
   height: 28px;
   padding: 0 8px;
-  color: #dadada;
+  color: var(--zui-text-strong);
   font-weight: bold;
   text-align: left;
   cursor: default;
-  background-color: #222;
+  background-color: var(--zui-bg-title);
   border: 1px solid transparent;
-  border-bottom-color: #1b1b1b;
+  border-bottom-color: var(--zui-border);
   outline: 0;
 }
 
 .zoidium-section-title:focus-visible {
-  border-color: #384668;
+  border-color: var(--zui-accent);
 }
 
 .zoidium-section-caret {
   display: inline-block;
   width: 12px;
-  color: #9a9a9a;
+  color: var(--zui-text-muted);
   font-size: 12px;
   transition: transform 50ms linear;
 }
@@ -416,7 +444,7 @@ textarea.zoidium-text {
 .zoidium-tabstrip {
   display: flex;
   overflow-x: auto;
-  background-color: #1d1d1d;
+  background-color: var(--zui-bg-sunken);
   border-bottom: 1px solid #111;
 }
 
@@ -424,7 +452,7 @@ textarea.zoidium-text {
   flex: 0 0 auto;
   height: 30px;
   padding: 0 12px;
-  color: #9a9a9a;
+  color: var(--zui-text-muted);
   cursor: default;
   border: 2px solid transparent;
   border-bottom: 3px solid transparent;
@@ -432,17 +460,17 @@ textarea.zoidium-text {
 }
 
 .zoidium-tab:hover {
-  color: #ddd;
+  color: var(--zui-text-bright);
   background-color: #262626;
 }
 
 .zoidium-tab.selected {
-  color: #e4e4e4;
-  border-bottom-color: #384668;
+  color: var(--zui-text-bright);
+  border-bottom-color: var(--zui-accent);
 }
 
 .zoidium-tab:focus-visible {
-  border-color: #384668;
+  border-color: var(--zui-accent);
 }
 
 .zoidium-tabpanel[hidden] {
@@ -469,11 +497,11 @@ textarea.zoidium-text {
 }
 
 .zoidium-list > li:focus-visible {
-  border-color: #384668;
+  border-color: var(--zui-accent);
 }
 
 .zoidium-list > li.zoidium-list-empty {
-  color: #666;
+  color: var(--zui-text-faint);
   text-align: center;
   pointer-events: none;
 }
@@ -481,13 +509,96 @@ textarea.zoidium-text {
 .zoidium-note {
   margin: 0;
   padding: 7px 8px;
-  color: #969696;
+  color: var(--zui-text-muted);
   font-size: 13px;
   line-height: 1.4;
-  border-bottom: 1px solid #242424;
+  border-bottom: 1px solid var(--zui-border-soft);
 }
 
 .zoidium-note.warning {
-  color: #df9b9b;
+  color: var(--zui-danger);
   background-color: rgba(120, 34, 34, 0.18);
+}
+
+/* Maximized and custom-chrome windows ------------------------------- */
+
+.zoidium-window.maximized {
+  box-shadow: 0 0 0 1px var(--zui-border), 0 12px 40px rgba(0, 0, 0, 0.6);
+}
+
+.zoidium-window.maximized .zoidium-window-grip {
+  display: none;
+}
+
+.zoidium-window-titlebar[hidden] {
+  display: none;
+}
+
+.zoidium-window-custom-chrome .zoidium-window-grip-e {
+  top: 0;
+}
+
+.zoidium-window-draghandle {
+  cursor: move;
+  user-select: none;
+}
+
+/* Side panels (ZoidiumUI.createSidePanel / context.ui.sidePanel) ------- */
+
+.zoidium-side-panel {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  overflow: hidden;
+  color: var(--zui-text);
+  background-color: var(--zui-bg);
+}
+
+.zoidium-side-panel-header {
+  flex: 0 0 auto;
+}
+
+.zoidium-side-panel-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+/* Embedded CM3 property editors (ZoidiumUI.properties) ---------------- */
+
+.zoidium-properties {
+  position: relative;
+  min-height: 0;
+  overflow: auto;
+  background-color: var(--zui-bg);
+}
+
+/* The embedded editor shows the rows of one property list; the synthetic
+   "Properties" parent row of CM3's tree is not useful there. */
+.zoidium-properties ul.tree > li.toplevel.zoidium-properties-root {
+  display: none;
+}
+
+.zoidium-properties .zoidium-properties-empty {
+  padding: 12px 8px;
+  color: var(--zui-text-faint);
+  text-align: center;
+}
+
+/* Launch row added to CM3 property lists by ZoidiumUI.registerEditor. */
+.zoidium-editor-launch {
+  display: flex !important;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--zui-border-soft);
+}
+
+.zoidium-editor-launch .zoidium-button {
+  flex: 1 1 auto;
+  padding: 4px 10px;
+  white-space: nowrap;
 }
