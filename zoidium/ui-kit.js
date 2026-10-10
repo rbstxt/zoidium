@@ -69,6 +69,9 @@
     if (!hosts) return null;
 
     var panel = config.panel;
+    // The elevator hides every container except the selected tab's
+    // (display: none / block). A new tab is never selected, so start hidden.
+    panel.style.display = "none";
     panel.style.top = "0";
     panel.style.left = "0";
     panel.style.width = "100%";

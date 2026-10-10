@@ -252,6 +252,9 @@
         proto.generateItemCommands = function (item, target) {
           var result = original.generateItemCommands.apply(this, arguments);
           if (!editors.length || !isObjectTarget(target) || !item || !item.children[1]) return result;
+          // Property panels show the "Open ..." row under the object instead;
+          // the gear belongs to object lists (Objects, Effects).
+          if (this.options.showListItemButtons) return result;
           var specs = matchingEditors(target);
           if (!specs.length) return result;
           var commands = item.children[1];
