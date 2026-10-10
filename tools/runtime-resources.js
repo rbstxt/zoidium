@@ -1584,6 +1584,7 @@ async function ensureResourceCache({
       return stageResultFromMetadata(inspection.metadata, resolvedCacheRoot, true);
     }
     if (snapshotSource) {
+      console.log(`[Zoidium] restoring the CM3 resource cache from the configured snapshot (${inspection.reason})`);
       return require("./cm3-snapshot").restoreSnapshot({ from: snapshotSource, cacheRoot: resolvedCacheRoot, sourcePageUrl: normalizedSourcePageUrl, videoEditorSourcePageUrl, fetchImpl });
     }
     if (offline) {
