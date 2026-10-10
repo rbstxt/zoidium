@@ -125,3 +125,37 @@ when the new controls remain at defaults. The saved legacyField marker keeps
 this behavior across save and reload. Editing rotation, falloff, curve, invert,
 or sweep selects the new field formulas. Namespaced and numeric object types
 continue using the existing migration and compatibility shim.
+
+## Piece transforms and field guides
+
+Plain applies Position offset, Rotation offset in degrees, Scale offset, and
+Uniform scale to separate connected pieces. A scale offset of 0 is unchanged;
+1 doubles that axis. Stock CM3 Text uses connected characters as pieces, and
+Text+ character meshes also work. Plain after Fracture acts on its fragments.
+All pieces share the parent's field bounds. Animate Linear Sweep to move a
+wave across the word.
+
+Place Delay below Plain or another upstream effector in the object tree. Blend
+uses exponentially weighted earlier samples, Average weights them equally,
+and Spring uses a damped oscillating kernel. Rotation uses normalized
+quaternions so rotating pieces retain their dimensions. Position and scale
+filter separately. Twist, Warp, planar pieces, and existing shear use the
+vertex filter. Strength blends the filtered
+result with the current result. History frames selects 1 to 24 earlier samples
+at a fixed one-frame step. Evaluation never reads the previous rendered frame.
+Nested Delay histories have a total budget of 96 samples per mesh. Samples
+with different fracture topology are skipped rather than mixing vertex IDs.
+Source geometry uses its current-time value. Delay samples upstream effector
+properties, fields, and native object transforms at earlier times. Generated
+clone and character offsets retain their current matrices.
+
+Selecting an effector shows its linear, box, sphere, or cylinder field and
+falloff boundary through CM3's viewport helper. Infinite and noise fields have
+no guide. Guides follow property edits and use editor layer 1, so they do not
+appear in renders or exports. Field dragging is not added; edit the native
+Field position rows.
+
+Fracture cut caps account for holes and preserve boundary subdivisions.
+Planar triangulation uses Earcut 2.2.4 from its npm package, under the ISC
+license in `earcut-LICENSE`. This is a separate dependency, not a copied CM3
+runtime resource. Invalid or oversized concave caps skip the fracture build.

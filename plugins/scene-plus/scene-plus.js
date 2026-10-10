@@ -541,6 +541,7 @@ function createEffectorBaseClass(PZ, THREE) {
       const normalized = migrateEffectorData(data);
       this._legacyField = normalized.legacyField;
       this.threeObj = new THREE.Object3D();
+      this.threeObj.__zoidiumEffectorOwner = this;
       this.properties.load(normalized.properties);
       if (this.threeObj.layers && this.properties.reflectionVisibility) {
         const visibility = optionPropertyValue(this.properties.reflectionVisibility, 0, 0);
@@ -755,7 +756,7 @@ function createTwistClass(PZ, THREE, type = TWIST_TYPE) {
     }
 
     // Pure function of (positions, angle, axis, offset) at this frame.
-    deformPositions(positions, frame) {
+    deformPositions(positions, frame, context) {
       const angle = numberPropertyValue(this.properties.angle, frame, 0);
       if (!angle) return positions;
       return library.core.twistPositions(
@@ -763,7 +764,8 @@ function createTwistClass(PZ, THREE, type = TWIST_TYPE) {
         angle,
         optionPropertyValue(this.properties.axis, frame, 1),
         numberPropertyValue(this.properties.offset, frame, 0),
-        fieldFromProperties(this.properties, frame, this._legacyField)
+        library.core.fieldForBounds(fieldFromProperties(this.properties, frame, this._legacyField), context?.bounds),
+        context?.bounds
       );
     }
   }
@@ -818,7 +820,7 @@ function createWarpClass(PZ, THREE, type = WARP_TYPE) {
         field: fieldFromProperties(this.properties, frame, this._legacyField) };
     }
 
-    deformPositions(positions, frame) {
+    deformPositions(positions, frame, context) {
       const strength = numberPropertyValue(this.properties.amount, frame, 0);
       if (!strength) return positions;
       return library.core.warpPositions(
@@ -826,13 +828,68 @@ function createWarpClass(PZ, THREE, type = WARP_TYPE) {
         strength,
         optionPropertyValue(this.properties.axis, frame, 0),
         numberPropertyValue(this.properties.offset, frame, 0),
-        fieldFromProperties(this.properties, frame, this._legacyField)
+        library.core.fieldForBounds(fieldFromProperties(this.properties, frame, this._legacyField), context?.bounds),
+        context?.bounds
       );
     }
   }
 
   WarpObject.prototype.defaultName = "Warp";
   return WarpObject;
+}
+
+function createPlainClass(PZ, THREE) {
+  const Base = createEffectorBaseClass(PZ, THREE);
+  class Plain extends Base {
+    constructor() {
+      super();
+      const vector = (name, value) => vectorDefinition(PZ, { name, value, step: 0.1, decimals: 2 });
+      this.properties.addAll({
+        offsetPosition: vector("Position offset", [0, 0, 0]),
+        offsetRotation: vector("Rotation offset", [0, 0, 0]),
+        offsetScale: vector("Scale offset", [0, 0, 0]),
+        uniformScale: { dynamic: true, name: "Uniform scale", type: PZ.property.type.NUMBER, value: 0, step: 0.1 },
+        ...fieldProperties(PZ),
+      });
+      this.type = "zoidium:repeater/plain";
+    }
+    workerCommand(frame) {
+      const vector = name => vectorValue(propertyValue(this.properties[name], frame, [0, 0, 0]), [0, 0, 0]);
+      const uniform = numberPropertyValue(this.properties.uniformScale, frame, 0);
+      return { kind: "plain", position: vector("offsetPosition"), rotation: vector("offsetRotation"),
+        scale: vector("offsetScale").map(v => 1 + v + uniform), field: fieldFromProperties(this.properties, frame, this._legacyField) };
+    }
+    deformPositions(positions, frame, context) {
+      const command = this.workerCommand(frame);
+      command.field = library.core.fieldForBounds(command.field, context?.bounds);
+      return library.core.plainPositions(positions, context.stage, command);
+    }
+  }
+  Plain.prototype.defaultName = "Plain";
+  return Plain;
+}
+
+function createDelayClass(PZ, THREE) {
+  const Base = createEffectorBaseClass(PZ, THREE);
+  class Delay extends Base {
+    constructor() {
+      super();
+      this.properties.addAll({
+        mode: { name: "Mode", type: PZ.property.type.OPTION, value: 0, items: "Blend;Average;Spring" },
+        strength: { dynamic: true, name: "Strength", type: PZ.property.type.NUMBER, value: 75, min: 0, max: 100 },
+        window: { name: "History frames", type: PZ.property.type.NUMBER, value: 12, min: 1, max: 24, decimals: 0 },
+      });
+      this.type = "zoidium:repeater/delay";
+    }
+    workerCommand(frame) {
+      return { kind: "delay", mode: optionPropertyValue(this.properties.mode, frame, 0),
+        strength: numberPropertyValue(this.properties.strength, frame, 75) / 100,
+        window: integerValue(propertyValue(this.properties.window, frame, 12), 12, 1, 24) };
+    }
+    deformPositions(positions) { return positions; }
+  }
+  Delay.prototype.defaultName = "Delay";
+  return Delay;
 }
 
 function createVoronoiClass(PZ, THREE, type = VORONOI_TYPE) {
@@ -949,7 +1006,7 @@ function createVoronoiClass(PZ, THREE, type = VORONOI_TYPE) {
       const key = "voronoi:" + JSON.stringify(topology);
       return derive(stage, key, positions, () => {
         const result = library.fracture.buildVoronoiFracture(
-          { positions, index: stage.index, uvs: stage.uvs },
+          { positions, index: stage.index, uvs: stage.uvs, normals: stage.attributes.normal?.array },
           topology,
           FRACTURE_LIMITS
         );
@@ -1031,6 +1088,109 @@ function getRenderNode(root, path) {
   return node || null;
 }
 
+// CM3 constructs BoxHelper at selection time. Field guides use that same
+// editor-only layer, never the scene's render/export layer or a separate panel.
+function installFieldHelpers(THREE) {
+  const Original = THREE.BoxHelper, helpers = new Set();
+  if (!Original || !THREE.LineSegments || !THREE.LineBasicMaterial) return () => {};
+  function FieldHelper(root, color) {
+    for (const helper of helpers) if (!helper.parent) {
+      helper.geometry.dispose(); helper.material.dispose(); helpers.delete(helper);
+    }
+    const owner = root?.__zoidiumEffectorOwner;
+    if (!owner) return new Original(root, color);
+    const geometry = new THREE.BufferGeometry();
+    geometry.addAttribute("position", new THREE.BufferAttribute(new Float32Array(4096 * 3), 3));
+    geometry.attributes.position.dynamic = true;
+    geometry.setDrawRange(0, 0);
+    const material = new THREE.LineBasicMaterial({ color: 0xffa040, depthTest: false, transparent: true, opacity: 0.8 });
+    const helper = new THREE.LineSegments(geometry, material);
+    helper.frustumCulled = false;
+    helper.layers.set(1);
+    helper.update = () => {
+      const frame = owner._effectorFrame || 0;
+      const field = library.core.fieldForBounds(fieldFromProperties(owner.properties, frame, owner._legacyField), owner._fieldBounds);
+      const key = JSON.stringify(field);
+      if (helper._fieldKey !== key) {
+        helper._fieldKey = key;
+        const points = fieldGuidePoints(field);
+        geometry.attributes.position.array.set(points);
+        geometry.attributes.position.needsUpdate = true;
+        geometry.setDrawRange(0, points.length / 3);
+      }
+      helper.matrixAutoUpdate = false;
+      helper.matrix.copy(root.matrixWorld);
+      helper.matrixWorld.copy(root.matrixWorld);
+    };
+    helper.onBeforeRender = helper.update;
+    helper.update();
+    helpers.add(helper);
+    return helper;
+  }
+  FieldHelper.prototype = Original.prototype;
+  THREE.BoxHelper = FieldHelper;
+  return () => {
+    if (THREE.BoxHelper === FieldHelper) THREE.BoxHelper = Original;
+    for (const helper of helpers) {
+      helper.parent?.remove(helper); helper.geometry.dispose(); helper.material.dispose();
+    }
+    helpers.clear();
+  };
+}
+
+function fieldGuidePoints(field) {
+  const points = [], type = field?.type;
+  if (!type || type === 5) return points;
+  const legacy = (field.legacy || field.falloff === undefined) &&
+    (field.rotation || [0, 0, 0]).every(v => !v) && (field.sweep ?? 100) === 100 &&
+    (field.falloff ?? 100) === 100 && !field.curve && !field.invert;
+  const scale = legacy ? field.scale : field.worldScale || field.scale;
+  const radii = legacy && type === 3 ? [0, 1, 2].map(() => Math.max(Math.abs(scale[0]), 0.001)) :
+    scale.map(v => Math.max(Math.abs(v), 0.001) / 2);
+  const line = (a, b) => {
+    for (const p of [a, b]) {
+      const q = library.core.rotateXYZ(p, field.rotation || [0, 0, 0]);
+      points.push(...q.map((v, i) => v + field.position[i]));
+    }
+  };
+  const falloff = Math.max(0, Math.min(1, (field.falloff ?? 100) / 100));
+  const extents = legacy && type === 2 ? [1, 2] : falloff > 0 && falloff < 1 ? [1, 1 - falloff] : [1];
+  for (const ratio of extents) {
+    const r = radii.map(v => v * ratio);
+    if (type === 1) {
+      const width = legacy ? Math.abs(scale[0]) : Math.max((field.high - field.low) * falloff, 0.001);
+      const plane = legacy ? 0 : field.low - width + (field.high - field.low + width) * field.sweep / 100;
+      for (const x of [plane, plane + width]) {
+        const corners = [[x, -r[1], -r[2]], [x, r[1], -r[2]], [x, r[1], r[2]], [x, -r[1], r[2]]];
+        for (let i = 0; i < 4; i++) line(corners[i], corners[(i + 1) % 4]);
+      }
+      break;
+    }
+    if (type === 2) {
+      const corners = Array.from({ length: 8 }, (_, i) => r.map((v, a) => i & (1 << a) ? v : -v));
+      for (let i = 0; i < 8; i++) for (let a = 0; a < 3; a++) if (!(i & (1 << a))) line(corners[i], corners[i | (1 << a)]);
+    } else {
+      const circle = (a, b, fixedAxis, fixedValue) => {
+        for (let i = 0; i < 48; i++) {
+          const p = [0, 0, 0], q = [0, 0, 0];
+          p[a] = r[a] * Math.cos(i * Math.PI / 24); p[b] = r[b] * Math.sin(i * Math.PI / 24);
+          q[a] = r[a] * Math.cos((i + 1) * Math.PI / 24); q[b] = r[b] * Math.sin((i + 1) * Math.PI / 24);
+          if (fixedAxis !== undefined) p[fixedAxis] = q[fixedAxis] = fixedValue;
+          line(p, q);
+        }
+      };
+      if (type === 3) { circle(0, 1); circle(1, 2); circle(2, 0); }
+      if (type === 4) {
+        circle(0, 2, 1, -r[1]); circle(0, 2, 1, r[1]);
+        for (const a of [0, 2]) for (const sign of [-1, 1]) {
+          const p = [0, -r[1], 0], q = [0, r[1], 0]; p[a] = q[a] = sign * r[a]; line(p, q);
+        }
+      }
+    }
+  }
+  return points;
+}
+
 function createDeformationSupport(PZ, THREE) {
   const sceneClass = PZ.layer?.scene;
   const prototype = sceneClass?.prototype;
@@ -1050,13 +1210,16 @@ function createDeformationSupport(PZ, THREE) {
   const originalPrepare = prototype.prepare;
   const originalUnload = prototype.unload;
   const meshDeformer = getMeshDeformer(THREE);
+  const disposeFieldHelpers = installFieldHelpers(THREE);
 
   let preparingMeshes = null;
+  let tasks = null;
   function deformMeshesUnder(root, chain, frame) {
     const polygonCount = curvePolygonCount(chain.map((entry) => entry.effector), frame);
     traverseDeformMeshes(root, (mesh) => {
       preparingMeshes?.add(mesh);
-      meshDeformer.deformMesh(mesh, chain, frame, polygonCount);
+      if (tasks) tasks.push({ mesh, chain, frame, polygonCount });
+      else meshDeformer.deformMesh(mesh, chain, frame, polygonCount);
     });
   }
 
@@ -1065,6 +1228,8 @@ function createDeformationSupport(PZ, THREE) {
   // evaluate in their own frame.
   function walkRenderedObject(object, chain, frame, renderRoot) {
     if (!object) return;
+    const liveRoot = renderRoot || object.threeObj;
+    if (liveRoot) liveRoot.__zoidiumEffectorTransformOwner = object;
     const isDeformer = typeof object.deformPositions === "function";
     const enabled = !object.properties?.enabled ||
       optionPropertyValue(object.properties.enabled, frame, 1) === 1;
@@ -1120,10 +1285,44 @@ function createDeformationSupport(PZ, THREE) {
     }
   }
 
+  function evaluateTree(run) {
+    tasks = [];
+    try {
+      run();
+      const bounds = new Map();
+      for (const task of tasks) {
+        const stage = meshDeformer.sourceStage(task.mesh);
+        if (!stage) continue;
+        for (const entry of task.chain) {
+          const relation = library.core.relativeTransform(entry.node?.matrixWorld?.elements, task.mesh.matrixWorld?.elements);
+          if (!relation) continue;
+          let b = bounds.get(entry.node);
+          if (!b) { b = { min: [Infinity, Infinity, Infinity], max: [-Infinity, -Infinity, -Infinity] }; bounds.set(entry.node, b); }
+          const m = relation.forward, p = stage.positions;
+          for (let i = 0; i < p.length; i += 3) {
+            const x = p[i], y = p[i + 1], z = p[i + 2];
+            const qx = m ? m[0] * x + m[4] * y + m[8] * z + m[12] : x;
+            const qy = m ? m[1] * x + m[5] * y + m[9] * z + m[13] : y;
+            const qz = m ? m[2] * x + m[6] * y + m[10] * z + m[14] : z;
+            b.min[0] = Math.min(b.min[0], qx); b.max[0] = Math.max(b.max[0], qx);
+            b.min[1] = Math.min(b.min[1], qy); b.max[1] = Math.max(b.max[1], qy);
+            b.min[2] = Math.min(b.min[2], qz); b.max[2] = Math.max(b.max[2], qz);
+          }
+        }
+      }
+      for (const task of tasks) {
+        const chain = task.chain.map(entry => ({ ...entry, bounds: bounds.get(entry.node) }));
+        for (const entry of chain) { entry.effector._fieldBounds = entry.bounds; entry.effector._effectorFrame = task.frame; }
+        meshDeformer.deformMesh(task.mesh, chain, task.frame, task.polygonCount);
+      }
+    } finally { tasks = null; }
+  }
+
   function apply(layer, frame) {
     if (!layer?.objects) return;
     layers.add(layer);
-    walk(layer.objects, [], Number.isFinite(frame) ? frame : 0);
+    layer.threeObj?.updateMatrixWorld?.(true);
+    evaluateTree(() => walk(layer.objects, [], Number.isFinite(frame) ? frame : 0));
   }
 
   function restore(layer) {
@@ -1154,7 +1353,7 @@ function createDeformationSupport(PZ, THREE) {
     }
     object.update(frame);
     object.parentLayer?.threeObj?.updateMatrixWorld?.(true);
-    await settle(() => walkRenderedObject(object, [], frame, object.threeObj));
+    await settle(() => evaluateTree(() => walkRenderedObject(object, [], frame, object.threeObj)));
   }
 
   const patchedPrepare = async function prepareWithEffectors(frame, ...args) {
@@ -1189,6 +1388,7 @@ function createDeformationSupport(PZ, THREE) {
     deactivate() {
       for (const layer of layers) restore(layer);
       layers.clear();
+      disposeFieldHelpers();
       meshDeformer.dispose();
       if (prototype.prepare === patchedPrepare) prototype.prepare = originalPrepare;
       if (prototype.unload === patchedUnload) prototype.unload = originalUnload;
@@ -1247,7 +1447,7 @@ function loadLibraryFromAssets(getAsset) {
     mesh: load("effector-mesh.js"),
     jobs: load("effector-jobs.js"),
     workerSource: load("effector-jobs.js").createWorkerSource(Object.fromEntries(
-      ["effector-core.js", "effector-fracture.js", "effector-mesh.js", "effector-evaluate.js"].map(name =>
+      ["earcut.js", "effector-core.js", "effector-fracture.js", "effector-mesh.js", "effector-evaluate.js"].map(name =>
         [name, getAsset("text", "./plugins/scene-plus/" + name)]))),
   };
 }
@@ -1544,6 +1744,8 @@ function activate(context) {
       );
     }
     const effectorClasses = [
+      ["zoidium:repeater/plain", "Plain", createPlainClass(PZ, THREE)],
+      ["zoidium:repeater/delay", "Delay", createDelayClass(PZ, THREE)],
       [TWIST_TYPE, "Twist", createTwistClass(PZ, THREE)],
       [WARP_TYPE, "Warp", createWarpClass(PZ, THREE)],
       [VORONOI_TYPE, "Voronoi Fracture", createVoronoiClass(PZ, THREE)],
@@ -1611,6 +1813,10 @@ module.exports = {
     cloneRenderTree,
     createDeformationSupport,
     createEffectorBaseClass,
+    installFieldHelpers,
+    fieldGuidePoints,
+    createPlainClass,
+    createDelayClass,
     createTwistClass,
     createWarpClass,
     createVoronoiClass,

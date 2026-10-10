@@ -3,7 +3,7 @@
   "id": "repeater",
   "name": "Effector",
   "author": "Zoidium",
-  "version": "19",
+  "version": "20",
   "kind": "object",
   "objectCategory": "EFFECTOR",
   "objectClassParent": {
@@ -104,6 +104,30 @@
             },
             "objects": []
           }
+        },
+        {
+          "name": "Plain",
+          "type": "zoidium:repeater/plain",
+          "data": {
+            "type": "zoidium:repeater/plain",
+            "schemaVersion": 1,
+            "properties": {
+              "name": "Plain"
+            },
+            "objects": []
+          }
+        },
+        {
+          "name": "Delay",
+          "type": "zoidium:repeater/delay",
+          "data": {
+            "type": "zoidium:repeater/delay",
+            "schemaVersion": 1,
+            "properties": {
+              "name": "Delay"
+            },
+            "objects": []
+          }
         }
       ]
     }
@@ -157,12 +181,26 @@
       "name": "Voronoi Fracture",
       "description": "Shatters descendant closed meshes into seeded Voronoi fragments with optional cap faces.",
       "schemaVersion": 1
+    },
+    {
+      "id": "plain",
+      "type": "zoidium:repeater/plain",
+      "name": "Plain",
+      "description": "Field-weighted transforms for separate pieces and text characters.",
+      "schemaVersion": 1
+    },
+    {
+      "id": "delay",
+      "type": "zoidium:repeater/delay",
+      "name": "Delay",
+      "description": "Seekable transform delay with bounded fixed-step history.",
+      "schemaVersion": 1
     }
   ],
   "modules": [
     {
       "id": "effector-runtime",
-      "source": "./plugins/scene-plus/scene-plus.js?v=19"
+      "source": "./plugins/scene-plus/scene-plus.js?v=20"
     }
   ],
   "description": "Procedural repeaters plus Twist, Warp, and Voronoi Fracture effectors.",
@@ -170,27 +208,32 @@
     {
       "id": "effector-core",
       "type": "text",
-      "source": "./plugins/scene-plus/effector-core.js?v=19"
+      "source": "./plugins/scene-plus/effector-core.js?v=20"
     },
     {
       "id": "effector-fracture",
       "type": "text",
-      "source": "./plugins/scene-plus/effector-fracture.js?v=19"
+      "source": "./plugins/scene-plus/effector-fracture.js?v=20"
     },
     {
       "id": "effector-mesh",
       "type": "text",
-      "source": "./plugins/scene-plus/effector-mesh.js?v=19"
+      "source": "./plugins/scene-plus/effector-mesh.js?v=20"
     },
     {
       "id": "effector-evaluate",
       "type": "text",
-      "source": "./plugins/scene-plus/effector-evaluate.js?v=19"
+      "source": "./plugins/scene-plus/effector-evaluate.js?v=20"
     },
     {
       "id": "effector-jobs",
       "type": "text",
-      "source": "./plugins/scene-plus/effector-jobs.js?v=19"
+      "source": "./plugins/scene-plus/effector-jobs.js?v=20"
+    },
+    {
+      "id": "earcut",
+      "type": "text",
+      "source": "./plugins/scene-plus/earcut.js?v=20"
     }
   ]
 }

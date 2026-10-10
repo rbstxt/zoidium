@@ -48,7 +48,7 @@ function createStageCache(maxBytes = 64 * 1024 * 1024) {
 // accumulation and normalization order. Smooth averaging is shared with preview.
 function normalsFor(stage, positions) {
   const normal = new Float32Array(positions.length);
-  if (!stage.smooth) {
+  if (!stage.smooth && (stage.index || !stage.attributes.normal)) {
     const face = (a, b, c) => {
       const cbx = positions[c] - positions[b], cby = positions[c + 1] - positions[b + 1], cbz = positions[c + 2] - positions[b + 2];
       const abx = positions[a] - positions[b], aby = positions[a + 1] - positions[b + 1], abz = positions[a + 2] - positions[b + 2];
@@ -78,37 +78,84 @@ function normalsFor(stage, positions) {
     computeSmoothVertexNormals({
       attributes: { position: { array: positions, count: positions.length / 3 }, normal: { array: normal } },
       groups: stage.groups,
-    });
+    }, stage);
   }
   return normal;
 }
 
 function evaluateMesh(input, cache = createStageCache()) {
   const { base, commands, polygonCount, sourceId } = input;
+  if (!base.pieceIds) Object.assign(base, core.connectedPieces(base));
   let topologyKey = sourceId + ":subdivide:" + polygonCount;
   let stage = polygonCount > 1 ? cache.get(topologyKey, () => core.subdivideStage(base, polygonCount)) : base;
   let work = new Float32Array(stage.positions);
   let prefix = topologyKey;
   const errors = [];
+  let curved = false;
   for (const command of commands) {
+    if (command.kind === "twist" || command.kind === "warp") curved = true;
     if (command.kind === "fracture") {
       const key = prefix + ":fracture:" + JSON.stringify(command.topology);
       const result = cache.get(key, () => fracture.buildVoronoiFracture(
-        { positions: work, index: stage.index, uvs: stage.uvs }, command.topology, command.limits
+        { positions: work, index: stage.index, uvs: stage.uvs, normals: stage.attributes.normal?.array }, command.topology, command.limits
       ));
       if (result.error) errors.push(result.error);
       else { stage = result; work = new Float32Array(stage.positions); topologyKey = key; }
     }
+    if (command.kind === "delay" && command.history?.length && command.strength > 0) {
+      const sum = new Float64Array(work.length);
+      const basis = curved ? null : core.pieceTransformBasis(stage);
+      const current = basis ? core.fitPieceTransforms(stage, work, basis) : null;
+      const filtered = current?.map(t => t ? { center: [0,0,0], scale: [0,0,0], rotation: [0,0,0,0] } : null);
+      let total = 0;
+      for (let i = 0; i < command.history.length; i++) {
+        const sample = evaluateMesh({ base, commands: command.history[i], polygonCount, sourceId, geometryOnly: true }, cache);
+        // Only matching topology can be interpolated by vertex index.
+        if (sample.topologyKey !== topologyKey || sample.positions.length !== work.length) continue;
+        const age = (i + 1) / command.history.length;
+        const weight = command.mode === 1 ? 1 : command.mode === 2 ? Math.exp(-3 * age) * Math.sin(age * Math.PI * 2) : Math.exp(-4 * age);
+        total += weight;
+        if (basis) {
+          const transforms = core.fitPieceTransforms(stage, sample.positions, basis);
+          transforms.forEach((t,id) => {
+            if (!t || !filtered[id]) { filtered[id] = null; return; }
+            const sign = t.rotation.reduce((sum,v,a) => sum+v*current[id].rotation[a],0) < 0 ? -1 : 1;
+            for(let a=0;a<3;a++) { filtered[id].center[a]+=t.center[a]*weight; filtered[id].scale[a]+=t.scale[a]*weight; }
+            for(let a=0;a<4;a++) filtered[id].rotation[a]+=t.rotation[a]*weight*sign;
+          });
+        }
+        for (let v = 0; v < work.length; v++) sum[v] += sample.positions[v] * weight;
+      }
+      if (Math.abs(total) > 1e-6) {
+        const strength = core.clampUnit(command.strength);
+        for (let v = 0; v < work.length; v++) work[v] += (sum[v] / total - work[v]) * strength;
+        if (basis) {
+          filtered.forEach((t,id) => {
+            if (!t) return;
+            for (let a=0;a<3;a++) {
+              t.center[a]=current[id].center[a]*(1-strength)+t.center[a]/total*strength;
+              t.scale[a]=current[id].scale[a]*(1-strength)+t.scale[a]/total*strength;
+            }
+            for(let a=0;a<4;a++) t.rotation[a]=current[id].rotation[a]*(1-strength)+t.rotation[a]/total*strength;
+            const length=Math.hypot(...t.rotation);
+            if(length<1e-8) t.rotation=current[id].rotation; else t.rotation=t.rotation.map(v=>v/length);
+          });
+          core.writePieceTransforms(work,stage,basis,filtered);
+        }
+      }
+    }
     const relation = command.relation;
     if (relation) {
       if (!relation.identity) core.transformPositions(work, relation.forward);
-      if (command.kind === "twist") core.twistPositions(work, command.angle, command.axis, command.offset, command.field);
-      if (command.kind === "warp") core.warpPositions(work, command.strength, command.axis, command.offset, command.field);
+      if (command.kind === "twist") core.twistPositions(work, command.angle, command.axis, command.offset, command.field, command.bounds);
+      if (command.kind === "warp") core.warpPositions(work, command.strength, command.axis, command.offset, command.field, command.bounds);
+      if (command.kind === "plain") core.plainPositions(work, stage, command);
       if (command.kind === "fracture" && stage.pieceIds) fracture.applyFragmentMotion(work, stage, command.motion, relation.identity ? null : relation.forward);
       if (!relation.identity) core.transformPositions(work, relation.inverse);
     }
     prefix += ":" + JSON.stringify(command);
   }
+  if (input.geometryOnly) return { positions: work, topologyKey };
   // Copy cached arrays before transferring ownership back to the main thread.
   const attributes = {};
   for (const [name, attribute] of Object.entries(stage.attributes)) {

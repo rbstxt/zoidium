@@ -18,6 +18,8 @@
 //     watertight ridges and retaining cells inside the source volume.
 
 const core = require("./effector-core.js");
+// Earcut 2.2.4, ISC license, fetched from its npm package.
+const earcut = require("./earcut.js");
 
 const MAX_CELLS = 1000;
 const MIN_TRIANGLE_LENGTH = 1e-12;
@@ -240,7 +242,8 @@ function intersectRecords(a, b, si, sj) {
   const uv = a.uv && b.uv
     ? [a.uv[0] + (b.uv[0] - a.uv[0]) * t, a.uv[1] + (b.uv[1] - a.uv[1]) * t]
     : null;
-  return { p: point, uv };
+  const normal = a.normal && b.normal ? a.normal.map((v, i) => v + (b.normal[i] - v) * t) : null;
+  return { p: point, uv, normal };
 }
 
 // Closed boundary loops from undirected edges. A loop must return to its start;
@@ -436,6 +439,62 @@ function triangulateLoop(points, maxCapVertices) {
   return triangles;
 }
 
+// Triangulate the entire planar cut, including holes. Filling each loop alone
+// seals counters in bevelled text and creates overlapping interior slabs.
+function capContours(loops, plane, epsilon, maxVertices) {
+  const normal = [plane.nx, plane.ny, plane.nz];
+  const helper = Math.abs(normal[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0];
+  const u = normalize3(cross3(normal, helper), [0, 0, 1]), v = cross3(normal, u);
+  const projected = loops.map(loop => loop.map(p => [dot3(p, u), dot3(p, v)]));
+  const inside = (p, loop) => {
+    let hit = false;
+    for (let i = 0, j = loop.length - 1; i < loop.length; j = i++) {
+      const a = loop[i], b = loop[j];
+      if ((a[1] > p[1]) !== (b[1] > p[1]) && p[0] < (b[0] - a[0]) * (p[1] - a[1]) / (b[1] - a[1]) + a[0]) hit = !hit;
+    }
+    return hit;
+  };
+  const depths = projected.map((loop, i) => projected.reduce((n, other, j) => n + Number(i !== j && inside(loop[0], other)), 0));
+  const polygons = [];
+  for (let i = 0; i < loops.length; i++) {
+    if (depths[i] % 2) continue;
+    const holes = loops.map((_, j) => j).filter(j => depths[j] === depths[i] + 1 && inside(projected[j][0], projected[i]));
+    let loop = loops[i];
+    let area = [0, 0, 0];
+    for (let k = 0; k < loop.length; k++) { const c = cross3(loop[k], loop[(k + 1) % loop.length]); area = area.map((a, axis) => a + c[axis]); }
+    if (dot3(area, normal) < 0) loop = loop.slice().reverse();
+    if (!holes.length && convexLoop(loop, normal, 1)) { polygons.push(loop); continue; }
+    const points = loop.slice(), starts = [];
+    for (const j of holes) { starts.push(points.length); points.push(...loops[j]); }
+    if (points.length > maxVertices) return null;
+    const flat = points.flatMap(p => [dot3(p, u), dot3(p, v)]);
+    const indices = earcut(flat, starts, 2);
+    if (!indices.length || earcut.deviation(flat, starts, 2, indices) > 1e-5) return null;
+    for (let k = 0; k < indices.length; k += 3) {
+      const triple = [points[indices[k]], points[indices[k + 1]], points[indices[k + 2]]];
+      const ab = triple[1].map((x, a) => x - triple[0][a]), ac = triple[2].map((x, a) => x - triple[0][a]);
+      if (dot3(cross3(ab, ac), normal) < 0) triple.reverse();
+      // Earcut drops collinear boundary vertices. Put them back so cap edges
+      // match the clipped source triangles and remain watertight.
+      const boundary = [];
+      for (let e = 0; e < 3; e++) {
+        const a = triple[e], b = triple[(e + 1) % 3], d = b.map((x, axis) => x - a[axis]), length = dot3(d, d);
+        boundary.push(a);
+        const along = [];
+        for (const p of points) {
+          const delta = p.map((x, axis) => x - a[axis]), t = dot3(delta, d) / length;
+          const endpointTolerance = epsilon / Math.sqrt(length);
+          if (t <= endpointTolerance || t >= 1 - endpointTolerance) continue;
+          if (distanceSquared3(p, a.map((x, axis) => x + t * d[axis])) <= epsilon * epsilon * 4) along.push({ t, p });
+        }
+        along.sort((a, b) => a.t - b.t); boundary.push(...along.map(item => item.p));
+      }
+      polygons.push(boundary);
+    }
+  }
+  return polygons;
+}
+
 function hueToRgb(p, q, t) {
   let value = t;
   if (value < 0) value += 1;
@@ -478,6 +537,7 @@ function buildVoronoiFracture(source, options, limits) {
   const positions = source.positions;
   const index = source.index || null;
   const uvs = source.uvs || null;
+  const normals = source.normals || null;
   const triangleCount = index ? Math.floor(index.length / 3) : Math.floor(positions.length / 9);
   if (!triangleCount) return { error: "empty" };
   if (triangleCount > limit.maxSourceTriangles) return { error: "source-limit" };
@@ -540,11 +600,14 @@ function buildVoronoiFracture(source, options, limits) {
       points.push({
         p: [positions[vertex * 3], positions[vertex * 3 + 1], positions[vertex * 3 + 2]],
         uv: uvs ? [uvs[vertex * 2], uvs[vertex * 2 + 1]] : null,
+        normal: normals ? Array.from(normals.subarray(vertex * 3, vertex * 3 + 3)) : null,
       });
     }
     sourcePolygons.push({ points, cap: false });
   }
   const fragmentPositions = [];
+  const fragmentNormals = [];
+  const capNormals = [];
   const fragmentUvs = [];
   const fragmentPiece = [];
   const capPositions = [];
@@ -573,18 +636,11 @@ function buildVoronoiFracture(source, options, limits) {
         }
       }
       if (closed && cuts.length) {
-        for (const loop of cutLoops(cuts, weldEpsilon)) {
-          // Keep convex caps intact through later cuts to avoid subdividing
-          // their internal fan diagonals. Concave loops need triangulation.
-          if (convexLoop(loop, [plane.nx, plane.ny, plane.nz], maxExtent)) {
-            next.push({ cap: true, points: loop.map((p) => ({ p, uv: null })) });
-          } else {
-            for (const triple of triangulateLoop(loop, limit.maxCapVertices)) {
-              next.push({ cap: true, points: triple.map((p) => ({ p, uv: null })) });
-            }
-          }
-        }
+        const caps = capContours(cutLoops(cuts, weldEpsilon), plane, weldEpsilon, limit.maxCapVertices);
+        if (!caps) return { error: "cap-invalid" };
+        for (const loop of caps) next.push({ cap: true, points: loop.map(p => ({ p, uv: null })) });
       }
+
       surface = next;
       if (!surface.length) break;
       if (surface.length > maxOutput) return { error: "output-limit" };
@@ -609,6 +665,7 @@ function buildVoronoiFracture(source, options, limits) {
         for (const point of triple) {
           const target = polygon.cap ? capPositions : fragmentPositions;
           target.push(...point.p);
+          if (normals) (polygon.cap ? capNormals : fragmentNormals).push(...(point.normal || normalize3(area, [0, 0, 1])));
           if (!polygon.cap) {
             fragmentPiece.push(piece);
             if (uvs) fragmentUvs.push(...(point.uv || [0, 0]));
@@ -631,6 +688,7 @@ function buildVoronoiFracture(source, options, limits) {
     sites,
     bounds,
     fragmentPositions,
+    fragmentNormals, capNormals, hasNormals: Boolean(normals),
     fragmentUvs,
     fragmentPiece,
     capPositions,
@@ -696,6 +754,7 @@ function assembleStage(parts) {
 
   const center = [0, 1, 2].map((axis) => 0.5 * (parts.bounds.min[axis] + parts.bounds.max[axis]));
   const attributes = { color: { array: colors, itemSize: 3, normalized: false } };
+  if (parts.hasNormals) attributes.normal = { array: new Float32Array([...parts.fragmentNormals, ...parts.capNormals]), itemSize: 3, normalized: false };
   if (uvs) attributes.uv = { array: uvs, itemSize: 2, normalized: false };
   return {
     kind: "fracture",
@@ -813,6 +872,7 @@ module.exports = {
   MAX_CELLS,
   applyFragmentMotion,
   buildVoronoiFracture,
+  capContours,
   clampCells,
   extractLoops,
   pieceColor,
