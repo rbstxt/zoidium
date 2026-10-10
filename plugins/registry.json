@@ -112,14 +112,14 @@
       "category": "scene",
       "name": "Light+",
       "author": "Zoidium",
-      "version": "3",
+      "version": "4",
       "itemCount": 4,
       "format": "3D lights",
       "tagline": "Expanded Light Types",
       "color": "#2f9b86",
       "description": "Upgrades the standard Light button with a chooser for Spot, Point, Directional, and Hemisphere lights.",
-      "manifest": "./plugins/light-plus/manifest.json?v=3",
-      "bundle": "./plugins/light-plus/bundle.json?v=3"
+      "manifest": "./plugins/light-plus/manifest.json?v=4",
+      "bundle": "./plugins/light-plus/bundle.json?v=4"
     },
     {
       "id": "geometry-plus",
@@ -141,7 +141,7 @@
       "category": "scene",
       "name": "Effector",
       "author": "Zoidium",
-      "version": "17",
+      "version": "18",
       "defaultEnabled": true,
       "itemCount": 7,
       "format": "3D effectors",
@@ -149,8 +149,8 @@
       "color": "#6c7fb5",
       "description": "Adds procedural repeaters plus Twist, Warp and Voronoi Fracture effectors to 3D Scene.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/scene-plus/manifest.json?v=17",
-      "bundle": "./plugins/scene-plus/bundle.json?v=17"
+      "manifest": "./plugins/scene-plus/manifest.json?v=18",
+      "bundle": "./plugins/scene-plus/bundle.json?v=18"
     },
     {
       "id": "material-plus",
@@ -204,15 +204,15 @@
       "category": "scene",
       "name": "Rowbyte & Red Giant Suite",
       "author": "DaviFX",
-      "version": "13",
+      "version": "14",
       "itemCount": 14,
       "format": "3D objects",
       "tagline": "Particular, Form, Plexus and C4D lights",
       "color": "#c9a13b",
       "description": "Trapcode Particular, Form and Plexus 3D objects with floating designer windows, deterministic simulation and audio analysis, plus C4D-style lights.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/trapcode-suite/manifest.json?v=13",
-      "bundle": "./plugins/trapcode-suite/bundle.json?v=13"
+      "manifest": "./plugins/trapcode-suite/manifest.json?v=14",
+      "bundle": "./plugins/trapcode-suite/bundle.json?v=14"
     },
     {
       "id": "optical-flares",
