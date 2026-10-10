@@ -71,10 +71,14 @@ test("render issues color, depth, and output passes with shared-buffer scaling",
   const target = new ctx.THREE.WebGLRenderTarget(200, 100);
   target.viewport.set(0, 0, 120, 60);
   dof.render(renderer, target, scene, camera, target.viewport, true);
-  assert.equal(renderer.calls.length, 3, "color pass, depth pass, and the blurred output");
+  assert.equal(renderer.calls.length, 5, "color, depth, tile, dilate, and the blurred output");
   assert.equal(renderer.calls[0].target, dof.colorTarget);
   assert.equal(renderer.calls[1].target, dof.depthTarget);
-  assert.equal(renderer.calls[2].target, target);
+  assert.equal(renderer.calls[2].target, dof.tileTarget);
+  assert.equal(renderer.calls[3].target, dof.dilateTarget);
+  assert.equal(renderer.calls[4].target, target);
+  assert.deepEqual([dof.tileTarget.width, dof.tileTarget.height], [8, 4], "one tile per 16x16 pixels of the viewport");
+  assert.equal(dof.quad.material, dof.material, "the composite material is restored after the tile passes");
   assert.deepEqual([dof.colorTarget.width, dof.colorTarget.height], [200, 100], "targets match the shared buffer");
   assert.deepEqual(
     [dof.colorTarget.viewport.z, dof.colorTarget.viewport.w],
@@ -90,16 +94,34 @@ test("render issues color, depth, and output passes with shared-buffer scaling",
   );
   assert.equal(u.tColor.value, dof.colorTarget.texture);
   assert.equal(u.tDepth.value, dof.depthTarget.texture);
+  assert.deepEqual([u.tileCount.value.x, u.tileCount.value.y], [8, 4]);
+  assert.equal(dof.dilateMaterial.uniforms.tTiles.value, dof.tileTarget.texture);
+  assert.equal(u.tTiles.value, dof.dilateTarget.texture, "the composite reads the dilated tile radii");
   assert.equal(scene.overrideMaterial, null, "no override material leaks into the scene");
 });
 
-test("the kernel spreads foregrounds instead of pinning edges", () => {
-  const source = harness.readPluginSource("scene-dof.js");
-  assert.match(source, /coverage/, "coverage output carries the blur spread");
-  assert.match(source, /maxRadius < 0\.5/, "in-focus pixels pass through untouched");
-  assert.equal(/sampleBlur/.test(source), false, "no bilateral term that freezes out-of-focus edges");
-  assert.equal(/centerColor\.a \)\s*;\s*"?\s*$/.test(source), false, "output alpha is not pinned to the center");
-  assert.match(source, /gl_FragColor = vec4\( sharp, coverage \)/, "averaged color with spread alpha");
+test("the kernel spreads foregrounds past their outline instead of clipping them", () => {
+  const { dof } = setup();
+  const shader = dof.material.fragmentShader;
+  assert.match(shader, /maxRadius < 1\.0/, "in-focus pixels with nothing blurred nearby pass through untouched");
+  assert.match(shader, /texture2D\( tTiles/, "the search radius comes from the dilated tile radii, not the pixel alone");
+  assert.match(shader, /sampleRadius < radius \) continue/, "a sample counts only when its own blur reaches the pixel");
+  assert.match(shader, /sampleLinear < frontLimit \) front \+= contribution/, "nearer samples form a layer in front");
+  assert.match(shader, /sampleRadius = min\( sampleRadius, centerRadius \)/, "background blur never spreads over a sharper surface");
+  assert.equal(/centerColor\.a < 0\.02/.test(shader), false, "transparent pixels still receive a neighbour's blur");
+  assert.match(shader, /gl_FragColor = front \+ back \* \( 1\.0 - front\.a \)/, "premultiplied output with spread alpha");
+  assert.equal(/sampleColor\.rgb/.test(shader), false, "samples stay premultiplied like the scene render");
+  assert.match(dof.tileMaterial.fragmentShader, /largest = max\( largest, blurRadius/, "tiles keep their largest radius");
+  assert.match(dof.dilateMaterial.fragmentShader, /gap <= radius/, "tiles take neighbours whose blur reaches them");
+});
+
+test("shared sequence depth swaps the depth decoding in every pass", () => {
+  const { dof } = setup();
+  dof.useLinearDepthTexture();
+  for (const material of [dof.tileMaterial, dof.dilateMaterial, dof.material]) {
+    assert.match(material.fragmentShader, /texture2D\( tDepth, uv \)\.r/);
+    assert.equal(/unpackDepth\( texture2D\( tDepth/.test(material.fragmentShader), false);
+  }
 });
 
 test("unload releases targets and materials", () => {
@@ -116,5 +138,7 @@ test("unload releases targets and materials", () => {
   dof.unload();
   assert.equal(dof.colorTarget, null);
   assert.equal(dof.depthTarget, null);
+  assert.equal(dof.tileTarget, null);
+  assert.equal(dof.dilateTarget, null);
   assert.equal(dof.enabled, false);
 });

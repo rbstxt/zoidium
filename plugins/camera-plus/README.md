@@ -19,7 +19,9 @@ Add a Camera+ to a Scene from the 3D picker: **Camera > Camera+**.
   ratio; equivalent focal length follows the sensor crop factor.
 - **Depth of Field**: on/off, focus distance, aperture, focus area width, and
   near/far blur levels. The blur is a per-scene post pass that reads the scene's
-  depth. It runs only while a Camera+ enables it.
+  depth. Out-of-focus objects spread past their outline over sharper or
+  transparent areas, while background blur stays behind sharper objects in
+  front of it. It runs only while a Camera+ enables it.
 - **Camera Motion Blur**: deterministic scene renders at fixed offsets across
   a centered shutter interval of up to two frames, averaged with one to eight
   samples. Every sample is evaluated afresh; no prior rendered frames are used.

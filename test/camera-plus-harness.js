@@ -109,6 +109,8 @@ class RenderTarget {
 class Material {
   constructor(options = {}) {
     this.uniforms = options.uniforms || {};
+    this.vertexShader = options.vertexShader;
+    this.fragmentShader = options.fragmentShader;
     this.disposed = false;
   }
   dispose() { this.disposed = true; }
