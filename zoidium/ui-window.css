@@ -441,9 +441,11 @@ textarea.zoidium-text {
   display: none;
 }
 
+/* Tabs wrap onto a second row instead of hiding behind a scrollbar, like the
+   Cinema 4D attribute manager, so every topic stays visible. */
 .zoidium-tabstrip {
   display: flex;
-  overflow-x: auto;
+  flex-wrap: wrap;
   background-color: var(--zui-bg-sunken);
   border-bottom: 1px solid #111;
 }
@@ -451,7 +453,7 @@ textarea.zoidium-text {
 .zoidium-tab {
   flex: 0 0 auto;
   height: 30px;
-  padding: 0 12px;
+  padding: 0 10px;
   color: var(--zui-text-muted);
   cursor: default;
   border: 2px solid transparent;
@@ -545,26 +547,27 @@ textarea.zoidium-text {
 
 /* Side panels (ZoidiumUI.createSidePanel / context.ui.sidePanel) ------- */
 
+/* CM3's elevator shows the selected panel with display: block and hides the
+   others with display: none, so the layout must not depend on flex. The
+   panel scrolls and its header stays pinned. */
 .zoidium-side-panel {
   position: absolute;
   inset: 0;
-  display: flex;
-  flex-direction: column;
   box-sizing: border-box;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   color: var(--zui-text);
   background-color: var(--zui-bg);
 }
 
-.zoidium-side-panel-header {
-  flex: 0 0 auto;
+.zoidium-side-panel[hidden] {
+  display: none;
 }
 
-.zoidium-side-panel-body {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-x: hidden;
-  overflow-y: auto;
+.zoidium-side-panel-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
 }
 
 /* Embedded CM3 property editors (ZoidiumUI.properties) ---------------- */
@@ -589,7 +592,10 @@ textarea.zoidium-text {
 }
 
 /* Launch row added to CM3 property lists by ZoidiumUI.registerEditor. */
+/* Above CM3's column-resize handle, which spans the whole tree. */
 .zoidium-editor-launch {
+  position: relative;
+  z-index: 3;
   display: flex !important;
   flex-wrap: wrap;
   gap: 5px;
