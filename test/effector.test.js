@@ -250,6 +250,9 @@ test("Twist, Warp, and Voronoi Fracture expose the Effector property sets and de
   const Warp = _test.createWarpClass(PZ, THREE);
   const Voronoi = _test.createVoronoiClass(PZ, THREE);
   for (const instance of [new Twist(), new Warp(), new Voronoi()]) {
+    assert.equal(instance.properties.sourceHint.readOnly, true);
+    assert.match(instance.properties.sourceHint.value, /effector's \+ to affect them/);
+    assert.equal(instance.properties.sourceHint.zoidiumControl, "repeater:source-hint");
     assert.ok(instance.properties.position);
     assert.ok(instance.properties.rotation);
     assert.ok(instance.properties.scale);
@@ -508,10 +511,24 @@ test("activation registers Voronoi Fracture beside the other effectors, each wit
       return () => {};
     },
   };
-  const context = { PZ, window: { THREE }, object3d, getAsset: () => null };
+  let hintControl;
+  let releasedHint = false;
+  const context = {
+    PZ, object3d, getAsset: () => null,
+    window: { THREE, ZoidiumPluginApis: { propertyControls: {
+      register(id, spec) {
+        assert.equal(id, "repeater:source-hint");
+        hintControl = spec;
+        return () => { releasedHint = true; };
+      },
+    } } },
+    ui: { controls: { note: (text) => ({ element: { text, style: {} } }) } },
+  };
   const plugin = require("../plugins/scene-plus/scene-plus.js");
   const state = {};
   plugin.activate.call(state, context);
+  assert.match(hintControl.create().text, /Objects beside it are unaffected/);
+  assert.equal(hintControl.create().style.whiteSpace, 'normal');
   const types = registered.map((definition) => definition.type);
   for (const type of [
     "zoidium:repeater/twist",
@@ -525,6 +542,7 @@ test("activation registers Voronoi Fracture beside the other effectors, each wit
     assert.equal(definition.migrate({ type: 9 }).type !== 9, true);
   }
   plugin.deactivate.call(state);
+  assert.equal(releasedHint, true, "the hint control unregisters on disable");
 });
 
 test("the bundled library evaluates through the asset loader with sibling requires", () => {

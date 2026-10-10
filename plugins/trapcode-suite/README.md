@@ -26,7 +26,7 @@ around CM3; it is not part of, and not endorsed by, Panzoid.
 
 ## Lights
 
-The Light picker is replaced by eight C4D-style types. Each name matches the
+The Trapcode Lights picker adds eight C4D-style types. Each name matches the
 THREE backend that renders it:
 
 | Picker name | Backend |
@@ -43,6 +43,12 @@ Stock CM3 Light types 1–3 keep their behavior; stock Hemisphere (type 4) keeps
 its original type and sky tint on load. Disabling the pack
 restores the stock Light methods and removes the added property definitions.
 Scenes that use these lights need the pack enabled to render.
+
+These lights illuminate lit materials throughout the scene, including CM3
+Custom, PBR+, and Node Material. Single Color and Matcap are unlit materials.
+New positional lights start at `[0, 100, 100]` and aim at the origin where
+applicable, outside the default radius-10 Sphere. Saved light positions remain
+unchanged. Light+ uses the same placement for its stock CM3 light backends.
 
 ## Designer
 

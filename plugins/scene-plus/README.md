@@ -13,6 +13,10 @@ menu and use the published `zoidium:repeater/*` namespace.
 - Voronoi Fracture splits descendant meshes into seeded Voronoi pieces with
   optional cap faces.
 
+Add affected objects with the `+` on the effector's own row. Objects added with
+the top-level `3D Objects` button are siblings and remain unaffected. Twist,
+Warp, and Voronoi show this guidance in their properties.
+
 ## Evaluation model
 
 Every frame each affected mesh is rebuilt from its pristine source geometry.

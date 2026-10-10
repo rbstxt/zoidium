@@ -515,6 +515,15 @@ function createEffectorBaseClass(PZ, THREE) {
       this.threeObj = null;
       if (!this.objects) this.objects = new PZ.objectList(this, PZ.object3d);
       this.objects.name = "Source objects";
+      this.properties.addAll({
+        sourceHint: {
+          name: "Source objects",
+          type: PZ.property.type.TEXT,
+          value: "Add objects with this effector's + to affect them. Objects beside it are unaffected.",
+          readOnly: true,
+          zoidiumControl: "repeater:source-hint",
+        },
+      });
       if (!this.children.includes(this.objects)) this.children.push(this.objects);
       // Name freshly added source shapes after their kind, as the repeaters do.
       this._onObjectsChanged = () => {
@@ -1606,6 +1615,20 @@ function activate(context) {
     meshDeformerCache = null;
   }
   try {
+    const propertyControls = window.ZoidiumPluginApis?.propertyControls;
+    if (propertyControls && context.ui?.controls?.note) {
+      unregister.push(propertyControls.register("repeater:source-hint", {
+        type: PZ.property.type.TEXT,
+        create() {
+          const note = context.ui.controls.note(
+            "Add objects with this effector's + to affect them. Objects beside it are unaffected."
+          ).element;
+          // CM3 value cells normally keep text on one line.
+          note.style.whiteSpace = "normal";
+          return note;
+        },
+      }));
+    }
     deformationSupport = createDeformationSupport(PZ, THREE);
     const definitions = [
       ["step", "zoidium:repeater/repeater", "Repeater"],

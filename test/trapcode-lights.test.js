@@ -307,3 +307,48 @@ test("helpers constructed before install are rebound to the mapping", () => {
     PZ.trapcode.lights.uninstall();
   }
 });
+
+// Picker defaults must light the visible front of CM3's radius-10 Sphere.
+// Put positional lights outside it, with a target at its center. Saved data
+// takes its own path through load and must retain the author's position.
+test("Light+ and Trapcode picker lights start outside the default Sphere", () => {
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const { PZ } = setup();
+  const registrations = new Map();
+  PZ.trapcode.lights.install(PZ, { registerClass(entry) {
+    registrations.set(entry.type, entry);
+    return () => registrations.delete(entry.type);
+  } });
+  for (const folder of ["light-plus", "trapcode-suite"]) {
+    const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "plugins", folder, "manifest.json")));
+    const picker = manifest.objectTypes.find(entry => entry.name === (folder === "light-plus" ? "Light+" : "Trapcode Lights"));
+    for (const entry of picker.list.filter(entry => !entry.name.includes("Hemisphere"))) {
+      const serialized = entry.data.properties.position;
+      assert.equal(serialized.animated, false);
+      assert.equal(serialized.keyframes.length, 1);
+      assert.equal(serialized.keyframes[0].frame, 0);
+      const position = serialized.keyframes[0].value;
+      assert.ok(Math.hypot(...position) > 10, entry.name + " must be outside the Sphere");
+      assert.ok(position[2] > 10, entry.name + " must illuminate its camera-facing surface");
+      if (folder === "light-plus") {
+        assert.equal(entry.type, 3, "Light+ still uses stock CM3 lights");
+        continue;
+      }
+      const light = registrations.get(entry.type).factory();
+      // The suite stub accepts decoded vector values; CM3 decodes group
+      // keyframes into the child properties before the light's update.
+      light.load({ ...entry.data, properties: { position } });
+      light.update(0);
+      assert.deepEqual([light.threeObj.position.x, light.threeObj.position.y, light.threeObj.position.z], position);
+      const savedPosition = [-20, 30, -40];
+      const saved = registrations.get(entry.type).factory();
+      saved.load({ ...entry.data, properties: { position: savedPosition } });
+      for (const frame of [10, 0, 10]) {
+        saved.update(frame);
+        assert.deepEqual([saved.threeObj.position.x, saved.threeObj.position.y, saved.threeObj.position.z], savedPosition);
+      }
+    }
+  }
+  PZ.trapcode.lights.uninstall();
+});

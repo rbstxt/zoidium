@@ -3,7 +3,7 @@
   "id": "trapcode-suite",
   "name": "Rowbyte & Red Giant Suite",
   "author": "DaviFX",
-  "version": "13",
+  "version": "14",
   "kind": "object",
   "description": "Trapcode Particular, Form, and Plexus 3D objects with floating designer windows, plus C4D-style lights. Includes designer color palettes and the wiggle expression upgrade.",
   "category": "TRAPCODE",
@@ -77,7 +77,7 @@
     {
       "target": "object3d",
       "name": "Trapcode Lights",
-      "desc": "Cinema 4D-style lights: pick a type.",
+      "desc": "Lights lit scene materials. Single Color and Matcap materials do not respond to lights.",
       "feature": "Trapcode Lights",
       "type": 3,
       "list": [
@@ -85,28 +85,92 @@
           "name": "Point Light (Omni)",
           "type": "zoidium:trapcode-suite/point-light",
           "data": {
-            "objectType": 2
+            "objectType": 2,
+            "properties": {
+              "position": {
+                "animated": false,
+                "keyframes": [
+                  {
+                    "frame": 0,
+                    "value": [
+                      0,
+                      100,
+                      100
+                    ],
+                    "tween": 1
+                  }
+                ]
+              }
+            }
           }
         },
         {
           "name": "Spot Light",
           "type": "zoidium:trapcode-suite/spot-light",
           "data": {
-            "objectType": 1
+            "objectType": 1,
+            "properties": {
+              "position": {
+                "animated": false,
+                "keyframes": [
+                  {
+                    "frame": 0,
+                    "value": [
+                      0,
+                      100,
+                      100
+                    ],
+                    "tween": 1
+                  }
+                ]
+              }
+            }
           }
         },
         {
           "name": "Infinite Light (Directional)",
           "type": "zoidium:trapcode-suite/infinite-light",
           "data": {
-            "objectType": 3
+            "objectType": 3,
+            "properties": {
+              "position": {
+                "animated": false,
+                "keyframes": [
+                  {
+                    "frame": 0,
+                    "value": [
+                      0,
+                      100,
+                      100
+                    ],
+                    "tween": 1
+                  }
+                ]
+              }
+            }
           }
         },
         {
           "name": "Area Light",
           "type": "zoidium:trapcode-suite/area-light",
           "data": {
-            "objectType": 4
+            "objectType": 4,
+            "properties": {
+              "position": {
+                "animated": false,
+                "keyframes": [
+                  {
+                    "frame": 0,
+                    "value": [
+                      0,
+                      100,
+                      100
+                    ],
+                    "tween": 1
+                  }
+                ]
+              }
+            }
           }
         },
         {
@@ -120,21 +184,69 @@
           "name": "Photometric IES Light",
           "type": "zoidium:trapcode-suite/ies-light",
           "data": {
-            "objectType": 6
+            "objectType": 6,
+            "properties": {
+              "position": {
+                "animated": false,
+                "keyframes": [
+                  {
+                    "frame": 0,
+                    "value": [
+                      0,
+                      100,
+                      100
+                    ],
+                    "tween": 1
+                  }
+                ]
+              }
+            }
           }
         },
         {
           "name": "Sun (Directional)",
           "type": "zoidium:trapcode-suite/sun-light",
           "data": {
-            "objectType": 7
+            "objectType": 7,
+            "properties": {
+              "position": {
+                "animated": false,
+                "keyframes": [
+                  {
+                    "frame": 0,
+                    "value": [
+                      0,
+                      100,
+                      100
+                    ],
+                    "tween": 1
+                  }
+                ]
+              }
+            }
           }
         },
         {
           "name": "Portal Light",
           "type": "zoidium:trapcode-suite/portal-light",
           "data": {
-            "objectType": 8
+            "objectType": 8,
+            "properties": {
+              "position": {
+                "animated": false,
+                "keyframes": [
+                  {
+                    "frame": 0,
+                    "value": [
+                      0,
+                      100,
+                      100
+                    ],
+                    "tween": 1
+                  }
+                ]
+              }
+            }
           }
         }
       ]
@@ -143,43 +255,43 @@
   "modules": [
     {
       "id": "trapcode-runtime",
-      "source": "./plugins/trapcode-suite/trapcode-runtime.js?v=13"
+      "source": "./plugins/trapcode-suite/trapcode-runtime.js?v=14"
     },
     {
       "id": "designer-gear",
-      "source": "./plugins/trapcode-suite/designer-gear.js?v=13"
+      "source": "./plugins/trapcode-suite/designer-gear.js?v=14"
     }
   ],
   "resources": [
     {
       "id": "trapcode-common",
       "type": "text",
-      "source": "./plugins/trapcode-suite/trapcode-common.js?v=13"
+      "source": "./plugins/trapcode-suite/trapcode-common.js?v=14"
     },
     {
       "id": "trapcode-designer",
       "type": "text",
-      "source": "./plugins/trapcode-suite/designer.js?v=13"
+      "source": "./plugins/trapcode-suite/designer.js?v=14"
     },
     {
       "id": "trapcode-particular",
       "type": "text",
-      "source": "./plugins/trapcode-suite/particular.js?v=13"
+      "source": "./plugins/trapcode-suite/particular.js?v=14"
     },
     {
       "id": "trapcode-form",
       "type": "text",
-      "source": "./plugins/trapcode-suite/form.js?v=13"
+      "source": "./plugins/trapcode-suite/form.js?v=14"
     },
     {
       "id": "trapcode-plexus",
       "type": "text",
-      "source": "./plugins/trapcode-suite/plexus.js?v=13"
+      "source": "./plugins/trapcode-suite/plexus.js?v=14"
     },
     {
       "id": "trapcode-lights",
       "type": "text",
-      "source": "./plugins/trapcode-suite/lights-c4d.js?v=13"
+      "source": "./plugins/trapcode-suite/lights-c4d.js?v=14"
     }
   ],
   "objectClasses": [
