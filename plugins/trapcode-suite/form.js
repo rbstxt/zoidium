@@ -6,8 +6,10 @@
  * form (box grid, sphere, cylinder, ...) can be deformed by disperse, twist,
  * spherical fields, a fractal field, fluid motion and kaleidospace mirrors.
  * Layer maps and a 3D model or mask image drive the base shape. Strings
- * connect neighbouring points. The Shading group mirrors the donor controls
- * (kept as authored state; the point shader stays unlit, as in the donor).
+ * connect neighbouring points (size, density, size random and position
+ * distribution shape the string web). The Shading group lights every
+ * particle from the scene lights in the vertex shader, with a bounded
+ * shadowlet self-shadow approximation.
  * The Audio React group drives size, opacity, disperse, fractal and twist
  * from deterministic offline audio analysis (never a live analyser).
  *
@@ -24,7 +26,10 @@ var PZ = PZ || {};
 (function () {
     var T = PZ.trapcode;
 
-    var VERTEX_SHADER = [
+    // T.shading.VERTEX_LINES declares the shared light uniforms and the
+    // shadeSurface() helper ahead of main(); the call site inside main is
+    // gated by USE_SHADING so the legacy path is untouched while off.
+    var VERTEX_MAIN = [
         "uniform vec2 resolution;",
         "uniform float size;",
         "uniform float sizeRandom;",
@@ -53,11 +58,17 @@ var PZ = PZ || {};
         "vVColor = vcolor;",
         "#endif",
         "vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);",
+        "#ifdef USE_SHADING",
+        "vec3 shadeSpecTmp;",
+        "vColor.rgb = vColor.rgb * shadeSurface(position, shadeSpecTmp) + shadeSpecTmp;",
+        "#endif",
         "float pointSize = size * s * aSizeM * (1.0 + (rand(vec2(pid, 4.0)) - 0.5) * sizeRandom);",
         "gl_PointSize = max(pointSize * resolution.y * 0.5 * projectionMatrix[1][1] / max(-mvPosition.z, 1.0), 1.0);",
         "gl_Position = projectionMatrix * mvPosition;",
         "}",
-    ].join("\n");
+    ];
+
+    var VERTEX_SHADER = T.shading.VERTEX_LINES.concat(VERTEX_MAIN).join("\n");
 
     var FRAGMENT_SHADER = [
         "uniform sampler2D image;",
@@ -274,8 +285,8 @@ var PZ = PZ || {};
             this.material.needsUpdate = true;
         }
         rebuildMaterial() {
-            this.material = new THREE.ShaderMaterial({
-                uniforms: {
+            var shadeUniforms = T.shading.newUniforms();
+            var uniforms = {
                     resolution: { type: "v2", value: new THREE.Vector2(1920, 1080) },
                     image: { type: "t", value: this.texture ? this.texture.getTexture(true) : null },
                     colorOver: { type: "t", value: this.palettes.colorOver },
@@ -285,7 +296,10 @@ var PZ = PZ || {};
                     sizeRandom: { type: "f", value: 0 },
                     opacity: { type: "f", value: 1 },
                     colorTint: { type: "v4", value: new THREE.Vector4(1, 1, 1, 1) },
-                },
+                };
+            for (var shadeKey in shadeUniforms) uniforms[shadeKey] = shadeUniforms[shadeKey];
+            this.material = new THREE.ShaderMaterial({
+                uniforms: uniforms,
                 defines: {},
                 vertexShader: VERTEX_SHADER,
                 fragmentShader: FRAGMENT_SHADER,
@@ -549,8 +563,40 @@ var PZ = PZ || {};
             var value = property ? property.get(PZ.trapcode.currentTime) : null;
             return this._assets.ready("layer", value);
         }
+        // Form "Strings" controls. Density scales how many of the neighbour
+        // pairs connect (15 reproduces the legacy topology exactly); size
+        // raises string opacity (WebGL ignores line width, so size cannot
+        // widen lines); size random varies per-string brightness instead;
+        // position distribution rehashes which pairs connect. All default to
+        // the legacy look. Reads are guarded for saves from before them.
+        stringParams() {
+            var t = PZ.trapcode.currentTime;
+            var base = this.properties.base;
+            var num = function (key, fallback) {
+                try {
+                    if (!base || !base[key]) return fallback;
+                    var v = base[key].get(t);
+                    return typeof v === "number" && isFinite(v) ? v : fallback;
+                } catch (_error) {
+                    return fallback;
+                }
+            };
+            return {
+                size: num("stringSize", 0),
+                density: num("stringDensity", 15),
+                sizeRandom: num("stringSizeRandom", 0),
+                position: num("stringPosition", 0),
+            };
+        }
+        stringKey(counts, on) {
+            var p = this.stringParams();
+            return counts.join(",") + "|" + on + "|" + [p.size, p.density, p.sizeRandom, p.position].join(",");
+        }
         rebuildStrings(counts, on) {
-            this._stringKey = counts.join(",") + "|" + on;
+            var params = this.stringParams();
+            this._stringKey = counts.join(",") + "|" + on + "|" +
+                [params.size, params.density, params.sizeRandom, params.position].join(",");
+            this._stringSize = params.size;
             this.strings.visible = on;
             if (!on) return;
             var nx = counts[0];
@@ -558,6 +604,17 @@ var PZ = PZ || {};
             var nz = counts[2];
             var count = nx * ny * nz;
             var indices = [];
+            // Per-point brightness from String size random: each emitted
+            // segment votes a hash onto both endpoints; points average their
+            // votes. sizeRandom 0 leaves every point at exactly 1.
+            var brightSum = new Float32Array(count);
+            var brightCount = new Float32Array(count);
+            var jitter = Math.min(Math.max(params.sizeRandom, 0), 10) * 0.2;
+            // Legacy per-axis connection odds; density 15 keeps them whole.
+            var densF = params.density < 0 ? 0 : params.density > 30 ? 2 : params.density / 15;
+            var probs = [0.98 * densF, 0.98 * densF, 0.5 * densF];
+            var rehash = params.position * 7.13;
+            var segs = 0;
             function id(x, y, z) {
                 return z * nx * ny + y * nx + x;
             }
@@ -565,14 +622,29 @@ var PZ = PZ || {};
                 var v = Math.sin(i * 12.9898 + 78.233) * 43758.5453;
                 return v - Math.floor(v);
             }
+            function link(a, b) {
+                indices.push(a, b);
+                var h = srand(segs * 3.7 + 11.1 + rehash) - 0.5;
+                brightSum[a] += h;
+                brightSum[b] += h;
+                brightCount[a]++;
+                brightCount[b]++;
+                segs++;
+            }
             for (var z = 0; z < nz; z++) {
                 for (var y = 0; y < ny; y++) {
                     for (var x = 0; x < nx; x++) {
                         var a = id(x, y, z);
-                        if (x + 1 < nx && srand(a * 3 + x) < 0.98) indices.push(a, id(x + 1, y, z));
-                        if (y + 1 < ny && srand(a * 3 + y + 1) < 0.98) indices.push(a, id(x, y + 1, z));
-                        if (z + 1 < nz && srand(a * 3 + z + 2) < 0.5) indices.push(a, id(x, y, z + 1));
+                        if (x + 1 < nx && srand(a * 3 + x + rehash) < probs[0]) link(a, id(x + 1, y, z));
+                        if (y + 1 < ny && srand(a * 3 + y + 1 + rehash) < probs[1]) link(a, id(x, y + 1, z));
+                        if (z + 1 < nz && srand(a * 3 + z + 2 + rehash) < probs[2]) link(a, id(x, y, z + 1));
                     }
+                }
+            }
+            var pointBright = new Float32Array(count).fill(1);
+            if (jitter !== 0) {
+                for (var p = 0; p < count; p++) {
+                    if (brightCount[p] > 0) pointBright[p] = 1 + (brightSum[p] / brightCount[p]) * jitter;
                 }
             }
             if (this.strings.geometry) this.strings.geometry.dispose();
@@ -581,6 +653,7 @@ var PZ = PZ || {};
             geometry.addAttribute("position", new THREE.BufferAttribute(new Float32Array(count * 3), 3));
             geometry.addAttribute("color", new THREE.BufferAttribute(new Float32Array(count * 3), 3));
             this.strings.geometry = geometry;
+            this._stringBright = pointBright;
         }
         updatePalettes() {
             var t = PZ.trapcode.currentTime;
@@ -998,18 +1071,21 @@ var PZ = PZ || {};
             }
         }
         // Copies the displaced lattice into the string geometry and colors each
-        // point from the color-over ramp (sampled from the palette texture).
+        // point from the color-over ramp (sampled from the palette texture),
+        // scaled by the per-string brightness from String size random.
         updateStrings(count) {
             var geometry = this.strings.geometry;
             geometry.attributes.position.array.set(this.outPositions);
             geometry.attributes.position.needsUpdate = true;
             var ramp = this.palettes.colorOver.image.data;
             var cols = geometry.attributes.color.array;
+            var pointBright = this._stringBright || null;
             for (var s = 0; s < count; s++) {
                 var ri = Math.round((count > 1 ? s / (count - 1) : 0) * 255) * 4;
-                cols[s * 3] = ramp[ri] / 255;
-                cols[s * 3 + 1] = ramp[ri + 1] / 255;
-                cols[s * 3 + 2] = ramp[ri + 2] / 255;
+                var b = pointBright && s < pointBright.length ? pointBright[s] : 1;
+                cols[s * 3] = (ramp[ri] / 255) * b;
+                cols[s * 3 + 1] = (ramp[ri + 1] / 255) * b;
+                cols[s * 3 + 2] = (ramp[ri + 2] / 255) * b;
             }
             geometry.attributes.color.needsUpdate = true;
         }
@@ -1032,7 +1108,7 @@ var PZ = PZ || {};
             var signature = this.baseSignature(counts);
             if (signature !== this._baseSig) this.rebuildBase(counts, signature);
             var stringsOn = base.stringEnabled.get(t) === 1;
-            if (this._stringKey !== counts.join(",") + "|" + stringsOn) this.rebuildStrings(counts, stringsOn);
+            if (this._stringKey !== this.stringKey(counts, stringsOn)) this.rebuildStrings(counts, stringsOn);
             this.updatePalettes();
             // Audio reactors (deterministic offline levels; all multipliers
             // are 1 while no reactor is on, so existing projects render
@@ -1059,10 +1135,23 @@ var PZ = PZ || {};
             u.opacity.value = Math.min(1, particle.opacity.get(t) / 100 * reactorOpacity);
             var tint = particle.color.get(t);
             u.colorTint.value.set(tint[0], tint[1], tint[2], 1);
+            // Per-particle lighting from the scene lights (Shading group). The
+            // box is rebuilt only while shading is on; while off the call
+            // below only clears the define, so legacy frames are untouched.
+            var shadeGroup = this.properties.shading;
+            var shadeOn = false;
+            try {
+                shadeOn = shadeGroup && shadeGroup.shading.get(t) === 1;
+            } catch (_shade) { shadeOn = false; }
+            T.shading.update(this.material, shadeGroup, this.threeObj,
+                shadeOn ? T.shading.boxFromPositions(this.outPositions, count) : null);
             var additive = particle.blending.get(t) === 1;
             this.material.blending = additive ? THREE.AdditiveBlending : THREE.NormalBlending;
             if (this.stringMaterial) {
-                this.stringMaterial.opacity = stringsOn ? particle.opacity.get(t) / 100 : 0.5;
+                // String size raises line opacity (line width is fixed at 1:
+                // WebGL ignores wider lines); size 0 keeps the legacy look.
+                var stringBoost = 1 + Math.max(this._stringSize || 0, 0) * 0.05;
+                this.stringMaterial.opacity = stringsOn ? Math.min(1, particle.opacity.get(t) / 100 * stringBoost) : 0.5;
                 this.stringMaterial.blending = additive ? THREE.AdditiveBlending : THREE.NormalBlending;
             }
             var transform = this.properties.transform;

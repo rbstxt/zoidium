@@ -35,7 +35,10 @@ var PZ = PZ || {};
         }
     }
 
-    var VERTEX_SHADER = [
+    // T.shading.VERTEX_LINES declares the shared light uniforms and the
+    // shadeSurface() helper ahead of main(); the call site inside main is
+    // gated by USE_SHADING so the legacy path is untouched while off.
+    var VERTEX_MAIN = [
         "uniform vec2 resolution;",
         "uniform float time;",
         "uniform float rate;",
@@ -197,6 +200,10 @@ var PZ = PZ || {};
         "vColor.a *= audioOpacity;",
         "vGlow = glow;",
         "vec4 mvPosition = modelViewMatrix * vec4(worldPos, 1.0);",
+        "#ifdef USE_SHADING",
+        "vec3 shadeSpecTmp;",
+        "vColor.rgb = vColor.rgb * shadeSurface(worldPos, shadeSpecTmp) + shadeSpecTmp;",
+        "#endif",
         "#ifdef USE_CPU",
         "float pointSize = size * lifeSize * mix(1.0, layerSizeSample, layerSizeStrength);",
         "#else",
@@ -207,7 +214,9 @@ var PZ = PZ || {};
         "gl_PointSize = max(pointSize * resolution.y * 0.5 * projectionMatrix[1][1] / max(-mvPosition.z, 1.0), 1.0);",
         "gl_Position = projectionMatrix * mvPosition;",
         "}",
-    ].join("\n");
+    ];
+
+    var VERTEX_SHADER = T.shading.VERTEX_LINES.concat(VERTEX_MAIN).join("\n");
 
     var FRAGMENT_SHADER = [
         "uniform sampler2D image;",
@@ -1186,6 +1195,11 @@ var PZ = PZ || {};
                 depthWrite: false,
                 blending: THREE.NormalBlending,
             });
+            // Shared light uniforms for the Lighting group. Always present so
+            // toggling shading never reallocates the material; the shader
+            // only reads them under USE_SHADING.
+            var shadeUniforms = T.shading.newUniforms();
+            for (var shadeKey in shadeUniforms) this.material.uniforms[shadeKey] = shadeUniforms[shadeKey];
             this.threeObj.material = this.material;
         }
         redrawTexture() {
@@ -1249,9 +1263,22 @@ var PZ = PZ || {};
                 if (source && !T.audioAnalysis.has(source) && this._audioRequest !== source) {
                     this._audioRequest = source;
                     var project = T.findParent(this, PZ.project);
+                    var self = this;
                     T.audioAnalysis.load(project, source).then(function () {
-                        // A paused preview must redraw when the asset becomes ready.
+                        // The preview path never awaits prepareAudio: without
+                        // an explicit redraw the reactors stay neutral until
+                        // some unrelated change redraws (BUG-02). Re-running
+                        // the current frame picks up the decoded levels. The
+                        // one-shot flag keeps this from re-arming its own
+                        // load when the analysis is still pending.
                         audio.audioLayer.onChanged?.update();
+                        if (self._audioRequest === source && self._audioRedrawnFor !== source &&
+                            self.material && PZ.trapcode.currentTime !== undefined) {
+                            self._audioRedrawnFor = source;
+                            try {
+                                self.update(PZ.trapcode.currentTime);
+                            } catch (_redraw) { /* best effort: next frame picks it up */ }
+                        }
                     }, function (error) {
                         console.warn("Trapcode Particular: audio analysis failed; reactors stay neutral.", error);
                     });
@@ -1512,12 +1539,13 @@ var PZ = PZ || {};
             var emitter = p.emitter;
             var burst = emitter.burstCount.get(PZ.trapcode.currentTime);
 
+            var cpuState = null;
             if (useCPU) {
-                this.writeCPU(this.simulateFrame(e));
+                cpuState = this.simulateFrame(e);
+                this.writeCPU(cpuState);
             } else {
                 this.updateGeometry();
             }
-
             this.updatePalettes();
             this.updateLayerMaps();
             this.updateAudio();
@@ -1570,6 +1598,26 @@ var PZ = PZ || {};
             u.stretch.value = tnum(pp, "stretch", 0) / 100;
             var evel = this.emitterMotionAt(seconds);
             u.emitterVel.value.set(evel[0], evel[1], evel[2]);
+            // Per-particle lighting from the scene lights (Lighting group).
+            // CPU frames reuse the simulated bounds for the shadowlet axis;
+            // GPU frames approximate the cloud box from the emitter (a pure
+            // function of the properties, no history). While off the call
+            // only clears the define, so legacy frames are untouched.
+            var shadeBox = null;
+            if (cpuState) {
+                shadeBox = T.shading.boxFromPositions(cpuState.positions, cpuState.count);
+            } else {
+                var shadeLife = Math.max(p.particle.life.get(PZ.trapcode.currentTime), 0.0001);
+                var shadeR = Math.max(1, vectors.emitterSize +
+                    Math.abs(vectors.speed) * shadeLife + Math.abs(vectors.spread) * 2);
+                var shadeC = vectors.position;
+                shadeBox = {
+                    min: [shadeC[0] - shadeR, shadeC[1] - shadeR, shadeC[2] - shadeR],
+                    max: [shadeC[0] + shadeR, shadeC[1] + shadeR, shadeC[2] + shadeR],
+                    center: [shadeC[0], shadeC[1], shadeC[2]],
+                };
+            }
+            T.shading.update(this.material, p.lighting, this.threeObj, shadeBox);
             this.material.blending = p.particle.blending.get(PZ.trapcode.currentTime) === 1 ? THREE.AdditiveBlending : THREE.NormalBlending;
             if (useCPU) this.material.defines.USE_CPU = 1;
             else delete this.material.defines.USE_CPU;
@@ -1847,11 +1895,13 @@ var PZ = PZ || {};
         name: { visible: false, name: "Name", type: PZ.property.type.TEXT, value: "Lighting" },
         enabled: option("Shading", 0, "off;on"),
         lightFalloff: option("Light falloff", 0, "natural (lux);inverse square;inverse cube;none"),
+        nominalDistance: number("Nominal distance", 250, { step: 1 }),
         ambient: number("Ambient", 20, { min: 0, max: 100, step: 0.1, decimals: 1 }),
         diffuse: number("Diffuse", 80, { min: 0, max: 100, step: 0.1, decimals: 1 }),
         specularAmount: number("Specular amount", 0, { min: 0, max: 100, step: 0.1, decimals: 1 }),
         specularSharpness: number("Specular sharpness", 100, { min: 0, max: 100, step: 0.1, decimals: 1 }),
         reflectionStrength: number("Reflection strength", 100, { min: 0, step: 0.1, decimals: 1 }),
+        shadowlet: option("Shadowlet", 0, "off;on", false),
     };
 
     if (PZ.ui && PZ.ui.objectTypes) {

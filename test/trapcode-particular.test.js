@@ -415,3 +415,54 @@ test("update() writes CPU particles and GPU uniforms through the render path", (
   assert.equal(gpu.material.defines.USE_CPU, undefined);
   assert.equal(gpu.material.uniforms.audioLevel.value, 1, "reactors off keep the neutral level");
 });
+
+test("lighting defaults to off and toggles the shader define", () => {
+  const PZ = loadSystemModule();
+  const gpu = makeSystem(PZ, (p) => {
+    p.emitter.particlesPerSec.set(50);
+  });
+  gpu.update(10);
+  assert.equal(gpu.material.defines.USE_SHADING, undefined, "lighting off leaves the legacy path");
+  assert.ok(gpu.material.uniforms.uShadeLightCount, "light uniforms are present");
+  gpu.properties.lighting.enabled.set(1);
+  gpu.update(10);
+  assert.equal(gpu.material.defines.USE_SHADING, 1);
+  assert.equal(gpu.material.uniforms.uShadeAmbient.value, 0.2);
+  // Same frame renders identically after a reshuffle.
+  const first = Array.from(gpu.threeObj.geometry.attributes.pid.array);
+  for (const frame of [4, 10, 2]) gpu.update(frame);
+  gpu.update(10);
+  assert.deepEqual(Array.from(gpu.threeObj.geometry.attributes.pid.array), first);
+});
+
+test("a decoded audio source redraws the frame without waiting for export", async () => {
+  const PZ = loadSystemModule();
+  const T = PZ.trapcode;
+  const system = makeSystem(PZ, (p) => {
+    p.emitter.particlesPerSec.set(50);
+    p.audio.reactor1Enabled.set(1);
+    p.audio.reactor1Target.set(0);
+    p.audio.reactor1Strength.set(200);
+  });
+  const source = "preview-clip.wav";
+  system.properties.audio.audioLayer.value = source;
+  let resolveLoad;
+  const gate = new Promise((resolve) => {
+    resolveLoad = resolve;
+  });
+  T.audioAnalysis.load = () => gate.then(() => true);
+  let decodedLevel = null;
+  T.audioAnalysis.levelAt = () => decodedLevel;
+  system.sceneRate = () => 30;
+  system.update(10);
+  assert.equal(system.material.uniforms.audioLevel.value, 1, "neutral while undecoded");
+  decodedLevel = 0.9;
+  resolveLoad();
+  await gate;
+  await new Promise((resolve) => setImmediate(resolve));
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.ok(
+    system.material.uniforms.audioLevel.value > 1,
+    "redraw after decode reacts, got " + system.material.uniforms.audioLevel.value
+  );
+});
