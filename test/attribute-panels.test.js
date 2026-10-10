@@ -415,7 +415,7 @@ test("each Camera+ topic lists its rows", () => {
   const spec = loadCameraRuntime()._test.cameraAttributeSpec(CAMERA_TYPE);
   const expected = {
     "Coord.": ["position", "rotation", "eulerOrder"],
-    Film: ["active", "projection", "focalLength", "filmGate", "zoom", "filmOffsetX", "filmOffsetY"],
+    Film: ["active", "projection", "focalLength", "filmGate", "zoom", "equivFocalLength", "fovH", "fovV", "filmOffsetX", "filmOffsetY"],
     "Depth of Field": [
       "depthOfField.enabled",
       "depthOfField.focusDistance",

@@ -67,6 +67,9 @@ parts.camera = (function () {
       projection: { name: "Projection", type: T.LIST, value: "perspective", items: [{ name: "Perspective", value: "perspective" }, { name: "Orthographic", value: "orthographic" }] },
       focalLength: { dynamic: true, name: "Focal Length", type: T.NUMBER, value: 35, min: 1, max: 10000, step: 1, decimals: 2 },
       filmGate: { name: "Sensor", type: T.LIST, value: 36, items: FILM_GATES.map((gate) => ({ name: gate.name, value: gate.value })) },
+      equivFocalLength: { dynamic: true, name: "35mm Equiv. Focal Length", type: T.NUMBER, value: 35, readOnly: true, decimals: 2 },
+      fovH: { dynamic: true, name: "Field of View (Horizontal)", type: T.NUMBER, value: 0, readOnly: true, decimals: 4 },
+      fovV: { dynamic: true, name: "Field of View (Vertical)", type: T.NUMBER, value: 0, readOnly: true, decimals: 4 },
       zoom: { dynamic: true, name: "Zoom", type: T.NUMBER, value: 1, min: 0.01, max: 1000, step: 0.01, decimals: 2 },
       filmOffsetX: { dynamic: true, name: "Film Offset X", type: T.NUMBER, value: 0, min: -1000, max: 1000, step: 0.1, decimals: 2 },
       filmOffsetY: { dynamic: true, name: "Film Offset Y", type: T.NUMBER, value: 0, min: -1000, max: 1000, step: 0.1, decimals: 2 },
@@ -130,6 +133,18 @@ parts.camera = (function () {
         this.vibrateProperties = vibrate.createProperties(PZ);
         this._time = 0;
         this.properties.addAll(createDefinitions(PZ));
+        // CM3 has no definition.getValue hook. Derived readers belong to these
+        // Camera+ properties only, and never read the last rendered projection.
+        const readers = {
+          equivFocalLength: time => this.getEquivalentFocalLength(time),
+          fovH: time => this.getFieldOfView(time)[0],
+          fovV: time => this.getFieldOfView(time)[1],
+        };
+        for (const key of Object.keys(readers)) {
+          this.properties[key].get = readers[key];
+          this.properties[key].hideAnimateToggle = true;
+        }
+
         this.properties.add("depthOfField", createDepthOfFieldProperties(PZ));
         this.properties.add("vibrate", this.vibrateProperties);
         this.properties.add("motionBlur", createMotionBlurProperties(PZ));
@@ -190,6 +205,28 @@ parts.camera = (function () {
         }
         camera.updateProjectionMatrix();
         if (offsetY) camera.projectionMatrix.elements[9] += 2 * (offsetY / 100);
+      }
+
+      getFieldOfView(time = this._time) {
+        if (this.properties.projection.get(time) === "orthographic") return [0, 0];
+        const resolution = this.getSequenceResolution();
+        const aspect = resolution[0] / resolution[1];
+        const gate = readNumber(this.properties.filmGate, time, 36);
+        const focal = Math.max(0.0001, readNumber(this.properties.focalLength, time, 35));
+        const zoom = Math.max(0.0001, readNumber(this.properties.zoom, time, 1));
+        const halfHeight = gate / Math.max(aspect, 1) / (2 * focal * zoom);
+        const degrees = 180 / Math.PI;
+        return [2 * Math.atan(halfHeight * aspect) * degrees, 2 * Math.atan(halfHeight) * degrees];
+      }
+
+      getEffectiveFOV(time = this._time) {
+        return this.getFieldOfView(time)[1];
+      }
+
+      getEquivalentFocalLength(time = this._time) {
+        const gate = readNumber(this.properties.filmGate, time, 36);
+        const focal = readNumber(this.properties.focalLength, time, 35);
+        return gate > 0 ? focal * 36 / gate : focal;
       }
 
       getSequenceResolution() {

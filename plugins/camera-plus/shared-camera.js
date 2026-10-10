@@ -128,6 +128,17 @@ parts.shared = function (options) {
     ensureDepth(this, data, true);
     return originalLoad.apply(this, arguments);
   }, teardown);
+  function restoreMaterialSides(layer) {
+    for (const effect of layer.effects) {
+      const material = effect.pass?.quad?.material;
+      if (!trackedMaterials.has(material)) continue;
+      if (material.side === THREE.DoubleSide) {
+        material.side = trackedMaterials.get(material);
+        material.needsUpdate = true;
+      }
+      trackedMaterials.delete(material);
+    }
+  }
   const originalUpdate = layerProto.update;
   patchMethod(layerProto, "update", function (time) {
     ensureDepth(this);
@@ -138,14 +149,7 @@ parts.shared = function (options) {
       this.composite.group.rotation.y = 0;
     }
     const result = originalUpdate.apply(this, arguments);
-    if (!ownerTrack(this)?.track3d) for (const effect of this.effects) {
-      const material = effect.pass?.quad?.material;
-      if (trackedMaterials.has(material) && material.side === THREE.DoubleSide) {
-        material.side = trackedMaterials.get(material);
-        material.needsUpdate = true;
-        trackedMaterials.delete(material);
-      }
-    }
+    if (!ownerTrack(this)?.track3d) restoreMaterialSides(this);
     return result;
   }, teardown);
   const originalUnload = layerProto.unload;
@@ -229,9 +233,15 @@ parts.shared = function (options) {
     while (root.parent && !(root.parent instanceof PZ.track.video) && root.parent.start === undefined) root = root.parent;
     const frame = time + (root.parent?.start || 0);
     const sequence = this._sequence || layer.parentProject?.sequence;
-    if (!sequence || !track?.track3d) return originalRenderLayer.apply(this, arguments);
+    if (!sequence || !track?.track3d) {
+      restoreMaterialSides(layer);
+      return originalRenderLayer.apply(this, arguments);
+    }
     const master = masterAt(sequence, frame);
-    if (!master) return originalRenderLayer.apply(this, arguments);
+    if (!master) {
+      restoreMaterialSides(layer);
+      return originalRenderLayer.apply(this, arguments);
+    }
     if (layer instanceof PZ.layer.scene) {
       syncScene(layer, time, master.camera, master);
     } else if (!(layer instanceof PZ.layer.adjustment)) {

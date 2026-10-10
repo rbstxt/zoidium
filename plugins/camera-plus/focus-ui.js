@@ -102,7 +102,17 @@ parts.focus = (function () {
         const distance = options.worldDistance(THREE, camera, target);
         clearExpression(ops);
         const frame = editor.playback.currentFrame - focusProperty.frameOffset;
-        ops.setValue({ property: focusProperty.getAddress(), frame: frame, value: distance });
+        // setValue changes the nearest existing key, so create the playhead
+        // key explicitly before writing. Animation and expression removal
+        // stay in the same history operation.
+        if (typeof focusProperty.getKeyframe === "function" && !focusProperty.getKeyframe(frame)) {
+          ops.createKeyframe({ property: focusProperty.getAddress(), data: { frame: frame, value: distance, tween: focusProperty.defaultTween } });
+        } else {
+          ops.setValue({ property: focusProperty.getAddress(), frame: frame, value: distance });
+        }
+        if (!focusProperty.animated && typeof ops.toggleAnimation === "function") {
+          ops.toggleAnimation(focusProperty, frame, false, true);
+        }
       });
     }
 
@@ -111,6 +121,34 @@ parts.focus = (function () {
       edit("unlink the focus distance", function (editor, ops) {
         ops.setExpression({ property: focusProperty.getAddress(), expression: null });
       });
+    }
+
+    function openTargetWindow(mode) {
+      if (!ui || typeof ui.openWindow !== "function") return null;
+      if (!camera._focusWindowKey) camera._focusWindowKey = options.nextKey();
+      const current = listTargets();
+      let win;
+      win = ui.openWindow({
+        id: WINDOW_PREFIX + camera._focusWindowKey + ":" + mode,
+        title: mode === "link" ? "Link focus distance to..." : "Set focus distance to...",
+        width: 320,
+        height: 280,
+        isValid: () => camera.parent != null,
+        mount(body) {
+          body.appendChild(ui.controls.list({
+            items: current.items,
+            emptyText: "No other 3D objects in this scene.",
+            onSelect(id) {
+              const target = current.byId.get(id);
+              if (!target || target.tryGetParentOfType(PZ.layer) !== camera.tryGetParentOfType(PZ.layer)) return;
+              if (mode === "link") link(target);
+              else setOnce(target);
+              win.close();
+            },
+          }).element);
+        },
+      });
+      return win;
     }
 
     function openWindow() {
@@ -213,7 +251,7 @@ parts.focus = (function () {
       });
     }
 
-    return { openWindow: openWindow, listTargets: listTargets };
+    return { openWindow: openWindow, openTargetWindow: openTargetWindow, unlink: unlink, listTargets: listTargets };
   }
 
   // Property-row control factory for the focus entry in the Depth of Field
@@ -224,6 +262,9 @@ parts.focus = (function () {
     const document = context && context.document;
     if (!owner || !document || !options.zoidiumUI) return null;
     const row = options.zoidiumUI.controls.buttonRow([
+      { title: "Link", hint: "Link focus distance to...", onClick: () => options.openFor(owner, "link") },
+      { title: "Set", hint: "Set focus distance to...", onClick: () => options.openFor(owner, "set") },
+      { title: "Unlink", hint: "Remove the focus distance expression", onClick: () => options.openFor(owner, "unlink") },
       {
         title: "Focus Tools...",
         hint: "Link or set the focus distance to another object in this scene",

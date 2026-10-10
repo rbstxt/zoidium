@@ -396,8 +396,10 @@ function activateCameraPlus(context, teardown) {
       return focusWindowKey;
     },
   };
-  const openFocusTools = function (owner) {
-    return focus.createFocusTools(focusOptions, owner).openWindow();
+  const openFocusTools = function (owner, mode) {
+    const tools = focus.createFocusTools(focusOptions, owner);
+    if (mode === "unlink") return tools.unlink();
+    return mode ? tools.openTargetWindow(mode) : tools.openWindow();
   };
 
   const expressionMethod = focus.createExpressionMethod({
@@ -469,7 +471,7 @@ function cameraAttributeSpec(objectType) {
       {
         id: "film",
         title: "Film",
-        keys: ["active", "projection", "focalLength", "filmGate", "zoom", "filmOffsetX", "filmOffsetY"],
+        keys: ["active", "projection", "focalLength", "filmGate", "zoom", "equivFocalLength", "fovH", "fovV", "filmOffsetX", "filmOffsetY"],
       },
       {
         id: "depth",
