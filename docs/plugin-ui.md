@@ -138,6 +138,28 @@ context.ui.registerAttributePanel({
 });
 ```
 
+## Node graphs: `ZoidiumUI.nodeEditor()`
+
+A themed node graph editor for plugins whose data is a graph (Material+ Node
+Material uses it). It edits plain JSON and never evaluates the graph:
+
+```js
+const editor = ZoidiumUI.nodeEditor({
+  nodeTypes: { noise: { title: "Noise", category: "Texture",
+    inputs: [{ id: "uv", label: "UV", type: "vector" }],
+    outputs: [{ id: "value", label: "Value", type: "float" }],
+    params: [{ id: "octaves", label: "Octaves", control: "number", min: 1, max: 8, step: 1, default: 4 }] } },
+  graph: { nodes: [], links: [] },
+  onChange: (graph, info) => commitOneUndoStep(graph, info.label), // once per gesture
+});
+win.body.appendChild(editor.element); // setGraph(), getGraph(), frameAll(), destroy()
+```
+
+Interaction follows Blender/Unreal conventions: middle-drag or Space-drag
+pans, the wheel zooms, drag from an output to an input connects, right-click,
+Shift+A or Tab opens the searchable add menu, Ctrl/Cmd+drag cuts links,
+Delete, Ctrl/Cmd+D, Ctrl/Cmd+C/V and Home/F work as expected.
+
 ## Side panels: `context.ui.sidePanel()`
 
 ```js
