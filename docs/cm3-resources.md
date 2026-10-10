@@ -73,11 +73,14 @@ a normal browser and let the tools fetch the rest.
 
 ## How deployments get the runtime
 
-Cloudflare Pages builds start without a cache. When the `ZOIDIUM_CM3_SNAPSHOT`
-environment variable is set (for example
-`r2://zoidium-cm3-cache/cm3-snapshot.zcs` together with the
-`ZOIDIUM_R2_*` credentials as encrypted variables), the build restores that
-snapshot instead of fetching Panzoid. Deployments therefore use the pinned
+Cloudflare Pages builds start without a cache. `wrangler.jsonc` sets
+`ZOIDIUM_CM3_SNAPSHOT` (`r2://zoidium-cm3-cache/cm3-snapshot.zcs`) and
+`ZOIDIUM_R2_ACCOUNT_ID`; the R2 access key pair
+(`ZOIDIUM_R2_ACCESS_KEY_ID`, `ZOIDIUM_R2_SECRET_ACCESS_KEY`) is stored as
+encrypted secrets in the Pages project. Because the project uses a Wrangler
+configuration file, plain-text variables entered in the dashboard are ignored;
+keep non-secret values in `wrangler.jsonc`. The build restores that snapshot
+instead of fetching Panzoid. Deployments therefore use the pinned
 runtime that was tested, even when Panzoid changes or blocks its pages.
 
 ## Updating the snapshot (maintainers)

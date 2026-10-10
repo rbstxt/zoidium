@@ -1,5 +1,12 @@
 {
   "name": "zoidium",
   "compatibility_date": "2026-08-31",
-  "pages_build_output_dir": "./dist/web"
+  "pages_build_output_dir": "./dist/web",
+  // Builds restore the pinned CM3 runtime from a private R2 snapshot instead
+  // of fetching Panzoid (see docs/cm3-resources.md). The R2 access key pair is
+  // set as encrypted secrets in the Pages project, never here.
+  "vars": {
+    "ZOIDIUM_CM3_SNAPSHOT": "r2://zoidium-cm3-cache/cm3-snapshot.zcs",
+    "ZOIDIUM_R2_ACCOUNT_ID": "06a22facf684f7266a7e1722c236cd18"
+  }
 }
