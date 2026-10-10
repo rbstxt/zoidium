@@ -53,7 +53,7 @@ function pressFocusButton(ctx) {
   assert.ok(control, "control element built");
   const built = ctx.zoidiumUI.rows[ctx.zoidiumUI.rows.length - 1];
   assert.equal(ctx.zoidiumUI.rows.length, row + 1);
-  built.buttons[0].onClick();
+  built.buttons.find(button => button.title === "Focus Tools...").onClick();
   return ctx.zoidiumUI.windows[ctx.zoidiumUI.windows.length - 1];
 }
 
@@ -165,4 +165,55 @@ test("the focus window closes when its camera leaves the scene", () => {
   assert.equal(win.options.isValid(), false);
   runtime.deactivate();
   teardownGlobals();
+});
+
+
+test("direct Link and Set pickers perform one action and close; Unlink needs no picker", () => {
+  const { ctx, runtime, cameraPlus } = setupScene();
+  try {
+    ctx.lastFocusProperty = cameraPlus.properties.depthOfField.focusTools;
+    pressFocusButton(ctx);
+    const buttons = ctx.zoidiumUI.rows.at(-1).buttons;
+    for (const title of ["Link", "Set"]) {
+      buttons.find(button => button.title === title).onClick();
+      const win = ctx.zoidiumUI.windows.at(-1);
+      assert.equal(win.options.title, title + " focus distance to...");
+      const picker = mountWindow(ctx, win);
+      ctx.editor.log.length = 0;
+      picker.options.onSelect(picker.options.items[0].id);
+      assert.equal(win.closed, true);
+      assert.equal(ctx.editor.log.filter(entry => entry[0] === "start").length, 1);
+      assert.equal(ctx.editor.log.filter(entry => entry[0] === "finish").length, 1);
+    }
+    const count = ctx.zoidiumUI.windows.length;
+    buttons.find(button => button.title === "Unlink").onClick();
+    assert.equal(ctx.zoidiumUI.windows.length, count);
+    assert.equal(ctx.editor.log.at(-2)[0], "setExpression");
+  } finally { runtime.deactivate(); teardownGlobals(); }
+});
+
+test("Set creates a missing playhead key and enables animation in the same operation", () => {
+  const { ctx, runtime, cameraPlus } = setupScene();
+  const OriginalOps = ctx.PZ.ui.properties;
+  ctx.PZ.ui.properties = class extends OriginalOps {
+    createKeyframe(op) { this.editor.log.push(["createKeyframe", op]); }
+    toggleAnimation(property, frame, expression, enabled) { this.editor.log.push(["animate", frame, enabled]); }
+  };
+  try {
+    const property = cameraPlus.properties.depthOfField.focusDistance;
+    property.getKeyframe = () => null;
+    property.frameOffset = 12;
+    property.expression = { source: "old expression" };
+    property.animated = false;
+    ctx.editor.playback.currentFrame = 42;
+    ctx.lastFocusProperty = cameraPlus.properties.depthOfField.focusTools;
+    const win = pressFocusButton(ctx);
+    const picker = mountWindow(ctx, win);
+    picker.options.onSelect(picker.options.items[0].id);
+    ctx.editor.log.length = 0;
+    win.options.footer[1].onClick();
+    assert.deepEqual(ctx.editor.log.map(entry => entry[0]), ["start", "setExpression", "createKeyframe", "animate", "finish"]);
+    assert.equal(ctx.editor.log[2][1].data.frame, 30);
+    assert.equal(ctx.editor.log[2][1].data.value, 80);
+  } finally { runtime.deactivate(); teardownGlobals(); }
 });

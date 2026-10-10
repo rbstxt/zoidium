@@ -14,6 +14,9 @@ Add a Camera+ to a Scene from the 3D picker: **Camera > Camera+**.
   unchanged.
 - Film controls: position, rotation and rotation order, focal length, sensor
   size (film gate), zoom, and film offsets. Perspective and orthographic projection.
+  The Film tab also shows the 35mm equivalent focal length and horizontal/vertical
+  field of view as read-only values. FOV includes zoom and the sequence aspect
+  ratio; equivalent focal length follows the sensor crop factor.
 - **Depth of Field**: on/off, focus distance, aperture, focus area width, and
   near/far blur levels. The blur is a per-scene post pass that reads the scene's
   depth. It runs only while a Camera+ enables it.
@@ -25,11 +28,13 @@ Add a Camera+ to a Scene from the 3D picker: **Camera > Camera+**.
 - **Vibrate**: seeded camera shake for position and rotation. Each offset is a
   pure function of the seed, the amplitude and frequency settings, and the
   current time. The shake does not accumulate between frames.
-- **Focus Tools...** (under Depth of Field) opens a floating window. Pick an
+- **Link**, **Set**, and **Unlink** are available directly in the Depth of Field
+  property rows. Link and Set open a target picker. Each action is one undo step.
+  **Focus Tools...** also opens the combined floating window. Pick an
   object in the same scene, then:
   - **Link** keeps the focus distance following the target. It writes the
     expression `focusDistanceTo([camera address], [target address])`.
-  - **Set Once** writes the current distance as a keyframe at the playhead.
+  - **Set Once** writes the current distance as an animated keyframe at the playhead.
   - **Unlink** removes the expression.
 
 Targets are limited to the camera's own scene. This keeps every link reading
@@ -50,7 +55,9 @@ changes the flag and adds Transform effects to flat clips that need them. The
 Scenes without 3D retain their own camera. Flat image, video, text, shape and
 composite layers use the camera's current world pose, with Depth, Rotation X
 and Rotation Y properties. A composite with a Transform follows as one card;
-its child scenes keep their own cameras.
+its child scenes keep their own cameras. Following flat clips render both sides,
+so mirrored and back-facing footage stays visible. The original material side
+is restored when the clip stops following a shared camera.
 
 Master selection follows Davidium: Camera layers first, then Camera-named
 Scenes, then shallower nesting, then the lowest track index. Cameras inside a

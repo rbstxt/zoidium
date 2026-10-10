@@ -143,3 +143,46 @@ test('sequence tracking properties are initialized once by native sequence load'
     assert.equal(sequence.properties.motionBlurSensitivity.loadCount, 1);
   } finally { runtime.deactivate(); }
 });
+
+test('DoubleSide belongs only to the shared-camera follow path and restores when the master disappears', () => {
+  const ctx = harness.createContext();
+  ctx.THREE.DoubleSide = 2;
+  ctx.THREE.Quaternion = class {};
+  ctx.THREE.Euler.prototype.setFromQuaternion = function () { return this; };
+  ctx.PZ.layer.adjustment = class extends ctx.PZ.layer {};
+  ctx.PZ.layer.composite = class extends ctx.PZ.layer {};
+  const runtime = harness.loadRuntime(); runtime.activate(ctx.context);
+  try {
+    const scene = new ctx.PZ.layer.scene();
+    const camera = scene.push(ctx.registry.instantiate('zoidium:camera-plus/camera')); camera.load({});
+    camera.threeObj.getWorldQuaternion = () => {};
+    const cameraTrack = new ctx.PZ.track.video();
+    cameraTrack.getCurrentClip = () => ({ start: 0, object: scene });
+    const layer = new ctx.PZ.layer();
+    const track = new ctx.PZ.track.video(); track.track3d = true; layer.parent = track;
+    track.getCurrentClip = () => ({ start: 0, object: layer });
+    const material = { side: 0 };
+    layer.effects.push({ type: 'transform', pass: { camera: new ctx.THREE.PerspectiveCamera(), quad: new ctx.THREE.Object3D() } });
+    layer.effects[0].pass.quad.material = material;
+    layer.effects[0].pass.quad.scale = new ctx.THREE.Vector3(1, 1, 1);
+    layer.composite = { group: new ctx.THREE.Object3D() };
+    layer.composite.group.scale = new ctx.THREE.Vector3(1, 1, 1);
+    layer.properties.add('resolution', { value: [1920, 1080] });
+    layer.properties.add('position', { value: [0, 0] });
+    layer.properties.add('scale', { value: [-1, 1] });
+    layer.properties.add('rotation', { value: 0 });
+    const compositor = Object.create(ctx.PZ.compositor.prototype);
+    compositor._sequence = { videoTracks: [cameraTrack, track] };
+    compositor.renderLayer(layer);
+    assert.equal(material.side, 2, 'mirrored footage draws both sides');
+    cameraTrack.enabled = false;
+    compositor.renderLayer(layer);
+    assert.equal(material.side, 0, 'no shared camera restores original material');
+    cameraTrack.enabled = true;
+    compositor.renderLayer(layer);
+    assert.equal(material.side, 2);
+    track.track3d = false;
+    compositor.renderLayer(layer);
+    assert.equal(material.side, 0, 'ordinary Transform stays unchanged');
+  } finally { runtime.deactivate(); }
+});
