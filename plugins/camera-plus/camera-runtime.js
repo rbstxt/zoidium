@@ -425,6 +425,12 @@ function activateCameraPlus(context, teardown) {
     unregisterControl();
   });
 
+  // The standard attribute entry: a gear on each Camera+ row and an
+  // "Open Camera+" button above its properties, released with the module.
+  if (context.ui && typeof context.ui.registerAttributePanel === "function") {
+    teardown.push(context.ui.registerAttributePanel(cameraAttributeSpec(camera.OBJECT_TYPE)));
+  }
+
   hooks = {
     legacyLayersPresent() {
       const project = currentProject();
@@ -439,6 +445,68 @@ function activateCameraPlus(context, teardown) {
   teardown.push(function () {
     hooks = null;
   });
+}
+
+// Attribute window for a Camera+ object: Coord. first (Cinema 4D order),
+// then one tab per topic with native CM3 rows. Dotted keys reach the nested
+// depth-of-field, vibrate and motion-blur lists. Film covers the film model
+// (projection, focal length, sensor, zoom, offsets); Motion Blur covers the
+// deterministic shutter sampling (shutter, samples). Camera layers and 3D
+// tracking live on layers/tracks rather than on the object, so they have no
+// rows here; the shared depth-of-field readout follows this object's settings.
+function cameraAttributeSpec(objectType) {
+  return {
+    id: "camera",
+    title: "Camera+",
+    persistKey: "camera-plus",
+    width: 400,
+    height: 560,
+    match: function (target) {
+      return !!target && target.type === objectType;
+    },
+    tabs: [
+      { id: "coord", title: "Coord.", keys: ["position", "rotation", "eulerOrder"] },
+      {
+        id: "film",
+        title: "Film",
+        keys: ["active", "projection", "focalLength", "filmGate", "zoom", "filmOffsetX", "filmOffsetY"],
+      },
+      {
+        id: "depth",
+        title: "Depth of Field",
+        keys: [
+          "depthOfField.enabled",
+          "depthOfField.focusDistance",
+          "depthOfField.aperture",
+          "depthOfField.focusAreaWidth",
+          "depthOfField.nearBlurLevel",
+          "depthOfField.farBlurLevel",
+          "depthOfField.focusTools",
+        ],
+      },
+      {
+        id: "vibrate",
+        title: "Vibrate",
+        keys: [
+          "vibrate.enabled",
+          "vibrate.regularPulse",
+          "vibrate.relative",
+          "vibrate.seed",
+          "vibrate.enablePosition",
+          "vibrate.positionAmplitude",
+          "vibrate.positionFrequency",
+          "vibrate.enableRotation",
+          "vibrate.rotationAmplitude",
+          "vibrate.rotationFrequency",
+        ],
+      },
+      {
+        id: "motion",
+        title: "Motion Blur",
+        keys: ["motionBlur.enabled", "motionBlur.samples", "motionBlur.shutter"],
+      },
+    ],
+  };
 }
 
 module.exports = {
@@ -465,5 +533,8 @@ module.exports = {
   },
   isInUse() {
     return hooks ? hooks.legacyLayersPresent() : false;
+  },
+  _test: {
+    cameraAttributeSpec,
   },
 };

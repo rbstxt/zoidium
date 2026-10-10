@@ -34,6 +34,7 @@ const ParticlesPlus = (() => {
     patchedParticleUnload: null,
     originalGenerateTextureInput: null,
     patchedGenerateTextureInput: null,
+    unregisterPanel: null,
   };
 
   function getProject(value) {
@@ -322,6 +323,11 @@ const ParticlesPlus = (() => {
   }
 
   function teardown() {
+    if (state.unregisterPanel) {
+      const unregister = state.unregisterPanel;
+      state.unregisterPanel = null;
+      unregister();
+    }
     restorePatches();
     for (const particle of Array.from(state.trackedParticles.keys())) untrackParticle(particle);
     state.trackedParticles.clear();
@@ -351,6 +357,25 @@ const ParticlesPlus = (() => {
     state.window = null;
     state.document = null;
     state.active = false;
+  }
+
+  // Attribute window for a particle object: one tab per topic, native CM3 rows.
+  function attributePanelSpec(PZ) {
+    return {
+      id: 'particles',
+      title: 'Particles',
+      persistKey: 'particles',
+      width: 400,
+      height: 560,
+      match: (target) => Boolean(PZ.object3d?.particles && target instanceof PZ.object3d.particles),
+      tabs: [
+        { id: 'emitter', title: 'Emitter', keys: ['number', 'rate', 'lifetime', 'time'] },
+        { id: 'position', title: 'Position', keys: ['pdist', 'ipos', 'pspread', 'iradius', 'rspread'] },
+        { id: 'motion', title: 'Motion', keys: ['vdist', 'ivel', 'vspread', 'irvel', 'rvspread', 'accel'] },
+        { id: 'rotation', title: 'Rotation', keys: ['iang', 'aspread', 'angvel', 'avspread'] },
+        { id: 'appearance', title: 'Appearance', keys: ['color', 'size', 'blending', 'texture'] },
+      ],
+    };
   }
 
   function activate(context) {
@@ -398,6 +423,9 @@ const ParticlesPlus = (() => {
       patchParticleUnload();
       patchPicker();
       scanProject(state.editor?.project);
+      if (typeof context.ui?.registerAttributePanel === 'function') {
+        state.unregisterPanel = context.ui.registerAttributePanel(attributePanelSpec(PZ));
+      }
     } catch (error) {
       teardown();
       throw error;
@@ -417,7 +445,7 @@ const ParticlesPlus = (() => {
     );
   }
 
-  return { activate, deactivate, isInUse };
+  return { activate, deactivate, isInUse, attributePanelSpec };
 })();
 
 module.exports = ParticlesPlus;
