@@ -1,0 +1,435 @@
+/* Node graph editor (ZoidiumUI.nodeEditor). Every selector starts with
+   .zoidium-node-editor so nothing leaks into windows or the CM3 editor.
+   Colors come from the theme tokens in ui-window.css; the socket colors are
+   fixed per data type, like Blender's. */
+
+.zoidium-node-editor {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  outline: 0;
+  font-family: var(--zui-font);
+  font-size: 12px;
+  color: var(--zui-text);
+  background-color: var(--zui-bg-sunken);
+}
+
+.zoidium-node-editor * {
+  box-sizing: border-box;
+}
+
+.zoidium-node-editor-viewport {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  touch-action: none;
+  user-select: none;
+  background-color: var(--zui-bg-sunken);
+  background-image: radial-gradient(circle at 1px 1px, rgb(255 255 255 / 0.09) 1px, transparent 1.5px);
+}
+
+.zoidium-node-editor-viewport.panning {
+  cursor: grabbing;
+}
+
+.zoidium-node-editor-viewport.knife {
+  cursor: crosshair;
+}
+
+.zoidium-node-editor-world {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  transform-origin: 0 0;
+}
+
+.zoidium-node-editor-links {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1px;
+  height: 1px;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.zoidium-node-editor-link {
+  fill: none;
+  stroke-width: 2;
+  stroke-opacity: 0.8;
+}
+
+.zoidium-node-editor-link.lit {
+  stroke-width: 3;
+  stroke-opacity: 1;
+}
+
+.zoidium-node-editor-link.picked {
+  display: none;
+}
+
+.zoidium-node-editor-preview {
+  fill: none;
+  stroke-width: 2;
+  stroke-dasharray: 6 4;
+}
+
+.zoidium-node-editor-knife {
+  fill: none;
+  stroke: var(--zui-danger);
+  stroke-width: 1.5;
+  stroke-dasharray: 4 3;
+}
+
+.zoidium-node-editor-nodes {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+}
+
+.zoidium-node-editor-node {
+  position: absolute;
+  width: 180px;
+  background-color: var(--zui-bg);
+  border: 1px solid var(--zui-border);
+  border-radius: 2px;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.35);
+  cursor: default;
+}
+
+.zoidium-node-editor-node:hover {
+  border-color: var(--zui-hover);
+}
+
+.zoidium-node-editor-node.selected {
+  border-color: var(--zui-accent-strong);
+  outline: 1px solid var(--zui-accent-strong);
+}
+
+.zoidium-node-editor-node.missing {
+  border-color: var(--zui-danger);
+}
+
+.zoidium-node-editor-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 6px 0 4px;
+  background-color: color-mix(in srgb, var(--zne-tint, #3a3f4d) 55%, var(--zui-bg-title));
+  border-bottom: 1px solid var(--zui-border);
+  border-radius: 2px 2px 0 0;
+  cursor: grab;
+}
+
+.zoidium-node-editor-node.selected .zoidium-node-editor-head {
+  background-color: color-mix(in srgb, var(--zne-tint, #3a3f4d) 75%, var(--zui-bg-title));
+}
+
+.zoidium-node-editor-node.collapsed .zoidium-node-editor-head {
+  border-bottom: 0;
+  border-radius: 2px;
+}
+
+.zoidium-node-editor-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--zui-text-bright);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zoidium-node-editor-toggle {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.zoidium-node-editor-caret {
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid var(--zui-text-muted);
+}
+
+.zoidium-node-editor-toggle:hover .zoidium-node-editor-caret {
+  border-top-color: var(--zui-text-bright);
+}
+
+.zoidium-node-editor-node.collapsed .zoidium-node-editor-caret {
+  transform: rotate(-90deg);
+}
+
+.zoidium-node-editor-ports {
+  padding: 3px 0;
+}
+
+.zoidium-node-editor-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 20px;
+  padding: 1px 8px;
+}
+
+.zoidium-node-editor-row.out {
+  justify-content: flex-end;
+}
+
+.zoidium-node-editor-row.stacked {
+  flex-wrap: wrap;
+}
+
+.zoidium-node-editor-row.stacked > .zoidium-node-editor-vector {
+  flex: 1 1 100%;
+  order: 3;
+}
+
+.zoidium-node-editor-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--zui-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zoidium-node-editor-row.out .zoidium-node-editor-label {
+  text-align: right;
+}
+
+.zoidium-node-editor-row.param .zoidium-node-editor-label {
+  color: var(--zui-text-muted);
+}
+
+.zoidium-node-editor-socket {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border: 1px solid rgb(0 0 0 / 0.55);
+  border-radius: 50%;
+  background-color: #7d8ba3;
+}
+
+.zoidium-node-editor-socket.in {
+  margin-left: -5px;
+}
+
+.zoidium-node-editor-socket.out {
+  margin-right: -5px;
+}
+
+.zoidium-node-editor-socket.valid {
+  box-shadow: 0 0 0 2px rgb(var(--zui-accent-rgb) / 0.8);
+}
+
+.zoidium-node-editor-socket.invalid {
+  opacity: 0.25;
+}
+
+.zoidium-node-editor-socket.target {
+  box-shadow: 0 0 0 3px var(--zui-text-bright);
+  transform: scale(1.25);
+}
+
+.zoidium-node-editor-params {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 8px 6px;
+  border-top: 1px solid var(--zui-border-soft);
+}
+
+.zoidium-node-editor-params .zoidium-node-editor-row {
+  padding: 0;
+  min-height: 20px;
+}
+
+.zoidium-node-editor-value {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--zui-value);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zoidium-node-editor-missing {
+  padding: 4px 8px 6px;
+}
+
+.zoidium-node-editor-note {
+  margin: 0 0 4px;
+  color: var(--zui-danger);
+  white-space: normal;
+}
+
+.zoidium-node-editor-control {
+  margin: 0;
+  font-family: var(--zui-font);
+  font-size: 12px;
+  color: var(--zui-value);
+  background-color: var(--zui-bg-input);
+  border: 1px solid var(--zui-border);
+  border-radius: 0;
+  outline: 0;
+}
+
+.zoidium-node-editor-control:focus {
+  border-color: var(--zui-accent-strong);
+}
+
+.zoidium-node-editor-control:disabled {
+  opacity: 0.45;
+}
+
+.zoidium-node-editor-number,
+.zoidium-node-editor-text,
+.zoidium-node-editor-select {
+  height: 18px;
+  min-width: 0;
+  padding: 0 4px;
+}
+
+.zoidium-node-editor-number {
+  flex: 0 0 64px;
+  width: 64px;
+  text-align: right;
+  cursor: ew-resize;
+}
+
+.zoidium-node-editor-text {
+  flex: 0 1 96px;
+  width: 96px;
+}
+
+.zoidium-node-editor-select {
+  flex: 0 1 110px;
+  width: 110px;
+}
+
+.zoidium-node-editor-color {
+  flex: 0 0 36px;
+  width: 36px;
+  height: 16px;
+  padding: 0 2px;
+  cursor: pointer;
+}
+
+.zoidium-node-editor-check {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: var(--zui-accent);
+  cursor: pointer;
+}
+
+.zoidium-node-editor-vector {
+  display: flex;
+  gap: 3px;
+  min-width: 0;
+}
+
+.zoidium-node-editor-vector > .zoidium-node-editor-number {
+  flex: 1 1 0;
+  width: auto;
+  min-width: 0;
+}
+
+.zoidium-node-editor-marquee {
+  position: absolute;
+  display: none;
+  pointer-events: none;
+  border: 1px dashed var(--zui-accent-strong);
+  background-color: rgb(var(--zui-accent-rgb) / 0.2);
+}
+
+.zoidium-node-editor-marquee.visible {
+  display: block;
+}
+
+.zoidium-node-editor-menu {
+  position: absolute;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  width: 220px;
+  max-height: 340px;
+  background-color: var(--zui-bg);
+  border: 1px solid var(--zui-hover);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.5);
+}
+
+.zoidium-node-editor-search {
+  flex: none;
+  width: 100%;
+  height: 26px;
+  margin: 0;
+  padding: 0 8px;
+  font-family: var(--zui-font);
+  font-size: 12px;
+  color: var(--zui-text-bright);
+  background-color: var(--zui-bg-input);
+  border: 0;
+  border-bottom: 1px solid var(--zui-border);
+  outline: 0;
+}
+
+.zoidium-node-editor-menu-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 2px 0 4px;
+}
+
+.zoidium-node-editor-menu-group {
+  padding: 6px 10px 2px;
+  color: var(--zui-text-faint);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.zoidium-node-editor-menu-item {
+  padding: 3px 12px;
+  color: var(--zui-text);
+  cursor: pointer;
+}
+
+.zoidium-node-editor-menu-item.active {
+  background-color: var(--zui-accent);
+  color: var(--zui-text-bright);
+}
+
+.zoidium-node-editor-menu-item.disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.zoidium-node-editor-menu-empty {
+  padding: 8px 12px;
+  color: var(--zui-text-muted);
+}

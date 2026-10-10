@@ -8,7 +8,7 @@
     // loader appends it automatically, so per-file ?v= queries are never
     // hand-edited here. Plugin asset URLs are versioned separately by
     // tools/build-plugin-bundles.js from each manifest's own version.
-    assetVersion: 80,
+    assetVersion: 81,
     // Plugin registry consumed by plugins/plugin-manager.js. It is preloaded
     // below, so its URL lives here as the single source.
     registryUrl: "./plugins/registry.json?v=32",
@@ -19,6 +19,7 @@
       "./fonts/fonts.css?v=3",
       "./zoidium/ui-overrides.css",
       "./zoidium/ui-window.css",
+      "./zoidium/ui-node-editor.css",
       "./plugins/plugin-manager.css",
       "./zoidium-welcome-tour.css",
       "./zoidium/runtime-fonts.css"
@@ -63,6 +64,7 @@
     postInitScripts: [
       // ui-panels.js queues its installer for ui-kit.js, so it loads first.
       "./zoidium/ui-panels.js",
+      "./zoidium/ui-node-editor.js",
       "./zoidium/ui-kit.js",
       "./zoidium/project-restore.js",
       "./zoidium/settings.js",
