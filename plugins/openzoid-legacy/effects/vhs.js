@@ -923,6 +923,19 @@ const vhsProperties = {
         decimals: 1,
     },
     persistence: vhsNum("Persistence", 0.25, 0, 1, 0.01, 2),
+    // Stored seed for the seeded Glitch! button in the setup window. Hidden
+    // from the property panel; the button reads and advances it, and every
+    // randomized value derives from it, so the result is reproducible.
+    glitchSeed: {
+        name: "Glitch Seed",
+        type: PZ.property.type.NUMBER,
+        value: 0,
+        min: 0,
+        max: 9999,
+        step: 1,
+        decimals: 0,
+        visible: false,
+    },
 };
 
 // Pass object assigned to effect.pass. The compositor calls render() once per

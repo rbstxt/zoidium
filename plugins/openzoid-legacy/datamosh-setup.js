@@ -11,29 +11,61 @@ const SETUP_CONTROL_ID = "openzoid-legacy.datamosh-setup";
 const SYNC_INTERVAL_MS = 300;
 
 const PRESETS = [
-  { id: "clean", label: "Clean Pass", values: { algorithm: 0, hold: 0, speed: 1, amount: 1, intensity: 0.25, acceleration: 0.2, blend: 0.5, threshold: 0.25, blockSize: 12, motion: 0, interval: 60, samples: 4 } },
-  { id: "blocky", label: "Blocky Mosh", values: { algorithm: 0, hold: 0, speed: 1, amount: 1, intensity: 0.85, acceleration: 0.45, blend: 0.85, threshold: 0.08, blockSize: 14, motion: 0, interval: 24, samples: 8 } },
-  { id: "classic", label: "Classic Mosh", values: { algorithm: 0, hold: 0, speed: 1, amount: 1, intensity: 0.7, acceleration: 0.35, blend: 0.8, threshold: 0.12, blockSize: 12, motion: 8, interval: 30, samples: 6 } },
-  { id: "iframe", label: "I-Frame Kill · Soupy", values: { algorithm: 0, hold: 0, speed: 1, amount: 1, intensity: 1.2, acceleration: 0.7, blend: 0.95, threshold: 0.05, blockSize: 10, motion: 0, interval: 90, samples: 12 } },
-  { id: "swap", label: "Swap Motion", values: { algorithm: 0, hold: 0, speed: 1, amount: 1, intensity: 0.9, acceleration: 0.4, blend: 0.85, threshold: 0.1, blockSize: 12, motion: 7, interval: 30, samples: 6 } },
-  { id: "zoom", label: "Zoom Smear", values: { algorithm: 0, hold: 0, speed: 1, amount: 1, intensity: 1, acceleration: 0.55, blend: 0.9, threshold: 0.08, blockSize: 12, motion: 4, interval: 40, samples: 8 } },
-  { id: "wave", label: "Sin Melt", values: { algorithm: 0, hold: 0, speed: 1, amount: 1, intensity: 1.1, acceleration: 0.5, blend: 0.9, threshold: 0.06, blockSize: 10, motion: 6, interval: 36, samples: 8 } },
-  { id: "drift", label: "Horizontal Drift", values: { algorithm: 0, hold: 0, speed: 1, amount: 1, intensity: 1, acceleration: 0.3, blend: 0.85, threshold: 0.08, blockSize: 8, motion: 3, interval: 48, samples: 10 } },
-  { id: "trail", label: "Long Trail", values: { algorithm: 0, hold: 0, speed: 1, amount: 1, intensity: 0.6, acceleration: 0.6, blend: 0.9, threshold: 0.1, blockSize: 12, motion: 0, interval: 120, samples: 15 } },
+  // Davi's 10 donor presets, mapped onto the deterministic model: the donor
+  // algorithm index N becomes Look N + 1 ("Motion matching" is Look 0), Motion
+  // follows legacyAlgorithmToMotion, and the segment fields use the gentle
+  // defaults (the analytic legacy looks read a one-frame anchor, so a wide
+  // cadence is unnecessary). The full mapping is published in the README.
+  { id: "clean", label: "Clean Pass", values: { algorithm: 1, hold: 0, speed: 1, amount: 1, intensity: 0.25, acceleration: 0.2, blend: 0.5, threshold: 0.25, blockSize: 12, motion: 0, interval: 30, samples: 6 } },
+  { id: "logo", label: "Logo Mosh · Blocky", values: { algorithm: 13, hold: 0.2, speed: 1, amount: 1, intensity: 0.85, acceleration: 0.45, blend: 0.85, threshold: 0.08, blockSize: 14, motion: 8, interval: 30, samples: 6 } },
+  { id: "classic", label: "Classic Mosh", values: { algorithm: 12, hold: 0.15, speed: 1, amount: 1, intensity: 0.7, acceleration: 0.35, blend: 0.8, threshold: 0.12, blockSize: 12, motion: 8, interval: 30, samples: 6 } },
+  { id: "iframe", label: "I-Frame Kill · Soupy", values: { algorithm: 12, hold: 0.55, speed: 0.8, amount: 1, intensity: 1.2, acceleration: 0.7, blend: 0.95, threshold: 0.05, blockSize: 10, motion: 8, interval: 30, samples: 6 } },
+  { id: "swap", label: "Swap Motion", values: { algorithm: 11, hold: 0.2, speed: 1.2, amount: 1, intensity: 0.9, acceleration: 0.4, blend: 0.85, threshold: 0.1, blockSize: 12, motion: 7, interval: 30, samples: 6 } },
+  { id: "sweep", label: "Sweep Horizontal", values: { algorithm: 50, hold: 0.15, speed: 1.5, amount: 1, intensity: 1, acceleration: 0.3, blend: 0.85, threshold: 0.08, blockSize: 8, motion: 3, interval: 30, samples: 6 } },
+  { id: "sinmelt", label: "Sin Melt", values: { algorithm: 54, hold: 0.25, speed: 1.2, amount: 1, intensity: 1.1, acceleration: 0.5, blend: 0.9, threshold: 0.06, blockSize: 10, motion: 6, interval: 30, samples: 6 } },
+  { id: "mirror", label: "Mirror Glitch", values: { algorithm: 43, hold: 0.15, speed: 1, amount: 1, intensity: 0.8, acceleration: 0.3, blend: 0.8, threshold: 0.1, blockSize: 16, motion: 3, interval: 30, samples: 6 } },
+  { id: "zoom", label: "Zoom Smear", values: { algorithm: 6, hold: 0.2, speed: 1, amount: 1, intensity: 1, acceleration: 0.55, blend: 0.9, threshold: 0.08, blockSize: 12, motion: 4, interval: 30, samples: 6 } },
+  { id: "trail", label: "Average Trail x10", values: { algorithm: 34, hold: 0.1, speed: 1, amount: 1, intensity: 0.6, acceleration: 0.6, blend: 0.9, threshold: 0.1, blockSize: 12, motion: 0, interval: 30, samples: 6 } },
 ];
 
 // Sections list only keys; labels, ranges and steps come from the effect's
 // property definitions.
 const SECTIONS = [
-  { title: "Master", keys: ["amount"] },
+  { title: "Master", keys: ["amount"], actionButtons: true },
   { title: "Cadence", keys: ["interval", "samples", "seed", "hold", "speed", "time"], seedButton: true },
   { title: "Motion", keys: ["algorithm", "motion", "intensity", "acceleration", "blockSize", "threshold", "blend"] },
+  { title: "How to mosh", keys: [], infos: true, collapsed: true },
 ];
 
 const SETUP_NOTE = "Datamosh reads earlier clip frames. On an Adjustment layer it samples the composite below it.";
 
+// Field guide, ported from the donor setup window. Static text only.
+const INFOS = [
+  { name: "Remove Frames", hint: "Hold = I-frame deletion. Frozen P-chain, sticky pixels." },
+  { name: "Hijack Motion", hint: "Look + Intensity + Block Size = your vectors." },
+  { name: "Swap Motion", hint: "Look 'Swap' steals axes. Use moving footage." },
+  { name: "Mosh Maps", hint: "Stack a Mask effect above Datamosh as the intensity map." },
+  { name: "True Mosh Render", hint: "Export > Device render > True datamosh: full video or at clip cuts. Byte-exact I-frame kills." },
+];
+
+// A preset matches when every value is within the donor tolerance, so older
+// projects whose values were rounded still show their preset name.
 function sameValue(a, b) {
-  return Math.abs(Number(a) - Number(b)) < 1e-9;
+  return Math.abs(Number(a) - Number(b)) < 0.015;
+}
+
+// Deterministic 0-1 hash of (seed, index) from exact integer math, so a
+// stored seed reproduces the same randomizer result on every machine. Never
+// Math.random: playback must not change the stored values.
+function hash01(seed, index) {
+  let h = (Math.imul(seed | 0, 374761393) + Math.imul(index | 0, 668265263)) | 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  h ^= h >>> 16;
+  return (h >>> 0) / 4294967296;
+}
+
+function nextSeed(seed) {
+  return ((Math.round(Number(seed)) || 0) + 7919) % 10000;
 }
 
 function hostsFrameSampling(PZ, effect) {
@@ -201,6 +233,52 @@ module.exports = {
         return control.element;
       }
 
+      // Seeded one-click moshes. Each click stores a new seed first, then
+      // derives every value from that seed, so the result is reproducible and
+      // the whole click is one undo step. Ranges mirror the donor buttons.
+      function moshBurst() {
+        const seed = nextSeed(valueOf("seed"));
+        const blockPicks = [6, 8, 10, 12, 14, 16, 20];
+        const lookPicks = [11, 12, 13, 14, 15, 16, 6, 9, 50, 54, 67, 71, 43, 34];
+        const pick = function (list, at) { return list[Math.floor(hash01(seed, at) * list.length) % list.length]; };
+        const range = function (lo, hi, at) { return lo + hash01(seed, at) * (hi - lo); };
+        const changes = [
+          { key: "seed", value: seed },
+          { key: "amount", value: 1 },
+          { key: "intensity", value: range(0.6, 1.6, 0) },
+          { key: "acceleration", value: range(0.2, 0.8, 1) },
+          { key: "blend", value: range(0.6, 1, 2) },
+          { key: "threshold", value: range(0.03, 0.2, 3) },
+          { key: "blockSize", value: pick(blockPicks, 4) },
+          { key: "algorithm", value: pick(lookPicks, 5) },
+          { key: "motion", value: Math.floor(hash01(seed, 6) * 9) % 9 },
+          { key: "speed", value: range(0.6, 1.8, 10) },
+        ];
+        changes.push({
+          key: "hold",
+          value: hash01(seed, 7) < 0.5 ? range(0.2, 0.6, 8) : range(0, 0.2, 9),
+        });
+        recordChanges(changes
+          .filter((change) => props[change.key])
+          .map((change) => ({ property: props[change.key], value: change.value, previous: valueOf(change.key) })));
+        refresh();
+      }
+
+      // Seeded I-frame kill: hold to full plus an intensity floor, one step.
+      function removeFrame() {
+        const seed = nextSeed(valueOf("seed"));
+        recordChanges([
+          { property: props.seed, value: seed, previous: valueOf("seed") },
+          { property: props.hold, value: 1, previous: valueOf("hold") },
+          {
+            property: props.intensity,
+            value: Math.max(Number(valueOf("intensity")) || 0, 1),
+            previous: valueOf("intensity"),
+          },
+        ]);
+        refresh();
+      }
+
       note = controls.note(SETUP_NOTE, "warning");
       body.appendChild(note.element);
 
@@ -217,11 +295,26 @@ module.exports = {
 
       SECTIONS.forEach((spec) => {
         const keys = spec.keys.filter((key) => props[key]);
-        if (keys.length === 0) return;
+        if (spec.infos) {
+          const section = controls.section({ title: spec.title, collapsed: spec.collapsed !== false });
+          INFOS.forEach((info) => {
+            section.body.appendChild(controls.note(info.name + " — " + info.hint).element);
+          });
+          body.appendChild(section.element);
+          return;
+        }
+        if (keys.length === 0 && !spec.actionButtons) return;
         const section = controls.section({ title: spec.title });
         keys.forEach((key) => {
           section.body.appendChild((key === "motion" || key === "algorithm") ? motionFor(key) : fieldFor(key));
         });
+        if (spec.actionButtons) {
+          section.body.appendChild(controls.buttonRow([
+            { title: "Clean Pass", hint: "Reset to the gentle preset", onClick() { applyPreset("clean"); } },
+            { title: "Mosh!", hint: "Seeded soupy mosh burst (stores a new seed)", onClick: moshBurst },
+            { title: "Remove Frame", hint: "Seeded I-frame kill: hold to full", onClick: removeFrame },
+          ]).element);
+        }
         if (spec.seedButton) {
           section.body.appendChild(controls.buttonRow([{
             title: "New Seed",

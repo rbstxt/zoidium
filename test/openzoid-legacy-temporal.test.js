@@ -208,7 +208,7 @@ test("jpeg damage no longer carries a copy of the host vertex shader", () => {
 
 test("manifest declares only existing sources and stable effect ids", () => {
   const manifest = JSON.parse(read("manifest.json"));
-  assert.equal(manifest.version, "13");
+  assert.equal(manifest.version, "14");
   assert.deepEqual(
     manifest.nativeEffects.map((e) => e.id),
     ["echo-legacy", "posterizetime-legacy", "jpegdamage", "vhs", "datamosh", "tracery", "ascii"]
@@ -228,6 +228,8 @@ test("manifest declares only existing sources and stable effect ids", () => {
   const ids = [...manifest.modules, ...manifest.resources].map((x) => x.id);
   for (const id of removed) assert.ok(!ids.includes(id), id + " removed");
   assert.ok(ids.includes("effect-windows"), "shared window module declared");
+  assert.ok(ids.includes("datamosh-export"), "true-mosh export module declared");
+  assert.ok(ids.includes("datamosh-render"), "true-mosh renderer bundled");
   const text = JSON.stringify(manifest);
   assert.ok(!/\bInter\b|tracery-font|fullscreen|logo/i.test(text), "no removed theme assets referenced");
 });

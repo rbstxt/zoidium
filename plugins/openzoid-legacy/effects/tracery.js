@@ -63,7 +63,8 @@ function trText(name, value) {
 function trPointDefs(n) {
     return {
         // Point 1 starts on at the frame centre, so a new effect shows a marker
-        // at once. Saved projects keep the value they were saved with.
+        // at once (DaviFX's version started with every point off, which left a
+        // new effect looking broken). Saved projects keep their saved value.
         ["point" + n + "Enable"]: trOption("Point " + n, n === 1 ? 1 : 0, "off;on"),
         ["point" + n + "X"]: trNum("Point " + n + " X [%]", 50, 0, 100, 0.1, 1),
         ["point" + n + "Y"]: trNum("Point " + n + " Y [%]", 50, 0, 100, 0.1, 1),

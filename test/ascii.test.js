@@ -128,13 +128,13 @@ test("ascii effect declares its full property surface", () => {
   assert.ok(fakeThis.properties.store.blockSize, "definitions instantiated");
 });
 
-test("ascii fonts are limited to Source Code Pro and generic monospace", () => {
+test("ascii fonts follow the donor indices without shipping Inter", () => {
   const { fakeThis } = loadEffectThis();
   const defs = fakeThis.propertyDefinitions;
-  assert.equal(defs.fontFamily.items, "source code pro;monospace");
+  assert.equal(defs.fontFamily.items, "consolas;courier;monospace;source code pro;serif");
   assert.equal(defs.fontFamily.value, 0);
   assert.ok(!source.includes("Inter"), "no Inter font");
-  assert.ok(!source.includes("Georgia"), "no system serif fallback");
+  assert.ok(source.includes("'Source Code Pro', monospace"), "index 3 renders the bundled font");
 });
 
 test("ascii character mapping math is sane", () => {
