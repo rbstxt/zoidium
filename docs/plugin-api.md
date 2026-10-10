@@ -110,10 +110,14 @@ node tools/new-plugin.js --kind=native-fx --template=temporal --id=my-time-fx
   `finally`; do not persist designer-only state in normal rendering.
 
 - Editors, setup dialogs and designers open as floating windows through
-  `context.ui.openWindow()` and are built from `context.ui.controls`. Windows
-  opened this way close when the plugin is disabled. Fullscreen overlays,
-  private themes, bundled UI fonts and borrowed preview viewports are not
-  accepted. See [Plugin UI](plugin-ui.md).
+  `context.ui.openWindow()`. Use native property rows (`context.ui.properties`)
+  for CM3 properties and `context.ui.controls` for other values. Register
+  object/effect/material editors with `context.ui.registerEditor` or
+  `registerAttributePanel`, sidebar pages with `context.ui.sidePanel`, and a
+  product-specific look with `context.ui.registerSkin`. Everything registered
+  through `context.ui` is removed when the plugin is disabled. Fullscreen
+  overlays, bundled UI fonts and borrowed preview viewports are not accepted.
+  See [Plugin UI](plugin-ui.md).
 
 See Player+ and Easing+ for ordinary extension modules. A separate settings-page
 API has not been added; persistent per-object settings belong in project

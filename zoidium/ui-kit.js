@@ -151,6 +151,51 @@
     return true;
   }
 
+  // Creates a sidebar panel with the standard CM3 page chrome: a page header,
+  // a scrolling body and the panel background every built-in panel uses.
+  // Plugins add sidebar panels only through this builder (or
+  // context.ui.sidePanel, which removes the panel on disable) so new panels
+  // look and scroll like Plugins, Settings and the CM3 panels.
+  //   var side = ZoidiumUI.createSidePanel({ title: "Compositions", icon: "layers" });
+  //   side.body.appendChild(...);
+  //   side.remove();
+  // Returns null when the sidebar is unavailable.
+  function createSidePanel(options) {
+    var config = options || {};
+    if (!config.title || !global.document) return null;
+    var panel = el("div", "editorpanel zoidium-side-panel" + (config.className ? " " + config.className : ""));
+    var header = config.header === false ? null : createPageHeader(config.title);
+    if (header) {
+      header.classList.add("zoidium-side-panel-header");
+      panel.appendChild(header);
+    }
+    var body = el("div", "zoidium-side-panel-body");
+    panel.appendChild(body);
+    var tab = createMenubarTab({
+      title: config.tabTitle || config.title,
+      icon: config.icon,
+      panel: panel,
+      tabClass: config.tabClass,
+      position: config.position,
+      editor: config.editor,
+    });
+    if (!tab) return null;
+    return {
+      element: panel,
+      header: header,
+      body: body,
+      tab: tab,
+      setTitle: function (title) {
+        var label = header && header.querySelector(".proplabel");
+        if (label) {
+          label.textContent = title || "";
+          label.title = title || "";
+        }
+      },
+      remove: function () { return removeMenubarTab(tab); },
+    };
+  }
+
   // Builds the standard page header used at the top of sidebar panels such
   // as Plugins and Restore. The returned element carries the CM3
   // proprow/proptitle chrome; callers may add their own layout class.
@@ -246,6 +291,98 @@
     button.textContent = config.title || "";
     if (typeof config.onClick === "function") button.addEventListener("click", config.onClick);
     return button;
+  }
+
+  // ---------------------------------------------------------------------
+  // Window skins
+  //
+  // A skin restyles the windows that opt into it (openWindow({ skin })) and
+  // nothing else. Every rule is scoped to those windows: selectors are
+  // prefixed with the window selector, `:scope` names the window itself and
+  // @media/@supports blocks are scoped recursively. The host keeps owning
+  // window behavior (dragging, resizing, focus, keyboard isolation, close and
+  // lifecycle), so a skinned editor still behaves like every other window.
+  // Skins should read the theme tokens (var(--zui-*), see ui-window.css) for
+  // anything that ought to follow the editor theme.
+
+  var skins = new Map();
+
+  function skinSelector(id) {
+    return '.zoidium-window[data-zui-skin="' + String(id).replace(/["\\]/g, "\\$&") + '"]';
+  }
+
+  function splitSelectors(text) {
+    var parts = [];
+    var depth = 0;
+    var start = 0;
+    for (var index = 0; index < text.length; index += 1) {
+      var ch = text[index];
+      if (ch === "(" || ch === "[") depth += 1;
+      else if (ch === ")" || ch === "]") depth -= 1;
+      else if (ch === "," && depth === 0) {
+        parts.push(text.slice(start, index));
+        start = index + 1;
+      }
+    }
+    parts.push(text.slice(start));
+    return parts.map(function (part) { return part.trim(); }).filter(Boolean);
+  }
+
+  function scopeSelector(selector, scope) {
+    if (/:scope\b/.test(selector)) return selector.replace(/:scope\b/g, scope);
+    if (/^(:root|html|body)\b/.test(selector)) return selector.replace(/^(:root|html|body)\b/, scope);
+    return scope + " " + selector;
+  }
+
+  // Scopes a stylesheet to `scope`. Comments are dropped; @keyframes,
+  // @font-face and other non-grouping at-rules are copied unchanged.
+  function scopeCss(css, scope) {
+    var source = String(css || "").replace(/\/\*[\s\S]*?\*\//g, "");
+    var out = "";
+    var index = 0;
+    while (index < source.length) {
+      var open = source.indexOf("{", index);
+      if (open < 0) break;
+      var prelude = source.slice(index, open).trim();
+      // Find the matching closing brace.
+      var depth = 1;
+      var cursor = open + 1;
+      while (cursor < source.length && depth > 0) {
+        if (source[cursor] === "{") depth += 1;
+        else if (source[cursor] === "}") depth -= 1;
+        cursor += 1;
+      }
+      var block = source.slice(open + 1, cursor - 1);
+      if (/^@(media|supports|container)\b/i.test(prelude)) {
+        out += prelude + "{" + scopeCss(block, scope) + "}\n";
+      } else if (prelude.charAt(0) === "@") {
+        out += prelude + "{" + block + "}\n";
+      } else if (prelude) {
+        out += splitSelectors(prelude).map(function (selector) {
+          return scopeSelector(selector, scope);
+        }).join(",") + "{" + block + "}\n";
+      }
+      index = cursor;
+    }
+    return out;
+  }
+
+  // Registers (or replaces) a skin and returns a function that removes it.
+  function registerSkin(id, css) {
+    if (typeof id !== "string" || !id.trim()) throw new Error("ZoidiumUI.registerSkin requires an id");
+    if (!global.document || !global.document.head) return function () {};
+    var previous = skins.get(id);
+    if (previous) previous.remove();
+    var style = global.document.createElement("style");
+    style.dataset.zuiSkin = id;
+    style.textContent = scopeCss(css, skinSelector(id));
+    global.document.head.appendChild(style);
+    skins.set(id, style);
+    return function removeSkin() {
+      if (skins.get(id) !== style) return;
+      skins.delete(id);
+      style.remove();
+    };
   }
 
   // ---------------------------------------------------------------------
@@ -407,8 +544,16 @@
     var saved = config.persistKey ? readGeometry()[config.persistKey] : null;
     var width = Number(saved && saved.width) || Number(config.width) || 340;
     var height = Number(saved && saved.height) || Number(config.height) || 420;
+    // placement: "right" (default, beside the property panels), "center" or
+    // "left". Saved geometry always wins.
     var defaultX = viewportWidth - width - 380 - cascade * 36;
     var defaultY = 70 + cascade * 36;
+    if (config.placement === "center") {
+      defaultX = (viewportWidth - width) / 2 + cascade * 24;
+      defaultY = Math.max(WINDOW_MARGIN, (viewportHeight - height) / 2) + cascade * 24;
+    } else if (config.placement === "left") {
+      defaultX = 70 + cascade * 36;
+    }
     cascade = (cascade + 1) % 6;
     function pick(key, fallback) {
       if (saved && Number.isFinite(saved[key])) return saved[key];
@@ -418,6 +563,9 @@
     var x = pick("x", defaultX);
     var y = pick("y", defaultY);
     var collapsed = Boolean(saved && saved.collapsed);
+    var maximizable = config.maximizable != null ? Boolean(config.maximizable) : config.resizable !== false;
+    var maximized = maximizable && Boolean(saved && saved.maximized);
+    var customChrome = config.chrome === "custom";
 
     var root = doc.createElement("section");
     root.className = "zoidium-window" + (config.className ? " " + config.className : "");
@@ -425,6 +573,8 @@
     root.setAttribute("aria-label", config.title || "Window");
     root.tabIndex = -1;
     root.dataset.windowId = id;
+    if (config.skin) root.dataset.zuiSkin = String(config.skin);
+    if (customChrome) root.classList.add("zoidium-window-custom-chrome");
 
     var titlebar = doc.createElement("header");
     titlebar.className = "zoidium-window-titlebar noselect";
@@ -488,6 +638,32 @@
         root.classList.toggle("collapsed", collapsed);
         persist();
       },
+      isMaximized: function () { return maximized; },
+      // Fills the editor window (minus a margin); the previous geometry is
+      // kept and restored.
+      setMaximized: function (value) {
+        if (!maximizable) return;
+        maximized = Boolean(value);
+        root.classList.toggle("maximized", maximized);
+        if (maximizeButton) {
+          maximizeButton.title = maximized ? "Restore" : "Maximize";
+          maximizeButton.setAttribute("aria-label", maximizeButton.title);
+        }
+        win._clamp();
+        persist();
+      },
+      toggleMaximized: function () { win.setMaximized(!maximized); },
+      // Makes an element of a custom title bar drag the window. Double-click
+      // toggles maximize. Controls inside it (buttons, inputs) keep working.
+      makeDragHandle: function (handle) {
+        if (!handle || typeof handle.addEventListener !== "function") return;
+        handle.classList.add("zoidium-window-draghandle");
+        handle.addEventListener("pointerdown", startDrag);
+        handle.addEventListener("dblclick", function (event) {
+          if (isInteractive(event.target, handle)) return;
+          if (maximizable) win.toggleMaximized();
+        });
+      },
       focus: function () {
         if (closed) return;
         zCounter += 1;
@@ -515,6 +691,13 @@
       _clamp: function () {
         var vw = global.innerWidth || viewportWidth;
         var vh = global.innerHeight || viewportHeight;
+        if (maximized) {
+          root.style.left = WINDOW_MARGIN + "px";
+          root.style.top = WINDOW_MARGIN + "px";
+          root.style.width = Math.max(minWidth, vw - WINDOW_MARGIN * 2) + "px";
+          root.style.height = Math.max(minHeight, vh - WINDOW_MARGIN * 2) + "px";
+          return;
+        }
         width = clampNumber(width, minWidth, Math.max(minWidth, vw - WINDOW_MARGIN * 2));
         height = clampNumber(height, minHeight, Math.max(minHeight, vh - WINDOW_MARGIN * 2));
         // Keep at least the title bar reachable.
@@ -528,7 +711,9 @@
     };
 
     function persist() {
-      writeGeometry(config.persistKey, { x: x, y: y, width: width, height: height, collapsed: collapsed });
+      writeGeometry(config.persistKey, {
+        x: x, y: y, width: width, height: height, collapsed: collapsed, maximized: maximized,
+      });
     }
 
     var activePointerCleanup = null;
@@ -536,19 +721,37 @@
       if (activePointerCleanup) activePointerCleanup();
     });
 
+    var maximizeButton = null;
     if (config.collapsible !== false) {
       actions.appendChild(titleButton("Collapse", "M3 7h10v2H3z", function () {
         win.setCollapsed(!collapsed);
       }));
+    }
+    if (maximizable) {
+      maximizeButton = titleButton("Maximize", "M3 3h10v10H3zm2 3v5h6V6z", function () {
+        win.toggleMaximized();
+      });
+      actions.appendChild(maximizeButton);
     }
     actions.appendChild(titleButton("Close", "M4.2 3 8 6.8 11.8 3 13 4.2 9.2 8l3.8 3.8-1.2 1.2L8 9.2 4.2 13 3 11.8 6.8 8 3 4.2z", function () {
       win.close();
     }));
     titlebar.addEventListener("dblclick", function () { win.setCollapsed(!collapsed); });
 
-    // Dragging by the title bar.
-    titlebar.addEventListener("pointerdown", function (event) {
+    function isInteractive(target, handle) {
+      var node = target;
+      while (node && node !== handle) {
+        if (/^(BUTTON|INPUT|SELECT|TEXTAREA|A)$/.test(node.tagName || "") || node.isContentEditable) return true;
+        node = node.parentElement;
+      }
+      return false;
+    }
+
+    // Dragging by the title bar (or a custom chrome's drag handle).
+    function startDrag(event) {
       if (event.button !== 0) return;
+      if (event.currentTarget !== titlebar && isInteractive(event.target, event.currentTarget)) return;
+      if (maximized) return;
       if (activePointerCleanup) activePointerCleanup();
       event.preventDefault();
       win.focus();
@@ -574,7 +777,12 @@
       global.addEventListener("pointerup", up);
       global.addEventListener("pointercancel", up);
       activePointerCleanup = up;
-    });
+    }
+    titlebar.addEventListener("pointerdown", startDrag);
+    // Custom chrome: the plugin draws its own title bar inside the body and
+    // calls win.makeDragHandle() on it. The host title bar stays in the DOM
+    // (hidden) so setTitle() and the accessible name keep working.
+    if (customChrome) titlebar.hidden = true;
 
     // Resizing from the right edge, bottom edge and corner.
     if (config.resizable !== false) {
@@ -582,7 +790,7 @@
         var grip = doc.createElement("div");
         grip.className = "zoidium-window-grip zoidium-window-grip-" + edge;
         grip.addEventListener("pointerdown", function (event) {
-          if (event.button !== 0) return;
+          if (event.button !== 0 || maximized) return;
           if (activePointerCleanup) activePointerCleanup();
           event.preventDefault();
           event.stopPropagation();
@@ -629,6 +837,7 @@
 
     openWindows.set(id, win);
     layer.appendChild(root);
+    if (maximized) root.classList.add("maximized");
     win._clamp();
     if (collapsed) root.classList.add("collapsed");
     if (config.footer) win.setFooter(config.footer);
@@ -1112,10 +1321,11 @@
     note: note,
   });
 
-  global.ZoidiumUI = Object.freeze({
+  var api = {
     getElevator: getElevator,
     createMenubarTab: createMenubarTab,
     removeMenubarTab: removeMenubarTab,
+    createSidePanel: createSidePanel,
     acquirePreview: acquirePreview,
     createPageHeader: createPageHeader,
     notify: notify,
@@ -1125,6 +1335,27 @@
     openWindow: openWindow,
     getWindow: getWindow,
     closeWindows: closeWindows,
+    registerSkin: registerSkin,
     controls: controls,
+  };
+
+  // Larger UI components (embedded property editors, editor launchers, the
+  // node editor) live in their own files, loaded before this one. Each
+  // queues { name, install(api) } on ZoidiumUIModules; install receives the
+  // surface built so far and returns the members it adds. ZoidiumUI is then
+  // frozen, so the public surface is fixed once startup finishes.
+  var modules = Array.isArray(global.ZoidiumUIModules) ? global.ZoidiumUIModules : [];
+  modules.forEach(function (module) {
+    if (!module || typeof module.install !== "function") return;
+    var members = module.install(Object.assign({}, api)) || {};
+    Object.keys(members).forEach(function (key) {
+      if (Object.prototype.hasOwnProperty.call(api, key)) {
+        throw new Error("ZoidiumUI module " + module.name + " redefines " + key);
+      }
+      api[key] = members[key];
+    });
   });
+  try { delete global.ZoidiumUIModules; } catch (_error) { global.ZoidiumUIModules = undefined; }
+
+  global.ZoidiumUI = Object.freeze(api);
 })(window);

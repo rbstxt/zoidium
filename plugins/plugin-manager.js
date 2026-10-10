@@ -1453,23 +1453,47 @@
       for (const win of Array.from(owned)) win.close();
       owned.clear();
     });
+    // Registrations are released on disable, in reverse order.
+    const owns = (release) => {
+      if (typeof release === "function") lifecycle.onDispose(release);
+      return release;
+    };
+    const skinId = (name) => `${plugin.id}:${name || "default"}`;
+    function openWindow(options) {
+      const config = Object.assign({}, options || {});
+      config.id = `${plugin.id}:${config.id || "window"}`;
+      if (config.persistKey) config.persistKey = `${plugin.id}:${config.persistKey}`;
+      if (config.skin) config.skin = skinId(config.skin);
+      const win = ZoidiumUI.openWindow(config);
+      if (win && !owned.has(win)) {
+        owned.add(win);
+        win.onClose(() => owned.delete(win));
+      }
+      return win;
+    }
     return Object.freeze({
       get controls() {
         return ZoidiumUI.controls;
       },
       notify: (detail) => ZoidiumUI.notify(detail),
       getWindow: (id) => ZoidiumUI.getWindow(`${plugin.id}:${id}`),
-      openWindow(options) {
-        const config = Object.assign({}, options || {});
-        config.id = `${plugin.id}:${config.id || "window"}`;
-        if (config.persistKey) config.persistKey = `${plugin.id}:${config.persistKey}`;
-        const win = ZoidiumUI.openWindow(config);
-        if (win && !owned.has(win)) {
-          owned.add(win);
-          win.onClose(() => owned.delete(win));
-        }
-        return win;
+      openWindow,
+      // Scoped stylesheet for this plugin's windows: openWindow({ skin: name }).
+      registerSkin: (name, css) => owns(ZoidiumUI.registerSkin(skinId(name), css)),
+      // Sidebar panel with the standard page chrome; removed on disable.
+      sidePanel(options) {
+        const panel = ZoidiumUI.createSidePanel(Object.assign({}, options, {
+          tabClass: (options && options.tabClass) || `zoidium-side-panel-${plugin.id}`,
+        }));
+        if (panel) owns(() => panel.remove());
+        return panel;
       },
+      // Native CM3 property rows for a list or a subset of an object's
+      // properties. Dispose it in the window's mount cleanup.
+      properties: (options) => ZoidiumUI.properties(options),
+      registerEditor: (spec) => owns(ZoidiumUI.registerEditor(spec)),
+      openAttributePanel: (target, spec) => ZoidiumUI.openAttributePanel(target, spec, openWindow),
+      registerAttributePanel: (spec) => owns(ZoidiumUI.registerAttributePanel(spec, openWindow)),
     });
   }
 

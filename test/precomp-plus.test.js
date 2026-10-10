@@ -144,6 +144,17 @@ function createHarness() {
       openWindow(options) { return kit.openWindow(Object.assign({}, options, { id: "precomp-plus:" + options.id })); },
       getWindow(id) { return kit.getWindow("precomp-plus:" + id); },
       controls: controls,
+      // Mirrors ZoidiumUI.createSidePanel: a standard panel inside a menubar
+      // tab, removed on disposal like every context.ui registration.
+      sidePanel(options) {
+        const panel = fakeElement("div");
+        panel.appendChild(kit.createPageHeader(options.title));
+        const body = fakeElement("div");
+        panel.appendChild(body);
+        const tab = kit.createMenubarTab({ title: options.tabTitle || options.title, icon: options.icon, panel, tabClass: options.tabClass, position: options.position });
+        lifecycle.onDispose(() => kit.removeMenubarTab(tab));
+        return { element: panel, body, tab, remove() { kit.removeMenubarTab(tab); } };
+      },
     },
   };
   return { PZ, project, editor, tracks: editor.timeline.tracks, kit, context, windows, tabs, panels, notes, lifecycle };

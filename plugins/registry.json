@@ -68,15 +68,15 @@
       "category": "utilities",
       "name": "Precomp+",
       "author": "DaviFX",
-      "version": "3",
+      "version": "4",
       "itemCount": 1,
       "format": "workflow",
       "tagline": "Pre-compose and nested compositions",
       "color": "#4f9db6",
       "description": "Pre-compose selected video clips into compositions, manage them in a Compositions window, and render them nested in Main.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/precomp-plus/manifest.json?v=3",
-      "bundle": "./plugins/precomp-plus/bundle.json?v=3"
+      "manifest": "./plugins/precomp-plus/manifest.json?v=4",
+      "bundle": "./plugins/precomp-plus/bundle.json?v=4"
     },
     {
       "id": "light-plus",
