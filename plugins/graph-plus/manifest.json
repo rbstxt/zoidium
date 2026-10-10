@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "graph-plus",
+  "name": "Graph Editor 2",
+  "author": "DaviFX",
+  "version": "1",
+  "kind": "extension",
+  "modules": [
+    {
+      "id": "graph-editor",
+      "source": "./plugins/graph-plus/graph-plus.js?v=1"
+    }
+  ]
+}
