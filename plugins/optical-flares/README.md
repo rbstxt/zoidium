@@ -39,15 +39,26 @@ Properties panel (title "Optical Flares options"), or `PZ.opticalflares.open(roo
 The 3D Objects list hides row buttons, so the gear does not appear there. The
 window title is "Optical Flares" and the flare's name is the subtitle. It has:
 
-- **Presets**: replace the whole element stack with a preset.
-- **Elements**: rows read "1. Glow", "2. Multi Iris" in stack order. Add,
-  Duplicate and Remove form one row of buttons; Move Up and Move Down the next.
-- **Selected element**: type, enabled, color, size, brightness, position along
-  the axis, rotation, aspect, blend, scale with distance, animation, seed, and a
-  collapsed **Shape** section (texture, illumination, falloff, matte).
-- **Source**, **Global**, **Advanced**: source settings, brightness, scale,
-  color, rotation, evolution, flicker, quality, and the settings shared by all
-  elements.
+- **Browser**: Flare, Elements and Presets tabs. Flare shows the five
+  canonical stacks as thumbnail tiles (click applies) plus Reset All.
+  Elements shows the twelve element types as tiles (click adds), with a
+  Basic/Custom toggle for the custom layers. Presets shows the
+  Cinematic/Rainbow/Gold tint variants (click applies) with a favorites
+  toggle per preset; favorites and the Black/Checker preview background are
+  window UI state kept in localStorage, never in the project.
+- **Elements**: one row per element with a per-type thumbnail, inline Scale
+  and Distance scrubbers, Hide, Solo and remove buttons, and drag reorder
+  (Move Up/Down are kept). Clicking a thumbnail toggles Hide. Solo previews
+  one element alone; it is a normal undoable element property, so it renders
+  and exports exactly what the window shows.
+- **Selected element**: type, enabled, solo, color, size, brightness, position
+  along the axis, rotation, aspect, blend, scale with distance, animation,
+  seed, and a collapsed **Shape** section (texture, illumination, falloff,
+  matte), plus a Reset Element button.
+- **Source**, **Global**, **Advanced**: source settings (incl. Fade amount),
+  flare settings (incl. Scale offset), and the settings shared by all
+  elements, each with its own Reset button. Every reset is one undo step.
+- **Custom Layers**: the three custom image slots as native property rows.
 
 Property panel labels are unique: "2D Position" (only used by the 2D source),
 "Flare Scale", "Flare Color", "Flare Brightness", "Element Scale", "Element
@@ -68,7 +79,25 @@ and redo work. Dragging previews live and records one undo step on release.
 ## Compatibility
 
 Saved properties and element records keep their names, so projects saved with
-Davidium load. Changes in version 4:
+Davidium load. Changes in version 7:
+
+- The window has a Browser (Flare/Elements/Presets tabs with thumbnails,
+  tint variants and favorites), per-element thumbnails with inline Scale and
+  Distance scrubbers, drag reorder, per-section Reset buttons and Reset All,
+  and Custom Layers fields.
+- **Solo** is back as a real element property: when any element has Solo on,
+  only the soloed elements render. It is undoable, saved, and deterministic
+  (a pure function of project data and time).
+- **Scale Offset** (Flare Setup) is back: either it or the Global switch
+  enables distance scaling. Both default to off, so existing projects render
+  unchanged.
+- **Fade Amount** (Foreground Layers) is stored and shown again; occlusion
+  stays per-pixel through the depth buffer, so Fade has no render effect.
+- The Preview BG Layer stays editor-only: the window has a Black/Checker
+  preview background toggle kept in localStorage. Stored Preview BG values
+  are still ignored, as they never affected the render.
+
+Changes in version 4:
 
 - A new flare is placed at (-50.9, 28.6, 0), about 62% of the way from the
   centre to the upper-left corner of the default CM3 camera, so its elements
@@ -83,9 +112,10 @@ Changes in version 3:
 
 - The default **Center Position** is now the screen centre (0, 0). Stored
   values keep their meaning: they are offsets from the centre.
-- The **Preview BG Layer**, the element solo state, and the **Occlusion Fade**
-  setting were removed. Stored values are ignored. Occlusion is now a depth
-  test, so it hides the flare fully instead of fading it.
+- The **Preview BG Layer** and the element solo state were removed. Stored
+  values are ignored. Occlusion is now a depth
+  test, so it hides the flare fully instead of fading it. (Version 7 restores
+  Solo as a real property and Fade Amount as stored data; see above.)
 - The fullscreen Options window and the Inter font were removed.
 - Custom Layers 1-3 keep working. Elements that referenced Custom 1-3 still
   read the same layer slots.

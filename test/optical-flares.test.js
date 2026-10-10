@@ -317,7 +317,8 @@ test("projects saved with the old 2D, preview and fade fields still load", () =>
   const legacy = JSON.parse(JSON.stringify(flare));
   legacy.properties.positioning.sourceType = 0;
   legacy.properties.positioning.previewBg = "asset-id";
-  legacy.properties.positioning.foreground.fade = 100;
+  legacy.properties.positioning.foreground.fade = 30;
+  legacy.properties.flareSetup.scaleOffset = 1;
   legacy.properties.positioning.customLayers.layer1 = null;
   legacy.properties.flareSetup.centerPosition = [640, 360];
   const loaded = new PZ.object3d.optflares();
@@ -325,7 +326,73 @@ test("projects saved with the old 2D, preview and fade fields still load", () =>
   loaded.load(legacy);
   assert.equal(loaded.stack.length, flare.stack.length);
   assert.equal(loaded.properties.positioning.sourceType.get(), 0);
+  assert.equal(loaded.properties.positioning.foreground.fade.get(), 30, "the saved fade value loads");
+  assert.equal(loaded.properties.flareSetup.scaleOffset.get(), 1, "the saved scale offset loads");
   assert.deepEqual(loaded.properties.flareSetup.centerPosition.get(), [640, 360]);
+});
+
+test("foreground fade defaults to full occlusion and solo defaults to off", () => {
+  const { PZ } = buildEnv();
+  const flare = createFlare(PZ, { objectType: 0 });
+  assert.equal(flare.properties.positioning.foreground.fade.get(), 100);
+  assert.equal(flare.properties.flareSetup.scaleOffset.get(), 0, "scale offset off by default");
+  for (const element of flare.stack) {
+    assert.equal(element.properties.element.solo.get(), 0, "new elements are not soloed");
+  }
+});
+
+test("solo shows only the soloed elements, as a pure function of data and time", () => {
+  const { PZ } = buildEnv();
+  const flare = createFlare(PZ, { objectType: 1 });
+  placeFlare(flare, [0, 0, -10]);
+  const visibleAt = () => {
+    flare.update(0);
+    flare.quad.onBeforeRender({}, null, camera([0, 0, 0], 0));
+    const used = flare._dataD.slice(0, flare.stack.length * 4);
+    return Array.from(used.filter((_, i) => i % 4 === 3));
+  };
+  assert.ok(visibleAt().every((v) => v === 1), "no solo: every element renders");
+
+  flare.stack[2].properties.element.solo.set(1);
+  const gated = visibleAt();
+  assert.equal(gated[2], 1, "the soloed element renders");
+  assert.ok(gated.filter((_, i) => i !== 2).every((v) => v === 0), "other elements are muted");
+  assert.equal(flare.quad.visible, true);
+
+  flare.stack[2].properties.element.enabled.set(0);
+  visibleAt();
+  assert.equal(flare.quad.visible, false, "a disabled solo keeps nothing visible");
+
+  // Same inputs always give the same uniforms.
+  flare.stack[2].properties.element.enabled.set(1);
+  const first = uniformSnapshot(flare);
+  flare.update(50);
+  flare.quad.onBeforeRender({}, null, camera([3, 0, 1], -20));
+  flare.update(0);
+  flare.quad.onBeforeRender({}, null, camera([0, 0, 0], 0));
+  assert.equal(uniformSnapshot(flare), first);
+});
+
+test("either scale offset switch enables distance scaling", () => {
+  const { PZ } = buildEnv();
+  const flare = createFlare(PZ, { objectType: 0 });
+  placeFlare(flare, [0, 0, -10]);
+  const element = flare.stack[0];
+  element.properties.element.distance.set(100);
+  element.properties.globalParams.scale.set(100);
+  const sizeAt = () => {
+    flare.update(0);
+    flare.quad.onBeforeRender({}, null, camera([0, 0, 0], 0));
+    return flare._dataA[0];
+  };
+  assert.equal(sizeAt(), 1, "no offset: full size");
+  flare.properties.global.scaleOffset.set(1);
+  assert.equal(sizeAt(), 0.5, "global switch scales with distance");
+  flare.properties.global.scaleOffset.set(0);
+  flare.properties.flareSetup.scaleOffset.set(1);
+  assert.equal(sizeAt(), 0.5, "flare switch scales with distance too");
+  flare.properties.flareSetup.scaleOffset.set(0);
+  assert.equal(sizeAt(), 1, "both off again: full size");
 });
 
 test("the render hook projects the source through the camera drawing the pass", () => {
