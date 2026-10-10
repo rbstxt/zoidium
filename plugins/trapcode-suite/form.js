@@ -25,6 +25,7 @@ var PZ = PZ || {};
 
 (function () {
     var T = PZ.trapcode;
+    var ROTATION_ORDERS = ["XYZ", "XZY", "YXZ", "YZX", "ZXY", "ZYX"];
 
     // T.shading.VERTEX_LINES declares the shared light uniforms and the
     // shadeSurface() helper ahead of main(); the call site inside main is
@@ -1158,6 +1159,13 @@ var PZ = PZ || {};
             this.threeObj.position.set(transform.offsetX.get(t), transform.offsetY.get(t), transform.offsetZ.get(t));
             var scale = transform.scale.get(t) / 100;
             this.threeObj.scale.set(scale, scale, scale);
+            var rotationOrder = transform.rotationOrder.get();
+            this.threeObj.rotation.set(
+                transform.rotationX.get(t) * Math.PI / 180,
+                transform.rotationY.get(t) * Math.PI / 180,
+                transform.rotationZ.get(t) * Math.PI / 180,
+                ROTATION_ORDERS.indexOf(rotationOrder) >= 0 ? rotationOrder : "XYZ"
+            );
             this._renderedRevision = this._assets.revision;
         }
         // Waits for every asset this frame needs, then makes sure the frame was
@@ -1518,6 +1526,15 @@ var PZ = PZ || {};
         offsetX: number("X Offset", 0, { step: 1 }),
         offsetY: number("Y Offset", 0, { step: 1 }),
         offsetZ: number("Z Offset", 0, { step: 1 }),
+        rotationOrder: {
+            name: "Rotation Order",
+            type: PZ.property.type.LIST,
+            value: "XYZ",
+            items: ROTATION_ORDERS.map(function (order) { return { name: order, value: order }; }),
+        },
+        rotationX: number("X Rotation", 0, { step: 1 }),
+        rotationY: number("Y Rotation", 0, { step: 1 }),
+        rotationZ: number("Z Rotation", 0, { step: 1 }),
     };
 
     T.registerObjectTypes(PZ.object3d.form.instance, [

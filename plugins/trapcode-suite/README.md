@@ -20,6 +20,10 @@ around CM3; it is not part of, and not endorsed by, Panzoid.
   disperse and rotate. Strings connect neighbouring points. The Shading group
   mirrors the donor controls; the Audio React group drives size, opacity,
   disperse, fractal and twist from offline audio analysis (see Audio).
+  Transform applies scale, offsets and animated X/Y/Z rotations in degrees
+  to the whole form after its deformations, including connecting strings.
+  Rotation Order selects one of the six Euler orders. It defaults to XYZ
+  and is a fixed setting, while the rotation angles remain animatable.
 - **Plexus** (type 12) — points connected as points, lines (line type
   distance/adjacency/shape), facets,
   triangulation or beams. Geometry sources (layers, paths, OBJ, primitives,

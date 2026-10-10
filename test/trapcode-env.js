@@ -47,9 +47,22 @@ class Vec {
 }
 
 function createTHREE() {
+  class Euler extends Vec {
+    constructor() {
+      super();
+      this.order = "XYZ";
+    }
+    set(x, y, z, order = this.order) {
+      super.set(x, y, z);
+      this.order = order;
+      return this;
+    }
+  }
+
   class Object3D {
     constructor() {
       this.position = new Vec();
+      this.rotation = new Euler();
       this.scale = new Vec(1, 1, 1);
       this.children = [];
       this.parent = null;
