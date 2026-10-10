@@ -3,7 +3,7 @@
   "id": "repeater",
   "name": "Effector",
   "author": "Zoidium",
-  "version": "15",
+  "version": "16",
   "kind": "object",
   "objectCategory": "EFFECTOR",
   "objectClassParent": {
@@ -162,7 +162,7 @@
   "modules": [
     {
       "id": "effector-runtime",
-      "source": "./plugins/scene-plus/scene-plus.js?v=15"
+      "source": "./plugins/scene-plus/scene-plus.js?v=16"
     }
   ],
   "description": "Procedural repeaters plus Twist, Warp, and Voronoi Fracture effectors.",
@@ -170,27 +170,27 @@
     {
       "id": "effector-core",
       "type": "text",
-      "source": "./plugins/scene-plus/effector-core.js?v=15"
+      "source": "./plugins/scene-plus/effector-core.js?v=16"
     },
     {
       "id": "effector-fracture",
       "type": "text",
-      "source": "./plugins/scene-plus/effector-fracture.js?v=15"
+      "source": "./plugins/scene-plus/effector-fracture.js?v=16"
     },
     {
       "id": "effector-mesh",
       "type": "text",
-      "source": "./plugins/scene-plus/effector-mesh.js?v=15"
+      "source": "./plugins/scene-plus/effector-mesh.js?v=16"
     },
     {
       "id": "effector-evaluate",
       "type": "text",
-      "source": "./plugins/scene-plus/effector-evaluate.js?v=15"
+      "source": "./plugins/scene-plus/effector-evaluate.js?v=16"
     },
     {
       "id": "effector-jobs",
       "type": "text",
-      "source": "./plugins/scene-plus/effector-jobs.js?v=15"
+      "source": "./plugins/scene-plus/effector-jobs.js?v=16"
     }
   ]
 }

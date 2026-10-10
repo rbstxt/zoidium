@@ -255,7 +255,7 @@ function createMeshDeformer(THREE, jobs) {
 
     const triangleCount = Math.max(1, Math.floor((base.index ? base.index.length : base.count) / 3));
     const budget = Math.floor(core.MAX_SMOOTH_TRIANGLES / triangleCount);
-    let polygonCount = Math.min(core.clampPolygonCount(requestedPolygonCount), budget);
+    let polygonCount = core.budgetSubdivision(requestedPolygonCount, budget);
     if (polygonCount < core.SMOOTH_TRIANGLE_BUDGET_MIN_POLYGONS) polygonCount = 1;
     // Fracture and large curved meshes include topology, deformation, and normal
     // averaging in the worker. Small Twist/Warp previews keep their cheap path.

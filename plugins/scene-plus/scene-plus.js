@@ -6,11 +6,6 @@ const EFFECTOR_SCHEMA_VERSION = 1;
 const TWIST_TYPE = "zoidium:repeater/twist";
 const WARP_TYPE = "zoidium:repeater/warp";
 const DEGREES_TO_RADIANS = Math.PI / 180;
-const CURVE_QUALITY_LOW = 0;
-const CURVE_QUALITY_SMOOTH = 1;
-const MIN_SMOOTH_POLYGON_COUNT = 1;
-const DEFAULT_SMOOTH_POLYGON_COUNT = 16;
-const MAX_SMOOTH_POLYGON_COUNT = 256;
 const VORONOI_TYPE = "zoidium:repeater/voronoi-fracture";
 const DEFAULT_FRACTURE_CELLS = 24;
 const MAX_FRACTURE_CELLS = 200;
@@ -144,7 +139,19 @@ function migrateEffectorData(data) {
       ? { ...legacyValue, value: polygonCount }
       : polygonCount;
   }
-  return { ...normalized, properties };
+  const stored = value => value && typeof value === "object" && !Array.isArray(value) ? value.value : value;
+  if (properties.subdivision === undefined && (properties.polygonCount !== undefined || properties.curveQuality !== undefined)) {
+    const level = stored(properties.curveQuality) === 0 ? 0 : Math.min(4, Math.max(0, Math.round(Math.log(Math.max(1, numberValue(stored(properties.polygonCount), 16))) / Math.log(4))));
+    properties.subdivision = level;
+  }
+  const legacyField = normalized.legacyField === true || (properties.field !== undefined && properties.fieldFalloff === undefined);
+  // CM3 dynamic properties require keyframes, even for a formerly static value.
+  for (const key of ["field", "fieldPosition", "fieldScale", "fieldRotation", "fragmentDirection", "fragmentRotation"]) {
+    const value = properties[key];
+    if (value === undefined || value && (value.keyframes || value.objects || value.expression)) continue;
+    properties[key] = { animated: false, keyframes: [{ frame: 0, value: stored(value), tween: key === "field" ? 0 : 1 }] };
+  }
+  return { ...normalized, legacyField, properties };
 }
 
 function seededRandom(seed, index, channel) {
@@ -532,6 +539,7 @@ function createEffectorBaseClass(PZ, THREE) {
 
     load(data) {
       const normalized = migrateEffectorData(data);
+      this._legacyField = normalized.legacyField;
       this.threeObj = new THREE.Object3D();
       this.properties.load(normalized.properties);
       if (this.threeObj.layers && this.properties.reflectionVisibility) {
@@ -566,6 +574,7 @@ function createEffectorBaseClass(PZ, THREE) {
       const data = {
         type: this.type,
         schemaVersion: EFFECTOR_SCHEMA_VERSION,
+        legacyField: this._legacyField === true,
         properties: this.properties,
         objects: this.objects,
       };
@@ -637,11 +646,38 @@ function optionPropertyValue(property, frame, fallback) {
   return Math.round(numberPropertyValue(property, frame, fallback));
 }
 
-function fieldFromProperties(properties, frame) {
+function fieldFromProperties(properties, frame, legacy = false) {
   return {
+    legacy,
+    rotation: vectorValue(propertyValue(properties.fieldRotation, frame, [0, 0, 0]), [0, 0, 0]),
+    falloff: numberPropertyValue(properties.fieldFalloff, frame, 100),
+    curve: optionPropertyValue(properties.fieldCurve, frame, 0),
+    invert: optionPropertyValue(properties.fieldInvert, frame, 0) === 1,
+    sweep: numberPropertyValue(properties.fieldSweep, frame, 100),
+    noiseScale: numberPropertyValue(properties.fieldNoiseScale, frame, 100),
+    evolution: numberPropertyValue(properties.fieldNoiseEvolution, frame, 0),
+    seed: numberPropertyValue(properties.seed, frame, 1),
     type: optionPropertyValue(properties.field, frame, 0),
     position: vectorValue(propertyValue(properties.fieldPosition, frame, [0, 0, 0]), [0, 0, 0]),
     scale: vectorValue(propertyValue(properties.fieldScale, frame, [100, 100, 100]), [100, 100, 100]),
+  };
+}
+
+function fieldProperties(PZ) {
+  const number = (name, value, min, max) => ({ dynamic: true, name, type: PZ.property.type.NUMBER, value, min, max, step: 1, decimals: 1 });
+  const option = (name, value, items) => ({ dynamic: true, name, type: PZ.property.type.OPTION, value, items });
+  const vector = (name, value, min) => vectorDefinition(PZ, { name, value, min: min === undefined ? undefined : [min, min, min], step: 1, decimals: 1 });
+  return {
+    field: option("Field", 0, "infinite;linear;box;sphere;cylinder;noise"),
+    fieldPosition: vector("Field position", [0, 0, 0]),
+    fieldRotation: vector("Field rotation", [0, 0, 0]),
+    fieldScale: vector("Field scale", [100, 100, 100], 0.01),
+    fieldFalloff: number("Falloff", 100, 0, 100),
+    fieldCurve: option("Falloff curve", 0, "linear;smooth;ease in;ease out"),
+    fieldInvert: option("Invert field", 0, "off;on"),
+    fieldSweep: number("Sweep", 100, 0, 100),
+    fieldNoiseScale: number("Noise scale", 100, 0.01, 10000),
+    fieldNoiseEvolution: number("Noise evolution", 0),
   };
 }
 
@@ -685,20 +721,9 @@ function createTwistClass(PZ, THREE, type = TWIST_TYPE) {
           value: 1,
           items: "X;Y;Z",
         },
-        curveQuality: {
-          name: "Curve quality",
-          type: PZ.property.type.OPTION,
-          value: CURVE_QUALITY_SMOOTH,
-          items: "Low polygon;Smooth",
-        },
-        polygonCount: {
-          name: "Polygons per triangle",
-          type: PZ.property.type.NUMBER,
-          value: DEFAULT_SMOOTH_POLYGON_COUNT,
-          min: MIN_SMOOTH_POLYGON_COUNT,
-          max: MAX_SMOOTH_POLYGON_COUNT,
-          step: 1,
-          decimals: 0,
+        subdivision: {
+          name: "Subdivision", type: PZ.property.type.OPTION,
+          value: 2, items: "1;2;4;8;16",
         },
         angle: {
           dynamic: true,
@@ -719,13 +744,14 @@ function createTwistClass(PZ, THREE, type = TWIST_TYPE) {
           step: 1,
           decimals: 2,
         },
+        ...fieldProperties(PZ),
       });
       this.type = type;
     }
 
     workerCommand(frame) {
       return { kind: "twist", angle: numberPropertyValue(this.properties.angle, frame, 0),
-        axis: optionPropertyValue(this.properties.axis, frame, 1), offset: numberPropertyValue(this.properties.offset, frame, 0) };
+        axis: optionPropertyValue(this.properties.axis, frame, 1), offset: numberPropertyValue(this.properties.offset, frame, 0), field: fieldFromProperties(this.properties, frame, this._legacyField) };
     }
 
     // Pure function of (positions, angle, axis, offset) at this frame.
@@ -736,7 +762,8 @@ function createTwistClass(PZ, THREE, type = TWIST_TYPE) {
         positions,
         angle,
         optionPropertyValue(this.properties.axis, frame, 1),
-        numberPropertyValue(this.properties.offset, frame, 0)
+        numberPropertyValue(this.properties.offset, frame, 0),
+        fieldFromProperties(this.properties, frame, this._legacyField)
       );
     }
   }
@@ -757,20 +784,9 @@ function createWarpClass(PZ, THREE, type = WARP_TYPE) {
           value: 0,
           items: "X;Z",
         },
-        curveQuality: {
-          name: "Curve quality",
-          type: PZ.property.type.OPTION,
-          value: CURVE_QUALITY_SMOOTH,
-          items: "Low polygon;Smooth",
-        },
-        polygonCount: {
-          name: "Polygons per triangle",
-          type: PZ.property.type.NUMBER,
-          value: DEFAULT_SMOOTH_POLYGON_COUNT,
-          min: MIN_SMOOTH_POLYGON_COUNT,
-          max: MAX_SMOOTH_POLYGON_COUNT,
-          step: 1,
-          decimals: 0,
+        subdivision: {
+          name: "Subdivision", type: PZ.property.type.OPTION,
+          value: 2, items: "1;2;4;8;16",
         },
         amount: {
           dynamic: true,
@@ -791,27 +807,7 @@ function createWarpClass(PZ, THREE, type = WARP_TYPE) {
           step: 1,
           decimals: 2,
         },
-        field: {
-          name: "Field",
-          type: PZ.property.type.OPTION,
-          value: 0,
-          items: "infinite;linear;box;sphere",
-        },
-        fieldPosition: {
-          name: "Field position",
-          type: PZ.property.type.VECTOR3,
-          value: [0, 0, 0],
-          step: 1,
-          decimals: 1,
-        },
-        fieldScale: {
-          name: "Field scale",
-          type: PZ.property.type.VECTOR3,
-          value: [100, 100, 100],
-          min: 0.01,
-          step: 1,
-          decimals: 1,
-        },
+        ...fieldProperties(PZ),
       });
       this.type = type;
     }
@@ -819,7 +815,7 @@ function createWarpClass(PZ, THREE, type = WARP_TYPE) {
     workerCommand(frame) {
       return { kind: "warp", strength: numberPropertyValue(this.properties.amount, frame, 0),
         axis: optionPropertyValue(this.properties.axis, frame, 0), offset: numberPropertyValue(this.properties.offset, frame, 0),
-        field: fieldFromProperties(this.properties, frame) };
+        field: fieldFromProperties(this.properties, frame, this._legacyField) };
     }
 
     deformPositions(positions, frame) {
@@ -830,7 +826,7 @@ function createWarpClass(PZ, THREE, type = WARP_TYPE) {
         strength,
         optionPropertyValue(this.properties.axis, frame, 0),
         numberPropertyValue(this.properties.offset, frame, 0),
-        fieldFromProperties(this.properties, frame)
+        fieldFromProperties(this.properties, frame, this._legacyField)
       );
     }
   }
@@ -845,6 +841,8 @@ function createVoronoiClass(PZ, THREE, type = VORONOI_TYPE) {
     constructor() {
       super();
       this.properties.addAll({
+        distribution: { name: "Distribution", type: PZ.property.type.OPTION, value: 0, items: "uniform;surface;center;edges" },
+        cellScale: { name: "Cell scale", type: PZ.property.type.VECTOR3, value: [100, 100, 100], min: 0.01, step: 1, decimals: 1 },
         cells: {
           name: "Cells",
           type: PZ.property.type.NUMBER,
@@ -867,6 +865,16 @@ function createVoronoiClass(PZ, THREE, type = VORONOI_TYPE) {
           value: 1,
           items: "open;closed",
         },
+        offset: {
+          dynamic: true,
+          name: "Offset fragments",
+          type: PZ.property.type.NUMBER,
+          value: 0,
+          min: 0,
+          max: 100,
+          step: 1,
+          decimals: 1,
+        },
         colors: {
           name: "Fragment colors",
           type: PZ.property.type.OPTION,
@@ -882,16 +890,6 @@ function createVoronoiClass(PZ, THREE, type = VORONOI_TYPE) {
           max: 1000,
           step: 1,
           decimals: 2,
-        },
-        offset: {
-          dynamic: true,
-          name: "Offset fragments",
-          type: PZ.property.type.NUMBER,
-          value: 0,
-          min: 0,
-          max: 100,
-          step: 1,
-          decimals: 1,
         },
         scatter: {
           dynamic: true,
@@ -914,27 +912,12 @@ function createVoronoiClass(PZ, THREE, type = VORONOI_TYPE) {
           decimals: 1,
           scaleFactor: DEGREES_TO_RADIANS,
         },
-        field: {
-          name: "Field",
-          type: PZ.property.type.OPTION,
-          value: 0,
-          items: "infinite;linear;box;sphere",
-        },
-        fieldPosition: {
-          name: "Field position",
-          type: PZ.property.type.VECTOR3,
-          value: [0, 0, 0],
-          step: 1,
-          decimals: 1,
-        },
-        fieldScale: {
-          name: "Field scale",
-          type: PZ.property.type.VECTOR3,
-          value: [100, 100, 100],
-          min: 0.01,
-          step: 1,
-          decimals: 1,
-        },
+        fragmentDirection: vectorDefinition(PZ, { name: "Direction", value: [0, 0, 0], step: 1, decimals: 2 }),
+        fragmentRotation: vectorDefinition(PZ, { name: "Rotation", value: [0, 0, 0], step: 1, decimals: 1 }),
+        fragmentScale: { dynamic: true, name: "Fragment scale", type: PZ.property.type.NUMBER, value: 100, min: 0, max: 1000, step: 1, decimals: 1 },
+        gravity: { dynamic: true, name: "Gravity", type: PZ.property.type.NUMBER, value: 0, min: -1000, max: 1000, step: 1, decimals: 2 },
+        randomness: { dynamic: true, name: "Randomness", type: PZ.property.type.NUMBER, value: 0, min: 0, max: 100, step: 1, decimals: 1 },
+        ...fieldProperties(PZ),
       });
       this.type = type;
     }
@@ -944,28 +927,30 @@ function createVoronoiClass(PZ, THREE, type = VORONOI_TYPE) {
         cells: library.fracture.clampCells(numberPropertyValue(this.properties.cells, frame, DEFAULT_FRACTURE_CELLS)),
         seed: Math.trunc(numberPropertyValue(this.properties.seed, frame, 1)),
         closed: optionPropertyValue(this.properties.closed, frame, 1) === 1,
+        distribution: optionPropertyValue(this.properties.distribution, frame, 0),
+        cellScale: vectorValue(propertyValue(this.properties.cellScale, frame, [100, 100, 100]), [100, 100, 100]),
       }, limits: FRACTURE_LIMITS, motion: {
         distance: numberPropertyValue(this.properties.distance, frame, 0),
         scatter: numberPropertyValue(this.properties.scatter, frame, 0),
         offset: numberPropertyValue(this.properties.offset, frame, 0),
         spin: numberPropertyValue(this.properties.spin, frame, 0),
-        field: fieldFromProperties(this.properties, frame),
+        direction: vectorValue(propertyValue(this.properties.fragmentDirection, frame, [0, 0, 0]), [0, 0, 0]),
+        rotation: vectorValue(propertyValue(this.properties.fragmentRotation, frame, [0, 0, 0]), [0, 0, 0]),
+        fragmentScale: numberPropertyValue(this.properties.fragmentScale, frame, 100),
+        gravity: numberPropertyValue(this.properties.gravity, frame, 0),
+        randomness: numberPropertyValue(this.properties.randomness, frame, 0),
+        field: fieldFromProperties(this.properties, frame, this._legacyField),
       } };
     }
 
     // Topology stage: cached by the mesh deformer per (input, cells, seed, closed).
     produceStage(positions, stage, frame, derive) {
-      const cells = Math.min(
-        MAX_FRACTURE_CELLS,
-        Math.max(1, Math.round(numberPropertyValue(this.properties.cells, frame, DEFAULT_FRACTURE_CELLS)))
-      );
-      const seed = Math.trunc(numberPropertyValue(this.properties.seed, frame, 1));
-      const closed = optionPropertyValue(this.properties.closed, frame, 1) === 1;
-      const key = ["voronoi", cells, seed, closed ? 1 : 0].join(":");
+      const topology = this.workerCommand(frame).topology;
+      const key = "voronoi:" + JSON.stringify(topology);
       return derive(stage, key, positions, () => {
         const result = library.fracture.buildVoronoiFracture(
           { positions, index: stage.index, uvs: stage.uvs },
-          { cells, seed, closed },
+          topology,
           FRACTURE_LIMITS
         );
         if (result.error) {
@@ -990,13 +975,7 @@ function createVoronoiClass(PZ, THREE, type = VORONOI_TYPE) {
       return library.fracture.applyFragmentMotion(
         positions,
         stage,
-        {
-          distance: numberPropertyValue(this.properties.distance, frame, 0),
-          scatter: numberPropertyValue(this.properties.scatter, frame, 0),
-          offset: numberPropertyValue(this.properties.offset, frame, 0),
-          spin: numberPropertyValue(this.properties.spin, frame, 0),
-          field: fieldFromProperties(this.properties, frame),
-        },
+        this.workerCommand(frame).motion,
         context.matrix || null
       );
     }
@@ -1014,26 +993,15 @@ function fractureErrorText(code) {
   return "the geometry is invalid";
 }
 
-// Smooth curve quality applies to the largest requested polygon count in the
-// chain, skipping effectors whose intensity is zero at this frame.
+// Use the highest uniform subdivision level requested by active deformers.
 function curvePolygonCount(effectors, frame) {
-  let polygonCount = CURVE_QUALITY_LOW;
+  let polygonCount = 1;
   for (const effector of effectors) {
-    if (!effector.properties?.curveQuality) continue;
-    const intensityProperty = effector.properties.angle || effector.properties.amount;
-    if (intensityProperty && !numberPropertyValue(intensityProperty, frame, 0)) continue;
-    const quality = optionPropertyValue(effector.properties.curveQuality, frame, CURVE_QUALITY_SMOOTH);
-    if (quality === CURVE_QUALITY_SMOOTH) {
-      polygonCount = Math.max(
-        polygonCount,
-        integerValue(
-          numberPropertyValue(effector.properties.polygonCount, frame, DEFAULT_SMOOTH_POLYGON_COUNT),
-          DEFAULT_SMOOTH_POLYGON_COUNT,
-          MIN_SMOOTH_POLYGON_COUNT,
-          MAX_SMOOTH_POLYGON_COUNT
-        )
-      );
-    }
+    const p = effector.properties;
+    const intensity = p.angle || p.amount;
+    if (intensity && !numberPropertyValue(intensity, frame, 0)) continue;
+    if (p.subdivision) polygonCount = Math.max(polygonCount, 4 ** library.core.clampIndex(optionPropertyValue(p.subdivision, frame, 2), 4));
+    else if (p.curveQuality && optionPropertyValue(p.curveQuality, frame, 1)) polygonCount = Math.max(polygonCount, library.core.subdivisionPolygons(numberPropertyValue(p.polygonCount, frame, 16)));
   }
   return polygonCount;
 }
@@ -1653,6 +1621,7 @@ module.exports = {
     getTransform,
     makeProperties,
     migrateLegacyEffectorRecord,
+    migrateEffectorData,
     seededRandom,
     getMeshDeformer,
     loadLibraryFromAssets,

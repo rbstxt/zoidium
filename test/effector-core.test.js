@@ -172,7 +172,7 @@ test("subdivision keeps the surface area and interpolates attributes", () => {
   for (const polygons of [1, 2, 4, 7, 16]) {
     const out = core.subdivideStage(stage, polygons);
     const triangles = out.count / 3;
-    assert.equal(triangles, polygons, `triangle count for ${polygons}`);
+    assert.equal(triangles, core.subdivisionPolygons(polygons), `triangle count for ${polygons}`);
     let area = 0;
     for (let index = 0; index < out.count; index += 3) {
       const p = [0, 1, 2].map((k) => [0, 1, 2].map((c) => out.positions[(index + k) * 3 + c]));
@@ -195,4 +195,53 @@ test("smooth polygon budget is bounded by the triangle budget", () => {
   assert.equal(core.clampPolygonCount(1e9), core.MAX_SMOOTH_TRIANGLES);
   assert.equal(core.clampPolygonCount(0), 1);
   assert.equal(core.clampPolygonCount(Number.NaN), 1);
+});
+
+test("uniform levels keep every shared indexed source edge coincident after deformation", () => {
+  const source = {
+    count: 4, positions: new Float32Array([-2, -1, 0, 3, 2, 1, -1, 4, 2, 4, -2, -1]),
+    index: new Uint16Array([0, 1, 2, 1, 0, 3]), attributes: {}, groups: [],
+  };
+  for (const segments of [1, 2, 4, 8, 16]) {
+    const stage = core.subdivideStage(source, segments * segments);
+    const half = stage.positions.length / 2;
+    const edges = [new Map(), new Map()];
+    for (let offset = 0; offset < stage.positions.length; offset += 3) {
+      const x = stage.positions[offset], y = stage.positions[offset + 1], z = stage.positions[offset + 2];
+      const t = (x + 2) / 5;
+      if (t >= 0 && t <= 1 && Math.abs(y - (-1 + 3 * t)) < 1e-6 && Math.abs(z - t) < 1e-6) {
+        edges[offset < half ? 0 : 1].set(t, offset);
+      }
+    }
+    assert.equal(edges[0].size, segments + 1);
+    assert.deepEqual([...edges[0].keys()].sort(), [...edges[1].keys()].sort());
+    for (const deform of [p => core.twistPositions(p, Math.PI, 1, 0), p => core.warpPositions(p, Math.PI, 0, 0)]) {
+      const work = new Float32Array(stage.positions); deform(work);
+      for (const [t, a] of edges[0]) {
+        const b = edges[1].get(t);
+        assert.deepEqual(work.slice(a, a + 3), work.slice(b, b + 3));
+      }
+    }
+  }
+  assert.equal(core.budgetSubdivision(256, 20), 16);
+  assert.equal(core.budgetSubdivision(16, 3), 1);
+});
+
+test("shared fields support rotated sweep, hard edges, curves, inversion and seeded noise", () => {
+  const positions = new Float32Array([-2, -3, -1, 2, 3, 1]);
+  const field = { type: 1, position: [0, 0, 0], rotation: [0, 0, 90], scale: [100, 100, 100], falloff: 0, sweep: 50 };
+  const evaluate = (point, patch = {}) => core.evaluateField(...point, core.prepareField({ ...field, ...patch }, positions));
+  assert.equal(evaluate([0, -1, 0]), 1);
+  assert.equal(evaluate([0, 1, 0]), 0);
+  assert.equal(evaluate([0, -1, 0], { invert: true }), 0);
+  for (const sweep of [0, 100]) for (const point of [[-2, -3, -1], [2, 3, 1]]) assert.equal(evaluate(point, { sweep }), sweep / 100);
+  assert.equal(evaluate([0, 0, 0], { type: 4 }), 1);
+  assert.equal(evaluate([4, 0, 0], { type: 4 }), 0);
+  const noise = { type: 5, falloff: 100, seed: 9, evolution: 0.25 };
+  assert.equal(evaluate([0.3, 0.1, 0.4], noise), evaluate([0.3, 0.1, 0.4], noise));
+  assert.notEqual(evaluate([0.3, 0.1, 0.4], noise), evaluate([0.3, 0.1, 0.4], { ...noise, evolution: 1 }));
+  for (const type of [1, 2, 3]) {
+    const legacy = { type, legacy: true, position: [0, 0, 0], scale: [100, 100, 100], falloff: 100, sweep: 100 };
+    assert.equal(core.evaluateField(12, 7, 4, core.prepareField(legacy, positions)), core.fieldWeight(12, 7, 4, type, legacy.position, legacy.scale));
+  }
 });
