@@ -43,8 +43,8 @@ test("activation adds a namespaced object type and leaves CM3 camera code alone"
   assert.equal(ctx.PZ.layer.camera, undefined, "no Camera layer class is added");
   assert.deepEqual(Object.keys(ctx.PZ.layer.propertyDefinitions).sort(), before.layerDefinitions);
   assert.equal(ctx.PZ.vibrate, undefined, "vibrate is not a global CM3 class");
-  assert.equal(ctx.PZ.compositor.prototype.renderLayer, before.renderLayer, "compositor renderLayer untouched");
-  assert.equal(ctx.PZ.compositor.prototype.renderSequence, before.renderSequence, "compositor renderSequence untouched");
+  assert.notEqual(ctx.PZ.compositor.prototype.renderLayer, before.renderLayer, "shared tracking draws through a scoped wrapper");
+  assert.notEqual(ctx.PZ.compositor.prototype.renderSequence, before.renderSequence, "sequence sampling delegates for vanilla projects");
   assert.equal(ctx.PZ.sequence.prototype.update, before.sequenceUpdate, "sequence update untouched");
   assert.equal(ctx.PZ.sequence.prototype.getSharedCamera, undefined, "no sequence tracking methods");
   assert.deepEqual(Object.keys(ctx.PZ.expression.methods).sort(), ["add", "focusDistanceTo"]);
@@ -144,7 +144,7 @@ test("isInUse is true only while a legacy Davidium Camera layer is in the projec
   assert.equal(runtime.isInUse(), false);
 
   const legacy = ctx.PZ.layer.create(9);
-  assert.equal(legacy.type, 4);
+  assert.equal(legacy.type, 9);
   ctx.project.register([0, 0], legacy);
   assert.equal(runtime.isInUse(), true);
 
@@ -155,7 +155,7 @@ test("isInUse is true only while a legacy Davidium Camera layer is in the projec
 });
 
 test("Camera+ sources avoid frame history, wall clock, randomness, and body-level UI", () => {
-  const sources = ["camera-runtime.js", "vibrate.js", "scene-dof.js", "camera-class.js", "focus-ui.js"];
+  const sources = ["camera-runtime.js", "vibrate.js", "scene-dof.js", "camera-class.js", "focus-ui.js", "scene-motion-blur.js", "shared-camera.js", "shared-depth.js"];
   const forbidden = [
     /Math\.random/,
     /Date\.now|performance\.now|requestAnimationFrame/,

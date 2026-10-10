@@ -27,7 +27,7 @@ test("a vanilla camera with Davidium depth-of-field and vibrate fields loads and
   runtime.deactivate();
 });
 
-test("a Davidium Camera layer recovers its camera and DOF in a normal scene", () => {
+test("a Davidium Camera layer stays a Camera layer and recovers its camera and DOF", () => {
   const ctx = harness.createContext();
   const runtime = harness.loadRuntime();
   runtime.activate(ctx.context);
@@ -40,12 +40,10 @@ test("a Davidium Camera layer recovers its camera and DOF in a normal scene", ()
       objects: [{ type: 6, objectType: 1, properties: { dof: 1 } }],
     });
   });
-  assert.equal(layer.type, 4);
-  assert.equal(layer.objects[0].type, TYPE);
+  assert.equal(layer.type, 9, "Camera layers keep their Davidium layer type");
+  assert.equal(layer.objects[0].type, TYPE, "the donor C4D camera becomes a Camera+ object");
   assert.equal(layer.objects[0].properties.depthOfField.enabled.get(), 1);
-  layer.update(0);
-  assert.equal(layer.pass.camera, layer.objects[0].threeObj);
-  assert.equal(layer.pass.__cameraPlusDof.enabled, true);
+  assert.doesNotThrow(() => layer.update(0));
   assert.equal(runtime.isInUse(), false, "no project attached in this fixture");
   runtime.deactivate();
 });

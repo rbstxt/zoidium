@@ -431,6 +431,8 @@ function createPZ(THREE) {
   PZ.expression = { methods: { add() { return 0; } } };
   PZ.zoidium = PZ.zoidium || {};
   PZ.compositor = { prototype: { renderLayer() { return "rl"; }, renderSequence() { return "rs"; } } };
+  PZ.track = class FakeTrack {};
+  PZ.track.video = class FakeVideoTrack extends PZ.track {};
   PZ.sequence = { prototype: { update() { return "su"; } } };
   return PZ;
 }
@@ -556,7 +558,16 @@ function createContext(overrides = {}) {
   const editor = createEditor(project);
   const registry = createObject3DRegistry();
   PZ.object3d.create = (type) => registry.isRegistered(type) ? registry.instantiate(type) : new PZ.object3d.camera();
-  const apis = { propertyControls: createPropertyControls() };
+  const apis = { propertyControls: createPropertyControls(),
+    layers: { registerType(spec) {
+      const original = PZ.layer.create;
+      const replacement = type => { if (type !== spec.legacyType) return original(type); const layer = spec.factory(); layer.type = spec.type; return layer; };
+      PZ.layer.create = replacement;
+      return () => { if (PZ.layer.create === replacement) PZ.layer.create = original; };
+    } },
+    timeline: { registerTrackField() { return () => {}; }, registerTrackButton(spec) { apis.timeline.buttonSpec = spec; return () => { delete apis.timeline.buttonSpec; }; }, refreshTrackButtons() {} },
+    media: { registerPreset() { return () => {}; } },
+  };
   const disposers = [];
   const zoidiumUI = createZoidiumUI();
   const context = {

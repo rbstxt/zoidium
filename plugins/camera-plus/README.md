@@ -1,6 +1,6 @@
 # Camera+
 
-A Zoidium extension that adds a separate camera object for scenes. It does not
+An external Zoidium extension layer that adds Camera layers and separate camera objects for scenes. It does not
 replace or patch the CM3 camera. Turning the plugin on or off leaves projects
 that do not use Camera+ rendering exactly as CM3 renders them.
 
@@ -37,24 +37,49 @@ transforms that were updated for the same time. Links store object addresses, so
 moving the camera or target to another track or group breaks the link until it
 is relinked.
 
-## Not included in this beta
+## Camera layers and shared tracking
 
-- Dedicated Camera layers and shared-camera 3D tracking. They required replacing
-  CM3's compositor and sequence methods, which this plugin no longer does.
-- Shared-camera tracking of 2D layers. Camera Motion Blur applies to the
-  Camera+ scene, including its geometry, rather than unrelated video clips.
-- Cameras inside Repeater clones. A repeated camera has no single authored
-  world pose; ordinary nested groups are supported.
+Drag the **Camera** Media tile into the timeline. It creates its own track and a
+Camera layer with a Camera+ object. Animate the camera object's properties;
+the Camera layer draws nothing and hides its unused layer transforms. Ordinary
+CM3 cameras and nested camera groups can also be placed in the layer.
+
+Enable **3D** in a video track header to follow the shared camera. One undo step
+changes the flag and adds Transform effects to flat clips that need them. The
+`track3d` flag survives saving, reopening, and loading with Camera+ disabled.
+Scenes without 3D retain their own camera. Flat image, video, text, shape and
+composite layers use the camera's current world pose, with Depth, Rotation X
+and Rotation Y properties. A composite with a Transform follows as one card;
+its child scenes keep their own cameras.
+
+Master selection follows Davidium: Camera layers first, then Camera-named
+Scenes, then shallower nesting, then the lowest track index. Cameras inside a
+card cannot lead. Candidates are evaluated at the requested time before
+selection, and tracking is applied again immediately before drawing.
+
+A Camera layer's DOF enables a sequence depth pass, including scene depth and
+flat-layer depth. Without shared DOF, Scenes use their own Camera+ DOF.
+Sequence multisample blur adds **Track Frame** (`auto`, `previous`, `next`) and
+**Motion Sensitivity**. Layer **Motion Blur** scales its shutter offset. These
+use freshly evaluated subframes; rendering order and prior seeks do not supply
+samples. Camera+ fixed-shutter scene sampling remains available.
+
+Camera+ cannot be disabled while the project uses a Camera layer, a Camera+
+object, or a 3D track. Start a project without those features to disable it.
+Re-enabling restores the tile, buttons and factory without reopening the app.
 
 ## Migrating Davidium projects
 
-- Vanilla CM3 camera objects that carry Davidium depth-of-field or vibrate
-  fields load normally. The extra fields are ignored. Re-create the settings as a
-  Camera+ if you need them.
-- Davidium Camera layers (layer type 9) become normal Scene layers with
-  Camera+ objects. Nested groups, animated transforms, perspective/orthographic
-  projection, film settings, DOF and vibrate data are recovered. The resulting
-  cameras can be moved into the scene they should render. The donor's global
-  shared-camera tracking across separate layers is not restored.
-- Davidium 3D track flags and the layer depth and motion-blur properties are not
-  read. They are dropped on the next save.
+Davidium Camera layers keep layer type 9 and their shared-camera role. Type-6
+cameras carrying film, DOF or vibrate fields become Camera+ objects, preserving
+animated values, projection and nested groups. Ordinary CM3 cameras stay type
+6. Legacy DOF fields migrate into the `depthOfField` property group. Layer
+Depth, Rotation X/Y and `track3d` keep their original field names.
+
+## Deliberate omissions
+
+Davidium's render-history texture ring and blend/warp video blur modes are not
+ported. Their results depend on previously rendered frames. Use deterministic
+sequence multisampling or Camera+ fixed-shutter sampling instead. Cameras in
+Repeater clones are excluded because they have no single authored world pose.
+Focus Tools currently targets objects in the camera's own layer.
