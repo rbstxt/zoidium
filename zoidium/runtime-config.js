@@ -42,6 +42,7 @@
       "./plugins/core/about-attribution.js",
       "./plugins/core/text-shape-winding.js",
       "./plugins/core/object3d-registry.js",
+      "./plugins/core/shadow-quality.js",
       "./plugins/core/named-property-lists.js",
       "./plugins/core/disable-recovery.js",
       "./plugins/core/remove-ad-panel.js",
