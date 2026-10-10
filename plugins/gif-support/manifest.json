@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "id": "gif-support",
+  "name": "Animated GIF",
+  "author": "DaviFX",
+  "version": "1",
+  "kind": "extension",
+  "description": "Decodes animated GIF image assets and animates them deterministically from clip-local time wherever CM3 uses image assets.",
+  "modules": [
+    {
+      "id": "gif-support",
+      "source": "./plugins/gif-support/gif-support.js?v=1"
+    }
+  ]
+}
