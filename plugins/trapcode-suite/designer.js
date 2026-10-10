@@ -2,50 +2,123 @@
 /*
  * designer.js
  *
- * One designer window per Trapcode object (Particular, Form, Plexus). The
- * window is a floating ZoidiumUI window above the editor, so the main
- * viewport stays the live preview. Layout, top to bottom:
+ * One designer window per Trapcode object (Particular, Form, Plexus), drawn in
+ * the look of the original Trapcode Designer:
  *
- *   Target   system/object picker and the "add" buttons from the config
- *   Presets  preset list (applies on click), then a PALETTE list when the
- *            target has colors the palettes can set
- *   Blocks   a tab per property group; each row is a CM3 property control
+ *   title bar    PRESETS and BLOCKS pills, the title, maximize and close
+ *   presets      the preset list, then a PALETTE list with gradient swatches
+ *                when the target has colors the palettes can set
+ *   center card  transport row with the frame counter, the block tiles, and
+ *                the systems strip (target pills and "+ Add ..." buttons)
+ *   parameters   CM3's own property rows for the selected block, so keyframe
+ *                stopwatches, expressions, scrubbing and undo work as in the
+ *                Objects panel
+ *
+ * The window is a floating Zoidium window that uses the "designer" skin
+ * (designer.skinCss). It has no preview of its own: the editor viewport behind
+ * the window is the preview.
+ *
+ * designer-gear.js hands this file the module's window kit with
+ * designer.bind(context.ui) and registers the object editors.
  *
  * Every edit is written through the object's properties with CM3 history
- * records, so undo/redo works. Slider drags preview live and record one undo
- * step on release. Structural changes (adding a system or object) push their
- * own history commands.
+ * records, so undo and redo work. Presets and palettes record one undo step.
+ * Structural changes (adding a system or object) push their own history
+ * commands.
  *
  * The config contract (registerConfig) is shared with the object modules:
  *   title, targets(root), targetName(item, index), addKinds [{name, create(root)}],
  *   blocks(target) -> [{key, name}], groupFor(target, key),
- *   presets [{name}], applyPreset(root, target, preset), customOpen(root, designer)
+ *   presets [{name}], applyPreset(root, target, preset)
  */
 
 var PZ = PZ || {};
 
 (function () {
     var T = PZ.trapcode;
-    var WINDOW_PREFIX = "trapcode-suite:designer:";
-    var REFRESH_MS = 300;
+    var SKIN = "designer";
+    var WINDOW_ID_PREFIX = "designer:";
+    // CM3 has no frame-change event, so the frame counter is re-read at this
+    // interval. The check is one number compare, so the cost stays negligible.
+    var SYNC_MS = 250;
+    var SVG_NS = "http://www.w3.org/2000/svg";
+    var CLOSE_PATH = "M4.2 3 8 6.8 11.8 3 13 4.2 9.2 8l3.8 3.8-1.2 1.2L8 9.2 4.2 13 3 11.8 6.8 8 3 4.2z";
+    var MAXIMIZE_PATH = "M2 2h12v12H2z M4 4v8h8V4z";
+    var RESTORE_PATH = "M4 1h11v11h-3V4H4z M1 5h11v10H1z";
 
-    var CONFIGS = {};
-    var handles = {};
-    var nextKey = 1;
+    var CSS = [
+        ":scope{background:radial-gradient(900px 480px at 10% -6%,rgba(201,161,59,.15),transparent 60%),radial-gradient(760px 520px at 97% 108%,rgba(74,144,217,.10),transparent 62%),linear-gradient(180deg,#101014 0%,#0a0b0e 55%,#060708 100%);color:#e8e9eb;font-family:system-ui,\"Segoe UI\",-apple-system,sans-serif;font-size:12px;animation:tcFade .28s ease;}",
+        ":scope>.zoidium-window-body{display:flex;flex-direction:column;overflow:hidden;}",
+        ":scope button{font-family:inherit;}",
+        "@keyframes tcFade{from{opacity:0;}to{opacity:1;}}",
+        "@keyframes tcRise{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:none;}}",
+        ".tc-designer{display:flex;flex-direction:column;flex:1 1 auto;min-height:0;}",
+        ".tc-titlebar{flex:0 0 46px;display:flex;align-items:center;gap:8px;background:rgba(14,16,20,.78);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:1px solid rgba(255,255,255,.08);padding:0 12px;animation:tcRise .32s ease;cursor:move;user-select:none;}",
+        ".tc-title{display:flex;align-items:center;gap:10px;padding:0 4px;font-weight:600;font-size:13px;letter-spacing:2px;color:#f2f3f5;flex:1;min-width:0;white-space:nowrap;overflow:hidden;}",
+        ".tc-title:before{content:'';width:9px;height:9px;border-radius:50%;background:linear-gradient(135deg,#e8c56a,#c9a13b);box-shadow:0 0 12px rgba(201,161,59,.8);flex:0 0 auto;}",
+        ".tc-pill{display:flex;align-items:center;justify-content:center;flex:0 0 auto;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.10);color:#d6d8dc;font-size:10px;letter-spacing:2px;font-weight:600;padding:7px 16px;cursor:pointer;border-radius:999px;transition:background .15s ease,border-color .15s ease,color .15s ease,transform .15s ease;}",
+        ".tc-pill.tc-icon{padding:7px 12px;}",
+        ".tc-pill:hover{background:rgba(201,161,59,.16);border-color:rgba(201,161,59,.55);color:#fff;transform:translateY(-1px);}",
+        ".tc-pill:active{transform:none;}",
+        ".tc-pill:focus-visible{outline:2px solid #c9a13b;outline-offset:2px;}",
+        ".tc-presets-toggle{color:#e0b060;}",
+        ".tc-glyph{width:11px;height:11px;fill:currentColor;display:block;pointer-events:none;}",
+        ".tc-glyph-restore{display:none;}",
+        ":scope.maximized .tc-glyph-max{display:none;}",
+        ":scope.maximized .tc-glyph-restore{display:block;}",
+        ".tc-body{flex:1 1 auto;display:flex;min-height:0;gap:10px;padding:10px;box-sizing:border-box;}",
+        ".tc-presets{flex:0 0 208px;min-height:0;background:rgba(20,22,27,.86);border:1px solid rgba(255,255,255,.08);border-radius:14px;overflow-y:auto;padding:10px;animation:tcRise .36s ease;box-shadow:0 12px 32px rgba(0,0,0,.45);}",
+        ".tc-presets.hidden{display:none;}",
+        ".tc-preset{padding:8px 12px;cursor:pointer;border-radius:9px;color:#c9cdd4;font-size:11px;font-weight:500;letter-spacing:.3px;border:1px solid transparent;transition:background .15s ease,color .15s ease,transform .15s ease,border-color .15s ease;}",
+        ".tc-preset:hover{background:rgba(201,161,59,.13);border-color:rgba(201,161,59,.35);color:#fff;transform:translateX(2px);}",
+        ".tc-palettes-title{padding:12px 12px 6px;color:#e0b060;font-size:10px;font-weight:700;letter-spacing:2px;}",
+        ".tc-palette{display:flex;align-items:center;gap:10px;padding:6px 10px;cursor:pointer;border-radius:9px;border:1px solid transparent;transition:background .15s ease,border-color .15s ease,transform .15s ease;}",
+        ".tc-palette:hover{background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.10);transform:translateX(2px);}",
+        ".tc-swatches{flex:0 0 64px;height:16px;border-radius:5px;border:1px solid rgba(0,0,0,.6);box-shadow:inset 0 0 0 1px rgba(255,255,255,.12);}",
+        ".tc-palette span{color:#c9cdd4;font-size:11px;font-weight:500;}",
+        ".tc-palette:hover span{color:#fff;}",
+        ".tc-main{flex:1 1 auto;display:flex;flex-direction:column;min-width:0;min-height:0;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.08);border-radius:14px;overflow:hidden;box-shadow:0 12px 32px rgba(0,0,0,.5);animation:tcRise .4s ease;}",
+        ".tc-transport{flex:0 0 46px;display:flex;align-items:center;gap:8px;padding:0 12px;background:rgba(16,18,22,.9);border-bottom:1px solid rgba(255,255,255,.07);}",
+        ".tc-transport button{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:#e8e9eb;font-size:11px;padding:6px 12px;cursor:pointer;border-radius:999px;transition:background .15s ease,border-color .15s ease,color .15s ease;}",
+        ".tc-transport button:hover{background:rgba(201,161,59,.2);border-color:rgba(201,161,59,.6);color:#fff;}",
+        ".tc-transport button:focus-visible{outline:2px solid #c9a13b;outline-offset:2px;}",
+        ".tc-time{margin-left:auto;color:#e8c56a;font-variant-numeric:tabular-nums;font-weight:600;letter-spacing:1px;}",
+        // The tiles fill the card: rows share the free height and tiles share each row.
+        ".tc-strip{flex:1 1 auto;min-height:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));grid-auto-rows:minmax(96px,1fr);align-content:stretch;gap:8px;padding:10px 12px;background:rgba(13,15,18,.9);overflow-y:auto;}",
+        ".tc-block{display:flex;flex-direction:column;justify-content:flex-end;align-items:center;min-height:0;background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.10);border-radius:11px;cursor:pointer;color:#cfd3d9;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:1px;padding:6px;text-align:center;box-sizing:border-box;transition:border-color .15s ease,transform .15s ease,box-shadow .15s ease;}",
+        ".tc-block:hover{border-color:rgba(201,161,59,.5);transform:translateY(-2px);}",
+        ".tc-block .tc-thumb{flex:1 1 auto;min-height:0;width:100%;border-radius:7px;margin-bottom:6px;background:linear-gradient(135deg,#3a3220,#14161c);box-shadow:inset 0 0 0 1px rgba(255,255,255,.06);}",
+        ".tc-block.active{border-color:#c9a13b;color:#fff;box-shadow:0 0 0 1px #c9a13b,0 6px 18px rgba(201,161,59,.35);}",
+        ".tc-systems{flex:0 0 auto;display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:8px 12px;background:rgba(13,15,18,.9);border-top:1px solid rgba(255,255,255,.07);}",
+        ".tc-system{padding:6px 14px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.11);border-radius:999px;cursor:pointer;color:#c9cdd4;font-weight:500;white-space:nowrap;transition:background .15s ease,border-color .15s ease,color .15s ease;}",
+        ".tc-system:hover{color:#fff;border-color:rgba(201,161,59,.5);}",
+        ".tc-system.active{background:#c9a13b;color:#191919;border-color:#c9a13b;font-weight:700;box-shadow:0 4px 14px rgba(201,161,59,.4);}",
+        ".tc-system.add{color:#9ae6a0;border-style:dashed;}",
+        ".tc-system.add:hover{background:rgba(138,217,138,.12);border-color:rgba(138,217,138,.5);color:#fff;}",
+        ".tc-system.remove{padding:6px 12px;color:#e89a9a;}",
+        ".tc-system.remove:hover{background:rgba(217,138,138,.14);border-color:rgba(217,138,138,.5);color:#fff;}",
+        ".tc-params{flex:0 0 380px;display:flex;flex-direction:column;min-height:0;background:rgba(20,22,27,.86);border:1px solid rgba(255,255,255,.08);border-radius:14px;overflow:hidden;animation:tcRise .44s ease;box-shadow:0 12px 32px rgba(0,0,0,.45);}",
+        ".tc-params.hidden{display:none;}",
+        ":scope .tc-params>.zoidium-properties{flex:1 1 auto;min-height:0;background:transparent;}",
+        ".tc-presets::-webkit-scrollbar,.tc-strip::-webkit-scrollbar,.tc-systems::-webkit-scrollbar,.tc-params .zoidium-properties::-webkit-scrollbar{width:10px;height:10px;}",
+        ".tc-presets::-webkit-scrollbar-track,.tc-strip::-webkit-scrollbar-track,.tc-systems::-webkit-scrollbar-track,.tc-params .zoidium-properties::-webkit-scrollbar-track{background:transparent;}",
+        ".tc-presets::-webkit-scrollbar-thumb,.tc-strip::-webkit-scrollbar-thumb,.tc-systems::-webkit-scrollbar-thumb,.tc-params .zoidium-properties::-webkit-scrollbar-thumb{background:rgba(255,255,255,.14);border-radius:8px;border:2px solid transparent;background-clip:content-box;}",
+        ".tc-presets::-webkit-scrollbar-thumb:hover,.tc-strip::-webkit-scrollbar-thumb:hover,.tc-systems::-webkit-scrollbar-thumb:hover,.tc-params .zoidium-properties::-webkit-scrollbar-thumb:hover{background:rgba(201,161,59,.5);border:2px solid transparent;background-clip:content-box;}",
+        "@media (prefers-reduced-motion:reduce){:scope *{animation:none!important;transition:none!important;}}",
+    ].join("\n");
 
-    function configFor(root) {
-        if (!root) return null;
-        return root.constructor && root.constructor.designer ? root.constructor.designer : null;
-    }
-
-    function ui() {
-        return typeof window !== "undefined" && window.ZoidiumUI ? window.ZoidiumUI : null;
+    function playback() {
+        return typeof CM !== "undefined" && CM ? CM.playback || null : null;
     }
 
     function frame() {
-        var playback = typeof CM !== "undefined" && CM ? CM.playback : null;
-        var value = playback ? Number(playback.currentFrame) : 0;
+        var current = playback();
+        var value = current ? Number(current.currentFrame) : 0;
         return Number.isFinite(value) ? Math.max(0, Math.round(value)) : 0;
+    }
+
+    function frameText(value) {
+        return String(value).padStart(4, "0");
     }
 
     function snapshot(property) {
@@ -73,34 +146,6 @@ var PZ = PZ || {};
     function recordSetValue(property, value, oldValue) {
         var ops = new PZ.ui.properties(CM);
         ops.setValue({ property: property.getAddress(), frame: frame(), value: value, oldValue: oldValue });
-    }
-
-    // Commits one edit. `before` is the value captured when a drag started;
-    // live previews have already written the new value.
-    function commitEdit(property, value, before) {
-        var old = before === undefined ? snapshot(property) : before;
-        if (sameValue(old, value)) {
-            property.onChanged?.update(frame());
-            return;
-        }
-        operate(function () { recordSetValue(property, value, old); });
-        property.onChanged?.update(frame());
-    }
-
-    // Live-preview and commit pair for one property.
-    function propertyEditor(property) {
-        var before;
-        return {
-            input: function (value) {
-                if (before === undefined) before = snapshot(property);
-                property.set(value, frame());
-            },
-            change: function (value) {
-                var old = before;
-                before = undefined;
-                commitEdit(property, value, old);
-            },
-        };
     }
 
     // Leaf properties under a list or a group, in definition order.
@@ -133,137 +178,7 @@ var PZ = PZ || {};
         return result;
     }
 
-    function rgbToHex(rgb) {
-        var parts = [0, 1, 2].map(function (i) {
-            var v = Math.round(Math.max(0, Math.min(1, Number(rgb[i]) || 0)) * 255);
-            return (v < 16 ? "0" : "") + v.toString(16);
-        });
-        return "#" + parts.join("");
-    }
-
-    function hexToRgb(hex) {
-        var n = parseInt(String(hex).slice(1), 16);
-        return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
-    }
-
-    // Each control built here is tracked so the window can re-read values
-    // while the frame changes (animated properties).
-    function Session(root, config, body, win) {
-        this.root = root;
-        this.config = config;
-        this.body = body;
-        this.win = win;
-        this.target = null;
-        this.block = null;
-        this.tracked = [];
-        this.frameLabel = null;
-        this.timer = 0;
-    }
-
-    Session.prototype.targets = function () {
-        var list = this.config.targets ? this.config.targets(this.root) : null;
-        return list ? Array.prototype.slice.call(list) : [];
-    };
-
-    Session.prototype.targetList = function () {
-        return this.config.targets ? this.config.targets(this.root) : null;
-    };
-
-    Session.prototype.track = function (control, read) {
-        this.tracked.push({ control: control, read: read });
-        return control;
-    };
-
-    Session.prototype.refresh = function () {
-        var targets = this.targets();
-        var names = targets.map(function (item, index) {
-            return this.config.targetName ? this.config.targetName(item, index) : String(index);
-        }, this).join("|");
-        if (!this._targets || targets.length !== this._targets.length || targets.some(function (item, i) { return item !== this._targets[i]; }, this) || names !== this._targetNames) {
-            this._targets = targets;
-            this._targetNames = names;
-            this.rebuild();
-            return;
-        }
-        var active = typeof document !== "undefined" ? document.activeElement : null;
-        this.tracked.forEach(function (entry) {
-            var element = entry.control.element;
-            if (active && element && element.contains && element.contains(active)) return;
-            try { entry.control.set(entry.read()); } catch (_error) { /* property gone */ }
-        });
-        if (this.frameLabel) this.frameLabel.textContent = "Frame " + frame();
-    };
-
-    Session.prototype.rebuild = function () {
-        var targets = this.targets();
-        if (!this.target || targets.indexOf(this.target) < 0) {
-            this.target = targets.length ? targets[0] : this.root;
-            this.block = null;
-        }
-        this.tracked = [];
-        this.body.textContent = "";
-        var C = ui().controls;
-        this.body.appendChild(this.targetSection(targets, C).element);
-        this.body.appendChild(this.presetSection(C).element);
-        if (T.supportsPalette(this.target) && T.palettes && T.palettes.length) {
-            this.body.appendChild(this.paletteSection(C).element);
-        }
-        this.body.appendChild(this.blockSection(C).element);
-        this.frameLabel = C.note("Frame " + frame()).element;
-        this.body.appendChild(this.frameLabel);
-        this.refresh();
-    };
-
-    Session.prototype.targetSection = function (targets, C) {
-        var self = this;
-        var section = C.section({ title: "Target" });
-        var options = targets.map(function (item, index) {
-            var name = self.config.targetName ? self.config.targetName(item, index) : "System " + (index + 1);
-            return { value: String(index), label: name };
-        });
-        var current = targets.indexOf(this.target);
-        if (options.length) {
-            section.body.appendChild(C.select({
-                label: "Object",
-                value: String(current < 0 ? 0 : current),
-                options: options,
-                onChange: function (value) {
-                    self.target = targets[Number(value)] || self.target;
-                    self.block = null;
-                    self.rebuild();
-                },
-            }).element);
-        } else {
-            section.body.appendChild(C.note("Nothing to edit yet.").element);
-        }
-        var kinds = this.config.addKinds || [];
-        if (kinds.length) {
-            section.body.appendChild(C.buttonRow(kinds.map(function (kind) {
-                return {
-                    title: kind.name,
-                    onClick: function () { self.addTarget(kind); },
-                };
-            })).element);
-        }
-        return section;
-    };
-
     // Structural add: the new item is recorded so undo removes it again.
-    Session.prototype.addTarget = function (kind) {
-        var self = this;
-        var list = this.targetList();
-        var created = null;
-        operate(function () {
-            created = kind.create(self.root);
-            if (created && list) pushInsertUndo(list, created);
-        });
-        if (created) {
-            this.target = created;
-            this.block = null;
-            this.rebuild();
-        }
-    };
-
     function pushInsertUndo(list, item) {
         var history = CM.history;
         if (!history || !history.operation) return;
@@ -282,203 +197,333 @@ var PZ = PZ || {};
         CM.history.pushCommand(removeCommand, { list: payload.list, item: payload.item });
     }
 
-    Session.prototype.presetSection = function (C) {
+    function el(tag, className, text) {
+        var node = document.createElement(tag);
+        if (className) node.className = className;
+        if (text !== undefined) node.textContent = text;
+        return node;
+    }
+
+    function button(className, text, onClick) {
+        var node = el("button", className, text);
+        node.type = "button";
+        node.onclick = onClick;
+        return node;
+    }
+
+    function svgIcon(className, path) {
+        var svg = document.createElementNS(SVG_NS, "svg");
+        svg.setAttribute("viewBox", "0 0 16 16");
+        svg.setAttribute("aria-hidden", "true");
+        svg.setAttribute("class", className);
+        var shape = document.createElementNS(SVG_NS, "path");
+        shape.setAttribute("d", path);
+        svg.appendChild(shape);
+        return svg;
+    }
+
+    // One designer window: the state for one Trapcode object and the DOM the
+    // window body holds. The parameter rows are a CM3 property view that reads
+    // the selected block of the selected target.
+    function Session(ui, id, root, config) {
+        this.ui = ui;
+        this.id = id;
+        this.root = root;
+        this.config = config;
+        this.target = null;
+        this.block = null;
+        this.list = [];
+        this.labels = [];
+        this.view = null;
+        this.timer = 0;
+        this.win = null;
+        this.nodes = null;
+    }
+
+    Session.prototype.targetList = function () {
+        var list = this.config.targets ? this.config.targets(this.root) : null;
+        return list ? Array.prototype.slice.call(list) : [];
+    };
+
+    Session.prototype.nameOf = function (item, index) {
+        return this.config.targetName ? String(this.config.targetName(item, index)) : "System " + (index + 1);
+    };
+
+    Session.prototype.labelsOf = function (list) {
         var self = this;
-        var section = C.section({ title: "Presets", collapsed: true });
-        var presets = this.config.presets || [];
-        var list = C.list({
-            items: presets.map(function (preset, index) {
-                return { id: index, title: preset.name, detail: "" };
-            }),
-            emptyText: "No presets.",
-            onSelect: function (index) {
-                var preset = presets[index];
-                if (!preset || !self.target || !self.config.applyPreset) return;
+        return list.map(function (item, index) { return self.nameOf(item, index); });
+    };
+
+    Session.prototype.group = function () {
+        if (!this.target || !this.block) return null;
+        if (this.config.groupFor) return this.config.groupFor(this.target, this.block);
+        return this.target.properties ? this.target.properties[this.block] : null;
+    };
+
+    // Re-reads the target list. A structural change (a system or object added,
+    // removed or renamed elsewhere) re-renders the window; otherwise only the
+    // frame counter moves.
+    Session.prototype.sync = function () {
+        var list = this.targetList();
+        var labels = this.labelsOf(list);
+        var changed = labels.length !== this.labels.length ||
+            list.some(function (item, i) { return item !== this.list[i]; }, this) ||
+            labels.some(function (text, i) { return text !== this.labels[i]; }, this);
+        if (changed) this.refreshAll();
+        if (!this.nodes) return;
+        this.nodes.time.textContent = frameText(frame());
+        this.syncMaximize();
+    };
+
+    // The host also maximizes on a title double-click, so the pill label is
+    // re-read from the window state rather than assumed.
+    Session.prototype.syncMaximize = function () {
+        if (!this.nodes || !this.win) return;
+        var label = this.win.isMaximized() ? "Restore" : "Maximize";
+        if (this.nodes.maximize.title === label) return;
+        this.nodes.maximize.title = label;
+        this.nodes.maximize.setAttribute("aria-label", label);
+    };
+
+    Session.prototype.refreshAll = function () {
+        var list = this.targetList();
+        if (!this.target || list.indexOf(this.target) < 0) {
+            this.target = list.length ? list[0] : this.root;
+            this.block = null;
+        }
+        this.list = list;
+        this.labels = this.labelsOf(list);
+        this.renderSystems();
+        this.renderPalettes();
+        this.renderBlocks();
+        this.refreshParams();
+    };
+
+    Session.prototype.select = function (item) {
+        this.target = item;
+        this.block = null;
+        this.renderSystems();
+        this.renderPalettes();
+        this.renderBlocks();
+        this.refreshParams();
+    };
+
+    Session.prototype.refreshParams = function () {
+        if (this.view) this.view.refresh();
+    };
+
+    Session.prototype.renderSystems = function () {
+        var self = this;
+        var host = this.nodes.systems;
+        host.textContent = "";
+        this.list.forEach(function (item, index) {
+            var pill = el("div", "tc-system", self.labels[index]);
+            pill.classList.toggle("active", item === self.target);
+            pill.onclick = function () { self.select(item); };
+            host.appendChild(pill);
+        });
+        (this.config.addKinds || []).forEach(function (kind) {
+            var add = el("div", "tc-system add", "+ " + kind.name);
+            add.onclick = function () { self.addTarget(kind); };
+            host.appendChild(add);
+        });
+    };
+
+    Session.prototype.addTarget = function (kind) {
+        var self = this;
+        var list = this.config.targets ? this.config.targets(this.root) : null;
+        var created = null;
+        operate(function () {
+            created = kind.create(self.root);
+            if (created && list) pushInsertUndo(list, created);
+        });
+        if (!created) return;
+        this.target = created;
+        this.block = null;
+        this.refreshAll();
+    };
+
+    Session.prototype.renderPalettes = function () {
+        var self = this;
+        var host = this.nodes.palettes;
+        host.textContent = "";
+        var schemes = (T && T.palettes) || [];
+        if (!this.target || !schemes.length || typeof T.supportsPalette !== "function" || !T.supportsPalette(this.target)) return;
+        host.appendChild(el("div", "tc-palettes-title", "PALETTE"));
+        schemes.forEach(function (scheme) {
+            var row = el("div", "tc-palette");
+            var bar = el("div", "tc-swatches");
+            bar.style.background = T.paletteCSS(scheme);
+            row.appendChild(bar);
+            row.appendChild(el("span", "", scheme.name));
+            row.onclick = function () {
+                if (!self.target) return;
+                recordChanges(self.target, function () { T.applyPalette(self.target, scheme); });
+                self.refreshParams();
+            };
+            host.appendChild(row);
+        });
+    };
+
+    Session.prototype.renderBlocks = function () {
+        var self = this;
+        var host = this.nodes.strip;
+        host.textContent = "";
+        var blocks = (this.config.blocks ? this.config.blocks(this.target) : []) || [];
+        if (!blocks.some(function (block) { return block.key === self.block; })) {
+            this.block = blocks.length ? blocks[0].key : null;
+        }
+        blocks.forEach(function (block) {
+            var tile = el("div", "tc-block");
+            tile.appendChild(el("div", "tc-thumb"));
+            tile.appendChild(el("span", "", block.name));
+            tile.classList.toggle("active", block.key === self.block);
+            tile.onclick = function () {
+                self.block = block.key;
+                self.renderBlocks();
+                self.refreshParams();
+            };
+            host.appendChild(tile);
+        });
+    };
+
+    Session.prototype.mount = function (body, win) {
+        var self = this;
+        var ui = this.ui;
+        this.win = win;
+
+        var root = el("div", "tc-designer");
+        var titlebar = el("div", "tc-titlebar");
+        var presetsToggle = button("tc-pill tc-presets-toggle", "PRESETS", function () { presets.classList.toggle("hidden"); });
+        var title = el("div", "tc-title", this.config.title || "Trapcode Designer");
+        var blocksToggle = button("tc-pill", "BLOCKS", function () { params.classList.toggle("hidden"); });
+        var maximize = button("tc-pill tc-icon", "", function () {
+            win.toggleMaximized();
+            self.syncMaximize();
+        });
+        maximize.title = "Maximize";
+        maximize.setAttribute("aria-label", "Maximize");
+        maximize.appendChild(svgIcon("tc-glyph tc-glyph-max", MAXIMIZE_PATH));
+        maximize.appendChild(svgIcon("tc-glyph tc-glyph-restore", RESTORE_PATH));
+        var close = button("tc-pill tc-icon", "", function () { win.close(); });
+        close.title = "Close";
+        close.setAttribute("aria-label", "Close");
+        close.appendChild(svgIcon("tc-glyph", CLOSE_PATH));
+        titlebar.appendChild(presetsToggle);
+        titlebar.appendChild(title);
+        titlebar.appendChild(blocksToggle);
+        titlebar.appendChild(maximize);
+        titlebar.appendChild(close);
+
+        var content = el("div", "tc-body");
+        var presets = el("div", "tc-presets");
+        var main = el("div", "tc-main");
+        var params = el("div", "tc-params");
+
+        (this.config.presets || []).forEach(function (preset) {
+            presets.appendChild(el("div", "tc-preset", preset.name)).onclick = function () {
+                if (!self.target || !self.config.applyPreset) return;
                 recordChanges(self.target, function () {
                     self.config.applyPreset(self.root, self.target, preset);
                 });
-                self.rebuild();
-            },
+                self.refreshAll();
+            };
         });
-        section.body.appendChild(list.element);
-        return section;
-    };
+        var palettes = el("div", "tc-palette-list");
+        presets.appendChild(palettes);
 
-    Session.prototype.paletteSection = function (C) {
-        var self = this;
-        var section = C.section({ title: "Palette", collapsed: true });
-        var schemes = T.palettes;
-        var list = C.list({
-            items: schemes.map(function (scheme, index) {
-                return { id: index, title: scheme.name, detail: "" };
-            }),
-            emptyText: "No palettes.",
-            onSelect: function (index) {
-                var scheme = schemes[index];
-                if (!scheme || !self.target) return;
-                recordChanges(self.target, function () {
-                    T.applyPalette(self.target, scheme);
-                });
-                self.refresh();
-            },
+        var transport = el("div", "tc-transport");
+        var time = el("span", "tc-time", frameText(frame()));
+        transport.appendChild(button("", "⏪", function () {
+            var current = playback();
+            if (!current) return;
+            current.speed = 0;
+            current.currentFrame = Math.max(0, frame() - 1);
+        }));
+        transport.appendChild(button("", "▶", function () {
+            var current = playback();
+            if (current) current.speed = 1;
+        }));
+        transport.appendChild(button("", "⏸", function () {
+            var current = playback();
+            if (current) current.speed = 0;
+        }));
+        transport.appendChild(button("", "⏩", function () {
+            var current = playback();
+            if (!current) return;
+            current.speed = 0;
+            current.currentFrame = Math.min(frame() + 1, Math.max(0, current.totalFrames - 1));
+        }));
+        transport.appendChild(time);
+
+        var strip = el("div", "tc-strip");
+        var systems = el("div", "tc-systems");
+        main.appendChild(transport);
+        main.appendChild(strip);
+        main.appendChild(systems);
+
+        content.appendChild(presets);
+        content.appendChild(main);
+        content.appendChild(params);
+        root.appendChild(titlebar);
+        root.appendChild(content);
+        body.appendChild(root);
+        win.makeDragHandle(titlebar);
+
+        // The parameter rows are CM3's own property editor. Its target is read
+        // through the getter, so refresh() re-resolves the selected block.
+        this.view = ui.properties({
+            target: function () { return self.group(); },
+            emptyText: "No parameters.",
+            labelWidth: 0.48,
         });
-        section.body.appendChild(list.element);
-        return section;
-    };
+        params.appendChild(this.view.element);
 
-    Session.prototype.blockSection = function (C) {
-        var self = this;
-        var section = C.section({ title: "Parameters" });
-        var blocks = (this.config.blocks ? this.config.blocks(this.target) : []) || [];
-        if (!blocks.length) {
-            section.body.appendChild(C.note("No parameters.").element);
-            return section;
-        }
-        if (!this.block || !blocks.some(function (b) { return b.key === self.block; })) {
-            this.block = blocks[0].key;
-        }
-        var tabs = C.tabs({
-            value: this.block,
-            tabs: blocks.map(function (block) {
-                return {
-                    id: block.key,
-                    title: block.name,
-                    render: function (panel) {
-                        var group = self.config.groupFor
-                            ? self.config.groupFor(self.target, block.key)
-                            : self.target.properties[block.key];
-                        self.renderGroup(group, panel, C);
-                    },
-                };
-            }),
-            onChange: function (id) { self.block = id; },
-        });
-        section.body.appendChild(tabs.element);
-        return section;
-    };
+        this.nodes = { presets: presets, palettes: palettes, strip: strip, systems: systems, time: time, maximize: maximize };
+        this.refreshAll();
+        this.timer = setInterval(function () { self.sync(); }, SYNC_MS);
+        sessions[this.id] = this;
 
-    Session.prototype.renderGroup = function (group, panel, C) {
-        if (!group) return;
-        var self = this;
-        Object.keys(group).forEach(function (key) {
-            var property = group[key];
-            if (!(property instanceof PZ.property)) return;
-            if (property.definition && property.definition.visible === false) return;
-            self.renderProperty(property, panel, C);
-        });
-    };
-
-    Session.prototype.renderProperty = function (property, panel, C) {
-        var self = this;
-        var def = property.definition || {};
-        var label = def.name || "";
-        var types = PZ.property.type;
-
-        if (property.objects && property.objects.length) {
-            if (def.type === types.COLOR) {
-                this.renderColor(property, panel, C);
-            } else {
-                property.objects.forEach(function (child) { self.renderProperty(child, panel, C); });
-            }
-            return;
-        }
-
-        if (def.type === types.NUMBER) {
-            var edit = propertyEditor(property);
-            var number = C.number({
-                label: label,
-                value: property.get(frame()),
-                min: def.min,
-                max: def.max,
-                step: def.step || 1,
-                onInput: edit.input,
-                onChange: edit.change,
-            });
-            panel.appendChild(number.element);
-            this.track(number, function () { return property.get(frame()); });
-        } else if (def.type === types.OPTION) {
-            var items = String(def.items || "").split(";").map(function (text, index) {
-                return { value: String(index), label: text };
-            });
-            var select = C.select({
-                label: label,
-                value: String(Math.round(property.get(frame()))),
-                options: items,
-                onChange: function (value) { commitEdit(property, Number(value)); },
-            });
-            panel.appendChild(select.element);
-            this.track(select, function () { return String(Math.round(property.get(frame()))); });
-        } else if (def.type === types.TEXT) {
-            panel.appendChild(C.text({
-                label: label,
-                value: property.get(frame()),
-                onChange: function (value) { commitEdit(property, value); },
-            }).element);
-        } else {
-            var current = property.get(frame());
-            var summary = typeof current === "string" && current ? current : "none";
-            if (def.type === types.ASSET && current) {
-                var project = T.findParent(this.root, PZ.project);
-                var asset = project && project.assets && project.assets.load(current);
-                summary = asset && (asset.name || asset.file?.name || asset.filename) || "Assigned asset";
-                if (asset) project.assets.unload(asset);
-            }
-            panel.appendChild(C.note(label + ": " + summary + ". Assign curves, gradients and assets in the Objects panel.").element);
-        }
-    };
-
-    Session.prototype.renderColor = function (group, panel, C) {
-        var children = group.objects;
-        var before = null;
-        var read = function () {
-            return rgbToHex(children.map(function (child) { return child.get(frame()); }));
+        return function dispose() {
+            clearInterval(self.timer);
+            self.timer = 0;
+            if (sessions[self.id] === self) delete sessions[self.id];
+            if (self.view) self.view.dispose();
+            self.view = null;
+            self.nodes = null;
         };
-        var control = C.color({
-            label: group.definition.name || "Color",
-            value: read(),
-            onInput: function (hex) {
-                var rgb = hexToRgb(hex);
-                if (!before) before = children.map(snapshot);
-                children.forEach(function (child, i) { child.set(rgb[i], frame()); });
-            },
-            onChange: function (hex) {
-                var rgb = hexToRgb(hex);
-                var old = before || children.map(snapshot);
-                before = null;
-                operate(function () {
-                    children.forEach(function (child, i) {
-                        if (!sameValue(old[i], rgb[i])) recordSetValue(child, rgb[i], old[i]);
-                    });
-                });
-            },
-        });
-        panel.appendChild(control.element);
-        this.track(control, read);
     };
 
-    // Builds the window content for one object and returns the teardown.
-    function mountDesigner(root, config, body, win) {
-        var session = new Session(root, config, body, win);
-        session.target = session.targets()[0] || root;
-        session.rebuild();
-        session.timer = setInterval(function () { session.refresh(); }, REFRESH_MS);
-        return {
-            rebuild: function () { session.rebuild(); },
-            dispose: function () {
-                clearInterval(session.timer);
-                session.tracked = [];
-            },
-        };
+    var sessions = {};
+    var keys = typeof WeakMap === "function" ? new WeakMap() : null;
+    var nextKey = 1;
+
+    function configFor(root) {
+        if (!root) return null;
+        return root.constructor && root.constructor.designer ? root.constructor.designer : null;
     }
 
     function windowIdFor(root) {
-        if (!root.__trapcodeDesignerKey) root.__trapcodeDesignerKey = nextKey++;
-        return WINDOW_PREFIX + root.__trapcodeDesignerKey;
+        var key = keys ? keys.get(root) : root.__trapcodeDesignerKey;
+        if (!key) {
+            key = nextKey++;
+            if (keys) keys.set(root, key);
+            else root.__trapcodeDesignerKey = key;
+        }
+        return WINDOW_ID_PREFIX + key;
     }
 
     var designer = {
-        current: null,
-        configs: CONFIGS,
+        ui: null,
+        skinCss: CSS,
+    };
+
+    // Binds the window kit of one plugin module. Returns the unbind function.
+    designer.bind = function (ui) {
+        designer.ui = ui || null;
+        return function unbind() {
+            if (designer.ui === ui) designer.ui = null;
+        };
     };
 
     designer.openFirst = function (kind) {
@@ -493,57 +538,34 @@ var PZ = PZ || {};
         return found;
     };
 
+    // Opens the designer window of one object, or focuses it when it is open.
     designer.open = function (root) {
         var config = configFor(root);
-        if (!config) return null;
-        if (config.customOpen) {
-            config.customOpen(root, designer);
-            return null;
-        }
-        var host = ui();
-        if (!host || typeof host.openWindow !== "function") return null;
-
+        var ui = designer.ui;
+        if (!config || !ui || typeof ui.openWindow !== "function") return null;
         var id = windowIdFor(root);
-        var handle = handles[id];
-        if (handle && handle.win && handle.win.isOpen()) {
-            handle.win.focus();
-            handle.refresh();
-            designer.current = handle;
-            return handle.win;
+        var existing = typeof ui.getWindow === "function" ? ui.getWindow(id) : null;
+        if (existing && existing.isOpen()) {
+            existing.focus();
+            if (sessions[id]) sessions[id].sync();
+            return existing;
         }
-
-        handle = { root: root, win: null, refresh: function () {}, close: function () {} };
-        handles[id] = handle;
-        var name = root.properties && root.properties.name ? root.properties.name.get() : "";
-        var win = host.openWindow({
+        var session = new Session(ui, id, root, config);
+        return ui.openWindow({
             id: id,
             title: config.title || "Trapcode Designer",
-            subtitle: name || "",
-            persistKey: "trapcode-designer:" + String(config.title || "designer").toLowerCase().replace(/[^a-z0-9]+/g, "-"),
-            width: 620,
-            height: 560,
-            minWidth: 480,
-            minHeight: 260,
+            persistKey: "designer",
+            placement: "center",
+            width: 1060,
+            height: 600,
+            minWidth: 760,
+            minHeight: 420,
+            skin: SKIN,
+            chrome: "custom",
             className: "trapcode-designer-window",
-            mount: function (body, win) {
-                var session = mountDesigner(root, config, body, win);
-                handle.refresh = session.rebuild;
-                return session.dispose;
-            },
             isValid: function () { return root.parent != null; },
+            mount: function (body, win) { return session.mount(body, win); },
         });
-        if (!win) {
-            delete handles[id];
-            return null;
-        }
-        handle.win = win;
-        handle.close = function () { win.close(); };
-        win.onClose(function () {
-            if (handles[id] === handle) delete handles[id];
-            if (designer.current === handle) designer.current = null;
-        });
-        designer.current = handle;
-        return win;
     };
 
     designer.registerConfig = function (cls, config) {
