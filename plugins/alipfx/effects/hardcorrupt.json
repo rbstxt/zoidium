@@ -1,7 +1,7 @@
 {
   "type": 1,
   "properties": {
-    "name": "A_HalfDots",
+    "name": "HardCorrupt",
     "enabled": {
       "animated": false,
       "keyframes": [
@@ -31,65 +31,10 @@
         "type": 0
       },
       "properties": {
-        "name": "Composite"
+        "name": "time"
       },
-      "animated": false,
-      "keyframes": [
-        {
-          "value": 0,
-          "frame": 0,
-          "tween": 1,
-          "controlPoints": [
-            [
-              -10,
-              0
-            ],
-            [
-              10,
-              0
-            ]
-          ]
-        }
-      ]
-    },
-    {
-      "type": {
-        "custom": true,
-        "dynamic": true,
-        "type": 0
-      },
-      "properties": {
-        "name": "Source_Map"
-      },
-      "animated": false,
-      "keyframes": [
-        {
-          "value": 0,
-          "frame": 0,
-          "tween": 1,
-          "controlPoints": [
-            [
-              -10,
-              0
-            ],
-            [
-              10,
-              0
-            ]
-          ]
-        }
-      ]
-    },
-    {
-      "type": {
-        "custom": true,
-        "dynamic": true,
-        "type": 0
-      },
-      "properties": {
-        "name": "Dot_Shape"
-      },
-      "animated": false,
+      "expression": "time",
+      "animated": "time",
       "keyframes": [
         {
           "value": 0,
@@ -142,7 +87,7 @@
         "type": 4
       },
       "properties": {
-        "name": "Mix Dots"
+        "name": "Corruption"
       },
       "objects": [
         {
@@ -214,7 +159,119 @@
         "type": 0
       },
       "properties": {
-        "name": "Shape_1"
+        "name": "Enable"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 1,
+          "frame": 0,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Block_Size"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 16,
+          "frame": 0,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Corrupt_Amount"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 40,
+          "frame": 0,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Displacement_X"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 80,
+          "frame": 0,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Displacement_Y"
       },
       "animated": false,
       "keyframes": [
@@ -242,7 +299,7 @@
         "type": 0
       },
       "properties": {
-        "name": "Shape_2"
+        "name": "Block_Jitter"
       },
       "animated": false,
       "keyframes": [
@@ -270,7 +327,7 @@
         "type": 0
       },
       "properties": {
-        "name": "Shape_3"
+        "name": "Block_Shape"
       },
       "animated": false,
       "keyframes": [
@@ -298,7 +355,35 @@
         "type": 0
       },
       "properties": {
-        "name": "Shape_4"
+        "name": "Block_Aspect"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 1,
+          "frame": 0,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Pixelate_Blocks"
       },
       "animated": false,
       "keyframes": [
@@ -322,194 +407,11 @@
     {
       "type": {
         "custom": true,
-        "group": true,
-        "dynamic": true,
-        "objects": [
-          {
-            "dynamic": true,
-            "name": "R",
-            "type": 0,
-            "value": 1,
-            "min": 0,
-            "max": 1
-          },
-          {
-            "dynamic": true,
-            "name": "G",
-            "type": 0,
-            "value": 1,
-            "min": 0,
-            "max": 1
-          },
-          {
-            "dynamic": true,
-            "name": "B",
-            "type": 0,
-            "value": 1,
-            "min": 0,
-            "max": 1
-          }
-        ],
-        "type": 4
-      },
-      "properties": {
-        "name": "Fill_Color"
-      },
-      "objects": [
-        {
-          "animated": false,
-          "keyframes": [
-            {
-              "value": 1,
-              "frame": 0,
-              "tween": 1,
-              "controlPoints": [
-                [
-                  -10,
-                  0
-                ],
-                [
-                  10,
-                  0
-                ]
-              ]
-            }
-          ]
-        },
-        {
-          "animated": false,
-          "keyframes": [
-            {
-              "value": 1,
-              "frame": 0,
-              "tween": 1,
-              "controlPoints": [
-                [
-                  -10,
-                  0
-                ],
-                [
-                  10,
-                  0
-                ]
-              ]
-            }
-          ]
-        },
-        {
-          "animated": false,
-          "keyframes": [
-            {
-              "value": 1,
-              "frame": 0,
-              "tween": 1,
-              "controlPoints": [
-                [
-                  -10,
-                  0
-                ],
-                [
-                  10,
-                  0
-                ]
-              ]
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "type": {
-        "custom": true,
         "dynamic": true,
         "type": 0
       },
       "properties": {
-        "name": "Dot_Size"
-      },
-      "animated": false,
-      "keyframes": [
-        {
-          "value": 20,
-          "frame": 0,
-          "tween": 1,
-          "controlPoints": [
-            [
-              -10,
-              0
-            ],
-            [
-              10,
-              0
-            ]
-          ]
-        }
-      ]
-    },
-    {
-      "type": {
-        "custom": true,
-        "dynamic": true,
-        "type": 0
-      },
-      "properties": {
-        "name": "Grid_Spacing"
-      },
-      "animated": false,
-      "keyframes": [
-        {
-          "value": 47.7,
-          "frame": 0,
-          "tween": 1,
-          "controlPoints": [
-            [
-              -10,
-              0
-            ],
-            [
-              10,
-              0
-            ]
-          ]
-        }
-      ]
-    },
-    {
-      "type": {
-        "custom": true,
-        "dynamic": true,
-        "type": 0
-      },
-      "properties": {
-        "name": "Grid_Angle"
-      },
-      "animated": false,
-      "keyframes": [
-        {
-          "value": -180,
-          "frame": 0,
-          "tween": 1,
-          "controlPoints": [
-            [
-              -10,
-              0
-            ],
-            [
-              10,
-              0
-            ]
-          ]
-        }
-      ]
-    },
-    {
-      "type": {
-        "custom": true,
-        "dynamic": true,
-        "type": 0
-      },
-      "properties": {
-        "name": "Dots_Angle"
+        "name": "Edge_Decay"
       },
       "animated": false,
       "keyframes": [
@@ -533,110 +435,11 @@
     {
       "type": {
         "custom": true,
-        "group": true,
-        "dynamic": true,
-        "objects": [
-          {
-            "dynamic": true,
-            "name": "R",
-            "type": 0,
-            "value": 1,
-            "min": 0,
-            "max": 1
-          },
-          {
-            "dynamic": true,
-            "name": "G",
-            "type": 0,
-            "value": 1,
-            "min": 0,
-            "max": 1
-          },
-          {
-            "dynamic": true,
-            "name": "B",
-            "type": 0,
-            "value": 1,
-            "min": 0,
-            "max": 1
-          }
-        ],
-        "type": 4
-      },
-      "properties": {
-        "name": "Random Color Dots"
-      },
-      "objects": [
-        {
-          "animated": false,
-          "keyframes": [
-            {
-              "value": 1,
-              "frame": 0,
-              "tween": 1,
-              "controlPoints": [
-                [
-                  -10,
-                  0
-                ],
-                [
-                  10,
-                  0
-                ]
-              ]
-            }
-          ]
-        },
-        {
-          "animated": false,
-          "keyframes": [
-            {
-              "value": 1,
-              "frame": 0,
-              "tween": 1,
-              "controlPoints": [
-                [
-                  -10,
-                  0
-                ],
-                [
-                  10,
-                  0
-                ]
-              ]
-            }
-          ]
-        },
-        {
-          "animated": false,
-          "keyframes": [
-            {
-              "value": 1,
-              "frame": 0,
-              "tween": 1,
-              "controlPoints": [
-                [
-                  -10,
-                  0
-                ],
-                [
-                  10,
-                  0
-                ]
-              ]
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "type": {
-        "custom": true,
         "dynamic": true,
         "type": 0
       },
       "properties": {
-        "name": "Enable_Random_Color"
+        "name": "Global_Pixelate"
       },
       "animated": false,
       "keyframes": [
@@ -660,902 +463,11 @@
     {
       "type": {
         "custom": true,
-        "group": true,
-        "dynamic": true,
-        "objects": [
-          {
-            "dynamic": true,
-            "name": "R",
-            "type": 0,
-            "value": 1,
-            "min": 0,
-            "max": 1
-          },
-          {
-            "dynamic": true,
-            "name": "G",
-            "type": 0,
-            "value": 1,
-            "min": 0,
-            "max": 1
-          },
-          {
-            "dynamic": true,
-            "name": "B",
-            "type": 0,
-            "value": 1,
-            "min": 0,
-            "max": 1
-          }
-        ],
-        "type": 4
-      },
-      "properties": {
-        "name": "Color Gradient"
-      },
-      "objects": [
-        {
-          "animated": false,
-          "keyframes": [
-            {
-              "value": 1,
-              "frame": 0,
-              "tween": 1,
-              "controlPoints": [
-                [
-                  -10,
-                  0
-                ],
-                [
-                  10,
-                  0
-                ]
-              ]
-            }
-          ]
-        },
-        {
-          "animated": false,
-          "keyframes": [
-            {
-              "value": 1,
-              "frame": 0,
-              "tween": 1,
-              "controlPoints": [
-                [
-                  -10,
-                  0
-                ],
-                [
-                  10,
-                  0
-                ]
-              ]
-            }
-          ]
-        },
-        {
-          "animated": false,
-          "keyframes": [
-            {
-              "value": 1,
-              "frame": 0,
-              "tween": 1,
-              "controlPoints": [
-                [
-                  -10,
-                  0
-                ],
-                [
-                  10,
-                  0
-                ]
-              ]
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "type": {
-        "custom": true,
-        "group": true,
-        "dynamic": true,
-        "objects": [
-          {
-            "dynamic": true,
-            "name": "R",
-            "type": 0,
-            "value": 1,
-            "min": 0,
-            "max": 1
-          },
-          {
-            "dynamic": true,
-            "name": "G",
-            "type": 0,
-            "value": 1,
-            "min": 0,
-            "max": 1
-          },
-          {
-            "dynamic": true,
-            "name": "B",
-            "type": 0,
-            "value": 1,
-            "min": 0,
-            "max": 1
-          }
-        ],
-        "type": 4
-      },
-      "properties": {
-        "name": "Color_1"
-      },
-      "objects": [
-        {
-          "animated": false,
-          "keyframes": [
-            {
-              "value": 1,
-              "frame": 0,
-              "tween": 1,
-              "controlPoints": [
-                [
-                  -10,
-                  0
-                ],
-                [
-                  10,
-                  0
-                ]
-              ]
-            }
-          ]
-        },
-        {
-          "animated": false,
-          "keyframes": [
-            {
-              "value": 0.3505334869059151,
-              "frame": 0,
-              "tween": 1,
-              "controlPoints": [
-                [
-                  -10,
-                  0
-                ],
-                [
-                  10,
-                  0
-                ]
-              ]
-            }
-          ]
-        },
-        {
-          "animated": false,
-          "keyframes": [
-            {
-              "value": 0.3505334869059151,
-              "frame": 0,
-              "tween": 1,
-              "controlPoints": [
-                [
-                  -10,
-                  0
-                ],
-                [
-                  10,
-                  0
-                ]
-              ]
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "type": {
-        "custom": true,
-        "group": true,
-        "dynamic": true,
-        "objects": [
-          {
-            "dynamic": true,
-            "name": "R",
-            "type": 0,
-            "value": 1,
-            "min": 0,
-            "max": 1
-          },
-          {
-            "dynamic": true,
-            "name": "G",
-            "type": 0,
-            "value": 1,
-            "min": 0,
-            "max": 1
-          },
-          {
-            "dynamic": true,
-            "name": "B",
-            "type": 0,
-            "value": 1,
-            "min": 0,
-            "max": 1
-          }
-        ],
-        "type": 4
-      },
-      "properties": {
-        "name": "Color_2"
-      },
-      "objects": [
-        {
-          "animated": false,
-          "keyframes": [
-            {
-              "value": 1,
-              "frame": 0,
-              "tween": 1,
-              "controlPoints": [
-                [
-                  -10,
-                  0
-                ],
-                [
-                  10,
-                  0
-                ]
-              ]
-            }
-          ]
-        },
-        {
-          "animated": false,
-          "keyframes": [
-            {
-              "value": 0.7995111613254092,
-              "frame": 0,
-              "tween": 1,
-              "controlPoints": [
-                [
-                  -10,
-                  0
-                ],
-                [
-                  10,
-                  0
-                ]
-              ]
-            }
-          ]
-        },
-        {
-          "animated": false,
-          "keyframes": [
-            {
-              "value": 0.3985334839762278,
-              "frame": 0,
-              "tween": 1,
-              "controlPoints": [
-                [
-                  -10,
-                  0
-                ],
-                [
-                  10,
-                  0
-                ]
-              ]
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "type": {
-        "custom": true,
-        "group": true,
-        "dynamic": true,
-        "objects": [
-          {
-            "dynamic": true,
-            "name": "R",
-            "type": 0,
-            "value": 1,
-            "min": 0,
-            "max": 1
-          },
-          {
-            "dynamic": true,
-            "name": "G",
-            "type": 0,
-            "value": 1,
-            "min": 0,
-            "max": 1
-          },
-          {
-            "dynamic": true,
-            "name": "B",
-            "type": 0,
-            "value": 1,
-            "min": 0,
-            "max": 1
-          }
-        ],
-        "type": 4
-      },
-      "properties": {
-        "name": "Color_3"
-      },
-      "objects": [
-        {
-          "animated": false,
-          "keyframes": [
-            {
-              "value": 1,
-              "frame": 0,
-              "tween": 1,
-              "controlPoints": [
-                [
-                  -10,
-                  0
-                ],
-                [
-                  10,
-                  0
-                ]
-              ]
-            }
-          ]
-        },
-        {
-          "animated": false,
-          "keyframes": [
-            {
-              "value": 1,
-              "frame": 0,
-              "tween": 1,
-              "controlPoints": [
-                [
-                  -10,
-                  0
-                ],
-                [
-                  10,
-                  0
-                ]
-              ]
-            }
-          ]
-        },
-        {
-          "animated": false,
-          "keyframes": [
-            {
-              "value": 0.45853348031411867,
-              "frame": 0,
-              "tween": 1,
-              "controlPoints": [
-                [
-                  -10,
-                  0
-                ],
-                [
-                  10,
-                  0
-                ]
-              ]
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "type": {
-        "custom": true,
-        "group": true,
-        "dynamic": true,
-        "objects": [
-          {
-            "dynamic": true,
-            "name": "R",
-            "type": 0,
-            "value": 1,
-            "min": 0,
-            "max": 1
-          },
-          {
-            "dynamic": true,
-            "name": "G",
-            "type": 0,
-            "value": 1,
-            "min": 0,
-            "max": 1
-          },
-          {
-            "dynamic": true,
-            "name": "B",
-            "type": 0,
-            "value": 1,
-            "min": 0,
-            "max": 1
-          }
-        ],
-        "type": 4
-      },
-      "properties": {
-        "name": "Color_4"
-      },
-      "objects": [
-        {
-          "animated": false,
-          "keyframes": [
-            {
-              "value": 0.8088444940890812,
-              "frame": 0,
-              "tween": 1,
-              "controlPoints": [
-                [
-                  -10,
-                  0
-                ],
-                [
-                  10,
-                  0
-                ]
-              ]
-            }
-          ]
-        },
-        {
-          "animated": false,
-          "keyframes": [
-            {
-              "value": 1,
-              "frame": 0,
-              "tween": 1,
-              "controlPoints": [
-                [
-                  -10,
-                  0
-                ],
-                [
-                  10,
-                  0
-                ]
-              ]
-            }
-          ]
-        },
-        {
-          "animated": false,
-          "keyframes": [
-            {
-              "value": 0.4265334822672435,
-              "frame": 0,
-              "tween": 1,
-              "controlPoints": [
-                [
-                  -10,
-                  0
-                ],
-                [
-                  10,
-                  0
-                ]
-              ]
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "type": {
-        "custom": true,
-        "group": true,
-        "dynamic": true,
-        "objects": [
-          {
-            "dynamic": true,
-            "name": "R",
-            "type": 0,
-            "value": 1,
-            "min": 0,
-            "max": 1
-          },
-          {
-            "dynamic": true,
-            "name": "G",
-            "type": 0,
-            "value": 1,
-            "min": 0,
-            "max": 1
-          },
-          {
-            "dynamic": true,
-            "name": "B",
-            "type": 0,
-            "value": 1,
-            "min": 0,
-            "max": 1
-          }
-        ],
-        "type": 4
-      },
-      "properties": {
-        "name": "Color_5"
-      },
-      "objects": [
-        {
-          "animated": false,
-          "keyframes": [
-            {
-              "value": 0.6496889862250375,
-              "frame": 0,
-              "tween": 1,
-              "controlPoints": [
-                [
-                  -10,
-                  0
-                ],
-                [
-                  10,
-                  0
-                ]
-              ]
-            }
-          ]
-        },
-        {
-          "animated": false,
-          "keyframes": [
-            {
-              "value": 1,
-              "frame": 0,
-              "tween": 1,
-              "controlPoints": [
-                [
-                  -10,
-                  0
-                ],
-                [
-                  10,
-                  0
-                ]
-              ]
-            }
-          ]
-        },
-        {
-          "animated": false,
-          "keyframes": [
-            {
-              "value": 0.4745334793375562,
-              "frame": 0,
-              "tween": 1,
-              "controlPoints": [
-                [
-                  -10,
-                  0
-                ],
-                [
-                  10,
-                  0
-                ]
-              ]
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "type": {
-        "custom": true,
-        "group": true,
-        "dynamic": true,
-        "objects": [
-          {
-            "dynamic": true,
-            "name": "R",
-            "type": 0,
-            "value": 1,
-            "min": 0,
-            "max": 1
-          },
-          {
-            "dynamic": true,
-            "name": "G",
-            "type": 0,
-            "value": 1,
-            "min": 0,
-            "max": 1
-          },
-          {
-            "dynamic": true,
-            "name": "B",
-            "type": 0,
-            "value": 1,
-            "min": 0,
-            "max": 1
-          }
-        ],
-        "type": 4
-      },
-      "properties": {
-        "name": "Color_6"
-      },
-      "objects": [
-        {
-          "animated": false,
-          "keyframes": [
-            {
-              "value": 0.4945334781168531,
-              "frame": 0,
-              "tween": 1,
-              "controlPoints": [
-                [
-                  -10,
-                  0
-                ],
-                [
-                  10,
-                  0
-                ]
-              ]
-            }
-          ]
-        },
-        {
-          "animated": false,
-          "keyframes": [
-            {
-              "value": 1,
-              "frame": 0,
-              "tween": 1,
-              "controlPoints": [
-                [
-                  -10,
-                  0
-                ],
-                [
-                  10,
-                  0
-                ]
-              ]
-            }
-          ]
-        },
-        {
-          "animated": false,
-          "keyframes": [
-            {
-              "value": 0.6630223187445687,
-              "frame": 0,
-              "tween": 1,
-              "controlPoints": [
-                [
-                  -10,
-                  0
-                ],
-                [
-                  10,
-                  0
-                ]
-              ]
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "type": {
-        "custom": true,
-        "group": true,
-        "dynamic": true,
-        "objects": [
-          {
-            "dynamic": true,
-            "name": "R",
-            "type": 0,
-            "value": 1,
-            "min": 0,
-            "max": 1
-          },
-          {
-            "dynamic": true,
-            "name": "G",
-            "type": 0,
-            "value": 1,
-            "min": 0,
-            "max": 1
-          },
-          {
-            "dynamic": true,
-            "name": "B",
-            "type": 0,
-            "value": 1,
-            "min": 0,
-            "max": 1
-          }
-        ],
-        "type": 4
-      },
-      "properties": {
-        "name": "Color_7"
-      },
-      "objects": [
-        {
-          "animated": false,
-          "keyframes": [
-            {
-              "value": 0.43053348202310293,
-              "frame": 0,
-              "tween": 1,
-              "controlPoints": [
-                [
-                  -10,
-                  0
-                ],
-                [
-                  10,
-                  0
-                ]
-              ]
-            }
-          ]
-        },
-        {
-          "animated": false,
-          "keyframes": [
-            {
-              "value": 1,
-              "frame": 0,
-              "tween": 1,
-              "controlPoints": [
-                [
-                  -10,
-                  0
-                ],
-                [
-                  10,
-                  0
-                ]
-              ]
-            }
-          ]
-        },
-        {
-          "animated": false,
-          "keyframes": [
-            {
-              "value": 1,
-              "frame": 0,
-              "tween": 1,
-              "controlPoints": [
-                [
-                  -10,
-                  0
-                ],
-                [
-                  10,
-                  0
-                ]
-              ]
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "type": {
-        "custom": true,
-        "group": true,
-        "dynamic": true,
-        "objects": [
-          {
-            "dynamic": true,
-            "name": "R",
-            "type": 0,
-            "value": 1,
-            "min": 0,
-            "max": 1
-          },
-          {
-            "dynamic": true,
-            "name": "G",
-            "type": 0,
-            "value": 1,
-            "min": 0,
-            "max": 1
-          },
-          {
-            "dynamic": true,
-            "name": "B",
-            "type": 0,
-            "value": 1,
-            "min": 0,
-            "max": 1
-          }
-        ],
-        "type": 4
-      },
-      "properties": {
-        "name": "Color_8"
-      },
-      "objects": [
-        {
-          "animated": false,
-          "keyframes": [
-            {
-              "value": 0.46653347982583737,
-              "frame": 0,
-              "tween": 1,
-              "controlPoints": [
-                [
-                  -10,
-                  0
-                ],
-                [
-                  10,
-                  0
-                ]
-              ]
-            }
-          ]
-        },
-        {
-          "animated": false,
-          "keyframes": [
-            {
-              "value": 0.8221778266086124,
-              "frame": 0,
-              "tween": 1,
-              "controlPoints": [
-                [
-                  -10,
-                  0
-                ],
-                [
-                  10,
-                  0
-                ]
-              ]
-            }
-          ]
-        },
-        {
-          "animated": false,
-          "keyframes": [
-            {
-              "value": 1,
-              "frame": 0,
-              "tween": 1,
-              "controlPoints": [
-                [
-                  -10,
-                  0
-                ],
-                [
-                  10,
-                  0
-                ]
-              ]
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "type": {
-        "custom": true,
         "dynamic": true,
         "type": 0
       },
       "properties": {
-        "name": "Random_Colors"
+        "name": "Global_Pix_Size"
       },
       "animated": false,
       "keyframes": [
@@ -1583,7 +495,7 @@
         "type": 0
       },
       "properties": {
-        "name": "Color_Hue"
+        "name": "Fill_Pattern"
       },
       "animated": false,
       "keyframes": [
@@ -1611,7 +523,1062 @@
         "type": 0
       },
       "properties": {
-        "name": "Color_Saturation"
+        "name": "Fill_Density"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 70,
+          "frame": 0,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "group": true,
+        "dynamic": true,
+        "objects": [
+          {
+            "dynamic": true,
+            "name": "R",
+            "type": 0,
+            "value": 1,
+            "min": 0,
+            "max": 1
+          },
+          {
+            "dynamic": true,
+            "name": "G",
+            "type": 0,
+            "value": 1,
+            "min": 0,
+            "max": 1
+          },
+          {
+            "dynamic": true,
+            "name": "B",
+            "type": 0,
+            "value": 1,
+            "min": 0,
+            "max": 1
+          }
+        ],
+        "type": 4
+      },
+      "properties": {
+        "name": "Luma Gating"
+      },
+      "objects": [
+        {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 1,
+              "frame": 0,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 1,
+              "frame": 0,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 1,
+              "frame": 0,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Threshold"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 0,
+          "frame": 0,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Feather"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 0,
+          "frame": 0,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Invert"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 0,
+          "frame": 0,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "group": true,
+        "dynamic": true,
+        "objects": [
+          {
+            "dynamic": true,
+            "name": "R",
+            "type": 0,
+            "value": 1,
+            "min": 0,
+            "max": 1
+          },
+          {
+            "dynamic": true,
+            "name": "G",
+            "type": 0,
+            "value": 1,
+            "min": 0,
+            "max": 1
+          },
+          {
+            "dynamic": true,
+            "name": "B",
+            "type": 0,
+            "value": 1,
+            "min": 0,
+            "max": 1
+          }
+        ],
+        "type": 4
+      },
+      "properties": {
+        "name": "RGB Split"
+      },
+      "objects": [
+        {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 1,
+              "frame": 0,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 1,
+              "frame": 0,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 1,
+              "frame": 0,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "RGB_Enable"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 1,
+          "frame": 0,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Red_Offset_X"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 0,
+          "frame": 0,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Red_Offset_Y"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 0,
+          "frame": 0,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Green_Offset_X"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 0,
+          "frame": 0,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Green_Offset_Y"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 0,
+          "frame": 0,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Blue_Offset_X"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 0,
+          "frame": 0,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Blue_Offset_Y"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 0,
+          "frame": 0,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "group": true,
+        "dynamic": true,
+        "objects": [
+          {
+            "dynamic": true,
+            "name": "R",
+            "type": 0,
+            "value": 1,
+            "min": 0,
+            "max": 1
+          },
+          {
+            "dynamic": true,
+            "name": "G",
+            "type": 0,
+            "value": 1,
+            "min": 0,
+            "max": 1
+          },
+          {
+            "dynamic": true,
+            "name": "B",
+            "type": 0,
+            "value": 1,
+            "min": 0,
+            "max": 1
+          }
+        ],
+        "type": 4
+      },
+      "properties": {
+        "name": "Noise"
+      },
+      "objects": [
+        {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 1,
+              "frame": 0,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 1,
+              "frame": 0,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 1,
+              "frame": 0,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Noise_Enable"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 1,
+          "frame": 0,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Luminance_Noise"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 0,
+          "frame": 0,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Chromatic_Noise"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 0,
+          "frame": 0,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "group": true,
+        "dynamic": true,
+        "objects": [
+          {
+            "dynamic": true,
+            "name": "R",
+            "type": 0,
+            "value": 1,
+            "min": 0,
+            "max": 1
+          },
+          {
+            "dynamic": true,
+            "name": "G",
+            "type": 0,
+            "value": 1,
+            "min": 0,
+            "max": 1
+          },
+          {
+            "dynamic": true,
+            "name": "B",
+            "type": 0,
+            "value": 1,
+            "min": 0,
+            "max": 1
+          }
+        ],
+        "type": 4
+      },
+      "properties": {
+        "name": "Temporal Freeze"
+      },
+      "objects": [
+        {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 1,
+              "frame": 0,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 1,
+              "frame": 0,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 1,
+              "frame": 0,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Temporal_Enable"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 0,
+          "frame": 0,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Freeze_Strength"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 60,
+          "frame": 0,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Motion_Threshold"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 30,
+          "frame": 0,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Temporal_Mode"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 0,
+          "frame": 0,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "group": true,
+        "dynamic": true,
+        "objects": [
+          {
+            "dynamic": true,
+            "name": "R",
+            "type": 0,
+            "value": 1,
+            "min": 0,
+            "max": 1
+          },
+          {
+            "dynamic": true,
+            "name": "G",
+            "type": 0,
+            "value": 1,
+            "min": 0,
+            "max": 1
+          },
+          {
+            "dynamic": true,
+            "name": "B",
+            "type": 0,
+            "value": 1,
+            "min": 0,
+            "max": 1
+          }
+        ],
+        "type": 4
+      },
+      "properties": {
+        "name": "Seed & Master"
+      },
+      "objects": [
+        {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 1,
+              "frame": 0,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 1,
+              "frame": 0,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 1,
+              "frame": 0,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Seed_Mode"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 0,
+          "frame": 0,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Seed"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 42,
+          "frame": 0,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Opacity"
       },
       "animated": false,
       "keyframes": [
@@ -1639,718 +1606,7 @@
         "type": 0
       },
       "properties": {
-        "name": "Color_Seed"
-      },
-      "animated": false,
-      "keyframes": [
-        {
-          "value": 0,
-          "frame": 0,
-          "tween": 1,
-          "controlPoints": [
-            [
-              -10,
-              0
-            ],
-            [
-              10,
-              0
-            ]
-          ]
-        }
-      ]
-    },
-    {
-      "type": {
-        "custom": true,
-        "group": true,
-        "dynamic": true,
-        "objects": [
-          {
-            "dynamic": true,
-            "name": "R",
-            "type": 0,
-            "value": 1,
-            "min": 0,
-            "max": 1
-          },
-          {
-            "dynamic": true,
-            "name": "G",
-            "type": 0,
-            "value": 1,
-            "min": 0,
-            "max": 1
-          },
-          {
-            "dynamic": true,
-            "name": "B",
-            "type": 0,
-            "value": 1,
-            "min": 0,
-            "max": 1
-          }
-        ],
-        "type": 4
-      },
-      "properties": {
-        "name": "Random Transform Dots"
-      },
-      "objects": [
-        {
-          "animated": false,
-          "keyframes": [
-            {
-              "value": 1,
-              "frame": 0,
-              "tween": 1,
-              "controlPoints": [
-                [
-                  -10,
-                  0
-                ],
-                [
-                  10,
-                  0
-                ]
-              ]
-            }
-          ]
-        },
-        {
-          "animated": false,
-          "keyframes": [
-            {
-              "value": 1,
-              "frame": 0,
-              "tween": 1,
-              "controlPoints": [
-                [
-                  -10,
-                  0
-                ],
-                [
-                  10,
-                  0
-                ]
-              ]
-            }
-          ]
-        },
-        {
-          "animated": false,
-          "keyframes": [
-            {
-              "value": 1,
-              "frame": 0,
-              "tween": 1,
-              "controlPoints": [
-                [
-                  -10,
-                  0
-                ],
-                [
-                  10,
-                  0
-                ]
-              ]
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "type": {
-        "custom": true,
-        "dynamic": true,
-        "type": 0
-      },
-      "properties": {
-        "name": "Scale"
-      },
-      "animated": false,
-      "keyframes": [
-        {
-          "value": 0,
-          "frame": 0,
-          "tween": 1,
-          "controlPoints": [
-            [
-              -10,
-              0
-            ],
-            [
-              10,
-              0
-            ]
-          ]
-        }
-      ]
-    },
-    {
-      "type": {
-        "custom": true,
-        "dynamic": true,
-        "type": 0
-      },
-      "properties": {
-        "name": "Rotate"
-      },
-      "animated": false,
-      "keyframes": [
-        {
-          "value": 0,
-          "frame": 0,
-          "tween": 1,
-          "controlPoints": [
-            [
-              -10,
-              0
-            ],
-            [
-              10,
-              0
-            ]
-          ]
-        }
-      ]
-    },
-    {
-      "type": {
-        "custom": true,
-        "dynamic": true,
-        "type": 0
-      },
-      "properties": {
-        "name": "Random_Seed"
-      },
-      "animated": false,
-      "keyframes": [
-        {
-          "value": 0,
-          "frame": 0,
-          "tween": 1,
-          "controlPoints": [
-            [
-              -10,
-              0
-            ],
-            [
-              10,
-              0
-            ]
-          ]
-        }
-      ]
-    },
-    {
-      "type": {
-        "custom": true,
-        "dynamic": true,
-        "type": 0
-      },
-      "properties": {
-        "name": "Invert_Pattern"
-      },
-      "animated": false,
-      "keyframes": [
-        {
-          "value": 0,
-          "frame": 0,
-          "tween": 1,
-          "controlPoints": [
-            [
-              -10,
-              0
-            ],
-            [
-              10,
-              0
-            ]
-          ]
-        }
-      ]
-    },
-    {
-      "type": {
-        "custom": true,
-        "group": true,
-        "dynamic": true,
-        "objects": [
-          {
-            "dynamic": true,
-            "name": "R",
-            "type": 0,
-            "value": 1,
-            "min": 0,
-            "max": 1
-          },
-          {
-            "dynamic": true,
-            "name": "G",
-            "type": 0,
-            "value": 1,
-            "min": 0,
-            "max": 1
-          },
-          {
-            "dynamic": true,
-            "name": "B",
-            "type": 0,
-            "value": 1,
-            "min": 0,
-            "max": 1
-          }
-        ],
-        "type": 4
-      },
-      "properties": {
-        "name": "Ramp Dots"
-      },
-      "objects": [
-        {
-          "animated": false,
-          "keyframes": [
-            {
-              "value": 1,
-              "frame": 0,
-              "tween": 1,
-              "controlPoints": [
-                [
-                  -10,
-                  0
-                ],
-                [
-                  10,
-                  0
-                ]
-              ]
-            }
-          ]
-        },
-        {
-          "animated": false,
-          "keyframes": [
-            {
-              "value": 1,
-              "frame": 0,
-              "tween": 1,
-              "controlPoints": [
-                [
-                  -10,
-                  0
-                ],
-                [
-                  10,
-                  0
-                ]
-              ]
-            }
-          ]
-        },
-        {
-          "animated": false,
-          "keyframes": [
-            {
-              "value": 1,
-              "frame": 0,
-              "tween": 1,
-              "controlPoints": [
-                [
-                  -10,
-                  0
-                ],
-                [
-                  10,
-                  0
-                ]
-              ]
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "type": {
-        "custom": true,
-        "dynamic": true,
-        "type": 0
-      },
-      "properties": {
-        "name": "Enable_Ramp"
-      },
-      "animated": false,
-      "keyframes": [
-        {
-          "value": 0,
-          "frame": 0,
-          "tween": 1,
-          "controlPoints": [
-            [
-              -10,
-              0
-            ],
-            [
-              10,
-              0
-            ]
-          ]
-        }
-      ]
-    },
-    {
-      "type": {
-        "custom": true,
-        "dynamic": true,
-        "type": 0
-      },
-      "properties": {
-        "name": "Ramp_Style"
-      },
-      "animated": false,
-      "keyframes": [
-        {
-          "value": 1,
-          "frame": 0,
-          "tween": 1,
-          "controlPoints": [
-            [
-              -10,
-              0
-            ],
-            [
-              10,
-              0
-            ]
-          ]
-        }
-      ]
-    },
-    {
-      "type": {
-        "custom": true,
-        "group": true,
-        "dynamic": true,
-        "objects": [
-          {
-            "dynamic": true,
-            "name": "X",
-            "type": 0,
-            "value": 0
-          },
-          {
-            "dynamic": true,
-            "name": "Y",
-            "type": 0,
-            "value": 0
-          }
-        ],
-        "type": 1
-      },
-      "properties": {
-        "name": "Start_Point"
-      },
-      "objects": [
-        {
-          "animated": false,
-          "keyframes": [
-            {
-              "value": 973.9,
-              "frame": 0,
-              "tween": 1,
-              "controlPoints": [
-                [
-                  -10,
-                  0
-                ],
-                [
-                  10,
-                  0
-                ]
-              ]
-            }
-          ]
-        },
-        {
-          "animated": false,
-          "keyframes": [
-            {
-              "value": 540,
-              "frame": 0,
-              "tween": 1,
-              "controlPoints": [
-                [
-                  -10,
-                  0
-                ],
-                [
-                  10,
-                  0
-                ]
-              ]
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "type": {
-        "custom": true,
-        "group": true,
-        "dynamic": true,
-        "objects": [
-          {
-            "dynamic": true,
-            "name": "X",
-            "type": 0,
-            "value": 0
-          },
-          {
-            "dynamic": true,
-            "name": "Y",
-            "type": 0,
-            "value": 0
-          }
-        ],
-        "type": 1
-      },
-      "properties": {
-        "name": "End_Point"
-      },
-      "objects": [
-        {
-          "animated": false,
-          "keyframes": [
-            {
-              "value": 1640,
-              "frame": 0,
-              "tween": 1,
-              "controlPoints": [
-                [
-                  -10,
-                  0
-                ],
-                [
-                  10,
-                  0
-                ]
-              ]
-            }
-          ]
-        },
-        {
-          "animated": false,
-          "keyframes": [
-            {
-              "value": 559.99,
-              "frame": 0,
-              "tween": 1,
-              "controlPoints": [
-                [
-                  -10,
-                  0
-                ],
-                [
-                  10,
-                  0
-                ]
-              ]
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "type": {
-        "custom": true,
-        "group": true,
-        "dynamic": true,
-        "objects": [
-          {
-            "dynamic": true,
-            "name": "R",
-            "type": 0,
-            "value": 1,
-            "min": 0,
-            "max": 1
-          },
-          {
-            "dynamic": true,
-            "name": "G",
-            "type": 0,
-            "value": 1,
-            "min": 0,
-            "max": 1
-          },
-          {
-            "dynamic": true,
-            "name": "B",
-            "type": 0,
-            "value": 1,
-            "min": 0,
-            "max": 1
-          }
-        ],
-        "type": 4
-      },
-      "properties": {
-        "name": "Row / Column Offset"
-      },
-      "objects": [
-        {
-          "animated": false,
-          "keyframes": [
-            {
-              "value": 1,
-              "frame": 0,
-              "tween": 1,
-              "controlPoints": [
-                [
-                  -10,
-                  0
-                ],
-                [
-                  10,
-                  0
-                ]
-              ]
-            }
-          ]
-        },
-        {
-          "animated": false,
-          "keyframes": [
-            {
-              "value": 1,
-              "frame": 0,
-              "tween": 1,
-              "controlPoints": [
-                [
-                  -10,
-                  0
-                ],
-                [
-                  10,
-                  0
-                ]
-              ]
-            }
-          ]
-        },
-        {
-          "animated": false,
-          "keyframes": [
-            {
-              "value": 1,
-              "frame": 0,
-              "tween": 1,
-              "controlPoints": [
-                [
-                  -10,
-                  0
-                ],
-                [
-                  10,
-                  0
-                ]
-              ]
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "type": {
-        "custom": true,
-        "dynamic": true,
-        "type": 0
-      },
-      "properties": {
-        "name": "Odd_Row"
-      },
-      "animated": false,
-      "keyframes": [
-        {
-          "value": 0,
-          "frame": 0,
-          "tween": 1,
-          "controlPoints": [
-            [
-              -10,
-              0
-            ],
-            [
-              10,
-              0
-            ]
-          ]
-        }
-      ]
-    },
-    {
-      "type": {
-        "custom": true,
-        "dynamic": true,
-        "type": 0
-      },
-      "properties": {
-        "name": "Even_Row"
-      },
-      "animated": false,
-      "keyframes": [
-        {
-          "value": 0,
-          "frame": 0,
-          "tween": 1,
-          "controlPoints": [
-            [
-              -10,
-              0
-            ],
-            [
-              10,
-              0
-            ]
-          ]
-        }
-      ]
-    },
-    {
-      "type": {
-        "custom": true,
-        "dynamic": true,
-        "type": 0
-      },
-      "properties": {
-        "name": "Odd_Column"
-      },
-      "animated": false,
-      "keyframes": [
-        {
-          "value": 0,
-          "frame": 0,
-          "tween": 1,
-          "controlPoints": [
-            [
-              -10,
-              0
-            ],
-            [
-              10,
-              0
-            ]
-          ]
-        }
-      ]
-    },
-    {
-      "type": {
-        "custom": true,
-        "dynamic": true,
-        "type": 0
-      },
-      "properties": {
-        "name": "Even_Column"
+        "name": "Output_Mode"
       },
       "animated": false,
       "keyframes": [

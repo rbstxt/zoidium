@@ -69,7 +69,7 @@ Zoidium-owned runtime files that may be edited:
 - `tools/validate-plugin-manifests.js` — manifest validation;
 - `tools/check-syntax.js` and `tools/verify.js` — local verification;
 - `CONTRIBUTING.md` and `ARCHITECTURE.md` — contributor and architecture notes;
-- `plugins/alipfx/` — the generated Afterzoid Shader Pack 4 plugin payload and
+- `plugins/alipfx/` — the generated Afterzoid Shader Pack 5 plugin payload and
   its rebuild metadata; keep the original source-pack dumps and CM3 runtime
   directories out of the repository;
 - `fonts/` — the locally bundled Source Code Pro UI font with its license notice;

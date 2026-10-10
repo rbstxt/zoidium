@@ -1,7 +1,7 @@
 {
   "type": 1,
   "properties": {
-    "name": "Deep Glow",
+    "name": "Double Slash Transition",
     "enabled": {
       "animated": false,
       "keyframes": [
@@ -31,63 +31,7 @@
         "type": 0
       },
       "properties": {
-        "name": "Radius"
-      },
-      "animated": false,
-      "keyframes": [
-        {
-          "value": 1000,
-          "frame": 0,
-          "tween": 1,
-          "controlPoints": [
-            [
-              -10,
-              0
-            ],
-            [
-              10,
-              0
-            ]
-          ]
-        }
-      ]
-    },
-    {
-      "type": {
-        "custom": true,
-        "dynamic": true,
-        "type": 0
-      },
-      "properties": {
-        "name": "Intensity"
-      },
-      "animated": false,
-      "keyframes": [
-        {
-          "value": 10,
-          "frame": 0,
-          "tween": 1,
-          "controlPoints": [
-            [
-              -10,
-              0
-            ],
-            [
-              10,
-              0
-            ]
-          ]
-        }
-      ]
-    },
-    {
-      "type": {
-        "custom": true,
-        "dynamic": true,
-        "type": 0
-      },
-      "properties": {
-        "name": "Threshold"
+        "name": "Progress"
       },
       "animated": false,
       "keyframes": [
@@ -115,7 +59,63 @@
         "type": 0
       },
       "properties": {
-        "name": "SoftKnee"
+        "name": "Slash1_Rotation"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": -25,
+          "frame": 0,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Slash2_Rotation"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 45,
+          "frame": 0,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Glow_Intensity"
       },
       "animated": false,
       "keyframes": [
@@ -139,286 +139,6 @@
     {
       "type": {
         "custom": true,
-        "dynamic": true,
-        "type": 0
-      },
-      "properties": {
-        "name": "Streaks"
-      },
-      "animated": false,
-      "keyframes": [
-        {
-          "value": 0,
-          "frame": 0,
-          "tween": 1,
-          "controlPoints": [
-            [
-              -10,
-              0
-            ],
-            [
-              10,
-              0
-            ]
-          ]
-        }
-      ]
-    },
-    {
-      "type": {
-        "custom": true,
-        "dynamic": true,
-        "type": 0
-      },
-      "properties": {
-        "name": "Chromatic"
-      },
-      "animated": false,
-      "keyframes": [
-        {
-          "value": 0,
-          "frame": 0,
-          "tween": 1,
-          "controlPoints": [
-            [
-              -10,
-              0
-            ],
-            [
-              10,
-              0
-            ]
-          ]
-        }
-      ]
-    },
-    {
-      "type": {
-        "custom": true,
-        "dynamic": true,
-        "type": 0
-      },
-      "properties": {
-        "name": "Saturation"
-      },
-      "animated": false,
-      "keyframes": [
-        {
-          "value": 0.8,
-          "frame": 0,
-          "tween": 1,
-          "controlPoints": [
-            [
-              -10,
-              0
-            ],
-            [
-              10,
-              0
-            ]
-          ]
-        }
-      ]
-    },
-    {
-      "type": {
-        "custom": true,
-        "dynamic": true,
-        "type": 0
-      },
-      "properties": {
-        "name": "Vignette"
-      },
-      "animated": false,
-      "keyframes": [
-        {
-          "value": 0.6,
-          "frame": 0,
-          "tween": 1,
-          "controlPoints": [
-            [
-              -10,
-              0
-            ],
-            [
-              10,
-              0
-            ]
-          ]
-        }
-      ]
-    },
-    {
-      "type": {
-        "custom": true,
-        "dynamic": true,
-        "type": 0
-      },
-      "properties": {
-        "name": "Gamma_Correction"
-      },
-      "animated": false,
-      "keyframes": [
-        {
-          "value": 0,
-          "frame": 0,
-          "tween": 1,
-          "controlPoints": [
-            [
-              -10,
-              0
-            ],
-            [
-              10,
-              0
-            ]
-          ]
-        }
-      ]
-    },
-    {
-      "type": {
-        "custom": true,
-        "dynamic": true,
-        "type": 0
-      },
-      "properties": {
-        "name": "Scene_Gamma"
-      },
-      "animated": false,
-      "keyframes": [
-        {
-          "value": 1,
-          "frame": 0,
-          "tween": 1,
-          "controlPoints": [
-            [
-              -10,
-              0
-            ],
-            [
-              10,
-              0
-            ]
-          ]
-        }
-      ]
-    },
-    {
-      "type": {
-        "custom": true,
-        "dynamic": true,
-        "type": 0
-      },
-      "properties": {
-        "name": "Aspect_Ratio"
-      },
-      "animated": false,
-      "keyframes": [
-        {
-          "value": 1,
-          "frame": 0,
-          "tween": 1,
-          "controlPoints": [
-            [
-              -10,
-              0
-            ],
-            [
-              10,
-              0
-            ]
-          ]
-        }
-      ]
-    },
-    {
-      "type": {
-        "custom": true,
-        "dynamic": true,
-        "type": 0
-      },
-      "properties": {
-        "name": "Aspect_Angle"
-      },
-      "animated": false,
-      "keyframes": [
-        {
-          "value": 0,
-          "frame": 0,
-          "tween": 1,
-          "controlPoints": [
-            [
-              -10,
-              0
-            ],
-            [
-              10,
-              0
-            ]
-          ]
-        }
-      ]
-    },
-    {
-      "type": {
-        "custom": true,
-        "dynamic": true,
-        "type": 0
-      },
-      "properties": {
-        "name": "Tint_Mode"
-      },
-      "animated": false,
-      "keyframes": [
-        {
-          "value": 0,
-          "frame": 0,
-          "tween": 1,
-          "controlPoints": [
-            [
-              -10,
-              0
-            ],
-            [
-              10,
-              0
-            ]
-          ]
-        }
-      ]
-    },
-    {
-      "type": {
-        "custom": true,
-        "dynamic": true,
-        "type": 0
-      },
-      "properties": {
-        "name": "Tint_Blend_Mode"
-      },
-      "animated": false,
-      "keyframes": [
-        {
-          "value": 0,
-          "frame": 0,
-          "tween": 1,
-          "controlPoints": [
-            [
-              -10,
-              0
-            ],
-            [
-              10,
-              0
-            ]
-          ]
-        }
-      ]
-    },
-    {
-      "type": {
-        "custom": true,
         "group": true,
         "dynamic": true,
         "objects": [
@@ -450,7 +170,7 @@
         "type": 4
       },
       "properties": {
-        "name": "Color_Inner"
+        "name": "Core_Color"
       },
       "objects": [
         {
@@ -477,7 +197,7 @@
           "animated": false,
           "keyframes": [
             {
-              "value": 0,
+              "value": 1,
               "frame": 0,
               "tween": 1,
               "controlPoints": [
@@ -497,7 +217,7 @@
           "animated": false,
           "keyframes": [
             {
-              "value": 0,
+              "value": 1,
               "frame": 0,
               "tween": 1,
               "controlPoints": [
@@ -549,7 +269,7 @@
         "type": 4
       },
       "properties": {
-        "name": "Color_Outer"
+        "name": "Glow_Color"
       },
       "objects": [
         {
@@ -576,7 +296,7 @@
           "animated": false,
           "keyframes": [
             {
-              "value": 0.5019607843137255,
+              "value": 1,
               "frame": 0,
               "tween": 1,
               "controlPoints": [
@@ -596,7 +316,7 @@
           "animated": false,
           "keyframes": [
             {
-              "value": 0,
+              "value": 1,
               "frame": 0,
               "tween": 1,
               "controlPoints": [

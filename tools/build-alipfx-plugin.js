@@ -8,6 +8,11 @@ const projectRoot = path.resolve(__dirname, "..");
 const outputRoot = path.join(projectRoot, "plugins", "alipfx");
 const descriptionsPath = path.join(outputRoot, "descriptions.json");
 
+const PACK_ID = "alipfx-shader-pack-4";
+const PACK_NAME = "Afterzoid Shader Pack 5";
+const PACK_CATEGORY = "ALIPFX · SHADER PACK 5";
+const PACK_VERSION = "7";
+
 if (!sourceRoot) {
   console.error("Usage: node tools/build-alipfx-plugin.js <shader-pack-directory>");
   process.exit(1);
@@ -32,6 +37,21 @@ function writeJson(filePath, value) {
   fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`);
 }
 
+function parseSourceFile(sourcePath) {
+  const raw = fs.readFileSync(sourcePath, "utf8");
+  try {
+    return JSON.parse(raw);
+  } catch (_firstError) {
+    // Some pack exports carry trailing junk after the top-level JSON value
+    // (observed: a stray backslash and quote). Strip trailing characters
+    // that can never end a JSON value and retry once.
+    let trimmed = raw.trimEnd();
+    while (trimmed.length > 0 && /['\\\s]/.test(trimmed[trimmed.length - 1])) {
+      trimmed = trimmed.slice(0, -1);
+    }
+    return JSON.parse(trimmed);
+  }
+}
 function descriptionFor(id, displayName) {
   const description = descriptions[id];
   if (typeof description !== "string" || !description.trim()) {
@@ -69,7 +89,7 @@ for (const sourcePath of sourceFiles) {
   let sourceObject;
 
   try {
-    sourceObject = JSON.parse(fs.readFileSync(sourcePath, "utf8"));
+    sourceObject = parseSourceFile(sourcePath);
   } catch (_error) {
     skipped.push(relativeSource);
     continue;
@@ -112,11 +132,12 @@ effects.sort((a, b) => a.name.localeCompare(b.name, "en"));
 
 const manifest = {
   schemaVersion: 1,
-  id: "alipfx-shader-pack-4",
-  name: "Afterzoid Shader Pack 4",
+  id: PACK_ID,
+  name: PACK_NAME,
   author: "AlipFX",
-  version: "4",
-  category: "ALIPFX · SHADER PACK 4",
+  version: PACK_VERSION,
+  kind: "shader-pack",
+  category: PACK_CATEGORY,
   description: "A collection of native Panzoid GLSL shader effects.",
   effectCount: effects.length,
   effects,
