@@ -619,34 +619,63 @@ var PZ = PZ || {};
         };
     }
 
-    // Parent emission: the most recent parent event born at or before the child birth.
-    // Returns the parent particle state at that time, or null when no live parent exists.
+    // Parent events that may be alive at time b, as a counted key range per
+    // emission run (continuous: one run; burst: one run per live cycle).
+    function simParentCandidates(parent, b) {
+        if (parent.behavior === 0) {
+            var hi = Math.floor(parent.cumAt(b)) - 1;
+            if (hi < 0) return [];
+            var lo = Math.max(0, Math.floor(parent.cumAt(b - parent.lifeBoundAt(b))) - 1);
+            return [{ first: lo, n: hi - lo + 1 }];
+        }
+        if (parent.behavior === 1) {
+            var count = parent.rowAtTime(0).count;
+            return count >= 1 ? [{ first: 0, n: count }] : [];
+        }
+        var runs = [];
+        var lb = parent.lifeBoundAt(b);
+        for (var c = parent.cycleAtOrBefore(b); c >= 0; c--) {
+            var info = parent.cycleInfo(c);
+            if (!info || info.count < 1) continue;
+            if (info.start + info.count / info.rate + lb < b) break;
+            var born = Math.min(Math.floor((b - info.start) * info.rate) + 1, info.count);
+            if (born > 0) runs.push({ first: c * SIM.CYCLE_STRIDE, n: born });
+        }
+        return runs;
+    }
+
+    // Parent emission: child events are dealt round-robin over every parent
+    // particle alive at the child birth, so each parent emits at the same rate
+    // and leaves a continuous trail along its own path (aux streaks). Returns
+    // that parent's state at the birth time, or null when no parent is alive.
+    var PARENT_PROBES = 8;
     function simParentSource(table, ev) {
         var parent = table.parentTable;
         if (!parent) return null;
         var b = ev.birth;
-        var key;
-        if (parent.behavior === 0) {
-            var k = Math.floor(parent.cumAt(b)) - 1;
-            if (k < 0) return null;
-            key = k;
-        } else if (parent.behavior === 1) {
-            var count = parent.rowAtTime(0).count;
-            if (count < 1) return null;
-            key = ev.key % count;
-        } else {
-            var c = parent.cycleAtOrBefore(b);
-            var info = parent.cycleInfo(c);
-            if (!info || info.count < 1) return null;
-            var i = Math.min(Math.floor((b - info.start) * info.rate), info.count - 1);
-            if (i < 0) return null;
-            key = c * SIM.CYCLE_STRIDE + i;
+        var runs = simParentCandidates(parent, b);
+        var total = 0;
+        for (var r = 0; r < runs.length; r++) total += runs[r].n;
+        if (total < 1) return null;
+        var start = ev.key % total;
+        for (var probe = 0; probe < Math.min(total, PARENT_PROBES); probe++) {
+            // Newest first, so a short probe skips parents that already died.
+            var slot = (start + probe) % total;
+            var key = -1;
+            for (var j = 0; j < runs.length; j++) {
+                if (slot < runs[j].n) {
+                    key = runs[j].first + runs[j].n - 1 - slot;
+                    break;
+                }
+                slot -= runs[j].n;
+            }
+            var pev = key >= 0 ? parent.eventFor(key) : null;
+            if (!pev || !(pev.birth <= b && b < pev.birth + pev.life)) continue;
+            var pspawn = simSpawn(parent, pev);
+            if (!pspawn) continue;
+            return simIntegrate(parent, pev, pspawn, b);
         }
-        var pev = parent.eventFor(key);
-        if (!pev || !(pev.birth <= b && b < pev.birth + pev.life)) return null;
-        var pspawn = simSpawn(parent, pev);
-        if (!pspawn) return null;
-        return simIntegrate(parent, pev, pspawn, b);
+        return null;
     }
 
     // Forces and motion for one fixed sub-step. Row values are sampled at the sub-step time.

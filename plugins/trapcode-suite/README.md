@@ -11,6 +11,8 @@ around CM3; it is not part of, and not endorsed by, Panzoid.
   fields, layer maps, audio reactors, and per-system presets (burst, fountain,
   snow). Streaks: velocity inherited from emitter motion, mass / air-resistance
   families, spin with orient-to-motion blending, motion-direction stretch.
+  Aux streaks: a system with Emit from parent on emits from every live particle
+  of its parent system, so each parent leaves its own trail.
 - **Trapcode Form** (type 11) — particle lattice (box, sphere, sphere grid,
   cylinder, circle, plane, 3D model, text/mask image) deformed by disperse,
   twist, spherical fields, a fractal field, fluid motion and kaleidospace
