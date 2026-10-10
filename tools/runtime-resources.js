@@ -43,6 +43,7 @@ const commonProjectEntries = [
 // colliding path.
 const protectedResourcePrefixes = [
   "index.html",
+  ".zoidium-source",
   cacheMetadataName,
   runtimeProfilesName,
   "404.html",
@@ -545,6 +546,32 @@ function getHeader(response, name) {
     : null;
 }
 
+function isChallengePage(bytes) {
+  return /Just a moment|challenge-platform/i.test(bytes.toString("utf8"));
+}
+
+function browserCheckError() {
+  return new Error("The CM3 source page is behind a browser check. See docs/cm3-resources.md for --page-html / --video-editor-html or ZOIDIUM_CM3_SNAPSHOT. No challenge bypass is attempted.");
+}
+
+async function savedPageFetch({ pageHtml, videoEditorHtml, sourcePageUrl, videoEditorSourcePageUrl, cacheRoot, fetchImpl = globalThis.fetch }) {
+  if (!pageHtml || !videoEditorHtml) throw new Error("Supply both --page-html and --video-editor-html");
+  const pages = new Map();
+  let metadata;
+  try { metadata = JSON.parse(await fs.promises.readFile(safeStagePath(cacheRoot, cacheMetadataName), "utf8")); } catch (_) {}
+  for (const [layout, file, url] of [["clipmaker", pageHtml, sourcePageUrl], ["videoeditor", videoEditorHtml, videoEditorSourcePageUrl]]) {
+    const bytes = await fs.promises.readFile(file);
+    if (isChallengePage(bytes)) throw browserCheckError();
+    try { discoverEditorEntryScript(bytes.toString("utf8"), url, layout); }
+    catch (_) { throw new Error(`Saved ${layout} page has no discoverable CM3 entry script. See docs/cm3-resources.md`); }
+    if (metadata?.profiles?.[layout]?.page?.sha256 === sha256(bytes)) {
+      console.log(`[Zoidium] saved ${layout} page is identical to the cached version`);
+    }
+    pages.set(normalizeSourcePageUrl(url), bytes);
+  }
+  return (url, options) => pages.has(url) ? Promise.resolve(new Response(pages.get(url), { headers: { "content-type": "text/html" } })) : fetchImpl(url, options);
+}
+
 // The configured timeout covers all attempts, response bodies, and backoff.
 async function fetchBytes(
   url,
@@ -587,6 +614,16 @@ async function fetchBytes(
         if (allowedDirectory && !new URL(finalUrl).pathname.startsWith(new URL(allowedDirectory).pathname)) {
           throw new Error(`CM3 resource redirect left the configured source directory: ${requestUrl} -> ${finalUrl}`);
         }
+        if (getHeader(response, "cf-mitigated") === "challenge") {
+          if (response.body && typeof response.body.cancel === "function") {
+            await response.body.cancel().catch(() => {});
+          }
+          throw browserCheckError();
+        }
+        if (response) {
+          bytes = Buffer.from(await response.arrayBuffer());
+          if (isChallengePage(bytes)) throw browserCheckError();
+        }
         if (!response || !response.ok) {
           const error = new Error(`HTTP ${response ? response.status : "unknown"} for ${requestUrl}`);
           error.retryable = Boolean(response && [408, 429, 500, 502, 503, 504].includes(response.status));
@@ -602,7 +639,7 @@ async function fetchBytes(
           }
           throw error;
         }
-        bytes = Buffer.from(await response.arrayBuffer());
+        bytes = bytes || Buffer.from(await response.arrayBuffer());
         return {
           bytes,
           contentType: getHeader(response, "content-type"),
@@ -1149,6 +1186,8 @@ async function buildResourceStage(
     normalizedVideoEditorSourcePageUrl
   );
 
+  await writeStageFile(resolvedStageRoot, ".zoidium-source/clipmaker.html", clipmakerPageResponse.bytes);
+  await writeStageFile(resolvedStageRoot, ".zoidium-source/videoeditor.html", videoEditorPageResponse.bytes);
   const sourceHtml = clipmakerPageResponse.bytes.toString("utf8");
   const videoEditorHtml = videoEditorPageResponse.bytes.toString("utf8");
   const clipmakerEntry = discoverEditorEntryScript(
@@ -1253,6 +1292,7 @@ function cacheInspection(valid, reason, metadata = null) {
 
 async function readRegularFile(root, relativePath) {
   const filePath = safeStagePath(root, relativePath);
+  await assertNoSymlinkComponents(root, filePath);
   let stat;
   try {
     stat = await fs.promises.lstat(filePath);
@@ -1374,6 +1414,16 @@ async function inspectResourceCache({
       }
     }
 
+    for (const layout of Object.keys(expectedProfiles)) {
+      const rawPath = `.zoidium-source/${layout}.html`;
+      if (pathExists(safeStagePath(resolvedCacheRoot, rawPath))) {
+        const raw = await readRegularFile(resolvedCacheRoot, rawPath);
+        const bytes = await fs.promises.readFile(raw.filePath);
+        if (bytes.length !== metadata.profiles[layout].page.bytes || sha256(bytes) !== metadata.profiles[layout].page.sha256) {
+          return cacheInspection(false, `Cached raw ${layout} page does not match metadata`);
+        }
+      }
+    }
     const paths = new Set();
     const sourceOrigin = new URL(normalizedSourcePageUrl).origin;
     for (const resource of metadata.resources) {
@@ -1508,6 +1558,9 @@ async function replaceDirectoryAtomically(sourceRoot, destinationRoot) {
 async function ensureResourceCache({
   cacheRoot = defaultResourceCacheRoot,
   force = false,
+  snapshotSource = process.env.ZOIDIUM_CM3_SNAPSHOT,
+  pageHtml = null,
+  videoEditorHtml = null,
   offline = false,
   sourcePageUrl = defaultSourcePage,
   videoEditorSourcePageUrl = defaultVideoEditorSourcePage,
@@ -1530,6 +1583,9 @@ async function ensureResourceCache({
       await refreshCachedProjectFiles(resolvedCacheRoot);
       return stageResultFromMetadata(inspection.metadata, resolvedCacheRoot, true);
     }
+    if (snapshotSource) {
+      return require("./cm3-snapshot").restoreSnapshot({ from: snapshotSource, cacheRoot: resolvedCacheRoot, sourcePageUrl: normalizedSourcePageUrl, videoEditorSourcePageUrl, fetchImpl });
+    }
     if (offline) {
       throw new Error(`CM3 resource cache is unavailable offline: ${inspection.reason}`);
     }
@@ -1538,6 +1594,9 @@ async function ensureResourceCache({
     throw new Error("--offline cannot be combined with --setup or --refresh");
   }
 
+  if (pageHtml || videoEditorHtml) {
+    fetchImpl = await savedPageFetch({ pageHtml, videoEditorHtml, sourcePageUrl: normalizedSourcePageUrl, videoEditorSourcePageUrl, cacheRoot: resolvedCacheRoot, fetchImpl });
+  }
   const cacheParent = path.dirname(resolvedCacheRoot);
   await fs.promises.mkdir(cacheParent, { recursive: true });
   const temporaryStage = await fs.promises.mkdtemp(
@@ -1610,11 +1669,15 @@ function parseCliArgs(argumentsList) {
     setup: false,
   };
   for (const argument of argumentsList) {
+    if (argument === "--") continue;
     if (argument === "--help" || argument === "-h") options.help = true;
     else if (argument === "--desktop") options.desktop = true;
     else if (argument === "--offline") options.offline = true;
     else if (argument === "--refresh") options.refresh = true;
     else if (argument === "--setup") options.setup = true;
+    else if (argument.startsWith("--from-snapshot=")) options.snapshot = argument.slice(16);
+    else if (argument.startsWith("--page-html=")) options.pageHtml = argument.slice(12);
+    else if (argument.startsWith("--video-editor-html=")) options.videoEditorHtml = argument.slice(20);
     else if (argument.startsWith("--output=")) options.output = argument.slice(9);
     else if (argument.startsWith("--source=")) options.source = argument.slice(9);
     else if (argument.startsWith("--video-editor-source=")) {
@@ -1622,7 +1685,12 @@ function parseCliArgs(argumentsList) {
     }
     else throw new Error(`Unknown option: ${argument}`);
   }
+  if (options.snapshot && (options.pageHtml || options.videoEditorHtml || options.refresh)) throw new Error("Snapshot restore cannot be combined with saved pages or --refresh");
+  if ((options.pageHtml || options.videoEditorHtml || options.snapshot) && !options.setup) throw new Error("Saved pages and --from-snapshot require --setup");
   if (options.refresh) options.setup = true;
+  if (Boolean(options.pageHtml) !== Boolean(options.videoEditorHtml)) {
+    throw new Error("Supply both --page-html and --video-editor-html");
+  }
   if (options.setup && options.output) {
     throw new Error("--setup/--refresh cannot be combined with --output");
   }
@@ -1649,6 +1717,11 @@ Options:
   --source=<url>        override ZOIDIUM_CM3_SOURCE_PAGE
   --video-editor-source=<url>
                         override ZOIDIUM_VIDEO_EDITOR_SOURCE_PAGE
+  --from-snapshot=<source> restore a local file, r2://bucket/key, or HTTPS snapshot
+  --page-html=<file>     import a browser-saved Clipmaker page with --setup
+  --video-editor-html=<file> import the saved Video Editor page as well
+  ZOIDIUM_CM3_SNAPSHOT   restore this snapshot when the cache is unavailable
+                        Explicit --setup/--refresh still fetches source pages.
   --help                show this help
 `);
 }
@@ -1664,11 +1737,15 @@ async function main() {
   const videoEditorSourcePageUrl =
     options.videoEditorSource || defaultVideoEditorSourcePage;
   if (options.setup) {
-    const result = await ensureResourceCache({
-      force: true,
-      sourcePageUrl,
-      videoEditorSourcePageUrl,
-    });
+    const result = options.snapshot
+      ? await require("./cm3-snapshot").restoreSnapshot({ from: options.snapshot, sourcePageUrl, videoEditorSourcePageUrl })
+      : await ensureResourceCache({
+          force: true,
+          pageHtml: options.pageHtml,
+          videoEditorHtml: options.videoEditorHtml,
+          sourcePageUrl,
+          videoEditorSourcePageUrl,
+        });
     console.log(
       `[Zoidium] CM3 resource cache ready at ${result.root} (${result.resources.length} resources)`
     );
@@ -1699,6 +1776,15 @@ if (require.main === module) {
 }
 
 module.exports = {
+  assertCacheRootSafe,
+  assertFetchedResourcePath,
+  buildResourceStage,
+  copyProjectFiles,
+  readRegularFile,
+  replaceDirectoryAtomically,
+  stageResultFromMetadata,
+  savedPageFetch,
+  parseCliArgs,
   cacheMetadataName,
   cacheSchemaVersion,
   defaultFetchTimeoutMs,

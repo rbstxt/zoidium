@@ -37,14 +37,27 @@ is not fetched from Panzoid. No other CM3 font files may be added there. Resourc
 be discovered from the configured source page, not maintained as a second copy
 in the repository.
 
-The only source-resource fetch path is `tools/runtime-resources.js`:
+The source-resource staging path is `tools/runtime-resources.js`:
 
-1. fetch the configured CM3 HTML page (Panzoid's Gen3 page by default);
+1. fetch the configured CM3 HTML pages (Panzoid's Gen3 pages by default), or
+   import both browser-saved source pages with `--setup --page-html=<file>
+   --video-editor-html=<file>`;
 2. discover same-origin CSS, JavaScript, and static references;
 3. write them to the Git-ignored cache and, when needed, a temporary or
    generated build stage;
 4. inject the Zoidium bootstrap into the staged `index.html`;
 5. serve/package the stage and clean it up when the local process exits.
+
+Private CM3 snapshots are another allowed input. `tools/cm3-snapshot.js` exports
+only CM3 cache files to a local file or private R2 bucket and restores them into
+the ignored cache after path, size, hash, and cache validation. It re-copies
+Zoidium-owned files from this checkout. Raw pages, when available, allow an
+offline rebuild against current staging code. Set `ZOIDIUM_CM3_SNAPSHOT` to a
+local file, `r2://bucket/key`, or HTTPS URL for builds without a valid cache.
+Explicit `--setup` or `--refresh` fetches upstream; `--setup
+--from-snapshot=<source>` explicitly restores a snapshot. Never store snapshots
+or raw pages in Git or GitHub. Never bypass a source-page browser check.
+See `docs/cm3-resources.md` for recovery and private snapshot configuration.
 
 The source page and graph are intentionally fetched only by the web server,
 desktop development startup, `pnpm run build:web`, or `pnpm run desktop:build`. A build

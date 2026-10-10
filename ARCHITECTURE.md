@@ -31,6 +31,30 @@ following:
 7. Loads the layout selected in Settings, aliases its editor instance to `CM`,
    and starts the Zoidium extension layer around it.
 
+The page responses may instead come from two browser-saved HTML files supplied
+with `--setup --page-html=<file> --video-editor-html=<file>`. The resource graph
+still comes from those pages. New caches retain the exact raw page bytes in
+`.zoidium-source/`, with hashes checked against profile metadata. Older schema 6
+caches without raw pages remain valid.
+
+`tools/cm3-snapshot.js` packages only the CM3 cache metadata, patched index,
+runtime profile map, declared resources, and available raw pages. A gzip stream
+holds a versioned JSON entry table followed by the entry bytes. Restore rejects
+unsafe or undeclared paths and verifies sizes and SHA-256 hashes before
+validating a temporary cache and replacing the target atomically. Zoidium files
+are copied from the current checkout. If cache validation or the current index
+patch requires a rebuild, raw pages and cached resources supply a closed offline
+fetch implementation; absent resources require a refreshed snapshot.
+
+When `ZOIDIUM_CM3_SNAPSHOT` is set, a missing or invalid cache is restored from
+that source instead of fetching upstream. Explicit setup and refresh still
+fetch upstream unless `--from-snapshot` or saved-page inputs are supplied.
+Snapshot transport supports local files, private R2 via S3 SigV4, and HTTPS
+with an optional bearer token. Snapshots and raw pages belong only in ignored
+runtime caches or private external storage, never Git or GitHub. Browser
+challenge responses fail without retries or bypass attempts. See
+`docs/cm3-resources.md` for configuration and recovery commands.
+
 The cache remains after a browser or development desktop process exits. A
 temporary packaging stage is removed after Electron Builder finishes.
 

@@ -63,6 +63,21 @@ pnpm run build:sprites
 from the configured source page, preserves the paths expected by CM3, patches
 the staged HTML, and copies Zoidium-owned files into the stage.
 
+For a pinned build without a valid cache, set `ZOIDIUM_CM3_SNAPSHOT` to a local
+snapshot file, `r2://bucket/key`, or HTTPS URL. Export a valid cache with
+`pnpm run cm3:export --output=<file|r2://bucket/key>` and restore it with
+`pnpm run cm3:restore --from=<source>`, or
+`node tools/runtime-resources.js --setup --from-snapshot=<source>`.
+Snapshots contain only CM3 cache files, never Zoidium project files. Keep them
+in private storage outside the repository and GitHub.
+
+Explicit `pnpm run setup` and `--refresh` still fetch upstream. To import pages
+saved through a browser, run `node tools/runtime-resources.js --setup
+--page-html=<clipmaker-file> --video-editor-html=<videoeditor-file>`. Other
+resources are fetched normally. Challenge pages are rejected; do not bypass
+the browser check. See `docs/cm3-resources.md` for recovery, R2 credentials,
+and optional `ZOIDIUM_CM3_SNAPSHOT_TOKEN` authentication for HTTPS snapshots.
+
 Do not commit CM3 HTML, JavaScript bundles, effects, materials, workers, WASM,
 shaders, textures, icons, favicons, or CM3 fonts. The separately licensed
 Source Code Pro font under `fonts/` is a Zoidium UI dependency and is allowed.
