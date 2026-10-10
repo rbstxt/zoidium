@@ -242,3 +242,88 @@ test("audio reactors are deterministic under shuffled frame order", () => {
   assert.equal(history.instance.material.uniforms.size.value, expectedSize);
   assert.equal(history.instance.material.uniforms.opacity.value, expectedOpacity);
 });
+
+function makeStringsForm() {
+  const { instance } = makeForm();
+  const base = instance.properties.base;
+  base.particlesX.set(6);
+  base.particlesY.set(6);
+  base.particlesZ.set(2);
+  base.stringEnabled.set(1);
+  return instance;
+}
+
+function stringIndex(instance) {
+  return Array.from(instance.strings.geometry.index || []);
+}
+
+function stringColors(instance) {
+  return Array.from(instance.strings.geometry.attributes.color.array);
+}
+
+test("string defaults rebuild the same web under shuffled frame order", () => {
+  const direct = makeStringsForm();
+  direct.update(7);
+  const expectedIndex = stringIndex(direct);
+  const expectedColors = stringColors(direct);
+  assert.ok(expectedIndex.length > 0, "default strings connect");
+
+  const shuffled = makeStringsForm();
+  for (const frame of [3, 9, 1, 7]) shuffled.update(frame);
+  assert.deepEqual(stringIndex(shuffled), expectedIndex);
+  assert.deepEqual(stringColors(shuffled), expectedColors);
+});
+
+test("string density scales the web, size random only recolors", () => {
+  const instance = makeStringsForm();
+  instance.update(0);
+  const legacy = stringIndex(instance);
+  const legacyColors = stringColors(instance);
+
+  instance.properties.base.stringDensity.set(0);
+  instance.update(0);
+  assert.equal(stringIndex(instance).length, 0, "density 0 connects nothing");
+
+  instance.properties.base.stringDensity.set(30);
+  instance.update(0);
+  assert.ok(stringIndex(instance).length >= legacy.length, "density 30 connects at least as much");
+
+  instance.properties.base.stringDensity.set(15);
+  instance.properties.base.stringPosition.set(4);
+  instance.update(0);
+  assert.notDeepEqual(stringIndex(instance), legacy, "position distribution rehashes the web");
+
+  instance.properties.base.stringPosition.set(0);
+  instance.properties.base.stringSizeRandom.set(5);
+  instance.update(0);
+  assert.deepEqual(stringIndex(instance), legacy, "size random keeps the topology");
+  assert.notDeepEqual(stringColors(instance), legacyColors, "size random recolors the strings");
+});
+
+test("string size raises line opacity without touching the topology", () => {
+  const instance = makeStringsForm();
+  instance.properties.particle.opacity.set(50);
+  instance.update(0);
+  const legacy = stringIndex(instance);
+  const baseOpacity = instance.stringMaterial.opacity;
+  assert.ok(Math.abs(baseOpacity - 0.5) < 1e-9);
+  instance.properties.base.stringSize.set(4);
+  instance.update(0);
+  assert.deepEqual(stringIndex(instance), legacy);
+  assert.ok(instance.stringMaterial.opacity > baseOpacity, "size boosts string opacity");
+});
+
+test("form shading defaults to off and toggles the shader define", () => {
+  const instance = makeStringsForm();
+  instance.update(0);
+  assert.ok(!instance.material.defines.USE_SHADING, "shading off leaves the legacy path");
+  instance.properties.shading.shading.set(1);
+  instance.update(0);
+  assert.equal(instance.material.defines.USE_SHADING, 1);
+  assert.ok(instance.material.uniforms.uShadeLightCount, "light uniforms are present");
+  // Same frame renders identically after a reshuffle.
+  const first = positions(instance);
+  for (const frame of [5, 0, 3]) instance.update(frame);
+  instance.update(0);
+  assert.deepEqual(positions(instance), first);
+});

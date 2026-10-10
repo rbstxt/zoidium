@@ -266,6 +266,7 @@ var PZ = PZ || {};
             this._renderedRevision = -1;
             this._grid = new SpatialGrid();
             this._candidates = new Int32Array(0);
+            this._sourceIds = new Int32Array(0);
             this._near = new Int32Array(MAX_NEAR);
             this._seen = new Set();
             this._segments = null;
@@ -389,6 +390,8 @@ var PZ = PZ || {};
             this.meshMaterial = null;
         }
         // Concatenates the enabled geometry sources into the work buffer.
+        // _sourceIds[i] is the work-buffer order index of the source that
+        // produced point i, so the shape line mode can stay within objects.
         gatherPoints() {
             var t = PZ.trapcode.currentTime;
             var sources = [];
@@ -405,9 +408,15 @@ var PZ = PZ || {};
                 this._work = new Float32Array(capacity);
                 this._colors = new Float32Array(capacity);
             }
+            if (this._sourceIds.length < total) {
+                this._sourceIds = new Int32Array(Math.max(total, this._sourceIds.length * 2, 64));
+            }
             var offset = 0;
             for (var s = 0; s < sources.length; s++) {
                 this._work.set(sources[s], offset);
+                var begin = offset / 3;
+                var end = begin + sources[s].length / 3;
+                for (var k = begin; k < end; k++) this._sourceIds[k] = s;
                 offset += sources[s].length;
             }
             this._colors.fill(1, 0, total * 3);
@@ -430,6 +439,7 @@ var PZ = PZ || {};
                 mesh: false,
                 triangulation: false,
                 beams: false,
+                lineType: 0,
                 size: 3,
                 color: [1, 1, 1],
                 opacity: 0.8,
@@ -519,65 +529,34 @@ var PZ = PZ || {};
         buildLines(count, state) {
             var maxDistance = Math.max(0, state.maxDistance);
             var maxConnections = Math.max(0, Math.min(10, Math.round(state.maxConnections)));
+            var lineType = Math.max(0, Math.min(2, Math.round(state.lineType || 0)));
             var n = this.linkCount(MAX_LINK_POINTS);
             var beams = state.beams;
-            var geometry = this.ensureLineGeometry(n * maxConnections * 2);
+            var geometry = this.ensureLineGeometry(Math.max(n * Math.max(maxConnections, 1) * 2, 2));
             var positions = geometry.attributes.position.array;
             var colors = geometry.attributes.vcolor.array;
             var verts = 0;
-            if (n > 0 && maxDistance > 0 && maxConnections > 0) {
-                var work = this._work;
-                var colorsIn = this._colors;
-                var grid = this._grid;
-                grid.build(work, n, Math.max(maxDistance, 0.0001));
-                var cell = grid.cell;
-                var maxSq = maxDistance * maxDistance;
-                for (var i = 0; i < n; i++) {
-                    var ax = work[i * 3];
-                    var ay = work[i * 3 + 1];
-                    var az = work[i * 3 + 2];
-                    var acx = Math.floor(ax / cell);
-                    var acy = Math.floor(ay / cell);
-                    var acz = Math.floor(az / cell);
-                    var connections = 0;
-                    for (var ox = -1; ox <= 1 && connections < maxConnections; ox++) {
-                        for (var oy = -1; oy <= 1 && connections < maxConnections; oy++) {
-                            for (var oz = -1; oz <= 1 && connections < maxConnections; oz++) {
-                                var j = grid.head[grid.bucket(acx + ox, acy + oy, acz + oz)];
-                                while (j >= 0 && connections < maxConnections) {
-                                    if (j > i) {
-                                        var bx = work[j * 3];
-                                        var by = work[j * 3 + 1];
-                                        var bz = work[j * 3 + 2];
-                                        var dx = ax - bx;
-                                        var dy = ay - by;
-                                        var dz = az - bz;
-                                        if (dx * dx + dy * dy + dz * dz < maxSq &&
-                                            Math.floor(bx / cell) === acx + ox &&
-                                            Math.floor(by / cell) === acy + oy &&
-                                            Math.floor(bz / cell) === acz + oz) {
-                                            var v = verts * 3;
-                                            positions[v] = ax;
-                                            positions[v + 1] = ay;
-                                            positions[v + 2] = az;
-                                            positions[v + 3] = bx;
-                                            positions[v + 4] = by;
-                                            positions[v + 5] = bz;
-                                            colors[v] = colorsIn[i * 3];
-                                            colors[v + 1] = colorsIn[i * 3 + 1];
-                                            colors[v + 2] = colorsIn[i * 3 + 2];
-                                            colors[v + 3] = colorsIn[j * 3];
-                                            colors[v + 4] = colorsIn[j * 3 + 1];
-                                            colors[v + 5] = colorsIn[j * 3 + 2];
-                                            verts += 2;
-                                            connections++;
-                                        }
-                                    }
-                                    j = grid.next[j];
-                                }
-                            }
-                        }
-                    }
+            var emit = function (i, j, work, colorsIn) {
+                var v = verts * 3;
+                positions[v] = work[i * 3];
+                positions[v + 1] = work[i * 3 + 1];
+                positions[v + 2] = work[i * 3 + 2];
+                positions[v + 3] = work[j * 3];
+                positions[v + 4] = work[j * 3 + 1];
+                positions[v + 5] = work[j * 3 + 2];
+                colors[v] = colorsIn[i * 3];
+                colors[v + 1] = colorsIn[i * 3 + 1];
+                colors[v + 2] = colorsIn[i * 3 + 2];
+                colors[v + 3] = colorsIn[j * 3];
+                colors[v + 4] = colorsIn[j * 3 + 1];
+                colors[v + 5] = colorsIn[j * 3 + 2];
+                verts += 2;
+            };
+            if (n > 0 && maxConnections > 0) {
+                if (lineType === 1) {
+                    verts = this.buildLinesAdjacency(n, maxConnections, positions, colors, emit, verts);
+                } else if (maxDistance > 0) {
+                    verts = this.buildLinesDistance(n, maxDistance, maxConnections, positions, colors, emit, verts, lineType === 2);
                 }
             }
             geometry.setDrawRange(0, verts);
@@ -590,6 +569,79 @@ var PZ = PZ || {};
                 else delete this.lineMaterial.defines.USE_VCOLOR;
                 this.lineMaterial.needsUpdate = true;
             }
+        }
+        // Adjacency mode: each point links to its next maxConnections points
+        // in creation order, regardless of distance (Plexus Adjacency).
+        buildLinesAdjacency(n, maxConnections, positions, colors, emit, verts) {
+            var work = this._work;
+            var colorsIn = this._colors;
+            for (var i = 0; i < n; i++) {
+                var take = Math.min(maxConnections, n - 1 - i);
+                for (var k = 1; k <= take; k++) {
+                    var v = verts * 3;
+                    positions[v] = work[i * 3];
+                    positions[v + 1] = work[i * 3 + 1];
+                    positions[v + 2] = work[i * 3 + 2];
+                    positions[v + 3] = work[(i + k) * 3];
+                    positions[v + 4] = work[(i + k) * 3 + 1];
+                    positions[v + 5] = work[(i + k) * 3 + 2];
+                    colors[v] = colorsIn[i * 3];
+                    colors[v + 1] = colorsIn[i * 3 + 1];
+                    colors[v + 2] = colorsIn[i * 3 + 2];
+                    colors[v + 3] = colorsIn[(i + k) * 3];
+                    colors[v + 4] = colorsIn[(i + k) * 3 + 1];
+                    colors[v + 5] = colorsIn[(i + k) * 3 + 2];
+                    verts += 2;
+                }
+            }
+            return verts;
+        }
+        // Distance mode, optionally restricted to pairs from the same source
+        // object (shape mode). Unchanged for lineType distance.
+        buildLinesDistance(n, maxDistance, maxConnections, positions, colors, emit, verts, sameSource) {
+            var work = this._work;
+            var colorsIn = this._colors;
+            var sourceIds = sameSource ? this._sourceIds : null;
+            var grid = this._grid;
+            grid.build(work, n, Math.max(maxDistance, 0.0001));
+            var cell = grid.cell;
+            var maxSq = maxDistance * maxDistance;
+            for (var i = 0; i < n; i++) {
+                var ax = work[i * 3];
+                var ay = work[i * 3 + 1];
+                var az = work[i * 3 + 2];
+                var acx = Math.floor(ax / cell);
+                var acy = Math.floor(ay / cell);
+                var acz = Math.floor(az / cell);
+                var connections = 0;
+                for (var ox = -1; ox <= 1 && connections < maxConnections; ox++) {
+                    for (var oy = -1; oy <= 1 && connections < maxConnections; oy++) {
+                        for (var oz = -1; oz <= 1 && connections < maxConnections; oz++) {
+                            var j = grid.head[grid.bucket(acx + ox, acy + oy, acz + oz)];
+                            while (j >= 0 && connections < maxConnections) {
+                                if (j > i && (!sourceIds || sourceIds[j] === sourceIds[i])) {
+                                    var bx = work[j * 3];
+                                    var by = work[j * 3 + 1];
+                                    var bz = work[j * 3 + 2];
+                                    var dx = ax - bx;
+                                    var dy = ay - by;
+                                    var dz = az - bz;
+                                    if (dx * dx + dy * dy + dz * dz < maxSq &&
+                                        Math.floor(bx / cell) === acx + ox &&
+                                        Math.floor(by / cell) === acy + oy &&
+                                        Math.floor(bz / cell) === acz + oz) {
+                                        emit(i, j, work, colorsIn);
+                                        verts += 2;
+                                        connections++;
+                                    }
+                                }
+                                j = grid.next[j];
+                            }
+                        }
+                    }
+                }
+            }
+            return verts;
         }
         buildMesh(count, state) {
             var n = this.linkCount(MAX_MESH_POINTS);
@@ -1095,29 +1147,33 @@ var PZ = PZ || {};
             return points;
         }
         // Effector pass over the flat work buffer (positions and colors).
+        // Amount is the overall master strength (donor intent): 100 leaves
+        // every effector exactly as its own strength control says.
         applyTo(pos, col, count) {
             var t = PZ.trapcode.currentTime;
             var e = this.properties.effector;
             var effType = Math.max(0, Math.round(e.effectorType.get(t)));
+            var amt = numberOr(e.amount, t, 100) / 100;
+            if (!(amt > 0)) amt = 0;
             if (effType === 0) {
-                this.applyNoise(pos, count, e);
+                this.applyNoise(pos, count, e, amt);
             } else if (effType === 1) {
-                this.applySpherical(pos, count, e.strength.get(t) / 100, e.position.get(t), e.radius.get(t));
+                this.applySpherical(pos, count, e.strength.get(t) / 100 * amt, e.position.get(t), e.radius.get(t));
             } else if (effType === 2) {
                 this.applyContainer(pos, count, e);
             } else if (effType === 3) {
-                this.applyTransform(pos, count, e);
+                this.applyTransform(pos, count, e, amt);
             } else if (effType === 4) {
                 this.applyColorMap(pos, col, count, e);
             } else if (effType === 5) {
                 this.applyShade(pos, col, count, e);
             } else if (effType === 6) {
-                this.applySound(pos, count, e);
+                this.applySound(pos, count, e, amt);
             }
         }
-        applyNoise(pos, count, e) {
+        applyNoise(pos, count, e, amt) {
             var t = PZ.trapcode.currentTime;
-            var amount = e.noiseAmount.get(t);
+            var amount = e.noiseAmount.get(t) * (amt === undefined ? 1 : amt);
             var scale = Math.max(e.noiseScale.get(t), 0.0001);
             var flow = t * 0.05;
             for (var i = 0; i < count; i++) {
@@ -1163,13 +1219,14 @@ var PZ = PZ || {};
                 }
             }
         }
-        applyTransform(pos, count, e) {
+        applyTransform(pos, count, e, amt) {
             var t = PZ.trapcode.currentTime;
-            var scale = e.transformScale.get(t) / 100;
+            if (amt === undefined) amt = 1;
+            var scale = 1 + (e.transformScale.get(t) / 100 - 1) * amt;
             var rotation = e.transformRotation.get(t);
-            var rx = (rotation[0] * Math.PI) / 180;
-            var ry = (rotation[1] * Math.PI) / 180;
-            var rz = (rotation[2] * Math.PI) / 180;
+            var rx = (rotation[0] * amt * Math.PI) / 180;
+            var ry = (rotation[1] * amt * Math.PI) / 180;
+            var rz = (rotation[2] * amt * Math.PI) / 180;
             var cx = Math.cos(rx);
             var sx = Math.sin(rx);
             var cy = Math.cos(ry);
@@ -1193,9 +1250,9 @@ var PZ = PZ || {};
                 t2 = x * sz + y * cz;
                 x = t1;
                 y = t2;
-                pos[i * 3] = x + offset[0];
-                pos[i * 3 + 1] = y + offset[1];
-                pos[i * 3 + 2] = z + offset[2];
+                pos[i * 3] = x + offset[0] * amt;
+                pos[i * 3 + 1] = y + offset[1] * amt;
+                pos[i * 3 + 2] = z + offset[2] * amt;
             }
         }
         applyColorMap(pos, col, count, e) {
@@ -1227,8 +1284,9 @@ var PZ = PZ || {};
         // Without an audio layer the level is a time-based wave. With one, it is
         // the offline analysis at the media time (T.audioAnalysis, decoded in
         // prepare()); 0.5 while the source is not decoded yet, as in Particular.
-        applySound(pos, count, e) {
+        applySound(pos, count, e, amt) {
             var t = PZ.trapcode.currentTime;
+            if (amt === undefined) amt = 1;
             var audioValue = e.audioLayer ? e.audioLayer.get(t) : null;
             var level = 0.5 + Math.sin(t * 0.1) * 0.5;
             if (audioValue) {
@@ -1246,7 +1304,7 @@ var PZ = PZ || {};
                 }
             }
             var strength = e.soundStrength ? e.soundStrength.get(t) : 100;
-            var scale = 1 + clamp(level, 0, 1) * (strength / 100);
+            var scale = 1 + clamp(level, 0, 1) * (strength / 100) * amt;
             for (var i = 0; i < count * 3; i++) pos[i] *= scale;
         }
         sceneRate() {
@@ -1265,6 +1323,7 @@ var PZ = PZ || {};
                 state.size = Math.max(0, Math.min(10, r.size.get(t)));
             } else if (type === 1) {
                 state.lines = true;
+                state.lineType = Math.max(0, Math.min(2, Math.round(r.lineType.get(t))));
                 state.maxDistance = Math.max(0, r.maxDistance.get(t));
                 state.maxConnections = Math.max(0, Math.min(10, Math.round(r.maxConnections.get(t))));
             } else if (type === 2) {
@@ -1282,6 +1341,7 @@ var PZ = PZ || {};
                 state.specular = r.specular.get(t) / 100;
             } else if (type === 4) {
                 state.beams = true;
+                state.lineType = Math.max(0, Math.min(2, Math.round(r.lineType.get(t))));
                 state.maxDistance = Math.max(0, r.maxDistance.get(t));
                 state.maxConnections = Math.max(0, Math.min(10, Math.round(r.maxConnections.get(t))));
             }
@@ -1380,9 +1440,8 @@ var PZ = PZ || {};
     PZ.object3d.plexus.object.effectorDefinitions = {
         name: { name: "Name", type: PZ.property.type.TEXT, value: "Effector", visible: false },
         effectorType: option("Effector type", 0, "noise;spherical field;container;transform;color map;shade;sound", true),
-        // Overall effector amount, stored for donor project compatibility.
-        // Each effector keeps its own strength control (noiseAmount,
-        // strength, soundStrength, ...), as in the donor.
+        // Overall effector amount: master strength scaling every effector
+        // with a strength semantic (noise, spherical, transform, sound).
         amount: number("Amount", 100, { step: 1 }),
         noiseAmount: number("Noise amount", 40, { step: 0.1, decimals: 1 }),
         noiseScale: number("Noise scale", 1, { min: 0.0001, step: 0.01, decimals: 2 }),
@@ -1432,9 +1491,11 @@ var PZ = PZ || {};
         name: { name: "Name", type: PZ.property.type.TEXT, value: "Renderer", visible: false },
         rendererType: option("Renderer type", 1, "points;lines;facets;triangulation;beams", true),
         size: number("Point size", 4, { min: 0, max: 10, step: 0.1, decimals: 2 }),
-        // Line type selects the authored connection mode. The lines renderer
-        // builds distance-based connections for every mode, matching the
-        // donor (which stores lineType but renders distance lines).
+        // Line type selects the connection mode: distance links nearby
+        // points, adjacency links each point to its next points in creation
+        // order, shape links nearby points only within the same source
+        // object. Max connections caps the per-point count and opacity the
+        // line alpha in every mode.
         lineType: option("Line type", 0, "distance;adjacency;shape", true),
         maxDistance: number("Max distance", 200, { min: 0, step: 1 }),
         maxConnections: number("Max connections", 5, { min: 0, max: 10, step: 1, decimals: 0 }),

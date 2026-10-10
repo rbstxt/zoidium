@@ -188,23 +188,39 @@ test("effector amount and renderer lineType exist with donor defaults", () => {
   assert.ok(effector.properties.effector.soundStrength);
 });
 
-test("every lineType loads donor-shaped JSON and renders deterministically", () => {
+test("every lineType renders deterministically and adjacency follows creation order", () => {
   const snapshots = [];
   for (const lineType of [0, 1, 2]) {
     const { root } = setup();
     const lines = root.objects[1];
     lines.properties.renderer.lineType.set(lineType);
+    lines.properties.renderer.maxDistance.set(110);
+    lines.properties.renderer.maxConnections.set(10);
     // Shuffled frame order before the captured frame.
     for (const frame of [4, 9, 2, 7]) root.update(frame);
     snapshots.push(lineSnapshot(root));
+    // Same mode renders identically after a reshuffle.
+    for (const frame of [7, 2, 9, 4]) root.update(frame);
+    assert.deepEqual(lineSnapshot(root), snapshots[lineType], "mode " + lineType + " is order-independent");
   }
-  // The donor stores lineType but renders distance lines for every mode.
-  assert.deepEqual(snapshots[1], snapshots[0], "adjacency matches distance");
-  assert.deepEqual(snapshots[2], snapshots[0], "shape matches distance");
-
-  const { PZ, root } = setup();
+  // Adjacency links each point to its next points in creation order: with a
+  // tiny maxDistance the distance modes find nothing but adjacency still
+  // links, and its first segment starts at point 0.
+  const { root } = setup();
   const lines = root.objects[1];
-  lines.load({
+  lines.properties.renderer.maxDistance.set(0.0001);
+  lines.properties.renderer.maxConnections.set(2);
+  lines.properties.renderer.lineType.set(1);
+  root.update(0);
+  const adjacent = lineSnapshot(root);
+  assert.ok(adjacent.count > 0, "adjacency links regardless of distance");
+  const first = adjacent.points.slice(0, 6);
+  const source = root.objects[0].sourcePoints();
+  assert.deepEqual(first, [source[0], source[1], source[2], source[3], source[4], source[5]]);
+
+  const { PZ, root: root2 } = setup();
+  const lines2 = root2.objects[1];
+  lines2.load({
     objectKind: 2,
     subType: 1,
     properties: {
@@ -212,7 +228,54 @@ test("every lineType loads donor-shaped JSON and renders deterministically", () 
       renderer: { rendererType: 1, lineType: 2, maxDistance: 110, maxConnections: 10 },
     },
   });
-  assert.equal(lines.properties.renderer.lineType.get(0), 2);
-  for (const frame of [4, 9, 2, 7]) root.update(frame);
-  assert.ok(lineSnapshot(root).points.length > 0, "donor-shaped lines render");
+  assert.equal(lines2.properties.renderer.lineType.get(0), 2);
+  for (const frame of [4, 9, 2, 7]) root2.update(frame);
+  assert.ok(lineSnapshot(root2).points.length > 0, "donor-shaped lines render");
+});
+
+test("shape mode only links points from the same source object", () => {
+  const { PZ, root } = setup();
+  // Two far-apart sources: distance mode links across, shape mode must not.
+  const geo = root.objects[0];
+  geo.properties.geometry.primitiveCount.set(30);
+  const second = new PZ.object3d.plexus.object();
+  root.objects.push(second);
+  second.load({ objectKind: 0, subType: 3, properties: {} });
+  second.applyPreset("primitives");
+  second.properties.geometry.primitiveCount.set(30);
+  second.properties.geometry.position.set([5000, 0, 0]);
+  const lines = root.objects[1];
+  lines.properties.renderer.maxDistance.set(1e6);
+  lines.properties.renderer.maxConnections.set(10);
+  lines.properties.renderer.lineType.set(0);
+  root.update(0);
+  const across = lineSnapshot(root).count;
+  lines.properties.renderer.lineType.set(2);
+  root.update(0);
+  const within = lineSnapshot(root).count;
+  assert.ok(across > 0 && within > 0, "both modes link something");
+  assert.ok(within < across, "shape links fewer pairs than distance (" + within + " < " + across + ")");
+  // Every shape segment stays on one side of the gap.
+  const geometry = root.lineMesh.geometry;
+  const positions = geometry.attributes.position.array;
+  for (let v = 0; v < within; v += 2) {
+    const ax = positions[v * 3];
+    const bx = positions[(v + 1) * 3];
+    assert.ok((ax < 2500) === (bx < 2500), "segment " + v + " stays within one source");
+  }
+});
+
+test("effector amount 100 keeps legacy output, 0 bypasses the effector", () => {
+  const { PZ, root } = setup();
+  const effector = addEffector(PZ, root, 0, "noise");
+  effector.properties.effector.amount.set(100);
+  root.update(0);
+  const full = Array.from(root._work.slice(0, root._count * 3));
+  effector.properties.effector.amount.set(0);
+  root.update(0);
+  const bypassed = Array.from(root._work.slice(0, root._count * 3));
+  assert.notDeepEqual(bypassed, full);
+  // Bypassed output equals the raw gathered sources.
+  root.update(0);
+  assert.deepEqual(Array.from(root._work.slice(0, root._count * 3)), bypassed);
 });
