@@ -46,10 +46,14 @@
     return (PZ && PZ.ui && PZ.ui.controls && PZ.ui.controls.legacy) || null;
   }
 
-  function findAboutTab(tabs) {
+  function findTabByTitle(tabs, title) {
     return Array.from(tabs.children).find(function (item) {
-      return item.title === "About";
+      return item.title === title;
     }) || null;
+  }
+
+  function findAboutTab(tabs) {
+    return findTabByTitle(tabs, "About");
   }
 
   // Creates an elevator menubar tab for a full-area panel. Returns the tab
@@ -98,7 +102,15 @@
     tab.appendChild(label);
 
     var aboutTab = findAboutTab(hosts.tabs);
-    if (config.position === "afterAbout") {
+    // "after:<Tab title>" places the tab right below an existing tab, e.g.
+    // "after:Effects"; an unknown title falls back to the default slot.
+    var afterTitle = typeof config.position === "string" && config.position.indexOf("after:") === 0
+      ? config.position.slice(6)
+      : null;
+    var afterTab = afterTitle ? findTabByTitle(hosts.tabs, afterTitle) : null;
+    if (afterTab) {
+      hosts.tabs.insertBefore(tab, afterTab.nextElementSibling);
+    } else if (config.position === "afterAbout") {
       if (aboutTab && aboutTab.nextElementSibling) hosts.tabs.insertBefore(tab, aboutTab.nextElementSibling);
       else hosts.tabs.appendChild(tab);
     } else if (aboutTab) {
@@ -787,9 +799,10 @@
     // (hidden) so setTitle() and the accessible name keep working.
     if (customChrome) titlebar.hidden = true;
 
-    // Resizing from the right edge, bottom edge and corner.
+    // Resizing from the left, right and bottom edges and both bottom corners.
+    // The top edge belongs to the title bar, which moves the window.
     if (config.resizable !== false) {
-      ["e", "s", "se"].forEach(function (edge) {
+      ["e", "w", "s", "se", "sw"].forEach(function (edge) {
         var grip = doc.createElement("div");
         grip.className = "zoidium-window-grip zoidium-window-grip-" + edge;
         grip.addEventListener("pointerdown", function (event) {
@@ -802,9 +815,20 @@
           var startY = event.clientY;
           var originWidth = width;
           var originHeight = height;
+          var originX = x;
+          var fromLeft = edge === "w" || edge === "sw";
+          var fromRight = edge === "e" || edge === "se";
+          var vertical = edge !== "e" && edge !== "w";
           function move(moveEvent) {
-            if (edge !== "s") width = Math.max(minWidth, originWidth + moveEvent.clientX - startX);
-            if (edge !== "e") height = Math.max(minHeight, originHeight + moveEvent.clientY - startY);
+            var dx = moveEvent.clientX - startX;
+            if (fromRight) width = Math.max(minWidth, originWidth + dx);
+            if (fromLeft) {
+              // Keep the right edge fixed while the left edge follows the pointer.
+              var maxWidth = Math.max(minWidth, originX + originWidth - WINDOW_MARGIN);
+              width = clampNumber(originWidth - dx, minWidth, maxWidth);
+              x = originX + originWidth - width;
+            }
+            if (vertical) height = Math.max(minHeight, originHeight + moveEvent.clientY - startY);
             win._clamp();
           }
           function up() {

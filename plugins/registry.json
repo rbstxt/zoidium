@@ -68,15 +68,15 @@
       "category": "utilities",
       "name": "Precomp+",
       "author": "DaviFX",
-      "version": "5",
+      "version": "6",
       "itemCount": 1,
       "format": "workflow",
       "tagline": "Pre-compose and nested compositions",
       "color": "#4f9db6",
       "description": "Pre-compose selected video clips into compositions, manage them in a Compositions window, and render them nested in Main.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/precomp-plus/manifest.json?v=5",
-      "bundle": "./plugins/precomp-plus/bundle.json?v=5"
+      "manifest": "./plugins/precomp-plus/manifest.json?v=6",
+      "bundle": "./plugins/precomp-plus/bundle.json?v=6"
     },
     {
       "id": "gif-support",
@@ -157,15 +157,15 @@
       "category": "scene",
       "name": "Material+",
       "author": "Zoidium",
-      "version": "6",
+      "version": "7",
       "itemCount": 5,
       "format": "3D materials",
       "tagline": "Node, PBR+, Matcap & Image+ materials",
       "color": "#b36bca",
       "description": "Adds procedural Node Materials with a node editor, PBR+ with ramps, Fresnel, cel shading and projection, Image+ with opacity, Matcap, and corrected-UV materials for 3D objects.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/material-plus/manifest.json?v=6",
-      "bundle": "./plugins/material-plus/bundle.json?v=6"
+      "manifest": "./plugins/material-plus/manifest.json?v=7",
+      "bundle": "./plugins/material-plus/bundle.json?v=7"
     },
     {
       "id": "text-plus",
@@ -204,15 +204,15 @@
       "category": "scene",
       "name": "Rowbyte & Red Giant Suite",
       "author": "DaviFX",
-      "version": "15",
+      "version": "16",
       "itemCount": 14,
       "format": "3D objects",
       "tagline": "Particular, Form, Plexus and C4D lights",
       "color": "#c9a13b",
       "description": "Trapcode Particular, Form and Plexus 3D objects with floating designer windows, deterministic simulation and audio analysis, plus C4D-style lights.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/trapcode-suite/manifest.json?v=15",
-      "bundle": "./plugins/trapcode-suite/bundle.json?v=15"
+      "manifest": "./plugins/trapcode-suite/manifest.json?v=16",
+      "bundle": "./plugins/trapcode-suite/bundle.json?v=16"
     },
     {
       "id": "optical-flares",
