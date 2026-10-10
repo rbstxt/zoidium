@@ -200,3 +200,38 @@ pnpm run check:plugin-manifests
 pnpm run check:plugin-bundles
 pnpm run verify
 ```
+
+## Timeline track extensions
+
+`timeline.registerTrackField(name, { default })` declares a JSON field on
+tracks. Loaded values override the default, and save reads the live track value.
+The host retains unknown track fields even when their plugin is disabled.
+Disposal releases the declaration for reactivation; serialization remains active
+so disabling a plugin cannot erase project data. Reserved object keys, `type`,
+and `clips` cannot be declared.
+
+`timeline.registerTrackButton({ id, label, title(track), isActive(track),
+onToggle(track, editor), kinds: ["video"] })` adds a button to existing and new
+track labels. The plugin owns its history transaction in `onToggle`. Call
+`timeline.refreshTrackButtons()` after undo/redo to refresh active states.
+The returned disposer removes the buttons and restores label layout. Several
+plugins can register buttons without replacing each other's registrations.
+
+## Media presets and layer extensions
+
+`media.registerPreset({ id, name, icon, json })` installs a CM3 Media preset in
+the live project and subsequent loaded projects. `json` is the CM3 media payload,
+including `assets`, `data`, and `baseType`. Presets are marked `preset: true`, so
+CM3 excludes them from saved project media. The returned disposer removes the
+preset and its project-load hook when no registrations remain.
+
+`layers.registerType({ id, type, legacyType, factory })` adds a layer factory
+and claims a legacy numeric layer ID in `PZ.zoidium.legacyLayerTypes`. IDs below
+9 are reserved for CM3. Conflicting claims fail activation; disposal releases
+the claim and restores the previous factory only while still owned. Use a
+namespaced type for new layer formats. Camera+ retains the established numeric
+layer type 9 because the manager's existing missing-layer adapter and project
+requirement scanner recognize it. Its camera objects save their stable
+`zoidium:camera-plus/camera` type. A project using this layer locks Camera+
+against disabling; opening it without the plugin uses the manager's retained
+missing-layer placeholder and dependency prompt.

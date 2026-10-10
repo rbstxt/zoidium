@@ -17,14 +17,14 @@
 //   scene's Camera+ enabled depth of field on this pass.
 // - PZ.layer.scene.prototype.update / unload: sync the pass camera and the
 //   depth-of-field state after CM3's own update.
-// - PZ.layer.create(9): recover Davidium cameras in a normal scene layer.
+// - Shared-camera layer registration and deterministic second-pass tracking.
 // - PZ.expression.methods.focusDistanceTo: the focus link expression method.
 // - Property control "camera-plus/focus-tools": the focus button row.
 //
 // Sources in ./plugins/camera-plus/*.js are evaluated through the bundle asset
 // resolver and publish their parts on a shared `parts` object.
 
-const PART_FILES = ["vibrate.js", "scene-dof.js", "scene-motion-blur.js", "camera-class.js", "focus-ui.js"];
+const PART_FILES = ["vibrate.js", "scene-dof.js", "scene-motion-blur.js", "camera-class.js", "focus-ui.js", "shared-depth.js", "shared-camera.js"];
 const LEGACY_LAYER_TYPE = 9;
 const CAMERA_OBJECT_TYPE_NUMBER = 6;
 const REPORT_PREFIX = "Camera+:";
@@ -109,6 +109,10 @@ function activateCameraPlus(context, teardown) {
   if (!ZoidiumUI || !ZoidiumUI.controls) {
     throw new Error("Camera+ needs ZoidiumUI.");
   }
+  requireMethod(apis.timeline, "registerTrackButton", "ZoidiumPluginApis.timeline.registerTrackButton");
+  requireMethod(apis.timeline, "registerTrackField", "ZoidiumPluginApis.timeline.registerTrackField");
+  requireMethod(apis.media, "registerPreset", "ZoidiumPluginApis.media.registerPreset");
+  requireMethod(apis.layers, "registerType", "ZoidiumPluginApis.layers.registerType");
   requireMethod(PZ.layer && PZ.layer.scene && PZ.layer.scene.prototype, "update", "PZ.layer.scene.prototype.update");
   requireMethod(PZ.layer && PZ.layer.scene && PZ.layer.scene.prototype, "unload", "PZ.layer.scene.prototype.unload");
   requireMethod(PZ.layer, "create", "PZ.layer.create");
@@ -160,19 +164,20 @@ function activateCameraPlus(context, teardown) {
     return walk(scene.objects);
   }
 
-  // The CM3 camera of a scene: its first camera object (cameras are not
-  // Camera+ objects). Used to hand the pass back on restore.
-  function defaultCameraOf(scene) {
-    const objects = scene.objects;
-    if (!objects) return null;
-    for (let i = 0; i < objects.length; i++) {
-      const object = objects[i];
-      if (!object || object._zoidiumMissingObject || isCameraPlusObject(object)) continue;
-      if (object instanceof PZ.object3d.camera || object.type === CAMERA_OBJECT_TYPE_NUMBER) {
-        if (object.threeObj) return object.threeObj;
+  // Preserve the exact native camera the Scene used before borrowing one.
+  // If it was removed, use the last authored native camera as CM3 load does.
+  function nativeCameraObjectOf(scene, preferred) {
+    const cameras = [];
+    function walk(objects) {
+      for (const object of objects || []) {
+        if (!object || object._zoidiumMissingObject || object.__zoidiumRepeater) continue;
+        if (!isCameraPlusObject(object) && (object instanceof PZ.object3d.camera || object.type === CAMERA_OBJECT_TYPE_NUMBER) && object.threeObj) cameras.push(object);
+        if (object.objects) walk(object.objects);
       }
     }
-    return null;
+    walk(scene.objects);
+    const previous = preferred || scenes.get(scene)?.previousCamera || scene.pass?.camera;
+    return cameras.find(object => object.threeObj === previous) || cameras[cameras.length - 1] || null;
   }
 
   function restoreScene(scene, entry) {
@@ -180,7 +185,7 @@ function activateCameraPlus(context, teardown) {
     if (pass) {
       pass.__cameraPlusDof = null;
       pass.__cameraPlusState = null;
-      const own = defaultCameraOf(scene);
+      const own = nativeCameraObjectOf(scene, entry.previousCamera)?.threeObj;
       pass.camera = own || entry.previousCamera || pass.camera;
     }
     if (entry.blur) { entry.blur.unload(); entry.blur = null; }
@@ -190,11 +195,11 @@ function activateCameraPlus(context, teardown) {
     }
   }
 
-  function syncScene(scene, time) {
+  function syncScene(scene, time, sharedCamera, master) {
     const pass = scene.pass;
     if (!pass) return;
     let entry = scenes.get(scene) || null;
-    const cameraObject = entry && entry.sampling ? entry.cameraObject : findActiveCamera(scene, time);
+    const cameraObject = sharedCamera || (entry && entry.sampling ? entry.cameraObject : findActiveCamera(scene, time));
     if (!cameraObject) {
       if (entry) {
         restoreScene(scene, entry);
@@ -210,11 +215,13 @@ function activateCameraPlus(context, teardown) {
     entry.cameraObject = cameraObject;
     if (!entry.sampling) {
       entry.time = time;
-      entry.motion = cameraObject.readMotionBlur(time);
+      entry.motion = cameraObject.readMotionBlur?.(master ? master.local : time) || null;
+      entry.master = master;
     }
     if (entry.motion && !entry.blur) entry.blur = new SceneMotionBlur();
     pass.__cameraPlusState = entry;
-    const settings = cameraObject.readDepthOfField(time);
+    const cameraTime = master ? master.local : entry.sampling && entry.master ? entry.master.local + time - entry.time : time;
+    const settings = cameraObject.readDepthOfField?.(cameraTime);
     if (settings) {
       if (!entry.dof) entry.dof = new SceneDof();
       entry.dof.configure(settings);
@@ -265,7 +272,7 @@ function activateCameraPlus(context, teardown) {
     const pass = this;
     function draw(output, clear) {
       const dof = pass.__cameraPlusDof;
-      if (!live || !dof || !dof.enabled) {
+      if (!live || !dof || !dof.enabled || pass.__cameraPlusGlobalDof) {
         return originalRender.call(pass, renderer, output, readTarget, clear);
       }
       const previous = pass.scene.overrideMaterial;
@@ -282,7 +289,13 @@ function activateCameraPlus(context, teardown) {
       state.sampling = true;
       try {
         return state.blur.render(renderer, target, state.time, state.motion,
-          (frame) => state.scene.update(frame), draw, forceClear);
+          (frame) => {
+            if (state.master) {
+              const masterTime = state.master.local + frame - state.time;
+              state.master.layer.update(masterTime);
+            }
+            state.scene.update(frame);
+          }, draw, forceClear);
       } finally {
         state.sampling = false;
       }
@@ -300,7 +313,7 @@ function activateCameraPlus(context, teardown) {
     // camera inverse left by the previous render is not a valid sample.
     if (live && this.motionBlur?.velocityBuffer) {
       const entry = scenes.get(this);
-      const sampledCamera = entry?.sampling ? entry.cameraObject : findActiveCamera(this, time);
+      const sampledCamera = entry?.sampling ? entry.cameraObject : shared.cameraFor(this, time + .5) || findActiveCamera(this, time);
       if (sampledCamera) {
         for (const object of this.objects) object.update(time + 0.5);
         this.threeObj.updateMatrixWorld(true);
@@ -335,7 +348,7 @@ function activateCameraPlus(context, teardown) {
 
   function migrateCameraData(data) {
     if (!data || typeof data !== "object") return data;
-    if (data.type === 6) {
+    if (data.type === 6 && Object.keys(data.properties || {}).some(key => /^(dof|vibrate|focalLength|filmGate|zoom|filmOffset|projection)/.test(key))) {
       const properties = Object.assign({}, data.properties);
       const depthOfField = Object.assign({}, properties.depthOfField);
       for (const [oldKey, newKey] of Object.entries({
@@ -351,27 +364,23 @@ function activateCameraPlus(context, teardown) {
     return Object.assign({}, data, data.objects ? { objects: data.objects.map(migrateCameraData) } : {});
   }
 
-  class LegacyCameraScene extends PZ.layer.scene {
-    load(data) {
-      // A normal scene keeps the recovered cameras editable and serializable.
-      // No global camera override is introduced into unrelated scene clips.
-      this.type = 4;
-      return super.load(Object.assign({}, data, {
-        type: 4, effects: data && data.effects || [],
-        objects: (data && data.objects || []).map(migrateCameraData),
-      }));
-    }
+  const shared = parts.shared({ PZ, THREE, apis, teardown, patchMethod,
+    migrateCameraData, syncScene, findActiveCamera, nativeCameraObjectOf, plugin: context.plugin, getProject: currentProject });
+  const projectChanged = getEditor()?.onProjectChanged;
+  if (projectChanged?.watch && projectChanged?.unwatch) {
+    let previousProject = currentProject();
+    const onProjectChanged = () => {
+      const next = currentProject();
+      if (previousProject && previousProject !== next) previousProject.forEachItemOfType(PZ.object3d, object => {
+        if (isCameraPlusObject(object)) object.unload();
+      });
+      previousProject = next;
+      restoreAllScenes();
+      shared.projectChanged();
+    };
+    teardown.push(() => projectChanged.unwatch(onProjectChanged));
+    projectChanged.watch(onProjectChanged);
   }
-  const originalLayerCreate = PZ.layer.create;
-  patchMethod(PZ.layer, "create", function createWithCameraPlus(type) {
-    if (live && type === LEGACY_LAYER_TYPE) {
-      const layer = new LegacyCameraScene();
-      layer.type = 4;
-      layer.__cameraPlusLegacy = true;
-      return layer;
-    }
-    return originalLayerCreate.apply(this, arguments);
-  }, teardown);
 
   // ---- focus tools ---------------------------------------------------------
 
@@ -424,7 +433,7 @@ function activateCameraPlus(context, teardown) {
       project.forEachItemOfType(PZ.layer, function (layer) {
         if (layer.type === LEGACY_LAYER_TYPE || layer.__cameraPlusLegacy) found = true;
       });
-      return found;
+      return found || !!project.sequence?.videoTracks?.some(track => track.track3d);
     },
   };
   teardown.push(function () {

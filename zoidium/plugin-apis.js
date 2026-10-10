@@ -514,8 +514,167 @@
   installFuseSnapshots();
   installEmptyPickerArrowGuard();
 
+  // Registrations are lazy because this file also runs before CM3 initializes.
+  function ownedPatch(holder, key, factory) {
+    var original = holder[key];
+    var replacement = factory(original);
+    holder[key] = replacement;
+    return function () { if (holder[key] === replacement) holder[key] = original; };
+  }
+
+  var trackFields = new Map();
+  var trackFieldHooks = false;
+  var retainedTrackFields = new WeakMap();
+  function installTrackFieldHooks() {
+    if (trackFieldHooks || !global.PZ?.track?.prototype) return;
+    var proto = global.PZ.track.prototype;
+    ownedPatch(proto, "load", function (original) { return function (data) {
+      var retained = {};
+      Object.keys(data || {}).forEach(function (key) {
+        if (!["type", "clips", "__proto__", "constructor", "prototype"].includes(key)) retained[key] = JSON.parse(JSON.stringify(data[key]));
+      });
+      retainedTrackFields.set(this, retained);
+      var track = this;
+      trackFields.forEach(function (field, key) {
+        track[key] = data && Object.prototype.hasOwnProperty.call(data, key) ? data[key] : field.default;
+      });
+      return original.apply(this, arguments);
+    }; });
+    ownedPatch(proto, "toJSON", function (original) { return function () {
+      var data = Object.assign({}, retainedTrackFields.get(this), original.apply(this, arguments));
+      var track = this;
+      Object.keys(retainedTrackFields.get(this) || {}).forEach(function (key) { if (Object.prototype.hasOwnProperty.call(track, key)) data[key] = track[key]; });
+      trackFields.forEach(function (field, key) { data[key] = track[key] === undefined ? (Object.prototype.hasOwnProperty.call(data, key) ? data[key] : field.default) : track[key]; });
+      return data;
+    }; });
+    trackFieldHooks = true;
+  }
+  function registerTrackField(name, spec) {
+    if (!name || ["__proto__", "constructor", "prototype", "type", "clips"].includes(name)) throw new Error("Invalid track field");
+    if (trackFields.has(name) && trackFields.get(name).active !== false) throw new Error("Track field already registered: " + name);
+    var registration = { default: spec.default, active: true };
+    trackFields.set(name, registration);
+    installTrackFieldHooks();
+    var project = global.CM && global.CM.project;
+    if (project && typeof project.forEachItemOfType === "function") project.forEachItemOfType(global.PZ.track, function (track) {
+      if (track[name] !== undefined) return;
+      var retained = retainedTrackFields.get(track);
+      track[name] = retained && Object.prototype.hasOwnProperty.call(retained, name) ? retained[name] : spec.default;
+    });
+    // Keep serialization support after disposal so disabled plugins do not erase data.
+    return function () { registration.active = false; };
+  }
+  installTrackFieldHooks();
+
+  var trackButtons = new Map();
+  var trackLabels = new Set();
+  var restoreTrackLabels = null;
+  function decorateTrackLabel(label, track, kind, editor) {
+    if (!Array.from(trackLabels).some(function (entry) { return entry.label === label; })) trackLabels.add({ label: label, track: track, kind: kind, editor: editor, grid: label.style.gridTemplateColumns });
+    trackButtons.forEach(function (spec) {
+      if (!spec.kinds.includes(kind) || Array.from(label.children).some(function (child) { return child.dataset?.zoidiumTrackButton === spec.id; })) return;
+      var button = global.document.createElement("button");
+      button.dataset.zoidiumTrackButton = spec.id;
+      button.className = "actionbutton";
+      button.textContent = spec.label;
+      button.style.cssText = "min-width:22px;height:16px;font-size:10px;border:1px solid var(--zui-border,#555);border-radius:3px;padding:0 2px;cursor:pointer";
+      function refresh() {
+        var active = !!spec.isActive(track);
+        button.title = typeof spec.title === "function" ? spec.title(track) : spec.title || spec.label;
+        button.setAttribute("aria-pressed", String(active));
+        button.style.background = active ? "var(--zui-accent,#384668)" : "transparent";
+        button.style.color = active ? "var(--zui-text-bright,#fff)" : "var(--zui-text-muted,#888)";
+      }
+      button.onclick = function (event) { event.stopPropagation(); spec.onToggle(track, editor); refresh(); };
+      button.pz_refresh = refresh;
+      refresh();
+      label.insertBefore(button, label.children[1] || null);
+    });
+    label.style.gridTemplateColumns = "1fr " + "auto ".repeat(label.children.length - 1).trim();
+  }
+  function refreshTrackButtons() {
+    trackLabels.forEach(function (entry) {
+      if (!entry.label.isConnected) { trackLabels.delete(entry); return; }
+      entry.label.querySelectorAll("[data-zoidium-track-button]").forEach(function (button) { button.pz_refresh(); });
+    });
+  }
+  function registerTrackButton(spec) {
+    if (!spec.id || trackButtons.has(spec.id)) throw new Error("Track button already registered or missing id");
+    trackButtons.set(spec.id, spec);
+    var proto = global.PZ.ui.timeline.tracks.prototype;
+    if (!restoreTrackLabels) restoreTrackLabels = ownedPatch(proto, "createTrackLabel", function (original) { return function (track, kind) {
+      var label = original.apply(this, arguments);
+      decorateTrackLabel(label, track, kind === 0 ? "video" : "audio", this.timeline.editor);
+      return label;
+    }; });
+    trackLabels.forEach(function (entry) { if (entry.label.isConnected) decorateTrackLabel(entry.label, entry.track, entry.kind, entry.editor); });
+    // Existing CM3 labels have no track reference; their order matches the sequence.
+    var editor = global.CM;
+    if (editor && editor.project) {
+      var tracks = editor.project.sequence.videoTracks;
+      global.document.querySelectorAll('button[title="disable track"],button[title="enable track"]').forEach(function (eye, index) {
+        var label = eye.parentElement;
+        if (tracks[index] && !label.querySelector("[data-zoidium-track-button]")) decorateTrackLabel(label, tracks[index], "video", editor);
+      });
+    }
+    return function () {
+      trackButtons.delete(spec.id);
+      trackLabels.forEach(function (entry) {
+        entry.label.querySelectorAll("[data-zoidium-track-button]").forEach(function (button) { if (button.dataset.zoidiumTrackButton === spec.id) button.remove(); });
+        entry.label.style.gridTemplateColumns = entry.label.querySelector("[data-zoidium-track-button]") ? "1fr " + "auto ".repeat(entry.label.children.length - 1).trim() : entry.grid;
+      });
+      if (!trackButtons.size && restoreTrackLabels) { restoreTrackLabels(); restoreTrackLabels = null; trackLabels.clear(); }
+    };
+  }
+
+  var mediaPresets = new Map();
+  var restorePresetLoad = null;
+  function addMediaPreset(project, spec) {
+    if (project.media.some(function (media) { return media.__zoidiumPreset === spec.id; })) return;
+    var media = new global.PZ.media();
+    project.media.push(media);
+    media.__zoidiumPreset = spec.id;
+    var data = JSON.parse(JSON.stringify(spec.json));
+    data.preset = true;
+    data.properties = Object.assign({}, data.properties, { name: spec.name, icon: spec.icon });
+    media.loading = media.load(data);
+  }
+  function registerMediaPreset(spec) {
+    if (!spec.id || mediaPresets.has(spec.id)) throw new Error("Media preset already registered or missing id");
+    mediaPresets.set(spec.id, spec);
+    if (!restorePresetLoad) restorePresetLoad = ownedPatch(global.PZ.project.prototype, "load", function (original) { return function () {
+      var result = original.apply(this, arguments);
+      var project = this;
+      mediaPresets.forEach(function (preset) { addMediaPreset(project, preset); });
+      return result;
+    }; });
+    if (global.CM && global.CM.project) addMediaPreset(global.CM.project, spec);
+    return function () {
+      mediaPresets.delete(spec.id);
+      var project = global.CM && global.CM.project;
+      if (project) for (var i = project.media.length - 1; i >= 0; i--) if (project.media[i].__zoidiumPreset === spec.id) { project.media[i].unload(); project.media.splice(i, 1); }
+      if (!mediaPresets.size && restorePresetLoad) { restorePresetLoad(); restorePresetLoad = null; }
+    };
+  }
+
+  function registerLayerType(spec) {
+    var PZ = global.PZ;
+    PZ.zoidium = PZ.zoidium || {};
+    var claims = PZ.zoidium.legacyLayerTypes || (PZ.zoidium.legacyLayerTypes = new Map());
+    if (!Number.isInteger(spec.legacyType) || spec.legacyType < 9 || claims.has(spec.legacyType)) throw new Error("Legacy layer type collision: " + spec.legacyType);
+    claims.set(spec.legacyType, spec.id);
+    var undo = ownedPatch(PZ.layer, "create", function (original) { return function (type) {
+      if (type === spec.legacyType || type === spec.type) { var layer = spec.factory(); layer.type = spec.type; return layer; }
+      return original.apply(this, arguments);
+    }; });
+    return function () { undo(); if (claims.get(spec.legacyType) === spec.id) claims.delete(spec.legacyType); };
+  }
+
   var apis = {
     KINDS: KINDS,
+    timeline: { registerTrackButton: registerTrackButton, registerTrackField: registerTrackField, refreshTrackButtons: refreshTrackButtons },
+    media: { registerPreset: registerMediaPreset },
+    layers: { registerType: registerLayerType },
     defineTemporal: defineTemporal,
     defineFrameSampler: defineFrameSampler,
     defineFilter: defineFilter,
