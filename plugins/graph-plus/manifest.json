@@ -3,12 +3,12 @@
   "id": "graph-plus",
   "name": "Graph Editor 2",
   "author": "DaviFX",
-  "version": "1",
+  "version": "2",
   "kind": "extension",
   "modules": [
     {
       "id": "graph-editor",
-      "source": "./plugins/graph-plus/graph-plus.js?v=1"
+      "source": "./plugins/graph-plus/graph-plus.js?v=2"
     }
   ]
 }
