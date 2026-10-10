@@ -462,6 +462,10 @@ var PZ = PZ || {};
         rotation: number("Rotation", 0, { step: 1, decimals: 1, vstep: 15 }),
         opacity: number("Opacity", 100, { min: 0, max: 100, step: 0.1, decimals: 1 }),
         animate: option("Animate", 1, "off;on", true),
+        // Solo previews one element alone: when any element has Solo on, only
+        // the soloed elements render. Stored like Enabled, so it is undoable,
+        // saved with the project and a pure function of data and time.
+        solo: option("Solo", 0, "off;on", true),
     };
 
     var commonDefinitions = {
@@ -530,6 +534,7 @@ var PZ = PZ || {};
         p.element.opacity.set(s.opacity, 0);
         p.element.enabled.set(s.enabled, 0);
         p.element.animate.set(1, 0);
+        p.element.solo.set(0, 0);
         p.globalParams.scale.set(s.scale, 0);
         p.globalParams.scaleOffset.set(0, 0);
         p.globalParams.aspectRatio.set(s.aspect, 0);
@@ -690,6 +695,10 @@ var PZ = PZ || {};
         centerPosition: vector2("Center Position", [0, 0]),
         brightness: number("Flare Brightness", 70, { min: 0, max: 1000, step: 0.5, decimals: 1 }),
         scale: number("Flare Scale", 75, { min: 0, max: 1000, step: 0.5, decimals: 1 }),
+        // Restored from the donor editor: folds into the same distance factor
+        // as the Global switch below, so either switch enables the effect.
+        // Off by default, so existing projects render unchanged.
+        scaleOffset: option("Scale Offset", 0, "off;on", true),
         rotationOffset: number("Rotation Offset", 0, { step: 1, decimals: 1, vstep: 15 }),
         color: color("Flare Color", [1, 1, 1]),
         colorMode: option("Color Mode", 0, "Tint;RGB;Alpha", true),
@@ -701,6 +710,10 @@ var PZ = PZ || {};
         sourceType: option("Source", 1, "Screen (2D);Object 3D;Light", true),
         lightIndex: number("Light Index", 0, { min: 0, max: 32, step: 1, decimals: 0 }),
         occlude: option("Occlude", 0, "off;on", true),
+        // Restored from the donor editor so its projects keep the value.
+        // Occlusion here is per pixel through the depth buffer, so Fade has
+        // no render effect; 100 matches the current full-occlusion look.
+        fade: number("Fade Amount", 100, { min: 0, max: 100, step: 1, decimals: 0 }),
         margin: number("Edge Margin", 0.25, { min: 0, max: 2, step: 0.01, decimals: 2 }),
         distanceFalloff: number("Distance Falloff", 0, { min: 0, max: 2, step: 0.01, decimals: 2 }),
         referenceDistance: number("Reference Distance", 10, { min: 0.01, max: 1000, step: 0.1, decimals: 1 }),
@@ -823,7 +836,10 @@ var PZ = PZ || {};
                 distanceFalloff: positioningDefinitions.distanceFalloff,
                 referenceDistance: positioningDefinitions.referenceDistance,
                 margin: positioningDefinitions.margin,
-                foreground: new PZ.propertyList({ occlude: positioningDefinitions.occlude }),
+                foreground: new PZ.propertyList({
+                    occlude: positioningDefinitions.occlude,
+                    fade: positioningDefinitions.fade,
+                }),
                 flicker: new PZ.propertyList(flickerDefinitions),
                 customLayers: new PZ.propertyList(customLayerDefinitions),
             });
@@ -1128,9 +1144,16 @@ var PZ = PZ || {};
             var dataC = this._dataC;
             var dataD = this._dataD;
             var dataColor = this._dataColor;
-            var rootOffset = props.global.scaleOffset.get(time) === 1;
+            var rootOffset = props.global.scaleOffset.get(time) === 1 || setup.scaleOffset.get(time) === 1;
             var seedBase = props.global.globalSeed.get(time) * 0.001;
             var globalColor = props.global.color.get(time);
+            var anySolo = false;
+            for (var s = 0; s < count; s++) {
+                if (this.stack[s].properties.element.solo.get(time) === 1) {
+                    anySolo = true;
+                    break;
+                }
+            }
             var anyEnabled = false;
             for (var i = 0; i < count; i++) {
                 var element = this.stack[i];
@@ -1155,8 +1178,10 @@ var PZ = PZ || {};
                 dataD[o + 1] = Math.round(p.globalParams.blendMode.get(time));
                 dataD[o + 2] = Math.round(p.element.elementType.get(time));
                 var enabled = p.element.enabled.get(time) === 1;
-                dataD[o + 3] = enabled ? 1 : 0;
-                anyEnabled = anyEnabled || enabled;
+                var solod = p.element.solo.get(time) === 1;
+                var visible = enabled && (!anySolo || solod);
+                dataD[o + 3] = visible ? 1 : 0;
+                anyEnabled = anyEnabled || visible;
                 var elementColor = p.globalParams.color.get(time);
                 dataColor[i * 3] = elementColor[0] * globalColor[0];
                 dataColor[i * 3 + 1] = elementColor[1] * globalColor[1];
