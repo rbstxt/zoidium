@@ -99,12 +99,18 @@ function activate(context) {
     // One worker per material, one active bake and one replaceable pending request.
     function ensureWorker() {
       if (!worker && context.window.Worker && context.window.Blob && context.window.URL?.createObjectURL) {
-        const code = `const nodes = new Function(${JSON.stringify(graphSource)})()({}, null); onmessage = e => { const {id,graph,size,time,images}=e.data; try { const outputs=nodes.evaluate(graph,size,time,{images}); postMessage({id,outputs}); } catch(error) { postMessage({id,error:error.message}); } };`;
+        const code = `const nodes = new Function(${JSON.stringify(graphSource)})()({}, null); onmessage = e => { const {id,graph,size,time,images}=e.data; try { const outputs=nodes.evaluate(graph,size,time,{images}); postMessage({id,outputs}, [...new Set(Object.values(outputs).filter(p => ArrayBuffer.isView(p)).map(p => p.buffer))]); } catch(error) { postMessage({id,error:error.message}); } };`;
         workerUrl = context.window.URL.createObjectURL(new context.window.Blob([code], { type: "text/javascript" }));
         worker = new context.window.Worker(workerUrl);
       }
     }
     function apply(outputs, size) {
+      if (outputs.__fresnel) {
+        material.pzFresnel = outputs.__fresnel;
+        material.pzUniforms.uPzFresnelColor.value.set(...material.pzFresnel.color);
+        material.pzUniforms.uPzFresnelPower.value = material.pzFresnel.power;
+        material.pzUniforms.uPzFresnelMix.value = material.pzFresnel.mix;
+      }
       for (const slot of Object.keys(material.pzGraphTextures)) {
         const pixels = outputs[slot];
         let canvas = null;
@@ -182,11 +188,11 @@ function activate(context) {
       this._surfaceFrame = frame;
       const enabled = this.properties.useNodeGraph.get() === 1;
       const graph = nodes.parse(enabled ? this.properties.graph.get() : { nodes: [], links: [] });
-      const size = [128, 256, 512][this.properties.bakeResolution.get()] || 256;
+      const size = [128, 256, 512, 1024, 2048][this.properties.bakeResolution.get()] || 256;
       const rate = Number(this.parentProject?.sequence?.properties.rate?.get()) || 30;
       const key = nodes.cacheKey(graph, size, frame, { rate, images: nodes.dependencySignature(graph, this) });
       this.pzGraph = graph;
-      this.pzFresnel = enabled ? nodes.fresnelSettings(graph) : null;
+      this.pzFresnel = enabled ? (this.pzBakeKey === key ? this.pzFresnel : nodes.fresnelSettings(graph, frame / rate)) : null;
       if (this.pzFresnel) {
         this.pzUniforms.uPzFresnelColor.value.set(...this.pzFresnel.color);
         this.pzUniforms.uPzFresnelPower.value = this.pzFresnel.power;
@@ -326,10 +332,10 @@ function activate(context) {
       body.append(host, strip);
       const registry = {};
       for (const [id, def] of Object.entries(nodes.types)) registry[id] = {
-        title: def.name, category: def.category, ...(id === "output" ? { maxInstances: 1, deletable: false } : {}),
-        inputs: def.inputs.map(p => ({ id: p.key, label: p.name, type: p.key === "uv" ? "vector" : ["t", "roughness", "metalness", "bump", "opacity", "fresnel"].includes(p.key) ? "float" : "color" })),
+        title: def.name, category: def.category, hidden: def.hidden, hint: def.hint, ...(id === "output" ? { maxInstances: 1, deletable: false } : {}),
+        inputs: def.inputs.map(p => ({ id: p.key, label: p.name, type: p.type === "number" || (id === "math" && ["a", "b"].includes(p.key)) ? "float" : p.key === "uv" ? "vector" : ["t", "roughness", "metalness", "bump", "opacity", "fresnel"].includes(p.key) ? "float" : "color" })),
         outputs: def.outputs.map(p => ({ id: p.key, label: p.name, type: ["projection", "uvw"].includes(id) ? "vector" : p.name === "Value" ? "float" : "color" })),
-        params: def.params.filter(p => p.type !== "asset").map(p => ({ id: p.key, label: p.name, control: p.type === "option" ? "select" : p.type, min: p.min, max: p.max, step: p.step, default: p.type === "color" ? "#" + p.value.map(c => Math.round(c * 255).toString(16).padStart(2, "0")).join("") : p.value, options: p.items?.map((label, value) => ({ label, value })) })),
+        params: def.params.filter(p => p.type !== "asset").map(p => ({ id: p.key, label: p.name, socket: ["number", "color"].includes(p.type), control: p.type === "option" ? "select" : p.type, min: p.min, max: p.max, step: p.step, default: p.type === "color" ? "#" + p.value.map(c => Math.round(c * 255).toString(16).padStart(2, "0")).join("") : p.value, options: p.items?.map((label, value) => ({ label, value })) })),
       };
       function commit(graph) {
         const previous = new Map(nodes.parse(material.properties.graph.get()).nodes.map(n => [n.id, n]));

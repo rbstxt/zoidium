@@ -11,7 +11,7 @@ function harness() {
   class Color { setRGB(...v) { this.values = v; return this; } }
   class Texture { constructor(image) { this.image = image; for (const k of ["repeat", "offset", "center"]) this[k] = new Vector(); } dispose() { this.disposed = true; } }
   class Physical { constructor(options) { Object.assign(this, options); this.color = new Color(); this.emissive = new Color(); this.normalScale = new Vector(); this.defines = {}; } dispose() { this.disposed = true; } }
-  const THREE = { MeshPhysicalMaterial: Physical, MeshStandardMaterial: Physical, MeshBasicMaterial: Physical, Vector2: Vector, Vector3: Vector, CanvasTexture: Texture, DataTexture: class extends Texture { constructor(data) { super({ data }); } }, ClampToEdgeWrapping: 1, RepeatWrapping: 2, MirroredRepeatWrapping: 3 };
+  const THREE = { MeshPhysicalMaterial: Physical, MeshStandardMaterial: Physical, MeshBasicMaterial: Physical, Vector2: Vector, Vector3: Vector, CanvasTexture: Texture, DataTexture: class extends Texture { constructor(data) { super({ data }); } }, LinearFilter: 1006, LinearMipMapLinearFilter: 1008, ClampToEdgeWrapping: 1, RepeatWrapping: 2, MirroredRepeatWrapping: 3 };
   const PZ = { property: { type: Object.fromEntries(["TEXT", "GRADIENT", "NUMBER", "OPTION", "COLOR", "VECTOR2", "VECTOR3", "ASSET"].map(k => [k, k])) }, asset: { type: { IMAGE: "image" }, image: class { constructor(asset) { this.asset = asset; this.loading = Promise.resolve(); } getTexture() { return new Texture(); } getImage() { return { width: 8, height: 8 }; } } }, material: { fnList: {} } };
   const document = { createElement() { const canvas = { width: 0, height: 0 }; canvas.getContext = () => ({ createImageData(w, h) { return { data: new Uint8ClampedArray(w * h * 4) }; }, putImageData(image) { canvas.data = image.data.slice(); }, drawImage() {}, getImageData() { return { data: new Uint8ClampedArray(canvas.width * canvas.height * 4) }; } }); return canvas; } };
   const dispose = [], editors = [], panels = [];
@@ -101,6 +101,16 @@ test("graph worker queues only the latest frame and stays idle for PBR+ with gra
     assert.deepEqual(node.pzGraphTextures.color.image.data, expected);
     assert.equal(maximum, 1);
     assert.equal(created, 1);
+    graph.nodes[0].params.octaves = 1;
+    node.properties.graph.set(JSON.stringify(graph));
+    node.properties.bakeResolution.set(4);
+    await node.prepare(90);
+    assert.equal(node.pzGraphTextures.color.image.width, 2048);
+    assert.equal(node.pzGraphTextures.color.image.height, 2048);
+    assert.equal(node.pzGraphTextures.color.magFilter, 1006);
+    assert.equal(node.pzGraphTextures.color.minFilter, 1008);
+    assert.equal(node.pzGraphTextures.color.generateMipmaps, true);
+    assert.equal(maximum, 1);
     node.unload(); pbr.unload(); assert.equal(terminated, 1);
   } finally { for (const fn of h.dispose.reverse()) fn(); }
 });

@@ -477,3 +477,12 @@
   padding: 8px 12px;
   color: var(--zui-text-muted);
 }
+
+.zoidium-node-editor-row.linked .zoidium-node-editor-control { opacity: .45; }
+
+.zoidium-node-editor-hint {
+  margin: 6px 8px;
+  color: var(--zui-text-muted);
+  font-size: 11px;
+  line-height: 1.35;
+}
