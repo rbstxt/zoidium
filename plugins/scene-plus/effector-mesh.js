@@ -67,7 +67,9 @@ function createMeshDeformer(THREE, jobs) {
       count: group.count,
       materialIndex: group.materialIndex,
     }));
+    const pieces = core.connectedPieces({ positions, count: positions.length / 3, index: base.index?.array });
     return {
+      ...pieces,
       sourceId: ++sourceSerial,
       kind: "source",
       smooth: false,
@@ -147,9 +149,9 @@ function createMeshDeformer(THREE, jobs) {
   }
 
   function recomputeNormals(geometry, stage) {
-    if (stage.smooth) {
+    if (stage.smooth || (!stage.index && stage.attributes.normal)) {
       if (!geometry.attributes.normal) geometry.computeVertexNormals();
-      computeSmoothVertexNormals(geometry);
+      computeSmoothVertexNormals(geometry, stage);
     } else {
       geometry.computeVertexNormals();
     }
@@ -218,6 +220,25 @@ function createMeshDeformer(THREE, jobs) {
     });
   }
 
+  // Sample native object transforms without updating the scene or touching any
+  // live render nodes. Generated clone/character offsets retain their matrices.
+  function worldAt(node, time, memo) {
+    if (!THREE.Matrix4 || !THREE.Quaternion || !THREE.Euler || !node?.matrix) return node?.matrixWorld?.elements;
+    if (memo.has(node)) return memo.get(node);
+    const local = node.matrix.clone();
+    const owner = node.__zoidiumEffectorTransformOwner;
+    const properties = owner?.properties;
+    if (properties?.position && properties?.rotation && properties?.scale) {
+      const read = (name, fallback) => { try { return properties[name].get(time); } catch (_) { return fallback; } };
+      const p = read("position", [0, 0, 0]), r = read("rotation", [0, 0, 0]), scale = read("scale", [1, 1, 1]);
+      const rotation = new THREE.Quaternion().setFromEuler(new THREE.Euler(...r, node.rotation?.order || "XYZ"));
+      local.compose(new THREE.Vector3(...p), rotation, new THREE.Vector3(...scale));
+    }
+    const parent = node.parent ? worldAt(node.parent, time, memo) : null;
+    if (parent) local.premultiply(new THREE.Matrix4().fromArray(parent));
+    const result = Array.from(local.elements); memo.set(node, result); return result;
+  }
+
   // Evaluates one mesh. `chain` lists {effector, node} outer to inner. The
   // deformers run in their own local space (node.matrixWorld relative to the
   // mesh), so transformed effectors and nested groups act in their own frame.
@@ -260,11 +281,28 @@ function createMeshDeformer(THREE, jobs) {
     // Fracture and large curved meshes include topology, deformation, and normal
     // averaging in the worker. Small Twist/Warp previews keep their cheap path.
     if (jobs && (chain.some(entry => typeof entry.effector.produceStage === "function") ||
-      triangleCount * polygonCount >= 5000) && chain.every(entry => typeof entry.effector.workerCommand === "function")) {
-      const commands = chain.map(entry => ({
-        ...entry.effector.workerCommand(frame),
-        relation: core.relativeTransform(entry.node?.matrixWorld?.elements, mesh.matrixWorld?.elements),
-      }));
+      chain.some(entry => ["plain", "delay"].includes(entry.effector.workerCommand?.(frame)?.kind)) || triangleCount * polygonCount >= 5000) && chain.every(entry => typeof entry.effector.workerCommand === "function")) {
+      let historyBudget = 96;
+      const sampledWorlds = new Map();
+      const world = (node, time) => {
+        if (time === frame) return node?.matrixWorld?.elements;
+        if (!sampledWorlds.has(time)) sampledWorlds.set(time, new Map());
+        return worldAt(node, time, sampledWorlds.get(time));
+      };
+      const sampleCommands = (time, length) => chain.slice(0, length).map((entry, index) => {
+        const command = { ...entry.effector.workerCommand(time), bounds: entry.bounds,
+          relation: core.relativeTransform(world(entry.node, time), world(mesh, time)) };
+        command.field = core.fieldForBounds(command.field, entry.bounds);
+        if (command.motion) command.motion.field = core.fieldForBounds(command.motion.field, entry.bounds);
+        if (command.kind === "delay" && command.strength > 0) {
+          command.history = [];
+          for (let i = 0; i < command.window && historyBudget > 0; i++) {
+            historyBudget--; command.history.push(sampleCommands(Math.max(0, time - i - 1), index));
+          }
+        }
+        return command;
+      });
+      const commands = sampleCommands(frame, chain.length);
       const key = base.sourceId + ":" + polygonCount + ":" + JSON.stringify(commands);
       const lastFracture = commands.map(command => command.kind).lastIndexOf("fracture");
       const topologyInputs = lastFracture < 0 ? [] : [commands.slice(0, lastFracture),
@@ -286,7 +324,7 @@ function createMeshDeformer(THREE, jobs) {
         base: { ...base, attributes, indexRef: null } };
       const entry = jobs.request(mesh, key, input);
       liveMeshes.add(mesh);
-      const completed = entry?.status === "done" ? entry : jobs.latest?.(buildKey);
+      const completed = entry?.status === "done" ? entry : null;
       if (!completed) {
         // A completed result is valid only for its exact input key. Restore the
         // pristine source when the user edits inputs while work is pending.
@@ -357,10 +395,10 @@ function createMeshDeformer(THREE, jobs) {
       const relation = core.relativeTransform(deformerWorld, meshWorld);
       if (!relation) continue;
       if (relation.identity) {
-        work = effector.deformPositions(work, frame, { stage, matrix: null }) || work;
+        work = effector.deformPositions(work, frame, { stage, matrix: null, bounds: entry.bounds }) || work;
       } else {
         core.transformPositions(work, relation.forward);
-        work = effector.deformPositions(work, frame, { stage, matrix: relation.forward }) || work;
+        work = effector.deformPositions(work, frame, { stage, matrix: relation.forward, bounds: entry.bounds }) || work;
         core.transformPositions(work, relation.inverse);
       }
     }
@@ -397,6 +435,7 @@ function createMeshDeformer(THREE, jobs) {
 
   return {
     deformMesh,
+    sourceStage(mesh) { return sourceStage(meshStates.get(mesh)?.source || mesh.geometry); },
     restoreMesh,
     restoreTree,
     warnOnce,
@@ -409,8 +448,9 @@ function createMeshDeformer(THREE, jobs) {
   };
 }
 
-// Averages face normals across coincident vertices of the same material group.
-function computeSmoothVertexNormals(geometry) {
+// Average deformed faces at coincident vertices while retaining source normal
+// discontinuities, material seams, and separate fracture pieces.
+function computeSmoothVertexNormals(geometry, stage) {
   const position = geometry.attributes.position;
   const normal = geometry.attributes.normal;
   if (!position || !normal) return;
@@ -425,7 +465,9 @@ function computeSmoothVertexNormals(geometry) {
     const x = position.array[vertex * 3];
     const y = position.array[vertex * 3 + 1];
     const z = position.array[vertex * 3 + 2];
-    return groupOf(vertex) + ":" + Math.round(x * 100000) + ":" + Math.round(y * 100000) + ":" + Math.round(z * 100000);
+    const source = stage?.attributes?.normal?.array;
+    const hardEdge = source ? [0, 1, 2].map(a => Math.round(source[vertex * 3 + a] * 10000)).join(":") : "";
+    return hardEdge + ":" + (stage?.pieceIds?.[vertex] || 0) + ":" + groupOf(vertex) + ":" + Math.round(x * 100000) + ":" + Math.round(y * 100000) + ":" + Math.round(z * 100000);
   };
   for (let vertex = 0; vertex + 2 < position.count; vertex += 3) {
     const a = [position.array[vertex * 3], position.array[vertex * 3 + 1], position.array[vertex * 3 + 2]];

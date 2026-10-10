@@ -135,6 +135,7 @@ function valueNoise(x, y, z, seed) {
 
 // Bounds come from pristine input positions in effector space, never moved vertices.
 function prepareField(field, positions, matrix) {
+  if (field?.prepared) return field;
   if (!field) return null;
   if (!field.type) return field;
   const rotation = field.rotation || [0, 0, 0];
@@ -204,10 +205,18 @@ function evaluateField(x, y, z, field) {
 // the midpoint of the object's extent along the axis plus an offset, and the
 // angle scales linearly across the extent, so the transform is continuous.
 // Positions are changed in place. Zero size or zero angle is an identity.
-function twistPositions(positions, angle, axis, offset, field) {
+function fieldForBounds(field, bounds) {
+  if (!field || !bounds || field.prepared) return field;
+  const corners = [];
+  for (let x = 0; x < 2; x++) for (let y = 0; y < 2; y++) for (let z = 0; z < 2; z++)
+    corners.push((x ? bounds.max : bounds.min)[0], (y ? bounds.max : bounds.min)[1], (z ? bounds.max : bounds.min)[2]);
+  return { ...prepareField(field, corners), prepared: true };
+}
+
+function twistPositions(positions, angle, axis, offset, field, sharedBounds) {
   if (!angle || !Number.isFinite(angle)) return positions;
   const along = clampIndex(axis, 2);
-  const bounds = axisBounds(positions, along);
+  const bounds = sharedBounds ? [sharedBounds.min[along], sharedBounds.max[along]] : axisBounds(positions, along);
   if (!bounds) return positions;
   const size = bounds[1] - bounds[0];
   if (!(size > 0) || !Number.isFinite(size)) return positions;
@@ -243,11 +252,11 @@ function oneMinusCosOverSeries(theta) {
 // extent (radians). With a field, each vertex's curvature is multiplied by its
 // field weight. Algebraically this equals sin(k s) / k and (1 - cos(k s)) / k
 // with s = x - pivot, rewritten with sinc so the zero-curvature limit is exact.
-function warpPositions(positions, strength, axis, offset, field) {
+function warpPositions(positions, strength, axis, offset, field, sharedBounds) {
   if (!strength || !Number.isFinite(strength)) return positions;
   const alongAxis = 0;
   const bendAxis = clampIndex(axis, 1) === 1 ? 2 : 1;
-  const bounds = axisBounds(positions, alongAxis);
+  const bounds = sharedBounds ? [sharedBounds.min[alongAxis], sharedBounds.max[alongAxis]] : axisBounds(positions, alongAxis);
   if (!bounds) return positions;
   const size = bounds[1] - bounds[0];
   if (!(size > 0) || !Number.isFinite(size)) return positions;
@@ -440,6 +449,7 @@ function subdivideStage(stage, polygonCount) {
     };
   }
   const groups = [];
+  const pieceIds = stage.pieceIds ? new Uint32Array(outputCount) : null;
   let output = 0;
   const finite = (value) => (Number.isFinite(value) ? value : 0);
 
@@ -470,6 +480,7 @@ function subdivideStage(stage, polygonCount) {
               vertexWeights[2] * finite(attribute.array[sources[2] * attribute.itemSize + component]);
           }
         }
+        if (pieceIds) pieceIds[output] = stage.pieceIds[sources[0]];
         output += 1;
       }
     }
@@ -483,6 +494,7 @@ function subdivideStage(stage, polygonCount) {
 
   return {
     kind: "subdivided",
+    pieceIds, pieceCount: stage.pieceCount,
     smooth: true,
     count: output,
     positions,
@@ -495,7 +507,145 @@ function subdivideStage(stage, polygonCount) {
   };
 }
 
+// Weld source triangle corners to identify separate pieces, including stock Text
+// characters. Keep this metadata before subdivision so refinements cannot split it.
+function connectedPieces(stage) {
+  const count = stage.count, parent = new Int32Array(count);
+  for (let i = 0; i < count; i++) parent[i] = i;
+  const root = i => { while (parent[i] !== i) { parent[i] = parent[parent[i]]; i = parent[i]; } return i; };
+  const weld = new Map();
+  const bounds = boundsOf(stage.positions);
+  const extent = Math.max(...bounds.max.map((v, i) => v - bounds.min[i]), 1);
+  const epsilon = extent * 1e-7;
+  for (let i = 0; i < count; i++) {
+    const key = [0, 1, 2].map(a => Math.round(stage.positions[i * 3 + a] / epsilon)).join(":");
+    if (weld.has(key)) parent[root(i)] = root(weld.get(key)); else weld.set(key, i);
+  }
+  const indices = stage.index || Array.from({ length: count }, (_, i) => i);
+  for (let i = 0; i + 2 < indices.length; i += 3) {
+    parent[root(indices[i + 1])] = root(indices[i]); parent[root(indices[i + 2])] = root(indices[i]);
+  }
+  const ids = new Map(), pieceIds = new Uint32Array(count);
+  for (let i = 0; i < count; i++) { const r = root(i); if (!ids.has(r)) ids.set(r, ids.size); pieceIds[i] = ids.get(r); }
+  return { pieceIds, pieceCount: ids.size };
+}
+
+function plainPositions(positions, stage, command) {
+  const ids = stage.pieceIds, count = stage.pieceCount || 1;
+  const sums = new Float64Array(count * 3), sizes = new Uint32Array(count);
+  for (let i = 0; i < positions.length / 3; i++) {
+    const id = ids ? ids[i] : 0; sizes[id]++;
+    for (let a = 0; a < 3; a++) sums[id * 3 + a] += positions[i * 3 + a];
+  }
+  const centers = [], rotations = [], scales = [], weights = [];
+  const field = prepareField(command.field, positions);
+  for (let id = 0; id < count; id++) {
+    const c = [0, 1, 2].map(a => sums[id * 3 + a] / (sizes[id] || 1)); centers.push(c);
+    const w = evaluateField(...c, field); weights.push(w);
+    rotations.push(command.rotation.map(v => v * w));
+    scales.push(command.scale.map(v => 1 + (v - 1) * w));
+  }
+  for (let i = 0; i < positions.length / 3; i++) {
+    const id = ids ? ids[i] : 0, c = centers[id];
+    const q = rotateXYZ([0, 1, 2].map(a => (positions[i * 3 + a] - c[a]) * scales[id][a]), rotations[id]);
+    for (let a = 0; a < 3; a++) positions[i * 3 + a] = c[a] + q[a] + command.position[a] * weights[id];
+  }
+  return positions;
+}
+
+// Least-squares piece transforms keep Delay's rotation filtering rigid. Curved
+// vertex deformers use the vertex filter instead; a piece transform cannot
+// represent a Twist or Warp. These functions have no frame-to-frame state.
+function pieceTransformBasis(stage) {
+  const count = stage.pieceCount || 1, ids = stage.pieceIds;
+  const centers = new Float64Array(count * 3), sizes = new Uint32Array(count);
+  for (let v = 0; v < stage.count; v++) {
+    const id = ids ? ids[v] : 0; sizes[id]++;
+    for (let a = 0; a < 3; a++) centers[id * 3 + a] += stage.positions[v * 3 + a];
+  }
+  for (let id = 0; id < count; id++) for (let a = 0; a < 3; a++) centers[id * 3 + a] /= sizes[id] || 1;
+  const covariance = new Float64Array(count * 9);
+  for (let v = 0; v < stage.count; v++) {
+    const id = ids ? ids[v] : 0;
+    for (let a = 0; a < 3; a++) for (let b = 0; b < 3; b++)
+      covariance[id * 9 + a * 3 + b] += (stage.positions[v * 3 + a] - centers[id * 3 + a]) * (stage.positions[v * 3 + b] - centers[id * 3 + b]);
+  }
+  const inverses = [];
+  for (let id = 0; id < count; id++) {
+    const g = covariance.subarray(id * 9, id * 9 + 9);
+    const largest = Math.max(...g.map(Math.abs), TINY);
+    const m = [g[0]/largest,g[3]/largest,g[6]/largest,0,g[1]/largest,g[4]/largest,g[7]/largest,0,g[2]/largest,g[5]/largest,g[8]/largest,0,0,0,0,1];
+    const inverse = invertMatrix(m);
+    inverses.push(inverse ? [inverse[0],inverse[4],inverse[8],inverse[1],inverse[5],inverse[9],inverse[2],inverse[6],inverse[10]].map(v => v / largest) : null);
+  }
+  return { count, centers, sizes, inverses };
+}
+
+function quaternionOf(m) {
+  const trace = m[0] + m[4] + m[8];
+  if (trace > 0) {
+    const s = Math.sqrt(trace + 1) * 2;
+    return [(m[7]-m[5])/s,(m[2]-m[6])/s,(m[3]-m[1])/s,s/4];
+  }
+  const i = m[0] > m[4] && m[0] > m[8] ? 0 : m[4] > m[8] ? 1 : 2;
+  const j = (i+1)%3, k = (i+2)%3, q = [0,0,0,0];
+  const s = Math.sqrt(Math.max(0,1+m[i*3+i]-m[j*3+j]-m[k*3+k]))*2 || 1;
+  q[i]=s/4; q[j]=(m[j*3+i]+m[i*3+j])/s; q[k]=(m[k*3+i]+m[i*3+k])/s; q[3]=(m[k*3+j]-m[j*3+k])/s;
+  return q;
+}
+
+function fitPieceTransforms(stage, positions, basis) {
+  const centers = new Float64Array(basis.count * 3), cross = new Float64Array(basis.count * 9);
+  for (let v = 0; v < stage.count; v++) {
+    const id = stage.pieceIds ? stage.pieceIds[v] : 0;
+    for (let a = 0; a < 3; a++) centers[id * 3 + a] += positions[v * 3 + a];
+  }
+  for (let id = 0; id < basis.count; id++) for (let a = 0; a < 3; a++) centers[id * 3 + a] /= basis.sizes[id] || 1;
+  for (let v = 0; v < stage.count; v++) {
+    const id = stage.pieceIds ? stage.pieceIds[v] : 0;
+    for (let a = 0; a < 3; a++) for (let b = 0; b < 3; b++) cross[id * 9 + a * 3 + b] +=
+      (positions[v * 3 + a] - centers[id * 3 + a]) * (stage.positions[v * 3 + b] - basis.centers[id * 3 + b]);
+  }
+  return basis.inverses.map((inverse, id) => {
+    if (!inverse) return null;
+    const h = cross.subarray(id * 9, id * 9 + 9), matrix = new Float64Array(9);
+    for (let a = 0; a < 3; a++) for (let b = 0; b < 3; b++) for (let k = 0; k < 3; k++) matrix[a * 3 + b] += h[a * 3 + k] * inverse[k * 3 + b];
+    const columns = [0,1,2].map(a => [matrix[a],matrix[3+a],matrix[6+a]]);
+    const scale = columns.map(c => Math.hypot(...c));
+    if (scale.some(v => v < TINY)) return null;
+    const dot = (a,b) => a.reduce((sum,v,i) => sum+v*b[i],0);
+    // Preserve an existing shear with the vertex filter instead of silently
+    // replacing it with a rigid transform under a nonuniform parent scale.
+    for (let a=0;a<3;a++) for (let b=a+1;b<3;b++)
+      if (Math.abs(dot(columns[a],columns[b])) > scale[a]*scale[b]*1e-4) return null;
+    const x = columns[0].map(v => v / scale[0]);
+    const y = columns[1].map((v,a) => v - dot(columns[1],x) * x[a]);
+    const length = Math.hypot(...y); if (length < TINY) return null;
+    for (let a=0;a<3;a++) y[a]/=length;
+    const z = [x[1]*y[2]-x[2]*y[1],x[2]*y[0]-x[0]*y[2],x[0]*y[1]-x[1]*y[0]];
+    if (dot(z,columns[2]) < 0) scale[2]*=-1;
+    return { center: Array.from(centers.subarray(id*3,id*3+3)), scale,
+      rotation: quaternionOf([x[0],y[0],z[0],x[1],y[1],z[1],x[2],y[2],z[2]]) };
+  });
+}
+
+function writePieceTransforms(positions, stage, basis, transforms) {
+  for (let v=0;v<stage.count;v++) {
+    const id=stage.pieceIds ? stage.pieceIds[v] : 0, t=transforms[id]; if (!t) continue;
+    const [x,y,z,w]=t.rotation, p=[0,1,2].map(a => (stage.positions[v*3+a]-basis.centers[id*3+a])*t.scale[a]);
+    const uv=[y*p[2]-z*p[1],z*p[0]-x*p[2],x*p[1]-y*p[0]];
+    const uuv=[y*uv[2]-z*uv[1],z*uv[0]-x*uv[2],x*uv[1]-y*uv[0]];
+    for(let a=0;a<3;a++) positions[v*3+a]=t.center[a]+p[a]+2*(w*uv[a]+uuv[a]);
+  }
+}
+
 module.exports = {
+  pieceTransformBasis,
+  fitPieceTransforms,
+  writePieceTransforms,
+  fieldForBounds,
+  connectedPieces,
+  plainPositions,
   MAX_SMOOTH_TRIANGLES,
   SMOOTH_TRIANGLE_BUDGET_MIN_POLYGONS,
   TWIST_PLANES,

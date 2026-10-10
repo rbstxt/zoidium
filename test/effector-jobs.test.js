@@ -186,7 +186,7 @@ test("topology cache evicts by byte budget and does not keep oversized stages", 
 });
 
 test("bundled Blob worker source executes in an actual worker without source-tree fetches", async () => {
-  const sources = Object.fromEntries(["effector-core", "effector-fracture", "effector-mesh", "effector-evaluate"].map(name =>
+  const sources = Object.fromEntries(["earcut", "effector-core", "effector-fracture", "effector-mesh", "effector-evaluate"].map(name =>
     [name + ".js", fs.readFileSync(path.join(__dirname, "../plugins/scene-plus", name + ".js"), "utf8")]));
   const source = createWorkerSource(sources);
   const worker = new Worker(`const {parentPort}=require("node:worker_threads");global.postMessage=(data,transfer)=>parentPort.postMessage(data,transfer);parentPort.on("message",data=>global.onmessage({data}));` + source, { eval: true });
