@@ -143,15 +143,15 @@
       "category": "scene",
       "name": "Material+",
       "author": "Zoidium",
-      "version": "5",
-      "itemCount": 3,
+      "version": "6",
+      "itemCount": 5,
       "format": "3D materials",
-      "tagline": "Matcap, PBR+ & UV Custom Materials",
+      "tagline": "Node, PBR+, Matcap & Image+ materials",
       "color": "#b36bca",
-      "description": "Adds Matcap, PBR+, and corrected-UV materials for 3D objects.",
+      "description": "Adds procedural Node Materials with a node editor, PBR+ with ramps, Fresnel, cel shading and projection, Image+ with opacity, Matcap, and corrected-UV materials for 3D objects.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/material-plus/manifest.json?v=5",
-      "bundle": "./plugins/material-plus/bundle.json?v=5"
+      "manifest": "./plugins/material-plus/manifest.json?v=6",
+      "bundle": "./plugins/material-plus/bundle.json?v=6"
     },
     {
       "id": "text-plus",

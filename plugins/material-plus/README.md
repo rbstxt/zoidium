@@ -26,7 +26,7 @@ their original lighting behavior.
 
 ## PBR+ Material
 
-PBR+ Material uses CM3's Three.js MeshStandardMaterial. It keeps the standard
+PBR+ Material uses CM3's Three.js MeshPhysicalMaterial. It keeps the standard
 scene-lighting path while adding independent texture maps for base color,
 emission, roughness, metalness, normal, and alpha.
 
@@ -86,3 +86,61 @@ pnpm run check:plugin-manifests
 pnpm run check:plugin-bundles
 pnpm run verify
 ```
+
+## Node Material and node graphs
+
+Node Material (`nodes`) uses a MeshPhysicalMaterial and bakes a project-owned,
+versioned JSON graph into color, luminance, roughness, metalness, bump and opacity
+maps. A connected Fresnel node controls the view-angle tint. Open Node Editor
+opens the shared Zoidium graph component in a floating window with a color-map
+preview. Each completed graph gesture records one native undo operation.
+Image and Texture nodes use the native Selected node image property,
+which imports images through CM3's project asset picker.
+
+All 31 node types are ported from DaviFX's OpenZoid:
+[DaviFX](https://www.youtube.com/@davifxarts). These include noise, ridged
+fractal, turbulence, gradients, checker, image, texture, Fresnel, arithmetic,
+color correction, colorizer, spectra, blackbody, random color, projection and
+UVW transforms. Node IDs and port IDs are validated; graphs accept at most
+200 nodes and 400 links. Invalid JSON falls back to the starter graph. Graphs
+save `schemaVersion: 1` and also accept the original OpenZoid link layout.
+
+Bakes run in a per-material worker loaded from the plugin bundle. Asset decoding
+completes before a bake, and export preparation waits for the requested bake.
+The key includes graph content, resolution, project frame and asset revisions.
+Noise uses fixed seeds; seeking does not retain previous-frame feedback.
+Resolution is limited to 128, 256 or 512. Noise lattice dimensions are capped
+at 1024 to keep extreme imported settings within a memory limit.
+
+## Additional PBR+ surface controls
+
+PBR+ keeps its existing type ID and property keys. It shares the Node Material
+shader and graph runtime and adds these optional controls:
+
+- Color ramp, with luminance/U/V source, interpolation and factor.
+- Fixed-seed procedural bump, scale and MIP falloff.
+- Fresnel color, power and mix.
+- Ambient occlusion map, tint, intensity and exponent. This is map-based
+  shading, not geometric scene occlusion.
+- Cel diffuse/specular levels and smoothness.
+- UV, spherical, cylindrical or cubic projection, with projection transforms.
+- Reflection layer strength, opacity and roughness; specular strength/opacity.
+- Use node graph and bake resolution.
+
+Ramp, procedural bump, Fresnel, ambient occlusion, cel, reflection layer and
+graphs default off. The physical material has zero clear coat until the
+reflection layer is enabled. PBR+ and Node Material also have tabbed attribute
+windows containing native property rows. Their normal property lists remain
+complete.
+
+## Image+ Material
+
+Image+ (`imageplus`) adds a separate MeshBasicMaterial with a project image,
+Transparency and animated Opacity. It retains Wrap, Repeat, Offset, Center,
+Rotation and Render side. Enable Transparency to fade the image with Opacity.
+The native CM3 Image material is unchanged.
+
+All Material+ types use the plugin manager's normal in-use lock and missing
+material behavior. Disabling an unused plugin removes its factories and
+windows; unloading materials releases their workers, textures and asset
+references.

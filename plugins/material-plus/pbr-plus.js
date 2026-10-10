@@ -194,7 +194,7 @@ function releaseEnvironmentMap(material) {
 function syncEnvironmentMap(material) {
   if (!material.threeObj) return;
 
-  const enabled = getOptionValue(material.properties.reflection, 0) === 1;
+  const enabled = (getOptionValue(material.properties.reflection, 0) === 1 || getOptionValue(material.properties.reflReflection, 0) === 1);
   const layer = material.parentLayer;
   const source = layer?.envMap;
 
@@ -504,22 +504,28 @@ function createMaterialFactory(plugin) {
       alphaMap: { propertyName: "alphaMap", materialProperty: "alphaMap", asset: null, image: null, texture: null, value: null, generation: 0 },
     };
     material.properties.addAll(propertyDefinitions);
+    const surfaceApi = state.window?.ZoidiumMaterialPlus;
+    surfaceApi?.install(material, false);
+    if (surfaceApi) material.initReflection = () => syncEnvironmentMap(material);
     material._zoidiumLoading = false;
 
     material.load = function (data) {
       material._zoidiumLoading = true;
-      material.threeObj = new state.THREE.MeshStandardMaterial({
+      material.threeObj = new (state.window?.ZoidiumMaterialPlus && state.THREE.MeshPhysicalMaterial ? state.THREE.MeshPhysicalMaterial : state.THREE.MeshStandardMaterial)({
         color: 0xffffff,
         roughness: 0.5,
         metalness: 0,
         transparent: false,
         premultipliedAlpha: false,
       });
+      material._surfaceInit?.();
       try {
         material.properties.load(data && data.properties);
       } finally {
         material._zoidiumLoading = false;
       }
+      material.syncRamp?.();
+      material.updateBumpMap?.();
       loadAllTextureSlots(material);
       applyRenderSettings(material);
       syncEnvironmentMap(material);
@@ -530,6 +536,7 @@ function createMaterialFactory(plugin) {
     material.update = function (frame) {
       if (!material.threeObj) return;
 
+      material._surfaceUpdate?.(frame);
       const color = readColor(material.properties.color, frame, [1, 1, 1]);
       const emissive = readColor(material.properties.emissive, frame, [0, 0, 0]);
       const roughness = Math.max(0, Math.min(1, readNumber(material.properties.roughness, frame, 0.5)));
@@ -539,13 +546,16 @@ function createMaterialFactory(plugin) {
       const reflectionIntensity = Math.max(0, readNumber(material.properties.reflectionIntensity, frame, 1));
       const opacity = Math.max(0, Math.min(1, readNumber(material.properties.opacity, frame, 1)));
 
-      material.threeObj.color.setRGB(color[0], color[1], color[2]);
+      if (material.pzUniforms) {
+        material.pzUniforms.uPzColor.value.set(...color);
+        material.threeObj.color.setRGB(1, 1, 1);
+      } else material.threeObj.color.setRGB(...color);
       material.threeObj.emissive.setRGB(emissive[0], emissive[1], emissive[2]);
       material.threeObj.emissiveIntensity = emissiveIntensity;
       material.threeObj.roughness = roughness;
       material.threeObj.metalness = metalness;
       material.threeObj.normalScale.set(normalScale, normalScale);
-      material.threeObj.envMapIntensity = reflectionIntensity;
+      material.threeObj.envMapIntensity = reflectionIntensity * readNumber(material.properties.reflGlobalReflectionBrightness, frame, 1);
       material.threeObj.opacity = opacity;
 
       applyTextureSettings(material, false, frame);
@@ -557,7 +567,8 @@ function createMaterialFactory(plugin) {
       }
     };
 
-    material.prepare = async function () {
+    material.prepare = async function (frame) {
+      await material._surfacePrepare?.(frame);
       await Promise.all(
         textureSlots(material)
           .map((slot) => slot.image?.loading)
@@ -571,6 +582,7 @@ function createMaterialFactory(plugin) {
 
     material.unload = function () {
       state.PZ.zoidium?.untrackPluginMaterial?.(material);
+      material._surfaceDispose?.();
       releaseEnvironmentMap(material);
       for (const slot of textureSlots(material)) {
         slot.generation += 1;
@@ -593,6 +605,8 @@ function activate(context) {
 
   state.active = true;
   state.PZ = PZ;
+  state.window = context.window;
+  context.lifecycle?.onDispose(deactivate);
   state.THREE = THREE;
   state.plugin = context.plugin || {};
   state.hadPreviousFactory = Object.prototype.hasOwnProperty.call(
