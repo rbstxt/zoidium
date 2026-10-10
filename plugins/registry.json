@@ -141,7 +141,7 @@
       "category": "scene",
       "name": "Effector",
       "author": "Zoidium",
-      "version": "16",
+      "version": "17",
       "defaultEnabled": true,
       "itemCount": 7,
       "format": "3D effectors",
@@ -149,8 +149,8 @@
       "color": "#6c7fb5",
       "description": "Adds procedural repeaters plus Twist, Warp and Voronoi Fracture effectors to 3D Scene.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/scene-plus/manifest.json?v=16",
-      "bundle": "./plugins/scene-plus/bundle.json?v=16"
+      "manifest": "./plugins/scene-plus/manifest.json?v=17",
+      "bundle": "./plugins/scene-plus/bundle.json?v=17"
     },
     {
       "id": "material-plus",
@@ -189,15 +189,15 @@
       "category": "scene",
       "name": "Particles+",
       "author": "Zoidium",
-      "version": "7",
+      "version": "8",
       "itemCount": 54,
       "format": "particle sprites",
       "tagline": "Extra Particle Sprites",
       "color": "#6b5b8f",
       "description": "Adds original monochrome particle sprites: geometric shapes, pattern textures, and glow/flare variants.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/particles-plus/manifest.json?v=7",
-      "bundle": "./plugins/particles-plus/bundle.json?v=7"
+      "manifest": "./plugins/particles-plus/manifest.json?v=8",
+      "bundle": "./plugins/particles-plus/bundle.json?v=8"
     },
     {
       "id": "trapcode-suite",
@@ -219,15 +219,15 @@
       "category": "scene",
       "name": "Optical Flares",
       "author": "DaviFX",
-      "version": "5",
+      "version": "6",
       "itemCount": 5,
       "format": "3D objects",
       "tagline": "3D lens flares",
       "color": "#4a90d9",
       "description": "Video Copilot style lens flares placed in 3D space and projected through the scene camera, edited in one floating window.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/optical-flares/manifest.json?v=5",
-      "bundle": "./plugins/optical-flares/bundle.json?v=5"
+      "manifest": "./plugins/optical-flares/manifest.json?v=6",
+      "bundle": "./plugins/optical-flares/bundle.json?v=6"
     },
     {
       "id": "effector-plus",
@@ -249,15 +249,15 @@
       "category": "scene",
       "name": "Camera+",
       "author": "DaviFX",
-      "version": "5",
+      "version": "6",
       "itemCount": 1,
       "format": "camera rig",
       "tagline": "Camera layers, 3D tracks and DOF",
       "color": "#3d7bc5",
       "description": "Adds a separate Camera+ object with depth of field, seeded vibrate and focus tools, Camera layers, and a 3D switch on video tracks that lets scenes and flat layers follow the shared camera. The default CM3 camera is left unchanged.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/camera-plus/manifest.json?v=5",
-      "bundle": "./plugins/camera-plus/bundle.json?v=5"
+      "manifest": "./plugins/camera-plus/manifest.json?v=6",
+      "bundle": "./plugins/camera-plus/bundle.json?v=6"
     },
     {
       "id": "native-fx",

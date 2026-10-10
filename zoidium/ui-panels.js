@@ -425,7 +425,11 @@
                 tabs: tabSpecs.map(function (tab) {
                   return { id: tab.id, title: tab.title, render: function (panel) { renderTab(tab, panel); } };
                 }),
-                value: config.initialTab,
+                // Open on the object's own settings, not on Coord., the way
+                // Cinema 4D's attribute manager does.
+                value: config.initialTab || (tabSpecs.find(function (tab) {
+                  return !/^coord/i.test(String(tab.id || tab.title || ""));
+                }) || tabSpecs[0]).id,
               });
               body.appendChild(tabs.element);
             }

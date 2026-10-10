@@ -3,7 +3,7 @@
   "id": "camera-plus",
   "name": "Camera+",
   "author": "DaviFX",
-  "version": "5",
+  "version": "6",
   "kind": "object",
   "description": "Camera layers, shared 3D tracking, and Camera+ objects with film controls, depth of field and deterministic shutter sampling.",
   "category": "CAMERA",
@@ -30,44 +30,44 @@
   "modules": [
     {
       "id": "camera-runtime",
-      "source": "./plugins/camera-plus/camera-runtime.js?v=5"
+      "source": "./plugins/camera-plus/camera-runtime.js?v=6"
     }
   ],
   "resources": [
     {
       "id": "camera-vibrate",
       "type": "text",
-      "source": "./plugins/camera-plus/vibrate.js?v=5"
+      "source": "./plugins/camera-plus/vibrate.js?v=6"
     },
     {
       "id": "camera-dof",
       "type": "text",
-      "source": "./plugins/camera-plus/scene-dof.js?v=5"
+      "source": "./plugins/camera-plus/scene-dof.js?v=6"
     },
     {
       "id": "camera-class",
       "type": "text",
-      "source": "./plugins/camera-plus/camera-class.js?v=5"
+      "source": "./plugins/camera-plus/camera-class.js?v=6"
     },
     {
       "id": "camera-focus-ui",
       "type": "text",
-      "source": "./plugins/camera-plus/focus-ui.js?v=5"
+      "source": "./plugins/camera-plus/focus-ui.js?v=6"
     },
     {
       "id": "camera-motion-blur",
       "type": "text",
-      "source": "./plugins/camera-plus/scene-motion-blur.js?v=5"
+      "source": "./plugins/camera-plus/scene-motion-blur.js?v=6"
     },
     {
       "id": "shared-camera",
       "type": "text",
-      "source": "./plugins/camera-plus/shared-camera.js?v=5"
+      "source": "./plugins/camera-plus/shared-camera.js?v=6"
     },
     {
       "id": "shared-depth",
       "type": "text",
-      "source": "./plugins/camera-plus/shared-depth.js?v=5"
+      "source": "./plugins/camera-plus/shared-depth.js?v=6"
     }
   ]
 }

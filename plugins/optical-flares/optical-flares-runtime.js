@@ -13,7 +13,6 @@
 const SOURCE_FOLDER = "./plugins/optical-flares/";
 const SOURCE_ORDER = ["optflares-math.js", "optflares.js", "optflares-window.js"];
 const FLARE_TYPE = 13;
-const GEAR_ATTRIBUTE = "data-designer-gear";
 
 // Wraps PZ.object3d.create. Disabling leaves the wrapper in the chain as a
 // pass-through when another pack wrapped above it, so an out-of-order disable
@@ -35,46 +34,6 @@ function installCreateWrapper(PZ, undo) {
   undo.push(() => {
     alive = false;
     if (object3d.create === patched) object3d.create = original;
-  });
-}
-
-// Adds an options gear to each flare row in CM3 object lists. The gear uses the
-// same attribute as the Trapcode designer gear, so when both packs are active
-// only one button is rendered per row.
-function installGear(PZ, openWindow, undo) {
-  const prototype = PZ.ui.edit.prototype;
-  const original = prototype.generateItemCommands;
-  let alive = true;
-  const patched = function (item, target) {
-    const out = original.call(this, item, target);
-    if (!alive) return out;
-    try {
-      const Flare = PZ.object3d.optflares;
-      if (!Flare || !(target instanceof Flare)) return out;
-      if (!(target.parent instanceof PZ.objectList)) return out;
-      if (!this.options || !this.options.showListItemButtons) return out;
-      if (typeof this.generateButton !== "function") return out;
-      const host = item && item.children && item.children[1];
-      if (!host || typeof host.insertBefore !== "function") return out;
-      if (host.querySelector && host.querySelector("button[" + GEAR_ATTRIBUTE + "]")) return out;
-      const gear = this.generateButton("settings");
-      gear.title = "Optical Flares options";
-      gear.setAttribute(GEAR_ATTRIBUTE, "1");
-      gear.onclick = (event) => {
-        event.stopPropagation();
-        openWindow(target);
-      };
-      host.insertBefore(gear, host.firstElementChild);
-    } catch (error) {
-      console.error("Optical Flares could not add its options button", error);
-    }
-    return out;
-  };
-  patched.__opticalFlaresGear = true;
-  prototype.generateItemCommands = patched;
-  undo.push(() => {
-    alive = false;
-    if (prototype.generateItemCommands === patched) prototype.generateItemCommands = original;
   });
 }
 
@@ -194,7 +153,18 @@ module.exports = {
 
     installCreateWrapper(PZ, undo);
     installAuxiliaryPasses(PZ, undo);
-    installGear(PZ, openWindow, undo);
+    // The standard editor entry: a gear on each flare row and an "Open Flare
+    // Editor" button above its properties, released with the module.
+    undo.push(context.ui.registerEditor({
+      id: "optical-flares",
+      title: "Optical Flares",
+      label: "Open Flare Editor",
+      hint: "Open the Optical Flares options window",
+      icon: "settings",
+      match: (target) => Boolean(PZ.object3d.optflares && target instanceof PZ.object3d.optflares &&
+        target.parent instanceof PZ.objectList),
+      open: (target) => openWindow(target),
+    }));
     host = PZ;
   },
   // The plugin manager refuses to disable the pack while a flare is in the

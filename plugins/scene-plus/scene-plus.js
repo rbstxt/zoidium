@@ -1494,6 +1494,88 @@ function createRepeaterClass(PZ, THREE, mode, type) {
 }
 
 
+// Attribute windows for the Effector family, one tab per topic (Coord. and
+// Object first, as in Cinema 4D). Tabs with `keys` show the object's own
+// properties. Repeater counts and steps live in the repeater's property
+// category rather than on the object, so those tabs use `props` with `build`
+// to list that category.
+const ATTRIBUTE_COORD_TAB = { id: "coord", title: "Coord.", keys: ["position", "rotation", "scale"] };
+const ATTRIBUTE_OBJECT_TAB = { id: "object", title: "Object", keys: ["enabled", "reflectionVisibility"] };
+const ATTRIBUTE_FIELD_TAB = {
+  id: "field",
+  title: "Field",
+  keys: (key) => key === "field" || key.startsWith("field"),
+};
+
+function categoryAttributeTab(id, title, props) {
+  return {
+    id,
+    title,
+    category: "repeaterProperties",
+    props,
+    build(container, target, ui) {
+      const view = ui.properties({ target: () => target.repeaterProperties, keys: props });
+      container.appendChild(view.element);
+      return () => view.dispose();
+    },
+  };
+}
+
+function effectorAttributeSpecs() {
+  const spec = (id, title, type, tabs) => ({
+    id,
+    title,
+    persistKey: "effector-" + id,
+    width: 400,
+    height: 560,
+    match: (target) => target?.type === type,
+    tabs: [ATTRIBUTE_COORD_TAB, ATTRIBUTE_OBJECT_TAB, ...tabs],
+  });
+  return [
+    spec("repeater", "Repeater", "zoidium:repeater/repeater", [
+      categoryAttributeTab("copies", "Copies", ["count"]),
+      categoryAttributeTab("step", "Step", ["positionStep", "rotationStep", "scaleStep"]),
+    ]),
+    spec("linear-repeater", "Linear Repeater", "zoidium:repeater/linear-repeater", [
+      categoryAttributeTab("copies", "Copies", ["count"]),
+      categoryAttributeTab("range", "Range", ["positionEnd", "rotationEnd", "scaleEnd"]),
+    ]),
+    spec("random-repeater", "Random Repeater", "zoidium:repeater/random-repeater", [
+      categoryAttributeTab("copies", "Copies", ["count", "seed"]),
+      categoryAttributeTab("position", "Position", ["positionMin", "positionMax"]),
+      categoryAttributeTab("rotation", "Rotation", ["rotationMin", "rotationMax"]),
+      categoryAttributeTab("scale", "Scale", ["scaleMin", "scaleMax"]),
+    ]),
+    spec("echo-repeater", "Echo Repeater", "zoidium:repeater/echo-repeater", [
+      categoryAttributeTab("echo", "Echo", ["count", "delay"]),
+    ]),
+    spec("twist", "Twist", TWIST_TYPE, [
+      { id: "deformer", title: "Deformer", keys: ["axis", "subdivision", "angle", "offset"] },
+      ATTRIBUTE_FIELD_TAB,
+    ]),
+    spec("warp", "Warp", WARP_TYPE, [
+      { id: "deformer", title: "Deformer", keys: ["axis", "subdivision", "amount", "offset"] },
+      ATTRIBUTE_FIELD_TAB,
+    ]),
+    spec("voronoi-fracture", "Voronoi Fracture", VORONOI_TYPE, [
+      { id: "sources", title: "Sources", keys: ["distribution", "cells", "seed", "cellScale"] },
+      { id: "geometry", title: "Geometry", keys: ["closed", "colors", "fragmentScale"] },
+      {
+        id: "motion",
+        title: "Motion",
+        keys: ["distance", "scatter", "spin", "offset", "fragmentDirection", "fragmentRotation", "gravity", "randomness"],
+      },
+      ATTRIBUTE_FIELD_TAB,
+    ]),
+  ];
+}
+
+// Returns the release functions for the registered windows.
+function registerAttributePanels(ui) {
+  if (typeof ui?.registerAttributePanel !== "function") return [];
+  return effectorAttributeSpecs().map((spec) => ui.registerAttributePanel(spec));
+}
+
 function activate(context) {
   const { PZ, window, object3d } = context;
   const THREE = window?.THREE;
@@ -1558,6 +1640,7 @@ function activate(context) {
         })
       );
     }
+    unregister.push(...registerAttributePanels(context.ui));
   } catch (error) {
     for (const unregisterClass of unregister.reverse()) {
       try {
@@ -1602,6 +1685,7 @@ module.exports = {
   activate,
   deactivate,
   _test: {
+    effectorAttributeSpecs,
     defaultSourceData,
     createPropertyCategory,
     createRepeaterClass,

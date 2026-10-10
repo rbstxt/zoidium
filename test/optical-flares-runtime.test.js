@@ -1,7 +1,7 @@
 "use strict";
 
 // Lifecycle of the Optical Flares runtime: activation, the numeric type 13
-// wrapper, the options gear, disable restoring every host change, and rollback
+// wrapper, the editor entry, disable restoring every host change, and rollback
 // when activation fails halfway. Stubs are inline, as in optical-flares.test.js.
 
 const assert = require("node:assert/strict");
@@ -26,7 +26,7 @@ function loadRuntimeModule() {
 }
 
 // Minimal CM3 host: property/list classes, object3d.create and the object list
-// editor prototype whose generateItemCommands the gear wraps.
+// editor prototype (the flare editor entry no longer patches it).
 function buildHost() {
   class Observable {
     constructor() { this.watchers = []; }
@@ -161,6 +161,7 @@ function buildHost() {
 // owns them and calls them after deactivate().
 function makeContext(host, sources, options = {}) {
   const disposers = [];
+  const editors = [];
   const context = {
     PZ: host.PZ,
     window: { THREE: host.THREE },
@@ -175,11 +176,16 @@ function makeContext(host, sources, options = {}) {
         return { close() {} };
       },
       controls: {},
+      registerEditor(spec) {
+        editors.push(spec);
+        return () => { editors.splice(editors.indexOf(spec), 1); };
+      },
     },
     editor: options.editor || null,
   };
   return {
     context,
+    editors,
     dispose() {
       for (const fn of disposers.reverse()) fn();
     },
@@ -221,61 +227,28 @@ test("isInUse follows loaded flares and blocks disabling while one is in the pro
   dispose();
 });
 
-test("the options gear is added once to flare rows only", () => {
+test("the flare editor is declared through registerEditor, not a patched item list", () => {
   const host = buildHost();
   const runtime = loadRuntimeModule();
-  const { context, dispose } = makeContext(host, bundledSources());
+  const { context, editors, dispose } = makeContext(host, bundledSources());
+  const commandsBefore = host.PZ.ui.edit.prototype.generateItemCommands;
   runtime.activate(context);
+  assert.equal(editors.length, 1, "one editor entry");
+  const [spec] = editors;
+  assert.equal(spec.title, "Optical Flares");
+  assert.equal(spec.label, "Open Flare Editor");
+  assert.equal(spec.icon, "settings");
+  assert.equal(typeof spec.open, "function");
+  assert.equal(host.PZ.ui.edit.prototype.generateItemCommands, commandsBefore, "the list is not patched");
+
   const flare = host.PZ.object3d.create(13);
   flare.load({ objectType: 0 });
+  assert.equal(spec.match(flare), false, "a flare outside an object list gets no entry");
   flare.parent = new host.PZ.objectList(null, host.PZ.object3d.optflares.element);
-  const inserted = [];
-  const host2 = {
-    querySelector() { return null; },
-    firstElementChild: null,
-    insertBefore(node) { inserted.push(node); },
-  };
-  const item = { children: [null, host2] };
-  host.PZ.ui.edit.prototype.generateItemCommands.call(
-    { options: { showListItemButtons: true }, generateButton: host.PZ.ui.edit.prototype.generateButton },
-    item,
-    flare
-  );
-  assert.equal(inserted.length, 1, "one gear for a flare row");
-  assert.equal(inserted[0].attributes["data-designer-gear"], "1");
-
-  const plain = {};
-  plain.parent = flare.parent;
-  const before = inserted.length;
-  host.PZ.ui.edit.prototype.generateItemCommands.call(
-    { options: { showListItemButtons: true }, generateButton: host.PZ.ui.edit.prototype.generateButton },
-    { children: [null, host2] },
-    plain
-  );
-  assert.equal(inserted.length, before, "other objects get no gear");
+  assert.equal(spec.match(flare), true, "a flare in an object list matches");
+  assert.equal(spec.match({ parent: flare.parent }), false, "other objects do not match");
   dispose();
-});
-
-test("the options gear is not added to the 3D object list, which hides item buttons", () => {
-  const host = buildHost();
-  const runtime = loadRuntimeModule();
-  const { context, dispose } = makeContext(host, bundledSources());
-  runtime.activate(context);
-  const flare = host.PZ.object3d.create(13);
-  flare.load({ objectType: 0 });
-  flare.parent = new host.PZ.objectList(null, host.PZ.object3d.optflares.element);
-  const inserted = [];
-  const row = {
-    querySelector() { return null; },
-    firstElementChild: null,
-    insertBefore(node) { inserted.push(node); },
-  };
-  // CM3's 3D object list is created with showListItemButtons:false. The gear
-  // lives on the flare's header row in the Properties panel instead.
-  const list = { options: { showListItemButtons: false }, generateButton: host.PZ.ui.edit.prototype.generateButton };
-  host.PZ.ui.edit.prototype.generateItemCommands.call(list, { children: [null, row] }, flare);
-  assert.equal(inserted.length, 0, "no gear in the 3D object list");
-  dispose();
+  assert.equal(editors.length, 0, "the entry is released when the module is disabled");
 });
 
 test("disabling restores the create wrapper, the item commands and the globals", () => {
@@ -286,7 +259,6 @@ test("disabling restores the create wrapper, the item commands and the globals",
   const { context, dispose } = makeContext(host, bundledSources());
   runtime.activate(context);
   assert.notEqual(host.PZ.object3d.create, createBefore);
-  assert.notEqual(host.PZ.ui.edit.prototype.generateItemCommands, commandsBefore);
   dispose();
   assert.equal(host.PZ.object3d.create, createBefore);
   assert.equal(host.PZ.ui.edit.prototype.generateItemCommands, commandsBefore);
