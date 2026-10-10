@@ -99,3 +99,26 @@ test("install refuses to run without a usable THREE", () => {
   assert.equal(install(undefined), false);
   assert.equal(install({}), false);
 });
+
+test("the depth shader offsets the RGBA value sampled by spot/directional shadows", () => {
+  const THREE = createTHREE();
+  install(THREE);
+  const depth = new THREE.Mesh().customDepthMaterial;
+  assert.equal(depth.extensions.derivatives, true);
+  const shader = { fragmentShader: 'gl_FragColor = packDepthToRGBA( gl_FragCoord.z );' };
+  depth.onBeforeCompile(shader);
+  assert.match(shader.fragmentShader, /dFdx\( gl_FragCoord.z \)/);
+  assert.match(shader.fragmentShader, /dFdy\( gl_FragCoord.z \)/);
+  assert.doesNotMatch(shader.fragmentShader, /packDepthToRGBA\( gl_FragCoord.z \)/);
+  assert.match(shader.fragmentShader, /2\.0 \* max/);
+});
+
+test("the offset patch preserves alpha clipping and leaves distance shaders alone", () => {
+  const { offsetPackedDepth } = require('../plugins/core/shadow-quality');
+  const shader = { fragmentShader: '#include <alphatest_fragment>\ngl_FragColor = packDepthToRGBA( gl_FragCoord.z );' };
+  offsetPackedDepth(shader);
+  assert.ok(shader.fragmentShader.startsWith('#include <alphatest_fragment>'));
+  const distance = { fragmentShader: 'gl_FragColor = packDepthToRGBA( dist );' };
+  offsetPackedDepth(distance);
+  assert.equal(distance.fragmentShader, 'gl_FragColor = packDepthToRGBA( dist );');
+});

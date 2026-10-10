@@ -130,6 +130,9 @@ parts.camera = (function () {
       constructor() {
         super();
         this.threeObj = new THREE.PerspectiveCamera(60, 1, 0.1, 5000);
+        // Back-reference for the editor viewport frustum helper, which must
+        // follow this object across perspective/orthographic swaps.
+        this.threeObj.__cameraPlusOwner = this;
         this.vibrateProperties = vibrate.createProperties(PZ);
         this._time = 0;
         this.properties.addAll(createDefinitions(PZ));
@@ -174,6 +177,7 @@ parts.camera = (function () {
           this.threeObj = orthographic
             ? new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 5000)
             : new THREE.PerspectiveCamera(60, 1, 0.1, 5000);
+          this.threeObj.__cameraPlusOwner = this;
           this.threeObj.rotation.order = p.eulerOrder.get();
           if (parent) { parent.remove(previous); parent.add(this.threeObj); }
         }

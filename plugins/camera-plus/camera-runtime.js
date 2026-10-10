@@ -17,6 +17,9 @@
 //   scene's Camera+ enabled depth of field on this pass.
 // - PZ.layer.scene.prototype.update / unload: sync the pass camera and the
 //   depth-of-field state after CM3's own update.
+// - The stock `instanceof PZ.object3d.camera` check (used only by the
+//   editor viewport helper) recognises Camera+, and THREE.CameraHelper
+//   refreshes every render: a selected Camera+ shows the stock frustum.
 // - Shared-camera layer registration and deterministic second-pass tracking.
 // - PZ.expression.methods.focusDistanceTo: the focus link expression method.
 // - Property control "camera-plus/focus-tools": the focus button row.
@@ -427,11 +430,10 @@ function activateCameraPlus(context, teardown) {
     unregisterControl();
   });
 
-  // The standard attribute entry: a gear on each Camera+ row and an
-  // "Open Camera+" button above its properties, released with the module.
-  if (context.ui && typeof context.ui.registerAttributePanel === "function") {
-    teardown.push(context.ui.registerAttributePanel(cameraAttributeSpec(camera.OBJECT_TYPE)));
-  }
+  // Editor viewport frustum helper: teach the stock camera check to
+  // recognise Camera+ and refresh the helper every render, so a selected
+  // Camera+ shows the same orange frustum as the stock camera.
+  installCameraHelper({ PZ: PZ, THREE: THREE, teardown: teardown, isCameraPlusObject: isCameraPlusObject });
 
   hooks = {
     legacyLayersPresent() {
@@ -449,66 +451,89 @@ function activateCameraPlus(context, teardown) {
   });
 }
 
-// Attribute window for a Camera+ object: Coord. first (Cinema 4D order),
-// then one tab per topic with native CM3 rows. Dotted keys reach the nested
-// depth-of-field, vibrate and motion-blur lists. Film covers the film model
-// (projection, focal length, sensor, zoom, offsets); Motion Blur covers the
-// deterministic shutter sampling (shutter, samples). Camera layers and 3D
-// tracking live on layers/tracks rather than on the object, so they have no
-// rows here; the shared depth-of-field readout follows this object's settings.
-function cameraAttributeSpec(objectType) {
-  return {
-    id: "camera",
-    title: "Camera+",
-    persistKey: "camera-plus",
-    width: 400,
-    height: 560,
-    match: function (target) {
-      return !!target && target.type === objectType;
+// Editor viewport frustum helper for Camera+ objects. CM3 shows a
+// THREE.CameraHelper (on layer 1, viewport-only) for the selected stock
+// camera and a BoxHelper for other 3D objects. Camera+ objects fail the
+// stock `instanceof PZ.object3d.camera` check, so that check is taught to
+// recognise Camera+ as well. This is looked up at call time (unlike
+// PZ.ui.helper3d.prototype.objectsChanged, which viewports bind at
+// construction), so it applies to every viewport, present and future, and
+// shares the stock behaviour exactly: shown only for a single selection in
+// the editor viewport, hidden otherwise, never in renders or exports.
+// The stock CameraHelper computes its frustum once, but Camera+ film
+// properties are dynamic, so its constructor is wrapped to refresh on every
+// render (the stock BoxHelper precedent) and to follow the live camera
+// object across perspective/orthographic swaps.
+function installCameraHelper(options) {
+  const PZ = options.PZ;
+  const THREE = options.THREE;
+  const teardown = options.teardown;
+  const isCameraPlusObject = options.isCameraPlusObject;
+  const cameraClass = PZ.object3d && PZ.object3d.camera;
+  if (typeof cameraClass !== "function") return;
+  if (typeof THREE.CameraHelper !== "function") return;
+  const hasInstanceKey = Symbol.hasInstance;
+  const originalDescriptor = Object.getOwnPropertyDescriptor(cameraClass, hasInstanceKey);
+  const originalHasInstance = cameraClass[hasInstanceKey];
+  Object.defineProperty(cameraClass, hasInstanceKey, {
+    configurable: true,
+    value: function cameraPlusHasInstance(instance) {
+      if (instance && isCameraPlusObject(instance)) return true;
+      return originalHasInstance.call(this, instance);
     },
-    tabs: [
-      { id: "coord", title: "Coord.", keys: ["position", "rotation", "eulerOrder"] },
-      {
-        id: "film",
-        title: "Film",
-        keys: ["active", "projection", "focalLength", "filmGate", "zoom", "equivFocalLength", "fovH", "fovV", "filmOffsetX", "filmOffsetY"],
-      },
-      {
-        id: "depth",
-        title: "Depth of Field",
-        keys: [
-          "depthOfField.enabled",
-          "depthOfField.focusDistance",
-          "depthOfField.aperture",
-          "depthOfField.focusAreaWidth",
-          "depthOfField.nearBlurLevel",
-          "depthOfField.farBlurLevel",
-          "depthOfField.focusTools",
-        ],
-      },
-      {
-        id: "vibrate",
-        title: "Vibrate",
-        keys: [
-          "vibrate.enabled",
-          "vibrate.regularPulse",
-          "vibrate.relative",
-          "vibrate.seed",
-          "vibrate.enablePosition",
-          "vibrate.positionAmplitude",
-          "vibrate.positionFrequency",
-          "vibrate.enableRotation",
-          "vibrate.rotationAmplitude",
-          "vibrate.rotationFrequency",
-        ],
-      },
-      {
-        id: "motion",
-        title: "Motion Blur",
-        keys: ["motionBlur.enabled", "motionBlur.samples", "motionBlur.shutter"],
-      },
-    ],
-  };
+  });
+  teardown.push(function () {
+    try {
+      if (originalDescriptor) Object.defineProperty(cameraClass, hasInstanceKey, originalDescriptor);
+      else delete cameraClass[hasInstanceKey];
+    } catch (error) {
+      console.error(REPORT_PREFIX, "camera helper check cleanup failed", error);
+    }
+  });
+
+  const OriginalCameraHelper = THREE.CameraHelper;
+  const created = new Set();
+  function PatchedCameraHelper(camera) {
+    OriginalCameraHelper.call(this, camera);
+    created.add(this);
+    const helper = this;
+    this.onBeforeRender = function () {
+      const owner = helper.camera && helper.camera.__cameraPlusOwner;
+      const live = (owner && owner.threeObj) || helper.camera;
+      if (live && helper.camera !== live) {
+        helper.camera = live;
+        helper.matrix = live.matrixWorld;
+      }
+      helper.update();
+    };
+  }
+  PatchedCameraHelper.prototype = OriginalCameraHelper.prototype;
+  patchMethod(THREE, "CameraHelper", PatchedCameraHelper, teardown);
+
+  // Remove helpers created here and rebuild the stock disabled appearance
+  // for a still-selected Camera+, so disabling leaves the viewport as if
+  // the plugin was never enabled.
+  teardown.push(function () {
+    for (const helper of Array.from(created)) {
+      created.delete(helper);
+      try {
+        if (!helper.parent) continue;
+        const viewport = helper.parent;
+        viewport.remove(helper);
+        const owner = helper.camera && helper.camera.__cameraPlusOwner;
+        if (owner && owner.threeObj && isCameraPlusObject(owner) && typeof THREE.BoxHelper === "function") {
+          const fallback = new THREE.BoxHelper(owner.threeObj);
+          fallback.layers.set(1);
+          fallback.onBeforeRender = function () {
+            fallback.update();
+          };
+          viewport.add(fallback);
+        }
+      } catch (error) {
+        console.error(REPORT_PREFIX, "camera helper cleanup failed", error);
+      }
+    }
+  });
 }
 
 module.exports = {
@@ -535,8 +560,5 @@ module.exports = {
   },
   isInUse() {
     return hooks ? hooks.legacyLayersPresent() : false;
-  },
-  _test: {
-    cameraAttributeSpec,
   },
 };

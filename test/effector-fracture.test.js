@@ -343,3 +343,54 @@ test("anisotropic closed fragments conserve volume for all distributions", () =>
     assert.ok(Math.abs(volume - 1) < 1e-5, `${distribution}: ${volume}`);
   }
 });
+
+test("1000 cells build deterministic finite topology within the geometry limits", () => {
+  assert.equal(fracture.clampCells(1000), 1000);
+  assert.equal(fracture.clampCells(10000), 1000);
+  const source = { positions: cubePositions() };
+  const options = { cells: 1000, seed: 2, closed: true };
+  const a = fracture.buildVoronoiFracture(source, options);
+  const b = fracture.buildVoronoiFracture(source, options);
+  assert.equal(a.error, undefined);
+  assert.equal(a.pieceCount, 1000);
+  assert.ok(a.triangleCount <= fracture.DEFAULT_LIMITS.maxOutputTriangles);
+  assert.ok(Array.from(a.positions).every(Number.isFinite));
+  assert.deepEqual(a.positions, b.positions);
+  assert.deepEqual(a.pieceIds, b.pieceIds);
+});
+
+test("fracture clipping stops at a deterministic work budget", () => {
+  const source = { positions: cubePositions() };
+  const options = { cells: 32, seed: 2, closed: true };
+  const limits = { maxClipOperations: 1 };
+  assert.deepEqual(fracture.buildVoronoiFracture(source, options, limits), { error: 'work-limit' });
+  assert.deepEqual(fracture.buildVoronoiFracture(source, options, limits), { error: 'work-limit' });
+});
+
+test("infinite fields move every outer fragment for each motion control", () => {
+  const positions = cubePositions().map(v => v * 400 - 200);
+  const stage = fracture.buildVoronoiFracture({ positions }, { cells: 24, seed: 2, closed: true });
+  const field = { type: 0, position: [0, 0, 0], scale: [100, 100, 100], falloff: 100 };
+  const controls = [
+    { distance: 50 }, { scatter: 50 }, { spin: 1 }, { direction: [10, 20, 30] },
+    { rotation: [20, 30, 40] }, { fragmentScale: 50 }, { gravity: 50 },
+    { distance: 50, randomness: 100 }, { offset: 10 },
+  ];
+  for (const motion of controls) {
+    const moved = new Float32Array(stage.positions);
+    fracture.applyFragmentMotion(moved, stage, { ...motion, field });
+    const changed = new Set();
+    for (let vertex = 0; vertex < stage.count; vertex++) {
+      if ([0, 1, 2].some(axis => moved[vertex * 3 + axis] !== stage.positions[vertex * 3 + axis])) changed.add(stage.pieceIds[vertex]);
+    }
+    assert.equal(changed.size, new Set(stage.pieceIds).size, JSON.stringify(motion));
+  }
+  const sphere = { ...field, type: 3, legacy: true };
+  const moved = new Float32Array(stage.positions);
+  fracture.applyFragmentMotion(moved, stage, { scatter: 50, field: sphere });
+  for (let vertex = 0; vertex < stage.count; vertex++) {
+    const piece = stage.pieceIds[vertex];
+    const radius = Math.hypot(...stage.pieceCentroids.slice(piece * 3, piece * 3 + 3));
+    if (radius >= 100) assert.deepEqual(moved.slice(vertex * 3, vertex * 3 + 3), stage.positions.slice(vertex * 3, vertex * 3 + 3));
+  }
+});

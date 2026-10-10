@@ -19,7 +19,7 @@
 
 const core = require("./effector-core.js");
 
-const MAX_CELLS = 200;
+const MAX_CELLS = 1000;
 const MIN_TRIANGLE_LENGTH = 1e-12;
 const LOOP_LIMIT = 4096;
 
@@ -27,6 +27,7 @@ const DEFAULT_LIMITS = Object.freeze({
   maxSourceTriangles: 40000,
   maxOutputTriangles: 400000,
   maxCapVertices: 512,
+  maxClipOperations: 10000000,
 });
 
 function clampCells(value) {
@@ -155,9 +156,17 @@ function buildCells(sites, low, high, eps, metric = [1, 1, 1]) {
     let faces = box;
     const planes = [];
     const siteSquared = squared(site);
-    for (let other = 0; other < sites.length; other += 1) {
-      if (other === cellIndex) continue;
-      const target = sites[other];
+    // Nearby sites shrink the cell first. A site farther than twice its
+    // farthest remaining vertex cannot cut it, by the triangle inequality in
+    // the cell metric. This avoids clipping against every distant site.
+    const neighbors = sites.map((target, other) => ({
+      other,
+      distance: target.reduce((sum, v, axis) => sum + (v - site[axis]) ** 2 * metric[axis], 0),
+    })).filter(item => item.other !== cellIndex).sort((a, b) => a.distance - b.distance || a.other - b.other);
+    let radiusSquared = Infinity;
+    for (const neighbor of neighbors) {
+      if (neighbor.distance > 4 * radiusSquared + eps * eps * 16) break;
+      const target = sites[neighbor.other];
       const delta = target.map((v, i) => (v - site[i]) * metric[i]);
       const length = Math.sqrt(dot3(delta, delta));
       if (!(length > 1e-28)) continue;
@@ -171,6 +180,11 @@ function buildCells(sites, low, high, eps, metric = [1, 1, 1]) {
       if (clipped.cut) {
         faces = clipped.faces;
         planes.push(plane);
+        radiusSquared = 0;
+        for (const face of faces) for (const point of face) {
+          const distance = point.reduce((sum, v, axis) => sum + (v - site[axis]) ** 2 * metric[axis], 0);
+          radiusSquared = Math.max(radiusSquared, distance);
+        }
       }
     }
     const min = [Infinity, Infinity, Infinity];
@@ -538,9 +552,12 @@ function buildVoronoiFracture(source, options, limits) {
   let capTriangleCount = 0;
   const maxOutput = limit.maxOutputTriangles;
 
+  let clipOperations = 0;
   for (let piece = 0; piece < cells; piece += 1) {
     let surface = sourcePolygons;
     for (const plane of cellInfo[piece].planes) {
+      clipOperations += surface.length;
+      if (clipOperations > limit.maxClipOperations) return { error: "work-limit" };
       const next = [];
       const cuts = [];
       for (const polygon of surface) {
