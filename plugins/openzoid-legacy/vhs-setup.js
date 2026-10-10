@@ -42,8 +42,34 @@ const SECTIONS = [
 const TRAIL_HINT = "Averages earlier source frames. Needs an Adjustment layer.";
 const TRAIL_NOTE = "Persistence samples earlier clip frames, or the composite below an Adjustment layer.";
 
+// Field guide, ported from the donor setup window. Static text only; each
+// group renders as one collapsed note so the window stays compact.
+const FIELD_GUIDE = [
+  { title: "Quality — Color", lines: ["Signal Strength — chroma dots and color tears", "Color Stripes — moving color-shift line bars", "Chroma Crawl — finer crawling color shift on edges", "Chroma Loss — desaturation mono, loses colors", "Flicker — black and white diffusion exposure", "RGB Split — red and blue split around green", "Blue Screen — signal-loss blue field over picture ghost"] },
+  { title: "Quality — Image", lines: ["VHS Sharpen — one-side directional blur plus left-side sharpen", "Interlace — frame offset plus tiny venetian blinds", "Static Warp — one-side static warp plus white dots", "Fast Forward — sine warp apparition plus white dots", "Tracking — displaced clip plus black bar sides", "Anisotropy Warp — offset warp plus color loss plus white dots", "Tear — random horizontal slice tears", "Hum Bar — slow AC hum brightness band", "Crease — diagonal tape-crease band", "Ghost — displaced RGB echo", "Blinds — tiny venetian slats (off by default)", "Snow Dots — chunky white dots", "Speed Dots — fast horizontal dot streaks", "Anisotropy Snow — comet dots on thin travelling lines"] },
+  { title: "Motion", lines: ["Jitter X and Y — horizontal and vertical micro offset", "Roll — vertical roll and rewind amount", "Roll Speed — roll travel speed", "Persistence — interlace frame-decay amount", "Skew — top-edge flagwave bend amount"] },
+  { title: "Overlay", lines: ["OSD Timecode — camcorder PLAY plus SP timecode"] },
+  { title: "Noise", lines: ["Noise Evolution — scroll plus boil speed of band noise", "Noise Opacity — scrolling noise mix amount"] },
+];
+
+// A preset matches when every value is within the donor tolerance, so older
+// projects whose values were rounded still show their preset name.
 function sameValue(a, b) {
-  return Math.abs(Number(a) - Number(b)) < 1e-9;
+  return Math.abs(Number(a) - Number(b)) < 0.015;
+}
+
+// Deterministic 0-1 hash of (seed, index) from exact integer math, so a
+// stored seed reproduces the same Glitch! result on every machine. Never
+// Math.random: playback must not change the stored values.
+function hash01(seed, index) {
+  let h = (Math.imul(seed | 0, 374761393) + Math.imul(index | 0, 668265263)) | 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  h ^= h >>> 16;
+  return (h >>> 0) / 4294967296;
+}
+
+function nextSeed(seed) {
+  return ((Math.round(Number(seed)) || 0) + 7919) % 10000;
 }
 
 function hostsFrameSampling(PZ, effect) {
@@ -220,6 +246,56 @@ module.exports = {
         trailNote.element.style.display = hostsFrameSampling(PZ, effect) ? "none" : "";
       }
 
+      // Seeded one-click damage. Each click stores a new seed first, then
+      // derives every value from that seed, so the result is reproducible and
+      // the whole click is one undo step. Ranges mirror the donor button.
+      function glitchBurst() {
+        const hasSeed = Boolean(props.glitchSeed);
+        const seed = hasSeed ? nextSeed(valueOf("glitchSeed")) : 0;
+        const range = function (lo, hi, at) { return lo + hash01(seed, at) * (hi - lo); };
+        const gate = function (probability, lo, hi, at, gateAt) {
+          return hash01(seed, gateAt) < probability ? range(lo, hi, at) : 0;
+        };
+        const values = {
+          amount: 1,
+          signalStrength: range(0.4, 1, 0),
+          colorStripes: range(0.3, 0.9, 1),
+          chromaCrawl: range(0.3, 0.9, 2),
+          chromaLoss: range(0.1, 0.6, 3),
+          flicker: range(0.1, 0.5, 4),
+          vhsSharpen: range(0.2, 0.7, 5),
+          interlace: range(0.3, 0.8, 6),
+          staticWarp: range(0.4, 1, 7),
+          fastForward: gate(0.35, 0.4, 1, 8, 27),
+          tracking: range(0.4, 1, 9),
+          anisotropyWarp: gate(0.5, 0.2, 0.8, 10, 28),
+          jitterX: range(0.3, 0.9, 11),
+          jitterY: range(0.3, 0.9, 12),
+          roll: gate(0.4, 0.2, 0.8, 13, 29),
+          rgbSplit: range(0.1, 0.6, 14),
+          tear: range(0.2, 0.8, 15),
+          humBar: range(0.1, 0.5, 16),
+          blueScreen: gate(0.12, 0.4, 1, 17, 30),
+          skew: range(0.2, 0.8, 18),
+          crease: gate(0.4, 0.2, 0.7, 19, 31),
+          ghost: range(0.1, 0.5, 20),
+          noiseEvo: range(0.3, 1, 21),
+          noiseOpacity: range(0.3, 0.8, 22),
+          blinds: gate(0.3, 0.2, 0.6, 23, 32),
+          snowDots: range(0.2, 0.7, 24),
+          speedDots: range(0.2, 0.7, 25),
+          anisoSnow: range(0.2, 0.6, 26),
+        };
+        const changes = Object.keys(values)
+          .filter((key) => props[key])
+          .map((key) => ({ property: props[key], value: values[key], previous: valueOf(key) }));
+        if (hasSeed) {
+          changes.unshift({ property: props.glitchSeed, value: seed, previous: valueOf("glitchSeed") });
+        }
+        recordChanges(changes);
+        refresh();
+      }
+
       // Sliders preview while dragging and commit once on release. The value
       // before the first drag event is kept as the undo target.
       function sliderFor(key) {
@@ -269,6 +345,17 @@ module.exports = {
         keys.forEach((key) => section.body.appendChild(sliderFor(key)));
         body.appendChild(section.element);
       });
+
+      body.appendChild(controls.buttonRow([
+        { title: "Clean VHS", hint: "Reset to the clean preset", onClick() { applyPreset("clean"); } },
+        { title: "Glitch!", hint: "Seeded damaged-tape burst (stores a new seed)", onClick: glitchBurst },
+      ]).element);
+
+      const guide = controls.section({ title: "Field guide", collapsed: true });
+      FIELD_GUIDE.forEach((group) => {
+        guide.body.appendChild(controls.note(group.title + " — " + group.lines.join("; ")).element);
+      });
+      body.appendChild(guide.element);
 
       refresh();
       const timer = context.window.setInterval(refresh, SYNC_INTERVAL_MS);

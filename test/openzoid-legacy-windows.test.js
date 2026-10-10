@@ -224,7 +224,7 @@ test("ASCII window builds controls from the effect property definitions", () => 
   assert.equal(find("Custom characters").kind, "text");
   assert.equal(find("Black fill").kind, "text");
   const font = find("Font");
-  assert.deepEqual(font.opts.options.map((o) => o.label), ["source code pro", "monospace"]);
+  assert.deepEqual(font.opts.options.map((o) => o.label), ["consolas", "courier", "monospace", "source code pro", "serif"]);
   assert.ok(!h.made.some((r) => r.opts && /inter/i.test(String(r.opts.label))), "no Inter control");
   windows.deactivate();
 });
@@ -288,14 +288,17 @@ test("a preset applies as one history step and refreshes the controls", () => {
   assert.equal(list.opts.items.length, 5, "five ASCII looks");
   assert.deepEqual(list.opts.items.map((i) => i.title), ["Red Matrix", "Mono Paper", "Blueprint", "Neon Night", "Glitch Storm"]);
   const before = h.edits.length;
-  list.opts.onSelect(1); // Mono Paper: block size 18, courier-free monospace font
+  list.opts.onSelect(1); // Mono Paper: block size 18, courier font
   assert.deepEqual(h.history.ops.slice(-2), ["start", "finish"], "preset is one history step");
   const applied = h.edits.slice(before);
   assert.ok(applied.length > 20, "preset writes its values");
   assert.equal(effect.properties.blockSize.get(), 18);
+  assert.equal(effect.properties.fontFamily.get(), 1, "Mono Paper keeps the donor font index");
   assert.equal(effect.properties.blackFill.get(), "@");
   const blockSlider = h.made.find((r) => r.opts && r.opts.label === "Block size");
   assert.equal(blockSlider.sets.at(-1), 18, "controls refresh after the preset");
+  list.opts.onSelect(3); // Neon Night: donor font index 3
+  assert.equal(effect.properties.fontFamily.get(), 3, "Neon Night keeps the donor font index");
   windows.deactivate();
 });
 
@@ -312,9 +315,8 @@ test("Tracery presets switch off unused points and set their point values", () =
   const before = h.edits.length;
   row.specs[4].onClick();
   const keys = h.edits.slice(before).map((e) => e.property);
-  for (let n = 2; n <= 6; n++) assert.ok(keys.includes("EFFECT/point" + n + "Enable"), "point " + n);
-  assert.equal(effect.properties.point1Enable.get(), 1, "Key Track keeps Point 1 visible");
-  assert.equal(effect.properties.point1X.get(), 50, "a placed Point 1 is left where it is");
+  for (let n = 1; n <= 6; n++) assert.ok(keys.includes("EFFECT/point" + n + "Enable"), "point " + n);
+  assert.equal(effect.properties.point1Enable.get(), 0, "Key Track switches every point off, like the donor");
   row.specs[0].onClick();
   assert.equal(effect.properties.point1Enable.get(), 1);
   assert.equal(effect.properties.point1X.get(), 30);

@@ -127,7 +127,7 @@ const ASCII_PRESETS = [
   {
     label: "Neon Night",
     values: {
-      blockSize: 20, contrast: 1.2, brightness: -0.05, fontFamily: 1, charSize: 18,
+      blockSize: 20, contrast: 1.2, brightness: -0.05, fontFamily: 3, charSize: 18,
       charset: 0, colorMode: 0, randomCharacters: 1, randomScale: 120, noiseIntensity: 0.2,
       sineEnable: 1, sineRadial: 1, sineSpeed: 1.5, sineFrequency: 2, sineSize: 60, sineIntensity: 70,
       noiseEnable: 1, noiseType: 2, noiseScale: 1.5, noiseSpeed: 1, noiseOctaves: 3, noisePersistence: 0.9,
@@ -215,8 +215,7 @@ const TRACERY_PRESETS = [
     points: [{ enable: 1, x: 50, y: 50, size: 120, dx: 160, dy: -80 }],
   },
   {
-    // Detection-only: points 2 to 6 are switched off, Point 1 stays visible
-    // (kept as placed, or put at the frame centre when it is off).
+    // Detection-only: every manual point is switched off, like the donor.
     label: "Key Track",
     clearPoints: true,
     values: {
@@ -253,12 +252,8 @@ function traceryAssignments(preset, read) {
     if (preset.colors && preset.colors[name]) out[colorKeys[name]] = preset.colors[name];
   }
   if (preset.clearPoints) {
-    for (let n = 2; n <= 6; n++) out["point" + n + "Enable"] = 0;
-    if (!read || Number(read("point1Enable")) !== 1) {
-      out.point1Enable = 1;
-      out.point1X = 50;
-      out.point1Y = 50;
-    }
+    // Detection-only presets switch every manual point off, like the donor.
+    for (let n = 1; n <= 6; n++) out["point" + n + "Enable"] = 0;
   }
   (preset.points || []).forEach(function (pt, index) {
     const n = index + 1;

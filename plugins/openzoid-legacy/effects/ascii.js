@@ -88,7 +88,7 @@ this.propertyDefinitions = asciiMerge(
         blockSize: asciiNum("Block size", 23, 4, 64, 1, 0),
         contrast: asciiNum("Contrast", 1, 0, 4, 0.01, 2),
         brightness: asciiNum("Brightness", 0, -1, 1, 0.01, 2),
-        fontFamily: asciiOption("Font", 0, "source code pro;monospace"),
+        fontFamily: asciiOption("Font", 0, "consolas;courier;monospace;source code pro;serif"),
         charSize: asciiNum("Character size", 18, 8, 64, 1, 0),
         charset: asciiOption("Character set", 0, "standard;blocks;detailed;minimal;custom"),
         customChars: asciiText("Custom characters", "@%#*+=-:. "),
@@ -261,7 +261,13 @@ function asciiCss(rgb, a) {
 // Glyph fonts are limited to the page's bundled Source Code Pro and the
 // generic monospace family. Any other saved index falls back to Source Code
 // Pro, so older projects keep loading.
-var ASCII_FONTS = ["'Source Code Pro', monospace", "monospace"];
+var ASCII_FONTS = [
+    "Consolas, 'Source Code Pro', monospace",
+    "'Courier New', Courier, monospace",
+    "monospace",
+    "'Source Code Pro', monospace",
+    "Georgia, serif",
+];
 
 var ASCII_RANDOM_GLYPHS = "@#%&?*+=:;. ".split("");
 

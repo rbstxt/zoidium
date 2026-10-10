@@ -17,7 +17,11 @@ A Zoidium `native-fx` plugin. It provides seven OpenZoid effects as an external 
 - VHS Setup window — floating preset/slider editor for every VHS signal and
   motion control, wired to the effect's Setup property.
 - Datamosh Setup window — preset/slider/algorithm-dropdown editor for the
-  Datamosh effect, wired to the effect's Setup property.
+  Datamosh effect, wired to the effect's Setup property. Seeded Mosh! and
+  Remove Frame buttons, plus a field guide.
+- True datamosh export pass — opt-in post-export I-frame removal on the
+  Device render page (off / full video / at clip cuts, off by default).
+  Preview stays deterministic; the export pass is an explicit user option.
 - Tracery — motion-tracking callout overlay: per-point boxes
   (rectangle/square/ellipse/circle with fill modes), markers
   (dot/plus/cross/polygon), spline/PCB/smooth/step connection lines with
@@ -47,6 +51,56 @@ pipeline. Enabling the pack never fans out into runtime fetches.
 Determinism: every effect here computes a frame from the project properties,
 the frame index and the input pixels. Nothing is carried between renders.
 Shader and font loads are awaited in `prepare()` before a frame renders.
+
+## Donor preset mapping
+
+Davi's 10 datamosh presets are mapped onto the deterministic model. The donor
+algorithm index N becomes Look N + 1 (Look 0 is the new motion-matching path,
+Looks 1-80 are the donor entries in order); Motion follows the same family
+mapping as old-project migration. All other donor values are kept verbatim;
+the segment fields use the gentle defaults (interval 30, samples 6) and the
+seed is never touched by a preset.
+
+| Davi preset | Donor algo | Look | Motion | Notes |
+|---|---|---|---|---|
+| Clean Pass | 0 (Default) | 1 | 0 Identity | unchanged values |
+| Logo Mosh · Blocky | 12 (Random Blocks 1) | 13 | 8 Random | unchanged values |
+| Classic Mosh | 11 (Random) | 12 | 8 Random | unchanged values |
+| I-Frame Kill · Soupy | 11 (Random) | 12 | 8 Random | unchanged values |
+| Swap Motion | 10 (Swap) | 11 | 7 Swap | unchanged values |
+| Sweep Horizontal | 49 (Sweep horiz.) | 50 | 3 Horizontal | unchanged values |
+| Sin Melt | 53 (Middle sin X) | 54 | 6 Wave | unchanged values |
+| Mirror Glitch | 42 (Mirror X) | 43 | 3 Horizontal | motion is cosmetic here |
+| Zoom Smear | 5 (Zoom 1) | 6 | 4 Zoom | unchanged values |
+| Average Trail x10 | 33 (Average prev 10) | 34 | 0 Identity | unchanged values |
+
+The 15 VHS presets carry the donor values verbatim (verified by diff). A
+preset name shows when every value is within 0.015 of the preset, the donor
+matching tolerance.
+
+## Seeded randomizer buttons
+
+Glitch! (VHS), Mosh! and Remove Frame (Datamosh) port the donor buttons as
+seeded actions: each click stores a new seed (VHS `glitchSeed`, Datamosh
+`seed`, advanced by 7919 modulo 10000) and derives every value from that seed
+with exact integer hashing, so the result is reproducible and the whole click
+is one undo step. Ranges mirror the donor buttons; Remove Frame sets hold to
+full with an intensity floor instead of the donor's timed spike.
+
+## Donor alignment notes
+
+- ASCII Font indices match the donor (0 consolas, 1 courier, 2 monospace,
+  3 source code pro, 4 serif). Index 3 renders the bundled Source Code Pro
+  instead of the donor's Inter, which this project does not ship; index 0
+  falls back to it when Consolas is missing. Old donor projects load with the
+  same values, including Neon Night (`fontFamily: 3`).
+- Tracery Key Track switches all six points off, like the donor. New Tracery
+  effects deliberately start with Point 1 on at the frame centre (the donor
+  started with every point off, so a new effect showed nothing).
+- True datamosh (`datamosh-export.js`) wraps the Device render page from
+  inside this plugin and restores it on disposal; it never edits `zoidium/*`
+  or `plugins/core/*`. The finished note reads
+  `TRUE MOSH: dropped N of M keyframes`; failures deliver the clean render.
 
 Known limitations (later phases):
 

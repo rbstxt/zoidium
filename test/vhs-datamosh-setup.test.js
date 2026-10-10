@@ -156,7 +156,11 @@ function createContext({ PZ, editor, effect }) {
     number: (options) => record("number", options),
     select: (options) => record("select", options),
     note: () => ({ element: fakeElement() }),
-    section: () => ({ element: fakeElement(), body: fakeElement() }),
+    section: (options) => {
+      const entry = { kind: "section", options, element: fakeElement(), body: fakeElement() };
+      created.push(entry);
+      return entry;
+    },
     button: (options) => record("button", options),
     buttonRow: (buttons) => record("buttonRow", { buttons, value: undefined }),
   };
@@ -338,6 +342,40 @@ test("vhs: a button on an unrelated effect is disabled", () => {
   assert.equal(button.disabled, true);
 });
 
+test("vhs: Glitch! stores a new seed and is reproducible", () => {
+  const h = setupHarness("vhs-setup.js", "openzoid-legacy.vhs-setup", "effects/vhs.js", "vhs");
+  mountWindow(openFromButton(h, h.registrationId, h.effect));
+  const row = h.created.find((entry) => entry.kind === "buttonRow" &&
+    entry.options.buttons.some((button) => button.title === "Glitch!"));
+  assert.ok(row, "Glitch! button built");
+  const glitch = row.options.buttons.find((button) => button.title === "Glitch!").onClick;
+  h.effect.properties.glitchSeed.set(10);
+  glitch();
+  assert.equal(h.effect.properties.glitchSeed.get(), (10 + 7919) % 10000);
+  const first = {};
+  for (const key of ["signalStrength", "tracking", "tear", "blinds", "fastForward"]) {
+    first[key] = h.effect.properties[key].get();
+  }
+  assert.equal(h.editor.log.filter((entry) => entry === "start").length, 1, "one undo step");
+  h.effect.properties.glitchSeed.set(10);
+  h.editor.log.length = 0;
+  glitch();
+  for (const key of Object.keys(first)) {
+    assert.equal(h.effect.properties[key].get(), first[key], `${key} is reproducible`);
+  }
+  assert.ok(first.signalStrength >= 0.4 && first.signalStrength <= 1);
+});
+
+test("vhs: Clean VHS applies the clean preset and the guide lists every group", () => {
+  const h = setupHarness("vhs-setup.js", "openzoid-legacy.vhs-setup", "effects/vhs.js", "vhs");
+  mountWindow(openFromButton(h, h.registrationId, h.effect));
+  const row = h.created.find((entry) => entry.kind === "buttonRow");
+  row.options.buttons.find((button) => button.title === "Clean VHS").onClick();
+  assert.equal(h.effect.properties.signalStrength.get(), 0.12);
+  const guide = h.created.find((entry) => entry.kind === "section" && entry.options.title === "Field guide");
+  assert.ok(guide, "field guide section built");
+});
+
 // --- Datamosh --------------------------------------------------------------
 
 test("datamosh: motion is a select over the nine modes and stores the index", () => {
@@ -360,11 +398,91 @@ test("datamosh: presets apply as one undo step and keep the seed", () => {
   const h = setupHarness("datamosh-setup.js", "openzoid-legacy.datamosh-setup", "effects/datamosh.js", "datamosh");
   mountWindow(openFromButton(h, "openzoid-legacy.datamosh-setup", h.effect));
   h.effect.properties.seed.set(4242);
-  findControl(h.created, "Preset").options.onChange("blocky");
+  findControl(h.created, "Preset").options.onChange("logo");
   assert.equal(h.editor.log.filter((entry) => entry === "start").length, 1);
-  assert.equal(h.effect.properties.interval.get(), 24);
-  assert.equal(h.effect.properties.samples.get(), 8);
+  assert.equal(h.effect.properties.algorithm.get(), 13, "Logo Mosh maps donor algo 12 to Look 13");
+  assert.equal(h.effect.properties.motion.get(), 8);
+  assert.equal(h.effect.properties.interval.get(), 30);
+  assert.equal(h.effect.properties.samples.get(), 6);
   assert.equal(h.effect.properties.seed.get(), 4242, "presets do not touch the seed");
+});
+
+test("datamosh: all ten donor presets map to the published Look indices", () => {
+  const h = setupHarness("datamosh-setup.js", "openzoid-legacy.datamosh-setup", "effects/datamosh.js", "datamosh");
+  mountWindow(openFromButton(h, "openzoid-legacy.datamosh-setup", h.effect));
+  const preset = findControl(h.created, "Preset");
+  const expected = {
+    clean: 1, logo: 13, classic: 12, iframe: 12, swap: 11,
+    sweep: 50, sinmelt: 54, mirror: 43, zoom: 6, trail: 34,
+  };
+  assert.deepEqual(
+    preset.options.options.filter((option) => option.value !== "custom").map((option) => option.value).sort(),
+    Object.keys(expected).sort(),
+    "the ten donor presets, no more",
+  );
+  for (const [id, look] of Object.entries(expected)) {
+    preset.options.onChange(id);
+    assert.equal(h.effect.properties.algorithm.get(), look, `${id} maps to Look ${look}`);
+  }
+});
+
+test("datamosh: Mosh! stores a new seed and derives every value from it", () => {
+  const h = setupHarness("datamosh-setup.js", "openzoid-legacy.datamosh-setup", "effects/datamosh.js", "datamosh");
+  mountWindow(openFromButton(h, "openzoid-legacy.datamosh-setup", h.effect));
+  const row = h.created.find((entry) => entry.kind === "buttonRow" &&
+    entry.options.buttons.some((button) => button.title === "Mosh!"));
+  assert.ok(row, "Mosh! button built");
+  const mosh = row.options.buttons.find((button) => button.title === "Mosh!").onClick;
+  h.effect.properties.seed.set(100);
+  mosh();
+  const firstSeed = h.effect.properties.seed.get();
+  assert.equal(firstSeed, (100 + 7919) % 10000, "the seed advances once per click");
+  const firstValues = {};
+  for (const key of ["intensity", "acceleration", "blend", "threshold", "blockSize", "algorithm", "hold", "speed", "motion"]) {
+    firstValues[key] = h.effect.properties[key].get();
+  }
+  const starts = h.editor.log.filter((entry) => entry === "start").length;
+  assert.equal(starts, 1, "one undo step per click");
+
+  // Same seed, same result: reset and click again.
+  h.effect.properties.seed.set(100);
+  h.editor.log.length = 0;
+  mosh();
+  assert.equal(h.effect.properties.seed.get(), firstSeed);
+  for (const key of Object.keys(firstValues)) {
+    assert.equal(h.effect.properties[key].get(), firstValues[key], `${key} is reproducible`);
+  }
+  assert.ok(firstValues.intensity >= 0.6 && firstValues.intensity <= 1.6);
+  assert.ok([6, 8, 10, 12, 14, 16, 20].includes(firstValues.blockSize));
+});
+
+test("datamosh: Remove Frame sets hold to full as one undo step", () => {
+  const h = setupHarness("datamosh-setup.js", "openzoid-legacy.datamosh-setup", "effects/datamosh.js", "datamosh");
+  mountWindow(openFromButton(h, "openzoid-legacy.datamosh-setup", h.effect));
+  const row = h.created.find((entry) => entry.kind === "buttonRow" &&
+    entry.options.buttons.some((button) => button.title === "Remove Frame"));
+  assert.ok(row, "Remove Frame button built");
+  h.effect.properties.seed.set(7);
+  h.effect.properties.intensity.set(0.5);
+  row.options.buttons.find((button) => button.title === "Remove Frame").onClick();
+  assert.equal(h.effect.properties.seed.get(), (7 + 7919) % 10000);
+  assert.equal(h.effect.properties.hold.get(), 1);
+  assert.equal(h.effect.properties.intensity.get(), 1, "intensity is raised to the floor");
+  assert.equal(h.editor.log.filter((entry) => entry === "start").length, 1);
+});
+
+test("datamosh: preset matching uses the donor tolerance", () => {
+  const h = setupHarness("datamosh-setup.js", "openzoid-legacy.datamosh-setup", "effects/datamosh.js", "datamosh");
+  mountWindow(openFromButton(h, "openzoid-legacy.datamosh-setup", h.effect));
+  const preset = findControl(h.created, "Preset");
+  preset.options.onChange("clean");
+  // Nudge a value within the donor tolerance: the preset name still shows.
+  h.effect.properties.intensity.set(0.25 + 0.01);
+  h.timers[0]();
+  assert.equal(preset.get(), "clean");
+  h.effect.properties.intensity.set(0.9);
+  h.timers[0]();
+  assert.equal(preset.get(), "custom");
 });
 
 test("datamosh: New Seed stores one new seed as one undo step", () => {
@@ -397,7 +515,7 @@ test("datamosh: closing the window clears its timer", () => {
 // --- Theme and dependency rules --------------------------------------------
 
 test("setup modules carry no logos, Inter font, fullscreen overlay or shared stylesheet", () => {
-  for (const file of ["vhs-setup.js", "datamosh-setup.js"]) {
+  for (const file of ["vhs-setup.js", "datamosh-setup.js", "datamosh-export.js"]) {
     const source = read(LEGACY + file);
     assert.ok(!/\bInter\b/.test(source), `${file} has no Inter font`);
     assert.ok(!/\.(jpg|png|svg)\b/.test(source), `${file} loads no logo images`);
@@ -406,6 +524,7 @@ test("setup modules carry no logos, Inter font, fullscreen overlay or shared sty
     assert.ok(!source.includes("tracery-font"), `${file} loads no font`);
   }
   assert.equal(fs.existsSync(path.join(root, LEGACY + "vhs-setup.css")), false);
-  assert.equal(fs.existsSync(path.join(root, LEGACY + "datamosh-render.js")), false);
-  assert.equal(fs.existsSync(path.join(root, LEGACY + "datamosh-export.js")), false);
+  // The byte-level true-mosh renderer is pure EBML/WebM code with no UI.
+  const render = read(LEGACY + "datamosh-render.js");
+  assert.ok(!/document|window\.open|Inter|\.jpg/.test(render), "datamosh-render.js has no UI");
 });
