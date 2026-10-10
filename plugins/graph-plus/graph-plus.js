@@ -253,6 +253,9 @@ const GraphPlus = (() => {
       rebuildOpenPanels,
       gpCssText,
       gpDefineGraphEditor,
+      g2doc,
+      g2win,
+      beginPointerDrag,
     },
   };
 })();
@@ -263,6 +266,131 @@ if (typeof module !== "undefined" && module.exports) module.exports = GraphPlus;
  * the private grey-band/dark-tile design, the style id is namespaced per
  * document (popup-safe), curve group ids use a counter (no wall-clock or
  * random data), and the whole definition installs reversibly. */
+/* Popup-safe owner handles (module scope so tests and the module
+   export can share them). */
+/* Popup-safe owner handles: the Graph editor also lives in a separate
+   window.open() document, so global `window`/`document` point at the wrong
+   window there. Resolve the window/document that owns an element instead. */
+function g2doc(el) {
+  try {
+    if (el && el.ownerDocument) return el.ownerDocument;
+  } catch (e) {}
+  try {
+    if (typeof document !== "undefined") return document;
+  } catch (e2) {}
+  return null;
+}
+function g2win(el) {
+  var doc = g2doc(el);
+  try {
+    if (doc && doc.defaultView) return doc.defaultView;
+  } catch (e) {}
+  try {
+    if (typeof window !== "undefined") return window;
+  } catch (e2) {}
+  return null;
+}
+
+/* Pointer-captured drag. ESSENTIAL here: the graph editor runs in a separate
+   browser window, so once the cursor leaves it, window-level pointerup never
+   fires and the drag sticks forever ("cursor wants to fill something").
+   Pointer capture routes all events to the element; blur is a safety net. */
+function beginPointerDrag(target, e, onMove, onEnd) {
+  var captured = false;
+  var pid = e && e.pointerId;
+  try {
+    if (target.setPointerCapture && pid !== undefined && pid !== null) {
+      target.setPointerCapture(pid);
+      captured = true;
+    }
+  } catch (err) { captured = false; }
+  // Listeners belong on the window/document that owns the target element:
+  // the popup editor lives in a separate window whose events never reach
+  // the main window. The main pair is kept as a backup for nodes that are
+  // still being adopted between documents.
+  function pairsFor(targetEl) {
+    var pairs = [];
+    var seen = [];
+    function push(w, d) {
+      if (!w && !d) return;
+      for (var i = 0; i < seen.length; i++) {
+        if (seen[i][0] === w && seen[i][1] === d) return;
+      }
+      seen.push([w, d]);
+      pairs.push([w, d]);
+    }
+    var ownerDoc = g2doc(targetEl);
+    var ownerWin = g2win(targetEl);
+    push(ownerWin, ownerDoc);
+    try {
+      var mainWin = typeof window !== "undefined" ? window : null;
+      var mainDoc = typeof document !== "undefined" ? document : null;
+      push(mainWin, mainDoc);
+    } catch (e2) {}
+    return pairs;
+  }
+  var pairs = pairsFor(target);
+  var finished = false;
+  function move(ev) {
+    if (finished) return;
+    if (pid !== undefined && pid !== null && ev.pointerId !== undefined && ev.pointerId !== pid) return;
+    onMove(ev);
+  }
+  function unlisten(pair, move, finish, onBlur) {
+    var w = pair[0], d = pair[1];
+    try {
+      if (w && w.removeEventListener) {
+        w.removeEventListener("pointermove", move);
+        w.removeEventListener("pointerup", finish);
+        w.removeEventListener("pointercancel", finish);
+        w.removeEventListener("blur", onBlur);
+      }
+    } catch (err3) {}
+    try {
+      if (d && d.removeEventListener) d.removeEventListener("pointerup", finish);
+    } catch (err4) {}
+  }
+  function finish(ev) {
+    if (finished) return;
+    finished = true;
+    try { if (captured) target.releasePointerCapture(pid); } catch (err) {}
+    target.removeEventListener("pointermove", move);
+    target.removeEventListener("pointerup", finish);
+    target.removeEventListener("pointercancel", finish);
+    for (var i = 0; i < pairs.length; i++) unlisten(pairs[i], move, finish, onBlur);
+    if (onEnd) onEnd(ev || null);
+  }
+  function onBlur() { finish(null); }
+  if (captured) {
+    target.addEventListener("pointermove", move);
+    target.addEventListener("pointerup", finish);
+    target.addEventListener("pointercancel", finish);
+  } else {
+    for (var j = 0; j < pairs.length; j++) {
+      (function (pair) {
+        var w = pair[0], d = pair[1];
+        try {
+          if (w && w.addEventListener) {
+            w.addEventListener("pointermove", move);
+            w.addEventListener("pointerup", finish);
+            w.addEventListener("pointercancel", finish);
+          }
+        } catch (err5) {}
+        try {
+          if (d && d.addEventListener) d.addEventListener("pointerup", finish);
+        } catch (err6) {}
+      })(pairs[j]);
+    }
+  }
+  for (var k = 0; k < pairs.length; k++) {
+    try {
+      var w = pairs[k][0];
+      if (w && w.addEventListener) w.addEventListener("blur", onBlur);
+    } catch (err7) {}
+  }
+  return { finish: finish };
+}
+
 var gpNextGroupId = 1;
 function gpDefineGraphEditor(PZ) {
 if (!PZ || !PZ.ui) throw new Error("Graph Editor 2 needs the CM3 user interface (PZ.ui).");
@@ -351,57 +479,13 @@ function toolIcon(name) {
 function focusNoScroll(el) {
   try {
     if (el && el.focus) {
-      if (document.activeElement === el) return;
+      var doc = g2doc(el);
+      try {
+        if (doc && doc.activeElement === el) return;
+      } catch (e0) {}
       try { el.focus({ preventScroll: true }); } catch (e) { el.focus(); }
     }
   } catch (e) {}
-}
-/* Pointer-captured drag. ESSENTIAL here: the graph editor runs in a separate
-   browser window, so once the cursor leaves it, window-level pointerup never
-   fires and the drag sticks forever ("cursor wants to fill something").
-   Pointer capture routes all events to the element; blur is a safety net. */
-function beginPointerDrag(target, e, onMove, onEnd) {
-  var captured = false;
-  var pid = e && e.pointerId;
-  try {
-    if (target.setPointerCapture && pid !== undefined && pid !== null) {
-      target.setPointerCapture(pid);
-      captured = true;
-    }
-  } catch (err) { captured = false; }
-  var finished = false;
-  function move(ev) {
-    if (finished) return;
-    if (pid !== undefined && pid !== null && ev.pointerId !== undefined && ev.pointerId !== pid) return;
-    onMove(ev);
-  }
-  function finish(ev) {
-    if (finished) return;
-    finished = true;
-    try { if (captured) target.releasePointerCapture(pid); } catch (err) {}
-    target.removeEventListener("pointermove", move);
-    target.removeEventListener("pointerup", finish);
-    target.removeEventListener("pointercancel", finish);
-    window.removeEventListener("pointermove", move);
-    window.removeEventListener("pointerup", finish);
-    window.removeEventListener("pointercancel", finish);
-    window.removeEventListener("blur", onBlur);
-    try { document.removeEventListener("pointerup", finish); } catch (err2) {}
-    if (onEnd) onEnd(ev || null);
-  }
-  function onBlur() { finish(null); }
-  if (captured) {
-    target.addEventListener("pointermove", move);
-    target.addEventListener("pointerup", finish);
-    target.addEventListener("pointercancel", finish);
-  } else {
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", finish);
-    window.addEventListener("pointercancel", finish);
-    try { document.addEventListener("pointerup", finish); } catch (err) {}
-  }
-  window.addEventListener("blur", onBlur);
-  return { finish: finish };
 }
 function displayName(prop) {
   try {
@@ -441,18 +525,27 @@ var GraphGrid = function (graph, opts) {
   if (opts) Object.assign(this.options, opts);
   this.create();
 };
+GraphGrid.prototype._doc = function () {
+  try {
+    if (this.graph && this.graph._doc) {
+      var d = this.graph._doc();
+      if (d) return d;
+    }
+  } catch (e) {}
+  return g2doc(this.el) || g2doc(this.graph && this.graph.svg);
+};
 GraphGrid.prototype.create = function () {
-  this.el = document.createElementNS(SVGNS, "g");
+  this.el = this._doc().createElementNS(SVGNS, "g");
   this.el.setAttributeNS(null, "stroke-width", this.options.lineWidth + "px");
   this.graph.svg.appendChild(this.el);
 };
 GraphGrid.prototype.createGridLine = function () {
-  var e = document.createElementNS(SVGNS, "line");
+  var e = this._doc().createElementNS(SVGNS, "line");
   e.setAttributeNS(null, "vector-effect", "non-scaling-stroke");
   return e;
 };
 GraphGrid.prototype.createText = function () {
-  var e = document.createElementNS(SVGNS, "text");
+  var e = this._doc().createElementNS(SVGNS, "text");
   e.setAttributeNS(null, "fill", "#cccccc");
   e.setAttributeNS(null, "font-family", "'Source Code Pro',monospace");
   e.setAttributeNS(null, "font-size", "10");
@@ -591,6 +684,109 @@ PZ.ui.graph.prototype = Object.create(PZ.ui.panel.prototype);
 PZ.ui.graph.prototype.constructor = PZ.ui.graph;
 
 /* ---------- helpers ---------- */
+PZ.ui.graph.prototype._doc = function () {
+  return g2doc(this.canvasEl) || g2doc(this.el) || g2doc(this.svg) || null;
+};
+PZ.ui.graph.prototype._win = function () {
+  var doc = this._doc();
+  try {
+    if (doc && doc.defaultView) return doc.defaultView;
+  } catch (e) {}
+  return g2win(this.el);
+};
+/* Global Space pans the view without needing focus. The listener must live
+   on the window that owns this panel: the Ctrl+G popup is a separate
+   window whose key events never reach the main window. Rebind whenever the
+   panel is adopted into another document. */
+PZ.ui.graph.prototype._ensureSpaceListeners = function () {
+  var self = this;
+  var w = null;
+  try {
+    w = this._win();
+  } catch (e) {
+    return;
+  }
+  if (!w || typeof w.addEventListener !== "function") return;
+  if (this._spaceWin === w) return;
+  try {
+    if (this._spaceWin && this._spaceHandlers) {
+      this._spaceWin.removeEventListener("keydown", this._spaceHandlers.down);
+      this._spaceWin.removeEventListener("keyup", this._spaceHandlers.up);
+      this._spaceWin.removeEventListener("blur", this._spaceHandlers.blur);
+    }
+  } catch (e2) {}
+  var handlers = {
+    down: function (e) {
+      if (e.code === "Space" && !e.repeat) self._spaceDown = true;
+    },
+    up: function (e) {
+      if (e.code === "Space") self._spaceDown = false;
+    },
+    blur: function () { self._spaceDown = false; },
+  };
+  try {
+    w.addEventListener("keydown", handlers.down);
+    w.addEventListener("keyup", handlers.up);
+    w.addEventListener("blur", handlers.blur);
+  } catch (e3) {
+    return;
+  }
+  this._spaceWin = w;
+  this._spaceHandlers = handlers;
+};
+/* Re-run resize() whenever the canvas box changes. The popup panel is first
+   constructed while its stylesheets are still loading, so the initial
+   resize() can measure a pre-layout box; the observer corrects that as soon
+   as the real layout lands. resize() never changes layout itself, so this
+   cannot loop. */
+PZ.ui.graph.prototype._installResizeObserver = function () {
+  var self = this;
+  var doc = null;
+  try {
+    doc = this._doc();
+    if (!this.canvasEl || !doc) return;
+    if (this._ro && this._roDoc === doc) return;
+    if (this._ro) {
+      try { this._ro.disconnect(); } catch (e) {}
+      this._ro = null;
+      this._roDoc = null;
+    }
+    var w = this._win();
+    var RO = (w && w.ResizeObserver) || null;
+    if (!RO) {
+      try {
+        RO = typeof ResizeObserver !== "undefined" ? ResizeObserver : null;
+      } catch (e2) {
+        RO = null;
+      }
+    }
+    if (!RO) return;
+    var ro = new RO(function () {
+      try {
+        self.resize();
+      } catch (e3) {}
+    });
+    ro.observe(this.canvasEl);
+    this._ro = ro;
+    this._roDoc = doc;
+  } catch (e4) {}
+};
+PZ.ui.graph.prototype.unload = function () {
+  try {
+    if (this._ro) this._ro.disconnect();
+  } catch (e) {}
+  this._ro = null;
+  this._roDoc = null;
+  try {
+    if (this._spaceWin && this._spaceHandlers) {
+      this._spaceWin.removeEventListener("keydown", this._spaceHandlers.down);
+      this._spaceWin.removeEventListener("keyup", this._spaceHandlers.up);
+      this._spaceWin.removeEventListener("blur", this._spaceHandlers.blur);
+    }
+  } catch (e2) {}
+  this._spaceWin = null;
+  this._spaceHandlers = null;
+};
 PZ.ui.graph.prototype.viewX = function () { return this.centerX - 0.5 * this.width * this.zoomX; };
 PZ.ui.graph.prototype.viewY = function () { return this.centerY - 0.5 * this.height * this.zoomY; };
 PZ.ui.graph.prototype.viewW = function () { return this.width * this.zoomX; };
@@ -755,7 +951,7 @@ PZ.ui.graph.prototype.frameSelected = function () {
 
 /* ---------- creation ---------- */
 PZ.ui.graph.prototype.createGraph = function () {
-  this.svg = document.createElementNS(SVGNS, "svg");
+  this.svg = this._doc().createElementNS(SVGNS, "svg");
   this.svg.setAttributeNS(null, "preserveAspectRatio", "none");
   this.svg.setAttributeNS(null, "width", "100%");
   this.svg.setAttributeNS(null, "height", "100%");
@@ -764,18 +960,19 @@ PZ.ui.graph.prototype.createGraph = function () {
   this.bodyEl.appendChild(this.svg);
 };
 PZ.ui.graph.prototype.createCursor = function () {
-  var g = document.createElementNS(SVGNS, "g");
+  var doc = this._doc();
+  var g = doc.createElementNS(SVGNS, "g");
   g.setAttributeNS(null, "fill", "none");
   g.setAttributeNS(null, "stroke", "#ff0000aa");
   g.setAttributeNS(null, "stroke-width", this.options.cursorLineWidth + "px");
   g.style.pointerEvents = "none";
   this.cursorLayer = g;
   this.svg.appendChild(g);
-  this.cursor = document.createElementNS(SVGNS, "line");
+  this.cursor = doc.createElementNS(SVGNS, "line");
   this.cursor.setAttributeNS(null, "vector-effect", "non-scaling-stroke");
   g.appendChild(this.cursor);
   // zero line
-  this.zeroH = document.createElementNS(SVGNS, "line");
+  this.zeroH = doc.createElementNS(SVGNS, "line");
   this.zeroH.setAttributeNS(null, "stroke", "#4c4c4e");
   this.zeroH.setAttributeNS(null, "stroke-width", "1px");
   this.zeroH.setAttributeNS(null, "vector-effect", "non-scaling-stroke");
@@ -789,7 +986,8 @@ PZ.ui.graph.prototype.drawRuler = function () {
   var w = Math.max(this.bodyEl.clientWidth, 1);
   var h = 30;
   var dpr = 1;
-  try { dpr = window.devicePixelRatio || 1; } catch (e) {}
+  try { dpr = (this._win && this._win().devicePixelRatio) || dpr || 1; } catch (e) {}
+  if (!(dpr > 0)) dpr = 1;
   if (c.width !== Math.round(w * dpr) || c.height !== Math.round(h * dpr)) {
     c.width = Math.round(w * dpr);
     c.height = Math.round(h * dpr);
@@ -893,16 +1091,25 @@ PZ.ui.graph.prototype.setTangentsOnSelected = function (continuous) {
 PZ.ui.graph.prototype.toggleEasePopup = function () {
   var self = this;
   if (this.easePopup) { this.closeEasePopup(); return; }
-  var pop = document.createElement("div");
+  var doc = null;
+  try { doc = this._doc(); } catch (eDoc) {}
+  if (!doc || typeof doc.createElement !== "function") doc = g2doc(this.rootEl);
+  function mk(tag) {
+    try {
+      if (doc && doc.createElement) return doc.createElement(tag);
+    } catch (eMk) {}
+    return document.createElement(tag);
+  }
+  var pop = mk("div");
   pop.className = "g2-popup";
-  var head = document.createElement("div");
+  var head = mk("div");
   head.className = "g2-popup-head";
   head.textContent = "CUSTOM EASINGS";
   pop.appendChild(head);
   var names = [];
   try { names = PZ.tween.easingList.map(function (e) { return e.name; }); } catch (e) { names = ["linear"]; }
   names.forEach(function (n, i) {
-    var it = document.createElement("div");
+    var it = mk("div");
     it.className = "g2-popup-item";
     it.textContent = i + ": " + n;
     it.addEventListener("mousedown", function (ev) { ev.preventDefault(); ev.stopPropagation(); });
@@ -926,7 +1133,13 @@ PZ.ui.graph.prototype.toggleEasePopup = function () {
     self.closeEasePopup();
   };
   var to = setTimeout(function () {
-    window.addEventListener("pointerdown", self._easeOutside, true);
+    try {
+      var w = (self._win && self._win()) || g2win(self.rootEl);
+      if (w && w.addEventListener) {
+        w.addEventListener("pointerdown", self._easeOutside, true);
+        self._easeWin = w;
+      }
+    } catch (eWin) {}
   }, 0);
   pop._openTO = to;
 };
@@ -934,8 +1147,19 @@ PZ.ui.graph.prototype.closeEasePopup = function () {
   if (!this.easePopup) return;
   try { clearTimeout(this.easePopup._openTO); } catch (e) {}
   if (this._easeOutside) {
-    window.removeEventListener("pointerdown", this._easeOutside, true);
+    try {
+      if (this._easeWin && this._easeWin.removeEventListener) {
+        this._easeWin.removeEventListener("pointerdown", this._easeOutside, true);
+      }
+    } catch (e2) {}
+    try {
+      var w = (this._win && this._win()) || g2win(this.rootEl);
+      if (w && w !== this._easeWin && w.removeEventListener) {
+        w.removeEventListener("pointerdown", this._easeOutside, true);
+      }
+    } catch (e3) {}
     this._easeOutside = null;
+    this._easeWin = null;
   }
   try { this.easePopup.remove(); } catch (e) {}
   this.easePopup = null;
@@ -944,14 +1168,21 @@ PZ.ui.graph.prototype.buildToolbar = function () {
   var self = this;
   var tb = this.toolbarEl;
   while (tb.firstChild) tb.firstChild.remove();
+  function mk(tag) {
+    try {
+      var d = self._doc();
+      if (d && d.createElement) return d.createElement(tag);
+    } catch (e) {}
+    return document.createElement(tag);
+  }
   function group() {
-    var g = document.createElement("div");
+    var g = mk("div");
     g.className = "g2-group";
     tb.appendChild(g);
     return g;
   }
   function sep() {
-    var s = document.createElement("span");
+    var s = mk("span");
     s.className = "g2-sep";
     tb.appendChild(s);
   }
@@ -966,7 +1197,7 @@ PZ.ui.graph.prototype.buildToolbar = function () {
   }
   /* big tile: dark box with artwork + label beneath (user design) */
   function tile(parent, icon, label, title, fn, cls) {
-    var b = document.createElement("button");
+    var b = mk("button");
     b.className = "g2-tile" + (cls ? " " + cls : "");
     b.title = title;
     b.setAttribute("aria-label", label);
@@ -991,7 +1222,7 @@ PZ.ui.graph.prototype.buildToolbar = function () {
   /* ---- custom easings: thumbnail + label to the RIGHT (mockup) ---- */
   var gc = group();
   this.customEaseBtn = (function () {
-    var b = document.createElement("button");
+    var b = mk("button");
     b.className = "g2-custom";
     b.title = "Custom easings — pick any of the 33 easings";
     b.setAttribute("aria-label", "Custom easings");
@@ -1003,7 +1234,7 @@ PZ.ui.graph.prototype.buildToolbar = function () {
     return b;
   })();
   /* ---- other functions, right-aligned (user placeholder area) ---- */
-  var spacer = document.createElement("span");
+  var spacer = mk("span");
   spacer.className = "g2-spacer";
   tb.appendChild(spacer);
   var gv = group();
@@ -1056,37 +1287,51 @@ PZ.ui.graph.prototype.buildToolbar = function () {
 PZ.ui.graph.prototype.create = function () {
   var self = this;
   // styles must exist in the document that owns this panel (popup window case)
-  gpInjectStyle(this.el.ownerDocument || document);
+  gpInjectStyle(g2doc(this.el));
   this.el.classList.add("g2-host");
-  var root = document.createElement("div");
+  function mk(tag) {
+    try {
+      var d = self._doc() || g2doc(self.el);
+      if (d && d.createElement) return d.createElement(tag);
+    } catch (eMk) {}
+    return document.createElement(tag);
+  }
+  function mkNS(tag) {
+    try {
+      var d = self._doc() || g2doc(self.el);
+      if (d && d.createElementNS) return d.createElementNS(SVGNS, tag);
+    } catch (eMkNS) {}
+    return document.createElementNS(SVGNS, tag);
+  }
+  var root = mk("div");
   root.className = "g2-wrap";
   this.el.appendChild(root);
   this.rootEl = root;
-  this.toolbarEl = document.createElement("div");
+  this.toolbarEl = mk("div");
   this.toolbarEl.className = "g2-toolbar";
   root.appendChild(this.toolbarEl);
   // C4D layout: track list column | (frame ruler + canvas)
-  this.mainEl = document.createElement("div");
+  this.mainEl = mk("div");
   this.mainEl.className = "g2-main";
   root.appendChild(this.mainEl);
-  this.tracksEl = document.createElement("div");
+  this.tracksEl = mk("div");
   this.tracksEl.className = "g2-tracks";
   this.mainEl.appendChild(this.tracksEl);
-  this.rightEl = document.createElement("div");
+  this.rightEl = mk("div");
   this.rightEl.className = "g2-right";
   this.mainEl.appendChild(this.rightEl);
   // frame ruler (numbers + scrub), aligned with canvas
-  this.rulerEl = document.createElement("div");
+  this.rulerEl = mk("div");
   this.rulerEl.className = "g2-ruler";
-  this.rulerCanvas = document.createElement("canvas");
+  this.rulerCanvas = mk("canvas");
   this.rulerEl.appendChild(this.rulerCanvas);
   this.rightEl.appendChild(this.rulerEl);
-  this.canvasEl = document.createElement("div");
+  this.canvasEl = mk("div");
   this.canvasEl.className = "g2-canvas";
   this.canvasEl.setAttribute("tabindex", "0");
   this.rightEl.appendChild(this.canvasEl);
   this.bodyEl = this.canvasEl; // alias: focus/interaction target
-  this.statusEl = document.createElement("div");
+  this.statusEl = mk("div");
   this.statusEl.className = "g2-status";
   root.appendChild(this.statusEl);
   this.buildToolbar();
@@ -1094,7 +1339,7 @@ PZ.ui.graph.prototype.create = function () {
   this.xGrid = new PZ.ui.graph.grid(this);
   this.yGrid = new PZ.ui.graph.grid(this, { dimension: 1 });
   // range shade behind curves (after grids, before curves)
-  this.rangeRect = document.createElementNS(SVGNS, "rect");
+  this.rangeRect = mkNS("rect");
   this.rangeRect.setAttributeNS(null, "fill", "rgba(255,255,255,0.035)");
   this.rangeRect.setAttributeNS(null, "stroke", "rgba(255,255,255,0.08)");
   this.rangeRect.setAttributeNS(null, "stroke-width", "1px");
@@ -1102,14 +1347,14 @@ PZ.ui.graph.prototype.create = function () {
   this.rangeRect.style.pointerEvents = "none";
   this.svg.appendChild(this.rangeRect);
   // curve layer
-  this.curveLayer = document.createElementNS(SVGNS, "g");
+  this.curveLayer = mkNS("g");
   this.svg.appendChild(this.curveLayer);
   this.createCursor();
   // overlay (selection rect) — separate layer, NOT inside cursor
-  this.overlayLayer = document.createElementNS(SVGNS, "g");
+  this.overlayLayer = mkNS("g");
   this.overlayLayer.style.pointerEvents = "none";
   this.svg.appendChild(this.overlayLayer);
-  this.selectRect = document.createElementNS(SVGNS, "rect");
+  this.selectRect = mkNS("rect");
   this.selectRect.setAttributeNS(null, "fill", "rgba(200,200,200,0.10)");
   this.selectRect.setAttributeNS(null, "stroke", "#ccc");
   this.selectRect.setAttributeNS(null, "stroke-width", "1");
@@ -1118,11 +1363,11 @@ PZ.ui.graph.prototype.create = function () {
   this.selectRect.style.display = "none";
   this.overlayLayer.appendChild(this.selectRect);
   // tooltip + empty-state overlay inside the canvas
-  this.tipEl = document.createElement("div");
+  this.tipEl = mk("div");
   this.tipEl.className = "g2-tip";
   this.canvasEl.appendChild(this.tipEl);
   // empty-state overlay (design)
-  this.emptyEl = document.createElement("div");
+  this.emptyEl = mk("div");
   this.emptyEl.className = "g2-empty";
   this.emptyEl.innerHTML = "<div class='g2-empty-card'><h3>NO CURVES</h3><p>Select keyframed properties on the left.<br>Press <b>\\</b> to fit · <b>F</b> to frame · <b>dblclick</b> to add a key.</p></div>";
   this.canvasEl.appendChild(this.emptyEl);
@@ -1144,17 +1389,10 @@ PZ.ui.graph.prototype.create = function () {
   });
   this.bodyEl.addEventListener("contextmenu", function (e) { e.preventDefault(); });
   this.bodyEl.addEventListener("keydown", function (e) { self.keydown(e); });
-  // BUGFIX cant move grids with trackpad: global Space pan (focus-independent)
-  if (!this._spaceListeners) {
-    this._spaceListeners = true;
-    window.addEventListener("keydown", function (e) {
-      if (e.code === "Space" && !e.repeat) self._spaceDown = true;
-    });
-    window.addEventListener("keyup", function (e) {
-      if (e.code === "Space") self._spaceDown = false;
-    });
-    window.addEventListener("blur", function () { self._spaceDown = false; });
-  }
+  // Global Space pans the view without needing focus; bound per owner
+  // window (rebound when the panel moves documents) so it works in popups.
+  try { self._ensureSpaceListeners(); } catch (eSpace) {}
+  try { self._installResizeObserver(); } catch (eRO) {}
   this.applyToolCursor();
   this.updateStatus();
 };
@@ -1771,10 +2009,10 @@ PZ.ui.graph.prototype.onKeyframeChanged = function (gel, kfObj) {
   this.positionLabel(gel);
 };
 PZ.ui.graph.prototype.createHandles = function (kfObj) {
-  var g = document.createElementNS(SVGNS, "g");
+  var g = this._doc().createElementNS(SVGNS, "g");
   g.pz_object = kfObj;
   var mk = function () {
-    var e = document.createElementNS(SVGNS, "ellipse");
+    var e = g.ownerDocument.createElementNS(SVGNS, "ellipse");
     e.setAttributeNS(null, "fill", "#8ab4ff");
     e.setAttributeNS(null, "stroke", "#0f1115");
     e.setAttributeNS(null, "stroke-width", "1.5px");
@@ -1783,8 +2021,8 @@ PZ.ui.graph.prototype.createHandles = function (kfObj) {
     return e;
   };
   var h0 = mk(), h1 = mk();
-  var l0 = document.createElementNS(SVGNS, "line");
-  var l1 = document.createElementNS(SVGNS, "line");
+  var l0 = g.ownerDocument.createElementNS(SVGNS, "line");
+  var l1 = g.ownerDocument.createElementNS(SVGNS, "line");
   [l0, l1].forEach(function (l) {
     l.setAttributeNS(null, "stroke", "#aaa");
     l.setAttributeNS(null, "stroke-width", "1px");
@@ -1822,7 +2060,7 @@ PZ.ui.graph.prototype.updateHandles = function (hEl) {
 };
 PZ.ui.graph.prototype.createKeyframe = function (kfObj) {
   var gelColor = "#fff";
-  var r = document.createElementNS(SVGNS, "rect");
+  var r = this._doc().createElementNS(SVGNS, "rect");
   r.classList.add("g2-kf");
   r.setAttributeNS(null, "stroke", "transparent");
   r.setAttributeNS(null, "stroke-width", (2 * this.options.keyframeSize) + "px");
@@ -1889,7 +2127,7 @@ PZ.ui.graph.prototype.deselectAllKeyframes = function () {
   this.updateStatus();
 };
 PZ.ui.graph.prototype.createCurve = function () {
-  var p = document.createElementNS(SVGNS, "path");
+  var p = this._doc().createElementNS(SVGNS, "path");
   p.setAttributeNS(null, "vector-effect", "non-scaling-stroke");
   p.setAttributeNS(null, "fill", "none");
   p.classList.add("g2-cv");
@@ -2002,25 +2240,26 @@ PZ.ui.graph.prototype.positionLabel = function (gel) {
   gel._label.textContent = displayName(prop);
 };
 PZ.ui.graph.prototype.createProperty = function (prop) {
-  var g = document.createElementNS(SVGNS, "g");
+  var doc = this._doc();
+  var g = doc.createElementNS(SVGNS, "g");
   g.pz_object = prop;
   g.pz_frameOffset = 0;
   g._gid = "g" + (gpNextGroupId++);
   g.pz_color = this.graphColor(prop);
   g.pz_valueScale = 1 / (scaleFactorOf(prop) || 1);
-  var curves = document.createElementNS(SVGNS, "g");
+  var curves = doc.createElementNS(SVGNS, "g");
   curves.setAttributeNS(null, "fill", "none");
   curves.setAttributeNS(null, "stroke-width", this.options.curveLineWidth + "px");
   curves.setAttributeNS(null, "stroke", g.pz_color);
   g.appendChild(curves);
   g._curves = curves;
-  var keys = document.createElementNS(SVGNS, "g");
+  var keys = doc.createElementNS(SVGNS, "g");
   g.appendChild(keys);
   g._keys = keys;
-  var handles = document.createElementNS(SVGNS, "g");
+  var handles = doc.createElementNS(SVGNS, "g");
   g.appendChild(handles);
   g._handles = handles;
-  var label = document.createElementNS(SVGNS, "text");
+  var label = doc.createElementNS(SVGNS, "text");
   label.setAttributeNS(null, "fill", g.pz_color);
   label.setAttributeNS(null, "font-family", "'Source Code Pro',monospace");
   label.style.pointerEvents = "none";
@@ -2123,6 +2362,21 @@ PZ.ui.graph.prototype.update = function () {
       gpInjectStyle(ownerDoc);
       this._styledDoc = ownerDoc;
     }
+    // The panel may have been adopted into another document (Ctrl+G popup)
+    // after construction: rebind the per-window listeners, re-observe the
+    // canvas in the new document, and re-measure once stylesheets land.
+    if (ownerDoc && ownerDoc !== this._adoptedDoc) {
+      this._adoptedDoc = ownerDoc;
+      try {
+        if (this._ensureSpaceListeners) this._ensureSpaceListeners();
+      } catch (_spaceError) {}
+      try {
+        if (this._installResizeObserver) this._installResizeObserver();
+      } catch (_roError) {}
+      try {
+        if (this.resize) this.resize();
+      } catch (_resizeError) {}
+    }
   } catch (_ownerStyleError) {}
   try {
     var cf = currentFrame(this.editor);
@@ -2139,8 +2393,23 @@ PZ.ui.graph.prototype.update = function () {
 };
 PZ.ui.graph.prototype.resize = function () {
   if (!this.canvasEl) return;
+  try {
+    if (this._ensureSpaceListeners) this._ensureSpaceListeners();
+  } catch (_spaceError) {}
+  try {
+    if (this._installResizeObserver) this._installResizeObserver();
+  } catch (_roError) {}
   this.width = Math.max(this.canvasEl.clientWidth, 1);
   this.height = Math.max(this.canvasEl.clientHeight, 1);
+  // Narrow hosts (the 600px Ctrl+G popup) get compact toolbar tiles so
+  // more actions stay visible; toggling is idempotent so the resize
+  // observer cannot loop on it.
+  try {
+    if (this.rootEl && this.rootEl.classList) {
+      var wrapW = this.rootEl.clientWidth || 0;
+      this.rootEl.classList.toggle("g2-narrow", wrapW > 0 && wrapW < 700);
+    }
+  } catch (_narrowError) {}
   if (this.xGrid) this.xGrid.resize();
   if (this.yGrid) this.yGrid.resize();
   this.updateViewBox();
@@ -2248,10 +2517,17 @@ PZ.ui.graph.prototype.copySelected = function () {
     var sel = Array.prototype.slice.call(gel._keys.getElementsByClassName("selected"));
     if (sel.length) map[gel.pz_object.definition.name] = sel.map(function (e) { return e.pz_object; });
   }
+  // The popup editor lives in a separate window: clipboard access goes
+  // through its own navigator (permissions follow the focused document).
+  var nav = null;
+  try { nav = (this._win && this._win().navigator) || null; } catch (eNav) {}
+  try {
+    if (!nav && typeof navigator !== "undefined") nav = navigator;
+  } catch (eNav2) {}
   try {
     var pack = new PZ.package(map, "propertyList");
     var str = JSON.stringify([pack]);
-    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(str);
+    if (nav && nav.clipboard && nav.clipboard.writeText) nav.clipboard.writeText(str);
     this._clipCache = str;
     this.updateStatus("copied " + Object.keys(map).length + " curve(s)");
   } catch (e) { this.updateStatus("copy failed"); }
@@ -2290,8 +2566,13 @@ PZ.ui.graph.prototype.pasteAtPlayhead = function () {
     self.editor.history.finishOperation();
     self.updateStatus("pasted at f " + cf);
   };
-  if (navigator.clipboard && navigator.clipboard.readText) {
-    navigator.clipboard.readText().then(doPaste, function () { if (self._clipCache) doPaste(self._clipCache); });
+  var nav = null;
+  try { nav = (self._win && self._win().navigator) || null; } catch (eNav) {}
+  try {
+    if (!nav && typeof navigator !== "undefined") nav = navigator;
+  } catch (eNav2) {}
+  if (nav && nav.clipboard && nav.clipboard.readText) {
+    nav.clipboard.readText().then(doPaste, function () { if (self._clipCache) doPaste(self._clipCache); });
   } else if (this._clipCache) doPaste(this._clipCache);
 };
 
@@ -2300,15 +2581,22 @@ PZ.ui.graph.prototype.pasteAtPlayhead = function () {
 PZ.ui.graph.prototype.updateLegend = function () {
   if (!this.tracksEl) return;
   var self = this;
+  function mk(tag) {
+    try {
+      var d = self._doc();
+      if (d && d.createElement) return d.createElement(tag);
+    } catch (e) {}
+    return document.createElement(tag);
+  }
   while (this.tracksEl.firstChild) this.tracksEl.firstChild.remove();
   var groups = this.propGroups();
   if (this.emptyEl) this.emptyEl.style.display = groups.length ? "none" : "";
-  var head = document.createElement("div");
+  var head = mk("div");
   head.className = "g2-tracks-head";
   head.textContent = groups.length ? "TRACKS · " + groups.length : "TRACKS · none";
   this.tracksEl.appendChild(head);
   if (!groups.length) {
-    var h = document.createElement("div");
+    var h = mk("div");
     h.style.cssText = "padding:6px 8px;color:#cccccc;opacity:.6;font-size:11px;line-height:1.5";
     h.textContent = "select keyframed properties on the left";
     this.tracksEl.appendChild(h);
@@ -2316,23 +2604,23 @@ PZ.ui.graph.prototype.updateLegend = function () {
   }
   groups.forEach(function (gel) {
     var prop = gel.pz_object;
-    var row = document.createElement("div");
+    var row = mk("div");
     row.className = "g2-track-row";
     row.title = addrString(prop) + " — click to select all its keys";
-    var dot = document.createElement("span");
+    var dot = mk("span");
     dot.className = "g2-swatch";
     dot.style.background = gel.pz_color || "#fff";
     row.appendChild(dot);
-    var nm = document.createElement("span");
+    var nm = mk("span");
     nm.className = "g2-track-name";
     nm.textContent = displayName(prop);
     row.appendChild(nm);
-    var val = document.createElement("span");
+    var val = mk("span");
     val.className = "g2-track-val";
     val.textContent = "";
     val._prop = prop; val._gel = gel;
     row.appendChild(val);
-    var eye = document.createElement("button");
+    var eye = mk("button");
     eye.className = "g2-eye" + (gel.style.display === "none" ? " off" : "");
     eye.textContent = gel.style.display === "none" ? "◌" : "◉";
     eye.title = "show/hide curve";
@@ -2378,8 +2666,11 @@ PZ.ui.graph.prototype.updateStatus = function (extra) {
   var n = this.propGroups().length;
   this.statusEl.innerHTML = "";
   var self = this;
+  var statusDoc = null;
+  try { statusDoc = this._doc(); } catch (eDoc) {}
+  if (!statusDoc || typeof statusDoc.createElement !== "function") statusDoc = g2doc(this.statusEl);
   function pill(html, live) {
-    var s = document.createElement("span");
+    var s = (statusDoc && statusDoc.createElement ? statusDoc : document).createElement("span");
     s.className = "g2-pill" + (live ? " live" : "");
     s.innerHTML = html;
     self.statusEl.appendChild(s);
@@ -2604,7 +2895,19 @@ return [
     ".g2-canvas svg{touch-action:none}",
     ".g2-toolbar,.g2-status,.g2-ruler{display:flex !important;visibility:visible !important;opacity:1 !important}",
     /* ==== toolbar: CM3 title-row chrome, same tile layout ==== */
-    ".g2-toolbar{flex:0 0 auto;flex-shrink:0;display:flex;align-items:flex-start;gap:6px;padding:15px 26px 10px;background:var(--zui-bg-title,#222222);border-bottom:1px solid var(--zui-border,#1b1b1b);font-size:12px;flex-wrap:wrap;min-height:104px;z-index:5;position:relative}",
+    /* Narrow popup windows (Ctrl+G is 600x400 with a 197px picker column)
+       must never squeeze the canvas to zero: the toolbar wraps but is
+       capped so the canvas always keeps room; narrow screens get smaller
+       tiles so more actions stay visible without scrolling. */
+    ".g2-toolbar{flex:0 1 auto;flex-shrink:1;display:flex;align-items:flex-start;gap:6px;padding:15px 26px 10px;background:var(--zui-bg-title,#222222);border-bottom:1px solid var(--zui-border,#1b1b1b);font-size:12px;flex-wrap:wrap;overflow-y:auto;overflow-x:hidden;min-height:104px;max-height:46%;z-index:5;position:relative;scrollbar-width:thin}",
+    ".g2-wrap.g2-narrow .g2-toolbar{gap:4px;padding:10px 12px 8px;min-height:0}",
+    ".g2-wrap.g2-narrow .g2-tile .g2-box{width:44px;height:38px}",
+    ".g2-wrap.g2-narrow .g2-tile .g2-tlabel{font-size:10px;max-width:60px}",
+    ".g2-wrap.g2-narrow .g2-group{gap:8px}",
+    ".g2-wrap.g2-narrow .g2-sep{width:12px}",
+    ".g2-wrap.g2-narrow .g2-tile.g2-small .g2-box{width:32px;height:28px}",
+    ".g2-wrap.g2-narrow .g2-custom .g2-sbox{width:40px;height:26px}",
+    ".g2-wrap.g2-narrow .g2-custom .g2-clabel{font-size:10px}",
     ".g2-group{display:flex;align-items:flex-start;gap:13px;background:transparent;border:0;border-radius:0;padding:0;flex-shrink:0}",
     ".g2-sep{width:40px;align-self:stretch;background:transparent;flex-shrink:0}",
     ".g2-spacer{flex:1 1 auto}",
@@ -2636,7 +2939,7 @@ return [
     ".g2-ruler canvas{position:absolute;inset:0;width:100%;height:100%;display:block}",
     ".g2-body{flex:1;position:relative;min-height:0;overflow:hidden;background:var(--zui-bg-sunken,#1e1e1f)}",
     ".g2-main{display:flex;flex:1;min-height:0;min-width:0}",
-    ".g2-tracks{flex:0 0 188px;width:188px;background:var(--zui-bg,#2a2a2b);border-right:1px solid var(--zui-border,#141415);overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column}",
+    ".g2-tracks{flex:0 0 188px;width:188px;min-height:0;background:var(--zui-bg,#2a2a2b);border-right:1px solid var(--zui-border,#141415);overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column}",
     ".g2-tracks-head{flex:0 0 auto;padding:5px 8px;background:var(--zui-bg-title,#242425);border-bottom:1px solid var(--zui-border,#141415);font-size:10px;color:var(--zui-text-bright,#ffffff) !important;letter-spacing:1px}",
     ".g2-track-row{display:flex;align-items:center;gap:7px;padding:5px 8px;border-bottom:1px solid var(--zui-border-soft,#232324);white-space:nowrap;cursor:pointer;flex:0 0 auto}",
     ".g2-track-row:hover{background:var(--zui-hover,rgba(255,255,255,.06))}",
@@ -2647,7 +2950,7 @@ return [
     ".g2-wrap .g2-eye{cursor:pointer;border:1px solid var(--zui-border,#141415);background:var(--zui-hover,rgba(255,255,255,.07));color:var(--zui-text-bright,#ffffff) !important;font-size:10px;padding:1px 6px;border-radius:3px;line-height:1.4}",
     ".g2-wrap .g2-eye.off{opacity:.35}",
     ".g2-right{flex:1;display:flex;flex-direction:column;min-width:0;min-height:0}",
-    ".g2-canvas{flex:1;position:relative;min-height:0;overflow:hidden;background:var(--zui-bg-sunken,#1e1e1f)}",
+    ".g2-canvas{flex:1;position:relative;min-height:48px;min-width:48px;overflow:hidden;background:var(--zui-bg-sunken,#1e1e1f)}",
     ".g2-canvas svg{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:crosshair}",
     ".g2-cv{stroke-linecap:round;stroke-linejoin:round}",
     ".g2-kf{cursor:move;transition:filter .12s}",
@@ -2660,8 +2963,9 @@ return [
     ".g2-empty-card p{margin:0;font-size:11px;line-height:1.6;color:var(--zui-text,#ffffff) !important}",
     ".g2-empty-card b{color:var(--zui-value,#8ab4ff);font-weight:400}",
     ".g2-tip{position:absolute;pointer-events:none;background:var(--zui-bg-input,rgba(20,20,22,.96));border:1px solid var(--zui-border-soft,#555555);border-radius:4px;padding:6px 9px;font-size:11px;line-height:1.5;display:none;z-index:5;box-shadow:0 6px 18px rgba(0,0,0,.5);color:var(--zui-text,#ffffff) !important}",
-    ".g2-status{flex:0 0 auto;flex-shrink:0;display:flex;align-items:center;gap:8px;padding:4px 10px;background:var(--zui-bg-title,#3a3a3c);border-top:1px solid var(--zui-border,#222224);font-size:11px;color:var(--zui-text,#ffffff) !important;flex-wrap:wrap}",
-    ".g2-pill{background:rgba(255,255,255,.06);border:1px solid var(--zui-border-soft,#222224);border-radius:3px;padding:2px 10px;color:var(--zui-text-muted,#ffffff) !important;font-variant-numeric:tabular-nums}",
+    ".g2-status{flex:0 0 auto;flex-shrink:0;display:flex;align-items:center;gap:8px;padding:4px 10px;background:var(--zui-bg-title,#3a3a3c);border-top:1px solid var(--zui-border,#222224);font-size:11px;color:var(--zui-text,#ffffff) !important;flex-wrap:nowrap;overflow:hidden;white-space:nowrap}",
+    ".g2-pill{background:rgba(255,255,255,.06);border:1px solid var(--zui-border-soft,#222224);border-radius:3px;padding:2px 10px;color:var(--zui-text-muted,#ffffff) !important;font-variant-numeric:tabular-nums;flex:0 0 auto;max-width:100%}",
+    ".g2-status .g2-pill:last-child{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
     ".g2-pill b{color:var(--zui-text-bright,#ffffff);font-weight:400}",
     ".g2-pill.live{border-color:var(--zui-accent,#4a6da7);color:var(--zui-value,#cfe0ff)}",
     ".g2-curve-label{font-weight:700;paint-order:stroke;stroke:var(--zui-bg-sunken,#1e1e1f);stroke-width:3px}",

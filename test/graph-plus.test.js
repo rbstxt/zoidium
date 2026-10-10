@@ -522,3 +522,162 @@ test("no wall-clock or random values leak into project data", () => {
   assert.equal(source.split("Date.now").length - 1, 2, "only the status hover throttle");
   assert.ok(!source.includes("Math.random"));
 });
+
+// --- popup window (Ctrl+G) fixes -------------------------------------------------
+
+test("popup layout cannot squeeze the canvas to zero", () => {
+  const { GraphPlus } = loadModule();
+  const css = GraphPlus.__test.gpCssText();
+  const toolbar = css.split("\n").find((line) => line.startsWith(".g2-toolbar{"));
+  assert.ok(toolbar.includes("overflow-y:auto"), "toolbar scrolls instead of starving the canvas");
+  assert.ok(toolbar.includes("max-height:"), "toolbar height is capped for narrow popups");
+  assert.ok(css.includes("g2-narrow"), "compact tiles for narrow hosts");
+  const status = css.split("\n").find((line) => line.startsWith(".g2-status{"));
+  assert.ok(status.includes("flex-wrap:nowrap"), "status bar stays one row");
+  assert.ok(status.includes("overflow:hidden"), "status bar clips instead of growing");
+  const canvas = css.split("\n").find((line) => line.startsWith(".g2-canvas{flex"));
+  assert.ok(/min-height:(?!0)/.test(canvas), "canvas keeps a minimum height");
+  const tracks = css.split("\n").find((line) => line.startsWith(".g2-tracks{"));
+  assert.ok(tracks.includes("min-height:0"), "track list can shrink in a row flex");
+});
+
+test("owner helpers resolve the popup document and window", () => {
+  const { GraphPlus } = loadModule();
+  const { g2doc, g2win } = GraphPlus.__test;
+  const popupWin = { name: "popup" };
+  const popupDoc = { name: "popupDoc", defaultView: popupWin };
+  const el = { ownerDocument: popupDoc };
+  assert.equal(g2doc(el), popupDoc);
+  assert.equal(g2win(el), popupWin);
+  assert.equal(g2doc(null), null);
+});
+
+test("graph panels use their owner document for new elements", () => {
+  const { GraphPlus } = loadModule();
+  const PZ = makeFakePZ();
+  const proto = GraphPlus.__test.gpDefineGraphEditor(PZ).graph.prototype;
+  const created = [];
+  const popupDoc = {
+    createElement: (tag) => {
+      created.push(tag);
+      return {};
+    },
+    createElementNS: (_ns, tag) => {
+      created.push("ns:" + tag);
+      return { setAttributeNS() {}, style: {}, classList: { add() {} } };
+    },
+  };
+  const self = Object.create(proto);
+  self.el = { ownerDocument: popupDoc };
+  self.canvasEl = { ownerDocument: popupDoc };
+  assert.equal(proto._doc.call(self), popupDoc);
+  const kf = proto.createCurve.call(self);
+  assert.ok(created.includes("ns:path"), "curve created in the owner document");
+  assert.ok(kf, "curve element returned");
+});
+
+test("pointer drags listen on the owning window, not the main one", () => {
+  const { GraphPlus } = loadModule();
+  const { beginPointerDrag } = GraphPlus.__test;
+  const added = [];
+  const removed = [];
+  function makeWin(name) {
+    return {
+      name,
+      addEventListener: (type) => added.push(name + ":" + type),
+      removeEventListener: (type) => removed.push(name + ":" + type),
+    };
+  }
+  const popupWin = makeWin("popup");
+  const popupDoc = {
+    defaultView: popupWin,
+    addEventListener: (type) => added.push("popupDoc:" + type),
+    removeEventListener: (type) => removed.push("popupDoc:" + type),
+  };
+  const target = {
+    ownerDocument: popupDoc,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  };
+  // No pointerId: setPointerCapture is skipped, so the window fallback runs.
+  const drag = beginPointerDrag(target, {}, () => {}, () => {});
+  assert.ok(added.includes("popup:pointermove"), "owner window gets pointermove");
+  assert.ok(added.includes("popup:pointerup"), "owner window gets pointerup");
+  assert.ok(added.includes("popupDoc:pointerup"), "owner document gets pointerup");
+  drag.finish(null);
+  assert.ok(removed.includes("popup:pointermove"), "owner listeners removed on finish");
+});
+
+test("space shortcuts rebind when the panel moves documents", () => {
+  const { GraphPlus } = loadModule();
+  const PZ = makeFakePZ();
+  const proto = GraphPlus.__test.gpDefineGraphEditor(PZ).graph.prototype;
+  function makeWin() {
+    const listeners = {};
+    return {
+      listeners,
+      addEventListener: (type, fn) => {
+        listeners[type] = listeners[type] || [];
+        listeners[type].push(fn);
+      },
+      removeEventListener: (type, fn) => {
+        listeners[type] = (listeners[type] || []).filter((f) => f !== fn);
+      },
+    };
+  }
+  const winA = makeWin();
+  const winB = makeWin();
+  const self = {
+    _spaceDown: false,
+    _win: () => winA,
+  };
+  proto._ensureSpaceListeners.call(self);
+  assert.equal(winA.listeners.keydown.length, 1);
+  self._win = () => winB;
+  proto._ensureSpaceListeners.call(self);
+  assert.equal(winA.listeners.keydown.length, 0, "old window unbound");
+  assert.equal(winB.listeners.keydown.length, 1, "new window bound");
+  winB.listeners.keydown[0]({ code: "Space", repeat: false });
+  assert.equal(self._spaceDown, true);
+  proto.unload.call(self);
+  assert.equal(winB.listeners.keydown.length, 0, "unload unbinds");
+});
+
+test("canvas resize observer re-measures after popup adoption", () => {
+  const { GraphPlus } = loadModule();
+  const PZ = makeFakePZ();
+  const proto = GraphPlus.__test.gpDefineGraphEditor(PZ).graph.prototype;
+  const observed = [];
+  let fire = null;
+  function FakeRO(cb) {
+    fire = cb;
+  }
+  FakeRO.prototype.observe = function (el) {
+    observed.push(el);
+  };
+  FakeRO.prototype.disconnect = function () {};
+  const docA = {};
+  const docB = {};
+  const winB = { ResizeObserver: FakeRO };
+  let resized = 0;
+  const self = {
+    canvasEl: { ownerDocument: docB },
+    el: { ownerDocument: docB },
+    _doc: () => docB,
+    _win: () => winB,
+    _roDoc: docA,
+    _ro: { disconnect: () => {} },
+    resize: () => {
+      resized += 1;
+    },
+  };
+  proto._installResizeObserver.call(self);
+  assert.equal(observed.length, 1, "canvas observed in the new document");
+  assert.equal(self._roDoc, docB);
+  fire();
+  assert.equal(resized, 1, "observer callback re-measures");
+  // Same document: no reinstall.
+  observed.length = 0;
+  proto._installResizeObserver.call(self);
+  assert.equal(observed.length, 0);
+});
