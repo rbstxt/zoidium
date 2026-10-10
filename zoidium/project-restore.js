@@ -7,13 +7,22 @@
   if (!PZ || !editor || !projectFiles) return;
 
   var DB_NAME = "zoidium-restore-points";
-  var DB_VERSION = 1;
+  // Version 2 adds the shared "assets" content store so large media blobs are
+  // stored once and referenced by every snapshot. Databases created by either
+  // version stay usable with the other: v1 databases upgrade in place and
+  // keep their snapshots, while a database already bumped past this version
+  // falls back to a versionless open (see openDatabase).
+  var DB_VERSION = 2;
   var STORE_NAME = "snapshots";
+  var ASSET_STORE_NAME = "assets";
   var MAX_AUTOMATIC_PER_TITLE = 12;
   var MAX_AUTOMATIC_TOTAL = 24;
   var HOUR_MS = 60 * 60 * 1000;
   var TIME_BUCKET_LIMITS = [4, 3, 2];
   var BACKUP_INTERVAL_MS = 5 * 60 * 1000;
+  // Automatic backups are deferred while the JS heap is already under
+  // pressure; a manual "Backup now" remains available.
+  var AUTOMATIC_HEAP_LIMIT = 0.72;
   var BACKUP_INTERVAL_STORAGE_KEY = "zoidium.restore.interval";
   var BACKUP_INTERVAL_OPTIONS = [
     { value: 1 * 60 * 1000, label: "1 minute" },
@@ -26,6 +35,11 @@
   ];
   var state = {
     dbPromise: null,
+    dbDatabase: null,
+    // Store availability observed when a versionless fallback open was used
+    // (a newer build already bumped this origin's database). Null after a
+    // normal versioned open, where both stores are guaranteed.
+    compatStores: null,
     snapshots: [],
     panel: null,
     list: null,
@@ -36,6 +50,8 @@
     snapshotPromise: null,
     backupTimer: null,
     startupTimer: null,
+    projectLoadInProgress: false,
+    pendingAutomaticBackup: false,
     // Identity of the project state covered by the newest automatic check.
     lastBackup: null,
     backupQueued: false,
@@ -83,6 +99,60 @@
     });
   }
 
+  function isVersionError(error) {
+    if (!error) return false;
+    if (error.name === "VersionError") return true;
+    return /less than the existing version/i.test(error.message || "");
+  }
+
+  function ensureStores(database) {
+    if (!database.objectStoreNames.contains(STORE_NAME)) {
+      var store = database.createObjectStore(STORE_NAME, { keyPath: "id" });
+      store.createIndex("createdAt", "createdAt");
+    }
+    if (!database.objectStoreNames.contains(ASSET_STORE_NAME)) {
+      database.createObjectStore(ASSET_STORE_NAME, { keyPath: "id" });
+    }
+  }
+
+  function openDatabaseWithVersion(version) {
+    return new Promise(function (resolve, reject) {
+      var request;
+      try {
+        request = version === undefined
+          ? global.indexedDB.open(DB_NAME)
+          : global.indexedDB.open(DB_NAME, version);
+      } catch (error) {
+        reject(error);
+        return;
+      }
+
+      request.onupgradeneeded = function () {
+        // Upgrading from a v1 database only adds the assets store; the
+        // existing snapshots store and its records are left untouched.
+        ensureStores(request.result);
+      };
+      request.onsuccess = function () {
+        var database = request.result;
+        // Another tab (or another build on this origin) upgrading the database
+        // waits until every connection closes. Close this one and reopen on the
+        // next use instead of blocking that upgrade.
+        database.onversionchange = function () {
+          database.close();
+          if (state.dbPromise && state.dbDatabase === database) {
+            state.dbPromise = null;
+            state.dbDatabase = null;
+          }
+        };
+        state.dbDatabase = database;
+        resolve(database);
+      };
+      request.onerror = function () {
+        reject(request.error || new Error("Could not open restore-point storage."));
+      };
+    });
+  }
+
   function openDatabase() {
     if (state.dbPromise) return state.dbPromise;
     if (!global.indexedDB) {
@@ -90,28 +160,25 @@
       return state.dbPromise;
     }
 
-    var databasePromise = new Promise(function (resolve, reject) {
-      var request;
-      try {
-        request = global.indexedDB.open(DB_NAME, DB_VERSION);
-      } catch (error) {
-        reject(error);
-        return;
-      }
-
-      request.onupgradeneeded = function () {
-        var database = request.result;
-        if (!database.objectStoreNames.contains(STORE_NAME)) {
-          var store = database.createObjectStore(STORE_NAME, { keyPath: "id" });
-          store.createIndex("createdAt", "createdAt");
+    var databasePromise = openDatabaseWithVersion(DB_VERSION).catch(function (error) {
+      // Another build already upgraded this origin's database past our
+      // version. Reopen without a version number and use the existing stores
+      // when they are compatible instead of surfacing the raw VersionError.
+      if (!isVersionError(error)) throw error;
+      return openDatabaseWithVersion(undefined).then(function (database) {
+        var stores = { snapshots: false, assets: false };
+        try {
+          stores.snapshots = database.objectStoreNames.contains(STORE_NAME);
+          stores.assets = database.objectStoreNames.contains(ASSET_STORE_NAME);
+        } catch (_storeError) {
+          // A store listing that cannot be read is treated as incompatible.
         }
-      };
-      request.onsuccess = function () {
-        resolve(request.result);
-      };
-      request.onerror = function () {
-        reject(request.error || new Error("Could not open restore-point storage."));
-      };
+        state.compatStores = stores;
+        if (!stores.snapshots) {
+          throw new Error("Restore-point storage is unavailable.");
+        }
+        return database;
+      });
     });
     state.dbPromise = databasePromise;
     databasePromise.catch(function () {
@@ -130,6 +197,143 @@
     // Records created before automatic/manual tracking was added are kept as
     // automatic points for retention compatibility.
     return !snapshot || snapshot.automatic !== false;
+  }
+
+  function assetsAvailable(database) {
+    try {
+      return Boolean(
+        database && database.objectStoreNames.contains(ASSET_STORE_NAME),
+      );
+    } catch (_storeError) {
+      return false;
+    }
+  }
+
+  function getSnapshot(id) {
+    return openDatabase().then(function (database) {
+      var transaction = database.transaction(STORE_NAME, "readonly");
+      return requestPromise(transaction.objectStore(STORE_NAME).get(id));
+    });
+  }
+
+  // Media blobs are stored once in the assets store, keyed by content id, so
+  // unchanged assets are never copied into every snapshot.
+  function saveAssets(entries) {
+    var unique = Object.create(null);
+    var pending = (entries || []).filter(function (entry) {
+      if (!entry || !entry.id || !entry.file || unique[entry.id]) return false;
+      unique[entry.id] = true;
+      return true;
+    });
+    if (!pending.length) return Promise.resolve();
+
+    return openDatabase().then(function (database) {
+      if (!assetsAvailable(database)) return null;
+      return new Promise(function (resolve, reject) {
+        var transaction = database.transaction(ASSET_STORE_NAME, "readwrite");
+        var store = transaction.objectStore(ASSET_STORE_NAME);
+        pending.forEach(function (entry) {
+          var request = store.get(entry.id);
+          request.onsuccess = function () {
+            if (request.result) return;
+            store.put({
+              id: entry.id,
+              blob: entry.file,
+              size: entry.size,
+              type: entry.type,
+            });
+          };
+          request.onerror = function () {
+            try {
+              transaction.abort();
+            } catch (_error) {
+              // The transaction may already be aborting.
+            }
+          };
+        });
+        transaction.oncomplete = resolve;
+        transaction.onerror = function () {
+          reject(transaction.error || new Error("Could not store restore-point assets."));
+        };
+        transaction.onabort = function () {
+          reject(transaction.error || new Error("Could not store restore-point assets."));
+        };
+      });
+    });
+  }
+
+  function loadAssets(refs) {
+    refs = Array.isArray(refs) ? refs : [];
+    if (!refs.length) return Promise.resolve([]);
+
+    return openDatabase().then(function (database) {
+      if (!assetsAvailable(database)) {
+        return Promise.reject(new Error("Restore-point storage is unavailable."));
+      }
+      return new Promise(function (resolve, reject) {
+        var transaction = database.transaction(ASSET_STORE_NAME, "readonly");
+        var store = transaction.objectStore(ASSET_STORE_NAME);
+        var records = new Array(refs.length);
+        var missing = null;
+
+        refs.forEach(function (ref, index) {
+          var request = store.get(ref.id);
+          request.onsuccess = function () {
+            if (!request.result || !request.result.blob) {
+              missing = missing || new Error("Restore point asset is missing: " + ref.name);
+              return;
+            }
+            records[index] = {
+              id: ref.id,
+              blob: request.result.blob,
+            };
+          };
+          request.onerror = function () {
+            missing = missing || request.error || new Error("Could not read a restore-point asset.");
+          };
+        });
+        transaction.oncomplete = function () {
+          if (missing) reject(missing);
+          else resolve(records);
+        };
+        transaction.onerror = function () {
+          reject(transaction.error || new Error("Could not read restore-point assets."));
+        };
+      });
+    });
+  }
+
+  async function deleteOrphanAssets() {
+    var database = await openDatabase();
+    if (!assetsAvailable(database)) return;
+    var snapshots = await listSnapshots();
+    var referenced = Object.create(null);
+    snapshots.forEach(function (snapshot) {
+      (snapshot.assetRefs || []).forEach(function (ref) {
+        if (ref && ref.id) referenced[ref.id] = true;
+      });
+    });
+
+    return new Promise(function (resolve, reject) {
+      var transaction = database.transaction(ASSET_STORE_NAME, "readwrite");
+      var store = transaction.objectStore(ASSET_STORE_NAME);
+      var request = store.getAllKeys();
+      request.onsuccess = function () {
+        request.result.forEach(function (id) {
+          if (!referenced[id]) store.delete(id);
+        });
+      };
+      request.onerror = function () {
+        reject(request.error || new Error("Could not organize restore-point assets."));
+      };
+      transaction.oncomplete = resolve;
+      transaction.onerror = function () {
+        reject(transaction.error || new Error("Could not organize restore-point assets."));
+      };
+      transaction.onabort = function () {
+        reject(transaction.error || new Error("Could not organize restore-point assets."));
+      };
+    });
   }
 
   async function listSnapshots() {
@@ -162,7 +366,9 @@
       return new Promise(function (resolve, reject) {
         var transaction = database.transaction(STORE_NAME, "readwrite");
         transaction.objectStore(STORE_NAME).delete(id);
-        transaction.oncomplete = resolve;
+        transaction.oncomplete = function () {
+          deleteOrphanAssets().then(resolve, reject);
+        };
         transaction.onerror = function () {
           reject(transaction.error || new Error("Could not delete the restore point."));
         };
@@ -175,7 +381,21 @@
       return new Promise(function (resolve, reject) {
         var transaction = database.transaction(STORE_NAME, "readwrite");
         transaction.objectStore(STORE_NAME).clear();
-        transaction.oncomplete = resolve;
+        transaction.oncomplete = function () {
+          if (!assetsAvailable(database)) {
+            resolve();
+            return;
+          }
+          var assetTransaction = database.transaction(ASSET_STORE_NAME, "readwrite");
+          assetTransaction.objectStore(ASSET_STORE_NAME).clear();
+          assetTransaction.oncomplete = resolve;
+          assetTransaction.onerror = function () {
+            reject(assetTransaction.error || new Error("Could not delete restore-point assets."));
+          };
+          assetTransaction.onabort = function () {
+            reject(assetTransaction.error || new Error("Could not delete restore-point assets."));
+          };
+        };
         transaction.onerror = function () {
           reject(transaction.error || new Error("Could not delete the restore points."));
         };
@@ -245,6 +465,7 @@
 
     if (!removedIds.length) return records;
     await deleteSnapshots(removedIds);
+    await deleteOrphanAssets();
     return listSnapshots();
   }
 
@@ -308,16 +529,90 @@
   async function matchesSnapshot(snapshot, fingerprint) {
     if (!snapshot) return false;
     if (snapshot.fingerprint) return snapshot.fingerprint === fingerprint;
-    if (!snapshot.blob) return false;
-    if (isStaleFileReference(snapshot.blob)) return false;
+    // Split (v2) records always carry a fingerprint; legacy records without
+    // one are loaded in full below. Anything else cannot be compared, so it
+    // counts as changed and a fresh point is created.
+    var record = snapshot.blob ? snapshot : await getSnapshot(snapshot.id);
+    if (!record || !record.blob) return false;
+    if (isStaleFileReference(record.blob)) return false;
     try {
       // Older restore points do not have a stored fingerprint. Rebuild their
       // archive index so they can still be compared to the current content.
       var archive = new PZ.archive();
-      await archive.untar(snapshot.blob);
+      await archive.untar(record.blob);
       return (await projectFiles.fingerprintArchive(archive)) === fingerprint;
     } catch (_error) {
       return false;
+    }
+  }
+
+  async function loadSnapshotForAction(snapshot) {
+    if (!snapshot) throw new Error("The restore point is unavailable.");
+    if (snapshot.blob || snapshot.projectBlob) return snapshot;
+    var record = await getSnapshot(snapshot.id);
+    if (!record) throw new Error("The restore point is unavailable.");
+    return record;
+  }
+
+  // Rebuilds a full project archive from a split (v2) restore point. Prefers
+  // the shared project-files implementation when it exists so both code paths
+  // stay in agreement; otherwise reconstructs locally with the same schema.
+  function localPointToArchive(point, assetRecords) {
+    if (!point || !point.projectBlob || !Array.isArray(point.assetRefs)) {
+      return Promise.reject(new Error("This restore point is incomplete."));
+    }
+    var byId = Object.create(null);
+    (assetRecords || []).forEach(function (record) {
+      if (record && record.id && record.blob) byId[record.id] = record.blob;
+    });
+    var archive = new PZ.archive();
+    return archive.untar(point.projectBlob).then(function () {
+      point.assetRefs.forEach(function (ref) {
+        var blob = byId[ref.id];
+        if (!blob) throw new Error("Restore point asset is missing: " + ref.name);
+        archive.addFile(ref.name, blob);
+      });
+      return archive;
+    });
+  }
+
+  function restorePointToArchive(point, assetRecords) {
+    if (projectFiles && typeof projectFiles.restorePointToArchive === "function") {
+      return projectFiles.restorePointToArchive(point, assetRecords);
+    }
+    return localPointToArchive(point, assetRecords);
+  }
+
+  function archiveFromPoint(point, assetRecords) {
+    if (projectFiles && typeof projectFiles.createArchiveFromRestorePoint === "function") {
+      return projectFiles.createArchiveFromRestorePoint(point, assetRecords);
+    }
+    return localPointToArchive(point, assetRecords).then(function (archive) {
+      return archive.tar();
+    });
+  }
+
+  async function downloadSnapshot(snapshot) {
+    try {
+      var record = await loadSnapshotForAction(snapshot);
+      if (record.blob) {
+        if (isStaleFileReference(record.blob)) {
+          throw new Error(STALE_SNAPSHOT_MESSAGE);
+        }
+        projectFiles.triggerDownload(record.blob, snapshotFilename(record));
+        return;
+      }
+      var assets = await loadAssets(record.assetRefs);
+      var blob = await archiveFromPoint(record, assets);
+      projectFiles.triggerDownload(blob, snapshotFilename(record));
+    } catch (error) {
+      showProjectError({
+        message: error && error.message ? error.message : "Could not download the restore point.",
+        retry: function () {
+          return downloadSnapshot(snapshot);
+        },
+        download: null,
+      });
     }
   }
 
@@ -573,8 +868,9 @@
       time.textContent = formatSnapshotTime(snapshot.createdAt);
       var stats = global.document.createElement("div");
       stats.className = "zoidium-restore-meta";
-      stats.textContent = formatBytes(snapshot.size) + ", " + snapshot.assetCount +
-        " asset" + (snapshot.assetCount === 1 ? "" : "s");
+      var assetCount = Number(snapshot.assetCount) || 0;
+      stats.textContent = formatBytes(snapshot.size) + ", " + assetCount +
+        " asset" + (assetCount === 1 ? "" : "s");
       copy.appendChild(name);
       copy.appendChild(time);
       copy.appendChild(stats);
@@ -593,9 +889,9 @@
         "Download " + snapshotDisplayName(snapshot),
       );
       downloadButton.addEventListener("click", function () {
-        projectFiles.triggerDownload(snapshot.blob, snapshotFilename(snapshot));
+        downloadSnapshot(snapshot);
       });
-      if (isStaleFileReference(snapshot.blob)) {
+      if (snapshot.blob && isStaleFileReference(snapshot.blob)) {
         entry.classList.add("is-unusable");
         stats.textContent = STALE_SNAPSHOT_MESSAGE;
         restoreButton.disabled = true;
@@ -652,6 +948,35 @@
     );
   }
 
+  function automaticBackupMemoryAvailable() {
+    var memory = global.performance && global.performance.memory;
+    if (!memory) return true;
+    var used = Number(memory.usedJSHeapSize);
+    var limit = Number(memory.jsHeapSizeLimit);
+    if (!Number.isFinite(used) || !Number.isFinite(limit) || limit <= 0) return true;
+    return used / limit < AUTOMATIC_HEAP_LIMIT;
+  }
+
+  // Automatic backups must not serialize the project while another part of
+  // the editor is still loading one. The plugin manager dispatches these
+  // document events around project loads.
+  function installProjectLoadGuard() {
+    if (!global.document || typeof global.document.addEventListener !== "function") return;
+    global.document.addEventListener("zoidium:project-load-start", function () {
+      state.projectLoadInProgress = true;
+      state.pendingAutomaticBackup = true;
+    });
+    function onProjectLoadSettled() {
+      state.projectLoadInProgress = false;
+      if (state.pendingAutomaticBackup && state.backupIntervalMs) {
+        state.pendingAutomaticBackup = false;
+        requestAutomaticBackup();
+      }
+    }
+    global.document.addEventListener("zoidium:project-load-complete", onProjectLoadSettled);
+    global.document.addEventListener("zoidium:project-load-error", onProjectLoadSettled);
+  }
+
   // Runs work when the browser is idle so an automatic backup does not start
   // while the user is interacting. The timeout guarantees it still runs.
   function runWhenIdle(task) {
@@ -664,10 +989,18 @@
 
   function requestAutomaticBackup() {
     if (state.snapshotPromise || state.backupQueued) return;
+    if (state.projectLoadInProgress) {
+      state.pendingAutomaticBackup = true;
+      return;
+    }
     if (unchangedSinceLastBackup()) return;
     state.backupQueued = true;
     runWhenIdle(function () {
       state.backupQueued = false;
+      if (state.projectLoadInProgress) {
+        state.pendingAutomaticBackup = true;
+        return;
+      }
       createSnapshot(false, true).catch(function () {});
     });
   }
@@ -695,6 +1028,7 @@
     }
 
     var archiveResult = null;
+    var restorePoint = null;
     // Captured before serialization starts: an edit made while the archive is
     // being built must still count as a change for the next automatic check.
     var startKey = currentBackupKey();
@@ -704,6 +1038,49 @@
       // also covers a very fast startup timer or a delayed IndexedDB response.
       if (!state.snapshots.length) state.snapshots = await listSnapshots();
       if (isAutomatic && unchangedSinceLastBackup()) return null;
+      // A backup that cannot improve the last point only adds serialization
+      // and GC pressure. Defer automatic work while the heap is already under
+      // pressure; a manual "Backup now" remains available.
+      if (isAutomatic && !automaticBackupMemoryAvailable()) return null;
+      // Split (v2) restore points store the project archive separately from
+      // the media so unchanged assets are never copied into every snapshot.
+      // They need the project-files split-point API and the assets store;
+      // otherwise this build keeps writing legacy full-archive records, which
+      // every build (v1 or v2) can still read.
+      var database = await openDatabase();
+      if (typeof projectFiles.createRestorePoint === "function" && assetsAvailable(database)) {
+        restorePoint = await projectFiles.createRestorePoint(editor);
+        if (isAutomatic && await matchesSnapshot(state.snapshots[0] || null, restorePoint.fingerprint)) {
+          state.lastBackup = startKey;
+          if (showResult) {
+            showToast({ title: "No changes.", message: "Restore point not created." });
+          }
+          return null;
+        }
+        var splitRecord = {
+          id: String(Date.now()) + "-" + Math.random().toString(36).slice(2),
+          createdAt: Date.now(),
+          format: 2,
+          projectName: restorePoint.projectName,
+          size: restorePoint.archiveSize,
+          assetCount: restorePoint.assetCount,
+          projectBlob: restorePoint.projectBlob,
+          assetRefs: restorePoint.assetRefs,
+          fingerprint: restorePoint.fingerprint,
+          automatic: isAutomatic,
+        };
+        await saveAssets(restorePoint.assets);
+        await saveSnapshot(splitRecord);
+        state.lastBackup = startKey;
+        // Manual points are not counted toward the automatic retention limits,
+        // but creating one still triggers cleanup of old automatic points.
+        state.snapshots = await pruneAutomaticSnapshots();
+        renderSnapshots();
+        if (showResult) {
+          showToast({ title: "Saved.", message: "Restore point created." });
+        }
+        return splitRecord;
+      }
       // The archive builder validates the project data first and only builds
       // the TAR when the content differs from the newest restore point.
       archiveResult = await projectFiles.createArchive(editor, {
@@ -740,14 +1117,27 @@
       return record;
     })()
       .catch(function (error) {
-        var download = archiveResult && archiveResult.blob
-          ? function () {
+        var download = null;
+        if (archiveResult && archiveResult.blob) {
+          download = function () {
+            projectFiles.triggerDownload(
+              archiveResult.blob,
+              projectFiles.fileNameForProject(archiveResult.projectName),
+            );
+          };
+        } else if (restorePoint && restorePoint.projectBlob) {
+          download = function () {
+            var assetBlobs = (restorePoint.assets || []).map(function (entry) {
+              return { id: entry.id, blob: entry.file };
+            });
+            return archiveFromPoint(restorePoint, assetBlobs).then(function (blob) {
               projectFiles.triggerDownload(
-                archiveResult.blob,
-                projectFiles.fileNameForProject(archiveResult.projectName),
+                blob,
+                projectFiles.fileNameForProject(restorePoint.projectName),
               );
-            }
-          : null;
+            });
+          };
+        }
         showProjectError({
           message: error && error.message ? error.message : "Could not create a restore point.",
           retry: function () {
@@ -765,17 +1155,29 @@
   }
 
   // Newest restore point whose archive opens and passes the project-data
-  // checks. Points recorded before the file-copy fix are skipped.
+  // checks. Points recorded before the file-copy fix are skipped, as are
+  // split points whose assets are no longer in the assets store.
   async function findLatestValidSnapshot() {
     var records = await listSnapshots();
     for (var index = 0; index < records.length; index += 1) {
       var record = records[index];
-      if (!record || !record.blob || isStaleFileReference(record.blob)) continue;
-      try {
-        await projectFiles.openValidatedArchive(record.blob, "restore");
-        return record;
-      } catch (_error) {
-        // Keep looking for an older point that can still be read.
+      if (!record) continue;
+      if (record.blob) {
+        if (isStaleFileReference(record.blob)) continue;
+        try {
+          await projectFiles.openValidatedArchive(record.blob, "restore");
+          return record;
+        } catch (_error) {
+          // Keep looking for an older point that can still be read.
+        }
+      } else if (record.projectBlob && record.assetRefs) {
+        try {
+          var assets = await loadAssets(record.assetRefs);
+          await restorePointToArchive(record, assets);
+          return record;
+        } catch (_splitError) {
+          // Keep looking for an older point that can still be read.
+        }
       }
     }
     return null;
@@ -795,8 +1197,8 @@
   }
 
   async function restoreSnapshot(snapshot) {
-    if (!snapshot || !snapshot.blob) return;
-    if (isStaleFileReference(snapshot.blob)) {
+    if (!snapshot) return;
+    if (snapshot.blob && isStaleFileReference(snapshot.blob)) {
       showProjectError({
         message: STALE_SNAPSHOT_MESSAGE,
         retry: null,
@@ -807,7 +1209,17 @@
     if (!editor.confirmIfDirty()) return;
 
     try {
-      var archive = await projectFiles.openValidatedArchive(snapshot.blob, "restore");
+      var record = await loadSnapshotForAction(snapshot);
+      var archive = null;
+      if (record.blob) {
+        if (isStaleFileReference(record.blob)) {
+          throw new Error(STALE_SNAPSHOT_MESSAGE);
+        }
+        archive = await projectFiles.openValidatedArchive(record.blob, "restore");
+      } else {
+        var assets = await loadAssets(record.assetRefs);
+        archive = await restorePointToArchive(record, assets);
+      }
       var restoredProject = await editor.loadProject(archive);
       editor.project = restoredProject;
       editor._zoidiumSaveFileHandle = null;
@@ -817,10 +1229,10 @@
       }));
       projectFiles.setProjectName(
         editor,
-        projectFiles.displayNameForUi(snapshot.projectName || "project"),
+        projectFiles.displayNameForUi(record.projectName || "project"),
       );
       if (restoredProject.ui) restoredProject.ui.dirty = true;
-      showToast({ title: "Restored.", message: snapshotDisplayName(snapshot) });
+      showToast({ title: "Restored.", message: snapshotDisplayName(record) });
     } catch (error) {
       showProjectError({
         message: error && error.message ? error.message : "Could not restore the project.",
@@ -828,7 +1240,7 @@
           return restoreSnapshot(snapshot);
         },
         download: function () {
-          projectFiles.triggerDownload(snapshot.blob, snapshotFilename(snapshot));
+          return downloadSnapshot(snapshot);
         },
         recoverable: projectFiles.isProjectDataError(error),
       });
@@ -850,7 +1262,7 @@
           return removeSnapshot(snapshot);
         },
         download: function () {
-          projectFiles.triggerDownload(snapshot.blob, snapshotFilename(snapshot));
+          return downloadSnapshot(snapshot);
         },
       });
     }
@@ -992,6 +1404,7 @@
   createTab(panel);
   state.backupIntervalMs = readBackupInterval();
   if (state.intervalSelect) state.intervalSelect.value = String(state.backupIntervalMs);
+  installProjectLoadGuard();
   refreshSnapshots();
   scheduleBackups(true);
 

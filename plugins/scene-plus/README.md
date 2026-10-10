@@ -14,8 +14,8 @@ menu and use the published `zoidium:repeater/*` namespace.
   optional cap faces.
 
 Add affected objects with the `+` on the effector's own row. Objects added with
-the top-level `3D Objects` button are siblings and remain unaffected. Twist,
-Warp, and Voronoi show this guidance in their properties.
+the top-level `3D Objects` button are siblings and remain unaffected.
+Effector settings use the native property list.
 
 ## Evaluation model
 
@@ -38,9 +38,12 @@ round to the nearest power of four; smoothness levels keep their previous
 power-of-four density, and Low polygon migrates to one segment.
 
 Voronoi Fracture topology is cached by source geometry, input positions, seed,
-cell count, inner faces, distribution, and cell scale. Animating motion or any
+cell count, inner faces, distribution, and cell scale. Cells supports 1 through
+1000. Nearby sites are clipped first; sites that cannot intersect the remaining
+cell are skipped. Animating motion or any
 field control only updates vertices. Meshes above 40,000 source triangles, or output above
-400,000 triangles, are left unfractured and a console warning explains why.
+400,000 triangles, or builds requiring more than 10 million polygon clipping
+operations, are left unfractured and a console warning explains why.
 
 Fracture builds run in a persistent Blob Worker, using source text supplied by
 the plugin bundle asset API. Large Twist/Warp meshes, subdivision, normal
@@ -87,7 +90,8 @@ not replace or copy the CM3 runtime.
 ## Shared fields and fragment controls
 
 Twist, Warp, and Voronoi Fracture share animatable field properties. Field
-indices 0 through 3 remain infinite, linear, box, and sphere; cylinder and
+defaults to infinite so all fragments respond to every motion control. Saved
+explicit fields remain unchanged. Indices 0 through 3 remain infinite, linear, box, and sphere; cylinder and
 seeded 3D value noise follow. Rotation uses XYZ Euler degrees. Scale is a
 percentage of the pristine input mesh extent in effector space. Box and sphere
 use half extents; cylinder points along field Y. Falloff specifies the soft

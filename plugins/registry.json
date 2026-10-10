@@ -26,13 +26,13 @@
       "id": "core",
       "name": "Zoidium Core",
       "author": "Zoidium",
-      "version": "22",
+      "version": "23",
       "visibility": "hidden",
       "alwaysEnabled": true,
       "tagline": "Built-in core extensions",
       "description": "Hidden built-in extensions that always run. Not shown in the Plugins panel and never stored in projects.",
-      "manifest": "./plugins/core/manifest.json?v=22",
-      "bundle": "./plugins/core/bundle.json?v=22"
+      "manifest": "./plugins/core/manifest.json?v=23",
+      "bundle": "./plugins/core/bundle.json?v=23"
     },
     {
       "id": "easing-plus",
@@ -141,7 +141,7 @@
       "category": "scene",
       "name": "Effector",
       "author": "Zoidium",
-      "version": "18",
+      "version": "19",
       "defaultEnabled": true,
       "itemCount": 7,
       "format": "3D effectors",
@@ -149,8 +149,8 @@
       "color": "#6c7fb5",
       "description": "Adds procedural repeaters plus Twist, Warp and Voronoi Fracture effectors to 3D Scene.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/scene-plus/manifest.json?v=18",
-      "bundle": "./plugins/scene-plus/bundle.json?v=18"
+      "manifest": "./plugins/scene-plus/manifest.json?v=19",
+      "bundle": "./plugins/scene-plus/bundle.json?v=19"
     },
     {
       "id": "material-plus",
@@ -249,15 +249,15 @@
       "category": "scene",
       "name": "Camera+",
       "author": "DaviFX",
-      "version": "7",
+      "version": "8",
       "itemCount": 1,
       "format": "camera rig",
       "tagline": "Camera layers, 3D tracks and DOF",
       "color": "#3d7bc5",
       "description": "Adds a separate Camera+ object with depth of field, seeded vibrate and focus tools, Camera layers, and a 3D switch on video tracks that lets scenes and flat layers follow the shared camera. The default CM3 camera is left unchanged.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/camera-plus/manifest.json?v=7",
-      "bundle": "./plugins/camera-plus/bundle.json?v=7"
+      "manifest": "./plugins/camera-plus/manifest.json?v=8",
+      "bundle": "./plugins/camera-plus/bundle.json?v=8"
     },
     {
       "id": "native-fx",

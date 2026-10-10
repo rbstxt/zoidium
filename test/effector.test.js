@@ -250,9 +250,7 @@ test("Twist, Warp, and Voronoi Fracture expose the Effector property sets and de
   const Warp = _test.createWarpClass(PZ, THREE);
   const Voronoi = _test.createVoronoiClass(PZ, THREE);
   for (const instance of [new Twist(), new Warp(), new Voronoi()]) {
-    assert.equal(instance.properties.sourceHint.readOnly, true);
-    assert.match(instance.properties.sourceHint.value, /effector's \+ to affect them/);
-    assert.equal(instance.properties.sourceHint.zoidiumControl, "repeater:source-hint");
+    assert.equal(instance.properties.sourceHint, undefined);
     assert.ok(instance.properties.position);
     assert.ok(instance.properties.rotation);
     assert.ok(instance.properties.scale);
@@ -511,15 +509,13 @@ test("activation registers Voronoi Fracture beside the other effectors, each wit
       return () => {};
     },
   };
-  let hintControl;
-  let releasedHint = false;
+  let registeredHint = false;
   const context = {
     PZ, object3d, getAsset: () => null,
     window: { THREE, ZoidiumPluginApis: { propertyControls: {
-      register(id, spec) {
-        assert.equal(id, "repeater:source-hint");
-        hintControl = spec;
-        return () => { releasedHint = true; };
+      register() {
+        registeredHint = true;
+        return () => {};
       },
     } } },
     ui: { controls: { note: (text) => ({ element: { text, style: {} } }) } },
@@ -527,8 +523,7 @@ test("activation registers Voronoi Fracture beside the other effectors, each wit
   const plugin = require("../plugins/scene-plus/scene-plus.js");
   const state = {};
   plugin.activate.call(state, context);
-  assert.match(hintControl.create().text, /Objects beside it are unaffected/);
-  assert.equal(hintControl.create().style.whiteSpace, 'normal');
+  assert.equal(registeredHint, false);
   const types = registered.map((definition) => definition.type);
   for (const type of [
     "zoidium:repeater/twist",
@@ -542,7 +537,7 @@ test("activation registers Voronoi Fracture beside the other effectors, each wit
     assert.equal(definition.migrate({ type: 9 }).type !== 9, true);
   }
   plugin.deactivate.call(state);
-  assert.equal(releasedHint, true, "the hint control unregisters on disable");
+
 });
 
 test("the bundled library evaluates through the asset loader with sibling requires", () => {
@@ -677,4 +672,15 @@ test("legacy subdivision and field payloads migrate without exposing obsolete ro
     assert.equal(instance.properties.curveQuality, undefined);
   }
   for (const key of ['distance', 'scatter', 'spin', 'offset', 'fragmentDirection', 'fragmentRotation', 'fragmentScale', 'gravity', 'randomness']) assert.equal(instances[2].properties[key].dynamic, true, key);
+});
+
+
+test("new Voronoi objects affect every fragment while saved explicit fields retain their IDs", () => {
+  const Voronoi = _test.createVoronoiClass(createHarness(), THREE);
+  const object = new Voronoi();
+  assert.equal(object.properties.cells.max, 1000);
+  assert.equal(object.properties.field.value, 0);
+  const migrated = _test.migrateEffectorData({ properties: { field: 3, fieldScale: [100, 100, 100] } });
+  assert.equal(migrated.legacyField, true);
+  assert.equal(migrated.properties.field.keyframes[0].value, 3);
 });

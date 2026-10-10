@@ -1,8 +1,7 @@
 "use strict";
 
-// Attribute windows registered by Particles+, the Effector family and Optical
-// Flares. Each plugin must register its window on activate, release it on
-// dispose, and every tab key must be a real property of that object type.
+// Particles+ attribute windows and native-only Effector/Camera+ settings.
+// Registered windows must release on dispose and list real property keys.
 // Vanilla CM3 keys are read from the cached core text (run pnpm run setup).
 
 const assert = require("node:assert/strict");
@@ -244,56 +243,7 @@ function effectorHost() {
   return { PZ, THREE: {} };
 }
 
-test("effector tabs use the real property keys of their object classes", () => {
-  const { PZ, THREE } = effectorHost();
-  const classes = {
-    "zoidium:repeater/repeater": effectorTest.createRepeaterClass(PZ, THREE, "step", "zoidium:repeater/repeater"),
-    "zoidium:repeater/linear-repeater": effectorTest.createRepeaterClass(PZ, THREE, "linear", "zoidium:repeater/linear-repeater"),
-    "zoidium:repeater/random-repeater": effectorTest.createRepeaterClass(PZ, THREE, "random", "zoidium:repeater/random-repeater"),
-    "zoidium:repeater/echo-repeater": effectorTest.createRepeaterClass(PZ, THREE, "echo", "zoidium:repeater/echo-repeater"),
-    "zoidium:repeater/twist": effectorTest.createTwistClass(PZ, THREE),
-    "zoidium:repeater/warp": effectorTest.createWarpClass(PZ, THREE),
-    "zoidium:repeater/voronoi-fracture": effectorTest.createVoronoiClass(PZ, THREE),
-  };
-  const specs = effectorTest.effectorAttributeSpecs();
-  assert.equal(specs.length, Object.keys(classes).length, "one window per effector type");
-
-  for (const spec of specs) {
-    const Class = classes[Object.keys(classes).find((type) => spec.match({ type }))];
-    assert.ok(Class, `${spec.id} matches exactly one type`);
-    const object = new Class();
-    for (const other of Object.keys(classes)) {
-      const matches = spec.match({ type: other });
-      assert.equal(matches, object.type === other, `${spec.id} match for ${other}`);
-    }
-    assertTabs(spec, spec.id);
-    assert.equal(spec.tabs[0].title, "Coord.", `${spec.id} starts with Coord.`);
-    assert.equal(spec.tabs[1].title, "Object", `${spec.id} then Object`);
-
-    for (const tab of spec.tabs) {
-      if (tab.category) {
-        assert.equal(tab.category, "repeaterProperties");
-        for (const key of tab.props) {
-          assert.ok(object.repeaterProperties && key in object.repeaterProperties, `${spec.id} ${tab.title}: ${key}`);
-        }
-        assert.ok(tab.props.length > 0, `${spec.id} ${tab.title} has rows`);
-        continue;
-      }
-      if (typeof tab.keys === "function") {
-        const matched = Object.keys(object.properties).filter((key) => tab.keys(key, object.properties[key]));
-        assert.ok(matched.length > 0, `${spec.id} ${tab.title} has rows`);
-        assert.ok(matched.every((key) => key === "field" || key.startsWith("field")), `${spec.id} ${tab.title}`);
-        continue;
-      }
-      assert.ok(tab.keys.length > 0, `${spec.id} ${tab.title} has rows`);
-      for (const key of tab.keys) {
-        assert.ok(key in object.properties, `${spec.id} ${tab.title}: ${key} is a property of ${object.type}`);
-      }
-    }
-  }
-});
-
-test("the effector field tab covers every field property the deformers define", () => {
+test("the native effector properties retain every field control", () => {
   const { PZ, THREE } = effectorHost();
   const object = new (effectorTest.createVoronoiClass(PZ, THREE))();
   const fieldKeys = Object.keys(object.properties).filter((key) => key.startsWith("field"));
@@ -303,7 +253,7 @@ test("the effector field tab covers every field property the deformers define", 
   ]);
 });
 
-test("the effector family registers one window per type on activate and releases them on dispose", () => {
+test("the effector family does not register dedicated attribute windows", () => {
   const { PZ, THREE } = effectorHost();
   PZ.layer = { scene: class { update() {} prepare() {} unload() {} } };
   const ui = fakeUi();
@@ -316,16 +266,7 @@ test("the effector family registers one window per type on activate and releases
     lifecycle: { onDispose: (callback) => disposers.push(callback) },
     ui,
   });
-  assert.equal(ui.registered.length, 7, "seven effector windows");
-  assert.deepEqual(
-    ui.registered.map((entry) => entry.spec.id).sort(),
-    ["echo-repeater", "linear-repeater", "random-repeater", "repeater", "twist", "voronoi-fracture", "warp"]
-  );
-  for (const entry of ui.registered) {
-    assert.ok(entry.spec.persistKey.startsWith("effector-"), entry.spec.id);
-    assert.ok(entry.spec.width >= 380 && entry.spec.width <= 420, entry.spec.id);
-    assert.ok(entry.spec.height >= 520 && entry.spec.height <= 600, entry.spec.id);
-  }
+  assert.equal(ui.registered.length, 0, "numeric effectors use native properties only");
   for (const callback of disposers.reverse()) callback();
   assert.ok(ui.registered.every((entry) => entry.released), "every window released on dispose");
 });
@@ -351,94 +292,18 @@ function cameraActivation() {
   return { ctx, ui };
 }
 
-function resolveCameraKey(object, dotted) {
-  let node = object.properties;
-  for (const key of dotted.split(".")) {
-    if (!node) return null;
-    node = node[key];
-  }
-  return node || null;
-}
-
-test("Camera+ registers its window on activate and releases it on dispose", () => {
+test("Camera+ uses native properties without a dedicated attribute window", () => {
   const { ctx, ui } = cameraActivation();
   const runtime = loadCameraRuntime();
   try {
     runtime.activate(ctx.context);
-    assert.equal(ui.registered.length, 1, "one Camera+ window");
-    const [entry] = ui.registered;
-    const { spec } = entry;
-    assert.equal(spec.id, "camera");
-    assert.equal(spec.title, "Camera+");
-    assert.equal(spec.persistKey, "camera-plus");
-    assert.ok(spec.width >= 380 && spec.width <= 420, "default attribute width");
-    assert.ok(spec.height >= 520 && spec.height <= 600, "default attribute height");
-    assert.equal(spec.match({ type: CAMERA_TYPE }), true);
-    assert.equal(spec.match({ type: "zoidium:camera-plus/other" }), false);
-    assert.equal(spec.match({}), false);
-    assert.equal(spec.match(null), false);
-    for (const callback of ctx.disposers.reverse()) callback();
-    assert.equal(entry.released, true, "window registration released on dispose");
-  } finally {
-    runtime.deactivate();
-  }
-});
-
-test("Camera+ tabs list only real properties of the Camera+ object", () => {
-  const { ctx, ui } = cameraActivation();
-  const runtime = loadCameraRuntime();
-  try {
-    runtime.activate(ctx.context);
+    assert.equal(ui.registered.length, 0);
     const camera = ctx.registry.instantiate(CAMERA_TYPE);
-    const [entry] = ui.registered;
-    const { spec } = entry;
-    assert.equal(spec.match(camera), true, "a real Camera+ instance matches");
-    assert.deepEqual(
-      spec.tabs.map((tab) => tab.title),
-      ["Coord.", "Film", "Depth of Field", "Vibrate", "Motion Blur"]
-    );
-    const listed = [];
-    for (const tab of spec.tabs) {
-      assert.ok(tab.keys.length > 0, `${tab.title} has rows`);
-      for (const key of tab.keys) {
-        assert.ok(resolveCameraKey(camera, key), `${tab.title}: ${key} resolves on a Camera+ object`);
-        listed.push(key);
-      }
-    }
-    assert.equal(new Set(listed).size, listed.length, "no key is shown twice");
+    assert.ok(camera.properties.position);
+    assert.ok(camera.properties.rotation);
+    assert.ok(camera.properties.depthOfField);
+    for (const callback of ctx.disposers.reverse()) callback();
   } finally {
     runtime.deactivate();
   }
 });
-
-test("each Camera+ topic lists its rows", () => {
-  const spec = loadCameraRuntime()._test.cameraAttributeSpec(CAMERA_TYPE);
-  const expected = {
-    "Coord.": ["position", "rotation", "eulerOrder"],
-    Film: ["active", "projection", "focalLength", "filmGate", "zoom", "equivFocalLength", "fovH", "fovV", "filmOffsetX", "filmOffsetY"],
-    "Depth of Field": [
-      "depthOfField.enabled",
-      "depthOfField.focusDistance",
-      "depthOfField.aperture",
-      "depthOfField.focusAreaWidth",
-      "depthOfField.nearBlurLevel",
-      "depthOfField.farBlurLevel",
-      "depthOfField.focusTools",
-    ],
-    Vibrate: [
-      "vibrate.enabled",
-      "vibrate.regularPulse",
-      "vibrate.relative",
-      "vibrate.seed",
-      "vibrate.enablePosition",
-      "vibrate.positionAmplitude",
-      "vibrate.positionFrequency",
-      "vibrate.enableRotation",
-      "vibrate.rotationAmplitude",
-      "vibrate.rotationFrequency",
-    ],
-    "Motion Blur": ["motionBlur.enabled", "motionBlur.samples", "motionBlur.shutter"],
-  };
-  for (const tab of spec.tabs) assert.deepEqual(Array.from(tab.keys), expected[tab.title], tab.title);
-});
-

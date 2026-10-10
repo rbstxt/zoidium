@@ -3,43 +3,37 @@
 
   const PATCH_MARKER = "__zoidiumShadowQuality";
 
-  // Cause of the striped self-shadowing on lit CM3 geometry:
-  //
-  // 1. CM3 materials are DoubleSide (side 2). In three r91 the shadow pass maps
-  //    DoubleSide to DoubleSide, so the lit front faces are rendered into the
-  //    shadow map too. A surface then compares its depth against a map that
-  //    contains its own front face, and the comparison flickers on the sub-texel
-  //    scale: shadow acne. Effector fracture pieces are cloned as DoubleSide too,
-  //    which is why Voronoi cells look striped everywhere.
-  // 2. CM3 sets shadow.bias to 0, so nothing separates the surface from its own
-  //    depth sample. A large constant bias hides the acne but detaches shadows
-  //    (peter-panning), because CM3's shadow camera uses near 5 and far 1500 and
-  //    the depth buffer is nonlinear over that range.
-  //
-  // The fix applied here is a slope-scaled offset in the shadow depth pass only.
-  // three r91 uses object.customDepthMaterial for a mesh's depth pass when it is
-  // set. Every Mesh gets one shared MeshDepthMaterial with polygonOffset enabled,
-  // so depth values are pushed away from the light in proportion to the surface
-  // slope. Lit faces stop self-shadowing without a constant bias that would move
-  // the shadows. Point lights use customDistanceMaterial instead, which does not
-  // receive this offset, so they are left unchanged.
-
-  // Offset applied to the shadow depth pass. factor scales with the surface
-  // slope relative to the light, units is a constant minimum offset.
+  // Three r91 stores spot/directional shadow depth in an RGBA color texture.
+  // Hardware polygonOffset affects depth testing, not the gl_FragCoord.z value
+  // packed into that texture. Apply the slope offset to the packed value too.
+  // Keep the light's constant bias at zero so contact shadows stay attached.
   const DEPTH_POLYGON_OFFSET_FACTOR = 2;
   const DEPTH_POLYGON_OFFSET_UNITS = 2;
+
+  function offsetPackedDepth(shader) {
+    shader.fragmentShader = shader.fragmentShader.replace(
+      "packDepthToRGBA( gl_FragCoord.z )",
+      "packDepthToRGBA( min( 1.0 - 1.0 / 16777216.0, gl_FragCoord.z + " +
+        DEPTH_POLYGON_OFFSET_FACTOR.toFixed(1) +
+        " * max( abs( dFdx( gl_FragCoord.z ) ), abs( dFdy( gl_FragCoord.z ) ) ) + " +
+        (DEPTH_POLYGON_OFFSET_UNITS / 16777216).toExponential(8) + " ) )"
+    );
+  }
 
   // Own values set through the accessor. A WeakMap keeps the storage private to
   // each mesh and lets meshes be collected without leaking the material.
   const ownDepthMaterials = new WeakMap();
 
   function createSharedDepthMaterial(THREE) {
-    return new THREE.MeshDepthMaterial({
+    const material = new THREE.MeshDepthMaterial({
       depthPacking: THREE.RGBADepthPacking,
       polygonOffset: true,
       polygonOffsetFactor: DEPTH_POLYGON_OFFSET_FACTOR,
       polygonOffsetUnits: DEPTH_POLYGON_OFFSET_UNITS,
     });
+    material.extensions = { ...material.extensions, derivatives: true };
+    material.onBeforeCompile = offsetPackedDepth;
+    return material;
   }
 
   // Installs the shared offset depth material as the default for every Mesh.
@@ -86,6 +80,7 @@
       PATCH_MARKER,
       DEPTH_POLYGON_OFFSET_FACTOR,
       DEPTH_POLYGON_OFFSET_UNITS,
+      offsetPackedDepth,
       install,
     };
     return;
