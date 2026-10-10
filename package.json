@@ -32,7 +32,9 @@
     "test": "node --test",
     "verify": "node tools/verify.js",
     "desktop:build": "pnpm run build:plugin-bundles && node tools/build-electron.js",
-    "dist": "pnpm run desktop:build"
+    "dist": "pnpm run desktop:build",
+    "cm3:export": "node tools/cm3-snapshot.js export",
+    "cm3:restore": "node tools/cm3-snapshot.js restore"
   },
   "build": {
     "appId": "com.zoidium.app",
