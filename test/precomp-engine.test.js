@@ -7,7 +7,7 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 const {
-  createEnvironment, addClip, addCompMedia, reloadProject,
+  createEnvironment, addClip, addAudioClip, addCompMedia, reloadProject,
 } = require("./precomp-fixtures.js");
 
 function clipJSON(start, length, name, options) {
@@ -20,6 +20,10 @@ function clipJSON(start, length, name, options) {
 
 function trackNames(track) {
   return track.clips.map((clip) => clip.properties.name.v);
+}
+
+function audioClipJSON(start, length, name) {
+  return { start, length, properties: { name: name }, link: null, hasMedia: true, object: { properties: {} } };
 }
 
 // CM3 runs every timeline delete inside a history operation.
@@ -45,22 +49,19 @@ function renderAt(env, t) {
   return layer;
 }
 
-test("pre-compose moves selected video clips into one composition clip", () => {
+test("pre-compose moves selected video and audio clips into one composition clip", () => {
   const env = createEnvironment();
   const { A, B } = makeABSelection(env);
   const C = addClip(env, 1, { start: 10, length: 20, name: "C" });
   const audioTrack = new env.PZ.track.audio();
   env.project.sequence.audioTracks.push(audioTrack);
-  const audio = new env.PZ.Clip(0);
-  audio.start = 0;
-  audio.length = 60;
-  audioTrack.clips.push(audio);
+  const audio = addAudioClip(env, 0, { start: 0, length: 60, name: "Song", hasMedia: true });
   env.tracks.selectedClips = [A, B, audio];
 
   const result = env.engine.precompose(env.editor, "Intro");
   assert.equal(result.ok, true, result.message);
   assert.equal(result.moved, 2);
-  assert.equal(result.audioKept, 1);
+  assert.equal(result.movedAudio, 1);
 
   const seq = env.project.sequence;
   assert.equal(seq.videoTracks[0].clips.length, 1, "selection replaced by one clip");
@@ -69,12 +70,191 @@ test("pre-compose moves selected video clips into one composition clip", () => {
   assert.equal(composite.length, 60);
   assert.equal(composite.object.compId, result.id);
   assert.equal(seq.videoTracks[1].clips[0], C, "unselected clips stay");
-  assert.equal(seq.audioTracks[0].clips[0], audio, "audio is left on Main");
+  assert.equal(seq.audioTracks[0].clips.length, 0, "audio moves into the composition");
 
   const media = env.project.media.find((m) => m.comp && m.comp.id === result.id);
   assert.equal(media.properties.name.v, "Intro");
-  assert.deepEqual(media.data[0].clips.map((c) => c.start), [0, 30], "clip starts rebased to comp time 0");
-  assert.equal(media.data[0].clips[0].link, null);
+  const videoData = media.data.find((track) => track.type === 0);
+  const audioData = media.data.find((track) => track.type === 1);
+  assert.deepEqual(videoData.clips.map((c) => c.start), [0, 30], "clip starts rebased to comp time 0");
+  assert.equal(videoData.clips[0].link, null);
+  assert.equal(audioData.clips.length, 1, "audio travels with the composition");
+  assert.equal(audioData.clips[0].start, 0, "audio start rebased to comp time 0");
+});
+
+test("audio-only pre-compose moves the clips without leaving a Main clip", () => {
+  const env = createEnvironment();
+  const song = addAudioClip(env, 0, { start: 10, length: 40, name: "Song", hasMedia: true });
+  env.tracks.selectedClips = [song];
+
+  const result = env.engine.precompose(env.editor, "Music");
+  assert.equal(result.ok, true, result.message);
+  assert.equal(result.moved, 0);
+  assert.equal(result.movedAudio, 1);
+  assert.equal(env.project.sequence.videoTracks[0].clips.length, 0, "no composition clip without video");
+  assert.equal(env.project.sequence.audioTracks[0].clips.length, 0, "audio left Main");
+
+  const media = env.project.media.find((m) => m.comp && m.comp.id === result.id);
+  const audioData = media.data.find((track) => track.type === 1);
+  assert.equal(audioData.clips.length, 1);
+  assert.equal(audioData.clips[0].start, 0, "audio start rebased to comp time 0");
+
+  env.editor.history.undo();
+  assert.deepEqual(env.project.sequence.audioTracks[0].clips.map((clip) => clip.properties.name.v), ["Song"], "undo restores the audio clip");
+  assert.equal(env.project.media.length, 0);
+});
+
+test("pre-compose preserves the eye and 3D switches of moved tracks", () => {
+  const env = createEnvironment();
+  const { A } = makeABSelection(env);
+  env.project.sequence.videoTracks[0].enabled = false;
+  env.project.sequence.videoTracks[0].track3d = true;
+  addAudioClip(env, 0, { start: 0, length: 30, name: "Song" });
+  const song = env.project.sequence.audioTracks[0].clips[0];
+  env.project.sequence.audioTracks[0].enabled = false;
+  env.tracks.selectedClips = [A, song];
+
+  const { id } = env.engine.precompose(env.editor, "Intro");
+  const media = env.project.media.find((m) => m.comp && m.comp.id === id);
+  const videoData = media.data.find((track) => track.type === 0);
+  const audioData = media.data.find((track) => track.type === 1);
+  assert.equal(videoData.enabled, false, "muted video track stays muted");
+  assert.equal(videoData.track3d, true, "3D switch travels with the track");
+  assert.equal(audioData.enabled, false, "muted audio track stays muted");
+
+  assert.equal(env.engine.openComp(env.editor, id).ok, true);
+  assert.equal(env.project.sequence.videoTracks[0].enabled, false, "opening restores the mute live");
+  assert.equal(env.project.sequence.videoTracks[0].track3d, true, "opening restores the 3D switch live");
+});
+
+test("muted nested video tracks render nothing", () => {
+  const env = createEnvironment();
+  addCompMedia(env, "X", "X", [
+    { type: 0, enabled: false, clips: [clipJSON(0, 30, "P")] },
+    { type: 0, clips: [clipJSON(0, 30, "Q")] },
+  ]);
+  addClip(env, 0, { start: 0, length: 30, compId: "X", offset: 0 });
+
+  const layer = renderAt(env, 10);
+  assert.deepEqual(
+    layer.objects.map((o) => (o.updates.includes(10) ? "drawn" : "idle")),
+    ["drawn"],
+    "only the enabled track draws"
+  );
+});
+
+test("openSourceOfClip opens the composition directly, by name, or by source list", () => {
+  const env = createEnvironment();
+  addCompMedia(env, "X", "Intro", [{ type: 0, clips: [clipJSON(0, 30, "a")] }]);
+  const direct = addClip(env, 0, { start: 0, length: 30, compId: "X" });
+  assert.equal(env.engine.openSourceOfClip(env.editor, direct).ok, true);
+  assert.equal(env.engine.activeName(env.editor), "Intro");
+  env.engine.openComp(env.editor, null);
+
+  addCompMedia(env, "Y", "Solo", [{ type: 0, clips: [] }]);
+  const named = addClip(env, 0, { start: 40, length: 10, name: "Solo" });
+  assert.equal(env.engine.openSourceOfClip(env.editor, named).ok, true);
+  assert.equal(env.engine.activeName(env.editor), "Solo");
+  env.engine.openComp(env.editor, null);
+
+  addCompMedia(env, "Z", "Music", [{ type: 0, clips: [] }]);
+  env.project.media.find((m) => m.comp.id === "Z").comp.compSource = ["Drums"];
+  const sourced = addClip(env, 0, { start: 60, length: 10, name: "Drums" });
+  assert.equal(env.engine.openSourceOfClip(env.editor, sourced).ok, true);
+  assert.equal(env.engine.activeName(env.editor), "Music");
+  env.engine.openComp(env.editor, null);
+
+  const stranger = addClip(env, 0, { start: 80, length: 10, name: "Stranger" });
+  const miss = env.engine.openSourceOfClip(env.editor, stranger);
+  assert.equal(miss.ok, false);
+  assert.match(miss.message, /did not come from a composition/);
+});
+
+test("newEmptyComp creates one named composition in one undo step", () => {
+  const env = createEnvironment();
+  const created = env.engine.newEmptyComp(env.editor);
+  assert.equal(created.ok, true);
+  assert.equal(created.name, "Comp 1");
+  assert.equal(env.project.media.length, 1);
+  assert.equal(env.project.media[0].properties.name.v, "Comp 1");
+  assert.deepEqual(env.project.media[0].data, [{ type: 0, clips: [] }]);
+
+  const second = env.engine.newEmptyComp(env.editor);
+  assert.equal(second.name, "Comp 2");
+  env.editor.history.undo();
+  assert.equal(env.project.media.length, 1, "undo removes only the second composition");
+});
+
+test("OpenZoid composition media migrates into the Zoidium model and saves back compatibly", async () => {
+  const env = createEnvironment();
+  const legacy = {
+    properties: { name: "Old", icon: "layers" },
+    icon: "layers",
+    creationId: null,
+    data: [
+      { type: 0, clips: [clipJSON(0, 30, "V", { hasMedia: true })] },
+      { type: 1, clips: [audioClipJSON(0, 30, "S")] },
+    ],
+    baseType: "track",
+    assets: [],
+    isComp: true,
+    compLength: 60,
+    compSource: ["V"],
+  };
+  const loaded = await reloadProject(env, { assets: {}, media: [legacy], sequence: { length: 30, videoTracks: [], audioTracks: [] } });
+  const editor = new env.PZ.Editor(loaded);
+  const migrated = loaded.media[0];
+  assert.ok(migrated.comp && typeof migrated.comp.id === "string", "migration assigns a stable id");
+  assert.deepEqual(migrated.comp.compSource, ["V"], "source names survive migration");
+  assert.equal(env.engine.entries(editor).length, 2);
+  assert.equal(env.engine.entries(editor)[1].name, "Old");
+
+  const first = JSON.parse(JSON.stringify(loaded));
+  assert.equal(first.media[0].isComp, true, "saves stay readable by OpenZoid/Davidium");
+  assert.equal(first.media[0].compLength, 30);
+  assert.deepEqual(first.media[0].compSource, ["V"]);
+  const second = JSON.parse(JSON.stringify(loaded));
+  assert.equal(second.media[0].comp.id, first.media[0].comp.id, "the migrated id is stable across saves");
+});
+
+test("nested audio is scheduled at its mapped Main-time window with remapped envelopes", () => {
+  const env = createEnvironment();
+  addCompMedia(env, "X", "X", [{ type: 1, clips: [audioClipJSON(0, 30, "S")] }]);
+  addClip(env, 0, { start: 100, length: 30, compId: "X", offset: 15 });
+  const nested = env.project.sequence.videoTracks[0].clips[0].object.nestedAudioTracks()[0].clips[0];
+  nested.object.properties.volume.get = (frame) => frame + 1000;
+  nested.properties.time.get = (frame) => frame * 2;
+  env.PZ.schedule.analyzeSequence(env.project.sequence);
+
+  const proxy = env.project.sequence.lastAudioItems.find((item) => item.origin !== undefined);
+  assert.ok(proxy, "a proxy item exists for the nested audio clip");
+  assert.equal(proxy.start, 100, "window starts with the composition clip");
+  assert.equal(proxy.length, 15, "window is clipped to the audible span");
+  // Comp time at Main frame 100 is 15; the nested clip starts at comp time 0.
+  assert.equal(proxy.properties.time.get(0), 30, "media time remaps through the offset");
+  assert.equal(proxy.object.properties.volume.get(0), 1015, "volume envelopes remap through the offset");
+  assert.equal(proxy.media.asset.key, "footage");
+
+  // Re-analysis is deterministic: the same frames map the same way.
+  env.PZ.schedule.analyzeSequence(env.project.sequence);
+  const again = env.project.sequence.lastAudioItems.find((item) => item.origin !== undefined);
+  assert.equal(again.start, proxy.start);
+  assert.equal(again.properties.time.get(5), proxy.properties.time.get(5));
+});
+
+test("audio nested two levels deep is scheduled", () => {
+  const env = createEnvironment();
+  addCompMedia(env, "X", "X", [{ type: 1, clips: [audioClipJSON(0, 30, "Deep")] }]);
+  addCompMedia(env, "Y", "Y", [
+    { type: 0, clips: [clipJSON(0, 30, "ref", { compId: "X" })] },
+    { type: 1, clips: [audioClipJSON(0, 30, "Shallow")] },
+  ]);
+  addClip(env, 0, { start: 50, length: 30, compId: "Y", offset: 0 });
+  env.PZ.schedule.analyzeSequence(env.project.sequence);
+
+  const proxies = env.project.sequence.lastAudioItems.filter((item) => item.origin !== undefined);
+  assert.equal(proxies.length, 2, "both nesting levels schedule audio");
+  assert.deepEqual(proxies.map((item) => item.start), [50, 50]);
 });
 
 test("pre-compose is one undo step that restores Main", () => {

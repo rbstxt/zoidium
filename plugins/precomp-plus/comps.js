@@ -15,14 +15,16 @@
 // - Comp time = clip-local time + offset. The active children are computed
 //   from that time alone. track.update also sets them before the compositor
 //   checks whether a composite has anything to draw.
-// - Video inside a composition is scheduled through the same CM3 schedule as
-//   Main, using proxies whose timeline position is mapped to Main time.
+// - Video and audio inside a composition are scheduled through the same CM3
+//   schedule as Main, using proxies whose timeline position is mapped to
+//   Main time. Audio proxies remap time, volume and pan, so nested audio
+//   plays and exports through the normal CM3 audio pipeline.
 //
 // User-facing results are returned as { ok, message } and shown by the UI.
 
-if (PZ.precomp && PZ.precomp.version === 2) return;
+if (PZ.precomp && PZ.precomp.version === 3) return;
 
-const VERSION = 2;
+const VERSION = 3;
 const COMP_TYPE = 2;
 const MAX_NAME_LENGTH = 60;
 const MAIN_ID = "main";
@@ -130,7 +132,7 @@ function commitActive(project, session) {
   const media = session.activeId === null ? null : findComp(project, session.activeId);
   if (!media) return;
   media.data = liveTracks(project.sequence);
-  media.comp = { id: media.comp.id, clipLinks: clone(project.sequence.clipLinks) };
+  media.comp = cloneCompRef({ id: media.comp.id, compSource: media.comp.compSource, clipLinks: project.sequence.clipLinks });
 }
 
 function sequenceFor(project, media) {
@@ -149,8 +151,17 @@ function newCompId(project) {
   do {
     idCounter += 1;
     id = "comp-" + Date.now().toString(36) + "-" + idCounter.toString(36);
-  } while (findComp(project, id));
+  } while (project && findComp(project, id));
   return id;
+}
+
+// The reference a composition media entry carries. `compSource` (OpenZoid /
+// Davidium origin: the names of the clips a pre-compose moved) is optional
+// and only kept for source lookup of older projects.
+function cloneCompRef(comp) {
+  const ref = { id: comp.id, clipLinks: clone(comp.clipLinks) };
+  if (comp && comp.compSource !== undefined) ref.compSource = clone(comp.compSource);
+  return ref;
 }
 
 function nameProblem(project, name, exceptId) {
@@ -243,7 +254,7 @@ function snapshotMedia(project, media) {
     name: compName(media),
     data: clone(media.data) || [],
     assets: keys,
-    comp: { id: media.comp.id, clipLinks: clone(media.comp.clipLinks) },
+    comp: cloneCompRef(media.comp),
   };
 }
 
@@ -257,7 +268,7 @@ function insertMedia(project, snapshot, index) {
   media.baseType = "track";
   media.preset = false;
   media.data = clone(snapshot.data) || [];
-  media.comp = { id: snapshot.comp.id, clipLinks: clone(snapshot.comp.clipLinks) };
+  media.comp = cloneCompRef(snapshot.comp);
   media.assets = [];
   (snapshot.assets || []).forEach(function (key) {
     const asset = project.assets.load(key, true);
@@ -328,6 +339,15 @@ function applySequence(editor, json) {
   seq.videoTracks.splice(0, seq.videoTracks.length);
   seq.audioTracks.splice(0, seq.audioTracks.length);
   seq.load(clone(json));
+  // The host loader keeps only clips; reapply the stored track switches so
+  // muted and 3D tracks stay muted and 3D when a composition opens.
+  const data = json || {};
+  (data.videoTracks || []).forEach(function (trackJSON, i) {
+    if (seq.videoTracks[i]) applyTrackSwitches(seq.videoTracks[i], trackJSON);
+  });
+  (data.audioTracks || []).forEach(function (trackJSON, i) {
+    if (seq.audioTracks[i]) applyTrackSwitches(seq.audioTracks[i], trackJSON);
+  });
   refreshTimeline(editor);
 }
 
@@ -408,6 +428,32 @@ function openComp(editor, id) {
   return result(true);
 }
 
+// Track-level switches that must travel with the clips. The host only keeps
+// `type` and `clips` in track JSON, so pre-compose copies the live switches
+// explicitly (matching OpenZoid): the eye (`enabled`) and the Camera+ `3D`
+// switch (`track3d`, owned by Camera+ via registerTrackField) plus the
+// video `skip` flag when present.
+function trackSwitches(track) {
+  const switches = {};
+  if (track) {
+    if (track.enabled !== undefined) switches.enabled = !!track.enabled;
+    if (track.track3d !== undefined) switches.track3d = !!track.track3d;
+    if (track.skip !== undefined) switches.skip = !!track.skip;
+  }
+  return switches;
+}
+
+// Applies stored track switches to a live track. The host track loader keeps
+// only clips, so compositions and comp switches reapply `enabled`/`track3d`
+// after every load. Fields absent from the JSON leave the live value alone,
+// so tracks from older projects behave exactly as before.
+function applyTrackSwitches(track, json) {
+  if (!track || !json || typeof json !== "object") return;
+  if (Object.prototype.hasOwnProperty.call(json, "enabled")) track.enabled = !!json.enabled;
+  if (Object.prototype.hasOwnProperty.call(json, "track3d")) track.track3d = !!json.track3d;
+  if (Object.prototype.hasOwnProperty.call(json, "skip")) track.skip = !!json.skip;
+}
+
 function precompose(editor, rawName) {
   const project = editor && editor.project;
   if (!project || !project.sequence) return fail("Open a project first.");
@@ -422,19 +468,32 @@ function precompose(editor, rawName) {
 
   tracks.selectClips();
   const selected = new Set(Array.from(tracks.selection || []));
-  const picked = [];
+  const pickedVideo = [];
+  const pickedAudio = [];
   seq.videoTracks.forEach(function (track, trackIdx) {
     track.clips.forEach(function (clip) {
-      if (selected.has(clip)) picked.push({ clip: clip, trackIdx: trackIdx });
+      if (selected.has(clip)) pickedVideo.push({ clip: clip, trackIdx: trackIdx });
     });
   });
-  if (!picked.length) return fail("Select one or more video clips on the timeline first.");
+  seq.audioTracks.forEach(function (track, trackIdx) {
+    track.clips.forEach(function (clip) {
+      if (selected.has(clip)) pickedAudio.push({ clip: clip, trackIdx: trackIdx });
+    });
+  });
+  const picked = pickedVideo.concat(pickedAudio);
+  if (!picked.length) return fail("Select one or more clips on the timeline first.");
 
   const minStart = Math.min.apply(null, picked.map(function (p) { return p.clip.start; }));
   const maxEnd = Math.max.apply(null, picked.map(function (p) { return p.clip.start + p.clip.length; }));
-  const trackIdx = freeTrackFor(seq, picked, minStart, maxEnd);
-  if (trackIdx < 0) {
-    return fail("The selected clips overlap other clips on their tracks. Move those clips first.");
+
+  // Only a video selection leaves a composition clip on Main, so only video
+  // tracks need a free span for it.
+  let trackIdx = -1;
+  if (pickedVideo.length) {
+    trackIdx = freeTrackFor(seq, pickedVideo, minStart, maxEnd);
+    if (trackIdx < 0) {
+      return fail("The selected clips overlap other clips on their tracks. Move those clips first.");
+    }
   }
 
   const moved = picked.map(function (p) { return clone(p.clip); });
@@ -442,23 +501,32 @@ function precompose(editor, rawName) {
     return fail("A composition cannot contain itself.");
   }
 
-  const byTrack = new Map();
-  picked.forEach(function (p) {
-    if (!byTrack.has(p.trackIdx)) byTrack.set(p.trackIdx, []);
-    byTrack.get(p.trackIdx).push(p);
-  });
-  const data = Array.from(byTrack.keys()).sort(function (a, b) { return a - b; }).map(function (idx) {
-    const clips = byTrack.get(idx).slice().sort(function (a, b) { return a.clip.start - b.clip.start; });
-    return {
-      type: 0,
-      clips: clips.map(function (p) {
-        const json = clone(p.clip);
-        json.start -= minStart;
-        json.link = null;
-        return json;
-      }),
-    };
-  });
+  // Group the moved clips by source track so multi-track selections keep
+  // their layering, preserving each track's switches.
+  function groupByTrack(list, kind) {
+    const byTrack = new Map();
+    list.forEach(function (p) {
+      if (!byTrack.has(p.trackIdx)) {
+        byTrack.set(p.trackIdx, {
+          trackIdx: p.trackIdx,
+          switches: trackSwitches(kind === 0 ? seq.videoTracks[p.trackIdx] : seq.audioTracks[p.trackIdx]),
+          clips: [],
+        });
+      }
+      byTrack.get(p.trackIdx).clips.push(p);
+    });
+    return Array.from(byTrack.values()).sort(function (a, b) { return a.trackIdx - b.trackIdx; }).map(function (group) {
+      const clips = group.clips.slice().sort(function (a, b) { return a.clip.start - b.clip.start; });
+      const json = Object.assign({ type: kind, clips: clips.map(function (p) {
+        const clipJSON = clone(p.clip);
+        clipJSON.start -= minStart;
+        clipJSON.link = null;
+        return clipJSON;
+      }) }, group.switches);
+      return json;
+    });
+  }
+  const data = groupByTrack(pickedVideo, 0).concat(groupByTrack(pickedAudio, 1));
 
   const elements = timelineElementsFor(tracks, picked.map(function (p) { return p.clip; }));
   if (elements.length !== picked.length) {
@@ -475,27 +543,29 @@ function precompose(editor, rawName) {
   runOperation(editor, function () {
     cmdInsertComp({ editor: editor, project: project, snapshot: snapshot, index: project.media.length });
     tracks.deleteClips(elements);
-    const newIdx = seq.videoTracks[trackIdx].clips.filter(function (clip) {
-      return clip.start < minStart;
-    }).length;
-    tracks.createClip({
-      type: 0,
-      newTrackIdx: trackIdx,
-      newIdx: newIdx,
-      start: minStart,
-      length: maxEnd - minStart,
-      data: {
-        properties: { name: name },
-        object: { type: COMP_TYPE, compId: id, offset: 0, properties: { name: name }, effects: [], objects: [] },
-      },
-    });
+    if (pickedVideo.length) {
+      const newIdx = seq.videoTracks[trackIdx].clips.filter(function (clip) {
+        return clip.start < minStart;
+      }).length;
+      tracks.createClip({
+        type: 0,
+        newTrackIdx: trackIdx,
+        newIdx: newIdx,
+        start: minStart,
+        length: maxEnd - minStart,
+        data: {
+          properties: { name: name },
+          object: { type: COMP_TYPE, compId: id, offset: 0, properties: { name: name }, effects: [], objects: [] },
+        },
+      });
+    }
   });
   notifyListeners();
   return result(true, "", {
     id: id,
     name: name,
-    moved: picked.length,
-    audioKept: Math.max(0, selected.size - picked.length),
+    moved: pickedVideo.length,
+    movedAudio: pickedAudio.length,
   });
 }
 
@@ -553,6 +623,55 @@ function duplicateComp(editor, id) {
   return result(true, "", { id: snapshot.comp.id });
 }
 
+// Opens the composition a clip came from: directly for composition clips,
+// else by matching the clip name against composition names and the
+// OpenZoid/Davidium source-name lists. Returns { ok, message }.
+function openSourceOfClip(editor, clip) {
+  const project = editor && editor.project;
+  if (!project || !project.sequence) return fail("Open a project first.");
+  if (!clip) return fail("Select a clip first.");
+  const direct = clip.object && typeof clip.object.compId === "string" ? clip.object.compId : null;
+  if (direct) {
+    const hit = openComp(editor, direct);
+    if (!hit.ok) return fail("That composition no longer exists.");
+    return result(true);
+  }
+  let name = "";
+  try {
+    name = String(clip.properties.name.get());
+  } catch (error) {
+    name = "";
+  }
+  if (name) {
+    const byName = compMedia(project).find(function (media) { return compName(media) === name; });
+    if (byName) return openComp(editor, byName.comp.id);
+    const bySource = compMedia(project).find(function (media) {
+      const source = (media.comp && media.comp.compSource) || media.compSource;
+      return Array.isArray(source) && source.indexOf(name) >= 0;
+    });
+    if (bySource) return openComp(editor, bySource.comp.id);
+  }
+  return fail("This clip did not come from a composition.");
+}
+
+// Creates an empty composition without switching to it, so the creation
+// stays one undo step. Returns { ok, message, id, name }.
+function newEmptyComp(editor) {
+  const project = editor && editor.project;
+  if (!project || !project.sequence) return fail("Open a project first.");
+  const snapshot = {
+    name: nextCompName(project),
+    data: [{ type: 0, clips: [] }],
+    assets: [],
+    comp: { id: newCompId(project), clipLinks: null },
+  };
+  runOperation(editor, function () {
+    cmdInsertComp({ editor: editor, project: project, snapshot: snapshot, index: project.media.length });
+  });
+  notifyListeners();
+  return result(true, "", { id: snapshot.comp.id, name: snapshot.name });
+}
+
 function removeComp(editor, id) {
   const project = editor.project;
   const session = sessionOf(project);
@@ -608,20 +727,26 @@ function nextCompName(project) {
   }
 }
 
-// Counts of selected video and other clips, for the Pre-compose dialog.
+// Counts of selected video and audio clips, for the Pre-compose dialog.
 function selectionSummary(editor) {
   const tracks = findTimelineTracks(editor);
-  if (!tracks) return { video: 0, other: 0, ready: false };
+  if (!tracks) return { video: 0, audio: 0, ready: false };
   tracks.selectClips();
   const selected = Array.from(tracks.selection || []);
   const seq = editor.project.sequence;
   let video = 0;
+  let audio = 0;
   seq.videoTracks.forEach(function (track) {
     track.clips.forEach(function (clip) {
       if (selected.indexOf(clip) >= 0) video += 1;
     });
   });
-  return { video: video, other: selected.length - video, ready: true };
+  seq.audioTracks.forEach(function (track) {
+    track.clips.forEach(function (clip) {
+      if (selected.indexOf(clip) >= 0) audio += 1;
+    });
+  });
+  return { video: video, audio: audio, ready: true };
 }
 
 // ---------------------------------------------------------------------------
@@ -636,6 +761,7 @@ function adoptCompLayer(layer, json) {
   layer.compId = json.compId;
   layer.offset = Number.isFinite(json.offset) ? json.offset : 0;
   layer.nested = null;
+  layer.nestedAudio = null;
   layer.activeClips = [];
   layer.compTime = 0;
 }
@@ -657,8 +783,8 @@ function reanalyze(project) {
 }
 
 Object.assign(CompLayer, {
-  // Builds the composition's video tracks once per layer. Audio is stored in
-  // the composition but not rendered in this version.
+  // Builds the composition's video tracks once per layer. Audio tracks are
+  // built by nestedAudioTracks below and scheduled as proxies.
   nestedTracks() {
     if (this.nested) return this.nested;
     const project = projectOf(this);
@@ -677,9 +803,38 @@ Object.assign(CompLayer, {
       const track = new PZ.track.video();
       track.parent = this;
       track.load(json);
+      applyTrackSwitches(track, json);
       tracks.push(track);
     }, this);
     this.nested = tracks;
+    return tracks;
+  },
+
+  // Builds the composition's audio tracks once per layer. They are not drawn
+  // as children; analyzeVideo turns them into Main-time proxies so nested
+  // audio plays and exports through the normal CM3 audio pipeline.
+  nestedAudioTracks() {
+    if (this.nestedAudio) return this.nestedAudio;
+    const project = projectOf(this);
+    if (!project) return EMPTY;
+    const media = findComp(project, this.compId);
+    if (!media) return EMPTY;
+    if (!media.loaded) {
+      if (media.loading && typeof media.loading.then === "function") {
+        media.loading.then(function () { reanalyze(project); });
+      }
+      return EMPTY;
+    }
+    const tracks = [];
+    (clone(media.data) || []).forEach(function (json) {
+      if (json.type !== 1) return;
+      const track = new PZ.track.audio();
+      track.parent = this;
+      track.load(json);
+      applyTrackSwitches(track, json);
+      tracks.push(track);
+    }, this);
+    this.nestedAudio = tracks;
     return tracks;
   },
 
@@ -691,6 +846,7 @@ Object.assign(CompLayer, {
     const clips = this.activeClips;
     clips.length = 0;
     for (let i = tracks.length - 1; i >= 0; i--) {
+      if (tracks[i].enabled === false) continue;
       const clip = tracks[i].getCurrentClip(ct);
       if (clip && clip.object) clips.push(clip);
     }
@@ -737,7 +893,11 @@ Object.assign(CompLayer, {
     (this.nested || []).forEach(function (track) {
       Array.from(track.clips).forEach(function (clip) { clip.unload(); });
     });
+    (this.nestedAudio || []).forEach(function (track) {
+      Array.from(track.clips).forEach(function (clip) { clip.unload(); });
+    });
     this.nested = null;
+    this.nestedAudio = null;
     this.activeClips.length = 0;
     this.objects.length = 0;
     PZ.layer.prototype.unload.call(this);
@@ -801,6 +961,78 @@ function collectNested(layerClip, origin, winStart, winEnd, out, path) {
   path.delete(layer.compId);
 }
 
+// Proxy schedule item for an audio clip inside a composition. Its window is
+// in Main time; `origin` is the Main time at which the clip's local time is
+// zero. Time, volume and pan all remap through the same shift, so the export
+// renderer (which evaluates volume/pan in clip-local frames) and the
+// playback engine hear the nested envelope at the right moment. The mapping
+// is a pure function of the frame, so nested audio stays deterministic.
+function makeAudioProxy(clip, origin, start, length) {
+  const shift = start - origin;
+  function shifted(getter) {
+    return function (frame) {
+      return getter ? getter(frame + shift) : 0;
+    };
+  }
+  const time = clip.properties && clip.properties.time;
+  const volume = clip.object && clip.object.properties && clip.object.properties.volume;
+  const pan = clip.object && clip.object.properties && clip.object.properties.pan;
+  return {
+    start: start,
+    length: length,
+    origin: origin,
+    media: clip.media,
+    properties: {
+      time: { get: shifted(time && time.get ? time.get.bind(time) : null) },
+    },
+    object: {
+      properties: {
+        volume: { get: shifted(volume && volume.get ? volume.get.bind(volume) : null) },
+        pan: { get: shifted(pan && pan.get ? pan.get.bind(pan) : null) },
+      },
+    },
+    update: function () {
+      if (clip.object && typeof clip.object.update === "function") clip.object.update();
+    },
+    prepare: async function () {
+      if (clip.object && typeof clip.object.prepare === "function") await clip.object.prepare();
+    },
+  };
+}
+
+// Walks composition audio, mapping each clip's local origin into Main time,
+// and descends through composition clips on the video side so audio nested
+// more than one level deep is heard as well.
+function collectNestedAudio(layerClip, origin, winStart, winEnd, out, path) {
+  const layer = layerClip.object;
+  if (!layer || typeof layer.nestedAudioTracks !== "function") return;
+  if (path.has(layer.compId) || path.size >= MAX_DEPTH) return;
+  path.add(layer.compId);
+  layer.nestedAudioTracks().forEach(function (track) {
+    track.clips.forEach(function (clip) {
+      const clipOrigin = origin + clip.start - layer.offset;
+      const start = Math.max(winStart, clipOrigin);
+      const end = Math.min(winEnd, clipOrigin + clip.length);
+      if (end <= start) return;
+      if (clip.media) out.push(makeAudioProxy(clip, clipOrigin, start, end - start));
+    });
+  });
+  if (typeof layer.nestedTracks === "function") {
+    layer.nestedTracks().forEach(function (track) {
+      track.clips.forEach(function (clip) {
+        if (clip.object && typeof clip.object.nestedAudioTracks === "function") {
+          const clipOrigin = origin + clip.start - layer.offset;
+          const start = Math.max(winStart, clipOrigin);
+          const end = Math.min(winEnd, clipOrigin + clip.length);
+          if (end <= start) return;
+          collectNestedAudio(clip, clipOrigin, start, end, out, path);
+        }
+      });
+    });
+  }
+  path.delete(layer.compId);
+}
+
 function analyzeVideo(seq) {
   const sched = PZ.schedule;
   const clips = sched.combineTracks(seq.videoTracks);
@@ -812,7 +1044,17 @@ function analyzeVideo(seq) {
   });
   const all = extra.length ? clips.concat(extra).sort(function (a, b) { return a.start - b.start; }) : clips;
   sched.updateSchedules(seq, seq.videoSchedules, all, sched.type.VIDEO);
-  sched.updateSchedules(seq, seq.audioSchedules, sched.combineTracks(seq.audioTracks), sched.type.AUDIO);
+  const audio = sched.combineTracks(seq.audioTracks);
+  const extraAudio = [];
+  clips.forEach(function (clip) {
+    if (clip.object && typeof clip.object.nestedAudioTracks === "function") {
+      collectNestedAudio(clip, clip.start, clip.start, clip.start + clip.length, extraAudio, new Set());
+    }
+  });
+  const allAudio = extraAudio.length
+    ? audio.concat(extraAudio).sort(function (a, b) { return a.start - b.start; })
+    : audio;
+  sched.updateSchedules(seq, seq.audioSchedules, allAudio, sched.type.AUDIO);
 }
 
 // ---------------------------------------------------------------------------
@@ -827,7 +1069,10 @@ function activeProjectJSON(project, json) {
       if (!isCompMedia(item) || item.comp.id !== session.activeId) return item;
       const entry = item.toJSON();
       entry.data = liveTracks(project.sequence);
-      entry.comp = { id: item.comp.id, clipLinks: clone(project.sequence.clipLinks) };
+      entry.comp = cloneCompRef({ id: item.comp.id, compSource: item.comp.compSource, clipLinks: project.sequence.clipLinks });
+      entry.isComp = true;
+      entry.compLength = lengthOf(entry.data);
+      entry.compSource = entry.comp.compSource !== undefined ? clone(entry.comp.compSource) : null;
       return entry;
     }) : json.media;
     return Object.assign({}, json, { sequence: clone(session.mainJSON), media: media });
@@ -892,7 +1137,12 @@ function install() {
       return function () {
         const json = original.apply(this, arguments);
         if (this.comp && json && typeof json === "object") {
-          json.comp = { id: this.comp.id, clipLinks: clone(this.comp.clipLinks) };
+          json.comp = cloneCompRef(this.comp);
+          // Mirror the OpenZoid fields so Davidium and OpenZoid projects
+          // keep reading compositions saved by Zoidium.
+          json.isComp = true;
+          json.compLength = lengthOf(this.data || []);
+          json.compSource = this.comp.compSource !== undefined ? clone(this.comp.compSource) : null;
         }
         return json;
       };
@@ -900,7 +1150,21 @@ function install() {
     restores.push(patch(PZ.media.prototype, "load", function (original) {
       return function (e) {
         if (e && typeof e === "object" && e.comp && typeof e.comp.id === "string") {
-          this.comp = { id: e.comp.id, clipLinks: clone(e.comp.clipLinks) };
+          this.comp = cloneCompRef(e.comp);
+        } else if (e && typeof e === "object" && e.isComp) {
+          // Migrate OpenZoid / Davidium composition media into the Zoidium
+          // model: a stable id plus the optional source-name list. The
+          // length is derived from the tracks, like any other composition.
+          let refProject = null;
+          try {
+            refProject = this.parentProject || null;
+          } catch (error) {
+            refProject = null;
+          }
+          this.comp = { id: newCompId(refProject), clipLinks: null };
+          if (e.compSource !== undefined && e.compSource !== null) {
+            this.comp.compSource = clone(e.compSource);
+          }
         }
         return original.apply(this, arguments);
       };
@@ -1009,11 +1273,14 @@ PZ.precomp = {
   },
   entries: entries,
   openComp: openComp,
+  openSourceOfClip: openSourceOfClip,
+  newEmptyComp: newEmptyComp,
   precompose: precompose,
   renameComp: renameComp,
   duplicateComp: duplicateComp,
   removeComp: removeComp,
   nextCompName: nextCompName,
   selectionSummary: selectionSummary,
+  timelineTracks: findTimelineTracks,
   MAIN_ID: MAIN_ID,
 };

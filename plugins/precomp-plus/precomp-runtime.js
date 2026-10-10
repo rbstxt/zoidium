@@ -8,7 +8,7 @@ const MAIN_KEY = "__main__";
 let session = null;
 
 function installEngine(context, PZ) {
-  if (PZ.precomp && PZ.precomp.version === 2) return PZ.precomp;
+  if (PZ.precomp && PZ.precomp.version === 3) return PZ.precomp;
   const getAsset = context.getAsset;
   if (typeof getAsset !== "function") {
     throw new Error("Precomp+ needs the plugin bundle asset resolver.");
@@ -74,10 +74,11 @@ function openPrecomposeDialog() {
       return;
     }
     const detail = "Moved " + plural(result.moved, "video clip", "video clips") +
-      ' into "' + result.name + '". Main now has one clip for it.' +
-      (result.audioKept
-        ? " " + plural(result.audioKept, "other selected clip stayed", "other selected clips stayed") + " on Main."
-        : "");
+      (result.movedAudio ? " and " + plural(result.movedAudio, "audio clip", "audio clips") : "") +
+      ' into "' + result.name + '".' +
+      (result.moved
+        ? " Main now has one clip for it."
+        : " Open it from the Compositions window to edit its clips.");
     kit.notify({ title: "Pre-composed " + result.name, message: detail });
     win.close();
   }
@@ -105,8 +106,12 @@ function openPrecomposeDialog() {
       }
       body.appendChild(field.element);
       const counts = summary.ready
-        ? "Moves " + plural(summary.video, "video clip", "video clips") + " into this composition." +
-          (summary.other ? " " + plural(summary.other, "other selected clip stays", "other selected clips stay") + " on Main." : "")
+        ? "Moves " + plural(summary.video, "video clip", "video clips") +
+          (summary.audio ? " and " + plural(summary.audio, "audio clip", "audio clips") : "") +
+          " into this composition." +
+          (summary.video
+            ? " Main keeps one clip for it."
+            : " Nothing stays on Main; open the composition to edit its clips.")
         : "The timeline is not ready. Try again in a moment.";
       body.appendChild(kit.controls.note(counts).element);
       message = kit.controls.note("").element;
@@ -168,6 +173,18 @@ function openCompsWindow() {
     afterChange(result, "Duplicate");
   }
 
+  function createEmpty() {
+    const created = engine.newEmptyComp(editor);
+    if (created.ok) {
+      selectedKey = created.id;
+      kit.notify({
+        title: "Created " + created.name,
+        message: "Double-click it to edit its clips.",
+      });
+    }
+    afterChange(created, "New composition");
+  }
+
   function remove(row) {
     // Check usage before asking, so an in-use composition is explained rather
     // than confirmed and then refused. removeComp repeats the check.
@@ -223,7 +240,7 @@ function openCompsWindow() {
     body.appendChild(kit.controls.note("Location: " + breadcrumbText()).element);
     if (rows.length <= 1) {
       body.appendChild(kit.controls.note(
-        "Select video clips on the timeline and click Pre-compose. They move into a composition, " +
+        "Select video or audio clips on the timeline and click Pre-compose. They move into a composition, " +
         "and Main keeps one clip for it. Double-click a composition to edit its clips."
       ).element);
     }
@@ -301,6 +318,7 @@ function openCompsWindow() {
     },
     footer: [
       { title: "Pre-compose selection", variant: "primary", onClick: function () { openPrecomposeDialog(); } },
+      { title: "New composition", onClick: function () { createEmpty(); } },
       { title: "Close", onClick: function () { win.close(); } },
     ],
   });
@@ -308,17 +326,382 @@ function openCompsWindow() {
 }
 
 // ---------------------------------------------------------------------------
+// Timeline clip context menu
+//
+// The host right-click only renames the clip inline. While Precomp+ is
+// enabled the menu below is shown instead (ported from OpenZoid/Davidium):
+// Rename layer, Reveal source in Project, Pre-compose selected (opens the
+// Pre-compose dialog), Open source composition, Duplicate, Split at
+// playhead and Delete. The host method is wrapped reversibly: disabling the
+// plugin restores the original handler on the prototype and on every clip
+// element it rebound.
+
+const CLIP_LAYER_NAMES = {
+  0: "Video", 1: "Adjustment", 2: "Pre-comp", 3: "Image", 4: "Scene",
+  5: "Layer", 6: "Shape", 7: "Text", 8: "Preset shape", 9: "Camera",
+};
+
+function clipSourceInfo(clip) {
+  if (!clip) return "no clip";
+  let name = "";
+  try {
+    name = clip.properties.name.get();
+  } catch (error) { /* keep empty */ }
+  const layerType = clip.object ? clip.object.type : -1;
+  const typeName = CLIP_LAYER_NAMES[layerType] !== undefined ? CLIP_LAYER_NAMES[layerType] : ("type " + layerType);
+  let mediaName = "";
+  try {
+    const media = clip.properties.media ? clip.properties.media.get() : null;
+    if (media) mediaName = " • media:" + String(media).slice(0, 8);
+  } catch (error) { /* keep empty */ }
+  return name + " (" + typeName + ")" + mediaName;
+}
+
+// Inline rename, mirroring the host handler this menu replaces: one history
+// step through the native property hooks.
+function renameClipElement(PZ, editor, doc, clipEl) {
+  const t = clipEl || null;
+  if (!t || t.classList.contains("pz-listitem-edit")) return;
+  const label = t.children[0];
+  const prop = t.pz_object.properties.name;
+  const previous = prop.get();
+  const input = doc.createElement("input");
+  t.classList.add("pz-listitem-edit");
+  const commit = () => {
+    const value = input.value;
+    input.remove();
+    label.style.display = "";
+    t.classList.remove("pz-listitem-edit");
+    if (value !== previous) {
+      const ops = new PZ.ui.properties(editor);
+      editor.history.startOperation();
+      ops.setValue({ property: prop.getAddress(), value: value, oldValue: previous });
+      editor.history.finishOperation();
+    }
+  };
+  input.onmousedown = input.onclick = input.ontouchstart = function (e) { e.stopPropagation(); };
+  input.onkeydown = function (e) {
+    if (e.key === "Enter") {
+      this.blur();
+      e.preventDefault();
+    } else if (e.key === "Escape") {
+      this.value = previous;
+      this.blur();
+      e.preventDefault();
+    }
+    e.stopPropagation();
+  };
+  input.onblur = function () { commit(); };
+  label.style.display = "none";
+  input.value = previous;
+  t.appendChild(input);
+  input.focus();
+}
+
+// Highlights the clip's source media in the Project panel. Returns false
+// when nothing matches, so the caller can describe the source instead.
+function revealClipSource(doc, project, clip) {
+  if (!clip || !project) return false;
+  let mediaKey = null;
+  let clipName = "";
+  try {
+    clipName = clip.properties.name.get();
+  } catch (error) { /* keep empty */ }
+  try {
+    mediaKey = clip.properties.media ? clip.properties.media.get() : null;
+  } catch (error) { /* keep empty */ }
+  let best = -1;
+  for (let i = 0; i < project.media.length; i++) {
+    const media = project.media[i];
+    if (!media) continue;
+    if (mediaKey) {
+      try {
+        if (media.assets && media.assets.indexOf(mediaKey) >= 0) {
+          best = i;
+          break;
+        }
+      } catch (error) { /* keep looking */ }
+      try {
+        const keys = media.assets && media.assets.map
+          ? media.assets.map(function (asset) { return asset && asset.key !== undefined ? asset.key : asset; })
+          : [];
+        if (keys.indexOf(mediaKey) >= 0) {
+          best = i;
+          break;
+        }
+      } catch (error) { /* keep looking */ }
+    }
+    try {
+      const mediaName = media.properties.name.get();
+      if (mediaName && clipName && mediaName === clipName) best = i;
+    } catch (error) { /* keep looking */ }
+  }
+  if (best < 0 && clipName) {
+    for (let i = 0; i < project.media.length; i++) {
+      try {
+        const mediaName = project.media[i].properties.name.get();
+        if (mediaName && mediaName.toLowerCase().indexOf(clipName.toLowerCase().slice(0, 4)) >= 0) {
+          best = i;
+          break;
+        }
+      } catch (error) { /* keep looking */ }
+    }
+  }
+  if (best < 0) return false;
+  const items = doc.querySelectorAll(".media-item");
+  for (let i = 0; i < items.length; i++) items[i].classList.remove("selected");
+  const target = items[best];
+  if (!target) return false;
+  target.classList.add("selected");
+  try {
+    target.scrollIntoView({ block: "nearest" });
+  } catch (error) {
+    try {
+      target.scrollIntoView();
+    } catch (ignored) { /* selection still applies */ }
+  }
+  return true;
+}
+
+// Duplicates the selected clips onto their own tracks, in one history step.
+function duplicateSelectedClips(editor, tracks) {
+  const seq = editor.project.sequence;
+  if (!seq) return;
+  const els = Array.from(tracks.container.querySelectorAll(".clip.selected"));
+  if (!els.length) return;
+  editor.history.startOperation();
+  try {
+    for (let k = 0; k < els.length; k++) {
+      const clipObj = els[k].pz_object;
+      if (!clipObj) continue;
+      let trackIdx = -1;
+      let clipIdx = -1;
+      let isVideo = true;
+      for (let ti = 0; ti < seq.videoTracks.length; ti++) {
+        const ci = seq.videoTracks[ti].clips.indexOf(clipObj);
+        if (ci >= 0) {
+          trackIdx = ti;
+          clipIdx = ci;
+          isVideo = true;
+          break;
+        }
+      }
+      if (trackIdx < 0) {
+        for (let ti = 0; ti < seq.audioTracks.length; ti++) {
+          const ci = seq.audioTracks[ti].clips.indexOf(clipObj);
+          if (ci >= 0) {
+            trackIdx = ti;
+            clipIdx = ci;
+            isVideo = false;
+            break;
+          }
+        }
+      }
+      if (trackIdx < 0) continue;
+      tracks.createClip({
+        type: isVideo ? 0 : 1,
+        newTrackIdx: trackIdx,
+        newIdx: clipIdx + 1,
+        data: JSON.parse(JSON.stringify(clipObj)),
+        start: clipObj.start + clipObj.length,
+        length: clipObj.length,
+      });
+    }
+  } finally {
+    editor.history.finishOperation();
+  }
+  tracks.selectClips();
+  tracks.zoom();
+}
+
+function installClipMenu(context, engine, editor) {
+  const PZ = context.PZ || globalThis.PZ;
+  const Tracks = PZ && PZ.ui && PZ.ui.timeline && PZ.ui.timeline.tracks;
+  if (!Tracks || !Tracks.prototype || typeof Tracks.prototype.clipContextMenu !== "function") {
+    console.warn("[Precomp+] the timeline clip menu is unavailable; right-click keeps the host behavior.");
+    return function () { /* nothing to restore */ };
+  }
+  const doc = context.document || globalThis.document;
+  if (!doc || typeof doc.createElement !== "function" || typeof doc.addEventListener !== "function") {
+    console.warn("[Precomp+] the timeline clip menu is unavailable; right-click keeps the host behavior.");
+    return function () { /* nothing to restore */ };
+  }
+  const original = Tracks.prototype.clipContextMenu;
+  const openMenus = new Set();
+  let active = true;
+
+  function closeClipMenu() {
+    openMenus.forEach(function (menu) {
+      try {
+        menu.remove();
+      } catch (error) { /* already gone */ }
+    });
+    openMenus.clear();
+  }
+
+  function showClipMenu(tracks, e) {
+    const t = e.currentTarget;
+    e.preventDefault();
+    e.stopPropagation();
+    closeClipMenu();
+    if (t && !t.classList.contains("selected")) {
+      if (!e.ctrlKey && !e.shiftKey) tracks.deselectClips();
+      t.classList.add("selected");
+      tracks.selectClips();
+    }
+    const self = tracks;
+    const menu = doc.createElement("ul");
+    menu.classList.add("pz-dropdown");
+    menu.setAttribute("tabindex", "-1");
+    menu.style.position = "fixed";
+    menu.style.zIndex = "99999";
+    menu.style.width = "260px";
+    const x = e.clientX !== undefined ? e.clientX : e.pageX;
+    const y = e.clientY !== undefined ? e.clientY : e.pageY;
+    const width = (globalThis.window && globalThis.window.innerWidth) || 1024;
+    const height = (globalThis.window && globalThis.window.innerHeight) || 768;
+    menu.style.left = Math.min(x, width - 270) + "px";
+    menu.style.top = Math.min(y, height - 320) + "px";
+    const clip = t ? t.pz_object : null;
+    const addHeader = (text) => {
+      const header = doc.createElement("li");
+      header.style.cursor = "default";
+      header.style.color = "#8ab4ff";
+      header.style.fontSize = "12px";
+      header.innerText = text;
+      header.onmousedown = (ev) => ev.stopPropagation();
+      header.onclick = (ev) => ev.stopPropagation();
+      menu.appendChild(header);
+    };
+    const addItem = (label, fn, title) => {
+      const item = doc.createElement("li");
+      item.innerText = label;
+      if (title) item.title = title;
+      item.onmousedown = (ev) => ev.stopPropagation();
+      item.onclick = (ev) => {
+        ev.stopPropagation();
+        ev.preventDefault();
+        closeClipMenu();
+        if (fn) fn();
+      };
+      item.onmouseenter = function () {
+        Array.from(menu.children).forEach((child) => child.classList.remove("pz-active"));
+        this.classList.add("pz-active");
+      };
+      menu.appendChild(item);
+      return item;
+    };
+    addHeader("Source: " + clipSourceInfo(clip));
+    addItem("Rename layer", function () {
+      renameClipElement(PZ, editor, doc, t);
+    }, "Rename the layer");
+    addItem("Reveal source in Project", function () {
+      const found = revealClipSource(doc, editor.project, clip);
+      if (!found && editor.project) {
+        session.kit.notify({ title: "Reveal source in Project", message: "Source: " + clipSourceInfo(clip) });
+      }
+    }, "Highlight the source media in Project media");
+    addItem("Pre-compose selected", function () {
+      openPrecomposeDialog();
+    }, "Move selected clips into a new composition");
+    addItem("Open source composition", function () {
+      const opened = engine.openSourceOfClip(editor, clip);
+      if (!opened.ok) session.kit.notify({ title: "Open source composition", message: opened.message });
+    }, "If this clip came from a composition, open it");
+    addItem("Duplicate", function () {
+      duplicateSelectedClips(editor, self);
+    }, "Duplicate selected clips");
+    addItem("Split at playhead (C)", function () {
+      const selected = self.container.querySelectorAll(".clip.selected");
+      editor.history.startOperation();
+      try {
+        self.splitClips(selected);
+      } finally {
+        editor.history.finishOperation();
+      }
+      self.selectClips();
+      self.zoom();
+    });
+    addItem("Delete", function () {
+      const selected = self.container.querySelectorAll(".clip.selected");
+      editor.history.startOperation();
+      try {
+        self.deleteClips(selected);
+      } finally {
+        editor.history.finishOperation();
+      }
+      self.selectClips();
+      self.zoom();
+    });
+    doc.body.appendChild(menu);
+    openMenus.add(menu);
+    const cleanup = (ev) => {
+      if (ev && menu.contains(ev.target)) return;
+      menu.remove();
+      openMenus.delete(menu);
+      doc.removeEventListener("mousedown", cleanup, true);
+      doc.removeEventListener("keydown", keyCleanup, true);
+    };
+    const keyCleanup = (ev) => {
+      if (ev.key === "Escape") {
+        menu.remove();
+        openMenus.delete(menu);
+        doc.removeEventListener("mousedown", cleanup, true);
+        doc.removeEventListener("keydown", keyCleanup, true);
+        ev.stopPropagation();
+      }
+    };
+    doc.addEventListener("mousedown", cleanup, true);
+    doc.addEventListener("keydown", keyCleanup, true);
+    try {
+      menu.focus();
+    } catch (error) { /* focusing is best-effort */ }
+  }
+
+  Tracks.prototype.clipContextMenu = function (e) {
+    if (!active) return original.apply(this, arguments);
+    showClipMenu(this, e);
+  };
+  const wrapper = Tracks.prototype.clipContextMenu;
+  // Clip elements created before activation bound the original handler;
+  // rebuilding them picks up the menu. Selection state is left alone.
+  try {
+    const live = typeof engine.timelineTracks === "function" ? engine.timelineTracks(editor) : null;
+    if (live && typeof live.redraw === "function") live.redraw();
+  } catch (error) {
+    console.warn("[Precomp+] existing timeline clips keep the host menu until the next redraw.");
+  }
+  return function restoreClipMenu() {
+    active = false;
+    closeClipMenu();
+    // Only restore what this module still owns: another wrapper above stays.
+    if (Tracks.prototype.clipContextMenu === wrapper) Tracks.prototype.clipContextMenu = original;
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Comps tab
 
 function fillTabPanel(body, kit) {
   body.appendChild(kit.controls.note(
-    "Pre-compose moves the selected video clips into a composition that Main keeps as one clip. " +
+    "Pre-compose moves the selected video and audio clips into a composition that Main keeps as one clip. " +
     "Open a composition to edit its clips."
   ).element);
   body.appendChild(kit.controls.buttonRow([
     { title: "Open Compositions", variant: "primary", onClick: function () { openCompsWindow(); } },
     { title: "Pre-compose selection", onClick: function () { openPrecomposeDialog(); } },
+    { title: "New composition", onClick: function () { newEmptyCompAction(); } },
   ]).element);
+}
+
+// Creates an empty composition from the tab. Open windows refresh through
+// the engine subscription; the result is reported like any other action.
+function newEmptyCompAction() {
+  if (!session) return;
+  const created = session.engine.newEmptyComp(session.editor);
+  session.kit.notify(created.ok
+    ? { title: "Created " + created.name, message: "Double-click it in the Compositions window to edit its clips." }
+    : { title: "New composition", message: created.message });
 }
 
 // The Comps sidebar panel uses the standard side-panel chrome (header,
@@ -364,6 +747,7 @@ module.exports = {
     context.lifecycle.onDispose(engine.install());
     session = { context: context, PZ: PZ, editor: context.editor, engine: engine, kit: kitOf(context) };
     context.lifecycle.onDispose(function () { session = null; });
+    context.lifecycle.onDispose(installClipMenu(context, engine, context.editor));
     const tabInfo = installTab(context);
     if (tabInfo) {
       context.lifecycle.onDispose(engine.subscribe(function () { updateTabLabel(tabInfo); }));
