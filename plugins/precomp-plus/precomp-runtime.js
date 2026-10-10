@@ -715,7 +715,7 @@ function installTab(context) {
       icon: "layers",
       className: "precomp-plus-panel",
       tabClass: "precomp-plus-tab",
-      position: "afterAbout",
+      position: "after:Effects",
     })
     : null;
   if (!side) {

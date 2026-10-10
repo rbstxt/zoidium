@@ -315,7 +315,14 @@ function activate(context) {
       const host = doc.createElement("div"); host.style.cssText = "flex:1;min-width:0;height:100%";
       const strip = doc.createElement("div"); strip.style.cssText = "width:140px;padding:8px;overflow:auto";
       const canvas = doc.createElement("canvas"); canvas.width = canvas.height = 128; canvas.style.width = "128px";
-      strip.appendChild(canvas);
+      // The canvas shows the graph's Color result; it is not an input. Image and
+      // Texture nodes take their picture from the row shown below it on selection.
+      const caption = doc.createElement("div"); caption.textContent = "Color output";
+      caption.style.cssText = "margin:0 0 4px;color:var(--zui-text-muted);font-size:11px";
+      const note = doc.createElement("div"); note.textContent = "Select an Image or Texture node to choose its picture.";
+      note.style.cssText = "margin:6px 0 0;color:var(--zui-text-faint);font-size:11px;line-height:1.35";
+      const previewChildren = [caption, canvas, note];
+      strip.append(...previewChildren);
       body.append(host, strip);
       const registry = {};
       for (const [id, def] of Object.entries(nodes.types)) registry[id] = {
@@ -348,7 +355,7 @@ function activate(context) {
           assetView?.dispose(); assetView = null;
           material._selectedImageNode = null;
           material.properties.nodeImage.definition.visible = false;
-          strip.replaceChildren(canvas);
+          strip.replaceChildren(...previewChildren);
           const graph = nodes.parse(material.properties.graph.get());
           const node = graph.nodes.find(n => n.id === selectedId && ["image", "texture"].includes(n.type));
           if (!node) return;
@@ -357,7 +364,7 @@ function activate(context) {
           material._selectedImageNode = node.id;
           material.properties.nodeImage.value = node.params.asset || null;
           assetView.refresh();
-          strip.appendChild(assetView.element);
+          strip.replaceChildren(caption, canvas, assetView.element);
         });
       } });
       let assetView = null;
@@ -375,14 +382,6 @@ function activate(context) {
     } });
   }
   context.ui?.registerEditor({ title: "Node Editor", match: target => target?.type === "nodes" || target?.type === "pbrplus", open: openEditor });
-  for (const type of ["nodes", "pbrplus"]) context.ui?.registerAttributePanel({ id: type, title: type === "nodes" ? "Node Material" : "PBR+ Material", match: target => target?.type === type, tabs: [
-    { id: "base", title: "Base", keys: ["color", "texture", "opacity", "transparent", "useNodeGraph", "bakeResolution"] },
-    { id: "surface", title: "Surface", keys: key => /^(roughness|metalness|normal|bump)/.test(key) },
-    { id: "reflection", title: "Reflection", keys: key => /^(refl|fresnel)/.test(key) },
-    { id: "shading", title: "Shading", keys: key => /^(ramp|ao|cel)/.test(key) },
-    { id: "projection", title: "Projection", keys: ["projection", "projRotation", "projScale", "projTranslate", "projLockAspect", "wrap", "repeat", "offset", "center", "rotation"] },
-    { id: "maps", title: "Maps", keys: key => /Map$|^emissive|^luminance|^alpha/.test(key) },
-  ] });
   active = api;
 }
 

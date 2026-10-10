@@ -157,7 +157,8 @@ win.body.appendChild(editor.element); // setGraph(), getGraph(), frameAll(), des
 
 Interaction follows Blender/Unreal conventions: middle-drag or Space-drag
 pans, the wheel zooms, drag from an output to an input connects, right-click,
-Shift+A or Tab opens the searchable add menu, Ctrl/Cmd+drag cuts links,
+The header's "+ Add node" button, right-clicking the grid, Shift+A or Tab
+open the searchable add menu, Ctrl/Cmd+drag cuts links,
 Delete, Ctrl/Cmd+D, Ctrl/Cmd+C/V and Home/F work as expected.
 
 ## Side panels: `context.ui.sidePanel()`
@@ -168,7 +169,9 @@ side.body.appendChild(context.ui.controls.note("...").element);
 ```
 
 Side panels get the standard page header, background and scrolling of the
-built-in panels and are removed on disable. Do not build sidebar panels from
+built-in panels and are removed on disable. The sidebar tab goes above About
+by default; `position: "after:Effects"` places it right below an existing tab
+(matched by its title), and `position: "afterAbout"` right below About. Do not build sidebar panels from
 raw `createMenubarTab` markup.
 
 ## Skins: plugin-specific looks

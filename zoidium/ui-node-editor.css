@@ -24,6 +24,50 @@
   box-sizing: border-box;
 }
 
+.zoidium-node-editor-header {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  padding: 0 4px;
+  background-color: var(--zui-bg-title);
+  border-bottom: 1px solid var(--zui-border);
+  overflow: hidden;
+}
+
+.zoidium-node-editor-tool {
+  flex: none;
+  height: 22px;
+  margin: 0;
+  padding: 0 10px;
+  font-family: var(--zui-font);
+  font-size: 12px;
+  color: var(--zui-text);
+  background-color: var(--zui-bg-input);
+  border: 1px solid var(--zui-border);
+  cursor: pointer;
+}
+
+.zoidium-node-editor-tool:hover {
+  background-color: var(--zui-hover);
+}
+
+.zoidium-node-editor-tool:focus-visible {
+  outline: 1px solid var(--zui-accent-strong);
+}
+
+.zoidium-node-editor-hint {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding-left: 6px;
+  color: var(--zui-text-faint);
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .zoidium-node-editor-viewport {
   position: relative;
   flex: 1 1 auto;

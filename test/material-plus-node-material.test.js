@@ -39,7 +39,7 @@ test("Node Material prepares exact frames, survives seeking and releases owned r
     await m.prepare(3); await m.prepare(0); await m.prepare(1.5);
     assert.equal(hash(m), cold);
     assert.equal(h.editors[0].match(m), true);
-    assert.equal(h.panels.length, 2);
+    assert.equal(h.panels.length, 0, "the native rows are the material UI; no attribute panels");
     const texture = m.pzGraphTextures.color;
     m.unload(); assert.ok(texture.disposed);
   } finally { for (const fn of h.dispose.reverse()) fn(); }

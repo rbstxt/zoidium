@@ -599,6 +599,19 @@
     world.appendChild(nodeLayer);
     viewport.appendChild(world);
     viewport.appendChild(marquee);
+    // Header bar, like a Blender editor header: the visible way to add nodes.
+    var header = el("div", "zoidium-node-editor-header");
+    var addButton = el("button", "zoidium-node-editor-tool", "+ Add node");
+    addButton.type = "button";
+    addButton.title = "Add a node (also right-click the grid, Tab or Shift+A)";
+    var frameButton = el("button", "zoidium-node-editor-tool", "Frame all");
+    frameButton.type = "button";
+    frameButton.title = "Fit every node in view (Home)";
+    var hint = el("span", "zoidium-node-editor-hint", "Drag from a socket to connect. Right-click the grid to add nodes.");
+    if (!readOnly) header.appendChild(addButton);
+    header.appendChild(frameButton);
+    header.appendChild(hint);
+    root.appendChild(header);
     root.appendChild(viewport);
 
     // ---- coordinates and view -----------------------------------------
@@ -1921,6 +1934,15 @@
       event.preventDefault();
       if (readOnly || closestOf(event.target, ".zoidium-node-editor-node")) return;
       openMenu(event.clientX, event.clientY, worldAt(screenOf(event)), null);
+    });
+    listen(addButton, "click", function () {
+      var buttonRect = addButton.getBoundingClientRect();
+      var viewRect = viewport.getBoundingClientRect();
+      openMenu(buttonRect.left, buttonRect.bottom + 2, worldAt({ x: viewRect.width / 2, y: viewRect.height / 2 }), null);
+    });
+    listen(frameButton, "click", function () {
+      frameNodes(null);
+      root.focus({ preventScroll: true });
     });
     listen(root, "keydown", onRootKeyDown);
     listen(root, "keyup", onRootKeyUp);
