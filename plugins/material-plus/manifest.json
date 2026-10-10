@@ -3,9 +3,9 @@
   "id": "material-plus",
   "name": "Material+",
   "author": "Zoidium",
-  "version": "5",
+  "version": "6",
   "kind": "material-pack",
-  "description": "Adds Matcap, physically based, and corrected-UV material extensions for 3D objects.",
+  "description": "Adds Matcap, Node Material, Image+, physically based, and corrected-UV material extensions.",
   "materialTypes": [
     {
       "id": "matcap",
@@ -21,32 +21,60 @@
       "id": "uvcustom",
       "name": "UV Custom Material",
       "description": "Like Custom Material, with evenly spaced texture UVs on 3D Text and extruded shapes."
+    },
+    {
+      "id": "nodes",
+      "name": "Node Material",
+      "description": "Bakes procedural node graphs into physically based surface maps."
+    },
+    {
+      "id": "imageplus",
+      "name": "Image+ Material",
+      "description": "Image material with animated opacity and transparency."
     }
   ],
   "resources": [
     {
       "id": "matcap-vertex-shader",
       "type": "text",
-      "source": "./plugins/material-plus/shaders/matcap.vert.glsl?v=5"
+      "source": "./plugins/material-plus/shaders/matcap.vert.glsl?v=6"
     },
     {
       "id": "matcap-fragment-shader",
       "type": "text",
-      "source": "./plugins/material-plus/shaders/matcap.frag.glsl?v=5"
+      "source": "./plugins/material-plus/shaders/matcap.frag.glsl?v=6"
+    },
+    {
+      "id": "graph-runtime",
+      "type": "text",
+      "source": "./plugins/material-plus/graph-runtime.js?v=6"
+    },
+    {
+      "id": "surface-runtime",
+      "type": "text",
+      "source": "./plugins/material-plus/surface-runtime.js?v=6"
     }
   ],
   "modules": [
     {
+      "id": "material-plus-nodes-runtime",
+      "source": "./plugins/material-plus/node-material.js?v=6"
+    },
+    {
       "id": "material-plus-runtime",
-      "source": "./plugins/material-plus/material-plus.js?v=5"
+      "source": "./plugins/material-plus/material-plus.js?v=6"
     },
     {
       "id": "material-plus-pbr-runtime",
-      "source": "./plugins/material-plus/pbr-plus.js?v=5"
+      "source": "./plugins/material-plus/pbr-plus.js?v=6"
     },
     {
       "id": "material-plus-uv-custom-runtime",
-      "source": "./plugins/material-plus/uv-custom.js?v=5"
+      "source": "./plugins/material-plus/uv-custom.js?v=6"
+    },
+    {
+      "id": "material-plus-image-runtime",
+      "source": "./plugins/material-plus/image-plus.js?v=6"
     }
   ]
 }
