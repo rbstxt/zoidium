@@ -107,16 +107,36 @@ function createPZ() {
     return layer;
   }
 
+  // Minimal stand-in for the host audio object (PZ.audio): volume/pan
+  // properties plus the lifecycle methods compositions call.
+  class AudioObject extends Obj {
+    constructor(parent) {
+      super();
+      this.parent = parent || null;
+      this.properties = { volume: prop(1), pan: prop(0) };
+      this.updates = [];
+    }
+    load(e) { this.loaded = e; }
+    toJSON() { return { properties: {} }; }
+    update(e) { this.updates.push(e); }
+    async prepare(e, t) { this.prepares = (this.prepares || []).concat([[e, t]]); }
+    unload() { this.unloaded = (this.unloaded || 0) + 1; }
+  }
+
   class Clip extends Obj {
-    constructor(objType) {
+    constructor(objType, kind) {
       super();
       this.start = 0;
       this.length = 0;
       this.link = null;
       this.media = null;
       this.properties = { name: prop(""), time: { get: (frame) => frame } };
-      this.object = createLayer(objType);
-      this.object.parent = this;
+      if (kind === "audio") {
+        this.object = new AudioObject(this);
+      } else {
+        this.object = createLayer(objType);
+        this.object.parent = this;
+      }
     }
     get endFrame() { return this.start + this.length; }
     load(e) {
@@ -157,8 +177,9 @@ function createPZ() {
     }
     load(json) {
       if (!json) return;
+      const audio = this instanceof AudioTrack;
       json.clips.forEach((clipJSON) => {
-        const clip = new Clip(clipJSON.object.type);
+        const clip = new Clip(clipJSON.object && clipJSON.object.type, audio ? "audio" : "video");
         this.clips.push(clip);
         clip.load(clipJSON);
       });
@@ -320,42 +341,94 @@ function createPZ() {
       this.editor = editor;
       this.selectedClips = [];
       this.selection = [];
+      // Stable clip elements, like the host timeline: the menu and the
+      // selection read and write their classes.
+      this.clipEls = new Map();
+      const eltFor = (clip) => {
+        let el = this.clipEls.get(clip);
+        if (!el) {
+          const classes = new Set();
+          const label = { style: { display: "" } };
+          el = {
+            pz_object: clip,
+            children: [label],
+            style: {},
+            classList: {
+              contains: (name) => classes.has(name),
+              add: (name) => classes.add(name),
+              remove: (name) => classes.delete(name),
+            },
+            contains: (target) => target === el || target === label,
+            appendChild: (child) => { el.appended = (el.appended || []).concat([child]); return child; },
+            remove: () => { el.removed = true; },
+          };
+          this.clipEls.set(clip, el);
+        }
+        return el;
+      };
+      const allClipEls = () => {
+        const out = [];
+        editor.project.sequence.videoTracks.forEach((track) => track.clips.forEach((clip) => {
+          out.push(eltFor(clip));
+        }));
+        editor.project.sequence.audioTracks.forEach((track) => track.clips.forEach((clip) => {
+          out.push(eltFor(clip));
+        }));
+        return out;
+      };
       this.container = {
-        getElementsByClassName: () => {
-          const out = [];
-          editor.project.sequence.videoTracks.forEach((track) => track.clips.forEach((clip) => {
-            out.push({ pz_object: clip });
-          }));
-          return out;
+        getElementsByClassName: () => allClipEls(),
+        querySelectorAll: (selector) => {
+          const els = allClipEls();
+          if (String(selector).indexOf(".selected") >= 0) {
+            return els.filter((el) => el.classList.contains("selected"));
+          }
+          return els;
         },
       };
     }
     selectClips() { this.selection = this.selectedClips.slice(); }
-    deselectClips() {}
+    deselectClips() { this.clipEls.forEach((el) => el.classList.remove("selected")); }
     redraw() {}
     zoom() {}
+    // Stand-in for the host right-click handler (inline rename). The plugin
+    // wraps it; the wrapper delegates back here while disabled.
+    clipContextMenu(e) {
+      this.menuCalls = (this.menuCalls || 0) + 1;
+      if (e) {
+        if (typeof e.preventDefault === "function") e.preventDefault();
+        if (typeof e.stopPropagation === "function") e.stopPropagation();
+      }
+    }
+    trackList(kind) {
+      return kind === 1 ? this.editor.project.sequence.audioTracks : this.editor.project.sequence.videoTracks;
+    }
     locate(clip) {
       const seq = this.editor.project.sequence;
       for (let t = 0; t < seq.videoTracks.length; t++) {
         const idx = seq.videoTracks[t].clips.indexOf(clip);
-        if (idx >= 0) return { trackIdx: t, idx: idx };
+        if (idx >= 0) return { trackIdx: t, idx: idx, kind: 0 };
+      }
+      for (let t = 0; t < seq.audioTracks.length; t++) {
+        const idx = seq.audioTracks[t].clips.indexOf(clip);
+        if (idx >= 0) return { trackIdx: t, idx: idx, kind: 1 };
       }
       return null;
     }
     removeAt(p) {
-      const track = this.editor.project.sequence.videoTracks[p.trackIdx];
+      const track = this.trackList(p.kind)[p.trackIdx];
       const clip = track.clips[p.idx];
       const data = JSON.parse(JSON.stringify(clip));
       clip.unload();
       track.clips.splice(p.idx, 1);
-      this.editor.history.pushCommand((q) => this.insertFrom(q), { trackIdx: p.trackIdx, idx: p.idx, data: data });
+      this.editor.history.pushCommand((q) => this.insertFrom(q), { trackIdx: p.trackIdx, idx: p.idx, kind: p.kind, data: data });
     }
     insertFrom(p) {
-      const track = this.editor.project.sequence.videoTracks[p.trackIdx];
-      const clip = new Clip(p.data.object.type);
+      const track = this.trackList(p.kind)[p.trackIdx];
+      const clip = new Clip(p.data.object && p.data.object.type, p.kind === 1 ? "audio" : "video");
       track.clips.splice(p.idx, 0, clip);
       clip.load(p.data);
-      this.editor.history.pushCommand((q) => this.removeAt(q), { trackIdx: p.trackIdx, idx: p.idx });
+      this.editor.history.pushCommand((q) => this.removeAt(q), { trackIdx: p.trackIdx, idx: p.idx, kind: p.kind });
     }
     deleteClips(elements) {
       elements.forEach((el) => {
@@ -363,10 +436,39 @@ function createPZ() {
         if (where) this.removeAt(where);
       });
     }
+    // Splits each clip in two at its midpoint, like the host Split at
+    // playhead with the playhead centered. The caller owns the history
+    // operation so a multi-clip split stays one undo step.
+    splitClips(elements) {
+      Array.from(elements).forEach((el) => {
+        const where = this.locate(el.pz_object);
+        if (!where) return;
+        const track = this.trackList(where.kind)[where.trackIdx];
+        const clip = track.clips[where.idx];
+        if (!clip || clip.length < 2) return;
+        const firstLen = clip.length;
+        const at = Math.floor(firstLen / 2);
+        const data = JSON.parse(JSON.stringify(clip));
+        clip.length = at;
+        this.editor.history.pushCommand((q) => { track.clips[q.idx].length = q.len; }, { idx: where.idx, len: firstLen });
+        const second = new Clip(data.object && data.object.type, where.kind === 1 ? "audio" : "video");
+        track.clips.splice(where.idx + 1, 0, second);
+        second.load(Object.assign(data, { start: clip.start + at, length: firstLen - at }));
+        this.editor.history.pushCommand((q) => {
+          const list = this.trackList(q.kind)[q.trackIdx];
+          const i = list.clips.indexOf(q.clip);
+          if (i >= 0) {
+            list.clips[i].unload();
+            list.clips.splice(i, 1);
+          }
+        }, { kind: where.kind, trackIdx: where.trackIdx, clip: second });
+      });
+    }
     createClip(e) {
       this.insertFrom({
         trackIdx: e.newTrackIdx,
         idx: e.newIdx,
+        kind: e.type,
         data: Object.assign(JSON.parse(JSON.stringify(e.data)), { start: e.start, length: e.length, link: null }),
       });
     }
@@ -453,6 +555,19 @@ function addClip(env, trackIdx, options) {
   return clip;
 }
 
+// Appends an audio clip to track `trackIdx` of the live sequence.
+function addAudioClip(env, trackIdx, options) {
+  const seq = env.project.sequence;
+  while (seq.audioTracks.length <= trackIdx) seq.audioTracks.push(new env.PZ.track.audio());
+  const clip = new env.PZ.Clip(0, "audio");
+  clip.start = options.start;
+  clip.length = options.length;
+  clip.properties.name.v = options.name || "";
+  clip.media = options.hasMedia ? { asset: { key: "song" } } : null;
+  seq.audioTracks[trackIdx].clips.push(clip);
+  return clip;
+}
+
 // Adds a composition media entry with the given tracks, without the engine.
 function addCompMedia(env, id, name, data) {
   const media = new env.PZ.media();
@@ -478,4 +593,4 @@ async function reloadProject(env, json) {
   return project;
 }
 
-module.exports = { createPZ, loadEngine, createEnvironment, addClip, addCompMedia, reloadProject, enginePath, projectRoot };
+module.exports = { createPZ, loadEngine, createEnvironment, addClip, addAudioClip, addCompMedia, reloadProject, enginePath, projectRoot };

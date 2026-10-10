@@ -13,16 +13,27 @@ const { createPZ, projectRoot } = require("./precomp-fixtures.js");
 const runtimePath = path.join(projectRoot, "plugins/precomp-plus/precomp-runtime.js");
 
 function fakeElement(tag) {
+  const classes = new Set();
   const el = {
     tagName: tag,
     children: [],
     className: "",
+    innerText: "",
     title: "",
+    value: "",
+    style: {},
     attrs: {},
     listeners: {},
     _text: "",
     appendChild(child) { el.children.push(child); return child; },
     remove() { el.removed = true; },
+    focus() {},
+    contains(target) { return target === el || el.children.indexOf(target) >= 0; },
+    classList: {
+      add(name) { classes.add(name); },
+      remove(name) { classes.delete(name); },
+      contains(name) { return classes.has(name); },
+    },
     setAttribute(key, value) { el.attrs[key] = value; },
     addEventListener(type, fn) { (el.listeners[type] = el.listeners[type] || []).push(fn); },
     querySelector(selector) {
@@ -30,6 +41,7 @@ function fakeElement(tag) {
       if (selector === "span") return (el._span = el._span || fakeElement("span"));
       return null;
     },
+    querySelectorAll() { return []; },
   };
   Object.defineProperty(el, "textContent", {
     get() { return el._text; },
@@ -39,6 +51,21 @@ function fakeElement(tag) {
     },
   });
   return el;
+}
+
+function fakeDocument() {
+  const listeners = {};
+  const body = fakeElement("body");
+  return {
+    body: body,
+    listeners: listeners,
+    createElement: fakeElement,
+    querySelectorAll() { return []; },
+    addEventListener(type, fn) { (listeners[type] = listeners[type] || []).push(fn); },
+    removeEventListener(type, fn) {
+      listeners[type] = (listeners[type] || []).filter((held) => held !== fn);
+    },
+  };
 }
 
 function findButton(root, title) {
@@ -56,6 +83,14 @@ function findButton(root, title) {
 
 function createHarness() {
   const PZ = createPZ();
+  PZ.ui.properties = class {
+    constructor(editor) { this.editor = editor; }
+    setValue({ property, value, oldValue }) {
+      const previous = oldValue !== undefined ? oldValue : property.get();
+      property.set(value);
+      this.editor.history.pushCommand((p) => p.property.set(p.value), { property: property, value: previous });
+    }
+  };
   const project = new PZ.project();
   project.sequence.videoTracks.push(new PZ.track.video());
   const editor = new PZ.Editor(project);
@@ -63,6 +98,7 @@ function createHarness() {
   const windows = [];
   const tabs = [];
   const panels = [];
+  const document = fakeDocument();
   const controls = {
     note(message, variant) {
       const el = fakeElement("p");
@@ -133,7 +169,7 @@ function createHarness() {
   const context = {
     PZ: PZ,
     editor: editor,
-    document: { createElement: fakeElement },
+    document: document,
     window: { ZoidiumUI: kit, confirm: () => true },
     lifecycle: lifecycle,
     getAsset(kind, url) {
@@ -157,7 +193,7 @@ function createHarness() {
       },
     },
   };
-  return { PZ, project, editor, tracks: editor.timeline.tracks, kit, context, windows, tabs, panels, notes, lifecycle };
+  return { PZ, project, editor, tracks: editor.timeline.tracks, kit, context, windows, tabs, panels, notes, lifecycle, document };
 }
 
 function loadModule() {
@@ -325,4 +361,159 @@ test("closing the compositions window unsubscribes it from project changes", () 
   const watchers = h.project.ui.onChanged.watchers.length;
   comps.close();
   assert.equal(h.project.ui.onChanged.watchers.length, watchers - 1);
+});
+
+function rightClick(h, clip) {
+  const el = h.tracks.container.querySelectorAll(".clip").find((candidate) => candidate.pz_object === clip);
+  assert.ok(el, "timeline element exists for the clip");
+  h.PZ.ui.timeline.tracks.prototype.clipContextMenu.call(h.tracks, {
+    currentTarget: el,
+    preventDefault() {},
+    stopPropagation() {},
+    clientX: 60,
+    clientY: 60,
+  });
+  return el;
+}
+
+function openMenu(h) {
+  const menus = h.document.body.children.filter((child) => child.tagName === "ul");
+  return menus[menus.length - 1];
+}
+
+function clickItem(menu, label) {
+  const item = menu.children.find((li) => li.innerText === label);
+  assert.ok(item, "menu has item " + label);
+  item.onclick({ stopPropagation() {}, preventDefault() {} });
+  return item;
+}
+
+test("right-click shows the composition menu; Pre-compose opens the dialog", () => {
+  const h = createHarness();
+  loadModule().activate(h.context);
+  const clip = addVideo(h, 0, 30, "A");
+
+  rightClick(h, clip);
+  const menu = openMenu(h);
+  assert.ok(menu, "menu opened");
+  assert.match(menu.children[0].innerText, /^Source: A \(Video\)/);
+  assert.deepEqual(
+    menu.children.slice(1).map((li) => li.innerText),
+    ["Rename layer", "Reveal source in Project", "Pre-compose selected", "Open source composition",
+      "Duplicate", "Split at playhead (C)", "Delete"]
+  );
+
+  clickItem(menu, "Pre-compose selected");
+  const dialog = h.windows[h.windows.length - 1];
+  assert.equal(dialog.id, "precomp-plus:precompose", "Pre-compose opens the existing dialog");
+
+  assert.equal(menu.removed, true, "choosing an item closes the menu");
+});
+
+test("Open source composition opens comp clips and explains plain clips", () => {
+  const h = createHarness();
+  loadModule().activate(h.context);
+  const clip = addVideo(h, 0, 30, "A");
+  h.tracks.selectedClips = [clip];
+  assert.equal(h.PZ.precomp.precompose(h.editor, "Comp 1").ok, true);
+
+  const main = h.project.sequence.videoTracks[0].clips[0];
+  rightClick(h, main);
+  clickItem(openMenu(h), "Open source composition");
+  assert.equal(h.PZ.precomp.activeName(h.editor), "Comp 1", "comp clip opens its composition");
+  h.PZ.precomp.openComp(h.editor, null);
+
+  const plain = addVideo(h, 40, 10, "Plain");
+  rightClick(h, plain);
+  clickItem(openMenu(h), "Open source composition");
+  const note = h.kit.notified.at(-1);
+  assert.equal(note.title, "Open source composition");
+  assert.match(note.message, /did not come from a composition/);
+});
+
+test("Reveal source falls back to describing the source when nothing matches", () => {
+  const h = createHarness();
+  loadModule().activate(h.context);
+  rightClick(h, addVideo(h, 0, 30, "A"));
+  clickItem(openMenu(h), "Reveal source in Project");
+  const note = h.kit.notified.at(-1);
+  assert.equal(note.title, "Reveal source in Project");
+  assert.match(note.message, /Source: A \(Video\)/);
+});
+
+test("Delete and Duplicate each run in one undo step", () => {
+  const h = createHarness();
+  loadModule().activate(h.context);
+  addVideo(h, 0, 30, "A");
+  const b = addVideo(h, 30, 30, "B");
+  const names = () => h.project.sequence.videoTracks[0].clips.map((clip) => clip.properties.name.v);
+
+  const undoDepth = h.editor.history.undoStack.length;
+  rightClick(h, b);
+  clickItem(openMenu(h), "Delete");
+  assert.deepEqual(names(), ["A"]);
+  assert.equal(h.editor.history.undoStack.length, undoDepth + 1, "delete is one undo step");
+  h.editor.history.undo();
+  assert.deepEqual(names(), ["A", "B"]);
+
+  rightClick(h, h.project.sequence.videoTracks[0].clips[0]);
+  clickItem(openMenu(h), "Duplicate");
+  assert.deepEqual(names(), ["A", "A", "B"]);
+  assert.equal(h.editor.history.undoStack.length, undoDepth + 1, "duplicate is one undo step");
+  h.editor.history.undo();
+  assert.deepEqual(names(), ["A", "B"]);
+});
+
+test("Split divides the clip in one undo step", () => {
+  const h = createHarness();
+  loadModule().activate(h.context);
+  const clip = addVideo(h, 0, 30, "A");
+
+  const undoDepth = h.editor.history.undoStack.length;
+  rightClick(h, clip);
+  clickItem(openMenu(h), "Split at playhead (C)");
+  const clips = h.project.sequence.videoTracks[0].clips;
+  assert.equal(clips.length, 2, "clip split in two");
+  assert.equal(clips[0].length + clips[1].length, 30);
+  assert.equal(h.editor.history.undoStack.length, undoDepth + 1, "split is one undo step");
+  h.editor.history.undo();
+  assert.equal(h.project.sequence.videoTracks[0].clips.length, 1);
+  assert.equal(h.project.sequence.videoTracks[0].clips[0].length, 30);
+});
+
+test("Rename edits the layer name in one undo step", () => {
+  const h = createHarness();
+  loadModule().activate(h.context);
+  const clip = addVideo(h, 0, 30, "A");
+  clip.properties.name.getAddress = function () { return this; };
+
+  const undoDepth = h.editor.history.undoStack.length;
+  const el = rightClick(h, clip);
+  clickItem(openMenu(h), "Rename layer");
+  const input = el.appended[el.appended.length - 1];
+  assert.equal(input.value, "A");
+  input.value = "Titles";
+  input.onblur();
+  assert.equal(clip.properties.name.v, "Titles");
+  assert.equal(h.editor.history.undoStack.length, undoDepth + 1, "rename is one undo step");
+  h.editor.history.undo();
+  assert.equal(clip.properties.name.v, "A");
+});
+
+test("Escape closes the menu; disposal restores the host menu", async () => {
+  const h = createHarness();
+  const before = h.PZ.ui.timeline.tracks.prototype.clipContextMenu;
+  loadModule().activate(h.context);
+  assert.notEqual(h.PZ.ui.timeline.tracks.prototype.clipContextMenu, before, "menu installed");
+
+  rightClick(h, addVideo(h, 0, 30, "A"));
+  const menu = openMenu(h);
+  h.document.listeners.keydown.forEach((fn) => fn({ key: "Escape", stopPropagation() {} }));
+  assert.equal(menu.removed, true, "Escape closes the menu");
+
+  rightClick(h, h.project.sequence.videoTracks[0].clips[0]);
+  const reopened = openMenu(h);
+  await h.lifecycle.dispose();
+  assert.equal(h.PZ.ui.timeline.tracks.prototype.clipContextMenu, before, "host menu restored");
+  assert.equal(reopened.removed, true, "open menus close on disable");
 });
