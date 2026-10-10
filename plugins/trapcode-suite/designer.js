@@ -100,6 +100,13 @@ var PZ = PZ || {};
         ".tc-params{flex:0 0 380px;display:flex;flex-direction:column;min-height:0;background:rgba(20,22,27,.86);border:1px solid rgba(255,255,255,.08);border-radius:14px;overflow:hidden;animation:tcRise .44s ease;box-shadow:0 12px 32px rgba(0,0,0,.45);}",
         ".tc-params.hidden{display:none;}",
         ":scope .tc-params>.zoidium-properties{flex:1 1 auto;min-height:0;background:transparent;}",
+        // CM3's curve/gradient pickers carry a fixed 245px inline width that
+        // overflows the parameter card once the label column takes its share.
+        // Constrain them to the card and give the box the dark input color.
+        // This skin CSS only applies inside the designer window, so the
+        // standard property panel keeps the normal CM3 look.
+        ".tc-params .editbox{min-width:0;max-width:100%;}",
+        ".tc-params .editbox>div{width:100%!important;max-width:100%;box-sizing:border-box;background:#202020;border:1px solid #1b1b1b;border-radius:3px;}",
         ".tc-presets::-webkit-scrollbar,.tc-strip::-webkit-scrollbar,.tc-systems::-webkit-scrollbar,.tc-params .zoidium-properties::-webkit-scrollbar{width:10px;height:10px;}",
         ".tc-presets::-webkit-scrollbar-track,.tc-strip::-webkit-scrollbar-track,.tc-systems::-webkit-scrollbar-track,.tc-params .zoidium-properties::-webkit-scrollbar-track{background:transparent;}",
         ".tc-presets::-webkit-scrollbar-thumb,.tc-strip::-webkit-scrollbar-thumb,.tc-systems::-webkit-scrollbar-thumb,.tc-params .zoidium-properties::-webkit-scrollbar-thumb{background:rgba(255,255,255,.14);border-radius:8px;border:2px solid transparent;background-clip:content-box;}",

@@ -6,7 +6,10 @@
  * form (box grid, sphere, cylinder, ...) can be deformed by disperse, twist,
  * spherical fields, a fractal field, fluid motion and kaleidospace mirrors.
  * Layer maps and a 3D model or mask image drive the base shape. Strings
- * connect neighbouring points.
+ * connect neighbouring points. The Shading group mirrors the donor controls
+ * (kept as authored state; the point shader stays unlit, as in the donor).
+ * The Audio React group drives size, opacity, disperse, fractal and twist
+ * from deterministic offline audio analysis (never a live analyser).
  *
  * Determinism: the output of update(e) is a pure function of the property
  * values at time e and of the decoded asset data. Base geometry is rebuilt
@@ -167,12 +170,14 @@ var PZ = PZ || {};
                     name: PZ.property.create(PZ.object3d.form.instance.propertyDefinitions.name),
                     base: new PZ.propertyList(PZ.object3d.form.instance.baseDefinitions),
                     particle: new PZ.propertyList(PZ.object3d.form.instance.particleDefinitions),
+                    shading: new PZ.propertyList(PZ.object3d.form.instance.shadingDefinitions),
                     disperse: new PZ.propertyList(PZ.object3d.form.instance.disperseDefinitions),
                     fluid: new PZ.propertyList(PZ.object3d.form.instance.fluidDefinitions),
                     fractal: new PZ.propertyList(PZ.object3d.form.instance.fractalDefinitions),
                     spherical: new PZ.propertyList(PZ.object3d.form.instance.sphericalDefinitions),
                     kaleidospace: new PZ.propertyList(PZ.object3d.form.instance.kaleidoDefinitions),
                     layerMaps: new PZ.propertyList(PZ.object3d.form.instance.layerMapDefinitions),
+                    audio: new PZ.propertyList(PZ.object3d.form.instance.audioDefinitions),
                     transform: new PZ.propertyList(PZ.object3d.form.instance.transformDefinitions),
                 },
                 this
@@ -180,12 +185,14 @@ var PZ = PZ || {};
             var groups = {
                 base: "Base Form",
                 particle: "Particle",
+                shading: "Shading",
                 disperse: "Disperse and Twist",
                 fluid: "Fluid",
                 fractal: "Fractal Field",
                 spherical: "Spherical Field",
                 kaleidospace: "Kaleidospace",
                 layerMaps: "Layer Maps",
+                audio: "Audio React",
                 transform: "Transform",
             };
             for (var g in groups) {
@@ -370,11 +377,51 @@ var PZ = PZ || {};
                     return T.sampleImageAsset(project, value, 128);
                 }));
             }
+            // Decoded audio for the reactors (offline analysis, never live).
+            // Requested only while at least one reactor is on.
+            var formAudio = this.properties.audio;
+            if (formAudio && this.audioReactorsOn(t)) {
+                var audioProject = T.findParent(this, PZ.project);
+                entries.push(this._assets.request("audio", formAudio.audioLayer.get(t), function (value) {
+                    return T.audioAnalysis.load(audioProject, value).then(function () { return true; }, function () { return null; });
+                }));
+            }
             return entries.filter(Boolean);
         }
         // Called when any asset settles: re-run the frame that was last shown.
         assetSettled() {
             if (this._time !== undefined && this.material) this.update(this._time);
+        }
+        // True while at least one audio reactor is switched on.
+        audioReactorsOn(t) {
+            var audio = this.properties.audio;
+            if (!audio) return false;
+            for (var i = 1; i <= 5; i++) {
+                if (audio["reactor" + i] && audio["reactor" + i].get(t) === 1) return true;
+            }
+            return false;
+        }
+        sceneRate() {
+            var sequence = T.findParent(this, PZ.sequence);
+            return sequence ? sequence.properties.rate.get(PZ.trapcode.currentTime) || 1 : 1;
+        }
+        // Deterministic audio level 0..1 for project frame e from the offline
+        // analysis (T.audioAnalysis, decoded in prepare()). Neutral 0 while no
+        // reactor is on, while no layer is picked, while the clip time falls
+        // outside the media, or while the source is not decoded yet. A pure
+        // function of the decoded samples and the media time: shuffled frame
+        // order, scrub direction and repeated redraws all read the same level.
+        audioLevel(e) {
+            var t = PZ.trapcode.currentTime;
+            var audio = this.properties.audio;
+            if (!audio || !this.audioReactorsOn(t)) return 0;
+            var source = audio.audioLayer.get(t);
+            if (!source) return 0;
+            var media = T.audioClipTime(this, source, e, this.sceneRate());
+            if (!(media >= 0)) return 0;
+            var level = T.audioAnalysis.levelAt(source, media);
+            if (level === null || !(level >= 0)) return 0;
+            return Math.min(1, level);
         }
         // Rebuilds the particle attributes for a new grid size.
         ensureGeometry(count) {
@@ -556,7 +603,8 @@ var PZ = PZ || {};
                 T.fillCurve(this.palettes.opacityOver, opacityCurve, opacityEnabled);
             }
         }
-        applyDeformations(count) {
+        applyDeformations(count, audio) {
+            var audioMult = audio || { disperse: 1, twist: 1, fractal: 1 };
             var out = this.outPositions;
             out.set(this.basePositions);
             var t = PZ.trapcode.currentTime;
@@ -575,8 +623,8 @@ var PZ = PZ || {};
             var cosZ = Math.cos((rotation[2] * Math.PI) / 180);
             var sinZ = Math.sin((rotation[2] * Math.PI) / 180);
 
-            var disperseAmount = disperse.disperse.get(t);
-            var twist = disperse.twist.get(t);
+            var disperseAmount = disperse.disperse.get(t) * audioMult.disperse;
+            var twist = disperse.twist.get(t) * audioMult.twist;
             var sphereStrength = spherical.strength.get(t) / 100;
             var sphereCenterRaw = spherical.position.get(t);
             var sphereRadius = spherical.radius.get(t);
@@ -595,9 +643,9 @@ var PZ = PZ || {};
             var sphere2Strength = spherical.sphere2Strength.get(t) / 100;
             var sphere2CenterRaw = spherical.sphere2Position.get(t);
             var sphere2Radius = spherical.sphere2Radius.get(t);
-            var fractalAmount = fractal.displace.get(t);
-            var fractalY = fractal.yDisplace.get(t);
-            var fractalZ = fractal.zDisplace.get(t);
+            var fractalAmount = fractal.displace.get(t) * audioMult.fractal;
+            var fractalY = fractal.yDisplace.get(t) * audioMult.fractal;
+            var fractalZ = fractal.zDisplace.get(t) * audioMult.fractal;
             var dispMode = fractal.displacementMode.get(t);
             var affectSize = fractal.affectSize.get(t);
             var affectOpacity = fractal.affectOpacity.get(t);
@@ -986,13 +1034,29 @@ var PZ = PZ || {};
             var stringsOn = base.stringEnabled.get(t) === 1;
             if (this._stringKey !== counts.join(",") + "|" + stringsOn) this.rebuildStrings(counts, stringsOn);
             this.updatePalettes();
-            this.applyDeformations(count);
+            // Audio reactors (deterministic offline levels; all multipliers
+            // are 1 while no reactor is on, so existing projects render
+            // identically). Reactor 1 drives size, 2 opacity, 3 disperse,
+            // 4 fractal displacement, 5 twist.
+            var formAudio = this.properties.audio;
+            var audioLevel = this.audioLevel(e);
+            var audioMult = { disperse: 1, twist: 1, fractal: 1 };
+            var reactorSize = 1;
+            var reactorOpacity = 1;
+            if (formAudio && audioLevel > 0) {
+                if (formAudio.reactor1.get(t) === 1) reactorSize = 1 + audioLevel;
+                if (formAudio.reactor2.get(t) === 1) reactorOpacity = 1 + audioLevel;
+                if (formAudio.reactor3.get(t) === 1) audioMult.disperse = 1 + audioLevel;
+                if (formAudio.reactor4.get(t) === 1) audioMult.fractal = 1 + audioLevel;
+                if (formAudio.reactor5.get(t) === 1) audioMult.twist = 1 + audioLevel;
+            }
+            this.applyDeformations(count, audioMult);
 
             var particle = this.properties.particle;
             var u = this.material.uniforms;
-            u.size.value = particle.size.get(t);
+            u.size.value = particle.size.get(t) * reactorSize;
             u.sizeRandom.value = particle.sizeRandom.get(t) / 100;
-            u.opacity.value = particle.opacity.get(t) / 100;
+            u.opacity.value = Math.min(1, particle.opacity.get(t) / 100 * reactorOpacity);
             var tint = particle.color.get(t);
             u.colorTint.value.set(tint[0], tint[1], tint[2], 1);
             var additive = particle.blending.get(t) === 1;
@@ -1187,6 +1251,10 @@ var PZ = PZ || {};
         position: vector3("Position", [0, 0, 0], { step: 1 }),
         rotation: vector3("Rotation", [0, 0, 0], { step: 1 }),
         stringEnabled: option("Strings", 0, "off;on"),
+        stringSize: number("String size", 0, { min: 0, step: 0.01, decimals: 2 }),
+        stringDensity: number("String density", 15, { min: 0, step: 1 }),
+        stringSizeRandom: number("String size random", 0, { min: 0, step: 0.01, decimals: 2 }),
+        stringPosition: number("String position distribution", 0, { min: 0, step: 0.01, decimals: 2 }),
         modelAsset: {
             name: "3D model",
             type: PZ.property.type.ASSET,
@@ -1238,6 +1306,19 @@ var PZ = PZ || {};
         },
         colorOver: gradientProperty("Color Over"),
         blending: option("Blend Mode", 0, "normal;add", true),
+    };
+
+    PZ.object3d.form.instance.shadingDefinitions = {
+        name: { name: "Name", type: PZ.property.type.TEXT, value: "Shading", visible: false },
+        shading: option("Shading", 0, "off;on", true),
+        lightFalloff: option("Light Falloff", 0, "natural (lux);inverse square;inverse cube;none", false),
+        nominalDistance: number("Nominal Distance", 250, { step: 1 }),
+        ambient: number("Ambient", 20, { min: 0, max: 100, step: 0.1, decimals: 1 }),
+        diffuse: number("Diffuse", 80, { min: 0, max: 100, step: 0.1, decimals: 1 }),
+        specularAmount: number("Specular Amount", 0, { min: 0, max: 100, step: 0.1, decimals: 1 }),
+        specularSharpness: number("Specular Sharpness", 100, { min: 0, max: 100, step: 0.1, decimals: 1 }),
+        reflectionStrength: number("Reflection Strength", 100, { min: 0, step: 0.1, decimals: 1 }),
+        shadowlet: option("Shadowlet", 0, "off;on", false),
     };
 
     PZ.object3d.form.instance.disperseDefinitions = {
@@ -1326,6 +1407,22 @@ var PZ = PZ || {};
         rotateLayer: imageAsset("Rotate Layer"),
     };
 
+    PZ.object3d.form.instance.audioDefinitions = {
+        name: { name: "Name", type: PZ.property.type.TEXT, value: "Audio React", visible: false },
+        audioLayer: {
+            name: "Audio Layer",
+            type: PZ.property.type.ASSET,
+            assetType: PZ.asset.type.AV,
+            accept: "audio/*,video/*",
+            value: null,
+        },
+        reactor1: option("Reactor 1 (size)", 0, "off;on", true),
+        reactor2: option("Reactor 2 (opacity)", 0, "off;on", true),
+        reactor3: option("Reactor 3 (disperse)", 0, "off;on", true),
+        reactor4: option("Reactor 4 (fractal)", 0, "off;on", true),
+        reactor5: option("Reactor 5 (twist)", 0, "off;on", true),
+    };
+
     PZ.object3d.form.instance.transformDefinitions = {
         name: { name: "Name", type: PZ.property.type.TEXT, value: "Transform", visible: false },
         scale: number("Scale", 100, { min: 0, step: 1 }),
@@ -1364,12 +1461,14 @@ var PZ = PZ || {};
                 return [
                     { key: "base", name: "Type" },
                     { key: "particle", name: "Particle" },
+                    { key: "shading", name: "Shading" },
                     { key: "disperse", name: "Disperse" },
                     { key: "fluid", name: "Fluid" },
                     { key: "fractal", name: "Fractal" },
                     { key: "spherical", name: "Spherical" },
                     { key: "kaleidospace", name: "Kaleido" },
                     { key: "layerMaps", name: "Layer Maps" },
+                    { key: "audio", name: "Audio" },
                     { key: "transform", name: "Transform" },
                 ];
             },

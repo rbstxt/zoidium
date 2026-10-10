@@ -513,3 +513,18 @@ test("after the binding is released no window opens", () => {
     assert.equal(ui.openCalls.length, 0);
   });
 });
+
+test("curve and gradient picker controls are constrained to the parameter card", () => {
+  const { designer } = setup();
+  const css = designer.skinCss;
+  // CM3's pickers carry a fixed 245px inline width that overflows the card;
+  // the designer skin caps them at the card width with dark input colors.
+  assert.ok(css.includes(".tc-params .editbox"), "editbox scope rule");
+  assert.ok(css.includes("max-width:100%"), "width cap");
+  assert.ok(css.includes("width:100%!important"), "inline-width override");
+  assert.ok(css.includes("background:#202020"), "dark input color");
+  // Scoped to the designer window only: no bare global control selectors.
+  for (const line of css.split("\n")) {
+    assert.ok(!line.startsWith(".editbox"), "no unscoped control rule: " + line.slice(0, 60));
+  }
+});
