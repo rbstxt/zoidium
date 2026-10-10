@@ -6,7 +6,7 @@
 // state. Positions are flat Float32Array [x, y, z, ...].
 
 const MAX_SMOOTH_TRIANGLES = 400000;
-const SMOOTH_TRIANGLE_BUDGET_MIN_POLYGONS = 2;
+const SMOOTH_TRIANGLE_BUDGET_MIN_POLYGONS = 4;
 const TINY = 1e-9;
 const SERIES_LIMIT = 1e-4;
 // Rotation planes used by a twist about each axis (X, Y, Z).
@@ -109,11 +109,102 @@ function fieldWeight(x, y, z, type, position, scale) {
   return Number.isFinite(weight) ? clampUnit(weight) : 0;
 }
 
+// XYZ Euler rotation; inverse applies the reversed operations.
+function rotateXYZ(point, degrees, inverse = false) {
+  const out = point.slice();
+  for (const axis of inverse ? [2, 1, 0] : [0, 1, 2]) {
+    const [a, b] = TWIST_PLANES[axis];
+    const angle = finiteOr(degrees[axis], 0) * Math.PI / 180 * (inverse ? -1 : 1);
+    const c = Math.cos(angle), s = Math.sin(angle), x = out[a], y = out[b];
+    out[a] = c * x - s * y; out[b] = s * x + c * y;
+  }
+  return out;
+}
+
+function valueNoise(x, y, z, seed) {
+  const ix = Math.floor(x), iy = Math.floor(y), iz = Math.floor(z);
+  const smooth = t => t * t * (3 - 2 * t);
+  const tx = smooth(x - ix), ty = smooth(y - iy), tz = smooth(z - iz);
+  let value = 0;
+  for (let a = 0; a < 2; a++) for (let b = 0; b < 2; b++) for (let c = 0; c < 2; c++) {
+    const index = Math.imul(ix + a, 73856093) ^ Math.imul(iy + b, 19349663) ^ Math.imul(iz + c, 83492791);
+    value += hash01(seed, index, 91) * (a ? tx : 1 - tx) * (b ? ty : 1 - ty) * (c ? tz : 1 - tz);
+  }
+  return value;
+}
+
+// Bounds come from pristine input positions in effector space, never moved vertices.
+function prepareField(field, positions, matrix) {
+  if (!field) return null;
+  if (!field.type) return field;
+  const rotation = field.rotation || [0, 0, 0];
+  const position = field.position || [0, 0, 0];
+  const min = [Infinity, Infinity, Infinity], max = [-Infinity, -Infinity, -Infinity];
+  const direction = rotateXYZ([1, 0, 0], rotation);
+  let low = Infinity, high = -Infinity;
+  for (let i = 0; i < positions.length; i += 3) {
+    let x = positions[i], y = positions[i + 1], z = positions[i + 2];
+    if (matrix) {
+      const px = x, py = y, pz = z;
+      x = matrix[0] * px + matrix[4] * py + matrix[8] * pz + matrix[12];
+      y = matrix[1] * px + matrix[5] * py + matrix[9] * pz + matrix[13];
+      z = matrix[2] * px + matrix[6] * py + matrix[10] * pz + matrix[14];
+    }
+    min[0] = Math.min(min[0], x); max[0] = Math.max(max[0], x);
+    min[1] = Math.min(min[1], y); max[1] = Math.max(max[1], y);
+    min[2] = Math.min(min[2], z); max[2] = Math.max(max[2], z);
+    const projected = x * direction[0] + y * direction[1] + z * direction[2];
+    low = Math.min(low, projected); high = Math.max(high, projected);
+  }
+  const extent = max.map((v, i) => Math.max(v - min[i], TINY));
+  const rawScale = field.scale || [100, 100, 100];
+  const scale = rawScale.map((v, i) => Math.max(Math.abs(v) * extent[i] / 100, TINY));
+  return { ...field, rotation, position, worldScale: scale, low, high };
+}
+
+function evaluateField(x, y, z, field) {
+  if (!field) return 1;
+  const type = clampIndex(field.type, 5);
+  if (!type) return field.invert ? 0 : 1;
+  const rotation = field.rotation || [0, 0, 0];
+  const legacy = (field.legacy || field.falloff === undefined) && rotation.every(v => !v) &&
+    finiteOr(field.sweep, 100) === 100 && finiteOr(field.falloff, 100) === 100 && !field.curve && !field.invert;
+  if (legacy && type <= 3) return fieldWeight(x, y, z, type, field.position, field.scale);
+  const p = field.position || [0, 0, 0];
+  const q = rotateXYZ([x - p[0], y - p[1], z - p[2]], rotation, true);
+  const scale = field.worldScale || field.scale || [100, 100, 100];
+  const sx = Math.max(Math.abs(scale[0]), TINY), sy = Math.max(Math.abs(scale[1]), TINY), sz = Math.max(Math.abs(scale[2]), TINY);
+  const falloff = clampUnit(finiteOr(field.falloff, 100) / 100);
+  let weight = 1;
+  if (type === 1) {
+    const sweep = clampUnit(finiteOr(field.sweep, 100) / 100);
+    const low = finiteOr(field.low, -sx / 2), high = finiteOr(field.high, sx / 2);
+    const width = Math.max((high - low) * falloff, TINY);
+    const plane = low - width + (high - low + width) * sweep;
+    weight = sweep === 0 ? 0 : sweep === 1 ? 1 : falloff ? clampUnit((plane + width - q[0]) / width) : Number(q[0] <= plane);
+  } else if (type >= 2 && type <= 4) {
+    const dx = q[0] / (sx / 2), dy = q[1] / (sy / 2), dz = q[2] / (sz / 2);
+    const distance = type === 2 ? Math.max(Math.abs(dx), Math.abs(dy), Math.abs(dz)) :
+      type === 3 ? Math.hypot(dx, dy, dz) : Math.max(Math.hypot(dx, dz), Math.abs(dy));
+    weight = falloff ? clampUnit((1 - distance) / falloff) : Number(distance <= 1);
+  } else if (type === 5) {
+    const ns = Math.max(Math.abs(finiteOr(field.noiseScale, 100)) / 100, TINY);
+    const evolution = finiteOr(field.evolution, 0);
+    weight = valueNoise(q[0] / sx / ns + evolution, q[1] / sy / ns + evolution * 0.73, q[2] / sz / ns + evolution * 0.37, field.seed || 1);
+    weight = falloff ? clampUnit((weight - 0.5) / falloff + 0.5) : Number(weight >= 0.5);
+  }
+  const curve = clampIndex(field.curve, 3);
+  if (curve === 1) weight = weight * weight * (3 - 2 * weight);
+  if (curve === 2) weight *= weight;
+  if (curve === 3) weight = 1 - (1 - weight) * (1 - weight);
+  return field.invert ? 1 - weight : weight;
+}
+
 // Rotates vertices about one axis by a continuous angle (radians). The pivot is
 // the midpoint of the object's extent along the axis plus an offset, and the
 // angle scales linearly across the extent, so the transform is continuous.
 // Positions are changed in place. Zero size or zero angle is an identity.
-function twistPositions(positions, angle, axis, offset) {
+function twistPositions(positions, angle, axis, offset, field) {
   if (!angle || !Number.isFinite(angle)) return positions;
   const along = clampIndex(axis, 2);
   const bounds = axisBounds(positions, along);
@@ -121,9 +212,10 @@ function twistPositions(positions, angle, axis, offset) {
   const size = bounds[1] - bounds[0];
   if (!(size > 0) || !Number.isFinite(size)) return positions;
   const pivot = 0.5 * (bounds[0] + bounds[1]) + finiteOr(offset, 0);
+  const prepared = prepareField(field, positions);
   const [first, second] = TWIST_PLANES[along];
   for (let index = 0; index + 2 < positions.length; index += 3) {
-    const theta = angle * ((positions[index + along] - pivot) / size);
+    const theta = angle * ((positions[index + along] - pivot) / size) * evaluateField(positions[index], positions[index + 1], positions[index + 2], prepared);
     const cosine = Math.cos(theta);
     const sine = Math.sin(theta);
     const firstValue = positions[index + first];
@@ -161,22 +253,9 @@ function warpPositions(positions, strength, axis, offset, field) {
   if (!(size > 0) || !Number.isFinite(size)) return positions;
   const pivot = 0.5 * (bounds[0] + bounds[1]) + finiteOr(offset, 0);
   const curvature = strength / size;
-  const fieldType = field ? clampIndex(field.type, 3) : 0;
-  const fieldPosition = field ? field.position : null;
-  const fieldScale = field ? field.scale : null;
+  const prepared = prepareField(field, positions);
   for (let index = 0; index + 2 < positions.length; index += 3) {
-    let weight = 1;
-    if (fieldType) {
-      weight = fieldWeight(
-        positions[index],
-        positions[index + 1],
-        positions[index + 2],
-        fieldType,
-        fieldPosition,
-        fieldScale
-      );
-      if (weight <= 0) continue;
-    }
+    const weight = evaluateField(positions[index], positions[index + 1], positions[index + 2], prepared);
     const effective = curvature * weight;
     if (!effective) continue;
     const along = positions[index + alongAxis] - pivot;
@@ -273,13 +352,22 @@ function transformPoint(point, m) {
   ];
 }
 
+function subdivisionPolygons(value) {
+  return 4 ** Math.min(4, Math.max(0, Math.round(Math.log(Math.max(1, finiteOr(value, 1))) / Math.log(4))));
+}
+
+function budgetSubdivision(requested, budget) {
+  let count = subdivisionPolygons(requested);
+  while (count > budget && count > 1) count /= 4;
+  return count;
+}
+
 function clampPolygonCount(value) {
   return Math.min(MAX_SMOOTH_TRIANGLES, Math.max(1, Math.round(finiteOr(value, 1))));
 }
 
 // Triangle templates for Smooth curve quality. Each template is three
-// barycentric weight vectors. Splitting is deterministic and reaches any count
-// from 1 to the request by quadrisection and then bisection.
+// barycentric weight vectors. Uniform quadrisection keeps shared edges aligned.
 const templateCache = new Map();
 
 function midpoint(first, second) {
@@ -302,31 +390,8 @@ function splitFour([first, second, third]) {
   ];
 }
 
-function squaredDistance(first, second) {
-  const x = first[0] - second[0];
-  const y = first[1] - second[1];
-  const z = first[2] - second[2];
-  return x * x + y * y + z * z;
-}
-
-function splitTwo([first, second, third]) {
-  const firstSecond = squaredDistance(first, second);
-  const secondThird = squaredDistance(second, third);
-  const thirdFirst = squaredDistance(third, first);
-  if (firstSecond >= secondThird && firstSecond >= thirdFirst) {
-    const edge = midpoint(first, second);
-    return [[first, edge, third], [edge, second, third]];
-  }
-  if (secondThird >= thirdFirst) {
-    const edge = midpoint(second, third);
-    return [[second, edge, first], [edge, third, first]];
-  }
-  const edge = midpoint(third, first);
-  return [[third, edge, second], [edge, first, second]];
-}
-
 function getSubdivisionTemplate(polygonCount) {
-  const target = clampPolygonCount(polygonCount);
+  const target = subdivisionPolygons(polygonCount);
   if (templateCache.has(target)) return templateCache.get(target);
   let triangles = [{ vertices: [[1, 0, 0], [0, 1, 0], [0, 0, 1]], depth: 0 }];
   while (triangles.length * 4 <= target) {
@@ -337,19 +402,6 @@ function getSubdivisionTemplate(polygonCount) {
       }
     }
     triangles = next;
-  }
-  while (triangles.length < target) {
-    let splitIndex = 0;
-    for (let index = 1; index < triangles.length; index += 1) {
-      if (triangles[index].depth < triangles[splitIndex].depth) splitIndex = index;
-    }
-    const triangle = triangles[splitIndex];
-    const depth = triangle.depth + 1;
-    triangles.splice(
-      splitIndex,
-      1,
-      ...splitTwo(triangle.vertices).map((vertices) => ({ vertices, depth }))
-    );
   }
   const result = triangles.map((triangle) => triangle.vertices);
   templateCache.set(target, result);
@@ -450,6 +502,11 @@ module.exports = {
   boundsOf,
   clampIndex,
   clampPolygonCount,
+  subdivisionPolygons,
+  budgetSubdivision,
+  prepareField,
+  evaluateField,
+  rotateXYZ,
   clampUnit,
   fieldWeight,
   finiteOr,

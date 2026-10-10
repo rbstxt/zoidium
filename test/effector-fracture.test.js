@@ -288,3 +288,58 @@ test("curved closed surfaces keep every edge shared by exactly two faces", () =>
     assert.ok(Math.abs(signedVolumeByPiece(stage).reduce((a, b) => a + b, 0) - volume) < 1e-5);
   }
 });
+
+test("all source distributions and anisotropic cells partition the original surface deterministically", () => {
+  for (const distribution of [0, 1, 2, 3]) {
+    const options = { cells: 8, seed: 7, closed: false, distribution, cellScale: [200, 70, 100] };
+    const a = fracture.buildVoronoiFracture({ positions: cubePositions() }, options);
+    const b = fracture.buildVoronoiFracture({ positions: cubePositions() }, options);
+    assert.equal(a.error, undefined);
+    assert.deepEqual(a.positions, b.positions);
+    let area = 0;
+    for (let t = 0; t < a.count / 3; t++) area += triangleArea(a, t);
+    assert.ok(Math.abs(area - 6) < 1e-4);
+  }
+});
+
+test("expanded motion and animated fields are deterministic in shuffled frame order and reuse topology", () => {
+  const { evaluateMesh, createStageCache } = require("../plugins/scene-plus/effector-evaluate.js");
+  const core = require("../plugins/scene-plus/effector-core.js");
+  const base = { positions: cubePositions(), count: 36, attributes: {}, groups: [], index: null };
+  const topology = { cells: 8, seed: 13, closed: true, distribution: 2, cellScale: [150, 100, 70] };
+  const stage = fracture.buildVoronoiFracture(base, topology);
+  const motion = t => ({ distance: t, scatter: t / 2, spin: t, offset: 10 * t, direction: [t, 2 * t, -t], rotation: [40 * t, 80 * t, 15 * t], fragmentScale: 100 - 30 * t, gravity: t * 2, randomness: 50,
+    field: { type: 1, position: [0, 0, 0], scale: [100, 100, 100], rotation: [0, 0, 30], falloff: 40, sweep: 100 * t } });
+  const cache = createStageCache(); let builds = 0;
+  const tracked = { get(key, build) { return cache.get(key, () => { builds++; return build(); }); } };
+  const run = t => evaluateMesh({ base, polygonCount: 1, sourceId: "expanded", commands: [{ kind: "fracture", topology, motion: motion(t), relation: { identity: true } }] }, tracked);
+  const expected = new Map([0, 0.5, 1].map(t => [t, run(t).positions]));
+  for (const t of [1, 0, 0.5, 1, 0.5, 0]) {
+    const result = run(t);
+    assert.deepEqual(result.positions, expected.get(t));
+    const reference = new Float32Array(stage.positions);
+    fracture.applyFragmentMotion(reference, stage, motion(t));
+    assert.deepEqual(result.positions, reference, "worker evaluator and reference agree");
+    assert.ok(Array.from(result.positions).every(Number.isFinite));
+  }
+  assert.equal(builds, 1, "motion and field changes do not rebuild topology");
+  assert.deepEqual(expected.get(0), stage.positions, "Sweep zero keeps every piece pristine");
+  const changed = run(1);
+  assert.notDeepEqual(changed.positions, stage.positions);
+  const hard = { ...motion(1), field: { ...motion(1).field, sweep: 50, falloff: 0 } };
+  const work = new Float32Array(stage.positions); fracture.applyFragmentMotion(work, stage, hard);
+  const prepared = core.prepareField(hard.field, stage.positions);
+  for (let v = 0; v < stage.pieceIds.length; v++) {
+    const piece = stage.pieceIds[v], centroid = stage.pieceCentroids.slice(piece * 3, piece * 3 + 3);
+    if (!core.evaluateField(...centroid, prepared)) assert.deepEqual(work.slice(v * 3, v * 3 + 3), stage.positions.slice(v * 3, v * 3 + 3));
+  }
+});
+
+test("anisotropic closed fragments conserve volume for all distributions", () => {
+  for (const distribution of [0, 1, 2, 3]) {
+    const stage = fracture.buildVoronoiFracture({ positions: cubePositions() }, { cells: 6, seed: 17, closed: true, distribution, cellScale: [220, 70, 100] });
+    assert.equal(stage.error, undefined);
+    const volume = Array.from(signedVolumeByPiece(stage)).reduce((sum, value) => sum + value, 0);
+    assert.ok(Math.abs(volume - 1) < 1e-5, `${distribution}: ${volume}`);
+  }
+});

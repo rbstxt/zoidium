@@ -141,7 +141,8 @@ function capPolygon(points, plane, tolerance) {
 // Convex cells from bisector half-spaces, clipped to the padded box. Planes that
 // never cut a cell are redundant and are dropped, which keeps per-triangle
 // clipping cheap.
-function buildCells(sites, low, high, eps) {
+function buildCells(sites, low, high, eps, metric = [1, 1, 1]) {
+  const squared = point => point.reduce((sum, v, i) => sum + v * v * metric[i], 0);
   const box = [
     [[low[0], low[1], low[2]], [high[0], low[1], low[2]], [high[0], high[1], low[2]], [low[0], high[1], low[2]]],
     [[low[0], low[1], high[2]], [high[0], low[1], high[2]], [high[0], high[1], high[2]], [low[0], high[1], high[2]]],
@@ -153,18 +154,18 @@ function buildCells(sites, low, high, eps) {
   return sites.map((site, cellIndex) => {
     let faces = box;
     const planes = [];
-    const siteSquared = dot3(site, site);
+    const siteSquared = squared(site);
     for (let other = 0; other < sites.length; other += 1) {
       if (other === cellIndex) continue;
       const target = sites[other];
-      const delta = [target[0] - site[0], target[1] - site[1], target[2] - site[2]];
+      const delta = target.map((v, i) => (v - site[i]) * metric[i]);
       const length = Math.sqrt(dot3(delta, delta));
       if (!(length > 1e-28)) continue;
       const plane = {
         nx: delta[0] / length,
         ny: delta[1] / length,
         nz: delta[2] / length,
-        d: (dot3(target, target) - siteSquared) / (2 * length),
+        d: (squared(target) - siteSquared) / (2 * length),
       };
       const clipped = clipFaces(faces, plane, eps);
       if (clipped.cut) {
@@ -452,7 +453,8 @@ function pieceColor(seed, piece) {
 }
 
 // Builds the cached fracture stage for one input. `source` is
-// {positions, index?, uvs?}; `options` is {cells, seed, closed}. Returns a stage
+// {positions, index?, uvs?}; options includes cells, seed, closed, distribution,
+// and cellScale. Returns a stage
 // (kind "fracture") or {error} when a limit is hit or the input is unusable.
 function buildVoronoiFracture(source, options, limits) {
   const limit = Object.assign({}, DEFAULT_LIMITS, limits || {});
@@ -482,17 +484,35 @@ function buildVoronoiFracture(source, options, limits) {
   const planeEpsilon = maxExtent * 1e-9;
   const weldEpsilon = maxExtent * 1e-7;
 
+  const distribution = core.clampIndex(options.distribution, 3);
+  const cellScale = options.cellScale || [100, 100, 100];
+  const metric = cellScale.map(v => 1 / Math.max(Math.abs(core.finiteOr(v, 100)) / 100, 0.0001) ** 2);
+  const areas = [];
+  let totalArea = 0;
+  if (distribution === 1) for (let t = 0; t < triangleCount; t++) {
+    const points = [0, 1, 2].map(c => Array.from(positions.slice(vertexAt(t, c) * 3, vertexAt(t, c) * 3 + 3)));
+    const a = points[1].map((v, i) => v - points[0][i]), b = points[2].map((v, i) => v - points[0][i]);
+    totalArea += Math.hypot(...cross3(a, b)) / 2;
+    areas.push(totalArea);
+  }
   const sites = [];
   for (let cell = 0; cell < cells; cell += 1) {
-    sites.push([
-      bounds.min[0] + size[0] * core.hash01(seed, cell, 0),
-      bounds.min[1] + size[1] * core.hash01(seed, cell, 1),
-      bounds.min[2] + size[2] * core.hash01(seed, cell, 2),
-    ]);
+    let unit = [0, 1, 2].map(i => core.hash01(seed, cell, i));
+    if (distribution === 1 && totalArea > 0) {
+      const target = core.hash01(seed, cell, 3) * totalArea;
+      let lo = 0, hi = areas.length - 1;
+      while (lo < hi) { const mid = (lo + hi) >>> 1; if (areas[mid] < target) lo = mid + 1; else hi = mid; }
+      const u = Math.sqrt(unit[0]), v = unit[1], weights = [1 - u, u * (1 - v), u * v];
+      sites.push([0, 1, 2].map(i => weights.reduce((sum, w, c) => sum + w * positions[vertexAt(lo, c) * 3 + i], 0)));
+      continue;
+    }
+    if (distribution === 2) unit = unit.map(v => 0.5 + Math.sign(v - 0.5) * 0.5 * (2 * Math.abs(v - 0.5)) ** 2);
+    if (distribution === 3) unit = unit.map(v => 0.5 + Math.sign(v - 0.5) * 0.5 * Math.sqrt(2 * Math.abs(v - 0.5)));
+    sites.push(unit.map((v, i) => bounds.min[i] + size[i] * v));
   }
   const low = bounds.min.map((value) => value - padding);
   const high = bounds.max.map((value) => value + padding);
-  const cellInfo = buildCells(sites, low, high, planeEpsilon);
+  const cellInfo = buildCells(sites, low, high, planeEpsilon, metric);
 
   // Clip a closed surface one plane at a time. Caps made on an earlier plane
   // participate in the next cut, so cell ridges join two planar caps. Capping
@@ -687,7 +707,7 @@ function assembleStage(parts) {
 // a function of (seed, piece index, property values): translation along the
 // piece's direction from the fracture centre, seeded scatter, a seeded rotation
 // about a seeded axis, and a shrink toward the piece centroid. Field weights
-// scale all four terms. `matrix` maps the stage's local frame to the deformer's
+// scale every motion term. `matrix` maps the stage's local frame to the deformer's
 // frame. The per-vertex positions are updated in place.
 function applyFragmentMotion(positions, stage, motion, matrix) {
   if (!stage || !stage.pieceIds || !stage.pieceCentroids) return positions;
@@ -698,7 +718,12 @@ function applyFragmentMotion(positions, stage, motion, matrix) {
   const offset = core.finiteOr(motion.offset, 0);
   const spin = core.finiteOr(motion.spin, 0);
   const field = motion.field || null;
-  const fieldType = field ? core.clampIndex(field.type, 3) : 0;
+  const preparedField = core.prepareField(field, stage.positions, matrix);
+  const direction = motion.direction || [0, 0, 0];
+  const explicitRotation = motion.rotation || [0, 0, 0];
+  const fragmentScale = core.finiteOr(motion.fragmentScale, 100);
+  const gravity = core.finiteOr(motion.gravity, 0);
+  const randomness = core.clampUnit(core.finiteOr(motion.randomness, 0) / 100);
   const center = matrix ? core.transformPoint(stage.center, matrix) : stage.center.slice();
   const shift = new Float64Array(cells * 3);
   const centroid = new Float64Array(cells * 3);
@@ -714,9 +739,9 @@ function applyFragmentMotion(positions, stage, motion, matrix) {
     centroid[piece * 3] = local[0];
     centroid[piece * 3 + 1] = local[1];
     centroid[piece * 3 + 2] = local[2];
-    const weight = fieldType
-      ? core.fieldWeight(local[0], local[1], local[2], fieldType, field.position, field.scale)
-      : 1;
+    const fieldWeight = core.evaluateField(local[0], local[1], local[2], preparedField);
+    const variation = 1 - randomness * core.hash01(seed, piece, 40);
+    const weight = fieldWeight * variation;
     const outward = normalize3(
       [local[0] - center[0], local[1] - center[1], local[2] - center[2]],
       core.hashUnitVector(seed, piece, 10)
@@ -730,15 +755,23 @@ function applyFragmentMotion(positions, stage, motion, matrix) {
     const sine = Math.sin(angle);
     const oneMinus = 1 - cosine;
     const [x, y, z] = axis;
-    shift[piece * 3] = (outward[0] * distance + scatterDirection[0] * scatterMagnitude * scatter) * weight;
-    shift[piece * 3 + 1] = (outward[1] * distance + scatterDirection[1] * scatterMagnitude * scatter) * weight;
-    shift[piece * 3 + 2] = (outward[2] * distance + scatterDirection[2] * scatterMagnitude * scatter) * weight;
-    scale[piece] = Math.max(0, 1 - (offset / 100) * weight);
+    shift[piece * 3] = (outward[0] * distance + scatterDirection[0] * scatterMagnitude * scatter + core.finiteOr(direction[0], 0)) * weight;
+    shift[piece * 3 + 1] = (outward[1] * distance + scatterDirection[1] * scatterMagnitude * scatter + core.finiteOr(direction[1], 0)) * weight - gravity * fieldWeight * fieldWeight * variation;
+    shift[piece * 3 + 2] = (outward[2] * distance + scatterDirection[2] * scatterMagnitude * scatter + core.finiteOr(direction[2], 0)) * weight;
+    scale[piece] = Math.max(0, 1 - (offset / 100) * weight) * Math.max(0, 1 + (fragmentScale / 100 - 1) * weight);
     rotation.set([
       cosine + x * x * oneMinus, x * y * oneMinus - z * sine, x * z * oneMinus + y * sine,
       y * x * oneMinus + z * sine, cosine + y * y * oneMinus, y * z * oneMinus - x * sine,
       z * x * oneMinus - y * sine, z * y * oneMinus + x * sine, cosine + z * z * oneMinus,
     ], piece * 9);
+    // Apply explicit XYZ rotation after the seeded spin, both about the centroid.
+    const degrees = explicitRotation.map(v => core.finiteOr(v, 0) * weight);
+    for (let column = 0; column < 3; column++) {
+      const r = piece * 9;
+      const rotated = core.rotateXYZ([rotation[r + column], rotation[r + 3 + column], rotation[r + 6 + column]], degrees);
+      for (let row = 0; row < 3; row++) rotation[r + row * 3 + column] = rotated[row];
+    }
+
   }
 
   for (let vertex = 0; vertex * 3 + 2 < positions.length && vertex < stage.pieceIds.length; vertex += 1) {

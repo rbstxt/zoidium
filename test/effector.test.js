@@ -256,8 +256,8 @@ test("Twist, Warp, and Voronoi Fracture expose the Effector property sets and de
     assert.equal(instance.properties.curveQuality ? instance.properties.curveQuality.value : 1, 1);
   }
   const twist = new Twist();
-  assert.equal(twist.properties.polygonCount.value, 16);
-  assert.equal(twist.properties.polygonCount.max, 256);
+  assert.equal(twist.properties.subdivision.value, 2);
+  assert.equal(twist.properties.subdivision.items, "1;2;4;8;16");
   const voronoi = new Voronoi();
   assert.equal(voronoi.properties.cells.value, 24);
   assert.equal(voronoi.properties.seed.value, 1);
@@ -636,7 +636,27 @@ test("indexed smooth meshes respect the 400k triangle cap before worker dispatch
   mesh.geometry.setIndex(new BufferAttribute(new Uint16Array(60000).map((_, i) => i % 3), 1));
   deformer.deformMesh(mesh, [{ effector, node: nodeAt(identity()) }], 0, 50);
   const entry = Array.from(jobs.entries.values())[0];
-  assert.equal(entry.input.polygonCount, 20);
-  assert.equal(entry.input.base.index.length / 3 * entry.input.polygonCount, 400000);
+  assert.equal(entry.input.polygonCount, 16);
+  assert.equal(entry.input.base.index.length / 3 * entry.input.polygonCount, 320000);
   deformer.dispose();
+});
+
+test("legacy subdivision and field payloads migrate without exposing obsolete rows", () => {
+  for (const [properties, level] of [[{ polygonCount: 7 }, 1], [{ polygonCount: { value: 64 } }, 3], [{ smoothness: 2 }, 2], [{ curveQuality: 0, polygonCount: 256 }, 0]]) {
+    assert.equal(_test.migrateEffectorData({ properties }).properties.subdivision, level);
+  }
+  const migrated = _test.migrateEffectorData({ properties: { field: 3, fieldScale: [20, 30, 40] } });
+  assert.equal(migrated.legacyField, true);
+  assert.deepEqual(migrated.properties.fieldScale.keyframes[0].value, [20, 30, 40]);
+  assert.equal(_test.migrateEffectorData({ properties: {} }).legacyField, false);
+  const PZ = createHarness();
+  const instances = [_test.createTwistClass(PZ, THREE), _test.createWarpClass(PZ, THREE), _test.createVoronoiClass(PZ, THREE)].map(Class => new Class());
+  const keys = ['field', 'fieldPosition', 'fieldRotation', 'fieldScale', 'fieldFalloff', 'fieldCurve', 'fieldInvert', 'fieldSweep', 'fieldNoiseScale', 'fieldNoiseEvolution'];
+  for (const instance of instances) {
+    for (const key of keys) assert.equal(instance.properties[key].dynamic, true, key);
+    assert.equal(instance.properties.field.items, 'infinite;linear;box;sphere;cylinder;noise');
+    assert.equal(instance.properties.polygonCount, undefined);
+    assert.equal(instance.properties.curveQuality, undefined);
+  }
+  for (const key of ['distance', 'scatter', 'spin', 'offset', 'fragmentDirection', 'fragmentRotation', 'fragmentScale', 'gravity', 'randomness']) assert.equal(instances[2].properties[key].dynamic, true, key);
 });

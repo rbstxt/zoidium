@@ -112,7 +112,7 @@
       "category": "scene",
       "name": "Effector",
       "author": "Zoidium",
-      "version": "15",
+      "version": "16",
       "defaultEnabled": true,
       "itemCount": 7,
       "format": "3D effectors",
@@ -120,8 +120,8 @@
       "color": "#6c7fb5",
       "description": "Adds procedural repeaters plus Twist, Warp and Voronoi Fracture effectors to 3D Scene.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/scene-plus/manifest.json?v=15",
-      "bundle": "./plugins/scene-plus/bundle.json?v=15"
+      "manifest": "./plugins/scene-plus/manifest.json?v=16",
+      "bundle": "./plugins/scene-plus/bundle.json?v=16"
     },
     {
       "id": "material-plus",

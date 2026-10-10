@@ -102,7 +102,7 @@ function evaluateMesh(input, cache = createStageCache()) {
     const relation = command.relation;
     if (relation) {
       if (!relation.identity) core.transformPositions(work, relation.forward);
-      if (command.kind === "twist") core.twistPositions(work, command.angle, command.axis, command.offset);
+      if (command.kind === "twist") core.twistPositions(work, command.angle, command.axis, command.offset, command.field);
       if (command.kind === "warp") core.warpPositions(work, command.strength, command.axis, command.offset, command.field);
       if (command.kind === "fracture" && stage.pieceIds) fracture.applyFragmentMotion(work, stage, command.motion, relation.identity ? null : relation.forward);
       if (!relation.identity) core.transformPositions(work, relation.inverse);
