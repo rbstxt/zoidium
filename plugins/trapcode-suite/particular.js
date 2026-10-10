@@ -343,6 +343,21 @@ var PZ = PZ || {};
         var life = clamp(num(Q.life, 3), 0.0001, SIM.MAX_LIFE);
         var lifeRandom = num(Q.lifeRandom, 0) / 100;
         var gravity = num(Y.gravity, 0);
+        var gravityDir = simVector(Y.gravityDirection, frame, [0, 1, 0]);
+        var gravityLen = Math.sqrt(
+            gravityDir[0] * gravityDir[0] + gravityDir[1] * gravityDir[1] + gravityDir[2] * gravityDir[2]);
+        if (gravityLen > 0.0001) {
+            gravityDir = [gravityDir[0] / gravityLen, gravityDir[1] / gravityLen, gravityDir[2] / gravityLen];
+        } else {
+            gravityDir = [0, 1, 0];
+        }
+        var fluidOn = num(Y.fluidEnabled, 0) === 1;
+        // Fluid force type 0 is the legacy vortex swirl. Type 1 switches to
+        // buoyancy with random swirl. The default keeps old projects identical.
+        var fluidBuoyant = fluidOn && Math.round(num(Y.fluidForceType, 0)) === 1;
+        var swirlOn = fluidOn && num(Y.fluidSwirlEnabled, 0) === 1;
+        var sphereC = simVector(S.position, frame, [720, 540, 0]);
+        var fluidOff = simVector(Y.fluidOffset, frame, [0, 0, 0]);
         var meanderOn = num(Y.meanderEnabled, 0) === 1;
         var fromParent = num(E.emitFromParent, 0) === 1;
 
@@ -390,7 +405,11 @@ var PZ = PZ || {};
             airRandom: num(Y.airResistanceRandom, 0) / 100,
             airSize: num(Y.sizeAffectsAirResistance, 0) / 100,
             drag: num(Y.drag, 0),
-            wind: [num(V.windX, 0), num(V.windY, 0) + gravity, num(V.windZ, 0)],
+            wind: [
+                num(V.windX, 0) + gravityDir[0] * gravity,
+                num(V.windY, 0) + gravityDir[1] * gravity + (fluidBuoyant ? num(Y.buoyancy, 5) * 10 : 0),
+                num(V.windZ, 0) + gravityDir[2] * gravity,
+            ],
             bounce: num(Y.bounceEnabled, 0) === 1,
             bounceHeight: num(Y.bounceHeight, 500),
             bounceStrength: num(Y.bounceStrength, 50) / 100,
@@ -400,10 +419,23 @@ var PZ = PZ || {};
             turbulence: num(V.turbulenceEnabled, 0) === 1 ? num(V.turbulenceAffectPosition, 0) : 0,
             turbulenceScale: Math.max(num(V.turbulenceScale, 10), 0.0001),
             sphere: num(S.strength, 0) / 100,
-            sphereCenter: simVector(S.position, frame, [720, 540, 0]),
+            sphereCenter: sphereC,
             sphereRadius: Math.max(num(S.radius, 100), 0.0001),
             sphereFeather: num(S.feather, 50) / 100,
-            vortex: num(Y.fluidEnabled, 0) === 1 ? num(Y.vortexStrength, 100) : 0,
+            // Fluid motion. Gravity, wind and air resistance above keep
+            // applying while fluid mode is on; fluid adds its own forces.
+            fluidTime: fluidOn ? num(Y.fluidTimeScale, 100) / 100 : 1,
+            viscosity: fluidOn ? Math.max(num(Y.fluidViscosity, 0), 0) : 0,
+            vortex: fluidOn && !fluidBuoyant ? num(Y.vortexStrength, 100) : 0,
+            // Core size 50 reproduces the legacy radius (the spherical field
+            // radius); other values scale it.
+            vortexCore: fluidOn ? Math.max(num(Y.vortexCoreSize, 50), 0) / 50 : 1,
+            vortexTilt: fluidOn ? num(Y.fluidVortexTilt, 0) * Math.PI / 180 : 0,
+            vortexSpin: fluidOn ? num(Y.fluidVortexRotate, 0) * Math.PI / 180 : 0,
+            fluidCenter: [sphereC[0] + fluidOff[0], sphereC[1] + fluidOff[1], sphereC[2] + fluidOff[2]],
+            swirl: swirlOn ? num(Y.fluidSwirlStrength, 100) : 0,
+            swirlScale: Math.max(num(Y.fluidSwirlScale, 100), 0.0001),
+            swirlSeed: num(Y.fluidSeed, 0),
             disperse: num(P.displace.disperse, 0),
             twist: num(P.displace.twist, 0),
             mirror: [num(K.mirrorX, 0) === 1, num(K.mirrorY, 0) === 1, num(K.mirrorZ, 0) === 1],
@@ -722,22 +754,45 @@ var PZ = PZ || {};
             vz -= dz * force * dt;
         }
         if (row.vortex !== 0) {
-            var vdx = x - c[0], vdz = z - c[2];
-            var vdist = Math.sqrt(vdx * vdx + vdz * vdz) || 1;
-            if (vdist < row.sphereRadius) {
-                var swirl = (row.vortex / 100) * (1 - vdist / row.sphereRadius) * dt;
-                vx += (-vdz / vdist) * swirl * 100;
-                vz += (vdx / vdist) * swirl * 100;
-                vy += Math.sin(vdist * 0.01 + time) * swirl * 10;
+            var fc = row.fluidCenter;
+            var fdx = x - fc[0], fdy = y - fc[1], fdz = z - fc[2];
+            // Vortex tilt rotates the swirl plane around X. At zero tilt this
+            // is the legacy XZ swirl around the field center.
+            var cT = Math.cos(row.vortexTilt), sT = Math.sin(row.vortexTilt);
+            var txx = fdx, tyy = fdy * cT - fdz * sT, tzz = fdy * sT + fdz * cT;
+            var vdist = Math.sqrt(txx * txx + tzz * tzz) || 1;
+            var vrad = Math.max(row.sphereRadius * row.vortexCore, 0.0001);
+            if (vdist < vrad) {
+                var swirl = (row.vortex / 100) * (1 - vdist / vrad) * dt * row.fluidTime;
+                var tgvx = (-tzz / vdist) * swirl * 100;
+                var tgvz = (txx / vdist) * swirl * 100;
+                var tgvy = Math.sin(vdist * 0.01 + time) * swirl * 10;
+                // Vortex rotate biases the swirl direction toward radial
+                // inflow/outflow. At zero it is the legacy tangential swirl.
+                var cA = Math.cos(row.vortexSpin), sA = Math.sin(row.vortexSpin);
+                var fvx = tgvx * cA - tgvz * sA;
+                var fvz = tgvx * sA + tgvz * cA;
+                // Back through the inverse tilt.
+                vx += fvx;
+                vy += tgvy * cT + fvz * sT;
+                vz += -tgvy * sT + fvz * cT;
             }
+        }
+        if (row.swirl !== 0) {
+            var sn = simNoise(x / row.swirlScale, y / row.swirlScale, z / row.swirlScale, time + row.swirlSeed);
+            var sAmt = row.swirl * row.fluidTime * dt;
+            vx += sn[0] * sAmt;
+            vy += sn[1] * sAmt;
+            vz += sn[2] * sAmt;
         }
         var massDiv = row.massBase * (st.massVar || 1);
         if (!(massDiv > 0)) massDiv = 1;
         vx += (row.wind[0] / massDiv) * dt;
         vy += (row.wind[1] / massDiv) * dt;
         vz += (row.wind[2] / massDiv) * dt;
-        if (row.drag > 0) {
-            var damp = Math.max(0, 1 - ((row.drag * (st.dragVar || 1)) / massDiv) * dt * 10);
+        if (row.drag > 0 || row.viscosity > 0) {
+            var visc = (row.drag > 0 ? row.drag * (st.dragVar || 1) : 0) + row.viscosity;
+            var damp = Math.max(0, 1 - (visc / massDiv) * dt * 10);
             vx *= damp;
             vy *= damp;
             vz *= damp;
@@ -1595,7 +1650,19 @@ var PZ = PZ || {};
             u.burstInterval.value = Math.max(vectors.burstInterval, 0.0001);
             u.vspread.value = vectors.spread;
             var gravity = p.physics.gravity.get(PZ.trapcode.currentTime);
-            u.accel.value.set(p.environment.windX.get(PZ.trapcode.currentTime), gravity + p.environment.windY.get(PZ.trapcode.currentTime), p.environment.windZ.get(PZ.trapcode.currentTime));
+            // Guarded: absent on projects saved before the direction control.
+            var gravityDir = [0, 1, 0];
+            try {
+                var gd = p.physics.gravityDirection ? p.physics.gravityDirection.get(PZ.trapcode.currentTime) : null;
+                if (gd && isFinite(gd[0]) && isFinite(gd[1]) && isFinite(gd[2])) {
+                    var gdLen = Math.sqrt(gd[0] * gd[0] + gd[1] * gd[1] + gd[2] * gd[2]);
+                    if (gdLen > 0.0001) gravityDir = [gd[0] / gdLen, gd[1] / gdLen, gd[2] / gdLen];
+                }
+            } catch (_gd) { /* old saves keep gravity on +Y */ }
+            u.accel.value.set(
+                p.environment.windX.get(PZ.trapcode.currentTime) + gravityDir[0] * gravity,
+                p.environment.windY.get(PZ.trapcode.currentTime) + gravityDir[1] * gravity,
+                p.environment.windZ.get(PZ.trapcode.currentTime) + gravityDir[2] * gravity);
             u.size.value = p.particle.size.get(PZ.trapcode.currentTime);
             u.sizeRandom.value = p.particle.sizeRandom.get(PZ.trapcode.currentTime) / 100;
             u.opacity.value = p.particle.opacity.get(PZ.trapcode.currentTime) / 100;
@@ -1820,9 +1887,20 @@ var PZ = PZ || {};
         flockRangeValue: number("Range of view", 500, { step: 1 }),
         flockFieldOfView: number("Field of view", 270, { step: 1 }),
         fluidEnabled: option("Enable fluid dynamics", 0, "off;on"),
+        fluidForceType: option("Fluid force", 0, "vortex;buoyancy and swirl"),
         buoyancy: number("Buoyancy", 5, { step: 0.01, decimals: 2 }),
+        fluidSwirlEnabled: option("Random swirl", 0, "off;on"),
+        fluidSwirlScale: number("Swirl scale", 100, { min: 0.01, step: 1, decimals: 2 }),
+        fluidSwirlStrength: number("Swirl strength", 100, { step: 1 }),
+        fluidSeed: number("Fluid seed", 0, { step: 1, decimals: 0 }),
         vortexStrength: number("Vortex strength", 100, { step: 1 }),
         vortexCoreSize: number("Vortex core size", 50, { min: 0, max: 100, step: 0.1, decimals: 1 }),
+        fluidVortexTilt: number("Vortex tilt", 0, { step: 1, decimals: 1 }),
+        fluidVortexRotate: number("Vortex rotate", 0, { step: 1, decimals: 1 }),
+        fluidOffset: vector3("Fluid center offset", [0, 0, 0], { step: 1 }),
+        fluidViscosity: number("Fluid viscosity", 0, { min: 0, step: 0.01, decimals: 3 }),
+        fluidTimeScale: number("Fluid time scale [%]", 100, { min: 0, step: 1, decimals: 0 }),
+        gravityDirection: vector3("Gravity direction", [0, 1, 0], { step: 0.01, decimals: 3 }),
     };
 
     PZ.object3d.particular.system.environmentDefinitions = {

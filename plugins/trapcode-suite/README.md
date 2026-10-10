@@ -13,6 +13,13 @@ around CM3; it is not part of, and not endorsed by, Panzoid.
   families, spin with orient-to-motion blending, motion-direction stretch.
   Aux streaks: a system with Emit from parent on emits from every live particle
   of its parent system, so each parent leaves its own trail.
+   Fluid motion adds a vortex swirl around the spherical-field center (core
+   size scales that radius; tilt and rotate shape the swirl plane and push it
+   toward inflow/outflow; center offset moves it), or buoyancy with seeded
+   random swirl (scale, strength, seed), plus viscosity and a time scale.
+   Gravity, wind and air resistance keep applying while fluid mode is on, and
+   gravity has a direction (default +Y). New controls default to the legacy
+   behavior, so older projects render identically.
 - **Trapcode Form** (type 11) — particle lattice (box, sphere, sphere grid,
   cylinder, circle, plane, 3D model, text/mask image) deformed by disperse,
   twist, spherical fields, a fractal field, fluid motion and kaleidospace
@@ -32,29 +39,65 @@ around CM3; it is not part of, and not endorsed by, Panzoid.
 
 ## Lights
 
-The Trapcode Lights picker adds eight C4D-style types. Each name matches the
-THREE backend that renders it:
+The Trapcode Lights picker adds eight C4D-style types. Stock CM3 light types
+keep their behavior and old saved catalogue ids still load.
 
-| Picker name | Backend |
+| Picker name | Lighting |
 | --- | --- |
-| Point Light (Omni) | PointLight |
-| Spot Light | SpotLight |
-| Infinite Light (Directional) | DirectionalLight |
-| Area Light | RectAreaLight when THREE's LTC tables are installed; otherwise a PointLight approximation (named as such) |
+| Point Light (Omni) | PointLight with distance and decay |
+| Spot Light | SpotLight with penumbra, distance and decay |
+| Infinite Light (Directional) | DirectionalLight with Kelvin temperature, shadow filter radius and shadow coverage |
+| Area Light | Real rectangular emitter (RectAreaLight with bundled r91 LTC tables); Width/Height resize the lit area |
 | Hemisphere Light (Sky/Ground) | HemisphereLight |
-| Photometric IES Light | SpotLight plus the IES profile label |
-| Sun (Directional) | DirectionalLight tinted by sun elevation |
-| Portal Light | RectAreaLight (6x8) when the LTC tables are installed; otherwise a DirectionalLight approximation (named as such) |
-Stock CM3 Light types 1–3 keep their behavior; stock Hemisphere (type 4) keeps
-its original type and sky tint on load. Disabling the pack
-restores the stock Light methods and removes the added property definitions.
-Scenes that use these lights need the pack enabled to render.
+| Photometric IES Light | Angular candela distribution from a local LM-63 file or a built-in profile |
+| Sun (Directional) | Azimuth and elevation drive direction, temperature, intensity and sky fill |
+| Portal Light | One-sided rectangular window fill, driven by the scene's Sun or Hemisphere light |
 
-These lights illuminate lit materials throughout the scene, including CM3
-Custom, PBR+, and Node Material. Single Color and Matcap are unlit materials.
-New positional lights start at `[0, 100, 100]` and aim at the origin where
-applicable, outside the default radius-10 Sphere. Saved light positions remain
-unchanged. Light+ uses the same placement for its stock CM3 light backends.
+IES Profile has a native property row with Uniform, Downlight and Wall wash
+presets and a Load .ies button. The file stays in the project's hidden IES Data
+property and survives save/reload. It is never uploaded. The parser accepts
+LM-63 Type C photometry with TILT=NONE. Unsupported tilt references and Type A/B
+files report an error. Intensity scales the profile's normalized peak candela.
+The renderer samples a 128 by 64 angular texture per light, with up to 16 IES
+lights in one project. Additional IES lights use the ordinary spotlight fallback
+and report a console warning. Angle and Penumbra remain stored for old projects,
+but their rows are hidden because the photometry determines the beam. IES lights do not cast shadows, so imported distributions can cover the full
+sphere.
+
+Area Width and Height resize the rectangular emitter, and the editor draws
+its outline on the viewport-only helper layer. The pack bundles the three.js
+r91 LTC tables (MIT, see plugins/trapcode-suite/lights-ltc-LICENSE.txt), so in
+the editor the light renders as a real RectAreaLight on standard and physical
+materials, including PBR+. Where float-filtered textures or the
+standard/physical shader library are unavailable, Area and Portal fall back to
+nine one-sided spot samples spread across the same rectangle with
+inverse-square falloff — the same materials an ordinary SpotLight reaches —
+so close receivers can then reveal individual samples. Custom ShaderMaterial
+skins such as Material+ Custom do not implement the rect-area response, so
+they only receive the fallback. Area and Portal do not cast shadows.
+
+Portal emits toward Target and contributes nothing behind its window. Color
+filters the source tint. Its
+Intensity scales the first Sun in the same scene, or the first Hemisphere if
+there is no Sun. Without either source, it supplies a modest blue sky fill.
+It does not trace outdoor geometry or sample an environment image. The source
+properties are evaluated at the requested frame, so object update order does
+not change the result.
+
+Sun Azimuth rotates around world Y. Elevation ranges from -10 to 90 degrees.
+Low sun is warm and dim; high sun is brighter and near daylight white. Below
+the horizon, direct light turns off and a small sky fill remains. Target sets
+the center of its orbit. Infinite's Shadow Softness changes the shadow filter
+radius, not the physical size of an emitter. Shadow Coverage sets the
+orthographic shadow camera's span.
+
+These lights illuminate lit materials. Single Color and Matcap are unlit.
+New positional lights start at `[0, 100, 100]` and aim at the origin. Saved
+positional light coordinates remain unchanged; Sun positions now come from its
+angles. Each feature depends only on project properties and the requested
+frame. Disabling the pack releases textures and helpers and restores the
+shared shader and stock Light methods. Scenes using these types need the pack
+enabled to render.
 
 ## Designer
 

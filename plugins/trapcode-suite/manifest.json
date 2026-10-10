@@ -3,7 +3,7 @@
   "id": "trapcode-suite",
   "name": "Rowbyte & Red Giant Suite",
   "author": "DaviFX",
-  "version": "18",
+  "version": "19",
   "kind": "object",
   "description": "Trapcode Particular, Form, and Plexus 3D objects with floating designer windows, plus C4D-style lights. Includes designer color palettes and the wiggle expression upgrade.",
   "category": "TRAPCODE",
@@ -255,43 +255,43 @@
   "modules": [
     {
       "id": "trapcode-runtime",
-      "source": "./plugins/trapcode-suite/trapcode-runtime.js?v=18"
+      "source": "./plugins/trapcode-suite/trapcode-runtime.js?v=19"
     },
     {
       "id": "designer-gear",
-      "source": "./plugins/trapcode-suite/designer-gear.js?v=18"
+      "source": "./plugins/trapcode-suite/designer-gear.js?v=19"
     }
   ],
   "resources": [
     {
       "id": "trapcode-common",
       "type": "text",
-      "source": "./plugins/trapcode-suite/trapcode-common.js?v=18"
+      "source": "./plugins/trapcode-suite/trapcode-common.js?v=19"
     },
     {
       "id": "trapcode-designer",
       "type": "text",
-      "source": "./plugins/trapcode-suite/designer.js?v=18"
+      "source": "./plugins/trapcode-suite/designer.js?v=19"
     },
     {
       "id": "trapcode-particular",
       "type": "text",
-      "source": "./plugins/trapcode-suite/particular.js?v=18"
+      "source": "./plugins/trapcode-suite/particular.js?v=19"
     },
     {
       "id": "trapcode-form",
       "type": "text",
-      "source": "./plugins/trapcode-suite/form.js?v=18"
+      "source": "./plugins/trapcode-suite/form.js?v=19"
     },
     {
       "id": "trapcode-plexus",
       "type": "text",
-      "source": "./plugins/trapcode-suite/plexus.js?v=18"
+      "source": "./plugins/trapcode-suite/plexus.js?v=19"
     },
     {
       "id": "trapcode-lights",
       "type": "text",
-      "source": "./plugins/trapcode-suite/lights-c4d.js?v=18"
+      "source": "./plugins/trapcode-suite/lights-c4d.js?v=19"
     }
   ],
   "objectClasses": [

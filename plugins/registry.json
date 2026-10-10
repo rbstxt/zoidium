@@ -204,15 +204,15 @@
       "category": "scene",
       "name": "Rowbyte & Red Giant Suite",
       "author": "DaviFX",
-      "version": "18",
+      "version": "19",
       "itemCount": 14,
       "format": "3D objects",
       "tagline": "Particular, Form, Plexus and C4D lights",
       "color": "#c9a13b",
       "description": "Trapcode Particular, Form and Plexus 3D objects with floating designer windows, deterministic simulation and audio analysis, plus C4D-style lights.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/trapcode-suite/manifest.json?v=18",
-      "bundle": "./plugins/trapcode-suite/bundle.json?v=18"
+      "manifest": "./plugins/trapcode-suite/manifest.json?v=19",
+      "bundle": "./plugins/trapcode-suite/bundle.json?v=19"
     },
     {
       "id": "optical-flares",

@@ -104,7 +104,7 @@ for (const [label, data, backend, expectedType] of [
   ["both enabled Area", { objectType: 4, properties: { width: 20, height: 30, name: "Saved area" } }, "PointLight", "zoidium:trapcode-suite/area-light"],
   ["DaviFX Hemisphere", { objectType: 5, properties: { skyColor: [0.3, 0.5, 0.8], groundColor: [0, 0, 0], name: "Saved sky" } }, "HemisphereLight", "zoidium:trapcode-suite/hemisphere-light"],
   ["legacy IES", { objectType: 6, properties: { name: "Saved IES" } }, "SpotLight", "zoidium:trapcode-suite/ies-light"],
-  ["legacy Portal", { objectType: 8, properties: { name: "Saved portal" } }, "DirectionalLight", "zoidium:trapcode-suite/portal-light"],
+  ["legacy Portal", { objectType: 8, properties: { name: "Saved portal" } }, "PointLight", "zoidium:trapcode-suite/portal-light"],
 ]) {
   test(label + " loads without changing its saved name", () => {
     const { PZ, THREE, Light } = setup();
@@ -164,15 +164,14 @@ test("all eight catalogue entries are listed with donor names and backends", () 
     ies.load(null);
     assert.equal(ies.properties.name.get(), "Photometric IES Light");
     assert.ok(ies.threeObj instanceof THREE.SpotLight);
-    assert.equal(ies.properties.iesProfile.get(), "default.ies");
+    assert.equal(ies.properties.iesProfile.get(), "Downlight");
     assert.ok(ies.properties.angle && ies.properties.penumbra);
 
     const portal = registrations.get("zoidium:trapcode-suite/portal-light").factory();
     portal.load(null);
     assert.equal(portal.properties.name.get(), "Portal Light");
-    // The test THREE build has no LTC tables, so the rect backend falls back
-    // to a DirectionalLight, matching the donor.
-    assert.ok(portal.threeObj instanceof THREE.DirectionalLight);
+    // Portal samples a rectangle with one-sided spot lights.
+    assert.ok(portal.threeObj instanceof THREE.PointLight);
     assert.equal(portal.properties.width.get(), 10);
     assert.equal(portal.properties.height.get(), 10);
   } finally {
@@ -248,7 +247,7 @@ test("selection helper maps suite-only ids to stock gizmo ids and restores", () 
       helper.objectsChanged();
       assert.equal(light.objectType, objectType, "real id restored after gizmo mapping");
     }
-    assert.deepEqual(seen, [4, 1, 3, 3, 2], "helper saw stock ids (test THREE has no LTC tables)");
+    assert.deepEqual(seen, [4, 1, 3, 2, 2], "helper saw stock ids");
     // Stock lights pass through untouched.
     const stock = new Light();
     stock.type = 3;
@@ -340,6 +339,7 @@ test("Light+ and Trapcode picker lights start outside the default Sphere", () =>
       // keyframes into the child properties before the light's update.
       light.load({ ...entry.data, properties: { position } });
       light.update(0);
+      if (entry.data.objectType === 7) continue; // Sun position now comes from azimuth and elevation.
       assert.deepEqual([light.threeObj.position.x, light.threeObj.position.y, light.threeObj.position.z], position);
       const savedPosition = [-20, 30, -40];
       const saved = registrations.get(entry.type).factory();
@@ -351,4 +351,221 @@ test("Light+ and Trapcode picker lights start outside the default Sphere", () =>
     }
   }
   PZ.trapcode.lights.uninstall();
+});
+
+const iesFixture = `IESNA:LM-63-2002
+[TEST] Local fixture
+TILT=NONE
+1 1000 1 3 3 1 2 0 0 0
+1 1 10
+0 45 90
+0 90 180
+100 50 0
+20 10 0
+100 50 0
+`;
+
+test("LM-63 candela interpolation respects vertical and horizontal symmetry", () => {
+  const {PZ} = setup();
+  const api = PZ.trapcode.lights;
+  const data = api.parseIES(iesFixture);
+  assert.equal(api.sampleIES(data, 0, 0), 1);
+  assert.equal(api.sampleIES(data, 45, 90), 0.1);
+  assert.equal(api.sampleIES(data, 45, 270), 0.1);
+  assert.equal(api.sampleIES(data, 22.5, 45), 0.45);
+  assert.equal(api.sampleIES(data, 120, 0), 0);
+  assert.throws(() => api.parseIES(iesFixture.replace('TILT=NONE', 'TILT=remote.ies')), /TILT=NONE/);
+  assert.throws(() => api.parseIES(iesFixture.replace('3 3 1 2', '3 3 2 2')), /Type C/);
+  assert.throws(() => api.parseIES(iesFixture.replace('0 45 90', '0 90 45')), /angles/);
+  assert.throws(() => api.parseIES(iesFixture.replace('100 50 0\n20', '-100 50 0\n20')), /negative/);
+});
+
+function vectorMath(THREE) {
+  const p = THREE.Vector3.prototype;
+  p.lengthSq = function () { return this.x*this.x + this.y*this.y + this.z*this.z; };
+  p.normalize = function () { const n = Math.sqrt(this.lengthSq()) || 1; return this.set(this.x/n,this.y/n,this.z/n); };
+  p.crossVectors = function (a,b) { const x=a.y*b.z-a.z*b.y,y=a.z*b.x-a.x*b.z,z=a.x*b.y-a.y*b.x; return this.set(x,y,z); };
+}
+
+function factorySetup() {
+  const env = setup(); vectorMath(env.THREE);
+  const registrations = new Map();
+  env.PZ.trapcode.lights.install(env.PZ, {registerClass(entry) { registrations.set(entry.type,entry); return () => registrations.delete(entry.type); }});
+  env.make = (name) => { const light = registrations.get('zoidium:trapcode-suite/'+name+'-light').factory(); light.load(null); return light; };
+  return env;
+}
+
+test("area dimensions move emitter samples and unload disposes the editor rectangle", () => {
+  const {PZ,make} = factorySetup();
+  try {
+    const light=make('area'); light.properties.position.set([0,0,10]); light.update(0);
+    const before = light.threeObj.areaSamples.map(s=>[s.position.x,s.position.y,s.position.z]);
+    light.properties.width.set(40); light.properties.height.set(20); light.update(9);
+    const after = light.threeObj.areaSamples.map(s=>[s.position.x,s.position.y,s.position.z]);
+    assert.equal(after[0][0], before[0][0]*4);
+    assert.equal(after[0][1], before[0][1]*2);
+    assert.equal(light.threeObj.intensity,0);
+    assert.equal(light.threeObj.areaSamples.length,9);
+    assert.equal(light.threeObj.areaSamples.reduce((n,s)=>n+s.intensity,0),1.0000000000000002);
+    const geometry=light.threeObj.areaHelper.geometry; light.unload(); assert.equal(geometry.disposed,true);
+  } finally {PZ.trapcode.lights.uninstall();}
+});
+
+test("portal reads this frame's sun properties regardless of evaluation order", () => {
+  const {PZ,make} = factorySetup();
+  try {
+    const sun=make('sun'), portal=make('portal');
+    sun.properties.sunElevation.set(10); portal.update(12);
+    const low=portal.threeObj.areaSamples[0].intensity;
+    sun.properties.sunElevation.set(70); portal.update(12);
+    assert.ok(portal.threeObj.areaSamples[0].intensity>low);
+    const expected=JSON.stringify(portal.threeObj.areaSamples[0].color);
+    sun.update(12); portal.update(12);
+    assert.equal(JSON.stringify(portal.threeObj.areaSamples[0].color),expected);
+  } finally {PZ.trapcode.lights.uninstall();}
+});
+
+test("sun azimuth/elevation determine direction, color, power and ambient fill", () => {
+  const {PZ,make} = factorySetup();
+  try {
+    const sun=make('sun'); sun.properties.sunAzimuth.set(90); sun.properties.sunElevation.set(0); sun.update(0);
+    assert.ok(Math.abs(sun.threeObj.position.x-1000)<1e-6);
+    assert.equal(sun.threeObj.intensity,0);
+    const low=sun.threeObj.color.b;
+    sun.properties.sunElevation.set(90); sun.update(0);
+    assert.ok(Math.abs(sun.threeObj.position.y-1000)<1e-6);
+    assert.equal(sun.threeObj.intensity,1);
+    assert.ok(sun.threeObj.color.b>low);
+    assert.ok(sun.skyFill.intensity>0.2);
+  } finally {PZ.trapcode.lights.uninstall();}
+});
+
+test("IES source text survives saved-property reload", () => {
+  const {PZ,make} = factorySetup();
+  try {
+    const first=make('ies'); first.properties.iesProfile.set('fixture.ies');first.properties.iesData.set(iesFixture);
+    const saved={properties:{iesProfile:first.properties.iesProfile.get(),iesData:first.properties.iesData.get()}};
+    const reloaded=make('ies'); reloaded.load(saved);
+    assert.equal(reloaded.properties.iesData.get(),iesFixture);
+    assert.equal(PZ.trapcode.lights.sampleIES(PZ.trapcode.lights.parseIES(reloaded.properties.iesData.get()),45,90),0.1);
+  } finally {PZ.trapcode.lights.uninstall();}
+});
+
+test("IES atlas changes with the selected distribution and releases slots and shaders", () => {
+  const {PZ,THREE,Light}=setup();
+  class Texture { constructor(data,width,height){this.image={data,width,height};} dispose(){this.disposed=true;} }
+  THREE.DataTexture=Texture;
+  const oldChunk=`float angleCos = dot( directLight.direction, spotLight.direction );\ndirectLight.color *= spotEffect * punctualLightIntensityToIrradianceFactor( lightDistance, spotLight.distance, spotLight.decay );`;
+  THREE.ShaderChunk={lights_pars_begin:oldChunk};
+  THREE.ShaderLib={standard:{uniforms:{},fragmentShader:'standard'},physical:{uniforms:{},fragmentShader:'physical'}};
+  PZ.trapcode.lights.install(PZ);
+  const texture=THREE.ShaderLib.standard.uniforms.zoidiumIESAtlas.value;
+  const light=new Light();light.load({objectType:6});light.update(0);
+  const down=new Uint8Array(texture.image.data);
+  light.properties.iesProfile.set('Uniform');light.update(1);
+  assert.notDeepEqual(texture.image.data,down);
+  assert.equal(texture.image.data[127*4],255);
+  assert.equal(light.threeObj.distance,-1, 'nonzero distance preserves r91 decay tag');
+  assert.equal(light.threeObj.decay,-1000.1);
+  const slot=light.iesSlot;light.unload();assert.equal(light.iesSlot,undefined);
+  const reused=new Light();reused.load({objectType:6});reused.update(2);assert.equal(reused.iesSlot,slot);
+  assert.equal(texture.clone(),texture,'material clones share a single live atlas');
+  PZ.trapcode.lights.uninstall();
+  assert.equal(texture.disposed,true);
+  assert.equal(THREE.ShaderChunk.lights_pars_begin,oldChunk);
+  assert.equal(THREE.ShaderLib.standard.fragmentShader,'standard');
+  assert.equal(THREE.ShaderLib.standard.uniforms.zoidiumIESAtlas,undefined);
+});
+
+test("rect area path drives width, height and aim when the shader library is present", () => {
+  const { PZ, THREE } = setup();
+  THREE.ShaderChunk = { lights_pars_begin: "spotLight.decay" };
+  THREE.ShaderLib = { standard: { uniforms: {} }, physical: { uniforms: {} } };
+  const registrations = new Map();
+  PZ.trapcode.lights.install(PZ, { registerClass(entry) {
+    registrations.set(entry.type, entry); return () => registrations.delete(entry.type);
+  } });
+  try {
+    assert.ok(THREE.UniformsLib.LTC_1, "bundled LTC tables installed");
+    const area = registrations.get("zoidium:trapcode-suite/area-light").factory();
+    area.load(null);
+    assert.ok(area.threeObj.isRectAreaLight, "real RectAreaLight backend in the editor");
+    area.properties.width.set(40);
+    area.properties.height.set(20);
+    area.properties.intensity.set(3);
+    area.update(5);
+    assert.equal(area.threeObj.width, 40);
+    assert.equal(area.threeObj.height, 20);
+    assert.equal(area.threeObj.intensity, 3);
+    assert.deepEqual(area.threeObj.lookedAt, [0, 0, 0]);
+    assert.deepEqual([area.threeObj.areaHelper.scale.x, area.threeObj.areaHelper.scale.y], [40, 20]);
+    const portal = registrations.get("zoidium:trapcode-suite/portal-light").factory();
+    portal.load(null);
+    assert.ok(portal.threeObj.isRectAreaLight, "portal shares the rectangular backend");
+    portal.update(5);
+  } finally {
+    PZ.trapcode.lights.uninstall();
+  }
+  assert.equal(THREE.UniformsLib.LTC_1, undefined, "disable removes the bundled tables");
+  assert.equal(THREE.ShaderLib.standard.uniforms.ltc_1, undefined, "disable removes the LTC uniforms");
+});
+
+test("infinite light applies Kelvin tint and shadow coverage without changing stock lights", () => {
+  const {PZ,make}=factorySetup();
+  try {
+    const light=make('infinite');light.threeObj.shadow.camera={};
+    light.properties.temperature.set(2000);light.properties.shadowSoftness.set(3);light.properties.shadowExtent.set(400);light.update(0);
+    assert.ok(light.threeObj.color.b<light.threeObj.color.r);
+    assert.equal(light.threeObj.shadow.radius,3);
+    assert.equal(light.threeObj.shadow.camera.left,-200);
+    light.properties.temperature.set(6500);light.update(0);
+    assert.ok(light.threeObj.color.b>0.9);
+  } finally {PZ.trapcode.lights.uninstall();}
+});
+
+test("compile hook preserves custom material callbacks and restores them on dispose and disable", () => {
+  const {PZ,THREE}=setup();
+  class Material {
+    constructor(){this.listeners=new Map();}
+    addEventListener(name,fn){this.listeners.set(name,fn);}
+    removeEventListener(name,fn){if(this.listeners.get(name)===fn)this.listeners.delete(name);}
+    dispose(){this.listeners.get('dispose')?.();}
+  }
+  const original=function () {};
+  Material.prototype.onBeforeCompile=original;
+  THREE.Material=Material;
+  THREE.DataTexture=class {constructor(data,width,height){this.image={data,width,height};}dispose(){}};
+  THREE.ShaderChunk={lights_pars_begin:'spotLight.decay'};
+  THREE.ShaderLib={standard:{uniforms:{},fragmentShader:'standard'}};
+  PZ.trapcode.lights.install(PZ);
+  const m=new Material(), custom=function(shader){shader.uniforms.custom={value:42};};
+  m.onBeforeCompile=custom;
+  const shader={uniforms:{}};
+  m.onBeforeCompile(shader);
+  assert.equal(shader.uniforms.custom.value,42);
+  assert.ok(shader.uniforms.zoidiumIESAtlas.value);
+  assert.notEqual(m.onBeforeCompile.toString(),custom.toString(),'r91 program cache must see the patched compile key');
+  m.dispose();assert.equal(m.onBeforeCompile,custom);assert.equal(m.listeners.size,0);
+  const alive=new Material();alive.onBeforeCompile=custom;alive.onBeforeCompile({uniforms:{}});
+  PZ.trapcode.lights.uninstall();
+  assert.equal(Material.prototype.onBeforeCompile,original);
+  assert.equal(alive.onBeforeCompile,custom);
+  assert.equal(alive.listeners.size,0);
+});
+
+test("photometric capacity chooses the same saved addresses under reversed evaluation order", () => {
+  const {PZ,THREE,Light}=setup();
+  THREE.DataTexture=class {constructor(data,width,height){this.image={data,width,height};}dispose(){}};
+  THREE.ShaderChunk={lights_pars_begin:'spotLight.decay'};THREE.ShaderLib={standard:{uniforms:{},fragmentShader:'standard'}};
+  PZ.trapcode.lights.install(PZ);
+  try {
+    const lights=Array.from({length:17},(_,i)=>{const light=new Light();light.load({objectType:6});light.getAddress=()=>[i];return light;});
+    // Only evaluate lights that fit the capacity; no warning is needed here.
+    lights[0].update(0);
+    const expected=lights.map(light=>light.iesSlot);
+    for(const light of lights.slice().reverse().filter(light=>light.iesSlot!==undefined))light.update(9);
+    assert.deepEqual(lights.map(light=>light.iesSlot),expected);
+    assert.equal(lights.filter(light=>light.iesSlot!==undefined).length,16);
+    assert.equal(new Set(lights.filter(light=>light.iesSlot!==undefined).map(light=>light.iesSlot)).size,16);
+  }finally{PZ.trapcode.lights.uninstall();}
 });
