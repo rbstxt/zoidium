@@ -3,7 +3,7 @@
   "id": "trapcode-suite",
   "name": "Rowbyte & Red Giant Suite",
   "author": "DaviFX",
-  "version": "11",
+  "version": "12",
   "kind": "object",
   "description": "Trapcode Particular, Form, and Plexus 3D objects with floating designer windows, plus C4D-style lights. Includes designer color palettes and the wiggle expression upgrade.",
   "category": "TRAPCODE",
@@ -117,10 +117,24 @@
           }
         },
         {
+          "name": "Photometric IES Light",
+          "type": "zoidium:trapcode-suite/ies-light",
+          "data": {
+            "objectType": 6
+          }
+        },
+        {
           "name": "Sun (Directional)",
           "type": "zoidium:trapcode-suite/sun-light",
           "data": {
             "objectType": 7
+          }
+        },
+        {
+          "name": "Portal Light",
+          "type": "zoidium:trapcode-suite/portal-light",
+          "data": {
+            "objectType": 8
           }
         }
       ]
@@ -129,43 +143,43 @@
   "modules": [
     {
       "id": "trapcode-runtime",
-      "source": "./plugins/trapcode-suite/trapcode-runtime.js?v=11"
+      "source": "./plugins/trapcode-suite/trapcode-runtime.js?v=12"
     },
     {
       "id": "designer-gear",
-      "source": "./plugins/trapcode-suite/designer-gear.js?v=11"
+      "source": "./plugins/trapcode-suite/designer-gear.js?v=12"
     }
   ],
   "resources": [
     {
       "id": "trapcode-common",
       "type": "text",
-      "source": "./plugins/trapcode-suite/trapcode-common.js?v=11"
+      "source": "./plugins/trapcode-suite/trapcode-common.js?v=12"
     },
     {
       "id": "trapcode-designer",
       "type": "text",
-      "source": "./plugins/trapcode-suite/designer.js?v=11"
+      "source": "./plugins/trapcode-suite/designer.js?v=12"
     },
     {
       "id": "trapcode-particular",
       "type": "text",
-      "source": "./plugins/trapcode-suite/particular.js?v=11"
+      "source": "./plugins/trapcode-suite/particular.js?v=12"
     },
     {
       "id": "trapcode-form",
       "type": "text",
-      "source": "./plugins/trapcode-suite/form.js?v=11"
+      "source": "./plugins/trapcode-suite/form.js?v=12"
     },
     {
       "id": "trapcode-plexus",
       "type": "text",
-      "source": "./plugins/trapcode-suite/plexus.js?v=11"
+      "source": "./plugins/trapcode-suite/plexus.js?v=12"
     },
     {
       "id": "trapcode-lights",
       "type": "text",
-      "source": "./plugins/trapcode-suite/lights-c4d.js?v=11"
+      "source": "./plugins/trapcode-suite/lights-c4d.js?v=12"
     }
   ],
   "objectClasses": [
@@ -226,13 +240,13 @@
     {
       "id": "ies-light",
       "type": "zoidium:trapcode-suite/ies-light",
-      "name": "Spot Light (legacy IES)",
+      "name": "Photometric IES Light",
       "schemaVersion": 1
     },
     {
       "id": "portal-light",
       "type": "zoidium:trapcode-suite/portal-light",
-      "name": "Area Light (legacy Portal)",
+      "name": "Portal Light",
       "schemaVersion": 1
     }
   ]

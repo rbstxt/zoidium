@@ -68,7 +68,7 @@ test("every objectTypes entry of one pack registers on the same target", () => {
   const lights = harness.store.object3d.find((entry) => entry.name === "Trapcode Lights");
   assert.ok(lights, "Trapcode Lights entry missing");
   // Six C4D types are offered; legacy IES (6) and Portal (8) still load but are not listed.
-  assert.equal(lights.list.length, 6, "Trapcode Lights must carry 6 C4D entries");
+  assert.equal(lights.list.length, 8, "Trapcode Lights must carry the 8 C4D entries, IES and Portal included");
   assert.equal(lights._zoidiumPluginId, "trapcode-suite");
   // The stock Light entry is never displaced: Trapcode lights are separate types.
   assert.ok(harness.store.object3d.includes(harness.vanillaLight), "stock Light entry must stay");

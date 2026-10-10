@@ -102,3 +102,143 @@ test("an asset-backed base settles through prepare() before the frame is final",
   assert.deepEqual(positions(second.instance), settled);
   for (const v of settled) assert.ok(Number.isFinite(v), "finite positions");
 });
+
+function sineBuffer(seconds = 4, rate = 48000) {
+  const length = Math.round(rate * seconds);
+  const channel = new Float32Array(length);
+  for (let i = 0; i < length; i++) {
+    channel[i] = 0.5 * Math.sin((2 * Math.PI * 220 * i) / rate);
+  }
+  return { sampleRate: rate, length, numberOfChannels: 1, getChannelData: () => channel };
+}
+
+test("shading, string and audio groups exist with donor defaults and stay neutral", () => {
+  const { instance } = makeForm();
+  const shading = instance.properties.shading;
+  assert.equal(shading.shading.get(0), 0);
+  assert.equal(shading.nominalDistance.get(0), 250);
+  assert.equal(shading.ambient.get(0), 20);
+  assert.equal(shading.diffuse.get(0), 80);
+  assert.equal(shading.specularAmount.get(0), 0);
+  assert.equal(shading.specularSharpness.get(0), 100);
+  assert.equal(shading.reflectionStrength.get(0), 100);
+  assert.equal(shading.shadowlet.get(0), 0);
+  const base = instance.properties.base;
+  assert.equal(base.stringSize.get(0), 0);
+  assert.equal(base.stringDensity.get(0), 15);
+  assert.equal(base.stringSizeRandom.get(0), 0);
+  assert.equal(base.stringPosition.get(0), 0);
+  const audio = instance.properties.audio;
+  assert.equal(audio.audioLayer.get(0), null);
+  for (let i = 1; i <= 5; i++) assert.equal(audio["reactor" + i].get(0), 0);
+
+  configure(instance);
+  instance.update(10);
+  const plain = positions(instance);
+
+  // Shading on changes nothing: the point shader stays unlit, as in the donor.
+  shading.shading.set(1);
+  shading.lightFalloff.set(2);
+  shading.nominalDistance.set(400);
+  shading.ambient.set(60);
+  shading.diffuse.set(40);
+  shading.specularAmount.set(80);
+  shading.shadowlet.set(1);
+  instance.update(10);
+  assert.deepEqual(positions(instance), plain);
+
+  // An audio layer with every reactor off is neutral too.
+  audio.audioLayer.set("clip.wav");
+  instance.update(10);
+  assert.deepEqual(positions(instance), plain);
+  assert.equal(instance.audioLevel(10), 0);
+});
+
+test("donor-shaped JSON with shading, audio and string properties loads", () => {
+  const { PZ } = loadSuite(["trapcode-common.js", "form.js"]);
+  const form = new PZ.object3d.form();
+  form.load({
+    properties: {},
+    forms: [{
+      properties: {
+        base: { stringEnabled: 1, stringSize: 2, stringDensity: 30, stringSizeRandom: 1, stringPosition: 5 },
+        shading: { shading: 1, lightFalloff: 1, nominalDistance: 300, ambient: 30, diffuse: 90,
+          specularAmount: 50, specularSharpness: 80, reflectionStrength: 60, shadowlet: 1 },
+        audio: { audioLayer: "clip.wav", reactor1: 1, reactor2: 0, reactor3: 1, reactor4: 0, reactor5: 1 },
+      },
+    }],
+  });
+  const instance = form.forms[0];
+  assert.equal(instance.properties.base.stringDensity.get(0), 30);
+  assert.equal(instance.properties.shading.nominalDistance.get(0), 300);
+  assert.equal(instance.properties.shading.shadowlet.get(0), 1);
+  assert.equal(instance.properties.audio.audioLayer.get(0), "clip.wav");
+  assert.equal(instance.properties.audio.reactor1.get(0), 1);
+  assert.equal(instance.properties.audio.reactor5.get(0), 1);
+  instance.update(0);
+  assert.ok(Number.isFinite(positions(instance)[0]));
+});
+
+function setupAudioForm() {
+  const made = makeForm();
+  made.PZ.trapcode.audioAnalysis.register("clip.wav", sineBuffer());
+  const audio = made.instance.properties.audio;
+  audio.audioLayer.set("clip.wav");
+  made.instance.properties.disperse.disperse.set(20);
+  made.instance.properties.fractal.displace.set(40);
+  return made;
+}
+
+test("audio reactors modulate the frame from offline analysis, never live", () => {
+  const { PZ, instance } = setupAudioForm();
+  assert.ok(PZ.trapcode.audioAnalysis.has("clip.wav"));
+  assert.equal(instance.audioLevel(1), 0, "no reactor on, neutral");
+
+  instance.properties.audio.reactor1.set(1);
+  instance.properties.audio.reactor3.set(1);
+  assert.ok(instance.audioLevel(1) > 0, "sine clip reads above silence, got " + instance.audioLevel(1));
+
+  instance.update(1);
+  const modulatedSize = instance.material.uniforms.size.value;
+  const modulatedPos = positions(instance);
+  instance.properties.audio.reactor1.set(0);
+  instance.properties.audio.reactor3.set(0);
+  instance.update(1);
+  assert.ok(instance.material.uniforms.size.value < modulatedSize, "reactor 1 scales size");
+  assert.notDeepEqual(positions(instance), modulatedPos, "reactor 3 scales disperse");
+
+  // A live analyser would throw here; the offline path never touches CM playback.
+  let reads = 0;
+  globalThis.CM = { playback: { get audioDst() { reads++; throw new Error("live analyser read"); } } };
+  try {
+    instance.update(1);
+  } finally {
+    delete globalThis.CM;
+  }
+  assert.equal(reads, 0, "no analyser access");
+});
+
+test("audio reactors are deterministic under shuffled frame order", () => {
+  const direct = setupAudioForm();
+  const audio = direct.instance.properties.audio;
+  audio.reactor1.set(1);
+  audio.reactor2.set(1);
+  audio.reactor3.set(1);
+  audio.reactor4.set(1);
+  audio.reactor5.set(1);
+  direct.instance.update(1);
+  const expectedPos = positions(direct.instance);
+  const expectedSize = direct.instance.material.uniforms.size.value;
+  const expectedOpacity = direct.instance.material.uniforms.opacity.value;
+
+  const history = setupAudioForm();
+  history.instance.properties.audio.reactor1.set(1);
+  history.instance.properties.audio.reactor2.set(1);
+  history.instance.properties.audio.reactor3.set(1);
+  history.instance.properties.audio.reactor4.set(1);
+  history.instance.properties.audio.reactor5.set(1);
+  for (const frame of [0, 1, 0, 0, 1, 1, 0, 1]) history.instance.update(frame);
+  assert.deepEqual(positions(history.instance), expectedPos);
+  assert.equal(history.instance.material.uniforms.size.value, expectedSize);
+  assert.equal(history.instance.material.uniforms.opacity.value, expectedOpacity);
+});

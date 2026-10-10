@@ -169,3 +169,50 @@ test("triangulation never invents faces beyond the configured distance", () => {
   assert.deepEqual(plexus.triangulate(3, 1), []);
   assert.ok(plexus.triangulate(3, 150).length >= 3);
 });
+
+function lineSnapshot(root) {
+  const geometry = root.lineMesh.geometry;
+  const count = geometry.drawRange.count;
+  return { count, points: Array.from(geometry.attributes.position.array.slice(0, count * 3)) };
+}
+
+test("effector amount and renderer lineType exist with donor defaults", () => {
+  const { PZ, root } = setup();
+  const effector = addEffector(PZ, root, 0, "noise");
+  assert.equal(effector.properties.effector.amount.get(0), 100);
+  const lines = root.objects[1];
+  const lineType = lines.properties.renderer.lineType;
+  assert.equal(lineType.get(0), 0);
+  assert.equal(lines.properties.renderer.maxDistance.get(0), 200);
+  assert.equal(lines.properties.renderer.maxConnections.get(0), 5);
+  assert.ok(effector.properties.effector.soundStrength);
+});
+
+test("every lineType loads donor-shaped JSON and renders deterministically", () => {
+  const snapshots = [];
+  for (const lineType of [0, 1, 2]) {
+    const { root } = setup();
+    const lines = root.objects[1];
+    lines.properties.renderer.lineType.set(lineType);
+    // Shuffled frame order before the captured frame.
+    for (const frame of [4, 9, 2, 7]) root.update(frame);
+    snapshots.push(lineSnapshot(root));
+  }
+  // The donor stores lineType but renders distance lines for every mode.
+  assert.deepEqual(snapshots[1], snapshots[0], "adjacency matches distance");
+  assert.deepEqual(snapshots[2], snapshots[0], "shape matches distance");
+
+  const { PZ, root } = setup();
+  const lines = root.objects[1];
+  lines.load({
+    objectKind: 2,
+    subType: 1,
+    properties: {
+      common: { enabled: 1 },
+      renderer: { rendererType: 1, lineType: 2, maxDistance: 110, maxConnections: 10 },
+    },
+  });
+  assert.equal(lines.properties.renderer.lineType.get(0), 2);
+  for (const frame of [4, 9, 2, 7]) root.update(frame);
+  assert.ok(lineSnapshot(root).points.length > 0, "donor-shaped lines render");
+});

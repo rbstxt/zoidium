@@ -15,15 +15,18 @@ around CM3; it is not part of, and not endorsed by, Panzoid.
   cylinder, circle, plane, 3D model, text/mask image) deformed by disperse,
   twist, spherical fields, a fractal field, fluid motion and kaleidospace
   mirrors. Layer maps drive color/alpha, displacement, size, fractal strength,
-  disperse and rotate. Strings connect neighbouring points.
-- **Plexus** (type 12) — points connected as points, lines, facets,
+  disperse and rotate. Strings connect neighbouring points. The Shading group
+  mirrors the donor controls; the Audio React group drives size, opacity,
+  disperse, fractal and twist from offline audio analysis (see Audio).
+- **Plexus** (type 12) — points connected as points, lines (line type
+  distance/adjacency/shape), facets,
   triangulation or beams. Geometry sources (layers, paths, OBJ, primitives,
   instances, slicer), effectors (noise, spherical field, container, transform,
   color map, shade, sound) and renderers.
 
 ## Lights
 
-The Light picker is replaced by six C4D-style types. Each name matches the
+The Light picker is replaced by eight C4D-style types. Each name matches the
 THREE backend that renders it:
 
 | Picker name | Backend |
@@ -33,13 +36,13 @@ THREE backend that renders it:
 | Infinite Light (Directional) | DirectionalLight |
 | Area Light | RectAreaLight when THREE's LTC tables are installed; otherwise a PointLight approximation (named as such) |
 | Hemisphere Light (Sky/Ground) | HemisphereLight |
+| Photometric IES Light | SpotLight plus the IES profile label |
 | Sun (Directional) | DirectionalLight tinted by sun elevation |
-
-Legacy ids that are no longer listed still load: id 6 (IES) as a spot light and
-id 8 (Portal) as an area light. Stock CM3 Light types 1–3 keep their behavior;
-stock Hemisphere (type 4) keeps its original type and sky tint on load. Disabling the pack
+| Portal Light | RectAreaLight (6x8) when the LTC tables are installed; otherwise a DirectionalLight approximation (named as such) |
+Stock CM3 Light types 1–3 keep their behavior; stock Hemisphere (type 4) keeps
+its original type and sky tint on load. Disabling the pack
 restores the stock Light methods and removes the added property definitions.
-Scenes that use Area or the legacy ids need the pack enabled to render.
+Scenes that use these lights need the pack enabled to render.
 
 ## Designer
 
@@ -79,6 +82,13 @@ brightness. Reactors aimed at the same target multiply their modulation.
 
 The Plexus sound effector has audio layer, offset and trim properties.
 Without an audio layer it uses a time-based wave, so it stays deterministic.
+
+Form has an Audio layer property and five reactors with fixed targets:
+reactor 1 scales particle size, 2 opacity, 3 disperse, 4 fractal displacement
+and 5 twist, each by (1 + level). Form has no offset/trim properties; the
+media time is the project frame over the scene rate. While no reactor is on,
+or while the source is not decoded yet, every multiplier is 1, so existing
+projects render identically.
 
 ## Simulation limits (Particular)
 

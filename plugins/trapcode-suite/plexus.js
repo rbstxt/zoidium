@@ -772,6 +772,7 @@ var PZ = PZ || {};
                 this.objectKind = KIND_RENDERER;
                 this.subType = 1;
                 r.rendererType.set(1);
+                r.lineType.set(0);
                 r.maxDistance.set(200);
                 r.maxConnections.set(5);
                 c.name.set("Lines");
@@ -1379,6 +1380,10 @@ var PZ = PZ || {};
     PZ.object3d.plexus.object.effectorDefinitions = {
         name: { name: "Name", type: PZ.property.type.TEXT, value: "Effector", visible: false },
         effectorType: option("Effector type", 0, "noise;spherical field;container;transform;color map;shade;sound", true),
+        // Overall effector amount, stored for donor project compatibility.
+        // Each effector keeps its own strength control (noiseAmount,
+        // strength, soundStrength, ...), as in the donor.
+        amount: number("Amount", 100, { step: 1 }),
         noiseAmount: number("Noise amount", 40, { step: 0.1, decimals: 1 }),
         noiseScale: number("Noise scale", 1, { min: 0.0001, step: 0.01, decimals: 2 }),
         strength: number("Strength[%]", 50, { step: 1 }),
@@ -1427,6 +1432,10 @@ var PZ = PZ || {};
         name: { name: "Name", type: PZ.property.type.TEXT, value: "Renderer", visible: false },
         rendererType: option("Renderer type", 1, "points;lines;facets;triangulation;beams", true),
         size: number("Point size", 4, { min: 0, max: 10, step: 0.1, decimals: 2 }),
+        // Line type selects the authored connection mode. The lines renderer
+        // builds distance-based connections for every mode, matching the
+        // donor (which stores lineType but renders distance lines).
+        lineType: option("Line type", 0, "distance;adjacency;shape", true),
         maxDistance: number("Max distance", 200, { min: 0, step: 1 }),
         maxConnections: number("Max connections", 5, { min: 0, max: 10, step: 1, decimals: 0 }),
         opacity: number("Opacity", 80, { min: 0, max: 100, step: 0.1, decimals: 1 }),
@@ -1725,6 +1734,7 @@ var PZ = PZ || {};
             object.properties.geometry.geometryType.set(subType);
         }
         if (kind === 2 && subType === 1) {
+            object.properties.renderer.lineType.set(0);
             object.properties.renderer.maxDistance.set(200);
         }
         root.update(0);

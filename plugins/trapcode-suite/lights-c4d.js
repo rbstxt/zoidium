@@ -1,12 +1,14 @@
 // OpenZoid Trapcode Suite — C4D-style lights.
 //
 // Separate namespaced CM3 Light subclasses. Only legacy load dispatch is
-// installed on stock Light; creating and updating vanilla lights stays stock.
+// installed on stock Light plus a selection-helper mapping (ids 5-8 report
+// the stock id their backend matches while CM3 draws its gizmo); creating
+// and updating vanilla lights stays stock.
 // install() and uninstall() are owned by the suite runtime lifecycle.
 //
-// Each type names the THREE backend it really renders with. Legacy ids that are
-// no longer offered in the picker keep loading as the backend they were saved
-// with, so existing projects still open.
+// Each type names the THREE backend it really renders with. Saved ids keep
+// loading as the backend they were saved with, so existing projects still
+// open. Stock CM3 Light types 1-3 keep their stock behaviour.
 //
 //   id  picker name                           THREE backend
 //   --  ------------------------------------  ------------------------------------
@@ -16,11 +18,12 @@
 //   4   Area Light                            RectAreaLight when the LTC tables
 //                                             are present, else a PointLight
 //   5   Hemisphere Light (Sky/Ground)         HemisphereLight
+//   6   Photometric IES Light                 SpotLight + IES profile label
 //   7   Sun (Directional)                     DirectionalLight, tinted by elevation
-//   6   legacy: IES (no photometric data)     SpotLight (not offered in the picker)
-//   8   legacy: Portal (same as Area)         as id 4 (not offered in the picker)
+//   8   Portal Light                          RectAreaLight (6x8), else a
+//                                             DirectionalLight fallback
 //
-// Stock CM3 Light types 1-3 keep their stock behaviour. Stock type 4 (Hemisphere)
+// Stock type 4 (Hemisphere)
 // keeps its stock id and properties when it is loaded.
 
 (function () {
@@ -32,9 +35,9 @@
         { id: 3, name: "Infinite Light (Directional)", listed: true },
         { id: 4, name: "Area Light", listed: true },
         { id: 5, name: "Hemisphere Light (Sky/Ground)", listed: true },
+        { id: 6, name: "Photometric IES Light", listed: true },
         { id: 7, name: "Sun (Directional)", listed: true },
-        { id: 6, name: "Spot Light (legacy IES)", listed: false },
-        { id: 8, name: "Area Light (legacy Portal)", listed: false },
+        { id: 8, name: "Portal Light", listed: true },
     ];
 
     var EXTRA_DEFINITIONS = {
@@ -53,6 +56,73 @@
     ];
 
     var installed = null;
+
+    // CM3's selection helper (PZ.ui.helper3d) only knows the stock light ids
+    // 1-4; ids 5-8 leave its helper null and log "THREE.Object3D.add: object
+    // not an instance of THREE.Object3D. null" on every selection. While the
+    // helper runs, suite lights temporarily report the stock id whose helper
+    // matches their THREE backend (Hemisphere->4, Spot->1, Directional->3;
+    // Portal uses 3 on its directional fallback and 2 on the rect backend,
+    // whose PointLightHelper only needs position and color). Editor gizmos
+    // only; rendering and serialization keep the real ids.
+    function suiteHelperId(light) {
+        var id = light && light.objectType;
+        if (light && typeof light.type === "string" &&
+            light.type.indexOf("zoidium:trapcode-suite/") === 0) {
+            if (id === 5) return 4;
+            if (id === 6) return 1;
+            if (id === 7) return 3;
+            if (id === 8) {
+                var o = light.threeObj;
+                var isRect = o && (o.isRectAreaLight || o.type === "RectAreaLight");
+                return isRect ? 2 : 3;
+            }
+        }
+        return null;
+    }
+
+    function wrapHelper(Helper) {
+        var original = Helper.prototype.objectsChanged;
+        function patched() {
+            var objects = this.objects;
+            var target = objects && objects.length === 1 ? objects[0] : null;
+            var mapped = suiteHelperId(target);
+            if (mapped === null) return original.apply(this, arguments);
+            var real = target.objectType;
+            target.objectType = mapped;
+            try {
+                return original.apply(this, arguments);
+            } finally {
+                target.objectType = real;
+            }
+        }
+        patched.alive = true;
+        Helper.prototype.objectsChanged = patched;
+        return original;
+    }
+
+    // Helper instances bind objectsChanged in their constructor, so a
+    // prototype patch alone never reaches viewports built before install.
+    // Rebind the live main-viewport helper (if any) to the current prototype
+    // method and move its list subscription onto the new binding.
+    function rebindHelperInstance(Helper) {
+        var CMRef = typeof CM !== "undefined" ? CM : null;
+        var viewport = CMRef && CMRef.mainViewport;
+        var helper = viewport && viewport.helper3d;
+        if (!helper || typeof helper.objectsChanged !== "function" ||
+            !helper.objectsChanged_bound || (Helper && !(helper instanceof Helper))) return;
+        var rebound = helper.objectsChanged.bind(helper);
+        var objects = helper.objects;
+        if (objects && objects.onListChanged &&
+            typeof objects.onListChanged.unwatch === "function" &&
+            typeof objects.onListChanged.watch === "function") {
+            try { objects.onListChanged.unwatch(helper.objectsChanged_bound); } catch (_error) {}
+            helper.objectsChanged_bound = rebound;
+            try { objects.onListChanged.watch(helper.objectsChanged_bound, true); } catch (_error) {}
+        } else {
+            helper.objectsChanged_bound = rebound;
+        }
+    }
 
     function hasLtcTables() {
         var uniforms = typeof THREE !== "undefined" ? THREE.UniformsLib : null;
@@ -108,11 +178,16 @@
         return [1, 0.55 + 0.45 * t, 0.3 + 0.7 * t];
     }
 
-    // Area backend: RectAreaLight when the LTC tables exist, else a PointLight
-    // whose name says so. label is the picker name for the rect case.
-    function areaBackend(width, height, label) {
+    // Area backend: RectAreaLight when the LTC tables exist, else a fallback
+    // light whose name says so. label is the picker name for the rect case.
+    // The Portal type falls back to a DirectionalLight, matching the donor;
+    // the Area type falls back to a PointLight.
+    function areaBackend(width, height, label, fallback) {
         if (hasLtcTables()) {
             return { object: new THREE.RectAreaLight(16777215, 1, width, height), name: label };
+        }
+        if (fallback === "directional") {
+            return { object: new THREE.DirectionalLight(16777215, 1), name: label + " (directional approximation)" };
         }
         return { object: new THREE.PointLight(16777215, 1, 0), name: label + " (point approximation)" };
     }
@@ -140,7 +215,7 @@
                 cast: false, props: ["skyColor", "groundColor", "intensity"] };
         },
         6: function () {
-            return { object: new THREE.SpotLight(16777215, 1, 0, Math.PI / 4, 0.4, 1), name: "Spot Light (legacy IES)", cast: true,
+            return { object: new THREE.SpotLight(16777215, 1, 0, Math.PI / 4, 0.4, 1), name: "Photometric IES Light", cast: true,
                 props: ["color", "position", "target", "intensity", "angle", "penumbra", "distance", "decay", "iesProfile"] };
         },
         7: function () {
@@ -148,7 +223,7 @@
                 props: ["color", "position", "target", "intensity", "sunElevation"] };
         },
         8: function () {
-            var backend = areaBackend(6, 8, "Area Light (legacy Portal)");
+            var backend = areaBackend(6, 8, "Portal Light", "directional");
             backend.props = ["color", "position", "target", "intensity", "width", "height"];
             return backend;
         },
@@ -222,6 +297,13 @@
         var unregister = [];
         installed = { Light: Light, original: original, patched: patched, unregister: unregister };
         Light.prototype.load = patched;
+        var Helper = PZ.ui && PZ.ui.helper3d;
+        if (Helper && Helper.prototype && typeof Helper.prototype.objectsChanged === "function" &&
+            !Helper.prototype.objectsChanged.alive) {
+            installed.helperOriginal = wrapHelper(Helper);
+            installed.helperHost = Helper;
+            rebindHelperInstance(Helper);
+        }
         if (registry && registry.registerClass) {
             Object.keys(LIGHT_TYPES).forEach(function (key) {
                 var id = Number(key);
@@ -285,6 +367,11 @@
         if (!state) return;
         state.patched.alive = false;
         if (state.Light.prototype.load === state.patched) state.Light.prototype.load = state.original;
+        if (state.helperHost && state.helperHost.prototype.objectsChanged &&
+            state.helperHost.prototype.objectsChanged.alive === true && state.helperOriginal) {
+            state.helperHost.prototype.objectsChanged = state.helperOriginal;
+            rebindHelperInstance(state.helperHost);
+        }
         state.unregister.reverse().forEach(function (fn) { fn(); });
     }
 
