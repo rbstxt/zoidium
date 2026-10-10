@@ -27,6 +27,36 @@
     return !!value && typeof value === "object" && !Array.isArray(value);
   }
 
+  // CM3 only descends into object lists declared as PZ.property or
+  // PZ.property.dynamic. Plugin containers (Forms, Systems, Plexus objects)
+  // use their own object classes, so their animated descendants are skipped.
+  // Keep native tracks and their watchers/history; add the omitted lists
+  // through the same native list builder, without changing project objects.
+  function installKeyframeContainerTraversal() {
+    var PZ = global.PZ;
+    var proto = PZ && PZ.ui && PZ.ui.timeline && PZ.ui.timeline.keyframes && PZ.ui.timeline.keyframes.prototype;
+    if (!proto || typeof proto.createKeyframeTrack !== "function" || proto.createKeyframeTrack.__zoidiumContainers) return;
+    var original = proto.createKeyframeTrack;
+    function createKeyframeTrack(container, object) {
+      var track = original.apply(this, arguments);
+      if (!track) return track;
+      var children = object.children || [];
+      // createTrackList inserts immediately after its parent, hence reverse.
+      for (var index = children.length - 1; index >= 0; index -= 1) {
+        var child = children[index];
+        if (child instanceof PZ.objectList && !(child instanceof PZ.objectSingleton) &&
+            child.type !== PZ.property && child.type !== PZ.property.dynamic) {
+          this.createTrackList(track, child);
+        }
+      }
+      return track;
+    }
+    createKeyframeTrack.__zoidiumContainers = true;
+    proto.createKeyframeTrack = createKeyframeTrack;
+  }
+
+  installKeyframeContainerTraversal();
+
   var propertyControlRegistrations = Object.create(null);
   var propertyControlPatches = Object.create(null);
 
