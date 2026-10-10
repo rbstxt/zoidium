@@ -38,8 +38,9 @@
   font-family: var(--zui-font);
 }
 
-/* CM3 dropdowns opened from a window must stay above it. */
-body > .pz-dropdown {
+/* CM3 popups opened from a window must stay above the window layer. */
+body > .pz-dropdown,
+body > .zoidium-window-color-picker {
   z-index: 1000;
 }
 

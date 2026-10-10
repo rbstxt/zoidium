@@ -27,6 +27,85 @@ function positions(instance) {
   return Array.from(instance.points.geometry.attributes.position.array);
 }
 
+test("Form Transform rotates the whole form in degrees without rebuilding its geometry", () => {
+  const { instance } = makeForm();
+  instance.update(0);
+  const geometry = instance.points.geometry;
+  const lattice = positions(instance);
+  const transform = instance.properties.transform;
+  for (const axis of ["X", "Y", "Z"]) {
+    assert.equal(transform["rotation" + axis].get(0), 0, "old projects default to zero rotation");
+    assert.equal(transform["rotation" + axis].definition.dynamic, true, "rotation supports animation");
+  }
+  transform.rotationX.set(90);
+  transform.rotationY.set(-45);
+  transform.rotationZ.set(450);
+  transform.offsetX.set(25);
+  transform.scale.set(150);
+  instance.update(0);
+  assert.equal(instance.threeObj.rotation.x, Math.PI / 2);
+  assert.equal(instance.threeObj.rotation.y, -Math.PI / 4);
+  assert.equal(instance.threeObj.rotation.z, 450 * Math.PI / 180);
+  assert.equal(instance.threeObj.position.x, 25);
+  assert.equal(instance.threeObj.scale.x, 1.5);
+  assert.equal(instance.points.parent, instance.threeObj, "particles inherit the form transform");
+  assert.equal(instance.points.geometry, geometry);
+  assert.deepEqual(positions(instance), lattice, "rotation acts after the local deformations");
+});
+
+test("Form Transform evaluates rotation at the requested frame on every seek", () => {
+  const { instance } = makeForm();
+  const transform = instance.properties.transform;
+  transform.rotationX.get = (t) => t * 10;
+  transform.rotationY.get = (t) => t * -20;
+  transform.rotationZ.get = (t) => t * 30;
+  for (const frame of [10, 0, 30, 2, 10]) {
+    instance.update(frame);
+    assert.equal(instance.threeObj.rotation.x, frame * 10 * Math.PI / 180);
+    assert.equal(instance.threeObj.rotation.y, frame * -20 * Math.PI / 180);
+    assert.equal(instance.threeObj.rotation.z, frame * 30 * Math.PI / 180);
+  }
+});
+
+test("Form Transform supports all six fixed rotation orders and resets to XYZ", () => {
+  const { instance } = makeForm();
+  const transform = instance.properties.transform;
+  const order = transform.rotationOrder;
+  const orders = ["XYZ", "XZY", "YXZ", "YZX", "ZXY", "ZYX"];
+  assert.equal(order.get(), "XYZ");
+  assert.ok(!order.definition.dynamic, "rotation order cannot be keyframed");
+  assert.deepEqual(order.definition.items.map((item) => item.value), orders);
+  transform.rotationX.set(30);
+  transform.rotationY.set(45);
+  transform.rotationZ.set(60);
+  for (const value of orders.concat(["XYZ", "invalid"])) {
+    order.set(value);
+    instance.update(0);
+    assert.equal(instance.threeObj.rotation.order, orders.includes(value) ? value : "XYZ");
+    assert.equal(instance.threeObj.rotation.x, 30 * Math.PI / 180);
+    assert.equal(instance.threeObj.rotation.y, 45 * Math.PI / 180);
+    assert.equal(instance.threeObj.rotation.z, 60 * Math.PI / 180);
+  }
+});
+
+test("Form loads Transform rotations and keeps missing rotation fields neutral", () => {
+  const { PZ } = loadSuite(["trapcode-common.js", "form.js"]);
+  const form = new PZ.object3d.form();
+  form.load({ forms: [
+    { properties: { transform: { scale: 120, offsetX: 5 } } },
+    { properties: { transform: { rotationX: 30, rotationY: -90, rotationZ: 180, rotationOrder: "ZYX" } } },
+  ] });
+  form.update(0);
+  assert.deepEqual([form.forms[0].threeObj.rotation.x, form.forms[0].threeObj.rotation.y,
+    form.forms[0].threeObj.rotation.z], [0, 0, 0]);
+  assert.equal(form.forms[0].threeObj.position.x, 5);
+  assert.equal(form.forms[0].threeObj.rotation.order, "XYZ");
+  assert.equal(form.forms[1].threeObj.rotation.order, "ZYX");
+  assert.equal(form.forms[1].threeObj.rotation.x, 30 * Math.PI / 180);
+  assert.equal(form.forms[1].threeObj.rotation.y, -Math.PI / 2);
+  assert.equal(form.forms[1].threeObj.rotation.z, Math.PI);
+});
+
 test("frame output does not depend on the frames rendered before it", () => {
   const direct = makeForm();
   configure(direct.instance);

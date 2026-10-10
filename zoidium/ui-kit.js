@@ -453,6 +453,7 @@
   }
 
   function getWindowLayer() {
+    installWindowColorPicker();
     if (windowLayer && windowLayer.isConnected) return windowLayer;
     windowLayer = global.document.createElement("div");
     windowLayer.className = "zoidium-window-layer";
@@ -465,6 +466,24 @@
       listenForOutsidePointerDown();
     }
     return windowLayer;
+  }
+
+  // CM3 appends its unclassified color popup directly to body. Tag popups
+  // opened from our windows so they can sit above the window stacking context,
+  // just like native dropdowns. Keep CM3's editing and focus lifecycle intact.
+  function installWindowColorPicker() {
+    var PZ = global.PZ;
+    var prototype = PZ && PZ.ui && PZ.ui.colorPicker && PZ.ui.colorPicker.prototype;
+    if (!prototype || typeof prototype.open !== "function" || prototype.open.__zoidiumWindowPopup) return;
+    var original = prototype.open;
+    var open = function () {
+      var inWindow = isInsideWindow(this.el);
+      var result = original.apply(this, arguments);
+      if (inWindow && this.picker) this.picker.classList.add("zoidium-window-color-picker");
+      return result;
+    };
+    open.__zoidiumWindowPopup = true;
+    prototype.open = open;
   }
 
   // Focusing a window moves DOM focus into it. Clicking the editor does not
