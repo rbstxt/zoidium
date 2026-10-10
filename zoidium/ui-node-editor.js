@@ -1863,8 +1863,11 @@
         event.stopPropagation();
         return;
       }
+      // Undo, redo and save belong to the editor host: let them bubble to the
+      // window, which passes them on to CM3 (graph edits are history steps).
+      if (event.ctrlKey && !event.altKey && (lower === "z" || lower === "y" || lower === "s")) return;
       // Only keys the editor handles are prevented; Ctrl+R and the like keep
-      // their browser behavior. Every key still stops at the editor.
+      // their browser behavior. Every other key stops at the editor.
       var handled = true;
       if (event.ctrlKey || event.metaKey) {
         if (lower === "a") selectAll();
