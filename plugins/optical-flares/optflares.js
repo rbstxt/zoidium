@@ -145,6 +145,7 @@ var PZ = PZ || {};
         "uniform vec2 uSource;",
         "uniform vec2 uCenter;",
         "uniform float uBrightness;",
+        "uniform float uGain;",
         "uniform float uScale;",
         "uniform float uAspect;",
         "uniform float uRotation;",
@@ -437,7 +438,7 @@ var PZ = PZ || {};
         "} else if (uColorMode < 0.5) {",
         "col *= uTint;",
         "}",
-        "col *= uBrightness;",
+        "col *= uBrightness * uGain;",
         "float alpha = clamp(max(max(col.r, col.g), col.b), 0.0, 1.0);",
         "float outAlpha = (uRenderMode > 0.5 || uBlendGlobal > 1.5) ? alpha : 1.0;",
         "gl_FragColor = vec4(col, outAlpha);",
@@ -928,8 +929,12 @@ var PZ = PZ || {};
             this.unloadStack();
             this.releaseCustomTextures();
             if (this.quad && this.quad.parent) this.quad.parent.remove(this.quad);
+            if (this.underQuad && this.underQuad.parent) this.underQuad.parent.remove(this.underQuad);
             if (this.quad && this.quad.geometry) this.quad.geometry.dispose();
             if (this.material) this.material.dispose();
+            if (this.underMaterial) this.underMaterial.dispose();
+            this.underMaterial = null;
+            this.underQuad = null;
             if (this._whiteTexture) this._whiteTexture.dispose();
             this.material = null;
             this.quad = null;
@@ -963,6 +968,7 @@ var PZ = PZ || {};
                     uViewAspect: { type: "f", value: 16 / 9 },
                     uDepth: { type: "f", value: 0 },
                     uBrightness: { type: "f", value: 0 },
+                    uGain: { type: "f", value: 1 },
                     uScale: { type: "f", value: 1 },
                     uAspect: { type: "f", value: 1 },
                     uRotation: { type: "f", value: 0 },
@@ -1005,6 +1011,28 @@ var PZ = PZ || {};
                 self.prepareFrame(camera);
             });
             this.threeObj.add(this.quad);
+            // Foreground fade: the depth-tested quad draws the flare at "fade"
+            // strength and this untested quad draws the rest underneath it, so
+            // occluded pixels keep (1 - fade) of the flare and visible pixels
+            // add up to full strength. It shares every uniform except uGain.
+            var underUniforms = Object.assign({}, this.material.uniforms, { uGain: { type: "f", value: 0 } });
+            this.underMaterial = new THREE.ShaderMaterial({
+                uniforms: underUniforms,
+                vertexShader: VERTEX_SHADER,
+                fragmentShader: FRAGMENT_SHADER,
+                transparent: true,
+                depthTest: false,
+                depthWrite: false,
+            });
+            this.underQuad = new THREE.Mesh(this.quad.geometry, this.underMaterial);
+            this.underQuad.frustumCulled = false;
+            this.underQuad.matrixAutoUpdate = false;
+            this.underQuad.renderOrder = 9998;
+            this.underQuad.visible = false;
+            hookRender(this.underQuad, function (camera) {
+                self.prepareFrame(camera);
+            });
+            this.threeObj.add(this.underQuad);
             this.applyGlobalBlending(0);
         }
         applyGlobalBlending(mode) {
@@ -1022,6 +1050,13 @@ var PZ = PZ || {};
                 this.material.blending = THREE.NormalBlending;
             }
             this.material.needsUpdate = true;
+            if (this.underMaterial) {
+                this.underMaterial.blending = this.material.blending;
+                this.underMaterial.blendSrc = this.material.blendSrc;
+                this.underMaterial.blendDst = this.material.blendDst;
+                this.underMaterial.blendEquation = this.material.blendEquation;
+                this.underMaterial.needsUpdate = true;
+            }
         }
         releaseCustomTextures() {
             var project = this.tryGetParentOfType(PZ.project);
@@ -1112,6 +1147,7 @@ var PZ = PZ || {};
             frame.screenSource = math.offsetToLayout(setup.positionXY.get(time), resolution[1]);
             frame.light = sourceType === 2 ? this.findLight(positioning.lightIndex.get(time)) : null;
             frame.occlude = sourceType !== 0 && positioning.foreground.occlude.get(time) === 1;
+            frame.fade = Math.max(0, Math.min(100, Number(positioning.foreground.fade.get(time)) || 0)) / 100;
             frame.margin = Math.max(0, positioning.margin.get(time));
             frame.reference = positioning.referenceDistance.get(time);
             frame.falloff = Math.max(0, positioning.distanceFalloff.get(time));
@@ -1189,6 +1225,8 @@ var PZ = PZ || {};
             }
             u.uElementCount.value = count;
             this.quad.visible = anyEnabled;
+            // Decided here (not in the render hook) so it applies to this frame.
+            if (this.underQuad) this.underQuad.visible = anyEnabled && frame.occlude && frame.fade < 1;
         }
         // Phase 2, from the render hook of the quad: the camera drawing the
         // pass and the world transforms of this frame. Everything is recomputed
@@ -1228,7 +1266,13 @@ var PZ = PZ || {};
                 u.uScale.value = frame.scale;
             }
             // Depth test only for 3D sources; the quad is at the source depth.
-            this.material.depthTest = frame.occlude && state !== null && state.depth != null;
+            var occluding = frame.occlude && state !== null && state.depth != null;
+            this.material.depthTest = occluding;
+            var fade = occluding ? (frame.fade != null ? frame.fade : 1) : 1;
+            u.uGain.value = fade;
+            if (this.underMaterial) {
+                this.underMaterial.uniforms.uGain.value = occluding ? 1 - fade : 0;
+            }
         }
         async prepare() {
             var keys = ["uCustom1", "uCustom2", "uCustom3"];

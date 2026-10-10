@@ -91,8 +91,10 @@ Davidium load. Changes in version 7:
 - **Scale Offset** (Flare Setup) is back: either it or the Global switch
   enables distance scaling. Both default to off, so existing projects render
   unchanged.
-- **Fade Amount** (Foreground Layers) is stored and shown again; occlusion
-  stays per-pixel through the depth buffer, so Fade has no render effect.
+- **Fade Amount** (Foreground Layers) sets how much of the flare an occluding
+  object hides: 100 hides it fully, 0 lets it show through. Occlusion stays
+  per-pixel through the depth buffer; the flare is drawn twice, once depth
+  tested at the fade strength and once untested with the remainder.
 - The Preview BG Layer stays editor-only: the window has a Black/Checker
   preview background toggle kept in localStorage. Stored Preview BG values
   are still ignored, as they never affected the render.
