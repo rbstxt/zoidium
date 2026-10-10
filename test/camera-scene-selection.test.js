@@ -144,7 +144,7 @@ test("depth of field renders through the scene pass with settings from the Camer
   const renderer = recordingRenderer();
   const target = new ctx.THREE.WebGLRenderTarget(64, 48);
   scene.pass.render(renderer, target, null, true);
-  assert.equal(renderer.calls.length, 3, "color pass, depth pass, and the blurred output");
+  assert.equal(renderer.calls.length, 5, "color, depth, tile and dilate passes, and the blurred output");
   const uniforms = dof.material.uniforms;
   assert.equal(uniforms.aperture.value, 4);
   assert.equal(uniforms.focusDistance.value, 120);

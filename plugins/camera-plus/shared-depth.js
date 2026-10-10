@@ -9,7 +9,7 @@ parts.sharedDepth = function ({ PZ, THREE, teardown, patchMethod, masterAt, Came
       const dof = new SceneDof();
       // The sequence depth texture stores linear distance / 5000, rather than
       // the packed perspective depth produced by an individual Scene.
-      dof.material.fragmentShader = dof.material.fragmentShader.replace('unpackDepth( texture2D( tDepth, uv ) )', 'texture2D( tDepth, uv ).r');
+      dof.useLinearDepthTexture();
       entry = { dof, depth: null, sceneDepth: null, material: null };
       owned.set(compositor, entry);
     }
@@ -139,10 +139,7 @@ parts.sharedDepth = function ({ PZ, THREE, teardown, patchMethod, masterAt, Came
       compositor.copyPass.uniforms.opacity.value = 1 / count;
       compositor.copyPass.render(compositor.renderer, target, null, true);
       entry.dof.configure(Object.assign({}, settings, { orthographic: true, near: 0, far: 5000 }));
-      const uniforms = entry.dof.material.uniforms;
-      uniforms.tColor.value = target.texture; uniforms.tDepth.value = entry.depth.texture;
-      uniforms.resolution.value.set(target.width, target.height); uniforms.uvScale.value.set(1, 1);
-      compositor.renderer.render(entry.dof.scene, entry.dof.camera, null, true);
+      entry.dof.composite(compositor.renderer, target.texture, entry.depth.texture, target.width, target.height, 1, 1, null, true);
       return true;
     },
     end(compositor) { compositor.__cameraPlusGlobalDof = null; },
