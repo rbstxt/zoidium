@@ -79,6 +79,21 @@
       "bundle": "./plugins/precomp-plus/bundle.json?v=4"
     },
     {
+      "id": "gif-support",
+      "category": "utilities",
+      "name": "Animated GIF",
+      "author": "DaviFX",
+      "version": "1",
+      "itemCount": 1,
+      "format": "animated images",
+      "tagline": "Animated GIF image assets",
+      "color": "#4f7dbf",
+      "description": "Decodes animated GIF image assets and animates them deterministically from clip-local time.",
+      "zoidiumOnly": true,
+      "manifest": "./plugins/gif-support/manifest.json?v=1",
+      "bundle": "./plugins/gif-support/bundle.json?v=1"
+    },
+    {
       "id": "light-plus",
       "category": "scene",
       "name": "Light+",
