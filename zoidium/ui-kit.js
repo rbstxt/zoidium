@@ -824,13 +824,21 @@
     }
 
     root.addEventListener("pointerdown", function () { win.focus(); }, true);
-    // Keep editor shortcuts (play, delete, undo) from firing while typing in
-    // a window. Escape closes the window unless a control consumed it.
+    // Keep editor shortcuts (play, delete, frame keys) from firing while a
+    // window has focus. Escape closes the window unless a control consumed it.
+    // Ctrl+Z, Ctrl+Y and Ctrl+S still reach CM3's editor handler, which skips
+    // them itself while the focus is in a text field, so undo, redo and save
+    // work right after an edit made in a window.
+    var EDITOR_COMMAND_KEYS = { z: true, y: true, s: true };
     ["keydown", "keyup", "keypress"].forEach(function (type) {
       root.addEventListener(type, function (event) {
         if (type === "keydown" && event.key === "Escape" && !event.defaultPrevented) {
           event.preventDefault();
           win.close();
+        }
+        if (type === "keydown" && event.ctrlKey && !event.altKey
+            && EDITOR_COMMAND_KEYS[String(event.key || "").toLowerCase()]) {
+          return;
         }
         event.stopPropagation();
       });
