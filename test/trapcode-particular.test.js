@@ -384,6 +384,69 @@ test("parent emission depends only on the parent state at the child birth", () =
   }
 });
 
+// Aux streaks: every live parent emits, so children trail along each parent's
+// path instead of all spawning from the newest parent at the emitter.
+function streakPair(PZ, parentBehavior) {
+  const container = new PZ.object3d.particular();
+  const parent = new PZ.object3d.particular.system();
+  const child = new PZ.object3d.particular.system();
+  parent.parent = container;
+  child.parent = container;
+  container.systems.push(parent, child);
+  for (const system of [parent, child]) system.sceneRate = () => FPS;
+  const p = parent.properties;
+  p.emitter.direction.set([1, 0, 0]);
+  p.emitter.velocity.set(300);
+  p.emitter.velocityRandom.set(0);
+  p.emitter.directionSpread.set(0);
+  p.emitter.randomSeed.set(3);
+  p.particle.life.set(2);
+  p.particle.lifeRandom.set(0);
+  if (parentBehavior === 2) {
+    p.emitter.emitterBehavior.set(2);
+    p.emitter.particlesPerSec.set(0);
+    p.emitter.burstCount.set(4);
+    p.emitter.burstInterval.set(1);
+  } else {
+    p.emitter.particlesPerSec.set(4);
+  }
+  const c = child.properties;
+  c.emitter.emitFromParent.set(1);
+  c.emitter.parentSystemIndex.set(0);
+  c.emitter.particlesPerSec.set(30);
+  c.emitter.velocity.set(0);
+  c.emitter.velocityRandom.set(0);
+  c.emitter.directionSpread.set(0);
+  c.emitter.inheritVelocity.set(0);
+  c.particle.life.set(1);
+  c.particle.lifeRandom.set(0);
+  return { parent, child };
+}
+
+for (const [label, behavior] of [["continuous", 0], ["burst", 2]]) {
+  test(`${label} parents each leave a trail of children`, () => {
+    const PZ = loadSystemModule();
+    const { parent, child } = streakPair(PZ, behavior);
+    const frame = 45;
+    const parents = parent.simulateFrame(frame);
+    const children = child.simulateFrame(frame);
+    assert.ok(parents.count >= 3, "several parents are alive");
+    assert.ok(children.count > 20, "children are alive");
+    // Children carry no velocity of their own, so each sits where its parent
+    // was at its birth: on the x axis, between the emitter and a live parent.
+    const xs = [];
+    for (let i = 0; i < children.count; i++) {
+      assert.ok(Math.abs(children.positions[i * 3 + 1]) < 1e-6);
+      xs.push(children.positions[i * 3]);
+    }
+    let farthestParent = 0;
+    for (let i = 0; i < parents.count; i++) farthestParent = Math.max(farthestParent, parents.positions[i * 3]);
+    const far = xs.filter((x) => x > farthestParent * 0.5).length;
+    assert.ok(far > children.count * 0.25, `children spread along the parent paths (${far}/${children.count})`);
+    assert.ok(Math.max(...xs) > farthestParent * 0.75, "the oldest parent has children near it");
+  });
+}
+
 test("per-evaluation limits bound far seeks and keep the output finite", () => {
   const PZ = loadSystemModule();
   const system = makeSystem(PZ, (p) => {
