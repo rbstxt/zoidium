@@ -996,7 +996,16 @@
       spec.params.forEach(function (param) {
         var row = el("div", "zoidium-node-editor-row param");
         row.appendChild(el("span", "zoidium-node-editor-label", param.label));
-        row.appendChild(paramControl(node, param));
+        if (param.socket) row.insertBefore(socketFor(node, "in", { id: param.id, label: param.label, type: param.control === "color" ? "color" : "float" }), row.firstChild);
+        var field = paramControl(node, param);
+        if (param.socket && linkedInputs.has(node.id + KEY_SEP + param.id)) {
+          row.classList.add("linked");
+          field.style.pointerEvents = "none";
+          field.setAttribute("aria-disabled", "true");
+          if (field.matches("input,select,button")) field.disabled = true;
+          field.querySelectorAll("input,select,button").forEach(function (control) { control.disabled = true; });
+        }
+        row.appendChild(field);
         block.appendChild(row);
       });
       return block;
@@ -1048,10 +1057,11 @@
         return element;
       }
       var ports = el("div", "zoidium-node-editor-ports");
-      spec.inputs.forEach(function (port) { ports.appendChild(inputRow(node, port)); });
+      spec.inputs.forEach(function (port) { if (!spec.params.some(function (param) { return param.socket && param.id === port.id; })) ports.appendChild(inputRow(node, port)); });
       spec.outputs.forEach(function (port) { ports.appendChild(outputRow(node, port)); });
       element.appendChild(ports);
       if (spec.params.length) element.appendChild(paramsBlock(node, spec));
+      if (spec.hint) element.appendChild(el("p", "zoidium-node-editor-hint", spec.hint));
       return element;
     }
 
@@ -1721,6 +1731,7 @@
       var groups = new Map();
       Object.keys(types).forEach(function (typeId) {
         var spec = types[typeId];
+        if (spec.hidden) return;
         if (menu.ctx && !menuAccepts(spec, menu.ctx)) return;
         var haystack = (spec.title + " " + spec.category + " " + typeId).toLowerCase();
         if (!tokens.every(function (token) { return haystack.indexOf(token) >= 0; })) return;

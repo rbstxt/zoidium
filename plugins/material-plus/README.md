@@ -97,7 +97,7 @@ preview. Each completed graph gesture records one native undo operation.
 Image and Texture nodes use the native Selected node image property,
 which imports images through CM3's project asset picker.
 
-All 31 node types are ported from DaviFX's OpenZoid:
+The historical node catalogue is ported from DaviFX's OpenZoid:
 [DaviFX](https://www.youtube.com/@davifxarts). These include noise, ridged
 fractal, turbulence, gradients, checker, image, texture, Fresnel, arithmetic,
 color correction, colorizer, spectra, blackbody, random color, projection and
@@ -109,8 +109,26 @@ Bakes run in a per-material worker loaded from the plugin bundle. Asset decoding
 completes before a bake, and export preparation waits for the requested bake.
 The key includes graph content, resolution, project frame and asset revisions.
 Noise uses fixed seeds; seeking does not retain previous-frame feedback.
-Resolution is limited to 128, 256 or 512. Noise lattice dimensions are capped
+Resolution supports 128, 256, 512, 1024 and 2048. Baked maps use linear
+filtering and mipmaps. Noise lattice dimensions are capped
 at 1024 to keep extreme imported settings within a memory limit.
+
+Numeric and color parameters have input sockets. Connected fields show their
+stored value but stay disabled; disconnecting restores editing. Texture links
+sample local expressions per pixel, using luminance for numbers and RGB for
+colors. Lattice settings, seed, animation speed, whole-image transforms,
+Random Color and Fresnel shader settings use the spatial mean.
+Float values and Math links retain signed values outside 0-1. Math texture
+operands evaluate per pixel. The add menu contains one Math node with Add,
+Subtract, Multiply, Divide, Power, Minimum, Maximum, Modulo, Absolute, Invert,
+Clamp, Compare, Sine and Round. Saved historical arithmetic nodes retain their
+old evaluators; historical Math migrates to a hidden legacy type.
+
+RGB Spectrum Wavelength and Gaussian Spectrum Center shift connected Input
+relative to 550 nm. Blackbody Kelvin shifts it relative to 4000 K. Without
+Input, each field specifies an absolute value. Planar projection also applies
+Rotation. Other controls depend on their operation: Gradient Y transforms
+matter for circular/diamond gradients, and blending requires a Base input.
 
 ## Additional PBR+ surface controls
 
@@ -129,9 +147,8 @@ shader and graph runtime and adds these optional controls:
 
 Ramp, procedural bump, Fresnel, ambient occlusion, cel, reflection layer and
 graphs default off. The physical material has zero clear coat until the
-reflection layer is enabled. PBR+ and Node Material also have tabbed attribute
-windows containing native property rows. Their normal property lists remain
-complete.
+reflection layer is enabled. PBR+ and Node Material expose their settings
+in native property rows, with a floating window for graph editing.
 
 ## Image+ Material
 

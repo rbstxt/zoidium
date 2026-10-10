@@ -48,7 +48,7 @@ return function createGraphRuntime(PZ, document) {
     }
 
     var BLEND_MODES = ["normal", "add", "subtract", "multiply", "screen", "overlay", "darken", "lighten", "difference"];
-    var MATH_MODES = ["add", "subtract", "multiply", "divide", "min", "max"];
+    var MATH_MODES = ["Add", "Subtract", "Multiply", "Divide", "Minimum", "Maximum", "Power", "Modulo", "Absolute", "Invert", "Clamp", "Compare", "Sine", "Round"];
 
     function coordsAt(uv, index, size, x, y) {
         if (uv) {
@@ -111,9 +111,10 @@ return function createGraphRuntime(PZ, document) {
             frequencyY *= 2;
         }
         var buffer = newBuffer(size);
-        var contrast = params.contrast === undefined ? 1 : params.contrast;
-        var brightness = params.brightness === undefined ? 1 : params.brightness;
         for (var p = 0; p < size * size; p++) {
+            params._pixel = p * 4;
+            var contrast = params.contrast === undefined ? 1 : params.contrast;
+            var brightness = params.brightness === undefined ? 1 : params.brightness;
             var normalized = values[p] / total;
             normalized = (normalized - 0.5) * contrast + 0.5;
             normalized = clamp(normalized * brightness, 0, 1);
@@ -144,6 +145,8 @@ return function createGraphRuntime(PZ, document) {
         for (var y = 0; y < size; y++) {
             for (var x = 0; x < size; x++) {
                 var index = (x + y * size) * 4;
+                params._pixel = index;
+
                 var coords = coordsAt(uv, index, size, x, y);
                 var coord = params.axis === 1 ? coords[1] : coords[0];
                 var value = 0.5 + 0.5 * Math.sin((coord * params.scale + params.phase) * Math.PI * 2);
@@ -170,6 +173,8 @@ return function createGraphRuntime(PZ, document) {
         for (var y = 0; y < size; y++) {
             for (var x = 0; x < size; x++) {
                 var index = (x + y * size) * 4;
+                params._pixel = index;
+
                 var coords = coordsAt(uv, index, size, x, y);
                 var coord = coords[1] * params.scale + (fractal[index] / 255) * params.veins;
                 var gray = Math.round(clamp(0.5 + 0.5 * Math.sin(coord * Math.PI * 2), 0, 1) * 255);
@@ -194,6 +199,8 @@ return function createGraphRuntime(PZ, document) {
         var buffer = newBuffer(size);
         for (var p = 0; p < size * size; p++) {
             var index = p * 4;
+            params._pixel = index;
+
             var value = 1 - fractal[index] / 255;
             value = clamp((value - 0.5) * (params.radius || 1) + 0.5, 0, 1);
             var gray = Math.round(value * 255);
@@ -207,10 +214,12 @@ return function createGraphRuntime(PZ, document) {
 
     function invertBuffer(size, input, params) {
         var source = input || colorBuffer(size, [0.5, 0.5, 0.5]);
-        var strength = params.strength === undefined ? 1 : params.strength;
         var buffer = newBuffer(size);
         for (var p = 0; p < size * size; p++) {
             var index = p * 4;
+            params._pixel = index;
+            var strength = params.strength === undefined ? 1 : params.strength;
+
             for (var c = 0; c < 3; c++) {
                 var value = source[index + c] / 255;
                 buffer[index + c] = (value + (1 - 2 * value) * strength) * 255;
@@ -222,11 +231,13 @@ return function createGraphRuntime(PZ, document) {
 
     function clampBuffer(size, input, params) {
         var source = input || colorBuffer(size, [0.5, 0.5, 0.5]);
-        var min = params.min === undefined ? 0 : params.min;
-        var max = params.max === undefined ? 1 : params.max;
         var buffer = newBuffer(size);
         for (var p = 0; p < size * size; p++) {
             var index = p * 4;
+            params._pixel = index;
+            var min = params.min === undefined ? 0 : params.min;
+            var max = params.max === undefined ? 1 : params.max;
+
             for (var c = 0; c < 3; c++) {
                 buffer[index + c] = clamp(source[index + c] / 255, min, max) * 255;
             }
@@ -244,6 +255,8 @@ return function createGraphRuntime(PZ, document) {
         var buffer = newBuffer(size);
         for (var p = 0; p < size * size; p++) {
             var index = p * 4;
+            params._pixel = index;
+
             var base = a ? a[index] / 255 : 0;
             var top = b ? b[index] / 255 : clamp(params.value === undefined ? 1 : params.value, 0, 1);
             var result;
@@ -275,6 +288,8 @@ return function createGraphRuntime(PZ, document) {
         var buffer = newBuffer(size);
         for (var p = 0; p < size * size; p++) {
             var index = p * 4;
+            params._pixel = index;
+
             var base = a ? a[index] / 255 : 0;
             var top = b ? b[index] / 255 : clamp(params.value === undefined ? 0.5 : params.value, 0, 1);
             var result;
@@ -293,11 +308,13 @@ return function createGraphRuntime(PZ, document) {
     function cosineMixBuffer(size, a, b, params) {
         var source = a || colorBuffer(size, [0, 0, 0]);
         var target = b || source;
-        var mix = clamp(params.mix === undefined ? 0.5 : params.mix, 0, 1);
-        var t = 0.5 - 0.5 * Math.cos(Math.PI * mix);
         var buffer = newBuffer(size);
         for (var p = 0; p < size * size; p++) {
             var index = p * 4;
+            params._pixel = index;
+            var mix = clamp(params.mix === undefined ? 0.5 : params.mix, 0, 1);
+            var t = 0.5 - 0.5 * Math.cos(Math.PI * mix);
+
             for (var c = 0; c < 3; c++) {
                 var base = source[index + c] / 255;
                 var top = target[index + c] / 255;
@@ -348,14 +365,16 @@ return function createGraphRuntime(PZ, document) {
 
     function colorCorrectionBuffer(size, input, params) {
         var source = input || colorBuffer(size, [1, 1, 1]);
-        var brightness = params.brightness === undefined ? 1 : params.brightness;
-        var contrast = params.contrast === undefined ? 1 : params.contrast;
-        var gamma = params.gamma === undefined ? 1 : params.gamma;
-        var hue = (params.hue || 0) / 360;
-        var saturation = params.saturation === undefined ? 1 : params.saturation;
         var buffer = newBuffer(size);
         for (var p = 0; p < size * size; p++) {
             var index = p * 4;
+            params._pixel = index;
+            var brightness = params.brightness === undefined ? 1 : params.brightness;
+            var contrast = params.contrast === undefined ? 1 : params.contrast;
+            var gamma = params.gamma === undefined ? 1 : params.gamma;
+            var hue = (params.hue || 0) / 360;
+            var saturation = params.saturation === undefined ? 1 : params.saturation;
+
             for (var c = 0; c < 3; c++) {
                 var value = source[index + c] / 255;
                 value = (value - 0.5) * contrast + 0.5;
@@ -379,16 +398,17 @@ return function createGraphRuntime(PZ, document) {
 
     function colorizerBuffer(size, input, params) {
         var source = input || colorBuffer(size, [0.5, 0.5, 0.5]);
-        var colors = [params.color1, params.color2, params.color3, params.color4, params.color5];
         var buffer = newBuffer(size);
         for (var p = 0; p < size * size; p++) {
             var index = p * 4;
+            params._pixel = index;
+
             var t = luminanceAt(source, index);
-            var scaled = t * (colors.length - 1);
-            var segment = Math.min(colors.length - 2, Math.floor(scaled));
+            var scaled = t * 4;
+            var segment = Math.min(3, Math.floor(scaled));
             var local = scaled - segment;
-            var first = colors[segment];
-            var second = colors[segment + 1];
+            var first = params["color" + (segment + 1)];
+            var second = params["color" + (segment + 2)];
             buffer[index] = (first[0] + (second[0] - first[0]) * local) * 255;
             buffer[index + 1] = (first[1] + (second[1] - first[1]) * local) * 255;
             buffer[index + 2] = (first[2] + (second[2] - first[2]) * local) * 255;
@@ -435,11 +455,13 @@ return function createGraphRuntime(PZ, document) {
     }
 
     function rgbSpectrumBuffer(size, input, params) {
-        if (input) {
+        if (input || params._fields?.wavelength) {
             var buffer = newBuffer(size);
             for (var p = 0; p < size * size; p++) {
                 var index = p * 4;
-                var color = wavelengthColor(380 + luminanceAt(input, index) * 400);
+                params._pixel = index;
+
+                var color = wavelengthColor(input ? clamp(380 + luminanceAt(input, index) * 400 + params.wavelength - 550, 380, 780) : params.wavelength);
                 buffer[index] = color[0] * 255;
                 buffer[index + 1] = color[1] * 255;
                 buffer[index + 2] = color[2] * 255;
@@ -468,11 +490,19 @@ return function createGraphRuntime(PZ, document) {
     }
 
     function gaussianSpectrumBuffer(size, input, params) {
-        if (input) {
+        if (input || params._fields?.center || params._fields?.width) {
             var buffer = newBuffer(size);
+            const colors = [];
             for (var p = 0; p < size * size; p++) {
                 var index = p * 4;
-                var color = gaussianSpectrumColor(380 + luminanceAt(input, index) * 400, params.width);
+                params._pixel = index;
+
+                // Byte inputs have only 25,501 luminance levels. Reuse spectral
+                // integration across pixels rather than integrating every pixel.
+                const center = input ? clamp(380 + luminanceAt(input, index) * 400 + params.center - 550, 380, 780) : params.center;
+                const key = input ? input[index] * 30 + input[index + 1] * 59 + input[index + 2] * 11 : 0;
+                var color = params._fields?.center || params._fields?.width ? gaussianSpectrumColor(center, params.width)
+                    : colors[key] || (colors[key] = gaussianSpectrumColor(center, params.width));
                 buffer[index] = color[0] * 255;
                 buffer[index + 1] = color[1] * 255;
                 buffer[index + 2] = color[2] * 255;
@@ -512,7 +542,9 @@ return function createGraphRuntime(PZ, document) {
         var buffer = newBuffer(size);
         for (var p = 0; p < size * size; p++) {
             var index = p * 4;
-            var kelvin = input ? 1000 + luminanceAt(input, index) * 39000 : params.temperature;
+            params._pixel = index;
+
+            var kelvin = input ? 1000 + luminanceAt(input, index) * 39000 + params.temperature - 4000 : params.temperature;
             var color = blackbodyColor(kelvin);
             buffer[index] = color[0] * 255;
             buffer[index + 1] = color[1] * 255;
@@ -591,14 +623,16 @@ return function createGraphRuntime(PZ, document) {
 
     function gradientBuffer(size, position, base, params) {
         var buffer = newBuffer(size);
-        var c1 = params.color1;
-        var c2 = params.color2;
-        var midpoint = clamp(params.midpoint, 0.001, 0.999);
-        var opacity = clamp(params.opacity === undefined ? 1 : params.opacity, 0, 1);
-        var mode = params.blendMode || 0;
         for (var y = 0; y < size; y++) {
             for (var x = 0; x < size; x++) {
                 var index = (x + y * size) * 4;
+                params._pixel = index;
+                var c1 = params.color1;
+                var c2 = params.color2;
+                var midpoint = clamp(params.midpoint, 0.001, 0.999);
+                var opacity = clamp(params.opacity === undefined ? 1 : params.opacity, 0, 1);
+                var mode = params.blendMode || 0;
+
                 var t = position ? luminanceAt(position, index) : gradientTypeT(params, x / size, y / size);
                 var ramp = t < midpoint ? 0.5 * (t / midpoint) : 0.5 + 0.5 * ((t - midpoint) / (1 - midpoint));
                 var cr = c1[0] + (c2[0] - c1[0]) * ramp;
@@ -624,10 +658,12 @@ return function createGraphRuntime(PZ, document) {
 
     function checkerBuffer(size, params, uv) {
         var buffer = newBuffer(size);
-        var scale = Math.max(1, Math.round(params.scale));
         for (var y = 0; y < size; y++) {
             for (var x = 0; x < size; x++) {
                 var index = (x + y * size) * 4;
+                params._pixel = index;
+                var scale = Math.max(1, Math.round(params.scale));
+
                 var coords = coordsAt(uv, index, size, x, y);
                 var checker = (Math.floor(coords[0] * scale) + Math.floor(coords[1] * scale)) % 2;
                 var color = checker === 0 ? params.color1 : params.color2;
@@ -661,16 +697,16 @@ return function createGraphRuntime(PZ, document) {
                 if (params.mode === 1 || params.mode === 2 || params.mode === 3) {
                     ou = Math.atan2(rv, ru) / (Math.PI * 2) + 0.5;
                 } else {
-                    ou = u + 0.5;
+                    ou = ru + 0.5;
                 }
                 if (params.mode === 1) {
                     ov = Math.min(1, Math.sqrt(ru * ru + rv * rv) * 2);
                 } else if (params.mode === 2) {
-                    ov = v + 0.5;
+                    ov = rv + 0.5;
                 } else if (params.mode === 3) {
                     ov = Math.asin(clamp(Math.sqrt(ru * ru + rv * rv) * 2, 0, 1)) / (Math.PI / 2);
                 } else {
-                    ov = v + 0.5;
+                    ov = rv + 0.5;
                 }
                 ou = ou - Math.floor(ou);
                 ov = ov - Math.floor(ov);
@@ -685,10 +721,12 @@ return function createGraphRuntime(PZ, document) {
 
     function mixBuffer(size, a, b, params) {
         var buffer = newBuffer(size);
-        var opacity = clamp(params.opacity, 0, 1);
-        var mode = params.mode;
         for (var p = 0; p < size * size; p++) {
             var index = p * 4;
+            params._pixel = index;
+            var opacity = clamp(params.opacity, 0, 1);
+            var mode = params.mode;
+
             for (var c = 0; c < 3; c++) {
                 var base = a ? a[index + c] / 255 : 0;
                 var top = b ? b[index + c] / 255 : base;
@@ -1288,6 +1326,77 @@ return function createGraphRuntime(PZ, document) {
         },
     };
 
+    TYPES.legacyMath = { ...TYPES.math, hidden: true, params: TYPES.math.params.map(p => p.key === "op" ? { ...p, items: MATH_MODES.slice(0, 6) } : p) };
+    TYPES.math = { ...TYPES.math, inputs: [{ key: "a", name: "A" }, { key: "b", name: "B" }], evaluate: (size, inputs, params) => asTexture(numericMath(size, inputs, params), size), category: "Shader", params: [
+        { key: "op", name: "Operation", type: "option", items: MATH_MODES, value: 0 },
+        { key: "a", name: "A", type: "number", value: 0, step: 0.01 },
+        { key: "b", name: "B", type: "number", value: 1, step: 0.01 },
+    ] };
+    for (const id of ["invert", "clampTexture", "multiply", "add", "subtract", "compare"]) TYPES[id].hidden = true;
+    delete TYPES.float.params[0].min;
+    delete TYPES.float.params[0].max;
+    TYPES.rgbSpectrum.hint = "Wavelength sets the color without Input; with Input it shifts the spectrum relative to 550 nm.";
+    TYPES.gaussianSpectrum.hint = "Center sets the color without Input; with Input it shifts the spectrum relative to 550 nm. Width controls spectral spread.";
+    TYPES.blackbody.hint = "Kelvin sets the color without Input; with Input it shifts temperature relative to 4000 K.";
+    for (const def of Object.values(TYPES)) for (const p of def.params) {
+        if (["number", "color"].includes(p.type) && !def.inputs.some(input => input.key === p.key))
+            def.inputs.push({ key: p.key, name: p.name, parameter: true, type: p.type });
+    }
+
+    const pixelTypes = new Set(["add", "blackbody", "checker", "clampTexture", "colorCorrection", "colorizer", "compare", "cosineMix", "dirt", "gaussianSpectrum", "gradient", "invert", "marble", "mix", "multiply", "noise", "rgbSpectrum", "ridgedFractal", "sineWave", "subtract", "turbulence"]);
+    const latticeParams = new Set(["scale", "ratio", "octaves", "seed", "speedX", "speedY", "fractalScale"]);
+    function pixelParameter(type, key) {
+        if (!pixelTypes.has(type)) return false;
+        if (["noise", "ridgedFractal", "turbulence", "marble", "dirt"].includes(type) && latticeParams.has(key)) return false;
+        return true;
+    }
+
+    // Constant numeric links retain their full value. Whole-operation settings
+    // use a spatial mean independent of traversal and playback order.
+    function reduceValue(value, color = false) {
+        if (value.scalar !== undefined) return color ? [value.scalar, value.scalar, value.scalar] : value.scalar;
+        const rgb = [0, 0, 0];
+        for (let i = 0; i < value.length; i += 4) for (let c = 0; c < 3; c++) rgb[c] += value[i + c] / 255;
+        for (let c = 0; c < 3; c++) rgb[c] /= value.length / 4;
+        return color ? rgb : rgb[0] === rgb[1] && rgb[1] === rgb[2] ? rgb[0] : rgb[0] * 0.3 + rgb[1] * 0.59 + rgb[2] * 0.11;
+    }
+    function asTexture(value, size) {
+        if (!value) return null;
+        if (value.scalar !== undefined) return colorBuffer(size, [value.scalar, value.scalar, value.scalar]);
+        return value instanceof Uint8ClampedArray ? value : new Uint8ClampedArray(value);
+    }
+    function numericMath(size, inputs, params) {
+        const a = inputs.a || { scalar: params.a }, b = inputs.b || { scalar: params.b };
+        function operation(x, y) {
+            let v;
+            switch (params.op) {
+                case 0: v = x + y; break;
+                case 1: v = x - y; break;
+                case 2: v = x * y; break;
+                case 3: v = Math.abs(y) < 1e-12 ? 0 : x / y; break;
+                case 4: v = Math.min(x, y); break;
+                case 5: v = Math.max(x, y); break;
+                case 6: v = Math.pow(x, y); break;
+                case 7: v = Math.abs(y) < 1e-12 ? 0 : x % y; break;
+                case 8: v = Math.abs(x); break;
+                case 9: v = 1 - x; break;
+                case 10: v = clamp(x, 0, 1); break;
+                case 11: v = Math.abs(x - y) <= 0.01 ? 1 : 0; break;
+                case 12: v = Math.sin(x); break;
+                case 13: v = Math.round(x); break;
+            }
+            return Number.isFinite(v) ? clamp(v, -1e30, 1e30) : 0;
+        }
+        if (a.scalar !== undefined && b.scalar !== undefined) return { scalar: operation(a.scalar, b.scalar) };
+        const buffer = new Float32Array(size * size * 4);
+        for (let i = 0; i < buffer.length; i += 4) {
+            const v = operation(a.scalar ?? luminanceAt(a, i), b.scalar ?? luminanceAt(b, i)) * 255;
+            buffer[i] = buffer[i + 1] = buffer[i + 2] = v;
+            buffer[i + 3] = 255;
+        }
+        return buffer;
+    }
+
     nodes.types = TYPES;
 
     nodes.defaultGraph = function () {
@@ -1336,12 +1445,13 @@ return function createGraphRuntime(PZ, document) {
         for (const raw of graph.nodes.slice(0, 200)) {
             if (!raw || typeof raw.id !== "string" || raw.id.length > 128 || ids.has(raw.id) || !Object.hasOwn(TYPES, raw.type)) continue;
             ids.add(raw.id);
-            const node = nodes.createNode(raw.type, raw.id);
+            const type = raw.type === "math" && raw.params?.a === undefined && raw.params?.b === undefined ? "legacyMath" : raw.type;
+            const node = nodes.createNode(type, raw.id);
             node.x = Number.isFinite(raw.x) ? raw.x : 40;
             node.y = Number.isFinite(raw.y) ? raw.y : 40;
-            for (const p of TYPES[raw.type].params) {
+            for (const p of TYPES[type].params) {
                 let v = raw.params?.[p.key];
-                if (p.type === "number" && Number.isFinite(Number(v))) v = clamp(Number(v), p.min ?? -1e6, p.max ?? 1e6);
+                if (p.type === "number" && Number.isFinite(Number(v))) v = clamp(Number(v), p.min ?? -Number.MAX_VALUE, p.max ?? Number.MAX_VALUE);
                 else if (p.type === "option" && Number.isFinite(Number(v))) v = clamp(Math.round(Number(v)), 0, p.items.length - 1);
                 else if (p.type === "color" && Array.isArray(v) && v.length >= 3) v = v.slice(0, 3).map(c => clamp(Number(c) || 0, 0, 1));
                 else if (p.type === "asset" && typeof v === "string" && !/^(?:https?:|data:|blob:)/i.test(v)) v = v.slice(0, 1024);
@@ -1381,7 +1491,7 @@ return function createGraphRuntime(PZ, document) {
         return null;
     };
 
-    nodes.fresnelSettings = function (graph) {
+    nodes.fresnelSettings = function (graph, time = 0, context = {}) {
         for (var i = 0; i < graph.nodes.length; i++) {
             if (graph.nodes[i].type !== "output") continue;
             var link = nodes.findLink(graph, graph.nodes[i].id, "fresnel");
@@ -1389,10 +1499,16 @@ return function createGraphRuntime(PZ, document) {
             for (var n = 0; n < graph.nodes.length; n++) {
                 var node = graph.nodes[n];
                 if (node.id === link.from && node.type === "fresnel") {
+                    const setting = key => {
+                        const source = nodes.findLink(graph, node.id, key);
+                        if (!source) return node.params[key];
+                        const value = nodes.evaluate(graph, context.size || 32, time, context, source.from);
+                        return value ? reduceValue(value, key === "color") : node.params[key];
+                    };
                     return {
-                        color: node.params.color || [1, 1, 1],
-                        power: node.params.power,
-                        mix: node.params.mix,
+                        color: setting("color"),
+                        power: setting("power"),
+                        mix: setting("mix"),
                     };
                 }
             }
@@ -1407,8 +1523,8 @@ return function createGraphRuntime(PZ, document) {
     nodes.cacheKey = function (graph, resolution, frame, assets) {
         return JSON.stringify([nodes.parse(graph), resolution, frame, assets]);
     };
-    nodes.evaluate = function (graph, size, time, context) {
-        size = Math.max(1, Math.min(512, Math.round(size) || 128));
+    nodes.evaluate = function (graph, size, time, context, target) {
+        size = Math.max(1, Math.min(2048, Math.round(size) || 128));
         graph = nodes.parse(graph);
         var outputs = {};
         var cache = Object.create(null);
@@ -1438,12 +1554,33 @@ return function createGraphRuntime(PZ, document) {
                 var input = definition.inputs[i];
                 inputs[input.key] = inputBuffer(id, input.key, stack);
             }
-            var result = definition.evaluate ? definition.evaluate(size, inputs, node.params, time, context) : null;
+            const params = { ...node.params, _pixel: 0, _fields: {} };
+            for (const p of definition.params) if (inputs[p.key]) {
+                const value = inputs[p.key];
+                if (value.scalar === undefined && pixelParameter(node.type, p.key)) {
+                    params._fields[p.key] = true;
+                    const rgb = [0, 0, 0];
+                    Object.defineProperty(params, p.key, { get() {
+                        if (p.type !== "color") return value[params._pixel] === value[params._pixel + 1] && value[params._pixel + 1] === value[params._pixel + 2] ? value[params._pixel] / 255 : luminanceAt(value, params._pixel);
+                        for (let c = 0; c < 3; c++) rgb[c] = value[params._pixel + c] / 255;
+                        return rgb;
+                    } });
+                } else params[p.key] = reduceValue(value, p.type === "color");
+            }
+            let result;
+            if (node.type === "float") result = inputs.value || { scalar: params.value };
+            else if (node.type === "color" && inputs.color) result = asTexture(inputs.color, size);
+            else if (node.type === "math") result = numericMath(size, inputs, params);
+            else {
+                for (const key of Object.keys(inputs)) if (!definition.params.some(p => p.key === key)) inputs[key] = asTexture(inputs[key], size);
+                result = definition.evaluate ? definition.evaluate(size, inputs, params, time, context) : null;
+            }
             stack.pop();
             cache[id] = result;
             return result;
         }
 
+        if (target !== undefined) return evaluateNode(target, []);
         for (var n = 0; n < graph.nodes.length; n++) {
             var node = graph.nodes[n];
             if (node.type !== "output") continue;
@@ -1452,10 +1589,12 @@ return function createGraphRuntime(PZ, document) {
                 var key = definition.inputs[j].key;
                 var buffer = inputBuffer(node.id, key, []);
                 if (buffer) {
-                    outputs[key] = bufferToCanvas(size, buffer);
+                    outputs[key] = bufferToCanvas(size, asTexture(buffer, size));
                 }
             }
         }
+        const fresnel = nodes.fresnelSettings(graph, time, { ...context, size });
+        if (fresnel) outputs.__fresnel = fresnel;
         return outputs;
     };
 

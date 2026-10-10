@@ -9,15 +9,15 @@ const nodes = create({}, null);
 // Goldens captured independently from the OpenZoid evaluator with connected input buffers.
 const golden = require("../plugins/material-plus/node-golden.json");
 const hash = pixels => pixels ? crypto.createHash("sha256").update(pixels).digest("hex") : null;
-for (const id of Object.keys(nodes.types)) test(`OpenZoid ${id} small-resolution golden`, () => {
+for (const id of Object.keys(nodes.types).filter(id => id !== "math")) test(`OpenZoid ${id} small-resolution golden`, () => {
   const node = nodes.createNode(id, "n");
   const input = new Uint8ClampedArray(8 * 8 * 4);
   for (let i = 0; i < input.length; i += 4) { input[i] = i % 256; input[i + 1] = 255 - i % 256; input[i + 2] = 128; input[i + 3] = 255; }
   const def = nodes.types[id];
   const inputs = Object.fromEntries(def.inputs.map(p => [p.key, input]));
-  assert.equal(hash(def.evaluate?.(8, inputs, node.params, .5, { images: {} })), golden[id]);
+  assert.equal(hash(def.evaluate?.(8, inputs, node.params, .5, { images: {} })), golden[id === "legacyMath" ? "math" : id]);
 });
-test("all 31 OpenZoid types are present", () => assert.equal(Object.keys(nodes.types).length, 31));
+test("all historical types remain available alongside the new Math", () => assert.equal(Object.keys(nodes.types).length, 32));
 test("animated noise is independent of seek order", () => {
   for (const type of ["noise", "ridgedFractal", "turbulence", "marble", "dirt"]) {
     const node = nodes.createNode(type, "n"); node.params.speedX = 1;

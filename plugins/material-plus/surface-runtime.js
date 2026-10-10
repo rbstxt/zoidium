@@ -544,7 +544,7 @@ this.refreshBindings = function () {
 
 this.updateMipFalloff = function () {
     var mip = this.properties.bumpMipFalloff.get() === 1;
-    var wanted = mip ? THREE.LinearMipmapLinearFilter : THREE.LinearFilter;
+    var wanted = mip ? (THREE.LinearMipmapLinearFilter ?? THREE.LinearMipMapLinearFilter) : THREE.LinearFilter;
     var list = [this.pzNoiseTexture, this.pzGraphTextures.bump];
     for (var i = 0; i < list.length; i++) {
         var texture = list[i];
@@ -618,6 +618,13 @@ this.setGraphChannel = function (slot, canvas, batch) {
         existing.dispose();
         this.pzGraphTextures[slot] = null;
     }
+    if (has) {
+        const texture = this.pzGraphTextures[slot];
+        texture.magFilter = THREE.LinearFilter;
+        const mip = slot !== "bump" || this.properties.bumpMipFalloff.get() === 1;
+        texture.minFilter = mip ? (THREE.LinearMipmapLinearFilter ?? THREE.LinearMipMapLinearFilter) : THREE.LinearFilter;
+        texture.generateMipmaps = mip;
+    }
     var mapChanged = this.bindGraphChannel(slot);
     if (mapChanged) {
         this.threeObj.needsUpdate = true;
@@ -647,7 +654,7 @@ this.bakeGraph = function (time) {
         var material = this;
         var graph = nodes.parse(this.properties.graph.get());
         this.pzGraph = graph;
-        var resolution = [128, 256, 512][this.properties.bakeResolution.get()] || 256;
+        var resolution = [128, 256, 512, 1024, 2048][this.properties.bakeResolution.get()] || 256;
         var outputs = nodes.evaluate(graph, resolution, time || 0, {
             material: material, images: nodes.imageBuffers(graph, resolution, material),
         });
@@ -807,7 +814,7 @@ this.props = {
             if (this.parentObject.pzLoading || this.parentObject._zoidiumLoading || !this.parentObject.pzUniforms) return;
             this.parentObject.bakeGraph();
         },
-        items: "128;256;512",
+        items: "128;256;512;1024;2048",
     },
     color: {
         dynamic: true,

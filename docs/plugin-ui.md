@@ -161,6 +161,36 @@ The header's "+ Add node" button, right-clicking the grid, Shift+A or Tab
 open the searchable add menu, Ctrl/Cmd+drag cuts links,
 Delete, Ctrl/Cmd+D, Ctrl/Cmd+C/V and Home/F work as expected.
 
+Material+ exposes every numeric and color parameter as an input socket on its
+parameter row. A connected field stays visible and disabled; disconnecting
+restores its stored value. Options remain ordinary dropdowns. Registry params
+opt into this with `socket: true` and a matching input port. `hidden: true`
+keeps a historical node type evaluable while removing it from the add menu.
+
+Float and Math retain signed numeric values beyond 0–1 through numeric links.
+Math evaluates texture operands per pixel using luminance. Local parameter
+expressions also sample each pixel: Gradient, Checker, Sine Wave, color
+correction, colorizer, spectra, Blackbody, blending, arithmetic, and noise
+brightness/contrast or Dirt radius. Color and Float pass through linked
+textures. Color parameters sample RGB; numeric parameters sample luminance.
+Noise lattice settings, octaves, seed and animation speeds, Random Color,
+Texture/Projection/UvW whole-image transforms and Fresnel shader settings
+use spatial mean luminance, or mean RGB for a color parameter. These settings
+describe a whole texture operation rather than a pixel-local expression.
+Only conversion to a displayed or baked texture clips values to 0–1. Math
+Compare returns 1 when operands differ by at most 0.01. Divide and Modulo
+return 0 for a divisor whose magnitude is below 1e-12; non-finite results also
+return 0. Saved historical Math nodes migrate to a hidden legacy evaluator;
+the separate historical math types keep their serialized IDs and behavior.
+
+RGB Spectrum Wavelength and Gaussian Spectrum Center shift a connected
+Input's wavelength relative to 550 nm. Blackbody Kelvin shifts its connected
+Input relative to 4000 K. Without Input, these fields specify absolute values.
+Bake Resolution supports 128, 256, 512, 1024 and 2048. Node Material and the
+PBR+ node graph bake in a worker, replace pending edits with the newest graph,
+and await the full chosen resolution before export. Baked maps use linear
+magnification and mipmaps; the editor's Color output thumbnail is 128 pixels.
+
 ## Side panels: `context.ui.sidePanel()`
 
 ```js
