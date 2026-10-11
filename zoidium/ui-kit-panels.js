@@ -281,6 +281,7 @@
     }
     if (config.icon && global.PZ && typeof global.PZ.ui.generateIcon === "function") {
       var icon = null;
+      // Icon generation is decorative; a failure keeps the text button.
       try { icon = global.PZ.ui.generateIcon(config.icon); } catch (_error) { icon = null; }
       if (icon) {
         if (typeof icon.setAttribute === "function") icon.setAttribute("aria-hidden", "true");

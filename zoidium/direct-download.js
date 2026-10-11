@@ -13,6 +13,7 @@
       var pathname = target.pathname;
       return /(?:^|\/)download(?:\/index)?\.html$|\/download\/?$/i.test(pathname);
     } catch (_error) {
+      // A value that is not parseable as a URL is never a download page.
       return false;
     }
   }

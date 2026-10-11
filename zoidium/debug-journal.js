@@ -72,6 +72,7 @@
     try {
       return String(value ?? fallback);
     } catch (_error) {
+      // String() can throw on revoked proxies; fall back to the default.
       return fallback;
     }
   }
@@ -121,6 +122,7 @@
         code = error.code;
       }
     } catch (_error) {
+      // Hostile getters on the error object must not break journaling.
       message = "Could not read error details";
     }
 
@@ -148,12 +150,14 @@
           try {
             return value[key] == null ? null : `${key}=${primitive(value[key])}`;
           } catch (_error) {
+            // A throwing getter hides one field, not the whole summary.
             return null;
           }
         })
         .filter(Boolean);
       return fields.length > 0 ? `[${name}: ${fields.join(", ")}]` : `[${name}]`;
     } catch (_error) {
+      // Reading the constructor name can throw on exotic host objects.
       return "[Object]";
     }
   }
@@ -193,12 +197,14 @@
       try {
         hasOpener = Boolean(global.opener);
       } catch (_error) {
+        // A cross-origin opener cannot be read; treat it as absent.
         hasOpener = false;
       }
       tabId = inherited && !hasOpener ? inherited : diagnosticId("tab");
       global.sessionStorage?.setItem(TAB_STORAGE_KEY, tabId);
       return tabId;
     } catch (_error) {
+      // sessionStorage may be blocked; the tab still gets a session id.
       tabId = diagnosticId("tab");
       return tabId;
     }

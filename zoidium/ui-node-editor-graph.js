@@ -64,6 +64,7 @@
       var text = JSON.stringify(value);
       return text === undefined ? null : JSON.parse(text);
     } catch (_error) {
+      // Unserializable values (functions, cycles) clone to null.
       return null;
     }
   }
@@ -215,6 +216,7 @@
     try {
       return canConnect ? Boolean(canConnect(fromType, toType)) : defaultCanConnect(fromType, toType);
     } catch (_error) {
+      // A throwing plugin type check rejects the connection.
       return false;
     }
   }

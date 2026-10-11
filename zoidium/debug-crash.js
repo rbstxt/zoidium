@@ -53,6 +53,7 @@
       }
       return `${parsed.protocol.replace(/:$/, "")}:redacted`;
     } catch (_error) {
+      // A value that is not parseable as a URL carries no origin information.
       return "unparseable";
     }
   }
@@ -78,6 +79,7 @@
       else if (value === "same-origin" || value === "about:blank") context.sameOrigin = true;
       return value;
     } catch (_error) {
+      // Reading a cross-origin window's location throws; treat it as such.
       context.currentUrl = "cross-origin";
       context.sameOrigin = false;
       return context.currentUrl;
@@ -111,6 +113,7 @@
     try {
       consoleObject = targetWindow?.console;
     } catch (_error) {
+      // A cross-origin window's console cannot be read; there is nothing to hook.
       return;
     }
     const original = consoleObject?.[name];
@@ -185,6 +188,7 @@
     try {
       originalOpen = targetWindow.open;
     } catch (_error) {
+      // A cross-origin window's open cannot be read; popups there stay untracked.
       return;
     }
     if (typeof originalOpen !== "function") return;
@@ -321,6 +325,7 @@
           : [],
       };
     } catch (_error) {
+      // User-agent details are optional diagnostics.
       return null;
     }
   }
@@ -564,6 +569,7 @@
       });
       longTaskObserver.observe({ type: "longtask", buffered: true });
     } catch (_error) {
+      // PerformanceObserver longtask entries are an optional diagnostic.
       longTaskObserver = null;
     }
   }
@@ -613,6 +619,7 @@
       try {
         closed = !context.window || Boolean(context.window.closed);
       } catch (_error) {
+        // A cross-origin popup's closed flag cannot be read; keep tracking it.
         closed = false;
       }
       if (closed && !context.closedAt) context.closedAt = new Date().toISOString();

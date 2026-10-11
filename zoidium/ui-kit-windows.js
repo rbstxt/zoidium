@@ -42,6 +42,10 @@
   var cascade = 0;
   var validityTimer = 0;
   var resizeListening = false;
+  // The validity poll runs every 500 ms while any watched window is open; warn
+  // only on the first failure per window id so a throwing isValid cannot flood
+  // the console. Entries are dropped when the window closes.
+  var warnedValidityFailures = {};
 
   function readGeometry() {
     try {
@@ -49,6 +53,7 @@
       var parsed = raw ? JSON.parse(raw) : null;
       return parsed && typeof parsed === "object" ? parsed : {};
     } catch (_error) {
+      // Stored geometry is a hint; corrupt or blocked storage uses defaults.
       return {};
     }
   }
@@ -151,7 +156,19 @@
       openWindows.forEach(function (win) {
         if (typeof win._isValid !== "function") return;
         var valid = true;
-        try { valid = win._isValid() !== false; } catch (_error) { valid = false; }
+        try {
+          valid = win._isValid() !== false;
+        } catch (error) {
+          // A throwing check closes the window (the safe recovery); the
+          // warning preserves the plugin failure for diagnostics.
+          if (!warnedValidityFailures[win.id]) {
+            warnedValidityFailures[win.id] = true;
+            if (global.console && typeof global.console.warn === "function") {
+              global.console.warn("[Zoidium] window validity check failed:", error);
+            }
+          }
+          valid = false;
+        }
         if (!valid) win.close();
       });
       if (openWindows.size === 0) {
@@ -316,6 +333,7 @@
           other.element.classList.toggle("focused", other === win);
         });
         if (!root.contains(doc.activeElement)) {
+          // preventScroll is not supported everywhere; focus still moves.
           try { root.focus({ preventScroll: true }); } catch (_error) { root.focus(); }
         }
       },
@@ -323,6 +341,7 @@
         if (closed) return;
         closed = true;
         openWindows.delete(id);
+        delete warnedValidityFailures[id];
         cleanups.splice(0).reverse().forEach(function (cleanup) {
           try { cleanup(); } catch (error) { console.error("[Zoidium] window cleanup failed:", error); }
         });

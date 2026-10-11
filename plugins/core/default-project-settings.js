@@ -24,6 +24,7 @@
       if (!Number.isFinite(configured)) return DEFAULT_FRAME_RATE;
       return clamp(configured, MIN_FRAME_RATE, MAX_FRAME_RATE);
     } catch (_error) {
+      // Corrupt or blocked storage keeps the default frame rate.
       return DEFAULT_FRAME_RATE;
     }
   }

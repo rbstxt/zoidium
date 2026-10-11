@@ -71,6 +71,7 @@
       var value = stored === null ? NaN : Number(stored);
       return isBackupInterval(value) ? value : BACKUP_INTERVAL_MS;
     } catch (_error) {
+      // Storage may be blocked; the default interval still backs up.
       return BACKUP_INTERVAL_MS;
     }
   }
@@ -178,6 +179,8 @@
       title: "Backup now",
       className: "zoidium-backup-now",
       onClick: function () {
+        // Failures already surface through the snapshot toast; this only
+        // avoids an unhandled rejection on a fire-and-forget click.
         createSnapshot(true, false).catch(function () {});
       },
     });
@@ -361,6 +364,8 @@
         state.pendingAutomaticBackup = true;
         return;
       }
+      // Failures already surface through the snapshot toast; this only avoids
+      // an unhandled rejection on a fire-and-forget backup.
       createSnapshot(false, true).catch(function () {});
     });
   }
@@ -374,6 +379,7 @@
       if (!isAutomatic && state.snapshotAutomatic !== false) {
         if (!state.manualSnapshotPromise) {
           state.manualSnapshotPromise = state.snapshotPromise
+            // A queued manual point must wait out the in-flight failure first.
             .catch(function () {})
             .then(function () {
               return createSnapshot(true, false);

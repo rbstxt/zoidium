@@ -36,6 +36,8 @@
     try {
       return Boolean(host.localStorage && host.localStorage.getItem(STORAGE_KEY) === "1");
     } catch (error) {
+      // Storage may be blocked; tracing stays off. Deliberately silent: this
+      // runs on every wrapped host call, so even a warning would flood.
       return false;
     }
   }

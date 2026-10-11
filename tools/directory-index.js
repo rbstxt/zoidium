@@ -17,6 +17,7 @@ async function resolveDirectoryIndexUrl(requestUrl, stageRoot) {
   try {
     parsed = new URL(requestUrl, "http://zoidium.invalid");
   } catch {
+    // Not a parseable URL; no directory index applies.
     return null;
   }
   if (parsed.origin !== "http://zoidium.invalid") return null;
@@ -25,6 +26,7 @@ async function resolveDirectoryIndexUrl(requestUrl, stageRoot) {
   try {
     decodedPathname = decodeURIComponent(parsed.pathname);
   } catch {
+    // An undecodable path never maps to a staged file.
     return null;
   }
   if (decodedPathname.includes("\u0000")) return null;

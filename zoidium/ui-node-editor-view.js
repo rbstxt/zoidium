@@ -76,6 +76,7 @@
         var node = null;
         if (kit && kit.controls && typeof kit.controls.button === "function") {
           try { node = kit.controls.button({ title: label, hint: hint }).element; }
+          // A failing shared button builder falls back to a plain button below.
           catch (_error) { node = null; }
         }
         if (!node) {

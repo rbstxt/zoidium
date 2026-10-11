@@ -156,6 +156,7 @@
       }
 
       const renewTimer = setInterval(function () {
+        // A failed renew only shortens the lease; the guarded task still runs.
         updateLease(token, "renew").catch(function () {});
       }, LEASE_RENEW_MS);
       try {
@@ -168,6 +169,7 @@
         return await task();
       } finally {
         clearInterval(renewTimer);
+        // The release is best effort; the lease also expires on its own.
         await updateLease(token, "release").catch(function () {});
       }
     };
@@ -611,6 +613,8 @@
         const receiver = this;
         const args = Array.prototype.slice.call(arguments);
         const result = remuxTail.then(() => original.apply(receiver, args));
+        // The retained tail only sequences calls; its rejection is delivered
+        // to the caller through result, so the tail itself never rejects.
         remuxTail = result.catch(function () {});
         return result;
       };
@@ -671,12 +675,14 @@
                   try {
                     entry.remove(finish, finish);
                   } catch (_error) {
+                    // A remove that throws synchronously still ends cleanup.
                     finish();
                   }
                 },
                 finish,
               );
             } catch (_error) {
+              // Filesystem cleanup is best effort; the export already finished.
               finish();
             }
           },
@@ -684,6 +690,7 @@
         );
         setTimeout(finish, CLEANUP_TIMEOUT_MS);
       } catch (_error) {
+        // Filesystem cleanup is best effort; the export already finished.
         finish();
       }
     });
