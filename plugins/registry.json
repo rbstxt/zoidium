@@ -126,15 +126,15 @@
       "category": "scene",
       "name": "Geometry+",
       "author": "Zoidium",
-      "version": "7",
+      "version": "8",
       "itemCount": 8,
       "format": "3D geometry",
       "tagline": "Procedural 3D Shapes",
       "color": "#6b86c5",
       "description": "Adds rounded boxes, low-poly polyhedra, and procedural primitives to 3D Scene.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/geometry-plus/manifest.json?v=7",
-      "bundle": "./plugins/geometry-plus/bundle.json?v=7"
+      "manifest": "./plugins/geometry-plus/manifest.json?v=8",
+      "bundle": "./plugins/geometry-plus/bundle.json?v=8"
     },
     {
       "id": "repeater",
