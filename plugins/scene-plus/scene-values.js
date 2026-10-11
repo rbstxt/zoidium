@@ -105,8 +105,10 @@ function vectorValue(value, fallback) {
   ];
 }
 
+// Shared JSON clone (zoidium/shared/props.js). Pinned by
+// test/migrate-shared-pins.test.js.
 function cloneJson(value) {
-  return JSON.parse(JSON.stringify(value));
+  return ZoidiumPluginApis.props.cloneJson(value);
 }
 
 function lerp(a, b, amount) {
@@ -158,13 +160,10 @@ function migrateEffectorData(data) {
   return { ...normalized, legacyField, properties };
 }
 
+// Shared seeded random (zoidium/shared/random.js). Pinned bit-for-bit by
+// test/migrate-shared-pins.test.js.
 function seededRandom(seed, index, channel) {
-  let value = (Math.trunc(seed) | 0) ^ Math.imul(index + 1, 0x45d9f3b);
-  value ^= Math.imul(channel + 1, 0x27d4eb2d);
-  value = Math.imul(value ^ (value >>> 16), 0x45d9f3b);
-  value = Math.imul(value ^ (value >>> 16), 0x45d9f3b);
-  value ^= value >>> 16;
-  return (value >>> 0) / 0x100000000;
+  return ZoidiumPluginApis.random.sceneSeededRandom(seed, index, channel);
 }
 
 function randomVector(minimum, maximum, seed, index, channelOffset) {

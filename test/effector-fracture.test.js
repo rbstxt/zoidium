@@ -3,6 +3,7 @@
 // Voronoi Fracture geometry: partition of the source surface, closure of the
 // piece caps, determinism, limits, and per-frame motion as a pure function.
 
+require("./migrate-test-apis.js").ensureMainRealmApis();
 const assert = require("node:assert/strict");
 const test = require("node:test");
 const fracture = require("../plugins/scene-plus/effector-fracture.js");
