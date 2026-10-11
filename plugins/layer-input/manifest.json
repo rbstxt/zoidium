@@ -3,9 +3,35 @@
   "id": "layer-input",
   "name": "Layer Input",
   "author": "Zoidium",
-  "version": "10",
+  "version": "11",
   "kind": "native-fx",
   "resources": [
+    {
+      "id": "layer-input-state",
+      "type": "text",
+      "source": "./plugins/layer-input/layer-input-state.js?v=10"
+    },
+    {
+      "id": "layer-input-sources",
+      "type": "text",
+      "source": "./plugins/layer-input/layer-input-sources.js?v=10"
+    },
+    {
+      "id": "layer-input-render",
+      "type": "text",
+      "source": "./plugins/layer-input/layer-input-render.js?v=10"
+    },
+    {
+      "id": "layer-input-ui",
+      "type": "text",
+      "source": "./plugins/layer-input/layer-input-ui.js?v=10"
+    },
+    {
+      "id": "layer-input-host",
+      "type": "text",
+      "source": "./plugins/layer-input/layer-input-host.js?v=10"
+    },
+    {
     {
       "id": "layer-input-shader",
       "type": "text",
