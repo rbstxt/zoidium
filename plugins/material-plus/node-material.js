@@ -1,8 +1,7 @@
 "use strict";
 
-const GRAPH_SOURCE = "./plugins/material-plus/graph-runtime.js";
-const SURFACE_SOURCE = "./plugins/material-plus/surface-runtime.js";
 const UV_LAYOUT_SOURCE = "./plugins/material-plus/uv-layout.js";
+const MATERIAL_ROOT = "./plugins/material-plus/";
 let active = null;
 
 function activate(context) {
@@ -10,12 +9,23 @@ function activate(context) {
   const PZ = context.PZ || context.window.PZ;
   const THREE = context.window.THREE;
   const doc = context.document || context.window.document;
-  const graphSource = context.getAsset("text", GRAPH_SOURCE);
-  const surfaceSource = context.getAsset("text", SURFACE_SOURCE);
-  const nodes = new Function(graphSource)()(PZ, doc);
-  const surface = new Function(surfaceSource)();
+  // The graph and surface runtimes are split into several bundle files. Load
+  // them through the shared bundle module loader instead of evaluating the
+  // entry sources directly.
+  const sharedCreateRequire = context.apis?.modules?.createRequire
+    || globalThis.ZoidiumPluginApis?.modules?.createRequire;
+  if (typeof sharedCreateRequire !== "function") {
+    throw new Error("Material+ Node Material requires the Zoidium bundle module loader.");
+  }
+  const bundleRequire = sharedCreateRequire(context.getAsset, { root: MATERIAL_ROOT });
+  const nodes = bundleRequire("./graph-runtime.js")(PZ, doc);
+  const surface = bundleRequire("./surface-runtime.js");
   // PBR+ and Node Material sample their maps through the shared UV layout.
   const uvLayout = new Function(context.getAsset("text", UV_LAYOUT_SOURCE))()();
+  const { createGraphWorkerSource, GRAPH_MODULES } = bundleRequire("./graph-worker.js");
+  const graphSources = {};
+  for (const name of GRAPH_MODULES) graphSources[name] = context.getAsset("text", MATERIAL_ROOT + name);
+  const graphWorkerSource = createGraphWorkerSource(graphSources);
   const owned = new Map();
   const materials = new Set();
   const ids = new WeakMap();
@@ -111,8 +121,7 @@ function activate(context) {
     // One worker per material, one active bake and one replaceable pending request.
     function ensureWorker() {
       if (!worker && context.window.Worker && context.window.Blob && context.window.URL?.createObjectURL) {
-        const code = `const nodes = new Function(${JSON.stringify(graphSource)})()({}, null); onmessage = e => { const {id,graph,size,time,images}=e.data; try { const started=performance.now(); const outputs=nodes.evaluate(graph,size,time,{images}); postMessage({id,outputs,duration:performance.now()-started}, [...new Set(Object.values(outputs).filter(p => ArrayBuffer.isView(p)).map(p => p.buffer))]); } catch(error) { postMessage({id,error:error.message}); } };`;
-        workerUrl = context.window.URL.createObjectURL(new context.window.Blob([code], { type: "text/javascript" }));
+        workerUrl = context.window.URL.createObjectURL(new context.window.Blob([graphWorkerSource], { type: "text/javascript" }));
         worker = new context.window.Worker(workerUrl);
       }
     }
@@ -148,7 +157,7 @@ function activate(context) {
       }
       material.updateDefines();
     }
-    const pure = new Function(graphSource)()({}, null);
+    const pure = bundleRequire("./graph-runtime.js")({}, null);
     let cancelBake = null;
     function run(job) {
       ensureWorker();

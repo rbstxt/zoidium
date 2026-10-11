@@ -3,8 +3,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const crypto = require("node:crypto");
-const source = fs.readFileSync(require.resolve("../plugins/material-plus/graph-runtime.js"), "utf8");
-const create = new Function(source)();
+const create = require("../plugins/material-plus/graph-runtime.js");
 const nodes = create({}, null);
 // Goldens captured independently from the OpenZoid evaluator with connected input buffers.
 const golden = require("../plugins/material-plus/node-golden.json");

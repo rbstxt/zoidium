@@ -170,3 +170,14 @@ All Material+ types use the plugin manager's normal in-use lock and missing
 material behavior. Disabling an unused plugin removes its factories and
 windows; unloading materials releases their workers, textures and asset
 references.
+
+## Source layout
+
+The Node graph runtime is split into cohesive files, all loaded through the
+shared bundle module loader. `graph-runtime.js` parses and evaluates graphs;
+`graph-buffers.js` holds the pixel buffer math; `graph-images.js` handles
+project images; `graph-types.js` defines the 32 node types; `graph-worker.js`
+builds the off-thread bake worker source. The PBR surface runtime is split
+the same way: `surface-runtime.js` installs the behavior, `surface-shader.js`
+holds the GLSL chunks and gradient painters, `surface-material.js` holds the
+material methods, and `surface-props.js` holds the property table.
