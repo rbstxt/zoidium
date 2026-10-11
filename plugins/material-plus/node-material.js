@@ -4,11 +4,13 @@ const UV_LAYOUT_SOURCE = "./plugins/material-plus/uv-layout.js";
 const MATERIAL_ROOT = "./plugins/material-plus/";
 let active = null;
 
-const reportedFailures = new Set();
-function warnBake(key, message, error) {
-  const diagnostic = message + ":" + key;
-  if (reportedFailures.has(diagnostic)) return;
-  reportedFailures.add(diagnostic);
+const reportedFailures = new WeakMap();
+function warnBake(material, message, error) {
+  let failures = reportedFailures.get(material);
+  if (!failures) reportedFailures.set(material, failures = new Set());
+  const diagnostic = message + ":" + error.message;
+  if (failures.has(diagnostic)) return;
+  failures.add(diagnostic);
   console.warn("[Zoidium] Material+: " + message, error);
 }
 
@@ -195,7 +197,7 @@ function activate(context) {
         try { outputs = await run(job); }
         catch (error) {
           if (latestKey === job.key) throw error;
-          warnBake(job.key, "superseded graph bake failed", error);
+          warnBake(material, "superseded graph bake failed", error);
           continue;
         }
         // A completed preview remains useful even when a newer frame is pending.
@@ -214,7 +216,7 @@ function activate(context) {
       material._surfaceError = null;
       running = drain().catch(error => {
         material._surfaceError = error;
-        warnBake(latestKey, "graph bake failed", error);
+        warnBake(material, "graph bake failed", error);
       }).finally(() => {
         running = null;
         startDrain();
@@ -290,7 +292,7 @@ function activate(context) {
       }
       // Asset loading always completes before a bake enters the worker.
       this._surfaceAssets = nodes.prepareImages(graph, this).then(queue).catch(error => {
-        warnBake(key, "could not load a graph project image", error);
+        warnBake(material, "could not load a graph project image", error);
         if (latestKey === key) this._surfaceError = error;
       });
     };

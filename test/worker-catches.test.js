@@ -44,7 +44,7 @@ test("mesh and graph worker failures warn once and still post every job error", 
     assert.match(realm.warnings[0][0], /^\[Zoidium\]/);
   }
 });
-test("interactive mesh job failure warns once per key and keeps export rejection", async () => {
+test("interactive mesh failures warn once across frames per source and keep export rejection", async () => {
   const warnings = [];
   const original = console.warn;
   console.warn = (...args) => warnings.push(args);
@@ -54,7 +54,7 @@ test("interactive mesh job failure warns once per key and keeps export rejection
     const jobs = createMeshJobs("", host);
     for (let i = 0; i < 2; i++) {
       const consumer = {};
-      const entry = jobs.request(consumer, "catch-test-key", {});
+      const entry = jobs.request(consumer, "catch-test-key:" + i, { sourceId: 123 });
       await assert.rejects(entry.promise, /dispatch failed/);
       jobs.release(consumer);
     }
@@ -77,4 +77,13 @@ test("Scene+ Node module evaluation errors fail loudly", () => {
   const source = fs.readFileSync("plugins/scene-plus/scene-plus.js", "utf8");
   const failure = new TypeError("source evaluation failed");
   assert.throws(() => vm.runInNewContext(source, { module: { exports: {} }, require() { throw failure; } }), error => error === failure);
+});
+
+test("graph bake warnings stay bounded across frames for each material and failure", () => {
+  const realm = warningsFor(fs.readFileSync("plugins/material-plus/node-material.js", "utf8"), "\nmodule.exports = warnBake;");
+  const material = {};
+  for (let frame = 0; frame < 5; frame++) realm.sandbox.module.exports(material, "graph bake failed", new Error("bad graph"));
+  assert.equal(realm.warnings.length, 1);
+  realm.sandbox.module.exports({}, "graph bake failed", new Error("bad graph"));
+  assert.equal(realm.warnings.length, 2);
 });
