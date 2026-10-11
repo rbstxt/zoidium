@@ -82,6 +82,10 @@ function findButton(root, title) {
 }
 
 function createHarness() {
+  if (!globalThis.ZoidiumPluginApis?.modules?.createRequire) {
+    globalThis.PZ = globalThis.PZ || { property: { type: {} } };
+    eval(fs.readFileSync(path.join(projectRoot, "zoidium", "plugin-apis.js"), "utf8"));
+  }
   const PZ = createPZ();
   PZ.ui.properties = class {
     constructor(editor) { this.editor = editor; }
@@ -177,6 +181,7 @@ function createHarness() {
     editor: editor,
     document: document,
     window: { ZoidiumUI: kit },
+    apis: globalThis.ZoidiumPluginApis,
     lifecycle: lifecycle,
     getAsset(kind, url) {
       const file = String(url).replace(/^\.\//, "").split(/[?#]/, 1)[0];
