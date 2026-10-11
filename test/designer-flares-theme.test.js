@@ -16,7 +16,7 @@ function read(file) {
   return fs.readFileSync(path.join(flaresDir, file), "utf8");
 }
 
-const FLARE_SOURCES = ["optflares-math.js", "optflares.js", "optflares-window.js", "optical-flares-runtime.js"];
+const FLARE_SOURCES = ["optflares-math.js", "optflares-shaders.js", "optflares-defs.js", "optflares.js", "optflares-window-data.js", "optflares-thumbs.js", "optflares-window.js", "optical-flares-runtime.js"];
 
 test("the window is built from the shared controls and window kit", () => {
   const source = read("optflares-window.js");

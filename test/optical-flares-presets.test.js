@@ -5,16 +5,7 @@
 // the original plugins/optical-flares/optflares.js before the split.
 
 const assert = require("node:assert/strict");
-const fs = require("node:fs");
-const path = require("node:path");
 const test = require("node:test");
-
-const projectRoot = path.resolve(__dirname, "..");
-const flaresDir = path.join(projectRoot, "plugins", "optical-flares");
-
-function readFlareSource(file) {
-  return fs.readFileSync(path.join(flaresDir, file), "utf8");
-}
 
 function clone(value) {
   return value === undefined ? undefined : JSON.parse(JSON.stringify(value));
@@ -89,9 +80,8 @@ function buildCatalogue() {
   PZ.objectList = class extends Array {};
   PZ.object3d = class extends PZObject {};
   PZ.ui = { objectTypes: new Map() };
-  for (const file of ["optflares-math.js", "optflares.js"]) {
-    new Function("PZ", "THREE", readFlareSource(file))(PZ, THREE);
-  }
+  PZ.opticalflares = { math: require("../plugins/optical-flares/optflares-math") };
+  require("../plugins/optical-flares/optflares")(PZ, THREE);
   return PZ;
 }
 
