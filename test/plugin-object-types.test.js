@@ -15,7 +15,7 @@ const vm = require("node:vm");
 const projectRoot = path.resolve(__dirname, "..");
 
 function loadRegistrationLoop() {
-  const source = fs.readFileSync(path.join(projectRoot, "plugins/plugin-manager.js"), "utf8");
+  const source = require("./plugin-manager-source").managerSource();
   const startMarker = "for (const definition of manifest.objectTypes";
   const endMarker = "const objectClasses = manifest.objectClasses";
   const start = source.indexOf(startMarker);

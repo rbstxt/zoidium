@@ -4,7 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const test = require("node:test");
 const vm = require("node:vm");
-const source = fs.readFileSync(path.join(__dirname, "../plugins/plugin-manager.js"), "utf8");
+const source = require("./plugin-manager-source").managerSource();
 function lifecycleFactory(events) {
   const start = source.indexOf("  function createModuleLifecycle(");
   const end = source.indexOf("  async function registerManifest(", start);

@@ -13,10 +13,7 @@ const vm = require("node:vm");
 const { validateRegistryCategories } = require("../tools/validate-plugin-manifests");
 
 const projectRoot = path.resolve(__dirname, "..");
-const managerSource = fs.readFileSync(
-  path.join(projectRoot, "plugins/plugin-manager.js"),
-  "utf8"
-);
+const managerSource = require("./plugin-manager-source").managerSource();
 const registry = JSON.parse(
   fs.readFileSync(path.join(projectRoot, "plugins/registry.json"), "utf8")
 );
