@@ -156,6 +156,16 @@ load the layout from the bundle (`context.getAsset("text", ...)`), call
 `unload()`. Materials that never read UVs, such as Matcap, are exempt. Leave
 CM3's native materials unchanged.
 
+## File size
+
+Keep every hand-written source file (JavaScript and CSS, tests included) at
+or below 1000 lines; `tools/check-file-length.js` enforces it in
+`pnpm run verify`. Split a growing file along its natural seams instead of
+raising the limit. Plugins load their split files from the bundle with
+`ZoidiumPluginApis.modules.createRequire(context.getAsset, { root })`
+(see `docs/plugin-api.md`); declare each file as a text asset in the
+manifest.
+
 ## User-facing text language
 
 Zoidium has no localization layer. Write every piece of user-facing text — UI

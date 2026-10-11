@@ -136,6 +136,26 @@ See Player+ and Easing+ for ordinary extension modules. A separate settings-page
 API has not been added; persistent per-object settings belong in project
 properties edited through a window.
 
+### Splitting a plugin into several files
+
+Source files stay at or below 1000 lines (`pnpm run verify` checks it). Declare
+every extra file as a text asset in the manifest and load it with the shared
+bundle loader instead of a hand-written `new Function` wrapper:
+
+```js
+const require = context.apis.modules.createRequire(context.getAsset, {
+  root: "./plugins/my-plugin/",
+  scope: { context },          // extra names visible inside every file
+});
+const curves = require("./curves.js");   // module.exports of curves.js
+```
+
+Each file runs once per loader as `function (module, exports, require, ...scope)`.
+`require` resolves `./` and `../` against the requiring file, refuses paths
+outside `root`, and returns partial exports for cycles as CommonJS does. Native
+effect sources can reach the same loader through the global
+`ZoidiumPluginApis.modules.createRequire`.
+
 ### core: the hidden plugin
 
 - Only plugins/core/. Hidden from the panel, cannot be disabled,

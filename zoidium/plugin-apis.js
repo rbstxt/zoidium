@@ -700,8 +700,73 @@
     return function () { undo(); if (claims.get(spec.legacyType) === spec.id) claims.delete(spec.legacyType); };
   }
 
+  // CommonJS-style loader for the source files of one plugin bundle, so a
+  // plugin can be split into files of a reasonable size. Files are declared
+  // as text assets in the manifest and evaluated once per loader.
+  //   var require = ZoidiumPluginApis.modules.createRequire(context.getAsset, {
+  //     root: "./plugins/my-plugin/", scope: { context: context } });
+  //   var parts = require("./parts.js");
+  // Each file runs as function (module, exports, require, ...scope names);
+  // `require` resolves "./" and "../" against the requiring file and never
+  // leaves `root`. Cycles return the partial exports, as in CommonJS.
+  function normalizeModulePath(path) {
+    var parts = [];
+    String(path).split("/").forEach(function (part) {
+      if (!part || part === ".") return;
+      if (part === "..") {
+        if (!parts.length) throw new Error("Module path leaves the bundle: " + path);
+        parts.pop();
+        return;
+      }
+      parts.push(part);
+    });
+    return "./" + parts.join("/");
+  }
+
+  function createRequire(getAsset, options) {
+    if (typeof getAsset !== "function") throw new Error("createRequire needs the plugin asset resolver");
+    var config = options || {};
+    var root = normalizeModulePath(config.root || "./") + "/";
+    if (root === ".//") root = "./";
+    var scope = config.scope && typeof config.scope === "object" ? config.scope : {};
+    var scopeNames = Object.keys(scope);
+    var scopeValues = scopeNames.map(function (name) { return scope[name]; });
+    var cache = Object.create(null);
+
+    function resolve(id, fromDir) {
+      var text = String(id);
+      var full = text.indexOf("./plugins/") === 0 ? normalizeModulePath(text)
+        : normalizeModulePath(fromDir + text);
+      if (full.indexOf(root) !== 0) throw new Error("Module is outside " + root + ": " + text);
+      return full;
+    }
+
+    function load(id, fromDir) {
+      var path = resolve(id, fromDir);
+      if (cache[path]) return cache[path].exports;
+      var source = getAsset("text", path);
+      if (typeof source !== "string") throw new Error("Bundle is missing module " + path);
+      var module = { id: path, exports: {} };
+      cache[path] = module;
+      var dir = path.slice(0, path.lastIndexOf("/") + 1);
+      var localRequire = function (next) { return load(next, dir); };
+      var factory = new Function(["module", "exports", "require"].concat(scopeNames).join(","),
+        source + "\n//# sourceURL=" + path.slice(1));
+      try {
+        factory.apply(undefined, [module, module.exports, localRequire].concat(scopeValues));
+      } catch (error) {
+        delete cache[path];
+        throw error;
+      }
+      return module.exports;
+    }
+
+    return function require(id) { return load(id, root); };
+  }
+
   var apis = {
     KINDS: KINDS,
+    modules: { createRequire: createRequire },
     timeline: { registerTrackButton: registerTrackButton, registerTrackField: registerTrackField, refreshTrackButtons: refreshTrackButtons },
     media: { registerPreset: registerMediaPreset },
     layers: { registerType: registerLayerType },
