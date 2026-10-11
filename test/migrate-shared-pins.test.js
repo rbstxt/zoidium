@@ -1,10 +1,16 @@
 "use strict";
 
-// Migration pin tests (round 9): every helper migrated to a shared module is
-// compared against a VERBATIM copy of the old local implementation over a
-// grid of inputs. These tests run against the shared tables directly, so they
-// pass before the migration (proving the twins identical) and keep passing
-// after the local bodies become one-line delegates.
+// Migration pin tests (round 9): each shared twin below is compared against
+// a VERBATIM copy of the old local implementation over a grid of inputs.
+// These tests run against the shared tables directly, so they pass before
+// the migration (proving the twins identical) and keep passing after the
+// local bodies become one-line delegates.
+//
+// Three twins stay pinned but unmigrated: effector-core (finiteOr/clampUnit/
+// hash01/hashUnitVector), effector-fracture (hslToRgb) and graph-buffers
+// (hsv/rgb *01) also evaluate inside Mesh/graph worker realms, which have no
+// overlay scripts and hence no ZoidiumPluginApis; they keep their local
+// bodies until worker asset plumbing exists.
 //
 // Two known, intentional deltas are pinned separately at the bottom:
 // - cloneJson no longer throws on unserializable input (round-8 hardening);
