@@ -163,6 +163,7 @@
       var settings = JSON.parse(global.localStorage.getItem("zoidium.editor-settings") || "null");
       stored = settings && typeof settings.layout === "string" ? settings.layout : null;
     } catch (_error) {
+      // Storage may be blocked; the default layout is still hinted.
       stored = null;
     }
     var selected = layouts[stored] ? stored : profiles.defaultLayout || "clipmaker";

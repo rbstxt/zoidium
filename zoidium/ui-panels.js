@@ -192,6 +192,7 @@
       function matchingEditors(target) {
         if (!target) return [];
         return editors.filter(function (spec) {
+          // A throwing plugin matcher never matches its editor.
           try { return Boolean(spec.match(target)); } catch (_error) { return false; }
         });
       }
@@ -373,6 +374,7 @@
         try {
           return target.properties && target.properties.name ? String(target.properties.name.get()) : "";
         } catch (_error) {
+          // A name that cannot be read renders unnamed.
           return "";
         }
       }
