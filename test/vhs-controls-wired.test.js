@@ -24,10 +24,16 @@ const path = require("node:path");
 const test = require("node:test");
 
 const root = path.resolve(__dirname, "..");
-const effectSource = fs.readFileSync(
-  path.join(root, "plugins/openzoid-legacy/effects/vhs.js"),
-  "utf8"
-);
+// The effect is split into an entry plus part files; assertions read the
+// combined source so they keep pinning the same wiring.
+const effectSource = [
+  "plugins/openzoid-legacy/effects/vhs.js",
+  "plugins/openzoid-legacy/effects/vhs-shaders.js",
+  "plugins/openzoid-legacy/effects/vhs-helpers.js",
+  "plugins/openzoid-legacy/effects/vhs-pass.js",
+]
+  .map((relative) => fs.readFileSync(path.join(root, relative), "utf8"))
+  .join("\n");
 const setupSource = fs.readFileSync(
   path.join(root, "plugins/openzoid-legacy/vhs-setup.js"),
   "utf8"
