@@ -38,6 +38,7 @@ const ParticlesPlus = (() => {
   };
 
   function getProject(value) {
+    // The host link may be missing or unreadable; unknown means untracked.
     try {
       return value?.parentProject || null;
     } catch (_error) {
@@ -50,6 +51,7 @@ const ParticlesPlus = (() => {
   }
 
   function readPropertyValue(property) {
+    // A transient host read failure means "no value", not a broken scan.
     try {
       return property?.get?.() ?? property?.value ?? null;
     } catch (_error) {
