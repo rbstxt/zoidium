@@ -6,8 +6,14 @@ const path = require("node:path");
 const crypto = require("node:crypto");
 const zlib = require("node:zlib");
 const runtime = require("./runtime-resources");
+const { writeFileAtomic } = require("./atomic-write");
 const magic = "ZOIDIUM-CM3-SNAPSHOT 1\n";
 const format = "ZOIDIUM-CM3-SNAPSHOT";
+// Measured 2026-10-11: the production cache exports to ~5.6 MB compressed and
+// ~11.7 MB decompressed across 180 entries. The 64 MB ceiling leaves more than
+// 5x headroom while bounding a hostile snapshot's transient heap on the
+// synchronous gunzip path.
+const maximumSnapshotDecompressedBytes = 64 * 1024 * 1024;
 const rawPaths = [".zoidium-source/clipmaker.html", ".zoidium-source/videoeditor.html"];
 const cachePaths = [runtime.cacheMetadataName, "index.html", "zoidium-runtime-profiles.js"];
 const hash = (bytes) => crypto.createHash("sha256").update(bytes).digest("hex");
@@ -54,23 +60,66 @@ function remoteRequest(source, method, body, env) {
   return { url: url.href, headers: env.ZOIDIUM_CM3_SNAPSHOT_TOKEN ? { authorization: `Bearer ${env.ZOIDIUM_CM3_SNAPSHOT_TOKEN}` } : {} };
 }
 
+const retryableSnapshotStatus = new Set([408, 429, 500, 502, 503, 504]);
+
+function snapshotTransferTransient(error) {
+  if (error && error.retryableSnapshot === true) return true;
+  const code = error && (error.code || (error.cause && error.cause.code));
+  if (
+    [
+      "ECONNRESET",
+      "ECONNREFUSED",
+      "EAI_AGAIN",
+      "ETIMEDOUT",
+      "UND_ERR_CONNECT_TIMEOUT",
+      "UND_ERR_SOCKET",
+    ].includes(code)
+  ) {
+    return true;
+  }
+  return (
+    error instanceof TypeError &&
+    /fetch failed|network|terminated/i.test(error.message || "")
+  );
+}
+
+function snapshotTransferDelay(attempt) {
+  return Math.min(300 * 2 ** attempt, 5000);
+}
+
 async function transfer(source, { method = "GET", body, fetchImpl = globalThis.fetch, env = process.env } = {}) {
   if (!/^[a-z][a-z\d+.-]*:\/\//i.test(source)) {
     if (method === "GET") return fs.readFile(source);
-    await fs.writeFile(source, body);
+    writeFileAtomic(source, body);
     return;
   }
   const request = remoteRequest(source, method, body, env);
-  // Never redirect signed requests or bearer credentials to another endpoint.
-  const response = await fetchImpl(request.url, { method, headers: request.headers, body: method === "PUT" ? body : undefined, redirect: "error", signal: AbortSignal.timeout(60_000) });
-  if (!response.ok) {
-    // S3-compatible errors name the cause (for example SignatureDoesNotMatch,
-    // InvalidAccessKeyId or AccessDenied) without echoing credentials.
-    const text = await response.text().catch(() => "");
-    const code = /<Code>([A-Za-z]+)<\/Code>/.exec(text);
-    throw new Error(`CM3 snapshot ${method} failed with HTTP ${response.status}${code ? ` (${code[1]})` : ""}`);
+  // Retry remote transfers like runtime-resources fetchBytes: transient network
+  // errors and retryable HTTP statuses get up to three attempts with backoff.
+  // The body is a retained Buffer, so PUT retries resend identical bytes.
+  for (let attempt = 0; true; attempt += 1) {
+    let response;
+    try {
+      // Never redirect signed requests or bearer credentials to another endpoint.
+      response = await fetchImpl(request.url, { method, headers: request.headers, body: method === "PUT" ? body : undefined, redirect: "error", signal: AbortSignal.timeout(60_000) });
+    } catch (error) {
+      if (!snapshotTransferTransient(error) || attempt >= 2) throw error;
+      await new Promise((resolve) => setTimeout(resolve, snapshotTransferDelay(attempt)));
+      continue;
+    }
+    if (!response.ok) {
+      // S3-compatible errors name the cause (for example SignatureDoesNotMatch,
+      // InvalidAccessKeyId or AccessDenied) without echoing credentials.
+      const text = await response.text().catch(() => "");
+      const code = /<Code>([A-Za-z]+)<\/Code>/.exec(text);
+      const error = new Error(`CM3 snapshot ${method} failed with HTTP ${response.status}${code ? ` (${code[1]})` : ""}`);
+      if (!retryableSnapshotStatus.has(response.status) || attempt >= 2) throw error;
+      await new Promise((resolve) => setTimeout(resolve, snapshotTransferDelay(attempt)));
+      continue;
+    }
+    if (method === "GET") return Buffer.from(await response.arrayBuffer());
+    return;
   }
-  if (method === "GET") return Buffer.from(await response.arrayBuffer());
 }
 
 function validatePath(value) {
@@ -80,7 +129,7 @@ function validatePath(value) {
 }
 
 function decodeSnapshot(compressed) {
-  const bytes = zlib.gunzipSync(compressed, { maxOutputLength: 512 * 1024 * 1024 });
+  const bytes = zlib.gunzipSync(compressed, { maxOutputLength: maximumSnapshotDecompressedBytes });
   if (bytes.subarray(0, magic.length).toString() !== magic) throw new Error("Invalid CM3 snapshot magic");
   const end = bytes.indexOf(10, magic.length);
   if (end < 0) throw new Error("Missing CM3 snapshot header");
@@ -115,8 +164,8 @@ function decodeSnapshot(compressed) {
   return { header, metadata, files };
 }
 
-async function exportSnapshot({ output, cacheRoot = runtime.defaultResourceCacheRoot, sourcePageUrl = runtime.defaultSourcePage, videoEditorSourcePageUrl = runtime.defaultVideoEditorSourcePage, ...options }) {
-  const inspection = await runtime.inspectResourceCache({ cacheRoot, sourcePageUrl, videoEditorSourcePageUrl, verifyHashes: true });
+async function exportSnapshot({ output, cacheRoot = runtime.defaultResourceCacheRoot, sourcePageUrl = runtime.defaultSourcePage, videoEditorSourcePageUrl = runtime.defaultVideoEditorSourcePage, allowInsecureSource = false, ...options }) {
+  const inspection = await runtime.inspectResourceCache({ cacheRoot, sourcePageUrl, videoEditorSourcePageUrl, verifyHashes: true, allowInsecureSource });
   if (!inspection.valid) throw new Error(`Cannot export CM3 cache: ${inspection.reason}`);
   const metadata = inspection.metadata;
   const paths = [...cachePaths, ...metadata.resources.map((resource) => resource.sourcePath)];
@@ -140,11 +189,11 @@ async function exportSnapshot({ output, cacheRoot = runtime.defaultResourceCache
   return header;
 }
 
-async function restoreSnapshot({ from, cacheRoot = runtime.defaultResourceCacheRoot, sourcePageUrl = runtime.defaultSourcePage, videoEditorSourcePageUrl = runtime.defaultVideoEditorSourcePage, ...options }) {
+async function restoreSnapshot({ from, cacheRoot = runtime.defaultResourceCacheRoot, sourcePageUrl = runtime.defaultSourcePage, videoEditorSourcePageUrl = runtime.defaultVideoEditorSourcePage, allowInsecureSource = false, ...options }) {
   const root = await runtime.assertCacheRootSafe(cacheRoot);
   const snapshot = decodeSnapshot(await transfer(from, options));
-  const source = runtime.normalizeSourcePageUrl(sourcePageUrl);
-  const video = runtime.normalizeSourcePageUrl(videoEditorSourcePageUrl);
+  const source = runtime.normalizeSourcePageUrl(sourcePageUrl, { allowInsecureSource });
+  const video = runtime.normalizeSourcePageUrl(videoEditorSourcePageUrl, { allowInsecureSource });
   if (snapshot.header.sourcePageUrl !== source || snapshot.header.videoEditorSourcePageUrl !== video) throw new Error("Snapshot source pages do not match the configured pages. Refresh the snapshot; see docs/cm3-resources.md");
   await fs.mkdir(path.dirname(root), { recursive: true });
   const stage = await fs.mkdtemp(path.join(path.dirname(root), ".zoidium-snapshot-"));
@@ -155,7 +204,7 @@ async function restoreSnapshot({ from, cacheRoot = runtime.defaultResourceCacheR
       await fs.writeFile(destination, contents);
     }
     await runtime.copyProjectFiles(stage);
-    let inspection = await runtime.inspectResourceCache({ cacheRoot: stage, sourcePageUrl: source, videoEditorSourcePageUrl: video, verifyHashes: true });
+    let inspection = await runtime.inspectResourceCache({ cacheRoot: stage, sourcePageUrl: source, videoEditorSourcePageUrl: video, verifyHashes: true, allowInsecureSource });
     // Compare against today's patch even when the schema has stayed compatible.
     const raw = snapshot.files.get(rawPaths[0]);
     const patchChanged = raw && !Buffer.from(runtime.patchIndexHtml(raw.toString("utf8"))).equals(snapshot.files.get("index.html"));
@@ -172,8 +221,8 @@ async function restoreSnapshot({ from, cacheRoot = runtime.defaultResourceCacheR
         return response;
       };
       await fs.rm(stage, { recursive: true, force: true });
-      await runtime.buildResourceStage(stage, source, { videoEditorSourcePageUrl: video, fetchImpl: offlineFetch });
-      inspection = await runtime.inspectResourceCache({ cacheRoot: stage, sourcePageUrl: source, videoEditorSourcePageUrl: video, verifyHashes: true });
+      await runtime.buildResourceStage(stage, source, { videoEditorSourcePageUrl: video, fetchImpl: offlineFetch, allowInsecureSource });
+      inspection = await runtime.inspectResourceCache({ cacheRoot: stage, sourcePageUrl: source, videoEditorSourcePageUrl: video, verifyHashes: true, allowInsecureSource });
       if (!inspection.valid) throw new Error(`Rebuilt snapshot is invalid: ${inspection.reason}. Refresh the snapshot; see docs/cm3-resources.md`);
     }
     await runtime.replaceDirectoryAtomically(stage, root);
@@ -196,4 +245,4 @@ async function main(args = process.argv.slice(2)) {
   console.log("[Zoidium] CM3 snapshot operation completed");
 }
 if (require.main === module) main().catch((error) => { console.error(`[Zoidium] ${error.message}`); process.exitCode = 1; });
-module.exports = { signV4, remoteRequest, transfer, validatePath, decodeSnapshot, exportSnapshot, restoreSnapshot, main };
+module.exports = { signV4, remoteRequest, transfer, validatePath, decodeSnapshot, exportSnapshot, restoreSnapshot, main, maximumSnapshotDecompressedBytes };
