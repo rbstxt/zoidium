@@ -389,6 +389,7 @@ module.exports = function createHost(state, deps) {
     try {
       delete root.__zoidiumLayerInputRuntime;
     } catch (_error) {
+      // Non-configurable host property: nulling still drops the reference.
       root.__zoidiumLayerInputRuntime = null;
     }
   }
