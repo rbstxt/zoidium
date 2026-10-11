@@ -29,6 +29,7 @@
     "check:plugin-manifests": "node tools/validate-plugin-manifests.js",
     "check:plugin-bundles": "node tools/build-plugin-bundles.js --check",
     "check:syntax": "node tools/check-syntax.js",
+    "lint": "eslint .",
     "test": "node --test",
     "verify": "node tools/verify.js",
     "desktop:build": "pnpm run build:plugin-bundles && node tools/build-electron.js",
@@ -73,6 +74,8 @@
     "ajv": "^8.18.0",
     "electron": "^44.4.3",
     "electron-builder": "^26.15.3",
+    "eslint": "^10.12.0",
+    "globals": "^17.13.0",
     "serve": "^14.2.6",
     "serve-handler": "^6.1.7"
   }
