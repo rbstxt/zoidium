@@ -96,9 +96,9 @@
         if (objects && objects.onListChanged &&
             typeof objects.onListChanged.unwatch === "function" &&
             typeof objects.onListChanged.watch === "function") {
-            try { objects.onListChanged.unwatch(helper.objectsChanged_bound); } catch (_error) {}
+            try { objects.onListChanged.unwatch(helper.objectsChanged_bound); } catch (_error) { /* best effort: the old binding may already be gone */ }
             helper.objectsChanged_bound = rebound;
-            try { objects.onListChanged.watch(helper.objectsChanged_bound, true); } catch (_error) {}
+            try { objects.onListChanged.watch(helper.objectsChanged_bound, true); } catch (_error) { /* best effort: the helper still works unsubscribed */ }
         } else {
             helper.objectsChanged_bound = rebound;
         }
@@ -124,6 +124,7 @@
             try {
                 light.properties.remove(key);
             } catch (_error) {
+                // Fallback removal when the host remove() rejects the key.
                 delete light.properties[key];
             }
         });
@@ -394,7 +395,7 @@
         var name = p.iesProfile.get(), raw = p.iesData.get();
         if (light.iesName !== name || light.iesRaw !== raw) {
             var profile = null;
-            if (raw) { try { profile = parseIES(raw); } catch (_error) {} }
+            if (raw) { try { profile = parseIES(raw); } catch (_error) { console.warn("[Zoidium] trapcode-suite: IES profile could not be parsed; using the Downlight fallback.", _error); } }
             for (var y = 0; y < 64; y++) for (var x = 0; x < 128; x++) {
                 var v = x / 127 * 180, h = y / 63 * 360, value;
                 if (name === "Uniform") value = 1;
@@ -509,7 +510,7 @@
         var profileRefreshes = new WeakMap();
         function refreshProfile(owner) {
             var set = profileRefreshes.get(owner);
-            if (set) set.forEach(function (fn) { try { fn(); } catch (_error) {} });
+            if (set) set.forEach(function (fn) { try { fn(); } catch (_error) { console.warn("[Zoidium] trapcode-suite: IES profile dropdown refresh failed.", _error); } });
         }
         var cleanups = [];
         // The profile dropdown keeps TEXT storage (project-compatible profile

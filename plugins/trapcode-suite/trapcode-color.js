@@ -264,6 +264,7 @@ var PZ = PZ || {};
                 target.updatePalettes();
             }
         } catch (err) {
+            console.warn("[Zoidium] trapcode-suite: palette apply failed partway; keeping the values applied so far.", err);
             return done;
         }
         return done;
