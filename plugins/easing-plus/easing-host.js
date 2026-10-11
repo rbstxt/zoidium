@@ -270,6 +270,8 @@ module.exports = function createHostPatch(state, options) {
     return previous ? "incoming" : "current";
   }
 
+  // Host keyframe getters may throw on half-built channels; callers treat
+  // null as "nothing on the playhead" and keep the native behavior.
   function keyframesAround(channel, localFrame) {
     let current = null;
     try {
