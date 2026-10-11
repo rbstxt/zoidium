@@ -20,9 +20,6 @@ const GENERATED = [/^plugins\/alipfx\//, /(^|\/)bundle\.json$/, /^node_modules\/
 const PENDING_SPLIT = new Set([
   "plugins/graph-plus/graph-plus.js",
   "plugins/plugin-manager.js",
-  "plugins/precomp-plus/comps.js",
-  "zoidium/debug-log.js",
-  "zoidium/project-restore.js",
   "zoidium/ui-kit.js",
   "zoidium/ui-node-editor.js",
 ]);
