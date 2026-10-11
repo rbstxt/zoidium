@@ -158,8 +158,11 @@
       magFilter: THREE.LinearFilter,
       format: THREE.RGBAFormat,
     };
-    this.shadowBuffer = new THREE.WebGLRenderTarget(1, 1, targetOptions);
-    this.blurBuffer = new THREE.WebGLRenderTarget(1, 1, targetOptions);
+    // Shared target factory (zoidium/shared/gl.js, loaded before any plugin
+    // code runs). Pinned by test/shared-helpers.test.js.
+    const makeTarget = (width, height) => ZoidiumPluginApis.gl.createRenderTarget(THREE, width, height, targetOptions);
+    this.shadowBuffer = makeTarget(1, 1);
+    this.blurBuffer = makeTarget(1, 1);
     this.blurCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
     this.blurScene = new THREE.Scene();
     this.blurQuad = new THREE.Mesh(

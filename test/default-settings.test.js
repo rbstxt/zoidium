@@ -119,6 +119,12 @@ test("new particles use emitter defaults and only the time expression", () => {
     },
   };
   context.window = context;
+  // particle-defaults.js calls ZoidiumPluginApis.props directly (the shared
+  // overlay scripts are in place before it runs at runtime).
+  vm.runInNewContext(require("./shared-test-apis.js").sharedSource("props"), context, {
+    filename: "shared/props.js",
+  });
+  context.ZoidiumPluginApis = { props: context.ZoidiumSharedProps };
   vm.runInNewContext(readPatch("particle-defaults.js"), context);
 
   const particle = new Particle();

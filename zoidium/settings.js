@@ -175,7 +175,10 @@
     } catch (_error) {
       parsed = null;
     }
-    var settings = Object.assign({}, DEFAULTS, parsed && typeof parsed === "object" ? parsed : {});
+    // Prototype-safe merge of the parsed payload over the defaults
+    // (zoidium/shared/json.js, loaded just before this script). Pinned by
+    // test/shared-helpers.test.js.
+    var settings = global.ZoidiumSharedJson.safeAssign({}, DEFAULTS, parsed && typeof parsed === "object" ? parsed : {});
     if (!hasValue(LAYOUT_OPTIONS, settings.layout)) settings.layout = DEFAULTS.layout;
     if (!hasValue(FONT_OPTIONS, settings.font)) settings.font = DEFAULTS.font;
     if (!hasValue(THEME_OPTIONS, settings.theme)) settings.theme = DEFAULTS.theme;

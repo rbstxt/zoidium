@@ -21,6 +21,18 @@ function loadPluginApis() {
   const sandbox = { PZ: { property: { type: PZ_TYPES } }, console };
   sandbox.globalThis = sandbox;
   vm.createContext(sandbox);
+  // The shared overlay scripts load before plugin-apis.js in the browser, so
+  // the effect sources under test see the attached tables here too.
+  for (const file of [
+    "zoidium/shared/random.js",
+    "zoidium/shared/props.js",
+    "zoidium/shared/color.js",
+    "zoidium/shared/gl.js",
+    "zoidium/shared/json.js",
+    "zoidium/shared/windows.js",
+  ]) {
+    vm.runInContext(read(file), sandbox, { filename: file });
+  }
   vm.runInContext(read("zoidium/plugin-apis.js"), sandbox);
   return sandbox.ZoidiumPluginApis;
 }

@@ -3,6 +3,18 @@
 parts.sharedDepth = function ({ PZ, THREE, teardown, patchMethod, masterAt, CameraLayer }) {
   const owned = new Map();
   const SceneDof = parts.dof.createSceneDofClass(THREE);
+
+  // Shared GL helpers (zoidium/shared/gl.js, loaded before any plugin code
+  // runs). Pinned by test/shared-helpers.test.js.
+  function targetMatches(target, width, height) {
+    return ZoidiumPluginApis.gl.sameSize(target, width, height);
+  }
+
+  function makeDepthTarget(width, height) {
+    const options = { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, format: THREE.RGBAFormat };
+    return ZoidiumPluginApis.gl.createRenderTarget(THREE, width, height, options);
+  }
+
   function state(compositor) {
     let entry = owned.get(compositor);
     if (!entry) {
@@ -14,9 +26,9 @@ parts.sharedDepth = function ({ PZ, THREE, teardown, patchMethod, masterAt, Came
       owned.set(compositor, entry);
     }
     const target = compositor.readBuffer;
-    if (!entry.depth || entry.depth.width !== target.width || entry.depth.height !== target.height) {
+    if (!targetMatches(entry.depth, target.width, target.height)) {
       entry.depth?.dispose(); entry.sceneDepth?.dispose();
-      entry.depth = new THREE.WebGLRenderTarget(target.width, target.height, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, format: THREE.RGBAFormat });
+      entry.depth = makeDepthTarget(target.width, target.height);
       entry.sceneDepth = entry.depth.clone();
     }
     return entry;

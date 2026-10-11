@@ -60,16 +60,15 @@ function sameValue(a, b) {
 
 // Deterministic 0-1 hash of (seed, index) from exact integer math, so a
 // stored seed reproduces the same Glitch! result on every machine. Never
-// Math.random: playback must not change the stored values.
+// Math.random: playback must not change the stored values. Shared helper
+// (zoidium/shared/random.js, loaded before any plugin code runs). Pinned
+// bit-for-bit by test/shared-random.test.js.
 function hash01(seed, index) {
-  let h = (Math.imul(seed | 0, 374761393) + Math.imul(index | 0, 668265263)) | 0;
-  h = Math.imul(h ^ (h >>> 13), 1274126177);
-  h ^= h >>> 16;
-  return (h >>> 0) / 4294967296;
+  return ZoidiumPluginApis.random.legacyHash01(seed, index);
 }
 
 function nextSeed(seed) {
-  return ((Math.round(Number(seed)) || 0) + 7919) % 10000;
+  return ZoidiumPluginApis.random.nextSeed(seed);
 }
 
 function hostsFrameSampling(PZ, effect) {

@@ -22,18 +22,12 @@
   var usageTracker = null;
   var typePattern = /^zoidium:([a-z0-9][a-z0-9-]*)\/([a-z0-9][a-z0-9-]*)$/;
 
+  // Shared JSON clone (zoidium/shared/props.js). This pre-init script runs
+  // before the shared overlay scripts load, but cloneJson is only called at
+  // runtime, once every overlay script is in place. Pinned by
+  // test/shared-helpers.test.js.
   function cloneJson(value) {
-    if (value === undefined) {
-      return undefined;
-    }
-    if (value === null) {
-      return null;
-    }
-    try {
-      return JSON.parse(JSON.stringify(value));
-    } catch (error) {
-      return value;
-    }
+    return ZoidiumPluginApis.props.cloneJson(value);
   }
 
   function parseType(type) {

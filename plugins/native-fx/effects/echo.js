@@ -55,16 +55,20 @@ function echoNumber(property, frame, fallback) {
   }
 }
 
+// Shared GL helpers (zoidium/shared/gl.js, loaded before any plugin code
+// runs). Pinned by test/shared-helpers.test.js.
 function createTarget(width, height) {
-  const target = new THREE.WebGLRenderTarget(width, height, {
+  return ZoidiumPluginApis.gl.createRenderTarget(THREE, width, height, {
     minFilter: THREE.LinearFilter,
     magFilter: THREE.LinearFilter,
     format: THREE.RGBAFormat,
     depthBuffer: false,
     stencilBuffer: false,
   });
-  target.texture.generateMipmaps = false;
-  return target;
+}
+
+function targetMatches(target, width, height) {
+  return ZoidiumPluginApis.gl.sameSize(target, width, height);
 }
 
 function ensureTargets(effect, width, height) {
@@ -73,7 +77,7 @@ function ensureTargets(effect, width, height) {
     if (!target) {
       target = createTarget(width, height);
       effect._zoidiumEchoTargets[index] = target;
-    } else if (target.width !== width || target.height !== height) {
+    } else if (!targetMatches(target, width, height)) {
       target.setSize(width, height);
     }
   }

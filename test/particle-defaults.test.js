@@ -57,6 +57,13 @@ function runPatch(particleClass) {
   };
   context.window = context;
   context.__presetRequests = presetRequests;
+  // particle-defaults.js calls ZoidiumPluginApis.props directly (the shared
+  // overlay scripts are in place before it runs at runtime), so the sandbox
+  // loads the shared props table first.
+  vm.runInNewContext(require("./shared-test-apis.js").sharedSource("props"), context, {
+    filename: "shared/props.js",
+  });
+  context.ZoidiumPluginApis = { props: context.ZoidiumSharedProps };
   vm.runInNewContext(source, context, { filename: "particle-defaults.js" });
   return context;
 }
