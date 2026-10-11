@@ -90,6 +90,7 @@
       try {
         hidden = hideInvalidStylesheets(editor);
       } catch (_error) {
+        // Stylesheet probing is best effort; the popup opens unguarded.
         hidden = [];
       }
     }

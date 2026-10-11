@@ -19,6 +19,7 @@
     try {
       return layer?.getParentOfType?.(PZ.sequence) || layer?.parentProject?.sequence || null;
     } catch (_error) {
+      // Detached layers resolve against no sequence.
       return null;
     }
   }
@@ -27,6 +28,7 @@
     try {
       return layer?.tryGetParentOfType?.(PZ.clip) || null;
     } catch (_error) {
+      // Detached layers belong to no clip.
       return null;
     }
   }

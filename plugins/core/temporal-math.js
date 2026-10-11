@@ -60,6 +60,7 @@
     try {
       value = Number(property && property.get ? property.get(frame) : NaN);
     } catch (_error) {
+      // An unreadable rate property keeps the caller's fallback.
       return fallback;
     }
     return Number.isFinite(value) && value > 0 ? value : fallback;
