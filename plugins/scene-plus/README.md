@@ -169,3 +169,14 @@ Fracture cut caps account for holes and preserve boundary subdivisions.
 Planar triangulation uses Earcut 2.2.4 from its npm package, under the ISC
 license in `earcut-LICENSE`. This is a separate dependency, not a copied CM3
 runtime resource. Invalid or oversized concave caps skip the fracture build.
+
+## Source layout
+
+The entry `scene-plus.js` registers the object classes and owns activation;
+the implementation is split into cohesive files, all loaded through the
+shared bundle module loader. `scene-values.js` holds constants and pure
+math, `scene-fields.js` the property definitions and readers,
+`scene-clone.js` the render-tree cloning, `scene-effectors.js` the effector
+classes, `scene-deform.js` the scene deformation support,
+`scene-repeaters.js` the repeater classes, and `scene-state.js` the shared
+mutable plugin state.

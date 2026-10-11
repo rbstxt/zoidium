@@ -2,7 +2,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
-const rt = new Function(fs.readFileSync("plugins/material-plus/graph-runtime.js", "utf8"))()({}, null);
+const rt = require("../plugins/material-plus/graph-runtime.js")({}, null);
 const link = (from, to, toPort) => ({ from, fromPort: "out", to, toPort });
 const graph = (nodes, links) => rt.parse({ nodes: [...nodes, rt.createNode("output", "output")], links: [...links, link(nodes.at(-1).id, "output", "color")] });
 test("every numeric/color parameter accepts a link; options remain plain", () => {
