@@ -6,7 +6,21 @@
 //
 // Evaluated with (PZ, THREE, parts) by camera-runtime.js; publishes parts.vibrate.
 parts.vibrate = (function () {
+  // Shared seeded noise (zoidium/shared/random.js, exposed as
+  // ZoidiumPluginApis.random). The local bodies below stay as the fallback
+  // until the shared overlay scripts land in zoidium/runtime-config.js; both
+  // paths are pinned bit-for-bit by test/shared-random.test.js.
+  function sharedRandom() {
+    if (typeof ZoidiumPluginApis !== "undefined" && ZoidiumPluginApis && ZoidiumPluginApis.random) {
+      return ZoidiumPluginApis.random;
+    }
+    if (typeof ZoidiumSharedRandom !== "undefined") return ZoidiumSharedRandom;
+    return null;
+  }
+
   function hashNoise(index, seed) {
+    const shared = sharedRandom();
+    if (shared) return shared.vibrateHashNoise(index, seed);
     const r = Math.sin((index + 1) * 12.9898 + seed * 78.233) * 43758.5453;
     return (r - Math.floor(r)) * 2 - 1;
   }
@@ -14,6 +28,8 @@ parts.vibrate = (function () {
   // Value noise between integer lattice points. `stepped` rounds the blend
   // weight, giving a regular pulse instead of a smooth wobble.
   function sampleNoise(x, seed, stepped) {
+    const shared = sharedRandom();
+    if (shared) return shared.vibrateSampleNoise(x, seed, stepped);
     const i = Math.floor(x);
     let a = x - i;
     if (stepped) a = Math.floor(a + 0.5);

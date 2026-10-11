@@ -3,6 +3,31 @@
 parts.sharedDepth = function ({ PZ, THREE, teardown, patchMethod, masterAt, CameraLayer }) {
   const owned = new Map();
   const SceneDof = parts.dof.createSceneDofClass(THREE);
+
+  // Shared GL helpers (zoidium/shared/gl.js, ZoidiumPluginApis.gl); the local
+  // bodies stay as the fallback until the shared overlay scripts land in
+  // zoidium/runtime-config.js. Pinned by test/shared-helpers.test.js.
+  function sharedGl() {
+    if (typeof ZoidiumPluginApis !== "undefined" && ZoidiumPluginApis && ZoidiumPluginApis.gl) {
+      return ZoidiumPluginApis.gl;
+    }
+    if (typeof ZoidiumSharedGl !== "undefined") return ZoidiumSharedGl;
+    return null;
+  }
+
+  function targetMatches(target, width, height) {
+    const shared = sharedGl();
+    if (shared) return shared.sameSize(target, width, height);
+    return !!target && target.width === width && target.height === height;
+  }
+
+  function makeDepthTarget(width, height) {
+    const options = { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, format: THREE.RGBAFormat };
+    const shared = sharedGl();
+    if (shared) return shared.createRenderTarget(THREE, width, height, options);
+    return new THREE.WebGLRenderTarget(width, height, options);
+  }
+
   function state(compositor) {
     let entry = owned.get(compositor);
     if (!entry) {
@@ -14,9 +39,9 @@ parts.sharedDepth = function ({ PZ, THREE, teardown, patchMethod, masterAt, Came
       owned.set(compositor, entry);
     }
     const target = compositor.readBuffer;
-    if (!entry.depth || entry.depth.width !== target.width || entry.depth.height !== target.height) {
+    if (!targetMatches(entry.depth, target.width, target.height)) {
       entry.depth?.dispose(); entry.sceneDepth?.dispose();
-      entry.depth = new THREE.WebGLRenderTarget(target.width, target.height, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, format: THREE.RGBAFormat });
+      entry.depth = makeDepthTarget(target.width, target.height);
       entry.sceneDepth = entry.depth.clone();
     }
     return entry;

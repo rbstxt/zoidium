@@ -55,7 +55,28 @@ function echoNumber(property, frame, fallback) {
   }
 }
 
+// Shared GL helpers (zoidium/shared/gl.js, ZoidiumPluginApis.gl). The local
+// bodies stay as the fallback until the shared overlay scripts land in
+// zoidium/runtime-config.js. Pinned by test/shared-helpers.test.js.
+function sharedGl() {
+  if (typeof ZoidiumPluginApis !== "undefined" && ZoidiumPluginApis && ZoidiumPluginApis.gl) {
+    return ZoidiumPluginApis.gl;
+  }
+  if (typeof ZoidiumSharedGl !== "undefined") return ZoidiumSharedGl;
+  return null;
+}
+
 function createTarget(width, height) {
+  const shared = sharedGl();
+  if (shared) {
+    return shared.createRenderTarget(THREE, width, height, {
+      minFilter: THREE.LinearFilter,
+      magFilter: THREE.LinearFilter,
+      format: THREE.RGBAFormat,
+      depthBuffer: false,
+      stencilBuffer: false,
+    });
+  }
   const target = new THREE.WebGLRenderTarget(width, height, {
     minFilter: THREE.LinearFilter,
     magFilter: THREE.LinearFilter,
@@ -67,13 +88,19 @@ function createTarget(width, height) {
   return target;
 }
 
+function targetMatches(target, width, height) {
+  const shared = sharedGl();
+  if (shared) return shared.sameSize(target, width, height);
+  return !!target && target.width === width && target.height === height;
+}
+
 function ensureTargets(effect, width, height) {
   for (let index = 0; index < 2; index += 1) {
     let target = effect._zoidiumEchoTargets[index];
     if (!target) {
       target = createTarget(width, height);
       effect._zoidiumEchoTargets[index] = target;
-    } else if (target.width !== width || target.height !== height) {
+    } else if (!targetMatches(target, width, height)) {
       target.setSize(width, height);
     }
   }
