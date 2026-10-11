@@ -3,7 +3,8 @@
 `zoidium/runtime-config.js` loads the manager overlays after the shared plugin
 APIs, then runs `plugins/plugin-manager.js` last to start the manager.
 
-The implementation is split by responsibility:
+The implementation overlays live under `zoidium/`, which the web and desktop
+staging tools copy as a directory. The implementation is split by responsibility:
 
 - `plugin-manager-state.js` creates constants, registries, trackers, and readiness state.
 - `plugin-manager-persistence.js` stores plugin choices and save approvals.

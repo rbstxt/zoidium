@@ -5,7 +5,7 @@ const root = path.resolve(__dirname, "..");
 function managerFiles() {
   const sandbox = { window: {} };
   require("node:vm").runInNewContext(fs.readFileSync(path.join(root, "zoidium/runtime-config.js"), "utf8"), sandbox);
-  return sandbox.window.ZOIDIUM_RUNTIME.postInitScripts.filter((file) => file.startsWith("./plugins/plugin-manager"));
+  return sandbox.window.ZOIDIUM_RUNTIME.postInitScripts.filter((file) => /\/(?:plugins|zoidium)\/plugin-manager/.test(file));
 }
 // Source-slice tests pin the same function bodies across the overlay split.
 // Full-overlay tests separately exercise the imports and shared mutable state.
