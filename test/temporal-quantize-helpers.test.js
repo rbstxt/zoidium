@@ -110,11 +110,18 @@ test("helpers are reachable from PZ.zoidium.temporal at runtime", () => {
     },
   };
   vm.createContext(sandbox);
-  vm.runInContext(
-    fs.readFileSync(path.join(projectRoot, "plugins/core/temporal-render.js"), "utf8"),
-    sandbox,
-    { filename: "temporal-render.js" },
-  );
+  for (const relative of [
+    "plugins/core/temporal-math.js",
+    "plugins/core/temporal-layers.js",
+    "plugins/core/temporal-sampler.js",
+    "plugins/core/temporal-render.js",
+  ]) {
+    vm.runInContext(
+      fs.readFileSync(path.join(projectRoot, relative), "utf8"),
+      sandbox,
+      { filename: path.basename(relative) },
+    );
+  }
   const temporal = sandbox.PZ.zoidium.temporal;
   for (const name of ["quantizeFrame", "clampFrame", "offsetFrame", "planFrameSamples", "readFpsProp"]) {
     assert.equal(typeof temporal[name], "function", `${name} exposed on the state`);

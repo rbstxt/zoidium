@@ -13,10 +13,17 @@ const test = require("node:test");
 const vm = require("node:vm");
 
 const projectRoot = path.resolve(__dirname, "..");
-const temporalSource = fs.readFileSync(
-  path.join(projectRoot, "plugins/core/temporal-render.js"),
-  "utf8",
-);
+// The temporal core loads as four classic scripts in manifest order; the vm
+// harness mirrors that order so the entry finds its parts in the registry.
+const temporalSources = [
+  "plugins/core/temporal-math.js",
+  "plugins/core/temporal-layers.js",
+  "plugins/core/temporal-sampler.js",
+  "plugins/core/temporal-render.js",
+].map((relative) => ({
+  filename: path.basename(relative),
+  source: fs.readFileSync(path.join(projectRoot, relative), "utf8"),
+}));
 const videoFrameSource = fs.readFileSync(
   path.join(projectRoot, "plugins/core/video-frame-export.js"),
   "utf8",
@@ -64,9 +71,15 @@ function loadInOrder(order) {
   const sandbox = { console, PZ };
   vm.createContext(sandbox);
   for (const name of order) {
-    vm.runInContext(name === "temporal" ? temporalSource : videoFrameSource, sandbox, {
-      filename: name === "temporal" ? "temporal-render.js" : "video-frame-export.js",
-    });
+    if (name === "temporal") {
+      for (const { filename, source } of temporalSources) {
+        vm.runInContext(source, sandbox, { filename });
+      }
+    } else {
+      vm.runInContext(videoFrameSource, sandbox, {
+        filename: "video-frame-export.js",
+      });
+    }
   }
   return { sandbox, PZ, calls, originalGetVideoFrame };
 }
@@ -153,7 +166,9 @@ test("temporal wrapper delegates to the previously installed export", async () =
 test("reinstalling the temporal core does not double-wrap the export", async () => {
   const { sandbox, PZ } = loadInOrder(["video-frame", "temporal"]);
   const before = PZ.export.prototype.getVideoFrame;
-  vm.runInContext(temporalSource, sandbox, { filename: "temporal-render.js" });
+  for (const { filename, source } of temporalSources) {
+    vm.runInContext(source, sandbox, { filename });
+  }
   assert.equal(
     PZ.export.prototype.getVideoFrame,
     before,
