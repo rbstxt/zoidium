@@ -11,7 +11,8 @@ endorsed by Panzoid.
   category). Nothing is displayed or applied until the effect is added to a layer.
 - A fresh effect renders the source unchanged. Color Contrast ships switched off
   because its fixed contrast amount is part of its character.
-- The **Setup** button on the effect's Enabled row opens a floating window
+- The **Open Magic Looks Setup** button at the top of the effect's properties
+  opens a floating window
   (zoidium/ui-kit.js). The viewport behind it is the live preview.
   - **Look**: presets, filterable and grouped. Choosing one resets every tool to
     neutral and applies the preset as one undoable step. **Clear look** resets
@@ -25,7 +26,7 @@ endorsed by Panzoid.
   drags only preview. Setup keeps its scroll position, input focus and look filter
   after edits, and removing a tool selects its neighbour.
 - The plugin cannot be disabled while a project uses its effect. After removing
-  its effects, disabling closes its windows, restores the property renderer, and
+  its effects, disabling closes its windows, removes its editor entry, and
   removes its stylesheet.
 
 ## Tools

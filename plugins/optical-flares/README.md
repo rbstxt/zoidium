@@ -34,7 +34,8 @@ Flicker and shimmer use only time and seeds, never random numbers or clocks.
 
 ## Editing
 
-The options window opens from the gear on the flare's header row in the
+The options window opens from the **Open Optical Flares** button at the top of
+the flare's properties or the gear on the flare's header row in the
 Properties panel (title "Optical Flares options"), or `PZ.opticalflares.open(root)`.
 The 3D Objects list hides row buttons, so the gear does not appear there. The
 window title is "Optical Flares" and the flare's name is the subtitle. It has:
@@ -72,7 +73,8 @@ and redo work. Dragging previews live and records one undo step on release.
 - `optflares-math.js`: pure projection and layout math (no globals).
 - `optflares.js`: the flare object, element catalogue, presets and shader.
 - `optflares-window.js`: the options window.
-- `optical-flares-runtime.js`: installs type 13, the Properties header gear
+- `optical-flares-runtime.js`: installs type 13, the Properties launch row and
+  header gear
   (the options entry point). Disabling restores every host change, and a failed activation
   rolls back.
 

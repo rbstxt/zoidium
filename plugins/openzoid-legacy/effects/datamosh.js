@@ -22,7 +22,6 @@
 // The "Setup" row opens the Datamosh Setup floating window (datamosh-setup.js).
 
 const DATAMOSH_MAX_STEPS = 15; // the host caps frame samples at 16
-const DATAMOSH_SETUP_CONTROL = "openzoid-legacy.datamosh-setup";
 const DATAMOSH_MOTION_ITEMS =
   "Identity;Scale;Vertical;Horizontal;Zoom;Shear;Wave;Swap;Random";
 // The 80 donor entries share motion, mirror, sweep, taper and smear families.
@@ -606,10 +605,10 @@ const datamoshProperties = {
         items: "off;on",
     },
     setup: {
+        visible: false,
         name: "Setup",
         type: PZ.property.type.TEXT,
         value: "",
-        zoidiumControl: DATAMOSH_SETUP_CONTROL,
     },
     algorithm: {
         dynamic: false, name: "Look", type: PZ.property.type.LIST,

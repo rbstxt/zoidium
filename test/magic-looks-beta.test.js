@@ -125,26 +125,34 @@ test("Noir keeps a tonal range and neutral channels on a grayscale ramp", () => 
   assert.ok(values.every((v, i) => !i || v >= values[i-1]));
 });
 
-test("manager cleanup is registered before the property renderer changes", () => {
+test("manager cleanup is registered before the editor entry changes", () => {
   const module = { exports: {} };
   new Function("module", "exports", "plugin", readPack("looks-setup.js"))(module, module.exports, {});
-  const original = function () {};
-  const PZ = { ui: { controls: { createControls: original }, properties: function () {} } };
+  const PZ = { ui: { controls: {}, properties: function () {} } };
+  const editors = [];
   let dispose;
   module.exports.activate({
     PZ,
     editor: {},
-    ui: {},
+    ui: {
+      registerEditor(spec) {
+        assert.equal(editors.length, 0, "no editor entry before lifecycle cleanup is owned");
+        editors.push(spec);
+        return () => {
+          const index = editors.indexOf(spec);
+          if (index >= 0) editors.splice(index, 1);
+        };
+      },
+    },
     getAsset: (kind, url) => readPack(url.split("/").pop()),
     lifecycle: { onDispose(fn) {
-      assert.equal(PZ.ui.controls.createControls, original);
       dispose = fn;
     } },
   });
   assert.equal(typeof dispose, "function");
-  assert.notEqual(PZ.ui.controls.createControls, original);
+  assert.equal(editors.length, 1, "one editor entry after activation");
   dispose();
-  assert.equal(PZ.ui.controls.createControls, original);
+  assert.equal(editors.length, 0, "disable removes the editor entry");
   assert.doesNotThrow(dispose);
 });
 

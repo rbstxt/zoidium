@@ -236,7 +236,7 @@ test("the flare editor is declared through registerEditor, not a patched item li
   assert.equal(editors.length, 1, "one editor entry");
   const [spec] = editors;
   assert.equal(spec.title, "Optical Flares");
-  assert.equal(spec.label, "Open Flare Editor");
+  assert.equal(spec.label, undefined, "the shared button reads Open Optical Flares");
   assert.equal(spec.icon, "settings");
   assert.equal(typeof spec.open, "function");
   assert.equal(host.PZ.ui.edit.prototype.generateItemCommands, commandsBefore, "the list is not patched");

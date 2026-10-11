@@ -789,7 +789,6 @@ void main() {
 // and the averaging passes below blend them into one texture. Nothing reads
 // this effect's previous output, so a frame renders the same in any order.
 const VHS_TRAIL_DECAY = 0.6;
-const VHS_TRAIL_SETUP_CONTROL = "openzoid-legacy.vhs-setup";
 
 const VHS_ACCUMULATE_SHADER = `
 uniform sampler2D tBase;
@@ -873,10 +872,10 @@ const vhsProperties = {
         items: "off;on",
     },
     setup: {
+        visible: false,
         name: "Setup",
         type: PZ.property.type.TEXT,
         value: "",
-        zoidiumControl: VHS_TRAIL_SETUP_CONTROL,
     },
     timeMode: { visible: false, name: "Time mode", type: PZ.property.type.NUMBER, value: 1 },
     time: {

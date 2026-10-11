@@ -107,9 +107,7 @@ test("ascii effect declares its full property surface", () => {
   assert.equal(fakeThis.defaultName, "ASCII");
   const defs = fakeThis.propertyDefinitions;
   assert.equal(defs.enabled.items, "off;on");
-  assert.deepEqual(defs.enabled.buttons, [
-    { name: "ASCII Setup", title: "Open the ASCII setup window", action: "asciiSetup" },
-  ]);
+  assert.equal(defs.enabled.buttons, undefined, "setup opens from the shared editor entry, not a row button");
   assert.equal(defs.blockSize.min, 4);
   assert.equal(defs.blockSize.max, 64);
   assert.equal(defs.charSize.min, 8);

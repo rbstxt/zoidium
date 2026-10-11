@@ -552,8 +552,6 @@ var Looks = Looks || {};
         type: PZ.property.type.OPTION,
         value: 1,
         items: "off;on",
-        // Rendered by the setup window renderer in looks-setup.js.
-        magicLooksSetup: { name: "Setup", title: "Open the Magic Looks setup window" },
       },
     };
     defs[CHAIN_KEY] = lkText(PZ, "Tool chain order", JSON.stringify(defaultChain()));

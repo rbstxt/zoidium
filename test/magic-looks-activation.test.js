@@ -1,8 +1,8 @@
 "use strict";
 
 // Magic Looks lifecycle: enabling the plugin must not open a window, change the
-// editor, or inject styles. The setup window opens only from the effect's
-// property button, and disabling closes it and restores the property renderer.
+// editor, or inject styles. The setup window opens only from the shared
+// registerEditor entry, and disabling closes it and removes that entry.
 
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
@@ -69,9 +69,17 @@ function makeHarness() {
   const opened = [];
   const closed = [];
   const windows = new Set();
+  const editors = [];
   const ui = {
     controls: { checkbox() { return { element: fakeElement("div") }; } },
     getWindow() { return null; },
+    registerEditor(spec) {
+      editors.push(spec);
+      return () => {
+        const index = editors.indexOf(spec);
+        if (index >= 0) editors.splice(index, 1);
+      };
+    },
     openWindow(options) {
       opened.push(options);
       const win = {
@@ -97,7 +105,7 @@ function makeHarness() {
       return assets[String(url).split("/").pop()];
     },
   };
-  return { state, PZ, CM, ui, opened, closed, windows, originalCreate, context };
+  return { state, PZ, CM, ui, opened, closed, windows, editors, originalCreate, context };
 }
 
 test("activation changes nothing visible and opens no window", () => {
@@ -109,45 +117,44 @@ test("activation changes nothing visible and opens no window", () => {
   assert.equal(h.opened.length, 0, "no window opens on enable");
   assert.equal(Object.keys(h.CM).sort().join(","), editorKeysBefore, "no editor globals added");
   assert.equal(h.state.styles.size, 0, "no stylesheet injected on enable");
-  assert.notEqual(h.PZ.ui.controls.createControls, h.originalCreate, "only the property renderer is patched");
+  assert.equal(h.editors.length, 1, "one shared editor entry");
+  assert.equal(h.editors[0].title, "Magic Looks Setup");
+  assert.equal(h.editors[0].label, undefined, "the shared button reads Open Magic Looks Setup");
+  assert.equal(h.PZ.ui.controls.createControls, h.originalCreate, "no property renderer is patched");
   mod.deactivate();
 });
 
-test("disable restores the property renderer and leaves no styles", () => {
+test("disable closes the window and removes the editor entry and styles", () => {
   const h = makeHarness();
   installFakeDocument(h.state);
   const mod = loadModule();
   mod.activate(h.context);
   mod.deactivate();
-  assert.equal(h.PZ.ui.controls.createControls, h.originalCreate, "renderer restored");
+  assert.equal(h.PZ.ui.controls.createControls, h.originalCreate, "renderer untouched");
+  assert.equal(h.editors.length, 0, "editor entry removed");
   assert.equal(h.state.styles.size, 0);
 });
 
-test("a failed activation rolls back and leaves the renderer untouched", () => {
+test("a failed activation rolls back and leaves no editor entry", () => {
   const h = makeHarness();
   installFakeDocument(h.state);
   h.context.getAsset = () => undefined;
   const mod = loadModule();
   assert.throws(() => mod.activate(h.context), /missing its bundled source/);
-  assert.equal(h.PZ.ui.controls.createControls, h.originalCreate, "no partial patch left behind");
+  assert.equal(h.editors.length, 0, "no partial registration left behind");
   mod.deactivate();
 });
 
-test("the setup button opens one window; a second click refocuses it", () => {
+test("the editor entry opens the setup window", () => {
   const h = makeHarness();
   installFakeDocument(h.state);
   const mod = loadModule();
   mod.activate(h.context);
-  const effect = { parent: {}, properties: {} };
-  const prop = { definition: { magicLooksSetup: { name: "Setup", title: "Open" } }, parentObject: effect };
-  const row = fakeElement("li");
-  row.children = [fakeElement("span"), fakeElement("div")];
-  h.PZ.ui.controls.createControls(row, prop, false);
-  const host = row.children[1];
-  assert.equal(host.children.length, 1, "button appended to the value host");
-  const button = host.children[0];
-  button.onclick({ preventDefault() {}, stopPropagation() {} });
-  assert.equal(h.opened.length, 1, "click opens the window");
+  const effect = { type: "looks", parent: {}, properties: {} };
+  const spec = h.editors[0];
+  assert.equal(spec.match(effect), true, "the looks effect matches");
+  spec.open(effect);
+  assert.equal(h.opened.length, 1, "open shows the window");
   assert.equal(h.opened[0].title, "Magic Looks");
   assert.equal(h.opened[0].persistKey, "looks-setup");
   assert.equal(typeof h.opened[0].footer[0].onClick, "function");
@@ -158,14 +165,13 @@ test("the setup button opens one window; a second click refocuses it", () => {
   assert.equal(h.state.styles.size, 0, "stylesheet removed on disable");
 });
 
-test("rows without the setup definition are not decorated", () => {
+test("effects of another type do not match the editor", () => {
   const h = makeHarness();
   installFakeDocument(h.state);
   const mod = loadModule();
   mod.activate(h.context);
-  const row = fakeElement("li");
-  row.children = [fakeElement("span"), fakeElement("div")];
-  h.PZ.ui.controls.createControls(row, { definition: {} }, false);
-  assert.equal(row.children[1].children.length, 0, "no button on other properties");
+  const spec = h.editors[0];
+  assert.equal(spec.match({ type: "vhs", properties: {} }), false, "no entry on other effects");
+  assert.equal(spec.match(null), false);
   mod.deactivate();
 });

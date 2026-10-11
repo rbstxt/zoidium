@@ -2,12 +2,12 @@
 
 // OpenZoid Legacy — VHS Setup window.
 //
-// The VHS effect's "Setup" row opens a floating window (docs/plugin-ui.md).
+// The VHS effect's "Open VHS Setup" launch row (the shared registerEditor
+// entry below) opens a floating window (docs/plugin-ui.md).
 // The window edits the effect's own properties. Applying a preset is one
 // undoable step, a slider gesture is one undoable step, and the values follow
 // external changes such as undo. The window keeps no render state.
 
-const SETUP_CONTROL_ID = "openzoid-legacy.vhs-setup";
 const SYNC_INTERVAL_MS = 300;
 
 const PRESETS = [
@@ -81,82 +81,6 @@ function hostsFrameSampling(PZ, effect) {
   }
 }
 
-// Pack-wide renderer for legacy property `buttons` declarations. The ASCII and
-// Tracery setup windows (effect-windows.js) use it. The VHS and Datamosh
-// effects use propertyControls instead. The renderer is shared and reference
-// counted, so the first pack to need it installs it and the last one removes it.
-function buildActionButtons(buttonDefs) {
-  const wrap = document.createElement("div");
-  wrap.className = "vhs-setup-buttons";
-  wrap.style = "display: flex; gap: 3px; margin-top: 3px; flex-wrap: wrap;";
-  buttonDefs.forEach(function (spec) {
-    const n = document.createElement("button");
-    n.classList.add("proprow", "propbutton", "noselect");
-    n.style = "flex: 1 1 auto; width: auto; padding: 3px 7px;";
-    n.innerText = spec.name;
-    n.title = spec.title || spec.name;
-    n.onmousedown = (ev) => ev.stopPropagation();
-    n.onclick = (ev) => {
-      ev.preventDefault();
-      ev.stopPropagation();
-      const li = ev.currentTarget.closest("li");
-      const list = li && li.parentElement ? li.parentElement.pz_controls : null;
-      if (!list) return;
-      const live = globalThis.PZ;
-      const dispatch = live && live.ui && live.ui.controls && live.ui.controls.runPropertyAction;
-      if (typeof dispatch === "function") {
-        dispatch.call(live.ui.controls, list, li.pz_object, spec.action, ev.currentTarget);
-      }
-    };
-    wrap.appendChild(n);
-  });
-  return wrap;
-}
-
-function ensureButtonsRenderer(PZ) {
-  const controls = PZ && PZ.ui && PZ.ui.controls;
-  if (!controls || typeof controls.createControls !== "function") return;
-  if (controls.createControls.__openzoidLegacyButtons) {
-    controls.createControls.__openzoidLegacyRefs =
-      (controls.createControls.__openzoidLegacyRefs || 1) + 1;
-    return;
-  }
-  const original = controls.createControls;
-  // The row element e holds the generated input in children[1]. Buttons are
-  // appended after the input.
-  const patched = function (e, t, i) {
-    const out = original.call(this, e, t, i);
-    try {
-      if (patched.__openzoidLegacyDead) return out;
-      const def = t && t.definition;
-      const host = e && e.children && e.children[1];
-      if (def && Array.isArray(def.buttons) && def.buttons.length && host &&
-          typeof host.querySelector === "function" &&
-          !host.querySelector("div.vhs-setup-buttons")) {
-        host.appendChild(buildActionButtons(def.buttons));
-      }
-    } catch (_err) { /* never break property rendering */ }
-    return out;
-  };
-  patched.__openzoidLegacyButtons = true;
-  patched.__openzoidLegacyRefs = 1;
-  patched.__openzoidLegacyOriginal = original;
-  controls.createControls = patched;
-}
-
-function releaseButtonsRenderer(PZ) {
-  const controls = PZ && PZ.ui && PZ.ui.controls;
-  const current = controls && controls.createControls;
-  if (!current || !current.__openzoidLegacyButtons) return;
-  current.__openzoidLegacyRefs = Math.max(0, (current.__openzoidLegacyRefs || 1) - 1);
-  if (current.__openzoidLegacyRefs === 0) {
-    current.__openzoidLegacyDead = true;
-    if (controls.createControls === current && current.__openzoidLegacyOriginal) {
-      controls.createControls = current.__openzoidLegacyOriginal;
-    }
-  }
-}
-
 module.exports = {
   activate(context) {
     const PZ = context.PZ;
@@ -164,12 +88,7 @@ module.exports = {
     if (!PZ || !PZ.property || !CM) {
       throw new Error("VHS Setup needs the CM3 runtime and the active editor.");
     }
-    ensureButtonsRenderer(PZ);
-    context.lifecycle.onDispose(function () {
-      releaseButtonsRenderer(PZ);
-    });
     const controls = context.ui.controls;
-    const doc = context.document;
     const windowIds = new WeakMap();
     let windowCounter = 0;
 
@@ -209,11 +128,6 @@ module.exports = {
         return property && sameValue(readValue(property), preset.values[key]);
       }));
       return found ? found.id : "custom";
-    }
-
-    function effectOf(property) {
-      const owner = property && property.parentObject;
-      return owner && owner.type === "vhs" && owner.properties ? owner : null;
     }
 
     function buildWindow(body, effect) {
@@ -394,33 +308,13 @@ module.exports = {
       });
     }
 
-    if (context.apis && context.apis.propertyControls) {
-      const unregister = context.apis.propertyControls.register(SETUP_CONTROL_ID, {
-        type: PZ.property.type.TEXT,
-        create(property) {
-          const effect = effectOf(property);
-          const button = doc.createElement("button");
-          button.type = "button";
-          button.className = "proprow propbutton noselect";
-          button.style.cssText = "flex: 0 1 auto; width: auto; padding: 3px 12px;";
-          button.textContent = "VHS Setup";
-          button.title = "Open the VHS setup window";
-          button.disabled = !effect;
-          button.addEventListener("mousedown", (event) => event.stopPropagation());
-          button.addEventListener("click", (event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            if (effect) openSetup(effect);
-          });
-          // The flex row sizes the button to the value column, as CM3 does
-          // for its own property buttons.
-          const row = doc.createElement("div");
-          row.style.cssText = "display: flex; margin-top: 3px;";
-          row.appendChild(button);
-          return row;
-        },
-      });
-      context.lifecycle.onDispose(unregister);
-    }
+    // The shared property-panel entry: an "Open VHS Setup" launch row above
+    // the effect's properties (and a gear on its list row), released with
+    // the module. The hidden `setup` property key stays so old projects load.
+    context.lifecycle.onDispose(context.ui.registerEditor({
+      title: "VHS Setup",
+      match: (target) => Boolean(target && target.type === "vhs" && target.properties),
+      open: (target) => openSetup(target),
+    }));
   },
 };

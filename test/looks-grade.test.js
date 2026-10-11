@@ -273,7 +273,7 @@ test("effect properties match the catalog prop map and the chain/enable surface"
   const map = Looks.tools.propMap();
   const defs = fakeThis.propertyDefinitions;
   assert.equal(fakeThis.defaultName, "Magic Looks");
-  assert.equal(defs.enabled.magicLooksSetup.name, "Setup");
+  assert.equal(defs.enabled.magicLooksSetup, undefined, "no per-effect setup button definition");
   assert.equal(defs.enabled.buttons, undefined, "setup button does not use the shared buttons renderer");
   const expected = new Set(["enabled", "chainOrder"]);
   for (const id of Object.keys(map)) {
@@ -399,7 +399,7 @@ test("shader keeps premultiplied alpha and guards the math", () => {
 
 test("setup binding markers are present", () => {
   const source = readPack("looks-setup.js");
-  for (const fn of ["openSetup", "installPropertyButton", "createSession", "presetWrites", "chainSection", "buildCurves"]) {
+  for (const fn of ["openSetup", "registerEditor", "createSession", "presetWrites", "chainSection", "buildCurves"]) {
     assert.ok(source.includes(fn), "setup references " + fn);
   }
 });

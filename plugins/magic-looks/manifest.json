@@ -3,7 +3,7 @@
   "id": "magic-looks",
   "name": "Magic Looks",
   "author": "DaviFX",
-  "version": "6",
+  "version": "7",
   "kind": "extension",
   "description": "Magic Bullet Looks-style color grading: 29 color, light and lens tools in a reorderable chain, with look presets and a floating setup window.",
   "category": "COLOR",
@@ -12,45 +12,45 @@
       "id": "looks",
       "name": "Magic Looks",
       "description": "Full-chain color grade: lens distortion first, then a reorderable chain of color, light and lens tools.",
-      "source": "./plugins/magic-looks/looks-fx.js?v=6"
+      "source": "./plugins/magic-looks/looks-fx.js?v=7"
     }
   ],
   "modules": [
     {
       "id": "looks-setup",
-      "source": "./plugins/magic-looks/looks-setup.js?v=6"
+      "source": "./plugins/magic-looks/looks-setup.js?v=7"
     }
   ],
   "resources": [
     {
       "id": "looks-color",
       "type": "text",
-      "source": "./plugins/magic-looks/looks-color.js?v=6"
+      "source": "./plugins/magic-looks/looks-color.js?v=7"
     },
     {
       "id": "looks-tools",
       "type": "text",
-      "source": "./plugins/magic-looks/looks-tools.js?v=6"
+      "source": "./plugins/magic-looks/looks-tools.js?v=7"
     },
     {
       "id": "looks-widgets",
       "type": "text",
-      "source": "./plugins/magic-looks/looks-widgets.js?v=6"
+      "source": "./plugins/magic-looks/looks-widgets.js?v=7"
     },
     {
       "id": "looks-style",
       "type": "text",
-      "source": "./plugins/magic-looks/looks-setup.css?v=6"
+      "source": "./plugins/magic-looks/looks-setup.css?v=7"
     },
     {
       "id": "looks-vert",
       "type": "text",
-      "source": "./plugins/magic-looks/looks-vert.glsl?v=6"
+      "source": "./plugins/magic-looks/looks-vert.glsl?v=7"
     },
     {
       "id": "looks-grade-shader",
       "type": "text",
-      "source": "./plugins/magic-looks/looks-grade.glsl?v=6"
+      "source": "./plugins/magic-looks/looks-grade.glsl?v=7"
     }
   ]
 }

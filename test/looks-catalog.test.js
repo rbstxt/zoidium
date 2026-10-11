@@ -170,9 +170,10 @@ test("setup window is a floating window with no fullscreen, font or private them
   assert.ok(!css.includes("@keyframes"), "no decorative motion");
 });
 
-test("setup module opens only from the effect's property button", () => {
+test("setup module opens only through the shared editor registration", () => {
   const source = readPack("looks-setup.js");
-  assert.ok(source.includes("magicLooksSetup"), "reads the property button definition");
+  assert.ok(source.includes("registerEditor"), "registers the shared editor entry");
+  assert.ok(!source.includes("createControls"), "no property renderer patch");
   const activate = source.slice(source.indexOf("activate(context)"), source.indexOf("deactivate()"));
   assert.ok(!activate.includes("openSetup("), "activation never opens a window");
 });

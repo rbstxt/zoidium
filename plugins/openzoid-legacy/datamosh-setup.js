@@ -2,12 +2,12 @@
 
 // OpenZoid Legacy — Datamosh Setup window.
 //
-// The Datamosh effect's "Setup" row opens a floating window (docs/plugin-ui.md).
+// The Datamosh effect's "Open Datamosh Setup" launch row (the shared
+// registerEditor entry below) opens a floating window (docs/plugin-ui.md).
 // Like the VHS window, it edits the effect's own properties: a preset, a
 // slider gesture or a seed change is one undoable step, and the values follow
 // external changes such as undo.
 
-const SETUP_CONTROL_ID = "openzoid-legacy.datamosh-setup";
 const SYNC_INTERVAL_MS = 300;
 
 const PRESETS = [
@@ -85,7 +85,6 @@ module.exports = {
       throw new Error("Datamosh Setup needs the CM3 runtime and the active editor.");
     }
     const controls = context.ui.controls;
-    const doc = context.document;
     const windowIds = new WeakMap();
     let windowCounter = 0;
 
@@ -125,11 +124,6 @@ module.exports = {
         return property && sameValue(readValue(property), preset.values[key]);
       }));
       return found ? found.id : "custom";
-    }
-
-    function effectOf(property) {
-      const owner = property && property.parentObject;
-      return owner && owner.type === "datamosh" && owner.properties ? owner : null;
     }
 
     function buildWindow(body, effect) {
@@ -370,33 +364,13 @@ module.exports = {
       });
     }
 
-    if (context.apis && context.apis.propertyControls) {
-      const unregister = context.apis.propertyControls.register(SETUP_CONTROL_ID, {
-        type: PZ.property.type.TEXT,
-        create(property) {
-          const effect = effectOf(property);
-          const button = doc.createElement("button");
-          button.type = "button";
-          button.className = "proprow propbutton noselect";
-          button.style.cssText = "flex: 0 1 auto; width: auto; padding: 3px 12px;";
-          button.textContent = "Datamosh Setup";
-          button.title = "Open the Datamosh setup window";
-          button.disabled = !effect;
-          button.addEventListener("mousedown", (event) => event.stopPropagation());
-          button.addEventListener("click", (event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            if (effect) openSetup(effect);
-          });
-          // The flex row sizes the button to the value column, as CM3 does
-          // for its own property buttons.
-          const row = doc.createElement("div");
-          row.style.cssText = "display: flex; margin-top: 3px;";
-          row.appendChild(button);
-          return row;
-        },
-      });
-      context.lifecycle.onDispose(unregister);
-    }
+    // The shared property-panel entry: an "Open Datamosh Setup" launch row
+    // above the effect's properties (and a gear on its list row), released
+    // with the module. The hidden `setup` property key stays so old projects load.
+    context.lifecycle.onDispose(context.ui.registerEditor({
+      title: "Datamosh Setup",
+      match: (target) => Boolean(target && target.type === "datamosh" && target.properties),
+      open: (target) => openSetup(target),
+    }));
   },
 };

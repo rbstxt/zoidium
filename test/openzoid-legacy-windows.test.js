@@ -1,7 +1,7 @@
 "use strict";
 
-// Coverage for the ASCII and Tracery setup windows (effect-windows.js): action
-// routing through the property-button dispatcher, control generation from the
+// Coverage for the ASCII and Tracery setup windows (effect-windows.js): editor
+// registration through registerEditor, control generation from the
 // effect property definitions, undoable edits (one history step per edit,
 // one per preset), live preview during drags, external sync, and teardown.
 
@@ -33,7 +33,7 @@ function defaultOf(def) {
   return def.value;
 }
 
-function makeEffect(defs) {
+function makeEffect(defs, type) {
   const properties = {};
   for (const key of Object.keys(defs)) {
     let value = defaultOf(defs[key]);
@@ -44,12 +44,13 @@ function makeEffect(defs) {
       set(next) { value = JSON.parse(JSON.stringify(next)); },
     };
   }
-  return { parent: {}, propertyDefinitions: defs, properties };
+  return { type, parent: {}, propertyDefinitions: defs, properties };
 }
 
 function makeHarness(defs, effect) {
   const made = [];
   const windows = [];
+  const editors = [];
   const history = {
     ops: [],
     startOperation() { this.ops.push("start"); },
@@ -123,20 +124,38 @@ function makeHarness(defs, effect) {
       windows.push(win);
       return win;
     },
+    registerEditor(spec) {
+      editors.push(spec);
+      return () => {
+        const index = editors.indexOf(spec);
+        if (index >= 0) editors.splice(index, 1);
+      };
+    },
   };
+  const disposers = [];
   return {
     PZ,
-    context: { PZ, editor, ui },
+    context: { PZ, editor, ui, lifecycle: { onDispose(fn) { disposers.push(fn); } } },
     made,
     windows,
     edits,
     history,
+    editors,
+    disposers,
   };
 }
 
 function loadWindows() {
   delete require.cache[require.resolve(windowsPath)];
   return require(windowsPath);
+}
+
+function openFromEditor(h, title, effect) {
+  const spec = h.editors.find((entry) => entry.title === title);
+  assert.ok(spec, title + " registered through registerEditor");
+  assert.equal(spec.match(effect), true, "the editor matches its effect");
+  spec.open(effect);
+  assert.equal(h.windows.length, 1, "the editor opens exactly one window");
 }
 
 // Mounted windows start a sync timer. The stub keeps timers out of the event
@@ -151,23 +170,21 @@ function mountWindow(harness, index) {
   return { body, cleanup };
 }
 
-test("dispatcher routes setup actions to windows and passes other actions through", () => {
+test("editors register through registerEditor and open the setup windows", () => {
   const defs = effectDefinitions("ascii.js");
-  const effect = makeEffect(defs);
+  const effect = makeEffect(defs, "ascii");
   const h = makeHarness(defs, effect);
-  const passed = [];
-  h.PZ.ui.controls.runPropertyAction = function (list, target, action) {
-    passed.push(action);
-    return "previous";
-  };
-  const previous = h.PZ.ui.controls.runPropertyAction;
   const windows = loadWindows();
   windows.activate(h.context);
-  const dispatch = h.PZ.ui.controls.runPropertyAction;
-  assert.notEqual(dispatch, previous, "dispatcher wrapped");
-  dispatch({}, { parentObject: effect }, "asciiSetup", null);
-  assert.equal(h.windows.length, 1);
-  assert.deepEqual(passed, [], "setup action does not reach the previous dispatcher");
+  assert.equal(h.editors.length, 2, "ASCII and Tracery editors registered");
+  assert.deepEqual(h.editors.map((spec) => spec.title).sort(), ["ASCII Setup", "Tracery Setup"]);
+  for (const spec of h.editors) {
+    assert.equal(spec.label, undefined, spec.title + " uses the shared Open button");
+  }
+  assert.equal(h.editors[0].match(effect), true, "ASCII matches its own effect");
+  assert.equal(h.editors[1].match(effect), false, "Tracery does not match an ASCII effect");
+  assert.equal(h.editors[0].match({ type: "vhs", properties: {} }), false, "other effects do not match");
+  openFromEditor(h, "ASCII Setup", effect);
   const opts = h.windows[0].options;
   assert.ok(opts.id.startsWith("ascii:"), "window id is per effect");
   assert.equal(opts.title, "ASCII Setup");
@@ -176,20 +193,19 @@ test("dispatcher routes setup actions to windows and passes other actions throug
   assert.equal(opts.isValid(), true);
   effect.parent = null;
   assert.equal(opts.isValid(), false, "window closes when the effect is removed");
-  assert.equal(dispatch({}, { parentObject: effect }, "vhsSetup", null), "previous");
-  assert.deepEqual(passed, ["vhsSetup"], "other actions delegate");
   windows.deactivate();
-  assert.equal(h.PZ.ui.controls.runPropertyAction, previous, "dispatcher restored");
+  for (const dispose of h.disposers.splice(0)) dispose();
+  assert.equal(h.editors.length, 0, "disable removes the editor entries");
   windows.deactivate();
 });
 
 test("tracery action opens a window with six point tabs", () => {
   const defs = effectDefinitions("tracery.js");
-  const effect = makeEffect(defs);
+  const effect = makeEffect(defs, "tracery");
   const h = makeHarness(defs, effect);
   const windows = loadWindows();
   windows.activate(h.context);
-  h.PZ.ui.controls.runPropertyAction({}, { parentObject: effect }, "tracerySetup", null);
+  openFromEditor(h, "Tracery Setup", effect);
   assert.equal(h.windows[0].options.title, "Tracery Setup");
   assert.ok(h.windows[0].options.id.startsWith("tracery:"));
   const { body } = mountWindow(h, 0);
@@ -204,11 +220,11 @@ test("tracery action opens a window with six point tabs", () => {
 
 test("ASCII window builds controls from the effect property definitions", () => {
   const defs = effectDefinitions("ascii.js");
-  const effect = makeEffect(defs);
+  const effect = makeEffect(defs, "ascii");
   const h = makeHarness(defs, effect);
   const windows = loadWindows();
   windows.activate(h.context);
-  h.PZ.ui.controls.runPropertyAction({}, { parentObject: effect }, "asciiSetup", null);
+  openFromEditor(h, "ASCII Setup", effect);
   mountWindow(h, 0);
   const find = (label) => h.made.find((r) => r.opts && r.opts.label === label);
   const contrast = find("Contrast");
@@ -231,11 +247,11 @@ test("ASCII window builds controls from the effect property definitions", () => 
 
 test("slider drags preview live and commit one history step with the drag-start value", () => {
   const defs = effectDefinitions("ascii.js");
-  const effect = makeEffect(defs);
+  const effect = makeEffect(defs, "ascii");
   const h = makeHarness(defs, effect);
   const windows = loadWindows();
   windows.activate(h.context);
-  h.PZ.ui.controls.runPropertyAction({}, { parentObject: effect }, "asciiSetup", null);
+  openFromEditor(h, "ASCII Setup", effect);
   mountWindow(h, 0);
   const contrast = h.made.find((r) => r.opts && r.opts.label === "Contrast");
   contrast.opts.onInput(2);
@@ -255,11 +271,11 @@ test("slider drags preview live and commit one history step with the drag-start 
 
 test("discrete edits commit single history steps with the right values", () => {
   const defs = effectDefinitions("ascii.js");
-  const effect = makeEffect(defs);
+  const effect = makeEffect(defs, "ascii");
   const h = makeHarness(defs, effect);
   const windows = loadWindows();
   windows.activate(h.context);
-  h.PZ.ui.controls.runPropertyAction({}, { parentObject: effect }, "asciiSetup", null);
+  openFromEditor(h, "ASCII Setup", effect);
   mountWindow(h, 0);
   const find = (label) => h.made.find((r) => r.opts && r.opts.label === label);
   find("Enable advanced noise").opts.onChange(true);
@@ -278,11 +294,11 @@ test("discrete edits commit single history steps with the right values", () => {
 
 test("a preset applies as one history step and refreshes the controls", () => {
   const defs = effectDefinitions("ascii.js");
-  const effect = makeEffect(defs);
+  const effect = makeEffect(defs, "ascii");
   const h = makeHarness(defs, effect);
   const windows = loadWindows();
   windows.activate(h.context);
-  h.PZ.ui.controls.runPropertyAction({}, { parentObject: effect }, "asciiSetup", null);
+  openFromEditor(h, "ASCII Setup", effect);
   mountWindow(h, 0);
   const list = h.made.find((r) => r.kind === "list");
   assert.equal(list.opts.items.length, 5, "five ASCII looks");
@@ -304,11 +320,11 @@ test("a preset applies as one history step and refreshes the controls", () => {
 
 test("Tracery presets switch off unused points and set their point values", () => {
   const defs = effectDefinitions("tracery.js");
-  const effect = makeEffect(defs);
+  const effect = makeEffect(defs, "tracery");
   const h = makeHarness(defs, effect);
   const windows = loadWindows();
   windows.activate(h.context);
-  h.PZ.ui.controls.runPropertyAction({}, { parentObject: effect }, "tracerySetup", null);
+  openFromEditor(h, "Tracery Setup", effect);
   mountWindow(h, 0);
   const row = h.made.find((r) => r.kind === "buttonRow");
   assert.deepEqual(row.specs.map((s) => s.title), ["Surveillance", "Blueprint", "Neon Callout", "Minimal", "Key Track"]);
@@ -328,11 +344,11 @@ test("external property changes sync into the window and cleanup stops the timer
   timerLog.timers.length = 0;
   timerLog.cleared.length = 0;
   const defs = effectDefinitions("ascii.js");
-  const effect = makeEffect(defs);
+  const effect = makeEffect(defs, "ascii");
   const h = makeHarness(defs, effect);
   const windows = loadWindows();
   windows.activate(h.context);
-  h.PZ.ui.controls.runPropertyAction({}, { parentObject: effect }, "asciiSetup", null);
+  openFromEditor(h, "ASCII Setup", effect);
   const { cleanup } = mountWindow(h, 0);
   const timers = timerLog.timers;
   assert.equal(timers.length, 1, "one sync timer per window");
@@ -354,6 +370,8 @@ test("window source keeps to the shared floating window API", () => {
     assert.ok(!banned.test(source), "no " + banned);
   }
   assert.ok(source.includes("context.ui.openWindow"), "uses the plugin window API");
+  assert.ok(source.includes("registerEditor"), "entries go through the shared editor registration");
+  assert.ok(!source.includes("runPropertyAction"), "no property-action dispatcher");
   assert.ok(!/Math\.random|Date\.now|performance\.now/.test(source), "no nondeterministic inputs");
 });
 
@@ -413,7 +431,7 @@ function placementStubs() {
 
 function placementSetup() {
   const defs = effectDefinitions("tracery.js");
-  const effect = makeEffect(defs);
+  const effect = makeEffect(defs, "tracery");
   effect.parent = { composite: null };
   const h = makeHarness(defs, effect);
   const stubs = placementStubs();
@@ -421,7 +439,7 @@ function placementSetup() {
   h.context.editor.mainViewport = stubs.viewport;
   const windows = loadWindows();
   windows.activate(h.context);
-  h.PZ.ui.controls.runPropertyAction({}, { parentObject: effect }, "tracerySetup", null);
+  openFromEditor(h, "Tracery Setup", effect);
   const { cleanup } = mountWindow(h, 0);
   const place = (n) => h.made.find((r) => r.kind === "button" && r.opts.hint === "Click the preview to set point " + n).opts;
   const pointAt = (fx, fy) => ({
