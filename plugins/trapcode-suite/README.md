@@ -157,6 +157,15 @@ project time. To keep evaluation bounded:
 - particle life is clamped to 30 seconds;
 - at most 20,000 particles are simulated per system (the newest are kept).
 
+The row cache (`simTable`) keys on a full serialization of the system
+properties, computed per frame. This was deliberately kept: the definition
+objects are class-level statics, so a slimmer key would preserve the
+hit/miss relation (pinned by `test/trapcode-sim-cache.test.js`), but node
+profiling shows the current key costs about 50 microseconds per call while
+a replacer-based slimmer key is slower on the same payload, and no
+real-runtime profile shows a material cost. Per the audit triage, a cheaper
+change signal needs profiling before it lands.
+
 ## Expression upgrade
 
 The OpenZoid expression methods stock CM3 lacks: `wiggle` and companions
