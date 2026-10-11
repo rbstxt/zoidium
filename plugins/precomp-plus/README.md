@@ -70,8 +70,15 @@ muted, including inside compositions.
 
 ## Files
 
-- `comps.js` — the engine (`PZ.precomp`): model, pre-compose, undo steps,
-  nested rendering and scheduling, serialization hooks.
+- `comps-model.js` — the data model: composition queries, naming, usage,
+  media insert/snapshot and track switches.
+- `comps-timeline.js` — timeline integration: timeline lookup, sequence
+  application, history helpers and undo commands.
+- `comps-engine.js` — the engine: editing sessions, pre-compose and other
+  operations, nested rendering and scheduling, serialization helpers.
+- `comps.js` — the engine entry: host hooks and the `PZ.precomp` surface.
+  The parts load from the bundle through the shared module loader
+  (`ZoidiumPluginApis.modules.createRequire`); no runtime fetch is issued.
 - `precomp-runtime.js` — the Comps tab, the Compositions window and the
   Pre-compose dialog.
 

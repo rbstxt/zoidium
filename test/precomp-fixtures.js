@@ -519,11 +519,35 @@ function createPZ() {
   return PZ;
 }
 
-// Loads the engine exactly as the plugin runtime does: a function body over PZ.
+// Loads the engine exactly as the plugin runtime does: the split parts
+// (model, timeline, engine, entry) through the shared bundle module loader
+// with PZ in scope.
+function loadPluginApis() {
+  if (!globalThis.ZoidiumPluginApis?.modules?.createRequire) {
+    globalThis.PZ = globalThis.PZ || { property: { type: {} } };
+    eval(fs.readFileSync(path.join(projectRoot, "zoidium", "plugin-apis.js"), "utf8"));
+  }
+  return globalThis.ZoidiumPluginApis;
+}
+
 function loadEngine(PZ) {
-  const source = fs.readFileSync(enginePath, "utf8");
-  new Function("PZ", source)(PZ);
+  if (PZ.precomp && PZ.precomp.version === 3) return PZ.precomp;
+  const createRequire = loadPluginApis().modules.createRequire;
+  const getAsset = (kind, url) => {
+    assertEqualText(kind);
+    const file = String(url).replace(/^\.\//, "").split(/[?#]/, 1)[0];
+    return fs.readFileSync(path.join(projectRoot, file), "utf8");
+  };
+  const require = createRequire(getAsset, {
+    root: "./plugins/precomp-plus/",
+    scope: { PZ },
+  });
+  require("./comps.js");
   return PZ.precomp;
+}
+
+function assertEqualText(kind) {
+  if (kind !== "text") throw new Error(`Precomp+ fixture expected a text asset, got ${kind}.`);
 }
 
 // A project with one video track and a fresh editor. Engine hooks are

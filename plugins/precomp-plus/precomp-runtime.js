@@ -13,11 +13,20 @@ function installEngine(context, PZ) {
   if (typeof getAsset !== "function") {
     throw new Error("Precomp+ needs the plugin bundle asset resolver.");
   }
-  const source = getAsset("text", "./plugins/precomp-plus/comps.js");
-  if (typeof source !== "string") {
-    throw new Error("Precomp+ is missing its bundled source: comps.js.");
+  // The engine is split into model, timeline and engine parts plus this
+  // entry; they load from the plugin bundle through the shared module loader
+  // instead of a hand-written new Function wrapper.
+  const apis = context.apis
+    || (typeof ZoidiumPluginApis !== "undefined" ? ZoidiumPluginApis : null);
+  const createRequire = apis && apis.modules && apis.modules.createRequire;
+  if (typeof createRequire !== "function") {
+    throw new Error("Precomp+ needs ZoidiumPluginApis.modules.createRequire.");
   }
-  new Function("PZ", source)(PZ);
+  const require = createRequire(getAsset, {
+    root: "./plugins/precomp-plus/",
+    scope: { PZ: PZ },
+  });
+  require("./comps.js");
   if (!PZ.precomp) throw new Error("Precomp+ could not define its composition engine.");
   return PZ.precomp;
 }
