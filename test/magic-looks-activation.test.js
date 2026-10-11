@@ -4,6 +4,7 @@
 // editor, or inject styles. The setup window opens only from the shared
 // registerEditor entry, and disabling closes it and removes that entry.
 
+require("./migrate-test-apis.js").ensureMainRealmApis();
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
