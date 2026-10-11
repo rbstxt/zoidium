@@ -25,6 +25,8 @@
       "./zoidium/runtime-fonts.css"
     ],
     preInitScripts: [
+      "./zoidium/debug-journal.js",
+      "./zoidium/debug-crash.js",
       "./zoidium/debug-log.js",
       "./plugins/core/window-stylesheet-guard.js",
       "./plugins/core/project-media-fps.js",
@@ -70,6 +72,9 @@
       "./zoidium/ui-panels.js",
       "./zoidium/ui-node-editor.js",
       "./zoidium/ui-kit.js",
+      "./zoidium/project-restore-store.js",
+      "./zoidium/project-restore-snapshots.js",
+      "./zoidium/project-restore-toasts.js",
       "./zoidium/project-restore.js",
       "./zoidium/shared/random.js",
       "./zoidium/shared/props.js",

@@ -6,10 +6,21 @@ const path = require("node:path");
 const test = require("node:test");
 const vm = require("node:vm");
 
-const debugLogSource = fs.readFileSync(
-  path.join(__dirname, "..", "zoidium", "debug-log.js"),
-  "utf8"
-);
+const debugLogSources = (() => {
+  // The split loads the part files in browser order; assertions below are
+  // unchanged.
+  const parts = [
+    "zoidium/debug-journal.js",
+    "zoidium/debug-crash.js",
+    "zoidium/debug-log.js",
+  ];
+  if (parts.every((relative) => fs.existsSync(path.join(__dirname, "..", relative)))) {
+    return parts.map((relative) => fs.readFileSync(path.join(__dirname, "..", relative), "utf8"));
+  }
+  return [
+    fs.readFileSync(path.join(__dirname, "..", "zoidium", "debug-log.js"), "utf8"),
+  ];
+})();
 
 function storage(values) {
   return {
@@ -122,7 +133,10 @@ function loadDebugLog(localValues, sessionValues, options = {}) {
     clearTimeout: timers.clearTimeout,
   };
   context.window = context;
-  vm.runInNewContext(debugLogSource, context);
+  vm.createContext(context);
+  debugLogSources.forEach((source, index) => {
+    vm.runInContext(source, context, { filename: `debug-log-part-${index}.js` });
+  });
   return {
     api: context.ZOIDIUM_DEBUG_LOG,
     context,

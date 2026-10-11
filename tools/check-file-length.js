@@ -19,9 +19,6 @@ const GENERATED = [/^plugins\/alipfx\//, /(^|\/)bundle\.json$/, /^node_modules\/
 // brings the file under the limit; the check fails on stale entries.
 const PENDING_SPLIT = new Set([
   "plugins/plugin-manager.js",
-  "plugins/precomp-plus/comps.js",
-  "zoidium/debug-log.js",
-  "zoidium/project-restore.js",
   "zoidium/ui-kit.js",
   "zoidium/ui-node-editor.js",
 ]);
