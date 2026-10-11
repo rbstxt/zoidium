@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const vm = require("node:vm");
 const test = require("node:test");
-const source = fs.readFileSync(require.resolve("../plugins/plugin-manager.js"), "utf8");
+const source = require("./plugin-manager-source").managerSource();
 const plain = (value) => JSON.parse(JSON.stringify(value));
 function harness(mediaMutates = false) {
   class Layer {

@@ -7,10 +7,7 @@ const test = require("node:test");
 const vm = require("node:vm");
 
 const projectRoot = path.resolve(__dirname, "..");
-const managerSource = fs.readFileSync(
-  path.join(projectRoot, "plugins/plugin-manager.js"),
-  "utf8"
-);
+const managerSource = require("./plugin-manager-source").managerSource();
 
 function loadDependencyHelpers() {
   const start = managerSource.indexOf("  function normalizeProjectPlugins(plugins) {");
