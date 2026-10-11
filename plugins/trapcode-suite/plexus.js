@@ -155,6 +155,7 @@ var PZ = PZ || {};
     function SpatialGrid() {
         this.head = new Int32Array(16);
         this.next = new Int32Array(16);
+        this.cells = new Float64Array(16 * 3);
         this.mask = 15;
         this.cell = 1;
         this.points = null;
@@ -172,15 +173,18 @@ var PZ = PZ || {};
         this.head.fill(-1, 0, size);
         this.mask = size - 1;
         if (this.next.length < count) this.next = new Int32Array(Math.max(count, this.next.length * 2));
+        if (this.cells.length < count * 3) this.cells = new Float64Array(this.next.length * 3);
         this.points = points;
         this.count = count;
         this.cell = cell;
         for (var i = 0; i < count; i++) {
-            var b = this.bucket(
-                Math.floor(points[i * 3] / cell),
-                Math.floor(points[i * 3 + 1] / cell),
-                Math.floor(points[i * 3 + 2] / cell)
-            );
+            // Keep full double cell coordinates, including values outside
+            // int32 range. Hash collisions still traverse the same chains.
+            var at = i * 3;
+            var cx = this.cells[at] = Math.floor(points[at] / cell);
+            var cy = this.cells[at + 1] = Math.floor(points[at + 1] / cell);
+            var cz = this.cells[at + 2] = Math.floor(points[at + 2] / cell);
+            var b = this.bucket(cx, cy, cz);
             this.next[i] = this.head[b];
             this.head[b] = i;
         }
@@ -191,26 +195,28 @@ var PZ = PZ || {};
     // out and returns how many were written, at most `limit`.
     SpatialGrid.prototype.near = function (i, maxDistance, above, out, limit) {
         var points = this.points;
-        var cell = this.cell;
         var ax = points[i * 3];
         var ay = points[i * 3 + 1];
         var az = points[i * 3 + 2];
-        var cx = Math.floor(ax / cell);
-        var cy = Math.floor(ay / cell);
-        var cz = Math.floor(az / cell);
+        var cells = this.cells;
+        var cx = cells[i * 3];
+        var cy = cells[i * 3 + 1];
+        var cz = cells[i * 3 + 2];
         var maxSq = maxDistance * maxDistance;
         var found = 0;
         for (var ox = -1; ox <= 1; ox++) {
             for (var oy = -1; oy <= 1; oy++) {
                 for (var oz = -1; oz <= 1; oz++) {
                     var j = this.head[this.bucket(cx + ox, cy + oy, cz + oz)];
-                    while (j >= 0 && found < limit) {
+                    // Buckets are in descending index order. No later entry can
+                    // pass an above-only query once this index is too small.
+                    while (j >= 0 && found < limit && (!above || j > i)) {
                         if (j !== i && (!above || j > i)) {
                             var px = points[j * 3];
                             var py = points[j * 3 + 1];
                             var pz = points[j * 3 + 2];
-                            if (Math.floor(px / cell) === cx + ox && Math.floor(py / cell) === cy + oy &&
-                                Math.floor(pz / cell) === cz + oz) {
+                            if (cells[j * 3] === cx + ox && cells[j * 3 + 1] === cy + oy &&
+                                cells[j * 3 + 2] === cz + oz) {
                                 var dx = px - ax;
                                 var dy = py - ay;
                                 var dz = pz - az;
@@ -241,6 +247,7 @@ var PZ = PZ || {};
             this._candidates = new Int32Array(0);
             this._sourceIds = new Int32Array(0);
             this._near = new Int32Array(MAX_NEAR);
+            this._nearDistances = new Float64Array(MAX_NEAR);
             this._seen = new Set();
             this._segments = null;
             this.pointCloud = null;
@@ -577,21 +584,22 @@ var PZ = PZ || {};
             var sourceIds = sameSource ? this._sourceIds : null;
             var grid = this._grid;
             grid.build(work, n, Math.max(maxDistance, 0.0001));
-            var cell = grid.cell;
+            var cells = grid.cells;
             var maxSq = maxDistance * maxDistance;
             for (var i = 0; i < n; i++) {
                 var ax = work[i * 3];
                 var ay = work[i * 3 + 1];
                 var az = work[i * 3 + 2];
-                var acx = Math.floor(ax / cell);
-                var acy = Math.floor(ay / cell);
-                var acz = Math.floor(az / cell);
+                var acx = cells[i * 3];
+                var acy = cells[i * 3 + 1];
+                var acz = cells[i * 3 + 2];
                 var connections = 0;
                 for (var ox = -1; ox <= 1 && connections < maxConnections; ox++) {
                     for (var oy = -1; oy <= 1 && connections < maxConnections; oy++) {
                         for (var oz = -1; oz <= 1 && connections < maxConnections; oz++) {
                             var j = grid.head[grid.bucket(acx + ox, acy + oy, acz + oz)];
-                            while (j >= 0 && connections < maxConnections) {
+                            // Remaining indices are lower still, so they cannot link to i.
+                            while (j > i && connections < maxConnections) {
                                 if (j > i && (!sourceIds || sourceIds[j] === sourceIds[i])) {
                                     var bx = work[j * 3];
                                     var by = work[j * 3 + 1];
@@ -600,9 +608,9 @@ var PZ = PZ || {};
                                     var dy = ay - by;
                                     var dz = az - bz;
                                     if (dx * dx + dy * dy + dz * dz < maxSq &&
-                                        Math.floor(bx / cell) === acx + ox &&
-                                        Math.floor(by / cell) === acy + oy &&
-                                        Math.floor(bz / cell) === acz + oz) {
+                                        cells[j * 3] === acx + ox &&
+                                        cells[j * 3 + 1] === acy + oy &&
+                                        cells[j * 3 + 2] === acz + oz) {
                                         emit(i, j, work, colorsIn);
                                         verts += 2;
                                         connections++;
@@ -675,22 +683,27 @@ var PZ = PZ || {};
             var grid = this._grid;
             grid.build(work, n, maxDistance);
             var near = this._near;
+            var distances = this._nearDistances;
             var seen = this._seen;
             seen.clear();
             var maxSq = maxDistance * maxDistance;
             for (var a = 0; a < n && indices.length < MAX_TRIANGLES * 3; a++) {
                 var found = grid.near(a, maxDistance, false, near, MAX_NEAR);
                 if (found < 2) continue;
-                // Insertion sort by distance to a (at most MAX_NEAR entries).
+                // Compute each double distance once, then retain the original
+                // stable insertion order, including equal-distance neighbors.
+                distances[0] = pointDistSq(work, near[0], a);
                 for (var s = 1; s < found; s++) {
                     var item = near[s];
                     var key = pointDistSq(work, item, a);
                     var p = s - 1;
-                    while (p >= 0 && pointDistSq(work, near[p], a) > key) {
+                    while (p >= 0 && distances[p] > key) {
                         near[p + 1] = near[p];
+                        distances[p + 1] = distances[p];
                         p--;
                     }
                     near[p + 1] = item;
+                    distances[p + 1] = key;
                 }
                 var candidates = Math.min(found, 10);
                 for (var mi = 0; mi < candidates && indices.length < MAX_TRIANGLES * 3; mi++) {
