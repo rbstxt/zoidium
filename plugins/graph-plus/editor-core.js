@@ -258,6 +258,8 @@ PZ.ui.graph.prototype._installResizeObserver = function () {
 };
 PZ.ui.graph.prototype.unload = function () {
   this.closeEasePopup();
+  try { clearTimeout(this._tipTO); } catch (_timerError) {}
+  this._tipTO = null;
   this.objects = null;
   try {
     if (this._ro) this._ro.disconnect();

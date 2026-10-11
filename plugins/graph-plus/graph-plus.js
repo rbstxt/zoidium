@@ -108,6 +108,11 @@ const GraphPlus = (() => {
           // The rebuilt panel still opens with an empty picker.
         }
         win.setPanel(next);
+        try {
+          disposePanel(old);
+        } catch (error) {
+          logError("Could not dispose the replaced graph panel.", error);
+        }
         rebuilt += 1;
       } catch (error) {
         logError("Could not rebuild the open graph panel.", error);
