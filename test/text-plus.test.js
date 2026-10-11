@@ -1205,3 +1205,48 @@ test("ancestor traversal stops safely at a broken or cyclic parent chain", () =>
   cycle.parentObject = cycle;
   assert.deepEqual(_test.collectTextPlusObjects({ parentObject: cycle }), [cycle]);
 });
+
+test("finiteBox reads finite bounding boxes and rejects the rest", () => {
+  const finite = {
+    computeBoundingBox() {
+      this.boundingBox = {
+        min: { x: -1, y: -2, z: -3 },
+        max: { x: 4, y: 5, z: 6 },
+      };
+    },
+  };
+  assert.deepEqual(_test.finiteBox(finite), {
+    min: [-1, -2, -3],
+    max: [4, 5, 6],
+  });
+  assert.equal(
+    _test.finiteBox({
+      computeBoundingBox() {
+        this.boundingBox = {
+          min: { x: 0, y: 0, z: 0 },
+          max: { x: Infinity, y: 1, z: 1 },
+        };
+      },
+    }),
+    null
+  );
+  assert.equal(_test.finiteBox(null), null);
+  assert.equal(_test.finiteBox({}), null);
+});
+
+test("expandBounds accumulates translated character boxes", () => {
+  const bounds = {
+    min: [Infinity, Infinity, Infinity],
+    max: [-Infinity, -Infinity, -Infinity],
+    empty: true,
+  };
+  _test.expandBounds(bounds, null, 0, 0);
+  assert.equal(bounds.empty, true);
+  _test.expandBounds(bounds, { min: [-1, -2, -3], max: [4, 5, 6] }, 10, 20);
+  assert.deepEqual(bounds.min, [9, 18, -3]);
+  assert.deepEqual(bounds.max, [14, 25, 6]);
+  assert.equal(bounds.empty, false);
+  _test.expandBounds(bounds, { min: [0, 0, 0], max: [1, 1, 1] }, -100, -100);
+  assert.deepEqual(bounds.min, [-100, -100, -3]);
+  assert.deepEqual(bounds.max, [14, 25, 6]);
+});
