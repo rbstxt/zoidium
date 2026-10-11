@@ -52,8 +52,10 @@ A Zoidium `native-fx` plugin. It provides seven OpenZoid effects as an external 
   appears where the key is produced.
 
 Effect sources resolve their GLSL from this plugin's bundle through
-`this._zoidiumGetAsset`. The shared vertex shader comes from the host asset
-pipeline. Enabling the pack never fans out into runtime fetches.
+`this._zoidiumGetAsset`. Split effects (VHS, Tracery) load their part files
+the same way through `ZoidiumPluginApis.modules.createRequire`. The shared
+vertex shader comes from the host asset pipeline. Enabling the pack never
+fans out into runtime fetches.
 
 Determinism: every effect here computes a frame from the project properties,
 the frame index and the input pixels. Nothing is carried between renders.
