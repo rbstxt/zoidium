@@ -61,6 +61,26 @@
       family: '"Fira Code", monospace',
     },
     {
+      value: "paper-mono",
+      label: "Paper Mono",
+      family: '"Paper Mono", monospace',
+    },
+    {
+      value: "inter",
+      label: "Inter",
+      family: '"Inter", sans-serif',
+    },
+    {
+      value: "source-sans-3",
+      label: "Source Sans 3",
+      family: '"Source Sans 3", sans-serif',
+    },
+    {
+      value: "atkinson-hyperlegible-next",
+      label: "Atkinson Hyperlegible Next",
+      family: '"Atkinson Hyperlegible Next", sans-serif',
+    },
+    {
       value: "system",
       label: "System monospace",
       family: 'ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", monospace',
@@ -174,6 +194,9 @@
   function findCodeFont(value) {
     if (value === "geist") return '"Geist Mono", monospace';
     if (value === "ibm-plex-sans") return '"IBM Plex Mono", monospace';
+    if (value === "inter" || value === "source-sans-3" || value === "atkinson-hyperlegible-next") {
+      return FONT_OPTIONS[0].family;
+    }
     return findFont(value).family;
   }
 

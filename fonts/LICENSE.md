@@ -8,6 +8,10 @@ software. The bundled families and copyright notices are:
 - JetBrains Mono — Copyright 2020 The JetBrains Mono Project Authors.
 - Cascadia Mono — Copyright (c) 2019 - Present, Microsoft Corporation, with Reserved Font Name Cascadia Code.
 - Fira Code — Copyright (c) 2014, The Fira Code Project Authors.
+- Paper Mono — Copyright 2025 The Paper-Mono.Git Project Authors. Original notice: [LICENSE-Paper-Mono-OFL.txt](./LICENSE-Paper-Mono-OFL.txt).
+- Inter — Copyright (c) 2016 The Inter Project Authors. Original notice: [LICENSE-Inter-OFL.txt](./LICENSE-Inter-OFL.txt).
+- Source Sans 3 — Copyright 2010-2024 Adobe, with Reserved Font Name 'Source'. Original notice: [LICENSE-Source-Sans-3-OFL.txt](./LICENSE-Source-Sans-3-OFL.txt).
+- Atkinson Hyperlegible Next — Copyright 2020-2024 The Atkinson Hyperlegible Next Project Authors. Original notice: [LICENSE-Atkinson-Hyperlegible-Next-OFL.txt](./LICENSE-Atkinson-Hyperlegible-Next-OFL.txt).
 
 The font files are distributed under this license; the family-specific source
 notices and links are documented in `fonts/README.md`.

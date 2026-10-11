@@ -62,3 +62,35 @@
   font-display: swap;
   src: url("./fira-code-regular.woff2") format("woff2");
 }
+
+@font-face {
+  font-family: "Paper Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./paper-mono-regular.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./inter-regular.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Source Sans 3";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./source-sans-3-regular.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Atkinson Hyperlegible Next";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./atkinson-hyperlegible-next-regular.woff2") format("woff2");
+}
