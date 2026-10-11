@@ -87,7 +87,14 @@ function host(adjustment) {
     ui: { viewport: class { _render() { this.compositor.renderSequence(this.editor.playback.currentFrame); } } } }, THREE: { Texture, WebGLRenderTarget: Target, Color: class {} } };
   sandbox.window = sandbox;
   vm.createContext(sandbox);
-  vm.runInContext(fs.readFileSync("plugins/core/temporal-render.js", "utf8"), sandbox);
+  for (const relative of [
+    "plugins/core/temporal-math.js",
+    "plugins/core/temporal-layers.js",
+    "plugins/core/temporal-sampler.js",
+    "plugins/core/temporal-render.js",
+  ]) {
+    vm.runInContext(fs.readFileSync(relative, "utf8"), sandbox, { filename: relative });
+  }
   const state = sandbox.ZOIDIUM_TEMPORAL;
   const root = new Compositor({ setClearColor() {} }, 80, 40); root.sequence = sequence;
   root.renderSequence(30);

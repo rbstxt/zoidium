@@ -18,10 +18,7 @@ const GENERATED = [/^plugins\/alipfx\//, /(^|\/)bundle\.json$/, /^node_modules\/
 // Files that are still being split. Remove an entry in the same change that
 // brings the file under the limit; the check fails on stale entries.
 const PENDING_SPLIT = new Set([
-  "plugins/core/temporal-render.js",
   "plugins/graph-plus/graph-plus.js",
-  "plugins/openzoid-legacy/effects/tracery.js",
-  "plugins/openzoid-legacy/effects/vhs.js",
   "plugins/plugin-manager.js",
   "plugins/precomp-plus/comps.js",
   "zoidium/debug-log.js",

@@ -191,6 +191,12 @@ function createPropertyList() {
 
 function instantiate(sandbox, relative, type) {
   const instance = { type, properties: createPropertyList(), parent: {}, parentLayer: null };
+  // Split effects load their parts from the plugin bundle; the harness
+  // serves them from disk the way the bundle would.
+  instance._zoidiumGetAsset = (kind, assetPath) => {
+    assert.equal(kind, "text");
+    return read(String(assetPath).replace(/^\.\//, ""));
+  };
   sandbox.instance = instance;
   vm.runInContext(`(function () {\n${read(relative)}\n}).call(instance);`, sandbox, {
     filename: relative,

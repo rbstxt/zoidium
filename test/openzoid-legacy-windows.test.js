@@ -17,14 +17,31 @@ const windowsPath = path.join(legacyDir, "effect-windows.js");
 const PZ_TYPES = { NUMBER: 1, OPTION: 2, TEXT: 3, COLOR: 7 };
 
 // Evaluates an effect source the way the runtime does and returns its
-// property definitions (no DOM or WebGL is needed for definitions).
+// property definitions (no DOM or WebGL is needed for definitions). Split
+// effects load their parts through the shared module loader, served here
+// from disk the way the bundle would serve them.
 function effectDefinitions(file) {
   const source = fs.readFileSync(path.join(legacyDir, "effects", file), "utf8");
   const PZ = { property: { type: PZ_TYPES }, tween: {} };
   const THREE = { Pass: function () {}, WebGLRenderTarget: function () {}, ShaderMaterial: function () {} };
   THREE.Pass.prototype = {};
-  const fakeThis = { properties: { addAll() {}, load() {} } };
-  new Function("PZ", "THREE", source).call(fakeThis, PZ, THREE);
+  const fakeThis = {
+    properties: { addAll() {}, load() {} },
+    _zoidiumGetAsset: (kind, assetPath) => {
+      assert.equal(kind, "text");
+      return fs.readFileSync(
+        path.join(projectRoot, String(assetPath).replace(/^\.\//, "")),
+        "utf8",
+      );
+    },
+  };
+  if (!globalThis.ZoidiumPluginApis?.modules?.createRequire) {
+    globalThis.PZ = globalThis.PZ || { property: { type: PZ_TYPES } };
+    eval(fs.readFileSync(path.join(projectRoot, "zoidium/plugin-apis.js"), "utf8"));
+  }
+  new Function("PZ", "THREE", "ZoidiumPluginApis", source).call(
+    fakeThis, PZ, THREE, globalThis.ZoidiumPluginApis,
+  );
   return fakeThis.propertyDefinitions;
 }
 
