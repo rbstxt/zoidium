@@ -7,6 +7,7 @@ const test = require("node:test");
 const vm = require("node:vm");
 
 const projectRoot = path.resolve(__dirname, "..");
+const { kitScripts, readScript } = require("./uikit-files");
 
 // ZoidiumUI is a required dependency: consumers call it directly instead of
 // guarding each call and reimplementing its builders as a fallback.
@@ -26,13 +27,10 @@ test("consumers call ZoidiumUI directly without existence guards", () => {
 });
 
 test("ui-kit exposes the full shared builder surface", () => {
-  const source = fs.readFileSync(
-    path.join(projectRoot, "zoidium", "ui-kit.js"),
-    "utf8"
-  );
   const context = { console };
   context.window = context;
-  vm.runInNewContext(source, context);
+  vm.createContext(context);
+  for (const file of kitScripts()) vm.runInContext(readScript(file), context, { filename: file });
   const api = context.ZoidiumUI;
   for (const name of [
     "getElevator",
@@ -79,7 +77,8 @@ test("menubar removal switches active panels and releases descriptors and DOM", 
     PZ: { ui: { generateIcon: element } },
   };
   context.window = context;
-  vm.runInNewContext(fs.readFileSync(path.join(projectRoot, "zoidium/ui-kit.js"), "utf8"), context);
+  vm.createContext(context);
+  for (const file of kitScripts()) vm.runInContext(readScript(file), context, { filename: file });
   const api = context.ZoidiumUI;
   const first = api.createMenubarTab({ title: "First", panel: element() });
   const second = api.createMenubarTab({ title: "Second", panel: element() });
@@ -104,7 +103,8 @@ test("menubar removal switches active panels and releases descriptors and DOM", 
 test("preview ownership closes the old editor before transfer and stale release cannot release the new owner", () => {
   const context = { console };
   context.window = context;
-  vm.runInNewContext(fs.readFileSync(path.join(projectRoot, "zoidium/ui-kit.js"), "utf8"), context);
+  vm.createContext(context);
+  for (const file of kitScripts()) vm.runInContext(readScript(file), context, { filename: file });
   const viewport = {};
   const closed = [];
   const firstRelease = context.ZoidiumUI.acquirePreview(viewport, () => { closed.push("first"); firstRelease(); });

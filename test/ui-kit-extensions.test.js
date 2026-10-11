@@ -4,13 +4,10 @@
 // scoped window skins and the standard side panel builder.
 
 const assert = require("node:assert/strict");
-const fs = require("node:fs");
-const path = require("node:path");
 const test = require("node:test");
 const vm = require("node:vm");
 
-const projectRoot = path.resolve(__dirname, "..");
-const read = (relative) => fs.readFileSync(path.join(projectRoot, relative), "utf8");
+const { kitScripts, readScript } = require("./uikit-files");
 
 function fakeElement(tag) {
   return {
@@ -54,8 +51,7 @@ function loadKit(extraModules) {
   context.window = context;
   if (extraModules) context.ZoidiumUIModules = extraModules;
   vm.createContext(context);
-  vm.runInContext(read("zoidium/ui-panels.js"), context, { filename: "ui-panels.js" });
-  vm.runInContext(read("zoidium/ui-kit.js"), context, { filename: "ui-kit.js" });
+  for (const file of kitScripts()) vm.runInContext(readScript(file), context, { filename: file });
   return { context, api: context.ZoidiumUI, head };
 }
 

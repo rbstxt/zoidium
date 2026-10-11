@@ -23,7 +23,6 @@ const PENDING_SPLIT = new Set([
   "plugins/precomp-plus/comps.js",
   "zoidium/debug-log.js",
   "zoidium/project-restore.js",
-  "zoidium/ui-kit.js",
   "zoidium/ui-node-editor.js",
 ]);
 
