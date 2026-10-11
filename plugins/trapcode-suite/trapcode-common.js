@@ -213,6 +213,12 @@ var PZ = PZ || {};
     };
 
     // Reads the POSITION attribute of a JSON BufferGeometry asset into a copy.
+    // SEC-05 follow-up: the decoded mesh is bounded by the same ingestion
+    // caps as Plexus (T.plexusGeometry.MAX_GEOMETRY_VERTICES). An oversized
+    // model resolves to null, which Form treats as "no mesh" and falls back
+    // to a random scatter (sampleModel), instead of exhausting memory. The
+    // limit is read from T.plexusGeometry when that file has loaded, with the
+    // same value as a fallback so this file also works standalone.
     T.loadGeometryPositions = function (project, value) {
         if (!project || !value) return Promise.resolve(null);
         var asset = project.assets.load(value);
@@ -225,6 +231,16 @@ var PZ = PZ || {};
             .then(function () { return new PZ.asset.geometry(asset).getGeometry(); })
             .then(function (geometry) {
                 var position = geometry && geometry.attributes && geometry.attributes.position;
+                if (!position || !position.array) return finish(null);
+                var limits = T.plexusGeometry || {};
+                var maxVertices = limits.MAX_GEOMETRY_VERTICES || 500000;
+                if (position.array.length / 3 > maxVertices) {
+                    try {
+                        console.warn("Trapcode Form: the model file was skipped (the decoded mesh has " +
+                            Math.floor(position.array.length / 3) + " vertices (limit " + maxVertices + ")); using a scatter instead.");
+                    } catch (_warnError) { /* logging is best effort */ }
+                    return finish(null);
+                }
                 return finish(position ? new Float32Array(position.array) : null);
             }, function () {
                 return finish(null);
