@@ -12,7 +12,10 @@
 //      surface and what lies behind it, so an out-of-focus foreground bleeds
 //      past its silhouette over sharper or transparent pixels instead of
 //      being clipped at the object's outline, and background blur never
-//      spreads over a sharper object in front of it.
+//      spreads over a sharper object in front of it. Where such an object
+//      hides part of a blurred pixel's disc, the pixel's own surface stands
+//      in for the hidden part, so the blur keeps its brightness up to the
+//      sharp outline.
 // Colors are premultiplied by alpha, like the scene render they replace, so
 // a blurred edge over a transparent layer fades out instead of brightening.
 // In-focus pixels with nothing blurred nearby pass through untouched. The
@@ -183,7 +186,14 @@ parts.dof = (function () {
     // pixel's own blur.
     "            sampleRadius = min( sampleRadius, centerRadius );",
     "        }",
-    "        if ( sampleRadius < radius ) continue;",
+    "        if ( sampleRadius < radius ) {",
+    // A sharper surface in front hides part of the pixel's own blur disc.
+    // The hidden surface most likely continues the pixel's own, so count the
+    // pixel in its place; dropping it would darken blur around the outline
+    // of an in-focus object.
+    "            if ( sampleLinear < frontLimit && centerRadius >= radius ) back += centerColor * min( share / max( centerRadius * centerRadius, 1.0 ), 1.0 );",
+    "            continue;",
+    "        }",
     "        vec4 contribution = sampleColor * min( share / max( sampleRadius * sampleRadius, 1.0 ), 1.0 );",
     "        if ( sampleLinear < frontLimit ) front += contribution;",
     "        else back += contribution;",

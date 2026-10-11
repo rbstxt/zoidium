@@ -21,7 +21,8 @@ Add a Camera+ to a Scene from the 3D picker: **Camera > Camera+**.
   near/far blur levels. The blur is a per-scene post pass that reads the scene's
   depth. Out-of-focus objects spread past their outline over sharper or
   transparent areas, while background blur stays behind sharper objects in
-  front of it. It runs only while a Camera+ enables it.
+  front of it and keeps its brightness up to their outline. It runs only while
+  a Camera+ enables it.
 - **Camera Motion Blur**: deterministic scene renders at fixed offsets across
   a centered shutter interval of up to two frames, averaged with one to eight
   samples. Every sample is evaluated afresh; no prior rendered frames are used.
