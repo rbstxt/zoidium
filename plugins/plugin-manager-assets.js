@@ -222,7 +222,7 @@
           cache.set(
             effect.id,
             Promise.resolve().then(() => {
-              const preset = cloneJson(bundledJson(assets, effect.preset, `effect preset ${effect.id}`));
+              const preset = ZoidiumPluginApis.props.cloneJson(bundledJson(assets, effect.preset, `effect preset ${effect.id}`));
               const shader = bundledText(assets, effect.shader, `effect shader ${effect.id}`);
               if (preset.type !== 1 || !preset.properties) {
                 throw new Error(`Invalid shader preset: ${effect.id}`);
@@ -253,7 +253,7 @@
         }
       }
       const data = await cache.get(effect.id);
-      return JSON.parse(JSON.stringify(data));
+      return ZoidiumPluginApis.props.cloneJson(data);
     };
   }
 
@@ -305,7 +305,7 @@
         cache.set(
           group.id,
           Promise.resolve().then(() => {
-            const preset = cloneJson(bundledJson(assets, group.preset, `group preset ${group.id}`));
+            const preset = ZoidiumPluginApis.props.cloneJson(bundledJson(assets, group.preset, `group preset ${group.id}`));
             const shaderEntries = (group.shaders || []).map((source) => [
               source,
               bundledText(assets, source, `group shader ${group.id}`),
@@ -332,11 +332,7 @@
         );
       }
     }
-    return cloneJson(await cache.get(group.id));
-  }
-
-  function cloneJson(value) {
-    return JSON.parse(JSON.stringify(value));
+    return ZoidiumPluginApis.props.cloneJson(await cache.get(group.id));
   }
 
   // The project the editor is showing. A native item keeps the project it was
@@ -383,5 +379,5 @@
   }
 
   // END manager body
-  Object.assign(manager, { fetchJson, fetchText, pluginAssetKey, getPluginAsset, createPluginAssetResolver, bundledText, bundledJson, validateManifest, createPluginMarker, readPluginMarker, createLazyEffectData, hydrateGroupShaders, indexGroupShaders, loadGroupData, cloneJson, loadPluginPackage, loadPluginPackageForState });
+  Object.assign(manager, { fetchJson, fetchText, pluginAssetKey, getPluginAsset, createPluginAssetResolver, bundledText, bundledJson, validateManifest, createPluginMarker, readPluginMarker, createLazyEffectData, hydrateGroupShaders, indexGroupShaders, loadGroupData, loadPluginPackage, loadPluginPackageForState });
 })();

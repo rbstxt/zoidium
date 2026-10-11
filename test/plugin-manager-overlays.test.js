@@ -25,6 +25,11 @@ function loadManager() {
 }
 test("ordered manager overlays share persistence, trackers, and picker state", async () => {
   const { sandbox, manager: m, events } = loadManager();
+  const data = { properties: { amount: [1, 2] } };
+  const copy = sandbox.ZoidiumPluginApis.props.cloneJson(data);
+  assert.deepEqual(JSON.parse(JSON.stringify(copy)), data);
+  assert.notEqual(copy.properties.amount, data.properties.amount);
+  assert.equal(m.cloneJson, undefined, "no local clone helper remains");
   m.persistEnabled("fixture", true);
   assert.equal(m.shouldStartEnabled({ id: "fixture" }), true);
   m.persistEnabled("fixture", false);
@@ -71,5 +76,23 @@ test("startup retains namespace exports and waits for the ordered overlays", asy
   await m.registryReady;
   assert.deepEqual(calls.map((call) => call[0]), ["getDebugPlugins", "getDebugProjectUsage", "trackPluginMaterial", "untrackPluginMaterial", "trackPluginResource", "untrackPluginResource"]);
   assert.ok(calls.every((call) => call[1] === "function" && call[2] === "plugin-manager"));
+});
+test("manager numeric fallbacks use the shared JSON clone for load and save", async () => {
+  const { sandbox, manager: m } = loadManager();
+  sandbox.PZ = { object3d: class {} };
+  let clones = 0;
+  const shared = sandbox.ZoidiumPluginApis.props.cloneJson;
+  sandbox.ZoidiumPluginApis = { ...sandbox.ZoidiumPluginApis, props: {
+    cloneJson(value) { clones += 1; return shared(value); },
+  } };
+  const object = m.createMissingNumericObject(7, "fixture", "twist");
+  const data = { type: 7, properties: { amount: [3] } };
+  await object.load(data);
+  data.properties.amount[0] = 9;
+  const saved = object.toJSON();
+  assert.equal(saved.properties.amount[0], 3);
+  saved.properties.amount[0] = 12;
+  assert.equal(object.toJSON().properties.amount[0], 3);
+  assert.equal(clones, 3);
 });
 module.exports = { loadManager };
