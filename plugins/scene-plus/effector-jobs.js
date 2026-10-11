@@ -1,5 +1,7 @@
 "use strict";
 
+const reportedJobFailures = new Set();
+
 const { byteSize } = require("./effector-evaluate.js");
 
 // One persistent worker reuses topology across motion frames. Unused work is
@@ -136,7 +138,11 @@ function createMeshJobs(workerSource, host = globalThis, redraw = () => {}) {
       entry = { id: ++serial, key, input, buildKey, sourceId: input.sourceId, status: "queued", users: new Set(), bytes: 0 };
       entry.promise = new Promise((resolve, reject) => { entry.resolve = resolve; entry.reject = reject; });
       // Interactive preview has no awaiting caller. Export still receives errors.
-      entry.promise.catch(() => {});
+      entry.promise.catch(error => {
+        if (reportedJobFailures.has(key)) return;
+        reportedJobFailures.add(key);
+        console.warn("[Zoidium] Effector: mesh job failed", error);
+      });
       entries.set(key, entry);
     }
     entry.users.add(consumer);
@@ -175,7 +181,7 @@ function createMeshJobs(workerSource, host = globalThis, redraw = () => {}) {
 }
 
 function createWorkerSource(sources) {
-  return '"use strict";const sources=' + JSON.stringify(sources) + `;
+  return ZoidiumPluginApis.random.workerSource() + ZoidiumPluginApis.props.workerSource() + ZoidiumPluginApis.color.workerSource() + '"use strict";const sources=' + JSON.stringify(sources) + `;
 const modules = new Map();
 function load(id) {
   id = id.replace(/^\\.\\//, "");
@@ -186,6 +192,7 @@ function load(id) {
 }
 const evaluator = load("effector-evaluate.js");
 const cache = evaluator.createStageCache();
+const reportedErrors = new Set();
 onmessage = ({data}) => {
   if (data.forgetSourceId !== undefined) { cache.forget(data.forgetSourceId); return; }
   try {
@@ -198,7 +205,13 @@ onmessage = ({data}) => {
     }
     visit(value);
     postMessage({id:data.id, value}, Array.from(buffers));
-  } catch (error) { postMessage({id:data.id, error:String(error.stack || error)}); }
+  } catch (error) {
+    if (!reportedErrors.has(error.message)) {
+      reportedErrors.add(error.message);
+      console.warn("[Zoidium] Effector worker: mesh evaluation failed", error);
+    }
+    postMessage({id:data.id, error:String(error.stack || error)});
+  }
 };`;
 }
 

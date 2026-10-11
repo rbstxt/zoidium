@@ -495,38 +495,11 @@ function capContours(loops, plane, epsilon, maxVertices) {
   return polygons;
 }
 
-// Local copy kept deliberately: this file also evaluates inside the Mesh
-// worker (see createWorkerSource), whose realm has no overlay scripts and
-// hence no ZoidiumPluginApis. Pinned bit-for-bit against
-// ZoidiumPluginApis.color.hslToRgb by test/migrate-shared-pins.test.js.
-function hueToRgb(p, q, t) {
-  let value = t;
-  if (value < 0) value += 1;
-  if (value > 1) value -= 1;
-  if (value < 1 / 6) return p + (q - p) * 6 * value;
-  if (value < 1 / 2) return q;
-  if (value < 2 / 3) return p + (q - p) * (2 / 3 - value) * 6;
-  return p;
-}
-
-function hslToRgb(hue, saturation, lightness) {
-  if (saturation === 0) return [lightness, lightness, lightness];
-  const q = lightness < 0.5
-    ? lightness * (1 + saturation)
-    : lightness + saturation - lightness * saturation;
-  const p = 2 * lightness - q;
-  return [
-    hueToRgb(p, q, hue + 1 / 3),
-    hueToRgb(p, q, hue),
-    hueToRgb(p, q, hue - 1 / 3),
-  ];
-}
-
 function pieceColor(seed, piece) {
   const hue = core.hash01(seed, piece, 40);
   const saturation = 0.45 + 0.2 * core.hash01(seed, piece, 41);
   const lightness = 0.55 + 0.15 * core.hash01(seed, piece, 42);
-  return hslToRgb(hue, saturation, lightness);
+  return ZoidiumPluginApis.color.hslToRgb(hue, saturation, lightness);
 }
 
 // Builds the cached fracture stage for one input. `source` is

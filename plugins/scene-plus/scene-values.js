@@ -66,8 +66,7 @@ function nameNewSourceShapes(objects) {
 }
 
 function numberValue(value, fallback) {
-  const number = Number(value);
-  return Number.isFinite(number) ? number : fallback;
+  return ZoidiumPluginApis.props.numberValue(value, fallback);
 }
 
 function integerValue(value, fallback, minimum, maximum) {
