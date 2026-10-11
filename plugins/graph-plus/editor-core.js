@@ -1,5 +1,14 @@
 "use strict";
 
+// Warn-once reporter for failure sites that run per frame or per pointer move:
+// the first failure is logged, repeats stay silent so the console stays readable.
+var gpWarned = {};
+function gpWarnOnce(key, message, error) {
+  if (gpWarned[key]) return;
+  gpWarned[key] = true;
+  console.warn("[Zoidium] graph-plus: " + message, error);
+}
+
 module.exports = function (environment) {
 const { PZ, SVGNS, clamp, curveColor, displayName, scaleFactorOf, addrString, currentFrame, totalFrames, g2doc, g2win, gpSyncTheme } = environment;
 var GraphGrid = function (graph, opts) {
@@ -130,6 +139,7 @@ PZ.ui.graph = function (editor, opts) {
   var self = this;
   this.objectAdded_bound = function (e) { self.objectAdded(e); };
   this.objectRemoved_bound = function (e) { self.objectRemoved(e); };
+  // Listener (un)subscribe is best-effort: a torn-down host observable simply stays as-is.
   this.onObjectsChanged.watch(function (old) {
     if (old) {
       try { old.onObjectAdded.unwatch(self.objectAdded_bound); } catch (e) {}
@@ -199,7 +209,7 @@ PZ.ui.graph.prototype._ensureSpaceListeners = function () {
       this._spaceWin.removeEventListener("keyup", this._spaceHandlers.up);
       this._spaceWin.removeEventListener("blur", this._spaceHandlers.blur);
     }
-  } catch (e2) {}
+  } catch (e2) { /* Detaching from a closed window needs no cleanup. */ }
   var handlers = {
     down: function (e) {
       if (e.code === "Space" && !e.repeat) self._spaceDown = true;
@@ -232,7 +242,7 @@ PZ.ui.graph.prototype._installResizeObserver = function () {
     if (!this.canvasEl || !doc) return;
     if (this._ro && this._roDoc === doc) return;
     if (this._ro) {
-      try { this._ro.disconnect(); } catch (e) {}
+      try { this._ro.disconnect(); } catch (e) { /* Disconnecting a dead observer needs no cleanup. */ }
       this._ro = null;
       this._roDoc = null;
     }
@@ -249,12 +259,12 @@ PZ.ui.graph.prototype._installResizeObserver = function () {
     var ro = new RO(function () {
       try {
         self.resize();
-      } catch (e3) {}
+      } catch (e3) { gpWarnOnce("resize", "resize after layout failed", e3); }
     });
     ro.observe(this.canvasEl);
     this._ro = ro;
     this._roDoc = doc;
-  } catch (e4) {}
+  } catch (e4) { /* Optional per-window rebinding; the previous bindings stay. */ }
 };
 PZ.ui.graph.prototype.unload = function () {
   this.closeEasePopup();
@@ -263,7 +273,7 @@ PZ.ui.graph.prototype.unload = function () {
   this.objects = null;
   try {
     if (this._ro) this._ro.disconnect();
-  } catch (e) {}
+  } catch (e) { /* Disconnecting a dead observer needs no cleanup. */ }
   this._ro = null;
   this._roDoc = null;
   try {
@@ -272,7 +282,7 @@ PZ.ui.graph.prototype.unload = function () {
       this._spaceWin.removeEventListener("keyup", this._spaceHandlers.up);
       this._spaceWin.removeEventListener("blur", this._spaceHandlers.blur);
     }
-  } catch (e2) {}
+  } catch (e2) { /* Detaching from a closed window needs no cleanup. */ }
   this._spaceWin = null;
   this._spaceHandlers = null;
 };
@@ -288,8 +298,8 @@ PZ.ui.graph.prototype.scrubRuler = function (clientX) {
   try {
     this.editor.playback.speed = 0;
     this.editor.playback.currentFrame = clamp(Math.round(f), 0, Math.max(totalFrames(this.editor) - 1, 0));
-  } catch (e) {}
-  try { this.drawRuler(); } catch (e2) {}
+  } catch (e) { gpWarnOnce("scrub", "playhead scrub failed", e); }
+  try { this.drawRuler(); } catch (e2) { gpWarnOnce("ruler", "ruler redraw failed", e2); }
 };
 PZ.ui.graph.prototype.screenToGraph = function (px, py) {
   var r = this.svg.getBoundingClientRect();
@@ -391,7 +401,7 @@ PZ.ui.graph.prototype.updateViewBox = function () {
     }
     if (gel._label) this.positionLabel(gel);
   }
-  try { this.drawRuler(); } catch (e) {}
+  try { this.drawRuler(); } catch (e) { gpWarnOnce("ruler", "ruler redraw failed", e); }
 };
 PZ.ui.graph.prototype.fitAll = function (onlySelected) {
   var groups = this.propGroups();
@@ -554,7 +564,7 @@ PZ.ui.graph.prototype.applyToolCursor = function () {
     else if (this.tool === "sel") c.style.cursor = "crosshair";
     else c.style.cursor = "grab";
     if (this.rulerEl) this.rulerEl.style.cursor = "ew-resize";
-  } catch (e) {}
+  } catch (e) { /* Cursor styling is cosmetic; the editor stays usable. */ }
 };
 PZ.ui.graph.prototype.setTool = function (tool) {
   this.tool = (tool === "sel") ? "sel" : "pan";

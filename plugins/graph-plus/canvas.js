@@ -1,5 +1,14 @@
 "use strict";
 
+// Warn-once reporter for failure sites that run per pointer move or per item:
+// the first failure is logged, repeats stay silent so the console stays readable.
+var gpWarned = {};
+function gpWarnOnce(key, message, error) {
+  if (gpWarned[key]) return;
+  gpWarned[key] = true;
+  console.warn("[Zoidium] graph-plus: " + message, error);
+}
+
 module.exports = function (environment) {
 const { PZ, SVGNS, clamp, focusNoScroll, escapeHtml, displayName, currentFrame, totalFrames, g2doc, sharedEmptyNote, beginPointerDrag, gpInjectStyle } = environment;
 PZ.ui.graph.prototype.create = function () {
@@ -125,6 +134,7 @@ PZ.ui.graph.prototype.create = function () {
   this.bodyEl.addEventListener("keydown", function (e) { self.keydown(e); });
   // Global Space pans the view without needing focus; bound per owner
   // window (rebound when the panel moves documents) so it works in popups.
+  // Listener setup already no-ops on missing host APIs; only unexpected throws land here.
   try { self._ensureSpaceListeners(); } catch (eSpace) {}
   try { self._installResizeObserver(); } catch (eRO) {}
   this.applyToolCursor();
@@ -153,7 +163,7 @@ PZ.ui.graph.prototype.onSvgPointerDown = function (e) {
   var self = this;
   // BUGFIX tools disappeared: plain focus() scrolls the panel and pushes the
   // toolbar out of view — focus without scrolling, and swallow the default.
-  try { if (e.button === 0 || e.button === 1) e.preventDefault(); } catch (err) {}
+  try { if (e.button === 0 || e.button === 1) e.preventDefault(); } catch (err) { /* Synthetic host events may lack preventDefault. */ }
   focusNoScroll(this.bodyEl);
   if (e.button === 2) {
     // RMB: scrub playhead
@@ -165,7 +175,7 @@ PZ.ui.graph.prototype.onSvgPointerDown = function (e) {
       try {
         self.editor.playback.speed = 0;
         self.editor.playback.currentFrame = clamp(f, 0, totalFrames(self.editor) - 1);
-      } catch (err) {}
+      } catch (err) { gpWarnOnce("scrub", "playhead scrub failed", err); }
     };
     beginPointerDrag(self.svg, e, scrub, null);
     scrub(e);
@@ -190,7 +200,7 @@ PZ.ui.graph.prototype.onSvgPointerDown = function (e) {
       try {
         self2.editor.playback.speed = 0;
         self2.editor.playback.currentFrame = clamp(Math.round(gg.x), 0, Math.max(totalFrames(self2.editor) - 1, 0));
-      } catch (err) {}
+      } catch (err) { gpWarnOnce("scrub", "playhead scrub failed", err); }
       self2.updateStatus("playhead " + currentFrame(self2.editor));
     };
     beginPointerDrag(this.svg, e, scrubTo, function () {
@@ -351,7 +361,7 @@ PZ.ui.graph.prototype.onSvgDoubleClick = function (e) {
     try {
       if (prop.definition && prop.definition.min !== undefined) val = Math.max(val, prop.definition.min);
       if (prop.definition && prop.definition.max !== undefined) val = Math.min(val, prop.definition.max);
-    } catch (err) {}
+    } catch (err) { /* A property without limits keeps its clicked value. */ }
     var tween = 1;
     try {
       if (!prop.interpolated) tween = 0;
@@ -369,12 +379,12 @@ PZ.ui.graph.prototype.onSvgDoubleClick = function (e) {
       // The stopwatch moved the static keyframe here; give it the clicked value.
       if (prop.hasKeyframe(rel)) {
         try { this.propertyOps.setValue({ property: prop.getAddress(), frame: rel, value: val }); added++; }
-        catch (err) {}
+        catch (err) { gpWarnOnce("dblclick-set:" + i, "setting the clicked keyframe value failed", err); }
         continue;
       }
     }
     try { this.propertyOps.createKeyframe({ property: prop.getAddress(), data: data }); added++; }
-    catch (err) {}
+    catch (err) { gpWarnOnce("dblclick-create:" + i, "creating the clicked keyframe failed", err); }
   }
   this.editor.history.finishOperation();
   if (!added) this.updateStatus("keyframe already exists at f " + absF);
