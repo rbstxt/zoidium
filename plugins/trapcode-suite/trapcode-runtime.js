@@ -18,10 +18,23 @@
 
 const SOURCE_ORDER = [
   "trapcode-common.js",
+  "trapcode-audio.js",
+  "trapcode-color.js",
+  "trapcode-shading.js",
+  "trapcode-expressions.js",
   "designer.js",
+  "particular-sim.js",
   "particular.js",
+  "particular-system.js",
+  "particular-defs.js",
   "form.js",
+  "form-grid.js",
+  "form-fields.js",
+  "form-defs.js",
   "plexus.js",
+  "plexus-geometry.js",
+  "plexus-object.js",
+  "plexus-config.js",
   "lights-c4d.js",
 ];
 
@@ -50,6 +63,16 @@ function runtimeGlobals(context) {
   return { PZ, THREE };
 }
 
+function createRequireFor(context) {
+  const fromContext = context && context.apis && context.apis.modules &&
+    context.apis.modules.createRequire;
+  if (typeof fromContext === "function") return fromContext;
+  const host = typeof globalThis !== "undefined" ? globalThis.ZoidiumPluginApis : null;
+  const fromHost = host && host.modules && host.modules.createRequire;
+  if (typeof fromHost === "function") return fromHost;
+  return null;
+}
+
 function installSources(context, PZ, THREE) {
   if (PZ.trapcode && PZ.trapcode.suiteSourcesInstalled) return;
   const getAsset = context && typeof context.getAsset === "function"
@@ -58,16 +81,22 @@ function installSources(context, PZ, THREE) {
   if (!getAsset) {
     throw new Error("Trapcode Suite needs the plugin bundle asset resolver.");
   }
-  for (const file of SOURCE_ORDER) {
-    const source = getAsset("text", "./plugins/trapcode-suite/" + file);
-    if (typeof source !== "string") {
-      throw new Error("Trapcode Suite is missing its bundled source: " + file);
-    }
-    // Pass PZ/THREE as parameters: the legacy sources open with
-    // `var PZ = PZ || {}`, which under a bare eval would shadow the global
-    // with undefined and drop every definition. As parameters the var
-    // merges with the argument binding and definitions land on the runtime.
-    new Function("PZ", "THREE", source)(PZ, THREE);
+  const createRequire = createRequireFor(context);
+  if (!createRequire) {
+    throw new Error("Trapcode Suite needs the shared bundle module loader.");
+  }
+  // Every source runs as a module with PZ/THREE in scope: the legacy files
+  // open with `var PZ = PZ || {}`, which merges with the scope binding so
+  // definitions land on the runtime, exactly as the old `new Function`
+  // wrapper did. Order matters: each file extends what earlier files defined.
+  const require = createRequire(getAsset, {
+    root: "./plugins/trapcode-suite/",
+    scope: { PZ, THREE },
+  });
+  try {
+    for (const file of SOURCE_ORDER) require("./" + file);
+  } catch (error) {
+    throw new Error("Trapcode Suite could not load its bundled source: " + error.message);
   }
   Object.defineProperty(PZ.trapcode, "suiteSourcesInstalled", { value: true });
 }
@@ -244,4 +273,7 @@ module.exports = {
       }
     }
   },
+  // Exposed for tests: the bundle load order must match the text assets
+  // declared in the plugin manifest.
+  sourceOrder: SOURCE_ORDER,
 };

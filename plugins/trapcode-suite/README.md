@@ -167,11 +167,36 @@ Methods install missing-only and are removed when the pack is disabled.
 
 ## Runtime
 
-The `trapcode-runtime` module evaluates the bundled sources in dependency order
-through the plugin bundle asset API, so enabling the pack never fetches at
-runtime. It teaches `PZ.object3d.create` the Trapcode numeric types and removes
-them, the expression support, the lights and any open designer windows on
-disable. Activation failures roll back what was installed.
+The `trapcode-runtime` module loads the bundled sources in dependency order
+through the shared bundle module loader
+(`ZoidiumPluginApis.modules.createRequire`), so enabling the pack never
+fetches at runtime. It teaches `PZ.object3d.create` the Trapcode numeric types
+and removes them, the expression support, the lights and any open designer
+windows on disable. Activation failures roll back what was installed.
+
+Source layout (each file stays at or below 1000 lines; files load top to
+bottom, every file extending what earlier files defined):
+
+- `trapcode-common.js` — clock, math, property factories, registry, assets.
+- `trapcode-audio.js` — offline audio analysis.
+- `trapcode-color.js` — color/gradient/curve helpers and designer palettes.
+- `trapcode-shading.js` — per-particle shading from scene lights.
+- `trapcode-expressions.js` — the wiggle expression upgrade.
+- `designer.js` — floating designer windows (owned by another area).
+- `particular-sim.js` — deterministic CPU simulation core (shared through
+  `T.particularSim`).
+- `particular.js` — shaders, container class, System class core.
+- `particular-system.js` — System per-frame methods.
+- `particular-defs.js` — System property schema, presets, registration.
+- `form.js` — shaders, container class, instance class core.
+- `form-grid.js` — base lattice and sampling math (`T.formSampling`).
+- `form-fields.js` — deformations and the per-frame update.
+- `form-defs.js` — instance property schema, presets, registration.
+- `plexus.js` — constants, shaders, search utilities, container class.
+- `plexus-geometry.js` — OBJ/BufferGeometry ingestion (`T.plexusGeometry`).
+- `plexus-object.js` — object class and property schema.
+- `plexus-config.js` — catalog and designer registration.
+- `lights-c4d.js` — C4D-style lights (owned by another area).
 
 Known limitations:
 
