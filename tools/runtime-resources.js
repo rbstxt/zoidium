@@ -702,41 +702,47 @@ function normalizeFetchConcurrency(value) {
   });
 }
 
+// After a failure no new task starts, but the promise rejects only once every
+// running task has finished, so callers can remove the stage without racing
+// writes that are still in flight.
 function runConcurrentQueue(items, concurrency, task) {
   const workerCount = normalizeFetchConcurrency(concurrency);
   let cursor = 0;
   let active = 0;
-  let settled = false;
+  let failure = null;
 
   return new Promise((resolve, reject) => {
+    const finish = () => {
+      if (active > 0) return false;
+      if (failure) {
+        reject(failure.error);
+        return true;
+      }
+      if (cursor >= items.length) {
+        resolve();
+        return true;
+      }
+      return false;
+    };
     const pump = () => {
-      if (settled) return;
-      while (active < workerCount && cursor < items.length) {
+      while (!failure && active < workerCount && cursor < items.length) {
         const item = items[cursor++];
         active += 1;
         Promise.resolve()
           .then(() => task(item))
-          .then(() => {
-            active -= 1;
-            if (settled) return;
-            if (active === 0 && cursor >= items.length) {
-              settled = true;
-              resolve();
-              return;
+          .then(
+            () => {
+              active -= 1;
+              if (!finish()) pump();
+            },
+            (error) => {
+              active -= 1;
+              if (!failure) failure = { error };
+              finish();
             }
-            pump();
-          })
-          .catch((error) => {
-            active -= 1;
-            if (settled) return;
-            settled = true;
-            reject(error);
-          });
+          );
       }
-      if (!settled && active === 0 && cursor >= items.length) {
-        settled = true;
-        resolve();
-      }
+      finish();
     };
 
     pump();
