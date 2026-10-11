@@ -3,34 +3,34 @@
   "id": "easing-plus",
   "name": "Easing+",
   "author": "Zoidium",
-  "version": "26",
+  "version": "27",
   "kind": "extension",
   "resources": [
     {
       "id": "style",
       "type": "text",
-      "source": "./plugins/easing-plus/easing-plus.css?v=26"
+      "source": "./plugins/easing-plus/easing-plus.css?v=27"
     },
     {
       "id": "easing-curves",
       "type": "text",
-      "source": "./plugins/easing-plus/easing-curves.js?v=26"
+      "source": "./plugins/easing-plus/easing-curves.js?v=27"
     },
     {
       "id": "easing-host",
       "type": "text",
-      "source": "./plugins/easing-plus/easing-host.js?v=26"
+      "source": "./plugins/easing-plus/easing-host.js?v=27"
     },
     {
       "id": "easing-dialog",
       "type": "text",
-      "source": "./plugins/easing-plus/easing-dialog.js?v=26"
+      "source": "./plugins/easing-plus/easing-dialog.js?v=27"
     }
   ],
   "modules": [
     {
       "id": "curve-editor",
-      "source": "./plugins/easing-plus/easing-plus.js?v=26"
+      "source": "./plugins/easing-plus/easing-plus.js?v=27"
     }
   ]
 }
