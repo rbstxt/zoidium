@@ -161,11 +161,18 @@
     // must not change the compatibility badge on its own.
     if (plugin.zoidiumOnly === true) {
       return `<span class="zoidium-plugin-compat" data-compat="zoidium" title="${
-        plugin.warning ||
-        "Requires Zoidium; not compatible with vanilla Panzoid Clipmaker 3."
+        escapePluginHtml(plugin.warning ||
+        "Requires Zoidium; not compatible with vanilla Panzoid Clipmaker 3.")
       }">Zoidium only</span>`;
     }
     return `<span class="zoidium-plugin-compat" data-compat="cm3" title="Usable in vanilla Panzoid Clipmaker 3">CM3 compatible</span>`;
+  }
+
+  // Registry and manifest metadata is text, including values in attributes.
+  function escapePluginHtml(value) {
+    return String(value ?? "").replace(/[&<>"']/g, (character) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+    })[character]);
   }
 
   function experimentalBadgeHtml(plugin) {
@@ -179,9 +186,9 @@
   // (indeterminate) state of a partially enabled group.
   function pluginSwitchHtml(options) {
     const config = options || {};
-    const role = config.role === false ? "" : ` role="${config.role || "switch"}"`;
-    return `<label class="zoidium-plugin-switch" title="${config.title || ""}">
-          <input type="checkbox"${role} aria-label="${config.ariaLabel || config.title || ""}">
+    const role = config.role === false ? "" : ` role="${escapePluginHtml(config.role || "switch")}"`;
+    return `<label class="zoidium-plugin-switch" title="${escapePluginHtml(config.title || "")}">
+          <input type="checkbox"${role} aria-label="${escapePluginHtml(config.ariaLabel || config.title || "")}">
           <span class="zoidium-plugin-track" aria-hidden="true"></span>
         </label>`;
   }
@@ -209,8 +216,8 @@
       <details class="zp-detail-body">
         <summary class="proprow noselect zoidium-plugin-row">
           <span class="zoidium-plugin-copy">
-            <span class="zoidium-plugin-name">${plugin.name}${compatBadgeHtml(plugin)}${experimentalBadgeHtml(plugin)}</span>
-            <span class="zoidium-plugin-meta">${plugin.tagline || ""}</span>
+            <span class="zoidium-plugin-name">${escapePluginHtml(plugin.name)}${compatBadgeHtml(plugin)}${experimentalBadgeHtml(plugin)}</span>
+            <span class="zoidium-plugin-meta">${escapePluginHtml(plugin.tagline || "")}</span>
           </span>
           <span class="zp-detail-switch">${pluginSwitchHtml({
             title: `Toggle ${plugin.name}`,
@@ -218,17 +225,17 @@
           })}</span>
         </summary>
         <div class="zp-detail-content">
-          <span class="zoidium-plugin-description">${plugin.description}</span>
+          <span class="zoidium-plugin-description">${escapePluginHtml(plugin.description)}</span>
           ${
             plugin.credits
-              ? `<span class="zoidium-plugin-credits">${plugin.credits}</span>`
+              ? `<span class="zoidium-plugin-credits">${escapePluginHtml(plugin.credits)}</span>`
               : ""
           }
         </div>
         ${
           plugin.warning
             ? `<div class="zoidium-plugin-warning-row">
-          <span class="zoidium-plugin-warning">${plugin.warning}</span>
+          <span class="zoidium-plugin-warning">${escapePluginHtml(plugin.warning)}</span>
         </div>`
             : ""
         }
@@ -313,7 +320,7 @@
     section.innerHTML = `
       <summary class="noselect">
         <span class="zoidium-plugin-category-heading">
-          <span class="zoidium-plugin-category-name">${category.name}</span>
+          <span class="zoidium-plugin-category-name">${escapePluginHtml(category.name)}</span>
           <span class="zoidium-plugin-category-count"></span>
         </span>
         <span class="zoidium-plugin-category-switch">${pluginSwitchHtml({
@@ -326,7 +333,7 @@
         category.description
           ? `<div class="zoidium-plugin-category-description"${
               category.warning === true ? ' data-tone="warning"' : ""
-            }>${category.description}</div>`
+            }>${escapePluginHtml(category.description)}</div>`
           : ""
       }
       <div class="zoidium-plugin-category-list"></div>`;
@@ -506,5 +513,5 @@
   }
 
   // END manager body
-  Object.assign(manager, { enablePlugin, disablePlugin, pluginUsageReason, refreshPluginUsageLocks, closeOpenAddPickers, compatBadgeHtml, experimentalBadgeHtml, pluginSwitchHtml, createPluginCard, createHiddenPluginState, pluginEnabledForGroup, createGroupSection, createPluginGroup, syncGroupSwitch, syncGroupForPlugin, setGroupEnabled, createPanel, createTab });
+  Object.assign(manager, { enablePlugin, disablePlugin, pluginUsageReason, refreshPluginUsageLocks, escapePluginHtml, closeOpenAddPickers, compatBadgeHtml, experimentalBadgeHtml, pluginSwitchHtml, createPluginCard, createHiddenPluginState, pluginEnabledForGroup, createGroupSection, createPluginGroup, syncGroupSwitch, syncGroupForPlugin, setGroupEnabled, createPanel, createTab });
 })();
