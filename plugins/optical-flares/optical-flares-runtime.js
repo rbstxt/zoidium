@@ -2,7 +2,7 @@
 
 // OpenZoid Optical Flares - runtime installer.
 //
-// Evaluates the bundled sources in dependency order and teaches
+// Loads the bundled sources through the shared module loader and teaches
 // PZ.object3d.create the Optical Flares numeric type 13 that upstream CM3 does
 // not know. The object picker entries come from the plugin manifest.
 //
@@ -87,6 +87,38 @@ function installAuxiliaryPasses(PZ, undo) {
   }
 }
 
+function sharedModules(context) {
+  const fromContext = context && context.apis && context.apis.modules;
+  if (fromContext && typeof fromContext.createRequire === "function") return fromContext;
+  if (typeof ZoidiumPluginApis !== "undefined" && ZoidiumPluginApis.modules &&
+      typeof ZoidiumPluginApis.modules.createRequire === "function") {
+    return ZoidiumPluginApis.modules;
+  }
+  throw new Error("Optical Flares needs the shared module loader.");
+}
+
+function installSources(context, PZ, THREE) {
+  for (const file of SOURCE_ORDER) {
+    const source = context.getAsset("text", SOURCE_FOLDER + file);
+    if (typeof source !== "string") {
+      throw new Error("Optical Flares is missing its bundled source: " + file);
+    }
+  }
+  // PZ and THREE travel as scope so the math source (which merges with the
+  // runtime globals through `var PZ = PZ || {}`) keeps its shape, while the
+  // object and window installers load their own splits with require().
+  const require = sharedModules(context).createRequire(context.getAsset, {
+    root: SOURCE_FOLDER,
+    scope: { PZ, THREE },
+  });
+  require("./optflares-math.js");
+  require("./optflares.js")(PZ, THREE);
+  require("./optflares-window.js")(PZ);
+  if (!PZ.object3d.optflares || !PZ.opticalflares || !PZ.opticalflares.openWindow) {
+    throw new Error("Optical Flares could not define its 3D object class.");
+  }
+}
+
 let host = null;
 
 module.exports = {
@@ -130,15 +162,7 @@ module.exports = {
       delete PZ.object3d.optflares;
       delete PZ.opticalflares;
     });
-    for (const file of SOURCE_ORDER) {
-      const source = context.getAsset("text", SOURCE_FOLDER + file);
-      if (typeof source !== "string") {
-        throw new Error("Optical Flares is missing its bundled source: " + file);
-      }
-      // Sources take PZ and THREE as parameters, so their `var PZ = PZ || {}`
-      // merges with the runtime globals instead of shadowing them.
-      new Function("PZ", "THREE", source)(PZ, THREE);
-    }
+    installSources(context, PZ, THREE);
     if (!PZ.object3d.optflares || !PZ.opticalflares || !PZ.opticalflares.openWindow) {
       throw new Error("Optical Flares could not define its 3D object class.");
     }

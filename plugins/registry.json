@@ -39,14 +39,14 @@
       "category": "utilities",
       "name": "Easing+",
       "author": "Zoidium",
-      "version": "24",
+      "version": "25",
       "itemCount": 1,
       "format": "curve editor",
       "tagline": "Extended Bezier Easing",
       "color": "#384668",
       "description": "A normalized cubic Bezier editor with a focused set of reusable presets.",
-      "manifest": "./plugins/easing-plus/manifest.json?v=24",
-      "bundle": "./plugins/easing-plus/bundle.json?v=24"
+      "manifest": "./plugins/easing-plus/manifest.json?v=25",
+      "bundle": "./plugins/easing-plus/bundle.json?v=25"
     },
     {
       "id": "player-plus",
@@ -219,15 +219,15 @@
       "category": "scene",
       "name": "Optical Flares",
       "author": "DaviFX",
-      "version": "12",
+      "version": "13",
       "itemCount": 5,
       "format": "3D objects",
       "tagline": "3D lens flares",
       "color": "#4a90d9",
       "description": "Video Copilot style lens flares placed in 3D space and projected through the scene camera, edited in one floating window.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/optical-flares/manifest.json?v=12",
-      "bundle": "./plugins/optical-flares/bundle.json?v=12"
+      "manifest": "./plugins/optical-flares/manifest.json?v=13",
+      "bundle": "./plugins/optical-flares/bundle.json?v=13"
     },
     {
       "id": "effector-plus",
@@ -360,7 +360,7 @@
       "category": "experimental",
       "name": "Layer Input",
       "author": "Zoidium",
-      "version": "10",
+      "version": "11",
       "itemCount": 4,
       "format": "layer sources",
       "tagline": "Layer-to-Layer Inputs",
@@ -368,8 +368,8 @@
       "description": "Lets effects, 3D materials, and Custom Shaders use another video track as an information source.",
       "zoidiumOnly": true,
       "warning": "Layer Input projects require Zoidium. This feature is extremely experimental and may cause unexpected crashes.",
-      "manifest": "./plugins/layer-input/manifest.json?v=10",
-      "bundle": "./plugins/layer-input/bundle.json?v=10"
+      "manifest": "./plugins/layer-input/manifest.json?v=11",
+      "bundle": "./plugins/layer-input/bundle.json?v=11"
     }
   ]
 }

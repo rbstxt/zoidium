@@ -15,6 +15,18 @@ function readFlareSource(file) {
   return fs.readFileSync(path.join(flaresDir, file), "utf8");
 }
 
+// The shared bundle loader, evaluated from the real zoidium/plugin-apis.js
+// so activation exercises the same path the runtime uses.
+function sharedModules() {
+  const vm = require("node:vm");
+  const sandbox = { PZ: {}, console };
+  vm.runInNewContext(
+    fs.readFileSync(path.join(__dirname, "..", "zoidium", "plugin-apis.js"), "utf8"),
+    sandbox
+  );
+  return sandbox.ZoidiumPluginApis.modules;
+}
+
 function loadRuntimeModule() {
   const module = { exports: {} };
   new Function("module", "exports", "plugin", readFlareSource("optical-flares-runtime.js"))(
@@ -165,6 +177,7 @@ function makeContext(host, sources, options = {}) {
   const context = {
     PZ: host.PZ,
     window: { THREE: host.THREE },
+    apis: { modules: sharedModules() },
     getAsset(kind, source) {
       return sources[source];
     },
@@ -194,8 +207,10 @@ function makeContext(host, sources, options = {}) {
 
 function bundledSources(override = {}) {
   const sources = {};
-  for (const file of ["optflares-math.js", "optflares.js", "optflares-window.js"]) {
-    sources["./plugins/optical-flares/" + file] = readFlareSource(file);
+  for (const file of fs.readdirSync(flaresDir)) {
+    if (/^optflares.*\.js$/.test(file)) {
+      sources["./plugins/optical-flares/" + file] = readFlareSource(file);
+    }
   }
   return Object.assign(sources, override);
 }
