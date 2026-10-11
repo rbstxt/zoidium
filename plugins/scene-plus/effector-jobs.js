@@ -139,8 +139,9 @@ function createMeshJobs(workerSource, host = globalThis, redraw = () => {}) {
       entry.promise = new Promise((resolve, reject) => { entry.resolve = resolve; entry.reject = reject; });
       // Interactive preview has no awaiting caller. Export still receives errors.
       entry.promise.catch(error => {
-        if (reportedJobFailures.has(key)) return;
-        reportedJobFailures.add(key);
+        const diagnostic = String(entry.sourceId ?? entry.buildKey) + ":" + error.message;
+        if (reportedJobFailures.has(diagnostic)) return;
+        reportedJobFailures.add(diagnostic);
         console.warn("[Zoidium] Effector: mesh job failed", error);
       });
       entries.set(key, entry);
