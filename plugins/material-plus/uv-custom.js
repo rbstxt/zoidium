@@ -458,6 +458,9 @@ function activate(context) {
   uvCustomState.PZ = PZ;
   uvCustomState.THREE = THREE;
   uvCustomState.plugin = context.plugin || {};
+  // Register cleanup before mutating the host so a failed or disabled
+  // plugin always restores the previous material factory.
+  context.lifecycle?.onDispose?.(deactivate);
   uvCustomState.hadPreviousFactory = Object.prototype.hasOwnProperty.call(
     PZ.material.fnList,
     UV_CUSTOM_MATERIAL_ID

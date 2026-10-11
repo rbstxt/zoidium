@@ -20,13 +20,10 @@ const GENERATED = [/^plugins\/alipfx\//, /(^|\/)bundle\.json$/, /^node_modules\/
 const PENDING_SPLIT = new Set([
   "plugins/core/temporal-render.js",
   "plugins/graph-plus/graph-plus.js",
-  "plugins/material-plus/graph-runtime.js",
-  "plugins/material-plus/surface-runtime.js",
   "plugins/openzoid-legacy/effects/tracery.js",
   "plugins/openzoid-legacy/effects/vhs.js",
   "plugins/plugin-manager.js",
   "plugins/precomp-plus/comps.js",
-  "plugins/scene-plus/scene-plus.js",
   "zoidium/debug-log.js",
   "zoidium/project-restore.js",
   "zoidium/ui-kit.js",
