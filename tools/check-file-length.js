@@ -18,16 +18,12 @@ const GENERATED = [/^plugins\/alipfx\//, /(^|\/)bundle\.json$/, /^node_modules\/
 // Files that are still being split. Remove an entry in the same change that
 // brings the file under the limit; the check fails on stale entries.
 const PENDING_SPLIT = new Set([
-  "plugins/easing-plus/easing-plus.js",
   "plugins/geometry-plus/geometry-plus.js",
   "plugins/graph-plus/graph-plus.js",
-  "plugins/layer-input/layer-input.js",
   "plugins/material-plus/graph-runtime.js",
   "plugins/material-plus/surface-runtime.js",
   "plugins/openzoid-legacy/effects/tracery.js",
   "plugins/openzoid-legacy/effects/vhs.js",
-  "plugins/optical-flares/optflares-window.js",
-  "plugins/optical-flares/optflares.js",
   "plugins/core/temporal-render.js",
   "plugins/plugin-manager.js",
   "plugins/precomp-plus/comps.js",
