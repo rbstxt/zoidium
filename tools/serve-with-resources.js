@@ -37,6 +37,7 @@ function requestPathname(requestUrl) {
   try {
     parsed = new URL(requestUrl, "http://zoidium.invalid");
   } catch (_error) {
+    // Unparseable request targets serve no file.
     return null;
   }
   if (parsed.origin !== "http://zoidium.invalid") return null;
@@ -45,6 +46,7 @@ function requestPathname(requestUrl) {
   try {
     pathname = decodeURIComponent(parsed.pathname);
   } catch (_error) {
+    // An undecodable path serves no file.
     return null;
   }
   if (pathname.includes("\u0000") || pathname.includes("\\")) return null;

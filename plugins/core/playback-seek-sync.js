@@ -94,6 +94,8 @@
       const value = property && typeof property.get === "function" ? property.get() : property;
       return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : 0;
     } catch (error) {
+      // An unreadable rate means no sync anchor; the element keeps playing.
+      // Deliberately silent: this runs on every playback tick.
       return 0;
     }
   }
@@ -126,6 +128,8 @@
     try {
       mediaTime = clip.properties.time.get(localFrame);
     } catch (error) {
+      // An unreadable time curve skips this tick; the next tick retries.
+      // Deliberately silent: this runs on every playback tick.
       return;
     }
     if (typeof mediaTime !== "number" || !Number.isFinite(mediaTime)) return;

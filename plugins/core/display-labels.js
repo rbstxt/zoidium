@@ -67,6 +67,7 @@
       var metadata = JSON.parse(line);
       return metadata && typeof metadata.id === "string" ? metadata.id : null;
     } catch (_error) {
+      // The marker line is not JSON this build; the shader keeps no pack id.
       return null;
     }
   }
@@ -86,6 +87,7 @@
       }
       return isShaderPackEffect(object) ? "effect" : null;
     } catch (_error) {
+      // Detached or half-built rows classify as unlabeled.
       return null;
     }
   }

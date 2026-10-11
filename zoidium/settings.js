@@ -150,6 +150,7 @@
     try {
       return global.localStorage.getItem(STORAGE_KEY);
     } catch (_error) {
+      // Storage may be blocked; settings still apply for this session.
       return null;
     }
   }

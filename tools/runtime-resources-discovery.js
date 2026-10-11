@@ -25,6 +25,7 @@ function sourcePathFromUrl(value, baseUrl, resourceRoot) {
     url = new URL(value, baseUrl);
     root = new URL(resourceRoot);
   } catch (_error) {
+    // Unparseable references resolve to no CM3 resource.
     return null;
   }
   if (
@@ -53,6 +54,7 @@ function sourcePathFromUrl(value, baseUrl, resourceRoot) {
   try {
     sourcePath = normalizeResourcePath(relativePath);
   } catch (_error) {
+    // Paths outside the resource root resolve to no CM3 resource.
     return null;
   }
   url.hash = "";

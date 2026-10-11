@@ -356,6 +356,7 @@
     try {
       layer = effect.tryGetParentOfType?.(PZ.layer) || null;
     } catch (_error) {
+      // A detached effect prepares no frame samples.
       return;
     }
     const clip = getClipForLayer(layer);

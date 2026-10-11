@@ -55,6 +55,7 @@
     try {
       return String.fromCodePoint.apply(String, codePoints) || name;
     } catch (_error) {
+      // Overlong escapes fall back to the raw filename.
       return name;
     }
   }
@@ -159,6 +160,7 @@
       var metadata = JSON.parse(text);
       return metadata && typeof metadata.name === "string" ? metadata : null;
     } catch (_error) {
+      // Entries without readable metadata simply carry no display name.
       return null;
     }
   }

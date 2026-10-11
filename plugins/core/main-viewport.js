@@ -142,6 +142,7 @@
         try {
           return !!((globalThis.CM && globalThis.CM.mainViewport) ||
             (globalThis.VE && globalThis.VE.mainViewport));
+          // An unreadable host global stops the retry poll.
         } catch (_error) { return true; }
       })();
       if (!known) setTimeout(() => aliasWithRetry(attempts - 1), 500);
@@ -155,6 +156,7 @@
       aliasWithRetry(5);
     }
   } catch (_error) {
+    // Without an event target the alias runs once with no retry.
     aliasWithRetry(0);
   }
 })();

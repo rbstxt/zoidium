@@ -48,6 +48,7 @@ async function savedPageFetch({ pageHtml, videoEditorHtml, sourcePageUrl, videoE
   if (!pageHtml || !videoEditorHtml) throw new Error("Supply both --page-html and --video-editor-html");
   const pages = new Map();
   let metadata;
+  // Cached metadata is optional; without it the saved pages stand alone.
   try { metadata = JSON.parse(await fs.promises.readFile(safeStagePath(cacheRoot, cacheMetadataName), "utf8")); } catch (_) {}
   for (const [layout, file, url] of [["clipmaker", pageHtml, sourcePageUrl], ["videoeditor", videoEditorHtml, videoEditorSourcePageUrl]]) {
     const bytes = await fs.promises.readFile(file);
@@ -114,6 +115,7 @@ async function fetchBytes(
         }
         if (getHeader(response, "cf-mitigated") === "challenge") {
           if (response.body && typeof response.body.cancel === "function") {
+            // Draining a challenged body is best effort before reporting it.
             await response.body.cancel().catch(() => {});
           }
           throw browserCheckError();
@@ -133,6 +135,7 @@ async function fetchBytes(
             if (Number.isFinite(milliseconds)) retryDelay = Math.max(retryDelay, milliseconds);
           }
           if (response && response.body && typeof response.body.cancel === "function") {
+            // Draining a retried body is best effort before the next attempt.
             await response.body.cancel().catch(() => {});
           }
           throw error;

@@ -504,6 +504,7 @@
             try {
               return rankByNameMatch(results, pattern, wrapped);
             } catch (_error) {
+              // Ranking is cosmetic; the unranked results still answer the query.
               return results;
             }
           },

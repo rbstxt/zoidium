@@ -99,6 +99,7 @@
         if (safe && typeof safe.focus === "function") {
           if (global.requestAnimationFrame) {
             global.requestAnimationFrame(function () {
+              // preventScroll is not supported everywhere; focus still moves.
               try { safe.focus({ preventScroll: true }); } catch (_error) { safe.focus(); }
             });
           } else {
@@ -194,7 +195,10 @@
       api[key] = members[key];
     });
   });
-  try { delete global.ZoidiumUIModules; } catch (_error) { global.ZoidiumUIModules = undefined; }
+  try { delete global.ZoidiumUIModules; } catch (_error) {
+    // A non-configurable global keeps the stale registry undefined instead.
+    global.ZoidiumUIModules = undefined;
+  }
 
   global.ZoidiumUI = Object.freeze(api);
 })(window);
