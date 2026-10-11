@@ -17,7 +17,7 @@ const TWIST_PLANES = [
 ];
 
 function finiteOr(value, fallback) {
-  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+  return ZoidiumPluginApis.props.finiteOr(value, fallback);
 }
 
 function clampIndex(value, maximum) {
@@ -25,34 +25,20 @@ function clampIndex(value, maximum) {
   return number < 0 ? 0 : number > maximum ? maximum : number;
 }
 
-// Local copies kept deliberately: this file also evaluates inside the Mesh
-// worker (see createWorkerSource), whose realm has no overlay scripts and
-// hence no ZoidiumPluginApis. Each twin is pinned bit-for-bit against the
-// shared module by test/migrate-shared-pins.test.js.
+// Shared helpers also load in the mesh worker through workerSource().
 function clampUnit(value) {
-  if (!(value > 0)) return 0;
-  return value < 1 ? value : 1;
+  return ZoidiumPluginApis.color.clampUnit(value);
 }
 
 // Deterministic hash in [0, 1). The same seed, index, and channel always give
 // the same value; no Math.random or clock is involved.
 function hash01(seed, index, channel) {
-  let value = (Math.trunc(finiteOr(seed, 0)) | 0) ^ Math.imul((index | 0) + 1, 0x45d9f3b);
-  value ^= Math.imul((channel | 0) + 1, 0x27d4eb2d);
-  value = Math.imul(value ^ (value >>> 16), 0x45d9f3b);
-  value = Math.imul(value ^ (value >>> 16), 0x45d9f3b);
-  value ^= value >>> 16;
-  return (value >>> 0) / 0x100000000;
+  return ZoidiumPluginApis.random.effectorHash01(seed, index, channel);
 }
 
 // Uniformly distributed unit vector derived from three hash channels.
 function hashUnitVector(seed, index, channel) {
-  const x = 2 * hash01(seed, index, channel) - 1;
-  const y = 2 * hash01(seed, index, channel + 1) - 1;
-  const z = 2 * hash01(seed, index, channel + 2) - 1;
-  const length = Math.sqrt(x * x + y * y + z * z);
-  if (!(length > TINY)) return [0, 0, 1];
-  return [x / length, y / length, z / length];
+  return ZoidiumPluginApis.random.effectorHashUnitVector(seed, index, channel);
 }
 
 // Min and max of one component across a flat position array.

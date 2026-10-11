@@ -10,6 +10,8 @@ const createPixelBuffers = require("./graph-buffers.js");
 const attachGraphImages = require("./graph-images.js");
 const defineGraphTypes = require("./graph-types.js");
 
+const parseWarnings = new Set();
+
 function createGraphRuntime(PZ, document) {
     const nodes = {};
     const buffers = createPixelBuffers(document);
@@ -61,7 +63,13 @@ function createGraphRuntime(PZ, document) {
 
     function parseGraph(json) {
         let graph;
-        try { graph = typeof json === "string" ? JSON.parse(json.slice(0, 1000000)) : json; } catch (_) {}
+        try { graph = typeof json === "string" ? JSON.parse(json.slice(0, 1000000)) : json; }
+        catch (error) {
+            if (!parseWarnings.has(error.message)) {
+                parseWarnings.add(error.message);
+                console.warn("[Zoidium] Material+ graph: could not parse project graph; using the default", error);
+            }
+        }
         if (!graph || !Array.isArray(graph.nodes) || !Array.isArray(graph.links)) graph = nodes.defaultGraph();
         const result = { schemaVersion: 1, nodes: [], links: [] };
         const ids = new Set();

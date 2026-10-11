@@ -279,6 +279,7 @@ function createMeshDeformer(THREE, jobs) {
     const owner = node.__zoidiumEffectorTransformOwner;
     const properties = owner?.properties;
     if (properties?.position && properties?.rotation && properties?.scale) {
+      // Optional host transform properties can be unavailable on source objects.
       const read = (name, fallback) => { try { return properties[name].get(time); } catch (_) { return fallback; } };
       const p = read("position", [0, 0, 0]), r = read("rotation", [0, 0, 0]), scale = read("scale", [1, 1, 1]);
       const rotation = new THREE.Quaternion().setFromEuler(new THREE.Euler(...r, node.rotation?.order || "XYZ"));

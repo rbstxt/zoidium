@@ -4,6 +4,16 @@ const UV_LAYOUT_SOURCE = "./plugins/material-plus/uv-layout.js";
 const MATERIAL_ROOT = "./plugins/material-plus/";
 let active = null;
 
+const reportedFailures = new WeakMap();
+function warnBake(material, message, error) {
+  let failures = reportedFailures.get(material);
+  if (!failures) reportedFailures.set(material, failures = new Set());
+  const diagnostic = message + ":" + error.message;
+  if (failures.has(diagnostic)) return;
+  failures.add(diagnostic);
+  console.warn("[Zoidium] Material+: " + message, error);
+}
+
 function activate(context) {
   if (active) return;
   const PZ = context.PZ || context.window.PZ;
@@ -185,7 +195,11 @@ function activate(context) {
         pending = null;
         let outputs;
         try { outputs = await run(job); }
-        catch (error) { if (latestKey === job.key) throw error; else continue; }
+        catch (error) {
+          if (latestKey === job.key) throw error;
+          warnBake(material, "superseded graph bake failed", error);
+          continue;
+        }
         // A completed preview remains useful even when a newer frame is pending.
         // Disabled graphs and export preparations must never receive stale maps.
         if (!disposed && material.properties.useNodeGraph.get() === 1 && (!preparing || latestKey === job.key)) {
@@ -202,7 +216,7 @@ function activate(context) {
       material._surfaceError = null;
       running = drain().catch(error => {
         material._surfaceError = error;
-        console.error("Material+ graph bake failed", error);
+        warnBake(material, "graph bake failed", error);
       }).finally(() => {
         running = null;
         startDrain();
@@ -278,10 +292,8 @@ function activate(context) {
       }
       // Asset loading always completes before a bake enters the worker.
       this._surfaceAssets = nodes.prepareImages(graph, this).then(queue).catch(error => {
-        if (latestKey === key) {
-          this._surfaceError = error;
-          console.error("Material+ could not load a graph project image", error);
-        }
+        warnBake(material, "could not load a graph project image", error);
+        if (latestKey === key) this._surfaceError = error;
       });
     };
     material._surfacePrepare = function (frame) {
@@ -302,6 +314,7 @@ function activate(context) {
         } finally { preparing = false; }
       };
       const result = prepareQueue.then(prepare);
+      // Keep the queue usable; the returned result still rejects for export.
       prepareQueue = result.catch(() => {});
       return result;
     };

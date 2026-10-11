@@ -8,7 +8,7 @@
 // before zoidium/plugin-apis.js (see postInitScripts in
 // zoidium/runtime-config.js). plugin-apis.js exposes this table as
 // ZoidiumPluginApis.gl.
-(function (global) {
+(function initializeGl(global) {
   "use strict";
 
   function defaultTargetOptions() {
@@ -103,4 +103,13 @@
     createCopyPass: createCopyPass,
     disposePass: disposePass,
   };
+  // Serialize this initializer, including its closure state and dependencies.
+  // The worker receives the same implementation without fetching overlay files.
+  Object.defineProperty(global.ZoidiumSharedGl, "workerSource", {
+    value: function () {
+      return "(" + Function.prototype.toString.call(initializeGl) + ")(globalThis);\n" +
+        "globalThis.ZoidiumPluginApis = globalThis.ZoidiumPluginApis || {};\n" +
+        "globalThis.ZoidiumPluginApis.gl = globalThis.ZoidiumSharedGl;\n";
+    },
+  });
 })(typeof globalThis !== "undefined" ? globalThis : this);

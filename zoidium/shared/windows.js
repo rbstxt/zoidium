@@ -8,7 +8,7 @@
 // before zoidium/plugin-apis.js (see postInitScripts in
 // zoidium/runtime-config.js). plugin-apis.js exposes this table as
 // ZoidiumPluginApis.windows.
-(function (global) {
+(function initializeWindows(global) {
   "use strict";
 
   var GEOMETRY_KEY = "zoidium.ui.windows.v1";
@@ -79,4 +79,13 @@
     readWindowGeometries: readWindowGeometries,
     writeWindowGeometry: writeWindowGeometry,
   };
+  // Serialize this initializer, including its closure state and dependencies.
+  // The worker receives the same implementation without fetching overlay files.
+  Object.defineProperty(global.ZoidiumSharedWindows, "workerSource", {
+    value: function () {
+      return "(" + Function.prototype.toString.call(initializeWindows) + ")(globalThis);\n" +
+        "globalThis.ZoidiumPluginApis = globalThis.ZoidiumPluginApis || {};\n" +
+        "globalThis.ZoidiumPluginApis.windows = globalThis.ZoidiumSharedWindows;\n";
+    },
+  });
 })(typeof globalThis !== "undefined" ? globalThis : this);

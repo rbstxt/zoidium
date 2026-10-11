@@ -29,11 +29,8 @@ let parts = null;
 
 function nodeRequire(id) {
   if (typeof require !== "function") return null;
-  try {
-    return require(id);
-  } catch (_error) {
-    return null;
-  }
+  // A present Node loader must surface missing assets and evaluation errors.
+  return require(id);
 }
 
 // The shared loader lives on the Zoidium API layer. Under Node it can be
@@ -95,17 +92,13 @@ function loadParts(getAsset) {
 // tests. Returns null in the Zoidium runtime, where require is undefined.
 function loadLibraryFromRequire() {
   if (typeof require !== "function") return null;
-  try {
-    const library = {
-      core: nodeRequire("./effector-core.js"),
-      fracture: nodeRequire("./effector-fracture.js"),
-      mesh: nodeRequire("./effector-mesh.js"),
-    };
-    if (!library.core || !library.fracture || !library.mesh) return null;
-    return library;
-  } catch (_error) {
-    return null;
-  }
+  const library = {
+    core: nodeRequire("./effector-core.js"),
+    fracture: nodeRequire("./effector-fracture.js"),
+    mesh: nodeRequire("./effector-mesh.js"),
+  };
+  if (!library.core || !library.fracture || !library.mesh) return null;
+  return library;
 }
 
 // Evaluates the bundled library sources through the shared bundle loader.
@@ -207,8 +200,8 @@ function activate(context) {
     for (const unregisterClass of unregister.reverse()) {
       try {
         unregisterClass();
-      } catch (_unregisterError) {
-        // Preserve the registration error while best-effort cleaning up.
+      } catch (unregisterError) {
+        console.warn("[Zoidium] Effector: could not roll back a 3D object class", unregisterError);
       }
     }
     state.deformationSupport?.deactivate();
@@ -232,7 +225,7 @@ function deactivate() {
     try {
       unregister();
     } catch (error) {
-      console.error("Effector could not unregister a 3D object class", error);
+      console.warn("[Zoidium] Effector: could not unregister a 3D object class", error);
     }
   }
   this.__zoidiumRepeaterUnregister = [];
@@ -286,11 +279,7 @@ function populateTestSurface() {
 // require time. In the Zoidium runtime require is undefined and loading
 // waits for activate().
 if (typeof require === "function") {
-  try {
-    loadParts();
-  } catch (_error) {
-    // Loading through the bundle assets still works from activate().
-  }
+  loadParts();
   if (parts && !parts.state.library) {
     parts.state.library = loadLibraryFromRequire();
   }

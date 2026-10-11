@@ -6,11 +6,9 @@
 // the migration (proving the twins identical) and keep passing after the
 // local bodies become one-line delegates.
 //
-// Three twins stay pinned but unmigrated: effector-core (finiteOr/clampUnit/
-// hash01/hashUnitVector), effector-fracture (hslToRgb) and graph-buffers
-// (hsv/rgb *01) also evaluate inside Mesh/graph worker realms, which have no
-// overlay scripts and hence no ZoidiumPluginApis; they keep their local
-// bodies until worker asset plumbing exists.
+// Worker twins now use the shared tables in both realms. Worker-source and
+// call-site comparisons also live in test/shared-worker-realms.test.js and
+// test/worker-helper-pins.test.js.
 //
 // Two known, intentional deltas are pinned separately at the bottom:
 // - cloneJson no longer throws on unserializable input (round-8 hardening);
