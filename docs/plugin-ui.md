@@ -119,7 +119,11 @@ context.ui.registerEditor({
 
 CM3 lists then show a gear on matching rows and an "Open ..." button above
 their properties (the convention the VHS Setup button established). The
-registration is removed when the plugin is disabled.
+registration is removed when the plugin is disabled. Launch rows appear only
+in property panels that show values and commands. Name-only graph/track lists
+with `showPropertyControls: false` or `hideAllListItemButtons: true` receive
+neither launch rows nor editor gears. Objects/Effects list gears and native
+property views keep their existing behavior.
 
 `match` runs when CM3 builds those rows. If it reads a property (for example,
 PBR+ shows Node Editor only while **Use node graph** is on), call
