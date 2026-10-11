@@ -356,7 +356,13 @@ function installControls(log) {
       if (first) api.show(first);
       return api;
     },
-    button: (config) => ({ element: { kind: "button" }, config }),
+    button: (config) => {
+      const element = makeEl("button");
+      element.textContent = config.title;
+      element.title = config.hint || "";
+      element.className = "proprow propbutton zoidium-button";
+      return { element, config };
+    },
     buttonRow(buttons) {
       log.buttons.push(...buttons);
       log.rows.push(buttons.map((b) => b.title));
@@ -421,7 +427,7 @@ function setup() {
 function openAndMount(env) {
   const win = PZ_open(env);
   const options = env.ui.windows[0];
-  const body = { children: [], appendChild(c) { this.children.push(c); } };
+  const body = makeEl("div");
   const cleanup = options.mount(body, win);
   return { options, cleanup, body, win };
 }
@@ -466,17 +472,17 @@ function tileName(tile) {
 
 const clickEvent = { stopPropagation() {}, preventDefault() {} };
 
-test("the window opens once, namespaced, persisted, skinned and tied to the flare's life", () => {
+test("the window opens once, namespaced, persisted, uses standard chrome and is tied to the flare's life", () => {
   const env = setup();
   try {
     const { options, cleanup } = openAndMount(env);
     assert.match(options.id, /^flares:\d+$/);
     assert.equal(options.persistKey, "options");
-    assert.equal(options.skin, "flares");
+    assert.equal(options.skin, undefined);
+    assert.equal(options.chrome, undefined);
     assert.equal(options.isValid(), true);
-    assert.equal(env.skins.length, 1, "skin registered");
-    assert.ok(env.skins[0].css.includes("var(--zui-"), "skin uses theme tokens");
-    assert.ok(!env.skins[0].css.includes("position:fixed"), "no overlay positioning");
+    assert.equal(env.skins.length, 0, "no private skin registered");
+    assert.ok(windowSource.includes(".of-window "), "widget CSS is scoped to the window body");
     assert.equal(typeof cleanup, "function");
     cleanup();
     assert.ok(env.views.length > 0 && env.views.every((v) => v.disposed), "custom view disposed");

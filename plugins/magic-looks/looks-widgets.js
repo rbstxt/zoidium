@@ -22,6 +22,44 @@ var Looks = Looks || {};
     return (typeof window !== "undefined" && window.devicePixelRatio) || 1;
   }
 
+  // Theme colors for canvas chrome. Canvas cannot use CSS directly, so the
+  // widget stylesheets expose resolved --lk-* values on each canvas (backed
+  // by the --zui-* theme tokens) and they are read here at draw time, with
+  // the neutral CM3 defaults as fallback. Data colors (hue discs, channel
+  // curves) stay literal.
+  function canvasVar(canvas, name, fallback) {
+    try {
+      const doc = canvas && canvas.ownerDocument;
+      const view = doc && doc.defaultView;
+      if (view && typeof view.getComputedStyle === "function") {
+        const value = view.getComputedStyle(canvas).getPropertyValue(name);
+        if (value && value.trim()) return value.trim();
+      }
+    } catch (_err) { /* fall back to the neutral default */ }
+    return fallback;
+  }
+
+  function wheelTheme(canvas) {
+    return {
+      ring: canvasVar(canvas, "--lk-dot-ring", "#ccc"),
+      core: canvasVar(canvas, "--lk-dot-core", "#1b1b1b"),
+    };
+  }
+
+  function curvesTheme(canvas) {
+    return {
+      bg: canvasVar(canvas, "--lk-pad-bg", "#202020"),
+      grid: canvasVar(canvas, "--lk-pad-grid", "#333"),
+      diagonal: canvasVar(canvas, "--lk-pad-diagonal", "#444"),
+      pointFill: canvasVar(canvas, "--lk-point-fill", "#1b1b1b"),
+    };
+  }
+
+  function channelColor(canvas, channel) {
+    if (channel === "RGB") return canvasVar(canvas, "--zui-text", "#ccc");
+    return CHANNEL_COLORS[channel] || canvasVar(canvas, "--zui-text", "#ccc");
+  }
+
   // Sizes a canvas for crisp output and returns its 2D context (scaled so
   // drawing uses CSS pixels).
   function fitCanvas(canvas, width, height) {
@@ -114,6 +152,7 @@ var Looks = Looks || {};
 
     function draw() {
       var ctx = fitCanvas(canvas, size, size);
+      var t = wheelTheme(canvas);
       var cx = size / 2, cy = size / 2;
       ctx.clearRect(0, 0, size, size);
       ctx.drawImage(base.canvas, 0, 0, size, size);
@@ -127,11 +166,11 @@ var Looks = Looks || {};
       ctx.fillStyle = "rgb(" + Math.round(tint[0] * 255) + "," + Math.round(tint[1] * 255) + "," + Math.round(tint[2] * 255) + ")";
       ctx.fill();
       ctx.lineWidth = 2;
-      ctx.strokeStyle = "#ccc";
+      ctx.strokeStyle = t.ring;
       ctx.stroke();
       ctx.beginPath();
       ctx.arc(dx, dy, 2, 0, Math.PI * 2);
-      ctx.fillStyle = "#1b1b1b";
+      ctx.fillStyle = t.core;
       ctx.fill();
     }
 
@@ -256,10 +295,12 @@ var Looks = Looks || {};
 
     function draw() {
       var ctx = fitCanvas(canvas, width, height);
+      var t = curvesTheme(canvas);
+      var line = channelColor(canvas, channel);
       ctx.clearRect(0, 0, width, height);
-      ctx.fillStyle = "#202020";
+      ctx.fillStyle = t.bg;
       ctx.fillRect(0, 0, width, height);
-      ctx.strokeStyle = "#333";
+      ctx.strokeStyle = t.grid;
       ctx.lineWidth = 1;
       for (var g = 1; g < 4; g++) {
         var gx = pad + g * (width - 2 * pad) / 4;
@@ -267,7 +308,7 @@ var Looks = Looks || {};
         ctx.beginPath(); ctx.moveTo(gx, pad); ctx.lineTo(gx, height - pad); ctx.stroke();
         ctx.beginPath(); ctx.moveTo(pad, gy); ctx.lineTo(width - pad, gy); ctx.stroke();
       }
-      ctx.strokeStyle = "#444";
+      ctx.strokeStyle = t.diagonal;
       ctx.beginPath(); ctx.moveTo(pad, height - pad); ctx.lineTo(width - pad, pad); ctx.stroke();
       var pts = points().slice().sort(function (a, b) { return a.x - b.x; });
       ctx.beginPath();
@@ -275,17 +316,17 @@ var Looks = Looks || {};
         var q = toPx(p);
         if (i === 0) ctx.moveTo(q.x, q.y); else ctx.lineTo(q.x, q.y);
       });
-      ctx.strokeStyle = CHANNEL_COLORS[channel] || "#ccc";
+      ctx.strokeStyle = line;
       ctx.lineWidth = 1.5;
       ctx.stroke();
       points().forEach(function (p) {
         var q = toPx(p);
         ctx.beginPath();
         ctx.arc(q.x, q.y, 4, 0, Math.PI * 2);
-        ctx.fillStyle = "#1b1b1b";
+        ctx.fillStyle = t.pointFill;
         ctx.fill();
         ctx.lineWidth = 1.5;
-        ctx.strokeStyle = CHANNEL_COLORS[channel] || "#ccc";
+        ctx.strokeStyle = line;
         ctx.stroke();
       });
     }

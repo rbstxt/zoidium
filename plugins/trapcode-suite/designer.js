@@ -3,9 +3,9 @@
  * designer.js
  *
  * One designer window per Trapcode object (Particular, Form, Plexus), drawn in
- * the look of the original Trapcode Designer:
+ * the CM3 panel style:
  *
- *   title bar    PRESETS and BLOCKS pills, the title, maximize and close
+ *   host chrome title, maximize and close; body toolbar has Presets and Blocks
  *   presets      the preset list, then a PALETTE list with gradient swatches
  *                when the target has colors the palettes can set
  *   center card  transport row with the frame counter, the block tiles, and
@@ -14,8 +14,8 @@
  *                stopwatches, expressions, scrubbing and undo work as in the
  *                Objects panel
  *
- * The window is a floating Zoidium window that uses the "designer" skin
- * (designer.skinCss). It has no preview of its own: the editor viewport behind
+ * The window uses standard Zoidium chrome and editor theme tokens.
+ * It has no preview of its own: the editor viewport behind
  * the window is the preview.
  *
  * designer-gear.js hands this file the module's window kit with
@@ -36,88 +36,53 @@ var PZ = PZ || {};
 
 (function () {
     var T = PZ.trapcode;
-    var SKIN = "designer";
     var WINDOW_ID_PREFIX = "designer:";
-    // CM3 has no frame-change event, so the frame counter is re-read at this
-    // interval. The check is one number compare, so the cost stays negligible.
+    // CM3 has no frame-change event; compare the frame counter every 250ms.
     var SYNC_MS = 250;
-    var SVG_NS = "http://www.w3.org/2000/svg";
-    var CLOSE_PATH = "M4.2 3 8 6.8 11.8 3 13 4.2 9.2 8l3.8 3.8-1.2 1.2L8 9.2 4.2 13 3 11.8 6.8 8 3 4.2z";
-    var MAXIMIZE_PATH = "M2 2h12v12H2z M4 4v8h8V4z";
-    var RESTORE_PATH = "M4 1h11v11h-3V4H4z M1 5h11v10H1z";
 
+    // Only the designer body is styled here. The host owns window chrome.
     var CSS = [
-        // Davi's gold accents: kept exactly under Panzoid Classic. Other color
-        // profiles take the profile's accent hue (from --zoidium-theme-link) at
-        // the gold's saturation and lightness, so the designer matches the editor.
-        ":scope{--tc-gold:#c9a13b;--tc-gold-light:#e8c56a;--tc-gold-warm:#e0b060;--tc-gold-dark:#3a3220;--tc-blue:#4a90d9;}",
-        "html[data-zoidium-theme]:not([data-zoidium-theme=panzoid]) :scope{--tc-gold:hsl(from var(--zoidium-theme-link) h calc(56.8 * var(--zoidium-theme-saturation, 1)) 51.0);--tc-gold-light:hsl(from var(--zoidium-theme-link) h calc(73.3 * var(--zoidium-theme-saturation, 1)) 66.3);--tc-gold-warm:hsl(from var(--zoidium-theme-link) h calc(67.4 * var(--zoidium-theme-saturation, 1)) 62.7);--tc-gold-dark:hsl(from var(--zoidium-theme-link) h calc(28.9 * var(--zoidium-theme-saturation, 1)) 17.6);}",
-        ":scope{background:radial-gradient(900px 480px at 10% -6%,color-mix(in srgb,var(--tc-gold) 15%,transparent),transparent 60%),radial-gradient(760px 520px at 97% 108%,color-mix(in srgb,var(--tc-blue) 10%,transparent),transparent 62%),linear-gradient(180deg,#101014 0%,#0a0b0e 55%,#060708 100%);color:#e8e9eb;font-family:system-ui,\"Segoe UI\",-apple-system,sans-serif;font-size:12px;animation:tcFade .28s ease;}",
-        ":scope>.zoidium-window-body{display:flex;flex-direction:column;overflow:hidden;}",
-        ":scope button{font-family:inherit;}",
-        "@keyframes tcFade{from{opacity:0;}to{opacity:1;}}",
-        "@keyframes tcRise{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:none;}}",
-        ".tc-designer{display:flex;flex-direction:column;flex:1 1 auto;min-height:0;}",
-        ".tc-titlebar{flex:0 0 46px;display:flex;align-items:center;gap:8px;background:rgba(14,16,20,.78);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:1px solid rgba(255,255,255,.08);padding:0 12px;animation:tcRise .32s ease;cursor:move;user-select:none;}",
-        ".tc-title{display:flex;align-items:center;gap:10px;padding:0 4px;font-weight:600;font-size:13px;letter-spacing:2px;color:#f2f3f5;flex:1;min-width:0;white-space:nowrap;overflow:hidden;}",
-        ".tc-title:before{content:'';width:9px;height:9px;border-radius:50%;background:linear-gradient(135deg,var(--tc-gold-light),var(--tc-gold));box-shadow:0 0 12px color-mix(in srgb,var(--tc-gold) 80%,transparent);flex:0 0 auto;}",
-        ".tc-pill{display:flex;align-items:center;justify-content:center;flex:0 0 auto;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.10);color:#d6d8dc;font-size:10px;letter-spacing:2px;font-weight:600;padding:7px 16px;cursor:pointer;border-radius:999px;transition:background .15s ease,border-color .15s ease,color .15s ease,transform .15s ease;}",
-        ".tc-pill.tc-icon{padding:7px 12px;}",
-        ".tc-pill:hover{background:color-mix(in srgb,var(--tc-gold) 16%,transparent);border-color:color-mix(in srgb,var(--tc-gold) 55%,transparent);color:#fff;transform:translateY(-1px);}",
-        ".tc-pill:active{transform:none;}",
-        ".tc-pill:focus-visible{outline:2px solid var(--tc-gold);outline-offset:2px;}",
-        ".tc-presets-toggle{color:var(--tc-gold-warm);}",
-        ".tc-glyph{width:11px;height:11px;fill:currentColor;display:block;pointer-events:none;}",
-        ".tc-glyph-restore{display:none;}",
-        ":scope.maximized .tc-glyph-max{display:none;}",
-        ":scope.maximized .tc-glyph-restore{display:block;}",
+        ".trapcode-designer-window>.zoidium-window-body{display:flex;flex-direction:column;overflow:hidden;scrollbar-gutter:auto;}",
+        ".tc-designer{display:flex;flex-direction:column;flex:1 1 auto;min-height:0;background:var(--zui-bg);color:var(--zui-text);font-family:var(--zui-font);font-size:13px;}",
+        ".tc-toolbar{flex:0 0 32px;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:0 6px;background:var(--zui-bg-title);border-bottom:1px solid var(--zui-border);}",
+        ".tc-designer button{font-family:var(--zui-font);font-size:13px;}",
+        ".tc-toolbar button{width:auto;padding:3px 12px;border:1px solid var(--zui-border);border-radius:2px;}",
+        ".tc-toolbar button.active{background:var(--zui-accent);color:var(--zui-text-bright);}",
         ".tc-body{flex:1 1 auto;display:flex;min-height:0;gap:10px;padding:10px;box-sizing:border-box;}",
-        ".tc-presets{flex:0 0 208px;min-height:0;background:rgba(20,22,27,.86);border:1px solid rgba(255,255,255,.08);border-radius:14px;overflow-y:auto;padding:10px;animation:tcRise .36s ease;box-shadow:0 12px 32px rgba(0,0,0,.45);}",
-        ".tc-presets.hidden{display:none;}",
-        ".tc-preset{padding:8px 12px;cursor:pointer;border-radius:9px;color:#c9cdd4;font-size:11px;font-weight:500;letter-spacing:.3px;border:1px solid transparent;transition:background .15s ease,color .15s ease,transform .15s ease,border-color .15s ease;}",
-        ".tc-preset:hover{background:color-mix(in srgb,var(--tc-gold) 13%,transparent);border-color:color-mix(in srgb,var(--tc-gold) 35%,transparent);color:#fff;transform:translateX(2px);}",
-        ".tc-palettes-title{padding:12px 12px 6px;color:var(--tc-gold-warm);font-size:10px;font-weight:700;letter-spacing:2px;}",
-        ".tc-palette{display:flex;align-items:center;gap:10px;padding:6px 10px;cursor:pointer;border-radius:9px;border:1px solid transparent;transition:background .15s ease,border-color .15s ease,transform .15s ease;}",
-        ".tc-palette:hover{background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.10);transform:translateX(2px);}",
-        ".tc-swatches{flex:0 0 64px;height:16px;border-radius:5px;border:1px solid rgba(0,0,0,.6);box-shadow:inset 0 0 0 1px rgba(255,255,255,.12);}",
-        ".tc-palette span{color:#c9cdd4;font-size:11px;font-weight:500;}",
-        ".tc-palette:hover span{color:#fff;}",
-        ".tc-main{flex:1 1 auto;display:flex;flex-direction:column;min-width:0;min-height:0;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.08);border-radius:14px;overflow:hidden;box-shadow:0 12px 32px rgba(0,0,0,.5);animation:tcRise .4s ease;}",
-        ".tc-transport{flex:0 0 46px;display:flex;align-items:center;gap:8px;padding:0 12px;background:rgba(16,18,22,.9);border-bottom:1px solid rgba(255,255,255,.07);}",
-        ".tc-transport button{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:#e8e9eb;font-size:11px;padding:6px 12px;cursor:pointer;border-radius:999px;transition:background .15s ease,border-color .15s ease,color .15s ease;}",
-        ".tc-transport button:hover{background:color-mix(in srgb,var(--tc-gold) 20%,transparent);border-color:color-mix(in srgb,var(--tc-gold) 60%,transparent);color:#fff;}",
-        ".tc-transport button:focus-visible{outline:2px solid var(--tc-gold);outline-offset:2px;}",
-        ".tc-time{margin-left:auto;color:var(--tc-gold-light);font-variant-numeric:tabular-nums;font-weight:600;letter-spacing:1px;}",
-        // The tiles fill the card: rows share the free height and tiles share each row.
-        ".tc-strip{flex:1 1 auto;min-height:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));grid-auto-rows:minmax(96px,1fr);align-content:stretch;gap:8px;padding:10px 12px;background:rgba(13,15,18,.9);overflow-y:auto;}",
-        ".tc-block{display:flex;flex-direction:column;justify-content:flex-end;align-items:center;min-height:0;background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.10);border-radius:11px;cursor:pointer;color:#cfd3d9;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:1px;padding:6px;text-align:center;box-sizing:border-box;transition:border-color .15s ease,transform .15s ease,box-shadow .15s ease;}",
-        ".tc-block:hover{border-color:color-mix(in srgb,var(--tc-gold) 50%,transparent);transform:translateY(-2px);}",
-        ".tc-block .tc-thumb{flex:1 1 auto;min-height:0;width:100%;border-radius:7px;margin-bottom:6px;background:linear-gradient(135deg,var(--tc-gold-dark),#14161c);box-shadow:inset 0 0 0 1px rgba(255,255,255,.06);}",
-        ".tc-block.active{border-color:var(--tc-gold);color:#fff;box-shadow:0 0 0 1px var(--tc-gold),0 6px 18px color-mix(in srgb,var(--tc-gold) 35%,transparent);}",
-        ".tc-systems{flex:0 0 auto;display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:8px 12px;background:rgba(13,15,18,.9);border-top:1px solid rgba(255,255,255,.07);}",
-        ".tc-system{padding:6px 14px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.11);border-radius:999px;cursor:pointer;color:#c9cdd4;font-weight:500;white-space:nowrap;transition:background .15s ease,border-color .15s ease,color .15s ease;}",
-        ".tc-system:hover{color:#fff;border-color:color-mix(in srgb,var(--tc-gold) 50%,transparent);}",
-        ".tc-system.active{background:var(--tc-gold);color:#191919;border-color:var(--tc-gold);font-weight:700;box-shadow:0 4px 14px color-mix(in srgb,var(--tc-gold) 40%,transparent);}",
-        ".tc-system.add{color:#9ae6a0;border-style:dashed;}",
-        ".tc-system.add:hover{background:rgba(138,217,138,.12);border-color:rgba(138,217,138,.5);color:#fff;}",
-        ".tc-system.remove{padding:6px 12px;color:#e89a9a;}",
-        ".tc-system.remove:hover{background:rgba(217,138,138,.14);border-color:rgba(217,138,138,.5);color:#fff;}",
-        ".tc-params{flex:0 0 380px;display:flex;flex-direction:column;min-height:0;background:rgba(20,22,27,.86);border:1px solid rgba(255,255,255,.08);border-radius:14px;overflow:hidden;animation:tcRise .44s ease;box-shadow:0 12px 32px rgba(0,0,0,.45);}",
-        ".tc-params.hidden{display:none;}",
-        ":scope .tc-params>.zoidium-properties{flex:1 1 auto;min-height:0;background:transparent;}",
-        // CM3's curve/gradient pickers carry a fixed 245px inline width that
-        // overflows the parameter card once the label column takes its share.
-        // Constrain them to the card and give the box the dark input color.
-        // This skin CSS only applies inside the designer window, so the
-        // standard property panel keeps the normal CM3 look.
+        ".tc-presets{flex:0 0 208px;min-height:0;background:var(--zui-bg);border:1px solid var(--zui-border);overflow-y:auto;padding:10px;}",
+        ".tc-presets.hidden,.tc-params.hidden{display:none;}",
+        ".tc-preset{padding:8px 12px;cursor:pointer;border-radius:2px;color:var(--zui-text);font-size:13px;}",
+        ".tc-preset:hover,.tc-palette:hover{background:var(--zui-hover);color:var(--zui-text-bright);}",
+        ".tc-palettes-title{padding:8px 12px 6px;background:var(--zui-bg-title);color:var(--zui-text-muted);font-size:11px;}",
+        ".tc-palette{display:flex;align-items:center;gap:10px;padding:6px 10px;cursor:pointer;border-radius:2px;}",
+        ".tc-swatches{flex:0 0 64px;height:16px;border-radius:2px;border:1px solid var(--zui-border);}",
+        ".tc-palette span{font-size:11px;}",
+        ".tc-main{flex:1 1 auto;display:flex;flex-direction:column;min-width:0;min-height:0;background:var(--zui-bg);border:1px solid var(--zui-border);overflow:hidden;}",
+        ".tc-transport{flex:0 0 46px;display:flex;align-items:center;gap:8px;padding:0 12px;background:var(--zui-bg-title);border-bottom:1px solid var(--zui-border);}",
+        ".tc-transport button{width:auto;padding:4px 12px;border:1px solid var(--zui-border);border-radius:2px;}",
+        ".tc-transport svg{width:14px;height:14px;fill:currentColor;}",
+        ".tc-time{margin-left:auto;color:var(--zui-value);font-variant-numeric:tabular-nums;}",
+        ".tc-strip{flex:1 1 auto;min-height:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));grid-auto-rows:minmax(96px,1fr);align-content:stretch;gap:8px;padding:10px 12px;overflow-y:auto;}",
+        ".tc-block{display:flex;flex-direction:column;justify-content:flex-end;align-items:center;min-height:0;background:var(--zui-bg-title);border:1px solid var(--zui-border);border-radius:2px;cursor:pointer;color:var(--zui-text);font-size:11px;padding:6px;text-align:center;box-sizing:border-box;}",
+        ".tc-block:hover{background:var(--zui-hover);}",
+        ".tc-block .tc-thumb{flex:1 1 auto;min-height:0;width:100%;margin-bottom:6px;background:var(--zui-bg-input);}",
+        ".tc-block.active{border-color:var(--zui-accent);color:var(--zui-value);}",
+        ".tc-systems{flex:0 0 auto;display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:8px 12px;background:var(--zui-bg-title);border-top:1px solid var(--zui-border);}",
+        ".tc-system{padding:6px 14px;background:var(--zui-bg);border:1px solid var(--zui-border);border-radius:2px;cursor:pointer;color:var(--zui-text);white-space:nowrap;}",
+        ".tc-system:hover{background:var(--zui-hover);}",
+        ".tc-system.active{background:var(--zui-accent);color:var(--zui-text-bright);border-color:var(--zui-accent);}",
+        ".tc-params{flex:0 0 380px;display:flex;flex-direction:column;min-height:0;background:var(--zui-bg);border:1px solid var(--zui-border);overflow:hidden;}",
+        ".tc-params>.zoidium-properties{flex:1 1 auto;min-height:0;}",
+        // Native curve/gradient pickers have a fixed 245px inline width.
         ".tc-params .editbox{min-width:0;max-width:100%;}",
-        ".tc-params .editbox>div{width:100%!important;max-width:100%;box-sizing:border-box;background:#202020;border:1px solid #1b1b1b;border-radius:3px;}",
-        ".tc-presets::-webkit-scrollbar,.tc-strip::-webkit-scrollbar,.tc-systems::-webkit-scrollbar,.tc-params .zoidium-properties::-webkit-scrollbar{width:10px;height:10px;}",
-        ".tc-presets::-webkit-scrollbar-track,.tc-strip::-webkit-scrollbar-track,.tc-systems::-webkit-scrollbar-track,.tc-params .zoidium-properties::-webkit-scrollbar-track{background:transparent;}",
-        ".tc-presets::-webkit-scrollbar-thumb,.tc-strip::-webkit-scrollbar-thumb,.tc-systems::-webkit-scrollbar-thumb,.tc-params .zoidium-properties::-webkit-scrollbar-thumb{background:rgba(255,255,255,.14);border-radius:8px;border:2px solid transparent;background-clip:content-box;}",
-        ".tc-presets::-webkit-scrollbar-thumb:hover,.tc-strip::-webkit-scrollbar-thumb:hover,.tc-systems::-webkit-scrollbar-thumb:hover,.tc-params .zoidium-properties::-webkit-scrollbar-thumb:hover{background:color-mix(in srgb,var(--tc-gold) 50%,transparent);border:2px solid transparent;background-clip:content-box;}",
-        "@media (prefers-reduced-motion:reduce){:scope *{animation:none!important;transition:none!important;}}",
-    ].join("\n");
+        ".tc-params .editbox>div{width:100%!important;max-width:100%;box-sizing:border-box;background:var(--zui-bg-input);border:1px solid var(--zui-border);border-radius:2px;}",
+    ].map(function (rule) {
+        var start = rule.indexOf("{");
+        var selectors = rule.slice(0, start).split(",").map(function (selector) {
+            return selector.indexOf(".trapcode-designer-window") === 0 ? selector : ".trapcode-designer-window " + selector;
+        });
+        return selectors.join(",") + rule.slice(start);
+    }).join("\n");
 
     function playback() {
         return typeof CM !== "undefined" && CM ? CM.playback || null : null;
@@ -216,22 +181,18 @@ var PZ = PZ || {};
         return node;
     }
 
-    function button(className, text, onClick) {
-        var node = el("button", className, text);
-        node.type = "button";
-        node.onclick = onClick;
+    function button(ui, className, text, onClick) {
+        var node = ui.controls.button({ title: text, onClick: onClick }).element;
+        if (className) node.classList.add.apply(node.classList, className.split(" "));
         return node;
     }
 
-    function svgIcon(className, path) {
-        var svg = document.createElementNS(SVG_NS, "svg");
-        svg.setAttribute("viewBox", "0 0 16 16");
-        svg.setAttribute("aria-hidden", "true");
-        svg.setAttribute("class", className);
-        var shape = document.createElementNS(SVG_NS, "path");
-        shape.setAttribute("d", path);
-        svg.appendChild(shape);
-        return svg;
+    function transportButton(ui, icon, title, onClick) {
+        var node = button(ui, "", "", onClick);
+        node.title = title;
+        node.setAttribute("aria-label", title);
+        node.appendChild(PZ.ui.generateIcon(icon));
+        return node;
     }
 
     // One designer window: the state for one Trapcode object and the DOM the
@@ -284,17 +245,6 @@ var PZ = PZ || {};
         if (changed) this.refreshAll();
         if (!this.nodes) return;
         this.nodes.time.textContent = frameText(frame());
-        this.syncMaximize();
-    };
-
-    // The host also maximizes on a title double-click, so the pill label is
-    // re-read from the window state rather than assumed.
-    Session.prototype.syncMaximize = function () {
-        if (!this.nodes || !this.win) return;
-        var label = this.win.isMaximized() ? "Restore" : "Maximize";
-        if (this.nodes.maximize.title === label) return;
-        this.nodes.maximize.title = label;
-        this.nodes.maximize.setAttribute("aria-label", label);
     };
 
     Session.prototype.refreshAll = function () {
@@ -361,7 +311,7 @@ var PZ = PZ || {};
         host.textContent = "";
         var schemes = (T && T.palettes) || [];
         if (!this.target || !schemes.length || typeof T.supportsPalette !== "function" || !T.supportsPalette(this.target)) return;
-        host.appendChild(el("div", "tc-palettes-title", "PALETTE"));
+        host.appendChild(el("div", "tc-palettes-title", "Palette"));
         schemes.forEach(function (scheme) {
             var row = el("div", "tc-palette");
             var bar = el("div", "tc-swatches");
@@ -405,27 +355,24 @@ var PZ = PZ || {};
         this.win = win;
 
         var root = el("div", "tc-designer");
-        var titlebar = el("div", "tc-titlebar");
-        var presetsToggle = button("tc-pill tc-presets-toggle", "PRESETS", function () { presets.classList.toggle("hidden"); });
-        var title = el("div", "tc-title", this.config.title || "Trapcode Designer");
-        var blocksToggle = button("tc-pill", "BLOCKS", function () { params.classList.toggle("hidden"); });
-        var maximize = button("tc-pill tc-icon", "", function () {
-            win.toggleMaximized();
-            self.syncMaximize();
+        var style = el("style");
+        style.textContent = CSS;
+        root.appendChild(style);
+        var toolbar = el("div", "tc-toolbar");
+        var presetsToggle = button(ui, "tc-presets-toggle active", "Presets", function () {
+            var hidden = presets.classList.toggle("hidden");
+            presetsToggle.classList.toggle("active", !hidden);
+            presetsToggle.setAttribute("aria-pressed", String(!hidden));
         });
-        maximize.title = "Maximize";
-        maximize.setAttribute("aria-label", "Maximize");
-        maximize.appendChild(svgIcon("tc-glyph tc-glyph-max", MAXIMIZE_PATH));
-        maximize.appendChild(svgIcon("tc-glyph tc-glyph-restore", RESTORE_PATH));
-        var close = button("tc-pill tc-icon", "", function () { win.close(); });
-        close.title = "Close";
-        close.setAttribute("aria-label", "Close");
-        close.appendChild(svgIcon("tc-glyph", CLOSE_PATH));
-        titlebar.appendChild(presetsToggle);
-        titlebar.appendChild(title);
-        titlebar.appendChild(blocksToggle);
-        titlebar.appendChild(maximize);
-        titlebar.appendChild(close);
+        var blocksToggle = button(ui, "tc-blocks-toggle active", "Blocks", function () {
+            var hidden = params.classList.toggle("hidden");
+            blocksToggle.classList.toggle("active", !hidden);
+            blocksToggle.setAttribute("aria-pressed", String(!hidden));
+        });
+        presetsToggle.setAttribute("aria-pressed", "true");
+        blocksToggle.setAttribute("aria-pressed", "true");
+        toolbar.appendChild(presetsToggle);
+        toolbar.appendChild(blocksToggle);
 
         var content = el("div", "tc-body");
         var presets = el("div", "tc-presets");
@@ -446,21 +393,21 @@ var PZ = PZ || {};
 
         var transport = el("div", "tc-transport");
         var time = el("span", "tc-time", frameText(frame()));
-        transport.appendChild(button("", "⏪", function () {
+        transport.appendChild(transportButton(ui, "prevframe", "Previous frame", function () {
             var current = playback();
             if (!current) return;
             current.speed = 0;
             current.currentFrame = Math.max(0, frame() - 1);
         }));
-        transport.appendChild(button("", "▶", function () {
+        transport.appendChild(transportButton(ui, "play", "Play", function () {
             var current = playback();
             if (current) current.speed = 1;
         }));
-        transport.appendChild(button("", "⏸", function () {
+        transport.appendChild(transportButton(ui, "pause", "Pause", function () {
             var current = playback();
             if (current) current.speed = 0;
         }));
-        transport.appendChild(button("", "⏩", function () {
+        transport.appendChild(transportButton(ui, "nextframe", "Next frame", function () {
             var current = playback();
             if (!current) return;
             current.speed = 0;
@@ -477,10 +424,9 @@ var PZ = PZ || {};
         content.appendChild(presets);
         content.appendChild(main);
         content.appendChild(params);
-        root.appendChild(titlebar);
+        root.appendChild(toolbar);
         root.appendChild(content);
         body.appendChild(root);
-        win.makeDragHandle(titlebar);
 
         // The parameter rows are CM3's own property editor. Its target is read
         // through the getter, so refresh() re-resolves the selected block.
@@ -491,7 +437,7 @@ var PZ = PZ || {};
         });
         params.appendChild(this.view.element);
 
-        this.nodes = { presets: presets, palettes: palettes, strip: strip, systems: systems, time: time, maximize: maximize };
+        this.nodes = { presets: presets, palettes: palettes, strip: strip, systems: systems, time: time };
         this.refreshAll();
         this.timer = setInterval(function () { self.sync(); }, SYNC_MS);
         sessions[this.id] = this;
@@ -527,7 +473,6 @@ var PZ = PZ || {};
 
     var designer = {
         ui: null,
-        skinCss: CSS,
     };
 
     // Binds the window kit of one plugin module. Returns the unbind function.
@@ -572,8 +517,6 @@ var PZ = PZ || {};
             height: 600,
             minWidth: 760,
             minHeight: 420,
-            skin: SKIN,
-            chrome: "custom",
             className: "trapcode-designer-window",
             isValid: function () { return root.parent != null; },
             mount: function (body, win) { return session.mount(body, win); },

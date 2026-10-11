@@ -1,8 +1,8 @@
 "use strict";
 
 // Designer window wiring, evaluated from the real designer.js with a small
-// fake DOM. Covers the window options (host chrome, skin, placement), the
-// structure of the Davi-style body, undo-recorded presets and palettes,
+// fake DOM. Covers the window options (host chrome, theme tokens, placement), the
+// structure of the designer body, undo-recorded presets and palettes,
 // transport, the frame counter timer, reopen-focus and cleanup on close.
 
 const assert = require("node:assert/strict");
@@ -235,6 +235,15 @@ function createUi() {
     windows,
     openCalls,
     views,
+    controls: {
+      button({ title, onClick }) {
+        const element = createElement("button");
+        element.className = "proprow propbutton zoidium-button";
+        element.textContent = title;
+        element.onclick = onClick;
+        return { element };
+      },
+    },
     openWindow(options) {
       openCalls.push(options);
       const win = {
@@ -298,32 +307,36 @@ function createUi() {
 
 function setup() {
   const env = createEnvironment();
+  env.PZ.ui.generateIcon = (name) => {
+    const icon = createElement("svg");
+    icon.setAttribute("data-icon", name);
+    return icon;
+  };
   const designer = loadDesigner(env.PZ);
   const ui = createUi();
   designer.bind(ui);
   return { ...env, designer, ui };
 }
 
-test("the skin is a scoped, system-font look without fixed overlays or leftover preview rules", () => {
-  const { designer } = setup();
-  const css = designer.skinCss;
-  assert.ok(css.includes(":scope{"), "window rules are written against :scope");
-  assert.ok(css.includes("system-ui"), "system UI stack");
-  assert.ok(css.includes("prefers-reduced-motion"), "reduced-motion rule");
-  for (const token of ["position:fixed", "inset:", "Inter", "tc-screen", "tc-placeholder", "font-face", "url("]) {
-    assert.ok(!css.includes(token), "skin must not contain " + token);
+test("designer chrome follows theme tokens without a private skin", () => {
+  assert.ok(source.includes("font-family:var(--zui-font)"));
+  for (const token of ["--zui-accent", "--zui-value", "--zui-bg", "--zui-border", "--zui-hover"]) {
+    assert.ok(source.includes(token), token);
+  }
+  for (const token of ["skinCss", "system-ui", "tc-gold", "linear-gradient", "radial-gradient", "box-shadow", "letter-spacing", "text-transform", "chrome: \"custom\""]) {
+    assert.ok(!source.includes(token), token);
   }
 });
 
-test("open asks the host for a custom-chrome, centered, skinned window", () => {
+test("open asks the host for a centered window with standard host chrome", () => {
   withGlobals(() => {
     const { designer, root, ui } = setup();
     designer.open(root);
     const options = ui.openCalls[0];
     assert.match(options.id, /^designer:\d+$/);
     assert.equal(options.title, "Trapcode Test Designer");
-    assert.equal(options.skin, "designer");
-    assert.equal(options.chrome, "custom");
+    assert.equal(options.skin, undefined);
+    assert.equal(options.chrome, undefined);
     assert.equal(options.placement, "center");
     assert.equal(options.persistKey, "designer");
     assert.equal(options.width, 1060);
@@ -336,21 +349,20 @@ test("open asks the host for a custom-chrome, centered, skinned window", () => {
   });
 });
 
-test("the body holds the title bar, presets, blocks, systems and the CM3 parameter view", () => {
+test("the body holds the toolbar, presets, blocks, systems and the CM3 parameter view", () => {
   withGlobals(() => {
     const { designer, root, ui } = setup();
     const win = designer.open(root);
     const body = win.body;
     assert.equal(byClass(body, "tc-designer").length, 1);
-    const titlebar = byClass(body, "tc-titlebar")[0];
-    assert.equal(titlebar.children.length, 5, "PRESETS, title, BLOCKS, maximize, close");
-    assert.equal(titlebar.children[0].textContent, "PRESETS");
-    assert.equal(titlebar.children[2].textContent, "BLOCKS");
-    assert.equal(titlebar.children[1].textContent, "Trapcode Test Designer");
-    assert.deepEqual(win.dragHandles, [titlebar], "the title bar drags the window");
+    const toolbar = byClass(body, "tc-toolbar")[0];
+    assert.equal(toolbar.children.length, 2, "Presets, Blocks");
+    assert.equal(toolbar.children[0].textContent, "Presets");
+    assert.equal(toolbar.children[1].textContent, "Blocks");
+    assert.deepEqual(win.dragHandles, [], "the host title bar owns dragging");
     assert.equal(byClass(body, "tc-preset").length, 2);
     assert.equal(byClass(body, "tc-palette").length, 2, "palette rows when the target supports them");
-    assert.equal(byClass(body, "tc-palettes-title")[0].textContent, "PALETTE");
+    assert.equal(byClass(body, "tc-palettes-title")[0].textContent, "Palette");
     const tiles = byClass(body, "tc-block");
     assert.deepEqual(tiles.map((tile) => tile.children[1].textContent), ["Emitter", "Particle", "Physics"]);
     assert.ok(tiles[0].classList.contains("active"), "the first block starts selected");
@@ -437,6 +449,8 @@ test("transport moves the frame and pauses playback", () => {
     const { designer, root } = setup();
     const win = designer.open(root);
     const transport = byClass(win.body, "tc-transport")[0];
+    assert.deepEqual(transport.children.slice(0, 4).map((node) => node.getAttribute("aria-label")), ["Previous frame", "Play", "Pause", "Next frame"]);
+    assert.deepEqual(transport.children.slice(0, 4).map((node) => node.children[0].getAttribute("data-icon")), ["prevframe", "play", "pause", "nextframe"]);
     transport.children[1].onclick();
     assert.equal(playback.speed, 1, "play");
     transport.children[2].onclick();
@@ -464,30 +478,24 @@ test("the frame counter follows the frame on the sync timer, which is not faster
   });
 });
 
-test("the PRESETS, BLOCKS, maximize and close controls drive the window", () => {
+test("the Presets and Blocks toolbar preserves toggles and close cleanup", () => {
   withGlobals(({ timers }) => {
     const { designer, root, ui } = setup();
     const win = designer.open(root);
-    const titlebar = byClass(win.body, "tc-titlebar")[0];
+    const toolbar = byClass(win.body, "tc-toolbar")[0];
     const presets = byClass(win.body, "tc-presets")[0];
     const params = byClass(win.body, "tc-params")[0];
-    titlebar.children[0].onclick();
-    assert.ok(presets.classList.contains("hidden"), "PRESETS hides the presets column");
-    titlebar.children[0].onclick();
-    assert.ok(!presets.classList.contains("hidden"));
-    titlebar.children[2].onclick();
-    assert.ok(params.classList.contains("hidden"), "BLOCKS hides the parameter card");
-    titlebar.children[3].onclick();
-    assert.equal(win.toggles, 1, "maximize toggles the host window");
-    assert.equal(titlebar.children[3].title, "Restore", "the label follows the state");
-    win.maximized = false;
-    const time = byClass(win.body, "tc-transport")[0].children[4];
-    const [timer] = timers.values();
-    timer.fn();
-    assert.equal(titlebar.children[3].title, "Maximize", "the sync tick picks up a double-click restore");
-    assert.equal(time.textContent, "0003");
-    titlebar.children[4].onclick();
-    assert.equal(win.open, false, "close closes the window");
+    for (const [toggle, panel] of [[toolbar.children[0], presets], [toolbar.children[1], params]]) {
+      toggle.onclick();
+      assert.ok(panel.classList.contains("hidden"));
+      assert.ok(!toggle.classList.contains("active"));
+      assert.equal(toggle.getAttribute("aria-pressed"), "false");
+      toggle.onclick();
+      assert.ok(!panel.classList.contains("hidden"));
+      assert.ok(toggle.classList.contains("active"));
+      assert.equal(toggle.getAttribute("aria-pressed"), "true");
+    }
+    win.close();
     assert.equal(timers.size, 0, "the sync timer is cleared on close");
     assert.equal(ui.views[0].disposed, true, "the CM3 view is disposed on close");
   });
@@ -515,14 +523,13 @@ test("after the binding is released no window opens", () => {
 });
 
 test("curve and gradient picker controls are constrained to the parameter card", () => {
-  const { designer } = setup();
-  const css = designer.skinCss;
+  const css = source;
   // CM3's pickers carry a fixed 245px inline width that overflows the card;
-  // the designer skin caps them at the card width with dark input colors.
+  // the designer body caps them at the card width with dark input colors.
   assert.ok(css.includes(".tc-params .editbox"), "editbox scope rule");
   assert.ok(css.includes("max-width:100%"), "width cap");
   assert.ok(css.includes("width:100%!important"), "inline-width override");
-  assert.ok(css.includes("background:#202020"), "dark input color");
+  assert.ok(css.includes("background:var(--zui-bg-input)"), "dark input color");
   // Scoped to the designer window only: no bare global control selectors.
   for (const line of css.split("\n")) {
     assert.ok(!line.startsWith(".editbox"), "no unscoped control rule: " + line.slice(0, 60));

@@ -566,7 +566,7 @@ function installClipMenu(context, engine, editor) {
     const addHeader = (text) => {
       const header = doc.createElement("li");
       header.style.cursor = "default";
-      header.style.color = "#8ab4ff";
+      header.style.color = "var(--zui-value)";
       header.style.fontSize = "12px";
       header.innerText = text;
       header.onmousedown = (ev) => ev.stopPropagation();

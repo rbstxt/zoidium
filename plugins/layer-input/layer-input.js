@@ -840,7 +840,7 @@ const LayerInput = (() => {
       }
       .zoidium-layer-input-source[data-error="cycle"],
       .zoidium-layer-input-source[data-error="missing"] {
-        border-color: #a04e4e;
+        border-color: var(--zui-danger);
       }
       .zoidium-layer-input-mode {
         max-width: 150px;

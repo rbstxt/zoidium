@@ -2,8 +2,8 @@
 
 // OpenZoid Rowbyte & Red Giant Suite — designer entry points.
 //
-// Binds the designer windows to this module's context.ui and registers the
-// designer look (the "designer" skin) plus one editor per Trapcode object.
+// Binds the designer windows to this module's context.ui and registers
+// one editor per Trapcode object with standard host window chrome.
 // Zoidium then shows the settings gear on object rows and an "Open Designer"
 // button above their properties. Every registration is released when the
 // module is disabled, so nothing of the CM3 object panel is patched here.
@@ -39,7 +39,6 @@ module.exports = {
       throw new Error("Designer windows have no object configs to open.");
     }
     context.lifecycle.onDispose(designer.bind(ui));
-    ui.registerSkin("designer", designer.skinCss);
     for (const { cls, config } of entries) {
       ui.registerEditor({
         title: config.title || "Trapcode Designer",
