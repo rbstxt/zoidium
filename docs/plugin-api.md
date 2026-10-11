@@ -264,20 +264,50 @@ Unknown object/effect/material types use their separate missing-type adapters.
 
 ## Security and future community plugins
 
-Current assumptions:
+Only first-party bundles listed in the shipped registry with matching SHA-256
+integrity digests can activate through the plugin manager today. The builder
+hashes the exact UTF-8 bundle.json bytes, including its trailing newline, and
+records `sha256-<base64>` in the registry. Check mode rejects stale digests.
+The manager fetches text, verifies it with Web Crypto, then parses the bundle.
+Missing digests, mismatches, unavailable Web Crypto, and version mismatches
+refuse activation and appear in the Plugins page and debug log. Project-driven
+activation uses the same check, even for a previously disabled plugin.
+HTTPS and HTTP loopback origins such as localhost and 127.0.0.1 support the
+secure context needed by Web Crypto, including Electron's loopback server.
+Other HTTP origins fail closed. Registry and bundle requests revalidate their
+cache entries. A stale registry paired with a newer bundle fails closed; reload
+or deploy matching files. Desktop packages include the registry and bundles.
 
-- The runtime reads only the generated single-line bundle.json.
-  Author source trees are never fanned out at runtime.
-  Files come from inside the bundle through getAsset.
-- Bundles may reference only repository-local files. Remote URLs are rejected.
-- Temporal effects declare only offset or posterize. Frame samplers declare a
-  bounded list of frame offsets; arbitrary frame rewrites are not possible.
+This provides tamper evidence relative to the shipped registry, not signatures:
+an attacker who can replace both registry and bundle can replace the digest.
+Protect the release channel and review changes to both files. The hidden Core
+bundle is checked by the manager too, but Core's pre-init scripts are separate
+trusted application bootstrap files executed earlier by the runtime loader.
+The bundle digest does not authenticate those earlier script requests. They
+need loader-level verification before execution to close that separate gap.
 
-Still missing before opening up to community plugins (not implemented):
+Bundles embed declared local assets and modules read them through getAsset.
+Source trees are not fetched at runtime. Temporal effects declare bounded
+operations and frame offsets. These contracts are not a JavaScript sandbox.
+Same-realm code has the editor's DOM, storage, network, and project access; a
+manifest permission flag or narrowed context object cannot enforce restrictions
+when code can use global objects or patch host prototypes.
 
-- Declared permissions (network, DOM access) with runtime enforcement.
-- Signing and review flow.
-- Privilege separation for panel modules.
+A future community-plugin manifest should declare versioned capabilities for
+project fields and edit commands, network origins and methods, local storage
+quota, file import/export, and UI panels. The installer must present those
+requests, record grants, and reject undeclared operations. Such declarations
+are a design proposal, not permissions supported by today's manifest schema.
+
+Community code needs a separate sandboxed iframe or worker realm with a
+versioned message API. An iframe must have an opaque origin with no same-origin
+access; a worker needs an isolated origin and a restrictive network policy.
+The host must validate every message and grant, pass only explicit data copies
+or scoped handles, bound message sizes and work, and revoke handles on unload.
+Panel rendering and file/network operations must go through host brokers.
+Workers cannot touch the editor DOM, and iframe panels must not inherit editor
+storage or global objects. Review, signing, resource limits, and safe updates
+remain prerequisites before accepting community bundles.
 
 ## Checks
 

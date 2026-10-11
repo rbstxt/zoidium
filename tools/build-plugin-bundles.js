@@ -13,6 +13,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const { createHash } = require("node:crypto");
 const { validateManifest } = require("./validate-plugin-manifests");
 const { writeFileAtomic, writeFileIfChangedAtomic } = require("./atomic-write");
 
@@ -265,9 +266,11 @@ function main() {
       changedBundles += 1;
     }
 
+    const integrity = "sha256-" + createHash("sha256").update(bundleContent, "utf8").digest("base64");
     const nextBundle = bundleUrl(manifestPath, manifest.version);
     const nextManifest = manifestUrl(manifestPath, manifest.version);
     if (
+      plugin.integrity !== integrity ||
       plugin.bundle !== nextBundle ||
       plugin.manifest !== nextManifest ||
       String(plugin.version ?? "") !== String(manifest.version ?? "")
@@ -275,6 +278,7 @@ function main() {
       if (checkOnly) {
         throw new Error(`Registry metadata is stale for plugin: ${plugin.id}`);
       }
+      plugin.integrity = integrity;
       plugin.bundle = nextBundle;
       plugin.manifest = nextManifest;
       delete plugin.locale;

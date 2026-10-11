@@ -147,6 +147,10 @@ function validateRegisteredManifests() {
       throw new Error(`Invalid registry entry: ${plugin?.id || "unknown"}`);
     }
 
+    if (typeof plugin.bundle !== "string" || !plugin.bundle.trim() ||
+        typeof plugin.integrity !== "string" || !/^sha256-[A-Za-z0-9+/]{43}=$/.test(plugin.integrity)) {
+      throw new Error(`Registry entry needs a bundle and SHA-256 integrity digest: ${plugin.id}`);
+    }
     const manifestPath = localPath(plugin.manifest);
     const manifest = readJson(manifestPath);
     const label = path.relative(projectRoot, manifestPath);

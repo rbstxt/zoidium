@@ -366,3 +366,9 @@
   margin-bottom: 0;
   padding: 5px calc(8px + var(--zoidium-scrollbar-width)) 5px 8px;
 }
+
+.zoidium-plugin-error {
+  color: #ffb4b4;
+  padding: 8px 12px;
+  overflow-wrap: anywhere;
+}
