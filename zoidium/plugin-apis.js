@@ -764,6 +764,19 @@
     return function require(id) { return load(id, root); };
   }
 
+  // Shared modules (zoidium/shared/*.js, loaded before this file). Each table
+  // is attached when its script is present so this file also loads standalone.
+  function sharedTable(name) {
+    return global[name] && typeof global[name] === "object" ? global[name] : undefined;
+  }
+
+  var sharedRandom = sharedTable("ZoidiumSharedRandom");
+  var sharedProps = sharedTable("ZoidiumSharedProps");
+  var sharedColor = sharedTable("ZoidiumSharedColor");
+  var sharedGl = sharedTable("ZoidiumSharedGl");
+  var sharedJson = sharedTable("ZoidiumSharedJson");
+  var sharedWindows = sharedTable("ZoidiumSharedWindows");
+
   var apis = {
     KINDS: KINDS,
     modules: { createRequire: createRequire },
@@ -789,6 +802,13 @@
       disposeTexture: disposeMaterialTexture,
     },
   };
+
+  if (sharedRandom) apis.random = sharedRandom;
+  if (sharedProps) apis.props = sharedProps;
+  if (sharedColor) apis.color = sharedColor;
+  if (sharedGl) apis.gl = sharedGl;
+  if (sharedJson) apis.json = sharedJson;
+  if (sharedWindows) apis.windows = sharedWindows;
 
   global.ZoidiumPluginApis = apis;
   try {

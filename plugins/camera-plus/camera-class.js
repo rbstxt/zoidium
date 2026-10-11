@@ -103,14 +103,10 @@ parts.camera = (function () {
   }
 
   // Reads a dynamic property at time t, falling back when the value is not
-  // finite (for example a broken focus expression).
+  // finite (for example a broken focus expression). Shared reader
+  // (zoidium/shared/props.js, loaded before any plugin code runs).
   function readNumber(property, time, fallback) {
-    try {
-      const value = property.get(time);
-      return typeof value === "number" && isFinite(value) ? value : fallback;
-    } catch (_error) {
-      return fallback;
-    }
+    return ZoidiumPluginApis.props.readNumber(property, time, fallback);
   }
 
   // World-space distance between two Camera+/object3d instances. Matrices

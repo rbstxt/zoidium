@@ -9,18 +9,22 @@ parts.motion = (function () {
     return Array.from({ length: count }, (_, i) => ((i + 0.5) / count - 0.5) * width);
   }
 
+  // Shared GL helpers (zoidium/shared/gl.js, loaded before any plugin code
+  // runs). Pinned by test/shared-helpers.test.js.
+  function makeTarget(THREE, width, height, options) {
+    return ZoidiumPluginApis.gl.createRenderTarget(THREE, width, height, options);
+  }
+
+  function makeCopyPass(THREE) {
+    return ZoidiumPluginApis.gl.createCopyPass(THREE);
+  }
+
   function createSceneMotionBlurClass(THREE) {
     class SceneMotionBlur {
       constructor() {
         this.sampleTarget = null;
         this.accumTarget = null;
-        const makePass = () => new THREE.ShaderPass(new THREE.ShaderMaterial({
-          uniforms: THREE.UniformsUtils.clone(THREE.CopyShader.uniforms),
-          vertexShader: THREE.CopyShader.vertexShader,
-          fragmentShader: THREE.CopyShader.fragmentShader,
-          depthTest: false,
-          depthWrite: false,
-        }));
+        const makePass = () => makeCopyPass(THREE);
         this.addPass = makePass();
         this.addPass.material.transparent = true;
         this.addPass.material.blending = THREE.CustomBlending;
@@ -33,11 +37,11 @@ parts.motion = (function () {
         if (this.sampleTarget && this.sampleTarget.width === target.width && this.sampleTarget.height === target.height) return;
         if (this.sampleTarget) this.sampleTarget.dispose();
         if (this.accumTarget) this.accumTarget.dispose();
-        this.sampleTarget = new THREE.WebGLRenderTarget(target.width, target.height, {
+        this.sampleTarget = makeTarget(THREE, target.width, target.height, {
           format: THREE.RGBAFormat, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter,
           depthBuffer: true, stencilBuffer: false,
         });
-        this.accumTarget = new THREE.WebGLRenderTarget(target.width, target.height, {
+        this.accumTarget = makeTarget(THREE, target.width, target.height, {
           format: THREE.RGBAFormat, type: THREE.FloatType,
           minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter,
           depthBuffer: false, stencilBuffer: false,

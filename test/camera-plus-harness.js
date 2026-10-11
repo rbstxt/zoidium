@@ -12,6 +12,11 @@ const path = require("node:path");
 const projectRoot = path.resolve(__dirname, "..");
 const pluginDir = path.join(projectRoot, "plugins", "camera-plus");
 
+// Camera+ part sources call the global ZoidiumPluginApis directly (the shared
+// overlay scripts load before any plugin code runs). Node evaluates the same
+// sources in this realm, so install the real shared tables here.
+require("./shared-test-apis.js").ensureGlobalApis();
+
 class Vec2 {
   constructor(x = 0, y = 0) { this.x = x; this.y = y; }
   set(x, y) { this.x = x; this.y = y; return this; }

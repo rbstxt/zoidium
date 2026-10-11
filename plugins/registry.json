@@ -26,13 +26,13 @@
       "id": "core",
       "name": "Zoidium Core",
       "author": "Zoidium",
-      "version": "24",
+      "version": "26",
       "visibility": "hidden",
       "alwaysEnabled": true,
       "tagline": "Built-in core extensions",
       "description": "Hidden built-in extensions that always run. Not shown in the Plugins panel and never stored in projects.",
-      "manifest": "./plugins/core/manifest.json?v=24",
-      "bundle": "./plugins/core/bundle.json?v=24"
+      "manifest": "./plugins/core/manifest.json?v=26",
+      "bundle": "./plugins/core/bundle.json?v=26"
     },
     {
       "id": "easing-plus",
@@ -249,30 +249,30 @@
       "category": "scene",
       "name": "Camera+",
       "author": "DaviFX",
-      "version": "10",
+      "version": "12",
       "itemCount": 1,
       "format": "camera rig",
       "tagline": "Camera layers, 3D tracks and DOF",
       "color": "#3d7bc5",
       "description": "Adds a separate Camera+ object with depth of field, seeded vibrate and focus tools, Camera layers, and a 3D switch on video tracks that lets scenes and flat layers follow the shared camera. The default CM3 camera is left unchanged.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/camera-plus/manifest.json?v=10",
-      "bundle": "./plugins/camera-plus/bundle.json?v=10"
+      "manifest": "./plugins/camera-plus/manifest.json?v=12",
+      "bundle": "./plugins/camera-plus/bundle.json?v=12"
     },
     {
       "id": "native-fx",
       "category": "adjustment",
       "name": "Native FX",
       "author": "Zoidium",
-      "version": "12",
+      "version": "14",
       "itemCount": 6,
       "format": "native effects",
       "tagline": "Native Effects and Time Tools",
       "color": "#c56b3d",
       "description": "Adds native filters, direct visual controls, and time effects.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/native-fx/manifest.json?v=12",
-      "bundle": "./plugins/native-fx/bundle.json?v=12"
+      "manifest": "./plugins/native-fx/manifest.json?v=14",
+      "bundle": "./plugins/native-fx/bundle.json?v=14"
     },
     {
       "id": "afterclip",
@@ -330,15 +330,15 @@
       "category": "adjustment",
       "name": "OpenZoid Legacy",
       "author": "DaviFX",
-      "version": "19",
+      "version": "20",
       "itemCount": 12,
       "format": "native effects",
       "tagline": "Echo, Posterize Time, JPEG, VHS, Datamosh, Tracery",
       "color": "#8f6bc5",
       "description": "OpenZoid effects on Zoidium deterministic rendering: Echo and Posterize Time (Legacy), Jpeg Damage, VHS, Datamosh, Tracery and ASCII, with floating setup windows.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/openzoid-legacy/manifest.json?v=19",
-      "bundle": "./plugins/openzoid-legacy/bundle.json?v=19"
+      "manifest": "./plugins/openzoid-legacy/manifest.json?v=20",
+      "bundle": "./plugins/openzoid-legacy/bundle.json?v=20"
     },
     {
       "id": "magic-looks",

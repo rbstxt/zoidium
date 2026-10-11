@@ -16,6 +16,10 @@ const vm = require("node:vm");
 const root = path.resolve(__dirname, "..");
 const LEGACY = "plugins/openzoid-legacy/";
 
+// The setup modules call the global ZoidiumPluginApis.random directly (the
+// shared overlay scripts load before any plugin code runs).
+require("./shared-test-apis.js").ensureGlobalApis();
+
 function read(relative) {
   return fs.readFileSync(path.join(root, relative), "utf8");
 }
