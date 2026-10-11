@@ -507,7 +507,7 @@ test("toolbar styles use theme tokens and stay scoped", () => {
   for (const token of ["--zui-bg-title", "--zui-bg-input", "--zui-accent", "--zui-value", "--zui-font"]) {
     assert.ok(css.includes(token), `missing token ${token}`);
   }
-  for (const banned of ["#939393", "graph2-css", "Inter"]) {
+  for (const banned of ["#", "rgba(", "box-shadow", "letter-spacing", "graph2-css", "Inter"]) {
     assert.ok(!css.includes(banned), `banned string remains: ${banned}`);
   }
   for (const line of css.split("\n")) {
@@ -630,6 +630,7 @@ test("space shortcuts rebind when the panel moves documents", () => {
   const self = {
     _spaceDown: false,
     _win: () => winA,
+    closeEasePopup: stubFn(),
   };
   proto._ensureSpaceListeners.call(self);
   assert.equal(winA.listeners.keydown.length, 1);
@@ -680,4 +681,212 @@ test("canvas resize observer re-measures after popup adoption", () => {
   observed.length = 0;
   proto._installResizeObserver.call(self);
   assert.equal(observed.length, 0);
+});
+
+// Canvas paints must resolve the current theme, unlike SVG which reads CSS vars.
+test("ruler rereads theme colors and font on every draw", () => {
+  const { GraphPlus } = loadModule();
+  const PZ = makeFakePZ();
+  const { context } = makeContext(PZ);
+  GraphPlus.activate(context);
+  let reads = 0;
+  let variant = "first";
+  const paints = [];
+  const ctx = new Proxy({}, { get(target, name) {
+    return name in target ? target[name] : () => {};
+  }, set(target, name, value) { target[name] = value; paints.push([name, value]); return true; } });
+  const graph = {
+    bodyEl: { clientWidth: 300 },
+    rulerCanvas: { width: 300, height: 30, getContext: () => ctx, ownerDocument: { defaultView: {
+      getComputedStyle() { reads++; return { getPropertyValue: name => variant + name }; },
+    } } },
+    viewX: () => 0, viewW: () => 100, editor: { playback: { currentFrame: 20 } },
+  };
+  PZ.ui.graph.prototype.drawRuler.call(graph);
+  variant = "second";
+  PZ.ui.graph.prototype.drawRuler.call(graph);
+  assert.equal(reads, 2);
+  for (const theme of ["first", "second"]) {
+    assert.ok(paints.some(([key, value]) => key === "fillStyle" && value === theme + "--zui-value"));
+    assert.ok(paints.some(([key, value]) => key === "font" && value === "10px " + theme + "--zui-font"));
+  }
+});
+
+test("native popup inherits current theme and font resources, then restores them on disable", () => {
+  const values = new Map([["--zui-accent", "original"]]);
+  const style = {
+    getPropertyValue: key => values.get(key) || "",
+    getPropertyPriority: () => "",
+    setProperty: (key, value) => values.set(key, value),
+    removeProperty: key => values.delete(key),
+  };
+  let theme = "first";
+  const main = {
+    documentElement: {},
+    defaultView: { getComputedStyle: () => ({ getPropertyValue: key => theme + key }) },
+    querySelectorAll: () => [{ href: "http://localhost/zoidium/ui-window.css" }, { href: "http://localhost/fonts/fonts.css?v=5" }],
+  };
+  const appended = [];
+  const popup = {
+    documentElement: { style },
+    head: { appendChild: el => appended.push(el) },
+    createElement: () => ({ dataset: {}, remove() { this.removed = true; } }),
+    getElementById: id => appended.find(el => el.id === id),
+    querySelectorAll: () => appended.filter(el => el.dataset.graphPlusTheme),
+    defaultView: { getComputedStyle: () => style },
+  };
+  const PZ = makeFakePZ();
+  const { GraphPlus } = loadModule({ document: main });
+  const { context } = makeContext(PZ, { windows: [{ panel: { el: { ownerDocument: popup } } }] });
+  GraphPlus.activate(context);
+  assert.equal(values.get("--zui-accent"), "first--zui-accent");
+  assert.deepEqual(appended.filter(el => el.rel === "stylesheet").map(el => el.href), main.querySelectorAll().map(el => el.href));
+  theme = "second";
+  const ctx = new Proxy({}, { get: () => () => {}, set: () => true });
+  PZ.ui.graph.prototype.drawRuler.call({ bodyEl: { clientWidth: 100 }, rulerCanvas: { ownerDocument: popup, getContext: () => ctx }, viewX: () => 0, viewW: () => 100, editor: {} });
+  assert.equal(values.get("--zui-font"), "second--zui-font");
+  assert.equal(values.get("--zui-accent"), "second--zui-accent");
+  GraphPlus.deactivate(context);
+  assert.equal(values.get("--zui-accent"), "original");
+  assert.equal(values.has("--zui-font"), false);
+  assert.ok(appended.every(el => el.removed));
+});
+
+function floatingHost() {
+  const listeners = {};
+  const body = {
+    classList: { add() {} }, style: {},
+    appendChild: stubFn(),
+    addEventListener(type, fn, capture) { listeners[type + (capture ? ':capture' : '')] = fn; },
+    removeEventListener(type, fn, capture) { delete listeners[type + (capture ? ':capture' : '')]; },
+    ownerDocument: { defaultView: { ResizeObserver: class {
+      observe() {} disconnect() { body.disconnected = true; }
+    } } },
+  };
+  const opens = [];
+  const ui = { openWindow(options) {
+    let open = true;
+    const cleanups = [];
+    const host = { focus: stubFn(), isOpen: () => open,
+      element: {
+        addEventListener(type, fn) { listeners['chrome:' + type] = fn; },
+        removeEventListener(type) { delete listeners['chrome:' + type]; },
+      },
+      addCleanup(fn) { cleanups.push(fn); },
+      close() { if (open) { open = false; cleanups.forEach(fn => fn()); cleanup(); } } };
+    const cleanup = options.mount(body, host);
+    opens.push({ options, host });
+    return host;
+  } };
+  const panel = () => ({ enabled: false, objects: [],
+    el: { style: {}, remove: stubFn() }, resize: stubFn(), unload: stubFn(),
+    _right: { _spaceDown: false },
+  });
+  return { body, listeners, opens, ui, panel };
+}
+
+test('floating graph factory opens once, focuses, preserves panel and cleans up on close/disable', async () => {
+  const { GraphPlus } = loadModule();
+  const PZ = makeFakePZ();
+  const native = stubFn(() => 'native');
+  const editor = { windows: [], createWindow: native, keydown: stubFn() };
+  const host = floatingHost();
+  const { context } = makeContext(PZ, editor);
+  context.ui = host.ui;
+  await GraphPlus.activate(context);
+  assert.equal(editor.createWindow({ title: 'Other' }), 'native');
+  const win = editor.createWindow({ title: 'Graph editor' });
+  const panel = host.panel();
+  win.setPanel(panel); win.enabled = true;
+  assert.equal(editor.windows[0], win);
+  assert.equal(panel.enabled, true);
+  assert.equal(host.opens[0].options.persistKey, 'graph-editor');
+  assert.equal(host.opens[0].options.placement, 'center');
+  assert.equal(host.opens[0].options.maximizable, true);
+  const again = editor.createWindow({ title: 'Graph editor' });
+  const discarded = host.panel(); again.setPanel(discarded);
+  assert.equal(again, win);
+  assert.equal(host.opens.length, 1);
+  assert.equal(host.opens[0].host.focus.calls.length, 1);
+  assert.equal(win.panel, panel);
+  assert.equal(discarded.unload.calls.length, 1);
+  const event = { code: 'Space', type: 'keydown', stopPropagation: stubFn() };
+  host.listeners['keydown:capture'](event);
+  assert.equal(panel._right._spaceDown, true);
+  host.listeners.keydown(event);
+  assert.equal(editor.keydown.calls.length, 1);
+  assert.equal(event.stopPropagation.calls.length, 1);
+  for (const key of ['n', 'm', 'o', 's', 'z', 'y']) {
+    host.listeners['chrome:keydown']({ key, ctrlKey: true, stopPropagation: stubFn() });
+  }
+  assert.equal(editor.keydown.calls.length, 7, 'chrome forwards every native popup editor command');
+  host.listeners['chrome:keydown']({ key: 'g', ctrlKey: true, stopPropagation: stubFn() });
+  assert.equal(editor.keydown.calls.length, 7, 'graph shortcut stays isolated inside the host window');
+  win.window.close(); win.window.close();
+  assert.equal(panel.unload.calls.length, 1);
+  assert.equal(panel.enabled, false);
+  assert.equal(panel.objects, null);
+  assert.equal(editor.windows.length, 0);
+  assert.equal(host.body.disconnected, true);
+  assert.deepEqual(host.listeners, {});
+  const reopened = editor.createWindow({ title: 'Graph editor' });
+  reopened.setPanel(host.panel());
+  GraphPlus.deactivate();
+  assert.equal(host.opens[1].host.isOpen(), false);
+  assert.equal(editor.windows.length, 0);
+  assert.equal(editor.createWindow, native);
+  assert.equal(editor.createWindow({ title: 'Graph editor' }), 'native');
+});
+
+test('floating graph factory restores only its own patch and rolls back a failed installation', async () => {
+  const { GraphPlus } = loadModule();
+  const PZ = makeFakePZ();
+  const host = floatingHost();
+  const editor = { windows: [], createWindow: stubFn() };
+  const { context } = makeContext(PZ, editor); context.ui = host.ui;
+  await GraphPlus.activate(context);
+  const foreign = stubFn(); editor.createWindow = foreign;
+  GraphPlus.deactivate();
+  assert.equal(editor.createWindow, foreign);
+  const original = PZ.ui.graph;
+  const broken = makeContext(PZ, editor).context;
+  Object.defineProperty(broken, 'ui', { get() { throw new Error('UI unavailable'); } });
+  await assert.rejects(GraphPlus.activate(broken), /UI unavailable/);
+  assert.equal(PZ.ui.graph, original);
+  assert.equal(editor.createWindow, foreign);
+});
+
+test('closing a graph panel ends active pointer capture before unloading its children', () => {
+  const { GraphPlus } = loadModule();
+  const calls = [];
+  const root = { remove() { calls.push('remove'); } };
+  const owner = { addEventListener() {}, removeEventListener() {} };
+  const target = { closest: () => root, ownerDocument: { defaultView: owner, ...owner },
+    setPointerCapture() {}, releasePointerCapture() { calls.push('release'); },
+    addEventListener() {}, removeEventListener() {} };
+  const panel = { el: root, enabled: true, objects: [],
+    drag: { dragging: true, endfn_bound(event) { calls.push(event.type); } },
+    panels: [{ enabled: true, unload() { calls.push('child-unload'); } }],
+    unload() { calls.push('unload'); } };
+  const drag = GraphPlus.__test.beginPointerDrag(target, { pointerId: 1 }, () => {}, () => calls.push('end'));
+  GraphPlus.__test.disposePanel(panel);
+  drag.finish(null);
+  assert.deepEqual(calls, ['release', 'end', 'mouseup', 'child-unload', 'unload', 'remove']);
+  assert.equal(panel.enabled, false);
+  assert.equal(panel.objects, null);
+});
+
+test('disable removes the instance patch when the native factory is inherited', async () => {
+  const { GraphPlus } = loadModule();
+  const PZ = makeFakePZ();
+  const native = stubFn();
+  const prototype = { createWindow: native };
+  const editor = Object.assign(Object.create(prototype), { windows: [] });
+  const { context } = makeContext(PZ, editor); context.ui = floatingHost().ui;
+  await GraphPlus.activate(context);
+  assert.ok(Object.hasOwn(editor, 'createWindow'));
+  const newerNative = stubFn(); prototype.createWindow = newerNative;
+  GraphPlus.deactivate();
+  assert.equal(Object.hasOwn(editor, 'createWindow'), false);
+  assert.equal(editor.createWindow, newerNative);
 });
