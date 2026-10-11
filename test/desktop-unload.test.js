@@ -60,6 +60,16 @@ function loadMainProcess({ dialogChoice = 1, dialogThrows = false, whenReady = t
 
   const windows = [];
   class FakeWebContents extends EventEmitter {
+    constructor() {
+      super();
+      // Mirrors the Electron session surface that main.cjs hardens with
+      // deny-by-default permission handlers.
+      this.session = {
+        setPermissionRequestHandler() {},
+        setPermissionCheckHandler() {},
+        setDevicePermissionHandler() {},
+      };
+    }
     setWindowOpenHandler() {}
     getURL() {
       return "";

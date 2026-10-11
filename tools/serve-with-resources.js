@@ -62,6 +62,41 @@ function isLiveProjectPath(relativePath) {
   );
 }
 
+// DNS-rebinding hardening for the development server: only loopback Host
+// values on the port this server bound are served. Anything else (an
+// attacker domain resolving to 127.0.0.1, a foreign port, a missing header)
+// gets a 403 before any file is read.
+const loopbackHostnames = new Set(["127.0.0.1", "localhost", "::1"]);
+
+function isAllowedHost(hostHeader, expectedPort) {
+  if (typeof hostHeader !== "string") return false;
+  const raw = hostHeader.trim();
+  if (!raw || /[\s@/\\?]/.test(raw)) return false;
+  let hostname = raw;
+  let port = null;
+  if (hostname.startsWith("[")) {
+    const end = hostname.indexOf("]");
+    if (end < 0) return false;
+    port = hostname.slice(end + 1);
+    hostname = hostname.slice(1, end);
+    if (port) {
+      if (!port.startsWith(":")) return false;
+      port = port.slice(1);
+    } else {
+      port = null;
+    }
+  } else if (hostname.includes(":")) {
+    const parts = hostname.split(":");
+    if (parts.length !== 2) return false;
+    [hostname, port] = parts;
+  }
+  if (!loopbackHostnames.has(hostname.toLowerCase())) return false;
+  if (port !== null && port !== "") {
+    if (!/^\d+$/.test(port) || Number(port) !== Number(expectedPort)) return false;
+  }
+  return true;
+}
+
 function shouldServeFromProject(requestUrl) {
   const relativePath = requestPathname(requestUrl);
   return relativePath != null && isLiveProjectPath(relativePath);
@@ -191,8 +226,14 @@ async function main() {
 
   const runtime = await prepareRuntimeStage();
   let shuttingDown = false;
+  let boundPort = options.port;
   const compressionMiddleware = compression();
   const handleRequest = (request, response) => {
+    if (!isAllowedHost(request.headers && request.headers.host, boundPort)) {
+      response.writeHead(403, { "Content-Type": "text/plain; charset=utf-8" });
+      response.end("Forbidden");
+      return;
+    }
     compressionMiddleware(request, response, async () => {
       try {
         const liveProjectFile = shouldServeFromProject(request.url);
@@ -240,6 +281,7 @@ async function main() {
 
   try {
     const port = await listenOnAvailablePort(listeners, options.port);
+    boundPort = port;
     if (options.port !== 0 && port !== options.port) {
       console.log(`[Zoidium] port ${options.port} is already in use; using ${port}`);
     }
@@ -263,6 +305,7 @@ if (require.main === module) {
 }
 
 module.exports = {
+  isAllowedHost,
   isLiveProjectPath,
   listenOnAvailablePort,
   requestPathname,
