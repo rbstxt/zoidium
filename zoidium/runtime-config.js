@@ -70,6 +70,10 @@
       // The node editor and the UI kit are split along their seams; the
       // assemblers (ui-node-editor.js, ui-kit.js) load last.
       "./zoidium/ui-panels.js",
+      "./zoidium/ui-node-editor-graph.js",
+      "./zoidium/ui-node-editor-view.js",
+      "./zoidium/ui-node-editor-fields.js",
+      "./zoidium/ui-node-editor-menu.js",
       "./zoidium/ui-node-editor.js",
       "./zoidium/ui-kit-panels.js",
       "./zoidium/ui-kit-skins.js",
