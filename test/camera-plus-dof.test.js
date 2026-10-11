@@ -105,7 +105,8 @@ test("the kernel spreads foregrounds past their outline instead of clipping them
   const shader = dof.material.fragmentShader;
   assert.match(shader, /maxRadius < 1\.0/, "in-focus pixels with nothing blurred nearby pass through untouched");
   assert.match(shader, /texture2D\( tTiles/, "the search radius comes from the dilated tile radii, not the pixel alone");
-  assert.match(shader, /sampleRadius < radius \) continue/, "a sample counts only when its own blur reaches the pixel");
+  assert.match(shader, /sampleRadius < radius \) \{[^}]*continue;/, "a sample counts only when its own blur reaches the pixel");
+  assert.match(shader, /sampleLinear < frontLimit && centerRadius >= radius \) back \+= centerColor/, "a sharp object in front stands in for the blurred surface it hides, so blur keeps its brightness at the outline");
   assert.match(shader, /sampleLinear < frontLimit \) front \+= contribution/, "nearer samples form a layer in front");
   assert.match(shader, /sampleRadius = min\( sampleRadius, centerRadius \)/, "background blur never spreads over a sharper surface");
   assert.equal(/centerColor\.a < 0\.02/.test(shader), false, "transparent pixels still receive a neighbour's blur");
