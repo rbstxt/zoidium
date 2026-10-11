@@ -606,10 +606,14 @@ textarea.zoidium-text {
 
 /* Embedded CM3 property editors (ZoidiumUI.properties) ---------------- */
 
+/* CM3's own property panels inherit the page's 16px. The rows' icons and
+   dropdowns have fixed pixel sizes, so a window's smaller text would shift
+   labels and values off CM3's alignment; reset to the panel size. */
 .zoidium-properties {
   position: relative;
   min-height: 0;
   overflow: auto;
+  font-size: 16px;
   background-color: var(--zui-bg);
 }
 
