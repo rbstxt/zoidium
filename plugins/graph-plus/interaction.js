@@ -1,0 +1,272 @@
+"use strict";
+
+module.exports = function (environment) {
+const { PZ, focusNoScroll, currentFrame, beginPointerDrag } = environment;
+/* ---------- snapping ---------- */
+PZ.ui.graph.prototype.snapFrame = function (absFrame, excludeEls) {
+  var f = Math.round(absFrame);
+  if (!this.options.snap) return f;
+  var threshPx = 8;
+  var thresh = threshPx * this.zoomX;
+  var best = f, bestD = thresh;
+  var pf = currentFrame(this.editor);
+  if (Math.abs(pf - f) < bestD) { best = pf; bestD = Math.abs(pf - f); }
+  // exclude by keyframe identity so keys being dragged never snap to each other
+  var excluded = null;
+  try { excluded = new Set(); } catch (e) { excluded = null; }
+  (excludeEls || []).forEach(function (el) { if (el.pz_object && excluded) excluded.add(el.pz_object); });
+  var groups = this.propGroups();
+  for (var gi = 0; gi < groups.length; gi++) {
+    var gel = groups[gi];
+    var off = gel.pz_frameOffset || 0;
+    var keys = gel._keys ? gel._keys.children : [];
+    for (var k = 0; k < keys.length; k++) {
+      var kf = keys[k].pz_object;
+      if (!kf) continue;
+      if (excluded && excluded.has(kf)) continue;
+      var ax = kf.frame + off;
+      var d = Math.abs(ax - f);
+      if (d < bestD && d > 0) { best = ax; bestD = d; }
+    }
+  }
+  return best;
+};
+
+/* ---------- keyframe drag (pointer based) ---------- */
+PZ.ui.graph.prototype.attachKeyframeHandlers = function (el) {
+  var self = this;
+  el.addEventListener("pointerdown", function (e) {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    try { e.preventDefault(); } catch (err) {}
+    focusNoScroll(self.bodyEl);
+    var wasSelected = el.classList.contains("selected");
+    if (!wasSelected) {
+      if (!e.shiftKey) self.deselectAllKeyframes();
+      self.selectKeyframe(el);
+    }
+    var rect = self.svg.getBoundingClientRect();
+    var startPx = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    var startG = self.screenToGraph(startPx.x, startPx.y);
+    var sel = self.selectedKeys();
+    // snapshot
+    var snap = sel.map(function (s) {
+      var gel = s.parentElement.parentElement;
+      return {
+        el: s, gel: gel, kf: s.pz_object,
+        oldFrame: s.pz_object.frame,
+        oldValue: s.pz_object.value,
+        scale: (gel && gel.pz_valueScale) || 1,
+        off: (gel && gel.pz_frameOffset) || 0
+      };
+    });
+    var curG = startG;
+    var moved = false;
+    self.editor.history.startOperation();
+    var mv = function (ev) {
+      var r2 = self.svg.getBoundingClientRect();
+      curG = self.screenToGraph(ev.clientX - r2.left, ev.clientY - r2.top);
+      if (!moved && Math.abs(ev.clientX - e.clientX) + Math.abs(ev.clientY - e.clientY) < 4) return;
+      moved = true;
+      var updateFrame = !ev.ctrlKey;
+      var updateValue = !ev.shiftKey;
+      var dAbs = curG.x - startG.x;
+      var dGraphY = curG.y - startG.y;
+      for (var i = 0; i < snap.length; i++) {
+        var s = snap[i];
+        if (updateFrame) {
+          var want = s.oldFrame + dAbs; // relative delta == absolute delta
+          var absWant = want + s.off;
+          var snapped = self.snapFrame(absWant, sel);
+          s.kf.frame = Math.round(snapped - s.off);
+        }
+        if (updateValue) {
+          s.kf.value = s.oldValue + (-dGraphY) / s.scale;
+          try {
+            if (s.gel.pz_object.definition && s.gel.pz_object.definition.min !== undefined)
+              s.kf.value = Math.max(s.kf.value, s.gel.pz_object.definition.min);
+            if (s.gel.pz_object.definition && s.gel.pz_object.definition.max !== undefined)
+              s.kf.value = Math.min(s.kf.value, s.gel.pz_object.definition.max);
+          } catch (err) {}
+        }
+        self.updateKeyframe(s.el);
+        if (s.el.pz_handles) self.updateHandles(s.el.pz_handles);
+        self.refreshAdjacentCurves(s.el);
+      }
+      self.updateStatus();
+    };
+    var up = function (ev) {
+      if (ev && ev.shiftKey && !moved && wasSelected) self.deselectKeyframe(el);
+      if (moved) {
+        for (var q = 0; q < snap.length; q++) {
+          snap[q].el.pz_oldFrame = snap[q].oldFrame;
+          snap[q].el.pz_oldValue = snap[q].oldValue;
+        }
+        self.selectNewKeyframes = true;
+        self.finishMovingKeyframes(sel);
+        self.selectNewKeyframes = false;
+        // push value undo commands
+        for (var i = 0; i < snap.length; i++) {
+          var s = snap[i];
+          var prop = s.gel.pz_object;
+          self.editor.history.pushCommand(
+            PZ.ui.properties.prototype.setValue.bind(self),
+            { property: prop.getAddress(), value: s.oldValue, frame: s.kf.frame }
+          );
+        }
+      }
+      self.editor.history.finishOperation();
+      self.updateStatus();
+    };
+    beginPointerDrag(el, e, mv, up);
+  });
+};
+/* legacy shims: keep method names so old callers don't break */
+PZ.ui.graph.prototype.keyframeDragStart = function () {};
+PZ.ui.graph.prototype.keyframeDrag = function () {};
+PZ.ui.graph.prototype.keyframeDragUpdate = function () {};
+PZ.ui.graph.prototype.keyframeDragEnd = function () {};
+PZ.ui.graph.prototype.finishMovingKeyframes = function (selEls) {
+  var els = selEls || this.selectedKeys();
+  // group by curve layer
+  var byLayer = {};
+  for (var i = 0; i < els.length; i++) {
+    var gel = els[i].parentElement.parentElement;
+    if (!gel || !gel.pz_object) continue;
+    var id = gel._gid;
+    (byLayer[id] = byLayer[id] || { gel: gel, els: [] }).els.push(els[i]);
+  }
+  var self = this;
+  Object.keys(byLayer).forEach(function (id) {
+    var entry = byLayer[id];
+    var prop = entry.gel.pz_object;
+    var list = entry.els;
+    // direction for stable collision handling
+    list.sort(function (a, b) { return a.pz_object.frame - b.pz_object.frame; });
+    var moves = self.propertyOps.startMove(prop, list.length);
+    var map = new Map();
+    for (var e = 0; e < list.length; e++) {
+      var oldF = list[e].pz_oldFrame !== undefined ? list[e].pz_oldFrame : list[e].pz_object.frame;
+      // pz_oldFrame was set in old code; in new code snapshot old from drag — fallback to current
+      moves[e].oldFrame = list[e].pz_object.frame;
+      moves[e].newFrame = oldF;
+      map.set(moves[e], list[e].pz_object);
+      delete list[e].pz_oldFrame;
+      delete list[e].pz_oldValue;
+    }
+    // NOTE: startMove returns [{oldFrame:0,newFrame:0}]; we store undo = move back.
+    // Our live mutation already applied; finishMove sorts, resolves collisions,
+    // pushes undo commands and fires onKeyframeMoved for re-layout.
+    try { self.propertyOps.finishMove(prop, new Set(list.map(function (x) { return x.pz_object; })), moves, map); }
+    catch (err) {}
+  });
+  this.updateViewBox();
+  this.updateLegend();
+};
+
+/* ---------- handle drag ---------- */
+PZ.ui.graph.prototype.attachHandleHandlers = function (el, cpIdx, kfEl) {
+  var self = this;
+  el.addEventListener("pointerdown", function (e) {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    try { e.preventDefault(); } catch (err) {}
+    focusNoScroll(self.bodyEl);
+    var gel = kfEl.parentElement.parentElement;
+    var kf = kfEl.pz_object;
+    var scale = (gel && gel.pz_valueScale) || 1;
+    var rect = self.svg.getBoundingClientRect();
+    var startPx = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    var startG = self.screenToGraph(startPx.x, startPx.y);
+    var startAbsF = kf.frame + ((gel && gel.pz_frameOffset) || 0) + kf.controlPoints[cpIdx][0];
+    var startVal = kf.value + kf.controlPoints[cpIdx][1];
+    var sel = self.selectedKeys();
+    if (!kfEl.classList.contains("selected")) sel = [kfEl];
+    var snaps = sel.map(function (s) {
+      return { el: s, kf: s.pz_object, gel: s.parentElement.parentElement, oldCP: JSON.parse(JSON.stringify(s.pz_object.controlPoints)) };
+    });
+    snaps.forEach(function (sn) { sn.el.pz_oldControlPoints = JSON.parse(JSON.stringify(sn.oldCP)); });
+    var moved = false;
+    self.editor.history.startOperation();
+    var mv = function (ev) {
+      var r2 = self.svg.getBoundingClientRect();
+      var curG = self.screenToGraph(ev.clientX - r2.left, ev.clientY - r2.top);
+      if (!moved && Math.abs(ev.clientX - e.clientX) + Math.abs(ev.clientY - e.clientY) < 4) return;
+      moved = true;
+      var dF = curG.x - startG.x;
+      var dV = -(curG.y - startG.y);
+      var breakT = ev.shiftKey;
+      for (var i = 0; i < snaps.length; i++) {
+        var sn = snaps[i];
+        var sc = (sn.gel && sn.gel.pz_valueScale) || 1;
+        var cp = sn.kf.controlPoints[cpIdx];
+        var wantF = sn.oldCP[cpIdx][0] + dF;
+        if (cpIdx === 0) cp[0] = Math.min(wantF, 0);
+        else cp[0] = Math.max(wantF, 0);
+        cp[1] = sn.oldCP[cpIdx][1] + dV / sc;
+        if (sn.kf.continuousTangent && !breakT) {
+          var other = sn.kf.controlPoints[1 - cpIdx];
+          // mirror: keep length of other? old code mirrors dragged length onto other
+          var len = Math.sqrt(cp[0] * cp[0] + cp[1] * cp[1]);
+          var ang = Math.atan2(cp[1], cp[0]) + Math.PI;
+          // preserve other length? old code overwrote other with same length — keep that behavior
+          other[0] = len * Math.cos(ang);
+          other[1] = len * Math.sin(ang);
+        }
+        self.updateHandles(sn.el.pz_handles);
+        self.refreshAdjacentCurves(sn.el);
+      }
+    };
+    var up = function (ev) {
+      if (moved) self.finishMovingHandles(ev && ev.shiftKey);
+      self.editor.history.finishOperation();
+    };
+    beginPointerDrag(el, e, mv, up);
+    void startAbsF; void startVal; void scale;
+  });
+};
+PZ.ui.graph.prototype.handleDragStart = function () {};
+PZ.ui.graph.prototype.handleDrag = function () {};
+PZ.ui.graph.prototype.handleDragUpdate = function () {};
+PZ.ui.graph.prototype.handleDragEnd = function () {};
+PZ.ui.graph.prototype.finishMovingHandles = function (brokeTangent) {
+  var sel = this.selectedKeys();
+  var byLayer = {};
+  for (var i = 0; i < sel.length; i++) {
+    var gel = sel[i].parentElement.parentElement;
+    if (!gel || !gel.pz_object) continue;
+    (byLayer[gel._gid] = byLayer[gel._gid] || { gel: gel, els: [] }).els.push(sel[i]);
+  }
+  var self = this;
+  Object.keys(byLayer).forEach(function (id) {
+    var entry = byLayer[id];
+    var addr = entry.gel.pz_object.getAddress();
+    entry.els.forEach(function (kfel) {
+      var kf = kfel.pz_object;
+      var oldCP = kfel.pz_oldControlPoints;
+      if (!oldCP) {
+        // fallback: push current as undo (no-op) — still need to fire changed
+        try { entry.gel.pz_object.onKeyframeChanged.update(kf); } catch (e) {}
+        return;
+      }
+      if (brokeTangent && kf.continuousTangent) {
+        try { self.propertyOps.setContinuousTangent({ property: addr, frame: kf.frame, continuous: false }); } catch (e) {}
+      }
+      self.editor.history.pushCommand(
+        PZ.ui.properties.prototype.setControlPoints.bind(self),
+        { property: addr, frame: kf.frame, controlPoints: oldCP }
+      );
+      delete kfel.pz_oldControlPoints;
+    });
+  });
+  // snapshot oldCP for next drag
+  this.updateViewBox();
+};
+// store oldCP on selection for undo of handles
+PZ.ui.graph.prototype.snapshotHandleUndo = function () {
+  var sel = this.selectedKeys();
+  sel.forEach(function (el) {
+    el.pz_oldControlPoints = JSON.parse(JSON.stringify(el.pz_object.controlPoints));
+  });
+};
+};
