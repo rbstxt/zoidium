@@ -602,3 +602,55 @@ test("uninstall disables hooks even when another plugin wraps above them", () =>
   env.uninstall();
   assert.equal(env.project.media[0].toJSON().comp, undefined);
 });
+
+// Characterization pins for the round-9 split (data model, engine, timeline
+// integration): exact validation messages, name sequencing, entry rows and
+// the engine version guard. The split must keep these identical.
+
+test("name validation rejects empty, long, reserved and duplicate names", () => {
+  const env = createEnvironment();
+  const { A } = makeABSelection(env);
+  env.tracks.selectedClips = [A];
+
+  assert.equal(env.engine.precompose(env.editor, "   ").ok, false);
+  assert.equal(env.engine.precompose(env.editor, "   ").message, "Enter a name for the composition.");
+  assert.equal(env.engine.precompose(env.editor, "x".repeat(61)).message,
+    "Names can be 60 characters or fewer.");
+  assert.equal(env.engine.precompose(env.editor, "Main").message,
+    "Main is reserved for the main timeline.");
+  assert.equal(env.engine.precompose(env.editor, "Intro").ok, true);
+  env.tracks.selectedClips = [A];
+  assert.equal(env.engine.precompose(env.editor, "intro").message,
+    'A composition named "intro" already exists.');
+});
+
+test("composition names count up and entries list Main first with uses", () => {
+  const env = createEnvironment();
+  assert.equal(env.engine.nextCompName(env.project), "Comp 1");
+  const { A, B } = makeABSelection(env);
+  env.tracks.selectedClips = [A, B];
+  const created = env.engine.precompose(env.editor, env.engine.nextCompName(env.project));
+  assert.equal(created.name, "Comp 1");
+  assert.equal(env.engine.nextCompName(env.project), "Comp 2");
+
+  const rows = env.engine.entries(env.editor);
+  assert.equal(rows.length, 2);
+  assert.deepEqual(rows[0], { id: "main", name: "Main", isMain: true, editing: true, length: 0, uses: 0 });
+  assert.equal(rows[1].id, created.id);
+  assert.equal(rows[1].name, "Comp 1");
+  assert.equal(rows[1].editing, false);
+  assert.equal(rows[1].length, 60);
+  assert.equal(rows[1].uses, 1);
+});
+
+test("empty compositions report length 1 and the engine reports version 3", () => {
+  const env = createEnvironment();
+  assert.equal(env.engine.version, 3);
+  const created = env.engine.newEmptyComp(env.editor);
+  assert.equal(created.ok, true);
+  const rows = env.engine.entries(env.editor);
+  assert.equal(rows[1].length, 1, "an empty composition still spans one frame");
+  assert.equal(env.engine.openComp(env.editor, "missing-id").message,
+    "That composition no longer exists.");
+  assert.equal(env.engine.openComp(null, null).message, "Open a project first.");
+});
