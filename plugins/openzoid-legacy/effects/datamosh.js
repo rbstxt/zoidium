@@ -691,14 +691,12 @@ function DatamoshPass(effect) {
         depthBuffer: false,
         stencilBuffer: false,
     };
-    // Nearest filtering keeps the encoded vectors exact.
+    // Nearest filtering keeps the encoded vectors exact. Shared scratch
+    // targets (zoidium/shared/gl.js).
     this.blockTargets = [
-        new THREE.WebGLRenderTarget(1, 1, blockOptions),
-        new THREE.WebGLRenderTarget(1, 1, blockOptions),
+        ZoidiumPluginApis.gl.createRenderTarget(THREE, 1, 1, blockOptions),
+        ZoidiumPluginApis.gl.createRenderTarget(THREE, 1, 1, blockOptions),
     ];
-    this.blockTargets.forEach(function (target) {
-        target.texture.generateMipmaps = false;
-    });
     this.materialMotion = new THREE.ShaderMaterial({
         uniforms: this.motionUniforms,
         vertexShader: DATAMOSH_VERTEX_SHADER,

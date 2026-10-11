@@ -1,4 +1,5 @@
 "use strict";
+require("./migrate-test-apis.js").ensureMainRealmApis();
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const core = require("../plugins/scene-plus/effector-core.js");

@@ -21,6 +21,22 @@ function loadPluginApis() {
   const sandbox = { PZ: { property: { type: PZ_TYPES } }, console };
   sandbox.globalThis = sandbox;
   vm.createContext(sandbox);
+  // The shared overlay scripts load before plugin-apis.js in the browser, so
+  // the effect sources under test see the attached tables here too.
+  for (const file of [
+    "zoidium/shared/random.js",
+    "zoidium/shared/props.js",
+    "zoidium/shared/color.js",
+    "zoidium/shared/gl.js",
+    "zoidium/shared/json.js",
+    "zoidium/shared/windows.js",
+  ]) {
+    vm.runInContext(
+      fs.readFileSync(path.join(projectRoot, file), "utf8"),
+      sandbox,
+      { filename: file },
+    );
+  }
   vm.runInContext(fs.readFileSync(path.join(projectRoot, "zoidium/plugin-apis.js"), "utf8"), sandbox);
   return { apis: sandbox.ZoidiumPluginApis, PZ: sandbox.PZ };
 }
@@ -161,8 +177,9 @@ function fakeJpegEnvironment() {
 
 test("jpeg damage takes its vertex shader from the host asset pipeline", async () => {
   const env = fakeJpegEnvironment();
+  const { apis } = loadPluginApis();
   new Function("PZ", "THREE", "ZoidiumPluginApis", read("effects/jpegdamage.js")).call(
-    env.effect, env.PZ, env.THREE, null
+    env.effect, env.PZ, env.THREE, apis
   );
   await env.effect.load({});
   assert.deepEqual(env.created, ["/assets/shaders/vertex/common.glsl"], "host vertex asset");
@@ -173,8 +190,9 @@ test("jpeg damage takes its vertex shader from the host asset pipeline", async (
 
 test("jpeg damage disposes its material and geometry on unload", async () => {
   const env = fakeJpegEnvironment();
+  const { apis } = loadPluginApis();
   new Function("PZ", "THREE", "ZoidiumPluginApis", read("effects/jpegdamage.js")).call(
-    env.effect, env.PZ, env.THREE, null
+    env.effect, env.PZ, env.THREE, apis
   );
   await env.effect.load({});
   env.effect.unload();

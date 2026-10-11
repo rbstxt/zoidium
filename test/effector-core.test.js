@@ -3,6 +3,7 @@
 // Pure math for Effector deformers: twist and warp evaluation, field weights,
 // deformer-frame transforms, deterministic hashing, and subdivision.
 
+require("./migrate-test-apis.js").ensureMainRealmApis();
 const assert = require("node:assert/strict");
 const test = require("node:test");
 const core = require("../plugins/scene-plus/effector-core.js");

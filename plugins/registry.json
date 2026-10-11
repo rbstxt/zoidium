@@ -26,27 +26,27 @@
       "id": "core",
       "name": "Zoidium Core",
       "author": "Zoidium",
-      "version": "26",
+      "version": "27",
       "visibility": "hidden",
       "alwaysEnabled": true,
       "tagline": "Built-in core extensions",
       "description": "Hidden built-in extensions that always run. Not shown in the Plugins panel and never stored in projects.",
-      "manifest": "./plugins/core/manifest.json?v=26",
-      "bundle": "./plugins/core/bundle.json?v=26"
+      "manifest": "./plugins/core/manifest.json?v=27",
+      "bundle": "./plugins/core/bundle.json?v=27"
     },
     {
       "id": "easing-plus",
       "category": "utilities",
       "name": "Easing+",
       "author": "Zoidium",
-      "version": "25",
+      "version": "26",
       "itemCount": 1,
       "format": "curve editor",
       "tagline": "Extended Bezier Easing",
       "color": "#384668",
       "description": "A normalized cubic Bezier editor with a focused set of reusable presets.",
-      "manifest": "./plugins/easing-plus/manifest.json?v=25",
-      "bundle": "./plugins/easing-plus/bundle.json?v=25"
+      "manifest": "./plugins/easing-plus/manifest.json?v=26",
+      "bundle": "./plugins/easing-plus/bundle.json?v=26"
     },
     {
       "id": "player-plus",
@@ -141,7 +141,7 @@
       "category": "scene",
       "name": "Effector",
       "author": "Zoidium",
-      "version": "24",
+      "version": "25",
       "defaultEnabled": true,
       "itemCount": 7,
       "format": "3D effectors",
@@ -149,30 +149,30 @@
       "color": "#6c7fb5",
       "description": "Adds procedural repeaters plus Twist, Warp and Voronoi Fracture effectors to 3D Scene.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/scene-plus/manifest.json?v=24",
-      "bundle": "./plugins/scene-plus/bundle.json?v=24"
+      "manifest": "./plugins/scene-plus/manifest.json?v=25",
+      "bundle": "./plugins/scene-plus/bundle.json?v=25"
     },
     {
       "id": "material-plus",
       "category": "scene",
       "name": "Material+",
       "author": "Zoidium",
-      "version": "12",
+      "version": "13",
       "itemCount": 5,
       "format": "3D materials",
       "tagline": "Node, PBR+, Matcap & Image+ materials",
       "color": "#b36bca",
       "description": "Adds procedural Node Materials with a node editor, PBR+ with ramps, Fresnel, cel shading and projection, Image+ with opacity, Matcap, and corrected-UV materials for 3D objects.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/material-plus/manifest.json?v=12",
-      "bundle": "./plugins/material-plus/bundle.json?v=12"
+      "manifest": "./plugins/material-plus/manifest.json?v=13",
+      "bundle": "./plugins/material-plus/bundle.json?v=13"
     },
     {
       "id": "text-plus",
       "category": "scene",
       "name": "Text+",
       "author": "Zoidium",
-      "version": "18",
+      "version": "19",
       "defaultEnabled": true,
       "itemCount": 6,
       "format": "3D text containers",
@@ -181,8 +181,8 @@
       "description": "Adds per-character controls and advanced bevel options to editable 3D Text.",
       "credits": "Credits: DaviFX",
       "zoidiumOnly": true,
-      "manifest": "./plugins/text-plus/manifest.json?v=18",
-      "bundle": "./plugins/text-plus/bundle.json?v=18"
+      "manifest": "./plugins/text-plus/manifest.json?v=19",
+      "bundle": "./plugins/text-plus/bundle.json?v=19"
     },
     {
       "id": "particles-plus",
@@ -204,15 +204,15 @@
       "category": "scene",
       "name": "Rowbyte & Red Giant Suite",
       "author": "DaviFX",
-      "version": "23",
+      "version": "24",
       "itemCount": 14,
       "format": "3D objects",
       "tagline": "Particular, Form, Plexus and C4D lights",
       "color": "#c9a13b",
       "description": "Trapcode Particular, Form and Plexus 3D objects with floating designer windows, deterministic simulation and audio analysis, plus C4D-style lights.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/trapcode-suite/manifest.json?v=23",
-      "bundle": "./plugins/trapcode-suite/bundle.json?v=23"
+      "manifest": "./plugins/trapcode-suite/manifest.json?v=24",
+      "bundle": "./plugins/trapcode-suite/bundle.json?v=24"
     },
     {
       "id": "optical-flares",
@@ -330,37 +330,37 @@
       "category": "adjustment",
       "name": "OpenZoid Legacy",
       "author": "DaviFX",
-      "version": "20",
+      "version": "21",
       "itemCount": 12,
       "format": "native effects",
       "tagline": "Echo, Posterize Time, JPEG, VHS, Datamosh, Tracery",
       "color": "#8f6bc5",
       "description": "OpenZoid effects on Zoidium deterministic rendering: Echo and Posterize Time (Legacy), Jpeg Damage, VHS, Datamosh, Tracery and ASCII, with floating setup windows.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/openzoid-legacy/manifest.json?v=20",
-      "bundle": "./plugins/openzoid-legacy/bundle.json?v=20"
+      "manifest": "./plugins/openzoid-legacy/manifest.json?v=21",
+      "bundle": "./plugins/openzoid-legacy/bundle.json?v=21"
     },
     {
       "id": "magic-looks",
       "category": "adjustment",
       "name": "Magic Looks",
       "author": "DaviFX",
-      "version": "9",
+      "version": "10",
       "itemCount": 29,
       "format": "setup",
       "tagline": "Looks-style color grading",
       "color": "#f7941d",
       "description": "Magic Bullet Looks-style color grading: 29 color, light and lens tools in a reorderable chain with look presets and a floating setup window.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/magic-looks/manifest.json?v=9",
-      "bundle": "./plugins/magic-looks/bundle.json?v=9"
+      "manifest": "./plugins/magic-looks/manifest.json?v=10",
+      "bundle": "./plugins/magic-looks/bundle.json?v=10"
     },
     {
       "id": "layer-input",
       "category": "experimental",
       "name": "Layer Input",
       "author": "Zoidium",
-      "version": "11",
+      "version": "12",
       "itemCount": 4,
       "format": "layer sources",
       "tagline": "Layer-to-Layer Inputs",
@@ -368,8 +368,8 @@
       "description": "Lets effects, 3D materials, and Custom Shaders use another video track as an information source.",
       "zoidiumOnly": true,
       "warning": "Layer Input projects require Zoidium. This feature is extremely experimental and may cause unexpected crashes.",
-      "manifest": "./plugins/layer-input/manifest.json?v=11",
-      "bundle": "./plugins/layer-input/bundle.json?v=11"
+      "manifest": "./plugins/layer-input/manifest.json?v=12",
+      "bundle": "./plugins/layer-input/bundle.json?v=12"
     }
   ]
 }

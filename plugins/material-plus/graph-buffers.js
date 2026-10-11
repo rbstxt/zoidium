@@ -360,6 +360,11 @@ module.exports = function createPixelBuffers(document) {
         return buffer;
     }
 
+    // Local copies kept deliberately: this file also evaluates inside the
+    // graph worker (see graph-worker.js), whose realm has no overlay scripts
+    // and hence no ZoidiumPluginApis. Hue in [0, 1] (the *01 variants).
+    // Each is pinned bit-for-bit against the shared module by
+    // test/migrate-shared-pins.test.js.
     function rgbToHsv(r, g, b) {
         var max = Math.max(r, g, b);
         var min = Math.min(r, g, b);

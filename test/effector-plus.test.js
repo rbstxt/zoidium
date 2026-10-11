@@ -3,6 +3,7 @@
 // Effector+ is a compatibility layer: it maps numeric object types 7/8/9 from
 // Davidium projects onto the Effector classes and adds no menu entries.
 
+require("./migrate-test-apis.js").ensureMainRealmApis();
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");

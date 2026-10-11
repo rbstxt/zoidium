@@ -10,48 +10,27 @@ var Looks = Looks || {};
 (function (Looks) {
   var color = {};
 
+  // Shared color math (zoidium/shared/color.js). Each twin is pinned
+  // bit-for-bit by test/migrate-shared-pins.test.js.
   function clamp(v, lo, hi) {
-    return v < lo ? lo : v > hi ? hi : v;
+    return ZoidiumPluginApis.color.clamp(v, lo, hi);
   }
   color.clamp = clamp;
 
   function lerp(a, b, t) {
-    return a + (b - a) * t;
+    return ZoidiumPluginApis.color.lerp(a, b, t);
   }
   color.lerp = lerp;
 
   // h in [0,360), s/v in [0,1] -> [r,g,b] in [0,1].
   function hsvToRgb(h, s, v) {
-    h = ((h % 360) + 360) % 360;
-    s = clamp(s, 0, 1);
-    v = clamp(v, 0, 1);
-    var c = v * s;
-    var x = c * (1 - Math.abs(((h / 60) % 2) - 1));
-    var m = v - c;
-    var r = 0, g = 0, b = 0;
-    if (h < 60) { r = c; g = x; }
-    else if (h < 120) { r = x; g = c; }
-    else if (h < 180) { g = c; b = x; }
-    else if (h < 240) { g = x; b = c; }
-    else if (h < 300) { r = x; b = c; }
-    else { r = c; b = x; }
-    return [r + m, g + m, b + m];
+    return ZoidiumPluginApis.color.hsvToRgb(h, s, v);
   }
   color.hsvToRgb = hsvToRgb;
 
   // [r,g,b] in [0,1] -> { h in [0,360), s, v }.
   function rgbToHsv(r, g, b) {
-    var mx = Math.max(r, g, b);
-    var mn = Math.min(r, g, b);
-    var d = mx - mn;
-    var h = 0;
-    if (d > 1e-9) {
-      if (mx === r) h = 60 * (((g - b) / d) % 6);
-      else if (mx === g) h = 60 * ((b - r) / d + 2);
-      else h = 60 * ((r - g) / d + 4);
-    }
-    if (h < 0) h += 360;
-    return { h: h, s: mx === 0 ? 0 : d / mx, v: mx };
+    return ZoidiumPluginApis.color.rgbToHsv(r, g, b);
   }
   color.rgbToHsv = rgbToHsv;
 

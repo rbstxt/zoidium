@@ -13,6 +13,8 @@ const fs = require("node:fs");
 const path = require("node:path");
 const test = require("node:test");
 
+require("./migrate-test-apis.js").ensureMainRealmApis();
+
 const projectRoot = path.resolve(__dirname, "..");
 
 function readFile(relative) {

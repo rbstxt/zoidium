@@ -4,6 +4,7 @@
 // test surface so the file can move into cohesive modules without changing
 // behavior. Uses only plain require, which works before and after the split.
 
+require("./migrate-test-apis.js").ensureMainRealmApis();
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");

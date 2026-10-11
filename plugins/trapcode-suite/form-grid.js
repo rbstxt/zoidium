@@ -28,39 +28,14 @@ var PZ = PZ || {};
     // Scratch buffers reused by every frame (single-threaded render path).
     var MAP_RGBA = new Float64Array(4);
     var SPHERE_OUT = new Float64Array(3);
+    // Shared Form 3D value noise (zoidium/shared/random.js). Pinned
+    // bit-for-bit by test/migrate-shared-pins.test.js.
     function hash3(x, y, z, seed) {
-        var n = Math.sin(x * 127.1 + y * 311.7 + z * 74.7 + seed * 13.37) * 43758.5453;
-        return n - Math.floor(n);
+        return ZoidiumPluginApis.random.formHash3(x, y, z, seed);
     }
 
     function smoothNoise(x, y, z, seed) {
-        var xi = Math.floor(x);
-        var yi = Math.floor(y);
-        var zi = Math.floor(z);
-        var xf = x - xi;
-        var yf = y - yi;
-        var zf = z - zi;
-        var u = xf * xf * (3 - 2 * xf);
-        var v = yf * yf * (3 - 2 * yf);
-        var w = zf * zf * (3 - 2 * zf);
-        function lerp(a, b, t) {
-            return a + (b - a) * t;
-        }
-        var c000 = hash3(xi, yi, zi, seed);
-        var c100 = hash3(xi + 1, yi, zi, seed);
-        var c010 = hash3(xi, yi + 1, zi, seed);
-        var c110 = hash3(xi + 1, yi + 1, zi, seed);
-        var c001 = hash3(xi, yi, zi + 1, seed);
-        var c101 = hash3(xi + 1, yi, zi + 1, seed);
-        var c011 = hash3(xi, yi + 1, zi + 1, seed);
-        var c111 = hash3(xi + 1, yi + 1, zi + 1, seed);
-        var x00 = lerp(c000, c100, u);
-        var x10 = lerp(c010, c110, u);
-        var x01 = lerp(c001, c101, u);
-        var x11 = lerp(c011, c111, u);
-        var y0 = lerp(x00, x10, v);
-        var y1 = lerp(x01, x11, v);
-        return lerp(y0, y1, w) * 2 - 1;
+        return ZoidiumPluginApis.random.formSmoothNoise(x, y, z, seed);
     }
 
     function fbm(x, y, z, params, time) {

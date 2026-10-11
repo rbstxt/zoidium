@@ -211,13 +211,12 @@ function jpegPipeline(material) {
     var table = jpegQuantTexture();
     u.quantTable.value = table;
     var targets = [0, 1].map(function () {
-        var target = new THREE.WebGLRenderTarget(1, 1, {
+        // Shared scratch target (zoidium/shared/gl.js).
+        return ZoidiumPluginApis.gl.createRenderTarget(THREE, 1, 1, {
             minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter,
             format: THREE.RGBAFormat, type: THREE.UnsignedByteType,
             depthBuffer: false, stencilBuffer: false,
         });
-        target.texture.generateMipmaps = false;
-        return target;
     });
     pass.targets = targets;
     pass.materials = materials;

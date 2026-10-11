@@ -495,6 +495,10 @@ function capContours(loops, plane, epsilon, maxVertices) {
   return polygons;
 }
 
+// Local copy kept deliberately: this file also evaluates inside the Mesh
+// worker (see createWorkerSource), whose realm has no overlay scripts and
+// hence no ZoidiumPluginApis. Pinned bit-for-bit against
+// ZoidiumPluginApis.color.hslToRgb by test/migrate-shared-pins.test.js.
 function hueToRgb(p, q, t) {
   let value = t;
   if (value < 0) value += 1;
