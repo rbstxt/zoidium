@@ -606,6 +606,7 @@ PZ.datamoshRender = (function () {
                 }
             }
         } catch (err) {
+            // Unreadable sequence structure: moshing falls back to the full video.
             return [];
         }
         var arr = Object.keys(times).map(function (k) { return Number(k); });

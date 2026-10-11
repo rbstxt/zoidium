@@ -32,6 +32,9 @@ const traceryProps = traceryParts("./effects/tracery-props.js");
 
 this.defaultName = "Tracery";
 
+// Warn-once flag for the per-frame state collection in update() below.
+var traceryStateWarned = false;
+
 // Exposed for unit tests and debugging (the file otherwise only installs
 // per-instance members when evaluated as an effect module).
 this.traceryPaths = {
@@ -94,6 +97,11 @@ this.update = function (e) {
     try {
         st = traceryOverlay.trCollectState(this.properties, e);
     } catch (err) {
+        // Per-frame path: report once, then stay silent while the overlay is empty.
+        if (!traceryStateWarned) {
+            traceryStateWarned = true;
+            console.warn("[Zoidium] openzoid-legacy: Tracery state could not be read; overlay stays empty.", err);
+        }
         st = { points: [] };
     }
     var sig = JSON.stringify(st);
