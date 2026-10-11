@@ -329,11 +329,12 @@ test("velocity and environment renders exclude flares and restore visibility on 
   const host = buildHost();
   const quad = { __zoidiumOpticalFlareQuad: true, visible: true };
   const mesh = { visible: true };
+  let traverses = 0;
+  const seenDuringRender = [];
   class Pass {
-    constructor() { this.scene = { traverse(fn) { fn(quad); fn(mesh); } }; }
+    constructor() { this.scene = { traverse(fn) { traverses += 1; fn(quad); fn(mesh); } }; }
     render(fail) {
-      assert.equal(quad.visible, false);
-      assert.equal(mesh.visible, true);
+      seenDuringRender.push([quad.visible, mesh.visible]);
       if (fail) throw new Error("render failed");
       return "drawn";
     }
@@ -344,13 +345,21 @@ test("velocity and environment renders exclude flares and restore visibility on 
   const runtime = loadRuntimeModule();
   const { context, dispose } = makeContext(host, bundledSources());
   runtime.activate(context);
+  assert.equal(new host.PZ.motionBlur().render(), "drawn", "no live flares: the original runs directly");
+  assert.equal(traverses, 0, "no live flares: the scene is not traversed");
+  assert.deepEqual(seenDuringRender, [[true, true]], "no live flares: nothing is hidden");
+  const flare = host.PZ.object3d.create(13);
+  flare.load({ objectType: 0 });
   assert.equal(new host.PZ.motionBlur().render(), "drawn");
+  assert.equal(traverses, 1, "a live flare traverses the scene to hide its quads");
+  assert.deepEqual(seenDuringRender[1], [false, true], "the flare quad hides, other meshes stay");
   assert.equal(quad.visible, true);
   assert.throws(() => new host.PZ.envMap().render(true), /render failed/);
   assert.equal(quad.visible, true);
   quad.visible = false;
   new host.PZ.motionBlur().render();
   assert.equal(quad.visible, false, "initially hidden quads stay hidden");
+  flare.unload();
   dispose();
   assert.equal(Pass.prototype.render, original);
 });
@@ -360,8 +369,9 @@ test("velocity updates preserve the flare projection callback even on failure", 
   const projection = () => "projection";
   const quad = { __zoidiumOpticalFlareQuad: true, onBeforeRender: projection };
   const mesh = { onBeforeRender: null };
+  let traverses = 0;
   class Velocity {
-    constructor() { this.scene = { traverse(fn) { fn(quad); fn(mesh); } }; }
+    constructor() { this.scene = { traverse(fn) { traverses += 1; fn(quad); fn(mesh); } }; }
     update(fail) {
       this.scene.traverse(node => { node.onBeforeRender = () => "velocity"; });
       if (fail) throw new Error("update failed");
@@ -373,10 +383,18 @@ test("velocity updates preserve the flare projection callback even on failure", 
   const { context, dispose } = makeContext(host, bundledSources());
   runtime.activate(context);
   new Velocity().update();
+  assert.equal(traverses, 1, "no live flares: only the original's own traversal runs");
+  assert.equal(quad.onBeforeRender(), "velocity", "no live flares: the original runs directly");
+  quad.onBeforeRender = projection;
+  const flare = host.PZ.object3d.create(13);
+  flare.load({ objectType: 0 });
+  new Velocity().update();
+  assert.equal(traverses, 3, "a live flare adds the callback-preserving traversal");
   assert.equal(quad.onBeforeRender, projection);
   assert.equal(mesh.onBeforeRender(), "velocity");
   assert.throws(() => new Velocity().update(true), /update failed/);
   assert.equal(quad.onBeforeRender, projection);
+  flare.unload();
   dispose();
   assert.equal(Velocity.prototype.update, original);
 });
