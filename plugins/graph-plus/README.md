@@ -40,3 +40,10 @@ Coexists with Easing+: Easing+ patches the property-row controls and the
 keyframe move/scale paths, while Graph Editor 2 only replaces the graph
 panel classes. Both read and write the same Bezier handles through
 `PZ.tween.correctCurve` and the native `propertyOps` hooks.
+
+The bundle loads its source modules with the shared `modules.createRequire`
+loader. `graph-plus.js` owns installation and window cleanup; `pointer.js`
+tracks owner documents and active drags; `theme.js` owns theme and CSS.
+`editor.js` assembles the editor from `editor-helpers.js`, `editor-core.js`,
+`toolbar.js`, `canvas.js`, `interaction.js`, `curves.js`, and `operations.js`.
+These files are declared text resources inside the same plugin bundle.
