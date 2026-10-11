@@ -229,3 +229,16 @@ test("snapshot CLI accepts the package runner argument separator", async (t) => 
   await assert.rejects(snapshot.main(["export", "--", "--output=/unused-snapshot-target"]), /Cannot export CM3 cache: fixture cache is missing/);
   assert.equal(runtime.parseCliArgs(["--", "--setup"]).setup, true);
 });
+
+test("R2 failures name the S3 error code and trim pasted credentials", async () => {
+  const { transfer } = require("../tools/cm3-snapshot.js");
+  let seen;
+  const fetchImpl = async (url, options) => {
+    seen = { url, authorization: options.headers.authorization };
+    return { ok: false, status: 403, text: async () => "<?xml version=\"1.0\"?><Error><Code>SignatureDoesNotMatch</Code><Message>x</Message></Error>" };
+  };
+  const env = { ZOIDIUM_R2_ACCOUNT_ID: "abc123\n", ZOIDIUM_R2_ACCESS_KEY_ID: " key-id ", ZOIDIUM_R2_SECRET_ACCESS_KEY: "secret\n" };
+  await assert.rejects(transfer("r2://bucket/snapshot.zcs", { fetchImpl, env }), /HTTP 403 \(SignatureDoesNotMatch\)/);
+  assert.equal(seen.url, "https://abc123.r2.cloudflarestorage.com/bucket/snapshot.zcs");
+  assert.match(seen.authorization, /Credential=key-id\//);
+});

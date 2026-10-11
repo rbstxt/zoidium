@@ -39,7 +39,10 @@ function remoteRequest(source, method, body, env) {
   if (source.startsWith("r2://")) {
     const location = new URL(source);
     if (!location.hostname || location.username || location.password || location.search || location.hash || location.pathname === "/") throw new Error("Use r2://bucket/key for a snapshot");
-    for (const name of ["ZOIDIUM_R2_ACCOUNT_ID", "ZOIDIUM_R2_ACCESS_KEY_ID", "ZOIDIUM_R2_SECRET_ACCESS_KEY"]) {
+    // Pasted dashboard values often carry a trailing newline or space.
+    env = Object.fromEntries(["ZOIDIUM_R2_ACCOUNT_ID", "ZOIDIUM_R2_ACCESS_KEY_ID", "ZOIDIUM_R2_SECRET_ACCESS_KEY"]
+      .map((name) => [name, String(env[name] || "").trim()]));
+    for (const name of Object.keys(env)) {
       if (!env[name]) throw new Error(`Missing ${name} for the private CM3 snapshot`);
     }
     if (!/^[a-zA-Z0-9]+$/.test(env.ZOIDIUM_R2_ACCOUNT_ID)) throw new Error("Invalid R2 account ID");
@@ -60,7 +63,13 @@ async function transfer(source, { method = "GET", body, fetchImpl = globalThis.f
   const request = remoteRequest(source, method, body, env);
   // Never redirect signed requests or bearer credentials to another endpoint.
   const response = await fetchImpl(request.url, { method, headers: request.headers, body: method === "PUT" ? body : undefined, redirect: "error", signal: AbortSignal.timeout(60_000) });
-  if (!response.ok) throw new Error(`CM3 snapshot ${method} failed with HTTP ${response.status}`);
+  if (!response.ok) {
+    // S3-compatible errors name the cause (for example SignatureDoesNotMatch,
+    // InvalidAccessKeyId or AccessDenied) without echoing credentials.
+    const text = await response.text().catch(() => "");
+    const code = /<Code>([A-Za-z]+)<\/Code>/.exec(text);
+    throw new Error(`CM3 snapshot ${method} failed with HTTP ${response.status}${code ? ` (${code[1]})` : ""}`);
+  }
   if (method === "GET") return Buffer.from(await response.arrayBuffer());
 }
 
