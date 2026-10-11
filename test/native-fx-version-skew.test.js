@@ -38,7 +38,7 @@ function stubPropertyTypes() {
 // (new Function(source).call(instance)) against a chosen API surface.
 function evaluateEffectSource(source, apis) {
   const sandbox = {
-    ZoidiumPluginApis: apis,
+    ZoidiumPluginApis: { ...apis, props: require("./shared-test-apis").loadSharedTables().props },
     PZ: { property: { type: stubPropertyTypes() } },
     THREE: {
       Vector2: class Vector2 {
@@ -139,7 +139,7 @@ function loadManagerScope(apis) {
     "__helpers = { nativeEffectMissingApis, describeNativeEffectSkew, registerNativeFactory };";
   const calls = { factories: new Map(), errors: [] };
   const sandbox = {
-    ZoidiumPluginApis: apis,
+    ZoidiumPluginApis: { ...apis, props: require("./shared-test-apis").loadSharedTables().props },
     PZ: { property: { type: stubPropertyTypes() }, effect: { fnList: {} } },
     console: {
       error(...args) {
@@ -159,9 +159,6 @@ function loadManagerScope(apis) {
         compatibility: "incompatible",
         effectName: (effect && effect.name) || name || type,
       };
-    },
-    cloneJson(value) {
-      return JSON.parse(JSON.stringify(value));
     },
     trackNativeEffect() {},
     untrackNativeEffect() {},
@@ -220,7 +217,7 @@ test("a stale shell installs an incompatible placeholder without evaluating the 
     assert.equal(typeof instance[method], "function", method);
   }
   instance.load({ type: "echo", properties: {} });
-  assert.deepEqual(instance.toJSON(), { type: "echo", properties: {} });
+  assert.deepEqual(JSON.parse(JSON.stringify(instance.toJSON())), { type: "echo", properties: {} });
   instance.unload();
 });
 

@@ -15,7 +15,6 @@
   const insertionIndex = (...args) => manager.insertionIndex(...args);
   const createLazyEffectData = (...args) => manager.createLazyEffectData(...args);
   const loadGroupData = (...args) => manager.loadGroupData(...args);
-  const cloneJson = (...args) => manager.cloneJson(...args);
   const syncUsageTooltip = (...args) => manager.syncUsageTooltip(...args);
   const installMissingNativeFactory = (...args) => manager.installMissingNativeFactory(...args);
   const registerNativeFactory = (...args) => manager.registerNativeFactory(...args);
@@ -249,7 +248,7 @@
       const objectTypes = getObjectTypes(definition.target);
       if (objectTypes.some((entry) => entry?._zoidiumPluginId === plugin.id &&
           entry?.name === definition.name && entry?.type === definition.type)) continue;
-      const entry = JSON.parse(JSON.stringify(definition));
+      const entry = ZoidiumPluginApis.props.cloneJson(definition);
       delete entry.target;
       delete entry.replace;
       // Object plugins with variants must always open their variant chooser.
@@ -296,7 +295,7 @@
       !objectClassMenuEntryAlreadyRegistered
     ) {
       const objectClassMenuItems = objectClasses.map((objectClass) => {
-        const data = cloneJson(objectClass.defaultData || {});
+        const data = ZoidiumPluginApis.props.cloneJson(objectClass.defaultData || {});
         if (!data.type) data.type = objectClass.type;
         if (!data.schemaVersion) data.schemaVersion = objectClass.schemaVersion || 1;
         return {

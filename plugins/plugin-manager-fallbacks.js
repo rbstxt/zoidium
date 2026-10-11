@@ -3,7 +3,6 @@
   "use strict";
   const manager = window.ZoidiumPluginManagerInternals;
   const { NUMERIC_OBJECT_TYPES, NUMERIC_LAYER_TYPES, missingNumericObjects, missingNumericLayers } = manager;
-  const cloneJson = (...args) => manager.cloneJson(...args);
 
   // BEGIN manager body 2437
   function trackMissingNumericObject(instance) {
@@ -20,7 +19,7 @@
     placeholder._zoidiumMissingNumeric = { kind: "object", pluginId, objectId, type, data: null };
     placeholder.load = async function (data) {
       try {
-        this._zoidiumMissingNumeric.data = cloneJson(data);
+        this._zoidiumMissingNumeric.data = ZoidiumPluginApis.props.cloneJson(data);
       } catch (_error) {
         this._zoidiumMissingNumeric.data = { type };
       }
@@ -28,7 +27,7 @@
     placeholder.toJSON = function () {
       try {
         const data = this._zoidiumMissingNumeric.data;
-        if (data && typeof data === "object") return cloneJson(data);
+        if (data && typeof data === "object") return ZoidiumPluginApis.props.cloneJson(data);
       } catch (_error) { /* fall through */ }
       return { type: this._zoidiumMissingNumeric.type };
     };
@@ -46,7 +45,7 @@
     layer._zoidiumMissingNumeric = { kind: "layer", pluginId, layerId, type, data: null };
     layer.load = async function (data) {
       try {
-        this._zoidiumMissingNumeric.data = cloneJson(data);
+        this._zoidiumMissingNumeric.data = ZoidiumPluginApis.props.cloneJson(data);
       } catch (_error) {
         this._zoidiumMissingNumeric.data = { type };
       }
@@ -54,7 +53,7 @@
     layer.toJSON = function () {
       try {
         const data = this._zoidiumMissingNumeric.data;
-        if (data && typeof data === "object") return cloneJson(data);
+        if (data && typeof data === "object") return ZoidiumPluginApis.props.cloneJson(data);
       } catch (_error) { /* fall through */ }
       return { type: this._zoidiumMissingNumeric.type };
     };

@@ -5,7 +5,6 @@
   const { PLUGIN_MATERIAL_TYPES, pluginStates, trackedNativeEffects, trackedPluginMaterials, trackedPluginObjects, trackedPluginResources, registryReady } = manager;
   const isSaveApprovalRemembered = (...args) => manager.isSaveApprovalRemembered(...args);
   const rememberSaveApproval = (...args) => manager.rememberSaveApproval(...args);
-  const cloneJson = (...args) => manager.cloneJson(...args);
   const installMissingNativeFactory = (...args) => manager.installMissingNativeFactory(...args);
   const installMissingMaterialFactory = (...args) => manager.installMissingMaterialFactory(...args);
   const pluginIsEnabled = (...args) => manager.pluginIsEnabled(...args);
@@ -225,7 +224,7 @@
           snapshot[key] = value;
         }
       }
-      return cloneJson(snapshot);
+      return ZoidiumPluginApis.props.cloneJson(snapshot);
     };
     for (const prototype of prototypes) {
       if (!prototype || !owns(prototype, "load") || typeof prototype.toJSON !== "function") continue;
@@ -279,11 +278,11 @@
           const live = Object.getOwnPropertyDescriptor(this, key);
           const value = live && owns(live, "value") ? live.value : extra.fields[key];
           if (value !== undefined) Object.defineProperty(json, key, {
-            value: cloneJson(value), enumerable: true, configurable: true, writable: true,
+            value: ZoidiumPluginApis.props.cloneJson(value), enumerable: true, configurable: true, writable: true,
           });
         }
         if (Object.keys(extra.properties).length && json.properties) {
-          json.properties = { ...cloneJson(extra.properties), ...cloneJson(json.properties) };
+          json.properties = { ...ZoidiumPluginApis.props.cloneJson(extra.properties), ...ZoidiumPluginApis.props.cloneJson(json.properties) };
         }
         return json;
       };
@@ -305,7 +304,7 @@
       // host's own result and passes through untouched.
       if (!json || typeof json !== "object") return json;
       const trackedPlugins = collectProjectPlugins(this);
-      const plugins = projectPluginRequirements({ ...cloneJson(json), plugins: trackedPlugins });
+      const plugins = projectPluginRequirements({ ...ZoidiumPluginApis.props.cloneJson(json), plugins: trackedPlugins });
       if (plugins.length > 0) json.plugins = serializeProjectPlugins(plugins);
       else delete json.plugins;
       return json;

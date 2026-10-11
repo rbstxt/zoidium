@@ -4,7 +4,6 @@
   const manager = window.ZoidiumPluginManagerInternals;
   const { DEFAULT_IN_USE_REASON, NATIVE_FX_PLUGIN_ID, NATIVE_FX_EFFECTS, pluginStates, trackedNativeEffects, missingNativeEffects, trackedPluginMaterials, missingPluginMaterials, trackedPluginObjects, missingPluginObjects, trackedPluginResources, missingPluginResources } = manager;
   const updateDebugUsage = (...args) => manager.updateDebugUsage(...args);
-  const cloneJson = (...args) => manager.cloneJson(...args);
   const pluginIsEnabled = (...args) => manager.pluginIsEnabled(...args);
   const debugItemBelongsToProject = (...args) => manager.debugItemBelongsToProject(...args);
   const pluginUsageReason = (...args) => manager.pluginUsageReason(...args);
@@ -114,13 +113,13 @@
           value: `${missingMetadata.effectName} requires the ${missingMetadata.name} plugin.`,
         });
         effect.load = function (data) {
-          effect._zoidiumMissingData = cloneJson(data || { type });
+          effect._zoidiumMissingData = ZoidiumPluginApis.props.cloneJson(data || { type });
           effect.properties.name.set(`Missing ${missingMetadata.name}: ${missingMetadata.effectName}`);
           effect.properties.missingDependency.load();
           trackNativeEffect(effect, missingMetadata, true);
         };
         effect.toJSON = function () {
-          return cloneJson(effect._zoidiumMissingData || { type });
+          return ZoidiumPluginApis.props.cloneJson(effect._zoidiumMissingData || { type });
         };
         effect.update = function () {};
         effect.resize = function () {};
@@ -182,14 +181,14 @@
       value: message,
     });
     effect.load = function (data) {
-      effect._zoidiumMissingData = cloneJson(data || { type: manifestEffect?.id });
+      effect._zoidiumMissingData = ZoidiumPluginApis.props.cloneJson(data || { type: manifestEffect?.id });
       effect.properties.name.set(`Incompatible ${metadata.name}: ${metadata.effectName}`);
       effect.properties.incompatibleRuntime.load();
       trackNativeEffect(effect, metadata, true);
       console.error(`[Zoidium] ${message}`, error || "");
     };
     effect.toJSON = function () {
-      return cloneJson(effect._zoidiumMissingData || { type: manifestEffect?.id });
+      return ZoidiumPluginApis.props.cloneJson(effect._zoidiumMissingData || { type: manifestEffect?.id });
     };
     effect.update = function () {};
     effect.resize = function () {};
@@ -452,7 +451,7 @@
           value: `${missingMetadata.materialName} requires the ${missingMetadata.name} plugin.`,
         });
         material.load = function (data) {
-          material._zoidiumMissingData = cloneJson(data || { type });
+          material._zoidiumMissingData = ZoidiumPluginApis.props.cloneJson(data || { type });
           material.properties.name.set(
             `Missing ${missingMetadata.name}: ${missingMetadata.materialName}`
           );
@@ -465,7 +464,7 @@
           trackPluginMaterial(material, missingMetadata, true);
         };
         material.toJSON = function () {
-          return cloneJson(material._zoidiumMissingData || { type });
+          return ZoidiumPluginApis.props.cloneJson(material._zoidiumMissingData || { type });
         };
         material.update = function () {};
         material.prepare = async function () {};
