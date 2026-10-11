@@ -166,6 +166,10 @@ raising the limit. Plugins load their split files from the bundle with
 (see `docs/plugin-api.md`); declare each file as a text asset in the
 manifest.
 
+`pnpm run verify` also runs ESLint (`eslint.config.cjs`) with the `no-undef`
+rule over every source file, so a helper used by a split file without being
+imported fails the check instead of only failing at runtime.
+
 ## User-facing text language
 
 Zoidium has no localization layer. Write every piece of user-facing text — UI

@@ -147,7 +147,7 @@ function install() {
       ["selectClips", "redraw"].forEach(function (key) {
         restores.push(patch(Tracks.prototype, key, function (original) {
           return function () {
-            if (this.timeline && this.timeline.editor) cachedTracks = this;
+            if (this.timeline && this.timeline.editor) timeline.rememberTimelineTracks(this);
             return original.apply(this, arguments);
           };
         }));

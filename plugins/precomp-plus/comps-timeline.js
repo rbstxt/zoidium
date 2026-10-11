@@ -134,6 +134,11 @@ function clearTimelineCache() {
   cachedTracks = null;
 }
 
+// The Tracks patch in comps.js remembers the live timeline as CM3 draws it.
+function rememberTimelineTracks(tracks) {
+  cachedTracks = tracks;
+}
+
 module.exports = {
   findTimelineTracks: findTimelineTracks,
   refreshTimeline: refreshTimeline,
@@ -144,5 +149,6 @@ module.exports = {
   cmdRemoveComp: cmdRemoveComp,
   cmdRenameComp: cmdRenameComp,
   clearTimelineCache: clearTimelineCache,
+  rememberTimelineTracks: rememberTimelineTracks,
 };
 

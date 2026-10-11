@@ -11,6 +11,7 @@ const checks = [
   ["plugin bundle freshness", ["tools/build-plugin-bundles.js", "--check"]],
   ["JavaScript syntax", ["tools/check-syntax.js"]],
   ["source file length", ["tools/check-file-length.js"]],
+  ["undefined references (ESLint no-undef)", ["node_modules/eslint/bin/eslint.js", "."]],
   ["tests", ["--test"]],
 ];
 
