@@ -3,7 +3,13 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const crypto = require("node:crypto");
+const vm = require("node:vm");
 const NodeMaterial = require("../plugins/material-plus/node-material");
+function pluginApis() {
+  const context = { PZ: {}, console };
+  vm.runInNewContext(fs.readFileSync("zoidium/plugin-apis.js", "utf8"), context);
+  return context.ZoidiumPluginApis;
+}
 const Pbr = require("../plugins/material-plus/pbr-plus");
 const ImagePlus = require("../plugins/material-plus/image-plus");
 function harness() {
@@ -15,7 +21,7 @@ function harness() {
   const PZ = { property: { type: Object.fromEntries(["TEXT", "GRADIENT", "NUMBER", "OPTION", "COLOR", "VECTOR2", "VECTOR3", "ASSET"].map(k => [k, k])) }, asset: { type: { IMAGE: "image" }, image: class { constructor(asset) { this.asset = asset; this.loading = Promise.resolve(); } getTexture() { return new Texture(); } getImage() { return { width: 8, height: 8 }; } } }, material: { fnList: {} } };
   const document = { createElement() { const canvas = { width: 0, height: 0 }; canvas.getContext = () => ({ createImageData(w, h) { return { data: new Uint8ClampedArray(w * h * 4) }; }, putImageData(image) { canvas.data = image.data.slice(); }, drawImage() {}, getImageData() { return { data: new Uint8ClampedArray(canvas.width * canvas.height * 4) }; } }); return canvas; } };
   const dispose = [], editors = [], panels = [];
-  const context = { PZ, window: { PZ, THREE, document, setTimeout: fn => fn() }, document, plugin: { id: "material-plus", version: "6" }, lifecycle: { onDispose(fn) { dispose.push(fn); } }, getAsset(type, name) { return fs.readFileSync(name.replace(/^\.\//, "").split("?")[0], "utf8"); }, ui: { refreshEditors() {}, registerEditor(spec) { editors.push(spec); }, registerAttributePanel(spec) { panels.push(spec); } } };
+  const context = { PZ, window: { PZ, THREE, document, setTimeout: fn => fn() }, document, plugin: { id: "material-plus", version: "6" }, lifecycle: { onDispose(fn) { dispose.push(fn); } }, apis: pluginApis(), getAsset(type, name) { return fs.readFileSync(name.replace(/^\.\//, "").split("?")[0], "utf8"); }, ui: { refreshEditors() {}, registerEditor(spec) { editors.push(spec); }, registerAttributePanel(spec) { panels.push(spec); } } };
   const unloaded = [];
   function material(type) {
     const material = { type, parentProject: { assets: { load: key => ({ key }), unload: asset => unloaded.push(asset) }, sequence: { properties: { rate: { get: () => 30 } } } }, parentLayer: {} };
@@ -76,7 +82,7 @@ test("Image+ reads opacity at the requested frame and leaves native material fac
 });
 test("graph worker queues only the latest frame and stays idle for PBR+ with graphs off", async () => {
   const h = harness();
-  const pure = new Function(fs.readFileSync("plugins/material-plus/graph-runtime.js", "utf8"))()({}, null);
+  const pure = require("../plugins/material-plus/graph-runtime.js")({}, null);
   let created = 0, concurrent = 0, maximum = 0, terminated = 0;
   h.context.window.Blob = class {};
   h.context.window.URL = { createObjectURL: () => "blob:graph", revokeObjectURL() {} };
@@ -162,7 +168,7 @@ test("unloading during a worker bake settles preparation and terminates the work
 
 function controlledBakes(h) {
   const jobs = [];
-  const pure = new Function(fs.readFileSync("plugins/material-plus/graph-runtime.js", "utf8"))()({}, null);
+  const pure = require("../plugins/material-plus/graph-runtime.js")({}, null);
   h.context.window.Blob = class {};
   h.context.window.URL = { createObjectURL: () => "blob:controlled", revokeObjectURL() {} };
   h.context.window.Worker = class {
@@ -224,7 +230,7 @@ test("export waits for exact full-resolution pixels and ignores preview updates 
     assert.equal(prepared, false); assert.equal(bakes.jobs[0].job.size, 512);
     m.update(22); await flushBakes();
     assert.equal(bakes.jobs[0].job.time, .5); bakes.finish(); await exporting;
-    const pure = new Function(fs.readFileSync("plugins/material-plus/graph-runtime.js", "utf8"))()({}, null);
+    const pure = require("../plugins/material-plus/graph-runtime.js")({}, null);
     assert.deepEqual(m.pzGraphTextures.color.image.data, pure.evaluate(m.pzGraph, 512, .5, {}).color);
     m.update(15); await flushBakes(); assert.equal(bakes.jobs.length, 0, "rendering the prepared frame keeps full resolution");
     m.unload();

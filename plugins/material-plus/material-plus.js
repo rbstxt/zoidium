@@ -311,6 +311,9 @@ const MaterialPlus = (() => {
     state.PZ = PZ;
     state.THREE = THREE_API;
     state.plugin = context.plugin || {};
+    // Register cleanup before mutating the host so a failed or disabled
+    // plugin always restores the previous material factory.
+    context.lifecycle?.onDispose?.(deactivate);
     state.hadPreviousFactory = Object.prototype.hasOwnProperty.call(
       PZ.material.fnList,
       MATERIAL_ID

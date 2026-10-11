@@ -141,7 +141,7 @@
       "category": "scene",
       "name": "Effector",
       "author": "Zoidium",
-      "version": "23",
+      "version": "24",
       "defaultEnabled": true,
       "itemCount": 7,
       "format": "3D effectors",
@@ -149,23 +149,23 @@
       "color": "#6c7fb5",
       "description": "Adds procedural repeaters plus Twist, Warp and Voronoi Fracture effectors to 3D Scene.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/scene-plus/manifest.json?v=23",
-      "bundle": "./plugins/scene-plus/bundle.json?v=23"
+      "manifest": "./plugins/scene-plus/manifest.json?v=24",
+      "bundle": "./plugins/scene-plus/bundle.json?v=24"
     },
     {
       "id": "material-plus",
       "category": "scene",
       "name": "Material+",
       "author": "Zoidium",
-      "version": "11",
+      "version": "12",
       "itemCount": 5,
       "format": "3D materials",
       "tagline": "Node, PBR+, Matcap & Image+ materials",
       "color": "#b36bca",
       "description": "Adds procedural Node Materials with a node editor, PBR+ with ramps, Fresnel, cel shading and projection, Image+ with opacity, Matcap, and corrected-UV materials for 3D objects.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/material-plus/manifest.json?v=11",
-      "bundle": "./plugins/material-plus/bundle.json?v=11"
+      "manifest": "./plugins/material-plus/manifest.json?v=12",
+      "bundle": "./plugins/material-plus/bundle.json?v=12"
     },
     {
       "id": "text-plus",
