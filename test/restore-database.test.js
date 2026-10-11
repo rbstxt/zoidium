@@ -11,10 +11,22 @@ const path = require("node:path");
 const test = require("node:test");
 const vm = require("node:vm");
 
-const RESTORE_SOURCE = fs.readFileSync(
-  path.join(__dirname, "..", "zoidium", "project-restore.js"),
-  "utf8",
-);
+const RESTORE_SOURCES = (() => {
+  // After the split this loads the part files in browser order; before it,
+  // the single entry file. The assertions below are unchanged either way.
+  const parts = [
+    "zoidium/project-restore-store.js",
+    "zoidium/project-restore-snapshots.js",
+    "zoidium/project-restore-toasts.js",
+    "zoidium/project-restore.js",
+  ];
+  if (parts.every((relative) => fs.existsSync(path.join(__dirname, "..", relative)))) {
+    return parts.map((relative) => fs.readFileSync(path.join(__dirname, "..", relative), "utf8"));
+  }
+  return [
+    fs.readFileSync(path.join(__dirname, "..", "zoidium", "project-restore.js"), "utf8"),
+  ];
+})();
 
 function flush(rounds = 16) {
   let chain = Promise.resolve();
@@ -549,7 +561,9 @@ function loadRestore(options = {}) {
   };
   sandbox.window = sandbox;
   vm.createContext(sandbox);
-  vm.runInContext(RESTORE_SOURCE, sandbox, { filename: "project-restore.js" });
+  RESTORE_SOURCES.forEach((source, index) => {
+    vm.runInContext(source, sandbox, { filename: `project-restore-part-${index}.js` });
+  });
 
   const panel = menubarTabs.length ? menubarTabs[0].panel : null;
   const toasts = () => documentObject.body.children.filter(
@@ -762,4 +776,149 @@ test("declining the second delete-all step keeps everything", async () => {
 
   assert.equal(calls, 2);
   assert.equal(listEntries(harness).length, 1);
+});
+
+// Characterization pins for the retention and scheduling behavior the
+// round-9 split (storage, snapshot validation, panel UI, toasts) must keep:
+// per-title/total/time-bucket pruning, unchanged automatic backups skipped
+// without serializing, manual backups reported, and stale pre-copy records
+// rendered unusable instead of restorable.
+
+function seedAutomaticSnapshots(count, options = {}) {
+  const now = Date.now();
+  const records = new Map();
+  for (let index = 0; index < count; index += 1) {
+    const ageHours = typeof options.ageHours === "function"
+      ? options.ageHours(index)
+      : (options.ageHours || 0);
+    const title = typeof options.title === "function"
+      ? options.title(index)
+      : (options.title || "project");
+    records.set(`auto-${index}`, {
+      id: `auto-${index}`,
+      createdAt: now - ageHours * 60 * 60 * 1000 - index * 1000,
+      projectName: title,
+      size: 10,
+      assetCount: 0,
+      blob: { size: 10 },
+      fingerprint: `fp-${index}`,
+      automatic: true,
+    });
+  }
+  return {
+    "zoidium-restore-points": {
+      version: 2,
+      stores: {
+        snapshots: { keyPath: "id", records },
+        assets: { keyPath: "id", records: new Map() },
+      },
+    },
+  };
+}
+
+function clickBackupNow(harness) {
+  harness.panel.querySelector(".zoidium-restore-backup-control").children[0].click();
+}
+
+function runAllTimeouts(harness) {
+  const pending = harness.timeouts.splice(0);
+  pending.forEach(([callback]) => callback());
+}
+
+test("pruning keeps at most 12 automatic points per project title", async () => {
+  // One point per hour over 20 hours: no single hour bucket binds (buckets
+  // past the second keep 1 each), so the per-title limit of 12 decides.
+  const harness = loadRestore({ seed: seedAutomaticSnapshots(20, { ageHours: (i) => i }) });
+  await flush();
+  assert.equal(listEntries(harness).length, 20);
+
+  clickBackupNow(harness);
+  await flush();
+
+  const automatic = listEntries(harness).filter((entry) => /zoidium-restore-entry/.test(entry.className));
+  assert.equal(automatic.length, 13, "12 automatic points plus the manual one");
+});
+
+test("pruning keeps at most 24 automatic points in total", async () => {
+  const harness = loadRestore({
+    seed: seedAutomaticSnapshots(30, { ageHours: (i) => i, title: (i) => `project ${i % 5}` }),
+  });
+  await flush();
+
+  clickBackupNow(harness);
+  await flush();
+
+  const automatic = listEntries(harness).filter((entry) => /zoidium-restore-entry/.test(entry.className));
+  assert.ok(automatic.length <= 25, `expected at most 24 automatic plus manual, got ${automatic.length}`);
+  assert.equal(automatic.length, 25);
+});
+
+test("pruning keeps only recent points per hour bucket", async () => {
+  // Ten automatic points within the current hour: the first-hour bucket
+  // keeps 4 of them.
+  const harness = loadRestore({ seed: seedAutomaticSnapshots(10, { ageHours: 0 }) });
+  await flush();
+
+  clickBackupNow(harness);
+  await flush();
+
+  const automatic = listEntries(harness).filter((entry) => /zoidium-restore-entry/.test(entry.className));
+  assert.equal(automatic.length, 5, "4 automatic points plus the manual one");
+});
+
+test("an unchanged automatic backup is skipped without a new record", async () => {
+  const harness = loadRestore({ seed: seedAutomaticSnapshots(0) });
+  await flush();
+
+  runAllTimeouts(harness);
+  await flush();
+  assert.equal(listEntries(harness).length, 1);
+
+  runAllTimeouts(harness);
+  await flush();
+  const entries = listEntries(harness).filter((entry) => /zoidium-restore-entry/.test(entry.className));
+  assert.equal(entries.length, 1, "no second point when nothing changed");
+});
+
+test("a manual backup reports that it was created", async () => {
+  const harness = loadRestore({ seed: seedAutomaticSnapshots(0) });
+  await flush();
+
+  clickBackupNow(harness);
+  await flush();
+
+  assert.equal(listEntries(harness).length, 1);
+  const visible = harness.toasts().filter((toast) => toast.classList.contains("is-visible"));
+  assert.equal(visible.length, 1);
+  assert.equal(
+    visible[0].querySelector(".zoidium-project-toast-message").textContent,
+    "Restore point created.",
+  );
+});
+
+test("a stale pre-copy record is unusable and cannot be restored", async () => {
+  const seed = seedAutomaticSnapshots(0);
+  seed["zoidium-restore-points"].stores.snapshots.records.set("stale-point", {
+    id: "stale-point",
+    createdAt: Date.now() - 60000,
+    projectName: "old project",
+    size: 12,
+    assetCount: 0,
+    blob: { name: "shared.tmp", size: 12, slice() { return null; } },
+    fingerprint: "fp-stale",
+    automatic: false,
+  });
+  const harness = loadRestore({ seed });
+  await flush();
+
+  const entries = listEntries(harness).filter((entry) => /zoidium-restore-entry/.test(entry.className));
+  assert.equal(entries.length, 1);
+  const entry = entries[0];
+  assert.match(entry.className, /is-unusable/);
+  const stats = entry.children[0].children[2].textContent;
+  assert.match(stats, /before exports were copied/);
+  const actions = entry.children[entry.children.length - 1];
+  assert.equal(actions.children[0].disabled, true, "restore disabled");
+  assert.equal(actions.children[1].disabled, true, "download disabled");
+  assert.equal(actions.children[2].disabled, false, "delete stays available");
 });
