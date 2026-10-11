@@ -271,6 +271,9 @@ module.exports = function createThumbs(PZ) {
     // Draws the thumbnail for an element type on a canvas. Dispatches by type
     // key so every type draws its own shape. A canvas without a 2D context
     // (or a missing type) is left blank instead of throwing.
+    // Thumbnail failures are reported once per type so a broken canvas does
+    // not flood the console while the window stays usable.
+    var warnedThumbTypes = {};
     function drawThumb(canvas, type, tint) {
         if (!canvas || typeof canvas.getContext !== "function") return;
         var ctx = null;
@@ -293,6 +296,11 @@ module.exports = function createThumbs(PZ) {
             if (draw) draw(ctx, w, h, color);
             ctx.restore();
         } catch (error) {
+            var thumbKey = "type:" + type;
+            if (!warnedThumbTypes[thumbKey]) {
+                warnedThumbTypes[thumbKey] = true;
+                console.warn("[Zoidium] optical-flares: thumbnail draw failed", error);
+            }
             try { ctx.restore(); } catch (ignored) { /* keep the window usable */ }
         }
     }
