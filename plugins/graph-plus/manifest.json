@@ -3,64 +3,64 @@
   "id": "graph-plus",
   "name": "Graph Editor 2",
   "author": "DaviFX",
-  "version": "7",
+  "version": "8",
   "kind": "extension",
   "modules": [
     {
       "id": "graph-editor",
-      "source": "./plugins/graph-plus/graph-plus.js?v=7"
+      "source": "./plugins/graph-plus/graph-plus.js?v=8"
     }
   ],
   "resources": [
     {
       "id": "canvas",
       "type": "text",
-      "source": "./plugins/graph-plus/canvas.js?v=7"
+      "source": "./plugins/graph-plus/canvas.js?v=8"
     },
     {
       "id": "curves",
       "type": "text",
-      "source": "./plugins/graph-plus/curves.js?v=7"
+      "source": "./plugins/graph-plus/curves.js?v=8"
     },
     {
       "id": "editor-core",
       "type": "text",
-      "source": "./plugins/graph-plus/editor-core.js?v=7"
+      "source": "./plugins/graph-plus/editor-core.js?v=8"
     },
     {
       "id": "editor-helpers",
       "type": "text",
-      "source": "./plugins/graph-plus/editor-helpers.js?v=7"
+      "source": "./plugins/graph-plus/editor-helpers.js?v=8"
     },
     {
       "id": "editor",
       "type": "text",
-      "source": "./plugins/graph-plus/editor.js?v=7"
+      "source": "./plugins/graph-plus/editor.js?v=8"
     },
     {
       "id": "interaction",
       "type": "text",
-      "source": "./plugins/graph-plus/interaction.js?v=7"
+      "source": "./plugins/graph-plus/interaction.js?v=8"
     },
     {
       "id": "operations",
       "type": "text",
-      "source": "./plugins/graph-plus/operations.js?v=7"
+      "source": "./plugins/graph-plus/operations.js?v=8"
     },
     {
       "id": "pointer",
       "type": "text",
-      "source": "./plugins/graph-plus/pointer.js?v=7"
+      "source": "./plugins/graph-plus/pointer.js?v=8"
     },
     {
       "id": "theme",
       "type": "text",
-      "source": "./plugins/graph-plus/theme.js?v=7"
+      "source": "./plugins/graph-plus/theme.js?v=8"
     },
     {
       "id": "toolbar",
       "type": "text",
-      "source": "./plugins/graph-plus/toolbar.js?v=7"
+      "source": "./plugins/graph-plus/toolbar.js?v=8"
     }
   ]
 }
