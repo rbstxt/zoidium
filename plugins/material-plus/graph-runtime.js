@@ -50,20 +50,28 @@ return function createGraphRuntime(PZ, document) {
     var BLEND_MODES = ["normal", "add", "subtract", "multiply", "screen", "overlay", "darken", "lighten", "difference"];
     var MATH_MODES = ["Add", "Subtract", "Multiply", "Divide", "Minimum", "Maximum", "Power", "Modulo", "Absolute", "Invert", "Clamp", "Compare", "Sine", "Round"];
 
-    function coordsAt(uv, index, size, x, y) {
-        if (uv) {
-            return [uv[index] / 255, uv[index + 1] / 255];
-        }
-        return [x / size, y / size];
+    function coordsAt(uv, index, size, x, y, coords) {
+        coords[0] = uv ? uv[index] / 255 : x / size;
+        coords[1] = uv ? uv[index + 1] / 255 : y / size;
+        return coords;
     }
 
+    let fractalScratch = null;
+    let latticeCache = null;
     function fractalBuffer(size, params, time, transform, uv) {
         var octaves = clamp(Math.round(params.octaves || 4), 1, 8);
         var frequencyX = Math.max(1, Math.round(params.scale || 4));
         var frequencyY = Math.max(1, Math.round((params.scale || 4) * (params.ratio || 1)));
         var rand = random(params.seed || 1);
-        var values = new Float32Array(size * size);
-        var layer = new Float32Array(size * size);
+        if (!fractalScratch || fractalScratch.size !== size) fractalScratch = {
+            size, values: new Float32Array(size * size), layer: new Float32Array(size * size),
+            x0: new Int32Array(size), x1: new Int32Array(size), sx: new Float64Array(size),
+        };
+        var { values, layer, x0: xs0, x1: xs1, sx: xSmooth } = fractalScratch;
+        values.fill(0);
+        const latticeKey = JSON.stringify([octaves, frequencyX, frequencyY, params.seed || 1]);
+        const cachedLattices = latticeCache?.key === latticeKey ? latticeCache.layers : null;
+        const lattices = cachedLattices || [];
         var amplitude = 1;
         var total = 0;
         var offsetX = (params.speedX || 0) * (time || 0);
@@ -71,25 +79,44 @@ return function createGraphRuntime(PZ, document) {
         for (var o = 0; o < octaves; o++) {
             var cellsX = Math.min(1024, Math.max(1, frequencyX));
             var cellsY = Math.min(1024, Math.max(1, frequencyY));
-            var lattice = new Float32Array(cellsX * cellsY);
-            for (var i = 0; i < lattice.length; i++) lattice[i] = rand();
+            var lattice = cachedLattices ? cachedLattices[o] : new Float32Array(cellsX * cellsY);
+            if (!cachedLattices) {
+                for (var i = 0; i < lattice.length; i++) lattice[i] = rand();
+                lattices.push(lattice);
+            }
+            // Unmapped UVs are separable. Compute horizontal coordinates once
+            // per octave and vertical coordinates once per row.
+            if (!uv) for (var x = 0; x < size; x++) {
+                var gx = x / size * cellsX + offsetX;
+                var floorX = Math.floor(gx), fx = gx - floorX;
+                xs0[x] = ((floorX % cellsX) + cellsX) % cellsX;
+                xs1[x] = (xs0[x] + 1) % cellsX;
+                xSmooth[x] = fx * fx * (3 - 2 * fx);
+            }
             for (var y = 0; y < size; y++) {
+                var gyRow = y / size * cellsY + offsetY;
+                var floorY = Math.floor(gyRow), fyRow = gyRow - floorY;
+                var rowSmooth = fyRow * fyRow * (3 - 2 * fyRow);
+                var row0 = ((floorY % cellsY) + cellsY) % cellsY;
+                var row1 = (row0 + 1) % cellsY;
                 for (var x = 0; x < size; x++) {
                     var index = (x + y * size) * 4;
-                    var cu = uv ? uv[index] / 255 : x / size;
-                    var cv = uv ? uv[index + 1] / 255 : y / size;
-                    var gx = cu * cellsX + offsetX;
-                    var gy = cv * cellsY + offsetY;
-                    var x0 = Math.floor(gx);
-                    var y0 = Math.floor(gy);
-                    var fx = gx - x0;
-                    var fy = gy - y0;
-                    var sx = fx * fx * (3 - 2 * fx);
-                    var sy = fy * fy * (3 - 2 * fy);
-                    var ix0 = ((x0 % cellsX) + cellsX) % cellsX;
-                    var ix1 = (ix0 + 1) % cellsX;
-                    var iy0 = ((y0 % cellsY) + cellsY) % cellsY;
-                    var iy1 = (iy0 + 1) % cellsY;
+                    var ix0, ix1, iy0, iy1, sx, sy;
+                    if (uv) {
+                        var gx = uv[index] / 255 * cellsX + offsetX;
+                        var gy = uv[index + 1] / 255 * cellsY + offsetY;
+                        var x0 = Math.floor(gx), y0 = Math.floor(gy);
+                        var fx = gx - x0, fy = gy - y0;
+                        sx = fx * fx * (3 - 2 * fx);
+                        sy = fy * fy * (3 - 2 * fy);
+                        ix0 = ((x0 % cellsX) + cellsX) % cellsX;
+                        ix1 = (ix0 + 1) % cellsX;
+                        iy0 = ((y0 % cellsY) + cellsY) % cellsY;
+                        iy1 = (iy0 + 1) % cellsY;
+                    } else {
+                        ix0 = xs0[x]; ix1 = xs1[x]; sx = xSmooth[x];
+                        iy0 = row0; iy1 = row1; sy = rowSmooth;
+                    }
                     var v00 = lattice[ix0 + iy0 * cellsX];
                     var v10 = lattice[ix1 + iy0 * cellsX];
                     var v01 = lattice[ix0 + iy1 * cellsX];
@@ -110,6 +137,7 @@ return function createGraphRuntime(PZ, document) {
             frequencyX *= 2;
             frequencyY *= 2;
         }
+        latticeCache = { key: latticeKey, layers: lattices };
         var buffer = newBuffer(size);
         for (var p = 0; p < size * size; p++) {
             params._pixel = p * 4;
@@ -142,12 +170,13 @@ return function createGraphRuntime(PZ, document) {
 
     function sineBuffer(size, params, uv) {
         var buffer = newBuffer(size);
+        var coordinates = new Float64Array(2);
         for (var y = 0; y < size; y++) {
             for (var x = 0; x < size; x++) {
                 var index = (x + y * size) * 4;
                 params._pixel = index;
 
-                var coords = coordsAt(uv, index, size, x, y);
+                var coords = coordsAt(uv, index, size, x, y, coordinates);
                 var coord = params.axis === 1 ? coords[1] : coords[0];
                 var value = 0.5 + 0.5 * Math.sin((coord * params.scale + params.phase) * Math.PI * 2);
                 var gray = Math.round(clamp(value, 0, 1) * 255);
@@ -170,12 +199,13 @@ return function createGraphRuntime(PZ, document) {
             contrast: 1,
         }, time, 0, uv);
         var buffer = newBuffer(size);
+        var coordinates = new Float64Array(2);
         for (var y = 0; y < size; y++) {
             for (var x = 0; x < size; x++) {
                 var index = (x + y * size) * 4;
                 params._pixel = index;
 
-                var coords = coordsAt(uv, index, size, x, y);
+                var coords = coordsAt(uv, index, size, x, y, coordinates);
                 var coord = coords[1] * params.scale + (fractal[index] / 255) * params.veins;
                 var gray = Math.round(clamp(0.5 + 0.5 * Math.sin(coord * Math.PI * 2), 0, 1) * 255);
                 buffer[index] = gray;
@@ -424,7 +454,7 @@ return function createGraphRuntime(PZ, document) {
         return colorBuffer(size, [clamp(color[0] * boost, 0, 1), clamp(color[1] * boost, 0, 1), clamp(color[2] * boost, 0, 1)]);
     }
 
-    function wavelengthColor(wavelength) {
+    function wavelengthColor(wavelength, result = [0, 0, 0]) {
         var r = 0;
         var g = 0;
         var b = 0;
@@ -451,17 +481,30 @@ return function createGraphRuntime(PZ, document) {
         else if (wavelength <= 700) factor = 1;
         else factor = 0.3 + (0.7 * (780 - wavelength)) / 80;
         factor = clamp(factor, 0, 1);
-        return [clamp(r * factor, 0, 1), clamp(g * factor, 0, 1), clamp(b * factor, 0, 1)];
+        result[0] = clamp(r * factor, 0, 1); result[1] = clamp(g * factor, 0, 1); result[2] = clamp(b * factor, 0, 1);
+        return result;
+    }
+
+    function uniformPixels(size, color) {
+        const buffer = newBuffer(size);
+        for (let i = 0; i < buffer.length; i += 4) {
+            buffer[i] = color[0] * 255; buffer[i + 1] = color[1] * 255; buffer[i + 2] = color[2] * 255; buffer[i + 3] = 255;
+        }
+        buffer.uniform = true;
+        return buffer;
     }
 
     function rgbSpectrumBuffer(size, input, params) {
+        if (input?.uniform && !params._fields?.wavelength) return uniformPixels(size,
+            wavelengthColor(clamp(380 + luminanceAt(input, 0) * 400 + params.wavelength - 550, 380, 780)));
         if (input || params._fields?.wavelength) {
             var buffer = newBuffer(size);
+            const scratchColor = new Float64Array(3);
             for (var p = 0; p < size * size; p++) {
                 var index = p * 4;
                 params._pixel = index;
 
-                var color = wavelengthColor(input ? clamp(380 + luminanceAt(input, index) * 400 + params.wavelength - 550, 380, 780) : params.wavelength);
+                var color = wavelengthColor(input ? clamp(380 + luminanceAt(input, index) * 400 + params.wavelength - 550, 380, 780) : params.wavelength, scratchColor);
                 buffer[index] = color[0] * 255;
                 buffer[index + 1] = color[1] * 255;
                 buffer[index + 2] = color[2] * 255;
@@ -477,9 +520,10 @@ return function createGraphRuntime(PZ, document) {
         var g = 0;
         var b = 0;
         var total = 0;
+        const scratchColor = new Float64Array(3);
         for (var wavelength = 380; wavelength <= 780; wavelength += 5) {
             var weight = Math.exp(-0.5 * Math.pow((wavelength - center) / width, 2));
-            var color = wavelengthColor(wavelength);
+            var color = wavelengthColor(wavelength, scratchColor);
             r += color[0] * weight;
             g += color[1] * weight;
             b += color[2] * weight;
@@ -490,9 +534,13 @@ return function createGraphRuntime(PZ, document) {
     }
 
     function gaussianSpectrumBuffer(size, input, params) {
+        if (input?.uniform && !params._fields?.center && !params._fields?.width) return uniformPixels(size,
+            gaussianSpectrumColor(clamp(380 + luminanceAt(input, 0) * 400 + params.center - 550, 380, 780), params.width));
         if (input || params._fields?.center || params._fields?.width) {
             var buffer = newBuffer(size);
             const colors = [];
+            const fieldColors = new Map();
+            let fieldColorCount = 0;
             for (var p = 0; p < size * size; p++) {
                 var index = p * 4;
                 params._pixel = index;
@@ -501,8 +549,21 @@ return function createGraphRuntime(PZ, document) {
                 // integration across pixels rather than integrating every pixel.
                 const center = input ? clamp(380 + luminanceAt(input, index) * 400 + params.center - 550, 380, 780) : params.center;
                 const key = input ? input[index] * 30 + input[index + 1] * 59 + input[index + 2] * 11 : 0;
-                var color = params._fields?.center || params._fields?.width ? gaussianSpectrumColor(center, params.width)
-                    : colors[key] || (colors[key] = gaussianSpectrumColor(center, params.width));
+                const width = params.width;
+                let color;
+                if (params._fields?.center || params._fields?.width) {
+                    // Cache exact numeric pairs, including linked fields. Bound
+                    // memory for continuous fields with millions of unique pairs.
+                    let widths = fieldColors.get(center);
+                    color = widths?.get(width);
+                    if (!color) {
+                        color = gaussianSpectrumColor(center, width);
+                        if (fieldColorCount < 4096) {
+                            if (!widths) fieldColors.set(center, widths = new Map());
+                            widths.set(width, color); fieldColorCount++;
+                        }
+                    }
+                } else color = colors[key] || (colors[key] = gaussianSpectrumColor(center, width));
                 buffer[index] = color[0] * 255;
                 buffer[index + 1] = color[1] * 255;
                 buffer[index + 2] = color[2] * 255;
@@ -513,7 +574,7 @@ return function createGraphRuntime(PZ, document) {
         return colorBuffer(size, gaussianSpectrumColor(params.center, params.width));
     }
 
-    function blackbodyColor(kelvin) {
+    function blackbodyColor(kelvin, result = [0, 0, 0]) {
         var temperature = clamp(kelvin, 1000, 40000) / 100;
         var red;
         var green;
@@ -535,17 +596,21 @@ return function createGraphRuntime(PZ, document) {
         } else {
             blue = 138.5177312231 * Math.log(temperature - 10) - 305.0447927307;
         }
-        return [clamp(red / 255, 0, 1), clamp(green / 255, 0, 1), clamp(blue / 255, 0, 1)];
+        result[0] = clamp(red / 255, 0, 1); result[1] = clamp(green / 255, 0, 1); result[2] = clamp(blue / 255, 0, 1);
+        return result;
     }
 
     function blackbodyBuffer(size, input, params) {
         var buffer = newBuffer(size);
+        const scratchColor = new Float64Array(3);
+        const uniformColor = (!input || input.uniform) && !params._fields?.temperature
+            ? blackbodyColor(input ? 1000 + luminanceAt(input, 0) * 39000 + params.temperature - 4000 : params.temperature) : null;
         for (var p = 0; p < size * size; p++) {
             var index = p * 4;
             params._pixel = index;
 
             var kelvin = input ? 1000 + luminanceAt(input, index) * 39000 + params.temperature - 4000 : params.temperature;
-            var color = blackbodyColor(kelvin);
+            var color = uniformColor || blackbodyColor(kelvin, scratchColor);
             buffer[index] = color[0] * 255;
             buffer[index + 1] = color[1] * 255;
             buffer[index + 2] = color[2] * 255;
@@ -597,6 +662,7 @@ return function createGraphRuntime(PZ, document) {
             buffer[index + 2] = b;
             buffer[index + 3] = 255;
         }
+        buffer.uniform = true;
         return buffer;
     }
 
@@ -658,13 +724,14 @@ return function createGraphRuntime(PZ, document) {
 
     function checkerBuffer(size, params, uv) {
         var buffer = newBuffer(size);
+        var coordinates = new Float64Array(2);
         for (var y = 0; y < size; y++) {
             for (var x = 0; x < size; x++) {
                 var index = (x + y * size) * 4;
                 params._pixel = index;
                 var scale = Math.max(1, Math.round(params.scale));
 
-                var coords = coordsAt(uv, index, size, x, y);
+                var coords = coordsAt(uv, index, size, x, y, coordinates);
                 var checker = (Math.floor(coords[0] * scale) + Math.floor(coords[1] * scale)) % 2;
                 var color = checker === 0 ? params.color1 : params.color2;
                 buffer[index] = clamp(color[0], 0, 1) * 255;
@@ -1518,7 +1585,7 @@ return function createGraphRuntime(PZ, document) {
 
     nodes.isAnimated = function (graph, material) {
         const cache = nodes.getImageCache(material);
-        return graph.nodes.some(n => (["noise", "ridgedFractal", "turbulence", "marble", "dirt"].includes(n.type) && (n.params.speedX || n.params.speedY)) || cache[n.params.asset]?.loaded?.data?.gif?.frames?.length > 1);
+        return graph.nodes.some(n => (["noise", "ridgedFractal", "turbulence", "marble", "dirt"].includes(n.type) && (n.params.speedX || n.params.speedY || graph.links.some(l => l.to === n.id && ["speedX", "speedY"].includes(l.toPort)))) || cache[n.params.asset]?.loaded?.data?.gif?.frames?.length > 1);
     };
     nodes.cacheKey = function (graph, resolution, frame, assets) {
         return JSON.stringify([nodes.parse(graph), resolution, frame, assets]);

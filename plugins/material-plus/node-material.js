@@ -96,10 +96,16 @@ function activate(context) {
     let latestKey = null;
     let pending = null;
     let disposed = false;
+    let refinement = null;
+    let preparing = false;
+    let prepareQueue = Promise.resolve();
+    let lastIdentity = null;
+    const clock = () => context.window.performance?.now?.() ?? Date.now();
+    const trace = (event, job, extra = {}) => material._surfaceBakeTrace?.({ event, key: job.key, size: job.size, time: job.time, at: clock(), ...extra });
     // One worker per material, one active bake and one replaceable pending request.
     function ensureWorker() {
       if (!worker && context.window.Worker && context.window.Blob && context.window.URL?.createObjectURL) {
-        const code = `const nodes = new Function(${JSON.stringify(graphSource)})()({}, null); onmessage = e => { const {id,graph,size,time,images}=e.data; try { const outputs=nodes.evaluate(graph,size,time,{images}); postMessage({id,outputs}, [...new Set(Object.values(outputs).filter(p => ArrayBuffer.isView(p)).map(p => p.buffer))]); } catch(error) { postMessage({id,error:error.message}); } };`;
+        const code = `const nodes = new Function(${JSON.stringify(graphSource)})()({}, null); onmessage = e => { const {id,graph,size,time,images}=e.data; try { const started=performance.now(); const outputs=nodes.evaluate(graph,size,time,{images}); postMessage({id,outputs,duration:performance.now()-started}, [...new Set(Object.values(outputs).filter(p => ArrayBuffer.isView(p)).map(p => p.buffer))]); } catch(error) { postMessage({id,error:error.message}); } };`;
         workerUrl = context.window.URL.createObjectURL(new context.window.Blob([code], { type: "text/javascript" }));
         worker = new context.window.Worker(workerUrl);
       }
@@ -141,6 +147,7 @@ function activate(context) {
     function run(job) {
       ensureWorker();
       const id = ++request;
+      trace("started", job);
       return new Promise((resolve, reject) => {
         if (!worker) {
           try { resolve(pure.evaluate(job.graph, job.size, job.time, { images: job.images })); } catch (error) { reject(error); }
@@ -150,6 +157,7 @@ function activate(context) {
         worker.onmessage = ({ data }) => {
           if (data.id !== id) return;
           cancelBake = null;
+          trace("finished", job, { duration: data.duration });
           if (data.error) reject(new Error(data.error)); else resolve(data.outputs);
         };
         worker.onerror = (event) => { cancelBake = null; reject(new Error(event.message || "Material+ graph worker failed.")); };
@@ -163,9 +171,12 @@ function activate(context) {
         let outputs;
         try { outputs = await run(job); }
         catch (error) { if (latestKey === job.key) throw error; else continue; }
-        if (!disposed && latestKey === job.key) {
+        // A completed preview remains useful even when a newer frame is pending.
+        // Disabled graphs and export preparations must never receive stale maps.
+        if (!disposed && material.properties.useNodeGraph.get() === 1 && (!preparing || latestKey === job.key)) {
           apply(outputs, job.size);
           material.pzBakeKey = job.key;
+          trace("applied", job);
           context.window.CM?.viewport?.requestRender?.();
         }
       }
@@ -183,14 +194,18 @@ function activate(context) {
       });
     }
     material.bakeGraph = function () { if (this._surfaceReady) this._surfaceUpdate(this._surfaceFrame || 0); };
-    material._surfaceUpdate = function (frame) {
-      if (!this._surfaceReady || disposed) return;
+    material._surfaceUpdate = function (frame, exact = false) {
+      if (!this._surfaceReady || disposed || (preparing && !exact)) return;
       this._surfaceFrame = frame;
       const enabled = this.properties.useNodeGraph.get() === 1;
-      const graph = nodes.parse(enabled ? this.properties.graph.get() : { nodes: [], links: [] });
-      const size = [128, 256, 512, 1024, 2048][this.properties.bakeResolution.get()] || 256;
+      const graph = nodes.parse(enabled ? this.properties.graph.get(frame) : { nodes: [], links: [] });
+      const chosenSize = [128, 256, 512, 1024, 2048][this.properties.bakeResolution.get()] || 256;
+      const size = exact ? chosenSize : Math.min(chosenSize, 128);
       const rate = Number(this.parentProject?.sequence?.properties.rate?.get()) || 30;
-      const key = nodes.cacheKey(graph, size, frame, { rate, images: nodes.dependencySignature(graph, this) });
+      const bakeFrame = nodes.isAnimated(graph, this) ? frame : 0;
+      const dependencies = { rate, images: nodes.dependencySignature(graph, this) };
+      const identity = nodes.cacheKey(graph, chosenSize, bakeFrame, dependencies);
+      const key = nodes.cacheKey(graph, size, bakeFrame, dependencies);
       this.pzGraph = graph;
       this.pzFresnel = enabled ? (this.pzBakeKey === key ? this.pzFresnel : nodes.fresnelSettings(graph, frame / rate)) : null;
       if (this.pzFresnel) {
@@ -213,9 +228,15 @@ function activate(context) {
         const lit = this.pzGraphTextures.luminance ? 1 : 0;
         this.threeObj.emissive.setRGB(lit, lit, lit);
       }
+      if (!exact && lastIdentity === identity) return;
+      lastIdentity = identity;
+      if (refinement !== null) clearTimeout(refinement);
+      refinement = null;
+      if (!running && !pending && (this.pzBakeKey === key || this.pzBakeKey === identity)) { latestKey = this.pzBakeKey; return; }
       if (latestKey === key) return;
       latestKey = key;
       if (!enabled) {
+        pending = null;
         this._surfaceAssets = Promise.resolve();
         this._surfaceError = null;
         apply({}, size);
@@ -225,8 +246,20 @@ function activate(context) {
       const queue = () => {
         if (disposed || latestKey !== key) return;
         pending = { key, graph, size, time: frame / rate, images: nodes.imageBuffers(graph, size, this, frame / rate) };
+        trace("requested", pending);
         startDrain();
       };
+      if (!exact && size < chosenSize) {
+        const refine = () => {
+          refinement = null;
+          if (disposed || preparing || lastIdentity !== identity) return;
+          // A slow viewport can pause updates for longer than the idle delay.
+          // Keep playback at preview size even in that case.
+          if (context.window.CM?.playback?.speed) { refinement = setTimeout(refine, 250); return; }
+          this._surfaceUpdate(frame, true);
+        };
+        refinement = setTimeout(refine, 180);
+      }
       // Asset loading always completes before a bake enters the worker.
       this._surfaceAssets = nodes.prepareImages(graph, this).then(queue).catch(error => {
         if (latestKey === key) {
@@ -235,20 +268,31 @@ function activate(context) {
         }
       });
     };
-    material._surfacePrepare = async function (frame) {
-      const graph = nodes.parse(this.properties.useNodeGraph.get() === 1 ? this.properties.graph.get() : { nodes: [], links: [] });
-      await nodes.prepareImages(graph, this);
-      if (disposed) return;
-      this._surfaceUpdate(frame);
-      await this._surfaceAssets;
-      while (running) await running;
-      if (disposed) return;
-      if (this._surfaceError) throw this._surfaceError;
-      await Promise.all(Object.values(this.pzImages || {}).map(image => image?.loading));
+    material._surfacePrepare = function (frame) {
+      // Export calls are serialized and protected from interactive updates.
+      const prepare = async () => {
+        if (disposed) return;
+        preparing = true;
+        try {
+          const graph = nodes.parse(this.properties.useNodeGraph.get() === 1 ? this.properties.graph.get(frame) : { nodes: [], links: [] });
+          await nodes.prepareImages(graph, this);
+          if (disposed) return;
+          this._surfaceUpdate(frame, true);
+          await this._surfaceAssets;
+          while (running) await running;
+          if (disposed) return;
+          if (this._surfaceError) throw this._surfaceError;
+          await Promise.all(Object.values(this.pzImages || {}).map(image => image?.loading));
+        } finally { preparing = false; }
+      };
+      const result = prepareQueue.then(prepare);
+      prepareQueue = result.catch(() => {});
+      return result;
     };
     material._surfaceDispose = function () {
       if (disposed) return;
       disposed = true;
+      if (refinement !== null) clearTimeout(refinement);
       pending = null;
       cancelBake?.();
       worker?.terminate();

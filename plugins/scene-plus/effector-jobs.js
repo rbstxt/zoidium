@@ -8,10 +8,14 @@ function createMeshJobs(workerSource, host = globalThis, redraw = () => {}) {
   const maxBytes = 96 * 1024 * 1024;
   const entries = new Map();
   const consumers = new Map();
+  // Topologies the worker has finished at least once. Its stage cache holds
+  // them, so later jobs of the same topology are cheap motion frames.
+  const built = new Set();
   let worker = null, url = null, active = null, disposed = false, serial = 0;
   let bytes = 0;
 
   function stopWorker() {
+    built.clear();
     worker?.terminate();
     worker = null;
     if (url) host.URL.revokeObjectURL(url);
@@ -51,11 +55,15 @@ function createMeshJobs(workerSource, host = globalThis, redraw = () => {}) {
             completed.reject(completed.error);
           } else {
             completed.status = "done";
-            completed.value = data.value;
-            completed.bytes = byteSize(data.value);
-            bytes += completed.bytes;
-            completed.resolve(data.value);
-            redraw();
+            built.add(completed.buildKey);
+            // A cancelled frame that was left to finish is only discarded.
+            if (entries.get(completed.key) === completed) {
+              completed.value = data.value;
+              completed.bytes = byteSize(data.value);
+              bytes += completed.bytes;
+              completed.resolve(data.value);
+              redraw();
+            }
           }
           completed.input = null;
           trim();
@@ -88,7 +96,10 @@ function createMeshJobs(workerSource, host = globalThis, redraw = () => {}) {
   }
 
   function cancel(entry) {
-    if (active === entry) stopWorker();
+    // Terminating the worker also drops every cached topology, which would turn
+    // the next frame of each mesh into a full rebuild. Only abort unwanted first
+    // builds; an unwanted motion frame finishes quickly and is discarded.
+    if (active === entry && !built.has(entry.buildKey)) stopWorker();
     entries.delete(entry.key);
     entry.input = null;
     entry.resolve(null);

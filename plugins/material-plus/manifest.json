@@ -3,7 +3,7 @@
   "id": "material-plus",
   "name": "Material+",
   "author": "Zoidium",
-  "version": "8",
+  "version": "9",
   "kind": "material-pack",
   "description": "Adds Matcap, Node Material, Image+, physically based, and corrected-UV material extensions.",
   "materialTypes": [
@@ -37,44 +37,44 @@
     {
       "id": "matcap-vertex-shader",
       "type": "text",
-      "source": "./plugins/material-plus/shaders/matcap.vert.glsl?v=8"
+      "source": "./plugins/material-plus/shaders/matcap.vert.glsl?v=9"
     },
     {
       "id": "matcap-fragment-shader",
       "type": "text",
-      "source": "./plugins/material-plus/shaders/matcap.frag.glsl?v=8"
+      "source": "./plugins/material-plus/shaders/matcap.frag.glsl?v=9"
     },
     {
       "id": "graph-runtime",
       "type": "text",
-      "source": "./plugins/material-plus/graph-runtime.js?v=8"
+      "source": "./plugins/material-plus/graph-runtime.js?v=9"
     },
     {
       "id": "surface-runtime",
       "type": "text",
-      "source": "./plugins/material-plus/surface-runtime.js?v=8"
+      "source": "./plugins/material-plus/surface-runtime.js?v=9"
     }
   ],
   "modules": [
     {
       "id": "material-plus-nodes-runtime",
-      "source": "./plugins/material-plus/node-material.js?v=8"
+      "source": "./plugins/material-plus/node-material.js?v=9"
     },
     {
       "id": "material-plus-runtime",
-      "source": "./plugins/material-plus/material-plus.js?v=8"
+      "source": "./plugins/material-plus/material-plus.js?v=9"
     },
     {
       "id": "material-plus-pbr-runtime",
-      "source": "./plugins/material-plus/pbr-plus.js?v=8"
+      "source": "./plugins/material-plus/pbr-plus.js?v=9"
     },
     {
       "id": "material-plus-uv-custom-runtime",
-      "source": "./plugins/material-plus/uv-custom.js?v=8"
+      "source": "./plugins/material-plus/uv-custom.js?v=9"
     },
     {
       "id": "material-plus-image-runtime",
-      "source": "./plugins/material-plus/image-plus.js?v=8"
+      "source": "./plugins/material-plus/image-plus.js?v=9"
     }
   ]
 }

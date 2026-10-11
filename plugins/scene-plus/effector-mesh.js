@@ -324,10 +324,12 @@ function createMeshDeformer(THREE, jobs) {
         base: { ...base, attributes, indexRef: null } };
       const entry = jobs.request(mesh, key, input);
       liveMeshes.add(mesh);
-      const completed = entry?.status === "done" ? entry : null;
+      // While the exact frame is in the worker, keep showing the newest result of
+      // the same topology so edits and playback update continuously. Export
+      // waits for the exact result through pending().
+      const completed = entry?.status === "done" ? entry : jobs.latest?.(buildKey);
       if (!completed) {
-        // A completed result is valid only for its exact input key. Restore the
-        // pristine source when the user edits inputs while work is pending.
+        // Nothing of this topology has finished yet: show the pristine source.
         const pending = state || { source, working: null, material: null };
         pending.asyncPending = true;
         pending.sourceId = base.sourceId;
@@ -448,49 +450,97 @@ function createMeshDeformer(THREE, jobs) {
   };
 }
 
+// Vertices that share a position, source normal, fracture piece and material
+// group are averaged together. Deformation keeps coincident vertices
+// coincident, so that sharing belongs to the stage topology: it is built once
+// per stage from the rest positions, and each frame only accumulates face
+// normals into the shared slots.
+const weldsByStage = new WeakMap();
+const weldsBySource = new Map();
+
+function buildWeld(positions, count, groups, stage) {
+  const groupIds = new Int32Array(count);
+  // The first group containing a vertex wins.
+  for (let g = (groups || []).length - 1; g >= 0; g -= 1) {
+    const group = groups[g];
+    const end = Math.min(count, group.start + group.count);
+    for (let vertex = Math.max(0, group.start); vertex < end; vertex += 1) groupIds[vertex] = group.materialIndex || 0;
+  }
+  const source = stage?.attributes?.normal?.array;
+  const pieces = stage?.pieceIds;
+  const slots = new Int32Array(count);
+  const lookup = new Map();
+  for (let vertex = 0; vertex < count; vertex += 1) {
+    const hardEdge = source ? Math.round(source[vertex * 3] * 10000) + ":" + Math.round(source[vertex * 3 + 1] * 10000) + ":" + Math.round(source[vertex * 3 + 2] * 10000) : "";
+    const key = hardEdge + ":" + (pieces?.[vertex] || 0) + ":" + groupIds[vertex] + ":" +
+      Math.round(positions[vertex * 3] * 100000) + ":" + Math.round(positions[vertex * 3 + 1] * 100000) + ":" + Math.round(positions[vertex * 3 + 2] * 100000);
+    let slot = lookup.get(key);
+    if (slot === undefined) {
+      slot = lookup.size;
+      lookup.set(key, slot);
+    }
+    slots[vertex] = slot;
+  }
+  return { slots, slotCount: lookup.size };
+}
+
+function weldFor(positions, count, groups, stage) {
+  const rest = stage?.positions;
+  if (!rest || rest.length !== count * 3) return buildWeld(positions, count, groups, stage);
+  let weld = weldsByStage.get(stage);
+  if (weld) return weld;
+  // Worker messages clone the source stage every frame; its sourceId names
+  // the same immutable content.
+  const sourceKey = stage.kind === "source" && stage.sourceId !== undefined ? stage.sourceId + ":" + count : null;
+  weld = sourceKey ? weldsBySource.get(sourceKey) : null;
+  if (!weld) {
+    weld = buildWeld(rest, count, groups, stage);
+    if (sourceKey) {
+      weldsBySource.set(sourceKey, weld);
+      while (weldsBySource.size > 8) weldsBySource.delete(weldsBySource.keys().next().value);
+    }
+  }
+  weldsByStage.set(stage, weld);
+  return weld;
+}
+
 // Average deformed faces at coincident vertices while retaining source normal
 // discontinuities, material seams, and separate fracture pieces.
 function computeSmoothVertexNormals(geometry, stage) {
   const position = geometry.attributes.position;
   const normal = geometry.attributes.normal;
   if (!position || !normal) return;
-  const sums = new Map();
-  const groupOf = (vertex) => {
-    for (const group of geometry.groups || []) {
-      if (vertex >= group.start && vertex < group.start + group.count) return group.materialIndex || 0;
-    }
-    return 0;
-  };
-  const keyFor = (vertex) => {
-    const x = position.array[vertex * 3];
-    const y = position.array[vertex * 3 + 1];
-    const z = position.array[vertex * 3 + 2];
-    const source = stage?.attributes?.normal?.array;
-    const hardEdge = source ? [0, 1, 2].map(a => Math.round(source[vertex * 3 + a] * 10000)).join(":") : "";
-    return hardEdge + ":" + (stage?.pieceIds?.[vertex] || 0) + ":" + groupOf(vertex) + ":" + Math.round(x * 100000) + ":" + Math.round(y * 100000) + ":" + Math.round(z * 100000);
-  };
-  for (let vertex = 0; vertex + 2 < position.count; vertex += 3) {
-    const a = [position.array[vertex * 3], position.array[vertex * 3 + 1], position.array[vertex * 3 + 2]];
-    const b = [position.array[vertex * 3 + 3], position.array[vertex * 3 + 4], position.array[vertex * 3 + 5]];
-    const c = [position.array[vertex * 3 + 6], position.array[vertex * 3 + 7], position.array[vertex * 3 + 8]];
-    const ab = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
-    const ac = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
-    const face = [ab[1] * ac[2] - ab[2] * ac[1], ab[2] * ac[0] - ab[0] * ac[2], ab[0] * ac[1] - ab[1] * ac[0]];
-    for (let offset = 0; offset < 3; offset += 1) {
-      const key = keyFor(vertex + offset);
-      const sum = sums.get(key) || [0, 0, 0];
-      sum[0] += face[0];
-      sum[1] += face[1];
-      sum[2] += face[2];
-      sums.set(key, sum);
+  const array = position.array;
+  const count = position.count;
+  const { slots, slotCount } = weldFor(array, count, geometry.groups, stage);
+  const sums = new Float64Array(slotCount * 3);
+  const covered = count - count % 3;
+  for (let vertex = 0; vertex < covered; vertex += 3) {
+    const a = vertex * 3;
+    const abx = array[a + 3] - array[a], aby = array[a + 4] - array[a + 1], abz = array[a + 5] - array[a + 2];
+    const acx = array[a + 6] - array[a], acy = array[a + 7] - array[a + 1], acz = array[a + 8] - array[a + 2];
+    const fx = aby * acz - abz * acy, fy = abz * acx - abx * acz, fz = abx * acy - aby * acx;
+    for (let corner = 0; corner < 3; corner += 1) {
+      const slot = slots[vertex + corner] * 3;
+      sums[slot] += fx;
+      sums[slot + 1] += fy;
+      sums[slot + 2] += fz;
     }
   }
-  for (let vertex = 0; vertex < position.count; vertex += 1) {
-    const sum = sums.get(keyFor(vertex)) || [0, 0, 1];
-    const length = Math.hypot(sum[0], sum[1], sum[2]) || 1;
-    normal.array[vertex * 3] = sum[0] / length;
-    normal.array[vertex * 3 + 1] = sum[1] / length;
-    normal.array[vertex * 3 + 2] = sum[2] / length;
+  const out = normal.array;
+  for (let vertex = 0; vertex < count; vertex += 1) {
+    if (vertex >= covered) {
+      out[vertex * 3] = 0;
+      out[vertex * 3 + 1] = 0;
+      out[vertex * 3 + 2] = 1;
+      continue;
+    }
+    const slot = slots[vertex] * 3;
+    const x = sums[slot], y = sums[slot + 1], z = sums[slot + 2];
+    const length = Math.hypot(x, y, z) || 1;
+    out[vertex * 3] = x / length;
+    out[vertex * 3 + 1] = y / length;
+    out[vertex * 3 + 2] = z / length;
   }
   normal.needsUpdate = true;
 }

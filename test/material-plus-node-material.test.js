@@ -155,3 +155,108 @@ test("unloading during a worker bake settles preparation and terminates the work
     assert.equal(terminated, true);
   } finally { for (const fn of h.dispose.reverse()) fn(); }
 });
+
+function controlledBakes(h) {
+  const jobs = [];
+  const pure = new Function(fs.readFileSync("plugins/material-plus/graph-runtime.js", "utf8"))()({}, null);
+  h.context.window.Blob = class {};
+  h.context.window.URL = { createObjectURL: () => "blob:controlled", revokeObjectURL() {} };
+  h.context.window.Worker = class {
+    postMessage(job) { jobs.push({ job, worker: this }); }
+    terminate() {}
+  };
+  return {
+    jobs,
+    finish() {
+      const { job, worker } = jobs.shift();
+      worker.onmessage({ data: { id: job.id, outputs: pure.evaluate(job.graph, job.size, job.time, { images: {} }) } });
+      return job;
+    },
+  };
+}
+async function flushBakes() { for (let i = 0; i < 12; i++) await Promise.resolve(); }
+async function animatedMaterial(h, resolution = 0) {
+  const m = h.material("nodes"); (await h.PZ.material.fnList.nodes).call(m);
+  const graph = h.context.window.ZoidiumMaterialPlus.nodes.defaultGraph(); graph.nodes[0].params.speedX = 1;
+  m.properties.graph.set(JSON.stringify(graph)); m.properties.bakeResolution.set(resolution); m.load();
+  await flushBakes(); return m;
+}
+test("preview applies a completed stale frame and drops superseded pending frames", async () => {
+  const h = harness(), bakes = controlledBakes(h); NodeMaterial.activate(h.context);
+  try {
+    const m = await animatedMaterial(h);
+    m.update(1); await flushBakes(); m.update(2); await flushBakes(); m.update(3); await flushBakes();
+    assert.equal(bakes.jobs.length, 1);
+    const first = bakes.finish(); await flushBakes();
+    assert.ok(m.pzGraphTextures.color, "a completed bake displays even when playback has advanced");
+    assert.equal(bakes.jobs[0].job.time, 3 / 30, "only the newest pending frame starts");
+    const displayed = hash(m); m.update(4); await flushBakes();
+    assert.equal(hash(m), displayed, "pending work keeps the previous texture visible");
+    bakes.finish(); await flushBakes(); assert.notEqual(hash(m), displayed);
+    assert.equal(first.time, 0);
+    m.unload();
+  } finally { for (const fn of h.dispose.reverse()) fn(); }
+});
+test("preview uses 128 then refines when idle and stops refinement on unload", async () => {
+  const h = harness(), bakes = controlledBakes(h); NodeMaterial.activate(h.context);
+  try {
+    const m = await animatedMaterial(h, 2);
+    assert.equal(bakes.jobs[0].job.size, 128); bakes.finish(); await flushBakes();
+    const texture = m.pzGraphTextures.color;
+    await new Promise(resolve => setTimeout(resolve, 220)); await flushBakes();
+    assert.equal(bakes.jobs[0].job.size, 512); bakes.finish(); await flushBakes();
+    assert.equal(m.pzGraphTextures.color, texture, "refinement reuses the texture");
+    assert.equal(texture.image.width, 512);
+    m.update(1); await flushBakes(); m.unload();
+    const count = bakes.jobs.length;
+    await new Promise(resolve => setTimeout(resolve, 220)); assert.equal(bakes.jobs.length, count);
+  } finally { for (const fn of h.dispose.reverse()) fn(); }
+});
+test("export waits for exact full-resolution pixels and ignores preview updates while preparing", async () => {
+  const h = harness(), bakes = controlledBakes(h); NodeMaterial.activate(h.context);
+  try {
+    const m = await animatedMaterial(h, 2); bakes.finish(); await flushBakes();
+    let prepared = false; const exporting = m.prepare(15).then(() => { prepared = true; }); await flushBakes();
+    assert.equal(prepared, false); assert.equal(bakes.jobs[0].job.size, 512);
+    m.update(22); await flushBakes();
+    assert.equal(bakes.jobs[0].job.time, .5); bakes.finish(); await exporting;
+    const pure = new Function(fs.readFileSync("plugins/material-plus/graph-runtime.js", "utf8"))()({}, null);
+    assert.deepEqual(m.pzGraphTextures.color.image.data, pure.evaluate(m.pzGraph, 512, .5, {}).color);
+    m.update(15); await flushBakes(); assert.equal(bakes.jobs.length, 0, "rendering the prepared frame keeps full resolution");
+    m.unload();
+  } finally { for (const fn of h.dispose.reverse()) fn(); }
+});
+test("static graph playback does not enqueue a new bake for every frame", async () => {
+  const h = harness(), bakes = controlledBakes(h); NodeMaterial.activate(h.context);
+  try {
+    const m = h.material("nodes"); (await h.PZ.material.fnList.nodes).call(m);
+    m.properties.bakeResolution.set(0); m.load(); await flushBakes(); bakes.finish(); await flushBakes();
+    for (let frame = 1; frame < 90; frame++) m.update(frame);
+    await flushBakes(); assert.equal(bakes.jobs.length, 0);
+    m.unload();
+  } finally { for (const fn of h.dispose.reverse()) fn(); }
+});
+
+test("a slow playing viewport cannot trigger full-resolution idle refinement", async () => {
+  const h = harness(), bakes = controlledBakes(h); h.context.window.CM = { playback: { speed: 1 } };
+  NodeMaterial.activate(h.context);
+  try {
+    const m = await animatedMaterial(h, 2); bakes.finish(); await flushBakes();
+    await new Promise(resolve => setTimeout(resolve, 220)); await flushBakes();
+    assert.equal(bakes.jobs.length, 0, "playback remains at preview size even without a new frame");
+    h.context.window.CM.playback.speed = 0;
+    await new Promise(resolve => setTimeout(resolve, 260)); await flushBakes();
+    assert.equal(bakes.jobs[0].job.size, 512); m.unload();
+  } finally { for (const fn of h.dispose.reverse()) fn(); }
+});
+
+test("seeking back to the displayed frame replaces an active future bake", async () => {
+  const h = harness(), bakes = controlledBakes(h); NodeMaterial.activate(h.context);
+  try {
+    const m = await animatedMaterial(h); bakes.finish(); await flushBakes(); const frameZero = hash(m);
+    m.update(15); await flushBakes(); m.update(0); await flushBakes();
+    bakes.finish(); await flushBakes();
+    assert.equal(bakes.jobs[0].job.time, 0, "the active future bake must not overwrite the final seek result");
+    bakes.finish(); await flushBakes(); assert.equal(hash(m), frameZero); m.unload();
+  } finally { for (const fn of h.dispose.reverse()) fn(); }
+});
