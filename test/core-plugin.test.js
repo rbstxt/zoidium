@@ -68,10 +68,7 @@ test("kind requirements reject mismatched manifests", () => {
 });
 
 test("hidden plugins never touch panel cards", () => {
-  const source = fs.readFileSync(
-    path.join(projectRoot, "plugins/plugin-manager.js"),
-    "utf8"
-  );
+  const source = require("./plugin-manager-source").managerSource();
   assert.ok(
     source.includes("if (!state.card || !state.toggle) return;"),
     "usage UI skips hidden plugins without cards"

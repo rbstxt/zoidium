@@ -91,6 +91,6 @@ test("every declared shader and preset is embedded in the bundle", () => {
 });
 
 test("the group loader matches shaders on normalized keys", () => {
-  const source = fs.readFileSync(path.join(projectRoot, "plugins/plugin-manager.js"), "utf8");
+  const source = require("./plugin-manager-source").managerSource();
   assert.ok(source.includes("indexGroupShaders"), "group shaders are indexed on normalized keys");
 });

@@ -10,10 +10,7 @@ const path = require("node:path");
 const test = require("node:test");
 const vm = require("node:vm");
 
-const pluginManagerSource = fs.readFileSync(
-  path.join(__dirname, "../plugins/plugin-manager.js"),
-  "utf8",
-);
+const pluginManagerSource = require("./plugin-manager-source").managerSource();
 const projectFilesSource = fs.readFileSync(
   path.join(__dirname, "../plugins/core/project-files.js"),
   "utf8",
@@ -52,7 +49,7 @@ function mediaHarness() {
   const end = pluginManagerSource.indexOf("  function installProjectPluginHooks() {", start);
   vm.runInNewContext(
     pluginManagerSource.slice(start, end) + "\ninstallSerializedFieldPreservation();",
-    { PZ, cloneJson: plain, Object },
+    { PZ, ZoidiumPluginApis: require("./shared-test-apis").loadSharedTables(), Object },
   );
   return PZ;
 }

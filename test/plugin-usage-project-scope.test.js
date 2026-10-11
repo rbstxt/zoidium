@@ -10,7 +10,7 @@ const path = require("node:path");
 const test = require("node:test");
 const vm = require("node:vm");
 
-const source = fs.readFileSync(path.join(__dirname, "../plugins/plugin-manager.js"), "utf8");
+const source = require("./plugin-manager-source").managerSource();
 
 // Returns one top-level (two-space indented) function declaration by name.
 function sliceFunction(name) {
