@@ -368,7 +368,21 @@ function isLocalUrl(value) {
   }
 }
 
+// Only web and mail links leave the app. Other schemes (file:, custom
+// protocol handlers) would hand page-controlled input to the OS.
+const EXTERNAL_PROTOCOLS = new Set(["http:", "https:", "mailto:"]);
+
 function openExternal(value) {
+  let protocol = "";
+  try {
+    protocol = new URL(value).protocol;
+  } catch (_error) {
+    protocol = "";
+  }
+  if (!EXTERNAL_PROTOCOLS.has(protocol)) {
+    logMain("warn", "blocked external URL with an unsupported scheme", { url: String(value).slice(0, 200) });
+    return;
+  }
   shell.openExternal(value).catch((error) => {
     logMain("error", "failed to open external URL", {
       url: value,
