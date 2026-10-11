@@ -34,8 +34,41 @@ var PZ = PZ || {};
         return ZoidiumPluginApis.random.formHash3(x, y, z, seed);
     }
 
+    // The interpolation below retains the shared helper's arithmetic order.
+    // Only its eight corner hashes are memoized. Every coordinate and seed
+    // is checked as a double, so slot collisions and frame history are harmless.
+    // The direct-mapped cache is bounded to 388 KiB for the whole suite.
+    var noiseKeys = new Float64Array(4096 * 4);
+    var noiseCorners = new Float64Array(4096 * 8);
+    var noiseValid = new Uint8Array(4096);
+    function lerp(a, b, t) { return a + (b - a) * t; }
     function smoothNoise(x, y, z, seed) {
-        return ZoidiumPluginApis.random.formSmoothNoise(x, y, z, seed);
+        if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z) || !Number.isFinite(seed)) {
+            return ZoidiumPluginApis.random.formSmoothNoise(x, y, z, seed);
+        }
+        var xi = Math.floor(x), yi = Math.floor(y), zi = Math.floor(z);
+        var slot = (Math.imul(xi, 73856093) ^ Math.imul(yi, 19349663) ^
+            Math.imul(zi, 83492791) ^ Math.imul(seed, 2654435761)) & 4095;
+        var k = slot * 4, c = slot * 8;
+        if (!noiseValid[slot] || noiseKeys[k] !== xi || noiseKeys[k + 1] !== yi || noiseKeys[k + 2] !== zi || noiseKeys[k + 3] !== seed) {
+            noiseKeys[k] = xi; noiseKeys[k + 1] = yi; noiseKeys[k + 2] = zi; noiseKeys[k + 3] = seed;
+            noiseCorners[c] = hash3(xi, yi, zi, seed);
+            noiseCorners[c + 1] = hash3(xi + 1, yi, zi, seed);
+            noiseCorners[c + 2] = hash3(xi, yi + 1, zi, seed);
+            noiseCorners[c + 3] = hash3(xi + 1, yi + 1, zi, seed);
+            noiseCorners[c + 4] = hash3(xi, yi, zi + 1, seed);
+            noiseCorners[c + 5] = hash3(xi + 1, yi, zi + 1, seed);
+            noiseCorners[c + 6] = hash3(xi, yi + 1, zi + 1, seed);
+            noiseCorners[c + 7] = hash3(xi + 1, yi + 1, zi + 1, seed);
+            noiseValid[slot] = 1;
+        }
+        var xf = x - xi, yf = y - yi, zf = z - zi;
+        var u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf), w = zf * zf * (3 - 2 * zf);
+        var x00 = lerp(noiseCorners[c], noiseCorners[c + 1], u);
+        var x10 = lerp(noiseCorners[c + 2], noiseCorners[c + 3], u);
+        var x01 = lerp(noiseCorners[c + 4], noiseCorners[c + 5], u);
+        var x11 = lerp(noiseCorners[c + 6], noiseCorners[c + 7], u);
+        return lerp(lerp(x00, x10, v), lerp(x01, x11, v), w) * 2 - 1;
     }
 
     function fbm(x, y, z, params, time) {
