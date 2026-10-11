@@ -2,6 +2,7 @@
 (function () {
   "use strict";
   const manager = window.ZoidiumPluginManagerInternals;
+  const evaluatePluginSource = (...args) => manager.evaluatePluginSource(...args);
   const { DEFAULT_IN_USE_REASON, NATIVE_FX_PLUGIN_ID, NATIVE_FX_EFFECTS, pluginStates, trackedNativeEffects, missingNativeEffects, trackedPluginMaterials, missingPluginMaterials, trackedPluginObjects, missingPluginObjects, trackedPluginResources, missingPluginResources } = manager;
   const updateDebugUsage = (...args) => manager.updateDebugUsage(...args);
   const pluginIsEnabled = (...args) => manager.pluginIsEnabled(...args);
@@ -228,7 +229,7 @@
         const instance = this;
         instance._zoidiumGetAsset = getAsset;
         try {
-          new Function(source).call(instance);
+          evaluatePluginSource(source, [], [], instance);
         } catch (error) {
           applyIncompatibleNativeEffect(instance, plugin, effect, [], error);
           return;

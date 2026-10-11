@@ -134,7 +134,7 @@ function loadManagerScope(apis) {
   const restoreStart = managerSource.indexOf("async function restoreMissingNativeEffects(");
   assert.ok(helpersStart >= 0 && registerStart > helpersStart && restoreStart > registerStart);
   const script =
-    managerSource.slice(helpersStart, registerStart) + "\n" +
+    require("./plugin-manager-source").evaluationSource() + managerSource.slice(helpersStart, registerStart) + "\n" +
     managerSource.slice(registerStart, restoreStart) + "\n" +
     "__helpers = { nativeEffectMissingApis, describeNativeEffectSkew, registerNativeFactory };";
   const calls = { factories: new Map(), errors: [] };

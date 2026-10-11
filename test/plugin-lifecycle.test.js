@@ -45,7 +45,7 @@ test("a module that fails partway through activation is owned and cleaned up", a
       deactivate() {}
     };`]],
   };
-  await assert.rejects(vm.runInNewContext("(async () => {" + loop + "})()", sandbox), /activation failed/);
+  await assert.rejects(vm.runInNewContext(require("./plugin-manager-source").evaluationSource() + "(async () => {" + loop + "})()", sandbox), /activation failed/);
   assert.equal(sandbox.window.dirty, true);
   assert.equal(state.runtimeModules.length, 1);
   await state.runtimeModules[0].deactivate();
@@ -57,6 +57,7 @@ test("multiple picker entries of one plugin register without duplicates", () => 
   const end = source.indexOf("const objectClasses = manifest.objectClasses", start);
   const entries = [];
   const context = {
+    ZoidiumPluginApis: require("./shared-test-apis").loadSharedTables(),
     manifest: { objectTypes: [
       { target: "object3d", name: "First", type: 7, list: [] },
       { target: "object3d", name: "Second", type: 8, list: [] },

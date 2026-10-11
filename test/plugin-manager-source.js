@@ -20,4 +20,8 @@ function managerSource() {
   return chunks.sort((a, b) => a.order - b.order).map((chunk) => chunk.source)
     .join("").replace(/manager\.(projectHooksInstalled|editorHooksInstalled|effectBadgeObserver|effectBadgeUpdateScheduled|nativeFxSearchPatched|registryReadySettled|resolveRegistryReady)\b/g, "$1");
 }
-module.exports = { managerSource, managerFiles };
+function evaluationSource() {
+  const source = managerSource();
+  return source.slice(source.indexOf("  function evaluatePluginSource("), source.indexOf("  async function fetchJson("));
+}
+module.exports = { managerSource, managerFiles, evaluationSource };
