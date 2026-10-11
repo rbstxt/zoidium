@@ -6,6 +6,7 @@
 // evaluation (original single-file factory body), so this file passes both
 // before and after the split without changes.
 
+require("./migrate-test-apis.js").ensureMainRealmApis();
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");

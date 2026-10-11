@@ -1,5 +1,6 @@
 "use strict";
 
+require("./migrate-test-apis.js").ensureMainRealmApis();
 const assert = require("node:assert/strict");
 const test = require("node:test");
 const plugin = require("../plugins/text-plus/text-plus.js");

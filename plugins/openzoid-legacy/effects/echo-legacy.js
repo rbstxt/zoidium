@@ -24,16 +24,16 @@ function echoClamp01(value) {
   return Math.min(1, Math.max(0, Number.isFinite(value) ? value : 0));
 }
 
+// Shared scratch target (zoidium/shared/gl.js): linear RGBA, no
+// depth/stencil, no mipmaps.
 function createTarget(width, height) {
-  const target = new THREE.WebGLRenderTarget(width, height, {
+  return ZoidiumPluginApis.gl.createRenderTarget(THREE, width, height, {
     minFilter: THREE.LinearFilter,
     magFilter: THREE.LinearFilter,
     format: THREE.RGBAFormat,
     depthBuffer: false,
     stencilBuffer: false,
   });
-  target.texture.generateMipmaps = false;
-  return target;
 }
 
 const MIX_FRAGMENT = [
@@ -130,8 +130,8 @@ async function buildEchoPass(data) {
         const target = state.targets[index];
         if (!target) {
           state.targets[index] = createTarget(width, height);
-        } else if (target.width !== width || target.height !== height) {
-          target.setSize(width, height);
+        } else {
+          ZoidiumPluginApis.gl.ensureSize(target, width, height);
         }
       }
       const output = writeBuffer || readBuffer;

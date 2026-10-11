@@ -3,6 +3,7 @@
 // Fix test for A6: nodes.parse caches by source string so per-frame updates
 // parse identical graph JSON once, with identical output.
 
+require("./migrate-test-apis.js").ensureMainRealmApis();
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");

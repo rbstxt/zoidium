@@ -9,6 +9,8 @@ const fs = require("node:fs");
 const path = require("node:path");
 const test = require("node:test");
 
+require("./migrate-test-apis.js").ensureMainRealmApis();
+
 const projectRoot = path.resolve(__dirname, "..");
 const legacyDir = path.join(projectRoot, "plugins/openzoid-legacy");
 const source = fs.readFileSync(path.join(legacyDir, "effects/ascii.js"), "utf8");

@@ -4,6 +4,7 @@
 // and its schema, the default chain and chain parsing, look presets, the
 // setup window surface (no fullscreen, no private theme), and manifest wiring.
 
+require("./migrate-test-apis.js").ensureMainRealmApis();
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
