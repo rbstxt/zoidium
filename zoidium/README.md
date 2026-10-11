@@ -23,13 +23,17 @@ inside `dist/web/`, the browser development stage, and the temporary desktop
 build tree. The fixed resource manifest and remote-resource bridge were removed;
 the current HTML and runtime graph are the source of truth for each run.
 
-`runtime-fonts.css` imports the locally bundled `../fonts/fonts.css` and applies
+`runtime-fonts.css` uses the locally bundled `../fonts/fonts.css` stylesheet and applies
 the font selected in the Settings tab to the editor chrome. Source Code Pro,
 Geist, Geist Mono, JetBrains Mono, IBM Plex Sans, IBM Plex Mono, Cascadia Mono,
-and Fira Code are bundled under the SIL Open Font License 1.1; the generic
+Fira Code, Paper Mono, Inter, Source Sans 3, and Atkinson Hyperlegible Next are
+bundled under the SIL Open Font License 1.1; the generic
 system monospace option is resolved only from the user's operating system. None
 require a font CDN. CM3-specific font presets, if any, remain separate fetched
 resources in the Git-ignored runtime cache.
+
+Inter, Source Sans 3, and Atkinson Hyperlegible Next keep Source Code Pro in code
+and expression editors. Paper Mono applies to both editor chrome and code surfaces.
 
 ## Cache and output stages
 

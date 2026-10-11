@@ -16,7 +16,7 @@
     // before runtime-fonts.css) so the font files are not discovered only
     // after an @import chain has finished downloading.
     overlayStyles: [
-      "./fonts/fonts.css?v=3",
+      "./fonts/fonts.css?v=5",
       "./zoidium/ui-overrides.css",
       "./zoidium/ui-window.css",
       "./zoidium/ui-node-editor.css",
