@@ -302,6 +302,7 @@ async function replaceDirectoryAtomically(sourceRoot, destinationRoot) {
     newMoved = true;
   } catch (error) {
     if (oldMoved && !newMoved && !pathExists(resolvedDestinationRoot)) {
+      // Best effort rollback; the original error below is what matters.
       await fs.promises.rename(backupRoot, resolvedDestinationRoot).catch(() => {});
     }
     throw error;
@@ -376,6 +377,7 @@ async function ensureResourceCache({
     await replaceDirectoryAtomically(temporaryStage, resolvedCacheRoot);
     return stageResultFromMetadata(metadata, resolvedCacheRoot, false);
   } finally {
+    // The temporary stage is disposable; a failed cleanup never fails the fetch.
     await cleanupStage(temporaryStage).catch(() => {});
   }
 }
@@ -422,6 +424,8 @@ async function prepareRuntimeStage({
       root: stageRoot,
     };
   } catch (error) {
+    // The caller owns no usable stage on failure; a failed cleanup never
+    // replaces the original error.
     if (ownsStage) await cleanupStage(stageRoot).catch(() => {});
     throw error;
   }

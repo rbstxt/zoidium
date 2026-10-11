@@ -69,6 +69,7 @@ function pathExists(filePath) {
     fs.accessSync(filePath);
     return true;
   } catch (_error) {
+    // Any access failure reads as absent; callers handle a missing path.
     return false;
   }
 }
@@ -109,6 +110,7 @@ function assertAllowedUrlScheme(href, label, allowInsecureSource = false) {
   try {
     protocol = new URL(href).protocol;
   } catch (_error) {
+    // Unparseable values pass through; the fetch will fail with context.
     return href;
   }
   if (protocol === "http:" && !allowInsecureSource) {
@@ -329,6 +331,7 @@ function isProtectedResourcePath(sourcePath) {
   try {
     normalized = normalizeResourcePath(sourcePath);
   } catch (_error) {
+    // Unparseable paths fail closed as protected.
     return true;
   }
   return protectedResourcePrefixes.some(
