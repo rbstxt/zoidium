@@ -1753,7 +1753,8 @@ PZ.ui.graph.prototype.onSvgDoubleClick = function (e) {
     var prop = gel.pz_object;
     var off = gel.pz_frameOffset || 0;
     var rel = this.snapFrame(absF, null) - off;
-    if (prop.hasKeyframe && prop.hasKeyframe(rel)) continue;
+    var wasStatic = !prop.animated;
+    if (!wasStatic && prop.hasKeyframe && prop.hasKeyframe(rel)) continue;
     var scale = gel.pz_valueScale || 1;
     var val = -g.y / scale;
     // clamp to definition min/max if present
@@ -1773,6 +1774,15 @@ PZ.ui.graph.prototype.onSvgDoubleClick = function (e) {
     var data;
     try { data = new PZ.keyframe(val, rel, tween); }
     catch (err) { data = { value: val, frame: rel, tween: tween }; }
+    if (wasStatic) {
+      this.ensureAnimated(prop, rel);
+      // The stopwatch moved the static keyframe here; give it the clicked value.
+      if (prop.hasKeyframe(rel)) {
+        try { this.propertyOps.setValue({ property: prop.getAddress(), frame: rel, value: val }); added++; }
+        catch (err) {}
+        continue;
+      }
+    }
     try { this.propertyOps.createKeyframe({ property: prop.getAddress(), data: data }); added++; }
     catch (err) {}
   }
@@ -2575,6 +2585,14 @@ PZ.ui.graph.prototype.resize = function () {
     }
   }
 };
+// A property without the stopwatch keeps its static value in keyframes that
+// the timeline does not track. Turn the stopwatch on first, as CM3's property
+// panel does, before adding keyframes; otherwise the timeline loses track of
+// them and later deletes or undos fail inside CM3.
+PZ.ui.graph.prototype.ensureAnimated = function (prop, frame) {
+  if (prop.animated || typeof this.propertyOps.toggleAnimation !== "function") return;
+  try { this.propertyOps.toggleAnimation(prop, frame, false, true); } catch (err) {}
+};
 PZ.ui.graph.prototype.deleteKeyframes = function (els) {
   for (var t = 0; t < els.length; t++) {
     var gel = els[t].parentElement.parentElement;
@@ -2641,10 +2659,11 @@ PZ.ui.graph.prototype.addKeyframeAtPlayhead = function () {
     var prop = groups[i].pz_object;
     var off = groups[i].pz_frameOffset || 0;
     var rel = cf - off;
-    if (prop.hasKeyframe && prop.hasKeyframe(rel)) continue;
     var val;
     try { val = prop.get(rel); } catch (e) { val = 0; }
     if (typeof val !== "number") continue;
+    this.ensureAnimated(prop, rel);
+    if (prop.hasKeyframe && prop.hasKeyframe(rel)) continue;
     var tween = prop.interpolated ? 1 : 0;
     var data;
     try { data = new PZ.keyframe(val, rel, tween); }
@@ -2702,6 +2721,7 @@ PZ.ui.graph.prototype.pasteAtPlayhead = function () {
         var shift = cf - arr[e].minFrame - off;
         var list = data[prop.definition.name];
         if (list) {
+          if (list.length) self.ensureAnimated(prop, list[0].frame + shift);
           try { self.propertyOps.pasteKeyframes(prop, JSON.parse(JSON.stringify(list)), shift); } catch (err) {}
           delete data[prop.definition.name];
         }
