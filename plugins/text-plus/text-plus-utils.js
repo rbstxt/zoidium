@@ -39,7 +39,6 @@ const DEGREES_TO_RADIANS = Math.PI / 180;
 const PZ_EULER_ORDERS = new Set(["XYZ", "YZX", "ZXY", "XZY", "YXZ", "ZYX"]);
 
 const randomOrderCache = new Map();
-const seedBits = new DataView(new ArrayBuffer(8));
 
 const state = {
   PZ: null,
@@ -76,7 +75,9 @@ function vector3(value, fallback) {
 }
 
 function cloneJson(value) {
-  return JSON.parse(JSON.stringify(value));
+  // Shared JSON clone (zoidium/shared/props.js). Pinned by
+  // test/migrate-shared-pins.test.js.
+  return ZoidiumPluginApis.props.cloneJson(value);
 }
 
 function normalizeObjectData(data, type, name, schemaVersion) {
@@ -157,42 +158,24 @@ function defaultRandomScatterData(data) {
 /* ------------------------------------------------------------------- delay */
 
 function seedHash(seed) {
-  const numericSeed = numberValue(seed, 1);
-  if (Number.isInteger(numericSeed)) return Math.trunc(numericSeed) | 0;
-
-  // Keep every fractional bit in the seed identity. Math.trunc(seed) made
-  // animated values such as 1.1 and 1.9 produce the same random state.
-  seedBits.setFloat64(0, numericSeed, true);
-  let value =
-    seedBits.getUint32(0, true) ^
-    Math.imul(seedBits.getUint32(4, true), 0x9e3779b9);
-  value ^= value >>> 16;
-  value = Math.imul(value, 0x45d9f3b);
-  value ^= value >>> 16;
-  return value | 0;
+  // Shared text seed folding (zoidium/shared/random.js): integer seeds keep
+  // their truncated identity, fractional seeds fold every float64 bit into
+  // the state. Pinned bit-for-bit on numbers by
+  // test/migrate-shared-pins.test.js. Production seeds are always finite
+  // numbers (every call boundary coerces with numberValue first).
+  return ZoidiumPluginApis.random.textSeedHash(seed);
 }
 
 function seedCacheKey(seed) {
-  const numericSeed = numberValue(seed, 1);
-  if (Number.isInteger(numericSeed)) {
-    return "i:" + (Math.trunc(numericSeed) | 0);
-  }
-  seedBits.setFloat64(0, numericSeed, true);
-  return (
-    "f:" +
-    seedBits.getUint32(4, true).toString(16) +
-    ":" +
-    seedBits.getUint32(0, true).toString(16)
-  );
+  // Keyed on the shared seed hash, so the cache partitions seeds exactly the
+  // way the random stream does: equal hashes always give equal streams.
+  return "h:" + ZoidiumPluginApis.random.textSeedHash(seed);
 }
 
 function seededRandom(seed, index, channel) {
-  let value = seedHash(seed) ^ Math.imul(index + 1, 0x45d9f3b);
-  value ^= Math.imul(channel + 1, 0x27d4eb2d);
-  value = Math.imul(value ^ (value >>> 16), 0x45d9f3b);
-  value = Math.imul(value ^ (value >>> 16), 0x45d9f3b);
-  value ^= value >>> 16;
-  return (value >>> 0) / 0x100000000;
+  // Shared text seeded random (zoidium/shared/random.js). Pinned bit-for-bit
+  // on numbers by test/migrate-shared-pins.test.js.
+  return ZoidiumPluginApis.random.textSeededRandom(seed, index, channel);
 }
 
 function lerp(start, end, amount) {
