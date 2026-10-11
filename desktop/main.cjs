@@ -391,6 +391,45 @@ function openExternal(value) {
   });
 }
 
+// The staged CM3 page is third-party code, so every Chromium permission is
+// denied by default and only the editor's proven needs are allowed. Evidence
+// gathered 2026-10-11 from the staged runtime: CM3 copy/paste of keyframes,
+// media entries, and timeline clips uses navigator.clipboard.readText and
+// writeText (ui-1.0.72.js); no getUserMedia/getDisplayMedia,
+// requestMIDIAccess, geolocation, Notification, or requestFullscreen use was
+// found. Media capture, MIDI, geolocation, notifications, fullscreen, and all
+// device access therefore stay denied, and an Electron upgrade changing a
+// default can never silently widen access.
+const ALLOWED_PERMISSIONS = new Set(["clipboard-read", "clipboard-sanitized-write"]);
+
+function isAllowedPermission(permission) {
+  return ALLOWED_PERMISSIONS.has(permission);
+}
+
+function installPermissionHandlers(session) {
+  session.setPermissionRequestHandler((webContents, permission, callback, details) => {
+    if (isAllowedPermission(permission)) {
+      logMain("info", "allowed renderer permission request", { permission });
+      callback(true);
+      return;
+    }
+    let pageUrl = "";
+    try {
+      pageUrl = webContents.getURL();
+    } catch (_error) {
+      pageUrl = "";
+    }
+    logMain("warn", "denied renderer permission request", {
+      permission,
+      pageUrl,
+      requestingUrl: details && details.requestingUrl,
+    });
+    callback(false);
+  });
+  session.setPermissionCheckHandler((_webContents, permission) => isAllowedPermission(permission));
+  session.setDevicePermissionHandler(() => false);
+}
+
 // Chromium reports a page whose beforeunload handler tries to cancel the close
 // (the editor does this while the project has unsaved changes). Electron cancels
 // the close silently unless this event is prevented, which looked like a window
@@ -642,6 +681,7 @@ async function createWindow() {
     openExternal(url);
   });
   window.webContents.on("console-message", createRendererConsoleLogger());
+  installPermissionHandlers(window.webContents.session);
   window.webContents.on("did-fail-load", (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
     logMain("error", "renderer failed to load", {
       errorCode,
