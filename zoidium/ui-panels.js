@@ -15,7 +15,8 @@
   //     Declares that an editor window exists for some objects (3D objects,
   //     effects, materials). CM3 lists then show a gear button on matching
   //     rows and an "Open ..." button at the top of their properties, the same
-  //     way the VHS effect shows its Setup button.
+  //     way the VHS effect shows its Setup button. refreshEditors() re-runs
+  //     match() on open panels after a property it reads changes.
   //
   //   ZoidiumUI.openAttributePanel(target, spec)
   //     Opens a tabbed attribute window (the Cinema 4D / After Effects /
@@ -466,6 +467,7 @@
       var api = {
         properties: properties,
         registerEditor: registerEditor,
+        refreshEditors: refreshPanels,
         openAttributePanel: openAttributePanel,
         registerAttributePanel: registerAttributePanel,
       };

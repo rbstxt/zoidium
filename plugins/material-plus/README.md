@@ -46,30 +46,38 @@ when Reflection is enabled.
 PBR+ Material is separate from CM3 Custom Material and Matcap Material. Existing
 material types and their serialized project data remain unchanged.
 
+## Texture layout on text and extruded shapes
+
+CM3 builds 3D Text and extruded shapes from Three.js `TextGeometry` /
+`ExtrudeGeometry`, whose default `WorldUVGenerator` maps UVs in object units:
+caps use raw x/y, side walls use raw x|y and `1 - z`. A texture therefore tiles
+once per object unit, side walls run into negative V, and slanted or curved
+walls shear because the generator projects instead of unwrapping. CM3's native
+Custom Material uses those UVs.
+
+Every Material+ material that reads a texture through the mesh UVs (UV Custom,
+PBR+, Node Material and Image+) uses the shared layout in `uv-layout.js`
+instead. Caps use the text bounds, side walls unwrap along the outline (arc
+length in U, depth in V), and the text height sets the texture unit, so every
+face shares one texel density. The outline is rebuilt from the geometry's own
+side walls, so the layout needs no font or source-shape access and also covers
+Text+ character meshes. Inside an effector the layout is written to the source
+geometry, and the effector rebuilds from it.
+
+The original UVs are stored on the geometry and restored when the object
+switches to a material that does not use the layout, so native CM3 materials
+keep their original look. Other geometry keeps its own UVs. Matcap Material
+does not read UVs. New material types follow the same rule (see
+`docs/plugin-api.md`).
+
 ## UV Custom Material
 
 UV Custom Material mirrors CM3's native Custom Material: Color, Emissive,
 Roughness, Metalness, Texture, Transparency, Opacity, Blending, Render side,
 Normal map, Normal scale, Wrap, Repeat, Offset, Center, Rotation, and
-Reflection behave the same way and keep the same property names.
-
-The difference is the texture UVs on 3D Text and extruded geometry. CM3 builds
-those from Three.js `TextGeometry` / `ExtrudeGeometry`, whose default
-`WorldUVGenerator` maps UVs in object units: caps use raw x/y, side walls use
-raw x|y and `1 - z`. A texture therefore tiles once per object unit, side walls
-run into negative V, and slanted or curved walls shear because the generator
-projects instead of unwrapping.
-
-While UV Custom Material is on an object, it rewrites that geometry's UVs so
-every face shares one texel density: caps use the text bounds, side walls
-unwrap along the outline (arc length in U, depth in V), and the text height sets
-the texture unit. The outline is rebuilt from the geometry's own side walls, so
-the material needs no font or source-shape access and also covers Text+
-character meshes. The original UVs are stored and restored when the material is
-removed, so switching back to the native Custom Material gives the original CM3
-look.
-
-Native Custom Material is not modified in any way.
+Reflection behave the same way and keep the same property names. It differs
+only in using the texture layout above. Native Custom Material is not modified
+in any way.
 
 ## Project compatibility
 
@@ -143,7 +151,8 @@ shader and graph runtime and adds these optional controls:
 - Cel diffuse/specular levels and smoothness.
 - UV, spherical, cylindrical or cubic projection, with projection transforms.
 - Reflection layer strength, opacity and roughness; specular strength/opacity.
-- Use node graph and bake resolution.
+- Use node graph and bake resolution. The Node Editor button appears while
+  Use node graph is on.
 
 Ramp, procedural bump, Fresnel, ambient occlusion, cel, reflection layer and
 graphs default off. The physical material has zero clear coat until the

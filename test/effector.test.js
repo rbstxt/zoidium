@@ -684,3 +684,44 @@ test("new Voronoi objects affect every fragment while saved explicit fields reta
   assert.equal(migrated.legacyField, true);
   assert.equal(migrated.properties.field.keyframes[0].value, 3);
 });
+
+test("the fracture material clone follows edits to the original material", () => {
+  const jobs = controlledJobs();
+  const deformer = require("../plugins/scene-plus/effector-mesh.js").createMeshDeformer(THREE, jobs);
+  const Voronoi = _test.createVoronoiClass(createHarness(), THREE), effector = new Voronoi();
+  setProperty(effector, "cells", 4);
+  class Color { constructor(r) { this.r = r; } copy(other) { this.r = other.r; return this; } }
+  // Like THREE, a clone owns its color instance.
+  class ColoredMaterial extends Material {
+    clone() { const copy = Object.assign(super.clone(), { color: new Color(this.color.r) }); return copy; }
+  }
+  const original = new ColoredMaterial();
+  original.color = new Color(1);
+  original.roughness = 0.5;
+  original.map = null;
+  original.version = 0;
+  original._listeners = { dispose: [() => {}] };
+  const mesh = makeMesh(cubePositions(), original), chain = [{ effector, node: nodeAt(identity()) }];
+  deformer.deformMesh(mesh, chain, 0, 1); jobs.complete(); deformer.deformMesh(mesh, chain, 0, 1);
+  const clone = mesh.material;
+  assert.notEqual(clone, original);
+  const cloneColor = clone.color;
+  assert.notEqual(cloneColor, original.color);
+
+  // CM3 writes values into its THREE material on update and swaps maps when an image changes.
+  const texture = { isTexture: true };
+  original.color.r = 0.25;
+  original.roughness = 0.9;
+  original.map = texture;
+  original.version += 1;
+  deformer.deformMesh(mesh, chain, 0, 1);
+  assert.equal(mesh.material, clone, "the same compiled clone stays in place");
+  assert.equal(clone.color, cloneColor, "colors are copied into the clone's own instance");
+  assert.equal(clone.color.r, 0.25);
+  assert.equal(clone.roughness, 0.9);
+  assert.equal(clone.map, texture, "textures are shared by reference");
+  assert.equal(clone.needsUpdate, true, "a recompile request reaches the clone");
+  assert.equal(clone.side, THREE.DoubleSide);
+  assert.notEqual(clone._listeners, original._listeners);
+  deformer.dispose();
+});

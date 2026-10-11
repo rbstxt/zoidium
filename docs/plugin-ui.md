@@ -121,6 +121,11 @@ CM3 lists then show a gear on matching rows and an "Open ..." button above
 their properties (the convention the VHS Setup button established). The
 registration is removed when the plugin is disabled.
 
+`match` runs when CM3 builds those rows. If it reads a property (for example,
+PBR+ shows Node Editor only while **Use node graph** is on), call
+`context.ui.refreshEditors()` from that property's `changed` handler so the
+button appears or disappears right away.
+
 `registerAttributePanel` builds the common case — a tabbed attribute window
 (the Cinema 4D / After Effects / Blender convention: one tab per topic) whose
 tabs show native rows:

@@ -15,7 +15,7 @@ function harness() {
   const PZ = { property: { type: Object.fromEntries(["TEXT", "GRADIENT", "NUMBER", "OPTION", "COLOR", "VECTOR2", "VECTOR3", "ASSET"].map(k => [k, k])) }, asset: { type: { IMAGE: "image" }, image: class { constructor(asset) { this.asset = asset; this.loading = Promise.resolve(); } getTexture() { return new Texture(); } getImage() { return { width: 8, height: 8 }; } } }, material: { fnList: {} } };
   const document = { createElement() { const canvas = { width: 0, height: 0 }; canvas.getContext = () => ({ createImageData(w, h) { return { data: new Uint8ClampedArray(w * h * 4) }; }, putImageData(image) { canvas.data = image.data.slice(); }, drawImage() {}, getImageData() { return { data: new Uint8ClampedArray(canvas.width * canvas.height * 4) }; } }); return canvas; } };
   const dispose = [], editors = [], panels = [];
-  const context = { PZ, window: { PZ, THREE, document }, document, plugin: { id: "material-plus", version: "6" }, lifecycle: { onDispose(fn) { dispose.push(fn); } }, getAsset(type, name) { return fs.readFileSync(name.replace(/^\.\//, "").split("?")[0], "utf8"); }, ui: { registerEditor(spec) { editors.push(spec); }, registerAttributePanel(spec) { panels.push(spec); } } };
+  const context = { PZ, window: { PZ, THREE, document, setTimeout: fn => fn() }, document, plugin: { id: "material-plus", version: "6" }, lifecycle: { onDispose(fn) { dispose.push(fn); } }, getAsset(type, name) { return fs.readFileSync(name.replace(/^\.\//, "").split("?")[0], "utf8"); }, ui: { refreshEditors() {}, registerEditor(spec) { editors.push(spec); }, registerAttributePanel(spec) { panels.push(spec); } } };
   const unloaded = [];
   function material(type) {
     const material = { type, parentProject: { assets: { load: key => ({ key }), unload: asset => unloaded.push(asset) }, sequence: { properties: { rate: { get: () => 30 } } } }, parentLayer: {} };
@@ -54,6 +54,10 @@ test("PBR+ retains map keys and exposes optional surface controls with neutral d
     for (const key of ["texture", "emissiveMap", "roughnessMap", "metalnessMap", "normalMap", "alphaMap", "alphaTest", "reflectionIntensity"]) assert.ok(m.properties[key], key);
     m.properties.color.set([.2, .3, .4]); m.update(2);
     assert.deepEqual(m.pzUniforms.uPzColor.value.values, [.2, .3, .4]);
+    // The Node Editor button belongs to PBR+ only while it uses a graph.
+    assert.equal(h.editors[0].match(m), false);
+    m.properties.useNodeGraph.set(1);
+    assert.equal(h.editors[0].match(m), true);
     m.unload();
   } finally { for (const fn of h.dispose.reverse()) fn(); }
 });

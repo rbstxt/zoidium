@@ -146,6 +146,16 @@ plugin manager for declared resources. Do not add runtime `fetch()` calls that
 fan out into the plugin source tree when the asset can be embedded in the
 bundle. Keep plugin IDs and serialized object types stable once published.
 
+Material types that sample a texture through mesh UVs use the shared Material+
+UV layout, `plugins/material-plus/uv-layout.js`. CM3's native Custom Material
+maps 3D Text and extruded shapes with Three.js `WorldUVGenerator` UVs, which
+tile per object unit and shear on curved or slanted side walls; Zoidium
+materials must not inherit that. Implement new material types in Material+,
+load the layout from the bundle (`context.getAsset("text", ...)`), call
+`ensureMaterial(material)` from `update()` and `releaseMaterial(material)` from
+`unload()`. Materials that never read UVs, such as Matcap, are exempt. Leave
+CM3's native materials unchanged.
+
 ## User-facing text language
 
 Zoidium has no localization layer. Write every piece of user-facing text — UI
