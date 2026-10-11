@@ -100,6 +100,7 @@ const GraphPlus = (() => {
               try {
                 toSel.push(fromSel[index]);
               } catch (_pushError) {
+                // A read-only selection carries no further keys.
                 break;
               }
             }
@@ -126,6 +127,7 @@ const GraphPlus = (() => {
       const windows = state.editor && state.editor.windows;
       return Array.isArray(windows) ? windows : [];
     } catch (_error) {
+      // Without host windows there is nothing to rebuild.
       return [];
     }
   }

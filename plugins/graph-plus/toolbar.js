@@ -56,7 +56,7 @@ PZ.ui.graph.prototype.toggleEasePopup = function () {
     var rr = this.rootEl.getBoundingClientRect();
     pop.style.left = Math.max(4, r.left - rr.left) + "px";
     pop.style.top = (r.bottom - rr.top + 4) + "px";
-  } catch (e) {}
+  } catch (e) { /* The popup still opens; only its anchor is lost. */ }
   this._easeOutside = function (ev) {
     if (pop === ev.target || pop.contains(ev.target)) return;
     self.closeEasePopup();
@@ -68,7 +68,7 @@ PZ.ui.graph.prototype.toggleEasePopup = function () {
         w.addEventListener("pointerdown", self._easeOutside, true);
         self._easeWin = w;
       }
-    } catch (eWin) {}
+    } catch (eWin) { /* Without outside-dismiss the popup still closes on pick or Esc. */ }
   }, 0);
   pop._openTO = to;
 };
@@ -80,17 +80,17 @@ PZ.ui.graph.prototype.closeEasePopup = function () {
       if (this._easeWin && this._easeWin.removeEventListener) {
         this._easeWin.removeEventListener("pointerdown", this._easeOutside, true);
       }
-    } catch (e2) {}
+    } catch (e2) { /* The closing window drops its listeners with it. */ }
     try {
       var w = (this._win && this._win()) || g2win(this.rootEl);
       if (w && w !== this._easeWin && w.removeEventListener) {
         w.removeEventListener("pointerdown", this._easeOutside, true);
       }
-    } catch (e3) {}
+    } catch (e3) { /* The closing window drops its listeners with it. */ }
     this._easeOutside = null;
     this._easeWin = null;
   }
-  try { this.easePopup.remove(); } catch (e) {}
+  try { this.easePopup.remove(); } catch (e) { /* A closed popup needs no removal. */ }
   this.easePopup = null;
 };
 PZ.ui.graph.prototype.buildToolbar = function () {
@@ -121,7 +121,7 @@ PZ.ui.graph.prototype.buildToolbar = function () {
       el.style.setProperty("color", "var(--zui-text-bright)", "important");
       var kids = el.querySelectorAll("span");
       for (var q = 0; q < kids.length; q++) kids[q].style.setProperty("color", "var(--zui-text-bright)", "important");
-    } catch (e) {}
+    } catch (e) { /* Cosmetic only; the tile still works unstyled. */ }
     return el;
   }
   /* big tile: dark box with artwork + label beneath (user design) */
