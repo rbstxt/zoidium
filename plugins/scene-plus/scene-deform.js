@@ -234,6 +234,9 @@ function createDeformationSupport(PZ, THREE) {
       run();
       const bounds = new Map();
       for (const task of tasks) {
+        // Empty chains only restore previously deformed geometry below. They
+        // contribute no effector bounds and need no source conversion/staging.
+        if (!task.chain.length) continue;
         const stage = meshDeformer.sourceStage(task.mesh);
         if (!stage) continue;
         for (const entry of task.chain) {
