@@ -25,6 +25,10 @@ function clampIndex(value, maximum) {
   return number < 0 ? 0 : number > maximum ? maximum : number;
 }
 
+// Local copies kept deliberately: this file also evaluates inside the Mesh
+// worker (see createWorkerSource), whose realm has no overlay scripts and
+// hence no ZoidiumPluginApis. Each twin is pinned bit-for-bit against the
+// shared module by test/migrate-shared-pins.test.js.
 function clampUnit(value) {
   if (!(value > 0)) return 0;
   return value < 1 ? value : 1;

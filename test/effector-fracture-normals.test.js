@@ -4,6 +4,7 @@
 // normals are the source normals carried through each piece's transform, not
 // normals rebuilt from the clipped faces.
 
+require("./migrate-test-apis.js").ensureMainRealmApis();
 const assert = require("node:assert/strict");
 const test = require("node:test");
 const { computeFractureNormals } = require("../plugins/scene-plus/effector-mesh.js");

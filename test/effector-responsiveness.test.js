@@ -4,6 +4,7 @@
 // the stage's vertex sharing, and dropping an unwanted motion frame never
 // restarts the worker (which would discard every cached fracture topology).
 
+require("./migrate-test-apis.js").ensureMainRealmApis();
 const assert = require("node:assert/strict");
 const test = require("node:test");
 const { computeSmoothVertexNormals } = require("../plugins/scene-plus/effector-mesh.js");
