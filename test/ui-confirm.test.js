@@ -5,13 +5,10 @@
 // and the Promise + callback contract through a fake DOM.
 
 const assert = require("node:assert/strict");
-const fs = require("node:fs");
-const path = require("node:path");
 const test = require("node:test");
 const vm = require("node:vm");
 
-const projectRoot = path.resolve(__dirname, "..");
-const UI_KIT_SOURCE = fs.readFileSync(path.join(projectRoot, "zoidium", "ui-kit.js"), "utf8");
+const { kitScripts, readScript } = require("./uikit-files");
 
 class FakeClassList {
   constructor() {
@@ -153,7 +150,8 @@ function loadKit() {
     removeEventListener() {},
   };
   context.window = context;
-  vm.runInNewContext(UI_KIT_SOURCE, context);
+  vm.createContext(context);
+  for (const file of kitScripts()) vm.runInContext(readScript(file), context, { filename: file });
   return { api: context.ZoidiumUI, document };
 }
 
