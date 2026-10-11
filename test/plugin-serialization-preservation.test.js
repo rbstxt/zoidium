@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const vm = require("node:vm");
 const test = require("node:test");
-const source = fs.readFileSync(require.resolve("../plugins/plugin-manager.js"), "utf8");
+const source = require("./plugin-manager-source").managerSource();
 const plain = (value) => JSON.parse(JSON.stringify(value));
 function harness(mediaMutates = false) {
   class Layer {
@@ -30,7 +30,7 @@ function harness(mediaMutates = false) {
   const PZ = { layer: Layer, clip: Clip, media: Media };
   const start = source.indexOf("  function installSerializedFieldPreservation() {");
   const end = source.indexOf("  function installProjectPluginHooks() {", start);
-  vm.runInNewContext(source.slice(start, end) + "\ninstallSerializedFieldPreservation();", { PZ, cloneJson: plain });
+  vm.runInNewContext(source.slice(start, end) + "\ninstallSerializedFieldPreservation();", { PZ, ZoidiumPluginApis: require("./shared-test-apis").loadSharedTables() });
   return PZ;
 }
 test("disabled composition fields survive, are cloned, and leave current host state intact", async () => {
@@ -85,11 +85,11 @@ test("save dependency scans serialize runtime children without reading THREE get
   const prototype = { toJSON() { return project; } };
   let scanned;
   vm.runInNewContext(source.slice(begin, end), {
-    projectPrototype: prototype, collectProjectPlugins: () => [], cloneJson: plain,
+    projectPrototype: prototype, collectProjectPlugins: () => [], ZoidiumPluginApis: require("./shared-test-apis").loadSharedTables(),
     projectPluginRequirements(data) { scanned = data; return []; }, serializeProjectPlugins: (value) => value,
   });
   prototype.toJSON();
-  assert.deepEqual(scanned.sequence, { properties: { resolution: [320, 180] }, videoTracks: [] });
+  assert.deepEqual(plain(scanned.sequence), { properties: { resolution: [320, 180] }, videoTracks: [] });
 });
 
 

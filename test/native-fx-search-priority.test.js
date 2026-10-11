@@ -5,7 +5,7 @@ const path = require("node:path");
 const test = require("node:test");
 const vm = require("node:vm");
 const projectRoot = path.resolve(__dirname, "..");
-const source = fs.readFileSync(path.join(projectRoot, "plugins/plugin-manager.js"), "utf8");
+const source = require("./plugin-manager-source").managerSource();
 function loadSearchHelpers() {
   const start = source.indexOf("function isNativeFxSearchEntry(value)");
   assert.ok(start >= 0, "native fx search helper exists");
