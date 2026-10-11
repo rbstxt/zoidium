@@ -202,7 +202,8 @@
   // list so the debug log (and agents) can tell a clean boot from a
   // degraded one.
   function isUiKitScript(url) {
-    return /(^|\/)ui-kit\.js$/.test(String(url).split(/[?#]/, 1)[0]);
+    // ui-kit.js and its part files (ui-kit-windows.js, ui-kit-controls.js, ...).
+    return /(^|\/)ui-kit(-[a-z]+)?\.js$/.test(String(url).split(/[?#]/, 1)[0]);
   }
 
   function reportScriptError(failures, script, phase, error) {
