@@ -11,7 +11,36 @@ const test = require("node:test");
 
 const projectRoot = path.resolve(__dirname, "..");
 const legacyDir = path.join(projectRoot, "plugins/openzoid-legacy");
-const source = fs.readFileSync(path.join(legacyDir, "effects/tracery.js"), "utf8");
+// The effect is split into an entry plus part files; text assertions read the
+// combined source so they keep pinning the same behavior.
+const source = [
+  "effects/tracery.js",
+  "effects/tracery-paths.js",
+  "effects/tracery-detect.js",
+  "effects/tracery-overlay.js",
+  "effects/tracery-props.js",
+]
+  .map((relative) => fs.readFileSync(path.join(legacyDir, relative), "utf8"))
+  .join("\n");
+const entrySource = fs.readFileSync(path.join(legacyDir, "effects/tracery.js"), "utf8");
+
+function loadPluginApis() {
+  // Evaluated in this context so split parts (compiled by the shared loader)
+  // stay in the same realm as the test's literals.
+  if (!globalThis.ZoidiumPluginApis?.modules?.createRequire) {
+    globalThis.PZ = globalThis.PZ || { property: { type: {} } };
+    eval(fs.readFileSync(path.join(projectRoot, "zoidium/plugin-apis.js"), "utf8"));
+  }
+  return globalThis.ZoidiumPluginApis;
+}
+
+function bundleAsset(kind, assetPath) {
+  assert.equal(kind, "text");
+  return fs.readFileSync(
+    path.join(projectRoot, String(assetPath).replace(/^\.\//, "")),
+    "utf8",
+  );
+}
 
 function loadEffectThis() {
   const PZ = {
@@ -33,8 +62,10 @@ function loadEffectThis() {
   THREE.PlaneBufferGeometry = function () { this.dispose = () => {}; };
   THREE.CanvasTexture = function () { this.dispose = () => {}; };
   THREE.WebGLRenderTarget = function () { this.dispose = () => {}; };
-  const fakeThis = { properties: fakeProps() };
-  new Function("PZ", "THREE", source).call(fakeThis, PZ, THREE);
+  const fakeThis = { properties: fakeProps(), _zoidiumGetAsset: bundleAsset };
+  new Function("PZ", "THREE", "ZoidiumPluginApis", entrySource).call(
+    fakeThis, PZ, THREE, loadPluginApis(),
+  );
   return { fakeThis, PZ, THREE };
 }
 
