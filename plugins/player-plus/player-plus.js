@@ -59,6 +59,7 @@ const PlayerPlus = (() => {
   }
 
   function readStoredQuality() {
+    // Storage may be blocked; fall back to the default quality.
     try {
       const value = Number(state.window?.localStorage?.getItem(QUALITY_STORAGE_KEY));
       return QUALITY_OPTIONS.some((option) => option.value === value) ? value : 1;
