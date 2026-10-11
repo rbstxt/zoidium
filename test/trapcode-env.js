@@ -8,6 +8,11 @@
 const fs = require("node:fs");
 const path = require("node:path");
 
+// Trapcode sources call the global ZoidiumPluginApis directly (the shared
+// overlay scripts load before any plugin code runs); install the real shared
+// tables for the suite sources evaluated below.
+require("./migrate-test-apis.js").ensureMainRealmApis();
+
 const projectRoot = path.resolve(__dirname, "..");
 
 function readSource(file) {

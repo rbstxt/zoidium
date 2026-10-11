@@ -54,12 +54,11 @@ var PZ = PZ || {};
         CHECKPOINT_BUDGET: 200000,
     };
 
+    // Shared Particular simulation hash (zoidium/shared/random.js): integer
+    // hash of (seed, event key, channel) for per-particle random values.
+    // Pinned bit-for-bit by test/migrate-shared-pins.test.js.
     function simHash(seed, key, channel) {
-        var h = Math.imul(seed | 0, 0x9e3779b1) ^ Math.imul(key | 0, 0x85ebca77) ^ Math.imul(channel | 0, 0xc2b2ae3d);
-        h = Math.imul(h ^ (h >>> 16), 0x7feb352d);
-        h = Math.imul(h ^ (h >>> 15), 0x846ca68b);
-        h ^= h >>> 16;
-        return (h >>> 0) / 4294967296;
+        return ZoidiumPluginApis.random.particularSimHash(seed, key, channel);
     }
 
     function simNoise(x, y, z, time) {
