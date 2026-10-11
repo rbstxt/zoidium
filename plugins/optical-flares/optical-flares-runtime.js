@@ -158,7 +158,6 @@ module.exports = {
     undo.push(context.ui.registerEditor({
       id: "optical-flares",
       title: "Optical Flares",
-      hint: "Open the Optical Flares options window",
       icon: "settings",
       match: (target) => Boolean(PZ.object3d.optflares && target instanceof PZ.object3d.optflares &&
         target.parent instanceof PZ.objectList),

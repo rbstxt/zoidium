@@ -600,13 +600,27 @@
     viewport.appendChild(world);
     viewport.appendChild(marquee);
     // Header bar, like a Blender editor header: the visible way to add nodes.
+    // The tools reuse the shared button builder; the tool class pins them
+    // to the compact canvas-toolbar rendering (see ui-node-editor.css) the
+    // shared full-width row button would otherwise break.
     var header = el("div", "zoidium-node-editor-header");
-    var addButton = el("button", "zoidium-node-editor-tool", "+ Add node");
-    addButton.type = "button";
-    addButton.title = "Add a node (also right-click the grid, Tab or Shift+A)";
-    var frameButton = el("button", "zoidium-node-editor-tool", "Frame all");
-    frameButton.type = "button";
-    frameButton.title = "Fit every node in view (Home)";
+    function headerTool(label, hint) {
+      var kit = global.ZoidiumUI;
+      var node = null;
+      if (kit && kit.controls && typeof kit.controls.button === "function") {
+        try { node = kit.controls.button({ title: label, hint: hint }).element; }
+        catch (_error) { node = null; }
+      }
+      if (!node) {
+        node = el("button", "", label);
+        node.title = hint;
+      }
+      node.type = "button";
+      node.classList.add("zoidium-node-editor-tool");
+      return node;
+    }
+    var addButton = headerTool("+ Add node", "Add a node (also right-click the grid, Tab or Shift+A)");
+    var frameButton = headerTool("Frame all", "Fit every node in view (Home)");
     var hint = el("span", "zoidium-node-editor-hint", "Drag from a socket to connect. Right-click the grid to add nodes.");
     if (!readOnly) header.appendChild(addButton);
     header.appendChild(frameButton);

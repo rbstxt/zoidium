@@ -1397,7 +1397,8 @@
             title: TITLE,
             subtitle: subtitleFor(root.properties.name.get()),
             persistKey: "options",
-            width: 360,
+            // Wide enough for the longest 16px element name ("5. Multi Iris").
+            width: 380,
             height: 620,
             isValid: function () { return root.isLive(); },
             mount: function (body, handle) {

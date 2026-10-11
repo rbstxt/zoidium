@@ -267,11 +267,13 @@ function traceryAssignments(preset, read) {
 }
 
 const SPECS = {
+  // Both windows use 16px rows; 410px fits the longest labels
+  // ("Custom/Random characters", "Detection Quality").
   asciiSetup: {
     kind: "ascii",
     title: "ASCII Setup",
     persistKey: "ascii-setup",
-    width: 360,
+    width: 410,
     height: 560,
     layout: ASCII_LAYOUT,
     presets: ASCII_PRESETS,
@@ -282,7 +284,7 @@ const SPECS = {
     kind: "tracery",
     title: "Tracery Setup",
     persistKey: "tracery-setup",
-    width: 360,
+    width: 410,
     height: 620,
     layout: TRACERY_LAYOUT,
     presets: TRACERY_PRESETS,
@@ -596,13 +598,14 @@ function buildGroup(build, group) {
         section.body.appendChild(place);
         continue;
       }
-      const line = toggle.ownerDocument.createElement("div");
-      line.style.cssText = "display: flex; align-items: center; border-bottom: 1px solid var(--zui-border-soft);";
+      // The toggle row and its Place button share one button row instead of
+      // a hand-built flex div.
       toggle.style.flex = "1 1 auto";
       toggle.style.borderBottom = "0";
-      place.style.cssText = "flex: 0 0 auto; width: auto; margin: 0 8px 0 0; padding: 2px 12px;";
-      line.appendChild(toggle);
-      line.appendChild(place);
+      place.style.flex = "0 0 auto";
+      place.style.margin = "0";
+      const line = build.controls.buttonRow([{ element: toggle }, { element: place }]).element;
+      line.style.alignItems = "center";
       section.body.appendChild(line);
     }
     const tabs = [];

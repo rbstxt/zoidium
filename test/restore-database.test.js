@@ -496,6 +496,26 @@ function loadRestore(options = {}) {
         menubarTabs.push(tab);
         return {};
       },
+      createButton: (options) => {
+        const button = new FakeElement("button");
+        button.textContent = (options && options.title) || "";
+        const extra = options && options.className ? String(options.className).split(/\s+/) : [];
+        button.classList.add("proprow", "propbutton", ...extra.filter(Boolean));
+        if (options && typeof options.onClick === "function") {
+          button.addEventListener("click", options.onClick);
+        }
+        return button;
+      },
+      confirm: options.confirm || (async () => true),
+      controls: {
+        note: (message, variant) => {
+          const note = new FakeElement("p");
+          note.classList.add("zoidium-note");
+          if (variant) note.classList.add(variant);
+          note.textContent = message || "";
+          return { element: note };
+        },
+      },
     },
     MutationObserver: class MutationObserver {
       observe() {}
@@ -525,7 +545,6 @@ function loadRestore(options = {}) {
     },
     dispatchEvent: () => true,
     location: { reload: () => {} },
-    confirm: () => true,
     console,
   };
   sandbox.window = sandbox;
@@ -642,7 +661,7 @@ test("split restore points deduplicate assets in the v2 store", async () => {
   });
   await flush();
 
-  harness.panel.querySelector(".zoidium-backup-now").click();
+  harness.panel.querySelector(".zoidium-restore-backup-control").children[0].click();
   await flush();
 
   const stored = harness.idb.databases["zoidium-restore-points"];
@@ -657,4 +676,90 @@ test("split restore points deduplicate assets in the v2 store", async () => {
   const entries = listEntries(harness);
   assert.equal(entries.length, 1);
   assert.deepEqual(harness.errorToasts(), []);
+});
+
+test("deleting one restore point asks once and removes it", async () => {
+  const confirms = [];
+  const harness = loadRestore({
+    seed: seedV2Database(),
+    confirm: async (options) => {
+      confirms.push(options);
+      return true;
+    },
+  });
+  await flush();
+  assert.equal(listEntries(harness).length, 1);
+
+  const entry = listEntries(harness)[0];
+  const actions = entry.children[entry.children.length - 1];
+  const deleteButton = actions.children.find((button) => /^Delete /.test(button.textContent));
+  assert.ok(deleteButton, "expected a per-point Delete button");
+  deleteButton.click();
+  await flush();
+
+  assert.equal(confirms.length, 1);
+  assert.equal(confirms[0].message, "Delete this restore point?");
+  assert.equal(confirms[0].danger, true);
+  const stored = harness.idb.databases["zoidium-restore-points"];
+  assert.equal(stored.stores.snapshots.records.size, 0, "expected the record deleted");
+  const remaining = listEntries(harness).filter((entry) => /zoidium-restore-entry/.test(entry.className));
+  assert.equal(remaining.length, 0);
+  assert.match(listEntries(harness)[0].textContent, /No restore points yet/);
+});
+
+test("cancelling the delete keeps the restore point", async () => {
+  const harness = loadRestore({ seed: seedV2Database(), confirm: async () => false });
+  await flush();
+
+  const entry = listEntries(harness)[0];
+  const actions = entry.children[entry.children.length - 1];
+  actions.children.find((button) => /^Delete /.test(button.textContent)).click();
+  await flush();
+
+  assert.equal(listEntries(harness).length, 1);
+});
+
+test("delete-all asks twice with the exact wordings", async () => {
+  const confirms = [];
+  const harness = loadRestore({
+    seed: seedV2Database(),
+    confirm: async (options) => {
+      confirms.push(options);
+      return true;
+    },
+  });
+  await flush();
+
+  const footer = harness.panel.querySelector(".zoidium-restore-delete-footer");
+  assert.equal(footer.children.length, 1, "expected the shared Delete all button");
+  footer.children[0].click();
+  await flush();
+
+  assert.deepEqual(confirms.map((options) => options.message), [
+    "Delete all restore points?",
+    "This will permanently remove every restore point. Continue?",
+  ]);
+  assert.ok(confirms.every((options) => options.danger), "both steps are destructive");
+  const stored = harness.idb.databases["zoidium-restore-points"];
+  assert.equal(stored.stores.snapshots.records.size, 0, "expected every record deleted");
+  const remaining = listEntries(harness).filter((entry) => /zoidium-restore-entry/.test(entry.className));
+  assert.equal(remaining.length, 0);
+});
+
+test("declining the second delete-all step keeps everything", async () => {
+  let calls = 0;
+  const harness = loadRestore({
+    seed: seedV2Database(),
+    confirm: async () => {
+      calls += 1;
+      return calls === 1;
+    },
+  });
+  await flush();
+
+  harness.panel.querySelector(".zoidium-restore-delete-footer").children[0].click();
+  await flush();
+
+  assert.equal(calls, 2);
+  assert.equal(listEntries(harness).length, 1);
 });

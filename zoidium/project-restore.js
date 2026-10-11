@@ -616,15 +616,15 @@
     }
   }
 
+  // Row icon buttons share the CM3 chrome builder (ZoidiumUI.createButton)
+  // with an icon; the row CSS keeps its 27px icon look.
   function createButton(iconName, title, className) {
-    var button = global.document.createElement("button");
-    button.type = "button";
-    button.className = className || "zoidium-restore-action";
-    button.title = title;
-    button.setAttribute("aria-label", title);
-    var icon = PZ.ui.generateIcon(iconName);
-    icon.setAttribute("aria-hidden", "true");
-    button.appendChild(icon);
+    var button = global.ZoidiumUI.createButton({
+      title: title,
+      icon: iconName,
+      className: className || "zoidium-restore-action",
+      onClick: null,
+    });
     return button;
   }
 
@@ -633,35 +633,52 @@
     toast.className = "zoidium-project-toast";
     toast.setAttribute("aria-live", "polite");
     toast.setAttribute("role", "status");
-    toast.innerHTML =
-      '<div class="zoidium-project-toast-head">' +
-      '<span class="zoidium-project-toast-title"></span>' +
-      '<button type="button" class="zoidium-project-toast-close" aria-label="Dismiss notification">×</button>' +
-      "</div>" +
-      '<div class="zoidium-project-toast-message"></div>' +
-      '<div class="zoidium-project-toast-actions">' +
-      '<button type="button" class="proprow propbutton" data-toast-action="retry">Retry</button>' +
-      '<button type="button" class="proprow propbutton" data-toast-action="download">Download</button>' +
-      '<button type="button" class="proprow propbutton" data-toast-action="recover">Restore backup</button>' +
-      '<button type="button" class="proprow propbutton" data-toast-action="reload">Reload</button>' +
-      "</div>";
+    var head = global.document.createElement("div");
+    head.className = "zoidium-project-toast-head";
+    var title = global.document.createElement("span");
+    title.className = "zoidium-project-toast-title";
+    head.appendChild(title);
+    var close = global.document.createElement("button");
+    close.type = "button";
+    close.className = "zoidium-project-toast-close";
+    close.setAttribute("aria-label", "Dismiss notification");
+    close.textContent = "×";
+    close.addEventListener("click", function () {
+      hideToast();
+    });
+    head.appendChild(close);
+    toast.appendChild(head);
+    var message = global.document.createElement("div");
+    message.className = "zoidium-project-toast-message";
+    toast.appendChild(message);
+    var actions = global.document.createElement("div");
+    actions.className = "zoidium-project-toast-actions";
+    [
+      ["retry", "Retry"],
+      ["download", "Download"],
+      ["recover", "Restore backup"],
+      ["reload", "Reload"],
+    ].forEach(function (pair) {
+      var key = pair[0];
+      var label = pair[1];
+      var actionButton = global.ZoidiumUI.createButton({
+        title: label,
+        onClick: function () {
+          if (key === "reload") {
+            hideToast();
+            global.location.reload();
+            return;
+          }
+          runToastAction(key === "retry"
+            ? toast._zoidiumRetry
+            : key === "download" ? toast._zoidiumDownload : toast._zoidiumRecover);
+        },
+      });
+      actionButton.setAttribute("data-toast-action", key);
+      actions.appendChild(actionButton);
+    });
+    toast.appendChild(actions);
     global.document.body.appendChild(toast);
-    toast.querySelector(".zoidium-project-toast-close").addEventListener("click", function () {
-      hideToast();
-    });
-    toast.querySelector('[data-toast-action="retry"]').addEventListener("click", function () {
-      runToastAction(toast._zoidiumRetry);
-    });
-    toast.querySelector('[data-toast-action="download"]').addEventListener("click", function () {
-      runToastAction(toast._zoidiumDownload);
-    });
-    toast.querySelector('[data-toast-action="recover"]').addEventListener("click", function () {
-      runToastAction(toast._zoidiumRecover);
-    });
-    toast.querySelector('[data-toast-action="reload"]').addEventListener("click", function () {
-      hideToast();
-      global.location.reload();
-    });
     state.toast = toast;
     return toast;
   }
@@ -787,12 +804,10 @@
       'It may be easily lost over time, during computer cleanup, or through other actions.' +
       '</div>' +
       '<div class="zoidium-restore-backup-control">' +
-      '<button type="button" class="proprow propbutton zoidium-backup-now">Backup now</button>' +
       '</div>' +
       '<div class="zoidium-restore-section-title noselect">RESTORE POINTS</div>' +
       '<div class="zoidium-restore-list" role="list"></div>' +
       '<div class="zoidium-restore-delete-footer">' +
-      '<button type="button" class="proprow propbutton zoidium-delete-all">Delete all</button>' +
       '</div>';
     var intervalSelect = panel.querySelector(".zoidium-backup-interval");
     BACKUP_INTERVAL_OPTIONS.forEach(function (option) {
@@ -814,13 +829,24 @@
       });
     });
     state.intervalSelect = intervalSelect;
-    state.deleteAllButton = panel.querySelector(".zoidium-delete-all");
-    state.deleteAllButton.addEventListener("click", function () {
-      removeAllSnapshots();
+    // Panel buttons share the CM3 chrome builder; the panel CSS keeps the
+    // full-width layout the raw buttons had.
+    var backupNow = global.ZoidiumUI.createButton({
+      title: "Backup now",
+      className: "zoidium-backup-now",
+      onClick: function () {
+        createSnapshot(true, false).catch(function () {});
+      },
     });
-    panel.querySelector(".zoidium-backup-now").addEventListener("click", function () {
-      createSnapshot(true, false).catch(function () {});
+    panel.querySelector(".zoidium-restore-backup-control").appendChild(backupNow);
+    state.deleteAllButton = global.ZoidiumUI.createButton({
+      title: "Delete all",
+      className: "zoidium-delete-all",
+      onClick: function () {
+        removeAllSnapshots();
+      },
     });
+    panel.querySelector(".zoidium-restore-delete-footer").appendChild(state.deleteAllButton);
     state.panel = panel;
     state.list = panel.querySelector(".zoidium-restore-list");
     return panel;
@@ -845,9 +871,8 @@
     }
     state.list.innerHTML = "";
     if (state.snapshots.length === 0) {
-      var empty = global.document.createElement("div");
-      empty.className = "zoidium-restore-empty";
-      empty.textContent = "No restore points yet.";
+      var empty = global.ZoidiumUI.controls.note("No restore points yet.").element;
+      empty.classList.add("zoidium-restore-empty");
       state.list.appendChild(empty);
       return;
     }
@@ -1248,7 +1273,15 @@
   }
 
   async function removeSnapshot(snapshot) {
-    if (!snapshot || !global.confirm("Delete this restore point?")) return;
+    if (!snapshot) return;
+    var approved = await global.ZoidiumUI.confirm({
+      title: "Delete restore point",
+      message: "Delete this restore point?",
+      confirmLabel: "Delete",
+      cancelLabel: "Cancel",
+      danger: true,
+    });
+    if (!approved) return;
     try {
       await deleteSnapshot(snapshot.id);
       state.snapshots = state.snapshots.filter(function (item) {
@@ -1269,8 +1302,23 @@
   }
 
   async function removeAllSnapshots() {
-    if (!state.snapshots.length || !global.confirm("Delete all restore points?")) return;
-    if (!global.confirm("This will permanently remove every restore point. Continue?")) return;
+    if (!state.snapshots.length) return;
+    var approved = await global.ZoidiumUI.confirm({
+      title: "Delete all restore points",
+      message: "Delete all restore points?",
+      confirmLabel: "Delete all",
+      cancelLabel: "Cancel",
+      danger: true,
+    });
+    if (!approved) return;
+    var confirmed = await global.ZoidiumUI.confirm({
+      title: "Delete all restore points",
+      message: "This will permanently remove every restore point. Continue?",
+      confirmLabel: "Delete everything",
+      cancelLabel: "Cancel",
+      danger: true,
+    });
+    if (!confirmed) return;
     try {
       await deleteAllSnapshots();
       state.snapshots = [];

@@ -346,7 +346,8 @@ module.exports = {
         title: "Datamosh Setup",
         subtitle: "Segment motion",
         persistKey: "datamosh-setup-v2",
-        width: 420,
+        // Wide enough for the longest 16px row label ("Remove Frames (Hold)").
+        width: 480,
         height: 780,
         minHeight: 240,
         mount(body) {

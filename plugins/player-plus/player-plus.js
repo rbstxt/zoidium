@@ -150,7 +150,7 @@ const PlayerPlus = (() => {
         color: var(--zui-value);
         cursor: pointer;
         font-family: var(--zui-font);
-        font-size: 12px;
+        font-size: var(--zui-font-size-small);
         height: 27px;
         line-height: 25px;
         min-width: 112px;

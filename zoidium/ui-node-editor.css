@@ -36,8 +36,15 @@
   overflow: hidden;
 }
 
-.zoidium-node-editor-tool {
+/* Header tools reuse the shared button builder (see headerTool in
+   ui-node-editor.js), which renders a full-width CM3 row button. The tool
+   class pins them back to the compact canvas-toolbar rendering the other
+   canvas toolbars (Graph Editor 2, Easing+) use; every declaration below
+   outranks the row-button rules so the 28px header keeps its look. */
+.zoidium-node-editor-header button.zoidium-node-editor-tool {
   flex: none;
+  align-self: center;
+  width: auto;
   height: 22px;
   margin: 0;
   padding: 0 10px;
@@ -46,14 +53,23 @@
   color: var(--zui-text);
   background-color: var(--zui-bg-input);
   border: 1px solid var(--zui-border);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
   cursor: pointer;
 }
 
-.zoidium-node-editor-tool:hover {
+.zoidium-node-editor-header button.zoidium-node-editor-tool:hover {
+  background-color: var(--zui-hover);
+  border-color: var(--zui-border);
+}
+
+.zoidium-node-editor-header button.zoidium-node-editor-tool:active {
   background-color: var(--zui-hover);
 }
 
-.zoidium-node-editor-tool:focus-visible {
+.zoidium-node-editor-header button.zoidium-node-editor-tool:focus-visible {
   outline: 1px solid var(--zui-accent-strong);
 }
 

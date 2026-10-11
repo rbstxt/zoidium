@@ -21,7 +21,7 @@
   content: "Ez+";
   display: block;
   font-family: var(--zui-font);
-  font-size: 11px;
+  font-size: var(--zui-font-size-compact);
   font-weight: 600;
   inset: 1px 4px;
   line-height: 23px;
@@ -195,6 +195,8 @@
   color: var(--zui-value);
   font: inherit;
   font-family: var(--zui-font);
+  /* Canvas tile label: 10px fits the longest preset name ("Ease in-out") in
+     the ~78px tile column, like the other compact canvas toolbars (B8). */
   font-size: 10px;
   text-align: left;
   cursor: default;

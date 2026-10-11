@@ -524,3 +524,17 @@ test("setup modules carry no logos, Inter font, fullscreen overlay or shared sty
   const render = read(LEGACY + "datamosh-render.js");
   assert.ok(!/document|window\.open|Inter|\.jpg/.test(render), "datamosh-render.js has no UI");
 });
+
+
+test("historical setup TEXT keys remain defined and hidden for VHS and Datamosh", () => {
+  for (const type of ["vhs", "datamosh"]) {
+    const effect = loadEffect(LEGACY + "effects/" + type + ".js", type);
+    const setup = effect.properties.setup;
+    assert.ok(setup, type + " retains the serialized key");
+    assert.equal(setup.definition.type, 15);
+    assert.equal(setup.definition.visible, false);
+    assert.equal(setup.definition.zoidiumControl, undefined);
+    setup.set("historical setup value");
+    assert.equal(setup.get(), "historical setup value");
+  }
+});

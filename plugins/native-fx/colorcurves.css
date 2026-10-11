@@ -65,7 +65,7 @@
   border: 1px solid transparent;
   border-right-color: var(--zui-border);
   outline: 0;
-  font-size: 12px;
+  font-size: var(--zui-font-size-small);
   line-height: 26px;
   text-align: center;
   text-overflow: ellipsis;
@@ -200,7 +200,7 @@
   color: var(--zui-text-muted);
   background: var(--zui-border-soft);
   border-top: 1px solid var(--zui-border);
-  font-size: 11px;
+  font-size: var(--zui-font-size-compact);
   line-height: 17px;
 }
 

@@ -5,10 +5,19 @@
    Theme tokens. Every Zoidium surface and plugin widget reads these instead of
    literal colors, so the editor theme (Settings > theme, hue, saturation) and
    the chosen UI font reach windows, side panels and custom widgets. The accent
-   and value colors follow the theme palette written by zoidium/settings.js. */
+   and value colors follow the theme palette written by zoidium/settings.js.
+   Text sizes copy CM3's own panels (measured with getComputedStyle in the
+   real UI: property rows and buttons 16px, option-list items 14px, section
+   titles 18px): --zui-font-size is window body/controls text,
+   --zui-font-size-small secondary text, --zui-font-size-title window and
+   section titles, --zui-font-size-compact canvas toolbars only. */
 
 :root {
   --zui-font: var(--zoidium-font-family, "Source Code Pro", monospace);
+  --zui-font-size: 16px;
+  --zui-font-size-small: 14px;
+  --zui-font-size-title: 18px;
+  --zui-font-size-compact: 12px;
   --zui-accent: var(--zoidium-theme-focus, #384668);
   --zui-accent-rgb: var(--zoidium-theme-focus-rgb, 56 70 104);
   --zui-accent-strong: color-mix(in srgb, var(--zui-accent) 70%, #fff);
@@ -56,7 +65,7 @@ body > .zoidium-window-color-picker {
   overflow: visible;
   pointer-events: auto;
   color: var(--zui-text);
-  font-size: 14px;
+  font-size: var(--zui-font-size);
   background-color: var(--zui-bg);
   border: 1px solid var(--zui-hover);
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.55);
@@ -118,7 +127,7 @@ body > .zoidium-window-color-picker {
   min-width: 0;
   overflow: hidden;
   color: var(--zui-value);
-  font-size: 12px;
+  font-size: var(--zui-font-size-small);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -283,7 +292,7 @@ body > .zoidium-window-color-picker {
 
 .zoidium-field-unit {
   color: var(--zui-text-faint);
-  font-size: 12px;
+  font-size: var(--zui-font-size-small);
 }
 
 .zoidium-number {
@@ -365,7 +374,7 @@ body > .zoidium-window-color-picker {
   min-width: 0;
   height: 26px;
   padding: 2px 5px;
-  font-size: 14px;
+  font-size: var(--zui-font-size);
 }
 
 textarea.zoidium-text {
@@ -388,7 +397,7 @@ textarea.zoidium-text {
 
 .zoidium-color-hex {
   color: var(--zui-value);
-  font-size: 13px;
+  font-size: var(--zui-font-size-small);
 }
 
 .zoidium-button {
@@ -441,6 +450,7 @@ textarea.zoidium-text {
   height: 28px;
   padding: 0 8px;
   color: var(--zui-text-strong);
+  font-size: var(--zui-font-size-title);
   font-weight: bold;
   text-align: left;
   cursor: default;
@@ -458,7 +468,7 @@ textarea.zoidium-text {
   display: inline-block;
   width: 12px;
   color: var(--zui-text-muted);
-  font-size: 12px;
+  font-size: var(--zui-font-size-small);
   transition: transform 50ms linear;
 }
 
@@ -520,7 +530,7 @@ textarea.zoidium-text {
 
 .zoidium-list > li > span {
   margin-top: 2px;
-  font-size: 13px;
+  font-size: var(--zui-font-size-small);
 }
 
 .zoidium-list > li b {
@@ -541,7 +551,7 @@ textarea.zoidium-text {
   margin: 0;
   padding: 7px 8px;
   color: var(--zui-text-muted);
-  font-size: 13px;
+  font-size: var(--zui-font-size);
   line-height: 1.4;
   border-bottom: 1px solid var(--zui-border-soft);
 }
@@ -549,6 +559,16 @@ textarea.zoidium-text {
 .zoidium-note.warning {
   color: var(--zui-danger);
   background-color: rgba(120, 34, 34, 0.18);
+}
+
+/* Confirm dialog message: roomier than an inline note, and it keeps the
+   blank lines destructive questions use between sentences. */
+.zoidium-confirm-message {
+  padding: 10px 12px;
+  font-size: var(--zui-font-size);
+  line-height: 1.45;
+  white-space: pre-line;
+  border-bottom: 0;
 }
 
 /* Maximized and custom-chrome windows ------------------------------- */
@@ -613,7 +633,7 @@ textarea.zoidium-text {
   position: relative;
   min-height: 0;
   overflow: auto;
-  font-size: 16px;
+  font-size: var(--zui-font-size);
   background-color: var(--zui-bg);
 }
 
@@ -642,9 +662,11 @@ textarea.zoidium-text {
 }
 
 .zoidium-editor-launch .zoidium-button {
-  flex: 1 1 auto;
-  padding: 4px 10px;
-  white-space: nowrap;
+  flex: 1 1 100%;
+  padding: 5px 7px;
+  border-bottom: 2px solid transparent;
+  font-family: var(--zui-font);
+  white-space: normal;
 }
 
 /* A collapsed custom-chrome window has no visible title bar of its own, so

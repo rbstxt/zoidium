@@ -20,7 +20,7 @@ function element(tag = "div") {
   return node;
 }
 
-function harness(options) {
+function harness(options, specOptions = {}) {
   class ObjectTarget {}
   class PropertyList extends ObjectTarget {}
   class Edit {
@@ -44,10 +44,10 @@ function harness(options) {
   context.window = context;
   vm.createContext(context);
   vm.runInContext(fs.readFileSync(path.join(__dirname, "../zoidium/ui-panels.js"), "utf8"), context);
-  const api = context.ZoidiumUIModules[0].install({ controls: { button: ({ title, onClick }) => { const button = element("button"); button.title = title; button.onclick = onClick; return { element: button }; } } });
+  const api = context.ZoidiumUIModules[0].install({ controls: { button: ({ title, hint, onClick }) => { const button = element("button"); button.title = title; button.hint = hint; button.onclick = onClick; return { element: button }; } } });
   const target = new ObjectTarget();
   let opened = 0;
-  const unregister = api.registerEditor({ title: "Flare Editor", match: (value) => value === target, open: () => opened++ });
+  const unregister = api.registerEditor({ title: "Flare Editor", match: (value) => value === target, open: () => opened++, ...specOptions });
   const item = element("li"); item.pz_object = target; item.children = [element(), element()];
   const watchers = new Set();
   const list = { onListChanged: { watch: (fn) => watchers.add(fn), unwatch: (fn) => watchers.delete(fn) } };
@@ -135,4 +135,17 @@ test("editor registration and refresh still rebuild native property panels", () 
   assert.equal(h.refreshed(), 2);
   h.unregister();
   assert.equal(h.refreshed(), 3);
+});
+
+
+test("all launch buttons and gears use the window title, even with legacy label overrides", () => {
+  const h = harness({}, { label: "Setup", hint: "Old custom hint" });
+  h.edit.generateChildrenList(h.item);
+  const button = h.item.nextElementSibling.firstChild.firstChild;
+  assert.equal(button.title, "Open Flare Editor");
+  assert.equal(button.hint, "Open the Flare Editor window");
+  h.edit.options.showListItemButtons = false;
+  h.edit.generateItemCommands(h.item, h.target);
+  assert.equal(h.item.children[1].firstChild.title, "Open Flare Editor");
+  h.unregister();
 });

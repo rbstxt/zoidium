@@ -54,6 +54,23 @@ function fail(message) {
   return result(false, message);
 }
 
+// Engine-level messages surface through the shared toast channel (the same
+// one ZoidiumUI.notify uses) instead of blocking engine alerts, so the
+// editor and desktop builds behave the same.
+function notifyHost(title, message) {
+  try {
+    if (typeof globalThis !== "undefined"
+      && typeof globalThis.dispatchEvent === "function"
+      && typeof CustomEvent === "function") {
+      globalThis.dispatchEvent(new CustomEvent("zoidium:notification", {
+        detail: { title: title, message: message },
+      }));
+      return true;
+    }
+  } catch (_error) { /* the toast channel is optional */ }
+  return false;
+}
+
 function notifyListeners() {
   listeners.forEach(function (fn) {
     try {
@@ -1203,7 +1220,8 @@ function install() {
             const session = sessionOf(project);
             const usage = usageOf(project, session, media.comp.id);
             if (usage.length) {
-              globalThis.alert(compName(media) + " is used by " + describeUsage(usage) +
+              notifyHost(compName(media) + " is in use.",
+                compName(media) + " is used by " + describeUsage(usage) +
                 ". Remove those clips before deleting it.");
               return;
             }
@@ -1214,7 +1232,7 @@ function install() {
               // openComp clears history, so retain this deletion's operation.
               this.editor.history.operation = operation;
               if (!left.ok) {
-                globalThis.alert(left.message);
+                notifyHost("Cannot open the composition.", left.message);
                 return;
               }
             }

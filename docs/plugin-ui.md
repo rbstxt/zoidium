@@ -25,6 +25,10 @@ Use these CSS custom properties in any plugin widget instead of literal colors:
 | `--zui-bg`, `--zui-bg-title`, `--zui-bg-title-focused`, `--zui-bg-input`, `--zui-bg-sunken` | Panel, title row, input and sunken backgrounds |
 | `--zui-border`, `--zui-border-soft`, `--zui-hover` | Borders and hover fill |
 | `--zui-text`, `--zui-text-strong`, `--zui-text-bright`, `--zui-text-muted`, `--zui-text-faint`, `--zui-danger` | Text colors |
+| `--zui-font-size` | Window body and control text (16px, like CM3 property rows) |
+| `--zui-font-size-small` | Secondary text: list details, hints, units (14px, like CM3 option items) |
+| `--zui-font-size-title` | Window and section titles (18px, like CM3 section titles) |
+| `--zui-font-size-compact` | Canvas toolbars only: node headers, graph tiles (12px) |
 
 ## Which surface to use
 
@@ -110,7 +114,6 @@ properties; use `controls` only for values that are not CM3 properties.
 ```js
 context.ui.registerEditor({
   title: "Particular Designer",        // button: "Open Particular Designer"
-  label: "Designer",                   // optional custom button text
   icon: "settings",                    // gear icon in the object's list row
   match: (target) => target instanceof ParticularClass,
   open: (target) => openDesigner(target),
@@ -122,12 +125,17 @@ their properties. This registration is the only way to put an open-window
 button in the property panel: do not add per-effect property buttons (custom
 `zoidiumControl` renderers, `buttons:` declarations rendered into a row, or
 hand-injected `proprow propbutton` elements). The button reads "Open <title>"
-unless `label` overrides it, and its hint defaults to "Open the <title>
-window". The registration is removed when the plugin is disabled. Launch rows appear only
+and its hint reads "Open the <title> window". Use the window title for the
+registration title; launch labels and hints always follow this convention.
+The registration is removed when the plugin is disabled. Launch rows appear only
 in property panels that show values and commands. Name-only graph/track lists
 with `showPropertyControls: false` or `hideAllListItemButtons: true` receive
 neither launch rows nor editor gears. Objects/Effects list gears and native
 property views keep their existing behavior.
+
+When migrating a property-button launcher, retain any serialized placeholder
+key in its property definition with `visible: false`, and remove its custom
+control binding. Existing projects must keep loading and saving that key.
 
 `match` runs when CM3 builds those rows. If it reads a property (for example,
 PBR+ shows Node Editor only while **Use node graph** is on), call
@@ -216,6 +224,31 @@ built-in panels and are removed on disable. The sidebar tab goes above About
 by default; `position: "after:Effects"` places it right below an existing tab
 (matched by its title), and `position: "afterAbout"` right below About. Do not build sidebar panels from
 raw `createMenubarTab` markup.
+
+## Confirm dialogs: `ZoidiumUI.confirm()` / `context.ui.confirm()`
+
+```js
+const approved = await context.ui.confirm({
+  title: "Delete composition",
+  message: 'Delete composition "Intro"?',
+  confirmLabel: "Delete",   // danger styling comes from `danger: true`
+  cancelLabel: "Cancel",
+  danger: true,
+});
+if (approved) deleteComposition();
+```
+
+Questions use this shared dialog; plain messages use `notify`. Never use
+native `confirm()` / `alert()`: they block the editor and behave differently
+in desktop builds. The dialog is a small centered `openWindow` with the
+shared footer buttons: Enter confirms, Escape and the close button cancel,
+and a `danger` dialog focuses the safe (cancel) button. It returns a
+`Promise<boolean>` and also calls `onConfirm` / `onCancel`. The window is
+380px wide and shrink-wraps its content (title + message + footer), so a
+one-line question stays compact. Keep the exact
+wording of the question, including multi-step flows (ask twice with two
+calls). Code that ran synchronously after `confirm()` must move into the
+callback or after the `await`.
 
 ## Skins: plugin-specific looks
 

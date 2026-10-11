@@ -587,7 +587,20 @@
                         if (file.size > 2000000) throw new Error("IES file must be smaller than 2 MB.");
                         var text = await file.text(); parseIES(text);
                         commit(owner, owner.properties.iesProfile, file.name, text, file.name);
-                    } catch (error) { if (typeof alert === "function") alert(error.message); }
+                    } catch (error) {
+                        var loadMessage = error && error.message ? error.message : String(error);
+                        try {
+                            var notifyView = (doc && doc.defaultView) || (typeof window !== "undefined" ? window : null);
+                            var NotifyEvent = (notifyView && notifyView.CustomEvent)
+                                || (typeof CustomEvent !== "undefined" ? CustomEvent : null);
+                            if (NotifyEvent && doc && typeof doc.dispatchEvent === "function") {
+                                doc.dispatchEvent(new NotifyEvent("zoidium:notification", {
+                                    bubbles: true,
+                                    detail: { title: "Could not load the IES file.", message: loadMessage },
+                                }));
+                            }
+                        } catch (_notifyError) { /* the toast channel is optional */ }
+                    }
                     input.value = "";
                     refresh();
                     refreshProfile(owner);

@@ -375,10 +375,8 @@ function activate(context) {
       const canvas = doc.createElement("canvas"); canvas.width = canvas.height = 128; canvas.style.width = "128px";
       // The canvas shows the graph's Color result; it is not an input. Image and
       // Texture nodes take their picture from the row shown below it on selection.
-      const caption = doc.createElement("div"); caption.textContent = "Color output";
-      caption.style.cssText = "margin:0 0 4px;color:var(--zui-text-muted);font-size:11px";
-      const note = doc.createElement("div"); note.textContent = "Select an Image or Texture node to choose its picture.";
-      note.style.cssText = "margin:6px 0 0;color:var(--zui-text-faint);font-size:11px;line-height:1.35";
+      const caption = context.ui.controls.note("Color output").element;
+      const note = context.ui.controls.note("Select an Image or Texture node to choose its picture.").element;
       const previewChildren = [caption, canvas, note];
       strip.append(...previewChildren);
       body.append(host, strip);
