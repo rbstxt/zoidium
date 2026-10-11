@@ -38,8 +38,6 @@ const PENDING_SPLIT = new Set([
   "plugins/trapcode-suite/plexus.js",
   "plugins/trapcode-suite/trapcode-common.js",
   "test/text-plus.test.js",
-  "tools/build-particles-plus-sprites.js",
-  "tools/runtime-resources.js",
   "zoidium/debug-log.js",
   "zoidium/project-restore.js",
   "zoidium/ui-kit.js",
