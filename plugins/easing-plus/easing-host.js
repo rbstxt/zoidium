@@ -33,6 +33,11 @@ module.exports = function createHostPatch(state, options) {
         curves.restoreSnapshots(snapshots);
         return result;
       };
+      later(() => {
+        if (properties.moveKeyframe === state.patchedMoveKeyframe) {
+          properties.moveKeyframe = state.originalMoveKeyframe;
+        }
+      });
       properties.moveKeyframe = state.patchedMoveKeyframe;
     }
     if (properties && typeof properties.setValue === "function" && !state.patchedSetValue) {
@@ -43,6 +48,11 @@ module.exports = function createHostPatch(state, options) {
         curves.restoreSnapshots(snapshots);
         return result;
       };
+      later(() => {
+        if (properties.setValue === state.patchedSetValue) {
+          properties.setValue = state.originalSetValue;
+        }
+      });
       properties.setValue = state.patchedSetValue;
     }
     if (properties && typeof properties.startMove === "function" && !state.patchedStartMove) {
@@ -57,6 +67,11 @@ module.exports = function createHostPatch(state, options) {
         }
         return state.originalStartMove.apply(this, arguments);
       };
+      later(() => {
+        if (properties.startMove === state.patchedStartMove) {
+          properties.startMove = state.originalStartMove;
+        }
+      });
       properties.startMove = state.patchedStartMove;
     }
     if (properties && typeof properties.finishMove === "function" && !state.patchedFinishMove) {
@@ -76,6 +91,11 @@ module.exports = function createHostPatch(state, options) {
         }
         return result;
       };
+      later(() => {
+        if (properties.finishMove === state.patchedFinishMove) {
+          properties.finishMove = state.originalFinishMove;
+        }
+      });
       properties.finishMove = state.patchedFinishMove;
     }
     const keyframesPrototype = window.PZ?.property?.dynamic?.keyframes?.prototype;
@@ -95,12 +115,24 @@ module.exports = function createHostPatch(state, options) {
         }
         return result;
       };
+      later(() => {
+        if (keyframesPrototype.scaleKeyframes === state.patchedScaleKeyframes) {
+          keyframesPrototype.scaleKeyframes = state.originalScaleKeyframes;
+        }
+      });
       keyframesPrototype.scaleKeyframes = state.patchedScaleKeyframes;
     }
   }
 
   function uninstallShapePreservation() {
-    const properties = window.PZ?.ui?.properties?.prototype;
+    // Reads stay defensive: uninstall also runs after a failed activation,
+    // where the host may be half-built or hostile.
+    let properties = null;
+    try {
+      properties = window.PZ?.ui?.properties?.prototype;
+    } catch (error) {
+      properties = null;
+    }
     if (properties && state.patchedMoveKeyframe && properties.moveKeyframe === state.patchedMoveKeyframe) {
       properties.moveKeyframe = state.originalMoveKeyframe;
     }
@@ -113,7 +145,13 @@ module.exports = function createHostPatch(state, options) {
     if (properties && state.patchedFinishMove && properties.finishMove === state.patchedFinishMove) {
       properties.finishMove = state.originalFinishMove;
     }
-    const keyframesPrototype = window.PZ?.property?.dynamic?.keyframes?.prototype;
+    const keyframesPrototype = (() => {
+      try {
+        return window.PZ?.property?.dynamic?.keyframes?.prototype;
+      } catch (error) {
+        return null;
+      }
+    })();
     if (
       keyframesPrototype &&
       state.patchedScaleKeyframes &&
@@ -653,6 +691,7 @@ module.exports = function createHostPatch(state, options) {
   }
 
   function installEaseButtonLabels() {
+    later(uninstallEaseButtonLabels);
     decorateEaseButtons();
     wrapExistingTweenButtonSets();
     const controls = window.PZ?.ui?.controls;
@@ -664,6 +703,11 @@ module.exports = function createHostPatch(state, options) {
       wrapTweenButtonSets(row);
       return row;
     };
+    later(() => {
+      if (window.PZ?.ui?.controls?.createKeyframeControls === state.patchedCreateKeyframeControls) {
+        window.PZ.ui.controls.createKeyframeControls = state.originalCreateKeyframeControls;
+      }
+    });
     controls.createKeyframeControls = state.patchedCreateKeyframeControls;
   }
 

@@ -96,23 +96,41 @@ const EasingPlus = (() => {
     if (state.active) return;
     const parts = loadParts(context);
     const curves = parts.curves;
+    const later = (step) => {
+      try {
+        context.lifecycle?.onDispose?.(step);
+      } catch (error) {
+        // A lifecycle registrar must never break activation.
+      }
+    };
     state.active = true;
     state.getAsset = context.getAsset;
     state.ui = context.ui || null;
     state.editor = context.editor || window.CM;
-    const host = parts.hostFactory(state, { curves });
+    const host = parts.hostFactory(state, { curves, dispose: later });
     const dialog = parts.dialogFactory(state, {
       curves,
       applyCurveToTarget: host.applyCurveToTarget,
     });
     state.parts = { curves, host, dialog };
+    later(uninstallStyle);
     installStyle();
+    later(() => {
+      if (window.PZ?.tween?.correctCurve === state.patchedCorrectCurve) {
+        window.PZ.tween.correctCurve = state.originalCorrectCurve;
+      }
+    });
     state.originalCorrectCurve = window.PZ.tween.correctCurve;
     state.patchedCorrectCurve = function (start, end) {
       if (curves.shouldPreserveCrossingX(start, end)) return 1;
       return state.originalCorrectCurve(start, end);
     };
     window.PZ.tween.correctCurve = state.patchedCorrectCurve;
+    later(() => {
+      if (window.PZ?.editor?.showEaseDropDown === state.patchedEaseDropDown) {
+        window.PZ.editor.showEaseDropDown = state.originalEaseDropDown;
+      }
+    });
     state.originalEaseDropDown = window.PZ.editor.showEaseDropDown;
     state.patchedEaseDropDown = function (button) {
       const targets = host.resolveTargets(button);
