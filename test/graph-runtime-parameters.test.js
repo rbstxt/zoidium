@@ -103,3 +103,38 @@ test("color and local brightness fields preserve their per-pixel variation", () 
   const second = graph([c, correction], [link("c", "correction", "brightness")]);
   assert.deepEqual(rt.evaluate(second, 16, 0, {}).color, rt.evaluate(graph([c], []), 16, 0, {}).color);
 });
+
+test("linked noise speed marks the graph animated even when the stored speed is zero", () => {
+  const f = rt.createNode("float", "f"), n = rt.createNode("noise", "n"); f.params.value = 1;
+  const gr = graph([f, n], [link("f", "n", "speedX")]);
+  assert.ok(rt.isAnimated(gr));
+  assert.notDeepEqual(rt.evaluate(gr, 16, 0, {}).color, rt.evaluate(gr, 16, .5, {}).color);
+});
+test("noise scratch buffers and lattice caches do not depend on previous graphs or sizes", () => {
+  const n = rt.createNode("noise", "n"); n.params.speedX = 1;
+  const gr = graph([n], []); const expected = rt.evaluate(gr, 16, .5, {}).color;
+  rt.evaluate(gr, 128, 2, {}); n.params.seed = 42; rt.evaluate(graph([n], []), 16, 0, {});
+  assert.deepEqual(rt.evaluate(gr, 16, .5, {}).color, expected);
+});
+test("Gaussian linked fields cache exact pairs without changing spectral pixels", () => {
+  const c = rt.createNode("checker", "c"), g = rt.createNode("gaussianSpectrum", "g");
+  const gr = graph([c, g], [link("c", "g", "center"), link("c", "g", "width")]);
+  const pixels = rt.evaluate(gr, 16, 0, {}).color;
+  const input = rt.evaluate(graph([c], []), 16, 0, {}).color;
+  for (const value of [0, 1]) {
+    const expected = rt.types.gaussianSpectrum.evaluate(16, {}, { center: value, width: value });
+    for (let i = 0; i < pixels.length; i += 4) if (input[i] === value * 255) assert.deepEqual(pixels.subarray(i, i + 4), expected.subarray(i, i + 4));
+  }
+});
+
+test("uniform spectral links evaluate once and preserve byte quantization", () => {
+  const f = rt.createNode("float", "f"); f.params.value = .3;
+  for (const type of ["rgbSpectrum", "gaussianSpectrum", "blackbody"]) {
+    const n = rt.createNode(type, "n");
+    const gr = graph([f, n], [link("f", "n", "t")]);
+    const input = new Uint8ClampedArray(8 * 8 * 4);
+    for (let i = 0; i < input.length; i += 4) input.set([77, 77, 77, 255], i);
+    const expected = rt.types[type].evaluate(8, { t: input }, n.params);
+    assert.deepEqual(Uint8ClampedArray.from(rt.evaluate(gr, 8, 0, {}).color), expected, type);
+  }
+});
