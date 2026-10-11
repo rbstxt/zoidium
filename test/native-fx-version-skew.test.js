@@ -142,6 +142,7 @@ function loadManagerScope(apis) {
     ZoidiumPluginApis: { ...apis, props: require("./shared-test-apis").loadSharedTables().props },
     PZ: { property: { type: stubPropertyTypes() }, effect: { fnList: {} } },
     console: {
+      warn(...args) { calls.errors.push(args); },
       error(...args) {
         calls.errors.push(args);
       },

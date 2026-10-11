@@ -37,6 +37,7 @@
       try {
         cryptoApi.getRandomValues(bytes);
       } catch (_error) {
+        // Identity generation can fall back to random bytes without cryptographic guarantees.
         for (let index = 0; index < bytes.length; index += 1) {
           bytes[index] = Math.floor(Math.random() * 256);
         }
@@ -278,6 +279,7 @@
       try {
         return prioritizeNativeFxResults(results);
       } catch (_error) {
+        manager.reportFailureOnce("picker search", "prioritize picker search results", _error);
         return results;
       }
     };

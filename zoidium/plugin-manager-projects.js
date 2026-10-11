@@ -327,6 +327,7 @@
       try {
         result = originalProjectLoad.apply(this, arguments);
       } catch (error) {
+        console.warn("[Zoidium] plugin manager: host project load failed", error);
         document.dispatchEvent(new CustomEvent("zoidium:project-load-error", {
           detail: {
             error,

@@ -415,6 +415,10 @@
     // the state so the debug log still reports them.
     if (!state.card) {
       state.phase = phase;
+      if (state.errorRow) {
+        state.errorRow.hidden = phase !== "error";
+        state.errorRow.textContent = phase === "error" ? `${state.plugin.name}: ${state.lastError?.message || "Plugin could not be activated."}` : "";
+      }
       return;
     }
     const enabled = phase === "enabled";
@@ -422,6 +426,15 @@
     state.card.dataset.phase = phase;
     state.toggle.checked = enabled;
     state.toggle.disabled = phase === "loading";
+    if (phase === "error") {
+      const category = state.card.closest?.(".zoidium-plugin-category");
+      if (category) category.open = true;
+    }
+    const errorRow = state.card.querySelector(".zoidium-plugin-error");
+    if (errorRow) {
+      errorRow.hidden = phase !== "error";
+      errorRow.textContent = phase === "error" ? state.lastError?.message || "Plugin could not be activated." : "";
+    }
     syncUsageTooltip(state);
     // Keep the pack master switch in step with single-plugin toggles.
     syncGroupForPlugin(state.plugin.id);
@@ -482,6 +495,7 @@
     try {
       return item?.parentProject === project;
     } catch (_error) {
+      // Detached host items can throw when resolving their former project.
       return false;
     }
   }

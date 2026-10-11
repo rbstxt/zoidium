@@ -21,6 +21,7 @@
       try {
         this._zoidiumMissingNumeric.data = ZoidiumPluginApis.props.cloneJson(data);
       } catch (_error) {
+        manager.reportFailureOnce("decode missing object:" + pluginId + ":" + type, "decode missing object", _error);
         this._zoidiumMissingNumeric.data = { type };
       }
     };
@@ -28,7 +29,8 @@
       try {
         const data = this._zoidiumMissingNumeric.data;
         if (data && typeof data === "object") return ZoidiumPluginApis.props.cloneJson(data);
-      } catch (_error) { /* fall through */ }
+      } catch (_error) {
+        manager.reportFailureOnce("serialize missing object:" + pluginId + ":" + type, "serialize missing object", _error); /* fall through */ }
       return { type: this._zoidiumMissingNumeric.type };
     };
     placeholder.update = function () {};
@@ -47,6 +49,7 @@
       try {
         this._zoidiumMissingNumeric.data = ZoidiumPluginApis.props.cloneJson(data);
       } catch (_error) {
+        manager.reportFailureOnce("decode missing layer:" + pluginId + ":" + type, "decode missing layer", _error);
         this._zoidiumMissingNumeric.data = { type };
       }
     };
@@ -54,7 +57,8 @@
       try {
         const data = this._zoidiumMissingNumeric.data;
         if (data && typeof data === "object") return ZoidiumPluginApis.props.cloneJson(data);
-      } catch (_error) { /* fall through */ }
+      } catch (_error) {
+        manager.reportFailureOnce("serialize missing layer:" + pluginId + ":" + type, "serialize missing layer", _error); /* fall through */ }
       return { type: this._zoidiumMissingNumeric.type };
     };
     layer.update = function () {};
@@ -119,17 +123,19 @@
       try {
         data = missing.toJSON();
       } catch (_error) {
+        manager.reportFailureOnce("serialize restored object:" + meta.pluginId + ":" + meta.type, "serialize restored object", _error);
         data = { type: meta.type };
       }
       try {
         if (typeof missing.unload === "function") missing.unload();
-      } catch (_error) { /* best effort */ }
+      } catch (_error) {
+        manager.reportFailureOnce("unload missing object:" + meta.pluginId + ":" + meta.type, "unload missing object", _error); /* best effort */ }
       untrackMissingNumericObject(missing);
       let replacement = null;
       try {
         replacement = PZ.object3d.create(meta.type);
       } catch (error) {
-        console.error("[Zoidium] could not restore numeric 3D object of type " + meta.type, error);
+        manager.reportFailureOnce("could not restore numeric 3D object of type " + meta.type, "could not restore numeric 3D object of type " + meta.type, error);
         trackMissingNumericObject(missing);
         continue;
       }
@@ -139,7 +145,7 @@
       try {
         await replacement.load(data);
       } catch (error) {
-        console.error("[Zoidium] could not load restored numeric 3D object of type " + meta.type, error);
+        manager.reportFailureOnce("could not load restored numeric 3D object of type " + meta.type, "could not load restored numeric 3D object of type " + meta.type, error);
       }
     }
   }
@@ -171,17 +177,19 @@
             try {
               data = layer.toJSON();
             } catch (_error) {
+        manager.reportFailureOnce("serialize restored layer:" + meta.pluginId + ":" + meta.type, "serialize restored layer", _error);
               data = { type: meta.type };
             }
             try {
               if (typeof layer.unload === "function") layer.unload();
-            } catch (_error) { /* best effort */ }
+            } catch (_error) {
+        manager.reportFailureOnce("unload missing layer:" + meta.pluginId + ":" + meta.type, "unload missing layer", _error); /* best effort */ }
             missingNumericLayers.delete(layer);
             let replacement = null;
             try {
               replacement = PZ.layer.create(meta.type);
             } catch (error) {
-              console.error("[Zoidium] could not restore numeric layer of type " + meta.type, error);
+              manager.reportFailureOnce("could not restore numeric layer of type " + meta.type, "could not restore numeric layer of type " + meta.type, error);
               missingNumericLayers.add(layer);
               continue;
             }
@@ -189,7 +197,7 @@
             try {
               await replacement.load(data);
             } catch (error) {
-              console.error("[Zoidium] could not load restored numeric layer of type " + meta.type, error);
+              manager.reportFailureOnce("could not load restored numeric layer of type " + meta.type, "could not load restored numeric layer of type " + meta.type, error);
             }
           }
         }
