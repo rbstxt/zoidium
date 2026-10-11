@@ -24,6 +24,12 @@ The source geometry is never written, so repeated and reversed playback give
 identical results. Per-mesh working copies live in a WeakMap, not in
 `userData`, because three r91 JSON-clones `userData` when objects are cloned.
 
+Meshes with no enabled deformer skip source conversion and bounds staging,
+but still restore any previous deformation. Smooth normals reuse one Float64
+scratch buffer per module realm, cleared for every mesh. Faces accumulate in
+the original order, then each welded slot is normalized once before its value
+is copied to the matching vertices. No frame result is retained in this buffer.
+
 Deformers run in their own local space. Each deformer's transform (position,
 rotation, scale of its group, plus any parent transforms) defines the frame, so
 moving or rotating an effector moves its axis, pivot, field, and fracture
