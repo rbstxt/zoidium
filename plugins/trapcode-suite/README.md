@@ -103,7 +103,8 @@ enabled to render.
 
 ## Designer
 
-Each object opens a **floating window** from the object-panel gear button
+Each object opens a **floating window** from the **Open ...** button at the top
+of its properties or the object-panel gear button
 (`designer.openFirst(kind)` is also available). The window follows the CM3
 panel style and has the same layout for all three objects:
 

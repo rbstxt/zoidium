@@ -94,7 +94,6 @@ this.propertyDefinitions = trMerge(
             type: PZ.property.type.OPTION,
             value: 1,
             items: "off;on",
-            buttons: [{ name: "Tracery Setup", title: "Open the Tracery setup window", action: "tracerySetup" }],
         },
         detectEnable: trOption("Detection", 1, "off;on"),
         keyColor: trColor("Key Color", 1, 1, 1),

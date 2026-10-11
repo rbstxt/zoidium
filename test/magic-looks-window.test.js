@@ -151,9 +151,11 @@ function setup() {
   installGlobals(state);
   const { fakeThis, store } = loadEffectDefinitions();
   const effect = fakeThis;
+  effect.type = "looks";
   effect.parent = {};
   const log = [];
   const windows = [];
+  const editors = [];
   const CM = {
     playback: { currentFrame: 0 },
     history: {
@@ -177,6 +179,13 @@ function setup() {
   const ui = {
     controls: makeControls(log),
     getWindow() { return null; },
+    registerEditor(spec) {
+      editors.push(spec);
+      return () => {
+        const index = editors.indexOf(spec);
+        if (index >= 0) editors.splice(index, 1);
+      };
+    },
     openWindow(options) {
       const body = el("div");
       const cleanup = options.mount(body, null);
@@ -208,7 +217,7 @@ function setup() {
   const module = { exports: {} };
   new Function("module", "exports", "plugin", readPack("looks-setup.js"))(module, module.exports, {});
   module.exports.activate(context);
-  const harness = { module: module.exports, PZ, effect, store, log, state, windows, CM };
+  const harness = { module: module.exports, PZ, effect, store, log, state, windows, editors, CM };
   harnesses.push(harness);
   return harness;
 }
@@ -220,12 +229,11 @@ after(function () {
   }
 });
 
-function openFromButton(h) {
-  const row = el("li");
-  row.children = [el("span"), el("div")];
-  const prop = { definition: { magicLooksSetup: { name: "Setup", title: "Open" } }, parentObject: h.effect };
-  h.PZ.ui.controls.createControls(row, prop, false);
-  row.children[1].children[0].onclick({ preventDefault() {}, stopPropagation() {} });
+function openFromEditor(h) {
+  const spec = h.editors.find((entry) => entry.title === "Magic Looks Setup");
+  assert.ok(spec, "Magic Looks Setup registered through registerEditor");
+  assert.equal(spec.match(h.effect), true, "the editor matches the looks effect");
+  spec.open(h.effect);
 }
 
 // Controls created since index `from`, optionally filtered by kind.
@@ -235,7 +243,7 @@ function since(h, from, kind) {
 
 test("every tool panel builds and its controls answer their callbacks", () => {
   const h = setup();
-  openFromButton(h);
+  openFromEditor(h);
   assert.equal(h.windows.length, 1, "the button opens one window");
   const chainList = since(h, 0, "list").find((r) => r.opts.items.some((i) => i.id === "lens-distortion"));
   assert.ok(chainList, "tool chain list is built");
@@ -255,7 +263,7 @@ test("every tool panel builds and its controls answer their callbacks", () => {
 
 test("a parameter edit commits through the effect property as one history step", () => {
   const h = setup();
-  openFromButton(h);
+  openFromEditor(h);
   const chainList = since(h, 0, "list").find((r) => r.opts.items.some((i) => i.id === "lens-distortion"));
   const from = h.log.length;
   chainList.opts.onSelect("contrast");
@@ -274,7 +282,7 @@ test("a parameter edit commits through the effect property as one history step",
 
 test("chain edits are undoable commits that change the chain order", () => {
   const h = setup();
-  openFromButton(h);
+  openFromEditor(h);
   const chainList = since(h, 0, "list").find((r) => r.opts.items.some((i) => i.id === "lens-distortion"));
   chainList.opts.onSelect("crush");
   const buttonRows = since(h, 0, "buttons").map((r) => r.opts);
@@ -293,7 +301,7 @@ test("a look applies as one undoable commit and resets other tools", () => {
   const h = setup();
   h.store.ccEnable.v = 1;
   h.store.cruGamma.v = 3;
-  openFromButton(h);
+  openFromEditor(h);
   const lookList = since(h, 0, "list").find((r) => r.opts.items.some((i) => i.id === "noir"));
   assert.ok(lookList, "look list built");
   lookList.opts.onSelect("noir");
@@ -306,7 +314,7 @@ test("a look applies as one undoable commit and resets other tools", () => {
 
 test("disabling the plugin closes the window, drops its state, and restores the renderer", () => {
   const h = setup();
-  openFromButton(h);
+  openFromEditor(h);
   assert.equal(h.windows.length, 1);
   h.module.deactivate();
   assert.equal(h.windows.length, 0, "window closed on disable");

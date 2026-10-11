@@ -2,7 +2,7 @@
 
 // The designer entry points: the module binds the designer to its context.ui,
 // registers one editor per Trapcode object. Zoidium then
-// draws the gear and the "Open Designer" button; nothing patches CM3 directly.
+// draws the gear and the "Open ..." button; nothing patches CM3 directly.
 
 const assert = require("node:assert/strict");
 const path = require("node:path");
@@ -81,7 +81,7 @@ test("one editor per Trapcode object, matched by class and opened through the de
     "Trapcode plexus Designer",
   ]);
   for (const spec of h.editors) {
-    assert.equal(spec.label, "Open Designer");
+    assert.equal(spec.label, undefined, "the shared button reads Open <title>");
     assert.equal(spec.icon, "settings");
   }
   const [particular, form] = h.editors;

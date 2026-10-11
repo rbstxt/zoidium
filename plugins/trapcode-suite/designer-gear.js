@@ -4,7 +4,7 @@
 //
 // Binds the designer windows to this module's context.ui and registers
 // one editor per Trapcode object with standard host window chrome.
-// Zoidium then shows the settings gear on object rows and an "Open Designer"
+// Zoidium then shows the settings gear on object rows and an "Open ..."
 // button above their properties. Every registration is released when the
 // module is disabled, so nothing of the CM3 object panel is patched here.
 
@@ -42,7 +42,6 @@ module.exports = {
     for (const { cls, config } of entries) {
       ui.registerEditor({
         title: config.title || "Trapcode Designer",
-        label: "Open Designer",
         icon: "settings",
         match: (target) => target instanceof cls,
         open: (target) => designer.open(target),

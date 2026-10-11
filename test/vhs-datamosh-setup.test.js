@@ -79,11 +79,6 @@ function loadModule(relative) {
   return module.exports;
 }
 
-// The property control is a flex row holding the setup button.
-function setupButton(control) {
-  return control.children.length ? control.children[0] : control;
-}
-
 function fakeElement() {
   const element = {
     style: {},
@@ -127,7 +122,7 @@ function createEditor(effectOf) {
 
 function createContext({ PZ, editor, effect }) {
   const created = [];
-  const registrations = {};
+  const editors = [];
   const unregistered = [];
   const windows = [];
   const disposers = [];
@@ -178,14 +173,6 @@ function createContext({ PZ, editor, effect }) {
         cleared.push(id);
       },
     },
-    apis: {
-      propertyControls: {
-        register(id, spec) {
-          registrations[id] = spec;
-          return () => unregistered.push(id);
-        },
-      },
-    },
     lifecycle: {
       onDispose(cleanup) {
         disposers.push(cleanup);
@@ -200,9 +187,17 @@ function createContext({ PZ, editor, effect }) {
       getWindow() {
         return null;
       },
+      registerEditor(spec) {
+        editors.push(spec);
+        return () => {
+          const index = editors.indexOf(spec);
+          if (index >= 0) editors.splice(index, 1);
+          unregistered.push(spec.title);
+        };
+      },
     },
   };
-  return { context, created, registrations, unregistered, windows, disposers, timers, cleared };
+  return { context, created, editors, unregistered, windows, disposers, timers, cleared };
 }
 
 function findControl(created, label) {
@@ -211,13 +206,12 @@ function findControl(created, label) {
   return found;
 }
 
-function openFromButton(harness, registrationId, effect) {
-  const spec = harness.registrations[registrationId];
-  assert.ok(spec, `${registrationId} registered`);
-  const property = { parentObject: effect, definition: {} };
-  const button = setupButton(spec.create(property));
-  button.listeners.click({ preventDefault() {}, stopPropagation() {} });
-  assert.equal(harness.windows.length, 1, "the button opens exactly one window");
+function openFromEditor(harness, title, effect) {
+  const spec = harness.editors.find((entry) => entry.title === title);
+  assert.ok(spec, `${title} registered through registerEditor`);
+  assert.equal(spec.match(effect), true, "the editor matches its effect");
+  spec.open(effect);
+  assert.equal(harness.windows.length, 1, "the editor opens exactly one window");
   return harness.windows[0];
 }
 
@@ -228,7 +222,7 @@ function mountWindow(windowOptions) {
   return cleanup;
 }
 
-function setupHarness(moduleFile, registrationId, effectFile, type) {
+function setupHarness(moduleFile, effectFile, type) {
   const effect = loadEffect(LEGACY + effectFile, type);
   const editor = createEditor(() => effect);
   const PZ = {
@@ -238,15 +232,17 @@ function setupHarness(moduleFile, registrationId, effectFile, type) {
   const harness = createContext({ PZ, editor, effect });
   const module = loadModule(LEGACY + moduleFile);
   module.activate(harness.context);
-  return { ...harness, effect, editor, module, registrationId };
+  return { ...harness, effect, editor, module };
 }
 
 // --- VHS -------------------------------------------------------------------
 
-test("vhs: the property button registers once and opens one window per effect", () => {
-  const h = setupHarness("vhs-setup.js", "openzoid-legacy.vhs-setup", "effects/vhs.js", "vhs");
-  assert.equal(h.registrations["openzoid-legacy.vhs-setup"].type, 15, "TEXT storage");
-  const win = openFromButton(h, h.registrationId, h.effect);
+test("vhs: the editor registers once and opens one window per effect", () => {
+  const h = setupHarness("vhs-setup.js", "effects/vhs.js", "vhs");
+  assert.equal(h.editors.length, 1, "one editor entry");
+  assert.equal(h.editors[0].title, "VHS Setup");
+  assert.equal(h.editors[0].match({ type: "datamosh", properties: {} }), false, "other effects do not match");
+  const win = openFromEditor(h, "VHS Setup", h.effect);
   assert.equal(win.title, "VHS Setup");
   assert.equal(win.persistKey, "vhs-setup-v2");
   assert.equal(typeof win.mount, "function");
@@ -257,8 +253,8 @@ test("vhs: the property button registers once and opens one window per effect", 
 });
 
 test("vhs: slider drags preview live and commit one undo step on release", () => {
-  const h = setupHarness("vhs-setup.js", "openzoid-legacy.vhs-setup", "effects/vhs.js", "vhs");
-  const win = openFromButton(h, h.registrationId, h.effect);
+  const h = setupHarness("vhs-setup.js", "effects/vhs.js", "vhs");
+  const win = openFromEditor(h, "VHS Setup", h.effect);
   mountWindow(win);
   const slider = findControl(h.created, "Signal Strength");
   assert.equal(h.effect.properties.signalStrength.get(), 0.25);
@@ -278,8 +274,8 @@ test("vhs: slider drags preview live and commit one undo step on release", () =>
 });
 
 test("vhs: a click-to-type edit (change without input) records the previous value", () => {
-  const h = setupHarness("vhs-setup.js", "openzoid-legacy.vhs-setup", "effects/vhs.js", "vhs");
-  mountWindow(openFromButton(h, h.registrationId, h.effect));
+  const h = setupHarness("vhs-setup.js", "effects/vhs.js", "vhs");
+  mountWindow(openFromEditor(h, "VHS Setup", h.effect));
   const slider = findControl(h.created, "Flicker");
   slider.options.onChange(0.5);
   assert.deepEqual(h.editor.log, [
@@ -290,8 +286,8 @@ test("vhs: a click-to-type edit (change without input) records the previous valu
 });
 
 test("vhs: applying a preset is one undoable operation and records old values", () => {
-  const h = setupHarness("vhs-setup.js", "openzoid-legacy.vhs-setup", "effects/vhs.js", "vhs");
-  mountWindow(openFromButton(h, h.registrationId, h.effect));
+  const h = setupHarness("vhs-setup.js", "effects/vhs.js", "vhs");
+  mountWindow(openFromEditor(h, "VHS Setup", h.effect));
   const before = {};
   for (const key of Object.keys(h.effect.properties)) before[key] = h.effect.properties[key].get();
 
@@ -313,8 +309,8 @@ test("vhs: applying a preset is one undoable operation and records old values", 
 });
 
 test("vhs: the window refreshes from external changes such as undo", () => {
-  const h = setupHarness("vhs-setup.js", "openzoid-legacy.vhs-setup", "effects/vhs.js", "vhs");
-  mountWindow(openFromButton(h, h.registrationId, h.effect));
+  const h = setupHarness("vhs-setup.js", "effects/vhs.js", "vhs");
+  mountWindow(openFromEditor(h, "VHS Setup", h.effect));
   const slider = findControl(h.created, "Signal Strength");
   h.effect.properties.signalStrength.set(0.9);
   h.timers[0]();
@@ -323,28 +319,28 @@ test("vhs: the window refreshes from external changes such as undo", () => {
   assert.equal(preset.get(), "custom", "a hand-edited value shows Custom");
 });
 
-test("vhs: closing the window clears its timer and the plugin removes the button", () => {
-  const h = setupHarness("vhs-setup.js", "openzoid-legacy.vhs-setup", "effects/vhs.js", "vhs");
-  const win = openFromButton(h, h.registrationId, h.effect);
+test("vhs: closing the window clears its timer and the plugin removes the editor", () => {
+  const h = setupHarness("vhs-setup.js", "effects/vhs.js", "vhs");
+  const win = openFromEditor(h, "VHS Setup", h.effect);
   const cleanup = mountWindow(win);
   assert.equal(h.timers.length, 1, "one refresh timer per window");
   cleanup();
   assert.equal(h.cleared.length, 1, "the timer is cleared on window close");
 
   for (const dispose of h.disposers) dispose();
-  assert.deepEqual(h.unregistered, ["openzoid-legacy.vhs-setup"]);
+  assert.deepEqual(h.editors, [], "the editor entry is removed on disable");
+  assert.deepEqual(h.unregistered, ["VHS Setup"]);
 });
 
-test("vhs: a button on an unrelated effect is disabled", () => {
-  const h = setupHarness("vhs-setup.js", "openzoid-legacy.vhs-setup", "effects/vhs.js", "vhs");
-  const spec = h.registrations["openzoid-legacy.vhs-setup"];
-  const button = setupButton(spec.create({ parentObject: { type: "echo-legacy", properties: {} } }));
-  assert.equal(button.disabled, true);
+test("vhs: an unrelated effect does not match the editor", () => {
+  const h = setupHarness("vhs-setup.js", "effects/vhs.js", "vhs");
+  const spec = h.editors.find((entry) => entry.title === "VHS Setup");
+  assert.equal(spec.match({ type: "echo-legacy", properties: {} }), false);
 });
 
 test("vhs: Glitch! stores a new seed and is reproducible", () => {
-  const h = setupHarness("vhs-setup.js", "openzoid-legacy.vhs-setup", "effects/vhs.js", "vhs");
-  mountWindow(openFromButton(h, h.registrationId, h.effect));
+  const h = setupHarness("vhs-setup.js", "effects/vhs.js", "vhs");
+  mountWindow(openFromEditor(h, "VHS Setup", h.effect));
   const row = h.created.find((entry) => entry.kind === "buttonRow" &&
     entry.options.buttons.some((button) => button.title === "Glitch!"));
   assert.ok(row, "Glitch! button built");
@@ -367,8 +363,8 @@ test("vhs: Glitch! stores a new seed and is reproducible", () => {
 });
 
 test("vhs: Clean VHS applies the clean preset and the guide lists every group", () => {
-  const h = setupHarness("vhs-setup.js", "openzoid-legacy.vhs-setup", "effects/vhs.js", "vhs");
-  mountWindow(openFromButton(h, h.registrationId, h.effect));
+  const h = setupHarness("vhs-setup.js", "effects/vhs.js", "vhs");
+  mountWindow(openFromEditor(h, "VHS Setup", h.effect));
   const row = h.created.find((entry) => entry.kind === "buttonRow");
   row.options.buttons.find((button) => button.title === "Clean VHS").onClick();
   assert.equal(h.effect.properties.signalStrength.get(), 0.12);
@@ -379,8 +375,8 @@ test("vhs: Clean VHS applies the clean preset and the guide lists every group", 
 // --- Datamosh --------------------------------------------------------------
 
 test("datamosh: motion is a select over the nine modes and stores the index", () => {
-  const h = setupHarness("datamosh-setup.js", "openzoid-legacy.datamosh-setup", "effects/datamosh.js", "datamosh");
-  const win = openFromButton(h, "openzoid-legacy.datamosh-setup", h.effect);
+  const h = setupHarness("datamosh-setup.js", "effects/datamosh.js", "datamosh");
+  const win = openFromEditor(h, "Datamosh Setup", h.effect);
   assert.equal(win.title, "Datamosh Setup");
   mountWindow(win);
   const motion = findControl(h.created, "Motion");
@@ -395,8 +391,8 @@ test("datamosh: motion is a select over the nine modes and stores the index", ()
 });
 
 test("datamosh: presets apply as one undo step and keep the seed", () => {
-  const h = setupHarness("datamosh-setup.js", "openzoid-legacy.datamosh-setup", "effects/datamosh.js", "datamosh");
-  mountWindow(openFromButton(h, "openzoid-legacy.datamosh-setup", h.effect));
+  const h = setupHarness("datamosh-setup.js", "effects/datamosh.js", "datamosh");
+  mountWindow(openFromEditor(h, "Datamosh Setup", h.effect));
   h.effect.properties.seed.set(4242);
   findControl(h.created, "Preset").options.onChange("logo");
   assert.equal(h.editor.log.filter((entry) => entry === "start").length, 1);
@@ -408,8 +404,8 @@ test("datamosh: presets apply as one undo step and keep the seed", () => {
 });
 
 test("datamosh: all ten donor presets map to the published Look indices", () => {
-  const h = setupHarness("datamosh-setup.js", "openzoid-legacy.datamosh-setup", "effects/datamosh.js", "datamosh");
-  mountWindow(openFromButton(h, "openzoid-legacy.datamosh-setup", h.effect));
+  const h = setupHarness("datamosh-setup.js", "effects/datamosh.js", "datamosh");
+  mountWindow(openFromEditor(h, "Datamosh Setup", h.effect));
   const preset = findControl(h.created, "Preset");
   const expected = {
     clean: 1, logo: 13, classic: 12, iframe: 12, swap: 11,
@@ -427,8 +423,8 @@ test("datamosh: all ten donor presets map to the published Look indices", () => 
 });
 
 test("datamosh: Mosh! stores a new seed and derives every value from it", () => {
-  const h = setupHarness("datamosh-setup.js", "openzoid-legacy.datamosh-setup", "effects/datamosh.js", "datamosh");
-  mountWindow(openFromButton(h, "openzoid-legacy.datamosh-setup", h.effect));
+  const h = setupHarness("datamosh-setup.js", "effects/datamosh.js", "datamosh");
+  mountWindow(openFromEditor(h, "Datamosh Setup", h.effect));
   const row = h.created.find((entry) => entry.kind === "buttonRow" &&
     entry.options.buttons.some((button) => button.title === "Mosh!"));
   assert.ok(row, "Mosh! button built");
@@ -457,8 +453,8 @@ test("datamosh: Mosh! stores a new seed and derives every value from it", () => 
 });
 
 test("datamosh: Remove Frame sets hold to full as one undo step", () => {
-  const h = setupHarness("datamosh-setup.js", "openzoid-legacy.datamosh-setup", "effects/datamosh.js", "datamosh");
-  mountWindow(openFromButton(h, "openzoid-legacy.datamosh-setup", h.effect));
+  const h = setupHarness("datamosh-setup.js", "effects/datamosh.js", "datamosh");
+  mountWindow(openFromEditor(h, "Datamosh Setup", h.effect));
   const row = h.created.find((entry) => entry.kind === "buttonRow" &&
     entry.options.buttons.some((button) => button.title === "Remove Frame"));
   assert.ok(row, "Remove Frame button built");
@@ -472,8 +468,8 @@ test("datamosh: Remove Frame sets hold to full as one undo step", () => {
 });
 
 test("datamosh: preset matching uses the donor tolerance", () => {
-  const h = setupHarness("datamosh-setup.js", "openzoid-legacy.datamosh-setup", "effects/datamosh.js", "datamosh");
-  mountWindow(openFromButton(h, "openzoid-legacy.datamosh-setup", h.effect));
+  const h = setupHarness("datamosh-setup.js", "effects/datamosh.js", "datamosh");
+  mountWindow(openFromEditor(h, "Datamosh Setup", h.effect));
   const preset = findControl(h.created, "Preset");
   preset.options.onChange("clean");
   // Nudge a value within the donor tolerance: the preset name still shows.
@@ -486,8 +482,8 @@ test("datamosh: preset matching uses the donor tolerance", () => {
 });
 
 test("datamosh: New Seed stores one new seed as one undo step", () => {
-  const h = setupHarness("datamosh-setup.js", "openzoid-legacy.datamosh-setup", "effects/datamosh.js", "datamosh");
-  mountWindow(openFromButton(h, "openzoid-legacy.datamosh-setup", h.effect));
+  const h = setupHarness("datamosh-setup.js", "effects/datamosh.js", "datamosh");
+  mountWindow(openFromEditor(h, "Datamosh Setup", h.effect));
   const row = h.created.find((entry) => entry.kind === "buttonRow" &&
     entry.options.buttons.some((button) => button.title === "New Seed"));
   assert.ok(row, "New Seed button built");
@@ -499,15 +495,15 @@ test("datamosh: New Seed stores one new seed as one undo step", () => {
 });
 
 test("datamosh: the migrated Davidium motion value shows in the window", () => {
-  const h = setupHarness("datamosh-setup.js", "openzoid-legacy.datamosh-setup", "effects/datamosh.js", "datamosh");
+  const h = setupHarness("datamosh-setup.js", "effects/datamosh.js", "datamosh");
   h.effect.properties.motion.set(7);
-  mountWindow(openFromButton(h, "openzoid-legacy.datamosh-setup", h.effect));
+  mountWindow(openFromEditor(h, "Datamosh Setup", h.effect));
   assert.equal(findControl(h.created, "Motion").get(), "7");
 });
 
 test("datamosh: closing the window clears its timer", () => {
-  const h = setupHarness("datamosh-setup.js", "openzoid-legacy.datamosh-setup", "effects/datamosh.js", "datamosh");
-  const cleanup = mountWindow(openFromButton(h, "openzoid-legacy.datamosh-setup", h.effect));
+  const h = setupHarness("datamosh-setup.js", "effects/datamosh.js", "datamosh");
+  const cleanup = mountWindow(openFromEditor(h, "Datamosh Setup", h.effect));
   cleanup();
   assert.equal(h.cleared.length, 1);
 });

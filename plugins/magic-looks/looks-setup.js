@@ -2,13 +2,14 @@
 
 // Magic Looks — setup window.
 //
-// A floating window (zoidium/ui-kit.js) opened from the "Setup" button on the
-// effect's property list. Nothing opens on plugin enable. The window edits the
+// A floating window (zoidium/ui-kit.js) opened from the "Open Magic Looks
+// Setup" launch row at the top of the effect's properties. Nothing opens on
+// plugin enable. The window edits the
 // effect's own properties: live drags write for preview, and each finished edit
 // is committed once through the editor history so undo/redo works.
 //
-// Activation touches only this module's state: it patches the property-list
-// renderer to add the button (restored on disable) and installs one stylesheet
+// Activation touches only this module's state: it registers the shared
+// editor entry and installs one stylesheet
 // while a window is open (removed when the last window closes).
 
 const STYLE_ID = "zoidium-looks-setup-style";
@@ -23,8 +24,7 @@ const state = {
   editor: null,
   ui: null,
   getAsset: null,
-  patchedCreate: null,
-  originalCreate: null,
+  unregisterEditor: null,
   styleUsers: 0,
   ops: null,
   openWindows: new Set(),
@@ -925,53 +925,6 @@ function openSetup(effect) {
   return win;
 }
 
-// Button rendered on the effect's Enabled row (definition key magicLooksSetup).
-function installPropertyButton(PZ) {
-  const controls = PZ && PZ.ui && PZ.ui.controls;
-  if (!controls || typeof controls.createControls !== "function") {
-    throw new Error("Magic Looks needs PZ.ui.controls.createControls from the CM3 runtime.");
-  }
-  const original = controls.createControls;
-  const patched = function (row, prop, hide) {
-    const out = original.call(this, row, prop, hide);
-    try {
-      if (patched.__magicLooksDead) return out;
-      const def = prop && prop.definition;
-      const host = row && row.children && row.children[1];
-      if (def && def.magicLooksSetup && host && typeof host.querySelector === "function" &&
-          !host.querySelector(".lk-open-button")) {
-        const btn = make("button", "proprow propbutton noselect lk-open-button", def.magicLooksSetup.name || "Setup");
-        btn.title = def.magicLooksSetup.title || "Open the Magic Looks setup window";
-        btn.onmousedown = function (ev) { ev.stopPropagation(); };
-        btn.onclick = function (ev) {
-          ev.preventDefault();
-          ev.stopPropagation();
-          const effect = prop.parentObject;
-          openSetup(effect);
-        };
-        host.appendChild(btn);
-      }
-    } catch (_err) { /* never break property rendering */ }
-    return out;
-  };
-  patched.__magicLooksDead = false;
-  controls.createControls = patched;
-  state.patchedCreate = patched;
-  state.originalCreate = original;
-}
-
-function removePropertyButton(PZ) {
-  const controls = PZ && PZ.ui && PZ.ui.controls;
-  const patched = state.patchedCreate;
-  if (!patched) return;
-  patched.__magicLooksDead = true;
-  if (controls && controls.createControls === patched) {
-    controls.createControls = state.originalCreate;
-  }
-  state.patchedCreate = null;
-  state.originalCreate = null;
-}
-
 module.exports = {
   activate(context) {
     if (state.active) return;
@@ -992,10 +945,19 @@ module.exports = {
       if (context.lifecycle && typeof context.lifecycle.onDispose === "function") {
         context.lifecycle.onDispose(function () { module.exports.deactivate(); });
       }
-      installPropertyButton(PZ);
+      // The shared property-panel entry: an "Open Magic Looks Setup" launch
+      // row above the effect's properties (and a gear on its list row).
+      state.unregisterEditor = context.ui.registerEditor({
+        title: "Magic Looks Setup",
+        match: function (target) { return Boolean(target && target.type === "looks" && target.properties); },
+        open: function (target) { openSetup(target); },
+      });
       state.active = true;
     } catch (error) {
-      removePropertyButton(PZ);
+      if (typeof state.unregisterEditor === "function") {
+        try { state.unregisterEditor(); } catch (_err) { /* best effort */ }
+        state.unregisterEditor = null;
+      }
       state.ops = null;
       state.editor = null;
       state.ui = null;
@@ -1012,11 +974,11 @@ module.exports = {
         try { win.close(); } catch (_err) { /* best effort */ }
       });
       state.openWindows.clear();
-      removePropertyButton(state.PZ);
+      if (typeof state.unregisterEditor === "function") {
+        try { state.unregisterEditor(); } catch (_err) { /* best effort */ }
+        state.unregisterEditor = null;
+      }
       if (typeof document !== "undefined") {
-        if (typeof document.querySelectorAll === "function") {
-          document.querySelectorAll(".lk-open-button").forEach(function (button) { button.remove(); });
-        }
         const el = document.getElementById(STYLE_ID);
         if (el) el.remove();
       }

@@ -15,10 +15,14 @@ A Zoidium `native-fx` plugin. It provides seven OpenZoid effects as an external 
   source anchor. Hold, Speed and Time remain editable; old look indices migrate
   on load. The previous rendered output is never used.
 - VHS Setup window — floating preset/slider editor for every VHS signal and
-  motion control, wired to the effect's Setup property.
+  motion control, opened from the shared "Open VHS Setup" launch row at the
+  top of the effect's properties. The effect keeps a hidden `setup` property
+  key so older projects still load.
 - Datamosh Setup window — preset/slider/algorithm-dropdown editor for the
-  Datamosh effect, wired to the effect's Setup property. Seeded Mosh! and
-  Remove Frame buttons, plus a field guide.
+  Datamosh effect, opened from the shared "Open Datamosh Setup" launch row.
+  Seeded Mosh! and
+  Remove Frame buttons, plus a field guide. The effect keeps a hidden `setup`
+  property key so older projects still load.
 - True datamosh export pass — opt-in post-export I-frame removal on the
   Device render page (off / full video / at clip cuts, off by default).
   Preview stays deterministic; the export pass is an explicit user option.
@@ -28,7 +32,9 @@ A Zoidium `native-fx` plugin. It provides seven OpenZoid effects as an external 
   dash + arrows, coordinate/dimension/area/node/custom labels, and grid.
   Points are manual track markers animated by keyframes or expressions.
 - Tracery Setup window — floating window (docs/plugin-ui.md) with presets,
-  detection, box/marker/line/label controls and one tab per point. Every edit is
+  detection, box/marker/line/label controls and one tab per point, opened
+  from the shared "Open Tracery Setup" launch row at the top of the effect's
+  properties. Every edit is
   an undoable CM3 property change; the main viewport is the live preview.
 - ASCII — character-cell video: resampled glyph grid with per-band
   character mapping, contrast/brightness shaping, random symbols, scale
@@ -37,7 +43,8 @@ A Zoidium `native-fx` plugin. It provides seven OpenZoid effects as an external 
   (standard/blocks/detailed/minimal/custom string), and glitch cuts. Glyphs use
   the bundled Source Code Pro or the generic monospace family.
 - ASCII Setup window — floating window with presets and collapsible control
-  groups, wired to the effect's `asciiSetup` property button.
+  groups, opened from the shared "Open ASCII Setup" launch row at the top of
+  the effect's properties.
 - Tracery keying — GPU color-key match (key color + threshold + blur
   strength) at selectable detection quality, CPU connected-component
   labeling (largest regions first, capped), Show Mask preview, and alpha

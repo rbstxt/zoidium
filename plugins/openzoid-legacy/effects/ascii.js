@@ -82,7 +82,6 @@ this.propertyDefinitions = asciiMerge(
             type: PZ.property.type.OPTION,
             value: 1,
             items: "off;on",
-            buttons: [{ name: "ASCII Setup", title: "Open the ASCII setup window", action: "asciiSetup" }],
         },
         backgroundColor: asciiColor("Background color", 0.03, 0.03, 0.04),
         blockSize: asciiNum("Block size", 23, 4, 64, 1, 0),

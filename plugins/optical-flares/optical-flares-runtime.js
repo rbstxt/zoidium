@@ -153,12 +153,11 @@ module.exports = {
 
     installCreateWrapper(PZ, undo);
     installAuxiliaryPasses(PZ, undo);
-    // The standard editor entry: a gear on each flare row and an "Open Flare
-    // Editor" button above its properties, released with the module.
+    // The standard editor entry: a gear on each flare row and an "Open Optical
+    // Flares" button above its properties, released with the module.
     undo.push(context.ui.registerEditor({
       id: "optical-flares",
       title: "Optical Flares",
-      label: "Open Flare Editor",
       hint: "Open the Optical Flares options window",
       icon: "settings",
       match: (target) => Boolean(PZ.object3d.optflares && target instanceof PZ.object3d.optflares &&

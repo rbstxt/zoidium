@@ -70,9 +70,7 @@ test("tracery effect declares its full property surface", () => {
   assert.ok(fakeThis.properties.store.boxShape, "group definitions instantiated");
   const defs = fakeThis.propertyDefinitions;
   assert.equal(defs.enabled.items, "off;on");
-  assert.deepEqual(defs.enabled.buttons, [
-    { name: "Tracery Setup", title: "Open the Tracery setup window", action: "tracerySetup" },
-  ]);
+  assert.equal(defs.enabled.buttons, undefined, "setup opens from the shared editor entry, not a row button");
   for (let n = 1; n <= 6; n++) {
     for (const k of ["Enable", "X", "Y", "Size", "Label", "LabelDX", "LabelDY"]) {
       assert.ok(defs["point" + n + k] !== undefined, "point" + n + k);

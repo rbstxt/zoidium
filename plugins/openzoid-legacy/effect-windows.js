@@ -2,14 +2,13 @@
 
 // OpenZoid Legacy — ASCII and Tracery setup windows.
 //
-// The "Setup" property buttons of the ASCII and Tracery effects open floating
-// windows (docs/plugin-ui.md) above the editor. Controls are generated from the
+// The "Open ASCII Setup" and "Open Tracery Setup" launch rows (the shared
+// registerEditor entries below) open floating windows (docs/plugin-ui.md)
+// above the editor. Controls are generated from the
 // effect's property definitions. Every edit is written through CM3 property
 // operations inside one history operation, so undo and redo work. A drag
 // previews live and commits once on release. The main viewport is the live
 // preview; the windows keep no render state and do not borrow any viewport.
-// The property-button renderer that shows these buttons is installed by
-// vhs-setup.js in this same pack.
 
 const SYNC_INTERVAL_MS = 300;
 
@@ -679,28 +678,7 @@ function openSetupWindow(context, spec, effect) {
   return win;
 }
 
-// The button action's dispatcher is wrapped, not replaced, so other packs'
-// property actions keep working. A disabled wrapper stays in the chain as a
-// pass-through, so a later wrapper is never orphaned.
-function installDispatcher(controls, route) {
-  const previous = controls.runPropertyAction;
-  const wrapper = function (list, target, action) {
-    if (!wrapper.__dead && route(action, target)) return undefined;
-    return typeof previous === "function" ? previous.apply(this, arguments) : undefined;
-  };
-  wrapper.__dead = false;
-  controls.runPropertyAction = wrapper;
-  return { controls, wrapper, previous };
-}
-
-function removeDispatcher(install) {
-  install.wrapper.__dead = true;
-  if (install.controls.runPropertyAction === install.wrapper) {
-    install.controls.runPropertyAction = install.previous;
-  }
-}
-
-const state = { active: false, dispatcher: null };
+const state = { active: false };
 
 module.exports = {
   layerPercentAt,
@@ -710,22 +688,25 @@ module.exports = {
     if (!PZ || !PZ.ui || !PZ.ui.controls || !PZ.ui.properties) {
       throw new Error("ASCII and Tracery setup windows need the CM3 runtime.");
     }
-    if (!context.ui || typeof context.ui.openWindow !== "function") {
+    if (!context.ui || typeof context.ui.openWindow !== "function" ||
+        typeof context.ui.registerEditor !== "function") {
       throw new Error("ASCII and Tracery setup windows need the plugin UI.");
     }
-    state.dispatcher = installDispatcher(PZ.ui.controls, function (action, target) {
-      const spec = Object.prototype.hasOwnProperty.call(SPECS, action) ? SPECS[action] : null;
-      const effect = target && target.parentObject;
-      if (!spec || !effect) return false;
-      openSetupWindow(context, spec, effect);
-      return true;
-    });
+    // The shared property-panel entries: one "Open ..." launch row above
+    // each effect's properties (plus a gear on its list row). Both are
+    // released with the module.
+    for (const action of ["asciiSetup", "tracerySetup"]) {
+      const spec = SPECS[action];
+      context.lifecycle.onDispose(context.ui.registerEditor({
+        title: spec.title,
+        match: (target) => Boolean(target && target.type === spec.kind && target.properties),
+        open: (target) => openSetupWindow(context, spec, target),
+      }));
+    }
     state.active = true;
   },
   deactivate() {
     if (!state.active) return;
-    if (state.dispatcher) removeDispatcher(state.dispatcher);
-    state.dispatcher = null;
     state.active = false;
   },
 };
