@@ -7,7 +7,7 @@
 // (Material+ graph runtime). Load order: before zoidium/plugin-apis.js (see
 // postInitScripts in zoidium/runtime-config.js). plugin-apis.js exposes this
 // table as ZoidiumPluginApis.color.
-(function (global) {
+(function initializeColor(global) {
   "use strict";
 
   function clamp(value, minimum, maximum) {
@@ -154,4 +154,13 @@
     hexToRgb: hexToRgb,
     rgbToHex: rgbToHex,
   };
+  // Serialize this initializer, including its closure state and dependencies.
+  // The worker receives the same implementation without fetching overlay files.
+  Object.defineProperty(global.ZoidiumSharedColor, "workerSource", {
+    value: function () {
+      return "(" + Function.prototype.toString.call(initializeColor) + ")(globalThis);\n" +
+        "globalThis.ZoidiumPluginApis = globalThis.ZoidiumPluginApis || {};\n" +
+        "globalThis.ZoidiumPluginApis.color = globalThis.ZoidiumSharedColor;\n";
+    },
+  });
 })(typeof globalThis !== "undefined" ? globalThis : this);
