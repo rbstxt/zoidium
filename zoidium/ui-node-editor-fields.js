@@ -32,6 +32,7 @@
     var DEFAULT_SIZE = C.DEFAULT_SIZE;
     var base = parts.base;
     var hasOwn = base.hasOwn;
+    var isObject = base.isObject;
     var finiteOr = base.finiteOr;
     var clamp = base.clamp;
     var decimalsFor = base.decimalsFor;

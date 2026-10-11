@@ -64,6 +64,9 @@
     return COPY.en;
   }
 
+  let emergencyBanner = null;
+  let emergencyMountQueued = false;
+
   function mountEmergencyControls(source, error) {
     const documentObject = global.document;
     if (!documentObject?.createElement) return;

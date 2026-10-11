@@ -158,6 +158,9 @@
       throw new Error("ZoidiumUI is missing its " + name + " part; refusing to start with a partial UI kit");
     }
   });
+  // The window manager reports open failures through notify(), which lives
+  // in this file.
+  builder.notify = notify;
   var openWindow = builder.windows.openWindow;
   var note = builder.controls.note;
 
