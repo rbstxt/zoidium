@@ -280,10 +280,12 @@ test("addKeyframeAtPlayhead creates one key per visible curve", () => {
   groups[0].pz_object.hasKeyframe = () => false;
   groups[0].pz_object.get = () => 5;
   groups[0].pz_object.interpolated = true;
+  groups[0].pz_object.animated = true;
   const self = {
     editor: { history, playback: { currentFrame: 12 } },
-    propertyOps: { createKeyframe: (arg) => created.push(arg) },
+    propertyOps: { createKeyframe: (arg) => created.push(arg), toggleAnimation: () => assert.fail("already animated") },
     propGroups: () => groups,
+    ensureAnimated: proto.ensureAnimated,
   };
   proto.addKeyframeAtPlayhead.call(self);
   assert.equal(history.ops, 1);
@@ -292,6 +294,41 @@ test("addKeyframeAtPlayhead creates one key per visible curve", () => {
   assert.equal(created[0].property, "a");
   assert.equal(created[0].data.frame, 12);
   assert.equal(created[0].data.value, 5);
+});
+
+test("addKeyframeAtPlayhead turns the stopwatch on for a static property", () => {
+  const { GraphPlus } = loadModule();
+  const PZ = makeFakePZ();
+  const proto = GraphPlus.__test.gpDefineGraphEditor(PZ).graph.prototype;
+  const history = makeHistory();
+  const created = [];
+  const toggled = [];
+  const keys = [0];
+  const prop = {
+    animated: false,
+    interpolated: true,
+    getAddress: () => "a",
+    get: () => 5,
+    hasKeyframe: (frame) => keys.includes(frame),
+  };
+  const self = {
+    editor: { history, playback: { currentFrame: 12 } },
+    propertyOps: {
+      createKeyframe: (arg) => created.push(arg),
+      // CM3 moves the single static keyframe to the frame and sets animated.
+      toggleAnimation: (target, frame, expression, state) => {
+        toggled.push([target, frame, expression, state]);
+        keys[0] = frame;
+        target.animated = true;
+      },
+    },
+    propGroups: () => [{ style: { display: "" }, pz_object: prop, pz_frameOffset: 0 }],
+    ensureAnimated: proto.ensureAnimated,
+  };
+  proto.addKeyframeAtPlayhead.call(self);
+  assert.deepEqual(toggled, [[prop, 12, false, true]]);
+  assert.equal(created.length, 0);
+  assert.equal(prop.animated, true);
 });
 
 test("arrow nudge records the undo command with the old value", () => {
