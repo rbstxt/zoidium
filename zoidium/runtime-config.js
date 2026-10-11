@@ -69,8 +69,18 @@
     ],
     postInitScripts: [
       // ui-panels.js queues its installer for ui-kit.js, so it loads first.
+      // The node editor and the UI kit are split along their seams; the
+      // assemblers (ui-node-editor.js, ui-kit.js) load last.
       "./zoidium/ui-panels.js",
+      "./zoidium/ui-node-editor-graph.js",
+      "./zoidium/ui-node-editor-view.js",
+      "./zoidium/ui-node-editor-fields.js",
+      "./zoidium/ui-node-editor-menu.js",
       "./zoidium/ui-node-editor.js",
+      "./zoidium/ui-kit-panels.js",
+      "./zoidium/ui-kit-skins.js",
+      "./zoidium/ui-kit-windows.js",
+      "./zoidium/ui-kit-controls.js",
       "./zoidium/ui-kit.js",
       "./zoidium/project-restore-store.js",
       "./zoidium/project-restore-snapshots.js",

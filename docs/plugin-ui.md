@@ -270,6 +270,13 @@ dragging, resizing, focus, keyboard isolation, Escape, close and disable
 cleanup. Skins may not bundle fonts or remote assets; use system font stacks
 or `var(--zui-font)`.
 
+Skin CSS is untrusted and sanitized on registration: declarations that fetch
+anything but an embedded `data:` URL are dropped (so a skin can neither phone
+home nor pull a hostile font), `@import` is removed, and `@keyframes` names
+are namespaced per skin id (with `animation` / `animation-name` references
+rewritten to match), so two suites can use the same keyframe name without
+colliding. A rule emptied by sanitizing is dropped.
+
 ## Controls
 
 `context.ui.controls` (also `ZoidiumUI.controls`). Each builder returns
