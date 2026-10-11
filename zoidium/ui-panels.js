@@ -239,6 +239,16 @@
         return Boolean(P && value instanceof P.object && !(value instanceof P.propertyList));
       }
 
+      // Graph/track lists reuse PZ.ui.edit but suppress property controls and
+      // all commands. showListItemButtons alone is true even in those lists.
+      function allowsEditorCommands(panel) {
+        return panel.options.showPropertyControls !== false && !panel.options.hideAllListItemButtons;
+      }
+
+      function allowsLaunchRows(panel) {
+        return allowsEditorCommands(panel) && panel.options.showListItemButtons;
+      }
+
       function installPatch() {
         var P = PZ();
         var proto = P && P.ui && P.ui.edit && P.ui.edit.prototype;
@@ -252,7 +262,7 @@
 
         proto.generateItemCommands = function (item, target) {
           var result = original.generateItemCommands.apply(this, arguments);
-          if (!editors.length || !isObjectTarget(target) || !item || !item.children[1]) return result;
+          if (!editors.length || !allowsEditorCommands(this) || !isObjectTarget(target) || !item || !item.children[1]) return result;
           // Property panels show the "Open ..." row under the object instead;
           // the gear belongs to object lists (Objects, Effects).
           if (this.options.showListItemButtons) return result;
@@ -275,7 +285,7 @@
 
         proto.generateChildrenList = function (item) {
           var result = original.generateChildrenList.apply(this, arguments);
-          if (editors.length && this.options.showListItemButtons && item && isObjectTarget(item.pz_object)) {
+          if (editors.length && allowsLaunchRows(this) && item && isObjectTarget(item.pz_object)) {
             insertLaunchRow(item.nextElementSibling, item.pz_object);
           }
           return result;
@@ -287,7 +297,7 @@
         // the list is unloaded.
         proto.generatePropertyList = function (item, list) {
           var result = original.generatePropertyList.apply(this, arguments);
-          if (!editors.length || !this.options.showListItemButtons || !item || !isObjectTarget(item.pz_object)) return result;
+          if (!editors.length || !allowsLaunchRows(this) || !item || !isObjectTarget(item.pz_object)) return result;
           var owner = item.pz_object;
           var ul = item.nextElementSibling;
           if (!ul || ul.tagName !== "UL") return result;
@@ -329,7 +339,7 @@
         Array.from(global.document.querySelectorAll(".editorpanel")).forEach(function (node) {
           var panel = node.pz_panel;
           if (!panel || !(panel instanceof P.ui.edit) || node.classList.contains("zoidium-properties")) return;
-          if (!panel.options || !panel.options.showListItemButtons) return;
+          if (!panel.options || !allowsLaunchRows(panel)) return;
           try {
             if (panel.enabled) panel.objectsChanged();
             else panel.objectsNeedUpdate = true;
