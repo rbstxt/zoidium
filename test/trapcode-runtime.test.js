@@ -1,11 +1,20 @@
 "use strict";
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const vm = require("node:vm");
 const runtimePath = require.resolve("../plugins/trapcode-suite/trapcode-runtime");
+
+function pluginApis() {
+  const context = { PZ: {}, console };
+  vm.runInNewContext(fs.readFileSync("zoidium/plugin-apis.js", "utf8"), context);
+  return context.ZoidiumPluginApis;
+}
 
 test("activation evaluates sources once and preserves existing class identity across reactivation", () => {
   delete require.cache[runtimePath];
   let runtime = require(runtimePath);
+  const apis = pluginApis();
   const factories = new Map();
   const PZ = {object3d: {create: type => {
     const instance = factories.get(type)?.factory();
@@ -18,6 +27,7 @@ test("activation evaluates sources once and preserves existing class identity ac
     PZ.object3d.form = PZ.object3d.form || class {};
     PZ.object3d.plexus = PZ.object3d.plexus || class {};`;
   const context = {PZ, window: {THREE: {}}, getAsset() { evaluations++; return source; },
+    apis: { modules: { createRequire: apis.modules.createRequire } },
     object3d: { registerClass(entry) { factories.set(entry.type, entry); return () => factories.delete(entry.type); } },
     lifecycle: { onDispose() {} }};
   runtime.activate(context);
@@ -29,11 +39,29 @@ test("activation evaluates sources once and preserves existing class identity ac
   delete require.cache[runtimePath];
   runtime = require(runtimePath);
   runtime.activate(context);
-  assert.equal(evaluations, 6);
+  assert.equal(evaluations, runtime.sourceOrder.length);
   assert.equal(PZ.object3d.particular, originalClass);
   assert.ok(existing instanceof PZ.object3d.particular);
   assert.equal(existing.type, "zoidium:trapcode-suite/particular");
   runtime.deactivate();
+});
+
+test("activation fails cleanly without the shared module loader", () => {
+  delete require.cache[runtimePath];
+  const runtime = require(runtimePath);
+  const PZ = { object3d: { create: () => null } };
+  const context = { PZ, window: { THREE: {} }, getAsset: () => "" };
+  assert.throws(() => runtime.activate(context), /shared bundle module loader/);
+});
+
+test("the runtime load order matches the manifest text assets", () => {
+  delete require.cache[runtimePath];
+  const runtime = require(runtimePath);
+  const manifest = JSON.parse(fs.readFileSync("plugins/trapcode-suite/manifest.json", "utf8"));
+  const assets = manifest.resources
+    .filter((entry) => entry.type === "text")
+    .map((entry) => String(entry.source).split("/").pop().split("?")[0]);
+  assert.deepEqual(runtime.sourceOrder, assets);
 });
 
 test("detached parent lists and cycles do not crash ancestor lookup", () => {

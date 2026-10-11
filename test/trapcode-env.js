@@ -369,14 +369,46 @@ function createPZ() {
   return PZ;
 }
 
+// The trapcode-suite plugin ships each area as several files loaded in a
+// fixed order (mirroring SOURCE_ORDER in trapcode-runtime.js). Tests name a
+// legacy file and get the whole group, so behavior pins do not depend on
+// the split layout.
+const SUITE_GROUPS = {
+  "trapcode-common.js": [
+    "trapcode-common.js",
+    "trapcode-audio.js",
+    "trapcode-color.js",
+    "trapcode-shading.js",
+    "trapcode-expressions.js",
+  ],
+  "particular.js": [
+    "particular-sim.js",
+    "particular.js",
+    "particular-system.js",
+    "particular-defs.js",
+  ],
+  "form.js": ["form.js", "form-grid.js", "form-fields.js", "form-defs.js"],
+  "plexus.js": ["plexus.js", "plexus-geometry.js", "plexus-object.js", "plexus-config.js"],
+};
+
+function expandSuiteFiles(files) {
+  const out = [];
+  for (const file of files) {
+    for (const part of SUITE_GROUPS[file] || [file]) {
+      if (!out.includes(part)) out.push(part);
+    }
+  }
+  return out;
+}
+
 // Builds PZ + THREE and evaluates the requested Trapcode sources into them.
 function loadSuite(files) {
   const PZ = createPZ();
   const THREE = createTHREE();
-  for (const file of files) {
+  for (const file of expandSuiteFiles(files)) {
     new Function("PZ", "THREE", readSource(file))(PZ, THREE);
   }
   return { PZ, THREE };
 }
 
-module.exports = { loadSuite, createPZ, createTHREE, readSource, projectRoot };
+module.exports = { loadSuite, expandSuiteFiles, createPZ, createTHREE, readSource, projectRoot };

@@ -14,6 +14,7 @@ const test = require("node:test");
 
 const projectRoot = path.resolve(__dirname, "..");
 const suiteDir = path.join(projectRoot, "plugins/trapcode-suite");
+const { expandSuiteFiles } = require("./trapcode-env");
 const FPS = 30;
 
 function interpolate(keys, frame) {
@@ -60,11 +61,14 @@ class StubProperty {
 }
 
 function loadSystemModule(files) {
-  const list = files || ["trapcode-common.js", "particular.js"];
+  const list = expandSuiteFiles(files || ["trapcode-common.js", "particular.js"]);
   const PZ = {};
   const THREE = {};
-  const common = fs.readFileSync(path.join(suiteDir, "trapcode-common.js"), "utf8");
-  new Function("PZ", "THREE", common)(PZ, THREE);
+  const group = ["trapcode-common.js", "trapcode-audio.js", "trapcode-color.js",
+    "trapcode-shading.js", "trapcode-expressions.js"];
+  for (const file of list.filter((f) => group.includes(f))) {
+    new Function("PZ", "THREE", fs.readFileSync(path.join(suiteDir, file), "utf8"))(PZ, THREE);
+  }
 
   class StubObject {
     constructor() {
@@ -177,7 +181,7 @@ function loadSystemModule(files) {
 
   // The particular sources attach to PZ.object3d above; evaluate them last so
   // the class bodies see the stub runtime.
-  for (const file of list.filter((f) => f !== "trapcode-common.js")) {
+  for (const file of list.filter((f) => !group.includes(f))) {
     const source = fs.readFileSync(path.join(suiteDir, file), "utf8");
     new Function("PZ", "THREE", source)(PZ, THREE);
   }
