@@ -87,6 +87,19 @@ function host(adjustment) {
     ui: { viewport: class { _render() { this.compositor.renderSequence(this.editor.playback.currentFrame); } } } }, THREE: { Texture, WebGLRenderTarget: Target, Color: class {} } };
   sandbox.window = sandbox;
   vm.createContext(sandbox);
+  // The shared overlay scripts load before any plugin code runs, so the
+  // temporal core sees the attached tables here too.
+  for (const relative of [
+    "zoidium/shared/random.js",
+    "zoidium/shared/props.js",
+    "zoidium/shared/color.js",
+    "zoidium/shared/gl.js",
+    "zoidium/shared/json.js",
+    "zoidium/shared/windows.js",
+    "zoidium/plugin-apis.js",
+  ]) {
+    vm.runInContext(fs.readFileSync(relative, "utf8"), sandbox, { filename: relative });
+  }
   for (const relative of [
     "plugins/core/temporal-math.js",
     "plugins/core/temporal-layers.js",

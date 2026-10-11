@@ -79,17 +79,17 @@ module.exports = function createRender(state, deps) {
     const targetKey = `${deps.trackToken(track)}|${deps.normalizeSourceMode(sourceMode)}`;
     let target = runtime.targetPool.get(targetKey);
     if (!target) {
-      target = new THREE.WebGLRenderTarget(width, height, {
+      // Shared scratch target (zoidium/shared/gl.js).
+      target = ZoidiumPluginApis.gl.createRenderTarget(THREE, width, height, {
         minFilter: THREE.LinearFilter,
         magFilter: THREE.LinearFilter,
         format: THREE.RGBAFormat,
         depthBuffer: false,
         stencilBuffer: false,
       });
-      target.texture.generateMipmaps = false;
       runtime.targetPool.set(targetKey, target);
-    } else if (target.width !== width || target.height !== height) {
-      target.setSize(width, height);
+    } else {
+      ZoidiumPluginApis.gl.ensureSize(target, width, height);
     }
     return target;
   }
