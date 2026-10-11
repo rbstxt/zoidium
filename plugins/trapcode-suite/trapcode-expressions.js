@@ -222,6 +222,7 @@ var PZ = PZ || {};
                     try {
                         n = r && typeof r.getBaseValue === "function" ? r.getBaseValue(e) : undefined;
                     } catch (_e) {
+                        // Unreadable base value: the context carries undefined.
                         n = undefined;
                     }
                     if (live) {
@@ -277,7 +278,7 @@ var PZ = PZ || {};
                 typeof PZ.property.dynamic.keyframes.prototype.get === "function") {
                 getterProtos.push(PZ.property.dynamic.keyframes.prototype);
             }
-        } catch (_err) { /* ignore */ }
+        } catch (_err) { /* missing subtree: throws below when no getters were found */ }
         if (!getterProtos.length) {
             throw new Error("Trapcode Suite needs dynamic property getters from the CM3 runtime.");
         }

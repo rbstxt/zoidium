@@ -193,6 +193,7 @@ var PZ = PZ || {};
             image = new PZ.asset.image(asset);
             image.getImage(true);
         } catch (_error) {
+            console.warn("[Zoidium] trapcode-suite: image asset could not be decoded; using no image.", _error);
             return Promise.resolve(finish(null));
         }
         return Promise.resolve(image.loading).then(function () {

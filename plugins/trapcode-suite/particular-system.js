@@ -79,6 +79,7 @@ var PZ = PZ || {};
             if (!particular || !particular.systems || !particular.systems.indexOf) return 1;
             return particular.systems.indexOf(this) > 0 ? 2 : 1;
         } catch (err) {
+            // Defensive default: an unreadable parent chain counts as the primary system.
             return 1;
         }
     };
