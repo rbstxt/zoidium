@@ -95,4 +95,19 @@ test("manager numeric fallbacks use the shared JSON clone for load and save", as
   assert.equal(object.toJSON().properties.amount[0], 3);
   assert.equal(clones, 3);
 });
+test("manager source evaluator preserves native receivers and module arguments", () => {
+  const { sandbox, manager: m } = loadManager();
+  sandbox.fixtureGlobal = 7;
+  const instance = {};
+  assert.equal(m.evaluatePluginSource("this.value = fixtureGlobal; return this.value;", [], [], instance), 7);
+  assert.equal(instance.value, 7);
+  const module = { exports: {} };
+  const plugin = { id: "fixture" };
+  m.evaluatePluginSource("exports.id = plugin.id; module.exports.global = fixtureGlobal;", ["module", "exports", "plugin"], [module, module.exports, plugin]);
+  assert.deepEqual(module.exports, { id: "fixture", global: 7 });
+  assert.throws(() => m.evaluatePluginSource("throw new Error('fixture failure');"), /fixture failure/);
+  assert.throws(() => m.evaluatePluginSource("broken syntax !"), /Unexpected/);
+  const sources = managerFiles().map((file) => fs.readFileSync(path.join(__dirname, "..", file), "utf8")).join("\n");
+  assert.equal((sources.match(/new Function\(/g) || []).length, 1);
+});
 module.exports = { loadManager };

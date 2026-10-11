@@ -1,10 +1,16 @@
-// Plugin manager: assets. Shared internals are private to these ordered overlays.
+// Plugin manager: bundle assets, validation, and source evaluation.
+// evaluatePluginSource is the sole source-evaluation choke point for this manager.
+// Plugins retain full origin privileges; this helper does not sandbox their code.
 (function () {
   "use strict";
   const manager = window.ZoidiumPluginManagerInternals;
   const { SHADER_PLUGIN_MARKER } = manager;
 
   // BEGIN manager body 212
+  function evaluatePluginSource(source, parameters = [], values = [], receiver) {
+    return new Function(...parameters, source).apply(receiver, values);
+  }
+
   async function fetchJson(url) {
     const response = await fetch(url, { cache: "default" });
     if (!response.ok) throw new Error(`HTTP ${response.status}: ${url}`);
@@ -379,5 +385,5 @@
   }
 
   // END manager body
-  Object.assign(manager, { fetchJson, fetchText, pluginAssetKey, getPluginAsset, createPluginAssetResolver, bundledText, bundledJson, validateManifest, createPluginMarker, readPluginMarker, createLazyEffectData, hydrateGroupShaders, indexGroupShaders, loadGroupData, loadPluginPackage, loadPluginPackageForState });
+  Object.assign(manager, { evaluatePluginSource, fetchJson, fetchText, pluginAssetKey, getPluginAsset, createPluginAssetResolver, bundledText, bundledJson, validateManifest, createPluginMarker, readPluginMarker, createLazyEffectData, hydrateGroupShaders, indexGroupShaders, loadGroupData, loadPluginPackage, loadPluginPackageForState });
 })();

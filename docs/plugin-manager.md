@@ -27,3 +27,8 @@ The body markers support the existing VM source-slice characterization tests.
 `test/plugin-manager-source.js` assembles those bodies in their original order;
 `test/plugin-manager-overlays.test.js` also executes the actual ordered overlays
 to check imports, shared state, and startup exports.
+
+`evaluatePluginSource` in the assets overlay is the manager's only dynamic source
+evaluator. It preserves the native factory receiver and the module's named
+arguments. Plugin code still runs with full origin privileges. The helper is a
+common point for future evaluation policy, not a security sandbox.

@@ -2,6 +2,7 @@
 (function () {
   "use strict";
   const manager = window.ZoidiumPluginManagerInternals;
+  const evaluatePluginSource = (...args) => manager.evaluatePluginSource(...args);
   const { pluginStates, pluginGroups, trackedNativeEffects, missingNativeEffects, trackedPluginMaterials, missingPluginMaterials, trackedPluginObjects, missingPluginObjects, trackedPluginResources, missingPluginResources } = manager;
   const isPersistedEnabled = (...args) => manager.isPersistedEnabled(...args);
   const fetchText = (...args) => manager.fetchText(...args);
@@ -114,7 +115,7 @@
       );
       for (const [definition, source] of sources) {
         const module = { exports: {} };
-        new Function("module", "exports", "plugin", source)(module, module.exports, plugin);
+        evaluatePluginSource(source, ["module", "exports", "plugin"], [module, module.exports, plugin]);
         const runtime = module.exports;
         if (!runtime || typeof runtime.activate !== "function") {
           throw new Error(`Plugin module has no activate() export: ${definition.id}`);

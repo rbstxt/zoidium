@@ -45,6 +45,7 @@ function createStore() {
 
 function runLoop(manifest, harness) {
   const sandbox = {
+    ZoidiumPluginApis: require("./shared-test-apis").loadSharedTables(),
     manifest,
     plugin: { id: manifest.id },
     getObjectTypes: harness.getObjectTypes,
