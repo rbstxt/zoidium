@@ -8,15 +8,21 @@ const {
   assertNoSymlinkComponents,
   assertNoSymlinksRecursively,
   assertStageRootSafe,
+  cacheMetadataName,
+  cacheSchemaVersion,
   commonProjectEntries,
+  defaultFetchConcurrency,
+  defaultFetchTimeoutMs,
+  defaultVideoEditorSourcePage,
   isPathInside,
   normalizeResourcePath,
+  normalizeSourcePageUrl,
   projectRoot,
   runtimeProfilesName,
   safeStagePath,
   sha256,
 } = require("./runtime-resources-paths");
-const { discoverEditorEntryScript } = require("./runtime-resources-discovery");
+const { discoverEditorEntryScript, resourceRootFor } = require("./runtime-resources-discovery");
 const {
   assertPageResponseWithinRoot,
   fetchBytes,
@@ -329,12 +335,14 @@ async function buildResourceStage(
     fetchTimeoutMs = defaultFetchTimeoutMs,
     concurrency = defaultFetchConcurrency,
     videoEditorSourcePageUrl = defaultVideoEditorSourcePage,
+    allowInsecureSource = false,
   } = {}
 ) {
   const resolvedStageRoot = await assertStageRootSafe(stageRoot);
-  const normalizedSourcePageUrl = normalizeSourcePageUrl(sourcePageUrl);
+  const normalizedSourcePageUrl = normalizeSourcePageUrl(sourcePageUrl, { allowInsecureSource });
   const normalizedVideoEditorSourcePageUrl = normalizeSourcePageUrl(
-    videoEditorSourcePageUrl
+    videoEditorSourcePageUrl,
+    { allowInsecureSource }
   );
   const resourceRoot = resourceRootFor(normalizedSourcePageUrl);
   if (resourceRootFor(normalizedVideoEditorSourcePageUrl) !== resourceRoot) {
@@ -346,11 +354,13 @@ async function buildResourceStage(
   const [clipmakerPageResponse, videoEditorPageResponse] = await Promise.all([
     fetchBytes(normalizedSourcePageUrl, {
       allowedOrigin: new URL(normalizedSourcePageUrl).origin,
+      allowInsecureSource,
       fetchImpl,
       timeoutMs: fetchTimeoutMs,
     }),
     fetchBytes(normalizedVideoEditorSourcePageUrl, {
       allowedOrigin: new URL(normalizedVideoEditorSourcePageUrl).origin,
+      allowInsecureSource,
       fetchImpl,
       timeoutMs: fetchTimeoutMs,
     }),
@@ -377,6 +387,7 @@ async function buildResourceStage(
   );
   const patchedHtml = patchIndexHtml(sourceHtml);
   const clipmakerGraph = await fetchResourceGraph({
+    allowInsecureSource,
     concurrency,
     fetchImpl,
     fetchTimeoutMs,
@@ -386,6 +397,7 @@ async function buildResourceStage(
     stageRoot: resolvedStageRoot,
   });
   const graph = await fetchResourceGraph({
+    allowInsecureSource,
     concurrency,
     existingResources: clipmakerGraph.resources,
     fetchImpl,
