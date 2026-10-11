@@ -176,6 +176,29 @@ The overlay entries load in `postInitScripts` before `zoidium/plugin-apis.js`
 directly with no local fallback. Bit-for-bit pins live in
 `test/shared-random.test.js` and `test/shared-helpers.test.js`.
 
+Each table has a non-enumerable `workerSource()` method. It serializes the
+module's named initializer with `Function.prototype.toString()` and returns a
+script that initializes the table on `globalThis.ZoidiumPluginApis`. Prepend
+only the tables a worker needs before evaluating the worker's bundled modules:
+
+```js
+const prelude = context.apis.random.workerSource() +
+  context.apis.props.workerSource() + context.apis.color.workerSource();
+const worker = new Worker(URL.createObjectURL(new Blob([prelude, jobSource], {
+  type: "text/javascript",
+})));
+```
+
+The initializer contains its helper dependencies and creates fresh closure
+state in the worker. It does not fetch scripts or require `window`, `document`,
+or the page's API object. Module authors must keep dependencies inside that
+initializer or pass them explicitly to a helper. Effector mesh jobs and the
+Material+ graph worker use this mechanism with their bundled source assets.
+`test/shared-worker-realms.test.js` evaluates both generated workers in VM
+realms without browser globals and compares their complete results with the
+main realm. `test/worker-helper-pins.test.js` pins the migrated call sites
+against verbatim pre-migration copies.
+
 - `random`: `legacyHash01(seed, index)` (Datamosh/VHS setups) with
   `nextSeed(seed)`; `sceneSeededRandom` (Scene+); `textSeedHash` /
   `textSeededRandom` (Text+); `effectorHash01` / `effectorHashUnitVector`
@@ -190,7 +213,9 @@ directly with no local fallback. Bit-for-bit pins live in
   never throws); `readVector` / `readColor` (per-component fallback, the
   fallback is never mutated); `forEachProp(properties, visit)` over own
   entries; `cloneJson` (registry semantics) and `cloneJsonValue` (reset-data
-  semantics: functions clone to `undefined`); `finiteOr(value, fallback)`.
+  semantics: functions clone to `undefined`); `finiteOr(value, fallback)`; `numberValue` coerces scalar values, and
+  `readNumberCoerced` preserves Material+'s optional getter and numeric-string
+  behavior.
 - `color`: `clamp` / `lerp`; `clampUnit` (Effector: NaN and non-positive
   collapse to 0) vs `clamp01` (NaN passes through); `hsvToRgb` / `rgbToHsv`
   (hue in degrees, Magic Looks); `hsvToRgb01` / `rgbToHsv01` (hue in [0, 1],

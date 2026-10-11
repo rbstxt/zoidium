@@ -5,12 +5,30 @@
 // break a render. Load order: before zoidium/plugin-apis.js (see
 // postInitScripts in zoidium/runtime-config.js). plugin-apis.js exposes this
 // table as ZoidiumPluginApis.props.
-(function (global) {
+(function initializeProps(global) {
   "use strict";
 
   // Finite number or fallback (plugins/core/object3d-registry.js semantics).
   function finiteOr(value, fallback) {
     return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+  }
+
+  // Coercing scalar helper used by Scene+ serialized controls.
+  function numberValue(value, fallback) {
+    var number = Number(value);
+    return Number.isFinite(number) ? number : fallback;
+  }
+
+  // Material+ permits numeric strings and absent optional property getters.
+  // Keep this separate from readNumber, whose strict number semantics differ.
+  function readNumberCoerced(property, time, fallback) {
+    try {
+      var value = property?.get?.(time);
+      return Number.isFinite(Number(value)) ? Number(value) : fallback;
+    } catch (_error) {
+      // Dynamic properties may be unavailable before their native load.
+      return fallback;
+    }
   }
 
   // Deep-clones JSON data through a serialize round-trip. Returns the input
@@ -103,6 +121,8 @@
 
   global.ZoidiumSharedProps = {
     finiteOr: finiteOr,
+    numberValue: numberValue,
+    readNumberCoerced: readNumberCoerced,
     cloneJson: cloneJson,
     cloneJsonValue: cloneJsonValue,
     readNumber: readNumber,
@@ -110,4 +130,13 @@
     readColor: readColor,
     forEachProp: forEachProp,
   };
+  // Serialize this initializer, including its closure state and dependencies.
+  // The worker receives the same implementation without fetching overlay files.
+  Object.defineProperty(global.ZoidiumSharedProps, "workerSource", {
+    value: function () {
+      return "(" + Function.prototype.toString.call(initializeProps) + ")(globalThis);\n" +
+        "globalThis.ZoidiumPluginApis = globalThis.ZoidiumPluginApis || {};\n" +
+        "globalThis.ZoidiumPluginApis.props = globalThis.ZoidiumSharedProps;\n";
+    },
+  });
 })(typeof globalThis !== "undefined" ? globalThis : this);
