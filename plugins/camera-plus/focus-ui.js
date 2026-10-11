@@ -22,6 +22,7 @@ parts.focus = (function () {
   }
 
   function resolveEditor(getEditor) {
+    // No editor is open yet, or the host getter threw; callers treat null as unavailable.
     try {
       return (getEditor && getEditor()) || null;
     } catch (_error) {
@@ -211,6 +212,7 @@ parts.focus = (function () {
               };
             }
           } catch (_error) {
+            console.warn("[Zoidium] camera-plus: focus target watcher failed; the list still refreshes on poll", _error);
             unwatch = null;
           }
           camera._focusRefreshTargets = refresh;
