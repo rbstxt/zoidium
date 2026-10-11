@@ -12,13 +12,15 @@ const test = require("node:test");
 
 const projectRoot = path.resolve(__dirname, "..");
 const suiteDir = path.join(projectRoot, "plugins/trapcode-suite");
+const { expandSuiteFiles } = require("./trapcode-env");
 const RATE = 48000;
 
 function loadCommon() {
   const PZ = {};
   const THREE = {};
-  const common = fs.readFileSync(path.join(suiteDir, "trapcode-common.js"), "utf8");
-  new Function("PZ", "THREE", common)(PZ, THREE);
+  for (const file of expandSuiteFiles(["trapcode-common.js"])) {
+    new Function("PZ", "THREE", fs.readFileSync(path.join(suiteDir, file), "utf8"))(PZ, THREE);
+  }
   return PZ.trapcode;
 }
 
@@ -132,8 +134,9 @@ test("load decodes an asset once and shares the pending promise", async () => {
 function loadParticularSystem() {
   const PZ = {};
   const THREE = {};
-  const common = fs.readFileSync(path.join(suiteDir, "trapcode-common.js"), "utf8");
-  new Function("PZ", "THREE", common)(PZ, THREE);
+  for (const file of expandSuiteFiles(["trapcode-common.js"])) {
+    new Function("PZ", "THREE", fs.readFileSync(path.join(suiteDir, file), "utf8"))(PZ, THREE);
+  }
 
   class StubObject {
     constructor() {
@@ -228,8 +231,9 @@ function loadParticularSystem() {
   THREE.AdditiveBlending = 2;
   THREE.LinearFilter = 1;
   THREE.RGBAFormat = 1;
-  const source = fs.readFileSync(path.join(suiteDir, "particular.js"), "utf8");
-  new Function("PZ", "THREE", source)(PZ, THREE);
+  for (const file of expandSuiteFiles(["particular.js"])) {
+    new Function("PZ", "THREE", fs.readFileSync(path.join(suiteDir, file), "utf8"))(PZ, THREE);
+  }
   const system = new PZ.object3d.particular.system();
   system.sceneRate = () => 30;
   return { system, T: PZ.trapcode, simulation: PZ.object3d.particular.system.simulation };

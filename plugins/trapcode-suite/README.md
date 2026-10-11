@@ -157,6 +157,15 @@ project time. To keep evaluation bounded:
 - particle life is clamped to 30 seconds;
 - at most 20,000 particles are simulated per system (the newest are kept).
 
+The row cache (`simTable`) keys on a full serialization of the system
+properties, computed per frame. This was deliberately kept: the definition
+objects are class-level statics, so a slimmer key would preserve the
+hit/miss relation (pinned by `test/trapcode-sim-cache.test.js`), but node
+profiling shows the current key costs about 50 microseconds per call while
+a replacer-based slimmer key is slower on the same payload, and no
+real-runtime profile shows a material cost. Per the audit triage, a cheaper
+change signal needs profiling before it lands.
+
 ## Expression upgrade
 
 The OpenZoid expression methods stock CM3 lacks: `wiggle` and companions
@@ -167,11 +176,36 @@ Methods install missing-only and are removed when the pack is disabled.
 
 ## Runtime
 
-The `trapcode-runtime` module evaluates the bundled sources in dependency order
-through the plugin bundle asset API, so enabling the pack never fetches at
-runtime. It teaches `PZ.object3d.create` the Trapcode numeric types and removes
-them, the expression support, the lights and any open designer windows on
-disable. Activation failures roll back what was installed.
+The `trapcode-runtime` module loads the bundled sources in dependency order
+through the shared bundle module loader
+(`ZoidiumPluginApis.modules.createRequire`), so enabling the pack never
+fetches at runtime. It teaches `PZ.object3d.create` the Trapcode numeric types
+and removes them, the expression support, the lights and any open designer
+windows on disable. Activation failures roll back what was installed.
+
+Source layout (each file stays at or below 1000 lines; files load top to
+bottom, every file extending what earlier files defined):
+
+- `trapcode-common.js` — clock, math, property factories, registry, assets.
+- `trapcode-audio.js` — offline audio analysis.
+- `trapcode-color.js` — color/gradient/curve helpers and designer palettes.
+- `trapcode-shading.js` — per-particle shading from scene lights.
+- `trapcode-expressions.js` — the wiggle expression upgrade.
+- `designer.js` — floating designer windows (owned by another area).
+- `particular-sim.js` — deterministic CPU simulation core (shared through
+  `T.particularSim`).
+- `particular.js` — shaders, container class, System class core.
+- `particular-system.js` — System per-frame methods.
+- `particular-defs.js` — System property schema, presets, registration.
+- `form.js` — shaders, container class, instance class core.
+- `form-grid.js` — base lattice and sampling math (`T.formSampling`).
+- `form-fields.js` — deformations and the per-frame update.
+- `form-defs.js` — instance property schema, presets, registration.
+- `plexus.js` — constants, shaders, search utilities, container class.
+- `plexus-geometry.js` — OBJ/BufferGeometry ingestion (`T.plexusGeometry`).
+- `plexus-object.js` — object class and property schema.
+- `plexus-config.js` — catalog and designer registration.
+- `lights-c4d.js` — C4D-style lights (owned by another area).
 
 Known limitations:
 
@@ -183,6 +217,10 @@ Known limitations:
   entry and the last one enabled wins the picker.
 - Plexus link renderers use the first 12,000 points (lines) or 4,000 points
   (facets, triangulation); the cap keeps a frame's cost bounded.
+- Plexus OBJ ingestion is capped: source text beyond 16 MiB and meshes with
+  more than 500,000 vertices are skipped with a console warning, and the
+  source falls back to a primitive. Plexus samples at most 60,000 points per
+  source, so real models keep wide headroom.
 
 ```bash
 # after changing sources or the manifest
