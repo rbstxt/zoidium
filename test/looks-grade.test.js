@@ -5,6 +5,7 @@
 // surface, the update/uniform sync path (dirty gating, chain and LUT upload
 // caching), and shader/catalog agreement.
 
+require("./migrate-test-apis.js").ensureMainRealmApis();
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");

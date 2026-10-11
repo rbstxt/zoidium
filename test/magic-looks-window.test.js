@@ -6,6 +6,7 @@
 // with one history step, that chain and preset edits are undoable commits, and
 // that closing the window releases its state.
 
+require("./migrate-test-apis.js").ensureMainRealmApis();
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
