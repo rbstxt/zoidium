@@ -417,19 +417,26 @@ test("Voronoi Fracture output is deterministic for a frame and clones its materi
   deformerFor(mesh, voronoi, 0);
   const firstPositions = Array.from(mesh.geometry.attributes.position.array);
   assert.ok(mesh.geometry.attributes.color, "fragments carry piece colours");
-  assert.notEqual(mesh.material, original, "fragments use a cloned material");
-  assert.equal(mesh.material.side, THREE.DoubleSide);
-  assert.equal(mesh.material.vertexColors, true);
+  assert.ok(Array.isArray(mesh.material), "walls and caps use cloned materials");
+  const [walls, caps] = mesh.material;
+  assert.notEqual(walls, original);
+  for (const clone of mesh.material) {
+    assert.equal(clone.side, THREE.DoubleSide);
+    assert.equal(clone.vertexColors, true);
+  }
+  assert.equal(walls.polygonOffset, undefined, "walls keep the original depth");
+  assert.deepEqual([caps.polygonOffset, caps.polygonOffsetFactor, caps.polygonOffsetUnits], [true, 1, 1], "caps yield to the walls they meet");
+  assert.deepEqual(mesh.geometry.groups.map(group => group.materialIndex), [0, 1]);
 
   deformerFor(mesh, voronoi, 7);
   deformerFor(mesh, voronoi, 0);
   assert.deepEqual(Array.from(mesh.geometry.attributes.position.array), firstPositions);
 
   const deformer = _test.getMeshDeformer(THREE);
-  const clone = mesh.material;
+  const clones = mesh.material;
   deformer.deformMesh(mesh, [], 0, 1);
   assert.equal(mesh.material, original, "the original material is restored");
-  assert.equal(clone.disposeCount, 1, "the clone is disposed");
+  assert.deepEqual(clones.map(clone => clone.disposeCount), [1, 1], "the clones are disposed");
 });
 
 test("regenerated source geometry replaces the cached pristine mesh", () => {
@@ -591,7 +598,7 @@ test("pending fracture renders the source, then publishes the exact completed in
   deformer.deformMesh(mesh, chain, 0, 1);
   assert.equal(mesh.geometry, source, "changed input never shows stale fractured geometry");
   assert.equal(mesh.material, originalMaterial);
-  assert.equal(clone.disposeCount, 0, "the pending build retains its compiled material");
+  assert.equal(clone[0].disposeCount, 0, "the pending build retains its compiled material");
   jobs.complete(); deformer.deformMesh(mesh, chain, 0, 1);
   assert.notEqual(mesh.geometry, completed);
   assert.equal(mesh.material, clone);
@@ -605,7 +612,7 @@ test("pending fracture renders the source, then publishes the exact completed in
   assert.equal(mesh.geometry, latest, "returning to the completed key restores its geometry immediately");
   deformer.dispose();
   assert.equal(mesh.geometry, source); assert.equal(mesh.material, originalMaterial);
-  assert.equal(clone.disposeCount, 1);
+  assert.equal(clone[0].disposeCount, 1);
 });
 
 test("source replacement retains the fracture material while awaiting new geometry", () => {
@@ -619,7 +626,7 @@ test("source replacement retains the fracture material while awaiting new geomet
   const replacement = makeMesh(cubePositions().map(value => value * 2)).geometry;
   mesh.geometry = replacement;
   deformer.deformMesh(mesh, chain, 0, 1);
-  assert.equal(mesh.geometry, replacement); assert.equal(clone.disposeCount, 0);
+  assert.equal(mesh.geometry, replacement); assert.equal(clone[0].disposeCount, 0);
   jobs.complete();deformer.deformMesh(mesh, chain, 0, 1);
   assert.equal(mesh.material, clone);
   deformer.restoreMesh(mesh);assert.equal(mesh.geometry, replacement);
@@ -703,7 +710,7 @@ test("the fracture material clone follows edits to the original material", () =>
   original._listeners = { dispose: [() => {}] };
   const mesh = makeMesh(cubePositions(), original), chain = [{ effector, node: nodeAt(identity()) }];
   deformer.deformMesh(mesh, chain, 0, 1); jobs.complete(); deformer.deformMesh(mesh, chain, 0, 1);
-  const clone = mesh.material;
+  const shown = mesh.material, clone = shown[0];
   assert.notEqual(clone, original);
   const cloneColor = clone.color;
   assert.notEqual(cloneColor, original.color);
@@ -715,7 +722,9 @@ test("the fracture material clone follows edits to the original material", () =>
   original.map = texture;
   original.version += 1;
   deformer.deformMesh(mesh, chain, 0, 1);
-  assert.equal(mesh.material, clone, "the same compiled clone stays in place");
+  assert.equal(mesh.material, shown, "the same compiled clones stay in place");
+  assert.equal(shown[1].roughness, 0.9, "the cap clone follows too");
+  assert.equal(shown[1].polygonOffset, true);
   assert.equal(clone.color, cloneColor, "colors are copied into the clone's own instance");
   assert.equal(clone.color.r, 0.25);
   assert.equal(clone.roughness, 0.9);

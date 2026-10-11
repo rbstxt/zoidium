@@ -45,6 +45,16 @@ field control only updates vertices. Meshes above 40,000 source triangles, or ou
 400,000 triangles, or builds requiring more than 10 million polygon clipping
 operations, are left unfractured and a console warning explains why.
 
+Fragments keep the shading of the surface they were cut from. Their normals
+are the source normals carried through each piece's own transform (Voronoi
+motion, Plain and Delay move whole pieces), so resting pieces shade exactly
+like the unfractured mesh and moving pieces turn their shading with them. After
+a Twist or Warp, normals are averaged from the bent faces instead. Fragments
+render with two clones of the object's material: one for the cut walls of the
+original surface and one for the inner faces. The inner-face clone uses a
+polygon offset so that, where both meet along a cut, the wall wins instead of
+speckling.
+
 Fracture builds run in a persistent Blob Worker, using source text supplied by
 the plugin bundle asset API. Large Twist/Warp meshes, subdivision, normal
 averaging, and bounds also run there. Interactive preview shows the pristine

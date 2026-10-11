@@ -3,7 +3,7 @@
 // The worker and synchronous reference use the same pure geometry functions.
 const core = require("./effector-core.js");
 const fracture = require("./effector-fracture.js");
-const { computeSmoothVertexNormals } = require("./effector-mesh.js");
+const { computeSmoothVertexNormals, computeFractureNormals } = require("./effector-mesh.js");
 
 function byteSize(value, seen = new Set()) {
   if (!value || typeof value !== "object" || seen.has(value)) return 0;
@@ -46,8 +46,11 @@ function createStageCache(maxBytes = 64 * 1024 * 1024) {
 
 // Matches THREE r91 BufferGeometry.computeVertexNormals, including its Float32
 // accumulation and normalization order. Smooth averaging is shared with preview.
-function normalsFor(stage, positions) {
+// `rigid`: every command after the fracture moves whole pieces, so fracture
+// normals follow the pieces instead of being rebuilt from the cut faces.
+function normalsFor(stage, positions, rigid = false) {
   const normal = new Float32Array(positions.length);
+  if (rigid && computeFractureNormals(stage, positions, normal)) return normal;
   if (!stage.smooth && (stage.index || !stage.attributes.normal)) {
     const face = (a, b, c) => {
       const cbx = positions[c] - positions[b], cby = positions[c + 1] - positions[b + 1], cbz = positions[c + 2] - positions[b + 2];
@@ -161,7 +164,7 @@ function evaluateMesh(input, cache = createStageCache()) {
   for (const [name, attribute] of Object.entries(stage.attributes)) {
     if (name !== "normal") attributes[name] = { array: new attribute.array.constructor(attribute.array), itemSize: attribute.itemSize, normalized: attribute.normalized };
   }
-  attributes.normal = { array: normalsFor(stage, work), itemSize: 3, normalized: false };
+  attributes.normal = { array: normalsFor(stage, work, !curved), itemSize: 3, normalized: false };
   const bounds = core.boundsOf(work);
   const center = bounds.min.map((value, axis) => (value + bounds.max[axis]) * 0.5);
   let radiusSquared = 0;
