@@ -88,7 +88,8 @@ test("skins scope every rule to the skinned windows", () => {
   assert.ok(css.includes(`${scope}{ margin: 0; }`), css);
   assert.ok(css.includes(`${scope} .a:not(.b, .c){`), "commas inside :not() are not split");
   assert.ok(css.includes(`@media (prefers-reduced-motion: reduce){${scope} .tc-designer *{`), css);
-  assert.ok(css.includes("@keyframes tcFade{"), "keyframes are copied");
+  assert.ok(css.includes("@keyframes zui-trapcode-suite_designer-tcFade{"), "keyframes are namespaced per skin id: " + css);
+  assert.ok(!css.includes("@keyframes tcFade{"), "the global keyframe name is gone: " + css);
   assert.ok(!css.includes("comment"));
   remove();
   assert.equal(head.children.length, 0, "removing the skin removes its style element");
