@@ -23,7 +23,12 @@ function loadModule(sandboxExtensions = {}) {
   const sandbox = { module: { exports: {} }, console, ...sandboxExtensions };
   sandbox.globalThis = sandbox;
   vm.createContext(sandbox);
+  vm.runInContext(fs.readFileSync(path.join(projectRoot, "zoidium/plugin-apis.js"), "utf8"), sandbox);
   vm.runInContext(source, sandbox, { filename: "graph-plus.js" });
+  sandbox.module.exports.__test.loadDependencies({
+    apis: sandbox.ZoidiumPluginApis,
+    getAsset: (_kind, file) => fs.readFileSync(path.join(projectRoot, file), "utf8"),
+  });
   return { GraphPlus: sandbox.module.exports, sandbox };
 }
 
@@ -556,8 +561,11 @@ test("toolbar styles use theme tokens and stay scoped", () => {
 });
 
 test("no wall-clock or random values leak into project data", () => {
-  assert.equal(source.split("Date.now").length - 1, 2, "only the status hover throttle");
-  assert.ok(!source.includes("Math.random"));
+  const sources = fs.readdirSync(path.join(projectRoot, "plugins/graph-plus"))
+    .filter((file) => file.endsWith(".js"))
+    .map((file) => fs.readFileSync(path.join(projectRoot, "plugins/graph-plus", file), "utf8")).join("\n");
+  assert.equal(sources.split("Date.now").length - 1, 2, "only the status hover throttle");
+  assert.ok(!sources.includes("Math.random"));
 });
 
 // --- popup window (Ctrl+G) fixes -------------------------------------------------
