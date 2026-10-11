@@ -29,12 +29,11 @@
   justify-content: center;
 }
 
+/* Long names wrap so the compatibility badge after them stays visible. */
 .zoidium-plugin-name {
   color: var(--zui-text);
   display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .zoidium-plugin-meta {
