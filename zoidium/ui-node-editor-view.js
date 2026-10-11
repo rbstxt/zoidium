@@ -19,6 +19,8 @@
     var FRAME_ZOOM_MAX = C.FRAME_ZOOM_MAX;
     var FRAME_MARGIN = C.FRAME_MARGIN;
     var SVG_NS = C.SVG_NS;
+    var HEADER_HEIGHT = C.HEADER_HEIGHT;
+    var DEFAULT_SIZE = C.DEFAULT_SIZE;
     var base = parts.base;
     var clamp = base.clamp;
     var findNode = base.findNode;

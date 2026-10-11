@@ -412,6 +412,7 @@
     redact: redact,
     primitive: primitive,
     errorDetails: errorDetails,
+    isErrorLike: isErrorLike,
     consoleArgument: consoleArgument,
     safeRecordValue: safeRecordValue,
     safeRecordDetails: safeRecordDetails,

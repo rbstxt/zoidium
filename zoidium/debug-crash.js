@@ -16,6 +16,7 @@
   var redact = journal.redact;
   var primitive = journal.primitive;
   var errorDetails = journal.errorDetails;
+  var isErrorLike = journal.isErrorLike;
   var consoleArgument = journal.consoleArgument;
   var safeRecordDetails = journal.safeRecordDetails;
   var record = journal.record;
