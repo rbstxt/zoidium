@@ -22,13 +22,19 @@ When enabled, it replaces `PZ.ui.graph`, `PZ.ui.graph.grid` and
 Look: the original grey band and dark tiles follow CM3 chrome through the
 `--zui-*` theme tokens (panel/title backgrounds, theme accent for selection
 and active tools, theme value color for numbers, `var(--zui-font)`). All
-rules stay scoped under `.g2-*`; popup graph windows get the same styles
-through per-document injection.
+rules stay scoped under `.g2-*`. Existing native popup panels still receive
+styles through per-document injection.
 
 Stock CM3 already provides the marker prev/next shortcuts and the Ctrl+G
 floating graph window, so this plugin adds no toolbar items: it upgrades
-every graph panel the native wiring opens. Disabling restores the native
-classes and rebuilds open graph panels in place; no reload is required.
+every graph panel the native wiring opens. While enabled, the graph button
+and Ctrl+G open one centered, resizable Zoidium window with standard chrome,
+maximize and remembered geometry. Reopening focuses that window and keeps
+its curves and view. Graph shortcuts stay inside the window; the native
+popup's Ctrl+N/M/O/S/Z/Y editor commands still work. Closing releases the
+panel, observers and listeners. Disabling closes the Zoidium graph window,
+restores native popup opening and rebuilds other open graph panels in place;
+no reload is required.
 
 Coexists with Easing+: Easing+ patches the property-row controls and the
 keyframe move/scale paths, while Graph Editor 2 only replaces the graph

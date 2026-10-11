@@ -23,6 +23,8 @@ const GraphPlus = (() => {
     editor: null,
     defined: null,
     originals: null,
+    floating: null,
+    windowPatch: null,
   };
 
   function logError(message, error) {
@@ -173,7 +175,135 @@ const GraphPlus = (() => {
     return rebuildOpenPanels(openGraphWindows(), originals.graphEditor, state.defined.graphEditor);
   }
 
+  function disposePanel(panel) {
+    if (!panel) return;
+    const drags = gpPointerDrags.get(panel.el);
+    if (drags) for (const finish of Array.from(drags)) finish(null);
+    // CM3's split divider uses its own document-level mouse/touch drag.
+    if (panel.drag?.dragging && typeof panel.drag.endfn_bound === "function") {
+      panel.drag.endfn_bound({ type: "mouseup", currentTarget: panel.el.ownerDocument, preventDefault() {} });
+    }
+    panel.enabled = false;
+    if ("objects" in panel) panel.objects = null;
+    if (panel.panels) for (const child of panel.panels) disposePanel(child);
+    if (typeof panel.unload === "function") panel.unload();
+    if (panel.el) panel.el.remove();
+  }
+
+  function focusGraph(panel) {
+    const element = panel?._right?.bodyEl;
+    if (!element) return;
+    try { element.focus({ preventScroll: true }); } catch (_error) { element.focus(); }
+  }
+
+  // Both the native toolbar button and Ctrl+G enter here. Other CM3 windows
+  // still use the original factory, including native popup safety patches.
+  function installFloatingWindow(context) {
+    const editor = state.editor;
+    const ui = context.ui;
+    if (!editor || typeof editor.createWindow !== "function" || !ui?.openWindow) return;
+    const original = editor.createWindow;
+    const descriptor = Object.getOwnPropertyDescriptor(editor, "createWindow");
+    const replacement = function (options) {
+      if (this !== editor || !options || options.title !== "Graph editor") {
+        return original.apply(this, arguments);
+      }
+      if (state.floating?.host.isOpen()) {
+        state.floating.host.focus();
+        focusGraph(state.floating.panel);
+        return state.floating;
+      }
+      let observer = null;
+      const facade = {
+        editor, secondary: true, panel: null, host: null,
+        // CM3 closeAllWindows and project lifecycle use this window handle.
+        window: { close: () => facade.host.close(), focus: () => facade.host.focus() },
+        resize() { if (facade.panel) facade.panel.resize(); },
+        setPanel(panel) {
+          // The native caller constructs a fresh panel even when reopening.
+          if (facade.panel) { disposePanel(panel); return; }
+          facade.panel = panel;
+          panel.window = facade;
+          Object.assign(panel.el.style, { top: "0", left: "0", width: "100%", height: "100%" });
+          facade.el.appendChild(panel.el);
+          panel.enabled = facade.enabled;
+          facade.resize();
+          focusGraph(panel);
+        },
+      };
+      Object.defineProperty(facade, "enabled", {
+        get: () => facade.panel ? facade.panel.enabled : false,
+        set: (value) => { if (facade.panel) facade.panel.enabled = value; },
+      });
+      const viewport = typeof window !== "undefined" ? window : {};
+      const host = ui.openWindow({
+        id: "graph-editor", title: "Graph editor", persistKey: "graph-editor",
+        placement: "center", width: Math.round((viewport.innerWidth || 1200) * 0.75),
+        height: Math.round((viewport.innerHeight || 800) * 0.75),
+        minWidth: 480, minHeight: 300, resizable: true, maximizable: true,
+        mount(body) {
+          facade.el = body;
+          body.classList.add("editorwindow");
+          Object.assign(body.style, { padding: "0", overflow: "hidden", position: "relative" });
+          // Match the popup's editor.onkeydown forwarding, then stop at the
+          // body so host shortcuts cannot run a second time. Graph handlers
+          // consume their own keys before they reach this listener.
+          const forward = (event) => {
+            if (typeof editor.keydown === "function") editor.keydown(event);
+            event.stopPropagation();
+          };
+          const space = (event) => {
+            const graph = facade.panel?._right;
+            if (event.code === "Space" && graph) graph._spaceDown = event.type === "keydown";
+          };
+          body.addEventListener("keydown", space, true);
+          body.addEventListener("keyup", space, true);
+          body.addEventListener("keydown", forward);
+          const owner = body.ownerDocument?.defaultView;
+          if (owner?.ResizeObserver) {
+            observer = new owner.ResizeObserver(() => facade.resize());
+            observer.observe(body);
+          }
+          return () => {
+            if (observer) observer.disconnect();
+            body.removeEventListener("keydown", space, true);
+            body.removeEventListener("keyup", space, true);
+            body.removeEventListener("keydown", forward);
+            disposePanel(facade.panel);
+            facade.panel = null;
+            const index = editor.windows?.indexOf(facade);
+            if (index >= 0) editor.windows.splice(index, 1);
+            if (state.floating === facade) state.floating = null;
+          };
+        },
+      });
+      if (!host) throw new Error("Could not open the Graph editor window.");
+      facade.host = host;
+      // Chrome buttons can hold focus too. The host isolates their events,
+      // so forward the same native editor commands from that chrome.
+      const chromeKeydown = (event) => {
+        if (!event.ctrlKey || !/^[nmoszy]$/i.test(event.key || "")) return;
+        if (typeof editor.keydown === "function") editor.keydown(event);
+        event.stopPropagation();
+      };
+      host.element.addEventListener("keydown", chromeKeydown);
+      host.addCleanup(() => host.element.removeEventListener("keydown", chromeKeydown));
+      state.floating = facade;
+      editor.windows.push(facade);
+      return facade;
+    };
+    state.windowPatch = { editor, descriptor, replacement };
+    editor.createWindow = replacement;
+  }
+
   function uninstall() {
+    if (state.floating) state.floating.host.close();
+    const patch = state.windowPatch;
+    if (patch && patch.editor.createWindow === patch.replacement) {
+      if (patch.descriptor) Object.defineProperty(patch.editor, "createWindow", patch.descriptor);
+      else delete patch.editor.createWindow;
+    }
+    state.windowPatch = null;
     const PZ = state.PZ;
     const originals = state.originals;
     const defined = state.defined;
@@ -212,7 +342,9 @@ const GraphPlus = (() => {
     let rebuilt = 0;
     try {
       rebuilt = install(PZ, editor);
+      installFloatingWindow(context);
     } catch (error) {
+      uninstall();
       state.PZ = null;
       state.editor = null;
       state.installation = null;
@@ -256,6 +388,7 @@ const GraphPlus = (() => {
       g2doc,
       g2win,
       beginPointerDrag,
+      disposePanel,
     },
   };
 })();
@@ -295,7 +428,11 @@ function g2win(el) {
    browser window, so once the cursor leaves it, window-level pointerup never
    fires and the drag sticks forever ("cursor wants to fill something").
    Pointer capture routes all events to the element; blur is a safety net. */
+var gpPointerDrags = new WeakMap();
 function beginPointerDrag(target, e, onMove, onEnd) {
+  var root = target.closest ? target.closest(".g2-editor") : null;
+  var drags = root ? gpPointerDrags.get(root) : null;
+  if (root && !drags) { drags = new Set(); gpPointerDrags.set(root, drags); }
   var captured = false;
   var pid = e && e.pointerId;
   try {
@@ -353,6 +490,7 @@ function beginPointerDrag(target, e, onMove, onEnd) {
   function finish(ev) {
     if (finished) return;
     finished = true;
+    if (drags) drags.delete(finish);
     try { if (captured) target.releasePointerCapture(pid); } catch (err) {}
     target.removeEventListener("pointermove", move);
     target.removeEventListener("pointerup", finish);
@@ -388,6 +526,7 @@ function beginPointerDrag(target, e, onMove, onEnd) {
       if (w && w.addEventListener) w.addEventListener("blur", onBlur);
     } catch (err7) {}
   }
+  if (drags) drags.add(finish);
   return { finish: finish };
 }
 
@@ -409,10 +548,10 @@ function curveColor(name) {
   if (h < 0) h += 360;
   return "hsl(" + h + ",70%,62%)";
 }
-/* ---- toolbar icons: white strokes + blue-ring keys on dark (user designs)
+/* ---- toolbar icons: themed strokes and key rings
    NOTE: every shape carries inline style fill/stroke because CSS rules
    (e.g. `.elevator svg{fill:...}`) override SVG presentation attributes. ---- */
-var G2_BLUE = "#8ab4ff", G2_LINE = "#ffffff", G2_DARK = "#16181d";
+var G2_BLUE = "var(--zui-accent)", G2_LINE = "var(--zui-text-bright)", G2_DARK = "var(--zui-bg-input)";
 function g2key(x, y, r) {
   return '<circle cx="' + x + '" cy="' + y + '" r="' + r + '" fill="' + G2_DARK + '" stroke="' + G2_BLUE +
     '" stroke-width="1.8" style="fill:' + G2_DARK + ';stroke:' + G2_BLUE + '"/>';
@@ -432,9 +571,9 @@ function interpIcon(kind) {
 }
 /* big toolbar tile artwork (user design): white curve + open circle ends on dark tile */
 function tileIcon(kind) {
-  var L = 'stroke="#ffffff" stroke-width="2" fill="none" style="fill:none;stroke:#ffffff;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"';
+  var L = 'stroke="var(--zui-text-bright)" stroke-width="2" fill="none" style="fill:none;stroke:var(--zui-text-bright);stroke-width:2;stroke-linecap:round;stroke-linejoin:round"';
   function dot(x, y) {
-    return '<circle cx="' + x + '" cy="' + y + '" r="2.7" fill="#1c1c1c" stroke="#ffffff" stroke-width="1.7" style="fill:#1c1c1c;stroke:#ffffff;stroke-width:1.7"/>';
+    return '<circle cx="' + x + '" cy="' + y + '" r="2.7" fill="var(--zui-bg-input)" stroke="var(--zui-text-bright)" stroke-width="1.7" style="fill:var(--zui-bg-input);stroke:var(--zui-text-bright);stroke-width:1.7"/>';
   }
   var inner = "";
   if (kind === "linear") inner = '<line x1="8" y1="24" x2="36" y2="8" ' + L + "/>" + dot(6, 26) + dot(38, 6);
@@ -443,37 +582,37 @@ function tileIcon(kind) {
   else if (kind === "break") inner = '<polyline points="6,25 19,12 27,17 38,7" ' + L + "/>" + dot(6, 25) + dot(19, 12) + dot(38, 7);
   else if (kind === "auto") inner = '<line x1="8" y1="16" x2="36" y2="16" ' + L + "/>" + dot(6, 16) + dot(22, 16) + dot(38, 16);
   else if (kind === "custom") inner = '<line x1="8" y1="24" x2="36" y2="8" ' + L + "/>" + dot(6, 26) + dot(38, 6);
-  return '<svg viewBox="0 0 44 32" width="50" height="36" style="display:block;fill:none;stroke:#ffffff">' + inner + "</svg>";
+  return '<svg viewBox="0 0 44 32" width="50" height="36" style="display:block;fill:none;stroke:var(--zui-text-bright)">' + inner + "</svg>";
 }
 /* small diagonal thumbnail artwork for the "Custom easings" item (user design) */
 function customEaseIcon() {
-  var L = 'stroke="#e8e8e8" stroke-width="2.4" fill="none" style="fill:none;stroke:#e8e8e8;stroke-width:2.4;stroke-linecap:round"';
-  return '<svg viewBox="0 0 44 26" width="44" height="26" style="display:block;fill:none;stroke:#e8e8e8">' +
+  var L = 'stroke="var(--zui-text-strong)" stroke-width="2.4" fill="none" style="fill:none;stroke:var(--zui-text-strong);stroke-width:2.4;stroke-linecap:round"';
+  return '<svg viewBox="0 0 44 26" width="44" height="26" style="display:block;fill:none;stroke:var(--zui-text-strong)">' +
     '<line x1="9" y1="21" x2="35" y2="5" ' + L + "/>" +
-    '<circle cx="7" cy="23" r="2.2" fill="#1b1b1b" stroke="#e8e8e8" stroke-width="1.5" style="fill:#1b1b1b;stroke:#e8e8e8"/>' +
-    '<circle cx="37" cy="3" r="2.2" fill="#1b1b1b" stroke="#e8e8e8" stroke-width="1.5" style="fill:#1b1b1b;stroke:#e8e8e8"/>' +
+    '<circle cx="7" cy="23" r="2.2" fill="var(--zui-border)" stroke="var(--zui-text-strong)" stroke-width="1.5" style="fill:var(--zui-border);stroke:var(--zui-text-strong)"/>' +
+    '<circle cx="37" cy="3" r="2.2" fill="var(--zui-border)" stroke="var(--zui-text-strong)" stroke-width="1.5" style="fill:var(--zui-border);stroke:var(--zui-text-strong)"/>' +
     "</svg>";
 }
 /* small 14px tool glyphs, white strokes */
 function toolIcon(name) {
-  var s = 'fill="none" stroke="#ffffff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="fill:none;stroke:#ffffff;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round"';
+  var s = 'fill="none" stroke="var(--zui-text-bright)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="fill:none;stroke:var(--zui-text-bright);stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round"';
   var inner = "";
   if (name === "pan") inner = '<path d="M8 1.5v13M1.5 8h13" ' + s + "/>";
   else if (name === "fit") inner = '<path d="M1.5 5.5v-4h4M10.5 1.5h4v4M14.5 10.5v4h-4M5.5 14.5h-4v-4" ' + s + "/>";
   else if (name === "sel") inner = '<rect x="2" y="2" width="12" height="12" rx="1" ' + s + ' stroke-dasharray="2.5 2"/>';
-  else if (name === "marquee") inner = '<rect x="2" y="2.5" width="10.5" height="10.5" rx="1" ' + s + ' stroke-dasharray="3 2"/><circle cx="12.5" cy="13" r="1.5" fill="#ffffff" style="fill:#ffffff"/>';
-  else if (name === "frame") inner = '<rect x="3" y="3" width="10" height="10" rx="1" ' + s + '/><circle cx="8" cy="8" r="1.3" fill="#ffffff" style="fill:#ffffff"/>';
+  else if (name === "marquee") inner = '<rect x="2" y="2.5" width="10.5" height="10.5" rx="1" ' + s + ' stroke-dasharray="3 2"/><circle cx="12.5" cy="13" r="1.5" fill="var(--zui-text-bright)" style="fill:var(--zui-text-bright)"/>';
+  else if (name === "frame") inner = '<rect x="3" y="3" width="10" height="10" rx="1" ' + s + '/><circle cx="8" cy="8" r="1.3" fill="var(--zui-text-bright)" style="fill:var(--zui-text-bright)"/>';
   else if (name === "norm") inner = '<path d="M2 12.5h12M2 8h8M2 3.5h12" ' + s + "/>";
   else if (name === "snap") inner = '<path d="M4.5 1.5v5.5a3.5 3.5 0 0 0 7 0V1.5M4.5 1.5h2.6v4.6H4.5zM8.9 1.5h2.6v4.6H8.9zM8 10.5v3.5" ' + s + "/>";
   else if (name === "key") inner = '<rect x="4.8" y="4.8" width="6.4" height="6.4" transform="rotate(45 8 8)" ' + s + "/>";
   else if (name === "del") inner = '<path d="M2.5 4.5h11M6 4.5V2.5h4v2M4.5 4.5l.8 9h5.4l.8-9" ' + s + "/>";
-  else if (name === "bez") inner = '<path d="M2 12.5C6 12.5 6 3.5 14 3.5" ' + s + '/><circle cx="2" cy="12.5" r="1.6" fill="#fff" style="fill:#ffffff"/><circle cx="14" cy="3.5" r="1.6" fill="#fff" style="fill:#ffffff"/>';
+  else if (name === "bez") inner = '<path d="M2 12.5C6 12.5 6 3.5 14 3.5" ' + s + '/><circle cx="2" cy="12.5" r="1.6" fill="var(--zui-text-bright)" style="fill:var(--zui-text-bright)"/><circle cx="14" cy="3.5" r="1.6" fill="var(--zui-text-bright)" style="fill:var(--zui-text-bright)"/>';
   else if (name === "link") inner = '<path d="M6.5 9.5a3 3 0 0 0 4.2 0l2-2a3 3 0 0 0-4.2-4.2l-1 1M9.5 6.5a3 3 0 0 0-4.2 0l-2 2a3 3 0 0 0 4.2 4.2l1-1" ' + s + "/>";
   else if (name === "flat") inner = '<path d="M2 8h12" ' + s + "/>";
   else if (name === "copy") inner = '<rect x="5" y="5" width="9" height="9" rx="1" ' + s + '/><path d="M11 5V2.5H2.5V11H5" ' + s + "/>";
   else if (name === "paste") inner = '<rect x="3" y="3.5" width="10" height="10.5" rx="1" ' + s + '/><path d="M6 3.5V1.8h4v1.7" ' + s + "/>";
-  else if (name === "tag") inner = '<path d="M2.5 2.5H8l5.5 5.5-5.5 5.5L2.5 8z" ' + s + '/><circle cx="6" cy="6" r="1.2" fill="#fff" style="fill:#ffffff"/>';
-  return '<svg viewBox="0 0 16 16" width="14" height="14" style="display:block;fill:none;stroke:#ffffff;padding:0">' + inner + "</svg>";
+  else if (name === "tag") inner = '<path d="M2.5 2.5H8l5.5 5.5-5.5 5.5L2.5 8z" ' + s + '/><circle cx="6" cy="6" r="1.2" fill="var(--zui-text-bright)" style="fill:var(--zui-text-bright)"/>';
+  return '<svg viewBox="0 0 16 16" width="14" height="14" style="display:block;fill:none;stroke:var(--zui-text-bright);padding:0">' + inner + "</svg>";
 }
 /* focus for keyboard shortcuts WITHOUT scrolling the panel (scroll-jump hid the toolbar) */
 function focusNoScroll(el) {
@@ -546,8 +685,8 @@ GraphGrid.prototype.createGridLine = function () {
 };
 GraphGrid.prototype.createText = function () {
   var e = this._doc().createElementNS(SVGNS, "text");
-  e.setAttributeNS(null, "fill", "#cccccc");
-  e.setAttributeNS(null, "font-family", "'Source Code Pro',monospace");
+  e.setAttributeNS(null, "fill", "var(--zui-text)");
+  e.setAttributeNS(null, "font-family", "var(--zui-font)");
   e.setAttributeNS(null, "font-size", "10");
   e.setAttributeNS(null, "letter-spacing", "0");
   e.style.pointerEvents = "none";
@@ -588,7 +727,7 @@ GraphGrid.prototype.update = function () {
     if (!line) break;
     var isMajor = (idx % 2) === 0;
     var isZero = idx === 0;
-    var col = isZero ? "#5a5a5c" : isMajor ? "#383839" : "#2a2a2b";
+    var col = isZero ? "var(--zui-text-faint)" : isMajor ? "var(--zui-hover)" : "var(--zui-bg)";
     line.setAttributeNS(null, "stroke", col);
     if (dim === 0) {
       line.setAttributeNS(null, "x1", a);
@@ -612,7 +751,7 @@ GraphGrid.prototype.update = function () {
         ty.setAttributeNS(null, "x", 5);
         ty.setAttributeNS(null, "y", -5);
         ty.setAttributeNS(null, "font-size", "10");
-        ty.setAttributeNS(null, "fill", "#ffffff");
+        ty.setAttributeNS(null, "fill", "var(--zui-text-bright)");
         var v = -a;
         ty.textContent = Math.abs(v) >= 100 ? Math.round(v).toString() : (Math.round(v * 10) / 10).toString();
       }
@@ -772,6 +911,8 @@ PZ.ui.graph.prototype._installResizeObserver = function () {
   } catch (e4) {}
 };
 PZ.ui.graph.prototype.unload = function () {
+  this.closeEasePopup();
+  this.objects = null;
   try {
     if (this._ro) this._ro.disconnect();
   } catch (e) {}
@@ -956,14 +1097,14 @@ PZ.ui.graph.prototype.createGraph = function () {
   this.svg.setAttributeNS(null, "width", "100%");
   this.svg.setAttributeNS(null, "height", "100%");
   this.svg.setAttributeNS(null, "shape-rendering", this.options.shapeRendering);
-  this.svg.style.background = "#1e1e1f";
+  this.svg.style.background = "var(--zui-bg-sunken)";
   this.bodyEl.appendChild(this.svg);
 };
 PZ.ui.graph.prototype.createCursor = function () {
   var doc = this._doc();
   var g = doc.createElementNS(SVGNS, "g");
   g.setAttributeNS(null, "fill", "none");
-  g.setAttributeNS(null, "stroke", "#ff0000aa");
+  g.setAttributeNS(null, "stroke", "var(--zui-value)");
   g.setAttributeNS(null, "stroke-width", this.options.cursorLineWidth + "px");
   g.style.pointerEvents = "none";
   this.cursorLayer = g;
@@ -973,7 +1114,7 @@ PZ.ui.graph.prototype.createCursor = function () {
   g.appendChild(this.cursor);
   // zero line
   this.zeroH = doc.createElementNS(SVGNS, "line");
-  this.zeroH.setAttributeNS(null, "stroke", "#4c4c4e");
+  this.zeroH.setAttributeNS(null, "stroke", "var(--zui-text-faint)");
   this.zeroH.setAttributeNS(null, "stroke-width", "1px");
   this.zeroH.setAttributeNS(null, "vector-effect", "non-scaling-stroke");
   this.zeroH.style.pointerEvents = "none";
@@ -995,8 +1136,11 @@ PZ.ui.graph.prototype.drawRuler = function () {
   var ctx = null;
   try { ctx = c.getContext("2d"); } catch (e) { return; }
   if (!ctx) return;
+  gpSyncTheme(c.ownerDocument);
+  var theme = c.ownerDocument.defaultView.getComputedStyle(c);
+  function token(name) { return theme.getPropertyValue(name).trim(); }
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  ctx.fillStyle = "#262627";
+  ctx.fillStyle = token("--zui-bg");
   ctx.fillRect(0, 0, w, h);
   var vx = this.viewX(), vw = Math.max(this.viewW(), 1e-6);
   var pxPerF = w / vw;
@@ -1009,11 +1153,11 @@ PZ.ui.graph.prototype.drawRuler = function () {
   // playback range shade
   var tf = totalFrames(this.editor);
   var rx0 = (0 - vx) / vw * w, rx1 = (tf - vx) / vw * w;
-  ctx.fillStyle = "rgba(255,255,255,0.045)";
+  ctx.fillStyle = token("--zui-hover");
   ctx.fillRect(Math.max(rx0, 0), 0, Math.min(rx1, w) - Math.max(rx0, 0), h);
   ctx.textBaseline = "top";
   // minor ticks
-  ctx.strokeStyle = "#4a4a4c";
+  ctx.strokeStyle = token("--zui-border-soft");
   ctx.lineWidth = 1;
   ctx.beginPath();
   var m0 = Math.ceil(vx / minor) * minor;
@@ -1023,10 +1167,10 @@ PZ.ui.graph.prototype.drawRuler = function () {
     ctx.lineTo(mx, h);
   }
   ctx.stroke();
-  // major ticks + numbers (white, like C4D)
-  ctx.fillStyle = "#e8e8e8";
-  ctx.font = "10px 'Source Code Pro',monospace";
-  ctx.strokeStyle = "#5a5a5c";
+  // Major ticks and frame numbers follow the editor font and text color.
+  ctx.fillStyle = token("--zui-text-strong");
+  ctx.font = "10px " + token("--zui-font");
+  ctx.strokeStyle = token("--zui-text-faint");
   ctx.beginPath();
   var f0 = Math.ceil(vx / step) * step;
   for (var f = f0; f <= vx + vw; f += step) {
@@ -1039,11 +1183,11 @@ PZ.ui.graph.prototype.drawRuler = function () {
     var gx = (g - vx) / vw * w;
     ctx.fillText(String(Math.round(g)), gx + 4, 3);
   }
-  // playhead marker (orange, like C4D keys)
+  // Playhead marker follows the editor value color.
   var pf = currentFrame(this.editor);
   var px = (pf - vx) / vw * w;
   if (px >= -10 && px <= w + 10) {
-    ctx.fillStyle = "#e09a3c";
+    ctx.fillStyle = token("--zui-value");
     ctx.fillRect(px - 1, 0, 2, h);
     ctx.beginPath();
     ctx.moveTo(px - 5, 0);
@@ -1189,9 +1333,9 @@ PZ.ui.graph.prototype.buildToolbar = function () {
   function white(el) {
     // bulletproof white text: inline !important beats any stylesheet
     try {
-      el.style.setProperty("color", "var(--zui-text-bright,#fff)", "important");
+      el.style.setProperty("color", "var(--zui-text-bright)", "important");
       var kids = el.querySelectorAll("span");
-      for (var q = 0; q < kids.length; q++) kids[q].style.setProperty("color", "var(--zui-text-bright,#fff)", "important");
+      for (var q = 0; q < kids.length; q++) kids[q].style.setProperty("color", "var(--zui-text-bright)", "important");
     } catch (e) {}
     return el;
   }
@@ -1340,8 +1484,8 @@ PZ.ui.graph.prototype.create = function () {
   this.yGrid = new PZ.ui.graph.grid(this, { dimension: 1 });
   // range shade behind curves (after grids, before curves)
   this.rangeRect = mkNS("rect");
-  this.rangeRect.setAttributeNS(null, "fill", "rgba(255,255,255,0.035)");
-  this.rangeRect.setAttributeNS(null, "stroke", "rgba(255,255,255,0.08)");
+  this.rangeRect.setAttributeNS(null, "fill", "rgb(var(--zui-accent-rgb) / .08)");
+  this.rangeRect.setAttributeNS(null, "stroke", "var(--zui-border-soft)");
   this.rangeRect.setAttributeNS(null, "stroke-width", "1px");
   this.rangeRect.setAttributeNS(null, "vector-effect", "non-scaling-stroke");
   this.rangeRect.style.pointerEvents = "none";
@@ -1355,8 +1499,8 @@ PZ.ui.graph.prototype.create = function () {
   this.overlayLayer.style.pointerEvents = "none";
   this.svg.appendChild(this.overlayLayer);
   this.selectRect = mkNS("rect");
-  this.selectRect.setAttributeNS(null, "fill", "rgba(200,200,200,0.10)");
-  this.selectRect.setAttributeNS(null, "stroke", "#ccc");
+  this.selectRect.setAttributeNS(null, "fill", "rgb(var(--zui-accent-rgb) / .2)");
+  this.selectRect.setAttributeNS(null, "stroke", "var(--zui-accent)");
   this.selectRect.setAttributeNS(null, "stroke-width", "1");
   this.selectRect.setAttributeNS(null, "stroke-dasharray", "4 3");
   this.selectRect.setAttributeNS(null, "vector-effect", "non-scaling-stroke");
@@ -2013,8 +2157,8 @@ PZ.ui.graph.prototype.createHandles = function (kfObj) {
   g.pz_object = kfObj;
   var mk = function () {
     var e = g.ownerDocument.createElementNS(SVGNS, "ellipse");
-    e.setAttributeNS(null, "fill", "#8ab4ff");
-    e.setAttributeNS(null, "stroke", "#0f1115");
+    e.setAttributeNS(null, "fill", "var(--zui-accent)");
+    e.setAttributeNS(null, "stroke", "var(--zui-border)");
     e.setAttributeNS(null, "stroke-width", "1.5px");
     e.setAttributeNS(null, "vector-effect", "non-scaling-stroke");
     e.classList.add("g2-hdl");
@@ -2024,7 +2168,7 @@ PZ.ui.graph.prototype.createHandles = function (kfObj) {
   var l0 = g.ownerDocument.createElementNS(SVGNS, "line");
   var l1 = g.ownerDocument.createElementNS(SVGNS, "line");
   [l0, l1].forEach(function (l) {
-    l.setAttributeNS(null, "stroke", "#aaa");
+    l.setAttributeNS(null, "stroke", "var(--zui-text-muted)");
     l.setAttributeNS(null, "stroke-width", "1px");
     l.setAttributeNS(null, "vector-effect", "non-scaling-stroke");
     l.style.pointerEvents = "none";
@@ -2059,7 +2203,7 @@ PZ.ui.graph.prototype.updateHandles = function (hEl) {
   l1.setAttributeNS(null, "x2", kf.controlPoints[1][0]); l1.setAttributeNS(null, "y2", -kf.controlPoints[1][1] * scale);
 };
 PZ.ui.graph.prototype.createKeyframe = function (kfObj) {
-  var gelColor = "#fff";
+  var gelColor = "var(--zui-text-bright)";
   var r = this._doc().createElementNS(SVGNS, "rect");
   r.classList.add("g2-kf");
   r.setAttributeNS(null, "stroke", "transparent");
@@ -2067,7 +2211,7 @@ PZ.ui.graph.prototype.createKeyframe = function (kfObj) {
   r.setAttributeNS(null, "vector-effect", "non-scaling-stroke");
   r.pz_object = kfObj;
   r.pz_curveLeft = null; r.pz_curveRight = null; r.pz_handles = null;
-  r.style.fill = gelColor;
+  r.setAttributeNS(null, "fill", gelColor);
   this.attachKeyframeHandlers(r);
   return r;
 };
@@ -2085,17 +2229,17 @@ PZ.ui.graph.prototype.updateKeyframe = function (kfEl) {
   kfEl.setAttributeNS(null, "height", s * this.zoomY);
   kfEl.setAttributeNS(null, "x", kf.frame - 0.5 * s * this.zoomX);
   kfEl.setAttributeNS(null, "y", -kf.value * scale - 0.5 * s * this.zoomY);
-  // user design: blue-ring keys — dark center, blue ring; selected = filled blue
+  // Theme accent marks selected keys; hollow keys keep the same geometry.
   kfEl.setAttributeNS(null, "rx", 0.5 * s * this.zoomX);
   if (sel) {
-    kfEl.setAttributeNS(null, "fill", "#8ab4ff");
-    kfEl.setAttributeNS(null, "stroke", "#ffffff");
+    kfEl.style.fill = "var(--zui-accent)";
+    kfEl.style.stroke = "var(--zui-text-bright)";
   } else if (isHold) {
-    kfEl.setAttributeNS(null, "fill", "#16181d");
-    kfEl.setAttributeNS(null, "stroke", "#6b7280");
+    kfEl.style.fill = "var(--zui-bg-input)";
+    kfEl.style.stroke = "var(--zui-text-muted)";
   } else {
-    kfEl.setAttributeNS(null, "fill", "#16181d");
-    kfEl.setAttributeNS(null, "stroke", "#8ab4ff");
+    kfEl.style.fill = "var(--zui-bg-input)";
+    kfEl.style.stroke = "var(--zui-accent)";
   }
   kfEl.setAttributeNS(null, "stroke-width", (sel ? 3 : 2.5) + "px");
   if (!kf.continuousTangent && isBez) kfEl.setAttributeNS(null, "stroke-dasharray", "2 1");
@@ -2144,7 +2288,7 @@ PZ.ui.graph.prototype.updateCurve = function (path, leftKf, rightKf) {
   var gel = path.parentElement.parentElement;
   var scale = (gel && gel.pz_valueScale) || 1;
   var off = (gel && gel.pz_frameOffset) || 0;
-  var col = (gel && gel.pz_color) || "#888";
+  var col = (gel && gel.pz_color) || "var(--zui-text-muted)";
   path.setAttributeNS(null, "stroke", col);
   path.setAttributeNS(null, "stroke-width", this.options.curveLineWidth + "px");
   path.setAttributeNS(null, "opacity", gel && gel.style.display === "none" ? "0.15" : "1");
@@ -2236,7 +2380,7 @@ PZ.ui.graph.prototype.positionLabel = function (gel) {
   gel._label.setAttributeNS(null, "x", 8);
   gel._label.setAttributeNS(null, "y", -7);
   gel._label.setAttributeNS(null, "font-size", "11");
-  gel._label.setAttributeNS(null, "fill", "#ffffff");
+  gel._label.setAttributeNS(null, "fill", "var(--zui-text-bright)");
   gel._label.textContent = displayName(prop);
 };
 PZ.ui.graph.prototype.createProperty = function (prop) {
@@ -2261,7 +2405,7 @@ PZ.ui.graph.prototype.createProperty = function (prop) {
   g._handles = handles;
   var label = doc.createElementNS(SVGNS, "text");
   label.setAttributeNS(null, "fill", g.pz_color);
-  label.setAttributeNS(null, "font-family", "'Source Code Pro',monospace");
+  label.setAttributeNS(null, "font-family", "var(--zui-font)");
   label.style.pointerEvents = "none";
   g.appendChild(label);
   g._label = label;
@@ -2597,7 +2741,7 @@ PZ.ui.graph.prototype.updateLegend = function () {
   this.tracksEl.appendChild(head);
   if (!groups.length) {
     var h = mk("div");
-    h.style.cssText = "padding:6px 8px;color:#cccccc;opacity:.6;font-size:11px;line-height:1.5";
+    h.style.cssText = "padding:6px 8px;color:var(--zui-text);opacity:.6;font-size:11px;line-height:1.5";
     h.textContent = "select keyframed properties on the left";
     this.tracksEl.appendChild(h);
     return;
@@ -2609,7 +2753,7 @@ PZ.ui.graph.prototype.updateLegend = function () {
     row.title = addrString(prop) + " — click to select all its keys";
     var dot = mk("span");
     dot.className = "g2-swatch";
-    dot.style.background = gel.pz_color || "#fff";
+    dot.style.background = gel.pz_color || "var(--zui-text-bright)";
     row.appendChild(dot);
     var nm = mk("span");
     nm.className = "g2-track-name";
@@ -2851,6 +2995,10 @@ PZ.ui.graphEditor = function (editor, opts) {
   } catch (_protoError) {
     // The panel still mounts; only the instanceof shape is affected.
   }
+  if (self.el && self.el.classList) {
+    self.el.classList.add("zoidium-editor-window");
+    self.el.classList.add("g2-editor");
+  }
   self.title = "Graph editor";
   self.icon = "project";
   PZ.observable.defineObservableProp(self, "objects", "onObjectsChanged");
@@ -2867,10 +3015,47 @@ return { graph: PZ.ui.graph, grid: PZ.ui.graph.grid, graphEditor: PZ.ui.graphEdi
 }
 
 var GP_STYLE_ID = "zoidium-graph-plus-css";
+var gpThemeRoots = new WeakMap();
+// Native CM3 popups flatten stylesheet paths and do not inherit root tokens.
+// Keep their graph colors and UI font in step with the main editor on redraw.
+function gpSyncTheme(doc) {
+  try {
+    if (typeof document === "undefined" || doc === document || !doc.documentElement) return;
+    var theme = document.defaultView.getComputedStyle(document.documentElement);
+    var saved = gpThemeRoots.get(doc);
+    if (!saved) { saved = {}; gpThemeRoots.set(doc, saved); }
+    function copy(key) {
+      if (!(key in saved)) saved[key] = { value: doc.documentElement.style.getPropertyValue(key), priority: doc.documentElement.style.getPropertyPriority(key) };
+      var value = theme.getPropertyValue(key).trim();
+      if (doc.documentElement.style.getPropertyValue(key) !== value) doc.documentElement.style.setProperty(key, value);
+    }
+    var tokens = ["font", "accent", "accent-rgb", "accent-strong", "value", "value-strong",
+      "bg", "bg-title", "bg-title-focused", "bg-input", "bg-sunken", "border", "border-soft",
+      "hover", "text", "text-strong", "text-bright", "text-muted", "text-faint", "danger"];
+    tokens.forEach(function (name) {
+      var key = "--zui-" + name;
+      copy(key);
+    });
+    ["--zoidium-font-family", "--zoidium-code-font-family", "--zoidium-theme-focus", "--zoidium-theme-link"].forEach(function (key) {
+      copy(key);
+    });
+  } catch (_themeError) { /* A closing popup needs no theme update. */ }
+}
 function gpInjectStyle(doc) {
   try {
     if (!doc || typeof doc.createElement !== "function" || !doc.head) return;
     if (doc.getElementById && doc.getElementById(GP_STYLE_ID)) return;
+    if (typeof document !== "undefined" && doc !== document && document.querySelectorAll) {
+      document.querySelectorAll('link[rel="stylesheet"]').forEach(function (source) {
+        if (!/\/(?:ui-window|ui-overrides|runtime-fonts|fonts)\.css(?:[?#]|$)/.test(source.href)) return;
+        var link = doc.createElement("link");
+        link.rel = "stylesheet";
+        link.href = source.href;
+        link.dataset.graphPlusTheme = "true";
+        doc.head.appendChild(link);
+      });
+      gpSyncTheme(doc);
+    }
     var element = doc.createElement("style");
     element.id = GP_STYLE_ID;
     element.textContent = gpCssText();
@@ -2883,15 +3068,26 @@ function gpRemoveStyle(doc) {
   try {
     var existing = doc && doc.getElementById ? doc.getElementById(GP_STYLE_ID) : null;
     if (existing && typeof existing.remove === "function") existing.remove();
+    if (doc && doc.querySelectorAll) doc.querySelectorAll('[data-graph-plus-theme]').forEach(function (link) { link.remove(); });
+    var saved = doc && gpThemeRoots.get(doc);
+    if (saved && doc.documentElement) {
+      Object.keys(saved).forEach(function (key) {
+        if (saved[key].value) doc.documentElement.style.setProperty(key, saved[key].value, saved[key].priority);
+        else doc.documentElement.style.removeProperty(key);
+      });
+      gpThemeRoots.delete(doc);
+    }
   } catch (_removeError) {
     // A closed popup needs no cleanup.
   }
 }
 function gpCssText() {
 return [
-    ".g2-wrap{display:flex;flex-direction:column;width:100%;height:100%;background:var(--zui-bg-sunken,#1e1e1f);color:var(--zui-text-bright,#ffffff) !important;font-family:var(--zui-font,'Source Code Pro',ui-monospace,monospace);overflow:hidden;user-select:none;-webkit-user-select:none;position:relative}",
+    ".g2-editor,.g2-editor *{font-family:var(--zui-font) !important}",
+    ".g2-wrap{display:flex;flex-direction:column;width:100%;height:100%;background:var(--zui-bg-sunken);color:var(--zui-text-bright) !important;font-family:var(--zui-font);overflow:hidden;user-select:none;-webkit-user-select:none;position:relative}",
     ".g2-wrap svg,.g2-wrap canvas{-webkit-user-drag:none;user-drag:none}",
     ".g2-canvas{touch-action:none}",
+    ".g2-wrap :focus-visible{outline:1px solid var(--zui-accent);outline-offset:-1px}",
     ".g2-canvas svg{touch-action:none}",
     ".g2-toolbar,.g2-status,.g2-ruler{display:flex !important;visibility:visible !important;opacity:1 !important}",
     /* ==== toolbar: CM3 title-row chrome, same tile layout ==== */
@@ -2899,7 +3095,7 @@ return [
        must never squeeze the canvas to zero: the toolbar wraps but is
        capped so the canvas always keeps room; narrow screens get smaller
        tiles so more actions stay visible without scrolling. */
-    ".g2-toolbar{flex:0 1 auto;flex-shrink:1;display:flex;align-items:flex-start;gap:6px;padding:15px 26px 10px;background:var(--zui-bg-title,#222222);border-bottom:1px solid var(--zui-border,#1b1b1b);font-size:12px;flex-wrap:wrap;overflow-y:auto;overflow-x:hidden;min-height:104px;max-height:46%;z-index:5;position:relative;scrollbar-width:thin}",
+    ".g2-toolbar{flex:0 1 auto;flex-shrink:1;display:flex;align-items:flex-start;gap:6px;padding:15px 26px 10px;background:var(--zui-bg-title);border-bottom:1px solid var(--zui-border);font-size:12px;flex-wrap:wrap;overflow-y:auto;overflow-x:hidden;min-height:104px;max-height:46%;z-index:5;position:relative;scrollbar-width:thin}",
     ".g2-wrap.g2-narrow .g2-toolbar{gap:4px;padding:10px 12px 8px;min-height:0}",
     ".g2-wrap.g2-narrow .g2-tile .g2-box{width:44px;height:38px}",
     ".g2-wrap.g2-narrow .g2-tile .g2-tlabel{font-size:10px;max-width:60px}",
@@ -2912,63 +3108,63 @@ return [
     ".g2-sep{width:40px;align-self:stretch;background:transparent;flex-shrink:0}",
     ".g2-spacer{flex:1 1 auto}",
     ".g2-wrap .g2-toolbar button.g2-tile{display:flex;flex-direction:column;align-items:center;gap:8px;background:transparent !important;border:0 !important;padding:0 !important;cursor:pointer;width:auto;height:auto;flex-shrink:0}",
-    ".g2-tile .g2-box{width:68px;height:54px;background:var(--zui-bg-input,#1a1a1a);border:1px solid var(--zui-border,#1b1b1b);border-radius:2px;display:flex;align-items:center;justify-content:center;box-sizing:border-box}",
-    ".g2-tile:hover .g2-box{background:var(--zui-hover,#333333)}",
-    ".g2-tile:active .g2-box{background:var(--zui-bg-sunken,#0f0f0f)}",
-    ".g2-tile.on .g2-box{outline:2px solid var(--zui-accent,#f5f5f5);outline-offset:0}",
-    ".g2-tile .g2-tlabel{font-size:12.5px;line-height:1.2;color:var(--zui-text-bright,#ffffff) !important;text-align:center;max-width:90px;white-space:normal}",
+    ".g2-tile .g2-box{width:68px;height:54px;background:var(--zui-bg-input);border:1px solid var(--zui-border);border-radius:2px;display:flex;align-items:center;justify-content:center;box-sizing:border-box}",
+    ".g2-tile:hover .g2-box{background:var(--zui-hover)}",
+    ".g2-tile:active .g2-box{background:var(--zui-bg-sunken)}",
+    ".g2-tile.on .g2-box{outline:2px solid var(--zui-accent);outline-offset:0}",
+    ".g2-tile .g2-tlabel{font-size:12.5px;line-height:1.2;color:var(--zui-text-bright) !important;text-align:center;max-width:90px;white-space:normal}",
     /* custom easings: thumbnail + label to the RIGHT */
     ".g2-wrap .g2-toolbar button.g2-custom{display:flex;align-items:center;gap:14px;background:transparent !important;border:0 !important;padding:0 !important;cursor:pointer;flex-shrink:0;min-height:54px}",
-    ".g2-custom .g2-sbox{width:50px;height:30px;background:var(--zui-bg-input,#1a1a1a);border:1px solid var(--zui-border,#1b1b1b);border-radius:2px;display:flex;align-items:center;justify-content:center}",
-    ".g2-custom:hover .g2-sbox{background:var(--zui-hover,#333333)}",
-    ".g2-custom .g2-clabel{font-size:12.5px;color:var(--zui-text-bright,#ffffff) !important;white-space:nowrap}",
+    ".g2-custom .g2-sbox{width:50px;height:30px;background:var(--zui-bg-input);border:1px solid var(--zui-border);border-radius:2px;display:flex;align-items:center;justify-content:center}",
+    ".g2-custom:hover .g2-sbox{background:var(--zui-hover)}",
+    ".g2-custom .g2-clabel{font-size:12.5px;color:var(--zui-text-bright) !important;white-space:nowrap}",
     /* others: right-aligned small tiles */
     ".g2-tile.g2-small .g2-box{width:38px;height:32px}",
     ".g2-tile.g2-small{gap:3px}",
     ".g2-tile.g2-small .g2-tlabel{font-size:9px;max-width:56px}",
-    ".g2-tile.g2-acc .g2-box{background:rgb(var(--zui-accent-rgb,110 68 16) / 0.55)}",
+    ".g2-tile.g2-acc .g2-box{background:rgb(var(--zui-accent-rgb) / 0.55)}",
     ".g2-ico{display:inline-flex;flex:0 0 auto}",
     ".g2-ico svg{display:block}",
     /* custom easings popup */
-    ".g2-popup{position:absolute;z-index:30;min-width:200px;max-height:330px;overflow-y:auto;background:var(--zui-bg,#2a2a2c);border:1px solid var(--zui-border,#111111);border-radius:4px;box-shadow:0 12px 32px rgba(0,0,0,.55);padding:4px 0}",
-    ".g2-popup-head{padding:5px 10px;font-size:10px;letter-spacing:1px;color:var(--zui-text-muted,#c9ced8) !important;border-bottom:1px solid var(--zui-border-soft,#3a3a3c)}",
-    ".g2-popup-item{padding:5px 10px;font-size:11px;color:var(--zui-text-bright,#ffffff) !important;cursor:pointer;white-space:nowrap}",
-    ".g2-popup-item:hover{background:var(--zui-accent,#4a6da7)}",
+    ".g2-popup{position:absolute;z-index:30;min-width:200px;max-height:330px;overflow-y:auto;background:var(--zui-bg);border:1px solid var(--zui-border);border-radius:3px;padding:4px 0}",
+    ".g2-popup-head{padding:5px 10px;font-size:10px;color:var(--zui-text-muted) !important;border-bottom:1px solid var(--zui-border-soft)}",
+    ".g2-popup-item{padding:5px 10px;font-size:11px;color:var(--zui-text-bright) !important;cursor:pointer;white-space:nowrap}",
+    ".g2-popup-item:hover{background:var(--zui-accent)}",
     ".g2-wrap .g2-toolbar select{display:none}",
-    ".g2-ruler{flex:0 0 auto;flex-shrink:0;height:30px;background:var(--zui-bg,#262627);border-bottom:1px solid var(--zui-border,#141415);cursor:ew-resize;position:relative;overflow:hidden}",
+    ".g2-ruler{flex:0 0 auto;flex-shrink:0;height:30px;background:var(--zui-bg);border-bottom:1px solid var(--zui-border);cursor:ew-resize;position:relative;overflow:hidden}",
     ".g2-ruler canvas{position:absolute;inset:0;width:100%;height:100%;display:block}",
-    ".g2-body{flex:1;position:relative;min-height:0;overflow:hidden;background:var(--zui-bg-sunken,#1e1e1f)}",
+    ".g2-body{flex:1;position:relative;min-height:0;overflow:hidden;background:var(--zui-bg-sunken)}",
     ".g2-main{display:flex;flex:1;min-height:0;min-width:0}",
-    ".g2-tracks{flex:0 0 188px;width:188px;min-height:0;background:var(--zui-bg,#2a2a2b);border-right:1px solid var(--zui-border,#141415);overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column}",
-    ".g2-tracks-head{flex:0 0 auto;padding:5px 8px;background:var(--zui-bg-title,#242425);border-bottom:1px solid var(--zui-border,#141415);font-size:10px;color:var(--zui-text-bright,#ffffff) !important;letter-spacing:1px}",
-    ".g2-track-row{display:flex;align-items:center;gap:7px;padding:5px 8px;border-bottom:1px solid var(--zui-border-soft,#232324);white-space:nowrap;cursor:pointer;flex:0 0 auto}",
-    ".g2-track-row:hover{background:var(--zui-hover,rgba(255,255,255,.06))}",
-    ".g2-track-row.selected{background:var(--zui-accent,#4a6da7)}",
+    ".g2-tracks{flex:0 0 188px;width:188px;min-height:0;background:var(--zui-bg);border-right:1px solid var(--zui-border);overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column}",
+    ".g2-tracks-head{flex:0 0 auto;padding:5px 8px;background:var(--zui-bg-title);border-bottom:1px solid var(--zui-border);font-size:10px;color:var(--zui-text-bright) !important}",
+    ".g2-track-row{display:flex;align-items:center;gap:7px;padding:5px 8px;border-bottom:1px solid var(--zui-border-soft);white-space:nowrap;cursor:pointer;flex:0 0 auto}",
+    ".g2-track-row:hover{background:var(--zui-hover)}",
+    ".g2-track-row.selected{background:var(--zui-accent)}",
     ".g2-swatch{width:12px;height:4px;flex:0 0 12px;border-radius:1px}",
-    ".g2-track-name{flex:1;overflow:hidden;text-overflow:ellipsis;color:var(--zui-text-bright,#ffffff) !important;font-size:11px}",
-    ".g2-track-val{color:var(--zui-value,#ffffff) !important;font-size:11px;font-variant-numeric:tabular-nums;background:rgba(0,0,0,.28);border-radius:3px;padding:1px 5px}",
-    ".g2-wrap .g2-eye{cursor:pointer;border:1px solid var(--zui-border,#141415);background:var(--zui-hover,rgba(255,255,255,.07));color:var(--zui-text-bright,#ffffff) !important;font-size:10px;padding:1px 6px;border-radius:3px;line-height:1.4}",
+    ".g2-track-name{flex:1;overflow:hidden;text-overflow:ellipsis;color:var(--zui-text-bright) !important;font-size:11px}",
+    ".g2-track-val{color:var(--zui-value) !important;font-size:11px;font-variant-numeric:tabular-nums;background:var(--zui-bg-input);border-radius:3px;padding:1px 5px}",
+    ".g2-wrap .g2-eye{cursor:pointer;border:1px solid var(--zui-border);background:var(--zui-hover);color:var(--zui-text-bright) !important;font-size:10px;padding:1px 6px;border-radius:3px;line-height:1.4}",
     ".g2-wrap .g2-eye.off{opacity:.35}",
     ".g2-right{flex:1;display:flex;flex-direction:column;min-width:0;min-height:0}",
-    ".g2-canvas{flex:1;position:relative;min-height:48px;min-width:48px;overflow:hidden;background:var(--zui-bg-sunken,#1e1e1f)}",
+    ".g2-canvas{flex:1;position:relative;min-height:48px;min-width:48px;overflow:hidden;background:var(--zui-bg-sunken)}",
     ".g2-canvas svg{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:crosshair}",
     ".g2-cv{stroke-linecap:round;stroke-linejoin:round}",
-    ".g2-kf{cursor:move;transition:filter .12s}",
-    ".g2-kf:hover{filter:brightness(1.35)}",
+    ".g2-kf{cursor:move;}",
+    ".g2-kf:hover{stroke:var(--zui-accent-strong)}",
     ".g2-hdl{cursor:move}",
     ".g2-legend{display:none}",
     ".g2-empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none}",
-    ".g2-empty-card{pointer-events:auto;text-align:center;background:var(--zui-bg,rgba(58,58,60,.95));border:1px solid var(--zui-border-soft,#222224);border-radius:4px;padding:20px 26px;max-width:360px}",
-    ".g2-empty-card h3{margin:0 0 6px;font-size:13px;letter-spacing:1.5px;color:var(--zui-text-bright,#ffffff) !important}",
-    ".g2-empty-card p{margin:0;font-size:11px;line-height:1.6;color:var(--zui-text,#ffffff) !important}",
-    ".g2-empty-card b{color:var(--zui-value,#8ab4ff);font-weight:400}",
-    ".g2-tip{position:absolute;pointer-events:none;background:var(--zui-bg-input,rgba(20,20,22,.96));border:1px solid var(--zui-border-soft,#555555);border-radius:4px;padding:6px 9px;font-size:11px;line-height:1.5;display:none;z-index:5;box-shadow:0 6px 18px rgba(0,0,0,.5);color:var(--zui-text,#ffffff) !important}",
-    ".g2-status{flex:0 0 auto;flex-shrink:0;display:flex;align-items:center;gap:8px;padding:4px 10px;background:var(--zui-bg-title,#3a3a3c);border-top:1px solid var(--zui-border,#222224);font-size:11px;color:var(--zui-text,#ffffff) !important;flex-wrap:nowrap;overflow:hidden;white-space:nowrap}",
-    ".g2-pill{background:rgba(255,255,255,.06);border:1px solid var(--zui-border-soft,#222224);border-radius:3px;padding:2px 10px;color:var(--zui-text-muted,#ffffff) !important;font-variant-numeric:tabular-nums;flex:0 0 auto;max-width:100%}",
+    ".g2-empty-card{pointer-events:auto;text-align:center;background:var(--zui-bg);border:1px solid var(--zui-border-soft);border-radius:3px;padding:20px 26px;max-width:360px}",
+    ".g2-empty-card h3{margin:0 0 6px;font-size:13px;color:var(--zui-text-bright) !important}",
+    ".g2-empty-card p{margin:0;font-size:11px;line-height:1.6;color:var(--zui-text) !important}",
+    ".g2-empty-card b{color:var(--zui-value);font-weight:400}",
+    ".g2-tip{position:absolute;pointer-events:none;background:var(--zui-bg-input);border:1px solid var(--zui-border-soft);border-radius:3px;padding:6px 9px;font-size:11px;line-height:1.5;display:none;z-index:5;color:var(--zui-text) !important}",
+    ".g2-status{flex:0 0 auto;flex-shrink:0;display:flex;align-items:center;gap:8px;padding:4px 10px;background:var(--zui-bg-title);border-top:1px solid var(--zui-border);font-size:11px;color:var(--zui-text) !important;flex-wrap:nowrap;overflow:hidden;white-space:nowrap}",
+    ".g2-pill{background:var(--zui-hover);border:1px solid var(--zui-border-soft);border-radius:3px;padding:2px 10px;color:var(--zui-text-muted) !important;font-variant-numeric:tabular-nums;flex:0 0 auto;max-width:100%}",
     ".g2-status .g2-pill:last-child{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
-    ".g2-pill b{color:var(--zui-text-bright,#ffffff);font-weight:400}",
-    ".g2-pill.live{border-color:var(--zui-accent,#4a6da7);color:var(--zui-value,#cfe0ff)}",
-    ".g2-curve-label{font-weight:700;paint-order:stroke;stroke:var(--zui-bg-sunken,#1e1e1f);stroke-width:3px}",
+    ".g2-pill b{color:var(--zui-text-bright);font-weight:400}",
+    ".g2-pill.live{border-color:var(--zui-accent);color:var(--zui-value)}",
+    ".g2-curve-label{font-weight:700;paint-order:stroke;stroke:var(--zui-bg-sunken);stroke-width:3px}",
   ].join("\n");
 }
 
