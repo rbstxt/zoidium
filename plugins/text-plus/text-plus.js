@@ -2061,6 +2061,8 @@ module.exports = {
     getTextCenter,
     getTextPlusProperties,
     getTextPlusControls,
+    finiteBox,
+    expandBounds,
     parseCharacterSelection,
     seededRandom,
     lerpVector,

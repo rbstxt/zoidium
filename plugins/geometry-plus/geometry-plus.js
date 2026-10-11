@@ -1,4 +1,12 @@
+"use strict";
+
+// Test-only handles for the pure spline/tube math defined inside activate().
+// activate() populates this object; characterization tests activate the plugin
+// with stub hosts first and then pin numbers through plugin._test.
+const geometryTestExports = {};
+
 module.exports = {
+  _test: geometryTestExports,
   activate(context) {
     const { PZ, window, object3d } = context;
     const THREE = window && window.THREE;
@@ -483,6 +491,31 @@ module.exports = {
       if (interpolation === "B-Spline") return sampleBSplineSpline(points, amount, closed);
       return sampleCatmullRomSpline(points, amount, closed, tension);
     }
+
+    Object.assign(geometryTestExports, {
+      SPLINE_MAX_POINTS,
+      SPLINE_DEFAULT_POINTS,
+      SPLINE_DEFAULT_POINT_POSITIONS,
+      numberValue,
+      vectorValue,
+      integerValue,
+      cross3,
+      normalize3,
+      isZero3,
+      parseRgbaColor,
+      premultipliedRed,
+      sampleThicknessGradient,
+      sampleLinearSpline,
+      sampleHermiteSpan,
+      sampleCatmullRomSpline,
+      sampleAkimaSpline,
+      sampleBSplineSpline,
+      sampleSplineCurve,
+      createLatheProfileGeometry,
+      createHollowCylinderGeometry,
+      createHelixGeometry,
+      createSplineTubeGeometry,
+    });
 
     function createSplineTubeGeometry(centerline, radii, radialSegments, caps, capStyle) {
       const geometry = new THREE.Geometry();
