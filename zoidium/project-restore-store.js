@@ -144,6 +144,7 @@
     });
     state.dbPromise = databasePromise;
     databasePromise.catch(function () {
+      // A failed open must not stick; the rejection still reaches its callers.
       if (state.dbPromise === databasePromise) state.dbPromise = null;
     });
     return databasePromise;
@@ -167,6 +168,7 @@
         database && database.objectStoreNames.contains(ASSET_STORE_NAME),
       );
     } catch (_storeError) {
+      // An unreadable store list means split-asset storage is unusable.
       return false;
     }
   }

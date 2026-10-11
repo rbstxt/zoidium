@@ -57,6 +57,7 @@
       var settings = raw ? JSON.parse(raw) : null;
       return settings && typeof settings.layout === "string" ? settings.layout : null;
     } catch (_error) {
+      // Storage may be blocked; the loader still falls back to the default entry.
       return null;
     }
   }

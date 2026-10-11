@@ -18,6 +18,10 @@
   var PZ = global.PZ;
   var editor = global.CM;
   var projectFiles = PZ && PZ.zoidium && PZ.zoidium.projectFiles;
+  // Fingerprint rebuilds run once per restore point during backup dedup; warn
+  // only on the first failure per point so a corrupt archive cannot flood the
+  // console on every automatic backup tick.
+  var warnedFingerprintFailures = {};
 
   function formatBytes(bytes) {
     var value = Number(bytes) || 0;
@@ -86,7 +90,16 @@
       var archive = new PZ.archive();
       await archive.untar(record.blob);
       return (await projectFiles.fingerprintArchive(archive)) === fingerprint;
-    } catch (_error) {
+    } catch (error) {
+      // A point that cannot be read counts as changed so a fresh backup is
+      // created; the warning below preserves the failure for diagnostics.
+      var warnKey = snapshot && snapshot.id !== undefined ? String(snapshot.id) : "";
+      if (!warnedFingerprintFailures[warnKey]) {
+        warnedFingerprintFailures[warnKey] = true;
+        if (global.console && typeof global.console.warn === "function") {
+          global.console.warn("[Zoidium] project-restore: could not fingerprint a restore point", error);
+        }
+      }
       return false;
     }
   }
