@@ -156,6 +156,59 @@ outside `root`, and returns partial exports for cycles as CommonJS does. Native
 effect sources can reach the same loader through the global
 `ZoidiumPluginApis.modules.createRequire`.
 
+### Shared modules (zoidium/shared/)
+
+Pure helpers for logic duplicated across plugins live in `zoidium/shared/*.js`
+and are exposed on `ZoidiumPluginApis` (hence also on `context.apis`):
+
+| table | file | contents |
+| --- | --- | --- |
+| `random` | `shared/random.js` | Seeded 0-1 hashes plus the matching GLSL chunk |
+| `props` | `shared/props.js` | Property readers and JSON clones |
+| `color` | `shared/color.js` | Clamps, lerps, and color-space conversions |
+| `gl` | `shared/gl.js` | Render-target and copy-pass helpers (takes `THREE`) |
+| `json` | `shared/json.js` | Prototype-safe JSON parsing and assignment |
+| `windows` | `shared/windows.js` | Escape handling and persisted window geometry |
+
+The overlay entries load in `postInitScripts` before `zoidium/plugin-apis.js`
+(which attaches them); call sites keep a local fallback body so they also run
+before the entries land. Bit-for-bit pins live in `test/shared-random.test.js`
+and `test/shared-helpers.test.js`.
+
+- `random`: `legacyHash01(seed, index)` (Datamosh/VHS setups) with
+  `nextSeed(seed)`; `sceneSeededRandom` (Scene+); `textSeedHash` /
+  `textSeededRandom` (Text+); `effectorHash01` / `effectorHashUnitVector`
+  (Effector core); `particularSimHash` (Particular);
+  `plexusRand` / `plexusHash2` / `plexusSmoothNoise2` / `plexusFbm2` (Plexus);
+  `formSrand` / `formHash3` / `formSmoothNoise` (Form);
+  `vibrateHashNoise` / `vibrateSampleNoise` (Camera+). Variants differ in
+  integer math, so each keeps its own name: never unify them.
+  `GLSL_RAND` is the `"float rand(vec2 n) { ... }"` chunk shared by the Form
+  and Particular point shaders.
+- `props`: `readNumber(property, time, fallback)` (finite number or fallback,
+  never throws); `readVector` / `readColor` (per-component fallback, the
+  fallback is never mutated); `forEachProp(properties, visit)` over own
+  entries; `cloneJson` (registry semantics) and `cloneJsonValue` (reset-data
+  semantics: functions clone to `undefined`); `finiteOr(value, fallback)`.
+- `color`: `clamp` / `lerp`; `clampUnit` (Effector: NaN and non-positive
+  collapse to 0) vs `clamp01` (NaN passes through); `hsvToRgb` / `rgbToHsv`
+  (hue in degrees, Magic Looks); `hsvToRgb01` / `rgbToHsv01` (hue in [0, 1],
+  Material+ graph runtime); `hslToRgb`; `hexToRgb` / `rgbToHex`.
+- `gl`: `createRenderTarget(THREE, w, h, options)` (options pass through
+  untouched, so each site keeps its depth/stencil behavior; mipmaps pinned
+  off); `sameSize` / `ensureSize` (in-place `setSize`); `disposeTarget` /
+  `disposeAll` (never throw); `createCopyPass(THREE)` (plain CopyShader pass);
+  `disposePass` (material plus quad geometry).
+- `json`: `parseJsonSafe(text, fallback)` (never throws);
+  `parseJsonClean` / `cleanParsed` (drop `__proto__`/`constructor`/`prototype`
+  at every depth); `safeAssign(target, ...sources)` (skips those keys, so a
+  parsed payload can never change the target's prototype).
+- `windows`: `isEscapeKey(event)` / `shouldCloseOnEscape(event)` (mirrors the
+  UI kit close path: unconsumed Escape); `onEscape(target, handler)` (returns
+  a disposer); `readWindowGeometries(storage)` / `writeWindowGeometry(storage,
+  key, geometry)` (the `zoidium.ui.windows.v1` localStorage schema; never
+  throw).
+
 ### core: the hidden plugin
 
 - Only plugins/core/. Hidden from the panel, cannot be disabled,
