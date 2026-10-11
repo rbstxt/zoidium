@@ -626,6 +626,13 @@ function focusNoScroll(el) {
     }
   } catch (e) {}
 }
+// Object and property names come from the project file; escape them before
+// they reach innerHTML.
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, function (c) {
+    return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+  });
+}
 function displayName(prop) {
   try {
     if (prop.properties && prop.properties.name) return prop.properties.name.get();
@@ -1687,7 +1694,7 @@ PZ.ui.graph.prototype.onSvgPointerMove = function (e) {
     var off = (gel && gel.pz_frameOffset) || 0;
     var scale = (gel && gel.pz_valueScale) || 1;
     var nm = gel && gel.pz_object ? displayName(gel.pz_object) : "";
-    html = nm + "<br>f " + (kf.frame + off) + " (rel " + kf.frame + ")<br>v " + kf.value +
+    html = escapeHtml(nm) + "<br>f " + (kf.frame + off) + " (rel " + kf.frame + ")<br>v " + kf.value +
       "<br>ease " + (kf.tween & 255) + (kf.tween >> 8 ? " · bez" : " · lin") +
       (kf.continuousTangent ? "" : " · broken");
     var r2 = t.getBoundingClientRect();
@@ -2844,7 +2851,7 @@ PZ.ui.graph.prototype.updateStatus = function (extra) {
   pill("sel <b>" + sel + "</b>", sel > 0);
   pill("zoom <b>" + (Math.round(this.zoomX * 100) / 100) + " / " + (Math.round(this.zoomY * 1000) / 1000) + "</b>");
   pill((this.options.snap ? "snap ON" : "snap OFF") + " · " + (this.options.normalize ? "norm ON" : "norm OFF"), this.options.snap);
-  if (extra) pill(String(extra));
+  if (extra) pill(escapeHtml(extra));
   else pill("LMB:pan · MMB:select · RMB:scrub · dblclick:add · F:frame · \\:fit");
   // sync track-row highlight with selection
   try {
