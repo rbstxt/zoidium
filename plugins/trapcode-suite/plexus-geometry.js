@@ -59,6 +59,7 @@ var PZ = PZ || {};
         try {
             geometryAsset = new PZ.asset.geometry(asset);
         } catch (_error) {
+            console.warn("[Zoidium] trapcode-suite: geometry asset could not be read; using a primitive instead.", _error);
             return Promise.resolve(finish(null));
         }
         var fromJson = function () {
@@ -76,7 +77,7 @@ var PZ = PZ || {};
         try {
             readText = geometryAsset.readFile();
         } catch (_error) {
-            readText = null;
+            readText = null; // Unreadable as text: fall through to the decoded-geometry path below.
         }
         if (readText && typeof readText.then === "function") {
             return readText

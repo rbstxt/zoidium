@@ -606,7 +606,7 @@ var PZ = PZ || {};
         var shadeOn = false;
         try {
             shadeOn = shadeGroup && shadeGroup.shading.get(t) === 1;
-        } catch (_shade) { shadeOn = false; }
+        } catch (_shade) { shadeOn = false; } // Absent on old saves: shading stays off.
         T.shading.update(this.material, shadeGroup, this.threeObj,
             shadeOn ? T.shading.boxFromPositions(this.outPositions, count) : null);
         var additive = particle.blending.get(t) === 1;

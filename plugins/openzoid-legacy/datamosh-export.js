@@ -121,6 +121,7 @@ function uninstallRenderer(PZ, install) {
     try {
       delete PZ.datamoshRender;
     } catch (_error) {
+      // Fallback when the property is non-configurable.
       PZ.datamoshRender = undefined;
     }
   }

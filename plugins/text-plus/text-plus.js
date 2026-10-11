@@ -32,6 +32,9 @@ function loadTextPlusParts(context) {
 }
 
 let parts = null;
+// Set once the first per-frame 3D Text rebuild failure is reported, so a
+// persistent failure cannot flood the console; cleared by a later success.
+let rebuildWarned = false;
 let state;
 let numberValue;
 let TEXT_PLUS_TYPE;
@@ -121,6 +124,9 @@ function ensureTextPlusParts(context) {
   return parts;
 }
 
+// The sibling files need no host context under plain Node require, but the
+// bundle loader does; when neither is available yet, stay unbound and let
+// ensureTextPlusParts(context) bind later at activation.
 try {
   if (typeof require === "function") refreshTextPlusBindings(loadTextPlusParts(null));
 } catch (error) {
@@ -442,9 +448,13 @@ function installTextPatches(PZ) {
     originalUpdate.call(this, frame);
     try {
       syncTextRendering(this, frame);
+      rebuildWarned = false;
     } catch (error) {
       restoreTextRendering(this);
-      console.error("Text+ could not rebuild a 3D Text object", error);
+      if (!rebuildWarned) {
+        rebuildWarned = true;
+        console.warn("[Zoidium] text-plus: could not rebuild a 3D Text object", error);
+      }
     }
   };
   patchedUpdate._zoidiumTextPlusPatched = true;
@@ -499,6 +509,7 @@ function textUsesExtendedProperties(textObject) {
   const differs = (name, expected) => {
     const property = properties[name];
     if (!property || typeof property.get !== "function") return false;
+    // An unreadable property cannot prove extended use; treat it as default.
     try {
       return numberValue(property.get(), Number.NaN) !== expected;
     } catch (_error) {

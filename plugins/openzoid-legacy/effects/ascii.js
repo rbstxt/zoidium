@@ -270,6 +270,9 @@ var ASCII_FONTS = [
 
 var ASCII_RANDOM_GLYPHS = "@#%&?*+=:;. ".split("");
 
+// Warn-once flag for the per-frame state collection below.
+var asciiStateWarned = false;
+
 function asciiCollectState(props, e, frame) {
     var st = {};
     var num = function (key, fb) {
@@ -487,6 +490,7 @@ function asciiFontReady() {
     if (!fonts || typeof fonts.load !== "function") return Promise.resolve();
     return Promise.resolve(fonts.load("20px 'Source Code Pro'")).then(
         function () {},
+        // Best effort: the canvas falls back to a generic monospace font.
         function () {}
     );
 }
@@ -524,6 +528,11 @@ this.update = function (e) {
     try {
         st = asciiCollectState(this.properties, e, e);
     } catch (err) {
+        // Per-frame path: report once, then stay silent while the overlay is off.
+        if (!asciiStateWarned) {
+            asciiStateWarned = true;
+            console.warn("[Zoidium] openzoid-legacy: ASCII state could not be read; overlay stays off.", err);
+        }
         st = null;
     }
     var on = false;

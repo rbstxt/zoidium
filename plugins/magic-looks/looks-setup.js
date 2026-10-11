@@ -97,6 +97,7 @@ function frameOf(prop) {
 function readProp(effect, key) {
   const p = propOf(effect, key);
   if (!p) return undefined;
+  // Detached or broken properties may throw; every caller applies its own default.
   try {
     return p.get(frameOf(p));
   } catch (_err) {

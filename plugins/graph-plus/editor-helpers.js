@@ -85,7 +85,7 @@ function focusNoScroll(el) {
       } catch (e0) {}
       try { el.focus({ preventScroll: true }); } catch (e) { el.focus(); }
     }
-  } catch (e) {}
+  } catch (e) { /* A detached node needs no focus. */ }
 }
 // Object and property names come from the project file; escape them before
 // they reach innerHTML.

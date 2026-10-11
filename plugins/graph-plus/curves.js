@@ -219,7 +219,7 @@ PZ.ui.graph.prototype.deselectKeyframe = function (kfEl) {
   if (!kfEl.classList.contains("selected")) return;
   if (kfEl.pz_handles) { kfEl.pz_handles.remove(); kfEl.pz_handles = null; }
   kfEl.classList.remove("selected");
-  try { this.updateKeyframe(kfEl); } catch (e) {}
+  try { this.updateKeyframe(kfEl); } catch (e) { /* A detached key needs no visual refresh. */ }
 };
 PZ.ui.graph.prototype.deselectAllKeyframes = function () {
   var sel = this.selectedKeys();
@@ -301,7 +301,7 @@ PZ.ui.graph.prototype.redrawAllKeyframes = function (gel) {
   try {
     var cur = gel._keys ? Array.prototype.slice.call(gel._keys.querySelectorAll(".selected")) : [];
     for (var q = 0; q < cur.length; q++) if (cur[q].pz_object) keep[cur[q].pz_object.frame] = true;
-  } catch (e) {}
+  } catch (e) { /* Selection snapshot is best-effort; the keys redraw regardless. */ }
   while (gel._keys.firstChild) gel._keys.firstChild.remove();
   while (gel._curves.firstChild) gel._curves.firstChild.remove();
   while (gel._handles.firstChild) gel._handles.firstChild.remove();
@@ -315,7 +315,7 @@ PZ.ui.graph.prototype.redrawAllKeyframes = function (gel) {
     for (var k = 0; k < keys.length; k++) {
       if (keep[keys[k].pz_object.frame]) this.selectKeyframe(keys[k]);
     }
-  } catch (e) {}
+  } catch (e) { /* Selection restore is best-effort; the keys are already redrawn. */ }
   this.positionLabel(gel);
 };
 PZ.ui.graph.prototype.positionLabel = function (gel) {
@@ -385,7 +385,7 @@ PZ.ui.graph.prototype.createProperty = function (prop) {
       };
       g.pz_sequence.ui.onClipMoved.watch(g.pz_clipMoved, true);
     }
-  } catch (e) {}
+  } catch (e) { /* Properties outside clips need no offset tracking. */ }
   this.refreshScaleFor(g);
   this.redrawAllKeyframes(g);
   if (this.isHidden(prop)) g.style.display = "none";
@@ -400,7 +400,7 @@ PZ.ui.graph.prototype.unloadProperty = function (g) {
     prop.onKeyframeMoved.unwatch(g.pz_keyframeMoved);
     prop.onKeyframeChanged.unwatch(g.pz_keyframeChanged);
     if (g.pz_clipMoved && g.pz_sequence) g.pz_sequence.ui.onClipMoved.unwatch(g.pz_clipMoved);
-  } catch (e) {}
+  } catch (e) { /* Unwatching a torn-down observable needs no cleanup. */ }
 };
 PZ.ui.graph.prototype.objectAdded = function (prop) {
   if (!(prop instanceof PZ.property.dynamic.keyframes)) return;

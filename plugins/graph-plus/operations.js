@@ -1,5 +1,14 @@
 "use strict";
 
+// Warn-once reporter for failure sites that run per frame or per item:
+// the first failure is logged, repeats stay silent so the console stays readable.
+var gpWarned = {};
+function gpWarnOnce(key, message, error) {
+  if (gpWarned[key]) return;
+  gpWarned[key] = true;
+  console.warn("[Zoidium] graph-plus: " + message, error);
+}
+
 module.exports = function (environment) {
 const { PZ, clamp, escapeHtml, displayName, addrString, currentFrame, totalFrames, g2doc, gpInjectStyle } = environment;
 /* ---------- ops ---------- */
@@ -35,10 +44,10 @@ PZ.ui.graph.prototype.update = function () {
     }
     if (cf !== this._lastRulerFrame) {
       this._lastRulerFrame = cf;
-      try { this.drawRuler(); } catch (e2) {}
+      try { this.drawRuler(); } catch (e2) { gpWarnOnce("ruler", "ruler redraw failed", e2); }
     }
     if ((this._legendTick = (this._legendTick + 1) % 20) === 0) this.updateLegendValues();
-  } catch (e) {}
+  } catch (e) { /* Per-frame DOM refresh is best-effort; the next frame retries. */ }
 };
 PZ.ui.graph.prototype.resize = function () {
   if (!this.canvasEl) return;
@@ -86,7 +95,7 @@ PZ.ui.graph.prototype.resize = function () {
 // them and later deletes or undos fail inside CM3.
 PZ.ui.graph.prototype.ensureAnimated = function (prop, frame) {
   if (prop.animated || typeof this.propertyOps.toggleAnimation !== "function") return;
-  try { this.propertyOps.toggleAnimation(prop, frame, false, true); } catch (err) {}
+  try { this.propertyOps.toggleAnimation(prop, frame, false, true); } catch (err) { gpWarnOnce("animate:" + addrString(prop), "enabling animation on the property failed", err); }
 };
 PZ.ui.graph.prototype.deleteKeyframes = function (els) {
   for (var t = 0; t < els.length; t++) {
@@ -163,7 +172,7 @@ PZ.ui.graph.prototype.addKeyframeAtPlayhead = function () {
     var data;
     try { data = new PZ.keyframe(val, rel, tween); }
     catch (e) { data = { value: val, frame: rel, tween: tween }; }
-    try { this.propertyOps.createKeyframe({ property: prop.getAddress(), data: data }); } catch (e) {}
+    try { this.propertyOps.createKeyframe({ property: prop.getAddress(), data: data }); } catch (e) { gpWarnOnce("addKeyframe:" + i, "creating a keyframe at the playhead failed", e); }
   }
   this.editor.history.finishOperation();
 };
@@ -188,13 +197,13 @@ PZ.ui.graph.prototype.copySelected = function () {
     if (nav && nav.clipboard && nav.clipboard.writeText) nav.clipboard.writeText(str);
     this._clipCache = str;
     this.updateStatus("copied " + Object.keys(map).length + " curve(s)");
-  } catch (e) { this.updateStatus("copy failed"); }
+  } catch (e) { console.warn("[Zoidium] graph-plus: copying keyframes failed", e); this.updateStatus("copy failed"); }
 };
 PZ.ui.graph.prototype.pasteAtPlayhead = function () {
   var self = this;
   var doPaste = function (str) {
     var arr = [];
-    try { arr = JSON.parse(str); } catch (e) { return; }
+    try { arr = JSON.parse(str); } catch (e) { /* Non-graph clipboard text is not pastable; ignore it. */ return; }
     for (var e = 0; e < arr.length; e++) {
       if (arr[e].baseType !== "propertyList") return;
       arr[e].minFrame = Infinity;
@@ -217,7 +226,7 @@ PZ.ui.graph.prototype.pasteAtPlayhead = function () {
         var list = data[prop.definition.name];
         if (list) {
           if (list.length) self.ensureAnimated(prop, list[0].frame + shift);
-          try { self.propertyOps.pasteKeyframes(prop, JSON.parse(JSON.stringify(list)), shift); } catch (err) {}
+          try { self.propertyOps.pasteKeyframes(prop, JSON.parse(JSON.stringify(list)), shift); } catch (err) { gpWarnOnce("paste:" + gi + ":" + e, "pasting keyframes failed", err); }
           delete data[prop.definition.name];
         }
       }
@@ -315,7 +324,7 @@ PZ.ui.graph.prototype.updateLegendValues = function () {
       var off = (gel && gel.pz_frameOffset) || 0;
       var v = prop.get(cf - off);
       rows[i].textContent = typeof v === "number" ? (Math.round(v * 100) / 100).toString() : "";
-    } catch (e) { rows[i].textContent = ""; }
+    } catch (e) { /* An unreadable property value leaves its cell blank. */ rows[i].textContent = ""; }
   }
 };
 PZ.ui.graph.prototype.updateStatus = function (extra) {
@@ -355,7 +364,7 @@ PZ.ui.graph.prototype.updateStatus = function (extra) {
         rows[i].classList.toggle("selected", any);
       }
     }
-  } catch (e) {}
+  } catch (e) { /* Row highlight is cosmetic; the selection still applies. */ }
 };
 
 /* ---------- keyboard ---------- */
