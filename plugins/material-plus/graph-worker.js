@@ -18,7 +18,7 @@ function createGraphWorkerSource(files) {
       throw new Error("Material+ graph worker is missing its bundled source: " + name);
     }
   }
-  return '"use strict";const sources=' + JSON.stringify(files) + `;
+  return ZoidiumPluginApis.color.workerSource() + '"use strict";const sources=' + JSON.stringify(files) + `;
 const modules = new Map();
 function load(id) {
   id = String(id).replace(/^\\.\\//, "");
@@ -28,7 +28,14 @@ function load(id) {
   return module.exports;
 }
 const nodes = load("graph-runtime.js")({}, null);
-onmessage = e => { const {id,graph,size,time,images}=e.data; try { const started=performance.now(); const outputs=nodes.evaluate(graph,size,time,{images}); postMessage({id,outputs,duration:performance.now()-started}, [...new Set(Object.values(outputs).filter(p => ArrayBuffer.isView(p)).map(p => p.buffer))]); } catch(error) { postMessage({id,error:error.message}); } };`;
+const reportedErrors = new Set();
+onmessage = e => { const {id,graph,size,time,images}=e.data; try { const started=performance.now(); const outputs=nodes.evaluate(graph,size,time,{images}); postMessage({id,outputs,duration:performance.now()-started}, [...new Set(Object.values(outputs).filter(p => ArrayBuffer.isView(p)).map(p => p.buffer))]); } catch(error) {
+  if (!reportedErrors.has(error.message)) {
+    reportedErrors.add(error.message);
+    console.warn("[Zoidium] Material+ graph worker: evaluation failed", error);
+  }
+  postMessage({id,error:error.message});
+} };`;
 }
 
 module.exports = { GRAPH_MODULES, createGraphWorkerSource };

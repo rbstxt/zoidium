@@ -76,10 +76,10 @@ function activate(context) {
   cleanup = () => {
     for (const [live, clearLive] of liveMaterials) {
       try { uvLayout.releaseMaterial(live); } catch (error) {
-        console.error("Image+ could not release a live material", error);
+        console.warn("[Zoidium] Image+: could not release a live material", error);
       }
       try { clearLive(); } catch (error) {
-        console.error("Image+ could not dispose a live material texture", error);
+        console.warn("[Zoidium] Image+: could not dispose a live material texture", error);
       }
     }
     liveMaterials.clear();

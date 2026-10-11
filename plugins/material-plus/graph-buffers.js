@@ -6,9 +6,7 @@
 // this factory creates fresh for each graph runtime.
 
 module.exports = function createPixelBuffers(document) {
-    function clamp(value, min, max) {
-        return value < min ? min : value > max ? max : value;
-    }
+    const { clamp } = ZoidiumPluginApis.color;
 
     function random(seed) {
         var value = seed | 0;
@@ -360,48 +358,8 @@ module.exports = function createPixelBuffers(document) {
         return buffer;
     }
 
-    // Local copies kept deliberately: this file also evaluates inside the
-    // graph worker (see graph-worker.js), whose realm has no overlay scripts
-    // and hence no ZoidiumPluginApis. Hue in [0, 1] (the *01 variants).
-    // Each is pinned bit-for-bit against the shared module by
-    // test/migrate-shared-pins.test.js.
-    function rgbToHsv(r, g, b) {
-        var max = Math.max(r, g, b);
-        var min = Math.min(r, g, b);
-        var delta = max - min;
-        var h = 0;
-        if (delta !== 0) {
-            if (max === r) h = ((g - b) / delta) % 6;
-            else if (max === g) h = (b - r) / delta + 2;
-            else h = (r - g) / delta + 4;
-            h /= 6;
-            if (h < 0) h += 1;
-        }
-        var s = max === 0 ? 0 : delta / max;
-        return [h, s, max];
-    }
-
-    function hsvToRgb(h, s, v) {
-        var i = Math.floor(h * 6);
-        var f = h * 6 - i;
-        var p = v * (1 - s);
-        var q = v * (1 - f * s);
-        var t = v * (1 - (1 - f) * s);
-        switch (i % 6) {
-            case 0:
-                return [v, t, p];
-            case 1:
-                return [q, v, p];
-            case 2:
-                return [p, v, t];
-            case 3:
-                return [p, q, v];
-            case 4:
-                return [t, p, v];
-            default:
-                return [v, p, q];
-        }
-    }
+    // The graph worker embeds these shared tables before loading this factory.
+    const { rgbToHsv01: rgbToHsv, hsvToRgb01: hsvToRgb } = ZoidiumPluginApis.color;
 
     function colorCorrectionBuffer(size, input, params) {
         var source = input || colorBuffer(size, [1, 1, 1]);
