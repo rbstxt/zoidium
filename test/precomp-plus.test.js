@@ -538,3 +538,26 @@ test("Escape closes the menu; disposal restores the host menu", async () => {
   assert.equal(h.PZ.ui.timeline.tracks.prototype.clipContextMenu, before, "host menu restored");
   assert.equal(reopened.removed, true, "open menus close on disable");
 });
+
+test("A2: closing the menu from an item or on disable removes its document listeners", async () => {
+  const h = createHarness();
+  loadModule().activate(h.context);
+  const listeners = (type) => h.document.listeners[type] || [];
+  const clip = addVideo(h, 0, 30, "A");
+
+  rightClick(h, clip);
+  assert.equal(listeners("mousedown").length, 1, "menu adds one mousedown listener");
+  assert.equal(listeners("keydown").length, 1, "menu adds one keydown listener");
+
+  // Choosing an item closes the menu through closeClipMenu().
+  clickItem(openMenu(h), "Duplicate");
+  assert.deepEqual(listeners("mousedown"), [], "item choice removes the mousedown listener");
+  assert.deepEqual(listeners("keydown"), [], "item choice removes the keydown listener");
+
+  // Disabling the plugin with a menu open removes the listeners as well.
+  rightClick(h, h.project.sequence.videoTracks[0].clips[0]);
+  assert.equal(listeners("mousedown").length, 1);
+  await h.lifecycle.dispose();
+  assert.deepEqual(listeners("mousedown"), [], "disable removes the mousedown listener");
+  assert.deepEqual(listeners("keydown"), [], "disable removes the keydown listener");
+});

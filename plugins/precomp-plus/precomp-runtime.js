@@ -543,16 +543,32 @@ function installClipMenu(context, engine, editor) {
     return function () { /* nothing to restore */ };
   }
   const original = Tracks.prototype.clipContextMenu;
-  const openMenus = new Set();
+  // Each open menu owns one document mousedown and one keydown listener (both
+  // capture). They are tracked here so every close path — choosing an item,
+  // opening another menu, Escape, clicking elsewhere, or disabling the plugin
+  // — detaches them instead of leaking them on the document.
+  const openMenus = new Map();
   let active = true;
 
+  function detachClipMenu(menu) {
+    const handlers = openMenus.get(menu);
+    if (!handlers) return;
+    openMenus.delete(menu);
+    try {
+      doc.removeEventListener("mousedown", handlers.mousedown, true);
+    } catch (error) { /* listeners already gone */ }
+    try {
+      doc.removeEventListener("keydown", handlers.keydown, true);
+    } catch (error) { /* listeners already gone */ }
+  }
+
   function closeClipMenu() {
-    openMenus.forEach(function (menu) {
+    openMenus.forEach(function (handlers, menu) {
       try {
         menu.remove();
       } catch (error) { /* already gone */ }
+      detachClipMenu(menu);
     });
-    openMenus.clear();
   }
 
   function showClipMenu(tracks, e) {
@@ -650,23 +666,19 @@ function installClipMenu(context, engine, editor) {
       self.zoom();
     });
     doc.body.appendChild(menu);
-    openMenus.add(menu);
     const cleanup = (ev) => {
       if (ev && menu.contains(ev.target)) return;
       menu.remove();
-      openMenus.delete(menu);
-      doc.removeEventListener("mousedown", cleanup, true);
-      doc.removeEventListener("keydown", keyCleanup, true);
+      detachClipMenu(menu);
     };
     const keyCleanup = (ev) => {
       if (ev.key === "Escape") {
         menu.remove();
-        openMenus.delete(menu);
-        doc.removeEventListener("mousedown", cleanup, true);
-        doc.removeEventListener("keydown", keyCleanup, true);
+        detachClipMenu(menu);
         ev.stopPropagation();
       }
     };
+    openMenus.set(menu, { mousedown: cleanup, keydown: keyCleanup });
     doc.addEventListener("mousedown", cleanup, true);
     doc.addEventListener("keydown", keyCleanup, true);
     try {
