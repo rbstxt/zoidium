@@ -16,6 +16,7 @@ const { ensureResourceCache, prepareRuntimeStage } = cache;
 
 function parseCliArgs(argumentsList) {
   const options = {
+    allowInsecureSource: false,
     desktop: false,
     offline: false,
     refresh: false,
@@ -28,6 +29,7 @@ function parseCliArgs(argumentsList) {
     else if (argument === "--offline") options.offline = true;
     else if (argument === "--refresh") options.refresh = true;
     else if (argument === "--setup") options.setup = true;
+    else if (argument === "--allow-insecure-source") options.allowInsecureSource = true;
     else if (argument.startsWith("--from-snapshot=")) options.snapshot = argument.slice(16);
     else if (argument.startsWith("--page-html=")) options.pageHtml = argument.slice(12);
     else if (argument.startsWith("--video-editor-html=")) options.videoEditorHtml = argument.slice(20);
@@ -73,6 +75,8 @@ Options:
   --from-snapshot=<source> restore a local file, r2://bucket/key, or HTTPS snapshot
   --page-html=<file>     import a browser-saved Clipmaker page with --setup
   --video-editor-html=<file> import the saved Video Editor page as well
+  --allow-insecure-source allow plain-HTTP source pages and redirect hops
+                        (local testing only; the default refuses http:)
   ZOIDIUM_CM3_SNAPSHOT   restore this snapshot when the cache is unavailable
                         Explicit --setup/--refresh still fetches source pages.
   --help                show this help
@@ -91,8 +95,9 @@ async function main() {
     options.videoEditorSource || defaultVideoEditorSourcePage;
   if (options.setup) {
     const result = options.snapshot
-      ? await require("./cm3-snapshot").restoreSnapshot({ from: options.snapshot, sourcePageUrl, videoEditorSourcePageUrl })
+      ? await require("./cm3-snapshot").restoreSnapshot({ from: options.snapshot, sourcePageUrl, videoEditorSourcePageUrl, allowInsecureSource: options.allowInsecureSource })
       : await ensureResourceCache({
+          allowInsecureSource: options.allowInsecureSource,
           force: true,
           pageHtml: options.pageHtml,
           videoEditorHtml: options.videoEditorHtml,
@@ -106,6 +111,7 @@ async function main() {
   }
 
   const result = await prepareRuntimeStage({
+    allowInsecureSource: options.allowInsecureSource,
     destinationRoot: options.output || null,
     includeDesktopFiles: options.desktop,
     offline: options.offline,
@@ -128,6 +134,7 @@ if (require.main === module) {
   });
 }
 module.exports = {
+  assertAllowedUrlScheme: paths.assertAllowedUrlScheme,
   assertCacheRootSafe: paths.assertCacheRootSafe,
   assertFetchedResourcePath: paths.assertFetchedResourcePath,
   buildResourceStage: stage.buildResourceStage,

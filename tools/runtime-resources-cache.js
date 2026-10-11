@@ -10,6 +10,7 @@ const {
   assertCacheRootSafe,
   assertExistingDirectory,
   assertFetchedResourcePath,
+  assertNoSymlinkComponents,
   assertSafeDirectoryTarget,
   assertStageRootSafe,
   cacheMetadataName,
@@ -25,20 +26,22 @@ const {
   normalizeResourcePath,
   normalizeSourcePageUrl,
   pathExists,
-  resourceRootFor,
   runtimeProfilesName,
   safeStagePath,
   sha256,
   temporaryPrefix,
 } = require("./runtime-resources-paths");
+const { resourceRootFor, sourcePathFromUrl } = require("./runtime-resources-discovery");
 const {
   buildResourceStage,
   cleanupStage,
   copyPath,
   copyProjectFiles,
   patchIndexHtml,
+  patchThreeRuntimeStage,
   stageResultFromMetadata,
 } = require("./runtime-resources-stage");
+const { savedPageFetch } = require("./runtime-resources-fetch");
 
 function cacheInspection(valid, reason, metadata = null) {
   return { valid, reason, metadata };
@@ -71,15 +74,17 @@ async function inspectResourceCache({
   sourcePageUrl = defaultSourcePage,
   videoEditorSourcePageUrl = defaultVideoEditorSourcePage,
   verifyHashes = true,
+  allowInsecureSource = false,
 } = {}) {
   let resolvedCacheRoot;
   let normalizedSourcePageUrl;
   let normalizedVideoEditorSourcePageUrl;
   try {
     resolvedCacheRoot = assertSafeDirectoryTarget(cacheRoot, "CM3 resource cache");
-    normalizedSourcePageUrl = normalizeSourcePageUrl(sourcePageUrl);
+    normalizedSourcePageUrl = normalizeSourcePageUrl(sourcePageUrl, { allowInsecureSource });
     normalizedVideoEditorSourcePageUrl = normalizeSourcePageUrl(
-      videoEditorSourcePageUrl
+      videoEditorSourcePageUrl,
+      { allowInsecureSource }
     );
     await assertExistingDirectory(resolvedCacheRoot, "CM3 resource cache");
     await readRegularFile(resolvedCacheRoot, cacheMetadataName);
@@ -321,17 +326,20 @@ async function ensureResourceCache({
   fetchImpl = globalThis.fetch,
   fetchTimeoutMs = defaultFetchTimeoutMs,
   concurrency = defaultFetchConcurrency,
+  allowInsecureSource = false,
 } = {}) {
   if (force && offline) {
     throw new Error("--offline cannot be combined with --setup or --refresh");
   }
-  const normalizedSourcePageUrl = normalizeSourcePageUrl(sourcePageUrl);
+  const normalizedSourcePageUrl = normalizeSourcePageUrl(sourcePageUrl, { allowInsecureSource });
+  const normalizedVideoEditorSourcePageUrl = normalizeSourcePageUrl(videoEditorSourcePageUrl, { allowInsecureSource });
   const resolvedCacheRoot = await assertCacheRootSafe(cacheRoot);
   if (!force) {
     const inspection = await inspectResourceCache({
+      allowInsecureSource,
       cacheRoot: resolvedCacheRoot,
       sourcePageUrl: normalizedSourcePageUrl,
-      videoEditorSourcePageUrl,
+      videoEditorSourcePageUrl: normalizedVideoEditorSourcePageUrl,
     });
     if (inspection.valid) {
       await refreshCachedProjectFiles(resolvedCacheRoot);
@@ -339,7 +347,7 @@ async function ensureResourceCache({
     }
     if (snapshotSource) {
       console.log(`[Zoidium] restoring the CM3 resource cache from the configured snapshot (${inspection.reason})`);
-      return require("./cm3-snapshot").restoreSnapshot({ from: snapshotSource, cacheRoot: resolvedCacheRoot, sourcePageUrl: normalizedSourcePageUrl, videoEditorSourcePageUrl, fetchImpl });
+      return require("./cm3-snapshot").restoreSnapshot({ from: snapshotSource, cacheRoot: resolvedCacheRoot, sourcePageUrl: normalizedSourcePageUrl, videoEditorSourcePageUrl: normalizedVideoEditorSourcePageUrl, fetchImpl, allowInsecureSource });
     }
     if (offline) {
       throw new Error(`CM3 resource cache is unavailable offline: ${inspection.reason}`);
@@ -350,7 +358,7 @@ async function ensureResourceCache({
   }
 
   if (pageHtml || videoEditorHtml) {
-    fetchImpl = await savedPageFetch({ pageHtml, videoEditorHtml, sourcePageUrl: normalizedSourcePageUrl, videoEditorSourcePageUrl, cacheRoot: resolvedCacheRoot, fetchImpl });
+    fetchImpl = await savedPageFetch({ pageHtml, videoEditorHtml, sourcePageUrl: normalizedSourcePageUrl, videoEditorSourcePageUrl: normalizedVideoEditorSourcePageUrl, cacheRoot: resolvedCacheRoot, fetchImpl, allowInsecureSource });
   }
   const cacheParent = path.dirname(resolvedCacheRoot);
   await fs.promises.mkdir(cacheParent, { recursive: true });
@@ -359,10 +367,11 @@ async function ensureResourceCache({
   );
   try {
     const metadata = await buildResourceStage(temporaryStage, normalizedSourcePageUrl, {
+      allowInsecureSource,
       concurrency,
       fetchImpl,
       fetchTimeoutMs,
-      videoEditorSourcePageUrl,
+      videoEditorSourcePageUrl: normalizedVideoEditorSourcePageUrl,
     });
     await replaceDirectoryAtomically(temporaryStage, resolvedCacheRoot);
     return stageResultFromMetadata(metadata, resolvedCacheRoot, false);
@@ -381,8 +390,10 @@ async function prepareRuntimeStage({
   fetchImpl = globalThis.fetch,
   fetchTimeoutMs = defaultFetchTimeoutMs,
   concurrency = defaultFetchConcurrency,
+  allowInsecureSource = false,
 } = {}) {
   const cache = await ensureResourceCache({
+    allowInsecureSource,
     cacheRoot,
     concurrency,
     fetchImpl,

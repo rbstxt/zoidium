@@ -5,9 +5,11 @@
 const fs = require("fs");
 const path = require("path");
 const {
+  assertAllowedUrlScheme,
   assertFetchedResourcePath,
   assertNoSymlinkComponents,
   assertStageRootSafe,
+  cacheMetadataName,
   defaultFetchConcurrency,
   defaultFetchTimeoutMs,
   maximumFetchConcurrency,
@@ -16,6 +18,7 @@ const {
   normalizeSourcePageUrl,
   requestUserAgent,
   safeStagePath,
+  sha256,
 } = require("./runtime-resources-paths");
 const {
   discoverEditorEntryScript,
@@ -26,7 +29,6 @@ const {
   resourceRootFor,
   sourcePathFromUrl,
 } = require("./runtime-resources-discovery");
-const { cacheMetadataName, sha256 } = require("./runtime-resources-paths");
 
 function getHeader(response, name) {
   return response && response.headers && typeof response.headers.get === "function"
@@ -42,7 +44,7 @@ function browserCheckError() {
   return new Error("The CM3 source page is behind a browser check. See docs/cm3-resources.md for --page-html / --video-editor-html or ZOIDIUM_CM3_SNAPSHOT. No challenge bypass is attempted.");
 }
 
-async function savedPageFetch({ pageHtml, videoEditorHtml, sourcePageUrl, videoEditorSourcePageUrl, cacheRoot, fetchImpl = globalThis.fetch }) {
+async function savedPageFetch({ pageHtml, videoEditorHtml, sourcePageUrl, videoEditorSourcePageUrl, cacheRoot, fetchImpl = globalThis.fetch, allowInsecureSource = false }) {
   if (!pageHtml || !videoEditorHtml) throw new Error("Supply both --page-html and --video-editor-html");
   const pages = new Map();
   let metadata;
@@ -55,7 +57,7 @@ async function savedPageFetch({ pageHtml, videoEditorHtml, sourcePageUrl, videoE
     if (metadata?.profiles?.[layout]?.page?.sha256 === sha256(bytes)) {
       console.log(`[Zoidium] saved ${layout} page is identical to the cached version`);
     }
-    pages.set(normalizeSourcePageUrl(url), bytes);
+    pages.set(normalizeSourcePageUrl(url, { allowInsecureSource }), bytes);
   }
   return (url, options) => pages.has(url) ? Promise.resolve(new Response(pages.get(url), { headers: { "content-type": "text/html" } })) : fetchImpl(url, options);
 }
@@ -68,9 +70,14 @@ async function fetchBytes(
     allowedOrigin = null,
     allowedDirectory = null,
     signal = null,
+    allowInsecureSource = false,
   } = {}
 ) {
-  const requestUrl = normalizeHttpUrl(url, "CM3 resource");
+  const requestUrl = assertAllowedUrlScheme(
+    normalizeHttpUrl(url, "CM3 resource"),
+    "CM3 resource",
+    allowInsecureSource
+  );
   const timeout = normalizePositiveInteger(timeoutMs, "fetch timeout");
   if (typeof fetchImpl !== "function") {
     throw new Error("This Node.js runtime does not provide fetch() for CM3 resources");
@@ -94,7 +101,11 @@ async function fetchBytes(
           redirect: "follow",
           signal: controller.signal,
         });
-        const finalUrl = normalizeHttpUrl(response && response.url || requestUrl, "CM3 resource response");
+        const finalUrl = assertAllowedUrlScheme(
+          normalizeHttpUrl(response && response.url || requestUrl, "CM3 resource response"),
+          "CM3 resource redirect",
+          allowInsecureSource
+        );
         if (allowedOrigin && new URL(finalUrl).origin !== allowedOrigin) {
           throw new Error(`CM3 resource redirect crossed origin boundary: ${requestUrl} -> ${finalUrl}`);
         }
@@ -234,9 +245,14 @@ async function fetchResourceGraph({
   fetchTimeoutMs = defaultFetchTimeoutMs,
   concurrency = defaultFetchConcurrency,
   existingResources = [],
+  allowInsecureSource = false,
 }) {
-  const normalizedSourcePageUrl = normalizeSourcePageUrl(sourcePageUrl);
-  const normalizedBaseUrl = normalizeHttpUrl(sourceBaseUrl, "CM3 source page");
+  const normalizedSourcePageUrl = normalizeSourcePageUrl(sourcePageUrl, { allowInsecureSource });
+  const normalizedBaseUrl = assertAllowedUrlScheme(
+    normalizeHttpUrl(sourceBaseUrl, "CM3 source page"),
+    "CM3 source page",
+    allowInsecureSource
+  );
   const sourceOrigin = new URL(normalizedSourcePageUrl).origin;
   if (new URL(normalizedBaseUrl).origin !== sourceOrigin) {
     throw new Error("CM3 source page and final response must share an origin");
@@ -262,6 +278,7 @@ async function fetchResourceGraph({
       response = await fetchBytes(reference.url, {
         allowedOrigin: sourceOrigin,
         allowedDirectory: resourceRoot,
+        allowInsecureSource,
         fetchImpl,
         timeoutMs: fetchTimeoutMs,
       });

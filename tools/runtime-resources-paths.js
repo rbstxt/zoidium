@@ -81,14 +81,20 @@ function normalizePositiveInteger(value, label, { maximum = Number.MAX_SAFE_INTE
   return number;
 }
 
-function normalizeSourcePageUrl(value) {
+function normalizeSourcePageUrl(value, { allowInsecureSource = false } = {}) {
   let url;
   try {
     url = new URL(String(value));
   } catch (_error) {
     throw new Error(`Invalid CM3 source page URL: ${value}`);
   }
-  if (!/^https?:$/.test(url.protocol)) {
+  if (url.protocol === "http:") {
+    if (!allowInsecureSource) {
+      throw new Error(
+        `CM3 source page must use HTTPS (pass --allow-insecure-source for local testing): ${value}`
+      );
+    }
+  } else if (url.protocol !== "https:") {
     throw new Error(`CM3 source page must use HTTP(S): ${value}`);
   }
   if (url.username || url.password) {
@@ -96,6 +102,21 @@ function normalizeSourcePageUrl(value) {
   }
   url.hash = "";
   return url.href;
+}
+
+function assertAllowedUrlScheme(href, label, allowInsecureSource = false) {
+  let protocol = "";
+  try {
+    protocol = new URL(href).protocol;
+  } catch (_error) {
+    return href;
+  }
+  if (protocol === "http:" && !allowInsecureSource) {
+    throw new Error(
+      `${label} must use HTTPS (pass --allow-insecure-source for local testing): ${href}`
+    );
+  }
+  return href;
 }
 
 function normalizeHttpUrl(value, label) {
@@ -324,6 +345,7 @@ function assertFetchedResourcePath(sourcePath) {
 }
 
 module.exports = {
+  assertAllowedUrlScheme,
   assertCacheRootSafe,
   assertExistingDirectory,
   assertFetchedResourcePath,
