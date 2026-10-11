@@ -16,7 +16,9 @@
     return Number.isFinite(Number(value)) ? Number(value) : fallback;
   }
 
-  function clampLocalFrame(frame, clipLength, extrapolate) {
+  // Canonical frame helpers shared by temporal effects (A10). Older local
+  // names below stay as aliases so existing callers keep working.
+  function clampFrame(frame, clipLength, extrapolate) {
     const value = finiteNumber(frame, 0);
     if (extrapolate) return value;
     const clamped = Math.max(0, value);
@@ -24,7 +26,11 @@
     return Math.min(clamped, Math.max(0, clipLength - EPSILON));
   }
 
-  function quantizeLocalFrame(localFrame, projectRate, targetRate, extrapolate) {
+  function clampLocalFrame(frame, clipLength, extrapolate) {
+    return clampFrame(frame, clipLength, extrapolate);
+  }
+
+  function quantizeFrame(localFrame, projectRate, targetRate, extrapolate) {
     const rate = finiteNumber(projectRate, 30);
     const fps = finiteNumber(targetRate, 0);
     const input = finiteNumber(localFrame, 0);
@@ -33,6 +39,24 @@
     const seconds = (extrapolate ? input : Math.max(0, input)) / rate;
     const quantizedSeconds = Math.floor(seconds * fps + EPSILON) / fps;
     return quantizedSeconds * rate;
+  }
+
+  function quantizeLocalFrame(localFrame, projectRate, targetRate, extrapolate) {
+    return quantizeFrame(localFrame, projectRate, targetRate, extrapolate);
+  }
+
+  function offsetFrame(frame, offsetFrames) {
+    return finiteNumber(frame, 0) + finiteNumber(offsetFrames, 0);
+  }
+
+  function readFpsProp(property, frame, fallback) {
+    let value;
+    try {
+      value = Number(property && property.get ? property.get(frame) : NaN);
+    } catch (_error) {
+      return fallback;
+    }
+    return Number.isFinite(value) && value > 0 ? value : fallback;
   }
 
   function applyTemporalOperators(localFrame, projectRate, operators, clipLength, extrapolate) {
@@ -53,7 +77,7 @@
     return Math.min(1, Math.max(0, finiteNumber(value, fallback)));
   }
 
-  function buildFrameSamplePlan(
+  function planFrameSamples(
     outputFrame,
     count,
     offsetFrames,
@@ -85,6 +109,28 @@
       });
     }
     return samples;
+  }
+
+  // buildFrameSamplePlan keeps its historic name; planFrameSamples is the
+  // canonical alias other effects should use.
+  function buildFrameSamplePlan(
+    outputFrame,
+    count,
+    offsetFrames,
+    startOpacity,
+    decay,
+    minimumFrame,
+    maximumFrame,
+  ) {
+    return planFrameSamples(
+      outputFrame,
+      count,
+      offsetFrames,
+      startOpacity,
+      decay,
+      minimumFrame,
+      maximumFrame,
+    );
   }
 
   function mapTemporalFrameWithScopes(
@@ -969,6 +1015,7 @@
       originalLayerUpdate: null,
       originalCompositorUnload: null,
       originalExportGetVideoFrame: null,
+      wrappedExportGetVideoFrame: null,
       originalRenderSequence: null,
       originalRenderLayer: null,
       originalSchedulePrepare: null,
@@ -994,6 +1041,20 @@
         const clip = getClipForLayer(layer);
         if (!clip || !Number.isFinite(projectFrame)) return null;
         return this.mapLayerFrame(layer, projectFrame - clip.start);
+      },
+      // Canonical frame helpers for other effects (A10). Other owners'
+      // effects should use these instead of re-deriving quantize/plan math.
+      quantizeFrame,
+      clampFrame,
+      offsetFrame,
+      planFrameSamples,
+      readFpsProp,
+      // Shared by video-frame-export.js: registering the export compositor
+      // must not depend on wrapper order. Either this wrapper runs (it calls
+      // the wrapped function) or the deterministic export runs (it calls
+      // this), so the compositor is registered exactly once per frame.
+      registerExportCompositor(compositor) {
+        return registerCompositor(this, compositor);
       },
     };
 
@@ -1353,14 +1414,22 @@
 
   function installExportPatch(state) {
     const prototype = PZ.export?.prototype;
-    if (!prototype || prototype[EXPORT_FRAME_MARKER]) return;
+    if (!prototype || typeof prototype.getVideoFrame !== "function") return;
+    // Chain explicitly: wrap whatever is installed now (the CM3 original or
+    // video-frame-export's deterministic replacement) instead of assuming
+    // this script loads first. Skip only when the current function is already
+    // our wrapper, so a repeated install stays a no-op.
+    if (prototype.getVideoFrame === state.wrappedExportGetVideoFrame) return;
 
     state.exportPrototype = prototype;
-    state.originalExportGetVideoFrame = prototype.getVideoFrame;
-    prototype.getVideoFrame = function temporalExportGetVideoFrame() {
-      registerCompositor(state, this.compositor);
-      return state.originalExportGetVideoFrame.apply(this, arguments);
-    };
+    const previous = prototype.getVideoFrame;
+    state.originalExportGetVideoFrame = previous;
+    const wrapped = (state.wrappedExportGetVideoFrame =
+      function temporalExportGetVideoFrame() {
+        registerCompositor(state, this.compositor);
+        return previous.apply(this, arguments);
+      });
+    prototype.getVideoFrame = wrapped;
     Object.defineProperty(prototype, EXPORT_FRAME_MARKER, {
       configurable: true,
       value: true,
@@ -1385,11 +1454,16 @@
     module.exports = {
       applyTemporalOperators,
       buildFrameSamplePlan,
+      clampFrame,
       clampLocalFrame,
       findScheduleItemAtFrame,
       isClipActiveAtProjectFrame,
       mapTemporalFrameWithScopes,
+      offsetFrame,
+      planFrameSamples,
+      quantizeFrame,
       quantizeLocalFrame,
+      readFpsProp,
     };
     return;
   }
