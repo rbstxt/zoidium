@@ -16,12 +16,13 @@ const vm = require("node:vm");
 const projectRoot = path.resolve(__dirname, "..");
 const scriptPath = path.join(projectRoot, "zoidium", "ui-node-editor.js");
 const cssPath = path.join(projectRoot, "zoidium", "ui-node-editor.css");
+const { nodeEditorScripts, readScript } = require("./uikit-files");
 
 function loadModule() {
-  const source = fs.readFileSync(scriptPath, "utf8");
   const context = { console };
   context.window = context;
-  vm.runInNewContext(source, context);
+  vm.createContext(context);
+  for (const file of nodeEditorScripts()) vm.runInContext(readScript(file), context, { filename: file });
   const queued = context.ZoidiumUIModules;
   assert.equal(queued.length, 1);
   assert.equal(queued[0].name, "node-editor");
