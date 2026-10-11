@@ -598,7 +598,7 @@ function buildGroup(build, group) {
         continue;
       }
       const line = toggle.ownerDocument.createElement("div");
-      line.style.cssText = "display: flex; align-items: center; border-bottom: 1px solid #242424;";
+      line.style.cssText = "display: flex; align-items: center; border-bottom: 1px solid var(--zui-border-soft);";
       toggle.style.flex = "1 1 auto";
       toggle.style.borderBottom = "0";
       place.style.cssText = "flex: 0 0 auto; width: auto; margin: 0 8px 0 0; padding: 2px 12px;";

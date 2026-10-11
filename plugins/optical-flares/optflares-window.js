@@ -14,8 +14,8 @@
 //
 // The stack rows and browser tiles draw per-type thumbnails with the same
 // seeded 2D routines the donor editor used (no wall clock, no Math.random),
-// corrected so each type draws its own shape. A small "flares" skin holds the
-// row and tile layout; every color comes from the theme tokens.
+// corrected so each type draws its own shape. Scoped widget CSS holds the
+// row and tile layout; the host supplies standard window chrome.
 
 (function () {
     var SOURCE_FIELDS = [
@@ -84,9 +84,9 @@
     // Layout for the stack rows and browser tiles. Everything visual comes
     // from the theme tokens; the canvases keep a black base so additive
     // glow drawings read the same under any theme.
-    var SKIN_CSS = [
+    var WIDGET_CSS = [
         ".of-stack{display:flex;flex-direction:column;gap:4px;}",
-        ".of-row{display:flex;gap:6px;align-items:center;padding:4px;border:1px solid var(--zui-border-soft);border-radius:4px;cursor:pointer;}",
+        ".of-row{display:flex;gap:6px;align-items:center;padding:4px;border:1px solid var(--zui-border-soft);border-radius:3px;cursor:pointer;}",
         ".of-row:hover{background:var(--zui-hover);}",
         ".of-row.active{border-color:var(--zui-accent);}",
         ".of-row.disabled .of-row-name,.of-row.disabled .of-thumb{opacity:.45;}",
@@ -96,7 +96,7 @@
         ".of-row-top{display:flex;align-items:center;gap:4px;}",
         ".of-row-name{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--zui-text-strong);}",
         ".of-row-actions{display:flex;gap:3px;flex:0 0 auto;}",
-        ".of-mini{background:transparent;border:1px solid var(--zui-border-soft);color:var(--zui-text-muted);border-radius:3px;padding:1px 6px;cursor:pointer;}",
+        ".of-mini{width:auto;background:transparent;border:1px solid var(--zui-border-soft);color:var(--zui-text-muted);border-radius:3px;padding:1px 6px;cursor:pointer;}",
         ".of-mini:hover{color:var(--zui-text-bright);border-color:var(--zui-accent);}",
         ".of-mini.on{background:var(--zui-accent);color:var(--zui-text-bright);border-color:var(--zui-accent);}",
         ".of-mini.x{color:var(--zui-danger);}",
@@ -104,7 +104,7 @@
         ".of-row-fields .zoidium-field{flex:1 1 0;min-width:0;grid-template-columns:minmax(0,auto) minmax(0,1fr);padding:2px 2px 2px 4px;min-height:26px;column-gap:4px;border-bottom:0;}",
         ".of-row-fields .zoidium-number{width:100%;}",
         ".of-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;}",
-        ".of-tile{background:var(--zui-bg-sunken);border:1px solid var(--zui-border-soft);border-radius:4px;cursor:pointer;padding:0 0 4px;text-align:left;color:var(--zui-text);}",
+        ".of-tile{background:var(--zui-bg-sunken);border:1px solid var(--zui-border-soft);border-radius:3px;cursor:pointer;padding:0 0 4px;text-align:left;color:var(--zui-text);}",
         ".of-tile:hover{border-color:var(--zui-accent);}",
         ".of-tile canvas{width:100%;height:56px;display:block;background:#000;border-radius:3px 3px 0 0;}",
         ".of-tile-row{display:flex;align-items:center;gap:4px;padding:3px 6px 0;}",
@@ -113,7 +113,11 @@
         ".of-hint{color:var(--zui-text-muted);padding:6px 2px;}",
         ".of-section-label{text-align:center;color:var(--zui-text-muted);padding:8px 0 2px;grid-column:1/-1;}",
         ".of-thumb.of-checker,.of-tile canvas.of-checker{background-image:linear-gradient(45deg,var(--zui-border) 25%,transparent 25%,transparent 75%,var(--zui-border) 75%),linear-gradient(45deg,var(--zui-border) 25%,var(--zui-bg-sunken) 25%,var(--zui-bg-sunken) 75%,var(--zui-border) 75%);background-size:12px 12px;background-position:0 0,6px 6px;}",
-    ].join("\n");
+    ].map(function (rule) {
+        return rule.replace(/^[^{]+/, function (selectors) {
+            return selectors.split(",").map(function (selector) { return ".of-window " + selector; }).join(",");
+        });
+    }).join("\n");
 
     var TITLE = "Optical Flares";
     var windowSerial = 0;
@@ -550,11 +554,6 @@
         var ops = new PZ.ui.properties(editor);
         var edit = PZ.ui.edit.prototype;
         var editContext = { editor: editor };
-        if (ui && typeof ui.registerSkin === "function") {
-            try {
-                ui.registerSkin("flares", SKIN_CSS);
-            } catch (error) { /* the rows still work without the skin */ }
-        }
 
         var pending = new Map();
         var selected = 0;
@@ -693,7 +692,8 @@
         }
 
         function makeButton(text, cls, title, onClick) {
-            var node = makeElement("button", cls || "of-mini", text);
+            var node = ctl.button({ title: text, hint: title }).element;
+            (cls || "of-mini").split(/\s+/).forEach(function (name) { node.classList.add(name); });
             node.type = "button";
             if (title) node.title = title;
             node.onclick = function (event) {
@@ -1397,11 +1397,14 @@
             title: TITLE,
             subtitle: subtitleFor(root.properties.name.get()),
             persistKey: "options",
-            skin: "flares",
             width: 360,
             height: 620,
             isValid: function () { return root.isLive(); },
             mount: function (body, handle) {
+                body.classList.add("of-window");
+                var style = document.createElement("style");
+                style.textContent = WIDGET_CSS;
+                body.appendChild(style);
                 var browser = ctl.section({ title: "Browser", collapsed: true });
                 browserSection(browser);
                 var elements = ctl.section({ title: "Elements" });

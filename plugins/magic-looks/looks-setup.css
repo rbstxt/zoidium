@@ -6,8 +6,8 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-  font-family: "Source Code Pro", monospace;
-  color: #ccc;
+  font-family: var(--zui-font);
+  color: var(--zui-text);
 }
 
 .lk-tool-head {
@@ -16,15 +16,15 @@
   justify-content: space-between;
   gap: 8px;
   padding: 4px 2px;
-  border-bottom: 1px solid #1b1b1b;
+  border-bottom: 1px solid var(--zui-border);
 }
 
 .lk-tool-name {
-  color: #7e8fb9;
+  color: var(--zui-value);
 }
 
 .lk-tool-note {
-  color: #888;
+  color: var(--zui-text-muted);
   font-size: 12px;
 }
 
@@ -45,6 +45,9 @@
   cursor: crosshair;
   touch-action: none;
   border-radius: 50%;
+  /* Tint-dot colors resolved at draw time (see looks-widgets.js). */
+  --lk-dot-ring: var(--zui-text);
+  --lk-dot-core: var(--zui-border);
 }
 
 .lk-readouts {
@@ -60,8 +63,14 @@
 .lk-curves {
   cursor: crosshair;
   touch-action: none;
-  border: 1px solid #1b1b1b;
-  background: #202020;
+  border: 1px solid var(--zui-border);
+  background: var(--zui-bg-input);
+  /* Canvas guide colors resolved at draw time (see looks-widgets.js), so the
+     curves pad follows the editor theme like the rest of the window. */
+  --lk-pad-bg: var(--zui-bg-input);
+  --lk-pad-grid: var(--zui-hover);
+  --lk-pad-diagonal: color-mix(in srgb, var(--zui-hover) 55%, var(--zui-text-faint));
+  --lk-point-fill: var(--zui-bg-input);
 }
 
 .lk-fourway {
@@ -74,12 +83,12 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  background: #202020;
-  border: 1px solid #1b1b1b;
+  background: var(--zui-bg-input);
+  border: 1px solid var(--zui-border);
   padding: 4px;
 }
 
 .lk-four-name {
-  color: #7e8fb9;
+  color: var(--zui-value);
   font-size: 12px;
 }

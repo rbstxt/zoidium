@@ -115,7 +115,7 @@ const PlayerPlus = (() => {
 
       .zoidium-player-plus-pause:focus,
       .zoidium-player-plus-render-once:focus {
-        border-color: #384668 !important;
+        border-color: var(--zui-accent) !important;
         outline: 0;
       }
 
@@ -127,7 +127,7 @@ const PlayerPlus = (() => {
 
       .zoidium-player-plus-pause svg,
       .zoidium-player-plus-render-once svg {
-        fill: #acacac;
+        fill: var(--zui-text-muted);
         height: 25px;
         pointer-events: none;
         width: 25px;
@@ -139,17 +139,17 @@ const PlayerPlus = (() => {
       }
 
       .zoidium-player-plus-pause.is-paused svg {
-        fill: #7e8fb9;
+        fill: var(--zui-value);
       }
 
       .zoidium-player-plus-quality {
-        background-color: #202020;
-        border: 1px solid #1b1b1b;
+        background-color: var(--zui-bg-input);
+        border: 1px solid var(--zui-border);
         border-radius: 0;
         box-sizing: border-box;
-        color: #7e8fb9;
+        color: var(--zui-value);
         cursor: pointer;
-        font-family: "Source Code Pro", monospace;
+        font-family: var(--zui-font);
         font-size: 12px;
         height: 27px;
         line-height: 25px;
@@ -163,13 +163,13 @@ const PlayerPlus = (() => {
       }
 
       .zoidium-player-plus-quality:focus-visible {
-        border-color: #384668;
+        border-color: var(--zui-accent);
         outline: 0;
       }
 
       .zoidium-player-plus-quality option {
-        background-color: #202020;
-        color: #ccc;
+        background-color: var(--zui-bg-input);
+        color: var(--zui-text);
       }
     `;
     state.document.head.appendChild(style);
@@ -335,7 +335,8 @@ const PlayerPlus = (() => {
     button.setAttribute("aria-label", button.title);
     if (state.pauseIcon && state.PZ?.ui?.switchIcon) {
       state.PZ.ui.switchIcon(state.pauseIcon, state.paused ? "play" : "pause");
-      state.pauseIcon.style.fill = state.paused ? "#7e8fb9" : "#acacac";
+      // CSS var() in an inline style follows the editor theme (see installStyle).
+      state.pauseIcon.style.fill = state.paused ? "var(--zui-value)" : "var(--zui-text-muted)";
     }
   }
 

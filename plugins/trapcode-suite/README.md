@@ -53,8 +53,10 @@ keep their behavior and old saved catalogue ids still load.
 | Sun (Directional) | Azimuth and elevation drive direction, temperature, intensity and sky fill |
 | Portal Light | One-sided rectangular window fill, driven by the scene's Sun or Hemisphere light |
 
-IES Profile has a native property row with Uniform, Downlight and Wall wash
-presets and a Load .ies button. The file stays in the project's hidden IES Data
+IES Profile is a native option row with Uniform, Downlight and Wall wash
+presets plus the loaded file name when one is loaded. IES File is a native
+file row showing the current .ies file name or "(none)"; its folder button
+opens the .ies chooser and its delete button clears the file. The file stays in the project's hidden IES Data
 property and survives save/reload. It is never uploaded. The parser accepts
 LM-63 Type C photometry with TILT=NONE. Unsupported tilt references and Type A/B
 files report an error. Intensity scales the profile's normalized peak candela.

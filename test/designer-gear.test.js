@@ -1,7 +1,7 @@
 "use strict";
 
 // The designer entry points: the module binds the designer to its context.ui,
-// registers the designer skin and one editor per Trapcode object. Zoidium then
+// registers one editor per Trapcode object. Zoidium then
 // draws the gear and the "Open Designer" button; nothing patches CM3 directly.
 
 const assert = require("node:assert/strict");
@@ -21,7 +21,6 @@ function createHarness({ designer = true, classes = ["particular", "form", "plex
   const unbound = [];
   const opened = [];
   const designerApi = {
-    skinCss: ":scope{color:#fff;}",
     bind(ui) {
       bound.push(ui);
       return () => unbound.push(ui);
@@ -62,15 +61,14 @@ function createHarness({ designer = true, classes = ["particular", "form", "plex
   return { PZ, designerApi, bound, unbound, opened, skins, editors, removed, disposers, ui, context, object3d };
 }
 
-test("activation registers the designer skin once and binds the window kit", () => {
+test("activation binds the window kit without registering a private skin", () => {
   const h = createHarness();
   const mod = loadModule();
   mod.activate(h.context);
-  assert.deepEqual(h.skins.map((s) => s.name), ["designer"]);
-  assert.equal(h.skins[0].css, ":scope{color:#fff;}");
+  assert.deepEqual(h.skins, []);
   assert.deepEqual(h.bound, [h.ui]);
   mod.activate(h.context);
-  assert.equal(h.skins.length, 1, "a second activate does not register again");
+  assert.equal(h.skins.length, 0, "a second activate does not register again");
 });
 
 test("one editor per Trapcode object, matched by class and opened through the designer", () => {
@@ -95,7 +93,7 @@ test("one editor per Trapcode object, matched by class and opened through the de
   assert.deepEqual(h.opened, [p]);
 });
 
-test("disabling unbinds the designer; skin and editors are owned by the module ui", () => {
+test("disabling unbinds the designer; editors are owned by the module ui", () => {
   const h = createHarness();
   const mod = loadModule();
   mod.activate(h.context);

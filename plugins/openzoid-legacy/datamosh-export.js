@@ -97,7 +97,7 @@ function describe(PZ, html) {
 }
 
 function noteHtml(note) {
-  return '<span style="display:block;margin-top:10px;color:#2ee6d6">' + note + "</span>";
+  return '<span style="display:block;margin-top:10px;color:var(--zui-value)">' + note + "</span>";
 }
 
 function installRenderer(context, PZ) {

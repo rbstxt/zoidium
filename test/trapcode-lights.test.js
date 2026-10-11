@@ -569,3 +569,188 @@ test("photometric capacity chooses the same saved addresses under reversed evalu
     assert.equal(new Set(lights.filter(light=>light.iesSlot!==undefined).map(light=>light.iesSlot)).size,16);
   }finally{PZ.trapcode.lights.uninstall();}
 });
+
+// The IES rows must use CM3's own option and file-row markup (div.editbox
+// with select.pz-inputbox / actionbutton icon buttons), with no plugin-made
+// widgets or inline chrome styles. The stored TEXT values stay compatible.
+function stubStyle() {
+  const map = {};
+  return new Proxy({ get cssText() {
+    return Object.entries(map).map(([key, value]) => key + ":" + value).join(";");
+  } }, {
+    get(target, key) { return key === "cssText" ? target.cssText : map[key]; },
+    set(target, key, value) { map[key] = value; return true; },
+    ownKeys: () => [],
+    getOwnPropertyDescriptor: () => undefined,
+  });
+}
+
+function stubElement(tag) {
+  const el = {
+    tagName: String(tag).toUpperCase(),
+    children: [],
+    attributes: {},
+    className: "",
+    value: "",
+    title: "",
+    innerText: "",
+    files: [],
+    clicked: false,
+    onclick: null,
+    onchange: null,
+    dataset: {},
+    setAttribute(name, value) { el.attributes[name] = value; },
+    appendChild(child) { el.children.push(child); return child; },
+    click() { el.clicked = true; },
+  };
+  let text = "";
+  let style = stubStyle();
+  Object.defineProperty(el, "textContent", {
+    configurable: true,
+    get: () => text,
+    set: (value) => { text = value; if (value === "") el.children = []; },
+  });
+  Object.defineProperty(el, "style", {
+    configurable: true,
+    get: () => style,
+    // Browsers forward `el.style = "..."` to cssText; mirror that here.
+    set: (css) => {
+      style = stubStyle();
+      String(css).split(";").forEach((pair) => {
+        const at = pair.indexOf(":");
+        if (at > 0) style[pair.slice(0, at).trim()] = pair.slice(at + 1).trim();
+      });
+    },
+  });
+  return el;
+}
+
+function stubIESOwner() {
+  const store = { iesProfile: "Downlight", iesData: "", iesFilename: "" };
+  const owner = { properties: {} };
+  for (const key of Object.keys(store)) {
+    owner.properties[key] = {
+      parentObject: owner,
+      get: () => store[key],
+      set: (value) => { store[key] = value; },
+      getAddress: () => ["test", key],
+    };
+  }
+  return { owner, store };
+}
+
+test("IES Profile renders CM3's own option markup and IES File renders a CM3 file row", async () => {
+  const { PZ } = setup();
+  PZ.ui = { generateIcon(name) { const svg = stubElement("svg"); svg.iconName = name; return svg; } };
+  const registrations = new Map();
+  globalThis.ZoidiumPluginApis = { propertyControls: { register(id, spec) {
+    registrations.set(id, spec);
+    return () => registrations.delete(id);
+  } } };
+  try {
+    PZ.trapcode.lights.install(PZ);
+    assert.equal(registrations.get("trapcode-suite/ies-file").type, PZ.property.type.TEXT);
+    assert.equal(registrations.get("trapcode-suite/ies-file-row").type, PZ.property.type.TEXT);
+    const doc = { createElement: stubElement };
+    const context = { document: doc, PZ };
+    const { owner, store } = stubIESOwner();
+
+    const profileRow = registrations.get("trapcode-suite/ies-file").create(owner.properties.iesProfile, context);
+    assert.ok(profileRow.className.split(" ").includes("editbox"));
+    assert.equal(profileRow.children.length, 1);
+    const select = profileRow.children[0];
+    assert.equal(select.tagName, "SELECT");
+    assert.ok(select.className.split(" ").includes("pz-inputbox"));
+    assert.deepEqual(Object.keys(select.style), [], "no inline styles on the CM3 dropdown");
+    assert.deepEqual(select.children.map((option) => option.value), ["Uniform", "Downlight", "Wall wash"]);
+    assert.equal(select.value, "Downlight");
+    // A loaded file joins the options; picking a preset keeps the file text.
+    store.iesFilename = "stage.ies";
+    store.iesData = iesFixture;
+    profileRow.pz_refresh();
+    assert.deepEqual(select.children.map((option) => option.value), ["Uniform", "Downlight", "Wall wash", "stage.ies"]);
+    select.value = "Uniform";
+    select.onchange();
+    assert.equal(store.iesProfile, "Uniform");
+    assert.equal(store.iesData, iesFixture, "preset keeps the loaded file data");
+    assert.equal(store.iesFilename, "stage.ies");
+
+    const fileRow = registrations.get("trapcode-suite/ies-file-row").create(owner.properties.iesFilename, context);
+    assert.ok(fileRow.className.split(" ").includes("editbox"));
+    assert.equal(fileRow.children.length, 4);
+    const [input, load, remove, label] = fileRow.children;
+    assert.equal(input.tagName, "INPUT");
+    assert.equal(input.attributes.type, "file");
+    assert.equal(input.attributes.accept, ".ies");
+    assert.equal(load.tagName, "BUTTON");
+    assert.ok(load.className.split(" ").includes("actionbutton"), "no plugin-made Load button");
+    assert.equal(remove.className, "actionbutton");
+    assert.equal(load.children[0].iconName, "load");
+    assert.equal(remove.children[0].iconName, "remove");
+    load.onclick();
+    assert.equal(input.clicked, true, "folder button opens the file chooser");
+    assert.equal(label.innerText, "stage.ies");
+    assert.equal(label.title, "stage.ies");
+    // Loading a file stores its name, text and profile in one edit.
+    input.files = [{ name: "rig.ies", size: 100, text: async () => iesFixture }];
+    await input.onchange();
+    assert.equal(store.iesProfile, "rig.ies");
+    assert.equal(store.iesData, iesFixture);
+    assert.equal(store.iesFilename, "rig.ies");
+    assert.deepEqual(select.children.map((option) => option.value),
+      ["Uniform", "Downlight", "Wall wash", "rig.ies"], "file load refreshes the profile dropdown");
+    assert.equal(select.value, "rig.ies");
+    // An invalid file leaves the stored properties alone.
+    input.files = [{ name: "broken.ies", size: 10, text: async () => "not an IES file" }];
+    await input.onchange();
+    assert.equal(store.iesProfile, "rig.ies");
+    assert.equal(store.iesData, iesFixture);
+    // Removing the active file falls back to Downlight; otherwise the preset stays.
+    remove.onclick();
+    assert.equal(store.iesProfile, "Downlight");
+    assert.equal(store.iesData, "");
+    assert.equal(store.iesFilename, "");
+    assert.deepEqual(select.children.map((option) => option.value),
+      ["Uniform", "Downlight", "Wall wash"], "removal drops the file from the profile dropdown");
+    fileRow.pz_refresh();
+    assert.equal(label.innerText, "(none)");
+    store.iesProfile = "Uniform";
+    store.iesFilename = "rig.ies";
+    remove.onclick();
+    assert.equal(store.iesProfile, "Uniform");
+    assert.equal(store.iesFilename, "");
+    // Long names truncate like CM3's file rows.
+    store.iesFilename = "a-very-long-fixture-name.ies";
+    fileRow.pz_refresh();
+    assert.equal(label.innerText, "a-very-long-fixtu...");
+    assert.equal(label.title, "a-very-long-fixture-name.ies");
+  } finally {
+    PZ.trapcode.lights.uninstall();
+    delete globalThis.ZoidiumPluginApis;
+  }
+  assert.equal(registrations.size, 0, "disable unregisters both IES controls");
+});
+
+test("IES Filename is a visible file row and stored keys stay compatible", () => {
+  const { PZ, Light } = setup();
+  PZ.trapcode.lights.install(PZ);
+  try {
+    const light = new Light();
+    light.load({ objectType: 6 });
+    assert.equal(light.properties.iesProfile.definition.zoidiumControl, "trapcode-suite/ies-file");
+    assert.equal(light.properties.iesFilename.definition.zoidiumControl, "trapcode-suite/ies-file-row");
+    assert.equal(light.properties.iesFilename.definition.name, "IES File");
+    assert.notEqual(light.properties.iesFilename.definition.visible, false);
+    assert.equal(light.properties.iesData.definition.visible, false, "IES Data stays hidden");
+    assert.equal(light.properties.iesProfile.get(), "Downlight");
+    assert.equal(light.properties.iesFilename.get(), "");
+    // Saved projects without the new row still load.
+    const saved = new Light();
+    saved.load({ objectType: 6, properties: { name: "Old", iesProfile: "stage.ies", iesData: iesFixture } });
+    assert.equal(saved.properties.iesProfile.get(), "stage.ies");
+    assert.equal(saved.properties.iesData.get(), iesFixture);
+    assert.equal(saved.properties.iesFilename.get(), "");
+  } finally {
+    PZ.trapcode.lights.uninstall();
+  }
+});

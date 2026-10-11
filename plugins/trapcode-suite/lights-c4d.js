@@ -30,7 +30,7 @@
         shadowSoftness: { dynamic: true, name: "Shadow Softness", type: 0, value: 1, min: 0, max: 10, step: 0.1, decimals: 1 },
         shadowExtent: { dynamic: true, name: "Shadow Coverage", type: 0, value: 200, min: 10, max: 2000, step: 10, decimals: 0 },
         iesProfile: { dynamic: false, name: "IES Profile", type: 7, value: "Downlight", zoidiumControl: "trapcode-suite/ies-file" },
-        iesFilename: { dynamic: false, visible: false, name: "IES Filename", type: 7, value: "" },
+        iesFilename: { dynamic: false, name: "IES File", type: 7, value: "", zoidiumControl: "trapcode-suite/ies-file-row" },
         iesData: { dynamic: false, visible: false, name: "IES Data", type: 7, value: "" },
     };
 
@@ -474,53 +474,130 @@
     function installFileRow(PZ, state) {
         var apis = typeof ZoidiumPluginApis !== "undefined" ? ZoidiumPluginApis : null;
         if (!apis || !apis.propertyControls) return;
-        state.fileCleanup = apis.propertyControls.register("trapcode-suite/ies-file", {
+        // One history step per user edit across the three stored properties.
+        function commit(owner, profileProp, name, text, filename) {
+            if (installed !== state) return;
+            var history = typeof CM !== "undefined" && CM.history, opened = history && !history.operation;
+            if (opened) history.startOperation();
+            try {
+                [ [profileProp, name], [owner.properties.iesData, text], [owner.properties.iesFilename, filename === undefined ? owner.properties.iesFilename.get() : filename] ].forEach(function (entry) {
+                    if (typeof CM !== "undefined" && PZ.ui.properties) {
+                        new PZ.ui.properties(CM).setValue({ property: entry[0].getAddress(), frame: CM.playback ? CM.playback.currentFrame : 0, value: entry[1], oldValue: entry[0].get() });
+                    } else entry[0].set(entry[1]);
+                });
+            } finally { if (opened) history.finishOperation(); }
+        }
+        function profileNames(owner, current) {
+            return ["Uniform", "Downlight", "Wall wash", owner.properties.iesFilename.get(), current].filter(function (v, i, a) { return !!v && a.indexOf(v) === i; });
+        }
+        function icon(hostPZ, doc, name) {
+            if (hostPZ.ui && typeof hostPZ.ui.generateIcon === "function") {
+                var svg = hostPZ.ui.generateIcon(name);
+                svg.style = "fill:#ccc;width:17px;height:17px;";
+                return svg;
+            }
+            var fallback = doc.createElement("span");
+            fallback.textContent = name;
+            return fallback;
+        }
+        function truncateName(name) {
+            return name.length > 20 ? name.substr(0, 17) + "..." : name;
+        }
+        // The profile options include the loaded file name, so the file row
+        // refreshes the profile dropdown after a load or a removal. Entries
+        // drop themselves once their row leaves the panel.
+        var profileRefreshes = new WeakMap();
+        function refreshProfile(owner) {
+            var set = profileRefreshes.get(owner);
+            if (set) set.forEach(function (fn) { try { fn(); } catch (_error) {} });
+        }
+        var cleanups = [];
+        // The profile dropdown keeps TEXT storage (project-compatible profile
+        // names) but renders CM3's own option-control markup: div.editbox >
+        // select.pz-inputbox with no plugin styles, exactly as
+        // generateOptionInput builds it. That generator cannot be reused: it
+        // writes numeric indices through editStart/editFinish, while this
+        // property stores profile names.
+        cleanups.push(apis.propertyControls.register("trapcode-suite/ies-file", {
             type: PZ.property.type.TEXT,
             create: function (property, context) {
                 var owner = property.parentObject, doc = context.document;
                 if (!owner || !doc) return null;
                 var row = doc.createElement("div"); row.className = "editbox";
-                var select = doc.createElement("select"), button = doc.createElement("button");
-                row.style.display = "flex"; row.style.gap = "4px";
-                select.style.cssText = "min-width:0;flex:1;background:var(--zui-bg-input);color:var(--zui-value);border:1px solid var(--zui-border);font:inherit";
-                button.style.cssText = "flex:none;width:auto;min-width:0;padding:2px 5px;font:inherit;background:var(--zui-bg-input);color:var(--zui-text);border:1px solid var(--zui-border)";
-                var input = doc.createElement("input"); input.type = "file"; input.accept = ".ies"; input.hidden = true;
+                var select = doc.createElement("select"); select.className = "pz-inputbox";
                 function updateOptions() {
+                    // Rows start detached; prune only after one live refresh.
+                    if (row.isConnected) updateOptions.live = true;
+                    else if (updateOptions.live) {
+                        var set = profileRefreshes.get(owner);
+                        if (set) set.delete(updateOptions);
+                        return;
+                    }
                     select.textContent = "";
-                    ["Uniform", "Downlight", "Wall wash", owner.properties.iesFilename.get(), property.get()].filter(function (v, i, a) { return !!v && a.indexOf(v) === i; }).forEach(function (name) {
+                    profileNames(owner, property.get()).forEach(function (name) {
                         var option = doc.createElement("option"); option.value = option.textContent = name; select.appendChild(option);
                     });
                     select.value = property.get();
                 }
-                function commit(name, text, filename) {
-                    if (installed !== state) return;
-                    var history = typeof CM !== "undefined" && CM.history, opened = history && !history.operation;
-                    if (opened) history.startOperation();
-                    try {
-                        [ [property, name], [owner.properties.iesData, text], [owner.properties.iesFilename, filename === undefined ? owner.properties.iesFilename.get() : filename] ].forEach(function (entry) {
-                            if (typeof CM !== "undefined" && PZ.ui.properties) {
-                                new PZ.ui.properties(CM).setValue({ property: entry[0].getAddress(), frame: CM.playback ? CM.playback.currentFrame : 0, value: entry[1], oldValue: entry[0].get() });
-                            } else entry[0].set(entry[1]);
-                        });
-                    } finally { if (opened) history.finishOperation(); }
-                    updateOptions();
+                select.onchange = function () { commit(owner, property, select.value, owner.properties.iesData.get()); };
+                row.pz_refresh = updateOptions;
+                var registered = profileRefreshes.get(owner);
+                if (!registered) { registered = new Set(); profileRefreshes.set(owner, registered); }
+                registered.add(updateOptions);
+                updateOptions(); row.appendChild(select);
+                return row;
+            }
+        }));
+        // The file row mirrors CM3's generateFileInput markup for ASSET
+        // properties (hidden file input, load and remove action buttons with
+        // CM3 icons, and a name span showing the file name or "(none)"), but
+        // stores the .ies text in the existing TEXT properties so saved
+        // projects stay compatible.
+        cleanups.push(apis.propertyControls.register("trapcode-suite/ies-file-row", {
+            type: PZ.property.type.TEXT,
+            create: function (property, context) {
+                var owner = property.parentObject, doc = context.document;
+                var hostPZ = (context && context.PZ) || PZ;
+                if (!owner || !doc) return null;
+                var row = doc.createElement("div"); row.className = "editbox";
+                var input = doc.createElement("input");
+                input.setAttribute("type", "file"); input.setAttribute("tabindex", "-1"); input.setAttribute("accept", ".ies");
+                input.style = "height:0px;width:0px;overflow:hidden;display:block;position:absolute;";
+                var load = doc.createElement("button"); load.className = "actionbutton"; load.title = "choose file...";
+                load.appendChild(icon(hostPZ, doc, "load"));
+                load.onclick = function () { input.click(); };
+                var remove = doc.createElement("button"); remove.className = "actionbutton"; remove.title = "delete";
+                remove.appendChild(icon(hostPZ, doc, "remove"));
+                remove.onclick = function () {
+                    var current = owner.properties.iesProfile.get();
+                    commit(owner, owner.properties.iesProfile, current && current === property.get() ? "Downlight" : current, "", "");
+                    refresh();
+                    refreshProfile(owner);
+                };
+                var label = doc.createElement("span"); label.style = "color:#999;";
+                row.style.lineHeight = "0"; label.style.verticalAlign = "middle";
+                function refresh() {
+                    var name = property.get();
+                    if (!name) { remove.style.display = "none"; label.innerText = "(none)"; label.title = ""; }
+                    else { remove.style.display = ""; label.innerText = truncateName(name); label.title = name; }
                 }
-                select.onchange = function () { commit(select.value, owner.properties.iesData.get()); };
-                button.textContent = "Load .ies"; button.className = "propbutton";
-                button.onclick = function () { input.click(); };
                 input.onchange = async function () {
                     var file = input.files[0]; if (!file) return;
                     try {
                         if (file.size > 2000000) throw new Error("IES file must be smaller than 2 MB.");
-                        var text = await file.text(); parseIES(text); commit(file.name, text, file.name);
+                        var text = await file.text(); parseIES(text);
+                        commit(owner, owner.properties.iesProfile, file.name, text, file.name);
                     } catch (error) { if (typeof alert === "function") alert(error.message); }
                     input.value = "";
+                    refresh();
+                    refreshProfile(owner);
                 };
-                row.pz_refresh = updateOptions;
-                updateOptions(); row.appendChild(select); row.appendChild(button); row.appendChild(input);
+                row.pz_refresh = refresh;
+                refresh(); row.appendChild(input); row.appendChild(load); row.appendChild(remove); row.appendChild(label);
                 return row;
             }
-        });
+        }));
+        state.fileCleanups = cleanups;
     }
 
     var BACKENDS = {
@@ -723,7 +800,7 @@
         state.instances.forEach(releaseLight);
         if (state.ltcCleanup) state.ltcCleanup();
         if (state.photometryCleanup) state.photometryCleanup();
-        if (state.fileCleanup) state.fileCleanup();
+        if (state.fileCleanups) state.fileCleanups.forEach(function (fn) { fn(); });
         state.patched.alive = false;
         if (state.Light.prototype.load === state.patched) state.Light.prototype.load = state.original;
         if (state.helperHost && state.helperHost.prototype.objectsChanged &&
