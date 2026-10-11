@@ -129,6 +129,13 @@
     resolveRegistryReady = resolve;
   });
 
+  const reportedFailures = new Set();
+  function reportFailureOnce(key, message, error) {
+    if (reportedFailures.has(key)) return;
+    reportedFailures.add(key);
+    console.warn("[Zoidium] plugin manager: " + message, error);
+  }
+
   // END manager body
-  Object.assign(manager, { DEFAULT_IN_USE_REASON, REGISTRY_URL, STORAGE_PREFIX, SHADER_PLUGIN_MARKER, EFFECT_UUID_PROPERTY, NATIVE_FX_PLUGIN_ID, LAYER_INPUT_PLUGIN_ID, LAYER_INPUT_EFFECT_ID, LAYER_INPUT_DISPLACEMENT_EFFECT_ID, LAYER_INPUT_MATERIAL_ID, MATERIAL_PLUS_PLUGIN_ID, TEXT_PLUS_PLUGIN_ID, PARTICLES_PLUS_PLUGIN_ID, OPENZOID_LEGACY_PLUGIN_ID, TRAPCODE_SUITE_PLUGIN_ID, OPTICAL_FLARES_PLUGIN_ID, EFFECTOR_PLUS_PLUGIN_ID, CAMERA_PLUS_PLUGIN_ID, LAYER_INPUT_SHADER_FEATURE_ID, TEXT_PLUS_SPACING_FEATURE_ID, TEXT_PLUS_BEVEL_FEATURE_ID, LAYER_INPUT_EFFECT_IDS, NATIVE_FX_EFFECTS, PLUGIN_MATERIAL_TYPES, NATIVE_EFFECT_PLUGINS, NUMERIC_OBJECT_TYPES, NUMERIC_LAYER_TYPES, PLUGIN_DEPENDENCY_INFO, DEFAULT_PLUGIN_COLORS, pluginStates, pluginGroups, pluginGroupByPluginId, trackedNativeEffects, missingNativeEffects, trackedPluginMaterials, missingPluginMaterials, trackedPluginObjects, missingPluginObjects, trackedPluginResources, missingPluginResources, missingNumericObjects, missingNumericLayers, debugUsageCounts, effectUuidByEntry, registryReady, projectHooksInstalled, editorHooksInstalled, effectBadgeObserver, effectBadgeUpdateScheduled, nativeFxSearchPatched, registryReadySettled, resolveRegistryReady });
+  Object.assign(manager, { reportFailureOnce, DEFAULT_IN_USE_REASON, REGISTRY_URL, STORAGE_PREFIX, SHADER_PLUGIN_MARKER, EFFECT_UUID_PROPERTY, NATIVE_FX_PLUGIN_ID, LAYER_INPUT_PLUGIN_ID, LAYER_INPUT_EFFECT_ID, LAYER_INPUT_DISPLACEMENT_EFFECT_ID, LAYER_INPUT_MATERIAL_ID, MATERIAL_PLUS_PLUGIN_ID, TEXT_PLUS_PLUGIN_ID, PARTICLES_PLUS_PLUGIN_ID, OPENZOID_LEGACY_PLUGIN_ID, TRAPCODE_SUITE_PLUGIN_ID, OPTICAL_FLARES_PLUGIN_ID, EFFECTOR_PLUS_PLUGIN_ID, CAMERA_PLUS_PLUGIN_ID, LAYER_INPUT_SHADER_FEATURE_ID, TEXT_PLUS_SPACING_FEATURE_ID, TEXT_PLUS_BEVEL_FEATURE_ID, LAYER_INPUT_EFFECT_IDS, NATIVE_FX_EFFECTS, PLUGIN_MATERIAL_TYPES, NATIVE_EFFECT_PLUGINS, NUMERIC_OBJECT_TYPES, NUMERIC_LAYER_TYPES, PLUGIN_DEPENDENCY_INFO, DEFAULT_PLUGIN_COLORS, pluginStates, pluginGroups, pluginGroupByPluginId, trackedNativeEffects, missingNativeEffects, trackedPluginMaterials, missingPluginMaterials, trackedPluginObjects, missingPluginObjects, trackedPluginResources, missingPluginResources, missingNumericObjects, missingNumericLayers, debugUsageCounts, effectUuidByEntry, registryReady, projectHooksInstalled, editorHooksInstalled, effectBadgeObserver, effectBadgeUpdateScheduled, nativeFxSearchPatched, registryReadySettled, resolveRegistryReady });
 })();

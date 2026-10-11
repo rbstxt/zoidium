@@ -173,6 +173,12 @@
       manifestEffect?.name
     );
     const message = describeNativeEffectSkew(plugin, manifestEffect, missingApis, error);
+    const reported = applyIncompatibleNativeEffect.reported || (applyIncompatibleNativeEffect.reported = new Set());
+    const key = `${plugin.id}:${manifestEffect?.id}:${message}`;
+    if (!reported.has(key)) {
+      reported.add(key);
+      console.warn("[Zoidium] plugin manager: " + message, error || "");
+    }
     effect._zoidiumIncompatibleNativeFx = true;
     effect._zoidiumIncompatibleDetail = message;
     effect.properties.add("incompatibleRuntime", {
@@ -186,7 +192,7 @@
       effect.properties.name.set(`Incompatible ${metadata.name}: ${metadata.effectName}`);
       effect.properties.incompatibleRuntime.load();
       trackNativeEffect(effect, metadata, true);
-      console.error(`[Zoidium] ${message}`, error || "");
+
     };
     effect.toJSON = function () {
       return ZoidiumPluginApis.props.cloneJson(effect._zoidiumMissingData || { type: manifestEffect?.id });
@@ -278,7 +284,7 @@
         replacement.loading = replacement.load(data);
         await replacement.loading;
       } catch (error) {
-        console.error(`[Zoidium] failed to restore plugin effect ${data.type}:`, error);
+        manager.reportFailureOnce("restore effect:" + data.type, "restore plugin effect " + data.type, error);
         const metadata = missing._zoidiumPluginMetadata || {};
         installMissingNativeFactory(
           data.type,
@@ -497,7 +503,7 @@
         replacement.loading = replacement.load(data);
         await replacement.loading;
       } catch (error) {
-        console.error(`[Zoidium] failed to restore plugin material ${data.type}:`, error);
+        manager.reportFailureOnce("restore material:" + data.type, "restore plugin material " + data.type, error);
         installMissingMaterialFactory(
           data.type,
           metadata.materialName || data.type,
