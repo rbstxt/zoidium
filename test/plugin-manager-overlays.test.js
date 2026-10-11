@@ -111,3 +111,18 @@ test("manager source evaluator preserves native receivers and module arguments",
   assert.equal((sources.match(/new Function\(/g) || []).length, 1);
 });
 module.exports = { loadManager };
+
+test("runtime staging includes every configured plugin manager overlay", async () => {
+  const os = require("node:os");
+  const { copyProjectFiles } = require("../tools/runtime-resources-stage");
+  const stage = await fs.promises.mkdtemp(path.join(os.tmpdir(), "zoidium-runtime-pm-test-"));
+  try {
+    await copyProjectFiles(stage);
+    for (const file of managerFiles()) {
+      assert.equal(await fs.promises.readFile(path.join(stage, file), "utf8"),
+        await fs.promises.readFile(path.join(__dirname, "..", file), "utf8"), file);
+    }
+  } finally {
+    await fs.promises.rm(stage, { recursive: true, force: true });
+  }
+});
