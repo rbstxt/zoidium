@@ -208,6 +208,10 @@ Known limitations:
   entry and the last one enabled wins the picker.
 - Plexus link renderers use the first 12,000 points (lines) or 4,000 points
   (facets, triangulation); the cap keeps a frame's cost bounded.
+- Plexus OBJ ingestion is capped: source text beyond 16 MiB and meshes with
+  more than 500,000 vertices are skipped with a console warning, and the
+  source falls back to a primitive. Plexus samples at most 60,000 points per
+  source, so real models keep wide headroom.
 
 ```bash
 # after changing sources or the manifest
