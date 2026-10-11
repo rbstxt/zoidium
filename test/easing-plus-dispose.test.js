@@ -10,6 +10,7 @@ const assert = require("node:assert/strict");
 const test = require("node:test");
 
 const EasingPlus = require("../plugins/easing-plus/easing-plus");
+const { withBundle } = require("./easing-plus-bundle");
 
 function FakeElement() {
   return {
@@ -111,16 +112,15 @@ function installFakes(throwOnProperties) {
 }
 
 function makeContext(disposers, editor) {
-  return {
+  return withBundle({
     ui: null,
     editor: editor || {},
-    getAsset: undefined,
     lifecycle: {
       onDispose(step) {
         disposers.push(step);
       },
     },
-  };
+  });
 }
 
 test("a mid-activation throw rolls back through the registered disposers", () => {
