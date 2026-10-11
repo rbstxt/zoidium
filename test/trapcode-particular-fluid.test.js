@@ -12,6 +12,7 @@ const test = require("node:test");
 
 const projectRoot = path.resolve(__dirname, "..");
 const suiteDir = path.join(projectRoot, "plugins/trapcode-suite");
+const { expandSuiteFiles } = require("./trapcode-env");
 const FPS = 30;
 
 function interpolate(keys, frame) {
@@ -60,8 +61,9 @@ class StubProperty {
 function loadSystemModule() {
   const PZ = {};
   const THREE = {};
-  const common = fs.readFileSync(path.join(suiteDir, "trapcode-common.js"), "utf8");
-  new Function("PZ", "THREE", common)(PZ, THREE);
+  for (const file of expandSuiteFiles(["trapcode-common.js"])) {
+    new Function("PZ", "THREE", fs.readFileSync(path.join(suiteDir, file), "utf8"))(PZ, THREE);
+  }
 
   class StubObject {
     constructor() {
@@ -172,8 +174,9 @@ function loadSystemModule() {
   THREE.LinearFilter = 1;
   THREE.RGBAFormat = 1;
 
-  const source = fs.readFileSync(path.join(suiteDir, "particular.js"), "utf8");
-  new Function("PZ", "THREE", source)(PZ, THREE);
+  for (const file of expandSuiteFiles(["particular.js"])) {
+    new Function("PZ", "THREE", fs.readFileSync(path.join(suiteDir, file), "utf8"))(PZ, THREE);
+  }
   return PZ;
 }
 

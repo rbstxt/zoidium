@@ -11,13 +11,16 @@ const path = require("node:path");
 const test = require("node:test");
 
 const projectRoot = path.resolve(__dirname, "..");
+const { expandSuiteFiles } = require("./trapcode-env");
 
 function loadCommon(PZ, THREE) {
-  const source = fs.readFileSync(
-    path.join(projectRoot, "plugins/trapcode-suite/trapcode-common.js"),
-    "utf8"
-  );
-  new Function("PZ", "THREE", source)(PZ, THREE || {});
+  for (const file of expandSuiteFiles(["trapcode-common.js"])) {
+    const source = fs.readFileSync(
+      path.join(projectRoot, "plugins/trapcode-suite", file),
+      "utf8"
+    );
+    new Function("PZ", "THREE", source)(PZ, THREE || {});
+  }
   return PZ.trapcode;
 }
 
