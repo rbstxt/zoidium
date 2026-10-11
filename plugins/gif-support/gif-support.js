@@ -455,6 +455,11 @@ const GifSupport = (() => {
     });
   }
 
+  // Warn-once trackers for per-frame hot paths below (WeakSets so dead
+  // wrappers and records never pin memory); each failure still recovers.
+  const warnedSeekWrappers = new WeakSet();
+  const warnedRenderRecords = new WeakSet();
+
   const SKIP_KEYS = {
     parent: true,
     parentObject: true,
@@ -495,6 +500,7 @@ const GifSupport = (() => {
             try {
               stack.push({ value: value[i], depth: depth + 1 });
             } catch (_error) {
+              // An unreadable index ends this list; other branches still scan.
               break;
             }
           }
@@ -513,6 +519,7 @@ const GifSupport = (() => {
       try {
         keys = Object.keys(value);
       } catch (_error) {
+        // An unreadable object is skipped; the walk continues.
         continue;
       }
       for (let i = keys.length - 1; i >= 0; i--) {
@@ -522,6 +529,7 @@ const GifSupport = (() => {
         try {
           child = value[key];
         } catch (_error) {
+          // A throwing host getter is skipped; the walk continues.
           continue;
         }
         if (child && (typeof child === "object" || typeof child === "function")) {
@@ -564,6 +572,10 @@ const GifSupport = (() => {
         applyFrameToWrapper(wrapper, pickFrameIndex(record.cumulative, record.total, mediaTime));
       } catch (_error) {
         // One bad consumer must never break the frame.
+        if (!warnedSeekWrappers.has(wrapper)) {
+          warnedSeekWrappers.add(wrapper);
+          console.warn("[Zoidium] gif-support: skipping an unreadable image consumer", _error);
+        }
       }
     }
   }
@@ -703,6 +715,7 @@ const GifSupport = (() => {
         }
       } catch (_error) {
         // Texture bookkeeping must never break material creation.
+        console.warn("[Zoidium] gif-support: GIF texture bookkeeping failed", _error);
       }
       return texture;
     }
@@ -740,6 +753,10 @@ const GifSupport = (() => {
                   }
                 } catch (_error) {
                   // One bad record must never break the render.
+                  if (!warnedRenderRecords.has(record)) {
+                    warnedRenderRecords.add(record);
+                    console.warn("[Zoidium] gif-support: skipping an unreadable GIF record during render", _error);
+                  }
                 }
               }
             }
