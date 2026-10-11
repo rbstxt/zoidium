@@ -38,6 +38,7 @@
     try {
       return localStorage.getItem(storageKey(pluginId)) === "true";
     } catch (_error) {
+      manager.reportFailureOnce("read enabled state:" + pluginId, "read enabled state for " + pluginId, _error);
       return false;
     }
   }
@@ -46,6 +47,7 @@
     try {
       return localStorage.getItem(storageKey(pluginId)) === "false";
     } catch (_error) {
+      manager.reportFailureOnce("read disabled state:" + pluginId, "read disabled state for " + pluginId, _error);
       return false;
     }
   }
@@ -67,6 +69,7 @@
         localStorage.getItem(`zoidium.plugin.saveApproved.${pluginId}`) === "true"
       );
     } catch (_error) {
+      manager.reportFailureOnce("read save approval:" + pluginId, "read save approval for " + pluginId, _error);
       return false;
     }
   }
@@ -78,6 +81,7 @@
         "true"
       );
     } catch (_error) {
+      manager.reportFailureOnce("persist save approval:" + pluginId, "persist save approval for " + pluginId, _error);
       // Ask again on the next save if persistence is unavailable.
     }
   }
@@ -86,6 +90,7 @@
     try {
       localStorage.setItem(storageKey(pluginId), String(enabled));
     } catch (_error) {
+      manager.reportFailureOnce("persist enabled state:" + pluginId, "persist enabled state for " + pluginId, _error);
       // Plugin state still applies for the current session.
     }
   }
