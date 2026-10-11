@@ -14,6 +14,7 @@ module.exports = function createSources(state, deps) {
 
   function getParentObject(value) {
     if (!value) return null;
+    // Detached or partially unloaded objects may throw on access.
     try {
       return value.parentObject || null;
     } catch (_error) {
@@ -33,6 +34,7 @@ module.exports = function createSources(state, deps) {
   }
 
   function getProject(value) {
+    // Detached objects may throw when reading their project link.
     try {
       return value?.parentProject || null;
     } catch (_error) {
@@ -74,6 +76,7 @@ module.exports = function createSources(state, deps) {
     let id = track._zoidiumLayerInputId;
     if (typeof requestedId === "string" && requestedId.trim()) id = requestedId.trim();
     if (typeof id !== "string" || !id || hasTrackId(track, id)) id = generateTrackId(track);
+    // Non-extensible host objects may reject defineProperty; plain assignment carries the same id.
     try {
       Object.defineProperty(track, "_zoidiumLayerInputId", {
         configurable: true,
@@ -122,6 +125,7 @@ module.exports = function createSources(state, deps) {
       );
     }
     if (!project.addressLookup) return null;
+    // A stale address may throw; the caller reports the track as missing.
     try {
       const track = project.addressLookup(parsed.address);
       return isAttachedTrack(track, project) ? track : null;

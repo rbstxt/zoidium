@@ -1,5 +1,14 @@
 "use strict";
 
+// Warn-once reporter for failure sites that run per layer on drop:
+// the first failure is logged, repeats stay silent so the console stays readable.
+var gpWarned = {};
+function gpWarnOnce(key, message, error) {
+  if (gpWarned[key]) return;
+  gpWarned[key] = true;
+  console.warn("[Zoidium] graph-plus: " + message, error);
+}
+
 module.exports = function (environment) {
 const { PZ, focusNoScroll, currentFrame, beginPointerDrag } = environment;
 /* ---------- snapping ---------- */
@@ -38,7 +47,7 @@ PZ.ui.graph.prototype.attachKeyframeHandlers = function (el) {
   el.addEventListener("pointerdown", function (e) {
     if (e.button !== 0) return;
     e.stopPropagation();
-    try { e.preventDefault(); } catch (err) {}
+    try { e.preventDefault(); } catch (err) { /* Synthetic host events may lack preventDefault. */ }
     focusNoScroll(self.bodyEl);
     var wasSelected = el.classList.contains("selected");
     if (!wasSelected) {
@@ -87,7 +96,7 @@ PZ.ui.graph.prototype.attachKeyframeHandlers = function (el) {
               s.kf.value = Math.max(s.kf.value, s.gel.pz_object.definition.min);
             if (s.gel.pz_object.definition && s.gel.pz_object.definition.max !== undefined)
               s.kf.value = Math.min(s.kf.value, s.gel.pz_object.definition.max);
-          } catch (err) {}
+          } catch (err) { /* A property without limits keeps its dragged value. */ }
         }
         self.updateKeyframe(s.el);
         if (s.el.pz_handles) self.updateHandles(s.el.pz_handles);
@@ -158,7 +167,7 @@ PZ.ui.graph.prototype.finishMovingKeyframes = function (selEls) {
     // Our live mutation already applied; finishMove sorts, resolves collisions,
     // pushes undo commands and fires onKeyframeMoved for re-layout.
     try { self.propertyOps.finishMove(prop, new Set(list.map(function (x) { return x.pz_object; })), moves, map); }
-    catch (err) {}
+    catch (err) { gpWarnOnce("finishMove:" + id, "committing the keyframe move failed", err); }
   });
   this.updateViewBox();
   this.updateLegend();
@@ -170,7 +179,7 @@ PZ.ui.graph.prototype.attachHandleHandlers = function (el, cpIdx, kfEl) {
   el.addEventListener("pointerdown", function (e) {
     if (e.button !== 0) return;
     e.stopPropagation();
-    try { e.preventDefault(); } catch (err) {}
+    try { e.preventDefault(); } catch (err) { /* Synthetic host events may lack preventDefault. */ }
     focusNoScroll(self.bodyEl);
     var gel = kfEl.parentElement.parentElement;
     var kf = kfEl.pz_object;
@@ -246,11 +255,11 @@ PZ.ui.graph.prototype.finishMovingHandles = function (brokeTangent) {
       var oldCP = kfel.pz_oldControlPoints;
       if (!oldCP) {
         // fallback: push current as undo (no-op) — still need to fire changed
-        try { entry.gel.pz_object.onKeyframeChanged.update(kf); } catch (e) {}
+        try { entry.gel.pz_object.onKeyframeChanged.update(kf); } catch (e) { console.warn("[Zoidium] graph-plus: notifying the keyframe change failed", e); }
         return;
       }
       if (brokeTangent && kf.continuousTangent) {
-        try { self.propertyOps.setContinuousTangent({ property: addr, frame: kf.frame, continuous: false }); } catch (e) {}
+        try { self.propertyOps.setContinuousTangent({ property: addr, frame: kf.frame, continuous: false }); } catch (e) { console.warn("[Zoidium] graph-plus: breaking the tangent failed", e); }
       }
       self.editor.history.pushCommand(
         PZ.ui.properties.prototype.setControlPoints.bind(self),

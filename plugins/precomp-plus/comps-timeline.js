@@ -42,6 +42,7 @@ function findTimelineTracks(editor) {
       try {
         value = node[key];
       } catch (error) {
+        // A throwing host getter only skips that key; the scan continues.
         return;
       }
       if (value && typeof value === "object") queue.push(value);

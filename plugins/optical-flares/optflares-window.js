@@ -95,6 +95,8 @@ module.exports = function installWindow(PZ) {
             }, 0);
         }
 
+        // The host default may be unavailable while an element is loading;
+        // fall back to 0 so the window keeps showing the stack.
         function defaultOf(prop) {
             try {
                 var value = prop.getDefaultValue();
@@ -123,6 +125,8 @@ module.exports = function installWindow(PZ) {
             }
         }
 
+        // The host type getter may throw for the same transient loading
+        // state safeRead guards against; fall back to 0 and refresh later.
         function safeType(element) {
             try {
                 return element.type;

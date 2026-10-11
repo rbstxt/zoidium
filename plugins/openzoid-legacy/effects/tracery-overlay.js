@@ -146,7 +146,7 @@ function trDrawOverlay(ctx, W, H, st) {
                 if (st.dashEnable) {
                     try {
                         ctx.setLineDash([Math.max(1, st.dashLength * S), Math.max(1, st.dashGap * S)]);
-                    } catch (_d) {}
+                    } catch (_d) { /* setLineDash is optional: lines stay solid */ }
                 }
                 ctx.beginPath();
                 ctx.moveTo(path[0][0], path[0][1]);

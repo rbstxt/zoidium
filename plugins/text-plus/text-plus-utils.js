@@ -427,6 +427,7 @@ function getTextCenter(bounds, centerOffset) {
 
 function getAncestorObject(object) {
   if (!object) return null;
+  // A hostile parentObject getter must not break the ancestor walk.
   try {
     return object.parentObject || null;
   } catch (_error) {

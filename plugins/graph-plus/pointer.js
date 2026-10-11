@@ -54,7 +54,7 @@ function beginPointerDrag(target, e, onMove, onEnd) {
       target.setPointerCapture(pid);
       captured = true;
     }
-  } catch (err) { captured = false; }
+  } catch (err) { /* No pointer capture on this host: fall back to window listeners. */ captured = false; }
   // Listeners belong on the window/document that owns the target element:
   // the popup editor lives in a separate window whose events never reach
   // the main window. The main pair is kept as a backup for nodes that are
@@ -105,7 +105,7 @@ function beginPointerDrag(target, e, onMove, onEnd) {
     if (finished) return;
     finished = true;
     if (drags) drags.delete(finish);
-    try { if (captured) target.releasePointerCapture(pid); } catch (err) {}
+    try { if (captured) target.releasePointerCapture(pid); } catch (err) { /* Releasing a dead capture needs no cleanup. */ }
     target.removeEventListener("pointermove", move);
     target.removeEventListener("pointerup", finish);
     target.removeEventListener("pointercancel", finish);

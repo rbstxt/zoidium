@@ -33,6 +33,9 @@ function loadGeometryPlusParts(context) {
 }
 
 let parts = null;
+// The sibling files need no host context under plain Node require, but the
+// bundle loader does; when neither is available yet, stay unbound and let
+// ensureGeometryPlusParts(context) bind later at activation.
 try {
   if (typeof require === "function") parts = loadGeometryPlusParts(null);
 } catch (error) {
