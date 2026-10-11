@@ -1503,7 +1503,10 @@ return function createGraphRuntime(PZ, document) {
         return { id: id, type: type, x: 40, y: 40, params: params };
     };
 
-    nodes.parse = function (json) {
+    const parseCache = new Map();
+    const MAX_PARSE_CACHE = 50;
+
+    function parseGraph(json) {
         let graph;
         try { graph = typeof json === "string" ? JSON.parse(json.slice(0, 1000000)) : json; } catch (_) {}
         if (!graph || !Array.isArray(graph.nodes) || !Array.isArray(graph.links)) graph = nodes.defaultGraph();
@@ -1546,6 +1549,21 @@ return function createGraphRuntime(PZ, document) {
             result.links.push({ from: link.from, fromPort: link.fromPort, to: link.to, toPort: link.toPort });
         }
         return result;
+    };
+
+    // Update paths re-parse the same graph JSON every frame. Cache by the
+    // source string so identical input is parsed once. Parsed graphs are
+    // read-only for every caller (evaluate, cacheKey, and the fresnel/image
+    // helpers only read them); object inputs are still parsed fresh because
+    // callers may mutate the result.
+    nodes.parse = function (json) {
+        if (typeof json !== "string") return parseGraph(json);
+        const hit = parseCache.get(json);
+        if (hit) return hit;
+        const parsed = parseGraph(json);
+        if (parseCache.size >= MAX_PARSE_CACHE) parseCache.delete(parseCache.keys().next().value);
+        parseCache.set(json, parsed);
+        return parsed;
     };
 
     nodes.findLink = function (graph, nodeId, port) {
