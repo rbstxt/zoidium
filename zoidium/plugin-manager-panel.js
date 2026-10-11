@@ -239,7 +239,8 @@
         </div>`
             : ""
         }
-      </details>`;
+      </details>
+      <div class="zoidium-plugin-error" role="alert" hidden></div>`;
 
     const state = {
       plugin,
@@ -279,6 +280,7 @@
       plugin,
       card: null,
       toggle: null,
+      errorRow: null,
       phase: "disabled",
       manifest: null,
       bundleAssets: null,
@@ -449,7 +451,13 @@
 
     for (const plugin of registry.plugins) {
       if (plugin.visibility === "hidden" || plugin.alwaysEnabled === true) {
-        createHiddenPluginState(plugin);
+        const state = createHiddenPluginState(plugin);
+        const errorRow = document.createElement("div");
+        errorRow.className = "zoidium-plugin-error";
+        errorRow.setAttribute("role", "alert");
+        errorRow.hidden = true;
+        list.appendChild(errorRow);
+        state.errorRow = errorRow;
         continue;
       }
       const group = groupForPlugin(plugin);

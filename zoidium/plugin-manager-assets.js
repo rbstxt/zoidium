@@ -12,7 +12,7 @@
   }
 
   async function fetchJson(url) {
-    const response = await fetch(url, { cache: "default" });
+    const response = await fetch(url, { cache: "no-cache" });
     if (!response.ok) throw new Error(`HTTP ${response.status}: ${url}`);
     return response.json();
   }
@@ -217,6 +217,10 @@
         effect: typeof metadata.effect === "string" ? metadata.effect : "",
       };
     } catch (_error) {
+      if (!readPluginMarker.warned) {
+        readPluginMarker.warned = true;
+        console.warn("[Zoidium] plugin manager: could not parse project plugin marker", _error);
+      }
       return null;
     }
   }
@@ -348,7 +352,21 @@
   // BEGIN manager body 1386
   async function loadPluginPackage(plugin) {
     if (typeof plugin.bundle === "string" && plugin.bundle.trim()) {
-      const bundle = await fetchJson(plugin.bundle);
+      if (typeof plugin.integrity !== "string" || !/^sha256-[A-Za-z0-9+/]{43}=$/.test(plugin.integrity)) {
+        throw new Error(`Plugin integrity digest is missing or invalid: ${plugin.id}`);
+      }
+      if (!globalThis.crypto?.subtle || globalThis.isSecureContext === false) {
+        throw new Error(`Plugin integrity verification requires a secure context: ${plugin.id}. Use HTTPS or localhost.`);
+      }
+      // Revalidate both registry and bundle requests; version queries alone do
+      // not protect a stale cache. Never parse unverified response text.
+      const response = await fetch(plugin.bundle, { cache: "no-cache" });
+      if (!response.ok) throw new Error(`HTTP ${response.status}: ${plugin.bundle}`);
+      const text = await response.text();
+      const hash = await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+      const digest = "sha256-" + btoa(String.fromCharCode(...new Uint8Array(hash)));
+      if (digest !== plugin.integrity) throw new Error(`Plugin integrity mismatch: ${plugin.id}. Reload to obtain matching plugin files.`);
+      const bundle = JSON.parse(text);
       if (
         !bundle ||
         bundle.schemaVersion !== 1 ||
@@ -362,22 +380,21 @@
       if (bundle.manifest.id !== plugin.id) {
         throw new Error(`Plugin bundle id mismatch: ${plugin.id}`);
       }
+      if (String(bundle.manifest.version) !== String(plugin.version)) {
+        throw new Error(`Plugin bundle version mismatch: ${plugin.id}`);
+      }
       validateManifest(plugin, bundle.manifest);
       return { manifest: bundle.manifest, assets: bundle.assets };
     }
 
-    if (typeof plugin.manifest !== "string" || !plugin.manifest.trim()) {
-      throw new Error(`Plugin has no bundle or manifest: ${plugin.id}`);
-    }
-    const manifest = await fetchJson(plugin.manifest);
-    validateManifest(plugin, manifest);
-    return { manifest, assets: null };
+    throw new Error(`Plugin has no verified bundle: ${plugin.id}`);
   }
 
   function loadPluginPackageForState(state) {
     if (!state.packagePromise) {
       state.packagePromise = loadPluginPackage(state.plugin).catch((error) => {
         state.packagePromise = null;
+        manager.reportFailureOnce("package:" + state.plugin.id + ":" + state.plugin.integrity, "load bundle for " + state.plugin.id, error);
         throw error;
       });
     }
