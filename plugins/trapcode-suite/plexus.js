@@ -121,8 +121,10 @@ var PZ = PZ || {};
         "}",
     ].join("\n");
 
+    // Shared Plexus spatial hash and value noise (zoidium/shared/random.js).
+    // Pinned bit-for-bit by test/migrate-shared-pins.test.js.
     function rand(seed) {
-        return Math.abs(Math.sin(seed * 12.9898) * 43758.5453) % 1;
+        return ZoidiumPluginApis.random.plexusRand(seed);
     }
 
     // Numeric property value at a time, or the fallback when it is missing.
@@ -136,38 +138,15 @@ var PZ = PZ || {};
     }
 
     function hash2(x, y, seed) {
-        var n = Math.sin(x * 127.1 + y * 311.7 + seed * 13.37) * 43758.5453;
-        return n - Math.floor(n);
+        return ZoidiumPluginApis.random.plexusHash2(x, y, seed);
     }
 
     function smoothNoise2(x, y, seed) {
-        var xi = Math.floor(x);
-        var yi = Math.floor(y);
-        var xf = x - xi;
-        var yf = y - yi;
-        var u = xf * xf * xf * (xf * (xf * 6 - 15) + 10);
-        var v = yf * yf * yf * (yf * (yf * 6 - 15) + 10);
-        var c00 = hash2(xi, yi, seed);
-        var c10 = hash2(xi + 1, yi, seed);
-        var c01 = hash2(xi, yi + 1, seed);
-        var c11 = hash2(xi + 1, yi + 1, seed);
-        var a = c00 + (c10 - c00) * u;
-        var b = c01 + (c11 - c01) * u;
-        return (a + (b - a) * v) * 2 - 1;
+        return ZoidiumPluginApis.random.plexusSmoothNoise2(x, y, seed);
     }
 
     function fbm2(x, y, seed) {
-        var sum = 0;
-        var amp = 1;
-        var freq = 1;
-        var norm = 0;
-        for (var o = 0; o < 3; o++) {
-            sum += smoothNoise2(x * freq, y * freq, seed + o * 17.3) * amp;
-            norm += amp;
-            amp *= 0.45;
-            freq *= 2;
-        }
-        return norm > 0 ? sum / norm : 0;
+        return ZoidiumPluginApis.random.plexusFbm2(x, y, seed);
     }
 
     // Spatial hash over a flat xyz buffer. Cells are cell-sized cubes; the

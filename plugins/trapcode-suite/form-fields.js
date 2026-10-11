@@ -81,9 +81,10 @@ var PZ = PZ || {};
         function id(x, y, z) {
             return z * nx * ny + y * nx + x;
         }
+        // Shared Form string-network hash (zoidium/shared/random.js). Pinned
+        // bit-for-bit by test/migrate-shared-pins.test.js.
         function srand(i) {
-            var v = Math.sin(i * 12.9898 + 78.233) * 43758.5453;
-            return v - Math.floor(v);
+            return ZoidiumPluginApis.random.formSrand(i);
         }
         function link(a, b) {
             indices.push(a, b);
