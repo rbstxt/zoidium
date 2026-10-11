@@ -4,6 +4,7 @@ function activate(context) {
   if (cleanup) return;
   const PZ = context.PZ || context.window.PZ;
   const THREE = context.window.THREE;
+  const uvLayout = new Function(context.getAsset("text", "./plugins/material-plus/uv-layout.js"))()();
   const previous = PZ.material.fnList.imageplus;
   const factory = Promise.resolve(function () {
     const material = this;
@@ -49,6 +50,7 @@ function activate(context) {
     material.update = function (frame) {
       const p = this.properties, t = this.threeObj;
       if (!t) return;
+      uvLayout.ensureMaterial(this);
       t.opacity = Math.max(0, Math.min(1, p.opacity.get(frame)));
       const transparent = p.transparent.get() === 1;
       const side = [THREE.FrontSide, THREE.BackSide, THREE.DoubleSide][p.side.get()];
@@ -64,7 +66,7 @@ function activate(context) {
     };
     material.prepare = async function () { const version = generation; await image?.loading; if (version === generation && this.threeObj?.map) this.threeObj.map.needsUpdate = true; };
     material.toJSON = function () { return { type: this.type, properties: this.properties }; };
-    material.unload = function () { clear(); this.threeObj?.dispose(); PZ.zoidium?.untrackPluginMaterial?.(this); };
+    material.unload = function () { uvLayout.releaseMaterial(this); clear(); this.threeObj?.dispose(); PZ.zoidium?.untrackPluginMaterial?.(this); };
   });
   factory._zoidiumMaterialMode = "native";
   cleanup = () => { if (PZ.material.fnList.imageplus === factory) { if (previous) PZ.material.fnList.imageplus = previous; else delete PZ.material.fnList.imageplus; } cleanup = null; };

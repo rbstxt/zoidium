@@ -3,7 +3,17 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 
+const fs = require("node:fs");
+const path = require("node:path");
+
 const UvCustom = require("../plugins/material-plus/uv-custom");
+const layoutSource = fs.readFileSync(path.join(__dirname, "../plugins/material-plus/uv-layout.js"), "utf8");
+const UvLayout = new Function(layoutSource)()();
+const getAsset = (type, source) => {
+  assert.equal(type, "text");
+  assert.equal(source, "./plugins/material-plus/uv-layout.js");
+  return layoutSource;
+};
 
 function uv(x, y) {
   return {
@@ -64,17 +74,17 @@ function close(actual, expected, label) {
 
 test("reconstructContours recovers the closed outline from the side walls", () => {
   const geometry = extrudedSquare();
-  const contours = UvCustom.reconstructContours(geometry);
+  const contours = UvLayout.reconstructContours(geometry);
 
   assert.equal(contours.length, 1);
   assert.equal(contours[0].length, 4);
-  const prepared = UvCustom.prepareContours(contours);
+  const prepared = UvLayout.prepareContours(contours);
   close(prepared[0].total, 40, "perimeter");
 });
 
 test("normalizeGeometry maps caps and walls at one texel density", () => {
   const geometry = extrudedSquare();
-  assert.equal(UvCustom.normalizeGeometry(geometry), true);
+  assert.equal(UvLayout.normalizeGeometry(geometry), true);
 
   const cap = geometry.faceVertexUvs[0][0];
   close(cap[0].x, 0, "cap u");
@@ -92,19 +102,19 @@ test("normalizeGeometry maps caps and walls at one texel density", () => {
 });
 
 test("isEligibleGeometry only accepts inner-UV extruded text and shapes", () => {
-  assert.equal(UvCustom.isEligibleGeometry(extrudedSquare("TextGeometry")), true);
-  assert.equal(UvCustom.isEligibleGeometry(extrudedSquare("ExtrudeGeometry")), true);
-  assert.equal(UvCustom.isEligibleGeometry(extrudedSquare("BoxGeometry")), false);
+  assert.equal(UvLayout.isEligibleGeometry(extrudedSquare("TextGeometry")), true);
+  assert.equal(UvLayout.isEligibleGeometry(extrudedSquare("ExtrudeGeometry")), true);
+  assert.equal(UvLayout.isEligibleGeometry(extrudedSquare("BoxGeometry")), false);
   assert.equal(
-    UvCustom.isEligibleGeometry(
+    UvLayout.isEligibleGeometry(
       extrudedSquare("ExtrudeGeometry", { options: { extrudePath: {} } })
     ),
     false
   );
 
   const normalized = extrudedSquare();
-  UvCustom.applyToGeometry(normalized);
-  assert.equal(UvCustom.isEligibleGeometry(normalized), false);
+  UvLayout.applyToGeometry(normalized);
+  assert.equal(UvLayout.isEligibleGeometry(normalized), false);
 });
 
 test("a geometry without a rebuildable outline is skipped once", () => {
@@ -112,23 +122,23 @@ test("a geometry without a rebuildable outline is skipped once", () => {
   geometry.faces = geometry.faces.slice(0, 4); // caps only
   geometry.faceVertexUvs = [geometry.faceVertexUvs[0].slice(0, 4)];
 
-  assert.equal(UvCustom.applyToGeometry(geometry), false);
+  assert.equal(UvLayout.applyToGeometry(geometry), false);
   assert.equal(geometry.__zoidiumUvSkipped, true);
-  assert.equal(UvCustom.isEligibleGeometry(geometry), false);
+  assert.equal(UvLayout.isEligibleGeometry(geometry), false);
 });
 
 test("applyToGeometry and restoreGeometry round-trip the original UVs", () => {
   const geometry = extrudedSquare();
   const original = geometry.faceVertexUvs[0][0].map((entry) => `${entry.x},${entry.y}`).join(" ");
 
-  assert.equal(UvCustom.applyToGeometry(geometry), true);
+  assert.equal(UvLayout.applyToGeometry(geometry), true);
   assert.equal(geometry.__zoidiumUvNormalized, true);
   assert.notEqual(
     geometry.faceVertexUvs[0][0].map((entry) => `${entry.x},${entry.y}`).join(" "),
     original
   );
 
-  UvCustom.restoreGeometry(geometry);
+  UvLayout.restoreGeometry(geometry);
   assert.equal(geometry.__zoidiumUvNormalized, undefined);
   assert.equal(
     geometry.faceVertexUvs[0][0].map((entry) => `${entry.x},${entry.y}`).join(" "),
@@ -278,6 +288,7 @@ test("registers UV Custom Material as an independent material factory", async ()
   UvCustom.activate({
     PZ: harness.PZ,
     window: { THREE: harness.THREE },
+    getAsset,
     plugin: { id: "material-plus", version: "4" },
   });
   assert.notEqual(harness.PZ.material.fnList.uvcustom, previous);
@@ -286,7 +297,7 @@ test("registers UV Custom Material as an independent material factory", async ()
   UvCustom.deactivate();
   assert.equal(harness.PZ.material.fnList.uvcustom, previous);
 
-  UvCustom.activate({ PZ: harness.PZ, window: { THREE: harness.THREE } });
+  UvCustom.activate({ PZ: harness.PZ, window: { THREE: harness.THREE }, getAsset });
   assert.ok(harness.PZ.material.fnList.uvcustom);
   UvCustom.deactivate();
 });
@@ -296,6 +307,7 @@ test("the material normalizes its object and restores the UVs on unload", async 
   UvCustom.activate({
     PZ: harness.PZ,
     window: { THREE: harness.THREE },
+    getAsset,
     plugin: { id: "material-plus", version: "4" },
   });
 
@@ -317,4 +329,46 @@ test("the material normalizes its object and restores the UVs on unload", async 
     "original UVs restored"
   );
   assert.equal(harness.untracked.length, 1);
+});
+
+test("the shared layout keeps UVs while another layout material renders the mesh", () => {
+  const geometry = extrudedSquare();
+  const original = geometry.faceVertexUvs[0][0].map((entry) => `${entry.x},${entry.y}`).join(" ");
+  const mesh = { geometry, material: null };
+  const leaving = { threeObj: {}, parentObject: { threeObj: mesh } };
+  const arriving = { threeObj: {}, parentObject: { threeObj: mesh } };
+
+  mesh.material = leaving.threeObj;
+  UvLayout.ensureMaterial(leaving);
+  assert.equal(geometry.__zoidiumUvNormalized, true);
+
+  // Switching materials: CM3 assigns the new material before unloading the old one.
+  mesh.material = arriving.threeObj;
+  UvLayout.ensureMaterial(arriving);
+  UvLayout.releaseMaterial(leaving);
+  assert.equal(geometry.__zoidiumUvNormalized, true, "the arriving material keeps the layout");
+
+  // A native material takes over: the original UVs come back.
+  mesh.material = {};
+  UvLayout.releaseMaterial(arriving);
+  assert.equal(geometry.__zoidiumUvNormalized, undefined);
+  assert.equal(geometry.faceVertexUvs[0][0].map((entry) => `${entry.x},${entry.y}`).join(" "), original);
+});
+
+test("the shared layout writes an effector's source geometry and bumps its revision", () => {
+  const source = extrudedSquare();
+  const working = { type: "BufferGeometry" };
+  const mesh = { geometry: working, __zoidiumSourceGeometry: source, material: null };
+  const material = { threeObj: {}, parentObject: { threeObj: mesh } };
+  mesh.material = material.threeObj;
+
+  UvLayout.ensureMaterial(material);
+  assert.equal(source.__zoidiumUvNormalized, true, "the source geometry is laid out");
+  assert.equal(source.__zoidiumUvRevision, 1);
+  UvLayout.ensureMaterial(material);
+  assert.equal(source.__zoidiumUvRevision, 1, "an unchanged layout keeps its revision");
+
+  mesh.material = {};
+  UvLayout.releaseMaterial(material);
+  assert.equal(source.__zoidiumUvRevision, 2, "restoring is a new revision");
 });

@@ -84,6 +84,19 @@ node tools/new-plugin.js --kind=native-fx --template=temporal --id=my-time-fx
 
 - Declare materialTypes[] and register the implementation from a module.
   See Material+.
+- Add new material types to Material+. A material that samples any texture
+  through mesh UVs must use the shared UV layout instead of CM3's native
+  `WorldUVGenerator` UVs, which shear on curved text and extrusion walls:
+
+  ```js
+  const uvLayout = new Function(context.getAsset("text", "./plugins/material-plus/uv-layout.js"))()();
+  material.update = function (frame) { uvLayout.ensureMaterial(this); /* ... */ };
+  material.unload = function () { uvLayout.releaseMaterial(this); /* ... */ };
+  ```
+
+  The layout rewrites only 3D Text and extruded shapes, follows effector source
+  geometry, and restores the original UVs when no layout material remains.
+  Materials that never read UVs (Matcap) are exempt.
 
 ### extension: modules
 

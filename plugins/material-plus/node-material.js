@@ -2,6 +2,7 @@
 
 const GRAPH_SOURCE = "./plugins/material-plus/graph-runtime.js";
 const SURFACE_SOURCE = "./plugins/material-plus/surface-runtime.js";
+const UV_LAYOUT_SOURCE = "./plugins/material-plus/uv-layout.js";
 let active = null;
 
 function activate(context) {
@@ -13,6 +14,8 @@ function activate(context) {
   const surfaceSource = context.getAsset("text", SURFACE_SOURCE);
   const nodes = new Function(graphSource)()(PZ, doc);
   const surface = new Function(surfaceSource)();
+  // PBR+ and Node Material sample their maps through the shared UV layout.
+  const uvLayout = new Function(context.getAsset("text", UV_LAYOUT_SOURCE))()();
   const owned = new Map();
   const materials = new Set();
   const ids = new WeakMap();
@@ -52,7 +55,10 @@ function activate(context) {
       if (CM?.history?.operation) (CM.propertyOps || new PZ.ui.properties(CM)).setValue({ property: property.getAddress(), frame: 0, value, oldValue: property.get() });
       else property.set(value);
     } };
-    extra.useNodeGraph = { name: "Use node graph", type: PZ.property.type.OPTION, items: "off;on", value: nodeMode ? 1 : 0 };
+    extra.useNodeGraph = { name: "Use node graph", type: PZ.property.type.OPTION, items: "off;on", value: nodeMode ? 1 : 0, changed() {
+      // PBR+ shows its Node Editor button only while the graph is in use.
+      if (!this.parentObject?.pzLoading) context.window.setTimeout(() => context.ui?.refreshEditors?.(), 0);
+    } };
     if (nodeMode) {
       extra.graph.value = JSON.stringify({ ...nodes.defaultGraph(), schemaVersion: 1 });
       extra.bumpStrength.value = 1;
@@ -195,6 +201,7 @@ function activate(context) {
     }
     material.bakeGraph = function () { if (this._surfaceReady) this._surfaceUpdate(this._surfaceFrame || 0); };
     material._surfaceUpdate = function (frame, exact = false) {
+      if (!disposed) uvLayout.ensureMaterial(this);
       if (!this._surfaceReady || disposed || (preparing && !exact)) return;
       this._surfaceFrame = frame;
       const enabled = this.properties.useNodeGraph.get() === 1;
@@ -292,6 +299,7 @@ function activate(context) {
     material._surfaceDispose = function () {
       if (disposed) return;
       disposed = true;
+      uvLayout.releaseMaterial(this);
       if (refinement !== null) clearTimeout(refinement);
       pending = null;
       cancelBake?.();
@@ -431,7 +439,7 @@ function activate(context) {
       return () => { editorDisposed = true; clearInterval(timer); context.window.cancelAnimationFrame(fitRequest); material._selectedImageNode = null; material.properties.nodeImage.definition.visible = false; material.properties.graph.onChanged.unwatch(syncGraph); assetView?.dispose(); editor.destroy(); };
     } });
   }
-  context.ui?.registerEditor({ title: "Node Editor", match: target => target?.type === "nodes" || target?.type === "pbrplus", open: openEditor });
+  context.ui?.registerEditor({ title: "Node Editor", match: target => target?.type === "nodes" || (target?.type === "pbrplus" && target.properties?.useNodeGraph?.get?.() === 1), open: openEditor });
   active = api;
 }
 

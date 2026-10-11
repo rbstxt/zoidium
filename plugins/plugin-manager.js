@@ -1492,6 +1492,8 @@
       // properties. Dispose it in the window's mount cleanup.
       properties: (options) => ZoidiumUI.properties(options),
       registerEditor: (spec) => owns(ZoidiumUI.registerEditor(spec)),
+      // Re-evaluates editor match() after a property that it reads changes.
+      refreshEditors: () => ZoidiumUI.refreshEditors?.(),
       openAttributePanel: (target, spec) => ZoidiumUI.openAttributePanel(target, spec, openWindow),
       registerAttributePanel: (spec) => owns(ZoidiumUI.registerAttributePanel(spec, openWindow)),
     });

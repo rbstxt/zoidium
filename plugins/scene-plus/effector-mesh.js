@@ -36,14 +36,17 @@ function createMeshDeformer(THREE, jobs) {
     console.warn(message);
   }
 
+  // Material+ rewrites the UVs of legacy text geometry in place and bumps
+  // `__zoidiumUvRevision`; a new revision needs a fresh conversion.
   function toBufferGeometry(geometry) {
     if (!geometry.isGeometry) return geometry;
+    const revision = geometry.__zoidiumUvRevision || 0;
     let converted = convertedGeometries.get(geometry);
-    if (!converted) {
-      converted = new THREE.BufferGeometry().fromGeometry(geometry);
+    if (!converted || converted.revision !== revision) {
+      converted = { buffer: new THREE.BufferGeometry().fromGeometry(geometry), revision };
       convertedGeometries.set(geometry, converted);
     }
-    return converted;
+    return converted.buffer;
   }
 
   // A stage is an immutable snapshot of one mesh topology: positions plus
@@ -158,6 +161,25 @@ function createMeshDeformer(THREE, jobs) {
     geometry.computeBoundingSphere();
   }
 
+  // Material properties that the fracture clone keeps for itself. `_listeners`
+  // holds the renderer's dispose hook, which must stay per material.
+  const CLONE_OWN_KEYS = new Set(["id", "uuid", "name", "type", "side", "vertexColors", "uniforms", "version", "userData", "_listeners"]);
+
+  // The clone takes the original's current values every frame: CM3 materials
+  // write colors, numbers and maps into their THREE material on update, and
+  // replace maps when an image changes. Textures and other objects are shared
+  // by reference; colors and vectors are copied into the clone's own instances.
+  function copyMaterialState(original, clone) {
+    for (const key of Object.keys(original)) {
+      if (CLONE_OWN_KEYS.has(key)) continue;
+      const value = original[key];
+      const target = clone[key];
+      if (value && target && target !== value && !value.isTexture && typeof target.copy === "function" &&
+        value.constructor === target.constructor) target.copy(value);
+      else clone[key] = value;
+    }
+  }
+
   function syncMaterial(mesh, state, wantFracture, vertexColors) {
     if (!wantFracture) {
       if (state.material) {
@@ -174,9 +196,15 @@ function createMeshDeformer(THREE, jobs) {
       if (state.material) state.material.clone.dispose();
       const clone = original.clone();
       clone.side = THREE.DoubleSide;
-      state.material = { original, clone, vertexColors: null };
+      state.material = { original, clone, vertexColors: null, version: original.version };
     }
     const material = state.material;
+    copyMaterialState(original, material.clone);
+    if (material.version !== original.version) {
+      // The original asked for a recompile (map added, transparency, defines).
+      material.version = original.version;
+      material.clone.needsUpdate = true;
+    }
     if (material.vertexColors !== Boolean(vertexColors)) {
       material.clone.vertexColors = Boolean(vertexColors);
       material.clone.needsUpdate = true;
@@ -192,8 +220,15 @@ function createMeshDeformer(THREE, jobs) {
     if (mesh.material !== material.clone) mesh.material = material.clone;
   }
 
+  // Material+ lays out UVs on the source geometry, not on the working copy.
+  function rememberState(mesh, state) {
+    meshStates.set(mesh, state);
+    mesh.__zoidiumSourceGeometry = state.source;
+  }
+
   function releaseState(mesh, state) {
     meshStates.delete(mesh);
+    delete mesh.__zoidiumSourceGeometry;
     if (state.material) {
       if (mesh.material === state.material.clone) mesh.material = state.material.original;
       state.material.clone.dispose();
@@ -335,7 +370,7 @@ function createMeshDeformer(THREE, jobs) {
         pending.sourceId = base.sourceId;
         mesh.geometry = pending.source;
         if (pending.material && mesh.material === pending.material.clone) mesh.material = pending.material.original;
-        meshStates.set(mesh, pending);
+        rememberState(mesh, pending);
         return;
       }
       const exact = completed === entry;
@@ -363,7 +398,7 @@ function createMeshDeformer(THREE, jobs) {
       next.fractured = result.kind === "fracture";
       mesh.geometry = next.working;
       syncMaterial(mesh, next, result.kind === "fracture", colors?.vertexColors || false);
-      meshStates.set(mesh, next);
+      rememberState(mesh, next);
       if (exact) jobs.release(mesh);
       return;
     }
@@ -432,7 +467,7 @@ function createMeshDeformer(THREE, jobs) {
     next.workBuffer = work.length === stage.positions.length ? work : null;
     if (mesh.geometry !== next.working) mesh.geometry = next.working;
     syncMaterial(mesh, next, stage.kind === "fracture", surfaceColors ? surfaceColors.vertexColors : false);
-    meshStates.set(mesh, next);
+    rememberState(mesh, next);
   }
 
   return {

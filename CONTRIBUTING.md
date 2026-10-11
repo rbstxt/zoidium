@@ -44,6 +44,11 @@ pnpm run verify
 The generated `bundle.json` is the normal runtime package. Keep its contents
 in sync with the source manifest. Keep plugin IDs and serialized object types
 stable after publication.
+New material types belong in Material+ and use its shared UV layout
+(`plugins/material-plus/uv-layout.js`) for every texture read through mesh UVs,
+so text and extruded shapes get evenly spaced UVs instead of CM3's sheared
+native ones. See the material-pack section of `docs/plugin-api.md`.
+
 Bump only the manifest `version` when a plugin asset changes; the bundle builder
 rewrites embedded asset URLs to that version. Never hand-edit per-file cache-busting
 queries.
