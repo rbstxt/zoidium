@@ -21,6 +21,14 @@ function loadEchoDefinition() {
     },
   };
   vm.createContext(sandbox);
+  // Echo's target helpers call ZoidiumPluginApis.gl directly (the shared
+  // overlay scripts load before any plugin code runs).
+  vm.runInContext(
+    fs.readFileSync(path.join(__dirname, "../zoidium/shared/gl.js"), "utf8"),
+    sandbox,
+    { filename: "shared/gl.js" },
+  );
+  sandbox.ZoidiumPluginApis.gl = sandbox.ZoidiumSharedGl;
   const source = fs.readFileSync(
     path.join(__dirname, "../plugins/native-fx/effects/echo.js"),
     "utf8",

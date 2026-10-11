@@ -13,6 +13,10 @@ const test = require("node:test");
 
 const projectRoot = path.resolve(__dirname, "..");
 
+// vhs-setup.js calls the global ZoidiumPluginApis.random directly (the shared
+// overlay scripts load before any plugin code runs).
+require("./shared-test-apis.js").ensureGlobalApis();
+
 function fakeElement(tag) {
   const el = {
     tagName: String(tag || "div").toUpperCase(),

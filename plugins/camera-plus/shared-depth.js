@@ -4,28 +4,15 @@ parts.sharedDepth = function ({ PZ, THREE, teardown, patchMethod, masterAt, Came
   const owned = new Map();
   const SceneDof = parts.dof.createSceneDofClass(THREE);
 
-  // Shared GL helpers (zoidium/shared/gl.js, ZoidiumPluginApis.gl); the local
-  // bodies stay as the fallback until the shared overlay scripts land in
-  // zoidium/runtime-config.js. Pinned by test/shared-helpers.test.js.
-  function sharedGl() {
-    if (typeof ZoidiumPluginApis !== "undefined" && ZoidiumPluginApis && ZoidiumPluginApis.gl) {
-      return ZoidiumPluginApis.gl;
-    }
-    if (typeof ZoidiumSharedGl !== "undefined") return ZoidiumSharedGl;
-    return null;
-  }
-
+  // Shared GL helpers (zoidium/shared/gl.js, loaded before any plugin code
+  // runs). Pinned by test/shared-helpers.test.js.
   function targetMatches(target, width, height) {
-    const shared = sharedGl();
-    if (shared) return shared.sameSize(target, width, height);
-    return !!target && target.width === width && target.height === height;
+    return ZoidiumPluginApis.gl.sameSize(target, width, height);
   }
 
   function makeDepthTarget(width, height) {
     const options = { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, format: THREE.RGBAFormat };
-    const shared = sharedGl();
-    if (shared) return shared.createRenderTarget(THREE, width, height, options);
-    return new THREE.WebGLRenderTarget(width, height, options);
+    return ZoidiumPluginApis.gl.createRenderTarget(THREE, width, height, options);
   }
 
   function state(compositor) {

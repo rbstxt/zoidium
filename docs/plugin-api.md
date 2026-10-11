@@ -171,9 +171,10 @@ and are exposed on `ZoidiumPluginApis` (hence also on `context.apis`):
 | `windows` | `shared/windows.js` | Escape handling and persisted window geometry |
 
 The overlay entries load in `postInitScripts` before `zoidium/plugin-apis.js`
-(which attaches them); call sites keep a local fallback body so they also run
-before the entries land. Bit-for-bit pins live in `test/shared-random.test.js`
-and `test/shared-helpers.test.js`.
+(which attaches them), and before `zoidium/settings.js` (which reads
+`ZoidiumSharedJson`) and every plugin. Call sites use the shared tables
+directly with no local fallback. Bit-for-bit pins live in
+`test/shared-random.test.js` and `test/shared-helpers.test.js`.
 
 - `random`: `legacyHash01(seed, index)` (Datamosh/VHS setups) with
   `nextSeed(seed)`; `sceneSeededRandom` (Scene+); `textSeedHash` /
