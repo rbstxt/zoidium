@@ -114,7 +114,7 @@ function loadBadgeScope() {
   const end = managerSource.indexOf("  function pluginSwitchHtml(options) {");
   assert.ok(start >= 0 && end > start, "badge builders are present");
   const script =
-    managerSource.slice(start, end) + "\n__scope = { compatBadgeHtml, experimentalBadgeHtml };";
+    managerSource.slice(start, end) + "\n__scope = { compatBadgeHtml, experimentalBadgeHtml, escapePluginHtml };";
   const sandbox = { __scope: null };
   vm.createContext(sandbox);
   vm.runInContext(script, sandbox, { filename: "plugin-manager-badges.js" });
@@ -185,6 +185,7 @@ function loadGroupScope(options) {
       },
     },
     pluginSwitchHtml: () => "",
+    escapePluginHtml: loadBadgeScope().escapePluginHtml,
     enablePlugin: async (state, persist) => {
       calls.enabled.push([state.plugin.id, persist]);
       calls.busyWhileEnabling.push(state.groupToggleDisabled);
