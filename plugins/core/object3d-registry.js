@@ -22,6 +22,21 @@
   var usageTracker = null;
   var typePattern = /^zoidium:([a-z0-9][a-z0-9-]*)\/([a-z0-9][a-z0-9-]*)$/;
 
+  // Shared JSON clone (zoidium/shared/props.js, ZoidiumPluginApis.props). The
+  // local body stays as the fallback: this pre-init script runs before the
+  // shared overlay scripts load. Pinned by test/shared-helpers.test.js.
+  function sharedProps() {
+    try {
+      if (typeof ZoidiumPluginApis !== "undefined" && ZoidiumPluginApis && ZoidiumPluginApis.props) {
+        return ZoidiumPluginApis.props;
+      }
+      if (typeof ZoidiumSharedProps !== "undefined") return ZoidiumSharedProps;
+    } catch (_sharedError) {
+      // Fall through to the local clone below.
+    }
+    return null;
+  }
+
   function cloneJson(value) {
     if (value === undefined) {
       return undefined;
@@ -29,6 +44,8 @@
     if (value === null) {
       return null;
     }
+    var shared = sharedProps();
+    if (shared) return shared.cloneJson(value);
     try {
       return JSON.parse(JSON.stringify(value));
     } catch (error) {

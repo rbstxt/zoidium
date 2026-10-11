@@ -103,8 +103,21 @@ parts.camera = (function () {
   }
 
   // Reads a dynamic property at time t, falling back when the value is not
-  // finite (for example a broken focus expression).
+  // finite (for example a broken focus expression). Delegates to the shared
+  // reader (zoidium/shared/props.js, ZoidiumPluginApis.props); the local body
+  // stays as the fallback until the shared overlay scripts land in
+  // zoidium/runtime-config.js. Pinned by test/shared-helpers.test.js.
   function readNumber(property, time, fallback) {
+    try {
+      if (typeof ZoidiumPluginApis !== "undefined" && ZoidiumPluginApis && ZoidiumPluginApis.props) {
+        return ZoidiumPluginApis.props.readNumber(property, time, fallback);
+      }
+      if (typeof ZoidiumSharedProps !== "undefined") {
+        return ZoidiumSharedProps.readNumber(property, time, fallback);
+      }
+    } catch (_sharedError) {
+      // Fall through to the local reader below.
+    }
     try {
       const value = property.get(time);
       return typeof value === "number" && isFinite(value) ? value : fallback;

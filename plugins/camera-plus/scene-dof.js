@@ -27,6 +27,29 @@ parts.dof = (function () {
   const TILE = 16;
   const DEPTH_LOOKUP = "unpackDepth( texture2D( tDepth, uv ) )";
 
+  // Shared GL helpers (zoidium/shared/gl.js, ZoidiumPluginApis.gl). Local
+  // bodies stay as the fallback until the shared overlay scripts land in
+  // zoidium/runtime-config.js. Pinned by test/shared-helpers.test.js.
+  function sharedGl() {
+    if (typeof ZoidiumPluginApis !== "undefined" && ZoidiumPluginApis && ZoidiumPluginApis.gl) {
+      return ZoidiumPluginApis.gl;
+    }
+    if (typeof ZoidiumSharedGl !== "undefined") return ZoidiumSharedGl;
+    return null;
+  }
+
+  function makeTarget(THREE, width, height, options) {
+    const shared = sharedGl();
+    if (shared) return shared.createRenderTarget(THREE, width, height, options);
+    return new THREE.WebGLRenderTarget(width, height, options);
+  }
+
+  function targetMatches(target, width, height) {
+    const shared = sharedGl();
+    if (shared) return shared.sameSize(target, width, height);
+    return !!target && target.width === width && target.height === height;
+  }
+
   const VERTEX_SHADER = [
     "uniform vec2 uvScale;",
     "varying vec2 vUv;",
@@ -274,15 +297,15 @@ parts.dof = (function () {
     };
 
     SceneDof.prototype.setSize = function (width, height) {
-      if (this.colorTarget && this.colorTarget.width === width && this.colorTarget.height === height) return;
+      if (targetMatches(this.colorTarget, width, height)) return;
       if (this.colorTarget) this.colorTarget.dispose();
       if (this.depthTarget) this.depthTarget.dispose();
-      this.colorTarget = new THREE.WebGLRenderTarget(width, height, {
+      this.colorTarget = makeTarget(THREE, width, height, {
         minFilter: THREE.LinearFilter,
         magFilter: THREE.LinearFilter,
         format: THREE.RGBAFormat,
       });
-      this.depthTarget = new THREE.WebGLRenderTarget(width, height, {
+      this.depthTarget = makeTarget(THREE, width, height, {
         minFilter: THREE.NearestFilter,
         magFilter: THREE.NearestFilter,
         format: THREE.RGBAFormat,
@@ -290,12 +313,12 @@ parts.dof = (function () {
     };
 
     SceneDof.prototype.setTileSize = function (width, height) {
-      if (this.tileTarget && this.tileTarget.width === width && this.tileTarget.height === height) return;
+      if (targetMatches(this.tileTarget, width, height)) return;
       if (this.tileTarget) this.tileTarget.dispose();
       if (this.dilateTarget) this.dilateTarget.dispose();
       const options = { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, format: THREE.RGBAFormat };
-      this.tileTarget = new THREE.WebGLRenderTarget(width, height, options);
-      this.dilateTarget = new THREE.WebGLRenderTarget(width, height, options);
+      this.tileTarget = makeTarget(THREE, width, height, options);
+      this.dilateTarget = makeTarget(THREE, width, height, options);
     };
 
     // Runs the tile, dilate and composite passes over a color and depth

@@ -13,9 +13,24 @@
     return;
   }
 
+  function sharedProps() {
+    try {
+      if (typeof ZoidiumPluginApis !== "undefined" && ZoidiumPluginApis && ZoidiumPluginApis.props) {
+        return ZoidiumPluginApis.props;
+      }
+      if (typeof ZoidiumSharedProps !== "undefined") return ZoidiumSharedProps;
+    } catch (_sharedError) {
+      // Fall through to the local clone below.
+    }
+    return null;
+  }
+
   function cloneJson(value) {
     if (value === undefined || typeof value === "function") return undefined;
     if (value === null || typeof value !== "object") return value;
+
+    var shared = sharedProps();
+    if (shared) return shared.cloneJsonValue(value);
 
     try {
       return JSON.parse(JSON.stringify(value));

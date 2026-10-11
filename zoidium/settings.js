@@ -175,7 +175,16 @@
     } catch (_error) {
       parsed = null;
     }
-    var settings = Object.assign({}, DEFAULTS, parsed && typeof parsed === "object" ? parsed : {});
+    // Prototype-safe merge of the parsed payload over the defaults
+    // (zoidium/shared/json.js, ZoidiumPluginApis.json). The local
+    // Object.assign stays as the fallback: this script loads before the
+    // shared overlay scripts. Pinned by test/shared-helpers.test.js.
+    var json = global.ZoidiumSharedJson
+      || (global.ZoidiumPluginApis && global.ZoidiumPluginApis.json)
+      || null;
+    var settings = json
+      ? json.safeAssign({}, DEFAULTS, parsed && typeof parsed === "object" ? parsed : {})
+      : Object.assign({}, DEFAULTS, parsed && typeof parsed === "object" ? parsed : {});
     if (!hasValue(LAYOUT_OPTIONS, settings.layout)) settings.layout = DEFAULTS.layout;
     if (!hasValue(FONT_OPTIONS, settings.font)) settings.font = DEFAULTS.font;
     if (!hasValue(THEME_OPTIONS, settings.theme)) settings.theme = DEFAULTS.theme;
