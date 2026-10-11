@@ -4,6 +4,8 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
+
+require("./migrate-test-apis.js").ensureMainRealmApis();
 const source = fs.readFileSync(path.join(__dirname, "../plugins/openzoid-legacy/effects/jpegdamage.js"), "utf8");
 
 function harness({ pending = false, float = true, complete = true, limit = 8192 } = {}) {

@@ -75,15 +75,10 @@ function VhsPass(effect) {
         depthBuffer: false,
         stencilBuffer: false,
     };
-    this.target = new THREE.WebGLRenderTarget(2, 2, options);
-    this.target.texture.generateMipmaps = false;
-    this.trailTargets = [
-        new THREE.WebGLRenderTarget(2, 2, options),
-        new THREE.WebGLRenderTarget(2, 2, options),
-    ];
-    this.trailTargets.forEach(function (target) {
-        target.texture.generateMipmaps = false;
-    });
+    // Shared scratch targets (zoidium/shared/gl.js).
+    const createTarget = () => ZoidiumPluginApis.gl.createRenderTarget(THREE, 2, 2, options);
+    this.target = createTarget();
+    this.trailTargets = [createTarget(), createTarget()];
     this.materialSignal = new THREE.ShaderMaterial({
         uniforms: this.signalUniforms,
         vertexShader: VHS_VERTEX_SHADER,

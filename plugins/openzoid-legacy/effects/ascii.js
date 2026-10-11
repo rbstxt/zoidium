@@ -663,7 +663,8 @@ if (!THREE.AsciiPass) {
             }
             if (!this.sampleTarget || this.sampleWidth !== cols || this.sampleHeight !== rows) {
                 if (this.sampleTarget) this.sampleTarget.dispose();
-                this.sampleTarget = new THREE.WebGLRenderTarget(cols, rows, {
+                // Shared scratch target (zoidium/shared/gl.js).
+                this.sampleTarget = ZoidiumPluginApis.gl.createRenderTarget(THREE, cols, rows, {
                     minFilter: THREE.LinearFilter,
                     magFilter: THREE.LinearFilter,
                     format: THREE.RGBAFormat,

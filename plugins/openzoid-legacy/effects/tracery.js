@@ -304,7 +304,8 @@ if (!THREE.TraceryPass) {
             var dh = sizes[q][1];
             if (!this.detectTarget || this.detectWidth !== dw || this.detectHeight !== dh) {
                 if (this.detectTarget) this.detectTarget.dispose();
-                this.detectTarget = new THREE.WebGLRenderTarget(dw, dh, {
+                // Shared scratch target (zoidium/shared/gl.js).
+                this.detectTarget = ZoidiumPluginApis.gl.createRenderTarget(THREE, dw, dh, {
                     minFilter: THREE.LinearFilter,
                     magFilter: THREE.LinearFilter,
                     format: THREE.RGBAFormat,
