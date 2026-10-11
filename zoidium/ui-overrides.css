@@ -28,11 +28,12 @@
 /* CM3 clips the sidebar tab column (overflow: hidden). With Zoidium's extra
    tabs the column outgrows short sidebars, e.g. the Video Editor layout, and
    the last tabs became unreachable. Let it scroll by wheel or touch; a
-   visible scrollbar would narrow the icon column, so it stays hidden. */
+   visible scrollbar would narrow the icon column, so it stays hidden.
+   overscroll-behavior: none also stops the elastic bounce at either end. */
 .elevatortabs {
   overflow-x: hidden;
   overflow-y: auto;
-  overscroll-behavior: contain;
+  overscroll-behavior: none;
   scrollbar-width: none;
 }
 
