@@ -151,7 +151,12 @@ function createMeshDeformer(THREE, jobs) {
     return geometry;
   }
 
-  function recomputeNormals(geometry, stage) {
+  function recomputeNormals(geometry, stage, rigid) {
+    if (rigid && geometry.attributes.normal && computeFractureNormals(stage, geometry.attributes.position.array, geometry.attributes.normal.array)) {
+      geometry.attributes.normal.needsUpdate = true;
+      geometry.computeBoundingSphere();
+      return;
+    }
     if (stage.smooth || (!stage.index && stage.attributes.normal)) {
       if (!geometry.attributes.normal) geometry.computeVertexNormals();
       computeSmoothVertexNormals(geometry, stage);
@@ -180,44 +185,58 @@ function createMeshDeformer(THREE, jobs) {
     }
   }
 
+  // Fracture output renders with two clones of the mesh's material: group 0
+  // (the cut walls of the source surface) and group 1 (inner cap faces). Caps
+  // meet the walls exactly along the cuts, so at equal depth they speckled
+  // through resting pieces; the cap clone is drawn with a polygon offset that
+  // lets the wall win there.
+  function releaseMaterial(mesh, state) {
+    if (!state.material) return;
+    if (mesh.material === state.material.shown) mesh.material = state.material.original;
+    for (const clone of state.material.shown) clone.dispose();
+    state.material = null;
+  }
+
   function syncMaterial(mesh, state, wantFracture, vertexColors) {
     if (!wantFracture) {
-      if (state.material) {
-        if (mesh.material === state.material.clone) mesh.material = state.material.original;
-        state.material.clone.dispose();
-        state.material = null;
-      }
+      releaseMaterial(mesh, state);
       return;
     }
-    const current = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
+    const current = mesh.material === state.material?.shown ? state.material.original
+      : Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
     if (!current) return;
-    const original = state.material && current === state.material.clone ? state.material.original : current;
+    const original = current;
     if (!state.material || state.material.original !== original) {
-      if (state.material) state.material.clone.dispose();
-      const clone = original.clone();
-      clone.side = THREE.DoubleSide;
-      state.material = { original, clone, vertexColors: null, version: original.version };
+      releaseMaterial(mesh, state);
+      const shown = [original.clone(), original.clone()];
+      state.material = { original, clone: shown[0], shown, vertexColors: null, version: original.version };
     }
     const material = state.material;
-    copyMaterialState(original, material.clone);
-    if (material.version !== original.version) {
+    const recompile = material.version !== original.version || material.vertexColors !== Boolean(vertexColors);
+    material.version = original.version;
+    material.vertexColors = Boolean(vertexColors);
+    material.shown.forEach((clone, index) => {
+      copyMaterialState(original, clone);
+      clone.side = THREE.DoubleSide;
       // The original asked for a recompile (map added, transparency, defines).
-      material.version = original.version;
-      material.clone.needsUpdate = true;
-    }
-    if (material.vertexColors !== Boolean(vertexColors)) {
-      material.clone.vertexColors = Boolean(vertexColors);
-      material.clone.needsUpdate = true;
-      material.vertexColors = Boolean(vertexColors);
-    }
-    // Shader uniforms are copied by reference so animated custom materials keep
-    // following their original material after cloning.
-    if (material.clone.uniforms && original.uniforms) {
-      for (const name of Object.keys(material.clone.uniforms)) {
-        if (original.uniforms[name]) material.clone.uniforms[name].value = original.uniforms[name].value;
+      if (recompile) {
+        clone.vertexColors = Boolean(vertexColors);
+        clone.needsUpdate = true;
       }
-    }
-    if (mesh.material !== material.clone) mesh.material = material.clone;
+      if (index === 1) {
+        clone.polygonOffset = true;
+        clone.polygonOffsetFactor = 1;
+        clone.polygonOffsetUnits = 1;
+      }
+      // Shader uniforms are copied by reference so animated custom materials
+      // keep following their original material after cloning.
+      if (clone.uniforms && original.uniforms) {
+        for (const name of Object.keys(clone.uniforms)) {
+          if (original.uniforms[name]) clone.uniforms[name].value = original.uniforms[name].value;
+        }
+      }
+    });
+    if (mesh.material !== material.shown) mesh.material = material.shown;
   }
 
   // Material+ lays out UVs on the source geometry, not on the working copy.
@@ -229,11 +248,7 @@ function createMeshDeformer(THREE, jobs) {
   function releaseState(mesh, state) {
     meshStates.delete(mesh);
     delete mesh.__zoidiumSourceGeometry;
-    if (state.material) {
-      if (mesh.material === state.material.clone) mesh.material = state.material.original;
-      state.material.clone.dispose();
-      state.material = null;
-    }
+    releaseMaterial(mesh, state);
     if (mesh.geometry === state.working) mesh.geometry = state.source;
     if (state.working) state.working.dispose();
     state.working = null;
@@ -369,7 +384,7 @@ function createMeshDeformer(THREE, jobs) {
         pending.asyncPending = true;
         pending.sourceId = base.sourceId;
         mesh.geometry = pending.source;
-        if (pending.material && mesh.material === pending.material.clone) mesh.material = pending.material.original;
+        if (pending.material && mesh.material === pending.material.shown) mesh.material = pending.material.original;
         rememberState(mesh, pending);
         return;
       }
@@ -461,7 +476,10 @@ function createMeshDeformer(THREE, jobs) {
     if (changed) {
       target.set(work);
       attribute.needsUpdate = true;
-      recomputeNormals(next.working, stage);
+      // Fracture motion and Plain move whole pieces; Twist and Warp bend them.
+      const rigid = chain.every(entry => typeof entry.effector.produceStage === "function" ||
+        ["plain", "delay"].includes(entry.effector.workerCommand?.(frame)?.kind));
+      recomputeNormals(next.working, stage, rigid);
     }
     next.fresh = false;
     next.workBuffer = work.length === stage.positions.length ? work : null;
@@ -580,5 +598,125 @@ function computeSmoothVertexNormals(geometry, stage) {
   normal.needsUpdate = true;
 }
 
+// Fracture pieces move as whole pieces (rotation, translation and scale per
+// piece; Plain adds per-axis scale), so their normals are the stage's source
+// normals carried through each piece's transform. Recomputing them from the
+// deformed faces would shade every cut differently: the clipped walls are full
+// of slivers, and pieces resting against each other would show seams that the
+// unfractured surface does not have. Each piece's transform is measured from
+// four of its rest vertices: the corners of its largest triangle and the vertex
+// farthest from that triangle's plane (the triangle's normal for flat pieces).
+const fractureReferences = new WeakMap();
 
-module.exports = { createMeshDeformer, computeSmoothVertexNormals };
+function cross(ax, ay, az, bx, by, bz) {
+  return [ay * bz - az * by, az * bx - ax * bz, ax * by - ay * bx];
+}
+
+function pieceReferences(stage) {
+  let references = fractureReferences.get(stage);
+  if (references) return references;
+  const rest = stage.positions, ids = stage.pieceIds;
+  const count = stage.pieceCount || 1;
+  const best = new Float64Array(count).fill(-1);
+  const triangles = new Int32Array(count).fill(-1);
+  for (let vertex = 0; vertex + 2 < stage.count; vertex += 3) {
+    const piece = ids[vertex];
+    const a = vertex * 3;
+    const n = cross(rest[a + 3] - rest[a], rest[a + 4] - rest[a + 1], rest[a + 5] - rest[a + 2],
+      rest[a + 6] - rest[a], rest[a + 7] - rest[a + 1], rest[a + 8] - rest[a + 2]);
+    const area = n[0] * n[0] + n[1] * n[1] + n[2] * n[2];
+    if (area > best[piece]) { best[piece] = area; triangles[piece] = vertex; }
+  }
+  const apex = new Int32Array(count).fill(-1);
+  const height = new Float64Array(count);
+  const normals = new Float64Array(count * 3);
+  for (let piece = 0; piece < count; piece += 1) {
+    const vertex = triangles[piece];
+    if (vertex < 0) continue;
+    const a = vertex * 3;
+    const n = cross(rest[a + 3] - rest[a], rest[a + 4] - rest[a + 1], rest[a + 5] - rest[a + 2],
+      rest[a + 6] - rest[a], rest[a + 7] - rest[a + 1], rest[a + 8] - rest[a + 2]);
+    const length = Math.hypot(n[0], n[1], n[2]) || 1;
+    normals.set([n[0] / length, n[1] / length, n[2] / length], piece * 3);
+  }
+  for (let vertex = 0; vertex < stage.count; vertex += 1) {
+    const piece = ids[vertex], corner = triangles[piece];
+    if (corner < 0) continue;
+    const a = corner * 3, v = vertex * 3, n = piece * 3;
+    const distance = Math.abs((rest[v] - rest[a]) * normals[n] + (rest[v + 1] - rest[a + 1]) * normals[n + 1] + (rest[v + 2] - rest[a + 2]) * normals[n + 2]);
+    if (distance > height[piece]) { height[piece] = distance; apex[piece] = vertex; }
+  }
+  // A piece thinner than this against its own size is treated as flat.
+  for (let piece = 0; piece < count; piece += 1) {
+    if (triangles[piece] >= 0 && height[piece] <= 1e-4 * Math.sqrt(Math.sqrt(best[piece]))) apex[piece] = -1;
+  }
+  references = { triangles, apex };
+  fractureReferences.set(stage, references);
+  return references;
+}
+
+// The three edge vectors from a piece's reference corner; the third is the
+// scaled triangle normal when the piece is flat.
+function pieceFrame(positions, corner, apex) {
+  const a = corner * 3;
+  const u = [positions[a + 3] - positions[a], positions[a + 4] - positions[a + 1], positions[a + 5] - positions[a + 2]];
+  const v = [positions[a + 6] - positions[a], positions[a + 7] - positions[a + 1], positions[a + 8] - positions[a + 2]];
+  let w;
+  if (apex >= 0) {
+    const d = apex * 3;
+    w = [positions[d] - positions[a], positions[d + 1] - positions[a + 1], positions[d + 2] - positions[a + 2]];
+  } else {
+    const n = cross(...u, ...v);
+    const length = Math.hypot(n[0], n[1], n[2]);
+    const size = Math.sqrt(length) / (length || 1);
+    w = [n[0] * size, n[1] * size, n[2] * size];
+  }
+  return [u, v, w];
+}
+
+// Writes normalized normals into `out` and returns true, or returns false when
+// the stage is not a fracture with source normals.
+function computeFractureNormals(stage, positions, out) {
+  const source = stage?.attributes?.normal?.array;
+  if (stage?.kind !== "fracture" || stage.index || !stage.pieceIds || !source || !stage.positions ||
+    stage.positions.length !== positions.length || out.length !== positions.length) return false;
+  const { triangles, apex } = pieceReferences(stage);
+  const count = stage.pieceCount || 1;
+  // Normal matrix of each piece: inverse transpose of deformed * rest^-1,
+  // applied as rest^T then deformed^-T (columns v'×w', w'×u', u'×v' over det').
+  const matrices = new Float64Array(count * 18);
+  const valid = new Uint8Array(count);
+  for (let piece = 0; piece < count; piece += 1) {
+    if (triangles[piece] < 0) continue;
+    const [ur, vr, wr] = pieceFrame(stage.positions, triangles[piece], apex[piece]);
+    const [u, v, w] = pieceFrame(positions, triangles[piece], apex[piece]);
+    const vw = cross(...v, ...w), wu = cross(...w, ...u), uv = cross(...u, ...v);
+    const det = u[0] * vw[0] + u[1] * vw[1] + u[2] * vw[2];
+    if (!(Math.abs(det) > 1e-20)) continue;
+    const m = piece * 18;
+    matrices.set([...ur, ...vr, ...wr], m);
+    matrices.set([...vw, ...wu, ...uv].map(value => value / det), m + 9);
+    valid[piece] = 1;
+  }
+  for (let vertex = 0; vertex < positions.length / 3; vertex += 1) {
+    const o = vertex * 3;
+    const piece = stage.pieceIds[vertex];
+    let x = source[o], y = source[o + 1], z = source[o + 2];
+    if (valid[piece]) {
+      const m = piece * 18;
+      const k0 = matrices[m] * x + matrices[m + 1] * y + matrices[m + 2] * z;
+      const k1 = matrices[m + 3] * x + matrices[m + 4] * y + matrices[m + 5] * z;
+      const k2 = matrices[m + 6] * x + matrices[m + 7] * y + matrices[m + 8] * z;
+      x = k0 * matrices[m + 9] + k1 * matrices[m + 12] + k2 * matrices[m + 15];
+      y = k0 * matrices[m + 10] + k1 * matrices[m + 13] + k2 * matrices[m + 16];
+      z = k0 * matrices[m + 11] + k1 * matrices[m + 14] + k2 * matrices[m + 17];
+    }
+    const length = Math.hypot(x, y, z) || 1;
+    out[o] = x / length;
+    out[o + 1] = y / length;
+    out[o + 2] = z / length;
+  }
+  return true;
+}
+
+module.exports = { createMeshDeformer, computeSmoothVertexNormals, computeFractureNormals };

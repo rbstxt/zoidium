@@ -765,7 +765,10 @@ function assembleStage(parts) {
     uvs,
     index: null,
     indexRef: null,
-    groups: [],
+    // Group 1 holds the inner cap faces; the renderer draws them with a polygon
+    // offset so the cut walls win where the two meet.
+    groups: [{ start: 0, count: fragmentVertices, materialIndex: 0 },
+      ...(vertexCount > fragmentVertices ? [{ start: fragmentVertices, count: vertexCount - fragmentVertices, materialIndex: 1 }] : [])],
     pieceIds,
     pieceCount: parts.cells,
     pieceCentroids: centroids,
