@@ -1,5 +1,8 @@
 "use strict";
 let cleanup = null;
+// Materials with loaded textures, mapped to their per-material teardown so
+// disabling the plugin can release every live material (A16).
+const liveMaterials = new Map();
 function activate(context) {
   if (cleanup) return;
   const PZ = context.PZ || context.window.PZ;
@@ -45,6 +48,7 @@ function activate(context) {
       try { this.properties.load(data?.properties); } finally { this._loading = false; }
       loadImage();
       this.update(0);
+      liveMaterials.set(this, clear);
       PZ.zoidium?.trackPluginMaterial?.(this, { ...context.plugin, material: "imageplus", materialName: "Image+ Material", compatibility: "incompatible" }, false);
     };
     material.update = function (frame) {
@@ -66,10 +70,20 @@ function activate(context) {
     };
     material.prepare = async function () { const version = generation; await image?.loading; if (version === generation && this.threeObj?.map) this.threeObj.map.needsUpdate = true; };
     material.toJSON = function () { return { type: this.type, properties: this.properties }; };
-    material.unload = function () { uvLayout.releaseMaterial(this); clear(); this.threeObj?.dispose(); PZ.zoidium?.untrackPluginMaterial?.(this); };
+    material.unload = function () { liveMaterials.delete(this); uvLayout.releaseMaterial(this); clear(); this.threeObj?.dispose(); PZ.zoidium?.untrackPluginMaterial?.(this); };
   });
   factory._zoidiumMaterialMode = "native";
-  cleanup = () => { if (PZ.material.fnList.imageplus === factory) { if (previous) PZ.material.fnList.imageplus = previous; else delete PZ.material.fnList.imageplus; } cleanup = null; };
+  cleanup = () => {
+    for (const [live, clearLive] of liveMaterials) {
+      try { uvLayout.releaseMaterial(live); } catch (error) {
+        console.error("Image+ could not release a live material", error);
+      }
+      try { clearLive(); } catch (error) {
+        console.error("Image+ could not dispose a live material texture", error);
+      }
+    }
+    liveMaterials.clear();
+    if (PZ.material.fnList.imageplus === factory) { if (previous) PZ.material.fnList.imageplus = previous; else delete PZ.material.fnList.imageplus; } cleanup = null; };
   context.lifecycle.onDispose(cleanup);
   PZ.material.fnList.imageplus = factory;
 }
