@@ -155,7 +155,7 @@ test("the editor entry opens the setup window", () => {
   assert.equal(spec.match(effect), true, "the looks effect matches");
   spec.open(effect);
   assert.equal(h.opened.length, 1, "open shows the window");
-  assert.equal(h.opened[0].title, "Magic Looks");
+  assert.equal(h.opened[0].title, "Magic Looks Setup");
   assert.equal(h.opened[0].persistKey, "looks-setup");
   assert.equal(typeof h.opened[0].footer[0].onClick, "function");
   assert.ok(h.opened[0].isValid(), "window stays open while the effect exists");

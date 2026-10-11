@@ -927,3 +927,27 @@ test('disable removes the instance patch when the native factory is inherited', 
   assert.equal(Object.hasOwn(editor, 'createWindow'), false);
   assert.equal(editor.createWindow, newerNative);
 });
+
+test("empty-state note builder is reachable at module scope and prefers the shared builder", () => {
+  const { GraphPlus } = loadModule();
+  assert.equal(typeof GraphPlus.__test.sharedEmptyNote, "function");
+  assert.equal(
+    GraphPlus.__test.sharedEmptyNote(null, "No curves"),
+    null,
+    "without the kit the caller falls back to plain markup",
+  );
+  const seen = [];
+  const { GraphPlus: withKit } = loadModule({
+    ZoidiumUI: {
+      controls: {
+        note: (text) => {
+          seen.push(text);
+          return { element: { ownerDocument: null, text } };
+        },
+      },
+    },
+  });
+  const built = withKit.__test.sharedEmptyNote(null, "No curves");
+  assert.equal(built && built.text, "No curves");
+  assert.deepEqual(seen, ["No curves"]);
+});

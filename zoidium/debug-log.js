@@ -543,13 +543,26 @@
 
       const actions = documentObject.createElement("div");
       actions.style.cssText = "display:flex;gap:8px;margin-top:10px";
-      const downloadButton = documentObject.createElement("button");
-      downloadButton.type = "button";
-      downloadButton.textContent = copy().button;
-      downloadButton.style.cssText =
-        "padding:6px 9px;background:#3a2b2b;color:#ffe4e4;border:1px solid #dca8a8;" +
-        "border-radius:3px;cursor:pointer;font:inherit";
-      downloadButton.addEventListener("click", async () => {
+      // The banner must work when the rest of the UI failed, so the shared
+      // button builder is used only when it is available; otherwise plain
+      // markup with the same labels and behavior.
+      function emergencyButton(label, onClick) {
+        const kit = global.ZoidiumUI;
+        if (kit && typeof kit.createButton === "function") {
+          try {
+            return kit.createButton({ title: label, onClick });
+          } catch (_error) { /* fall through to plain markup */ }
+        }
+        const fallback = documentObject.createElement("button");
+        fallback.type = "button";
+        fallback.textContent = label;
+        fallback.style.cssText =
+          "padding:6px 9px;background:#3a2b2b;color:#ffe4e4;border:1px solid #dca8a8;" +
+          "border-radius:3px;cursor:pointer;font:inherit";
+        fallback.addEventListener("click", onClick);
+        return fallback;
+      }
+      const downloadButton = emergencyButton(copy().button, async () => {
         downloadButton.disabled = true;
         downloadButton.textContent = "Preparing debug log...";
         try {
@@ -563,13 +576,7 @@
       });
       actions.appendChild(downloadButton);
 
-      const dismissButton = documentObject.createElement("button");
-      dismissButton.type = "button";
-      dismissButton.textContent = "Dismiss";
-      dismissButton.style.cssText =
-        "padding:6px 9px;background:transparent;color:#d6bcbc;border:1px solid #765555;" +
-        "border-radius:3px;cursor:pointer;font:inherit";
-      dismissButton.addEventListener("click", () => {
+      const dismissButton = emergencyButton("Dismiss", () => {
         banner.remove();
         emergencyBanner = null;
       });
@@ -1484,11 +1491,7 @@
 
     const title = legacy.generateTitle
       ? legacy.generateTitle({ title: currentCopy.section })
-      : global.document.createElement("div");
-    if (!legacy.generateTitle) {
-      title.className = "proprow proptitle noselect";
-      title.textContent = currentCopy.section;
-    }
+      : global.ZoidiumUI.createPageHeader(currentCopy.section);
     title.classList.add("zoidium-debug-log-title");
 
     const description = legacy.generateDescription({ content: "" });

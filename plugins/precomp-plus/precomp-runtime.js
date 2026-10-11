@@ -69,7 +69,6 @@ function openPrecomposeDialog() {
   function submit() {
     const result = engine.precompose(editor, name);
     if (!result.ok) {
-      message.className = "zoidium-note warning";
       message.textContent = result.message;
       return;
     }
@@ -114,7 +113,7 @@ function openPrecomposeDialog() {
             : " Nothing stays on Main; open the composition to edit its clips.")
         : "The timeline is not ready. Try again in a moment.";
       body.appendChild(kit.controls.note(counts).element);
-      message = kit.controls.note("").element;
+      message = kit.controls.note("", "warning").element;
       body.appendChild(message);
       return null;
     },
@@ -200,11 +199,19 @@ function openCompsWindow() {
       report("Delete", engine.removeComp(editor, row.id));
       return;
     }
-    const host = session.context.window || globalThis;
-    if (!host.confirm('Delete composition "' + row.name + '"?')) return;
-    const result = engine.removeComp(editor, row.id);
-    if (result.ok) selectedKey = MAIN_KEY;
-    afterChange(result, "Delete");
+    const message = 'Delete composition "' + row.name + '"?';
+    kit.confirm({
+      title: "Delete composition",
+      message: message,
+      confirmLabel: "Delete",
+      cancelLabel: "Cancel",
+      danger: true,
+    }).then(function (approved) {
+      if (!approved) return;
+      const result = engine.removeComp(editor, row.id);
+      if (result.ok) selectedKey = MAIN_KEY;
+      afterChange(result, "Delete");
+    });
   }
 
   function rename(row, value) {
@@ -567,7 +574,7 @@ function installClipMenu(context, engine, editor) {
       const header = doc.createElement("li");
       header.style.cursor = "default";
       header.style.color = "var(--zui-value)";
-      header.style.fontSize = "12px";
+      header.style.fontSize = "var(--zui-font-size-small)";
       header.innerText = text;
       header.onmousedown = (ev) => ev.stopPropagation();
       header.onclick = (ev) => ev.stopPropagation();

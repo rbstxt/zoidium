@@ -389,6 +389,7 @@ const GraphPlus = (() => {
       g2win,
       beginPointerDrag,
       disposePanel,
+      sharedEmptyNote,
     },
   };
 })();
@@ -411,6 +412,24 @@ function g2doc(el) {
   try {
     if (typeof document !== "undefined") return document;
   } catch (e2) {}
+  return null;
+}
+// Empty-state messages reuse the shared note builder when it is reachable;
+// otherwise a plain paragraph with the same wording.
+function sharedEmptyNote(ownerDoc, text) {
+  try {
+    var w = (typeof window !== "undefined" && window.ZoidiumUI) ? window : null;
+    var g = (!w && typeof globalThis !== "undefined") ? globalThis : null;
+    var kit = (w && w.ZoidiumUI) || (g && g.ZoidiumUI);
+    if (kit && kit.controls && typeof kit.controls.note === "function") {
+      var built = kit.controls.note(text).element;
+      if (built && ownerDoc && built.ownerDocument && built.ownerDocument !== ownerDoc
+        && typeof ownerDoc.adoptNode === "function") {
+        ownerDoc.adoptNode(built);
+      }
+      return built;
+    }
+  } catch (_error) { /* fall through to plain markup */ }
   return null;
 }
 function g2win(el) {
@@ -1520,7 +1539,23 @@ PZ.ui.graph.prototype.create = function () {
   // empty-state overlay (design)
   this.emptyEl = mk("div");
   this.emptyEl.className = "g2-empty";
-  this.emptyEl.innerHTML = "<div class='g2-empty-card'><h3>NO CURVES</h3><p>Select keyframed properties on the left.<br>Press <b>\\</b> to fit · <b>F</b> to frame · <b>dblclick</b> to add a key.</p></div>";
+  const emptyCard = mk("div");
+  emptyCard.className = "g2-empty-card";
+  const emptyTitle = mk("h3");
+  emptyTitle.textContent = "NO CURVES";
+  emptyCard.appendChild(emptyTitle);
+  const emptyMessage = sharedEmptyNote((function () {
+    try { return self._doc(); } catch (_docError) { return null; }
+  })(),
+    "Select keyframed properties on the left. Press \\ to fit · F to frame · double-click to add a key.");
+  if (emptyMessage) {
+    emptyCard.appendChild(emptyMessage);
+  } else {
+    const emptyFallback = mk("p");
+    emptyFallback.textContent = "Select keyframed properties on the left. Press \\ to fit · F to frame · double-click to add a key.";
+    emptyCard.appendChild(emptyFallback);
+  }
+  this.emptyEl.appendChild(emptyCard);
   this.canvasEl.appendChild(this.emptyEl);
 
   this.canvasEl.addEventListener("wheel", function (e) { self.mouseWheel(e); }, { passive: false });
@@ -2768,7 +2803,7 @@ PZ.ui.graph.prototype.updateLegend = function () {
   this.tracksEl.appendChild(head);
   if (!groups.length) {
     var h = mk("div");
-    h.style.cssText = "padding:6px 8px;color:var(--zui-text);opacity:.6;font-size:11px;line-height:1.5";
+    h.style.cssText = "padding:6px 8px;color:var(--zui-text);opacity:.6;font-size:var(--zui-font-size-compact);line-height:1.5";
     h.textContent = "select keyframed properties on the left";
     this.tracksEl.appendChild(h);
     return;
@@ -3122,15 +3157,15 @@ return [
        must never squeeze the canvas to zero: the toolbar wraps but is
        capped so the canvas always keeps room; narrow screens get smaller
        tiles so more actions stay visible without scrolling. */
-    ".g2-toolbar{flex:0 1 auto;flex-shrink:1;display:flex;align-items:flex-start;gap:6px;padding:15px 26px 10px;background:var(--zui-bg-title);border-bottom:1px solid var(--zui-border);font-size:12px;flex-wrap:wrap;overflow-y:auto;overflow-x:hidden;min-height:104px;max-height:46%;z-index:5;position:relative;scrollbar-width:thin}",
+    ".g2-toolbar{flex:0 1 auto;flex-shrink:1;display:flex;align-items:flex-start;gap:6px;padding:15px 26px 10px;background:var(--zui-bg-title);border-bottom:1px solid var(--zui-border);font-size:var(--zui-font-size-compact);flex-wrap:wrap;overflow-y:auto;overflow-x:hidden;min-height:104px;max-height:46%;z-index:5;position:relative;scrollbar-width:thin}",
     ".g2-wrap.g2-narrow .g2-toolbar{gap:4px;padding:10px 12px 8px;min-height:0}",
     ".g2-wrap.g2-narrow .g2-tile .g2-box{width:44px;height:38px}",
-    ".g2-wrap.g2-narrow .g2-tile .g2-tlabel{font-size:10px;max-width:60px}",
+    ".g2-wrap.g2-narrow .g2-tile .g2-tlabel{font-size:var(--zui-font-size-compact);max-width:60px}",
     ".g2-wrap.g2-narrow .g2-group{gap:8px}",
     ".g2-wrap.g2-narrow .g2-sep{width:12px}",
     ".g2-wrap.g2-narrow .g2-tile.g2-small .g2-box{width:32px;height:28px}",
     ".g2-wrap.g2-narrow .g2-custom .g2-sbox{width:40px;height:26px}",
-    ".g2-wrap.g2-narrow .g2-custom .g2-clabel{font-size:10px}",
+    ".g2-wrap.g2-narrow .g2-custom .g2-clabel{font-size:var(--zui-font-size-compact)}",
     ".g2-group{display:flex;align-items:flex-start;gap:13px;background:transparent;border:0;border-radius:0;padding:0;flex-shrink:0}",
     ".g2-sep{width:40px;align-self:stretch;background:transparent;flex-shrink:0}",
     ".g2-spacer{flex:1 1 auto}",
@@ -3139,23 +3174,23 @@ return [
     ".g2-tile:hover .g2-box{background:var(--zui-hover)}",
     ".g2-tile:active .g2-box{background:var(--zui-bg-sunken)}",
     ".g2-tile.on .g2-box{outline:2px solid var(--zui-accent);outline-offset:0}",
-    ".g2-tile .g2-tlabel{font-size:12.5px;line-height:1.2;color:var(--zui-text-bright) !important;text-align:center;max-width:90px;white-space:normal}",
+    ".g2-tile .g2-tlabel{font-size:var(--zui-font-size-compact);line-height:1.2;color:var(--zui-text-bright) !important;text-align:center;max-width:90px;white-space:normal}",
     /* custom easings: thumbnail + label to the RIGHT */
     ".g2-wrap .g2-toolbar button.g2-custom{display:flex;align-items:center;gap:14px;background:transparent !important;border:0 !important;padding:0 !important;cursor:pointer;flex-shrink:0;min-height:54px}",
     ".g2-custom .g2-sbox{width:50px;height:30px;background:var(--zui-bg-input);border:1px solid var(--zui-border);border-radius:2px;display:flex;align-items:center;justify-content:center}",
     ".g2-custom:hover .g2-sbox{background:var(--zui-hover)}",
-    ".g2-custom .g2-clabel{font-size:12.5px;color:var(--zui-text-bright) !important;white-space:nowrap}",
+    ".g2-custom .g2-clabel{font-size:var(--zui-font-size-compact);color:var(--zui-text-bright) !important;white-space:nowrap}",
     /* others: right-aligned small tiles */
     ".g2-tile.g2-small .g2-box{width:38px;height:32px}",
     ".g2-tile.g2-small{gap:3px}",
-    ".g2-tile.g2-small .g2-tlabel{font-size:9px;max-width:56px}",
+    ".g2-tile.g2-small .g2-tlabel{font-size:var(--zui-font-size-compact);max-width:56px}",
     ".g2-tile.g2-acc .g2-box{background:rgb(var(--zui-accent-rgb) / 0.55)}",
     ".g2-ico{display:inline-flex;flex:0 0 auto}",
     ".g2-ico svg{display:block}",
     /* custom easings popup */
     ".g2-popup{position:absolute;z-index:30;min-width:200px;max-height:330px;overflow-y:auto;background:var(--zui-bg);border:1px solid var(--zui-border);border-radius:3px;padding:4px 0}",
-    ".g2-popup-head{padding:5px 10px;font-size:10px;color:var(--zui-text-muted) !important;border-bottom:1px solid var(--zui-border-soft)}",
-    ".g2-popup-item{padding:5px 10px;font-size:11px;color:var(--zui-text-bright) !important;cursor:pointer;white-space:nowrap}",
+    ".g2-popup-head{padding:5px 10px;font-size:var(--zui-font-size-compact);color:var(--zui-text-muted) !important;border-bottom:1px solid var(--zui-border-soft)}",
+    ".g2-popup-item{padding:5px 10px;font-size:var(--zui-font-size-compact);color:var(--zui-text-bright) !important;cursor:pointer;white-space:nowrap}",
     ".g2-popup-item:hover{background:var(--zui-accent)}",
     ".g2-wrap .g2-toolbar select{display:none}",
     ".g2-ruler{flex:0 0 auto;flex-shrink:0;height:30px;background:var(--zui-bg);border-bottom:1px solid var(--zui-border);cursor:ew-resize;position:relative;overflow:hidden}",
@@ -3163,14 +3198,14 @@ return [
     ".g2-body{flex:1;position:relative;min-height:0;overflow:hidden;background:var(--zui-bg-sunken)}",
     ".g2-main{display:flex;flex:1;min-height:0;min-width:0}",
     ".g2-tracks{flex:0 0 188px;width:188px;min-height:0;background:var(--zui-bg);border-right:1px solid var(--zui-border);overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column}",
-    ".g2-tracks-head{flex:0 0 auto;padding:5px 8px;background:var(--zui-bg-title);border-bottom:1px solid var(--zui-border);font-size:10px;color:var(--zui-text-bright) !important}",
+    ".g2-tracks-head{flex:0 0 auto;padding:5px 8px;background:var(--zui-bg-title);border-bottom:1px solid var(--zui-border);font-size:var(--zui-font-size-compact);color:var(--zui-text-bright) !important}",
     ".g2-track-row{display:flex;align-items:center;gap:7px;padding:5px 8px;border-bottom:1px solid var(--zui-border-soft);white-space:nowrap;cursor:pointer;flex:0 0 auto}",
     ".g2-track-row:hover{background:var(--zui-hover)}",
     ".g2-track-row.selected{background:var(--zui-accent)}",
     ".g2-swatch{width:12px;height:4px;flex:0 0 12px;border-radius:1px}",
-    ".g2-track-name{flex:1;overflow:hidden;text-overflow:ellipsis;color:var(--zui-text-bright) !important;font-size:11px}",
-    ".g2-track-val{color:var(--zui-value) !important;font-size:11px;font-variant-numeric:tabular-nums;background:var(--zui-bg-input);border-radius:3px;padding:1px 5px}",
-    ".g2-wrap .g2-eye{cursor:pointer;border:1px solid var(--zui-border);background:var(--zui-hover);color:var(--zui-text-bright) !important;font-size:10px;padding:1px 6px;border-radius:3px;line-height:1.4}",
+    ".g2-track-name{flex:1;overflow:hidden;text-overflow:ellipsis;color:var(--zui-text-bright) !important;font-size:var(--zui-font-size-compact)}",
+    ".g2-track-val{color:var(--zui-value) !important;font-size:var(--zui-font-size-compact);font-variant-numeric:tabular-nums;background:var(--zui-bg-input);border-radius:3px;padding:1px 5px}",
+    ".g2-wrap .g2-eye{cursor:pointer;border:1px solid var(--zui-border);background:var(--zui-hover);color:var(--zui-text-bright) !important;font-size:var(--zui-font-size-compact);padding:1px 6px;border-radius:3px;line-height:1.4}",
     ".g2-wrap .g2-eye.off{opacity:.35}",
     ".g2-right{flex:1;display:flex;flex-direction:column;min-width:0;min-height:0}",
     ".g2-canvas{flex:1;position:relative;min-height:48px;min-width:48px;overflow:hidden;background:var(--zui-bg-sunken)}",
@@ -3182,11 +3217,12 @@ return [
     ".g2-legend{display:none}",
     ".g2-empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none}",
     ".g2-empty-card{pointer-events:auto;text-align:center;background:var(--zui-bg);border:1px solid var(--zui-border-soft);border-radius:3px;padding:20px 26px;max-width:360px}",
-    ".g2-empty-card h3{margin:0 0 6px;font-size:13px;color:var(--zui-text-bright) !important}",
-    ".g2-empty-card p{margin:0;font-size:11px;line-height:1.6;color:var(--zui-text) !important}",
+    ".g2-empty-card h3{margin:0 0 6px;font-size:var(--zui-font-size-small);color:var(--zui-text-bright) !important}",
+    ".g2-empty-card p{margin:0;font-size:var(--zui-font-size-compact);line-height:1.6;color:var(--zui-text) !important}",
+    ".g2-empty-card .zoidium-note{padding:0;border-bottom:0;font-size:var(--zui-font-size-compact);line-height:1.6}",
     ".g2-empty-card b{color:var(--zui-value);font-weight:400}",
-    ".g2-tip{position:absolute;pointer-events:none;background:var(--zui-bg-input);border:1px solid var(--zui-border-soft);border-radius:3px;padding:6px 9px;font-size:11px;line-height:1.5;display:none;z-index:5;color:var(--zui-text) !important}",
-    ".g2-status{flex:0 0 auto;flex-shrink:0;display:flex;align-items:center;gap:8px;padding:4px 10px;background:var(--zui-bg-title);border-top:1px solid var(--zui-border);font-size:11px;color:var(--zui-text) !important;flex-wrap:nowrap;overflow:hidden;white-space:nowrap}",
+    ".g2-tip{position:absolute;pointer-events:none;background:var(--zui-bg-input);border:1px solid var(--zui-border-soft);border-radius:3px;padding:6px 9px;font-size:var(--zui-font-size-compact);line-height:1.5;display:none;z-index:5;color:var(--zui-text) !important}",
+    ".g2-status{flex:0 0 auto;flex-shrink:0;display:flex;align-items:center;gap:8px;padding:4px 10px;background:var(--zui-bg-title);border-top:1px solid var(--zui-border);font-size:var(--zui-font-size-compact);color:var(--zui-text) !important;flex-wrap:nowrap;overflow:hidden;white-space:nowrap}",
     ".g2-pill{background:var(--zui-hover);border:1px solid var(--zui-border-soft);border-radius:3px;padding:2px 10px;color:var(--zui-text-muted) !important;font-variant-numeric:tabular-nums;flex:0 0 auto;max-width:100%}",
     ".g2-status .g2-pill:last-child{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
     ".g2-pill b{color:var(--zui-text-bright);font-weight:400}",

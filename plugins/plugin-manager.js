@@ -1476,6 +1476,7 @@
         return ZoidiumUI.controls;
       },
       notify: (detail) => ZoidiumUI.notify(detail),
+      confirm: (options) => ZoidiumUI.confirm(options),
       getWindow: (id) => ZoidiumUI.getWindow(`${plugin.id}:${id}`),
       openWindow,
       // Scoped stylesheet for this plugin's windows: openWindow({ skin: name }).
@@ -2671,9 +2672,10 @@
       const state = pluginStates.get(requested.id);
       if (!state) {
         const versionSuffix = requested.version ? ` v${requested.version}` : "";
-        window.alert(
-          `This project requires the plugin "${requested.name}"${versionSuffix}, which is not installed in this Zoidium.`
-        );
+        ZoidiumUI.notify({
+          title: "Plugin missing.",
+          message: `This project requires the plugin "${requested.name}"${versionSuffix}, which is not installed in this Zoidium.`,
+        });
         continue;
       }
       if (state.card && state.card.dataset.phase === "loading" && state.enablePromise) {
@@ -2688,9 +2690,12 @@
           : installedVersion
             ? ` v${installedVersion}`
             : "";
-      const approved = window.confirm(
-        `This project uses the plugin "${state.plugin.name}"${versionNote}, which is not compatible with vanilla Panzoid Clipmaker 3.\n\nEnable this plugin?\nIf you decline, plugin features will be unavailable and the project may render differently. Enable the plugin before editing those features.`
-      );
+      const approved = await ZoidiumUI.confirm({
+        title: `Enable "${state.plugin.name}"?`,
+        message: `This project uses the plugin "${state.plugin.name}"${versionNote}, which is not compatible with vanilla Panzoid Clipmaker 3.\n\nEnable this plugin?\nIf you decline, plugin features will be unavailable and the project may render differently. Enable the plugin before editing those features.`,
+        confirmLabel: "Enable",
+        cancelLabel: "Cancel",
+      });
       if (approved) await enablePlugin(state, true);
     }
     project._zoidiumPluginActivationPending = null;
@@ -2977,9 +2982,12 @@
         const names = unacknowledged
           .map((plugin) => plugin.name)
           .join(", ");
-        const approved = window.confirm(
-          `This project uses plugin(s) incompatible with vanilla Panzoid Clipmaker 3 (${names}).\nZoidium is required.\n\nSave anyway?`
-        );
+        const approved = await ZoidiumUI.confirm({
+          title: "Save anyway?",
+          message: `This project uses plugin(s) incompatible with vanilla Panzoid Clipmaker 3 (${names}).\nZoidium is required.\n\nSave anyway?`,
+          confirmLabel: "Save anyway",
+          cancelLabel: "Cancel",
+        });
         if (!approved) return;
         for (const plugin of unacknowledged) rememberSaveApproval(plugin.id);
       }

@@ -225,7 +225,7 @@
     label.className = "proplabel";
     label.title = title || "";
     label.textContent = title || "";
-    label.style.fontSize = "18px";
+    label.style.fontSize = "var(--zui-font-size-title)";
     label.style.fontWeight = "bold";
     header.appendChild(label);
     return header;
@@ -290,22 +290,163 @@
 
   // Creates a CM3 chrome button (same builder behind Settings rows and
   // the debug-log download button). Falls back to a plain proprow
-  // button when the legacy controls are unavailable.
+  // button when the legacy controls are unavailable. options: { title,
+  // hint, icon (a PZ.ui.generateIcon name, rendered before the title and
+  // replacing the visible label), className, onClick }.
   function createButton(options) {
     var config = options || {};
     var legacy = legacyControls();
+    var button;
     if (legacy && typeof legacy.generateButton === "function") {
-      return legacy.generateButton({
-        title: config.title || "",
+      button = legacy.generateButton({
+        title: config.icon ? "" : (config.title || ""),
         clickfn: typeof config.onClick === "function" ? config.onClick : function () {},
       });
+    } else {
+      button = global.document.createElement("button");
+      button.type = "button";
+      button.className = "proprow propbutton";
+      if (!config.icon) button.textContent = config.title || "";
+      if (typeof config.onClick === "function") button.addEventListener("click", config.onClick);
     }
-    var button = global.document.createElement("button");
-    button.type = "button";
-    button.className = "proprow propbutton";
-    button.textContent = config.title || "";
-    if (typeof config.onClick === "function") button.addEventListener("click", config.onClick);
+    if (config.icon && global.PZ && typeof global.PZ.ui.generateIcon === "function") {
+      var icon = null;
+      try { icon = global.PZ.ui.generateIcon(config.icon); } catch (_error) { icon = null; }
+      if (icon) {
+        if (typeof icon.setAttribute === "function") icon.setAttribute("aria-hidden", "true");
+        if (typeof button.insertBefore === "function") button.insertBefore(icon, button.firstChild || null);
+        else if (typeof button.appendChild === "function") button.appendChild(icon);
+      }
+    }
+    if (config.className && button.classList && typeof button.classList.add === "function") {
+      String(config.className).split(/\s+/).forEach(function (name) {
+        if (name) button.classList.add(name);
+      });
+    }
+    if (config.title) {
+      if (!button.title) button.title = config.title;
+      if (typeof button.getAttribute === "function" && typeof button.setAttribute === "function"
+        && !button.getAttribute("aria-label")) {
+        button.setAttribute("aria-label", config.title);
+      }
+    }
+    if (config.hint) button.title = config.hint;
     return button;
+  }
+
+  var confirmCounter = 0;
+  // Small centered modal-like question dialog built on openWindow and the
+  // shared footer buttons. options: { title, message, confirmLabel ("Delete"
+  // at destructive call sites), cancelLabel, danger, onConfirm, onCancel }.
+  // Enter confirms, Escape and the close button cancel, and a danger dialog
+  // focuses the safe (cancel) button. Returns a Promise<boolean> and also
+  // calls onConfirm/onCancel. Theme tokens only (see ui-window.css).
+  function confirm(options) {
+    var config = options || {};
+    var title = config.title || "Confirm";
+    var message = config.message || "";
+    var confirmLabel = config.confirmLabel || "Confirm";
+    var cancelLabel = config.cancelLabel || "Cancel";
+    var danger = Boolean(config.danger);
+    var settled = false;
+    var win = null;
+    var resolvePromise = function () {};
+    var promise = new Promise(function (resolve) { resolvePromise = resolve; });
+    function done(value) {
+      if (settled) return;
+      settled = true;
+      call(value ? config.onConfirm : config.onCancel, value);
+      resolvePromise(value);
+      if (win) win.close();
+    }
+    confirmCounter += 1;
+    win = openWindow({
+      id: "confirm-" + confirmCounter + "-" + Date.now().toString(36),
+      title: title,
+      placement: "center",
+      width: 380,
+      height: 180,
+      minWidth: 320,
+      minHeight: 100,
+      resizable: false,
+      maximizable: false,
+      collapsible: false,
+      className: "zoidium-confirm",
+      mount: function (body, mounted) {
+        var text = note(message).element;
+        text.classList.add("zoidium-confirm-message");
+        body.appendChild(text);
+        mounted.setFooter([
+          { title: cancelLabel, onClick: function () { done(false); } },
+          { title: confirmLabel, variant: danger ? "danger" : "primary", onClick: function () { done(true); } },
+        ]);
+        var buttons = mounted.footer.querySelectorAll("button");
+        var cancelButton = buttons[0];
+        var confirmButton = buttons[1];
+        function onKey(event) {
+          if (!event || event.key !== "Enter" || event.defaultPrevented) return;
+          // A focused button activates itself; anything else confirms.
+          if (event.target && event.target !== confirmButton
+            && event.target.tagName === "BUTTON") {
+            return;
+          }
+          event.preventDefault();
+          done(true);
+        }
+        mounted.element.addEventListener("keydown", onKey);
+        var safe = danger ? cancelButton : confirmButton;
+        if (safe && typeof safe.focus === "function") {
+          if (global.requestAnimationFrame) {
+            global.requestAnimationFrame(function () {
+              try { safe.focus({ preventScroll: true }); } catch (_error) { safe.focus(); }
+            });
+          } else {
+            safe.focus();
+          }
+        }
+        return function () { mounted.element.removeEventListener("keydown", onKey); };
+      },
+      onClose: function () { done(false); },
+    });
+    if (!win) {
+      done(false);
+      return promise;
+    }
+    // Size the window to its content: a one-line question stays a compact
+    // title + message + footer instead of leaving a tall empty body. The
+    // height is re-fitted after every clamp (e.g. browser resize) so the
+    // dialog never drifts back to its initial height. The body itself is
+    // measured through its children: once the window has a fixed height the
+    // flex-filled body reports that height as its scroll height, which would
+    // make the fit a no-op.
+    function fitConfirm() {
+      if (!win.isOpen()) return;
+      var content = 0;
+      var kids = win.body.children || [];
+      for (var index = 0; index < kids.length; index += 1) {
+        var childHeight = kids[index].offsetHeight;
+        if (!Number.isFinite(childHeight)) return;
+        content += childHeight;
+      }
+      if (typeof global.getComputedStyle === "function") {
+        try {
+          var bodyStyle = global.getComputedStyle(win.body);
+          content += parseFloat(bodyStyle.paddingTop) || 0;
+          content += parseFloat(bodyStyle.paddingBottom) || 0;
+        } catch (_styleError) { /* keep the unpadded sum */ }
+      }
+      var height = win.titlebar.offsetHeight + content
+        + (win.footer.hidden ? 0 : win.footer.offsetHeight) + 2;
+      if (!Number.isFinite(height)) return;
+      var viewport = global.innerHeight || 720;
+      height = Math.max(96, Math.min(height, Math.max(96, viewport - 16)));
+      win.element.style.height = Math.round(height) + "px";
+    }
+    var baseClamp = win._clamp.bind(win);
+    win._clamp = function () { baseClamp(); fitConfirm(); };
+    if (global.requestAnimationFrame) global.requestAnimationFrame(fitConfirm);
+    else fitConfirm();
+    return promise;
   }
 
   // ---------------------------------------------------------------------
@@ -1386,6 +1527,7 @@
     createSearchBox: createSearchBox,
     attachSearchFilter: attachSearchFilter,
     createButton: createButton,
+    confirm: confirm,
     openWindow: openWindow,
     getWindow: getWindow,
     closeWindows: closeWindows,

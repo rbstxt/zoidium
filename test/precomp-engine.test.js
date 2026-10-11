@@ -506,9 +506,12 @@ test("Media panel deletion guards references in Main and compositions and restor
   const uninstall = env.engine.install();
   const panel = new MediaPanel();
   panel.editor = env.editor;
-  const previousAlert = globalThis.alert;
   const messages = [];
-  globalThis.alert = (message) => messages.push(message);
+  const previousDispatch = globalThis.dispatchEvent;
+  globalThis.dispatchEvent = (event) => {
+    messages.push(event && event.detail ? event.detail.message : event);
+    return true;
+  };
   try {
     addCompMedia(env, "X", "Intro", [{ type: 0, clips: [] }]);
     addCompMedia(env, "Y", "Outer", [{ type: 0, clips: [clipJSON(0, 30, "Nested", { compId: "X" })] }]);
@@ -527,7 +530,7 @@ test("Media panel deletion guards references in Main and compositions and restor
     env.editor.history.finishOperation();
     assert.equal(env.engine.isEditing(env.project), false);
   } finally {
-    globalThis.alert = previousAlert;
+    globalThis.dispatchEvent = previousDispatch;
     uninstall();
   }
   assert.equal(MediaPanel.prototype.deleteMedia, original);

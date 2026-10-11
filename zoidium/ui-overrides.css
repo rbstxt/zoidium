@@ -81,7 +81,7 @@
   overflow: hidden;
   color: var(--zoidium-theme-link, #7e8fb9);
   font-family: inherit;
-  font-size: 16px;
+  font-size: var(--zui-font-size);
   line-height: 23px;
   text-align: start;
   text-overflow: ellipsis;
@@ -113,7 +113,7 @@
 
 .zoidium-restore-title {
   color: #ccc;
-  font-size: 18px;
+  font-size: var(--zui-font-size-title);
   font-weight: bold;
 }
 
@@ -155,7 +155,7 @@
   width: 100%;
   padding: 5px calc(5px + var(--zoidium-scrollbar-width)) 5px 5px;
   color: #969696;
-  font-size: 12px;
+  font-size: var(--zui-font-size-small);
   border-bottom: 1px solid #242424;
   box-sizing: border-box;
 }
@@ -171,7 +171,7 @@
   min-width: 0;
   overflow: hidden;
   color: #ccc;
-  font-size: 16px;
+  font-size: var(--zui-font-size);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -189,7 +189,7 @@
   border-bottom: 1px solid #242424;
   box-sizing: border-box;
   color: var(--zoidium-plugin-warning-color);
-  font-size: 13px;
+  font-size: var(--zui-font-size-small);
   line-height: 1.4;
   margin-bottom: 0;
   padding: 5px calc(8px + var(--zoidium-scrollbar-width)) 5px 8px;
@@ -208,7 +208,7 @@
   background-color: #222;
   border-bottom: 1px solid #1d1d1d;
   box-sizing: border-box;
-  font-size: 15px;
+  font-size: var(--zui-font-size);
 }
 
 .zoidium-restore-entry {
@@ -235,7 +235,7 @@
 .zoidium-restore-name {
   overflow: hidden;
   color: #eee;
-  font-size: 16px;
+  font-size: var(--zui-font-size);
   font-weight: bold;
   line-height: 1.25;
   text-overflow: ellipsis;
@@ -245,7 +245,7 @@
 .zoidium-restore-meta {
   overflow: hidden;
   color: #969696;
-  font-size: 13px;
+  font-size: var(--zui-font-size-small);
   line-height: 1.35;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -341,7 +341,7 @@
 
 .zoidium-project-toast-title {
   color: #eee;
-  font-size: 16px;
+  font-size: var(--zui-font-size);
   font-weight: bold;
 }
 
@@ -502,7 +502,7 @@ body > .pz-dropdown li > span[style],
   margin-top: 3px;
   overflow-wrap: anywhere;
   color: #aaa;
-  font-size: 12px;
+  font-size: var(--zui-font-size-small);
   line-height: 1.4;
 }
 
@@ -527,7 +527,7 @@ body > .pz-dropdown li > span[style],
   min-width: 74px;
   margin: 0;
   padding: 4px 7px;
-  font-size: 12px;
+  font-size: var(--zui-font-size-small);
 }
 
 @media (max-width: 520px) {
@@ -538,11 +538,11 @@ body > .pz-dropdown li > span[style],
   }
 
   .zoidium-restore-name {
-    font-size: 14px;
+    font-size: var(--zui-font-size-small);
   }
 
   .zoidium-restore-meta {
-    font-size: 11px;
+    font-size: var(--zui-font-size-compact);
   }
 }
 

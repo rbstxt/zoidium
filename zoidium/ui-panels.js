@@ -14,9 +14,9 @@
   //   ZoidiumUI.registerEditor(spec)
   //     Declares that an editor window exists for some objects (3D objects,
   //     effects, materials). CM3 lists then show a gear button on matching
-  //     rows and an "Open ..." button at the top of their properties, the same
-  //     way the VHS effect shows its Setup button. refreshEditors() re-runs
-  //     match() on open panels after a property it reads changes.
+  //     rows and a shared "Open ..." button at the top of their properties.
+  //     refreshEditors() re-runs match() on open panels after a property it
+  //     reads changes.
   //
   //   ZoidiumUI.openAttributePanel(target, spec)
   //     Opens a tabbed attribute window (the Cinema 4D / After Effects /
@@ -211,8 +211,8 @@
         var row = el("div", "zoidium-editor-launch noselect");
         specs.forEach(function (spec) {
           var button = kit.controls.button({
-            title: spec.label || ("Open " + spec.title),
-            hint: spec.hint || ("Open the " + spec.title + " window"),
+            title: "Open " + spec.title,
+            hint: "Open the " + spec.title + " window",
             onClick: function (event) {
               event.preventDefault();
               event.stopPropagation();
@@ -272,7 +272,7 @@
           commands.classList.add("actions");
           specs.slice().reverse().forEach(function (spec) {
             var gear = this.generateButton(spec.icon || "settings");
-            gear.title = spec.label || ("Open " + spec.title);
+            gear.title = "Open " + spec.title;
             gear.classList.add("zoidium-editor-gear");
             gear.onclick = function (event) {
               event.stopPropagation();
@@ -347,7 +347,7 @@
         });
       }
 
-      // spec: { id, title, label?, hint?, icon?, match(target), open(target) }
+      // spec: { id, title, icon?, match(target), open(target) }
       // Returns a function that unregisters the editor.
       function registerEditor(spec) {
         if (!spec || typeof spec.match !== "function" || typeof spec.open !== "function" || !spec.title) {
@@ -466,8 +466,6 @@
         return registerEditor({
           id: spec.id,
           title: spec.title,
-          label: spec.label,
-          hint: spec.hint,
           icon: spec.icon,
           match: spec.match,
           open: function (target) { return openAttributePanel(target, spec, openWindow); },

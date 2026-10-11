@@ -127,6 +127,12 @@ function createHarness() {
     controls,
     notify(detail) { kit.notified.push(detail); },
     notified: [],
+    confirms: [],
+    confirmResult: true,
+    confirm(options) {
+      kit.confirms.push(options);
+      return Promise.resolve(kit.confirmResult !== false);
+    },
     createPageHeader(text) { const el = fakeElement("div"); el.textContent = text; return el; },
     createMenubarTab(options) {
       const tab = fakeElement("a");
@@ -170,7 +176,7 @@ function createHarness() {
     PZ: PZ,
     editor: editor,
     document: document,
-    window: { ZoidiumUI: kit, confirm: () => true },
+    window: { ZoidiumUI: kit },
     lifecycle: lifecycle,
     getAsset(kind, url) {
       const file = String(url).replace(/^\.\//, "").split(/[?#]/, 1)[0];
@@ -328,9 +334,19 @@ test("rename, duplicate and delete run from the window; delete is refused while 
   comps.body.children.find((el) => el.opts && el.opts.label === "Name").opts.onChange("Credits");
   assert.equal(copy.properties.name.v, "Credits");
 
-  // The unused copy can be deleted.
+  // The unused copy can be deleted. Cancelling keeps it.
+  h.kit.confirmResult = false;
   findButton(comps.body, "Delete").onClick();
+  await tick();
+  assert.equal(h.project.media.length, 2, "cancelled delete keeps the composition");
+  h.kit.confirmResult = true;
+  findButton(comps.body, "Delete").onClick();
+  await tick();
   assert.equal(h.project.media.length, 1);
+  const asked = h.kit.confirms.at(-1);
+  assert.equal(asked.confirmLabel, "Delete");
+  assert.equal(asked.danger, true);
+  assert.match(asked.message, /Delete composition/);
 });
 
 test("activating a composition shows it in the subtitle and tab; Back to Main restores both", async () => {
