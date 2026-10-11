@@ -61,13 +61,6 @@ const EasingPlus = (() => {
         dialogFactory: require(PART_FILES.dialog),
       };
     }
-    if (typeof require === "function") {
-      return {
-        curves: require(PART_FILES.curves),
-        hostFactory: require(PART_FILES.host),
-        dialogFactory: require(PART_FILES.dialog),
-      };
-    }
     throw new Error("Easing+ needs the plugin bundle asset resolver.");
   }
 
@@ -167,18 +160,60 @@ const EasingPlus = (() => {
 
   // Unit-test surface. In the runtime bundle the parts load per activation;
   // under Node they are preloaded here so tests can pin the pure helpers
-  // without activating. The factories only read the probe state when their
-  // installers run, which tests never trigger.
+  // without activating. The parts always load through the real shared bundle
+  // loader (context.apis.modules.createRequire) backed by a disk asset
+  // resolver, never through Node's own require, so tests pin the same
+  // root-scoped modules the shipped bundle runs. The loader is evaluated in
+  // this realm (a vm sandbox would root every part export in a foreign realm
+  // and break structural comparisons); any pre-existing global is restored.
+  // The factories only read the probe state when their installers run, which
+  // tests never trigger.
+  function loadBundleCreateRequire() {
+    if (
+      typeof globalThis.ZoidiumPluginApis !== "undefined" &&
+      globalThis.ZoidiumPluginApis.modules &&
+      typeof globalThis.ZoidiumPluginApis.modules.createRequire === "function"
+    ) {
+      return globalThis.ZoidiumPluginApis.modules.createRequire;
+    }
+    const fs = require("node:fs");
+    const path = require("node:path");
+    const vm = require("node:vm");
+    const dir = typeof __dirname === "string" ? __dirname : process.cwd();
+    const apiSource = fs.readFileSync(
+      path.join(dir, "..", "..", "zoidium", "plugin-apis.js"),
+      "utf8"
+    );
+    const previous = globalThis.ZoidiumPluginApis;
+    try {
+      vm.runInThisContext(apiSource, { filename: "zoidium/plugin-apis.js" });
+      return globalThis.ZoidiumPluginApis.modules.createRequire;
+    } finally {
+      if (typeof previous === "undefined") delete globalThis.ZoidiumPluginApis;
+      else globalThis.ZoidiumPluginApis = previous;
+    }
+  }
+
   function testSurface() {
     if (typeof require !== "function") return {};
-    const curves = require(PART_FILES.curves);
+    const fs = require("node:fs");
+    const path = require("node:path");
+    const dir = typeof __dirname === "string" ? __dirname : process.cwd();
+    const createRequire = loadBundleCreateRequire();
+    const getAsset = (kind, assetPath) => {
+      if (kind !== "text") throw new Error("Easing+ test assets are text only: " + assetPath);
+      const name = String(assetPath).split("?")[0].split("/").pop();
+      return fs.readFileSync(path.join(dir, name), "utf8");
+    };
+    const bundleRequire = createRequire(getAsset, { root: PART_ROOT });
+    const curves = bundleRequire(PART_FILES.curves);
     const probe = {
       easeButtons: new Set(),
       displayRows: new Set(),
       pendingDragShapes: new Map(),
     };
-    const host = require(PART_FILES.host)(probe, { curves });
-    const dialog = require(PART_FILES.dialog)(probe, {
+    const host = bundleRequire(PART_FILES.host)(probe, { curves });
+    const dialog = bundleRequire(PART_FILES.dialog)(probe, {
       curves,
       applyCurveToTarget: host.applyCurveToTarget,
     });

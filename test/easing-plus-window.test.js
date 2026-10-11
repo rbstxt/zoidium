@@ -7,6 +7,8 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 
+const { withBundle } = require("./easing-plus-bundle");
+
 class FakeElement {
   constructor(tagName) {
     this.tagName = String(tagName).toUpperCase();
@@ -155,7 +157,7 @@ test("Easing+ opens its curve editor as a floating window, not a fullscreen over
   });
   const current = { frame: 60, value: 1, controlPoints: [[-10, 0], [0, 0]] };
   const previous = { frame: 30, value: 0, controlPoints: [[0, 0], [10, 0]] };
-  EasingPlus.activate({ ui, editor: makeEditor(calls), getAsset: undefined });
+  EasingPlus.activate(withBundle({ ui, editor: makeEditor(calls) }));
   assert.deepEqual(calls.documentListeners, [], "no document-level key handler");
 
   windowStub.PZ.editor.showEaseDropDown(makeEaseButton(property, calls));
@@ -227,7 +229,7 @@ test("Easing+ commits an edited curve once when its window closes", () => {
     const current = { frame: 60, value: 1, controlPoints: [[-10, 0], [0, 0]] };
     const previous = { frame: 30, value: 0, controlPoints: [[0, 0], [10, 0]] };
 
-    EasingPlus.activate({ ui, editor: makeEditor(calls), getAsset: undefined });
+    EasingPlus.activate(withBundle({ ui, editor: makeEditor(calls) }));
     windowStub.PZ.editor.showEaseDropDown(makeEaseButton(property, calls));
     assert.equal(opened.length, 1);
 
