@@ -233,6 +233,7 @@ function requestedPath(requestUrl) {
   try {
     pathname = decodeURIComponent(new URL(requestUrl, "http://zoidium.invalid").pathname);
   } catch (_error) {
+    // Unparseable request targets serve no file.
     return null;
   }
   if (pathname.includes("\u0000") || pathname.includes("\\")) return null;
@@ -364,6 +365,7 @@ function isLocalUrl(value) {
   try {
     return new URL(value).origin === serverOrigin;
   } catch (_error) {
+    // Unparseable values are never treated as local.
     return false;
   }
 }
@@ -377,6 +379,7 @@ function openExternal(value) {
   try {
     protocol = new URL(value).protocol;
   } catch (_error) {
+    // Unparseable values fall through to the scheme blocklist below.
     protocol = "";
   }
   if (!EXTERNAL_PROTOCOLS.has(protocol)) {
@@ -417,6 +420,7 @@ function installPermissionHandlers(session) {
     try {
       pageUrl = webContents.getURL();
     } catch (_error) {
+      // A destroyed renderer reports no URL; the denial is still logged.
       pageUrl = "";
     }
     logMain("warn", "denied renderer permission request", {
@@ -611,6 +615,7 @@ function readWindowState() {
     // Retain size, but let the OS center a window from a disconnected display.
     return { bounds: visible ? bounds : { width: bounds.width, height: bounds.height }, maximized: state.maximized === true };
   } catch (_error) {
+    // Corrupt or unreadable state opens a default window.
     return null;
   }
 }
