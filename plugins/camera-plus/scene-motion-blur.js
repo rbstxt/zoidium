@@ -9,30 +9,14 @@ parts.motion = (function () {
     return Array.from({ length: count }, (_, i) => ((i + 0.5) / count - 0.5) * width);
   }
 
-  function sharedGl() {
-    if (typeof ZoidiumPluginApis !== "undefined" && ZoidiumPluginApis && ZoidiumPluginApis.gl) {
-      return ZoidiumPluginApis.gl;
-    }
-    if (typeof ZoidiumSharedGl !== "undefined") return ZoidiumSharedGl;
-    return null;
-  }
-
+  // Shared GL helpers (zoidium/shared/gl.js, loaded before any plugin code
+  // runs). Pinned by test/shared-helpers.test.js.
   function makeTarget(THREE, width, height, options) {
-    const shared = sharedGl();
-    if (shared) return shared.createRenderTarget(THREE, width, height, options);
-    return new THREE.WebGLRenderTarget(width, height, options);
+    return ZoidiumPluginApis.gl.createRenderTarget(THREE, width, height, options);
   }
 
   function makeCopyPass(THREE) {
-    const shared = sharedGl();
-    if (shared) return shared.createCopyPass(THREE);
-    return new THREE.ShaderPass(new THREE.ShaderMaterial({
-      uniforms: THREE.UniformsUtils.clone(THREE.CopyShader.uniforms),
-      vertexShader: THREE.CopyShader.vertexShader,
-      fragmentShader: THREE.CopyShader.fragmentShader,
-      depthTest: false,
-      depthWrite: false,
-    }));
+    return ZoidiumPluginApis.gl.createCopyPass(THREE);
   }
 
   function createSceneMotionBlurClass(THREE) {

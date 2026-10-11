@@ -27,27 +27,14 @@ parts.dof = (function () {
   const TILE = 16;
   const DEPTH_LOOKUP = "unpackDepth( texture2D( tDepth, uv ) )";
 
-  // Shared GL helpers (zoidium/shared/gl.js, ZoidiumPluginApis.gl). Local
-  // bodies stay as the fallback until the shared overlay scripts land in
-  // zoidium/runtime-config.js. Pinned by test/shared-helpers.test.js.
-  function sharedGl() {
-    if (typeof ZoidiumPluginApis !== "undefined" && ZoidiumPluginApis && ZoidiumPluginApis.gl) {
-      return ZoidiumPluginApis.gl;
-    }
-    if (typeof ZoidiumSharedGl !== "undefined") return ZoidiumSharedGl;
-    return null;
-  }
-
+  // Shared GL helpers (zoidium/shared/gl.js, loaded before any plugin code
+  // runs). Pinned by test/shared-helpers.test.js.
   function makeTarget(THREE, width, height, options) {
-    const shared = sharedGl();
-    if (shared) return shared.createRenderTarget(THREE, width, height, options);
-    return new THREE.WebGLRenderTarget(width, height, options);
+    return ZoidiumPluginApis.gl.createRenderTarget(THREE, width, height, options);
   }
 
   function targetMatches(target, width, height) {
-    const shared = sharedGl();
-    if (shared) return shared.sameSize(target, width, height);
-    return !!target && target.width === width && target.height === height;
+    return ZoidiumPluginApis.gl.sameSize(target, width, height);
   }
 
   const VERTEX_SHADER = [
