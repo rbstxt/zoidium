@@ -189,6 +189,7 @@ function propertyValue(property, frame, fallback) {
     const value = typeof property.get === "function" ? property.get(frame) : property.value;
     return value === undefined ? fallback : value;
   } catch (_error) {
+    // Host dynamic properties can be unavailable before native load.
     return fallback;
   }
 }

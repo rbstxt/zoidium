@@ -13,6 +13,15 @@ const state = {
   factory: null,
 };
 
+const environmentWarnings = new WeakMap();
+function warnEnvironment(source, message, error) {
+  let messages = environmentWarnings.get(source);
+  if (!messages) environmentWarnings.set(source, messages = new Set());
+  if (messages.has(message)) return;
+  messages.add(message);
+  console.warn("[Zoidium] PBR+: " + message, error);
+}
+
 const WRAP_VALUES = Object.freeze([
   "ClampToEdgeWrapping",
   "RepeatWrapping",
@@ -20,12 +29,7 @@ const WRAP_VALUES = Object.freeze([
 ]);
 
 function readNumber(property, frame, fallback) {
-  try {
-    const value = property?.get?.(frame);
-    return Number.isFinite(Number(value)) ? Number(value) : fallback;
-  } catch (_error) {
-    return fallback;
-  }
+  return ZoidiumPluginApis.props.readNumberCoerced(property, frame, fallback);
 }
 
 function readColor(property, frame, fallback) {
@@ -93,7 +97,7 @@ function disposeTextureSlot(material, slot) {
     try {
       material.parentProject?.assets?.unload(oldAsset);
     } catch (error) {
-      console.error("Material+ could not unload a PBR texture asset", error);
+      console.warn("[Zoidium] Material+: could not unload a PBR texture asset", error);
     }
   }
   oldTexture?.dispose?.();
@@ -151,20 +155,20 @@ function loadTextureSlot(material, slot, value) {
         texture.needsUpdate = true;
       }).catch((error) => {
         if (slot.generation !== generation || slot.texture !== texture) return;
-        console.error("Material+ could not decode a PBR texture", error);
+        console.warn("[Zoidium] Material+: could not decode a PBR texture", error);
       });
     }
   } catch (error) {
     if (asset) {
       try {
         material.parentProject.assets.unload(asset);
-      } catch (_unloadError) {
-        // Keep the original load error as the useful diagnostic.
+      } catch (unloadError) {
+        console.warn("[Zoidium] PBR+: could not clean up a failed texture load", unloadError);
       }
     }
     material.threeObj[slot.materialProperty] = null;
     material.threeObj.needsUpdate = true;
-    console.error("Material+ could not load a PBR texture", error);
+    console.warn("[Zoidium] Material+: could not load a PBR texture", error);
   }
 }
 
@@ -180,7 +184,7 @@ function releaseEnvironmentMap(material) {
     try {
       material._zoidiumEnvironmentSource.releaseTexture();
     } catch (error) {
-      console.error("Material+ could not release a PBR environment map", error);
+      warnEnvironment(material._zoidiumEnvironmentSource, "could not release an environment map", error);
     }
   }
   material._zoidiumEnvironmentSource = null;
@@ -219,7 +223,7 @@ function syncEnvironmentMap(material) {
     material._zoidiumEnvironmentLayer = layer;
     material.threeObj.needsUpdate = true;
   } catch (error) {
-    console.error("Material+ could not load a PBR environment map", error);
+    warnEnvironment(source, "could not load an environment map", error);
     releaseEnvironmentMap(material);
   }
 }

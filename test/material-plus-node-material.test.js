@@ -8,6 +8,9 @@ const vm = require("node:vm");
 const NodeMaterial = require("../plugins/material-plus/node-material");
 function pluginApis() {
   const context = { PZ: {}, console };
+  for (const name of ["random", "props", "color", "gl", "json", "windows"]) {
+    vm.runInNewContext(fs.readFileSync("zoidium/shared/" + name + ".js", "utf8"), context);
+  }
   vm.runInNewContext(fs.readFileSync("zoidium/plugin-apis.js", "utf8"), context);
   return context.ZoidiumPluginApis;
 }

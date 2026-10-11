@@ -7,7 +7,7 @@
 // because their integer math differs. Load order: before zoidium/plugin-apis.js
 // (see postInitScripts in zoidium/runtime-config.js). plugin-apis.js exposes
 // this table as ZoidiumPluginApis.random.
-(function (global) {
+(function initializeRandom(global) {
   "use strict";
 
   // Datamosh and VHS setup windows share this exact (seed, index) hash; both
@@ -219,4 +219,13 @@
     vibrateSampleNoise: vibrateSampleNoise,
     GLSL_RAND: GLSL_RAND,
   };
+  // Serialize this initializer, including its closure state and dependencies.
+  // The worker receives the same implementation without fetching overlay files.
+  Object.defineProperty(global.ZoidiumSharedRandom, "workerSource", {
+    value: function () {
+      return "(" + Function.prototype.toString.call(initializeRandom) + ")(globalThis);\n" +
+        "globalThis.ZoidiumPluginApis = globalThis.ZoidiumPluginApis || {};\n" +
+        "globalThis.ZoidiumPluginApis.random = globalThis.ZoidiumSharedRandom;\n";
+    },
+  });
 })(typeof globalThis !== "undefined" ? globalThis : this);

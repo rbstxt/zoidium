@@ -5,7 +5,7 @@
 // dropped instead of being assigned. Load order: before
 // zoidium/plugin-apis.js (see postInitScripts in zoidium/runtime-config.js).
 // plugin-apis.js exposes this table as ZoidiumPluginApis.json.
-(function (global) {
+(function initializeJson(global) {
   "use strict";
 
   var UNSAFE_KEYS = ["__proto__", "constructor", "prototype"];
@@ -77,4 +77,13 @@
     cleanParsed: cleanParsed,
     safeAssign: safeAssign,
   };
+  // Serialize this initializer, including its closure state and dependencies.
+  // The worker receives the same implementation without fetching overlay files.
+  Object.defineProperty(global.ZoidiumSharedJson, "workerSource", {
+    value: function () {
+      return "(" + Function.prototype.toString.call(initializeJson) + ")(globalThis);\n" +
+        "globalThis.ZoidiumPluginApis = globalThis.ZoidiumPluginApis || {};\n" +
+        "globalThis.ZoidiumPluginApis.json = globalThis.ZoidiumSharedJson;\n";
+    },
+  });
 })(typeof globalThis !== "undefined" ? globalThis : this);

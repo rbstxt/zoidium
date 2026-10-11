@@ -30,6 +30,7 @@ function uvReadNumber(property, frame, fallback) {
     const value = property?.get?.(frame);
     return Number.isFinite(Number(value)) ? Number(value) : fallback;
   } catch (_error) {
+    // Host dynamic properties can be unavailable before native load.
     return fallback;
   }
 }
@@ -99,8 +100,8 @@ function uvDisposeTexture(material, key, property) {
   if (asset) {
     try {
       material.parentProject?.assets?.unload(asset);
-    } catch (_error) {
-      // The project may already be gone during unload.
+    } catch (error) {
+      console.warn("[Zoidium] UV Custom: could not unload a texture asset", error);
     }
   }
 }
