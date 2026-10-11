@@ -12,10 +12,6 @@ const test = require("node:test");
 const projectRoot = path.resolve(__dirname, "..");
 const flaresDir = path.join(projectRoot, "plugins", "optical-flares");
 
-function readFlareSource(file) {
-  return fs.readFileSync(path.join(flaresDir, file), "utf8");
-}
-
 function clone(value) {
   return value === undefined ? undefined : JSON.parse(JSON.stringify(value));
 }
@@ -211,10 +207,12 @@ function buildEnv() {
     },
   };
 
-  // Loads the sources in the same order the runtime uses.
-  for (const file of ["optflares-math.js", "optflares.js", "optflares-window.js"]) {
-    new Function("PZ", "THREE", readFlareSource(file))(PZ, THREE);
-  }
+  // Loads the sources the way the runtime does: math first, then the
+  // object installer, then the options window.
+  const flareMath = require("../plugins/optical-flares/optflares-math");
+  PZ.opticalflares = { math: flareMath };
+  require("../plugins/optical-flares/optflares")(PZ, THREE);
+  require("../plugins/optical-flares/optflares-window")(PZ);
   return { PZ, THREE };
 }
 
@@ -580,7 +578,7 @@ test("a saved empty stack stays empty; only a missing stack gets the default pre
 
 test("the non-glow elements fade out when the source and centre coincide", () => {
   const { PZ } = buildEnv();
-  const source = fs.readFileSync(path.join(flaresDir, "optflares.js"), "utf8");
+  const source = fs.readFileSync(path.join(flaresDir, "optflares-shaders.js"), "utf8");
   assert.ok(source.includes("float axisFade = smoothstep(0.0, 0.02, axisLen);"), "shader fades by axis length");
   assert.ok(source.includes('"c *= (etype == 0) ? 1.0 : axisFade;"'), "the glow keeps full intensity");
   assert.ok(PZ.opticalflares.math.axisFade(0) === 0);

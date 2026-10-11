@@ -9,8 +9,8 @@ const fs = require("node:fs");
 const path = require("node:path");
 const test = require("node:test");
 
-const windowSource = fs.readFileSync(
-  path.join(__dirname, "..", "plugins", "optical-flares", "optflares-window.js"),
+const windowDataSource = fs.readFileSync(
+  path.join(__dirname, "..", "plugins", "optical-flares", "optflares-window-data.js"),
   "utf8"
 );
 
@@ -413,7 +413,7 @@ function setup() {
   const saved = { PZ: globalThis.PZ, document: globalThis.document, localStorage: globalThis.localStorage };
   globalThis.document = sandbox.document;
   globalThis.localStorage = sandbox.localStorage;
-  new Function("PZ", windowSource)(PZ);
+  require("../plugins/optical-flares/optflares-window")(PZ);
   return {
     PZ, root, editor, history, ui, log, skins, views, storage,
     restore() {
@@ -482,7 +482,7 @@ test("the window opens once, namespaced, persisted, uses standard chrome and is 
     assert.equal(options.chrome, undefined);
     assert.equal(options.isValid(), true);
     assert.equal(env.skins.length, 0, "no private skin registered");
-    assert.ok(windowSource.includes(".of-window "), "widget CSS is scoped to the window body");
+    assert.ok(windowDataSource.includes(".of-window "), "widget CSS is scoped to the window body");
     assert.equal(typeof cleanup, "function");
     cleanup();
     assert.ok(env.views.length > 0 && env.views.every((v) => v.disposed), "custom view disposed");
