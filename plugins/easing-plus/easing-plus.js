@@ -1805,7 +1805,13 @@ const EasingPlus = (() => {
     activate,
     deactivate,
     __test: {
+      clamp,
+      round,
+      point,
       cubic,
+      clonePoints,
+      pathData,
+      curveFromSegment,
       planCurve,
       createValueMapper,
       valueScaleFor,
