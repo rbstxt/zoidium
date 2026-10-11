@@ -3,7 +3,7 @@
   "id": "core",
   "name": "Zoidium Core",
   "author": "Zoidium",
-  "version": "23",
+  "version": "24",
   "kind": "core",
   "visibility": "hidden",
   "alwaysEnabled": true,
@@ -38,6 +38,21 @@
     {
       "id": "particle-defaults",
       "source": "./plugins/core/particle-defaults.js",
+      "phase": "pre-init"
+    },
+    {
+      "id": "temporal-math",
+      "source": "./plugins/core/temporal-math.js",
+      "phase": "pre-init"
+    },
+    {
+      "id": "temporal-layers",
+      "source": "./plugins/core/temporal-layers.js",
+      "phase": "pre-init"
+    },
+    {
+      "id": "temporal-sampler",
+      "source": "./plugins/core/temporal-sampler.js",
       "phase": "pre-init"
     },
     {

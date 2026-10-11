@@ -26,13 +26,13 @@
       "id": "core",
       "name": "Zoidium Core",
       "author": "Zoidium",
-      "version": "23",
+      "version": "24",
       "visibility": "hidden",
       "alwaysEnabled": true,
       "tagline": "Built-in core extensions",
       "description": "Hidden built-in extensions that always run. Not shown in the Plugins panel and never stored in projects.",
-      "manifest": "./plugins/core/manifest.json?v=23",
-      "bundle": "./plugins/core/bundle.json?v=23"
+      "manifest": "./plugins/core/manifest.json?v=24",
+      "bundle": "./plugins/core/bundle.json?v=24"
     },
     {
       "id": "easing-plus",
@@ -330,15 +330,15 @@
       "category": "adjustment",
       "name": "OpenZoid Legacy",
       "author": "DaviFX",
-      "version": "18",
+      "version": "19",
       "itemCount": 12,
       "format": "native effects",
       "tagline": "Echo, Posterize Time, JPEG, VHS, Datamosh, Tracery",
       "color": "#8f6bc5",
       "description": "OpenZoid effects on Zoidium deterministic rendering: Echo and Posterize Time (Legacy), Jpeg Damage, VHS, Datamosh, Tracery and ASCII, with floating setup windows.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/openzoid-legacy/manifest.json?v=18",
-      "bundle": "./plugins/openzoid-legacy/bundle.json?v=18"
+      "manifest": "./plugins/openzoid-legacy/manifest.json?v=19",
+      "bundle": "./plugins/openzoid-legacy/bundle.json?v=19"
     },
     {
       "id": "magic-looks",
