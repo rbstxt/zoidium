@@ -25,6 +25,7 @@ async function main() {
     await replaceDirectoryAtomically(stagingRoot, outputRoot);
     console.log(`[Zoidium] static deployment published to ${outputRoot}`);
   } finally {
+    // The staging tree is disposable; a failed cleanup never fails the build.
     await fs.promises.rm(stagingRoot, { force: true, recursive: true }).catch(() => {});
   }
 }
