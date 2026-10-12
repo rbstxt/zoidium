@@ -50,8 +50,8 @@ var PZ = PZ || {};
         MAX_ALIVE: 20000,
         MAX_DEPTH: 2,
         CYCLE_STRIDE: 65536,
-        CHECKPOINT: 16,
-        CHECKPOINT_BUDGET: 200000,
+        CHECKPOINTS_PER_PARTICLE: 8,
+        CHECKPOINT_PARTICLES: 40000,
     };
 
     // Shared Particular simulation hash (zoidium/shared/random.js): integer
@@ -61,13 +61,13 @@ var PZ = PZ || {};
         return ZoidiumPluginApis.random.particularSimHash(seed, key, channel);
     }
 
+    var noiseBuffer = [0, 0, 0];
     function simNoise(x, y, z, time) {
         var t = time * 0.1;
-        return [
-            Math.sin(x + t) * Math.cos(y * 1.3 - t) + Math.sin(z * 0.7 + t * 0.5),
-            Math.cos(y + t * 1.1) * Math.sin(z * 1.1 + t) + Math.cos(x * 0.9 - t),
-            Math.sin(z + t * 0.9) * Math.cos(x * 1.2 + t) + Math.sin(y * 0.8 - t * 0.7),
-        ];
+        noiseBuffer[0] = Math.sin(x + t) * Math.cos(y * 1.3 - t) + Math.sin(z * 0.7 + t * 0.5);
+        noiseBuffer[1] = Math.cos(y + t * 1.1) * Math.sin(z * 1.1 + t) + Math.cos(x * 0.9 - t);
+        noiseBuffer[2] = Math.sin(z + t * 0.9) * Math.cos(x * 1.2 + t) + Math.sin(y * 0.8 - t * 0.7);
+        return noiseBuffer;
     }
 
     function simNumber(prop, frame, fallback) {
@@ -223,7 +223,6 @@ var PZ = PZ || {};
             this.lifeMax = [];
             this.cycles = null;
             this.checkpoints = new Map();
-            this.checkpointBudget = SIM.CHECKPOINT_BUDGET;
             var row0 = simSampleRow(this, 0);
             this.behavior = Math.min(Math.max(Math.round(simNumber(system.properties.emitter.emitterBehavior, 0, 0)), 0), 2);
             this.n0 = -Math.ceil(row0.lifeBound / this.h);
@@ -601,17 +600,21 @@ var PZ = PZ || {};
         };
     }
 
-    // Integrates one particle from its birth to time t on fixed sub-steps.
-    // Checkpoints store the state after each CHECKPOINT full sub-steps. A
-    // checkpoint is reused only when the last of its full steps began at least
-    // one STEP before t, which makes every step in the reused prefix identical
-    // to the uncached sequence. Output does not depend on the cache.
+    // Integrates one particle from birth on the original fixed sub-steps.
+    // Keep the last full step of each visit, never a partial final step. Resume
+    // only if that step would also be full in a birth-to-t replay. Both tc and
+    // state retain the original floating-point operation sequence.
+    // Eight prefixes for each of at most 40000 LRU events bound retained memory.
+    // Missing/evicted prefixes always fall back to the complete replay.
     function simIntegrate(table, ev, spawn, t) {
         var kk = ev.key % 100000;
         var store = table.checkpoints.get(ev.key);
-        if (!store) {
-            store = [];
-            table.checkpoints.set(ev.key, store);
+        if (!store) store = [];
+        // Refresh insertion order for bounded LRU eviction, including parent probes.
+        table.checkpoints.delete(ev.key);
+        table.checkpoints.set(ev.key, store);
+        if (table.checkpoints.size > SIM.CHECKPOINT_PARTICLES) {
+            table.checkpoints.delete(table.checkpoints.keys().next().value);
         }
         var st = null;
         var tc = ev.birth;
@@ -638,9 +641,13 @@ var PZ = PZ || {};
             tc += dt;
             if (dt === SIM.STEP) {
                 steps++;
-                if (steps === (store.length + 1) * SIM.CHECKPOINT && table.checkpointBudget > 0) {
-                    store.push({ steps: steps, tc: tc, last: last, st: simCopyState(st) });
-                    table.checkpointBudget--;
+                if (t - tc < SIM.STEP) {
+                    var index = 0;
+                    while (index < store.length && store[index].steps < steps) index++;
+                    if (!store[index] || store[index].steps !== steps) {
+                        store.splice(index, 0, { steps: steps, tc: tc, last: last, st: simCopyState(st) });
+                        if (store.length > SIM.CHECKPOINTS_PER_PARTICLE) store.shift();
+                    }
                 }
             }
         }
