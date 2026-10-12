@@ -43,12 +43,17 @@ function installCreateWrapper(PZ, undo) {
 function installAuxiliaryPasses(PZ, undo) {
   // CM3's velocity update replaces every node's onBeforeRender callback.
   // Preserve the flare's projection callback for the subsequent color pass.
+  // With no live flares the traversal would collect nothing, so the original
+  // runs directly.
   const velocity = PZ.motionBlur && PZ.motionBlur.prototype;
   if (velocity && typeof velocity.update === "function") {
     const original = velocity.update;
     let alive = true;
     const patched = function () {
       if (!alive) return original.apply(this, arguments);
+      if (PZ.opticalflares && PZ.opticalflares.liveCount && PZ.opticalflares.liveCount() === 0) {
+        return original.apply(this, arguments);
+      }
       const callbacks = [];
       this.scene?.traverse?.((node) => {
         if (node.__zoidiumOpticalFlareQuad) callbacks.push([node, node.onBeforeRender]);
@@ -69,6 +74,9 @@ function installAuxiliaryPasses(PZ, undo) {
     let alive = true;
     const patched = function () {
       if (!alive) return original.apply(this, arguments);
+      if (PZ.opticalflares && PZ.opticalflares.liveCount && PZ.opticalflares.liveCount() === 0) {
+        return original.apply(this, arguments);
+      }
       const hidden = [];
       this.scene?.traverse?.((node) => {
         if (node.__zoidiumOpticalFlareQuad) {

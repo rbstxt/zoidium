@@ -363,6 +363,8 @@ test("solo shows only the soloed elements, as a pure function of data and time",
 
   // Same inputs always give the same uniforms.
   flare.stack[2].properties.element.enabled.set(1);
+  flare.update(0);
+  flare.quad.onBeforeRender({}, null, camera([0, 0, 0], 0));
   const first = uniformSnapshot(flare);
   flare.update(50);
   flare.quad.onBeforeRender({}, null, camera([3, 0, 1], -20));
@@ -582,4 +584,128 @@ test("the non-glow elements fade out when the source and centre coincide", () =>
   assert.ok(source.includes("float axisFade = smoothstep(0.0, 0.02, axisLen);"), "shader fades by axis length");
   assert.ok(source.includes('"c *= (etype == 0) ? 1.0 : axisFade;"'), "the glow keeps full intensity");
   assert.ok(PZ.opticalflares.math.axisFade(0) === 0);
+});
+
+function visibilityFlags(flare) {
+  flare.update(0);
+  const used = flare._dataD.slice(0, flare.stack.length * 4);
+  return Array.from(used.filter((_, i) => i % 4 === 3));
+}
+
+test("zero opacity and zero size fold into the visibility flag the shader skips on", () => {
+  const { PZ } = buildEnv();
+  const flare = createFlare(PZ, { objectType: 1 });
+  assert.ok(visibilityFlags(flare).every((v) => v === 1), "all six anamorphic elements start visible");
+
+  flare.stack[1].properties.element.opacity.set(0);
+  assert.equal(visibilityFlags(flare)[1], 0, "zero opacity hides the element");
+  assert.equal(flare.material.uniforms.uElementCount.value, 6, "middle elements keep the loop bound");
+
+  flare.stack[2].properties.globalParams.scale.set(0);
+  assert.equal(visibilityFlags(flare)[2], 0, "zero size hides the element");
+
+  flare.stack[1].properties.element.opacity.set(100);
+  flare.stack[2].properties.globalParams.scale.set(100);
+  assert.ok(visibilityFlags(flare).every((v) => v === 1), "restoring values restores visibility");
+});
+
+test("ring elements and Ring-textured elements keep executing at zero opacity", () => {
+  const { PZ } = buildEnv();
+  // Sci-Fi Plasma stack[1] is the ring element (type 8).
+  const flare = createFlare(PZ, { objectType: 4 });
+  assert.equal(flare.stack[1].type, 8);
+  flare.stack[1].properties.element.opacity.set(0);
+  assert.equal(visibilityFlags(flare)[1], 1, "a zero-opacity ring still executes, preserving its pixels");
+
+  flare.stack[0].properties.lensTexture.textureImage.set(3);
+  flare.stack[0].properties.element.opacity.set(0);
+  assert.equal(visibilityFlags(flare)[0], 1, "a zero-opacity Ring-textured element still executes");
+  assert.equal(flare.quad.visible, true, "the quad still draws while a NaN-capable element is visible");
+});
+
+test("the element loop bound ends at the last visible element", () => {
+  const { PZ } = buildEnv();
+  const flare = createFlare(PZ, { objectType: 1 });
+  flare.update(0);
+  assert.equal(flare.material.uniforms.uElementCount.value, 6, "all visible: the full stack runs");
+
+  flare.stack[5].properties.element.enabled.set(0);
+  flare.stack[4].properties.element.enabled.set(0);
+  flare.update(0);
+  assert.equal(flare.material.uniforms.uElementCount.value, 4, "trailing disabled elements leave the loop");
+  assert.deepEqual(visibilityFlags(flare).slice(0, 4), [1, 1, 1, 1], "leading elements are untouched");
+
+  flare.stack[5].properties.element.enabled.set(1);
+  flare.update(0);
+  assert.equal(flare.material.uniforms.uElementCount.value, 6, "reenabling restores the bound");
+});
+
+test("zero brightness or zero flare scale hides the whole quad for the frame", () => {
+  const { PZ } = buildEnv();
+  const flare = createFlare(PZ, { objectType: 1 });
+  flare.update(0);
+  assert.equal(flare.quad.visible, true);
+
+  flare.properties.flareSetup.brightness.set(0);
+  flare.update(0);
+  assert.equal(flare.quad.visible, false, "zero brightness draws nothing");
+  flare.properties.flareSetup.brightness.set(70);
+  flare.update(0);
+  assert.equal(flare.quad.visible, true);
+
+  flare.properties.flareSetup.scale.set(0);
+  flare.update(0);
+  assert.equal(flare.quad.visible, false, "zero scale draws nothing");
+  flare.properties.flareSetup.scale.set(75);
+  flare.update(0);
+  assert.equal(flare.quad.visible, true);
+});
+
+test("the occlusion under-quad follows the same zero skip", () => {
+  const { PZ } = buildEnv();
+  const flare = createFlare(PZ, { objectType: 1 });
+  flare.properties.positioning.foreground.occlude.set(1);
+  flare.properties.positioning.foreground.fade.set(50);
+  flare.update(0);
+  assert.equal(flare.underQuad.visible, true, "occlusion with fade shows the under-quad");
+
+  flare.properties.flareSetup.brightness.set(0);
+  flare.update(0);
+  assert.equal(flare.quad.visible, false);
+  assert.equal(flare.underQuad.visible, false, "zero brightness hides both quads");
+});
+
+test("a visible ring forbids the whole-quad zero skip", () => {
+  const { PZ } = buildEnv();
+  const flare = createFlare(PZ, { objectType: 4 });
+  flare.properties.flareSetup.brightness.set(0);
+  flare.update(0);
+  assert.equal(flare.quad.visible, true, "a visible ring keeps the quad drawing to preserve its pixels");
+
+  flare.stack[1].properties.element.enabled.set(0);
+  flare.update(0);
+  assert.equal(flare.quad.visible, false, "once the ring is hidden the skip applies");
+});
+
+test("blend mode changes apply as draw state without recompiling the program", () => {
+  const { PZ, THREE } = buildEnv();
+  const flare = createFlare(PZ, { objectType: 0 });
+  assert.equal(flare.material.needsUpdate, undefined, "creating the material never flags a recompile");
+  assert.equal(flare._appliedBlend, 0);
+
+  flare.properties.global.blendMode.set(1);
+  flare.update(0);
+  assert.equal(flare.material.blendDst, THREE.OneMinusSrcColorFactor, "screen blending applies");
+  assert.equal(flare.material.needsUpdate, undefined, "no recompile on blend change");
+  assert.equal(flare.underMaterial.blendDst, THREE.OneMinusSrcColorFactor, "the under-quad follows");
+
+  flare.properties.global.blendMode.set(2);
+  flare.update(0);
+  assert.equal(flare.material.blending, THREE.NormalBlending, "normal blending applies");
+  assert.equal(flare.material.needsUpdate, undefined, "no recompile on blend change");
+
+  flare.properties.global.blendMode.set(0);
+  flare.update(0);
+  assert.equal(flare.material.blendDst, THREE.OneFactor, "additive blending restores");
+  assert.equal(flare.material.needsUpdate, undefined, "no recompile on blend change");
 });

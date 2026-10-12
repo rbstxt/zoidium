@@ -419,6 +419,9 @@ module.exports = function installOptflares(PZ, THREE) {
             this.material.uniforms.uBlendGlobal.value = mode;
             if (this._appliedBlend === mode) return;
             this._appliedBlend = mode;
+            // Blending is GL draw state, not program state, so no shader
+            // recompile (needsUpdate) is required when the mode changes; the
+            // renderer reads these fields on every draw.
             this.material.blending = THREE.CustomBlending;
             this.material.blendSrc = THREE.OneFactor;
             this.material.blendDst = THREE.OneFactor;
@@ -428,13 +431,11 @@ module.exports = function installOptflares(PZ, THREE) {
             } else if (mode === 2) {
                 this.material.blending = THREE.NormalBlending;
             }
-            this.material.needsUpdate = true;
             if (this.underMaterial) {
                 this.underMaterial.blending = this.material.blending;
                 this.underMaterial.blendSrc = this.material.blendSrc;
                 this.underMaterial.blendDst = this.material.blendDst;
                 this.underMaterial.blendEquation = this.material.blendEquation;
-                this.underMaterial.needsUpdate = true;
             }
         }
         releaseCustomTextures() {
@@ -570,6 +571,11 @@ module.exports = function installOptflares(PZ, THREE) {
                 }
             }
             var anyEnabled = false;
+            // Set when a rendered element could evaluate a NaN-producing path
+            // (the ring element's pow() with a negative base, or the Ring lens
+            // texture): skipping them would turn NaN pixels into clean ones.
+            var nanRisk = false;
+            var lastVisible = -1;
             for (var i = 0; i < count; i++) {
                 var element = this.stack[i];
                 var p = element.properties;
@@ -577,35 +583,58 @@ module.exports = function installOptflares(PZ, THREE) {
                 var elementScale = p.globalParams.scaleOffset.get(time) === 1 ? 1 / (1 + Math.max(0, distance) / 100) : 1;
                 var offsetFactor = rootOffset ? 1 / (1 + Math.max(0, distance) / 100) : 1;
                 var o = i * 4;
-                dataA[o] = (p.globalParams.scale.get(time) / 100) * elementScale * offsetFactor;
+                var opacity = p.element.opacity.get(time) / 100;
+                var sizeFactor = (p.globalParams.scale.get(time) / 100) * elementScale * offsetFactor;
+                dataA[o] = sizeFactor;
                 dataA[o + 1] = Math.max(0.01, p.globalParams.aspectRatio.get(time));
                 dataA[o + 2] = (p.globalParams.globalSeed.get(time) + seedBase) * 0.001;
-                dataA[o + 3] = p.element.opacity.get(time) / 100;
+                dataA[o + 3] = opacity;
                 dataB[o] = p.element.rotation.get(time) * DEG;
                 dataB[o + 1] = distance / 100;
                 dataB[o + 2] = p.element.animate.get(time) === 1 ? 1 : 0;
-                dataB[o + 3] = Math.round(p.lensTexture.textureImage.get(time));
+                var texMode = Math.round(p.lensTexture.textureImage.get(time));
+                dataB[o + 3] = texMode;
                 dataC[o] = p.lensTexture.illuminationRadius.get(time);
                 dataC[o + 1] = p.lensTexture.falloff.get(time);
                 dataC[o + 2] = p.matteBox.startRange.get(time);
                 dataC[o + 3] = p.matteBox.fadeAmount.get(time);
                 dataD[o] = Math.round(p.matteBox.shape.get(time));
                 dataD[o + 1] = Math.round(p.globalParams.blendMode.get(time));
-                dataD[o + 2] = Math.round(p.element.elementType.get(time));
+                var etype = Math.round(p.element.elementType.get(time));
+                dataD[o + 2] = etype;
                 var enabled = p.element.enabled.get(time) === 1;
                 var solod = p.element.solo.get(time) === 1;
-                var visible = enabled && (!anySolo || solod);
+                // An element with zero opacity or a zero size factor adds
+                // exactly 0.0 to the pixel in every blend mode (add, screen and
+                // normal are all exact no-ops for a finite zero), so it is
+                // folded into the visibility flag the shader already skips on.
+                // Elements that could evaluate a NaN path keep executing so any
+                // NaN pixels they produce today are preserved bit for bit.
+                var nanCapable = etype === 8 || texMode === 3;
+                var zeroContribution = (opacity === 0 || sizeFactor === 0) && !nanCapable;
+                var visible = enabled && (!anySolo || solod) && !zeroContribution;
                 dataD[o + 3] = visible ? 1 : 0;
                 anyEnabled = anyEnabled || visible;
+                if (visible && nanCapable) nanRisk = true;
+                if (visible) lastVisible = i;
                 var elementColor = p.globalParams.color.get(time);
                 dataColor[i * 3] = elementColor[0] * globalColor[0];
                 dataColor[i * 3 + 1] = elementColor[1] * globalColor[1];
                 dataColor[i * 3 + 2] = elementColor[2] * globalColor[2];
             }
-            u.uElementCount.value = count;
-            this.quad.visible = anyEnabled;
+            // Trailing invisible elements would only hit the shader's continue
+            // path, which has no side effects, so the loop bound ends at the
+            // last visible element. Order and values of the executed iterations
+            // are unchanged.
+            u.uElementCount.value = lastVisible + 1;
+            // Zero brightness or zero flare scale makes every element
+            // contribute exactly 0.0 (all shader paths are finite once the
+            // NaN-capable elements above are excluded), so the screen-covering quad
+            // and its occlusion under-quad are skipped for this frame.
+            var zeroFlare = (frame.brightness === 0 || frame.scale === 0) && !nanRisk;
+            this.quad.visible = anyEnabled && !zeroFlare;
             // Decided here (not in the render hook) so it applies to this frame.
-            if (this.underQuad) this.underQuad.visible = anyEnabled && frame.occlude && frame.fade < 1;
+            if (this.underQuad) this.underQuad.visible = anyEnabled && !zeroFlare && frame.occlude && frame.fade < 1;
         }
         // Phase 2, from the render hook of the quad: the camera drawing the
         // pass and the world transforms of this frame. Everything is recomputed
