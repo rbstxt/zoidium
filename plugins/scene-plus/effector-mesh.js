@@ -560,6 +560,10 @@ function weldFor(positions, count, groups, stage) {
 
 // Average deformed faces at coincident vertices while retaining source normal
 // discontinuities, material seams, and separate fracture pieces.
+// A single scratch buffer bounds retained memory by the largest weld layout.
+// Each call clears its active range; no normals or frame history are cached.
+let normalSums = new Float64Array(0);
+
 function computeSmoothVertexNormals(geometry, stage) {
   const position = geometry.attributes.position;
   const normal = geometry.attributes.normal;
@@ -567,7 +571,10 @@ function computeSmoothVertexNormals(geometry, stage) {
   const array = position.array;
   const count = position.count;
   const { slots, slotCount } = weldFor(array, count, geometry.groups, stage);
-  const sums = new Float64Array(slotCount * 3);
+  const size = slotCount * 3;
+  if (normalSums.length < size) normalSums = new Float64Array(size);
+  const sums = normalSums;
+  sums.fill(0, 0, size);
   const covered = count - count % 3;
   for (let vertex = 0; vertex < covered; vertex += 3) {
     const a = vertex * 3;
@@ -581,6 +588,15 @@ function computeSmoothVertexNormals(geometry, stage) {
       sums[slot + 2] += fz;
     }
   }
+  // Coincident vertices read exactly the same accumulated Float64 values.
+  // Normalize each slot once, preserving the original division and cast order.
+  for (let slot = 0; slot < size; slot += 3) {
+    const x = sums[slot], y = sums[slot + 1], z = sums[slot + 2];
+    const length = Math.hypot(x, y, z) || 1;
+    sums[slot] = x / length;
+    sums[slot + 1] = y / length;
+    sums[slot + 2] = z / length;
+  }
   const out = normal.array;
   for (let vertex = 0; vertex < count; vertex += 1) {
     if (vertex >= covered) {
@@ -590,11 +606,9 @@ function computeSmoothVertexNormals(geometry, stage) {
       continue;
     }
     const slot = slots[vertex] * 3;
-    const x = sums[slot], y = sums[slot + 1], z = sums[slot + 2];
-    const length = Math.hypot(x, y, z) || 1;
-    out[vertex * 3] = x / length;
-    out[vertex * 3 + 1] = y / length;
-    out[vertex * 3 + 2] = z / length;
+    out[vertex * 3] = sums[slot];
+    out[vertex * 3 + 1] = sums[slot + 1];
+    out[vertex * 3 + 2] = sums[slot + 2];
   }
   normal.needsUpdate = true;
 }
