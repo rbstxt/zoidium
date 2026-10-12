@@ -89,7 +89,7 @@ var PZ = PZ || {};
         var fps = this.sceneRate();
         var parentSystem = depth < SIM.MAX_DEPTH ? this.parentSystem : null;
         var parentTable = parentSystem && parentSystem !== this ? parentSystem.simTable(depth + 1) : null;
-        var signature = JSON.stringify(this.properties) + "|" + fps + "|" + depth + "|" +
+        var signature = JSON.stringify(this.properties) + "|" + fps + "|" + depth + "|" + SIM.STEP + "|" + this.secondaryCountMultiplier() + "|" +
             (parentTable ? parentTable.signature : "");
         this._simTables = this._simTables || {};
         var cached = this._simTables[depth];

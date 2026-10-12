@@ -385,6 +385,11 @@ test("parent emission depends only on the parent state at the child birth", () =
   for (const f of [60, 45, 33, 20, 10]) {
     assert.deepStrictEqual(snapshot(childB.simulateFrame(f)), expected.get(f), `parent-emission frame ${f}`);
   }
+  parentB._simTables = childB._simTables = null;
+  PZ.trapcode.particularSim.SIM.CHECKPOINT_PARTICLES = 0;
+  for (const f of [33, 60, 10, 45, 20]) {
+    assert.deepStrictEqual(snapshot(childB.simulateFrame(f)), expected.get(f), `full parent replay ${f}`);
+  }
 });
 
 // Aux streaks: every live parent emits, so children trail along each parent's
@@ -531,4 +536,86 @@ test("a decoded audio source redraws the frame without waiting for export", asyn
     system.material.uniforms.audioLevel.value > 1,
     "redraw after decode reacts, got " + system.material.uniforms.audioLevel.value
   );
+});
+
+test("rolling checkpoints match full replay through eviction, arbitrary seeks and emission modes", () => {
+  const PZ = loadSystemModule();
+  const sim = PZ.trapcode.particularSim.SIM;
+  const limit = sim.CHECKPOINT_PARTICLES;
+  // Force eviction with a small cache. Zero retention is the full birth-to-time replay.
+  for (const behavior of [0, 1, 2]) {
+    const configure = p => {
+      p.emitter.emitterBehavior.set(behavior);
+      p.emitter.burstCount.set(80);
+      p.emitter.burstInterval.set(0.7);
+      p.physics.meanderEnabled.set(1);
+      p.physics.fluidEnabled.set(1);
+      p.physics.fluidSwirlEnabled.set(1);
+      p.displace.twist.set(13);
+    };
+    const warm = busySystem(PZ), replay = busySystem(PZ);
+    configure(warm.properties); configure(replay.properties);
+    for (const f of [0, 80, 20.25, 120, 60, 0, 120, 79.75, 10, 10, 110]) {
+      sim.CHECKPOINT_PARTICLES = 100;
+      const actual = snapshot(warm.simulateFrame(f));
+      const table = warm.simTable(0);
+      assert.ok(table.checkpoints.size <= 100);
+      for (const store of table.checkpoints.values()) assert.ok(store.length <= 8);
+      sim.CHECKPOINT_PARTICLES = 0;
+      assert.deepStrictEqual(actual, snapshot(replay.simulateFrame(f)), `behavior ${behavior}, frame ${f}`);
+    }
+  }
+  sim.CHECKPOINT_PARTICLES = limit;
+});
+
+test("every numeric/vector property edit invalidates checkpoints and matches full replay", () => {
+  const PZ = loadSystemModule();
+  const warm = busySystem(PZ);
+  let edits = 0;
+  for (const [category, props] of Object.entries(warm.properties)) {
+    for (const [key, prop] of Object.entries(props)) {
+      if (!prop || typeof prop.get !== "function") continue;
+      const value = prop.get(0);
+      if (typeof value !== "number" && !(Array.isArray(value) && value.length === 3 && value.every(v => typeof v === "number"))) continue;
+      const table = warm.simTable(0);
+      warm.simulateFrame(90);
+      const changed = Array.isArray(value) ? value.map(v => v + 0.125) : value + 1;
+      prop.set(changed);
+      assert.notEqual(warm.simTable(0), table, `${category}.${key}`);
+      const replay = busySystem(PZ);
+      // Use the same cumulative edits in the reference, including animated properties.
+      for (const [c, group] of Object.entries(warm.properties)) {
+        for (const [k, source] of Object.entries(group)) {
+          if (!source || typeof source.get !== "function") continue;
+          if (source.keys) replay.properties[c][k].animate(source.keys);
+          else replay.properties[c][k].set(source.value);
+        }
+      }
+      PZ.trapcode.particularSim.SIM.CHECKPOINT_PARTICLES = 0;
+      const expected = snapshot(replay.simulateFrame(37.25));
+      PZ.trapcode.particularSim.SIM.CHECKPOINT_PARTICLES = 40000;
+      assert.deepStrictEqual(snapshot(warm.simulateFrame(37.25)), expected, `${category}.${key}`);
+      edits++;
+    }
+  }
+  assert.ok(edits > 100, `covered ${edits} controls`);
+});
+
+test("fps, grid step, density multiplier and parent edits invalidate checkpoint tables", () => {
+  const PZ = loadSystemModule();
+  const system = busySystem(PZ), parent = busySystem(PZ);
+  Object.defineProperty(system, "parentSystem", { value: parent });
+  let table = system.simTable(0);
+  for (const change of [
+    () => { system.sceneRate = () => 24; },
+    () => { system.secondaryCountMultiplier = () => 2; },
+    () => { PZ.trapcode.particularSim.SIM.STEP = 1 / 50; },
+    () => { parent.properties.emitter.randomSeed.set(987); },
+    () => { parent.secondaryCountMultiplier = () => 2; },
+  ]) {
+    change();
+    const next = system.simTable(0);
+    assert.notEqual(next, table);
+    table = next;
+  }
 });
