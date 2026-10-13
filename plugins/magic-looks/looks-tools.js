@@ -420,6 +420,7 @@ var Looks = Looks || {};
         name: "None", strength: 1,
         gamma: "Same As Input",
         gammaOptions: ["Same As Input", "Input", "Output"],
+        data: null,
       };
     }
     return st;
@@ -508,6 +509,7 @@ var Looks = Looks || {};
         e.custom.lutName = t.pfx + "Name";
         e.custom.lutStrength = t.pfx + "Strength";
         e.custom.lutGamma = t.pfx + "Gamma";
+        e.custom.lutData = t.pfx + "Data";
       }
       map[t.id] = e;
     });
@@ -599,6 +601,8 @@ var Looks = Looks || {};
         defs[t.pfx + "Name"] = lkText(PZ, t.name + " file", "None");
         defs[t.pfx + "Strength"] = lkNum(PZ, t.name + " Strength", 1, 0, 1, 0.01, 2);
         defs[t.pfx + "Gamma"] = lkOpt(PZ, t.name + " Gamma", 0, ["Same As Input", "Input", "Output"].join(";"));
+        defs[t.pfx + "Data"] = { name: "Imported LUT", type: PZ.property.type.ASSET,
+          assetType: PZ.asset.type.MISC, accept: ".cube", value: null, visible: false };
       }
     });
     return defs;

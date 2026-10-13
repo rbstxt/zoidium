@@ -23,7 +23,7 @@ function makeTexture(counter) {
 
 function loadEffect() {
   const source = readPack("looks-fx.js");
-  const PZ = { property: { type: { NUMBER: 0, OPTION: 6, TEXT: 7 } } };
+  const PZ = { asset: { type: { MISC: 5 } }, property: { type: { NUMBER: 0, OPTION: 6, TEXT: 7, ASSET: 8 } } };
   const counter = { uploads: 0 };
   const THREE = {
     Vector2: function (x, y) { this.x = x; this.y = y; this.set = (a, b) => { this.x = a; this.y = b; }; },
@@ -129,7 +129,7 @@ test("Noir keeps a tonal range and neutral channels on a grayscale ramp", () => 
 test("manager cleanup is registered before the editor entry changes", () => {
   const module = { exports: {} };
   new Function("module", "exports", "plugin", readPack("looks-setup.js"))(module, module.exports, {});
-  const PZ = { ui: { controls: {}, properties: function () {} } };
+  const PZ = { asset: { type: { MISC: 5 } }, ui: { controls: {}, properties: function () {} } };
   const editors = [];
   let dispose;
   module.exports.activate({

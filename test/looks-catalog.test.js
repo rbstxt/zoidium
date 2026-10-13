@@ -197,7 +197,7 @@ test("manifest declares the pack and its bundled assets", () => {
   assert.equal(manifest.nativeEffects[0].name, "Magic Looks");
   const byId = {};
   for (const r of manifest.resources) byId[r.id] = r;
-  for (const id of ["looks-color", "looks-tools", "looks-widgets", "looks-style", "looks-vert", "looks-grade-shader"]) {
+  for (const id of ["looks-color", "looks-tools", "looks-cube", "looks-lut-assets", "looks-lut-ui", "looks-widgets", "looks-style", "looks-vert", "looks-grade-shader"]) {
     assert.ok(byId[id], "resource " + id);
     assert.ok(fs.existsSync(path.join(packDir, byId[id].source.split("?")[0].split("/").pop())), id + " file exists");
   }
