@@ -28,6 +28,7 @@ var PZ = PZ || {};
         name: { name: "Name", type: PZ.property.type.TEXT, value: "Base Form", visible: false },
         baseFormType: option("Base Form", 0, "box-grid;sphere;sphere-grid;cylinder;circle;plane;3D model;text/mask", true),
         baseFormSize: vector3("Base Form Size", [500, 500, 500], { min: 0, step: 1 }),
+        baseSizeMode: option("Base Size Mode", 0, "Per axis;Uniform (legacy)"),
         particlesX: number("Particles in X", 70, { min: 1, step: 1, decimals: 0 }),
         particlesY: number("Particles in Y", 70, { min: 1, step: 1, decimals: 0 }),
         particlesZ: number("Particles in Z", 3, { min: 1, step: 1, decimals: 0 }),
