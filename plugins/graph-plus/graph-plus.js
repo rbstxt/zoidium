@@ -204,6 +204,9 @@ const GraphPlus = (() => {
     }
     panel.enabled = false;
     if ("objects" in panel) panel.objects = null;
+    // CM3 defers edit-list rebuilding while disabled. Its list rows still
+    // watch project properties until objectsChanged explicitly unloads them.
+    if (panel.list && typeof panel.unloadListItem === "function") panel.objectsChanged();
     if (panel.panels) for (const child of panel.panels) disposePanel(child);
     if (typeof panel.unload === "function") panel.unload();
     if (panel.el) panel.el.remove();
@@ -213,6 +216,12 @@ const GraphPlus = (() => {
     const element = panel?._right?.bodyEl;
     if (!element) return;
     try { element.focus({ preventScroll: true }); } catch (_error) { element.focus(); }
+  }
+
+  function restoreFloatingWindow(facade) {
+    facade.host.reveal();
+    facade.resize();
+    focusGraph(facade.panel);
   }
 
   // Both the native toolbar button and Ctrl+G enter here. Other CM3 windows
@@ -228,15 +237,14 @@ const GraphPlus = (() => {
         return original.apply(this, arguments);
       }
       if (state.floating?.host.isOpen()) {
-        state.floating.host.focus();
-        focusGraph(state.floating.panel);
+        restoreFloatingWindow(state.floating);
         return state.floating;
       }
       let observer = null;
       const facade = {
         editor, secondary: true, panel: null, host: null,
         // CM3 closeAllWindows and project lifecycle use this window handle.
-        window: { close: () => facade.host.close(), focus: () => facade.host.focus() },
+        window: { close: () => facade.host.close(), focus: () => restoreFloatingWindow(facade) },
         resize() { if (facade.panel) facade.panel.resize(); },
         setPanel(panel) {
           // The native caller constructs a fresh panel even when reopening.
@@ -300,6 +308,15 @@ const GraphPlus = (() => {
       facade.host = host;
       // Chrome buttons can hold focus too. The host isolates their events,
       // so forward the same native editor commands from that chrome.
+      const graphShortcut = (event) => {
+        if (event.ctrlKey && event.key?.toLowerCase() === "g") {
+          restoreFloatingWindow(facade);
+          event.preventDefault();
+          event.stopPropagation();
+        }
+      };
+      host.element.addEventListener("keydown", graphShortcut, true);
+      host.addCleanup(() => host.element.removeEventListener("keydown", graphShortcut, true));
       const chromeKeydown = (event) => {
         if (!event.ctrlKey || !/^[nmoszy]$/i.test(event.key || "")) return;
         if (typeof editor.keydown === "function") editor.keydown(event);
@@ -309,15 +326,19 @@ const GraphPlus = (() => {
       host.addCleanup(() => host.element.removeEventListener("keydown", chromeKeydown));
       state.floating = facade;
       editor.windows.push(facade);
+      restoreFloatingWindow(facade);
       return facade;
     };
-    state.windowPatch = { editor, descriptor, replacement };
+    const projectChanged = () => state.floating?.host.close();
+    state.windowPatch = { editor, descriptor, replacement, projectChanged };
+    editor.onProjectChanged?.watch(projectChanged);
     editor.createWindow = replacement;
   }
 
   function uninstall() {
     if (state.floating) state.floating.host.close();
     const patch = state.windowPatch;
+    patch?.editor.onProjectChanged?.unwatch(patch.projectChanged);
     if (patch && patch.editor.createWindow === patch.replacement) {
       if (patch.descriptor) Object.defineProperty(patch.editor, "createWindow", patch.descriptor);
       else delete patch.editor.createWindow;
@@ -410,6 +431,7 @@ const GraphPlus = (() => {
       g2win: (...args) => g2win(...args),
       beginPointerDrag: (...args) => beginPointerDrag(...args),
       disposePanel,
+      restoreFloatingWindow,
       sharedEmptyNote: (...args) => sharedEmptyNote(...args),
     },
   };
