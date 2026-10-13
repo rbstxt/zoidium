@@ -129,7 +129,7 @@ function activateCameraPlus(context, teardown) {
   const focus = parts.focus;
   const SceneDof = parts.dof.createSceneDofClass(THREE);
   const SceneMotionBlur = parts.motion.createSceneMotionBlurClass(THREE);
-  const CameraPlus = camera.createClass(PZ, THREE, parts.vibrate);
+  const CameraPlus = camera.createClass(PZ, THREE, parts.vibrate, () => getEditor());
   const worldDistance = camera.worldDistance;
 
   let live = true;
