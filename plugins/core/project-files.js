@@ -849,7 +849,7 @@
     }
 
     // The desktop bridge supplies a browser File, never a filesystem path.
-    if (selectedFile) return loadFile(selectedFile);
+    if (global.Blob && selectedFile instanceof global.Blob) return loadFile(selectedFile);
     editor.showFilePicker(function (event) {
       var fileInput = event.currentTarget;
       var file = fileInput && fileInput.files && fileInput.files[0];

@@ -32,7 +32,7 @@ function harness() {
   }
   const PZ = { archive: Archive, ui: { editor: Editor }, zoidium: { define(name, value) { this[name] = value; } } };
   const window = {
-    PZ, File, ZoidiumDesktopProjects: bridge,
+    PZ, Blob, File, ZoidiumDesktopProjects: bridge,
     addEventListener(name, callback) { listeners.set(name, callback); },
     dispatchEvent(event) { events.push(event); },
     async fetch(url) { calls.push(["fetch", url]); return new Response("archive bytes"); },
