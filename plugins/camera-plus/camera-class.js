@@ -10,6 +10,15 @@ parts.camera = (function () {
   const FOCUS_CONTROL_ID = "camera-plus/focus-tools";
   const SCHEMA_VERSION = 1;
 
+  // Editable field-of-view range, in degrees. Typing a FOV computes the
+  // focal length that renders it (see focalLengthForFieldOfView); the FOV
+  // properties themselves never store state, so saved projects keep only
+  // the focal length.
+  const FOV_MIN_DEGREES = 0.01;
+  const FOV_MAX_DEGREES = 179.99;
+  const FOCAL_MIN_MM = 1;
+  const FOCAL_MAX_MM = 10000;
+
   const FILM_GATES = [
     { name: "Classic 35 (36mm)", value: 36 },
     { name: "Photo 35 (36mm)", value: 36 },
@@ -68,8 +77,8 @@ parts.camera = (function () {
       focalLength: { dynamic: true, name: "Focal Length", type: T.NUMBER, value: 35, min: 1, max: 10000, step: 1, decimals: 2 },
       filmGate: { name: "Sensor", type: T.LIST, value: 36, items: FILM_GATES.map((gate) => ({ name: gate.name, value: gate.value })) },
       equivFocalLength: { dynamic: true, name: "35mm Equiv. Focal Length", type: T.NUMBER, value: 35, readOnly: true, decimals: 2 },
-      fovH: { dynamic: true, name: "Field of View (Horizontal)", type: T.NUMBER, value: 0, readOnly: true, decimals: 4 },
-      fovV: { dynamic: true, name: "Field of View (Vertical)", type: T.NUMBER, value: 0, readOnly: true, decimals: 4 },
+      fovH: { dynamic: true, name: "Field of View (Horizontal)", type: T.NUMBER, value: 0, min: FOV_MIN_DEGREES, max: FOV_MAX_DEGREES, step: 0.1, decimals: 4 },
+      fovV: { dynamic: true, name: "Field of View (Vertical)", type: T.NUMBER, value: 0, min: FOV_MIN_DEGREES, max: FOV_MAX_DEGREES, step: 0.1, decimals: 4 },
       zoom: { dynamic: true, name: "Zoom", type: T.NUMBER, value: 1, min: 0.01, max: 1000, step: 0.01, decimals: 2 },
       filmOffsetX: { dynamic: true, name: "Film Offset X", type: T.NUMBER, value: 0, min: -1000, max: 1000, step: 0.1, decimals: 2 },
       filmOffsetY: { dynamic: true, name: "Film Offset Y", type: T.NUMBER, value: 0, min: -1000, max: 1000, step: 0.1, decimals: 2 },
@@ -102,6 +111,31 @@ parts.camera = (function () {
     return list;
   }
 
+  // Inverse of the getFieldOfView film model: the focal length whose
+  // displayed FOV on `axis` (0 horizontal, 1 vertical) equals `degrees`,
+  // given the sensor gate, zoom and sequence aspect. Returns null for
+  // non-finite input so it is rejected instead of stored. Otherwise the
+  // FOV is clamped to (0, 180) and the focal length to the Focal Length
+  // range, so typing a FOV can never store an invalid focal length.
+  function focalLengthForFieldOfView(axis, degrees, gate, zoom, aspect) {
+    const value = typeof degrees === "string" && degrees.trim() !== "" ? Number(degrees) : degrees;
+    if (typeof value !== "number" || !Number.isFinite(value)) return null;
+    const clamped = Math.min(FOV_MAX_DEGREES, Math.max(FOV_MIN_DEGREES, value));
+    const tangent = Math.tan(clamped * Math.PI / 360);
+    if (!(tangent > 0) || !Number.isFinite(tangent)) return null;
+    const aspectValue = Number(aspect);
+    const safeAspect = Math.max(aspectValue, 1);
+    const safeZoom = Math.max(Number(zoom), 0.0001);
+    const safeGate = Number(gate);
+    if (!Number.isFinite(safeAspect) || !Number.isFinite(safeZoom) || !(safeGate > 0)) return null;
+    // Same spans as getFieldOfView: horizontal covers
+    // gate * aspect / max(aspect, 1), vertical covers gate / max(aspect, 1).
+    const span = axis === 0 ? safeGate * (aspectValue / safeAspect) : safeGate / safeAspect;
+    const focal = span / (2 * safeZoom * tangent);
+    if (!Number.isFinite(focal)) return null;
+    return Math.min(FOCAL_MAX_MM, Math.max(FOCAL_MIN_MM, focal));
+  }
+
   // Reads a dynamic property at time t, falling back when the value is not
   // finite (for example a broken focus expression). Shared reader
   // (zoidium/shared/props.js, loaded before any plugin code runs).
@@ -121,7 +155,7 @@ parts.camera = (function () {
     return a.distanceTo(b);
   }
 
-  function createClass(PZ, THREE, vibrate) {
+  function createClass(PZ, THREE, vibrate, getEditor) {
     class CameraPlus extends PZ.object3d {
       constructor() {
         super();
@@ -134,6 +168,9 @@ parts.camera = (function () {
         this.properties.addAll(createDefinitions(PZ));
         // CM3 has no definition.getValue hook. Derived readers belong to these
         // Camera+ properties only, and never read the last rendered projection.
+        // The FOV rows are editable: their set redirects to the focal length
+        // (see setFieldOfView), so the panel edits through the same property
+        // path as typing a focal length, including undo history and keyframes.
         const readers = {
           equivFocalLength: time => this.getEquivalentFocalLength(time),
           fovH: time => this.getFieldOfView(time)[0],
@@ -142,6 +179,11 @@ parts.camera = (function () {
         for (const key of Object.keys(readers)) {
           this.properties[key].get = readers[key];
           this.properties[key].hideAnimateToggle = true;
+        }
+        const fovAxes = { fovH: 0, fovV: 1 };
+        for (const key of Object.keys(fovAxes)) {
+          const axis = fovAxes[key];
+          this.properties[key].set = (value, time) => this.setFieldOfView(axis, value, time);
         }
 
         this.properties.add("depthOfField", createDepthOfFieldProperties(PZ));
@@ -223,6 +265,49 @@ parts.camera = (function () {
         return this.getFieldOfView(time)[1];
       }
 
+      // Focal length that renders `degrees` on `axis` (0 horizontal,
+      // 1 vertical) with the current sensor, zoom and sequence resolution,
+      // or null when the input is not a number.
+      focalLengthForFieldOfView(axis, degrees, time = this._time) {
+        const resolution = this.getSequenceResolution();
+        const aspect = resolution[0] / Math.max(resolution[1], 1);
+        return focalLengthForFieldOfView(
+          axis,
+          degrees,
+          readNumber(this.properties.filmGate, time, 36),
+          readNumber(this.properties.zoom, time, 1),
+          aspect
+        );
+      }
+
+      // Typing a FOV writes the focal length and never stores FOV state, so
+      // the saved data stays focal length and old projects load unchanged.
+      // The panel calls this through the FOV property's set with the current
+      // frame, exactly as typing a focal length calls focalLength.set, so
+      // undo/redo and keyframing behave the same single-history-step way.
+      setFieldOfView(axis, degrees, time = this._time) {
+        const focal = this.focalLengthForFieldOfView(axis, degrees, time);
+        if (focal === null) return;
+        const focalProperty = this.properties.focalLength;
+        // CM3 writes the unchanged value back when an edit is cancelled or
+        // left without changes; that must not create a focal length key.
+        const current = readNumber(focalProperty, time, focal);
+        if (Math.abs(focal - current) <= 1e-9 * Math.max(1, Math.abs(current))) return;
+        // Same keyframe behavior as typing a focal length: an animated focal
+        // length without a key at this frame gets one through the editor's
+        // own startEdit, so the key joins the open undo operation.
+        const editor = typeof getEditor === "function" ? getEditor() : null;
+        if (focalProperty.animated && !focalProperty.hasKeyframe(time)) {
+          if (editor && editor.history && PZ.ui && PZ.ui.properties && typeof PZ.ui.properties.prototype.startEdit === "function") {
+            new PZ.ui.properties(editor).startEdit(focalProperty, time);
+          } else {
+            const neighbor = focalProperty.keyframes[focalProperty.getClosestKeyframeIndex(time)];
+            focalProperty.addKeyframe(new PZ.keyframe(readNumber(focalProperty, time, focal), time, neighbor ? neighbor.tween : 1));
+          }
+        }
+        focalProperty.set(focal, time);
+      }
+
       getEquivalentFocalLength(time = this._time) {
         const gate = readNumber(this.properties.filmGate, time, 36);
         const focal = readNumber(this.properties.focalLength, time, 35);
@@ -280,8 +365,11 @@ parts.camera = (function () {
     OBJECT_TYPE: OBJECT_TYPE,
     FOCUS_CONTROL_ID: FOCUS_CONTROL_ID,
     SCHEMA_VERSION: SCHEMA_VERSION,
+    FOV_MIN_DEGREES: FOV_MIN_DEGREES,
+    FOV_MAX_DEGREES: FOV_MAX_DEGREES,
     createDefinitions: createDefinitions,
     createClass: createClass,
+    focalLengthForFieldOfView: focalLengthForFieldOfView,
     worldDistance: worldDistance,
   };
 })();
