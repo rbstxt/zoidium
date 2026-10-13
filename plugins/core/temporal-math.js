@@ -80,6 +80,17 @@
     return result;
   }
 
+  // A sampler's clock already includes the prefix's translations. Rebase
+  // those translations before replaying its ordered quantizers on a tap.
+  // An offset-only prefix therefore leaves its taps unchanged.
+  function mapFrameSamplerInputFrame(frame, projectRate, operators, clipLength, extrapolate) {
+    const active = (operators || []).filter(operator => operator && operator.enabled !== false);
+    if (!active.some(operator => operator.kind === "posterize-time")) return frame;
+    const translation = active.reduce((offset, operator) => offset +
+      (operator.kind === "time-offset" ? finiteNumber(operator.offsetFrames, 0) : 0), 0);
+    return applyTemporalOperators(frame - translation, projectRate, active, clipLength, extrapolate);
+  }
+
   function clampUnit(value, fallback) {
     return Math.min(1, Math.max(0, finiteNumber(value, fallback)));
   }
@@ -186,6 +197,7 @@
     offsetFrame: offsetFrame,
     readFpsProp: readFpsProp,
     applyTemporalOperators: applyTemporalOperators,
+    mapFrameSamplerInputFrame: mapFrameSamplerInputFrame,
     clampUnit: clampUnit,
     planFrameSamples: planFrameSamples,
     buildFrameSamplePlan: buildFrameSamplePlan,

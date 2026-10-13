@@ -93,12 +93,11 @@
     return projectFrame >= start && projectFrame < start + length;
   }
 
-  function readTemporalOperators(layer, controlFrame) {
+  function readTemporalOperatorsInRange(layer, start, end, controlFrame) {
     const effects = layer?.effects;
     if (!effects || typeof effects.length !== "number") return [];
-
     const operators = [];
-    for (let index = 0; index < effects.length; index += 1) {
+    for (let index = start; index < Math.min(end, effects.length); index += 1) {
       const effect = effects[index];
       const descriptor = effect?._zoidiumTemporal;
       if (!descriptor || typeof descriptor.getOperator !== "function") continue;
@@ -112,27 +111,25 @@
     return operators;
   }
 
-  function readTemporalOperatorsAfterIndex(layer, index, controlFrame) {
-    const effects = layer?.effects;
-    if (!effects || typeof effects.length !== "number") return [];
+  function readTemporalOperators(layer, controlFrame) {
+    return readTemporalOperatorsInRange(layer, 0, Infinity, controlFrame);
+  }
 
-    const operators = [];
-    for (let effectIndex = index + 1; effectIndex < effects.length; effectIndex += 1) {
-      const effect = effects[effectIndex];
-      const descriptor = effect?._zoidiumTemporal;
-      if (!descriptor || typeof descriptor.getOperator !== "function") continue;
-      try {
-        const operator = descriptor.getOperator(effect, controlFrame);
-        if (operator) operators.push(operator);
-      } catch (error) {
-        console.error("[Zoidium] temporal effect evaluation failed:", error);
-      }
-    }
-    return operators;
+  function readTemporalOperatorsBeforeIndex(layer, index, controlFrame) {
+    return readTemporalOperatorsInRange(layer, 0, index, controlFrame);
+  }
+
+  function readTemporalOperatorsAfterIndex(layer, index, controlFrame) {
+    return readTemporalOperatorsInRange(layer, index + 1, Infinity, controlFrame);
+  }
+
+  function getFrameSamplerScope() {
+    const contexts = typeof PZ !== "undefined" ? PZ.zoidium?.temporal?.contexts : null;
+    return contexts?.[contexts.length - 1]?.frameSamplerScope;
   }
 
   function getAdjustmentEffectFrame(layer, effect, frame) {
-    if (!isAdjustmentLayer(layer)) return frame;
+    if (!isAdjustmentLayer(layer) || getFrameSamplerScope()?.layer === layer) return frame;
 
     const effects = layer?.effects;
     const index = effects?.indexOf?.(effect) ?? -1;
@@ -185,7 +182,9 @@
     // CM3 renders videoTracks from low to high index. A later Adjustment
     // layer is therefore above the target and sees the accumulated result
     // from every lower track.
-    for (let index = targetIndex + 1; index < tracks.length; index += 1) {
+    const scope = getFrameSamplerScope();
+    const end = scope ? Math.min(tracks.length, scope.trackIndex) : tracks.length;
+    for (let index = targetIndex + 1; index < end; index += 1) {
       const adjustmentLayer = tracks[index]?.layer;
       if (!isAdjustmentLayer(adjustmentLayer)) continue;
 
@@ -298,6 +297,7 @@
     getVideoTrackIndex: getVideoTrackIndex,
     isClipActiveAtProjectFrame: isClipActiveAtProjectFrame,
     readTemporalOperators: readTemporalOperators,
+    readTemporalOperatorsBeforeIndex: readTemporalOperatorsBeforeIndex,
     readTemporalOperatorsAfterIndex: readTemporalOperatorsAfterIndex,
     getAdjustmentEffectFrame: getAdjustmentEffectFrame,
     installEffectUpdatePatches: installEffectUpdatePatches,
