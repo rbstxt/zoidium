@@ -83,6 +83,7 @@ calls `win.makeDragHandle(headerElement)`).
 Window object: `element`, `body`, `footer`, `titlebar`, `setTitle()`,
 `setSubtitle()`, `setFooter(buttons)`, `setCollapsed()`, `setMaximized()`,
 `toggleMaximized()`, `isMaximized()`, `makeDragHandle(el)`, `focus()`,
+`reveal()` (expand, fit fully inside the editor and focus),
 `close()`, `isOpen()`, `onClose(fn)`, `addCleanup(fn)`.
 
 Behavior provided by the host: drag by title bar (or drag handle), resize from

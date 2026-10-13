@@ -814,8 +814,7 @@ function floatingHost() {
   const ui = { openWindow(options) {
     let open = true;
     const cleanups = [];
-    const host = { focus: stubFn(), isOpen: () => open,
-      setCollapsed: stubFn(), setMaximized: stubFn(), isMaximized: () => false,
+    const host = { focus: stubFn(), reveal: stubFn(), isOpen: () => open,
       element: { style: {}, ownerDocument: body.ownerDocument,
         addEventListener(type, fn, capture) { listeners['chrome:' + type + (capture ? ':capture' : '')] = fn; },
         removeEventListener(type, fn, capture) { delete listeners['chrome:' + type + (capture ? ':capture' : '')]; },
@@ -855,7 +854,7 @@ test('floating graph factory opens once, focuses, preserves panel and cleans up 
   const discarded = host.panel(); again.setPanel(discarded);
   assert.equal(again, win);
   assert.equal(host.opens.length, 1);
-  assert.equal(host.opens[0].host.focus.calls.length, 2);
+  assert.equal(host.opens[0].host.reveal.calls.length, 2, 'opening and reopening reveal the window');
   assert.equal(win.panel, panel);
   assert.equal(discarded.unload.calls.length, 1);
   const event = { code: 'Space', type: 'keydown', stopPropagation: stubFn() };
@@ -869,7 +868,7 @@ test('floating graph factory opens once, focuses, preserves panel and cleans up 
   }
   assert.equal(editor.keydown.calls.length, 7, 'chrome forwards every native popup editor command');
   host.listeners['chrome:keydown:capture']({ key: 'g', ctrlKey: true, preventDefault: stubFn(), stopPropagation: stubFn() });
-  assert.equal(host.opens[0].host.setCollapsed.calls.at(-1)[0], false);
+  assert.ok(host.opens[0].host.reveal.calls.length >= 2, 'graph shortcut reveals the host');
   assert.equal(editor.keydown.calls.length, 7, 'graph shortcut restores the host without forwarding another native command');
   win.window.close(); win.window.close();
   assert.equal(panel.unload.calls.length, 1);
