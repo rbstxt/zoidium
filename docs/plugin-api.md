@@ -145,6 +145,22 @@ See Player+ and Easing+ for ordinary extension modules. A separate settings-page
 API has not been added; persistent per-object settings belong in project
 properties edited through a window.
 
+### Native 3D font loading
+
+Core makes native `PZ.asset.font.get3DFont()` and `loading3d` settle to a
+`THREE.Font` on success or `null` on a read/parse failure. Failure details are
+available on the shared font data as `zoidiumFont3dError` with `stage` and
+`message`; `zoidiumFont3dState` is `loading`, `ready`, or `failed`. Core reports
+failures through the existing notification UI. Plugins should not report the
+same managed failure again. A pending read has no timeout.
+
+An asset source, file, or remote URL change invalidates its shared parsed font
+and loading state. Native Text geometry updates automatically, including Text+
+character geometry. Failed Text is empty during preview and export; other
+objects continue rendering. Native font property edits keep their existing
+undo/redo behavior. Core retains unloaded font assets within their project
+asset list so those native history operations can restore attached bytes.
+
 ### Splitting a plugin into several files
 
 Source files stay at or below 1000 lines (`pnpm run verify` checks it). Declare

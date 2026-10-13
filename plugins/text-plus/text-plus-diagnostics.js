@@ -159,16 +159,18 @@ function watchFontLoad(textObject) {
     if (wrapper.font3d) {
       clearTextFontWarnings(textObject);
       textObject.geometryNeedsUpdate = true;
-    } else {
+    } else if (!wrapper.data?.zoidiumFont3dError) {
       reportTextFontIssue(textObject, "font-unparseable");
     }
   }, (error) => {
     if (!isCurrent()) return;
     reportTextFontIssue(textObject, "font-unreadable", { reason: error?.message || String(error) });
   });
-  // Native get3DFont() swallows parse errors and never settles its promise.
+  // Older native get3DFont() implementations can swallow parse errors.
+  // Core owns diagnostics for managed, settled font loads.
   // Checking only bytes already attached to the asset catches that case
   // without a timer, an extra network request, or a warning for valid bytes.
+  if (wrapper.data?.zoidiumFont3dState) return;
   probeLocalFont(wrapper)?.then((issue) => {
     if (isCurrent() && !wrapper.font3d && issue) reportTextFontIssue(textObject, issue.stage, issue);
   });
@@ -182,7 +184,7 @@ function reportUnavailableFont(textObject) {
     if (projectReady) reportTextFontIssue(textObject, "font-missing");
     return;
   }
-  if (wrapper.font3d) return;
+  if (wrapper.font3d || wrapper.data?.zoidiumFont3dState) return;
   const asset = wrapper.asset;
   const fileSource = state.PZ?.asset?.source?.FILE;
   if (projectReady && fileSource !== undefined && asset?.source === fileSource && !asset.file) {
