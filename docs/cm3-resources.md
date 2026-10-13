@@ -32,8 +32,25 @@ pnpm run cm3:restore -- --from=/path/to/cm3-snapshot.zcs
 ```
 
 The restore checks every file's size and SHA-256 and the cache metadata
-before it replaces your cache. Keep the snapshot file private and delete it
+before it replaces your cache. It then prints when the snapshot was created
+(how many days ago), which source pages it was built from, and which CM3
+runtime files it pins (the Clipmaker and Video Editor entry scripts, the
+resource count and a content hash). A snapshot older than 30 days, or one
+without creation metadata (exported by an older Zoidium), also prints a
+warning. The warning never fails the restore; builds that fall back to a
+snapshot print the same summary. To reject a stale snapshot instead, set
+`ZOIDIUM_CM3_SNAPSHOT_STRICT_AGE=1`. To change the freshness threshold, set
+`ZOIDIUM_CM3_SNAPSHOT_MAX_AGE_DAYS` to a number of days (default 30).
+Keep the snapshot file private and delete it
 once restored.
+
+To inspect a snapshot without restoring it:
+
+```bash
+node tools/cm3-snapshot.js --info=/path/to/cm3-snapshot.zcs
+```
+
+For a local file this reads only that file and never touches the network.
 
 Maintainers with R2 credentials can restore straight from the bucket:
 
@@ -106,6 +123,12 @@ saved pages:
    ```
 
 3. Trigger a new deployment so it picks up the updated snapshot.
+
+Exporting records the creation time, the source page URLs, the discovered
+CM3 runtime file names (entry scripts plus every resource path with its size
+and hash) and a content hash inside the snapshot, and prints that summary.
+Restoring, `--info`, and builds that fall back to a snapshot print it back
+with the snapshot's age in days.
 
 Snapshots made from a cache built by a current Zoidium also contain the two
 original pages, so a later Zoidium version can rebuild its cache from the
