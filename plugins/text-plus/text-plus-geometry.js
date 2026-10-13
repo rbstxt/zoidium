@@ -12,6 +12,7 @@ const {
   getTextCenter,
   getTextLayout,
   numberValue,
+  resolveCharacterRange,
   state,
   vector3,
 } = require("./text-plus-utils.js");
@@ -19,6 +20,14 @@ const {
   getTextPlusControls,
   propertyValue,
 } = require("./text-plus-controls.js");
+const {
+  clearTextFontWarnings,
+  countGeometryVertices,
+  hasVisibleCharacters,
+  reportTextFontIssue,
+  reportUnavailableFont,
+  watchFontLoad,
+} = require("./text-plus-diagnostics.js");
 
 /* ----------------------------------------------------------- text rendering */
 
@@ -347,6 +356,37 @@ function buildCharacterRendering(textObject, splitState, layers) {
   splitState.renderRoot = renderRoot;
   splitState.entries = entries;
   splitState.layers = layers.slice();
+  splitState.font = font;
+  splitState.fontData = font.data;
+  reportCharacterBuildResult(textObject, pending);
+}
+
+// Warns once when a non-blank Text built some (or all) of its characters to
+// empty geometry. A fully successful build, or
+// a legitimately blank string, clears the throttle so later failures warn
+// again and a recovered font stays silent.
+function reportCharacterBuildResult(textObject, pending) {
+  let visible = 0;
+  let empty = 0;
+  for (const item of pending || []) {
+    if (!hasVisibleCharacters(item?.unit?.character)) continue;
+    visible += 1;
+    if (!item?.geometry || countGeometryVertices(item.geometry) === 0) {
+      empty += 1;
+    }
+  }
+  if (visible === 0 || empty === 0) {
+    clearTextFontWarnings(textObject);
+    return;
+  }
+  if (empty >= visible) {
+    reportTextFontIssue(textObject, "zero-vertices");
+    return;
+  }
+  reportTextFontIssue(textObject, "empty-characters", {
+    missing: empty,
+    total: visible,
+  });
 }
 
 function captureSourceGeometry(textObject, splitState) {
@@ -512,12 +552,13 @@ function updateCharacterRendering(textObject, splitState, layers, frame) {
 
   for (const entry of splitState.entries) {
     copyMeshState(sourceMesh, entry.mesh);
+    const range = getEffectiveCharacterRange(textObject, frame, entry.index, entry.count);
     for (let index = 0; index < layers.length; index += 1) {
       const controls = getTextPlusControls(
         layers[index],
         frame,
-        entry.index,
-        entry.count
+        range.index,
+        range.count
       );
       applyCharacterTransform(
         entry.nodes[index],
@@ -527,6 +568,31 @@ function updateCharacterRendering(textObject, splitState, layers, frame) {
       );
     }
   }
+}
+
+// Reads the Text's own "Index offset" / "Total characters" properties at the
+// current frame and maps one local character onto the multi-Text word. Both
+// default to 0 (automatic), which returns the local index and count
+// unchanged.
+function getEffectiveCharacterRange(textObject, frame, index, count) {
+  let offset = 0;
+  let total = 0;
+  try {
+    offset = propertyValue(
+      textObject?.properties?.characterIndexOffset,
+      frame,
+      0
+    );
+    total = propertyValue(
+      textObject?.properties?.characterCountOverride,
+      frame,
+      0
+    );
+  } catch (_error) {
+    offset = 0;
+    total = 0;
+  }
+  return resolveCharacterRange(offset, total, index, count);
 }
 
 function getSplitState(textObject) {
@@ -570,12 +636,22 @@ function syncTextRendering(textObject, frame) {
     restoreTextRendering(textObject);
     return;
   }
-  if (!textObject?.threeObj || !textObject.font?.font3d) return;
+  if (!textObject?.threeObj || !textObject.font?.font3d) {
+    // Pending fonts stay silent; failed loads diagnose and late fonts
+    // rebuild from scratch instead of retaining empty character geometry.
+    if (textObject?.threeObj) {
+      watchFontLoad(textObject);
+      reportUnavailableFont(textObject);
+    }
+    return;
+  }
 
   const splitState = getSplitState(textObject);
   const geometryChanged = captureSourceGeometry(textObject, splitState);
   if (
     geometryChanged ||
+    splitState.font !== textObject.font.font3d ||
+    splitState.fontData !== textObject.font.font3d.data ||
     !splitState.renderRoot ||
     !sameObjects(splitState.layers, layers)
   ) {
@@ -600,6 +676,8 @@ module.exports = {
   getCharacterTransformReference,
   applyCharacterTransform,
   updateCharacterRendering,
+  getEffectiveCharacterRange,
+  reportCharacterBuildResult,
   getSplitState,
   restoreTextRendering,
   syncTextRendering,
