@@ -140,38 +140,51 @@ var PZ = PZ || {};
         ];
     }
 
-    function spherePoint(x, y, z, counts, size) {
+    function spherePoint(x, y, z, counts, size, perAxis) {
         var i = z * counts[0] * counts[1] + y * counts[0] + x;
         var total = counts[0] * counts[1] * counts[2];
         var phi = Math.acos(1 - (2 * (i + 0.5)) / total);
         var theta = Math.PI * (1 + Math.sqrt(5)) * i;
         var r = (size[0] + size[1] + size[2]) / 6;
-        return [Math.sin(phi) * Math.cos(theta) * r, Math.cos(phi) * r, Math.sin(phi) * Math.sin(theta) * r];
+        // Keep the original arithmetic for equal sizes, including animated ones.
+        var stretch = perAxis && (size[0] !== size[1] || size[1] !== size[2]);
+        var rx = stretch ? size[0] / 2 : r;
+        var ry = stretch ? size[1] / 2 : r;
+        var rz = stretch ? size[2] / 2 : r;
+        return [Math.sin(phi) * Math.cos(theta) * rx, Math.cos(phi) * ry, Math.sin(phi) * Math.sin(theta) * rz];
     }
 
-    function sphereGridPoint(x, y, z, counts, size) {
+    function sphereGridPoint(x, y, z, counts, size, perAxis) {
         var u = counts[0] > 1 ? x / (counts[0] - 1) : 0.5;
         var v = counts[1] > 1 ? y / (counts[1] - 1) : 0.5;
         var w = counts[2] > 1 ? z / (counts[2] - 1) : 0.5;
         var phi = v * Math.PI;
         var theta = u * Math.PI * 2;
         var r = ((size[0] + size[1] + size[2]) / 6) * (0.6 + 0.4 * w);
-        return [Math.sin(phi) * Math.cos(theta) * r, Math.cos(phi) * r, Math.sin(phi) * Math.sin(theta) * r];
+        var stretch = perAxis && (size[0] !== size[1] || size[1] !== size[2]);
+        var rx = stretch ? (size[0] / 2) * (0.6 + 0.4 * w) : r;
+        var ry = stretch ? (size[1] / 2) * (0.6 + 0.4 * w) : r;
+        var rz = stretch ? (size[2] / 2) * (0.6 + 0.4 * w) : r;
+        return [Math.sin(phi) * Math.cos(theta) * rx, Math.cos(phi) * ry, Math.sin(phi) * Math.sin(theta) * rz];
     }
 
-    function cylinderPoint(x, y, z, counts, size) {
+    function cylinderPoint(x, y, z, counts, size, perAxis) {
         var angle = (x / counts[0]) * Math.PI * 2;
         var radius = (size[0] + size[2]) / 4;
+        var rx = perAxis && size[0] !== size[2] ? size[0] / 2 : radius;
+        var rz = perAxis && size[0] !== size[2] ? size[2] / 2 : radius;
         var height = (counts[1] > 1 ? y / (counts[1] - 1) - 0.5 : 0) * size[1];
-        return [Math.cos(angle) * radius, height, Math.sin(angle) * radius];
+        return [Math.cos(angle) * rx, height, Math.sin(angle) * rz];
     }
 
-    function circlePoint(x, y, z, counts, size) {
+    function circlePoint(x, y, z, counts, size, perAxis) {
         var angle = (y / counts[1]) * Math.PI * 2;
         var ring = counts[0] > 1 ? x / (counts[0] - 1) : 0;
         var radius = ((size[0] + size[1]) / 4) * ring;
+        var rx = perAxis && size[0] !== size[1] ? (size[0] / 2) * ring : radius;
+        var ry = perAxis && size[0] !== size[1] ? (size[1] / 2) * ring : radius;
         var depth = (counts[2] > 1 ? z / (counts[2] - 1) - 0.5 : 0) * size[2];
-        return [Math.cos(angle) * radius, Math.sin(angle) * radius, depth];
+        return [Math.cos(angle) * rx, Math.sin(angle) * ry, depth];
     }
 
     function planePoint(x, y, z, counts, size) {
@@ -224,6 +237,7 @@ var PZ = PZ || {};
             counts.join(","),
             base.baseFormType.get(t),
             base.baseFormSize.get(t).join(","),
+            base.baseSizeMode.get(t),
             base.modelScale.get(t),
             modelValue, this._assets.status("model", modelValue),
             maskValue, this._assets.status("mask", maskValue),
@@ -334,6 +348,7 @@ var PZ = PZ || {};
         var base = this.properties.base;
         var count = counts[0] * counts[1] * counts[2];
         var size = base.baseFormSize.get(t);
+        var perAxis = base.baseSizeMode.get(t) === 0;
         var type = base.baseFormType.get(t);
         if (!this.basePositions || this.basePositions.length !== count * 3) {
             this.basePositions = new Float32Array(count * 3);
@@ -360,10 +375,10 @@ var PZ = PZ || {};
             for (var y = 0; y < counts[1]; y++) {
                 for (var x = 0; x < counts[0]; x++) {
                     var p;
-                    if (type === 1) p = spherePoint(x, y, z, counts, size);
-                    else if (type === 2) p = sphereGridPoint(x, y, z, counts, size);
-                    else if (type === 3) p = cylinderPoint(x, y, z, counts, size);
-                    else if (type === 4) p = circlePoint(x, y, z, counts, size);
+                    if (type === 1) p = spherePoint(x, y, z, counts, size, perAxis);
+                    else if (type === 2) p = sphereGridPoint(x, y, z, counts, size, perAxis);
+                    else if (type === 3) p = cylinderPoint(x, y, z, counts, size, perAxis);
+                    else if (type === 4) p = circlePoint(x, y, z, counts, size, perAxis);
                     else if (type === 5) p = planePoint(x, y, z, counts, size);
                     else p = boxPoint(x, y, z, totalX, totalY, totalZ, size);
                     write(p);
