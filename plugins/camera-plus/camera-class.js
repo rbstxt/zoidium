@@ -155,7 +155,7 @@ parts.camera = (function () {
     return a.distanceTo(b);
   }
 
-  function createClass(PZ, THREE, vibrate) {
+  function createClass(PZ, THREE, vibrate, getEditor) {
     class CameraPlus extends PZ.object3d {
       constructor() {
         super();
@@ -289,20 +289,21 @@ parts.camera = (function () {
         const focal = this.focalLengthForFieldOfView(axis, degrees, time);
         if (focal === null) return;
         const focalProperty = this.properties.focalLength;
-        // Same keyframe behavior as typing a focal length: when it is
-        // animated but has no key at this frame, its key is created here
-        // first (mirroring the editor's edit start), then the set updates
-        // that key instead of a distant one.
-        if (focalProperty.animated && typeof focalProperty.hasKeyframe === "function" && !focalProperty.hasKeyframe(time)) {
-          const at = typeof focalProperty.getClosestKeyframeIndex === "function"
-            ? focalProperty.getClosestKeyframeIndex(time)
-            : -1;
-          const neighbor = at >= 0 && focalProperty.keyframes ? focalProperty.keyframes[at] : null;
-          focalProperty.addKeyframe(new PZ.keyframe(
-            readNumber(focalProperty, time, focal),
-            time,
-            neighbor ? neighbor.tween : 1
-          ));
+        // CM3 writes the unchanged value back when an edit is cancelled or
+        // left without changes; that must not create a focal length key.
+        const current = readNumber(focalProperty, time, focal);
+        if (Math.abs(focal - current) <= 1e-9 * Math.max(1, Math.abs(current))) return;
+        // Same keyframe behavior as typing a focal length: an animated focal
+        // length without a key at this frame gets one through the editor's
+        // own startEdit, so the key joins the open undo operation.
+        const editor = typeof getEditor === "function" ? getEditor() : null;
+        if (focalProperty.animated && !focalProperty.hasKeyframe(time)) {
+          if (editor && editor.history && PZ.ui && PZ.ui.properties && typeof PZ.ui.properties.prototype.startEdit === "function") {
+            new PZ.ui.properties(editor).startEdit(focalProperty, time);
+          } else {
+            const neighbor = focalProperty.keyframes[focalProperty.getClosestKeyframeIndex(time)];
+            focalProperty.addKeyframe(new PZ.keyframe(readNumber(focalProperty, time, focal), time, neighbor ? neighbor.tween : 1));
+          }
         }
         focalProperty.set(focal, time);
       }

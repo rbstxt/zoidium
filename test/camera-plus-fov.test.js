@@ -146,6 +146,35 @@ test("FOV edit on an animated focal length creates its key at the edit frame", (
   } finally { runtime.deactivate(); }
 });
 
+test("writing back the unchanged FOV does not key an animated focal length", () => {
+  const { ctx, runtime, camera } = makeCamera();
+  try {
+    ctx.PZ.keyframe = class {
+      constructor(value = 0, frame = 0, tween = 1) { this.value = value; this.frame = frame; this.tween = tween; }
+    };
+    const focal = camera.properties.focalLength;
+    // Keyframe list behavior mirrors CM3 for this one property.
+    focal.animated = true;
+    focal.keyframes = [{ frame: 0, value: 35, tween: 1 }];
+    focal.hasKeyframe = (frame) => focal.keyframes.some((key) => key.frame === frame);
+    focal.getClosestKeyframeIndex = (frame) => {
+      let best = 0;
+      for (let i = 0; i < focal.keyframes.length; i += 1) {
+        if (Math.abs(focal.keyframes[i].frame - frame) < Math.abs(focal.keyframes[best].frame - frame)) best = i;
+      }
+      return best;
+    };
+    focal.addKeyframe = (key) => {
+      focal.keyframes.push(key);
+      focal.keyframes.sort((a, b) => a.frame - b.frame);
+    };
+    // A cancelled or unchanged panel edit writes the current value back.
+    camera.properties.fovH.set(camera.getFieldOfView(30)[0], 30);
+    assert.deepEqual(focal.keyframes.map((k) => k.frame), [0]);
+    assert.equal(focal.keyframes[0].value, 35);
+  } finally { runtime.deactivate(); }
+});
+
 test("loading an old project ignores stored FOV readout values", () => {
   const { runtime, camera } = makeCamera();
   try {
