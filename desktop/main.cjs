@@ -1,10 +1,12 @@
 "use strict";
 
-const { app, BrowserWindow, Menu, crashReporter, dialog, shell, screen } = require("electron");
+const { app, BrowserWindow, Menu, crashReporter, dialog, shell, screen, ipcMain } = require("electron");
 const fs = require("node:fs");
 const http = require("node:http");
 const path = require("node:path");
 const { pipeline } = require("node:stream/promises");
+
+const { createProjectFileController } = require(path.join(__dirname, "project-files.cjs"));
 
 const applicationRoot = path.resolve(__dirname, "..");
 const desktopPort = Number(process.env.ZOIDIUM_DESKTOP_PORT || 17823);
@@ -56,6 +58,7 @@ process.on("exit", (code) => {
 let server = null;
 let serverOrigin = null;
 let mainWindow = null;
+let projectFiles = null;
 let mainRecovery = null;
 let closingPromise = null;
 let quitting = false;
@@ -341,6 +344,7 @@ async function serveRequest(request, response) {
 async function startServer() {
   const localServer = http.createServer(async (request, response) => {
     try {
+      if (await projectFiles?.serveRequest(request, response)) return;
       await serveRequest(request, response);
     } catch (error) {
       if (response.destroyed || error?.code === "ERR_STREAM_PREMATURE_CLOSE") return;
@@ -666,6 +670,7 @@ async function createWindow() {
     minHeight: 640,
     backgroundColor: "#111318",
     webPreferences: {
+      preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
@@ -701,6 +706,7 @@ async function createWindow() {
   });
 
   mainWindow = window;
+  projectFiles.attachWindow(window);
   window.on("closed", () => {
     if (mainWindow === window) {
       mainWindow = null;
@@ -774,14 +780,17 @@ if (!app.requestSingleInstanceLock()) {
     });
   });
 
-  app.on("second-instance", () => {
-    logMain("info", "second instance requested focus");
-    if (!mainWindow) return;
-    if (mainWindow.isMinimized()) mainWindow.restore();
-    mainWindow.focus();
+  projectFiles = createProjectFileController({
+    app, ipcMain, argv: process.argv, defaultApp: process.defaultApp,
+    appPath: app.getAppPath?.() || applicationRoot,
+    getWindow: () => mainWindow,
+    openWindow: createWindow,
+    isLocalUrl,
+    onError: (error) => logMain("error", "could not open a desktop project", errorDetails(error)),
   });
 
   app.whenReady().then(() => {
+    projectFiles.applicationReady();
     installApplicationMenu();
     return createWindow();
   }).catch((error) => {
