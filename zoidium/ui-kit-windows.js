@@ -325,6 +325,23 @@
           if (maximizable) win.toggleMaximized();
         });
       },
+      // Brings the whole window back into view: expands a collapsed window,
+      // moves and shrinks it to fit the editor, then focuses it.
+      reveal: function () {
+        if (closed) return;
+        if (collapsed) win.setCollapsed(false);
+        if (!maximized) {
+          var vw = global.innerWidth || viewportWidth;
+          var vh = global.innerHeight || viewportHeight;
+          width = clampNumber(width, minWidth, Math.max(minWidth, vw - WINDOW_MARGIN * 2));
+          height = clampNumber(height, minHeight, Math.max(minHeight, vh - WINDOW_MARGIN * 2));
+          x = clampNumber(x, WINDOW_MARGIN, Math.max(WINDOW_MARGIN, vw - WINDOW_MARGIN - width));
+          y = clampNumber(y, WINDOW_MARGIN, Math.max(WINDOW_MARGIN, vh - WINDOW_MARGIN - height));
+        }
+        win._clamp();
+        persist();
+        win.focus();
+      },
       focus: function () {
         if (closed) return;
         zCounter += 1;
