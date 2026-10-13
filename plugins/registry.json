@@ -182,7 +182,7 @@
       "category": "scene",
       "name": "Text+",
       "author": "Zoidium",
-      "version": "20",
+      "version": "21",
       "defaultEnabled": true,
       "itemCount": 6,
       "format": "3D text containers",
@@ -191,9 +191,9 @@
       "description": "Adds per-character controls and advanced bevel options to editable 3D Text.",
       "credits": "Credits: DaviFX",
       "zoidiumOnly": true,
-      "manifest": "./plugins/text-plus/manifest.json?v=20",
-      "bundle": "./plugins/text-plus/bundle.json?v=20",
-      "integrity": "sha256-X2A3uMoANb2PJXXqHHb2e2egLy9SiSbkI9S7JLglceo="
+      "manifest": "./plugins/text-plus/manifest.json?v=21",
+      "bundle": "./plugins/text-plus/bundle.json?v=21",
+      "integrity": "sha256-C6MjHe4K4MVhdeIaYAKCEG+jRSZgvb3xbS35gmnJKrM="
     },
     {
       "id": "particles-plus",

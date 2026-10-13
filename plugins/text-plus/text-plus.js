@@ -20,6 +20,7 @@ function loadTextPlusParts(context) {
       utils: bundleRequire("./text-plus-utils.js"),
       properties: bundleRequire("./text-plus-properties.js"),
       controls: bundleRequire("./text-plus-controls.js"),
+      diagnostics: bundleRequire("./text-plus-diagnostics.js"),
       geometry: bundleRequire("./text-plus-geometry.js"),
     };
   }
@@ -27,6 +28,7 @@ function loadTextPlusParts(context) {
     utils: require("./text-plus-utils.js"),
     properties: require("./text-plus-properties.js"),
     controls: require("./text-plus-controls.js"),
+    diagnostics: require("./text-plus-diagnostics.js"),
     geometry: require("./text-plus-geometry.js"),
   };
 }
@@ -66,8 +68,18 @@ let createTransformPropertyDefinitions;
 let createGradientTransformPropertyDefinitions;
 let createShakePropertyDefinitions;
 let createRandomScatterPropertyDefinitions;
-let propertyValue;let createTextShapes;
+let propertyValue;
+let createTextShapes;
 let textGeometryOptions;
+let hasVisibleCharacters;
+let reportTextFontIssue;
+let reportUnavailableFont;
+let clearTextFontWarnings;
+let resetTextFontDiagnostics;
+let watchFontLoad;
+let observeFontRevision;
+let countGeometryVertices;
+let collectTextPlusObjects;
 let syncTextRendering;
 let restoreTextRendering;
 
@@ -112,6 +124,15 @@ function refreshTextPlusBindings(loaded) {
   createRandomScatterPropertyDefinitions =
     loaded.properties.createRandomScatterPropertyDefinitions;
   propertyValue = loaded.controls.propertyValue;
+  hasVisibleCharacters = loaded.diagnostics.hasVisibleCharacters;
+  reportTextFontIssue = loaded.diagnostics.reportTextFontIssue;
+  reportUnavailableFont = loaded.diagnostics.reportUnavailableFont;
+  clearTextFontWarnings = loaded.diagnostics.clearTextFontWarnings;
+  resetTextFontDiagnostics = loaded.diagnostics.resetTextFontDiagnostics;
+  watchFontLoad = loaded.diagnostics.watchFontLoad;
+  observeFontRevision = loaded.diagnostics.observeFontRevision;
+  countGeometryVertices = loaded.diagnostics.countGeometryVertices;
+  collectTextPlusObjects = loaded.utils.collectTextPlusObjects;
   createTextShapes = loaded.geometry.createTextShapes;
   textGeometryOptions = loaded.geometry.textGeometryOptions;
   syncTextRendering = loaded.geometry.syncTextRendering;
@@ -151,6 +172,8 @@ function buildTextPlusTestExports() {
       parts.properties.createGradientTransformPropertyDefinitions,
     createPropertyCategory: parts.properties.createPropertyCategory,
     textUsesExtendedProperties,
+    observeFontRevision: parts.diagnostics.observeFontRevision,
+    resetTextFontDiagnostics: parts.diagnostics.resetTextFontDiagnostics,
     createShakePropertyDefinitions:
       parts.properties.createShakePropertyDefinitions,
     createTransformPropertyDefinitions:
@@ -171,6 +194,9 @@ function buildTextPlusTestExports() {
     createTextShapes: parts.geometry.createTextShapes,
     getTextPropertyDefinitions,
     getDelayRank: parts.utils.getDelayRank,
+    resolveCharacterRange: parts.utils.resolveCharacterRange,
+    getEffectiveCharacterRange: parts.geometry.getEffectiveCharacterRange,
+    reportCharacterBuildResult: parts.geometry.reportCharacterBuildResult,
     getMatrixToAncestor: parts.geometry.getMatrixToAncestor,
     getGradientTransformControls: parts.controls.getGradientTransformControls,
     getRandomOrder: parts.utils.getRandomOrder,
@@ -183,6 +209,17 @@ function buildTextPlusTestExports() {
     getTextCenter: parts.utils.getTextCenter,
     getTextPlusProperties: parts.properties.getTextPlusProperties,
     getTextPlusControls: parts.controls.getTextPlusControls,
+    textUsesExtendedProperties,
+    observeFontRevision: parts.diagnostics.observeFontRevision,
+    resetTextFontDiagnostics: parts.diagnostics.resetTextFontDiagnostics,
+    hasVisibleCharacters: parts.diagnostics.hasVisibleCharacters,
+    describeTextFont: parts.diagnostics.describeTextFont,
+    formatTextFontMessage: parts.diagnostics.formatTextFontMessage,
+    reportTextFontIssue: parts.diagnostics.reportTextFontIssue,
+    reportUnavailableFont: parts.diagnostics.reportUnavailableFont,
+    countGeometryVertices: parts.diagnostics.countGeometryVertices,
+    clearTextFontWarnings: parts.diagnostics.clearTextFontWarnings,
+    watchFontLoad: parts.diagnostics.watchFontLoad,
     parseCharacterSelection: parts.controls.parseCharacterSelection,
     seededRandom: parts.utils.seededRandom,
     lerpVector: parts.controls.lerpVector,
@@ -307,6 +344,35 @@ function getTextPropertyDefinitions(PZ) {
       step: 0.5,
       decimals: 2,
   };
+  // Per-character sequencing across several Text objects: "Index offset"
+  // shifts this Text's letters within the word ("this Text starts at
+  // character <offset>"), "Total characters" replaces the character count
+  // used for delay and gradient math (0 keeps this Text's own count). Both
+  // default to 0, which evaluates exactly like the local index and count.
+  const characterRangeDefinitions = {
+    characterIndexOffset: {
+      dynamic: true,
+      interpolated: true,
+      name: "Index offset",
+      type: type.NUMBER,
+      value: 0,
+      changed: changeFn,
+      min: 0,
+      step: 1,
+      decimals: 0,
+    },
+    characterCountOverride: {
+      dynamic: true,
+      interpolated: true,
+      name: "Total characters",
+      type: type.NUMBER,
+      value: 0,
+      changed: changeFn,
+      min: 0,
+      step: 1,
+      decimals: 0,
+    },
+  };
   const bevelSizeDefinition = {
       ...originalBevelSize,
       name: "Bevel size",
@@ -378,10 +444,20 @@ function getTextPropertyDefinitions(PZ) {
     }
     if (name === "detail") {
       definitions.spacing = spacingDefinition;
+      definitions.characterIndexOffset =
+        characterRangeDefinitions.characterIndexOffset;
+      definitions.characterCountOverride =
+        characterRangeDefinitions.characterCountOverride;
       spacingInserted = true;
     }
   }
-  if (!spacingInserted) definitions.spacing = spacingDefinition;
+  if (!spacingInserted) {
+    definitions.spacing = spacingDefinition;
+    definitions.characterIndexOffset =
+      characterRangeDefinitions.characterIndexOffset;
+    definitions.characterCountOverride =
+      characterRangeDefinitions.characterCountOverride;
+  }
   if (!bevelInserted) {
     definitions.bevelSize = bevelSizeDefinition;
     Object.assign(definitions, advancedBevelDefinitions);
@@ -418,18 +494,29 @@ function installTextPatches(PZ) {
         !this.threeObj ||
         typeof THREE?.ExtrudeGeometry !== "function"
       ) {
+        if (this.threeObj && collectTextPlusObjects(this).length > 0) {
+          watchFontLoad(this);
+          reportUnavailableFont(this);
+        }
         return originalUpdateGeometry.apply(this, arguments);
       }
 
+      const rawText = propertyValue(this.properties?.text, 0, "");
       const options = textGeometryOptions(this, font);
       const shapes = createTextShapes(
         font,
-        propertyValue(this.properties?.text, 0, ""),
+        rawText,
         options.size,
         options.curveSegments,
         propertyValue(this.properties?.spacing, 0, 0)
       );
       const geometry = new THREE.ExtrudeGeometry(shapes, options);
+      if (collectTextPlusObjects(this).length > 0 && hasVisibleCharacters(rawText)) {
+        if (shapes.length === 0) reportTextFontIssue(this, "no-shapes");
+        else if (countGeometryVertices(geometry) === 0) reportTextFontIssue(this, "zero-vertices");
+      } else if (!hasVisibleCharacters(rawText)) {
+        clearTextFontWarnings(this);
+      }
       const previousGeometry = this.threeObj.geometry;
       if (previousGeometry && previousGeometry !== geometry) {
         previousGeometry.dispose?.();
@@ -445,6 +532,7 @@ function installTextPatches(PZ) {
   }
 
   const patchedUpdate = function update(frame) {
+    if (collectTextPlusObjects(this).length > 0) observeFontRevision(this);
     originalUpdate.call(this, frame);
     try {
       syncTextRendering(this, frame);
@@ -511,13 +599,30 @@ function textUsesExtendedProperties(textObject) {
     if (!property || typeof property.get !== "function") return false;
     // An unreadable property cannot prove extended use; treat it as default.
     try {
-      return numberValue(property.get(), Number.NaN) !== expected;
+      // Never read an animated property without an explicit frame: an
+      // arg-less get() cannot terminate on multi-keyframe properties.
+      // Any keyframe value differing from the default proves extended use.
+      if (property.animated && property.keyframes) {
+        const keyframes = property.keyframes;
+        const count = Number.isSafeInteger(keyframes.length)
+          ? keyframes.length
+          : 0;
+        for (let index = 0; index < count; index += 1) {
+          if (numberValue(keyframes[index]?.value, Number.NaN) !== expected) {
+            return true;
+          }
+        }
+        return false;
+      }
+      return numberValue(property.get(0), Number.NaN) !== expected;
     } catch (_error) {
       return false;
     }
   };
   return (
     differs("spacing", 0) ||
+    differs("characterIndexOffset", 0) ||
+    differs("characterCountOverride", 0) ||
     differs("bevelSide", 0) ||
     differs("bevelDetail", 3) ||
     differs("bevelProfile", 1) ||
@@ -554,6 +659,7 @@ function activate(context) {
     throw new Error("Text+ requires the CM3 3D Text API and Zoidium object registry.");
   }
 
+  context.lifecycle?.onDispose?.(deactivate);
   state.PZ = PZ;
   state.THREE = THREE;
   state.editor = context.editor || null;
@@ -584,6 +690,7 @@ function activate(context) {
 function deactivate() {
   if (!parts) return;
   restoreTextPatches();
+  resetTextFontDiagnostics();
   for (const textObject of Array.from(state.splitTexts)) {
     restoreTextRendering(textObject);
   }
