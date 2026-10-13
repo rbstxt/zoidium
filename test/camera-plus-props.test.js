@@ -92,8 +92,10 @@ test("film readouts evaluate requested time, zoom, sensor and resolution without
     camera.properties.projection.set("orthographic");
     assert.deepEqual(camera.getFieldOfView(0), [0, 0]);
     for (const key of ["equivFocalLength", "fovH", "fovV"]) {
-      assert.equal(camera.properties[key].definition.readOnly, true);
       assert.equal(camera.properties[key].hideAnimateToggle, true);
     }
+    assert.equal(camera.properties.equivFocalLength.definition.readOnly, true);
+    assert.equal(camera.properties.fovH.definition.readOnly, undefined, "horizontal FOV is editable");
+    assert.equal(camera.properties.fovV.definition.readOnly, undefined, "vertical FOV is editable");
   } finally { runtime.deactivate(); }
 });
