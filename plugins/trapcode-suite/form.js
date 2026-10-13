@@ -210,6 +210,11 @@ var PZ = PZ || {};
         load(e, parent) {
             this.form = parent || this.form;
             this.properties.load(e && e.properties);
+            // Saved Forms without a size mode retain their original round bases.
+            // New Forms use independent axes; the property list persists the mode.
+            if (!e || !e.properties || !e.properties.base || e.properties.base.baseSizeMode === undefined) {
+                this.properties.base.baseSizeMode.set(e ? 1 : 0);
+            }
             if (!this.material) this.rebuildMaterial();
             var parentForm = this.form || this.formObject;
             if (this.threeObj && parentForm && parentForm.threeObj) {
