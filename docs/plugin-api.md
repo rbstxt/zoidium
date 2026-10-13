@@ -64,6 +64,15 @@ node tools/new-plugin.js --kind=native-fx --template=temporal --id=my-time-fx
   `getRequest(effect, frame)` function. The core compositor evaluates and
   reuses the required offscreen targets. The effect only combines the returned
   textures. See plugins/native-fx/effects/echo.js.
+  Each tap evaluates the effect input with the time operators before the
+  sampler in serialized order. Prefix quantizers use the tap's time, rather
+  than only quantizing the current image. Time offsets already included in
+  the sampler's input clock are rebased before replaying the prefix, so they
+  are not added twice. Temporal operators after the sampler keep their
+  existing evaluation of the composed result. Adjustment prefixes use
+  project time and stop their lower-track scope at the sampler input.
+  Nested preparation and rendering share the same eight-level depth limit.
+
 - Complex multipass effects (such as Drop Shadow) can stay handwritten.
 - An effect that needs an API added after its first release declares it with
   `requiresApis` (for example Echo declares `defineFrameSampler`, Color
