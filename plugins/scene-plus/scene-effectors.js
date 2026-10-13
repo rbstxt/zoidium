@@ -145,6 +145,7 @@ function warnOnceFor(key, message) {
   if (warnedMessages.has(key)) return;
   warnedMessages.add(key);
   console.warn(message);
+  return true;
 }
 
 function createTwistClass(PZ, THREE, type = TWIST_TYPE) {
@@ -330,10 +331,12 @@ function createDelayClass(PZ, THREE) {
 }
 
 function createVoronoiClass(PZ, THREE, type = VORONOI_TYPE) {
+  const status = require("./effector-fracture-status.js");
   const BaseEffector = createEffectorBaseClass(PZ, THREE);
   class VoronoiObject extends BaseEffector {
     constructor() {
       super();
+      status.installFractureStatus(this, PZ);
       this.properties.addAll({
         distribution: { name: "Distribution", type: PZ.property.type.OPTION, value: 0, items: "uniform;surface;center;edges" },
         cellScale: { name: "Cell scale", type: PZ.property.type.VECTOR3, value: [100, 100, 100], min: 0.01, step: 1, decimals: 1 },
@@ -416,6 +419,15 @@ function createVoronoiClass(PZ, THREE, type = VORONOI_TYPE) {
       this.type = type;
     }
 
+    setFractureJobStatus(consumer, pending, codes, cancelled) {
+      status.setFractureJobStatus(this, consumer, pending, codes, cancelled);
+    }
+
+    unload() {
+      super.unload();
+      status.disposeFractureStatus(this);
+    }
+
     workerCommand(frame) {
       return { kind: "fracture", topology: {
         cells: state.library.fracture.clampCells(numberPropertyValue(this.properties.cells, frame, DEFAULT_FRACTURE_CELLS)),
@@ -448,11 +460,18 @@ function createVoronoiClass(PZ, THREE, type = VORONOI_TYPE) {
           FRACTURE_LIMITS
         );
         if (result.error) {
-          warnOnceFor(
-            "voronoi:" + result.error,
-            "Voronoi Fracture skipped this mesh: " + fractureErrorText(result.error) + "."
-          );
+          const message = fractureErrorText(result.error);
+          this.setFractureJobStatus(stage, false, [result.error]);
+          if (warnOnceFor("voronoi:" + result.error, "Voronoi Fracture skipped this mesh: " + message + ".")) {
+            globalThis.ZoidiumUI?.notify({ title: "Voronoi Fracture warning", message });
+          }
           return null;
+        }
+        if (result.warning) {
+          const message = fractureErrorText(result.warning);
+          warnOnceFor("voronoi:" + result.warning, "Voronoi Fracture: " + message + ".");
+          this.setFractureJobStatus(stage, false, [result.warning]);
+          globalThis.ZoidiumUI?.notify({ title: "Voronoi Fracture warning", message });
         }
         return result;
       });
@@ -480,12 +499,7 @@ function createVoronoiClass(PZ, THREE, type = VORONOI_TYPE) {
 }
 
 function fractureErrorText(code) {
-  if (code === "work-limit") return "the source and cell count exceed the fracture work budget; reduce Cells or simplify the source";
-  if (code === "source-limit") return "the source mesh has more than " + FRACTURE_LIMITS.maxSourceTriangles + " triangles";
-  if (code === "output-limit") return "the fracture would exceed " + FRACTURE_LIMITS.maxOutputTriangles + " triangles";
-  if (code === "empty") return "the mesh has no triangles";
-  if (code === "degenerate") return "the mesh has no extent";
-  return "the geometry is invalid";
+  return state.library.fracture.fractureErrorText(code);
 }
 
 module.exports = {
