@@ -66,6 +66,37 @@
   margin-top: 0;
 }
 
+/* Collapsible picker groups (object/effect add pickers). Headings keep the
+   CM3 look; only a chevron, a pointer cursor and a focus ring are added. */
+.pz-options > span.zoidium-picker-group {
+  cursor: pointer;
+}
+.pz-options > span.zoidium-picker-group::before {
+  border-bottom: 4px solid transparent;
+  border-left: 5px solid currentColor;
+  border-top: 4px solid transparent;
+  content: "";
+  display: inline-block;
+  height: 0;
+  margin-right: 7px;
+  vertical-align: 1px;
+  width: 0;
+}
+.pz-options > span.zoidium-picker-group:not(.zoidium-picker-group--collapsed)::before {
+  transform: rotate(90deg);
+}
+/* The stock arrow handler can park its highlight on a heading (a collapsed
+   group's heading is the row after the previous item). Mirror the row
+   highlight so the stop stays visible; Enter then toggles that group. */
+.pz-options > span.zoidium-picker-group.active {
+  background-color: #3f3f3f;
+  box-shadow: inset 0 0 0 1px #676767;
+}
+.pz-options > span.zoidium-picker-group:focus-visible {
+  outline: 1px solid var(--zui-accent, #58a6ff);
+  outline-offset: -1px;
+}
+
 .zoidium-plugin-description {
   color: var(--zui-text-muted);
   display: block;
