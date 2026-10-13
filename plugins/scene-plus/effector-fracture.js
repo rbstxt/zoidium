@@ -873,7 +873,7 @@ function applyFragmentMotion(positions, stage, motion, matrix) {
 }
 
 function fractureErrorText(code) {
-  if (code === "cap-invalid") return "cap contour invalid or too large; rendering open fragments";
+  if (code === "cap-invalid") return "cap contour invalid (the source mesh intersects itself, often a bevel wider than thin strokes; try a smaller Bevel size) or too large; rendering open fragments";
   if (code === "work-limit") return "too many cells for this source mesh; reduce Cells or simplify the source";
   if (code === "source-limit") return "source mesh exceeds " + DEFAULT_LIMITS.maxSourceTriangles + " triangles; rendering the unbroken source";
   if (code === "output-limit") return "fracture exceeds " + DEFAULT_LIMITS.maxOutputTriangles + " triangles; rendering the unbroken source";
