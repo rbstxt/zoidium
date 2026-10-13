@@ -328,6 +328,22 @@ function getCharacterDelay(order, index, count, delayPerCharacter, seed) {
   return getDelayRank(order, index, count, seed) * step;
 }
 
+// Maps one Text object's local character index/count onto the word the user
+// is building from several Text objects. offsetValue shifts every local
+// index up ("this Text starts at character <offset> of the word") and
+// totalValue replaces the character count used for delay and gradient math
+// (0 keeps the Text's own count). Defaults (0, 0) return the inputs
+// unchanged, so existing projects evaluate exactly as before.
+function resolveCharacterRange(offsetValue, totalValue, index, count) {
+  const characters = Math.max(0, Math.trunc(numberValue(count, 0)));
+  const offset = Math.max(0, Math.trunc(numberValue(offsetValue, 0)));
+  const total = Math.max(0, Math.trunc(numberValue(totalValue, 0)));
+  return {
+    index: Math.trunc(numberValue(index, 0)) + offset,
+    count: total > 0 ? total : characters,
+  };
+}
+
 function getShakeAngle(amplitude, period, phase) {
   const frames = numberValue(period, 0);
   const radians = numberValue(amplitude, 0);
@@ -497,6 +513,7 @@ module.exports = {
   getRandomOrder,
   getDelayRank,
   getCharacterDelay,
+  resolveCharacterRange,
   getShakeAngle,
   getTextLayout,
   getCenterOffset,
