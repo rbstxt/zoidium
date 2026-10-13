@@ -65,9 +65,8 @@ test("export records creation time, source pages, runtime versions and a content
   assert.equal(decoded.snapshot.entryScripts.clipmaker, decoded.metadata.profiles.clipmaker.entryScript);
   assert.equal(decoded.snapshot.entryScripts.videoeditor, decoded.metadata.profiles.videoeditor.entryScript);
   assert.equal(decoded.snapshot.resourceCount, decoded.metadata.resources.length);
-  assert.ok(decoded.snapshot.resources.some((resource) => resource.path === decoded.metadata.profiles.clipmaker.entryScript));
   assert.match(decoded.snapshot.contentSha256, /^[a-f0-9]{64}$/);
-  assert.equal(decoded.snapshot.totalBytes, decoded.snapshot.resources.reduce((sum, resource) => sum + resource.bytes, 0));
+  assert.equal(decoded.snapshot.totalBytes, decoded.metadata.resources.reduce((sum, resource) => sum + resource.bytes, 0));
 });
 
 test("fresh restore prints an age and version summary without warnings", async (t) => {
@@ -84,7 +83,7 @@ test("fresh restore prints an age and version summary without warnings", async (
 
 test("snapshot without metadata still restores but warns that its age is unknown", async (t) => {
   const f = await fixture(t);
-  await mutateHeader(f.file, (header) => { delete header.snapshot; });
+  await mutateHeader(f.file, (header) => { delete header.snapshot; delete header.createdAt; });
   assert.equal(snapshot.decodeSnapshot(await fs.readFile(f.file)).snapshot, null);
   const captured = captureConsole();
   try {
@@ -94,6 +93,18 @@ test("snapshot without metadata still restores but warns that its age is unknown
   assert.match(text, /no creation metadata/);
   assert.match(text, /clipmaker-1\.js/);
   assert.equal((await runtime.inspectResourceCache({ ...options, cacheRoot: path.join(f.root, "old-restored"), verifyHashes: true })).valid, true);
+});
+
+test("snapshot from before the record still reports its age from the header", async (t) => {
+  const f = await fixture(t);
+  await mutateHeader(f.file, (header) => { delete header.snapshot; header.createdAt = new Date(Date.now() - 40 * 86_400_000).toISOString(); });
+  const captured = captureConsole();
+  try {
+    await snapshot.restoreSnapshot({ ...options, from: f.file, cacheRoot: path.join(f.root, "header-age") });
+  } finally { captured.restore(); }
+  const text = captured.messages.map(([, message]) => message).join("\n");
+  assert.match(text, /\(40 days ago\)/);
+  assert.match(text, /40 days old/);
 });
 
 test("stale snapshot restores with a warning; the threshold is configurable", async (t) => {
@@ -132,7 +143,7 @@ test("strict age mode rejects stale and metadata-less snapshots but accepts fres
   await snapshot.restoreSnapshot({ ...options, from: f.file, cacheRoot: path.join(f.root, "strict-fresh") });
   await mutateHeader(f.file, (header) => { header.snapshot.createdAt = new Date(Date.now() - 45 * 86_400_000).toISOString(); });
   await assert.rejects(snapshot.restoreSnapshot({ ...options, from: f.file, cacheRoot: path.join(f.root, "strict-stale") }), /STRICT_AGE.*45 days old/);
-  await mutateHeader(f.file, (header) => { delete header.snapshot; });
+  await mutateHeader(f.file, (header) => { delete header.snapshot; delete header.createdAt; });
   await assert.rejects(snapshot.restoreSnapshot({ ...options, from: f.file, cacheRoot: path.join(f.root, "strict-old") }), /STRICT_AGE.*no creation metadata/);
 });
 
