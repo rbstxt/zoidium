@@ -26,7 +26,8 @@ function createMeshJobs(workerSource, host = globalThis, redraw = () => {}) {
       targets = new Set();
       for (let node = consumer; node; node = node.parent) {
         const owner = node.__zoidiumEffectorOwner || node.__zoidiumEffectorTransformOwner;
-        if (typeof owner?.setFractureJobStatus === "function") targets.add(owner);
+        if (typeof owner?.setFractureJobStatus === "function" &&
+          (!owner.acceptsCharacterMesh || owner.acceptsCharacterMesh(consumer, owner._effectorFrame || 0))) targets.add(owner);
       }
       entry.statusTargets.set(consumer, targets);
     }
