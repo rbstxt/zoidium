@@ -12,6 +12,7 @@ function installFractureStatus(owner, PZ) {
   owner._fractureWarnings = new Set();
   owner._fractureStatusViews = new Set();
   owner._fractureStatus = "Ready";
+  owner._fractureSelectionNote = "";
   const api = globalThis.ZoidiumPluginApis?.propertyControls;
   if (api && globalThis.PZ === PZ && PZ.ui?.controls && globalThis.document && !unregister) unregister = api.register(CONTROL_ID, {
     type: PZ.property.type.TEXT,
@@ -47,8 +48,19 @@ function setFractureJobStatus(owner, consumer, pending, codes = [], cancelled = 
     owner._fracturePending.delete(consumer);
     if (!cancelled) for (const code of codes) owner._fractureWarnings.add(fracture.fractureErrorText(code));
   }
+  refreshFractureStatus(owner);
+}
+
+function setFractureSelectionNote(owner, note) {
+  if (owner._fractureStatusDisposed || owner._fractureSelectionNote === note) return;
+  owner._fractureSelectionNote = note;
+  refreshFractureStatus(owner);
+}
+
+function refreshFractureStatus(owner) {
   const warning = Array.from(owner._fractureWarnings).join("; ");
   owner._fractureStatus = owner._fracturePending.size ? "Computing fracture..." : warning ? "Warning: " + warning : "Ready";
+  if (owner._fractureSelectionNote) owner._fractureStatus += ". " + owner._fractureSelectionNote;
   for (const reference of owner._fractureStatusViews) {
     const element = reference.deref();
     if (!element || !element.isConnected) owner._fractureStatusViews.delete(reference);
@@ -64,4 +76,4 @@ function disposeFractureStatus(owner) {
   if (--owners === 0) { unregister?.(); unregister = null; }
 }
 
-module.exports = { installFractureStatus, setFractureJobStatus, disposeFractureStatus };
+module.exports = { setFractureSelectionNote, installFractureStatus, setFractureJobStatus, disposeFractureStatus };

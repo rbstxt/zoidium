@@ -332,12 +332,16 @@ function createDelayClass(PZ, THREE) {
 
 function createVoronoiClass(PZ, THREE, type = VORONOI_TYPE) {
   const status = require("./effector-fracture-status.js");
+  const characters = require("./effector-fracture-characters.js");
   const BaseEffector = createEffectorBaseClass(PZ, THREE);
   class VoronoiObject extends BaseEffector {
     constructor() {
       super();
       status.installFractureStatus(this, PZ);
+      this._releaseCharacterFilter = characters.acquireSelectionFilter(state.meshDeformerCache);
       this.properties.addAll({
+        characters: { name: "Characters", type: PZ.property.type.TEXT, value: "" },
+        invertCharacters: { name: "Invert selection", type: PZ.property.type.OPTION, value: 0, items: "off;on" },
         distribution: { name: "Distribution", type: PZ.property.type.OPTION, value: 0, items: "uniform;surface;center;edges" },
         cellScale: { name: "Cell scale", type: PZ.property.type.VECTOR3, value: [100, 100, 100], min: 0.01, step: 1, decimals: 1 },
         cells: {
@@ -419,11 +423,60 @@ function createVoronoiClass(PZ, THREE, type = VORONOI_TYPE) {
       this.type = type;
     }
 
+    characterSelection(frame) {
+      const text = String(propertyValue(this.properties.characters, frame, "") ?? "");
+      if (text !== this._fractureSelectionText) {
+        this._fractureSelectionText = text;
+        this._fractureSelectionParsed = characters.parseCharacterSelection(text);
+      }
+      return this._fractureSelectionParsed;
+    }
+
+    syncCharacterSelection(frame) {
+      if (!this._releaseCharacterFilter) {
+        this._releaseCharacterFilter = characters.acquireSelectionFilter(state.meshDeformerCache);
+      }
+      const selection = this.characterSelection(frame);
+      status.setFractureSelectionNote(this, selection.valid ? "" :
+        "Warning: Invalid Characters range. Use one-based numbers such as 1-3, 6. No text characters are fractured.");
+      characters.syncCharacterRequests(this, selection, restoreDeformedTree);
+    }
+
+    update(frame) {
+      this.syncCharacterSelection(frame);
+      super.update(frame);
+    }
+
+    async prepare(frame) {
+      this.syncCharacterSelection(frame);
+      await super.prepare(frame);
+    }
+
+    acceptsCharacterMesh(mesh, frame) {
+      const selection = this.characterSelection(frame);
+      if (selection.all) return true;
+      const identity = mesh.userData?.zoidiumTextPlusCharacter;
+      if (!identity) {
+        if (mesh.children?.some(node => node.zoidiumTextPlusCharacters || node.userData?.zoidiumTextPlusCharacters)) return false;
+        if (characters.textSourceForMesh(mesh)) {
+          status.setFractureSelectionNote(this, "Warning: Character selection requires Text+ to be enabled. This Text stays unbroken.");
+          return false;
+        }
+        if (selection.valid) status.setFractureSelectionNote(this, "Character selection is ignored for non-text sources.");
+        return true;
+      }
+      return characters.matchesCharacter(selection, identity,
+        optionPropertyValue(this.properties.invertCharacters, frame, 0) === 1);
+    }
+
     setFractureJobStatus(consumer, pending, codes, cancelled) {
       status.setFractureJobStatus(this, consumer, pending, codes, cancelled);
     }
 
     unload() {
+      characters.releaseCharacterRequests(this, restoreDeformedTree);
+      this._releaseCharacterFilter?.();
+      this._releaseCharacterFilter = null;
       super.unload();
       status.disposeFractureStatus(this);
     }
