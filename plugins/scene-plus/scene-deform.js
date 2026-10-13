@@ -9,6 +9,7 @@ const {
   findRenderNodePath, getRenderNode, restoreDeformedTree, traverseDeformMeshes,
 } = require("./scene-clone.js");
 const state = require("./scene-state.js");
+const { installFieldEdit } = require("./scene-field-edit.js");
 
 function getMeshDeformer(THREE) {
   if (!state.meshDeformerCache || state.meshDeformerThree !== THREE) {
@@ -36,6 +37,7 @@ function curvePolygonCount(effectors, frame) {
 function installFieldHelpers(THREE) {
   const Original = THREE.BoxHelper, helpers = new Set();
   if (!Original || !THREE.LineSegments || !THREE.LineBasicMaterial) return () => {};
+  const fieldEdit = installFieldEdit(globalThis.PZ || {}, THREE);
   function FieldHelper(root, color) {
     for (const helper of helpers) if (!helper.parent) {
       helper.geometry.dispose(); helper.material.dispose(); helpers.delete(helper);
@@ -53,10 +55,15 @@ function installFieldHelpers(THREE) {
     helper.update = () => {
       const frame = owner._effectorFrame || 0;
       const field = state.library.core.fieldForBounds(fieldFromProperties(owner.properties, frame, owner._legacyField), owner._fieldBounds);
-      const key = JSON.stringify(field);
+      const editing = fieldEdit.isEditing(owner);
+      material.color?.setHex(editing ? 0x50e0d0 : 0xffa040);
+      const key = JSON.stringify([field, editing]);
       if (helper._fieldKey !== key) {
         helper._fieldKey = key;
         const points = fieldGuidePoints(field);
+        if (editing) for (let axis = 0; axis < 3; axis++) {
+          for (const sign of [-1, 1]) points.push(...field.position.map((v, i) => v + (i === axis ? sign * 5 : 0)));
+        }
         geometry.attributes.position.array.set(points);
         geometry.attributes.position.needsUpdate = true;
         geometry.setDrawRange(0, points.length / 3);
@@ -73,6 +80,7 @@ function installFieldHelpers(THREE) {
   FieldHelper.prototype = Original.prototype;
   THREE.BoxHelper = FieldHelper;
   return () => {
+    fieldEdit.dispose();
     if (THREE.BoxHelper === FieldHelper) THREE.BoxHelper = Original;
     for (const helper of helpers) {
       helper.parent?.remove(helper); helper.geometry.dispose(); helper.material.dispose();

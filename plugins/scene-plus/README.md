@@ -168,8 +168,15 @@ clone and character offsets retain their current matrices.
 Selecting an effector shows its linear, box, sphere, or cylinder field and
 falloff boundary through CM3's viewport helper. Infinite and noise fields have
 no guide. Guides follow property edits and use editor layer 1, so they do not
-appear in renders or exports. Field dragging is not added; edit the native
-Field position rows.
+appear in renders or exports. Enable **Edit field in viewport** beside Field
+position to move the field on the editor camera plane. Shift-drag around the
+field center rotates it about the viewing axis; Alt-drag right or up uniformly
+resizes Field scale. The guide turns turquoise while editing, with a center
+cross for infinite and noise fields. Each drag is one native undo step and
+edits animated axes at the current frame, like typing in the property rows.
+Escape cancels a drag or leaves the mode. Changing selection or leaving the
+editing camera also leaves the mode. The toggle is off by default and is not
+saved. With it off, the viewport uses normal CM3 object and camera controls.
 
 Fracture cut caps account for holes and preserve boundary subdivisions.
 Planar triangulation uses Earcut 2.2.4 from its npm package, under the ISC

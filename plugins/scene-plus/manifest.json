@@ -3,7 +3,7 @@
   "id": "repeater",
   "name": "Effector",
   "author": "Zoidium",
-  "version": "28",
+  "version": "29",
   "kind": "object",
   "objectCategory": "EFFECTOR",
   "objectClassParent": {
@@ -200,7 +200,7 @@
   "modules": [
     {
       "id": "effector-runtime",
-      "source": "./plugins/scene-plus/scene-plus.js?v=28"
+      "source": "./plugins/scene-plus/scene-plus.js?v=29"
     }
   ],
   "description": "Procedural repeaters plus Twist, Warp, and Voronoi Fracture effectors.",
@@ -208,72 +208,82 @@
     {
       "id": "effector-core",
       "type": "text",
-      "source": "./plugins/scene-plus/effector-core.js?v=28"
+      "source": "./plugins/scene-plus/effector-core.js?v=29"
     },
     {
       "id": "effector-fracture",
       "type": "text",
-      "source": "./plugins/scene-plus/effector-fracture.js?v=28"
+      "source": "./plugins/scene-plus/effector-fracture.js?v=29"
     },
     {
       "id": "effector-mesh",
       "type": "text",
-      "source": "./plugins/scene-plus/effector-mesh.js?v=28"
+      "source": "./plugins/scene-plus/effector-mesh.js?v=29"
     },
     {
       "id": "effector-evaluate",
       "type": "text",
-      "source": "./plugins/scene-plus/effector-evaluate.js?v=28"
+      "source": "./plugins/scene-plus/effector-evaluate.js?v=29"
     },
     {
       "id": "effector-jobs",
       "type": "text",
-      "source": "./plugins/scene-plus/effector-jobs.js?v=28"
+      "source": "./plugins/scene-plus/effector-jobs.js?v=29"
     },
     {
       "id": "earcut",
       "type": "text",
-      "source": "./plugins/scene-plus/earcut.js?v=28"
+      "source": "./plugins/scene-plus/earcut.js?v=29"
     },
     {
       "id": "scene-values",
       "type": "text",
-      "source": "./plugins/scene-plus/scene-values.js?v=28"
+      "source": "./plugins/scene-plus/scene-values.js?v=29"
     },
     {
       "id": "scene-fields",
       "type": "text",
-      "source": "./plugins/scene-plus/scene-fields.js?v=28"
+      "source": "./plugins/scene-plus/scene-fields.js?v=29"
     },
     {
       "id": "scene-clone",
       "type": "text",
-      "source": "./plugins/scene-plus/scene-clone.js?v=28"
+      "source": "./plugins/scene-plus/scene-clone.js?v=29"
     },
     {
       "id": "scene-effectors",
       "type": "text",
-      "source": "./plugins/scene-plus/scene-effectors.js?v=28"
+      "source": "./plugins/scene-plus/scene-effectors.js?v=29"
     },
     {
       "id": "scene-deform",
       "type": "text",
-      "source": "./plugins/scene-plus/scene-deform.js?v=28"
+      "source": "./plugins/scene-plus/scene-deform.js?v=29"
     },
     {
       "id": "scene-repeaters",
       "type": "text",
-      "source": "./plugins/scene-plus/scene-repeaters.js?v=28"
+      "source": "./plugins/scene-plus/scene-repeaters.js?v=29"
     },
     {
       "id": "scene-state",
       "type": "text",
-      "source": "./plugins/scene-plus/scene-state.js?v=28"
+      "source": "./plugins/scene-plus/scene-state.js?v=29"
     },
     {
       "id": "effector-fracture-status",
       "type": "text",
-      "source": "./plugins/scene-plus/effector-fracture-status.js?v=28"
+      "source": "./plugins/scene-plus/effector-fracture-status.js?v=29"
+    },
+    {
+      "id": "scene-field-edit",
+      "type": "text",
+      "source": "./plugins/scene-plus/scene-field-edit.js?v=29"
+    },
+    {
+      "id": "scene-field-edit-math",
+      "type": "text",
+      "source": "./plugins/scene-plus/scene-field-edit-math.js?v=29"
     }
   ]
 }
