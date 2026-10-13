@@ -2,6 +2,8 @@
 
 const reportedJobFailures = new Set();
 
+const { fractureErrorText } = require("./effector-fracture.js");
+
 const { byteSize } = require("./effector-evaluate.js");
 
 // One persistent worker reuses topology across motion frames. Unused work is
@@ -15,6 +17,34 @@ function createMeshJobs(workerSource, host = globalThis, redraw = () => {}) {
   const built = new Set();
   let worker = null, url = null, active = null, disposed = false, serial = 0;
   let bytes = 0;
+
+  function reportFracture(entry, consumer, pending, codes = [], cancelled = false) {
+    if (!entry.fracture) return;
+    if (!entry.statusTargets) entry.statusTargets = new Map();
+    let targets = entry.statusTargets.get(consumer);
+    if (!targets) {
+      targets = new Set();
+      for (let node = consumer; node; node = node.parent) {
+        const owner = node.__zoidiumEffectorOwner || node.__zoidiumEffectorTransformOwner;
+        if (typeof owner?.setFractureJobStatus === "function") targets.add(owner);
+      }
+      entry.statusTargets.set(consumer, targets);
+    }
+    for (const owner of targets) owner.setFractureJobStatus(consumer, pending, codes, cancelled);
+  }
+
+  function completeStatus(entry, codes = []) {
+    if (!entry.fracture) return;
+    for (const consumer of entry.users) reportFracture(entry, consumer, false, codes);
+    for (const code of new Set(codes)) {
+      const diagnostic = entry.buildKey + ":" + code;
+      if (reportedJobFailures.has(diagnostic)) continue;
+      reportedJobFailures.add(diagnostic);
+      const message = fractureErrorText(code);
+      console.warn("[Zoidium] Voronoi Fracture: " + message + ".");
+      host.ZoidiumUI?.notify({ title: "Voronoi Fracture warning", message });
+    }
+  }
 
   function stopWorker() {
     built.clear();
@@ -54,6 +84,7 @@ function createMeshJobs(workerSource, host = globalThis, redraw = () => {}) {
           if (data.error) {
             completed.status = "error";
             completed.error = new Error("Effector worker failed: " + data.error);
+            completeStatus(completed, ["worker failed: " + data.error]);
             completed.reject(completed.error);
           } else {
             completed.status = "done";
@@ -61,6 +92,7 @@ function createMeshJobs(workerSource, host = globalThis, redraw = () => {}) {
             // A cancelled frame that was left to finish is only discarded.
             if (entries.get(completed.key) === completed) {
               completed.value = data.value;
+              completeStatus(completed, [...(data.value.errors || []), ...(data.value.warnings || [])]);
               completed.bytes = byteSize(data.value);
               bytes += completed.bytes;
               completed.resolve(data.value);
@@ -79,6 +111,7 @@ function createMeshJobs(workerSource, host = globalThis, redraw = () => {}) {
             failed.status = "error";
             failed.input = null;
             failed.error = new Error("Effector worker failed: " + event.message);
+            completeStatus(failed, ["worker failed: " + event.message]);
             failed.reject(failed.error);
           }
           pump();
@@ -92,6 +125,7 @@ function createMeshJobs(workerSource, host = globalThis, redraw = () => {}) {
       entry.status = "error";
       entry.input = null;
       entry.error = error;
+      completeStatus(entry, ["worker failed: " + error.message]);
       entry.reject(error);
       pump();
     }
@@ -111,6 +145,8 @@ function createMeshJobs(workerSource, host = globalThis, redraw = () => {}) {
     const entry = consumers.get(consumer);
     if (!entry) return;
     consumers.delete(consumer);
+    reportFracture(entry, consumer, false, [], true);
+    entry.statusTargets?.delete(consumer);
     entry.users.delete(consumer);
     if (!entry.users.size && entry.status !== "done") {
       // Motion edits must not continually restart a valid first topology build.
@@ -135,7 +171,7 @@ function createMeshJobs(workerSource, host = globalThis, redraw = () => {}) {
     if (active && !active.users.size && active.buildKey !== buildKey) cancel(active);
     let entry = entries.get(key);
     if (!entry) {
-      entry = { id: ++serial, key, input, buildKey, sourceId: input.sourceId, status: "queued", users: new Set(), bytes: 0 };
+      entry = { id: ++serial, key, input, buildKey, sourceId: input.sourceId, fracture: input.commands?.some(command => command.kind === "fracture"), status: "queued", users: new Set(), bytes: 0 };
       entry.promise = new Promise((resolve, reject) => { entry.resolve = resolve; entry.reject = reject; });
       // Interactive preview has no awaiting caller. Export still receives errors.
       entry.promise.catch(error => {
@@ -148,6 +184,9 @@ function createMeshJobs(workerSource, host = globalThis, redraw = () => {}) {
     }
     entry.users.add(consumer);
     consumers.set(consumer, entry);
+    if (input.commands?.some(command => command.kind === "fracture")) {
+      reportFracture(entry, consumer, entry.status !== "done", [...(entry.value?.errors || []), ...(entry.value?.warnings || [])]);
+    }
     pump();
     return entry;
   }
@@ -174,7 +213,10 @@ function createMeshJobs(workerSource, host = globalThis, redraw = () => {}) {
       if (disposed) return;
       disposed = true;
       stopWorker();
-      for (const entry of entries.values()) entry.resolve(null);
+      for (const entry of entries.values()) {
+        for (const consumer of entry.users) reportFracture(entry, consumer, false, [], true);
+        entry.resolve(null);
+      }
       consumers.clear(); entries.clear(); bytes = 0;
     },
     stats() { return { entries: entries.size, consumers: consumers.size, bytes, running: Boolean(active), disposed }; },
@@ -194,10 +236,19 @@ function load(id) {
 const evaluator = load("effector-evaluate.js");
 const cache = evaluator.createStageCache();
 const reportedErrors = new Set();
+let warnings = new Set();
+const readStage = cache.get;
+cache.get = (key, build) => {
+  const stage = readStage(key, build);
+  if (stage.warning) warnings.add(stage.warning);
+  return stage;
+};
 onmessage = ({data}) => {
   if (data.forgetSourceId !== undefined) { cache.forget(data.forgetSourceId); return; }
   try {
+    warnings = new Set();
     const value = evaluator.evaluateMesh(data.input, cache);
+    if (warnings.size) value.warnings = Array.from(warnings);
     const buffers = new Set();
     function visit(item) {
       if (!item || typeof item !== "object") return;
