@@ -245,3 +245,81 @@ test("ordinary sampler media uses a temporal source clock exactly once", async (
   assert.deepEqual(h.decoded.slice(0, 2), [22, 19]);
   assert.deepEqual(Array.from(prepared.samples, sample => sample.target.value), [122, 119]);
 });
+
+function temporal(kind, value) {
+  return { update() {}, _zoidiumTemporal: { getOperator: () => ({ kind,
+    ...(kind === "posterize-time" ? { fps: value } : { offsetFrames: value }) }) } };
+}
+
+test("a quantizer before a sampler maps every prepared input tap", async () => {
+  const h = host(false);
+  h.owner.effects[0] = temporal("posterize-time", 12);
+  h.effect._zoidiumFrameSampler.getRequest = () => ({ count: 4, offsetFrames: -3 });
+  await h.state.prepareFrameSamples(h.effect, 32.5, {});
+  assert.deepEqual(h.decoded, [27.5, 25, 22.5, 20]);
+  const samples = h.state.frameSamplerRuntimes.get(h.root).prepared.get(h.effect).samples;
+  assert.deepEqual(Array.from(samples, s => s.frame), [39.5, 36.5, 33.5, 30.5],
+    "requested times stay distinct from mapped content times");
+  assert.deepEqual(Array.from(samples, s => s.target.value), [27.5, 25, 22.5, 20]);
+});
+
+test("a quantizer after a sampler keeps the existing input clock", async () => {
+  const h = host(false);
+  h.owner.effects[2] = temporal("posterize-time", 12);
+  await h.state.prepareFrameSamples(h.effect, 32.5, {});
+  assert.deepEqual(h.decoded, [29.5, 26.5]);
+});
+
+test("adjustment prefix quantization uses project time and excludes the owner's scope from lower media", async () => {
+  const h = host(true);
+  h.owner.effects[0] = temporal("posterize-time", 12);
+  h.effect._zoidiumFrameSampler.getRequest = () => ({ count: 4, offsetFrames: -3 });
+  // Owner starts at 5, media at 10. Project 33 maps to project 32.5;
+  // its taps map to project 27.5/25/22.5/20 exactly once.
+  await h.state.prepareFrameSamples(h.effect, 28, {});
+  assert.deepEqual(h.decoded, [17.5, 15, 12.5, 10]);
+  assert.equal(h.owner.frame, 28);
+  assert.equal(h.state.contexts.length, 0);
+});
+
+test("nested async preparation stops at the same depth limit as synchronous sampling", async () => {
+  const h = host(false);
+  await h.state.prepareFrameSamples(h.effect, 20, { frameSamplerDepth: 8 });
+  assert.equal(h.decoded.length, 0);
+  await h.state.prepareFrameSamples(h.effect, 20, { frameSamplerDepth: 7 });
+  const runtime = h.state.frameSamplerRuntimes.get(h.root);
+  assert.equal(runtime.prepared.get(h.effect).depth, 8);
+  assert.ok(runtime.captures[7]);
+  assert.equal(h.state.contexts.length, 0);
+});
+
+test("synchronous captures use the same prefix mapping as prepared captures", () => {
+  const h = host(false);
+  h.owner.effects[0] = temporal("posterize-time", 12);
+  h.effect._zoidiumFrameSampler.getRequest = () => ({ count: 4, offsetFrames: -3 });
+  const update = h.source.update;
+  h.source.update = function (frame) { update.call(this, frame); this.texture.frame = this.frame; };
+  h.owner.update(32.5);
+  h.state.contexts.push({ compositor: h.root, rootCompositor: h.root, outputFrame: 42.5 });
+  const samples = h.state.resolveFrameSamples(h.effect);
+  h.state.contexts.pop();
+  assert.deepEqual(Array.from(samples, s => s.target.value), [27.5, 25, 22.5, 20]);
+  assert.equal(h.owner.frame, 32.5);
+  assert.equal(h.state.evaluatingLayers.has(h.owner), false);
+});
+
+test("input caches distinguish nested depth and enclosing adjustment scope", async () => {
+  const h = host(false);
+  await h.state.prepareFrameSamples(h.effect, 20, {});
+  const runtime = h.state.frameSamplerRuntimes.get(h.root);
+  const target = runtime.prepared.get(h.effect).samples[0].target;
+  await h.state.prepareFrameSamples(h.effect, 20, { frameSamplerDepth: 1 });
+  assert.notEqual(runtime.prepared.get(h.effect).samples[0].target, target);
+  const nested = runtime.prepared.get(h.effect).samples[0].target;
+  await h.state.prepareFrameSamples(h.effect, 20, {
+    frameSamplerDepth: 1, frameSamplerScope: { effect: {}, layer: {}, trackIndex: 1 },
+  });
+  assert.notEqual(runtime.prepared.get(h.effect).samples[0].target.inputStamp, target.inputStamp);
+  assert.equal(h.decoded.length, 6, "neither another depth nor another scope reuses an input");
+  assert.equal(runtime.prepared.get(h.effect).samples[0].target, nested, "scratch slots remain bounded");
+});

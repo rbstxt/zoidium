@@ -30,6 +30,56 @@
   var findFrameSamplerStage = layers.findFrameSamplerStage;
   var getAdjustmentEffectFrame = layers.getAdjustmentEffectFrame;
 
+  function getFrameSamplerPrefix(stage, projectFrame) {
+    return layers.readTemporalOperatorsBeforeIndex(stage.layer, stage.effectIndex,
+      projectFrame - finiteNumber(stage.clip.start, 0));
+  }
+
+  function hasFrameSamplerQuantizer(operators) {
+    return operators.some(operator => operator?.enabled !== false && operator?.kind === "posterize-time");
+  }
+
+  function getFrameSamplerInputFrame(stage, projectFrame) {
+    const start = finiteNumber(stage.clip.start, 0);
+    const adjustment = isAdjustmentLayer(stage.layer);
+    const frame = adjustment ? projectFrame : projectFrame - start;
+    const mapped = math.mapFrameSamplerInputFrame(frame,
+      getProjectRate(stage.layer, getSequenceForLayer(stage.layer)),
+      getFrameSamplerPrefix(stage, projectFrame),
+      adjustment ? undefined : finiteNumber(stage.clip.length, 0),
+      layers.isExtrapolatableLayer(stage.layer));
+    return adjustment ? mapped : start + mapped;
+  }
+
+  function getFrameSamplerControlFrame(stage, frame, scope) {
+    if (!isAdjustmentLayer(stage.layer) || scope?.layer === stage.layer) return frame;
+    const start = finiteNumber(stage.clip.start, 0);
+    const prefix = getFrameSamplerPrefix(stage, start + frame);
+    if (!hasFrameSamplerQuantizer(prefix)) return getAdjustmentEffectFrame(stage.layer, stage.effect, frame);
+    // Adjustment time operators act on the accumulated input in project time.
+    // Use its mapped clock for tap spacing, just as ordinary layer samplers do.
+    return math.applyTemporalOperators(start + frame,
+      getProjectRate(stage.layer, getSequenceForLayer(stage.layer)),
+      layers.readTemporalOperators(stage.layer, frame), undefined, true) - start;
+  }
+
+  function withFrameSamplerInputContext(state, stage, frame, context, callback) {
+    const parent = state.contexts[state.contexts.length - 1];
+    const evaluating = state.evaluatingLayers.has(stage.layer);
+    state.evaluatingLayers.add(stage.layer);
+    state.contexts.push(Object.assign({}, parent, context, {
+      outputFrame: frame,
+      renderingSequence: true,
+      frameSamplerScope: hasFrameSamplerQuantizer(getFrameSamplerPrefix(stage, frame))
+        ? stage : context?.frameSamplerScope || parent?.frameSamplerScope,
+    }));
+    try { return callback(); }
+    finally {
+      state.contexts.pop();
+      if (!evaluating) state.evaluatingLayers.delete(stage.layer);
+    }
+  }
+
   function registerCompositor(state, compositor) {
     const sequence = compositor?._sequence;
     if (!sequence) return;
@@ -203,8 +253,11 @@
     depth,
     target,
     mediaSamples = [],
+    inputContext = null,
   ) {
     const sequence = root?._sequence;
+    const requestedFrame = projectFrame;
+    projectFrame = getFrameSamplerInputFrame(stage, projectFrame);
     const capture = getFrameSamplerCapture(runtime, root, depth, sequence);
     if (!capture || !sequence) return false;
 
@@ -227,6 +280,8 @@
       outputFrame: projectFrame,
       renderingSequence: true,
       rootCompositor: root,
+      frameSamplerScope: hasFrameSamplerQuantizer(getFrameSamplerPrefix(stage, requestedFrame))
+        ? stage : inputContext?.frameSamplerScope || parentContext?.frameSamplerScope,
     });
     try {
       const tracks = sequence.videoTracks || [];
@@ -242,7 +297,7 @@
       }
 
       changedLayers.add(stage.layer);
-      if (!isAdjustmentLayer(stage.layer)) state.evaluatingLayers.add(stage.layer);
+      state.evaluatingLayers.add(stage.layer);
       stage.layer.update(projectFrame - finiteNumber(stage.clip.start, 0));
       // Render the owner's content with the host's viewport and UV rules, then
       // stop before its composite transform. Samples represent effect input,
@@ -275,7 +330,7 @@
       state.contexts.pop();
       restoreTextures();
       for (const layer of changedLayers) restoreLayerAtContextFrame(layer, currentFrame);
-      if (!wasEvaluatingOwner && !isAdjustmentLayer(stage.layer)) state.evaluatingLayers.delete(stage.layer);
+      if (!wasEvaluatingOwner) state.evaluatingLayers.delete(stage.layer);
       if (previousClearColor) {
         renderer.setClearColor(
           previousClearColor,
@@ -285,7 +340,7 @@
     }
   }
 
-  async function prepareLowerSchedules(sequence, stage, projectFrame, context, runtime, allTracks = false) {
+  async function prepareLowerSchedules(sequence, stage, projectFrame, context, runtime, allTracks = false, state = null) {
     const activeClips = new Set();
     const tracks = sequence?.videoTracks || [];
     const start = allTracks || isAdjustmentLayer(stage.layer) ? 0 : stage.trackIndex;
@@ -316,8 +371,10 @@
         isolated.sourceUrl !== item.media.url) isolated.currentItem = null;
       isolated.sourceUrl = item.media.url;
       isolated.items = [clone];
+      const mapSource = () => getScheduleSourceFrame(schedule, projectFrame);
       const sourceFrame = !allTracks && !isAdjustmentLayer(stage.layer)
-        ? projectFrame : getScheduleSourceFrame(schedule, projectFrame);
+        ? projectFrame : state
+          ? withFrameSamplerInputContext(state, stage, projectFrame, context, mapSource) : mapSource();
       isolated.update(sourceFrame, getProjectRate(stage.layer, sequence));
       if (isolated.currentItem) {
         const time = item.clip.properties.time.get(sourceFrame - item.start);
@@ -333,7 +390,7 @@
     return samples;
   }
 
-  async function prepareInputEffects(sequence, stage, frame, context) {
+  async function prepareInputEffects(sequence, stage, frame, context, state) {
     const tracks = sequence.videoTracks || [];
     const start = isAdjustmentLayer(stage.layer) ? 0 : stage.trackIndex;
     for (let index = start; index <= stage.trackIndex; index += 1) {
@@ -342,10 +399,12 @@
       const layer = clip?.object;
       if (!layer) continue;
       const localFrame = frame - finiteNumber(clip.start, 0);
-      layer.update(localFrame);
+      const scoped = callback => state
+        ? withFrameSamplerInputContext(state, stage, frame, context, callback) : callback();
+      scoped(() => layer.update(localFrame));
       const count = index === stage.trackIndex ? stage.effectIndex : layer.effects?.length || 0;
       for (let i = 0; i < count; i += 1) {
-        await layer.effects[i]?.prepare?.(localFrame, context);
+        await scoped(() => layer.effects[i]?.prepare?.(localFrame, context));
       }
     }
   }
@@ -368,7 +427,11 @@
     const roots = state.compositorsBySequence.get(sequence);
     if (!stage || !roots?.size) return;
 
-    const controlFrame = getAdjustmentEffectFrame(layer, effect, localFrame);
+    const parentContext = state.contexts[state.contexts.length - 1];
+    const depth = finiteNumber(context?.frameSamplerDepth ?? parentContext?.frameSamplerDepth, 0) + 1;
+    if (depth > MAX_FRAME_SAMPLER_DEPTH) return;
+    const controlFrame = getFrameSamplerControlFrame(stage, localFrame,
+      context?.frameSamplerScope || parentContext?.frameSamplerScope);
     let request;
     try {
       request = effect._zoidiumFrameSampler.getRequest(effect, controlFrame);
@@ -420,7 +483,10 @@
           batchCache.set(effect, inputCache);
         }
         const reservedTargets = new Set();
-        const wantedFrames = new Set(plan.map((item) => finiteNumber(clip.start, 0) + item.frame));
+        const scope = context?.frameSamplerScope || parentContext?.frameSamplerScope;
+        const cacheKey = frame => JSON.stringify([frame, depth,
+          scope?.effect ? frameSamplerIdentity(scope.effect) : 0]);
+        const wantedFrames = new Set(plan.map(item => cacheKey(finiteNumber(clip.start, 0) + item.frame)));
         for (const [frame, cached] of inputCache) {
           const target = cached.sample.target;
           if (cached.stamp !== target.inputStamp || target.width !== width || target.height !== height) {
@@ -433,7 +499,7 @@
         for (let index = 0; index < plan.length; index += 1) {
           const item = plan[index];
           const sourceProjectFrame = finiteNumber(clip.start, 0) + item.frame;
-          const cached = inputCache?.get(sourceProjectFrame);
+          const cached = inputCache?.get(cacheKey(sourceProjectFrame));
           const reusable = cached && cached.stamp === cached.sample.target.inputStamp &&
             cached.sample.target.width === width && cached.sample.target.height === height;
           const reused = capturedFrames.get(sourceProjectFrame) || (reusable && cached.sample);
@@ -441,13 +507,20 @@
             samples.push(Object.assign({}, reused, { index: item.index, opacity: item.opacity }));
             continue;
           }
-          await prepareInputEffects(sequence, stage, sourceProjectFrame, context);
-          const mediaSamples = await prepareLowerSchedules(sequence, stage, sourceProjectFrame, context, runtime);
+          const inputFrame = getFrameSamplerInputFrame(stage, sourceProjectFrame);
+          const inputContext = Object.assign({}, context, {
+            frameSamplerRoot: root, frameSamplerDepth: depth,
+            frameSamplerScope: hasFrameSamplerQuantizer(getFrameSamplerPrefix(stage, sourceProjectFrame))
+              ? stage : context?.frameSamplerScope || parentContext?.frameSamplerScope,
+          });
+          await prepareInputEffects(sequence, stage, inputFrame, inputContext, state);
+          const mediaSamples = await prepareLowerSchedules(sequence, stage, inputFrame, inputContext,
+            runtime, false, state);
           if (runtime.disposed) return;
           let slot = 0;
           let target;
           do {
-            target = getFrameSamplerTarget(runtime, effect, 1, slot++, width, height);
+            target = getFrameSamplerTarget(runtime, effect, depth, slot++, width, height);
           } while (reservedTargets.has(target));
           reservedTargets.add(target);
           if (
@@ -458,9 +531,10 @@
               stage,
               sourceProjectFrame,
               projectFrame,
-              1,
+              depth,
               target,
               mediaSamples,
+              inputContext,
             )
           ) {
             const sample = {
@@ -471,7 +545,7 @@
               texture: target.texture,
             };
             target.inputStamp = {};
-            inputCache?.set(sourceProjectFrame, { sample, stamp: target.inputStamp });
+            inputCache?.set(cacheKey(sourceProjectFrame), { sample, stamp: target.inputStamp });
             capturedFrames.set(sourceProjectFrame, sample);
             samples.push(sample);
           }
@@ -479,6 +553,7 @@
         if (samples.length > 0) {
           runtime.prepared.set(effect, {
             projectFrame,
+            depth,
             samples,
           });
         }
@@ -512,10 +587,9 @@
       outputFrame - finiteNumber(stage.clip.start, 0),
     );
     const currentProjectFrame = finiteNumber(stage.clip.start, 0) + lastLayerFrame;
-    const controlFrame = finiteNumber(
-      effect._zoidiumFrameSamplerFrame,
-      getAdjustmentEffectFrame(stage.layer, effect, lastLayerFrame),
-    );
+    const controlFrame = isAdjustmentLayer(stage.layer)
+      ? getFrameSamplerControlFrame(stage, lastLayerFrame, context?.frameSamplerScope)
+      : finiteNumber(effect._zoidiumFrameSamplerFrame, lastLayerFrame);
     let request;
     try {
       request = descriptor.getRequest(effect, controlFrame);
@@ -543,7 +617,7 @@
     if (!runtime || !(width > 0) || !(height > 0)) return [];
     const prepared = runtime.prepared.get(effect);
     if (
-      prepared &&
+      prepared && prepared.depth === depth &&
       Math.abs(finiteNumber(prepared.projectFrame, NaN) - currentProjectFrame) <= EPSILON &&
       prepared.samples.length === plan.length &&
       prepared.samples.every((sample, index) => {
@@ -636,6 +710,8 @@
   }
 
   registry.sampler = {
+    getFrameSamplerInputFrame: getFrameSamplerInputFrame,
+    getFrameSamplerControlFrame: getFrameSamplerControlFrame,
     registerCompositor: registerCompositor,
     getFrameSamplerRuntime: getFrameSamplerRuntime,
     disposeFrameSamplerRuntime: disposeFrameSamplerRuntime,
