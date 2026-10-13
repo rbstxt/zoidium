@@ -52,7 +52,7 @@ function installFakeDocument(state) {
 function makeHarness() {
   const state = { styles: new Map() };
   const originalCreate = function createControls(row, prop) { return { row, prop }; };
-  const PZ = {
+  const PZ = { asset: { type: { MISC: 5 } },
     ui: {
       controls: { createControls: originalCreate },
       properties: function FakeOps(editor) { this.editor = editor; },
@@ -96,6 +96,8 @@ function makeHarness() {
     "looks-color.js": readPack("looks-color.js"),
     "looks-tools.js": readPack("looks-tools.js"),
     "looks-widgets.js": readPack("looks-widgets.js"),
+    "looks-cube.js": readPack("looks-cube.js"),
+    "looks-lut-ui.js": readPack("looks-lut-ui.js"),
     "looks-setup.css": readPack("looks-setup.css"),
   };
   const context = {

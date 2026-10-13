@@ -227,7 +227,7 @@ function makeTexture(counter) {
 
 function loadEffect() {
   const source = readPack("looks-fx.js");
-  const PZ = { property: { type: { NUMBER: 0, OPTION: 6, TEXT: 7 } } };
+  const PZ = { asset: { type: { MISC: 5 } }, property: { type: { NUMBER: 0, OPTION: 6, TEXT: 7, ASSET: 8 } } };
   const counter = { uploads: 0 };
   const THREE = {
     Vector2: function (x, y) { this.x = x; this.y = y; this.set = (a, b) => { this.x = a; this.y = b; }; },
@@ -294,6 +294,7 @@ test("effect properties match the catalog prop map and the chain/enable surface"
       expected.add(rec.custom.lutName);
       expected.add(rec.custom.lutStrength);
       expected.add(rec.custom.lutGamma);
+      expected.add(rec.custom.lutData);
     }
   }
   assert.deepEqual(new Set(Object.keys(defs)), expected, "no drift between catalog and effect");

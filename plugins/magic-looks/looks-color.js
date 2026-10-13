@@ -509,6 +509,18 @@ var Looks = Looks || {};
       r = [r[0] * 0.9 - 0.02, r[1] * 0.97, r[2] * 1.1 + 0.03];
     } else if (lx.name === "Noir") {
       r = gContrast(gSat(r, 0.2), 0.35, 0.18);
+    } else if (lx.name === "Custom") {
+      // An imported .cube LUT samples the stored atlas; missing or damaged
+      // data bypasses the stage like Name None does.
+      if (lx.data && Looks.cube && typeof Looks.cube.sampleAtlas === "function") {
+        try {
+          r = Looks.cube.sampleAtlas(lx.data, r[0], r[1], r[2]);
+        } catch (_cubeErr) {
+          return c;
+        }
+      } else {
+        return c;
+      }
     }
     if (lx.gamma === "Output") {
       r = [gPow(r[0], 1 / 2.2), gPow(r[1], 1 / 2.2), gPow(r[2], 1 / 2.2)];

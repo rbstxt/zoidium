@@ -91,7 +91,7 @@ function makeControls(log) {
 }
 
 function loadEffectDefinitions() {
-  const PZ = { property: { type: { NUMBER: 0, OPTION: 6, TEXT: 7 } } };
+  const PZ = { asset: { type: { MISC: 5 } }, property: { type: { NUMBER: 0, OPTION: 6, TEXT: 7, ASSET: 8 } } };
   const THREE = {
     Vector2: function (x, y) { this.x = x; this.y = y; this.set = () => {}; },
     Vector3: function (x, y, z) { this.x = x; this.y = y; this.z = z; this.set = () => {}; },
@@ -166,7 +166,7 @@ function setup() {
       finishOperation() { state.history.finishes++; this.undoStack.length++; },
     },
   };
-  const PZ = {
+  const PZ = { asset: { type: { MISC: 5 } },
     ui: {
       controls: { createControls(row) { return row; } },
       properties: function FakeOps(editor) { this.editor = editor; },
@@ -207,6 +207,8 @@ function setup() {
     "looks-color.js": readPack("looks-color.js"),
     "looks-tools.js": readPack("looks-tools.js"),
     "looks-widgets.js": readPack("looks-widgets.js"),
+    "looks-cube.js": readPack("looks-cube.js"),
+    "looks-lut-ui.js": readPack("looks-lut-ui.js"),
     "looks-setup.css": readPack("looks-setup.css"),
   };
   const context = {
