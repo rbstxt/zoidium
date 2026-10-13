@@ -23,7 +23,7 @@ var Looks = {};
     if (!getAsset) {
         throw new Error("Magic Looks needs the plugin bundle asset resolver.");
     }
-    var files = ["looks-color.js", "looks-tools.js"];
+    var files = ["looks-cube.js", "looks-lut-assets.js", "looks-color.js", "looks-tools.js"];
     for (var i = 0; i < files.length; i++) {
         var source = getAsset("text", "./plugins/magic-looks/" + files[i]);
         if (typeof source !== "string") {
@@ -31,7 +31,7 @@ var Looks = {};
         }
         new Function("Looks", source)(Looks);
     }
-    if (!Looks.color || !Looks.tools || !Looks.grade) {
+    if (!Looks.color || !Looks.tools || !Looks.grade || !Looks.cube || !Looks.lutAssets) {
         throw new Error("Magic Looks sources did not define their namespaces.");
     }
 })();
@@ -105,6 +105,10 @@ function looksBuildUniforms(propMap) {
             uniforms[looksUniformName(e.custom.lutName.replace(/Name$/, "Mode"))] = { type: "f", value: 0 };
             uniforms[looksUniformName(e.custom.lutStrength)] = { type: "f", value: 1 };
             uniforms[looksUniformName(e.custom.lutGamma)] = { type: "f", value: 0 };
+            ["R", "G", "B"].forEach(function (c) { uniforms["u_lutAtlas" + c] = { type: "t", value: null }; });
+            uniforms.u_lutConfig = { type: "v3", value: new THREE.Vector3(0, 0, 0) };
+            uniforms.u_lutDomMin = { type: "v3", value: new THREE.Vector3(0, 0, 0) };
+            uniforms.u_lutDomMax = { type: "v3", value: new THREE.Vector3(1, 1, 1) };
         }
     });
     return uniforms;
@@ -149,6 +153,8 @@ this.load = async function (e) {
     this._looksCurvesTexture = looksLutTexture(this._looksCurvesBytes);
     this._looksScurveTexture = looksLutTexture(this._looksScurveBytes);
     this._looksLutKeys = { curves: null, scurve: null };
+    this._looksCubeAtlas = null;
+    this._looksLutAssets = Looks.lutAssets.create(this, PZ, THREE);
     this._looksCurvesIdentity = true;
     this._looksScurveIdentity = true;
     this._looksChainText = null;
@@ -164,6 +170,11 @@ this.load = async function (e) {
     material.premultipliedAlpha = true;
     this.pass = new THREE.ShaderPass(material);
     this.properties.load(e && e.properties);
+    await this._looksLutAssets.prepare(0);
+};
+
+this.prepare = async function (e) {
+    if (this._looksLutAssets) await this._looksLutAssets.prepare(e);
 };
 
 // 256x1 RGB table; entry k is the output for input k/255.
@@ -182,6 +193,7 @@ this.toJSON = function () {
 };
 
 this.unload = function () {
+    if (this._looksLutAssets) this._looksLutAssets.dispose();
     [this._looksCurvesTexture, this._looksScurveTexture].forEach(function (texture) {
         if (texture && typeof texture.dispose === "function") texture.dispose();
     });
@@ -320,6 +332,7 @@ this.update = function (e) {
     this._looksDirty = false;
     looksRefreshChain(this, e);
     looksRefreshLUT(this, e);
+    this._looksLutAssets.update(e);
     if (!this._looksChainIsDefault) this._looksDirty = true;
     for (var t = 0; t < ids.length; t++) {
         var rec = map[ids[t]];
@@ -353,7 +366,8 @@ this.update = function (e) {
         if (rec.custom.lutName) {
             var nameProp = this.properties[rec.custom.lutName];
             var lutName = nameProp ? looksReadText(this, e, rec.custom.lutName) : "None";
-            var mode = lutName === "Hot" ? 1 : lutName === "Cold" ? 2 : lutName === "Noir" ? 3 : 0;
+            var mode = lutName === "Hot" ? 1 : lutName === "Cold" ? 2 : lutName === "Noir" ? 3 :
+                lutName === "Custom" && this._looksCubeAtlas ? 4 : 0;
             var modeKey = looksUniformName(rec.custom.lutName.replace(/Name$/, "Mode"));
             if (u[modeKey]) u[modeKey].value = mode;
             if (mode !== 0) this._looksDirty = true;

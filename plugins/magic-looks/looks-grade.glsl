@@ -213,6 +213,14 @@ uniform float u_hslLight7;
 uniform float u_lutMode;
 uniform float u_lutStrength;
 uniform float u_lutGamma;
+// Imported .cube atlas: a grid of size*size tiles (one per blue slice) holding
+// each channel as float32 bytes. u_lutConfig is (size, tiles per row, tile rows).
+uniform sampler2D u_lutAtlasR;
+uniform sampler2D u_lutAtlasG;
+uniform sampler2D u_lutAtlasB;
+uniform vec3 u_lutConfig;
+uniform vec3 u_lutDomMin;
+uniform vec3 u_lutDomMax;
 
 float lkLuma(vec3 c) {
   return dot(c, vec3(0.2126, 0.7152, 0.0722));
@@ -317,6 +325,55 @@ vec3 lkLine(vec2 uv, float r, vec2 dir, int count) {
 // Texel mapping for a 256-entry table: entry k holds the value at x = k/255.
 vec2 lkLutUv(float x) {
   return vec2((clamp(x, 0.0, 1.0) * 255.0 + 0.5) / 256.0, 0.5);
+}
+
+// Custom .cube sample: manual trilinear over the tile-grid atlas (the texture
+// uses nearest filtering, so every tap reads one exact stored texel and the
+// eight corners interpolate without bleeding across tiles).
+vec2 lkCubeUv(float r, float g, float b) {
+  float n = u_lutConfig.x;
+  float cols = u_lutConfig.y;
+  float col = mod(b, cols);
+  float row = floor(b / cols);
+  float W = n * cols;
+  float H = n * u_lutConfig.z;
+  return vec2((col * n + r + 0.5) / W, (row * n + g + 0.5) / H);
+}
+
+float lkCubeFloat(vec4 encoded) {
+  vec4 v = floor(encoded * 255.0 + 0.5);
+  float signValue = 1.0 - 2.0 * floor(v.a / 128.0);
+  float exponentValue = mod(v.a, 128.0) * 2.0 + floor(v.b / 128.0);
+  float mantissa = mod(v.b, 128.0) * 65536.0 + v.g * 256.0 + v.r;
+  if (exponentValue < 0.5) return signValue * exp2(-126.0) * (mantissa / 8388608.0);
+  return signValue * exp2(exponentValue - 127.0) * (1.0 + mantissa / 8388608.0);
+}
+
+vec3 lkCubeTap(float r, float g, float b) {
+  vec2 uv = lkCubeUv(r, g, b);
+  return vec3(lkCubeFloat(texture2D(u_lutAtlasR, uv)),
+              lkCubeFloat(texture2D(u_lutAtlasG, uv)),
+              lkCubeFloat(texture2D(u_lutAtlasB, uv)));
+}
+
+vec3 lkCube(vec3 c) {
+  float n = u_lutConfig.x;
+  vec3 span = u_lutDomMax - u_lutDomMin;
+  vec3 t = clamp((c - u_lutDomMin) / span, 0.0, 1.0) * (n - 1.0);
+  vec3 c0 = floor(t);
+  vec3 c1 = min(c0 + 1.0, vec3(n - 1.0));
+  vec3 f = clamp(t - c0, 0.0, 1.0);
+  vec3 c000 = lkCubeTap(c0.x, c0.y, c0.z);
+  vec3 c100 = lkCubeTap(c1.x, c0.y, c0.z);
+  vec3 c010 = lkCubeTap(c0.x, c1.y, c0.z);
+  vec3 c110 = lkCubeTap(c1.x, c1.y, c0.z);
+  vec3 c001 = lkCubeTap(c0.x, c0.y, c1.z);
+  vec3 c101 = lkCubeTap(c1.x, c0.y, c1.z);
+  vec3 c011 = lkCubeTap(c0.x, c1.y, c1.z);
+  vec3 c111 = lkCubeTap(c1.x, c1.y, c1.z);
+  vec3 zA = mix(mix(c000, c100, f.x), mix(c010, c110, f.x), f.y);
+  vec3 zB = mix(mix(c001, c101, f.x), mix(c011, c111, f.x), f.y);
+  return mix(zA, zB, f.z);
 }
 
 // ---------- chain stages: (c, uv) -> c ----------
@@ -471,8 +528,10 @@ vec3 fxLut(vec3 c, vec2 uv) {
     r = r * vec3(1.1, 1.0, 0.88) + vec3(0.035, 0.012, -0.02);
   } else if (u_lutMode < 2.5) {
     r = r * vec3(0.9, 0.97, 1.1) + vec3(-0.02, 0.0, 0.03);
-  } else {
+  } else if (u_lutMode < 3.5) {
     r = lkContrast(lkSat(r, 0.2), 0.35, 0.18);
+  } else if (u_lutConfig.x > 1.5) {
+    r = lkCube(r);
   }
   if (u_lutGamma > 1.5) r = lkPowV(r, vec3(1.0 / 2.2));
   return mix(c, r, clamp(u_lutStrength, 0.0, 1.0));

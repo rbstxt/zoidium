@@ -14,7 +14,7 @@
 
 const STYLE_ID = "zoidium-looks-setup-style";
 const STYLE_URL = "./plugins/magic-looks/looks-setup.css";
-const SOURCE_ORDER = ["looks-color.js", "looks-tools.js", "looks-widgets.js"];
+const SOURCE_ORDER = ["looks-color.js", "looks-tools.js", "looks-widgets.js", "looks-cube.js", "looks-lut-ui.js"];
 const SNAPSHOT_MS = 400;
 
 const state = {
@@ -41,7 +41,7 @@ function loadSources(getAsset) {
     }
     new Function("Looks", source)(Looks);
   }
-  if (!Looks.color || !Looks.tools || !Looks.widgets || !Looks.grade) {
+  if (!Looks.color || !Looks.tools || !Looks.widgets || !Looks.grade || !Looks.cube || !Looks.lutUI) {
     throw new Error("Magic Looks sources did not define their namespaces.");
   }
   return Looks;
@@ -525,41 +525,6 @@ function buildFourway(effect, session, tool, body, widgets, afterCommit) {
   body.appendChild(grid);
 }
 
-function buildLut(effect, session, tool, body, afterCommit) {
-  const ctl = state.ui.controls;
-  const rec = state.Looks.tools.propMap()[tool.id];
-  const names = ["None", "Hot", "Cold", "Noir"];
-  body.appendChild(ctl.select({
-    label: "LUT",
-    value: String(readProp(effect, rec.custom.lutName) || "None"),
-    options: names.map(function (n) { return { value: n, label: n }; }),
-    onChange: function (v) {
-      session.commit([{ key: rec.custom.lutName, value: v }]);
-      afterCommit();
-    },
-  }).element);
-  body.appendChild(ctl.slider({
-    label: "Strength",
-    value: readNum(effect, rec.custom.lutStrength, 1),
-    min: 0, max: 1, step: 0.01,
-    onInput: function (v) { session.live(rec.custom.lutStrength, round(v)); },
-    onChange: function (v) {
-      session.commit([{ key: rec.custom.lutStrength, value: round(v) }]);
-      afterCommit();
-    },
-  }).element);
-  const gammaOptions = ["Same As Input", "Input", "Output"];
-  body.appendChild(ctl.select({
-    label: "LUT Gamma",
-    value: String(Math.max(0, Math.round(readNum(effect, rec.custom.lutGamma, 0)))),
-    options: gammaOptions.map(function (g, i) { return { value: String(i), label: g }; }),
-    onChange: function (v) {
-      session.commit([{ key: rec.custom.lutGamma, value: Number(v) || 0 }]);
-      afterCommit();
-    },
-  }).element);
-}
-
 // Window body. Returns a cleanup that destroys widgets and listeners.
 function buildBody(body, effect, session, view) {
   const Looks = state.Looks;
@@ -788,7 +753,11 @@ function buildBody(body, effect, session, view) {
     if (tool.custom === "curves") buildCurves(effect, session, tool, sec.body, widgets, afterCommit, view);
     else if (tool.custom === "scurve") buildScurve(effect, session, tool, sec.body, afterCommit);
     else if (tool.custom === "fourway") buildFourway(effect, session, tool, sec.body, widgets, afterCommit);
-    else if (tool.custom === "lut") buildLut(effect, session, tool, sec.body, afterCommit);
+    else if (tool.custom === "lut") state.Looks.lutUI.buildLut({
+      Looks: state.Looks, ctl: state.ui.controls, effect: effect, session: session,
+      tool: tool, body: sec.body, view: view, afterCommit: afterCommit,
+      readProp: readProp, readNum: readNum, round: round, make: make,
+    });
     buildWheels(effect, session, tool, sec.body, widgets, afterCommit);
     return sec.element;
   }
@@ -804,7 +773,7 @@ function buildBody(body, effect, session, view) {
     if (rec.custom.fourway) {
       Object.keys(rec.custom.fourway).forEach(function (s) { keys.push.apply(keys, rec.custom.fourway[s]); });
     }
-    if (rec.custom.lutName) keys.push(rec.custom.lutName, rec.custom.lutStrength, rec.custom.lutGamma);
+    if (rec.custom.lutName) keys.push(rec.custom.lutName, rec.custom.lutStrength, rec.custom.lutGamma, rec.custom.lutData);
     return keys;
   }
 
@@ -889,7 +858,7 @@ function openSetup(effect) {
     return existing;
   }
   const session = createSession(effect);
-  const view = { look: null, selectedTool: state.Looks.tools.defaultChain()[1], curveChannel: "RGB", filter: { text: "", group: "All" } };
+  const view = { look: null, selectedTool: state.Looks.tools.defaultChain()[1], curveChannel: "RGB", filter: { text: "", group: "All" }, lutError: null };
   let win = null;
   acquireStyle();
   try {
