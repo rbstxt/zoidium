@@ -295,20 +295,37 @@ function extractLoops(edges) {
 // Weld cut endpoints using neighboring buckets rather than rounded keys alone:
 // two evaluations of a shared edge can fall on opposite sides of a bucket.
 function cutLoops(cuts, epsilon) {
+  // Numeric buckets preserve the original x/y/z search and insertion order.
+  // Avoid constructing 27 array/string keys for every cut endpoint.
   const buckets = new Map();
   const points = [];
   function weld(point) {
-    const cell = point.map((v) => Math.floor(v / epsilon));
-    for (let x = -1; x <= 1; x += 1) for (let y = -1; y <= 1; y += 1) for (let z = -1; z <= 1; z += 1) {
-      const list = buckets.get([cell[0] + x, cell[1] + y, cell[2] + z].join(","));
-      for (const id of list || []) if (distanceSquared3(points[id], point) <= epsilon * epsilon) return id;
+    const cx = Math.floor(point[0] / epsilon);
+    const cy = Math.floor(point[1] / epsilon);
+    const cz = Math.floor(point[2] / epsilon);
+    for (let x = -1; x <= 1; x += 1) {
+      const ys = buckets.get(cx + x);
+      if (!ys) continue;
+      for (let y = -1; y <= 1; y += 1) {
+        const zs = ys.get(cy + y);
+        if (!zs) continue;
+        for (let z = -1; z <= 1; z += 1) {
+          const list = zs.get(cz + z);
+          if (list) for (const id of list) {
+            if (distanceSquared3(points[id], point) <= epsilon * epsilon) return id;
+          }
+        }
+      }
     }
-    const key = cell.join(",");
-    const list = buckets.get(key) || [];
+    let ys = buckets.get(cx);
+    if (!ys) buckets.set(cx, ys = new Map());
+    let zs = ys.get(cy);
+    if (!zs) ys.set(cy, zs = new Map());
+    let list = zs.get(cz);
+    if (!list) zs.set(cz, list = []);
     const id = points.length;
     points.push(point);
     list.push(id);
-    buckets.set(key, list);
     return id;
   }
   const edges = new Map();
@@ -512,6 +529,8 @@ function buildVoronoiFracture(source, options, limits) {
   const seed = Math.trunc(core.finiteOr(options.seed, 1));
   const closed = options.closed !== false;
   const positions = source.positions;
+  if (!positions) return { error: "invalid" };
+  for (const value of positions) if (!Number.isFinite(value)) return { error: "invalid" };
   const index = source.index || null;
   const uvs = source.uvs || null;
   const normals = source.normals || null;
@@ -614,7 +633,13 @@ function buildVoronoiFracture(source, options, limits) {
       }
       if (closed && cuts.length) {
         const caps = capContours(cutLoops(cuts, weldEpsilon), plane, weldEpsilon, limit.maxCapVertices);
-        if (!caps) return { error: "cap-invalid" };
+        if (!caps) {
+          // Keep the source surface visible when concave caps cannot be built.
+          // Rebuild without caps using the same sites and clipping order.
+          const open = buildVoronoiFracture(source, { ...options, closed: false }, limit);
+          if (!open.error) open.warning = "cap-invalid";
+          return open;
+        }
         for (const loop of caps) next.push({ cap: true, points: loop.map(p => ({ p, uv: null })) });
       }
 
@@ -847,6 +872,17 @@ function applyFragmentMotion(positions, stage, motion, matrix) {
   return positions;
 }
 
+function fractureErrorText(code) {
+  if (code === "cap-invalid") return "cap contour invalid or too large; rendering open fragments";
+  if (code === "work-limit") return "too many cells for this source mesh; reduce Cells or simplify the source";
+  if (code === "source-limit") return "source mesh exceeds " + DEFAULT_LIMITS.maxSourceTriangles + " triangles; rendering the unbroken source";
+  if (code === "output-limit") return "fracture exceeds " + DEFAULT_LIMITS.maxOutputTriangles + " triangles; rendering the unbroken source";
+  if (code === "empty") return "source mesh has no usable triangles";
+  if (code === "degenerate") return "degenerate input: source mesh has no extent";
+  if (code === "invalid") return "input geometry contains invalid vertices or indices; rendering the unbroken source";
+  return String(code);
+}
+
 module.exports = {
   DEFAULT_LIMITS,
   MAX_CELLS,
@@ -855,6 +891,7 @@ module.exports = {
   capContours,
   clampCells,
   extractLoops,
+  fractureErrorText,
   pieceColor,
   triangulateLoop,
 };
