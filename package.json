@@ -51,6 +51,14 @@
       "!README*",
       "!AGENTS.md"
     ],
+    "fileAssociations": [
+      {
+        "ext": "pz",
+        "name": "Zoidium Project",
+        "role": "Editor",
+        "mimeType": "application/x-zoidium-project"
+      }
+    ],
     "mac": {
       "target": [
         "dmg"

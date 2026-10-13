@@ -808,30 +808,16 @@
     };
   }
 
-  editorPrototype.open = function () {
+  editorPrototype.open = function (selectedFile) {
     var editor = this;
     if (!editor.confirmIfDirty()) return;
 
-    editor.showFilePicker(async function (event) {
-      var fileInput = event.currentTarget;
-      var file = fileInput && fileInput.files && fileInput.files[0];
+    async function loadFile(file) {
       if (!file) return;
-
       var originalFilename = typeof file.name === "string" ? file.name : "";
-      // Some macOS/Electron combinations can crash while laying out a
-      // non-ASCII filename in the native file input. Keep the selected File
-      // and its real name for parsing/diagnostics, but remove the filename
-      // from the live DOM control immediately after the user picks it.
       try {
-        if (fileInput) fileInput.value = "";
-      } catch (_error) {
-        // Clearing the presentation is best effort; the file operation still
-        // uses the already captured File object below.
-      }
-
-      try {
-        // Validation runs before CM3's loader, which would otherwise fail with
-        // "undefined is not valid JSON" for a missing or damaged entry.
+        // Toolbar and desktop opens share validation, plugin activation,
+        // assets, project naming, and error/recovery notifications.
         var archive = await openValidatedArchive(file, "open");
         var project = await editor.loadProject(archive);
         editor.project = project;
@@ -855,17 +841,48 @@
           error: error,
           message: errorMessage(error, "Could not open the project."),
           ...fileDiagnostics(file),
-          retry: function () {
-            return editor.open();
-          },
-          // Damaged content can be replaced from a restore point; the restore
-          // layer decides whether a usable one exists.
+          retry: function () { return editor.open(selectedFile); },
           recoverable: isProjectDataError(error),
           download: null,
         });
       }
+    }
+
+    // The desktop bridge supplies a browser File, never a filesystem path.
+    if (selectedFile) return loadFile(selectedFile);
+    editor.showFilePicker(function (event) {
+      var fileInput = event.currentTarget;
+      var file = fileInput && fileInput.files && fileInput.files[0];
+      // Remove the filename from the live native control on macOS/Electron.
+      try { if (fileInput) fileInput.value = ""; } catch (_error) { /* best effort */ }
+      return loadFile(file);
     }, ".pz");
   };
+
+  var desktopProjects = global.ZoidiumDesktopProjects;
+  if (desktopProjects) {
+    desktopProjects.onFile(async function (message) {
+      var editor = global.CM;
+      try {
+        var response = await global.fetch(message.url);
+        if (!response.ok) throw new Error("The project file is no longer available.");
+        var file = new global.File([await response.blob()], message.name);
+        await editor.open(file);
+      } catch (error) {
+        dispatch("zoidium:project-error", {
+          editor: editor, error: error,
+          message: errorMessage(error, "Could not open the project."),
+        });
+      } finally {
+        desktopProjects.complete(message.id);
+      }
+    });
+    // initTool and post-init extensions finish before this event. DOM load
+    // alone does not mean CM3 or the project/plugin loader is usable.
+    global.addEventListener("zoidium:ready", function () {
+      if (global.CM && PZ.zoidium.projectFiles) desktopProjects.ready();
+    }, { once: true });
+  }
 
   PZ.zoidium.define("projectFiles", {
     defaultProjectName: DEFAULT_PROJECT_NAME,
