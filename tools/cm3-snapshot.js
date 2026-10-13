@@ -129,47 +129,36 @@ function validatePath(value) {
   return value;
 }
 
-// Snapshot age/version metadata. Recorded on export so operators can tell
-// how old a snapshot is and which CM3 runtime it pins without restoring it.
-// Snapshots exported before this existed have no such metadata; they must
-// still decode and restore (with a warning instead of a summary).
-function snapshotContentFromMetadata(metadata) {
-  const resources = metadata.resources.map((resource) => ({
-    bytes: resource.bytes,
-    path: resource.sourcePath,
-    sha256: resource.sha256,
-  }));
-  const ordered = [...resources].sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+// Snapshot age/version record. Written on export so operators can tell
+// which CM3 runtime a snapshot pins without restoring it. Older snapshots
+// lack the record; they still restore, and their age falls back to the
+// header's createdAt.
+function snapshotContent(metadata) {
+  const ordered = metadata.resources
+    .map((resource) => [resource.sourcePath, resource.sha256])
+    .sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
   return {
-    contentSha256: hash(Buffer.from(JSON.stringify(ordered.map((resource) => [resource.path, resource.sha256])), "utf8")),
-    entryScripts: {
-      clipmaker: metadata.profiles.clipmaker.entryScript,
-      videoeditor: metadata.profiles.videoeditor.entryScript,
-    },
-    resourceCount: resources.length,
-    resources,
-    totalBytes: resources.reduce((sum, resource) => sum + resource.bytes, 0),
-  };
-}
-
-function snapshotRecordFromMetadata({ metadata, createdAt }) {
-  return {
-    contentSha256: snapshotContentFromMetadata(metadata).contentSha256,
-    createdAt,
+    contentSha256: hash(Buffer.from(JSON.stringify(ordered), "utf8")),
     entryScripts: {
       clipmaker: metadata.profiles.clipmaker.entryScript,
       videoeditor: metadata.profiles.videoeditor.entryScript,
     },
     resourceCount: metadata.resources.length,
-    resources: metadata.resources.map((resource) => ({
-      bytes: resource.bytes,
-      path: resource.sourcePath,
-      sha256: resource.sha256,
-    })),
-    sourcePageUrl: metadata.sourcePageUrl,
     totalBytes: metadata.resources.reduce((sum, resource) => sum + resource.bytes, 0),
+  };
+}
+
+function snapshotRecord(metadata, createdAt) {
+  return {
+    ...snapshotContent(metadata),
+    createdAt,
+    sourcePageUrl: metadata.sourcePageUrl,
     videoEditorSourcePageUrl: metadata.profiles.videoeditor.sourcePageUrl,
   };
+}
+
+function snapshotCreatedAt(decoded) {
+  return decoded.snapshot?.createdAt ?? decoded.header?.createdAt ?? null;
 }
 
 function snapshotMaxAgeDays(env = process.env) {
@@ -190,29 +179,24 @@ function snapshotAgeDays(createdAt, now = new Date()) {
 }
 
 function formatSnapshotSummary(decoded, now = new Date()) {
-  const record = decoded.snapshot;
-  const lines = [];
-  if (record) {
-    const age = snapshotAgeDays(record.createdAt, now);
-    const ageText = age === null ? "unknown age" : `${Math.max(0, Math.floor(age))} days ago`;
-    lines.push(`[Zoidium] CM3 snapshot created ${record.createdAt} (${ageText})`);
-    lines.push(`[Zoidium] CM3 snapshot source: ${record.sourcePageUrl} and ${record.videoEditorSourcePageUrl}`);
-    lines.push(`[Zoidium] CM3 snapshot runtime: clipmaker entry ${record.entryScripts.clipmaker}, video editor entry ${record.entryScripts.videoeditor}; ${record.resourceCount} resources, ${record.totalBytes} bytes, content sha256:${record.contentSha256}`);
-  } else {
-    const fallback = snapshotContentFromMetadata(decoded.metadata);
-    lines.push("[Zoidium] CM3 snapshot has no creation metadata (exported by an older Zoidium); its age is unknown");
-    lines.push(`[Zoidium] CM3 snapshot runtime: clipmaker entry ${fallback.entryScripts.clipmaker}, video editor entry ${fallback.entryScripts.videoeditor}; ${fallback.resourceCount} resources`);
-  }
-  return lines;
+  const createdAt = snapshotCreatedAt(decoded);
+  const age = snapshotAgeDays(createdAt, now);
+  const content = decoded.snapshot ?? snapshotContent(decoded.metadata);
+  return [
+    age === null
+      ? "[Zoidium] CM3 snapshot has no creation metadata; its age is unknown"
+      : `[Zoidium] CM3 snapshot created ${createdAt} (${Math.max(0, Math.floor(age))} days ago)`,
+    `[Zoidium] CM3 snapshot source: ${decoded.header.sourcePageUrl} and ${decoded.header.videoEditorSourcePageUrl}`,
+    `[Zoidium] CM3 snapshot runtime: clipmaker entry ${content.entryScripts.clipmaker}, video editor entry ${content.entryScripts.videoeditor}; ${content.resourceCount} resources, ${content.totalBytes} bytes, content sha256:${content.contentSha256}`,
+  ];
 }
 
 function snapshotAgeWarning(decoded, { env = process.env, now = new Date() } = {}) {
-  const record = decoded.snapshot;
-  if (!record || snapshotAgeDays(record.createdAt, now) === null) {
+  const age = snapshotAgeDays(snapshotCreatedAt(decoded), now);
+  if (age === null) {
     return "CM3 snapshot has no creation metadata, so its age and freshness are unknown. Refresh it when the source pages are reachable; see docs/cm3-resources.md";
   }
   const maxAge = snapshotMaxAgeDays(env);
-  const age = snapshotAgeDays(record.createdAt, now);
   if (age > maxAge) {
     return `CM3 snapshot is ${Math.floor(age)} days old (older than the ${maxAge}-day threshold set by ZOIDIUM_CM3_SNAPSHOT_MAX_AGE_DAYS, default 30). It may pin an outdated CM3 runtime; refresh it when the source pages are reachable; see docs/cm3-resources.md`;
   }
@@ -287,7 +271,7 @@ async function exportSnapshot({ output, cacheRoot = runtime.defaultResourceCache
     contents.push(bytes);
   }
   const createdAt = new Date().toISOString();
-  const header = { format, version: 1, createdAt, cacheSchemaVersion: metadata.schemaVersion, sourcePageUrl: metadata.sourcePageUrl, videoEditorSourcePageUrl: metadata.profiles.videoeditor.sourcePageUrl, snapshot: snapshotRecordFromMetadata({ metadata, createdAt }), entries };
+  const header = { format, version: 1, createdAt, cacheSchemaVersion: metadata.schemaVersion, sourcePageUrl: metadata.sourcePageUrl, videoEditorSourcePageUrl: metadata.profiles.videoeditor.sourcePageUrl, snapshot: snapshotRecord(metadata, createdAt), entries };
   const compressed = zlib.gzipSync(Buffer.concat([Buffer.from(`${magic}${JSON.stringify(header)}\n`), ...contents]));
   // Validate the assembled archive too, in case cache files changed during export.
   const decoded = decodeSnapshot(compressed);
@@ -352,9 +336,7 @@ async function printSnapshotInfo(source, { env = process.env, now = new Date(), 
   const warning = snapshotAgeWarning(decoded, { env, now });
   if (warning) console.warn(`[Zoidium] WARNING: ${warning}`);
   else console.log("[Zoidium] CM3 snapshot is within its freshness threshold");
-  if (decoded.snapshot) {
-    for (const resource of decoded.snapshot.resources) console.log(`[Zoidium] CM3 snapshot file: ${resource.path} (${resource.bytes} bytes, sha256:${resource.sha256.slice(0, 12)}...)`);
-  }
+  for (const resource of decoded.metadata.resources) console.log(`[Zoidium] CM3 snapshot file: ${resource.sourcePath} (${resource.bytes} bytes, sha256:${resource.sha256.slice(0, 12)}...)`);
   return decoded;
 }
 
