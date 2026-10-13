@@ -29,6 +29,30 @@ const {
   watchFontLoad,
 } = require("./text-plus-diagnostics.js");
 
+// Requests contain owner identities only in private state, never in userData.
+const splitRequests = new Map();
+
+function requestCharacterSplit(textObject, owner) {
+  let owners = splitRequests.get(textObject);
+  if (!owners) splitRequests.set(textObject, owners = new Set());
+  owners.add(owner);
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    owners.delete(owner);
+    if (!owners.size && splitRequests.get(textObject) === owners) {
+      splitRequests.delete(textObject);
+      if (!collectTextPlusObjects(textObject).length) restoreTextRendering(textObject);
+    }
+  };
+}
+
+function clearCharacterSplitRequests(textObject) {
+  if (textObject) splitRequests.delete(textObject);
+  else splitRequests.clear();
+}
+
 /* ----------------------------------------------------------- text rendering */
 
 function createTextShapes(font, text, size, divisions, spacing = 0) {
@@ -243,7 +267,12 @@ function disposeCharacterRendering(splitState) {
   if (splitState.renderRoot?.parent) {
     splitState.renderRoot.parent.remove(splitState.renderRoot);
   }
-  for (const entry of splitState.entries || []) entry.geometry?.dispose?.();
+  for (const entry of splitState.entries || []) {
+    delete entry.anchor.userData.zoidiumTextPlusCharacter;
+    if (entry.mesh) delete entry.mesh.userData.zoidiumTextPlusCharacter;
+    entry.geometry?.dispose?.();
+  }
+  if (splitState.renderRoot) delete splitState.renderRoot.userData.zoidiumTextPlusCharacters;
   splitState.renderRoot = null;
   splitState.entries = [];
   splitState.layers = [];
@@ -295,6 +324,7 @@ function buildCharacterRendering(textObject, splitState, layers) {
   const renderRoot = new THREE.Object3D();
   renderRoot.name = "Text+ characters";
   renderRoot.zoidiumTextPlusCharacters = true;
+  renderRoot.userData.zoidiumTextPlusCharacters = true;
   const textPivot = new THREE.Object3D();
   textPivot.name = "Text center";
   textPivot.position.set(
@@ -313,6 +343,10 @@ function buildCharacterRendering(textObject, splitState, layers) {
       : [item.unit.advance / 2, 0, 0];
     const anchor = new THREE.Object3D();
     anchor.name = `Character ${item.unit.index + 1}`;
+    const characterIdentity = {
+      index: item.unit.index, sourceIndex: item.unit.sourceIndex, count: layout.count,
+    };
+    anchor.userData.zoidiumTextPlusCharacter = { ...characterIdentity };
     anchor.position.set(
       item.unit.x + center[0] + centerOffset[0],
       item.unit.y + center[1] + centerOffset[1],
@@ -337,6 +371,7 @@ function buildCharacterRendering(textObject, splitState, layers) {
       mesh.name = item.unit.character;
       mesh.position.set(-center[0], -center[1], -center[2]);
       copyMeshState(sourceMesh, mesh);
+      mesh.userData.zoidiumTextPlusCharacter = { ...characterIdentity };
       parent.add(mesh);
     }
 
@@ -632,7 +667,7 @@ function restoreTextRendering(textObject) {
 
 function syncTextRendering(textObject, frame) {
   const layers = collectTextPlusObjects(textObject);
-  if (layers.length === 0) {
+  if (layers.length === 0 && !splitRequests.get(textObject)?.size) {
     restoreTextRendering(textObject);
     return;
   }
@@ -661,6 +696,8 @@ function syncTextRendering(textObject, frame) {
 }
 
 module.exports = {
+  requestCharacterSplit,
+  clearCharacterSplitRequests,
   createTextShapes,
   sameObjects,
   finiteBox,
