@@ -26,14 +26,14 @@
       "id": "core",
       "name": "Zoidium Core",
       "author": "Zoidium",
-      "version": "31",
+      "version": "32",
       "visibility": "hidden",
       "alwaysEnabled": true,
       "tagline": "Built-in core extensions",
       "description": "Hidden built-in extensions that always run. Not shown in the Plugins panel and never stored in projects.",
-      "manifest": "./plugins/core/manifest.json?v=31",
-      "bundle": "./plugins/core/bundle.json?v=31",
-      "integrity": "sha256-BkTuUvQ+1TuuomQyPSj4BcWajYuBJrWXtkfXFYurIlM="
+      "manifest": "./plugins/core/manifest.json?v=32",
+      "bundle": "./plugins/core/bundle.json?v=32",
+      "integrity": "sha256-dppMVIYbMjDNZFKWZwBDi5mVSCJJ/ZD55mHnsNAIoks="
     },
     {
       "id": "easing-plus",
@@ -193,7 +193,7 @@
       "zoidiumOnly": true,
       "manifest": "./plugins/text-plus/manifest.json?v=22",
       "bundle": "./plugins/text-plus/bundle.json?v=22",
-      "integrity": "sha256-Qix2OQ/Ur85Paoe16Bw14xofDCxe3q4CUviplNO0o/s="
+      "integrity": "sha256-LhLdKP9VR+0KxyItYzBRcLVDHKMqX9llYNUr8/7Ax6E="
     },
     {
       "id": "particles-plus",

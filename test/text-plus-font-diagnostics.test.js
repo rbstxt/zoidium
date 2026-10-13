@@ -215,3 +215,39 @@ test("bundled diagnostics run in a browser realm without Node module globals", a
   assert.equal(target.geometryNeedsUpdate, true);
   assert.equal(messages.length, 1);
 });
+
+test("Core-managed failed fonts do not duplicate its notification or probe bytes", async () => {
+  await warningsDuring(async (messages) => {
+    let reads = 0;
+    const wrapper = { loading3d: Promise.resolve(null), data: {
+      zoidiumFont3dState: "failed", zoidiumFont3dError: { stage: "font parse", message: "Invalid font" },
+    }, asset: { file: { arrayBuffer() { reads += 1; return Promise.reject(new Error("probe")); } } } };
+    const target = text(wrapper);
+    diagnostics.watchFontLoad(target);
+    diagnostics.reportUnavailableFont(target);
+    await flush();
+    assert.equal(messages.length, 0);
+    assert.equal(reads, 0);
+  });
+});
+
+test("Core-managed pending fonts stay silent and Text+ observes their recovery", async () => {
+  await warningsDuring(async (messages) => {
+    let reads = 0;
+    const pending = deferred();
+    const wrapper = { loading3d: pending.promise, data: { zoidiumFont3dState: "loading" },
+      asset: { file: { arrayBuffer() { reads += 1; return Promise.resolve(new ArrayBuffer(0)); } } } };
+    const target = text(wrapper);
+    const oldPZ = state.PZ, oldEditor = state.editor;
+    const project = {}; target.parentProject = project;
+    state.PZ = { asset: { source: { FILE: 1 } } }; state.editor = { project };
+    wrapper.asset.source = 1; delete wrapper.asset.file;
+    try { diagnostics.reportUnavailableFont(target); }
+    finally { state.PZ = oldPZ; state.editor = oldEditor; }
+    diagnostics.watchFontLoad(target); await flush();
+    assert.equal(reads, 0); assert.equal(messages.length, 0);
+    wrapper.font3d = { data: {} }; wrapper.data.zoidiumFont3dState = "ready";
+    pending.resolve(wrapper.font3d); await flush();
+    assert.equal(target.geometryNeedsUpdate, true); assert.equal(messages.length, 0);
+  });
+});
