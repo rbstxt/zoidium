@@ -22,6 +22,13 @@ endorsed by Panzoid.
     first and cannot be moved.
   - **Parameters**: the selected tool's values, plus its color wheels, HSL
     sliders, curves pad, S-curve sliders, four-way wheels, or LUT controls.
+- Select LUT in the tool chain and choose **Import .cube...** to load an Adobe
+  or Resolve 3D LUT with size 2..128. Its title and size appear beside the
+  controls. **Strength** mixes the LUT with the stage input; **LUT Gamma**
+  retains the same input/output gamma behavior as the built-in presets.
+  **Clear** removes the imported LUT. Import and Clear each create one undo step.
+  The original file is stored in the project, so another machine can open it.
+  Files over 80 MB, 1D LUTs, and combined 1D/3D LUTs are rejected.
 - Every committed edit is one undo/redo step on the effect's properties. Live
   drags only preview. Setup keeps its scroll position, input focus and look filter
   after edits, and removing a tool selects its neighbour.
@@ -52,6 +59,9 @@ tool; they may leave the image unchanged while its strength or tint is neutral.
 - `looks-grade.glsl` / `looks-vert.glsl`: the grade shader. It is compiled once.
   Per-frame work is uniform updates only; the chain order and the curve tables
   are re-uploaded only when their stored text changes.
+- `looks-cube.js`: the 3D LUT parser, byte atlas layout, and CPU sampler.
+- `looks-lut-assets.js`: project file loading and atlas texture lifecycle.
+- `looks-lut-ui.js`: the LUT section and import controls.
 - `looks-fx.js`: the native effect (properties, uniforms, pass gating).
 - `looks-setup.js`, `looks-setup.css`, `looks-widgets.js`: the setup window, its
   stylesheet, and the two custom canvases (color wheel, curves pad).
