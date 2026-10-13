@@ -26,14 +26,14 @@
       "id": "core",
       "name": "Zoidium Core",
       "author": "Zoidium",
-      "version": "28",
+      "version": "29",
       "visibility": "hidden",
       "alwaysEnabled": true,
       "tagline": "Built-in core extensions",
       "description": "Hidden built-in extensions that always run. Not shown in the Plugins panel and never stored in projects.",
-      "manifest": "./plugins/core/manifest.json?v=28",
-      "bundle": "./plugins/core/bundle.json?v=28",
-      "integrity": "sha256-jBJHGNkp5wpbRVO6F40w01R3FNo1p79HT/wGfZMUSTg="
+      "manifest": "./plugins/core/manifest.json?v=29",
+      "bundle": "./plugins/core/bundle.json?v=29",
+      "integrity": "sha256-rFeMMSN8tb7N1yHETW1lBFrPMblU/+MofftdIqYQMxM="
     },
     {
       "id": "easing-plus",
@@ -103,15 +103,15 @@
       "category": "utilities",
       "name": "Graph Editor 2",
       "author": "DaviFX",
-      "version": "9",
+      "version": "10",
       "itemCount": 1,
       "format": "graph editor",
       "tagline": "Rebuilt keyframe graph editor",
       "color": "#4f7dbf",
       "description": "Replaces the keyframe graph editor with DaviFX's Graph Editor 2: easing presets, tangent tools, ruler scrubbing, a track list with live values and a full keyboard set.",
-      "manifest": "./plugins/graph-plus/manifest.json?v=9",
-      "bundle": "./plugins/graph-plus/bundle.json?v=9",
-      "integrity": "sha256-0Vjr0TPws4pAiwZu1zeY7gmayDY6j5sV5Z+6vUMR0ts="
+      "manifest": "./plugins/graph-plus/manifest.json?v=10",
+      "bundle": "./plugins/graph-plus/bundle.json?v=10",
+      "integrity": "sha256-cylDL1FQQgAyNaTD9fpyxspkvAKVzdFBwymCdvC0Y2s="
     },
     {
       "id": "light-plus",

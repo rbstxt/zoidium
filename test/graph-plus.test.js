@@ -804,7 +804,9 @@ function floatingHost() {
     appendChild: stubFn(),
     addEventListener(type, fn, capture) { listeners[type + (capture ? ':capture' : '')] = fn; },
     removeEventListener(type, fn, capture) { delete listeners[type + (capture ? ':capture' : '')]; },
-    ownerDocument: { defaultView: { ResizeObserver: class {
+    ownerDocument: { defaultView: { innerWidth: 1200, innerHeight: 800,
+      addEventListener(type, fn) { listeners['owner:' + type] = fn; },
+      removeEventListener(type) { delete listeners['owner:' + type]; }, ResizeObserver: class {
       observe() {} disconnect() { body.disconnected = true; }
     } } },
   };
@@ -813,9 +815,10 @@ function floatingHost() {
     let open = true;
     const cleanups = [];
     const host = { focus: stubFn(), isOpen: () => open,
-      element: {
-        addEventListener(type, fn) { listeners['chrome:' + type] = fn; },
-        removeEventListener(type) { delete listeners['chrome:' + type]; },
+      setCollapsed: stubFn(), setMaximized: stubFn(), isMaximized: () => false,
+      element: { style: {}, ownerDocument: body.ownerDocument,
+        addEventListener(type, fn, capture) { listeners['chrome:' + type + (capture ? ':capture' : '')] = fn; },
+        removeEventListener(type, fn, capture) { delete listeners['chrome:' + type + (capture ? ':capture' : '')]; },
       },
       addCleanup(fn) { cleanups.push(fn); },
       close() { if (open) { open = false; cleanups.forEach(fn => fn()); cleanup(); } } };
@@ -852,7 +855,7 @@ test('floating graph factory opens once, focuses, preserves panel and cleans up 
   const discarded = host.panel(); again.setPanel(discarded);
   assert.equal(again, win);
   assert.equal(host.opens.length, 1);
-  assert.equal(host.opens[0].host.focus.calls.length, 1);
+  assert.equal(host.opens[0].host.focus.calls.length, 2);
   assert.equal(win.panel, panel);
   assert.equal(discarded.unload.calls.length, 1);
   const event = { code: 'Space', type: 'keydown', stopPropagation: stubFn() };
@@ -865,8 +868,9 @@ test('floating graph factory opens once, focuses, preserves panel and cleans up 
     host.listeners['chrome:keydown']({ key, ctrlKey: true, stopPropagation: stubFn() });
   }
   assert.equal(editor.keydown.calls.length, 7, 'chrome forwards every native popup editor command');
-  host.listeners['chrome:keydown']({ key: 'g', ctrlKey: true, stopPropagation: stubFn() });
-  assert.equal(editor.keydown.calls.length, 7, 'graph shortcut stays isolated inside the host window');
+  host.listeners['chrome:keydown:capture']({ key: 'g', ctrlKey: true, preventDefault: stubFn(), stopPropagation: stubFn() });
+  assert.equal(host.opens[0].host.setCollapsed.calls.at(-1)[0], false);
+  assert.equal(editor.keydown.calls.length, 7, 'graph shortcut restores the host without forwarding another native command');
   win.window.close(); win.window.close();
   assert.equal(panel.unload.calls.length, 1);
   assert.equal(panel.enabled, false);

@@ -3,7 +3,7 @@
   "id": "core",
   "name": "Zoidium Core",
   "author": "Zoidium",
-  "version": "28",
+  "version": "29",
   "kind": "core",
   "visibility": "hidden",
   "alwaysEnabled": true,
@@ -184,6 +184,12 @@
       "id": "main-viewport",
       "source": "./plugins/core/main-viewport.js",
       "phase": "pre-init"
+    }
+  ],
+  "modules": [
+    {
+      "id": "single-graph-window",
+      "source": "./plugins/core/single-graph-window.js?v=29"
     }
   ]
 }
