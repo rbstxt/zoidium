@@ -191,6 +191,24 @@ unbroken source mesh. `Fracture status` shows `Computing fracture...` while
 queued or running jobs are pending. The status is editor state and does not
 change saved render settings.
 
+`Characters` selects local one-based Text character numbers, for example
+`1-3, 6`. Spaces count; newline layout breaks do not. Repeated letters have
+separate numbers. Text's `Index offset` and `Total characters` affect Text+
+transforms but never shift fracture selection. `Invert selection` fractures
+the remaining characters. Empty or absent `Characters` fractures every mesh
+through the original whole-text path, including when inversion is on.
+Invalid ranges fracture no Text characters and show an English status warning.
+Non-text meshes ignore the selection and show a note.
+
+Enable Text+ for character selection. A selected native Text temporarily uses
+Text+'s identity character geometry, without adding a saved or visible parent.
+Clearing selection or unloading the fracture releases its request and restores
+the original whole-text geometry. Existing Text+ transform and shake parents
+continue to apply to every character. Unselected meshes retain all other
+effectors in their chain. Meshes and anchors carry cloneable local character
+identity in `userData.zoidiumTextPlusCharacter` with zero-based `index`, raw
+string `sourceIndex`, and local `count`. Disposal removes that record.
+
 Endpoint welding uses numeric spatial buckets in the original neighbor and
 insertion order. Clipping, contour triangulation, boundary subdivisions, output
 vertex order, normals, UVs and material groups retain their original output.

@@ -484,6 +484,19 @@ function installTextPatches(PZ) {
   const originalUnload = prototype.unload;
 
   installTextPropertyPatches(PZ);
+  const requestName = "zoidiumRequestCharacterSplit";
+  const requestOriginal = Object.getOwnPropertyDescriptor(prototype, requestName);
+  const requestPatched = function requestCharacterSplit(owner) {
+    return parts.geometry.requestCharacterSplit(this, owner);
+  };
+  Object.defineProperty(prototype, requestName, {
+    configurable: true, writable: true, value: requestPatched,
+  });
+  state.restoreCharacterRequest = () => {
+    if (prototype[requestName] !== requestPatched) return;
+    if (requestOriginal) Object.defineProperty(prototype, requestName, requestOriginal);
+    else delete prototype[requestName];
+  };
 
   if (typeof originalUpdateGeometry === "function") {
     const patchedUpdateGeometry = function updateGeometry() {
@@ -548,6 +561,7 @@ function installTextPatches(PZ) {
   patchedUpdate._zoidiumTextPlusPatched = true;
 
   const patchedUnload = function unload() {
+    parts.geometry.clearCharacterSplitRequests(this);
     restoreTextRendering(this);
     if (typeof originalUnload === "function") {
       return originalUnload.apply(this, arguments);
@@ -637,7 +651,7 @@ function isInUse() {
   if (!project || !TextObject || typeof project.forEachItemOfType !== "function") {
     return false;
   }
-  let used = false;
+  let used = state.splitTexts.size > 0;
   project.forEachItemOfType(TextObject, (textObject) => {
     if (textUsesExtendedProperties(textObject)) used = true;
   });
@@ -689,6 +703,9 @@ function activate(context) {
 
 function deactivate() {
   if (!parts) return;
+  state.restoreCharacterRequest?.();
+  state.restoreCharacterRequest = null;
+  parts.geometry.clearCharacterSplitRequests();
   restoreTextPatches();
   resetTextFontDiagnostics();
   for (const textObject of Array.from(state.splitTexts)) {
