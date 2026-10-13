@@ -14,8 +14,10 @@ Add a Camera+ to a Scene from the 3D picker: **Camera > Camera+**.
   unchanged.
 - Film controls: position, rotation and rotation order, focal length, sensor
   size (film gate), zoom, and film offsets. Perspective and orthographic projection.
-  The Film tab also shows the 35mm equivalent focal length and horizontal/vertical
-  field of view as read-only values. FOV includes zoom and the sequence aspect
+  The Film tab also shows the 35mm equivalent focal length as a read-only
+  value plus editable horizontal/vertical field of view rows. Typing a FOV
+  sets the focal length that renders it, so it stays one undo step and keeps
+  focal-length keyframes. FOV includes zoom and the sequence aspect
   ratio; equivalent focal length follows the sensor crop factor.
 - **Depth of Field**: on/off, focus distance, aperture, focus area width, and
   near/far blur levels. The blur is a per-scene post pass that reads the scene's

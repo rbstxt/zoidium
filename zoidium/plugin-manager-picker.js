@@ -307,6 +307,7 @@
     for (const record of records) {
       if (isPickerMutation(record)) {
         scheduleEffectPickerBadges();
+        schedulePickerGroups();
         return;
       }
     }
@@ -316,8 +317,210 @@
     if (manager.effectBadgeObserver) return;
     installNativeFxSearchPriority();
     decorateEffectPicker();
+    decoratePickerGroups();
     manager.effectBadgeObserver = new MutationObserver(onBodyMutations);
     manager.effectBadgeObserver.observe(document.body, { childList: true, subtree: true });
+  }
+
+  // Collapsible picker groups ---------------------------------------------
+  //
+  // The object/effect add picker (ui-1.0.72.js, generateAdd) renders one
+  // bare SPAN per category (LAYER, COLOR, ...) followed by its LI rows, and
+  // rebuilds the list on open, drill-in and every search keystroke. This
+  // pass decorates each heading once (focusable, clickable, chevron through
+  // CSS) and re-applies the stored collapsed state after every rebuild.
+  // Collapsing detaches a group's rows from the list (headings stay) and
+  // remembers them per heading; expanding reinserts them in order. Detached
+  // rows are unreachable to the picker's stock arrow and Enter handlers, so
+  // navigation skips them with no handler of its own. While the filter box
+  // holds a query the picker lists matches only, so collapse is ignored and
+  // every match stays visible.
+  const PICKER_COLLAPSE_PREFIX = "zoidium.picker.collapsed.";
+  const PICKER_GROUP_CLASS = "zoidium-picker-group";
+  const detachedPickerItems = new WeakMap();
+
+  function pickerStorage() {
+    try {
+      const scope = typeof globalThis !== "undefined" ? globalThis : window;
+      const storage = scope && scope.localStorage;
+      if (storage && typeof storage.getItem === "function" && typeof storage.setItem === "function") {
+        return storage;
+      }
+    } catch (_error) {
+      // Storage is unavailable: collapsing still works for this open picker.
+    }
+    return null;
+  }
+
+  // "effects" or "objects" from the rows' registry entries, or null when the
+  // list shows neither top-level registry (a drilled-in sub-list, which has
+  // no category headings anyway).
+  function pickerIdentity(list) {
+    if (!list || typeof PZ === "undefined") return null;
+    let effects = null;
+    let objects = null;
+    const rows = list.children || [];
+    for (const row of rows) {
+      if (!row || row.tagName !== "LI" || !row.pz_item) continue;
+      if (effects === null) {
+        try {
+          effects = getEffectTypes();
+        } catch (_error) {
+          effects = [];
+        }
+      }
+      if (Array.isArray(effects) && effects.indexOf(row.pz_item) !== -1) return "effects";
+      if (objects === null) {
+        try {
+          objects = getObjectTypes("object3d");
+        } catch (_error) {
+          objects = [];
+        }
+      }
+      if (Array.isArray(objects) && objects.indexOf(row.pz_item) !== -1) return "objects";
+    }
+    return null;
+  }
+
+  function readPickerCollapsed(identity) {
+    const collapsed = new Set();
+    if (!identity) return collapsed;
+    const storage = pickerStorage();
+    if (!storage) return collapsed;
+    try {
+      const raw = storage.getItem(PICKER_COLLAPSE_PREFIX + identity);
+      if (!raw) return collapsed;
+      for (const name of JSON.parse(raw)) {
+        if (typeof name === "string" && name) collapsed.add(name);
+      }
+    } catch (_error) {
+      // A foreign value never collapses anything.
+    }
+    return collapsed;
+  }
+
+  function writePickerCollapsed(identity, collapsed) {
+    if (!identity) return;
+    const storage = pickerStorage();
+    if (!storage) return;
+    try {
+      storage.setItem(PICKER_COLLAPSE_PREFIX + identity, JSON.stringify(Array.from(collapsed)));
+    } catch (_error) {
+      // The collapse still applies to this open picker.
+    }
+  }
+
+  function pickerFilterInput(list) {
+    const panel = list && list.parentElement;
+    const kids = (panel && panel.children) || [];
+    for (const child of kids) {
+      if (child && child.classList && child.classList.contains("pz-filterbox")) return child;
+    }
+    return null;
+  }
+
+  function pickerGroupItems(heading) {
+    const list = heading && heading.parentElement;
+    const kids = (list && Array.from(list.children || [])) || [];
+    const items = [];
+    for (let index = kids.indexOf(heading) + 1; index < kids.length; index += 1) {
+      if (kids[index].tagName === "SPAN") break;
+      if (kids[index].tagName === "LI") items.push(kids[index]);
+    }
+    return items;
+  }
+
+  // Detach a collapsed group's rows (or reinsert them on expand). Headings
+  // never detach, so the next heading anchors the original order.
+  function setPickerGroupCollapsed(list, heading, collapse) {
+    if (collapse) {
+      const items = pickerGroupItems(heading);
+      if (items.length === 0) return;
+      for (const item of items) list.removeChild(item);
+      detachedPickerItems.set(heading, items);
+      return;
+    }
+    const stored = detachedPickerItems.get(heading) || [];
+    if (stored.length === 0) return;
+    detachedPickerItems.delete(heading);
+    const kids = Array.from(list.children || []);
+    let before = null;
+    for (let index = kids.indexOf(heading) + 1; index < kids.length; index += 1) {
+      if (kids[index].tagName === "SPAN") {
+        before = kids[index];
+        break;
+      }
+    }
+    for (const item of stored) list.insertBefore(item, before);
+  }
+
+  function decoratePickerHeading(list, heading) {
+    if (heading.dataset.zoidiumPickerGroup) return;
+    heading.dataset.zoidiumPickerGroup = "1";
+    heading.classList.add(PICKER_GROUP_CLASS);
+    heading.setAttribute("tabindex", "0");
+    heading.setAttribute("role", "button");
+    heading.addEventListener("click", () => togglePickerGroup(list, heading));
+    heading.addEventListener("keydown", (event) => {
+      if (!event || (event.key !== "Enter" && event.key !== " ")) return;
+      event.preventDefault();
+      event.stopPropagation();
+      togglePickerGroup(list, heading);
+    });
+  }
+
+  function togglePickerGroup(list, heading) {
+    const identity = pickerIdentity(list);
+    const name = normalizePickerLabel(heading.textContent);
+    const collapsed = readPickerCollapsed(identity);
+    if (collapsed.has(name)) collapsed.delete(name);
+    else collapsed.add(name);
+    writePickerCollapsed(identity, collapsed);
+    applyPickerGroups(list);
+  }
+
+  function applyPickerGroups(list) {
+    const collapsed = readPickerCollapsed(pickerIdentity(list));
+    for (const child of Array.from(list.children || [])) {
+      if (!child || child.tagName !== "SPAN") continue;
+      const hide = collapsed.has(normalizePickerLabel(child.textContent));
+      child.classList.toggle(`${PICKER_GROUP_CLASS}--collapsed`, hide);
+      child.setAttribute("aria-expanded", hide ? "false" : "true");
+      setPickerGroupCollapsed(list, child, hide);
+    }
+  }
+
+  // One decoration pass over a single picker list. Search output holds only
+  // matches: they are attached by the picker itself, so every match shows
+  // regardless of collapse. The full list decorates its headings and
+  // re-applies stored collapse.
+  function decoratePickerList(list) {
+    if (!list) return;
+    const filter = pickerFilterInput(list);
+    if (filter && String(filter.value || "").trim() !== "") return;
+    if (!pickerIdentity(list)) return;
+    for (const child of Array.from(list.children || [])) {
+      if (child && child.tagName === "SPAN") decoratePickerHeading(list, child);
+    }
+    applyPickerGroups(list);
+  }
+
+  function decoratePickerGroups() {
+    if (typeof document === "undefined") return;
+    document.querySelectorAll(".pz-options").forEach(decoratePickerList);
+  }
+
+  function schedulePickerGroups() {
+    if (manager.pickerGroupUpdateScheduled) return;
+    manager.pickerGroupUpdateScheduled = true;
+    requestAnimationFrame(() => {
+      manager.pickerGroupUpdateScheduled = false;
+      try {
+        decoratePickerGroups();
+      } catch (error) {
+        manager.reportFailureOnce("picker groups", "decorate picker groups", error);
+      }
+    });
   }
 
   function getObjectTypes(target) {
@@ -346,5 +549,5 @@
   }
 
   // END manager body
-  Object.assign(manager, { getEffectTypes, getMaterialTypes, normalizePickerLabel, createEffectUuid, ensureEffectEntryUuid, ensureEffectEntryIds, syncPluginPanelScrollState, pickerCategoryForItem, pluginBadgeRgba, addEffectLookupEntry, buildEffectPickerLookup, findEffectPickerEntry, decorateEffectPicker, scheduleEffectPickerBadges, isNativeFxSearchEntry, prioritizeNativeFxResults, installNativeFxSearchPriority, isPickerMutation, onBodyMutations, installEffectPickerBadges, getObjectTypes, configureBundledLightDefault, insertionIndex });
+  Object.assign(manager, { getEffectTypes, getMaterialTypes, normalizePickerLabel, createEffectUuid, ensureEffectEntryUuid, ensureEffectEntryIds, syncPluginPanelScrollState, pickerCategoryForItem, pluginBadgeRgba, addEffectLookupEntry, buildEffectPickerLookup, findEffectPickerEntry, decorateEffectPicker, scheduleEffectPickerBadges, isNativeFxSearchEntry, prioritizeNativeFxResults, installNativeFxSearchPriority, isPickerMutation, onBodyMutations, installEffectPickerBadges, pickerIdentity, readPickerCollapsed, writePickerCollapsed, pickerGroupItems, setPickerGroupCollapsed, decoratePickerHeading, togglePickerGroup, applyPickerGroups, decoratePickerList, decoratePickerGroups, schedulePickerGroups, getObjectTypes, configureBundledLightDefault, insertionIndex });
 })();
