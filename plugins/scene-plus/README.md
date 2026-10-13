@@ -174,7 +174,16 @@ Field position rows.
 Fracture cut caps account for holes and preserve boundary subdivisions.
 Planar triangulation uses Earcut 2.2.4 from its npm package, under the ISC
 license in `earcut-LICENSE`. This is a separate dependency, not a copied CM3
-runtime resource. Invalid or oversized concave caps skip the fracture build.
+runtime resource. Invalid or oversized concave caps fall back to open fragments with the same
+sites and seed. The property panel shows a warning and the shared notification
+and debug log explain the reason. Other geometry and work limits retain the
+unbroken source mesh. `Fracture status` shows `Computing fracture...` while
+queued or running jobs are pending. The status is editor state and does not
+change saved render settings.
+
+Endpoint welding uses numeric spatial buckets in the original neighbor and
+insertion order. Clipping, contour triangulation, boundary subdivisions, output
+vertex order, normals, UVs and material groups retain their original output.
 
 ## Source layout
 
