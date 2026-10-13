@@ -218,33 +218,9 @@ const GraphPlus = (() => {
     try { element.focus({ preventScroll: true }); } catch (_error) { element.focus(); }
   }
 
-  function fitFloatingWindow(facade) {
-    const host = facade.host;
-    const element = host.element;
-    const viewport = element.ownerDocument.defaultView;
-    const availableWidth = Math.max(1, viewport.innerWidth - 16);
-    const availableHeight = Math.max(1, viewport.innerHeight - 16);
-    const size = (value, fallback, minimum, available) => Math.min(available,
-      Math.max(Math.min(minimum, available), Number.parseFloat(value) || fallback));
-    const width = size(element.style.width, availableWidth * 0.75, 480, availableWidth);
-    const height = size(element.style.height, availableHeight * 0.75, 300, availableHeight);
-    const position = (value, extent, available) => Math.max(8,
-      Math.min(Number.parseFloat(value) || 8, available + 8 - extent));
-    Object.assign(element.style, {
-      width: `${width}px`, height: `${height}px`,
-      left: `${position(element.style.left, width, availableWidth)}px`,
-      top: `${position(element.style.top, height, availableHeight)}px`,
-    });
-    facade.resize();
-  }
-
   function restoreFloatingWindow(facade) {
-    facade.host.setCollapsed(false);
-    // Reapply maximize geometry through the public host API, preserving the
-    // user's maximized state. A smaller viewport may be below host minima.
-    facade.host.setMaximized(facade.host.isMaximized());
-    fitFloatingWindow(facade);
-    facade.host.focus();
+    facade.host.reveal();
+    facade.resize();
     focusGraph(facade.panel);
   }
 
@@ -330,16 +306,6 @@ const GraphPlus = (() => {
       });
       if (!host) throw new Error("Could not open the Graph editor window.");
       facade.host = host;
-      const owner = host.element.ownerDocument.defaultView;
-      const fit = () => fitFloatingWindow(facade);
-      // The host keeps a title bar reachable. This graph window keeps the
-      // complete panel visible after viewport resizing and completed drags.
-      owner.addEventListener("resize", fit);
-      owner.addEventListener("pointerup", fit);
-      host.addCleanup(() => {
-        owner.removeEventListener("resize", fit);
-        owner.removeEventListener("pointerup", fit);
-      });
       // Chrome buttons can hold focus too. The host isolates their events,
       // so forward the same native editor commands from that chrome.
       const graphShortcut = (event) => {
@@ -465,7 +431,6 @@ const GraphPlus = (() => {
       g2win: (...args) => g2win(...args),
       beginPointerDrag: (...args) => beginPointerDrag(...args),
       disposePanel,
-      fitFloatingWindow,
       restoreFloatingWindow,
       sharedEmptyNote: (...args) => sharedEmptyNote(...args),
     },
