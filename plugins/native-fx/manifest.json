@@ -35,6 +35,26 @@
       "id": "timedifference-shader",
       "type": "text",
       "source": "/plugins/native-fx/shaders/fx_timedifference.glsl?v=15"
+    },
+    {
+      "id": "colordiffkey-shader",
+      "type": "text",
+      "source": "/plugins/native-fx/shaders/fx_colordiffkey.glsl?v=15"
+    },
+    {
+      "id": "advspill-shader",
+      "type": "text",
+      "source": "/plugins/native-fx/shaders/fx_advspill.glsl?v=15"
+    },
+    {
+      "id": "keycleaner-shader",
+      "type": "text",
+      "source": "/plugins/native-fx/shaders/fx_keycleaner.glsl?v=15"
+    },
+    {
+      "id": "linearcolorkey-shader",
+      "type": "text",
+      "source": "/plugins/native-fx/shaders/fx_linearcolorkey.glsl?v=15"
     }
   ],
   "category": "NATIVE FX",
@@ -107,6 +127,30 @@
       "requiresApis": [
         "defineFrameSampler"
       ]
+    },
+    {
+      "id": "colordiffkey",
+      "name": "Color Difference Key",
+      "description": "Keys green/blue screens with two partial mattes, levels for each, and matte inspection views.",
+      "source": "./plugins/native-fx/effects/colordiffkey.js?v=15"
+    },
+    {
+      "id": "advspill",
+      "name": "Advanced Spill Suppressor",
+      "description": "Removes key-color spill from foreground edges with Standard or Ultra suppression.",
+      "source": "./plugins/native-fx/effects/advspill.js?v=15"
+    },
+    {
+      "id": "keycleaner",
+      "name": "Key Cleaner",
+      "description": "Cleans keyed matte edges with chatter reduction, edge decontamination, and alpha contrast.",
+      "source": "./plugins/native-fx/effects/keycleaner.js?v=15"
+    },
+    {
+      "id": "linearcolorkey",
+      "name": "Linear Color Key",
+      "description": "Keys pixels by RGB, hue, or chroma distance to a key color with tolerance and softness.",
+      "source": "./plugins/native-fx/effects/linearcolorkey.js?v=15"
     }
   ]
 }
