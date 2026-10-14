@@ -71,6 +71,7 @@
     // reference and any editor alias pointing at it so a retired viewport is
     // never kept alive or handed to a plugin window as its preview.
     unload(...args) {
+      globalThis.ZoidiumFrameCache?.release(this);
       this.editor?.onProjectChanged?.unwatch?.(this.__zoidiumProjectChanged);
       const index = instances.indexOf(this);
       if (index >= 0) instances.splice(index, 1);

@@ -115,6 +115,12 @@ var PZ = PZ || {};
             PZ.trapcode.setTime(e);
             for (var i = 0; i < this.forms.length; i++) await this.forms[i].prepare(e);
         }
+        zoidiumFrameReady(e) {
+            for (var i = 0; i < this.forms.length; i++) {
+                if (!this.forms[i].zoidiumFrameReady(e)) return false;
+            }
+            return true;
+        }
     };
 
     PZ.object3d.form.prototype.defaultName = "Form";

@@ -12,6 +12,7 @@
     hue: 0,
     saturation: 100,
     defaultFrameRate: DEFAULT_FRAME_RATE,
+    previewCacheMiB: 512,
   };
 
   var LAYOUT_OPTIONS = [
@@ -186,6 +187,7 @@
     settings.hue = clamp(Number.isFinite(Number(settings.hue)) ? Number(settings.hue) : 0, -180, 180);
     settings.saturation = clampSaturation(settings.saturation);
     settings.defaultFrameRate = readFrameRate(settings.defaultFrameRate, DEFAULT_FRAME_RATE);
+    settings.previewCacheMiB = global.ZoidiumOutputFrameStore?.sizeMiB(settings.previewCacheMiB) ?? 512;
     return settings;
   }
 
@@ -358,6 +360,7 @@
       DEFAULT_FRAME_RATE,
     );
     writeStorage(state.settings);
+    global.ZoidiumFrameCache?.setSizeMiB(state.settings.previewCacheMiB);
     var defaultProjectSettings = global.ZoidiumDefaultProjectSettings;
     if (defaultProjectSettings && typeof defaultProjectSettings.setFrameRate === "function") {
       defaultProjectSettings.setFrameRate(state.settings.defaultFrameRate);
@@ -564,6 +567,14 @@
       content: "Changing the editor layout takes effect after Zoidium is reloaded.",
     });
     var defaultFrameRateRow = createDefaultFrameRateRow(legacy);
+    var cacheControl = global.ZoidiumUI.controls.number({
+      label: "Preview cache", value: state.settings.previewCacheMiB,
+      min: 0, max: 2048, step: 64, unit: "MiB",
+      onChange: function (value) {
+        state.settings.previewCacheMiB = global.ZoidiumOutputFrameStore.sizeMiB(value);
+        persistAndApply();
+      },
+    });
     var fontRow = createFontRow(legacy);
     var themeRow = createThemeRow(legacy);
     var hueRow = createHueRow(legacy);
@@ -582,6 +593,10 @@
     panel.appendChild(layoutRow);
     panel.appendChild(layoutNote);
     panel.appendChild(defaultFrameRateRow);
+    panel.appendChild(cacheControl.element);
+    panel.appendChild(global.ZoidiumUI.controls.note(
+      "Finished preview frames use up to this much GPU memory. Set 0 to turn off caching. Temporal input textures use up to another 256 MiB, plus active samples and rendering buffers."
+    ).element);
     panel.appendChild(fontRow);
     panel.appendChild(themeRow);
     panel.appendChild(hueRow);
@@ -591,6 +606,7 @@
     state.controls = {
       layoutRow: layoutRow,
       defaultFrameRateRow: defaultFrameRateRow,
+      cacheRow: { pz_update: function () { cacheControl.set(state.settings.previewCacheMiB); } },
       fontRow: fontRow,
       themeRow: themeRow,
       hueRow: hueRow,

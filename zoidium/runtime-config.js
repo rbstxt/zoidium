@@ -66,6 +66,8 @@
       "./plugins/core/panel-fullscreen-shortcut.js",
       // Keeps the editor's main preview reachable as editor.mainViewport. It
       // must be installed before initTool() builds the viewport.
+      "./plugins/core/output-frame-store.js",
+      "./plugins/core/output-frame-cache.js",
       "./plugins/core/main-viewport.js"
     ],
     postInitScripts: [

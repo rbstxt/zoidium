@@ -297,6 +297,19 @@ var PZ = PZ || {};
         if (this.texture) await this.texture.loading;
         await this.prepareAudio(e);
     };
+    // Preview frame cache probe: the sprite texture has loaded and audio
+    // reactors read decoded PCM rather than their neutral placeholder level.
+    PZ.object3d.particular.system.prototype.zoidiumFrameReady = function (e) {
+        var texture = this.texture;
+        if (texture && !texture.zoidiumLoaded) {
+            Promise.resolve(texture.loading).then(function () { texture.zoidiumLoaded = true; }, function () {});
+            return false;
+        }
+        var audio = this.properties.audio;
+        if (!audioReactorsOn(audio, e)) return true;
+        var source = audio.audioLayer.get(e);
+        return !source || T.audioAnalysis.has(source);
+    };
     // Audio reactors need decoded PCM before a final render; export awaits this.
     PZ.object3d.particular.system.prototype.prepareAudio = async function (e) {
         var audio = this.properties.audio;

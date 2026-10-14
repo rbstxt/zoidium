@@ -309,11 +309,13 @@
           try {
             clip.update(mapped.projectFrame);
           } catch (_error) {
+            if (args[0]?.previewFrameCacheStrict) throw _error;
             // A failing procedural update must not break the export loop.
           }
           try {
             if (typeof clip.prepare === "function") await clip.prepare(mapped.projectFrame, args[0]);
           } catch (_error) {
+            if (args[0]?.previewFrameCacheStrict) throw _error;
             // Ignore prepare failures here; the compositor still renders.
           }
           return;
@@ -452,6 +454,7 @@
                 // Show each completed frame during playback. Waiting for the
                 // moving playhead to equal it would starve the preview forever.
                 renderPreparedPreview(viewport, runtime, frame);
+                host?.ZoidiumFrameCache?.capturePreview?.(viewport, frame);
               })().catch((error) => {
                 console.error("[Zoidium] temporal preview preparation failed:", error);
               }).finally(() => {

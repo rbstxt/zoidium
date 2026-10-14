@@ -284,6 +284,12 @@ var PZ = PZ || {};
         async prepare(e) {
             for (var i = 0; i < this.systems.length; i++) await this.systems[i].prepare(e);
         }
+        zoidiumFrameReady(e) {
+            for (var i = 0; i < this.systems.length; i++) {
+                if (!this.systems[i].zoidiumFrameReady(e)) return false;
+            }
+            return true;
+        }
     };
 
     PZ.object3d.particular.prototype.defaultName = "Particular";
