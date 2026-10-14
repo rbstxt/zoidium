@@ -245,7 +245,8 @@ function makeConnection(idb, name) {
       }
       return { createIndex() {} };
     },
-    transaction(storeName, mode) {
+    transaction(storeNames, mode) {
+      const storeName = Array.isArray(storeNames) ? storeNames[0] : storeNames;
       const stores = entry().stores;
       if (!Object.prototype.hasOwnProperty.call(stores, storeName)) {
         throw notFoundError(`No object store named ${storeName}.`);
@@ -259,6 +260,13 @@ function makeConnection(idb, name) {
         pending: 0,
         done: false,
       };
+      const previous = Object.fromEntries(Object.entries(stores).map(([name, value]) => [name, new Map(value.records)]));
+      function abort(error) {
+        transaction.done = true;
+        transaction.error = error || new Error("Transaction aborted");
+        for (const [name, records] of Object.entries(previous)) stores[name].records = records;
+        queueMicrotask(() => transaction.onabort?.({ target: transaction }));
+      }
       function finish() {
         if (transaction.pending === 0 && !transaction.done) {
           transaction.done = true;
@@ -280,8 +288,10 @@ function makeConnection(idb, name) {
           }
           if (failed) {
             if (op.onerror) op.onerror({ target: op });
+            abort(failed);
           } else if (op.onsuccess) {
-            op.onsuccess({ target: op });
+            try { op.onsuccess({ target: op }); }
+            catch (error) { abort(error); }
           }
           transaction.pending -= 1;
           finish();
@@ -289,7 +299,10 @@ function makeConnection(idb, name) {
         return op;
       }
       return {
-        objectStore() {
+        abort: () => abort(),
+        get error() { return transaction.error; },
+        objectStore(name) {
+          const store = stores[name || storeName];
           return {
             getAll() {
               return track(() => Array.from(store.records.values()));
@@ -299,6 +312,12 @@ function makeConnection(idb, name) {
             },
             get(key) {
               return track(() => store.records.get(key));
+            },
+            add(record) {
+              return track(() => {
+                if (store.records.has(record[store.keyPath])) throw new Error("Duplicate restore point");
+                store.records.set(record[store.keyPath], record);
+              });
             },
             put(record) {
               return track(() => {
@@ -470,7 +489,7 @@ function loadRestore(options = {}) {
     setRawProjectName: () => {},
     getProjectRevision: () => 0,
     createArchive: async () => ({
-      blob: { size: 10 },
+      blob: new Blob(["0123456789"]),
       projectName: "project",
       assetCount: 0,
       fingerprint: "fp-test",
@@ -483,6 +502,8 @@ function loadRestore(options = {}) {
   };
 
   const sandbox = {
+    crypto: require("node:crypto").webcrypto,
+    Uint8Array,
     PZ: {
       zoidium: { projectFiles },
       ui: { generateIcon: () => new FakeElement("svg") },
@@ -655,41 +676,18 @@ test("the backup interval select persists and rejects unknown values", async () 
   );
 });
 
-test("split restore points deduplicate assets in the v2 store", async () => {
-  const assetFile = { size: 30 };
-  const harness = loadRestore({
-    projectFiles: {
-      createRestorePoint: async () => ({
-        projectBlob: { size: 30 },
-        projectName: "project",
-        assetCount: 2,
-        archiveSize: 60,
-        assetRefs: [{ id: "asset-9", name: "clip.png", size: 30, type: "image/png" }],
-        assets: [
-          { id: "asset-9", name: "clip.png", size: 30, type: "image/png", file: assetFile },
-          { id: "asset-9", name: "clip.png", size: 30, type: "image/png", file: assetFile },
-        ],
-        fingerprint: "fp-dedup",
-      }),
-    },
-  });
+test("new restore points use a complete archive with a stored integrity hash", async () => {
+  const harness = loadRestore();
   await flush();
-
   harness.panel.querySelector(".zoidium-restore-backup-control").children[0].click();
-  await flush();
-
+  await harness.sandbox.__zoidiumRestoreParts.store.state.snapshotPromise;
   const stored = harness.idb.databases["zoidium-restore-points"];
-  assert.equal(stored.version, 2);
   const snapshots = Array.from(stored.stores.snapshots.records.values());
   assert.equal(snapshots.length, 1);
-  assert.equal(snapshots[0].format, 2);
-  assert.deepEqual(
-    Array.from(stored.stores.assets.records.keys()),
-    ["asset-9"],
-  );
-  const entries = listEntries(harness);
-  assert.equal(entries.length, 1);
-  assert.deepEqual(harness.errorToasts(), []);
+  assert.ok(snapshots[0].blob instanceof Blob);
+  assert.equal(snapshots[0].integrity.size, snapshots[0].blob.size);
+  assert.match(snapshots[0].integrity.sha256, /^[a-f0-9]{64}$/);
+  assert.equal(stored.stores.assets.records.size, 0);
 });
 
 test("deleting one restore point asks once and removes it", async () => {
@@ -800,7 +798,7 @@ function seedAutomaticSnapshots(count, options = {}) {
       projectName: title,
       size: 10,
       assetCount: 0,
-      blob: { size: 10 },
+      blob: new Blob(["0123456789"]),
       fingerprint: `fp-${index}`,
       automatic: true,
     });
@@ -833,6 +831,7 @@ test("pruning keeps at most 12 automatic points per project title", async () => 
   assert.equal(listEntries(harness).length, 20);
 
   clickBackupNow(harness);
+  await harness.sandbox.__zoidiumRestoreParts.store.state.snapshotPromise;
   await flush();
 
   const automatic = listEntries(harness).filter((entry) => /zoidium-restore-entry/.test(entry.className));
@@ -846,6 +845,7 @@ test("pruning keeps at most 24 automatic points in total", async () => {
   await flush();
 
   clickBackupNow(harness);
+  await harness.sandbox.__zoidiumRestoreParts.store.state.snapshotPromise;
   await flush();
 
   const automatic = listEntries(harness).filter((entry) => /zoidium-restore-entry/.test(entry.className));
@@ -860,6 +860,7 @@ test("pruning keeps only recent points per hour bucket", async () => {
   await flush();
 
   clickBackupNow(harness);
+  await harness.sandbox.__zoidiumRestoreParts.store.state.snapshotPromise;
   await flush();
 
   const automatic = listEntries(harness).filter((entry) => /zoidium-restore-entry/.test(entry.className));
@@ -871,11 +872,18 @@ test("an unchanged automatic backup is skipped without a new record", async () =
   await flush();
 
   runAllTimeouts(harness);
-  await flush();
-  assert.equal(listEntries(harness).length, 1);
-
+  // Startup queues an idle callback; run it and await the actual snapshot.
+  // A fixed number of event-loop turns does not await WebCrypto completion.
   runAllTimeouts(harness);
+  await harness.sandbox.__zoidiumRestoreParts.store.state.snapshotPromise;
   await flush();
+  const first = await harness.sandbox.__zoidiumRestoreParts.store.listSnapshots();
+  assert.equal(first.length, 1);
+
+  const skipped = await harness.sandbox.__zoidiumRestoreParts.panel.createSnapshot(false, true);
+  await flush();
+  assert.equal(skipped, null);
+  assert.equal((await harness.sandbox.__zoidiumRestoreParts.store.listSnapshots())[0].id, first[0].id);
   const entries = listEntries(harness).filter((entry) => /zoidium-restore-entry/.test(entry.className));
   assert.equal(entries.length, 1, "no second point when nothing changed");
 });
@@ -885,6 +893,7 @@ test("a manual backup reports that it was created", async () => {
   await flush();
 
   clickBackupNow(harness);
+  await harness.sandbox.__zoidiumRestoreParts.store.state.snapshotPromise;
   await flush();
 
   assert.equal(listEntries(harness).length, 1);
@@ -922,3 +931,5 @@ test("a stale pre-copy record is unusable and cannot be restored", async () => {
   assert.equal(actions.children[1].disabled, true, "download disabled");
   assert.equal(actions.children[2].disabled, false, "delete stays available");
 });
+
+module.exports = { loadRestore, seedAutomaticSnapshots, flush, FakeIndexedDB };

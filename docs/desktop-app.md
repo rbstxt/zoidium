@@ -11,14 +11,18 @@ The application accepts project files from its first command line, a second
 launch, and macOS `open-file` events. It restores and focuses the editor window.
 Only absolute paths to nonempty regular files with a case-insensitive `.pz`
 extension are accepted. Archives larger than 2 GiB minus one byte are ignored,
-keeping inputs within the CM3 archive worker's signed 32-bit address range.
+keeping transport inputs within the signed 32-bit address range. The shared
+project validator limits decompressed archives to 2 GB; larger inputs report
+an error and keep the current project.
 Invalid paths and unrelated command-line flags are ignored.
 
 Files received during startup wait until CM3 initialization and Zoidium's
 project loader finish. Multiple requests open in order, waiting for each import
 to complete. The loader uses the same `editor.open()` path as the toolbar,
 including unsaved-change confirmation, archive validation, plugin activation,
-asset loading, project names, and errors. Cancelling the confirmation keeps the
+asset loading, project names, and errors. A verified restore point is created
+before replacement; a failed validation, backup, or load keeps the current
+project. See [Saving and restore points](project-saving.md). Cancelling the confirmation keeps the
 current project and consumes that open request.
 
 The sandboxed preload exposes only a file notification and fixed ready/completed

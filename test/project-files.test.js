@@ -80,7 +80,7 @@ function addProjectEntries(archive, project) {
   );
 }
 
-function createHarness() {
+function createHarness(options = {}) {
   const events = [];
   let tarCalls = 0;
   let downloads = 0;
@@ -202,6 +202,9 @@ function createHarness() {
     path.join(__dirname, "../plugins/core/project-files.js"),
     "utf8",
   );
+  const archiveIO = require("./project-archive-harness.cjs").installArchive(windowObject, options);
+  const encode = archiveIO.encode;
+  archiveIO.encode = function (archive) { tarCalls += 1; return encode(archive); };
   vm.runInContext(source, context);
 
   function makeEditor() {
@@ -335,81 +338,23 @@ test("an edit made while a save is writing stays dirty", async () => {
   assert.equal(editor.project.ui.dirty, true);
 });
 
-test("project construction and tar run inside one coordinated operation", async () => {
+test("project saves use memory independently of the shared export workspace", async () => {
   const harness = createHarness();
-  const calls = [];
-  let tarInput = null;
   harness.PZ.zoidiumIoSerialization = {
-    run(kind, task) {
-      calls.push(kind + "-start");
-      return Promise.resolve(task()).then((value) => {
-        calls.push(kind + "-end");
-        return value;
-      });
-    },
-    tarWithoutLock(archive) {
-      tarInput = archive;
-      calls.push("tar-with-permit");
-      return Promise.resolve(
-        new Blob([new Uint8Array([0x1f, 0x8b, 8, 0, 1])]),
-      );
-    },
+    run() { throw new Error("The video workspace is busy."); },
+    tarWithoutLock() { throw new Error("The video workspace is busy."); },
   };
-  const editor = harness.makeEditor();
-
-  await harness.projectFiles.createArchive(editor);
-  assert.deepEqual(calls, [
-    "project-save-start",
-    "tar-with-permit",
-    "project-save-end",
-  ]);
-  assert.equal(harness.tarCalls(), 0);
-  assert.ok(tarInput);
-  assert.ok(tarInput.files.every((entry) => entry.data instanceof Blob));
-  const projectEntry = tarInput.files.find((entry) => entry.name === "project");
-  assert.deepEqual(
-    new Uint8Array(await projectEntry.data.arrayBuffer()),
-    new TextEncoder().encode(
-      JSON.stringify({ assets: {}, media: [], sequence: {}, data: { title: "test" } }),
-    ),
-  );
-});
-
-test("the archive is copied out of the shared workspace file before it is written", async () => {
-  const harness = createHarness();
-  const entry = fileBackedExport([0x1f, 0x8b, 8, 0, 1, 2, 3]);
-  harness.PZ.archive.prototype.tar = () => Promise.resolve(entry.blob);
-  const editor = harness.makeEditor();
-  let written = null;
-  editor._zoidiumSaveFileHandle = {
-    name: "project.pz",
-    async createWritable() {
-      return {
-        async write(blob) {
-          written = blob;
-        },
-        async close() {},
-      };
-    },
-  };
-
-  const result = await editor.save();
-  // A render or cleanup rewrites the shared file after the save captured it.
-  entry.invalidate();
-
-  assert.notEqual(result.blob, entry.blob);
-  assert.notEqual(written, entry.blob);
-  assert.deepEqual(
-    new Uint8Array(await result.blob.arrayBuffer()),
-    new Uint8Array([0x1f, 0x8b, 8, 0, 1, 2, 3]),
-  );
-  assert.equal(written.size, 7);
+  const result = await harness.projectFiles.createArchive(harness.makeEditor());
+  assert.ok(result.blob instanceof Blob);
+  const reopened = await harness.projectFiles.openValidatedArchive(result.blob, "open");
+  assert.ok(reopened.peekFile("project"));
+  assert.ok(reopened.peekFile("zoidium.json"));
 });
 
 test("a project archive that cannot be read back fails the save", async () => {
   const harness = createHarness();
   const entry = fileBackedExport([0x1f, 0x8b, 8, 0, 1, 2, 3]);
-  harness.PZ.archive.prototype.tar = () => {
+  harness.PZ.zoidiumProjectArchive.encode = () => {
     entry.invalidate();
     return Promise.resolve(entry.blob);
   };
@@ -427,11 +372,11 @@ test("a project archive that cannot be read back fails the save", async () => {
   assert.equal(await editor.save(), null);
   const error = harness.events.find((event) => event.type === "zoidium:project-error");
   assert.ok(error, "the save reports a project error");
-  assert.match(error.detail.message, /temporary file/);
+  assert.match(error.detail.message, /not readable|NotReadable|cannot be read|decompression|empty|header|stream/);
 });
 
 
-test("project TAR entries reuse stable media Blobs without reading a second full copy", async () => {
+test("project TAR entries copy attached media once before compression", async () => {
   const harness = createHarness();
   const media = new Blob(["media bytes"]);
   let reads = 0;
@@ -439,11 +384,12 @@ test("project TAR entries reuse stable media Blobs without reading a second full
   media.arrayBuffer = function () { reads += 1; return original(); };
   harness.PZ.project.save = function (archive) { addProjectEntries(archive); archive.addFile("media", media); };
   let captured;
-  harness.PZ.archive.prototype.tar = function () { captured = this; return Promise.resolve(new Blob(["archive"])); };
+  const encode = harness.PZ.zoidiumProjectArchive.encode;
+  harness.PZ.zoidiumProjectArchive.encode = function (archive) { captured = archive; return encode(archive); };
   const result = await harness.projectFiles.createArchive(harness.makeEditor());
-  assert.equal(captured.files.find((entry) => entry.name === "media").data, media);
-  assert.equal(reads, 1, "hashing reads the media once; materialization reuses it");
-  assert.match(result.fingerprint, /^entries-v3:/);
+  assert.notEqual(captured.files.find((entry) => entry.name === "media").data, media);
+  assert.equal(reads, 1, "attached bytes are copied once before compression");
+  assert.match(result.fingerprint, /^entries-v4:/);
 });
 
 test("archive fingerprints are independent of entry insertion order", async () => {
@@ -493,3 +439,5 @@ test("failed nested effect loads reject the project handoff", async () => {
   editor.loadedProject = { children: [{ loading: Promise.reject(new Error("Effect load failed.")) }] };
   await assert.rejects(editor.loadProject({}), /Effect load failed/);
 });
+
+module.exports = { createHarness, addProjectEntries, flush };
