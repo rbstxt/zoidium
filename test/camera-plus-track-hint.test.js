@@ -28,16 +28,18 @@ function projectWithTracks(flags) {
   return { sequence: { videoTracks: flags.map((track3d) => ({ track3d, clips: [] })) } };
 }
 
-// Minimal fake DOM: createElement returns a node with the list operations the
-// control uses.
+// Minimal fake DOM: createElement returns a node with the list operations,
+// parent links, and style bag the control uses.
 function fakeDocument() {
-  function node() {
-    return {
+  function node(tag) {
+    const el = {
+      tagName: String(tag || "div").toUpperCase(),
       className: "",
       children: [],
       parentNode: null,
       firstChild: null,
       innerText: "",
+      style: {},
       appendChild(child) {
         child.parentNode = this;
         this.children.push(child);
@@ -58,9 +60,55 @@ function fakeDocument() {
         this.firstChild = this.children[0] || null;
         return child;
       },
+      closest(selector) {
+        const sel = String(selector || "");
+        if (sel.charAt(0) === ".") {
+          const want = sel.slice(1);
+          let at = this;
+          while (at) {
+            if (String(at.className || "").split(/\s+/).includes(want)) return at;
+            at = at.parentNode;
+          }
+          return null;
+        }
+        const wantTag = sel.toUpperCase();
+        let at = this;
+        while (at) {
+          if (at.tagName === wantTag) return at;
+          at = at.parentNode;
+        }
+        return null;
+      },
     };
+    Object.defineProperty(el, "parentElement", { get() { return el.parentNode; }, configurable: true });
+    return el;
   }
-  return { createElement: () => node() };
+  return { createElement: (tag) => node(tag) };
+}
+
+// Object-tree skeleton around the Camera+ property list: UL.tree with the
+// object's header row followed by the property UL, as the editor builds it.
+function buildPanel(document) {
+  const tree = document.createElement("ul");
+  tree.className = "tree";
+  const header = document.createElement("li");
+  header.className = "parent toplevel";
+  tree.appendChild(header);
+  const list = document.createElement("ul");
+  tree.appendChild(list);
+  const activeRow = document.createElement("li");
+  list.appendChild(activeRow);
+  const focusRow = document.createElement("li");
+  list.appendChild(focusRow);
+  return { tree, header, list, activeRow, focusRow };
+}
+
+function topHintOf(list) {
+  return list.children.find((child) => String(child.className || "").split(/\s+/).includes("zoidium-camera-track-hint-top")) || null;
+}
+
+function drainTasks() {
+  return new Promise((resolve) => setImmediate(resolve));
 }
 
 test("detection reads only the live track3d flags", () => {
@@ -113,7 +161,7 @@ test("a throwing toast still marks the project as notified", () => {
   assert.equal(notified.has(project), true);
 });
 
-test("panel shows the note, one toast, and the enable button; 3D hides the hint", () => {
+test("panel shows a top-row note, one toast, and the enable button; 3D hides it", async () => {
   const ctx = harness.createContext();
   const runtime = harness.loadRuntime();
   runtime.activate(ctx.context);
@@ -128,49 +176,151 @@ test("panel shows the note, one toast, and the enable button; 3D hides the hint"
     const spec = ctx.apis.propertyControls.registered.get(CONTROL_ID);
     assert.ok(spec, "focus control registered");
 
-    // Capture notes, button rows, and toasts through the harness UI fakes.
+    // Capture notes, buttons, and toasts through the harness UI fakes.
+    const doc = fakeDocument();
     const notes = [];
-    const buttonRows = [];
+    const clicked = [];
     const toasts = [];
     const originalNote = ctx.zoidiumUI.controls.note;
-    const originalButtonRow = ctx.zoidiumUI.controls.buttonRow;
+    const originalButton = ctx.zoidiumUI.controls.button;
     ctx.zoidiumUI.controls.note = (message, variant) => {
       notes.push(message);
       return originalNote(message, variant);
     };
-    ctx.zoidiumUI.controls.buttonRow = (buttons) => {
-      buttonRows.push(buttons);
-      return originalButtonRow(buttons);
+    ctx.zoidiumUI.controls.button = (options) => {
+      clicked.push(options);
+      return originalButton(options);
     };
     ctx.context.ui.notify = (detail) => toasts.push(detail);
 
-    const wrap = spec.create(property, { document: fakeDocument() });
+    // The Focus row itself carries only the focus buttons, exactly as
+    // without the guidance: no note elements inside it.
+    const panel = buildPanel(doc);
+    const wrap = spec.create(property, { document: doc });
     assert.ok(wrap, "control built");
-    assert.equal(notes.length, 1, "one hint note while no 3D track");
-    assert.ok(notes[0].includes("3D"), "note names the toggle");
+    assert.equal(wrap.children.length, 1, "focus row holds only the button row");
     assert.equal(toasts.length, 1, "one toast on first panel");
     assert.equal(toasts[0].title, "Camera+");
-    const enableRow = buttonRows.find((buttons) => buttons.some((b) => /^Enable 3D on track/.test(b.title)));
-    assert.ok(enableRow, "one-click enable button present");
-    assert.equal(enableRow[0].title, "Enable 3D on track 1");
+    assert.equal(notes.length, 0, "top row syncs after the row attaches to the panel");
+
+    // Attaching the row and refreshing (as the panel build does) prepends
+    // the hint as the first row of the property list.
+    panel.focusRow.appendChild(wrap);
+    await drainTasks();
+    if (typeof wrap.pz_refresh === "function") wrap.pz_refresh();
+    const top = topHintOf(panel.list);
+    assert.ok(top, "hint row prepended to the property list");
+    assert.equal(panel.list.firstChild, top, "hint is the first row, above the camera properties");
+    assert.equal(top.style.maxWidth, "100%", "no scroller in the fake panel: row fills its list");
+    assert.equal(notes.length, 1, "one hint note while no 3D track");
+    assert.ok(notes[0].includes("3D"), "note names the toggle");
+    const enable = clicked.find((options) => /^Enable 3D on track/.test(options.title));
+    assert.ok(enable, "one-click enable button present");
+    assert.equal(enable.title, "Enable 3D on track 1");
 
     // Second panel for the same project: note again, but no second toast.
-    spec.create(property, { document: fakeDocument() });
-    assert.equal(notes.length, 2, "persistent note on every panel");
+    const panel2 = buildPanel(doc);
+    const wrap2 = spec.create(property, { document: doc });
+    panel2.focusRow.appendChild(wrap2);
+    await drainTasks();
+    if (typeof wrap2.pz_refresh === "function") wrap2.pz_refresh();
+    assert.ok(topHintOf(panel2.list), "persistent note on every panel");
     assert.equal(toasts.length, 1, "toast stays once per project");
 
-    // The one-click button uses the track header's undoable toggle.
+    // The one-click button uses the track header's undoable toggle, and the
+    // top row disappears without reselecting.
     ctx.editor.log.length = 0;
-    enableRow[0].onClick();
+    enable.onClick();
     assert.equal(track.track3d, true, "toggle applied");
     assert.deepEqual(ctx.editor.log.map((entry) => entry[0]).slice(0, 2), ["start", "finish"], "one history operation");
+    assert.equal(topHintOf(panel.list), null, "hint row removed after enabling 3D");
+
+    // Undo surfaces the stale flag again: a panel refresh brings the row back.
+    track.track3d = false;
+    if (typeof wrap.pz_refresh === "function") wrap.pz_refresh();
+    assert.ok(topHintOf(panel.list), "hint row back after undo");
 
     // With 3D on, fresh panels carry no hint and no toast.
+    track.track3d = true;
     notes.length = 0;
-    const clean = spec.create(property, { document: fakeDocument() });
-    assert.equal(notes.length, 0, "hint hidden once a 3D track exists");
+    const panel3 = buildPanel(doc);
+    const clean = spec.create(property, { document: doc });
+    panel3.focusRow.appendChild(clean);
+    await drainTasks();
+    if (typeof clean.pz_refresh === "function") clean.pz_refresh();
+    assert.equal(topHintOf(panel3.list), null, "hint hidden once a 3D track exists");
+    assert.equal(notes.length, 0);
     assert.equal(toasts.length, 1);
     assert.ok(clean, "focus buttons still built");
+  } finally {
+    runtime.deactivate();
+    delete globalThis.CM;
+  }
+});
+
+test("the top row caps its width at the visible scroller", async () => {
+  const ctx = harness.createContext();
+  const runtime = harness.loadRuntime();
+  runtime.activate(ctx.context);
+  try {
+    globalThis.CM = ctx.editor;
+    ctx.project.sequence = { videoTracks: [{ track3d: false, clips: [] }] };
+    const scene = new ctx.PZ.layer.scene();
+    const cameraPlus = scene.push(ctx.registry.instantiate(TYPE));
+    const property = cameraPlus.properties.depthOfField.focusTools;
+    const spec = ctx.apis.propertyControls.registered.get(CONTROL_ID);
+    ctx.context.ui.notify = () => {};
+    const doc = fakeDocument();
+    const scroller = doc.createElement("div");
+    scroller.className = "editorpanel";
+    scroller.clientWidth = 300;
+    const tree = doc.createElement("ul");
+    tree.className = "tree";
+    scroller.appendChild(tree);
+    tree.appendChild(doc.createElement("li"));
+    const list = doc.createElement("ul");
+    tree.appendChild(list);
+    const focusRow = doc.createElement("li");
+    list.appendChild(focusRow);
+    const wrap = spec.create(property, { document: doc });
+    focusRow.appendChild(wrap);
+    await drainTasks();
+    if (typeof wrap.pz_refresh === "function") wrap.pz_refresh();
+    assert.equal(topHintOf(list).style.maxWidth, "300px", "row wraps inside the visible width");
+    scroller.clientWidth = 220;
+    if (typeof wrap.pz_refresh === "function") wrap.pz_refresh();
+    assert.equal(topHintOf(list).style.maxWidth, "220px", "refresh follows the scroller width");
+  } finally {
+    runtime.deactivate();
+    delete globalThis.CM;
+  }
+});
+
+test("the top row is skipped outside the object tree", async () => {
+  const ctx = harness.createContext();
+  const runtime = harness.loadRuntime();
+  runtime.activate(ctx.context);
+  try {
+    globalThis.CM = ctx.editor;
+    ctx.project.sequence = { videoTracks: [{ track3d: false, clips: [] }] };
+    const scene = new ctx.PZ.layer.scene();
+    const cameraPlus = scene.push(ctx.registry.instantiate(TYPE));
+    const property = cameraPlus.properties.depthOfField.focusTools;
+    const spec = ctx.apis.propertyControls.registered.get(CONTROL_ID);
+    const toasts = [];
+    ctx.context.ui.notify = (detail) => toasts.push(detail);
+    // A nested group list, not the object tree: the note must not land in an
+    // unrelated row, while the toast still fires once.
+    const doc = fakeDocument();
+    const group = doc.createElement("ul");
+    const focusRow = doc.createElement("li");
+    group.appendChild(focusRow);
+    const wrap = spec.create(property, { document: doc });
+    focusRow.appendChild(wrap);
+    await drainTasks();
+    if (typeof wrap.pz_refresh === "function") wrap.pz_refresh();
+    assert.equal(group.children.length, 1, "no row injected into a nested list");
+    assert.equal(toasts.length, 1, "toast still fires when the row cannot be placed");
   } finally {
     runtime.deactivate();
     delete globalThis.CM;

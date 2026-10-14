@@ -258,15 +258,40 @@ parts.focus = (function () {
 
   // Property-row control factory for the focus entry in the Depth of Field
   // group. `zoidiumUI` supplies the shared button builder; `openFor(object)`
-  // opens the window for the owning camera.
+  // opens the window for the owning camera. The row itself carries only the
+  // focus buttons, exactly as without the guidance.
   //
-  // The same row carries the 3D-track guidance: while the project has no
-  // video track with 3D enabled, a note explains that Camera+ only drives
-  // 3D tracks, with a one-click button that enables 3D on the first such
-  // track through the track header's own undoable toggle. The note is
-  // DOM-only (no new property, no saved data) and rebuilds with the panel,
-  // so it disappears once a 3D track exists. The first panel built per
+  // The same control also owns the 3D-track guidance top row: while the
+  // project has no video track with 3D enabled, a full-width note is
+  // prepended to the Camera+ property list (first row under the object's
+  // header, before the camera properties), with a one-click button that
+  // enables 3D on the first such track through the track header's own
+  // undoable toggle. Both rows are DOM-only (no new property, no saved
+  // data) and re-sync on every panel refresh, so the note appears and
+  // disappears without reselecting the camera. The first panel built per
   // project also fires one toast through options.hint.notify.
+  const TOP_HINT_CLASS = "zoidium-camera-track-hint-top";
+
+  function setStyles(element, styles) {
+    try {
+      const target = element && element.style;
+      if (!target) return;
+      for (const key of Object.keys(styles)) target[key] = styles[key];
+    } catch (_error) { /* inline styles are best-effort */ }
+  }
+
+  function scheduleTask(run) {
+    try {
+      if (typeof queueMicrotask === "function") {
+        queueMicrotask(run);
+        return;
+      }
+    } catch (_error) { /* fall through to the timer fallback */ }
+    try {
+      setTimeout(run, 0);
+    } catch (_error) { /* scheduling is best-effort; pz_refresh still syncs */ }
+  }
+
   function createControl(options, property, context) {
     const owner = ownerObject(options.PZ, property);
     const document = context && context.document;
@@ -286,17 +311,19 @@ parts.focus = (function () {
     const wrap = document.createElement("div");
     if (!wrap || typeof wrap.appendChild !== "function") return null;
     wrap.className = "editbox zoidium-camera-focus-tools";
+    wrap.appendChild(row.element);
     const hint = options.hint && options.hint.api ? options.hint : null;
-    let hintBox = null;
+    // Without the hint host the row stays purely the focus buttons.
+    if (!hint) return wrap;
     function currentProject() {
       try {
-        return hint && typeof hint.getProject === "function" ? hint.getProject() : null;
+        return typeof hint.getProject === "function" ? hint.getProject() : null;
       } catch (_error) {
         return null;
       }
     }
     function notifyOnce(project) {
-      if (!hint || !project) return;
+      if (!project) return;
       try {
         hint.api.maybeNotify({
           getProject: () => project,
@@ -307,7 +334,7 @@ parts.focus = (function () {
     }
     function enable3d(target) {
       try {
-        const editor = hint && typeof hint.getEditor === "function" ? hint.getEditor() : null;
+        const editor = typeof hint.getEditor === "function" ? hint.getEditor() : null;
         if (!editor || typeof hint.toggleTrack3d !== "function") return false;
         hint.toggleTrack3d(target.track, editor);
         return true;
@@ -316,64 +343,160 @@ parts.focus = (function () {
         return false;
       }
     }
-    function buildHintBox(project) {
+    // The Camera+ property list is the UL directly under the object tree
+    // (UL.tree), right after the selected object's header row. A nested
+    // group list is never accepted, so the note lands above every camera
+    // property instead of inside an unrelated row.
+    function propertyListOf() {
+      if (!wrap || typeof wrap.closest !== "function") return null;
+      let rowItem = null;
       try {
-        const box = document.createElement("div");
-        if (!box || typeof box.appendChild !== "function") return null;
-        box.className = "zoidium-camera-track-hint";
-        // CM3 property rows set white-space: nowrap on the editbox; the hint
-        // must wrap inside the panel instead of running past its edge.
-        try {
-          if (box.style) box.style.whiteSpace = "normal";
-        } catch (_error) { /* inline style is best-effort */ }
-        const controls = options.zoidiumUI.controls;
-        if (!controls || typeof controls.note !== "function") return null;
-        box.appendChild(controls.note(hint.api.MESSAGE).element);
-        const target = hint.api.firstTrackWithout3D(project);
-        if (target && typeof hint.toggleTrack3d === "function" && typeof controls.buttonRow === "function") {
-          const enable = controls.buttonRow([
-            {
-              title: hint.api.enableLabel(target),
-              hint: hint.api.enableHint(target),
-              onClick: function () {
-                if (enable3d(target)) renderHint();
-                else if (typeof hint.notify === "function") hint.notify({ title: hint.api.TITLE, message: hint.api.ENABLE_FAILED });
-              },
-            },
-          ]);
-          if (enable && enable.element) box.appendChild(enable.element);
-        }
-        return box;
+        rowItem = wrap.closest("li");
       } catch (_error) {
         return null;
       }
+      const list = rowItem && rowItem.parentElement ? rowItem.parentElement : null;
+      if (!list || list.tagName !== "UL") return null;
+      const tree = list.parentElement;
+      if (!tree || tree.tagName !== "UL") return null;
+      if (String(tree.className || "").split(/\s+/).indexOf("tree") < 0) return null;
+      return list;
     }
-    function renderHint() {
+    function topHintsOf(list) {
+      if (!list || !list.children || typeof list.children.length !== "number") return [];
+      return Array.from(list.children).filter(function (child) {
+        return !!child && String(child.className || "").split(/\s+/).indexOf(TOP_HINT_CLASS) >= 0;
+      });
+    }
+    function buildTopHint(project, target, maxWidth) {
+      const controls = options.zoidiumUI.controls;
+      if (!controls || typeof controls.note !== "function" || typeof controls.button !== "function") return null;
+      let top = null;
       try {
-        if (hintBox && hintBox.parentNode === wrap && typeof wrap.removeChild === "function") wrap.removeChild(hintBox);
-      } catch (_error) { /* a stale box is better than a broken row */ }
-      hintBox = null;
-      if (!hint) return;
-      const project = currentProject();
-      if (!project || !hint.api.needsHint(project)) return;
-      notifyOnce(project);
-      const box = buildHintBox(project);
-      if (!box) return;
-      hintBox = box;
-      try {
-        if (typeof wrap.insertBefore === "function" && wrap.firstChild) wrap.insertBefore(hintBox, wrap.firstChild);
-        else wrap.appendChild(hintBox);
+        top = document.createElement("li");
+        if (!top || typeof top.appendChild !== "function") return null;
       } catch (_error) {
-        hintBox = null;
+        return null;
+      }
+      top.className = TOP_HINT_CLASS;
+      // Property rows are two-column nowrap grids; the hint opts out and
+      // spans the panel width, wrapping instead of overflowing. The width is
+      // capped at the visible scroller width (not the scrolled content
+      // width), so the text also wraps inside the narrowest sidebar while
+      // wider sibling rows keep scrolling underneath.
+      setStyles(top, {
+        display: "block",
+        whiteSpace: "normal",
+        maxWidth: typeof maxWidth === "number" ? Math.max(0, maxWidth) + "px" : "100%",
+        boxSizing: "border-box",
+        padding: "2px 0 10px",
+        overflowWrap: "break-word",
+      });
+      const note = controls.note(hint.api.MESSAGE);
+      if (!note || !note.element) return null;
+      setStyles(note.element, { maxWidth: "100%", overflowWrap: "break-word" });
+      top.appendChild(note.element);
+      if (target && typeof hint.toggleTrack3d === "function") {
+        const built = controls.button({
+          title: hint.api.enableLabel(target),
+          hint: hint.api.enableHint(target),
+          onClick: function () {
+            if (enable3d(target)) syncTopHint();
+            else if (typeof hint.notify === "function") hint.notify({ title: hint.api.TITLE, message: hint.api.ENABLE_FAILED });
+          },
+        });
+        const button = built && built.element ? built.element : null;
+        if (button) {
+          // Full-width and wrapping: the label must never run past the
+          // panel edge, however narrow the sidebar is.
+          setStyles(button, { width: "100%", whiteSpace: "normal", boxSizing: "border-box" });
+          let holder = null;
+          try {
+            holder = document.createElement("div");
+          } catch (_error) {
+            holder = null;
+          }
+          if (holder && typeof holder.appendChild === "function") {
+            setStyles(holder, { padding: "6px 8px 0" });
+            holder.appendChild(button);
+            top.appendChild(holder);
+          } else {
+            top.appendChild(button);
+          }
+        }
+      }
+      return top;
+    }
+    // Idempotent: removes stale top rows, then prepends a fresh one only
+    // while the hint applies. Runs on every panel refresh (through
+    // pz_refresh below) and once after the build attaches the row.
+    let pendingRetries = 0;
+    function syncTopHint() {
+      const list = propertyListOf();
+      if (!list) {
+        // The row is not attached to a panel yet; retry after the build
+        // finishes instead of guessing its timing. Bounded, so a foreign
+        // DOM can never spin forever.
+        if (pendingRetries < 5) {
+          pendingRetries += 1;
+          scheduleTask(syncTopHint);
+        }
+        return;
+      }
+      pendingRetries = 0;
+      const project = currentProject();
+      const target = project && hint.api.needsHint(project) ? hint.api.firstTrackWithout3D(project) : null;
+      if (target) notifyOnce(project);
+      const stale = topHintsOf(list);
+      if (!target) {
+        stale.forEach(function (old) {
+          try {
+            list.removeChild(old);
+          } catch (_error) { /* a stale row is better than a broken panel */ }
+        });
+        return;
+      }
+      const current = stale.find(function (old) {
+        return old && old._zoidiumTrackNumber === target.number;
+      });
+      stale.forEach(function (old) {
+        if (old !== current) {
+          try {
+            list.removeChild(old);
+          } catch (_error) { /* a stale row is better than a broken panel */ }
+        }
+      });
+      // Visible scroller width caps the row; without a scroller the row
+      // fills its list like any other row.
+      let maxWidth = null;
+      try {
+        const scroller = list && typeof list.closest === "function" ? list.closest(".editorpanel") : null;
+        const visible = scroller && Number.isFinite(scroller.clientWidth) ? scroller.clientWidth : NaN;
+        if (visible > 0) maxWidth = visible;
+      } catch (_error) { /* width cap is best-effort */ }
+      if (current) {
+        setStyles(current, {
+          maxWidth: typeof maxWidth === "number" ? Math.max(0, maxWidth) + "px" : "100%",
+        });
+        return;
+      }
+      const top = buildTopHint(project, target, maxWidth);
+      if (!top) return;
+      top._zoidiumTrackNumber = target.number;
+      try {
+        if (typeof list.insertBefore === "function") list.insertBefore(top, list.firstChild || null);
+        else if (typeof list.appendChild === "function") list.appendChild(top);
+      } catch (_error) {
+        /* a missing row is better than a broken panel */
       }
     }
-    renderHint();
-    wrap.appendChild(row.element);
+    notifyOnce(currentProject());
     // CM3 refreshes property rows through pz_update; re-evaluate the hint so
     // enabling 3D hides the note without reselecting the camera.
     try {
-      wrap.pz_refresh = renderHint;
+      wrap.pz_refresh = syncTopHint;
     } catch (_error) { /* refresh is best-effort */ }
+    scheduleTask(syncTopHint);
     return wrap;
   }
 
