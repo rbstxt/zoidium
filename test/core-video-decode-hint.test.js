@@ -126,14 +126,20 @@ test("audio file resolves empty through zero dimensions without warning", async 
   assert.equal(f.notifications.length, 0);
 });
 
-test("stalled probe warns once after the bounded timeout and settles empty", async () => {
+test("stalled probe warns once after the bounded timeout and keeps waiting", async () => {
   const f = fixture({ probeTimeoutMs: 50 });
   const pending = f.installed.loadVideoWithDecodeHint(f.asset());
   assert.equal(f.notifications.length, 0);
   f.fireTimer();
-  assert.equal(await pending, undefined);
   assert.equal(f.notifications.length, 1);
   assert.equal(f.notifications[0].message, EXPECTED_MESSAGE);
+  let settled = false;
+  pending.then(() => { settled = true; });
+  await Promise.resolve();
+  assert.equal(settled, false, "a slow but valid file can still load");
+  f.elements[0].onerror();
+  assert.equal(await pending, undefined);
+  assert.equal(f.notifications.length, 1);
 });
 
 test("metadata before the timeout suppresses the warning and keeps loading", async () => {

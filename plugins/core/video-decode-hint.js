@@ -15,9 +15,10 @@
 // sequence byte for byte (metadata, seek to 10% duration, thumbnail, clip
 // fields), so supported videos load and render exactly as before. The only
 // behavioral changes are: every video/* file is actually probed instead of
-// trusting canPlayType, and a probe that fails by element error or by a
-// bounded timeout warns once per asset through ZoidiumUI.notify and settles
-// as an empty (audio-style) result so the import can continue. Audio files
+// trusting canPlayType, and a probe that fails with an element error warns
+// once per asset through ZoidiumUI.notify and settles as an empty
+// (audio-style) result so the import can continue. A probe still silent after
+// a bounded time warns too but keeps waiting, so a slow valid file loads. Audio files
 // passed to loadVideo resolve through the normal zero-dimension path and
 // never warn. Video layers and video textures do not share this loader (they
 // play through PZ.schedule elements), so they need no handling here.
@@ -159,8 +160,9 @@ function createLoadVideoWithDecodeHint(dependencies) {
         // HAVE_NOTHING): the native seek path owns the outcome from here, so
         // neither warn nor settle and leave the load unchanged.
         if (video.videoWidth || video.videoHeight || video.readyState >= 1) return;
+        // A slow but valid file may still load: warn, keep waiting, and let
+        // the element's error or metadata decide the import.
         warnOnce();
-        finish(undefined);
       }, probeTimeoutMs);
       video.preload = "metadata";
       video.src = asset.url;
