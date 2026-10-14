@@ -278,6 +278,32 @@ playback is running.
 - Evaluate analytically at the frame, or replay from a defined start with
   fixed steps. Caches and checkpoints are allowed only as acceleration and
   must be keyed by every input that affects the result.
+- Core memoizes sampler input textures by the serialized sequence, asset
+  identity, enabled tracks, output resolution, source time, effect, nesting
+  depth and adjustment scope. Inputs without an earlier sampler share storage
+  across depths; adjustment inputs retain their depth because lower tracks may
+  recurse into samplers. It retains interleaved tap sets across playback
+  and short seeks, never frame-to-frame output feedback. The revision key remains a
+  full serialization so property edits, keyframes, undo/redo and asset changes
+  invalidate the same inputs as before.
+- The sampler allocates optional retained RGBA8 targets only while their total
+  is at most 256 MiB per root compositor, with at most 128 slots per effect and
+  input nesting depth. Single-tap requests reuse one target. Other plans
+  normally retain their frame span, tap count and
+  four extra scrub slots, so playback recycles targets before filling the byte
+  budget. It evicts the least recently used unreserved slot across all effects.
+  Mandatory targets for an active request can exceed the byte budget, as before.
+  The total target bound is 256 MiB plus
+  `width * height * 4 * sum(peak unique taps per live effect/depth)`, with at
+  most 64 taps and eight depths. This accounts for RGBA8 pixel storage; driver
+  overhead, compositor scratch buffers and effect-owned work buffers are extra.
+  Active preparation batches and published output plans remain reserved until
+  their captures or main render finish.
+- Preparation disposes the old target pool when the serialized revision changes.
+  Project-resolution events and compositor resizes release it immediately.
+  Pending previews verify their key again before publishing. Effect unload,
+  project replacement and compositor unload dispose the complete runtime,
+  including isolated decoder schedules.
 - Effects that need other frames request them with `defineFrameSampler` or
   `defineTemporal`. Never feed the previous output back as history.
 - Randomness comes from seeded hashes of (seed, index, frame), never from

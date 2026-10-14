@@ -161,6 +161,15 @@
         continue;
       }
 
+      if (effect._zoidiumFrameSampler && typeof effect.unload === "function") {
+        const originalUnload = effect.unload;
+        const ownerSequence = getSequenceForLayer(layer);
+        effect.unload = function temporalSamplerUnload() {
+          // Native list removal detaches a clip before unloading its effects.
+          state.releaseFrameSamplerTargets(layer, ownerSequence);
+          return originalUnload.apply(this, arguments);
+        };
+      }
       const originalUpdate = effect.update;
       effect.update = function temporalEffectUpdate(frame) {
         const evaluationFrame = getAdjustmentEffectFrame(layer, effect, frame);

@@ -52,6 +52,7 @@ function host(adjustment) {
       };
     }
     set sequence(value) { this._sequence = value; }
+    setSize(w, h) { this.readBuffer.setSize(w, h); this.writeBuffer.setSize(w, h); }
     clear() { this.screenBuffers[0].value = 0; }
     renderSequence(frame) { this.frames.push(frame); }
     unload() {}
@@ -115,7 +116,7 @@ function host(adjustment) {
   viewport.compositor = root;
   viewport.editor = { playback: { currentFrame: 30 } };
   effect.prepare = (frame, context) => state.prepareFrameSamples(effect, frame, context);
-  return { state, root, owner, source, ownerClip, effect, decoded, sequence, viewport };
+  return { state, root, owner, source, ownerClip, effect, decoded, sequence, viewport, parts: sandbox.__zoidiumTemporalParts };
 }
 
 for (const adjustment of [false, true]) {
@@ -198,9 +199,9 @@ test("neighbouring output frames reuse past taps without overwriting a reused sa
   assert.equal(next[1].target, old[0].target);
   assert.equal(next[2].target, old[1].target);
   assert.equal(next[3].target, old[2].target);
-  assert.equal(next[0].target, old[3].target, "the expired tap's slot is recycled");
+  assert.notEqual(next[0].target, old[3].target, "past taps remain available for short backward scrubs");
   assert.deepEqual(Array.from(next, sample => sample.target.value), [120, 119, 118, 117]);
-  assert.equal(runtime.targets.size, 4, "history acceleration uses bounded memory");
+  assert.equal(runtime.targets.size, 5, "one new pure input retained");
 });
 
 test("a cached preview waits while another frame is being prepared", async () => {
@@ -310,6 +311,7 @@ test("synchronous captures use the same prefix mapping as prepared captures", ()
 
 test("input caches distinguish nested depth and enclosing adjustment scope", async () => {
   const h = host(false);
+  h.owner.effects[0]._zoidiumFrameSampler = {};
   await h.state.prepareFrameSamples(h.effect, 20, {});
   const runtime = h.state.frameSamplerRuntimes.get(h.root);
   const target = runtime.prepared.get(h.effect).samples[0].target;
@@ -321,5 +323,301 @@ test("input caches distinguish nested depth and enclosing adjustment scope", asy
   });
   assert.notEqual(runtime.prepared.get(h.effect).samples[0].target.inputStamp, target.inputStamp);
   assert.equal(h.decoded.length, 6, "neither another depth nor another scope reuses an input");
-  assert.equal(runtime.prepared.get(h.effect).samples[0].target, nested, "scratch slots remain bounded");
+  assert.notEqual(runtime.prepared.get(h.effect).samples[0].target, nested, "each scope retains its own pure input");
+});
+
+
+test("interleaved Echo taps survive until their next playback phase", async () => {
+  const h = host(false);
+  h.effect._zoidiumFrameSampler.getRequest = () => ({ count: 4, offsetFrames: -3 });
+  for (let frame = 20; frame < 40; frame++) {
+    await h.state.prepareFrameSamples(h.effect, frame, {});
+  }
+  // Initial twelve source times cover all three phases, then one new time
+  // per output frame. Previously each output recaptured all four taps.
+  assert.equal(h.decoded.length, 29);
+  const runtime = h.state.frameSamplerRuntimes.get(h.root);
+  assert.ok(runtime.targets.size <= 64);
+  const before = h.decoded.length;
+  await h.state.prepareFrameSamples(h.effect, 35, {});
+  assert.equal(h.decoded.length, before, "short backward seek uses the same immutable inputs");
+});
+
+test("capture performs one layer evaluation per missing tap and one restoration per batch", async () => {
+  for (const adjustment of [false, true]) {
+    const h = host(adjustment);
+    const calls = [];
+    const original = h.owner.update;
+    h.owner.update = function (frame) { calls.push(frame); return original.call(this, frame); };
+    await h.state.prepareFrameSamples(h.effect, 20, {});
+    assert.deepEqual(calls, [17, 14, 20]);
+    assert.equal(h.owner.frame, 20);
+  }
+});
+
+test("reuse targets have both a byte cap and a slot cap", async () => {
+  const h = host(false);
+  h.ownerClip.length = 1000;
+  h.root.readBuffer.width = 1920;
+  h.root.readBuffer.height = 1080;
+  h.effect._zoidiumFrameSampler.getRequest = () => ({ count: 16, offsetFrames: -4 });
+  for (let frame = 20; frame < 150; frame++) await h.state.prepareFrameSamples(h.effect, frame, {});
+  const runtime = h.state.frameSamplerRuntimes.get(h.root);
+  assert.ok(runtime.targetBytes <= 256 * 1024 * 1024);
+  assert.equal(runtime.targets.size, 32);
+  assert.equal(runtime.targetBytes, 32 * 1920 * 1080 * 4);
+  assert.ok(runtime.inputCache.get(h.effect).size <= 48, "overwritten memo entries are pruned");
+  h.root.unload();
+  assert.equal(runtime.targets.size, 0);
+});
+
+test("an edit expires memoized inputs without reallocating; a resize releases the pool", async () => {
+  const h = host(false);
+  let revision = 0;
+  h.sequence.toJSON = () => ({ revision });
+  await h.state.prepareFrameSamples(h.effect, 20, {});
+  const runtime = h.state.frameSamplerRuntimes.get(h.root);
+  const old = [...runtime.targets];
+  const stamps = old.map(target => target.inputStamp);
+  const decoded = h.decoded.length;
+  revision++;
+  await h.state.prepareFrameSamples(h.effect, 20, {});
+  assert.ok(old.every(target => !target.disposed), "an edit keeps the allocated targets");
+  assert.ok(old.every((target, index) => target.inputStamp !== stamps[index]), "every old input expired");
+  assert.ok(h.decoded.length > decoded, "the edited frame is captured again");
+  assert.ok([...runtime.targets].every(target => old.includes(target)), "no new allocation for the same plan");
+  const resized = [...runtime.targets];
+  h.root.readBuffer.width = 160;
+  await h.state.prepareFrameSamples(h.effect, 22, {});
+  assert.ok(resized.every(target => target.disposed));
+  assert.ok(runtime.targets.size > 0);
+  assert.ok([...runtime.targets].every(target => target.width === 160));
+});
+
+test("effect unload and project replacement release sampler targets", async () => {
+  const h = host(false);
+  let unloaded = false;
+  h.effect.unload = () => { unloaded = true; };
+  h.owner.update(20);
+  await h.state.prepareFrameSamples(h.effect, 20, {});
+  let runtime = h.state.frameSamplerRuntimes.get(h.root);
+  const old = [...runtime.targets];
+  h.effect.unload();
+  assert.ok(unloaded);
+  assert.ok(old.every(target => target.disposed));
+  assert.equal(runtime.targetBytes, 0);
+  assert.equal(runtime.schedules.size, 0);
+  await h.state.prepareFrameSamples(h.effect, 21, {});
+  runtime = h.state.frameSamplerRuntimes.get(h.root);
+  const next = [...runtime.targets];
+  h.root.sequence = { videoTracks: [] };
+  h.root.renderSequence(0);
+  assert.ok(next.every(target => target.disposed));
+  assert.equal(runtime.disposed, true);
+});
+
+
+test("asset replacement and track toggles invalidate cached inputs", async () => {
+  const h = host(false);
+  h.sequence.parentProject = { assets: { list: { video: { url: "first", sha256: "a" } } } };
+  await h.state.prepareFrameSamples(h.effect, 20, {});
+  const runtime = h.state.frameSamplerRuntimes.get(h.root);
+  for (const change of [
+    () => { h.sequence.parentProject.assets.list.video.url = "second"; },
+    () => { h.sequence.videoTracks.push({ enabled: false }); },
+  ]) {
+    const decoded = h.decoded.length;
+    const stamps = [...runtime.targets].map(target => target.inputStamp);
+    change();
+    await h.state.prepareFrameSamples(h.effect, 20, {});
+    assert.ok(stamps.every(stamp => ![...runtime.targets].some(target => target.inputStamp === stamp)));
+    assert.ok(h.decoded.length > decoded, "the changed input is captured again");
+  }
+});
+
+
+test("viewport preparation settles source content before caching taps", async () => {
+  for (const adjustment of [false, true]) {
+    const h = host(adjustment);
+    let settle;
+    let prepared = false;
+    const loading = new Promise(resolve => { settle = resolve; });
+    h.source.objects = [{ loading, prepare() { prepared = true; } }];
+    const frames = h.root.frames.length;
+    h.viewport._render();
+    await new Promise(setImmediate);
+    assert.equal(h.decoded.length, 0, "pending content never enters the tap cache");
+    assert.equal(h.root.frames.length, frames);
+    settle();
+    await new Promise(setImmediate);
+    assert.equal(prepared, true);
+    assert.ok(h.decoded.length > 0);
+    assert.equal(h.root.frames.at(-1), 30);
+  }
+});
+
+
+test("render consumes the prepared plan directly, or resolves another resident nested plan", async () => {
+  const h = host(false);
+  await h.state.prepareFrameSamples(h.effect, 20, {});
+  const runtime = h.state.frameSamplerRuntimes.get(h.root);
+  const prepared = runtime.prepared.get(h.effect);
+  h.owner.update(20);
+  h.state.contexts.push({ compositor: h.root, rootCompositor: h.root, outputFrame: 30 });
+  assert.equal(h.state.resolveFrameSamples(h.effect), prepared.samples);
+  h.state.contexts.pop();
+  await h.state.prepareFrameSamples(h.effect, 21, {});
+  h.owner.update(20);
+  h.state.contexts.push({ compositor: h.root, rootCompositor: h.root, outputFrame: 30 });
+  const resident = h.state.resolveFrameSamples(h.effect);
+  assert.deepEqual(Array.from(resident, s => s.target), Array.from(prepared.samples, s => s.target));
+  h.state.contexts.pop();
+  assert.equal(h.decoded.length, 4, "resolving an earlier plan never seeks media");
+});
+
+
+test("removing a detached owning clip still releases its sampler runtime", async () => {
+  const h = host(false);
+  h.effect.unload = () => {};
+  h.owner.update(20);
+  await h.state.prepareFrameSamples(h.effect, 20, {});
+  const runtime = h.state.frameSamplerRuntimes.get(h.root);
+  const targets = [...runtime.targets];
+  h.owner.getParentOfType = () => null;
+  h.effect.unload();
+  assert.ok(targets.every(target => target.disposed));
+  assert.equal(runtime.targetBytes, 0);
+  assert.equal(runtime.schedules.size, 0);
+  assert.equal(runtime.disposed, true);
+});
+
+
+test("sampler-free input prefixes reuse the same pixels across nesting depths", async () => {
+  const h = host(false);
+  await h.state.prepareFrameSamples(h.effect, 20, {});
+  const runtime = h.state.frameSamplerRuntimes.get(h.root);
+  const targets = runtime.prepared.get(h.effect).samples.map(s => s.target);
+  await h.state.prepareFrameSamples(h.effect, 20, { frameSamplerDepth: 1 });
+  assert.equal(h.decoded.length, 2);
+  assert.deepEqual(Array.from(runtime.prepared.get(h.effect).samples, s => s.target), Array.from(targets));
+});
+
+
+test("global target eviction transfers expired slots and preserves reserved inputs", async () => {
+  const h = host(false);
+  await h.state.prepareFrameSamples(h.effect, 20, {});
+  const runtime = h.state.frameSamplerRuntimes.get(h.root);
+  const sampler = h.parts.sampler;
+  sampler.clearFrameSamplerTargets(runtime);
+  const targets = Array.from({ length: 32 }, (_, i) => {
+    const target = sampler.getFrameSamplerTarget(runtime, h.effect, 1, i, 1920, 1080);
+    target.inputUsed = i + 1;
+    return target;
+  });
+  const batch = new Set([targets[1]]);
+  runtime.reservations.add(batch);
+  runtime.publishedReservations.set(h.effect, new Set([targets[0]]));
+  const other = {};
+  const selected = sampler.selectFrameSamplerTarget(runtime, other, 1, new Set(), 1920, 1080);
+  assert.equal(selected, targets[2]);
+  assert.equal(runtime.targets.size, 32);
+  assert.equal(runtime.records.get(h.effect)[0].targets.length, 31);
+  assert.equal(runtime.records.get(other)[0].targets[0], selected);
+  assert.equal(runtime.targetBytes, 32 * 1920 * 1080 * 4);
+  h.root.renderSequence(30);
+  assert.equal(runtime.publishedReservations.size, 0, "published plans unpin after the main draw");
+});
+
+test("small targets stop growing at 128 slots per input pool", async () => {
+  const h = host(false);
+  await h.state.prepareFrameSamples(h.effect, 20, {});
+  const runtime = h.state.frameSamplerRuntimes.get(h.root);
+  const sampler = h.parts.sampler;
+  sampler.clearFrameSamplerTargets(runtime);
+  for (let i = 0; i < 200; i++) {
+    const target = sampler.selectFrameSamplerTarget(runtime, h.effect, 1, new Set(), 80, 40);
+    target.inputUsed = i + 1;
+  }
+  assert.equal(runtime.targets.size, 128);
+  assert.equal(runtime.targetBytes, 128 * 80 * 40 * 4);
+});
+
+
+test("steady playback recycles its tap window before filling the byte budget", async () => {
+  const h = host(false);
+  h.ownerClip.length = 1000;
+  h.effect._zoidiumFrameSampler.getRequest = () => ({ count: 4, offsetFrames: -3 });
+  for (let frame = 20; frame < 100; frame++) {
+    await h.state.prepareFrameSamples(h.effect, frame, {});
+    h.root.renderSequence(frame + h.ownerClip.start);
+  }
+  const runtime = h.state.frameSamplerRuntimes.get(h.root);
+  assert.equal(runtime.targets.size, 17, "span 9 + four taps + four scrub slots");
+  assert.equal(h.decoded.length, 89, "only one new source time per output after interleaving warms");
+});
+
+
+test("compositor resize releases targets immediately and discards pending old-size previews", async () => {
+  const h = host(false);
+  await h.state.prepareFrameSamples(h.effect, 20, {});
+  const runtime = h.state.frameSamplerRuntimes.get(h.root);
+  const old = [...runtime.targets];
+  h.root.setSize(160, 40);
+  assert.ok(old.every(target => target.disposed));
+  assert.equal(runtime.targetBytes, 0);
+  assert.equal(runtime.targets.size, 0);
+  let settle;
+  h.source.objects = [{ prepare: () => new Promise(resolve => { settle = resolve; }) }];
+  const frames = h.root.frames.length;
+  h.viewport._render();
+  await new Promise(setImmediate);
+  h.root.setSize(240, 40);
+  settle();
+  await new Promise(setImmediate);
+  assert.equal(h.root.frames.length, frames, "do not publish a preview whose key changed during preparation");
+  assert.equal(runtime.previewPending, false);
+});
+
+
+test("project resolution edits release the pool even when viewport dimensions stay fixed", async () => {
+  const h = host(false);
+  const watchers = [];
+  h.sequence.properties.resolution.onChanged = {
+    watch(fn) { watchers.push(fn); },
+    unwatch(fn) { watchers.splice(watchers.indexOf(fn), 1); },
+  };
+  await h.state.prepareFrameSamples(h.effect, 20, {});
+  const runtime = h.state.frameSamplerRuntimes.get(h.root);
+  const old = [...runtime.targets];
+  assert.equal(watchers.length, 1);
+  watchers[0]();
+  assert.ok(old.every(target => target.disposed));
+  assert.equal(runtime.targetBytes, 0);
+  h.root.unload();
+  assert.equal(watchers.length, 0);
+});
+
+
+test("an intervening layer update cannot replace a tap's prepared effect uniforms", async () => {
+  const h = host(false);
+  h.owner.effects[0].update = function (frame) { this.add = frame; };
+  h.owner.effects[0].prepare = async frame => { if (frame < 20) h.owner.update(99); };
+  await h.state.prepareFrameSamples(h.effect, 20, {});
+  const runtime = h.state.frameSamplerRuntimes.get(h.root);
+  assert.deepEqual(Array.from(runtime.prepared.get(h.effect).samples, s => s.target.value), [34, 28]);
+  assert.equal(h.owner.frame, 20);
+});
+
+
+test("single-tap playback reuses one target instead of allocating an interleaving window", async () => {
+  const h = host(false);
+  h.effect._zoidiumFrameSampler.getRequest = () => ({ count: 1, offsetFrames: -1 });
+  for (let frame = 20; frame < 40; frame++) {
+    await h.state.prepareFrameSamples(h.effect, frame, {});
+    h.root.renderSequence(frame + h.ownerClip.start);
+  }
+  const runtime = h.state.frameSamplerRuntimes.get(h.root);
+  assert.equal(runtime.targets.size, 1);
+  assert.equal(h.decoded.length, 20);
+  assert.equal(runtime.prepared.get(h.effect).samples[0].target.value, 138);
 });
