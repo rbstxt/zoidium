@@ -12,8 +12,8 @@ launch, and macOS `open-file` events. It restores and focuses the editor window.
 Only absolute paths to nonempty regular files with a case-insensitive `.pz`
 extension are accepted. Archives larger than 2 GiB minus one byte are ignored,
 keeping transport inputs within the signed 32-bit address range. The shared
-project validator currently limits decompressed archives to 512 MB; larger
-inputs report an error and keep the current project.
+project validator limits decompressed archives to 2 GB; larger inputs report
+an error and keep the current project.
 Invalid paths and unrelated command-line flags are ignored.
 
 Files received during startup wait until CM3 initialization and Zoidium's

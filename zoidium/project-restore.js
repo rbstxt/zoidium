@@ -447,8 +447,9 @@
       }
       return record;
     })();
-    var io = PZ.zoidiumProjectArchive;
-    state.snapshotPromise = (io ? io.bounded(buildSnapshot, "Creating the restore point", 60000) : buildSnapshot)
+    // No outer deadline: each step inside is bounded by its size, and an
+    // outer one would let a second build start while this one still runs.
+    state.snapshotPromise = buildSnapshot
       .catch(function (error) {
         var download = null;
         if (archiveResult && archiveResult.blob) {

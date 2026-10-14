@@ -40,6 +40,7 @@
       "./plugins/core/temporal-render.js",
       "./plugins/core/video-frame-export.js",
       "./plugins/core/render-aspect-ratio.js",
+      "./plugins/core/project-archive.js",
       "./plugins/core/io-serialization.js",
       "./plugins/core/export-fps.js",
       "./plugins/core/image-export-options.js",

@@ -22,12 +22,21 @@ before starting the download. A failed save leaves the project dirty. Edits or
 project replacement during archive construction cancel delivery; an old save
 cannot attach its destination handle to a newly opened project.
 
-Each asynchronous archive read and preparation step has a ten-second wait
-limit. Complete save preparation has a sixty-second limit. The picker waits
-for the user's choice. JavaScript timers cannot run while the browser's main
-thread is blocked by synchronous work. Archive processing limits uncompressed
-input to 512 MB, JSON entries to 32 MB, entry count to 10,000, and project nesting to 128 levels. Inputs above
-these limits fail explicitly and leave the current project intact.
+Each asynchronous archive read, hash, compression, write, and restore-point
+transaction has a deadline of ten seconds plus one second per 4 MB it handles,
+so a slow disk or a large video never fails a valid project. Opening waits for
+objects to finish loading as CM3 does. Saving waits for loading objects too;
+after ten seconds the user chooses between keeping waiting and saving now, and
+automatic backups skip that round instead. The picker waits for the user's
+choice. JavaScript timers cannot run while the browser's main thread is blocked
+by synchronous work. Archive processing limits uncompressed input to 2 GB, JSON
+entries to 32 MB, entry count to 10,000, and project nesting to 128 levels.
+Inputs above these limits fail explicitly and leave the current project intact.
+
+Open, New, Restore, and plugin disable first store a restore point of the
+current project. When that backup fails, for example because browser storage
+is full, the user chooses between keeping the current project and continuing
+without a backup.
 
 Restore points default to five-minute intervals. Each new point stores one
 complete validated archive and its metadata in one IndexedDB transaction. The
@@ -56,7 +65,8 @@ project document or container cannot be opened partially. Error notifications
 also offer restore-point recovery.
 
 Individual and group plugin switches take a verified backup before disabling
-plugins. A failed backup keeps the switches enabled. Plugins used by the
+plugins. When that backup fails, the switch stays enabled unless the user
+chooses to continue without a backup. Plugins used by the
 project also refuse disable operations through the plugin manager's usage
 locks. Serialized plugin data stays present when its implementation is
 unavailable. Zoidium has no in-session plugin upgrade action. An external code
