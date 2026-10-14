@@ -165,6 +165,12 @@ function buildTextPlusTestExports() {
     TEXT_PLUS_TYPE: parts.utils.TEXT_PLUS_TYPE,
     applyReferenceSpaceCharacterTransform:
       parts.geometry.applyReferenceSpaceCharacterTransform,
+    applyCharacterTransform: parts.geometry.applyCharacterTransform,
+    getSplitTextScale: parts.geometry.getSplitTextScale,
+    scaleCharacterOffset: parts.geometry.scaleCharacterOffset,
+    neutralizeTextScale: parts.geometry.neutralizeTextScale,
+    restoreTextScale: parts.geometry.restoreTextScale,
+    syncScaledLayout: parts.geometry.syncScaledLayout,
     collectTextPlusObjects: parts.utils.collectTextPlusObjects,
     createRandomScatterPropertyDefinitions:
       parts.properties.createRandomScatterPropertyDefinitions,
