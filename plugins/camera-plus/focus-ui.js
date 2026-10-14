@@ -259,6 +259,14 @@ parts.focus = (function () {
   // Property-row control factory for the focus entry in the Depth of Field
   // group. `zoidiumUI` supplies the shared button builder; `openFor(object)`
   // opens the window for the owning camera.
+  //
+  // The same row carries the 3D-track guidance: while the project has no
+  // video track with 3D enabled, a note explains that Camera+ only drives
+  // 3D tracks, with a one-click button that enables 3D on the first such
+  // track through the track header's own undoable toggle. The note is
+  // DOM-only (no new property, no saved data) and rebuilds with the panel,
+  // so it disappears once a 3D track exists. The first panel built per
+  // project also fires one toast through options.hint.notify.
   function createControl(options, property, context) {
     const owner = ownerObject(options.PZ, property);
     const document = context && context.document;
@@ -276,8 +284,96 @@ parts.focus = (function () {
       },
     ]);
     const wrap = document.createElement("div");
+    if (!wrap || typeof wrap.appendChild !== "function") return null;
     wrap.className = "editbox zoidium-camera-focus-tools";
+    const hint = options.hint && options.hint.api ? options.hint : null;
+    let hintBox = null;
+    function currentProject() {
+      try {
+        return hint && typeof hint.getProject === "function" ? hint.getProject() : null;
+      } catch (_error) {
+        return null;
+      }
+    }
+    function notifyOnce(project) {
+      if (!hint || !project) return;
+      try {
+        hint.api.maybeNotify({
+          getProject: () => project,
+          notify: hint.notify,
+          notified: hint.notified,
+        });
+      } catch (_error) { /* guidance is best-effort */ }
+    }
+    function enable3d(target) {
+      try {
+        const editor = hint && typeof hint.getEditor === "function" ? hint.getEditor() : null;
+        if (!editor || typeof hint.toggleTrack3d !== "function") return false;
+        hint.toggleTrack3d(target.track, editor);
+        return true;
+      } catch (error) {
+        console.error("Camera+ could not enable 3D tracking.", error);
+        return false;
+      }
+    }
+    function buildHintBox(project) {
+      try {
+        const box = document.createElement("div");
+        if (!box || typeof box.appendChild !== "function") return null;
+        box.className = "zoidium-camera-track-hint";
+        // CM3 property rows set white-space: nowrap on the editbox; the hint
+        // must wrap inside the panel instead of running past its edge.
+        try {
+          if (box.style) box.style.whiteSpace = "normal";
+        } catch (_error) { /* inline style is best-effort */ }
+        const controls = options.zoidiumUI.controls;
+        if (!controls || typeof controls.note !== "function") return null;
+        box.appendChild(controls.note(hint.api.MESSAGE).element);
+        const target = hint.api.firstTrackWithout3D(project);
+        if (target && typeof hint.toggleTrack3d === "function" && typeof controls.buttonRow === "function") {
+          const enable = controls.buttonRow([
+            {
+              title: hint.api.enableLabel(target),
+              hint: hint.api.enableHint(target),
+              onClick: function () {
+                if (enable3d(target)) renderHint();
+                else if (typeof hint.notify === "function") hint.notify({ title: hint.api.TITLE, message: hint.api.ENABLE_FAILED });
+              },
+            },
+          ]);
+          if (enable && enable.element) box.appendChild(enable.element);
+        }
+        return box;
+      } catch (_error) {
+        return null;
+      }
+    }
+    function renderHint() {
+      try {
+        if (hintBox && hintBox.parentNode === wrap && typeof wrap.removeChild === "function") wrap.removeChild(hintBox);
+      } catch (_error) { /* a stale box is better than a broken row */ }
+      hintBox = null;
+      if (!hint) return;
+      const project = currentProject();
+      if (!project || !hint.api.needsHint(project)) return;
+      notifyOnce(project);
+      const box = buildHintBox(project);
+      if (!box) return;
+      hintBox = box;
+      try {
+        if (typeof wrap.insertBefore === "function" && wrap.firstChild) wrap.insertBefore(hintBox, wrap.firstChild);
+        else wrap.appendChild(hintBox);
+      } catch (_error) {
+        hintBox = null;
+      }
+    }
+    renderHint();
     wrap.appendChild(row.element);
+    // CM3 refreshes property rows through pz_update; re-evaluate the hint so
+    // enabling 3D hides the note without reselecting the camera.
+    try {
+      wrap.pz_refresh = renderHint;
+    } catch (_error) { /* refresh is best-effort */ }
     return wrap;
   }
 
