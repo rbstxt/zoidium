@@ -20,6 +20,7 @@
   var MAX_FRAME_SAMPLER_DEPTH = math.MAX_FRAME_SAMPLER_DEPTH;
   var finiteNumber = math.finiteNumber;
   var buildFrameSamplePlan = math.buildFrameSamplePlan;
+  var planExplicitFrameSamples = math.planExplicitFrameSamples;
   var getSequenceForLayer = layers.getSequenceForLayer;
   var getClipForLayer = layers.getClipForLayer;
   var getProjectRate = layers.getProjectRate;
@@ -142,6 +143,25 @@
     const sequence = state.rootSequences.get(root);
     state.compositorsBySequence.get(sequence)?.delete(root);
     state.rootSequences.delete(root);
+  }
+
+  // A sampler request uses either the legacy evenly spaced Echo plan
+  // (count/offsetFrames/startOpacity/decay) or, when `request.frames` is a
+  // non-empty array of frame offsets, an explicit per-tap plan. Both clamp
+  // to the clip bounds; only the caps differ (16 vs 64 taps).
+  function planRequestSamples(request, controlFrame, maximum) {
+    if (request && Array.isArray(request.frames) && request.frames.length > 0) {
+      return planExplicitFrameSamples(controlFrame, request.frames, 0, maximum);
+    }
+    return buildFrameSamplePlan(
+      controlFrame,
+      request.count,
+      request.offsetFrames,
+      request.startOpacity,
+      request.decay,
+      0,
+      maximum,
+    );
   }
 
   function getFrameSamplerCapture(runtime, root, depth, sequence) {
@@ -442,15 +462,7 @@
     if (!request || request.enabled === false) return;
 
     const maximum = Math.max(0, finiteNumber(clip.length, 0) - EPSILON);
-    const plan = buildFrameSamplePlan(
-      controlFrame,
-      request.count,
-      request.offsetFrames,
-      request.startOpacity,
-      request.decay,
-      0,
-      maximum,
-    );
+    const plan = planRequestSamples(request, controlFrame, maximum);
     if (plan.length === 0) return;
 
     state.preparingEffects.add(effect);
@@ -600,15 +612,7 @@
     if (!request || request.enabled === false) return [];
 
     const maximum = Math.max(0, finiteNumber(stage.clip.length, 0) - EPSILON);
-    const plan = buildFrameSamplePlan(
-      controlFrame,
-      request.count,
-      request.offsetFrames,
-      request.startOpacity,
-      request.decay,
-      0,
-      maximum,
-    );
+    const plan = planRequestSamples(request, controlFrame, maximum);
     if (plan.length === 0) return [];
 
     const runtime = getFrameSamplerRuntime(state, root);
