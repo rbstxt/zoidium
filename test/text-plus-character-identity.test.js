@@ -9,7 +9,7 @@ class Vector {
   set(...value) { this.value = value; return this; }
 }
 class Node {
-  constructor() { this.children = []; this.userData = {}; this.position = new Vector(); }
+  constructor() { this.children = []; this.userData = {}; this.position = new Vector(); this.scale = new Vector(1, 1, 1); }
   add(node) { node.parent = this; this.children.push(node); }
   remove(node) { this.children.splice(this.children.indexOf(node), 1); node.parent = null; }
   clone() {
