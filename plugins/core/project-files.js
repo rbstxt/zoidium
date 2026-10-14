@@ -7,6 +7,8 @@
 
   var PATCH_MARKER = "__zoidiumProjectFilesPatch";
   var DEFAULT_PROJECT_NAME = "project";
+  var archiveIO = PZ.zoidiumProjectArchive;
+  if (!archiveIO) throw new Error("Project archive support is unavailable.");
 
   if (editorPrototype[PATCH_MARKER]) return;
   editorPrototype[PATCH_MARKER] = true;
@@ -172,61 +174,12 @@
     }) : [];
   }
 
-  async function bytesForData(data) {
-    if (data && typeof data.arrayBuffer === "function") {
-      return new Uint8Array(await data.arrayBuffer());
-    }
-    if (data instanceof ArrayBuffer) return new Uint8Array(data);
-    if (ArrayBuffer.isView(data)) {
-      return new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
-    }
-    throw new Error("Could not inspect a project file.");
-  }
-
-  // CM3 streams the serialized project through the same origin-private file
-  // named "out" that the video worker uses, and hands back a live File handle
-  // to it. A later render or cleanup rewrites the bytes behind that handle, so
-  // copy the archive into page memory before it reaches the save picker, a
-  // download link, or a restore point.
-  function isFileBackedBlob(value) {
-    return Boolean(
-      value &&
-        Number.isFinite(Number(value.size)) &&
-        typeof value.slice === "function" &&
-        typeof value.stream === "function" &&
-        typeof value.name === "string" &&
-        value.name.length > 0,
-    );
-  }
-
-  async function detachArchiveBlob(blob) {
-    if (!isFileBackedBlob(blob)) return blob;
-    var io = PZ.zoidiumIoSerialization;
-    if (io && typeof io.detachBlob === "function") {
-      return io.detachBlob(blob, "The project archive");
-    }
-    if (typeof Response !== "function" || Number(blob.size) <= 0) return blob;
-    var copy;
-    try {
-      copy = await new Response(blob.stream()).blob();
-    } catch (error) {
-      var failure = new Error(
-        "The project archive could not be copied out of the browser's temporary file.",
-      );
-      failure.cause = error;
-      throw failure;
-    }
-    if (!copy || Number(copy.size) !== Number(blob.size)) {
-      throw new Error(
-        "The project archive was copied incompletely out of the browser's temporary file.",
-      );
-    }
-    return copy;
+  function bytesForData(data) {
+    return archiveIO.bytes(data, "Project entry");
   }
 
   var PROJECT_ENTRY = "project";
   var META_ENTRY = "meta";
-  var CONTENT_ADDRESSED_NAME = /^[0-9a-f]{64}$/;
   var VALIDATION_PREFIX = {
     save: "Nothing was saved.",
     open: "This project file cannot be opened.",
@@ -242,7 +195,7 @@
   }
 
   function projectDataError(mode, detail) {
-    var error = new Error((VALIDATION_PREFIX[mode] || VALIDATION_PREFIX.open) + " " + detail + ".");
+    var error = new Error((VALIDATION_PREFIX[mode] || VALIDATION_PREFIX.open) + " " + String(detail).replace(/[.]+$/, "") + ".");
     error.name = "ProjectDataError";
     return error;
   }
@@ -291,6 +244,25 @@
     );
   }
 
+  function checkAssetReferences(document, mode) {
+    var assetFields = /^(?:asset|font|image|texture|geometry|vertexShader|fragmentShader|nodeImage|.*(?:Asset|Texture|Map|Data))$/i;
+    function visit(value, path, field, depth) {
+      if (depth > 128) throw projectDataError(mode, "The project data exceeds the 128-level nesting limit");
+      if (typeof value === "string" && assetFields.test(field) && /^[a-f0-9]{32}(?:[a-f0-9]{32})?$/.test(value)) {
+        if (!document.assets || !Object.prototype.hasOwnProperty.call(document.assets, value)) {
+          throw projectDataError(mode, "Asset reference " + path + " (" + value + ") has no asset metadata");
+        }
+      } else if (value && typeof value === "object") {
+        Object.keys(value).forEach(function (key) {
+          if (path === "project" && key === "assets") return;
+          var referenceField = assetFields.test(field) && /^(?:value|keyframes|objects|\d+)$/.test(key) ? field : key;
+          visit(value[key], path + "." + key, referenceField, depth + 1);
+        });
+      }
+    }
+    visit(document, "project", "", 0);
+  }
+
   // Checks that an archive holds the project document CM3 would parse. The
   // "save" mode runs before anything is written; "open" and "restore" run
   // before the document is handed to the loader, so damaged files fail with a
@@ -305,7 +277,8 @@
 
     var document = await readJsonEntry(archive, PROJECT_ENTRY, mode, "The project data");
     // Shape of PZ.project.prototype.toJSON: { assets, media, sequence }.
-    if (!isPlainObject(document) || !isPlainObject(document.sequence) || !Array.isArray(document.media)) {
+    if (!isPlainObject(document) || !isPlainObject(document.sequence) || !Array.isArray(document.media) ||
+        ((mode === "save" || document.assets != null) && !isPlainObject(document.assets))) {
       throw projectDataError(mode, "The project data has no sequence or media list");
     }
 
@@ -316,6 +289,12 @@
         throw projectDataError(mode, "The project metadata has no version");
       }
     }
+    checkAssetReferences(document, mode);
+    var metadata = null;
+    if (archive.peekFile("zoidium.json")) {
+      metadata = await readJsonEntry(archive, "zoidium.json", mode, "The Zoidium metadata");
+    }
+    await archiveIO.checkAssets(archive, document, metadata, mode);
     return { legacy: false, mediaCount: document.media.length };
   }
 
@@ -363,13 +342,13 @@
     if (!(Number(source && source.size) > 0)) {
       throw projectDataError(mode, "The archive is empty");
     }
-    var archive = new PZ.archive();
+    var archive;
     try {
-      await archive.untar(source);
-    } catch (_error) {
-      throw projectDataError(mode, "The archive is not readable");
+      archive = await archiveIO.bounded(archiveIO.decode(source, PZ.archive), "Decoding the project file", 60000);
+    } catch (error) {
+      throw projectDataError(mode, errorMessage(error, "The archive is not readable"));
     }
-    await validateProjectArchive(archive, mode);
+    await archiveIO.bounded(validateProjectArchive(archive, mode), "Validating the project file", 60000);
     await sanitizeProjectArchive(archive);
     return archive;
   }
@@ -378,7 +357,7 @@
   // plugin toJSON that throws) into a save failure with a clear cause.
   async function serializeProject(archive, project) {
     try {
-      await PZ.project.save(archive, project);
+      await archiveIO.bounded(PZ.project.save(archive, project), "Project serialization");
     } catch (error) {
       throw projectDataError(
         "save",
@@ -388,22 +367,7 @@
   }
 
   async function fingerprintBytes(bytes) {
-    if (global.crypto && global.crypto.subtle) {
-      var digest = await global.crypto.subtle.digest("SHA-256", bytes);
-      return "sha256:" + Array.from(new Uint8Array(digest)).map(function (value) {
-        return value.toString(16).padStart(2, "0");
-      }).join("");
-    }
-
-    var first = 2166136261;
-    var second = 2166136261 ^ 0x9e3779b9;
-    for (var index = 0; index < bytes.length; index += 1) {
-      first ^= bytes[index];
-      first = Math.imul(first, 16777619);
-      second ^= bytes[index] + index;
-      second = Math.imul(second, 16777619);
-    }
-    return "fallback:" + (first >>> 0).toString(16) + ":" + (second >>> 0).toString(16);
+    return "sha256:" + await archiveIO.hash(bytes);
   }
 
   async function fingerprintArchive(archive) {
@@ -414,43 +378,12 @@
     var summaries = [];
     for (var index = 0; index < entries.length; index += 1) {
       var entry = entries[index];
-      // Media is stored under its SHA-256 name, so its name already identifies
-      // its bytes. Re-hashing every asset on each automatic check was the
-      // largest cost of a backup, so only the name and size are summarized.
-      if (CONTENT_ADDRESSED_NAME.test(entry.name) && Number.isFinite(Number(entry.data && entry.data.size))) {
-        summaries.push([entry.name, Number(entry.data.size), "content-addressed"]);
-        continue;
-      }
       var bytes = await bytesForData(entry.data);
       summaries.push([entry.name, bytes.length, await fingerprintBytes(bytes)]);
     }
     // Version the algorithm. Restore points with an older fingerprint can cause
     // only one extra automatic snapshot.
-    return "entries-v3:" + await fingerprintBytes(encoder.encode(JSON.stringify(summaries)));
-  }
-
-  async function materializeArchive(archive) {
-    var materialized = new PZ.archive();
-    var entries = archive.files || [];
-    for (var index = 0; index < entries.length; index += 1) {
-      var entry = entries[index];
-      // WORKERFS requires size and slice. Reuse stable in-memory Blobs and
-      // detach live worker File handles before they can be overwritten.
-      var data = entry.data;
-      if (data && typeof data.slice === "function" && Number.isFinite(Number(data.size))) {
-        data = await detachArchiveBlob(data);
-      } else {
-        data = new Blob([await bytesForData(data)]);
-      }
-      materialized.addFile(entry.name, data);
-    }
-    return materialized;
-  }
-
-  function logPhase() {
-    if (global.console && typeof global.console.info === "function") {
-      global.console.info.apply(global.console, ["[Zoidium] project archive phase"].concat(Array.prototype.slice.call(arguments)));
-    }
+    return "entries-v4:" + await fingerprintBytes(encoder.encode(JSON.stringify(summaries)));
   }
 
   // options.shouldSkip(fingerprint) lets automatic backups stop before the
@@ -461,37 +394,51 @@
       throw new Error("There is no project to save.");
     }
 
+    var sourceProject = editor.project;
+    var sourceRevision = getProjectRevision(editor);
     var archive = new PZ.archive();
-    logPhase("project-save-start");
+
     await serializeProject(archive, editor.project);
     // Runtime-only media thumbnails must never reach a saved file.
     await sanitizeProjectArchive(archive);
     // Refuse to continue with a missing, empty, or "undefined" project entry.
     // Nothing has been written to disk or to a restore point at this point.
-    await validateProjectArchive(archive, "save");
-    logPhase("project-save-end");
-
     var projectName = getProjectName(editor);
-    archive.addFileString("zoidium.json", JSON.stringify({
-      version: 1,
-      name: projectName,
-    }));
-
     var assets = listAssets(editor.project);
-    logPhase("assets-start", assets.length);
+    var assetLabels = Object.create(null);
+    var fileNames = new Set(archive.files.map(function (entry) { return entry.name; }));
+
     var packagedAssetCount = 0;
     for (var index = 0; index < assets.length; index += 1) {
       var asset = assets[index];
       if (!asset || !asset.file) continue;
 
       var assetName = asset.sha256 || asset.key;
-      if (!assetName || archive.fileExists(assetName)) continue;
+      if (!assetName) continue;
+      assetLabels[assetName] = asset.filename;
+      if (fileNames.has(assetName)) continue;
+      fileNames.add(assetName);
       archive.addFile(assetName, asset.file);
       packagedAssetCount += 1;
     }
 
+    // Materialize every local asset before hashing. Preview font/texture
+    // decoders are irrelevant to saving attached bytes and are never awaited.
+    var totalBytes = archive.files.reduce(function (total, entry) {
+      return total + Number(entry.data && (entry.data.size || entry.data.byteLength) || 0);
+    }, 0);
+    if (totalBytes > archiveIO.MAX_BYTES) throw new Error("The project exceeds the 512 MB safety limit. Nothing was replaced.");
+    for (var fileIndex = 0; fileIndex < archive.files.length; fileIndex += 1) {
+      var fileEntry = archive.files[fileIndex];
+      var label = "Entry " + fileEntry.name + (assetLabels[fileEntry.name] ? " (" + assetLabels[fileEntry.name] + ")" : "");
+      fileEntry.data = new Blob([await archiveIO.bytes(fileEntry.data, label)]);
+    }
+    archive.addFileString("zoidium.json", JSON.stringify({
+      version: 1, name: projectName, integrity: await archiveIO.integrity(archive),
+    }));
+    await validateProjectArchive(archive, "save");
     var fingerprint = await fingerprintArchive(archive);
-    logPhase("fingerprint-end");
+
     var result = {
       blob: null,
       skipped: false,
@@ -505,30 +452,25 @@
       return result;
     }
 
-    var materialized = await materializeArchive(archive);
-    logPhase("materialize-end");
-    var io = PZ.zoidiumIoSerialization;
-    var blob = io && typeof io.tarWithoutLock === "function"
-      ? await io.tarWithoutLock(materialized)
-      : await materialized.tar();
-    if (!blob || !(Number(blob.size) > 0)) {
-      throw new Error("Could not create the project archive. Nothing was saved.");
+    var blob = await archiveIO.bounded(archiveIO.encode(archive), "Project archive creation");
+    // Decode the finished bytes using exactly the open validator. Only this
+    // verified, memory-backed Blob may reach a writer or download link.
+    await openValidatedArchive(blob, "save");
+    if (editor.project !== sourceProject || getProjectRevision(editor) !== sourceRevision || getProjectName(editor) !== projectName) {
+      throw new Error("The project changed while the archive was built. Nothing was replaced. Retry saving the current project.");
     }
-    result.blob = await detachArchiveBlob(blob);
+    result.blob = blob;
     return result;
   }
 
   function createArchive(editor, options) {
-    var io = PZ.zoidiumIoSerialization;
-    if (io && typeof io.run === "function" && typeof io.tarWithoutLock === "function") {
-      return io.run("project-save", function () {
-        return createArchiveUnlocked(editor, options);
-      });
-    }
-    return createArchiveUnlocked(editor, options);
+    // Project TAR now uses page memory, so saving never queues behind a
+    // pending video export or a lease held by another tab.
+    return archiveIO.bounded(createArchiveUnlocked(editor, options), "Project save preparation", 60000);
   }
 
-  function triggerDownload(blob, filename) {
+  async function triggerDownload(blob, filename) {
+    await openValidatedArchive(blob, "restore");
     if (!blob || !(Number(blob.size) > 0)) {
       throw new Error("No project archive is available to download.");
     }
@@ -544,7 +486,7 @@
     link.remove();
     global.setTimeout(function () {
       URL.revokeObjectURL(url);
-    }, 1000);
+    }, 60000);
   }
 
   function errorMessage(error, fallback) {
@@ -566,7 +508,7 @@
       recoverable: false,
       download: archiveResult && archiveResult.blob
         ? function () {
-            triggerDownload(archiveResult.blob, filename);
+            return triggerDownload(archiveResult.blob, filename);
           }
       : null,
     });
@@ -590,14 +532,14 @@
     }
   }
 
-  function saveAsDownloadFallback(
+  async function saveAsDownloadFallback(
     editor,
     archiveResult,
     filename,
     savedProject,
     savedRevision,
   ) {
-    triggerDownload(archiveResult.blob, filename);
+    await triggerDownload(archiveResult.blob, filename);
     markProjectSavedIfUnchanged(editor, savedProject, savedRevision);
     dispatch("zoidium:project-saved", {
       editor: editor,
@@ -663,7 +605,7 @@
     var pickerUnavailable = typeof global.showSaveFilePicker !== "function";
     if (pickerError && (pickerUnavailable || isUserGesturePickerError(pickerError))) {
       try {
-        return saveAsDownloadFallback(
+        return await saveAsDownloadFallback(
           editor,
           archiveResult,
           filename,
@@ -700,11 +642,20 @@
 
     var writable = null;
     try {
-      writable = await targetHandle.createWritable();
-      await writable.write(archiveResult.blob);
-      await writable.close();
-      editor._zoidiumSaveFileHandle = targetHandle;
-      editor._zoidiumSaveFileName = filename;
+      var opening = targetHandle.createWritable();
+      writable = await archiveIO.bounded(opening, "Opening the writable project file", 10000, function () {
+        // A late handle still owns a staged file. Abort it even though the
+        // caller has already received the timeout and may have retried.
+        Promise.resolve(opening).then(function (lateWritable) {
+          if (lateWritable && typeof lateWritable.abort === "function") return lateWritable.abort();
+        }).catch(function () {});
+      });
+      await archiveIO.bounded(writable.write(archiveResult.blob), "Writing the project file");
+      await archiveIO.bounded(writable.close(), "Committing the project file");
+      if (editor.project === savedProject) {
+        editor._zoidiumSaveFileHandle = targetHandle;
+        editor._zoidiumSaveFileName = filename;
+      }
       markProjectSavedIfUnchanged(editor, savedProject, savedRevision);
       dispatch("zoidium:project-saved", {
         editor: editor,
@@ -716,7 +667,7 @@
     } catch (error) {
       if (writable && typeof writable.abort === "function") {
         try {
-          await writable.abort();
+          await archiveIO.bounded(writable.abort(), "Aborting the failed project write");
         } catch (_abortError) {
           // Keep the original write error for the user.
         }
@@ -759,19 +710,54 @@
     };
   }
 
+  async function backupBeforeReplace(editor, reason) {
+    var expected = { project: editor.project, revision: getProjectRevision(editor), name: getProjectName(editor) };
+    var panel = global.__zoidiumRestoreParts && global.__zoidiumRestoreParts.panel;
+    if (!panel || typeof panel.createSnapshot !== "function") {
+      throw new Error("Restore-point storage is not ready. The current project was kept.");
+    }
+    await archiveIO.bounded(panel.createSnapshot(false, false), "Backup before " + reason, 60000);
+    assertProjectUnchanged(editor, expected);
+    return expected;
+  }
+
+  function assertProjectUnchanged(editor, expected) {
+    if (editor.project !== expected.project || getProjectRevision(editor) !== expected.revision || getProjectName(editor) !== expected.name) {
+      throw new Error("The current project changed during the operation. It was kept. Retry after editing has finished.");
+    }
+  }
+
   var originalNew = editorPrototype.new;
   if (typeof originalNew === "function") {
     editorPrototype.new = function () {
-      var previousProject = this.project;
-      var result = originalNew.apply(this, arguments);
-      if (this.project && this.project !== previousProject) {
-        this._zoidiumSaveFileHandle = null;
-        this._zoidiumSaveFileName = null;
-        setProjectName(this, DEFAULT_PROJECT_NAME);
-        dispatch("zoidium:project-changed", { editor: this, reason: "new" });
-      }
-      return result;
+      if (!this.project) return originalNew.apply(this, arguments);
+      return newProjectWithBackup.call(this, arguments);
     };
+    async function newProjectWithBackup(args) {
+      if (this._zoidiumTransitionPromise || !this.confirmIfDirty()) return;
+      var editor = this;
+      var previousProject = editor.project;
+      var operation = (async function () {
+        await backupBeforeReplace(editor, "New");
+        var confirm = editor.confirmIfDirty;
+        try {
+          editor.confirmIfDirty = function () { return true; };
+          originalNew.apply(editor, args);
+        } finally {
+          editor.confirmIfDirty = confirm;
+        }
+        if (editor.project && editor.project !== previousProject) {
+          editor._zoidiumSaveFileHandle = null;
+          editor._zoidiumSaveFileName = null;
+          setProjectName(editor, DEFAULT_PROJECT_NAME);
+          dispatch("zoidium:project-changed", { editor: editor, reason: "new" });
+        }
+      })();
+      editor._zoidiumTransitionPromise = operation;
+      try { await operation; }
+      catch (error) { emitError(editor, error, null, function () { return editor.new(); }); }
+      finally { editor._zoidiumTransitionPromise = null; }
+    }
   }
 
   // Temporal operators must exist before the first schedule preparation.
@@ -780,14 +766,15 @@
   async function prepareProject(project) {
     if (!project) return project;
     if (project._zoidiumPluginActivationPending) {
-      await project._zoidiumPluginActivationPending;
+      await archiveIO.bounded(project._zoidiumPluginActivationPending, "Project plugin activation");
     }
     var visited = new WeakSet();
     async function visit(object) {
       if (!object || typeof object !== "object" || visited.has(object)) return;
       visited.add(object);
       if (object.loading && typeof object.loading.then === "function") {
-        await object.loading;
+        var label = object.defaultName || object.baseTypeString || "Project object";
+        await archiveIO.bounded(object.loading, label + " loading");
       }
       var children = Array.isArray(object) ? object : object.children;
       if (children) {
@@ -803,28 +790,46 @@
   var originalLoadProject = editorPrototype.loadProject;
   if (typeof originalLoadProject === "function") {
     editorPrototype.loadProject = async function () {
-      var project = await originalLoadProject.apply(this, arguments);
-      return prepareProject(project);
+      var project = await archiveIO.bounded(originalLoadProject.apply(this, arguments), "Project loading");
+      return archiveIO.bounded(prepareProject(project), "Preparing the loaded project", 60000);
     };
   }
 
   editorPrototype.open = function (selectedFile) {
     var editor = this;
-    if (!editor.confirmIfDirty()) return;
+    if (editor._zoidiumTransitionPromise || !editor.confirmIfDirty()) return;
 
     async function loadFile(file) {
       if (!file) return;
+      if (editor._zoidiumTransitionPromise) return;
+      var releaseTransition;
+      editor._zoidiumTransitionPromise = new Promise(function (resolve) { releaseTransition = resolve; });
       var originalFilename = typeof file.name === "string" ? file.name : "";
       try {
         // Toolbar and desktop opens share validation, plugin activation,
         // assets, project naming, and error/recovery notifications.
-        var archive = await openValidatedArchive(file, "open");
+        var archive;
+        try { archive = await openValidatedArchive(file, "open"); }
+        catch (error) {
+          if (!error.partialArchive || !global.ZoidiumUI) throw error;
+          var approved = await global.ZoidiumUI.confirm({
+            title: "Damaged project assets",
+            message: error.message + "\nOpen the readable project data? Missing assets remain unavailable until attached again. Restore points are available in Restore.",
+            confirmLabel: "Open readable parts", cancelLabel: "Keep current project",
+          });
+          if (!approved) throw error;
+          archive = error.partialArchive;
+          await sanitizeProjectArchive(archive);
+          dispatch("zoidium:notification", { title: "Opened readable parts", message: error.message.replace(" Nothing was replaced.", "") + " Reattach the unavailable assets before saving. The source file and previous restore points are unchanged." });
+        }
+        var metadata = decodeArchiveMetadata(archive);
+        var expected = await backupBeforeReplace(editor, "opening another project");
         var project = await editor.loadProject(archive);
+        assertProjectUnchanged(editor, expected);
         editor.project = project;
         editor._zoidiumSaveFileHandle = null;
         editor._zoidiumSaveFileName = null;
         dispatch("zoidium:project-changed", { editor: editor, reason: "open" });
-        var metadata = decodeArchiveMetadata(archive);
         setProjectName(
           editor,
           metadata && metadata.name
@@ -845,6 +850,9 @@
           recoverable: isProjectDataError(error),
           download: null,
         });
+      } finally {
+        releaseTransition();
+        editor._zoidiumTransitionPromise = null;
       }
     }
 
@@ -864,9 +872,12 @@
     desktopProjects.onFile(async function (message) {
       var editor = global.CM;
       try {
-        var response = await global.fetch(message.url);
+        var response = await archiveIO.bounded(global.fetch(message.url), "Desktop project read");
         if (!response.ok) throw new Error("The project file is no longer available.");
-        var file = new global.File([await response.blob()], message.name);
+        var file = new global.File([await archiveIO.bounded(response.blob(), "Desktop project transfer")], message.name);
+        if (editor._zoidiumTransitionPromise) {
+          await archiveIO.bounded(editor._zoidiumTransitionPromise, "Waiting for the current project operation", 60000);
+        }
         await editor.open(file);
       } catch (error) {
         dispatch("zoidium:project-error", {
@@ -893,6 +904,8 @@
     displayNameForUi: displayNameForUi,
     createArchive: createArchive,
     prepareProject: prepareProject,
+    backupBeforeReplace: backupBeforeReplace,
+    assertProjectUnchanged: assertProjectUnchanged,
     fingerprintArchive: fingerprintArchive,
     getProjectRevision: getProjectRevision,
     validateProjectArchive: validateProjectArchive,

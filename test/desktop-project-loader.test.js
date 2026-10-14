@@ -37,6 +37,9 @@ function harness() {
     dispatchEvent(event) { events.push(event); },
     async fetch(url) { calls.push(["fetch", url]); return new Response("archive bytes"); },
   };
+  const io = require("./project-archive-harness.cjs").installArchive(window);
+  io.decode = async function (file) { const archive = new Archive(); await archive.untar(file); return archive; };
+  window.__zoidiumRestoreParts = { panel: { createSnapshot: async () => { calls.push("backup"); } } };
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, "../plugins/core/project-files.js"), "utf8"), {
     window, Blob, ArrayBuffer, TextEncoder, TextDecoder, Uint8Array,
     CustomEvent: class { constructor(type, { detail }) { this.type = type; this.detail = detail; } },
@@ -143,4 +146,19 @@ test("sandboxed preload exposes fixed channels without leaking the IPC event", (
   api.complete("id");
   api.complete({ arbitrary: "message" });
   assert.deepEqual(sent, [["zoidium:desktop-project-ready"], ["zoidium:desktop-project-done", "id"]]);
+});
+
+test("a desktop import waits for a toolbar transition instead of discarding the request", async () => {
+  const run = harness();
+  let finish;
+  run.editor._zoidiumTransitionPromise = new Promise(resolve => { finish = resolve; });
+  const operation = run.bridge.receive({ id: "queued", name: "Saved.PZ", url: "/_zoidium/desktop-project/queued" });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(run.calls.includes("load"), false);
+  assert.equal(run.calls.some(call => Array.isArray(call) && call[0] === "complete"), false);
+  run.editor._zoidiumTransitionPromise = null;
+  finish();
+  await operation;
+  assert.equal(run.editor.project, run.editor.nextProject);
+  assert.deepEqual(run.calls.at(-1), ["complete", "queued"]);
 });
