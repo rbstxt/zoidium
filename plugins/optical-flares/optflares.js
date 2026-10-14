@@ -200,6 +200,8 @@ module.exports = function installOptflares(PZ, THREE) {
         };
     }
 
+    function markLoaded(texture) { texture.zoidiumLoaded = true; }
+
     PZ.object3d.optflares = class extends PZ.object3d {
         constructor() {
             super();
@@ -681,6 +683,18 @@ module.exports = function installOptflares(PZ, THREE) {
             if (this.underMaterial) {
                 this.underMaterial.uniforms.uGain.value = occluding ? 1 - fade : 0;
             }
+        }
+        // Preview frame cache probe: every custom texture has loaded.
+        zoidiumFrameReady() {
+            var ready = true;
+            for (var key in this._customTextures) {
+                var texture = this._customTextures[key];
+                if (texture && !texture.zoidiumLoaded) {
+                    ready = false;
+                    Promise.resolve(texture.loading).then(markLoaded.bind(null, texture), function () {});
+                }
+            }
+            return ready;
         }
         async prepare() {
             var keys = ["uCustom1", "uCustom2", "uCustom3"];

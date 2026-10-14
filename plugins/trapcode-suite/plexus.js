@@ -727,6 +727,13 @@ var PZ = PZ || {};
             }
             return indices;
         }
+        // Preview frame cache probe: drawn with settled assets, none loading.
+        zoidiumFrameReady() {
+            for (var i = 0; i < this.objects.length; i++) {
+                if (this.objects[i].requestAssets().some(function (entry) { return entry.status === "loading"; })) return false;
+            }
+            return !!this.pointCloud && this._renderedRevision === this.assetRevision();
+        }
         async prepare(e) {
             PZ.trapcode.setTime(e);
             var waits = [];

@@ -633,6 +633,12 @@ var PZ = PZ || {};
     };
     // Waits for every asset this frame needs, then makes sure the frame was
     // computed with the settled data.
+    // Preview frame cache probe: the last update used settled assets and no
+    // asset this frame needs is still loading (see plugins/core/output-frame-cache.js).
+    PZ.object3d.form.instance.prototype.zoidiumFrameReady = function () {
+        var loading = this.requestAssets().some(function (entry) { return entry.status === "loading"; });
+        return !loading && !!this.material && this._renderedRevision === this._assets.revision;
+    };
     PZ.object3d.form.instance.prototype.prepare = async function (e) {
         PZ.trapcode.setTime(e);
         var waits = this.requestAssets().map(function (entry) { return entry.promise; });

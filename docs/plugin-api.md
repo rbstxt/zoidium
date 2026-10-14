@@ -314,6 +314,40 @@ playback is running.
   pending previews verify their content keys before publishing. Effect unload,
   project replacement and compositor unload dispose the complete runtime,
   including isolated decoder schedules. Plugin state changes also dispose it.
+- Core also keeps finished editor preview frames (`plugins/core/output-frame-cache.js`).
+  A frame missing from the cache is drawn live exactly as without it; a draw
+  that is provably complete is copied on the GPU (no readback, no conversion)
+  and shown again for the same project state and frame. Complete means: the
+  project's resources settled for this revision, no font still loading, no
+  pending time-effect preview, every visible video drawn from the preview's
+  isolated decoders that finished this exact frame, and, while paused, each
+  visible object's own `prepare(frame)` awaited. Objects that load data while
+  a frame updates expose `zoidiumFrameReady(frame)` (Trapcode Form, Plexus and
+  Particular, Optical Flares); return `false` while any data for the current
+  frame is still loading.
+- The cache key is the full project serialization plus asset identities,
+  enabled tracks, drawing-buffer size, aspect and renderer settings, plugin
+  versions and states, and font completion. It is recomputed after any input
+  event, native history operation (also from pop-out windows), project change
+  notification, and for 1.5 s after them; between those, only the cheap parts
+  (assets, tracks, buffer size, settings, plugins, fonts) are compared. Projects
+  that require plugins outside the verified list keep the live preview.
+  `PZ.zoidium.debug.frameCache.assertKeys = true` re-serializes on every hit and
+  counts mismatches; `disabled = true` turns the cache off for comparisons.
+- When paused and idle for 0.8 s, the cache renders up to 150 frames ahead and
+  8 behind the playhead through a private copy of the project (its own
+  decoders and sampler pool), one frame per task, stopping on any input,
+  edit, seek or playback. The copy is built once per revision and released
+  when the window is complete, playback starts or the project changes. Scenes
+  whose synchronous draw takes longer than 50 ms, and projects with video
+  media (private decoders slowed the editor's own playback), are not
+  prefetched; their frames are still kept as they are shown.
+- Memory: the Settings **Preview cache** value bounds the counted RGBA8 bytes
+  (512 MiB by default, 0 disables it; 1920 x 1080 frames hold at most 64).
+  The prefetch copy adds a second sampler pool (256 MiB plus mandatory taps)
+  and duplicated geometry while it exists. Project replacement, resolution
+  changes, plugin state changes, a smaller setting and compositor unload
+  release the frames. Exports and the eyedropper keep their native draws.
 - Effects that need other frames request them with `defineFrameSampler` or
   `defineTemporal`. Never feed the previous output back as history.
 - Randomness comes from seeded hashes of (seed, index, frame), never from
