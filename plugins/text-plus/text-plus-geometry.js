@@ -278,6 +278,114 @@ function disposeCharacterRendering(splitState) {
   splitState.layers = [];
 }
 
+/* --------------------------------------------- text-scale compensation */
+
+// The Text object's own scale (possibly animated) at a frame. CM3 copies
+// this property into threeObj.scale on every update. While Text+ renders
+// per-character meshes, that scale is neutralized on threeObj and reapplied
+// explicitly to glyph geometry and layout positions, so per-character
+// rotations happen in unscaled space: a flat (Scale Z 0) text tilts like a
+// card instead of being squashed in 2D. For uniform scales this composes to
+// exactly the same world matrices as before.
+function getSplitTextScale(textObject, frame) {
+  const raw = propertyValue(textObject?.properties?.scale, frame, [1, 1, 1]);
+  const scale = vector3(raw, [1, 1, 1]);
+  return [
+    numberValue(scale[0], 1),
+    numberValue(scale[1], 1),
+    numberValue(scale[2], 1),
+  ];
+}
+
+function splitTextScaleOf(splitState) {
+  return Array.isArray(splitState?.textScale)
+    ? splitState.textScale
+    : [1, 1, 1];
+}
+
+// Character position offsets live in unscaled character space, so they are
+// scaled by the Text scale just like layout positions. Rotation and scale
+// stay unscaled.
+function scaleCharacterOffset(textScale, position) {
+  const offset = vector3(position, [0, 0, 0]);
+  const scale = Array.isArray(textScale) ? textScale : [1, 1, 1];
+  return [
+    numberValue(scale[0], 1) * offset[0],
+    numberValue(scale[1], 1) * offset[1],
+    numberValue(scale[2], 1) * offset[2],
+  ];
+}
+
+// Capture the Text scale for this frame and neutralize it on threeObj.
+// Idempotent within a frame: the scale is always re-read from the property.
+function neutralizeTextScale(textObject, splitState, frame) {
+  const textScale = getSplitTextScale(textObject, frame);
+  splitState.textScale = textScale;
+  const mesh = textObject?.threeObj;
+  if (mesh?.scale && typeof mesh.scale.set === "function") {
+    mesh.scale.set(1, 1, 1);
+  }
+  return textScale;
+}
+
+function restoreTextScale(textObject, splitState) {
+  const textScale = Array.isArray(splitState?.textScale)
+    ? splitState.textScale
+    : null;
+  const mesh = textObject?.threeObj;
+  if (textScale && mesh?.scale && typeof mesh.scale.set === "function") {
+    mesh.scale.set(textScale[0], textScale[1], textScale[2]);
+  }
+}
+
+function scaledLayoutPosition(textScale, x, y, z) {
+  return [
+    textScale[0] * x,
+    textScale[1] * y,
+    textScale[2] * z,
+  ];
+}
+
+// Reapply the (possibly animated) Text scale to anchor, pivot and mesh
+// layout transforms every frame. Character node transforms are handled
+// separately in updateCharacterRendering.
+function syncScaledLayout(splitState) {
+  const textScale = splitTextScaleOf(splitState);
+  if (splitState.textPivot && Array.isArray(splitState.textCenter)) {
+    splitState.textPivot.position.set(
+      ...scaledLayoutPosition(
+        textScale,
+        splitState.textCenter[0],
+        splitState.textCenter[1],
+        splitState.textCenter[2]
+      )
+    );
+  }
+  for (const entry of splitState.entries || []) {
+    const layout = entry.layout;
+    if (!layout) continue;
+    entry.anchor.position.set(
+      ...scaledLayoutPosition(
+        textScale,
+        layout.x + layout.center[0] + layout.centerOffset[0],
+        layout.y + layout.center[1] + layout.centerOffset[1],
+        layout.center[2] + layout.centerOffset[2]
+      )
+    );
+    if (entry.mesh) {
+      entry.mesh.position.set(
+        ...scaledLayoutPosition(
+          textScale,
+          -layout.center[0],
+          -layout.center[1],
+          -layout.center[2]
+        )
+      );
+      entry.mesh.scale.set(textScale[0], textScale[1], textScale[2]);
+    }
+  }
+}
+
 function buildCharacterRendering(textObject, splitState, layers) {
   const THREE = state.THREE;
   const sourceMesh = textObject.threeObj;
@@ -327,10 +435,15 @@ function buildCharacterRendering(textObject, splitState, layers) {
   renderRoot.userData.zoidiumTextPlusCharacters = true;
   const textPivot = new THREE.Object3D();
   textPivot.name = "Text center";
-  textPivot.position.set(
-    ...getTextCenter(bounds.empty ? null : bounds, centerOffset)
+  const textCenter = getTextCenter(
+    bounds.empty ? null : bounds,
+    centerOffset
   );
+  const textScale = splitTextScaleOf(splitState);
+  textPivot.position.set(...scaledLayoutPosition(textScale, ...textCenter));
   renderRoot.add(textPivot);
+  splitState.textPivot = textPivot;
+  splitState.textCenter = textCenter.slice();
   const entries = [];
 
   for (const item of pending) {
@@ -348,9 +461,12 @@ function buildCharacterRendering(textObject, splitState, layers) {
     };
     anchor.userData.zoidiumTextPlusCharacter = { ...characterIdentity };
     anchor.position.set(
-      item.unit.x + center[0] + centerOffset[0],
-      item.unit.y + center[1] + centerOffset[1],
-      center[2] + centerOffset[2]
+      ...scaledLayoutPosition(
+        textScale,
+        item.unit.x + center[0] + centerOffset[0],
+        item.unit.y + center[1] + centerOffset[1],
+        center[2] + centerOffset[2]
+      )
     );
     renderRoot.add(anchor);
 
@@ -369,7 +485,10 @@ function buildCharacterRendering(textObject, splitState, layers) {
     if (item.geometry) {
       mesh = new THREE.Mesh(item.geometry, sourceMesh.material);
       mesh.name = item.unit.character;
-      mesh.position.set(-center[0], -center[1], -center[2]);
+      mesh.position.set(
+        ...scaledLayoutPosition(textScale, -center[0], -center[1], -center[2])
+      );
+      mesh.scale.set(textScale[0], textScale[1], textScale[2]);
       copyMeshState(sourceMesh, mesh);
       mesh.userData.zoidiumTextPlusCharacter = { ...characterIdentity };
       parent.add(mesh);
@@ -384,6 +503,12 @@ function buildCharacterRendering(textObject, splitState, layers) {
       textPivot,
       nodes,
       mesh,
+      layout: {
+        x: item.unit.x,
+        y: item.unit.y,
+        center: center.slice(),
+        centerOffset: centerOffset.slice(),
+      },
     });
   }
 
@@ -539,18 +664,24 @@ function getCharacterTransformReference(textPlus, controls, textPivot) {
   };
 }
 
-function applyCharacterTransform(node, controls, textPlus, textPivot) {
+function applyCharacterTransform(node, controls, textPlus, textPivot, textScale) {
   const { pivotObject, referenceObject } = getCharacterTransformReference(
     textPlus,
     controls,
     textPivot
   );
+  // Character offsets are scaled like layout positions; rotation and scale
+  // stay in unscaled character space.
+  const scaledControls = {
+    ...controls,
+    position: scaleCharacterOffset(textScale, controls.position),
+  };
   if (
     (textPlus?.zoidiumTextPlusMode === "random-scatter" || pivotObject) &&
     applyReferenceSpaceCharacterTransform(
       state.THREE,
       node,
-      controls,
+      scaledControls,
       referenceObject,
       pivotObject
     )
@@ -559,7 +690,7 @@ function applyCharacterTransform(node, controls, textPlus, textPivot) {
   }
 
   node.matrixAutoUpdate = true;
-  node.position.set(...controls.position);
+  node.position.set(...scaledControls.position);
   node.scale.set(...controls.scale);
   const order = PZ_EULER_ORDERS.has(controls.eulerOrder)
     ? controls.eulerOrder
@@ -581,9 +712,11 @@ function applyCharacterTransform(node, controls, textPlus, textPivot) {
 function updateCharacterRendering(textObject, splitState, layers, frame) {
   const sourceMesh = textObject.threeObj;
   if (!state.THREE || !sourceMesh) return;
+  const textScale = neutralizeTextScale(textObject, splitState, frame);
   if (!sameObjects(splitState.layers, layers)) {
     buildCharacterRendering(textObject, splitState, layers);
   }
+  syncScaledLayout(splitState);
 
   for (const entry of splitState.entries) {
     copyMeshState(sourceMesh, entry.mesh);
@@ -599,7 +732,8 @@ function updateCharacterRendering(textObject, splitState, layers, frame) {
         entry.nodes[index],
         controls,
         layers[index],
-        entry.textPivot
+        entry.textPivot,
+        textScale
       );
     }
   }
@@ -648,6 +782,7 @@ function getSplitState(textObject) {
 function restoreTextRendering(textObject) {
   const splitState = state.splitStates.get(textObject);
   if (!splitState) return;
+  restoreTextScale(textObject, splitState);
   disposeCharacterRendering(splitState);
   const mesh = textObject?.threeObj;
   if (mesh && mesh.geometry === splitState.emptyGeometry) {
@@ -683,6 +818,7 @@ function syncTextRendering(textObject, frame) {
 
   const splitState = getSplitState(textObject);
   const geometryChanged = captureSourceGeometry(textObject, splitState);
+  neutralizeTextScale(textObject, splitState, frame);
   if (
     geometryChanged ||
     splitState.font !== textObject.font.font3d ||
@@ -706,6 +842,13 @@ module.exports = {
   createCharacterGeometry,
   copyMeshState,
   disposeCharacterRendering,
+  getSplitTextScale,
+  splitTextScaleOf,
+  scaleCharacterOffset,
+  neutralizeTextScale,
+  restoreTextScale,
+  scaledLayoutPosition,
+  syncScaledLayout,
   buildCharacterRendering,
   captureSourceGeometry,
   getMatrixToAncestor,

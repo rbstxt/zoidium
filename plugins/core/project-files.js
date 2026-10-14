@@ -398,6 +398,9 @@
     var sourceRevision = getProjectRevision(editor);
     var archive = new PZ.archive();
 
+    // Await serialized object/plugin initialization, not preview decoders.
+    // Otherwise a still-loading object can serialize its default properties.
+    await prepareProject(sourceProject);
     await serializeProject(archive, editor.project);
     // Runtime-only media thumbnails must never reach a saved file.
     await sanitizeProjectArchive(archive);

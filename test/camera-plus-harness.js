@@ -491,10 +491,12 @@ function createZoidiumUI() {
     className: "",
     appendChild(child) { this.children.push(child); return child; },
   });
+  const buttons = [];
   return {
     windows,
     rows,
     lists,
+    buttons,
     controls: {
       section(title) { const el = element(); return { element: el, body: el, title }; },
       list(options) {
@@ -503,6 +505,11 @@ function createZoidiumUI() {
         return built;
       },
       note(message) { return { element: { message } }; },
+      button(options) {
+        const built = { element: element(), options };
+        buttons.push(built);
+        return built;
+      },
       buttonRow(buttons) {
         const built = { element: element(), buttons };
         rows.push(built);
