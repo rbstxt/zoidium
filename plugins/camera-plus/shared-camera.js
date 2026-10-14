@@ -77,21 +77,22 @@ parts.shared = function (options) {
     info.editor.history.pushCommand(swapToggle, Object.assign({}, info, { value: current }));
     refresh(info.editor);
   }
+  function toggleTrack3d(track, editor) {
+    const effects = [];
+    editor.history.startOperation();
+    try {
+      if (!track.track3d) for (const clip of track.clips) {
+        const layer = clip.object;
+        if (!layer || layer instanceof PZ.layer.scene || layer instanceof PZ.layer.adjustment) continue;
+        if (!layer.effects.some(effect => effect.type === "transform")) effects.push({ layer, effect: null, data: { type: "transform" } });
+      }
+      swapToggle({ track, editor, value: !track.track3d, effects });
+    } finally { editor.history.finishOperation(); }
+  }
   teardown.push(apis.timeline.registerTrackButton({ id: "camera-plus/3d", label: "3D", kinds: ["video"],
     title: track => track.track3d ? "3D tracking on: follow the shared camera" : "3D tracking off: enable to follow the shared camera",
     isActive: track => track.track3d,
-    onToggle(track, editor) {
-      const effects = [];
-      editor.history.startOperation();
-      try {
-        if (!track.track3d) for (const clip of track.clips) {
-          const layer = clip.object;
-          if (!layer || layer instanceof PZ.layer.scene || layer instanceof PZ.layer.adjustment) continue;
-          if (!layer.effects.some(effect => effect.type === "transform")) effects.push({ layer, effect: null, data: { type: "transform" } });
-        }
-        swapToggle({ track, editor, value: !track.track3d, effects });
-      } finally { editor.history.finishOperation(); }
-    },
+    onToggle: toggleTrack3d,
   }));
 
   const depthDefinitions = {
@@ -321,7 +322,7 @@ parts.shared = function (options) {
       for (const track of sequence.videoTracks) if (track.layer) track.layer.update(frame - track.layer.parent.start);
     }
   }, teardown);
-  return { CameraLayer, masterAt, projectChanged() {
+  return { CameraLayer, masterAt, toggleTrack3d, projectChanged() {
     for (const layer of touched) for (const key of Object.keys(depthDefinitions)) layer.properties[key].visible = false;
     touched.clear();
     releaseTrackUsage();
