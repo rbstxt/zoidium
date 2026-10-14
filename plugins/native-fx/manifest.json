@@ -55,6 +55,26 @@
       "id": "linearcolorkey-shader",
       "type": "text",
       "source": "/plugins/native-fx/shaders/fx_linearcolorkey.glsl?v=15"
+    },
+    {
+      "id": "fxgen-math",
+      "type": "text",
+      "source": "/plugins/native-fx/effects/fxgen-math.js?v=15"
+    },
+    {
+      "id": "radiowaves-shader",
+      "type": "text",
+      "source": "/plugins/native-fx/shaders/fx_radiowaves.glsl?v=15"
+    },
+    {
+      "id": "beam-shader",
+      "type": "text",
+      "source": "/plugins/native-fx/shaders/fx_beam.glsl?v=15"
+    },
+    {
+      "id": "textfield-shader",
+      "type": "text",
+      "source": "/plugins/native-fx/shaders/fx_textfield.glsl?v=15"
     }
   ],
   "category": "NATIVE FX",
@@ -151,6 +171,30 @@
       "name": "Linear Color Key",
       "description": "Keys pixels by RGB, hue, or chroma distance to a key color with tolerance and softness.",
       "source": "./plugins/native-fx/effects/linearcolorkey.js?v=15"
+    },
+    {
+      "id": "radiowaves",
+      "name": "Radio Waves",
+      "description": "Emits analytic concentric polygon waves from a producer point.",
+      "source": "./plugins/native-fx/effects/radiowaves.js?v=15"
+    },
+    {
+      "id": "beam",
+      "name": "Beam",
+      "description": "Draws a laser beam from a starting point to an ending point.",
+      "source": "./plugins/native-fx/effects/beam.js?v=15"
+    },
+    {
+      "id": "numbers",
+      "name": "Numbers",
+      "description": "Draws a deterministic number, timecode, date or hexadecimal value.",
+      "source": "./plugins/native-fx/effects/numbers.js?v=15"
+    },
+    {
+      "id": "timecode",
+      "name": "Timecode",
+      "description": "Displays the layer time as SMPTE timecode, frames or feet and frames.",
+      "source": "./plugins/native-fx/effects/timecode.js?v=15"
     }
   ]
 }
