@@ -278,14 +278,21 @@ playback is running.
 - Evaluate analytically at the frame, or replay from a defined start with
   fixed steps. Caches and checkpoints are allowed only as acceleration and
   must be keyed by every input that affects the result.
-- Core memoizes sampler input textures by the serialized sequence, asset
-  identity, enabled tracks, output resolution, source time, effect, nesting
-  depth and adjustment scope. Inputs without an earlier sampler share storage
-  across depths; adjustment inputs retain their depth because lower tracks may
-  recurse into samplers. It retains interleaved tap sets across playback
-  and short seeks, never frame-to-frame output feedback. The revision key remains a
-  full serialization so property edits, keyframes, undo/redo and asset changes
-  invalidate the same inputs as before.
+- Core memoizes sampler input textures by exact serialized content, asset/file
+  identity, output resolution and aspect settings, plugin state changes, source time,
+  effect, nesting depth and adjustment scope. Every key cuts the sampler's
+  layer before the sampler, so editing the sampler itself or a later effect
+  retains its inputs. Audited ordinary layer content (audited effects before
+  the sampler) keys only its clip timing, sequence properties and that effect
+  prefix, so an unrelated track can be edited too. Prefix Time Offset and
+  Posterize Time operators remain in the key. Other content uses the whole
+  sequence; when expressions, layer sources or compositions could read the
+  cut effects, the cut is not applied. No edit-generation shortcut replaces
+  content serialization. Undo/redo can reuse still-resident entries.
+  Inputs without an earlier sampler share storage across depths; adjustment
+  inputs retain their depth because lower tracks may recurse into samplers.
+  `PZ.zoidium.debugDisableFrameSamplerInputReuse = true` disables reuse between
+  preparations for pixel comparisons while preserving the current prepared plan.
 - The sampler allocates optional retained RGBA8 targets only while their total
   is at most 256 MiB per root compositor, with at most 128 slots per effect and
   input nesting depth. Single-tap requests reuse one target. Other plans
@@ -299,11 +306,14 @@ playback is running.
   overhead, compositor scratch buffers and effect-owned work buffers are extra.
   Active preparation batches and published output plans remain reserved until
   their captures or main render finish.
-- Preparation disposes the old target pool when the serialized revision changes.
-  Project-resolution events and compositor resizes release it immediately.
-  Pending previews verify their key again before publishing. Effect unload,
+- Content edits refill expired slots without reallocating the target pool.
+  Overwriting a target immediately unlinks its old memo entry, so retained keys
+  are bounded by resident targets. Each resident revision shares one content
+  string across its frame entries. Project-resolution events and compositor
+  resizes release the pool immediately. Asynchronous input preparation and
+  pending previews verify their content keys before publishing. Effect unload,
   project replacement and compositor unload dispose the complete runtime,
-  including isolated decoder schedules.
+  including isolated decoder schedules. Plugin state changes also dispose it.
 - Effects that need other frames request them with `defineFrameSampler` or
   `defineTemporal`. Never feed the previous output back as history.
 - Randomness comes from seeded hashes of (seed, index, frame), never from
