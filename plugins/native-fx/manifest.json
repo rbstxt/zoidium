@@ -75,6 +75,26 @@
       "id": "textfield-shader",
       "type": "text",
       "source": "/plugins/native-fx/shaders/fx_textfield.glsl?v=15"
+    },
+    {
+      "id": "ccpageturn-shader",
+      "type": "text",
+      "source": "/plugins/native-fx/shaders/fx_ccpageturn.glsl?v=15"
+    },
+    {
+      "id": "cardwipe-shader",
+      "type": "text",
+      "source": "/plugins/native-fx/shaders/fx_cardwipe.glsl?v=15"
+    },
+    {
+      "id": "radialshadow-shader",
+      "type": "text",
+      "source": "/plugins/native-fx/shaders/fx_radialshadow.glsl?v=15"
+    },
+    {
+      "id": "fxtrans-math",
+      "type": "text",
+      "source": "/plugins/native-fx/effects/fxtrans-math.js?v=15"
     }
   ],
   "category": "NATIVE FX",
@@ -195,6 +215,30 @@
       "name": "Timecode",
       "description": "Displays the layer time as SMPTE timecode, frames or feet and frames.",
       "source": "./plugins/native-fx/effects/timecode.js?v=15"
+    },
+    {
+      "id": "ccpageturn",
+      "name": "CC Page Turn",
+      "description": "Curls the layer like a turning page with an adjustable fold and paper back.",
+      "source": "./plugins/native-fx/effects/ccpageturn.js?v=15"
+    },
+    {
+      "id": "cardwipe",
+      "name": "Card Wipe",
+      "description": "Flips the layer away as a grid of 3D cards in a chosen order.",
+      "source": "./plugins/native-fx/effects/cardwipe.js?v=15"
+    },
+    {
+      "id": "ccpixelpolly",
+      "name": "CC Pixel Polly",
+      "description": "Breaks the layer into flying polygons under force and gravity.",
+      "source": "./plugins/native-fx/effects/ccpixelpolly.js?v=15"
+    },
+    {
+      "id": "radialshadow",
+      "name": "Radial Shadow",
+      "description": "Casts a soft radial shadow of the layer away from a point light source.",
+      "source": "./plugins/native-fx/effects/radialshadow.js?v=15"
     }
   ]
 }
