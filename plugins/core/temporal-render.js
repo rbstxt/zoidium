@@ -70,6 +70,7 @@
 
     const state = {
       contexts: [],
+      layerUpdateRevision: 0,
       compositorsBySequence: new WeakMap(),
       evaluatingLayers: new WeakSet(),
       frameSamplerRuntimes: new WeakMap(),
@@ -79,6 +80,7 @@
       samplingEffects: new WeakSet(),
       originalLayerUpdate: null,
       originalCompositorUnload: null,
+      originalCompositorSetSize: null,
       originalExportGetVideoFrame: null,
       wrappedExportGetVideoFrame: null,
       originalRenderSequence: null,
@@ -92,6 +94,13 @@
       playbackPrototype: null,
       viewportPrototype: null,
       exportPrototype: null,
+      releaseFrameSamplerTargets(layer, ownerSequence) {
+        const sequence = getSequenceForLayer(layer) || ownerSequence;
+        for (const root of Array.from(this.compositorsBySequence.get(sequence) || [])) {
+          disposeFrameSamplerRuntime(this, root);
+          registerCompositor(this, root);
+        }
+      },
       resolveFrameSamples(effect) {
         return resolveFrameSamples(this, effect);
       },
@@ -134,6 +143,7 @@
     state.layerPrototype = prototype;
     state.originalLayerUpdate = prototype.update;
     prototype.update = function temporalTrackedLayerUpdate(frame) {
+      this.__zoidiumTemporalUpdateRevision = ++state.layerUpdateRevision;
       installEffectUpdatePatches(state, this);
       const context = state.contexts[state.contexts.length - 1];
       const mapped =
@@ -188,9 +198,21 @@
       try {
         return state.originalRenderSequence.apply(this, arguments);
       } finally {
+        state.frameSamplerRuntimes.get(this)?.publishedReservations.clear();
         state.contexts.pop();
       }
     };
+
+    if (typeof prototype.setSize === "function") {
+      state.originalCompositorSetSize = prototype.setSize;
+      prototype.setSize = function temporalCompositorSetSize(width, height) {
+        const runtime = state.frameSamplerRuntimes.get(this);
+        if (runtime && (this.readBuffer?.width !== width || this.readBuffer?.height !== height)) {
+          sampler.clearFrameSamplerTargets(runtime);
+        }
+        return state.originalCompositorSetSize.apply(this, arguments);
+      };
+    }
 
     prototype.unload = function temporalCompositorUnload() {
       disposeFrameSamplerRuntime(state, this);
@@ -391,17 +413,41 @@
               runtime.previewPending = true;
               const viewport = this;
               (async () => {
+                const preparedContent = new Set();
                 for (const { effect, clip } of effects) {
                   const localFrame = frame - clip.start;
                   const mapped = state.mapLayerFrame(clip.object, localFrame);
                   const sourceFrame = mapped?.sourceFrame ?? localFrame;
-                  clip.object.update(sourceFrame);
+                  // The viewport bypasses native layer.prepare(). Settle its
+                  // content before a tap becomes a reusable input. Adjustment
+                  // samplers also need every active lower layer's resources.
+                  const trackIndex = sequence.videoTracks.findIndex(track => track.clips?.includes(clip));
+                  const clips = layers.isAdjustmentLayer(clip.object)
+                    ? sequence.videoTracks.slice(0, trackIndex).filter(track => track.enabled !== false)
+                      .map(track => track.getCurrentClip?.(frame)).filter(Boolean).concat(clip)
+                    : [clip];
+                  for (const contentClip of clips) {
+                    if (preparedContent.has(contentClip)) continue;
+                    preparedContent.add(contentClip);
+                    const local = frame - contentClip.start;
+                    const mappedContent = state.mapLayerFrame(contentClip.object, local);
+                    const contentFrame = mappedContent?.sourceFrame ?? local;
+                    contentClip.object.update(contentFrame);
+                    await contentClip.object.loadShaders;
+                    if (contentClip.object.image) await contentClip.object.image.loading;
+                    for (const object of contentClip.object.objects || []) {
+                      await object.loading;
+                      await object.prepare?.(contentFrame, { sequence });
+                    }
+                  }
                   await effect.prepare(sourceFrame,
                     { sequence, frameSamplerRoot: viewport.compositor });
                 }
                 runtime.previewMedia = await prepareLowerSchedules(sequence,
                   { layer: null, trackIndex: 0 }, frame, { sequence }, runtime, true);
-                if (runtime.disposed) return;
+                if (runtime.disposed || key !== JSON.stringify([frame,
+                  frameSamplerInputKey(sequence, viewport.compositor),
+                  effects.map(({ effect }) => frameSamplerIdentity(effect))])) return;
                 runtime.previewKey = key;
                 // Show each completed frame during playback. Waiting for the
                 // moving playhead to equal it would starve the preview forever.
