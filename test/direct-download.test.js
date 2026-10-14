@@ -148,6 +148,7 @@ test("each finished page downloads the Blob captured when it was created", async
   // Saving a project after both renders must not affect either page.
   globalObject.PZ.downloadBlob = new Blob(["project"]);
   globalObject.PZ.downloadFilename = "project.pz";
+  globalObject.PZ.zoidium = { projectFiles: { async openValidatedArchive() {} } };
   videoPage.button.click();
   imagePage.button.click();
   await flush();
@@ -319,4 +320,17 @@ test("an empty export is refused with an English error instead of a zero-byte do
     /The export is empty, so nothing was downloaded/,
   );
   assert.deepEqual(downloads, []);
+});
+
+test("legacy project downloads validate their Blob before delivery", async () => {
+  const { createDownloadManager } = require("../zoidium/direct-download");
+  let delivered = 0;
+  const manager = createDownloadManager({
+    globalObject: { PZ: { zoidium: { projectFiles: {
+      async openValidatedArchive() { throw new Error("Bad project entry hash"); },
+    } } } },
+    downloadArtifact() { delivered += 1; },
+  });
+  await assert.rejects(manager.trigger(manager.capture(new Blob(["invalid"]), "broken.pz")), /Bad project entry hash/);
+  assert.equal(delivered, 0);
 });

@@ -186,6 +186,10 @@ function projectFilesHarness({ archiveFiles = null } = {}) {
     Uint8Array,
     window: windowObject,
   });
+  const io = require("./project-archive-harness.cjs").installArchive(windowObject);
+  const encode = io.encode;
+  io.encode = async function (archive) { captured.push(archive); return encode(archive); };
+  if (archiveFiles) io.decode = async function () { const archive = new Archive(); await archive.untar(); return archive; };
   vm.runInContext(projectFilesSource, context);
   return { PZ, projectFiles: PZ.zoidium.projectFiles, captured, Editor };
 }
