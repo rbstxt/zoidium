@@ -228,3 +228,21 @@ test("plugin texture maps and imported data references require asset metadata", 
     await assert.rejects(h.projectFiles.openValidatedArchive(await io.encode(a), "restore"), new RegExp(field + ".*has no asset metadata"));
   }
 });
+
+test("pending object and plugin initialization never serialize default project state", async () => {
+  for (const kind of ["object", "plugin"]) {
+    const h = createHarness({ setTimeout: fastTimers });
+    const editor = h.makeEditor();
+    let serialized = false;
+    const original = h.PZ.project.save;
+    h.PZ.project.save = function (...args) { serialized = true; return original(...args); };
+    if (kind === "object") editor.project.children = [{ defaultName: "Image material", loading: new Promise(() => {}) }];
+    else editor.project._zoidiumPluginActivationPending = new Promise(() => {});
+    assert.equal(await editor.save(), null);
+    assert.equal(serialized, false);
+    assert.equal(h.downloads(), 0);
+    assert.equal(editor.project.ui.dirty, true);
+    assert.match(h.events.find(event => event.type === "zoidium:project-error").detail.message,
+      kind === "object" ? /Image material loading.*did not finish/ : /Project plugin activation.*did not finish/);
+  }
+});

@@ -114,16 +114,89 @@ function uvPrepareContours(contours) {
   return prepared;
 }
 
+// Keep segments in their original contour order. Bounding boxes skip distant
+// ranges without changing the epsilon ties or the closing seam's first match.
+// Spatially reordering nearest segments would change UVs on ambiguous walls.
+function uvBuildOutlineIndex(prepared) {
+  const segments = [];
+  for (const contour of prepared) {
+    for (let point = 0; point < contour.points.length; point += 1) {
+      const a = contour.points[point];
+      const b = contour.points[(point + 1) % contour.points.length];
+      segments.push({ contour, point, index: segments.length,
+        minX: Math.min(a.x, b.x), minY: Math.min(a.y, b.y),
+        maxX: Math.max(a.x, b.x), maxY: Math.max(a.y, b.y),
+        centerX: (a.x + b.x) / 2, centerY: (a.y + b.y) / 2 });
+    }
+  }
+  function build(start, end) {
+    const node = { start, end, minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
+    if (end - start > 8) {
+      const middle = Math.floor((start + end) / 2);
+      node.left = build(start, middle);
+      node.right = build(middle, end);
+      node.minX = Math.min(node.left.minX, node.right.minX);
+      node.minY = Math.min(node.left.minY, node.right.minY);
+      node.maxX = Math.max(node.left.maxX, node.right.maxX);
+      node.maxY = Math.max(node.left.maxY, node.right.maxY);
+    } else {
+      for (let index = start; index < end; index += 1) {
+        const { contour, point } = segments[index];
+        const a = contour.points[point];
+        const b = contour.points[(point + 1) % contour.points.length];
+        node.minX = Math.min(node.minX, a.x, b.x);
+        node.minY = Math.min(node.minY, a.y, b.y);
+        node.maxX = Math.max(node.maxX, a.x, b.x);
+        node.maxY = Math.max(node.maxY, a.y, b.y);
+      }
+    }
+    return node;
+  }
+  // Bevel rings can overlap throughout contour order. A second tree groups
+  // segments spatially for nearest searches; the ordered tree remains the
+  // exact fallback for epsilon transitions.
+  function buildSpatial(entries) {
+    const node = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
+    for (const segment of entries) {
+      node.minX = Math.min(node.minX, segment.minX);
+      node.minY = Math.min(node.minY, segment.minY);
+      node.maxX = Math.max(node.maxX, segment.maxX);
+      node.maxY = Math.max(node.maxY, segment.maxY);
+    }
+    if (entries.length <= 8) node.indices = entries.map(segment => segment.index);
+    else {
+      const axis = node.maxX - node.minX >= node.maxY - node.minY ? "centerX" : "centerY";
+      entries.sort((a, b) => a[axis] - b[axis] || a.index - b.index);
+      const middle = Math.floor(entries.length / 2);
+      node.left = buildSpatial(entries.slice(0, middle));
+      node.right = buildSpatial(entries.slice(middle));
+    }
+    return node;
+  }
+  return { segments, root: build(0, segments.length), spatialRoot: buildSpatial(segments.slice()) };
+}
+
 // Every segment tied for the minimum distance is returned: the outline's
 // closing point is shared by two segments and projects to arc 0 and arc total.
-function uvOutlineCandidates(prepared, x, y, scale) {
+function uvOrderedCandidates(outline, x, y, scale) {
   let bestDistanceSquared = Infinity;
   const candidates = [];
 
-  for (let index = 0; index < prepared.length; index += 1) {
-    const contour = prepared[index];
-    const points = contour.points;
-    for (let point = 0; point < points.length; point += 1) {
+  function visit(node) {
+    const boxDx = Math.max(node.minX - x, 0, x - node.maxX);
+    const boxDy = Math.max(node.minY - y, 0, y - node.maxY);
+    // Extra slack makes pruning conservative at floating-point boundaries.
+    const lowerBound = boxDx * boxDx + boxDy * boxDy;
+    const slack = UV_DISTANCE_EPSILON + Number.EPSILON * 8 * Math.max(1, lowerBound);
+    if (lowerBound > bestDistanceSquared + slack) return;
+    if (node.left) {
+      visit(node.left);
+      visit(node.right);
+      return;
+    }
+    for (let index = node.start; index < node.end; index += 1) {
+      const { contour, point } = outline.segments[index];
+      const points = contour.points;
       const a = points[point];
       const b = points[(point + 1) % points.length];
       const dx = b.x - a.x;
@@ -157,8 +230,71 @@ function uvOutlineCandidates(prepared, x, y, scale) {
       });
     }
   }
-
+  visit(outline.root);
   return candidates;
+}
+
+// Most queries have one nearest segment, or exact endpoint/seam ties. Find
+// that neighborhood first instead of walking thousands of earlier segments.
+// If distances lie in the epsilon transition band, use the ordered search:
+// its non-transitive tolerance can depend on an earlier, farther segment.
+function uvOutlineCandidates(outline, x, y, scale) {
+  let minimum = Infinity;
+  const nearby = [];
+  function boxDistance(node) {
+    const dx = Math.max(node.minX - x, 0, x - node.maxX);
+    const dy = Math.max(node.minY - y, 0, y - node.maxY);
+    return dx * dx + dy * dy;
+  }
+  function distance(index) {
+    const { contour, point } = outline.segments[index];
+    const a = contour.points[point];
+    const b = contour.points[(point + 1) % contour.points.length];
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const lengthSquared = dx * dx + dy * dy;
+    let t = 0;
+    if (lengthSquared > 0) {
+      t = ((x - a.x) * dx + (y - a.y) * dy) / lengthSquared;
+      if (t < 0) t = 0;
+      else if (t > 1) t = 1;
+    }
+    const px = a.x + dx * t;
+    const py = a.y + dy * t;
+    return { index, contour, point, t, lengthSquared,
+      distanceSquared: (x - px) * (x - px) + (y - py) * (y - py) };
+  }
+  function visit(node, collect) {
+    const lowerBound = boxDistance(node);
+    const slack = UV_DISTANCE_EPSILON * 4 + Number.EPSILON * 8 * Math.max(1, lowerBound);
+    if (lowerBound > minimum + slack) return;
+    if (node.left) {
+      // First pass uses spatial order; the collected matches are sorted back
+      // into contour order before applying the original tie rules.
+      const rightFirst = !collect && boxDistance(node.right) < boxDistance(node.left);
+      visit(rightFirst ? node.right : node.left, collect);
+      visit(rightFirst ? node.left : node.right, collect);
+    } else {
+      for (const index of node.indices) {
+        const match = distance(index);
+        if (collect) {
+          if (match.distanceSquared <= minimum + UV_DISTANCE_EPSILON * 4) nearby.push(match);
+        } else if (match.distanceSquared < minimum) minimum = match.distanceSquared;
+      }
+    }
+  }
+  visit(outline.spatialRoot, false);
+  visit(outline.spatialRoot, true);
+  if (nearby.some(match => match.distanceSquared > minimum + UV_DISTANCE_EPSILON / 2)) {
+    return uvOrderedCandidates(outline, x, y, scale);
+  }
+  nearby.sort((a, b) => a.index - b.index);
+  return nearby.map(({ contour, point, t, lengthSquared, distanceSquared }) => {
+    const arc = contour.cumulative[point] + Math.sqrt(lengthSquared) * t;
+    return { arc, total: contour.total,
+      u: scale > 0 ? arc / scale : contour.total > 0 ? arc / contour.total : 0,
+      distanceSquared };
+  });
 }
 
 function uvNearestTo(candidates, anchorU) {
@@ -230,6 +366,10 @@ function uvNormalizeGeometry(geometry) {
   const scale = sizeY > 0 ? sizeY : sizeX > 0 ? sizeX : sizeZ > 0 ? sizeZ : 1;
   const prepared = uvPrepareContours(uvReconstructContours(geometry));
   if (prepared.length === 0) return false;
+  const outline = uvBuildOutlineIndex(prepared);
+  // A vertex is shared by multiple wall triangles. This cache lasts only for
+  // this normalization, so all geometry, contour and scale inputs are current.
+  const vertexCandidates = new Map();
 
   for (let faceIndex = 0; faceIndex < geometry.faces.length; faceIndex += 1) {
     const face = geometry.faces[faceIndex];
@@ -256,7 +396,7 @@ function uvNormalizeGeometry(geometry) {
     let anchorU = 0;
     if (!isCap && counted > 0) {
       const anchor = uvOutlineCandidates(
-        prepared,
+        outline,
         centroidX / counted,
         centroidY / counted,
         scale
@@ -274,7 +414,12 @@ function uvNormalizeGeometry(geometry) {
         continue;
       }
 
-      const candidates = uvOutlineCandidates(prepared, vertex.x, vertex.y, scale);
+      const vertexIndex = indices[index];
+      let candidates = vertexCandidates.get(vertexIndex);
+      if (!candidates) {
+        candidates = uvOutlineCandidates(outline, vertex.x, vertex.y, scale);
+        vertexCandidates.set(vertexIndex, candidates);
+      }
       const match = candidates.length > 0 ? uvNearestTo(candidates, anchorU) : null;
       uv.set(match ? match.u : anchorU, (vertex.z - bounds.minZ) / scale);
     }

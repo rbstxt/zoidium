@@ -17,6 +17,11 @@
   const EXPORT_FRAME_MARKER = "__zoidiumTemporalExportFramePatch";
   const MAX_FRAME_SAMPLES = 16;
   const MAX_FRAME_SAMPLER_DEPTH = 8;
+  // Explicit per-tap frame lists (Time Displacement slices, CC Wide Time
+  // forward/backward steps) may need more taps than the evenly spaced Echo
+  // plan; they stay bounded by their own cap and reuse the same pooled
+  // scratch targets.
+  const MAX_EXPLICIT_FRAME_SAMPLES = 64;
 
   function finiteNumber(value, fallback) {
     return Number.isFinite(Number(value)) ? Number(value) : fallback;
@@ -151,6 +156,30 @@
     );
   }
 
+  // Explicit per-tap plan for samplers whose tap times are not evenly spaced
+  // (Time Displacement slices, CC Wide Time forward/backward steps).
+  // `offsets` are frame offsets relative to `outputFrame`; each tap is
+  // clamped to [minimumFrame, maximumFrame] like the Echo plan (frames before
+  // the clip start and after its end freeze on the edge frame) and the tap
+  // count is capped at MAX_EXPLICIT_FRAME_SAMPLES. Every tap keeps full
+  // opacity; the effect owns its own combination weights. Pure and
+  // deterministic: same inputs always produce the same plan.
+  function planExplicitFrameSamples(outputFrame, offsets, minimumFrame, maximumFrame) {
+    const output = finiteNumber(outputFrame, 0);
+    const minimum = finiteNumber(minimumFrame, Number.NEGATIVE_INFINITY);
+    const maximum = finiteNumber(maximumFrame, Number.POSITIVE_INFINITY);
+    const lower = Math.min(minimum, maximum);
+    const upper = Math.max(minimum, maximum);
+    const list = Array.isArray(offsets) ? offsets : [];
+    const total = Math.min(MAX_EXPLICIT_FRAME_SAMPLES, list.length);
+    const samples = [];
+    for (let index = 0; index < total; index += 1) {
+      const frame = Math.min(upper, Math.max(lower, output + finiteNumber(list[index], 0)));
+      samples.push({ frame, index, opacity: 1 });
+    }
+    return samples;
+  }
+
   function mapTemporalFrameWithScopes(
     localFrame,
     projectRate,
@@ -188,6 +217,7 @@
     VIEWPORT_RENDER_MARKER: VIEWPORT_RENDER_MARKER,
     EXPORT_FRAME_MARKER: EXPORT_FRAME_MARKER,
     MAX_FRAME_SAMPLES: MAX_FRAME_SAMPLES,
+    MAX_EXPLICIT_FRAME_SAMPLES: MAX_EXPLICIT_FRAME_SAMPLES,
     MAX_FRAME_SAMPLER_DEPTH: MAX_FRAME_SAMPLER_DEPTH,
     finiteNumber: finiteNumber,
     clampFrame: clampFrame,
@@ -200,6 +230,7 @@
     mapFrameSamplerInputFrame: mapFrameSamplerInputFrame,
     clampUnit: clampUnit,
     planFrameSamples: planFrameSamples,
+    planExplicitFrameSamples: planExplicitFrameSamples,
     buildFrameSamplePlan: buildFrameSamplePlan,
     mapTemporalFrameWithScopes: mapTemporalFrameWithScopes,
   };

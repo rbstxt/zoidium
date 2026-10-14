@@ -39,6 +39,7 @@
   var readFpsProp = math.readFpsProp;
   var applyTemporalOperators = math.applyTemporalOperators;
   var buildFrameSamplePlan = math.buildFrameSamplePlan;
+  var planExplicitFrameSamples = math.planExplicitFrameSamples;
   var clampLocalFrame = math.clampLocalFrame;
   var quantizeLocalFrame = math.quantizeLocalFrame;
   var mapTemporalFrameWithScopes = math.mapTemporalFrameWithScopes;
@@ -365,7 +366,13 @@
             if (!effect._zoidiumFrameSampler) continue;
             const controlFrame = getAdjustmentEffectFrame(clip.object, effect, frame - clip.start);
             const request = effect._zoidiumFrameSampler.getRequest(effect, controlFrame);
-            if (request && request.enabled !== false && Number(request.count) > 0) {
+            // Legacy Echo-style requests carry count/offsetFrames; newer
+            // samplers (Time Displacement, CC Wide Time) carry an explicit
+            // per-tap frames array (see planRequestSamples).
+            const tapCount = Array.isArray(request?.frames)
+              ? request.frames.length
+              : Number(request?.count);
+            if (request && request.enabled !== false && tapCount > 0) {
               effects.push({ effect, clip });
             }
           }
@@ -482,6 +489,8 @@
     module.exports = {
       applyTemporalOperators,
       buildFrameSamplePlan,
+      planExplicitFrameSamples,
+      MAX_EXPLICIT_FRAME_SAMPLES: math.MAX_EXPLICIT_FRAME_SAMPLES,
       clampFrame,
       clampLocalFrame,
       findScheduleItemAtFrame,

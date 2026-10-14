@@ -6,7 +6,8 @@ entries. The optional `zoidium.json` entry adds the project name and a size and
 full SHA-256 digest for each entry. Existing CM3 asset IDs stay unchanged.
 Older Zoidium builds ignore this additional integrity metadata.
 
-Save copies attached asset bytes into page memory, checks local asset
+Save first waits for bounded object/plugin initialization so it cannot serialize
+uninitialized default properties. It then copies attached asset bytes into page memory, checks local asset
 references and content IDs, builds the archive, then decodes and validates the
 finished Blob through the same validator used by Open. Font and texture preview
 decoding is not needed to save their attached bytes. Saving therefore does not
