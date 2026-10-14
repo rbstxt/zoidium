@@ -119,13 +119,56 @@ test("unreadable assets can be recovered partially, while damaged project JSON c
   catch (error) { assert.equal(error.partialArchive, undefined); }
 });
 
-test("bounded nested loading preserves the current project during failed open", async () => {
+test("slow nested loading is awaited on open instead of failing a valid project", async () => {
   const h = createHarness({ setTimeout: fastTimers });
   const editor = h.makeEditor();
-  const original = editor.project;
-  editor.loadedProject = { children: [{ defaultName: "Texture object", loading: new Promise(() => {}) }] };
-  await assert.rejects(editor.loadProject({}), /Texture object loading.*did not finish/);
-  assert.equal(editor.project, original);
+  let finish;
+  const child = { defaultName: "Texture object", loading: new Promise(resolve => { finish = resolve; }) };
+  editor.loadedProject = { children: [child] };
+  const loading = editor.loadProject({});
+  // Well past the 10 s save deadline (100 ms under fastTimers).
+  await new Promise(resolve => setTimeout(resolve, 300));
+  finish();
+  assert.equal(await loading, editor.loadedProject);
+});
+
+test("a save that waits on a stuck object lets the user keep waiting or save now", async () => {
+  const h = createHarness({ setTimeout: fastTimers });
+  const editor = h.makeEditor();
+  const answers = [false, true];
+  const prompts = [];
+  h.windowObject.ZoidiumUI = { async confirm(options) { prompts.push(options); return answers.shift(); } };
+  editor.project.children = [{ defaultName: "Image material", loading: new Promise(() => {}) }];
+  const result = await h.projectFiles.createArchive(editor, { interactive: true });
+  assert.equal(prompts.length, 2);
+  assert.match(prompts[0].message, /Image material loading has not finished/);
+  assert.equal(prompts[0].confirmLabel, "Save now");
+  assert.ok(result.blob.size > 0);
+  await h.projectFiles.openValidatedArchive(result.blob, "open");
+});
+
+test("a failed protective backup asks before replacing the project", async () => {
+  for (const proceed of [true, false]) {
+    const h = createHarness();
+    const editor = h.makeEditor();
+    const failure = new Error("Restore-point storage is full.");
+    const prompts = [];
+    h.windowObject.__zoidiumRestoreParts = { panel: { async createSnapshot() { throw failure; } } };
+    h.windowObject.ZoidiumUI = { async confirm(options) { prompts.push(options); return proceed; } };
+    const backup = h.projectFiles.backupBeforeReplace(editor, "opening another project");
+    if (proceed) await backup;
+    else await assert.rejects(backup, /storage is full/);
+    assert.match(prompts[0].message, /opening another project \(Restore-point storage is full\.\)/);
+  }
+});
+
+test("I/O deadlines grow with the data size", () => {
+  const { io } = setup();
+  assert.equal(io.budget(0), 10000);
+  assert.equal(io.budget(4096), 10000);
+  assert.equal(io.budget(400 * 1024 * 1024), 110000);
+  assert.equal(io.budget(1024, 60000), 60000);
+  assert.ok(io.MAX_BYTES >= 2048 * 1024 * 1024);
 });
 
 test("a completed save cannot attach its old file handle to a replacement project", async () => {

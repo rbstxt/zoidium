@@ -344,11 +344,11 @@
     }
     var archive;
     try {
-      archive = await archiveIO.bounded(archiveIO.decode(source, PZ.archive), "Decoding the project file", 60000);
+      archive = await archiveIO.bounded(archiveIO.decode(source, PZ.archive), "Decoding the project file", archiveIO.budget(source.size, 60000));
     } catch (error) {
       throw projectDataError(mode, errorMessage(error, "The archive is not readable"));
     }
-    await archiveIO.bounded(validateProjectArchive(archive, mode), "Validating the project file", 60000);
+    await archiveIO.bounded(validateProjectArchive(archive, mode), "Validating the project file", archiveIO.budget(source.size, 60000));
     await sanitizeProjectArchive(archive);
     return archive;
   }
@@ -400,7 +400,7 @@
 
     // Await serialized object/plugin initialization, not preview decoders.
     // Otherwise a still-loading object can serialize its default properties.
-    await prepareProject(sourceProject);
+    await prepareProject(sourceProject, saveReadinessWait(Boolean(options && options.interactive)));
     await serializeProject(archive, editor.project);
     // Runtime-only media thumbnails must never reach a saved file.
     await sanitizeProjectArchive(archive);
@@ -430,7 +430,7 @@
     var totalBytes = archive.files.reduce(function (total, entry) {
       return total + Number(entry.data && (entry.data.size || entry.data.byteLength) || 0);
     }, 0);
-    if (totalBytes > archiveIO.MAX_BYTES) throw new Error("The project exceeds the 512 MB safety limit. Nothing was replaced.");
+    if (totalBytes > archiveIO.MAX_BYTES) throw new Error("The project exceeds the " + archiveIO.LIMIT_LABEL + " safety limit. Nothing was replaced.");
     for (var fileIndex = 0; fileIndex < archive.files.length; fileIndex += 1) {
       var fileEntry = archive.files[fileIndex];
       var label = "Entry " + fileEntry.name + (assetLabels[fileEntry.name] ? " (" + assetLabels[fileEntry.name] + ")" : "");
@@ -455,7 +455,7 @@
       return result;
     }
 
-    var blob = await archiveIO.bounded(archiveIO.encode(archive), "Project archive creation");
+    var blob = await archiveIO.bounded(archiveIO.encode(archive), "Project archive creation", archiveIO.budget(totalBytes));
     // Decode the finished bytes using exactly the open validator. Only this
     // verified, memory-backed Blob may reach a writer or download link.
     await openValidatedArchive(blob, "save");
@@ -468,8 +468,10 @@
 
   function createArchive(editor, options) {
     // Project TAR now uses page memory, so saving never queues behind a
-    // pending video export or a lease held by another tab.
-    return archiveIO.bounded(createArchiveUnlocked(editor, options), "Project save preparation", 60000);
+    // pending video export or a lease held by another tab. Every step inside
+    // has its own size-scaled deadline; an outer fixed deadline would fail
+    // large valid projects and leave the build running in the background.
+    return createArchiveUnlocked(editor, options);
   }
 
   async function triggerDownload(blob, filename) {
@@ -595,7 +597,7 @@
     var savedRevision = getProjectRevision(editor);
     var archiveResult = null;
     try {
-      archiveResult = await createArchive(editor);
+      archiveResult = await createArchive(editor, { interactive: true });
     } catch (error) {
       emitError(editor, error, null, function () {
         return saveProject(editor);
@@ -653,8 +655,9 @@
           if (lateWritable && typeof lateWritable.abort === "function") return lateWritable.abort();
         }).catch(function () {});
       });
-      await archiveIO.bounded(writable.write(archiveResult.blob), "Writing the project file");
-      await archiveIO.bounded(writable.close(), "Committing the project file");
+      var writeBudget = archiveIO.budget(archiveResult.blob.size);
+      await archiveIO.bounded(writable.write(archiveResult.blob), "Writing the project file", writeBudget);
+      await archiveIO.bounded(writable.close(), "Committing the project file", writeBudget);
       if (editor.project === savedProject) {
         editor._zoidiumSaveFileHandle = targetHandle;
         editor._zoidiumSaveFileName = filename;
@@ -719,7 +722,21 @@
     if (!panel || typeof panel.createSnapshot !== "function") {
       throw new Error("Restore-point storage is not ready. The current project was kept.");
     }
-    await archiveIO.bounded(panel.createSnapshot(false, false), "Backup before " + reason, 60000);
+    try {
+      await panel.createSnapshot(false, false);
+    } catch (error) {
+      // A full storage quota or a project too large for restore points must
+      // not lock the user into the current project. Ask instead.
+      if (!global.ZoidiumUI || typeof global.ZoidiumUI.confirm !== "function") throw error;
+      var proceed = await global.ZoidiumUI.confirm({
+        title: "Backup failed",
+        message: "The current project could not be backed up before " + reason + " (" +
+          errorMessage(error, "unknown error") + ").\nContinue without a backup?",
+        confirmLabel: "Continue without backup",
+        cancelLabel: "Keep current project",
+      });
+      if (!proceed) throw error;
+    }
     assertProjectUnchanged(editor, expected);
     return expected;
   }
@@ -741,7 +758,7 @@
       var editor = this;
       var previousProject = editor.project;
       var operation = (async function () {
-        await backupBeforeReplace(editor, "New");
+        await backupBeforeReplace(editor, "creating a new project");
         var confirm = editor.confirmIfDirty;
         try {
           editor.confirmIfDirty = function () { return true; };
@@ -766,18 +783,19 @@
   // Temporal operators must exist before the first schedule preparation.
   // CM3 creates nested effects asynchronously but returns a project before
   // those loads finish, so its first frame can bypass a saved time operator.
-  async function prepareProject(project) {
+  async function prepareProject(project, wait) {
     if (!project) return project;
+    // Opening waits as long as CM3 does: a slow but valid load is not a failure.
+    wait = wait || function (promise) { return promise; };
     if (project._zoidiumPluginActivationPending) {
-      await archiveIO.bounded(project._zoidiumPluginActivationPending, "Project plugin activation");
+      await wait(project._zoidiumPluginActivationPending, "Project plugin activation");
     }
     var visited = new WeakSet();
     async function visit(object) {
       if (!object || typeof object !== "object" || visited.has(object)) return;
       visited.add(object);
       if (object.loading && typeof object.loading.then === "function") {
-        var label = object.defaultName || object.baseTypeString || "Project object";
-        await archiveIO.bounded(object.loading, label + " loading");
+        await wait(object.loading, (object.defaultName || object.baseTypeString || "Project object") + " loading");
       }
       var children = Array.isArray(object) ? object : object.children;
       if (children) {
@@ -790,11 +808,40 @@
     return project;
   }
 
+  // Resolves true once the promise settles either way, false after the delay.
+  function settledWithin(promise, milliseconds) {
+    var timer;
+    return Promise.race([
+      Promise.resolve(promise).then(function () { return true; }, function () { return true; }),
+      new Promise(function (resolve) { timer = global.setTimeout(function () { resolve(false); }, milliseconds); }),
+    ]).finally(function () { global.clearTimeout(timer); });
+  }
+
+  // Saving waits for loading objects, but a load that failed or never ends
+  // must not make the project unsaveable: the user decides after 10 seconds.
+  // Automatic backups simply skip this round.
+  function saveReadinessWait(interactive) {
+    var saveNow = false;
+    return async function (promise, label) {
+      while (!saveNow && !await settledWithin(promise, 10000)) {
+        if (!interactive || !global.ZoidiumUI || typeof global.ZoidiumUI.confirm !== "function") {
+          throw new Error(label + " did not finish within 10 seconds. No incomplete archive was delivered.");
+        }
+        saveNow = await global.ZoidiumUI.confirm({
+          title: "Still loading",
+          message: label + " has not finished. Saving now may store that object without its loaded data.\nSave now, or keep waiting?",
+          confirmLabel: "Save now",
+          cancelLabel: "Keep waiting",
+        });
+      }
+    };
+  }
+
   var originalLoadProject = editorPrototype.loadProject;
   if (typeof originalLoadProject === "function") {
     editorPrototype.loadProject = async function () {
-      var project = await archiveIO.bounded(originalLoadProject.apply(this, arguments), "Project loading");
-      return archiveIO.bounded(prepareProject(project), "Preparing the loaded project", 60000);
+      var project = await originalLoadProject.apply(this, arguments);
+      return prepareProject(project);
     };
   }
 
@@ -877,7 +924,8 @@
       try {
         var response = await archiveIO.bounded(global.fetch(message.url), "Desktop project read");
         if (!response.ok) throw new Error("The project file is no longer available.");
-        var file = new global.File([await archiveIO.bounded(response.blob(), "Desktop project transfer")], message.name);
+        var length = response.headers && response.headers.get ? response.headers.get("content-length") : 0;
+        var file = new global.File([await archiveIO.bounded(response.blob(), "Desktop project transfer", archiveIO.budget(length, 60000))], message.name);
         if (editor._zoidiumTransitionPromise) {
           await archiveIO.bounded(editor._zoidiumTransitionPromise, "Waiting for the current project operation", 60000);
         }

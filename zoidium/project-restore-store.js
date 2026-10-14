@@ -56,17 +56,24 @@
     backupQueued: false,
   };
 
-  function bounded(value, label, cancel) {
+  function bounded(value, label, cancel, size) {
     var io = global.PZ && global.PZ.zoidiumProjectArchive;
-    return io ? io.bounded(value, label, 10000, cancel) : value;
+    return io ? io.bounded(value, label, io.budget ? io.budget(size) : 10000, cancel) : value;
   }
 
-  function transactionDone(transaction, label) {
+  // size: bytes written by the transaction, so large points get more time.
+  function transactionDone(transaction, label, size) {
     return bounded(new Promise(function (resolve, reject) {
       transaction.oncomplete = resolve;
       transaction.onerror = function () { reject(transaction.error || new Error(label)); };
       transaction.onabort = transaction.onerror;
-    }), label, function () { transaction.abort(); });
+    }), label, function () { transaction.abort(); }, size);
+  }
+
+  function blobBytes(items) {
+    return (items || []).reduce(function (total, item) {
+      return total + (Number(item && item.size) || 0);
+    }, 0);
   }
 
   async function updateWriterLease(token, action) {
@@ -349,7 +356,7 @@
             }
           };
         });
-        transactionDone(transaction, "Storing restore-point assets").then(resolve, reject);
+        transactionDone(transaction, "Storing restore-point assets", blobBytes(pending)).then(resolve, reject);
       });
     });
   }
@@ -429,7 +436,8 @@
     var database = await openDatabase();
     var names = record.projectBlob ? [STORE_NAME, ASSET_STORE_NAME] : STORE_NAME;
     var transaction = database.transaction(names, "readwrite");
-    var done = transactionDone(transaction, "Storing restore point");
+    var done = transactionDone(transaction, "Storing restore point",
+      (Number((record.blob || record.projectBlob || {}).size) || 0) + blobBytes((entries || []).map(function (entry) { return entry.file; })));
     // add() refuses a colliding ID rather than replacing another tab's point.
     var mutation = mutateWithLease(transaction.objectStore(STORE_NAME), transaction, function () {
       transaction.objectStore(STORE_NAME).add(record);
@@ -608,7 +616,7 @@
     assetsAvailable: assetsAvailable,
     getSnapshot: getSnapshot,
     saveAssets: saveAssets,
-    loadAssets: function (refs) { return bounded(loadAssets(refs), "Reading restore-point assets"); },
+    loadAssets: function (refs) { return bounded(loadAssets(refs), "Reading restore-point assets", null, blobBytes(refs)); },
     deleteOrphanAssets: deleteOrphanAssets,
     listSnapshots: listSnapshots,
     saveSnapshot: function (record, entries) {
