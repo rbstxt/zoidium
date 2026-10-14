@@ -77,7 +77,11 @@
 
   async function matchesSnapshot(snapshot, fingerprint) {
     if (!snapshot) return false;
-    if (snapshot.fingerprint) return snapshot.fingerprint === fingerprint;
+    if (snapshot.fingerprint) {
+      try { await store.verifySnapshot(await getSnapshot(snapshot.id)); }
+      catch (_error) { return false; }
+      return snapshot.fingerprint === fingerprint;
+    }
     // Split (v2) records always carry a fingerprint; legacy records without
     // one are loaded in full below. Anything else cannot be compared, so it
     // counts as changed and a fresh point is created.
@@ -87,8 +91,7 @@
     try {
       // Older restore points do not have a stored fingerprint. Rebuild their
       // archive index so they can still be compared to the current content.
-      var archive = new PZ.archive();
-      await archive.untar(record.blob);
+      var archive = await projectFiles.openValidatedArchive(record.blob, "restore");
       return (await projectFiles.fingerprintArchive(archive)) === fingerprint;
     } catch (error) {
       // A point that cannot be read counts as changed so a fresh backup is
@@ -106,13 +109,13 @@
 
   async function loadSnapshotForAction(snapshot) {
     if (!snapshot) throw new Error("The restore point is unavailable.");
-    if (snapshot.blob || snapshot.projectBlob) return snapshot;
     var record = await getSnapshot(snapshot.id);
     if (!record) throw new Error("The restore point is unavailable.");
+    await store.verifySnapshot(record);
     return record;
   }
 
-  function localPointToArchive(point, assetRecords) {
+  async function localPointToArchive(point, assetRecords) {
     if (!point || !point.projectBlob || !Array.isArray(point.assetRefs)) {
       return Promise.reject(new Error("This restore point is incomplete."));
     }
@@ -120,15 +123,20 @@
     (assetRecords || []).forEach(function (record) {
       if (record && record.id && record.blob) byId[record.id] = record.blob;
     });
-    var archive = new PZ.archive();
-    return archive.untar(point.projectBlob).then(function () {
-      point.assetRefs.forEach(function (ref) {
-        var blob = byId[ref.id];
-        if (!blob) throw new Error("Restore point asset is missing: " + ref.name);
-        archive.addFile(ref.name, blob);
-      });
-      return archive;
-    });
+    var io = PZ.zoidiumProjectArchive;
+    var archive;
+    if (io) archive = await io.decode(point.projectBlob, PZ.archive);
+    else { archive = new PZ.archive(); await archive.untar(point.projectBlob); }
+    for (var index = 0; index < point.assetRefs.length; index += 1) {
+      var ref = point.assetRefs[index];
+      var blob = byId[ref.id];
+      if (!blob) throw new Error("Restore point asset is missing: " + ref.name);
+      if (ref.size !== undefined && blob.size !== ref.size) throw new Error("Restore point asset has the wrong size: " + ref.name);
+      if (io && ref.sha256 && await io.hash(blob) !== ref.sha256) throw new Error("Restore point asset has the wrong hash: " + ref.name);
+      archive.addFile(ref.name, io ? await io.bytes(blob, ref.name) : blob);
+    }
+    if (projectFiles.validateProjectArchive) await projectFiles.validateProjectArchive(archive, "restore");
+    return archive;
   }
 
   function restorePointToArchive(point, assetRecords) {
@@ -143,7 +151,7 @@
       return projectFiles.createArchiveFromRestorePoint(point, assetRecords);
     }
     return localPointToArchive(point, assetRecords).then(function (archive) {
-      return archive.tar();
+      return PZ.zoidiumProjectArchive ? PZ.zoidiumProjectArchive.encode(archive) : archive.tar();
     });
   }
 
@@ -154,12 +162,12 @@
         if (isStaleFileReference(record.blob)) {
           throw new Error(STALE_SNAPSHOT_MESSAGE);
         }
-        projectFiles.triggerDownload(record.blob, snapshotFilename(record));
+        await projectFiles.triggerDownload(record.blob, snapshotFilename(record));
         return;
       }
       var assets = await loadAssets(record.assetRefs);
       var blob = await archiveFromPoint(record, assets);
-      projectFiles.triggerDownload(blob, snapshotFilename(record));
+      await projectFiles.triggerDownload(blob, snapshotFilename(record));
     } catch (error) {
       var toasts = parts.toasts;
       if (!toasts) throw error;

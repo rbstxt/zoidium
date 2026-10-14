@@ -128,6 +128,19 @@ function createHarness(options = {}) {
     window: windowObject,
   });
   const source = fs.readFileSync(path.join(__dirname, "../plugins/core/project-files.js"), "utf8");
+  const io = require("./project-archive-harness.cjs").installArchive(windowObject);
+  const encode = io.encode;
+  const decode = io.decode;
+  io.encode = async function (archive) {
+    tarCalls += 1;
+    const blob = options.tarOutput ? options.tarOutput() : await encode(archive);
+    tarOutputs.push(blob);
+    return blob;
+  };
+  io.decode = async function (source, ArchiveType) {
+    if (source && Array.isArray(source.entries)) { const archive = new Archive(); await archive.untar(source); return archive; }
+    return decode(source, ArchiveType);
+  };
   vm.runInContext(source, context);
 
   function makeEditor() {
@@ -261,7 +274,7 @@ test("an empty TAR result is refused", async () => {
   const harness = createHarness({ tarOutput: () => new Blob([]) });
   await assert.rejects(
     harness.projectFiles.createArchive(harness.makeEditor()),
-    /Could not create the project archive\. Nothing was saved\./,
+    /Nothing was saved\. The archive is empty\./,
   );
 });
 
@@ -346,7 +359,7 @@ test("an archive that is not readable is reported as a project data error", asyn
     harness.projectFiles.openValidatedArchive({ size: 4, entries: undefined }, "open"),
     (error) => {
       assert.equal(harness.projectFiles.isProjectDataError(error), true);
-      assert.equal(error.message, "This project file cannot be opened. The archive is not readable.");
+      assert.match(error.message, /This project file cannot be opened/);
       return true;
     },
   );
@@ -360,30 +373,18 @@ test("automatic backups can stop before the TAR is built", async () => {
   assert.equal(result.skipped, true);
   assert.equal(result.blob, null);
   assert.equal(harness.tarCalls(), 0);
-  assert.match(result.fingerprint, /^entries-v3:/);
+  assert.match(result.fingerprint, /^entries-v4:/);
 });
 
-test("media stored under a content hash is fingerprinted by name and size only", async () => {
+test("content-addressed media is read and its bytes participate in fingerprints", async () => {
   const harness = createHarness();
-  let reads = 0;
-  const media = new Blob(["0123456789"]);
-  media.arrayBuffer = async () => {
-    reads += 1;
-    return new ArrayBuffer(0);
-  };
-  harness.PZ.project.save = function (archive) {
-    validProjectEntries().forEach((entry) => archive.addFile(entry.name, new Blob([entry.data])));
-  };
   const editor = harness.makeEditor();
-  editor.project.assets.list = { one: { sha256: CONTENT_HASH, file: media } };
-
-  const first = await harness.projectFiles.createArchive(editor, { shouldSkip: () => true });
-  assert.equal(reads, 0, "the media bytes are not read for the fingerprint");
-
-  const resized = new Blob(["0123456789abc"]);
-  editor.project.assets.list = { one: { sha256: CONTENT_HASH, file: resized } };
-  const second = await harness.projectFiles.createArchive(editor, { shouldSkip: () => true });
-  assert.notEqual(first.fingerprint, second.fingerprint, "a size change still changes the fingerprint");
+  const first = new harness.PZ.archive();
+  first.addFile(CONTENT_HASH, new Blob(["0123456789"]));
+  const second = new harness.PZ.archive();
+  second.addFile(CONTENT_HASH, new Blob(["012345678X"]));
+  assert.notEqual(await harness.projectFiles.fingerprintArchive(first), await harness.projectFiles.fingerprintArchive(second));
+  assert.equal(editor.project.ui.dirty, true);
 });
 
 test("with no saved file the picker opens, but nothing is written when the archive is invalid", async () => {

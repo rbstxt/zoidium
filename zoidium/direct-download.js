@@ -118,12 +118,19 @@
         typeof artifact.detached === "function"
           ? artifact.detached()
           : artifact.blob;
-      return Promise.resolve(artifactBlob).then(function (blob) {
+      return Promise.resolve(artifactBlob).then(async function (blob) {
         if (!isBlobLike(blob)) return false;
         // An empty file is never a valid export. Report it instead of saving a
         // zero-byte download that looks like a successful render.
         if (!(Number(blob.size) > 0)) {
           throw new Error("The export is empty, so nothing was downloaded. Render it again and retry.");
+        }
+        if (/\.pz$/i.test(artifact.filename)) {
+          var files = globalObject && globalObject.PZ && globalObject.PZ.zoidium && globalObject.PZ.zoidium.projectFiles;
+          if (!files || typeof files.openValidatedArchive !== "function") {
+            throw new Error("Project validation is unavailable. Nothing was downloaded.");
+          }
+          await files.openValidatedArchive(blob, "restore");
         }
         if (downloadArtifact) {
           return Promise.resolve(downloadArtifact(blob, artifact.filename, artifact.id)).then(function () { return true; });
