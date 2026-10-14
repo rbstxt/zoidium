@@ -294,7 +294,79 @@
     return null;
   }
 
+  // Only these audited content producers can omit other tracks. New types,
+  // shader inputs, expressions and compositions must first prove that every
+  // dependency is in this serialization. Unknown content keeps the whole key.
+  const localSamplerEffects = new Set([
+    "echo", "timedisplacement", "ccwidetime", "timedifference", "timeoffset", "posterizetime",
+    "exposure", "negative", "grayscale", "gaussianblur", "boxblur", "transform",
+  ]);
+  const localSamplerObjects = new Set([
+    0, 1, 2, 3, 4, 5, 6, 99, 13,
+    "zoidium:text-plus/text-plus",
+    "zoidium:trapcode-suite/particular", "zoidium:trapcode-suite/plexus",
+    "zoidium:repeater/repeater", "zoidium:repeater/linear-repeater",
+    "zoidium:repeater/random-repeater", "zoidium:repeater/echo-repeater",
+  ]);
+  const localSamplerMaterials = new Set(["singlecolor", "image", "video", "wireframe"]);
+
+  function samplerObjectIsLocal(object) {
+    const data = typeof object?.toJSON === "function" ? object.toJSON() : object;
+    if (!data || !localSamplerObjects.has(data.type)) return false;
+    // Procedural producers also own internal THREE materials. Inspect only
+    // authored material references exposed by their serializer.
+    if (data.material && !localSamplerMaterials.has(data.material.type)) return false;
+    // Plexus's nested generators/effectors/renderers are owned by Plexus, not
+    // arbitrary 3D objects. Particular systems and flare stacks are likewise
+    // serialized in full. Repeater targets are its authored source children.
+    return data.type === "zoidium:trapcode-suite/plexus" ||
+      !data.objects || data.objects.every(samplerObjectIsLocal);
+  }
+
+  function frameSamplerSerializedContentIsLocal(serialized) {
+    // Inspect the actual saved representation, including custom properties and
+    // serializer-added metadata. This avoids parsing and walking the whole
+    // property tree a second time. Reject even empty expression/comp fields.
+    return !/"(?:expression|comp|compId|_zoidiumLayerInput|_zoidiumSourceTrack)":|"track:|"link":(?!null[,}])/.test(serialized);
+  }
+
+  function frameSamplerSerializedReadsNoLayer(serialized) {
+    // Native clip links only coordinate timeline edits, so they may remain.
+    return !/"(?:expression|comp|compId|_zoidiumLayerInput|_zoidiumSourceTrack)":|"track:/.test(serialized);
+  }
+
+  function frameSamplerScopedContent(sequence, stage, scope) {
+    if (!stage || scope || isAdjustmentLayer(stage.layer)) return null;
+    const track = sequence.videoTracks?.[stage.trackIndex];
+    // Native clip links coordinate timeline edits, not rendering. A linked
+    // audio/video pair still reads only its own clip timing and media. Other
+    // link formats remain unclassified.
+    const link = stage.clip?.link;
+    const nativeLink = typeof PZ !== "undefined" && typeof PZ.clipLink === "function" && link instanceof PZ.clipLink;
+    if (!track || track.track3d || (link && !nativeLink) || stage.clip?.object !== stage.layer ||
+      typeof stage.layer?.toJSON !== "function" || typeof stage.clip?.toJSON !== "function") return null;
+    const source = stage.layer.toJSON();
+    if (![0, 3, 4].includes(source?.type) ||
+      Object.keys(source).some(key => !["type", "properties", "effects", "objects"].includes(key)) ||
+      // Only the effects before the sampler render its input.
+      !Array.from(stage.layer.effects).slice(0, stage.effectIndex)
+        .every(effect => localSamplerEffects.has(effect?.type)) ||
+      (source.objects && !source.objects.every(samplerObjectIsLocal))) return null;
+    // Replace the owner's effects before serialization, without touching the
+    // live list or its serializer. Prefix operators and nested samplers stay.
+    const content = Object.assign({}, source, {
+      effects: Array.from(stage.layer.effects).slice(0, stage.effectIndex),
+    });
+    const clip = Object.assign({}, stage.clip.toJSON(), { object: content });
+    const editLink = clip.link;
+    delete clip.link;
+    return [clip, sequence.properties, editLink];
+  }
+
   registry.layers = {
+    frameSamplerScopedContent,
+    frameSamplerSerializedContentIsLocal,
+    frameSamplerSerializedReadsNoLayer,
     getSequenceForLayer: getSequenceForLayer,
     getClipForLayer: getClipForLayer,
     isTopLevelClipLayer: isTopLevelClipLayer,
