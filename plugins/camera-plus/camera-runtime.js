@@ -27,7 +27,7 @@
 // Sources in ./plugins/camera-plus/*.js are evaluated through the bundle asset
 // resolver and publish their parts on a shared `parts` object.
 
-const PART_FILES = ["vibrate.js", "scene-dof.js", "scene-motion-blur.js", "camera-class.js", "focus-ui.js", "shared-depth.js", "shared-camera.js"];
+const PART_FILES = ["vibrate.js", "scene-dof.js", "scene-motion-blur.js", "camera-class.js", "track-hint.js", "focus-ui.js", "shared-depth.js", "shared-camera.js"];
 const LEGACY_LAYER_TYPE = 9;
 const CAMERA_OBJECT_TYPE_NUMBER = 6;
 const REPORT_PREFIX = "Camera+:";
@@ -144,6 +144,15 @@ function activateCameraPlus(context, teardown) {
   function currentProject() {
     const editor = getEditor();
     return editor && editor.project ? editor.project : null;
+  }
+
+  // One-shot 3D-track guidance toast. Best-effort: panel notes carry the
+  // same text when notifications are unavailable.
+  function notifyHint(detail) {
+    try {
+      if (context.ui && typeof context.ui.notify === "function") context.ui.notify(detail);
+      else if (ZoidiumUI && typeof ZoidiumUI.notify === "function") ZoidiumUI.notify(detail);
+    } catch (_error) { /* notification is best-effort */ }
   }
 
   // ---- scene selection and depth of field ---------------------------------
@@ -398,6 +407,16 @@ function activateCameraPlus(context, teardown) {
       focusWindowKey += 1;
       return focusWindowKey;
     },
+    hint: {
+      api: parts.hint,
+      getProject: currentProject,
+      notify: notifyHint,
+      notified: new Set(),
+      toggleTrack3d: function (track, editor) {
+        shared.toggleTrack3d(track, editor);
+      },
+      getEditor: getEditor,
+    },
   };
   const openFocusTools = function (owner, mode) {
     const tools = focus.createFocusTools(focusOptions, owner);
@@ -423,7 +442,7 @@ function activateCameraPlus(context, teardown) {
   const unregisterControl = apis.propertyControls.register(camera.FOCUS_CONTROL_ID, {
     type: PZ.property.type.TEXT,
     create: function (property, controlContext) {
-      return focus.createControl({ PZ: PZ, zoidiumUI: ZoidiumUI, openFor: openFocusTools }, property, controlContext);
+      return focus.createControl({ PZ: PZ, zoidiumUI: ZoidiumUI, openFor: openFocusTools, hint: focusOptions.hint }, property, controlContext);
     },
   });
   teardown.push(function () {
