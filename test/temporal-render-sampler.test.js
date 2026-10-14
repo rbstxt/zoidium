@@ -116,7 +116,8 @@ function host(adjustment) {
   viewport.compositor = root;
   viewport.editor = { playback: { currentFrame: 30 } };
   effect.prepare = (frame, context) => state.prepareFrameSamples(effect, frame, context);
-  return { state, root, owner, source, ownerClip, effect, decoded, sequence, viewport, parts: sandbox.__zoidiumTemporalParts };
+  return { state, root, owner, source, ownerClip, effect, decoded, sequence, viewport, PZ: sandbox.PZ, sandbox,
+    parts: sandbox.__zoidiumTemporalParts };
 }
 
 for (const adjustment of [false, true]) {
@@ -158,7 +159,7 @@ test("a nested batch reuses fixed anchors and invalidates them when project inpu
   await h.state.prepareFrameSamples(h.effect, 20, { sequence: h.sequence });
   const active = runtime || h.state.frameSamplerRuntimes.get(h.root);
   active.previewPending = true;
-  active.inputCacheKey = null;
+  h.parts.sampler.invalidateFrameSamplerInputs(active);
   h.decoded.length = 0;
   await h.state.prepareFrameSamples(h.effect, 20, { sequence: h.sequence });
   const anchor = active.prepared.get(h.effect).samples[0].target;
@@ -366,7 +367,8 @@ test("reuse targets have both a byte cap and a slot cap", async () => {
   assert.ok(runtime.targetBytes <= 256 * 1024 * 1024);
   assert.equal(runtime.targets.size, 32);
   assert.equal(runtime.targetBytes, 32 * 1920 * 1080 * 4);
-  assert.ok(runtime.inputCache.get(h.effect).size <= 48, "overwritten memo entries are pruned");
+  assert.ok([...runtime.inputCache.get(h.effect).values()].reduce((n, cache) => n + cache.size, 0) <= 48,
+    "overwritten memo entries are pruned");
   h.root.unload();
   assert.equal(runtime.targets.size, 0);
 });
@@ -620,4 +622,157 @@ test("single-tap playback reuses one target instead of allocating an interleavin
   assert.equal(runtime.targets.size, 1);
   assert.equal(h.decoded.length, 20);
   assert.equal(runtime.prepared.get(h.effect).samples[0].target.value, 138);
+});
+
+function scopedHost() {
+  const h = host(false);
+  h.owner.effects.forEach((effect, i) => { effect.type = ["exposure", "echo", "negative"][i]; });
+  h.owner.toJSON = function () { return { type: 0, properties: { tint: this.tint || 0 }, effects: this.effects }; };
+  h.ownerClip.toJSON = function () { return { start: this.start, length: this.length, object: this.object }; };
+  h.sequence.videoTracks[0].clips = [h.ownerClip];
+  return h;
+}
+
+test("scoped inputs survive own, later and unrelated edits without allocating targets", async () => {
+  const h = scopedHost();
+  await h.state.prepareFrameSamples(h.effect, 20, {});
+  const runtime = h.state.frameSamplerRuntimes.get(h.root);
+  const original = runtime.prepared.get(h.effect).samples.map(sample => sample.target);
+  const decodes = h.decoded.length;
+  for (let i = 0; i < 40; i++) {
+    h.effect.decay = i;
+    h.owner.effects[2].amount = i;
+    h.sequence.toJSON = () => ({ unrelated: i });
+    await h.state.prepareFrameSamples(h.effect, 20, {});
+    assert.equal(h.decoded.length, decodes);
+    assert.deepEqual(Array.from(runtime.targets), Array.from(original));
+  }
+  h.owner.effects[0].add++;
+  await h.state.prepareFrameSamples(h.effect, 20, {});
+  assert.equal(h.decoded.length, decodes + 2, "prefix edit recaptures inputs");
+  assert.deepEqual(Array.from(runtime.targets), Array.from(original), "expired slots refill in place");
+});
+
+test("undo and redo can reuse retained content without an unbounded revision map", async () => {
+  const h = scopedHost();
+  h.effect._zoidiumFrameSampler.getRequest = () => ({ count: 2, offsetFrames: -1 });
+  for (let frame = 20; frame < 27; frame++) await h.state.prepareFrameSamples(h.effect, frame, {});
+  const runtime = h.state.frameSamplerRuntimes.get(h.root);
+  const size = runtime.targets.size;
+  h.owner.tint = 1;
+  await h.state.prepareFrameSamples(h.effect, 26, {});
+  const afterEdit = h.decoded.length;
+  h.owner.tint = 0;
+  await h.state.prepareFrameSamples(h.effect, 26, {});
+  assert.equal(h.decoded.length, afterEdit, "undo reuses the previous revision's still-resident times");
+  h.owner.tint = 1;
+  await h.state.prepareFrameSamples(h.effect, 26, {});
+  assert.equal(h.decoded.length, afterEdit, "redo reuses the edited revision");
+  for (let i = 2; i < 100; i++) {
+    h.owner.tint = i;
+    await h.state.prepareFrameSamples(h.effect, 26, {});
+    assert.equal(runtime.targets.size, size, "edit loop never reallocates targets");
+    const revisions = runtime.inputCache.get(h.effect);
+    assert.ok([...revisions.values()].reduce((n, cache) => n + cache.size, 0) <= size,
+      "overwrites unlink their old key immediately");
+    assert.ok([...revisions.values()].every(cache => cache.size > 0), "no empty revision history is retained");
+  }
+});
+
+test("the debug oracle recaptures inputs each prepare and preserves prepared output plans", async () => {
+  const h = scopedHost();
+  await h.state.prepareFrameSamples(h.effect, 20, {});
+  const runtime = h.state.frameSamplerRuntimes.get(h.root);
+  const cached = runtime.prepared.get(h.effect).samples.map(s => s.target.value);
+  h.PZ.zoidium.debugDisableFrameSamplerInputReuse = true;
+  for (let i = 0; i < 20; i++) {
+    const decodes = h.decoded.length;
+    await h.state.prepareFrameSamples(h.effect, 20, {});
+    assert.equal(h.decoded.length, decodes + 2);
+    const prepared = runtime.prepared.get(h.effect);
+    assert.deepEqual(Array.from(prepared.samples, s => s.target.value), Array.from(cached));
+    h.owner.update(20);
+    h.state.contexts.push({ compositor: h.root, rootCompositor: h.root, outputFrame: 30 });
+    assert.equal(h.state.resolveFrameSamples(h.effect), prepared.samples);
+    h.state.contexts.pop();
+  }
+  await h.state.prepareFrameSamples(h.effect, 21, {});
+  h.owner.update(20);
+  const decoded = h.decoded.length;
+  h.state.contexts.push({ compositor: h.root, rootCompositor: h.root, outputFrame: 30 });
+  const resident = h.state.resolveFrameSamples(h.effect);
+  h.state.contexts.pop();
+  assert.deepEqual(Array.from(resident, s => s.target.value), Array.from(cached));
+  assert.equal(h.decoded.length, decoded, "reclaiming duplicate oracle slots keeps the newest resident entry");
+});
+
+test("plugin state changes release the complete runtime and remove its listener", async () => {
+  const h = scopedHost(), listeners = new Map();
+  h.sandbox.document = {
+    addEventListener: (name, fn) => listeners.set(name, fn),
+    removeEventListener: (name, fn) => { if (listeners.get(name) === fn) listeners.delete(name); },
+  };
+  await h.state.prepareFrameSamples(h.effect, 20, {});
+  const runtime = h.state.frameSamplerRuntimes.get(h.root);
+  const targets = [...runtime.targets];
+  const schedules = [...runtime.schedules.values()];
+  listeners.get("zoidium:plugin-state-change")();
+  assert.ok(targets.every(target => target.disposed));
+  assert.ok(schedules.every(schedule => schedule.disposed));
+  assert.equal(runtime.targetBytes, 0);
+  assert.equal(runtime.disposed, true);
+  assert.equal(listeners.size, 0);
+  const decoded = h.decoded.length;
+  await h.state.prepareFrameSamples(h.effect, 20, {});
+  assert.equal(h.decoded.length, decoded + 2, "the next prepare works without an intervening render");
+  h.root.unload();
+  assert.equal(listeners.size, 0);
+});
+
+test("an input edit during async decoding never publishes captures under the old content key", async () => {
+  const h = scopedHost();
+  const decode = h.PZ.schedule.prototype.decodeFrame;
+  let resume;
+  h.PZ.schedule.prototype.decodeFrame = async function (time) {
+    await new Promise(resolve => { resume = resolve; });
+    return decode.call(this, time);
+  };
+  const pending = h.state.prepareFrameSamples(h.effect, 20, {});
+  await new Promise(setImmediate);
+  h.owner.effects[0].add = 101;
+  h.PZ.schedule.prototype.decodeFrame = decode;
+  resume();
+  await pending;
+  const runtime = h.state.frameSamplerRuntimes.get(h.root);
+  assert.equal(runtime.prepared.get(h.effect), undefined);
+  assert.equal(runtime.targets.size, 0, "changed inputs were rejected before allocating or memoizing");
+  await h.state.prepareFrameSamples(h.effect, 20, {});
+  assert.deepEqual(Array.from(runtime.prepared.get(h.effect).samples, s => s.target.value), [118, 115]);
+});
+
+test("editing a sampler to request novel source times reuses its existing slots", async () => {
+  const h = scopedHost();
+  h.effect.properties = { shift: 0 };
+  h.effect._zoidiumFrameSampler.getRequest = () => ({ frames: [
+    -3 + h.effect.properties.shift / 10, -6 + h.effect.properties.shift / 10,
+  ] });
+  await h.state.prepareFrameSamples(h.effect, 20, {});
+  const runtime = h.state.frameSamplerRuntimes.get(h.root);
+  // Own-parameter edits keep earlier captures valid, so novel source times may
+  // grow the effect's retained window to about its capacity (2 taps + 3-frame
+  // span + 4 scrub slots), then recycle those slots without allocating.
+  const sizes = [];
+  for (let i = 1; i <= 20; i++) {
+    h.effect.properties.shift = i;
+    await h.state.prepareFrameSamples(h.effect, 20, {});
+    sizes.push(runtime.targets.size);
+  }
+  assert.ok(Math.max(...sizes) <= 10, "the retained window stays near its capacity, far below 128 slots");
+  const settled = [...runtime.targets];
+  for (let i = 21; i <= 30; i++) {
+    h.effect.properties.shift = i;
+    await h.state.prepareFrameSamples(h.effect, 20, {});
+    assert.equal(runtime.targets.size, settled.length, "a full window recycles its own slots");
+    assert.ok([...runtime.targets].every(target => settled.includes(target)));
+  }
 });
