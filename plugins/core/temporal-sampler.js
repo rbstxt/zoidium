@@ -113,11 +113,19 @@
       inputClock: 0,
       generation: 0,
       targets: new Set(),
+      inputCache: new WeakMap(),
     };
     state.frameSamplerRuntimes.set(root, runtime);
     runtime.resolutionObservable = root._sequence?.properties?.resolution?.onChanged;
     runtime.resolutionWatcher = () => clearFrameSamplerTargets(runtime);
     runtime.resolutionObservable?.watch?.(runtime.resolutionWatcher);
+    runtime.pluginWatcher = () => {
+      disposeFrameSamplerRuntime(state, root);
+      registerCompositor(state, root);
+    };
+    if (typeof document !== "undefined") {
+      document.addEventListener?.("zoidium:plugin-state-change", runtime.pluginWatcher);
+    }
     return runtime;
   }
 
@@ -126,6 +134,9 @@
     if (runtime) {
       runtime.disposed = true;
       runtime.resolutionObservable?.unwatch?.(runtime.resolutionWatcher);
+      if (typeof document !== "undefined") {
+        document.removeEventListener?.("zoidium:plugin-state-change", runtime.pluginWatcher);
+      }
       clearFrameSamplerTargets(runtime);
       for (const capture of runtime.captures) {
         if (!capture) continue;
@@ -279,7 +290,7 @@
       ? 1 : depth;
   }
 
-  function selectFrameSamplerTarget(runtime, effect, depth, reserved, width, height, capacity = 128) {
+  function selectFrameSamplerTarget(runtime, effect, depth, reserved, width, height, capacity = 128, revision) {
     const record = runtime.records.get(effect)?.[Math.max(0, depth - 1)];
     const targets = record?.targets || [];
     const pinned = target => reserved.has(target) ||
@@ -288,9 +299,11 @@
     const available = Array.from(runtime.targets).filter(target => !pinned(target) &&
       (targets.length < capacity || targets.includes(target)));
     // After an edit, refill this effect's own expired slots before allocating.
-    const expired = available.find(target => targets.includes(target) &&
-      target.inputGeneration !== undefined && target.inputGeneration !== runtime.generation &&
-      target.width === width && target.height === height);
+    const expired = available.filter(target => targets.includes(target) &&
+      target.inputGeneration !== undefined && (target.inputGeneration !== runtime.generation ||
+        (revision !== undefined && target.inputRevision !== revision)) &&
+      target.width === width && target.height === height)
+      .sort((a, b) => (a.inputUsed || 0) - (b.inputUsed || 0))[0];
     if (expired) return expired;
     if (!available.length || (targets.length < capacity &&
       runtime.targetBytes + width * height * 4 <= FRAME_SAMPLER_CACHE_BYTES)) {
@@ -600,27 +613,24 @@
         // Source inputs are immutable for a project revision and sample time.
         // Reuse neighbouring taps and segment anchors across output frames.
         // A target stamp prevents reading a slot after it has been overwritten.
-        const revision = frameSamplerInputKey(sequence, root);
-        if (runtime.inputCacheKey !== revision) {
-          // A resolution change frees the pool; any other edit keeps it.
-          if (Array.from(runtime.targets).some(target => target.width !== width || target.height !== height)) {
-            clearFrameSamplerTargets(runtime);
-          } else {
-            invalidateFrameSamplerInputs(runtime);
-          }
-          runtime.inputCacheKey = revision;
+        const scope = context?.frameSamplerScope || parentContext?.frameSamplerScope;
+        const revision = frameSamplerInputKey(sequence, root, stage, scope);
+        if (Array.from(runtime.targets).some(target => target.width !== width || target.height !== height)) {
+          clearFrameSamplerTargets(runtime);
         }
         const generation = runtime.generation;
         const batchCache = runtime.inputCache;
-        let inputCache = batchCache?.get(effect);
-        if (batchCache && !inputCache) {
-          inputCache = new Map();
-          batchCache.set(effect, inputCache);
+        let revisions = batchCache.get(effect);
+        if (!revisions) {
+          revisions = new Map();
+          batchCache.set(effect, revisions);
         }
+        // Store the exact content string once per resident revision, rather
+        // than copying an entire project into every source-frame map key.
+        const inputCache = revisions.get(revision) || new Map();
         const reservedTargets = new Set();
         runtime.reservations.add(reservedTargets);
         reservations.push({ runtime, reservedTargets });
-        const scope = context?.frameSamplerScope || parentContext?.frameSamplerScope;
         const cacheKey = frame => JSON.stringify([frame, cacheDepth,
           scope?.effect ? frameSamplerIdentity(scope.effect) : 0]);
         const wantedFrames = new Set(plan.map(item => cacheKey(finiteNumber(clip.start, 0) + item.frame)));
@@ -637,7 +647,7 @@
           const item = plan[index];
           const sourceProjectFrame = finiteNumber(clip.start, 0) + item.frame;
           const cached = inputCache?.get(cacheKey(sourceProjectFrame));
-          const reusable = cached && cached.stamp === cached.sample.target.inputStamp &&
+          const reusable = !frameSamplerReuseDisabled() && cached && cached.stamp === cached.sample.target.inputStamp &&
             cached.sample.target.width === width && cached.sample.target.height === height;
           const reused = capturedFrames.get(sourceProjectFrame) || (reusable && cached.sample);
           if (reused) {
@@ -656,12 +666,15 @@
             await prepareInputEffects(sequence, stage, inputFrame, inputContext, state);
           const mediaSamples = await prepareLowerSchedules(sequence, stage, inputFrame, inputContext,
             runtime, false, state);
-          if (runtime.disposed || runtime.generation !== generation) return;
-          const target = selectFrameSamplerTarget(runtime, effect, cacheDepth, reservedTargets, width, height, capacity);
+          if (runtime.disposed || runtime.generation !== generation ||
+            revision !== frameSamplerInputKey(sequence, root, stage, scope)) return;
+          const target = selectFrameSamplerTarget(runtime, effect, cacheDepth, reservedTargets, width, height, capacity, revision);
           // Any synchronous fallback or another nested plan using this slot
           // invalidates the old memoized value before writing into it.
           target.inputStamp = {};
+          forgetFrameSamplerInput(target);
           target.inputGeneration = runtime.generation;
+          target.inputRevision = revision;
           target.inputUsed = ++runtime.inputClock;
           reservedTargets.add(target);
           if (
@@ -686,7 +699,10 @@
               stamp: target.inputStamp,
               texture: target.texture,
             };
-            inputCache?.set(cacheKey(sourceProjectFrame), { sample, stamp: target.inputStamp });
+            const key = cacheKey(sourceProjectFrame);
+            inputCache.set(key, { sample, stamp: target.inputStamp });
+            revisions.set(revision, inputCache);
+            target.inputEntry = { cache: inputCache, key, revisions, revision };
             capturedFrames.set(sourceProjectFrame, sample);
             samples.push(sample);
           }
@@ -696,6 +712,8 @@
           runtime.prepared.set(effect, {
             projectFrame,
             depth,
+            revision,
+            scope,
             samples,
           });
         }
@@ -759,8 +777,11 @@
     const height = root.readBuffer?.height;
     if (!runtime || !(width > 0) || !(height > 0)) return [];
     const prepared = runtime.prepared.get(effect);
+    const scope = context?.frameSamplerScope;
+    const revision = frameSamplerInputKey(sequence, root, stage, scope);
     if (
-      prepared && prepared.depth === depth &&
+      prepared && prepared.revision === revision && prepared.depth === depth &&
+      prepared.scope === scope &&
       Math.abs(finiteNumber(prepared.projectFrame, NaN) - currentProjectFrame) <= EPSILON &&
       prepared.samples.length === plan.length &&
       prepared.samples.every((sample, index) => {
@@ -780,8 +801,8 @@
     // A later nested prepare may replace prepared.get(effect), even though
     // every input for this earlier stage is still resident. Resolve that pure
     // plan before falling back to synchronous captures without media prepare.
-    if (runtime.inputCacheKey === frameSamplerInputKey(sequence, root)) {
-      const cache = runtime.inputCache?.get(effect);
+    {
+      const cache = runtime.inputCache?.get(effect)?.get(revision);
       const scopeId = context?.frameSamplerScope?.effect
         ? frameSamplerIdentity(context.frameSamplerScope.effect) : 0;
       const cacheDepth = frameSamplerCacheDepth(stage, depth);
@@ -811,6 +832,7 @@
         );
         const projectFrame = finiteNumber(stage.clip.start, 0) + item.frame;
         target.inputStamp = {};
+        forgetFrameSamplerInput(target);
         if (
           captureFrameSamplerInput(
             state,
@@ -838,11 +860,67 @@
     return samples;
   }
 
-  function frameSamplerInputKey(sequence, compositor) {
-    return JSON.stringify([compositor.readBuffer.width, compositor.readBuffer.height,
+  let pluginStateEpoch = 0;
+  let lastLocalKey = null;
+  if (typeof document !== "undefined") {
+    document.addEventListener?.("zoidium:plugin-state-change", () => { pluginStateEpoch += 1; });
+  }
+
+  function frameSamplerReuseDisabled() {
+    return typeof PZ !== "undefined" && PZ.zoidium?.debugDisableFrameSamplerInputReuse === true;
+  }
+
+  function forgetFrameSamplerInput(target) {
+    const entry = target.inputEntry;
+    if (entry) {
+      // A fresh oracle capture can replace the same key in another slot.
+      // Reclaiming the old slot must not unlink that newer capture.
+      if (entry.cache.get(entry.key)?.sample.target === target) entry.cache.delete(entry.key);
+      if (entry.cache.size === 0) entry.revisions.delete(entry.revision);
+    }
+    target.inputEntry = null;
+  }
+
+  function frameSamplerInputKey(sequence, compositor, stage, scope) {
+    const scoped = !frameSamplerReuseDisabled() && layers.frameSamplerScopedContent(sequence, stage, scope);
+    const assets = Object.entries(sequence.parentProject?.assets?.list || {}).map(([id, asset]) =>
+      [id, asset.url, asset.sha256, asset.filename, asset.size, frameSamplerIdentity(asset),
+        asset.file ? frameSamplerIdentity(asset.file) : 0]);
+    // Plugin state changes also dispose every runtime; the epoch keeps a stale
+    // preview key from matching across one without reading every plugin state.
+    const settings = [compositor.__zoidiumRenderSettings,
+      [compositor.renderer?.shadowMap?.type, compositor.renderer?.shadowMap?.enabled], pluginStateEpoch,
+      frameSamplerReuseDisabled()];
+    if (scoped) {
+      const serialized = JSON.stringify(["layer-prefix", compositor.readBuffer.width, compositor.readBuffer.height,
+        scoped, sequence.videoTracks[stage.trackIndex].enabled, assets, settings]);
+      // Rechecks after each awaited tap usually see the same content again.
+      if (serialized === lastLocalKey) return serialized;
+      if (layers.frameSamplerSerializedContentIsLocal(serialized)) return (lastLocalKey = serialized);
+    }
+    const whole = () => JSON.stringify([compositor.readBuffer.width, compositor.readBuffer.height,
       sequence, sequence.videoTracks.map(track => track.enabled),
-      Object.entries(sequence.parentProject?.assets?.list || {}).map(([id, asset]) =>
-        [id, asset.url, asset.sha256, asset.filename, asset.size])]);
+      assets, settings]);
+    const layer = stage?.layer;
+    if (!layer || frameSamplerReuseDisabled() || typeof layer.toJSON !== "function") return whole();
+    // The sampler and later effects never feed its own input. Serialize the
+    // whole sequence with this layer cut before the sampler, so editing the
+    // time effect keeps inputs even when other tracks are in the key. A
+    // synchronous own-property override leaves the live serializer untouched.
+    const prefix = Object.assign({}, layer.toJSON(), {
+      effects: Array.from(layer.effects || []).slice(0, stage.effectIndex),
+    });
+    const own = Object.prototype.hasOwnProperty.call(layer, "toJSON") ? layer.toJSON : null;
+    let serialized;
+    layer.toJSON = () => prefix;
+    try {
+      serialized = "effect-prefix" + whole();
+    } finally {
+      if (own) layer.toJSON = own;
+      else delete layer.toJSON;
+    }
+    // Expressions, layer inputs and compositions can read the cut effects.
+    return layers.frameSamplerSerializedReadsNoLayer(serialized) ? serialized : whole();
   }
 
   function renderPreparedPreview(viewport, runtime, frame) {
