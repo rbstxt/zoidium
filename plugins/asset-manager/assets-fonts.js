@@ -28,7 +28,10 @@ function createResolveFonts(session) {
   function problemFonts() {
     const api = session.registry();
     const snapshot = api ? api.snapshot() : null;
-    return (snapshot ? snapshot.items : []).filter((item) => item.kind === "font" && model.isProblem(item));
+    // Only fonts something uses can be replaced; an unused missing font is
+    // cleaned up with Remove Unused Items instead.
+    return (snapshot ? snapshot.items : []).filter((item) => item.kind === "font" && model.isProblem(item) &&
+      model.usageCount(item) > 0);
   }
 
   function open() {

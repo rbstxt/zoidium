@@ -12,8 +12,12 @@ references and content IDs, builds the archive, then decodes and validates the
 finished Blob through the same validator used by Open. Font and texture preview
 decoding is not needed to save their attached bytes. Saving therefore does not
 wait for a video export, preview decoder, or another tab's export-workspace
-lease. An unreadable or missing local asset stops the save and names the asset;
-the previous file and restore points remain available. A reference to an asset
+lease. An attached asset whose bytes cannot be read stops the save and names the
+asset; the previous file and restore points remain available. A file that is
+already missing in the editor (opened without its bytes, shown as Missing in
+Assets) does not stop the save, as missing footage does not in After Effects:
+its key is recorded in `zoidium.json` `missingAssets`, the reopened project
+shows it as missing again, and a notice after the save lists it. A reference to an asset
 that is no longer in the project at all (for example an editor-only selection
 that outlived its image) is kept as CM3 keeps it and reported once in the
 console; it does not block saving or opening, because no bytes exist to keep. Zoidium does not silently

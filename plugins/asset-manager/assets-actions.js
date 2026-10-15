@@ -300,7 +300,8 @@ function createActions(session) {
 
   function resolveFontsCommand(snapshot) {
     const api = session.registry();
-    const fonts = (snapshot ? snapshot.items : []).filter((item) => item.kind === "font" && model.isProblem(item));
+    const fonts = (snapshot ? snapshot.items : []).filter((item) => item.kind === "font" && model.isProblem(item) &&
+      model.usageCount(item) > 0);
     return {
       id: "resolve-fonts",
       label: "Resolve Fonts…" + (fonts.length ? " (" + fonts.length + ")" : ""),

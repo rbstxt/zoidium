@@ -43,6 +43,7 @@
       if (/^image\//.test(mime) || /\.(png|jpe?g|gif|webp|svg|bmp)(?:$|[?#])/i.test(file)) return "image";
       if (/\.(ttf|otf|woff2?)(?:$|[?#])/i.test(file) || /\/fonts\//i.test(file)) return "font";
       if (/\.(obj|stl|ply|gltf|glb)(?:$|[?#])/i.test(file)) return "geometry";
+      if (/\.ies(?:$|[?#])/i.test(file)) return "ies";
       if (/\.(cube|lut)(?:$|[?#])/i.test(file)) return "lut";
       if (/\.(glsl|vert|frag)(?:$|[?#])/i.test(file)) return "shader";
       // CM3's customGeometry assetType is undefined on some definitions.

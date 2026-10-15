@@ -444,7 +444,7 @@
       var label = "Entry " + fileEntry.name + (assetLabels[fileEntry.name] ? " (" + assetLabels[fileEntry.name] + ")" : "");
       fileEntry.data = new Blob([await archiveIO.bytes(fileEntry.data, label, onSlow)]);
     }
-    var missingAssets = global.ZoidiumAssets?.missingUnused?.(sourceProject) || [];
+    var missingAssets = global.ZoidiumAssets?.missingFiles?.(sourceProject) || [];
     archive.addFileString("zoidium.json", JSON.stringify({
       version: 1, name: projectName, integrity: await archiveIO.integrity(archive),
       ...(missingAssets.length ? { missingAssets: missingAssets } : {}),
