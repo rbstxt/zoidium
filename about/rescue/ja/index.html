@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="保存できなくなった Zoidium のプロジェクトを救出する方法" />
+    <link rel="alternate" hreflang="en" href="/about/rescue" />
+    <link rel="alternate" hreflang="ja" href="/about/rescue/ja" />
+    <link rel="stylesheet" href="/zoidium/runtime-fonts.css" />
+    <link rel="stylesheet" href="/about/legal.css" />
+    <title>プロジェクトの救出 | Zoidium</title>
+  </head>
+  <body>
+    <nav aria-label="サイト内リンク">
+      <a href="/">Zoidium</a>
+      <a href="/about/faq/ja">よくある質問</a>
+      <a href="/about/rescue/ja">救出</a>
+      <a href="/about/terms/ja">利用規約</a>
+      <a href="/about/privacy/ja">プライバシーポリシー</a>
+    </nav>
+
+    <p class="language-switch"><a href="/about/rescue">English version</a></p>
+
+    <header>
+      <h1>保存できないプロジェクトを救出する</h1>
+      <p class="meta">保存、復元ポイントの作成、復元ポイントのダウンロードが失敗する、または押しても反応しないときの手順です。</p>
+    </header>
+
+    <div class="notice">
+      <p><strong>編集中のタブは更新したり閉じたりしないでください。</strong>保存していないプロジェクトは、そのタブの中にしかありません。そのタブで別のプロジェクトを開かず、救出が終わるまで再生と編集を止めてください。</p>
+    </div>
+
+    <h2>1. 救出用ブックマークレットを登録する</h2>
+    <p>下のボタンをブラウザーのブックマークバーへドラッグしてください。バーが見えない場合は <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>B</kbd>（Mac では <kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>B</kbd>）で表示できます。ボタンを右クリックしてリンクをブックマークしても構いません。</p>
+    <div
+      id="rescue-tool"
+      class="rescue-tool"
+      data-drag-hint="このボタンはクリックせず、ブックマークバーへドラッグしてください。登録後、編集中のタブでブックマークをクリックします。ここでクリックすると、このページ自体が救出対象になってしまいます。"
+      data-ready="ブックマークレットの準備ができました（{size}）。救出ツール全体が含まれているため、実行時にネットワーク接続は不要です。"
+      data-load-failed="救出ツールを読み込めませんでした。このヘルプページ（編集中のタブではありません）を再読み込みしてください。"
+      data-copied="スクリプトをコピーしました。下の手順で、編集中のタブの Console に貼り付けてください。"
+      data-copy-failed="コピーできませんでした。下の欄の文字をすべて選択して、手動でコピーしてください。"
+      data-opener-started="編集中のタブで救出ツールを起動しました。そのタブに切り替えて、オレンジ色のパネルを確認してください。"
+      data-opener-failed="編集中のタブで救出ツールを起動できませんでした:"
+      data-opener-gone="このページを開いた編集タブに接続できません。ブックマークレットか Console を使ってください。"
+    >
+      <a id="rescue-bookmarklet" class="rescue-bookmarklet is-loading" href="#" aria-disabled="true">Zoidium Rescue</a>
+      <div class="rescue-actions">
+        <button id="rescue-opener" type="button" hidden disabled>このページを開いた編集タブで実行する</button>
+        <button id="rescue-copy" type="button" disabled>Console 用にスクリプトをコピー</button>
+      </div>
+      <p id="rescue-status" class="rescue-status" role="status">救出ツールを読み込んでいます...</p>
+      <textarea id="rescue-source" class="rescue-source" readonly hidden aria-label="救出スクリプト"></textarea>
+    </div>
+
+    <h2>2. 編集中のタブで実行する</h2>
+    <ul>
+      <li>保存できなくなった編集タブに切り替えて、<strong>Zoidium Rescue</strong> ブックマークをクリックします。</li>
+      <li>画面右上にオレンジ色のパネルが表示され、各手順の進み具合が表示されます。</li>
+      <li>完了すると、救出した <code>.pz</code> ファイルが自動でダウンロードされます。作成したファイルはパネルからも保存できます。パネルの <strong>Save</strong> ボタンは保存先を選ぶ方式なので、ダウンロードが動かないときでも使えます。</li>
+      <li>パネルには復元ポイントの一覧もあります。通常の「ダウンロード」ボタンが効かない復元ポイントも、ここから取り出せます。</li>
+    </ul>
+
+    <h2>3. 救出したファイルを確認する</h2>
+    <p>救出したファイルを<strong>新しい</strong> Zoidium タブで開き、映像・画像・フォント・音声を確認してください。救出したファイルが正しく開け、通常どおり保存できるまで、元のタブは開いたままにしてください。画像や動画が見つからないと表示された場合は、<strong>Media &gt; Missing assets &gt; Locate</strong> で元のファイルを指定してください。</p>
+
+    <h2>ブックマークレットが使えない場合</h2>
+    <p>ブラウザーによってはこの大きさのブックマークを保存できません。また、デスクトップ版にはブックマークがありません。その場合は、同じスクリプトを開発者ツールの Console から実行します。</p>
+    <ul>
+      <li>上の <strong>Console 用にスクリプトをコピー</strong> を押します。</li>
+      <li>編集中のタブで Console を開きます。Chrome と Edge は <kbd>F12</kbd> または <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>J</kbd>（Mac では <kbd>Cmd</kbd>+<kbd>Option</kbd>+<kbd>J</kbd>）、Firefox は <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>K</kbd> です。デスクトップ版は <strong>View &gt; Toggle Developer Tools</strong> を選びます。</li>
+      <li>スクリプトを貼り付けて <kbd>Enter</kbd> を押します。Chrome が貼り付けについて警告した場合は、<code>allow pasting</code> と入力して <kbd>Enter</kbd> を押してから、もう一度貼り付けてください。</li>
+    </ul>
+    <p>エディターのエラー表示からこのページを開いた場合は、上に <strong>このページを開いた編集タブで実行する</strong> ボタンが表示されます。ブックマークなしで救出を始められます。</p>
+
+    <div class="summary rescue-support">
+      <strong>それでも解決しない場合は Discord でバグを報告してください</strong>
+      <p>救出に失敗した場合や、救出したファイルが開けない場合は、<a href="https://discord.gg/PWAmY9m5bu" target="_blank" rel="noopener noreferrer">Zoidium の Discord サーバー</a>で報告してください。次の情報を添えてください。</p>
+      <ul>
+        <li>パネルの <strong>Copy report for the bug report</strong> ボタンでコピーしたレポート</li>
+        <li><strong>Settings &gt; Debug information &gt; Download debug log</strong> で保存したデバッグログ（デスクトップ版は <strong>Debug &gt; Download debug log</strong>）</li>
+        <li>保存できなくなったときに行っていた操作</li>
+      </ul>
+      <p>レポートとデバッグログにはプロジェクトの内容は含まれません。<code>.pz</code> ファイルは、共有しても問題ない場合だけ送ってください。</p>
+    </div>
+
+    <h2>救出ツールが行うこと</h2>
+    <p>救出ツールは編集中のタブの中だけで動きます。プロジェクトをコピーし、添付ファイルとまとめて <code>.pz</code> ファイルにし、読み直せることを確認します。開いているプロジェクトの変更、復元ポイントの書き込み、ネットワークへの送信は行いません。プロジェクトの一部が壊れている場合は、壊れたオブジェクトだけを除き、パネルに一覧表示します。安全な修復を加えたコピーを最初に提示し、修復していないコピーも並べて残します。</p>
+
+    <script src="/about/rescue/rescue-page.js"></script>
+  </body>
+</html>

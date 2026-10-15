@@ -3,13 +3,13 @@
   "id": "light-plus",
   "name": "Light+",
   "author": "Zoidium",
-  "version": "3",
+  "version": "4",
   "kind": "object",
   "objectTypes": [
     {
       "target": "object3d",
       "name": "Light+",
-      "desc": "Choose a light type for a 3D scene.",
+      "desc": "Lights lit scene materials. Single Color and Matcap materials do not respond to lights.",
       "replace": {
         "name": "Light",
         "type": 3
@@ -21,21 +21,69 @@
           "name": "Spot light",
           "type": 3,
           "data": {
-            "objectType": 1
+            "objectType": 1,
+            "properties": {
+              "position": {
+                "animated": false,
+                "keyframes": [
+                  {
+                    "frame": 0,
+                    "value": [
+                      0,
+                      100,
+                      100
+                    ],
+                    "tween": 1
+                  }
+                ]
+              }
+            }
           }
         },
         {
           "name": "Point light",
           "type": 3,
           "data": {
-            "objectType": 2
+            "objectType": 2,
+            "properties": {
+              "position": {
+                "animated": false,
+                "keyframes": [
+                  {
+                    "frame": 0,
+                    "value": [
+                      0,
+                      100,
+                      100
+                    ],
+                    "tween": 1
+                  }
+                ]
+              }
+            }
           }
         },
         {
           "name": "Directional light",
           "type": 3,
           "data": {
-            "objectType": 3
+            "objectType": 3,
+            "properties": {
+              "position": {
+                "animated": false,
+                "keyframes": [
+                  {
+                    "frame": 0,
+                    "value": [
+                      0,
+                      100,
+                      100
+                    ],
+                    "tween": 1
+                  }
+                ]
+              }
+            }
           }
         },
         {

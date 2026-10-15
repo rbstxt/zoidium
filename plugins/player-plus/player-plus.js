@@ -11,6 +11,7 @@ const PlayerPlus = (() => {
   ];
   const state = {
     active: false,
+    installation: null,
     editor: null,
     PZ: null,
     document: null,
@@ -32,7 +33,33 @@ const PlayerPlus = (() => {
     patchedResize: null,
   };
 
+  // Other plugins may retain our wrapper after an out-of-order disable.
+  // Each installation owns its callback and cannot become active again.
+  const PATCH = Symbol.for("zoidium.inactivePatch");
+
+  function unwrapInactivePatch(callback) {
+    while (callback?.[PATCH] && !callback[PATCH].installation.active) {
+      callback = callback[PATCH].original;
+    }
+    return callback;
+  }
+
+  function guardPatch(target, key, handler, original) {
+    const installation = state.installation;
+    const wrapper = function () {
+      if (!installation.active) {
+        const callback = unwrapInactivePatch(original);
+        if (target[key] === wrapper) target[key] = callback;
+        return callback.apply(this, arguments);
+      }
+      return handler.apply(this, arguments);
+    };
+    wrapper[PATCH] = { installation, original };
+    return wrapper;
+  }
+
   function readStoredQuality() {
+    // Storage may be blocked; fall back to the default quality.
     try {
       const value = Number(state.window?.localStorage?.getItem(QUALITY_STORAGE_KEY));
       return QUALITY_OPTIONS.some((option) => option.value === value) ? value : 1;
@@ -89,7 +116,7 @@ const PlayerPlus = (() => {
 
       .zoidium-player-plus-pause:focus,
       .zoidium-player-plus-render-once:focus {
-        border-color: var(--zoidium-theme-focus, #384668) !important;
+        border-color: var(--zui-accent) !important;
         outline: 0;
       }
 
@@ -101,7 +128,7 @@ const PlayerPlus = (() => {
 
       .zoidium-player-plus-pause svg,
       .zoidium-player-plus-render-once svg {
-        fill: #acacac;
+        fill: var(--zui-text-muted);
         height: 25px;
         pointer-events: none;
         width: 25px;
@@ -113,18 +140,18 @@ const PlayerPlus = (() => {
       }
 
       .zoidium-player-plus-pause.is-paused svg {
-        fill: #4f7dbf;
+        fill: var(--zui-value);
       }
 
       .zoidium-player-plus-quality {
-        background: #2a2a2a;
-        border: 1px solid #555;
-        border-radius: 2px;
+        background-color: var(--zui-bg-input);
+        border: 1px solid var(--zui-border);
+        border-radius: 0;
         box-sizing: border-box;
-        color: #acacac;
+        color: var(--zui-value);
         cursor: pointer;
-        font-family: var(--zoidium-font-family, monospace);
-        font-size: 12px;
+        font-family: var(--zui-font);
+        font-size: var(--zui-font-size-small);
         height: 27px;
         line-height: 25px;
         min-width: 112px;
@@ -137,13 +164,13 @@ const PlayerPlus = (() => {
       }
 
       .zoidium-player-plus-quality:focus-visible {
-        border-color: var(--zoidium-theme-focus, #384668);
+        border-color: var(--zui-accent);
         outline: 0;
       }
 
       .zoidium-player-plus-quality option {
-        background: #2a2a2a;
-        color: #ccc;
+        background-color: var(--zui-bg-input);
+        color: var(--zui-text);
       }
     `;
     state.document.head.appendChild(style);
@@ -170,7 +197,9 @@ const PlayerPlus = (() => {
     if (!viewport.__zoidiumPlayerPlusFrame) {
       const originalFrame = viewport._renderFn;
       if (typeof originalFrame === "function") {
+        const installation = state.installation;
         const guardedFrame = () => {
+          if (!installation.active) return originalFrame();
           if (viewport.__zoidiumPlayerPlusPaused) {
             viewport.animFrameReq = null;
             return;
@@ -226,7 +255,7 @@ const PlayerPlus = (() => {
     if (!prototype || state.viewportPrototype === prototype) return;
     state.viewportPrototype = prototype;
 
-    state.originalRenderPipeline = prototype._render;
+    const originalRenderPipeline = state.originalRenderPipeline = unwrapInactivePatch(prototype._render);
     state.patchedRenderPipeline = function () {
       registerViewport(this);
       if (this.__zoidiumPlayerPlusPaused) {
@@ -240,17 +269,19 @@ const PlayerPlus = (() => {
           return;
         }
       }
-      return state.originalRenderPipeline.apply(this, arguments);
+      return originalRenderPipeline.apply(this, arguments);
     };
+    state.patchedRenderPipeline = guardPatch(prototype, "_render", state.patchedRenderPipeline, originalRenderPipeline);
     prototype._render = state.patchedRenderPipeline;
 
-    state.originalResize = prototype.resize;
+    const originalResize = state.originalResize = unwrapInactivePatch(prototype.resize);
     state.patchedResize = function () {
       registerViewport(this);
-      const result = state.originalResize.apply(this, arguments);
+      const result = originalResize.apply(this, arguments);
       applyQualityToViewport(this);
       return result;
     };
+    state.patchedResize = guardPatch(prototype, "resize", state.patchedResize, originalResize);
     prototype.resize = state.patchedResize;
   }
 
@@ -305,7 +336,8 @@ const PlayerPlus = (() => {
     button.setAttribute("aria-label", button.title);
     if (state.pauseIcon && state.PZ?.ui?.switchIcon) {
       state.PZ.ui.switchIcon(state.pauseIcon, state.paused ? "play" : "pause");
-      state.pauseIcon.style.fill = state.paused ? "#4f7dbf" : "#acacac";
+      // CSS var() in an inline style follows the editor theme (see installStyle).
+      state.pauseIcon.style.fill = state.paused ? "var(--zui-value)" : "var(--zui-text-muted)";
     }
   }
 
@@ -354,7 +386,7 @@ const PlayerPlus = (() => {
 
   function createQualitySelect(toolbar) {
     const select = state.document.createElement("select");
-    select.className = "zoidium-player-plus-quality";
+    select.className = "pz-inputbox zoidium-player-plus-quality";
     select.title = "Preview quality";
     select.setAttribute("aria-label", "Preview quality");
     for (const option of QUALITY_OPTIONS) {
@@ -435,6 +467,10 @@ const PlayerPlus = (() => {
   async function activate(context) {
     if (state.active) return;
     state.active = true;
+    const installation = state.installation = { active: true };
+    context.lifecycle?.onDispose(() => {
+      if (state.installation === installation) deactivate();
+    });
     state.editor = context.editor;
     state.window = context.window || window;
     state.document = context.document || document;
@@ -444,15 +480,20 @@ const PlayerPlus = (() => {
     installViewportPatches();
     watchForToolbar();
     // The initial project may finish sizing the viewport just after activation.
-    state.window.requestAnimationFrame(applyQualityToAllViewports);
+    state.window.requestAnimationFrame(() => {
+      if (installation.active) applyQualityToAllViewports();
+    });
   }
 
   function deactivate() {
     if (!state.active) return;
     state.active = false;
+    state.installation.active = false;
     state.toolbarObserver?.disconnect();
     state.toolbarObserver = null;
     setDrawingPaused(false);
+    state.quality = 1;
+    applyQualityToAllViewports();
     removeControls();
     restoreViewportPatches();
     state.style?.remove();

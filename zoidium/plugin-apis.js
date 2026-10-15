@@ -27,6 +27,36 @@
     return !!value && typeof value === "object" && !Array.isArray(value);
   }
 
+  // CM3 only descends into object lists declared as PZ.property or
+  // PZ.property.dynamic. Plugin containers (Forms, Systems, Plexus objects)
+  // use their own object classes, so their animated descendants are skipped.
+  // Keep native tracks and their watchers/history; add the omitted lists
+  // through the same native list builder, without changing project objects.
+  function installKeyframeContainerTraversal() {
+    var PZ = global.PZ;
+    var proto = PZ && PZ.ui && PZ.ui.timeline && PZ.ui.timeline.keyframes && PZ.ui.timeline.keyframes.prototype;
+    if (!proto || typeof proto.createKeyframeTrack !== "function" || proto.createKeyframeTrack.__zoidiumContainers) return;
+    var original = proto.createKeyframeTrack;
+    function createKeyframeTrack(container, object) {
+      var track = original.apply(this, arguments);
+      if (!track) return track;
+      var children = object.children || [];
+      // createTrackList inserts immediately after its parent, hence reverse.
+      for (var index = children.length - 1; index >= 0; index -= 1) {
+        var child = children[index];
+        if (child instanceof PZ.objectList && !(child instanceof PZ.objectSingleton) &&
+            child.type !== PZ.property && child.type !== PZ.property.dynamic) {
+          this.createTrackList(track, child);
+        }
+      }
+      return track;
+    }
+    createKeyframeTrack.__zoidiumContainers = true;
+    proto.createKeyframeTrack = createKeyframeTrack;
+  }
+
+  installKeyframeContainerTraversal();
+
   var propertyControlRegistrations = Object.create(null);
   var propertyControlPatches = Object.create(null);
 
@@ -46,6 +76,26 @@
     if (type === types.LIST) return "generateListInput";
     if (type === types.SHADER) return "generateShaderInput";
     return null;
+  }
+
+  // CM3's property list looks up the row's first ".editbox" and binds its
+  // pz_update to the property's onChanged, so every control must provide one.
+  // Custom controls that only render buttons or canvases get a no-op update.
+  function ensureEditbox(element) {
+    if (!element || typeof element !== "object") return element;
+    var editbox = element.classList && element.classList.contains("editbox")
+      ? element
+      : (typeof element.querySelector === "function" ? element.querySelector(".editbox") : null);
+    if (!editbox && element.classList) {
+      element.classList.add("editbox");
+      editbox = element;
+    }
+    if (editbox && typeof editbox.pz_update !== "function") {
+      editbox.pz_update = typeof element.pz_refresh === "function"
+        ? function () { element.pz_refresh(); }
+        : function () {};
+    }
+    return element;
   }
 
   // Custom property controls keep plugin-specific editors inside CM3's normal
@@ -84,7 +134,7 @@
             document: global.document,
             window: global,
           });
-          if (result) return result;
+          if (result) return ensureEditbox(result);
         }
         return original.apply(this, arguments);
       };
@@ -397,8 +447,343 @@
     if (texture && typeof texture.dispose === "function") texture.dispose();
   }
 
+  // CM3 add picker fixes ----------------------------------------------
+  //
+  // The Effects and Objects add picker (ui-1.0.72.js, generateAdd) builds a
+  // Map from the live registry array when it opens, then searches with
+  // `new Fuse(array)`. Fuse reads that array lazily, so an entry a plugin
+  // registers while the picker is open is found by search but has no Map row,
+  // and appendChild(undefined) throws. Searching a snapshot keeps the results
+  // aligned with the rows the picker built.
+  //
+  // The picker's `name` key also carries a 0.4 weight on the description, so
+  // Fuse can rank "Time Offset" (its description mentions bevel) above "Bevel
+  // Alpha" for the query "Bevel". Instances keyed on `name` are therefore
+  // re-ordered by name match tier: exact, then prefix, then substring, then
+  // the rest. Fuse's order is kept inside each tier.
+  function fuseKeysIncludeName(keys) {
+    return Array.isArray(keys) && keys.some(function (key) {
+      return key === "name" || (!!key && typeof key === "object" && key.name === "name");
+    });
+  }
+
+  function nameMatchTier(name, query) {
+    if (name === query) return 0;
+    if (name.indexOf(query) === 0) return 1;
+    if (name.indexOf(query) !== -1) return 2;
+    return 3;
+  }
+
+  function rankByNameMatch(results, pattern, wrapped) {
+    if (!Array.isArray(results) || results.length < 2 || typeof pattern !== "string") return results;
+    var query = pattern.trim().toLowerCase();
+    if (!query) return results;
+    var tiers = [[], [], [], []];
+    results.forEach(function (result) {
+      var item = wrapped ? result && result.item : result;
+      var name = item && typeof item.name === "string" ? item.name.toLowerCase() : "";
+      tiers[nameMatchTier(name, query)].push(result);
+    });
+    return tiers[0].concat(tiers[1], tiers[2], tiers[3]);
+  }
+
+  function installFuseSnapshots() {
+    var OriginalFuse = global.Fuse;
+    if (typeof OriginalFuse !== "function" || OriginalFuse.__zoidiumSnapshot) return;
+    function SnapshotFuse(list, options) {
+      var source = Array.isArray(list) ? list.slice() : list;
+      var fuse = Reflect.construct(OriginalFuse, [source, options], SnapshotFuse);
+      if (options && fuseKeysIncludeName(options.keys)) {
+        var wrapped = !!(Array.isArray(options.include) && options.include.length);
+        // Looked up at call time, so the Native FX prototype patch still applies.
+        Object.defineProperty(fuse, "search", {
+          configurable: true,
+          writable: true,
+          value: function search(pattern) {
+            var results = OriginalFuse.prototype.search.apply(this, arguments);
+            try {
+              return rankByNameMatch(results, pattern, wrapped);
+            } catch (_error) {
+              // Ranking is cosmetic; the unranked results still answer the query.
+              return results;
+            }
+          },
+        });
+      }
+      return fuse;
+    }
+    // Instances share CM3's prototype, so prototype patches (such as the
+    // Native FX search priority) keep applying.
+    SnapshotFuse.prototype = OriginalFuse.prototype;
+    Object.keys(OriginalFuse).forEach(function (key) { SnapshotFuse[key] = OriginalFuse[key]; });
+    Object.defineProperty(SnapshotFuse, "__zoidiumSnapshot", { value: true });
+    global.Fuse = SnapshotFuse;
+  }
+
+  // CM3's picker key handler moves the highlight through lastElementChild and
+  // nextElementSibling, then reads classList on the result. With no matching
+  // rows that result is null and the handler throws. Arrow keys in that state
+  // have nothing to move, so they stop before reaching CM3.
+  function installEmptyPickerArrowGuard() {
+    if (typeof global.addEventListener !== "function") return;
+    global.addEventListener("keydown", function (event) {
+      if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+      var input = event.target;
+      if (!input || !input.classList || !input.classList.contains("pz-filterbox")) return;
+      var panel = input.parentElement;
+      var children = panel && panel.children ? Array.prototype.slice.call(panel.children) : [];
+      var list = children.find(function (child) { return child.classList && child.classList.contains("pz-options"); });
+      var hasRows = !!list && Array.prototype.some.call(list.children, function (child) {
+        return child.tagName === "LI";
+      });
+      if (hasRows) return;
+      event.preventDefault();
+      event.stopPropagation();
+    }, true);
+  }
+
+  installFuseSnapshots();
+  installEmptyPickerArrowGuard();
+
+  // Registrations are lazy because this file also runs before CM3 initializes.
+  function ownedPatch(holder, key, factory) {
+    var original = holder[key];
+    var replacement = factory(original);
+    holder[key] = replacement;
+    return function () { if (holder[key] === replacement) holder[key] = original; };
+  }
+
+  var trackFields = new Map();
+  var trackFieldHooks = false;
+  var retainedTrackFields = new WeakMap();
+  function installTrackFieldHooks() {
+    if (trackFieldHooks || !global.PZ?.track?.prototype) return;
+    var proto = global.PZ.track.prototype;
+    ownedPatch(proto, "load", function (original) { return function (data) {
+      var retained = {};
+      Object.keys(data || {}).forEach(function (key) {
+        if (!["type", "clips", "__proto__", "constructor", "prototype"].includes(key)) retained[key] = JSON.parse(JSON.stringify(data[key]));
+      });
+      retainedTrackFields.set(this, retained);
+      var track = this;
+      trackFields.forEach(function (field, key) {
+        track[key] = data && Object.prototype.hasOwnProperty.call(data, key) ? data[key] : field.default;
+      });
+      return original.apply(this, arguments);
+    }; });
+    ownedPatch(proto, "toJSON", function (original) { return function () {
+      var data = Object.assign({}, retainedTrackFields.get(this), original.apply(this, arguments));
+      var track = this;
+      Object.keys(retainedTrackFields.get(this) || {}).forEach(function (key) { if (Object.prototype.hasOwnProperty.call(track, key)) data[key] = track[key]; });
+      trackFields.forEach(function (field, key) { data[key] = track[key] === undefined ? (Object.prototype.hasOwnProperty.call(data, key) ? data[key] : field.default) : track[key]; });
+      return data;
+    }; });
+    trackFieldHooks = true;
+  }
+  function registerTrackField(name, spec) {
+    if (!name || ["__proto__", "constructor", "prototype", "type", "clips"].includes(name)) throw new Error("Invalid track field");
+    if (trackFields.has(name) && trackFields.get(name).active !== false) throw new Error("Track field already registered: " + name);
+    var registration = { default: spec.default, active: true };
+    trackFields.set(name, registration);
+    installTrackFieldHooks();
+    var project = global.CM && global.CM.project;
+    if (project && typeof project.forEachItemOfType === "function") project.forEachItemOfType(global.PZ.track, function (track) {
+      if (track[name] !== undefined) return;
+      var retained = retainedTrackFields.get(track);
+      track[name] = retained && Object.prototype.hasOwnProperty.call(retained, name) ? retained[name] : spec.default;
+    });
+    // Keep serialization support after disposal so disabled plugins do not erase data.
+    return function () { registration.active = false; };
+  }
+  installTrackFieldHooks();
+
+  var trackButtons = new Map();
+  var trackLabels = new Set();
+  var restoreTrackLabels = null;
+  function decorateTrackLabel(label, track, kind, editor) {
+    if (!Array.from(trackLabels).some(function (entry) { return entry.label === label; })) trackLabels.add({ label: label, track: track, kind: kind, editor: editor, grid: label.style.gridTemplateColumns });
+    trackButtons.forEach(function (spec) {
+      if (!spec.kinds.includes(kind) || Array.from(label.children).some(function (child) { return child.dataset?.zoidiumTrackButton === spec.id; })) return;
+      var button = global.document.createElement("button");
+      button.dataset.zoidiumTrackButton = spec.id;
+      button.className = "actionbutton";
+      button.textContent = spec.label;
+      button.style.cssText = "min-width:22px;height:16px;font-size:10px;border:1px solid var(--zui-border,#555);border-radius:3px;padding:0 2px;cursor:pointer";
+      function refresh() {
+        var active = !!spec.isActive(track);
+        button.title = typeof spec.title === "function" ? spec.title(track) : spec.title || spec.label;
+        button.setAttribute("aria-pressed", String(active));
+        button.style.background = active ? "var(--zui-accent,#384668)" : "transparent";
+        button.style.color = active ? "var(--zui-text-bright,#fff)" : "var(--zui-text-muted,#888)";
+      }
+      button.onclick = function (event) { event.stopPropagation(); spec.onToggle(track, editor); refresh(); };
+      button.pz_refresh = refresh;
+      refresh();
+      label.insertBefore(button, label.children[1] || null);
+    });
+    label.style.gridTemplateColumns = "1fr " + "auto ".repeat(label.children.length - 1).trim();
+  }
+  function refreshTrackButtons() {
+    trackLabels.forEach(function (entry) {
+      if (!entry.label.isConnected) { trackLabels.delete(entry); return; }
+      entry.label.querySelectorAll("[data-zoidium-track-button]").forEach(function (button) { button.pz_refresh(); });
+    });
+  }
+  function registerTrackButton(spec) {
+    if (!spec.id || trackButtons.has(spec.id)) throw new Error("Track button already registered or missing id");
+    trackButtons.set(spec.id, spec);
+    var proto = global.PZ.ui.timeline.tracks.prototype;
+    if (!restoreTrackLabels) restoreTrackLabels = ownedPatch(proto, "createTrackLabel", function (original) { return function (track, kind) {
+      var label = original.apply(this, arguments);
+      decorateTrackLabel(label, track, kind === 0 ? "video" : "audio", this.timeline.editor);
+      return label;
+    }; });
+    trackLabels.forEach(function (entry) { if (entry.label.isConnected) decorateTrackLabel(entry.label, entry.track, entry.kind, entry.editor); });
+    // Existing CM3 labels have no track reference; their order matches the sequence.
+    var editor = global.CM;
+    if (editor && editor.project) {
+      var tracks = editor.project.sequence.videoTracks;
+      global.document.querySelectorAll('button[title="disable track"],button[title="enable track"]').forEach(function (eye, index) {
+        var label = eye.parentElement;
+        if (tracks[index] && !label.querySelector("[data-zoidium-track-button]")) decorateTrackLabel(label, tracks[index], "video", editor);
+      });
+    }
+    return function () {
+      trackButtons.delete(spec.id);
+      trackLabels.forEach(function (entry) {
+        entry.label.querySelectorAll("[data-zoidium-track-button]").forEach(function (button) { if (button.dataset.zoidiumTrackButton === spec.id) button.remove(); });
+        entry.label.style.gridTemplateColumns = entry.label.querySelector("[data-zoidium-track-button]") ? "1fr " + "auto ".repeat(entry.label.children.length - 1).trim() : entry.grid;
+      });
+      if (!trackButtons.size && restoreTrackLabels) { restoreTrackLabels(); restoreTrackLabels = null; trackLabels.clear(); }
+    };
+  }
+
+  var mediaPresets = new Map();
+  var restorePresetLoad = null;
+  function addMediaPreset(project, spec) {
+    if (project.media.some(function (media) { return media.__zoidiumPreset === spec.id; })) return;
+    var media = new global.PZ.media();
+    project.media.push(media);
+    media.__zoidiumPreset = spec.id;
+    var data = JSON.parse(JSON.stringify(spec.json));
+    data.preset = true;
+    data.properties = Object.assign({}, data.properties, { name: spec.name, icon: spec.icon });
+    media.loading = media.load(data);
+  }
+  function registerMediaPreset(spec) {
+    if (!spec.id || mediaPresets.has(spec.id)) throw new Error("Media preset already registered or missing id");
+    mediaPresets.set(spec.id, spec);
+    if (!restorePresetLoad) restorePresetLoad = ownedPatch(global.PZ.project.prototype, "load", function (original) { return function () {
+      var result = original.apply(this, arguments);
+      var project = this;
+      mediaPresets.forEach(function (preset) { addMediaPreset(project, preset); });
+      return result;
+    }; });
+    if (global.CM && global.CM.project) addMediaPreset(global.CM.project, spec);
+    return function () {
+      mediaPresets.delete(spec.id);
+      var project = global.CM && global.CM.project;
+      if (project) for (var i = project.media.length - 1; i >= 0; i--) if (project.media[i].__zoidiumPreset === spec.id) { project.media[i].unload(); project.media.splice(i, 1); }
+      if (!mediaPresets.size && restorePresetLoad) { restorePresetLoad(); restorePresetLoad = null; }
+    };
+  }
+
+  function registerLayerType(spec) {
+    var PZ = global.PZ;
+    PZ.zoidium = PZ.zoidium || {};
+    var claims = PZ.zoidium.legacyLayerTypes || (PZ.zoidium.legacyLayerTypes = new Map());
+    if (!Number.isInteger(spec.legacyType) || spec.legacyType < 9 || claims.has(spec.legacyType)) throw new Error("Legacy layer type collision: " + spec.legacyType);
+    claims.set(spec.legacyType, spec.id);
+    var undo = ownedPatch(PZ.layer, "create", function (original) { return function (type) {
+      if (type === spec.legacyType || type === spec.type) { var layer = spec.factory(); layer.type = spec.type; return layer; }
+      return original.apply(this, arguments);
+    }; });
+    return function () { undo(); if (claims.get(spec.legacyType) === spec.id) claims.delete(spec.legacyType); };
+  }
+
+  // CommonJS-style loader for the source files of one plugin bundle, so a
+  // plugin can be split into files of a reasonable size. Files are declared
+  // as text assets in the manifest and evaluated once per loader.
+  //   var require = ZoidiumPluginApis.modules.createRequire(context.getAsset, {
+  //     root: "./plugins/my-plugin/", scope: { context: context } });
+  //   var parts = require("./parts.js");
+  // Each file runs as function (module, exports, require, ...scope names);
+  // `require` resolves "./" and "../" against the requiring file and never
+  // leaves `root`. Cycles return the partial exports, as in CommonJS.
+  function normalizeModulePath(path) {
+    var parts = [];
+    String(path).split("/").forEach(function (part) {
+      if (!part || part === ".") return;
+      if (part === "..") {
+        if (!parts.length) throw new Error("Module path leaves the bundle: " + path);
+        parts.pop();
+        return;
+      }
+      parts.push(part);
+    });
+    return "./" + parts.join("/");
+  }
+
+  function createRequire(getAsset, options) {
+    if (typeof getAsset !== "function") throw new Error("createRequire needs the plugin asset resolver");
+    var config = options || {};
+    var root = normalizeModulePath(config.root || "./") + "/";
+    if (root === ".//") root = "./";
+    var scope = config.scope && typeof config.scope === "object" ? config.scope : {};
+    var scopeNames = Object.keys(scope);
+    var scopeValues = scopeNames.map(function (name) { return scope[name]; });
+    var cache = Object.create(null);
+
+    function resolve(id, fromDir) {
+      var text = String(id);
+      var full = text.indexOf("./plugins/") === 0 ? normalizeModulePath(text)
+        : normalizeModulePath(fromDir + text);
+      if (full.indexOf(root) !== 0) throw new Error("Module is outside " + root + ": " + text);
+      return full;
+    }
+
+    function load(id, fromDir) {
+      var path = resolve(id, fromDir);
+      if (cache[path]) return cache[path].exports;
+      var source = getAsset("text", path);
+      if (typeof source !== "string") throw new Error("Bundle is missing module " + path);
+      var module = { id: path, exports: {} };
+      cache[path] = module;
+      var dir = path.slice(0, path.lastIndexOf("/") + 1);
+      var localRequire = function (next) { return load(next, dir); };
+      var factory = new Function(["module", "exports", "require"].concat(scopeNames).join(","),
+        source + "\n//# sourceURL=" + path.slice(1));
+      try {
+        factory.apply(undefined, [module, module.exports, localRequire].concat(scopeValues));
+      } catch (error) {
+        delete cache[path];
+        throw error;
+      }
+      return module.exports;
+    }
+
+    return function require(id) { return load(id, root); };
+  }
+
+  // Shared modules (zoidium/shared/*.js, loaded before this file). Each table
+  // is attached when its script is present so this file also loads standalone.
+  function sharedTable(name) {
+    return global[name] && typeof global[name] === "object" ? global[name] : undefined;
+  }
+
+  var sharedRandom = sharedTable("ZoidiumSharedRandom");
+  var sharedProps = sharedTable("ZoidiumSharedProps");
+  var sharedColor = sharedTable("ZoidiumSharedColor");
+  var sharedGl = sharedTable("ZoidiumSharedGl");
+  var sharedJson = sharedTable("ZoidiumSharedJson");
+  var sharedWindows = sharedTable("ZoidiumSharedWindows");
+
   var apis = {
     KINDS: KINDS,
+    modules: { createRequire: createRequire },
+    timeline: { registerTrackButton: registerTrackButton, registerTrackField: registerTrackField, refreshTrackButtons: refreshTrackButtons },
+    media: { registerPreset: registerMediaPreset },
+    layers: { registerType: registerLayerType },
     defineTemporal: defineTemporal,
     defineFrameSampler: defineFrameSampler,
     defineFilter: defineFilter,
@@ -418,6 +803,13 @@
       disposeTexture: disposeMaterialTexture,
     },
   };
+
+  if (sharedRandom) apis.random = sharedRandom;
+  if (sharedProps) apis.props = sharedProps;
+  if (sharedColor) apis.color = sharedColor;
+  if (sharedGl) apis.gl = sharedGl;
+  if (sharedJson) apis.json = sharedJson;
+  if (sharedWindows) apis.windows = sharedWindows;
 
   global.ZoidiumPluginApis = apis;
   try {

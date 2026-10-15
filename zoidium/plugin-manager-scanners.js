@@ -1,0 +1,467 @@
+// Plugin manager: scanners. Shared internals are private to these ordered overlays.
+(function () {
+  "use strict";
+  const manager = window.ZoidiumPluginManagerInternals;
+  const { NATIVE_FX_PLUGIN_ID, LAYER_INPUT_PLUGIN_ID, TEXT_PLUS_PLUGIN_ID, PARTICLES_PLUS_PLUGIN_ID, TRAPCODE_SUITE_PLUGIN_ID, LAYER_INPUT_SHADER_FEATURE_ID, TEXT_PLUS_SPACING_FEATURE_ID, TEXT_PLUS_BEVEL_FEATURE_ID, LAYER_INPUT_EFFECT_IDS, NATIVE_FX_EFFECTS, PLUGIN_MATERIAL_TYPES, NATIVE_EFFECT_PLUGINS, NUMERIC_OBJECT_TYPES, NUMERIC_LAYER_TYPES, PLUGIN_DEPENDENCY_INFO, pluginStates } = manager;
+
+  // BEGIN manager body 1980
+  function normalizeProjectPlugins(plugins) {
+    if (!Array.isArray(plugins)) return [];
+    const normalized = new Map();
+    for (const plugin of plugins) {
+      const descriptor =
+        typeof plugin === "string"
+          ? { id: plugin }
+          : plugin && typeof plugin === "object"
+            ? plugin
+            : null;
+      if (!descriptor || typeof descriptor.id !== "string" || !descriptor.id) {
+        continue;
+      }
+      let entry = normalized.get(descriptor.id);
+      if (!entry) {
+        entry = {
+          id: descriptor.id,
+          name: typeof descriptor.name === "string" ? descriptor.name : descriptor.id,
+          version: descriptor.version == null ? "" : String(descriptor.version),
+          author: typeof descriptor.author === "string" ? descriptor.author : "",
+          effects: [],
+          materials: [],
+          objects: [],
+          sprites: [],
+          features: [],
+        };
+        normalized.set(descriptor.id, entry);
+      } else {
+        if (entry.name === entry.id && typeof descriptor.name === "string") {
+          entry.name = descriptor.name;
+        }
+        if (!entry.version && descriptor.version != null) {
+          entry.version = String(descriptor.version);
+        }
+        if (!entry.author && typeof descriptor.author === "string") {
+          entry.author = descriptor.author;
+        }
+      }
+      for (const field of ["effects", "materials", "objects", "sprites", "features"]) {
+        if (!Array.isArray(descriptor[field])) continue;
+        entry[field].push(...descriptor[field].filter((item) => typeof item === "string"));
+      }
+    }
+    return Array.from(normalized.values(), (entry) => {
+      for (const field of ["effects", "materials", "objects", "sprites", "features"]) {
+        entry[field] = Array.from(new Set(entry[field])).sort();
+      }
+      return entry;
+    });
+  }
+
+  function getProjectPluginDescriptor(plugins, pluginId) {
+    let descriptor = plugins.find((plugin) => plugin.id === pluginId);
+    if (descriptor) return descriptor;
+    const installed = pluginStates.get(pluginId)?.plugin;
+    const fallback = PLUGIN_DEPENDENCY_INFO.get(pluginId) || {};
+    descriptor = {
+      id: pluginId,
+      name: installed?.name || fallback.name || pluginId,
+      version: String(installed?.version || ""),
+      author: installed?.author || fallback.author || "",
+      effects: [],
+      materials: [],
+      objects: [],
+      sprites: [],
+      features: [],
+    };
+    plugins.push(descriptor);
+    return descriptor;
+  }
+
+  function mergeDetectedPluginItems(plugins, pluginId, field, items) {
+    if (!items || items.size === 0) return;
+    const descriptor = getProjectPluginDescriptor(plugins, pluginId);
+    descriptor[field] = Array.from(
+      new Set([...(descriptor[field] || []), ...items])
+    ).sort();
+  }
+
+  function serializeProjectPlugins(plugins) {
+    return plugins.map((plugin) => {
+      const descriptor = { ...plugin };
+      if (!descriptor.sprites?.length) delete descriptor.sprites;
+      if (!descriptor.features?.length) delete descriptor.features;
+      return descriptor;
+    });
+  }
+
+  function findNativeFxTypes(value, found = new Set(), visited = new WeakSet()) {
+    if (!value || typeof value !== "object") return found;
+    if (visited.has(value)) return found;
+    visited.add(value);
+    if (typeof value.type === "string" && NATIVE_FX_EFFECTS.has(value.type)) {
+      found.add(value.type);
+    }
+    if (Array.isArray(value)) {
+      for (const item of value) findNativeFxTypes(item, found, visited);
+    } else {
+      for (const key of Object.keys(value)) findNativeFxTypes(value[key], found, visited);
+    }
+    return found;
+  }
+
+  function findLayerInputFeatures(
+    value,
+    found = { effects: new Set(), features: new Set() },
+    visited = new WeakSet()
+  ) {
+    if (!value || typeof value !== "object") return found;
+    if (visited.has(value)) return found;
+    visited.add(value);
+    if (LAYER_INPUT_EFFECT_IDS.has(value.type)) found.effects.add(value.type);
+    if (
+      value._zoidiumShaderLayerSource === true ||
+      value.definition?._zoidiumShaderLayerSource === true ||
+      value.type?._zoidiumShaderLayerSource === true
+    ) {
+      found.features.add(LAYER_INPUT_SHADER_FEATURE_ID);
+    }
+    if (Array.isArray(value)) {
+      for (const item of value) findLayerInputFeatures(item, found, visited);
+    } else {
+      for (const key of Object.keys(value)) findLayerInputFeatures(value[key], found, visited);
+    }
+    return found;
+  }
+
+  // Like findNativeFxTypes, but attributes every registered native effect
+  // id (all packs) to its owning plugin instead of only the native-fx set.
+  function findPluginNativeEffects(value, found = new Map(), visited = new WeakSet()) {
+    if (!value || typeof value !== "object") return found;
+    if (visited.has(value)) return found;
+    visited.add(value);
+    if (typeof value.type === "string" && NATIVE_EFFECT_PLUGINS.has(value.type)) {
+      const pluginId = NATIVE_EFFECT_PLUGINS.get(value.type);
+      if (!found.has(pluginId)) found.set(pluginId, new Set());
+      found.get(pluginId).add(value.type);
+    }
+    if (Array.isArray(value)) {
+      for (const item of value) findPluginNativeEffects(item, found, visited);
+    } else {
+      for (const key of Object.keys(value)) findPluginNativeEffects(value[key], found, visited);
+    }
+    return found;
+  }
+
+  // Only authored 3D object lists claim legacy numeric ids. Flare stack
+  // elements and property definitions have their own unrelated numeric ids.
+  function findNumericObjectTypes(value, found = new Map(), visited = new WeakSet(), authoredObject = true) {
+    if (!value || typeof value !== "object" || visited.has(value)) return found;
+    visited.add(value);
+    if (authoredObject && typeof value.type === "number" && NUMERIC_OBJECT_TYPES.has(value.type) &&
+        !Array.isArray(value.effects) && (value.properties || Array.isArray(value.objects)) && !value.definition &&
+        (!value.baseTypeString || value.baseTypeString === "object3d")) {
+      const entry = NUMERIC_OBJECT_TYPES.get(value.type);
+      if (!found.has(entry.pluginId)) found.set(entry.pluginId, new Set());
+      found.get(entry.pluginId).add(entry.objectId);
+    }
+    if (Array.isArray(value)) {
+      for (const item of value) findNumericObjectTypes(item, found, visited, authoredObject);
+    } else {
+      for (const key of ["sequence", "videoTracks", "audioTracks", "clips", "object", "objects", "media", "data"]) {
+        const childIsObject = key === "objects" || (key === "data" && value.baseType === "object3d");
+        findNumericObjectTypes(value[key], found, visited, childIsObject);
+      }
+    }
+    return found;
+  }
+
+  // Numeric layer types along track clip paths (clips[].object nodes).
+  function findNumericLayerTypes(data, found = new Map()) {
+    const visited = new WeakSet();
+    const visitTracks = (tracks) => {
+      if (!Array.isArray(tracks)) return;
+      for (const track of tracks) {
+        if (!track || typeof track !== "object" || visited.has(track)) continue;
+        visited.add(track);
+        if (!Array.isArray(track.clips)) continue;
+        for (const clip of track.clips) {
+          const layer = clip && clip.object;
+          if (!layer || typeof layer !== "object" || visited.has(layer)) continue;
+          visited.add(layer);
+          if (typeof layer.type === "number" && NUMERIC_LAYER_TYPES.has(layer.type)) {
+            const entry = NUMERIC_LAYER_TYPES.get(layer.type);
+            if (!found.has(entry.pluginId)) found.set(entry.pluginId, new Set());
+            found.get(entry.pluginId).add(entry.layerId);
+          }
+        }
+      }
+    };
+    if (data && typeof data === "object") {
+      visitTracks(data.videoTracks);
+      visitTracks(data.audioTracks);
+      visitTracks(data.sequence?.videoTracks);
+      visitTracks(data.sequence?.audioTracks);
+      if (Array.isArray(data.media)) {
+        for (const media of data.media) {
+          if (media && typeof media === "object" && Array.isArray(media.data)) {
+            visitTracks(media.data);
+          }
+        }
+      }
+    }
+    return found;
+  }
+
+  // C4D light ids on vanilla light objects (type 3, objectType 5-8).
+  // Legacy Hemisphere payloads (objectType 4) are intentionally ignored:
+  // they are indistinguishable from vanilla Hemisphere lights in JSON and
+  // render identically without the pack.
+  function findC4DLights(value, found = new Set(), visited = new WeakSet()) {
+    if (!value || typeof value !== "object") return found;
+    if (visited.has(value)) return found;
+    visited.add(value);
+    if (value.type === 3 && typeof value.objectType === "number" &&
+        value.objectType >= 5 && value.objectType <= 8) {
+      found.add("c4d-lights");
+    }
+    if (Array.isArray(value)) {
+      for (const item of value) findC4DLights(item, found, visited);
+    } else {
+      for (const key of Object.keys(value)) findC4DLights(value[key], found, visited);
+    }
+    return found;
+  }
+
+  function findPluginMaterialTypes(value, found = new Map(), visited = new WeakSet()) {
+    if (!value || typeof value !== "object") return found;
+    if (visited.has(value)) return found;
+    visited.add(value);
+    const material = PLUGIN_MATERIAL_TYPES.get(value.type);
+    if (material) {
+      if (!found.has(material.pluginId)) found.set(material.pluginId, new Set());
+      found.get(material.pluginId).add(value.type);
+    }
+    if (Array.isArray(value)) {
+      for (const item of value) findPluginMaterialTypes(item, found, visited);
+    } else {
+      for (const key of Object.keys(value)) findPluginMaterialTypes(value[key], found, visited);
+    }
+    return found;
+  }
+
+  function serializedPropertyValues(value) {
+    if (value === undefined) return [];
+    if (!value || typeof value !== "object" || Array.isArray(value)) return [value];
+    const values = [];
+    if (Object.prototype.hasOwnProperty.call(value, "value")) values.push(value.value);
+    if (Array.isArray(value.keyframes)) {
+      for (const keyframe of value.keyframes) {
+        if (keyframe && Object.prototype.hasOwnProperty.call(keyframe, "value")) {
+          values.push(keyframe.value);
+        }
+      }
+    }
+    return values;
+  }
+
+  function serializedPropertyDiffers(value, expected) {
+    return serializedPropertyValues(value).some((candidate) => {
+      if (typeof expected === "number") {
+        return !Number.isFinite(Number(candidate)) || Number(candidate) !== expected;
+      }
+      return candidate !== expected;
+    });
+  }
+
+  function isSerializedTextObject(value) {
+    const properties = value?.properties;
+    return (
+      value?.type === 1 &&
+      properties &&
+      typeof properties === "object" &&
+      Object.prototype.hasOwnProperty.call(properties, "text") &&
+      Object.prototype.hasOwnProperty.call(properties, "font") &&
+      Object.prototype.hasOwnProperty.call(properties, "bevelSize")
+    );
+  }
+
+  function findTextPlusFeatures(value, found = new Set(), visited = new WeakSet()) {
+    if (!value || typeof value !== "object") return found;
+    if (visited.has(value)) return found;
+    visited.add(value);
+    if (isSerializedTextObject(value)) {
+      const properties = value.properties;
+      if (
+        Object.prototype.hasOwnProperty.call(properties, "spacing") &&
+        serializedPropertyDiffers(properties.spacing, 0)
+      ) {
+        found.add(TEXT_PLUS_SPACING_FEATURE_ID);
+      }
+      for (const [name, expected] of [
+        ["bevelSide", 0],
+        ["bevelDetail", 3],
+        ["bevelProfile", 1],
+        ["bevelTension", 0.5],
+      ]) {
+        if (
+          Object.prototype.hasOwnProperty.call(properties, name) &&
+          serializedPropertyDiffers(properties[name], expected)
+        ) {
+          found.add(TEXT_PLUS_BEVEL_FEATURE_ID);
+          break;
+        }
+      }
+    }
+    if (Array.isArray(value)) {
+      for (const item of value) findTextPlusFeatures(item, found, visited);
+    } else {
+      for (const key of Object.keys(value)) findTextPlusFeatures(value[key], found, visited);
+    }
+    return found;
+  }
+
+  function findParticlesPlusSprites(value, found = new Set(), visited = new WeakSet()) {
+    if (!value || typeof value !== "object") return found;
+    if (visited.has(value)) return found;
+    visited.add(value);
+    if (typeof value._zoidiumParticlesPlusSprite === "string") {
+      found.add(value._zoidiumParticlesPlusSprite);
+    }
+    if (Array.isArray(value)) {
+      for (const item of value) findParticlesPlusSprites(item, found, visited);
+    } else {
+      for (const key of Object.keys(value)) findParticlesPlusSprites(value[key], found, visited);
+    }
+    return found;
+  }
+
+  function parsePluginObjectType(type) {
+    const parser = PZ.zoidium?.object3d?.parseType;
+    if (typeof parser === "function") return parser(type);
+    const match = typeof type === "string"
+      ? type.match(/^zoidium:([a-z0-9][a-z0-9-]*)\/([a-z0-9][a-z0-9-]*)$/)
+      : null;
+    return match ? { pluginId: match[1], objectId: match[2] } : null;
+  }
+
+  function findPluginObjectTypes(value, found = new Map(), visited = new WeakSet()) {
+    if (!value || typeof value !== "object") return found;
+    if (visited.has(value)) return found;
+    visited.add(value);
+    if (typeof value.type === "string") {
+      const parsed = parsePluginObjectType(value.type);
+      if (parsed) {
+        if (!found.has(parsed.pluginId)) found.set(parsed.pluginId, new Set());
+        found.get(parsed.pluginId).add(parsed.objectId);
+      }
+    }
+    if (Array.isArray(value)) {
+      for (const item of value) findPluginObjectTypes(item, found, visited);
+    } else {
+      for (const key of Object.keys(value)) findPluginObjectTypes(value[key], found, visited);
+    }
+    return found;
+  }
+
+  function findCompositionFeatures(data) {
+    const found = new Set();
+    const visited = new WeakSet();
+    function visit(value) {
+      if (!value || typeof value !== "object" || visited.has(value)) return;
+      visited.add(value);
+      if ((value.comp && typeof value.comp.id === "string") ||
+          (value.type === 2 && typeof value.compId === "string")) {
+        found.add("compositions");
+      }
+      for (const child of Object.values(value)) visit(child);
+    }
+    visit(data);
+    return found;
+  }
+
+  function projectPluginRequirements(data) {
+    const plugins = normalizeProjectPlugins(data?.plugins);
+    const detectedEffects = Array.from(findNativeFxTypes(data)).sort();
+    const detectedPluginNative = findPluginNativeEffects(data);
+    const detectedLayerInput = findLayerInputFeatures(data);
+    const detectedMaterialTypes = findPluginMaterialTypes(data);
+    const detectedObjectTypes = findPluginObjectTypes(data);
+    const detectedNumericObjects = findNumericObjectTypes(data);
+    const detectedNumericLayers = findNumericLayerTypes(data);
+    const detectedC4DLights = findC4DLights(data);
+    const detectedTextPlusFeatures = findTextPlusFeatures(data);
+    const detectedParticlesPlusSprites = findParticlesPlusSprites(data);
+    const detectedCompositions = findCompositionFeatures(data);
+    if (
+      detectedEffects.length === 0 &&
+      detectedPluginNative.size === 0 &&
+      detectedLayerInput.effects.size === 0 &&
+      detectedLayerInput.features.size === 0 &&
+      detectedMaterialTypes.size === 0 &&
+      detectedObjectTypes.size === 0 &&
+      detectedNumericObjects.size === 0 &&
+      detectedNumericLayers.size === 0 &&
+      detectedC4DLights.size === 0 &&
+      detectedTextPlusFeatures.size === 0 &&
+      detectedParticlesPlusSprites.size === 0 &&
+      detectedCompositions.size === 0
+    ) {
+      return plugins;
+    }
+    mergeDetectedPluginItems(
+      plugins,
+      NATIVE_FX_PLUGIN_ID,
+      "effects",
+      new Set(detectedEffects)
+    );
+    for (const [pluginId, effectIds] of detectedPluginNative) {
+      mergeDetectedPluginItems(plugins, pluginId, "effects", effectIds);
+    }
+    mergeDetectedPluginItems(
+      plugins,
+      LAYER_INPUT_PLUGIN_ID,
+      "effects",
+      detectedLayerInput.effects
+    );
+    mergeDetectedPluginItems(
+      plugins,
+      LAYER_INPUT_PLUGIN_ID,
+      "features",
+      detectedLayerInput.features
+    );
+    for (const [pluginId, materialTypes] of detectedMaterialTypes) {
+      mergeDetectedPluginItems(plugins, pluginId, "materials", materialTypes);
+    }
+    for (const [pluginId, objectTypes] of detectedObjectTypes) {
+      mergeDetectedPluginItems(plugins, pluginId, "objects", objectTypes);
+    }
+    for (const [pluginId, objectIds] of detectedNumericObjects) {
+      mergeDetectedPluginItems(plugins, pluginId, "objects", objectIds);
+    }
+    for (const [pluginId, layerIds] of detectedNumericLayers) {
+      mergeDetectedPluginItems(plugins, pluginId, "objects", layerIds);
+    }
+    mergeDetectedPluginItems(plugins, "precomp-plus", "features", detectedCompositions);
+    mergeDetectedPluginItems(plugins, TRAPCODE_SUITE_PLUGIN_ID, "features", detectedC4DLights);
+    mergeDetectedPluginItems(
+      plugins,
+      TEXT_PLUS_PLUGIN_ID,
+      "features",
+      detectedTextPlusFeatures
+    );
+    mergeDetectedPluginItems(
+      plugins,
+      PARTICLES_PLUS_PLUGIN_ID,
+      "sprites",
+      detectedParticlesPlusSprites
+    );
+    return plugins;
+  }
+
+  // Numeric-type placeholders: projects may reference 3D object or layer
+  // types whose pack is disabled (or was never enabled). The vanilla
+  // factories throw for unknown numerics, which would abort the whole
+  // project load, so the manager substitutes data-preserving dummies and
+  // swaps the real thing back in when the owning pack enables.
+  // END manager body
+  Object.assign(manager, { normalizeProjectPlugins, getProjectPluginDescriptor, mergeDetectedPluginItems, serializeProjectPlugins, findNativeFxTypes, findLayerInputFeatures, findPluginNativeEffects, findNumericObjectTypes, findNumericLayerTypes, findC4DLights, findPluginMaterialTypes, serializedPropertyValues, serializedPropertyDiffers, isSerializedTextObject, findTextPlusFeatures, findParticlesPlusSprites, parsePluginObjectType, findPluginObjectTypes, findCompositionFeatures, projectPluginRequirements });
+})();

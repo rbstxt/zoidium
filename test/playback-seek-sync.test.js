@@ -378,3 +378,82 @@ test("the patch keeps the item offset consistent with the element", () => {
   // against the playhead, so offset has to follow the reposition.
   assert.equal(item.offset, element.currentTime);
 });
+
+// The CM3 build in use defines currentFrame as a non-configurable OWN accessor
+// in the constructor and binds update() there. update() first derives the
+// playhead from the sync element, then updates schedules (ui-1.0.72.js).
+function makeNativePlaybackPZ() {
+  class NativePlayback {
+    constructor(sequence) {
+      this._sequence = sequence;
+      this._exactFrame = 0;
+      this._currentFrame = 0;
+      this.speed = 0;
+      this.syncSchedule = null;
+      Object.defineProperties(this, {
+        currentFrame: {
+          get() { return this._currentFrame; },
+          set(value) { this._exactFrame = value; this._currentFrame = Math.round(value); },
+        },
+      });
+      this._updateFn = this.update.bind(this);
+    }
+    update(advance = 0) {
+      const sync = this.syncSchedule;
+      if (sync && sync.currentItem) {
+        this._exactFrame = sync.currentItem.start + sync.el.currentTime * FPS;
+      } else {
+        this._exactFrame += advance * this.speed;
+      }
+      this._currentFrame = Math.round(this._exactFrame);
+      for (const schedule of this._sequence.videoSchedules) {
+        schedule.update(this._currentFrame, FPS);
+        if (this.speed === 0 && this.syncSchedule === schedule) this.syncSchedule = null;
+      }
+    }
+  }
+  return { PZ: { schedule: { prototype: FakeSchedule.prototype }, ui: { playback: NativePlayback } }, NativePlayback };
+}
+
+test("a seek while a video drives the clock lands on the requested frame (own accessor build)", () => {
+  const { PZ, NativePlayback } = makeNativePlaybackPZ();
+  assert.equal(install(PZ), true);
+  const clip = makeClip();
+  const element = new FakeElement(MEDIA_SECONDS);
+  const schedule = createSchedule([makeItem(clip)], element);
+  const playback = new NativePlayback(makeSequence({ videoSchedules: [schedule] }));
+  // Playing: the element drives the clock.
+  playback.speed = 1;
+  playback._updateFn(0);
+  playback.syncSchedule = schedule;
+  element.currentTime = 2; // 60 frames in
+  playback._updateFn(0);
+  assert.equal(playback.currentFrame, 60);
+  // The start button stops playback and moves the playhead to frame 0.
+  playback.speed = 0;
+  playback.currentFrame = 0;
+  playback._updateFn(0);
+  assert.equal(playback.currentFrame, 0, "the old element position must not overwrite the seek");
+  assert.equal(element.currentTime, currentTimeOf(clip, 0), "the element follows the playhead");
+  assert.equal(playback.syncSchedule, null);
+});
+
+test("normal clock ticks with a sync element are untouched (own accessor build)", () => {
+  const { PZ, NativePlayback } = makeNativePlaybackPZ();
+  install(PZ);
+  const clip = makeClip();
+  const element = new FakeElement(MEDIA_SECONDS);
+  const schedule = createSchedule([makeItem(clip)], element);
+  const playback = new NativePlayback(makeSequence({ videoSchedules: [schedule] }));
+  playback.speed = 1;
+  playback._updateFn(0);
+  playback.syncSchedule = schedule;
+  for (let tick = 1; tick <= 30; tick += 1) {
+    element.currentTime = tick / FPS;
+    playback._updateFn(1);
+    assert.equal(playback.currentFrame, tick);
+    assert.equal(playback.syncSchedule, schedule);
+  }
+  assert.deepEqual(element.seeks.slice(-30), Array.from({ length: 30 }, (_, i) => (i + 1) / FPS),
+    "only the test's own element writes, no corrective seeks");
+});

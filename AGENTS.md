@@ -37,14 +37,27 @@ is not fetched from Panzoid. No other CM3 font files may be added there. Resourc
 be discovered from the configured source page, not maintained as a second copy
 in the repository.
 
-The only source-resource fetch path is `tools/runtime-resources.js`:
+The source-resource staging path is `tools/runtime-resources.js`:
 
-1. fetch the configured CM3 HTML page (Panzoid's Gen3 page by default);
+1. fetch the configured CM3 HTML pages (Panzoid's Gen3 pages by default), or
+   import both browser-saved source pages with `--setup --page-html=<file>
+   --video-editor-html=<file>`;
 2. discover same-origin CSS, JavaScript, and static references;
 3. write them to the Git-ignored cache and, when needed, a temporary or
    generated build stage;
 4. inject the Zoidium bootstrap into the staged `index.html`;
 5. serve/package the stage and clean it up when the local process exits.
+
+Private CM3 snapshots are another allowed input. `tools/cm3-snapshot.js` exports
+only CM3 cache files to a local file or private R2 bucket and restores them into
+the ignored cache after path, size, hash, and cache validation. It re-copies
+Zoidium-owned files from this checkout. Raw pages, when available, allow an
+offline rebuild against current staging code. Set `ZOIDIUM_CM3_SNAPSHOT` to a
+local file, `r2://bucket/key`, or HTTPS URL for builds without a valid cache.
+Explicit `--setup` or `--refresh` fetches upstream; `--setup
+--from-snapshot=<source>` explicitly restores a snapshot. Never store snapshots
+or raw pages in Git or GitHub. Never bypass a source-page browser check.
+See `docs/cm3-resources.md` for recovery and private snapshot configuration.
 
 The source page and graph are intentionally fetched only by the web server,
 desktop development startup, `pnpm run build:web`, or `pnpm run desktop:build`. A build
@@ -69,7 +82,7 @@ Zoidium-owned runtime files that may be edited:
 - `tools/validate-plugin-manifests.js` — manifest validation;
 - `tools/check-syntax.js` and `tools/verify.js` — local verification;
 - `CONTRIBUTING.md` and `ARCHITECTURE.md` — contributor and architecture notes;
-- `plugins/alipfx/` — the generated Afterzoid Shader Pack 4 plugin payload and
+- `plugins/alipfx/` — the generated Afterzoid Shader Pack 5 plugin payload and
   its rebuild metadata; keep the original source-pack dumps and CM3 runtime
   directories out of the repository;
 - `fonts/` — the locally bundled Source Code Pro UI font with its license notice;
@@ -132,6 +145,30 @@ Plugin modules and native effects must use the bundle asset API provided by the
 plugin manager for declared resources. Do not add runtime `fetch()` calls that
 fan out into the plugin source tree when the asset can be embedded in the
 bundle. Keep plugin IDs and serialized object types stable once published.
+
+Material types that sample a texture through mesh UVs use the shared Material+
+UV layout, `plugins/material-plus/uv-layout.js`. CM3's native Custom Material
+maps 3D Text and extruded shapes with Three.js `WorldUVGenerator` UVs, which
+tile per object unit and shear on curved or slanted side walls; Zoidium
+materials must not inherit that. Implement new material types in Material+,
+load the layout from the bundle (`context.getAsset("text", ...)`), call
+`ensureMaterial(material)` from `update()` and `releaseMaterial(material)` from
+`unload()`. Materials that never read UVs, such as Matcap, are exempt. Leave
+CM3's native materials unchanged.
+
+## File size
+
+Keep every hand-written source file (JavaScript and CSS, tests included) at
+or below 1000 lines; `tools/check-file-length.js` enforces it in
+`pnpm run verify`. Split a growing file along its natural seams instead of
+raising the limit. Plugins load their split files from the bundle with
+`ZoidiumPluginApis.modules.createRequire(context.getAsset, { root })`
+(see `docs/plugin-api.md`); declare each file as a text asset in the
+manifest.
+
+`pnpm run verify` also runs ESLint (`eslint.config.cjs`) with the `no-undef`
+rule over every source file, so a helper used by a split file without being
+imported fails the check instead of only failing at runtime.
 
 ## User-facing text language
 

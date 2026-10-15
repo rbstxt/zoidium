@@ -1,5 +1,5 @@
 .zoidium-plugin-panel {
-  background-color: #2a2a2a;
+  background-color: var(--zui-bg);
   box-sizing: border-box;
   height: 100%;
   overflow-y: auto;
@@ -29,26 +29,25 @@
   justify-content: center;
 }
 
+/* Long names wrap so the compatibility badge after them stays visible. */
 .zoidium-plugin-name {
-  color: #ccc;
+  color: var(--zui-text);
   display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .zoidium-plugin-meta {
-  color: #969696;
+  color: var(--zui-text-muted);
   display: block;
-  font-size: 13px;
+  font-size: var(--zui-font-size-small);
   margin-top: 3px;
 }
 
 .zoidium-effect-plugin-badge {
-  background-color: var(--zoidium-plugin-background, rgba(113, 130, 170, 0.2));
-  border: 1px solid var(--zoidium-plugin-border, rgba(113, 130, 170, 0.6));
-  border-radius: 999px;
-  color: var(--zoidium-plugin-color, #7182aa);
+  background-color: var(--zoidium-plugin-background, rgb(var(--zui-accent-rgb) / 0.2));
+  border: 1px solid var(--zoidium-plugin-border, rgb(var(--zui-accent-rgb) / 0.6));
+  border-radius: 2px;
+  color: var(--zoidium-plugin-color, var(--zui-value));
   display: inline-block;
   font-size: 0.72em;
   line-height: 1.05;
@@ -60,24 +59,55 @@
 }
 
 .pz-options > li .zoidium-effect-plugin-badge {
-  color: var(--zoidium-plugin-color, #7182aa) !important;
+  color: var(--zoidium-plugin-color, var(--zui-value)) !important;
   display: inline-block;
   font-size: 0.72em !important;
   line-height: 1.05 !important;
   margin-top: 0;
 }
 
+/* Collapsible picker groups (object/effect add pickers). Headings keep the
+   CM3 look; only a chevron, a pointer cursor and a focus ring are added. */
+.pz-options > span.zoidium-picker-group {
+  cursor: pointer;
+}
+.pz-options > span.zoidium-picker-group::before {
+  border-bottom: 4px solid transparent;
+  border-left: 5px solid currentColor;
+  border-top: 4px solid transparent;
+  content: "";
+  display: inline-block;
+  height: 0;
+  margin-right: 7px;
+  vertical-align: 1px;
+  width: 0;
+}
+.pz-options > span.zoidium-picker-group:not(.zoidium-picker-group--collapsed)::before {
+  transform: rotate(90deg);
+}
+/* The stock arrow handler can park its highlight on a heading (a collapsed
+   group's heading is the row after the previous item). Mirror the row
+   highlight so the stop stays visible; Enter then toggles that group. */
+.pz-options > span.zoidium-picker-group.active {
+  background-color: #3f3f3f;
+  box-shadow: inset 0 0 0 1px #676767;
+}
+.pz-options > span.zoidium-picker-group:focus-visible {
+  outline: 1px solid var(--zui-accent, #58a6ff);
+  outline-offset: -1px;
+}
+
 .zoidium-plugin-description {
-  color: #969696;
+  color: var(--zui-text-muted);
   display: block;
-  font-size: 14px;
+  font-size: var(--zui-font-size-small);
   line-height: 1.35;
 }
 
 .zoidium-plugin-credits {
-  color: #969696;
+  color: var(--zui-text-muted);
   display: block;
-  font-size: 14px;
+  font-size: var(--zui-font-size-small);
   line-height: 1.35;
   margin-top: 3px;
 }
@@ -121,12 +151,12 @@
    rows (5px + gutter), so every switch in the panel shares one right edge. */
 .zoidium-plugin-category > summary {
   align-items: center;
-  border-bottom: 1px solid #242424;
+  border-bottom: 1px solid var(--zui-border-soft);
   box-sizing: border-box;
-  color: #ccc;
+  color: var(--zui-text);
   cursor: pointer;
   display: flex;
-  font-size: 15px;
+  font-size: var(--zui-font-size);
   font-weight: bold;
   gap: 8px;
   list-style: none;
@@ -142,7 +172,7 @@
    native marker in Chromium. */
 .zoidium-plugin-category > summary::before {
   border-bottom: 5px solid transparent;
-  border-left: 6px solid var(--zoidium-theme-link, #93a6d3);
+  border-left: 6px solid var(--zui-value);
   border-top: 5px solid transparent;
   content: "";
   flex: none;
@@ -170,9 +200,9 @@
 }
 
 .zoidium-plugin-category-count {
-  color: #8a8a8a;
+  color: var(--zui-text-muted);
   flex: none;
-  font-size: 12px;
+  font-size: var(--zui-font-size-small);
   font-weight: normal;
 }
 
@@ -183,12 +213,12 @@
 }
 
 .zoidium-plugin-category-description {
-  background: #242424;
-  border-bottom: 1px solid #242424;
-  border-left: 3px solid #3d3d3d;
+  background: var(--zui-border-soft);
+  border-bottom: 1px solid var(--zui-border-soft);
+  border-left: 3px solid var(--zui-hover);
   box-sizing: border-box;
-  color: #969696;
-  font-size: 13px;
+  color: var(--zui-text-muted);
+  font-size: var(--zui-font-size-small);
   line-height: 1.4;
   padding: 5px calc(5px + var(--zoidium-scrollbar-width)) 5px 5px;
 }
@@ -215,7 +245,7 @@
 .zoidium-plugin-warning {
   color: var(--zoidium-plugin-warning-color);
   display: block;
-  font-size: 13px;
+  font-size: var(--zui-font-size-small);
   line-height: 1.4;
 }
 
@@ -234,8 +264,8 @@
 }
 
 .zoidium-plugin-track {
-  background-color: #202020;
-  border: 1px solid #4a4a4a;
+  background-color: var(--zui-bg-input);
+  border: 1px solid color-mix(in srgb, var(--zui-hover) 55%, var(--zui-text-faint));
   border-radius: 10px;
   box-sizing: border-box;
   display: block;
@@ -245,7 +275,7 @@
 }
 
 .zoidium-plugin-track::after {
-  background-color: #aaa;
+  background-color: var(--zui-text-muted);
   border-radius: 50%;
   content: "";
   height: 14px;
@@ -257,17 +287,17 @@
 }
 
 .zoidium-plugin-switch input:checked + .zoidium-plugin-track {
-  background-color: var(--zoidium-theme-focus, #384668);
-  border-color: var(--zoidium-theme-link, #65769f);
+  background-color: var(--zui-accent);
+  border-color: color-mix(in srgb, var(--zui-accent) 65%, var(--zui-value));
 }
 
 .zoidium-plugin-switch input:checked + .zoidium-plugin-track::after {
-  background-color: #ddd;
+  background-color: var(--zui-text-bright);
   left: 18px;
 }
 
 .zoidium-plugin-switch input:focus-visible + .zoidium-plugin-track {
-  outline: 2px solid var(--zoidium-theme-link, #7182aa);
+  outline: 2px solid var(--zui-value);
   outline-offset: 1px;
 }
 
@@ -278,12 +308,12 @@
 
 /* Mixed state: a group master switch whose pack is only partly enabled. */
 .zoidium-plugin-switch input:indeterminate + .zoidium-plugin-track {
-  background-color: #2f2f2f;
-  border-color: #5f5f5f;
+  background-color: var(--zui-hover);
+  border-color: var(--zui-text-faint);
 }
 
 .zoidium-plugin-switch input:indeterminate + .zoidium-plugin-track::after {
-  background-color: #bbb;
+  background-color: var(--zui-text-muted);
   border-radius: 2px;
   height: 4px;
   left: 8px;
@@ -314,7 +344,7 @@
 
 .zoidium-plugin-compat {
   border: 1px solid;
-  border-radius: 999px;
+  border-radius: 2px;
   display: inline-block;
   font-size: 0.72em;
   line-height: 1.05;
@@ -325,12 +355,9 @@
 }
 
 .zoidium-plugin-compat[data-compat="cm3"] {
-  background-color: rgba(113, 130, 170, 0.2);
-  background-color: rgb(var(--zoidium-theme-focus-rgb, 113 130 170) / 0.2);
-  border-color: rgba(113, 130, 170, 0.6);
-  border-color: var(--zoidium-theme-link, rgba(113, 130, 170, 0.6));
-  color: #a8b4d4;
-  color: var(--zoidium-theme-link, #a8b4d4);
+  background-color: rgb(var(--zui-accent-rgb) / 0.2);
+  border-color: var(--zui-value);
+  color: var(--zui-value-strong);
 }
 
 .zoidium-plugin-compat[data-compat="zoidium"] {
@@ -342,7 +369,7 @@
 .zoidium-plugin-experimental-badge {
   background-color: rgba(197, 107, 61, 0.2);
   border: 1px solid rgba(197, 107, 61, 0.6);
-  border-radius: 999px;
+  border-radius: 2px;
   color: #d8a583;
   display: inline-block;
   font-size: 0.72em;
@@ -354,7 +381,7 @@
 }
 
 .zp-detail-content {
-  border-bottom: 1px solid #242424;
+  border-bottom: 1px solid var(--zui-border-soft);
   box-sizing: border-box;
   padding: 8px calc(8px + var(--zoidium-scrollbar-width)) 8px 8px;
 }
@@ -364,9 +391,15 @@
 }
 
 .zp-detail-body > .zoidium-plugin-warning-row {
-  border-bottom: 1px solid #242424;
-  border-top: 1px solid #242424;
+  border-bottom: 1px solid var(--zui-border-soft);
+  border-top: 1px solid var(--zui-border-soft);
   box-sizing: border-box;
   margin-bottom: 0;
   padding: 5px calc(8px + var(--zoidium-scrollbar-width)) 5px 8px;
+}
+
+.zoidium-plugin-error {
+  color: #ffb4b4;
+  padding: 8px 12px;
+  overflow-wrap: anywhere;
 }

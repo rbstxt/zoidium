@@ -8,14 +8,25 @@
     // loader appends it automatically, so per-file ?v= queries are never
     // hand-edited here. Plugin asset URLs are versioned separately by
     // tools/build-plugin-bundles.js from each manifest's own version.
-    assetVersion: 65,
+    assetVersion: 124,
+    // Plugin registry consumed by plugins/plugin-manager.js. It is preloaded
+    // below, so its URL lives here as the single source.
+    registryUrl: "./plugins/registry.json?v=68",
+    // Source Code Pro is imported through fonts.css as its own sheet (listed
+    // before runtime-fonts.css) so the font files are not discovered only
+    // after an @import chain has finished downloading.
     overlayStyles: [
+      "./fonts/fonts.css?v=5",
       "./zoidium/ui-overrides.css",
+      "./zoidium/ui-window.css",
+      "./zoidium/ui-node-editor.css",
       "./plugins/plugin-manager.css",
       "./zoidium-welcome-tour.css",
       "./zoidium/runtime-fonts.css"
     ],
     preInitScripts: [
+      "./zoidium/debug-journal.js",
+      "./zoidium/debug-crash.js",
       "./zoidium/debug-log.js",
       "./plugins/core/window-stylesheet-guard.js",
       "./plugins/core/project-media-fps.js",
@@ -23,9 +34,13 @@
       "./plugins/core/default-project-settings.js",
       "./plugins/core/preview-context-menu.js",
       "./plugins/core/particle-defaults.js",
+      "./plugins/core/temporal-math.js",
+      "./plugins/core/temporal-layers.js",
+      "./plugins/core/temporal-sampler.js",
       "./plugins/core/temporal-render.js",
       "./plugins/core/video-frame-export.js",
       "./plugins/core/render-aspect-ratio.js",
+      "./plugins/core/project-archive.js",
       "./plugins/core/io-serialization.js",
       "./plugins/core/export-fps.js",
       "./plugins/core/image-export-options.js",
@@ -33,9 +48,12 @@
       "./plugins/core/about-attribution.js",
       "./plugins/core/text-shape-winding.js",
       "./plugins/core/object3d-registry.js",
+      "./plugins/core/shadow-quality.js",
       "./plugins/core/named-property-lists.js",
       "./plugins/core/disable-recovery.js",
       "./plugins/core/remove-ad-panel.js",
+      "./plugins/core/layer-unload-dispose.js",
+      "./plugins/core/display-labels.js",
       "./plugins/core/remove-videoeditor-legacy-message.js",
       "./plugins/core/restore-videoeditor-controls.js",
       "./plugins/core/videoeditor-timeline-defaults.js",
@@ -45,13 +63,50 @@
       "./plugins/core/export-audio-trace.js",
       "./zoidium/direct-download.js",
       "./plugins/core/project-files.js",
-      "./plugins/core/panel-fullscreen-shortcut.js"
+      "./plugins/core/panel-fullscreen-shortcut.js",
+      // Keeps the editor's main preview reachable as editor.mainViewport. It
+      // must be installed before initTool() builds the viewport.
+      "./plugins/core/output-frame-store.js",
+      "./plugins/core/output-frame-cache.js",
+      "./plugins/core/main-viewport.js"
     ],
     postInitScripts: [
+      // ui-panels.js queues its installer for ui-kit.js, so it loads first.
+      // The node editor and the UI kit are split along their seams; the
+      // assemblers (ui-node-editor.js, ui-kit.js) load last.
+      "./zoidium/ui-panels.js",
+      "./zoidium/ui-node-editor-graph.js",
+      "./zoidium/ui-node-editor-view.js",
+      "./zoidium/ui-node-editor-fields.js",
+      "./zoidium/ui-node-editor-menu.js",
+      "./zoidium/ui-node-editor.js",
+      "./zoidium/ui-kit-panels.js",
+      "./zoidium/ui-kit-skins.js",
+      "./zoidium/ui-kit-windows.js",
+      "./zoidium/ui-kit-controls.js",
       "./zoidium/ui-kit.js",
+      "./zoidium/project-restore-store.js",
+      "./zoidium/project-restore-snapshots.js",
+      "./zoidium/project-restore-toasts.js",
       "./zoidium/project-restore.js",
+      "./zoidium/shared/random.js",
+      "./zoidium/shared/props.js",
+      "./zoidium/shared/color.js",
+      "./zoidium/shared/gl.js",
+      "./zoidium/shared/json.js",
+      "./zoidium/shared/windows.js",
       "./zoidium/settings.js",
       "./zoidium/plugin-apis.js",
+      "./zoidium/plugin-manager-state.js",
+      "./zoidium/plugin-manager-persistence.js",
+      "./zoidium/plugin-manager-assets.js",
+      "./zoidium/plugin-manager-picker.js",
+      "./zoidium/plugin-manager-factories.js",
+      "./zoidium/plugin-manager-lifecycle.js",
+      "./zoidium/plugin-manager-scanners.js",
+      "./zoidium/plugin-manager-fallbacks.js",
+      "./zoidium/plugin-manager-projects.js",
+      "./zoidium/plugin-manager-panel.js",
       "./plugins/plugin-manager.js",
       "./zoidium-welcome-tour.js"
     ],
@@ -77,4 +132,59 @@
   });
 
   global.ZOIDIUM_RUNTIME = Object.freeze(config);
+
+  // This file runs before the CM3 core and UI bundles, so these hints start
+  // the extension downloads while those large files are still arriving. The
+  // runtime loader later inserts the same URLs (identical ?v= query, same
+  // CORS mode) and they resolve from the preload cache. Hints never execute
+  // anything, so the CM3 script order is unchanged.
+  function preloadRuntimeAssets(runtime) {
+    var doc = global.document;
+    if (!doc || !doc.head || typeof doc.createElement !== "function") return;
+
+    function versioned(value) {
+      var href = new URL(value, doc.baseURI).href;
+      if (runtime.assetVersion == null || /[?#]/.test(value)) return href;
+      return href + "?v=" + encodeURIComponent(String(runtime.assetVersion));
+    }
+
+    function hint(href, as, crossOrigin) {
+      var link = doc.createElement("link");
+      link.rel = "preload";
+      link.as = as;
+      if (crossOrigin) link.crossOrigin = crossOrigin;
+      link.href = href;
+      doc.head.appendChild(link);
+    }
+
+    // Hint only the editor entry the loader will select (same rule as
+    // runtime-loader.js: the stored layout when valid, else the default).
+    var profiles = global.ZOIDIUM_RUNTIME_PROFILES || {};
+    var layouts = profiles.layouts || {};
+    var stored = null;
+    try {
+      var settings = JSON.parse(global.localStorage.getItem("zoidium.editor-settings") || "null");
+      stored = settings && typeof settings.layout === "string" ? settings.layout : null;
+    } catch (_error) {
+      // Storage may be blocked; the default layout is still hinted.
+      stored = null;
+    }
+    var selected = layouts[stored] ? stored : profiles.defaultLayout || "clipmaker";
+    if (layouts[selected] && typeof layouts[selected].entryScript === "string") {
+      hint(versioned(layouts[selected].entryScript), "script");
+    }
+    runtime.overlayStyles.forEach(function (url) { hint(versioned(url), "style"); });
+    runtime.preInitScripts.concat(runtime.postInitScripts).forEach(function (url) {
+      hint(versioned(url), "script");
+    });
+    // fonts.css references the WOFF2 without a query, so the hint must not add one.
+    hint(new URL("./fonts/source-code-pro-regular.woff2", doc.baseURI).href, "font", "anonymous");
+    hint(versioned(runtime.registryUrl), "fetch", "anonymous");
+  }
+
+  try {
+    preloadRuntimeAssets(config);
+  } catch (_error) {
+    // Hints are an optimization; the loader still starts every file on demand.
+  }
 })(window);

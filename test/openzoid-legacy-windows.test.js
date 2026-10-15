@@ -1,0 +1,560 @@
+"use strict";
+
+// Coverage for the ASCII and Tracery setup windows (effect-windows.js): editor
+// registration through registerEditor, control generation from the
+// effect property definitions, undoable edits (one history step per edit,
+// one per preset), live preview during drags, external sync, and teardown.
+
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
+const test = require("node:test");
+
+const projectRoot = path.join(__dirname, "..");
+const legacyDir = path.join(projectRoot, "plugins/openzoid-legacy");
+const windowsPath = path.join(legacyDir, "effect-windows.js");
+
+const PZ_TYPES = { NUMBER: 1, OPTION: 2, TEXT: 3, COLOR: 7 };
+
+// Evaluates an effect source the way the runtime does and returns its
+// property definitions (no DOM or WebGL is needed for definitions). Split
+// effects load their parts through the shared module loader, served here
+// from disk the way the bundle would serve them.
+function effectDefinitions(file) {
+  const source = fs.readFileSync(path.join(legacyDir, "effects", file), "utf8");
+  const PZ = { property: { type: PZ_TYPES }, tween: {} };
+  const THREE = { Pass: function () {}, WebGLRenderTarget: function () {}, ShaderMaterial: function () {} };
+  THREE.Pass.prototype = {};
+  const fakeThis = {
+    properties: { addAll() {}, load() {} },
+    _zoidiumGetAsset: (kind, assetPath) => {
+      assert.equal(kind, "text");
+      return fs.readFileSync(
+        path.join(projectRoot, String(assetPath).replace(/^\.\//, "")),
+        "utf8",
+      );
+    },
+  };
+  if (!globalThis.ZoidiumPluginApis?.modules?.createRequire) {
+    globalThis.PZ = globalThis.PZ || { property: { type: PZ_TYPES } };
+    eval(fs.readFileSync(path.join(projectRoot, "zoidium/plugin-apis.js"), "utf8"));
+  }
+  new Function("PZ", "THREE", "ZoidiumPluginApis", source).call(
+    fakeThis, PZ, THREE, globalThis.ZoidiumPluginApis,
+  );
+  return fakeThis.propertyDefinitions;
+}
+
+function defaultOf(def) {
+  if (def.group) return def.objects.map((o) => o.value);
+  return def.value;
+}
+
+function makeEffect(defs, type) {
+  const properties = {};
+  for (const key of Object.keys(defs)) {
+    let value = defaultOf(defs[key]);
+    properties[key] = {
+      getAddress: () => "EFFECT/" + key,
+      frameOffset: 0,
+      get() { return JSON.parse(JSON.stringify(value)); },
+      set(next) { value = JSON.parse(JSON.stringify(next)); },
+    };
+  }
+  return { type, parent: {}, propertyDefinitions: defs, properties };
+}
+
+function makeHarness(defs, effect) {
+  const made = [];
+  const windows = [];
+  const editors = [];
+  const history = {
+    ops: [],
+    startOperation() { this.ops.push("start"); },
+    finishOperation() { this.ops.push("finish"); },
+  };
+  const editor = { playback: { currentFrame: 7 }, history };
+  const edits = [];
+  const byAddress = {};
+  for (const key of Object.keys(effect.properties)) byAddress["EFFECT/" + key] = effect.properties[key];
+
+  const make = (kind) => (opts) => {
+    const record = { kind, opts, sets: [], element: { children: [] } };
+    made.push(record);
+    return {
+      element: record.element,
+      get() { return undefined; },
+      set(value) { record.sets.push(value); },
+      setDisabled() {},
+    };
+  };
+  const controls = {
+    slider: make("slider"),
+    checkbox: make("checkbox"),
+    select: make("select"),
+    color: make("color"),
+    text: make("text"),
+    button: make("button"),
+    list(opts) {
+      const record = { kind: "list", opts, sets: [] };
+      made.push(record);
+      return { element: { children: [] }, get() { return undefined; }, set() {}, setItems() {} };
+    },
+    buttonRow(specs) {
+      const record = { kind: "buttonRow", specs };
+      made.push(record);
+      return { element: { children: [] } };
+    },
+    section(opts) {
+      const record = { kind: "section", opts };
+      made.push(record);
+      const element = { children: [], appendChild(c) { this.children.push(c); return c; } };
+      const body = { children: [], appendChild(c) { this.children.push(c); return c; } };
+      return { element, body, setCollapsed() {} };
+    },
+    tabs(opts) {
+      const record = { kind: "tabs", opts };
+      made.push(record);
+      return { element: { children: [] } };
+    },
+  };
+  const PropertyOps = function (ed) { this.editor = ed; };
+  PropertyOps.prototype.setValue = function (args) {
+    edits.push(args);
+    const prop = byAddress[args.property];
+    if (args.value !== undefined) prop.set(args.value, args.frame);
+  };
+  const PZ = {
+    property: { type: PZ_TYPES },
+    ui: { controls, properties: PropertyOps },
+  };
+  const ui = {
+    controls,
+    openWindow(options) {
+      const win = {
+        options,
+        closed: false,
+        subtitle: "",
+        setSubtitle(text) { this.subtitle = text; },
+        close() { this.closed = true; },
+      };
+      windows.push(win);
+      return win;
+    },
+    registerEditor(spec) {
+      editors.push(spec);
+      return () => {
+        const index = editors.indexOf(spec);
+        if (index >= 0) editors.splice(index, 1);
+      };
+    },
+  };
+  const disposers = [];
+  return {
+    PZ,
+    context: { PZ, editor, ui, lifecycle: { onDispose(fn) { disposers.push(fn); } } },
+    made,
+    windows,
+    edits,
+    history,
+    editors,
+    disposers,
+  };
+}
+
+function loadWindows() {
+  delete require.cache[require.resolve(windowsPath)];
+  return require(windowsPath);
+}
+
+function openFromEditor(h, title, effect) {
+  const spec = h.editors.find((entry) => entry.title === title);
+  assert.ok(spec, title + " registered through registerEditor");
+  assert.equal(spec.match(effect), true, "the editor matches its effect");
+  spec.open(effect);
+  assert.equal(h.windows.length, 1, "the editor opens exactly one window");
+}
+
+// Mounted windows start a sync timer. The stub keeps timers out of the event
+// loop and records them so tests can drive and clear them.
+const timerLog = { timers: [], cleared: [] };
+globalThis.setInterval = (callback) => { timerLog.timers.push(callback); return timerLog.timers.length; };
+globalThis.clearInterval = (id) => { timerLog.cleared.push(id); };
+
+function mountWindow(harness, index) {
+  const body = { children: [], appendChild(c) { this.children.push(c); return c; } };
+  const cleanup = harness.windows[index].options.mount(body, harness.windows[index]);
+  return { body, cleanup };
+}
+
+test("editors register through registerEditor and open the setup windows", () => {
+  const defs = effectDefinitions("ascii.js");
+  const effect = makeEffect(defs, "ascii");
+  const h = makeHarness(defs, effect);
+  const windows = loadWindows();
+  windows.activate(h.context);
+  assert.equal(h.editors.length, 2, "ASCII and Tracery editors registered");
+  assert.deepEqual(h.editors.map((spec) => spec.title).sort(), ["ASCII Setup", "Tracery Setup"]);
+  for (const spec of h.editors) {
+    assert.equal(spec.label, undefined, spec.title + " uses the shared Open button");
+  }
+  assert.equal(h.editors[0].match(effect), true, "ASCII matches its own effect");
+  assert.equal(h.editors[1].match(effect), false, "Tracery does not match an ASCII effect");
+  assert.equal(h.editors[0].match({ type: "vhs", properties: {} }), false, "other effects do not match");
+  openFromEditor(h, "ASCII Setup", effect);
+  const opts = h.windows[0].options;
+  assert.ok(opts.id.startsWith("ascii:"), "window id is per effect");
+  assert.equal(opts.title, "ASCII Setup");
+  assert.equal(opts.persistKey, "ascii-setup");
+  assert.equal(opts.footer[0].title, "Done");
+  assert.equal(opts.isValid(), true);
+  effect.parent = null;
+  assert.equal(opts.isValid(), false, "window closes when the effect is removed");
+  windows.deactivate();
+  for (const dispose of h.disposers.splice(0)) dispose();
+  assert.equal(h.editors.length, 0, "disable removes the editor entries");
+  windows.deactivate();
+});
+
+test("tracery action opens a window with six point tabs", () => {
+  const defs = effectDefinitions("tracery.js");
+  const effect = makeEffect(defs, "tracery");
+  const h = makeHarness(defs, effect);
+  const windows = loadWindows();
+  windows.activate(h.context);
+  openFromEditor(h, "Tracery Setup", effect);
+  assert.equal(h.windows[0].options.title, "Tracery Setup");
+  assert.ok(h.windows[0].options.id.startsWith("tracery:"));
+  const { body } = mountWindow(h, 0);
+  assert.ok(body.children.length > 0, "sections mounted");
+  const tabs = h.made.find((r) => r.kind === "tabs");
+  assert.equal(tabs.opts.tabs.length, 6);
+  const panel = { children: [], appendChild(c) { this.children.push(c); return c; } };
+  tabs.opts.tabs[0].render(panel);
+  assert.equal(panel.children.length, 7, "enable, position, size, label and label offsets");
+  windows.deactivate();
+});
+
+test("ASCII window builds controls from the effect property definitions", () => {
+  const defs = effectDefinitions("ascii.js");
+  const effect = makeEffect(defs, "ascii");
+  const h = makeHarness(defs, effect);
+  const windows = loadWindows();
+  windows.activate(h.context);
+  openFromEditor(h, "ASCII Setup", effect);
+  mountWindow(h, 0);
+  const find = (label) => h.made.find((r) => r.opts && r.opts.label === label);
+  const contrast = find("Contrast");
+  assert.equal(contrast.kind, "slider");
+  assert.equal(contrast.opts.min, 0);
+  assert.equal(contrast.opts.max, 4);
+  assert.equal(find("Character set").kind, "select");
+  assert.equal(find("Character set").opts.options.length, 5);
+  assert.equal(find("Character set").opts.value, "0");
+  assert.equal(find("Enable advanced noise").kind, "checkbox");
+  assert.equal(find("Background color").kind, "color");
+  assert.equal(find("Background color").opts.value, "#08080a");
+  assert.equal(find("Custom characters").kind, "text");
+  assert.equal(find("Black fill").kind, "text");
+  const font = find("Font");
+  assert.deepEqual(font.opts.options.map((o) => o.label), ["consolas", "courier", "monospace", "source code pro", "serif"]);
+  assert.ok(!h.made.some((r) => r.opts && /inter/i.test(String(r.opts.label))), "no Inter control");
+  windows.deactivate();
+});
+
+test("slider drags preview live and commit one history step with the drag-start value", () => {
+  const defs = effectDefinitions("ascii.js");
+  const effect = makeEffect(defs, "ascii");
+  const h = makeHarness(defs, effect);
+  const windows = loadWindows();
+  windows.activate(h.context);
+  openFromEditor(h, "ASCII Setup", effect);
+  mountWindow(h, 0);
+  const contrast = h.made.find((r) => r.opts && r.opts.label === "Contrast");
+  contrast.opts.onInput(2);
+  contrast.opts.onInput(3);
+  assert.equal(effect.properties.contrast.get(), 3, "preview applied to the project");
+  assert.deepEqual(h.history.ops, [], "previews are not history steps");
+  assert.equal(h.edits.length, 0);
+  contrast.opts.onChange(3.5);
+  assert.deepEqual(h.history.ops, ["start", "finish"], "one history step per drag");
+  assert.equal(h.edits.length, 1);
+  assert.equal(h.edits[0].property, "EFFECT/contrast");
+  assert.equal(h.edits[0].value, 3.5);
+  assert.equal(h.edits[0].oldValue, 1, "undo restores the value from before the drag");
+  assert.equal(effect.properties.contrast.get(), 3.5);
+  windows.deactivate();
+});
+
+test("discrete edits commit single history steps with the right values", () => {
+  const defs = effectDefinitions("ascii.js");
+  const effect = makeEffect(defs, "ascii");
+  const h = makeHarness(defs, effect);
+  const windows = loadWindows();
+  windows.activate(h.context);
+  openFromEditor(h, "ASCII Setup", effect);
+  mountWindow(h, 0);
+  const find = (label) => h.made.find((r) => r.opts && r.opts.label === label);
+  find("Enable advanced noise").opts.onChange(true);
+  assert.equal(h.edits.at(-1).value, 1, "checkbox writes the option index");
+  assert.equal(h.edits.at(-1).oldValue, 0);
+  find("Character set").opts.onChange("2");
+  assert.equal(h.edits.at(-1).value, 2, "select writes the option index");
+  find("Background color").opts.onChange("#ff0000");
+  assert.deepEqual(h.edits.at(-1).value, [1, 0, 0], "color converts to CM3 channels");
+  assert.deepEqual(h.edits.at(-1).oldValue, [0.03, 0.03, 0.04]);
+  find("Background color").opts.onChange("not a color");
+  assert.equal(h.edits.length, 3, "invalid colors are ignored");
+  assert.equal(h.history.ops.length, 6, "each committed edit is one start/finish pair");
+  windows.deactivate();
+});
+
+test("a preset applies as one history step and refreshes the controls", () => {
+  const defs = effectDefinitions("ascii.js");
+  const effect = makeEffect(defs, "ascii");
+  const h = makeHarness(defs, effect);
+  const windows = loadWindows();
+  windows.activate(h.context);
+  openFromEditor(h, "ASCII Setup", effect);
+  mountWindow(h, 0);
+  const list = h.made.find((r) => r.kind === "list");
+  assert.equal(list.opts.items.length, 5, "five ASCII looks");
+  assert.deepEqual(list.opts.items.map((i) => i.title), ["Red Matrix", "Mono Paper", "Blueprint", "Neon Night", "Glitch Storm"]);
+  const before = h.edits.length;
+  list.opts.onSelect(1); // Mono Paper: block size 18, courier font
+  assert.deepEqual(h.history.ops.slice(-2), ["start", "finish"], "preset is one history step");
+  const applied = h.edits.slice(before);
+  assert.ok(applied.length > 20, "preset writes its values");
+  assert.equal(effect.properties.blockSize.get(), 18);
+  assert.equal(effect.properties.fontFamily.get(), 1, "Mono Paper keeps the donor font index");
+  assert.equal(effect.properties.blackFill.get(), "@");
+  const blockSlider = h.made.find((r) => r.opts && r.opts.label === "Block size");
+  assert.equal(blockSlider.sets.at(-1), 18, "controls refresh after the preset");
+  list.opts.onSelect(3); // Neon Night: donor font index 3
+  assert.equal(effect.properties.fontFamily.get(), 3, "Neon Night keeps the donor font index");
+  windows.deactivate();
+});
+
+test("Tracery presets switch off unused points and set their point values", () => {
+  const defs = effectDefinitions("tracery.js");
+  const effect = makeEffect(defs, "tracery");
+  const h = makeHarness(defs, effect);
+  const windows = loadWindows();
+  windows.activate(h.context);
+  openFromEditor(h, "Tracery Setup", effect);
+  mountWindow(h, 0);
+  const row = h.made.find((r) => r.kind === "buttonRow");
+  assert.deepEqual(row.specs.map((s) => s.title), ["Surveillance", "Blueprint", "Neon Callout", "Minimal", "Key Track"]);
+  const before = h.edits.length;
+  row.specs[4].onClick();
+  const keys = h.edits.slice(before).map((e) => e.property);
+  for (let n = 1; n <= 6; n++) assert.ok(keys.includes("EFFECT/point" + n + "Enable"), "point " + n);
+  assert.equal(effect.properties.point1Enable.get(), 0, "Key Track switches every point off, like the donor");
+  row.specs[0].onClick();
+  assert.equal(effect.properties.point1Enable.get(), 1);
+  assert.equal(effect.properties.point1X.get(), 30);
+  assert.equal(effect.properties.point1LabelDX.get(), 150);
+  windows.deactivate();
+});
+
+test("external property changes sync into the window and cleanup stops the timer", () => {
+  timerLog.timers.length = 0;
+  timerLog.cleared.length = 0;
+  const defs = effectDefinitions("ascii.js");
+  const effect = makeEffect(defs, "ascii");
+  const h = makeHarness(defs, effect);
+  const windows = loadWindows();
+  windows.activate(h.context);
+  openFromEditor(h, "ASCII Setup", effect);
+  const { cleanup } = mountWindow(h, 0);
+  const timers = timerLog.timers;
+  assert.equal(timers.length, 1, "one sync timer per window");
+  const block = h.made.find((r) => r.opts && r.opts.label === "Block size");
+  effect.properties.blockSize.set(40, 0);
+  timers[0]();
+  assert.equal(block.sets.at(-1), 40, "external change reaches the control");
+  const settled = block.sets.length;
+  timers[0]();
+  assert.equal(block.sets.length, settled, "unchanged values are not re-set");
+  cleanup();
+  assert.equal(timerLog.cleared.length, 1, "timer cleared on window close");
+  windows.deactivate();
+});
+
+test("window source keeps to the shared floating window API", () => {
+  const source = fs.readFileSync(windowsPath, "utf8");
+  for (const banned of [/\bInter\b/, /fullscreen/i, /position: fixed/, /tracery-font/, /backdrop/, /document\.createElement/, /innerHTML/]) {
+    assert.ok(!banned.test(source), "no " + banned);
+  }
+  assert.ok(source.includes("context.ui.openWindow"), "uses the plugin window API");
+  assert.ok(source.includes("registerEditor"), "entries go through the shared editor registration");
+  assert.ok(!source.includes("runPropertyAction"), "no property-action dispatcher");
+  assert.ok(!/Math\.random|Date\.now|performance\.now/.test(source), "no nondeterministic inputs");
+});
+
+// Point placement: a fake main viewport (1095x616 canvas over the 1920x1080
+// orthographic sequence) and a window-level event bus for the capture listeners.
+const PLACE_CANVAS_RECT = { left: 100, top: 50, width: 1095, height: 616 };
+const PLACE_CAMERA = { left: -960, right: 960, top: 540, bottom: -540 };
+
+function placementStubs() {
+  const handlers = new Map();
+  globalThis.window = {
+    addEventListener(type, fn) {
+      if (!handlers.has(type)) handlers.set(type, new Set());
+      handlers.get(type).add(fn);
+    },
+    removeEventListener(type, fn) {
+      const set = handlers.get(type);
+      if (set) set.delete(fn);
+    },
+    count() {
+      let n = 0;
+      for (const set of handlers.values()) n += set.size;
+      return n;
+    },
+  };
+  const timers = [];
+  globalThis.setTimeout = (fn) => { timers.push(fn); return timers.length; };
+  globalThis.clearTimeout = () => {};
+  const canvas = { style: { cursor: "" }, getBoundingClientRect: () => PLACE_CANVAS_RECT };
+  const quad = { matrixWorld: { elements: [640, 0, 0, 0, 0, 360, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1] } };
+  const viewport = { canvas, compositor: { camera: PLACE_CAMERA } };
+  return {
+    canvas,
+    quad,
+    viewport,
+    timers,
+    dispatch(type, target, extra) {
+      const event = Object.assign({
+        type,
+        target,
+        button: 0,
+        clientX: 0,
+        clientY: 0,
+        key: "",
+        defaultPrevented: false,
+        prevented: false,
+        stopped: false,
+        preventDefault() { this.prevented = true; this.defaultPrevented = true; },
+        stopPropagation() { this.stopped = true; },
+      }, extra || {});
+      for (const fn of [...(handlers.get(type) || [])]) fn(event);
+      return event;
+    },
+    count: () => window.count(),
+  };
+}
+
+function placementSetup() {
+  const defs = effectDefinitions("tracery.js");
+  const effect = makeEffect(defs, "tracery");
+  effect.parent = { composite: null };
+  const h = makeHarness(defs, effect);
+  const stubs = placementStubs();
+  effect.parent.composite = { quad: stubs.quad };
+  h.context.editor.mainViewport = stubs.viewport;
+  const windows = loadWindows();
+  windows.activate(h.context);
+  openFromEditor(h, "Tracery Setup", effect);
+  const { cleanup } = mountWindow(h, 0);
+  const place = (n) => h.made.find((r) => r.kind === "button" && r.opts.hint === "Click the preview to set point " + n).opts;
+  const pointAt = (fx, fy) => ({
+    clientX: PLACE_CANVAS_RECT.left + fx * PLACE_CANVAS_RECT.width,
+    clientY: PLACE_CANVAS_RECT.top + fy * PLACE_CANVAS_RECT.height,
+  });
+  return { h, effect, stubs, windows, cleanup, place, pointAt, win: h.windows[0] };
+}
+
+test("Points section lists a toggle and a Place button per point", () => {
+  const { h, windows, cleanup, place } = placementSetup();
+  for (let n = 1; n <= 6; n++) {
+    assert.ok(h.made.some((r) => r.kind === "checkbox" && r.opts.label === "Point " + n), "toggle " + n);
+    assert.equal(place(n).title, "Place");
+  }
+  cleanup();
+  windows.deactivate();
+  delete globalThis.window;
+});
+
+test("layerPercentAt maps a click to the layer frame, including layer transforms", () => {
+  const { windows, stubs, effect } = placementSetup();
+  const at = windows.layerPercentAt;
+  // Layer 640x360 at the sequence centre spans canvas fractions 1/3 to 2/3.
+  assert.deepEqual(at(stubs.viewport, effect.parent, 100 + 1095 / 2, 50 + 616 / 2), { x: 50, y: 50 });
+  assert.deepEqual(at(stubs.viewport, effect.parent, 100 + 1095 / 3, 50 + 616 / 3), { x: 0, y: 0 }, "top-left corner of the layer");
+  assert.deepEqual(at(stubs.viewport, effect.parent, 100 + 1095 * 0.4166, 50 + 616 * 0.4166), { x: 25, y: 25 }, "quarter of the layer");
+  // Outside the layer clamps to its edge.
+  assert.deepEqual(at(stubs.viewport, effect.parent, 100, 50), { x: 0, y: 0 });
+  // Layer moved to (200, -100) at half scale: its centre is at that sequence point.
+  effect.parent.composite.quad.matrixWorld.elements = [320, 0, 0, 0, 0, 180, 0, 0, 0, 0, 1, 0, 200, -100, 0, 1];
+  const cx = 100 + ((960 + 200) / 1920) * 1095;
+  const cy = 50 + ((540 + 100) / 1080) * 616;
+  assert.deepEqual(at(stubs.viewport, effect.parent, cx, cy), { x: 50, y: 50 }, "moved layer");
+  assert.equal(at(null, effect.parent, 0, 0), null, "no viewport");
+});
+
+test("Place arms a crosshair, one press sets X/Y/Enable in one history step, and the rest is swallowed", () => {
+  const { h, effect, stubs, cleanup, place, pointAt, win, windows } = placementSetup();
+  const canvasTarget = stubs.canvas;
+  place(2).onClick();
+  assert.equal(win.subtitle, "Click the preview to place P2 (Esc cancels)");
+  assert.equal(stubs.canvas.style.cursor, "crosshair");
+  assert.equal(stubs.count(), 7, "capture listeners installed");
+  const historyBefore = h.history.ops.length;
+  const editsBefore = h.edits.length;
+  // A press off the canvas (in a window, say) is not consumed.
+  const off = stubs.dispatch("pointerdown", {}, pointAt(0.5, 0.5));
+  assert.equal(off.prevented, false);
+  assert.equal(h.edits.length, editsBefore, "press off canvas does not place");
+  const press = stubs.dispatch("pointerdown", canvasTarget, pointAt(0.5, 0.5));
+  assert.equal(press.prevented, true, "press swallowed");
+  assert.equal(press.stopped, true);
+  assert.equal(effect.properties.point2Enable.get(), 1, "point turned on");
+  assert.equal(effect.properties.point2X.get(), 50);
+  assert.equal(effect.properties.point2Y.get(), 50);
+  assert.equal(h.edits.length, editsBefore + 3, "enable, X and Y written");
+  assert.deepEqual(h.history.ops.slice(historyBefore), ["start", "finish"], "one history step");
+  assert.equal(win.subtitle, "", "subtitle restored");
+  assert.equal(stubs.canvas.style.cursor, "", "cursor restored");
+  // The follow-up mouse events are swallowed until the click, which ends the placement.
+  for (const type of ["mousedown", "pointerup", "mouseup"]) {
+    assert.equal(stubs.dispatch(type, canvasTarget, { button: 0 }).stopped, true, type);
+  }
+  stubs.dispatch("click", canvasTarget, { button: 0 });
+  assert.equal(stubs.count(), 0, "all listeners removed after the click");
+  cleanup();
+  windows.deactivate();
+  delete globalThis.window;
+});
+
+test("Escape cancels a pending placement without writing anything", () => {
+  const { h, stubs, cleanup, place, pointAt, win, windows } = placementSetup();
+  place(3).onClick();
+  const edits = h.edits.length;
+  const ops = h.history.ops.length;
+  const esc = stubs.dispatch("keydown", stubs.canvas, { key: "Escape" });
+  assert.equal(esc.prevented, true, "Escape is consumed so the window stays open");
+  assert.equal(h.edits.length, edits);
+  assert.equal(h.history.ops.length, ops);
+  assert.equal(stubs.count(), 0, "listeners removed on cancel");
+  assert.equal(win.subtitle, "");
+  stubs.dispatch("pointerdown", stubs.canvas, pointAt(0.5, 0.5));
+  assert.equal(h.edits.length, edits, "a press after cancel does nothing");
+  cleanup();
+  windows.deactivate();
+  delete globalThis.window;
+});
+
+test("a second Place replaces the first and closing the window removes every listener", () => {
+  const { stubs, cleanup, place, win, windows } = placementSetup();
+  place(1).onClick();
+  place(4).onClick();
+  assert.equal(stubs.count(), 7, "only one placement armed");
+  assert.equal(win.subtitle, "Click the preview to place P4 (Esc cancels)");
+  cleanup();
+  assert.equal(stubs.count(), 0, "closing the window cancels");
+  assert.equal(stubs.canvas.style.cursor, "", "cursor restored on close");
+  windows.deactivate();
+  delete globalThis.window;
+});

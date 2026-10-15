@@ -68,6 +68,9 @@
       Storage, caching, and permission behavior provided by your browser or operating system are governed by their respective providers' specifications. In the Electron version, the application and its embedded server run on your device.
     </p>
     <p>
+      The Electron version also writes a bounded main-process diagnostic log to the operating system's local application log directory and keeps native crash dumps locally with uploads disabled. The log may contain runtime versions, lifecycle events, renderer console messages, error text, stack traces, and local URLs. These records are not sent to Zoidium automatically. Review them before sharing because failure details can contain technical or user-provided text.
+    </p>
+    <p>
       To resolve problems that occur in your environment, Zoidium includes a feature to download a debug log. The log is never sent to a server automatically. The intended use is for you to contact the developer directly and attach the log. It will not be used for any purpose other than fixing bugs.
     </p>
     <p>

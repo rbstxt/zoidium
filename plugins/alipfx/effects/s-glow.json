@@ -36,7 +36,7 @@
       "animated": false,
       "keyframes": [
         {
-          "value": 2,
+          "value": 69.2,
           "frame": 0,
           "tween": 1,
           "controlPoints": [
@@ -163,7 +163,7 @@
       "animated": false,
       "keyframes": [
         {
-          "value": 0.5,
+          "value": 0,
           "frame": 0,
           "tween": 1,
           "controlPoints": [
@@ -290,7 +290,7 @@
       "animated": false,
       "keyframes": [
         {
-          "value": 96,
+          "value": 179.6,
           "frame": 0,
           "tween": 1,
           "controlPoints": [

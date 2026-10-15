@@ -84,7 +84,7 @@ vec3 gatherRays(vec2 uv, vec2 dir, float szMul, float brMul) {
     if (baseSize <= 0.001 || brMul <= 0.001) return acc;
     
     // Increased steps so large size values (like 480) create smooth, solid rays
-    const int STEPS = 48; 
+    const int STEPS = 128; 
     float fSteps = float(STEPS);
     vec2 px = 1.0 / resolution;
     

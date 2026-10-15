@@ -1,0 +1,276 @@
+"use strict";
+require("./migrate-test-apis.js").ensureMainRealmApis();
+const test = require("node:test");
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const crypto = require("node:crypto");
+const vm = require("node:vm");
+const NodeMaterial = require("../plugins/material-plus/node-material");
+function pluginApis() {
+  const context = { PZ: {}, console };
+  for (const name of ["random", "props", "color", "gl", "json", "windows"]) {
+    vm.runInNewContext(fs.readFileSync("zoidium/shared/" + name + ".js", "utf8"), context);
+  }
+  vm.runInNewContext(fs.readFileSync("zoidium/plugin-apis.js", "utf8"), context);
+  return context.ZoidiumPluginApis;
+}
+const Pbr = require("../plugins/material-plus/pbr-plus");
+const ImagePlus = require("../plugins/material-plus/image-plus");
+function harness() {
+  class Vector { constructor(...v) { this.set(...v); } set(...v) { this.values = v; return this; } }
+  class Color { setRGB(...v) { this.values = v; return this; } }
+  class Texture { constructor(image) { this.image = image; for (const k of ["repeat", "offset", "center"]) this[k] = new Vector(); } dispose() { this.disposed = true; } }
+  class Physical { constructor(options) { Object.assign(this, options); this.color = new Color(); this.emissive = new Color(); this.normalScale = new Vector(); this.defines = {}; } dispose() { this.disposed = true; } }
+  const THREE = { MeshPhysicalMaterial: Physical, MeshStandardMaterial: Physical, MeshBasicMaterial: Physical, Vector2: Vector, Vector3: Vector, CanvasTexture: Texture, DataTexture: class extends Texture { constructor(data) { super({ data }); } }, LinearFilter: 1006, LinearMipMapLinearFilter: 1008, ClampToEdgeWrapping: 1, RepeatWrapping: 2, MirroredRepeatWrapping: 3 };
+  const PZ = { property: { type: Object.fromEntries(["TEXT", "GRADIENT", "NUMBER", "OPTION", "COLOR", "VECTOR2", "VECTOR3", "ASSET"].map(k => [k, k])) }, asset: { type: { IMAGE: "image" }, image: class { constructor(asset) { this.asset = asset; this.loading = Promise.resolve(); } getTexture() { return new Texture(); } getImage() { return { width: 8, height: 8 }; } } }, material: { fnList: {} } };
+  const document = { createElement() { const canvas = { width: 0, height: 0 }; canvas.getContext = () => ({ createImageData(w, h) { return { data: new Uint8ClampedArray(w * h * 4) }; }, putImageData(image) { canvas.data = image.data.slice(); }, drawImage() {}, getImageData() { return { data: new Uint8ClampedArray(canvas.width * canvas.height * 4) }; } }); return canvas; } };
+  const dispose = [], editors = [], panels = [];
+  const context = { PZ, window: { PZ, THREE, document, setTimeout: fn => fn() }, document, plugin: { id: "material-plus", version: "6" }, lifecycle: { onDispose(fn) { dispose.push(fn); } }, apis: pluginApis(), getAsset(type, name) { return fs.readFileSync(name.replace(/^\.\//, "").split("?")[0], "utf8"); }, ui: { refreshEditors() {}, registerEditor(spec) { editors.push(spec); }, registerAttributePanel(spec) { panels.push(spec); } } };
+  const unloaded = [];
+  function material(type) {
+    const material = { type, parentProject: { assets: { load: key => ({ key }), unload: asset => unloaded.push(asset) }, sequence: { properties: { rate: { get: () => 30 } } } }, parentLayer: {} };
+    material.properties = { addAll(defs) { for (const [key, def] of Object.entries(defs)) {
+      const value = def.group ? def.objects.map(o => o.value) : def.value;
+      this[key] = { ...def, value, parentObject: material, _loaded: !def.dynamic, get() { if (!this._loaded) throw new Error("Dynamic property read before native load"); return this.value; }, set(value) { this._loaded = true; this.value = value; def.changed?.call(this); } };
+    } }, load(data) { for (const value of Object.values(this)) if (value && typeof value === "object" && "_loaded" in value) value._loaded = true; if (data) for (const [key, value] of Object.entries(data)) this[key]?.set(value); } };
+    return material;
+  }
+  return { context, PZ, material, dispose, editors, panels, unloaded };
+}
+const hash = material => crypto.createHash("sha256").update(material.pzGraphTextures.color.image.data).digest("hex");
+test("Node Material prepares exact frames, survives seeking and releases owned resources", async () => {
+  const h = harness(); NodeMaterial.activate(h.context);
+  try {
+    const m = h.material("nodes"); (await h.PZ.material.fnList.nodes).call(m); m.load();
+    m.properties.bakeResolution.set(0);
+    const graph = h.context.window.ZoidiumMaterialPlus.nodes.defaultGraph(); graph.nodes[0].params.speedX = 1;
+    m.properties.graph.set(JSON.stringify(graph));
+    await m.prepare(1.5); const cold = hash(m);
+    await m.prepare(3); await m.prepare(0); await m.prepare(1.5);
+    assert.equal(hash(m), cold);
+    assert.equal(h.editors[0].match(m), true);
+    assert.equal(h.panels.length, 0, "the native rows are the material UI; no attribute panels");
+    const texture = m.pzGraphTextures.color;
+    m.unload(); assert.ok(texture.disposed);
+  } finally { for (const fn of h.dispose.reverse()) fn(); }
+  assert.equal(h.PZ.material.fnList.nodes, undefined);
+  assert.equal(h.context.window.ZoidiumMaterialPlus, undefined);
+});
+test("PBR+ retains map keys and exposes optional surface controls with neutral defaults", async () => {
+  const h = harness(); NodeMaterial.activate(h.context); Pbr.activate(h.context);
+  try {
+    const m = h.material("pbrplus"); (await h.PZ.material.fnList.pbrplus).call(m); m.load(); await m.prepare(0);
+    for (const key of ["rampEnabled", "bumpNoise", "fresnel", "aoEnabled", "celEnabled", "reflReflection", "useNodeGraph"]) assert.equal(m.properties[key].get(), 0, key);
+    for (const key of ["texture", "emissiveMap", "roughnessMap", "metalnessMap", "normalMap", "alphaMap", "alphaTest", "reflectionIntensity"]) assert.ok(m.properties[key], key);
+    m.properties.color.set([.2, .3, .4]); m.update(2);
+    assert.deepEqual(m.pzUniforms.uPzColor.value.values, [.2, .3, .4]);
+    // The Node Editor button belongs to PBR+ only while it uses a graph.
+    assert.equal(h.editors[0].match(m), false);
+    m.properties.useNodeGraph.set(1);
+    assert.equal(h.editors[0].match(m), true);
+    m.unload();
+  } finally { for (const fn of h.dispose.reverse()) fn(); }
+});
+test("Image+ reads opacity at the requested frame and leaves native material factories alone", async () => {
+  const h = harness(); const native = h.PZ.material.fnList.texture = {};
+  ImagePlus.activate(h.context);
+  try {
+    const m = h.material("imageplus"); (await h.PZ.material.fnList.imageplus).call(m); m.load();
+    m.properties.opacity.get = frame => frame / 10;
+    m.properties.transparent.set(1);
+    m.update(5); assert.equal(m.threeObj.opacity, .5); assert.equal(m.threeObj.transparent, true);
+    m.update(0); m.update(5); assert.equal(m.threeObj.opacity, .5);
+    m.unload(); assert.equal(h.PZ.material.fnList.texture, native);
+  } finally { for (const fn of h.dispose.reverse()) fn(); }
+  assert.equal(h.PZ.material.fnList.imageplus, undefined);
+});
+test("graph worker queues only the latest frame and stays idle for PBR+ with graphs off", async () => {
+  const h = harness();
+  const pure = require("../plugins/material-plus/graph-runtime.js")({}, null);
+  let created = 0, concurrent = 0, maximum = 0, terminated = 0;
+  h.context.window.Blob = class {};
+  h.context.window.URL = { createObjectURL: () => "blob:graph", revokeObjectURL() {} };
+  h.context.window.Worker = class {
+    constructor() { created++; }
+    postMessage(job) {
+      concurrent++; maximum = Math.max(maximum, concurrent);
+      setImmediate(() => {
+        const outputs = pure.evaluate(job.graph, job.size, job.time, { images: job.images });
+        concurrent--;
+        this.onmessage({ data: { id: job.id, outputs } });
+      });
+    }
+    terminate() { terminated++; }
+  };
+  NodeMaterial.activate(h.context); Pbr.activate(h.context);
+  try {
+    const pbr = h.material("pbrplus"); (await h.PZ.material.fnList.pbrplus).call(pbr); pbr.load(); await pbr.prepare(0);
+    assert.equal(created, 0);
+    const node = h.material("nodes"); (await h.PZ.material.fnList.nodes).call(node); node.load();
+    node.properties.bakeResolution.set(0);
+    const graph = h.context.window.ZoidiumMaterialPlus.nodes.defaultGraph(); graph.nodes[0].params.speedX = 1;
+    node.properties.graph.set(JSON.stringify(graph));
+    node.update(30); node.update(60); await node.prepare(90);
+    const expected = pure.evaluate(graph, 128, 3, { images: {} }).color;
+    assert.deepEqual(node.pzGraphTextures.color.image.data, expected);
+    assert.equal(maximum, 1);
+    assert.equal(created, 1);
+    graph.nodes[0].params.octaves = 1;
+    node.properties.graph.set(JSON.stringify(graph));
+    node.properties.bakeResolution.set(4);
+    await node.prepare(90);
+    assert.equal(node.pzGraphTextures.color.image.width, 2048);
+    assert.equal(node.pzGraphTextures.color.image.height, 2048);
+    assert.equal(node.pzGraphTextures.color.magFilter, 1006);
+    assert.equal(node.pzGraphTextures.color.minFilter, 1008);
+    assert.equal(node.pzGraphTextures.color.generateMipmaps, true);
+    assert.equal(maximum, 1);
+    node.unload(); pbr.unload(); assert.equal(terminated, 1);
+  } finally { for (const fn of h.dispose.reverse()) fn(); }
+});
+test("a frame-rate change invalidates a bake at the same project frame", async () => {
+  const h = harness(); NodeMaterial.activate(h.context);
+  try {
+    const m = h.material("nodes"); (await h.PZ.material.fnList.nodes).call(m); m.load(); m.properties.bakeResolution.set(0);
+    const graph = h.context.window.ZoidiumMaterialPlus.nodes.defaultGraph(); graph.nodes[0].params.speedX = 1;
+    m.properties.graph.set(JSON.stringify(graph));
+    await m.prepare(15); const first = hash(m);
+    m.parentProject.sequence.properties.rate.get = () => 60;
+    await m.prepare(15); assert.notEqual(hash(m), first);
+    m.unload();
+  } finally { for (const fn of h.dispose.reverse()) fn(); }
+});
+test("the first prepared luminance bake enables emission immediately", async () => {
+  const h = harness(); NodeMaterial.activate(h.context);
+  try {
+    const m = h.material("nodes"); (await h.PZ.material.fnList.nodes).call(m); m.load(); m.properties.bakeResolution.set(0);
+    const graph = h.context.window.ZoidiumMaterialPlus.nodes.defaultGraph();
+    graph.links.push({ from: "noise", fromPort: "out", to: "output", toPort: "luminance" });
+    m.properties.graph.set(JSON.stringify(graph));
+    await m.prepare(0);
+    assert.ok(m.threeObj.emissiveMap);
+    assert.deepEqual(m.threeObj.emissive.values, [1, 1, 1]);
+    m.unload();
+  } finally { for (const fn of h.dispose.reverse()) fn(); }
+});
+test("unloading during a worker bake settles preparation and terminates the worker", async () => {
+  const h = harness(); let started, terminated = false;
+  const submitted = new Promise(resolve => { started = resolve; });
+  h.context.window.Blob = class {};
+  h.context.window.URL = { createObjectURL: () => "blob:graph", revokeObjectURL() {} };
+  h.context.window.Worker = class { postMessage() { started(); } terminate() { terminated = true; } };
+  NodeMaterial.activate(h.context);
+  try {
+    const m = h.material("nodes"); (await h.PZ.material.fnList.nodes).call(m); m.load();
+    const preparing = m.prepare(0);
+    await submitted;
+    m.unload();
+    await preparing;
+    assert.equal(terminated, true);
+  } finally { for (const fn of h.dispose.reverse()) fn(); }
+});
+
+function controlledBakes(h) {
+  const jobs = [];
+  const pure = require("../plugins/material-plus/graph-runtime.js")({}, null);
+  h.context.window.Blob = class {};
+  h.context.window.URL = { createObjectURL: () => "blob:controlled", revokeObjectURL() {} };
+  h.context.window.Worker = class {
+    postMessage(job) { jobs.push({ job, worker: this }); }
+    terminate() {}
+  };
+  return {
+    jobs,
+    finish() {
+      const { job, worker } = jobs.shift();
+      worker.onmessage({ data: { id: job.id, outputs: pure.evaluate(job.graph, job.size, job.time, { images: {} }) } });
+      return job;
+    },
+  };
+}
+async function flushBakes() { for (let i = 0; i < 12; i++) await Promise.resolve(); }
+async function animatedMaterial(h, resolution = 0) {
+  const m = h.material("nodes"); (await h.PZ.material.fnList.nodes).call(m);
+  const graph = h.context.window.ZoidiumMaterialPlus.nodes.defaultGraph(); graph.nodes[0].params.speedX = 1;
+  m.properties.graph.set(JSON.stringify(graph)); m.properties.bakeResolution.set(resolution); m.load();
+  await flushBakes(); return m;
+}
+test("preview applies a completed stale frame and drops superseded pending frames", async () => {
+  const h = harness(), bakes = controlledBakes(h); NodeMaterial.activate(h.context);
+  try {
+    const m = await animatedMaterial(h);
+    m.update(1); await flushBakes(); m.update(2); await flushBakes(); m.update(3); await flushBakes();
+    assert.equal(bakes.jobs.length, 1);
+    const first = bakes.finish(); await flushBakes();
+    assert.ok(m.pzGraphTextures.color, "a completed bake displays even when playback has advanced");
+    assert.equal(bakes.jobs[0].job.time, 3 / 30, "only the newest pending frame starts");
+    const displayed = hash(m); m.update(4); await flushBakes();
+    assert.equal(hash(m), displayed, "pending work keeps the previous texture visible");
+    bakes.finish(); await flushBakes(); assert.notEqual(hash(m), displayed);
+    assert.equal(first.time, 0);
+    m.unload();
+  } finally { for (const fn of h.dispose.reverse()) fn(); }
+});
+test("preview uses 128 then refines when idle and stops refinement on unload", async () => {
+  const h = harness(), bakes = controlledBakes(h); NodeMaterial.activate(h.context);
+  try {
+    const m = await animatedMaterial(h, 2);
+    assert.equal(bakes.jobs[0].job.size, 128); bakes.finish(); await flushBakes();
+    const texture = m.pzGraphTextures.color;
+    await new Promise(resolve => setTimeout(resolve, 220)); await flushBakes();
+    assert.equal(bakes.jobs[0].job.size, 512); bakes.finish(); await flushBakes();
+    assert.equal(m.pzGraphTextures.color, texture, "refinement reuses the texture");
+    assert.equal(texture.image.width, 512);
+    m.update(1); await flushBakes(); m.unload();
+    const count = bakes.jobs.length;
+    await new Promise(resolve => setTimeout(resolve, 220)); assert.equal(bakes.jobs.length, count);
+  } finally { for (const fn of h.dispose.reverse()) fn(); }
+});
+test("export waits for exact full-resolution pixels and ignores preview updates while preparing", async () => {
+  const h = harness(), bakes = controlledBakes(h); NodeMaterial.activate(h.context);
+  try {
+    const m = await animatedMaterial(h, 2); bakes.finish(); await flushBakes();
+    let prepared = false; const exporting = m.prepare(15).then(() => { prepared = true; }); await flushBakes();
+    assert.equal(prepared, false); assert.equal(bakes.jobs[0].job.size, 512);
+    m.update(22); await flushBakes();
+    assert.equal(bakes.jobs[0].job.time, .5); bakes.finish(); await exporting;
+    const pure = require("../plugins/material-plus/graph-runtime.js")({}, null);
+    assert.deepEqual(m.pzGraphTextures.color.image.data, pure.evaluate(m.pzGraph, 512, .5, {}).color);
+    m.update(15); await flushBakes(); assert.equal(bakes.jobs.length, 0, "rendering the prepared frame keeps full resolution");
+    m.unload();
+  } finally { for (const fn of h.dispose.reverse()) fn(); }
+});
+test("static graph playback does not enqueue a new bake for every frame", async () => {
+  const h = harness(), bakes = controlledBakes(h); NodeMaterial.activate(h.context);
+  try {
+    const m = h.material("nodes"); (await h.PZ.material.fnList.nodes).call(m);
+    m.properties.bakeResolution.set(0); m.load(); await flushBakes(); bakes.finish(); await flushBakes();
+    for (let frame = 1; frame < 90; frame++) m.update(frame);
+    await flushBakes(); assert.equal(bakes.jobs.length, 0);
+    m.unload();
+  } finally { for (const fn of h.dispose.reverse()) fn(); }
+});
+
+test("a slow playing viewport cannot trigger full-resolution idle refinement", async () => {
+  const h = harness(), bakes = controlledBakes(h); h.context.window.CM = { playback: { speed: 1 } };
+  NodeMaterial.activate(h.context);
+  try {
+    const m = await animatedMaterial(h, 2); bakes.finish(); await flushBakes();
+    await new Promise(resolve => setTimeout(resolve, 220)); await flushBakes();
+    assert.equal(bakes.jobs.length, 0, "playback remains at preview size even without a new frame");
+    h.context.window.CM.playback.speed = 0;
+    await new Promise(resolve => setTimeout(resolve, 260)); await flushBakes();
+    assert.equal(bakes.jobs[0].job.size, 512); m.unload();
+  } finally { for (const fn of h.dispose.reverse()) fn(); }
+});
+
+test("seeking back to the displayed frame replaces an active future bake", async () => {
+  const h = harness(), bakes = controlledBakes(h); NodeMaterial.activate(h.context);
+  try {
+    const m = await animatedMaterial(h); bakes.finish(); await flushBakes(); const frameZero = hash(m);
+    m.update(15); await flushBakes(); m.update(0); await flushBakes();
+    bakes.finish(); await flushBakes();
+    assert.equal(bakes.jobs[0].job.time, 0, "the active future bake must not overwrite the final seek result");
+    bakes.finish(); await flushBakes(); assert.equal(hash(m), frameZero); m.unload();
+  } finally { for (const fn of h.dispose.reverse()) fn(); }
+});

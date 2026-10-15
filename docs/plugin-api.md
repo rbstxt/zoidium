@@ -9,7 +9,7 @@ Full documentation comes later; this file covers the contract and how-to.
 | --- | --- | --- | --- |
 | shader-pack | Single shaders and multi-shader groups | AlipFX, CCFX, AfterClip | No |
 | native-fx | Multipass effects including time ops | Native FX, Layer Input | Yes |
-| object | 3D shapes and containers | Geometry+, Repeater, Text+, Light+ | Shapes yes |
+| object | 3D shapes and containers | Geometry+, Effector, Text+, Light+ | Shapes yes |
 | material-pack | 3D materials | Material+ | Yes |
 | extension | Anything, including panels | Player+, Easing+, Particles+ | Yes |
 | core | Hidden built-in extensions | Zoidium Core | Yes |
@@ -64,6 +64,15 @@ node tools/new-plugin.js --kind=native-fx --template=temporal --id=my-time-fx
   `getRequest(effect, frame)` function. The core compositor evaluates and
   reuses the required offscreen targets. The effect only combines the returned
   textures. See plugins/native-fx/effects/echo.js.
+  Each tap evaluates the effect input with the time operators before the
+  sampler in serialized order. Prefix quantizers use the tap's time, rather
+  than only quantizing the current image. Time offsets already included in
+  the sampler's input clock are rebased before replaying the prefix, so they
+  are not added twice. Temporal operators after the sampler keep their
+  existing evaluation of the composed result. Adjustment prefixes use
+  project time and stop their lower-track scope at the sampler input.
+  Nested preparation and rendering share the same eight-level depth limit.
+
 - Complex multipass effects (such as Drop Shadow) can stay handwritten.
 - An effect that needs an API added after its first release declares it with
   `requiresApis` (for example Echo declares `defineFrameSampler`, Color
@@ -84,11 +93,172 @@ node tools/new-plugin.js --kind=native-fx --template=temporal --id=my-time-fx
 
 - Declare materialTypes[] and register the implementation from a module.
   See Material+.
+- Add new material types to Material+. A material that samples any texture
+  through mesh UVs must use the shared UV layout instead of CM3's native
+  `WorldUVGenerator` UVs, which shear on curved text and extrusion walls:
+
+  ```js
+  const uvLayout = new Function(context.getAsset("text", "./plugins/material-plus/uv-layout.js"))()();
+  material.update = function (frame) { uvLayout.ensureMaterial(this); /* ... */ };
+  material.unload = function () { uvLayout.releaseMaterial(this); /* ... */ };
+  ```
+
+  The layout rewrites only 3D Text and extruded shapes, follows effector source
+  geometry, and restores the original UVs when no layout material remains.
+  Materials that never read UVs (Matcap) are exempt.
 
 ### extension: modules
 
-- Each module exports activate(context); deactivate() is optional.
-  Modules receive context.apis. See Player+ and Easing+.
+- Each module exports `activate(context)`; `deactivate()` is optional. Both may
+  be async. Modules receive `context.apis` and a bundle `context.getAsset`.
+- Register owned DOM, watchers, timers, and prototype patches with
+  `context.lifecycle.onDispose(cleanup)` before mutating the host. The manager
+  owns the module before calling `activate()`, so cleanup runs even if activation
+  fails halfway. Cleanup callbacks are awaited in reverse registration order,
+  run once, and continue if another cleanup fails. A module's `deactivate()` runs
+  first; callbacks must tolerate resources it already removed.
+- Unload only patches still owned by the module. Retain the original descriptor
+  or function, and restore it only if the host still references your replacement.
+- `isInUse()` may return true to prevent disabling a module whose project data
+  would otherwise lose its implementation. This supplements managed object and
+  resource tracking.
+- `ZoidiumUI.createMenubarTab({ panel: panel.el, ... })` accepts the panel DOM
+  element. Retain the returned tab and pass it to `removeMenubarTab(tab)` on
+  disposal. Removal also updates the elevator's panel list and active tab.
+- A custom editor borrowing a viewport can call
+  `ZoidiumUI.acquirePreview(viewport, close)`. The previous owner is closed
+  before a new lease is returned. Release the lease when the editor closes.
+  Scope temporary render properties to a preview draw and restore them in
+  `finally`; do not persist designer-only state in normal rendering.
+
+- Editors, setup dialogs and designers open as floating windows through
+  `context.ui.openWindow()`. Use native property rows (`context.ui.properties`)
+  for CM3 properties and `context.ui.controls` for other values. Register
+  object/effect/material editors with `context.ui.registerEditor` or
+  `registerAttributePanel`, sidebar pages with `context.ui.sidePanel`, and a
+  product-specific look with `context.ui.registerSkin`. Everything registered
+  through `context.ui` is removed when the plugin is disabled. Fullscreen
+  overlays, bundled UI fonts and borrowed preview viewports are not accepted.
+  See [Plugin UI](plugin-ui.md).
+
+See Player+ and Easing+ for ordinary extension modules. A separate settings-page
+API has not been added; persistent per-object settings belong in project
+properties edited through a window.
+
+### Native 3D font loading
+
+Core makes native `PZ.asset.font.get3DFont()` and `loading3d` settle to a
+`THREE.Font` on success or `null` on a read/parse failure. Failure details are
+available on the shared font data as `zoidiumFont3dError` with `stage` and
+`message`; `zoidiumFont3dState` is `loading`, `ready`, or `failed`. Core reports
+failures through the existing notification UI. Plugins should not report the
+same managed failure again. A pending read has no timeout.
+
+An asset source, file, or remote URL change invalidates its shared parsed font
+and loading state. Native Text geometry updates automatically, including Text+
+character geometry. Failed Text is empty during preview and export; other
+objects continue rendering. Native font property edits keep their existing
+undo/redo behavior. Core retains unloaded font assets within their project
+asset list so those native history operations can restore attached bytes.
+
+### Splitting a plugin into several files
+
+Source files stay at or below 1000 lines (`pnpm run verify` checks it). Declare
+every extra file as a text asset in the manifest and load it with the shared
+bundle loader instead of a hand-written `new Function` wrapper:
+
+```js
+const require = context.apis.modules.createRequire(context.getAsset, {
+  root: "./plugins/my-plugin/",
+  scope: { context },          // extra names visible inside every file
+});
+const curves = require("./curves.js");   // module.exports of curves.js
+```
+
+Each file runs once per loader as `function (module, exports, require, ...scope)`.
+`require` resolves `./` and `../` against the requiring file, refuses paths
+outside `root`, and returns partial exports for cycles as CommonJS does. Native
+effect sources can reach the same loader through the global
+`ZoidiumPluginApis.modules.createRequire`.
+
+### Shared modules (zoidium/shared/)
+
+Pure helpers for logic duplicated across plugins live in `zoidium/shared/*.js`
+and are exposed on `ZoidiumPluginApis` (hence also on `context.apis`):
+
+| table | file | contents |
+| --- | --- | --- |
+| `random` | `shared/random.js` | Seeded 0-1 hashes plus the matching GLSL chunk |
+| `props` | `shared/props.js` | Property readers and JSON clones |
+| `color` | `shared/color.js` | Clamps, lerps, and color-space conversions |
+| `gl` | `shared/gl.js` | Render-target and copy-pass helpers (takes `THREE`) |
+| `json` | `shared/json.js` | Prototype-safe JSON parsing and assignment |
+| `windows` | `shared/windows.js` | Escape handling and persisted window geometry |
+
+The overlay entries load in `postInitScripts` before `zoidium/plugin-apis.js`
+(which attaches them), and before `zoidium/settings.js` (which reads
+`ZoidiumSharedJson`) and every plugin. Call sites use the shared tables
+directly with no local fallback. Bit-for-bit pins live in
+`test/shared-random.test.js` and `test/shared-helpers.test.js`.
+
+Each table has a non-enumerable `workerSource()` method. It serializes the
+module's named initializer with `Function.prototype.toString()` and returns a
+script that initializes the table on `globalThis.ZoidiumPluginApis`. Prepend
+only the tables a worker needs before evaluating the worker's bundled modules:
+
+```js
+const prelude = context.apis.random.workerSource() +
+  context.apis.props.workerSource() + context.apis.color.workerSource();
+const worker = new Worker(URL.createObjectURL(new Blob([prelude, jobSource], {
+  type: "text/javascript",
+})));
+```
+
+The initializer contains its helper dependencies and creates fresh closure
+state in the worker. It does not fetch scripts or require `window`, `document`,
+or the page's API object. Module authors must keep dependencies inside that
+initializer or pass them explicitly to a helper. Effector mesh jobs and the
+Material+ graph worker use this mechanism with their bundled source assets.
+`test/shared-worker-realms.test.js` evaluates both generated workers in VM
+realms without browser globals and compares their complete results with the
+main realm. `test/worker-helper-pins.test.js` pins the migrated call sites
+against verbatim pre-migration copies.
+
+- `random`: `legacyHash01(seed, index)` (Datamosh/VHS setups) with
+  `nextSeed(seed)`; `sceneSeededRandom` (Scene+); `textSeedHash` /
+  `textSeededRandom` (Text+); `effectorHash01` / `effectorHashUnitVector`
+  (Effector core); `particularSimHash` (Particular);
+  `plexusRand` / `plexusHash2` / `plexusSmoothNoise2` / `plexusFbm2` (Plexus);
+  `formSrand` / `formHash3` / `formSmoothNoise` (Form);
+  `vibrateHashNoise` / `vibrateSampleNoise` (Camera+). Variants differ in
+  integer math, so each keeps its own name: never unify them.
+  `GLSL_RAND` is the `"float rand(vec2 n) { ... }"` chunk shared by the Form
+  and Particular point shaders.
+- `props`: `readNumber(property, time, fallback)` (finite number or fallback,
+  never throws); `readVector` / `readColor` (per-component fallback, the
+  fallback is never mutated); `forEachProp(properties, visit)` over own
+  entries; `cloneJson` (registry semantics) and `cloneJsonValue` (reset-data
+  semantics: functions clone to `undefined`); `finiteOr(value, fallback)`; `numberValue` coerces scalar values, and
+  `readNumberCoerced` preserves Material+'s optional getter and numeric-string
+  behavior.
+- `color`: `clamp` / `lerp`; `clampUnit` (Effector: NaN and non-positive
+  collapse to 0) vs `clamp01` (NaN passes through); `hsvToRgb` / `rgbToHsv`
+  (hue in degrees, Magic Looks); `hsvToRgb01` / `rgbToHsv01` (hue in [0, 1],
+  Material+ graph runtime); `hslToRgb`; `hexToRgb` / `rgbToHex`.
+- `gl`: `createRenderTarget(THREE, w, h, options)` (options pass through
+  untouched, so each site keeps its depth/stencil behavior; mipmaps pinned
+  off); `sameSize` / `ensureSize` (in-place `setSize`); `disposeTarget` /
+  `disposeAll` (never throw); `createCopyPass(THREE)` (plain CopyShader pass);
+  `disposePass` (material plus quad geometry).
+- `json`: `parseJsonSafe(text, fallback)` (never throws);
+  `parseJsonClean` / `cleanParsed` (drop `__proto__`/`constructor`/`prototype`
+  at every depth); `safeAssign(target, ...sources)` (skips those keys, so a
+  parsed payload can never change the target's prototype).
+- `windows`: `isEscapeKey(event)` / `shouldCloseOnEscape(event)` (mirrors the
+  UI kit close path: unconsumed Escape); `onEscape(target, handler)` (returns
+  a disposer); `readWindowGeometries(storage)` / `writeWindowGeometry(storage,
+  key, geometry)` (the `zoidium.ui.windows.v1` localStorage schema; never
+  throw).
 
 ### core: the hidden plugin
 
@@ -98,22 +268,166 @@ node tools/new-plugin.js --kind=native-fx --template=temporal --id=my-time-fx
 - A failing core script does not abort startup; it lands in the
   failure list carried by zoidium:ready (degraded boot).
 
+## Rendering contract
+
+Every plugin that draws must be deterministic. For a fixed project, assets,
+settings, seed and target time, the rendered frame must not depend on earlier
+renders, playback direction, repeated redraws, wall-clock time or whether
+playback is running.
+
+- Evaluate analytically at the frame, or replay from a defined start with
+  fixed steps. Caches and checkpoints are allowed only as acceleration and
+  must be keyed by every input that affects the result.
+- Core memoizes sampler input textures by exact serialized content, asset/file
+  identity, output resolution and aspect settings, plugin state changes, source time,
+  effect, nesting depth and adjustment scope. Every key cuts the sampler's
+  layer before the sampler, so editing the sampler itself or a later effect
+  retains its inputs. Audited ordinary layer content (audited effects before
+  the sampler) keys only its clip timing, sequence properties and that effect
+  prefix, so an unrelated track can be edited too. Prefix Time Offset and
+  Posterize Time operators remain in the key. Other content uses the whole
+  sequence; when expressions, layer sources or compositions could read the
+  cut effects, the cut is not applied. No edit-generation shortcut replaces
+  content serialization. Undo/redo can reuse still-resident entries.
+  Inputs without an earlier sampler share storage across depths; adjustment
+  inputs retain their depth because lower tracks may recurse into samplers.
+  `PZ.zoidium.debugDisableFrameSamplerInputReuse = true` disables reuse between
+  preparations for pixel comparisons while preserving the current prepared plan.
+- The sampler allocates optional retained RGBA8 targets only while their total
+  is at most 256 MiB per root compositor, with at most 128 slots per effect and
+  input nesting depth. Single-tap requests reuse one target. Other plans
+  normally retain their frame span, tap count and
+  four extra scrub slots, so playback recycles targets before filling the byte
+  budget. It evicts the least recently used unreserved slot across all effects.
+  Mandatory targets for an active request can exceed the byte budget, as before.
+  The total target bound is 256 MiB plus
+  `width * height * 4 * sum(peak unique taps per live effect/depth)`, with at
+  most 64 taps and eight depths. This accounts for RGBA8 pixel storage; driver
+  overhead, compositor scratch buffers and effect-owned work buffers are extra.
+  Active preparation batches and published output plans remain reserved until
+  their captures or main render finish.
+- Content edits refill expired slots without reallocating the target pool.
+  Overwriting a target immediately unlinks its old memo entry, so retained keys
+  are bounded by resident targets. Each resident revision shares one content
+  string across its frame entries. Project-resolution events and compositor
+  resizes release the pool immediately. Asynchronous input preparation and
+  pending previews verify their content keys before publishing. Effect unload,
+  project replacement and compositor unload dispose the complete runtime,
+  including isolated decoder schedules. Plugin state changes also dispose it.
+- Core also keeps finished editor preview frames (`plugins/core/output-frame-cache.js`).
+  A frame missing from the cache is drawn live exactly as without it; a draw
+  that is provably complete is copied on the GPU (no readback, no conversion)
+  and shown again for the same project state and frame. Complete means: the
+  project's resources settled for this revision, no font still loading, no
+  pending time-effect preview, every visible video drawn from the preview's
+  isolated decoders that finished this exact frame, and, while paused, each
+  visible object's own `prepare(frame)` awaited. Objects that load data while
+  a frame updates expose `zoidiumFrameReady(frame)` (Trapcode Form, Plexus and
+  Particular, Optical Flares); return `false` while any data for the current
+  frame is still loading.
+- The cache key is the full project serialization plus asset identities,
+  enabled tracks, drawing-buffer size, aspect and renderer settings, plugin
+  versions and states, and font completion. It is recomputed after any input
+  event, native history operation (also from pop-out windows), project change
+  notification, and for 1.5 s after them; between those, only the cheap parts
+  (assets, tracks, buffer size, settings, plugins, fonts) are compared. Projects
+  that require plugins outside the verified list keep the live preview.
+  `PZ.zoidium.debug.frameCache.assertKeys = true` re-serializes on every hit and
+  counts mismatches; `disabled = true` turns the cache off for comparisons.
+- When paused and idle for 0.8 s, the cache renders up to 150 frames ahead and
+  8 behind the playhead through a private copy of the project (its own
+  decoders and sampler pool), one frame per task, stopping on any input,
+  edit, seek or playback. The copy is built once per revision and released
+  when the window is complete, playback starts or the project changes. Scenes
+  whose synchronous draw takes longer than 50 ms, and projects with video
+  media (private decoders slowed the editor's own playback), are not
+  prefetched; their frames are still kept as they are shown.
+- Memory: the Settings **Preview cache** value bounds the counted RGBA8 bytes
+  (512 MiB by default, 0 disables it; 1920 x 1080 frames hold at most 64).
+  The prefetch copy adds a second sampler pool (256 MiB plus mandatory taps)
+  and duplicated geometry while it exists. Project replacement, resolution
+  changes, plugin state changes, a smaller setting and compositor unload
+  release the frames. Exports and the eyedropper keep their native draws.
+- Effects that need other frames request them with `defineFrameSampler` or
+  `defineTemporal`. Never feed the previous output back as history.
+- Randomness comes from seeded hashes of (seed, index, frame), never from
+  `Math.random()`.
+- Audio-reactive features analyze decoded audio at the project time
+  (see `T.audioAnalysis` in Trapcode Suite), never a live `AnalyserNode`.
+- Asynchronous assets are awaited in `prepare()` before a frame is complete.
+
+## Compatibility and serialized types
+
+- New object classes use namespaced string types (`zoidium:<plugin>/<name>`).
+  Numeric types collide with CM3 and other plugins and are reserved for
+  loading older projects.
+- A plugin that must load legacy numeric types claims them in
+  `PZ.zoidium.legacyObject3dTypes` (refusing activation on a collision), maps
+  them onto the namespaced class, and saves the namespaced type. Effector+
+  is the reference.
+- Do not replace or patch vanilla CM3 classes to add features to them. Add a
+  separate object instead, as Camera+ does, so projects that do not use the
+  plugin render exactly as in CM3.
+
+The manager retains cloned, unknown top-level fields and unknown `properties`
+entries loaded on media, layers and clips. On save it merges those fields into
+the host serializer's output; current host fields and properties take priority.
+A live extension's own data field takes priority over its retained snapshot.
+Reloading an instance replaces the snapshot. This covers disabled Precomp+
+`media.comp` and composite `compId`/`offset`, including older projects without a
+plugin descriptor. Composition data also adds the Precomp+ requirement on save.
+
+This preserves serialized metadata, not the disabled feature's rendering or
+editing behavior. Keep nested extension data in its own field; the manager does
+not merge missing items into host arrays or restore removed host objects.
+Unknown object/effect/material types use their separate missing-type adapters.
+
 ## Security and future community plugins
 
-Current assumptions:
+Only first-party bundles listed in the shipped registry with matching SHA-256
+integrity digests can activate through the plugin manager today. The builder
+hashes the exact UTF-8 bundle.json bytes, including its trailing newline, and
+records `sha256-<base64>` in the registry. Check mode rejects stale digests.
+The manager fetches text, verifies it with Web Crypto, then parses the bundle.
+Missing digests, mismatches, unavailable Web Crypto, and version mismatches
+refuse activation and appear in the Plugins page and debug log. Project-driven
+activation uses the same check, even for a previously disabled plugin.
+HTTPS and HTTP loopback origins such as localhost and 127.0.0.1 support the
+secure context needed by Web Crypto, including Electron's loopback server.
+Other HTTP origins fail closed. Registry and bundle requests revalidate their
+cache entries. A stale registry paired with a newer bundle fails closed; reload
+or deploy matching files. Desktop packages include the registry and bundles.
 
-- The runtime reads only the generated single-line bundle.json.
-  Author source trees are never fanned out at runtime.
-  Files come from inside the bundle through getAsset.
-- Bundles may reference only repository-local files. Remote URLs are rejected.
-- Temporal effects declare only offset or posterize. Frame samplers declare a
-  bounded list of frame offsets; arbitrary frame rewrites are not possible.
+This provides tamper evidence relative to the shipped registry, not signatures:
+an attacker who can replace both registry and bundle can replace the digest.
+Protect the release channel and review changes to both files. The hidden Core
+bundle is checked by the manager too, but Core's pre-init scripts are separate
+trusted application bootstrap files executed earlier by the runtime loader.
+The bundle digest does not authenticate those earlier script requests. They
+need loader-level verification before execution to close that separate gap.
 
-Still missing before opening up to community plugins (not implemented):
+Bundles embed declared local assets and modules read them through getAsset.
+Source trees are not fetched at runtime. Temporal effects declare bounded
+operations and frame offsets. These contracts are not a JavaScript sandbox.
+Same-realm code has the editor's DOM, storage, network, and project access; a
+manifest permission flag or narrowed context object cannot enforce restrictions
+when code can use global objects or patch host prototypes.
 
-- Declared permissions (network, DOM access) with runtime enforcement.
-- Signing and review flow.
-- Privilege separation for panel modules.
+A future community-plugin manifest should declare versioned capabilities for
+project fields and edit commands, network origins and methods, local storage
+quota, file import/export, and UI panels. The installer must present those
+requests, record grants, and reject undeclared operations. Such declarations
+are a design proposal, not permissions supported by today's manifest schema.
+
+Community code needs a separate sandboxed iframe or worker realm with a
+versioned message API. An iframe must have an opaque origin with no same-origin
+access; a worker needs an isolated origin and a restrictive network policy.
+The host must validate every message and grant, pass only explicit data copies
+or scoped handles, bound message sizes and work, and revoke handles on unload.
+Panel rendering and file/network operations must go through host brokers.
+Workers cannot touch the editor DOM, and iframe panels must not inherit editor
+storage or global objects. Review, signing, resource limits, and safe updates
+remain prerequisites before accepting community bundles.
 
 ## Checks
 
@@ -123,3 +437,38 @@ pnpm run check:plugin-manifests
 pnpm run check:plugin-bundles
 pnpm run verify
 ```
+
+## Timeline track extensions
+
+`timeline.registerTrackField(name, { default })` declares a JSON field on
+tracks. Loaded values override the default, and save reads the live track value.
+The host retains unknown track fields even when their plugin is disabled.
+Disposal releases the declaration for reactivation; serialization remains active
+so disabling a plugin cannot erase project data. Reserved object keys, `type`,
+and `clips` cannot be declared.
+
+`timeline.registerTrackButton({ id, label, title(track), isActive(track),
+onToggle(track, editor), kinds: ["video"] })` adds a button to existing and new
+track labels. The plugin owns its history transaction in `onToggle`. Call
+`timeline.refreshTrackButtons()` after undo/redo to refresh active states.
+The returned disposer removes the buttons and restores label layout. Several
+plugins can register buttons without replacing each other's registrations.
+
+## Media presets and layer extensions
+
+`media.registerPreset({ id, name, icon, json })` installs a CM3 Media preset in
+the live project and subsequent loaded projects. `json` is the CM3 media payload,
+including `assets`, `data`, and `baseType`. Presets are marked `preset: true`, so
+CM3 excludes them from saved project media. The returned disposer removes the
+preset and its project-load hook when no registrations remain.
+
+`layers.registerType({ id, type, legacyType, factory })` adds a layer factory
+and claims a legacy numeric layer ID in `PZ.zoidium.legacyLayerTypes`. IDs below
+9 are reserved for CM3. Conflicting claims fail activation; disposal releases
+the claim and restores the previous factory only while still owned. Use a
+namespaced type for new layer formats. Camera+ retains the established numeric
+layer type 9 because the manager's existing missing-layer adapter and project
+requirement scanner recognize it. Its camera objects save their stable
+`zoidium:camera-plus/camera` type. A project using this layer locks Camera+
+against disabling; opening it without the plugin uses the manager's retained
+missing-layer placeholder and dependency prompt.

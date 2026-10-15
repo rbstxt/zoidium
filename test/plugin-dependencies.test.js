@@ -7,10 +7,7 @@ const test = require("node:test");
 const vm = require("node:vm");
 
 const projectRoot = path.resolve(__dirname, "..");
-const managerSource = fs.readFileSync(
-  path.join(projectRoot, "plugins/plugin-manager.js"),
-  "utf8"
-);
+const managerSource = require("./plugin-manager-source").managerSource();
 
 function loadDependencyHelpers() {
   const start = managerSource.indexOf("  function normalizeProjectPlugins(plugins) {");
@@ -33,6 +30,34 @@ function loadDependencyHelpers() {
       ["posterizetime", "Posterize Time"],
     ]),
     NATIVE_FX_PLUGIN_ID: "native-fx",
+    NATIVE_EFFECT_PLUGINS: new Map([
+      ["radialblurspin", "native-fx"],
+      ["colorcurves", "native-fx"],
+      ["echo", "native-fx"],
+      ["dropshadow", "native-fx"],
+      ["timeoffset", "native-fx"],
+      ["posterizetime", "native-fx"],
+      ["layerinput", "layer-input"],
+      ["layerinputdisplacement", "layer-input"],
+      ["echo-legacy", "openzoid-legacy"],
+      ["posterizetime-legacy", "openzoid-legacy"],
+      ["jpegdamage", "openzoid-legacy"],
+      ["vhs", "openzoid-legacy"],
+      ["datamosh", "openzoid-legacy"],
+    ]),
+    NUMERIC_OBJECT_TYPES: new Map([
+      [7, { pluginId: "effector-plus", objectId: "twist" }],
+      [8, { pluginId: "effector-plus", objectId: "warp" }],
+      [9, { pluginId: "effector-plus", objectId: "voronoi" }],
+      [10, { pluginId: "trapcode-suite", objectId: "particular" }],
+      [11, { pluginId: "trapcode-suite", objectId: "form" }],
+      [12, { pluginId: "trapcode-suite", objectId: "plexus" }],
+      [13, { pluginId: "optical-flares", objectId: "optical-flares" }],
+    ]),
+    NUMERIC_LAYER_TYPES: new Map([
+      [9, { pluginId: "camera-plus", layerId: "camera-layer" }],
+    ]),
+    TRAPCODE_SUITE_PLUGIN_ID: "trapcode-suite",
     PARTICLES_PLUS_PLUGIN_ID: "particles-plus",
     PLUGIN_DEPENDENCY_INFO: new Map([
       ["native-fx", { name: "Native FX", author: "Zoidium" }],
@@ -286,10 +311,61 @@ test("empty optional dependency fields are omitted from saved project metadata",
 test("save hooks rescan serialized JSON before metadata and warnings are produced", () => {
   assert.match(
     managerSource,
-    /projectPluginRequirements\(\{ \.\.\.json, plugins: trackedPlugins \}\)/
+    /projectPluginRequirements\(\{ \.\.\.ZoidiumPluginApis\.props\.cloneJson\(json\), plugins: trackedPlugins \}\)/
   );
   assert.match(
     managerSource,
     /normalizeProjectPlugins\(this\.project\?\.toJSON\?\.\(\)\.plugins\)/
   );
+});
+test("live numeric properties do not mark a vanilla project as using legacy plugins", () => {
+  const project = { sequence: { properties: {
+    resolution: { type: 8, baseTypeString: "property", definition: { type: 8 }, value: [1920, 1080] },
+    rotation: { type: 9, baseTypeString: "property", definition: { type: 9 }, properties: {} },
+  }, videoTracks: [{ clips: [{ object: { type: 4, effects: [], properties: {}, objects: [{ type: 6, properties: {} }] } }] }] } };
+  const helpers = loadDependencyHelpers();
+  assert.equal(helpers.projectPluginRequirements(project).length, 0);
+  project.sequence.videoTracks[0].clips[0].object.objects.push({ type: 7, properties: {}, objects: [] });
+  const used = helpers.projectPluginRequirements(project);
+  assert.equal(used.length, 1);
+  assert.equal(used[0].id, "effector-plus");
+  assert.deepEqual(Array.from(used[0].objects), ["twist"]);
+});
+
+
+test("composition media and composite references detect Precomp+ without descriptors", () => {
+  for (const data of [
+    { media: [{ comp: { id: "comp-1", clipLinks: [] } }] },
+    { sequence: { videoTracks: [{ clips: [{ object: { type: 2, compId: "comp-1", offset: 12 } }] }] } },
+  ]) {
+    assert.deepEqual(pluginById(data, "precomp-plus").features, ["compositions"]);
+  }
+  assert.equal(pluginById({ object: { type: 4, compId: 7 } }, "precomp-plus"), undefined);
+});
+
+
+test("Optical Flares stack enums do not add Effector+ or Trapcode requirements", () => {
+  const flare = { type: 13, properties: {}, stack: [
+    { type: 7, properties: { name: "Lens element" } },
+    { type: 10, properties: { name: "Another element" } },
+  ] };
+  const data = { sequence: { videoTracks: [{ clips: [{ object: { type: 4, effects: [], objects: [flare] } }] }] } };
+  assert.deepEqual(requirements(data).map((plugin) => plugin.id), ["optical-flares"]);
+  data.sequence.videoTracks[0].clips[0].object.objects.push({ type: 7, properties: {}, objects: [] });
+  assert.deepEqual(requirements(data).map((plugin) => plugin.id).sort(), ["effector-plus", "optical-flares"]);
+});
+
+test("legacy numeric objects are found in nested groups and composition media", () => {
+  const data = { media: [{ baseType: "track", data: [{ clips: [{ object: {
+    type: 4, effects: [], objects: [{ type: 5, properties: {}, objects: [{ type: 10, properties: {} }] }],
+  } }] }] }] };
+  assert.deepEqual(pluginById(data, "trapcode-suite").objects, ["particular"]);
+});
+
+test("legacy Camera layers are detected inside the project's sequence", () => {
+  const data = { sequence: { videoTracks: [{ clips: [{ object: {
+    type: 9, effects: [], properties: {}, objects: [],
+  } }] }] } };
+  assert.deepEqual(requirements(data).map((plugin) => plugin.id), ["camera-plus"]);
+  assert.deepEqual(pluginById(data, "camera-plus").objects, ["camera-layer"]);
 });

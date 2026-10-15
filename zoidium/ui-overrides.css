@@ -25,6 +25,22 @@
   background-color: transparent;
 }
 
+/* CM3 clips the sidebar tab column (overflow: hidden). With Zoidium's extra
+   tabs the column outgrows short sidebars, e.g. the Video Editor layout, and
+   the last tabs became unreachable. Let it scroll by wheel or touch; a
+   visible scrollbar would narrow the icon column, so it stays hidden.
+   overscroll-behavior: none also stops the elastic bounce at either end. */
+.elevatortabs {
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: none;
+  scrollbar-width: none;
+}
+
+.elevatortabs::-webkit-scrollbar {
+  display: none;
+}
+
 .zoidium-project-name {
   display: block;
   grid-column: 1;
@@ -65,7 +81,7 @@
   overflow: hidden;
   color: var(--zoidium-theme-link, #7e8fb9);
   font-family: inherit;
-  font-size: 16px;
+  font-size: var(--zui-font-size);
   line-height: 23px;
   text-align: start;
   text-overflow: ellipsis;
@@ -97,7 +113,7 @@
 
 .zoidium-restore-title {
   color: #ccc;
-  font-size: 18px;
+  font-size: var(--zui-font-size-title);
   font-weight: bold;
 }
 
@@ -139,7 +155,7 @@
   width: 100%;
   padding: 5px calc(5px + var(--zoidium-scrollbar-width)) 5px 5px;
   color: #969696;
-  font-size: 12px;
+  font-size: var(--zui-font-size-small);
   border-bottom: 1px solid #242424;
   box-sizing: border-box;
 }
@@ -155,7 +171,7 @@
   min-width: 0;
   overflow: hidden;
   color: #ccc;
-  font-size: 16px;
+  font-size: var(--zui-font-size);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -173,7 +189,7 @@
   border-bottom: 1px solid #242424;
   box-sizing: border-box;
   color: var(--zoidium-plugin-warning-color);
-  font-size: 13px;
+  font-size: var(--zui-font-size-small);
   line-height: 1.4;
   margin-bottom: 0;
   padding: 5px calc(8px + var(--zoidium-scrollbar-width)) 5px 8px;
@@ -192,7 +208,7 @@
   background-color: #222;
   border-bottom: 1px solid #1d1d1d;
   box-sizing: border-box;
-  font-size: 15px;
+  font-size: var(--zui-font-size);
 }
 
 .zoidium-restore-entry {
@@ -219,7 +235,7 @@
 .zoidium-restore-name {
   overflow: hidden;
   color: #eee;
-  font-size: 16px;
+  font-size: var(--zui-font-size);
   font-weight: bold;
   line-height: 1.25;
   text-overflow: ellipsis;
@@ -229,7 +245,7 @@
 .zoidium-restore-meta {
   overflow: hidden;
   color: #969696;
-  font-size: 13px;
+  font-size: var(--zui-font-size-small);
   line-height: 1.35;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -325,7 +341,7 @@
 
 .zoidium-project-toast-title {
   color: #eee;
-  font-size: 16px;
+  font-size: var(--zui-font-size);
   font-weight: bold;
 }
 
@@ -355,19 +371,37 @@
 .zoidium-editor-window .pz-tweens:focus,
 .zoidium-editor-window .pz-textarea:focus,
 .zoidium-editor-window .pz-filterbox:focus,
-.zoidium-editor-window button.pz-option:focus {
+.zoidium-editor-window button.pz-option:focus,
+.zoidium-window .editorpanel:focus,
+.zoidium-window .editorpanel:focus-within,
+.zoidium-window .elevator button:focus,
+.zoidium-window .actionbutton:focus,
+.zoidium-window .proprow.propbutton:focus,
+.zoidium-window .backbutton:focus,
+.zoidium-window .pzinput:focus,
+.zoidium-window .pz-inputbox:focus,
+.zoidium-window .pz-tweens:focus,
+.zoidium-window .pz-textarea:focus,
+.zoidium-window .pz-filterbox:focus,
+.zoidium-window button.pz-option:focus {
   border-color: var(--zoidium-theme-focus, #384668) !important;
 }
 
 .zoidium-editor-window .media-item.selected,
 .zoidium-editor-window .elevator a.selected,
-.zoidium-editor-window ul.tree li.selected {
+.zoidium-editor-window ul.tree li.selected,
+.zoidium-window .media-item.selected,
+.zoidium-window .elevator a.selected,
+.zoidium-window ul.tree li.selected {
   background-color: var(--zoidium-theme-focus, #384668) !important;
 }
 
 .zoidium-editor-window .proprow a,
 .zoidium-editor-window .pzinput,
-.zoidium-editor-window .pz-inputbox {
+.zoidium-editor-window .pz-inputbox,
+.zoidium-window .proprow a,
+.zoidium-window .pzinput,
+.zoidium-window .pz-inputbox {
   color: var(--zoidium-theme-link, #7e8fb9);
 }
 
@@ -375,12 +409,15 @@
    do (PZ sets an inline background-image on them). Scope the reset to
    style-less spans so sprite previews can never be bleached white here. */
 .zoidium-editor-window .pz-dropdown span:not([style]),
-.zoidium-editor-window .pz-tweens span:not([style]) {
+.zoidium-editor-window .pz-tweens span:not([style]),
+.zoidium-window .pz-dropdown span:not([style]),
+.zoidium-window .pz-tweens span:not([style]) {
   color: var(--zoidium-theme-link, #7e8fb9) !important;
   filter: none;
 }
 
-.zoidium-editor-window .pz-dropdown li.pz-active {
+.zoidium-editor-window .pz-dropdown li.pz-active,
+.zoidium-window .pz-dropdown li.pz-active {
   background-color: var(--zoidium-theme-focus, #384668) !important;
 }
 
@@ -406,35 +443,43 @@ body > .pz-dropdown span:not([style]) {
    presence of an inline style instead of a URL substring. */
 .zoidium-editor-window button.pz-tweens[title="font"] > span,
 body > .pz-dropdown li > span[style],
-.zoidium-editor-window .pz-dropdown li > span[style] {
+.zoidium-editor-window .pz-dropdown li > span[style],
+.zoidium-window button.pz-tweens[title="font"] > span,
+.zoidium-window .pz-dropdown li > span[style] {
   color: transparent !important;
   filter: invert(41%) sepia(13%) saturate(861%) hue-rotate(185deg) brightness(93%) contrast(92%) hue-rotate(var(--zoidium-theme-hue-shift, 0deg)) saturate(var(--zoidium-theme-saturation, 1)) !important;
 }
 
-.zoidium-editor-window select {
+.zoidium-editor-window select,
+.zoidium-window select {
   color: var(--zoidium-theme-link, #7e8fb9);
 }
 
-.zoidium-editor-window .pz-progress span {
+.zoidium-editor-window .pz-progress span,
+.zoidium-window .pz-progress span {
   background-color: var(--zoidium-theme-focus, #384668);
 }
 
 /* Timeline clips are chrome, while its ruler, red playhead, green markers,
    and waveform canvas retain their CM3 colors. */
-.zoidium-editor-window .clip {
+.zoidium-editor-window .clip,
+.zoidium-window .clip {
   background-color: var(--zoidium-theme-clip, #526183);
 }
 
-.zoidium-editor-window .clip.selected {
+.zoidium-editor-window .clip.selected,
+.zoidium-window .clip.selected {
   background-color: var(--zoidium-theme-clip-selected, #7f94c7);
   border-color: var(--zoidium-theme-focus, #384668);
 }
 
-.zoidium-editor-window .clipselected {
+.zoidium-editor-window .clipselected,
+.zoidium-window .clipselected {
   background: var(--zoidium-theme-clip-selection, #273465) !important;
 }
 
-.zoidium-editor-window .clip > .handle.selected {
+.zoidium-editor-window .clip > .handle.selected,
+.zoidium-window .clip > .handle.selected {
   border-color: var(--zoidium-theme-focus, #384668);
 }
 
@@ -457,8 +502,23 @@ body > .pz-dropdown li > span[style],
   margin-top: 3px;
   overflow-wrap: anywhere;
   color: #aaa;
-  font-size: 12px;
+  font-size: var(--zui-font-size-small);
   line-height: 1.4;
+}
+
+.zoidium-project-toast-help {
+  margin-top: 6px;
+  color: #aaa;
+  font-size: var(--zui-font-size-small);
+  line-height: 1.4;
+}
+
+.zoidium-project-toast-help[hidden] {
+  display: none;
+}
+
+.zoidium-project-toast-help a {
+  color: #9ecbff;
 }
 
 .zoidium-project-toast-actions {
@@ -482,7 +542,7 @@ body > .pz-dropdown li > span[style],
   min-width: 74px;
   margin: 0;
   padding: 4px 7px;
-  font-size: 12px;
+  font-size: var(--zui-font-size-small);
 }
 
 @media (max-width: 520px) {
@@ -493,11 +553,11 @@ body > .pz-dropdown li > span[style],
   }
 
   .zoidium-restore-name {
-    font-size: 14px;
+    font-size: var(--zui-font-size-small);
   }
 
   .zoidium-restore-meta {
-    font-size: 11px;
+    font-size: var(--zui-font-size-compact);
   }
 }
 

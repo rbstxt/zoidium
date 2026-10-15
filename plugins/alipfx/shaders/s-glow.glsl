@@ -10,9 +10,9 @@ varying vec2 vUvScaled;
 
 // ===== S_Glow-style controls =====
 uniform float Brightness;
-uniform vec3  Color;
+uniform vec3 Color;
 uniform float Threshold;
-uniform vec3  Threshold_Add_Color;
+uniform vec3 Threshold_Add_Color;
 uniform float Glow_Width;
 uniform float Width_X;
 uniform float Width_Y;
@@ -20,9 +20,9 @@ uniform float Width_Red;
 uniform float Width_Green;
 uniform float Width_Blue;
 uniform float Subpixel;
-uniform float Show;              // 0=Result, 1=Threshold
-uniform float Combine;           // 0=Mult, 1=Add, 2=Screen, 3=Difference, 4=Overlay
-uniform float Edge_Mode;         // 0=Transparent, 1=Reflect
+uniform float Show;               // 0=Result, 1=Threshold
+uniform float Combine;            // 0=Mult, 1=Add, 2=Screen, 3=Difference, 4=Overlay
+uniform float Edge_Mode;          // 0=Transparent, 1=Reflect
 uniform float Affect_Alpha;
 uniform float Glow_From_Alpha;
 uniform float Glow_Under_Source;
@@ -74,18 +74,19 @@ vec4 sampleSource(vec2 uv) {
 }
 
 // ------------------------------------------------------------
-// Threshold seed generation
+// Threshold seed generation (FIXED FOR SMOOTH EDGES)
 // ------------------------------------------------------------
 vec3 glowSeedFromSource(vec4 src) {
     float gf = saturate(Glow_From_Alpha);
 
-    vec3 thr = clamp(vec3(Threshold) + Threshold_Add_Color, 0.0, 0.999);
-    vec3 rgbSeed = max(src.rgb - thr, 0.0) / max(vec3(1.0) - thr, vec3(1e-5));
+    vec3 thr = max(vec3(Threshold) + Threshold_Add_Color, vec3(0.0));
+    
+    // Removing the division completely preserves the soft anti-aliased 
+    // edges of the source texture, eliminating jagged artifacts.
+    vec3 rgbSeed = max(src.rgb - thr, vec3(0.0));
+    float aSeed = max(src.a - thr.r, 0.0);
 
-    float aSeed = max(src.a - Threshold, 0.0) / max(1.0 - Threshold, 1e-5);
-    vec3 alphaSeed = vec3(aSeed);
-
-    return mix(rgbSeed, alphaSeed, gf);
+    return mix(rgbSeed, vec3(aSeed), gf);
 }
 
 float thresholdViewValue(vec4 src) {
@@ -181,7 +182,7 @@ vec3 applyCombine(vec3 base, vec3 glow) {
 }
 
 // ------------------------------------------------------------
-// Multi-direction blur with per-channel width control
+// Spiral blur with per-channel width control
 // ------------------------------------------------------------
 vec3 computeGlow(vec2 uv) {
     vec2 px = 1.0 / max(resolution, vec2(1.0));
@@ -198,29 +199,26 @@ vec3 computeGlow(vec2 uv) {
     sum += seed0;
     wsum += vec3(1.0);
 
-    float radialOffset = mix(1.0, 0.5, saturate(Subpixel));
+    const float GOLDEN_ANGLE = 2.39996323; 
+    const int SAMPLES = 1024; 
 
-    const int DIRS = 12;
-    const int STEPS = 4;
+    for (int i = 1; i <= SAMPLES; i++) {
+        float t = float(i) / float(SAMPLES);
+        float r = sqrt(t);
+        float theta = float(i) * GOLDEN_ANGLE;
+        
+        vec2 dir = vec2(cos(theta), sin(theta));
+        float w = exp(-4.0 * t * t); 
 
-    for (int d = 0; d < DIRS; d++) {
-        float ang = (6.28318530718 * float(d)) / float(DIRS);
-        vec2 dir = vec2(cos(ang), sin(ang));
+        vec3 seedR = glowSeedFromSource(sampleSource(uv + dir * radR * r));
+        vec3 seedG = glowSeedFromSource(sampleSource(uv + dir * radG * r));
+        vec3 seedB = glowSeedFromSource(sampleSource(uv + dir * radB * r));
 
-        for (int s = 0; s < STEPS; s++) {
-            float t = (float(s) + radialOffset) / float(STEPS);
-            float w = exp(-4.0 * t * t);
+        sum.r += seedR.r * w;
+        sum.g += seedG.g * w;
+        sum.b += seedB.b * w;
 
-            vec3 seedR = glowSeedFromSource(sampleSource(uv + dir * radR * t));
-            vec3 seedG = glowSeedFromSource(sampleSource(uv + dir * radG * t));
-            vec3 seedB = glowSeedFromSource(sampleSource(uv + dir * radB * t));
-
-            sum.r += seedR.r * w;
-            sum.g += seedG.g * w;
-            sum.b += seedB.b * w;
-
-            wsum += vec3(w);
-        }
+        wsum += vec3(w);
     }
 
     vec3 blurred = sum / max(wsum, vec3(1e-5));

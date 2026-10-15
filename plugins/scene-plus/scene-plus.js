@@ -1,678 +1,292 @@
 "use strict";
 
-const MAX_REPEATS = 128;
-const SCHEMA_VERSION = 2;
+// Effector entry: repeater and deformation effector 3D object classes.
+//
+// The implementation lives in small CommonJS files next to this entry:
+// scene-values.js (constants and pure math), scene-fields.js (property
+// definitions and readers), scene-clone.js (render-tree cloning),
+// scene-effectors.js (the effector classes), scene-deform.js (scene
+// deformation support), scene-repeaters.js (the repeater classes), and
+// scene-state.js (shared mutable plugin state).
+//
+// The Zoidium runtime evaluates this entry without a `require` function, so
+// sibling files are loaded lazily through the shared bundle module loader
+// (`context.apis.modules.createRequire`). Under Node the same files load
+// through plain relative requires, which keeps the tests working.
 
-function numberValue(value, fallback) {
-  const number = Number(value);
-  return Number.isFinite(number) ? number : fallback;
+const SCENE_ROOT = "./plugins/scene-plus/";
+const SIBLING_IDS = [
+  "scene-values.js",
+  "scene-fields.js",
+  "scene-clone.js",
+  "scene-effectors.js",
+  "scene-deform.js",
+  "scene-repeaters.js",
+  "scene-state.js",
+];
+
+let parts = null;
+
+function nodeRequire(id) {
+  if (typeof require !== "function") return null;
+  // A present Node loader must surface missing assets and evaluation errors.
+  return require(id);
 }
 
-function integerValue(value, fallback, minimum, maximum) {
-  const number = Math.round(numberValue(value, fallback));
-  return Math.min(maximum, Math.max(minimum, number));
-}
-
-function getCount(property, frame) {
-  const currentFrame = Number.isFinite(frame) ? frame : 0;
-  return integerValue(property?.get?.(currentFrame), 1, 1, MAX_REPEATS);
-}
-
-function getEchoFrame(frame, index, delay) {
-  const currentFrame = Math.max(0, numberValue(frame, 0));
-  const copyIndex = Math.max(0, Math.trunc(numberValue(index, 0)));
-  const frameDelay = Math.max(0, numberValue(delay, 0));
-  return Math.max(0, currentFrame - copyIndex * frameDelay);
-}
-
-function getEchoFrames(frame, count, delay) {
-  const copies = integerValue(count, 1, 1, MAX_REPEATS);
-  const frames = [];
-  for (let index = 0; index < copies; index += 1) {
-    frames.push(getEchoFrame(frame, index, delay));
+// The shared loader lives on the Zoidium API layer. Under Node it can be
+// reached by requiring the API layer file; native-effect sources use the
+// same loader through the global.
+function sharedCreateRequire() {
+  if (globalThis.ZoidiumPluginApis?.modules?.createRequire) {
+    return globalThis.ZoidiumPluginApis.modules.createRequire;
   }
-  return frames;
-}
-
-function vectorValue(value, fallback) {
-  if (!Array.isArray(value)) return fallback.slice();
-  return [
-    numberValue(value[0], fallback[0]),
-    numberValue(value[1], fallback[1]),
-    numberValue(value[2], fallback[2]),
-  ];
-}
-
-function cloneJson(value) {
-  return JSON.parse(JSON.stringify(value));
-}
-
-function lerp(a, b, amount) {
-  return a + (b - a) * amount;
-}
-
-function lerpVector(start, end, amount) {
-  return [
-    lerp(start[0], end[0], amount),
-    lerp(start[1], end[1], amount),
-    lerp(start[2], end[2], amount),
-  ];
-}
-
-function scaleVector(value, amount) {
-  return [value[0] * amount, value[1] * amount, value[2] * amount];
-}
-
-function seededRandom(seed, index, channel) {
-  let value = (Math.trunc(seed) | 0) ^ Math.imul(index + 1, 0x45d9f3b);
-  value ^= Math.imul(channel + 1, 0x27d4eb2d);
-  value = Math.imul(value ^ (value >>> 16), 0x45d9f3b);
-  value = Math.imul(value ^ (value >>> 16), 0x45d9f3b);
-  value ^= value >>> 16;
-  return (value >>> 0) / 0x100000000;
-}
-
-function randomVector(minimum, maximum, seed, index, channelOffset) {
-  return [
-    lerp(minimum[0], maximum[0], seededRandom(seed, index, channelOffset)),
-    lerp(minimum[1], maximum[1], seededRandom(seed, index, channelOffset + 1)),
-    lerp(minimum[2], maximum[2], seededRandom(seed, index, channelOffset + 2)),
-  ];
-}
-
-function safeRange(minimum, maximum) {
-  return [
-    Math.min(minimum[0], maximum[0]),
-    Math.min(minimum[1], maximum[1]),
-    Math.min(minimum[2], maximum[2]),
-  ];
-}
-
-function safeRangeMaximum(minimum, maximum) {
-  return [
-    Math.max(minimum[0], maximum[0]),
-    Math.max(minimum[1], maximum[1]),
-    Math.max(minimum[2], maximum[2]),
-  ];
-}
-
-function getTransform(mode, index, count, controls, seed) {
-  if (mode === "linear") {
-    const amount = count > 1 ? index / (count - 1) : 0;
-    return {
-      position: scaleVector(controls.positionEnd, amount),
-      rotation: scaleVector(controls.rotationEnd, amount),
-      scale: lerpVector([1, 1, 1], controls.scaleEnd, amount),
-    };
+  const apis = nodeRequire("../../zoidium/plugin-apis.js");
+  if (apis || globalThis.ZoidiumPluginApis?.modules?.createRequire) {
+    return globalThis.ZoidiumPluginApis.modules.createRequire;
   }
+  return null;
+}
 
-  if (mode === "random") {
-    if (index === 0) {
-      return {
-        position: [0, 0, 0],
-        rotation: [0, 0, 0],
-        scale: [1, 1, 1],
-      };
+function loadParts(getAsset) {
+  if (parts) return parts;
+  if (typeof require === "function") {
+    const loaded = {};
+    let complete = true;
+    for (const id of SIBLING_IDS) {
+      loaded[id] = nodeRequire("./" + id);
+      if (!loaded[id]) complete = false;
     }
-    const positionMin = safeRange(controls.positionMin, controls.positionMax);
-    const positionMax = safeRangeMaximum(controls.positionMin, controls.positionMax);
-    const rotationMin = safeRange(controls.rotationMin, controls.rotationMax);
-    const rotationMax = safeRangeMaximum(controls.rotationMin, controls.rotationMax);
-    const scaleMin = safeRange(controls.scaleMin, controls.scaleMax);
-    const scaleMax = safeRangeMaximum(controls.scaleMin, controls.scaleMax);
-    return {
-      position: randomVector(positionMin, positionMax, seed, index, 0),
-      rotation: randomVector(rotationMin, rotationMax, seed, index, 3),
-      scale: randomVector(scaleMin, scaleMax, seed, index, 6),
-    };
+    if (complete) {
+      parts = {
+        values: loaded["scene-values.js"],
+        fields: loaded["scene-fields.js"],
+        clone: loaded["scene-clone.js"],
+        effectors: loaded["scene-effectors.js"],
+        deform: loaded["scene-deform.js"],
+        repeaters: loaded["scene-repeaters.js"],
+        state: loaded["scene-state.js"],
+      };
+      populateTestSurface();
+      return parts;
+    }
   }
+  const createRequire = sharedCreateRequire();
+  if (!createRequire || typeof getAsset !== "function") {
+    throw new Error("Effector requires the Zoidium bundle module loader.");
+  }
+  const bundleRequire = createRequire(getAsset, { root: SCENE_ROOT });
+  parts = {
+    values: bundleRequire("./scene-values.js"),
+    fields: bundleRequire("./scene-fields.js"),
+    clone: bundleRequire("./scene-clone.js"),
+    effectors: bundleRequire("./scene-effectors.js"),
+    deform: bundleRequire("./scene-deform.js"),
+    repeaters: bundleRequire("./scene-repeaters.js"),
+    state: bundleRequire("./scene-state.js"),
+  };
+  populateTestSurface();
+  return parts;
+}
 
+// Loads the pure library from the CommonJS require when running under Node
+// tests. Returns null in the Zoidium runtime, where require is undefined.
+function loadLibraryFromRequire() {
+  if (typeof require !== "function") return null;
+  const library = {
+    core: nodeRequire("./effector-core.js"),
+    fracture: nodeRequire("./effector-fracture.js"),
+    mesh: nodeRequire("./effector-mesh.js"),
+  };
+  if (!library.core || !library.fracture || !library.mesh) return null;
+  return library;
+}
+
+// Evaluates the bundled library sources through the shared bundle loader.
+// Each file receives a require shim that resolves sibling names in the same
+// bundle.
+function loadLibraryFromAssets(getAsset) {
+  const createRequire = sharedCreateRequire();
+  if (!createRequire || typeof getAsset !== "function") {
+    throw new Error("Effector requires the plugin bundle asset resolver.");
+  }
+  const bundleRequire = createRequire(getAsset, { root: SCENE_ROOT });
+  const core = bundleRequire("./effector-core.js");
+  const fracture = bundleRequire("./effector-fracture.js");
+  const mesh = bundleRequire("./effector-mesh.js");
+  const jobs = bundleRequire("./effector-jobs.js");
+  const names = ["earcut.js", "effector-core.js", "effector-fracture.js", "effector-mesh.js", "effector-evaluate.js"];
+  const sources = {};
+  for (const name of names) {
+    sources[name] = getAsset("text", SCENE_ROOT + name);
+  }
   return {
-    position: scaleVector(controls.positionStep, index),
-    rotation: scaleVector(controls.rotationStep, index),
-    scale: [
-      Math.pow(Math.max(0.001, controls.scaleStep[0]), index),
-      Math.pow(Math.max(0.001, controls.scaleStep[1]), index),
-      Math.pow(Math.max(0.001, controls.scaleStep[2]), index),
-    ],
-  };
-}
-
-function vectorDefinition(PZ, definition) {
-  const axisDefinition = (index, fallbackName) => ({
-    dynamic: true,
-    name: definition.axisNames?.[index] || fallbackName,
-    type: PZ.property.type.NUMBER,
-    value: definition.value[index],
-    ...(definition.min ? { min: definition.min[index] } : {}),
-    ...(definition.max ? { max: definition.max[index] } : {}),
-    step: definition.step || 1,
-    decimals: definition.decimals ?? 2,
-  });
-
-  return {
-    dynamic: true,
-    group: true,
-    name: definition.name,
-    type: PZ.property.type.VECTOR3,
-    ...(definition.scaleFactor ? { scaleFactor: definition.scaleFactor } : {}),
-    ...(definition.linkRatio ? { linkRatio: true } : {}),
-    objects: [
-      axisDefinition(0, "X"),
-      axisDefinition(1, "Y"),
-      axisDefinition(2, "Z"),
-    ],
-  };
-}
-
-function createPropertyCategory(PZ, owner, name, definitions) {
-  const properties = new PZ.propertyList(definitions, owner);
-  Object.defineProperty(properties, "_zoidiumCategoryName", {
-    value: name,
-    configurable: true,
-  });
-  const propertyIndex = owner.children.indexOf(owner.properties);
-  owner.children.splice(propertyIndex + 1, 0, properties);
-  return properties;
-}
-
-function makeProperties(PZ, mode, markDirty) {
-  const properties = {
-    count: {
-      dynamic: true,
-      name: "Count",
-      type: PZ.property.type.NUMBER,
-      value: 5,
-      min: 1,
-      max: MAX_REPEATS,
-      step: 1,
-      decimals: 0,
-      changed: function () {
-        markDirty(this.parentObject);
-      },
-    },
-  };
-
-  const rotation = Math.PI / 180;
-  if (mode === "step") {
-    properties.positionStep = vectorDefinition(PZ, {
-      name: "Position",
-      value: [10, 0, 0],
-      step: 1,
-      decimals: 2,
-    });
-    properties.rotationStep = vectorDefinition(PZ, {
-      name: "Rotation",
-      value: [0, 0, 0],
-      scaleFactor: rotation,
-      step: 1,
-      decimals: 1,
-    });
-    properties.scaleStep = vectorDefinition(PZ, {
-      name: "Scale",
-      value: [1, 1, 1],
-      min: [0.001, 0.001, 0.001],
-      step: 0.01,
-      decimals: 3,
-      linkRatio: true,
-    });
-  } else if (mode === "linear") {
-    properties.positionEnd = vectorDefinition(PZ, {
-      name: "Position",
-      value: [40, 0, 0],
-      step: 1,
-      decimals: 2,
-    });
-    properties.rotationEnd = vectorDefinition(PZ, {
-      name: "Rotation",
-      value: [0, 0, 90],
-      scaleFactor: rotation,
-      step: 1,
-      decimals: 1,
-    });
-    properties.scaleEnd = vectorDefinition(PZ, {
-      name: "Scale",
-      value: [1, 1, 1],
-      min: [0.001, 0.001, 0.001],
-      step: 0.01,
-      decimals: 3,
-      linkRatio: true,
-    });
-  } else if (mode === "random") {
-    properties.positionMin = vectorDefinition(PZ, {
-      name: "Min position",
-      value: [-10, -10, -10],
-      step: 1,
-      decimals: 2,
-    });
-    properties.positionMax = vectorDefinition(PZ, {
-      name: "Max position",
-      value: [10, 10, 10],
-      step: 1,
-      decimals: 2,
-    });
-    properties.rotationMin = vectorDefinition(PZ, {
-      name: "Min rotation",
-      value: [0, 0, 0],
-      scaleFactor: rotation,
-      step: 1,
-      decimals: 1,
-    });
-    properties.rotationMax = vectorDefinition(PZ, {
-      name: "Max rotation",
-      value: [0, 0, 0],
-      scaleFactor: rotation,
-      step: 1,
-      decimals: 1,
-    });
-    properties.scaleMin = vectorDefinition(PZ, {
-      name: "Min scale",
-      value: [1, 1, 1],
-      min: [0.001, 0.001, 0.001],
-      step: 0.01,
-      decimals: 3,
-      linkRatio: true,
-    });
-    properties.scaleMax = vectorDefinition(PZ, {
-      name: "Max scale",
-      value: [1, 1, 1],
-      min: [0.001, 0.001, 0.001],
-      step: 0.01,
-      decimals: 3,
-      linkRatio: true,
-    });
-    properties.seed = {
-      name: "Seed",
-      type: PZ.property.type.NUMBER,
-      value: 1,
-      step: 1,
-      decimals: 0,
-    };
-  }
-
-  if (mode === "echo") {
-    properties.delay = {
-      dynamic: true,
-      name: "Offset",
-      type: PZ.property.type.NUMBER,
-      value: 5,
-      min: 0,
-      max: 100000,
-      step: 1,
-      decimals: 3,
-      changed: function () {
-        markDirty(this.parentObject);
-      },
-    };
-  }
-
-  return properties;
-}
-
-function objectSignature(root, output) {
-  if (!root) {
-    output.push("null");
-    return;
-  }
-  const geometry = root.geometry?.uuid || "";
-  const material = Array.isArray(root.material)
-    ? root.material.map((item) => item?.uuid || "").join(",")
-    : root.material?.uuid || "";
-  output.push(`${root.uuid || ""}:${geometry}:${material}:${root.children.length}`);
-  for (const child of root.children) objectSignature(child, output);
-}
-
-function copyObjectState(source, target) {
-  if (!source || !target) return;
-  target.position.copy(source.position);
-  target.quaternion.copy(source.quaternion);
-  target.scale.copy(source.scale);
-  target.visible = source.visible;
-  target.matrixAutoUpdate = source.matrixAutoUpdate;
-  if (source.rotation?.order) target.rotation.order = source.rotation.order;
-  if (source.layers && target.layers) target.layers.mask = source.layers.mask;
-  target.renderDepth = source.renderDepth;
-  const length = Math.min(source.children.length, target.children.length);
-  for (let index = 0; index < length; index += 1) {
-    copyObjectState(source.children[index], target.children[index]);
-  }
-}
-
-function cloneMaterial(material) {
-  const clone = material && typeof material.clone === "function"
-    ? material.clone()
-    : material;
-  if (clone === material || !material?.uniforms || !clone?.uniforms) return clone;
-
-  // ShaderMaterial.clone() in Three.js r91 clones Texture uniforms into new
-  // Texture objects whose upload version is zero. Reuse the source textures
-  // while keeping scalar and vector uniforms, such as particle time, isolated
-  // for each echo.
-  for (const [name, sourceUniform] of Object.entries(material.uniforms)) {
-    if (sourceUniform?.value?.isTexture && clone.uniforms[name]) {
-      clone.uniforms[name].value = sourceUniform.value;
-    }
-  }
-  return clone;
-}
-
-function copyRenderCallbacks(source, target) {
-  if (!source || !target) return;
-  for (const name of ["onBeforeRender", "onAfterRender"]) {
-    if (Object.prototype.hasOwnProperty.call(source, name)) {
-      target[name] = source[name];
-    }
-  }
-  const length = Math.min(
-    source.children?.length || 0,
-    target.children?.length || 0
-  );
-  for (let index = 0; index < length; index += 1) {
-    copyRenderCallbacks(source.children[index], target.children[index]);
-  }
-}
-
-function cloneRenderTree(source) {
-  const clone = source.clone(true);
-  clone.traverse((node) => {
-    if (node.geometry && typeof node.geometry.clone === "function") {
-      node.geometry = node.geometry.clone();
-    }
-    if (Array.isArray(node.material)) {
-      node.material = node.material.map(cloneMaterial);
-    } else if (node.material) {
-      node.material = cloneMaterial(node.material);
-    }
-  });
-  copyRenderCallbacks(source, clone);
-  return clone;
-}
-
-function disposeClonedResources(root) {
-  if (!root?.traverse) return;
-  root.traverse((node) => {
-    node.geometry?.dispose?.();
-    const materials = Array.isArray(node.material)
-      ? node.material
-      : node.material
-        ? [node.material]
-        : [];
-    for (const material of materials) material?.dispose?.();
-  });
-}
-
-function defaultSourceData(data) {
-  const normalized = data && typeof data === "object" ? cloneJson(data) : {};
-  if (!Array.isArray(normalized.objects)) normalized.objects = [];
-  if (!normalized.properties || typeof normalized.properties !== "object") {
-    normalized.properties = {};
-  }
-  if (
-    !normalized.repeaterProperties ||
-    typeof normalized.repeaterProperties !== "object"
-  ) {
-    normalized.repeaterProperties = {};
-  }
-  normalized.schemaVersion = SCHEMA_VERSION;
-  return normalized;
-}
-
-function createRepeaterClass(PZ, THREE, mode, type) {
-  const markDirty = (owner) => owner?.markRepeaterDirty?.();
-  const propertyDefinitions = makeProperties(PZ, mode, markDirty);
-
-  return class RepeaterObject extends PZ.object3d.group {
-    constructor() {
-      super();
-      this._mode = mode;
-      this._instanceRoots = [];
-      this._cloneDirty = true;
-      this._cloneSignature = "";
-      this.objects.name = "Source objects";
-      this.repeaterProperties = createPropertyCategory(
-        PZ,
-        this,
-        "Repeater",
-        propertyDefinitions
-      );
-      this._onObjectsChanged = () => {
-        this.markRepeaterDirty();
-        Promise.resolve().then(() => this.detachTemplateObjects());
-      };
-      this.objects.onListChanged.watch(this._onObjectsChanged);
-      this.type = type;
-    }
-
-    markRepeaterDirty() {
-      this._cloneDirty = true;
-    }
-
-    detachTemplateObjects() {
-      if (!this.threeObj) return;
-      for (const source of this.objects) {
-        if (source?.threeObj && source.threeObj.parent === this.threeObj) {
-          this.threeObj.remove(source.threeObj);
-        }
-      }
-    }
-
-    load(data) {
-      const normalized = defaultSourceData(data);
-      super.load(normalized);
-      this.repeaterProperties.load(normalized.repeaterProperties);
-      this.detachTemplateObjects();
-      this.markRepeaterDirty();
-    }
-
-    toJSON() {
-      const data = super.toJSON();
-      data.type = this.type;
-      data.schemaVersion = SCHEMA_VERSION;
-      data.repeaterProperties = this.repeaterProperties;
-      return data;
-    }
-
-    async prepare(frame) {
-      await super.prepare(frame);
-      await Promise.all(this.objects.map((source) => source?.loading));
-      this.detachTemplateObjects();
-      if (this._mode === "echo") this.rebuildEchoInstances(frame);
-      else this.rebuildInstances(frame);
-    }
-
-    clearInstances() {
-      if (this.threeObj) {
-        for (const instance of this._instanceRoots) {
-          if (this._mode === "echo") disposeClonedResources(instance.root);
-          this.threeObj.remove(instance.root);
-        }
-      }
-      this._instanceRoots = [];
-    }
-
-    rebuildEchoInstances(frame) {
-      if (!this.threeObj) return;
-      this.clearInstances();
-      const currentFrame = Math.max(0, numberValue(frame, 0));
-      const count = getCount(this.repeaterProperties.count, currentFrame);
-      const delay = Math.max(
-        0,
-        numberValue(this.repeaterProperties.delay?.get?.(currentFrame), 0),
-      );
-      const sources = this.objects.filter((source) => source?.threeObj);
-      const echoFrames = getEchoFrames(currentFrame, count, delay);
-
-      for (let index = 0; index < echoFrames.length; index += 1) {
-        const root = new THREE.Object3D();
-        root.name = `${this.defaultName || "Echo Repeater"} ${index + 1}`;
-        const clones = [];
-        const sourceFrame = echoFrames[index];
-
-        // Echoes are evaluated from an explicit source frame. No result from
-        // an earlier playback tick is used to construct the current output.
-        try {
-          for (const source of sources) source.update(sourceFrame);
-          for (const source of sources) {
-            const clone = cloneRenderTree(source.threeObj);
-            root.add(clone);
-            clones.push({ source: source.threeObj, clone });
-          }
-        } finally {
-          for (const source of sources) source.update(currentFrame);
-        }
-
-        this.threeObj.add(root);
-        this._instanceRoots.push({ root, clones, sourceFrame });
-      }
-
-      this._cloneDirty = false;
-    }
-
-    rebuildInstances(frame) {
-      if (!this.threeObj) return;
-      this.clearInstances();
-      const count = getCount(this.repeaterProperties.count, frame);
-      const sources = this.objects.filter((source) => source?.threeObj);
-      for (let index = 0; index < count; index += 1) {
-        const root = new THREE.Object3D();
-        root.name = `${this.defaultName || "Repeater"} ${index + 1}`;
-        const clones = [];
-        for (const source of sources) {
-          const clone = source.threeObj.clone(true);
-          root.add(clone);
-          clones.push({ source: source.threeObj, clone });
-        }
-        this.threeObj.add(root);
-        this._instanceRoots.push({ root, clones });
-      }
-      const signature = [];
-      for (const source of sources) objectSignature(source.threeObj, signature);
-      this._cloneSignature = signature.join("|");
-      this._cloneDirty = false;
-    }
-
-    update(frame) {
-      super.update(frame);
-      this.detachTemplateObjects();
-      if (this._mode === "echo") {
-        this.rebuildEchoInstances(frame);
-        return;
-      }
-      const sources = this.objects.filter((source) => source?.threeObj);
-      const signatureParts = [];
-      for (const source of sources) objectSignature(source.threeObj, signatureParts);
-      const signature = signatureParts.join("|");
-      const count = getCount(this.repeaterProperties.count, frame);
-      if (
-        this._cloneDirty ||
-        signature !== this._cloneSignature ||
-        this._instanceRoots.length !== count
-      ) {
-        this.rebuildInstances(frame);
-      }
-
-      const controls = this.readControls(frame);
-      const seed = numberValue(this.repeaterProperties.seed?.get?.(), 1);
-      for (let index = 0; index < this._instanceRoots.length; index += 1) {
-        const instance = this._instanceRoots[index];
-        const transform = getTransform(this._mode, index, count, controls, seed);
-        instance.root.position.set(...transform.position);
-        instance.root.rotation.set(...transform.rotation);
-        instance.root.rotation.order = this.properties.eulerOrder.get(frame);
-        instance.root.scale.set(...transform.scale);
-        for (const clone of instance.clones) copyObjectState(clone.source, clone.clone);
-      }
-    }
-
-    readControls(frame) {
-      const read = (name, fallback) =>
-        vectorValue(this.repeaterProperties[name]?.get?.(frame), fallback);
-      if (this._mode === "linear") {
-        return {
-          positionEnd: read("positionEnd", [0, 0, 0]),
-          rotationEnd: read("rotationEnd", [0, 0, 0]),
-          scaleEnd: read("scaleEnd", [1, 1, 1]),
-        };
-      }
-      if (this._mode === "random") {
-        return {
-          positionMin: read("positionMin", [0, 0, 0]),
-          positionMax: read("positionMax", [0, 0, 0]),
-          rotationMin: read("rotationMin", [0, 0, 0]),
-          rotationMax: read("rotationMax", [0, 0, 0]),
-          scaleMin: read("scaleMin", [1, 1, 1]),
-          scaleMax: read("scaleMax", [1, 1, 1]),
-        };
-      }
-      return {
-        positionStep: read("positionStep", [0, 0, 0]),
-        rotationStep: read("rotationStep", [0, 0, 0]),
-        scaleStep: read("scaleStep", [1, 1, 1]),
-      };
-    }
-
-    unload() {
-      this.clearInstances();
-      this.detachTemplateObjects();
-      this.objects.onListChanged.unwatch(this._onObjectsChanged);
-      super.unload();
-    }
+    core,
+    fracture,
+    mesh,
+    jobs,
+    workerSource: jobs.createWorkerSource(sources),
   };
 }
 
 function activate(context) {
   const { PZ, window, object3d } = context;
   const THREE = window?.THREE;
-  if (!PZ || !THREE || !object3d) {
-    throw new Error("Repeater requires the Zoidium 3D object registry.");
+  if (!PZ || !THREE || !object3d || !PZ.objectList) {
+    throw new Error("Effector requires the Zoidium 3D object registry.");
   }
+  const p = loadParts(context.getAsset);
+  const { values, effectors, deform, repeaters, state } = p;
+  if (!state.library) state.library = loadLibraryFromAssets(context.getAsset);
 
   const unregister = [];
-  const definitions = [
-    ["step", "zoidium:repeater/repeater", "Repeater"],
-    ["linear", "zoidium:repeater/linear-repeater", "Linear Repeater"],
-    ["random", "zoidium:repeater/random-repeater", "Random Repeater"],
-    ["echo", "zoidium:repeater/echo-repeater", "Echo Repeater"],
-  ];
-  for (const [mode, type, name] of definitions) {
-    const RepeaterObject = createRepeaterClass(PZ, THREE, mode, type);
-    unregister.push(
-      object3d.registerClass({
-        type,
-        schemaVersion: SCHEMA_VERSION,
-        name,
-        factory: () => new RepeaterObject(),
-      })
-    );
+  context.lifecycle?.onDispose?.(() => deactivate.call(this));
+  if (state.library.workerSource) {
+    let redrawRequest = null;
+    state.cancelRedraw = () => {
+      if (redrawRequest !== null) window.cancelAnimationFrame(redrawRequest);
+      redrawRequest = null;
+    };
+    const jobs = state.library.jobs.createMeshJobs(state.library.workerSource, window, () => {
+      const viewport = window.CM?.mainViewport;
+      if (!viewport?.enabled || redrawRequest !== null) return;
+      redrawRequest = window.requestAnimationFrame(() => {
+        redrawRequest = null;
+        if (!viewport.enabled || state.meshJobs !== jobs) return;
+        viewport.__zoidiumPlayerPlusRenderOnce = true;
+        try { viewport._render?.(); } finally { viewport.__zoidiumPlayerPlusRenderOnce = false; }
+      });
+    });
+    state.meshJobs = jobs;
+    state.meshDeformerCache = null;
+  }
+  try {
+    state.deformationSupport = deform.createDeformationSupport(PZ, THREE);
+    const definitions = [
+      ["step", "zoidium:repeater/repeater", "Repeater"],
+      ["linear", "zoidium:repeater/linear-repeater", "Linear Repeater"],
+      ["random", "zoidium:repeater/random-repeater", "Random Repeater"],
+      ["echo", "zoidium:repeater/echo-repeater", "Echo Repeater"],
+    ];
+    for (const [mode, type, name] of definitions) {
+      const RepeaterObject = repeaters.createRepeaterClass(PZ, THREE, mode, type);
+      unregister.push(
+        object3d.registerClass({
+          type,
+          schemaVersion: values.SCHEMA_VERSION,
+          name,
+          factory: () => new RepeaterObject(),
+        })
+      );
+    }
+    const effectorClasses = [
+      ["zoidium:repeater/plain", "Plain", effectors.createPlainClass(PZ, THREE)],
+      ["zoidium:repeater/delay", "Delay", effectors.createDelayClass(PZ, THREE)],
+      [values.TWIST_TYPE, "Twist", effectors.createTwistClass(PZ, THREE)],
+      [values.WARP_TYPE, "Warp", effectors.createWarpClass(PZ, THREE)],
+      [values.VORONOI_TYPE, "Voronoi Fracture", effectors.createVoronoiClass(PZ, THREE)],
+    ];
+    for (const [type, name, EffectorClass] of effectorClasses) {
+      unregister.push(
+        object3d.registerClass({
+          type,
+          schemaVersion: values.EFFECTOR_SCHEMA_VERSION,
+          name,
+          migrate: values.migrateLegacyEffectorRecord,
+          factory: () => new EffectorClass(),
+        })
+      );
+    }
+  } catch (error) {
+    for (const unregisterClass of unregister.reverse()) {
+      try {
+        unregisterClass();
+      } catch (unregisterError) {
+        console.warn("[Zoidium] Effector: could not roll back a 3D object class", unregisterError);
+      }
+    }
+    state.deformationSupport?.deactivate();
+    state.cancelRedraw?.();
+    state.cancelRedraw = null;
+    state.meshJobs?.dispose();
+    state.deformationSupport = null;
+    state.meshJobs = null;
+    state.meshDeformerCache = null;
+    throw error;
   }
   this.__zoidiumRepeaterUnregister = unregister;
+  this.__zoidiumEffectorSupport = state.deformationSupport;
 }
 
 function deactivate() {
+  const state = parts?.state;
+  state?.cancelRedraw?.();
+  if (state) state.cancelRedraw = null;
   for (const unregister of this.__zoidiumRepeaterUnregister || []) {
     try {
       unregister();
     } catch (error) {
-      console.error("Repeater could not unregister a repeater object class", error);
+      console.warn("[Zoidium] Effector: could not unregister a 3D object class", error);
     }
   }
   this.__zoidiumRepeaterUnregister = [];
+  this.__zoidiumEffectorSupport?.deactivate?.();
+  this.__zoidiumEffectorSupport = null;
+  if (state) {
+    state.deformationSupport = null;
+    state.meshJobs?.dispose();
+    state.meshJobs = null;
+    state.meshDeformerCache = null;
+  }
+}
+
+const testSurface = {};
+
+function populateTestSurface() {
+  if (!parts) return;
+  Object.assign(testSurface, {
+    defaultSourceData: parts.repeaters.defaultSourceData,
+    createPropertyCategory: parts.fields.createPropertyCategory,
+    createRepeaterClass: parts.repeaters.createRepeaterClass,
+    nameNewSourceShapes: parts.values.nameNewSourceShapes,
+    cloneMaterial: parts.clone.cloneMaterial,
+    cloneRenderTree: parts.clone.cloneRenderTree,
+    createDeformationSupport: parts.deform.createDeformationSupport,
+    createEffectorBaseClass: parts.effectors.createEffectorBaseClass,
+    installFieldHelpers: parts.deform.installFieldHelpers,
+    fieldGuidePoints: parts.deform.fieldGuidePoints,
+    createPlainClass: parts.effectors.createPlainClass,
+    createDelayClass: parts.effectors.createDelayClass,
+    createTwistClass: parts.effectors.createTwistClass,
+    createWarpClass: parts.effectors.createWarpClass,
+    createVoronoiClass: parts.effectors.createVoronoiClass,
+    curvePolygonCount: parts.deform.curvePolygonCount,
+    fieldFromProperties: parts.fields.fieldFromProperties,
+    getCount: parts.values.getCount,
+    getEchoFrame: parts.values.getEchoFrame,
+    getEchoFrames: parts.values.getEchoFrames,
+    getTransform: parts.values.getTransform,
+    makeProperties: parts.fields.makeProperties,
+    migrateLegacyEffectorRecord: parts.values.migrateLegacyEffectorRecord,
+    migrateEffectorData: parts.values.migrateEffectorData,
+    seededRandom: parts.values.seededRandom,
+    getMeshDeformer: parts.deform.getMeshDeformer,
+    loadLibraryFromAssets,
+    library: () => parts?.state?.library,
+  });
+}
+
+// Under Node the siblings load now so the test surface is populated at
+// require time. In the Zoidium runtime require is undefined and loading
+// waits for activate().
+if (typeof require === "function") {
+  loadParts();
+  if (parts && !parts.state.library) {
+    parts.state.library = loadLibraryFromRequire();
+  }
 }
 
 module.exports = {
   activate,
   deactivate,
-  _test: {
-    defaultSourceData,
-    createPropertyCategory,
-    createRepeaterClass,
-    cloneMaterial,
-    cloneRenderTree,
-    getCount,
-    getEchoFrame,
-    getEchoFrames,
-    getTransform,
-    makeProperties,
-    seededRandom,
-  },
+  _test: testSurface,
 };

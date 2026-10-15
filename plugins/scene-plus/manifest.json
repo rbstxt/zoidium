@@ -1,20 +1,20 @@
 {
   "schemaVersion": 1,
   "id": "repeater",
-  "name": "Repeater",
+  "name": "Effector",
   "author": "Zoidium",
-  "version": "10",
+  "version": "30",
   "kind": "object",
-  "objectCategory": "REPEATER",
+  "objectCategory": "EFFECTOR",
   "objectClassParent": {
-    "name": "Repeater",
+    "name": "Effector",
     "type": 5
   },
   "objectTypes": [
     {
       "target": "object3d",
-      "name": "Repeater",
-      "desc": "Create repeated copies of one or more 3D objects.",
+      "name": "Effector",
+      "desc": "Create repeated, twisted, warped, and fractured 3D object groups.",
       "type": 5,
       "list": [
         {
@@ -68,6 +68,66 @@
             "repeaterProperties": {},
             "objects": []
           }
+        },
+        {
+          "name": "Twist",
+          "type": "zoidium:repeater/twist",
+          "data": {
+            "type": "zoidium:repeater/twist",
+            "schemaVersion": 1,
+            "properties": {
+              "name": "Twist"
+            },
+            "objects": []
+          }
+        },
+        {
+          "name": "Warp",
+          "type": "zoidium:repeater/warp",
+          "data": {
+            "type": "zoidium:repeater/warp",
+            "schemaVersion": 1,
+            "properties": {
+              "name": "Warp"
+            },
+            "objects": []
+          }
+        },
+        {
+          "name": "Voronoi Fracture",
+          "type": "zoidium:repeater/voronoi-fracture",
+          "data": {
+            "type": "zoidium:repeater/voronoi-fracture",
+            "schemaVersion": 1,
+            "properties": {
+              "name": "Voronoi Fracture"
+            },
+            "objects": []
+          }
+        },
+        {
+          "name": "Plain",
+          "type": "zoidium:repeater/plain",
+          "data": {
+            "type": "zoidium:repeater/plain",
+            "schemaVersion": 1,
+            "properties": {
+              "name": "Plain"
+            },
+            "objects": []
+          }
+        },
+        {
+          "name": "Delay",
+          "type": "zoidium:repeater/delay",
+          "data": {
+            "type": "zoidium:repeater/delay",
+            "schemaVersion": 1,
+            "properties": {
+              "name": "Delay"
+            },
+            "objects": []
+          }
         }
       ]
     }
@@ -100,12 +160,135 @@
       "name": "Echo Repeater",
       "description": "Copies source objects from explicitly evaluated earlier frames.",
       "schemaVersion": 2
+    },
+    {
+      "id": "twist",
+      "type": "zoidium:repeater/twist",
+      "name": "Twist",
+      "description": "Twists descendant 3D meshes around the selected axis in the effector frame with selectable curve quality.",
+      "schemaVersion": 1
+    },
+    {
+      "id": "warp",
+      "type": "zoidium:repeater/warp",
+      "name": "Warp",
+      "description": "Bends descendant 3D meshes with selectable curve quality, polygon density, and an optional falloff field.",
+      "schemaVersion": 1
+    },
+    {
+      "id": "voronoi-fracture",
+      "type": "zoidium:repeater/voronoi-fracture",
+      "name": "Voronoi Fracture",
+      "description": "Shatters descendant closed meshes into seeded Voronoi fragments with optional cap faces.",
+      "schemaVersion": 1
+    },
+    {
+      "id": "plain",
+      "type": "zoidium:repeater/plain",
+      "name": "Plain",
+      "description": "Field-weighted transforms for separate pieces and text characters.",
+      "schemaVersion": 1
+    },
+    {
+      "id": "delay",
+      "type": "zoidium:repeater/delay",
+      "name": "Delay",
+      "description": "Seekable transform delay with bounded fixed-step history.",
+      "schemaVersion": 1
     }
   ],
   "modules": [
     {
-      "id": "repeater-runtime",
-      "source": "./plugins/scene-plus/scene-plus.js?v=10"
+      "id": "effector-runtime",
+      "source": "./plugins/scene-plus/scene-plus.js?v=30"
+    }
+  ],
+  "description": "Procedural repeaters plus Twist, Warp, and Voronoi Fracture effectors.",
+  "resources": [
+    {
+      "id": "effector-core",
+      "type": "text",
+      "source": "./plugins/scene-plus/effector-core.js?v=30"
+    },
+    {
+      "id": "effector-fracture",
+      "type": "text",
+      "source": "./plugins/scene-plus/effector-fracture.js?v=30"
+    },
+    {
+      "id": "effector-mesh",
+      "type": "text",
+      "source": "./plugins/scene-plus/effector-mesh.js?v=30"
+    },
+    {
+      "id": "effector-evaluate",
+      "type": "text",
+      "source": "./plugins/scene-plus/effector-evaluate.js?v=30"
+    },
+    {
+      "id": "effector-jobs",
+      "type": "text",
+      "source": "./plugins/scene-plus/effector-jobs.js?v=30"
+    },
+    {
+      "id": "earcut",
+      "type": "text",
+      "source": "./plugins/scene-plus/earcut.js?v=30"
+    },
+    {
+      "id": "scene-values",
+      "type": "text",
+      "source": "./plugins/scene-plus/scene-values.js?v=30"
+    },
+    {
+      "id": "scene-fields",
+      "type": "text",
+      "source": "./plugins/scene-plus/scene-fields.js?v=30"
+    },
+    {
+      "id": "scene-clone",
+      "type": "text",
+      "source": "./plugins/scene-plus/scene-clone.js?v=30"
+    },
+    {
+      "id": "scene-effectors",
+      "type": "text",
+      "source": "./plugins/scene-plus/scene-effectors.js?v=30"
+    },
+    {
+      "id": "scene-deform",
+      "type": "text",
+      "source": "./plugins/scene-plus/scene-deform.js?v=30"
+    },
+    {
+      "id": "scene-repeaters",
+      "type": "text",
+      "source": "./plugins/scene-plus/scene-repeaters.js?v=30"
+    },
+    {
+      "id": "scene-state",
+      "type": "text",
+      "source": "./plugins/scene-plus/scene-state.js?v=30"
+    },
+    {
+      "id": "effector-fracture-status",
+      "type": "text",
+      "source": "./plugins/scene-plus/effector-fracture-status.js?v=30"
+    },
+    {
+      "id": "scene-field-edit",
+      "type": "text",
+      "source": "./plugins/scene-plus/scene-field-edit.js?v=30"
+    },
+    {
+      "id": "scene-field-edit-math",
+      "type": "text",
+      "source": "./plugins/scene-plus/scene-field-edit-math.js?v=30"
+    },
+    {
+      "id": "effector-fracture-characters",
+      "type": "text",
+      "source": "./plugins/scene-plus/effector-fracture-characters.js?v=30"
     }
   ]
 }

@@ -12,6 +12,7 @@
     hue: 0,
     saturation: 100,
     defaultFrameRate: DEFAULT_FRAME_RATE,
+    previewCacheMiB: 512,
   };
 
   var LAYOUT_OPTIONS = [
@@ -59,6 +60,26 @@
       value: "fira-code",
       label: "Fira Code",
       family: '"Fira Code", monospace',
+    },
+    {
+      value: "paper-mono",
+      label: "Paper Mono",
+      family: '"Paper Mono", monospace',
+    },
+    {
+      value: "inter",
+      label: "Inter",
+      family: '"Inter", sans-serif',
+    },
+    {
+      value: "source-sans-3",
+      label: "Source Sans 3",
+      family: '"Source Sans 3", sans-serif',
+    },
+    {
+      value: "atkinson-hyperlegible-next",
+      label: "Atkinson Hyperlegible Next",
+      family: '"Atkinson Hyperlegible Next", sans-serif',
     },
     {
       value: "system",
@@ -130,6 +151,7 @@
     try {
       return global.localStorage.getItem(STORAGE_KEY);
     } catch (_error) {
+      // Storage may be blocked; settings still apply for this session.
       return null;
     }
   }
@@ -155,13 +177,17 @@
     } catch (_error) {
       parsed = null;
     }
-    var settings = Object.assign({}, DEFAULTS, parsed && typeof parsed === "object" ? parsed : {});
+    // Prototype-safe merge of the parsed payload over the defaults
+    // (zoidium/shared/json.js, loaded just before this script). Pinned by
+    // test/shared-helpers.test.js.
+    var settings = global.ZoidiumSharedJson.safeAssign({}, DEFAULTS, parsed && typeof parsed === "object" ? parsed : {});
     if (!hasValue(LAYOUT_OPTIONS, settings.layout)) settings.layout = DEFAULTS.layout;
     if (!hasValue(FONT_OPTIONS, settings.font)) settings.font = DEFAULTS.font;
     if (!hasValue(THEME_OPTIONS, settings.theme)) settings.theme = DEFAULTS.theme;
     settings.hue = clamp(Number.isFinite(Number(settings.hue)) ? Number(settings.hue) : 0, -180, 180);
     settings.saturation = clampSaturation(settings.saturation);
     settings.defaultFrameRate = readFrameRate(settings.defaultFrameRate, DEFAULT_FRAME_RATE);
+    settings.previewCacheMiB = global.ZoidiumOutputFrameStore?.sizeMiB(settings.previewCacheMiB) ?? 512;
     return settings;
   }
 
@@ -174,6 +200,9 @@
   function findCodeFont(value) {
     if (value === "geist") return '"Geist Mono", monospace';
     if (value === "ibm-plex-sans") return '"IBM Plex Mono", monospace';
+    if (value === "inter" || value === "source-sans-3" || value === "atkinson-hyperlegible-next") {
+      return FONT_OPTIONS[0].family;
+    }
     return findFont(value).family;
   }
 
@@ -331,6 +360,7 @@
       DEFAULT_FRAME_RATE,
     );
     writeStorage(state.settings);
+    global.ZoidiumFrameCache?.setSizeMiB(state.settings.previewCacheMiB);
     var defaultProjectSettings = global.ZoidiumDefaultProjectSettings;
     if (defaultProjectSettings && typeof defaultProjectSettings.setFrameRate === "function") {
       defaultProjectSettings.setFrameRate(state.settings.defaultFrameRate);
@@ -537,6 +567,14 @@
       content: "Changing the editor layout takes effect after Zoidium is reloaded.",
     });
     var defaultFrameRateRow = createDefaultFrameRateRow(legacy);
+    var cacheControl = global.ZoidiumUI.controls.number({
+      label: "Preview cache", value: state.settings.previewCacheMiB,
+      min: 0, max: 2048, step: 64, unit: "MiB",
+      onChange: function (value) {
+        state.settings.previewCacheMiB = global.ZoidiumOutputFrameStore.sizeMiB(value);
+        persistAndApply();
+      },
+    });
     var fontRow = createFontRow(legacy);
     var themeRow = createThemeRow(legacy);
     var hueRow = createHueRow(legacy);
@@ -555,6 +593,10 @@
     panel.appendChild(layoutRow);
     panel.appendChild(layoutNote);
     panel.appendChild(defaultFrameRateRow);
+    panel.appendChild(cacheControl.element);
+    panel.appendChild(global.ZoidiumUI.controls.note(
+      "Finished preview frames use up to this much GPU memory. Set 0 to turn off caching. Temporal input textures use up to another 256 MiB, plus active samples and rendering buffers."
+    ).element);
     panel.appendChild(fontRow);
     panel.appendChild(themeRow);
     panel.appendChild(hueRow);
@@ -564,6 +606,7 @@
     state.controls = {
       layoutRow: layoutRow,
       defaultFrameRateRow: defaultFrameRateRow,
+      cacheRow: { pz_update: function () { cacheControl.set(state.settings.previewCacheMiB); } },
       fontRow: fontRow,
       themeRow: themeRow,
       hueRow: hueRow,
@@ -619,14 +662,42 @@
     return true;
   }
 
+  var installTimer = null;
+  var installStopped = false;
+  var installDeadline = 0;
+  var installEditor = null;
+
+  function stopInstall() {
+    installStopped = true;
+    if (installTimer !== null) global.clearTimeout(installTimer);
+    installTimer = null;
+  }
+
   function retryInstall() {
+    installTimer = null;
+    if (installStopped || installEditor && (global.CM !== installEditor || installEditor.destroyed || installEditor._destroyed)) return;
+    if (!installEditor && global.CM) installEditor = global.CM;
     if (install()) return;
-    global.setTimeout(retryInstall, 50);
+    var remaining = installDeadline - Date.now();
+    if (remaining <= 0) {
+      try {
+        global.dispatchEvent(new CustomEvent("zoidium:extension-script-error", {
+          detail: { script: "zoidium/settings.js", phase: "post-init", message: "Settings panel could not attach within 30 seconds." },
+        }));
+      } catch (_error) {
+        // Diagnostics must not prevent startup.
+      }
+      return;
+    }
+    installTimer = global.setTimeout(retryInstall, Math.min(250, remaining));
   }
 
   function start() {
     state.settings = readSettings();
     applySettings();
+    installDeadline = Date.now() + 30000;
+    installEditor = global.CM || null;
+    if (typeof global.addEventListener === "function") global.addEventListener("pagehide", stopInstall, { once: true });
     retryInstall();
   }
 
