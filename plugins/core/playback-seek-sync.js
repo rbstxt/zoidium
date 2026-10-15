@@ -10,6 +10,7 @@
   // reposition. The playback clock moves at most a couple of frames per
   // animation frame, so anything beyond that is an editor jump.
   const SEEK_FRAMES = 2.5;
+  const UPDATE_MARKER = "__zoidiumPlaybackSeekTickPatch";
 
   // CM3 only writes el.currentTime when the schedule item changes
   // (PZ.schedule.prototype.update). Seeking inside a clip, or into the 60-frame
@@ -50,16 +51,53 @@
     return Math.abs(frame - previous) > SEEK_FRAMES;
   }
 
-  function markSchedulesForSeek(playback, frame) {
+  // external: the write is known to come from outside the native clock, so
+  // any whole-frame move counts, not only jumps beyond SEEK_FRAMES.
+  function markSchedulesForSeek(playback, frame, external = false) {
     const sequence = playback && playback._sequence;
     if (!sequence) return;
     const schedules = [].concat(sequence.audioSchedules || [], sequence.videoSchedules || []);
+    let moved = false;
     for (const schedule of schedules) {
       const state = stateOf(schedule);
       state.playback = playback;
-      if (!isSeek(state, frame)) continue;
+      const changed = external && Number.isFinite(state.lastFrame) &&
+        Math.abs(Math.round(frame) - state.lastFrame) >= 1;
+      if (!changed && !isSeek(state, frame)) continue;
       state.pendingSeek = true;
+      moved = true;
     }
+    // PZ.ui.playback.prototype.update derives the playhead from the sync
+    // element before it updates any schedule. Retire that old anchor, or it
+    // overwrites the requested frame with the element's old position.
+    if (moved && external) playback.syncSchedule = null;
+  }
+
+  // This CM3 build defines currentFrame as a non-configurable own accessor on
+  // every playback instance, so the prototype accessor patch never sees an
+  // editor seek. update() is the native clock and the only native writer of
+  // _exactFrame between ticks, so a change since the previous tick came from
+  // outside (timeline, start/end buttons, keyboard, plugins). The playback
+  // binds update in its constructor, after this pre-init patch.
+  const tickState = new WeakMap();
+  function installUpdatePatch(playbackPrototype) {
+    if (playbackPrototype[UPDATE_MARKER]) return true;
+    const originalUpdate = playbackPrototype.update;
+    if (typeof originalUpdate !== "function") return false;
+    playbackPrototype.update = function seekAwarePlaybackUpdate() {
+      const previous = tickState.get(this);
+      const frame = this._exactFrame;
+      if (previous !== undefined && Number.isFinite(frame) && frame !== previous) {
+        markSchedulesForSeek(this, frame, true);
+      }
+      try {
+        return originalUpdate.apply(this, arguments);
+      } finally {
+        tickState.set(this, this._exactFrame);
+      }
+    };
+    playbackPrototype[UPDATE_MARKER] = true;
+    return true;
   }
 
   function installPlaybackPatch(playbackPrototype) {
@@ -187,9 +225,10 @@
     if (!schedule || !schedule.prototype) return false;
     if (!playback || !playback.prototype) return false;
 
-    const playbackReady = playback.prototype[PATCH_MARKER]
+    const accessorReady = playback.prototype[PATCH_MARKER]
       ? true
       : installPlaybackPatch(playback.prototype);
+    const playbackReady = installUpdatePatch(playback.prototype) || accessorReady;
     const scheduleReady = schedule.prototype[PATCH_MARKER]
       ? true
       : installSchedulePatch(schedule.prototype);
@@ -203,7 +242,9 @@
       STATE_KEY,
       SEEK_FRAMES,
       install,
+      UPDATE_MARKER,
       installPlaybackPatch,
+      installUpdatePatch,
       installSchedulePatch,
       markSchedulesForSeek,
       applyPendingSeek,
