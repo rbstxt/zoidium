@@ -289,3 +289,50 @@ test("pending object and plugin initialization never serialize default project s
       kind === "object" ? /Image material loading.*did not finish/ : /Project plugin activation.*did not finish/);
   }
 });
+
+test("a slow asset read in a user save asks to keep waiting and closes the question when it finishes", async () => {
+  const h = createHarness({ setTimeout: fastTimers });
+  const editor = h.makeEditor();
+  let finishRead;
+  const prompts = [];
+  h.windowObject.AbortController = AbortController;
+  h.windowObject.ZoidiumUI = {
+    confirm(options) {
+      prompts.push(options);
+      // The user leaves the question open; the read finishes meanwhile.
+      if (prompts.length === 1) setTimeout(() => finishRead(new Uint8Array([1, 2, 3, 4]).buffer), 150);
+      return new Promise(resolve => options.signal.addEventListener("abort", () => resolve(false)));
+    },
+  };
+  editor.project.assets.list.video = { key: "video", sha256: "video", filename: "clip.mp4",
+    file: { size: 4, arrayBuffer: () => new Promise(resolve => { finishRead = resolve; }) } };
+  const result = await h.projectFiles.createArchive(editor, { interactive: true });
+  assert.equal(prompts.length, 1);
+  assert.match(prompts[0].message, /Entry video \(clip\.mp4\) is taking longer than expected/);
+  assert.equal(prompts[0].confirmLabel, "Keep waiting");
+  assert.equal(prompts[0].signal.aborted, true);
+  assert.ok(result.blob.size > 0);
+});
+
+test("a slow asset read stops only when the user chooses to stop saving", async () => {
+  const h = createHarness({ setTimeout: fastTimers });
+  const editor = h.makeEditor();
+  const answers = [true, false];
+  const prompts = [];
+  h.windowObject.ZoidiumUI = { async confirm(options) { prompts.push(options); return answers.shift(); } };
+  editor.project.assets.list.video = { key: "video", sha256: "video", filename: "clip.mp4",
+    file: { size: 4, arrayBuffer: () => new Promise(() => {}) } };
+  await assert.rejects(h.projectFiles.createArchive(editor, { interactive: true }), /Entry video \(clip\.mp4\) was stopped/);
+  assert.equal(prompts.length, 2, "keep waiting re-arms the same budget once");
+});
+
+test("automatic saves still fail at the deadline instead of asking", async () => {
+  const h = createHarness({ setTimeout: fastTimers });
+  const editor = h.makeEditor();
+  let prompts = 0;
+  h.windowObject.ZoidiumUI = { async confirm() { prompts += 1; return true; } };
+  editor.project.assets.list.video = { key: "video", sha256: "video", filename: "clip.mp4",
+    file: { size: 4, arrayBuffer: () => new Promise(() => {}) } };
+  await assert.rejects(h.projectFiles.createArchive(editor, {}), /did not finish within 10 seconds/);
+  assert.equal(prompts, 0);
+});

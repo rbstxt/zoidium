@@ -23,8 +23,12 @@ project replacement during archive construction cancel delivery; an old save
 cannot attach its destination handle to a newly opened project.
 
 Each asynchronous archive read, hash, compression, write, and restore-point
-transaction has a deadline of ten seconds plus one second per 4 MB it handles,
-so a slow disk or a large video never fails a valid project. Opening waits for
+transaction has a budget of ten seconds plus one second per 4 MB it handles.
+When a step of a save or open that the user started outlives its budget (a
+large video on a slow, network or cloud drive), a "Still working" question
+offers Keep waiting or Stop; it closes itself when the step finishes
+meanwhile, so a valid project never fails on time alone. Automatic backups and
+restore points stop at the budget instead of asking. Opening waits for
 objects to finish loading as CM3 does. Saving waits for loading objects too;
 after ten seconds the user chooses between keeping waiting and saving now, and
 automatic backups skip that round instead. The picker waits for the user's
