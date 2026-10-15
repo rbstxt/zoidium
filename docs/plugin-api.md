@@ -573,5 +573,21 @@ their Blob URLs before restoring consumers.
 
 Saving a missing FILE (no bytes in the editor, used or unused) writes its key
 into optional `missingAssets` in `zoidium.json`. This records a known absence,
-not file bytes. Existing
-integrity records and attached bytes still undergo normal validation.
+not file bytes. Existing integrity records and attached bytes still undergo
+normal validation.
+
+Folders and labels follow the After Effects Project panel. `snapshot().folders`
+lists `{ id, name, parent, label }` and every item has `folder` and `label`
+(0 = none, 1-16 = the AE label colors). `createFolder(name, parent)`,
+`renameFolder(id, name)`, `deleteFolder(id)` (its contents move to the parent;
+no asset is deleted), `moveItems(ids, folderId)` and `setLabel(ids, label)`
+each record one undo step. The metadata is saved in the project's
+`zoidiumAssets` root field, which CM3 ignores; entries for items that no longer
+exist are dropped when saving.
+
+`propertyAt(element)` resolves an element inside a CM3 property row to
+`{ address, name, kind }` when the row edits an asset property, and
+`assign(itemId, address)` sets that property to the item in one undo step
+(`reason: "kind"` for a mismatched type, `"animated"` for an animated property,
+which stays a property-panel edit). `dragMedia(itemId)` returns the Media tab
+item that shows a footage item, for CM3's own timeline drag, or `null`.

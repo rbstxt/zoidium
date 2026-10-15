@@ -48,7 +48,7 @@ function fixture(options = {}) {
     ...options.globals };
   options.setup?.({ PZ, project, editor, sandbox });
   vm.createContext(sandbox);
-  for (const name of ["walk", "status", "reveal", "fetch", "decode", "consumers", "actions", ...(options.edits ? ["retention", "edits", "replace"] : []), ""]) {
+  for (const name of ["walk", "status", "reveal", "fetch", "decode", "consumers", "actions", ...(options.edits ? ["retention", "edits", "replace"] : []), "organize", ""]) {
     const file = name === "retention" ? "asset-retention.js" : "asset-registry" + (name ? "-" + name : "") + ".js";
     vm.runInContext(fs.readFileSync(path.join(__dirname, "../plugins/core", file), "utf8"), sandbox);
   }
