@@ -13,6 +13,15 @@ const state = {
   factory: null,
 };
 
+const environmentWarnings = new WeakMap();
+function warnEnvironment(source, message, error) {
+  let messages = environmentWarnings.get(source);
+  if (!messages) environmentWarnings.set(source, messages = new Set());
+  if (messages.has(message)) return;
+  messages.add(message);
+  console.warn("[Zoidium] PBR+: " + message, error);
+}
+
 const WRAP_VALUES = Object.freeze([
   "ClampToEdgeWrapping",
   "RepeatWrapping",
@@ -20,12 +29,7 @@ const WRAP_VALUES = Object.freeze([
 ]);
 
 function readNumber(property, frame, fallback) {
-  try {
-    const value = property?.get?.(frame);
-    return Number.isFinite(Number(value)) ? Number(value) : fallback;
-  } catch (_error) {
-    return fallback;
-  }
+  return ZoidiumPluginApis.props.readNumberCoerced(property, frame, fallback);
 }
 
 function readColor(property, frame, fallback) {
@@ -93,7 +97,7 @@ function disposeTextureSlot(material, slot) {
     try {
       material.parentProject?.assets?.unload(oldAsset);
     } catch (error) {
-      console.error("Material+ could not unload a PBR texture asset", error);
+      console.warn("[Zoidium] Material+: could not unload a PBR texture asset", error);
     }
   }
   oldTexture?.dispose?.();
@@ -151,20 +155,20 @@ function loadTextureSlot(material, slot, value) {
         texture.needsUpdate = true;
       }).catch((error) => {
         if (slot.generation !== generation || slot.texture !== texture) return;
-        console.error("Material+ could not decode a PBR texture", error);
+        console.warn("[Zoidium] Material+: could not decode a PBR texture", error);
       });
     }
   } catch (error) {
     if (asset) {
       try {
         material.parentProject.assets.unload(asset);
-      } catch (_unloadError) {
-        // Keep the original load error as the useful diagnostic.
+      } catch (unloadError) {
+        console.warn("[Zoidium] PBR+: could not clean up a failed texture load", unloadError);
       }
     }
     material.threeObj[slot.materialProperty] = null;
     material.threeObj.needsUpdate = true;
-    console.error("Material+ could not load a PBR texture", error);
+    console.warn("[Zoidium] Material+: could not load a PBR texture", error);
   }
 }
 
@@ -180,7 +184,7 @@ function releaseEnvironmentMap(material) {
     try {
       material._zoidiumEnvironmentSource.releaseTexture();
     } catch (error) {
-      console.error("Material+ could not release a PBR environment map", error);
+      warnEnvironment(material._zoidiumEnvironmentSource, "could not release an environment map", error);
     }
   }
   material._zoidiumEnvironmentSource = null;
@@ -194,7 +198,7 @@ function releaseEnvironmentMap(material) {
 function syncEnvironmentMap(material) {
   if (!material.threeObj) return;
 
-  const enabled = getOptionValue(material.properties.reflection, 0) === 1;
+  const enabled = (getOptionValue(material.properties.reflection, 0) === 1 || getOptionValue(material.properties.reflReflection, 0) === 1);
   const layer = material.parentLayer;
   const source = layer?.envMap;
 
@@ -219,7 +223,7 @@ function syncEnvironmentMap(material) {
     material._zoidiumEnvironmentLayer = layer;
     material.threeObj.needsUpdate = true;
   } catch (error) {
-    console.error("Material+ could not load a PBR environment map", error);
+    warnEnvironment(source, "could not load an environment map", error);
     releaseEnvironmentMap(material);
   }
 }
@@ -504,22 +508,28 @@ function createMaterialFactory(plugin) {
       alphaMap: { propertyName: "alphaMap", materialProperty: "alphaMap", asset: null, image: null, texture: null, value: null, generation: 0 },
     };
     material.properties.addAll(propertyDefinitions);
+    const surfaceApi = state.window?.ZoidiumMaterialPlus;
+    surfaceApi?.install(material, false);
+    if (surfaceApi) material.initReflection = () => syncEnvironmentMap(material);
     material._zoidiumLoading = false;
 
     material.load = function (data) {
       material._zoidiumLoading = true;
-      material.threeObj = new state.THREE.MeshStandardMaterial({
+      material.threeObj = new (state.window?.ZoidiumMaterialPlus && state.THREE.MeshPhysicalMaterial ? state.THREE.MeshPhysicalMaterial : state.THREE.MeshStandardMaterial)({
         color: 0xffffff,
         roughness: 0.5,
         metalness: 0,
         transparent: false,
         premultipliedAlpha: false,
       });
+      material._surfaceInit?.();
       try {
         material.properties.load(data && data.properties);
       } finally {
         material._zoidiumLoading = false;
       }
+      material.syncRamp?.();
+      material.updateBumpMap?.();
       loadAllTextureSlots(material);
       applyRenderSettings(material);
       syncEnvironmentMap(material);
@@ -530,6 +540,7 @@ function createMaterialFactory(plugin) {
     material.update = function (frame) {
       if (!material.threeObj) return;
 
+      material._surfaceUpdate?.(frame);
       const color = readColor(material.properties.color, frame, [1, 1, 1]);
       const emissive = readColor(material.properties.emissive, frame, [0, 0, 0]);
       const roughness = Math.max(0, Math.min(1, readNumber(material.properties.roughness, frame, 0.5)));
@@ -539,13 +550,16 @@ function createMaterialFactory(plugin) {
       const reflectionIntensity = Math.max(0, readNumber(material.properties.reflectionIntensity, frame, 1));
       const opacity = Math.max(0, Math.min(1, readNumber(material.properties.opacity, frame, 1)));
 
-      material.threeObj.color.setRGB(color[0], color[1], color[2]);
+      if (material.pzUniforms) {
+        material.pzUniforms.uPzColor.value.set(...color);
+        material.threeObj.color.setRGB(1, 1, 1);
+      } else material.threeObj.color.setRGB(...color);
       material.threeObj.emissive.setRGB(emissive[0], emissive[1], emissive[2]);
       material.threeObj.emissiveIntensity = emissiveIntensity;
       material.threeObj.roughness = roughness;
       material.threeObj.metalness = metalness;
       material.threeObj.normalScale.set(normalScale, normalScale);
-      material.threeObj.envMapIntensity = reflectionIntensity;
+      material.threeObj.envMapIntensity = reflectionIntensity * readNumber(material.properties.reflGlobalReflectionBrightness, frame, 1);
       material.threeObj.opacity = opacity;
 
       applyTextureSettings(material, false, frame);
@@ -557,7 +571,8 @@ function createMaterialFactory(plugin) {
       }
     };
 
-    material.prepare = async function () {
+    material.prepare = async function (frame) {
+      await material._surfacePrepare?.(frame);
       await Promise.all(
         textureSlots(material)
           .map((slot) => slot.image?.loading)
@@ -571,6 +586,7 @@ function createMaterialFactory(plugin) {
 
     material.unload = function () {
       state.PZ.zoidium?.untrackPluginMaterial?.(material);
+      material._surfaceDispose?.();
       releaseEnvironmentMap(material);
       for (const slot of textureSlots(material)) {
         slot.generation += 1;
@@ -593,6 +609,8 @@ function activate(context) {
 
   state.active = true;
   state.PZ = PZ;
+  state.window = context.window;
+  context.lifecycle?.onDispose(deactivate);
   state.THREE = THREE;
   state.plugin = context.plugin || {};
   state.hadPreviousFactory = Object.prototype.hasOwnProperty.call(

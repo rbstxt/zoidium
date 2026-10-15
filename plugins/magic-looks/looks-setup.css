@@ -1,0 +1,94 @@
+/* Magic Looks setup window: only the custom canvases and their layout.
+   Generic rows, sections, lists and buttons come from zoidium/ui-window.css.
+   Injected while a setup window is open and removed when the last one closes. */
+
+.lk-root {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-family: var(--zui-font);
+  color: var(--zui-text);
+}
+
+.lk-tool-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 2px;
+  border-bottom: 1px solid var(--zui-border);
+}
+
+.lk-tool-name {
+  color: var(--zui-value);
+}
+
+.lk-tool-note {
+  color: var(--zui-text-muted);
+  font-size: var(--zui-font-size-small);
+}
+
+.lk-wheel-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 0;
+}
+
+.lk-wheel-wrap {
+  display: flex;
+  justify-content: center;
+}
+
+.lk-wheel {
+  cursor: crosshair;
+  touch-action: none;
+  border-radius: 50%;
+  /* Tint-dot colors resolved at draw time (see looks-widgets.js). */
+  --lk-dot-ring: var(--zui-text);
+  --lk-dot-core: var(--zui-border);
+}
+
+.lk-readouts {
+  width: 100%;
+}
+
+.lk-curves-wrap {
+  display: flex;
+  justify-content: center;
+  padding: 4px 0;
+}
+
+.lk-curves {
+  cursor: crosshair;
+  touch-action: none;
+  border: 1px solid var(--zui-border);
+  background: var(--zui-bg-input);
+  /* Canvas guide colors resolved at draw time (see looks-widgets.js), so the
+     curves pad follows the editor theme like the rest of the window. */
+  --lk-pad-bg: var(--zui-bg-input);
+  --lk-pad-grid: var(--zui-hover);
+  --lk-pad-diagonal: color-mix(in srgb, var(--zui-hover) 55%, var(--zui-text-faint));
+  --lk-point-fill: var(--zui-bg-input);
+}
+
+.lk-fourway {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.lk-four-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: var(--zui-bg-input);
+  border: 1px solid var(--zui-border);
+  padding: 4px;
+}
+
+.lk-four-name {
+  color: var(--zui-value);
+  font-size: var(--zui-font-size-small);
+}

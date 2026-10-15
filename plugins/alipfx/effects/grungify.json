@@ -1,0 +1,197 @@
+{
+  "type": 1,
+  "properties": {
+    "name": "Grungify",
+    "enabled": {
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 1,
+          "frame": 0,
+          "tween": 0,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    }
+  },
+  "customProperties": [
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "time"
+      },
+      "expression": "time",
+      "animated": "time",
+      "keyframes": [
+        {
+          "value": 0,
+          "frame": 0,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Threshold"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 55,
+          "frame": 0,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Interval"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 4,
+          "frame": 0,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Overlap"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 3,
+          "frame": 0,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Invert"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 1,
+          "frame": 0,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Seed"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 0,
+          "frame": 0,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    }
+  ]
+}

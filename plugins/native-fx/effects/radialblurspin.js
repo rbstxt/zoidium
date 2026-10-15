@@ -96,9 +96,12 @@ ZoidiumPluginApis.defineFilter.call(this, {
       },
       items: "off;on",
     },
+    // Weight only scales the blur sum while Overbright is on. With Overbright
+    // off the shader divides by the summed weights, so the value cancels out.
+    // The label says so; the property id stays "weight" for saved projects.
     weight: {
       dynamic: true,
-      name: "Weight",
+      name: "Overbright Weight",
       type: PZ.property.type.NUMBER,
       value: 0.2,
       max: 1,

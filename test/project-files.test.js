@@ -70,9 +70,20 @@ function fileBackedExport(bytes) {
   };
 }
 
-function createHarness() {
+// Writes the "meta" and "project" entries that CM3 writes for a project, so
+// tests that replace PZ.project.save still produce a valid archive.
+function addProjectEntries(archive, project) {
+  archive.addFile("meta", new TextEncoder().encode(JSON.stringify({ version: "1.0.102" })));
+  archive.addFile(
+    "project",
+    new TextEncoder().encode(JSON.stringify(project || { assets: {}, media: [], sequence: {} })),
+  );
+}
+
+function createHarness(options = {}) {
   const events = [];
   let tarCalls = 0;
+  let downloads = 0;
 
   class Archive {
     constructor() {
@@ -91,6 +102,10 @@ function createHarness() {
       return this.files.some((entry) => entry.name === name);
     }
 
+    peekFile(name) {
+      return this.files.find((entry) => entry.name === name);
+    }
+
     tar() {
       tarCalls += 1;
       return Promise.resolve(
@@ -102,6 +117,7 @@ function createHarness() {
   function Editor() {}
   Editor.prototype.save = function () {};
   Editor.prototype.new = function () {};
+  Editor.prototype.loadProject = async function () { return this.loadedProject; };
   Editor.prototype.confirmIfDirty = function () {
     return true;
   };
@@ -110,10 +126,18 @@ function createHarness() {
   const PZ = {
     archive: Archive,
     project: {
+      // Mirrors CM3: a "meta" entry plus a "project" entry shaped like
+      // PZ.project.prototype.toJSON ({ assets, media, sequence }).
       save(archive, project) {
         archive.addFile(
+          "meta",
+          new TextEncoder().encode(JSON.stringify({ version: "1.0.102" })),
+        );
+        archive.addFile(
           "project",
-          new TextEncoder().encode(JSON.stringify(project.data)),
+          new TextEncoder().encode(
+            JSON.stringify({ assets: {}, media: [], sequence: {}, data: project.data }),
+          ),
         );
       },
     },
@@ -130,7 +154,26 @@ function createHarness() {
     dispatchEvent(event) {
       events.push(event);
     },
-    document: {},
+    document: {
+      body: {
+        appendChild() {},
+      },
+      createElement() {
+        return {
+          style: {},
+          click() {
+            downloads += 1;
+          },
+          remove() {},
+        };
+      },
+    },
+    URL: {
+      createObjectURL() {
+        return "blob:test";
+      },
+      revokeObjectURL() {},
+    },
     setTimeout,
   };
   windowObject.window = windowObject;
@@ -159,6 +202,9 @@ function createHarness() {
     path.join(__dirname, "../plugins/core/project-files.js"),
     "utf8",
   );
+  const archiveIO = require("./project-archive-harness.cjs").installArchive(windowObject, options);
+  const encode = archiveIO.encode;
+  archiveIO.encode = function (archive) { tarCalls += 1; return encode(archive); };
   vm.runInContext(source, context);
 
   function makeEditor() {
@@ -177,6 +223,7 @@ function createHarness() {
     makeEditor,
     projectFiles: PZ.zoidium.projectFiles,
     tarCalls: () => tarCalls,
+    downloads: () => downloads,
     windowObject,
   };
 }
@@ -219,6 +266,49 @@ test("rapid saves join one picker, archive, and write operation", async () => {
   assert.equal(await harness.PZ.downloadBlob.text(), "finished video");
 });
 
+test("a user-gesture picker failure falls back to downloading the project", async () => {
+  const harness = createHarness();
+  harness.windowObject.showSaveFilePicker = function () {
+    const error = new Error(
+      "Failed to execute 'showSaveFilePicker' on 'Window': Must be handling a user gesture to show a file picker.",
+    );
+    error.name = "SecurityError";
+    return Promise.reject(error);
+  };
+  const editor = harness.makeEditor();
+
+  const result = await editor.save();
+
+  assert.ok(result);
+  assert.equal(harness.downloads(), 1);
+  assert.equal(editor.project.ui.dirty, false);
+  const saved = harness.events.find((event) => event.type === "zoidium:project-saved");
+  assert.equal(saved.detail.delivery, "download");
+  assert.equal(
+    harness.events.some((event) => event.type === "zoidium:project-error"),
+    false,
+  );
+});
+
+test("project names keep their real value in UI labels", () => {
+  const harness = createHarness();
+
+  assert.equal(harness.projectFiles.displayNameForUi("project"), "project");
+  assert.equal(harness.projectFiles.displayNameForUi("うお"), "うお");
+  assert.equal(
+    harness.projectFiles.displayNameForUi("Project [U+3046 U+304A]"),
+    "うお",
+  );
+  assert.equal(
+    harness.projectFiles.displayNameForUi("Project [U+3046] custom"),
+    "Project [U+3046] custom",
+  );
+  assert.equal(
+    harness.projectFiles.fileNameForProject("うお"),
+    "うお.pz",
+  );
+});
+
 test("an edit made while a save is writing stays dirty", async () => {
   const harness = createHarness();
   const writeGate = deferred();
@@ -248,111 +338,23 @@ test("an edit made while a save is writing stays dirty", async () => {
   assert.equal(editor.project.ui.dirty, true);
 });
 
-test("project construction and tar run inside one coordinated operation", async () => {
-  const harness = createHarness();
-  const calls = [];
-  harness.PZ.zoidiumIoSerialization = {
-    run(kind, task) {
-      calls.push(kind + "-start");
-      return Promise.resolve(task()).then((value) => {
-        calls.push(kind + "-end");
-        return value;
-      });
-    },
-    tarWithoutLock() {
-      calls.push("tar-with-permit");
-      return Promise.resolve(
-        new Blob([new Uint8Array([0x1f, 0x8b, 8, 0, 1])]),
-      );
-    },
-  };
-  const editor = harness.makeEditor();
-
-  await harness.projectFiles.createArchive(editor);
-  assert.deepEqual(calls, [
-    "project-save-start",
-    "tar-with-permit",
-    "project-save-end",
-  ]);
-  assert.equal(harness.tarCalls(), 0);
-});
-
-test("restore points keep project data separate from deduplicated asset references", async () => {
+test("project saves use memory independently of the shared export workspace", async () => {
   const harness = createHarness();
   harness.PZ.zoidiumIoSerialization = {
-    run(_kind, task) {
-      return Promise.resolve(task());
-    },
-    tarWithoutLock(archive) {
-      assert.ok(archive.files.every((entry) => entry.data instanceof Blob));
-      return Promise.resolve(new Blob([new Uint8Array([0x1f, 0x8b, 8, 0, 1])]));
-    },
+    run() { throw new Error("The video workspace is busy."); },
+    tarWithoutLock() { throw new Error("The video workspace is busy."); },
   };
-  const editor = harness.makeEditor();
-  const sharedBytes = new Blob(["same asset"]);
-  editor.project.assets.list = {
-    first: { key: "asset-one", file: sharedBytes },
-    second: { key: "asset-two", file: sharedBytes },
-  };
-
-  const point = await harness.projectFiles.createRestorePoint(editor);
-
-  assert.ok(point.projectBlob instanceof Blob);
-  assert.equal(point.assetRefs.length, 2);
-  assert.equal(point.assets.length, 2);
-  assert.equal(point.assetRefs[0].id, point.assetRefs[1].id);
-  assert.equal("blob" in point, false);
-  assert.equal(point.archiveSize, point.projectBlob.size + sharedBytes.size * 2);
-
-  harness.PZ.archive.prototype.untar = async function () {
-    this.files = [{
-      name: "project",
-      data: new TextEncoder().encode('{"title":"test"}'),
-    }];
-  };
-  const restoredArchive = await harness.projectFiles.restorePointToArchive(
-    point,
-    point.assets.map((entry) => ({ id: entry.id, blob: entry.file })),
-  );
-  assert.equal(restoredArchive.files.length, 3);
-  assert.ok(restoredArchive.files.every((entry) => entry.data));
-});
-
-test("the archive is copied out of the shared workspace file before it is written", async () => {
-  const harness = createHarness();
-  const entry = fileBackedExport([0x1f, 0x8b, 8, 0, 1, 2, 3]);
-  harness.PZ.archive.prototype.tar = () => Promise.resolve(entry.blob);
-  const editor = harness.makeEditor();
-  let written = null;
-  editor._zoidiumSaveFileHandle = {
-    name: "project.pz",
-    async createWritable() {
-      return {
-        async write(blob) {
-          written = blob;
-        },
-        async close() {},
-      };
-    },
-  };
-
-  const result = await editor.save();
-  // A render or cleanup rewrites the shared file after the save captured it.
-  entry.invalidate();
-
-  assert.notEqual(result.blob, entry.blob);
-  assert.notEqual(written, entry.blob);
-  assert.deepEqual(
-    new Uint8Array(await result.blob.arrayBuffer()),
-    new Uint8Array([0x1f, 0x8b, 8, 0, 1, 2, 3]),
-  );
-  assert.equal(written.size, 7);
+  const result = await harness.projectFiles.createArchive(harness.makeEditor());
+  assert.ok(result.blob instanceof Blob);
+  const reopened = await harness.projectFiles.openValidatedArchive(result.blob, "open");
+  assert.ok(reopened.peekFile("project"));
+  assert.ok(reopened.peekFile("zoidium.json"));
 });
 
 test("a project archive that cannot be read back fails the save", async () => {
   const harness = createHarness();
   const entry = fileBackedExport([0x1f, 0x8b, 8, 0, 1, 2, 3]);
-  harness.PZ.archive.prototype.tar = () => {
+  harness.PZ.zoidiumProjectArchive.encode = () => {
     entry.invalidate();
     return Promise.resolve(entry.blob);
   };
@@ -370,5 +372,72 @@ test("a project archive that cannot be read back fails the save", async () => {
   assert.equal(await editor.save(), null);
   const error = harness.events.find((event) => event.type === "zoidium:project-error");
   assert.ok(error, "the save reports a project error");
-  assert.match(error.detail.message, /temporary file/);
+  assert.match(error.detail.message, /not readable|NotReadable|cannot be read|decompression|empty|header|stream/);
 });
+
+
+test("project TAR entries copy attached media once before compression", async () => {
+  const harness = createHarness();
+  const media = new Blob(["media bytes"]);
+  let reads = 0;
+  const original = media.arrayBuffer.bind(media);
+  media.arrayBuffer = function () { reads += 1; return original(); };
+  harness.PZ.project.save = function (archive) { addProjectEntries(archive); archive.addFile("media", media); };
+  let captured;
+  const encode = harness.PZ.zoidiumProjectArchive.encode;
+  harness.PZ.zoidiumProjectArchive.encode = function (archive) { captured = archive; return encode(archive); };
+  const result = await harness.projectFiles.createArchive(harness.makeEditor());
+  assert.notEqual(captured.files.find((entry) => entry.name === "media").data, media);
+  assert.equal(reads, 1, "attached bytes are copied once before compression");
+  assert.match(result.fingerprint, /^entries-v4:/);
+});
+
+test("archive fingerprints are independent of entry insertion order", async () => {
+  const harness = createHarness();
+  const files = [["b", "second"], ["a", "first"]];
+  const editor = harness.makeEditor();
+  harness.PZ.project.save = (archive) => { addProjectEntries(archive); for (const [name, text] of files) archive.addFile(name, new Blob([text])); };
+  const first = await harness.projectFiles.createArchive(editor);
+  files.reverse();
+  const second = await harness.projectFiles.createArchive(editor);
+  assert.equal(first.fingerprint, second.fingerprint);
+  files[0][1] = "changed";
+  const third = await harness.projectFiles.createArchive(editor);
+  assert.notEqual(first.fingerprint, third.fingerprint);
+});
+
+
+test("project loading awaits plugin activation and lazily created nested effects", async () => {
+  const harness = createHarness();
+  const activation = deferred();
+  const layerLoad = deferred();
+  const effectLoad = deferred();
+  const effect = { loading: effectLoad.promise, children: [] };
+  const layer = { loading: layerLoad.promise, children: [] };
+  const project = { _zoidiumPluginActivationPending: activation.promise, children: [layer] };
+  const editor = harness.makeEditor();
+  editor.loadedProject = project;
+  let finished = false;
+  const loaded = editor.loadProject({}).then((value) => { finished = true; return value; });
+  await flush();
+  assert.equal(finished, false, "plugin activation finishes first");
+  activation.resolve();
+  await flush();
+  assert.equal(finished, false, "the layer load is awaited");
+  layer.children = [[effect, layer]];
+  layerLoad.resolve();
+  await flush();
+  assert.equal(finished, false, "nested effects created by the layer are awaited");
+  effectLoad.resolve();
+  assert.equal(await loaded, project);
+  assert.equal(finished, true);
+});
+
+test("failed nested effect loads reject the project handoff", async () => {
+  const harness = createHarness();
+  const editor = harness.makeEditor();
+  editor.loadedProject = { children: [{ loading: Promise.reject(new Error("Effect load failed.")) }] };
+  await assert.rejects(editor.loadProject({}), /Effect load failed/);
+});
+
+module.exports = { createHarness, addProjectEntries, flush };

@@ -18,12 +18,7 @@ const MaterialPlus = (() => {
   };
 
   function readNumber(property, frame, fallback) {
-    try {
-      const value = property?.get?.(frame);
-      return Number.isFinite(Number(value)) ? Number(value) : fallback;
-    } catch (_error) {
-      return fallback;
-    }
+    return ZoidiumPluginApis.props.readNumberCoerced(property, frame, fallback);
   }
 
   function readColor(property, frame) {
@@ -54,7 +49,7 @@ const MaterialPlus = (() => {
       try {
         material.parentProject?.assets?.unload(asset);
       } catch (error) {
-        console.error("Material+ could not unload a Matcap asset", error);
+        console.warn("[Zoidium] Material+: could not unload a Matcap asset", error);
       }
     }
     texture?.dispose?.();
@@ -76,7 +71,7 @@ const MaterialPlus = (() => {
       material.threeObj.uniforms.hasMatcap.value = 1;
       material.threeObj.needsUpdate = true;
     } catch (error) {
-      console.error("Material+ could not load the Matcap texture", error);
+      console.warn("[Zoidium] Material+: could not load the Matcap texture", error);
       material.matcapAsset = null;
       material.threeObj.uniforms.matcapTexture.value = null;
       material.threeObj.uniforms.hasMatcap.value = 0;
@@ -311,6 +306,9 @@ const MaterialPlus = (() => {
     state.PZ = PZ;
     state.THREE = THREE_API;
     state.plugin = context.plugin || {};
+    // Register cleanup before mutating the host so a failed or disabled
+    // plugin always restores the previous material factory.
+    context.lifecycle?.onDispose?.(deactivate);
     state.hadPreviousFactory = Object.prototype.hasOwnProperty.call(
       PZ.material.fnList,
       MATERIAL_ID

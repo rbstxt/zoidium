@@ -192,13 +192,18 @@ Project-provided paths are never loaded.
 Point, Directional, and Hemisphere lights. Objects added through that chooser are
 saved as ordinary CM3 light data and do not create a plugin dependency.
 
-`Repeater` adds Repeater objects to 3D Scene. Repeater copies its source objects by
-a fixed transform step, Linear Repeater interpolates between the first and last
-copy, Random Repeater uses deterministic seeded ranges so the layout does
-not flicker while the timeline plays, and Echo Repeater evaluates each copy from
-an explicit earlier frame using its time offset. Echo never depends on the
-previous playback tick's rendered result. Generated copies are runtime-only;
-project JSON stores the repeater controls and source objects once.
+`Effector` adds procedural repeaters and mesh deformers to 3D Scene. Repeater
+copies its source objects by a fixed transform step, Linear Repeater
+interpolates between the first and last copy, Random Repeater uses deterministic
+seeded ranges so the layout does not flicker while the timeline plays, and Echo
+Repeater evaluates each copy from an explicit earlier frame using its time
+offset. Twist rotates descendant mesh positions around an axis, while Warp
+bends them with optional linear, box, or spherical falloff. Both effectors
+offer `Low polygon` and `Smooth` curve quality choices with a
+`Polygons per triangle` count from 1 to 256. Echo never depends on the previous playback tick's
+rendered result. Generated copies are
+runtime-only; project JSON stores the repeater or effector controls and source
+objects once.
 All Repeater scale controls link X, Y, and Z, so editing one value updates the
 other two. Parent transforms stay under `Properties`. Copy controls live in a
 separate `Repeater` category and use short names such as `Position`, `Rotation`,

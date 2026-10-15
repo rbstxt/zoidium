@@ -148,6 +148,7 @@ test("each finished page downloads the Blob captured when it was created", async
   // Saving a project after both renders must not affect either page.
   globalObject.PZ.downloadBlob = new Blob(["project"]);
   globalObject.PZ.downloadFilename = "project.pz";
+  globalObject.PZ.zoidium = { projectFiles: { async openValidatedArchive() {} } };
   videoPage.button.click();
   imagePage.button.click();
   await flush();
@@ -253,4 +254,83 @@ test("non-download windows still use the original open implementation", () => {
 
   assert.equal(globalObject.open("https://example.test/about"), "opened");
   assert.deepEqual(forwarded, [["https://example.test/about"]]);
+});
+
+test("download buttons suppress overlapping clicks and restore disabled state", async () => {
+  const { createDownloadManager } = require("../zoidium/direct-download");
+  let finish;
+  let calls = 0;
+  const manager = createDownloadManager({ downloadArtifact() { calls += 1; return new Promise((resolve) => { finish = resolve; }); } });
+  const button = new FakeButton();
+  button.disabled = false;
+  manager.bind(button, manager.capture(new Blob(["video"]), "video.webm"));
+  button.click(); button.click();
+  await flush();
+  assert.equal(calls, 1);
+  assert.equal(button.disabled, true);
+  finish(); await flush();
+  assert.equal(button.disabled, false);
+  button.disabled = true;
+  button.click(); await flush();
+  assert.equal(calls, 1);
+  assert.equal(button.disabled, true);
+});
+
+test("a rejected download reenables the button and permits retry", async () => {
+  const { globalObject, DeviceExport, errors } = createWindow();
+  let calls = 0;
+  install(globalObject, { downloadArtifact() { calls += 1; return Promise.reject(new Error("download failed")); } });
+  globalObject.PZ.downloadBlob = new Blob(["video"]);
+  const page = new DeviceExport().createFinishedPage();
+  page.button.disabled = false;
+  page.button.click(); await flush();
+  assert.equal(page.button.disabled, false);
+  page.button.click(); await flush();
+  assert.equal(calls, 2);
+  assert.ok(errors.some((message) => /download failed/.test(message)));
+});
+
+test("download object URLs remain available for sixty seconds", async () => {
+  const { createDownloadManager } = require("../zoidium/direct-download");
+  let delay;
+  let revoke;
+  let revoked = false;
+  const manager = createDownloadManager({
+    globalObject: { setTimeout(fn, ms) { revoke = fn; delay = ms; } },
+    document: { body: { appendChild() {} }, createElement() { return { style: {}, click() {}, remove() {} }; } },
+    URL: { createObjectURL() { return "blob:video"; }, revokeObjectURL() { revoked = true; } },
+  });
+  await manager.trigger(manager.capture(new Blob(["video"]), "video.webm"));
+  assert.equal(delay, 60000);
+  assert.equal(revoked, false);
+  revoke(); assert.equal(revoked, true);
+});
+
+test("an empty export is refused with an English error instead of a zero-byte download", async () => {
+  const { createDownloadManager } = require("../zoidium/direct-download");
+  const downloads = [];
+  const manager = createDownloadManager({
+    globalObject: { setTimeout() {} },
+    document: { body: { appendChild() {} }, createElement() { return { style: {}, click() {}, remove() {} }; } },
+    URL: { createObjectURL() { return "blob:empty"; }, revokeObjectURL() {} },
+    downloadArtifact(blob, filename) { downloads.push(filename); },
+  });
+  await assert.rejects(
+    () => manager.trigger(manager.capture(new Blob([]), "empty.webm")),
+    /The export is empty, so nothing was downloaded/,
+  );
+  assert.deepEqual(downloads, []);
+});
+
+test("legacy project downloads validate their Blob before delivery", async () => {
+  const { createDownloadManager } = require("../zoidium/direct-download");
+  let delivered = 0;
+  const manager = createDownloadManager({
+    globalObject: { PZ: { zoidium: { projectFiles: {
+      async openValidatedArchive() { throw new Error("Bad project entry hash"); },
+    } } } },
+    downloadArtifact() { delivered += 1; },
+  });
+  await assert.rejects(manager.trigger(manager.capture(new Blob(["invalid"]), "broken.pz")), /Bad project entry hash/);
+  assert.equal(delivered, 0);
 });

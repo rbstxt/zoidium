@@ -1,133 +1,26 @@
 (function (global) {
   "use strict";
 
-  // Shared helpers for extending the CM3 editor chrome. New panels, tabs,
-  // headers, and notifications should go through this module instead of
-  // copying the elevator/legacy boilerplate into each feature file.
-  //
-  // This module is a required dependency: zoidium/runtime-config.js loads it
-  // before every consumer (project-restore, settings, plugin-manager), so
-  // callers use ZoidiumUI directly and must not reimplement its builders as
-  // a fallback. A missing UI kit is a fatal startup error, not a silent skip.
+  // Assembler for the Zoidium UI kit: toast notifications, the shared confirm
+  // dialog, and the frozen ZoidiumUI surface built from the split part files
+  // (ui-kit-panels.js, ui-kit-skins.js, ui-kit-windows.js and
+  // ui-kit-controls.js, loaded before this file; see postInitScripts in
+  // zoidium/runtime-config.js). Larger UI components (embedded property
+  // editors, editor launchers, the node editor) live in their own files,
+  // loaded before the kit parts. Each queues { name, install(api) } on
+  // ZoidiumUIModules; install receives the surface built so far and returns
+  // the members it adds. ZoidiumUI is then frozen, so the public surface is
+  // fixed once startup finishes.
   //
   // Usage:
-  //   var header = global.ZoidiumUI.createPageHeader("My Panel");
-  //   panel.appendChild(header);
-  //
-  //   global.ZoidiumUI.createMenubarTab({
-  //     title: "My Panel",
-  //     icon: "settings",
-  //     panel: panel,
-  //     tabClass: "zoidium-my-panel-tab",
-  //   });
-  //
   //   global.ZoidiumUI.notify({ title: "Saved.", message: "Done." });
   //
-  //   var search = global.ZoidiumUI.createSearchBox({ placeholder: "type to filter" });
-  //   panel.appendChild(search.wrap);
-  //   global.ZoidiumUI.attachSearchFilter(search.input, list);
-  //
-  //   var button = global.ZoidiumUI.createButton({ title: "Download", onClick: onDownload });
-
-  function getElevator() {
-    if (!global.document) return null;
-    var tabs = global.document.querySelector(".elevatortabs");
-    var controls = global.document.querySelector(".elevatorcontrols");
-    if (!tabs || !controls) return null;
-    var elevator = tabs.parentElement && tabs.parentElement.parentElement
-      ? tabs.parentElement.parentElement.pz_panel
-      : null;
-    if (!elevator || typeof elevator.changeTab !== "function") return null;
-    return { tabs: tabs, controls: controls, elevator: elevator };
-  }
-
-  function legacyControls() {
-    var PZ = global.PZ;
-    return (PZ && PZ.ui && PZ.ui.controls && PZ.ui.controls.legacy) || null;
-  }
-
-  function findAboutTab(tabs) {
-    return Array.from(tabs.children).find(function (item) {
-      return item.title === "About";
-    }) || null;
-  }
-
-  // Creates an elevator menubar tab for a full-area panel. Returns the tab
-  // element, or null when the sidebar is unavailable. When a tab with the
-  // same tabClass already exists, the existing tab is returned so repeated
-  // installs stay idempotent.
-  function createMenubarTab(options) {
-    var config = options || {};
-    if (!config.title || !config.panel) return null;
-    if (!global.document) return null;
-    if (config.tabClass && global.document.querySelector("." + config.tabClass)) {
-      return global.document.querySelector("." + config.tabClass);
-    }
-    var PZ = global.PZ;
-    if (!PZ || !PZ.ui || typeof PZ.ui.generateIcon !== "function") return null;
-    var hosts = getElevator();
-    if (!hosts) return null;
-
-    var panel = config.panel;
-    panel.style.top = "0";
-    panel.style.left = "0";
-    panel.style.width = "100%";
-    panel.style.height = "100%";
-
-    var descriptor = {
-      title: config.title,
-      icon: config.icon || "settings",
-      el: panel,
-      editor: config.editor || hosts.elevator.editor,
-      enabled: false,
-      needsResize: false,
-      resize: function () {},
-    };
-    var tab = global.document.createElement("a");
-    if (config.tabClass) tab.className = config.tabClass;
-    tab.title = config.title;
-    tab.pz_tab = descriptor;
-    tab.pz_container = panel;
-    tab.appendChild(PZ.ui.generateIcon(descriptor.icon));
-    var label = global.document.createElement("span");
-    label.textContent = config.title;
-    tab.appendChild(label);
-
-    var aboutTab = findAboutTab(hosts.tabs);
-    if (config.position === "afterAbout") {
-      if (aboutTab && aboutTab.nextElementSibling) hosts.tabs.insertBefore(tab, aboutTab.nextElementSibling);
-      else hosts.tabs.appendChild(tab);
-    } else if (aboutTab) {
-      hosts.tabs.insertBefore(tab, aboutTab);
-    } else {
-      hosts.tabs.appendChild(tab);
-    }
-    hosts.controls.appendChild(panel);
-    hosts.elevator.panels.push(descriptor);
-    tab.onclick = hosts.elevator.buttonClick.bind(hosts.elevator);
-    tab.onkeydown = hosts.elevator.buttonKeyDown;
-    return tab;
-  }
-
-  // Builds the standard page header used at the top of sidebar panels such
-  // as Plugins and Restore. The returned element carries the CM3
-  // proprow/proptitle chrome; callers may add their own layout class.
-  function createPageHeader(title) {
-    var header = global.document.createElement("div");
-    header.className = "proprow proptitle noselect";
-    header.style.textOverflow = "ellipsis";
-    header.style.overflow = "hidden";
-    header.style.whiteSpace = "nowrap";
-    header.style.paddingRight = "5px";
-    var label = global.document.createElement("span");
-    label.className = "proplabel";
-    label.title = title || "";
-    label.textContent = title || "";
-    label.style.fontSize = "18px";
-    label.style.fontWeight = "bold";
-    header.appendChild(label);
-    return header;
-  }
+  //   var approved = await global.ZoidiumUI.confirm({
+  //     title: "Delete themed windows?",
+  //     message: "Delete them?",
+  //     confirmLabel: "Delete",
+  //     danger: true,
+  //   });
 
   // Sends a toast notification through the shared renderer in
   // project-restore.js. Keeps feature files free of direct CustomEvent
@@ -138,81 +31,184 @@
     }));
   }
 
-  // Builds the filter search row used above panel lists (Plugins panel,
-  // CM3 pickers). Returns { wrap, input }; wire it with
-  // attachSearchFilter. Falls back to plain CM3 classes when document
-  // is unavailable is not a case callers need to handle.
-  function createSearchBox(options) {
-    var config = options || {};
-    var placeholder = config.placeholder || "type to filter";
-    var wrap = global.document.createElement("div");
-    wrap.className = "zoidium-plugin-search";
-    var input = global.document.createElement("input");
-    input.className = "pz-filterbox";
-    input.type = "text";
-    input.placeholder = placeholder;
-    input.setAttribute("aria-label", config.ariaLabel || placeholder);
-    wrap.appendChild(input);
-    return { wrap: wrap, input: input };
+  function call(fn, value) {
+    if (typeof fn === "function") fn(value);
   }
 
-  // Filters list children as the user types. Entries match against
-  // dataset.searchText when present, otherwise their text content.
-  // Escape clears the query. onUpdate runs after every pass so callers can
-  // react to the visible set (for example hiding empty group headers).
-  // Returns the update function so callers can re-run it after the list
-  // changes.
-  function attachSearchFilter(input, list, options) {
+  var confirmCounter = 0;
+  // Small centered modal-like question dialog built on openWindow and the
+  // shared footer buttons. options: { title, message, confirmLabel ("Delete"
+  // at destructive call sites), cancelLabel, danger, onConfirm, onCancel,
+  // signal }. Aborting the optional AbortSignal closes the dialog as a cancel
+  // (the question no longer applies).
+  // Enter confirms, Escape and the close button cancel, and a danger dialog
+  // focuses the safe (cancel) button. Returns a Promise<boolean> and also
+  // calls onConfirm/onCancel. Theme tokens only (see ui-window.css).
+  function confirm(options) {
     var config = options || {};
-    var entrySelector = config.entrySelector || ".zoidium-plugin-entry";
-    function entryText(entry) {
-      if (typeof config.getText === "function") return config.getText(entry);
-      if (entry.dataset && entry.dataset.searchText) return entry.dataset.searchText;
-      return String(entry.textContent || "").toLowerCase();
+    var title = config.title || "Confirm";
+    var message = config.message || "";
+    var confirmLabel = config.confirmLabel || "Confirm";
+    var cancelLabel = config.cancelLabel || "Cancel";
+    var danger = Boolean(config.danger);
+    var settled = false;
+    var win = null;
+    var resolvePromise = function () {};
+    var promise = new Promise(function (resolve) { resolvePromise = resolve; });
+    function done(value) {
+      if (settled) return;
+      settled = true;
+      call(value ? config.onConfirm : config.onCancel, value);
+      resolvePromise(value);
+      if (win) win.close();
     }
-    function update() {
-      var query = String(input.value || "").replace(/\s+/g, " ").trim().toLowerCase();
-      Array.from(list.querySelectorAll(entrySelector)).forEach(function (entry) {
-        entry.hidden = Boolean(query) && entryText(entry).indexOf(query) === -1;
-      });
-      if (typeof config.onUpdate === "function") config.onUpdate();
+    confirmCounter += 1;
+    var signal = config.signal;
+    if (signal && signal.aborted) {
+      done(false);
+      return promise;
     }
-    input.addEventListener("input", update);
-    input.addEventListener("keydown", function (event) {
-      if (event.key !== "Escape") return;
-      input.value = "";
-      update();
+    if (signal && typeof signal.addEventListener === "function") {
+      signal.addEventListener("abort", function () { done(false); }, { once: true });
+    }
+    win = openWindow({
+      id: "confirm-" + confirmCounter + "-" + Date.now().toString(36),
+      title: title,
+      placement: "center",
+      width: 380,
+      height: 180,
+      minWidth: 320,
+      minHeight: 100,
+      resizable: false,
+      maximizable: false,
+      collapsible: false,
+      className: "zoidium-confirm",
+      mount: function (body, mounted) {
+        var text = note(message).element;
+        text.classList.add("zoidium-confirm-message");
+        body.appendChild(text);
+        mounted.setFooter([
+          { title: cancelLabel, onClick: function () { done(false); } },
+          { title: confirmLabel, variant: danger ? "danger" : "primary", onClick: function () { done(true); } },
+        ]);
+        var buttons = mounted.footer.querySelectorAll("button");
+        var cancelButton = buttons[0];
+        var confirmButton = buttons[1];
+        function onKey(event) {
+          if (!event || event.key !== "Enter" || event.defaultPrevented) return;
+          // A focused button activates itself; anything else confirms.
+          if (event.target && event.target !== confirmButton
+            && event.target.tagName === "BUTTON") {
+            return;
+          }
+          event.preventDefault();
+          done(true);
+        }
+        mounted.element.addEventListener("keydown", onKey);
+        var safe = danger ? cancelButton : confirmButton;
+        if (safe && typeof safe.focus === "function") {
+          if (global.requestAnimationFrame) {
+            global.requestAnimationFrame(function () {
+              // preventScroll is not supported everywhere; focus still moves.
+              try { safe.focus({ preventScroll: true }); } catch (_error) { safe.focus(); }
+            });
+          } else {
+            safe.focus();
+          }
+        }
+        return function () { mounted.element.removeEventListener("keydown", onKey); };
+      },
+      onClose: function () { done(false); },
     });
-    return update;
-  }
-
-  // Creates a CM3 chrome button (same builder behind Settings rows and
-  // the debug-log download button). Falls back to a plain proprow
-  // button when the legacy controls are unavailable.
-  function createButton(options) {
-    var config = options || {};
-    var legacy = legacyControls();
-    if (legacy && typeof legacy.generateButton === "function") {
-      return legacy.generateButton({
-        title: config.title || "",
-        clickfn: typeof config.onClick === "function" ? config.onClick : function () {},
-      });
+    if (!win) {
+      done(false);
+      return promise;
     }
-    var button = global.document.createElement("button");
-    button.type = "button";
-    button.className = "proprow propbutton";
-    button.textContent = config.title || "";
-    if (typeof config.onClick === "function") button.addEventListener("click", config.onClick);
-    return button;
+    // Size the window to its content: a one-line question stays a compact
+    // title + message + footer instead of leaving a tall empty body. The
+    // height is re-fitted after every clamp (e.g. browser resize) so the
+    // dialog never drifts back to its initial height. The body itself is
+    // measured through its children: once the window has a fixed height the
+    // flex-filled body reports that height as its scroll height, which would
+    // make the fit a no-op.
+    function fitConfirm() {
+      if (!win.isOpen()) return;
+      var content = 0;
+      var kids = win.body.children || [];
+      for (var index = 0; index < kids.length; index += 1) {
+        var childHeight = kids[index].offsetHeight;
+        if (!Number.isFinite(childHeight)) return;
+        content += childHeight;
+      }
+      if (typeof global.getComputedStyle === "function") {
+        try {
+          var bodyStyle = global.getComputedStyle(win.body);
+          content += parseFloat(bodyStyle.paddingTop) || 0;
+          content += parseFloat(bodyStyle.paddingBottom) || 0;
+        } catch (_styleError) { /* keep the unpadded sum */ }
+      }
+      var height = win.titlebar.offsetHeight + content
+        + (win.footer.hidden ? 0 : win.footer.offsetHeight) + 2;
+      if (!Number.isFinite(height)) return;
+      var viewport = global.innerHeight || 720;
+      height = Math.max(96, Math.min(height, Math.max(96, viewport - 16)));
+      win.element.style.height = Math.round(height) + "px";
+    }
+    var baseClamp = win._clamp.bind(win);
+    win._clamp = function () { baseClamp(); fitConfirm(); };
+    if (global.requestAnimationFrame) global.requestAnimationFrame(fitConfirm);
+    else fitConfirm();
+    return promise;
   }
 
-  global.ZoidiumUI = Object.freeze({
-    getElevator: getElevator,
-    createMenubarTab: createMenubarTab,
-    createPageHeader: createPageHeader,
-    notify: notify,
-    createSearchBox: createSearchBox,
-    attachSearchFilter: attachSearchFilter,
-    createButton: createButton,
+  // Every part is required: a missing part is a fatal startup error, just
+  // like a missing UI kit was before the split.
+  var builder = global.ZoidiumUIBuilder || {};
+  ["panels", "skins", "windows", "controls"].forEach(function (name) {
+    if (!builder[name]) {
+      throw new Error("ZoidiumUI is missing its " + name + " part; refusing to start with a partial UI kit");
+    }
   });
+  // The window manager reports open failures through notify(), which lives
+  // in this file.
+  builder.notify = notify;
+  var openWindow = builder.windows.openWindow;
+  var note = builder.controls.note;
+
+  var api = {
+    getElevator: builder.panels.getElevator,
+    createMenubarTab: builder.panels.createMenubarTab,
+    removeMenubarTab: builder.panels.removeMenubarTab,
+    createSidePanel: builder.panels.createSidePanel,
+    acquirePreview: builder.panels.acquirePreview,
+    createPageHeader: builder.panels.createPageHeader,
+    notify: notify,
+    createSearchBox: builder.panels.createSearchBox,
+    attachSearchFilter: builder.panels.attachSearchFilter,
+    createButton: builder.panels.createButton,
+    confirm: confirm,
+    openWindow: builder.windows.openWindow,
+    getWindow: builder.windows.getWindow,
+    closeWindows: builder.windows.closeWindows,
+    registerSkin: builder.skins.registerSkin,
+    controls: builder.controls,
+  };
+
+  var modules = Array.isArray(global.ZoidiumUIModules) ? global.ZoidiumUIModules : [];
+  modules.forEach(function (module) {
+    if (!module || typeof module.install !== "function") return;
+    var members = module.install(Object.assign({}, api)) || {};
+    Object.keys(members).forEach(function (key) {
+      if (Object.prototype.hasOwnProperty.call(api, key)) {
+        throw new Error("ZoidiumUI module " + module.name + " redefines " + key);
+      }
+      api[key] = members[key];
+    });
+  });
+  try { delete global.ZoidiumUIModules; } catch (_error) {
+    // A non-configurable global keeps the stale registry undefined instead.
+    global.ZoidiumUIModules = undefined;
+  }
+
+  global.ZoidiumUI = Object.freeze(api);
 })(window);

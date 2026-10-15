@@ -26,7 +26,7 @@ their original lighting behavior.
 
 ## PBR+ Material
 
-PBR+ Material uses CM3's Three.js MeshStandardMaterial. It keeps the standard
+PBR+ Material uses CM3's Three.js MeshPhysicalMaterial. It keeps the standard
 scene-lighting path while adding independent texture maps for base color,
 emission, roughness, metalness, normal, and alpha.
 
@@ -46,30 +46,38 @@ when Reflection is enabled.
 PBR+ Material is separate from CM3 Custom Material and Matcap Material. Existing
 material types and their serialized project data remain unchanged.
 
+## Texture layout on text and extruded shapes
+
+CM3 builds 3D Text and extruded shapes from Three.js `TextGeometry` /
+`ExtrudeGeometry`, whose default `WorldUVGenerator` maps UVs in object units:
+caps use raw x/y, side walls use raw x|y and `1 - z`. A texture therefore tiles
+once per object unit, side walls run into negative V, and slanted or curved
+walls shear because the generator projects instead of unwrapping. CM3's native
+Custom Material uses those UVs.
+
+Every Material+ material that reads a texture through the mesh UVs (UV Custom,
+PBR+, Node Material and Image+) uses the shared layout in `uv-layout.js`
+instead. Caps use the text bounds, side walls unwrap along the outline (arc
+length in U, depth in V), and the text height sets the texture unit, so every
+face shares one texel density. The outline is rebuilt from the geometry's own
+side walls, so the layout needs no font or source-shape access and also covers
+Text+ character meshes. Inside an effector the layout is written to the source
+geometry, and the effector rebuilds from it.
+
+The original UVs are stored on the geometry and restored when the object
+switches to a material that does not use the layout, so native CM3 materials
+keep their original look. Other geometry keeps its own UVs. Matcap Material
+does not read UVs. New material types follow the same rule (see
+`docs/plugin-api.md`).
+
 ## UV Custom Material
 
 UV Custom Material mirrors CM3's native Custom Material: Color, Emissive,
 Roughness, Metalness, Texture, Transparency, Opacity, Blending, Render side,
 Normal map, Normal scale, Wrap, Repeat, Offset, Center, Rotation, and
-Reflection behave the same way and keep the same property names.
-
-The difference is the texture UVs on 3D Text and extruded geometry. CM3 builds
-those from Three.js `TextGeometry` / `ExtrudeGeometry`, whose default
-`WorldUVGenerator` maps UVs in object units: caps use raw x/y, side walls use
-raw x|y and `1 - z`. A texture therefore tiles once per object unit, side walls
-run into negative V, and slanted or curved walls shear because the generator
-projects instead of unwrapping.
-
-While UV Custom Material is on an object, it rewrites that geometry's UVs so
-every face shares one texel density: caps use the text bounds, side walls
-unwrap along the outline (arc length in U, depth in V), and the text height sets
-the texture unit. The outline is rebuilt from the geometry's own side walls, so
-the material needs no font or source-shape access and also covers Text+
-character meshes. The original UVs are stored and restored when the material is
-removed, so switching back to the native Custom Material gives the original CM3
-look.
-
-Native Custom Material is not modified in any way.
+Reflection behave the same way and keep the same property names. It differs
+only in using the texture layout above. Native Custom Material is not modified
+in any way.
 
 ## Project compatibility
 
@@ -86,3 +94,90 @@ pnpm run check:plugin-manifests
 pnpm run check:plugin-bundles
 pnpm run verify
 ```
+
+## Node Material and node graphs
+
+Node Material (`nodes`) uses a MeshPhysicalMaterial and bakes a project-owned,
+versioned JSON graph into color, luminance, roughness, metalness, bump and opacity
+maps. A connected Fresnel node controls the view-angle tint. Open Node Editor
+opens the shared Zoidium graph component in a floating window with a color-map
+preview. Each completed graph gesture records one native undo operation.
+Image and Texture nodes use the native Selected node image property,
+which imports images through CM3's project asset picker.
+
+The historical node catalogue is ported from DaviFX's OpenZoid:
+[DaviFX](https://www.youtube.com/@davifxarts). These include noise, ridged
+fractal, turbulence, gradients, checker, image, texture, Fresnel, arithmetic,
+color correction, colorizer, spectra, blackbody, random color, projection and
+UVW transforms. Node IDs and port IDs are validated; graphs accept at most
+200 nodes and 400 links. Invalid JSON falls back to the starter graph. Graphs
+save `schemaVersion: 1` and also accept the original OpenZoid link layout.
+
+Bakes run in a per-material worker loaded from the plugin bundle. Asset decoding
+completes before a bake, and export preparation waits for the requested bake.
+The key includes graph content, resolution, project frame and asset revisions.
+Noise uses fixed seeds; seeking does not retain previous-frame feedback.
+Resolution supports 128, 256, 512, 1024 and 2048. Baked maps use linear
+filtering and mipmaps. Noise lattice dimensions are capped
+at 1024 to keep extreme imported settings within a memory limit.
+
+Numeric and color parameters have input sockets. Connected fields show their
+stored value but stay disabled; disconnecting restores editing. Texture links
+sample local expressions per pixel, using luminance for numbers and RGB for
+colors. Lattice settings, seed, animation speed, whole-image transforms,
+Random Color and Fresnel shader settings use the spatial mean.
+Float values and Math links retain signed values outside 0-1. Math texture
+operands evaluate per pixel. The add menu contains one Math node with Add,
+Subtract, Multiply, Divide, Power, Minimum, Maximum, Modulo, Absolute, Invert,
+Clamp, Compare, Sine and Round. Saved historical arithmetic nodes retain their
+old evaluators; historical Math migrates to a hidden legacy type.
+
+RGB Spectrum Wavelength and Gaussian Spectrum Center shift connected Input
+relative to 550 nm. Blackbody Kelvin shifts it relative to 4000 K. Without
+Input, each field specifies an absolute value. Planar projection also applies
+Rotation. Other controls depend on their operation: Gradient Y transforms
+matter for circular/diamond gradients, and blending requires a Base input.
+
+## Additional PBR+ surface controls
+
+PBR+ keeps its existing type ID and property keys. It shares the Node Material
+shader and graph runtime and adds these optional controls:
+
+- Color ramp, with luminance/U/V source, interpolation and factor.
+- Fixed-seed procedural bump, scale and MIP falloff.
+- Fresnel color, power and mix.
+- Ambient occlusion map, tint, intensity and exponent. This is map-based
+  shading, not geometric scene occlusion.
+- Cel diffuse/specular levels and smoothness.
+- UV, spherical, cylindrical or cubic projection, with projection transforms.
+- Reflection layer strength, opacity and roughness; specular strength/opacity.
+- Use node graph and bake resolution. The Node Editor button appears while
+  Use node graph is on.
+
+Ramp, procedural bump, Fresnel, ambient occlusion, cel, reflection layer and
+graphs default off. The physical material has zero clear coat until the
+reflection layer is enabled. PBR+ and Node Material expose their settings
+in native property rows, with a floating window for graph editing.
+
+## Image+ Material
+
+Image+ (`imageplus`) adds a separate MeshBasicMaterial with a project image,
+Transparency and animated Opacity. It retains Wrap, Repeat, Offset, Center,
+Rotation and Render side. Enable Transparency to fade the image with Opacity.
+The native CM3 Image material is unchanged.
+
+All Material+ types use the plugin manager's normal in-use lock and missing
+material behavior. Disabling an unused plugin removes its factories and
+windows; unloading materials releases their workers, textures and asset
+references.
+
+## Source layout
+
+The Node graph runtime is split into cohesive files, all loaded through the
+shared bundle module loader. `graph-runtime.js` parses and evaluates graphs;
+`graph-buffers.js` holds the pixel buffer math; `graph-images.js` handles
+project images; `graph-types.js` defines the 32 node types; `graph-worker.js`
+builds the off-thread bake worker source. The PBR surface runtime is split
+the same way: `surface-runtime.js` installs the behavior, `surface-shader.js`
+holds the GLSL chunks and gradient painters, `surface-material.js` holds the
+material methods, and `surface-props.js` holds the property table.

@@ -13,7 +13,9 @@
 
 const fs = require("fs");
 const path = require("path");
+const { createHash } = require("node:crypto");
 const { validateManifest } = require("./validate-plugin-manifests");
+const { writeFileAtomic, writeFileIfChangedAtomic } = require("./atomic-write");
 
 const projectRoot = path.resolve(__dirname, "..");
 const registryPath = path.join(projectRoot, "plugins", "registry.json");
@@ -171,10 +173,10 @@ function manifestUrl(manifestPath, version) {
 }
 
 function writeIfChanged(filePath, content) {
-  if (fs.existsSync(filePath) && fs.readFileSync(filePath, "utf8") === content) return false;
-  fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  fs.writeFileSync(filePath, content);
-  return true;
+  // Bundles and the registry are runtime trust inputs: replace them atomically
+  // (temporary sibling plus rename) so an interrupted build never leaves a
+  // truncated file behind.
+  return writeFileIfChangedAtomic(filePath, content);
 }
 
 function versionedSource(value, version) {
@@ -264,9 +266,11 @@ function main() {
       changedBundles += 1;
     }
 
+    const integrity = "sha256-" + createHash("sha256").update(bundleContent, "utf8").digest("base64");
     const nextBundle = bundleUrl(manifestPath, manifest.version);
     const nextManifest = manifestUrl(manifestPath, manifest.version);
     if (
+      plugin.integrity !== integrity ||
       plugin.bundle !== nextBundle ||
       plugin.manifest !== nextManifest ||
       String(plugin.version ?? "") !== String(manifest.version ?? "")
@@ -274,6 +278,7 @@ function main() {
       if (checkOnly) {
         throw new Error(`Registry metadata is stale for plugin: ${plugin.id}`);
       }
+      plugin.integrity = integrity;
       plugin.bundle = nextBundle;
       plugin.manifest = nextManifest;
       delete plugin.locale;
@@ -283,16 +288,21 @@ function main() {
   }
 
   if (!checkOnly && changedRegistry) {
-    fs.writeFileSync(registryPath, `${JSON.stringify(registry, null, 2)}\n`);
+    writeFileAtomic(registryPath, `${JSON.stringify(registry, null, 2)}\n`);
   }
 
   const summary = checkOnly ? "Verified" : "Built " + changedBundles + " changed (" + changedManifests + " manifests normalized)";
   console.log(summary + " " + registry.plugins.length + " plugin bundles.");
 }
 
-try {
-  main();
-} catch (error) {
-  console.error(`[Zoidium] ${error.message}`);
-  process.exit(1);
+if (require.main === module) {
+  try {
+    main();
+  } catch (error) {
+    console.error(`[Zoidium] ${error.message}`);
+    process.exit(1);
+  }
 }
+
+module.exports = { writeIfChanged };
+

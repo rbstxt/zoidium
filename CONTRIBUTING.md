@@ -6,7 +6,7 @@ the ignored `.zoidium-resources/` cache or a temporary stage.
 
 ## Environment
 
-Use Node.js 18 or newer and pnpm 11. The repository records the package
+Use Node.js 22.12 or newer and pnpm 11. The repository records the package
 manager in `package.json`.
 
 ```bash
@@ -23,6 +23,7 @@ dependency versions change.
 pnpm run setup                 # fetch or refresh the CM3 resource cache
 pnpm run dev                   # serve the staged app and open a browser
 pnpm run desktop:start         # stage CM3 and run the Electron app
+pnpm run desktop:dev           # alias for the Electron development app
 pnpm run verify                # run schema, bundle, syntax, and unit checks
 pnpm run build                 # build the ignored dist/web deployment tree
 pnpm run desktop:build         # fetch CM3 and build the desktop installer
@@ -43,6 +44,11 @@ pnpm run verify
 The generated `bundle.json` is the normal runtime package. Keep its contents
 in sync with the source manifest. Keep plugin IDs and serialized object types
 stable after publication.
+New material types belong in Material+ and use its shared UV layout
+(`plugins/material-plus/uv-layout.js`) for every texture read through mesh UVs,
+so text and extruded shapes get evenly spaced UVs instead of CM3's sheared
+native ones. See the material-pack section of `docs/plugin-api.md`.
+
 Bump only the manifest `version` when a plugin asset changes; the bundle builder
 rewrites embedded asset URLs to that version. Never hand-edit per-file cache-busting
 queries.
@@ -61,6 +67,21 @@ pnpm run build:sprites
 `tools/runtime-resources.js` owns the CM3 fetch path. It discovers resources
 from the configured source page, preserves the paths expected by CM3, patches
 the staged HTML, and copies Zoidium-owned files into the stage.
+
+For a pinned build without a valid cache, set `ZOIDIUM_CM3_SNAPSHOT` to a local
+snapshot file, `r2://bucket/key`, or HTTPS URL. Export a valid cache with
+`pnpm run cm3:export --output=<file|r2://bucket/key>` and restore it with
+`pnpm run cm3:restore --from=<source>`, or
+`node tools/runtime-resources.js --setup --from-snapshot=<source>`.
+Snapshots contain only CM3 cache files, never Zoidium project files. Keep them
+in private storage outside the repository and GitHub.
+
+Explicit `pnpm run setup` and `--refresh` still fetch upstream. To import pages
+saved through a browser, run `node tools/runtime-resources.js --setup
+--page-html=<clipmaker-file> --video-editor-html=<videoeditor-file>`. Other
+resources are fetched normally. Challenge pages are rejected; do not bypass
+the browser check. See `docs/cm3-resources.md` for recovery, R2 credentials,
+and optional `ZOIDIUM_CM3_SNAPSHOT_TOKEN` authentication for HTTPS snapshots.
 
 Do not commit CM3 HTML, JavaScript bundles, effects, materials, workers, WASM,
 shaders, textures, icons, favicons, or CM3 fonts. The separately licensed

@@ -31,6 +31,34 @@
         "type": 0
       },
       "properties": {
+        "name": "Radius"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 1000,
+          "frame": 0,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
         "name": "Intensity"
       },
       "animated": false,
@@ -64,7 +92,7 @@
       "animated": false,
       "keyframes": [
         {
-          "value": 0.5,
+          "value": 0,
           "frame": 0,
           "tween": 1,
           "controlPoints": [
@@ -120,7 +148,7 @@
       "animated": false,
       "keyframes": [
         {
-          "value": 0.02,
+          "value": 0,
           "frame": 0,
           "tween": 1,
           "controlPoints": [
@@ -148,7 +176,7 @@
       "animated": false,
       "keyframes": [
         {
-          "value": 0.3,
+          "value": 0,
           "frame": 0,
           "tween": 1,
           "controlPoints": [
@@ -232,7 +260,7 @@
       "animated": false,
       "keyframes": [
         {
-          "value": 100,
+          "value": 0,
           "frame": 0,
           "tween": 1,
           "controlPoints": [
@@ -260,7 +288,7 @@
       "animated": false,
       "keyframes": [
         {
-          "value": 2.39,
+          "value": 1,
           "frame": 0,
           "tween": 1,
           "controlPoints": [
@@ -344,7 +372,7 @@
       "animated": false,
       "keyframes": [
         {
-          "value": 2,
+          "value": 0,
           "frame": 0,
           "tween": 1,
           "controlPoints": [
@@ -372,7 +400,7 @@
       "animated": false,
       "keyframes": [
         {
-          "value": 1,
+          "value": 0,
           "frame": 0,
           "tween": 1,
           "controlPoints": [

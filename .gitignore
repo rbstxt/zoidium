@@ -34,3 +34,6 @@ Thumbs.db
 
 # Raw Panzoid creation downloads (source of group preset conversions)
 /sync.json
+
+# Private CM3 runtime snapshots (see docs/cm3-resources.md)
+*.zcs

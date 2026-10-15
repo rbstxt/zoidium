@@ -1,0 +1,359 @@
+"use strict";
+
+// Scene deformation support: the cached mesh deformer, field guide
+// helpers, deformer subdivision levels, and the CM3 scene update patch that
+// evaluates every deformer chain in its own frame.
+
+const { fieldFromProperties, numberPropertyValue, optionPropertyValue } = require("./scene-fields.js");
+const {
+  findRenderNodePath, getRenderNode, restoreDeformedTree, traverseDeformMeshes,
+} = require("./scene-clone.js");
+const state = require("./scene-state.js");
+const { installFieldEdit } = require("./scene-field-edit.js");
+
+function getMeshDeformer(THREE) {
+  if (!state.meshDeformerCache || state.meshDeformerThree !== THREE) {
+    state.meshDeformerCache = state.library.mesh.createMeshDeformer(THREE, state.meshJobs);
+    state.meshDeformerThree = THREE;
+  }
+  return state.meshDeformerCache;
+}
+
+// Use the highest uniform subdivision level requested by active deformers.
+function curvePolygonCount(effectors, frame) {
+  let polygonCount = 1;
+  for (const effector of effectors) {
+    const p = effector.properties;
+    const intensity = p.angle || p.amount;
+    if (intensity && !numberPropertyValue(intensity, frame, 0)) continue;
+    if (p.subdivision) polygonCount = Math.max(polygonCount, 4 ** state.library.core.clampIndex(optionPropertyValue(p.subdivision, frame, 2), 4));
+    else if (p.curveQuality && optionPropertyValue(p.curveQuality, frame, 1)) polygonCount = Math.max(polygonCount, state.library.core.subdivisionPolygons(numberPropertyValue(p.polygonCount, frame, 16)));
+  }
+  return polygonCount;
+}
+
+// CM3 constructs BoxHelper at selection time. Field guides use that same
+// editor-only layer, never the scene's render/export layer or a separate panel.
+function installFieldHelpers(THREE) {
+  const Original = THREE.BoxHelper, helpers = new Set();
+  if (!Original || !THREE.LineSegments || !THREE.LineBasicMaterial) return () => {};
+  const fieldEdit = installFieldEdit(globalThis.PZ || {}, THREE);
+  function FieldHelper(root, color) {
+    for (const helper of helpers) if (!helper.parent) {
+      helper.geometry.dispose(); helper.material.dispose(); helpers.delete(helper);
+    }
+    const owner = root?.__zoidiumEffectorOwner;
+    if (!owner) return new Original(root, color);
+    const geometry = new THREE.BufferGeometry();
+    geometry.addAttribute("position", new THREE.BufferAttribute(new Float32Array(4096 * 3), 3));
+    geometry.attributes.position.dynamic = true;
+    geometry.setDrawRange(0, 0);
+    const material = new THREE.LineBasicMaterial({ color: 0xffa040, depthTest: false, transparent: true, opacity: 0.8 });
+    const helper = new THREE.LineSegments(geometry, material);
+    helper.frustumCulled = false;
+    helper.layers.set(1);
+    helper.update = () => {
+      const frame = owner._effectorFrame || 0;
+      const field = state.library.core.fieldForBounds(fieldFromProperties(owner.properties, frame, owner._legacyField), owner._fieldBounds);
+      const editing = fieldEdit.isEditing(owner);
+      material.color?.setHex(editing ? 0x50e0d0 : 0xffa040);
+      const key = JSON.stringify([field, editing]);
+      if (helper._fieldKey !== key) {
+        helper._fieldKey = key;
+        const points = fieldGuidePoints(field);
+        if (editing) for (let axis = 0; axis < 3; axis++) {
+          for (const sign of [-1, 1]) points.push(...field.position.map((v, i) => v + (i === axis ? sign * 5 : 0)));
+        }
+        geometry.attributes.position.array.set(points);
+        geometry.attributes.position.needsUpdate = true;
+        geometry.setDrawRange(0, points.length / 3);
+      }
+      helper.matrixAutoUpdate = false;
+      helper.matrix.copy(root.matrixWorld);
+      helper.matrixWorld.copy(root.matrixWorld);
+    };
+    helper.onBeforeRender = helper.update;
+    helper.update();
+    helpers.add(helper);
+    return helper;
+  }
+  FieldHelper.prototype = Original.prototype;
+  THREE.BoxHelper = FieldHelper;
+  return () => {
+    fieldEdit.dispose();
+    if (THREE.BoxHelper === FieldHelper) THREE.BoxHelper = Original;
+    for (const helper of helpers) {
+      helper.parent?.remove(helper); helper.geometry.dispose(); helper.material.dispose();
+    }
+    helpers.clear();
+  };
+}
+
+function fieldGuidePoints(field) {
+  const points = [], type = field?.type;
+  if (!type || type === 5) return points;
+  const legacy = (field.legacy || field.falloff === undefined) &&
+    (field.rotation || [0, 0, 0]).every(v => !v) && (field.sweep ?? 100) === 100 &&
+    (field.falloff ?? 100) === 100 && !field.curve && !field.invert;
+  const scale = legacy ? field.scale : field.worldScale || field.scale;
+  const radii = legacy && type === 3 ? [0, 1, 2].map(() => Math.max(Math.abs(scale[0]), 0.001)) :
+    scale.map(v => Math.max(Math.abs(v), 0.001) / 2);
+  const line = (a, b) => {
+    for (const p of [a, b]) {
+      const q = state.library.core.rotateXYZ(p, field.rotation || [0, 0, 0]);
+      points.push(...q.map((v, i) => v + field.position[i]));
+    }
+  };
+  const falloff = Math.max(0, Math.min(1, (field.falloff ?? 100) / 100));
+  const extents = legacy && type === 2 ? [1, 2] : falloff > 0 && falloff < 1 ? [1, 1 - falloff] : [1];
+  for (const ratio of extents) {
+    const r = radii.map(v => v * ratio);
+    if (type === 1) {
+      const width = legacy ? Math.abs(scale[0]) : Math.max((field.high - field.low) * falloff, 0.001);
+      const plane = legacy ? 0 : field.low - width + (field.high - field.low + width) * field.sweep / 100;
+      for (const x of [plane, plane + width]) {
+        const corners = [[x, -r[1], -r[2]], [x, r[1], -r[2]], [x, r[1], r[2]], [x, -r[1], r[2]]];
+        for (let i = 0; i < 4; i++) line(corners[i], corners[(i + 1) % 4]);
+      }
+      break;
+    }
+    if (type === 2) {
+      const corners = Array.from({ length: 8 }, (_, i) => r.map((v, a) => i & (1 << a) ? v : -v));
+      for (let i = 0; i < 8; i++) for (let a = 0; a < 3; a++) if (!(i & (1 << a))) line(corners[i], corners[i | (1 << a)]);
+    } else {
+      const circle = (a, b, fixedAxis, fixedValue) => {
+        for (let i = 0; i < 48; i++) {
+          const p = [0, 0, 0], q = [0, 0, 0];
+          p[a] = r[a] * Math.cos(i * Math.PI / 24); p[b] = r[b] * Math.sin(i * Math.PI / 24);
+          q[a] = r[a] * Math.cos((i + 1) * Math.PI / 24); q[b] = r[b] * Math.sin((i + 1) * Math.PI / 24);
+          if (fixedAxis !== undefined) p[fixedAxis] = q[fixedAxis] = fixedValue;
+          line(p, q);
+        }
+      };
+      if (type === 3) { circle(0, 1); circle(1, 2); circle(2, 0); }
+      if (type === 4) {
+        circle(0, 2, 1, -r[1]); circle(0, 2, 1, r[1]);
+        for (const a of [0, 2]) for (const sign of [-1, 1]) {
+          const p = [0, -r[1], 0], q = [0, r[1], 0]; p[a] = q[a] = sign * r[a]; line(p, q);
+        }
+      }
+    }
+  }
+  return points;
+}
+
+function createDeformationSupport(PZ, THREE) {
+  const sceneClass = PZ.layer?.scene;
+  const prototype = sceneClass?.prototype;
+  if (!prototype || typeof prototype.update !== "function") {
+    throw new Error("Effector requires the CM3 3D scene update API.");
+  }
+  if (prototype.__zoidiumEffectorDeformPatch) {
+    return {
+      deactivate() {},
+      apply: prototype.__zoidiumEffectorDeformSupport?.apply,
+      prepareObject: prototype.__zoidiumEffectorDeformSupport?.prepareObject,
+    };
+  }
+
+  const layers = new Set();
+  const originalUpdate = prototype.update;
+  const originalPrepare = prototype.prepare;
+  const originalUnload = prototype.unload;
+  const meshDeformer = getMeshDeformer(THREE);
+  const disposeFieldHelpers = installFieldHelpers(THREE);
+
+  let preparingMeshes = null;
+  let tasks = null;
+  function deformMeshesUnder(root, chain, frame) {
+    const polygonCount = curvePolygonCount(chain.map((entry) => entry.effector), frame);
+    traverseDeformMeshes(root, (mesh) => {
+      preparingMeshes?.add(mesh);
+      if (tasks) tasks.push({ mesh, chain, frame, polygonCount });
+      else meshDeformer.deformMesh(mesh, chain, frame, polygonCount);
+    });
+  }
+
+  // The chain lists enabled deformers from outermost to innermost. Each entry
+  // keeps the render node that carries the deformer's transform, so deformers
+  // evaluate in their own frame.
+  function walkRenderedObject(object, chain, frame, renderRoot) {
+    if (!object) return;
+    const liveRoot = renderRoot || object.threeObj;
+    if (liveRoot) liveRoot.__zoidiumEffectorTransformOwner = object;
+    const isDeformer = typeof object.deformPositions === "function";
+    const enabled = !object.properties?.enabled ||
+      optionPropertyValue(object.properties.enabled, frame, 1) === 1;
+    const nextChain = isDeformer && enabled
+      ? chain.concat({ effector: object, node: renderRoot || object.threeObj })
+      : chain;
+
+    if (object.__zoidiumRepeater) {
+      const sources = object.objects && typeof object.objects.length === "number"
+        ? Array.from(object.objects)
+        : [];
+      for (const instance of object._instanceRoots || []) {
+        for (const clone of instance.clones || []) {
+          const sourceObject = sources.find((source) => source?.threeObj === clone.source);
+          if (sourceObject) {
+            walkRenderedObject(sourceObject, nextChain, frame, clone.clone);
+          } else {
+            deformMeshesUnder(clone.clone, nextChain, frame);
+          }
+        }
+      }
+      return;
+    }
+
+    if (object.objects && typeof object.objects.length === "number") {
+      const sourceRoot = object.threeObj;
+      for (const child of object.objects) {
+        const path = findRenderNodePath(sourceRoot, child?.threeObj);
+        const childRoot = path ? getRenderNode(renderRoot || sourceRoot, path) : null;
+        walkRenderedObject(child, nextChain, frame, childRoot);
+      }
+      return;
+    }
+    deformMeshesUnder(renderRoot || object.threeObj, nextChain, frame);
+  }
+
+  function walk(objects, chain, frame) {
+    if (!objects || typeof objects.length !== "number") return;
+    for (const object of objects) {
+      walkRenderedObject(object, chain, frame, object?.threeObj);
+    }
+  }
+
+  function restoreRenderedObject(object, seen) {
+    if (!object || seen.has(object)) return;
+    seen.add(object);
+    if (object.__zoidiumRepeater) {
+      for (const instance of object._instanceRoots || []) restoreDeformedTree(instance.root);
+    }
+    restoreDeformedTree(object.threeObj);
+    if (object.objects && typeof object.objects.length === "number") {
+      for (const child of object.objects) restoreRenderedObject(child, seen);
+    }
+  }
+
+  function evaluateTree(run) {
+    tasks = [];
+    try {
+      run();
+      const bounds = new Map();
+      for (const task of tasks) {
+        // Empty chains only restore previously deformed geometry below. They
+        // contribute no effector bounds and need no source conversion/staging.
+        if (!task.chain.length) continue;
+        const stage = meshDeformer.sourceStage(task.mesh);
+        if (!stage) continue;
+        for (const entry of task.chain) {
+          const relation = state.library.core.relativeTransform(entry.node?.matrixWorld?.elements, task.mesh.matrixWorld?.elements);
+          if (!relation) continue;
+          let b = bounds.get(entry.node);
+          if (!b) { b = { min: [Infinity, Infinity, Infinity], max: [-Infinity, -Infinity, -Infinity] }; bounds.set(entry.node, b); }
+          const m = relation.forward, p = stage.positions;
+          for (let i = 0; i < p.length; i += 3) {
+            const x = p[i], y = p[i + 1], z = p[i + 2];
+            const qx = m ? m[0] * x + m[4] * y + m[8] * z + m[12] : x;
+            const qy = m ? m[1] * x + m[5] * y + m[9] * z + m[13] : y;
+            const qz = m ? m[2] * x + m[6] * y + m[10] * z + m[14] : z;
+            b.min[0] = Math.min(b.min[0], qx); b.max[0] = Math.max(b.max[0], qx);
+            b.min[1] = Math.min(b.min[1], qy); b.max[1] = Math.max(b.max[1], qy);
+            b.min[2] = Math.min(b.min[2], qz); b.max[2] = Math.max(b.max[2], qz);
+          }
+        }
+      }
+      for (const task of tasks) {
+        const chain = task.chain.map(entry => ({ ...entry, bounds: bounds.get(entry.node) }));
+        for (const entry of chain) { entry.effector._fieldBounds = entry.bounds; entry.effector._effectorFrame = task.frame; }
+        meshDeformer.deformMesh(task.mesh, chain, task.frame, task.polygonCount);
+      }
+    } finally { tasks = null; }
+  }
+
+  function apply(layer, frame) {
+    if (!layer?.objects) return;
+    layers.add(layer);
+    layer.threeObj?.updateMatrixWorld?.(true);
+    evaluateTree(() => walk(layer.objects, [], Number.isFinite(frame) ? frame : 0));
+  }
+
+  function restore(layer) {
+    if (!layer?.objects) return;
+    const seen = new Set();
+    for (const object of layer.objects) restoreRenderedObject(object, seen);
+  }
+
+  // CM3 calls Scene.prepare from sequence.prepare before export getVideoFrame.
+  // Update after child preparation to capture animated/generated source meshes.
+  async function settle(evaluate) {
+    for (;;) {
+      const meshes = new Set();
+      preparingMeshes = meshes;
+      try { evaluate(); } finally { preparingMeshes = null; }
+      const pending = meshDeformer.pending(meshes);
+      if (!pending.length) return;
+      await Promise.all(pending);
+    }
+  }
+
+  async function prepareObject(object, frame) {
+    if (!state.meshJobs || object.__zoidiumRepeater) return;
+    // The outer effector prepares the full chain after its children are ready.
+    for (let parent = object.parent; parent && parent !== object; parent = parent.parent) {
+      if (typeof parent.deformPositions === "function" || parent.__zoidiumRepeater) return;
+      if (parent === parent.parent) break;
+    }
+    object.update(frame);
+    object.parentLayer?.threeObj?.updateMatrixWorld?.(true);
+    await settle(() => evaluateTree(() => walkRenderedObject(object, [], frame, object.threeObj)));
+  }
+
+  const patchedPrepare = async function prepareWithEffectors(frame, ...args) {
+    await originalPrepare?.call(this, frame, ...args);
+    if (!state.meshJobs) return;
+    const affected = objects => Array.from(objects || []).some(object =>
+      typeof object?.deformPositions === "function" || affected(object?.objects));
+    if (!affected(this.objects)) return;
+    originalUpdate.call(this, frame);
+    await settle(() => apply(this, frame));
+  };
+  const patchedUnload = function unloadWithEffectors(...args) {
+    restore(this);
+    layers.delete(this);
+    return originalUnload?.apply(this, args);
+  };
+  prototype.prepare = patchedPrepare;
+  prototype.unload = patchedUnload;
+
+  const patchedUpdate = function updateWithEffectors(frame) {
+    originalUpdate.call(this, frame);
+    apply(this, frame);
+  };
+  patchedUpdate.__zoidiumEffectorDeformPatch = true;
+  prototype.update = patchedUpdate;
+  prototype.__zoidiumEffectorDeformPatch = true;
+  prototype.__zoidiumEffectorDeformSupport = { apply, restore, prepareObject };
+
+  return {
+    apply,
+    prepareObject,
+    deactivate() {
+      for (const layer of layers) restore(layer);
+      layers.clear();
+      disposeFieldHelpers();
+      meshDeformer.dispose();
+      if (prototype.prepare === patchedPrepare) prototype.prepare = originalPrepare;
+      if (prototype.unload === patchedUnload) prototype.unload = originalUnload;
+      if (prototype.update === patchedUpdate) prototype.update = originalUpdate;
+      delete prototype.__zoidiumEffectorDeformPatch;
+      delete prototype.__zoidiumEffectorDeformSupport;
+    },
+  };
+}
+
+module.exports = {
+  getMeshDeformer, installFieldHelpers, fieldGuidePoints, curvePolygonCount,
+  createDeformationSupport
+};

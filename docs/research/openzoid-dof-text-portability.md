@@ -38,6 +38,39 @@ The staged r91 patch is also in place. It adds `bevelProfile`, `bevelRound`,
 runtime or deployment stages. The fetched cache and the repository stay free
 of modified CM3 runtime files. Sequence and camera DOF remain future work.
 
+## Text+ parity re-check
+
+The Modified OpenZoid text implementation was re-read against the current
+Zoidium Text+ source on 2026-09-21. The native Modified OpenZoid implementation
+is at `openzoid-main/openzoid-main/core-1.0.102.js:21410-21665`; the earlier
+root copy contains the same spacing and bevel additions at
+`core-1.0.102.js:20597-20852`.
+
+| Modified OpenZoid addition | Zoidium Text+ status | Evidence |
+| --- | --- | --- |
+| Typewriter-outline `createShapes` | Present | `text-plus.js:1051` |
+| Horizontal spacing | Present for native Text and per-character Text+ | `text-plus.js:362`, `1051`, `1717` |
+| Newline and multiline layout | Present | `text-plus.js:375`, `1068` |
+| Bevel side / inner bevel | Present | `text-plus.js:1194`, `1208`, `1744` |
+| Bevel subdivision | Present | `text-plus.js:1210`, `1751` |
+| Flat / round cap profile | Present | `text-plus.js:1214`, `1761` |
+| Bevel tension / profile | Present | `text-plus.js:1215`, `1768` |
+| `bevelSizeInner` and `bevelShift` | Present | `text-plus.js:1208-1209` |
+| `ExtrudeGeometry` caller | Present | `text-plus.js:1821-1858` |
+
+Text+ also supplies additional Zoidium-owned per-character objects: Character
+Transform, Gradient Transform, Character Shake, Selected Character Transform,
+Selected Character Shake, and Random Scatter. Those are not missing pieces of
+the Modified OpenZoid native Text port; they are extra extension features.
+
+The implementation difference is architectural rather than functional:
+Modified OpenZoid changes CM3's native Text class directly, while Zoidium
+installs the same native Text geometry/property behavior through Text+ and
+keeps the runtime change in the external extension layer. It also falls back
+to the original CM3 geometry path when the font or ExtrudeGeometry API is not
+ready. Therefore the Modified OpenZoid spacing/bevel set is considered fully
+migrated; remaining work is regression testing, not another Text port.
+
 ## The base really is shared
 
 The fork's `UPSTREAM-DIFF.md` claims the base is upstream openzoid at CM3

@@ -178,6 +178,20 @@
   };
 
   PZ.export.prototype.getVideoFrame = async function getDeterministicVideoFrame(output) {
+    // Compose with temporal-render.js regardless of load order: when it loads
+    // after this script its wrapper delegates here, and when it loads first
+    // this call keeps the export compositor registered after replacing its
+    // wrapper. Guarded so a degraded boot without the temporal core still
+    // exports deterministically.
+    try {
+      const temporal = PZ.zoidium && PZ.zoidium.temporal;
+      if (temporal && typeof temporal.registerExportCompositor === "function") {
+        temporal.registerExportCompositor(this.compositor);
+      }
+    } catch (_error) {
+      // Registration must never break the export loop.
+    }
+
     if (this.framesRendered >= this.totalFrames) return 0;
 
     // Image export uses rate=0. In that mode frameAdvance is Infinity, so

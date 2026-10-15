@@ -1,801 +1,66 @@
 (function installTemporalRenderPatch(global) {
   "use strict";
 
-  const EPSILON = 1e-9;
-  const PATCH_MARKER = "__zoidiumTemporalRenderPatch";
-  const LAYER_UPDATE_MARKER = "__zoidiumTemporalLayerUpdatePatch";
-  const EFFECT_UPDATE_MARKER = "__zoidiumTemporalEffectUpdatePatch";
-  const SCHEDULE_PREPARE_MARKER = "__zoidiumTemporalSchedulePreparePatch";
-  const PLAYBACK_SCHEDULE_MARKER = "__zoidiumTemporalPlaybackSchedulePatch";
-  const VIEWPORT_RENDER_MARKER = "__zoidiumTemporalViewportRenderPatch";
-  const EXPORT_FRAME_MARKER = "__zoidiumTemporalExportFramePatch";
-  const MAX_FRAME_SAMPLES = 16;
-  const MAX_FRAME_SAMPLER_DEPTH = 8;
-
-  function finiteNumber(value, fallback) {
-    return Number.isFinite(Number(value)) ? Number(value) : fallback;
-  }
-
-  function clampLocalFrame(frame, clipLength, extrapolate) {
-    const value = finiteNumber(frame, 0);
-    if (extrapolate) return value;
-    const clamped = Math.max(0, value);
-    if (!(clipLength > 0)) return clamped;
-    return Math.min(clamped, Math.max(0, clipLength - EPSILON));
-  }
-
-  function quantizeLocalFrame(localFrame, projectRate, targetRate, extrapolate) {
-    const rate = finiteNumber(projectRate, 30);
-    const fps = finiteNumber(targetRate, 0);
-    const input = finiteNumber(localFrame, 0);
-    if (!(rate > 0) || !(fps > 0)) return extrapolate ? input : Math.max(0, input);
-
-    const seconds = (extrapolate ? input : Math.max(0, input)) / rate;
-    const quantizedSeconds = Math.floor(seconds * fps + EPSILON) / fps;
-    return quantizedSeconds * rate;
-  }
-
-  function applyTemporalOperators(localFrame, projectRate, operators, clipLength, extrapolate) {
-    let result = clampLocalFrame(localFrame, clipLength, extrapolate);
-    for (const operator of operators || []) {
-      if (!operator || operator.enabled === false) continue;
-      if (operator.kind === "time-offset") {
-        result += finiteNumber(operator.offsetFrames, 0);
-      } else if (operator.kind === "posterize-time") {
-        result = quantizeLocalFrame(result, projectRate, operator.fps, extrapolate);
-      }
-      result = clampLocalFrame(result, clipLength, extrapolate);
-    }
-    return result;
-  }
-
-  function clampUnit(value, fallback) {
-    return Math.min(1, Math.max(0, finiteNumber(value, fallback)));
-  }
-
-  function buildFrameSamplePlan(
-    outputFrame,
-    count,
-    offsetFrames,
-    startOpacity,
-    decay,
-    minimumFrame,
-    maximumFrame,
-  ) {
-    const total = Math.min(
-      MAX_FRAME_SAMPLES,
-      Math.max(0, Math.round(finiteNumber(count, 0))),
-    );
-    const output = finiteNumber(outputFrame, 0);
-    const offset = finiteNumber(offsetFrames, 0);
-    const opacity = clampUnit(startOpacity, 1);
-    const attenuation = clampUnit(decay, 1);
-    const minimum = finiteNumber(minimumFrame, Number.NEGATIVE_INFINITY);
-    const maximum = finiteNumber(maximumFrame, Number.POSITIVE_INFINITY);
-    const lower = Math.min(minimum, maximum);
-    const upper = Math.max(minimum, maximum);
-    const samples = [];
-
-    for (let index = 1; index <= total; index += 1) {
-      const frame = Math.min(upper, Math.max(lower, output + offset * index));
-      samples.push({
-        frame,
-        index,
-        opacity: opacity * Math.pow(attenuation, index - 1),
-      });
-    }
-    return samples;
-  }
-
-  function mapTemporalFrameWithScopes(
-    localFrame,
-    projectRate,
-    operators,
-    scopeOperators,
-    clipLength,
-    clipStart,
-    extrapolate,
-  ) {
-    const start = finiteNumber(clipStart, 0);
-    const sourceLocalFrame = applyTemporalOperators(
-      localFrame,
-      projectRate,
-      operators,
-      clipLength,
-      extrapolate,
-    );
-    const sourceProjectFrame = applyTemporalOperators(
-      start + sourceLocalFrame,
-      projectRate,
-      scopeOperators,
-      undefined,
-      extrapolate,
-    );
-    return clampLocalFrame(sourceProjectFrame - start, clipLength, extrapolate);
-  }
-
-  function getSequenceForLayer(layer) {
-    try {
-      return layer?.getParentOfType?.(PZ.sequence) || layer?.parentProject?.sequence || null;
-    } catch (_error) {
-      return null;
-    }
-  }
-
-  function getClipForLayer(layer) {
-    try {
-      return layer?.tryGetParentOfType?.(PZ.clip) || null;
-    } catch (_error) {
-      return null;
-    }
-  }
-
-  function isTopLevelClipLayer(layer, clip) {
-    return Boolean(layer && clip && clip.object === layer);
-  }
-
-  function getProjectRate(layer, sequence) {
-    const value = sequence?.properties?.rate?.get?.();
-    return finiteNumber(value, 30);
-  }
-
-  function isAdjustmentLayer(layer) {
-    const AdjustmentLayer = typeof PZ !== "undefined" ? PZ.layer?.adjustment : null;
-    return Boolean(AdjustmentLayer && layer instanceof AdjustmentLayer);
-  }
-
-  function isSceneLayer(layer) {
-    const SceneLayer = typeof PZ !== "undefined" ? PZ.layer?.scene : null;
-    return Boolean(SceneLayer && layer instanceof SceneLayer);
-  }
-
-  function isExtrapolatableLayer(layer) {
-    // Procedural layers (Scene, Adjustment) can evaluate beyond their clip
-    // out-point: shader time keeps running and keyframed properties hold
-    // their end values. Media-backed content still clamps (freeze) because
-    // there are no frames beyond the media duration. Video texture seeks
-    // clamp independently in video-frame-export.js.
-    return isSceneLayer(layer) || isAdjustmentLayer(layer);
-  }
-
-  function findScheduleItemAtFrame(schedule, projectFrame) {
-    const items = schedule?.items;
-    if (!items || typeof items.length !== "number") return null;
-    if (!Number.isFinite(projectFrame)) return null;
-    const padding = finiteNumber(schedule?.padding, 0);
-    for (let index = 0; index < items.length; index += 1) {
-      const item = items[index];
-      if (!item) continue;
-      const start = finiteNumber(item.start, 0);
-      const length = finiteNumber(item.length, 0);
-      if (projectFrame >= start - padding && projectFrame < start + length) {
-        return { item, index };
-      }
-    }
-    return null;
-  }
-
-  function getVideoTrackIndex(sequence, layer) {
-    const tracks = sequence?.videoTracks;
-    if (!tracks || !layer) return -1;
-    for (let index = 0; index < tracks.length; index += 1) {
-      if (tracks[index]?.layer === layer) return index;
-    }
-    return -1;
-  }
-
-  function isClipActiveAtProjectFrame(clip, projectFrame) {
-    const start = finiteNumber(clip?.start, 0);
-    const length = finiteNumber(clip?.length, 0);
-    return projectFrame >= start && projectFrame < start + length;
-  }
-
-  function readTemporalOperators(layer, controlFrame) {
-    const effects = layer?.effects;
-    if (!effects || typeof effects.length !== "number") return [];
-
-    const operators = [];
-    for (let index = 0; index < effects.length; index += 1) {
-      const effect = effects[index];
-      const descriptor = effect?._zoidiumTemporal;
-      if (!descriptor || typeof descriptor.getOperator !== "function") continue;
-      try {
-        const operator = descriptor.getOperator(effect, controlFrame);
-        if (operator) operators.push(operator);
-      } catch (error) {
-        console.error("[Zoidium] temporal effect evaluation failed:", error);
-      }
-    }
-    return operators;
-  }
-
-  function readTemporalOperatorsAfterIndex(layer, index, controlFrame) {
-    const effects = layer?.effects;
-    if (!effects || typeof effects.length !== "number") return [];
-
-    const operators = [];
-    for (let effectIndex = index + 1; effectIndex < effects.length; effectIndex += 1) {
-      const effect = effects[effectIndex];
-      const descriptor = effect?._zoidiumTemporal;
-      if (!descriptor || typeof descriptor.getOperator !== "function") continue;
-      try {
-        const operator = descriptor.getOperator(effect, controlFrame);
-        if (operator) operators.push(operator);
-      } catch (error) {
-        console.error("[Zoidium] temporal effect evaluation failed:", error);
-      }
-    }
-    return operators;
-  }
-
-  function getAdjustmentEffectFrame(layer, effect, frame) {
-    if (!isAdjustmentLayer(layer)) return frame;
-
-    const effects = layer?.effects;
-    const index = effects?.indexOf?.(effect) ?? -1;
-    if (index < 0) return frame;
-
-    const scopeOperators = readTemporalOperatorsAfterIndex(layer, index, frame);
-    if (scopeOperators.length === 0) return frame;
-
-    const clip = getClipForLayer(layer);
-    const sequence = getSequenceForLayer(layer);
-    return mapTemporalFrameWithScopes(
-      frame,
-      getProjectRate(layer, sequence),
-      [],
-      scopeOperators,
-      finiteNumber(clip?.length, 0),
-      finiteNumber(clip?.start, 0),
-      true,
-    );
-  }
-
-  function installEffectUpdatePatches(state, layer) {
-    const effects = layer?.effects;
-    if (!effects || typeof effects.length !== "number") return;
-
-    for (let index = 0; index < effects.length; index += 1) {
-      const effect = effects[index];
-      if (!effect || effect[EFFECT_UPDATE_MARKER] || typeof effect.update !== "function") {
-        continue;
-      }
-
-      const originalUpdate = effect.update;
-      effect.update = function temporalEffectUpdate(frame) {
-        const evaluationFrame = getAdjustmentEffectFrame(layer, effect, frame);
-        return originalUpdate.call(this, evaluationFrame);
-      };
-      Object.defineProperty(effect, EFFECT_UPDATE_MARKER, {
-        configurable: true,
-        value: true,
-      });
-    }
-  }
-
-  function readAdjustmentScopeOperators(sequence, targetLayer, projectFrame) {
-    const targetIndex = getVideoTrackIndex(sequence, targetLayer);
-    if (targetIndex < 0) return [];
-
-    const operators = [];
-    const tracks = sequence?.videoTracks || [];
-    // CM3 renders videoTracks from low to high index. A later Adjustment
-    // layer is therefore above the target and sees the accumulated result
-    // from every lower track.
-    for (let index = targetIndex + 1; index < tracks.length; index += 1) {
-      const adjustmentLayer = tracks[index]?.layer;
-      if (!isAdjustmentLayer(adjustmentLayer)) continue;
-
-      const adjustmentClip = getClipForLayer(adjustmentLayer);
-      if (!isTopLevelClipLayer(adjustmentLayer, adjustmentClip)) continue;
-      if (!isClipActiveAtProjectFrame(adjustmentClip, projectFrame)) continue;
-
-      const controlFrame = projectFrame - finiteNumber(adjustmentClip.start, 0);
-      operators.push(...readTemporalOperators(adjustmentLayer, controlFrame));
-    }
-    return operators;
-  }
-
-  function getTemporalLayerFrame(layer, localFrame, sequence) {
-    const clip = getClipForLayer(layer);
-    if (!isTopLevelClipLayer(layer, clip)) return null;
-
-    const rawLocalFrame = finiteNumber(localFrame, 0);
-    const outputProjectFrame = finiteNumber(clip.start, 0) + rawLocalFrame;
-    // The clip contributes nothing when the output frame is outside its
-    // range (its track layer is null and the compositor skips it). Mapping
-    // such frames would make hidden clips visible at a warped end-state.
-    if (!isClipActiveAtProjectFrame(clip, outputProjectFrame)) return null;
-
-    const projectRate = getProjectRate(layer, sequence);
-    const outputLocalFrame = rawLocalFrame;
-    const operators = isAdjustmentLayer(layer)
-      ? []
-      : readTemporalOperators(layer, outputLocalFrame);
-    const scopeOperators = readAdjustmentScopeOperators(
-      sequence,
-      layer,
-      outputProjectFrame,
-    );
-    if (operators.length === 0 && scopeOperators.length === 0) return null;
-
-    const extrapolate = isExtrapolatableLayer(layer);
-    const sourceFrame = mapTemporalFrameWithScopes(
-      rawLocalFrame,
-      projectRate,
-      operators,
-      scopeOperators,
-      finiteNumber(clip.length, 0),
-      finiteNumber(clip.start, 0),
-      extrapolate,
-    );
-    return {
-      clip,
-      localFrame: outputLocalFrame,
-      sourceFrame,
-      projectFrame: clip.start + sourceFrame,
-      projectRate,
+  // In the browser the three part files above load first as classic scripts
+  // (see plugins/core/manifest.json and zoidium/runtime-config.js) and share
+  // their exports through this registry. Node tests load them with require.
+  // The IIFE argument is the window in a browser tab but null in Node and in
+  // sandboxed VMs, so fall back to globalThis for the registry.
+  var host = global || (typeof globalThis !== "undefined" ? globalThis : null);
+  var parts = (host && host.__zoidiumTemporalParts) || {};
+  if (typeof module === "object" && module.exports) {
+    parts = {
+      math: require("./temporal-math.js"),
+      layers: require("./temporal-layers.js"),
+      sampler: require("./temporal-sampler.js"),
     };
+    if (host) host.__zoidiumTemporalParts = parts;
   }
-
-  function getScheduleSourceFrame(schedule, projectFrame) {
-    if (!Number.isFinite(projectFrame)) return projectFrame;
-    // Use the item active at the output frame. Reading currentItem here
-    // would return the previous frame's item because the original prepare()
-    // has not run yet for this frame, which breaks mappings at clip
-    // boundaries.
-    const found = findScheduleItemAtFrame(schedule, projectFrame);
-    const clip = found?.item?.clip || schedule?.currentItem?.clip;
-    if (!found || !clip) return projectFrame;
-    const layer = clip?.object;
-    if (!layer) return projectFrame;
-    const sequence = clip?.parentProject?.sequence || null;
-    const localFrame = projectFrame - finiteNumber(clip.start, 0);
-    const mapped = getTemporalLayerFrame(layer, localFrame, sequence);
-    return mapped ? mapped.projectFrame : projectFrame;
-  }
-
-  function canRenderLayer(layer) {
-    if (!layer) return false;
-    if (isSceneLayer(layer) && !layer.pass?.camera) return false;
-    if (layer instanceof PZ.layer.composite && !layer.objects?.length) return false;
-    return true;
-  }
-
-  function findFrameSamplerStage(sequence, effect, projectFrame) {
-    const tracks = sequence?.videoTracks || [];
-    for (let trackIndex = 0; trackIndex < tracks.length; trackIndex += 1) {
-      const track = tracks[trackIndex];
-      if (!track || track.enabled === false) continue;
-      const clip = track.getCurrentClip?.(projectFrame);
-      const layer = clip?.object;
-      if (!clip || !isAdjustmentLayer(layer)) continue;
-      const effectIndex = layer.effects?.indexOf?.(effect) ?? -1;
-      if (effectIndex < 0) continue;
-      return { clip, effect, effectIndex, layer, trackIndex };
-    }
-    return null;
-  }
-
-  function registerCompositor(state, compositor) {
-    const sequence = compositor?._sequence;
-    if (!sequence) return;
-    const previous = state.rootSequences.get(compositor);
-    if (previous && previous !== sequence) {
-      state.compositorsBySequence.get(previous)?.delete(compositor);
-    }
-    let compositors = state.compositorsBySequence.get(sequence);
-    if (!compositors) {
-      compositors = new Set();
-      state.compositorsBySequence.set(sequence, compositors);
-    }
-    compositors.add(compositor);
-    state.rootSequences.set(compositor, sequence);
-  }
-
-  function getFrameSamplerRuntime(state, root) {
-    if (!root) return null;
-    let runtime = state.frameSamplerRuntimes.get(root);
-    if (runtime) return runtime;
-    runtime = {
-      captures: [],
-      prepared: new WeakMap(),
-      records: new WeakMap(),
-      targets: new Set(),
-    };
-    state.frameSamplerRuntimes.set(root, runtime);
-    return runtime;
-  }
-
-  function disposeFrameSamplerRuntime(state, root) {
-    const runtime = root && state.frameSamplerRuntimes.get(root);
-    if (runtime) {
-      for (const target of runtime.targets) target?.dispose?.();
-      for (const capture of runtime.captures) {
-        if (!capture) continue;
-        capture.unload?.();
-        for (const target of capture.accumBuffers || []) target?.dispose?.();
-        capture.copyPass?.material?.dispose?.();
-        capture.mixPass?.material?.dispose?.();
-      }
-      runtime.targets.clear();
-      runtime.captures.length = 0;
-      state.frameSamplerRuntimes.delete(root);
-    }
-    const sequence = state.rootSequences.get(root);
-    state.compositorsBySequence.get(sequence)?.delete(root);
-    state.rootSequences.delete(root);
-  }
-
-  function getFrameSamplerCapture(runtime, root, depth, sequence) {
-    if (!runtime || !root?.renderer || depth > MAX_FRAME_SAMPLER_DEPTH) return null;
-    const width = root.readBuffer?.width;
-    const height = root.readBuffer?.height;
-    if (!(width > 0) || !(height > 0)) return null;
-    const index = Math.max(0, depth - 1);
-    let capture = runtime.captures[index];
-    if (!capture) {
-      capture = new PZ.compositor(root.renderer, width, height);
-      capture.sequence = sequence;
-      runtime.captures[index] = capture;
-    } else {
-      if (capture.readBuffer?.width !== width || capture.readBuffer?.height !== height) {
-        capture.setSize(width, height);
-      }
-      if (capture._sequence !== sequence) capture.sequence = sequence;
-    }
-    const resolution = sequence?.properties?.resolution?.get?.() || [width, height];
-    capture.ratio = width / (finiteNumber(resolution[0], width) || width);
-    return capture;
-  }
-
-  function getFrameSamplerTarget(runtime, effect, depth, index, width, height) {
-    let depthRecords = runtime.records.get(effect);
-    if (!depthRecords) {
-      depthRecords = [];
-      runtime.records.set(effect, depthRecords);
-    }
-    const depthIndex = Math.max(0, depth - 1);
-    let record = depthRecords[depthIndex];
-    if (!record) {
-      record = { targets: [] };
-      depthRecords[depthIndex] = record;
-    }
-    let target = record.targets[index];
-    if (!target) {
-      target = new THREE.WebGLRenderTarget(width, height, {
-        minFilter: THREE.LinearFilter,
-        magFilter: THREE.LinearFilter,
-        format: THREE.RGBAFormat,
-        depthBuffer: false,
-        stencilBuffer: false,
-      });
-      target.texture.generateMipmaps = false;
-      record.targets[index] = target;
-      runtime.targets.add(target);
-    } else if (target.width !== width || target.height !== height) {
-      target.setSize(width, height);
-    }
-    return target;
-  }
-
-  function copyRenderTarget(compositor, target, source) {
-    if (!compositor?.copyPass || !target || !source) return;
-    const uniforms = compositor.copyPass.uniforms;
-    uniforms.tDiffuse.value = source.texture;
-    uniforms.opacity.value = 1;
-    uniforms.uvScale?.value?.set?.(1, 1);
-    uniforms.uvOffset?.value?.set?.(0, 0);
-    compositor.copyPass.render(compositor.renderer, target, null, true);
-  }
-
-  function restoreLayerAtContextFrame(layer, projectFrame) {
-    const clip = getClipForLayer(layer);
-    if (!clip || typeof layer?.update !== "function") return;
-    try {
-      layer.update(projectFrame - finiteNumber(clip.start, 0));
-    } catch (_error) {
-      // A failed restoration must not stop the main compositor pass.
-    }
-  }
-
-  function captureFrameSamplerInput(
-    state,
-    root,
-    runtime,
-    stage,
-    projectFrame,
-    restoreFrame,
-    depth,
-    target,
-  ) {
-    const sequence = root?._sequence;
-    const capture = getFrameSamplerCapture(runtime, root, depth, sequence);
-    if (!capture || !sequence) return false;
-
-    const renderer = root.renderer;
-    const parentContext = state.contexts[state.contexts.length - 1];
-    const currentFrame = finiteNumber(restoreFrame, parentContext?.outputFrame);
-    const changedLayers = new Set();
-    const previousClearColor = renderer.getClearColor
-      ? renderer.getClearColor(new THREE.Color())
-      : null;
-    const previousClearAlpha = renderer.getClearAlpha ? renderer.getClearAlpha() : null;
-
-    renderer.setClearColor(0, 0);
-    capture.clear(0);
-    state.contexts.push({
-      compositor: capture,
-      frameSamplerDepth: depth,
-      outputFrame: projectFrame,
-      renderingSequence: true,
-      rootCompositor: root,
-    });
-    try {
-      const tracks = sequence.videoTracks || [];
-      for (let index = 0; index < stage.trackIndex; index += 1) {
-        const track = tracks[index];
-        if (!track || track.enabled === false) continue;
-        const clip = track.getCurrentClip?.(projectFrame);
-        const layer = clip?.object;
-        if (!clip || !canRenderLayer(layer)) continue;
-        changedLayers.add(layer);
-        layer.update(projectFrame - finiteNumber(clip.start, 0));
-        capture.renderLayer(layer, 0, false);
-      }
-
-      changedLayers.add(stage.layer);
-      stage.layer.update(projectFrame - finiteNumber(stage.clip.start, 0));
-      capture.readBuffer.viewport.set(
-        0,
-        0,
-        capture.readBuffer.width,
-        capture.readBuffer.height,
-      );
-      copyRenderTarget(capture, capture.readBuffer, capture.screenBuffers[0]);
-      const prefix = Array.prototype.slice.call(stage.layer.effects, 0, stage.effectIndex);
-      if (prefix.length > 0) capture.renderEffects(prefix, 1, 1);
-      copyRenderTarget(capture, target, capture.readBuffer);
-      return true;
-    } catch (error) {
-      console.error("[Zoidium] frame sampler capture failed:", error);
-      return false;
-    } finally {
-      state.contexts.pop();
-      for (const layer of changedLayers) restoreLayerAtContextFrame(layer, currentFrame);
-      if (previousClearColor) {
-        renderer.setClearColor(
-          previousClearColor,
-          previousClearAlpha == null ? 1 : previousClearAlpha,
-        );
-      }
-    }
-  }
-
-  async function prepareLowerSchedules(sequence, stage, projectFrame, context) {
-    const activeClips = new Set();
-    const tracks = sequence?.videoTracks || [];
-    for (let index = 0; index < stage.trackIndex; index += 1) {
-      const track = tracks[index];
-      if (!track || track.enabled === false) continue;
-      const clip = track.getCurrentClip?.(projectFrame);
-      if (clip) activeClips.add(clip);
-    }
-    if (activeClips.size === 0) return;
-
-    for (const schedule of sequence.videoSchedules || []) {
-      const found = findScheduleItemAtFrame(schedule, projectFrame);
-      if (!found?.item?.clip || !activeClips.has(found.item.clip)) continue;
-      await schedule.prepare(projectFrame, context);
-    }
-  }
-
-  async function prepareFrameSamples(state, effect, localFrame, context) {
-    if (!effect?._zoidiumFrameSampler || state.preparingEffects.has(effect)) return;
-    let layer = null;
-    try {
-      layer = effect.tryGetParentOfType?.(PZ.layer.adjustment) || null;
-    } catch (_error) {
-      return;
-    }
-    const clip = getClipForLayer(layer);
-    const sequence = getSequenceForLayer(layer);
-    if (!layer || !clip || !sequence) return;
-
-    const projectFrame = finiteNumber(clip.start, 0) + finiteNumber(localFrame, 0);
-    const stage = findFrameSamplerStage(sequence, effect, projectFrame);
-    const roots = state.compositorsBySequence.get(sequence);
-    if (!stage || !roots?.size) return;
-
-    const controlFrame = finiteNumber(effect._zoidiumFrameSamplerFrame, localFrame);
-    let request;
-    try {
-      request = effect._zoidiumFrameSampler.getRequest(effect, controlFrame);
-    } catch (error) {
-      console.error("[Zoidium] frame sampler request failed during prepare:", error);
-      return;
-    }
-    if (!request || request.enabled === false) return;
-
-    const maximum = Math.max(0, finiteNumber(clip.length, 0) - EPSILON);
-    const plan = buildFrameSamplePlan(
-      controlFrame,
-      request.count,
-      request.offsetFrames,
-      request.startOpacity,
-      request.decay,
-      0,
-      maximum,
+  var math = parts.math;
+  var layers = parts.layers;
+  var sampler = parts.sampler;
+  if (!math || !layers || !sampler) {
+    throw new Error(
+      "[Zoidium] temporal-math.js, temporal-layers.js and temporal-sampler.js must load before temporal-render.js.",
     );
-    if (plan.length === 0) return;
-
-    state.preparingEffects.add(effect);
-    try {
-      for (const root of Array.from(roots)) {
-        if (!root?.renderer || root._sequence !== sequence) continue;
-        const runtime = getFrameSamplerRuntime(state, root);
-        const width = root.readBuffer?.width;
-        const height = root.readBuffer?.height;
-        if (!runtime || !(width > 0) || !(height > 0)) continue;
-
-        const samples = [];
-        runtime.prepared.delete(effect);
-        for (let index = 0; index < plan.length; index += 1) {
-          const item = plan[index];
-          const sourceProjectFrame = finiteNumber(clip.start, 0) + item.frame;
-          await prepareLowerSchedules(sequence, stage, sourceProjectFrame, context);
-          const target = getFrameSamplerTarget(
-            runtime,
-            effect,
-            1,
-            index,
-            width,
-            height,
-          );
-          if (
-            captureFrameSamplerInput(
-              state,
-              root,
-              runtime,
-              stage,
-              sourceProjectFrame,
-              projectFrame,
-              1,
-              target,
-            )
-          ) {
-            samples.push({
-              frame: sourceProjectFrame,
-              index: item.index,
-              opacity: item.opacity,
-              target,
-              texture: target.texture,
-            });
-          }
-        }
-        if (samples.length > 0) {
-          runtime.prepared.set(effect, {
-            projectFrame,
-            samples,
-          });
-        }
-      }
-    } catch (error) {
-      console.error("[Zoidium] frame sampler preparation failed:", error);
-    } finally {
-      try {
-        await prepareLowerSchedules(sequence, stage, projectFrame, context);
-      } catch (_error) {
-        // The outer sequence prepare continues and restores remaining schedules.
-      }
-      state.preparingEffects.delete(effect);
-    }
   }
-
-  function resolveFrameSamples(state, effect) {
-    const context = state.contexts[state.contexts.length - 1];
-    const root = context?.rootCompositor || context?.compositor;
-    const sequence = root?._sequence;
-    const descriptor = effect?._zoidiumFrameSampler;
-    const outputFrame = finiteNumber(context?.outputFrame, NaN);
-    if (!sequence || !descriptor || !Number.isFinite(outputFrame)) return [];
-
-    const depth = finiteNumber(context?.frameSamplerDepth, 0) + 1;
-    if (depth > MAX_FRAME_SAMPLER_DEPTH || state.samplingEffects.has(effect)) return [];
-    const stage = findFrameSamplerStage(sequence, effect, outputFrame);
-    if (!stage) return [];
-
-    const lastLayerFrame = finiteNumber(
-      stage.layer.__zoidiumTemporalLastUpdateFrame,
-      outputFrame - finiteNumber(stage.clip.start, 0),
-    );
-    const currentProjectFrame = finiteNumber(stage.clip.start, 0) + lastLayerFrame;
-    const controlFrame = finiteNumber(
-      effect._zoidiumFrameSamplerFrame,
-      getAdjustmentEffectFrame(stage.layer, effect, lastLayerFrame),
-    );
-    let request;
-    try {
-      request = descriptor.getRequest(effect, controlFrame);
-    } catch (error) {
-      console.error("[Zoidium] frame sampler request failed:", error);
-      return [];
-    }
-    if (!request || request.enabled === false) return [];
-
-    const maximum = Math.max(0, finiteNumber(stage.clip.length, 0) - EPSILON);
-    const plan = buildFrameSamplePlan(
-      controlFrame,
-      request.count,
-      request.offsetFrames,
-      request.startOpacity,
-      request.decay,
-      0,
-      maximum,
-    );
-    if (plan.length === 0) return [];
-
-    const runtime = getFrameSamplerRuntime(state, root);
-    const width = root.readBuffer?.width;
-    const height = root.readBuffer?.height;
-    if (!runtime || !(width > 0) || !(height > 0)) return [];
-    const prepared = runtime.prepared.get(effect);
-    if (
-      prepared &&
-      Math.abs(finiteNumber(prepared.projectFrame, NaN) - currentProjectFrame) <= EPSILON &&
-      prepared.samples.length === plan.length &&
-      prepared.samples.every((sample, index) => {
-        const item = plan[index];
-        const frame = finiteNumber(stage.clip.start, 0) + item.frame;
-        return (
-          Math.abs(finiteNumber(sample.frame, NaN) - frame) <= EPSILON &&
-          Math.abs(finiteNumber(sample.opacity, NaN) - item.opacity) <= EPSILON
-        );
-      })
-    ) {
-      return prepared.samples;
-    }
-
-    const samples = [];
-    state.samplingEffects.add(effect);
-    try {
-      for (let index = 0; index < plan.length; index += 1) {
-        const item = plan[index];
-        const target = getFrameSamplerTarget(
-          runtime,
-          effect,
-          depth,
-          index,
-          width,
-          height,
-        );
-        const projectFrame = finiteNumber(stage.clip.start, 0) + item.frame;
-        if (
-          captureFrameSamplerInput(
-            state,
-            root,
-            runtime,
-            stage,
-            projectFrame,
-            currentProjectFrame,
-            depth,
-            target,
-          )
-        ) {
-          samples.push({
-            frame: projectFrame,
-            index: item.index,
-            opacity: item.opacity,
-            target,
-            texture: target.texture,
-          });
-        }
-      }
-    } finally {
-      state.samplingEffects.delete(effect);
-    }
-    return samples;
-  }
+  var EPSILON = math.EPSILON;
+  var PATCH_MARKER = math.PATCH_MARKER;
+  var LAYER_UPDATE_MARKER = math.LAYER_UPDATE_MARKER;
+  var SCHEDULE_PREPARE_MARKER = math.SCHEDULE_PREPARE_MARKER;
+  var PLAYBACK_SCHEDULE_MARKER = math.PLAYBACK_SCHEDULE_MARKER;
+  var VIEWPORT_RENDER_MARKER = math.VIEWPORT_RENDER_MARKER;
+  var EXPORT_FRAME_MARKER = math.EXPORT_FRAME_MARKER;
+  var finiteNumber = math.finiteNumber;
+  var quantizeFrame = math.quantizeFrame;
+  var clampFrame = math.clampFrame;
+  var offsetFrame = math.offsetFrame;
+  var planFrameSamples = math.planFrameSamples;
+  var readFpsProp = math.readFpsProp;
+  var applyTemporalOperators = math.applyTemporalOperators;
+  var buildFrameSamplePlan = math.buildFrameSamplePlan;
+  var planExplicitFrameSamples = math.planExplicitFrameSamples;
+  var clampLocalFrame = math.clampLocalFrame;
+  var quantizeLocalFrame = math.quantizeLocalFrame;
+  var mapTemporalFrameWithScopes = math.mapTemporalFrameWithScopes;
+  var getSequenceForLayer = layers.getSequenceForLayer;
+  var getClipForLayer = layers.getClipForLayer;
+  var isSceneLayer = layers.isSceneLayer;
+  var installEffectUpdatePatches = layers.installEffectUpdatePatches;
+  var getTemporalLayerFrame = layers.getTemporalLayerFrame;
+  var findScheduleItemAtFrame = layers.findScheduleItemAtFrame;
+  var getScheduleSourceFrame = layers.getScheduleSourceFrame;
+  var isClipActiveAtProjectFrame = layers.isClipActiveAtProjectFrame;
+  var getAdjustmentEffectFrame = layers.getAdjustmentEffectFrame;
+  var registerCompositor = sampler.registerCompositor;
+  var getFrameSamplerRuntime = sampler.getFrameSamplerRuntime;
+  var disposeFrameSamplerRuntime = sampler.disposeFrameSamplerRuntime;
+  var resolveFrameSamples = sampler.resolveFrameSamples;
+  var prepareFrameSamples = sampler.prepareFrameSamples;
+  var prepareLowerSchedules = sampler.prepareLowerSchedules;
+  var frameSamplerInputKey = sampler.frameSamplerInputKey;
+  var frameSamplerIdentity = sampler.frameSamplerIdentity;
+  var renderPreparedPreview = sampler.renderPreparedPreview;
 
   function getTemporalState() {
     const PZRoot = typeof PZ !== "undefined" ? PZ : null;
@@ -805,6 +70,7 @@
 
     const state = {
       contexts: [],
+      layerUpdateRevision: 0,
       compositorsBySequence: new WeakMap(),
       evaluatingLayers: new WeakSet(),
       frameSamplerRuntimes: new WeakMap(),
@@ -814,7 +80,9 @@
       samplingEffects: new WeakSet(),
       originalLayerUpdate: null,
       originalCompositorUnload: null,
+      originalCompositorSetSize: null,
       originalExportGetVideoFrame: null,
+      wrappedExportGetVideoFrame: null,
       originalRenderSequence: null,
       originalRenderLayer: null,
       originalSchedulePrepare: null,
@@ -826,6 +94,13 @@
       playbackPrototype: null,
       viewportPrototype: null,
       exportPrototype: null,
+      releaseFrameSamplerTargets(layer, ownerSequence) {
+        const sequence = getSequenceForLayer(layer) || ownerSequence;
+        for (const root of Array.from(this.compositorsBySequence.get(sequence) || [])) {
+          disposeFrameSamplerRuntime(this, root);
+          registerCompositor(this, root);
+        }
+      },
       resolveFrameSamples(effect) {
         return resolveFrameSamples(this, effect);
       },
@@ -841,6 +116,20 @@
         if (!clip || !Number.isFinite(projectFrame)) return null;
         return this.mapLayerFrame(layer, projectFrame - clip.start);
       },
+      // Canonical frame helpers for other effects (A10). Other owners'
+      // effects should use these instead of re-deriving quantize/plan math.
+      quantizeFrame,
+      clampFrame,
+      offsetFrame,
+      planFrameSamples,
+      readFpsProp,
+      // Shared by video-frame-export.js: registering the export compositor
+      // must not depend on wrapper order. Either this wrapper runs (it calls
+      // the wrapped function) or the deterministic export runs (it calls
+      // this), so the compositor is registered exactly once per frame.
+      registerExportCompositor(compositor) {
+        return registerCompositor(this, compositor);
+      },
     };
 
     PZRoot.zoidium.temporal = state;
@@ -854,6 +143,7 @@
     state.layerPrototype = prototype;
     state.originalLayerUpdate = prototype.update;
     prototype.update = function temporalTrackedLayerUpdate(frame) {
+      this.__zoidiumTemporalUpdateRevision = ++state.layerUpdateRevision;
       installEffectUpdatePatches(state, this);
       const context = state.contexts[state.contexts.length - 1];
       const mapped =
@@ -908,9 +198,21 @@
       try {
         return state.originalRenderSequence.apply(this, arguments);
       } finally {
+        state.frameSamplerRuntimes.get(this)?.publishedReservations.clear();
         state.contexts.pop();
       }
     };
+
+    if (typeof prototype.setSize === "function") {
+      state.originalCompositorSetSize = prototype.setSize;
+      prototype.setSize = function temporalCompositorSetSize(width, height) {
+        const runtime = state.frameSamplerRuntimes.get(this);
+        if (runtime && (this.readBuffer?.width !== width || this.readBuffer?.height !== height)) {
+          sampler.clearFrameSamplerTargets(runtime);
+        }
+        return state.originalCompositorSetSize.apply(this, arguments);
+      };
+    }
 
     prototype.unload = function temporalCompositorUnload() {
       disposeFrameSamplerRuntime(state, this);
@@ -1007,11 +309,13 @@
           try {
             clip.update(mapped.projectFrame);
           } catch (_error) {
+            if (args[0]?.previewFrameCacheStrict) throw _error;
             // A failing procedural update must not break the export loop.
           }
           try {
             if (typeof clip.prepare === "function") await clip.prepare(mapped.projectFrame, args[0]);
           } catch (_error) {
+            if (args[0]?.previewFrameCacheStrict) throw _error;
             // Ignore prepare failures here; the compositor still renders.
           }
           return;
@@ -1076,6 +380,92 @@
     prototype._render = function temporalViewportRender() {
       registerCompositor(state, this.compositor);
       if (!this.renderMode || !this.layer) {
+        const sequence = this.compositor?._sequence;
+        const frame = finiteNumber(this.editor?.playback?.currentFrame, 0);
+        const effects = [];
+        for (const track of sequence?.videoTracks || []) {
+          if (track.enabled === false) continue;
+          const clip = track.getCurrentClip?.(frame);
+          for (const effect of clip?.object?.effects || []) {
+            if (!effect._zoidiumFrameSampler) continue;
+            const controlFrame = getAdjustmentEffectFrame(clip.object, effect, frame - clip.start);
+            const request = effect._zoidiumFrameSampler.getRequest(effect, controlFrame);
+            // Legacy Echo-style requests carry count/offsetFrames; newer
+            // samplers (Time Displacement, CC Wide Time) carry an explicit
+            // per-tap frames array (see planRequestSamples).
+            const tapCount = Array.isArray(request?.frames)
+              ? request.frames.length
+              : Number(request?.count);
+            if (request && request.enabled !== false && tapCount > 0) {
+              effects.push({ effect, clip });
+            }
+          }
+        }
+        if (effects.length > 0) {
+          // One bounded preparation per viewport. The serialization includes
+          // clip timing, effect order, expressions, keys and sequence settings.
+          const key = JSON.stringify([frame, frameSamplerInputKey(sequence, this.compositor),
+            effects.map(({ effect }) => frameSamplerIdentity(effect))]);
+          const runtime = getFrameSamplerRuntime(state, this.compositor);
+          // Preparation temporarily updates effect uniforms and decoder textures.
+          // Even a previously prepared frame must wait until that work finishes.
+          if (runtime.previewPending) return;
+          if (runtime.previewKey !== key) {
+            if (!runtime.previewPending) {
+              runtime.previewPending = true;
+              const viewport = this;
+              (async () => {
+                const preparedContent = new Set();
+                for (const { effect, clip } of effects) {
+                  const localFrame = frame - clip.start;
+                  const mapped = state.mapLayerFrame(clip.object, localFrame);
+                  const sourceFrame = mapped?.sourceFrame ?? localFrame;
+                  // The viewport bypasses native layer.prepare(). Settle its
+                  // content before a tap becomes a reusable input. Adjustment
+                  // samplers also need every active lower layer's resources.
+                  const trackIndex = sequence.videoTracks.findIndex(track => track.clips?.includes(clip));
+                  const clips = layers.isAdjustmentLayer(clip.object)
+                    ? sequence.videoTracks.slice(0, trackIndex).filter(track => track.enabled !== false)
+                      .map(track => track.getCurrentClip?.(frame)).filter(Boolean).concat(clip)
+                    : [clip];
+                  for (const contentClip of clips) {
+                    if (preparedContent.has(contentClip)) continue;
+                    preparedContent.add(contentClip);
+                    const local = frame - contentClip.start;
+                    const mappedContent = state.mapLayerFrame(contentClip.object, local);
+                    const contentFrame = mappedContent?.sourceFrame ?? local;
+                    contentClip.object.update(contentFrame);
+                    await contentClip.object.loadShaders;
+                    if (contentClip.object.image) await contentClip.object.image.loading;
+                    for (const object of contentClip.object.objects || []) {
+                      await object.loading;
+                      await object.prepare?.(contentFrame, { sequence });
+                    }
+                  }
+                  await effect.prepare(sourceFrame,
+                    { sequence, frameSamplerRoot: viewport.compositor });
+                }
+                runtime.previewMedia = await prepareLowerSchedules(sequence,
+                  { layer: null, trackIndex: 0 }, frame, { sequence }, runtime, true);
+                if (runtime.disposed || key !== JSON.stringify([frame,
+                  frameSamplerInputKey(sequence, viewport.compositor),
+                  effects.map(({ effect }) => frameSamplerIdentity(effect))])) return;
+                runtime.previewKey = key;
+                // Show each completed frame during playback. Waiting for the
+                // moving playhead to equal it would starve the preview forever.
+                renderPreparedPreview(viewport, runtime, frame);
+                host?.ZoidiumFrameCache?.capturePreview?.(viewport, frame);
+              })().catch((error) => {
+                console.error("[Zoidium] temporal preview preparation failed:", error);
+              }).finally(() => {
+                runtime.previewPending = false;
+                viewport.lastFrame = -1;
+              });
+            }
+            return;
+          }
+          return renderPreparedPreview(this, runtime, frame);
+        }
         return state.originalViewportRender.apply(this, arguments);
       }
 
@@ -1108,14 +498,22 @@
 
   function installExportPatch(state) {
     const prototype = PZ.export?.prototype;
-    if (!prototype || prototype[EXPORT_FRAME_MARKER]) return;
+    if (!prototype || typeof prototype.getVideoFrame !== "function") return;
+    // Chain explicitly: wrap whatever is installed now (the CM3 original or
+    // video-frame-export's deterministic replacement) instead of assuming
+    // this script loads first. Skip only when the current function is already
+    // our wrapper, so a repeated install stays a no-op.
+    if (prototype.getVideoFrame === state.wrappedExportGetVideoFrame) return;
 
     state.exportPrototype = prototype;
-    state.originalExportGetVideoFrame = prototype.getVideoFrame;
-    prototype.getVideoFrame = function temporalExportGetVideoFrame() {
-      registerCompositor(state, this.compositor);
-      return state.originalExportGetVideoFrame.apply(this, arguments);
-    };
+    const previous = prototype.getVideoFrame;
+    state.originalExportGetVideoFrame = previous;
+    const wrapped = (state.wrappedExportGetVideoFrame =
+      function temporalExportGetVideoFrame() {
+        registerCompositor(state, this.compositor);
+        return previous.apply(this, arguments);
+      });
+    prototype.getVideoFrame = wrapped;
     Object.defineProperty(prototype, EXPORT_FRAME_MARKER, {
       configurable: true,
       value: true,
@@ -1140,14 +538,22 @@
     module.exports = {
       applyTemporalOperators,
       buildFrameSamplePlan,
+      planExplicitFrameSamples,
+      MAX_EXPLICIT_FRAME_SAMPLES: math.MAX_EXPLICIT_FRAME_SAMPLES,
+      clampFrame,
       clampLocalFrame,
       findScheduleItemAtFrame,
       isClipActiveAtProjectFrame,
       mapTemporalFrameWithScopes,
+      offsetFrame,
+      planFrameSamples,
+      quantizeFrame,
       quantizeLocalFrame,
+      readFpsProp,
     };
     return;
   }
 
   install(global);
 })(typeof window !== "undefined" ? window : null);
+

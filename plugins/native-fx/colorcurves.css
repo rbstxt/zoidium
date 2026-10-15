@@ -17,21 +17,21 @@
 .zoidium-color-curves-editor,
 .zoidium-color-curves-control * {
   box-sizing: border-box;
-  font-family: inherit;
+  font-family: var(--zui-font);
 }
 
 .zoidium-color-curves-control {
   width: 100%;
   min-width: 0;
-  color: #aaa;
+  color: var(--zui-text);
 }
 
 .zoidium-color-curves-editor {
-  --zoidium-curve-channel: var(--zoidium-theme-link, #7e8fb9);
+  --zoidium-curve-channel: var(--zui-value);
   width: 100%;
   min-width: 0;
-  border: 1px solid #1b1b1b;
-  background: #242424;
+  border: 1px solid var(--zui-border);
+  background: var(--zui-border-soft);
 }
 
 .zoidium-color-curves-editor[data-channel="red"] {
@@ -50,8 +50,8 @@
   display: grid;
   grid-template-columns: repeat(4, minmax(28px, 1fr)) auto;
   min-height: 29px;
-  border-bottom: 1px solid #1b1b1b;
-  background: #2a2a2a;
+  border-bottom: 1px solid var(--zui-border);
+  background: var(--zui-bg);
 }
 
 .zoidium-color-curves-channel,
@@ -60,12 +60,12 @@
   height: 28px;
   padding: 0 7px;
   overflow: hidden;
-  color: #aaa;
+  color: var(--zui-text-muted);
   background: transparent;
   border: 1px solid transparent;
-  border-right-color: #222;
+  border-right-color: var(--zui-border);
   outline: 0;
-  font-size: 12px;
+  font-size: var(--zui-font-size-small);
   line-height: 26px;
   text-align: center;
   text-overflow: ellipsis;
@@ -74,18 +74,18 @@
 
 .zoidium-color-curves-channel:hover,
 .zoidium-color-curves-reset:hover {
-  color: #d0d0d0;
-  background: #303030;
+  color: var(--zui-text-strong);
+  background: var(--zui-hover);
 }
 
 .zoidium-color-curves-channel:focus-visible,
 .zoidium-color-curves-reset:focus-visible {
-  border-color: var(--zoidium-theme-focus, #384668);
+  border-color: var(--zui-accent);
 }
 
 .zoidium-color-curves-channel.is-active {
-  color: #e0e0e0;
-  background: #202020;
+  color: var(--zui-text-bright);
+  background: var(--zui-bg-input);
   border-bottom-color: var(--zoidium-curve-channel);
 }
 
@@ -119,19 +119,12 @@
   overflow: hidden;
   touch-action: none;
   cursor: crosshair;
-  background-color: #202020;
-  background-image:
-    linear-gradient(to right, transparent calc(25% - 0.5px), #303030 25%, transparent calc(25% + 0.5px)),
-    linear-gradient(to right, transparent calc(50% - 0.5px), #353535 50%, transparent calc(50% + 0.5px)),
-    linear-gradient(to right, transparent calc(75% - 0.5px), #303030 75%, transparent calc(75% + 0.5px)),
-    linear-gradient(to bottom, transparent calc(25% - 0.5px), #303030 25%, transparent calc(25% + 0.5px)),
-    linear-gradient(to bottom, transparent calc(50% - 0.5px), #353535 50%, transparent calc(50% + 0.5px)),
-    linear-gradient(to bottom, transparent calc(75% - 0.5px), #303030 75%, transparent calc(75% + 0.5px));
+  background-color: var(--zui-bg-input);
   outline: 0;
 }
 
 .zoidium-color-curves-graph:focus-visible {
-  box-shadow: inset 0 0 0 2px var(--zoidium-theme-focus, #384668);
+  box-shadow: inset 0 0 0 1px var(--zui-accent);
 }
 
 .zoidium-color-curves-svg {
@@ -139,6 +132,18 @@
   width: 100%;
   height: 100%;
   overflow: visible;
+}
+
+.zoidium-color-curves-grid {
+  fill: none;
+  pointer-events: none;
+  stroke: color-mix(in srgb, var(--zui-border-soft) 55%, var(--zui-hover));
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+}
+
+.zoidium-color-curves-grid-center {
+  stroke: var(--zui-hover);
 }
 
 .zoidium-color-curves-diagonal,
@@ -150,13 +155,13 @@
 }
 
 .zoidium-color-curves-diagonal {
-  stroke: #4a4a4a;
+  stroke: color-mix(in srgb, var(--zui-hover) 55%, var(--zui-text-faint));
   stroke-width: 1px;
   stroke-dasharray: 3 3;
 }
 
 .zoidium-color-curves-reference {
-  stroke: #747474;
+  stroke: var(--zui-text-faint);
   stroke-width: 1px;
   opacity: 0.65;
 }
@@ -172,7 +177,7 @@
 }
 
 .zoidium-color-curves-point {
-  fill: #202020;
+  fill: var(--zui-bg-input);
   stroke: var(--zoidium-curve-channel);
   stroke-width: 2px;
   pointer-events: none;
@@ -181,7 +186,7 @@
 
 .zoidium-color-curves-point-wrap.is-selected .zoidium-color-curves-point {
   fill: var(--zoidium-curve-channel);
-  stroke: #e2e2e2;
+  stroke: var(--zui-text-bright);
 }
 
 .zoidium-color-curves-footer {
@@ -192,10 +197,10 @@
   min-height: 24px;
   padding: 3px 6px;
   overflow: hidden;
-  color: #858585;
-  background: #242424;
-  border-top: 1px solid #1b1b1b;
-  font-size: 11px;
+  color: var(--zui-text-muted);
+  background: var(--zui-border-soft);
+  border-top: 1px solid var(--zui-border);
+  font-size: var(--zui-font-size-compact);
   line-height: 17px;
 }
 
@@ -211,6 +216,6 @@
 }
 
 .zoidium-color-curves-hint {
-  color: #727272;
+  color: var(--zui-text-faint);
   text-align: right;
 }

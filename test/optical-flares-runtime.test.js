@@ -1,0 +1,400 @@
+"use strict";
+
+// Lifecycle of the Optical Flares runtime: activation, the numeric type 13
+// wrapper, the editor entry, disable restoring every host change, and rollback
+// when activation fails halfway. Stubs are inline, as in optical-flares.test.js.
+
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
+const test = require("node:test");
+
+const flaresDir = path.join(__dirname, "..", "plugins", "optical-flares");
+
+function readFlareSource(file) {
+  return fs.readFileSync(path.join(flaresDir, file), "utf8");
+}
+
+// The shared bundle loader, evaluated from the real zoidium/plugin-apis.js
+// so activation exercises the same path the runtime uses.
+function sharedModules() {
+  const vm = require("node:vm");
+  const sandbox = { PZ: {}, console };
+  vm.runInNewContext(
+    fs.readFileSync(path.join(__dirname, "..", "zoidium", "plugin-apis.js"), "utf8"),
+    sandbox
+  );
+  return sandbox.ZoidiumPluginApis.modules;
+}
+
+function loadRuntimeModule() {
+  const module = { exports: {} };
+  new Function("module", "exports", "plugin", readFlareSource("optical-flares-runtime.js"))(
+    module,
+    module.exports,
+    {}
+  );
+  return module.exports;
+}
+
+// Minimal CM3 host: property/list classes, object3d.create and the object list
+// editor prototype (the flare editor entry no longer patches it).
+function buildHost() {
+  class Observable {
+    constructor() { this.watchers = []; }
+    watch(fn) { this.watchers.push(fn); }
+    unwatch(fn) {
+      const i = this.watchers.indexOf(fn);
+      if (i >= 0) this.watchers.splice(i, 1);
+    }
+    update(...args) { for (const fn of this.watchers.slice()) fn(...args); }
+  }
+  class Prop {
+    constructor(definition) {
+      this.definition = definition;
+      this.onChanged = new Observable();
+      this.value = definition.group
+        ? definition.objects.map((o) => o.value)
+        : definition.value;
+    }
+    get() { return JSON.parse(JSON.stringify(this.value)); }
+    set(value) { this.value = JSON.parse(JSON.stringify(value)); this.onChanged.update(); }
+    load(data) { if (data !== undefined && data !== null) this.value = data; }
+    toJSON() { return this.get(); }
+    getAddress() { return []; }
+  }
+  class PropList {
+    constructor(definitions) { this.addAll(definitions || {}); }
+    addAll(definitions) {
+      for (const key of Object.keys(definitions)) {
+        const entry = definitions[key];
+        this[key] = entry instanceof Prop || entry instanceof PropList ? entry : PZ.property.create(entry);
+      }
+    }
+    load(data) {
+      const source = data || {};
+      for (const key of Object.keys(this)) {
+        if (this[key] && typeof this[key].load === "function") this[key].load(source[key]);
+      }
+    }
+  }
+  class ObjectList extends Array {
+    static get [Symbol.species]() { return Array; }
+    constructor(parent, type) {
+      super();
+      Object.defineProperties(this, {
+        parent: { value: parent || null, writable: true },
+        type: { value: type || null, writable: true },
+      });
+    }
+  }
+  class PZObject {
+    constructor() { Object.defineProperty(this, "parent", { value: null, writable: true }); }
+    tryGetParentOfType() { return null; }
+    getAddress() { return []; }
+  }
+  class Object3D extends PZObject {
+    constructor() {
+      super();
+      this.properties = new PropList({});
+      this.children = [this.properties];
+    }
+    parentChanged() {}
+  }
+
+  const originalCreate = function (type) {
+    return "original:" + type;
+  };
+  const originalGenerate = function () {
+    return "original-items";
+  };
+
+  const PZ = {
+    object: PZObject,
+    property: {
+      type: { NUMBER: 1, OPTION: 2, VECTOR2: 3, VECTOR3: 4, COLOR: 5, ASSET: 6, TEXT: 7 },
+      create(definition) { return new Prop(definition); },
+    },
+    propertyList: PropList,
+    objectList: ObjectList,
+    layer: class {},
+    sequence: class {},
+    project: class {},
+    asset: { type: { IMAGE: "image" }, image: class {} },
+    ui: {
+      objectTypes: new Map(),
+      edit: {
+        prototype: {
+          generateItemCommands: originalGenerate,
+          generateButton(kind) {
+            return {
+              kind,
+              title: "",
+              attributes: {},
+              setAttribute(name, value) { this.attributes[name] = value; },
+            };
+          },
+        },
+      },
+    },
+  };
+  PZ.object3d = Object.assign(Object3D, { create: originalCreate });
+  PZ.object3d.light = class {};
+
+  const THREE = {
+    LinearFilter: 1,
+    RGBAFormat: 2,
+    CustomBlending: 3,
+    OneFactor: 4,
+    OneMinusSrcColorFactor: 5,
+    AddEquation: 6,
+    NormalBlending: 7,
+    Vector2: class { set() { return this; } },
+    Vector3: class { set() { return this; } },
+    Object3D: class {
+      constructor() {
+        this.position = new THREE.Vector3();
+        this.rotation = new THREE.Vector3();
+        this.scale = new THREE.Vector3();
+        this.matrixWorld = { elements: new Array(16).fill(0) };
+      }
+      add() {}
+      updateWorldMatrix() {}
+    },
+    Mesh: class { constructor(geometry, material) { this.geometry = geometry; this.material = material; } },
+    ShaderMaterial: class { constructor(o) { Object.assign(this, o); } dispose() {} },
+    DataTexture: class { dispose() {} },
+    PlaneBufferGeometry: class { dispose() {} },
+  };
+  return { PZ, THREE, originalCreate, originalGenerate };
+}
+
+// Runs the disposers the way the plugin manager does: the module's lifecycle
+// owns them and calls them after deactivate().
+function makeContext(host, sources, options = {}) {
+  const disposers = [];
+  const editors = [];
+  const context = {
+    PZ: host.PZ,
+    window: { THREE: host.THREE },
+    apis: { modules: sharedModules() },
+    getAsset(kind, source) {
+      return sources[source];
+    },
+    lifecycle: {
+      onDispose(fn) { disposers.push(fn); },
+    },
+    ui: {
+      openWindow() {
+        return { close() {} };
+      },
+      controls: {},
+      registerEditor(spec) {
+        editors.push(spec);
+        return () => { editors.splice(editors.indexOf(spec), 1); };
+      },
+    },
+    editor: options.editor || null,
+  };
+  return {
+    context,
+    editors,
+    dispose() {
+      for (const fn of disposers.reverse()) fn();
+    },
+  };
+}
+
+function bundledSources(override = {}) {
+  const sources = {};
+  for (const file of fs.readdirSync(flaresDir)) {
+    if (/^optflares.*\.js$/.test(file)) {
+      sources["./plugins/optical-flares/" + file] = readFlareSource(file);
+    }
+  }
+  return Object.assign(sources, override);
+}
+
+test("activation defines the flare type 13 and the options entry point", () => {
+  const host = buildHost();
+  const runtime = loadRuntimeModule();
+  const { context } = makeContext(host, bundledSources());
+  runtime.activate(context);
+  assert.equal(typeof host.PZ.object3d.optflares, "function");
+  assert.equal(typeof host.PZ.opticalflares.open, "function");
+  const flare = host.PZ.object3d.create(13);
+  assert.ok(flare instanceof host.PZ.object3d.optflares, "type 13 creates the flare");
+  assert.equal(flare.type, 13);
+  assert.equal(host.PZ.object3d.create(7), "original:7", "other types pass through");
+});
+
+test("isInUse follows loaded flares and blocks disabling while one is in the project", () => {
+  const host = buildHost();
+  const runtime = loadRuntimeModule();
+  const { context, dispose } = makeContext(host, bundledSources());
+  runtime.activate(context);
+  assert.equal(runtime.isInUse(), false);
+  const flare = host.PZ.object3d.create(13);
+  flare.load({ objectType: 0 });
+  assert.equal(runtime.isInUse(), true);
+  flare.unload();
+  assert.equal(runtime.isInUse(), false);
+  dispose();
+});
+
+test("the flare editor is declared through registerEditor, not a patched item list", () => {
+  const host = buildHost();
+  const runtime = loadRuntimeModule();
+  const { context, editors, dispose } = makeContext(host, bundledSources());
+  const commandsBefore = host.PZ.ui.edit.prototype.generateItemCommands;
+  runtime.activate(context);
+  assert.equal(editors.length, 1, "one editor entry");
+  const [spec] = editors;
+  assert.equal(spec.title, "Optical Flares");
+  assert.equal(spec.label, undefined, "the shared button reads Open Optical Flares");
+  assert.equal(spec.icon, "settings");
+  assert.equal(typeof spec.open, "function");
+  assert.equal(host.PZ.ui.edit.prototype.generateItemCommands, commandsBefore, "the list is not patched");
+
+  const flare = host.PZ.object3d.create(13);
+  flare.load({ objectType: 0 });
+  assert.equal(spec.match(flare), false, "a flare outside an object list gets no entry");
+  flare.parent = new host.PZ.objectList(null, host.PZ.object3d.optflares.element);
+  assert.equal(spec.match(flare), true, "a flare in an object list matches");
+  assert.equal(spec.match({ parent: flare.parent }), false, "other objects do not match");
+  dispose();
+  assert.equal(editors.length, 0, "the entry is released when the module is disabled");
+});
+
+test("disabling restores the create wrapper, the item commands and the globals", () => {
+  const host = buildHost();
+  const runtime = loadRuntimeModule();
+  const createBefore = host.PZ.object3d.create;
+  const commandsBefore = host.PZ.ui.edit.prototype.generateItemCommands;
+  const { context, dispose } = makeContext(host, bundledSources());
+  runtime.activate(context);
+  assert.notEqual(host.PZ.object3d.create, createBefore);
+  dispose();
+  assert.equal(host.PZ.object3d.create, createBefore);
+  assert.equal(host.PZ.ui.edit.prototype.generateItemCommands, commandsBefore);
+  assert.equal(host.PZ.object3d.optflares, undefined);
+  assert.equal(host.PZ.opticalflares, undefined);
+  assert.equal(host.PZ.ui.objectTypes.size, 0, "element object types removed");
+  assert.equal(runtime.isInUse(), false);
+});
+
+test("a failed activation rolls back every change made before the failure", () => {
+  const host = buildHost();
+  const runtime = loadRuntimeModule();
+  const createBefore = host.PZ.object3d.create;
+  const commandsBefore = host.PZ.ui.edit.prototype.generateItemCommands;
+  const sources = bundledSources({ "./plugins/optical-flares/optflares-window.js": undefined });
+  const { context, dispose } = makeContext(host, sources);
+  assert.throws(() => runtime.activate(context), /missing its bundled source/);
+  dispose();
+  assert.equal(host.PZ.object3d.optflares, undefined);
+  assert.equal(host.PZ.opticalflares, undefined);
+  assert.equal(host.PZ.object3d.create, createBefore);
+  assert.equal(host.PZ.ui.edit.prototype.generateItemCommands, commandsBefore);
+});
+
+test("activating twice without disabling is refused", () => {
+  const host = buildHost();
+  const runtime = loadRuntimeModule();
+  const { context, dispose } = makeContext(host, bundledSources());
+  runtime.activate(context);
+  assert.throws(() => runtime.activate(context), /already installed/);
+  dispose();
+});
+
+test("a later pack that wrapped create keeps its link when flares are disabled", () => {
+  const host = buildHost();
+  const runtime = loadRuntimeModule();
+  const { context, dispose } = makeContext(host, bundledSources());
+  runtime.activate(context);
+  const ours = host.PZ.object3d.create;
+  // Another pack wraps above ours; disabling flares must not remove it.
+  const above = function (type) {
+    if (type === 99) return "above:99";
+    return ours.call(this, type);
+  };
+  host.PZ.object3d.create = above;
+  dispose();
+  assert.equal(host.PZ.object3d.create, above, "the wrapper above is kept");
+  assert.equal(above(99), "above:99");
+  assert.equal(above(7), "original:7", "our wrapper passes through once disabled");
+});
+
+test("velocity and environment renders exclude flares and restore visibility on failure", () => {
+  const host = buildHost();
+  const quad = { __zoidiumOpticalFlareQuad: true, visible: true };
+  const mesh = { visible: true };
+  let traverses = 0;
+  const seenDuringRender = [];
+  class Pass {
+    constructor() { this.scene = { traverse(fn) { traverses += 1; fn(quad); fn(mesh); } }; }
+    render(fail) {
+      seenDuringRender.push([quad.visible, mesh.visible]);
+      if (fail) throw new Error("render failed");
+      return "drawn";
+    }
+  }
+  host.PZ.motionBlur = Pass;
+  host.PZ.envMap = class extends Pass {};
+  const original = Pass.prototype.render;
+  const runtime = loadRuntimeModule();
+  const { context, dispose } = makeContext(host, bundledSources());
+  runtime.activate(context);
+  assert.equal(new host.PZ.motionBlur().render(), "drawn", "no live flares: the original runs directly");
+  assert.equal(traverses, 0, "no live flares: the scene is not traversed");
+  assert.deepEqual(seenDuringRender, [[true, true]], "no live flares: nothing is hidden");
+  const flare = host.PZ.object3d.create(13);
+  flare.load({ objectType: 0 });
+  assert.equal(new host.PZ.motionBlur().render(), "drawn");
+  assert.equal(traverses, 1, "a live flare traverses the scene to hide its quads");
+  assert.deepEqual(seenDuringRender[1], [false, true], "the flare quad hides, other meshes stay");
+  assert.equal(quad.visible, true);
+  assert.throws(() => new host.PZ.envMap().render(true), /render failed/);
+  assert.equal(quad.visible, true);
+  quad.visible = false;
+  new host.PZ.motionBlur().render();
+  assert.equal(quad.visible, false, "initially hidden quads stay hidden");
+  flare.unload();
+  dispose();
+  assert.equal(Pass.prototype.render, original);
+});
+
+test("velocity updates preserve the flare projection callback even on failure", () => {
+  const host = buildHost();
+  const projection = () => "projection";
+  const quad = { __zoidiumOpticalFlareQuad: true, onBeforeRender: projection };
+  const mesh = { onBeforeRender: null };
+  let traverses = 0;
+  class Velocity {
+    constructor() { this.scene = { traverse(fn) { traverses += 1; fn(quad); fn(mesh); } }; }
+    update(fail) {
+      this.scene.traverse(node => { node.onBeforeRender = () => "velocity"; });
+      if (fail) throw new Error("update failed");
+    }
+  }
+  host.PZ.motionBlur = Velocity;
+  const original = Velocity.prototype.update;
+  const runtime = loadRuntimeModule();
+  const { context, dispose } = makeContext(host, bundledSources());
+  runtime.activate(context);
+  new Velocity().update();
+  assert.equal(traverses, 1, "no live flares: only the original's own traversal runs");
+  assert.equal(quad.onBeforeRender(), "velocity", "no live flares: the original runs directly");
+  quad.onBeforeRender = projection;
+  const flare = host.PZ.object3d.create(13);
+  flare.load({ objectType: 0 });
+  new Velocity().update();
+  assert.equal(traverses, 3, "a live flare adds the callback-preserving traversal");
+  assert.equal(quad.onBeforeRender, projection);
+  assert.equal(mesh.onBeforeRender(), "velocity");
+  assert.throws(() => new Velocity().update(true), /update failed/);
+  assert.equal(quad.onBeforeRender, projection);
+  flare.unload();
+  dispose();
+  assert.equal(Velocity.prototype.update, original);
+});

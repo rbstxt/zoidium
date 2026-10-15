@@ -1,0 +1,112 @@
+{
+  "type": 1,
+  "properties": {
+    "name": "TMS9918 Effect",
+    "enabled": {
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 1,
+          "frame": 0,
+          "tween": 0,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    }
+  },
+  "customProperties": [
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Pixel_Size"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 3,
+          "frame": 0,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Dither"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 0.15,
+          "frame": 0,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Chroma_Shift"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 1,
+          "frame": 0,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    }
+  ]
+}

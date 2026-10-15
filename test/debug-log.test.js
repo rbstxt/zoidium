@@ -6,10 +6,21 @@ const path = require("node:path");
 const test = require("node:test");
 const vm = require("node:vm");
 
-const debugLogSource = fs.readFileSync(
-  path.join(__dirname, "..", "zoidium", "debug-log.js"),
-  "utf8"
-);
+const debugLogSources = (() => {
+  // The split loads the part files in browser order; assertions below are
+  // unchanged.
+  const parts = [
+    "zoidium/debug-journal.js",
+    "zoidium/debug-crash.js",
+    "zoidium/debug-log.js",
+  ];
+  if (parts.every((relative) => fs.existsSync(path.join(__dirname, "..", relative)))) {
+    return parts.map((relative) => fs.readFileSync(path.join(__dirname, "..", relative), "utf8"));
+  }
+  return [
+    fs.readFileSync(path.join(__dirname, "..", "zoidium", "debug-log.js"), "utf8"),
+  ];
+})();
 
 function storage(values) {
   return {
@@ -36,7 +47,30 @@ function eventTarget() {
   };
 }
 
+// Timers are deferred: a test decides when coalesced journal writes run.
+function createTimers() {
+  const pending = new Map();
+  let lastId = 0;
+  return {
+    setTimeout(callback) {
+      lastId += 1;
+      pending.set(lastId, callback);
+      return lastId;
+    },
+    clearTimeout(id) {
+      pending.delete(id);
+    },
+    run() {
+      for (const [id, callback] of [...pending]) {
+        pending.delete(id);
+        callback();
+      }
+    },
+  };
+}
+
 function loadDebugLog(localValues, sessionValues, options = {}) {
+  const timers = createTimers();
   const windowEvents = eventTarget();
   const documentEvents = eventTarget();
   const document = {
@@ -95,13 +129,19 @@ function loadDebugLog(localValues, sessionValues, options = {}) {
     screen: { height: 1080, width: 1920 },
     sessionStorage: storage(sessionValues),
     setInterval() { return 1; },
-    setTimeout() { return 1; },
+    setTimeout: timers.setTimeout,
+    clearTimeout: timers.clearTimeout,
   };
   context.window = context;
-  vm.runInNewContext(debugLogSource, context);
+  vm.createContext(context);
+  debugLogSources.forEach((source, index) => {
+    vm.runInContext(source, context, { filename: `debug-log-part-${index}.js` });
+  });
   return {
     api: context.ZOIDIUM_DEBUG_LOG,
+    context,
     documentEvents,
+    runTimers: timers.run,
     windowEvents,
   };
 }
@@ -179,6 +219,7 @@ test("health samples are retained for memory-pressure analysis", () => {
     },
   });
 
+  first.runTimers();
   const second = loadDebugLog(localValues, sessionValues, { idStart: 20 });
   const snapshot = second.api.getSnapshot();
 
@@ -212,4 +253,74 @@ test("plugin usage milestones survive a crash during project load", () => {
   assert.equal(candidate.evidence, "project-workload");
   assert.equal(candidate.instanceCount, 1024);
   assert.equal(candidate.topItems[0].id, "echo");
+});
+
+test("a burst of routine records costs one coalesced journal write", () => {
+  const localValues = new Map();
+  const sessionValues = new Map();
+  let journalWrites = 0;
+  class CountingMap extends Map {
+    set(key, value) {
+      if (key === "zoidium.debug-log.journal.v2") journalWrites += 1;
+      return super.set(key, value);
+    }
+  }
+  const countingValues = new CountingMap();
+  const first = loadDebugLog(countingValues, sessionValues);
+  first.runTimers();
+  const before = journalWrites;
+  for (let index = 0; index < 300; index += 1) {
+    first.api.record("noise", { index });
+  }
+  assert.equal(journalWrites, before, "routine records wait for the scheduled write");
+  first.runTimers();
+  assert.equal(journalWrites, before + 1);
+});
+
+test("repeated global errors retain a count without synchronous writes or UI spam", () => {
+  const local = new Map();
+  const loaded = loadDebugLog(local, new Map());
+  let writes = 0;
+  let mounts = 0;
+  loaded.context.localStorage.setItem = (key, value) => { writes += 1; local.set(key, value); };
+  loaded.context.document.createElement = () => { mounts += 1; return {}; };
+  const error = new Error("Repeated render failure");
+  for (let i = 0; i < 100; i += 1) loaded.windowEvents.dispatch("error", { error });
+  assert.equal(writes, 1);
+  assert.equal(mounts, 0);
+  loaded.runTimers();
+  assert.equal(writes, 2);
+  const snapshot = loaded.api.getSnapshot();
+  const events = snapshot.events.filter((entry) => entry.source === "window.error");
+  assert.equal(events.length, 1);
+  assert.equal(events[0].repetitions, 100);
+  assert.equal(snapshot.exceptions.at(-1).repetitions, 100);
+  loaded.windowEvents.dispatch("unhandledrejection", { reason: new Error("Async failure") });
+  assert.ok(loaded.api.getSnapshot().exceptions.some((entry) => entry.message === "Async failure"));
+});
+
+test("WebGL diagnostics release their probe and reuse collected information", () => {
+  const loaded = loadDebugLog(new Map(), new Map());
+  let created = 0;
+  let released = 0;
+  loaded.context.document.createElement = () => {
+    created += 1;
+    return { getContext() { return { getExtension(name) {
+      return name === "WEBGL_lose_context" ? { loseContext() { released += 1; } } : null;
+    } }; } };
+  };
+  for (let i = 0; i < 25; i += 1) assert.equal(loaded.api.getSnapshot().environment.webgl.supported, true);
+  assert.equal(created, 1);
+  assert.equal(released, 1);
+});
+
+test("context loss records evidence and shows one save/reload notification", () => {
+  const loaded = loadDebugLog(new Map(), new Map());
+  const notifications = [];
+  loaded.context.ZoidiumUI = { notify: (detail) => notifications.push(detail) };
+  loaded.documentEvents.dispatch("webglcontextlost");
+  loaded.documentEvents.dispatch("webglcontextlost");
+  assert.equal(notifications.length, 1);
+  assert.match(notifications[0].message, /Save.*reload/);
+  assert.equal(loaded.api.getSnapshot().events.filter((entry) => entry.type === "webgl-context-lost").length, 2);
 });

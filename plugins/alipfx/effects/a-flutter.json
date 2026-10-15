@@ -1,0 +1,770 @@
+{
+  "type": 1,
+  "properties": {
+    "name": "A_Flutter",
+    "enabled": {
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 1,
+          "frame": 0,
+          "tween": 0,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    }
+  },
+  "customProperties": [
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "time"
+      },
+      "expression": "time",
+      "animated": "time",
+      "keyframes": [
+        {
+          "value": 0,
+          "frame": 0,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Loop_Duration"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 3,
+          "frame": 0,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Flutter_Speed"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 30,
+          "frame": 0,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Freq_Rotation"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 1,
+          "frame": 0,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Random_Seed"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 0,
+          "frame": 0,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "group": true,
+        "dynamic": true,
+        "objects": [
+          {
+            "dynamic": true,
+            "name": "R",
+            "type": 0,
+            "value": 1,
+            "min": 0,
+            "max": 1
+          },
+          {
+            "dynamic": true,
+            "name": "G",
+            "type": 0,
+            "value": 1,
+            "min": 0,
+            "max": 1
+          },
+          {
+            "dynamic": true,
+            "name": "B",
+            "type": 0,
+            "value": 1,
+            "min": 0,
+            "max": 1
+          }
+        ],
+        "type": 4
+      },
+      "properties": {
+        "name": "Transform"
+      },
+      "objects": [
+        {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 0,
+              "frame": 0,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 0.33333333333333304,
+              "frame": 0,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 1,
+              "frame": 0,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "group": true,
+        "dynamic": true,
+        "objects": [
+          {
+            "dynamic": true,
+            "name": "X",
+            "type": 0,
+            "value": 0
+          },
+          {
+            "dynamic": true,
+            "name": "Y",
+            "type": 0,
+            "value": 0
+          }
+        ],
+        "type": 1
+      },
+      "properties": {
+        "name": "Position"
+      },
+      "objects": [
+        {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 1250,
+              "frame": 0,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 1250,
+              "frame": 0,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Uniform_Scale"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 1,
+          "frame": 0,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Scale_X"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 100,
+          "frame": 0,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Scale_Y"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 100,
+          "frame": 0,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Rotation_X"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 0,
+          "frame": 0,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Rotation_Y"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 0,
+          "frame": 0,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Rotation_Z"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 0,
+          "frame": 0,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "group": true,
+        "dynamic": true,
+        "objects": [
+          {
+            "dynamic": true,
+            "name": "R",
+            "type": 0,
+            "value": 1,
+            "min": 0,
+            "max": 1
+          },
+          {
+            "dynamic": true,
+            "name": "G",
+            "type": 0,
+            "value": 1,
+            "min": 0,
+            "max": 1
+          },
+          {
+            "dynamic": true,
+            "name": "B",
+            "type": 0,
+            "value": 1,
+            "min": 0,
+            "max": 1
+          }
+        ],
+        "type": 4
+      },
+      "properties": {
+        "name": "Paper Options"
+      },
+      "objects": [
+        {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 0,
+              "frame": 0,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 0.33333333333333304,
+              "frame": 0,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "animated": false,
+          "keyframes": [
+            {
+              "value": 1,
+              "frame": 0,
+              "tween": 1,
+              "controlPoints": [
+                [
+                  -10,
+                  0
+                ],
+                [
+                  10,
+                  0
+                ]
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Fold_Strength"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 10,
+          "frame": 0,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Fold_Travel"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 100,
+          "frame": 0,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Wobble_Amount"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 100,
+          "frame": 0,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Ripple_Amount"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 2,
+          "frame": 0,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Shading_Amount"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 100,
+          "frame": 0,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": {
+        "custom": true,
+        "dynamic": true,
+        "type": 0
+      },
+      "properties": {
+        "name": "Enable_Loop"
+      },
+      "animated": false,
+      "keyframes": [
+        {
+          "value": 0,
+          "frame": 0,
+          "tween": 1,
+          "controlPoints": [
+            [
+              -10,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        }
+      ]
+    }
+  ]
+}

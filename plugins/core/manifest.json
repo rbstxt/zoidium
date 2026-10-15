@@ -3,7 +3,7 @@
   "id": "core",
   "name": "Zoidium Core",
   "author": "Zoidium",
-  "version": "11",
+  "version": "41",
   "kind": "core",
   "visibility": "hidden",
   "alwaysEnabled": true,
@@ -41,6 +41,21 @@
       "phase": "pre-init"
     },
     {
+      "id": "temporal-math",
+      "source": "./plugins/core/temporal-math.js",
+      "phase": "pre-init"
+    },
+    {
+      "id": "temporal-layers",
+      "source": "./plugins/core/temporal-layers.js",
+      "phase": "pre-init"
+    },
+    {
+      "id": "temporal-sampler",
+      "source": "./plugins/core/temporal-sampler.js",
+      "phase": "pre-init"
+    },
+    {
       "id": "temporal-render",
       "source": "./plugins/core/temporal-render.js",
       "phase": "pre-init"
@@ -53,6 +68,11 @@
     {
       "id": "render-aspect-ratio",
       "source": "./plugins/core/render-aspect-ratio.js",
+      "phase": "pre-init"
+    },
+    {
+      "id": "project-archive",
+      "source": "./plugins/core/project-archive.js",
       "phase": "pre-init"
     },
     {
@@ -91,6 +111,11 @@
       "phase": "pre-init"
     },
     {
+      "id": "shadow-quality",
+      "source": "./plugins/core/shadow-quality.js",
+      "phase": "pre-init"
+    },
+    {
       "id": "named-property-lists",
       "source": "./plugins/core/named-property-lists.js",
       "phase": "pre-init"
@@ -103,6 +128,16 @@
     {
       "id": "remove-ad-panel",
       "source": "./plugins/core/remove-ad-panel.js",
+      "phase": "pre-init"
+    },
+    {
+      "id": "layer-unload-dispose",
+      "source": "./plugins/core/layer-unload-dispose.js",
+      "phase": "pre-init"
+    },
+    {
+      "id": "display-labels",
+      "source": "./plugins/core/display-labels.js",
       "phase": "pre-init"
     },
     {
@@ -149,6 +184,39 @@
       "id": "panel-fullscreen-shortcut",
       "source": "./plugins/core/panel-fullscreen-shortcut.js",
       "phase": "pre-init"
+    },
+    {
+      "id": "output-frame-store",
+      "source": "./plugins/core/output-frame-store.js",
+      "phase": "pre-init"
+    },
+    {
+      "id": "output-frame-cache",
+      "source": "./plugins/core/output-frame-cache.js",
+      "phase": "pre-init"
+    },
+    {
+      "id": "main-viewport",
+      "source": "./plugins/core/main-viewport.js",
+      "phase": "pre-init"
+    }
+  ],
+  "modules": [
+    {
+      "id": "single-graph-window",
+      "source": "./plugins/core/single-graph-window.js?v=41"
+    },
+    {
+      "id": "font-load",
+      "source": "./plugins/core/font-load.js?v=41"
+    },
+    {
+      "id": "video-decode-hint",
+      "source": "./plugins/core/video-decode-hint.js?v=41"
+    },
+    {
+      "id": "output-frame-cache",
+      "source": "./plugins/core/output-frame-cache.js?v=41"
     }
   ]
 }

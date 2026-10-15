@@ -37,6 +37,7 @@ function requestPathname(requestUrl) {
   try {
     parsed = new URL(requestUrl, "http://zoidium.invalid");
   } catch (_error) {
+    // Unparseable request targets serve no file.
     return null;
   }
   if (parsed.origin !== "http://zoidium.invalid") return null;
@@ -45,6 +46,7 @@ function requestPathname(requestUrl) {
   try {
     pathname = decodeURIComponent(parsed.pathname);
   } catch (_error) {
+    // An undecodable path serves no file.
     return null;
   }
   if (pathname.includes("\u0000") || pathname.includes("\\")) return null;
@@ -60,6 +62,41 @@ function isLiveProjectPath(relativePath) {
   return liveProjectEntries.some(
     (entry) => relativePath === entry || relativePath.startsWith(`${entry}/`)
   );
+}
+
+// DNS-rebinding hardening for the development server: only loopback Host
+// values on the port this server bound are served. Anything else (an
+// attacker domain resolving to 127.0.0.1, a foreign port, a missing header)
+// gets a 403 before any file is read.
+const loopbackHostnames = new Set(["127.0.0.1", "localhost", "::1"]);
+
+function isAllowedHost(hostHeader, expectedPort) {
+  if (typeof hostHeader !== "string") return false;
+  const raw = hostHeader.trim();
+  if (!raw || /[\s@/\\?]/.test(raw)) return false;
+  let hostname = raw;
+  let port = null;
+  if (hostname.startsWith("[")) {
+    const end = hostname.indexOf("]");
+    if (end < 0) return false;
+    port = hostname.slice(end + 1);
+    hostname = hostname.slice(1, end);
+    if (port) {
+      if (!port.startsWith(":")) return false;
+      port = port.slice(1);
+    } else {
+      port = null;
+    }
+  } else if (hostname.includes(":")) {
+    const parts = hostname.split(":");
+    if (parts.length !== 2) return false;
+    [hostname, port] = parts;
+  }
+  if (!loopbackHostnames.has(hostname.toLowerCase())) return false;
+  if (port !== null && port !== "") {
+    if (!/^\d+$/.test(port) || Number(port) !== Number(expectedPort)) return false;
+  }
+  return true;
 }
 
 function shouldServeFromProject(requestUrl) {
@@ -105,6 +142,9 @@ function openBrowser(url) {
       : "xdg-open";
   const args = process.platform === "win32" ? ["/c", "start", "", url] : [url];
   const child = spawn(command, args, { detached: true, stdio: "ignore" });
+  child.once("error", (error) => {
+    console.warn(`[Zoidium] could not open the browser: ${error.message}`);
+  });
   child.unref();
 }
 
@@ -136,12 +176,22 @@ function close(server) {
 
 async function listenOnPort(listeners, port) {
   const bound = [];
+  let assignedPort = port;
   try {
     for (const { server, host } of listeners) {
-      await listen(server, port, host);
-      bound.push(server);
+      try {
+        assignedPort = await listen(server, assignedPort, host);
+        bound.push(server);
+      } catch (error) {
+        if (host === "::1" && error && ["EADDRNOTAVAIL", "EAFNOSUPPORT"].includes(error.code)) {
+          console.warn(`[Zoidium] IPv6 loopback unavailable (${error.code}); serving on 127.0.0.1 only`);
+          continue;
+        }
+        throw error;
+      }
     }
-    return port;
+    if (!bound.length) throw new Error("No local loopback address is available");
+    return assignedPort;
   } catch (error) {
     await Promise.all(bound.map((server) => close(server)));
     throw error;
@@ -149,13 +199,12 @@ async function listenOnPort(listeners, port) {
 }
 
 async function listenOnAvailablePort(listeners, preferredPort, attempts = portFallbackAttempts) {
-  const lastPort = Math.min(preferredPort + attempts, 65535);
-  for (let port = preferredPort; ; port += 1) {
+  for (let attempt = 0; ; attempt += 1) {
+    const port = preferredPort === 0 ? 0 : preferredPort + attempt;
     try {
       return await listenOnPort(listeners, port);
     } catch (error) {
-      const canFallForward = error && error.code === "EADDRINUSE" && port < lastPort;
-      if (!canFallForward) throw error;
+      if (!error || error.code !== "EADDRINUSE" || attempt >= attempts || port >= 65535) throw error;
     }
   }
 }
@@ -179,8 +228,14 @@ async function main() {
 
   const runtime = await prepareRuntimeStage();
   let shuttingDown = false;
+  let boundPort = options.port;
   const compressionMiddleware = compression();
   const handleRequest = (request, response) => {
+    if (!isAllowedHost(request.headers && request.headers.host, boundPort)) {
+      response.writeHead(403, { "Content-Type": "text/plain; charset=utf-8" });
+      response.end("Forbidden");
+      return;
+    }
     compressionMiddleware(request, response, async () => {
       try {
         const liveProjectFile = shouldServeFromProject(request.url);
@@ -228,7 +283,8 @@ async function main() {
 
   try {
     const port = await listenOnAvailablePort(listeners, options.port);
-    if (port !== options.port) {
+    boundPort = port;
+    if (options.port !== 0 && port !== options.port) {
       console.log(`[Zoidium] port ${options.port} is already in use; using ${port}`);
     }
     const url = `http://127.0.0.1:${port}`;
@@ -251,6 +307,7 @@ if (require.main === module) {
 }
 
 module.exports = {
+  isAllowedHost,
   isLiveProjectPath,
   listenOnAvailablePort,
   requestPathname,

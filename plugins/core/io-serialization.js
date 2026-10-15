@@ -1,6 +1,5 @@
 (function installIoSerializationPatch(global) {
   "use strict";
-
   const PATCH_MARKER = "__zoidiumIoSerializationPatch";
   const ORIGINAL_MARKER = "__zoidiumIoSerializationOriginal";
   const RETRY_DELAY_MS = 100;
@@ -16,18 +15,15 @@
   const LEASE_RENEW_MS = 30 * 1000;
   const LEASE_RETRY_MS = 250;
   const CANCELLED = Object.freeze({ cancelled: true });
-
   function delay(milliseconds) {
     return new Promise((resolve) => setTimeout(resolve, milliseconds));
   }
-
   function createWebLockRunner(lockManager) {
     return function runWithWebLock(_kind, task, cancellation) {
       const options = { mode: "exclusive" };
       if (cancellation && cancellation.signal) {
         options.signal = cancellation.signal;
       }
-
       return Promise.resolve()
         .then(() =>
           lockManager.request(CROSS_TAB_LOCK_NAME, options, function () {
@@ -51,7 +47,6 @@
         });
     };
   }
-
   function openLeaseDatabase(indexedDb) {
     return new Promise((resolve, reject) => {
       const request = indexedDb.open(LEASE_DATABASE_NAME, 1);
@@ -71,16 +66,13 @@
       };
     });
   }
-
   function createIndexedDbLockRunner(globalObject) {
     const indexedDb = globalObject && globalObject.indexedDB;
     if (!indexedDb || typeof indexedDb.open !== "function") return null;
-
     const databasePromise = openLeaseDatabase(indexedDb);
     const ownerPrefix =
       String(Date.now()) + "-" + Math.random().toString(36).slice(2);
     let requestCounter = 0;
-
     async function updateLease(token, action) {
       const database = await databasePromise;
       return new Promise((resolve, reject) => {
@@ -88,7 +80,6 @@
         const store = transaction.objectStore(LEASE_STORE_NAME);
         const request = store.get(CROSS_TAB_LOCK_NAME);
         let result = { acquired: false, expiresAt: 0 };
-
         request.onsuccess = function () {
           const now = Date.now();
           const current = request.result;
@@ -102,7 +93,6 @@
             }
             return;
           }
-
           if (!current || current.owner !== token) return;
           if (action === "renew") {
             const expiresAt = now + LEASE_DURATION_MS;
@@ -117,7 +107,6 @@
           try {
             transaction.abort();
           } catch (_error) {
-            // The transaction may already have failed.
           }
         };
         transaction.oncomplete = function () {
@@ -133,7 +122,6 @@
         transaction.onabort = transaction.onerror;
       });
     }
-
     return async function runWithIndexedDbLease(_kind, task, cancellation) {
       const token = ownerPrefix + "-" + String(++requestCounter);
       let acquired = false;
@@ -154,7 +142,6 @@
           }
         }
       }
-
       const renewTimer = setInterval(function () {
         updateLease(token, "renew").catch(function () {});
       }, LEASE_RENEW_MS);
@@ -172,7 +159,6 @@
       }
     };
   }
-
   function createOriginLockRunner(globalObject) {
     const lockManager =
       globalObject && globalObject.navigator && globalObject.navigator.locks;
@@ -182,12 +168,10 @@
         run: createWebLockRunner(lockManager),
       };
     }
-
     const indexedDbRunner = createIndexedDbLockRunner(globalObject);
     if (indexedDbRunner) {
       return { mode: "indexeddb-lease", run: indexedDbRunner };
     }
-
     return {
       mode: "page-only",
       run: function runWithoutCrossTabLock(_kind, task, cancellation) {
@@ -198,7 +182,6 @@
       },
     };
   }
-
   function byteLength(value) {
     if (!value) return 0;
     if (Number.isFinite(Number(value.size))) return Math.max(0, Number(value.size));
@@ -207,7 +190,6 @@
     }
     return 0;
   }
-
   function estimateArchiveStorageBytes(files) {
     let inputBytes = 0;
     for (const file of files || []) inputBytes += byteLength(file && file.data);
@@ -216,7 +198,6 @@
       Math.ceil(inputBytes * 1.25 + ARCHIVE_HEADROOM_BYTES),
     );
   }
-
   function estimateVideoStorageBytes(params, profiles) {
     params = params || {};
     const width = Math.max(1, Number(params.width) || 640);
@@ -237,7 +218,6 @@
       Math.ceil(expectedOutput * 1.5 + ARCHIVE_HEADROOM_BYTES),
     );
   }
-
   function requestPersistentQuota(globalObject, requestedBytes, fallback) {
     const requested = Math.max(
       MINIMUM_WORKSPACE_BYTES,
@@ -252,7 +232,6 @@
         ? Promise.resolve().then(() => fallback(requested))
         : Promise.resolve(requested);
     }
-
     return new Promise((resolve, reject) => {
       try {
         storage.requestQuota(
@@ -282,7 +261,6 @@
       }
     });
   }
-
   async function assertBlobPrefix(blob, expected, description) {
     if (!blob) return blob;
     if (byteLength(blob) < expected.length) {
@@ -299,12 +277,6 @@
     }
     return blob;
   }
-
-  // The video worker and the archive worker both stream through the same
-  // origin-private file named "out" and resolve with a File handle to it. That
-  // handle stays live: the next render, project save, or cleanup rewrites or
-  // removes the file and the captured bytes change under the caller. Copy the
-  // export into page memory while the worker still owns the file.
   function isFileBackedBlob(value) {
     return Boolean(
       value &&
@@ -315,15 +287,11 @@
         value.name.length > 0,
     );
   }
-
   async function detachFileBackedBlob(blob, description) {
     if (!isFileBackedBlob(blob)) return blob;
     if (typeof Response !== "function" || byteLength(blob) === 0) return blob;
-
     let copy;
     try {
-      // Reading through a stream avoids materializing a single ArrayBuffer,
-      // which caps out well below the size of a long render.
       copy = await new Response(blob.stream()).blob();
     } catch (error) {
       const failure = new Error(
@@ -339,11 +307,6 @@
     }
     return copy;
   }
-
-  // The CM3 video and archive workers both remove, recreate, and stream
-  // through the origin-private file named "out". This serializer protects
-  // that file across tabs and also keeps all renderers in one tab from
-  // mutating the same sequence and media elements at the same time.
   function createIoSerializer(hooks) {
     hooks = hooks || {};
     const notifyWaiter =
@@ -361,14 +324,12 @@
         : function () {
             return Promise.resolve();
           };
-
     let tail = Promise.resolve();
     let queued = 0;
     let running = null;
     let completed = 0;
     let originalTar = null;
     let resetRemuxQueue = null;
-
     function state() {
       return {
         queued,
@@ -377,13 +338,11 @@
         coordination: coordination.mode,
       };
     }
-
     function settle(holder) {
       if (!holder || holder.settled) return;
       holder.settled = true;
       if (running === holder) running = null;
     }
-
     function enqueue(kind, task, options) {
       options = options || {};
       const previous = tail;
@@ -400,7 +359,6 @@
         notifyWaiter(kind, state());
       }
       queued += 1;
-
       let resolveCancellation = null;
       const abortController =
         typeof AbortController === "function" ? new AbortController() : null;
@@ -428,7 +386,6 @@
           return holder.cancelled;
         },
       };
-
       const start = function () {
         queued -= 1;
         running = holder;
@@ -456,7 +413,6 @@
           options.crossTab === false
             ? Promise.race([guardedTask(), cancellationPromise])
             : coordination.run(kind, guardedTask, cancellation);
-
         return Promise.resolve(operation).then(
           (value) => {
             holder.releaseTail();
@@ -474,11 +430,6 @@
       };
       return previous.then(start, start);
     }
-
-    // PZ.av.stop() also runs inside the encoder's normal completion handler.
-    // Release the page-local queue immediately, then wait one task before
-    // treating the call as cancellation. A successful encode settles during
-    // the same callback; a user-cancelled encode never settles on its own.
     function releaseEncodeHolder() {
       const holder = running;
       if (!holder || holder.kind !== "encode" || holder.settled) return;
@@ -487,7 +438,6 @@
         if (!holder.encodeSettled) holder.cancel();
       }, 0);
     }
-
     function wrapEncode(original, profiles) {
       if (typeof original !== "function" || original[PATCH_MARKER]) {
         return original;
@@ -514,7 +464,6 @@
       wrapped[ORIGINAL_MARKER] = original;
       return wrapped;
     }
-
     function wrapImageEncode(original) {
       if (typeof original !== "function" || original[PATCH_MARKER]) {
         return original;
@@ -522,9 +471,6 @@
       const wrapped = function zoidiumSerializedImageEncode() {
         const receiver = this;
         const args = Array.prototype.slice.call(arguments);
-        // Image encoding does not use the shared "out" file, so tabs may run
-        // images independently. It still joins the page-local queue because
-        // video and image export share sequence state and HTMLMediaElements.
         return enqueue(
           "image",
           () => original.apply(receiver, args),
@@ -535,7 +481,6 @@
       wrapped[ORIGINAL_MARKER] = original;
       return wrapped;
     }
-
     async function runTar(original, receiver, args) {
       await ensureQuota(estimateArchiveStorageBytes(receiver && receiver.files));
       const blob = await original.apply(receiver, args || []);
@@ -545,14 +490,12 @@
         "Project archive",
       );
     }
-
     function tarWithoutLock(receiver, args) {
       if (typeof originalTar !== "function") {
         return Promise.reject(new Error("The project archive writer is unavailable."));
       }
       return runTar(originalTar, receiver, args);
     }
-
     function wrapTar(original) {
       if (typeof original !== "function") return original;
       if (original[PATCH_MARKER]) {
@@ -569,7 +512,6 @@
       wrapped[ORIGINAL_MARKER] = original;
       return wrapped;
     }
-
     function wrapStop(original) {
       if (typeof original !== "function" || original[PATCH_MARKER]) {
         return original;
@@ -586,7 +528,6 @@
       wrapped[ORIGINAL_MARKER] = original;
       return wrapped;
     }
-
     function wrapCleanUp(original) {
       if (typeof original === "function" && original[PATCH_MARKER]) {
         return original;
@@ -598,7 +539,6 @@
       wrapped[ORIGINAL_MARKER] = original;
       return wrapped;
     }
-
     function wrapRemux(original) {
       if (typeof original !== "function" || original[PATCH_MARKER]) {
         return original;
@@ -618,7 +558,6 @@
       wrapped[ORIGINAL_MARKER] = original;
       return wrapped;
     }
-
     function wrapQuota(original) {
       if (typeof original === "function" && original[PATCH_MARKER]) {
         return original;
@@ -630,7 +569,6 @@
       wrapped[ORIGINAL_MARKER] = original;
       return wrapped;
     }
-
     return {
       enqueue,
       releaseEncodeHolder,
@@ -645,7 +583,6 @@
       wrapTar,
     };
   }
-
   function defaultDeleteOutFile() {
     return new Promise((resolve) => {
       let done = false;
@@ -688,7 +625,6 @@
       }
     });
   }
-
   function notifyWaiter(kind, snapshot) {
     try {
       if (typeof console !== "undefined" && console.warn) {
@@ -701,7 +637,6 @@
         );
       }
     } catch (_error) {
-      // Diagnostics must never break the render or save path.
     }
     try {
       if (
@@ -716,10 +651,8 @@
         );
       }
     } catch (_error) {
-      // Event listeners are optional.
     }
   }
-
   function install(targets) {
     if (
       !targets ||
@@ -740,7 +673,6 @@
     ) {
       return false;
     }
-
     let api = targets.PZ && targets.PZ[DIAGNOSTICS_KEY];
     const existingSerializer = api && api._serializer;
     const originalQuota = targets.file.getQuota;
@@ -759,7 +691,6 @@
           );
         },
       });
-
     targets.av.encode = serializer.wrapEncode(
       targets.av.encode,
       targets.av.profiles,
@@ -772,7 +703,6 @@
     targets.imageEncoder.encode = serializer.wrapImageEncode(
       targets.imageEncoder.encode,
     );
-
     try {
       if (targets.PZ && !existingSerializer) {
         api = {
@@ -785,11 +715,9 @@
         targets.PZ[DIAGNOSTICS_KEY] = api;
       }
     } catch (_error) {
-      // Diagnostics are best effort.
     }
     return true;
   }
-
   function installWithRetry(attempt) {
     if (!global) return;
     attempt = attempt || 1;
@@ -812,14 +740,12 @@
             );
           }
         } catch (_error) {
-          // Diagnostics must never break startup.
         }
       }
       return;
     }
     setTimeout(() => installWithRetry(attempt + 1), RETRY_DELAY_MS);
   }
-
   if (typeof module === "object" && module.exports) {
     module.exports = {
       ARCHIVE_HEADROOM_BYTES,
@@ -840,6 +766,5 @@
     };
     return;
   }
-
   installWithRetry(1);
 })(typeof window !== "undefined" ? window : null);

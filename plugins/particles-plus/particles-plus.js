@@ -23,6 +23,7 @@ const ParticlesPlus = (() => {
     trackedParticles: new Map(),
     watchedProperties: new Map(),
     pickerPatches: new Set(),
+    pickerPatchData: new WeakMap(),
     textureDefinition: null,
     particlePrototype: null,
     originalTextureChanged: null,
@@ -33,9 +34,11 @@ const ParticlesPlus = (() => {
     patchedParticleUnload: null,
     originalGenerateTextureInput: null,
     patchedGenerateTextureInput: null,
+    unregisterPanel: null,
   };
 
   function getProject(value) {
+    // The host link may be missing or unreadable; unknown means untracked.
     try {
       return value?.parentProject || null;
     } catch (_error) {
@@ -48,6 +51,7 @@ const ParticlesPlus = (() => {
   }
 
   function readPropertyValue(property) {
+    // A transient host read failure means "no value", not a broken scan.
     try {
       return property?.get?.() ?? property?.value ?? null;
     } catch (_error) {
@@ -118,6 +122,30 @@ const ParticlesPlus = (() => {
     state.watchedProperties.set(property, callback);
   }
 
+  function unwatchProperty(property) {
+    const callback = state.watchedProperties.get(property);
+    if (!callback) return;
+    property.onChanged?.unwatch?.(callback);
+    state.watchedProperties.delete(property);
+  }
+
+  function restorePickers(predicate = () => true) {
+    for (const reference of state.pickerPatches) {
+      const container = reference.deref();
+      const patch = container && state.pickerPatchData.get(container);
+      if (!patch) {
+        state.pickerPatches.delete(reference);
+        continue;
+      }
+      if (!predicate(patch)) continue;
+      if (patch.select?.onchange === patch.patchedOnchange) patch.select.onchange = patch.originalOnchange;
+      if (container.pz_update === patch.patchedPzUpdate) container.pz_update = patch.originalPzUpdate;
+      if (patch.fileControl?.onchange === patch.patchedFileOnchange) patch.fileControl.onchange = patch.originalFileOnchange;
+      state.pickerPatchData.delete(container);
+      state.pickerPatches.delete(reference);
+    }
+  }
+
   function scanProject(project) {
     const particles = new Set();
     const particleType = state.PZ.object3d?.particles;
@@ -131,6 +159,10 @@ const ParticlesPlus = (() => {
     for (const particle of Array.from(state.trackedParticles.keys())) {
       if (!particles.has(particle) || getProject(particle) !== project) untrackParticle(particle);
     }
+    for (const property of state.watchedProperties.keys()) {
+      if (!particles.has(property.parentObject) || getProject(property) !== project) unwatchProperty(property);
+    }
+    restorePickers((patch) => getProject(patch.property) !== project);
   }
 
   function patchTextureDefinition() {
@@ -162,6 +194,9 @@ const ParticlesPlus = (() => {
     };
     state.originalParticleUnload = state.particlePrototype.unload;
     state.patchedParticleUnload = function () {
+      const property = getTextureProperty(this);
+      unwatchProperty(property);
+      restorePickers((patch) => patch.property === property);
       untrackParticle(this);
       return typeof state.originalParticleUnload === 'function'
         ? state.originalParticleUnload.apply(this, arguments)
@@ -252,7 +287,8 @@ const ParticlesPlus = (() => {
         fileControl.onchange = patchedFileOnchange;
       }
 
-      state.pickerPatches.add({
+      state.pickerPatchData.set(container, {
+        property,
         container,
         originalPzUpdate,
         patchedPzUpdate,
@@ -263,6 +299,7 @@ const ParticlesPlus = (() => {
         originalFileOnchange,
         patchedFileOnchange,
       });
+      state.pickerPatches.add(new WeakRef(container));
       return result;
     };
     controls.generateTextureInput = state.patchedGenerateTextureInput;
@@ -282,17 +319,17 @@ const ParticlesPlus = (() => {
     if (state.particlePrototype?.toJSON === state.patchedParticleToJSON) {
       state.particlePrototype.toJSON = state.originalParticleToJSON;
     }
-    for (const patch of state.pickerPatches) {
-      if (patch.select?.onchange === patch.patchedOnchange) patch.select.onchange = patch.originalOnchange;
-      if (patch.container?.pz_update === patch.patchedPzUpdate) patch.container.pz_update = patch.originalPzUpdate;
-      if (patch.fileControl?.onchange === patch.patchedFileOnchange) patch.fileControl.onchange = patch.originalFileOnchange;
-    }
-    state.pickerPatches.clear();
+    restorePickers();
     for (const [property, callback] of state.watchedProperties) property.onChanged?.unwatch?.(callback);
     state.watchedProperties.clear();
   }
 
   function teardown() {
+    if (state.unregisterPanel) {
+      const unregister = state.unregisterPanel;
+      state.unregisterPanel = null;
+      unregister();
+    }
     restorePatches();
     for (const particle of Array.from(state.trackedParticles.keys())) untrackParticle(particle);
     state.trackedParticles.clear();
@@ -324,6 +361,25 @@ const ParticlesPlus = (() => {
     state.active = false;
   }
 
+  // Attribute window for a particle object: one tab per topic, native CM3 rows.
+  function attributePanelSpec(PZ) {
+    return {
+      id: 'particles',
+      title: 'Particles',
+      persistKey: 'particles',
+      width: 400,
+      height: 560,
+      match: (target) => Boolean(PZ.object3d?.particles && target instanceof PZ.object3d.particles),
+      tabs: [
+        { id: 'emitter', title: 'Emitter', keys: ['number', 'rate', 'lifetime', 'time'] },
+        { id: 'position', title: 'Position', keys: ['pdist', 'ipos', 'pspread', 'iradius', 'rspread'] },
+        { id: 'motion', title: 'Motion', keys: ['vdist', 'ivel', 'vspread', 'irvel', 'rvspread', 'accel'] },
+        { id: 'rotation', title: 'Rotation', keys: ['iang', 'aspread', 'angvel', 'avspread'] },
+        { id: 'appearance', title: 'Appearance', keys: ['color', 'size', 'blending', 'texture'] },
+      ],
+    };
+  }
+
   function activate(context) {
     if (state.active) return;
     const PZ = context.PZ || context.window?.PZ;
@@ -340,6 +396,7 @@ const ParticlesPlus = (() => {
     state.plugin = plugin;
     state.manifest = manifest;
     state.active = true;
+    context.lifecycle.onDispose(deactivate);
 
     try {
       const version = String(manifest.version || plugin.version || '1');
@@ -368,6 +425,9 @@ const ParticlesPlus = (() => {
       patchParticleUnload();
       patchPicker();
       scanProject(state.editor?.project);
+      if (typeof context.ui?.registerAttributePanel === 'function') {
+        state.unregisterPanel = context.ui.registerAttributePanel(attributePanelSpec(PZ));
+      }
     } catch (error) {
       teardown();
       throw error;
@@ -387,7 +447,7 @@ const ParticlesPlus = (() => {
     );
   }
 
-  return { activate, deactivate, isInUse };
+  return { activate, deactivate, isInUse, attributePanelSpec };
 })();
 
 module.exports = ParticlesPlus;
