@@ -69,7 +69,9 @@ module.exports = {
           if (!graph?.nodes?.some(node => node.params?.asset === oldKey)) return;
           for (const node of graph.nodes) if (node.params?.asset === oldKey) node.params.asset = newKey;
           ops.setValue({ property: owner.properties.graph.getAddress(), value: JSON.stringify(graph) });
-          if (owner.properties.nodeImage?.get() === oldKey) owner.properties.nodeImage.set(newKey);
+          // This field mirrors the selected graph node; its changed handler
+          // would author the graph a second time inside this operation.
+          if (owner.properties.nodeImage?.get() === oldKey) owner.properties.nodeImage.value = newKey;
         });
       },
       collect(project, emit) {

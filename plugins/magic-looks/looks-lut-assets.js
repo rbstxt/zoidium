@@ -1,11 +1,10 @@
 "use strict";
 
-// Keep imported files in CM3's content-addressed project asset list. Retain
-// previous assets while the effect lives so native property undo can restore
-// their keys after Clear, replacement or a preset selection.
+// Core retains imported files for undo. Without that registry, keep older
+// entries while the effect lives so native property undo can restore them.
 var Looks = Looks || {};
 (function (Looks) {
-  function create(effect, PZ, THREE) {
+  function create(effect, PZ, THREE, registry) {
     var entries = new Map(), activeKey = null, textures = [], disposed = false;
     function key() {
       var property = effect.properties.lutData;
@@ -34,12 +33,22 @@ var Looks = Looks || {};
       }).catch(function (error) { entry.error = error.message || "The LUT file could not be read."; });
       return entry;
     }
+    function releaseUnused() {
+      if (!registry?.retained) return;
+      const current = key();
+      for (const [value, entry] of entries) {
+        if (value === current || !registry.retained(value)) continue;
+        entries.delete(value);
+        if (entry.asset) effect.parentProject.assets.unload(entry.asset);
+      }
+    }
     function releaseTextures() {
       textures.forEach(function (texture) { texture.dispose(); });
       textures = [];
     }
     function update(frame) {
       if (disposed || !effect.pass) return;
+      releaseUnused();
       var value = effect.properties.lutName.get(frame) === Looks.cube.CUSTOM_NAME ? key() : null;
       var entry = value && entries.get(value);
       // An unprepared key starts loading, but prepare() always awaits it before
@@ -81,6 +90,7 @@ var Looks = Looks || {};
         if (next.error) throw new Error(next.error);
       },
       prepare: async function (frame) {
+        releaseUnused();
         var entry = entryFor(key());
         if (entry) await entry.loading;
         update(frame);
