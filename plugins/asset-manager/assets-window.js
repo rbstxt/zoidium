@@ -519,7 +519,9 @@ function createAssetsWindow(session) {
     parts.wrap.scrollTop = scroll;
     parts.empty.hidden = shown.length > 0;
     parts.empty.textContent = items.length
-      ? "No items match."
+      ? (view.filter === "problems" && !view.query && view.kind === "all"
+        ? "No missing or failed items."
+        : "No items match.")
       : "No assets yet. Import media in the Media tab, or choose a file in an image or font property.";
     parts.status.textContent = model.summaryText(items, shown.length);
     if (!shown.some((item) => item.id === view.selectedId)) {

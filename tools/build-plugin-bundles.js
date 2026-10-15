@@ -45,7 +45,17 @@ function syncCoreScripts() {
   sources.push(...declared.slice(cursor));
   if (JSON.stringify(sources) === JSON.stringify(configured)) return;
   if (checkOnly) throw new Error("Core pre-init script order differs from the manifest. Rebuild plugin bundles.");
-  const scripts = "\n" + sources.map(source => "      " + JSON.stringify(source)).join(",\n");
+  // Comment lines above an entry stay attached to it when the list is rewritten.
+  const comments = new Map();
+  let pending = [];
+  for (const line of match[1].split("\n")) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith("//")) pending.push(line);
+    const entry = /"([^"\n]+)"/.exec(line);
+    if (entry) { comments.set(entry[1], pending); pending = []; }
+  }
+  const scripts = "\n" + sources.map(source => (comments.get(source) || []).map(line => line + "\n").join("") +
+    "      " + JSON.stringify(source)).join(",\n");
   const next = config.replace(match[0], "preInitScripts: [" + scripts + "\n    ],")
     .replace(/assetVersion: (\d+)/, (_match, version) => "assetVersion: " + (Number(version) + 1));
   writeFileIfChangedAtomic(configPath, next);
