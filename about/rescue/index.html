@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Rescue a Zoidium project that can no longer be saved" />
+    <link rel="alternate" hreflang="en" href="/about/rescue" />
+    <link rel="alternate" hreflang="ja" href="/about/rescue/ja" />
+    <link rel="stylesheet" href="/zoidium/runtime-fonts.css" />
+    <link rel="stylesheet" href="/about/legal.css" />
+    <title>Project rescue | Zoidium</title>
+  </head>
+  <body>
+    <nav aria-label="Site links">
+      <a href="/">Zoidium</a>
+      <a href="/about/faq">FAQ</a>
+      <a href="/about/rescue">Rescue</a>
+      <a href="/about/terms">Terms</a>
+      <a href="/about/privacy">Privacy</a>
+    </nav>
+
+    <p class="language-switch">日本語でも読めます。<a href="/about/rescue/ja">日本語版</a></p>
+
+    <header>
+      <h1>Rescue a project that won't save</h1>
+      <p class="meta">For when Save, restore points, or restore-point downloads fail or do nothing.</p>
+    </header>
+
+    <div class="notice">
+      <p><strong>Do not reload or close the editor tab.</strong> Your unsaved project only exists in that tab. Don't open another project there, and stop playback and editing while the rescue runs.</p>
+    </div>
+
+    <h2>1. Add the rescue bookmarklet</h2>
+    <p>Drag this button to your browser's bookmarks bar. If the bar is hidden, press <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>B</kbd> (<kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>B</kbd> on a Mac) to show it. You can also right-click the button and bookmark the link.</p>
+    <div
+      id="rescue-tool"
+      class="rescue-tool"
+      data-drag-hint="Drag the button to your bookmarks bar, then click the bookmark while the editor tab is open. Clicking it here would only rescue this page."
+      data-ready="The bookmarklet is ready ({size}). It contains the whole rescue tool and needs no network connection when it runs."
+      data-load-failed="The rescue tool could not be loaded. Reload this help page (not the editor tab) to try again."
+      data-copied="The script was copied. Paste it into the editor tab's Console as described below."
+      data-copy-failed="Copying failed. Select all the text in the box below and copy it manually."
+      data-opener-started="The rescue tool started in the editor tab. Switch to that tab and watch the orange panel."
+      data-opener-failed="The rescue tool could not start in the editor tab:"
+      data-opener-gone="The editor tab that opened this page is no longer reachable. Use the bookmarklet or the Console instead."
+    >
+      <a id="rescue-bookmarklet" class="rescue-bookmarklet is-loading" href="#" aria-disabled="true">Zoidium Rescue</a>
+      <div class="rescue-actions">
+        <button id="rescue-opener" type="button" hidden disabled>Run in the editor tab that opened this page</button>
+        <button id="rescue-copy" type="button" disabled>Copy the script for the Console</button>
+      </div>
+      <p id="rescue-status" class="rescue-status" role="status">Loading the rescue tool...</p>
+      <textarea id="rescue-source" class="rescue-source" readonly hidden aria-label="Rescue script"></textarea>
+    </div>
+
+    <h2>2. Run it in the editor tab</h2>
+    <ul>
+      <li>Switch to the editor tab that cannot save, then click the <strong>Zoidium Rescue</strong> bookmark.</li>
+      <li>An orange panel appears in the top-right corner and shows each step as it runs.</li>
+      <li>When it finishes, the rescued <code>.pz</code> file downloads automatically. The panel also offers every file it made. Its <strong>Save</strong> buttons let you choose where to save, which works even when downloads do not.</li>
+      <li>The panel also lists your restore points. You can download any of them from there, even if the normal Download button fails.</li>
+    </ul>
+
+    <h2>3. Check the rescued file</h2>
+    <p>Open the rescued file in a <strong>new</strong> Zoidium tab and check the video, images, fonts, and audio. Keep the original tab open until the rescued file opens correctly and you have saved it normally. If an image or video shows as missing, use <strong>Media &gt; Missing assets &gt; Locate</strong> to point to the original file.</p>
+
+    <h2>If the bookmarklet does not work</h2>
+    <p>Some browsers can't store a bookmark this large, and the desktop app has no bookmarks. In those cases, run the same script from the developer Console:</p>
+    <ul>
+      <li>Click <strong>Copy the script for the Console</strong> above.</li>
+      <li>In the editor tab, open the Console. In Chrome or Edge, press <kbd>F12</kbd> or <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>J</kbd> (<kbd>Cmd</kbd>+<kbd>Option</kbd>+<kbd>J</kbd> on a Mac). In Firefox, press <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>K</kbd>. In the desktop app, choose <strong>View &gt; Toggle Developer Tools</strong>.</li>
+      <li>Paste the script and press <kbd>Enter</kbd>. If Chrome warns about pasting, type <code>allow pasting</code>, press <kbd>Enter</kbd>, and then paste again.</li>
+    </ul>
+    <p>If you opened this page from an error message in the editor, the <strong>Run in the editor tab that opened this page</strong> button appears above and starts the rescue without a bookmark.</p>
+
+    <div class="summary rescue-support">
+      <strong>Still not working? Report the bug on Discord</strong>
+      <p>If the rescue fails or the rescued file does not open, report it on the <a href="https://discord.gg/PWAmY9m5bu" target="_blank" rel="noopener noreferrer">Zoidium Discord server</a>. Please include:</p>
+      <ul>
+        <li>the report from the panel's <strong>Copy report for the bug report</strong> button,</li>
+        <li>the debug log from <strong>Settings &gt; Debug information &gt; Download debug log</strong> (in the desktop app, <strong>Debug &gt; Download debug log</strong>),</li>
+        <li>what you were doing when saving stopped working.</li>
+      </ul>
+      <p>The report and the debug log do not contain your project content. Share a <code>.pz</code> file only if you are comfortable doing so.</p>
+    </div>
+
+    <h2>What the rescue tool does</h2>
+    <p>It runs entirely inside the editor tab. It copies the project, packages it with its attached files as <code>.pz</code> files, and checks that each file can be read back. It never changes the open project, never writes restore points, and sends nothing over the network. If part of the project is damaged, it leaves out only the broken object and lists it in the panel. A copy with safe repairs is offered first, and an untouched copy is kept beside it.</p>
+
+    <script src="/about/rescue/rescue-page.js"></script>
+  </body>
+</html>

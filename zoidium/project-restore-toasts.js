@@ -12,6 +12,37 @@
     throw new Error("[Zoidium] project-restore-store.js must load before project-restore-toasts.js.");
   }
   var state = store.state;
+  var RESCUE_PAGE = "/about/rescue";
+  var SUPPORT_URL = "https://discord.gg/PWAmY9m5bu";
+
+  function helpLink(text, href, rel) {
+    var link = global.document.createElement("a");
+    link.textContent = text;
+    link.href = href;
+    link.target = "_blank";
+    // The rescue page keeps its opener so it can start the rescue tool in
+    // this editor tab; the external support link must not.
+    link.rel = rel;
+    return link;
+  }
+
+  function helpText(text) {
+    var span = global.document.createElement("span");
+    span.textContent = text;
+    return span;
+  }
+
+  // Error toasts point to the rescue tool, then to bug reports on Discord.
+  function createHelp() {
+    var help = global.document.createElement("div");
+    help.className = "zoidium-project-toast-help";
+    help.appendChild(helpText("Can't save or restore? "));
+    help.appendChild(helpLink("Try the rescue tool", RESCUE_PAGE, "opener"));
+    help.appendChild(helpText(". Still stuck? "));
+    help.appendChild(helpLink("Report the bug on Discord", SUPPORT_URL, "noopener noreferrer"));
+    help.appendChild(helpText("."));
+    return help;
+  }
 
   function createToast() {
     var toast = global.document.createElement("aside");
@@ -36,6 +67,7 @@
     var message = global.document.createElement("div");
     message.className = "zoidium-project-toast-message";
     toast.appendChild(message);
+    toast.appendChild(createHelp());
     var actions = global.document.createElement("div");
     actions.className = "zoidium-project-toast-actions";
     [
@@ -100,6 +132,7 @@
       ? "Error!"
       : detail.title || "Saved.";
     toast.querySelector(".zoidium-project-toast-message").textContent = detail.message || "";
+    toast.querySelector(".zoidium-project-toast-help").hidden = !isError;
     var actions = toast.querySelector(".zoidium-project-toast-actions");
     var retryButton = actions.querySelector('[data-toast-action="retry"]');
     var downloadButton = actions.querySelector('[data-toast-action="download"]');

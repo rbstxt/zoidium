@@ -64,6 +64,7 @@
     return COPY.en;
   }
 
+  const SUPPORT_URL = "https://discord.gg/PWAmY9m5bu";
   let emergencyBanner = null;
   let emergencyMountQueued = false;
 
@@ -98,6 +99,29 @@
         500,
       );
       banner.appendChild(message);
+
+      // Point to the rescue tool for unsaved work, and to Discord for the
+      // bug report the log belongs to.
+      const help = documentObject.createElement("div");
+      help.style.cssText = "margin-top:6px";
+      [
+        ["If your project can't be saved, ", null],
+        ["try the rescue tool", ["/about/rescue", "opener"]],
+        [". ", null],
+        ["Report the bug on Discord", [SUPPORT_URL, "noopener noreferrer"]],
+        [".", null],
+      ].forEach(([text, target]) => {
+        const part = documentObject.createElement(target ? "a" : "span");
+        part.textContent = text;
+        if (target) {
+          part.href = target[0];
+          part.target = "_blank";
+          part.rel = target[1];
+          part.style.color = "#ffd0d0";
+        }
+        help.appendChild(part);
+      });
+      banner.appendChild(help);
 
       const actions = documentObject.createElement("div");
       actions.style.cssText = "display:flex;gap:8px;margin-top:10px";
