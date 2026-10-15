@@ -82,5 +82,6 @@
     if (row) { expand(row); row.scrollIntoView?.({ block: "nearest" }); return true; }
     return selected || !!clipEl;
   }
+  parts.panelsOf = panelsOf;
   parts.reveal = reveal;
 })(globalThis);

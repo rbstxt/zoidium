@@ -47,6 +47,19 @@ module.exports = {
     if (!api) return;
     const PZ = context.PZ || context.window.PZ;
     const dispose = api.registerReferences({ id: "trapcode-suite/ies", label: "Embedded IES profiles",
+      clear(key) {
+        const editor = context.window.CM;
+        if (!editor?.project) return;
+        const ops = new PZ.ui.properties(editor);
+        collectLive(editor.project.sequence, owner => {
+          const text = valueOf(owner.properties?.iesData);
+          if (!text || "ies:" + hash(text) !== key) return;
+          for (const [name, value] of [["iesProfile", "Downlight"], ["iesData", ""], ["iesFilename", ""]]) {
+            const property = owner.properties[name];
+            if (property) ops.setValue({ property: property.getAddress(), value });
+          }
+        });
+      },
       collect(project, emit) {
         collectLive(project.sequence, owner => {
           if (owner.properties?.iesData) collectLight(owner, pathOf(owner), emit);

@@ -544,3 +544,33 @@ text private and uses it for Export File. IES filenames receive a `.ies` suffix.
 Native font wrappers expose `reset()`, which clears failed decode state, rearms
 the warning, and returns the new 3D font load promise. Transient preset reads
 retry after 2, 6, and 18 seconds; attached files and parse failures do not retry.
+
+
+Every FILE item in the live editor project is retained, including unused and
+missing files loaded from older projects. Snapshot items expose `retained`;
+`ZoidiumAssets.retained(id)` checks the current project. Presets and private
+render projects do not receive retention references. Retention is runtime
+ownership only; native asset JSON and attached archive bytes preserve the files.
+
+`import(files)` returns a promise of `{ ok, items: [{ id, name, created }], errors }`.
+It uses native file hashing and Media import for images, video and audio. Other
+files remain asset items. Duplicate bytes reuse the existing item. Import,
+`removeUnused(ids?)` and `removeItems(ids)` each join an open history operation
+or create one undo step. `removeUnused` returns `{ ok, removed, freed, skipped }`,
+where removed/skipped entries have `id`, `name` and `size`. Media holds do not
+count as authored uses. `removeItems` returns a promise of
+`{ ok, removed, clearedUses }`; it deletes footage clips and clears properties
+and matching keyframes. Uses in closed compositions refuse the whole edit with
+`reason: "in-closed-composition"` and `composition: { id, name }`.
+
+Reference adapters may implement `clear(key)` to remove all live authored uses
+of that key through native property operations. Core calls the hook inside its
+history operation. Do not start another operation or edit closed composition
+JSON. Material+ clears graph image parameters this way; the IES adapter clears
+its profile, filename and embedded data. Deletion refuses unsupported adapters
+before changing anything. Undo restores the same asset objects and recreates
+their Blob URLs before restoring consumers.
+
+Saving an unused missing FILE writes its key into optional `missingAssets` in
+`zoidium.json`. This records an intentional absence, not file bytes. Existing
+integrity records and attached bytes still undergo normal validation.

@@ -88,7 +88,7 @@
       const status = state.status.inspect(asset);
       const item = { id: key, key, ...status, name: readableName(asset, key, status.source),
         size: asset.file?.size ?? (asset.size > 0 ? asset.size : null), mime: asset.file?.type || null,
-        url: asset.url || null, inMedia: false, usages: [] };
+        url: asset.url || null, retained: !!retention?.has(asset, project), inMedia: false, usages: [] };
       Object.defineProperty(item, "asset", { value: asset, enumerable: false });
       items.set(key, item);
       for (const data of asset.data?.values?.() || []) if (data?.image) images.add(data.image);
@@ -166,7 +166,10 @@
     for (const item of array) if (!Object.prototype.hasOwnProperty.call(item, "asset")) {
       Object.defineProperty(item, "asset", { value: null, enumerable: false });
     }
-    for (const item of array) actions?.decorate(item, project);
+    for (const item of array) {
+      item.retained = !!item.retained;
+      actions?.decorate(item, project);
+    }
     const used = array.filter(item => item.usages.length).length;
     const problems = array.filter(item => (item.status === "failed" || item.status === "missing") &&
       (item.usages.length || (item.status === "missing" && item.source === "file"))).length;
@@ -191,9 +194,21 @@
     adapters.set(adapter.id, adapter); invalidate();
     return () => { if (adapters.get(adapter.id) === adapter) { adapters.delete(adapter.id); invalidate(); } };
   }
+  const retention = parts.createRetention?.(PZ, invalidate);
   const decoder = parts.createDecoder?.(PZ, invalidate);
   const actions = parts.createActions?.({ PZ, snapshot, refresh, adapters, usageRecords, decoder });
+  const edits = parts.createEdits?.({ PZ, snapshot, refresh, adapters, usageRecords, retention });
   const api = { snapshot, refresh, registerReferences,
+    missingUnused: edits?.missingUnused,
+    import: edits?.importFiles, removeUnused: edits?.removeUnused, removeItems: edits?.removeItems,
+    retained(id) { return !!retention?.has(global.CM?.project?.assets?.list[id]); },
+    renderNeeded(asset, project) {
+      const held = retention?.has(asset, project);
+      if ((asset.references ?? 1) <= (held ? 1 : 0)) return false;
+      // Decoder/undo caches may hold extra native references after the last
+      // authored use disappears. Those holds cannot block completed frames.
+      return !held || snapshot().items.some(item => item.asset === asset && item.usages.length > 0);
+    },
     capabilities: actions?.capabilities, reload: actions?.reload, locate: actions?.locate,
     exportFile: actions?.exportFile, registerReloader: actions?.registerReloader,
     subscribe(listener) {
@@ -218,7 +233,7 @@
       state.hooks.forEach((_record, observable) => observable.unwatch(state.onChange));
       state.stopPrecomp?.(); state.status.dispose();
     }
-    actions?.dispose(); decoder?.dispose();
+    actions?.dispose(); decoder?.dispose(); retention?.dispose();
     states.clear(); adapters.clear(); listeners.clear();
     if (global.ZoidiumAssets === api) delete global.ZoidiumAssets;
     if (global.ZoidiumPluginApis?.assets === api) delete global.ZoidiumPluginApis.assets;

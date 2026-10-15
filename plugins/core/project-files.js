@@ -289,7 +289,7 @@
       }
     }
     var danglingAssets = checkAssetReferences(document, mode);
-    // zoidium.json only holds the display name and integrity records. Older
+    // zoidium.json holds the display name, integrity and missing footage. Older
     // builds could save it empty; such files must still open, unchecked.
     var metadata = archive.peekFile("zoidium.json") ? await readJsonEntry(archive, "zoidium.json", mode, "The Zoidium metadata")
       .then(function (value) { return isPlainObject(value) ? value : null; }, function (error) {
@@ -444,8 +444,10 @@
       var label = "Entry " + fileEntry.name + (assetLabels[fileEntry.name] ? " (" + assetLabels[fileEntry.name] + ")" : "");
       fileEntry.data = new Blob([await archiveIO.bytes(fileEntry.data, label, onSlow)]);
     }
+    var missingAssets = global.ZoidiumAssets?.missingUnused?.(sourceProject) || [];
     archive.addFileString("zoidium.json", JSON.stringify({
       version: 1, name: projectName, integrity: await archiveIO.integrity(archive),
+      ...(missingAssets.length ? { missingAssets: missingAssets } : {}),
     }));
     await validateProjectArchive(archive, "save");
     var fingerprint = await fingerprintArchive(archive);

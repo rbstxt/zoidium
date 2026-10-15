@@ -48,6 +48,18 @@ module.exports = {
     if (!api) return;
     const PZ = context.PZ || context.window.PZ;
     const dispose = api.registerReferences({ id: "material-plus/graph-images", label: "Material+ graph images",
+      clear(key) {
+        const editor = context.window.CM;
+        if (!editor?.project) return;
+        const ops = new PZ.ui.properties(editor);
+        collectLive(editor.project.sequence, owner => {
+          const graph = graphOf(owner.properties);
+          if (!graph?.nodes?.some(node => node.params?.asset === key)) return;
+          for (const node of graph.nodes) if (node.params?.asset === key) node.params.asset = null;
+          ops.setValue({ property: owner.properties.graph.getAddress(), value: JSON.stringify(graph) });
+          if (owner.properties.nodeImage?.get() === key) owner.properties.nodeImage.set(null);
+        });
+      },
       collect(project, emit) {
         collectLive(project.sequence, owner => {
           if (owner.properties?.graph) collectGraph(owner, pathOf(owner), emit);

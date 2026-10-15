@@ -249,7 +249,10 @@
       const label = "Asset \"" + (asset.filename || name) + "\" (" + name + ")";
       const entry = byName.get(name);
       const before = failures.length;
-      if (!entry) { failures.push(label + " is missing"); continue; }
+      if (!entry) {
+        if (Array.isArray(metadata?.missingAssets) && metadata.missingAssets.includes(key) && !manifest?.[name]) continue;
+        failures.push(label + " is missing"); continue;
+      }
       const data = await bytes(entry.data, label);
       if (!data.byteLength) failures.push(label + " is empty");
       if (asset.size > 0 && asset.size !== data.byteLength) failures.push(label + " has the wrong size");
