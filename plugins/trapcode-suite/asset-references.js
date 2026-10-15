@@ -68,10 +68,8 @@ module.exports = {
         const file = project.assets.list[newKey]?.file;
         let text = file ? await file.text() : null;
         if (text === null) {
-          collectLive(project.sequence, owner => {
-            const raw = valueOf(owner.properties?.iesData);
-            if (raw && "ies:" + hash(raw) === newKey) text = raw;
-          });
+          const exported = await api.exportFile(newKey);
+          if (exported?.blob) text = await exported.blob.text();
         }
         if (typeof text !== "string") throw new Error("The IES profile bytes are unavailable.");
         if (editor.project !== project) throw new Error("The project changed while reading the IES profile.");

@@ -100,6 +100,8 @@ test("Material+ graph and IES hooks write through propertyOps and restore all pa
   const material = f.child(f.project.sequence, new f.Obj("Graph"));
   const graph = JSON.stringify({ nodes: [{ id: "a", params: { asset: old.key } }, { id: "b", params: { asset: old.key } }] });
   f.properties(material, { graph: new f.Property("Graph", graph, 7), nodeImage: new f.Property("Image", old.key) });
+  material._selectedImageNode = "a";
+  material.properties.nodeImage.set = () => { throw new Error("The UI mirror must not author the graph again."); };
   f.adapter("material-plus");
   const result = await f.api.replace(old.key, { itemId: next.key });
   assert.equal(result.ok, true); assert.equal(result.replaced, 2);
@@ -119,6 +121,21 @@ test("Material+ graph and IES hooks write through propertyOps and restore all pa
   f.editor.history.redo(); assert.equal(b.properties.iesFilename.get(), "new.ies"); f.api.dispose();
 });
 
+test("IES replacement can use an embedded target from a closed composition without editing that composition", async () => {
+  const f = retainedFixture(), light = f.child(f.project.sequence, new f.Obj("Live light"));
+  f.properties(light, { iesProfile: new f.Property("Profile", "old.ies", 7), iesData: new f.Property("Data", "old profile", 7), iesFilename: new f.Property("Filename", "old.ies", 7) });
+  const tracks = [{ properties: { iesData: "closed target", iesFilename: "target.ies", iesProfile: "target.ies" } }];
+  f.PZ.precomp = { entries: () => [], referenceSources: () => [{ id: "closed", name: "Closed", tracks, editing: false }] };
+  f.adapter("trapcode-suite");
+  const view = read(f), old = view.items.find(item => item.name === "old.ies"), target = view.items.find(item => item.name === "target.ies");
+  const result = await f.api.replace(old.id, { itemId: target.id });
+  assert.equal(result.ok, true); assert.equal(result.newId, target.id);
+  assert.equal(light.properties.iesData.get(), "closed target");
+  assert.equal(tracks[0].properties.iesData, "closed target");
+  f.editor.history.undo(); assert.equal(light.properties.iesData.get(), "old profile");
+  f.api.dispose();
+});
+
 test("consumer patches balance native clip/image loads on edits and undo and restore owned patches on dispose", () => {
   const file = fs.readFileSync(require.resolve("../plugins/core/asset-replacement-consumers.js"), "utf8");
   const assets = { list: { old: { key: "old", references: 1 }, next: { key: "next", references: 1 } }, load(key) { const asset = this.list[key]; asset.references++; return asset; }, unload(wrapper) { wrapper.asset.references--; } };
@@ -126,7 +143,8 @@ test("consumer patches balance native clip/image loads on edits and undo and res
   class Layer { load() { this.imageProperties = { image: this.prop }; this.prop.definition.changed.call(this.prop); this.image = new Image(assets.load(this.prop.value)); this.texture = this.image.getTexture(); } }
   Layer.propertyDefinitions = { image: {} };
   const media = { changed() { if (this.value) this.parentObject.media = { asset: assets.load(this.value) }; } };
-  const PZ = { asset: { image: Image }, clip: { propertyDefinitions: { media } }, layer: { image: Layer } };
+  let scheduleResets = 0;
+  const PZ = { schedule: { analyzeSequence() { scheduleResets++; } }, asset: { image: Image }, clip: { propertyDefinitions: { media } }, layer: { image: Layer } };
   const sandbox = { ZoidiumAssetRegistryParts: {}, PZ }; vm.runInNewContext(file, sandbox);
   const original = media.changed, dispose = sandbox.ZoidiumAssetRegistryParts.patchReplacementConsumers(PZ);
   const clip = { parentProject: { assets }, media: { asset: assets.load("old") } }, prop = { value: "next", parentObject: clip };
@@ -136,5 +154,6 @@ test("consumer patches balance native clip/image loads on edits and undo and res
   assert.equal(assets.list.old.references, 3); layer.prop.value = "next"; Layer.propertyDefinitions.image.changed.call(layer.prop);
   assert.equal(assets.list.old.references, 2); assert.equal(assets.list.next.references, 2); assert.equal(layer.image.asset.key, "next");
   layer.prop.value = "old"; Layer.propertyDefinitions.image.changed.call(layer.prop); assert.equal(assets.list.next.references, 1);
+  assert.equal(scheduleResets, 2);
   dispose(); assert.equal(media.changed, original); assert.equal(Layer.propertyDefinitions.image.changed, undefined);
 });

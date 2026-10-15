@@ -475,7 +475,7 @@ missing-layer placeholder and dependency prompt.
 
 ## Assets
 
-`ZoidiumPluginApis.assets` is the same read-only registry as `ZoidiumAssets`.
+`ZoidiumPluginApis.assets` is the same registry as `ZoidiumAssets`.
 `snapshot(editor)` returns assets, authored usages, statuses, and counts, cached
 by revision. `subscribe(listener)` coalesces changes to one notification per
 animation frame. `refresh()` invalidates the cache. `reveal(usage)` selects a
@@ -489,6 +489,20 @@ The Assets plugin shows this registry as an After Effects style Project panel.
 Other code can open it on an item with
 `ZoidiumAssetsPanel.open({ select: itemId, filter: "problems" })` while that
 plugin is enabled.
+
+`replace(itemId, { file })` imports a retained, deduplicated target before changing
+references. `replace(itemId, { itemId: targetId })` uses an existing item. Both
+return a promise of `{ ok, replaced, newId, skipped, reason, error }`. Native
+ASSET values, every matching keyframe, plugin references, and ordinary Media
+templates change in one undo step, or join the current history operation.
+Consumers reload while keeping clip timing. The old FILE item stays retained.
+Kind mismatches return `ok: false, reason: "kind"`. Closed compositions stay
+unchanged and appear in `skipped` as `{ path, reason: "closed-composition" }`.
+`locate()` still returns `reason: "different"` for different file bytes.
+
+`builtInFonts()` returns `{ id, key, name }` entries in native Font dropdown
+order. Listing them creates no assets. They become preset items when used as
+replacement targets.
 
 Plugins can report references that native ASSET properties cannot represent:
 
@@ -509,6 +523,11 @@ Collection must not load/unload assets, create Blob URLs, or mutate the project.
 Paths describe the authored owner. `address` and `owner` are optional; omit them
 and set `revealable: false` for references that have no live property panel.
 Adapter ids must be unique. Dispose the registration when the plugin disables.
+An optional `replace(oldKey, newKey)` hook updates live authored references with
+native propertyOps writes inside the registry's history operation. It must not
+open another operation or edit closed compositions. Material+ rewrites each
+graph JSON property once; the IES adapter writes profile, text, and filename.
+An adapter without this hook prevents replacement of its live references.
 
 For embedded data without a CM3 asset, an emit record may include `item` with
 `{ kind, source: "embedded", name, size, mime }` and a stable synthetic key.

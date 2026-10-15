@@ -26,14 +26,14 @@
       "id": "core",
       "name": "Zoidium Core",
       "author": "Zoidium",
-      "version": "47",
+      "version": "48",
       "visibility": "hidden",
       "alwaysEnabled": true,
       "tagline": "Built-in core extensions",
       "description": "Hidden built-in extensions that always run. Not shown in the Plugins panel and never stored in projects.",
-      "manifest": "./plugins/core/manifest.json?v=47",
-      "bundle": "./plugins/core/bundle.json?v=47",
-      "integrity": "sha256-K0qy8hsL8kw+Jm0CgunjwIsTo/jlSyamfrLXi69AiNk="
+      "manifest": "./plugins/core/manifest.json?v=48",
+      "bundle": "./plugins/core/bundle.json?v=48",
+      "integrity": "sha256-D+DQ4/SPhTNWK0fA426O6XSLX3UB6x4yYfhcwUs80VM="
     },
     {
       "id": "easing-plus",
@@ -182,16 +182,16 @@
       "category": "scene",
       "name": "Material+",
       "author": "Zoidium",
-      "version": "21",
+      "version": "22",
       "itemCount": 5,
       "format": "3D materials",
       "tagline": "Node, PBR+, Matcap & Image+ materials",
       "color": "#b36bca",
       "description": "Adds procedural Node Materials with a node editor, PBR+ with ramps, Fresnel, cel shading and projection, Image+ with opacity, Matcap, and corrected-UV materials for 3D objects.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/material-plus/manifest.json?v=21",
-      "bundle": "./plugins/material-plus/bundle.json?v=21",
-      "integrity": "sha256-CY7JU+YSpmnSkKaWvLc2Xv5+JcH8Gy6Qq+2b+sr4Uk8="
+      "manifest": "./plugins/material-plus/manifest.json?v=22",
+      "bundle": "./plugins/material-plus/bundle.json?v=22",
+      "integrity": "sha256-haoMb/NDmgEprupLZPgfCI87f0npKabjpppx/hGFlQg="
     },
     {
       "id": "text-plus",
@@ -232,16 +232,16 @@
       "category": "scene",
       "name": "Rowbyte & Red Giant Suite",
       "author": "DaviFX",
-      "version": "33",
+      "version": "34",
       "itemCount": 14,
       "format": "3D objects",
       "tagline": "Particular, Form, Plexus and C4D lights",
       "color": "#c9a13b",
       "description": "Trapcode Particular, Form and Plexus 3D objects with floating designer windows, deterministic simulation and audio analysis, plus C4D-style lights.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/trapcode-suite/manifest.json?v=33",
-      "bundle": "./plugins/trapcode-suite/bundle.json?v=33",
-      "integrity": "sha256-sWLVyZVhMqf3CTvOZFc3yWwthL3Xiah3mvddW5YQjRw="
+      "manifest": "./plugins/trapcode-suite/manifest.json?v=34",
+      "bundle": "./plugins/trapcode-suite/bundle.json?v=34",
+      "integrity": "sha256-A60EkliZqCCfJm6Ri4wifhzjUWNoGBObd4NIlMMviEw="
     },
     {
       "id": "optical-flares",
@@ -382,16 +382,16 @@
       "category": "adjustment",
       "name": "Magic Looks",
       "author": "DaviFX",
-      "version": "13",
+      "version": "14",
       "itemCount": 29,
       "format": "setup",
       "tagline": "Looks-style color grading",
       "color": "#f7941d",
       "description": "Magic Bullet Looks-style color grading: 29 color, light and lens tools in a reorderable chain with look presets and a floating setup window.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/magic-looks/manifest.json?v=13",
-      "bundle": "./plugins/magic-looks/bundle.json?v=13",
-      "integrity": "sha256-3ZQ+FrOvJ9PaeliVgdv/arQhkJXIzrlUaFsqJRHgk9Y="
+      "manifest": "./plugins/magic-looks/manifest.json?v=14",
+      "bundle": "./plugins/magic-looks/bundle.json?v=14",
+      "integrity": "sha256-iJTunqz1kyypQqBLPYrSfhnxQMaubCbCz1/lV/ZoyA4="
     },
     {
       "id": "layer-input",
