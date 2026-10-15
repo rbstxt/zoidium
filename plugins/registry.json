@@ -71,16 +71,16 @@
       "category": "utilities",
       "name": "Assets",
       "author": "Zoidium",
-      "version": "2",
+      "version": "3",
       "defaultEnabled": true,
       "itemCount": 1,
       "format": "workflow",
       "tagline": "Project panel for every asset",
       "color": "#6f8f5a",
       "description": "An After Effects style Project panel: every file, font, image, model and composition in the project, where each is used, and which are missing or failed.",
-      "manifest": "./plugins/asset-manager/manifest.json?v=2",
-      "bundle": "./plugins/asset-manager/bundle.json?v=2",
-      "integrity": "sha256-fEswBsnRA+Il1dw3zbT/2r2LEI2Y4QH3jVtkw8KVo6E="
+      "manifest": "./plugins/asset-manager/manifest.json?v=3",
+      "bundle": "./plugins/asset-manager/bundle.json?v=3",
+      "integrity": "sha256-3R8aAjFypiqFYK5iF4S85vBw3mf6TKRPHdeyM3I+H0Y="
     },
     {
       "id": "precomp-plus",
