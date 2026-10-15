@@ -75,6 +75,7 @@
       ["download", "Download"],
       ["recover", "Restore backup"],
       ["reload", "Reload"],
+      ["custom", ""],
     ].forEach(function (pair) {
       var key = pair[0];
       var label = pair[1];
@@ -84,6 +85,12 @@
           if (key === "reload") {
             hideToast();
             global.location.reload();
+            return;
+          }
+          if (key === "custom") {
+            var custom = toast._zoidiumCustom;
+            hideToast();
+            runToastAction(custom);
             return;
           }
           runToastAction(key === "retry"
@@ -106,6 +113,7 @@
     state.toast._zoidiumRetry = null;
     state.toast._zoidiumDownload = null;
     state.toast._zoidiumRecover = null;
+    state.toast._zoidiumCustom = null;
   }
 
   function runToastAction(action) {
@@ -138,6 +146,7 @@
     var downloadButton = actions.querySelector('[data-toast-action="download"]');
     var recoverButton = actions.querySelector('[data-toast-action="recover"]');
     var reloadButton = actions.querySelector('[data-toast-action="reload"]');
+    var customButton = actions.querySelector('[data-toast-action="custom"]');
     // Each action button appears only when its handler exists. Retry and
     // Download apply to error toasts; Reload appears for reload prompts
     // such as the layout switch notice. Buttons without handlers stay
@@ -146,6 +155,12 @@
     var hasDownload = isError && typeof detail.download === "function";
     var hasRecover = isError && typeof detail.recover === "function";
     var hasReload = !!detail.reload;
+    // detail.action = { label, run } adds one feature-specific button, such
+    // as "Show in Assets" on an asset notice.
+    var custom = detail.action && typeof detail.action.run === "function" ? detail.action : null;
+    customButton.hidden = !custom;
+    customButton.disabled = !custom;
+    if (custom) customButton.textContent = custom.label || "Show";
     retryButton.hidden = !hasRetry;
     downloadButton.hidden = !hasDownload;
     recoverButton.hidden = !hasRecover;
@@ -153,16 +168,18 @@
     retryButton.disabled = !hasRetry;
     downloadButton.disabled = !hasDownload;
     recoverButton.disabled = !hasRecover;
-    actions.hidden = !hasRetry && !hasDownload && !hasRecover && !hasReload;
+    actions.hidden = !hasRetry && !hasDownload && !hasRecover && !hasReload && !custom;
     toast._zoidiumRetry = detail.retry || null;
     toast._zoidiumDownload = detail.download || null;
     toast._zoidiumRecover = hasRecover ? detail.recover : null;
+    toast._zoidiumCustom = custom ? custom.run : null;
     toast.classList.add("is-visible");
     if (toastHideTimer) global.clearTimeout(toastHideTimer);
     // Reload prompts stay visible until dismissed so the action cannot be
     // missed while the user reads the message.
     if (!isError && !hasReload) {
-      toastHideTimer = global.setTimeout(hideToast, 3000);
+      // A notice with an action stays long enough to reach its button.
+      toastHideTimer = global.setTimeout(hideToast, custom ? 8000 : 3000);
     }
   }
 

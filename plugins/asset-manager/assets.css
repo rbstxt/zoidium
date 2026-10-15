@@ -3,6 +3,7 @@
    sortable table, and a status line. Colors come from the theme tokens. */
 
 .zam {
+  position: relative;
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -307,8 +308,67 @@
   text-align: center;
 }
 
+/* AE keeps item commands as small icons along the panel's bottom edge. */
+.zam-bottom {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 26px;
+}
+
 .zam-status {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
   color: var(--zui-text-muted);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.zam-commands {
+  display: flex;
+  flex: none;
+  gap: 2px;
+}
+
+.zam-command {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  color: var(--zui-text);
+  background: none;
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+
+.zam-command:hover:not(:disabled) {
+  color: var(--zui-text-bright);
+  background: var(--zui-hover);
+}
+
+.zam-command:focus-visible {
+  border-color: var(--zui-accent);
+  outline: 0;
+}
+
+.zam-command:disabled {
+  color: var(--zui-text-faint);
+  opacity: .5;
+  cursor: default;
+}
+
+.zam-context-menu {
+  min-width: 180px;
+  max-width: 260px;
+}
+
+.zam-usage-entry:disabled {
+  color: var(--zui-text-faint);
+  background: none;
+  cursor: default;
 }
 
 /* ---- Sidebar page ---- */
@@ -351,4 +411,28 @@
 
 .zam-side-tab.zam-has-problems svg {
   fill: var(--zui-danger);
+}
+
+/* ---- Toolbar badge (only while items are missing or failed) ---- */
+
+.zam-toolbar-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 6px;
+  color: var(--zui-danger);
+}
+
+.zam-toolbar-badge[hidden] {
+  display: none;
+}
+
+.zam-toolbar-badge svg {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+}
+
+.zam-toolbar-count {
+  font-size: var(--zui-font-size-small);
 }

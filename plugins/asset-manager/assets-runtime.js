@@ -98,9 +98,12 @@ module.exports = {
     const require = apis.modules.createRequire(context.getAsset, { root: "./plugins/asset-manager/" });
     const model = require("./assets-model.js");
     const { createAssetsWindow } = require("./assets-window.js");
+    const notices = require("./assets-notices.js");
     const PZ = context.PZ || host.PZ;
     const session = {
       context,
+      window: host,
+      editor: context.editor || host.CM,
       kit,
       document: doc,
       registry: () => host.ZoidiumAssets || null,
@@ -110,6 +113,9 @@ module.exports = {
     context.lifecycle.onDispose(installStyle(context, doc));
     const assetsWindow = createAssetsWindow(session);
     context.lifecycle.onDispose(installSidePanel(context, session, assetsWindow, model));
+    session.openWindow = (options) => assetsWindow.open(options);
+    context.lifecycle.onDispose(notices.installToolbarBadge(session));
+    context.lifecycle.onDispose(notices.installNotices(session));
     // Notices and other plugins can open the window on an item:
     // ZoidiumAssetsPanel.open({ select: assetKey, filter: "problems" }).
     host.ZoidiumAssetsPanel = { open: (options) => assetsWindow.open(options) };

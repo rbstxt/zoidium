@@ -3,31 +3,41 @@
   "id": "asset-manager",
   "name": "Assets",
   "author": "Zoidium",
-  "version": "1",
+  "version": "2",
   "kind": "extension",
   "description": "An After Effects style Project panel: every file, font, image, model and composition in the project, where each is used, and which are missing or failed.",
   "category": "utilities",
   "modules": [
     {
       "id": "assets-runtime",
-      "source": "./plugins/asset-manager/assets-runtime.js?v=1"
+      "source": "./plugins/asset-manager/assets-runtime.js?v=2"
     }
   ],
   "resources": [
     {
       "id": "assets-model",
       "type": "text",
-      "source": "./plugins/asset-manager/assets-model.js?v=1"
+      "source": "./plugins/asset-manager/assets-model.js?v=2"
     },
     {
       "id": "assets-window",
       "type": "text",
-      "source": "./plugins/asset-manager/assets-window.js?v=1"
+      "source": "./plugins/asset-manager/assets-window.js?v=2"
+    },
+    {
+      "id": "assets-actions",
+      "type": "text",
+      "source": "./plugins/asset-manager/assets-actions.js?v=2"
+    },
+    {
+      "id": "assets-notices",
+      "type": "text",
+      "source": "./plugins/asset-manager/assets-notices.js?v=2"
     },
     {
       "id": "assets-style",
       "type": "text",
-      "source": "./plugins/asset-manager/assets.css?v=1"
+      "source": "./plugins/asset-manager/assets.css?v=2"
     }
   ]
 }
