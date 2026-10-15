@@ -506,6 +506,21 @@ body > .pz-dropdown li > span[style],
   line-height: 1.4;
 }
 
+.zoidium-project-toast-help {
+  margin-top: 6px;
+  color: #aaa;
+  font-size: var(--zui-font-size-small);
+  line-height: 1.4;
+}
+
+.zoidium-project-toast-help[hidden] {
+  display: none;
+}
+
+.zoidium-project-toast-help a {
+  color: #9ecbff;
+}
+
 .zoidium-project-toast-actions {
   display: flex;
   gap: 5px;
