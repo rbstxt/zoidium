@@ -8,6 +8,7 @@
 
 const model = require("./assets-model.js");
 const { createActions } = require("./assets-actions.js");
+const { createResolveFonts } = require("./assets-fonts.js");
 
 const VIEW_KEY = "zoidium.assets.view";
 const WINDOW_ID = "assets";
@@ -65,10 +66,19 @@ function createAssetsWindow(session) {
     notify: (detail) => session.notify(detail),
     confirm: (options) => session.kit.confirm(options),
     reveal: (item) => revealFirst(item),
+    resolveFonts: () => resolveFonts.open(),
     select: (id) => {
       pendingSelect = id;
       if (snapshot && snapshot.items.some((item) => item.id === id)) select(id, true);
     },
+  });
+  const resolveFonts = createResolveFonts({
+    context: session.context,
+    kit: session.kit,
+    document: doc,
+    registry: () => session.registry(),
+    notify: (detail) => session.notify(detail),
+    actions,
   });
   // An imported item appears with the next snapshot; select it then.
   let pendingSelect = null;
@@ -204,7 +214,12 @@ function createAssetsWindow(session) {
     closeContextMenu();
     const menu = make(doc, "div", "zam-usage-menu zam-context-menu");
     menu.setAttribute("role", "menu");
-    for (const command of [actions.importCommand(), actions.removeUnusedCommand(snapshot)]) {
+    const commands = [
+      actions.importCommand(),
+      actions.removeUnusedCommand(snapshot),
+      actions.resolveFontsCommand(snapshot),
+    ];
+    for (const command of commands) {
       const entry = make(doc, "button", "zam-usage-entry", command.label);
       entry.type = "button";
       entry.setAttribute("role", "menuitem");
@@ -653,7 +668,7 @@ function createAssetsWindow(session) {
     if (options.select) select(options.select, true);
   }
 
-  return { open, close: () => win && win.close() };
+  return { open, close: () => win && win.close(), resolveFonts: () => resolveFonts.open() };
 }
 
 module.exports = { createAssetsWindow };
