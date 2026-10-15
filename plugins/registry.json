@@ -26,14 +26,14 @@
       "id": "core",
       "name": "Zoidium Core",
       "author": "Zoidium",
-      "version": "40",
+      "version": "41",
       "visibility": "hidden",
       "alwaysEnabled": true,
       "tagline": "Built-in core extensions",
       "description": "Hidden built-in extensions that always run. Not shown in the Plugins panel and never stored in projects.",
-      "manifest": "./plugins/core/manifest.json?v=40",
-      "bundle": "./plugins/core/bundle.json?v=40",
-      "integrity": "sha256-tmf2J255D1YrdUzmxNG3MegLgCB2bQvppeyHT2uthYI="
+      "manifest": "./plugins/core/manifest.json?v=41",
+      "bundle": "./plugins/core/bundle.json?v=41",
+      "integrity": "sha256-h8VPwQdq0tOLodcJbASWtwiZXFw+zKJEvIl5JijXf/8="
     },
     {
       "id": "easing-plus",
@@ -166,16 +166,16 @@
       "category": "scene",
       "name": "Material+",
       "author": "Zoidium",
-      "version": "15",
+      "version": "16",
       "itemCount": 5,
       "format": "3D materials",
       "tagline": "Node, PBR+, Matcap & Image+ materials",
       "color": "#b36bca",
       "description": "Adds procedural Node Materials with a node editor, PBR+ with ramps, Fresnel, cel shading and projection, Image+ with opacity, Matcap, and corrected-UV materials for 3D objects.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/material-plus/manifest.json?v=15",
-      "bundle": "./plugins/material-plus/bundle.json?v=15",
-      "integrity": "sha256-Xi3tqnLCLV3ySHQeyWQGmLXr8zoT0FPIqbesTLkTves="
+      "manifest": "./plugins/material-plus/manifest.json?v=16",
+      "bundle": "./plugins/material-plus/bundle.json?v=16",
+      "integrity": "sha256-8LVAdBm1PQteNOOSf+re0KA31Fn/t1n4grdv6TuuzSE="
     },
     {
       "id": "text-plus",
