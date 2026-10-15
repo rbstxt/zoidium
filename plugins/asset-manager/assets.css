@@ -373,6 +373,7 @@
 .zam-context-menu {
   min-width: 180px;
   max-width: 260px;
+  max-height: 360px;
 }
 
 .zam-usage-entry:disabled {
@@ -445,4 +446,65 @@
 
 .zam-toolbar-count {
   font-size: var(--zui-font-size-small);
+}
+
+/* ---- Labels and folders ---- */
+
+.zam-col-label {
+  width: 18px;
+  padding-right: 0 !important;
+}
+
+.zam-label {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  padding: 0;
+  vertical-align: middle;
+  background: transparent;
+  border: 1px solid var(--zui-border-soft);
+  cursor: pointer;
+}
+
+.zam-menu-swatch {
+  margin-right: 8px;
+  cursor: inherit;
+}
+
+.zam-indent {
+  display: inline-block;
+  flex: none;
+}
+
+.zam-twisty {
+  flex: none;
+  width: 14px;
+  padding: 0;
+  color: var(--zui-text-muted);
+  font: inherit;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.zam-folder .zam-col-details {
+  color: var(--zui-text-faint);
+}
+
+.zam-rename {
+  min-width: 0;
+  height: 22px;
+  padding: 0 4px;
+}
+
+.zam-row.zam-drop-target {
+  outline: 1px solid var(--zui-accent-strong);
+  outline-offset: -1px;
+  background: rgb(var(--zui-accent-rgb) / .35);
+}
+
+/* An asset property row that accepts the dragged item. */
+.zam-property-drop {
+  outline: 2px solid var(--zui-accent-strong) !important;
+  outline-offset: -2px;
 }
