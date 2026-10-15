@@ -66,7 +66,7 @@
       if (!data || typeof data !== "object") return null;
       const image = data.image || data.el;
       const img = image?.tagName === "IMG" ? image : null;
-      return [data.zoidiumFont3dState, data.zoidiumFont3dError?.message,
+      return [data.zoidiumAssetRevision || 0, data.zoidiumDecodeError, data.zoidiumFont3dState, data.zoidiumFont3dError?.message,
         identity(data.font3d), identity(data.font2d),
         img ? [identity(img), img.complete, img.naturalWidth, img.naturalHeight] : null];
     });
@@ -76,6 +76,7 @@
     return Object.values(project.assets?.list || {}).every(asset =>
       Array.from(asset.data?.values?.() || []).every(data => {
         if (!data || typeof data !== "object") return true;
+        if (data.zoidiumDecodeError) return false;
         if (data.zoidiumFont3dState === "loading" || data.zoidiumFont3dState === "failed") return false;
         const image = data.image || data.el;
         return image?.tagName !== "IMG" || (image.complete === true && image.naturalWidth > 0);

@@ -3,7 +3,7 @@
   "id": "core",
   "name": "Zoidium Core",
   "author": "Zoidium",
-  "version": "43",
+  "version": "44",
   "kind": "core",
   "visibility": "hidden",
   "alwaysEnabled": true,
@@ -216,6 +216,26 @@
       "phase": "pre-init"
     },
     {
+      "id": "asset-registry-fetch",
+      "source": "./plugins/core/asset-registry-fetch.js",
+      "phase": "pre-init"
+    },
+    {
+      "id": "asset-registry-decode",
+      "source": "./plugins/core/asset-registry-decode.js",
+      "phase": "pre-init"
+    },
+    {
+      "id": "asset-registry-consumers",
+      "source": "./plugins/core/asset-registry-consumers.js",
+      "phase": "pre-init"
+    },
+    {
+      "id": "asset-registry-actions",
+      "source": "./plugins/core/asset-registry-actions.js",
+      "phase": "pre-init"
+    },
+    {
       "id": "asset-registry",
       "source": "./plugins/core/asset-registry.js",
       "phase": "pre-init"
@@ -224,19 +244,19 @@
   "modules": [
     {
       "id": "single-graph-window",
-      "source": "./plugins/core/single-graph-window.js?v=43"
+      "source": "./plugins/core/single-graph-window.js?v=44"
     },
     {
       "id": "font-load",
-      "source": "./plugins/core/font-load.js?v=43"
+      "source": "./plugins/core/font-load.js?v=44"
     },
     {
       "id": "video-decode-hint",
-      "source": "./plugins/core/video-decode-hint.js?v=43"
+      "source": "./plugins/core/video-decode-hint.js?v=44"
     },
     {
       "id": "output-frame-cache",
-      "source": "./plugins/core/output-frame-cache.js?v=43"
+      "source": "./plugins/core/output-frame-cache.js?v=44"
     }
   ]
 }

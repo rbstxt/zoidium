@@ -19,6 +19,20 @@ module.exports = function attachGraphImages(nodes, env) {
         }
         imageCaches.delete(material);
     };
+    nodes.reloadImages = async function (material, key, asset) {
+        const entry = imageCaches.get(material)?.[key];
+        if (!entry || entry.asset !== asset) return false;
+        entry.canvas = null;
+        entry.sample = null;
+        entry.disposed = false;
+        entry.loading = Promise.resolve(entry.loaded.loading).then(() => {
+            if (entry.disposed) return;
+            entry.canvas = entry.loaded.getImage();
+            entry.revision++;
+        });
+        await entry.loading;
+        return true;
+    };
     nodes.dependencySignature = function (graph, material) {
         const cache = nodes.getImageCache(material);
         return graph.nodes.filter(n => n.params.asset).map(n => [n.params.asset, cache[n.params.asset]?.revision || 0]);

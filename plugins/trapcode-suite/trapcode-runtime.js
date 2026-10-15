@@ -239,6 +239,19 @@ module.exports = {
         }
       }
       installCreateWrapper(PZ, !!context.object3d?.registerClass);
+      const assets = context.apis?.assets || context.window?.ZoidiumAssets;
+      if (assets?.registerReloader) context.lifecycle.onDispose(assets.registerReloader({
+        id: "trapcode-suite/decoders",
+        async reload(key) {
+          const project = context.window?.CM?.project || globalThis.CM?.project;
+          const T = PZ.trapcode;
+          if (T.audioAnalysis.invalidate(key)) await T.audioAnalysis.load(project, key);
+          await T.reloadAssetCaches(key);
+          project?.sequence?.traverse?.(node => {
+            if (node._audioRequest === key) { node._audioRequest = null; node._audioRedrawnFor = null; }
+          });
+        },
+      }));
       installExpressionSupport(PZ);
       installLights(PZ, context);
     } catch (error) {

@@ -22,8 +22,8 @@ const registryPath = path.join(projectRoot, "plugins", "registry.json");
 const checkOnly = process.argv.includes("--check");
 
 // Core declarations are executable pre-init inputs, not just bundle contents.
-// Add newly declared scripts to the shell config here so authors do not have
-// to hand-edit its script list. Existing order and shell-only scripts stay put.
+// Insert core declarations in manifest order. Shell-only scripts retain their
+// positions relative to existing core scripts, including their dependencies.
 function syncCoreScripts() {
   const manifestPath = path.join(projectRoot, "plugins/core/manifest.json");
   // The builder is also used by small registries containing no Core plugin.
@@ -33,11 +33,19 @@ function syncCoreScripts() {
   const config = fs.readFileSync(configPath, "utf8");
   const match = /preInitScripts: \[([\s\S]*?)\n    \],/.exec(config);
   if (!match) throw new Error("Runtime config has no pre-init script list.");
-  const missing = (manifest.coreScripts || []).map(script => script.source)
-    .filter(source => !match[1].includes(JSON.stringify(source)));
-  if (!missing.length) return;
-  if (checkOnly) throw new Error("Core pre-init scripts are missing from runtime config. Rebuild plugin bundles.");
-  const scripts = match[1].trimEnd() + ",\n" + missing.map(source => "      " + JSON.stringify(source)).join(",\n");
+  const declared = (manifest.coreScripts || []).map(script => script.source);
+  const configured = Array.from(match[1].matchAll(/"([^"\n]+)"/g), entry => entry[1]);
+  const sources = [], core = new Set(declared);
+  let cursor = 0;
+  for (const source of configured) {
+    if (!core.has(source)) { sources.push(source); continue; }
+    const index = declared.indexOf(source);
+    if (index >= cursor) { sources.push(...declared.slice(cursor, index + 1)); cursor = index + 1; }
+  }
+  sources.push(...declared.slice(cursor));
+  if (JSON.stringify(sources) === JSON.stringify(configured)) return;
+  if (checkOnly) throw new Error("Core pre-init script order differs from the manifest. Rebuild plugin bundles.");
+  const scripts = "\n" + sources.map(source => "      " + JSON.stringify(source)).join(",\n");
   const next = config.replace(match[0], "preInitScripts: [" + scripts + "\n    ],")
     .replace(/assetVersion: (\d+)/, (_match, version) => "assetVersion: " + (Number(version) + 1));
   writeFileIfChangedAtomic(configPath, next);

@@ -166,6 +166,7 @@
     for (const item of array) if (!Object.prototype.hasOwnProperty.call(item, "asset")) {
       Object.defineProperty(item, "asset", { value: null, enumerable: false });
     }
+    for (const item of array) actions?.decorate(item, project);
     const used = array.filter(item => item.usages.length).length;
     const problems = array.filter(item => (item.status === "failed" || item.status === "missing") &&
       (item.usages.length || (item.status === "missing" && item.source === "file"))).length;
@@ -190,7 +191,11 @@
     adapters.set(adapter.id, adapter); invalidate();
     return () => { if (adapters.get(adapter.id) === adapter) { adapters.delete(adapter.id); invalidate(); } };
   }
+  const decoder = parts.createDecoder?.(PZ, invalidate);
+  const actions = parts.createActions?.({ PZ, snapshot, refresh, adapters, usageRecords, decoder });
   const api = { snapshot, refresh, registerReferences,
+    capabilities: actions?.capabilities, reload: actions?.reload, locate: actions?.locate,
+    exportFile: actions?.exportFile, registerReloader: actions?.registerReloader,
     subscribe(listener) {
       if (typeof listener !== "function") throw new TypeError("Asset listeners must be functions.");
       snapshot(); listeners.set(listener, -1); schedule();
@@ -213,6 +218,7 @@
       state.hooks.forEach((_record, observable) => observable.unwatch(state.onChange));
       state.stopPrecomp?.(); state.status.dispose();
     }
+    actions?.dispose(); decoder?.dispose();
     states.clear(); adapters.clear(); listeners.clear();
     if (global.ZoidiumAssets === api) delete global.ZoidiumAssets;
     if (global.ZoidiumPluginApis?.assets === api) delete global.ZoidiumPluginApis.assets;

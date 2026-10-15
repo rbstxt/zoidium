@@ -34,7 +34,7 @@
       const data = asset?.data;
       const types = PZ.asset || {};
       for (const [name, kind] of [["font", "font"], ["image", "image"], ["geometry", "geometry"], ["shader", "shader"], ["lut", "lut"]]) {
-        if (types[name] && data?.has?.(types[name])) return kind;
+        if ((types[name] || (name === "lut" && types.cubelut)) && data?.has?.(types[name] || types.cubelut)) return kind;
       }
       const file = asset?.filename || asset?.url || "";
       const mime = asset?.file?.type || "";
@@ -42,6 +42,7 @@
       if (/^video\//.test(mime) || /\.(mp4|webm|mov|m4v)(?:$|[?#])/i.test(file)) return "video";
       if (/^image\//.test(mime) || /\.(png|jpe?g|gif|webp|svg|bmp)(?:$|[?#])/i.test(file)) return "image";
       if (/\.(ttf|otf|woff2?)(?:$|[?#])/i.test(file) || /\/fonts\//i.test(file)) return "font";
+      if (/\.(obj|stl|ply|gltf|glb)(?:$|[?#])/i.test(file)) return "geometry";
       if (/\.(cube|lut)(?:$|[?#])/i.test(file)) return "lut";
       if (/\.(glsl|vert|frag)(?:$|[?#])/i.test(file)) return "shader";
       // CM3's customGeometry assetType is undefined on some definitions.
@@ -68,6 +69,7 @@
           if (state?.error) failure = state.error;
           if (key === "loading" && state && !state.pending && !state.error && "image" in data && !data.image) failure = "The image could not be decoded.";
         }
+        if (data.zoidiumDecodeError) failure = data.zoidiumDecodeError;
         if (data.zoidiumFont3dState === "failed") failure = data.zoidiumFont3dError?.message || "The font could not be decoded.";
         const image = data.image;
         watchImage(image);
@@ -92,6 +94,9 @@
       if (!missing) {
         if (failure) { status = "failed"; error = failure; }
         else status = pending ? "loading" : ready ? "ready" : "unknown";
+      }
+      if (!missing && asset?.zoidiumRecovery?.status) {
+        if (asset.zoidiumRecovery.status !== "ready" || status === "unknown") { status = asset.zoidiumRecovery.status; error = asset.zoidiumRecovery.error; }
       }
       return { kind: kindOf(asset, hint), source, status, error, info };
     }

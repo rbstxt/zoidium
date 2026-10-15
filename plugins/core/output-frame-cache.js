@@ -580,6 +580,7 @@
   function fontsChanged(event) { fontEpoch += 1; signal(event?.type ? "fonts." + event.type : "fonts"); }
   global.document.addEventListener("zoidium:plugin-state-change", pluginsChanged);
   global.document.addEventListener("zoidium:project-load-start", invalidate);
+  global.document.addEventListener("zoidium:asset-reloaded", invalidate);
   global.document.fonts?.addEventListener("loadingdone", fontsChanged);
   global.document.fonts?.addEventListener("loadingerror", fontsChanged);
 
@@ -668,6 +669,7 @@
       for (const event of inputEvents) global.removeEventListener(event, input, true);
       global.document.removeEventListener("zoidium:plugin-state-change", pluginsChanged);
       global.document.removeEventListener("zoidium:project-load-start", invalidate);
+      global.document.removeEventListener("zoidium:asset-reloaded", invalidate);
       global.document.fonts?.removeEventListener("loadingdone", fontsChanged);
       global.document.fonts?.removeEventListener("loadingerror", fontsChanged);
     },

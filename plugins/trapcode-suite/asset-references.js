@@ -31,7 +31,7 @@ function collectLight(owner, path, emit, composition = null) {
   const filename = valueOf(owner.properties.iesFilename) || "Embedded IES profile";
   emit({ key: "ies:" + hash(text), path: path.concat("IES File"), owner: composition ? undefined : owner,
     address: composition ? null : owner.properties.iesFilename?.getAddress?.() || null,
-    composition, revealable: !composition,
+    composition, revealable: !composition, bytes: text,
     item: { kind: "ies", source: "embedded", name: String(filename), size: new TextEncoder().encode(text).length, mime: "text/plain" } });
 }
 function collectStored(value, path, composition, emit) {

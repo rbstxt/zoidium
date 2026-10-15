@@ -190,7 +190,10 @@ module.exports = {
     const generateThumbnail = prototype.generateThumbnail;
     const statuses = new WeakMap();
     const previousStatus = host.ZoidiumVideoDecodeStatus;
-    const statusApi = { get: asset => statuses.get(asset) };
+    const statusApi = { get: asset => statuses.get(asset), set(asset, status) {
+      statuses.set(asset, status);
+      if (host.dispatchEvent && host.CustomEvent) host.dispatchEvent(new host.CustomEvent("zoidium:asset-status", { detail: asset }));
+    } };
     host.ZoidiumVideoDecodeStatus = statusApi;
     const installed = createLoadVideoWithDecodeHint({
       document: host.document,

@@ -70,6 +70,10 @@ function fixture(options = {}) {
     ZoidiumUI: { notify(value) { if (options.notifyThrows) throw new Error("notification renderer"); notifications.push(value); } },
     THREE: { TTFLoader: class { parse(bytes) { if (bytes === "ttf") return metrics; throw new Error("Invalid TTF"); } },
       Font: class { constructor(data) { this.data = data; } }, Geometry: class { constructor() { this.vertices = []; } } } };
+  if (options.retry) {
+    Object.assign(host, { AbortController, setTimeout: (...args) => setTimeout(...args), clearTimeout: id => clearTimeout(id) });
+    vm.runInNewContext(fs.readFileSync(path.join(__dirname, "../plugins/core/asset-registry-fetch.js"), "utf8"), host);
+  }
   const sandbox = { module: { exports: {} } };
   vm.runInNewContext(source, sandbox);
   sandbox.module.exports.activate({ PZ, window: host, lifecycle: { onDispose(fn) { cleanup.push(fn); } } });
@@ -271,4 +275,72 @@ test("foreign wrappers retaining a Core method become native after disposal", as
   f.dispose(); text.fontNeedsUpdate = false; text.geometryNeedsUpdate = false;
   text.threeObj.visible = true; text.update(); assert.equal(text.threeObj.visible, true);
   assert.throws(() => font.get3DFont(), /native loader/);
+});
+
+
+test("public reset reloads identical input and rearms the one-time warning", async () => {
+  let failing = true;
+  const f = fixture({ remoteRead: () => failing ? Promise.reject(new Error("Network failure")) : Promise.resolve("ttf") });
+  const asset = f.asset(null); asset.source = 3; asset.url = "/font.ttf";
+  const font = new f.Font(asset), other = new f.Font(asset), text = new f.Text(font);
+  text.update(); await text.prepare(); assert.equal(f.notifications.length, 1);
+  await font.reset(); assert.equal(f.notifications.length, 2);
+  failing = false; assert.ok(await font.reset()); text.update(); await text.prepare(); text.update();
+  assert.equal(other.font3d, font.font3d); assert.equal(text.threeObj.visible, true);
+  assert.equal(text.threeObj.geometry.vertices.length, 3);
+});
+
+test("transient font requests retry at 2, 6 and 18 seconds while prepare keeps waiting", async t => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  let reads = 0, prepared = false;
+  const f = fixture({ retry: true, remoteRead: () => {
+    reads++; return reads <= 3 ? Promise.reject(Object.assign(new Error("HTTP 503"), { status: 503 })) : Promise.resolve("ttf");
+  } });
+  const asset = f.asset(null); asset.source = 3; asset.url = "/font.ttf";
+  const font = new f.Font(asset), text = new f.Text(font);
+  text.update(); const preparation = text.prepare().then(() => { prepared = true; }); await flush();
+  assert.equal(reads, 1); assert.equal(prepared, false);
+  for (const [delay, expected] of [[2000, 2], [6000, 3], [18000, 4]]) {
+    t.mock.timers.tick(delay - 1); await flush(); assert.equal(reads, expected - 1);
+    t.mock.timers.tick(1); await flush(); assert.equal(reads, expected);
+  }
+  await preparation; assert.equal(prepared, true); assert.ok(font.font3d); assert.equal(f.notifications.length, 0);
+});
+
+test("retry exhaustion stays failed until reset and disposal cancels retry timers", async t => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  let reads = 0;
+  const f = fixture({ retry: true, remoteRead: () => { reads++; return Promise.reject(new TypeError("Failed to fetch")); } });
+  const asset = f.asset(null); asset.source = 3; asset.url = "/font.ttf";
+  const font = new f.Font(asset), operation = font.get3DFont(); await flush();
+  for (const delay of [2000, 6000, 18000]) { t.mock.timers.tick(delay); await flush(); }
+  assert.equal(await operation, null); assert.equal(reads, 4); assert.equal(f.notifications.length, 1);
+  t.mock.timers.tick(60000); await flush(); assert.equal(reads, 4); assert.equal(await font.get3DFont(), null);
+  const again = font.reset(); await flush(); assert.equal(reads, 5); f.dispose(); assert.equal(await again, null);
+  t.mock.timers.tick(60000); await flush(); assert.equal(reads, 5);
+});
+
+test("missing files, parse errors and HTTP 404 never schedule font retries", async t => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  for (const failure of ["missing", "parse", "http"]) {
+    let reads = 0;
+    const f = fixture({ retry: true, remoteRead: () => { reads++; return failure === "http" ? Promise.reject(new Error("HTTP 404")) : Promise.resolve("invalid"); } });
+    const asset = f.asset(null); if (failure !== "missing") { asset.source = 3; asset.url = "/font.ttf"; }
+    const font = new f.Font(asset); assert.equal(await font.get3DFont(), null);
+    t.mock.timers.tick(60000); await flush(); assert.equal(reads, failure === "missing" ? 0 : 1);
+  }
+});
+
+
+test("private clone font wrappers share retries without extra reads or stale completion after reset", async () => {
+  let resolve, reads = 0;
+  const f = fixture({ remoteRead: () => { reads++; return reads === 1 ? new Promise(r => { resolve = r; }) : Promise.resolve("ttf"); } });
+  const asset = f.asset(null); asset.source = 3; asset.url = "/font.ttf";
+  const font = new f.Font(asset), clone = new f.Font({ ...asset });
+  const first = font.get3DFont(); await flush();
+  assert.equal(clone.get3DFont(), first); assert.equal(reads, 1);
+  assert.ok(await font.reset()); assert.equal(await first, null);
+  resolve("invalid"); await flush();
+  assert.equal(font.data.zoidiumFont3dState, "ready"); assert.equal(f.notifications.length, 0);
+  assert.equal(await clone.get3DFont(), font.font3d);
 });
