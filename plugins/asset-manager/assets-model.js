@@ -42,8 +42,31 @@ const FILTERS = [
   { id: "problems", label: "Problems" },
 ];
 
+// The 16 After Effects label colors (Edit > Preferences > Labels defaults).
+// Index 0 is "None"; items store the index.
+const LABELS = [
+  { name: "None", color: null },
+  { name: "Red", color: "#b53838" },
+  { name: "Yellow", color: "#e4d84c" },
+  { name: "Aqua", color: "#a9cbc7" },
+  { name: "Pink", color: "#e5bcc9" },
+  { name: "Lavender", color: "#a9a9ca" },
+  { name: "Peach", color: "#e7c19e" },
+  { name: "Sea Foam", color: "#b3c7b3" },
+  { name: "Blue", color: "#677de0" },
+  { name: "Green", color: "#4aa44c" },
+  { name: "Purple", color: "#8e2c9a" },
+  { name: "Orange", color: "#e8920d" },
+  { name: "Brown", color: "#7f452a" },
+  { name: "Fuchsia", color: "#f46dd6" },
+  { name: "Cyan", color: "#3da2a5" },
+  { name: "Sandstone", color: "#a89677" },
+  { name: "Dark Green", color: "#1e401e" },
+];
+
 // Sortable columns. `value` returns the sort key; ties fall back to name.
 const COLUMNS = [
+  { id: "label", label: "", title: "Label", value: (item) => item.label || 0 },
   { id: "name", label: "Name", value: (item) => String(item.name || "").toLowerCase() },
   { id: "kind", label: "Type", value: (item) => kindLabel(item.kind) },
   { id: "status", label: "Status", value: (item) => statusRank(item.status) },
@@ -51,6 +74,71 @@ const COLUMNS = [
   { id: "size", label: "Size", value: (item) => (Number.isFinite(item.size) ? item.size : -1) },
   { id: "details", label: "Details", value: (item) => detailText(item) },
 ];
+
+function labelInfo(label) {
+  return LABELS[label] || LABELS[0];
+}
+
+// Folder rows use this id prefix so they never collide with item ids.
+const FOLDER_PREFIX = "folder:";
+
+function folderRowId(id) {
+  return FOLDER_PREFIX + id;
+}
+
+function isFolderRow(id) {
+  return typeof id === "string" && id.startsWith(FOLDER_PREFIX);
+}
+
+// A filter, type or search shows matching items flat, like AE's search; the
+// plain view shows the folder tree. Folders sort by name, items by the
+// chosen column, folders first at every level.
+function isFlatView(view) {
+  return (view.filter && view.filter !== "all") || (view.kind && view.kind !== "all") ||
+    String(view.query || "").trim() !== "";
+}
+
+function treeRows(snapshot, view, expanded) {
+  const items = snapshot ? snapshot.items : [];
+  const folders = snapshot && Array.isArray(snapshot.folders) ? snapshot.folders : [];
+  if (isFlatView(view) || !folders.length) {
+    return sortItems(filterItems(items, view), view.sort).map((item) => ({ type: "item", id: item.id, item, depth: 0 }));
+  }
+  const byId = new Map(folders.map((folder) => [folder.id, folder]));
+  // A missing or cyclic parent puts the folder at the root, so damaged
+  // metadata never hides a folder.
+  const folderParent = new Map();
+  for (const folder of folders) {
+    const seen = new Set([folder.id]);
+    let parent = byId.has(folder.parent) ? folder.parent : null;
+    for (let at = parent; at; at = byId.has(byId.get(at).parent) ? byId.get(at).parent : null) {
+      if (seen.has(at)) {
+        parent = null;
+        break;
+      }
+      seen.add(at);
+    }
+    folderParent.set(folder.id, parent);
+  }
+  const parentOf = (value) => (value && byId.has(value) ? value : null);
+  const rows = [];
+  const visit = (parent, depth, seen) => {
+    const children = folders
+      .filter((folder) => folderParent.get(folder.id) === parent && !seen.has(folder.id))
+      .sort((left, right) => compareValues(left.name, right.name));
+    for (const folder of children) {
+      const open = !expanded || expanded.has(folder.id);
+      const count = items.filter((item) => parentOf(item.folder) === folder.id).length +
+        folders.filter((child) => folderParent.get(child.id) === folder.id).length;
+      rows.push({ type: "folder", id: folderRowId(folder.id), folder, depth, expanded: open, count });
+      if (open) visit(folder.id, depth + 1, new Set(seen).add(folder.id));
+    }
+    const own = sortItems(items.filter((item) => parentOf(item.folder) === parent), view.sort);
+    for (const item of own) rows.push({ type: "item", id: item.id, item, depth });
+  };
+  visit(null, 0, new Set());
+  return rows;
+}
 
 function kindInfo(kind) {
   return KINDS[kind] || KINDS.file;
@@ -218,6 +306,12 @@ module.exports = {
   KINDS,
   FILTERS,
   COLUMNS,
+  LABELS,
+  labelInfo,
+  folderRowId,
+  isFolderRow,
+  isFlatView,
+  treeRows,
   kindInfo,
   kindLabel,
   statusLabel,
