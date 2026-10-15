@@ -64,6 +64,7 @@ function createLoadVideoWithDecodeHint(dependencies) {
   const notify = dependencies.notify;
   const probeTimeoutMs = dependencies.probeTimeoutMs || DEFAULT_PROBE_TIMEOUT_MS;
   const warned = new Set();
+  const onStatus = dependencies.onStatus || (() => {});
   let disposed = false;
 
   function markDisposed() {
@@ -76,6 +77,7 @@ function createLoadVideoWithDecodeHint(dependencies) {
     const width = video.videoWidth;
     const height = video.videoHeight;
     if (width !== 0 && height !== 0) {
+      onStatus(asset, "ready");
       asset.length = duration;
       const scale = Math.min(330 / width, 186 / height);
       const thumbnail = await generateThumbnail(video, Math.round(width * scale), Math.round(height * scale));
@@ -92,6 +94,7 @@ function createLoadVideoWithDecodeHint(dependencies) {
     } else {
       // Metadata arrived but there are no video dimensions: an audio file
       // offered to the video probe. Not a decode failure, so stay silent.
+      onStatus(asset, "unknown");
       finish(undefined);
     }
   }
@@ -103,6 +106,7 @@ function createLoadVideoWithDecodeHint(dependencies) {
       const key = warningKey(asset, filename);
       const audio = isAudioAsset(asset);
       const video = document.createElement("video");
+      if (!audio) onStatus(asset, "loading");
       let settled = false;
       let timer = null;
 
@@ -141,6 +145,7 @@ function createLoadVideoWithDecodeHint(dependencies) {
       }
 
       video.onerror = function onVideoError() {
+        if (!audio) onStatus(asset, "failed");
         warnOnce();
         finish(undefined);
       };
@@ -183,6 +188,10 @@ module.exports = {
     if (!prototype || typeof prototype.loadVideo !== "function" || !host || !host.document) return;
     const original = prototype.loadVideo;
     const generateThumbnail = prototype.generateThumbnail;
+    const statuses = new WeakMap();
+    const previousStatus = host.ZoidiumVideoDecodeStatus;
+    const statusApi = { get: asset => statuses.get(asset) };
+    host.ZoidiumVideoDecodeStatus = statusApi;
     const installed = createLoadVideoWithDecodeHint({
       document: host.document,
       schedule: host.setTimeout.bind(host),
@@ -190,6 +199,10 @@ module.exports = {
       generateThumbnail: (element, width, height) => generateThumbnail.call(prototype, element, width, height),
       notify: (detail) => host.ZoidiumUI && host.ZoidiumUI.notify && host.ZoidiumUI.notify(detail),
       probeTimeoutMs: DEFAULT_PROBE_TIMEOUT_MS,
+      onStatus(asset, status) {
+        statuses.set(asset, status);
+        if (host.dispatchEvent && host.CustomEvent) host.dispatchEvent(new host.CustomEvent("zoidium:asset-status", { detail: asset }));
+      },
     });
     const replacement = function replacementLoadVideo(asset) {
       return installed.loadVideoWithDecodeHint(asset);
@@ -198,6 +211,10 @@ module.exports = {
     context.lifecycle.onDispose(() => {
       installed.markDisposed();
       if (prototype.loadVideo === replacement) prototype.loadVideo = original;
+      if (host.ZoidiumVideoDecodeStatus === statusApi) {
+        if (previousStatus) host.ZoidiumVideoDecodeStatus = previousStatus;
+        else delete host.ZoidiumVideoDecodeStatus;
+      }
     });
   },
 };

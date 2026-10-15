@@ -787,6 +787,7 @@
   var sharedWindows = sharedTable("ZoidiumSharedWindows");
 
   var apis = {
+    assets: global.ZoidiumAssets,
     KINDS: KINDS,
     modules: { createRequire: createRequire },
     timeline: { registerTrackButton: registerTrackButton, registerTrackField: registerTrackField, refreshTrackButtons: refreshTrackButtons },

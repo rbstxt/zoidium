@@ -365,6 +365,21 @@ function entries(editor) {
   return rows;
 }
 
+// Detached copies of closed authored timelines for read-only consumers. The
+// open timeline is walked live; exposing it here would count render clones or
+// stale media.data. Never commitActive or switch compositions for this query.
+function referenceSources(editor) {
+  const project = editor && editor.project;
+  if (!project || !project.sequence) return [];
+  const session = sessions.get(project) || { activeId: null, mainJSON: null };
+  const main = session.mainJSON || {};
+  return [{ id: MAIN_ID, name: "Main", editing: session.activeId === null,
+    tracks: session.activeId === null ? null : clone((main.videoTracks || []).concat(main.audioTracks || [])) }]
+    .concat(compMedia(project).map(media => ({ id: media.comp.id, name: compName(media),
+      editing: session.activeId === media.comp.id,
+      tracks: session.activeId === media.comp.id ? null : clone(media.data || []) })));
+}
+
 function nextCompName(project) {
   for (let n = 1; ; n++) {
     const candidate = "Comp " + n;
@@ -734,6 +749,7 @@ module.exports = {
   isEditing: isEditing,
   activeName: activeName,
   entries: entries,
+  referenceSources: referenceSources,
   openComp: openComp,
   openSourceOfClip: openSourceOfClip,
   newEmptyComp: newEmptyComp,
