@@ -80,7 +80,7 @@
       "description": "An After Effects style Project panel: every file, font, image, model and composition in the project, where each is used, and which are missing or failed.",
       "manifest": "./plugins/asset-manager/manifest.json?v=2",
       "bundle": "./plugins/asset-manager/bundle.json?v=2",
-      "integrity": "sha256-7FS48PpiJA5LgZrzObFgcTavAlVOg+qmVs2o/Ih7Jws="
+      "integrity": "sha256-OU4yCCtMyNCniv4sa2ONqqYTeQBUXRxq/1ZHKj7p+dM="
     },
     {
       "id": "precomp-plus",

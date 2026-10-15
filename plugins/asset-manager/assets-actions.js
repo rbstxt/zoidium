@@ -1,5 +1,7 @@
 "use strict";
 
+const model = require("./assets-model.js");
+
 // Item commands of the Assets window, shared by its icon bar and the row
 // context menu (After Effects: Reveal in Composition, Reload Footage,
 // Replace/Locate Footage, Reveal in Explorer). Each command reports whether
@@ -26,20 +28,25 @@ function capabilitiesOf(api, item) {
   }
 }
 
-// `session` = { document, registry(), notify, reveal(item) }.
+// `session` = { document, registry(), notify, confirm, reveal(item), select(id) }.
 function createActions(session) {
   const doc = session.document;
   const busy = new Set();
 
-  function pickFile(item) {
+  function pickFiles(accept, multiple) {
     return new Promise((resolve) => {
       const input = doc.createElement("input");
       input.type = "file";
-      if (ACCEPT[item.kind]) input.accept = ACCEPT[item.kind];
-      input.addEventListener("change", () => resolve(input.files && input.files[0] ? input.files[0] : null), { once: true });
-      input.addEventListener("cancel", () => resolve(null), { once: true });
+      input.multiple = !!multiple;
+      if (accept) input.accept = accept;
+      input.addEventListener("change", () => resolve(Array.from(input.files || [])), { once: true });
+      input.addEventListener("cancel", () => resolve([]), { once: true });
       input.click();
     });
+  }
+
+  function pickFile(item) {
+    return pickFiles(ACCEPT[item.kind], false).then((files) => files[0] || null);
   }
 
   function download(blob, filename) {
@@ -106,6 +113,89 @@ function createActions(session) {
     download(result.blob, result.filename || item.name);
   }
 
+  // AE File > Import: footage also lands in the Media tab, other files are
+  // kept as project items. The newest item is selected afterwards.
+  async function importFiles(files) {
+    if (!files || !files.length) return;
+    const result = await session.registry().import(files);
+    const imported = (result && result.items) || [];
+    const created = imported.filter((entry) => entry.created);
+    const errors = (result && result.errors) || [];
+    if (imported.length) session.select(imported[imported.length - 1].id);
+    if (errors.length) {
+      session.notify({ title: "Import", message: errors.map((entry) => entry.message || String(entry)).join(" ") });
+    } else if (imported.length && !created.length) {
+      session.notify({ title: "Import", message: "Those files are already in the project." });
+    }
+  }
+
+  function importCommand() {
+    const api = session.registry();
+    return {
+      id: "import",
+      label: "Import…",
+      icon: "addmedia",
+      hint: "Add files to the project; they stay here until you remove them",
+      enabled: !!(api && api.import),
+      run: () => {
+        const picked = pickFiles("", true);
+        return guarded({ id: "project" }, "Import", () => picked.then(importFiles));
+      },
+    };
+  }
+
+  function removeUnusedCommand(snapshot) {
+    const api = session.registry();
+    const unused = model.unusedFiles(snapshot ? snapshot.items : []);
+    const size = model.formatSize(model.totalSize(unused));
+    return {
+      id: "remove-unused",
+      label: "Remove Unused Items" + (unused.length ? " (" + unused.length + (size ? ", " + size : "") + ")" : ""),
+      icon: "delete",
+      hint: "Remove every imported file that nothing in the project uses",
+      enabled: !!(api && api.removeUnused) && unused.length > 0,
+      run: () => guarded({ id: "project" }, "Remove Unused Items", async () => {
+        const result = await session.registry().removeUnused();
+        const removed = (result && result.removed) || [];
+        // AE reports the count afterwards instead of asking first; undo
+        // brings the files back.
+        session.notify({
+          title: "Removed " + model.plural(removed.length, "unused item", "unused items"),
+          message: (result && result.freed ? model.formatSize(result.freed) + " freed. " : "") + "Undo restores them.",
+        });
+      }),
+    };
+  }
+
+  async function remove(item) {
+    const api = session.registry();
+    const count = model.usageCount(item);
+    if (!count) {
+      const result = await api.removeUnused([item.id]);
+      const removed = (result && result.removed) || [];
+      if (!removed.length) session.notify({ title: "Delete", message: item.name + " is still used in the project." });
+      return;
+    }
+    // AE asks before deleting an item that compositions still use.
+    const approved = count > 0 && await session.confirm({
+      title: "Delete " + item.name,
+      message: item.name + " is " + model.usageText(item).toLowerCase() +
+        ". Deleting it also deletes clips that show it and clears the properties that use it. You can undo this.",
+      confirmLabel: "Delete",
+      cancelLabel: "Cancel",
+      danger: true,
+    });
+    if (count && !approved) return;
+    const result = await api.removeItems([item.id]);
+    if (result && result.ok) return;
+    session.notify({
+      title: "Delete " + item.name,
+      message: result && result.reason === "in-closed-composition"
+        ? "It is also used inside a closed composition. Open that composition and remove the use there first."
+        : (result && result.error) || "The item could not be deleted.",
+    });
+  }
+
   // Commands for one item, in menu order. `enabled` is computed now so the
   // menu and icon bar render without async work.
   function list(item) {
@@ -150,10 +240,19 @@ function createActions(session) {
         enabled: !!(api && api.exportFile && caps.exportFile),
         run: () => guarded(item, "Save File", () => exportFile(item)),
       },
+      {
+        id: "delete",
+        label: "Delete",
+        icon: "remove",
+        hint: model.usageCount(item) ? "Delete this item and its uses" : "Remove this unused item from the project",
+        enabled: !!item && item.source === "file" &&
+          !!(api && (model.usageCount(item) ? api.removeItems : api.removeUnused)),
+        run: () => guarded(item, "Delete", () => remove(item)),
+      },
     ];
   }
 
-  return { list };
+  return { list, importCommand, removeUnusedCommand, importFiles };
 }
 
 module.exports = { createActions };
