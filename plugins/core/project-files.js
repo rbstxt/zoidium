@@ -338,17 +338,21 @@
   // Unpacks a saved project (or restore point) and checks its project data
   // before anything is loaded from it. Every failure is a ProjectDataError with
   // an English message.
-  async function openValidatedArchive(source, mode) {
+  // onSlow (see slowStepQuestion) lets a user-started open or save keep
+  // waiting on a slow disk instead of failing at the size-scaled deadline.
+  async function openValidatedArchive(source, mode, onSlow) {
     if (!(Number(source && source.size) > 0)) {
       throw projectDataError(mode, "The archive is empty");
     }
     var archive;
     try {
-      archive = await archiveIO.bounded(archiveIO.decode(source, PZ.archive), "Decoding the project file", archiveIO.budget(source.size, 60000));
+      archive = await archiveIO.bounded(archiveIO.decode(source, PZ.archive, onSlow), "Decoding the project file",
+        archiveIO.budget(source.size, 60000), undefined, onSlow);
     } catch (error) {
       throw projectDataError(mode, errorMessage(error, "The archive is not readable"));
     }
-    await archiveIO.bounded(validateProjectArchive(archive, mode), "Validating the project file", archiveIO.budget(source.size, 60000));
+    await archiveIO.bounded(validateProjectArchive(archive, mode), "Validating the project file",
+      archiveIO.budget(source.size, 60000), undefined, onSlow);
     await sanitizeProjectArchive(archive);
     return archive;
   }
@@ -397,6 +401,7 @@
     var sourceProject = editor.project;
     var sourceRevision = getProjectRevision(editor);
     var archive = new PZ.archive();
+    var onSlow = options && options.interactive ? slowStepQuestion("saving") : undefined;
 
     // Await serialized object/plugin initialization, not preview decoders.
     // Otherwise a still-loading object can serialize its default properties.
@@ -434,7 +439,7 @@
     for (var fileIndex = 0; fileIndex < archive.files.length; fileIndex += 1) {
       var fileEntry = archive.files[fileIndex];
       var label = "Entry " + fileEntry.name + (assetLabels[fileEntry.name] ? " (" + assetLabels[fileEntry.name] + ")" : "");
-      fileEntry.data = new Blob([await archiveIO.bytes(fileEntry.data, label)]);
+      fileEntry.data = new Blob([await archiveIO.bytes(fileEntry.data, label, onSlow)]);
     }
     archive.addFileString("zoidium.json", JSON.stringify({
       version: 1, name: projectName, integrity: await archiveIO.integrity(archive),
@@ -455,10 +460,11 @@
       return result;
     }
 
-    var blob = await archiveIO.bounded(archiveIO.encode(archive), "Project archive creation", archiveIO.budget(totalBytes));
+    var blob = await archiveIO.bounded(archiveIO.encode(archive, onSlow), "Project archive creation",
+      archiveIO.budget(totalBytes), undefined, onSlow);
     // Decode the finished bytes using exactly the open validator. Only this
     // verified, memory-backed Blob may reach a writer or download link.
-    await openValidatedArchive(blob, "save");
+    await openValidatedArchive(blob, "save", onSlow);
     if (editor.project !== sourceProject || getProjectRevision(editor) !== sourceRevision || getProjectName(editor) !== projectName) {
       throw new Error("The project changed while the archive was built. Nothing was replaced. Retry saving the current project.");
     }
@@ -646,6 +652,7 @@
     }
 
     var writable = null;
+    var onSlowWrite = slowStepQuestion("saving");
     try {
       var opening = targetHandle.createWritable();
       writable = await archiveIO.bounded(opening, "Opening the writable project file", 10000, function () {
@@ -654,10 +661,10 @@
         Promise.resolve(opening).then(function (lateWritable) {
           if (lateWritable && typeof lateWritable.abort === "function") return lateWritable.abort();
         }).catch(function () {});
-      });
+      }, onSlowWrite);
       var writeBudget = archiveIO.budget(archiveResult.blob.size);
-      await archiveIO.bounded(writable.write(archiveResult.blob), "Writing the project file", writeBudget);
-      await archiveIO.bounded(writable.close(), "Committing the project file", writeBudget);
+      await archiveIO.bounded(writable.write(archiveResult.blob), "Writing the project file", writeBudget, undefined, onSlowWrite);
+      await archiveIO.bounded(writable.close(), "Committing the project file", writeBudget, undefined, onSlowWrite);
       if (editor.project === savedProject) {
         editor._zoidiumSaveFileHandle = targetHandle;
         editor._zoidiumSaveFileName = filename;
@@ -817,6 +824,23 @@
     ]).finally(function () { global.clearTimeout(timer); });
   }
 
+  // A step of a user-started save or open that outlives its size-scaled
+  // budget asks instead of failing: reading a large video from a slow or
+  // cloud-backed disk is valid. The question closes itself when the step
+  // finishes meanwhile. Without the UI kit the deadline fails as before.
+  function slowStepQuestion(action) {
+    if (!global.ZoidiumUI || typeof global.ZoidiumUI.confirm !== "function") return undefined;
+    return function (label, signal) {
+      return global.ZoidiumUI.confirm({
+        title: "Still working",
+        message: label + " is taking longer than expected. A slow, network or cloud drive can cause this.\nKeep waiting, or stop " + action + "?",
+        confirmLabel: "Keep waiting",
+        cancelLabel: "Stop " + action,
+        signal: signal,
+      });
+    };
+  }
+
   // Saving waits for loading objects, but a load that failed or never ends
   // must not make the project unsaveable: the user decides after 10 seconds.
   // Automatic backups simply skip this round.
@@ -859,7 +883,7 @@
         // Toolbar and desktop opens share validation, plugin activation,
         // assets, project naming, and error/recovery notifications.
         var archive;
-        try { archive = await openValidatedArchive(file, "open"); }
+        try { archive = await openValidatedArchive(file, "open", slowStepQuestion("opening")); }
         catch (error) {
           if (!error.partialArchive || !global.ZoidiumUI) throw error;
           var approved = await global.ZoidiumUI.confirm({
@@ -925,7 +949,8 @@
         var response = await archiveIO.bounded(global.fetch(message.url), "Desktop project read");
         if (!response.ok) throw new Error("The project file is no longer available.");
         var length = response.headers && response.headers.get ? response.headers.get("content-length") : 0;
-        var file = new global.File([await archiveIO.bounded(response.blob(), "Desktop project transfer", archiveIO.budget(length, 60000))], message.name);
+        var file = new global.File([await archiveIO.bounded(response.blob(), "Desktop project transfer",
+          archiveIO.budget(length, 60000), undefined, slowStepQuestion("opening"))], message.name);
         if (editor._zoidiumTransitionPromise) {
           await archiveIO.bounded(editor._zoidiumTransitionPromise, "Waiting for the current project operation", 60000);
         }

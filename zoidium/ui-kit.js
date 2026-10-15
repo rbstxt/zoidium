@@ -38,7 +38,9 @@
   var confirmCounter = 0;
   // Small centered modal-like question dialog built on openWindow and the
   // shared footer buttons. options: { title, message, confirmLabel ("Delete"
-  // at destructive call sites), cancelLabel, danger, onConfirm, onCancel }.
+  // at destructive call sites), cancelLabel, danger, onConfirm, onCancel,
+  // signal }. Aborting the optional AbortSignal closes the dialog as a cancel
+  // (the question no longer applies).
   // Enter confirms, Escape and the close button cancel, and a danger dialog
   // focuses the safe (cancel) button. Returns a Promise<boolean> and also
   // calls onConfirm/onCancel. Theme tokens only (see ui-window.css).
@@ -61,6 +63,14 @@
       if (win) win.close();
     }
     confirmCounter += 1;
+    var signal = config.signal;
+    if (signal && signal.aborted) {
+      done(false);
+      return promise;
+    }
+    if (signal && typeof signal.addEventListener === "function") {
+      signal.addEventListener("abort", function () { done(false); }, { once: true });
+    }
     win = openWindow({
       id: "confirm-" + confirmCounter + "-" + Date.now().toString(36),
       title: title,

@@ -11,23 +11,52 @@
     const bytes = Number(size) > 0 ? Number(size) : 0;
     return Math.max(minimum, WAIT_MS + Math.floor(bytes / (4 * 1024 * 1024)) * 1000);
   }
-  function bounded(value, label, milliseconds = WAIT_MS, cancel) {
-    let timer;
-    return Promise.race([
-      Promise.resolve(value),
-      new Promise((_, reject) => {
-        timer = global.setTimeout(() => {
-          if (cancel) { try { cancel(); } catch (_error) { /* best effort */ } }
-          reject(new Error(label + " did not finish within " + Math.ceil(milliseconds / 1000) + " seconds. No incomplete archive was delivered."));
+  // Without onSlow a step that outlives its budget fails. A user-started save
+  // or open passes onSlow(label, signal) instead: it resolves true to keep
+  // waiting another budget, false to stop. A slow disk, a network or cloud
+  // placeholder file is then never a failure. The signal aborts when the step
+  // finishes while the question is still open.
+  function bounded(value, label, milliseconds = WAIT_MS, cancel, onSlow) {
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      let timer = null;
+      let question = null;
+      const finish = (callback, result) => {
+        if (settled) return;
+        settled = true;
+        global.clearTimeout(timer);
+        if (question) question.abort();
+        callback(result);
+      };
+      const stop = message => {
+        if (cancel) { try { cancel(); } catch (_error) { /* best effort */ } }
+        finish(reject, new Error(label + message + " No incomplete archive was delivered."));
+      };
+      const arm = () => {
+        timer = global.setTimeout(async () => {
+          if (settled) return;
+          if (typeof onSlow !== "function") {
+            stop(" did not finish within " + Math.ceil(milliseconds / 1000) + " seconds.");
+            return;
+          }
+          question = typeof global.AbortController === "function" ? new global.AbortController() : null;
+          let keepWaiting = false;
+          try { keepWaiting = await onSlow(label, question && question.signal); } catch (_error) { keepWaiting = false; }
+          question = null;
+          if (settled) return;
+          if (keepWaiting) arm();
+          else stop(" was stopped.");
         }, milliseconds);
-      }),
-    ]).finally(() => global.clearTimeout(timer));
+      };
+      arm();
+      Promise.resolve(value).then(result => finish(resolve, result), error => finish(reject, error));
+    });
   }
-  async function bytes(data, label = "Archive entry") {
+  async function bytes(data, label = "Archive entry", onSlow) {
     const size = Number(data && (data.size ?? data.byteLength));
     if (size > MAX_BYTES) throw new Error(label + " exceeds the " + LIMIT_LABEL + " safety limit.");
     if (data && typeof data.arrayBuffer === "function") {
-      const result = new Uint8Array(await bounded(data.arrayBuffer(), label, budget(size)));
+      const result = new Uint8Array(await bounded(data.arrayBuffer(), label, budget(size), undefined, onSlow));
       if (Number.isFinite(size) && result.byteLength !== size) throw new Error(label + " was read incompletely.");
       return result;
     }
@@ -48,13 +77,13 @@
     }
     return name;
   }
-  async function collect(stream, limit, label) {
+  async function collect(stream, limit, label, onSlow) {
     const reader = stream.getReader();
     const chunks = [];
     let size = 0;
     try {
       for (;;) {
-        const next = await bounded(reader.read(), label, WAIT_MS, () => reader.cancel().catch(() => {}));
+        const next = await bounded(reader.read(), label, WAIT_MS, () => reader.cancel().catch(() => {}), onSlow);
         if (next.done) break;
         size += next.value.byteLength;
         if (size > limit) throw new Error(label + " exceeds the " + LIMIT_LABEL + " safety limit.");
@@ -72,7 +101,7 @@
     const text = value.toString(8).padStart(length - 1, "0") + "\0";
     header.set(new TextEncoder().encode(text), offset);
   }
-  async function encode(archive) {
+  async function encode(archive, onSlow) {
     if (typeof global.CompressionStream !== "function") throw new Error("In-memory project compression is unavailable.");
     const chunks = [];
     const names = new Set();
@@ -102,7 +131,7 @@
       chunks.push(header, data, new Uint8Array((512 - data.size % 512) % 512));
     }
     chunks.push(new Uint8Array(1024));
-    return collect(new Blob(chunks).stream().pipeThrough(new global.CompressionStream("gzip")), MAX_BYTES, "Project compression");
+    return collect(new Blob(chunks).stream().pipeThrough(new global.CompressionStream("gzip")), MAX_BYTES, "Project compression", onSlow);
   }
   function field(header, offset, length) {
     return new TextDecoder().decode(header.subarray(offset, offset + length)).split("\0")[0];
@@ -112,11 +141,11 @@
     if (!/^[0-7]+$/.test(value)) throw new Error("Invalid TAR size or checksum in entry: " + name);
     return parseInt(value, 8);
   }
-  async function decode(source, Archive) {
+  async function decode(source, Archive, onSlow) {
     if (!(source?.size > 0)) throw new Error("The archive is empty.");
     if (source.size > MAX_BYTES) throw new Error("The archive exceeds the " + LIMIT_LABEL + " safety limit.");
     if (typeof global.DecompressionStream !== "function") throw new Error("In-memory project decompression is unavailable.");
-    const unpacked = await collect(source.stream().pipeThrough(new global.DecompressionStream("gzip")), MAX_BYTES, "Project decompression");
+    const unpacked = await collect(source.stream().pipeThrough(new global.DecompressionStream("gzip")), MAX_BYTES, "Project decompression", onSlow);
     const archive = new Archive();
     const names = new Set();
     let offset = 0;
