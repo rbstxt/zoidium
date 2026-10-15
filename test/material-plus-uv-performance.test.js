@@ -30,11 +30,16 @@ function extrusion(points, rings = [0, 3]) {
   return { type: "ExtrudeGeometry", vertices, faces, faceVertexUvs };
 }
 
+// Math.sin and Math.cos may differ in the last bit between CPU
+// architectures, which would change the exact fingerprint below. Snapping
+// the inputs to a 2^-20 grid keeps them identical on every platform; the
+// layout itself only uses exactly rounded arithmetic, sqrt and hypot.
 function ring(n) {
+  const snap = value => Math.round(value * 1048576) / 1048576;
   return Array.from({ length: n }, (_, i) => {
     const angle = i * Math.PI * 2 / n;
     const radius = 10 + Math.sin(angle * 7) * 2;
-    return { x: Math.cos(angle) * radius, y: Math.sin(angle) * radius };
+    return { x: snap(Math.cos(angle) * radius), y: snap(Math.sin(angle) * radius) };
   });
 }
 
@@ -46,7 +51,7 @@ function fingerprint(geometry) {
 test("dense contours retain the exact legacy seam and wall UVs", () => {
   const geometry = extrusion(ring(4096), [0, .25, 1, 3]);
   layout.normalizeGeometry(geometry);
-  assert.equal(fingerprint(geometry), "c9797dfffb628ae5601735ccaaaaf95e910df43242ab49b6048556d72da4cbc9");
+  assert.equal(fingerprint(geometry), "e187271899d22559d8a0835c171233242b79615828fb3ed3a10d9f4c3a8e7843");
 });
 
 test("nearest-segment work stays below a full contour scan for every wall", () => {
