@@ -130,7 +130,24 @@ var PZ = PZ || {};
     // an owner can tell whether its last render used the data it sees now.
     // Keys combine the asset kind with the asset value (a content hash for
     // uploaded files, a path for presets), so a replaced file is a new key.
+    var assetCaches = new Set();
+    T.reloadAssetCaches = async function (value) {
+        var jobs = [];
+        for (var ref of assetCaches) {
+            var cache = ref.deref();
+            if (!cache) { assetCaches.delete(ref); continue; }
+            for (var key of Object.keys(cache.entries)) {
+                var entry = cache.entries[key];
+                if (entry.value !== value) continue;
+                delete cache.entries[key];
+                cache.revision++;
+                jobs.push(cache.request(entry.kind, value, entry.loader).promise);
+            }
+        }
+        await Promise.all(jobs);
+    };
     T.AssetCache = function (onSettled) {
+        assetCaches.add(new WeakRef(this));
         this.entries = {};
         this.revision = 0;
         this.onSettled = onSettled || null;
@@ -142,7 +159,7 @@ var PZ = PZ || {};
         var entry = this.entries[key];
         if (entry) return entry;
         var self = this;
-        entry = { status: "loading", data: null, promise: null };
+        entry = { status: "loading", data: null, promise: null, kind: kind, value: value, loader: loader };
         this.entries[key] = entry;
         entry.promise = Promise.resolve()
             .then(function () { return loader(value); })
@@ -154,6 +171,7 @@ var PZ = PZ || {};
                 entry.data = null;
             })
             .then(function () {
+                if (self.entries[key] !== entry) return;
                 self.revision += 1;
                 if (self.onSettled) self.onSettled();
             });

@@ -8,7 +8,7 @@
     // loader appends it automatically, so per-file ?v= queries are never
     // hand-edited here. Plugin asset URLs are versioned separately by
     // tools/build-plugin-bundles.js from each manifest's own version.
-    assetVersion: 126,
+    assetVersion: 128,
     // Plugin registry consumed by plugins/plugin-manager.js. It is preloaded
     // below, so its URL lives here as the single source.
     registryUrl: "./plugins/registry.json?v=69",
@@ -64,14 +64,16 @@
       "./zoidium/direct-download.js",
       "./plugins/core/project-files.js",
       "./plugins/core/panel-fullscreen-shortcut.js",
-      // Keeps the editor's main preview reachable as editor.mainViewport. It
-      // must be installed before initTool() builds the viewport.
       "./plugins/core/output-frame-store.js",
       "./plugins/core/output-frame-cache.js",
       "./plugins/core/main-viewport.js",
       "./plugins/core/asset-registry-walk.js",
       "./plugins/core/asset-registry-status.js",
       "./plugins/core/asset-registry-reveal.js",
+      "./plugins/core/asset-registry-fetch.js",
+      "./plugins/core/asset-registry-decode.js",
+      "./plugins/core/asset-registry-consumers.js",
+      "./plugins/core/asset-registry-actions.js",
       "./plugins/core/asset-registry.js"
     ],
     postInitScripts: [

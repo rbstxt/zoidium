@@ -11,7 +11,7 @@ var Looks = Looks || {};
       var property = effect.properties.lutData;
       return property && property.get() || null;
     }
-    function entryFor(value, importedAtlas) {
+    function entryFor(value, importedAtlas, retainedAsset) {
       if (!value) return null;
       if (entries.has(value)) {
         var cached = entries.get(value);
@@ -22,7 +22,7 @@ var Looks = Looks || {};
         }
         return cached;
       }
-      var asset = effect.parentProject.assets.load(value);
+      var asset = retainedAsset || effect.parentProject.assets.load(value);
       var entry = { asset: asset, atlas: importedAtlas || null, error: null };
       entries.set(value, entry);
       entry.loading = Promise.resolve().then(async function () {
@@ -46,7 +46,7 @@ var Looks = Looks || {};
       // the compositor completes a frame.
       if (value && !entry) entry = entryFor(value);
       var atlas = entry && entry.atlas || null;
-      if (activeKey === value && effect._looksCubeAtlas === atlas) return;
+      if (activeKey === value && effect._looksCubeAtlas === atlas && effect._looksCubeError === (entry && entry.error)) return;
       activeKey = value;
       releaseTextures();
       effect._looksCubeAtlas = atlas || null;
@@ -69,6 +69,17 @@ var Looks = Looks || {};
       ["R", "G", "B"].forEach(function (c, i) { u["u_lutAtlas" + c].value = textures[i] || null; });
     }
     return {
+      reload: async function (value, asset) {
+        var entry = entries.get(value);
+        if (!entry || entry.asset !== asset || disposed) return;
+        entries.delete(value);
+        // Keep the hold already owned by this effect, including undo entries.
+        var next = entryFor(value, null, asset);
+        await next.loading;
+        activeKey = null;
+        update(0);
+        if (next.error) throw new Error(next.error);
+      },
       prepare: async function (frame) {
         var entry = entryFor(key());
         if (entry) await entry.loading;

@@ -2,7 +2,7 @@
 
 // Native Text preparation awaits loading3d without a rejection handler. A
 // failed font therefore resolves to null, with its error kept on shared data.
-// Reads have no timeout: an available file may legitimately take time to load.
+// Attached files have no timeout. Transient preset reads retry before settling.
 module.exports = {
   activate(context) {
     const { PZ, window: host } = context;
@@ -20,6 +20,13 @@ module.exports = {
     const ownedData = new Set();
     const hidden = new Map();
     let disposed = false;
+    const io = host.ZoidiumAssetRegistryParts?.fetch;
+    function changed(asset) {
+      io?.changed(asset);
+      host.CM?.project?.sequence?.traverse?.(text => {
+        if (text.font?.asset === asset) { text.fontNeedsUpdate = true; text.geometryNeedsUpdate = true; }
+      });
+    }
 
     function patch(target, key, descriptor) {
       const original = Object.getOwnPropertyDescriptor(target, key);
@@ -45,25 +52,30 @@ module.exports = {
     function reset(record) {
       record.cancel?.();
       const data = record.data;
+      data.zoidiumFontGeneration = (data.zoidiumFontGeneration || 0) + 1;
       data.font3d = null;
       data.font3dLoading = null;
       data.zoidiumFont3dError = null;
+      data.zoidiumDecodeError = null;
       data.zoidiumFont3dState = "unloaded";
       // A changed font must not keep its previous family or 2D parse cache.
       data.font2d = null;
       data.font2dLoading = null;
       data.fontFamilyName = "";
+      changed(record.asset);
     }
 
     function shared(wrapper) {
       const asset = wrapper.asset;
       let record = records.get(asset);
       if (!record) {
-        record = { input: input(asset), data: wrapper.data, cancel: null, warned: false, inherited: wrapper.data.font3dLoading };
+        record = { asset, input: input(asset), data: wrapper.data, generation: wrapper.data.zoidiumFontGeneration || 0,
+          cancel: null, warned: false, inherited: wrapper.data.zoidiumFont3dState ? null : wrapper.data.font3dLoading };
         records.set(asset, record);
-      } else if (!matches(record, asset)) {
-        reset(record);
-        record = { input: input(asset), data: record.data, cancel: null, warned: false };
+      } else if (!matches(record, asset) || record.generation !== (record.data.zoidiumFontGeneration || 0)) {
+        if (!matches(record, asset)) reset(record);
+        else record.cancel?.();
+        record = { asset, input: input(asset), data: record.data, generation: record.data.zoidiumFontGeneration || 0, cancel: null, warned: false };
         records.set(asset, record);
       }
       // Multiple Texts and wrappers share the asset's native data object.
@@ -74,13 +86,14 @@ module.exports = {
       const detail = { stage, message: error?.message || String(error) };
       record.data.zoidiumFont3dError = detail;
       record.data.zoidiumFont3dState = "failed";
+      changed(wrapper.asset);
       if (record.warned) return;
       record.warned = true;
       const name = wrapper.asset.filename || wrapper.asset.key || "Unnamed font";
       try { host.ZoidiumUI?.notify?.({
         title: "Could not load 3D font",
         message: `Font "${name}" (${wrapper.asset.key || "unassigned"}) failed during ${stage}: ${detail.message}. ` +
-          "Text using this font will be empty. Choose a valid font file to restore it.",
+          "Text using this font will be empty. Reload the asset or choose a valid font file to restore it.",
       }); } catch (_error) { /* Reporting must not interrupt font settlement. */ }
     }
 
@@ -125,22 +138,31 @@ module.exports = {
       return { font: new THREE.Font(data), family: data.familyName.toLowerCase() };
     }
 
+    function readWithRetry(wrapper, record) {
+      return io ? io.retry(() => read(wrapper), {
+        enabled: wrapper.asset.source === (PZ.asset.source.PRESET ?? 3),
+        signal: record.controller?.signal,
+        onRetry() { record.retried = true; changed(wrapper.asset); },
+      }) : read(wrapper);
+    }
+
     function load(wrapper, record) {
       const data = record.data;
       let finish;
       const operation = new Promise((resolve) => { finish = resolve; });
-      const current = () => !disposed && records.get(wrapper.asset) === record && matches(record, wrapper.asset);
+      const current = () => !disposed && records.get(wrapper.asset) === record && matches(record, wrapper.asset) && record.generation === (record.data.zoidiumFontGeneration || 0);
       const settle = (value) => {
         pending.delete(record);
         record.cancel = null;
         finish(value);
       };
-      record.cancel = () => settle(null);
+      record.controller = host.AbortController ? new host.AbortController() : null;
+      record.cancel = () => { record.controller?.abort(); settle(null); };
       ownedData.add(new WeakRef(data));
       pending.add(record);
       data.font3dLoading = operation;
       data.zoidiumFont3dState = "loading";
-      Promise.resolve().then(() => read(wrapper)).then((bytes) => {
+      Promise.resolve().then(() => readWithRetry(wrapper, record)).then((bytes) => {
         if (!current()) return settle(null);
         try {
           const result = parse(bytes);
@@ -148,6 +170,7 @@ module.exports = {
           data.fontFamilyName = result.family;
           data.zoidiumFont3dError = null;
           data.zoidiumFont3dState = "ready";
+          changed(wrapper.asset);
           settle(result.font);
         } catch (error) {
           report(wrapper, record, "font parse", error);
@@ -168,21 +191,30 @@ module.exports = {
       record.inherited = null;
       let finish;
       const operation = new Promise((resolve) => { finish = resolve; });
-      const current = () => !disposed && records.get(wrapper.asset) === record && matches(record, wrapper.asset);
+      const current = () => !disposed && records.get(wrapper.asset) === record && matches(record, wrapper.asset) && record.generation === (record.data.zoidiumFontGeneration || 0);
       const settle = (value) => { pending.delete(record); record.cancel = null; finish(value); };
-      record.cancel = () => settle(null);
+      record.controller = host.AbortController ? new host.AbortController() : null;
+      record.cancel = () => { record.controller?.abort(); settle(null); };
       pending.add(record);
       ownedData.add(new WeakRef(record.data));
       record.data.font3dLoading = operation;
       record.data.zoidiumFont3dState = "loading";
-      const check = Promise.resolve().then(() => read(wrapper)).then((bytes) => {
+      const check = Promise.resolve().then(() => readWithRetry(wrapper, record)).then((bytes) => {
         try { return parse(bytes); }
         catch (error) { throw { stage: "font parse", error }; }
       }, (error) => { throw { stage: "font read", error }; });
+      check.then(result => {
+        if (record.retried && current()) {
+          record.data.font3d = result.font; record.data.fontFamilyName = result.family;
+          record.data.zoidiumFont3dState = "ready"; record.data.zoidiumFont3dError = null;
+          changed(wrapper.asset); settle(result.font);
+        }
+      }, () => {});
       Promise.all([Promise.resolve(native).catch((error) => { throw { stage: "font read", error }; }), check]).then(([font]) => {
         if (!current()) return settle(null);
         record.data.zoidiumFont3dState = "ready";
         record.data.zoidiumFont3dError = null;
+        changed(wrapper.asset);
         settle(font);
       }, (failure) => {
         if (current()) {
@@ -273,6 +305,11 @@ module.exports = {
         return originalLoad.apply(this, arguments);
       } });
     }
+    patch(Font.prototype, "reset", { writable: true, value: function () {
+      const record = shared(this);
+      reset(record); records.delete(this.asset);
+      return this.get3DFont();
+    } });
     patch(Font.prototype, "get3DFont", { writable: true, value: get3DFont });
     patch(Font.prototype, "font3d", { get() { return disposed ? originalFontGetter.call(this) : shared(this).data.font3d; } });
     patch(Font.prototype, "loading3d", { get() {

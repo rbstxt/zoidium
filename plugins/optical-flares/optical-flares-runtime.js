@@ -175,6 +175,18 @@ module.exports = {
       throw new Error("Optical Flares could not define its 3D object class.");
     }
 
+    const assets = context.apis?.assets || context.window?.ZoidiumAssets;
+    if (assets?.registerReloader) undo.push(assets.registerReloader({
+      id: "optical-flares/custom-textures",
+      async reload(key, asset) {
+        const jobs = [];
+        const project = context.window?.CM?.project || context.editor?.project;
+        project?.sequence?.traverse?.(node => {
+          if (node instanceof PZ.object3d.optflares) jobs.push(node.reloadCustomTexture(key, asset));
+        });
+        await Promise.all(jobs);
+      },
+    }));
     const editor = () => (typeof window !== "undefined" && window.CM) || context.editor || null;
     const openWindow = (root) => {
       const target = editor();

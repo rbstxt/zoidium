@@ -149,6 +149,12 @@ var PZ = PZ || {};
 
     T.audioAnalysis = {
         fftSize: AUDIO_FFT_SIZE,
+        invalidate: function (source) {
+            var present = audioSources.has(source) || audioPending.has(source);
+            audioSources.delete(source);
+            audioPending.delete(source);
+            return present;
+        },
         has: function (source) {
             return audioSources.has(source);
         },
@@ -180,12 +186,13 @@ var PZ = PZ || {};
             if (audioPending.has(source)) return audioPending.get(source);
             var promise = audioDecodeSource(project, source).then(
                 function (buffer) {
+                    if (audioPending.get(source) !== promise) return false;
                     audioPending.delete(source);
                     T.audioAnalysis.register(source, buffer);
                     return true;
                 },
                 function (error) {
-                    audioPending.delete(source);
+                    if (audioPending.get(source) === promise) audioPending.delete(source);
                     throw error;
                 }
             );

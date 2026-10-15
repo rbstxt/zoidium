@@ -351,7 +351,11 @@ const GifSupport = (() => {
     return url.startsWith("/assets") ? url.substring(1) : url;
   }
 
-  function fetchBytes(url) {
+  function fetchBytes(url, asset) {
+    const io = globalThis.ZoidiumAssetRegistryParts?.fetch;
+    if (io && asset?.source === (state.PZ.asset.source.PRESET ?? 3)) {
+      return io.retry(() => io.response(asset));
+    }
     if (typeof fetch === "function") {
       return fetch(url).then((response) => {
         if (!response.ok) throw new Error("HTTP " + response.status);
@@ -415,6 +419,7 @@ const GifSupport = (() => {
     const data = this.data;
     const doc = state.PZ && state.PZ.__gifDocument ? state.PZ.__gifDocument : undefined;
     const placeholder = defaultCreateCanvas(1, 1, doc);
+    for (const previous of state.records) if (previous.data === data) state.records.delete(previous);
     const record = { data, frames: null, cumulative: null, total: 0 };
     data.image = placeholder;
     data.gif = record;
@@ -429,8 +434,9 @@ const GifSupport = (() => {
         finishEmpty("Missing texture asset: " + (asset.filename || asset.sha256 || "unknown"));
         return;
       }
-      fetchBytes(url).then(
+      fetchBytes(url, asset).then(
         (buffer) => {
+          if (data.gif !== record) { resolve(); return; }
           let decoded = null;
           try {
             decoded = decode(buffer, (w, h) => defaultCreateCanvas(w, h, doc));
@@ -745,6 +751,7 @@ const GifSupport = (() => {
               // project-time frame, deterministic per exported frame.
               const mediaTime = frame / rate;
               for (const record of state.records) {
+                if (record.data.gif !== record) { state.records.delete(record); continue; }
                 try {
                   if (record.frames && record.frames.length > 1 && record.total > 0) {
                     record.data.image = record.frames[
@@ -783,6 +790,15 @@ const GifSupport = (() => {
       throw error;
     }
     state.active = true;
+    const assets = context.apis?.assets || context.window?.ZoidiumAssets || globalThis.ZoidiumAssets;
+    if (assets?.registerReloader) context.lifecycle.onDispose(assets.registerReloader({
+      id: "gif-support/frames",
+      async reload(_key, asset) {
+        const data = asset.data?.get(ImageAsset);
+        for (const record of state.records) if (record.data === data && data.gif !== record) state.records.delete(record);
+        if (data?.gif?.frames?.length) refreshWrappersForRecord(data.gif);
+      },
+    }));
   }
 
   function deactivate() {

@@ -39,6 +39,17 @@ function activate(context) {
   const graphWorkerSource = createGraphWorkerSource(graphSources);
   const owned = new Map();
   const materials = new Set();
+  const assets = context.apis?.assets || context.window.ZoidiumAssets;
+  if (assets?.registerReloader) context.lifecycle.onDispose(assets.registerReloader({
+    id: "material-plus/graph-images",
+    async reload(key, asset) {
+      await Promise.all(Array.from(materials, async material => {
+        if (!await nodes.reloadImages(material, key, asset)) return;
+        material.pzBakeKey = null;
+        await material._surfacePrepare?.(material._surfaceFrame || 0);
+      }));
+    },
+  }));
   const ids = new WeakMap();
   let nextId = 0;
   const previous = context.window.ZoidiumMaterialPlus;

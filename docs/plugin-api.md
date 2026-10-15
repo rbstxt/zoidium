@@ -521,3 +521,26 @@ Snapshots rebuild at most once per editor per animation frame. A second change
 within that frame is reflected on the next frame; repeated reads return the
 same snapshot object. `refresh()` explicitly bypasses that cache for diagnostics.
 Subscribers receive the initial snapshot and subsequent changed revisions.
+
+Asset recovery uses `capabilities(item)` to report `reload`, `locate`, and
+`exportFile` availability. `reload(itemId)` rebuilds decoded consumers without
+changing project data or history and returns `{ ok, status, error }`.
+`locate(itemId, file)` accepts a missing FILE asset only when its native hash
+matches, returning `{ ok, reason, error }`. A mismatch returns `reason:
+"different"` without changing the project. `exportFile(itemId)` returns
+`{ blob, filename }` or `null`; callers own the download UI and any object URLs.
+
+Plugins invalidate private decoder caches with
+`registerReloader({ id, reload(key, asset) })`. The hook runs for each recovery
+of a native asset, after shared wrapper caches reset. It may return a promise
+and must finish rebuilding its consumers before resolving. Keep reference
+counts and saved data unchanged. Dispose the returned registration through the
+plugin lifecycle. Reference adapters may also implement `reload(key, asset)`
+for their own emitted items. These adapter items report Reload availability
+only when their reference adapter supplies that hook.
+
+Embedded reference records may supply `bytes: text`. The registry keeps this
+text private and uses it for Export File. IES filenames receive a `.ies` suffix.
+Native font wrappers expose `reset()`, which clears failed decode state, rearms
+the warning, and returns the new 3D font load promise. Transient preset reads
+retry after 2, 6, and 18 seconds; attached files and parse failures do not retry.

@@ -915,6 +915,17 @@ module.exports = {
       if (context.lifecycle && typeof context.lifecycle.onDispose === "function") {
         context.lifecycle.onDispose(function () { module.exports.deactivate(); });
       }
+      const assets = context.apis?.assets || context.window?.ZoidiumAssets;
+      if (assets?.registerReloader) context.lifecycle.onDispose(assets.registerReloader({
+        id: "magic-looks/lut-atlas",
+        async reload(key, asset) {
+          const jobs = [];
+          CM.project?.sequence?.traverse?.(effect => {
+            if (effect._looksLutAssets) jobs.push(effect._looksLutAssets.reload(key, asset));
+          });
+          await Promise.all(jobs);
+        },
+      }));
       // The shared property-panel entry: an "Open Magic Looks Setup" launch
       // row above the effect's properties (and a gear on its list row).
       state.unregisterEditor = context.ui.registerEditor({

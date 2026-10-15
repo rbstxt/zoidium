@@ -481,6 +481,17 @@ module.exports = function installOptflares(PZ, THREE) {
             var texture = this._customTextures[uniformName];
             this.material.uniforms[uniformName].value = texture ? texture.getTexture(true) : this._whiteTexture;
         }
+        async reloadCustomTexture(key, asset) {
+            for (var uniformName of Object.keys(this._customTextures)) {
+                var wrapper = this._customTextures[uniformName];
+                if (wrapper?.asset !== asset || this._customValues[uniformName] !== key) continue;
+                await wrapper.loading;
+                // Refresh the same wrapper without releasing its native hold.
+                this.disposeCustomTexture(uniformName);
+                this.material.uniforms[uniformName].value = wrapper.getTexture(true);
+                this._customValues[uniformName] = key;
+            }
+        }
         findLight(index) {
             var layer = this.tryGetParentOfType(PZ.layer);
             if (!layer || !layer.objects) return null;
