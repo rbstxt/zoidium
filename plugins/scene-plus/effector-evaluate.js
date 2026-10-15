@@ -87,10 +87,10 @@ function normalsFor(stage, positions, rigid = false) {
 }
 
 function evaluateMesh(input, cache = createStageCache()) {
-  const { base, commands, polygonCount, sourceId } = input;
+  const { base, commands, polygonCount, sourceId, legacySubdivision = false } = input;
   if (!base.pieceIds) Object.assign(base, core.connectedPieces(base));
-  let topologyKey = sourceId + ":subdivide:" + polygonCount;
-  let stage = polygonCount > 1 ? cache.get(topologyKey, () => core.subdivideStage(base, polygonCount)) : base;
+  let topologyKey = sourceId + ":subdivide:" + polygonCount + ":" + legacySubdivision;
+  let stage = polygonCount > 1 ? cache.get(topologyKey, () => core.subdivideStage(base, polygonCount, legacySubdivision)) : base;
   let work = new Float32Array(stage.positions);
   let prefix = topologyKey;
   const errors = [];
@@ -112,7 +112,7 @@ function evaluateMesh(input, cache = createStageCache()) {
       const filtered = current?.map(t => t ? { center: [0,0,0], scale: [0,0,0], rotation: [0,0,0,0] } : null);
       let total = 0;
       for (let i = 0; i < command.history.length; i++) {
-        const sample = evaluateMesh({ base, commands: command.history[i], polygonCount, sourceId, geometryOnly: true }, cache);
+        const sample = evaluateMesh({ base, commands: command.history[i], polygonCount, legacySubdivision, sourceId, geometryOnly: true }, cache);
         // Only matching topology can be interpolated by vertex index.
         if (sample.topologyKey !== topologyKey || sample.positions.length !== work.length) continue;
         const age = (i + 1) / command.history.length;

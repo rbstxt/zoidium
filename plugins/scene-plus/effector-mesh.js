@@ -125,8 +125,8 @@ function createMeshDeformer(THREE, jobs) {
     return value;
   }
 
-  function subdivided(stage, polygonCount) {
-    return derive(stage, "subdivide:" + polygonCount, null, () => core.subdivideStage(stage, polygonCount));
+  function subdivided(stage, polygonCount, legacy) {
+    return derive(stage, "subdivide:" + polygonCount + ":" + legacy, null, () => core.subdivideStage(stage, polygonCount, legacy));
   }
 
   function buildWorking(stage) {
@@ -293,7 +293,7 @@ function createMeshDeformer(THREE, jobs) {
   // Evaluates one mesh. `chain` lists {effector, node} outer to inner. The
   // deformers run in their own local space (node.matrixWorld relative to the
   // mesh), so transformed effectors and nested groups act in their own frame.
-  function deformMesh(mesh, chain, frame, requestedPolygonCount) {
+  function deformMesh(mesh, chain, frame, requestedPolygonCount, legacySubdivision = false) {
     let state = meshStates.get(mesh);
     if (!chain.length) {
       jobs?.release(mesh);
@@ -327,8 +327,9 @@ function createMeshDeformer(THREE, jobs) {
 
     const triangleCount = Math.max(1, Math.floor((base.index ? base.index.length : base.count) / 3));
     const budget = Math.floor(core.MAX_SMOOTH_TRIANGLES / triangleCount);
-    let polygonCount = core.budgetSubdivision(requestedPolygonCount, budget);
-    if (polygonCount < core.SMOOTH_TRIANGLE_BUDGET_MIN_POLYGONS) polygonCount = 1;
+    let polygonCount = core.budgetSubdivision(requestedPolygonCount, budget, legacySubdivision);
+    // be6ea2b raised the minimum from two to four for uniform subdivision.
+    if (polygonCount < (legacySubdivision ? 2 : core.SMOOTH_TRIANGLE_BUDGET_MIN_POLYGONS)) polygonCount = 1;
     // Fracture and large curved meshes include topology, deformation, and normal
     // averaging in the worker. Small Twist/Warp previews keep their cheap path.
     if (jobs && (chain.some(entry => typeof entry.effector.produceStage === "function") ||
@@ -354,11 +355,11 @@ function createMeshDeformer(THREE, jobs) {
         return command;
       });
       const commands = sampleCommands(frame, chain.length);
-      const key = base.sourceId + ":" + polygonCount + ":" + JSON.stringify(commands);
+      const key = base.sourceId + ":" + polygonCount + ":" + legacySubdivision + ":" + JSON.stringify(commands);
       const lastFracture = commands.map(command => command.kind).lastIndexOf("fracture");
       const topologyInputs = lastFracture < 0 ? [] : [commands.slice(0, lastFracture),
         commands[lastFracture].topology, commands[lastFracture].limits];
-      const buildKey = base.sourceId + ":" + polygonCount + ":" + JSON.stringify(topologyInputs);
+      const buildKey = base.sourceId + ":" + polygonCount + ":" + legacySubdivision + ":" + JSON.stringify(topologyInputs);
       const colors = chain.reduce((options, entry) => entry.effector.surfaceOptions?.(frame) || options, null);
       if (state?.asyncKey === key) {
         jobs.release(mesh);
@@ -371,7 +372,7 @@ function createMeshDeformer(THREE, jobs) {
       for (const [name, attribute] of Object.entries(base.attributes)) {
         attributes[name] = { array: attribute.array, itemSize: attribute.itemSize, normalized: attribute.normalized };
       }
-      const input = { sourceId: base.sourceId, polygonCount, commands, buildKey,
+      const input = { sourceId: base.sourceId, polygonCount, legacySubdivision, commands, buildKey,
         base: { ...base, attributes, indexRef: null } };
       const entry = jobs.request(mesh, key, input);
       liveMeshes.add(mesh);
@@ -420,7 +421,7 @@ function createMeshDeformer(THREE, jobs) {
     }
     jobs?.release(mesh);
     liveMeshes.delete(mesh);
-    let stage = polygonCount > 1 ? subdivided(base, polygonCount) : base;
+    let stage = polygonCount > 1 ? subdivided(base, polygonCount, legacySubdivision) : base;
 
     // Reuse the per-mesh scratch buffer when the topology is unchanged. Effectors
     // may return a different array, so the buffer is only reused when it fits.

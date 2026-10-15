@@ -23,6 +23,35 @@
   // Own values set through the accessor. A WeakMap keeps the storage private to
   // each mesh and lets meshes be collected without leaking the material.
   const ownDepthMaterials = new WeakMap();
+  const sceneOwners = new WeakMap();
+
+  // The native scene owns every mesh in each light's depth pass. Resolve its
+  // mode through the live THREE ancestry so generated and reparented meshes
+  // agree without per-mesh flags or stale material assignments.
+  function installSceneMode(PZ) {
+    const proto = PZ?.layer?.scene?.prototype;
+    if (!proto?.load || !proto.toJSON || proto.__zoidiumShadowMode) return false;
+    const load = proto.load, toJSON = proto.toJSON;
+    proto.load = function (data) {
+      this.zoidiumShadowMode = data?.zoidiumShadowMode === "legacy" ? "legacy" : "current";
+      const result = load.apply(this, arguments);
+      if (this.threeObj) sceneOwners.set(this.threeObj, this);
+      return result;
+    };
+    proto.toJSON = function () {
+      return { ...toJSON.apply(this, arguments), zoidiumShadowMode: this.zoidiumShadowMode || "current" };
+    };
+    proto.__zoidiumShadowMode = true;
+    return true;
+  }
+
+  function legacyScene(mesh) {
+    for (let node = mesh; node; node = node.parent) {
+      const owner = sceneOwners.get(node);
+      if (owner) return owner.zoidiumShadowMode === "legacy";
+    }
+    return false;
+  }
 
   function createSharedDepthMaterial(THREE) {
     const material = new THREE.MeshDepthMaterial({
@@ -60,6 +89,9 @@
       get: function getCustomDepthMaterial() {
         // A value set on this mesh always wins, including one copied from another mesh.
         if (ownDepthMaterials.has(this)) return ownDepthMaterials.get(this);
+        // Undefined selects Three r91's original depth material and packing,
+        // exactly as before 17e05e6. Do not substitute another custom shader.
+        if (legacyScene(this)) return undefined;
         return getSharedDepthMaterial();
       },
       set: function setCustomDepthMaterial(value) {
@@ -82,9 +114,11 @@
       DEPTH_POLYGON_OFFSET_UNITS,
       offsetPackedDepth,
       install,
+      installSceneMode,
     };
     return;
   }
 
+  installSceneMode(global && global.PZ);
   install(global && global.THREE);
 })(typeof window !== "undefined" ? window : null);

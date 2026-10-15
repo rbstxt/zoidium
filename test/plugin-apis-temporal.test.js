@@ -136,6 +136,37 @@ test("defineFrameSampler rejects effects without a request function", () => {
   assert.throws(() => apis.defineFrameSampler.call(host, spec), /getRequest/);
 });
 
+test("samplers serialize current on creation and retain migrated modes in copies and undo", async () => {
+  const { migrateProject } = require("../zoidium/project-compatibility.js");
+  const plain = value => JSON.parse(JSON.stringify(value));
+  for (const type of ["echo", "timedisplacement", "ccwidetime", "timedifference"]) {
+    const create = async data => {
+      const host = makeHostInstance(), spec = frameSamplerSpec();
+      host.type = type;
+      // Time Displacement also supplies an independent layer-input serializer.
+      spec.lifecycle = { toJSON() { return { type, properties: {}, layerInput: "kept" }; },
+        async load() { this.loaded = true; } };
+      apis.defineFrameSampler.call(host, spec);
+      await host.load(data);
+      assert.equal(host.loaded, true);
+      return host;
+    };
+    const fresh = await create({});
+    assert.equal(plain(fresh).zoidiumTemporalMode, "current");
+    assert.equal(plain(fresh).layerInput, "kept");
+    for (const explicit of [undefined, "legacy", "current"]) {
+      const saved = { type, ...(explicit ? { zoidiumTemporalMode: explicit } : {}) };
+      const migrated = migrateProject({ sequence: { effects: [saved] } }).sequence.effects[0];
+      const loaded = await create(migrated), copy = await create(plain(loaded));
+      assert.equal(plain(copy).zoidiumTemporalMode, explicit || "legacy");
+      await loaded.load(plain(fresh));
+      assert.equal(plain(loaded).zoidiumTemporalMode, "current");
+      await loaded.load(plain(copy));
+      assert.deepEqual(plain(loaded), plain(copy));
+    }
+  }
+});
+
 test("defineFrameSampler delegates asynchronous source preparation to the host", async () => {
   const host = makeHostInstance();
   const calls = [];

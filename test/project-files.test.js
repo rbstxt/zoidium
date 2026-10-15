@@ -433,11 +433,18 @@ test("project loading awaits plugin activation and lazily created nested effects
   assert.equal(finished, true);
 });
 
-test("failed nested effect loads reject the project handoff", async () => {
+test("a failed nested effect load leaves the rest of the project openable, as in CM3", async () => {
   const harness = createHarness();
   const editor = harness.makeEditor();
-  editor.loadedProject = { children: [{ loading: Promise.reject(new Error("Effect load failed.")) }] };
-  await assert.rejects(editor.loadProject({}), /Effect load failed/);
+  const later = deferred();
+  const project = { children: [{ loading: Promise.reject(new Error("Effect load failed.")) }, { loading: later.promise }] };
+  editor.loadedProject = project;
+  let finished = false;
+  const loaded = editor.loadProject({}).then((value) => { finished = true; return value; });
+  await flush();
+  assert.equal(finished, false, "later objects are still awaited");
+  later.resolve();
+  assert.equal(await loaded, project);
 });
 
 module.exports = { createHarness, addProjectEntries, flush };

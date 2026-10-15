@@ -23,6 +23,10 @@
   // scratch targets.
   const MAX_EXPLICIT_FRAME_SAMPLES = 64;
 
+  function temporalMode(effect) {
+    return effect?.zoidiumTemporalMode === "legacy" ? "legacy" : "current";
+  }
+
   function finiteNumber(value, fallback) {
     return Number.isFinite(Number(value)) ? Number(value) : fallback;
   }
@@ -208,6 +212,7 @@
   }
 
   registry.math = {
+    temporalMode,
     EPSILON: EPSILON,
     PATCH_MARKER: PATCH_MARKER,
     LAYER_UPDATE_MARKER: LAYER_UPDATE_MARKER,

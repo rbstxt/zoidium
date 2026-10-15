@@ -31,6 +31,7 @@ const {
 
 // Requests contain owner identities only in private state, never in userData.
 const splitRequests = new Map();
+const legacyScale = require("./legacy-text-scale.js");
 
 function requestCharacterSplit(textObject, owner) {
   let owners = splitRequests.get(textObject);
@@ -320,6 +321,10 @@ function scaleCharacterOffset(textScale, position) {
 // Idempotent within a frame: the scale is always re-read from the property.
 function neutralizeTextScale(textObject, splitState, frame) {
   const textScale = getSplitTextScale(textObject, frame);
+  splitState.nativeTextScale = textScale;
+  if (textObject.zoidiumTextScaleMode === "legacy") {
+    return legacyScale.keepNativeScale(textObject, splitState, textScale);
+  }
   splitState.textScale = textScale;
   const mesh = textObject?.threeObj;
   if (mesh?.scale && typeof mesh.scale.set === "function") {
@@ -329,8 +334,8 @@ function neutralizeTextScale(textObject, splitState, frame) {
 }
 
 function restoreTextScale(textObject, splitState) {
-  const textScale = Array.isArray(splitState?.textScale)
-    ? splitState.textScale
+  const textScale = Array.isArray(splitState?.nativeTextScale || splitState?.textScale)
+    ? splitState.nativeTextScale || splitState.textScale
     : null;
   const mesh = textObject?.threeObj;
   if (textScale && mesh?.scale && typeof mesh.scale.set === "function") {
@@ -728,7 +733,12 @@ function updateCharacterRendering(textObject, splitState, layers, frame) {
         range.index,
         range.count
       );
-      applyCharacterTransform(
+      if (textObject.zoidiumTextScaleMode === "legacy") {
+        legacyScale.applyCharacterTransform(entry.nodes[index], controls, layers[index], entry.textPivot, {
+          getCharacterTransformReference, applyReferenceSpaceCharacterTransform,
+          THREE: state.THREE, PZ_EULER_ORDERS,
+        });
+      } else applyCharacterTransform(
         entry.nodes[index],
         controls,
         layers[index],

@@ -498,6 +498,7 @@ function createMaterialFactory(plugin) {
   return function () {
     const material = this;
     material.defaultName = PBR_MATERIAL_NAME;
+    material.zoidiumUvMode = "current";
     material._zoidiumLoading = true;
     material._zoidiumTextureSlots = {
       baseColor: { propertyName: "texture", materialProperty: "map", asset: null, image: null, texture: null, value: null, generation: 0 },
@@ -514,6 +515,7 @@ function createMaterialFactory(plugin) {
     material._zoidiumLoading = false;
 
     material.load = function (data) {
+      material.zoidiumUvMode = data?.zoidiumUvMode === "legacy" ? "legacy" : "current";
       material._zoidiumLoading = true;
       material.threeObj = new (state.window?.ZoidiumMaterialPlus && state.THREE.MeshPhysicalMaterial ? state.THREE.MeshPhysicalMaterial : state.THREE.MeshStandardMaterial)({
         color: 0xffffff,
@@ -581,7 +583,7 @@ function createMaterialFactory(plugin) {
     };
 
     material.toJSON = function () {
-      return { type: material.type, properties: material.properties };
+      return { type: material.type, properties: material.properties, zoidiumUvMode: material.zoidiumUvMode };
     };
 
     material.unload = function () {

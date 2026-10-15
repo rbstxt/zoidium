@@ -243,15 +243,15 @@ test("Radial Shadow and Pixel Polly specs keep parameter names", () => {
   assert.match(polly.object.items, /Textured Square/);
 });
 
-test("native-fx manifest appends the four effects at version 15", () => {
+test("native-fx manifest retains the four effects after the temporal compatibility update", () => {
   const manifest = JSON.parse(fs.readFileSync(
     path.join(projectRoot, "plugins/native-fx/manifest.json"), "utf8"));
-  assert.equal(manifest.version, "15");
+  assert.ok(Number(manifest.version) >= 15);
   const ids = manifest.nativeEffects.map((e) => e.id);
   for (const id of ["ccpageturn", "cardwipe", "ccpixelpolly", "radialshadow"]) {
     assert.ok(ids.includes(id), `manifest lists ${id}`);
   }
-  assert.ok(!manifest.nativeEffects.some((e) => e.id === "ccpageturn" && !e.source.includes("?v=15")));
+  assert.ok(!manifest.nativeEffects.some((e) => e.id === "ccpageturn" && !e.source.includes(`?v=${manifest.version}`)));
   const resources = manifest.resources.map((r) => r.id);
   for (const id of ["ccpageturn-shader", "cardwipe-shader", "radialshadow-shader", "fxtrans-math"]) {
     assert.ok(resources.includes(id), `manifest resources list ${id}`);

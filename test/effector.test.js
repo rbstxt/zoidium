@@ -245,6 +245,18 @@ function deformerFor(mesh, effector, frame, node = null, polygonCount = 1) {
   return deformer;
 }
 
+test("legacy mesh subdivision preserves two and three triangles below the current minimum", () => {
+  const deformer = _test.getMeshDeformer(THREE);
+  const effector = { deformPositions: positions => positions };
+  try {
+    for (const count of [2, 3, 7]) {
+      const mesh = makeMesh([0, 0, 0, 1, 0, 0, 0, 1, 0]);
+      deformer.deformMesh(mesh, [{ effector, node: nodeAt(identity()) }], 0, count, true);
+      assert.equal(mesh.geometry.attributes.position.count / 3, count);
+    }
+  } finally { deformer.dispose(); }
+});
+
 test("Twist, Warp, and Voronoi Fracture expose the Effector property sets and defaults", () => {
   const PZ = createHarness();
   const Twist = _test.createTwistClass(PZ, THREE);

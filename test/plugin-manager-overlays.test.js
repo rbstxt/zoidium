@@ -126,3 +126,49 @@ test("runtime staging includes every configured plugin manager overlay", async (
     await fs.promises.rm(stage, { recursive: true, force: true });
   }
 });
+
+test("numeric placeholder layers are restored on their clip, not only the active track", async () => {
+  const { sandbox, manager: m } = loadManager();
+  class Layer { constructor() { this.parent = null; } }
+  let available = false;
+  const loads = [];
+  sandbox.PZ = { layer: class extends Layer {} };
+  sandbox.PZ.layer.create = (type) => {
+    if (!available) throw new Error("unknown layer");
+    const layer = new Layer();
+    layer.type = type;
+    layer.load = async (data) => { loads.push({ data, parent: layer.parent }); };
+    return layer;
+  };
+  m.installNumericFallbacks();
+  // CM3: track.clips is an objectList whose parent is the track; the clip
+  // owns the layer as clip.object and lists it in clip.children.
+  const track = { layer: null };
+  const clips = [];
+  Object.defineProperty(clips, "parent", { value: track });
+  const makeClip = () => {
+    const clip = { parent: clips, children: [{ properties: true }] };
+    clip.object = sandbox.PZ.layer.create(9);
+    clip.object.parent = clip;
+    clip.children.push(clip.object);
+    clip.object.loading = clip.object.load({ type: 9, properties: { name: "Cam " + clips.length } });
+    clips.push(clip);
+    return clip;
+  };
+  const current = makeClip();
+  const other = makeClip();
+  track.layer = current.object;
+  // A project that is still opening is not CM.project yet.
+  sandbox.CM = { project: null };
+  available = true;
+  await m.restoreMissingNumericLayers("camera-plus");
+  for (const clip of [current, other]) {
+    assert.equal(clip.object._zoidiumMissingNumericPlaceholder, undefined);
+    assert.equal(clip.object.parent, clip);
+    assert.equal(clip.children[1], clip.object);
+  }
+  assert.equal(track.layer, current.object);
+  assert.deepEqual(loads.map((entry) => entry.data.properties.name), ["Cam 0", "Cam 1"]);
+  assert.deepEqual(loads.map((entry) => entry.parent), [current, other], "layers load attached to their clip");
+  assert.equal(m.missingNumericLayers.size, 0);
+});

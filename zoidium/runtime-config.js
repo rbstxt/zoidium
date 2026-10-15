@@ -8,7 +8,7 @@
     // loader appends it automatically, so per-file ?v= queries are never
     // hand-edited here. Plugin asset URLs are versioned separately by
     // tools/build-plugin-bundles.js from each manifest's own version.
-    assetVersion: 124,
+    assetVersion: 125,
     // Plugin registry consumed by plugins/plugin-manager.js. It is preloaded
     // below, so its URL lives here as the single source.
     registryUrl: "./plugins/registry.json?v=68",
@@ -97,6 +97,7 @@
       "./zoidium/shared/windows.js",
       "./zoidium/settings.js",
       "./zoidium/plugin-apis.js",
+      "./zoidium/project-compatibility.js",
       "./zoidium/plugin-manager-state.js",
       "./zoidium/plugin-manager-persistence.js",
       "./zoidium/plugin-manager-assets.js",

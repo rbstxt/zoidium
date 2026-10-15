@@ -32,7 +32,7 @@ test("empty deformer chains skip source staging but still restore former deforma
   const h = harness();
   try {
     h.support.apply({ objects: [h.source] }, 8);
-    assert.deepEqual(h.calls, [["deform", h.mesh, [], 8, 1]]);
+    assert.deepEqual(h.calls, [["deform", h.mesh, [], 8, 1, false]]);
   } finally { h.close(); }
 });
 
@@ -42,7 +42,7 @@ test("disabled effectors skip bounds and enabled effectors still derive them", (
   const effector = { threeObj: {}, objects: [h.source], properties: { enabled: { get: () => enabled } }, deformPositions() {} };
   try {
     h.support.apply({ objects: [effector] }, 3);
-    assert.deepEqual(h.calls, [["deform", h.mesh, [], 3, 1]]);
+    assert.deepEqual(h.calls, [["deform", h.mesh, [], 3, 1, false]]);
     h.calls.length = 0;
     enabled = 1;
     h.support.apply({ objects: [effector] }, 9);

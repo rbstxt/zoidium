@@ -17,8 +17,8 @@
   // Only versions covered by the output oracle matrix opt in. Packs with other
   // render dependencies retain the existing live preview path.
   const approvedPlugins = new Map([
-    ["native-fx", "15"], ["ccfx-shader-pack", "2"], ["text-plus", "23"],
-    ["repeater", "30"], ["trapcode-suite", "29"], ["optical-flares", "16"],
+    ["native-fx", "16"], ["ccfx-shader-pack", "2"], ["text-plus", "24"],
+    ["repeater", "31"], ["trapcode-suite", "29"], ["optical-flares", "16"],
   ]);
   // Edits arrive through input events and native history operations. Their
   // asynchronous follow-up work (file reads, imports) can land a little later,
@@ -46,7 +46,7 @@
   catch (_error) { /* Storage may be unavailable. */ }
   const store = new model.FrameStore(model.sizeMiB(settings.previewCacheMiB ?? 512) * 1024 * 1024);
   const debug = {
-    disabled: false, assertKeys: false, prefetchDisabled: false, prefetched: 0, prefetchAborted: 0,
+    disabled: false, assertKeys: false, prefetchDisabled: false, prefetched: 0, prefetchAborted: 0, disposeErrors: 0,
     hits: 0, misses: 0, stores: 0, validations: 0, keyMismatches: 0,
     rejects: {}, validationCauses: {}, signals: {}, resets: {}, shownFrame: null, shownChanges: 0,
     get bytes() { return store.bytes; },
@@ -426,11 +426,19 @@
     return controller.snapshot;
   }
 
+  // CM3 objects assume they finished loading before unload(): Displacement
+  // Map disposes its texture uniform, which is still null while the map
+  // image loads. A private graph can be dropped at any time, so one failing
+  // object must not stop the rest of it from being released.
+  function release(unload) {
+    try { unload(); } catch (_error) { debug.disposeErrors += 1; }
+  }
+
   function disposeSnapshot(controller) {
     const snapshot = controller.snapshot;
     if (!snapshot) return;
     controller.snapshot = null;
-    snapshot.compositor.unload();
+    release(() => snapshot.compositor.unload());
     // CM3 does not dispose its floating accumulation buffers in unload().
     snapshot.compositor.canvasTexture?.dispose?.();
     snapshot.compositor.copyPass?.material?.dispose?.();
@@ -438,14 +446,16 @@
     for (const target of snapshot.compositor.accumBuffers || []) target?.dispose?.();
     const sequence = snapshot.project.sequence;
     for (const track of [...sequence.videoTracks, ...sequence.audioTracks]) {
-      for (const clip of track.clips) clip.unload();
+      for (const clip of track.clips) release(() => clip.unload());
     }
-    for (const media of snapshot.project.media) media.unload?.();
+    for (const media of snapshot.project.media) release(() => media.unload?.());
     for (const schedule of [...sequence.videoSchedules, ...sequence.audioSchedules]) {
-      schedule.el?.pause();
-      schedule.el?.removeAttribute("src");
-      schedule.el?.load();
-      schedule.unload();
+      release(() => {
+        schedule.el?.pause();
+        schedule.el?.removeAttribute("src");
+        schedule.el?.load();
+        schedule.unload();
+      });
     }
     controller.viewport.renderer.renderLists?.dispose?.();
   }

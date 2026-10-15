@@ -49,3 +49,13 @@ test("frame mapping does not depend on the order of earlier requests", () => {
   assert.deepEqual(frames.map(frame => map(frame, ops)),
     frames.toReversed().map(frame => map(frame, ops)).toReversed());
 });
+
+test("legacy frame 1 stays raw after a 5 fps prefix; explicit current maps it to 0", () => {
+  const { getFrameSamplerInputFrame } = require("../plugins/core/temporal-sampler.js");
+  const effect = { zoidiumTemporalMode: "legacy" };
+  const layer = { effects: [{ _zoidiumTemporal: { getOperator: () => quantize(5) } }, effect] };
+  const stage = { layer, effect, effectIndex: 1, clip: { start: 0, length: 180 } };
+  assert.equal(getFrameSamplerInputFrame(stage, 1), 1, "430a52c^ raw sourceProjectFrame");
+  effect.zoidiumTemporalMode = "current";
+  assert.equal(getFrameSamplerInputFrame(stage, 1), 0);
+});

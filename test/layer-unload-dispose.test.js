@@ -49,10 +49,11 @@ function install() {
       events.push("shape-unload");
     }
   }
-  const context = { PZ: { layer: Layer, object3d: { particles: Particles, shape: Shape } }, console };
+  const effect = { fnList: {} };
+  const context = { PZ: { layer: Layer, object3d: { particles: Particles, shape: Shape }, effect }, console };
   context.window = context;
   vm.runInNewContext(source, context);
-  return { Layer, Particles, Shape, events, context };
+  return { Layer, Particles, Shape, events, context, effect };
 }
 
 test("layer unload releases the composite quad after the original unload", () => {
@@ -85,4 +86,43 @@ test("shapes release only their generated geometry", () => {
   const { Shape, events } = install();
   new Shape().unload();
   assert.deepEqual(events, ["shape-unload", "shape-geometry"]);
+});
+
+// Mirrors CM3's effect/displacementmap.js unload().
+function displacementBody() {
+  this.unload = function () {
+    if (this.texture) {
+      this.parentProject.assets.unload(this.texture);
+      this.pass.uniforms.tDiffuse.value.dispose();
+    }
+    this.parentProject.assets.unload(this.vertShader);
+  };
+}
+
+async function displacementEffect(effect, events, rendered) {
+  // CM3 assigns the cached source promise after the first fetch.
+  effect.fnList.displacementmap = Promise.resolve(displacementBody);
+  const instance = {
+    texture: "map",
+    vertShader: "vert",
+    parentProject: { assets: { unload: (name) => events.push("asset:" + name) } },
+    pass: { uniforms: { tDiffuse: { value: rendered ? { dispose: () => events.push("input") } : null } } },
+  };
+  (await effect.fnList.displacementmap).call(instance);
+  return instance;
+}
+
+test("a Displacement Map that never rendered unloads without throwing", async () => {
+  const { effect, events } = install();
+  const instance = await displacementEffect(effect, events, false);
+  instance.unload();
+  assert.deepEqual(events, ["asset:map", "asset:vert"]);
+  assert.equal(instance.pass.uniforms.tDiffuse.value, null);
+});
+
+test("a rendered Displacement Map keeps CM3's original unload", async () => {
+  const { effect, events } = install();
+  const instance = await displacementEffect(effect, events, true);
+  instance.unload();
+  assert.deepEqual(events, ["asset:map", "input", "asset:vert"]);
 });

@@ -295,6 +295,7 @@
     // project-files.js and project-restore.js announce every editor.project swap.
     window.addEventListener("zoidium:project-changed", refreshPluginUsageLocks);
     installSerializedFieldPreservation();
+    window.ZoidiumProjectCompatibility.installTextMode(PZ);
 
     const projectPrototype = PZ.project.prototype;
     const originalProjectToJSON = projectPrototype.toJSON;
@@ -312,6 +313,7 @@
 
     const originalProjectLoad = projectPrototype.load;
     projectPrototype.load = function (data) {
+      data = window.ZoidiumProjectCompatibility.migrateProject(data);
       const plugins = projectPluginRequirements(data);
       installMissingFactoriesForRequirements(plugins);
       const pluginIds = plugins.map((plugin) => plugin.id);
@@ -325,7 +327,7 @@
       }));
       let result;
       try {
-        result = originalProjectLoad.apply(this, arguments);
+        result = originalProjectLoad.call(this, data, ...Array.from(arguments).slice(1));
       } catch (error) {
         console.warn("[Zoidium] plugin manager: host project load failed", error);
         document.dispatchEvent(new CustomEvent("zoidium:project-load-error", {
