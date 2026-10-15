@@ -170,10 +170,11 @@
       item.retained = !!item.retained;
       actions?.decorate(item, project);
     }
+    const folders = organizer ? organizer.decorate(project, array) : [];
     const used = array.filter(item => item.usages.length).length;
     const problems = array.filter(item => (item.status === "failed" || item.status === "missing") &&
       (item.usages.length || (item.status === "missing" && item.source === "file"))).length;
-    state.snapshot = { revision: ++revision, items: array, counts: { all: array.length, used, unused: array.length - used, problems } };
+    state.snapshot = { revision: ++revision, items: array, folders, counts: { all: array.length, used, unused: array.length - used, problems } };
     // One bounded callback releases this frame's cache. It never polls or
     // rebuilds an idle registry, including when there are no subscribers.
     schedule(true);
@@ -200,6 +201,8 @@
   const edits = parts.createEdits?.({ PZ, snapshot, refresh, adapters, usageRecords, retention });
   const restoreConsumers = parts.patchReplacementConsumers?.(PZ);
   const replacement = parts.createReplacement?.({ PZ, snapshot, refresh, adapters, usageRecords, retention, edits });
+  const organizer = parts.createOrganizer?.({ PZ, refresh });
+  const itemById = id => snapshot().items.find(item => item.id === id) || null;
   const api = { snapshot, refresh, registerReferences,
     replace: replacement?.replace, builtInFonts: replacement?.builtInFonts,
     missingFiles: edits?.missingFiles,
@@ -212,6 +215,10 @@
       // authored use disappears. Those holds cannot block completed frames.
       return !held || snapshot().items.some(item => item.asset === asset && item.usages.length > 0);
     },
+    createFolder: organizer?.createFolder, renameFolder: organizer?.renameFolder, deleteFolder: organizer?.deleteFolder,
+    moveItems: organizer?.moveItems, setLabel: organizer?.setLabel, propertyAt: organizer?.propertyAt,
+    assign: organizer && ((id, address, frame = null) => organizer.assign(itemById(id), address, frame)),
+    dragMedia: organizer && (id => organizer.dragMedia(itemById(id))),
     capabilities: actions?.capabilities, reload: actions?.reload, locate: actions?.locate,
     exportFile: actions?.exportFile, registerReloader: actions?.registerReloader,
     subscribe(listener) {
@@ -237,6 +244,7 @@
       state.stopPrecomp?.(); state.status.dispose();
     }
     restoreConsumers?.();
+    organizer?.dispose();
     actions?.dispose(); decoder?.dispose(); retention?.dispose();
     states.clear(); adapters.clear(); listeners.clear();
     if (global.ZoidiumAssets === api) delete global.ZoidiumAssets;

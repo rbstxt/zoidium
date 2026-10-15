@@ -1,6 +1,6 @@
 "use strict";
 const { fixture } = require("./asset-registry-fixture.js");
-function retainedFixture() {
+function retainedFixture(options = {}) {
   const revoked = [], created = [];
   const f = fixture({ edits: true, globals: { URL: { createObjectURL(file) { const url = "blob:" + created.length; created.push({ url, file }); return url; }, revokeObjectURL(url) { revoked.push(url); } } },
     setup({ PZ, project, editor, sandbox }) {
@@ -62,6 +62,7 @@ function retainedFixture() {
           editor.history.pushCommand(() => PZ.ui.media.prototype.createMedia.call(this, { address, data }));
         }
       };
+      options.setup?.({ PZ, project, editor, sandbox });
       PZ.ui.properties = class {
         constructor(editor) { this.editor = editor; }
         setValue({ property, value }) {
