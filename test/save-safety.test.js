@@ -193,12 +193,19 @@ test("a completed save cannot attach its old file handle to a replacement projec
   assert.equal(next.ui.dirty, true);
 });
 
-test("an asset property whose descriptor vanished from the asset table is rejected", async () => {
+// A reference to an asset that is not in the project is kept and reported:
+// refusing would lose every other change and no bytes exist to keep.
+async function danglingOf(h, io, a) {
+  const decoded = await h.projectFiles.openValidatedArchive(await io.encode(a), "restore");
+  return (await h.projectFiles.validateProjectArchive(decoded, "restore")).danglingAssets;
+}
+
+test("an asset property whose descriptor vanished from the asset table is reported, not fatal", async () => {
   const { h, io, archive } = setup();
   const a = archive();
   const project = { assets: {}, media: [], sequence: { properties: { font: "a".repeat(32) } } };
   a.peekFile("project").data = new Blob([JSON.stringify(project)]);
-  await assert.rejects(h.projectFiles.openValidatedArchive(await io.encode(a), "restore"), /project.sequence.properties.font.*has no asset metadata/);
+  assert.deepEqual(Array.from(await danglingOf(h, io, a)), ["project.sequence.properties.font (" + "a".repeat(32) + ")"]);
 });
 
 test("pending writable operations abort and clear the save state", async () => {
@@ -241,7 +248,7 @@ test("animated asset references retain their field name during validation", asyn
   const a = archive();
   const project = { assets: {}, media: [], sequence: { properties: { font: { keyframes: [{ value: "a".repeat(32) }] } } } };
   a.peekFile("project").data = new Blob([JSON.stringify(project)]);
-  await assert.rejects(h.projectFiles.openValidatedArchive(await io.encode(a), "restore"), /font.keyframes.0.value.*has no asset metadata/);
+  assert.match((await danglingOf(h, io, a))[0], /font.keyframes.0.value/);
 });
 
 test("invalid integrity records fail with the entry name and cannot be opened partially", async () => {
@@ -263,13 +270,23 @@ test("an edit during a protective backup cancels project replacement", async () 
   await assert.rejects(h.projectFiles.backupBeforeReplace(editor, "New"), /current project changed/);
 });
 
-test("plugin texture maps and imported data references require asset metadata", async () => {
+test("plugin texture maps and imported data references without metadata are reported", async () => {
   const { h, io, archive } = setup();
-  for (const field of ["roughnessMap", "importedLutData"]) {
+  for (const field of ["roughnessMap", "importedLutData", "nodeImage"]) {
     const a = archive();
     a.peekFile("project").data = new Blob([JSON.stringify({ assets: {}, media: [], sequence: { properties: { [field]: "b".repeat(32) } } })]);
-    await assert.rejects(h.projectFiles.openValidatedArchive(await io.encode(a), "restore"), new RegExp(field + ".*has no asset metadata"));
+    assert.match((await danglingOf(h, io, a))[0], new RegExp(field));
   }
+});
+
+test("a save keeps a stale node-image selection instead of refusing the whole project", async () => {
+  const h = createHarness();
+  const editor = h.makeEditor();
+  h.PZ.project.save = archive => addProjectEntries(archive, { assets: {}, media: [],
+    sequence: { properties: { material: { properties: { nodeImage: "c".repeat(64) } } } } });
+  const result = await h.projectFiles.createArchive(editor, { interactive: true });
+  assert.ok(result.blob.size > 0);
+  await h.projectFiles.openValidatedArchive(result.blob, "open");
 });
 
 test("pending object and plugin initialization never serialize default project state", async () => {

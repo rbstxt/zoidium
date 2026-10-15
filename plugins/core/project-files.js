@@ -244,23 +244,22 @@
     );
   }
 
+  // Asset references whose asset is not in the project are reported, not
+  // fatal (see archiveIO.danglingAssetReferences).
+  var reportedDangling = new Set();
   function checkAssetReferences(document, mode) {
-    var assetFields = /^(?:asset|font|image|texture|geometry|vertexShader|fragmentShader|nodeImage|.*(?:Asset|Texture|Map|Data))$/i;
-    function visit(value, path, field, depth) {
-      if (depth > 128) throw projectDataError(mode, "The project data exceeds the 128-level nesting limit");
-      if (typeof value === "string" && assetFields.test(field) && /^[a-f0-9]{32}(?:[a-f0-9]{32})?$/.test(value)) {
-        if (!document.assets || !Object.prototype.hasOwnProperty.call(document.assets, value)) {
-          throw projectDataError(mode, "Asset reference " + path + " (" + value + ") has no asset metadata");
-        }
-      } else if (value && typeof value === "object") {
-        Object.keys(value).forEach(function (key) {
-          if (path === "project" && key === "assets") return;
-          var referenceField = assetFields.test(field) && /^(?:value|keyframes|objects|\d+)$/.test(key) ? field : key;
-          visit(value[key], path + "." + key, referenceField, depth + 1);
-        });
-      }
+    var dangling = archiveIO.danglingAssetReferences(document, function (message) {
+      throw projectDataError(mode, message);
+    });
+    // Save, validation, restore points and open all check the same document:
+    // report each reference once per session.
+    var fresh = dangling.filter(function (reference) { return !reportedDangling.has(reference); });
+    fresh.forEach(function (reference) { reportedDangling.add(reference); });
+    if (fresh.length && global.console && typeof global.console.warn === "function") {
+      global.console.warn("[Zoidium] " + fresh.length + " asset reference(s) point to assets that are not in the project and were kept as they are: " +
+        fresh.slice(0, 5).join(", ") + (fresh.length > 5 ? ", ..." : ""));
     }
-    visit(document, "project", "", 0);
+    return dangling;
   }
 
   // Checks that an archive holds the project document CM3 would parse. The
@@ -289,13 +288,13 @@
         throw projectDataError(mode, "The project metadata has no version");
       }
     }
-    checkAssetReferences(document, mode);
+    var danglingAssets = checkAssetReferences(document, mode);
     var metadata = null;
     if (archive.peekFile("zoidium.json")) {
       metadata = await readJsonEntry(archive, "zoidium.json", mode, "The Zoidium metadata");
     }
     await archiveIO.checkAssets(archive, document, metadata, mode);
-    return { legacy: false, mediaCount: document.media.length };
+    return { legacy: false, mediaCount: document.media.length, danglingAssets: danglingAssets };
   }
 
   // CM3 gives a media item's thumbnail to URL.createObjectURL unless it is a

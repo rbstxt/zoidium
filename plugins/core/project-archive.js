@@ -256,7 +256,32 @@
       throw error;
     }
   }
-  const api = { bounded, budget, bytes, hash, encode, decode, integrity, checkAssets, MAX_BYTES, LIMIT_LABEL };
+  // Lists asset references whose asset is not in the project at all. CM3 itself
+  // saves and loads such a reference (an editor-only selection can outlive its
+  // image, for example). Refusing would lose every other change while no bytes
+  // exist that saving could still keep, so callers report them instead. Listed
+  // assets with missing bytes remain errors (checkAssets).
+  function danglingAssetReferences(document, fail) {
+    const assetFields = /^(?:asset|font|image|texture|geometry|vertexShader|fragmentShader|nodeImage|.*(?:Asset|Texture|Map|Data))$/i;
+    const dangling = [];
+    const visit = (value, path, field, depth) => {
+      if (depth > 128) fail("The project data exceeds the 128-level nesting limit");
+      if (typeof value === "string" && assetFields.test(field) && /^[a-f0-9]{32}(?:[a-f0-9]{32})?$/.test(value)) {
+        if (!document.assets || !Object.prototype.hasOwnProperty.call(document.assets, value)) {
+          dangling.push(path + " (" + value + ")");
+        }
+      } else if (value && typeof value === "object") {
+        Object.keys(value).forEach(key => {
+          if (path === "project" && key === "assets") return;
+          const referenceField = assetFields.test(field) && /^(?:value|keyframes|objects|\d+)$/.test(key) ? field : key;
+          visit(value[key], path + "." + key, referenceField, depth + 1);
+        });
+      }
+    };
+    visit(document, "project", "", 0);
+    return dangling;
+  }
+  const api = { bounded, budget, bytes, hash, encode, decode, integrity, checkAssets, danglingAssetReferences, MAX_BYTES, LIMIT_LABEL };
   if (global.PZ) global.PZ.zoidiumProjectArchive = api;
   if (typeof module === "object" && module.exports) module.exports = api;
 })(typeof window !== "undefined" ? window : globalThis);

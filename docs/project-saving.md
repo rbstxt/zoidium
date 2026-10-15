@@ -13,7 +13,10 @@ finished Blob through the same validator used by Open. Font and texture preview
 decoding is not needed to save their attached bytes. Saving therefore does not
 wait for a video export, preview decoder, or another tab's export-workspace
 lease. An unreadable or missing local asset stops the save and names the asset;
-the previous file and restore points remain available. Zoidium does not silently
+the previous file and restore points remain available. A reference to an asset
+that is no longer in the project at all (for example an editor-only selection
+that outlived its image) is kept as CM3 keeps it and reported once in the
+console; it does not block saving or opening, because no bytes exist to keep. Zoidium does not silently
 remove missing assets to make a save succeed.
 
 Browser Save writes only a validated Blob. File System Access uses a writable
