@@ -11,7 +11,7 @@
     assetVersion: 128,
     // Plugin registry consumed by plugins/plugin-manager.js. It is preloaded
     // below, so its URL lives here as the single source.
-    registryUrl: "./plugins/registry.json?v=69",
+    registryUrl: "./plugins/registry.json?v=70",
     // Source Code Pro is imported through fonts.css as its own sheet (listed
     // before runtime-fonts.css) so the font files are not discovered only
     // after an @import chain has finished downloading.
@@ -66,6 +66,8 @@
       "./plugins/core/panel-fullscreen-shortcut.js",
       "./plugins/core/output-frame-store.js",
       "./plugins/core/output-frame-cache.js",
+      // Keeps the editor's main preview reachable as editor.mainViewport. It
+      // must be installed before initTool() builds the viewport.
       "./plugins/core/main-viewport.js",
       "./plugins/core/asset-registry-walk.js",
       "./plugins/core/asset-registry-status.js",
