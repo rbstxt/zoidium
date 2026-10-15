@@ -51,6 +51,12 @@ jobs:
             runner: ubuntu-latest
     env:
       CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      # Panzoid's pages can be behind a browser check on CI runners, so the
+      # build restores the same pinned CM3 snapshot as Cloudflare Pages.
+      ZOIDIUM_CM3_SNAPSHOT: r2://zoidium-cm3-cache/cm3-snapshot.zcs
+      ZOIDIUM_R2_ACCOUNT_ID: 06a22facf684f7266a7e1722c236cd18
+      ZOIDIUM_R2_ACCESS_KEY_ID: ${{ secrets.ZOIDIUM_R2_ACCESS_KEY_ID }}
+      ZOIDIUM_R2_SECRET_ACCESS_KEY: ${{ secrets.ZOIDIUM_R2_SECRET_ACCESS_KEY }}
     steps:
       - name: Check out source
         uses: actions/checkout@v4
@@ -66,7 +72,7 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Fetch CM3 and build Electron installer
+      - name: Restore CM3 and build Electron installer
         run: pnpm run desktop:build
 
       - name: Upload installer
@@ -105,7 +111,7 @@ jobs:
           gh release create "$tag" \
             --target "$GITHUB_SHA" \
             --title "Zoidium main ${GITHUB_RUN_NUMBER}" \
-            --notes "Automated desktop build for ${GITHUB_SHA}. CM3 resources were fetched during the build and are included in the installers." \
+            --notes "Automated desktop build for ${GITHUB_SHA}. CM3 resources were restored from the pinned snapshot during the build and are included in the installers." \
             --latest=false
 
           pids=()

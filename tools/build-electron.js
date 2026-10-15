@@ -24,8 +24,14 @@ function run(command, args, cwd) {
 }
 
 async function main() {
-  console.log("[Zoidium] fetching the CM3 resource graph before the Electron build...");
-  const cache = await ensureResourceCache({ force: true });
+  // A configured snapshot (release CI, where Panzoid's pages can sit behind a
+  // browser check) is restored instead of fetching upstream; otherwise the
+  // build always fetches a fresh CM3 graph.
+  const snapshot = process.env.ZOIDIUM_CM3_SNAPSHOT;
+  console.log(snapshot
+    ? "[Zoidium] preparing the CM3 runtime from the configured snapshot before the Electron build..."
+    : "[Zoidium] fetching the CM3 resource graph before the Electron build...");
+  const cache = await ensureResourceCache({ force: !snapshot });
   const stageRoot = await fs.promises.mkdtemp(path.join(os.tmpdir(), "zoidium-electron-build-"));
 
   try {
