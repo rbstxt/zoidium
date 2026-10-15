@@ -571,6 +571,7 @@ its profile, filename and embedded data. Deletion refuses unsupported adapters
 before changing anything. Undo restores the same asset objects and recreates
 their Blob URLs before restoring consumers.
 
-Saving an unused missing FILE writes its key into optional `missingAssets` in
-`zoidium.json`. This records an intentional absence, not file bytes. Existing
+Saving a missing FILE (no bytes in the editor, used or unused) writes its key
+into optional `missingAssets` in `zoidium.json`. This records a known absence,
+not file bytes. Existing
 integrity records and attached bytes still undergo normal validation.

@@ -172,11 +172,14 @@
       } finally { finish(); }
       return { ok: !errors.length, items, errors };
     }
-    function missingUnused(project) {
+    // Like After Effects, a project saves with missing footage: the bytes are
+    // not in the editor, so refusing the save cannot recover them. Saves
+    // record these keys so validation tells them apart from lost entries.
+    function missingFiles(project) {
       if (project !== global.CM?.project) return [];
-      return current().items.filter(item => item.retained && item.source === "file" &&
-        !item.asset.file && !item.asset.external && !item.usages.length).map(item => item.id);
+      return current().items.filter(item => item.source === "file" && item.asset &&
+        !item.asset.file && !item.asset.external).map(item => item.id);
     }
-    return { importFiles, removeUnused, removeItems, missingUnused };
+    return { importFiles, removeUnused, removeItems, missingFiles };
   };
 })(globalThis);

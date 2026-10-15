@@ -60,6 +60,32 @@ module.exports = {
           }
         });
       },
+      async replace(oldKey, newKey) {
+        const editor = context.window.CM, project = editor?.project;
+        if (!project) return;
+        api.refresh();
+        const item = api.snapshot().items.find(entry => entry.id === newKey);
+        const file = project.assets.list[newKey]?.file;
+        let text = file ? await file.text() : null;
+        if (text === null) {
+          collectLive(project.sequence, owner => {
+            const raw = valueOf(owner.properties?.iesData);
+            if (raw && "ies:" + hash(raw) === newKey) text = raw;
+          });
+        }
+        if (typeof text !== "string") throw new Error("The IES profile bytes are unavailable.");
+        if (editor.project !== project) throw new Error("The project changed while reading the IES profile.");
+        const filename = file?.name || item?.name || "Embedded IES profile";
+        const ops = new PZ.ui.properties(editor);
+        collectLive(project.sequence, owner => {
+          const raw = valueOf(owner.properties?.iesData);
+          if (!raw || "ies:" + hash(raw) !== oldKey) return;
+          for (const [name, value] of [["iesProfile", filename], ["iesData", text], ["iesFilename", filename]]) {
+            const property = owner.properties[name];
+            if (property) ops.setValue({ property: property.getAddress(), value });
+          }
+        });
+      },
       collect(project, emit) {
         collectLive(project.sequence, owner => {
           if (owner.properties?.iesData) collectLight(owner, pathOf(owner), emit);

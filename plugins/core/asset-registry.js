@@ -198,8 +198,11 @@
   const decoder = parts.createDecoder?.(PZ, invalidate);
   const actions = parts.createActions?.({ PZ, snapshot, refresh, adapters, usageRecords, decoder });
   const edits = parts.createEdits?.({ PZ, snapshot, refresh, adapters, usageRecords, retention });
+  const restoreConsumers = parts.patchReplacementConsumers?.(PZ);
+  const replacement = parts.createReplacement?.({ PZ, snapshot, refresh, adapters, usageRecords, retention, edits });
   const api = { snapshot, refresh, registerReferences,
-    missingUnused: edits?.missingUnused,
+    replace: replacement?.replace, builtInFonts: replacement?.builtInFonts,
+    missingFiles: edits?.missingFiles,
     import: edits?.importFiles, removeUnused: edits?.removeUnused, removeItems: edits?.removeItems,
     retained(id) { return !!retention?.has(global.CM?.project?.assets?.list[id]); },
     renderNeeded(asset, project) {
@@ -233,6 +236,7 @@
       state.hooks.forEach((_record, observable) => observable.unwatch(state.onChange));
       state.stopPrecomp?.(); state.status.dispose();
     }
+    restoreConsumers?.();
     actions?.dispose(); decoder?.dispose(); retention?.dispose();
     states.clear(); adapters.clear(); listeners.clear();
     if (global.ZoidiumAssets === api) delete global.ZoidiumAssets;

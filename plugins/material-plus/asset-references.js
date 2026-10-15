@@ -60,6 +60,18 @@ module.exports = {
           if (owner.properties.nodeImage?.get() === key) owner.properties.nodeImage.set(null);
         });
       },
+      replace(oldKey, newKey) {
+        const editor = context.window.CM;
+        if (!editor?.project) return;
+        const ops = new PZ.ui.properties(editor);
+        collectLive(editor.project.sequence, owner => {
+          const graph = graphOf(owner.properties);
+          if (!graph?.nodes?.some(node => node.params?.asset === oldKey)) return;
+          for (const node of graph.nodes) if (node.params?.asset === oldKey) node.params.asset = newKey;
+          ops.setValue({ property: owner.properties.graph.getAddress(), value: JSON.stringify(graph) });
+          if (owner.properties.nodeImage?.get() === oldKey) owner.properties.nodeImage.set(newKey);
+        });
+      },
       collect(project, emit) {
         collectLive(project.sequence, owner => {
           if (owner.properties?.graph) collectGraph(owner, pathOf(owner), emit);
