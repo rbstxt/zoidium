@@ -121,3 +121,34 @@ test("Resolve Fonts suggests a same-named built-in font but never the failed fon
   assert.equal(suggestion(item({ id: "/assets/fonts/Roboto.json", key: "/assets/fonts/Roboto.json", name: "Roboto", kind: "font" }), builtIns), "");
   assert.equal(suggestion(item({ name: "Brand.ttf", kind: "font" }), builtIns), "");
 });
+
+test("the folder tree lists folders first, nests, collapses, and goes flat when filtering", () => {
+  const snapshot = {
+    folders: [
+      { id: "b", name: "Footage", parent: null },
+      { id: "a", name: "Fonts", parent: null },
+      { id: "c", name: "Logos", parent: "b" },
+      { id: "loop", name: "Loop", parent: "loop" },
+    ],
+    items: [
+      item({ name: "logo.png", folder: "c" }),
+      item({ name: "intro.mp4", kind: "video", folder: "b" }),
+      item({ name: "Brand.ttf", kind: "font", status: "missing", folder: "a" }),
+      item({ name: "film.cube", kind: "lut", folder: "gone" }),
+    ],
+  };
+  const view = { filter: "all", kind: "all", query: "", sort: { column: "name", direction: "asc" } };
+  const describeRows = (rows) => [...rows].map((row) => "  ".repeat(row.depth) + (row.type === "folder" ? row.folder.name + "/" : row.item.name));
+  const all = new Set(["a", "b", "c", "loop"]);
+  assert.deepEqual(describeRows(model.treeRows(snapshot, view, all)), [
+    "Fonts/", "  Brand.ttf", "Footage/", "  Logos/", "    logo.png", "  intro.mp4", "Loop/", "film.cube",
+  ]);
+  assert.deepEqual(describeRows(model.treeRows(snapshot, view, new Set(["a"]))), [
+    "Fonts/", "  Brand.ttf", "Footage/", "Loop/", "film.cube",
+  ]);
+  assert.equal(model.treeRows(snapshot, view, all).find((row) => row.id === "folder:b").count, 2);
+  assert.deepEqual(describeRows(model.treeRows(snapshot, Object.assign({}, view, { filter: "problems" }), all)), ["Brand.ttf"]);
+  assert.deepEqual(describeRows(model.treeRows(snapshot, Object.assign({}, view, { query: "logo" }), all)), ["logo.png"]);
+  assert.equal(model.isFolderRow("folder:a"), true);
+  assert.equal(model.labelInfo(11).name, "Orange");
+});
