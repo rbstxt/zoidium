@@ -1,0 +1,354 @@
+/* Assets window and sidebar page. Layout follows the After Effects Project
+   panel: preview and "Used N times" on top, search and view menus, a dense
+   sortable table, and a status line. Colors come from the theme tokens. */
+
+.zam {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  gap: 6px;
+  font-family: var(--zui-font);
+  font-size: var(--zui-font-size-small);
+  color: var(--zui-text);
+}
+
+.zam-icon {
+  display: inline-flex;
+  flex: none;
+  width: 16px;
+  height: 16px;
+}
+
+.zam-icon svg {
+  width: 100%;
+  height: 100%;
+  fill: currentColor;
+}
+
+/* ---- Info area ---- */
+
+.zam-info {
+  position: relative;
+  display: flex;
+  gap: 10px;
+  min-height: 76px;
+  padding: 6px;
+  background: var(--zui-bg-sunken);
+  border: 1px solid var(--zui-border);
+}
+
+.zam-info-empty {
+  align-self: center;
+  color: var(--zui-text-faint);
+}
+
+.zam-thumb {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 96px;
+  height: 64px;
+  overflow: hidden;
+  color: var(--zui-text-muted);
+  background: #000 repeating-conic-gradient(#1a1a1a 0 25%, #111 0 50%) 0 0 / 12px 12px;
+}
+
+.zam-thumb img,
+.zam-thumb video {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.zam-thumb .zam-icon {
+  width: 28px;
+  height: 28px;
+}
+
+.zam-thumb-missing {
+  color: var(--zui-danger);
+  background: var(--zui-bg-input);
+}
+
+.zam-font-sample {
+  font-size: 30px;
+  color: var(--zui-text-bright);
+}
+
+.zam-info-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 2px;
+}
+
+.zam-info-name {
+  overflow: hidden;
+  color: var(--zui-text-bright);
+  font-size: var(--zui-font-size);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.zam-uses {
+  align-self: flex-start;
+  padding: 0;
+  color: var(--zui-value);
+  font: inherit;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.zam-uses:hover:not(:disabled) {
+  color: var(--zui-value-strong);
+}
+
+.zam-uses:disabled {
+  color: var(--zui-text-faint);
+  cursor: default;
+}
+
+.zam-caret {
+  margin-left: 4px;
+}
+
+.zam-info-line {
+  overflow: hidden;
+  color: var(--zui-text-muted);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.zam-info-line.zam-wrap {
+  display: -webkit-box;
+  white-space: normal;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.zam-error {
+  color: var(--zui-danger);
+}
+
+.zam-usage-menu {
+  position: absolute;
+  z-index: 2;
+  top: 48px;
+  left: 112px;
+  right: 6px;
+  display: flex;
+  flex-direction: column;
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 3px 0;
+  background: var(--zui-bg-title);
+  border: 1px solid var(--zui-border);
+  box-shadow: 0 6px 18px rgb(0 0 0 / .45);
+}
+
+.zam-usage-entry {
+  padding: 4px 10px;
+  color: var(--zui-text);
+  font: inherit;
+  text-align: left;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.zam-usage-entry:hover,
+.zam-usage-entry:focus-visible {
+  color: var(--zui-text-bright);
+  background: rgb(var(--zui-accent-rgb) / .45);
+  outline: 0;
+}
+
+.zam-muted {
+  color: var(--zui-text-faint);
+}
+
+/* ---- Toolbar ---- */
+
+.zam-toolbar {
+  display: flex;
+  gap: 6px;
+}
+
+.zam-search {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.zam-filter,
+.zam-kind {
+  flex: none;
+  width: auto;
+}
+
+/* ---- Table ---- */
+
+.zam-table-wrap {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  background: var(--zui-bg-input);
+  border: 1px solid var(--zui-border);
+  outline: 0;
+}
+
+.zam-table-wrap:focus-visible {
+  border-color: var(--zui-accent);
+}
+
+.zam-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: auto;
+}
+
+.zam-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 4px 8px;
+  color: var(--zui-text-muted);
+  font-weight: normal;
+  text-align: left;
+  white-space: nowrap;
+  background: var(--zui-bg-title);
+  border-bottom: 1px solid var(--zui-border);
+  cursor: pointer;
+  user-select: none;
+}
+
+.zam-table th:hover {
+  color: var(--zui-text-strong);
+}
+
+.zam-table th.sorted {
+  color: var(--zui-text-bright);
+}
+
+.zam-table th.sorted::after {
+  margin-left: 4px;
+  content: "▲";
+  font-size: 9px;
+}
+
+.zam-table th.sorted[data-direction="desc"]::after {
+  content: "▼";
+}
+
+.zam-table td {
+  padding: 3px 8px;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--zui-border-soft);
+}
+
+.zam-row {
+  cursor: default;
+}
+
+.zam-row:hover {
+  background: var(--zui-hover);
+}
+
+.zam-row.selected {
+  color: var(--zui-text-bright);
+  background: rgb(var(--zui-accent-rgb) / .6);
+}
+
+.zam-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 260px;
+}
+
+.zam-name-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* AE shows missing footage in italics. */
+.zam-missing .zam-name-text {
+  font-style: italic;
+}
+
+.zam-unused .zam-col-uses {
+  color: var(--zui-text-faint);
+}
+
+.zam-col-uses,
+.zam-col-size {
+  text-align: right;
+}
+
+.zam-col-details {
+  color: var(--zui-text-muted);
+}
+
+.zam-col-status[data-status="failed"],
+.zam-col-status[data-status="missing"] {
+  color: var(--zui-danger);
+}
+
+.zam-col-status[data-status="loading"] {
+  color: var(--zui-value);
+}
+
+.zam-empty {
+  padding: 18px 12px;
+  color: var(--zui-text-faint);
+  text-align: center;
+}
+
+.zam-status {
+  color: var(--zui-text-muted);
+}
+
+/* ---- Sidebar page ---- */
+
+.zam-side-summary {
+  margin: 0;
+  padding: 7px 8px;
+  color: var(--zui-text-muted);
+}
+
+.zam-side-problems {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 10px;
+}
+
+.zam-side-title {
+  margin-bottom: 4px;
+  color: var(--zui-danger);
+}
+
+.zam-side-problem {
+  overflow: hidden;
+  padding: 4px 6px;
+  color: var(--zui-text);
+  font: inherit;
+  font-size: var(--zui-font-size-small);
+  text-align: left;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  background: var(--zui-bg-input);
+  border: 1px solid var(--zui-border);
+  cursor: pointer;
+}
+
+.zam-side-problem:hover {
+  background: var(--zui-hover);
+}
+
+.zam-side-tab.zam-has-problems svg {
+  fill: var(--zui-danger);
+}

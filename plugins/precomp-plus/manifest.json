@@ -3,36 +3,36 @@
   "id": "precomp-plus",
   "name": "Precomp+",
   "author": "DaviFX",
-  "version": "11",
+  "version": "12",
   "kind": "extension",
   "description": "Pre-compose selected video clips into compositions, with a Compositions window and nested rendering.",
   "category": "UTILITIES",
   "modules": [
     {
       "id": "precomp-runtime",
-      "source": "./plugins/precomp-plus/precomp-runtime.js?v=11"
+      "source": "./plugins/precomp-plus/precomp-runtime.js?v=12"
     }
   ],
   "resources": [
     {
       "id": "precomp-engine",
       "type": "text",
-      "source": "./plugins/precomp-plus/comps.js?v=11"
+      "source": "./plugins/precomp-plus/comps.js?v=12"
     },
     {
       "id": "precomp_model",
       "type": "text",
-      "source": "./plugins/precomp-plus/comps-model.js?v=11"
+      "source": "./plugins/precomp-plus/comps-model.js?v=12"
     },
     {
       "id": "precomp_timeline",
       "type": "text",
-      "source": "./plugins/precomp-plus/comps-timeline.js?v=11"
+      "source": "./plugins/precomp-plus/comps-timeline.js?v=12"
     },
     {
       "id": "precomp_engine",
       "type": "text",
-      "source": "./plugins/precomp-plus/comps-engine.js?v=11"
+      "source": "./plugins/precomp-plus/comps-engine.js?v=12"
     }
   ]
 }

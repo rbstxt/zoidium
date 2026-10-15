@@ -225,6 +225,7 @@ PZ.precomp = {
   isEditing: engine.isEditing,
   activeName: engine.activeName,
   entries: engine.entries,
+  referenceSources: engine.referenceSources,
   openComp: engine.openComp,
   openSourceOfClip: engine.openSourceOfClip,
   newEmptyComp: engine.newEmptyComp,

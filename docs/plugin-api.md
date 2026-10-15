@@ -472,3 +472,52 @@ requirement scanner recognize it. Its camera objects save their stable
 `zoidium:camera-plus/camera` type. A project using this layer locks Camera+
 against disabling; opening it without the plugin uses the manager's retained
 missing-layer placeholder and dependency prompt.
+
+## Assets
+
+`ZoidiumPluginApis.assets` is the same read-only registry as `ZoidiumAssets`.
+`snapshot(editor)` returns assets, authored usages, statuses, and counts, cached
+by revision. `subscribe(listener)` coalesces changes to one notification per
+animation frame. `refresh()` invalidates the cache. `reveal(usage)` selects a
+live owner without switching compositions; closed-composition usages return
+`false`. Each item's non-enumerable `asset` is the live CM3 asset, not a copy.
+Do not serialize it or change asset ownership through the registry.
+Built-in and plugin preset files appear only while something uses them; unused
+ones are internal dependencies. The open root timeline is not an item.
+
+The Assets plugin shows this registry as an After Effects style Project panel.
+Other code can open it on an item with
+`ZoidiumAssetsPanel.open({ select: itemId, filter: "problems" })` while that
+plugin is enabled.
+
+Plugins can report references that native ASSET properties cannot represent:
+
+```js
+const dispose = context.apis.assets.registerReferences({
+  id: "example/graph-images",
+  label: "Graph images",
+  collect(project, emit) {
+    // Read project data only. Emit once per authored reference.
+    emit({ key: assetKey, path: ["Object", "Material", "Image node"],
+      owner: material, address: graphProperty.getAddress(), revealable: true });
+  },
+});
+context.lifecycle.onDispose(dispose);
+```
+
+Collection must not load/unload assets, create Blob URLs, or mutate the project.
+Paths describe the authored owner. `address` and `owner` are optional; omit them
+and set `revealable: false` for references that have no live property panel.
+Adapter ids must be unique. Dispose the registration when the plugin disables.
+
+For embedded data without a CM3 asset, an emit record may include `item` with
+`{ kind, source: "embedded", name, size, mime }` and a stable synthetic key.
+References inside a closed composition may include `composition: { id, name }`;
+these usages are never revealable. Adapter collection also covers closed
+composition JSON when the plugin stores its references inside text properties.
+Precomp+ exposes detached closed timelines through `PZ.precomp.referenceSources(editor)`.
+
+Snapshots rebuild at most once per editor per animation frame. A second change
+within that frame is reflected on the next frame; repeated reads return the
+same snapshot object. `refresh()` explicitly bypasses that cache for diagnostics.
+Subscribers receive the initial snapshot and subsequent changed revisions.
