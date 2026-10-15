@@ -7,6 +7,7 @@
 // forwards Reveal requests.
 
 const model = require("./assets-model.js");
+const { createActions } = require("./assets-actions.js");
 
 const VIEW_KEY = "zoidium.assets.view";
 const WINDOW_ID = "assets";
@@ -57,6 +58,13 @@ function createAssetsWindow(session) {
   let shown = [];
   let usageMenu = null;
   let fontFaces = new Map();
+  let contextMenu = null;
+  const actions = createActions({
+    document: doc,
+    registry: () => session.registry(),
+    notify: (detail) => session.notify(detail),
+    reveal: (item) => revealFirst(item),
+  });
 
   function registry() {
     return session.registry();
@@ -144,6 +152,63 @@ function createAssetsWindow(session) {
     if (first) first.focus();
   }
 
+  // ---- Commands: icon bar and row context menu ----------------------------
+
+  function closeContextMenu() {
+    if (!contextMenu) return;
+    contextMenu.remove();
+    contextMenu = null;
+    doc.removeEventListener("pointerdown", onContextOutside, true);
+  }
+
+  function onContextOutside(event) {
+    if (contextMenu && !contextMenu.contains(event.target)) closeContextMenu();
+  }
+
+  function openContextMenu(item, event) {
+    closeContextMenu();
+    event.preventDefault();
+    const menu = make(doc, "div", "zam-usage-menu zam-context-menu");
+    menu.setAttribute("role", "menu");
+    for (const command of actions.list(item)) {
+      const entry = make(doc, "button", "zam-usage-entry", command.label);
+      entry.type = "button";
+      entry.setAttribute("role", "menuitem");
+      entry.disabled = !command.enabled;
+      entry.title = command.hint;
+      entry.addEventListener("click", () => {
+        closeContextMenu();
+        command.run();
+      });
+      menu.appendChild(entry);
+    }
+    const bounds = parts.root.getBoundingClientRect();
+    menu.style.left = Math.max(0, event.clientX - bounds.left) + "px";
+    menu.style.top = Math.max(0, event.clientY - bounds.top) + "px";
+    menu.style.right = "auto";
+    parts.root.appendChild(menu);
+    contextMenu = menu;
+    doc.addEventListener("pointerdown", onContextOutside, true);
+    const first = menu.querySelector("button:not(:disabled)");
+    if (first) first.focus();
+  }
+
+  function renderCommands() {
+    const item = selectedItem();
+    parts.commands.textContent = "";
+    if (!item) return;
+    for (const command of actions.list(item)) {
+      const button = make(doc, "button", "zam-command");
+      button.type = "button";
+      button.title = command.label.replace("…", "") + " — " + command.hint;
+      button.setAttribute("aria-label", command.label);
+      button.disabled = !command.enabled;
+      button.appendChild(icon(command.icon));
+      button.addEventListener("click", () => command.run());
+      parts.commands.appendChild(button);
+    }
+  }
+
   // ---- Info area ---------------------------------------------------------
 
   function fontPreviewFamily(item) {
@@ -198,6 +263,7 @@ function createAssetsWindow(session) {
 
   function renderInfo() {
     closeUsageMenu();
+    renderCommands();
     const item = selectedItem();
     const info = parts.info;
     info.textContent = "";
@@ -380,6 +446,10 @@ function createAssetsWindow(session) {
       select(item.id, false);
     });
     row.addEventListener("dblclick", () => revealFirst(item));
+    row.addEventListener("contextmenu", (event) => {
+      select(item.id, false);
+      openContextMenu(item, event);
+    });
     return row;
   }
 
@@ -430,12 +500,15 @@ function createAssetsWindow(session) {
     const toolbar = buildToolbar();
     const table = buildTable();
     const empty = make(doc, "div", "zam-empty");
+    const bottom = make(doc, "div", "zam-bottom");
     const status = make(doc, "div", "zam-status");
+    const commands = make(doc, "div", "zam-commands");
+    bottom.append(status, commands);
     table.wrap.appendChild(empty);
-    root.append(info, toolbar.bar, table.wrap, status);
+    root.append(info, toolbar.bar, table.wrap, bottom);
     body.appendChild(root);
     parts = {
-      root, info, uses: info, empty, status,
+      root, info, uses: info, empty, status, commands,
       search: toolbar.search, filter: toolbar.filter, kind: toolbar.kind,
       wrap: table.wrap, head: table.head, body: table.body,
     };
@@ -444,6 +517,7 @@ function createAssetsWindow(session) {
     return function cleanup() {
       unsubscribe();
       closeUsageMenu();
+      closeContextMenu();
       for (const entry of fontFaces.values()) {
         if (entry.face) doc.fonts.delete(entry.face);
       }
@@ -468,10 +542,6 @@ function createAssetsWindow(session) {
       minWidth: 380,
       minHeight: 320,
       mount,
-      footer: [
-        { title: "Reveal", hint: "Select the first use of this item in the editor", onClick: () => revealFirst(selectedItem()) },
-        { title: "Close", onClick: () => win.close() },
-      ],
     });
     applyOptions(options);
     return win;

@@ -88,3 +88,22 @@ test("summary counts unused project files with their size and problems", () => {
   assert.equal(model.summaryText([]), "0 items");
   assert.deepEqual([...model.presentKinds(items)], ["composition", "video", "image", "font", "lut"]);
 });
+
+function loadWithModel(file) {
+  const source = fs.readFileSync(path.join(root, "plugins/asset-manager", file), "utf8");
+  const module = { exports: {} };
+  const requireModel = (name) => {
+    if (name !== "./assets-model.js") throw new Error("unexpected require " + name);
+    return model;
+  };
+  vm.runInNewContext(`(function (module, exports, require) {${source}\n})`, {})(module, module.exports, requireModel);
+  return module.exports;
+}
+
+test("problem notices name the first three items and count the rest", () => {
+  const { describe } = loadWithModel("assets-notices.js");
+  const problems = items.filter(model.isProblem);
+  assert.equal(describe(problems), "Brand.ttf (missing), Roboto (failed).");
+  const many = ["a", "b", "c", "d", "e"].map((name) => item({ name, status: "missing" }));
+  assert.equal(describe(many), "a (missing), b (missing), c (missing) and 2 more.");
+});
