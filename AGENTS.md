@@ -114,7 +114,8 @@ inside a stage. Do not turn it into a local copy of the CM3 page.
   `pnpm run build:web`; Cloudflare Pages/Wrangler must publish `dist/web/`.
 - `pnpm run deploy` builds that stage first and uploads only `dist/web/` with
   Wrangler; never upload the repository root.
-- `pnpm run desktop:build` fetches CM3, builds from a separate temporary tree,
+- `pnpm run desktop:build` fetches CM3 (or, with `ZOIDIUM_CM3_SNAPSHOT` set,
+  uses a valid cache or restores that snapshot), builds from a separate temporary tree,
   and removes that tree
   after Electron Builder finishes.
 

@@ -99,6 +99,14 @@ keep non-secret values in `wrangler.jsonc`. The build restores that snapshot
 instead of fetching Panzoid. Deployments therefore use the pinned
 runtime that was tested, even when Panzoid changes or blocks its pages.
 
+The desktop release workflow (`.github/workflows/release.yml`) restores the
+same snapshot. It sets `ZOIDIUM_CM3_SNAPSHOT` and `ZOIDIUM_R2_ACCOUNT_ID` in the
+workflow and reads the key pair from the GitHub Actions repository secrets
+`ZOIDIUM_R2_ACCESS_KEY_ID` and `ZOIDIUM_R2_SECRET_ACCESS_KEY`. A read-only R2
+token scoped to `zoidium-cm3-cache` is enough. With `ZOIDIUM_CM3_SNAPSHOT` set,
+`pnpm run desktop:build` uses a valid cache or that snapshot instead of
+fetching Panzoid; without it, the build always fetches a fresh graph.
+
 ## Updating the snapshot (maintainers)
 
 When Panzoid publishes a new CM3 version, or after rebuilding the cache from
