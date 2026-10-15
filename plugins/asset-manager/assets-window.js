@@ -7,6 +7,7 @@
 // forwards Reveal requests.
 
 const model = require("./assets-model.js");
+const { createActions } = require("./assets-actions.js");
 
 const VIEW_KEY = "zoidium.assets.view";
 const WINDOW_ID = "assets";
@@ -57,6 +58,20 @@ function createAssetsWindow(session) {
   let shown = [];
   let usageMenu = null;
   let fontFaces = new Map();
+  let contextMenu = null;
+  const actions = createActions({
+    document: doc,
+    registry: () => session.registry(),
+    notify: (detail) => session.notify(detail),
+    confirm: (options) => session.kit.confirm(options),
+    reveal: (item) => revealFirst(item),
+    select: (id) => {
+      pendingSelect = id;
+      if (snapshot && snapshot.items.some((item) => item.id === id)) select(id, true);
+    },
+  });
+  // An imported item appears with the next snapshot; select it then.
+  let pendingSelect = null;
 
   function registry() {
     return session.registry();
@@ -144,6 +159,91 @@ function createAssetsWindow(session) {
     if (first) first.focus();
   }
 
+  // ---- Commands: icon bar and row context menu ----------------------------
+
+  function closeContextMenu() {
+    if (!contextMenu) return;
+    contextMenu.remove();
+    contextMenu = null;
+    doc.removeEventListener("pointerdown", onContextOutside, true);
+  }
+
+  function onContextOutside(event) {
+    if (contextMenu && !contextMenu.contains(event.target)) closeContextMenu();
+  }
+
+  function openContextMenu(item, event) {
+    closeContextMenu();
+    event.preventDefault();
+    const menu = make(doc, "div", "zam-usage-menu zam-context-menu");
+    menu.setAttribute("role", "menu");
+    for (const command of actions.list(item)) {
+      const entry = make(doc, "button", "zam-usage-entry", command.label);
+      entry.type = "button";
+      entry.setAttribute("role", "menuitem");
+      entry.disabled = !command.enabled;
+      entry.title = command.hint;
+      entry.addEventListener("click", () => {
+        closeContextMenu();
+        command.run();
+      });
+      menu.appendChild(entry);
+    }
+    const bounds = parts.root.getBoundingClientRect();
+    menu.style.left = Math.max(0, event.clientX - bounds.left) + "px";
+    menu.style.top = Math.max(0, event.clientY - bounds.top) + "px";
+    menu.style.right = "auto";
+    parts.root.appendChild(menu);
+    contextMenu = menu;
+    doc.addEventListener("pointerdown", onContextOutside, true);
+    const first = menu.querySelector("button:not(:disabled)");
+    if (first) first.focus();
+  }
+
+  function openProjectMenu(anchor) {
+    closeContextMenu();
+    const menu = make(doc, "div", "zam-usage-menu zam-context-menu");
+    menu.setAttribute("role", "menu");
+    for (const command of [actions.importCommand(), actions.removeUnusedCommand(snapshot)]) {
+      const entry = make(doc, "button", "zam-usage-entry", command.label);
+      entry.type = "button";
+      entry.setAttribute("role", "menuitem");
+      entry.disabled = !command.enabled;
+      entry.title = command.hint;
+      entry.addEventListener("click", () => {
+        closeContextMenu();
+        command.run();
+      });
+      menu.appendChild(entry);
+    }
+    const bounds = parts.root.getBoundingClientRect();
+    const at = anchor.getBoundingClientRect();
+    menu.style.top = (at.bottom - bounds.top + 2) + "px";
+    menu.style.left = "auto";
+    menu.style.right = Math.max(0, bounds.right - at.right) + "px";
+    parts.root.appendChild(menu);
+    contextMenu = menu;
+    doc.addEventListener("pointerdown", onContextOutside, true);
+    const first = menu.querySelector("button:not(:disabled)");
+    if (first) first.focus();
+  }
+
+  function renderCommands() {
+    const item = selectedItem();
+    parts.commands.textContent = "";
+    if (!item) return;
+    for (const command of actions.list(item)) {
+      const button = make(doc, "button", "zam-command");
+      button.type = "button";
+      button.title = command.label.replace("…", "") + " — " + command.hint;
+      button.setAttribute("aria-label", command.label);
+      button.disabled = !command.enabled;
+      button.appendChild(icon(command.icon));
+      button.addEventListener("click", () => command.run());
+      parts.commands.appendChild(button);
+    }
+  }
+
   // ---- Info area ---------------------------------------------------------
 
   function fontPreviewFamily(item) {
@@ -198,6 +298,7 @@ function createAssetsWindow(session) {
 
   function renderInfo() {
     closeUsageMenu();
+    renderCommands();
     const item = selectedItem();
     const info = parts.info;
     info.textContent = "";
@@ -282,8 +383,20 @@ function createAssetsWindow(session) {
       writeView(view);
       renderTable();
     });
-    bar.append(search, filter, kind);
-    return { bar, search, filter, kind };
+    const importButton = make(doc, "button", "zam-command");
+    importButton.type = "button";
+    importButton.title = "Import — add files to the project";
+    importButton.setAttribute("aria-label", "Import");
+    importButton.appendChild(icon("addmedia"));
+    importButton.addEventListener("click", () => actions.importCommand().run());
+    const more = make(doc, "button", "zam-command");
+    more.type = "button";
+    more.title = "Project commands";
+    more.setAttribute("aria-label", "Project commands");
+    more.appendChild(icon("ellipsis"));
+    more.addEventListener("click", () => (contextMenu ? closeContextMenu() : openProjectMenu(more)));
+    bar.append(importButton, search, filter, kind, more);
+    return { bar, search, filter, kind, importButton };
   }
 
   // ---- Table -------------------------------------------------------------
@@ -344,6 +457,11 @@ function createAssetsWindow(session) {
       revealFirst(selectedItem());
       event.preventDefault();
       return;
+    } else if (event.key === "Delete" || event.key === "Backspace") {
+      const command = actions.list(selectedItem()).find((entry) => entry.id === "delete");
+      if (command && command.enabled) command.run();
+      event.preventDefault();
+      return;
     } else return;
     event.preventDefault();
     if (next) select(next.id, true);
@@ -380,6 +498,10 @@ function createAssetsWindow(session) {
       select(item.id, false);
     });
     row.addEventListener("dblclick", () => revealFirst(item));
+    row.addEventListener("contextmenu", (event) => {
+      select(item.id, false);
+      openContextMenu(item, event);
+    });
     return row;
   }
 
@@ -414,6 +536,44 @@ function createAssetsWindow(session) {
     snapshot = next || null;
     renderMenus();
     renderTable();
+    parts.importButton.disabled = !actions.importCommand().enabled;
+    if (pendingSelect && snapshot && snapshot.items.some((item) => item.id === pendingSelect)) {
+      const id = pendingSelect;
+      pendingSelect = null;
+      if (!shown.some((item) => item.id === id)) {
+        view.filter = "all";
+        view.kind = "all";
+        view.query = "";
+        parts.search.value = "";
+        renderMenus();
+        renderTable();
+      }
+      select(id, true);
+    }
+  }
+
+  // Files dropped on the window are imported like AE's Project panel drop.
+  function installDrop(root) {
+    const hasFiles = (event) => Array.from((event.dataTransfer && event.dataTransfer.types) || []).includes("Files");
+    root.addEventListener("dragover", (event) => {
+      if (!hasFiles(event) || !actions.importCommand().enabled) return;
+      event.preventDefault();
+      event.stopPropagation();
+      event.dataTransfer.dropEffect = "copy";
+      root.classList.add("zam-drop");
+    });
+    root.addEventListener("dragleave", (event) => {
+      if (!root.contains(event.relatedTarget)) root.classList.remove("zam-drop");
+    });
+    root.addEventListener("drop", (event) => {
+      root.classList.remove("zam-drop");
+      if (!hasFiles(event) || !actions.importCommand().enabled) return;
+      event.preventDefault();
+      event.stopPropagation();
+      actions.importFiles(Array.from(event.dataTransfer.files || [])).catch((error) => {
+        session.notify({ title: "Import", message: (error && error.message) || "The files could not be imported." });
+      });
+    });
   }
 
   function mount(body) {
@@ -430,20 +590,25 @@ function createAssetsWindow(session) {
     const toolbar = buildToolbar();
     const table = buildTable();
     const empty = make(doc, "div", "zam-empty");
+    const bottom = make(doc, "div", "zam-bottom");
     const status = make(doc, "div", "zam-status");
+    const commands = make(doc, "div", "zam-commands");
+    bottom.append(status, commands);
     table.wrap.appendChild(empty);
-    root.append(info, toolbar.bar, table.wrap, status);
+    root.append(info, toolbar.bar, table.wrap, bottom);
     body.appendChild(root);
     parts = {
-      root, info, uses: info, empty, status,
-      search: toolbar.search, filter: toolbar.filter, kind: toolbar.kind,
+      root, info, uses: info, empty, status, commands,
+      search: toolbar.search, filter: toolbar.filter, kind: toolbar.kind, importButton: toolbar.importButton,
       wrap: table.wrap, head: table.head, body: table.body,
     };
+    installDrop(root);
     const unsubscribe = api.subscribe(update);
     update(api.snapshot());
     return function cleanup() {
       unsubscribe();
       closeUsageMenu();
+      closeContextMenu();
       for (const entry of fontFaces.values()) {
         if (entry.face) doc.fonts.delete(entry.face);
       }
@@ -468,10 +633,6 @@ function createAssetsWindow(session) {
       minWidth: 380,
       minHeight: 320,
       mount,
-      footer: [
-        { title: "Reveal", hint: "Select the first use of this item in the editor", onClick: () => revealFirst(selectedItem()) },
-        { title: "Close", onClick: () => win.close() },
-      ],
     });
     applyOptions(options);
     return win;
