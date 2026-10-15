@@ -3,7 +3,7 @@
   "id": "core",
   "name": "Zoidium Core",
   "author": "Zoidium",
-  "version": "44",
+  "version": "45",
   "kind": "core",
   "visibility": "hidden",
   "alwaysEnabled": true,
@@ -236,6 +236,16 @@
       "phase": "pre-init"
     },
     {
+      "id": "asset-retention",
+      "source": "./plugins/core/asset-retention.js",
+      "phase": "pre-init"
+    },
+    {
+      "id": "asset-registry-edits",
+      "source": "./plugins/core/asset-registry-edits.js",
+      "phase": "pre-init"
+    },
+    {
       "id": "asset-registry",
       "source": "./plugins/core/asset-registry.js",
       "phase": "pre-init"
@@ -244,19 +254,19 @@
   "modules": [
     {
       "id": "single-graph-window",
-      "source": "./plugins/core/single-graph-window.js?v=44"
+      "source": "./plugins/core/single-graph-window.js?v=45"
     },
     {
       "id": "font-load",
-      "source": "./plugins/core/font-load.js?v=44"
+      "source": "./plugins/core/font-load.js?v=45"
     },
     {
       "id": "video-decode-hint",
-      "source": "./plugins/core/video-decode-hint.js?v=44"
+      "source": "./plugins/core/video-decode-hint.js?v=45"
     },
     {
       "id": "output-frame-cache",
-      "source": "./plugins/core/output-frame-cache.js?v=44"
+      "source": "./plugins/core/output-frame-cache.js?v=45"
     }
   ]
 }

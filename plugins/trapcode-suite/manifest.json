@@ -3,7 +3,7 @@
   "id": "trapcode-suite",
   "name": "Rowbyte & Red Giant Suite",
   "author": "DaviFX",
-  "version": "31",
+  "version": "32",
   "kind": "object",
   "description": "Trapcode Particular, Form, and Plexus 3D objects with floating designer windows, plus C4D-style lights. Includes designer color palettes and the wiggle expression upgrade.",
   "category": "TRAPCODE",
@@ -255,112 +255,112 @@
   "modules": [
     {
       "id": "trapcode-runtime",
-      "source": "./plugins/trapcode-suite/trapcode-runtime.js?v=31"
+      "source": "./plugins/trapcode-suite/trapcode-runtime.js?v=32"
     },
     {
       "id": "designer-gear",
-      "source": "./plugins/trapcode-suite/designer-gear.js?v=31"
+      "source": "./plugins/trapcode-suite/designer-gear.js?v=32"
     },
     {
       "id": "trapcode-suite-asset-references",
-      "source": "./plugins/trapcode-suite/asset-references.js?v=31"
+      "source": "./plugins/trapcode-suite/asset-references.js?v=32"
     }
   ],
   "resources": [
     {
       "id": "trapcode-common",
       "type": "text",
-      "source": "./plugins/trapcode-suite/trapcode-common.js?v=31"
+      "source": "./plugins/trapcode-suite/trapcode-common.js?v=32"
     },
     {
       "id": "trapcode-audio",
       "type": "text",
-      "source": "./plugins/trapcode-suite/trapcode-audio.js?v=31"
+      "source": "./plugins/trapcode-suite/trapcode-audio.js?v=32"
     },
     {
       "id": "trapcode-color",
       "type": "text",
-      "source": "./plugins/trapcode-suite/trapcode-color.js?v=31"
+      "source": "./plugins/trapcode-suite/trapcode-color.js?v=32"
     },
     {
       "id": "trapcode-shading",
       "type": "text",
-      "source": "./plugins/trapcode-suite/trapcode-shading.js?v=31"
+      "source": "./plugins/trapcode-suite/trapcode-shading.js?v=32"
     },
     {
       "id": "trapcode-expressions",
       "type": "text",
-      "source": "./plugins/trapcode-suite/trapcode-expressions.js?v=31"
+      "source": "./plugins/trapcode-suite/trapcode-expressions.js?v=32"
     },
     {
       "id": "trapcode-designer",
       "type": "text",
-      "source": "./plugins/trapcode-suite/designer.js?v=31"
+      "source": "./plugins/trapcode-suite/designer.js?v=32"
     },
     {
       "id": "trapcode-particular-sim",
       "type": "text",
-      "source": "./plugins/trapcode-suite/particular-sim.js?v=31"
+      "source": "./plugins/trapcode-suite/particular-sim.js?v=32"
     },
     {
       "id": "trapcode-particular",
       "type": "text",
-      "source": "./plugins/trapcode-suite/particular.js?v=31"
+      "source": "./plugins/trapcode-suite/particular.js?v=32"
     },
     {
       "id": "trapcode-particular-system",
       "type": "text",
-      "source": "./plugins/trapcode-suite/particular-system.js?v=31"
+      "source": "./plugins/trapcode-suite/particular-system.js?v=32"
     },
     {
       "id": "trapcode-particular-defs",
       "type": "text",
-      "source": "./plugins/trapcode-suite/particular-defs.js?v=31"
+      "source": "./plugins/trapcode-suite/particular-defs.js?v=32"
     },
     {
       "id": "trapcode-form",
       "type": "text",
-      "source": "./plugins/trapcode-suite/form.js?v=31"
+      "source": "./plugins/trapcode-suite/form.js?v=32"
     },
     {
       "id": "trapcode-form-grid",
       "type": "text",
-      "source": "./plugins/trapcode-suite/form-grid.js?v=31"
+      "source": "./plugins/trapcode-suite/form-grid.js?v=32"
     },
     {
       "id": "trapcode-form-fields",
       "type": "text",
-      "source": "./plugins/trapcode-suite/form-fields.js?v=31"
+      "source": "./plugins/trapcode-suite/form-fields.js?v=32"
     },
     {
       "id": "trapcode-form-defs",
       "type": "text",
-      "source": "./plugins/trapcode-suite/form-defs.js?v=31"
+      "source": "./plugins/trapcode-suite/form-defs.js?v=32"
     },
     {
       "id": "trapcode-plexus",
       "type": "text",
-      "source": "./plugins/trapcode-suite/plexus.js?v=31"
+      "source": "./plugins/trapcode-suite/plexus.js?v=32"
     },
     {
       "id": "trapcode-plexus-geometry",
       "type": "text",
-      "source": "./plugins/trapcode-suite/plexus-geometry.js?v=31"
+      "source": "./plugins/trapcode-suite/plexus-geometry.js?v=32"
     },
     {
       "id": "trapcode-plexus-object",
       "type": "text",
-      "source": "./plugins/trapcode-suite/plexus-object.js?v=31"
+      "source": "./plugins/trapcode-suite/plexus-object.js?v=32"
     },
     {
       "id": "trapcode-plexus-config",
       "type": "text",
-      "source": "./plugins/trapcode-suite/plexus-config.js?v=31"
+      "source": "./plugins/trapcode-suite/plexus-config.js?v=32"
     },
     {
       "id": "trapcode-lights",
       "type": "text",
-      "source": "./plugins/trapcode-suite/lights-c4d.js?v=31"
+      "source": "./plugins/trapcode-suite/lights-c4d.js?v=32"
     }
   ],
   "objectClasses": [

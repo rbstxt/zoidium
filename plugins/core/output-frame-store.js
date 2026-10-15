@@ -74,6 +74,9 @@
 
   function assetsComplete(project) {
     return Object.values(project.assets?.list || {}).every(asset =>
+      // Media-only holds and the editor's retention pin store footage; they
+      // do not make its decoder a dependency of this rendered frame.
+      (global.ZoidiumAssets?.renderNeeded ? !global.ZoidiumAssets.renderNeeded(asset, project) : asset.references === 0) ||
       Array.from(asset.data?.values?.() || []).every(data => {
         if (!data || typeof data !== "object") return true;
         if (data.zoidiumDecodeError) return false;

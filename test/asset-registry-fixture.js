@@ -8,7 +8,7 @@ function fixture(options = {}) {
     constructor() { this.listeners = new Set(); }
     watch(fn) { this.listeners.add(fn); }
     unwatch(fn) { this.listeners.delete(fn); }
-    update() { for (const fn of Array.from(this.listeners)) fn(); }
+    update(...args) { for (const fn of Array.from(this.listeners)) fn(...args); }
   }
   const addresses = new Map(); let next = 0;
   class Obj {
@@ -48,8 +48,8 @@ function fixture(options = {}) {
     ...options.globals };
   options.setup?.({ PZ, project, editor, sandbox });
   vm.createContext(sandbox);
-  for (const name of ["walk", "status", "reveal", "fetch", "decode", "consumers", "actions", ""]) {
-    const file = "asset-registry" + (name ? "-" + name : "") + ".js";
+  for (const name of ["walk", "status", "reveal", "fetch", "decode", "consumers", "actions", ...(options.edits ? ["retention", "edits"] : []), ""]) {
+    const file = name === "retention" ? "asset-retention.js" : "asset-registry" + (name ? "-" + name : "") + ".js";
     vm.runInContext(fs.readFileSync(path.join(__dirname, "../plugins/core", file), "utf8"), sandbox);
   }
   const api = sandbox.ZoidiumAssets;

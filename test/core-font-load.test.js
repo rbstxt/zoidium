@@ -249,12 +249,13 @@ test("disposal preserves foreign replacement patches and originally hidden Text"
   assert.equal(f.Text.prototype.update, replacement); assert.equal(text.threeObj.visible, false);
 });
 
-test("retired native font assets retain their bytes for same-key changes and history", async () => {
+test("retired preset fonts remain reusable for native history", async () => {
   const f = fixture(), list = new f.AssetList(), asset = f.asset();
+  asset.source = 3; asset.url = "/preset.ttf";
   list.list[asset.key] = asset; const wrapper = new f.Font(asset); const parsed = await wrapper.get3DFont();
   list.removeIfUnused(asset); assert.equal(list.list[asset.key], undefined);
   const restored = list.load(asset.key); assert.equal(restored, asset); assert.equal(restored.file, asset.file);
-  assert.equal(restored.url, "blob:restored"); assert.equal(new f.Font(restored).font3d, parsed);
+  assert.equal(restored.url, "/preset.ttf"); assert.equal(new f.Font(restored).font3d, parsed);
   assert.equal(list.events.length, 1); restored.references = 0; list.removeIfUnused(restored);
   assert.equal(list.load(asset.key), asset);
 });
@@ -262,6 +263,7 @@ test("retired native font assets retain their bytes for same-key changes and his
 test("retired font caches stay within their asset list and leave other assets alone", () => {
   const f = fixture(), first = new f.AssetList(), second = new f.AssetList(), font = f.asset(), image = f.asset();
   new f.Font(font); first.list[font.key] = font; first.removeIfUnused(font);
+  assert.notEqual(first.load(font.key), font);
   assert.notEqual(second.load(font.key), font);
   image.key = "image"; image.sha256 = "image"; first.list.image = image; first.removeIfUnused(image);
   assert.notEqual(first.load("image"), image);

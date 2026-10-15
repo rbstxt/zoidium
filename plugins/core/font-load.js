@@ -278,14 +278,14 @@ module.exports = {
       for (const restore of patches.reverse()) restore();
     });
     // Native asset property history stores keys, not the font blobs. Retain
-    // unloaded font assets with their list, so same-key attachment and native
-    // undo/redo can restore bytes after removeIfUnused removes a font.
+    // unloaded preset fonts with their list so native undo can reuse them.
+    // FILE fonts are retained by the live editor, along with other files.
     const retiredFonts = new WeakMap();
     const assetList = PZ.assetList?.prototype;
     if (assetList?.removeIfUnused && assetList.load) {
       const originalRemove = assetList.removeIfUnused;
       patch(assetList, "removeIfUnused", { writable: true, value: function (asset) {
-        if (!disposed && asset?.data?.has(Font) && asset.references <= 0 && asset.mediaReferences <= 0) {
+        if (!disposed && asset?.source !== PZ.asset.source.FILE && asset?.data?.has(Font) && asset.references <= 0 && asset.mediaReferences <= 0) {
           let retired = retiredFonts.get(this);
           if (!retired) { retired = new Map(); retiredFonts.set(this, retired); }
           retired.set(asset.key, asset);
