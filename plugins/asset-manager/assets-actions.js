@@ -28,7 +28,8 @@ function capabilitiesOf(api, item) {
   }
 }
 
-// `session` = { document, registry(), notify, confirm, reveal(item), select(id) }.
+// `session` = { document, registry(), notify, confirm, reveal(item), select(id),
+// resolveFonts() }.
 function createActions(session) {
   const doc = session.document;
   const busy = new Set();
@@ -94,6 +95,17 @@ function createActions(session) {
       return;
     }
     const reason = result && result.reason;
+    // AE relinks a different file through Replace Footage; offer that here.
+    if (reason === "different" && session.registry().replace) {
+      const approved = await session.confirm({
+        title: "Replace " + item.name,
+        message: file.name + " is a different file. Use it in place of " + item.name + " everywhere it is used?",
+        confirmLabel: "Replace",
+        cancelLabel: "Cancel",
+      });
+      if (approved) await replace(item, { file });
+      return;
+    }
     session.notify({
       title: "Locate " + item.name,
       message: reason === "different"
@@ -101,6 +113,29 @@ function createActions(session) {
         : reason === "not-missing"
           ? item.name + " is no longer missing."
           : (result && result.error) || "The file could not be attached.",
+    });
+  }
+
+  // AE Replace Footage: every use switches to the new file in one undo step.
+  async function replace(item, target) {
+    const result = await session.registry().replace(item.id, target);
+    if (!result || !result.ok) {
+      session.notify({
+        title: "Replace " + item.name,
+        message: result && result.reason === "kind"
+          ? "Choose a file of the same type (" + model.kindLabel(item.kind).toLowerCase() + ")."
+          : (result && result.error) || "The item could not be replaced.",
+      });
+      return;
+    }
+    const skipped = result.skipped || [];
+    if (result.newId) session.select(result.newId);
+    session.notify({
+      title: "Replaced " + model.plural(result.replaced || 0, "use", "uses"),
+      message: skipped.length
+        ? model.plural(skipped.length, "use stays", "uses stay") + " in closed compositions: " +
+          skipped.slice(0, 3).map(model.usagePath).join("; ") + ". Open them to replace those uses."
+        : "Undo restores " + item.name + ".",
     });
   }
 
@@ -233,6 +268,17 @@ function createActions(session) {
         },
       },
       {
+        id: "replace",
+        label: "Replace…",
+        icon: "change",
+        hint: "Use another file everywhere this item is used",
+        enabled: !!(api && api.replace) && !!item && item.kind !== "composition" && model.usageCount(item) > 0,
+        run: () => {
+          const picked = pickFile(item);
+          return guarded(item, "Replace", () => picked.then((file) => file && replace(item, { file })));
+        },
+      },
+      {
         id: "export",
         label: "Save File…",
         icon: "download",
@@ -252,7 +298,20 @@ function createActions(session) {
     ];
   }
 
-  return { list, importCommand, removeUnusedCommand, importFiles };
+  function resolveFontsCommand(snapshot) {
+    const api = session.registry();
+    const fonts = (snapshot ? snapshot.items : []).filter((item) => item.kind === "font" && model.isProblem(item));
+    return {
+      id: "resolve-fonts",
+      label: "Resolve Fonts…" + (fonts.length ? " (" + fonts.length + ")" : ""),
+      icon: "text",
+      hint: "Replace missing or failed fonts with built-in fonts or font files",
+      enabled: !!(api && api.replace && api.builtInFonts) && fonts.length > 0,
+      run: () => session.resolveFonts(),
+    };
+  }
+
+  return { list, importCommand, removeUnusedCommand, resolveFontsCommand, importFiles, replace, pickFile };
 }
 
 module.exports = { createActions };
