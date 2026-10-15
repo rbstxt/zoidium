@@ -9,6 +9,7 @@
 const model = require("./assets-model.js");
 const { createActions } = require("./assets-actions.js");
 const { createResolveFonts } = require("./assets-fonts.js");
+const { createTable } = require("./assets-table.js");
 
 const VIEW_KEY = "zoidium.assets.view";
 const WINDOW_ID = "assets";
@@ -182,17 +183,24 @@ function createAssetsWindow(session) {
     if (contextMenu && !contextMenu.contains(event.target)) closeContextMenu();
   }
 
-  function openContextMenu(item, event) {
+  // One menu at a time. `place` = { x, y } (pointer) or { anchor } (button).
+  // Entries: { label, hint, enabled, run, color? }.
+  function showMenu(entries, place) {
     closeContextMenu();
-    event.preventDefault();
     const menu = make(doc, "div", "zam-usage-menu zam-context-menu");
     menu.setAttribute("role", "menu");
-    for (const command of actions.list(item)) {
-      const entry = make(doc, "button", "zam-usage-entry", command.label);
+    for (const command of entries) {
+      const entry = make(doc, "button", "zam-usage-entry");
       entry.type = "button";
       entry.setAttribute("role", "menuitem");
-      entry.disabled = !command.enabled;
-      entry.title = command.hint;
+      if (command.color !== undefined) {
+        const swatch = make(doc, "span", "zam-label zam-menu-swatch");
+        if (command.color) swatch.style.background = command.color;
+        entry.appendChild(swatch);
+      }
+      entry.appendChild(doc.createTextNode(command.label));
+      entry.disabled = command.enabled === false;
+      if (command.hint) entry.title = command.hint;
       entry.addEventListener("click", () => {
         closeContextMenu();
         command.run();
@@ -200,54 +208,124 @@ function createAssetsWindow(session) {
       menu.appendChild(entry);
     }
     const bounds = parts.root.getBoundingClientRect();
-    menu.style.left = Math.max(0, event.clientX - bounds.left) + "px";
-    menu.style.top = Math.max(0, event.clientY - bounds.top) + "px";
-    menu.style.right = "auto";
+    if (place.anchor) {
+      const at = place.anchor.getBoundingClientRect();
+      menu.style.top = (at.bottom - bounds.top + 2) + "px";
+      if (at.left - bounds.left < bounds.width / 2) {
+        menu.style.left = Math.max(0, at.left - bounds.left) + "px";
+        menu.style.right = "auto";
+      } else {
+        menu.style.left = "auto";
+        menu.style.right = Math.max(0, bounds.right - at.right) + "px";
+      }
+    } else {
+      menu.style.left = Math.max(0, place.x - bounds.left) + "px";
+      menu.style.top = Math.max(0, place.y - bounds.top) + "px";
+      menu.style.right = "auto";
+    }
     parts.root.appendChild(menu);
+    // Open upward when the menu would leave the window at the bottom.
+    const rect = menu.getBoundingClientRect();
+    if (rect.bottom > bounds.bottom) {
+      const above = place.anchor ? place.anchor.getBoundingClientRect().top : place.y;
+      menu.style.top = Math.max(0, above - bounds.top - rect.height - 2) + "px";
+    }
     contextMenu = menu;
     doc.addEventListener("pointerdown", onContextOutside, true);
     const first = menu.querySelector("button:not(:disabled)");
     if (first) first.focus();
+  }
+
+  function labelEntries(ids) {
+    const api = registry();
+    return model.LABELS.map((label, index) => ({
+      label: label.name,
+      color: label.color,
+      enabled: !!(api && api.setLabel),
+      run: () => api.setLabel(ids, index),
+    }));
+  }
+
+  function openLabelMenu(ids, anchor) {
+    showMenu(labelEntries(ids.map(rawId)), { anchor });
+  }
+
+  // Folder ids travel through the registry without the row prefix.
+  function rawId(id) {
+    return model.isFolderRow(id) ? id.slice("folder:".length) : id;
+  }
+
+  function openContextMenu(item, event) {
+    event.preventDefault();
+    const entries = actions.list(item).map((command) => Object.assign({}, command));
+    entries.push({ label: "Label ▸", run: () => openLabelMenu([item.id], parts.commands) });
+    showMenu(entries, { x: event.clientX, y: event.clientY });
+  }
+
+  function folderCommands(entry) {
+    const api = registry();
+    return [
+      { id: "rename", label: "Rename", icon: "edit", hint: "Rename this folder",
+        enabled: !!(api && api.renameFolder), run: () => parts.table.startRename(entry.folder.id) },
+      { id: "new-folder", label: "New Folder Inside", icon: "folder", hint: "Create a folder inside this one",
+        enabled: !!(api && api.createFolder), run: () => newFolder(entry.folder.id) },
+      { id: "delete", label: "Delete Folder", icon: "remove", hint: "Delete this folder; its contents move up a level",
+        enabled: !!(api && api.deleteFolder), run: () => removeRow(entry) },
+    ];
+  }
+
+  function openFolderMenu(entry, event) {
+    event.preventDefault();
+    const entries = folderCommands(entry);
+    entries.push({ label: "Label ▸", run: () => openLabelMenu([entry.id], parts.commands) });
+    showMenu(entries, { x: event.clientX, y: event.clientY });
   }
 
   function openProjectMenu(anchor) {
-    closeContextMenu();
-    const menu = make(doc, "div", "zam-usage-menu zam-context-menu");
-    menu.setAttribute("role", "menu");
-    const commands = [
+    showMenu([
       actions.importCommand(),
+      newFolderCommand(),
       actions.removeUnusedCommand(snapshot),
       actions.resolveFontsCommand(snapshot),
-    ];
-    for (const command of commands) {
-      const entry = make(doc, "button", "zam-usage-entry", command.label);
-      entry.type = "button";
-      entry.setAttribute("role", "menuitem");
-      entry.disabled = !command.enabled;
-      entry.title = command.hint;
-      entry.addEventListener("click", () => {
-        closeContextMenu();
-        command.run();
-      });
-      menu.appendChild(entry);
-    }
-    const bounds = parts.root.getBoundingClientRect();
-    const at = anchor.getBoundingClientRect();
-    menu.style.top = (at.bottom - bounds.top + 2) + "px";
-    menu.style.left = "auto";
-    menu.style.right = Math.max(0, bounds.right - at.right) + "px";
-    parts.root.appendChild(menu);
-    contextMenu = menu;
-    doc.addEventListener("pointerdown", onContextOutside, true);
-    const first = menu.querySelector("button:not(:disabled)");
-    if (first) first.focus();
+    ], { anchor });
+  }
+
+  // AE File > New > New Folder: inside the selected folder (or the folder of
+  // the selected item), named "Untitled N", then renamed in place.
+  function newFolder(parent) {
+    const api = registry();
+    if (!api || !api.createFolder) return;
+    const folders = (snapshot && snapshot.folders) || [];
+    let index = 1;
+    while (folders.some((folder) => folder.name === "Untitled " + index)) index += 1;
+    const id = api.createFolder("Untitled " + index, parent === undefined ? null : parent);
+    if (!id) return;
+    view.selectedId = model.folderRowId(id);
+    parts.table.startRename(id);
+  }
+
+  function newFolderCommand() {
+    const api = registry();
+    return {
+      id: "new-folder",
+      label: "New Folder",
+      icon: "folder",
+      hint: "Create a folder to organize items",
+      enabled: !!(api && api.createFolder),
+      run: () => {
+        const folder = selectedFolder();
+        const item = selectedItem();
+        newFolder(folder ? folder.id : item && item.folder ? item.folder : null);
+      },
+    };
   }
 
   function renderCommands() {
-    const item = selectedItem();
     parts.commands.textContent = "";
-    if (!item) return;
-    for (const command of actions.list(item)) {
+    const entry = parts.table.rowEntry(view.selectedId);
+    if (!entry) return;
+    const commands = entry.type === "folder" ? folderCommands(entry) : actions.list(entry.item);
+    for (const command of commands) {
       const button = make(doc, "button", "zam-command");
       button.type = "button";
       button.title = command.label.replace("…", "") + " — " + command.hint;
@@ -317,6 +395,16 @@ function createAssetsWindow(session) {
     const item = selectedItem();
     const info = parts.info;
     info.textContent = "";
+    const folderEntry = !item && parts.table.rowEntry(view.selectedId);
+    if (folderEntry && folderEntry.type === "folder") {
+      const box = make(doc, "div", "zam-thumb");
+      box.appendChild(icon("folder"));
+      const text = make(doc, "div", "zam-info-text");
+      text.appendChild(make(doc, "div", "zam-info-name", folderEntry.folder.name));
+      text.appendChild(make(doc, "div", "zam-info-line", "Folder · " + model.plural(folderEntry.count, "item", "items")));
+      info.append(box, text);
+      return;
+    }
     if (!item) {
       info.appendChild(make(doc, "div", "zam-info-empty", snapshot && snapshot.items.length
         ? "Select an item to see where it is used."
@@ -410,138 +498,72 @@ function createAssetsWindow(session) {
     more.setAttribute("aria-label", "Project commands");
     more.appendChild(icon("ellipsis"));
     more.addEventListener("click", () => (contextMenu ? closeContextMenu() : openProjectMenu(more)));
-    bar.append(importButton, search, filter, kind, more);
-    return { bar, search, filter, kind, importButton };
+    const folderButton = make(doc, "button", "zam-command");
+    folderButton.type = "button";
+    folderButton.title = "New Folder — create a folder to organize items";
+    folderButton.setAttribute("aria-label", "New Folder");
+    folderButton.appendChild(icon("folder"));
+    folderButton.addEventListener("click", () => newFolderCommand().run());
+    bar.append(importButton, folderButton, search, filter, kind, more);
+    return { bar, search, filter, kind, importButton, folderButton };
   }
 
   // ---- Table -------------------------------------------------------------
 
-  function buildTable() {
-    const wrap = make(doc, "div", "zam-table-wrap");
-    wrap.tabIndex = 0;
-    const table = make(doc, "table", "zam-table");
-    const head = make(doc, "thead");
-    const row = make(doc, "tr");
-    for (const column of model.COLUMNS) {
-      const cell = make(doc, "th", "zam-col-" + column.id, column.label);
-      cell.dataset.column = column.id;
-      cell.title = "Sort by " + column.label.toLowerCase();
-      cell.addEventListener("click", () => {
-        if (view.sort.column === column.id) {
-          view.sort.direction = view.sort.direction === "asc" ? "desc" : "asc";
-        } else {
-          view.sort = { column: column.id, direction: column.id === "uses" || column.id === "size" ? "desc" : "asc" };
-        }
-        writeView(view);
-        renderTable();
-      });
-      row.appendChild(cell);
-    }
-    head.appendChild(row);
-    const body = make(doc, "tbody");
-    table.append(head, body);
-    wrap.appendChild(table);
-    wrap.addEventListener("keydown", onTableKey);
-    return { wrap, head, body };
-  }
-
   function select(id, scroll) {
     if (view.selectedId === id) return;
     view.selectedId = id;
-    for (const row of parts.body.children) {
-      row.classList.toggle("selected", row.dataset.id === id);
-      if (row.dataset.id === id) {
-        row.setAttribute("aria-selected", "true");
-        if (scroll) row.scrollIntoView({ block: "nearest" });
-      } else {
-        row.removeAttribute("aria-selected");
-      }
-    }
+    parts.table.markSelected(id, scroll);
     renderInfo();
   }
 
-  function onTableKey(event) {
-    if (!shown.length) return;
-    const index = shown.findIndex((item) => item.id === view.selectedId);
-    let next = null;
-    if (event.key === "ArrowDown") next = shown[Math.min(shown.length - 1, index + 1)];
-    else if (event.key === "ArrowUp") next = shown[Math.max(0, index - 1)];
-    else if (event.key === "Home") next = shown[0];
-    else if (event.key === "End") next = shown[shown.length - 1];
-    else if (event.key === "Enter") {
-      revealFirst(selectedItem());
-      event.preventDefault();
-      return;
-    } else if (event.key === "Delete" || event.key === "Backspace") {
-      const command = actions.list(selectedItem()).find((entry) => entry.id === "delete");
+  function selectedFolder() {
+    const entry = parts && parts.table.rowEntry(view.selectedId);
+    return entry && entry.type === "folder" ? entry.folder : null;
+  }
+
+  function activate(entry) {
+    if (entry.type === "item") revealFirst(entry.item);
+  }
+
+  async function removeRow(entry) {
+    if (entry.type === "item") {
+      const command = actions.list(entry.item).find((candidate) => candidate.id === "delete");
       if (command && command.enabled) command.run();
-      event.preventDefault();
       return;
-    } else return;
-    event.preventDefault();
-    if (next) select(next.id, true);
-  }
-
-  function cell(row, column, content) {
-    const element = make(doc, "td", "zam-col-" + column);
-    if (content instanceof Node) element.appendChild(content);
-    else element.textContent = content || "";
-    row.appendChild(element);
-    return element;
-  }
-
-  function rowFor(item) {
-    const row = make(doc, "tr", "zam-row");
-    row.dataset.id = item.id;
-    row.classList.toggle("selected", item.id === view.selectedId);
-    if (item.status === "missing") row.classList.add("zam-missing");
-    if (model.isProblem(item)) row.classList.add("zam-problem");
-    if (!model.usageCount(item)) row.classList.add("zam-unused");
-    const name = make(doc, "span", "zam-name");
-    name.appendChild(icon(model.kindInfo(item.kind).icon));
-    name.appendChild(make(doc, "span", "zam-name-text", item.name));
-    cell(row, "name", name).title = item.name;
-    cell(row, "kind", model.kindLabel(item.kind));
-    const status = cell(row, "status", model.statusLabel(item.status));
-    status.dataset.status = item.status;
-    if (item.error) status.title = item.error;
-    cell(row, "uses", String(model.usageCount(item)));
-    cell(row, "size", model.formatSize(item.size));
-    cell(row, "details", model.detailText(item));
-    row.addEventListener("click", () => {
-      parts.wrap.focus({ preventScroll: true });
-      select(item.id, false);
-    });
-    row.addEventListener("dblclick", () => revealFirst(item));
-    row.addEventListener("contextmenu", (event) => {
-      select(item.id, false);
-      openContextMenu(item, event);
-    });
-    return row;
+    }
+    const api = registry();
+    if (!api.deleteFolder) return;
+    // AE deletes a folder's contents with it; here they move up a level so
+    // no file is lost, and the question says so.
+    if (entry.count) {
+      const approved = await session.kit.confirm({
+        title: "Delete folder",
+        message: 'Delete folder "' + entry.folder.name + '"? Its ' + model.plural(entry.count, "item moves", "items move") +
+          " to the folder above. You can undo this.",
+        confirmLabel: "Delete",
+        cancelLabel: "Cancel",
+        danger: true,
+      });
+      if (!approved) return;
+    }
+    api.deleteFolder(entry.folder.id);
   }
 
   function renderTable() {
     const items = snapshot ? snapshot.items : [];
-    shown = model.sortItems(model.filterItems(items, view), view.sort);
-    for (const header of parts.head.querySelectorAll("th")) {
-      const active = header.dataset.column === view.sort.column;
-      header.classList.toggle("sorted", active);
-      header.dataset.direction = active ? view.sort.direction : "";
-    }
-    const scroll = parts.wrap.scrollTop;
-    parts.body.textContent = "";
-    for (const item of shown) parts.body.appendChild(rowFor(item));
-    parts.wrap.scrollTop = scroll;
-    parts.empty.hidden = shown.length > 0;
-    parts.empty.textContent = items.length
+    shown = parts.table.render(snapshot);
+    const itemCount = shown.filter((entry) => entry.type === "item").length;
+    parts.table.empty.hidden = shown.length > 0;
+    parts.table.empty.textContent = items.length
       ? (view.filter === "problems" && !view.query && view.kind === "all"
         ? "No missing or failed items."
         : "No items match.")
       : "No assets yet. Import media in the Media tab, or choose a file in an image or font property.";
-    parts.status.textContent = model.summaryText(items, shown.length);
-    if (!shown.some((item) => item.id === view.selectedId)) {
+    parts.status.textContent = model.summaryText(items, model.isFlatView(view) ? itemCount : undefined);
+    if (!shown.some((entry) => entry.id === view.selectedId)) {
       view.selectedId = shown.length ? shown[0].id : null;
-      for (const row of parts.body.children) row.classList.toggle("selected", row.dataset.id === view.selectedId);
+      parts.table.markSelected(view.selectedId, false);
     }
     renderInfo();
   }
@@ -554,10 +576,11 @@ function createAssetsWindow(session) {
     renderMenus();
     renderTable();
     parts.importButton.disabled = !actions.importCommand().enabled;
+    parts.folderButton.disabled = !newFolderCommand().enabled;
     if (pendingSelect && snapshot && snapshot.items.some((item) => item.id === pendingSelect)) {
       const id = pendingSelect;
       pendingSelect = null;
-      if (!shown.some((item) => item.id === id)) {
+      if (!shown.some((entry) => entry.id === id)) {
         view.filter = "all";
         view.kind = "all";
         view.query = "";
@@ -605,19 +628,33 @@ function createAssetsWindow(session) {
     }
     const info = make(doc, "div", "zam-info");
     const toolbar = buildToolbar();
-    const table = buildTable();
-    const empty = make(doc, "div", "zam-empty");
+    const table = createTable(doc, icon, view, {
+      registry,
+      editor: session.editor,
+      notify: (detail) => session.notify(detail),
+      selectedId: () => view.selectedId,
+      select,
+      activate,
+      contextMenu: (entry, event) => (entry.type === "item"
+        ? openContextMenu(entry.item, event)
+        : openFolderMenu(entry, event)),
+      labelMenu: openLabelMenu,
+      remove: removeRow,
+      sortChanged: () => {
+        writeView(view);
+        renderTable();
+      },
+    });
     const bottom = make(doc, "div", "zam-bottom");
     const status = make(doc, "div", "zam-status");
     const commands = make(doc, "div", "zam-commands");
     bottom.append(status, commands);
-    table.wrap.appendChild(empty);
     root.append(info, toolbar.bar, table.wrap, bottom);
     body.appendChild(root);
     parts = {
-      root, info, uses: info, empty, status, commands,
+      root, info, uses: info, status, commands, table,
       search: toolbar.search, filter: toolbar.filter, kind: toolbar.kind, importButton: toolbar.importButton,
-      wrap: table.wrap, head: table.head, body: table.body,
+      folderButton: toolbar.folderButton,
     };
     installDrop(root);
     const unsubscribe = api.subscribe(update);
@@ -626,6 +663,7 @@ function createAssetsWindow(session) {
       unsubscribe();
       closeUsageMenu();
       closeContextMenu();
+      table.dispose();
       for (const entry of fontFaces.values()) {
         if (entry.face) doc.fonts.delete(entry.face);
       }
