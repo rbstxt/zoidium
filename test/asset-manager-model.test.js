@@ -107,3 +107,17 @@ test("problem notices name the first three items and count the rest", () => {
   const many = ["a", "b", "c", "d", "e"].map((name) => item({ name, status: "missing" }));
   assert.equal(describe(many), "a (missing), b (missing), c (missing) and 2 more.");
 });
+
+test("Resolve Fonts suggests a same-named built-in font but never the failed font itself", () => {
+  const source = fs.readFileSync(path.join(root, "plugins/asset-manager/assets-fonts.js"), "utf8");
+  const module = { exports: {} };
+  vm.runInNewContext(`(function (module, exports, require) {${source}\n})`, {})(module, module.exports, () => model);
+  const { suggestion } = module.exports;
+  const builtIns = [
+    { id: "/assets/fonts/bebas.json", key: "/assets/fonts/bebas.json", name: "bebas" },
+    { id: "/assets/fonts/Roboto.json", key: "/assets/fonts/Roboto.json", name: "Roboto" },
+  ];
+  assert.equal(suggestion(item({ name: "Roboto.ttf", kind: "font" }), builtIns), "/assets/fonts/Roboto.json");
+  assert.equal(suggestion(item({ id: "/assets/fonts/Roboto.json", key: "/assets/fonts/Roboto.json", name: "Roboto", kind: "font" }), builtIns), "");
+  assert.equal(suggestion(item({ name: "Brand.ttf", kind: "font" }), builtIns), "");
+});
