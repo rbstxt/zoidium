@@ -340,6 +340,16 @@ test("a readable project archive opens and its entries stay in place", async () 
   assert.equal(archive.files.length, 2, "validation only reads the entries");
 });
 
+test("an empty or unreadable zoidium.json from an older build does not block opening", async () => {
+  for (const data of [text(""), text("{"), text("[]")]) {
+    const harness = createHarness();
+    const entries = validProjectEntries({ assets: {}, media: [], sequence: {} });
+    entries.push({ name: "zoidium.json", data });
+    const archive = await harness.projectFiles.openValidatedArchive(archiveBlob(entries), "open");
+    assert.equal(archive.files.length, 3);
+  }
+});
+
 test("a CM2 archive is left to CM3's compatibility loader", async () => {
   const harness = createHarness({
     compatibility: { CM2: { check: (archive) => archive.fileExists("objects") } },

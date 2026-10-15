@@ -30,6 +30,7 @@ function activate(context) {
   const bundleRequire = sharedCreateRequire(context.getAsset, { root: MATERIAL_ROOT });
   const nodes = bundleRequire("./graph-runtime.js")(PZ, doc);
   const surface = bundleRequire("./surface-runtime.js");
+  const legacyUv = bundleRequire("./legacy-pbr-uv.js");
   // PBR+ and Node Material sample their maps through the shared UV layout.
   const uvLayout = new Function(context.getAsset("text", UV_LAYOUT_SOURCE))()();
   const { createGraphWorkerSource, GRAPH_MODULES } = bundleRequire("./graph-worker.js");
@@ -224,7 +225,7 @@ function activate(context) {
     }
     material.bakeGraph = function () { if (this._surfaceReady) this._surfaceUpdate(this._surfaceFrame || 0); };
     material._surfaceUpdate = function (frame, exact = false) {
-      if (!disposed) uvLayout.ensureMaterial(this);
+      if (!disposed) legacyUv.ensureMaterial(this, uvLayout);
       if (!this._surfaceReady || disposed || (preparing && !exact)) return;
       this._surfaceFrame = frame;
       const enabled = this.properties.useNodeGraph.get() === 1;

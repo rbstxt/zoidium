@@ -32,6 +32,9 @@
   var getAdjustmentEffectFrame = layers.getAdjustmentEffectFrame;
 
   function getFrameSamplerPrefix(stage, projectFrame) {
+    // Before 430a52c taps used their raw requested clock, without replaying
+    // prefix quantizers or bounding the adjustment scope to this sampler.
+    if (math.temporalMode(stage.effect) === "legacy") return [];
     return layers.readTemporalOperatorsBeforeIndex(stage.layer, stage.effectIndex,
       projectFrame - finiteNumber(stage.clip.start, 0));
   }
@@ -53,6 +56,7 @@
   }
 
   function getFrameSamplerControlFrame(stage, frame, scope) {
+    if (math.temporalMode(stage.effect) === "legacy") return getAdjustmentEffectFrame(stage.layer, stage.effect, frame);
     if (!isAdjustmentLayer(stage.layer) || scope?.layer === stage.layer) return frame;
     const start = finiteNumber(stage.clip.start, 0);
     const prefix = getFrameSamplerPrefix(stage, start + frame);
@@ -65,6 +69,7 @@
   }
 
   function withFrameSamplerInputContext(state, stage, frame, context, callback) {
+    if (math.temporalMode(stage.effect) === "legacy") return callback();
     const parent = state.contexts[state.contexts.length - 1];
     const evaluating = state.evaluatingLayers.has(stage.layer);
     state.evaluatingLayers.add(stage.layer);
@@ -390,6 +395,7 @@
     const parentContext = state.contexts[state.contexts.length - 1];
     const currentFrame = finiteNumber(restoreFrame, parentContext?.outputFrame);
     const wasEvaluatingOwner = state.evaluatingLayers.has(stage.layer);
+    const evaluateOwner = math.temporalMode(stage.effect) !== "legacy" || !isAdjustmentLayer(stage.layer);
     const changedLayers = new Set();
     const previousClearColor = renderer.getClearColor
       ? renderer.getClearColor(new THREE.Color())
@@ -426,7 +432,7 @@
       }
 
       changedLayers.add(stage.layer);
-      state.evaluatingLayers.add(stage.layer);
+      if (evaluateOwner) state.evaluatingLayers.add(stage.layer);
       // Decoding and prefix preparation can yield to live playback updates.
       // Skip the duplicate evaluation only if the prepared layer is untouched.
       if (!Number.isFinite(preparedLayers?.get(stage.layer)) ||
@@ -467,7 +473,7 @@
         if (inputContext?.frameSamplerChangedLayers) inputContext.frameSamplerChangedLayers.add(layer);
         else restoreLayerAtContextFrame(layer, currentFrame);
       }
-      if (!wasEvaluatingOwner) state.evaluatingLayers.delete(stage.layer);
+      if (!wasEvaluatingOwner && evaluateOwner) state.evaluatingLayers.delete(stage.layer);
       if (previousClearColor) {
         renderer.setClearColor(
           previousClearColor,
@@ -756,7 +762,9 @@
       outputFrame - finiteNumber(stage.clip.start, 0),
     );
     const currentProjectFrame = finiteNumber(stage.clip.start, 0) + lastLayerFrame;
-    const controlFrame = isAdjustmentLayer(stage.layer)
+    const controlFrame = math.temporalMode(effect) === "legacy"
+      ? finiteNumber(effect._zoidiumFrameSamplerFrame, getAdjustmentEffectFrame(stage.layer, effect, lastLayerFrame))
+      : isAdjustmentLayer(stage.layer)
       ? getFrameSamplerControlFrame(stage, lastLayerFrame, context?.frameSamplerScope)
       : finiteNumber(effect._zoidiumFrameSamplerFrame, lastLayerFrame);
     let request;
@@ -890,7 +898,7 @@
     // preview key from matching across one without reading every plugin state.
     const settings = [compositor.__zoidiumRenderSettings,
       [compositor.renderer?.shadowMap?.type, compositor.renderer?.shadowMap?.enabled], pluginStateEpoch,
-      frameSamplerReuseDisabled()];
+      frameSamplerReuseDisabled(), math.temporalMode(stage?.effect), math.temporalMode(scope?.effect)];
     if (scoped) {
       const serialized = JSON.stringify(["layer-prefix", compositor.readBuffer.width, compositor.readBuffer.height,
         scoped, sequence.videoTracks[stage.trackIndex].enabled, assets, settings]);

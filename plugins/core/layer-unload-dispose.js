@@ -51,4 +51,53 @@
   }
   wrapUnload(PZ.object3d && PZ.object3d.shape, threeObj, disposeGeometry);
   wrapUnload(PZ.object3d && PZ.object3d.text, threeObj, disposeGeometry);
+
+  // CM3's Displacement Map unload() disposes its input texture uniform
+  // whenever a map image is set, but that uniform stays null until the
+  // effect first renders. Unloading a never-rendered effect (a deleted clip,
+  // a reload, the idle preview prefetch graph) threw and skipped releasing
+  // its shaders. Let the original run with a no-op stand-in for that null.
+  var NO_TEXTURE = { dispose: function () {} };
+  function guardDisplacementUnload(effect) {
+    var unload = effect.unload;
+    if (typeof unload !== "function" || unload.__zoidiumGuarded) return;
+    effect.unload = function () {
+      var input = this.pass && this.pass.uniforms && this.pass.uniforms.tDiffuse;
+      var missing = Boolean(this.texture && input && input.value == null);
+      if (missing) input.value = NO_TEXTURE;
+      try {
+        return unload.apply(this, arguments);
+      } finally {
+        if (missing && input.value === NO_TEXTURE) input.value = null;
+      }
+    };
+    effect.unload.__zoidiumGuarded = true;
+  }
+
+  // CM3 caches each effect's source as a Promise of a constructor body in
+  // PZ.effect.fnList and calls it on the new effect before load().
+  function guardedEffectSource(source) {
+    if (!source || typeof source.then !== "function" || source.__zoidiumGuarded) return source;
+    var guarded = source.then(function (body) {
+      return function () {
+        var result = body.apply(this, arguments);
+        guardDisplacementUnload(this);
+        return result;
+      };
+    });
+    guarded.__zoidiumGuarded = true;
+    return guarded;
+  }
+
+  var fnList = PZ.effect && PZ.effect.fnList;
+  var installed = fnList && Object.getOwnPropertyDescriptor(fnList, "displacementmap");
+  if (fnList && !(installed && installed.get)) {
+    var displacementSource = guardedEffectSource(fnList.displacementmap);
+    Object.defineProperty(fnList, "displacementmap", {
+      configurable: true,
+      enumerable: true,
+      get: function () { return displacementSource; },
+      set: function (value) { displacementSource = guardedEffectSource(value); },
+    });
+  }
 })(window);

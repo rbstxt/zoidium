@@ -253,6 +253,59 @@ function temporal(kind, value) {
     ...(kind === "posterize-time" ? { fps: value } : { offsetFrames: value }) }) } };
 }
 
+test("legacy taps match 430a52c^ in ordinary and adjustment stacks, prepared and synchronous", async () => {
+  const fixture = require("./fixtures/legacy-temporal-outputs.json");
+  for (const sample of fixture.outputs) {
+    const make = () => {
+      const h = host(sample.adjustment);
+      h.effect.zoidiumTemporalMode = "legacy";
+      h.owner.effects = [...sample.operators.map(([kind, value]) => temporal(kind, value)), h.effect];
+      h.effect._zoidiumFrameSampler.getRequest = () => ({ count: 4, offsetFrames: -3 });
+      return h;
+    };
+    const h = make();
+    await h.state.prepareFrameSamples(h.effect, sample.localFrame, {});
+    const samples = h.state.frameSamplerRuntimes.get(h.root).prepared.get(h.effect).samples;
+    assert.deepEqual(h.decoded, sample.decoded);
+    assert.deepEqual(Array.from(samples, s => s.frame), sample.frames);
+    assert.deepEqual(Array.from(samples, s => s.target.value), sample.values);
+    h.root.unload();
+    const s = make(), update = s.source.update;
+    s.source.update = function (frame) { update.call(this, frame); this.texture.frame = this.frame; };
+    s.owner.update(sample.localFrame);
+    s.state.contexts.push({ compositor: s.root, rootCompositor: s.root, outputFrame: s.ownerClip.start + sample.localFrame });
+    const sync = s.state.resolveFrameSamples(s.effect);
+    s.state.contexts.pop();
+    assert.deepEqual(Array.from(sync, tap => tap.frame), sample.syncFrames);
+    assert.deepEqual(Array.from(sync, tap => tap.target.value), sample.syncValues);
+    assert.equal(s.state.evaluatingLayers.has(s.owner), false);
+    s.root.unload();
+  }
+});
+
+test("sampler input revisions include the effective mode even when its own serialization is cut", async () => {
+  for (const scoped of [false, true]) {
+    const h = scoped ? scopedHost() : host(false);
+    h.owner.effects[0] = temporal("posterize-time", 12);
+    h.owner.effects[0].type = "posterizetime";
+    const values = [];
+    for (const mode of ["legacy", "current", "legacy"]) {
+      h.effect.zoidiumTemporalMode = mode;
+      await h.state.prepareFrameSamples(h.effect, 32.5, {});
+      const runtime = h.state.frameSamplerRuntimes.get(h.root);
+      const plan = runtime.prepared.get(h.effect);
+      values.push(Array.from(plan.samples, tap => tap.target.value));
+      assert.ok(plan.revision.includes('"' + mode + '"'));
+      h.owner.update(32.5);
+      h.state.contexts.push({ compositor: h.root, rootCompositor: h.root, outputFrame: 42.5 });
+      assert.deepEqual(Array.from(h.state.resolveFrameSamples(h.effect), tap => tap.target.value), values.at(-1));
+      h.state.contexts.pop();
+    }
+    assert.deepEqual(values, [[29.5, 26.5], [27.5, 25], [29.5, 26.5]]);
+    h.root.unload();
+  }
+});
+
 test("a quantizer before a sampler maps every prepared input tap", async () => {
   const h = host(false);
   h.owner.effects[0] = temporal("posterize-time", 12);

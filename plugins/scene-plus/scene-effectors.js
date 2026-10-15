@@ -22,6 +22,7 @@ function createEffectorBaseClass(PZ, THREE) {
   return class EffectorObject extends GroupBase {
     constructor() {
       super();
+      this.zoidiumSubdivisionMode = "current";
       this.threeObj = null;
       if (!this.objects) this.objects = new PZ.objectList(this, PZ.object3d);
       this.objects.name = "Source objects";
@@ -49,6 +50,18 @@ function createEffectorBaseClass(PZ, THREE) {
 
     load(data) {
       const normalized = migrateEffectorData(data);
+      this.zoidiumSubdivisionMode = normalized.zoidiumSubdivisionMode === "legacy" ? "legacy" : "current";
+      if (this.zoidiumSubdivisionMode === "legacy" && this.properties.subdivision) {
+        // Retain the selector's original level too. Other selector values use
+        // current topology; undoing back to this level restores the exact old
+        // count without an untracked mutation of the object's mode or count.
+        const rawLevel = normalized.properties.subdivision;
+        this.zoidiumLegacySubdivisionLevel = integerValue(normalized.zoidiumLegacySubdivisionLevel ?? rawLevel?.value ?? rawLevel, 2, 0, 4);
+        this.properties.addAll({
+          curveQuality: { name: "Curve quality", visible: false, type: PZ.property.type.OPTION, value: 1, items: "Low polygon;Smooth" },
+          polygonCount: { name: "Polygons per triangle", visible: false, type: PZ.property.type.NUMBER, value: 16, min: 1, max: 256 },
+        });
+      }
       this._legacyField = normalized.legacyField;
       this.threeObj = new THREE.Object3D();
       this.threeObj.__zoidiumEffectorOwner = this;
@@ -90,6 +103,10 @@ function createEffectorBaseClass(PZ, THREE) {
         objects: this.objects,
       };
       if (this.customProperties) data.customProperties = this.customProperties;
+      if (this.properties.subdivision) data.zoidiumSubdivisionMode = this.zoidiumSubdivisionMode;
+      if (this.zoidiumSubdivisionMode === "legacy" && this.properties.subdivision) {
+        data.zoidiumLegacySubdivisionLevel = this.zoidiumLegacySubdivisionLevel;
+      }
       return data;
     }
 

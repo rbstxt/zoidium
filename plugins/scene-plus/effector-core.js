@@ -9,6 +9,7 @@ const MAX_SMOOTH_TRIANGLES = 400000;
 const SMOOTH_TRIANGLE_BUDGET_MIN_POLYGONS = 4;
 const TINY = 1e-9;
 const SERIES_LIMIT = 1e-4;
+const legacySubdivision = require("./legacy-subdivision.js");
 // Rotation planes used by a twist about each axis (X, Y, Z).
 const TWIST_PLANES = [
   [1, 2],
@@ -355,7 +356,8 @@ function subdivisionPolygons(value) {
   return 4 ** Math.min(4, Math.max(0, Math.round(Math.log(Math.max(1, finiteOr(value, 1))) / Math.log(4))));
 }
 
-function budgetSubdivision(requested, budget) {
+function budgetSubdivision(requested, budget, legacy = false) {
+  if (legacy) return legacySubdivision.budgetSubdivision(requested, budget);
   let count = subdivisionPolygons(requested);
   while (count > budget && count > 1) count /= 4;
   return count;
@@ -420,8 +422,8 @@ function materialIndexAt(groups, offset) {
 // linearly interpolated attributes. Nonlinear deformers can only bend the
 // vertices they receive, so refinement is what makes Smooth curves look smooth.
 // The result is a new non-indexed stage; the input stage is not modified.
-function subdivideStage(stage, polygonCount) {
-  const template = getSubdivisionTemplate(polygonCount);
+function subdivideStage(stage, polygonCount, legacy = false) {
+  const template = legacy ? legacySubdivision.getSubdivisionTemplate(polygonCount) : getSubdivisionTemplate(polygonCount);
   const index = stage.index;
   const sourceIndexCount = index ? index.length : stage.count;
   const triangleCount = Math.floor(sourceIndexCount / 3);

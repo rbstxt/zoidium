@@ -1,0 +1,100 @@
+# Saved rendering compatibility
+
+Zoidium is an external extension layer around CM3. It assigns rendering modes
+before the host loads a saved project. Any saved object without an explicit
+mode loads as `legacy`, regardless of the plugin versions recorded in the file.
+Explicit `legacy` and `current` fields always win. New objects use `current`
+and serialize that choice. There are no new UI controls.
+
+| Behavior | Serialized field | Owner |
+| --- | --- | --- |
+| PBR+ UV layout | `zoidiumUvMode` | Each PBR+ material |
+| Text+ scale composition | `zoidiumTextScaleMode` | Each native Text object, type 1 |
+| Effector subdivision | `zoidiumSubdivisionMode` | Each Twist or Warp object, including old numeric types 7 and 8 |
+| Temporal prefix quantizers | `zoidiumTemporalMode` | Each frame sampling effect: Echo, Time Displacement, CC Wide Time and Time Difference |
+| Shadow quality | `zoidiumShadowMode` | Each native 3D Scene layer, type 4 |
+
+`zoidium/project-compatibility.js` annotates unmarked saved records before
+plugin dependency detection and host deserialization. It also visits embedded
+compositions and disabled plugin payloads. The migration does not mutate its
+input or copy unchanged asset data. Serializers retain explicit modes through
+save/open, copy/paste, duplicate and undo/redo. Resaving with a newer plugin
+version cannot change an object's rendering mode.
+
+## PBR+ UV layout
+
+Legacy PBR+ retains CM3's native WorldUVGenerator coordinates, as before
+`09b7c04`. It restores those coordinates if another material previously applied
+the shared Material+ layout. Current PBR+ uses `plugins/material-plus/uv-layout.js`.
+New PBR+ and other UV-reading Material+ materials use the shared layout.
+
+## Text+ scale composition
+
+Legacy Text keeps native scale above the character hierarchy and uses the
+character transform order from `a9007ee^`. Current Text uses the corrected
+composition for character rotation with nonuniform, negative or zero scale.
+
+The mode belongs to native Text because all ancestor Text+ controllers act on
+one character hierarchy. Controllers with different scale orders could not
+share it consistently. Every unmarked saved Text gets legacy mode, including
+Text currently outside a Text+ controller. Newly added Text is current even
+under an old controller. Serialization works while Text+ is disabled.
+
+## Effector subdivision
+
+Legacy Twist/Warp retains hidden `curveQuality` and `polygonCount` values and
+serializes `zoidiumLegacySubdivisionLevel`, the original selector level. At
+that level it uses the exact arbitrary triangle count and topology from
+`be6ea2b^`, including the original two-triangle minimum. Other values in the
+existing selector use current uniform subdivision. Returning to the original
+level, including through undo, restores the original count. Editing a property
+does not rewrite the mode or original count. Worker and synchronous cache keys
+include the effective mode.
+
+## Temporal prefix quantizers
+
+Legacy samplers use the tap mapping from `430a52c^`. Each tap requests its raw
+input time without replaying preceding Posterize Time quantizers. Adjustment
+samplers also keep the original control clock and adjustment scope. Current
+samplers replay ordered prefix quantizers at each sampled time and bound the
+adjustment scope. At project rate 30, a requested tap at frame 1 after a 5 fps
+Posterize Time prefix stays at frame 1 in legacy mode and maps to frame 0 in
+current mode.
+
+Each sampling effect owns its decision because it requests and combines its
+own input taps. Prefix operators remain shared, and old and new samplers can
+coexist in a stack. `defineFrameSampler()` installs mode persistence around
+each effect's lifecycle, preserving custom serializers such as Time
+Displacement's layer input. Temporal input revisions include the sampler's
+mode and any enclosing sampler's mode, even when the cache key omits the
+sampling effect itself. Finished frame keys include the serialized modes.
+
+## Shadow quality
+
+Legacy scenes select CM3's original Three r91 depth path from before `17e05e6`.
+Their meshes receive no Zoidium default `customDepthMaterial`, so Three chooses
+its native depth material and unmodified RGBA packing. Current scenes use the
+shared depth material with polygon offset and the packed depth correction
+from `71bd922`. Explicit mesh depth materials retain precedence in both modes.
+Point light distance materials remain unchanged.
+
+The native 3D Scene layer owns the mode because its meshes contribute to the
+same light depth passes. The default depth accessor resolves the owner through
+the live Three scene ancestry. Generated meshes and reparented meshes follow
+their scene automatically. Each scene can retain its own mode in a composite
+or project. Scene serialization carries the mode into temporal input and
+finished frame cache keys.
+
+## Regression evidence
+
+`test/fixtures/legacy-render-outputs.json` pins numerical outputs from
+`09b7c04^`, `a9007ee^` and `be6ea2b^`.
+`test/fixtures/legacy-temporal-outputs.json` pins requested frames, decoded
+frames and captured values from the actual `430a52c^` implementation for
+ordinary and adjustment stacks. These fixtures contain no CM3 runtime code
+or assets.
+
+The compatibility, legacy render, temporal sampler, plugin API, shadow quality
+and output frame tests cover migration without version checks, explicit
+choices, new objects, round trips, duplication, history reloads, mode-aware
+cache keys and historical output comparisons.

@@ -347,7 +347,7 @@
       typeof stage.layer?.toJSON !== "function" || typeof stage.clip?.toJSON !== "function") return null;
     const source = stage.layer.toJSON();
     if (![0, 3, 4].includes(source?.type) ||
-      Object.keys(source).some(key => !["type", "properties", "effects", "objects"].includes(key)) ||
+      Object.keys(source).some(key => !["type", "properties", "effects", "objects", "zoidiumShadowMode"].includes(key)) ||
       // Only the effects before the sampler render its input.
       !Array.from(stage.layer.effects).slice(0, stage.effectIndex)
         .every(effect => localSamplerEffects.has(effect?.type)) ||

@@ -289,10 +289,14 @@
       }
     }
     var danglingAssets = checkAssetReferences(document, mode);
-    var metadata = null;
-    if (archive.peekFile("zoidium.json")) {
-      metadata = await readJsonEntry(archive, "zoidium.json", mode, "The Zoidium metadata");
-    }
+    // zoidium.json only holds the display name and integrity records. Older
+    // builds could save it empty; such files must still open, unchecked.
+    var metadata = archive.peekFile("zoidium.json") ? await readJsonEntry(archive, "zoidium.json", mode, "The Zoidium metadata")
+      .then(function (value) { return isPlainObject(value) ? value : null; }, function (error) {
+        if (mode === "save" || !isProjectDataError(error)) throw error;
+        if (global.console) global.console.warn("[Zoidium] Ignored unreadable project metadata: " + error.message);
+        return null;
+      }) : null;
     await archiveIO.checkAssets(archive, document, metadata, mode);
     return { legacy: false, mediaCount: document.media.length, danglingAssets: danglingAssets };
   }
@@ -725,14 +729,13 @@
   async function backupBeforeReplace(editor, reason) {
     var expected = { project: editor.project, revision: getProjectRevision(editor), name: getProjectName(editor) };
     var panel = global.__zoidiumRestoreParts && global.__zoidiumRestoreParts.panel;
-    if (!panel || typeof panel.createSnapshot !== "function") {
-      throw new Error("Restore-point storage is not ready. The current project was kept.");
-    }
     try {
+      if (!panel || typeof panel.createSnapshot !== "function") throw new Error("restore-point storage is not ready");
       await panel.createSnapshot(false, false);
     } catch (error) {
-      // A full storage quota or a project too large for restore points must
-      // not lock the user into the current project. Ask instead.
+      // A full storage quota, a project too large for restore points or a
+      // Restore panel that failed to load must not lock the user into the
+      // current project. Ask instead.
       if (!global.ZoidiumUI || typeof global.ZoidiumUI.confirm !== "function") throw error;
       var proceed = await global.ZoidiumUI.confirm({
         title: "Backup failed",
@@ -801,7 +804,9 @@
       if (!object || typeof object !== "object" || visited.has(object)) return;
       visited.add(object);
       if (object.loading && typeof object.loading.then === "function") {
-        await wait(object.loading, (object.defaultName || object.baseTypeString || "Project object") + " loading");
+        // CM3 opened projects with one failed object (its own rejection is
+        // reported there); only a decision to stop waiting aborts the open.
+        await wait(object.loading.catch(function () {}), (object.defaultName || object.baseTypeString || "Project object") + " loading");
       }
       var children = Array.isArray(object) ? object : object.children;
       if (children) {

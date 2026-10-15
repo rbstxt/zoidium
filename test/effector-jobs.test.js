@@ -187,7 +187,7 @@ test("topology cache evicts by byte budget and does not keep oversized stages", 
 });
 
 test("bundled Blob worker source executes in an actual worker without source-tree fetches", async () => {
-  const sources = Object.fromEntries(["earcut", "effector-core", "effector-fracture", "effector-mesh", "effector-evaluate"].map(name =>
+  const sources = Object.fromEntries(["earcut", "legacy-subdivision", "effector-core", "effector-fracture", "effector-mesh", "effector-evaluate"].map(name =>
     [name + ".js", fs.readFileSync(path.join(__dirname, "../plugins/scene-plus", name + ".js"), "utf8")]));
   const source = createWorkerSource(sources);
   const worker = new Worker(`const {parentPort}=require("node:worker_threads");global.postMessage=(data,transfer)=>parentPort.postMessage(data,transfer);parentPort.on("message",data=>global.onmessage({data}));` + source, { eval: true });
@@ -198,5 +198,23 @@ test("bundled Blob worker source executes in an actual worker without source-tre
     const result = await done;
     assert.equal(result.error, undefined);
     assert.deepEqual(result.value.positions, evaluateMesh(input).positions);
+    // Reuse the same worker and source identity across both modes. A topology
+    // cached for one mode must never supply the other mode's vertices.
+    const fixtures = require("./fixtures/legacy-render-outputs.json");
+    const old = fixtures.subdivision.base;
+    const base = { ...old, positions: new Float32Array(old.positions), index: new Uint16Array(old.index),
+      attributes: Object.fromEntries(Object.entries(old.attributes).map(([key, attribute]) =>
+        [key, { ...attribute, array: new Float32Array(attribute.array) }])) };
+    for (const legacySubdivision of [true, false, true]) {
+      const nextInput = { base, sourceId: 2, polygonCount: 7, legacySubdivision, commands: [] };
+      const done = new Promise((resolve, reject) => { worker.once("message", resolve); worker.once("error", reject); });
+      worker.postMessage({ id: 2, input: nextInput });
+      const next = await done;
+      assert.equal(next.error, undefined);
+      assert.deepEqual(next.value.positions, evaluateMesh(nextInput).positions);
+      assert.deepEqual(next.value.attributes.uv.array, evaluateMesh(nextInput).attributes.uv.array);
+      assert.equal(next.value.count / 3, legacySubdivision ? 14 : 8);
+      if (legacySubdivision) assert.deepEqual(Array.from(next.value.positions), fixtures.subdivision.seven.positions);
+    }
   } finally { await worker.terminate(); }
 });

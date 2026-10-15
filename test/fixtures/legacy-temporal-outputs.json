@@ -1,0 +1,269 @@
+{
+  "source": "430a52c^",
+  "outputs": [
+    {
+      "adjustment": false,
+      "operators": [
+        [
+          "posterize-time",
+          12
+        ]
+      ],
+      "localFrame": 32.5,
+      "decoded": [
+        29.5,
+        26.5,
+        23.5,
+        20.5
+      ],
+      "frames": [
+        39.5,
+        36.5,
+        33.5,
+        30.5
+      ],
+      "values": [
+        29.5,
+        26.5,
+        23.5,
+        20.5
+      ],
+      "syncFrames": [
+        39.5,
+        36.5,
+        33.5,
+        30.5
+      ],
+      "syncValues": [
+        29.5,
+        26.5,
+        23.5,
+        20.5
+      ]
+    },
+    {
+      "adjustment": false,
+      "operators": [
+        [
+          "time-offset",
+          5
+        ],
+        [
+          "posterize-time",
+          12
+        ]
+      ],
+      "localFrame": 32.5,
+      "decoded": [
+        29.5,
+        26.5,
+        23.5,
+        20.5
+      ],
+      "frames": [
+        39.5,
+        36.5,
+        33.5,
+        30.5
+      ],
+      "values": [
+        29.5,
+        26.5,
+        23.5,
+        20.5
+      ],
+      "syncFrames": [
+        39.5,
+        36.5,
+        33.5,
+        30.5
+      ],
+      "syncValues": [
+        29.5,
+        26.5,
+        23.5,
+        20.5
+      ]
+    },
+    {
+      "adjustment": false,
+      "operators": [
+        [
+          "posterize-time",
+          12
+        ],
+        [
+          "time-offset",
+          3
+        ],
+        [
+          "posterize-time",
+          7
+        ]
+      ],
+      "localFrame": 32.5,
+      "decoded": [
+        29.5,
+        26.5,
+        23.5,
+        20.5
+      ],
+      "frames": [
+        39.5,
+        36.5,
+        33.5,
+        30.5
+      ],
+      "values": [
+        29.5,
+        26.5,
+        23.5,
+        20.5
+      ],
+      "syncFrames": [
+        39.5,
+        36.5,
+        33.5,
+        30.5
+      ],
+      "syncValues": [
+        29.5,
+        26.5,
+        23.5,
+        20.5
+      ]
+    },
+    {
+      "adjustment": true,
+      "operators": [
+        [
+          "posterize-time",
+          12
+        ]
+      ],
+      "localFrame": 32.5,
+      "decoded": [
+        24.5,
+        21.5,
+        18.5,
+        15.500000000000002
+      ],
+      "frames": [
+        34.5,
+        31.5,
+        28.5,
+        25.5
+      ],
+      "values": [
+        24.5,
+        21.5,
+        18.5,
+        15.500000000000002
+      ],
+      "syncFrames": [
+        34.5,
+        31.5,
+        28.5,
+        25.5
+      ],
+      "syncValues": [
+        22.5,
+        20,
+        17.5,
+        15
+      ]
+    },
+    {
+      "adjustment": true,
+      "operators": [
+        [
+          "time-offset",
+          5
+        ],
+        [
+          "posterize-time",
+          12
+        ]
+      ],
+      "localFrame": 32.5,
+      "decoded": [
+        24.5,
+        21.5,
+        18.5,
+        15.500000000000002
+      ],
+      "frames": [
+        34.5,
+        31.5,
+        28.5,
+        25.5
+      ],
+      "values": [
+        24.5,
+        21.5,
+        18.5,
+        15.500000000000002
+      ],
+      "syncFrames": [
+        34.5,
+        31.5,
+        28.5,
+        25.5
+      ],
+      "syncValues": [
+        27.5,
+        25,
+        22.5,
+        20
+      ]
+    },
+    {
+      "adjustment": true,
+      "operators": [
+        [
+          "posterize-time",
+          12
+        ],
+        [
+          "time-offset",
+          3
+        ],
+        [
+          "posterize-time",
+          7
+        ]
+      ],
+      "localFrame": 32.5,
+      "decoded": [
+        24.5,
+        21.5,
+        18.5,
+        15.500000000000002
+      ],
+      "frames": [
+        34.5,
+        31.5,
+        28.5,
+        25.5
+      ],
+      "values": [
+        24.5,
+        21.5,
+        18.5,
+        15.500000000000002
+      ],
+      "syncFrames": [
+        34.5,
+        31.5,
+        28.5,
+        25.5
+      ],
+      "syncValues": [
+        24.285714285714285,
+        20,
+        20,
+        15.714285714285712
+      ]
+    }
+  ]
+}

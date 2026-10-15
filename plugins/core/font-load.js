@@ -106,10 +106,21 @@ module.exports = {
       }
       if (!data || typeof data.familyName !== "string" || !data.glyphs ||
           typeof data.glyphs !== "object" || Array.isArray(data.glyphs) ||
-          !Number.isFinite(data.resolution) || data.resolution <= 0 ||
-          !data.boundingBox || !Number.isFinite(data.boundingBox.yMin) ||
-          !Number.isFinite(data.boundingBox.yMax) || !Number.isFinite(data.underlineThickness)) {
+          !Number.isFinite(data.resolution) || data.resolution <= 0) {
         throw new Error("The font has no usable glyph table or metrics");
+      }
+      // Glyphs only need the table and resolution. Line spacing reads the
+      // bounds and underline thickness, which older typeface JSON files may
+      // omit; CM3 rendered those fonts, so default the metrics instead.
+      const bounds = data.boundingBox || {};
+      if (!Number.isFinite(bounds.yMin) || !Number.isFinite(bounds.yMax) || !Number.isFinite(data.underlineThickness)) {
+        data = Object.assign({}, data, {
+          boundingBox: Object.assign({}, bounds, {
+            yMin: Number.isFinite(bounds.yMin) ? bounds.yMin : 0,
+            yMax: Number.isFinite(bounds.yMax) ? bounds.yMax : data.resolution,
+          }),
+          underlineThickness: Number.isFinite(data.underlineThickness) ? data.underlineThickness : 0,
+        });
       }
       return { font: new THREE.Font(data), family: data.familyName.toLowerCase() };
     }

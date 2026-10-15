@@ -126,6 +126,16 @@ test("valid JSON uses the native Three Font representation", async () => {
   assert.equal(f.notifications.length, 0);
 });
 
+test("older typeface JSON without line metrics still loads with defaults", async () => {
+  const f = fixture();
+  const { boundingBox: _bounds, underlineThickness: _thickness, ...older } = f.metrics;
+  const font = new f.Font(f.asset({ bytes: JSON.stringify(older) }));
+  const data = (await font.get3DFont()).data;
+  assert.equal(data.underlineThickness, 0);
+  assert.deepEqual(JSON.parse(JSON.stringify(data.boundingBox)), { yMin: 0, yMax: 1000 });
+  assert.equal(f.notifications.length, 0);
+});
+
 test("a delayed valid read stays pending and silent until it finishes", async () => {
   const f = fixture(), file = { delayed: true }, font = new f.Font(f.asset(file));
   const operation = font.get3DFont(); let settled = false; operation.then(() => { settled = true; });

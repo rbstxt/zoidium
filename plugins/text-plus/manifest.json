@@ -3,7 +3,7 @@
   "id": "text-plus",
   "name": "Text+",
   "author": "Zoidium",
-  "version": "23",
+  "version": "24",
   "kind": "object",
   "description": "Adds per-character controls and advanced bevel options to editable 3D Text.",
   "objectClassParent": {
@@ -152,33 +152,38 @@
     {
       "id": "text-plus-utils",
       "type": "text",
-      "source": "./plugins/text-plus/text-plus-utils.js?v=23"
+      "source": "./plugins/text-plus/text-plus-utils.js?v=24"
     },
     {
       "id": "text-plus-properties",
       "type": "text",
-      "source": "./plugins/text-plus/text-plus-properties.js?v=23"
+      "source": "./plugins/text-plus/text-plus-properties.js?v=24"
     },
     {
       "id": "text-plus-controls",
       "type": "text",
-      "source": "./plugins/text-plus/text-plus-controls.js?v=23"
+      "source": "./plugins/text-plus/text-plus-controls.js?v=24"
     },
     {
       "id": "text-plus-diagnostics",
       "type": "text",
-      "source": "./plugins/text-plus/text-plus-diagnostics.js?v=23"
+      "source": "./plugins/text-plus/text-plus-diagnostics.js?v=24"
     },
     {
       "id": "text-plus-geometry",
       "type": "text",
-      "source": "./plugins/text-plus/text-plus-geometry.js?v=23"
+      "source": "./plugins/text-plus/text-plus-geometry.js?v=24"
+    },
+    {
+      "id": "legacy-text-scale",
+      "type": "text",
+      "source": "./plugins/text-plus/legacy-text-scale.js?v=24"
     }
   ],
   "modules": [
     {
       "id": "text-plus-runtime",
-      "source": "./plugins/text-plus/text-plus.js?v=23"
+      "source": "./plugins/text-plus/text-plus.js?v=24"
     }
   ]
 }

@@ -353,3 +353,68 @@ test("automatic saves still fail at the deadline instead of asking", async () =>
   await assert.rejects(h.projectFiles.createArchive(editor, {}), /did not finish within 10 seconds/);
   assert.equal(prompts, 0);
 });
+
+// Builds a gzip'd TAR from raw [name, data, type] records, like other writers.
+async function rawTar(records, { endMarker = true } = {}) {
+  const chunks = [];
+  for (const [name, data, type = "0"] of records) {
+    const bytes = new TextEncoder().encode(data);
+    const header = new Uint8Array(512);
+    header.set(new TextEncoder().encode(name.slice(0, 99)), 0);
+    header.set(new TextEncoder().encode("0000644\0"), 100);
+    header.set(new TextEncoder().encode(bytes.length.toString(8).padStart(11, "0") + "\0"), 124);
+    header.fill(32, 148, 156);
+    header[156] = type.charCodeAt(0);
+    header.set(new TextEncoder().encode("ustar\0" + "00"), 257);
+    const sum = header.reduce((total, value) => total + value, 0);
+    header.set(new TextEncoder().encode(sum.toString(8).padStart(6, "0") + "\0 "), 148);
+    chunks.push(header, bytes, new Uint8Array((512 - bytes.length % 512) % 512));
+  }
+  if (endMarker) chunks.push(new Uint8Array(1024));
+  return new Response(new Blob(chunks).stream().pipeThrough(new CompressionStream("gzip"))).blob();
+}
+
+test("archives from other TAR writers open: ./ names, PAX and GNU long names, no end marker", async () => {
+  const { h } = setup();
+  const meta = JSON.stringify({ version: "1.0.102" });
+  const project = JSON.stringify({ assets: {}, media: [], sequence: {} });
+  // A PAX record is "<length> path=<name>\n"; the length counts itself.
+  const pax = (path) => { const body = " path=" + path + "\n"; return (body.length + 2) + body; };
+  const variants = [
+    [["./", "", "5"], ["./meta", meta], ["./project", project]],
+    [["PaxHeader", pax("meta"), "x"], ["ignored-short-name", meta], ["././@LongLink", "project\0", "L"], ["ignored", project], ["pax_global_header", "9 a=b\n", "g"]],
+  ];
+  for (const records of variants) {
+    for (const endMarker of [true, false]) {
+      const archive = await h.projectFiles.openValidatedArchive(await rawTar(records, { endMarker }), "open");
+      assert.deepEqual(archive.files.map((entry) => entry.name).sort(), ["meta", "project"]);
+    }
+  }
+  await assert.rejects(h.projectFiles.openValidatedArchive(await rawTar([["link", "meta", "2"]]), "open"), { name: "ProjectDataError" });
+});
+
+test("deeply nested compositions are not refused by a nesting limit", async () => {
+  const { h, io } = setup();
+  const sequence = {};
+  let nested = sequence;
+  for (let level = 0; level < 400; level += 1) {
+    nested.children = [{}];
+    nested = nested.children[0];
+  }
+  const a = new h.PZ.archive();
+  addProjectEntries(a, { assets: {}, sequence, media: [] });
+  await h.projectFiles.openValidatedArchive(await io.encode(a), "open");
+});
+
+test("an unavailable Restore panel asks before replacing the project instead of refusing to open", async () => {
+  for (const proceed of [true, false]) {
+    const h = createHarness();
+    const prompts = [];
+    h.windowObject.__zoidiumRestoreParts = null;
+    h.windowObject.ZoidiumUI = { async confirm(options) { prompts.push(options); return proceed; } };
+    const backup = h.projectFiles.backupBeforeReplace(h.makeEditor(), "opening another project");
+    if (proceed) await backup;
+    else await assert.rejects(backup, /restore-point storage is not ready/);
+    assert.equal(prompts[0].confirmLabel, "Continue without backup");
+  }
+});

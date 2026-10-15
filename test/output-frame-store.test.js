@@ -87,6 +87,23 @@ for (const [name, edit] of Object.entries(edits)) test("full output revision obs
   const s = scene(), before = s.key(); edit(s); assert.notEqual(s.key(), before);
 });
 
+test("finished frame revisions distinguish shadow and temporal modes and undo", () => {
+  const s = scene(), layer = s.sequence.videoTracks[0].clips[0].object;
+  layer.zoidiumShadowMode = "current";
+  layer.effects = [{ type: "echo", zoidiumTemporalMode: "current" }];
+  const current = s.key();
+  layer.zoidiumShadowMode = "legacy";
+  const oldShadow = s.key();
+  assert.notEqual(oldShadow, current);
+  layer.effects[0].zoidiumTemporalMode = "legacy";
+  const legacy = s.key();
+  assert.notEqual(legacy, oldShadow);
+  layer.effects[0].zoidiumTemporalMode = "current";
+  assert.equal(s.key(), oldShadow);
+  layer.zoidiumShadowMode = "current";
+  assert.equal(s.key(), current);
+});
+
 test("undo/redo serializations return to exactly their former content key", () => {
   const s = scene(), before = s.key();
   edits["property panel"](s); const edited = s.key();

@@ -236,6 +236,14 @@
     }
     effect.properties.addAll(spec.properties, effect);
     installLifecycleDefaults(effect, spec.lifecycle);
+    var load = effect.load, toJSON = effect.toJSON;
+    effect.load = function loadFrameSampler(data) {
+      effect.zoidiumTemporalMode = data?.zoidiumTemporalMode === "legacy" ? "legacy" : "current";
+      return load.apply(effect, arguments);
+    };
+    effect.toJSON = function serializeFrameSampler() {
+      return { ...toJSON.apply(effect, arguments), zoidiumTemporalMode: effect.zoidiumTemporalMode || "current" };
+    };
     var update = effect.update;
     effect.update = function updateFrameSampler(frame) {
       var value = Number(frame);

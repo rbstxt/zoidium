@@ -10,6 +10,7 @@ const {
 } = require("./scene-clone.js");
 const state = require("./scene-state.js");
 const { installFieldEdit } = require("./scene-field-edit.js");
+const legacySubdivision = require("./legacy-subdivision.js");
 
 function getMeshDeformer(THREE) {
   if (!state.meshDeformerCache || state.meshDeformerThree !== THREE) {
@@ -21,15 +22,27 @@ function getMeshDeformer(THREE) {
 
 // Use the highest uniform subdivision level requested by active deformers.
 function curvePolygonCount(effectors, frame) {
+  return curveSubdivision(effectors, frame).polygonCount;
+}
+
+function curveSubdivision(effectors, frame) {
   let polygonCount = 1;
+  let legacy = false;
   for (const effector of effectors) {
     const p = effector.properties;
     const intensity = p.angle || p.amount;
     if (intensity && !numberPropertyValue(intensity, frame, 0)) continue;
-    if (p.subdivision) polygonCount = Math.max(polygonCount, 4 ** state.library.core.clampIndex(optionPropertyValue(p.subdivision, frame, 2), 4));
-    else if (p.curveQuality && optionPropertyValue(p.curveQuality, frame, 1)) polygonCount = Math.max(polygonCount, state.library.core.subdivisionPolygons(numberPropertyValue(p.polygonCount, frame, 16)));
+    const isLegacy = effector.zoidiumSubdivisionMode === "legacy" &&
+      (effector.zoidiumLegacySubdivisionLevel === undefined ||
+        optionPropertyValue(p.subdivision, frame, 2) === effector.zoidiumLegacySubdivisionLevel);
+    let requested = 1;
+    if (isLegacy) requested = legacySubdivision.curvePolygonCount([effector], frame, { numberPropertyValue, optionPropertyValue });
+    else if (p.subdivision) requested = 4 ** state.library.core.clampIndex(optionPropertyValue(p.subdivision, frame, 2), 4);
+    else if (p.curveQuality && optionPropertyValue(p.curveQuality, frame, 1)) requested = state.library.core.subdivisionPolygons(numberPropertyValue(p.polygonCount, frame, 16));
+    if (requested > polygonCount) { polygonCount = requested; legacy = isLegacy; }
+    else if (requested === polygonCount && isLegacy) legacy = true;
   }
-  return polygonCount;
+  return { polygonCount, legacy };
 }
 
 // CM3 constructs BoxHelper at selection time. Field guides use that same
@@ -166,11 +179,11 @@ function createDeformationSupport(PZ, THREE) {
   let preparingMeshes = null;
   let tasks = null;
   function deformMeshesUnder(root, chain, frame) {
-    const polygonCount = curvePolygonCount(chain.map((entry) => entry.effector), frame);
+    const { polygonCount, legacy } = curveSubdivision(chain.map((entry) => entry.effector), frame);
     traverseDeformMeshes(root, (mesh) => {
       preparingMeshes?.add(mesh);
-      if (tasks) tasks.push({ mesh, chain, frame, polygonCount });
-      else meshDeformer.deformMesh(mesh, chain, frame, polygonCount);
+      if (tasks) tasks.push({ mesh, chain, frame, polygonCount, legacy });
+      else meshDeformer.deformMesh(mesh, chain, frame, polygonCount, legacy);
     });
   }
 
@@ -267,7 +280,7 @@ function createDeformationSupport(PZ, THREE) {
       for (const task of tasks) {
         const chain = task.chain.map(entry => ({ ...entry, bounds: bounds.get(entry.node) }));
         for (const entry of chain) { entry.effector._fieldBounds = entry.bounds; entry.effector._effectorFrame = task.frame; }
-        meshDeformer.deformMesh(task.mesh, chain, task.frame, task.polygonCount);
+        meshDeformer.deformMesh(task.mesh, chain, task.frame, task.polygonCount, task.legacy);
       }
     } finally { tasks = null; }
   }

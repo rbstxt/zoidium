@@ -159,48 +159,54 @@
     return out;
   }
 
+  // A numeric placeholder layer is the clip's authored object (clip.object,
+  // also in clip.children); track.layer only mirrors the current clip. The
+  // placeholder set is used instead of CM.project so a project that is still
+  // being opened, and every clip rather than only the current one, is covered.
   async function restoreMissingNumericLayers(pluginId) {
-    const globals = typeof globalThis !== "undefined" ? globalThis : {};
-    const projects = eachKnownProject([globals.CM, globals.ZOIDIUM_EDITOR, globals.VE]);
-    for (const project of projects) {
-      const sequences = [];
-      if (project.sequence) sequences.push(project.sequence);
-      for (const sequence of sequences) {
-        for (const trackKind of ["videoTracks", "audioTracks"]) {
-          const tracks = sequence[trackKind];
-          if (!Array.isArray(tracks)) continue;
-          for (const track of tracks) {
-            const layer = track && track.layer;
-            const meta = layer && layer._zoidiumMissingNumeric;
-            if (!meta || meta.kind !== "layer" || (pluginId && meta.pluginId !== pluginId)) continue;
-            let data = null;
-            try {
-              data = layer.toJSON();
-            } catch (_error) {
+    for (const layer of Array.from(missingNumericLayers)) {
+      const meta = layer && layer._zoidiumMissingNumeric;
+      if (!meta || meta.kind !== "layer" || (pluginId && meta.pluginId !== pluginId)) continue;
+      // CM3's clip.load() starts the placeholder's load; wait for its data.
+      try { await layer.loading; } catch (_error) { /* the placeholder keeps what it read */ }
+      if (!missingNumericLayers.has(layer)) continue;
+      let data = null;
+      try {
+        data = layer.toJSON();
+      } catch (_error) {
         manager.reportFailureOnce("serialize restored layer:" + meta.pluginId + ":" + meta.type, "serialize restored layer", _error);
-              data = { type: meta.type };
-            }
-            try {
-              if (typeof layer.unload === "function") layer.unload();
-            } catch (_error) {
+        data = { type: meta.type };
+      }
+      let replacement = null;
+      try {
+        replacement = PZ.layer.create(meta.type);
+      } catch (error) {
+        manager.reportFailureOnce("could not restore numeric layer of type " + meta.type, "could not restore numeric layer of type " + meta.type, error);
+        continue;
+      }
+      if (!replacement || replacement._zoidiumMissingNumericPlaceholder) {
+        missingNumericLayers.delete(replacement);
+        continue;
+      }
+      missingNumericLayers.delete(layer);
+      try {
+        if (typeof layer.unload === "function") layer.unload();
+      } catch (_error) {
         manager.reportFailureOnce("unload missing layer:" + meta.pluginId + ":" + meta.type, "unload missing layer", _error); /* best effort */ }
-            missingNumericLayers.delete(layer);
-            let replacement = null;
-            try {
-              replacement = PZ.layer.create(meta.type);
-            } catch (error) {
-              manager.reportFailureOnce("could not restore numeric layer of type " + meta.type, "could not restore numeric layer of type " + meta.type, error);
-              missingNumericLayers.add(layer);
-              continue;
-            }
-            track.layer = replacement;
-            try {
-              await replacement.load(data);
-            } catch (error) {
-              manager.reportFailureOnce("could not load restored numeric layer of type " + meta.type, "could not load restored numeric layer of type " + meta.type, error);
-            }
-          }
-        }
+      const clip = layer.parent;
+      replacement.parent = clip || null;
+      if (clip) {
+        if (clip.object === layer) clip.object = replacement;
+        const index = Array.isArray(clip.children) ? clip.children.indexOf(layer) : -1;
+        if (index >= 0) clip.children.splice(index, 1, replacement);
+        const track = clip.parent && clip.parent.parent;
+        if (track && track.layer === layer) track.layer = replacement;
+      }
+      replacement.loading = replacement.load(data);
+      try {
+        await replacement.loading;
+      } catch (error) {
+        manager.reportFailureOnce("could not load restored numeric layer of type " + meta.type, "could not load restored numeric layer of type " + meta.type, error);
       }
     }
   }

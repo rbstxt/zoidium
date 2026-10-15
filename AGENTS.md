@@ -156,6 +156,7 @@ load the layout from the bundle (`context.getAsset("text", ...)`), call
 `ensureMaterial(material)` from `update()` and `releaseMaterial(material)` from
 `unload()`. Materials that never read UVs, such as Matcap, are exempt. Leave
 CM3's native materials unchanged.
+Old saved PBR+ materials may retain native UVs through their serialized legacy compatibility mode; newly added materials always use the shared layout.
 
 ## File size
 

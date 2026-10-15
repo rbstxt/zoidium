@@ -114,7 +114,7 @@ function loadLibraryFromAssets(getAsset) {
   const fracture = bundleRequire("./effector-fracture.js");
   const mesh = bundleRequire("./effector-mesh.js");
   const jobs = bundleRequire("./effector-jobs.js");
-  const names = ["earcut.js", "effector-core.js", "effector-fracture.js", "effector-mesh.js", "effector-evaluate.js"];
+  const names = ["earcut.js", "legacy-subdivision.js", "effector-core.js", "effector-fracture.js", "effector-mesh.js", "effector-evaluate.js"];
   const sources = {};
   for (const name of names) {
     sources[name] = getAsset("text", SCENE_ROOT + name);
