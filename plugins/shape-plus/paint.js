@@ -76,3 +76,38 @@ function colorAt(stops, t) {
   return x.map((c, k) => c + (y[k] - c) * f);
 }
 module.exports = { stops, gradient, colorAt };
+
+// Pure sampling oracle for the planar paint contract. Returns premultiplied
+// encoded-sRGB RGBA, the same values written by the generic paint shader.
+function colorAtPoint(paint, point) {
+  const m = paint.matrix,
+    determinant = m[0] * m[3] - m[1] * m[2];
+  if (Math.abs(determinant) < 1e-12)
+    throw Error("Shape+ gradient transform is singular");
+  const x = point[0] - m[4],
+    y = point[1] - m[5];
+  const local = [
+    (m[3] * x - m[2] * y) / determinant,
+    (-m[1] * x + m[0] * y) / determinant,
+  ];
+  const axis = paint.end.map((v, i) => v - paint.start[i]);
+  const radius = Math.max(1e-6, Math.hypot(...axis));
+  let t =
+    local.reduce((sum, v, i) => sum + (v - paint.start[i]) * axis[i], 0) /
+    Math.max(1e-6, radius * radius);
+  if (paint.type === "radial") {
+    const angle = Math.atan2(axis[1], axis[0]) + paint.highlightAngle;
+    const h = clamp(paint.highlightLength / 100, -0.99, 0.99);
+    const highlight = [h * Math.cos(angle), h * Math.sin(angle)];
+    const d = local.map((v, i) => (v - paint.start[i]) / radius - highlight[i]);
+    const a = d[0] * d[0] + d[1] * d[1],
+      b = highlight[0] * d[0] + highlight[1] * d[1];
+    t =
+      a > 1e-8
+        ? a /
+          Math.max(1e-6, -b + Math.sqrt(Math.max(0, b * b + a * (1 - h * h))))
+        : 0;
+  }
+  return colorAt(paint.stops, t);
+}
+module.exports.colorAtPoint = colorAtPoint;

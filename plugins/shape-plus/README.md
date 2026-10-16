@@ -301,7 +301,10 @@ multiplies this width by `max(0, 1 + amount/100 * sin(2*pi*(cycles*s/L +
 phase/360)))`. Units chooses Cycles over that contour or Wavelength in pixels.
 Phase is degrees. Closed contours use their authored first vertex as origin;
 noninteger cycles and unequal taper endpoint widths can deliberately make a
-width seam. Dashes retain the original contour's profile coordinates.
+width seam. Dashes retain the original contour's profile coordinates. Width sampling uses at
+least 128 intervals over the full contour and 32 intervals per wave cycle,
+plus existing flattened path vertices. This is a bounded sampled profile;
+subpixel width error is not promised for extreme stroke widths.
 
 `gradientFill` and `gradientStroke` are planar linear/radial paints. Start/End
 points, opacity and radial Highlight Length/Angle are ordinary numeric

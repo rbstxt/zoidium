@@ -91,6 +91,7 @@ function trim(paths, p) {
       pieces[0] = {
         ...pieces[0],
         points: [...pieces[0].points, ...pieces[1].points.slice(1)],
+        vertices: [...pieces[0].vertices, ...pieces[1].vertices.slice(1)],
       };
       pieces.pop();
     }
@@ -186,7 +187,7 @@ function widthAt(s, total, p) {
   const cycles =
     p.waveUnits === "length"
       ? total / Math.max(0.01, p.wavelength || 100)
-      : p.waveCycles || 1;
+      : (p.waveCycles ?? 1);
   width *= Math.max(
     0,
     1 +
