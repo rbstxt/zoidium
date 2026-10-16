@@ -38,6 +38,7 @@
 
     installProjectPluginHooks();
     installEditorPluginHooks();
+    PZ.zoidium.define("requestPlugin", (...args) => manager.requestPlugin(...args), "plugin-manager");
     PZ.zoidium.define("getDebugPlugins", getDebugPlugins, "plugin-manager");
     PZ.zoidium.define("getDebugProjectUsage", getDebugProjectUsage, "plugin-manager");
     installObject3DUsageTracker();
