@@ -472,16 +472,23 @@ including `assets`, `data`, and `baseType`. Presets are marked `preset: true`, s
 CM3 excludes them from saved project media. The returned disposer removes the
 preset and its project-load hook when no registrations remain.
 
-`layers.registerType({ id, type, legacyType, factory })` adds a layer factory
-and claims a legacy numeric layer ID in `PZ.zoidium.legacyLayerTypes`. IDs below
-9 are reserved for CM3. Conflicting claims fail activation; disposal releases
-the claim and restores the previous factory only while still owned. Use a
-namespaced type for new layer formats. Camera+ retains the established numeric
-layer type 9 because the manager's existing missing-layer adapter and project
-requirement scanner recognize it. Its camera objects save their stable
-`zoidium:camera-plus/camera` type. A project using this layer locks Camera+
-against disabling; opening it without the plugin uses the manager's retained
-missing-layer placeholder and dependency prompt.
+`layers.registerType({ id, type, factory, name?, plugin?, legacyType? })`
+registers a namespaced layer factory. `legacyType` is optional and only for
+historical numeric formats. IDs below 9 are reserved; Camera+ keeps type 9.
+Factories and legacy claims are removed independently on disposal. Namespaced
+layers track plugin usage when loaded and release it on unload. `plugin` may
+supply the owning plugin's display metadata.
+
+`layers.registerPicker({ type, name, description?, ... })` appends one entry to
+the native Add Layer picker. Its disposer removes that exact entry only.
+Register a Media preset separately. Native Shape types 6/7/8 remain unchanged.
+
+Unknown namespaced layers use a nonrendering placeholder. It clones and retains
+the entire loaded JSON payload, including unknown nested fields and property
+channels, and returns it without host normalization on save. JSON formatting
+outside the parsed layer record is not retained. Dependency scanning recognizes
+the namespace and offers the owning plugin. Enabling that plugin restores every
+attached placeholder on its owning clip, including inactive clips.
 
 ## Assets
 

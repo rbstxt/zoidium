@@ -1,0 +1,76 @@
+"use strict";
+const { definitions, titles } = require("./properties.js");
+const clone = value => JSON.parse(JSON.stringify(value));
+function validate(contents, depth = 0, state = { count: 0, ids: new Set() }) {
+  if (!Array.isArray(contents) || depth > 16) throw Error("Invalid Shape+ contents depth");
+  for (const item of contents) {
+    if (++state.count > 512 || !item || !titles[item.kind] || typeof item.id !== "string" || state.ids.has(item.id)) throw Error("Invalid Shape+ contents item or duplicate id");
+    state.ids.add(item.id);
+    if (item.kind === "path" && (!Array.isArray(item.vertexIds) || item.vertexIds.length < 1 || item.vertexIds.length > 256 || new Set(item.vertexIds).size !== item.vertexIds.length || !item.vertexIds.every(id => typeof id === "string" && id.length > 0 && id.length <= 128))) throw Error("Invalid Shape+ path topology");
+    if (item.kind === "group") validate(item.contents, depth + 1, state);
+  }
+  return contents;
+}
+function createModel(PZ) {
+  let sequence = 0;
+  const ownedIds = new Set();
+  function nextId() { let id; do { id = "s" + (++sequence).toString(36); } while (ownedIds.has(id)); ownedIds.add(id); return id; }
+  class Content extends PZ.object {
+    constructor(kind = "rectangle", data) {
+      super();
+      this.kind = kind; this.type = kind; this.id = data?.id || nextId(); ownedIds.add(this.id);
+      this.vertexIds = data?.vertexIds?.slice() || ["v1", "v2", "v3", "v4"];
+      this.vertexModes = clone(data?.vertexModes || {});
+      this.properties = new PZ.propertyList(definitions(PZ, kind, this.vertexIds), this);
+      this.children = [this.properties];
+      if (kind === "group") { this.contents = new PZ.objectList(this, Content); this.contents.name = "Contents"; this.children.push(this.contents); }
+      this.extra = {};
+    }
+    load(data) {
+      data = clone(data || {});
+      if (data.id) {
+        let root = this;
+        for (let current = this; current; current = current.parent ? current.parentObject : null) if (current.contents) root = current;
+        const collision = nodes => Array.from(nodes || []).some(node => node !== this && (node.id === data.id || collision(node.contents)));
+        this.id = collision(root.contents) ? nextId() : data.id;
+        ownedIds.add(this.id);
+      }
+      if (this.kind === "path" && data.vertexIds && JSON.stringify(data.vertexIds) !== JSON.stringify(this.vertexIds)) {
+        this.vertexIds = data.vertexIds.slice();
+        this.properties = new PZ.propertyList(definitions(PZ, this.kind, this.vertexIds), this);
+        this.children[0] = this.properties;
+      }
+      this.vertexModes = clone(data.vertexModes || this.vertexModes);
+      this.extra = data;
+      this.properties.load(data.properties);
+      if (this.contents) {
+        for (const child of this.contents) child.unload();
+        this.contents.splice(0, this.contents.length);
+        for (const item of data.contents || []) { const child = new Content(item.kind, item); this.contents.push(child); child.load(item); }
+      }
+    }
+    toJSON() {
+      const result = { ...this.extra, id: this.id, kind: this.kind, properties: { ...this.extra.properties, ...clone(this.properties) } };
+      if (this.contents) result.contents = this.contents;
+      if (this.kind === "path") Object.assign(result, { vertexIds: this.vertexIds, vertexModes: this.vertexModes });
+      return result;
+    }
+    evaluate(frame) {
+      const properties = {};
+      for (const key of Object.keys(this.properties)) {
+        const value = this.properties[key].get(frame);
+        if (typeof value === "number" && !Number.isFinite(value) || Array.isArray(value) && !value.every(Number.isFinite)) throw Error("Shape+ property must be finite");
+        properties[key] = Array.isArray(value) ? value.slice() : value;
+      }
+      return { id: this.id, kind: this.kind, vertexIds: this.vertexIds.slice(), properties, ...(this.contents ? { contents: Array.from(this.contents, child => child.evaluate(frame)) } : {}) };
+    }
+    unload() { for (const child of this.contents || []) child.unload(); }
+    static create(kind) { return new Content(kind); }
+  }
+  Content.prototype.defaultName = "Content";
+  return { Content, nextId };
+}
+function defaults() {
+  return [{ id: "shape", kind: "rectangle", properties: {} }, { id: "fill", kind: "fill", properties: {} }];
+}
+module.exports = { clone, validate, createModel, defaults };

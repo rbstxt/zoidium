@@ -409,6 +409,19 @@
       "manifest": "./plugins/layer-input/manifest.json?v=14",
       "bundle": "./plugins/layer-input/bundle.json?v=14",
       "integrity": "sha256-J+zP8fmroJthq8eq6ufRpbXRTIxhSpzFNuAHT3K/shY="
+    },
+    {
+      "id": "shape-plus",
+      "name": "Shape+",
+      "author": "Zoidium",
+      "version": "4",
+      "tagline": "Animated vector layers",
+      "description": "Animated vector layers with ordered contents, cubic paths, fills and strokes.",
+      "category": "scene",
+      "defaultEnabled": false,
+      "manifest": "./plugins/shape-plus/manifest.json?v=4",
+      "bundle": "./plugins/shape-plus/bundle.json?v=4",
+      "integrity": "sha256-lF5L84N77EekAj3SBsZ4Wp7NnFgqXbWqNgnI03FyTpA="
     }
   ]
 }

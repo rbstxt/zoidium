@@ -91,6 +91,7 @@
     [OPTICAL_FLARES_PLUGIN_ID, { name: "Optical Flares", author: "Zoidium" }],
     [EFFECTOR_PLUS_PLUGIN_ID, { name: "Effector+", author: "Zoidium" }],
     [CAMERA_PLUS_PLUGIN_ID, { name: "Camera+", author: "Zoidium" }],
+    ["shape-plus", { name: "Shape+", author: "Zoidium" }],
   ]);
   const DEFAULT_PLUGIN_COLORS = Object.freeze({
     "easing-plus": "#384668",
