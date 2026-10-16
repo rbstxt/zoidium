@@ -714,17 +714,57 @@
     };
   }
 
+  var layerTypes = new Map();
+  var restoreLayerFactory = null;
   function registerLayerType(spec) {
     var PZ = global.PZ;
+    var parsed = typeof spec.type === "string" && /^zoidium:([a-z0-9-]+)\/([a-z0-9-]+)$/.exec(spec.type);
+    if (!spec.id || typeof spec.factory !== "function" || (!parsed && spec.type !== spec.legacyType)) throw new Error("Invalid layer registration");
+    if (layerTypes.has(spec.type)) throw new Error("Layer type collision: " + spec.type);
     PZ.zoidium = PZ.zoidium || {};
     var claims = PZ.zoidium.legacyLayerTypes || (PZ.zoidium.legacyLayerTypes = new Map());
-    if (!Number.isInteger(spec.legacyType) || spec.legacyType < 9 || claims.has(spec.legacyType)) throw new Error("Legacy layer type collision: " + spec.legacyType);
-    claims.set(spec.legacyType, spec.id);
-    var undo = ownedPatch(PZ.layer, "create", function (original) { return function (type) {
-      if (type === spec.legacyType || type === spec.type) { var layer = spec.factory(); layer.type = spec.type; return layer; }
-      return original.apply(this, arguments);
+    var legacy = spec.legacyType !== undefined;
+    if (legacy && (!Number.isInteger(spec.legacyType) || spec.legacyType < 9 || claims.has(spec.legacyType))) throw new Error("Legacy layer type collision: " + spec.legacyType);
+    if (!parsed && !legacy) throw new Error("New layers require a namespaced type");
+    if (legacy) claims.set(spec.legacyType, spec.id);
+    layerTypes.set(spec.type, spec);
+    if (!restoreLayerFactory) restoreLayerFactory = ownedPatch(PZ.layer, "create", function (original) { return function (type) {
+      var found = layerTypes.get(type);
+      if (!found) layerTypes.forEach(function (entry) { if (entry.legacyType !== undefined && entry.legacyType === type) found = entry; });
+      if (!found) return original.apply(this, arguments);
+      var layer = found.factory();
+      layer.type = found.type;
+      var match = typeof found.type === "string" && /^zoidium:([^/]+)\/(.+)$/.exec(found.type);
+      if (match) {
+        var metadata = Object.assign({ id: match[1], name: match[1], feature: match[2], featureName: found.name || match[2] }, found.plugin);
+        var load = layer.load, unload = layer.unload;
+        layer.load = function () {
+          if (PZ.zoidium.trackPluginResource) PZ.zoidium.trackPluginResource(this, metadata);
+          return load.apply(this, arguments);
+        };
+        layer.unload = function () {
+          if (PZ.zoidium.untrackPluginResource) PZ.zoidium.untrackPluginResource(this);
+          return unload.apply(this, arguments);
+        };
+      }
+      return layer;
     }; });
-    return function () { undo(); if (claims.get(spec.legacyType) === spec.id) claims.delete(spec.legacyType); };
+    var disposed = false;
+    return function () {
+      if (disposed) return;
+      disposed = true;
+      layerTypes.delete(spec.type);
+      if (legacy && claims.get(spec.legacyType) === spec.id) claims.delete(spec.legacyType);
+      if (!layerTypes.size && restoreLayerFactory) { restoreLayerFactory(); restoreLayerFactory = null; }
+    };
+  }
+
+  function registerLayerPicker(spec) {
+    var list = global.PZ.ui.objectTypes.get(global.PZ.layer);
+    if (!Array.isArray(list) || !spec || !spec.type || !spec.name) throw new Error("Invalid layer picker entry");
+    var entry = Object.assign({}, spec);
+    list.push(entry);
+    return function () { var index = list.indexOf(entry); if (index >= 0) list.splice(index, 1); };
   }
 
   // CommonJS-style loader for the source files of one plugin bundle, so a
@@ -810,7 +850,7 @@
     modules: { createRequire: createRequire },
     timeline: { registerTrackButton: registerTrackButton, registerTrackField: registerTrackField, refreshTrackButtons: refreshTrackButtons },
     media: { registerPreset: registerMediaPreset },
-    layers: { registerType: registerLayerType },
+    layers: { registerType: registerLayerType, registerPicker: registerLayerPicker },
     defineTemporal: defineTemporal,
     defineFrameSampler: defineFrameSampler,
     defineFilter: defineFilter,
