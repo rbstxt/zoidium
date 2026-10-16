@@ -98,7 +98,14 @@ function install(context,Layer) {
     return result;
   }
   proto.generateItemCommands=replacement;
-  const cleanup=()=>{for(const layer of retained){layer.unload();layer.parent=null;}retained.clear();};
+  const cleanup=()=>{
+    // Native assetRemoved records into an open operation even when old-project
+    // resources are released. Cleanup owns a discarded operation, never undo.
+    const history=editor.history,owned=history.operation===null;
+    if(owned)history.startOperation();
+    try{for(const layer of retained){layer.unload();layer.parent=null;}retained.clear();}
+    finally{if(owned)history.discardOperation();}
+  };
   editor.onProjectChanged.watch(cleanup);
   context.lifecycle.onDispose(()=>{if(proto.generateItemCommands===replacement)proto.generateItemCommands=original;editor.onProjectChanged.unwatch(cleanup);cleanup();});
   return {convert};

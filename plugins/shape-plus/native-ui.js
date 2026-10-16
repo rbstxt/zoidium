@@ -94,7 +94,7 @@ function install(PZ, Layer, Content, onDispose) {
   // Keep the native channel tracks alive for history/Graph+, but show only
   // the Path aggregate in the timeline. Edit still exposes every channel.
   const style = document.createElement("style");
-  style.textContent = ".shape-plus-path-channel{display:none!important}";
+  style.textContent = ".shape-plus-path-channel,.shape-plus-native-hidden{display:none!important}";
   document.head.appendChild(style); onDispose(() => style.remove());
   patch(PZ.ui.timeline.keyframes.prototype, "createKeyframeTrack", original => function (container, object) {
     const track = original.apply(this, arguments);

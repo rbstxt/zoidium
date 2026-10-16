@@ -44,6 +44,7 @@ function decorate(panel, row, item) {
     label.append(button, text); header.append(label, document.createElement("div"));
     const children = document.createElement("ul");
     children.pz_object = p;
+    children.pz_controls = list.pz_controls;
     panel.propertyListEls.push(children);
     list.insertBefore(header, first); header.after(children);
     for (const key of entries) for (const element of rows.get(key)) if (element) children.append(element);
@@ -57,8 +58,7 @@ function decorate(panel, row, item) {
     for (const [key, elements] of rows) for (const element of elements) if (element) {
       const hidden = !visible(key, p);
       // Preserve the native collapsed state of vector/channel child lists.
-      if (element === elements[0]) element.hidden = hidden;
-      else element.hidden = hidden;
+      element.classList.toggle("shape-plus-native-hidden",hidden);
     }
   }
   const watched = ["dashPairs", "waveUnits", "gradientType", "mode", "join"].map(key => p[key]).filter(Boolean);
