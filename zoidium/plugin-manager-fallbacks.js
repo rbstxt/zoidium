@@ -48,6 +48,7 @@
     layer.load = async function (data) {
       try {
         this._zoidiumMissingNumeric.data = ZoidiumPluginApis.props.cloneJson(data);
+        if (manager.trackPluginResource) manager.trackPluginResource(this, { id: pluginId, name: pluginId, feature: layerId, featureName: layerId }, true);
       } catch (_error) {
         manager.reportFailureOnce("decode missing layer:" + pluginId + ":" + type, "decode missing layer", _error);
         this._zoidiumMissingNumeric.data = { type };
@@ -63,7 +64,10 @@
     };
     layer.update = function () {};
     layer.prepare = async function () {};
-    layer.unload = function () {};
+    layer.unload = function () {
+      missingNumericLayers.delete(this);
+      if (manager.untrackPluginResource) manager.untrackPluginResource(this);
+    };
     layer._zoidiumMissingNumericPlaceholder = true;
     missingNumericLayers.add(layer);
     return layer;
@@ -95,9 +99,13 @@
         !PZ.layer.create.__zoidiumNumericFallback) {
       const originalLayerCreate = PZ.layer.create;
       const patchedLayer = function (type) {
+        const namespaced = typeof type === "string" && /^zoidium:([a-z0-9-]+)\/(.+)$/.exec(type);
         try {
-          return originalLayerCreate.call(this, type);
+          const layer = originalLayerCreate.call(this, type);
+          if (namespaced && layer.type !== type) return createMissingNumericLayer(type, namespaced[1], namespaced[2]);
+          return layer;
         } catch (error) {
+          if (namespaced) return createMissingNumericLayer(type, namespaced[1], namespaced[2]);
           if (typeof type === "number" && NUMERIC_LAYER_TYPES.has(type)) {
             const entry = NUMERIC_LAYER_TYPES.get(type);
             return createMissingNumericLayer(type, entry.pluginId, entry.layerId);
