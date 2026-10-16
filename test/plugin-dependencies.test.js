@@ -31,6 +31,7 @@ function loadDependencyHelpers() {
     ]),
     NATIVE_FX_PLUGIN_ID: "native-fx",
     NATIVE_EFFECT_PLUGINS: new Map([
+      ["future-layer-map", "native-fx"],
       ["radialblurspin", "native-fx"],
       ["colorcurves", "native-fx"],
       ["echo", "native-fx"],
@@ -381,4 +382,10 @@ test("Time Displacement track maps require Layer Input but self and image maps d
   }
   const liveSource = { definition: { _zoidiumLayerSource: true }, value: "track:id:track-2" };
   assert.deepEqual(pluginById({ type: "future-native-effect", properties: { source: liveSource } }, "layer-input").features, ["layer-source"]);
+});
+
+
+test("registered native-fx consumers retain their track-source dependency after definitions are serialized away", () => {
+  const plugin = pluginById({ type: "future-layer-map", properties: { source: "track:id:second" } }, "layer-input");
+  assert.deepEqual(plugin.features, ["layer-source"]);
 });

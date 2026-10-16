@@ -167,13 +167,17 @@ test("Time Displacement reverts its action sentinel on decline and approval", as
     await effect.load();
     effect.properties.source.set("image");
     let requests = 0;
+    let registrations = 0;
     let finish;
     f.PZ.zoidium.requestPlugin = async (id, reason) => {
       assert.equal(id, "layer-input");
       assert.match(reason, /another layer/);
       requests += 1;
       await new Promise((resolve) => { finish = resolve; });
-      if (approved) f.PZ.layerInput = { getSourceOptions: () => [{ value: "track:id:second" }] };
+      if (approved) f.PZ.layerInput = {
+        getSourceOptions: () => [{ value: "track:id:second" }],
+        registerConsumer: (consumer) => { assert.equal(consumer, effect); registrations += 1; },
+      };
       return approved;
     };
     effect.properties.source.set("other-layer");
@@ -185,6 +189,7 @@ test("Time Displacement reverts its action sentinel on decline and approval", as
     assert.equal(effect._zoidiumSourceRequest, false);
     assert.equal(effect.properties.source.get(), "image");
     assert.equal(Boolean(f.PZ.layerInput), approved);
+    assert.equal(registrations, approved ? 1 : 0);
   }
 });
 

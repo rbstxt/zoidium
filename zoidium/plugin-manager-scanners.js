@@ -120,6 +120,7 @@
     // Definitions are present on live properties, while serialized native
     // effects retain only their stable type and property values.
     const nativeLayerSource = value.type === "timedisplacement" ||
+      NATIVE_EFFECT_PLUGINS.get(value.type) === NATIVE_FX_PLUGIN_ID ||
       value._zoidiumLayerSource === true || value.definition?._zoidiumLayerSource === true;
     const sourceValues = nativeLayerSource
       ? serializedPropertyValues(value.properties?.source ?? value.value)
