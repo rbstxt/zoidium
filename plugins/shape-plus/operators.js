@@ -130,8 +130,14 @@ function dash(paths, style) {
       if (++visits > MAX_FRAGMENTS * 8)
         throw Error("Shape+ dash fragment budget exceeded");
       const end = Math.min(total, cursor + pattern[index] - phase);
-      if (index % 2 === 0 && end > cursor + 1e-9)
-        pieces.push(slice(path, cursor, end));
+      if (index % 2 === 0 && end > cursor + 1e-9) {
+        const piece = slice(path, cursor, end),
+          previous = pieces.at(-1);
+        if (previous && Math.abs(previous.distances.at(-1) - cursor) < 1e-9) {
+          previous.points.push(...piece.points.slice(1));
+          previous.distances.push(...piece.distances.slice(1));
+        } else pieces.push(piece);
+      }
       cursor = end;
       phase = 0;
       index = (index + 1) % pattern.length;

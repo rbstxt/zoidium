@@ -242,9 +242,21 @@ function procedural(contents, tolerance, depth, budget, api) {
     ];
   }
   const result = scope(contents, tolerance, depth);
-  return {
-    paths: result.views.flatMap(viewPaths),
-    commands: result.commands.flatMap(render),
-  };
+  const paths = result.views.flatMap(viewPaths),
+    commands = result.commands.flatMap(render);
+  function finite(list) {
+    for (const command of list) {
+      if (command.kind === "isolation") finite(command.commands);
+      else if (
+        !command.positions.every(Number.isFinite) ||
+        (command.gradient && !command.gradient.matrix.every(Number.isFinite))
+      )
+        throw Error("Shape+ geometry must be finite");
+    }
+  }
+  finite(commands);
+  if (paths.some((path) => !path.points.flat().every(Number.isFinite)))
+    throw Error("Shape+ geometry must be finite");
+  return { paths, commands };
 }
 module.exports = { procedural, multiply, inverse, repeaterCopies };

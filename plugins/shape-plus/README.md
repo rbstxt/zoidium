@@ -194,8 +194,10 @@ Meshes use r91 `BufferGeometry.addAttribute`, explicit `renderOrder`, disabled
 depth testing/writes, and premultiplied RGBA throughout. Evaluated contents,
 logical resolution and tolerance form the geometry cache key. Geometry changes retire and dispose the old buffers while retaining paint
 materials and render targets. Paint-only edits update uniforms. Structural
-changes retire and dispose the old mesh/material/target tree. Nothing accumulates across
-frames. Rendering different target resolutions can replace that cache without
+changes retire and dispose the old mesh/target tree. One warm material per shader
+variant stays alive until layer disposal, keeping Three from recompiling when
+structural animation changes the command tree. This pool has at most three
+materials, independent of frame count. Rendering different target resolutions can replace that cache without
 changing a later frame's result.
 
 WebGL1 targets do not receive canvas MSAA. Shape+ renders at 4x per dimension
@@ -354,7 +356,7 @@ the existing layer window. This bubbling listener leaves prevented native
 handlers, clip trim handles and other clip types alone.
 
 Additional budgets are 128 copies per repeater, 2048 live path instances,
-2048 dash fragments, 4096 sampled points per width-profile fragment, 4096
+2048 dash fragments, 4096 sampled points per width-profile fragment, 16384 total width samples, 4096
 expanded command visits, and 16 gradient stops. Existing total path, triangle,
 arrangement and render-target budgets still apply. The editor caches one
 composition-sized preview, capped at 16 million pixels, and disposes its

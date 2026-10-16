@@ -52,3 +52,17 @@ test("animation retains paint programs and render targets while retiring changed
   engine.dispose();
   assert.ok(h.resources.every(r => r.disposals === 1));
 });
+
+test("structural animation keeps a warm paint material instead of retiring the last shader program", () => {
+  const h = host(), engine = createRenderer(h.THREE);
+  engine.setCommands([paint], [640, 360]);
+  const material = engine.scene.children[0].material;
+  engine.setCommands([{ ...paint, id: "copy0" }, { ...paint, id: "copy1" }], [640, 360]);
+  assert.equal(engine.scene.children[0].material, material);
+  assert.equal(material.disposals, 0);
+  engine.setCommands([], [640, 360]);
+  engine.setCommands([paint], [640, 360]);
+  assert.equal(engine.scene.children[0].material, material);
+  engine.dispose();
+  assert.ok(h.resources.every(resource => resource.disposals === 1));
+});
