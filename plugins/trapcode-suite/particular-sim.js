@@ -148,6 +148,7 @@ var PZ = PZ || {};
 
         return {
             seed: Math.floor(num(E.randomSeed, 0)),
+            spin: T.particularSpin.sample(system, sec, table.fps),
             flow: flow,
             count: count,
             emitRate: burst > 0 && perSec <= 0 ? Math.max(count, 1) : Math.max(perSec, 1),
@@ -219,6 +220,7 @@ var PZ = PZ || {};
             this.maxIndex = Math.ceil(SIM.MAX_TIME / this.h) + 1;
             this.mult = system.secondaryCountMultiplier();
             this.rows = [];
+            this.emitterAngles = [];
             this.cum = [0];
             this.lifeMax = [];
             this.cycles = null;
@@ -231,6 +233,9 @@ var PZ = PZ || {};
 
         append(row) {
             var len = this.rows.length;
+            var previous = this.rows[len - 1];
+            this.emitterAngles.push(len && this.n0 + len > 0
+                ? this.emitterAngles[len - 1] + ((previous.spin?.speed || 0) + (row.spin?.speed || 0)) * 0.5 * this.h : 0);
             this.rows.push(row);
             this.cum.push(this.cum[len] + row.flow * this.h);
             this.lifeMax.push(len ? Math.max(this.lifeMax[len - 1], row.lifeBound) : row.lifeBound);
@@ -254,6 +259,13 @@ var PZ = PZ || {};
 
         rowAtTime(sec) {
             return this.rows[this.index(sec)];
+        }
+
+        emitterRotationAt(sec) {
+            if (sec <= 0) return 0;
+            var index = this.index(sec);
+            return this.emitterAngles[index] + (this.rows[index].spin?.speed || 0) *
+                Math.max(0, sec - (this.n0 + index) * this.h);
         }
 
         lifeBoundAt(sec) {
@@ -401,6 +413,22 @@ var PZ = PZ || {};
         vx += (simHash(seed, key, 11) - 0.5) * spread;
         vy += (simHash(seed, key, 12) - 0.5) * spread;
         vz += (simHash(seed, key, 13) - 0.5) * spread;
+        if (row.spin) {
+            var angle = T.particularSpin.emitterAngle(row.spin, seed, key, table.emitterRotationAt(ev.birth));
+            if (angle !== 0) {
+                var offset = T.particularSpin.rotateXY(ox, oy, angle);
+                ox = offset[0]; oy = offset[1];
+                // Parent velocity and emitter translation remain world-space
+                // contributions. Rotate only the local emission velocity.
+                var inheritedX = row.fromParent ? src.vx * row.inherit : 0;
+                var inheritedY = row.fromParent ? src.vy * row.inherit : 0;
+                var motionX = !row.fromParent && row.emitAmt ? motion[0] * row.emitAmt : 0;
+                var motionY = !row.fromParent && row.emitAmt ? motion[1] * row.emitAmt : 0;
+                var velocity = T.particularSpin.rotateXY(vx - inheritedX - motionX, vy - inheritedY - motionY, angle);
+                vx = velocity[0] + inheritedX + motionX;
+                vy = velocity[1] + inheritedY + motionY;
+            }
+        }
         return {
             x: px + ox,
             y: py + oy,
@@ -696,6 +724,8 @@ var PZ = PZ || {};
             phases: new Float32Array(count),
             pids: new Float32Array(count),
         };
+        var spin = T.particularSpin.sample(system, t, table.fps);
+        if (spin) out.spinOffsets = new Float32Array(count * 3);
         for (var i = 0; i < count; i++) {
             var item = alive[i];
             var st = simIntegrate(table, item.ev, item.spawn, t);
@@ -707,6 +737,10 @@ var PZ = PZ || {};
             out.velocities[i * 3 + 2] = st.vz;
             out.phases[i] = clamp((t - item.ev.birth) / item.ev.life, 0, 1);
             out.pids[i] = item.ev.key;
+            if (spin) {
+                var rotation = T.particularSpin.orientation(spin, item.ev.row.seed, item.ev.key, t, [st.x, st.y, st.z]);
+                out.spinOffsets.set(rotation, i * 3);
+            }
         }
         return out;
     }
