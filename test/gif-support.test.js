@@ -308,6 +308,40 @@ test("lifecycle: gif decode populates frames and textures follow seeks", async (
   assert.equal(PZ.compositor.prototype.renderSequence, originalRenderSequence);
 });
 
+test("lifecycle: layer updates skip the walk without GIFs and never read geometry", async () => {
+  const { GifSupport } = loadGifSupport({
+    fetch: async () => ({ ok: true, arrayBuffer: async () => gifArrayBuffer() }),
+  });
+  const { PZ } = makeFakeHost();
+  const disposers = [];
+  await GifSupport.activate({
+    PZ,
+    window: {},
+    document: { createElement: () => makeFakeCanvas() },
+    lifecycle: { onDispose: (fn) => disposers.push(fn) },
+  });
+  let reads = 0;
+  const layer = new PZ.layer();
+  layer.tryGetParentOfType = () => ({ properties: { time: { get: (f) => f / 30 } } });
+  Object.defineProperty(layer, "watched", { enumerable: true, get() { reads += 1; return {}; } });
+  layer.update(60);
+  assert.equal(reads, 0);
+
+  const record = makeAssetRecord("anim.gif", "http://x/anim.gif");
+  const wrapper = new PZ.asset.image(record);
+  wrapper.decodeBrowser();
+  await record.data.loading;
+  const texture = wrapper.getTexture();
+  let lengthReads = 0;
+  layer.geometry = { attribute: { isBufferAttribute: true, get length() { lengthReads += 1; return 0; } } };
+  layer.childWithGif = { nested: wrapper };
+  layer.update(60);
+  assert.ok(reads > 0);
+  assert.equal(lengthReads, 0);
+  assert.equal(texture.image, record.data.gif.frames[1].canvas);
+  for (const fn of disposers) await fn();
+});
+
 test("lifecycle: project-time fallback and texture dispose cleanup", async () => {
   const { GifSupport } = loadGifSupport({
     fetch: async () => ({ ok: true, arrayBuffer: async () => gifArrayBuffer() }),

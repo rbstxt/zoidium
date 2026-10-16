@@ -408,6 +408,40 @@
     }
   }
 
+  // A render loop can log the same warning thousands of times a second (a
+  // deprecated three.js getter, a singular matrix). Repeats of an identical
+  // primitive-only message within ten seconds only bump the first entry's
+  // count instead of being redacted and journaled one by one. Errors keep
+  // record()'s own de-duplication, which also updates the session copy.
+  const CONSOLE_REPEAT_WINDOW_MS = 10000;
+  const recentConsole = new Map();
+  const NOT_REPEATED = { repeated: false, remember() {} };
+
+  function consoleRepeat(level, values, windowId) {
+    if (level === "error") return NOT_REPEATED;
+    let key = level + "\n" + windowId;
+    for (const value of values) {
+      if (value !== null && (typeof value === "object" || typeof value === "function")) return NOT_REPEATED;
+      key += "\n" + String(value);
+    }
+    const now = Date.now();
+    const previous = recentConsole.get(key);
+    if (previous && now - previous.time < CONSOLE_REPEAT_WINDOW_MS) {
+      previous.entry.repetitions = (previous.entry.repetitions || 1) + 1;
+      previous.entry.lastAt = new Date(now).toISOString();
+      scheduleJournalWrite();
+      return { repeated: true, remember() {} };
+    }
+    return {
+      repeated: false,
+      remember(entry) {
+        if (!entry) return;
+        if (recentConsole.size >= 100) recentConsole.delete(recentConsole.keys().next().value);
+        recentConsole.set(key, { time: now, entry });
+      },
+    };
+  }
+
   parts.journal = {
     startedAt: startedAt,
     MAX_PERSISTED_EVENTS: MAX_PERSISTED_EVENTS,
@@ -425,6 +459,7 @@
     diagnosticId: diagnosticId,
     record: record,
     recordException: recordException,
+    consoleRepeat: consoleRepeat,
     scheduleJournalWrite: scheduleJournalWrite,
     flushJournal: flushJournal,
     writeJournal: writeJournal,

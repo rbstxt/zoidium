@@ -2,13 +2,22 @@
    panel: preview and "Used N times" on top, search and view menus, a dense
    sortable table, and a status line. Colors come from the theme tokens. */
 
+/* The table scrolls itself, so the window body neither scrolls nor keeps a
+   scrollbar gutter that would make the right margin wider than the left. */
+.zam-window .zoidium-window-body {
+  overflow: hidden;
+  scrollbar-gutter: auto;
+}
+
 .zam {
   position: relative;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   height: 100%;
   min-height: 0;
   gap: 6px;
+  padding: 6px;
   font-family: var(--zui-font);
   font-size: var(--zui-font-size-small);
   color: var(--zui-text);
@@ -191,6 +200,7 @@
 .zam-search {
   flex: 1 1 auto;
   min-width: 0;
+  appearance: none;
 }
 
 .zam-filter,
@@ -464,6 +474,18 @@
   background: transparent;
   border: 1px solid var(--zui-border-soft);
   cursor: pointer;
+}
+
+/* AE leaves the label column empty for "None"; the box only appears where
+   it can be clicked. */
+.zam-label-none {
+  border-color: transparent;
+}
+
+.zam-row:hover .zam-label-none,
+.zam-row.selected .zam-label-none,
+.zam-label-none:focus-visible {
+  border-color: var(--zui-border-soft);
 }
 
 .zam-menu-swatch {

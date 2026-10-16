@@ -299,6 +299,24 @@ test("repeated global errors retain a count without synchronous writes or UI spa
   assert.ok(loaded.api.getSnapshot().exceptions.some((entry) => entry.message === "Async failure"));
 });
 
+test("a warning repeated every frame is journaled once with a count", () => {
+  const local = new Map();
+  const loaded = loadDebugLog(local, new Map());
+  let writes = 0;
+  loaded.context.localStorage.setItem = (key, value) => { writes += 1; local.set(key, value); };
+  loaded.windowEvents.dispatch("load", {});
+  for (let i = 0; i < 1000; i += 1) loaded.context.console.warn("THREE.Matrix3: .getInverse() can't invert matrix");
+  loaded.context.console.warn("A different warning");
+  loaded.context.console.warn("THREE.Matrix3: .getInverse() can't invert matrix", { detail: 1 });
+  loaded.runTimers();
+  assert.ok(writes <= 2);
+  const events = loaded.api.getSnapshot().events.filter((entry) => entry.type === "console");
+  const repeated = events.filter((entry) => /getInverse/.test(entry.message));
+  assert.equal(repeated.length, 2);
+  assert.equal(repeated[0].repetitions, 1000);
+  assert.ok(events.some((entry) => entry.message === "A different warning"));
+});
+
 test("WebGL diagnostics release their probe and reuse collected information", () => {
   const loaded = loadDebugLog(new Map(), new Map());
   let created = 0;

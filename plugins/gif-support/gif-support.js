@@ -498,6 +498,9 @@ const GifSupport = (() => {
       }
       if (depth >= 16) continue;
       if (ArrayBuffer.isView(value)) continue;
+      // three.js geometry never holds an image wrapper, and reading the
+      // deprecated BufferAttribute.length getter logs a warning per call.
+      if (value.isBufferAttribute || value.isInterleavedBufferAttribute || value.isBufferGeometry || value.isGeometry) continue;
       if (typeof value.length === "number" && typeof value !== "string") {
         // Array or array-like list (PZ.objectList included).
         const length = value.length;
@@ -567,7 +570,17 @@ const GifSupport = (() => {
     return projectMediaTime();
   }
 
+  function hasAnimatedRecords() {
+    for (const record of state.records) {
+      if (record.frames && record.frames.length > 1 && record.total > 0) return true;
+    }
+    return false;
+  }
+
   function seekLayerWrappers(layer, localFrame) {
+    // Without a decoded multi-frame GIF there is nothing to seek; skip the
+    // walk so projects without GIFs pay nothing per layer update.
+    if (!hasAnimatedRecords()) return;
     const mediaTime = layerMediaTime(layer, localFrame);
     if (mediaTime === null || mediaTime === undefined || !isFinite(mediaTime)) return;
     const wrappers = collectImageWrappers(layer);

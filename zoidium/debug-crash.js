@@ -98,14 +98,16 @@
 
   function recordConsole(level, args, context = mainWindowContext) {
     const values = Array.from(args || []);
+    const repeat = journal.consoleRepeat(level, values, context && context.id);
+    if (repeat.repeated) return;
     const error = values.find(isErrorLike);
     const details = error ? errorDetails(error) : {};
-    record("console", {
+    repeat.remember(record("console", {
       level,
       message: redact(values.map(consoleArgument).join(" ")) || `[console.${level}]`,
       ...(details.stack ? { stack: details.stack } : {}),
       ...windowDetails(context),
-    });
+    }));
   }
 
   function installConsoleHook(name, targetWindow = global, context = mainWindowContext) {

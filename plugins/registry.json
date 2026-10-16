@@ -71,16 +71,16 @@
       "category": "utilities",
       "name": "Assets",
       "author": "Zoidium",
-      "version": "5",
+      "version": "6",
       "defaultEnabled": true,
       "itemCount": 1,
       "format": "workflow",
       "tagline": "Project panel for every asset",
       "color": "#6f8f5a",
       "description": "An After Effects style Project panel: every file, font, image, model and composition in the project, where each is used, and which are missing or failed.",
-      "manifest": "./plugins/asset-manager/manifest.json?v=5",
-      "bundle": "./plugins/asset-manager/bundle.json?v=5",
-      "integrity": "sha256-ESum2eG0OZFwnbYl9Ve7UaEa0tzIF+we9OJM9P1QZcY="
+      "manifest": "./plugins/asset-manager/manifest.json?v=6",
+      "bundle": "./plugins/asset-manager/bundle.json?v=6",
+      "integrity": "sha256-tPPguIgbecLIfYHD7ypUK7Ksmq432i4SbCnpiJ8zJA4="
     },
     {
       "id": "precomp-plus",
@@ -103,16 +103,16 @@
       "category": "utilities",
       "name": "Animated GIF",
       "author": "DaviFX",
-      "version": "3",
+      "version": "4",
       "itemCount": 1,
       "format": "animated images",
       "tagline": "Animated GIF image assets",
       "color": "#4f7dbf",
       "description": "Decodes animated GIF image assets and animates them deterministically from clip-local time.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/gif-support/manifest.json?v=3",
-      "bundle": "./plugins/gif-support/bundle.json?v=3",
-      "integrity": "sha256-u/3rFlyAR+HIIxJfB7h3v2uDFcPCETwv3mp/B4Yl8Qo="
+      "manifest": "./plugins/gif-support/manifest.json?v=4",
+      "bundle": "./plugins/gif-support/bundle.json?v=4",
+      "integrity": "sha256-wuZKj2iv+nD/WGDNtIAT2IztIq4CwVUlpsVt4YGYiUQ="
     },
     {
       "id": "graph-plus",
