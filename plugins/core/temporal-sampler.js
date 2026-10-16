@@ -77,12 +77,13 @@
   function withFrameSamplerInputContext(state, stage, frame, context, callback) {
     const parent = state.contexts[state.contexts.length - 1];
     const sequence = getSequenceForLayer(stage.layer);
-    layers.installSingleEvaluation(state, sequence);
+    const singleEvaluation = context?.singleEvaluation ?? parent?.singleEvaluation ?? layers.usesSingleEvaluation(sequence);
+    if (singleEvaluation && !context?.singleEvaluation && !parent?.singleEvaluation) layers.installSingleEvaluation(state, sequence);
     const evaluating = state.evaluatingLayers.has(stage.layer);
     state.evaluatingLayers.add(stage.layer);
     state.contexts.push(Object.assign({}, parent, context, {
       outputFrame: frame,
-      singleEvaluation: layers.usesSingleEvaluation(sequence),
+      singleEvaluation,
       renderingSequence: true,
       frameSamplerScope: ownsFrameSamplerScope(stage, frame)
         ? stage : context?.frameSamplerScope || parent?.frameSamplerScope,
@@ -362,7 +363,10 @@
     try {
       const frame = projectFrame - finiteNumber(clip.start, 0);
       if (state && layers.usesSingleEvaluation(getSequenceForLayer(layer))) {
-        state.originalLayerUpdate.call(layer, state.mapLayerFrame(layer, frame)?.sourceFrame ?? frame);
+        const input = state.mapLayerFrame(layer, frame)?.sourceFrame ?? frame;
+        state.originalLayerUpdate.call(layer, input);
+        layer.__zoidiumTemporalLastUpdateFrame = input;
+        layer.__zoidiumTemporalUpdateRevision = ++state.layerUpdateRevision;
       } else layer.update(frame);
     } catch (_error) {
       // A failed restoration must not stop the main compositor pass.
@@ -405,8 +409,8 @@
     const renderer = root.renderer;
     const parentContext = state.contexts[state.contexts.length - 1];
     const currentFrame = finiteNumber(restoreFrame, parentContext?.outputFrame);
-    const singleEvaluation = parentContext?.singleEvaluation ?? layers.usesSingleEvaluation(sequence);
-    if (singleEvaluation && !parentContext?.singleEvaluation) layers.installSingleEvaluation(state, sequence);
+    const singleEvaluation = inputContext?.singleEvaluation ?? parentContext?.singleEvaluation ?? layers.usesSingleEvaluation(sequence);
+    if (singleEvaluation && !inputContext?.singleEvaluation && !parentContext?.singleEvaluation) layers.installSingleEvaluation(state, sequence);
     const wasEvaluatingOwner = state.evaluatingLayers.has(stage.layer);
     const evaluateOwner = math.temporalMode(stage.effect) !== "legacy" || !isAdjustmentLayer(stage.layer);
     const changedLayers = new Map();
@@ -570,7 +574,7 @@
       const scoped = callback => state
         ? withFrameSamplerInputContext(state, stage, frame, context, callback) : callback();
       scoped(() => {
-        if (restoreOnly && state && layers.usesSingleEvaluation(sequence)) {
+        if (restoreOnly && state && context?.singleEvaluation) {
           const input = layer === stage.layer ? localFrame
             : state.mapLayerFrame(layer, localFrame)?.sourceFrame ?? localFrame;
           state.originalLayerUpdate.call(layer, input);
@@ -607,6 +611,9 @@
     const roots = state.compositorsBySequence.get(sequence);
     if (!stage || !roots?.size) return;
 
+    const singleEvaluation = context?.singleEvaluation ?? layers.usesSingleEvaluation(sequence);
+    if (singleEvaluation && !context?.singleEvaluation) layers.installSingleEvaluation(state, sequence);
+    context = Object.assign({}, context, { singleEvaluation });
     const parentContext = state.contexts[state.contexts.length - 1];
     const depth = finiteNumber(context?.frameSamplerDepth ?? parentContext?.frameSamplerDepth, 0) + 1;
     if (depth > MAX_FRAME_SAMPLER_DEPTH) return;
