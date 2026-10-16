@@ -1,5 +1,5 @@
 "use strict";
-const { flattenPath } = require("./path.js");
+const { flattenPath, verticesToCubics, flatten, lengthTable } = require("./path.js");
 const tau = 2 * Math.PI;
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
 function hash(x, y, seed) {
@@ -52,22 +52,28 @@ function deform(path, kind, p, tolerance = .125) {
   if (kind === "zigZag") {
     const points = [], n = clamp(Math.round(p.ridges ?? 3), 1, 64) * 2 + 1;
     // Ridges are per authored span, rather than per adaptive flatten sample.
-    const source = path.vertices?.map(v => v.point) || path.points;
-    const count = path.closed ? source.length : source.length-1;
-    if (count*n+1 > 4096) throw Error("Shape+ zig zag point budget exceeded");
-    for (let i=0;i<count;i++) {
-      const a=source[i], b=source[(i+1)%source.length], dx=b[0]-a[0], dy=b[1]-a[1], length=Math.hypot(dx,dy);
+    const spans = path.vertices ? verticesToCubics(path.vertices,path.closed).map(c=>flatten(c,tolerance)) : path.points.slice(0,path.closed?undefined:-1).map((a,i)=>[a,path.points[(i+1)%path.points.length]]);
+    if (spans.length*n+1 > 4096) throw Error("Shape+ zig zag point budget exceeded");
+    for (const span of spans) {
+      const table=lengthTable(span),total=table.total;
+      let segment=1;
       for (let j=0;j<n;j++) {
+        const distance=total*j/n;
+        while(segment<span.length-1&&table.lengths[segment]<distance)segment++;
+        const a=span[segment-1],b=span[segment],dx=b[0]-a[0],dy=b[1]-a[1],length=Math.hypot(dx,dy);
+        const t=length?(distance-table.lengths[segment-1])/length:0;
         const d=j===0?0:(j%2?1:-1)*(p.size??10);
-        points.push([a[0]+dx*j/n-(length?dy/length:0)*d, a[1]+dy*j/n+(length?dx/length:0)*d]);
+        points.push([a[0]+dx*t-(length?dy/length:0)*d,a[1]+dy*t+(length?dx/length:0)*d]);
       }
     }
-    if (!path.closed) points.push(source[source.length-1].slice());
+    if (!path.closed) points.push(path.points[path.points.length-1].slice());
     const result={...path,points,vertices:undefined,corners:undefined};
     return p.points === "smooth" ? smooth(result,tolerance) : result;
   }
-  const sampled = resample(path, kind === "wigglePaths" ? 100/clamp(p.detail??5,1,100) : 4);
   const center = p.center || path.points.reduce((a,v)=>a.map((x,k)=>x+v[k]/path.points.length),[0,0]);
+  const radius=Math.max(...path.points.map(v=>Math.hypot(v[0]-center[0],v[1]-center[1]))),k=Math.abs(p.angle||0)/100;
+  const spacing=kind==="wigglePaths"?100/clamp(p.detail??5,1,100):kind==="twist"&&k?Math.min(4,Math.sqrt(8*tolerance/(2*k+radius*k*k))):4;
+  const sampled = resample(path,spacing);
   const n=sampled.points.length;
   const points=sampled.points.map((point,i)=>{
     const dx=point[0]-center[0],dy=point[1]-center[1];
