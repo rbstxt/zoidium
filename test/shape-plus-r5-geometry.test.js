@@ -146,6 +146,9 @@ for (const [mode, expected] of [
     assert.equal(JSON.stringify(input), before);
     assert.deepEqual(merge(input, { mode }), result);
   });
+test("offset miter limit below two bevels a square corner",()=>{
+  near(total(offset([square()],{amount:1,join:"miter",miterLimit:1})),142);
+});
 test("merge retains contours without welding, subtract unions all cutters", () => {
   assert.equal(merge([square(), square(5)], { mode: "merge" }).length, 2);
   near(
