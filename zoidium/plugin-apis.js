@@ -32,6 +32,23 @@
   // use their own object classes, so their animated descendants are skipped.
   // Keep native tracks and their watchers/history; add the omitted lists
   // through the same native list builder, without changing project objects.
+  // The added lists only reach MAX_CONTAINER_GENERATIONS objects below the
+  // selection (children, grandchildren, great-grandchildren); without a
+  // limit, selecting a sequence would list every keyframe of every clip,
+  // layer, object and effect in it.
+  var MAX_CONTAINER_GENERATIONS = 3;
+
+  // Object tracks above `container`: CM3 places a child list right after its
+  // parent track and records that track as the list's pz_parent.
+  function objectGeneration(PZ, container) {
+    var generation = 0;
+    for (var node = container; node && node.pz_parent; node = node.pz_parent.parentElement) {
+      var owner = node.pz_parent.pz_object;
+      if (owner && !(typeof PZ.property === "function" && owner instanceof PZ.property)) generation += 1;
+    }
+    return generation;
+  }
+
   function installKeyframeContainerTraversal() {
     var PZ = global.PZ;
     var proto = PZ && PZ.ui && PZ.ui.timeline && PZ.ui.timeline.keyframes && PZ.ui.timeline.keyframes.prototype;
@@ -40,6 +57,7 @@
     function createKeyframeTrack(container, object) {
       var track = original.apply(this, arguments);
       if (!track) return track;
+      if (objectGeneration(PZ, container) >= MAX_CONTAINER_GENERATIONS) return track;
       var children = object.children || [];
       // createTrackList inserts immediately after its parent, hence reverse.
       for (var index = children.length - 1; index >= 0; index -= 1) {
