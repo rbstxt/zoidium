@@ -267,7 +267,10 @@ function createActions(session) {
     if (!count) {
       const result = await api.removeUnused([item.id]);
       const removed = (result && result.removed) || [];
-      if (!removed.length) session.notify({ title: "Delete", message: item.name + " is still used in the project." });
+      const refusal = result && (result.skipped || []).find((entry) => entry.id === item.id && entry.error);
+      if (!removed.length) {
+        session.notify({ title: "Delete", message: refusal ? refusal.error : item.name + " is still used in the project." });
+      }
       return;
     }
     // AE asks before deleting an item that compositions still use.
@@ -350,8 +353,10 @@ function createActions(session) {
         label: "Delete",
         icon: "remove",
         hint: model.usageCount(item) ? "Delete this item and its uses" : "Remove this unused item from the project",
-        enabled: !!item && item.source === "file" &&
-          !!(api && (model.usageCount(item) ? api.removeItems : api.removeUnused)),
+        // A composition can be deleted once nothing uses it, as in Precomp+.
+        enabled: !!item && !!api && (item.source === "file"
+          ? !!(model.usageCount(item) ? api.removeItems : api.removeUnused)
+          : item.kind === "composition" && !model.usageCount(item) && !!api.removeUnused),
         run: () => guarded(item, "Delete", () => remove(item)),
       },
     ];

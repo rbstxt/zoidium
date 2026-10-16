@@ -58,13 +58,24 @@
       const candidates = view.items.filter(item => item.source === "file" && item.retained && (!selected || selected.has(item.id)));
       const unused = candidates.filter(item => !item.usages.length);
       const skipped = candidates.filter(item => item.usages.length).map(summary);
-      if (!unused.length) return { ok: true, removed: [], freed: 0, skipped };
+      // Like AE, Remove Unused Items keeps compositions; an unused one goes
+      // only when it is named, through Precomp+'s own undoable delete.
+      const comps = selected ? view.items.filter(item => item.kind === "composition" && selected.has(item.id)) : [];
+      const removed = [];
+      for (const item of comps) {
+        const result = item.usages.length || typeof PZ.precomp?.removeComp !== "function"
+          ? { ok: false } : PZ.precomp.removeComp(editor, item.id.slice("comp:".length));
+        if (result?.ok) removed.push(summary(item));
+        else skipped.push({ ...summary(item), error: result?.message || null });
+      }
+      if (comps.length) refresh();
+      if (!unused.length) return { ok: true, removed, freed: 0, skipped };
       const finish = begin(editor);
       try {
         deleteMedia(editor, new Set(unused.map(item => item.id)));
         for (const item of unused) removeAsset(editor, project, item.asset);
       } finally { finish(); }
-      const removed = unused.map(summary);
+      removed.push(...unused.map(summary));
       return { ok: true, removed, freed: unused.reduce((sum, item) => sum + (item.asset.file?.size || 0), 0), skipped };
     }
     function imageClip(record, key) {
