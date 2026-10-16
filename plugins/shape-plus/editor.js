@@ -12,10 +12,10 @@ function editableClip(editor, viewport, Layer, PZ) {
   const clips = viewport.objects;
   if (!viewport.enabled || viewport.renderMode || clips?.length !== 1) return null;
   const clip = clips[0], layer = clip.object, frame = editor.playback.currentFrame;
-  if (!(layer instanceof Layer) || layer.parentObject !== clip || layer.effects.length ||
+  if (!(layer instanceof Layer) || layer.parentObject !== clip ||
       frame < clip.start || frame >= clip.start + clip.length) return null;
-  // A composite/perspective parent, a remapped composition or image effects
-  // require a different inverse projection. Do not place guessed handles.
+  // Handles edit pre-effect layer space, including with spatial image effects.
+  // Composite/perspective parents require a different inverse projection.
   if (clip.tryGetParentOfType(PZ.sequence) !== editor.sequence) return null;
   const p = layer.properties, local = frame - clip.start + (clip.offset || 0);
   if (!inverse(matrix({ position: p.position.get(local), scale: p.scale.get(local), rotation: p.rotation.get(local) }))) return null;
