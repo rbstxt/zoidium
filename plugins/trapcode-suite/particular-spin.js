@@ -1,4 +1,4 @@
-// Particular emitter rotation and deterministic particle orientation noise.
+// Particular emitter rotation, orbital displacement and air orientation noise.
 var PZ = PZ || {};
 
 (function () {
@@ -19,7 +19,7 @@ var PZ = PZ || {};
             rotationRandom: read(e.rotationRandom, frame, 0) / 100,
             speed: read(e.rotationSpeed, frame, 0),
             speedRandom: read(e.rotationSpeedRandom, frame, 0) / 100,
-            amplitude: read(d.spinAmplitude, frame, 0) * D2R,
+            amplitude: read(d.spinAmplitude, frame, 0),
             frequency: read(d.spinFrequency, frame, 1),
             turbulence: read(v.turbulenceEnabled, frame, 0) === 1
                 ? read(v.turbulenceAffectOrientation, frame, 0) * D2R : 0,
@@ -46,13 +46,28 @@ var PZ = PZ || {};
         var c = Math.cos(angle), s = Math.sin(angle);
         return [x * c - y * s, x * s + y * c];
     }
+    // Displace Spin describes motion around the trajectory, in scene units.
+    // Seeded orthonormal axes give each particle a fixed circular orbit plane.
+    // Its tangent also drives motion-aligned sprites and inherited velocity.
+    function orbit(settings, seed, key, age) {
+        if (!settings || !settings.amplitude) return null;
+        var azimuth = hash(seed, key, 48) * Math.PI * 2;
+        var tilt = hash(seed, key, 49) * 2 - 1;
+        var ca = Math.cos(azimuth), sa = Math.sin(azimuth);
+        var u = [ca, sa, 0], v = [-sa * tilt, ca * tilt, Math.sqrt(Math.max(0, 1 - tilt * tilt))];
+        var speed = settings.frequency * Math.PI * 2;
+        var phase = hash(seed, key, 47) * Math.PI * 2 + age * speed;
+        var c = Math.cos(phase), s = Math.sin(phase), radius = settings.amplitude;
+        return {
+            offset: u.map(function (value, axis) { return radius * (value * c + v[axis] * s); }),
+            velocity: u.map(function (value, axis) { return radius * speed * (-value * s + v[axis] * c); }),
+        };
+    }
     function orientation(settings, seed, key, seconds, position) {
         var out = [0, 0, 0];
-        if (!settings || (!settings.amplitude && !settings.turbulence)) return out;
+        if (!settings || !settings.turbulence) return out;
         for (var axis = 0; axis < 3; axis++) {
             var phase = hash(seed, key, 47 + axis) * Math.PI * 2;
-            out[axis] = settings.amplitude * Math.sin(seconds * settings.frequency * Math.PI * 2 + phase);
-            if (!settings.turbulence) continue;
             var x = (position[0] - settings.wind[0] * seconds) / settings.scale;
             var y = (position[1] - settings.wind[1] * seconds) / settings.scale;
             var z = (position[2] - settings.wind[2] * seconds) / settings.scale;
@@ -68,5 +83,5 @@ var PZ = PZ || {};
         return out;
     }
     T.particularSpin = { enabled: enabled, sample: sample, active: active,
-        emitterAngle: emitterAngle, rotateXY: rotateXY, orientation: orientation };
+        emitterAngle: emitterAngle, rotateXY: rotateXY, orbit: orbit, orientation: orientation };
 })();
