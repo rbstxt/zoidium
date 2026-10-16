@@ -3,7 +3,7 @@
   "id": "core",
   "name": "Zoidium Core",
   "author": "Zoidium",
-  "version": "55",
+  "version": "56",
   "kind": "core",
   "visibility": "hidden",
   "alwaysEnabled": true,
@@ -38,6 +38,11 @@
     {
       "id": "particle-defaults",
       "source": "./plugins/core/particle-defaults.js",
+      "phase": "pre-init"
+    },
+    {
+      "id": "empty-keyframes",
+      "source": "./plugins/core/empty-keyframes.js",
       "phase": "pre-init"
     },
     {
@@ -284,19 +289,19 @@
   "modules": [
     {
       "id": "single-graph-window",
-      "source": "./plugins/core/single-graph-window.js?v=55"
+      "source": "./plugins/core/single-graph-window.js?v=56"
     },
     {
       "id": "font-load",
-      "source": "./plugins/core/font-load.js?v=55"
+      "source": "./plugins/core/font-load.js?v=56"
     },
     {
       "id": "video-decode-hint",
-      "source": "./plugins/core/video-decode-hint.js?v=55"
+      "source": "./plugins/core/video-decode-hint.js?v=56"
     },
     {
       "id": "output-frame-cache",
-      "source": "./plugins/core/output-frame-cache.js?v=55"
+      "source": "./plugins/core/output-frame-cache.js?v=56"
     }
   ]
 }
