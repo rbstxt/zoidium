@@ -1,7 +1,7 @@
 {
   "type": 1,
   "properties": {
-    "name": "Minimax",
+    "name": "Minimax V2",
     "enabled": {
       "animated": false,
       "keyframes": [

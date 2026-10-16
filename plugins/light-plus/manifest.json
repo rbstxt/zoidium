@@ -3,13 +3,13 @@
   "id": "light-plus",
   "name": "Light+",
   "author": "Zoidium",
-  "version": "4",
+  "version": "5",
   "kind": "object",
   "objectTypes": [
     {
       "target": "object3d",
       "name": "Light+",
-      "desc": "Lights lit scene materials. Single Color and Matcap materials do not respond to lights.",
+      "desc": "Native Spot, Point, Directional and Hemisphere lights. Single Color and Matcap materials do not respond to lights.",
       "replace": {
         "name": "Light",
         "type": 3

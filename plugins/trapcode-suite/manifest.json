@@ -3,7 +3,7 @@
   "id": "trapcode-suite",
   "name": "Rowbyte & Red Giant Suite",
   "author": "DaviFX",
-  "version": "35",
+  "version": "36",
   "kind": "object",
   "description": "Trapcode Particular, Form, and Plexus 3D objects with floating designer windows, plus C4D-style lights. Includes designer color palettes and the wiggle expression upgrade.",
   "category": "TRAPCODE",
@@ -81,7 +81,7 @@
     {
       "target": "object3d",
       "name": "Trapcode Lights",
-      "desc": "Lights lit scene materials. Single Color and Matcap materials do not respond to lights.",
+      "desc": "Suite lights: Point, Spot, Infinite, Area, Sun, Hemisphere, Photometric IES and Portal. Single Color and Matcap materials do not respond to lights.",
       "feature": "Trapcode Lights",
       "type": 3,
       "list": [
@@ -259,117 +259,117 @@
   "modules": [
     {
       "id": "trapcode-runtime",
-      "source": "./plugins/trapcode-suite/trapcode-runtime.js?v=35"
+      "source": "./plugins/trapcode-suite/trapcode-runtime.js?v=36"
     },
     {
       "id": "designer-gear",
-      "source": "./plugins/trapcode-suite/designer-gear.js?v=35"
+      "source": "./plugins/trapcode-suite/designer-gear.js?v=36"
     },
     {
       "id": "trapcode-suite-asset-references",
-      "source": "./plugins/trapcode-suite/asset-references.js?v=35"
+      "source": "./plugins/trapcode-suite/asset-references.js?v=36"
     }
   ],
   "resources": [
     {
       "id": "trapcode-common",
       "type": "text",
-      "source": "./plugins/trapcode-suite/trapcode-common.js?v=35"
+      "source": "./plugins/trapcode-suite/trapcode-common.js?v=36"
     },
     {
       "id": "trapcode-audio",
       "type": "text",
-      "source": "./plugins/trapcode-suite/trapcode-audio.js?v=35"
+      "source": "./plugins/trapcode-suite/trapcode-audio.js?v=36"
     },
     {
       "id": "trapcode-color",
       "type": "text",
-      "source": "./plugins/trapcode-suite/trapcode-color.js?v=35"
+      "source": "./plugins/trapcode-suite/trapcode-color.js?v=36"
     },
     {
       "id": "trapcode-shading",
       "type": "text",
-      "source": "./plugins/trapcode-suite/trapcode-shading.js?v=35"
+      "source": "./plugins/trapcode-suite/trapcode-shading.js?v=36"
     },
     {
       "id": "trapcode-expressions",
       "type": "text",
-      "source": "./plugins/trapcode-suite/trapcode-expressions.js?v=35"
+      "source": "./plugins/trapcode-suite/trapcode-expressions.js?v=36"
     },
     {
       "id": "trapcode-designer",
       "type": "text",
-      "source": "./plugins/trapcode-suite/designer.js?v=35"
+      "source": "./plugins/trapcode-suite/designer.js?v=36"
     },
     {
       "id": "trapcode-particular-spin",
       "type": "text",
-      "source": "./plugins/trapcode-suite/particular-spin.js?v=35"
+      "source": "./plugins/trapcode-suite/particular-spin.js?v=36"
     },
     {
       "id": "trapcode-particular-sim",
       "type": "text",
-      "source": "./plugins/trapcode-suite/particular-sim.js?v=35"
+      "source": "./plugins/trapcode-suite/particular-sim.js?v=36"
     },
     {
       "id": "trapcode-particular",
       "type": "text",
-      "source": "./plugins/trapcode-suite/particular.js?v=35"
+      "source": "./plugins/trapcode-suite/particular.js?v=36"
     },
     {
       "id": "trapcode-particular-system",
       "type": "text",
-      "source": "./plugins/trapcode-suite/particular-system.js?v=35"
+      "source": "./plugins/trapcode-suite/particular-system.js?v=36"
     },
     {
       "id": "trapcode-particular-defs",
       "type": "text",
-      "source": "./plugins/trapcode-suite/particular-defs.js?v=35"
+      "source": "./plugins/trapcode-suite/particular-defs.js?v=36"
     },
     {
       "id": "trapcode-form",
       "type": "text",
-      "source": "./plugins/trapcode-suite/form.js?v=35"
+      "source": "./plugins/trapcode-suite/form.js?v=36"
     },
     {
       "id": "trapcode-form-grid",
       "type": "text",
-      "source": "./plugins/trapcode-suite/form-grid.js?v=35"
+      "source": "./plugins/trapcode-suite/form-grid.js?v=36"
     },
     {
       "id": "trapcode-form-fields",
       "type": "text",
-      "source": "./plugins/trapcode-suite/form-fields.js?v=35"
+      "source": "./plugins/trapcode-suite/form-fields.js?v=36"
     },
     {
       "id": "trapcode-form-defs",
       "type": "text",
-      "source": "./plugins/trapcode-suite/form-defs.js?v=35"
+      "source": "./plugins/trapcode-suite/form-defs.js?v=36"
     },
     {
       "id": "trapcode-plexus",
       "type": "text",
-      "source": "./plugins/trapcode-suite/plexus.js?v=35"
+      "source": "./plugins/trapcode-suite/plexus.js?v=36"
     },
     {
       "id": "trapcode-plexus-geometry",
       "type": "text",
-      "source": "./plugins/trapcode-suite/plexus-geometry.js?v=35"
+      "source": "./plugins/trapcode-suite/plexus-geometry.js?v=36"
     },
     {
       "id": "trapcode-plexus-object",
       "type": "text",
-      "source": "./plugins/trapcode-suite/plexus-object.js?v=35"
+      "source": "./plugins/trapcode-suite/plexus-object.js?v=36"
     },
     {
       "id": "trapcode-plexus-config",
       "type": "text",
-      "source": "./plugins/trapcode-suite/plexus-config.js?v=35"
+      "source": "./plugins/trapcode-suite/plexus-config.js?v=36"
     },
     {
       "id": "trapcode-lights",
       "type": "text",
-      "source": "./plugins/trapcode-suite/lights-c4d.js?v=35"
+      "source": "./plugins/trapcode-suite/lights-c4d.js?v=36"
     }
   ],
   "objectClasses": [
