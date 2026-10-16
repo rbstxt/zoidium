@@ -30,6 +30,9 @@
   var canRenderLayer = layers.canRenderLayer;
   var findFrameSamplerStage = layers.findFrameSamplerStage;
   var getAdjustmentEffectFrame = layers.getAdjustmentEffectFrame;
+  var frameSamplerInputKey = layers.frameSamplerInputKey;
+  var frameSamplerIdentity = layers.frameSamplerIdentity;
+  var frameSamplerReuseDisabled = layers.frameSamplerReuseDisabled;
 
   function getFrameSamplerPrefix(stage, projectFrame) {
     // Before 430a52c taps used their raw requested clock, without replaying
@@ -69,12 +72,14 @@
   }
 
   function withFrameSamplerInputContext(state, stage, frame, context, callback) {
-    if (math.temporalMode(stage.effect) === "legacy") return callback();
     const parent = state.contexts[state.contexts.length - 1];
+    const sequence = getSequenceForLayer(stage.layer);
+    layers.installSingleEvaluation(state, sequence);
     const evaluating = state.evaluatingLayers.has(stage.layer);
     state.evaluatingLayers.add(stage.layer);
     state.contexts.push(Object.assign({}, parent, context, {
       outputFrame: frame,
+      singleEvaluation: layers.usesSingleEvaluation(sequence),
       renderingSequence: true,
       frameSamplerScope: hasFrameSamplerQuantizer(getFrameSamplerPrefix(stage, frame))
         ? stage : context?.frameSamplerScope || parent?.frameSamplerScope,
@@ -291,8 +296,8 @@
     // another sampler. Keep adjustment scopes conservative: lower tracks can
     // contain samplers even when the owner's prefix is empty.
     return !isAdjustmentLayer(stage.layer) &&
-      !stage.layer.effects.slice(0, stage.effectIndex).some(effect => effect?._zoidiumFrameSampler)
-      ? 1 : depth;
+      !stage.layer.effects.slice(0, stage.effectIndex).some(effect => effect?._zoidiumFrameSampler) &&
+      !layers.hasNestedFrameSampler(stage.layer) ? 1 : depth;
   }
 
   function selectFrameSamplerTarget(runtime, effect, depth, reserved, width, height, capacity = 128, revision) {
@@ -348,11 +353,14 @@
     }
   }
 
-  function restoreLayerAtContextFrame(layer, projectFrame) {
+  function restoreLayerAtContextFrame(layer, projectFrame, state) {
     const clip = getClipForLayer(layer);
     if (!clip || typeof layer?.update !== "function") return;
     try {
-      layer.update(projectFrame - finiteNumber(clip.start, 0));
+      const frame = projectFrame - finiteNumber(clip.start, 0);
+      if (state && layers.usesSingleEvaluation(getSequenceForLayer(layer))) {
+        state.originalLayerUpdate.call(layer, state.mapLayerFrame(layer, frame)?.sourceFrame ?? frame);
+      } else layer.update(frame);
     } catch (_error) {
       // A failed restoration must not stop the main compositor pass.
     }
@@ -394,9 +402,11 @@
     const renderer = root.renderer;
     const parentContext = state.contexts[state.contexts.length - 1];
     const currentFrame = finiteNumber(restoreFrame, parentContext?.outputFrame);
+    const singleEvaluation = parentContext?.singleEvaluation ?? layers.usesSingleEvaluation(sequence);
+    if (singleEvaluation && !parentContext?.singleEvaluation) layers.installSingleEvaluation(state, sequence);
     const wasEvaluatingOwner = state.evaluatingLayers.has(stage.layer);
     const evaluateOwner = math.temporalMode(stage.effect) !== "legacy" || !isAdjustmentLayer(stage.layer);
-    const changedLayers = new Set();
+    const changedLayers = new Map();
     const previousClearColor = renderer.getClearColor
       ? renderer.getClearColor(new THREE.Color())
       : null;
@@ -408,6 +418,7 @@
     capture.clear(0);
     state.contexts.push({
       compositor: capture,
+      singleEvaluation,
       frameSamplerDepth: depth,
       outputFrame: projectFrame,
       renderingSequence: true,
@@ -423,7 +434,7 @@
         const clip = track.getCurrentClip?.(projectFrame);
         const layer = clip?.object;
         if (!clip || !canRenderLayer(layer)) continue;
-        changedLayers.add(layer);
+        changedLayers.set(layer, layer.__zoidiumTemporalLastUpdateFrame);
         if (!Number.isFinite(preparedLayers?.get(layer)) ||
           preparedLayers.get(layer) !== layer.__zoidiumTemporalUpdateRevision) {
           layer.update(projectFrame - finiteNumber(clip.start, 0));
@@ -431,7 +442,7 @@
         capture.renderLayer(layer, 0, false);
       }
 
-      changedLayers.add(stage.layer);
+      changedLayers.set(stage.layer, stage.layer.__zoidiumTemporalLastUpdateFrame);
       if (evaluateOwner) state.evaluatingLayers.add(stage.layer);
       // Decoding and prefix preparation can yield to live playback updates.
       // Skip the duplicate evaluation only if the prepared layer is untouched.
@@ -469,9 +480,19 @@
     } finally {
       state.contexts.pop();
       restoreTextures();
-      for (const layer of changedLayers) {
+      for (const [layer, previousFrame] of changedLayers) {
         if (inputContext?.frameSamplerChangedLayers) inputContext.frameSamplerChangedLayers.add(layer);
-        else restoreLayerAtContextFrame(layer, currentFrame);
+        else if (singleEvaluation) {
+          // The content is already in the captured texture. Only the owner's
+          // transforms/effect uniforms can still be read by the current pass.
+          // Restore their actual input clock, without walking Scene/Composite
+          // children or applying the time operators for a second time.
+          const input = finiteNumber(previousFrame,
+            currentFrame - finiteNumber(getClipForLayer(layer)?.start, 0));
+          state.originalLayerUpdate.call(layer, input);
+          layer.__zoidiumTemporalLastUpdateFrame = input;
+          layer.__zoidiumTemporalUpdateRevision = ++state.layerUpdateRevision;
+        } else restoreLayerAtContextFrame(layer, currentFrame);
       }
       if (!wasEvaluatingOwner && evaluateOwner) state.evaluatingLayers.delete(stage.layer);
       if (previousClearColor) {
@@ -533,7 +554,7 @@
     return samples;
   }
 
-  async function prepareInputEffects(sequence, stage, frame, context, state) {
+  async function prepareInputEffects(sequence, stage, frame, context, state, restoreOnly = false) {
     const preparedLayers = new Map();
     const tracks = sequence.videoTracks || [];
     const start = isAdjustmentLayer(stage.layer) ? 0 : stage.trackIndex;
@@ -545,12 +566,21 @@
       const localFrame = frame - finiteNumber(clip.start, 0);
       const scoped = callback => state
         ? withFrameSamplerInputContext(state, stage, frame, context, callback) : callback();
-      scoped(() => layer.update(localFrame));
+      scoped(() => {
+        if (restoreOnly && state && layers.usesSingleEvaluation(sequence)) {
+          const input = layer === stage.layer ? localFrame
+            : state.mapLayerFrame(layer, localFrame)?.sourceFrame ?? localFrame;
+          state.originalLayerUpdate.call(layer, input);
+          layer.__zoidiumTemporalLastUpdateFrame = input;
+          layer.__zoidiumTemporalUpdateRevision = ++state.layerUpdateRevision;
+        } else layer.update(localFrame);
+      });
       preparedLayers.set(layer, layer.__zoidiumTemporalUpdateRevision);
       context?.frameSamplerChangedLayers?.add(layer);
       const count = index === stage.trackIndex ? stage.effectIndex : layer.effects?.length || 0;
       for (let i = 0; i < count; i += 1) {
-        await scoped(() => layer.effects[i]?.prepare?.(localFrame, context));
+        await scoped(() => layer.effects[i]?.prepare?.(
+          finiteNumber(layer.__zoidiumTemporalLastUpdateFrame, localFrame), context));
       }
     }
     return preparedLayers;
@@ -637,7 +667,7 @@
         const reservedTargets = new Set();
         runtime.reservations.add(reservedTargets);
         reservations.push({ runtime, reservedTargets });
-        const cacheKey = frame => JSON.stringify([frame, cacheDepth,
+        const cacheKey = frame => JSON.stringify([getFrameSamplerInputFrame(stage, frame), cacheDepth,
           scope?.effect ? frameSamplerIdentity(scope.effect) : 0]);
         const wantedFrames = new Set(plan.map(item => cacheKey(finiteNumber(clip.start, 0) + item.frame)));
         for (const [frame, cached] of inputCache) {
@@ -652,16 +682,16 @@
         for (let index = 0; index < plan.length; index += 1) {
           const item = plan[index];
           const sourceProjectFrame = finiteNumber(clip.start, 0) + item.frame;
+          const inputFrame = getFrameSamplerInputFrame(stage, sourceProjectFrame);
           const cached = inputCache?.get(cacheKey(sourceProjectFrame));
           const reusable = !frameSamplerReuseDisabled() && cached && cached.stamp === cached.sample.target.inputStamp &&
             cached.sample.target.width === width && cached.sample.target.height === height;
-          const reused = capturedFrames.get(sourceProjectFrame) || (reusable && cached.sample);
+          const reused = capturedFrames.get(inputFrame) || (reusable && cached.sample);
           if (reused) {
             reused.target.inputUsed = ++runtime.inputClock;
-            samples.push(Object.assign({}, reused, { index: item.index, opacity: item.opacity }));
+            samples.push(Object.assign({}, reused, { frame: sourceProjectFrame, index: item.index, opacity: item.opacity }));
             continue;
           }
-          const inputFrame = getFrameSamplerInputFrame(stage, sourceProjectFrame);
           const inputContext = Object.assign({}, context, {
             frameSamplerRoot: root, frameSamplerDepth: depth,
             frameSamplerScope: hasFrameSamplerQuantizer(getFrameSamplerPrefix(stage, sourceProjectFrame))
@@ -709,7 +739,7 @@
             inputCache.set(key, { sample, stamp: target.inputStamp });
             revisions.set(revision, inputCache);
             target.inputEntry = { cache: inputCache, key, revisions, revision };
-            capturedFrames.set(sourceProjectFrame, sample);
+            capturedFrames.set(inputFrame, sample);
             samples.push(sample);
           }
         }
@@ -734,9 +764,9 @@
           if (tracks[i]?.enabled !== false) currentLayers.add(tracks[i]?.getCurrentClip?.(projectFrame)?.object);
         }
         for (const changedLayer of changedLayers) {
-          if (!currentLayers.has(changedLayer)) restoreLayerAtContextFrame(changedLayer, projectFrame);
+          if (!currentLayers.has(changedLayer)) restoreLayerAtContextFrame(changedLayer, projectFrame, state);
         }
-        await prepareInputEffects(sequence, stage, projectFrame, context);
+        await prepareInputEffects(sequence, stage, projectFrame, context, state, true);
       } finally {
         for (const { runtime, reservedTargets } of reservations) runtime.reservations.delete(reservedTargets);
         state.preparingEffects.delete(effect);
@@ -816,20 +846,28 @@
       const cacheDepth = frameSamplerCacheDepth(stage, depth);
       const cachedSamples = plan.map(item => {
         const frame = finiteNumber(stage.clip.start, 0) + item.frame;
-        const cached = cache?.get(JSON.stringify([frame, cacheDepth, scopeId]));
+        const cached = cache?.get(JSON.stringify([getFrameSamplerInputFrame(stage, frame), cacheDepth, scopeId]));
         if (!cached || cached.stamp !== cached.sample.target.inputStamp ||
           cached.sample.target.width !== width || cached.sample.target.height !== height) return null;
         cached.sample.target.inputUsed = ++runtime.inputClock;
-        return Object.assign({}, cached.sample, { index: item.index, opacity: item.opacity });
+        return Object.assign({}, cached.sample, { frame, index: item.index, opacity: item.opacity });
       });
       if (cachedSamples.every(Boolean)) return cachedSamples;
     }
 
     const samples = [];
+    const capturedFrames = new Map();
     state.samplingEffects.add(effect);
     try {
       for (let index = 0; index < plan.length; index += 1) {
         const item = plan[index];
+        const projectFrame = finiteNumber(stage.clip.start, 0) + item.frame;
+        const inputFrame = getFrameSamplerInputFrame(stage, projectFrame);
+        const reused = capturedFrames.get(inputFrame);
+        if (reused) {
+          samples.push(Object.assign({}, reused, { frame: projectFrame, index: item.index, opacity: item.opacity }));
+          continue;
+        }
         const target = getFrameSamplerTarget(
           runtime,
           effect,
@@ -838,7 +876,6 @@
           width,
           height,
         );
-        const projectFrame = finiteNumber(stage.clip.start, 0) + item.frame;
         target.inputStamp = {};
         forgetFrameSamplerInput(target);
         if (
@@ -853,29 +890,21 @@
             target,
           )
         ) {
-          samples.push({
+          const sample = {
             frame: projectFrame,
             index: item.index,
             opacity: item.opacity,
             target,
             texture: target.texture,
-          });
+          };
+          capturedFrames.set(inputFrame, sample);
+          samples.push(sample);
         }
       }
     } finally {
       state.samplingEffects.delete(effect);
     }
     return samples;
-  }
-
-  let pluginStateEpoch = 0;
-  let lastLocalKey = null;
-  if (typeof document !== "undefined") {
-    document.addEventListener?.("zoidium:plugin-state-change", () => { pluginStateEpoch += 1; });
-  }
-
-  function frameSamplerReuseDisabled() {
-    return typeof PZ !== "undefined" && PZ.zoidium?.debugDisableFrameSamplerInputReuse === true;
   }
 
   function forgetFrameSamplerInput(target) {
@@ -889,48 +918,6 @@
     target.inputEntry = null;
   }
 
-  function frameSamplerInputKey(sequence, compositor, stage, scope) {
-    const scoped = !frameSamplerReuseDisabled() && layers.frameSamplerScopedContent(sequence, stage, scope);
-    const assets = Object.entries(sequence.parentProject?.assets?.list || {}).map(([id, asset]) =>
-      [id, asset.url, asset.sha256, asset.filename, asset.size, frameSamplerIdentity(asset),
-        asset.file ? frameSamplerIdentity(asset.file) : 0]);
-    // Plugin state changes also dispose every runtime; the epoch keeps a stale
-    // preview key from matching across one without reading every plugin state.
-    const settings = [compositor.__zoidiumRenderSettings,
-      [compositor.renderer?.shadowMap?.type, compositor.renderer?.shadowMap?.enabled], pluginStateEpoch,
-      frameSamplerReuseDisabled(), math.temporalMode(stage?.effect), math.temporalMode(scope?.effect)];
-    if (scoped) {
-      const serialized = JSON.stringify(["layer-prefix", compositor.readBuffer.width, compositor.readBuffer.height,
-        scoped, sequence.videoTracks[stage.trackIndex].enabled, assets, settings]);
-      // Rechecks after each awaited tap usually see the same content again.
-      if (serialized === lastLocalKey) return serialized;
-      if (layers.frameSamplerSerializedContentIsLocal(serialized)) return (lastLocalKey = serialized);
-    }
-    const whole = () => JSON.stringify([compositor.readBuffer.width, compositor.readBuffer.height,
-      sequence, sequence.videoTracks.map(track => track.enabled),
-      assets, settings]);
-    const layer = stage?.layer;
-    if (!layer || frameSamplerReuseDisabled() || typeof layer.toJSON !== "function") return whole();
-    // The sampler and later effects never feed its own input. Serialize the
-    // whole sequence with this layer cut before the sampler, so editing the
-    // time effect keeps inputs even when other tracks are in the key. A
-    // synchronous own-property override leaves the live serializer untouched.
-    const prefix = Object.assign({}, layer.toJSON(), {
-      effects: Array.from(layer.effects || []).slice(0, stage.effectIndex),
-    });
-    const own = Object.prototype.hasOwnProperty.call(layer, "toJSON") ? layer.toJSON : null;
-    let serialized;
-    layer.toJSON = () => prefix;
-    try {
-      serialized = "effect-prefix" + whole();
-    } finally {
-      if (own) layer.toJSON = own;
-      else delete layer.toJSON;
-    }
-    // Expressions, layer inputs and compositions can read the cut effects.
-    return layers.frameSamplerSerializedReadsNoLayer(serialized) ? serialized : whole();
-  }
-
   function renderPreparedPreview(viewport, runtime, frame) {
     const sequence = viewport.compositor._sequence;
     const liveFrame = finiteNumber(viewport.editor?.playback?.currentFrame, frame);
@@ -942,22 +929,13 @@
     } finally {
       restoreTextures();
       sequence.update(liveFrame);
-      for (const track of sequence.videoTracks || []) {
-        const layer = track.getCurrentClip?.(frame)?.object;
-        if (layer) restoreLayerAtContextFrame(layer, liveFrame);
+      if (!layers.usesSingleEvaluation(sequence)) {
+        for (const track of sequence.videoTracks || []) {
+          const layer = track.getCurrentClip?.(frame)?.object;
+          if (layer) restoreLayerAtContextFrame(layer, liveFrame);
+        }
       }
     }
-  }
-
-  const frameSamplerIdentities = new WeakMap();
-  let nextFrameSamplerIdentity = 1;
-  function frameSamplerIdentity(effect) {
-    let id = frameSamplerIdentities.get(effect);
-    if (!id) {
-      id = nextFrameSamplerIdentity++;
-      frameSamplerIdentities.set(effect, id);
-    }
-    return id;
   }
 
   registry.sampler = {

@@ -362,7 +362,7 @@
   function entryKey(controller, frame) { return controller.id + ":" + frame; }
 
   function plainTimeProject(viewport) {
-    return global.PZ?.zoidium?.temporal?.usesSingleEvaluation?.(viewport.editor.project.sequence);
+    return global.PZ?.zoidium?.temporal?.usesSingleEvaluation?.(viewport.editor.project.sequence, true);
   }
 
   function render(viewport, fallback) {
