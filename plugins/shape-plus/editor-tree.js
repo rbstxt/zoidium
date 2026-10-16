@@ -119,17 +119,7 @@ function createTree(s, container) {
         row.append(
           enabled,
           twist,
-          s.icon(
-            item.kind === "group"
-              ? "folder"
-              : item.kind === "path"
-                ? "edit2"
-                : item.kind === "fill"
-                  ? "image"
-                  : item.kind === "stroke"
-                    ? "edit"
-                    : "shape",
-          ),
+          s.icon(item.kind),
           name,
         );
         row.addEventListener("click", (event) => {

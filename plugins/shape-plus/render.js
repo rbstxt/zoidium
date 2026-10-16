@@ -2,6 +2,7 @@
 // WebGL1 render targets have no canvas MSAA. Render at twice the explicit
 // destination viewport resolution or four times up to 2048 pixels, then
 // box-resolve with bilinear taps. Every intermediate stores premultiplied RGBA.
+const paintShader = require("./paint-shader.js");
 function createRenderer(THREE, sampleScale = "auto") {
   if (!["auto", 1, 2, 4].includes(sampleScale)) throw Error("Invalid Shape+ sample scale");
   const targets = [], allocations = new Set();
@@ -9,8 +10,8 @@ function createRenderer(THREE, sampleScale = "auto") {
   camera.position.z = 10;
   const vertexShader = "varying vec2 uvShape; void main(){uvShape=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}";
   const textureShader = "varying vec2 uvShape; uniform sampler2D image; uniform float opacity; void main(){gl_FragColor=texture2D(image,uvShape)*opacity;}";
-  function material(fragmentShader, uniforms, blend = true) {
-    const m = new THREE.ShaderMaterial({ vertexShader, fragmentShader, uniforms, side: THREE.DoubleSide, depthTest: false, depthWrite: false, transparent: blend,
+  function material(fragmentShader, uniforms, blend = true, vertex = vertexShader) {
+    const m = new THREE.ShaderMaterial({ vertexShader: vertex, fragmentShader, uniforms, side: THREE.DoubleSide, depthTest: false, depthWrite: false, transparent: blend,
       blending: blend ? THREE.CustomBlending : THREE.NoBlending, blendSrc: THREE.OneFactor, blendDst: THREE.OneMinusSrcAlphaFactor, blendEquation: THREE.AddEquation });
     allocations.add(m); return m;
   }
@@ -48,7 +49,7 @@ function createRenderer(THREE, sampleScale = "auto") {
         mesh = new THREE.Mesh(g, material(textureShader, { image: { value: child.target.texture }, opacity: { value: command.opacity } }));
       } else {
         if (!command.positions.length) { entries.push(null); continue; }
-        mesh = new THREE.Mesh(geometry(command.positions), material("uniform vec3 color; uniform float opacity; void main(){gl_FragColor=vec4(color*opacity,opacity);}", { color: { value: new THREE.Color(...command.color) }, opacity: { value: command.opacity } }));
+        mesh = new THREE.Mesh(geometry(command.positions), command.gradient ? material(paintShader.fragmentShader, paintShader.uniforms(THREE, command), true, paintShader.vertexShader) : material("uniform vec3 color; uniform float opacity; void main(){gl_FragColor=vec4(color*opacity,opacity);}", { color: { value: new THREE.Color(...command.color) }, opacity: { value: command.opacity } }));
       }
       entries.push({ mesh, child, positionsKey: command.positions && JSON.stringify(command.positions) });
       mesh.renderOrder = order++; mesh.frustumCulled = false; scene.add(mesh);
@@ -62,7 +63,10 @@ function createRenderer(THREE, sampleScale = "auto") {
       entry.mesh.material.uniforms.opacity.value = command.opacity;
       if (entry.child) updateTree(entry.child, command.commands);
       else {
-        entry.mesh.material.uniforms.color.value = new THREE.Color(...command.color);
+        if (command.gradient) {
+          const uniforms = paintShader.uniforms(THREE, command);
+          for (const key of Object.keys(uniforms)) entry.mesh.material.uniforms[key].value = uniforms[key].value;
+        } else entry.mesh.material.uniforms.color.value = new THREE.Color(...command.color);
         const key = JSON.stringify(command.positions);
         if (key !== entry.positionsKey) {
           const previous = entry.mesh.geometry;
@@ -74,7 +78,7 @@ function createRenderer(THREE, sampleScale = "auto") {
     });
   }
   function setCommands(commands, logicalResolution) {
-    const structure = list => list.map(c => c.kind === "isolation" ? [c.kind, c.id, structure(c.commands)] : [c.kind, c.id, !!c.positions.length]);
+    const structure = list => list.map(c => c.kind === "isolation" ? [c.kind, c.id, structure(c.commands)] : [c.kind, c.id, !!c.positions.length, !!c.gradient]);
     const key = JSON.stringify([logicalResolution, structure(commands)]);
     if (root && key === structureKey) { updateTree(root, commands); return; }
     releaseTree(); resolution = logicalResolution.slice();
