@@ -13,7 +13,12 @@ function arc(center, radius, from, sweep, tolerance) {
 function outlines(paths, style, tolerance = .125) {
   const polygons = [], radius = Math.max(0, style.width) / 2;
   if (!radius) return polygons;
-  const push = polygon => { if (area(polygon) < 0) polygon.reverse(); polygons.push(polygon); };
+  let vertices = 0;
+  const push = polygon => {
+    vertices += polygon.length;
+    if (vertices > 16384) throw Error("Shape+ stroke outline budget exceeded");
+    if (area(polygon) < 0) polygon.reverse(); polygons.push(polygon);
+  };
   for (const path of paths) {
     const points = path.points.filter((p, i) => !i || distance(p, path.points[i - 1]) > 1e-9);
     if (path.closed && points.length > 1 && distance(points[0], points[points.length - 1]) < 1e-9) points.pop();

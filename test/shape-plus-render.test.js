@@ -37,3 +37,18 @@ test("r91 mesh retirement, isolated opacity and resolution-based AA dispose all 
   engine.dispose(); engine.dispose();
   assert.ok(h.resources.every(r => r.disposals === 1));
 });
+
+test("animation retains paint programs and render targets while retiring changed geometry", () => {
+  const h = host(), engine = createRenderer(h.THREE);
+  engine.setCommands([paint], [640, 360]);
+  const mesh = engine.scene.children[0], material = mesh.material, geometry = mesh.geometry;
+  const count = h.resources.length;
+  engine.setCommands([{ ...paint, opacity: .2 }], [640, 360]);
+  assert.equal(h.resources.length, count, "paint-only edits allocate no GPU objects");
+  engine.setCommands([{ ...paint, positions: [0, 0, 0, 2, 0, 0, 0, 2, 0] }], [640, 360]);
+  assert.equal(engine.scene.children[0].material, material);
+  assert.equal(geometry.disposals, 1);
+  assert.equal(material.disposals, 0);
+  engine.dispose();
+  assert.ok(h.resources.every(r => r.disposals === 1));
+});

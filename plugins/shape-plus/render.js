@@ -28,36 +28,62 @@ function createRenderer(THREE, sampleScale = "auto") {
     const t = new THREE.WebGLRenderTarget(1, 1, { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, format: THREE.RGBAFormat, depthBuffer: false, stencilBuffer: false });
     t.texture.generateMipmaps = false; targets.push(t); return t;
   }
-  let root = null, paintAllocations = [], size = [0, 0], resolution = [1, 1];
+  let root = null, paintAllocations = new Set(), size = [0, 0], resolution = [1, 1], structureKey = null;
   function releaseTree() {
     for (const value of paintAllocations) { value.dispose(); allocations.delete(value); }
-    paintAllocations = [];
+    paintAllocations.clear();
     for (const t of targets) t.dispose();
-    targets.length = 0; root = null;
+    targets.length = 0; root = null; structureKey = null;
   }
   function build(commands) {
-    const scene = new THREE.Scene(), children = [];
+    const scene = new THREE.Scene(), children = [], entries = [];
     let order = 0;
     for (const command of commands) {
-      let mesh;
+      let mesh, child = null;
       if (command.kind === "isolation") {
-        const child = build(command.commands); children.push(child);
+        child = build(command.commands); children.push(child);
         const g = plane(); g.scale(resolution[0] / 2, resolution[1] / 2, 1);
         mesh = new THREE.Mesh(g, material(textureShader, { image: { value: child.target.texture }, opacity: { value: command.opacity } }));
       } else {
-        if (!command.positions.length) continue;
+        if (!command.positions.length) { entries.push(null); continue; }
         mesh = new THREE.Mesh(geometry(command.positions), material("uniform vec3 color; uniform float opacity; void main(){gl_FragColor=vec4(color*opacity,opacity);}", { color: { value: new THREE.Color(...command.color) }, opacity: { value: command.opacity } }));
       }
+      entries.push({ mesh, child, positionsKey: command.positions && JSON.stringify(command.positions) });
       mesh.renderOrder = order++; mesh.frustumCulled = false; scene.add(mesh);
     }
-    return { scene, children, target: target() };
+    return { scene, children, entries, target: target() };
+  }
+  function updateTree(node, commands) {
+    commands.forEach((command, index) => {
+      const entry = node.entries[index];
+      if (!entry) return;
+      entry.mesh.material.uniforms.opacity.value = command.opacity;
+      if (entry.child) updateTree(entry.child, command.commands);
+      else {
+        entry.mesh.material.uniforms.color.value = new THREE.Color(...command.color);
+        const key = JSON.stringify(command.positions);
+        if (key !== entry.positionsKey) {
+          const previous = entry.mesh.geometry;
+          entry.mesh.geometry = geometry(command.positions); paintAllocations.add(entry.mesh.geometry);
+          previous.dispose(); allocations.delete(previous); paintAllocations.delete(previous);
+          entry.positionsKey = key;
+        }
+      }
+    });
   }
   function setCommands(commands, logicalResolution) {
+    const structure = list => list.map(c => c.kind === "isolation" ? [c.kind, c.id, structure(c.commands)] : [c.kind, c.id, !!c.positions.length]);
+    const key = JSON.stringify([logicalResolution, structure(commands)]);
+    if (root && key === structureKey) { updateTree(root, commands); return; }
     releaseTree(); resolution = logicalResolution.slice();
     const before = new Set(allocations);
-    root = build(commands);
-    paintAllocations = [...allocations].filter(value => !before.has(value));
-    size = [0, 0];
+    try { root = build(commands); }
+    catch (error) {
+      paintAllocations = new Set([...allocations].filter(value => !before.has(value)));
+      releaseTree(); throw error;
+    }
+    paintAllocations = new Set([...allocations].filter(value => !before.has(value)));
+    structureKey = key; size = [0, 0];
   }
   const shapeCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, .1, 100);
   shapeCamera.position.z = 10;

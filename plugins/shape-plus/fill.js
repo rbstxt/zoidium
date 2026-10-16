@@ -17,6 +17,7 @@ function triangulate(contours, rule = "nonzero") {
       const a = points[i], b = points[(i + 1) % points.length];
       if (!a.concat(b).every(Number.isFinite)) throw Error("Shape+ nonfinite polygon");
       levels.push(a[1]);
+      if (levels.length > 16384 || edges.length > 4096) throw Error("Shape+ polygon edge budget exceeded");
       if (a[1] !== b[1]) edges.push({ a, b, min: Math.min(a[1], b[1]), max: Math.max(a[1], b[1]), sign: b[1] > a[1] ? 1 : -1, index: edges.length });
     }
   }
