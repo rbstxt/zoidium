@@ -1,7 +1,7 @@
 "use strict";
 const { flattenPath } = require("./path.js");
 const vertex = (point, incoming = [0, 0], outgoing = [0, 0]) => ({ point, in: incoming, out: outgoing });
-function primitive(item, tolerance) {
+function primitivePath(item) {
   const p = item.properties, center = p.position || [0, 0], vertices = [];
   if (item.kind === "rectangle") {
     const w = Math.abs(p.size[0]) / 2, h = Math.abs(p.size[1]) / 2, r = Math.min(w, h, Math.max(0, p.roundness)), k = .5522847498307936;
@@ -32,9 +32,10 @@ function primitive(item, tolerance) {
   } else if (item.kind === "path") {
     const values = p.path;
     for (let i = 0; i < item.vertexIds.length; i++) vertices.push(vertex(values.slice(i * 6, i * 6 + 2), values.slice(i * 6 + 2, i * 6 + 4), values.slice(i * 6 + 4, i * 6 + 6)));
-    return flattenPath({ id: item.id, vertices, closed: !!p.closed }, tolerance);
+    return { id: item.id, vertices, closed: !!p.closed };
   } else throw Error("Unknown Shape+ path: " + item.kind);
   for (const v of vertices) v.point = [v.point[0] + center[0], v.point[1] + center[1]];
-  return flattenPath({ id: item.id, vertices, closed: true }, tolerance);
+  return { id: item.id, vertices, closed: true };
 }
-module.exports = { primitive };
+function primitive(item, tolerance) { return flattenPath(primitivePath(item), tolerance); }
+module.exports = { primitive, primitivePath };
