@@ -21,9 +21,10 @@ function outlines(paths, style, tolerance = .125) {
     if (area(polygon) < 0) polygon.reverse(); polygons.push(polygon);
   };
   for (const path of paths) {
-    const points = path.points.filter((p, i) => !i || distance(p, path.points[i - 1]) > 1e-9);
+    const indices = path.points.map((_, i) => i).filter(i => !i || distance(path.points[i], path.points[i - 1]) > 1e-9);
+    const points = indices.map(i => path.points[i]);
     if (path.closed && points.length > 1 && distance(points[0], points[points.length - 1]) < 1e-9) points.pop();
-    const radii = path.widths?.map(width => Math.max(0, width) / 2);
+    const radii = path.widths && indices.map(i => Math.max(0, path.widths[i]) / 2);
     radius = radii?.[0] ?? Math.max(0, style.width) / 2;
     const n = points.length, count = path.closed ? n : n - 1;
     if (n < 2) {

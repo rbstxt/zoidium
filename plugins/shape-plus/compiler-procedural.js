@@ -37,6 +37,7 @@ function transformed(path, m, transform) {
         m[1] * h[0] + m[3] * h[1],
       ];
       return {
+        ...v,
         point: transform(v.point, m),
         in: vector(v.in),
         out: vector(v.out),
@@ -88,7 +89,29 @@ function procedural(contents, tolerance, depth, budget, api) {
     if (depth > 16) throw Error("Shape+ group depth budget exceeded");
     let views = [],
       commands = [];
-    for (const item of list) {
+    const futureScales = new Array(list.length);
+    let futureScale = 1;
+    for (let i = list.length - 1; i >= 0; i--) {
+      futureScales[i] = futureScale;
+      const item = list[i];
+      if (item.kind === "repeater" && item.properties.enabled !== 0) {
+        const copies = repeaterCopies(item.properties, matrix);
+        const scale = Math.max(
+          1,
+          ...copies.map((copy) =>
+            Math.max(
+              Math.hypot(copy.matrix[0], copy.matrix[1]),
+              Math.hypot(copy.matrix[2], copy.matrix[3]),
+            ),
+          ),
+        );
+        futureScale *= scale;
+        if (!Number.isFinite(futureScale))
+          throw Error("Shape+ transform quality budget exceeded");
+      }
+    }
+    for (const [index, item] of list.entries()) {
+      const itemTolerance = tolerance / futureScales[index];
       const p = item.properties;
       if (p.enabled === 0) continue;
       if (item.kind === "group") {
@@ -98,7 +121,7 @@ function procedural(contents, tolerance, depth, budget, api) {
             Math.hypot(m[2], m[3]),
             1e-6,
           );
-        const child = scope(item.contents, tolerance / scale, depth + 1);
+        const child = scope(item.contents, itemTolerance / scale, depth + 1);
         views.push(
           ...child.views.map((view) => ({
             ...view,
@@ -122,7 +145,7 @@ function procedural(contents, tolerance, depth, budget, api) {
           views: views.slice(),
           properties: p,
           type: item.kind,
-          tolerance,
+          tolerance: itemTolerance,
           matrix: identity,
         };
         if (p.composite === "above") commands.push(paint);
@@ -134,7 +157,7 @@ function procedural(contents, tolerance, depth, budget, api) {
         const changed =
           item.kind === "trim"
             ? trim(paths, p)
-            : paths.map((path) => roundCorners(path, p.radius, tolerance));
+            : paths.map((path) => roundCorners(path, p.radius, itemTolerance));
         views.forEach((view, index) => {
           const inv = inverse(view.matrix);
           const selected = changed.filter((path) => path.owner === index);
@@ -187,7 +210,10 @@ function procedural(contents, tolerance, depth, budget, api) {
         }
       } else {
         const cubic = primitivePath(item),
-          path = { ...flattenPath(cubic, tolerance), vertices: cubic.vertices };
+          path = {
+            ...flattenPath(cubic, itemTolerance),
+            vertices: cubic.vertices,
+          };
         views.push({ base: { paths: [path] }, matrix: identity });
       }
       const points = views.reduce(
@@ -205,6 +231,7 @@ function procedural(contents, tolerance, depth, budget, api) {
       const children = command.commands
         .flatMap(render)
         .map((c) => transformCommand(c, command.matrix));
+      if (!children.length) return [];
       return command.opacity < 1
         ? [
             {
