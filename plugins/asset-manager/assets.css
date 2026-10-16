@@ -42,7 +42,7 @@
   position: relative;
   display: flex;
   gap: 10px;
-  min-height: 76px;
+  min-height: 112px;
   padding: 6px;
   background: var(--zui-bg-sunken);
   border: 1px solid var(--zui-border);
@@ -58,8 +58,8 @@
   flex: none;
   align-items: center;
   justify-content: center;
-  width: 96px;
-  height: 64px;
+  width: 160px;
+  height: 100px;
   overflow: hidden;
   color: var(--zui-text-muted);
   background: #000 repeating-conic-gradient(#1a1a1a 0 25%, #111 0 50%) 0 0 / 12px 12px;
@@ -73,8 +73,8 @@
 }
 
 .zam-thumb .zam-icon {
-  width: 28px;
-  height: 28px;
+  width: 40px;
+  height: 40px;
 }
 
 .zam-thumb-missing {
@@ -83,7 +83,7 @@
 }
 
 .zam-font-sample {
-  font-size: 30px;
+  font-size: 44px;
   color: var(--zui-text-bright);
 }
 
@@ -147,7 +147,7 @@
   position: absolute;
   z-index: 2;
   top: 48px;
-  left: 112px;
+  left: 176px;
   right: 6px;
   display: flex;
   flex-direction: column;
@@ -378,6 +378,21 @@
   color: var(--zui-text-faint);
   opacity: .5;
   cursor: default;
+}
+
+/* Some CM3 icons (the ellipsis) carry color="#000" on their path, which
+   turns an inherited currentColor fill black; give command icons the
+   resolved color instead. */
+.zam-command svg {
+  fill: var(--zui-text);
+}
+
+.zam-command:hover:not(:disabled) svg {
+  fill: var(--zui-text-bright);
+}
+
+.zam-command:disabled svg {
+  fill: var(--zui-text-faint);
 }
 
 .zam-context-menu {

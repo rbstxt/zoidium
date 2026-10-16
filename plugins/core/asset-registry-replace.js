@@ -4,7 +4,7 @@
   parts.createReplacement = function ({ PZ, snapshot, refresh, adapters, usageRecords, retention, edits }) {
     function current() { retention?.attach(); refresh(); return snapshot(); }
     function result(ok, values = {}) {
-      return { ok, replaced: 0, newId: null, skipped: [], reason: null, error: null, ...values };
+      return { ok, replaced: 0, newId: null, removed: false, skipped: [], reason: null, error: null, ...values };
     }
     function builtInFonts() {
       return (PZ.asset.font.preset || []).map(name => {
@@ -93,7 +93,6 @@
         if (item.asset) retention.retain(item.asset);
         if (next.asset) retention.retain(next.asset);
         const ops = new PZ.ui.properties(editor), properties = new Set();
-        let replaced = 0;
         for (const usage of live) {
           const record = usageRecords.get(usage);
           if (record?.property && !usage.plugin) properties.add(record.property);
@@ -102,19 +101,28 @@
           const address = property.getAddress();
           if (property.keyframes?.length) {
             for (const kf of property.keyframes) if (kf.value === id) {
-              ops.setValue({ property: address, frame: kf.frame, value: newKey }); replaced++;
+              ops.setValue({ property: address, frame: kf.frame, value: newKey });
             }
           } else if (property.value === id) {
-            ops.setValue({ property: address, value: newKey }); replaced++;
+            ops.setValue({ property: address, value: newKey });
           }
         }
         for (const adapter of hooks) {
           await adapter.replace(id, newKey);
-          replaced += live.filter(usage => usage.plugin === adapter.id).length;
           if (editor.project !== project || history.operation !== operation) return result(false, { reason: "project-changed" });
         }
-        if (next.asset) replaced += mediaReplacements(editor, id, next.asset);
-        return result(true, { replaced, newId: newKey, skipped });
+        if (next.asset) mediaReplacements(editor, id, next.asset);
+        // Count what actually moved, as the Uses column shows it.
+        const after = current().items.find(entry => entry.id === id);
+        const replaced = live.length - (after ? after.usages.filter(usage => !usage.composition).length : 0);
+        // AE Replace Footage swaps the item itself: a project file nothing
+        // uses any more leaves the project in the same undo step. Uses in
+        // closed compositions keep it.
+        let removed = false;
+        if (item.source === "file" && after && !after.usages.length) {
+          removed = edits.removeUnused([id]).removed.length > 0;
+        }
+        return result(true, { replaced, newId: newKey, removed, skipped });
       } catch (error) {
         return result(false, { skipped, reason: "failed", error: error?.message || String(error) });
       } finally {

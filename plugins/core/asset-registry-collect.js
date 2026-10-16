@@ -173,12 +173,14 @@
             if (!result.ok) { skipped.push({ id: item.id, name: item.name, reason: result.reason, error: result.error }); continue; }
             if (result.skipped?.length) skipped.push({ id: item.id, name: item.name, reason: "closed-composition" });
             entry.merged.push({ id: item.id, name: item.name });
-            duplicates.push(item.id);
+            // Replace already removes a project file it left unused.
+            if (result.removed) removed.push({ id: item.id, name: item.name, size: item.size || 0 });
+            else duplicates.push(item.id);
           }
           if (entry.merged.length) merged.push(entry);
         }
         // Like Remove Unused: duplicates that nothing uses any more go.
-        if (duplicates.length) removed = edits.removeUnused(duplicates).removed || [];
+        if (duplicates.length) removed = removed.concat(edits.removeUnused(duplicates).removed || []);
       } finally {
         if (opened && editor.project === project && history.operation === operation) history.finishOperation();
         refresh();
