@@ -102,7 +102,7 @@
         const namespaced = typeof type === "string" && /^zoidium:([a-z0-9-]+)\/(.+)$/.exec(type);
         try {
           const layer = originalLayerCreate.call(this, type);
-          if (namespaced && layer.type !== type) return createMissingNumericLayer(type, namespaced[1], namespaced[2]);
+          if (namespaced && !layer.__zoidiumRegisteredLayer) return createMissingNumericLayer(type, namespaced[1], namespaced[2]);
           return layer;
         } catch (error) {
           if (namespaced) return createMissingNumericLayer(type, namespaced[1], namespaced[2]);

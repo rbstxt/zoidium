@@ -734,6 +734,7 @@
       if (!found) return original.apply(this, arguments);
       var layer = found.factory();
       layer.type = found.type;
+      layer.__zoidiumRegisteredLayer = true;
       var match = typeof found.type === "string" && /^zoidium:([^/]+)\/(.+)$/.exec(found.type);
       if (match) {
         var metadata = Object.assign({ id: match[1], name: match[1], feature: match[2], featureName: found.name || match[2] }, found.plugin);
