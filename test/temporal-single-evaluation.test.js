@@ -111,11 +111,11 @@ test("an editor update reads the playhead on demand and never changes a later re
   assert.deepEqual(h.root.draws, [18, 18]);
 });
 
-test("samplers retain the existing evaluation and restoration path", () => {
+test("samplers on another stage do not add time-operator evaluations", () => {
   const h = host();
   h.owner.effects.push({ _zoidiumFrameSampler: {} });
   h.root.renderSequence(13);
-  assert.deepEqual(h.content.updates, [13, 18, 13]);
+  assert.deepEqual(h.content.updates, [18]);
 });
 
 test("an exception cannot leave the next draw in a mapping context", () => {
