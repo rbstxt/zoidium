@@ -5,6 +5,7 @@ function profile(paths, style) {
   const variable =
     style.startLength > 0 || style.endLength > 0 || style.waveAmount > 0;
   if (!variable) return dash(paths, style);
+  let samples = 0;
   return dash(paths, style).map((path) => {
     const table = lengthTable(path.points, path.closed),
       total = path.totalLength ?? table.total;
@@ -31,7 +32,7 @@ function profile(paths, style) {
         widths.push(
           widthAt(domain > total ? domain % total : domain, total, style),
         );
-        if (points.length > 4096)
+        if (points.length > 4096 || ++samples > 16384)
           throw Error("Shape+ width profile budget exceeded");
       }
     }

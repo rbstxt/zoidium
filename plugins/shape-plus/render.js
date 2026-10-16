@@ -6,14 +6,25 @@ const paintShader = require("./paint-shader.js");
 function createRenderer(THREE, sampleScale = "auto") {
   if (!["auto", 1, 2, 4].includes(sampleScale)) throw Error("Invalid Shape+ sample scale");
   const targets = [], allocations = new Set();
+  // Retain one warm material per shader variant through structural changes.
+  // Three otherwise releases its last program before replacement meshes draw.
+  const warmMaterials = new Map(), materialKeys = new WeakMap();
+  let borrowedMaterials = new Set();
   const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, .1, 100);
   camera.position.z = 10;
   const vertexShader = "varying vec2 uvShape; void main(){uvShape=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}";
   const textureShader = "varying vec2 uvShape; uniform sampler2D image; uniform float opacity; void main(){gl_FragColor=texture2D(image,uvShape)*opacity;}";
   function material(fragmentShader, uniforms, blend = true, vertex = vertexShader) {
+    const key = JSON.stringify([vertex, fragmentShader, blend]);
+    const warm = warmMaterials.get(key);
+    if (warm) {
+      warmMaterials.delete(key); borrowedMaterials.add(warm);
+      for (const name of Object.keys(uniforms)) warm.uniforms[name].value = uniforms[name].value;
+      return warm;
+    }
     const m = new THREE.ShaderMaterial({ vertexShader: vertex, fragmentShader, uniforms, side: THREE.DoubleSide, depthTest: false, depthWrite: false, transparent: blend,
       blending: blend ? THREE.CustomBlending : THREE.NoBlending, blendSrc: THREE.OneFactor, blendDst: THREE.OneMinusSrcAlphaFactor, blendEquation: THREE.AddEquation });
-    allocations.add(m); return m;
+    allocations.add(m); materialKeys.set(m, key); return m;
   }
   function geometry(positions) {
     const values = new Float32Array(positions);
@@ -33,7 +44,11 @@ function createRenderer(THREE, sampleScale = "auto") {
   }
   let root = null, paintAllocations = new Set(), size = [0, 0], resolution = [1, 1], structureKey = null;
   function releaseTree() {
-    for (const value of paintAllocations) { value.dispose(); allocations.delete(value); }
+    for (const value of paintAllocations) {
+      const key = materialKeys.get(value);
+      if (key && !warmMaterials.has(key)) warmMaterials.set(key, value);
+      else { value.dispose(); allocations.delete(value); }
+    }
     paintAllocations.clear();
     for (const t of targets) t.dispose();
     targets.length = 0; root = null; structureKey = null;
@@ -82,13 +97,13 @@ function createRenderer(THREE, sampleScale = "auto") {
     const key = JSON.stringify([logicalResolution, structure(commands)]);
     if (root && key === structureKey) { updateTree(root, commands); return; }
     releaseTree(); resolution = logicalResolution.slice();
-    const before = new Set(allocations);
+    const before = new Set(allocations); borrowedMaterials = new Set();
     try { root = build(commands); }
     catch (error) {
-      paintAllocations = new Set([...allocations].filter(value => !before.has(value)));
+      paintAllocations = new Set([...borrowedMaterials, ...[...allocations].filter(value => !before.has(value))]);
       releaseTree(); throw error;
     }
-    paintAllocations = new Set([...allocations].filter(value => !before.has(value)));
+    paintAllocations = new Set([...borrowedMaterials, ...[...allocations].filter(value => !before.has(value))]);
     structureKey = key; size = [0, 0];
   }
   const shapeCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, .1, 100);
@@ -123,7 +138,7 @@ function createRenderer(THREE, sampleScale = "auto") {
       stats.renders++;
     } finally { renderer.setClearColor(clearColor, clearAlpha); renderer.autoClear = autoClear; }
   }
-  function dispose() { releaseTree(); for (const resource of allocations) resource.dispose(); allocations.clear(); }
+  function dispose() { releaseTree(); for (const resource of allocations) resource.dispose(); allocations.clear(); warmMaterials.clear(); }
   return { render, setCommands, dispose, stats, get scene() { return root?.scene; }, camera: shapeCamera };
 }
 module.exports = { createRenderer };
