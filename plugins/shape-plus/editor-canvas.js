@@ -4,7 +4,7 @@ const g = require("./editor-geometry.js");
 const { matrix, transform, identity } = require("./compiler.js");
 const { primitivePath } = require("./primitives.js");
 const controls = require("./editor-controls.js");
-const { createPreview } = require("./editor-preview.js");
+const { displayMatrix } = require("./viewport-mapping.js");
 const { verticesToCubics } = require("./path.js");
 function scene(
   contents,
@@ -43,8 +43,7 @@ function scene(
 function createCanvas(s, canvas) {
   const context = canvas.getContext("2d"),
     view = { x: 0, y: 0, zoom: 1, width: 1, height: 1 };
-  const preview = createPreview(s);
-  let first = true;
+  let projection = null;
   function entries() {
     return scene(s.layer.contents, s.localFrame());
   }
@@ -52,16 +51,12 @@ function createCanvas(s, canvas) {
     return entries().find((e) => e.item.id === s.activeId);
   }
   function screen(point, m = identity) {
-    const p = transform(point, m);
-    return [view.x + p[0] * view.zoom, view.y - p[1] * view.zoom];
+    return transform(point, g.multiply(projection || identity, m));
   }
   function local(point, entry = active()) {
-    const inv = g.inverse(entry?.matrix || identity);
-    if (!inv) return null;
-    return transform(
-      [(point[0] - view.x) / view.zoom, (view.y - point[1]) / view.zoom],
-      inv,
-    );
+    if (!projection) return null;
+    const inv = g.inverse(g.multiply(projection, entry?.matrix || identity));
+    return inv ? transform(point, inv) : null;
   }
   function cssPoints(entry) {
     return entry.path.vertices.map((v) => ({
@@ -150,91 +145,31 @@ function createCanvas(s, canvas) {
       context.bezierCurveTo(...c[1], ...c[2], ...c[3]);
     if (closed) context.closePath();
   }
-  function fit() {
-    const [w, h] = s.layer.properties.resolution.get();
-    view.zoom = Math.max(
-      0.005,
-      Math.min(8, (view.width - 80) / w, (view.height - 80) / h),
-    );
-    view.x = view.width / 2;
-    view.y = view.height / 2;
-    s.dirty = true;
-  }
   function resize() {
-    const r = canvas.getBoundingClientRect(),
-      dpr = canvas.ownerDocument.defaultView.devicePixelRatio || 1;
-    if (r.width <= 0 || r.height <= 0) return;
-    const old = [view.width, view.height];
-    view.width = r.width;
-    view.height = r.height;
-    if (
-      canvas.width !== Math.round(r.width * dpr) ||
-      canvas.height !== Math.round(r.height * dpr)
-    ) {
-      canvas.width = Math.round(r.width * dpr);
-      canvas.height = Math.round(r.height * dpr);
-    }
-    if (first) {
-      first = false;
-      fit();
-    } else {
-      view.x += (view.width - old[0]) / 2;
-      view.y += (view.height - old[1]) / 2;
-    }
-    s.dirty = true;
+    const rect = s.viewport.canvas.getBoundingClientRect();
+    const parent = s.viewport.el.getBoundingClientRect();
+    const dpr = canvas.ownerDocument.defaultView.devicePixelRatio || 1;
+    Object.assign(canvas.style, {
+      left: rect.left - parent.left + "px", top: rect.top - parent.top + "px",
+      width: rect.width + "px", height: rect.height + "px",
+    });
+    view.width = rect.width; view.height = rect.height;
+    const width = Math.round(rect.width * dpr), height = Math.round(rect.height * dpr);
+    if (canvas.width !== width || canvas.height !== height) { canvas.width = width; canvas.height = height; }
+    const p = s.layer.properties;
+    projection = displayMatrix(rect, s.editor.sequence.properties.resolution.get(), {
+      position: p.position.get(s.localFrame()), scale: p.scale.get(s.localFrame()), rotation: p.rotation.get(s.localFrame()),
+    });
+    return !!projection;
   }
   function draw() {
-    const dpr = canvas.width / view.width,
-      theme = getComputedStyle(canvas),
-      color = (key) => theme.getPropertyValue(key).trim();
+    if (!resize() || !view.width) return;
+    const dpr = canvas.width / view.width;
     context.setTransform(dpr, 0, 0, dpr, 0, 0);
     context.clearRect(0, 0, view.width, view.height);
-    context.fillStyle = color("--zui-bg-sunken");
-    context.fillRect(0, 0, view.width, view.height);
-    const [w, h] = s.layer.properties.resolution.get(),
-      top = screen([-w / 2, h / 2]);
-    context.fillStyle = color("--zui-bg-title");
-    context.fillRect(...top, w * view.zoom, h * view.zoom);
-    if (s.grid) {
-      let spacing = s.spacing;
-      while (spacing * view.zoom < 12) spacing *= 2;
-      context.strokeStyle = color("--zui-border-soft");
-      context.lineWidth = 1;
-      context.beginPath();
-      for (
-        let x =
-          ((view.x % (spacing * view.zoom)) + spacing * view.zoom) %
-          (spacing * view.zoom);
-        x < view.width;
-        x += spacing * view.zoom
-      ) {
-        context.moveTo(x, 0);
-        context.lineTo(x, view.height);
-      }
-      for (
-        let y =
-          ((view.y % (spacing * view.zoom)) + spacing * view.zoom) %
-          (spacing * view.zoom);
-        y < view.height;
-        y += spacing * view.zoom
-      ) {
-        context.moveTo(0, y);
-        context.lineTo(view.width, y);
-      }
-      context.stroke();
-    }
-    try {
-      context.drawImage(preview.image(), ...top, w * view.zoom, h * view.zoom);
-    } catch (error) { s.message(error.message); }
-    context.globalAlpha = 1;
-    context.strokeStyle = color("--zui-text-faint");
+    const accent = "#ccc", entry = active();
+    context.strokeStyle = accent;
     context.lineWidth = 1;
-    context.strokeRect(...top, w * view.zoom, h * view.zoom);
-    context.fillStyle = color("--zui-text-muted");
-    context.font = "12px " + theme.fontFamily;
-    context.fillText(w + " × " + h, top[0] + 6, top[1] - 8);
-    const accent = color("--zui-accent-strong"),
-      entry = active();
     for (const e of entries()) {
       if (!e.enabled) continue;
       const selected = s.treeSelection.has(e.item.id);
@@ -242,14 +177,14 @@ function createCanvas(s, canvas) {
       const points = cssPoints(e);
       trace(points, e.path.closed);
       context.strokeStyle = accent;
-      context.lineWidth = 1.25;
+      context.lineWidth = 1;
       context.stroke();
       if (e.item.kind !== "path") {
         for (const h of primitiveHandles(e)) {
           const p = screen(h.point, e.matrix);
-          context.fillStyle = color("--zui-bg-input");
-          context.fillRect(p[0] - 4, p[1] - 4, 8, 8);
-          context.strokeRect(p[0] - 4, p[1] - 4, 8, 8);
+          context.fillStyle = "#ccc";
+          context.fillRect(p[0] - 5, p[1] - 5, 10, 10);
+          context.strokeRect(p[0] - 5, p[1] - 5, 10, 10);
         }
         continue;
       }
@@ -270,29 +205,28 @@ function createCanvas(s, canvas) {
           context.lineTo(...p);
           context.stroke();
           context.beginPath();
-          context.arc(...p, 3.5, 0, Math.PI * 2);
+          context.arc(...p, 4, 0, Math.PI * 2);
           context.fillStyle = s.selection.has(selectionKey(id, side))
-            ? accent
-            : color("--zui-bg-input");
+            ? "#555"
+            : "#ccc";
           context.fill();
           context.stroke();
         }
         context.fillStyle = s.selection.has(selectionKey(id))
-          ? accent
-          : color("--zui-bg-input");
-        context.fillRect(v.point[0] - 4, v.point[1] - 4, 8, 8);
-        context.strokeRect(v.point[0] - 4, v.point[1] - 4, 8, 8);
+          ? "#555"
+          : "#ccc";
+        context.fillRect(v.point[0] - 5, v.point[1] - 5, 10, 10);
+        context.strokeRect(v.point[0] - 5, v.point[1] - 5, 10, 10);
       });
     }
     controls.draw(s, context, accent);
     if (s.marquee) {
       const { start, end } = s.marquee;
-      context.fillStyle = "rgb(" + color("--zui-accent-rgb") + " / .12)";
+      context.fillStyle = "rgba(204,204,204,.12)";
       context.strokeStyle = accent;
       context.fillRect(...start, end[0] - start[0], end[1] - start[1]);
       context.strokeRect(...start, end[0] - start[0], end[1] - start[1]);
     }
-    s.zoomLabel.textContent = Math.round(view.zoom * 100) + "%";
   }
   function snap(point, exclude = []) {
     if (!s.snap) return point;
@@ -316,14 +250,7 @@ function createCanvas(s, canvas) {
         }
       });
     if (closest) return local(closest, entry);
-    const result = point.slice();
-    for (let axis = 0; axis < 2; axis++) {
-      const candidate = point.slice();
-      candidate[axis] = Math.round(point[axis] / s.spacing) * s.spacing;
-      if (Math.hypot(...g.sub(screen(candidate, entry?.matrix), world)) <= 8)
-        result[axis] = candidate[axis];
-    }
-    return result;
+    return point;
   }
   const observer = new ResizeObserver(resize);
   observer.observe(canvas);
@@ -331,10 +258,9 @@ function createCanvas(s, canvas) {
     view,
     draw,
     resize,
-    fit,
     entries,
     active,
-    activeMatrix: () => active()?.matrix || controls.handles(s)[0]?.matrix,
+    activeMatrix: () => [...(projection || []), ...(active()?.matrix || controls.handles(s)[0]?.matrix || [])],
     screen,
     local,
     cssPoints,
@@ -343,7 +269,7 @@ function createCanvas(s, canvas) {
     itemAt,
     snap,
     primitiveHandles,
-    dispose: () => { observer.disconnect(); preview.dispose(); },
+    dispose: () => observer.disconnect(),
   };
 }
 module.exports = { scene, createCanvas };

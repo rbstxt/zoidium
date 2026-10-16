@@ -5,7 +5,7 @@
   "author": "Zoidium",
   "version": "6",
   "kind": "extension",
-  "description": "Animated vector layers with a Bezier Shape Editor, ordered contents, fills and strokes.",
+  "description": "Animated vector layers with native Objects controls and preview path editing.",
   "category": "scene",
   "modules": [
     {
@@ -115,19 +115,9 @@
       "source": "./plugins/shape-plus/editor-pointer.js?v=6"
     },
     {
-      "id": "editor-tree",
-      "type": "text",
-      "source": "./plugins/shape-plus/editor-tree.js?v=6"
-    },
-    {
       "id": "editor-actions",
       "type": "text",
       "source": "./plugins/shape-plus/editor-actions.js?v=6"
-    },
-    {
-      "id": "editor-style",
-      "type": "text",
-      "source": "./plugins/shape-plus/editor.css?v=6"
     },
     {
       "id": "editor-selection",
@@ -150,11 +140,6 @@
       "source": "./plugins/shape-plus/paint.js?v=6"
     },
     {
-      "id": "editor-preview",
-      "type": "text",
-      "source": "./plugins/shape-plus/editor-preview.js?v=6"
-    },
-    {
       "id": "operators",
       "type": "text",
       "source": "./plugins/shape-plus/operators.js?v=6"
@@ -173,6 +158,11 @@
       "id": "editor-controls",
       "type": "text",
       "source": "./plugins/shape-plus/editor-controls.js?v=6"
+    },
+    {
+      "id": "viewport-mapping",
+      "type": "text",
+      "source": "./plugins/shape-plus/viewport-mapping.js?v=6"
     }
   ]
 }
