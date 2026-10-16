@@ -66,6 +66,7 @@ test("new zero controls retain the original motion and GPU path", () => {
 
 test("Displace Spin moves particles on seeded circles without rotating the sprite", () => {
   const { system, p } = setup();
+  const seed = p.emitter.randomSeed.get(0);
   const baseline = system.simulateFrame(30);
   p.displace.spinAmplitude.set(80); p.displace.spinFrequency.set(1.3);
   const a = system.simulateFrame(30);
@@ -83,7 +84,8 @@ test("Displace Spin moves particles on seeded circles without rotating the sprit
   p.emitter.randomSeed.set(4321);
   assert.notDeepEqual(b.positions, system.simulateFrame(30).positions);
   p.displace.spinAmplitude.set(0);
-  p.emitter.randomSeed.set(100);
+  p.emitter.randomSeed.set(seed);
+  assert.deepEqual(motion(system.simulateFrame(30)), motion(baseline));
   assert.ok(system.simulateFrame(30).spinOffsets.every(value => value === 0));
 });
 
@@ -155,7 +157,8 @@ test("child trails originate on the parent's orbital path and inherit its tangen
       assert.ok(Math.abs(inherited.velocities[i * 3 + axis] - expected.velocities[axis]) < 1e-5);
     }
   }
-  child._simTables = parent._simTables = {};
+  child._simTables = {};
+  parent._simTables = {};
   assert.deepEqual(child.simulateFrame(45), inherited);
 });
 
