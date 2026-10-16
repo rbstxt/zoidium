@@ -223,3 +223,33 @@ test("requestPlugin confirms experimental activation and refreshes editors only 
     assert.equal(confirms, 1);
   }
 });
+
+
+test("static source pickers refresh their track catalogue when opened", () => {
+  const createUi = require("../plugins/layer-input/layer-input-ui");
+  const document = {
+    activeElement: null,
+    createElement: () => ({
+      classList: { add() {} }, dataset: {}, children: [],
+      setAttribute() {}, appendChild(node) { this.children.push(node); },
+      replaceChildren() { this.children = []; },
+    }),
+  };
+  let options = [{ value: "", label: "The Layer Itself" }, { value: "image", label: "Image" }];
+  const deps = {
+    getSourceOptions: () => options, getCurrentSourceToken: () => "image",
+    getSourceError: () => "", getSourceStatus: () => "",
+  };
+  const ui = createUi({ document }, deps);
+  const input = ui.createSourceInput({ definition: { name: "Map" }, parentObject: {}, get: () => "image" });
+  const select = input.children[0];
+  document.activeElement = select;
+  options = [...options, { value: "track:id:second", label: "Track 2" }];
+  select.onfocus();
+  assert.equal(select.children.length, 3);
+  assert.equal(select.children[2].value, "track:id:second");
+  assert.equal(select.value, "image", "refreshing preserves the selected image source");
+  options = options.slice(0, 2);
+  select.onpointerdown();
+  assert.equal(select.children.length, 2);
+});
