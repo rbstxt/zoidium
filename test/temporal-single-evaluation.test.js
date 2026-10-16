@@ -128,3 +128,20 @@ test("an exception cannot leave the next draw in a mapping context", () => {
   h.root.renderSequence(13);
   assert.deepEqual(h.content.objects[0].updates, [18, 18]);
 });
+
+
+test("Precomp-style children inherit the mapped clock once with their own clip origin", () => {
+  const h = host({ composite: true, adjustment: true });
+  const child = h.content.objects[0];
+  child.clip = { start: 3, length: 100, object: child };
+  const base = Object.getPrototypeOf(Object.getPrototypeOf(h.content)).update;
+  h.content.update = function precompUpdate(frame) {
+    base.call(this, frame);
+    this.objects[0].update(frame + 7 - child.clip.start);
+  };
+  h.root.renderSequence(13);
+  assert.deepEqual(child.updates, [22]);
+  h.root.renderSequence(5);
+  h.root.renderSequence(13);
+  assert.deepEqual(child.updates, [22, 14, 22]);
+});
