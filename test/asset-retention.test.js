@@ -175,3 +175,17 @@ test("Remove Unused clears stale Precomp hold keys without deleting the composit
   f.editor.history.undo(); assert.equal(f.project.assets.list[asset.key], asset); assert.equal(comp.assets[0], asset); assert.equal(asset.mediaReferences, 1);
   f.editor.history.redo(); assert.equal(comp.assets.length, 0); assert.equal(f.project.assets.list[asset.key], undefined);
 });
+
+test("an unused composition is deleted only when named, through Precomp+", async () => {
+  const f = retainedFixture(), removed = [];
+  f.PZ.precomp = { entries: () => [{ id: "intro", name: "Intro", length: 60 }],
+    removeComp: (editor, id) => { assert.equal(editor, f.editor); removed.push(id); return { ok: true }; } };
+  assert.equal(f.api.removeUnused().removed.length, 0, "Remove Unused Items keeps compositions");
+  assert.deepEqual(removed, []);
+  const result = f.api.removeUnused(["comp:intro"]);
+  assert.deepEqual(removed, ["intro"]); assert.deepEqual(plain(result.removed.map(entry => entry.id)), ["comp:intro"]);
+  f.PZ.precomp.removeComp = () => ({ ok: false, message: "Intro is used by Main." });
+  const refused = f.api.removeUnused(["comp:intro"]);
+  assert.equal(refused.removed.length, 0); assert.equal(refused.skipped[0].error, "Intro is used by Main.");
+  f.api.dispose();
+});
