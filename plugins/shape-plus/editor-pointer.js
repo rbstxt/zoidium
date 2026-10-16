@@ -124,24 +124,7 @@ function createPointer(s, canvas) {
     s.closeMenu?.();
     if (!s.valid()) return null;
     const start = point(event);
-    if (s.overlay && event.button !== 0) return null;
-    if (!s.overlay && (event.button === 1 || s.space || s.tool === "hand")) {
-      const origin = [api.view.x, api.view.y];
-      return {
-        move(e) {
-          const delta = g.sub(point(e), start);
-          api.view.x = origin[0] + delta[0];
-          api.view.y = origin[1] + delta[1];
-          s.dirty = true;
-        },
-        end() {},
-        cancel() {
-          api.view.x = origin[0];
-          api.view.y = origin[1];
-          s.dirty = true;
-        },
-      };
-    }
+    if (event.button !== 0) return null;
     s.editor.playback.speed = 0;
     const control = controls.beginHandle(s, start, point);
     if (control) return control;
@@ -368,24 +351,6 @@ function createPointer(s, canvas) {
       s.message(error.message);
     },
   );
-  const wheel = (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    if (pointer.active) return;
-    const p = point(event),
-      view = api.view,
-      old = view.zoom;
-    view.zoom = Math.min(
-      64,
-      Math.max(
-        0.005,
-        old * Math.exp(-event.deltaY * (event.deltaMode === 1 ? 0.04 : 0.002)),
-      ),
-    );
-    view.x = p[0] - ((p[0] - view.x) * view.zoom) / old;
-    view.y = p[1] - ((p[1] - view.y) * view.zoom) / old;
-    s.dirty = true;
-  };
   const double = (event) => {
     const hit = api.hit(point(event)),
       item = s.active();
@@ -399,7 +364,6 @@ function createPointer(s, canvas) {
     );
     event.preventDefault();
   };
-  if (!s.overlay) canvas.addEventListener("wheel", wheel, { passive: false });
   canvas.addEventListener("dblclick", double);
   return {
     get active() {
@@ -408,7 +372,6 @@ function createPointer(s, canvas) {
     cancel: () => pointer.cancel(),
     dispose() {
       pointer.dispose();
-      canvas.removeEventListener("wheel", wheel);
       canvas.removeEventListener("dblclick", double);
     },
   };

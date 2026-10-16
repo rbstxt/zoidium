@@ -8,7 +8,7 @@ const { multiply, inverse } = require("./editor-geometry.js");
 const { find } = require("./editor-tree-data.js");
 const { findObjectsPanel } = require("./native-ui.js");
 const { icon } = require("./editor-icons.js");
-function editableClip(editor, viewport, Layer) {
+function editableClip(editor, viewport, Layer, PZ) {
   const clips = viewport.objects;
   if (!viewport.enabled || viewport.renderMode || clips?.length !== 1) return null;
   const clip = clips[0], layer = clip.object, frame = editor.playback.currentFrame;
@@ -16,12 +16,12 @@ function editableClip(editor, viewport, Layer) {
       frame < clip.start || frame >= clip.start + clip.length) return null;
   // A composite/perspective parent, a remapped composition or image effects
   // require a different inverse projection. Do not place guessed handles.
-  if (clip.tryGetParentOfType(window.PZ.sequence) !== editor.sequence) return null;
+  if (clip.tryGetParentOfType(PZ.sequence) !== editor.sequence) return null;
   const p = layer.properties, local = frame - clip.start + (clip.offset || 0);
   if (!inverse(matrix({ position: p.position.get(local), scale: p.scale.get(local), rotation: p.rotation.get(local) }))) return null;
   return clip;
 }
-function mountOverlay(context, layer, Content, viewport, panels, tool, onSelection) {
+function mountOverlay(context, layer, Content, viewport, panels, tool) {
   const canvas = document.createElement("canvas"), editor = window.CM, PZ = window.PZ;
   canvas.className = "shape-plus-overlay";
   canvas.setAttribute("aria-label", "Shape+ path controls");
@@ -30,7 +30,7 @@ function mountOverlay(context, layer, Content, viewport, panels, tool, onSelecti
   viewport.el.append(canvas);
   const s = {
     context, layer, Content, viewport, editor, PZ, document, window,
-    project: editor.project, canvas, tool, overlay: true, snap: true,
+    project: editor.project, canvas, tool, snap: true,
     selection: new Set(), treeSelection: new Set(), activeId: null,
     penFinished: false, dirty: true,
   };
@@ -54,7 +54,6 @@ function mountOverlay(context, layer, Content, viewport, panels, tool, onSelecti
       if (row.pz_object instanceof Content) row.classList.toggle("selected", selected.includes(row.pz_object));
     if (selected.length !== top.selection.length || selected.some((item, i) => top.selection[i] !== item))
       top.selection.splice(0, top.selection.length, ...selected);
-    onSelection();
   }
   s.refresh = () => { s.dirty = true; syncSelection(); };
   s.selectItem = (id, extend = false) => {
@@ -74,6 +73,8 @@ function mountOverlay(context, layer, Content, viewport, panels, tool, onSelecti
   const actions = installActions(s, canvas);
   let disposed = false;
   function cancel() { s.pointer.cancel(); s.finishNudge(true); s.gesture.finish(true); }
+  const changed = () => { if (!disposed && s.valid()) s.refresh(); };
+  s.project.ui.onChanged.watch(changed);
   function update() {
     if (disposed) return;
     s.canvasApi.resize();
@@ -95,6 +96,7 @@ function mountOverlay(context, layer, Content, viewport, panels, tool, onSelecti
     dispose() {
       if (disposed) return;
       cancel(); actions.dispose(); s.pointer.dispose(); s.canvasApi.dispose();
+      s.project.ui.onChanged.unwatch(changed);
       disposed = true; canvas.remove();
     },
   };
@@ -131,7 +133,15 @@ function install(context, Layer, Content) {
   toolbar.buttons.push(...commands);
   const select = panels.top.selectItems;
   function selected() {
+    if (!view) return select.apply(this, arguments);
+    // Cancellation can rebuild the native rows. Retain the clicked IDs before
+    // rollback, then select their live replacements instead of stale instances.
+    const requested = Array.from(this.list.getElementsByClassName("selected"), row => row.pz_object);
     view?.cancel();
+    this.deselectItems();
+    for (const row of this.list.querySelectorAll("li"))
+      if (requested.some(item => item instanceof Content ? row.pz_object instanceof Content && row.pz_object.id === item.id : row.pz_object === item))
+        row.classList.add("selected");
     const result = select.apply(this, arguments);
     view?.select(this.selection);
     return result;
@@ -140,26 +150,33 @@ function install(context, Layer, Content) {
   const changed = () => { view?.dispose(); view = null; };
   editor.onProjectChanged.watch(changed);
   function restoreWidget() {
-    if (hiddenWidget !== null) { viewport.widget2d.el.style.visibility = hiddenWidget; hiddenWidget = null; }
+    if (hiddenWidget !== null) {
+      const previous = hiddenWidget; hiddenWidget = null;
+      viewport.widget2d.el.style.visibility = previous.visibility;
+      viewport.widget2d.edit = previous.edit;
+    }
   }
   let request;
   function tick(schedule = true) {
     if (disposed) return;
-    const clip = editableClip(editor, viewport, Layer);
+    const clip = editableClip(editor, viewport, Layer, PZ);
     const layer = clip?.object;
     const item = panels.top.selection.length === 1 ? panels.top.selection[0] : null;
     const entry = item instanceof Content && layer ? find(layer.contents, item.id) : null;
     const editable = entry && [...entry.ancestors, entry.item].every(item => item.properties.enabled.get() !== 0) &&
-      inverse(entry.ancestors.reduce((m, group) => multiply(m, matrix(group.evaluate(editor.playback.currentFrame - clip.start + (clip.offset || 0)).properties)), identity));
-    const visible = enabled && layer && (tool === "pen" || editable &&
+      inverse([...entry.ancestors, ...(entry.item.kind === "group" ? [entry.item] : [])].reduce((m, group) => multiply(m, matrix(group.evaluate(editor.playback.currentFrame - clip.start + (clip.offset || 0)).properties)), identity));
+    const visible = enabled && layer && (!entry || editable) && (tool === "pen" || editable &&
       ["path", "rectangle", "ellipse", "polystar", "gradientFill", "gradientStroke", "repeater"].includes(item.kind));
     if (view && (!visible || view.state.layer !== layer || !view.state.valid())) { view.dispose(); view = null; }
     if (visible && !view) {
-      view = mountOverlay(context, layer, Content, viewport, panels, tool, () => {});
+      view = mountOverlay(context, layer, Content, viewport, panels, tool);
       view.select(panels.top.selection);
     }
     if (view) {
-      if (hiddenWidget === null) hiddenWidget = viewport.widget2d.el.style.visibility;
+      if (hiddenWidget === null) {
+        hiddenWidget = { visibility: viewport.widget2d.el.style.visibility, edit: viewport.widget2d.edit };
+        viewport.widget2d.edit = false;
+      }
       viewport.widget2d.el.style.visibility = "hidden";
       view.update();
     } else restoreWidget();
@@ -171,9 +188,18 @@ function install(context, Layer, Content) {
     }
     if (schedule) request = window.requestAnimationFrame(() => tick());
   }
+  const transformChanged = () => {
+    if (view && viewport.widget2d.edit) {
+      if (hiddenWidget) hiddenWidget.edit = viewport.widget2d.edit;
+      enabled = false; tick(false);
+    }
+  };
+  viewport.widget2d.onEditChanged.watch(transformChanged);
   tick();
   context.lifecycle.onDispose(() => {
-    disposed = true; window.cancelAnimationFrame(request); changed(); restoreWidget();
+    disposed = true; window.cancelAnimationFrame(request);
+    viewport.widget2d.onEditChanged.unwatch(transformChanged);
+    changed(); restoreWidget();
     editor.onProjectChanged.unwatch(changed);
     if (panels.top.selectItems === selected) panels.top.selectItems = select;
     for (const command of commands) {

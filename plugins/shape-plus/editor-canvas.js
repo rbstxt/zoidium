@@ -42,7 +42,7 @@ function scene(
 }
 function createCanvas(s, canvas) {
   const context = canvas.getContext("2d"),
-    view = { x: 0, y: 0, zoom: 1, width: 1, height: 1 };
+    view = { width: 1, height: 1 };
   let projection = null;
   function entries() {
     return scene(s.layer.contents, s.localFrame());
@@ -177,11 +177,16 @@ function createCanvas(s, canvas) {
       const points = cssPoints(e);
       trace(points, e.path.closed);
       context.strokeStyle = accent;
+      context.strokeStyle = "#666";
+      context.lineWidth = 3;
+      context.stroke();
+      context.strokeStyle = accent;
       context.lineWidth = 1;
       context.stroke();
       if (e.item.kind !== "path") {
         for (const h of primitiveHandles(e)) {
           const p = screen(h.point, e.matrix);
+          context.strokeStyle = "#555";
           context.fillStyle = "#ccc";
           context.fillRect(p[0] - 5, p[1] - 5, 10, 10);
           context.strokeRect(p[0] - 5, p[1] - 5, 10, 10);
@@ -201,6 +206,7 @@ function createCanvas(s, canvas) {
           if (Math.hypot(...v[side]) < 1e-8) continue;
           const p = g.add(v.point, v[side]);
           context.beginPath();
+          context.strokeStyle = accent;
           context.moveTo(...v.point);
           context.lineTo(...p);
           context.stroke();
@@ -210,11 +216,13 @@ function createCanvas(s, canvas) {
             ? "#555"
             : "#ccc";
           context.fill();
+          context.strokeStyle = "#555";
           context.stroke();
         }
         context.fillStyle = s.selection.has(selectionKey(id))
           ? "#555"
           : "#ccc";
+        context.strokeStyle = "#555";
         context.fillRect(v.point[0] - 5, v.point[1] - 5, 10, 10);
         context.strokeRect(v.point[0] - 5, v.point[1] - 5, 10, 10);
       });
