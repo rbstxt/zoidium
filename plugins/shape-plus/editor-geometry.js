@@ -135,13 +135,21 @@ function nearest(curve, point) {
   }
   return best;
 }
-function hit(points, closed, point, scale, handles = true) {
+function hit(
+  points,
+  closed,
+  point,
+  scale,
+  handles = true,
+  endpointHandles = false,
+) {
   const radius = 8 / scale;
   if (handles)
     for (let i = points.length - 1; i >= 0; i--)
       for (const side of ["out", "in"]) {
         if (
           !closed &&
+          !endpointHandles &&
           ((side === "in" && i === 0) ||
             (side === "out" && i === points.length - 1))
         )

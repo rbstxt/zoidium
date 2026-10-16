@@ -28,12 +28,14 @@ function createEditorModel(s) {
       return null;
     }
   };
-  const read = () => {
+  const read = (history = false) => {
     const target = resolve();
+    if (!history && target !== layer) return null;
     return target?.type === layer.type ? clone(target.contents) : null;
   };
-  const write = (data) => {
+  const write = (data, history = false) => {
     const target = resolve();
+    if (!history && target !== layer) return;
     if (target?.type === layer.type) replaceContents(target, data, Content);
   };
   s.valid = () => editor.project === project && resolve() === layer;
@@ -56,7 +58,8 @@ function createEditorModel(s) {
   );
   s.preview = () => {
     layer.signature = null;
-    project.ui.onChanged.update();
+    // Native playback redraws evaluated layer data continuously. Project
+    // change notifications belong to finishOperation, once per gesture.
     s.dirty = true;
   };
   s.mutate = (work) => {

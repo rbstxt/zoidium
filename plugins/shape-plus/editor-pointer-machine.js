@@ -1,6 +1,13 @@
 "use strict";
 // Pointer ownership/cancellation is independent of geometry and CM3.
-function createPointerMachine(element, begin, ownerWindow) {
+function createPointerMachine(
+  element,
+  begin,
+  ownerWindow,
+  onError = (error) => {
+    throw error;
+  },
+) {
   let active = null,
     disposed = false;
   const consume = (event) => {
@@ -27,7 +34,14 @@ function createPointerMachine(element, begin, ownerWindow) {
       ![0, 1].includes(event.button)
     )
       return;
-    const gesture = begin(event);
+    let gesture;
+    try {
+      gesture = begin(event);
+    } catch (error) {
+      onError(error);
+      consume(event);
+      return;
+    }
     consume(event);
     if (!gesture) return;
     active = { id: event.pointerId, gesture };
@@ -44,7 +58,7 @@ function createPointerMachine(element, begin, ownerWindow) {
       active.gesture.move?.(event);
     } catch (error) {
       finish(true, event);
-      throw error;
+      onError(error);
     }
   }
   function up(event) {

@@ -113,6 +113,25 @@ function installActions(s, root) {
       s.refresh(true);
       return;
     }
+    if (menu && menu.contains(event.target) && key !== "escape") {
+      const buttons = [...menu.querySelectorAll("button:not(:disabled)")];
+      const index = buttons.indexOf(event.target);
+      if (["arrowdown", "arrowup", "home", "end"].includes(key)) {
+        consume();
+        const next =
+          key === "home"
+            ? 0
+            : key === "end"
+              ? buttons.length - 1
+              : (index + (key === "arrowdown" ? 1 : -1) + buttons.length) %
+                buttons.length;
+        buttons[next]?.focus();
+      } else if (key === "enter" || event.code === "Space") {
+        consume();
+        event.target.click();
+      }
+      return;
+    }
     if (event.code === "Space") {
       consume();
       s.space = true;

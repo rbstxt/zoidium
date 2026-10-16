@@ -319,7 +319,9 @@ function mountEditor(context, layer, Content, body, host, initial) {
         s.pointer.active?.frame !== undefined &&
         (s.pointer.active.frame !== currentFrame ||
           s.pointer.active.target !== s.activeId ||
-          !s.active())
+          !s.active() ||
+          s.pointer.active.matrix !==
+            JSON.stringify(s.canvasApi.active()?.matrix))
       )
         s.pointer.cancel();
       actions.check();

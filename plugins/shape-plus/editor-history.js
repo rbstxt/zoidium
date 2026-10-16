@@ -4,9 +4,9 @@ const { clone } = require("./model.js");
 // Commands resolve the layer address afresh, so tree replacement never leaves
 // undo closures pointing at dead Content/property instances.
 function exchange(p) {
-  const current = p.read();
+  const current = p.read(true);
   if (!current) return;
-  p.write(clone(p.data));
+  p.write(clone(p.data), true);
   p.history.pushCommand(exchange, { ...p, data: current });
 }
 function createGesture(history, read, write, notify = () => {}) {
