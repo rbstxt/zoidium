@@ -925,3 +925,36 @@ for (const suffix of [false, true]) {
     assert.equal(h.owner.frame, 20);
   });
 }
+
+test("viewport prepares a nested Precomp sampler and its resources at the mapped child clock", async () => {
+  const h = host(false);
+  const child = new h.PZ.layer.scene();
+  child.clip = { start: 3, length: 100, object: child };
+  child.pass = { camera: {} };
+  child.effects = [h.effect];
+  const resources = [], prepared = [], updates = [];
+  child.objects = [{ prepare: async frame => resources.push(frame) }];
+  child.toJSON = () => ({ type: 4, effects: child.effects });
+  const originalUpdate = child.update;
+  child.update = function (frame) { updates.push(frame); originalUpdate.call(this, frame); };
+  h.effect.tryGetParentOfType = () => child;
+  h.effect.prepare = async (frame, context) => {
+    prepared.push(frame);
+    await h.state.prepareFrameSamples(h.effect, frame, context);
+  };
+  Object.setPrototypeOf(h.owner, h.PZ.layer.composite.prototype);
+  h.owner.effects = [temporal("time-offset", 5)];
+  h.owner.objects = [child];
+  h.owner.offset = 7;
+  h.owner.setCompTime = () => {};
+  h.owner.nestedTracks = () => [{ clips: [child.clip], getCurrentClip: () => child.clip }];
+  h.sequence.videoTracks[0].clips = [h.ownerClip];
+  h.sequence.videoSchedules = [];
+  h.viewport._render();
+  await new Promise(setImmediate);
+  assert.deepEqual(resources, [29], "project 30 minus outer start 10, plus 5 + 7, minus child start 3");
+  assert.deepEqual(prepared, [29]);
+  assert.deepEqual(updates, [26, 23], "only sampler inputs evaluate content during preparation");
+  assert.equal(h.root.frames.at(-1), 30);
+  assert.equal(h.state.frameSamplerRuntimes.get(h.root).previewPending, false);
+});
