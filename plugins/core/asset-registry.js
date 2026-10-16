@@ -202,11 +202,13 @@
   const restoreConsumers = parts.patchReplacementConsumers?.(PZ);
   const replacement = parts.createReplacement?.({ PZ, snapshot, refresh, adapters, usageRecords, retention, edits });
   const organizer = parts.createOrganizer?.({ PZ, refresh });
+  const collector = parts.createCollector?.({ PZ, snapshot, refresh, retention, replacement, edits, actions });
   const itemById = id => snapshot().items.find(item => item.id === id) || null;
   const api = { snapshot, refresh, registerReferences,
     replace: replacement?.replace, builtInFonts: replacement?.builtInFonts,
     missingFiles: edits?.missingFiles,
     import: edits?.importFiles, removeUnused: edits?.removeUnused, removeItems: edits?.removeItems,
+    collectFiles: collector?.collectFiles, consolidate: collector?.consolidate,
     retained(id) { return !!retention?.has(global.CM?.project?.assets?.list[id]); },
     renderNeeded(asset, project) {
       const held = retention?.has(asset, project);
