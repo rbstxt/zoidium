@@ -1,7 +1,7 @@
 # Layer Input
 
 Layer Input is a Zoidium-only plugin for using one project video track as an information
-source for another layer.
+source for another layer. The effects and Layer Source material can also use an image.
 
 It currently provides four entry points:
 
@@ -38,3 +38,17 @@ The selected track is captured even when its video track is hidden. This keeps t
 implementation in an external extension layer around CM3 and also covers preview and
 export-style compositor instances. Projects containing the effect, material, or Custom
 Shader input record the `layer-input` dependency in root-level project metadata.
+
+
+Select **Image** in an effect or material's source picker, then choose a file in
+**Source Image**. The image uses the native project asset list, appears in Assets,
+and is saved in the `.pz` project. Replacing or removing it releases the previous
+image and texture. With no image assigned, the effects leave their input unchanged
+and the material stays transparent, matching their empty source behavior.
+
+Time Displacement in Native FX also offers Image, even when Layer Input is disabled.
+Its empty source remains **The Layer Itself**. Choosing **Other Layer…** asks to
+enable Layer Input and displays its experimental warning. Approval refreshes open
+property panels to show the track picker. Declining keeps the previous source.
+Time Displacement projects using a track map record the Layer Input dependency.
+The Custom Shader Layer Input picker is unchanged; Custom Shader already has image inputs.

@@ -26,14 +26,14 @@
       "id": "core",
       "name": "Zoidium Core",
       "author": "Zoidium",
-      "version": "55",
+      "version": "56",
       "visibility": "hidden",
       "alwaysEnabled": true,
       "tagline": "Built-in core extensions",
       "description": "Hidden built-in extensions that always run. Not shown in the Plugins panel and never stored in projects.",
-      "manifest": "./plugins/core/manifest.json?v=55",
-      "bundle": "./plugins/core/bundle.json?v=55",
-      "integrity": "sha256-bPZsV2Dqc1UD+cF+t6fKQpoF9wFNB85eCs5D4TW1QEE="
+      "manifest": "./plugins/core/manifest.json?v=56",
+      "bundle": "./plugins/core/bundle.json?v=56",
+      "integrity": "sha256-i+9M04+OJz5s2LDkCWvD+ldqguwoks18V9fVR3Rlaeo="
     },
     {
       "id": "easing-plus",
@@ -296,16 +296,16 @@
       "category": "adjustment",
       "name": "Native FX",
       "author": "Zoidium",
-      "version": "16",
+      "version": "17",
       "itemCount": 6,
       "format": "native effects",
       "tagline": "Native Effects and Time Tools",
       "color": "#c56b3d",
       "description": "Adds native filters, direct visual controls, and time effects.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/native-fx/manifest.json?v=16",
-      "bundle": "./plugins/native-fx/bundle.json?v=16",
-      "integrity": "sha256-hDQ5/lgka0LM08HWO+5mi/BrhXVJsGZl8NDfCUYyG0M="
+      "manifest": "./plugins/native-fx/manifest.json?v=17",
+      "bundle": "./plugins/native-fx/bundle.json?v=17",
+      "integrity": "sha256-t/D22Zgte5iMNzFhyjeE+pBT3uIs6CFZZnodqTpqg4o="
     },
     {
       "id": "afterclip",
@@ -398,7 +398,7 @@
       "category": "experimental",
       "name": "Layer Input",
       "author": "Zoidium",
-      "version": "13",
+      "version": "14",
       "itemCount": 4,
       "format": "layer sources",
       "tagline": "Layer-to-Layer Inputs",
@@ -406,9 +406,9 @@
       "description": "Lets effects, 3D materials, and Custom Shaders use another video track as an information source.",
       "zoidiumOnly": true,
       "warning": "Layer Input projects require Zoidium. This feature is extremely experimental and may cause unexpected crashes.",
-      "manifest": "./plugins/layer-input/manifest.json?v=13",
-      "bundle": "./plugins/layer-input/bundle.json?v=13",
-      "integrity": "sha256-Ivk0PP+5TQnPaXklr0wq/jFd06aDe3UwHp52MoidaKw="
+      "manifest": "./plugins/layer-input/manifest.json?v=14",
+      "bundle": "./plugins/layer-input/bundle.json?v=14",
+      "integrity": "sha256-dGUr+pLGjVZl69b8A4OgMrdOnxeozWgklZ+PBCk+LMc="
     }
   ]
 }
