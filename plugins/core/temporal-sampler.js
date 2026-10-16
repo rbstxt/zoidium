@@ -62,13 +62,16 @@
     if (math.temporalMode(stage.effect) === "legacy") return getAdjustmentEffectFrame(stage.layer, stage.effect, frame);
     if (!isAdjustmentLayer(stage.layer) || scope?.layer === stage.layer) return frame;
     const start = finiteNumber(stage.clip.start, 0);
-    const prefix = getFrameSamplerPrefix(stage, start + frame);
-    if (!hasFrameSamplerQuantizer(prefix)) return getAdjustmentEffectFrame(stage.layer, stage.effect, frame);
-    // Adjustment time operators act on the accumulated input in project time.
-    // Use its mapped clock for tap spacing, just as ordinary layer samplers do.
+    // The complete adjustment input clock includes translations on either
+    // side of the sampler. Lower tracks must not apply that scope again.
     return math.applyTemporalOperators(start + frame,
       getProjectRate(stage.layer, getSequenceForLayer(stage.layer)),
       layers.readTemporalOperators(stage.layer, frame), undefined, true) - start;
+  }
+
+  function ownsFrameSamplerScope(stage, frame) {
+    return math.temporalMode(stage.effect) !== "legacy" &&
+      (isAdjustmentLayer(stage.layer) || hasFrameSamplerQuantizer(getFrameSamplerPrefix(stage, frame)));
   }
 
   function withFrameSamplerInputContext(state, stage, frame, context, callback) {
@@ -81,7 +84,7 @@
       outputFrame: frame,
       singleEvaluation: layers.usesSingleEvaluation(sequence),
       renderingSequence: true,
-      frameSamplerScope: hasFrameSamplerQuantizer(getFrameSamplerPrefix(stage, frame))
+      frameSamplerScope: ownsFrameSamplerScope(stage, frame)
         ? stage : context?.frameSamplerScope || parent?.frameSamplerScope,
     }));
     try { return callback(); }
@@ -423,7 +426,7 @@
       outputFrame: projectFrame,
       renderingSequence: true,
       rootCompositor: root,
-      frameSamplerScope: hasFrameSamplerQuantizer(getFrameSamplerPrefix(stage, requestedFrame))
+      frameSamplerScope: ownsFrameSamplerScope(stage, requestedFrame)
         ? stage : inputContext?.frameSamplerScope || parentContext?.frameSamplerScope,
     });
     try {
@@ -694,7 +697,7 @@
           }
           const inputContext = Object.assign({}, context, {
             frameSamplerRoot: root, frameSamplerDepth: depth,
-            frameSamplerScope: hasFrameSamplerQuantizer(getFrameSamplerPrefix(stage, sourceProjectFrame))
+            frameSamplerScope: ownsFrameSamplerScope(stage, sourceProjectFrame)
               ? stage : context?.frameSamplerScope || parentContext?.frameSamplerScope,
           });
           inputContext.frameSamplerChangedLayers = changedLayers;
