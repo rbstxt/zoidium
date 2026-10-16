@@ -59,7 +59,7 @@ function createModel(PZ) {
       const properties = {};
       for (const key of Object.keys(this.properties)) {
         const value = this.properties[key].get(frame);
-        if (typeof value === "number" && !Number.isFinite(value) || Array.isArray(value) && !value.every(Number.isFinite)) throw Error("Shape+ property must be finite");
+        if (typeof value === "number" && !Number.isFinite(value) || Array.isArray(value) && key !== "stops" && !value.every(Number.isFinite)) throw Error("Shape+ property must be finite");
         properties[key] = Array.isArray(value) ? value.slice() : value;
       }
       return { id: this.id, kind: this.kind, vertexIds: this.vertexIds.slice(), properties, ...(this.contents ? { contents: Array.from(this.contents, child => child.evaluate(frame)) } : {}) };

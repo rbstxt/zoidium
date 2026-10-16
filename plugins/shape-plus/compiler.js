@@ -14,13 +14,18 @@ function transformCommand(command, m) {
   if (command.kind === "isolation") return { ...command, commands: command.commands.map(c => transformCommand(c, m)) };
   const positions = [];
   for (let i = 0; i < command.positions.length; i += 3) positions.push(...transform(command.positions.slice(i, i + 2), m), 0);
-  return { ...command, positions };
+  if (!command.gradient) return { ...command, positions };
+  const a = m, b = command.gradient.matrix;
+  const combined = [a[0]*b[0]+a[2]*b[1], a[1]*b[0]+a[3]*b[1], a[0]*b[2]+a[2]*b[3], a[1]*b[2]+a[3]*b[3], ...transform([b[4],b[5]],a)];
+  return { ...command, positions, gradient: { ...command.gradient, matrix: combined } };
 }
 // Contents run top-to-bottom for path collection, bottom-to-top for paint.
 // A parent paint sees paths in groups above it, in the parent's coordinates.
 // A group's own paints run in its local coordinates BEFORE its transform.
 function compile(contents, tolerance = .125, depth = 0, budget = { coordinates: 0, points: 0 }) {
   if (depth > 16) throw Error("Shape+ group depth budget exceeded");
+  const advanced = list => list.some(item => ["trim", "roundCorners", "repeater", "gradientFill", "gradientStroke"].includes(item.kind) || item.properties.composite === "above" || item.contents && advanced(item.contents));
+  if (advanced(contents)) return require("./compiler-procedural.js").procedural(contents, tolerance, depth, budget, { matrix, transform, transformCommand });
   const paths = [], schedule = [];
   for (const item of contents) {
     const p = item.properties;

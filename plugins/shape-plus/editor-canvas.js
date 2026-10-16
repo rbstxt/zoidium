@@ -1,8 +1,10 @@
 "use strict";
 const { selectionKey, selectionPart } = require("./editor-selection.js");
 const g = require("./editor-geometry.js");
-const { matrix, transform, identity, compile } = require("./compiler.js");
+const { matrix, transform, identity } = require("./compiler.js");
 const { primitivePath } = require("./primitives.js");
+const controls = require("./editor-controls.js");
+const { createPreview } = require("./editor-preview.js");
 const { verticesToCubics } = require("./path.js");
 function scene(
   contents,
@@ -22,7 +24,7 @@ function scene(
         visible,
         result,
       );
-    else if (!["fill", "stroke"].includes(item.kind))
+    else if (["path", "rectangle", "ellipse", "polystar"].includes(item.kind))
       result.push({
         item,
         matrix: parent,
@@ -41,6 +43,7 @@ function scene(
 function createCanvas(s, canvas) {
   const context = canvas.getContext("2d"),
     view = { x: 0, y: 0, zoom: 1, width: 1, height: 1 };
+  const preview = createPreview(s);
   let first = true;
   function entries() {
     return scene(s.layer.contents, s.localFrame());
@@ -180,25 +183,6 @@ function createCanvas(s, canvas) {
     }
     s.dirty = true;
   }
-  function drawCommands(commands, opacity = 1) {
-    for (const command of commands) {
-      if (command.kind === "isolation") {
-        drawCommands(command.commands, opacity * command.opacity);
-        continue;
-      }
-      context.globalAlpha = opacity * command.opacity;
-      context.fillStyle = `rgb(${command.color.map((v) => Math.round(v * 255)).join(",")})`;
-      context.beginPath();
-      const p = command.positions;
-      for (let i = 0; i < p.length; i += 9) {
-        context.moveTo(p[i], p[i + 1]);
-        context.lineTo(p[i + 3], p[i + 4]);
-        context.lineTo(p[i + 6], p[i + 7]);
-        context.closePath();
-      }
-      context.fill();
-    }
-  }
   function draw() {
     const dpr = canvas.width / view.width,
       theme = getComputedStyle(canvas),
@@ -239,20 +223,9 @@ function createCanvas(s, canvas) {
       }
       context.stroke();
     }
-    context.save();
-    context.translate(view.x, view.y);
-    context.scale(view.zoom, -view.zoom);
     try {
-      drawCommands(
-        compile(
-          Array.from(s.layer.contents, (n) => n.evaluate(s.localFrame())),
-          0.6 / view.zoom,
-        ).commands,
-      );
-    } catch (error) {
-      s.message(error.message);
-    }
-    context.restore();
+      context.drawImage(preview.image(), ...top, w * view.zoom, h * view.zoom);
+    } catch (error) { s.message(error.message); }
     context.globalAlpha = 1;
     context.strokeStyle = color("--zui-text-faint");
     context.lineWidth = 1;
@@ -311,6 +284,7 @@ function createCanvas(s, canvas) {
         context.strokeRect(v.point[0] - 4, v.point[1] - 4, 8, 8);
       });
     }
+    controls.draw(s, context, accent);
     if (s.marquee) {
       const { start, end } = s.marquee;
       context.fillStyle = "rgb(" + color("--zui-accent-rgb") + " / .12)";
@@ -360,6 +334,7 @@ function createCanvas(s, canvas) {
     fit,
     entries,
     active,
+    activeMatrix: () => active()?.matrix || controls.handles(s)[0]?.matrix,
     screen,
     local,
     cssPoints,
@@ -368,7 +343,7 @@ function createCanvas(s, canvas) {
     itemAt,
     snap,
     primitiveHandles,
-    dispose: () => observer.disconnect(),
+    dispose: () => { observer.disconnect(); preview.dispose(); },
   };
 }
 module.exports = { scene, createCanvas };
