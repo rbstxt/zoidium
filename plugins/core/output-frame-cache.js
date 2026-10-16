@@ -24,6 +24,12 @@
   // asynchronous follow-up work (file reads, imports) can land a little later,
   // so the full serialization is rechecked on every draw for this long.
   const HOT_MS = 1500;
+  // Projects whose serialization takes longer than this are not serialized
+  // on every draw: while input is recent or playback runs they draw live,
+  // exactly as without the cache, and are validated once the editor is
+  // paused and quiet. A large project takes over 100 ms per serialization.
+  const KEY_BUDGET_MS = 8;
+  const LIVE = Symbol("live");
   // Idle prefetch renders a private copy of the project after this much
   // quiet time, one frame per task, skipping scenes whose synchronous draw
   // would block input for longer than PREFETCH_SYNC_MS.
@@ -47,7 +53,7 @@
   const store = new model.FrameStore(model.sizeMiB(settings.previewCacheMiB ?? 512) * 1024 * 1024);
   const debug = {
     disabled: false, assertKeys: false, prefetchDisabled: false, prefetched: 0, prefetchAborted: 0, disposeErrors: 0,
-    hits: 0, misses: 0, stores: 0, validations: 0, keyMismatches: 0,
+    hits: 0, misses: 0, liveDraws: 0, stores: 0, validations: 0, keyMismatches: 0,
     rejects: {}, validationCauses: {}, signals: {}, resets: {}, shownFrame: null, shownChanges: 0,
     get bytes() { return store.bytes; },
     get limit() { return store.limit; },
@@ -96,15 +102,22 @@
   }
 
   // The project serialization is recomputed only after a signal, during an
-  // open native history operation, or when the cheap state changed.
+  // open native history operation, or when the cheap state changed. Returns
+  // LIVE when a slow serialization has to wait (see KEY_BUDGET_MS).
   function keyFor(controller) {
     const viewport = controller.viewport;
     const cheap = cheapKey(viewport);
     const hot = performance.now() - lastSignal < HOT_MS || viewport.editor.history?.operation;
     if (hot || controller.validated !== signalEpoch || controller.cheap !== cheap) {
+      if ((hot || viewport.editor.playback.speed !== 0) && controller.keyCost > KEY_BUDGET_MS) {
+        debug.liveDraws += 1;
+        return LIVE;
+      }
       const cause = hot ? "hot" : controller.validated !== signalEpoch ? "signal" : "cheap";
       debug.validationCauses[cause] = (debug.validationCauses[cause] || 0) + 1;
+      const start = performance.now();
       controller.full = fullKey(viewport);
+      controller.keyCost = performance.now() - start;
       controller.cheap = cheap;
       controller.validated = signalEpoch;
       debug.validations += 1;
@@ -120,6 +133,17 @@
       }
     }
     return controller.full;
+  }
+
+  // The validated key, dropping the stored frames when the project changed.
+  function currentKey(controller) {
+    const key = keyFor(controller);
+    if (key === LIVE) return LIVE;
+    if (controller.key !== key) {
+      reset(controller, key === null ? "unkeyed" : controller.key === null ? "first" : "changed");
+      controller.key = key;
+    }
+    return key;
   }
 
   function removeEntries(controller) {
@@ -152,7 +176,7 @@
     controller = { id: ++controllerId, viewport, generation: 0, key: null, full: null, cheap: null,
       validated: -1, settled: null, settling: null, ready: null, readying: null, snapshot: null,
       prefetching: false, prefetchCost: 0, prefetchSkipped: new Set(), unsupported: null,
-      disposed: false, projectSignal: null };
+      disposed: false, projectSignal: null, keyCost: 0 };
     viewport.__zoidiumOutputFrames = controller;
     controllers.add(controller);
     controller.projectChanged = () => { signal("project"); reset(controller, "project"); watchProject(controller); };
@@ -343,10 +367,10 @@
     const frame = viewport.editor.playback.currentFrame;
     if (!Number.isInteger(frame) || frame < 0) return fallback();
     const controller = controllerFor(viewport);
-    const key = keyFor(controller);
-    if (controller.key !== key) {
-      reset(controller, key === null ? "unkeyed" : controller.key === null ? "first" : "changed");
-      controller.key = key;
+    const key = currentKey(controller);
+    if (key === LIVE) {
+      if (viewport.editor.playback.speed === 0) scheduleIdle();
+      return fallback();
     }
     if (!key) return fallback();
     const hit = !debug.disabled && store.get(entryKey(controller, frame));
@@ -377,7 +401,7 @@
     if (disposed || debug.disabled || !store.limit || !controller || viewport.renderMode ||
       !Number.isInteger(frame) || frame < 0) return;
     const key = keyFor(controller);
-    if (!key || key !== controller.key || store.entries.has(entryKey(controller, frame))) return;
+    if (!key || key === LIVE || key !== controller.key || store.entries.has(entryKey(controller, frame))) return;
     if (complete(controller, key, frame, true)) storeFrame(controller, frame);
   }
 
@@ -538,6 +562,11 @@
     for (const controller of controllers) {
       const viewport = controller.viewport;
       if (controller.prefetching || controller.disposed || viewport.renderMode || viewport.editor.playback.speed !== 0) continue;
+      // Draws that ran live left the key unvalidated; validate it now.
+      if (controller.validated !== signalEpoch && currentKey(controller) === LIVE) {
+        scheduleIdle(Math.max(50, HOT_MS - quiet));
+        continue;
+      }
       const key = controller.key;
       if (!key || controller.settled !== key || controller.unsupported === key) continue;
       // Private video decoders compete with the editor's own and slowed later

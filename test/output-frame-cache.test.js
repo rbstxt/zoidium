@@ -300,3 +300,29 @@ test("the core module registers disposal with the plugin lifecycle", () => {
     window: { ZoidiumFrameCache: { dispose() { disposed += 1; } } } });
   cleanup(); assert.equal(disposed, 1);
 });
+
+test("a slow-to-serialize project draws live after input and during playback", async () => {
+  const h = harness();
+  const toJSON = h.project.sequence.toJSON;
+  h.project.sequence.toJSON = function () { h.clock.now += 20; return toJSON.call(this); };
+  await h.warm(); h.cool(); h.viewport._render();
+  h.events.get("pointerdown")({ type: "pointerdown" });
+  h.cool(); h.viewport._render(); // Quiet and paused: validates once and measures the cost.
+  assert.equal(h.api.debug.entries, 1);
+  const serialized = h.counts.serialized;
+
+  h.events.get("pointerdown")({ type: "pointerdown" });
+  h.viewport.editor.playback.speed = 1;
+  const live = h.counts.live, hits = h.api.debug.hits;
+  for (let i = 0; i < 10; i++) h.viewport._render();
+  assert.equal(h.counts.serialized, serialized, "no serialization per draw");
+  assert.equal(h.counts.live, live + 10, "every draw is the native live draw");
+  assert.equal(h.api.debug.hits, hits, "unvalidated frames are never replayed");
+
+  h.project.sequence.value = 2; // An edit only the serialization sees.
+  h.viewport.editor.playback.speed = 0;
+  h.cool(); h.viewport._render();
+  assert.equal(h.counts.serialized, serialized + 1, "validated once when paused and quiet");
+  assert.equal(h.counts.live, live + 11, "the changed project renders live");
+  h.api.dispose();
+});
