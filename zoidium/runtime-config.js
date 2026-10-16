@@ -8,7 +8,7 @@
     // loader appends it automatically, so per-file ?v= queries are never
     // hand-edited here. Plugin asset URLs are versioned separately by
     // tools/build-plugin-bundles.js from each manifest's own version.
-    assetVersion: 132,
+    assetVersion: 133,
     // Plugin registry consumed by plugins/plugin-manager.js. It is preloaded
     // below, so its URL lives here as the single source.
     registryUrl: "./plugins/registry.json?v=74",
@@ -41,6 +41,7 @@
       "./plugins/core/video-frame-export.js",
       "./plugins/core/render-aspect-ratio.js",
       "./plugins/core/project-archive.js",
+      "./plugins/core/export-bitrate.js",
       "./plugins/core/io-serialization.js",
       "./plugins/core/export-fps.js",
       "./plugins/core/image-export-options.js",
