@@ -1,6 +1,27 @@
 "use strict";
-// Extend the existing Edit tree only for Shape+ ownership. The main Edit
-// panel normally filters out custom object lists and hides delete buttons.
+// Only the existing Objects split needs different filters. Lists keep their
+// Content type, factory, addresses and saved contents fields.
+function connectObjectsPanel(PZ, top, bottom, Content, onDispose) {
+  const isContents = child => child instanceof PZ.objectList && child.type === Content;
+  for (const [panel, include] of [[top, true], [bottom, false]]) {
+    const original = panel.options.childFilter;
+    const replacement = child => isContents(child) ? include : original(child);
+    panel.options.childFilter = replacement;
+    onDispose(() => {
+      if (panel.options.childFilter === replacement) panel.options.childFilter = original;
+      panel.objectsChanged();
+    });
+    panel.objectsChanged();
+  }
+  return { top, bottom };
+}
+function findObjectsPanel(PZ, editor, document) {
+  const selection = editor?.mainViewport?.options.helper3dObjects;
+  const panels = Array.from(document.querySelectorAll(".editorpanel"), el => el.pz_panel);
+  const top = panels.find(panel => panel instanceof PZ.ui.edit && panel.selection === selection);
+  const bottom = top && panels.find(panel => panel instanceof PZ.ui.edit && panel.objects === top.selection);
+  return top && bottom ? { top, bottom } : null;
+}
 function install(PZ, Layer, Content, onDispose) {
   function patch(target, key, wrap) {
     const original = target[key], replacement = wrap(original);
@@ -21,12 +42,11 @@ function install(PZ, Layer, Content, onDispose) {
     panel.onEnabledChanged.watch(refresh); watched.set(panel, refresh);
   }
   onDispose(() => { for (const [panel, refresh] of watched) panel.onEnabledChanged.unwatch(refresh); watched.clear(); });
+  const panels = findObjectsPanel(PZ, window.CM, document);
+  if (panels) connectObjectsPanel(PZ, panels.top, panels.bottom, Content, onDispose);
   patch(proto, "generateListItem", original => function (container, object) {
-    if (!(object instanceof Layer || object instanceof Content)) return original.apply(this, arguments);
-    watchFocus(this);
-    const filter = this.options.childFilter;
-    this.options.childFilter = child => child === object.contents || filter(child);
-    try { return original.apply(this, arguments); } finally { this.options.childFilter = filter; }
+    if (object instanceof Content) watchFocus(this);
+    return original.apply(this, arguments);
   });
   patch(proto, "generateItemCommands", original => function (element, object) {
     const previous = this.options.showListItemButtons;
@@ -59,5 +79,6 @@ function install(PZ, Layer, Content, onDispose) {
     }
     return track;
   });
+  return panels;
 }
-module.exports = { install };
+module.exports = { install, connectObjectsPanel, findObjectsPanel };
