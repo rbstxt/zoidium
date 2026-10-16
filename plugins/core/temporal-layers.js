@@ -249,6 +249,58 @@
     };
   }
 
+  // Scan descriptors, never serialized project data. Samplers retain their
+  // existing capture/restore contract; plain operators only change a clock.
+  function usesSingleEvaluation(sequence) {
+    let temporal = false;
+    let sampler = false;
+    function visit(layer) {
+      for (const effect of layer?.effects || []) {
+        temporal ||= Boolean(effect?._zoidiumTemporal);
+        sampler ||= Boolean(effect?._zoidiumFrameSampler);
+      }
+      // Composite children are layers; Scene children are 3D objects.
+      if (layer instanceof PZ.layer.composite) {
+        for (const child of layer.objects || []) visit(child);
+      }
+    }
+    for (const track of sequence?.videoTracks || []) {
+      for (const clip of track.clips || []) visit(clip.object);
+    }
+    return temporal && !sampler;
+  }
+
+  function installSingleEvaluation(state, sequence) {
+    for (const track of sequence?.videoTracks || []) {
+      for (const clip of track.clips || []) {
+        const layer = clip.object;
+        if (!layer || layer.update.__zoidiumTemporalOuterUpdate) continue;
+        const original = layer.update;
+        const update = function temporalOuterLayerUpdate(frame) {
+          const context = state.contexts[state.contexts.length - 1];
+          if (!context?.singleEvaluation || state.evaluatingLayers.has(this) ||
+              state.restoringLayers.has(this)) return original.apply(this, arguments);
+          // Dispatch before the concrete subclass runs. Calling the base
+          // update cannot remap the frame used by Scene/Composite children.
+          const mapped = state.mapLayerFrame(this, frame);
+          const source = mapped?.sourceFrame ?? frame;
+          // CM3's editing viewport calls update(playhead) before drawing;
+          // property controls read get(frame). Neither needs an eager full
+          // content restore after a sequence draw. The next draw evaluates
+          // its requested frame again, including after a Layer Input capture.
+          state.evaluatingLayers.add(this);
+          try {
+            return original.call(this, source);
+          } finally {
+            state.evaluatingLayers.delete(this);
+          }
+        };
+        update.__zoidiumTemporalOuterUpdate = true;
+        layer.update = update;
+      }
+    }
+  }
+
   function getScheduleSourceFrame(schedule, projectFrame) {
     if (!Number.isFinite(projectFrame)) return projectFrame;
     // Use the item active at the output frame. Reading currentItem here
@@ -367,6 +419,8 @@
     frameSamplerScopedContent,
     frameSamplerSerializedContentIsLocal,
     frameSamplerSerializedReadsNoLayer,
+    usesSingleEvaluation,
+    installSingleEvaluation,
     getSequenceForLayer: getSequenceForLayer,
     getClipForLayer: getClipForLayer,
     isTopLevelClipLayer: isTopLevelClipLayer,
