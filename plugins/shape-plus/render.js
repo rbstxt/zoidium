@@ -1,8 +1,9 @@
 "use strict";
 // WebGL1 render targets have no canvas MSAA. Render at twice the explicit
-// destination viewport resolution, then resolve four samples with bilinear
-// filtering. Every intermediate stores premultiplied RGBA.
-function createRenderer(THREE) {
+// destination viewport resolution or four times up to 2048 pixels, then
+// box-resolve with bilinear taps. Every intermediate stores premultiplied RGBA.
+function createRenderer(THREE, sampleScale = "auto") {
+  if (!["auto", 1, 2, 4].includes(sampleScale)) throw Error("Invalid Shape+ sample scale");
   const targets = [], allocations = new Set();
   const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, .1, 100);
   camera.position.z = 10;
@@ -20,7 +21,8 @@ function createRenderer(THREE) {
   }
   function plane() { const g = new THREE.PlaneBufferGeometry(2, 2); allocations.add(g); return g; }
   const resolveScene = new THREE.Scene();
-  const resolveMaterial = material(textureShader, { image: { value: null }, opacity: { value: 1 } }, false);
+  const resolveShader = "varying vec2 uvShape; uniform sampler2D image; uniform vec2 texel; uniform float samples; void main(){if(samples>2.5){vec4 c=texture2D(image,uvShape+texel)+texture2D(image,uvShape-texel)+texture2D(image,uvShape+vec2(texel.x,-texel.y))+texture2D(image,uvShape+vec2(-texel.x,texel.y));gl_FragColor=c*.25;}else{gl_FragColor=texture2D(image,uvShape);}}";
+  const resolveMaterial = material(resolveShader, { image: { value: null }, samples: { value: 2 }, texel: { value: new THREE.Vector2() } }, false);
   resolveScene.add(new THREE.Mesh(plane(), resolveMaterial));
   function target() {
     const t = new THREE.WebGLRenderTarget(1, 1, { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, format: THREE.RGBAFormat, depthBuffer: false, stencilBuffer: false });
@@ -63,11 +65,13 @@ function createRenderer(THREE) {
     for (const child of node.children) renderTree(child, renderer);
     renderer.render(node.scene, shapeCamera, node.target, true);
   }
-  const stats = { renders: 0, width: 0, height: 0, supersample: 2 };
+  const stats = { renders: 0, width: 0, height: 0, supersample: sampleScale };
   function render(renderer, destination) {
     if (!root) return;
     const width = Math.max(1, Math.round(destination.viewport.z)), height = Math.max(1, Math.round(destination.viewport.w));
-    const w = width * 2, h = height * 2;
+    const scale = sampleScale === "auto" ? (Math.max(width, height) <= 2048 && width * height * 16 * targets.length <= 67108864 ? 4 : 2) : sampleScale;
+    const w = width * scale, h = height * scale;
+    stats.supersample = scale;
     const max = renderer.capabilities.maxTextureSize;
     if (w > max || h > max || w * h * targets.length > 67108864) throw Error("Shape+ antialiasing target budget exceeded");
     if (size[0] !== w || size[1] !== h) {
@@ -81,6 +85,8 @@ function createRenderer(THREE) {
       renderer.setClearColor(0, 0); renderer.autoClear = true;
       renderTree(root, renderer);
       resolveMaterial.uniforms.image.value = root.target.texture;
+      resolveMaterial.uniforms.texel.value.set(1 / w, 1 / h);
+      resolveMaterial.uniforms.samples.value = scale;
       renderer.render(resolveScene, camera, destination, true);
       stats.renders++;
     } finally { renderer.setClearColor(clearColor, clearAlpha); renderer.autoClear = autoClear; }

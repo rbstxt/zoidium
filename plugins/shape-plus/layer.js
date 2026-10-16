@@ -35,7 +35,14 @@ function createLayerClass(PZ, THREE, Content) {
       this.signature = null;
     }
     toJSON() { return { ...this.extra, ...super.toJSON(), schemaVersion: 1, renderVersion: 1, contents: this.contents }; }
-    update(frame) { this.frame = frame; super.update(frame); }
+    update(frame) {
+      this.frame = frame;
+      const resolution = this.parentProject.sequence.properties.resolution.get(), current = this.properties.resolution.get();
+      if (current[0] !== resolution[0] || current[1] !== resolution[1]) {
+        this.properties.resolution.set(resolution.slice()); this.composite.quad.scale.set(...resolution, 1);
+      }
+      super.update(frame);
+    }
     build(tolerance) {
       const contents = Array.from(this.contents, node => node.evaluate(this.frame));
       const resolution = this.properties.resolution.get(), signature = JSON.stringify([contents, tolerance, resolution]);

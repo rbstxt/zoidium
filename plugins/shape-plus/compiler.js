@@ -36,6 +36,18 @@ function compile(contents, tolerance = .125, depth = 0) {
       schedule.push([{ kind: "paint", id: item.id, color: p.color.slice(), opacity: Math.max(0, Math.min(1, p.opacity)), positions }]);
     } else paths.push(primitive(item, tolerance));
   }
-  return { paths, commands: schedule.reverse().flat() };
+  const commands = schedule.reverse().flat();
+  if (depth === 0) {
+    let coordinates = 0;
+    const check = list => { for (const command of list) {
+      if (command.kind === "isolation") check(command.commands);
+      else {
+        coordinates += command.positions.length;
+        if (coordinates > 1800000 || !command.positions.every(Number.isFinite)) throw Error("Shape+ geometry budget exceeded");
+      }
+    } };
+    check(commands);
+  }
+  return { paths, commands };
 }
 module.exports = { compile, matrix, transform, transformCommand, identity };

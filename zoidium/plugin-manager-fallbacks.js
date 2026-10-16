@@ -49,6 +49,16 @@
       try {
         this._zoidiumMissingNumeric.data = ZoidiumPluginApis.props.cloneJson(data);
         if (manager.trackPluginResource) manager.trackPluginResource(this, { id: pluginId, name: pluginId, feature: layerId, featureName: layerId }, true);
+        // Initialize only the transparent native compositing shell. Authored
+        // properties/effects stay untouched in the retained payload.
+        if (this.parent && this.properties && PZ.layer.prototype.load) {
+          await PZ.layer.prototype.load.call(this, { effects: [] });
+          this.properties.load();
+          const resolution = this.parentProject.sequence.properties.resolution.get();
+          this.properties.resolution.set(resolution.slice());
+          this.composite.quad.scale.set(resolution[0], resolution[1], 1);
+          this.properties.visible = false;
+        }
       } catch (_error) {
         manager.reportFailureOnce("decode missing layer:" + pluginId + ":" + type, "decode missing layer", _error);
         this._zoidiumMissingNumeric.data = { type };
@@ -62,9 +72,12 @@
         manager.reportFailureOnce("serialize missing layer:" + pluginId + ":" + type, "serialize missing layer", _error); /* fall through */ }
       return { type: this._zoidiumMissingNumeric.type };
     };
+    layer.pass = { render(renderer, destination) { renderer.clearTarget(destination, true, true, true); } };
     layer.update = function () {};
-    layer.prepare = async function () {};
+    layer.prepare = async function () { if (this.loadShaders) await this.loadShaders; };
     layer.unload = function () {
+      if (this.vertShader && PZ.layer.prototype.unload) PZ.layer.prototype.unload.call(this);
+      if (this.composite?.quad) { this.composite.quad.geometry.dispose(); this.composite.quad.material.dispose(); }
       missingNumericLayers.delete(this);
       if (manager.untrackPluginResource) manager.untrackPluginResource(this);
     };
