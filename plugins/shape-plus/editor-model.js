@@ -219,9 +219,12 @@ function createEditorModel(s) {
       const evaluated = item.evaluate(s.localFrame());
       // Converting an animated procedural shape would discard its parameter
       // curves. Refuse rather than silently flattening that animation.
-      if (
-        Object.values(item.properties).some((p) => p.animated || p.expression)
-      )
+      const hasAnimation = (property) =>
+        property.animated ||
+        property.expression ||
+        property.keyframes?.length > 1 ||
+        property.objects?.some(hasAnimation);
+      if (Object.values(item.properties).some(hasAnimation))
         throw Error(
           "Convert a static primitive to Path; animated parameters must remain editable",
         );
@@ -254,10 +257,26 @@ function createEditorModel(s) {
       if (item?.kind !== "path") return;
       const path = item.properties.path;
       channels(clone(item));
-      const value = path.get(s.localFrame()).slice();
-      if (!path.animated)
+      const frame = s.localFrame(),
+        value = path.get(frame).slice();
+      if (
+        path.animated &&
+        path.objects.every((channel) => channel.hasKeyframe(frame))
+      ) {
+        if (path.objects.every((channel) => channel.keyframes.length > 1)) {
+          for (const channel of path.objects) {
+            const key = channel.deleteKeyframe(frame);
+            channel.onKeyframeDeleted.update(key);
+          }
+        } else {
+          // Disable the stopwatch without removing the sole native key.
+          for (const channel of path.objects) channel.animated = false;
+        }
+        s.preview();
+      } else {
         for (const channel of path.objects) channel.animated = true;
-      s.setValue(path, value);
+        s.setValue(path, value, frame);
+      }
     });
   s.setMode = (mode) =>
     s.mutate(() => {

@@ -71,6 +71,15 @@ PZ.property.prototype.addKeyframe = function (key) {
   this.keyframes.push(key);
   this.keyframes.sort((a, b) => a.frame - b.frame);
 };
+PZ.property.prototype.deleteKeyframe = function (frame) {
+  const index = this.keyframes.findIndex((key) => key.frame === frame);
+  return this.keyframes.splice(index, 1)[0];
+};
+Object.defineProperty(PZ.property.prototype, "onKeyframeDeleted", {
+  get() {
+    return { update() {} };
+  },
+});
 PZ.property.prototype.set = function (value, frame) {
   if (this.objects) this.objects.forEach((p, i) => p.set(value[i], frame));
   else if (this.data)
@@ -195,5 +204,40 @@ test("deleting punctuation-bearing anchor IDs updates every path key", () => {
       .properties.path.objects.every(
         (p) => JSON.stringify(p.keyframes.map((k) => k.frame)) === "[0,30]",
       ),
+  );
+});
+
+test("Path key toggle removes only the explicit current key and retains the final key when disabled", () => {
+  const { s, editor } = host();
+  s.keyframe();
+  assert.ok(
+    s
+      .active()
+      .properties.path.objects.every(
+        (p) => JSON.stringify(p.keyframes.map((k) => k.frame)) === "[0,15,30]",
+      ),
+  );
+  s.keyframe();
+  assert.ok(
+    s
+      .active()
+      .properties.path.objects.every(
+        (p) => JSON.stringify(p.keyframes.map((k) => k.frame)) === "[0,30]",
+      ),
+  );
+  editor.playback.currentFrame = 35;
+  s.keyframe();
+  assert.ok(
+    s
+      .active()
+      .properties.path.objects.every(
+        (p) => JSON.stringify(p.keyframes.map((k) => k.frame)) === "[0]",
+      ),
+  );
+  editor.playback.currentFrame = 5;
+  s.keyframe();
+  assert.equal(s.active().properties.path.animated, false);
+  assert.ok(
+    s.active().properties.path.objects.every((p) => p.keyframes.length === 1),
   );
 });
