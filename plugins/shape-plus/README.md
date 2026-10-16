@@ -45,8 +45,8 @@ bounded rounded integer. Rotation is stored in radians, displayed in degrees.
 The `path` property's group contains `[x, y, inX, inY, outX, outY]` for each
 vertex in `vertexIds` order. Tangents are relative to that vertex. A segment is
 `[point[i], point[i]+out[i], point[j]+in[j], point[j]]`; the closing segment
-wraps to vertex zero. `vertexModes` records editing constraints for later rounds
-and does not modify evaluated tangents.
+wraps to vertex zero. `vertexModes` records editor constraints and does not modify evaluated
+tangents during rendering.
 
 The native stopwatch and key button on **Path** operate on every channel in one
 history transaction. CM3's existing dynamic.group implementation supplies the
@@ -58,15 +58,98 @@ use those ordinary scalar channels, without an interpolation patch.
 This was verified against the actual cached CM3 browser runtime: a four-vertex
 path has 24 channels; native key actions produced keys at 0, 15 and 30 on all
 24; undo removed the middle key on every channel and redo restored it. Exactly
-one Path property track remains visible. Fixed topology is required while
-animated. Vertex insertion/deletion and the dedicated pen editor belong to
-round 2. A newly added Path starts as a four-vertex rectangle.
+one Path property track remains visible. The Shape Editor keeps topology
+synchronized across every Path key. A Path added through native Contents starts
+as a four-vertex rectangle; the Pen starts a new one-vertex open path.
 
 Edit contains native Contents add menus for all seven kinds, clone/delete
 buttons, normal property rows and native structural history commands. Selecting
 a content item makes that selection the keyframe panel's root. Even deeply
 nested items therefore remain within the shared three-generation traversal
 limit. The scoped UI hooks do not change other layer or object trees.
+
+## Shape Editor
+
+Use **Open Shape Editor** on a Shape+ layer or any of its Contents items. Each
+layer has one resizable, maximizable floating window with remembered geometry.
+The window stays bound to that layer, follows native selections within it, and
+closes when the layer, project or plugin goes away. Selecting another layer
+leaves the existing window pinned. Window selection, tools, grid, pan and zoom
+are transient and are not saved into the project.
+
+The canvas shows the composition bounds and evaluated layer-local artwork at
+the playhead. Native clip start and a live clip offset, when present, determine
+local edit time. CM3's native trims shift property keys; the editor reads those
+same keys. Group transforms are included. Layer transforms, effects and final
+compositing remain visible in the normal CM3 preview. Canvas paint is an
+approximation, especially overlapping paints in an opacity-isolated group;
+export and the main preview retain the round 1 renderer unchanged.
+
+- **V / P / H** select, draw with the Pen, or pan with the Hand.
+- **Pen:** click for a corner; drag for symmetric handles. Alt/Option breaks
+  the handle, retaining the opposite handle at the break. Shift constrains to
+  45 degrees. Click the first anchor to close; Enter or Escape finishes an open
+  contour. The next click starts another contour. Click a segment to insert an
+  exact cubic split. Click an existing anchor to delete it. Handles can be
+  dragged directly with either Pen or Select.
+- **Select:** click or Shift-click anchors/handles; drag empty canvas for an
+  anchor marquee. Shift adds to selection. Drag selected anchors together;
+  their relative handles follow. Double-click an anchor for Corner/Smooth.
+  The contextual mode dropdown and right-click menu also expose Symmetric
+  and Independent. Smooth keeps opposite direction and its existing length;
+  Symmetric mirrors direction and length. Corner removes handles; Independent
+  leaves the opposite handle alone.
+- **Arrow keys:** nudge selected anchors or handles by one local pixel; Shift
+  nudges by ten. Repeated keydown events up to keyup form one history entry.
+  Cmd/Ctrl+A selects all anchors of the active path. Delete removes selected
+  anchors; removing all anchors deletes the Path item. With no anchor selection,
+  Delete removes the selected tree items.
+- **Navigation:** Space-drag, middle-drag or Hand pans. Wheel, trackpad pinch
+  and Ctrl+wheel zoom around the cursor. **0 / Shift+1** fits the composition.
+  Grid visibility and snapping are independent. One Grid spacing field sets
+  the interval. Grid and other anchors snap within eight CSS pixels, independent
+  of DPR and zoom. Handles and anchors retain fixed CSS sizes.
+- **Primitives:** toolbar buttons add Rectangle, Ellipse or Star. Drag inside
+  the selected primitive to move it; corner handles resize around its center.
+  Shift keeps rectangle/ellipse sizes square. Right-click **Convert to Path**
+  preserves the static primitive's cubic geometry. Animated procedural
+  parameters are refused rather than losing their keys.
+- **Contents:** use Add, double-click/F2 to rename, the eye for Enabled, and
+  drag rows to reorder. A group's middle accepts children; its top/bottom edges
+  place siblings. Drop empty tree space to move to the root. Shift selects
+  multiple items. Cmd/Ctrl+D duplicates, Cmd/Ctrl+G groups siblings, and
+  Cmd/Ctrl+Shift+G ungroups. The context menu has the same actions. Ungroup
+  requires identity transforms and full opacity to avoid changing artwork;
+  a disabled group leaves its promoted children disabled.
+- **Path button:** enables animation or adds a key at the local frame. When
+  that frame already has a key, its tooltip explicitly offers removal of that
+  key across all channels. With only one key left, it disables animation while
+  retaining that key. No other keys are removed. Ordinary edits create/update
+  synchronized keys for every vertex at the current frame.
+- **Path context menu:** Close/Open and Reverse apply to the whole animated
+  contour. Insertion splits the same segment at the same parameter in every
+  key, exactly preserving the curve at each key. Deletion removes the same
+  stable vertex IDs in every key. Existing frames, tweens and tangent metadata
+  survive. Unsynchronized channels and expressions refuse structural edits
+  with an explanation; they are never flattened silently.
+
+Cmd/Ctrl+Z, Cmd/Ctrl+Y and Cmd/Ctrl+Shift+Z use CM.history, including while the
+window chrome has focus. Editor shortcuts do not run in text, number or native
+property inputs. Space cannot start playback from this window. Escape cancels
+an active gesture first, then finishes a Pen contour or clears selection; an
+otherwise unhandled Escape closes the window. Pointer cancellation, capture
+loss, focus loss, time/transform changes and disposal close the transaction.
+Selection, hover and navigation add no history. Each project edit records one
+contents-snapshot command containing native property/key data, with stable
+address lookup for undo after native tree reconstruction.
+
+The editor uses bundled CommonJS modules and Canvas2D, with no OpenPath runtime
+dependencies. The owner's permission to adapt OpenPath interaction logic was
+provided for this implementation. React, Paper.js, Tailwind, settings and
+localization code are not included. Pure editor geometry, topology, pointer
+ownership, selection encoding, history and tree operations have node:test
+coverage. Segment bending, full free transform and SVG import remain outside
+this round.
 
 ## Contents evaluation contract
 
