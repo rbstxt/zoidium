@@ -1,7 +1,7 @@
 # Shape+
 
-Shape+ is a default-off external extension layer for CM3. Enable it in the
-Scene Extensions pack, then use the Shape+ Media preset or Add Layer entry.
+Shape+ is an external extension layer for CM3. It is enabled by default in the
+Scene Extensions pack. Use the Shape+ Media preset or Add Layer entry.
 Native Shape, Text and Preset Shape retain their original implementations.
 
 ## Format and coordinates
@@ -133,9 +133,10 @@ row follows stable IDs when topology edits or undo reconstruct the contents.
 
 Editing is available for a single direct Shape+ clip in the active sequence.
 It hides in perspective/editing-camera contexts, outside the clip's time span,
-with disabled/singular content transforms, or when the layer has effects.
-Composites, arbitrary effect inverses, free transforms and SVG import are not
-implemented. Group/operator-generated artwork remains an evaluated result;
+with disabled/singular content transforms. Effects keep editing enabled;
+handles map to pre-effect layer space, so a spatial effect may move the image
+away from its authored handles. Composites and free transforms remain outside
+the editing contract. Group/operator-generated artwork remains an evaluated result;
 path controls edit the authored source geometry.
 
 Geometry, topology, selection, pointer ownership and history remain bundled
@@ -233,8 +234,8 @@ adds full-size targets; the explicit budget can select 2x. A target exceeding
 the renderer's maximum texture size or the 2x budget is rejected. Very complex
 or heavily isolated layers can reach these limits before the item count.
 
-Per-group blend modes, 3D geometry, SVG import and native Shape conversion
-remain outside this round. No existing project is converted implicitly.
+Per-group blend modes and 3D geometry remain outside this release.
+No existing project is converted implicitly.
 
 ## Persistence and checks
 
@@ -256,7 +257,7 @@ pipeline. Run `pnpm run build:plugin-bundles` and `pnpm run verify` after edits.
 
 ## Round 3 paints and operators
 
-The plugin remains default-off. Existing schemaVersion 1 / renderVersion 1
+Existing schemaVersion 1 / renderVersion 1
 projects use the original solid geometry path unless a new operator is present.
 No native layer implementation changes.
 
@@ -354,3 +355,128 @@ arrangement and render-target budgets still apply. The overlay adds no WebGL
 renderer, image cache or render targets.
 
 The ordering reference is Adobe's [shape attributes and operations guide](https://helpx.adobe.com/after-effects/desktop/drawing-painting-and-paths/shapes-and-shape-attributes/shape-attributes-paint-operations-path.html).
+
+## Final-round modifiers
+
+All new items are available through the native Objects **+** menu, with native
+rows, animation keys and monochrome icons. Storage remains schemaVersion 1 /
+renderVersion 1. A project without new items retains its original evaluator.
+
+- **Twist** rotates around Center by `Angle * radius / 100`, with Angle in
+  radians internally and degrees in the UI. A point at radius 100 receives the
+  authored angle. Resampling accounts for radius, angle and output tolerance.
+- **Zig Zag** places two alternating Size extrema per ridge on each authored
+  span, retaining endpoints. Ridges is a rounded integer from 1 through 64.
+  Cubic spans are flattened and sampled by arc length before displacement.
+  Smooth points use Catmull-Rom tangents raised to cubics.
+- **Pucker & Bloat** uses the contour centroid. Positive Amount draws authored
+  corners inward and edge midpoints outward with a cosine profile; negative
+  Amount reverses the direction. Amount is limited to -100 through 100. This
+  is an explicit sampled deformation, not a promise of identical Adobe curves.
+- **Wiggle Paths** samples a seeded integer hash lattice with smoothstep
+  interpolation in space and time. Detail sets spatial intervals; Size is the
+  maximum coordinate displacement. Correlation blends shared and independent
+  samples. Closed contours wrap the spatial lattice. Temporal/spatial phase
+  are degrees; frequency is wiggles per second. Time is the requested local
+  frame divided by project rate, including fractional and negative frames.
+  No wall clock, mutable random stream or previous frame enters evaluation.
+- **Wiggle Transform** uses the same noise for anchor, position, scale-percent
+  and rotation offsets. Before a Repeater, each copy resolves its own seeded
+  sample. Correlation 100 gives identical offsets to every copy. A painted
+  result receives the transform once, including its paints and gradient frame.
+- **Offset Paths** resolves the nonzero filled region of closed contours, then
+  offsets it. Negative amounts may split or remove contours. Miter, round and
+  exact bevel joins are supported; miter-limit overflow falls back to bevel.
+- **Merge Paths** has Merge, Add, Subtract, Intersect and Exclude modes. Merge
+  retains compound contours. Add unions all regions. Subtract removes the union
+  of later contours from the first eligible contour. Intersect intersects all
+  contours, and Exclude folds XOR in contents order. Open contours are refused.
+  A topology item welds the eligible scope into one compound result, including
+  preceding paints; gradients retain their local paint coordinate frames.
+
+Nonlinear deformations resample before changing points, never merely move a
+cubic's endpoints. Deformed geometry drops the original cubic controls. Later
+Round Corners therefore works on the resulting flattened corners. Path guides
+continue to edit authored source geometry before all modifiers and repeats.
+Twist Center and Wiggle Transform Anchor have main-preview handles.
+
+## Clipping and offset contract
+
+The bundle embeds Clipper 6.4.2, JavaScript port 6.4.2.2, an extension of Vatti
+clipping. See `vendor/README.md` for provenance, reviewed patches and the Boost
+and JSBN notices, also embedded as bundle assets. There is no runtime download.
+Coordinates quantize to a fixed 1/1024-pixel integer grid with symmetric half
+ties away from zero. Nonzero winding resolves coincident/self-crossing edges;
+strict simplicity separates touching polygons. Results retain outer/hole winding,
+rotate to their lexicographically first point, then sort deterministically.
+
+Stroke outlines generated from new modifiers are unioned through Clipper before
+triangulation, within the existing 16384-outline-point limit. Uniform new strokes
+use closed/open Clipper offset outlines directly. New resolved polygons use the
+existing pinned Earcut 2.2.4 dependency with explicit hole ancestry; unresolved
+self-intersections never reach Earcut. Sub-grid stroke artifacts are cleaned and
+resolved again before triangulation. Existing stroke
+paths retain their original floating-point arrangement.
+
+Each modifier clipping input permits 4096 points and coordinates up to one million
+pixels in magnitude. The intersection budget is 262144 events. Offset amount
+is limited to 100000 pixels, its predicted arc work to 32768 points, and output
+to 16384 points. Round arcs use the requested flatten tolerance, capped at 0.25
+pixels and floored at one grid unit. The normal arrangement/triangle budgets
+still apply afterward. Over-budget work fails explicitly. Deformation and smooth
+subdivision retain the 4096-point per-contour limit. Thin features smaller than
+the integer grid may disappear. These rules are independent of evaluation order.
+
+## Native rows and workflows
+
+Stroke/Gradient Stroke rows have collapsible Dashes, Taper and Wave sections.
+A section starts collapsed when all its values are defaults and unanimated.
+Only active dash pairs, the chosen wave unit, radial gradient highlights,
+star-only inner controls and miter-only limits appear. The groups are transient
+native list presentation; properties keep their original keys and addresses.
+
+**Convert to Shape+** is a native list action on Shape, Text and Preset Shape
+layers. It replaces the selected clip's object in one native history entry,
+retaining clip timing/name/link/time channels, effects, layer transform,
+opacity/blending and native paint/shape-transform key metadata. Undo restores
+the original live native object. Native half-pixel transform pivots are kept
+with static wrapper groups. Preset ellipse/rectangle and available OpenType
+M/L/Q/C/Z outlines are supported; quadratics become exact cubics. Each native
+child receives its parent paint operations separately, preserving translucent
+overlap semantics. Text must finish loading. Opaque `.draw` callbacks, unknown
+paint operations, unsupported presets and expression-driven shape data are
+refused before changing the clip. Conversion is static for glyph outlines;
+font/text content remains editable in the original after undo. Raster edges
+can differ because Shape+ uses its own documented supersampling.
+
+**Import SVG…** opens a local file picker from the native Contents/layer row.
+Cmd/Ctrl+V accepts SVG documents or SVG path data when a Shape+ clip/item is
+selected and the Objects panel or main preview has focus. Text fields and the
+clip/keyframe panels keep native clipboard behavior. Contents Cmd/Ctrl+C/X/V
+uses a versioned text envelope that retains animation/unknown fields and gives
+pasted items/vertices fresh IDs. **Copy SVG path data** on a path/primitive row
+copies its evaluated local contour as SVG text, with Y converted to SVG space.
+
+SVG supports absolute/relative M/L/H/V/C/S/Q/T/A/Z, repeated command parameters,
+rectangles with corner radii, circles, ellipses, polygons/polylines, groups,
+affine transforms and basic solid fills/strokes with opacity, winding and up
+to three dash pairs. Group opacity isolates. Affine matrices decompose into
+native group rotations and signed scales, so transformed strokes keep their
+local width semantics. Document viewBox centers the imported coordinate system;
+its units remain pixels. Bare path data keeps its origin and gets a white fill.
+Sibling paint order is retained. Arc conversion follows the W3C endpoint-to-center
+formula with at most 45 degrees per cubic.
+
+The restricted XML parser never inserts SVG into the DOM, evaluates code or
+fetches resources. Scripts, external references, entities/declarations, text,
+CSS classes/stylesheets, gradients, filters, clipping/masks and unsupported
+attributes are explicitly refused. Text is capped at 256 KiB, elements/items at
+512, XML nesting at 16, path commands at 4096, and vertices at 256 per imported
+path. Native model item/depth budgets also apply after transform decomposition.
+Nested SVG viewport sizing and viewBox-to-width/height scaling are not applied;
+import geometry uses viewBox pixel units. A complex import can hit the model's
+16-group-depth limit before reaching the XML limit.
+
+The automatic-backup race found during rapid project replacement is handled in
+`zoidium/project-restore.js`: a stale automatic archive is discarded and retried,
+while manual-save failures and unrelated backup errors still report normally.

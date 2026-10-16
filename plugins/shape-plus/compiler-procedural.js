@@ -5,6 +5,8 @@ const { triangulate } = require("./fill.js");
 const { stroke } = require("./stroke.js");
 const { trim, roundCorners, clamp } = require("./operators.js");
 const { gradient } = require("./paint.js");
+const { deform, wiggleTransform } = require("./deform.js");
+const { merge, offset, tessellate } = require("./topology.js");
 const identity = [1, 0, 0, 1, 0, 0];
 function multiply(a, b) {
   return [
@@ -126,6 +128,7 @@ function procedural(contents, tolerance, depth, budget, api) {
           ...child.views.map((view) => ({
             ...view,
             matrix: multiply(m, view.matrix),
+            matrixForCopy: view.matrixForCopy && (i => multiply(m, view.matrixForCopy(i))),
           })),
         );
         const nested = {
@@ -150,14 +153,39 @@ function procedural(contents, tolerance, depth, budget, api) {
         };
         if (p.composite === "above") commands.push(paint);
         else commands.unshift(paint);
-      } else if (item.kind === "trim" || item.kind === "roundCorners") {
+      } else if (["offsetPaths", "mergePaths"].includes(item.kind)) {
+        const paths = views.flatMap(viewPaths);
+        const changed = item.kind === "offsetPaths" ? offset(paths,p,itemTolerance,item.id) : merge(paths,p,item.id);
+        // Topology can combine/split owners. All earlier paints share the new
+        // compound path in scope coordinates; keep their paint transforms.
+        for (const view of views) view.base.paths = [];
+        const base = { paths: changed };
+        const replacement = { base, matrix: identity };
+        function retarget(command, m = identity) {
+          if (command.kind === "paint") {
+            const inv = inverse(m);
+            if (!inv) throw Error("Shape+ cannot merge paint under a singular transform");
+            command.views = [{ base, matrix: inv }];
+          } else for (const child of command.commands) retarget(child, multiply(m,command.matrix));
+        }
+        for (const command of commands) retarget(command);
+        views = changed.length ? [replacement] : [];
+      } else if (item.kind === "wiggleTransform") {
+        views = views.map(view => {
+          const original = view.matrix.slice();
+          const at = view.matrixForCopy || (() => original);
+          const matrixForCopy = i => multiply(matrix(wiggleTransform(p,i)), at(i));
+          return {...view, matrixForCopy, matrix: matrixForCopy(0)};
+        });
+        commands = [{kind:"group", id:item.id, matrix:matrix(wiggleTransform(p)), wiggle:p, opacity:1, commands}];
+      } else if (["trim", "roundCorners", "twist", "zigZag", "puckerBloat", "wigglePaths"].includes(item.kind)) {
         const paths = views.flatMap((view, index) =>
           viewPaths(view).map((path) => ({ ...path, owner: index })),
         );
         const changed =
           item.kind === "trim"
             ? trim(paths, p)
-            : paths.map((path) => roundCorners(path, p.radius, itemTolerance));
+            : paths.map((path) => item.kind === "roundCorners" ? roundCorners(path, p.radius, itemTolerance) : deform(path,item.kind,p,itemTolerance));
         views.forEach((view, index) => {
           const inv = inverse(view.matrix);
           const selected = changed.filter((path) => path.owner === index);
@@ -183,19 +211,19 @@ function procedural(contents, tolerance, depth, budget, api) {
               bases.set(view.base, {
                 paths: view.base.paths.map((path) => ({ ...path })),
               });
-            return { ...view, base: bases.get(view.base) };
+            return { ...view, base: bases.get(view.base), matrix: view.matrixForCopy ? view.matrixForCopy(index) : view.matrix, matrixForCopy: undefined };
           }
           function cloneCommand(command) {
             if (++descriptorVisits > 4096)
               throw Error("Shape+ command budget exceeded");
             return command.kind === "paint"
               ? { ...command, views: command.views.map(cloneView) }
-              : { ...command, commands: command.commands.map(cloneCommand) };
+              : { ...command, matrix: command.wiggle ? matrix(wiggleTransform(command.wiggle,index)) : command.matrix, wiggle: undefined, commands: command.commands.map(cloneCommand) };
           }
           views.push(
             ...originalViews.map((view) => ({
               ...cloneView(view),
-              matrix: multiply(copy.matrix, view.matrix),
+              matrix: multiply(copy.matrix, view.matrixForCopy ? view.matrixForCopy(index) : view.matrix),
             })),
           );
           const group = {
@@ -247,7 +275,7 @@ function procedural(contents, tolerance, depth, budget, api) {
       paths = command.views.flatMap(viewPaths),
       fill = command.type === "fill" || command.type === "gradientFill";
     const positions = fill
-      ? triangulate(
+      ? paths.some(path=>path.proceduralGeometry) ? tessellate(paths,p.fillRule) : triangulate(
           paths.map((path) => path.points),
           p.fillRule,
         )
