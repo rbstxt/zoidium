@@ -27,10 +27,8 @@ function createPointer(s,canvas) {
         local=api.snap(local);if(event.shiftKey)local=g.add(s.pathPoints().at(-1).point,g.constrain(g.sub(local,s.pathPoints().at(-1).point)));
         s.topology({kind:"append",id:s.nextId(),point:local});
       } else {
-        local=api.local(start,{matrix:[1,0,0,1,0,0]});
-        // New paths inside a selected group use that group's local coordinates.
-        const parent=s.active()?.kind==="group"?s.active():null;
-        if(parent){const entry=s.groupMatrix?.(parent);if(entry)local=api.local(start,{matrix:entry});}
+        local=api.local(start,{matrix:s.insertionMatrix()});
+        if(!local){s.gesture.finish(true);return null;}
         s.addItem("path",local);s.penFinished=false;
       }
       const path=s.active(), index=path.vertexIds.length-1, id=path.vertexIds[index];
@@ -92,7 +90,7 @@ function createPointer(s,canvas) {
     }
     if(item && item.kind!=="path" && (size || api.itemAt(start)?.item.id===item.id)) {
       const local=api.local(start);if(!local)return null;
-      const position=item.properties.position.get(frame).slice(),initialSize=item.properties.size?.get(frame).slice(),radius=item.properties.outerRadius?.get(frame);
+      const position=item.properties.position.get(frame).slice(),initialSize=item.properties.size?.get(frame).slice(),radius=item.properties.outerRadius?.get(frame),inner=item.properties.innerRadius?.get(frame);
       return {frame,target:item.id,move(e){
         if(Math.hypot(...g.sub(point(e),start))<2 && !s.gesture.active)return;
         const p=api.local(point(e));if(!p)return;
@@ -100,7 +98,7 @@ function createPointer(s,canvas) {
           if(size) {
             const delta=g.sub(p,position);
             if(initialSize){let next=delta.map(v=>Math.max(.01,Math.abs(v)*2));if(e.shiftKey)next=[Math.max(...next),Math.max(...next)];s.setValue(item.properties.size,next,frame);}
-            else {const next=Math.max(.01,Math.hypot(...delta)/Math.SQRT2);s.setValue(item.properties.outerRadius,next,frame);if(radius>0)s.setValue(item.properties.innerRadius,item.properties.innerRadius.get(frame)*next/item.properties.outerRadius.get(frame),frame);}
+            else {const next=Math.max(.01,Math.hypot(...delta)/Math.SQRT2);s.setValue(item.properties.outerRadius,next,frame);if(radius>0)s.setValue(item.properties.innerRadius,inner*next/radius,frame);}
           } else {let delta=g.sub(p,local);if(e.shiftKey)delta=g.constrain(delta);s.setValue(item.properties.position,api.snap(g.add(position,delta)),frame);}
         });
       },end(){s.gesture.finish();},cancel(){s.gesture.finish(true);}};
