@@ -912,3 +912,16 @@ test("Composite inputs containing another sampler retain the recursion depth in 
   child.effects = [];
   assert.equal(h.parts.sampler.frameSamplerCacheDepth({ layer: h.source, effectIndex: 1 }, 3), 1);
 });
+
+for (const suffix of [false, true]) {
+  test(`Adjustment offsets map sampler taps once on either side, suffix=${suffix}`, async () => {
+    const h = host(true);
+    const offset = temporal("time-offset", 5);
+    h.owner.effects = suffix ? [h.effect, offset] : [offset, h.effect];
+    await h.state.prepareFrameSamples(h.effect, 20, {});
+    const samples = h.state.frameSamplerRuntimes.get(h.root).prepared.get(h.effect).samples;
+    assert.deepEqual(Array.from(samples, tap => tap.frame), [27, 24]);
+    assert.deepEqual(Array.from(samples, tap => tap.target.value), [17, 14]);
+    assert.equal(h.owner.frame, 20);
+  });
+}
