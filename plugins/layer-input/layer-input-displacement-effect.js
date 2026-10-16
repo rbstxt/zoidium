@@ -46,12 +46,22 @@ function updateLayerInputDisplacementWrap(effect, frame) {
       name: "Displacement Map Source",
       type: PZ.property.type.LIST,
       value: "",
-      items: [{ name: "(No source)", value: "" }],
+      items: [{ name: "(No source)", value: "" }, { name: "Image", value: "image" }],
       _zoidiumLayerSource: true,
       changed: function () {
         const effect = this.parentObject;
         if (effect?._zoidiumLoading) return;
         PZ.layerInput?.setSource(effect, this.value || "");
+      },
+    },
+    sourceImage: {
+      name: "Source Image",
+      type: PZ.property.type.ASSET,
+      assetType: PZ.asset.type.IMAGE,
+      value: null,
+      accept: "image/*",
+      changed: function () {
+        PZ.layerInput?.loadSourceImage(this.parentObject, this.value);
       },
     },
     displacementOffset: {
@@ -387,4 +397,4 @@ function updateLayerInputDisplacementWrap(effect, frame) {
       this.aspect = 16 / 9;
     }
   }),
-  (this.prepare = async function () {});
+  (this.prepare = async function () { await this._zoidiumSourceImage?.loading; });

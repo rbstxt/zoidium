@@ -117,6 +117,17 @@
     if (visited.has(value)) return found;
     visited.add(value);
     if (LAYER_INPUT_EFFECT_IDS.has(value.type)) found.effects.add(value.type);
+    // Definitions are present on live properties, while serialized native
+    // effects retain only their stable type and property values.
+    const nativeLayerSource = value.type === "timedisplacement" ||
+      NATIVE_EFFECT_PLUGINS.get(value.type) === NATIVE_FX_PLUGIN_ID ||
+      value._zoidiumLayerSource === true || value.definition?._zoidiumLayerSource === true;
+    const sourceValues = nativeLayerSource
+      ? serializedPropertyValues(value.properties?.source ?? value.value)
+      : [];
+    if (sourceValues.some((source) => typeof source === "string" && source.startsWith("track:"))) {
+      found.features.add("layer-source");
+    }
     if (
       value._zoidiumShaderLayerSource === true ||
       value.definition?._zoidiumShaderLayerSource === true ||

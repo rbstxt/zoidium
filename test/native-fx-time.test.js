@@ -12,7 +12,7 @@ const path = require("node:path");
 const test = require("node:test");
 
 const projectRoot = path.resolve(__dirname, "..");
-const PZ = { property: { type: { NUMBER: 0, OPTION: 10, LIST: 20 } } };
+const PZ = { asset: { type: { IMAGE: 1 } }, property: { type: { NUMBER: 0, OPTION: 10, LIST: 20, ASSET: 30 } } };
 
 function loadEffect(filename) {
   let definition = null;

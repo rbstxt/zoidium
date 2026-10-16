@@ -162,3 +162,35 @@ test("serializeConsumer records the resolved source token", () => {
     LayerInput.deactivate();
   }
 });
+
+
+test("image sources preserve the empty label, clear track state, and serialize without missing errors", () => {
+  const { project, context, trackA } = createProject();
+  const api = LayerInput.activate(context);
+  try {
+    const source = makeSourceProperty();
+    source.definition.items = [{ name: "The Layer Itself", value: "" }];
+    source.toJSON = () => source.get();
+    const consumer = { type: "timedisplacement", parentProject: project, parentObject: trackA,
+      properties: { source, sourceImage: { get: () => null } } };
+    api.registerConsumer(consumer);
+    const options = api.getSourceOptions(consumer);
+    assert.deepEqual(options.slice(0, 2), [
+      { value: "", label: "The Layer Itself", disabled: false },
+      { value: "image", label: "Image", disabled: false },
+    ]);
+    assert.equal(options.some((option) => option.value === "other-layer"), false);
+    source.set(options[3].value);
+    assert.equal(api.setSource(consumer, source.get()), true);
+    source.set("image");
+    assert.equal(api.setSource(consumer, "image", { fromUser: true }), true);
+    assert.equal(api.getSourceToken(consumer), "image");
+    assert.equal(api.getSourceStatus(consumer), "");
+    assert.equal(consumer._zoidiumSourceTrack, null);
+    assert.equal(api.resolveEffect(consumer), null, "an unset image resolves as an empty source");
+    assert.equal(api.resolveMaterial(consumer), null);
+    assert.equal(api.serializeConsumer(consumer).properties.source, "image");
+  } finally {
+    LayerInput.deactivate();
+  }
+});

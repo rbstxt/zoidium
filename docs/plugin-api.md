@@ -627,3 +627,15 @@ panel, the edit frame defaults to the playhead minus the property's
 `frameOffset` (its clip start); an animated property gets a keyframe there
 through `propertyOps.startEdit`, or the existing keyframe at that frame changes. `dragMedia(itemId)` returns the Media tab
 item that shows a footage item, for CM3's own timeline drag, or `null`.
+
+
+### Requesting an optional plugin
+
+`await PZ.zoidium.requestPlugin(id, reason)` asks the plugin manager to enable an
+installed plugin. Supply a short English explanation of why the current feature
+needs it. The manager shows an Enable/Cancel confirmation, includes the registry's
+experimental warning, and enables and persists the plugin only after approval.
+It returns `true` when the plugin is enabled, or `false` for a decline, unknown ID,
+or failed activation. An already enabled plugin does not prompt again. Successful
+requests rebuild open native property editors so newly installed input controls
+appear immediately. This API does not change any plugin's startup defaults.
