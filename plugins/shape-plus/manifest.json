@@ -168,6 +168,11 @@
       "id": "compiler-procedural",
       "type": "text",
       "source": "./plugins/shape-plus/compiler-procedural.js?v=6"
+    },
+    {
+      "id": "editor-controls",
+      "type": "text",
+      "source": "./plugins/shape-plus/editor-controls.js?v=6"
     }
   ]
 }

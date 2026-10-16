@@ -242,7 +242,7 @@ function mountEditor(context, layer, Content, body, host, initial) {
   const properties = context.ui.properties({
     target: () => s.active()?.properties || null,
     keys: (name) => name !== "name",
-    labelWidth: 0.44,
+    labelWidth: 0.62,
   });
   propertiesContainer.append(properties.element);
   let previousTarget = null,
@@ -329,7 +329,7 @@ function mountEditor(context, layer, Content, body, host, initial) {
           s.pointer.active.target !== s.activeId ||
           !s.active() ||
           s.pointer.active.matrix !==
-            JSON.stringify(s.canvasApi.active()?.matrix))
+            JSON.stringify(s.canvasApi.activeMatrix()))
       )
         s.pointer.cancel();
       actions.check();
@@ -459,9 +459,18 @@ function install(context, Layer, Content) {
   const closeAll = () => {
     for (const { host } of [...windows.values()]) host.close();
   };
+  const doubleClick = event => {
+    if (event.defaultPrevented || event.target.closest("input,textarea,select,.handle")) return;
+    const element = event.target.closest(".clip");
+    const clip = element?.pz_object;
+    if (!(clip instanceof PZ.clip) || !(clip.object instanceof Layer)) return;
+    open(clip.object);
+  };
+  document.addEventListener("dblclick", doubleClick);
   editor.onProjectChanged.watch(closeAll);
   context.lifecycle.onDispose(() => {
     closeAll();
+    document.removeEventListener("dblclick", doubleClick);
     editor.onProjectChanged.unwatch(closeAll);
     if (proto.selectItems === selected) proto.selectItems = original;
     style.remove();

@@ -20,7 +20,7 @@ the old IDs. Editor selection and GPU/cache state are never serialized. Unknown
 item fields and unknown property keys survive the model's serializer. Supported
 native properties use CM3's canonical serialization.
 
-Contents kinds in round 1:
+Contents kinds:
 
 - `group`: anchor, position, scale, rotation and isolated opacity.
 - `rectangle`: size, position and roundness, clamped to half the smaller size.
@@ -81,9 +81,9 @@ The canvas shows the composition bounds and evaluated layer-local artwork at
 the playhead. Native clip start and a live clip offset, when present, determine
 local edit time. CM3's native trims shift property keys; the editor reads those
 same keys. Group transforms are included. Layer transforms, effects and final
-compositing remain visible in the normal CM3 preview. Canvas paint is an
-approximation, especially overlapping paints in an opacity-isolated group;
-export and the main preview retain the round 1 renderer unchanged.
+compositing remain visible in the normal CM3 preview. The canvas uses the same pure compiler and WebGL command renderer as the layer,
+including isolated opacity. It caches the composition-resolution image by
+evaluated signature. Editor zoom only resamples that image.
 
 - **V / P / H** select, draw with the Pen, or pan with the Hand.
 - **Pen:** click for a corner; drag for symmetric handles. Alt/Option breaks
@@ -148,8 +148,8 @@ dependencies. The owner's permission to adapt OpenPath interaction logic was
 provided for this implementation. React, Paper.js, Tailwind, settings and
 localization code are not included. Pure editor geometry, topology, pointer
 ownership, selection encoding, history and tree operations have node:test
-coverage. Segment bending, full free transform and SVG import remain outside
-this round.
+coverage. Select-dragging a segment bends it with fixed endpoints. Full free transform
+and SVG import remain outside this round.
 
 ## Contents evaluation contract
 
@@ -238,9 +238,8 @@ adds full-size targets; the explicit budget can select 2x. A target exceeding
 the renderer's maximum texture size or the 2x budget is rejected. Very complex
 or heavily isolated layers can reach these limits before the item count.
 
-Round 1 has solid paints and group opacity. It does not implement per-group
-blend modes, gradients, path operators, topology editing, 3D geometry, SVG
-import or native Shape conversion. No existing project is converted implicitly.
+Per-group blend modes, 3D geometry, SVG import and native Shape conversion
+remain outside this round. No existing project is converted implicitly.
 
 ## Persistence and checks
 
@@ -258,3 +257,107 @@ in the implementation workspace. Browser checks cover native grouped path
 keys/history, native contents editing, missing-plugin save/restore, native
 Shape pixel comparison, Precomp+, temporal effects and the native image export
 pipeline. Run `pnpm run build:plugin-bundles` and `pnpm run verify` after edits.
+
+
+## Round 3 paints and operators
+
+The plugin remains default-off. Existing schemaVersion 1 / renderVersion 1
+projects use the original solid geometry path unless a new operator is present.
+No native layer implementation changes.
+
+Multiple fills and strokes each collect all paths above them in the same group,
+including nested paths. Paint does not consume paths. Default Composite is
+Below previous in same group, preserving bottom-to-top paint order. Above
+previous places that paint over the earlier painted result in that group.
+Trim and Round Corners resolve path dependencies before paint geometry, so a
+modifier below a paint also changes that paint's eligible paths. Child paints
+retain their own local coordinates and stroke widths under parent modifiers.
+
+`trim` has animated Start/End in percent and Offset in degrees. Simultaneously
+uses the same normalized interval on each eligible path. Individually uses
+one concatenated length domain in top-to-bottom contents order, including
+nested groups. Start/End may cross; their absolute difference defines the span
+and the smaller endpoint defines its origin. Offset wraps in either direction.
+A full 100 percent span stays closed; a zero span is empty. Wrapped closed
+pieces join at the original seam and receive caps only at the trim ends.
+Fills implicitly close each trimmed open piece.
+
+Solid and gradient strokes support zero to three animated dash/gap pairs and
+an animated offset in pixels. Pair count is discrete. Zero pairs means solid;
+an all-zero active pattern is rejected. Every dash uses the selected cap;
+a dash spanning a closed seam joins across it. All fragment outlines enter
+one nonzero union before painting, including taper, caps and joins, so one
+translucent stroke never darkens itself at overlaps. Separate paint items
+still composite independently.
+
+Taper measures Start/End Length as percentages of each full post-trim contour,
+before dash splitting. Start/End Width are percentages of the base width at
+the contour ends. A zero taper length leaves that end at full width. Each
+endpoint blends toward full width with `pow(t, pow(2, ease / 50))`, with ease
+bounded to -100 through 100. Overlapping start/end profiles multiply. Wave
+multiplies this width by `max(0, 1 + amount/100 * sin(2*pi*(cycles*s/L +
+phase/360)))`. Units chooses Cycles over that contour or Wavelength in pixels.
+Phase is degrees. Closed contours use their authored first vertex as origin;
+noninteger cycles and unequal taper endpoint widths can deliberately make a
+width seam. Dashes retain the original contour's profile coordinates.
+
+`gradientFill` and `gradientStroke` are planar linear/radial paints. Start/End
+points, opacity and radial Highlight Length/Angle are ordinary numeric
+animation channels. Radial radius is the Start-to-End distance; Highlight
+Length is a signed percentage of radius, clamped inside the circle, and its
+angle is relative to that axis. Gradient coordinates follow complete group
+and painted-repeater transforms. A repeater before paint leaves one shared
+paint coordinate system over the compound paths.
+
+Colors use native CM3 type 5 GRADIENT and the native gradient picker. Canonical
+stop storage is `[{position: 0, color: "rgba(255,77,26,1)"}, ...]`, in a native
+dynamic property's keyframes. Stops animate with native hold keys, never
+numeric array interpolation. The picker adapter supplies local clip time to
+its frame-less get/set methods and retains native history/address handling.
+The compiler accepts 2 through 16 stops, sorts a copy stably, clamps channels,
+and validates finite values. One generic WebGL1 gradient program uses uniform
+stop arrays, independent of shape and frame. It explicitly interpolates
+premultiplied encoded sRGB RGBA. This matches CM3's existing encoded-sRGB
+source-over compositing, rather than introducing linear-light colors only
+for gradients. Transparent stops contribute no hidden RGB. Solid paints keep
+the original shader and output.
+
+`repeater` copies all paths and painted results above it. Copies before a later
+paint become one compound path for that paint; copies after a paint transform
+the complete painted result, including its gradient and local stroke width.
+Copies includes the original index zero. Index `i` uses exponent `i + offset`:
+position is multiplied by that exponent, rotation by the exponent, and scale
+is raised to that exponent around Anchor. Positive rotation follows Shape+
+coordinates. Composite Above draws later copies on top; Below draws them
+behind earlier copies. Start/End Opacity linearly interpolate across copy
+indices. Each painted copy isolates its complete result before applying its
+opacity. Fractional Copies fades the final painted copy by the fraction.
+Opacity ramps and fractional fading apply to painted results; a later paint
+sees the complete compound geometry. Fractional exponents with negative scale
+and negative exponents with zero scale are rejected with an English message.
+
+`roundCorners` rounds sharp authored vertices using tangent circular cubics.
+Radius clamps each cut to half the available adjacent segment lengths.
+Existing smooth vertices and generated flattening samples remain smooth.
+The operator handles paths, rectangles and stars, including duplicate corner
+vertices in the original polystar construction. Curved neighboring segments
+retain their authored controls; exact circular fillets against arbitrary
+curved segments are not claimed.
+
+The Add menu and tree include every new item with its own monochrome icon.
+The complete selected property's native rows remain scrollable below the tree;
+drag the tree's lower-right resize grip to change their split. Start/End
+points of gradients and repeater anchors have canvas handles. Handle drags
+and segment bends create one native history entry and cancel through the same
+pointer transaction as path edits. Double-clicking a Shape+ timeline clip opens
+the existing layer window. This bubbling listener leaves prevented native
+handlers, clip trim handles and other clip types alone.
+
+Additional budgets are 128 copies per repeater, 2048 live path instances,
+2048 dash fragments, 4096 sampled points per width-profile fragment, 4096
+expanded command visits, and 16 gradient stops. Existing total path, triangle,
+arrangement and render-target budgets still apply. The editor caches one
+composition-sized preview, capped at 16 million pixels, and disposes its
+renderer, buffers, targets and WebGL context when closed.
+
+The ordering reference is Adobe's [shape attributes and operations guide](https://helpx.adobe.com/after-effects/desktop/drawing-painting-and-paths/shapes-and-shape-attributes/shape-attributes-paint-operations-path.html).
