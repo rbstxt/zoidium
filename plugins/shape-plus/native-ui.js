@@ -9,10 +9,14 @@ function install(PZ, Layer, Content, onDispose) {
   }
   const proto = PZ.ui.edit.prototype;
   const watched = new Map();
+  function contentTarget(object) {
+    for (let node = object, depth = 0; node && depth < 64; depth++, node = node.parent ? node.parentObject : null) if (node instanceof Content) return true;
+    return false;
+  }
   function watchFocus(panel) {
     if (!panel.options.keyframePanel || watched.has(panel)) return;
     const refresh = () => {
-      if (panel.enabled && panel.selection.some(object => object instanceof Content)) panel.options.keyframePanel.objects = panel.selection;
+      if (panel.enabled && panel.selection.some(contentTarget)) panel.options.keyframePanel.objects = panel.selection;
     };
     panel.onEnabledChanged.watch(refresh); watched.set(panel, refresh);
   }
@@ -33,7 +37,7 @@ function install(PZ, Layer, Content, onDispose) {
   patch(proto, "selectItems", original => function () {
     const result = original.apply(this, arguments);
     if (this.options.keyframePanel) {
-      if (this.selection.some(object => object instanceof Content)) {
+      if (this.selection.some(contentTarget)) {
         // Selection becomes the root, so an arbitrary nested item remains
         // within the shared three-generation timeline traversal budget.
         this.options.keyframePanel.objects = this.selection; focused.add(this);
@@ -50,7 +54,7 @@ function install(PZ, Layer, Content, onDispose) {
   document.head.appendChild(style); onDispose(() => style.remove());
   patch(PZ.ui.timeline.keyframes.prototype, "createKeyframeTrack", original => function (container, object) {
     const track = original.apply(this, arguments);
-    if (track && (object instanceof Content && object.kind === "path" || object.parentObject instanceof PZ.property.dynamic.group && object.parentObject.definition.zoidiumControl === "shape-plus/path")) {
+    if (track && (object instanceof Content && object.kind === "path" || object.parent && container.pz_parent?.pz_object === object.parentObject && object.parentObject instanceof PZ.property.dynamic.group && object.parentObject.definition.zoidiumControl === "shape-plus/path")) {
       track.classList.add("shape-plus-path-channel"); track.pz_label.classList.add("shape-plus-path-channel");
     }
     return track;

@@ -20,14 +20,15 @@ function segmentDistance(p, a, b) {
 // than the infinite line) also detects collinear overshoot and reversal.
 // Budget exhaustion rejects the job instead of silently breaking tolerance.
 function flatten(c, tolerance = .125, budget = 4096) {
-  if (!(tolerance > 0) || !c.flat().every(Number.isFinite)) throw Error("Invalid cubic or tolerance");
+  if (!(tolerance > 0) || !Number.isFinite(tolerance) || !c.flat().every(Number.isFinite)) throw Error("Invalid cubic or tolerance");
+  if (!Number.isInteger(budget) || budget < 2 || budget > 4096) throw Error("Invalid Shape+ point budget");
   const points = [c[0].slice()], stack = [{ c, depth: 0 }];
   while (stack.length) {
     const item = stack.pop(), curve = item.c;
     const error = Math.max(segmentDistance(curve[1], curve[0], curve[3]), segmentDistance(curve[2], curve[0], curve[3]));
     if (error <= tolerance) points.push(curve[3].slice());
     else {
-      if (item.depth >= 24 || points.length + stack.length >= budget) throw Error("Shape+ curve subdivision budget exceeded");
+      if (item.depth >= 24 || points.length + stack.length + 2 > budget) throw Error("Shape+ curve subdivision budget exceeded");
       const halves = split(curve);
       stack.push({ c: halves[1], depth: item.depth + 1 }, { c: halves[0], depth: item.depth + 1 });
     }
