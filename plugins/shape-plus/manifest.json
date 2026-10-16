@@ -163,6 +163,36 @@
       "id": "viewport-mapping",
       "type": "text",
       "source": "./plugins/shape-plus/viewport-mapping.js?v=7"
+    },
+    {
+      "id": "native-properties",
+      "type": "text",
+      "source": "./plugins/shape-plus/native-properties.js?v=7"
+    },
+    {
+      "id": "deform",
+      "type": "text",
+      "source": "./plugins/shape-plus/deform.js?v=7"
+    },
+    {
+      "id": "topology",
+      "type": "text",
+      "source": "./plugins/shape-plus/topology.js?v=7"
+    },
+    {
+      "id": "vendor-clipper",
+      "type": "text",
+      "source": "./plugins/shape-plus/vendor/clipper.js?v=7"
+    },
+    {
+      "id": "license-boost",
+      "type": "text",
+      "source": "./plugins/shape-plus/vendor/LICENSE-Boost.txt?v=7"
+    },
+    {
+      "id": "license-jsbn",
+      "type": "text",
+      "source": "./plugins/shape-plus/vendor/LICENSE-JSBN.txt?v=7"
     }
   ]
 }

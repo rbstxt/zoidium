@@ -55,14 +55,15 @@ function createModel(PZ) {
       if (this.kind === "path") Object.assign(result, { vertexIds: this.vertexIds, vertexModes: this.vertexModes });
       return result;
     }
-    evaluate(frame) {
+    evaluate(frame, rate = 30) {
       const properties = {};
       for (const key of Object.keys(this.properties)) {
         const value = this.properties[key].get(frame);
         if (typeof value === "number" && !Number.isFinite(value) || Array.isArray(value) && key !== "stops" && !value.every(Number.isFinite)) throw Error("Shape+ property must be finite");
         properties[key] = Array.isArray(value) ? value.slice() : value;
       }
-      return { id: this.id, kind: this.kind, vertexIds: this.vertexIds.slice(), properties, ...(this.contents ? { contents: Array.from(this.contents, child => child.evaluate(frame)) } : {}) };
+      if (["wigglePaths", "wiggleTransform"].includes(this.kind)) properties.time = frame / rate;
+      return { id: this.id, kind: this.kind, vertexIds: this.vertexIds.slice(), properties, ...(this.contents ? { contents: Array.from(this.contents, child => child.evaluate(frame, rate)) } : {}) };
     }
     unload() { for (const child of this.contents || []) child.unload(); }
     static create(kind) { return new Content(kind); }

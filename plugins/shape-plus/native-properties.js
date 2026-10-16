@@ -43,6 +43,8 @@ function decorate(panel, row, item) {
     const text = document.createElement("span"); text.textContent = name;
     label.append(button, text); header.append(label, document.createElement("div"));
     const children = document.createElement("ul");
+    children.pz_object = p;
+    panel.propertyListEls.push(children);
     list.insertBefore(header, first); header.after(children);
     for (const key of entries) for (const element of rows.get(key)) if (element) children.append(element);
     const collapsed = !entries.some(key => nondefault(p[key]));
