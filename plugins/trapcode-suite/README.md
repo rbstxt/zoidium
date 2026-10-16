@@ -13,6 +13,12 @@ around CM3; it is not part of, and not endorsed by, Panzoid.
   families, spin with orient-to-motion blending, motion-direction stretch.
   Aux streaks: a system with Emit from parent on emits from every live particle
   of its parent system, so each parent leaves its own trail.
+  Displace Spin uses seeded circular position offsets. Amplitude is the orbit
+  radius in scene units and frequency is revolutions per second. The orbit's
+  tangent drives motion alignment and inherited velocity; it does not rotate
+  the sprite. Saved Particular objects without `spinMode: 1` retain their
+  original behavior. Objects already saved with that mode and nonzero Displace
+  Spin now use orbital motion instead of the earlier orientation noise.
    Fluid motion adds a vortex swirl around the spherical-field center (core
    size scales that radius; tilt and rotate shape the swirl plane and push it
    toward inflow/outflow; center offset moves it), or buoyancy with seeded
