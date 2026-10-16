@@ -127,10 +127,11 @@ async function timeDisplacementSourceChanged(property) {
     if (effect._zoidiumSourceRequest) return;
     effect._zoidiumSourceRequest = true;
     try {
-      await PZ.zoidium?.requestPlugin?.(
+      const approved = await PZ.zoidium?.requestPlugin?.(
         "layer-input",
         "Choosing another layer as the Time Displacement map needs the Layer Input plugin."
       );
+      if (approved) PZ.layerInput?.registerConsumer?.(effect);
     } finally {
       effect._zoidiumSourceRequest = false;
     }
@@ -285,9 +286,8 @@ ZoidiumPluginApis.defineFrameSampler.call(timeDisplacementEffect, {
             return;
           }
 
-          // The map is another video track when the Layer Input plugin
-          // resolves one, otherwise the layer's own current input. Either
-          // way the fallback is deterministic for a given project state.
+          // A direct image works without Layer Input. Track maps use that
+          // plugin; an empty or unavailable map keeps the layer's own input.
           let mapTexture = readBuffer.texture;
           let mapWidth = readBuffer.width;
           let mapHeight = readBuffer.height;
