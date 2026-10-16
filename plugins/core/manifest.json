@@ -3,7 +3,7 @@
   "id": "core",
   "name": "Zoidium Core",
   "author": "Zoidium",
-  "version": "56",
+  "version": "57",
   "kind": "core",
   "visibility": "hidden",
   "alwaysEnabled": true,
@@ -289,19 +289,19 @@
   "modules": [
     {
       "id": "single-graph-window",
-      "source": "./plugins/core/single-graph-window.js?v=56"
+      "source": "./plugins/core/single-graph-window.js?v=57"
     },
     {
       "id": "font-load",
-      "source": "./plugins/core/font-load.js?v=56"
+      "source": "./plugins/core/font-load.js?v=57"
     },
     {
       "id": "video-decode-hint",
-      "source": "./plugins/core/video-decode-hint.js?v=56"
+      "source": "./plugins/core/video-decode-hint.js?v=57"
     },
     {
       "id": "output-frame-cache",
-      "source": "./plugins/core/output-frame-cache.js?v=56"
+      "source": "./plugins/core/output-frame-cache.js?v=57"
     }
   ]
 }

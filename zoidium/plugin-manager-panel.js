@@ -70,6 +70,34 @@
     return state.enablePromise;
   }
 
+  // Public opt-in entry point. Plugin code supplies context; the manager owns
+  // confirmation, experimental warnings, persistence and activation.
+  async function requestPlugin(id, reason) {
+    await manager.registryReady;
+    const state = pluginStates.get(id);
+    if (!state) return false;
+    if (!pluginIsEnabled(state)) {
+      const warning = state.plugin.warning || (state.plugin.category === "experimental"
+        ? "This feature is extremely experimental and may cause unexpected crashes."
+        : "");
+      const approved = await ZoidiumUI.confirm({
+        title: `Enable "${state.plugin.name}"?`,
+        message: [String(reason || `This feature needs ${state.plugin.name}.`), warning]
+          .filter(Boolean).join("\n\n"),
+        confirmLabel: "Enable",
+        cancelLabel: "Cancel",
+      });
+      if (!approved) return false;
+      await enablePlugin(state, true);
+    }
+    if (!pluginIsEnabled(state)) return false;
+    // Native property editors retain their old input factory until rebuilt.
+    for (const list of document.querySelectorAll("ul")) {
+      if (list.isConnected) list.pz_listChanged?.();
+    }
+    return true;
+  }
+
   async function disablePlugin(state, persist) {
     // Hidden core plugins cannot be disabled; there is no toggle for them.
     if (!state) return;
@@ -521,5 +549,5 @@
   }
 
   // END manager body
-  Object.assign(manager, { enablePlugin, disablePlugin, pluginUsageReason, refreshPluginUsageLocks, escapePluginHtml, closeOpenAddPickers, compatBadgeHtml, experimentalBadgeHtml, pluginSwitchHtml, createPluginCard, createHiddenPluginState, pluginEnabledForGroup, createGroupSection, createPluginGroup, syncGroupSwitch, syncGroupForPlugin, setGroupEnabled, createPanel, createTab });
+  Object.assign(manager, { requestPlugin, enablePlugin, disablePlugin, pluginUsageReason, refreshPluginUsageLocks, escapePluginHtml, closeOpenAddPickers, compatBadgeHtml, experimentalBadgeHtml, pluginSwitchHtml, createPluginCard, createHiddenPluginState, pluginEnabledForGroup, createGroupSection, createPluginGroup, syncGroupSwitch, syncGroupForPlugin, setGroupEnabled, createPanel, createTab });
 })();

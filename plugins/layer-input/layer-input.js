@@ -87,6 +87,7 @@ const LayerInput = (() => {
     state.window = context.window || window;
     state.api = {
       registerConsumer: deps.registerConsumer,
+      loadSourceImage: deps.loadSourceImage,
       unregisterConsumer: deps.unregisterConsumer,
       setSource: deps.setConsumerSource,
       getSourceOptions: deps.getSourceOptions,

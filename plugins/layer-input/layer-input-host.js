@@ -200,12 +200,22 @@ module.exports = function createHost(state, deps) {
         name: "Source Layer",
         type: state.PZ.property.type.LIST,
         value: "",
-        items: [{ name: "(No source)", value: "" }],
+        items: [{ name: "(No source)", value: "" }, { name: "Image", value: "image" }],
         _zoidiumLayerSource: true,
         changed: function () {
           const material = this.parentObject;
           if (material?._zoidiumLoading) return;
           state.api?.setSource(material, this.value || "");
+        },
+      },
+      sourceImage: {
+        name: "Source Image",
+        type: state.PZ.property.type.ASSET,
+        assetType: state.PZ.asset.type.IMAGE,
+        value: null,
+        accept: "image/*",
+        changed: function () {
+          state.PZ.layerInput?.loadSourceImage(this.parentObject, this.value);
         },
       },
       opacity: {
@@ -237,7 +247,7 @@ module.exports = function createHost(state, deps) {
         });
         material.properties.load(data && data.properties);
         material._zoidiumLoading = false;
-        state.api?.deps.registerConsumer(material);
+        deps.registerConsumer(material);
         state.PZ.zoidium?.trackPluginMaterial?.(
           material,
           {
@@ -255,7 +265,7 @@ module.exports = function createHost(state, deps) {
       material.update = function (frame) {
         if (!material.threeObj) return;
         const opacity = deps.readNumericProperty(material.properties.opacity, frame, 1);
-        const source = state.api?.deps.resolveMaterial(material, frame) || null;
+        const source = deps.resolveMaterial(material, frame) || null;
         const texture = source?.texture || null;
         if (material.threeObj.map !== texture) {
           material.threeObj.map = texture;
@@ -263,14 +273,14 @@ module.exports = function createHost(state, deps) {
         }
         material.threeObj.opacity = source ? opacity : 0;
       };
-      material.prepare = async function () {};
+      material.prepare = async function () { await material._zoidiumSourceImage?.loading; };
       material.toJSON = function () {
         return state.api
-          ? state.api.deps.serializeConsumer(material)
+          ? deps.serializeConsumer(material)
           : { type: material.type, properties: material.properties };
       };
       material.unload = function () {
-        state.api?.deps.unregisterConsumer(material);
+        deps.unregisterConsumer(material);
         state.PZ.zoidium?.untrackPluginMaterial?.(material);
         material.threeObj?.dispose?.();
         material.threeObj = null;

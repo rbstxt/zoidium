@@ -74,7 +74,7 @@ test("startup retains namespace exports and waits for the ordered overlays", asy
   m.createPanel = () => ({});
   vm.runInContext(fs.readFileSync(path.join(__dirname, "../plugins/plugin-manager.js"), "utf8"), sandbox);
   await m.registryReady;
-  assert.deepEqual(calls.map((call) => call[0]), ["getDebugPlugins", "getDebugProjectUsage", "trackPluginMaterial", "untrackPluginMaterial", "trackPluginResource", "untrackPluginResource"]);
+  assert.deepEqual(calls.map((call) => call[0]), ["requestPlugin", "getDebugPlugins", "getDebugProjectUsage", "trackPluginMaterial", "untrackPluginMaterial", "trackPluginResource", "untrackPluginResource"]);
   assert.ok(calls.every((call) => call[1] === "function" && call[2] === "plugin-manager"));
 });
 test("manager numeric fallbacks use the shared JSON clone for load and save", async () => {
