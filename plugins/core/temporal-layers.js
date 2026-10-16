@@ -284,6 +284,10 @@
           // update cannot remap the frame used by Scene/Composite children.
           const mapped = state.mapLayerFrame(this, frame);
           const source = mapped?.sourceFrame ?? frame;
+          // CM3's editing viewport calls update(playhead) before drawing;
+          // property controls read get(frame). Neither needs an eager full
+          // content restore after a sequence draw. The next draw evaluates
+          // its requested frame again, including after a Layer Input capture.
           state.evaluatingLayers.add(this);
           try {
             return original.call(this, source);
