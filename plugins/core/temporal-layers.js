@@ -209,7 +209,7 @@
 
   function getTemporalLayerFrame(layer, localFrame, sequence) {
     const clip = getClipForLayer(layer);
-    if (!isTopLevelClipLayer(layer, clip)) return null;
+    if (!clip) return null;
 
     const rawLocalFrame = finiteNumber(localFrame, 0);
     const outputProjectFrame = finiteNumber(clip.start, 0) + rawLocalFrame;
@@ -223,11 +223,8 @@
     const operators = isAdjustmentLayer(layer)
       ? []
       : readTemporalOperators(layer, outputLocalFrame);
-    const scopeOperators = readAdjustmentScopeOperators(
-      sequence,
-      layer,
-      outputProjectFrame,
-    );
+    const scopeOperators = isTopLevelClipLayer(layer, clip)
+      ? readAdjustmentScopeOperators(sequence, layer, outputProjectFrame) : [];
     if (operators.length === 0 && scopeOperators.length === 0) return null;
 
     const extrapolate = isExtrapolatableLayer(layer);
@@ -249,12 +246,18 @@
     };
   }
 
-  // Scan descriptors, never serialized project data. Samplers retain their
-  // existing capture/restore contract; plain operators only change a clock.
-  function usesSingleEvaluation(sequence) {
+  // Scan descriptors, never serialized project data. Cache bypass still
+  // excludes samplers, while concrete dispatch maps every temporal sequence.
+  function usesSingleEvaluation(sequence, excludeSamplers = false) {
     let temporal = false;
     let sampler = false;
+    const visited = new WeakSet();
     function visit(layer) {
+      if (!layer || visited.has(layer)) return;
+      visited.add(layer);
+      for (const track of layer.nestedTracks?.() || []) {
+        for (const clip of track.clips || []) visit(clip.object);
+      }
       for (const effect of layer?.effects || []) {
         temporal ||= Boolean(effect?._zoidiumTemporal);
         sampler ||= Boolean(effect?._zoidiumFrameSampler);
@@ -267,37 +270,46 @@
     for (const track of sequence?.videoTracks || []) {
       for (const clip of track.clips || []) visit(clip.object);
     }
-    return temporal && !sampler;
+    return temporal && !(excludeSamplers && sampler);
+  }
+
+  function hasNestedFrameSampler(layer) {
+    const children = layer.nestedTracks?.().flatMap(track =>
+      Array.from(track.clips || [], clip => clip.object)) ||
+      (layer instanceof PZ.layer.composite ? layer.objects || [] : []);
+    return Array.from(children).some(child =>
+      child.effects?.some(effect => effect?._zoidiumFrameSampler) || hasNestedFrameSampler(child));
   }
 
   function installSingleEvaluation(state, sequence) {
-    for (const track of sequence?.videoTracks || []) {
-      for (const clip of track.clips || []) {
-        const layer = clip.object;
-        if (!layer || layer.update.__zoidiumTemporalOuterUpdate) continue;
-        const original = layer.update;
-        const update = function temporalOuterLayerUpdate(frame) {
-          const context = state.contexts[state.contexts.length - 1];
-          if (!context?.singleEvaluation || state.evaluatingLayers.has(this) ||
-              state.restoringLayers.has(this)) return original.apply(this, arguments);
-          // Dispatch before the concrete subclass runs. Calling the base
-          // update cannot remap the frame used by Scene/Composite children.
-          const mapped = state.mapLayerFrame(this, frame);
-          const source = mapped?.sourceFrame ?? frame;
-          // CM3's editing viewport calls update(playhead) before drawing;
-          // property controls read get(frame). Neither needs an eager full
-          // content restore after a sequence draw. The next draw evaluates
-          // its requested frame again, including after a Layer Input capture.
-          state.evaluatingLayers.add(this);
-          try {
-            return original.call(this, source);
-          } finally {
-            state.evaluatingLayers.delete(this);
-          }
-        };
-        update.__zoidiumTemporalOuterUpdate = true;
-        layer.update = update;
+    const visited = new WeakSet();
+    function visit(layer) {
+      if (!layer || visited.has(layer)) return;
+      visited.add(layer);
+      // Precomp+ owns clip-backed children that may not be active yet.
+      for (const track of layer.nestedTracks?.() || []) {
+        for (const clip of track.clips || []) visit(clip.object);
       }
+      if (layer instanceof PZ.layer.composite) {
+        for (const child of layer.objects || []) visit(child);
+      }
+      if (layer.update.__zoidiumTemporalOuterUpdate) return;
+      const original = layer.update;
+      const update = function temporalOuterLayerUpdate(frame) {
+        const context = state.contexts[state.contexts.length - 1];
+        if (!context?.singleEvaluation || state.evaluatingLayers.has(this) ||
+            state.restoringLayers.has(this)) return original.apply(this, arguments);
+        // Map before Scene and Composite dispatch to their descendants.
+        const mapped = state.mapLayerFrame(this, frame);
+        state.evaluatingLayers.add(this);
+        try { return original.call(this, mapped?.sourceFrame ?? frame); }
+        finally { state.evaluatingLayers.delete(this); }
+      };
+      update.__zoidiumTemporalOuterUpdate = true;
+      layer.update = update;
+    }
+    for (const track of sequence?.videoTracks || []) {
+      for (const clip of track.clips || []) visit(clip.object);
     }
   }
 
@@ -340,8 +352,29 @@
         layer = clip?.object;
         effectIndex = layer?.effects?.indexOf?.(effect) ?? -1;
       }
-      if (!clip || !layer || effectIndex < 0) continue;
-      return { clip, effect, effectIndex, layer, trackIndex };
+      if (clip && layer && effectIndex >= 0) {
+        return { clip, effect, effectIndex, layer, trackIndex };
+      }
+      function findNested(parent, parentClip) {
+        if (!(parent instanceof PZ.layer.composite)) return null;
+        const nestedClips = parent.nestedTracks?.().flatMap(track => Array.from(track.clips || []));
+        const children = nestedClips || Array.from(parent.objects || [], object => ({
+          start: parentClip.start, length: parentClip.length, object,
+        }));
+        for (const childClip of children) {
+          const child = childClip.object;
+          const index = child.effects?.indexOf?.(effect) ?? -1;
+          if (index >= 0) return { clip: childClip, effect, effectIndex: index,
+            layer: child, trackIndex, nested: true };
+          const found = findNested(child, childClip);
+          if (found) return found;
+        }
+        return null;
+      }
+      for (const candidate of track.clips || []) {
+        const nested = findNested(candidate.object, candidate);
+        if (nested) return nested;
+      }
     }
     return null;
   }
@@ -415,11 +448,78 @@
     return [clip, sequence.properties, editLink];
   }
 
+  let pluginStateEpoch = 0;
+  let lastLocalKey = null;
+  if (typeof document !== "undefined") {
+    document.addEventListener?.("zoidium:plugin-state-change", () => { pluginStateEpoch += 1; });
+  }
+
+  function frameSamplerReuseDisabled() {
+    return typeof PZ !== "undefined" && PZ.zoidium?.debugDisableFrameSamplerInputReuse === true;
+  }
+
+  function frameSamplerInputKey(sequence, compositor, stage, scope) {
+    const scoped = !frameSamplerReuseDisabled() && frameSamplerScopedContent(sequence, stage, scope);
+    const assets = Object.entries(sequence.parentProject?.assets?.list || {}).map(([id, asset]) =>
+      [id, asset.url, asset.sha256, asset.filename, asset.size, frameSamplerIdentity(asset),
+        asset.file ? frameSamplerIdentity(asset.file) : 0]);
+    // Plugin state changes also dispose every runtime; the epoch keeps a stale
+    // preview key from matching across one without reading every plugin state.
+    const settings = [compositor.__zoidiumRenderSettings,
+      [compositor.renderer?.shadowMap?.type, compositor.renderer?.shadowMap?.enabled], pluginStateEpoch,
+      frameSamplerReuseDisabled(), math.temporalMode(stage?.effect), math.temporalMode(scope?.effect)];
+    if (scoped) {
+      const serialized = JSON.stringify(["layer-prefix", compositor.readBuffer.width, compositor.readBuffer.height,
+        scoped, sequence.videoTracks[stage.trackIndex].enabled, assets, settings]);
+      // Rechecks after each awaited tap usually see the same content again.
+      if (serialized === lastLocalKey) return serialized;
+      if (frameSamplerSerializedContentIsLocal(serialized)) return (lastLocalKey = serialized);
+    }
+    const whole = () => JSON.stringify([compositor.readBuffer.width, compositor.readBuffer.height,
+      sequence, sequence.videoTracks.map(track => track.enabled),
+      assets, settings, stage?.nested ? [stage.clip.start, stage.clip.length, stage.layer] : null]);
+    const layer = stage?.layer;
+    if (!layer || frameSamplerReuseDisabled() || typeof layer.toJSON !== "function") return whole();
+    // The sampler and later effects never feed its own input. Serialize the
+    // whole sequence with this layer cut before the sampler, so editing the
+    // time effect keeps inputs even when other tracks are in the key. A
+    // synchronous own-property override leaves the live serializer untouched.
+    const prefix = Object.assign({}, layer.toJSON(), {
+      effects: Array.from(layer.effects || []).slice(0, stage.effectIndex),
+    });
+    const own = Object.prototype.hasOwnProperty.call(layer, "toJSON") ? layer.toJSON : null;
+    let serialized;
+    layer.toJSON = () => prefix;
+    try {
+      serialized = "effect-prefix" + whole();
+    } finally {
+      if (own) layer.toJSON = own;
+      else delete layer.toJSON;
+    }
+    // Expressions, layer inputs and compositions can read the cut effects.
+    return frameSamplerSerializedReadsNoLayer(serialized) ? serialized : whole();
+  }
+
+  const frameSamplerIdentities = new WeakMap();
+  let nextFrameSamplerIdentity = 1;
+  function frameSamplerIdentity(effect) {
+    let id = frameSamplerIdentities.get(effect);
+    if (!id) {
+      id = nextFrameSamplerIdentity++;
+      frameSamplerIdentities.set(effect, id);
+    }
+    return id;
+  }
+
   registry.layers = {
+    frameSamplerInputKey,
+    frameSamplerIdentity,
+    frameSamplerReuseDisabled,
     frameSamplerScopedContent,
     frameSamplerSerializedContentIsLocal,
     frameSamplerSerializedReadsNoLayer,
     usesSingleEvaluation,
+    hasNestedFrameSampler,
     installSingleEvaluation,
     getSequenceForLayer: getSequenceForLayer,
     getClipForLayer: getClipForLayer,

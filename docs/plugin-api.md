@@ -59,13 +59,16 @@ node tools/new-plugin.js --kind=native-fx --template=temporal --id=my-time-fx
   with kind time-offset or posterize-time.
   The host (plugins/core/temporal-render.js) applies the operator, so authors
   never touch frames directly. See timeoffset.js and posterizetime.js.
-  Without frame samplers, the host evaluates each concrete layer once at
-  the mapped input time. Composite and Precomp+ children inherit that clock.
+  The host evaluates each concrete layer once at the mapped input time,
+  including sequences with frame samplers. Composite and Precomp+ children
+  inherit that clock, including each sampler tap.
   Property controls read their explicit frame; an editing viewport updates
   its layer at the playhead before drawing. Sequence rendering does not
-  restore the whole content tree afterward. These projects draw live without
-  output-cache serialization or idle prefetch. Sequences with frame samplers
-  retain their capture and restoration path.
+  restore the whole content tree afterward. Samplers restore the transforms
+  and effect uniforms read by the interrupted pass without reevaluating its
+  descendants. Taps mapping to one input frame share a capture and keep their
+  individual weights. Sampler-free projects draw live without output-cache
+  serialization or idle prefetch; samplers retain their output cache.
 - frame sampler (multi-frame image effect): call
   `ZoidiumPluginApis.defineFrameSampler` with properties and a deterministic
   `getRequest(effect, frame)` function. The core compositor evaluates and
