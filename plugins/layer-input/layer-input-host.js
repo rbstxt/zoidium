@@ -276,7 +276,7 @@ module.exports = function createHost(state, deps) {
       material.prepare = async function () { await material._zoidiumSourceImage?.loading; };
       material.toJSON = function () {
         return state.api
-          ? state.api.deps.serializeConsumer(material)
+          ? deps.serializeConsumer(material)
           : { type: material.type, properties: material.properties };
       };
       material.unload = function () {

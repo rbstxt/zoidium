@@ -369,3 +369,16 @@ test("legacy Camera layers are detected inside the project's sequence", () => {
   assert.deepEqual(requirements(data).map((plugin) => plugin.id), ["camera-plus"]);
   assert.deepEqual(pluginById(data, "camera-plus").objects, ["camera-layer"]);
 });
+
+
+test("Time Displacement track maps require Layer Input but self and image maps do not", () => {
+  for (const source of ["track:id:track-2", { value: "track:[1,2]" }]) {
+    const plugin = pluginById({ type: "timedisplacement", properties: { source } }, "layer-input");
+    assert.deepEqual(plugin.features, ["layer-source"]);
+  }
+  for (const source of [undefined, "", "image"]) {
+    assert.equal(pluginById({ type: "timedisplacement", properties: { source } }, "layer-input"), undefined);
+  }
+  const liveSource = { definition: { _zoidiumLayerSource: true }, value: "track:id:track-2" };
+  assert.deepEqual(pluginById({ type: "future-native-effect", properties: { source: liveSource } }, "layer-input").features, ["layer-source"]);
+});
