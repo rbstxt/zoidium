@@ -8,6 +8,9 @@ function createLayerClass(PZ, THREE, Content) {
     constructor() {
       super(); this.type = TYPE; this.defaultName = "Shape+";
       this.contents = new PZ.objectList(this, Content); this.contents.name = "Contents";
+      // The native Objects panel maps a selected clip to layer.objects.
+      // This alias is transient; the saved format continues to use contents.
+      Object.defineProperty(this, "objects", { get: () => this.contents });
       this.children.splice(1, 0, this.contents);
       this.engine = createRenderer(THREE);
       this.pass = { render: (renderer, destination) => {
