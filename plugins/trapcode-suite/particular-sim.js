@@ -679,6 +679,14 @@ var PZ = PZ || {};
                 }
             }
         }
+        // Keep the checkpoints on the underlying physical trajectory. Add the
+        // age-based orbit once at the requested time, including parent probes
+        // used by child emitters, so trails follow the displaced path.
+        var orbit = T.particularSpin.orbit(table.rowAtTime(t).spin, ev.row.seed, ev.key, t - ev.birth);
+        if (orbit) {
+            st.x += orbit.offset[0]; st.y += orbit.offset[1]; st.z += orbit.offset[2];
+            st.vx += orbit.velocity[0]; st.vy += orbit.velocity[1]; st.vz += orbit.velocity[2];
+        }
         return st;
     }
 

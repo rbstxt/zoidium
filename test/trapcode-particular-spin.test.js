@@ -64,21 +64,99 @@ test("new zero controls retain the original motion and GPU path", () => {
   assert.equal(current.system.material.defines.USE_CPU, undefined);
 });
 
-test("spin amplitude and frequency produce bounded, seeded per-particle orientation noise", () => {
+test("Displace Spin moves particles on seeded circles without rotating the sprite", () => {
   const { system, p } = setup();
+  const baseline = system.simulateFrame(30);
   p.displace.spinAmplitude.set(80); p.displace.spinFrequency.set(1.3);
   const a = system.simulateFrame(30);
-  assert.ok(a.spinOffsets.some(value => value !== 0));
-  assert.ok(a.spinOffsets.every(value => Math.abs(value) <= 80 * Math.PI / 180));
-  assert.notDeepEqual(Array.from(a.spinOffsets.slice(0, 3)), Array.from(a.spinOffsets.slice(3, 6)));
+  assert.ok(a.spinOffsets.every(value => value === 0));
+  for (let i = 0; i < a.count; i++) {
+    const delta = Array.from(a.positions.slice(i * 3, i * 3 + 3), (value, axis) => value - baseline.positions[i * 3 + axis]);
+    assert.ok(Math.abs(Math.hypot(...delta) - 80) < 1e-4, "amplitude is the orbit radius in scene units");
+  }
   p.displace.spinFrequency.set(2.6);
   const b = system.simulateFrame(30);
-  assert.notDeepEqual(a.spinOffsets, b.spinOffsets);
-  assert.deepEqual(motion(a), motion(b), "orientation noise does not displace the particles");
+  assert.notDeepEqual(a.positions, b.positions);
+  assert.notDeepEqual(a.velocities, b.velocities, "motion alignment follows the orbit tangent");
+  assert.deepEqual(a.phases, b.phases);
+  assert.deepEqual(a.pids, b.pids);
   p.emitter.randomSeed.set(4321);
-  assert.notDeepEqual(b.spinOffsets, system.simulateFrame(30).spinOffsets);
+  assert.notDeepEqual(b.positions, system.simulateFrame(30).positions);
   p.displace.spinAmplitude.set(0);
+  p.emitter.randomSeed.set(100);
   assert.ok(system.simulateFrame(30).spinOffsets.every(value => value === 0));
+});
+
+test("orbit radius, period, tangent and particle-age clock are deterministic", () => {
+  const { spin } = setup();
+  assert.equal(spin.orbit(null, 42, 3, 1), null);
+  assert.equal(spin.orbit({ amplitude: 0, frequency: 2 }, 42, 3, 1), null);
+  const settings = { amplitude: 12, frequency: 2 };
+  const a = spin.orbit(settings, 42, 3, 0.17);
+  const b = spin.orbit(settings, 42, 3, 0.67);
+  assert.ok(Math.abs(Math.hypot(...a.offset) - 12) < 1e-12);
+  assert.ok(Math.abs(Math.hypot(...a.velocity) - 12 * 4 * Math.PI) < 1e-10);
+  assert.ok(Math.abs(a.offset.reduce((sum, v, i) => sum + v * a.velocity[i], 0)) < 1e-10);
+  for (let axis = 0; axis < 3; axis++) assert.ok(Math.abs(a.offset[axis] - b.offset[axis]) < 1e-12);
+  const later = spin.orbit(settings, 42, 3, 0.170001);
+  for (let axis = 0; axis < 3; axis++) assert.ok(Math.abs((later.offset[axis] - a.offset[axis]) / 0.000001 - a.velocity[axis]) < 0.002);
+  assert.notDeepEqual(a, spin.orbit(settings, 42, 4, 0.17));
+  assert.notDeepEqual(a, spin.orbit(settings, 43, 3, 0.17));
+  assert.deepEqual(spin.orbit({ amplitude: 12, frequency: 0 }, 42, 3, 0).offset,
+    spin.orbit({ amplitude: 12, frequency: 0 }, 42, 3, 90).offset);
+});
+
+test("continuous particles use their birth age for Displace Spin", () => {
+  const { system, p, spin } = setup();
+  p.emitter.emitterBehavior.set(0); p.emitter.burstCount.set(0); p.emitter.particlesPerSec.set(10);
+  const baseline = system.simulateFrame(45);
+  p.displace.spinAmplitude.set(8); p.displace.spinFrequency.set(0.7);
+  const state = system.simulateFrame(45), table = system.simTable(0);
+  for (let i = 0; i < state.count; i++) {
+    const ev = table.eventFor(state.pids[i]);
+    const expected = spin.orbit(spin.sample(system, 1.5, 30), ev.row.seed, ev.key, 1.5 - ev.birth);
+    for (let axis = 0; axis < 3; axis++) {
+      assert.ok(Math.abs(state.positions[i * 3 + axis] - baseline.positions[i * 3 + axis] - expected.offset[axis]) < 1e-5);
+      assert.ok(Math.abs(state.velocities[i * 3 + axis] - baseline.velocities[i * 3 + axis] - expected.velocity[axis]) < 1e-5);
+    }
+  }
+});
+
+test("child trails originate on the parent's orbital path and inherit its tangent", () => {
+  const { PZ, particular, system: parent, p } = setup();
+  p.emitter.burstCount.set(1);
+  p.displace.spinAmplitude.set(8); p.displace.spinFrequency.set(0.7);
+  const child = new PZ.object3d.particular.system();
+  child.load(null, particular);
+  particular.systems.push(child);
+  child.sceneRate = () => 30;
+  Object.defineProperty(child, "parentSystem", { value: parent });
+  const c = child.properties;
+  c.emitter.emitFromParent.set(1); c.emitter.particlesPerSec.set(10);
+  c.emitter.velocity.set(0); c.emitter.velocityRandom.set(0); c.emitter.directionSpread.set(0);
+  c.emitter.inheritVelocity.set(0);
+  c.particle.life.set(3); c.particle.lifeRandom.set(0);
+  const stationary = child.simulateFrame(45);
+  const table = child.simTable(0);
+  assert.ok(stationary.count > 0);
+  for (let i = 0; i < stationary.count; i++) {
+    const birth = table.eventFor(stationary.pids[i]).birth;
+    const expected = parent.simulateFrame(birth * 30);
+    for (let axis = 0; axis < 3; axis++) {
+      assert.ok(Math.abs(stationary.positions[i * 3 + axis] - expected.positions[axis]) < 1e-5);
+    }
+  }
+  c.emitter.inheritVelocity.set(100);
+  const inherited = child.simulateFrame(45), inheritedTable = child.simTable(0);
+  for (let i = 0; i < inherited.count; i++) {
+    const birth = inheritedTable.eventFor(inherited.pids[i]).birth;
+    const expected = parent.simulateFrame(birth * 30);
+    for (let axis = 0; axis < 3; axis++) {
+      assert.ok(Math.abs(inherited.velocities[i * 3 + axis] - expected.velocities[axis]) < 1e-5);
+    }
+  }
+  child._simTables = parent._simTables = {};
+  assert.deepEqual(child.simulateFrame(45), inherited);
 });
 
 test("air orientation follows the seeded, wind-advected turbulence field without changing position influence", () => {
@@ -129,7 +207,7 @@ test("animated emitter angular speed retains its integrated angle when the curre
   assert.ok(Math.abs(table.emitterRotationAt(3) - table.emitterRotationAt(2)) < 1e-8);
 });
 
-test("repeat, reverse, sparse and cold-cache seeks produce identical particle orientations", () => {
+test("repeat, reverse, sparse and cold-cache seeks produce identical orbital motion and orientations", () => {
   const { system, p } = setup();
   p.displace.spinAmplitude.set(80); p.displace.spinFrequency.set(1.3);
   p.environment.turbulenceEnabled.set(1); p.environment.turbulenceAffectOrientation.set(120);
@@ -144,6 +222,7 @@ test("repeat, reverse, sparse and cold-cache seeks produce identical particle or
 test("CPU rendering uploads orientation attributes, clears hidden slots, and invalidates tables on a mode change", () => {
   const { particular, system, p } = setup();
   p.displace.spinAmplitude.set(80);
+  p.environment.turbulenceEnabled.set(1); p.environment.turbulenceAffectOrientation.set(120);
   const table = system.simTable(0);
   system.update(30);
   assert.equal(system.material.defines.USE_PARTICULAR_SPIN, 1);
