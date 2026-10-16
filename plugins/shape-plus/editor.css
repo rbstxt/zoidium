@@ -127,7 +127,8 @@
   padding: 3px;
 }
 .sp-tree-container {
-  flex: 0 0 38%;
+  flex: 0 0 auto;
+  height: 38%;
   min-height: 72px;
   max-height: 70%;
   resize: vertical;
@@ -359,3 +360,6 @@
 
 .sp-owned-icon.sp-icon { fill: none !important; color: inherit; }
 .sp-properties .zoidium-properties { height: auto; overflow: visible; }
+
+.sp-properties .tree > ul > li > div:first-child { padding-left: 8px !important; }
+.sp-menu-item { display: flex; align-items: center; gap: 8px; }

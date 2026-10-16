@@ -9,12 +9,17 @@ function profile(paths, style) {
   return dash(paths, style).map((path) => {
     const table = lengthTable(path.points, path.closed),
       total = path.totalLength ?? table.total;
+    if (total < 1e-9)
+      return {
+        ...path,
+        widths: path.points.map(() => widthAt(0, total, style)),
+      };
     const points = [],
       widths = [];
     const cycles =
       style.waveUnits === "length"
         ? total / Math.max(0.01, style.wavelength)
-        : style.waveCycles || 1;
+        : (style.waveCycles ?? 1);
     const step = total / Math.max(128, Math.ceil(cycles * 32));
     if (!(step > 0) || total / step > 4096)
       throw Error("Shape+ width profile budget exceeded");
