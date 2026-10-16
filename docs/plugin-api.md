@@ -604,9 +604,26 @@ each record one undo step. The metadata is saved in the project's
 `zoidiumAssets` root field, which CM3 ignores; entries for items that no longer
 exist are dropped when saving.
 
+`collectFiles({ name? })` (After Effects Collect Files) returns a promise of
+`{ ok, blob, filename, collected, missing, report }`: a stored ZIP with every
+file item that has bytes (attached files and embedded plugin data), named by
+item name with case-insensitive " (2)" suffixes, in directories matching the
+Assets folders, plus `Collect Files Report.txt` listing missing files. It does
+not change the project. `consolidate()` (Consolidate All Footage) groups file,
+preset and plugin data-URL items of one kind whose bytes are identical,
+replaces every use of each duplicate with one kept item through `replace()`,
+and removes duplicates that become unused like `removeUnused`, all in one undo
+step. The kept item is a working one, then a built-in preset, then an attached
+file, then the most used. It returns `{ ok, consolidated, groups: [{ keep,
+merged }], removed, skipped }`. CM3 keys attached files by a SHA-256 of their
+bytes, so in practice duplicates pair a file with a preset or plugin data URL.
+
 `propertyAt(element)` resolves an element inside a CM3 property row to
 `{ address, name, kind }` when the row edits an asset property, and
-`assign(itemId, address)` sets that property to the item in one undo step
-(`reason: "kind"` for a mismatched type, `"animated"` for an animated property,
-which stays a property-panel edit). `dragMedia(itemId)` returns the Media tab
+`assign(itemId, address, frame?)` sets that property to the item in one undo
+step and returns `{ ok, frame }` (`reason: "kind"` for a mismatched type,
+`"expression"` for an expression-driven property). Like the native property
+panel, the edit frame defaults to the playhead minus the property's
+`frameOffset` (its clip start); an animated property gets a keyframe there
+through `propertyOps.startEdit`, or the existing keyframe at that frame changes. `dragMedia(itemId)` returns the Media tab
 item that shows a footage item, for CM3's own timeline drag, or `null`.

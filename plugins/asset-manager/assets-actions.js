@@ -202,6 +202,65 @@ function createActions(session) {
     };
   }
 
+  // AE File > Dependencies > Collect Files: one archive with every file in
+  // its Assets folder, plus a report of files the project lacks.
+  function collectCommand(snapshot) {
+    const api = session.registry();
+    const files = (snapshot ? snapshot.items : []).filter((item) => item.source === "file" || item.source === "embedded");
+    return {
+      id: "collect-files",
+      label: "Collect Files…",
+      icon: "export",
+      hint: "Download a .zip with every file of the project in its Assets folder",
+      enabled: !!(api && api.collectFiles) && files.length > 0,
+      run: () => guarded({ id: "project" }, "Collect Files", async () => {
+        const result = await session.registry().collectFiles();
+        if (!result || !result.ok) {
+          session.notify({ title: "Collect Files", message: (result && result.error) || "The files could not be collected." });
+          return;
+        }
+        download(result.blob, result.filename);
+        const missing = result.missing || [];
+        session.notify({
+          title: "Collected " + model.plural(result.collected.length, "file", "files"),
+          message: missing.length
+            ? model.plural(missing.length, "missing item is", "missing items are") + " listed in the report inside the archive."
+            : "No files are missing.",
+        });
+      }),
+    };
+  }
+
+  // AE File > Dependencies > Consolidate All Footage: items with identical
+  // bytes become one item in one undo step.
+  function consolidateCommand() {
+    const api = session.registry();
+    return {
+      id: "consolidate",
+      label: "Consolidate All Footage",
+      icon: "duplicate",
+      hint: "Merge items whose files are identical into one item",
+      enabled: !!(api && api.consolidate),
+      run: () => guarded({ id: "project" }, "Consolidate All Footage", async () => {
+        const result = await session.registry().consolidate();
+        if (!result || !result.ok) {
+          session.notify({ title: "Consolidate All Footage", message: (result && result.error) || "The items could not be consolidated." });
+          return;
+        }
+        const count = result.consolidated || 0;
+        const skipped = result.skipped || [];
+        session.notify({
+          title: model.plural(count, "duplicate", "duplicates") + " consolidated",
+          message: count
+            ? (result.groups || []).slice(0, 3).map((group) => group.merged.map((entry) => entry.name).join(", ") +
+                " → " + group.keep.name).join("; ") + ". Undo restores them." +
+              (skipped.length ? " " + model.plural(skipped.length, "use stays", "uses stay") + " in closed compositions." : "")
+            : "No items share the same file.",
+        });
+      }),
+    };
+  }
+
   async function remove(item) {
     const api = session.registry();
     const count = model.usageCount(item);
@@ -312,7 +371,8 @@ function createActions(session) {
     };
   }
 
-  return { list, importCommand, removeUnusedCommand, resolveFontsCommand, importFiles, replace, pickFile };
+  return { list, importCommand, removeUnusedCommand, resolveFontsCommand, collectCommand, consolidateCommand,
+    importFiles, replace, pickFile };
 }
 
 module.exports = { createActions };

@@ -8,10 +8,10 @@
     // loader appends it automatically, so per-file ?v= queries are never
     // hand-edited here. Plugin asset URLs are versioned separately by
     // tools/build-plugin-bundles.js from each manifest's own version.
-    assetVersion: 132,
+    assetVersion: 134,
     // Plugin registry consumed by plugins/plugin-manager.js. It is preloaded
     // below, so its URL lives here as the single source.
-    registryUrl: "./plugins/registry.json?v=75",
+    registryUrl: "./plugins/registry.json?v=76",
     // Source Code Pro is imported through fonts.css as its own sheet (listed
     // before runtime-fonts.css) so the font files are not discovered only
     // after an @import chain has finished downloading.
@@ -41,6 +41,7 @@
       "./plugins/core/video-frame-export.js",
       "./plugins/core/render-aspect-ratio.js",
       "./plugins/core/project-archive.js",
+      "./plugins/core/export-bitrate.js",
       "./plugins/core/io-serialization.js",
       "./plugins/core/export-fps.js",
       "./plugins/core/image-export-options.js",
@@ -81,6 +82,8 @@
       "./plugins/core/asset-replacement-consumers.js",
       "./plugins/core/asset-registry-replace.js",
       "./plugins/core/asset-registry-organize.js",
+      "./plugins/core/asset-registry-zip.js",
+      "./plugins/core/asset-registry-collect.js",
       "./plugins/core/asset-registry.js"
     ],
     postInitScripts: [
