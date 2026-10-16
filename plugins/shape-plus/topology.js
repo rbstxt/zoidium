@@ -145,6 +145,11 @@ function offset(paths, p, tolerance = 0.125, id = "offset") {
         Y: C.ClipperOffset.Round(this.m_srcPoly[j].Y + this.m_delta * normal.Y),
       });
   };
+  const miter=engine.DoMiter;
+  engine.DoMiter=function(j,k,r){
+    if(Math.sqrt(2/r)>Math.max(1,Math.min(100,p.miterLimit??4)))this.DoSquare(j,k);
+    else miter.call(this,j,k,r);
+  };
   const join = {
     miter: C.JoinType.jtMiter,
     round: C.JoinType.jtRound,
