@@ -28,7 +28,9 @@ function host(adjustment) {
   }
   Layer.adjustment = class extends Layer {};
   Layer.scene = class extends Layer {};
-  Layer.composite = class extends Layer {};
+  Layer.composite = class extends Layer {
+    update(frame) { super.update(frame); for (const child of this.objects || []) child.update(frame); }
+  };
   class Schedule {
     static type = { VIDEO: 0, NONE: 2 };
     constructor(type) { this.type = type; this.texture = new Texture(); this.items = []; }
@@ -59,7 +61,7 @@ function host(adjustment) {
     renderEffects(effects) { for (const effect of effects) this.readBuffer.value += effect.add || 0; }
     renderLayer(layer) {
       this.readBuffer.viewport.set(0, 0, 40, 20);
-      this.readBuffer.value = layer instanceof Layer.adjustment ? this.screenBuffers[0].value : layer.texture.frame;
+      this.readBuffer.value = layer instanceof Layer.adjustment ? this.screenBuffers[0].value : layer.objects?.[0]?.frame ?? layer.texture.frame;
       this.renderEffects(layer.effects, 0.5, 0.5);
       this.screenBuffers[0].value = this.readBuffer.value;
     }
@@ -828,4 +830,131 @@ test("editing a sampler to request novel source times reuses its existing slots"
     assert.equal(runtime.targets.size, settled.length, "a full window recycles its own slots");
     assert.ok([...runtime.targets].every(target => settled.includes(target)));
   }
+});
+
+for (const adjustment of [false, true]) {
+  test(`mixed sampler maps Composite descendants once per prepared tap, adjustment=${adjustment}`, async () => {
+    const h = host(adjustment);
+    Object.setPrototypeOf(h.source, h.PZ.layer.composite.prototype);
+    const child = new h.PZ.layer.scene();
+    child.clip = h.source.clip;
+    h.source.objects = [child];
+    const updates = [];
+    const update = child.update;
+    child.update = function (frame) { updates.push(frame); return update.call(this, frame); };
+    h.sequence.videoTracks.forEach(track => { track.clips = [track.layer.clip]; });
+    h.sequence.videoSchedules = [];
+    h.source.effects.unshift(temporal("time-offset", 5));
+    // The owner clock includes its own operators before preparing taps.
+    await h.state.prepareFrameSamples(h.effect, adjustment ? 20 : 25, {});
+    const samples = h.state.frameSamplerRuntimes.get(h.root).prepared.get(h.effect).samples;
+    const expected = adjustment ? [17, 14] : [22, 19];
+    assert.deepEqual(updates, expected, "one concrete content evaluation per input");
+    assert.deepEqual(Array.from(samples, tap => tap.target.value), expected.map(f => f + 100));
+    assert.equal(h.state.contexts.length, 0);
+    assert.equal(h.state.evaluatingLayers.has(h.owner), false);
+  });
+}
+
+test("a sampler inside a Precomp-style clip is found and captures its child clock", async () => {
+  const h = host(false);
+  const child = new h.PZ.layer.scene();
+  child.effects = [h.effect];
+  child.clip = { start: 3, length: 100, object: child };
+  child.toJSON = () => ({ type: 4, effects: child.effects, objects: [] });
+  const baseUpdate = child.update;
+  child.update = function (frame) { baseUpdate.call(this, frame); this.texture.frame = frame; };
+  h.effect.tryGetParentOfType = () => child;
+  Object.setPrototypeOf(h.owner, h.PZ.layer.composite.prototype);
+  h.owner.effects = [temporal("time-offset", 5)];
+  h.owner.objects = [child];
+  h.owner.nestedTracks = () => [{ clips: [child.clip] }];
+  h.sequence.videoTracks[0].clips = [h.ownerClip];
+  h.sequence.videoSchedules = [];
+  await h.state.prepareFrameSamples(h.effect, 20, {});
+  const samples = h.state.frameSamplerRuntimes.get(h.root).prepared.get(h.effect).samples;
+  assert.deepEqual(Array.from(samples, tap => tap.frame), [20, 17]);
+  assert.deepEqual(Array.from(samples, tap => tap.target.value), [17, 14]);
+  assert.equal(h.state.contexts.length, 0);
+});
+
+test("quantized taps share one input evaluation while retaining their requested frames and weights", async () => {
+  const h = host(false);
+  Object.setPrototypeOf(h.source, h.PZ.layer.composite.prototype);
+  const child = new h.PZ.layer.scene();
+  child.clip = h.source.clip;
+  h.source.objects = [child];
+  h.source.effects = [temporal("posterize-time", 5), h.effect];
+  h.sequence.videoTracks[0].clips = [h.ownerClip];
+  h.sequence.videoSchedules = [];
+  const frames = [];
+  const update = child.update;
+  child.update = function (frame) { frames.push(frame); update.call(this, frame); };
+  h.effect._zoidiumFrameSampler.getRequest = () => ({ count: 2, offsetFrames: -1, decay: 0.5 });
+  await h.state.prepareFrameSamples(h.effect, 20, {});
+  const runtime = h.state.frameSamplerRuntimes.get(h.root);
+  const samples = runtime.prepared.get(h.effect).samples;
+  assert.deepEqual(frames, [18]);
+  assert.deepEqual(Array.from(samples, s => s.frame), [29, 28]);
+  assert.deepEqual(Array.from(samples, s => s.opacity), [1, 0.5]);
+  assert.equal(samples[0].target, samples[1].target);
+  await h.state.prepareFrameSamples(h.effect, 21, {});
+  assert.deepEqual(frames, [18], "neighbouring quantized requests reuse that same input");
+});
+
+test("Composite inputs containing another sampler retain the recursion depth in their cache key", () => {
+  const h = host(false);
+  Object.setPrototypeOf(h.source, h.PZ.layer.composite.prototype);
+  const child = new h.PZ.layer.scene();
+  child.effects = [{ _zoidiumFrameSampler: {} }];
+  h.source.objects = [child];
+  assert.equal(h.parts.sampler.frameSamplerCacheDepth({ layer: h.source, effectIndex: 1 }, 3), 3);
+  child.effects = [];
+  assert.equal(h.parts.sampler.frameSamplerCacheDepth({ layer: h.source, effectIndex: 1 }, 3), 1);
+});
+
+for (const suffix of [false, true]) {
+  test(`Adjustment offsets map sampler taps once on either side, suffix=${suffix}`, async () => {
+    const h = host(true);
+    const offset = temporal("time-offset", 5);
+    h.owner.effects = suffix ? [h.effect, offset] : [offset, h.effect];
+    await h.state.prepareFrameSamples(h.effect, 20, {});
+    const samples = h.state.frameSamplerRuntimes.get(h.root).prepared.get(h.effect).samples;
+    assert.deepEqual(Array.from(samples, tap => tap.frame), [27, 24]);
+    assert.deepEqual(Array.from(samples, tap => tap.target.value), [17, 14]);
+    assert.equal(h.owner.frame, 20);
+  });
+}
+
+test("viewport prepares a nested Precomp sampler and its resources at the mapped child clock", async () => {
+  const h = host(false);
+  const child = new h.PZ.layer.scene();
+  child.clip = { start: 3, length: 100, object: child };
+  child.pass = { camera: {} };
+  child.effects = [h.effect];
+  const resources = [], prepared = [], updates = [];
+  child.objects = [{ prepare: async frame => resources.push(frame) }];
+  child.toJSON = () => ({ type: 4, effects: child.effects });
+  const originalUpdate = child.update;
+  child.update = function (frame) { updates.push(frame); originalUpdate.call(this, frame); };
+  h.effect.tryGetParentOfType = () => child;
+  h.effect.prepare = async (frame, context) => {
+    prepared.push(frame);
+    await h.state.prepareFrameSamples(h.effect, frame, context);
+  };
+  Object.setPrototypeOf(h.owner, h.PZ.layer.composite.prototype);
+  h.owner.effects = [temporal("time-offset", 5)];
+  h.owner.objects = [child];
+  h.owner.offset = 7;
+  h.owner.setCompTime = () => {};
+  h.owner.nestedTracks = () => [{ clips: [child.clip], getCurrentClip: () => child.clip }];
+  h.sequence.videoTracks[0].clips = [h.ownerClip];
+  h.sequence.videoSchedules = [];
+  h.viewport._render();
+  await new Promise(setImmediate);
+  assert.deepEqual(resources, [29], "project 30 minus outer start 10, plus 5 + 7, minus child start 3");
+  assert.deepEqual(prepared, [29]);
+  assert.deepEqual(updates, [26, 23], "only sampler inputs evaluate content during preparation");
+  assert.equal(h.root.frames.at(-1), 30);
+  assert.equal(h.state.frameSamplerRuntimes.get(h.root).previewPending, false);
 });

@@ -395,23 +395,33 @@
         const sequence = this.compositor?._sequence;
         const frame = finiteNumber(this.editor?.playback?.currentFrame, 0);
         const effects = [];
+        function visit(layer, clip, localFrame) {
+          const sourceFrame = state.mapLayerFrame(layer, localFrame)?.sourceFrame ?? localFrame;
+          for (const effect of layer.effects || []) {
+            if (!effect._zoidiumFrameSampler) continue;
+            const controlFrame = getAdjustmentEffectFrame(layer, effect, sourceFrame);
+            const request = effect._zoidiumFrameSampler.getRequest(effect, controlFrame);
+            const tapCount = Array.isArray(request?.frames) ? request.frames.length : Number(request?.count);
+            if (request && request.enabled !== false && tapCount > 0) {
+              effects.push({ effect, clip, layer, sourceFrame });
+            }
+          }
+          if (layer.nestedTracks) {
+            const childFrame = sourceFrame + finiteNumber(layer.offset, 0);
+            layer.setCompTime?.(childFrame);
+            for (const track of layer.nestedTracks()) {
+              if (track.enabled === false) continue;
+              const child = track.getCurrentClip?.(childFrame);
+              if (child) visit(child.object, child, childFrame - child.start);
+            }
+          } else if (layer instanceof PZ.layer.composite) {
+            for (const child of layer.objects || []) visit(child, clip, sourceFrame);
+          }
+        }
         for (const track of sequence?.videoTracks || []) {
           if (track.enabled === false) continue;
           const clip = track.getCurrentClip?.(frame);
-          for (const effect of clip?.object?.effects || []) {
-            if (!effect._zoidiumFrameSampler) continue;
-            const controlFrame = getAdjustmentEffectFrame(clip.object, effect, frame - clip.start);
-            const request = effect._zoidiumFrameSampler.getRequest(effect, controlFrame);
-            // Legacy Echo-style requests carry count/offsetFrames; newer
-            // samplers (Time Displacement, CC Wide Time) carry an explicit
-            // per-tap frames array (see planRequestSamples).
-            const tapCount = Array.isArray(request?.frames)
-              ? request.frames.length
-              : Number(request?.count);
-            if (request && request.enabled !== false && tapCount > 0) {
-              effects.push({ effect, clip });
-            }
-          }
+          if (clip) visit(clip.object, clip, frame - clip.start);
         }
         if (effects.length > 0) {
           // One bounded preparation per viewport. The serialization includes
@@ -428,32 +438,47 @@
               const viewport = this;
               (async () => {
                 const preparedContent = new Set();
-                for (const { effect, clip } of effects) {
-                  const localFrame = frame - clip.start;
-                  const mapped = state.mapLayerFrame(clip.object, localFrame);
-                  const sourceFrame = mapped?.sourceFrame ?? localFrame;
-                  // The viewport bypasses native layer.prepare(). Settle its
-                  // content before a tap becomes a reusable input. Adjustment
-                  // samplers also need every active lower layer's resources.
-                  const trackIndex = sequence.videoTracks.findIndex(track => track.clips?.includes(clip));
-                  const clips = layers.isAdjustmentLayer(clip.object)
-                    ? sequence.videoTracks.slice(0, trackIndex).filter(track => track.enabled !== false)
-                      .map(track => track.getCurrentClip?.(frame)).filter(Boolean).concat(clip)
-                    : [clip];
-                  for (const contentClip of clips) {
-                    if (preparedContent.has(contentClip)) continue;
-                    preparedContent.add(contentClip);
-                    const local = frame - contentClip.start;
-                    const mappedContent = state.mapLayerFrame(contentClip.object, local);
-                    const contentFrame = mappedContent?.sourceFrame ?? local;
-                    contentClip.object.update(contentFrame);
-                    await contentClip.object.loadShaders;
-                    if (contentClip.object.image) await contentClip.object.image.loading;
-                    for (const object of contentClip.object.objects || []) {
+                async function prepareContent(layer, inputFrame) {
+                  if (preparedContent.has(layer)) return;
+                  preparedContent.add(layer);
+                  await layer.loadShaders;
+                  if (layer.image) await layer.image.loading;
+                  if (layer.nestedTracks) {
+                    const childFrame = inputFrame + finiteNumber(layer.offset, 0);
+                    layer.setCompTime?.(childFrame);
+                    for (const track of layer.nestedTracks()) {
+                      if (track.enabled === false) continue;
+                      const child = track.getCurrentClip?.(childFrame);
+                      if (!child) continue;
+                      const local = childFrame - child.start;
+                      await prepareContent(child.object, state.mapLayerFrame(child.object, local)?.sourceFrame ?? local);
+                    }
+                  } else if (layer instanceof PZ.layer.composite) {
+                    for (const child of layer.objects || []) {
+                      await prepareContent(child, state.mapLayerFrame(child, inputFrame)?.sourceFrame ?? inputFrame);
+                    }
+                  } else {
+                    for (const object of layer.objects || []) {
                       await object.loading;
-                      await object.prepare?.(contentFrame, { sequence });
+                      await object.prepare?.(inputFrame, { sequence });
                     }
                   }
+                }
+                for (const { effect, layer, sourceFrame } of effects) {
+                  // Nested samplers need the same asynchronous resource settlement
+                  // as top-level samplers. Read explicit clocks without an extra
+                  // content update before each capture and sequence draw.
+                  const trackIndex = layers.findFrameSamplerStage(sequence, effect, frame)?.trackIndex ?? 0;
+                  if (layers.isAdjustmentLayer(layer)) {
+                    for (const track of sequence.videoTracks.slice(0, trackIndex)) {
+                      if (track.enabled === false) continue;
+                      const clip = track.getCurrentClip?.(frame);
+                      if (!clip) continue;
+                      const local = frame - clip.start;
+                      await prepareContent(clip.object, state.mapLayerFrame(clip.object, local)?.sourceFrame ?? local);
+                    }
+                  }
+                  await prepareContent(layer, sourceFrame);
                   await effect.prepare(sourceFrame,
                     { sequence, frameSamplerRoot: viewport.compositor });
                 }
