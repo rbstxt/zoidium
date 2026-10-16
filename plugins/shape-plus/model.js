@@ -6,7 +6,7 @@ function validate(contents, depth = 0, state = { count: 0, ids: new Set() }) {
   for (const item of contents) {
     if (++state.count > 512 || !item || !titles[item.kind] || typeof item.id !== "string" || state.ids.has(item.id)) throw Error("Invalid Shape+ contents item or duplicate id");
     state.ids.add(item.id);
-    if (item.kind === "path" && (!Array.isArray(item.vertexIds) || item.vertexIds.length < 1 || item.vertexIds.length > 256 || new Set(item.vertexIds).size !== item.vertexIds.length)) throw Error("Invalid Shape+ path topology");
+    if (item.kind === "path" && (!Array.isArray(item.vertexIds) || item.vertexIds.length < 1 || item.vertexIds.length > 256 || new Set(item.vertexIds).size !== item.vertexIds.length || !item.vertexIds.every(id => typeof id === "string" && id.length > 0 && id.length <= 128))) throw Error("Invalid Shape+ path topology");
     if (item.kind === "group") validate(item.contents, depth + 1, state);
   }
   return contents;
@@ -28,7 +28,13 @@ function createModel(PZ) {
     }
     load(data) {
       data = clone(data || {});
-      if (data.id) { this.id = data.id; ownedIds.add(this.id); }
+      if (data.id) {
+        let root = this;
+        for (let current = this; current; current = current.parent ? current.parentObject : null) if (current.contents) root = current;
+        const collision = nodes => Array.from(nodes || []).some(node => node !== this && (node.id === data.id || collision(node.contents)));
+        this.id = collision(root.contents) ? nextId() : data.id;
+        ownedIds.add(this.id);
+      }
       if (this.kind === "path" && data.vertexIds && JSON.stringify(data.vertexIds) !== JSON.stringify(this.vertexIds)) {
         this.vertexIds = data.vertexIds.slice();
         this.properties = new PZ.propertyList(definitions(PZ, this.kind, this.vertexIds), this);

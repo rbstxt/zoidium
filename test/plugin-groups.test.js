@@ -48,6 +48,7 @@ test("every visible plugin belongs to a declared pack", () => {
       "optical-flares",
       "effector-plus",
       "camera-plus",
+      "shape-plus",
     ],
     adjustment: [
       "native-fx",

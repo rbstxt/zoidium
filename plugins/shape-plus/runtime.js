@@ -6,6 +6,7 @@ function install(context) {
   const PZ = window.PZ, THREE = window.THREE, apis = context.apis;
   const { Content } = createModel(PZ), Layer = createLayerClass(PZ, THREE, Content);
   const own = cleanup => context.lifecycle.onDispose(cleanup);
+  require("./native-ui.js").install(PZ, Layer, Content, own);
   const plugin = { id: "shape-plus", name: "Shape+", version: context.plugin?.version || "1", author: "Zoidium" };
   own(apis.layers.registerType({ id: "shape-plus/shape-layer", type: TYPE, name: "Shape+", plugin, factory: () => new Layer() }));
   own(apis.layers.registerPicker({ type: TYPE, name: "Shape+", desc: "Ordered vector paths, groups, fills and strokes." }));
