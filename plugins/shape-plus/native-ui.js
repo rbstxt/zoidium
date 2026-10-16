@@ -47,6 +47,10 @@ function install(PZ, Layer, Content, onDispose) {
   patch(proto, "generateListItem", original => function (container, object) {
     if (object instanceof Content) watchFocus(this);
     const row = original.apply(this, arguments);
+    if (object instanceof Content) {
+      const image=require("./editor-icons.js").icon(document,object.kind);
+      if(image){image.style.cssText="width:17px;height:17px;vertical-align:middle;margin-right:5px;color:#ccc;pointer-events:none";row.firstElementChild.insertBefore(image,row.firstElementChild.querySelector("span"));}
+    }
     if (object instanceof Content && this === panels?.top) {
       const button = this.generateButton("visible"), property = object.properties.enabled;
       const refresh = () => {
@@ -76,6 +80,14 @@ function install(PZ, Layer, Content, onDispose) {
     const previous = this.options.showListItemButtons;
     if (object instanceof Content) this.options.showListItemButtons = true;
     try { return original.apply(this, arguments); } finally { this.options.showListItemButtons = previous; }
+  });
+  patch(proto, "generateAdd", original => function(list) {
+    const result=original.apply(this,arguments);
+    if(list.type===Content)for(const row of this.el.querySelectorAll(".pz-options li")) {
+      const image=require("./editor-icons.js").icon(document,row.pz_item?.type);
+      if(image){image.style.cssText="width:20px;height:20px;vertical-align:middle;margin-right:7px;color:#ccc;pointer-events:none";row.prepend(image);}
+    }
+    return result;
   });
   const focused = new Set();
   patch(proto, "selectItems", original => function () {
