@@ -84,6 +84,8 @@ function ungroup(contents, id) {
     Object.entries(identity).some(([key, value]) => !unchanged(p[key], value))
   )
     throw Error("Reset group transforms and opacity before ungrouping");
+  if (p.enabled === 0)
+    for (const child of entry.item.contents) child.properties.enabled = 0;
   entry.list.splice(entry.index, 1, ...entry.item.contents);
   validate(contents);
   return entry.item.contents.map((item) => item.id);

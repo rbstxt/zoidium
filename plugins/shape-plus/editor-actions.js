@@ -274,10 +274,19 @@ function installActions(s, root) {
     event.preventDefault();
     s.openItemMenu(event.clientX, event.clientY);
   }
-  root.addEventListener("keydown", keydown, true);
-  root.addEventListener("keyup", keyup, true);
+  const keyRoot = s.host.element;
+  keyRoot.addEventListener("keydown", keydown, true);
+  keyRoot.addEventListener("keyup", keyup, true);
   root.addEventListener("pointerdown", outside, true);
   root.addEventListener("contextmenu", context);
+  const focusout = () =>
+    s.window.queueMicrotask(() => {
+      if (!keyRoot.contains(s.document.activeElement)) {
+        s.pointer.cancel();
+        blur();
+      }
+    });
+  keyRoot.addEventListener("focusout", focusout);
   s.window.addEventListener("blur", blur);
   return {
     check() {
@@ -289,10 +298,11 @@ function installActions(s, root) {
     },
     dispose() {
       blur();
-      root.removeEventListener("keydown", keydown, true);
-      root.removeEventListener("keyup", keyup, true);
+      keyRoot.removeEventListener("keydown", keydown, true);
+      keyRoot.removeEventListener("keyup", keyup, true);
       root.removeEventListener("pointerdown", outside, true);
       root.removeEventListener("contextmenu", context);
+      keyRoot.removeEventListener("focusout", focusout);
       s.window.removeEventListener("blur", blur);
     },
   };

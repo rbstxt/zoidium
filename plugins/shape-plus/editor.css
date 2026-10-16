@@ -351,3 +351,6 @@
 .sp-button[aria-pressed="true"] .sp-icon {
   fill: var(--zui-text-bright) !important;
 }
+.sp-tree {
+  min-height: 100%;
+}

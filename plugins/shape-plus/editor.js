@@ -118,7 +118,7 @@ function mountEditor(context, layer, Content, body, host, initial) {
   const spacer = s.make("span", "sp-spacer"),
     frame = s.make("span", "sp-frame");
   const key = s.button(
-    "Enable Path animation / Add Path keyframe",
+    "Toggle Path keyframe",
     "stopwatch",
     () => {
       s.keyframe();
@@ -278,6 +278,13 @@ function mountEditor(context, layer, Content, body, host, initial) {
     const path = item?.kind === "path" ? item.properties.path : null;
     key.disabled = !path;
     key.setAttribute("aria-pressed", String(!!path?.animated));
+    key.title = !path?.animated
+      ? "Enable Path animation"
+      : path.hasKeyframe(s.localFrame())
+        ? path.objects[0].keyframes.length > 1
+          ? "Remove Path keyframe at this frame"
+          : "Disable Path animation; keep its single key"
+        : "Add Path keyframe at this frame";
     key.classList.toggle(
       "keyed",
       !!path?.animated && path.hasKeyframe(s.localFrame()),
