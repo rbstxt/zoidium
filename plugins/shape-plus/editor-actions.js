@@ -168,7 +168,7 @@ function installActions(s, root) {
       s.pointer.cancel();
       if (!nudge) {
         if (!s.gesture.begin()) return;
-        nudge = { frame: s.localFrame(), target: s.activeId };
+        nudge = { frame: s.localFrame(), target: s.activeId, matrix: JSON.stringify(s.canvasApi.activeMatrix()) };
       }
       const item = s.active(),
         points = s.pathPoints(),
@@ -234,7 +234,7 @@ function installActions(s, root) {
     check() {
       if (
         nudge &&
-        (nudge.frame !== s.localFrame() || nudge.target !== s.activeId)
+        (nudge.frame !== s.localFrame() || nudge.target !== s.activeId || nudge.matrix !== JSON.stringify(s.canvasApi.activeMatrix()))
       )
         finishNudge(true);
     },
