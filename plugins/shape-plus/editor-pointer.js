@@ -356,8 +356,10 @@ function createPointer(s, canvas) {
     canvas,
     (event) => {
       const gesture = begin(event);
-      if (gesture && gesture.frame !== undefined)
+      if (gesture && gesture.frame !== undefined) {
         gesture.matrix = JSON.stringify(api.activeMatrix());
+        gesture.rect = s.viewport ? JSON.stringify(s.viewport.canvas.getBoundingClientRect().toJSON()) : undefined;
+      }
       return gesture;
     },
     canvas.ownerDocument.defaultView,

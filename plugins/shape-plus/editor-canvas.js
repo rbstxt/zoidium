@@ -150,7 +150,7 @@ function createCanvas(s, canvas) {
     const parent = s.viewport.el.getBoundingClientRect();
     const dpr = canvas.ownerDocument.defaultView.devicePixelRatio || 1;
     Object.assign(canvas.style, {
-      left: rect.left - parent.left + "px", top: rect.top - parent.top + "px",
+      left: rect.left - parent.left - s.viewport.el.clientLeft + "px", top: rect.top - parent.top - s.viewport.el.clientTop + "px",
       width: rect.width + "px", height: rect.height + "px",
     });
     view.width = rect.width; view.height = rect.height;

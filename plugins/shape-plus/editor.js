@@ -42,6 +42,10 @@ function mountOverlay(context, layer, Content, viewport, panels, tool, onSelecti
     return element;
   };
   s.message = text => context.ui.notify({ title: "Shape+", message: text });
+  s.rename = id => {
+    const row = Array.from(panels.top.list.querySelectorAll("li")).find(row => row.pz_object?.id === id);
+    if (row) panels.top.renameClick({ currentTarget: row, preventDefault() {} });
+  };
   createEditorModel(s);
   function syncSelection() {
     const selected = [...s.treeSelection].map(s.find).filter(Boolean);
@@ -68,15 +72,15 @@ function mountOverlay(context, layer, Content, viewport, panels, tool, onSelecti
   s.canvasApi = createCanvas(s, canvas);
   s.pointer = createPointer(s, canvas);
   const actions = installActions(s, canvas);
-  let lastContext = "", disposed = false;
+  let disposed = false;
   function cancel() { s.pointer.cancel(); s.finishNudge(true); s.gesture.finish(true); }
   function update() {
     if (disposed) return;
     s.canvasApi.resize();
-    const current = JSON.stringify([s.localFrame(), s.canvasApi.activeMatrix(),
-      viewport.canvas.getBoundingClientRect().toJSON(), layer.getAddress()]);
-    if (lastContext && current !== lastContext) cancel();
-    lastContext = current;
+    const gesture = s.pointer.active;
+    if (gesture && (gesture.frame !== s.localFrame() || gesture.target !== s.activeId ||
+        gesture.matrix !== JSON.stringify(s.canvasApi.activeMatrix()) ||
+        gesture.rect !== JSON.stringify(viewport.canvas.getBoundingClientRect().toJSON()))) cancel();
     actions.check();
     s.canvasApi.draw();
   }
@@ -145,7 +149,9 @@ function install(context, Layer, Content) {
     const layer = clip?.object;
     const item = panels.top.selection.length === 1 ? panels.top.selection[0] : null;
     const entry = item instanceof Content && layer ? find(layer.contents, item.id) : null;
-    const visible = enabled && layer && (tool === "pen" || entry &&
+    const editable = entry && [...entry.ancestors, entry.item].every(item => item.properties.enabled.get() !== 0) &&
+      inverse(entry.ancestors.reduce((m, group) => multiply(m, matrix(group.evaluate(editor.playback.currentFrame - clip.start + (clip.offset || 0)).properties)), identity));
+    const visible = enabled && layer && (tool === "pen" || editable &&
       ["path", "rectangle", "ellipse", "polystar", "gradientFill", "gradientStroke", "repeater"].includes(item.kind));
     if (view && (!visible || view.state.layer !== layer || !view.state.valid())) { view.dispose(); view = null; }
     if (visible && !view) {

@@ -46,6 +46,28 @@ function install(PZ, Layer, Content, onDispose) {
   if (panels) connectObjectsPanel(PZ, panels.top, panels.bottom, Content, onDispose);
   patch(proto, "generateListItem", original => function (container, object) {
     if (object instanceof Content) watchFocus(this);
+    const row = original.apply(this, arguments);
+    if (object instanceof Content && this === panels?.top) {
+      const button = this.generateButton("visible"), property = object.properties.enabled;
+      const refresh = () => {
+        button.title = property.get() ? "Disable item" : "Enable item";
+        button.setAttribute("aria-pressed", String(!!property.get()));
+        button.style.opacity = property.get() ? "" : ".4";
+      };
+      button.onclick = event => {
+        event.stopPropagation();
+        this.editor.history.startOperation();
+        this.propertyOps.setValue({ property: property.getAddress(), value: property.get() ? 0 : 1, oldValue: property.get() });
+        this.editor.history.finishOperation();
+      };
+      property.onChanged.watch(refresh, true);
+      row.pz_shapeCleanup = () => property.onChanged.unwatch(refresh);
+      row.children[1].prepend(button);
+    }
+    return row;
+  });
+  patch(proto, "unloadListItem", original => function (row) {
+    row.pz_shapeCleanup?.();
     return original.apply(this, arguments);
   });
   patch(proto, "generateItemCommands", original => function (element, object) {
