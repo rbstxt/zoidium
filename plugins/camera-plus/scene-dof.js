@@ -356,7 +356,12 @@ parts.dof = (function () {
         material = source.clone();
         this.pointDepthMaterials.set(source, material);
       }
-      const signature = [source.vertexShader, source.fragmentShader, JSON.stringify(source.defines),
+      // Unpremultiplied additive blending multiplies alpha by source alpha
+      // again. Test the coverage that reaches the color target, not its square
+      // root, or invisible additive tails still leave depth silhouettes.
+      const alphaCutoff = source.blending === THREE.AdditiveBlending && !source.premultipliedAlpha
+        ? Math.sqrt(0.004) : 0.004;
+      const signature = [source.vertexShader, source.fragmentShader, JSON.stringify(source.defines), alphaCutoff,
         source.map?.uuid, source.alphaMap?.uuid, source.alphaTest, source.sizeAttenuation,
         source.side, source.onBeforeCompile.toString()].join("|");
       material.copy(source);
@@ -371,15 +376,15 @@ parts.dof = (function () {
           "void cameraPlusSpriteColor()") + `
           void main() {
             cameraPlusSpriteColor();
-            if (gl_FragColor.a < 0.004) discard;
-            vec4 packed = vec4(fract(gl_FragCoord.z * vec3(16777216., 65536., 256.)), gl_FragCoord.z);
-            packed.yzw -= packed.xyz / 256.;
-            gl_FragColor = packed * (256. / 255.);
+            if (gl_FragColor.a < ${alphaCutoff}) discard;
+            vec4 spriteDepth = vec4(fract(gl_FragCoord.z * vec3(16777216., 65536., 256.)), gl_FragCoord.z);
+            spriteDepth.yzw -= spriteDepth.xyz / 256.;
+            gl_FragColor = spriteDepth * (256. / 255.);
           }`;
       };
       // Three.js includes this string in the program key. Preserve custom
       // source hooks as well as the depth wrapper's identity.
-      material.onBeforeCompile.toString = () => source.onBeforeCompile.toString() + "cameraPlusSpriteDepth";
+      material.onBeforeCompile.toString = () => source.onBeforeCompile.toString() + "cameraPlusSpriteDepth" + alphaCutoff;
       if (material.__cameraPlusSignature !== signature) material.needsUpdate = true;
       material.__cameraPlusSignature = signature;
       return material;
