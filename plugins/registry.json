@@ -134,15 +134,15 @@
       "category": "scene",
       "name": "Light+",
       "author": "Zoidium",
-      "version": "4",
+      "version": "5",
       "itemCount": 4,
       "format": "3D lights",
       "tagline": "Expanded Light Types",
       "color": "#2f9b86",
       "description": "Upgrades the standard Light button with a chooser for Spot, Point, Directional, and Hemisphere lights.",
-      "manifest": "./plugins/light-plus/manifest.json?v=4",
-      "bundle": "./plugins/light-plus/bundle.json?v=4",
-      "integrity": "sha256-eSKcv/awtju/5wkswA7KjWZ9quplaDGVE/B+qoZUc+A="
+      "manifest": "./plugins/light-plus/manifest.json?v=5",
+      "bundle": "./plugins/light-plus/bundle.json?v=5",
+      "integrity": "sha256-tI7r9Z7K46Hl/QhByvjQ2CNcgurv6LVBt7xJUvwcuqc="
     },
     {
       "id": "geometry-plus",
@@ -232,16 +232,16 @@
       "category": "scene",
       "name": "Rowbyte & Red Giant Suite",
       "author": "DaviFX",
-      "version": "35",
+      "version": "36",
       "itemCount": 14,
       "format": "3D objects",
       "tagline": "Particular, Form, Plexus and C4D lights",
       "color": "#c9a13b",
       "description": "Trapcode Particular, Form and Plexus 3D objects with floating designer windows, deterministic simulation and audio analysis, plus C4D-style lights.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/trapcode-suite/manifest.json?v=35",
-      "bundle": "./plugins/trapcode-suite/bundle.json?v=35",
-      "integrity": "sha256-f6e4ntb+VQpONWTJeElzCryI+ZUdfny2iGFJbSkGlF0="
+      "manifest": "./plugins/trapcode-suite/manifest.json?v=36",
+      "bundle": "./plugins/trapcode-suite/bundle.json?v=36",
+      "integrity": "sha256-mP6CPv8HyaVqeatElQ8UBe8ksFs7PvHKow3nM6pYn+Q="
     },
     {
       "id": "optical-flares",
@@ -330,7 +330,7 @@
       "category": "adjustment",
       "name": "Afterzoid Shader Pack 5",
       "author": "AlipFX",
-      "version": "7",
+      "version": "8",
       "effectCount": 200,
       "format": "GLSL",
       "tagline": "Shader Preset Pack",
@@ -338,9 +338,9 @@
       "color": "#a04ed1",
       "description": "A rich shader preset pack by AlipFX.",
       "credits": "Credits: AlipFX",
-      "manifest": "./plugins/alipfx/manifest.json?v=7",
-      "bundle": "./plugins/alipfx/bundle.json?v=7",
-      "integrity": "sha256-V+bMHttdXORj2HsxJpHhlCohFIuS/hF/0FUURRzicTI="
+      "manifest": "./plugins/alipfx/manifest.json?v=8",
+      "bundle": "./plugins/alipfx/bundle.json?v=8",
+      "integrity": "sha256-AhX48JCJe3kw/OPR6RRqQaYgjv01li17bB87SnfowMk="
     },
     {
       "id": "ccfx-shader-pack",

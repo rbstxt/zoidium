@@ -328,15 +328,26 @@
           ...objectClassMenuItems.filter((item) => !existingTypes.has(item.type))
         );
       } else {
-        objectClassEntries.push(
-          {
-            name: manifest.objectCategory || manifest.name,
-            category: true,
-            _zoidiumPluginId: plugin.id,
-            _zoidiumPluginObjectClass: true,
-          },
-          ...objectClassMenuItems
-        );
+        // A class that the plugin already offers inside one of its own menu
+        // groups (e.g. "Trapcode Form" > Form) is not listed a second time
+        // under the plugin's category; the picker would show it twice.
+        const groupedTypes = new Set();
+        for (const entry of objectClassEntries) {
+          if (entry?._zoidiumPluginId !== plugin.id || !Array.isArray(entry.list)) continue;
+          for (const item of entry.list) if (typeof item?.type === "string") groupedTypes.add(item.type);
+        }
+        const ungrouped = objectClassMenuItems.filter((item) => !groupedTypes.has(item.type));
+        if (ungrouped.length > 0) {
+          objectClassEntries.push(
+            {
+              name: manifest.objectCategory || manifest.name,
+              category: true,
+              _zoidiumPluginId: plugin.id,
+              _zoidiumPluginObjectClass: true,
+            },
+            ...ungrouped
+          );
+        }
       }
     }
     if (manager.effectBadgeObserver) scheduleEffectPickerBadges();

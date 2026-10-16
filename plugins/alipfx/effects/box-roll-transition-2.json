@@ -1,7 +1,7 @@
 {
   "type": 1,
   "properties": {
-    "name": "Box Roll Transition",
+    "name": "Box Roll Transition (Reverse)",
     "enabled": {
       "animated": false,
       "keyframes": [

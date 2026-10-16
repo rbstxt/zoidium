@@ -11,7 +11,7 @@ const descriptionsPath = path.join(outputRoot, "descriptions.json");
 const PACK_ID = "alipfx-shader-pack-4";
 const PACK_NAME = "Afterzoid Shader Pack 5";
 const PACK_CATEGORY = "ALIPFX · SHADER PACK 5";
-const PACK_VERSION = "7";
+const PACK_VERSION = "8";
 
 if (!sourceRoot) {
   console.error("Usage: node tools/build-alipfx-plugin.js <shader-pack-directory>");
@@ -59,6 +59,14 @@ function descriptionFor(id, displayName) {
   }
   return description.trim();
 }
+
+// Shaders that share a name in the source pack (V1/V2, reversed variants) get a
+// distinct display name here, keyed by effect id, so the effect picker never
+// lists two entries with the same title. Ids and saved projects are unchanged.
+const displayNamesPath = path.join(outputRoot, "display-names.json");
+const displayNames = fs.existsSync(displayNamesPath)
+  ? JSON.parse(fs.readFileSync(displayNamesPath, "utf8"))
+  : {};
 
 let descriptions = {};
 if (fs.existsSync(descriptionsPath)) {
@@ -110,6 +118,8 @@ for (const sourcePath of sourceFiles) {
 
   const preset = JSON.parse(JSON.stringify(shaderData));
   delete preset.properties.fragShader;
+  const shownName = displayNames[id] || displayName;
+  preset.properties.name = shownName;
 
   const shaderFile = `shaders/${id}.glsl`;
   const presetFile = `effects/${id}.json`;
@@ -120,8 +130,8 @@ for (const sourcePath of sourceFiles) {
 
   effects.push({
     id,
-    name: displayName,
-    description: descriptionFor(id, displayName),
+    name: shownName,
+    description: descriptionFor(id, shownName),
     source: relativeSource,
     shader: `./plugins/alipfx/${shaderFile}`,
     preset: `./plugins/alipfx/${presetFile}`,
