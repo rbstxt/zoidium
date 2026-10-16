@@ -408,7 +408,7 @@
       "warning": "Layer Input projects require Zoidium. This feature is extremely experimental and may cause unexpected crashes.",
       "manifest": "./plugins/layer-input/manifest.json?v=14",
       "bundle": "./plugins/layer-input/bundle.json?v=14",
-      "integrity": "sha256-dGUr+pLGjVZl69b8A4OgMrdOnxeozWgklZ+PBCk+LMc="
+      "integrity": "sha256-J+zP8fmroJthq8eq6ufRpbXRTIxhSpzFNuAHT3K/shY="
     }
   ]
 }

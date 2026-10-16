@@ -158,13 +158,13 @@ module.exports = function createUi(state, deps) {
 
     let signature = "";
     let modeSignature = "";
-    function refresh(frame) {
+    function refresh(frame, force = false) {
       const consumer = property.parentObject;
       const options = deps.getSourceOptions(consumer, property);
       const nextSignature = options
         .map((option) => `${option.value}\u0000${option.label}\u0000${option.disabled}`)
         .join("\u0001");
-      if (nextSignature !== signature && state.document.activeElement !== select) {
+      if (nextSignature !== signature && (force || state.document.activeElement !== select)) {
         signature = nextSignature;
         select.replaceChildren();
         for (const option of options) {
@@ -197,12 +197,15 @@ module.exports = function createUi(state, deps) {
         }`;
       }
       const current = deps.getCurrentSourceToken(consumer, property) || property.get(frame) || "";
-      if (state.document.activeElement !== select) select.value = current;
+      if (force || state.document.activeElement !== select) select.value = current;
       const error = deps.getSourceError(consumer, property);
       select.dataset.error = error;
       select.title = deps.getSourceStatus(consumer, property) || "Select a source track";
     }
 
+    // CM3 updates static LIST controls only when their property changes.
+    // Refresh before opening so tracks added or renamed since then are listed.
+    select.onfocus = select.onpointerdown = () => refresh(container.pz_frame, true);
     select.onchange = function () {
       const consumer = property.parentObject;
       PZ.ui.controls.editStart.call(this, property);
