@@ -6,8 +6,6 @@ function install(context) {
   const PZ = window.PZ, THREE = window.THREE, apis = context.apis;
   const { Content } = createModel(PZ), Layer = createLayerClass(PZ, THREE, Content);
   const own = cleanup => context.lifecycle.onDispose(cleanup);
-  require("./native-ui.js").install(PZ, Layer, Content, own);
-  require("./editor.js").install(context, Layer, Content);
   const plugin = { id: "shape-plus", name: "Shape+", version: context.plugin?.version || "1", author: "Zoidium" };
   own(apis.layers.registerType({ id: "shape-plus/shape-layer", type: TYPE, name: "Shape+", plugin, factory: () => new Layer() }));
   own(apis.layers.registerPicker({ type: TYPE, name: "Shape+", desc: "Ordered vector paths, groups, fills and strokes." }));
@@ -31,11 +29,15 @@ function install(context) {
     return PZ.ui.controls.generateGradientInput(facade);
   } }));
   // The group is a real native dynamic.group. Its aggregate row controls all
-  // channels; the ordinary child rows expose numeric editing in the Edit tree.
+  // channels; the ordinary child rows expose numeric editing in Objects.
   own(apis.propertyControls.register("shape-plus/path", { type: PZ.property.type.NUMBER, create(property) {
     const element = document.createElement("div"); element.className = "editbox";
     element.pz_update = () => { element.textContent = property.objects.length / 6 + " vertices"; };
     element.pz_update(); return element;
   } }));
+  // Controls must exist before an enabled panel regenerates saved Path rows.
+  // Reverse disposal then removes the overlay/panels before their controls.
+  require("./native-ui.js").install(PZ, Layer, Content, own);
+  require("./editor.js").install(context, Layer, Content);
 }
 module.exports = { install };

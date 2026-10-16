@@ -1,51 +1,43 @@
 "use strict";
 const { selectionKey, selectionPart } = require("./editor-selection.js");
 const g = require("./editor-geometry.js");
-const { titles } = require("./properties.js");
 function installActions(s, root) {
   let menu = null,
     nudge = null;
   s.closeMenu = () => {
-    menu?.remove();
+    const current = menu;
     menu = null;
+    current?.remove();
   };
   s.menu = (x, y, items) => {
     s.closeMenu();
-    menu = s.make("div", "sp-menu");
-    menu.setAttribute("role", "menu");
-    for (const item of items) {
-      const button = s.make("button", "sp-menu-item", item.label);
-      button.type = "button";
-      if (item.icon) button.prepend(s.icon(item.icon));
-      button.setAttribute("role", "menuitem");
-      button.disabled = !!item.disabled;
-      button.addEventListener("click", () => {
-        s.closeMenu();
-        item.action();
-        s.canvas.focus();
-      });
-      menu.append(button);
-    }
-    root.append(menu);
-    const r = root.getBoundingClientRect();
-    menu.style.left =
-      Math.max(0, Math.min(x - r.left, root.clientWidth - menu.offsetWidth)) +
-      "px";
-    menu.style.top =
-      Math.max(0, Math.min(y - r.top, root.clientHeight - menu.offsetHeight)) +
-      "px";
-    menu.querySelector("button:not(:disabled)")?.focus();
+    // Use the same native select menu as CM3 list properties. It is transient
+    // UI state, never a project property or a second styled panel.
+    menu = s.make("select", "pz-inputbox");
+    menu.setAttribute("aria-label", "Path actions");
+    menu.style.cssText = "position:fixed;z-index:10;left:" + x + "px;top:" + y + "px";
+    const placeholder = s.make("option", "", "Path actions");
+    menu.append(placeholder);
+    items.forEach((item, i) => {
+      const option = s.make("option", "", item.label);
+      option.value = String(i); option.disabled = !!item.disabled;
+      menu.append(option);
+    });
+    menu.onchange = () => {
+      const index = menu.selectedIndex - 1;
+      s.closeMenu(); items[index]?.action();
+      if (!s.document.activeElement?.matches("input,textarea,[contenteditable='true']")) s.canvas.focus();
+    };
+    menu.onblur = s.closeMenu;
+    menu.onkeydown = event => {
+      if (event.key === "Escape") {
+        event.preventDefault(); event.stopPropagation(); s.closeMenu(); s.canvas.focus();
+      }
+    };
+    s.document.body.append(menu); menu.focus();
+    // Native select popups require a trusted gesture on supporting browsers.
+    try { menu.showPicker?.(); } catch (_error) { /* The focused select remains usable. */ }
   };
-  s.addMenu = (x, y) =>
-    s.menu(
-      x,
-      y,
-      Object.entries(titles).map(([kind, title]) => ({
-        label: title,
-        icon: kind,
-        action: () => s.mutate(() => s.addItem(kind)),
-      })),
-    );
   s.openItemMenu = (x, y) => {
     const item = s.active(),
       path = item?.kind === "path",
@@ -99,12 +91,12 @@ function installActions(s, root) {
   const typing = (target) =>
     !!target.closest?.("input,textarea,select,[contenteditable='true']");
   function keydown(event) {
-    if (typing(event.target)) return;
+    if (typing(event.target) && !(menu && event.key === "Escape")) return;
     const key = event.key.toLowerCase(),
       command = event.metaKey || event.ctrlKey;
     const consume = () => {
       event.preventDefault();
-      event.stopPropagation();
+      event.stopImmediatePropagation();
     };
     if (command && ["z", "y"].includes(key)) {
       consume();
@@ -113,30 +105,6 @@ function installActions(s, root) {
       if (key === "y" || event.shiftKey) s.editor.history.redo();
       else s.editor.history.undo();
       s.refresh(true);
-      return;
-    }
-    if (menu && menu.contains(event.target) && key !== "escape") {
-      const buttons = [...menu.querySelectorAll("button:not(:disabled)")];
-      const index = buttons.indexOf(event.target);
-      if (["arrowdown", "arrowup", "home", "end"].includes(key)) {
-        consume();
-        const next =
-          key === "home"
-            ? 0
-            : key === "end"
-              ? buttons.length - 1
-              : (index + (key === "arrowdown" ? 1 : -1) + buttons.length) %
-                buttons.length;
-        buttons[next]?.focus();
-      } else if (key === "enter" || event.code === "Space") {
-        consume();
-        event.target.click();
-      }
-      return;
-    }
-    if (event.code === "Space") {
-      consume();
-      s.space = true;
       return;
     }
     if (key === "escape") {
@@ -183,20 +151,6 @@ function installActions(s, root) {
       return;
     }
     if (command) return;
-    if (["v", "p", "h"].includes(key)) {
-      consume();
-      s.pointer.cancel();
-      finishNudge();
-      s.tool = { v: "select", p: "pen", h: "hand" }[key];
-      s.penFinished = false;
-      s.refresh();
-      return;
-    }
-    if (key === "0" || (event.shiftKey && event.code === "Digit1")) {
-      consume();
-      s.canvasApi.fit();
-      return;
-    }
     if (key === "enter") {
       consume();
       s.pointer.cancel();
@@ -212,11 +166,6 @@ function installActions(s, root) {
       else s.treeAction("delete");
       return;
     }
-    if (key === "f2") {
-      consume();
-      if (s.active()) s.rename(s.activeId);
-      return;
-    }
     const direction = {
       arrowleft: [-1, 0],
       arrowright: [1, 0],
@@ -228,7 +177,7 @@ function installActions(s, root) {
       s.pointer.cancel();
       if (!nudge) {
         if (!s.gesture.begin()) return;
-        nudge = { frame: s.localFrame(), target: s.activeId };
+        nudge = { frame: s.localFrame(), target: s.activeId, matrix: JSON.stringify(s.canvasApi.activeMatrix()) };
       }
       const item = s.active(),
         points = s.pathPoints(),
@@ -259,7 +208,7 @@ function installActions(s, root) {
     if (event.code === "Space") {
       s.space = false;
       event.preventDefault();
-      event.stopPropagation();
+      event.stopImmediatePropagation();
     }
     if (event.key.startsWith("Arrow")) finishNudge();
   }
@@ -276,14 +225,14 @@ function installActions(s, root) {
     event.preventDefault();
     s.openItemMenu(event.clientX, event.clientY);
   }
-  const keyRoot = s.host.element;
+  const keyRoot = s.canvas;
   keyRoot.addEventListener("keydown", keydown, true);
   keyRoot.addEventListener("keyup", keyup, true);
   root.addEventListener("pointerdown", outside, true);
   root.addEventListener("contextmenu", context);
   const focusout = () =>
     s.window.queueMicrotask(() => {
-      if (!keyRoot.contains(s.document.activeElement)) {
+      if (!keyRoot.contains(s.document.activeElement) && !menu?.contains(s.document.activeElement)) {
         s.pointer.cancel();
         blur();
       }
@@ -294,7 +243,7 @@ function installActions(s, root) {
     check() {
       if (
         nudge &&
-        (nudge.frame !== s.localFrame() || nudge.target !== s.activeId)
+        (nudge.frame !== s.localFrame() || nudge.target !== s.activeId || nudge.matrix !== JSON.stringify(s.canvasApi.activeMatrix()))
       )
         finishNudge(true);
     },

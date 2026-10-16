@@ -2,6 +2,8 @@
 const { selectionKey, selectionPart } = require("./editor-selection.js");
 const controls = require("./editor-controls.js");
 const g = require("./editor-geometry.js");
+const { clone } = require("./model.js");
+const { channels } = require("./editor-topology.js");
 const { createPointerMachine } = require("./editor-pointer-machine.js");
 function createPointer(s, canvas) {
   const api = s.canvasApi;
@@ -14,37 +16,41 @@ function createPointer(s, canvas) {
     work();
     return true;
   }
+  // Click topology edits retain the same capture/rollback boundary as drags.
+  // Commit at pointerup, so Escape or lost capture can undo a close or split.
+  function clickEdit(work) {
+    if (!s.gesture.begin()) return null;
+    const finished = s.penFinished;
+    try { work(); s.refresh(true); }
+    catch (error) { s.gesture.finish(true); s.message(error.message); return null; }
+    return {
+      frame: s.localFrame(), target: s.activeId,
+      end() { s.gesture.finish(); s.refresh(true); },
+      cancel() {
+        s.penFinished = finished; s.gesture.finish(true);
+        s.selection.clear(); s.refresh(true);
+      },
+    };
+  }
   function pen(event, start) {
-    const hit = api.hit(start),
-      item = s.active();
-    if (hit?.kind === "anchor") {
-      if (
-        hit.index === 0 &&
-        item.vertexIds.length > 1 &&
-        !item.properties.closed.get()
-      ) {
-        s.closePath();
+    const hit = api.hit(start), item = s.active();
+    if (hit?.kind === "anchor") return clickEdit(() => {
+      if (hit.index === 0 && item.vertexIds.length > 1 && !item.properties.closed.get()) {
+        channels(clone(item));
+        item.properties.closed.set(1);
         s.penFinished = true;
+        s.preview();
       } else {
-        s.selection = new Set([selectionKey(item.vertexIds[hit.index])]);
-        s.deleteAnchors();
+        s.topology({ kind: "delete", ids: [item.vertexIds[hit.index]] });
+        s.selection.clear();
       }
-      return null;
-    }
-    if (hit?.kind === "segment") {
+    });
+    if (hit?.kind === "segment") return clickEdit(() => {
       const id = s.nextId();
-      s.mutate(() =>
-        s.topology({
-          kind: "insert",
-          index: hit.index,
-          t: Math.max(0.000001, Math.min(0.999999, hit.t)),
-          id,
-        }),
-      );
+      s.topology({ kind: "insert", index: hit.index,
+        t: Math.max(0.000001, Math.min(0.999999, hit.t)), id });
       s.selection = new Set([selectionKey(id)]);
-      s.refresh(true);
-      return null;
-    }
+    });
     if (!s.gesture.begin()) return null;
     try {
       let local;
@@ -124,23 +130,7 @@ function createPointer(s, canvas) {
     s.closeMenu?.();
     if (!s.valid()) return null;
     const start = point(event);
-    if (event.button === 1 || s.space || s.tool === "hand") {
-      const origin = [api.view.x, api.view.y];
-      return {
-        move(e) {
-          const delta = g.sub(point(e), start);
-          api.view.x = origin[0] + delta[0];
-          api.view.y = origin[1] + delta[1];
-          s.dirty = true;
-        },
-        end() {},
-        cancel() {
-          api.view.x = origin[0];
-          api.view.y = origin[1];
-          s.dirty = true;
-        },
-      };
-    }
+    if (event.button !== 0) return null;
     s.editor.playback.speed = 0;
     const control = controls.beginHandle(s, start, point);
     if (control) return control;
@@ -355,8 +345,10 @@ function createPointer(s, canvas) {
     canvas,
     (event) => {
       const gesture = begin(event);
-      if (gesture && gesture.frame !== undefined)
+      if (gesture && gesture.frame !== undefined) {
         gesture.matrix = JSON.stringify(api.activeMatrix());
+        gesture.rect = s.viewport ? JSON.stringify(s.viewport.canvas.getBoundingClientRect().toJSON()) : undefined;
+      }
       return gesture;
     },
     canvas.ownerDocument.defaultView,
@@ -365,24 +357,6 @@ function createPointer(s, canvas) {
       s.message(error.message);
     },
   );
-  const wheel = (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    if (pointer.active) return;
-    const p = point(event),
-      view = api.view,
-      old = view.zoom;
-    view.zoom = Math.min(
-      64,
-      Math.max(
-        0.005,
-        old * Math.exp(-event.deltaY * (event.deltaMode === 1 ? 0.04 : 0.002)),
-      ),
-    );
-    view.x = p[0] - ((p[0] - view.x) * view.zoom) / old;
-    view.y = p[1] - ((p[1] - view.y) * view.zoom) / old;
-    s.dirty = true;
-  };
   const double = (event) => {
     const hit = api.hit(point(event)),
       item = s.active();
@@ -396,7 +370,6 @@ function createPointer(s, canvas) {
     );
     event.preventDefault();
   };
-  canvas.addEventListener("wheel", wheel, { passive: false });
   canvas.addEventListener("dblclick", double);
   return {
     get active() {
@@ -405,7 +378,6 @@ function createPointer(s, canvas) {
     cancel: () => pointer.cancel(),
     dispose() {
       pointer.dispose();
-      canvas.removeEventListener("wheel", wheel);
       canvas.removeEventListener("dblclick", double);
     },
   };
