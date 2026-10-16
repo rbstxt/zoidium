@@ -9,7 +9,8 @@ desktop use.
 The Zoidium source code, plugins, documentation, and build tools are licensed
 under the [MIT License](./LICENSE). The bundled Source Code Pro, Geist, Geist
 Mono, JetBrains Mono, IBM Plex Sans, IBM Plex Mono, Cascadia Mono, and Fira Code fonts have
-their own [SIL Open Font License 1.1](./fonts/LICENSE.md) notice. CM3 resources
+their own [SIL Open Font License 1.1](./fonts/LICENSE.md) notice. Shape+ bundles
+Clipper under its [Boost and JSBN notices](./plugins/shape-plus/vendor/README.md). CM3 resources
 fetched at runtime or build time remain subject to their respective rights
 holders' notices and terms.
 
@@ -24,6 +25,10 @@ CM3-specific font presets remain in that cache, while the Zoidium extension
 layer uses the locally bundled font selected in Settings. No font CDN request
 is needed. The cache is retained between local runs; a static
 deployment keeps only the generated build output required by that deployment.
+
+Shape+ adds animated vector contents, procedural modifiers, SVG import and explicit
+native shape conversion through CM3's Objects panel and main preview. It is enabled
+by default in Scene Extensions. See the [Shape+ contract](./plugins/shape-plus/README.md).
 
 ## Quick start
 

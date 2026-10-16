@@ -12,4 +12,7 @@ Implementation sequence:
 4. Numerical oracles, browser regression and performance measurements.
 5. Bundle version 8 and default-on release only after verification succeeds.
 
+Implemented and verified through the native Objects panel and main preview.
+Bundle version 8 is default-on. The autosave race was reproduced and fixed.
+
 Detailed QA artifacts are kept outside the repository under shape-plus/r5.
