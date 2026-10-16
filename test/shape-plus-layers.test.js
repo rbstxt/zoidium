@@ -7,7 +7,7 @@ const { loadManager } = require("./plugin-manager-overlays.test");
 const TYPE = "zoidium:shape-plus/shape-layer";
 function host() {
   class Layer { load() {} unload() {} }
-  Layer.create = type => { if (typeof type === "number" && type > 8) throw Error("unknown"); return Object.assign(new Layer(), { type: 5 }); };
+  Layer.create = type => { if (typeof type === "number" && type > 8) throw Error("unknown"); return Object.assign(new Layer(), { type }); };
   const picker = [{ type: 6, name: "Shape" }];
   const sandbox = { PZ: { layer: Layer, ui: { objectTypes: { get: () => picker } } }, console };
   vm.runInNewContext(fs.readFileSync("zoidium/plugin-apis.js", "utf8"), sandbox);

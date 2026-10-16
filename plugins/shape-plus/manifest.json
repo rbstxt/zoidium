@@ -3,71 +3,71 @@
   "id": "shape-plus",
   "name": "Shape+",
   "author": "Zoidium",
-  "version": "2",
+  "version": "3",
   "kind": "extension",
   "description": "Animated vector layers with ordered contents, cubic paths, fills and strokes.",
   "category": "scene",
   "modules": [
     {
       "id": "shape-plus",
-      "source": "./plugins/shape-plus/shape-plus.js?v=2"
+      "source": "./plugins/shape-plus/shape-plus.js?v=3"
     }
   ],
   "resources": [
     {
       "id": "compiler",
       "type": "text",
-      "source": "./plugins/shape-plus/compiler.js?v=2"
+      "source": "./plugins/shape-plus/compiler.js?v=3"
     },
     {
       "id": "fill",
       "type": "text",
-      "source": "./plugins/shape-plus/fill.js?v=2"
+      "source": "./plugins/shape-plus/fill.js?v=3"
     },
     {
       "id": "layer",
       "type": "text",
-      "source": "./plugins/shape-plus/layer.js?v=2"
+      "source": "./plugins/shape-plus/layer.js?v=3"
     },
     {
       "id": "model",
       "type": "text",
-      "source": "./plugins/shape-plus/model.js?v=2"
+      "source": "./plugins/shape-plus/model.js?v=3"
     },
     {
       "id": "path",
       "type": "text",
-      "source": "./plugins/shape-plus/path.js?v=2"
+      "source": "./plugins/shape-plus/path.js?v=3"
     },
     {
       "id": "primitives",
       "type": "text",
-      "source": "./plugins/shape-plus/primitives.js?v=2"
+      "source": "./plugins/shape-plus/primitives.js?v=3"
     },
     {
       "id": "properties",
       "type": "text",
-      "source": "./plugins/shape-plus/properties.js?v=2"
+      "source": "./plugins/shape-plus/properties.js?v=3"
     },
     {
       "id": "render",
       "type": "text",
-      "source": "./plugins/shape-plus/render.js?v=2"
+      "source": "./plugins/shape-plus/render.js?v=3"
     },
     {
       "id": "runtime",
       "type": "text",
-      "source": "./plugins/shape-plus/runtime.js?v=2"
+      "source": "./plugins/shape-plus/runtime.js?v=3"
     },
     {
       "id": "stroke",
       "type": "text",
-      "source": "./plugins/shape-plus/stroke.js?v=2"
+      "source": "./plugins/shape-plus/stroke.js?v=3"
     },
     {
       "id": "native-ui",
       "type": "text",
-      "source": "./plugins/shape-plus/native-ui.js?v=2"
+      "source": "./plugins/shape-plus/native-ui.js?v=3"
     }
   ]
 }

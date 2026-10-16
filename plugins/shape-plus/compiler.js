@@ -19,7 +19,7 @@ function transformCommand(command, m) {
 // Contents run top-to-bottom for path collection, bottom-to-top for paint.
 // A parent paint sees paths in groups above it, in the parent's coordinates.
 // A group's own paints run in its local coordinates BEFORE its transform.
-function compile(contents, tolerance = .125, depth = 0) {
+function compile(contents, tolerance = .125, depth = 0, budget = { coordinates: 0, points: 0 }) {
   if (depth > 16) throw Error("Shape+ group depth budget exceeded");
   const paths = [], schedule = [];
   for (const item of contents) {
@@ -27,14 +27,21 @@ function compile(contents, tolerance = .125, depth = 0) {
     if (p.enabled === 0) continue;
     if (item.kind === "group") {
       const m = matrix(p), scale = Math.max(Math.hypot(m[0], m[1]), Math.hypot(m[2], m[3]), 1e-6);
-      const child = compile(item.contents, tolerance / scale, depth + 1);
+      const child = compile(item.contents, tolerance / scale, depth + 1, budget);
       paths.push(...child.paths.map(path => ({ ...path, points: path.points.map(point => transform(point, m)) })));
       const commands = child.commands.map(c => transformCommand(c, m));
       schedule.push(p.opacity < 1 ? [{ kind: "isolation", id: item.id, opacity: Math.max(0, p.opacity), commands }] : commands);
     } else if (item.kind === "fill" || item.kind === "stroke") {
       const positions = item.kind === "fill" ? triangulate(paths.map(path => path.points), p.fillRule) : stroke(paths, p, tolerance);
+      budget.coordinates += positions.length;
+      if (budget.coordinates > 1800000) throw Error("Shape+ geometry budget exceeded");
       schedule.push([{ kind: "paint", id: item.id, color: p.color.slice(), opacity: Math.max(0, Math.min(1, p.opacity)), positions }]);
-    } else paths.push(primitive(item, tolerance));
+    } else {
+      const path = primitive(item, tolerance);
+      budget.points += path.points.length;
+      if (budget.points > 16384) throw Error("Shape+ path collection budget exceeded");
+      paths.push(path);
+    }
   }
   const commands = schedule.reverse().flat();
   if (depth === 0) {

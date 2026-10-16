@@ -8,8 +8,18 @@ function install(PZ, Layer, Content, onDispose) {
     onDispose(() => { if (target[key] === replacement) target[key] = original; });
   }
   const proto = PZ.ui.edit.prototype;
+  const watched = new Map();
+  function watchFocus(panel) {
+    if (!panel.options.keyframePanel || watched.has(panel)) return;
+    const refresh = () => {
+      if (panel.enabled && panel.selection.some(object => object instanceof Content)) panel.options.keyframePanel.objects = panel.selection;
+    };
+    panel.onEnabledChanged.watch(refresh); watched.set(panel, refresh);
+  }
+  onDispose(() => { for (const [panel, refresh] of watched) panel.onEnabledChanged.unwatch(refresh); watched.clear(); });
   patch(proto, "generateListItem", original => function (container, object) {
     if (!(object instanceof Layer || object instanceof Content)) return original.apply(this, arguments);
+    watchFocus(this);
     const filter = this.options.childFilter;
     this.options.childFilter = child => child === object.contents || filter(child);
     try { return original.apply(this, arguments); } finally { this.options.childFilter = filter; }
