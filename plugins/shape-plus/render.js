@@ -1,0 +1,91 @@
+"use strict";
+// WebGL1 render targets have no canvas MSAA. Render at twice the explicit
+// destination viewport resolution, then resolve four samples with bilinear
+// filtering. Every intermediate stores premultiplied RGBA.
+function createRenderer(THREE) {
+  const targets = [], allocations = new Set();
+  const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, .1, 100);
+  camera.position.z = 10;
+  const vertexShader = "varying vec2 uvShape; void main(){uvShape=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}";
+  const textureShader = "varying vec2 uvShape; uniform sampler2D image; uniform float opacity; void main(){gl_FragColor=texture2D(image,uvShape)*opacity;}";
+  function material(fragmentShader, uniforms, blend = true) {
+    const m = new THREE.ShaderMaterial({ vertexShader, fragmentShader, uniforms, side: THREE.DoubleSide, depthTest: false, depthWrite: false, transparent: blend,
+      blending: blend ? THREE.CustomBlending : THREE.NoBlending, blendSrc: THREE.OneFactor, blendDst: THREE.OneMinusSrcAlphaFactor, blendEquation: THREE.AddEquation });
+    allocations.add(m); return m;
+  }
+  function geometry(positions) {
+    const g = new THREE.BufferGeometry();
+    g.addAttribute("position", new THREE.BufferAttribute(new Float32Array(positions), 3));
+    allocations.add(g); return g;
+  }
+  function plane() { const g = new THREE.PlaneBufferGeometry(2, 2); allocations.add(g); return g; }
+  const resolveScene = new THREE.Scene();
+  const resolveMaterial = material(textureShader, { image: { value: null }, opacity: { value: 1 } }, false);
+  resolveScene.add(new THREE.Mesh(plane(), resolveMaterial));
+  function target() {
+    const t = new THREE.WebGLRenderTarget(1, 1, { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, format: THREE.RGBAFormat, depthBuffer: false, stencilBuffer: false });
+    t.texture.generateMipmaps = false; targets.push(t); return t;
+  }
+  let root = null, paintAllocations = [], size = [0, 0], resolution = [1, 1];
+  function releaseTree() {
+    for (const value of paintAllocations) { value.dispose(); allocations.delete(value); }
+    paintAllocations = [];
+    for (const t of targets) t.dispose();
+    targets.length = 0; root = null;
+  }
+  function build(commands) {
+    const scene = new THREE.Scene(), children = [];
+    let order = 0;
+    for (const command of commands) {
+      let mesh;
+      if (command.kind === "isolation") {
+        const child = build(command.commands); children.push(child);
+        const g = plane(); g.scale(resolution[0] / 2, resolution[1] / 2, 1);
+        mesh = new THREE.Mesh(g, material(textureShader, { image: { value: child.target.texture }, opacity: { value: command.opacity } }));
+      } else {
+        if (!command.positions.length) continue;
+        mesh = new THREE.Mesh(geometry(command.positions), material("uniform vec3 color; uniform float opacity; void main(){gl_FragColor=vec4(color*opacity,opacity);}", { color: { value: new THREE.Color(...command.color) }, opacity: { value: command.opacity } }));
+      }
+      mesh.renderOrder = order++; mesh.frustumCulled = false; scene.add(mesh);
+    }
+    return { scene, children, target: target() };
+  }
+  function setCommands(commands, logicalResolution) {
+    releaseTree(); resolution = logicalResolution.slice();
+    const before = new Set(allocations);
+    root = build(commands);
+    paintAllocations = [...allocations].filter(value => !before.has(value));
+    size = [0, 0];
+  }
+  const shapeCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, .1, 100);
+  shapeCamera.position.z = 10;
+  function renderTree(node, renderer) {
+    for (const child of node.children) renderTree(child, renderer);
+    renderer.render(node.scene, shapeCamera, node.target, true);
+  }
+  const stats = { renders: 0, width: 0, height: 0, supersample: 2 };
+  function render(renderer, destination) {
+    if (!root) return;
+    const width = Math.max(1, Math.round(destination.viewport.z)), height = Math.max(1, Math.round(destination.viewport.w));
+    const w = width * 2, h = height * 2;
+    const max = renderer.capabilities.maxTextureSize;
+    if (w > max || h > max || w * h * targets.length > 67108864) throw Error("Shape+ antialiasing target budget exceeded");
+    if (size[0] !== w || size[1] !== h) {
+      for (const t of targets) t.setSize(w, h);
+      size = [w, h]; stats.width = w; stats.height = h;
+    }
+    shapeCamera.left = -resolution[0] / 2; shapeCamera.right = resolution[0] / 2;
+    shapeCamera.top = resolution[1] / 2; shapeCamera.bottom = -resolution[1] / 2; shapeCamera.updateProjectionMatrix();
+    const clearColor = renderer.getClearColor().clone(), clearAlpha = renderer.getClearAlpha(), autoClear = renderer.autoClear;
+    try {
+      renderer.setClearColor(0, 0); renderer.autoClear = true;
+      renderTree(root, renderer);
+      resolveMaterial.uniforms.image.value = root.target.texture;
+      renderer.render(resolveScene, camera, destination, true);
+      stats.renders++;
+    } finally { renderer.setClearColor(clearColor, clearAlpha); renderer.autoClear = autoClear; }
+  }
+  function dispose() { releaseTree(); for (const resource of allocations) resource.dispose(); allocations.clear(); }
+  return { render, setCommands, dispose, stats, get scene() { return root?.scene; }, camera: shapeCamera };
+}
+module.exports = { createRenderer };
