@@ -239,7 +239,8 @@ function install(context, Layer, Content) {
         object.type === Content &&
         object.parentObject instanceof Layer)
     ) {
-      const button = this.generateButton("add");
+      // Distinct from the native "+" add button beside it.
+      const button = this.generateButton("upload");
       button.title = "Import SVG…";
       button.setAttribute("aria-label", button.title);
       button.onclick = (event) => {
@@ -253,7 +254,8 @@ function install(context, Layer, Content) {
       object instanceof Content &&
       ["path", "rectangle", "ellipse", "polystar"].includes(object.kind)
     ) {
-      const button = this.generateButton("duplicate");
+      // Distinct from the native duplicate button beside it.
+      const button = this.generateButton("code");
       button.title = "Copy SVG path data";
       button.setAttribute("aria-label", button.title);
       button.onclick = (event) => {
