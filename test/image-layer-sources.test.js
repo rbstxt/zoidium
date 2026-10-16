@@ -212,7 +212,7 @@ test("requestPlugin confirms experimental activation and refreshes editors only 
         assert.match(options.message, /This feature is extremely experimental and may cause unexpected crashes\./);
         return approved;
       } },
-      document: { querySelectorAll: () => [{ pz_controls: { objectsChanged_bound: () => { refreshes += 1; } } }] },
+      document: { querySelectorAll: () => [{ isConnected: true, pz_listChanged: () => { refreshes += 1; } }] },
     };
     const request = vm.runInNewContext(source.slice(start, end) + "\nrequestPlugin", sandbox);
     assert.equal(await request("unknown"), false);
