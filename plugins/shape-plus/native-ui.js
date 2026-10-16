@@ -64,6 +64,8 @@ function install(PZ, Layer, Content, onDispose) {
       row.pz_shapeCleanup = () => property.onChanged.unwatch(refresh);
       row.children[1].prepend(button);
     }
+    if (object instanceof Content && this.options.showPropertyControls && this !== panels?.top)
+      require("./native-properties.js").decorate(this, row, object);
     return row;
   });
   patch(proto, "unloadListItem", original => function (row) {

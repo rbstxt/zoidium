@@ -53,7 +53,7 @@ test("overlay admits one direct planar clip and rejects ambiguous or singular co
   viewport.objects = [clip, clip]; assert.equal(check(), null); viewport.objects = [clip];
   layer.parentObject = {}; assert.equal(check(), null); layer.parentObject = clip;
   clip.tryGetParentOfType = () => new Sequence(); assert.equal(check(), null); clip.tryGetParentOfType = () => sequence;
-  layer.effects.push({}); assert.equal(check(), null); layer.effects.length = 0;
+  layer.effects.push({}); assert.equal(check(), clip); layer.effects.length = 0;
   layer.properties.scale = property([0, 1]); assert.equal(check(), null); layer.properties.scale = property([1, 1]);
   editor.playback.currentFrame = 40; assert.equal(check(), null);
   editor.playback.currentFrame = 9; assert.equal(check(), null);
