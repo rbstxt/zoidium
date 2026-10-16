@@ -198,6 +198,15 @@
       const kind = propertyKind(property);
       return { address: property.getAddress(), name: property.definition.name || "Property", kind: kind === "av" ? null : kind };
     }
+    // Mirrors the native property panel (PZ.ui.controls.editStart/editFinish):
+    // the edit frame is the playhead minus the property's frameOffset (its
+    // clip start), an animated property first gets a keyframe there through
+    // propertyOps.startEdit, and the value is then written at that frame.
+    function editFrame(editor, property) {
+      const offset = Number(property.frameOffset);
+      const current = Number(editor.playback?.currentFrame);
+      return Number.isFinite(offset) && Number.isFinite(current) ? current - offset : undefined;
+    }
     function assign(item, address, frame) {
       const editor = global.CM, project = editor?.project;
       if (!project || !editor.history || !item?.key) return { ok: false, reason: "item" };
@@ -205,22 +214,26 @@
       try { property = project.addressLookup(address); } catch (_error) { property = null; }
       if (!property || property.definition?.type !== ASSET()) return { ok: false, reason: "property" };
       if (!matches(propertyKind(property), item)) return { ok: false, reason: "kind" };
-      // Animated asset properties need a keyframe time the panel knows; the
-      // property panel stays the place to key them.
-      if (property.animated || (property.keyframes && property.keyframes.length && frame == null)) {
-        return { ok: false, reason: "animated", error: "This property is animated. Set it in the property panel at the frame you want." };
+      if (property.expression) {
+        return { ok: false, reason: "expression", error: "This property is driven by an expression." };
       }
-      if (property.get?.() === item.key) return { ok: true };
+      const at = frame != null ? frame : editFrame(editor, property);
+      const animated = !!property.animated;
+      if (property.get?.(at) === item.key && (!animated || property.hasKeyframe?.(at) !== false)) return { ok: true, frame: at };
       const history = editor.history, opened = !history.operation;
       if (opened) history.startOperation();
       const operation = history.operation;
       try {
-        new PZ.ui.properties(editor).setValue({ property: address, value: item.key, ...(frame != null ? { frame } : {}) });
+        const ops = new PZ.ui.properties(editor);
+        const current = property.get?.(at);
+        const oldValue = current === undefined ? undefined : JSON.parse(JSON.stringify(current));
+        if (animated) ops.startEdit(property, at);
+        ops.setValue({ property: address, value: item.key, frame: at, oldValue });
       } finally {
         if (opened && editor.project === project && history.operation === operation) history.finishOperation();
         refresh();
       }
-      return { ok: true };
+      return { ok: true, frame: at };
     }
     function dragMedia(item) {
       const project = global.CM?.project;

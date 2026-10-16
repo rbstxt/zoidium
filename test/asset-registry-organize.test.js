@@ -93,8 +93,8 @@ test("assign sets a matching asset property in one undo step and refuses other k
   assert.equal(image.get(), "logo.png");
   f.editor.history.undo();
   assert.equal(image.get(), null);
-  image.animated = true;
-  assert.equal(f.api.assign("logo.png", image.getAddress()).reason, "animated");
+  image.expression = "value";
+  assert.equal(f.api.assign("logo.png", image.getAddress()).reason, "expression");
 });
 
 test("propertyAt resolves CM3 property rows and dragMedia finds the footage's Media item", async () => {
