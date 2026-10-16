@@ -606,7 +606,10 @@ exist are dropped when saving.
 
 `propertyAt(element)` resolves an element inside a CM3 property row to
 `{ address, name, kind }` when the row edits an asset property, and
-`assign(itemId, address)` sets that property to the item in one undo step
-(`reason: "kind"` for a mismatched type, `"animated"` for an animated property,
-which stays a property-panel edit). `dragMedia(itemId)` returns the Media tab
+`assign(itemId, address, frame?)` sets that property to the item in one undo
+step and returns `{ ok, frame }` (`reason: "kind"` for a mismatched type,
+`"expression"` for an expression-driven property). Like the native property
+panel, the edit frame defaults to the playhead minus the property's
+`frameOffset` (its clip start); an animated property gets a keyframe there
+through `propertyOps.startEdit`, or the existing keyframe at that frame changes. `dragMedia(itemId)` returns the Media tab
 item that shows a footage item, for CM3's own timeline drag, or `null`.
