@@ -387,6 +387,7 @@ const SUITE_GROUPS = {
     "trapcode-expressions.js",
   ],
   "particular.js": [
+    "particular-spin.js",
     "particular-sim.js",
     "particular.js",
     "particular-system.js",

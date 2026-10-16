@@ -36,6 +36,7 @@ var PZ = PZ || {};
     PZ.object3d.particular.system.prototype.needsCPU = function () {
         var p = this.properties;
         var e = p.emitter;
+        if (T.particularSpin.active(this, PZ.trapcode.currentTime, this.sceneRate())) return true;
         if (e.emitFromParent && e.emitFromParent.get(PZ.trapcode.currentTime) === 1) return true;
         var particular = this.parentParticular;
         if (particular && particular.systems && particular.systems.indexOf) {
@@ -90,6 +91,7 @@ var PZ = PZ || {};
         var parentSystem = depth < SIM.MAX_DEPTH ? this.parentSystem : null;
         var parentTable = parentSystem && parentSystem !== this ? parentSystem.simTable(depth + 1) : null;
         var signature = JSON.stringify(this.properties) + "|" + fps + "|" + depth + "|" + SIM.STEP + "|" + this.secondaryCountMultiplier() + "|" +
+            (T.particularSpin.enabled(this) ? 1 : 0) + "|" +
             (parentTable ? parentTable.signature : "");
         this._simTables = this._simTables || {};
         var cached = this._simTables[depth];
@@ -107,7 +109,7 @@ var PZ = PZ || {};
     PZ.object3d.particular.system.prototype.writeCPU = function (state) {
         var count = Math.max(state.count, 1);
         var geometry = this.threeObj.geometry;
-        if (this._mode !== "cpu" || this._cpuCount !== count || !geometry || !geometry.attributes || !geometry.attributes.life) {
+        if (this._mode !== "cpu" || this._cpuCount !== count || !geometry || !geometry.attributes || !geometry.attributes.life || !geometry.attributes.spinOffset) {
             if (geometry) geometry.dispose();
             var pid = new Float32Array(count);
             var geo = new THREE.BufferGeometry();
@@ -115,6 +117,7 @@ var PZ = PZ || {};
             geo.addAttribute("life", new THREE.BufferAttribute(new Float32Array(count), 1));
             geo.addAttribute("pid", new THREE.BufferAttribute(pid, 1));
             geo.addAttribute("velocity", new THREE.BufferAttribute(new Float32Array(count * 3), 3));
+            geo.addAttribute("spinOffset", new THREE.BufferAttribute(new Float32Array(count * 3), 3));
             this.threeObj.geometry = geo;
             geometry = geo;
             this._mode = "cpu";
@@ -126,6 +129,7 @@ var PZ = PZ || {};
         var lifeArr = attrs.life.array;
         var pidArr = attrs.pid.array;
         var velocities = attrs.velocity.array;
+        var spinOffsets = attrs.spinOffset.array;
         for (var i = 0; i < count; i++) {
             if (i < state.count) {
                 positions[i * 3] = state.positions[i * 3];
@@ -136,18 +140,21 @@ var PZ = PZ || {};
                 velocities[i * 3 + 2] = state.velocities[i * 3 + 2];
                 lifeArr[i] = state.phases[i];
                 pidArr[i] = state.pids[i];
+                for (var axis = 0; axis < 3; axis++) spinOffsets[i * 3 + axis] = state.spinOffsets?.[i * 3 + axis] || 0;
             } else {
                 // Hidden slot: the shader discards life < 0.
                 positions[i * 3] = positions[i * 3 + 1] = positions[i * 3 + 2] = 0;
                 velocities[i * 3] = velocities[i * 3 + 1] = velocities[i * 3 + 2] = 0;
                 lifeArr[i] = -1;
                 pidArr[i] = 0;
+                spinOffsets[i * 3] = spinOffsets[i * 3 + 1] = spinOffsets[i * 3 + 2] = 0;
             }
         }
         attrs.position.needsUpdate = true;
         attrs.life.needsUpdate = true;
         attrs.pid.needsUpdate = true;
         attrs.velocity.needsUpdate = true;
+        attrs.spinOffset.needsUpdate = true;
     };
     // Emitter world velocity by central difference of the sampled position (GPU uniform).
     PZ.object3d.particular.system.prototype.emitterMotionAt = function (seconds) {
@@ -264,6 +271,8 @@ var PZ = PZ || {};
         this.material.blending = p.particle.blending.get(PZ.trapcode.currentTime) === 1 ? THREE.AdditiveBlending : THREE.NormalBlending;
         if (useCPU) this.material.defines.USE_CPU = 1;
         else delete this.material.defines.USE_CPU;
+        if (useCPU && T.particularSpin.active(this, e, this.sceneRate())) this.material.defines.USE_PARTICULAR_SPIN = 1;
+        else delete this.material.defines.USE_PARTICULAR_SPIN;
         this.material.needsUpdate = true;
     };
     PZ.object3d.particular.system.prototype.updatePalettes = function () {

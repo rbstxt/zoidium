@@ -23,6 +23,7 @@ const SOURCE_ORDER = [
   "trapcode-shading.js",
   "trapcode-expressions.js",
   "designer.js",
+  "particular-spin.js",
   "particular-sim.js",
   "particular.js",
   "particular-system.js",

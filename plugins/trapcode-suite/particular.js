@@ -63,6 +63,9 @@ var PZ = PZ || {};
         "uniform float spinDist;",
         "uniform float rotAir;",
         "uniform float stretch;",
+        "#ifdef USE_PARTICULAR_SPIN",
+        "attribute vec3 spinOffset;",
+        "#endif",
         "varying vec2 vMotion;",
         "varying float vElong;",
         "varying float vRot;",
@@ -158,6 +161,11 @@ var PZ = PZ || {};
         "float wSpinZ = rotBase.z + (wR1 - 0.5) * 6.2831853 * spinRnd + spinRate.z * wRateScale * wDamp;",
         "float wTiltX = max(cos(rotBase.x + spinRate.x * wRateScale * wDamp), 0.2);",
         "float wTiltY = max(cos(rotBase.y + spinRate.y * wRateScale * wDamp), 0.2);",
+        "#ifdef USE_PARTICULAR_SPIN",
+        "wSpinZ += spinOffset.z;",
+        "wTiltX = max(cos(rotBase.x + spinRate.x * wRateScale * wDamp + spinOffset.x), 0.2);",
+        "wTiltY = max(cos(rotBase.y + spinRate.y * wRateScale * wDamp + spinOffset.y), 0.2);",
+        "#endif",
         "vec4 wMv = modelViewMatrix * vec4(worldPos, 1.0);",
         "vec4 wCa = projectionMatrix * wMv;",
         "vec4 wCb = projectionMatrix * (modelViewMatrix * vec4(worldPos + wVel * 0.016, 1.0));",
@@ -248,12 +256,16 @@ var PZ = PZ || {};
     PZ.object3d.particular = class extends PZ.object3d {
         constructor() {
             super();
+            this.spinMode = 0;
             this.threeObj = new THREE.Object3D();
             this.systems = new PZ.objectList(this, PZ.object3d.particular.system);
             this.systems.name = "Systems";
             this.children.push(this.systems);
         }
         load(e) {
+            // Picker data opts new objects into the working spin controls.
+            // An absent flag always keeps saved objects on the legacy look.
+            this.spinMode = e?.spinMode === 1 ? 1 : 0;
             this.properties.load(e && e.properties);
             if ("object" == typeof e && e.systems && e.systems.length) {
                 for (var t = 0; t < e.systems.length; t++) {
@@ -273,7 +285,7 @@ var PZ = PZ || {};
             this.parentChanged();
         }
         toJSON() {
-            return { type: this.type, properties: this.properties, systems: this.systems };
+            return { type: this.type, spinMode: this.spinMode, properties: this.properties, systems: this.systems };
         }
         unload() {
             for (var i = 0; i < this.systems.length; i++) this.systems[i].unload();
