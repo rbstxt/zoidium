@@ -259,7 +259,11 @@ function install(context, Layer, Content) {
       button.onclick = (event) => {
         event.stopPropagation();
         try {
-          const frame = editor.playback.currentFrame - object.frameOffset;
+          const clip = object.tryGetParentOfType(PZ.clip);
+          const frame =
+            editor.playback.currentFrame -
+            (clip?.start || 0) +
+            (clip?.offset || 0);
           const path = primitivePath(object.evaluate(frame));
           const text = pathText({
             ...path,

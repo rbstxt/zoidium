@@ -273,3 +273,41 @@ test("contents envelope retains animation/unknown fields with fresh item and ver
     null,
   );
 });
+
+test("native conditional rows track dash count, wave units, radial type and star mode without changing storage", () => {
+  const { visible } = require("../plugins/shape-plus/native-properties");
+  const { Content } = createModel(PZ);
+  const make = (kind, properties) => {
+    const item = new Content(kind);
+    item.load({ properties });
+    return item;
+  };
+  const stroke = make("gradientStroke", {
+    dashPairs: 1,
+    waveUnits: "length",
+    gradientType: "linear",
+  });
+  const before = JSON.stringify(stroke);
+  for (const [key, expected] of [
+    ["dash1", true],
+    ["gap1", true],
+    ["dash2", false],
+    ["gap3", false],
+    ["wavelength", true],
+    ["waveCycles", false],
+    ["highlightLength", false],
+  ])
+    assert.equal(visible(key, stroke.properties), expected, key);
+  assert.equal(JSON.stringify(stroke), before);
+  assert.equal(
+    visible(
+      "highlightAngle",
+      make("gradientFill", { gradientType: "radial" }).properties,
+    ),
+    true,
+  );
+  assert.equal(
+    visible("innerRadius", make("polystar", { mode: "polygon" }).properties),
+    false,
+  );
+});
