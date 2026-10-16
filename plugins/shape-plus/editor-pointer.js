@@ -2,6 +2,8 @@
 const { selectionKey, selectionPart } = require("./editor-selection.js");
 const controls = require("./editor-controls.js");
 const g = require("./editor-geometry.js");
+const { clone } = require("./model.js");
+const { channels } = require("./editor-topology.js");
 const { createPointerMachine } = require("./editor-pointer-machine.js");
 function createPointer(s, canvas) {
   const api = s.canvasApi;
@@ -14,37 +16,41 @@ function createPointer(s, canvas) {
     work();
     return true;
   }
+  // Click topology edits retain the same capture/rollback boundary as drags.
+  // Commit at pointerup, so Escape or lost capture can undo a close or split.
+  function clickEdit(work) {
+    if (!s.gesture.begin()) return null;
+    const finished = s.penFinished;
+    try { work(); s.refresh(true); }
+    catch (error) { s.gesture.finish(true); s.message(error.message); return null; }
+    return {
+      frame: s.localFrame(), target: s.activeId,
+      end() { s.gesture.finish(); s.refresh(true); },
+      cancel() {
+        s.penFinished = finished; s.gesture.finish(true);
+        s.selection.clear(); s.refresh(true);
+      },
+    };
+  }
   function pen(event, start) {
-    const hit = api.hit(start),
-      item = s.active();
-    if (hit?.kind === "anchor") {
-      if (
-        hit.index === 0 &&
-        item.vertexIds.length > 1 &&
-        !item.properties.closed.get()
-      ) {
-        s.closePath();
+    const hit = api.hit(start), item = s.active();
+    if (hit?.kind === "anchor") return clickEdit(() => {
+      if (hit.index === 0 && item.vertexIds.length > 1 && !item.properties.closed.get()) {
+        channels(clone(item));
+        item.properties.closed.set(1);
         s.penFinished = true;
+        s.preview();
       } else {
-        s.selection = new Set([selectionKey(item.vertexIds[hit.index])]);
-        s.deleteAnchors();
+        s.topology({ kind: "delete", ids: [item.vertexIds[hit.index]] });
+        s.selection.clear();
       }
-      return null;
-    }
-    if (hit?.kind === "segment") {
+    });
+    if (hit?.kind === "segment") return clickEdit(() => {
       const id = s.nextId();
-      s.mutate(() =>
-        s.topology({
-          kind: "insert",
-          index: hit.index,
-          t: Math.max(0.000001, Math.min(0.999999, hit.t)),
-          id,
-        }),
-      );
+      s.topology({ kind: "insert", index: hit.index,
+        t: Math.max(0.000001, Math.min(0.999999, hit.t)), id });
       s.selection = new Set([selectionKey(id)]);
-      s.refresh(true);
-      return null;
-    }
+    });
     if (!s.gesture.begin()) return null;
     try {
       let local;

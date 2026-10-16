@@ -5,8 +5,9 @@ function installActions(s, root) {
   let menu = null,
     nudge = null;
   s.closeMenu = () => {
-    menu?.remove();
+    const current = menu;
     menu = null;
+    current?.remove();
   };
   s.menu = (x, y, items) => {
     s.closeMenu();
@@ -24,10 +25,18 @@ function installActions(s, root) {
     });
     menu.onchange = () => {
       const index = menu.selectedIndex - 1;
-      s.closeMenu(); items[index]?.action(); s.canvas.focus();
+      s.closeMenu(); items[index]?.action();
+      if (!s.document.activeElement?.matches("input,textarea,[contenteditable='true']")) s.canvas.focus();
     };
     menu.onblur = s.closeMenu;
-    s.document.body.append(menu); menu.focus(); menu.showPicker?.();
+    menu.onkeydown = event => {
+      if (event.key === "Escape") {
+        event.preventDefault(); event.stopPropagation(); s.closeMenu(); s.canvas.focus();
+      }
+    };
+    s.document.body.append(menu); menu.focus();
+    // Native select popups require a trusted gesture on supporting browsers.
+    try { menu.showPicker?.(); } catch (_error) { /* The focused select remains usable. */ }
   };
   s.openItemMenu = (x, y) => {
     const item = s.active(),
@@ -223,7 +232,7 @@ function installActions(s, root) {
   root.addEventListener("contextmenu", context);
   const focusout = () =>
     s.window.queueMicrotask(() => {
-      if (!keyRoot.contains(s.document.activeElement)) {
+      if (!keyRoot.contains(s.document.activeElement) && !menu?.contains(s.document.activeElement)) {
         s.pointer.cancel();
         blur();
       }
