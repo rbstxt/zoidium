@@ -12,6 +12,13 @@ const titles = {
   trim: "Trim Paths",
   repeater: "Repeater",
   roundCorners: "Round Corners",
+  twist: "Twist",
+  zigZag: "Zig Zag",
+  puckerBloat: "Pucker & Bloat",
+  wigglePaths: "Wiggle Paths",
+  wiggleTransform: "Wiggle Transform",
+  offsetPaths: "Offset Paths",
+  mergePaths: "Merge Paths",
 };
 function definitions(PZ, kind, vertexIds) {
   const T = PZ.property.type;
@@ -178,6 +185,30 @@ function definitions(PZ, kind, vertexIds) {
       startOpacity: number("Start opacity", 1, { min: 0, max: 1, step: 0.01 }),
       endOpacity: number("End opacity", 1, { min: 0, max: 1, step: 0.01 }),
     });
+  if (kind === "twist") Object.assign(result, {
+    angle: number("Angle", 0, {scaleFactor: Math.PI/180}), center: vector("Center", [0,0]),
+  });
+  if (kind === "puckerBloat") result.amount = number("Amount (%)", 0, {min:-100,max:100});
+  if (["zigZag", "wigglePaths"].includes(kind)) Object.assign(result, {
+    size: number("Size", 10, {min:0}), points: list("Points", "corner", ["corner","smooth"]),
+  });
+  if (kind === "zigZag") result.ridges = number("Ridges per segment",3,{min:1,max:64,decimals:0});
+  if (kind === "wigglePaths") result.detail = number("Detail",5,{min:1,max:100,decimals:0});
+  if (["wigglePaths","wiggleTransform"].includes(kind)) Object.assign(result, {
+    frequency: number("Wiggles / second",1,{min:0,max:100}),
+    correlation: number("Correlation (%)",50,{min:0,max:100}),
+    temporalPhase: number("Temporal phase (degrees)",0), spatialPhase: number("Spatial phase (degrees)",0),
+    seed: number("Random seed",1,{decimals:0}),
+  });
+  if (kind === "wiggleTransform") Object.assign(result, {
+    anchor: vector("Anchor offset",[0,0]), position: vector("Position offset",[20,20]),
+    scale: vector("Scale offset (%)",[0,0]), rotation: number("Rotation offset",0,{scaleFactor:Math.PI/180}),
+  });
+  if (kind === "offsetPaths") Object.assign(result, {
+    amount: number("Amount",10), join:list("Join","miter",["miter","round","bevel"]),
+    miterLimit:number("Miter limit",4,{min:1,max:100}),
+  });
+  if (kind === "mergePaths") result.mode=list("Mode","add",["merge","add","subtract","intersect","exclude"]);
   if (result.composite)
     result.composite.items = [
       { name: "Below previous in same group", value: "below" },

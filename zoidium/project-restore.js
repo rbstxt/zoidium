@@ -390,6 +390,7 @@
     }
 
     var archiveResult = null;
+    var supersededAutomatic = false;
     // Captured before serialization starts: an edit made while the archive is
     // being built must still count as a change for the next automatic check.
     var startKey = currentBackupKey();
@@ -451,6 +452,15 @@
     // outer one would let a second build start while this one still runs.
     state.snapshotPromise = buildSnapshot
       .catch(function (error) {
+        var now = currentBackupKey();
+        var changed = now.project !== startKey.project || now.revision !== startKey.revision || now.name !== startKey.name;
+        // Archive validation deliberately rejects an obsolete project image.
+        // Background work can be superseded by an edit/load; retain the last
+        // verified point and retry later. Manual saves and real failures report.
+        if (isAutomatic && changed && error && /^The project changed while the archive was built\./.test(error.message || "")) {
+          supersededAutomatic = true;
+          return null;
+        }
         var download = null;
         if (archiveResult && archiveResult.blob) {
           download = function () {
@@ -472,6 +482,12 @@
       .finally(function () {
         state.snapshotPromise = null;
         state.snapshotAutomatic = null;
+        if (supersededAutomatic && state.backupIntervalMs && !state.startupTimer) {
+          state.startupTimer = global.setTimeout(function () {
+            state.startupTimer = null;
+            requestAutomaticBackup();
+          }, 2500);
+        }
       });
     return state.snapshotPromise;
   }

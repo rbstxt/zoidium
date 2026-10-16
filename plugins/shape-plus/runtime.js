@@ -39,5 +39,7 @@ function install(context) {
   // Reverse disposal then removes the overlay/panels before their controls.
   require("./native-ui.js").install(PZ, Layer, Content, own);
   require("./editor.js").install(context, Layer, Content);
+  require("./convert-native.js").install(context, Layer);
+  require("./workflow.js").install(context, Layer, Content);
 }
 module.exports = { install };

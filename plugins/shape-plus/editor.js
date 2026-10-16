@@ -12,10 +12,10 @@ function editableClip(editor, viewport, Layer, PZ) {
   const clips = viewport.objects;
   if (!viewport.enabled || viewport.renderMode || clips?.length !== 1) return null;
   const clip = clips[0], layer = clip.object, frame = editor.playback.currentFrame;
-  if (!(layer instanceof Layer) || layer.parentObject !== clip || layer.effects.length ||
+  if (!(layer instanceof Layer) || layer.parentObject !== clip ||
       frame < clip.start || frame >= clip.start + clip.length) return null;
-  // A composite/perspective parent, a remapped composition or image effects
-  // require a different inverse projection. Do not place guessed handles.
+  // Handles edit pre-effect layer space, including with spatial image effects.
+  // Composite/perspective parents require a different inverse projection.
   if (clip.tryGetParentOfType(PZ.sequence) !== editor.sequence) return null;
   const p = layer.properties, local = frame - clip.start + (clip.offset || 0);
   if (!inverse(matrix({ position: p.position.get(local), scale: p.scale.get(local), rotation: p.rotation.get(local) }))) return null;
@@ -166,7 +166,7 @@ function install(context, Layer, Content) {
     const editable = entry && [...entry.ancestors, entry.item].every(item => item.properties.enabled.get() !== 0) &&
       inverse([...entry.ancestors, ...(entry.item.kind === "group" ? [entry.item] : [])].reduce((m, group) => multiply(m, matrix(group.evaluate(editor.playback.currentFrame - clip.start + (clip.offset || 0)).properties)), identity));
     const visible = enabled && layer && (!entry || editable) && (tool === "pen" || editable &&
-      ["path", "rectangle", "ellipse", "polystar", "gradientFill", "gradientStroke", "repeater"].includes(item.kind));
+      ["path", "rectangle", "ellipse", "polystar", "gradientFill", "gradientStroke", "repeater", "twist", "wiggleTransform"].includes(item.kind));
     if (view && (!visible || view.state.layer !== layer || !view.state.valid())) { view.dispose(); view = null; }
     if (visible && !view) {
       view = mountOverlay(context, layer, Content, viewport, panels, tool);
