@@ -224,30 +224,41 @@ function createTable(doc, icon, view, hooks) {
     }
   }
 
-  // ---- Inline folder rename (AE: Enter or double-click renames) ---------
+  // ---- Inline rename (AE: Enter or double-click renames) ----------------
 
   function startRename(folderId) {
-    const row = body.querySelector('tr[data-id="' + CSS.escape(model.folderRowId(folderId)) + '"]');
-    const entry = rowEntry(model.folderRowId(folderId));
-    if (!row || !entry) {
+    const rowId = model.folderRowId(folderId);
+    const entry = rowEntry(rowId);
+    if (!entry || !body.querySelector('tr[data-id="' + CSS.escape(rowId) + '"]')) {
       renaming = folderId;
       return;
     }
     renaming = null;
-    const text = row.querySelector(".zam-name-text");
+    renameRow(rowId, entry.folder.name, "Folder name", (name) => api().renameFolder(folderId, name));
+  }
+
+  // Renames an item row in place; `commit(name)` applies a changed name and
+  // returns false when it was refused, which restores the old name.
+  function startItemRename(itemId, name, commit) {
+    renameRow(itemId, name, "Name", commit);
+  }
+
+  function renameRow(rowId, current, label, commit) {
+    const row = body.querySelector('tr[data-id="' + CSS.escape(rowId) + '"]');
+    const text = row && row.querySelector(".zam-name-text");
+    if (!text) return;
     const input = make("input", "pz-inputbox zoidium-text zam-rename");
-    input.value = entry.folder.name;
-    input.setAttribute("aria-label", "Folder name");
+    input.value = current;
+    input.setAttribute("aria-label", label);
     text.replaceWith(input);
     input.focus();
     input.select();
     let done = false;
-    const finish = (commit) => {
+    const finish = (apply) => {
       if (done) return;
       done = true;
       const name = input.value.trim();
-      if (commit && name && name !== entry.folder.name) api().renameFolder(folderId, name);
-      else input.replaceWith(text);
+      if (!(apply && name && name !== current && commit(name) !== false)) input.replaceWith(text);
       wrap.focus({ preventScroll: true });
     };
     input.addEventListener("keydown", (event) => {
@@ -409,7 +420,7 @@ function createTable(doc, icon, view, hooks) {
   }
 
   return {
-    wrap, head, body, empty, render, markSelected, startRename, rowEntry, dispose,
+    wrap, head, body, empty, render, markSelected, startRename, startItemRename, rowEntry, dispose,
     rows: () => rows,
   };
 }

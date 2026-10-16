@@ -68,6 +68,9 @@ function createAssetsWindow(session) {
     confirm: (options) => session.kit.confirm(options),
     reveal: (item) => revealFirst(item),
     resolveFonts: () => resolveFonts.open(),
+    editor: () => session.window.CM || session.editor,
+    precomp: () => (session.window.PZ && session.window.PZ.precomp) || null,
+    rename: (item, commit) => parts && parts.table.startItemRename(item.id, item.name, commit),
     select: (id) => {
       pendingSelect = id;
       if (snapshot && snapshot.items.some((item) => item.id === id)) select(id, true);
@@ -257,7 +260,10 @@ function createAssetsWindow(session) {
 
   function openContextMenu(item, event) {
     event.preventDefault();
-    const entries = actions.list(item).map((command) => Object.assign({}, command));
+    // Like AE, the menu leaves out commands that cannot apply to this item;
+    // the icon bar keeps them, disabled, in fixed places.
+    const entries = actions.list(item).filter((command) => !command.hidden)
+      .map((command) => Object.assign({}, command));
     entries.push({ label: "Label ▸", run: () => openLabelMenu([item.id], parts.commands) });
     showMenu(entries, { x: event.clientX, y: event.clientY });
   }

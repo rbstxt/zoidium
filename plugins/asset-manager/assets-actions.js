@@ -131,7 +131,7 @@ function createActions(session) {
     const skipped = result.skipped || [];
     if (result.newId) session.select(result.newId);
     session.notify({
-      title: "Replaced " + model.plural(result.replaced || 0, "use", "uses"),
+      title: model.usageCount(item) ? "Replaced " + model.plural(result.replaced || 0, "use", "uses") : "Replaced " + item.name,
       message: skipped.length
         ? model.plural(skipped.length, "use stays", "uses stay") + " in closed compositions: " +
           skipped.slice(0, 3).map(model.usagePath).join("; ") + ". Open them to replace those uses."
@@ -298,16 +298,20 @@ function createActions(session) {
   function list(item) {
     const api = session.registry();
     const caps = capabilitiesOf(api, item);
+    const used = model.usageCount(item) > 0;
     const revealable = !!item && (item.usages || []).some((usage) => usage.revealable);
+    const reveal = {
+      id: "reveal",
+      label: "Reveal in Timeline",
+      icon: "search",
+      hint: "Select the first use of this item in the editor",
+      enabled: revealable,
+      hidden: !used,
+      run: () => session.reveal(item),
+    };
+    if (item && item.kind === "composition") return compositionCommands(item, api, reveal);
     return [
-      {
-        id: "reveal",
-        label: "Reveal in Timeline",
-        icon: "search",
-        hint: "Select the first use of this item in the editor",
-        enabled: revealable,
-        run: () => session.reveal(item),
-      },
+      reveal,
       {
         id: "reload",
         label: "Reload",
@@ -322,6 +326,7 @@ function createActions(session) {
         icon: "link",
         hint: "Choose the missing file on this computer",
         enabled: !!(api && api.locate && caps.locate),
+        hidden: !item || item.status !== "missing",
         // The picker opens synchronously so the click's user activation
         // still applies; the registry call follows the choice.
         run: () => {
@@ -334,7 +339,8 @@ function createActions(session) {
         label: "Replace…",
         icon: "change",
         hint: "Use another file everywhere this item is used",
-        enabled: !!(api && api.replace) && !!item && item.kind !== "composition" && model.usageCount(item) > 0,
+        // AE replaces unused footage too; the unused original then leaves.
+        enabled: !!(api && api.replace) && !!item && (used || item.source === "file"),
         run: () => {
           const picked = pickFile(item);
           return guarded(item, "Replace", () => picked.then((file) => file && replace(item, { file })));
@@ -353,10 +359,59 @@ function createActions(session) {
         label: "Delete",
         icon: "remove",
         hint: model.usageCount(item) ? "Delete this item and its uses" : "Remove this unused item from the project",
-        // A composition can be deleted once nothing uses it, as in Precomp+.
-        enabled: !!item && !!api && (item.source === "file"
-          ? !!(model.usageCount(item) ? api.removeItems : api.removeUnused)
-          : item.kind === "composition" && !model.usageCount(item) && !!api.removeUnused),
+        enabled: !!item && item.source === "file" &&
+          !!(api && (model.usageCount(item) ? api.removeItems : api.removeUnused)),
+        run: () => guarded(item, "Delete", () => remove(item)),
+      },
+    ];
+  }
+
+  // AE's composition items open, rename and duplicate; file commands such as
+  // Reload or Download do not apply to them.
+  function compositionCommands(item, api, reveal) {
+    const precomp = session.precomp && session.precomp();
+    const compId = item.id.slice("comp:".length);
+    const used = model.usageCount(item) > 0;
+    const report = (title, result) => {
+      if (result && result.ok) return true;
+      session.notify({ title, message: (result && result.message) || "The composition could not be changed." });
+      return false;
+    };
+    return [
+      {
+        id: "open",
+        label: "Open Composition",
+        icon: "open",
+        hint: "Edit this composition in the timeline",
+        enabled: !!(precomp && precomp.openComp),
+        run: () => report("Open " + item.name, precomp.openComp(session.editor(), compId)),
+      },
+      reveal,
+      {
+        id: "rename",
+        label: "Rename",
+        icon: "edit",
+        hint: "Rename this composition",
+        enabled: !!(precomp && precomp.renameComp),
+        run: () => session.rename(item, (name) => report("Rename " + item.name, precomp.renameComp(session.editor(), compId, name))),
+      },
+      {
+        id: "duplicate",
+        label: "Duplicate",
+        icon: "duplicate",
+        hint: "Make a copy of this composition",
+        enabled: !!(precomp && precomp.duplicateComp),
+        run: () => {
+          const result = precomp.duplicateComp(session.editor(), compId);
+          if (report("Duplicate " + item.name, result) && result.id) session.select("comp:" + result.id);
+        },
+      },
+      {
+        id: "delete",
+        label: "Delete",
+        icon: "remove",
+        hint: used ? "Remove the clips that use it first" : "Delete this unused composition",
+        enabled: !used && !!(api && api.removeUnused),
         run: () => guarded(item, "Delete", () => remove(item)),
       },
     ];
