@@ -242,7 +242,7 @@ function mountEditor(context, layer, Content, body, host, initial) {
   const properties = context.ui.properties({
     target: () => s.active()?.properties || null,
     keys: (name) => name !== "name",
-    labelWidth: 0.62,
+    labelWidth: 0.52,
   });
   propertiesContainer.append(properties.element);
   let previousTarget = null,

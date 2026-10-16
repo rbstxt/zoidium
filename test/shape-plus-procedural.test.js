@@ -375,3 +375,181 @@ test("round after partial trim retains the trimmed geometry and rounds only rema
   assert.deepEqual(rounded.points.at(-1), trimmed[0].points.at(-1));
   assert.ok(length([rounded]) < length(trimmed));
 });
+
+test("linear and radial gradient colors at known spatial points and transformed coordinates", () => {
+  const { gradient, colorAtPoint } = require("../plugins/shape-plus/paint.js");
+  const paint = gradient({
+    gradientType: "linear",
+    startPoint: [0, 0],
+    endPoint: [100, 0],
+    stops: [
+      [0, [1, 0, 0, 1]],
+      [1, [0, 0, 1, 1]],
+    ],
+  });
+  assert.deepEqual(colorAtPoint(paint, [25, 40]), [0.75, 0, 0.25, 1]);
+  paint.type = "radial";
+  assert.deepEqual(colorAtPoint(paint, [0, 50]), [0.5, 0, 0.5, 1]);
+  paint.matrix = [0, 2, -2, 0, 10, 20];
+  assert.deepEqual(colorAtPoint(paint, [-90, 20]), [0.5, 0, 0.5, 1]);
+  paint.matrix = [1, 0, 0, 1, 0, 0];
+  paint.highlightLength = 50;
+  assert.deepEqual(colorAtPoint(paint, [50, 0]), [1, 0, 0, 1]);
+  assert.deepEqual(colorAtPoint(paint, [75, 0]), [0.5, 0, 0.5, 1]);
+});
+test("zero wave frequency and degenerate width profiles stay finite", () => {
+  near(
+    widthAt(20, 100, {
+      width: 10,
+      waveAmount: 100,
+      waveUnits: "cycles",
+      waveCycles: 0,
+      wavePhase: 90,
+    }),
+    20,
+  );
+  const { profile } = require("../plugins/shape-plus/stroke-profile.js");
+  const result = profile([{ points: [[0, 0]], closed: false }], {
+    width: 10,
+    startLength: 10,
+  });
+  assert.deepEqual(result[0].widths, [10]);
+});
+test("round after wrapped trim preserves generated smooth samples in the compiled path", () => {
+  const source = model([
+    { ...rect, kind: "ellipse" },
+    op("trim", {
+      end: { animated: false, keyframes: [{ frame: 0, value: 50, tween: 1 }] },
+      offset: {
+        animated: false,
+        keyframes: [{ frame: 0, value: 270, tween: 1 }],
+      },
+    }),
+    fill("f"),
+  ]);
+  const expected = compile(source);
+  const rounded = compile([
+    ...source.slice(0, 2),
+    ...model([op("roundCorners")]),
+    source[2],
+  ]);
+  assert.deepEqual(
+    rounded.paths.map((p) => p.points),
+    expected.paths.map((p) => p.points),
+  );
+  assert.deepEqual(
+    rounded.commands[0].positions,
+    expected.commands[0].positions,
+  );
+});
+
+test("painted repeater scale contributes to deterministic curve tolerance", () => {
+  const ellipse = { ...rect, kind: "ellipse" };
+  const ordinary = compile(
+    model([
+      ellipse,
+      fill("f"),
+      op("repeater", {
+        copies: {
+          animated: false,
+          keyframes: [{ frame: 0, value: 2, tween: 1 }],
+        },
+      }),
+    ]),
+  );
+  const enlarged = compile(
+    model([
+      ellipse,
+      fill("f"),
+      op("repeater", {
+        copies: {
+          animated: false,
+          keyframes: [{ frame: 0, value: 2, tween: 1 }],
+        },
+        scale: {
+          animated: false,
+          keyframes: [{ frame: 0, value: [4, 4], tween: 1 }],
+        },
+      }),
+    ]),
+  );
+  assert.ok(enlarged.paths[0].points.length > ordinary.paths[0].points.length);
+  assert.deepEqual(
+    compile(model([ellipse, op("repeater"), fill("f")])).commands.length,
+    1,
+  );
+});
+
+test("three dash pairs repeat in order and zero gaps preserve continuous joins", () => {
+  const style = {
+    dashPairs: 3,
+    dash1: 5,
+    gap1: 3,
+    dash2: 2,
+    gap2: 4,
+    dash3: 7,
+    gap3: 6,
+    dashOffset: 0,
+  };
+  assert.deepEqual(
+    dash([line(54)], style).map((p) => [p.points[0][0], p.points.at(-1)[0]]),
+    [
+      [0, 5],
+      [8, 10],
+      [14, 21],
+      [27, 32],
+      [35, 37],
+      [41, 48],
+    ],
+  );
+  const corner = {
+    points: [
+      [0, 0],
+      [10, 0],
+      [10, 10],
+    ],
+    closed: false,
+  };
+  const solid = { width: 2, join: "miter", cap: "butt", miterLimit: 4 };
+  const continuous = {
+    ...solid,
+    dashPairs: 1,
+    dash1: 3,
+    gap1: 0,
+    dashOffset: 0,
+  };
+  assert.equal(dash([corner], continuous).length, 1);
+  near(
+    meshArea(stroke([corner], continuous, 0.125)),
+    meshArea(stroke([corner], solid, 0.125)),
+  );
+});
+test("duplicate samples do not shift taper width coordinates", () => {
+  const style = {
+    width: 10,
+    startLength: 100,
+    startWidth: 0,
+    cap: "butt",
+    join: "miter",
+    miterLimit: 4,
+  };
+  near(
+    meshArea(
+      stroke(
+        [
+          {
+            points: [
+              [0, 0],
+              [0, 0],
+              [100, 0],
+            ],
+            closed: false,
+          },
+        ],
+        style,
+        0.125,
+      ),
+    ),
+    500,
+  );
+});

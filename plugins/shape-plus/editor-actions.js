@@ -16,6 +16,7 @@ function installActions(s, root) {
     for (const item of items) {
       const button = s.make("button", "sp-menu-item", item.label);
       button.type = "button";
+      if (item.icon) button.prepend(s.icon(item.icon));
       button.setAttribute("role", "menuitem");
       button.disabled = !!item.disabled;
       button.addEventListener("click", () => {
@@ -41,6 +42,7 @@ function installActions(s, root) {
       y,
       Object.entries(titles).map(([kind, title]) => ({
         label: title,
+        icon: kind,
         action: () => s.mutate(() => s.addItem(kind)),
       })),
     );
