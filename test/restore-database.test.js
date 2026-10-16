@@ -933,3 +933,20 @@ test("a stale pre-copy record is unusable and cannot be restored", async () => {
 });
 
 module.exports = { loadRestore, seedAutomaticSnapshots, flush, FakeIndexedDB };
+
+for (const [automatic, changed, quiet] of [[true,true,true],[true,false,false],[false,true,false]]) {
+  test(`superseded archive: automatic=${automatic}, changed=${changed}`, async () => {
+    const message = "The project changed while the archive was built. Nothing was replaced. Retry saving the current project.";
+    const harness = loadRestore({ projectFiles: { createArchive: async editor => {
+      if (changed) editor.project = { id: "replacement" };
+      throw new Error(message);
+    } } });
+    await flush();
+    const promise = harness.sandbox.__zoidiumRestoreParts.panel.createSnapshot(false,automatic);
+    if (quiet) assert.equal(await promise,null);
+    else await assert.rejects(promise,{message});
+    const errors = harness.toasts().filter(toast => toast.classList.contains("is-visible") && toast.classList.contains("is-error"));
+    assert.equal(errors.length,quiet?0:1);
+    assert.equal((await harness.sandbox.__zoidiumRestoreParts.store.listSnapshots()).length,0);
+  });
+}
