@@ -98,6 +98,48 @@ async function timeDisplacementShaderText(fetchAsset) {
   return response.text();
 }
 
+function timeDisplacementReleaseImage(effect) {
+  if (effect._zoidiumSourceImage) {
+    effect.parentProject.assets.unload(effect._zoidiumSourceImage);
+    effect._zoidiumSourceImageTexture?.dispose?.();
+  }
+  effect._zoidiumSourceImage = null;
+  effect._zoidiumSourceImageTexture = null;
+}
+
+function timeDisplacementLoadImage(effect, value) {
+  timeDisplacementReleaseImage(effect);
+  if (!value) return;
+  const image = new PZ.asset.image(effect.parentProject.assets.load(value));
+  effect._zoidiumSourceImage = image;
+  const texture = image.getTexture(true);
+  texture.minFilter = texture.magFilter = THREE.LinearFilter;
+  texture.generateMipmaps = false;
+  effect._zoidiumSourceImageTexture = texture;
+}
+
+async function timeDisplacementSourceChanged(property) {
+  const effect = property.parentObject;
+  if (effect?._zoidiumLoading) return;
+  if (property.value === "other-layer") {
+    // Restore synchronously so the temporary action is never serialized.
+    property.set(effect._zoidiumPreviousSource || "");
+    if (effect._zoidiumSourceRequest) return;
+    effect._zoidiumSourceRequest = true;
+    try {
+      await PZ.zoidium?.requestPlugin?.(
+        "layer-input",
+        "Choosing another layer as the Time Displacement map needs the Layer Input plugin."
+      );
+    } finally {
+      effect._zoidiumSourceRequest = false;
+    }
+    return;
+  }
+  effect._zoidiumPreviousSource = property.value || "";
+  PZ.layerInput?.setSource?.(effect, property.value || "");
+}
+
 ZoidiumPluginApis.defineFrameSampler.call(timeDisplacementEffect, {
   displayName: "Time Displacement",
   properties: {
@@ -112,16 +154,27 @@ ZoidiumPluginApis.defineFrameSampler.call(timeDisplacementEffect, {
       name: "Displacement Map Source",
       type: PZ.property.type.LIST,
       value: "",
-      items: [{ name: "The Layer Itself", value: "" }],
+      items: [
+        { name: "The Layer Itself", value: "" },
+        { name: "Image", value: "image" },
+        { name: "Other Layer…", value: "other-layer" },
+      ],
       _zoidiumLayerSource: true,
-      changed: function changed() {
-        const effect = this.parentObject;
-        if (effect?._zoidiumLoading) return;
-        try {
-          PZ.layerInput?.setSource?.(effect, this.value || "");
-        } catch (_error) {
-          // The Layer Input plugin is optional; without it the map is the layer.
-        }
+      changed: function () {
+        // Native property callbacks do not await promises.
+        timeDisplacementSourceChanged(this).catch((error) => {
+          console.error("[Zoidium] Could not request Layer Input:", error);
+        });
+      },
+    },
+    sourceImage: {
+      name: "Source Image",
+      type: PZ.property.type.ASSET,
+      assetType: PZ.asset.type.IMAGE,
+      value: null,
+      accept: "image/*",
+      changed: function () {
+        timeDisplacementLoadImage(this.parentObject, this.value);
       },
     },
     maxTime: {
@@ -239,7 +292,11 @@ ZoidiumPluginApis.defineFrameSampler.call(timeDisplacementEffect, {
           let mapWidth = readBuffer.width;
           let mapHeight = readBuffer.height;
           try {
-            const resolved = PZ.layerInput?.resolveEffect?.(timeDisplacementEffect);
+            const imageSource = timeDisplacementEffect.properties.source.get() === "image";
+            const texture = timeDisplacementEffect._zoidiumSourceImageTexture;
+            const resolved = imageSource
+              ? (texture ? { texture, target: texture.image } : null)
+              : PZ.layerInput?.resolveEffect?.(timeDisplacementEffect);
             if (resolved?.texture) {
               mapTexture = resolved.texture;
               mapWidth = Number(resolved.target?.width) || readBuffer.width;
@@ -305,6 +362,7 @@ ZoidiumPluginApis.defineFrameSampler.call(timeDisplacementEffect, {
       };
       timeDisplacementEffect.properties.load(data && data.properties);
       timeDisplacementEffect._zoidiumLoading = false;
+      timeDisplacementEffect._zoidiumPreviousSource = timeDisplacementEffect.properties.source.get() || "";
       try {
         PZ.layerInput?.registerConsumer?.(timeDisplacementEffect);
       } catch (_error) {
@@ -330,7 +388,9 @@ ZoidiumPluginApis.defineFrameSampler.call(timeDisplacementEffect, {
         timeDisplacementNumber(timeDisplacementEffect.properties.enabled, frame, 1) === 1 &&
         plan.maxSeconds !== 0;
     },
-    prepare: async function prepare() {},
+    prepare: async function prepare() {
+      await timeDisplacementEffect._zoidiumSourceImage?.loading;
+    },
     resize() {},
     toJSON() {
       try {
@@ -343,6 +403,7 @@ ZoidiumPluginApis.defineFrameSampler.call(timeDisplacementEffect, {
       return { type: timeDisplacementEffect.type, properties: timeDisplacementEffect.properties };
     },
     unload() {
+      timeDisplacementReleaseImage(timeDisplacementEffect);
       try {
         PZ.layerInput?.unregisterConsumer?.(timeDisplacementEffect);
       } catch (_error) {

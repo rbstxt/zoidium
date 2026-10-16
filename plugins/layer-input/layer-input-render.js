@@ -212,7 +212,33 @@ module.exports = function createRender(state, deps) {
     }
   }
 
+  function releaseSourceImage(consumer) {
+    if (consumer._zoidiumSourceImage) {
+      consumer.parentProject.assets.unload(consumer._zoidiumSourceImage);
+      consumer._zoidiumSourceImageTexture?.dispose?.();
+    }
+    consumer._zoidiumSourceImage = null;
+    consumer._zoidiumSourceImageTexture = null;
+  }
+
+  function loadSourceImage(consumer, value) {
+    releaseSourceImage(consumer);
+    if (!value) return;
+    const image = new state.PZ.asset.image(consumer.parentProject.assets.load(value));
+    consumer._zoidiumSourceImage = image;
+    const texture = image.getTexture(true);
+    texture.minFilter = texture.magFilter = THREE.LinearFilter;
+    texture.generateMipmaps = false;
+    consumer._zoidiumSourceImageTexture = texture;
+  }
+
+  function resolveSourceImage(consumer) {
+    const texture = consumer._zoidiumSourceImageTexture;
+    return texture ? { texture, target: texture.image } : null;
+  }
+
   function resolveConsumer(consumer) {
+    if (consumer.properties?.source?.get?.() === "image") return resolveSourceImage(consumer);
     const context = currentContext();
     if (!context) return null;
     const track = deps.getConsumerTrack(consumer);
@@ -228,6 +254,7 @@ module.exports = function createRender(state, deps) {
   }
 
   function resolveMaterial(material, localFrame) {
+    if (material.properties?.source?.get?.() === "image") return resolveSourceImage(material);
     const context = currentContext();
     if (!context) return null;
     const track = deps.getConsumerTrack(material);
@@ -274,6 +301,7 @@ module.exports = function createRender(state, deps) {
   }
 
   function unregisterConsumer(consumer) {
+    releaseSourceImage(consumer);
     state.consumers.delete(consumer);
   }
 
@@ -296,6 +324,8 @@ module.exports = function createRender(state, deps) {
   }
 
   return {
+    loadSourceImage,
+    releaseSourceImage,
     createCopyPass,
     currentContext,
     frameKey,

@@ -17,7 +17,7 @@
   // Only versions covered by the output oracle matrix opt in. Packs with other
   // render dependencies retain the existing live preview path.
   const approvedPlugins = new Map([
-    ["native-fx", "16"], ["ccfx-shader-pack", "2"], ["text-plus", "24"],
+    ["native-fx", "17"], ["ccfx-shader-pack", "2"], ["text-plus", "24"],
     ["repeater", "31"], ["trapcode-suite", "29"], ["optical-flares", "16"],
   ]);
   // Edits arrive through input events and native history operations. Their

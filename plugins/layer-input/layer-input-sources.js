@@ -160,6 +160,11 @@ module.exports = function createSources(state, deps) {
     if (!consumer) return null;
     const property = getSourceProperty(consumer, sourceProperty);
     const sourceState = getSourceState(consumer, property);
+    if (property?.get?.() === "image" && consumer.properties?.sourceImage) {
+      sourceState._zoidiumSourceTrack = null;
+      sourceState._zoidiumSourceError = "";
+      return null;
+    }
     const project = getProject(consumer) || state.editor?.project;
     if (isAttachedTrack(sourceState?._zoidiumSourceTrack, project)) {
       return sourceState._zoidiumSourceTrack;
@@ -298,7 +303,7 @@ module.exports = function createSources(state, deps) {
     const property = getSourceProperty(consumer, options.sourceProperty);
     const sourceState = getSourceState(consumer, property);
     const sourceValue = typeof value === "string" ? value : "";
-    if (!sourceValue) {
+    if (!sourceValue || (sourceValue === "image" && consumer.properties?.sourceImage)) {
       sourceState._zoidiumSourceTrack = null;
       sourceState._zoidiumSourceError = "";
       return true;
@@ -355,7 +360,12 @@ module.exports = function createSources(state, deps) {
   function getSourceOptions(consumer, sourceProperty) {
     const project = getProject(consumer) || state.editor?.project;
     const owner = getOwnerTrack(consumer);
-    const options = [{ value: "", label: "(No source)", disabled: false }];
+    const property = getSourceProperty(consumer, sourceProperty);
+    const emptyLabel = property?.definition?.items?.[0]?.name || "(No source)";
+    const options = [{ value: "", label: emptyLabel, disabled: false }];
+    if (consumer.properties?.sourceImage && !property?.definition?._zoidiumShaderLayerSource) {
+      options.push({ value: "image", label: "Image", disabled: false });
+    }
     for (const [index, track] of getProjectTracks(project).entries()) {
       const clipLabel = getClipLabel(track);
       const suffix = clipLabel ? ` — ${clipLabel}` : "";
