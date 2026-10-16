@@ -124,7 +124,8 @@ function createPointer(s, canvas) {
     s.closeMenu?.();
     if (!s.valid()) return null;
     const start = point(event);
-    if (event.button === 1 || s.space || s.tool === "hand") {
+    if (s.overlay && event.button !== 0) return null;
+    if (!s.overlay && (event.button === 1 || s.space || s.tool === "hand")) {
       const origin = [api.view.x, api.view.y];
       return {
         move(e) {
@@ -396,7 +397,7 @@ function createPointer(s, canvas) {
     );
     event.preventDefault();
   };
-  canvas.addEventListener("wheel", wheel, { passive: false });
+  if (!s.overlay) canvas.addEventListener("wheel", wheel, { passive: false });
   canvas.addEventListener("dblclick", double);
   return {
     get active() {
