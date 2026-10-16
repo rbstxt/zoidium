@@ -193,6 +193,26 @@
       "id": "license-jsbn",
       "type": "text",
       "source": "./plugins/shape-plus/vendor/LICENSE-JSBN.txt?v=7"
+    },
+    {
+      "id": "svg-path",
+      "type": "text",
+      "source": "./plugins/shape-plus/svg-path.js?v=7"
+    },
+    {
+      "id": "svg-import",
+      "type": "text",
+      "source": "./plugins/shape-plus/svg-import.js?v=7"
+    },
+    {
+      "id": "convert-native",
+      "type": "text",
+      "source": "./plugins/shape-plus/convert-native.js?v=7"
+    },
+    {
+      "id": "workflow",
+      "type": "text",
+      "source": "./plugins/shape-plus/workflow.js?v=7"
     }
   ]
 }
