@@ -66,3 +66,19 @@ test("stock property lists and singletons are visited once; installation is idem
   proto.createKeyframeTrack({}, { static: true, children: lists });
   assert.equal(calls.length, 4);
 });
+
+test("added container lists stop three object generations below the selection", () => {
+  const { proto, calls, ObjectList } = setup();
+  const pluginList = () => { const list = new ObjectList(); list.type = class PluginObject {}; return list; };
+  // A list container whose parent track sits in `container`, as CM3 builds it.
+  const listUnder = (track) => ({ pz_parent: { pz_object: track.object, parentElement: track.container } });
+  let container = {};
+  const depths = [];
+  for (let generation = 0; generation < 5; generation += 1) {
+    const before = calls.length;
+    const track = proto.createKeyframeTrack(container, { children: [pluginList()] });
+    depths.push(calls.length - before);
+    container = listUnder(track);
+  }
+  assert.deepEqual(depths, [1, 1, 1, 0, 0]);
+});
