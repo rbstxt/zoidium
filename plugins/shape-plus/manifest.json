@@ -3,71 +3,136 @@
   "id": "shape-plus",
   "name": "Shape+",
   "author": "Zoidium",
-  "version": "4",
+  "version": "5",
   "kind": "extension",
-  "description": "Animated vector layers with ordered contents, cubic paths, fills and strokes.",
+  "description": "Animated vector layers with a Bezier Shape Editor, ordered contents, fills and strokes.",
   "category": "scene",
   "modules": [
     {
       "id": "shape-plus",
-      "source": "./plugins/shape-plus/shape-plus.js?v=4"
+      "source": "./plugins/shape-plus/shape-plus.js?v=5"
     }
   ],
   "resources": [
     {
       "id": "compiler",
       "type": "text",
-      "source": "./plugins/shape-plus/compiler.js?v=4"
+      "source": "./plugins/shape-plus/compiler.js?v=5"
     },
     {
       "id": "fill",
       "type": "text",
-      "source": "./plugins/shape-plus/fill.js?v=4"
+      "source": "./plugins/shape-plus/fill.js?v=5"
     },
     {
       "id": "layer",
       "type": "text",
-      "source": "./plugins/shape-plus/layer.js?v=4"
+      "source": "./plugins/shape-plus/layer.js?v=5"
     },
     {
       "id": "model",
       "type": "text",
-      "source": "./plugins/shape-plus/model.js?v=4"
+      "source": "./plugins/shape-plus/model.js?v=5"
     },
     {
       "id": "path",
       "type": "text",
-      "source": "./plugins/shape-plus/path.js?v=4"
+      "source": "./plugins/shape-plus/path.js?v=5"
     },
     {
       "id": "primitives",
       "type": "text",
-      "source": "./plugins/shape-plus/primitives.js?v=4"
+      "source": "./plugins/shape-plus/primitives.js?v=5"
     },
     {
       "id": "properties",
       "type": "text",
-      "source": "./plugins/shape-plus/properties.js?v=4"
+      "source": "./plugins/shape-plus/properties.js?v=5"
     },
     {
       "id": "render",
       "type": "text",
-      "source": "./plugins/shape-plus/render.js?v=4"
+      "source": "./plugins/shape-plus/render.js?v=5"
     },
     {
       "id": "runtime",
       "type": "text",
-      "source": "./plugins/shape-plus/runtime.js?v=4"
+      "source": "./plugins/shape-plus/runtime.js?v=5"
     },
     {
       "id": "stroke",
       "type": "text",
-      "source": "./plugins/shape-plus/stroke.js?v=4"
+      "source": "./plugins/shape-plus/stroke.js?v=5"
     },
     {
       "id": "native-ui",
       "type": "text",
-      "source": "./plugins/shape-plus/native-ui.js?v=4"
+      "source": "./plugins/shape-plus/native-ui.js?v=5"
+    },
+    {
+      "id": "editor",
+      "type": "text",
+      "source": "./plugins/shape-plus/editor.js?v=5"
+    },
+    {
+      "id": "editor-model",
+      "type": "text",
+      "source": "./plugins/shape-plus/editor-model.js?v=5"
+    },
+    {
+      "id": "editor-geometry",
+      "type": "text",
+      "source": "./plugins/shape-plus/editor-geometry.js?v=5"
+    },
+    {
+      "id": "editor-topology",
+      "type": "text",
+      "source": "./plugins/shape-plus/editor-topology.js?v=5"
+    },
+    {
+      "id": "editor-tree-data",
+      "type": "text",
+      "source": "./plugins/shape-plus/editor-tree-data.js?v=5"
+    },
+    {
+      "id": "editor-history",
+      "type": "text",
+      "source": "./plugins/shape-plus/editor-history.js?v=5"
+    },
+    {
+      "id": "editor-canvas",
+      "type": "text",
+      "source": "./plugins/shape-plus/editor-canvas.js?v=5"
+    },
+    {
+      "id": "editor-pointer-machine",
+      "type": "text",
+      "source": "./plugins/shape-plus/editor-pointer-machine.js?v=5"
+    },
+    {
+      "id": "editor-pointer",
+      "type": "text",
+      "source": "./plugins/shape-plus/editor-pointer.js?v=5"
+    },
+    {
+      "id": "editor-tree",
+      "type": "text",
+      "source": "./plugins/shape-plus/editor-tree.js?v=5"
+    },
+    {
+      "id": "editor-actions",
+      "type": "text",
+      "source": "./plugins/shape-plus/editor-actions.js?v=5"
+    },
+    {
+      "id": "editor-style",
+      "type": "text",
+      "source": "./plugins/shape-plus/editor.css?v=5"
+    },
+    {
+      "id": "editor-selection",
+      "type": "text",
+      "source": "./plugins/shape-plus/editor-selection.js?v=5"
     }
   ]
 }
