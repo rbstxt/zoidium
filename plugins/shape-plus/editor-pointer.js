@@ -82,6 +82,7 @@ function createPointer(s, canvas) {
       s.refresh(true);
       const origin = s.pathPoints(),
         frame = s.localFrame();
+      let broken = null;
       return {
         frame,
         target: path.id,
@@ -93,6 +94,10 @@ function createPointer(s, canvas) {
           if (Math.hypot(...g.sub(point(e), start)) < 2) return;
           const mode = e.altKey ? "independent" : "symmetric",
             points = g.vertices(g.values(origin));
+          if (e.altKey) {
+            broken = broken || s.pathPoints()[index].in.slice();
+            points[index].in = broken.slice();
+          } else broken = null;
           points[index] = g.handle(points[index], "out", vector, mode);
           path.vertexModes[id] = mode;
           s.setPoints(points);
@@ -136,7 +141,8 @@ function createPointer(s, canvas) {
       };
     }
     s.editor.playback.speed = 0;
-    if (s.tool === "pen") return pen(event, start);
+    if (s.tool === "pen" && api.hit(start)?.kind !== "handle")
+      return pen(event, start);
     let hit = api.hit(start),
       item = s.active(),
       size = api.sizeHit(start);
@@ -169,6 +175,7 @@ function createPointer(s, canvas) {
         selection = new Set(s.selection),
         originalModes = { ...item.vertexModes };
       if (!startLocal) return null;
+      let broken = null;
       return {
         frame,
         target: item.id,
@@ -207,7 +214,12 @@ function createPointer(s, canvas) {
             } else {
               const mode = e.altKey
                 ? "independent"
-                : originalModes[id] || "corner";
+                : originalModes[id] || "independent";
+              const opposite = hit.side === "in" ? "out" : "in";
+              if (e.altKey) {
+                broken = broken || s.pathPoints()[hit.index][opposite].slice();
+                points[hit.index][opposite] = broken.slice();
+              } else broken = null;
               let vector = g.add(origin[hit.index][hit.side], delta);
               if (e.shiftKey) vector = g.constrain(vector);
               points[hit.index] = g.handle(
@@ -216,7 +228,7 @@ function createPointer(s, canvas) {
                 vector,
                 mode,
               );
-              if (e.altKey) item.vertexModes[id] = "independent";
+              item.vertexModes[id] = mode;
             }
             s.setPoints(points);
           });
@@ -325,8 +337,17 @@ function createPointer(s, canvas) {
   }
   const pointer = createPointerMachine(
     canvas,
-    begin,
+    (event) => {
+      const gesture = begin(event);
+      if (gesture && gesture.frame !== undefined)
+        gesture.matrix = JSON.stringify(api.active()?.matrix);
+      return gesture;
+    },
     canvas.ownerDocument.defaultView,
+    (error) => {
+      s.gesture.finish(true);
+      s.message(error.message);
+    },
   );
   const wheel = (event) => {
     event.preventDefault();

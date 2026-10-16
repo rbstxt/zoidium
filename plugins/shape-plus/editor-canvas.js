@@ -76,7 +76,14 @@ function createCanvas(s, canvas) {
   function hit(point) {
     const entry = active();
     return entry?.enabled && entry.item.kind === "path"
-      ? g.hit(cssPoints(entry), entry.path.closed, point, 1)
+      ? g.hit(
+          cssPoints(entry),
+          entry.path.closed,
+          point,
+          1,
+          true,
+          s.tool === "pen" && !s.penFinished,
+        )
       : null;
   }
   function primitiveHandles(entry = active()) {
@@ -278,6 +285,7 @@ function createCanvas(s, canvas) {
         for (const side of ["in", "out"]) {
           if (
             !e.path.closed &&
+            (s.tool !== "pen" || s.penFinished) &&
             ((side === "in" && i === 0) ||
               (side === "out" && i === points.length - 1))
           )

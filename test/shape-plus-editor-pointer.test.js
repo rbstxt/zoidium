@@ -105,3 +105,28 @@ test("pointer completion runs once despite lost capture and ignores secondary po
   assert.deepEqual(events, ["end"]);
   machine.dispose();
 });
+
+test("pointer errors cancel ownership and report through the editor boundary", () => {
+  const element = new Target(),
+    owner = new Target(),
+    events = [];
+  const machine = createPointerMachine(
+    element,
+    () => ({
+      move() {
+        throw Error("unsupported");
+      },
+      cancel() {
+        events.push("cancel");
+      },
+    }),
+    owner,
+    (error) => events.push(error.message),
+  );
+  element.fire("pointerdown");
+  element.fire("pointermove");
+  assert.deepEqual(events, ["cancel", "unsupported"]);
+  assert.equal(machine.active, null);
+  assert.equal(element.captured.size, 0);
+  machine.dispose();
+});
