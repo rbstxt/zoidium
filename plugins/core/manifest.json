@@ -266,6 +266,16 @@
       "phase": "pre-init"
     },
     {
+      "id": "asset-registry-zip",
+      "source": "./plugins/core/asset-registry-zip.js",
+      "phase": "pre-init"
+    },
+    {
+      "id": "asset-registry-collect",
+      "source": "./plugins/core/asset-registry-collect.js",
+      "phase": "pre-init"
+    },
+    {
       "id": "asset-registry",
       "source": "./plugins/core/asset-registry.js",
       "phase": "pre-init"

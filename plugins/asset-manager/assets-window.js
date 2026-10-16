@@ -286,6 +286,8 @@ function createAssetsWindow(session) {
       actions.importCommand(),
       newFolderCommand(),
       actions.removeUnusedCommand(snapshot),
+      actions.consolidateCommand(),
+      actions.collectCommand(snapshot),
       actions.resolveFontsCommand(snapshot),
     ], { anchor });
   }
