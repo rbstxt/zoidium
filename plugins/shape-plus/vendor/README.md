@@ -19,3 +19,8 @@ The adapter uses closed paths, strict simplicity and nonzero winding. It replace
 the error callback with an exception and replaces the square corner emitter on
 each offset instance with exact bevel endpoints. The algorithm is otherwise unchanged.
 No network access is used at runtime. Both licenses are declared bundle assets.
+
+Earcut 2.2.4 is copied verbatim from the already licensed dependency in
+`plugins/scene-plus/earcut.js`, including its Mapbox ISC notice. Its separate
+license is a bundle asset. It triangulates only Clipper-resolved simple contours
+with explicit hole ancestry. Existing shapes retain the original slab engine.

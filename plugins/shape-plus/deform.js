@@ -51,7 +51,7 @@ function geometry(path, points) {
     segments,
     ...rest
   } = path;
-  return { ...rest, points };
+  return { ...rest, points, proceduralGeometry:true };
 }
 function resample(path, spacing = 8) {
   const points = [],

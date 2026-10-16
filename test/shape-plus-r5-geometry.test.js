@@ -346,3 +346,61 @@ test("smooth modifiers retain paint ownership and reset length metadata after Tr
     assert.ok(result.commands[0].positions.every(Number.isFinite), kind);
   }
 });
+
+test("resolved triangulation retains holes, islands, crossings and translucent stroke area", () => {
+  const {
+    tessellate,
+    strokeRegion,
+  } = require("../plugins/shape-plus/topology");
+  const meshArea = (positions) => {
+    let sum = 0;
+    for (let i = 0; i < positions.length; i += 9)
+      sum += Math.abs(
+        area([
+          positions.slice(i, i + 2),
+          positions.slice(i + 3, i + 5),
+          positions.slice(i + 6, i + 8),
+        ]),
+      );
+    return sum;
+  };
+  const hole = square(3, 3, 4);
+  hole.points.reverse();
+  near(meshArea(tessellate([square(), hole, square(4, 4, 2)])), 88);
+  for (const entry of corpus)
+    near(
+      meshArea(
+        tessellate(entry.paths || [{ closed: true, points: entry.points }]),
+      ),
+      entry.area,
+      0.01,
+    );
+  for (const [cap, expected] of [
+    ["butt", 20],
+    ["square", 24],
+    ["round", 20 + Math.PI],
+  ]) {
+    const region = strokeRegion(
+      [
+        {
+          closed: false,
+          points: [
+            [0, 0],
+            [10, 0],
+          ],
+        },
+      ],
+      { width: 2, cap, join: "miter" },
+      0.001,
+    );
+    near(meshArea(tessellate(region)), expected, 0.02);
+  }
+  near(
+    meshArea(
+      tessellate(
+        strokeRegion([square()], { width: 2, join: "miter", cap: "butt" }),
+      ),
+    ),
+    80,
+  );
+});
