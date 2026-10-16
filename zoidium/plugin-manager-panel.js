@@ -92,8 +92,9 @@
     }
     if (!pluginIsEnabled(state)) return false;
     // Native property editors retain their old input factory until rebuilt.
-    const controls = new Set(Array.from(document.querySelectorAll("ul"), (node) => node.pz_controls));
-    for (const control of controls) control?.objectsChanged_bound?.();
+    for (const list of document.querySelectorAll("ul")) {
+      if (list.isConnected) list.pz_listChanged?.();
+    }
     return true;
   }
 
