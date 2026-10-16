@@ -70,6 +70,17 @@ function outlines(paths, style, tolerance = .125) {
 }
 function stroke(paths, style, tolerance) {
   const profiled = style.dashPairs > 0 || style.startLength > 0 || style.endLength > 0 || style.waveAmount > 0;
-  return triangulate(outlines(profiled ? require("./stroke-profile.js").profile(paths, style) : paths, style, tolerance), "nonzero");
+  if(!profiled&&paths.some(path=>path.proceduralGeometry)) {
+    const topology=require("./topology.js");
+    return topology.tessellate(topology.strokeRegion(paths,style,tolerance),"nonzero");
+  }
+  const polygons=outlines(profiled ? require("./stroke-profile.js").profile(paths, style) : paths, style, tolerance);
+  if(paths.some(path=>path.proceduralGeometry)) {
+    // New nonlinear/topology geometry can produce many tiny join rectangles.
+    // Union them with the bounded clipping stage before slab triangulation.
+    // Existing paths retain their original floating-point arrangement exactly.
+    return require("./topology.js").tessellate(polygons.map(points=>({closed:true,points})),"nonzero",true);
+  }
+  return triangulate(polygons, "nonzero");
 }
 module.exports = { arc, outlines, stroke };

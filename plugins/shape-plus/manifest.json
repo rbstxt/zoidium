@@ -213,6 +213,16 @@
       "id": "workflow",
       "type": "text",
       "source": "./plugins/shape-plus/workflow.js?v=7"
+    },
+    {
+      "id": "vendor-earcut",
+      "type": "text",
+      "source": "./plugins/shape-plus/vendor/earcut.js?v=7"
+    },
+    {
+      "id": "license-earcut",
+      "type": "text",
+      "source": "./plugins/shape-plus/vendor/LICENSE-Earcut.txt?v=7"
     }
   ]
 }

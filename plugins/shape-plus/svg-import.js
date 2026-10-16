@@ -371,7 +371,9 @@ function importSVG(text, nextId) {
                   (i % 2 ? "gap" : "dash") + (Math.floor(i / 2) + 1)
                 ] = d(v)),
             );
-            properties.dashOffset = d(Number(s["stroke-dashoffset"] || 0));
+            const dashOffset=Number(s["stroke-dashoffset"]||0);
+            if(!Number.isFinite(dashOffset))throw Error("Invalid SVG dash offset");
+            properties.dashOffset=d(dashOffset);
           }
         }
         contents.push({ kind, id: nextId(), properties });

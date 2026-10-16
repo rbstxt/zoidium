@@ -6,7 +6,7 @@ const { stroke } = require("./stroke.js");
 const { trim, roundCorners, clamp } = require("./operators.js");
 const { gradient } = require("./paint.js");
 const { deform, wiggleTransform } = require("./deform.js");
-const { merge, offset } = require("./topology.js");
+const { merge, offset, tessellate } = require("./topology.js");
 const identity = [1, 0, 0, 1, 0, 0];
 function multiply(a, b) {
   return [
@@ -275,7 +275,7 @@ function procedural(contents, tolerance, depth, budget, api) {
       paths = command.views.flatMap(viewPaths),
       fill = command.type === "fill" || command.type === "gradientFill";
     const positions = fill
-      ? triangulate(
+      ? paths.some(path=>path.proceduralGeometry) ? tessellate(paths,p.fillRule) : triangulate(
           paths.map((path) => path.points),
           p.fillRule,
         )

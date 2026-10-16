@@ -410,7 +410,15 @@ ties away from zero. Nonzero winding resolves coincident/self-crossing edges;
 strict simplicity separates touching polygons. Results retain outer/hole winding,
 rotate to their lexicographically first point, then sort deterministically.
 
-Each clipping input permits 4096 points and coordinates up to one million
+Stroke outlines generated from new modifiers are unioned through Clipper before
+triangulation, within the existing 16384-outline-point limit. Uniform new strokes
+use closed/open Clipper offset outlines directly. New resolved polygons use the
+existing pinned Earcut 2.2.4 dependency with explicit hole ancestry; unresolved
+self-intersections never reach Earcut. Sub-grid stroke artifacts are cleaned and
+resolved again before triangulation. Existing stroke
+paths retain their original floating-point arrangement.
+
+Each modifier clipping input permits 4096 points and coordinates up to one million
 pixels in magnitude. The intersection budget is 262144 events. Offset amount
 is limited to 100000 pixels, its predicted arc work to 32768 points, and output
 to 16384 points. Round arcs use the requested flatten tolerance, capped at 0.25
