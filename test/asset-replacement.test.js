@@ -29,7 +29,8 @@ test("replacement edits each native property, every matching keyframe and Media 
   const media = { data, assets: [f.project.assets.load(old, true)] };
   f.project.media.push(media);
   const result = await f.api.replace(old.key, { itemId: next.key });
-  assert.equal(result.ok, true); assert.equal(result.replaced, 10); assert.equal(result.newId, next.key);
+  // Eight uses (the animated property counts once) moved; the Media template follows them.
+  assert.equal(result.ok, true); assert.equal(result.replaced, 8); assert.equal(result.newId, next.key);
   assert(fields.every(prop => prop.get() === next.key));
   assert(animated.keyframes.every(kf => kf.value === next.key));
   assert.equal(media.data[0].properties.media, next.key); assert.equal(media.assets[0], next);
@@ -39,8 +40,11 @@ test("replacement edits each native property, every matching keyframe and Media 
   assert(fields.every(prop => prop.get() === old.key));
   assert.deepEqual(animated.keyframes.map(kf => kf.value), [old.key, next.key, old.key]);
   assert.equal(media.data, data); assert.equal(media.assets[0], old);
+  assert.equal(f.project.assets.list[old.key], old, "undo restores the replaced file");
   f.editor.history.redo(); assert(fields.every(prop => prop.get() === next.key));
-  assert.equal(old.references, 1); assert.equal(next.references, 1);
+  // The replaced file is no longer used, so it left the project with the edit.
+  assert.equal(f.project.assets.list[old.key], undefined);
+  assert.equal(old.references, 0); assert.equal(next.references, 1);
   f.api.dispose();
 });
 
@@ -76,7 +80,7 @@ test("file targets use retained deduplicating import; kind mismatch never import
   const count = Object.keys(f.project.assets.list).length;
   await f.api.replace(result.newId, { file });
   assert.equal(Object.keys(f.project.assets.list).length, count);
-  assert.equal(f.project.media.length, 1); assert.equal(f.project.assets.list[old.key], old);
+  assert.equal(f.project.media.length, 1); assert.equal(f.project.assets.list[old.key], undefined);
   f.api.dispose();
 });
 
@@ -106,7 +110,8 @@ test("Material+ graph and IES hooks write through propertyOps and restore all pa
   const result = await f.api.replace(old.key, { itemId: next.key });
   assert.equal(result.ok, true); assert.equal(result.replaced, 2);
   assert(JSON.parse(material.properties.graph.get()).nodes.every(node => node.params.asset === next.key));
-  assert.equal(f.editor.history.undoStack[0].length, 1);
+  // The graph edit and the removal of the now-unused old file form one undo step.
+  assert.equal(f.editor.history.undoStack.length, 1);
   f.editor.history.undo(); assert.equal(material.properties.graph.get(), graph);
   f.editor.history.redo(); assert.equal(JSON.parse(material.properties.graph.get()).nodes[0].params.asset, next.key);
   const a = f.child(f.project.sequence, new f.Obj("Light one")), b = f.child(f.project.sequence, new f.Obj("Light two"));

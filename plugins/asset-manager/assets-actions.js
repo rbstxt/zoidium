@@ -339,11 +339,11 @@ function createActions(session) {
       },
       {
         id: "export",
-        label: "Save File…",
+        label: "Download",
         icon: "download",
         hint: "Download this item as a separate file",
         enabled: !!(api && api.exportFile && caps.exportFile),
-        run: () => guarded(item, "Save File", () => exportFile(item)),
+        run: () => guarded(item, "Download", () => exportFile(item)),
       },
       {
         id: "delete",

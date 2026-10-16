@@ -26,14 +26,14 @@
       "id": "core",
       "name": "Zoidium Core",
       "author": "Zoidium",
-      "version": "52",
+      "version": "53",
       "visibility": "hidden",
       "alwaysEnabled": true,
       "tagline": "Built-in core extensions",
       "description": "Hidden built-in extensions that always run. Not shown in the Plugins panel and never stored in projects.",
-      "manifest": "./plugins/core/manifest.json?v=52",
-      "bundle": "./plugins/core/bundle.json?v=52",
-      "integrity": "sha256-hs79a5ReJzrw05HaEiaB+ahVkpPF1r8Sm9MYvMxiDfA="
+      "manifest": "./plugins/core/manifest.json?v=53",
+      "bundle": "./plugins/core/bundle.json?v=53",
+      "integrity": "sha256-T1sYkIxJofF3QyIbSe5eTIuCyL8qCgH4ljBWNOMPgds="
     },
     {
       "id": "easing-plus",
@@ -71,16 +71,16 @@
       "category": "utilities",
       "name": "Assets",
       "author": "Zoidium",
-      "version": "6",
+      "version": "7",
       "defaultEnabled": true,
       "itemCount": 1,
       "format": "workflow",
       "tagline": "Project panel for every asset",
       "color": "#6f8f5a",
       "description": "An After Effects style Project panel: every file, font, image, model and composition in the project, where each is used, and which are missing or failed.",
-      "manifest": "./plugins/asset-manager/manifest.json?v=6",
-      "bundle": "./plugins/asset-manager/bundle.json?v=6",
-      "integrity": "sha256-tPPguIgbecLIfYHD7ypUK7Ksmq432i4SbCnpiJ8zJA4="
+      "manifest": "./plugins/asset-manager/manifest.json?v=7",
+      "bundle": "./plugins/asset-manager/bundle.json?v=7",
+      "integrity": "sha256-unbZkv6MOCSxbJzlcshtaZisI5H0i3Tj8wH9dnIAA8M="
     },
     {
       "id": "precomp-plus",
