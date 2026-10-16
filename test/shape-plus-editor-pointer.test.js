@@ -130,3 +130,53 @@ test("pointer errors cancel ownership and report through the editor boundary", (
   assert.equal(element.captured.size, 0);
   machine.dispose();
 });
+
+test("Pen close, insert and delete clicks commit on release and roll back on capture loss", () => {
+  const { createPointer } = require("../plugins/shape-plus/editor-pointer");
+  for (const hit of [{ kind: "anchor", index: 0 }, { kind: "anchor", index: 1 }, { kind: "segment", index: 0, t: .5 }]) {
+    const element = new Target(), owner = new Target();
+    element.focus = () => {};
+    element.getBoundingClientRect = () => ({ left: 0, top: 0 });
+    element.ownerDocument = { defaultView: owner };
+    let data = { closed: 0, edits: 0 }, before = null, entries = 0;
+    const item = {
+      id: "path", kind: "path", vertexIds: ["a", "b"],
+      properties: { closed: { get: () => data.closed, set: value => { data.closed = value; } } },
+      evaluate: () => ({ properties: {} }),
+      toJSON: () => ({ vertexIds: ["a", "b"], properties: { closed: data.closed,
+        path: { animated: false, keyframes: [{ frame: 0, value: Array(12).fill(0), tween: 1 }] } } }),
+    };
+    const state = {
+      layer: { contents: [item] }, activeId: "path", tool: "pen", penFinished: false,
+      selection: new Set(), editor: { playback: {} },
+      canvasApi: { hit: () => hit, activeMatrix: () => [] },
+      active: () => item, localFrame: () => 0, valid: () => true,
+      nextId: () => "new", preview() {}, refresh() {},
+      topology() { data.edits++; }, message(text) { assert.fail(text); },
+      gesture: {
+        active: false,
+        begin() { before = { ...data }; this.active = true; return true; },
+        finish(cancel) {
+          if (!this.active) return;
+          this.active = false;
+          if (cancel) data = before;
+          else entries++;
+        },
+      },
+    };
+    const pointer = createPointer(state, element), original = { ...data };
+    element.fire("pointerdown", 1, { clientX: 0, clientY: 0 });
+    assert.notDeepEqual(data, original);
+    assert.equal(entries, 0);
+    element.fire("lostpointercapture");
+    assert.deepEqual(data, original);
+    assert.equal(state.penFinished, false);
+    assert.equal(state.gesture.active, false);
+    assert.equal(entries, 0);
+    element.fire("pointerdown", 1, { clientX: 0, clientY: 0 });
+    element.fire("pointerup");
+    assert.equal(entries, 1);
+    assert.equal(element.captured.size, 0);
+    pointer.dispose();
+  }
+});
