@@ -1,0 +1,73 @@
+{
+  "schemaVersion": 1,
+  "id": "shape-plus",
+  "name": "Shape+",
+  "author": "Zoidium",
+  "version": "4",
+  "kind": "extension",
+  "description": "Animated vector layers with ordered contents, cubic paths, fills and strokes.",
+  "category": "scene",
+  "modules": [
+    {
+      "id": "shape-plus",
+      "source": "./plugins/shape-plus/shape-plus.js?v=4"
+    }
+  ],
+  "resources": [
+    {
+      "id": "compiler",
+      "type": "text",
+      "source": "./plugins/shape-plus/compiler.js?v=4"
+    },
+    {
+      "id": "fill",
+      "type": "text",
+      "source": "./plugins/shape-plus/fill.js?v=4"
+    },
+    {
+      "id": "layer",
+      "type": "text",
+      "source": "./plugins/shape-plus/layer.js?v=4"
+    },
+    {
+      "id": "model",
+      "type": "text",
+      "source": "./plugins/shape-plus/model.js?v=4"
+    },
+    {
+      "id": "path",
+      "type": "text",
+      "source": "./plugins/shape-plus/path.js?v=4"
+    },
+    {
+      "id": "primitives",
+      "type": "text",
+      "source": "./plugins/shape-plus/primitives.js?v=4"
+    },
+    {
+      "id": "properties",
+      "type": "text",
+      "source": "./plugins/shape-plus/properties.js?v=4"
+    },
+    {
+      "id": "render",
+      "type": "text",
+      "source": "./plugins/shape-plus/render.js?v=4"
+    },
+    {
+      "id": "runtime",
+      "type": "text",
+      "source": "./plugins/shape-plus/runtime.js?v=4"
+    },
+    {
+      "id": "stroke",
+      "type": "text",
+      "source": "./plugins/shape-plus/stroke.js?v=4"
+    },
+    {
+      "id": "native-ui",
+      "type": "text",
+      "source": "./plugins/shape-plus/native-ui.js?v=4"
+    }
+  ]
+}
