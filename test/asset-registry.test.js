@@ -135,6 +135,19 @@ test("preset and plugin data URLs are not missing files", () => {
   assert.equal(snapshot.items[0].source, "preset"); assert.equal(snapshot.items[1].source, "plugin");
 });
 
+test("built-in and plugin shaders are never listed; imported shader files are", () => {
+  const f = fixture();
+  f.asset("/assets/shaders/fragment/fx_blur.glsl", { source: 3, file: null, filename: "", url: "/assets/shaders/fragment/fx_blur.glsl" });
+  f.asset("pack.frag", { source: 3, file: null, filename: "pack.frag", url: "data:text/plain;base64,AAAA" });
+  f.asset("mine", { filename: "mine.frag", file: { size: 12, type: "" } });
+  const owner = f.child(f.project.sequence, new f.Obj("Effect"));
+  f.properties(owner, { builtIn: new f.Property("Shader", "/assets/shaders/fragment/fx_blur.glsl"),
+    pack: new f.Property("Shader", "pack.frag"), mine: new f.Property("Shader", "mine") });
+  const items = f.api.snapshot().items;
+  assert.deepEqual(plain(items.map(item => item.id)), ["mine"]);
+  assert.equal(items[0].kind, "shader");
+});
+
 test("pending image decoding settles to ready without polling", async () => {
   const f = fixture(), asset = f.asset("a"); let resolve;
   const data = { image: null, loading: new Promise(fn => { resolve = fn; }) };
