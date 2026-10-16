@@ -48,6 +48,7 @@ function host({ composite = false, adjustment = false, operator = "offset" } = {
     if (layer.objects) layer.objects.forEach(child => { child.clip = clip; });
     return { layer, clips: [clip], enabled: true, getCurrentClip: () => clip };
   }) };
+  sequence.videoTracks.forEach(track => { track.clips[0].parentProject = { sequence }; });
   const sandbox = { console, PZ: { layer: Layer, compositor: Compositor, schedule: Schedule,
     clip: class {}, sequence: class {} } };
   sandbox.window = sandbox;
@@ -58,7 +59,7 @@ function host({ composite = false, adjustment = false, operator = "offset" } = {
   const root = new Compositor();
   root._sequence = sequence;
   root.draws = [];
-  return { root, content, lower, owner, sequence, state: sandbox.ZOIDIUM_TEMPORAL };
+  return { root, content, lower, owner, sequence, Schedule, state: sandbox.ZOIDIUM_TEMPORAL };
 }
 
 for (const operator of ["offset", "posterize"]) {
@@ -82,4 +83,48 @@ test("input clocks are independent of earlier renders, including identity mappin
   const h = host({ composite: true, adjustment: true, operator: "posterize" });
   for (const frame of [13, 5, 29, 13]) h.root.renderSequence(frame);
   assert.deepEqual(h.content.objects[0].updates, [12.5, 5, 27.5, 12.5]);
+});
+
+
+test("procedural prepare settles the mapped resources without evaluating content again", async () => {
+  const h = host({ adjustment: true });
+  const clip = h.sequence.videoTracks[1].clips[0];
+  const prepared = [];
+  clip.update = frame => clip.object.update(frame - clip.start);
+  clip.prepare = async frame => prepared.push(frame);
+  const schedule = new h.Schedule();
+  schedule.items = [{ start: 0, length: 100, clip }];
+  await schedule.prepare(13, {});
+  assert.deepEqual(h.content.updates, []);
+  assert.deepEqual(prepared, [18]);
+  h.root.renderSequence(13);
+  assert.deepEqual(h.content.updates, [18]);
+});
+
+test("an editor update reads the playhead on demand and never changes a later rendered frame", () => {
+  const h = host();
+  h.root.renderSequence(13);
+  h.content.update(13);
+  assert.equal(h.content.frame, 13);
+  h.root.renderSequence(13);
+  assert.deepEqual(h.content.updates, [18, 13, 18]);
+  assert.deepEqual(h.root.draws, [18, 18]);
+});
+
+test("samplers retain the existing evaluation and restoration path", () => {
+  const h = host();
+  h.owner.effects.push({ _zoidiumFrameSampler: {} });
+  h.root.renderSequence(13);
+  assert.deepEqual(h.content.updates, [13, 18, 13]);
+});
+
+test("an exception cannot leave the next draw in a mapping context", () => {
+  const h = host({ composite: true });
+  const renderLayer = h.root.renderLayer;
+  h.root.renderLayer = () => { throw new Error("draw failed"); };
+  assert.throws(() => h.root.renderSequence(13), /draw failed/);
+  assert.equal(h.state.contexts.length, 0);
+  h.root.renderLayer = renderLayer;
+  h.root.renderSequence(13);
+  assert.deepEqual(h.content.objects[0].updates, [18, 18]);
 });

@@ -326,3 +326,18 @@ test("a slow-to-serialize project draws live after input and during playback", a
   assert.equal(h.counts.live, live + 11, "the changed project renders live");
   h.api.dispose();
 });
+
+test("plain time operators draw once without serializing or scheduling prefetch", () => {
+  const h = harness();
+  h.PZ.zoidium.temporal.usesSingleEvaluation = () => true;
+  for (let frame = 0; frame < 4; frame++) {
+    h.viewport.editor.playback.currentFrame = frame;
+    h.viewport._render();
+  }
+  assert.equal(h.counts.live, 4);
+  assert.equal(h.counts.serialized, 0);
+  assert.equal(h.api.debug.validations, 0);
+  assert.equal(h.api.debug.prefetched, 0);
+  assert.equal(h.api.debug.entries, 0);
+  assert.equal(h.timers.size, 0);
+});
