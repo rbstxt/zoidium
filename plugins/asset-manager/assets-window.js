@@ -466,7 +466,7 @@ function createAssetsWindow(session) {
 
   function buildToolbar() {
     const bar = make(doc, "div", "zam-toolbar");
-    const search = make(doc, "input", "zoidium-text zam-search");
+    const search = make(doc, "input", "pz-inputbox zoidium-text zam-search");
     search.type = "search";
     search.placeholder = "Search";
     search.setAttribute("aria-label", "Search assets");
@@ -474,14 +474,14 @@ function createAssetsWindow(session) {
       view.query = search.value;
       renderTable();
     });
-    const filter = make(doc, "select", "zoidium-select zam-filter");
+    const filter = make(doc, "select", "pz-inputbox zoidium-select zam-filter");
     filter.setAttribute("aria-label", "Show");
     filter.addEventListener("change", () => {
       view.filter = filter.value;
       writeView(view);
       renderTable();
     });
-    const kind = make(doc, "select", "zoidium-select zam-kind");
+    const kind = make(doc, "select", "pz-inputbox zoidium-select zam-kind");
     kind.setAttribute("aria-label", "Type");
     kind.addEventListener("change", () => {
       view.kind = kind.value;
@@ -684,8 +684,9 @@ function createAssetsWindow(session) {
     win = session.context.ui.openWindow({
       id: WINDOW_ID,
       title: "Assets",
+      className: "zam-window",
       persistKey: "assets",
-      width: 560,
+      width: 640,
       height: 560,
       minWidth: 380,
       minHeight: 320,

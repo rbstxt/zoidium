@@ -92,6 +92,7 @@ function createTable(doc, icon, view, hooks) {
     swatch.title = "Label: " + info.name;
     swatch.setAttribute("aria-label", "Label " + info.name);
     if (info.color) swatch.style.background = info.color;
+    else swatch.classList.add("zam-label-none");
     swatch.addEventListener("click", (event) => {
       event.stopPropagation();
       hooks.labelMenu(ids, swatch);
@@ -234,7 +235,7 @@ function createTable(doc, icon, view, hooks) {
     }
     renaming = null;
     const text = row.querySelector(".zam-name-text");
-    const input = make("input", "zoidium-text zam-rename");
+    const input = make("input", "pz-inputbox zoidium-text zam-rename");
     input.value = entry.folder.name;
     input.setAttribute("aria-label", "Folder name");
     text.replaceWith(input);

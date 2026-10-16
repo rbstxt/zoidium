@@ -3,51 +3,51 @@
   "id": "asset-manager",
   "name": "Assets",
   "author": "Zoidium",
-  "version": "5",
+  "version": "6",
   "kind": "extension",
   "description": "An After Effects style Project panel: every file, font, image, model and composition in the project, where each is used, and which are missing or failed.",
   "category": "utilities",
   "modules": [
     {
       "id": "assets-runtime",
-      "source": "./plugins/asset-manager/assets-runtime.js?v=5"
+      "source": "./plugins/asset-manager/assets-runtime.js?v=6"
     }
   ],
   "resources": [
     {
       "id": "assets-model",
       "type": "text",
-      "source": "./plugins/asset-manager/assets-model.js?v=5"
+      "source": "./plugins/asset-manager/assets-model.js?v=6"
     },
     {
       "id": "assets-window",
       "type": "text",
-      "source": "./plugins/asset-manager/assets-window.js?v=5"
+      "source": "./plugins/asset-manager/assets-window.js?v=6"
     },
     {
       "id": "assets-table",
       "type": "text",
-      "source": "./plugins/asset-manager/assets-table.js?v=5"
+      "source": "./plugins/asset-manager/assets-table.js?v=6"
     },
     {
       "id": "assets-actions",
       "type": "text",
-      "source": "./plugins/asset-manager/assets-actions.js?v=5"
+      "source": "./plugins/asset-manager/assets-actions.js?v=6"
     },
     {
       "id": "assets-notices",
       "type": "text",
-      "source": "./plugins/asset-manager/assets-notices.js?v=5"
+      "source": "./plugins/asset-manager/assets-notices.js?v=6"
     },
     {
       "id": "assets-fonts",
       "type": "text",
-      "source": "./plugins/asset-manager/assets-fonts.js?v=5"
+      "source": "./plugins/asset-manager/assets-fonts.js?v=6"
     },
     {
       "id": "assets-style",
       "type": "text",
-      "source": "./plugins/asset-manager/assets.css?v=5"
+      "source": "./plugins/asset-manager/assets.css?v=6"
     }
   ]
 }
