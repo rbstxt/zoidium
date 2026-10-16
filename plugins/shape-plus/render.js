@@ -15,8 +15,10 @@ function createRenderer(THREE, sampleScale = "auto") {
     allocations.add(m); return m;
   }
   function geometry(positions) {
+    const values = new Float32Array(positions);
+    if (!values.every(Number.isFinite)) throw Error("Shape+ geometry exceeds Float32 range");
     const g = new THREE.BufferGeometry();
-    g.addAttribute("position", new THREE.BufferAttribute(new Float32Array(positions), 3));
+    g.addAttribute("position", new THREE.BufferAttribute(values, 3));
     allocations.add(g); return g;
   }
   function plane() { const g = new THREE.PlaneBufferGeometry(2, 2); allocations.add(g); return g; }

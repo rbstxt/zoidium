@@ -31,6 +31,7 @@ test("flattening bounds loops and collinear reversals independently of frame his
     assert.deepEqual(path.flatten(c, .1), flattened);
   }
   assert.throws(() => path.flatten([[0, 0], [1, 10], [10, -10], [1, 0]], .0001, 2), /budget/);
+  assert.throws(() => path.flatten([[0, 0], [0, 0], [1, 0], [1, 0]], .1, 1), /budget/);
   assert.equal(path.lengthTable([[0, 0], [3, 0], [3, 4]]).total, 7);
 });
 test("fill area oracles, holes, winding and self crossing resolution", () => {
