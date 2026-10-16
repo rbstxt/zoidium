@@ -20,7 +20,9 @@ function handles(s) {
   );
   const keys = item.kind.startsWith("gradient")
     ? ["startPoint", "endPoint"]
-    : item.kind === "repeater"
+    : item.kind === "twist"
+      ? ["center"]
+      : ["repeater", "wiggleTransform"].includes(item.kind)
       ? ["anchor"]
       : [];
   return keys.map((key) => ({ key, point: p[key], matrix: m, item }));

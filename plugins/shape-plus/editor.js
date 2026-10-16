@@ -166,7 +166,7 @@ function install(context, Layer, Content) {
     const editable = entry && [...entry.ancestors, entry.item].every(item => item.properties.enabled.get() !== 0) &&
       inverse([...entry.ancestors, ...(entry.item.kind === "group" ? [entry.item] : [])].reduce((m, group) => multiply(m, matrix(group.evaluate(editor.playback.currentFrame - clip.start + (clip.offset || 0)).properties)), identity));
     const visible = enabled && layer && (!entry || editable) && (tool === "pen" || editable &&
-      ["path", "rectangle", "ellipse", "polystar", "gradientFill", "gradientStroke", "repeater"].includes(item.kind));
+      ["path", "rectangle", "ellipse", "polystar", "gradientFill", "gradientStroke", "repeater", "twist", "wiggleTransform"].includes(item.kind));
     if (view && (!visible || view.state.layer !== layer || !view.state.valid())) { view.dispose(); view = null; }
     if (visible && !view) {
       view = mountOverlay(context, layer, Content, viewport, panels, tool);
