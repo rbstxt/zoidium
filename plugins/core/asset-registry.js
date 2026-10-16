@@ -160,9 +160,11 @@
     }
     // Built-in and plugin files are listed only while something uses them;
     // unused ones are internal dependencies (shader presets, decoders), not
-    // items the user imported.
-    const array = Array.from(items.values()).filter(item => item.usages.length || item.inMedia ||
-      (item.source !== "preset" && item.source !== "plugin"));
+    // items the user imported. Built-in and plugin shaders are effect
+    // internals and are never listed; imported shader files are.
+    const builtIn = item => item.source === "preset" || item.source === "plugin";
+    const array = Array.from(items.values()).filter(item => !(item.kind === "shader" && builtIn(item)) &&
+      (item.usages.length || item.inMedia || !builtIn(item)));
     for (const item of array) if (!Object.prototype.hasOwnProperty.call(item, "asset")) {
       Object.defineProperty(item, "asset", { value: null, enumerable: false });
     }
