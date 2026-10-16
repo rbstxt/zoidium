@@ -56,13 +56,9 @@ parts.sharedDepth = function ({ PZ, THREE, teardown, patchMethod, masterAt, Came
     entry.sceneReady = false;
     try {
       if (layer instanceof PZ.layer.scene && layer.pass?.camera) {
-        const material = layer.threeObj.overrideMaterial;
-        try {
-          layer.threeObj.overrideMaterial = entry.dof.depthMaterial;
-          entry.sceneDepth.viewport.copy(this.readBuffer.viewport);
-          this.renderer.render(layer.threeObj, layer.pass.camera, entry.sceneDepth, true);
-          entry.sceneReady = true;
-        } finally { layer.threeObj.overrideMaterial = material; }
+        entry.sceneDepth.viewport.copy(this.readBuffer.viewport);
+        entry.dof.renderDepth(this.renderer, entry.sceneDepth, layer.threeObj, layer.pass.camera, true);
+        entry.sceneReady = true;
       }
       return originalLayer.apply(this, arguments);
     } finally {

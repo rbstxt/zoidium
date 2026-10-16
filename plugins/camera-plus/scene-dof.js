@@ -231,6 +231,7 @@ parts.dof = (function () {
     function SceneDof() {
       this.enabled = false;
       this.depthMaterial = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking });
+      this.pointDepthMaterials = new Map();
       // The passes share the uniform objects, so configure() and the
       // per-render sizes reach all of them.
       const uniforms = {
@@ -341,27 +342,87 @@ parts.dof = (function () {
       this.setSize(target.width, target.height);
       this.colorTarget.viewport.copy(viewport);
       this.depthTarget.viewport.copy(viewport);
-      const previous = scene.overrideMaterial;
       renderer.render(scene, camera, this.colorTarget, forceClear);
-      const hidden = [];
-      scene.traverse?.((node) => {
-        if (node.__zoidiumOpticalFlareQuad) {
-          hidden.push([node, node.visible]);
-          node.visible = false;
-        }
-      });
-      try {
-        scene.overrideMaterial = this.depthMaterial;
-        renderer.render(scene, camera, this.depthTarget, forceClear);
-      } finally {
-        scene.overrideMaterial = previous;
-        for (const [node, visible] of hidden) node.visible = visible;
-      }
+      this.renderDepth(renderer, this.depthTarget, scene, camera, forceClear);
       this.composite(renderer, this.colorTarget.texture, this.depthTarget.texture, viewport.z, viewport.w,
         viewport.z / target.width, viewport.w / target.height, target, forceClear);
     };
 
+    // Keep each point shader's positions, sizes and sprite alpha. The generic
+    // mesh override has none of those, including native GPU particle motion.
+    SceneDof.prototype.pointDepthMaterial = function (source) {
+      let material = this.pointDepthMaterials.get(source);
+      if (!material) {
+        material = source.clone();
+        this.pointDepthMaterials.set(source, material);
+      }
+      const signature = [source.vertexShader, source.fragmentShader, JSON.stringify(source.defines),
+        source.map?.uuid, source.alphaMap?.uuid, source.alphaTest, source.sizeAttenuation,
+        source.side, source.onBeforeCompile.toString()].join("|");
+      material.copy(source);
+      // ShaderMaterial uniforms change every frame. Retain the live objects;
+      // PointsMaterial's built-in uniforms still get refreshed by Three.js.
+      if (source.uniforms) material.uniforms = source.uniforms;
+      material.blending = THREE.NoBlending;
+      material.depthWrite = true;
+      material.onBeforeCompile = function (shader, renderer) {
+        source.onBeforeCompile.call(this, shader, renderer);
+        shader.fragmentShader = shader.fragmentShader.replace(/void\s+main\s*\(\s*(?:void)?\s*\)/,
+          "void cameraPlusSpriteColor()") + `
+          void main() {
+            cameraPlusSpriteColor();
+            if (gl_FragColor.a < 0.004) discard;
+            vec4 packed = vec4(fract(gl_FragCoord.z * vec3(16777216., 65536., 256.)), gl_FragCoord.z);
+            packed.yzw -= packed.xyz / 256.;
+            gl_FragColor = packed * (256. / 255.);
+          }`;
+      };
+      // Three.js includes this string in the program key. Preserve custom
+      // source hooks as well as the depth wrapper's identity.
+      material.onBeforeCompile.toString = () => source.onBeforeCompile.toString() + "cameraPlusSpriteDepth";
+      if (material.__cameraPlusSignature !== signature) material.needsUpdate = true;
+      material.__cameraPlusSignature = signature;
+      return material;
+    };
+
+    SceneDof.prototype.renderDepth = function (renderer, target, scene, camera, forceClear) {
+      const previous = scene.overrideMaterial;
+      const hidden = [], changed = [], nodes = [], used = new Set();
+      scene.traverse?.(node => nodes.push(node));
+      const hasPoints = nodes.some(node => node.isPoints);
+      try {
+        for (const node of nodes) {
+          if (node.__zoidiumOpticalFlareQuad) {
+            hidden.push([node, node.visible]);
+            node.visible = false;
+          }
+          if (!hasPoints || !node.material) continue;
+          changed.push([node, node.material]);
+          const depth = source => {
+            if (source.visible === false) return source;
+            if (!node.isPoints) return this.depthMaterial;
+            used.add(source);
+            return this.pointDepthMaterial(source);
+          };
+          node.material = Array.isArray(node.material) ? node.material.map(depth) : depth(node.material);
+        }
+        scene.overrideMaterial = hasPoints ? null : this.depthMaterial;
+        renderer.render(scene, camera, target, forceClear);
+      } finally {
+        scene.overrideMaterial = previous;
+        for (const [node, material] of changed) node.material = material;
+        for (const [node, visible] of hidden) node.visible = visible;
+        for (const [source, material] of this.pointDepthMaterials) {
+          if (used.has(source)) continue;
+          material.dispose();
+          this.pointDepthMaterials.delete(source);
+        }
+      }
+    };
+
     SceneDof.prototype.unload = function () {
+      for (const material of this.pointDepthMaterials.values()) material.dispose();
+      this.pointDepthMaterials.clear();
       for (const key of ["colorTarget", "depthTarget", "tileTarget", "dilateTarget"]) {
         if (this[key]) this[key].dispose();
         this[key] = null;
