@@ -412,7 +412,7 @@ rotate to their lexicographically first point, then sort deterministically.
 
 Each clipping input permits 4096 points and coordinates up to one million
 pixels in magnitude. The intersection budget is 262144 events. Offset amount
-is limited to 100000 pixels, its predicted arc work to 262144 points, and output
+is limited to 100000 pixels, its predicted arc work to 32768 points, and output
 to 16384 points. Round arcs use the requested flatten tolerance, capped at 0.25
 pixels and floored at one grid unit. The normal arrangement/triangle budgets
 still apply afterward. Over-budget work fails explicitly. Deformation and smooth
