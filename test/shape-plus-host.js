@@ -35,7 +35,7 @@ class Property extends ObjectNode {
   }
   toJSON() { return this.objects ? { objects: this.objects } : this.definition.dynamic ? this.data : this.value; }
 }
-Property.type = { NUMBER: 0, VECTOR2: 1, VECTOR3: 2, COLOR: 4, OPTION: 6, TEXT: 7, LIST: 9 };
+Property.type = { NUMBER: 0, VECTOR2: 1, VECTOR3: 2, COLOR: 4, GRADIENT: 5, OPTION: 6, TEXT: 7, LIST: 9 };
 class PropertyList {
   constructor(definitions, parent) {
     Object.defineProperty(this, "parent", { value: parent });

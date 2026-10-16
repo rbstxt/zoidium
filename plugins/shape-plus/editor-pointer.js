@@ -1,5 +1,6 @@
 "use strict";
 const { selectionKey, selectionPart } = require("./editor-selection.js");
+const controls = require("./editor-controls.js");
 const g = require("./editor-geometry.js");
 const { createPointerMachine } = require("./editor-pointer-machine.js");
 function createPointer(s, canvas) {
@@ -141,6 +142,8 @@ function createPointer(s, canvas) {
       };
     }
     s.editor.playback.speed = 0;
+    const control = controls.beginHandle(s, start, point);
+    if (control) return control;
     if (s.tool === "pen" && api.hit(start)?.kind !== "handle")
       return pen(event, start);
     let hit = api.hit(start),
@@ -158,6 +161,19 @@ function createPointer(s, canvas) {
       } else item = null;
     }
     const frame = s.localFrame();
+    if (s.tool === "select" && hit?.kind === "segment") {
+      const origin = s.pathPoints(), startLocal = api.local(start);
+      if (!startLocal) return null;
+      return { frame, target: item.id, move(e) {
+        if (Math.hypot(...g.sub(point(e),start)) < 2 && !s.gesture.active) return;
+        const p = api.local(point(e)); if (!p) return;
+        transaction(() => {
+          s.setPoints(controls.bend(origin,hit.index,hit.t,g.sub(p,startLocal),!!item.properties.closed.get()));
+          const next = (hit.index + 1) % item.vertexIds.length;
+          for (const index of [hit.index,next]) item.vertexModes[item.vertexIds[index]] = "independent";
+        });
+      }, end() { s.gesture.finish(); }, cancel() { s.gesture.finish(true); } };
+    }
     if (hit && ["anchor", "handle"].includes(hit.kind)) {
       const id = item.vertexIds[hit.index],
         key = selectionKey(id, hit.kind === "handle" ? hit.side : null);
@@ -340,7 +356,7 @@ function createPointer(s, canvas) {
     (event) => {
       const gesture = begin(event);
       if (gesture && gesture.frame !== undefined)
-        gesture.matrix = JSON.stringify(api.active()?.matrix);
+        gesture.matrix = JSON.stringify(api.activeMatrix());
       return gesture;
     },
     canvas.ownerDocument.defaultView,

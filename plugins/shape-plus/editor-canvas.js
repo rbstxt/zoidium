@@ -3,6 +3,7 @@ const { selectionKey, selectionPart } = require("./editor-selection.js");
 const g = require("./editor-geometry.js");
 const { matrix, transform, identity } = require("./compiler.js");
 const { primitivePath } = require("./primitives.js");
+const controls = require("./editor-controls.js");
 const { createPreview } = require("./editor-preview.js");
 const { verticesToCubics } = require("./path.js");
 function scene(
@@ -283,6 +284,7 @@ function createCanvas(s, canvas) {
         context.strokeRect(v.point[0] - 4, v.point[1] - 4, 8, 8);
       });
     }
+    controls.draw(s, context, accent);
     if (s.marquee) {
       const { start, end } = s.marquee;
       context.fillStyle = "rgb(" + color("--zui-accent-rgb") + " / .12)";
@@ -332,6 +334,7 @@ function createCanvas(s, canvas) {
     fit,
     entries,
     active,
+    activeMatrix: () => active()?.matrix || controls.handles(s)[0]?.matrix,
     screen,
     local,
     cssPoints,

@@ -17,6 +17,19 @@ function install(context) {
   } }));
   PZ.ui.objectTypes.set(Content, Object.keys(titles).map(kind => ({ type: kind, name: titles[kind], desc: "Add " + titles[kind].toLowerCase() + " to the contents." })));
   own(() => PZ.ui.objectTypes.delete(Content));
+  // CM3's picker reads/writes without a frame. Supply local UI time while
+  // preserving the real property identity, address, observables and history.
+  own(apis.propertyControls.register("shape-plus/gradient", { type: PZ.property.type.GRADIENT, create(property) {
+    const frame = () => window.CM.playback.currentFrame - property.frameOffset;
+    const facade = new Proxy(property, { get(target, key) {
+      if (key === "definition") return { ...target.definition, zoidiumControl: undefined };
+      if (key === "get") return () => target.get(frame());
+      if (key === "set") return value => target.set(value, frame());
+      const value = Reflect.get(target, key, target);
+      return typeof value === "function" ? value.bind(target) : value;
+    } });
+    return PZ.ui.controls.generateGradientInput(facade);
+  } }));
   // The group is a real native dynamic.group. Its aggregate row controls all
   // channels; the ordinary child rows expose numeric editing in the Edit tree.
   own(apis.propertyControls.register("shape-plus/path", { type: PZ.property.type.NUMBER, create(property) {

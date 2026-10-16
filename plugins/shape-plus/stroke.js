@@ -37,8 +37,8 @@ function outlines(paths, style, tolerance = .125) {
       const d = [(q[0] - p[0]) / length, (q[1] - p[1]) / length], normal = [-d[1] * (radii?.[i] ?? radius), d[0] * (radii?.[i] ?? radius)];
       const endNormal = [-d[1] * (radii?.[(i + 1) % n] ?? radius), d[0] * (radii?.[(i + 1) % n] ?? radius)];
       directions.push(d); normals.push(normal);
-      const a = !path.closed && i === 0 && style.cap === "square" ? add(p, scaled(d, -radius)) : p;
-      const b = !path.closed && i === count - 1 && style.cap === "square" ? add(q, scaled(d, radius)) : q;
+      const a = !path.closed && i === 0 && style.cap === "square" ? add(p, scaled(d, -(radii?.[i] ?? radius))) : p;
+      const b = !path.closed && i === count - 1 && style.cap === "square" ? add(q, scaled(d, radii?.[(i + 1) % n] ?? radius)) : q;
       push([add(a, normal), add(a, scaled(normal, -1)), add(b, scaled(endNormal, -1)), add(b, endNormal)]);
     }
     for (let i = path.closed ? 0 : 1; i < (path.closed ? n : n - 1); i++) {
@@ -61,7 +61,7 @@ function outlines(paths, style, tolerance = .125) {
     }
     if (!path.closed && style.cap === "round") {
       const start = directions[0], end = directions[count - 1];
-      push([points[0], ...arc(points[0], radius, Math.atan2(start[1], start[0]) + Math.PI / 2, Math.PI, tolerance)]);
+      push([points[0], ...arc(points[0], radii?.[0] ?? radius, Math.atan2(start[1], start[0]) + Math.PI / 2, Math.PI, tolerance)]);
       push([points[n - 1], ...arc(points[n - 1], radii?.[n - 1] ?? radius, Math.atan2(end[1], end[0]) - Math.PI / 2, Math.PI, tolerance)]);
     }
   }
