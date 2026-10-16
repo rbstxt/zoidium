@@ -107,6 +107,7 @@
       prepareFrameSamples(effect, frame, context) {
         return prepareFrameSamples(this, effect, frame, context);
       },
+      usesSingleEvaluation: layers.usesSingleEvaluation,
       mapLayerFrame(layer, localFrame) {
         const sequence = getSequenceForLayer(layer);
         return getTemporalLayerFrame(layer, localFrame, sequence);
@@ -147,7 +148,7 @@
       installEffectUpdatePatches(state, this);
       const context = state.contexts[state.contexts.length - 1];
       const mapped =
-        context?.renderingSequence &&
+        context?.renderingSequence && !context.singleEvaluation &&
         !state.evaluatingLayers.has(this) &&
         !state.restoringLayers.has(this)
           ? state.mapLayerFrame(this, frame)
@@ -188,7 +189,10 @@
 
     prototype.renderSequence = function temporalRenderSequence(frame) {
       registerCompositor(state, this);
+      const singleEvaluation = layers.usesSingleEvaluation(this._sequence);
+      if (singleEvaluation) layers.installSingleEvaluation(state, this._sequence);
       state.contexts.push({
+        singleEvaluation,
         compositor: this,
         frameSamplerDepth: 0,
         outputFrame: frame,
@@ -220,6 +224,9 @@
     };
 
     prototype.renderLayer = function temporalRenderLayer(layer) {
+      if (state.contexts[state.contexts.length - 1]?.singleEvaluation) {
+        return state.originalRenderLayer.apply(this, arguments);
+      }
       const sequenceMapping = layer?.__zoidiumTemporalSequenceMapping;
       if (sequenceMapping && !state.evaluatingLayers.has(layer)) {
         if (sequenceMapping.renderOnly) {
@@ -297,7 +304,9 @@
         const mapped = layer ? getTemporalLayerFrame(layer, localFrame, sequence) : null;
         const isProceduralSchedule =
           this.type === PZ.schedule?.type?.NONE || !found.item.media;
-        if (mapped && isProceduralSchedule) {
+        const singleEvaluation = layers.usesSingleEvaluation(sequence);
+        if ((mapped || singleEvaluation) && isProceduralSchedule) {
+          const sourceProjectFrame = mapped?.projectFrame ?? projectFrame;
           // Procedural clips (Scene/Adjustment) can render beyond their
           // out-point. The original prepare() would look up the schedule at
           // the warped source frame, find no item, and leave the previous
@@ -307,13 +316,16 @@
           const itemIndex = Array.prototype.indexOf.call(this.items, found.item);
           if (Number.isInteger(itemIndex) && itemIndex >= 0) this.index = itemIndex;
           try {
-            clip.update(mapped.projectFrame);
+            // Plain clock operators evaluate in renderSequence, after all
+            // async resources settle. prepare() reads properties at its
+            // explicit frame and does not need a second content update.
+            if (!singleEvaluation) clip.update(sourceProjectFrame);
           } catch (_error) {
             if (args[0]?.previewFrameCacheStrict) throw _error;
             // A failing procedural update must not break the export loop.
           }
           try {
-            if (typeof clip.prepare === "function") await clip.prepare(mapped.projectFrame, args[0]);
+            if (typeof clip.prepare === "function") await clip.prepare(sourceProjectFrame, args[0]);
           } catch (_error) {
             if (args[0]?.previewFrameCacheStrict) throw _error;
             // Ignore prepare failures here; the compositor still renders.

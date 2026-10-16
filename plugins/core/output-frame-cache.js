@@ -361,7 +361,14 @@
 
   function entryKey(controller, frame) { return controller.id + ":" + frame; }
 
+  function plainTimeProject(viewport) {
+    return global.PZ?.zoidium?.temporal?.usesSingleEvaluation?.(viewport.editor.project.sequence);
+  }
+
   function render(viewport, fallback) {
+    // A clock change needs one live evaluation, with no private project,
+    // serialization or speculative renders. Samplers keep their cache path.
+    if (plainTimeProject(viewport)) return fallback();
     if (disposed || viewport.__zoidiumImmediateOutput || viewport.renderMode || !store.limit ||
       !viewport.options?.widget2dObjects) return fallback();
     const frame = viewport.editor.playback.currentFrame;
@@ -505,7 +512,7 @@
     const viewport = controller.viewport;
     const epoch = signalEpoch;
     const valid = () => !disposed && !controller.disposed && !debug.disabled && controller.key === key &&
-      signalEpoch === epoch && viewport.editor.playback.speed === 0 &&
+      signalEpoch === epoch && !plainTimeProject(viewport) && viewport.editor.playback.speed === 0 &&
       viewport.editor.playback.currentFrame === current && !viewport.renderMode;
     const snapshot = snapshotFor(controller, key);
     const sequence = snapshot.project.sequence;
@@ -561,6 +568,10 @@
     if (quiet < IDLE_MS) { scheduleIdle(IDLE_MS - quiet); return; }
     for (const controller of controllers) {
       const viewport = controller.viewport;
+      if (plainTimeProject(viewport)) {
+        if (!controller.prefetching) disposeSnapshot(controller);
+        continue;
+      }
       if (controller.prefetching || controller.disposed || viewport.renderMode || viewport.editor.playback.speed !== 0) continue;
       // Draws that ran live left the key unvalidated; validate it now.
       if (controller.validated !== signalEpoch && currentKey(controller) === LIVE) {
