@@ -7,6 +7,7 @@ const { createTree } = require("./editor-tree.js");
 const { installActions } = require("./editor-actions.js");
 const { matrix, identity } = require("./compiler.js");
 const { multiply } = require("./editor-geometry.js");
+const { icon: ownedIcon } = require("./editor-icons.js");
 const treeData = require("./editor-tree-data.js");
 function mountEditor(context, layer, Content, body, host, initial) {
   const document = body.ownerDocument,
@@ -43,7 +44,7 @@ function mountEditor(context, layer, Content, body, host, initial) {
     return el;
   };
   s.icon = (name) => {
-    const el = PZ.ui.generateIcon(name);
+    const el = ownedIcon(document, name) || PZ.ui.generateIcon(name);
     el.classList.add("sp-icon");
     el.setAttribute("aria-hidden", "true");
     return el;
@@ -69,9 +70,9 @@ function mountEditor(context, layer, Content, body, host, initial) {
   toolbar.setAttribute("aria-label", "Shape tools");
   const tools = {};
   for (const [tool, label, icon] of [
-    ["select", "Select (V)", "change"],
-    ["pen", "Pen (P)", "edit"],
-    ["hand", "Hand (H)", "move"],
+    ["select", "Select (V)", "select"],
+    ["pen", "Pen (P)", "pen"],
+    ["hand", "Hand (H)", "hand"],
   ]) {
     tools[tool] = s.button(label, icon, () => {
       s.pointer.cancel();
@@ -92,7 +93,7 @@ function mountEditor(context, layer, Content, body, host, initial) {
   ]) {
     const button = s.button(
       "Add " + label,
-      "shape",
+      kind,
       () => {
         s.mutate(() => s.addItem(kind));
         s.canvas.focus();
@@ -240,7 +241,7 @@ function mountEditor(context, layer, Content, body, host, initial) {
     tree = createTree(s, treeContainer);
   const properties = context.ui.properties({
     target: () => s.active()?.properties || null,
-    keys: (name) => !["name", "enabled", "path"].includes(name),
+    keys: (name) => name !== "name",
     labelWidth: 0.44,
   });
   propertiesContainer.append(properties.element);
