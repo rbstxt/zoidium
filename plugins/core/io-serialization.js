@@ -207,10 +207,11 @@
     const quality = Math.max(0, Math.floor(Number(params.quality) || 0));
     const profile = profiles && profiles[quality] ? profiles[quality] : {};
     const bitrateScale = Number(profile.bitrate) || 1;
+    const optionScale = Number(params.bitrateScale) > 0 ? Number(params.bitrateScale) : 1;
     const audioScale = Number(profile.abr) || 1;
     let videoBitrate = (width / 640) * (height / 360) * 1000000;
     if (rate > 30) videoBitrate *= 1.5;
-    videoBitrate *= bitrateScale;
+    videoBitrate *= bitrateScale * optionScale;
     const audioBitrate = 64000 * audioScale;
     const expectedOutput = ((videoBitrate + audioBitrate) * (frames / rate)) / 8;
     return Math.max(
