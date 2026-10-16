@@ -101,6 +101,11 @@ function install(PZ, Layer, Content, onDispose) {
     }
     return track;
   });
+  onDispose(() => {
+    if (!panels) return;
+    const selected = Array.from(panels.top.selection).filter(item => !(item instanceof Content));
+    panels.top.selection.splice(0, panels.top.selection.length, ...selected);
+  });
   return panels;
 }
 module.exports = { install, connectObjectsPanel, findObjectsPanel };
