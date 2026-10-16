@@ -1,9 +1,8 @@
 "use strict";
 const { find } = require("./editor-tree-data.js");
-const { matrix, identity, transform } = require("./compiler.js");
+const { matrix, identity } = require("./compiler.js");
 const {
   multiply,
-  inverse,
   sub,
   add,
   mul,
@@ -32,7 +31,7 @@ function draw(s, context, color) {
   context.save();
   context.strokeStyle = color;
   context.fillStyle = color;
-  context.lineWidth = 1.5;
+  context.lineWidth = 1;
   context.beginPath();
   list.forEach((h, i) => {
     const point = s.canvasApi.screen(h.point, h.matrix);
@@ -60,16 +59,8 @@ function beginHandle(s, start, point) {
       Math.hypot(...sub(s.canvasApi.screen(h.point, h.matrix), start)) <= 10,
   );
   if (!h) return null;
-  const inv = inverse(h.matrix);
-  if (!inv) return null;
-  const local = (css) =>
-    transform(
-      [
-        (css[0] - s.canvasApi.view.x) / s.canvasApi.view.zoom,
-        (s.canvasApi.view.y - css[1]) / s.canvasApi.view.zoom,
-      ],
-      inv,
-    );
+  const local = css => s.canvasApi.local(css, { matrix: h.matrix });
+  if (!local(start)) return null;
   const origin = local(start),
     frame = s.localFrame();
   return {

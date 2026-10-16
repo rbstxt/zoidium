@@ -1,60 +1,88 @@
 "use strict";
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { install } = require("../plugins/shape-plus/native-ui");
-test("native Edit exposes only owned contents, focuses deep numeric selections and reverses its hooks", () => {
-  class Node { get parentObject() { return this.parent; } }
-  class Layer extends Node {}
-  class Content extends Node {}
-  class Group extends Node {}
-  class Observable {
-    constructor() { this.watchers = []; }
-    watch(fn) { this.watchers.push(fn); }
-    unwatch(fn) { this.watchers.splice(this.watchers.indexOf(fn), 1); }
-    update() { for (const fn of this.watchers) fn(); }
+const { connectObjectsPanel, findObjectsPanel } = require("../plugins/shape-plus/native-ui");
+const { PZ } = require("./shape-plus-host");
+const { createModel } = require("../plugins/shape-plus/model");
+test("Objects filters admit Shape+ lists and retain every native filter result", () => {
+  const { Content } = createModel(PZ), dispose = [];
+  class Object3d {}
+  const native = new PZ.objectList(null, Object3d);
+  const contents = new PZ.objectList(null, Content);
+  const properties = new PZ.propertyList({}, null);
+  const top = { options: { childFilter: child => child === native }, objectsChanged() {} };
+  const bottom = { options: { childFilter: child => child !== native }, objectsChanged() {} };
+  const originalTop = top.options.childFilter, originalBottom = bottom.options.childFilter;
+  connectObjectsPanel(PZ, top, bottom, Content, fn => dispose.push(fn));
+  assert.equal(top.options.childFilter(contents), true);
+  assert.equal(bottom.options.childFilter(contents), false);
+  for (const child of [native, properties, {}, null]) {
+    assert.equal(top.options.childFilter(child), originalTop(child));
+    assert.equal(bottom.options.childFilter(child), originalBottom(child));
   }
-  class Edit {
-    constructor() {
-      this.options = { childFilter: () => false, showListItemButtons: false, keyframePanel: {} };
-      this.selection = []; this.objects = [new Layer()]; this.onEnabledChanged = new Observable(); this.enabled = true;
+  for (const fn of dispose.reverse()) fn();
+  assert.equal(top.options.childFilter, originalTop);
+  assert.equal(bottom.options.childFilter, originalBottom);
+});
+test("Objects panel discovery uses the viewport selection identity", () => {
+  class Edit {}
+  const top = new Edit(), bottom = new Edit(), effects = new Edit();
+  top.selection = []; bottom.objects = top.selection; effects.selection = [];
+  const document = { querySelectorAll: () => [effects, top, bottom].map(pz_panel => ({ pz_panel })) };
+  assert.deepEqual(findObjectsPanel({ ui: { edit: Edit } }, { mainViewport: { options: { helper3dObjects: top.selection } } }, document), { top, bottom });
+});
+
+test("cached native list factories support add, clone, reorder and deletion history without a schema change", t => {
+  const fs = require("node:fs"), vm = require("node:vm"), path = require("node:path");
+  const cache = path.resolve(__dirname, "../.zoidium-resources");
+  if (!fs.existsSync(path.join(cache, "core-1.0.102.js"))) { t.skip("CM3 cache unavailable"); return; }
+  const core = fs.readFileSync(path.join(cache, "core-1.0.102.js"), "utf8");
+  const ui = fs.readFileSync(path.join(cache, "ui-1.0.72.js"), "utf8");
+  class Observable { watch() {} unwatch() {} update() {} }
+  class Node {
+    get parentObject() { return this.parent?.parentObject; }
+    getAddress(child) {
+      const address = this.parent ? this.parent.getAddress(this) : [];
+      if (child) address.push(this.children.indexOf(child));
+      return address;
     }
-    generateListItem(container, object) { return this.options.childFilter(object.contents); }
-    generateItemCommands() { return this.options.showListItemButtons; }
-    selectItems() {}
   }
-  class Keyframes {
-    createKeyframeTrack() {
-      const classes = new Set();
-      return { classes, classList: { add: c => classes.add(c) }, pz_label: { classList: { add() {} } } };
-    }
-  }
-  const PZ = { ui: { edit: Edit, timeline: { keyframes: Keyframes } }, property: { dynamic: { group: Group } } };
-  const original = Edit.prototype.generateListItem, cleanup = [], styles = [];
-  const previousDocument = global.document;
-  global.document = { createElement: () => ({ remove() { styles.pop(); } }), head: { appendChild: style => styles.push(style) } };
-  try {
-    install(PZ, Layer, Content, fn => cleanup.push(fn));
-    const edit = new Edit(), object = new Content(); object.contents = [];
-    const filter = edit.options.childFilter;
-    assert.equal(edit.generateListItem(null, object), true);
-    assert.equal(edit.options.childFilter, filter);
-    assert.equal(edit.generateListItem(null, { contents: [] }), false);
-    assert.equal(edit.generateItemCommands(null, object), true);
-    assert.equal(edit.options.showListItemButtons, false);
-    const channel = new Node(); channel.parent = object;
-    edit.selection = [channel]; edit.selectItems();
-    assert.equal(edit.options.keyframePanel.objects, edit.selection);
-    edit.options.keyframePanel.objects = edit.objects; edit.onEnabledChanged.update();
-    assert.equal(edit.options.keyframePanel.objects, edit.selection, "tab reactivation keeps the selected contents root");
-    const group = new Group(); group.definition = { zoidiumControl: "shape-plus/path" }; channel.parent = group; group.parent = object;
-    const timeline = new Keyframes();
-    assert.equal(timeline.createKeyframeTrack({ pz_parent: { pz_object: group } }, channel).classes.has("shape-plus-path-channel"), true);
-    assert.equal(timeline.createKeyframeTrack({}, channel).classes.size, 0, "a directly selected scalar remains inspectable");
-    edit.selection = []; edit.selectItems();
-    assert.equal(edit.options.keyframePanel.objects, edit.objects);
-    for (const dispose of cleanup.reverse()) dispose();
-    assert.equal(Edit.prototype.generateListItem, original);
-    assert.equal(edit.onEnabledChanged.watchers.length, 0);
-    assert.equal(styles.length, 0);
-  } finally { global.document = previousDocument; }
+  const Host = { ...PZ, object: Node, observable: Observable, ui: { edit: function () {} } };
+  const sandbox = { PZ: Host };
+  // Execute the actual classes and structural commands from the ignored cache.
+  // Native runtime text is never checked into the repository.
+  vm.runInNewContext(core.slice(core.indexOf("PZ.objectList=class"), core.indexOf(",PZ.objectSingleton=class")), sandbox);
+  const start = ui.indexOf("createObject(e){", ui.indexOf("PZ.ui.edit.prototype="));
+  const end = ui.indexOf(",generateAdd:", start);
+  vm.runInNewContext("PZ.ui.edit.prototype={" + ui.slice(start, end) + "}", sandbox);
+  const { Content } = createModel(Host), root = new Node();
+  root.contents = new Host.objectList(root, Content); root.children = [root.contents];
+  let operation = null;
+  const undo = [], redo = [];
+  const history = {
+    pushCommand(fn, data) { operation.push(() => fn(data)); },
+    run(work, destination = undo) { operation = []; work(); destination.push(operation); operation = null; },
+    replay(source, destination) {
+      const commands = source.pop();
+      this.run(() => { for (const command of commands.slice().reverse()) command(); }, destination);
+    },
+  };
+  const panel = new Host.ui.edit();
+  panel.editor = { history, project: { addressLookup: address => address.reduce((node, key) => node.children ? node.children[key] : node[key], root) } };
+  const add = (kind, data) => panel.createObject({ newParentAddress: [0], baseType: Content, subType: kind, data });
+  history.run(() => add("rectangle", { id: "rect", properties: {} }));
+  history.run(() => add("stroke", { id: "paint", properties: {} }));
+  const saved = JSON.stringify(root.contents);
+  history.run(() => add("rectangle", JSON.parse(JSON.stringify(root.contents[0]))));
+  assert.notEqual(root.contents[0].id, root.contents[2].id);
+  history.replay(undo, redo); assert.equal(JSON.stringify(root.contents), saved);
+  history.replay(redo, undo); assert.equal(root.contents.length, 3);
+  history.run(() => panel.moveObject({ oldParentAddress: [0], oldIdx: 2, newParentAddress: [0], newIdx: 0 }));
+  assert.equal(root.contents[1].id, "rect");
+  history.replay(undo, redo); assert.equal(root.contents[0].id, "rect");
+  const beforeDelete = JSON.stringify(root.contents);
+  history.run(() => panel.deleteObject({ oldParentAddress: [0], oldIdx: 0 }));
+  history.replay(undo, redo); assert.equal(JSON.stringify(root.contents), beforeDelete);
+  const roundtrip = new Content("group"); roundtrip.load({ contents: JSON.parse(beforeDelete) });
+  assert.equal(JSON.stringify(roundtrip.contents), beforeDelete);
 });
