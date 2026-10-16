@@ -8,6 +8,13 @@ copy of the CM3 source page or its runtime resources.
 
 Do not use the `panzoid-shader` skill in this repository.
 
+## Response language
+
+Answer in the language the questioner uses. If they write in Japanese, reply
+in Japanese; if they write in English, reply in English. This rule governs
+agent replies only and does not change the "User-facing text language" rule,
+which still requires all Zoidium-owned runtime text to be in English.
+
 ## Quick start
 
 ```bash
