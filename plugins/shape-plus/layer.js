@@ -47,7 +47,7 @@ function createLayerClass(PZ, THREE, Content) {
       super.update(frame);
     }
     build(tolerance) {
-      const contents = Array.from(this.contents, node => node.evaluate(this.frame));
+      const contents = Array.from(this.contents, node => node.evaluate(this.frame, this.parentProject.sequence.properties.rate.get()));
       const resolution = this.properties.resolution.get(), signature = JSON.stringify([contents, tolerance, resolution]);
       if (signature === this.signature) return;
       const result = compile(contents, tolerance);

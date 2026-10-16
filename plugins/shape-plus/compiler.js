@@ -24,7 +24,7 @@ function transformCommand(command, m) {
 // A group's own paints run in its local coordinates BEFORE its transform.
 function compile(contents, tolerance = .125, depth = 0, budget = { coordinates: 0, points: 0 }) {
   if (depth > 16) throw Error("Shape+ group depth budget exceeded");
-  const advanced = list => list.some(item => ["trim", "roundCorners", "repeater", "gradientFill", "gradientStroke"].includes(item.kind) || item.properties.composite === "above" || item.contents && advanced(item.contents));
+  const advanced = list => list.some(item => ["trim", "roundCorners", "repeater", "gradientFill", "gradientStroke", "twist", "zigZag", "puckerBloat", "wigglePaths", "wiggleTransform", "offsetPaths", "mergePaths"].includes(item.kind) || item.properties.composite === "above" || item.contents && advanced(item.contents));
   if (advanced(contents)) return require("./compiler-procedural.js").procedural(contents, tolerance, depth, budget, { matrix, transform, transformCommand });
   const paths = [], schedule = [];
   for (const item of contents) {
