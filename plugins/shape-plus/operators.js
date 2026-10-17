@@ -1,4 +1,5 @@
 "use strict";
+const { check } = require("./geometry-budget.js");
 const { lengthTable, mix, distance, flattenPath } = require("./path.js");
 const clamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v));
 const wrap = (v, period = 1) => ((v % period) + period) % period;
@@ -6,8 +7,9 @@ const MAX_FRAGMENTS = 2048;
 function at(path, length, table = lengthTable(path.points, path.closed)) {
   const s = clamp(length, 0, table.total),
     points = path.points;
-  let i = 1;
-  while (i < table.lengths.length - 1 && table.lengths[i] < s) i++;
+  let low = 1, high = table.lengths.length - 1;
+  while (low < high) { const mid = (low + high) >>> 1; if (table.lengths[mid] < s) low = mid + 1; else high = mid; }
+  const i = low;
   const start = table.lengths[i - 1],
     end = table.lengths[i];
   return end > start
@@ -18,8 +20,8 @@ function at(path, length, table = lengthTable(path.points, path.closed)) {
       )
     : points[0]?.slice() || [0, 0];
 }
-function slice(path, start, end) {
-  const table = lengthTable(path.points, path.closed),
+function slice(path, start, end, table = lengthTable(path.points, path.closed), corners = path.vertices?.filter(v => v.corner !== false && Math.hypot(...v.in, ...v.out) < 1e-9)) {
+  const
     points = [at(path, start, table)],
     distances = [start];
   for (let i = 1; i < table.lengths.length; i++)
@@ -33,7 +35,7 @@ function slice(path, start, end) {
     point,
     in: [0, 0],
     out: [0, 0],
-    corner: !!path.vertices?.some(
+    corner: !!corners?.some(
       (v) =>
         v.corner !== false &&
         distance(v.point, point) < 1e-8 &&
@@ -117,7 +119,8 @@ function dash(paths, style) {
     throw Error("Shape+ dash pattern must have a positive length");
   const result = [];
   for (const path of paths) {
-    const total = lengthTable(path.points, path.closed).total,
+    const table = lengthTable(path.points, path.closed), total = table.total,
+      corners = path.vertices?.filter(v => v.corner !== false && Math.hypot(...v.in, ...v.out) < 1e-9),
       pieces = [];
     let phase = wrap(style.dashOffset || 0, period),
       index = 0;
@@ -128,11 +131,12 @@ function dash(paths, style) {
     let cursor = 0,
       visits = 0;
     while (cursor < total - 1e-9) {
+      check();
       if (++visits > MAX_FRAGMENTS * 8)
         throw Error("Shape+ dash fragment budget exceeded");
       const end = Math.min(total, cursor + pattern[index] - phase);
       if (index % 2 === 0 && end > cursor + 1e-9) {
-        const piece = slice(path, cursor, end),
+        const piece = slice(path, cursor, end, table, corners),
           previous = pieces.at(-1);
         if (previous && Math.abs(previous.distances.at(-1) - cursor) < 1e-9) {
           previous.points.push(...piece.points.slice(1));

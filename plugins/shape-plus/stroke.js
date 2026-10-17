@@ -1,5 +1,6 @@
 "use strict";
 const { area, triangulate } = require("./fill.js");
+const { check } = require("./geometry-budget.js");
 const { distance } = require("./path.js");
 const add = (a, b) => [a[0] + b[0], a[1] + b[1]];
 const scaled = (a, s) => [a[0] * s, a[1] * s];
@@ -11,13 +12,14 @@ function arc(center, radius, from, sweep, tolerance) {
   if (count > 2048) throw Error("Shape+ stroke arc budget exceeded");
   return Array.from({ length: count + 1 }, (_, i) => add(center, [radius * Math.cos(from + sweep * i / count), radius * Math.sin(from + sweep * i / count)]));
 }
-function outlines(paths, style, tolerance = .125) {
+function outlines(paths, style, tolerance = .125, maxPoints = 16384) {
   const polygons = []; let radius = Math.max(0, style.width) / 2;
   if (!radius) return polygons;
   let vertices = 0;
   const push = polygon => {
+    check();
     vertices += polygon.length;
-    if (vertices > 16384) throw Error("Shape+ stroke outline budget exceeded");
+    if (vertices > maxPoints) throw Error("Shape+ stroke outline budget exceeded");
     if (area(polygon) < 0) polygon.reverse(); polygons.push(polygon);
   };
   for (const path of paths) {
@@ -68,13 +70,14 @@ function outlines(paths, style, tolerance = .125) {
   }
   return polygons;
 }
-function stroke(paths, style, tolerance) {
+function legacyStroke(paths, style, tolerance) {
   const profiled = style.dashPairs > 0 || style.startLength > 0 || style.endLength > 0 || style.waveAmount > 0;
   if(!profiled&&paths.some(path=>path.proceduralGeometry)) {
     const topology=require("./topology.js");
     return topology.tessellate(topology.strokeRegion(paths,style,tolerance),"nonzero");
   }
   const polygons=outlines(profiled ? require("./stroke-profile.js").profile(paths, style) : paths, style, tolerance);
+  try {
   if(paths.some(path=>path.proceduralGeometry)) {
     // New nonlinear/topology geometry can produce many tiny join rectangles.
     // Union them with the bounded clipping stage before slab triangulation.
@@ -82,5 +85,15 @@ function stroke(paths, style, tolerance) {
     return require("./topology.js").tessellate(polygons.map(points=>({closed:true,points})),"nonzero",true);
   }
   return triangulate(polygons, "nonzero");
+  } catch (error) { error.shapePlusPolygons = polygons; throw error; }
 }
-module.exports = { arc, outlines, stroke };
+function stroke(paths, style, tolerance) {
+  return require("./geometry-budget.js").bounded(() => {
+    try { return require("./geometry-budget.js").bounded(() => legacyStroke(paths, style, tolerance), 25); }
+    catch (error) {
+      if (!/budget exceeded|ProcessIntersections error/.test(error.message)) throw error;
+      return require("./stroke-scalable.js").stroke(paths, style, tolerance, error.shapePlusPolygons);
+    }
+  });
+}
+module.exports = { arc, outlines, stroke, legacyStroke };

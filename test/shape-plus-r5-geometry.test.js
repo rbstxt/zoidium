@@ -284,7 +284,7 @@ test("topology quantization has symmetric half ties and bounded work", () => {
   assert.throws(
     () =>
       merge(
-        Array.from({ length: 1025 }, () => square()),
+        Array.from({ length: 8193 }, () => square()),
         { mode: "add" },
       ),
     /point/,
