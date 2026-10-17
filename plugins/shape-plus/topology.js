@@ -18,6 +18,21 @@ function intersectionBudget(work) {
     proto[name] = function (...args) { check(); return saved.apply(this, args); };
     restore.push(() => { proto[name] = saved; });
   }
+  const simple = proto.DoSimplePolygons;
+  proto.DoSimplePolygons = function () {
+    // The native pass is quadratic even when there is nothing to split.
+    // A linear precheck is exact: without repeated coordinates it is a no-op.
+    for (const record of this.m_PolyOuts) {
+      check();
+      if (!record.Pts || record.IsOpen) continue;
+      const seen = new Set();let point=record.Pts;
+      do {
+        const key=point.Pt.X+","+point.Pt.Y;
+        if(seen.has(key))return simple.call(this);
+        seen.add(key);point=point.Next;
+      }while(point!==record.Pts);
+    }
+  };
   let probes = 0;
   // These predicates also run inside Clipper's quadratic duplicate search
   // and active-edge sorting, before IntersectEdges gets a chance to run.
