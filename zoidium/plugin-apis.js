@@ -38,6 +38,24 @@
   // layer, object and effect in it.
   var MAX_CONTAINER_GENERATIONS = 3;
 
+  // Lists of CM3's own classes are left to CM3. Their keyframes belong to the
+  // panel that edits them (a Scene layer's 3D objects to Objects, a layer's
+  // effects to Effects), so a selected clip must not list them under itself.
+  var NATIVE_LIST_TYPES = [
+    ["object3d"], ["effect"], ["layer"], ["shape"], ["draw"], ["media"], ["keyframe"],
+    ["clip", "video"], ["clip", "audio"], ["track", "video"], ["track", "audio"],
+  ];
+
+  function nativeListTypes(PZ) {
+    var types = [];
+    NATIVE_LIST_TYPES.forEach(function (path) {
+      var value = PZ;
+      for (var index = 0; index < path.length && value; index += 1) value = value[path[index]];
+      if (typeof value === "function") types.push(value);
+    });
+    return types;
+  }
+
   // Object tracks above `container`: CM3 places a child list right after its
   // parent track and records that track as the list's pz_parent.
   function objectGeneration(PZ, container) {
@@ -54,6 +72,7 @@
     var proto = PZ && PZ.ui && PZ.ui.timeline && PZ.ui.timeline.keyframes && PZ.ui.timeline.keyframes.prototype;
     if (!proto || typeof proto.createKeyframeTrack !== "function" || proto.createKeyframeTrack.__zoidiumContainers) return;
     var original = proto.createKeyframeTrack;
+    var nativeTypes = nativeListTypes(PZ);
     function createKeyframeTrack(container, object) {
       var track = original.apply(this, arguments);
       if (!track) return track;
@@ -63,7 +82,8 @@
       for (var index = children.length - 1; index >= 0; index -= 1) {
         var child = children[index];
         if (child instanceof PZ.objectList && !(child instanceof PZ.objectSingleton) &&
-            child.type !== PZ.property && child.type !== PZ.property.dynamic) {
+            child.type !== PZ.property && child.type !== PZ.property.dynamic &&
+            nativeTypes.indexOf(child.type) < 0) {
           this.createTrackList(track, child);
         }
       }
