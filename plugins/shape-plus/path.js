@@ -1,4 +1,5 @@
 "use strict";
+const { check } = require("./geometry-budget.js");
 const mix = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
 const distance = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
 function split(c, t = .5) {
@@ -24,6 +25,7 @@ function flatten(c, tolerance = .125, budget = 4096) {
   if (!Number.isInteger(budget) || budget < 2 || budget > 4096) throw Error("Invalid Shape+ point budget");
   const points = [c[0].slice()], stack = [{ c, depth: 0 }];
   while (stack.length) {
+    check();
     const item = stack.pop(), curve = item.c;
     const error = Math.max(segmentDistance(curve[1], curve[0], curve[3]), segmentDistance(curve[2], curve[0], curve[3]));
     if (error <= tolerance) points.push(curve[3].slice());
@@ -49,7 +51,7 @@ function flattenPath(path, tolerance) {
     const next = flatten(c, tolerance);
     if (points.length) next.shift();
     points.push(...next);
-    if (points.length > 4096) throw Error("Shape+ path point budget exceeded");
+    if (points.length > 32768) throw Error("Shape+ path point budget exceeded");
   }
   if (path.closed && points.length && distance(points[0], points[points.length - 1]) < 1e-9) points.pop();
   return { points, closed: path.closed, id: path.id };

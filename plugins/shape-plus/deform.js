@@ -1,4 +1,5 @@
 "use strict";
+const { check } = require("./geometry-budget.js");
 const {
   flattenPath,
   verticesToCubics,
@@ -59,13 +60,14 @@ function resample(path, spacing = 8) {
     count = path.closed ? source.length : source.length - 1;
   const segments = [];
   for (let i = 0; i < count; i++) {
+    check();
     const a = source[i],
       b = source[(i + 1) % source.length];
     const n = Math.max(
       1,
       Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / spacing),
     );
-    if (points.length + n + 1 > 4096)
+    if (points.length + n + 1 > 32768)
       throw Error("Shape+ deformation point budget exceeded");
     for (let j = 0; j < n; j++) {
       points.push(a.map((v, k) => v + ((b[k] - v) * j) / n));
@@ -148,6 +150,7 @@ function deform(path, kind, p, tolerance = 0.125) {
   const sampled = resample(path, spacing);
   const n = sampled.points.length;
   const points = sampled.points.map((point, i) => {
+    if ((i & 63) === 0) check();
     const dx = point[0] - center[0],
       dy = point[1] - center[1];
     if (kind === "twist") {
