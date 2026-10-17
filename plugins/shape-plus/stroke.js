@@ -11,13 +11,14 @@ function arc(center, radius, from, sweep, tolerance) {
   if (count > 2048) throw Error("Shape+ stroke arc budget exceeded");
   return Array.from({ length: count + 1 }, (_, i) => add(center, [radius * Math.cos(from + sweep * i / count), radius * Math.sin(from + sweep * i / count)]));
 }
-function outlines(paths, style, tolerance = .125) {
+function outlines(paths, style, tolerance = .125, maxPoints = 16384) {
   const polygons = []; let radius = Math.max(0, style.width) / 2;
   if (!radius) return polygons;
   let vertices = 0;
   const push = polygon => {
+    require("./geometry-budget.js").check();
     vertices += polygon.length;
-    if (vertices > 16384) throw Error("Shape+ stroke outline budget exceeded");
+    if (vertices > maxPoints) throw Error("Shape+ stroke outline budget exceeded");
     if (area(polygon) < 0) polygon.reverse(); polygons.push(polygon);
   };
   for (const path of paths) {
@@ -68,7 +69,7 @@ function outlines(paths, style, tolerance = .125) {
   }
   return polygons;
 }
-function stroke(paths, style, tolerance) {
+function legacyStroke(paths, style, tolerance) {
   const profiled = style.dashPairs > 0 || style.startLength > 0 || style.endLength > 0 || style.waveAmount > 0;
   if(!profiled&&paths.some(path=>path.proceduralGeometry)) {
     const topology=require("./topology.js");
@@ -83,4 +84,13 @@ function stroke(paths, style, tolerance) {
   }
   return triangulate(polygons, "nonzero");
 }
-module.exports = { arc, outlines, stroke };
+function stroke(paths, style, tolerance) {
+  return require("./geometry-budget.js").bounded(() => {
+    try { return require("./geometry-budget.js").bounded(() => legacyStroke(paths, style, tolerance), 25); }
+    catch (error) {
+      if (!/budget exceeded/.test(error.message)) throw error;
+      return require("./stroke-scalable.js").stroke(paths, style, tolerance);
+    }
+  });
+}
+module.exports = { arc, outlines, stroke, legacyStroke };
