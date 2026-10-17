@@ -22,7 +22,7 @@ function profile(paths, style) {
         ? total / Math.max(0.01, style.wavelength)
         : (style.waveCycles ?? 1);
     const step = total / Math.max(128, Math.ceil(cycles * 32));
-    if (!(step > 0) || total / step > 4096)
+    if (!(step > 0) || total / step > 32768)
       throw Error("Shape+ width profile budget exceeded");
     for (let i = 1; i < table.lengths.length; i++) {
     check();

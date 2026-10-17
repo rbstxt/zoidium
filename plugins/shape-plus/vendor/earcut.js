@@ -19,6 +19,12 @@ THIS SOFTWARE.
 */
 'use strict';
 
+// Zoidium modification: bound time inside the ear and hole search loops.
+const budgetCheck = require('../geometry-budget.js').check;
+let budgetVisits = 0;
+function checkpoint() { if ((++budgetVisits & 255) === 0) budgetCheck(); }
+
+
 module.exports = earcut;
 module.exports.default = earcut;
 
@@ -87,6 +93,7 @@ function filterPoints(start, end) {
     var p = start,
         again;
     do {
+        checkpoint();
         again = false;
 
         if (!p.steiner && (equals(p, p.next) || area(p.prev, p, p.next) === 0)) {
@@ -115,6 +122,7 @@ function earcutLinked(ear, triangles, dim, minX, minY, invSize, pass) {
 
     // iterate through ears, slicing them one by one
     while (ear.prev !== ear.next) {
+        checkpoint();
         prev = ear.prev;
         next = ear.next;
 
@@ -175,6 +183,7 @@ function isEar(ear) {
 
     var p = c.next;
     while (p !== a) {
+        checkpoint();
         if (p.x >= x0 && p.x <= x1 && p.y >= y0 && p.y <= y1 &&
             pointInTriangle(ax, ay, bx, by, cx, cy, p.x, p.y) &&
             area(p.prev, p, p.next) >= 0) return false;
@@ -208,6 +217,7 @@ function isEarHashed(ear, minX, minY, invSize) {
 
     // look for points inside the triangle in both directions
     while (p && p.z >= minZ && n && n.z <= maxZ) {
+        checkpoint();
         if (p.x >= x0 && p.x <= x1 && p.y >= y0 && p.y <= y1 && p !== a && p !== c &&
             pointInTriangle(ax, ay, bx, by, cx, cy, p.x, p.y) && area(p.prev, p, p.next) >= 0) return false;
         p = p.prevZ;
@@ -219,6 +229,7 @@ function isEarHashed(ear, minX, minY, invSize) {
 
     // look for remaining points in decreasing z-order
     while (p && p.z >= minZ) {
+        checkpoint();
         if (p.x >= x0 && p.x <= x1 && p.y >= y0 && p.y <= y1 && p !== a && p !== c &&
             pointInTriangle(ax, ay, bx, by, cx, cy, p.x, p.y) && area(p.prev, p, p.next) >= 0) return false;
         p = p.prevZ;
@@ -226,6 +237,7 @@ function isEarHashed(ear, minX, minY, invSize) {
 
     // look for remaining points in increasing z-order
     while (n && n.z <= maxZ) {
+        checkpoint();
         if (n.x >= x0 && n.x <= x1 && n.y >= y0 && n.y <= y1 && n !== a && n !== c &&
             pointInTriangle(ax, ay, bx, by, cx, cy, n.x, n.y) && area(n.prev, n, n.next) >= 0) return false;
         n = n.nextZ;
@@ -238,6 +250,7 @@ function isEarHashed(ear, minX, minY, invSize) {
 function cureLocalIntersections(start, triangles, dim) {
     var p = start;
     do {
+        checkpoint();
         var a = p.prev,
             b = p.next.next;
 
@@ -264,8 +277,10 @@ function splitEarcut(start, triangles, dim, minX, minY, invSize) {
     // look for a valid diagonal that divides the polygon into two
     var a = start;
     do {
+        checkpoint();
         var b = a.next.next;
         while (b !== a.prev) {
+            checkpoint();
             if (a.i !== b.i && isValidDiagonal(a, b)) {
                 // split the polygon in two by the diagonal
                 var c = splitPolygon(a, b);
@@ -337,6 +352,7 @@ function findHoleBridge(hole, outerNode) {
     // find a segment intersected by a ray from the hole's leftmost point to the left;
     // segment's endpoint with lesser x will be potential connection point
     do {
+        checkpoint();
         if (hy <= p.y && hy >= p.next.y && p.next.y !== p.y) {
             var x = p.x + (hy - p.y) * (p.next.x - p.x) / (p.next.y - p.y);
             if (x <= hx && x > qx) {
@@ -363,6 +379,8 @@ function findHoleBridge(hole, outerNode) {
     p = m;
 
     do {
+
+        checkpoint();
         if (hx >= p.x && p.x >= mx && hx !== p.x &&
                 pointInTriangle(hy < my ? hx : qx, hy, mx, my, hy < my ? qx : hx, hy, p.x, p.y)) {
 
@@ -390,6 +408,7 @@ function sectorContainsSector(m, p) {
 function indexCurve(start, minX, minY, invSize) {
     var p = start;
     do {
+        checkpoint();
         if (p.z === 0) p.z = zOrder(p.x, p.y, minX, minY, invSize);
         p.prevZ = p.prev;
         p.nextZ = p.next;
@@ -409,12 +428,16 @@ function sortLinked(list) {
         inSize = 1;
 
     do {
+
+        checkpoint();
         p = list;
         list = null;
         tail = null;
         numMerges = 0;
 
         while (p) {
+
+            checkpoint();
             numMerges++;
             q = p;
             pSize = 0;
@@ -426,6 +449,8 @@ function sortLinked(list) {
             qSize = inSize;
 
             while (pSize > 0 || (qSize > 0 && q)) {
+
+                checkpoint();
 
                 if (pSize !== 0 && (qSize === 0 || !q || p.z <= q.z)) {
                     e = p;
@@ -479,6 +504,7 @@ function getLeftmost(start) {
     var p = start,
         leftmost = start;
     do {
+        checkpoint();
         if (p.x < leftmost.x || (p.x === leftmost.x && p.y < leftmost.y)) leftmost = p;
         p = p.next;
     } while (p !== start);
@@ -541,6 +567,7 @@ function sign(num) {
 function intersectsPolygon(a, b) {
     var p = a;
     do {
+        checkpoint();
         if (p.i !== a.i && p.next.i !== a.i && p.i !== b.i && p.next.i !== b.i &&
                 intersects(p, p.next, a, b)) return true;
         p = p.next;
@@ -563,6 +590,7 @@ function middleInside(a, b) {
         px = (a.x + b.x) / 2,
         py = (a.y + b.y) / 2;
     do {
+        checkpoint();
         if (((p.y > py) !== (p.next.y > py)) && p.next.y !== p.y &&
                 (px < (p.next.x - p.x) * (py - p.y) / (p.next.y - p.y) + p.x))
             inside = !inside;

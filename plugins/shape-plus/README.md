@@ -480,3 +480,19 @@ import geometry uses viewBox pixel units. A complex import can hit the model's
 The automatic-backup race found during rapid project replacement is handled in
 `zoidium/project-restore.js`: a stale automatic archive is discarded and retried,
 while manual-save failures and unrelated backup errors still report normally.
+
+### Dense strokes and geometry failures
+
+Small strokes keep the original floating-point union tessellation. If its
+edge, intersection, or time budget is exhausted, Shape+ draws the same segment,
+join, and cap polygons into an opaque coverage mask. A separate paint quad
+applies the color, gradient, and opacity once. Self crossings therefore do not
+accumulate opacity. Masks share one render target and repeated paint copies
+share their coverage geometry.
+
+A synchronous compile has a 200 ms deadline. The legacy stroke attempt gets
+25 ms and topology modifiers get 75 ms within that deadline. Count limits also
+bound allocations. A failed paint is omitted with one English warning per
+item and error reason. Other valid paint items remain available. Content edits
+invalidate the normal signature cache and automatically retry geometry.
+Renderer failures restore the previous render target and clear settings.

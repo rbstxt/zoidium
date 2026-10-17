@@ -47,7 +47,7 @@ function createRenderer(THREE, sampleScale = "auto") {
   }
   function coverageTransform(mesh,command) {
     const m=command.coverageMatrix;
-    if(!m)return;
+    if(!m){if(mesh.matrixAutoUpdate===false){mesh.matrix.identity();mesh.matrixAutoUpdate=true;}return;}
     mesh.matrixAutoUpdate=false;
     mesh.matrix.set(m[0],m[2],0,m[4],m[1],m[3],0,m[5],0,0,1,0,0,0,0,1);
   }
@@ -190,6 +190,9 @@ function createRenderer(THREE, sampleScale = "auto") {
       resolveMaterial.uniforms.samples.value = scale;
       renderer.render(resolveScene, camera, destination, true);
       stats.renders++;
+    } catch (error) {
+      renderer.state?.reset();
+      throw error;
     } finally { renderer.setClearColor(clearColor, clearAlpha); renderer.autoClear = autoClear;
       if (renderer.setRenderTarget && previousTarget !== undefined) renderer.setRenderTarget(previousTarget);
     }
