@@ -13,7 +13,10 @@ const transform = (p, m) => [m[0] * p[0] + m[2] * p[1] + m[4], m[1] * p[0] + m[3
 function transformCommand(command, m) {
   if (command.kind === "isolation") return { ...command, commands: command.commands.map(c => transformCommand(c, m)) };
   const positions = [];
-  for (let i = 0; i < command.positions.length; i += 3) positions.push(...transform(command.positions.slice(i, i + 2), m), 0);
+  for (let i = 0; i < command.positions.length; i += 3) {
+    if ((i & 1023) === 0) require("./geometry-budget.js").check();
+    positions.push(...transform(command.positions.slice(i, i + 2), m), 0);
+  }
   const coverage = command.coverage;
   const b0 = command.coverageMatrix || identity;
   const coverageMatrix = coverage && [m[0]*b0[0]+m[2]*b0[1],m[1]*b0[0]+m[3]*b0[1],m[0]*b0[2]+m[2]*b0[3],m[1]*b0[2]+m[3]*b0[3],...transform([b0[4],b0[5]],m)];

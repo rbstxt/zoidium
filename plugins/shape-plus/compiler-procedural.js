@@ -156,7 +156,7 @@ function procedural(contents, tolerance, depth, budget, api) {
         else commands.unshift(paint);
       } else if (["offsetPaths", "mergePaths"].includes(item.kind)) {
         const paths = views.flatMap(viewPaths);
-        const changed = item.kind === "offsetPaths" ? offset(paths,p,itemTolerance,item.id) : merge(paths,p,item.id);
+        const changed = require("./geometry-budget.js").bounded(() => item.kind === "offsetPaths" ? offset(paths,p,itemTolerance,item.id) : merge(paths,p,item.id), 75);
         // Topology can combine/split owners. All earlier paints share the new
         // compound path in scope coordinates; keep their paint transforms.
         for (const view of views) view.base.paths = [];
@@ -245,12 +245,11 @@ function procedural(contents, tolerance, depth, budget, api) {
           };
         views.push({ base: { paths: [path] }, matrix: identity });
       }
-      const points = views.reduce(
-        (sum, view) =>
-          sum + view.base.paths.reduce((s, path) => s + path.points.length, 0),
-        0,
-      );
-      if (points > 16384 || views.length > 2048)
+      // Repeater descriptors share their source point arrays. Count allocated
+      // geometry, rather than charging each descriptor for the same points.
+      const pointSets = new Set(views.flatMap(view=>view.base.paths.map(path=>path.points)));
+      const points = Array.from(pointSets).reduce((sum,points)=>sum+points.length,0);
+      if (points > 131072 || views.length > 2048)
         throw Error("Shape+ path collection budget exceeded");
       } catch (error) {
         require("./geometry-failure.js").report(item.id, error);

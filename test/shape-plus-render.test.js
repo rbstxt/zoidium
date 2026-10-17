@@ -66,3 +66,17 @@ test("structural animation keeps a warm paint material instead of retiring the l
   engine.dispose();
   assert.ok(h.resources.every(resource => resource.disposals === 1));
 });
+test("a failed mask frame restores target, clear state and recovers on the next render",()=>{
+  const h=host(),engine=createRenderer(h.THREE),destination={viewport:{z:640,w:360}},oldTarget={};
+  let current=oldTarget,resets=0,fail=true;
+  h.renderer.getRenderTarget=()=>current;
+  h.renderer.setRenderTarget=value=>{current=value;};
+  h.renderer.state={reset(){resets++;}};
+  const render=h.renderer.render;
+  h.renderer.render=function(...args){current=args[2];if(fail)throw Error("frame failure");return render.apply(this,args);};
+  engine.setCommands([{...paint,coverage:paint.positions}],[640,360]);
+  assert.throws(()=>engine.render(h.renderer,destination),/frame failure/);
+  assert.equal(current,oldTarget);assert.equal(h.renderer.autoClear,false);assert.equal(resets,1);
+  fail=false;assert.doesNotThrow(()=>engine.render(h.renderer,destination));assert.equal(current,oldTarget);
+  engine.dispose();assert.ok(h.resources.every(r=>r.disposals===1));
+});

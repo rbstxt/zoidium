@@ -2,7 +2,7 @@
 const { check } = require("./geometry-budget.js");
 const C = require("./vendor/clipper.js");
 const GRID = 1024,
-  MAX_POINTS = 4096,
+  MAX_POINTS = 32768,
   MAX_INTERSECTIONS = 262144;
 // Clipping errors are caught at the paint boundary. Never open an alert.
 C.Error = (message) => {
@@ -89,7 +89,7 @@ function clip(subject, other, mode) {
   return result;
 }
 function output(polygons, id) {
-  if (polygons.reduce((n, p) => n + p.length, 0) > 16384)
+  if (polygons.reduce((n, p) => n + p.length, 0) > 131072)
     throw Error("Shape+ clipping output budget exceeded");
   // Preserve Clipper's outer/hole winding. Canonical start/order breaks ties
   // without relying on engine traversal order or the previous frame.
@@ -149,7 +149,7 @@ function offset(paths, p, tolerance = 0.125, id = "offset") {
   const estimate =
     integers.reduce((n, path) => n + path.length, 0) *
     (3 + Math.PI * Math.sqrt(Math.abs(amount) / arcTolerance));
-  if (estimate > 32768) throw Error("Shape+ offset work budget exceeded");
+  if (estimate > 2097152) throw Error("Shape+ offset work budget exceeded");
   const engine = new C.ClipperOffset(
     Math.max(1, Math.min(100, p.miterLimit ?? 4)),
     arcTolerance * GRID,
@@ -180,7 +180,7 @@ function offset(paths, p, tolerance = 0.125, id = "offset") {
   const generate = engine.DoOffset;
   engine.DoOffset = function (delta) {
     generate.call(this, delta);
-    if (this.m_destPolys.reduce((sum, path) => sum + path.length, 0) > 16384)
+    if (this.m_destPolys.reduce((sum, path) => sum + path.length, 0) > 131072)
       throw Error("Shape+ offset output budget exceeded");
   };
   intersectionBudget(() => engine.Execute(result, amount * GRID));
@@ -193,7 +193,7 @@ function strokeRegion(paths, p, tolerance = 0.125) {
     throw Error("Shape+ stroke region width budget exceeded");
   const count = paths.reduce((n, path) => n + path.points.length, 0);
   if (
-    count > 16384 ||
+    count > 131072 ||
     count *
       (3 + Math.PI * Math.sqrt(width / 2 / Math.max(1 / GRID, tolerance))) >
       32768
@@ -243,7 +243,7 @@ function strokeRegion(paths, p, tolerance = 0.125) {
   const generate = engine.DoOffset;
   engine.DoOffset = function (delta) {
     generate.call(this, delta);
-    if (this.m_destPolys.reduce((n, p) => n + p.length, 0) > 16384)
+    if (this.m_destPolys.reduce((n, p) => n + p.length, 0) > 131072)
       throw Error("Shape+ stroke region budget exceeded");
   };
   const result = [];
@@ -257,7 +257,7 @@ function tessellate(paths, rule = "nonzero", clean = false) {
     tree = new C.PolyTree();
   let subject = integerPaths(
     paths.map((path) => ({ ...path, closed: true })),
-    16384,
+    131072,
   );
   if (clean) subject = C.Clipper.CleanPolygons(clip(subject, [], "add"), 1);
   engine.AddPaths(subject, C.PolyType.ptSubject, true);
@@ -291,7 +291,7 @@ function tessellate(paths, rule = "nonzero", clean = false) {
         append(hole);
       }
     points += data.length / 2;
-    if (points > 16384)
+    if (points > 131072)
       throw Error("Shape+ resolved polygon point budget exceeded");
     const indices = earcut(data, holes, 2);
     for (let i = 0; i < indices.length; i += 3) {

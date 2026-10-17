@@ -150,6 +150,7 @@ function deform(path, kind, p, tolerance = 0.125) {
   const sampled = resample(path, spacing);
   const n = sampled.points.length;
   const points = sampled.points.map((point, i) => {
+    if ((i & 63) === 0) check();
     const dx = point[0] - center[0],
       dy = point[1] - center[1];
     if (kind === "twist") {
