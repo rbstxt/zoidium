@@ -18,6 +18,14 @@ function intersectionBudget(work) {
     proto[name] = function (...args) { check(); return saved.apply(this, args); };
     restore.push(() => { proto[name] = saved; });
   }
+  let probes = 0;
+  // These predicates also run inside Clipper's quadratic duplicate search
+  // and active-edge sorting, before IntersectEdges gets a chance to run.
+  for (const [owner, name] of [[C.IntPoint, "op_Equality"], [C.Clipper, "TopX"]]) {
+    const saved = owner[name];
+    owner[name] = function (...args) { if ((++probes & 1023) === 0) check(); return saved.apply(this, args); };
+    restore.push(() => { owner[name] = saved; });
+  }
   let visits = 0;
   proto.IntersectEdges = function (...args) {
     if ((visits & 255) === 0) check();

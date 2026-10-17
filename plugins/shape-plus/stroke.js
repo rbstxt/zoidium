@@ -77,6 +77,7 @@ function legacyStroke(paths, style, tolerance) {
     return topology.tessellate(topology.strokeRegion(paths,style,tolerance),"nonzero");
   }
   const polygons=outlines(profiled ? require("./stroke-profile.js").profile(paths, style) : paths, style, tolerance);
+  try {
   if(paths.some(path=>path.proceduralGeometry)) {
     // New nonlinear/topology geometry can produce many tiny join rectangles.
     // Union them with the bounded clipping stage before slab triangulation.
@@ -84,13 +85,14 @@ function legacyStroke(paths, style, tolerance) {
     return require("./topology.js").tessellate(polygons.map(points=>({closed:true,points})),"nonzero",true);
   }
   return triangulate(polygons, "nonzero");
+  } catch (error) { error.shapePlusPolygons = polygons; throw error; }
 }
 function stroke(paths, style, tolerance) {
   return require("./geometry-budget.js").bounded(() => {
     try { return require("./geometry-budget.js").bounded(() => legacyStroke(paths, style, tolerance), 25); }
     catch (error) {
       if (!/budget exceeded|ProcessIntersections error/.test(error.message)) throw error;
-      return require("./stroke-scalable.js").stroke(paths, style, tolerance);
+      return require("./stroke-scalable.js").stroke(paths, style, tolerance, error.shapePlusPolygons);
     }
   });
 }

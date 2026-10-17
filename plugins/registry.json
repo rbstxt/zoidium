@@ -421,7 +421,7 @@
       "defaultEnabled": true,
       "manifest": "./plugins/shape-plus/manifest.json?v=10",
       "bundle": "./plugins/shape-plus/bundle.json?v=10",
-      "integrity": "sha256-f8pcEAkLfdAb3COpJQb3f9ECyay1y9ZCcTLZp4kH1VI="
+      "integrity": "sha256-gggEpqigERRgPDInyhQY5ILrRGrpuGtabPr2j41X5Tg="
     }
   ]
 }

@@ -1,4 +1,5 @@
 "use strict";
+const { check } = require("./geometry-budget.js");
 const { lengthTable } = require("./path.js");
 const { at, widthAt, dash } = require("./operators.js");
 function profile(paths, style) {
@@ -24,6 +25,7 @@ function profile(paths, style) {
     if (!(step > 0) || total / step > 4096)
       throw Error("Shape+ width profile budget exceeded");
     for (let i = 1; i < table.lengths.length; i++) {
+    check();
       const a = table.lengths[i - 1],
         b = table.lengths[i],
         count = Math.max(1, Math.ceil((b - a) / step));
