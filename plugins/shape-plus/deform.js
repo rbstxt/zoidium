@@ -65,7 +65,7 @@ function resample(path, spacing = 8) {
       1,
       Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / spacing),
     );
-    if (points.length + n + 1 > 4096)
+    if (points.length + n + 1 > 32768)
       throw Error("Shape+ deformation point budget exceeded");
     for (let j = 0; j < n; j++) {
       points.push(a.map((v, k) => v + ((b[k] - v) * j) / n));

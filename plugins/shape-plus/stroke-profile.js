@@ -37,7 +37,7 @@ function profile(paths, style) {
         widths.push(
           widthAt(domain > total ? domain % total : domain, total, style),
         );
-        if (points.length > 4096 || ++samples > 16384)
+        if (points.length > 32768 || ++samples > 65536)
           throw Error("Shape+ width profile budget exceeded");
       }
     }

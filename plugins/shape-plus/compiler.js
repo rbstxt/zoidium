@@ -14,15 +14,19 @@ function transformCommand(command, m) {
   if (command.kind === "isolation") return { ...command, commands: command.commands.map(c => transformCommand(c, m)) };
   const positions = [];
   for (let i = 0; i < command.positions.length; i += 3) positions.push(...transform(command.positions.slice(i, i + 2), m), 0);
-  if (!command.gradient) return { ...command, positions };
+  const coverage = command.coverage && transformCommand({positions:command.coverage},m).positions;
+  if (!command.gradient) return { ...command, positions, ...(coverage ? {coverage} : {}) };
   const a = m, b = command.gradient.matrix;
   const combined = [a[0]*b[0]+a[2]*b[1], a[1]*b[0]+a[3]*b[1], a[0]*b[2]+a[2]*b[3], a[1]*b[2]+a[3]*b[3], ...transform([b[4],b[5]],a)];
-  return { ...command, positions, gradient: { ...command.gradient, matrix: combined } };
+  return { ...command, positions, ...(coverage ? {coverage} : {}), gradient: { ...command.gradient, matrix: combined } };
 }
 // Contents run top-to-bottom for path collection, bottom-to-top for paint.
 // A parent paint sees paths in groups above it, in the parent's coordinates.
 // A group's own paints run in its local coordinates BEFORE its transform.
 function compile(contents, tolerance = .125, depth = 0, budget = { coordinates: 0, points: 0 }) {
+  return require("./geometry-budget.js").bounded(() => compileContents(contents, tolerance, depth, budget));
+}
+function compileContents(contents, tolerance, depth, budget) {
   if (depth > 16) throw Error("Shape+ group depth budget exceeded");
   const advanced = list => list.some(item => ["trim", "roundCorners", "repeater", "gradientFill", "gradientStroke", "twist", "zigZag", "puckerBloat", "wigglePaths", "wiggleTransform", "offsetPaths", "mergePaths"].includes(item.kind) || item.properties.composite === "above" || item.contents && advanced(item.contents));
   if (advanced(contents)) return require("./compiler-procedural.js").procedural(contents, tolerance, depth, budget, { matrix, transform, transformCommand });
@@ -37,10 +41,10 @@ function compile(contents, tolerance = .125, depth = 0, budget = { coordinates: 
       const commands = child.commands.map(c => transformCommand(c, m));
       schedule.push(p.opacity < 1 ? [{ kind: "isolation", id: item.id, opacity: Math.max(0, p.opacity), commands }] : commands);
     } else if (item.kind === "fill" || item.kind === "stroke") {
-      const positions = item.kind === "fill" ? triangulate(paths.map(path => path.points), p.fillRule) : stroke(paths, p, tolerance);
+      const positions = require("./geometry-failure.js").paint(item.id, () => item.kind === "fill" ? triangulate(paths.map(path => path.points), p.fillRule) : stroke(paths, p, tolerance));
       budget.coordinates += positions.length;
       if (budget.coordinates > 1800000) throw Error("Shape+ geometry budget exceeded");
-      schedule.push([{ kind: "paint", id: item.id, color: p.color.slice(), opacity: Math.max(0, Math.min(1, p.opacity)), positions }]);
+      schedule.push([{ kind: "paint", id: item.id, color: p.color.slice(), opacity: Math.max(0, Math.min(1, p.opacity)), positions, ...(positions.coverage ? { coverage: positions.coverage } : {}) }]);
     } else {
       const path = primitive(item, tolerance);
       budget.points += path.points.length;

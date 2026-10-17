@@ -255,6 +255,9 @@ function procedural(contents, tolerance, depth, budget, api) {
     return { views, commands };
   }
   function render(command) {
+    return require("./geometry-failure.js").paint(command.id, () => renderCommand(command));
+  }
+  function renderCommand(command) {
     if (command.kind === "group") {
       const children = command.commands
         .flatMap(render)
@@ -288,6 +291,7 @@ function procedural(contents, tolerance, depth, budget, api) {
         kind: "paint",
         id: command.id,
         positions,
+        ...(positions.coverage ? {coverage:positions.coverage} : {}),
         color: p.color?.slice() || [1, 1, 1],
         opacity: clamp(p.opacity),
         ...(command.type.startsWith("gradient")
