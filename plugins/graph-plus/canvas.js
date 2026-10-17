@@ -259,9 +259,12 @@ PZ.ui.graph.prototype.onSvgPointerDown = function (e) {
     }
     self2.updateStatus();
   };
-  beginPointerDrag(this.svg, e, mv, function () {
+  beginPointerDrag(this.svg, e, mv, function (end) {
     self2._dragging = null;
     self2.selectRect.style.display = "none";
+    // A click on empty graph space (no drag) clears the key selection, as in
+    // After Effects. Shift keeps it; a cancelled or blurred gesture keeps it too.
+    if (end && end.type === "pointerup" && !moved && !e.shiftKey && self2.selectedKeys().length) self2.deselectAllKeyframes();
     try { self2.applyToolCursor(); } catch (err) {}
     self2.updateStatus();
   });

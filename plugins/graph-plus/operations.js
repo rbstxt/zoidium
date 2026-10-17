@@ -349,7 +349,7 @@ PZ.ui.graph.prototype.updateStatus = function (extra) {
   pill("zoom <b>" + (Math.round(this.zoomX * 100) / 100) + " / " + (Math.round(this.zoomY * 1000) / 1000) + "</b>");
   pill((this.options.snap ? "snap ON" : "snap OFF") + " · " + (this.options.normalize ? "norm ON" : "norm OFF"), this.options.snap);
   if (extra) pill(escapeHtml(extra));
-  else pill("LMB:pan · MMB:select · RMB:scrub · dblclick:add · F:frame · \\:fit");
+  else pill("LMB:pan · click:deselect · MMB:select · RMB:scrub · dblclick:add · F:frame · \\:fit");
   // sync track-row highlight with selection
   try {
     if (this.tracksEl) {
