@@ -1,5 +1,6 @@
 "use strict";
 const { area, triangulate } = require("./fill.js");
+const { check } = require("./geometry-budget.js");
 const { distance } = require("./path.js");
 const add = (a, b) => [a[0] + b[0], a[1] + b[1]];
 const scaled = (a, s) => [a[0] * s, a[1] * s];
@@ -16,7 +17,7 @@ function outlines(paths, style, tolerance = .125, maxPoints = 16384) {
   if (!radius) return polygons;
   let vertices = 0;
   const push = polygon => {
-    require("./geometry-budget.js").check();
+    check();
     vertices += polygon.length;
     if (vertices > maxPoints) throw Error("Shape+ stroke outline budget exceeded");
     if (area(polygon) < 0) polygon.reverse(); polygons.push(polygon);
@@ -88,7 +89,7 @@ function stroke(paths, style, tolerance) {
   return require("./geometry-budget.js").bounded(() => {
     try { return require("./geometry-budget.js").bounded(() => legacyStroke(paths, style, tolerance), 25); }
     catch (error) {
-      if (!/budget exceeded/.test(error.message)) throw error;
+      if (!/budget exceeded|ProcessIntersections error/.test(error.message)) throw error;
       return require("./stroke-scalable.js").stroke(paths, style, tolerance);
     }
   });

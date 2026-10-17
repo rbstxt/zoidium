@@ -64,7 +64,19 @@ function createRenderer(THREE, sampleScale = "auto") {
         mesh = new THREE.Mesh(g, material(textureShader, { image: { value: child.target.texture }, opacity: { value: command.opacity } }));
       } else {
         if (!command.positions.length) { entries.push(null); continue; }
-        mesh = new THREE.Mesh(geometry(command.positions), command.gradient ? material(paintShader.fragmentShader, paintShader.uniforms(THREE, command), true, paintShader.vertexShader) : material("uniform vec3 color; uniform float opacity; void main(){gl_FragColor=vec4(color*opacity,opacity);}", { color: { value: new THREE.Color(...command.color) }, opacity: { value: command.opacity } }));
+        let fragment = command.gradient ? paintShader.fragmentShader : "uniform vec3 color; uniform float opacity; void main(){gl_FragColor=vec4(color*opacity,opacity);}";
+        const uniforms = command.gradient ? paintShader.uniforms(THREE, command) : { color: { value: new THREE.Color(...command.color) }, opacity: { value: command.opacity } };
+        if (command.coverage) {
+          const scene = new THREE.Scene();
+          const coverageMesh = new THREE.Mesh(geometry(command.coverage), material("void main(){gl_FragColor=vec4(1.0);}", {}, false));
+          coverageMesh.frustumCulled = false; scene.add(coverageMesh);
+          child = { scene, children: [], entries: [], target: target(), coverageMesh, positionsKey: JSON.stringify(command.coverage) };
+          children.push(child);
+          uniforms.coverage = { value: child.target.texture };
+          uniforms.coverageSize = { value: new THREE.Vector2() };
+          fragment = "uniform sampler2D coverage; uniform vec2 coverageSize;\n" + fragment.replace(/}\s*$/, "gl_FragColor*=texture2D(coverage,gl_FragCoord.xy/coverageSize);}");
+        }
+        mesh = new THREE.Mesh(geometry(command.positions), material(fragment, uniforms, true, command.gradient ? paintShader.vertexShader : vertexShader));
       }
       entries.push({ mesh, child, positionsKey: command.positions && JSON.stringify(command.positions) });
       mesh.renderOrder = order++; mesh.frustumCulled = false; scene.add(mesh);
@@ -76,8 +88,17 @@ function createRenderer(THREE, sampleScale = "auto") {
       const entry = node.entries[index];
       if (!entry) return;
       entry.mesh.material.uniforms.opacity.value = command.opacity;
-      if (entry.child) updateTree(entry.child, command.commands);
+      if (entry.child && !entry.child.coverageMesh) updateTree(entry.child, command.commands);
       else {
+        if (entry.child?.coverageMesh) {
+          const key = JSON.stringify(command.coverage);
+          if (key !== entry.child.positionsKey) {
+            const previous = entry.child.coverageMesh.geometry;
+            entry.child.coverageMesh.geometry = geometry(command.coverage); paintAllocations.add(entry.child.coverageMesh.geometry);
+            previous.dispose(); allocations.delete(previous); paintAllocations.delete(previous);
+            entry.child.positionsKey = key;
+          }
+        }
         if (command.gradient) {
           const uniforms = paintShader.uniforms(THREE, command);
           for (const key of Object.keys(uniforms)) entry.mesh.material.uniforms[key].value = uniforms[key].value;
@@ -93,7 +114,7 @@ function createRenderer(THREE, sampleScale = "auto") {
     });
   }
   function setCommands(commands, logicalResolution) {
-    const structure = list => list.map(c => c.kind === "isolation" ? [c.kind, c.id, structure(c.commands)] : [c.kind, c.id, !!c.positions.length, !!c.gradient]);
+    const structure = list => list.map(c => c.kind === "isolation" ? [c.kind, c.id, structure(c.commands)] : [c.kind, c.id, !!c.positions.length, !!c.gradient, !!c.coverage]);
     const key = JSON.stringify([logicalResolution, structure(commands)]);
     if (root && key === structureKey) { updateTree(root, commands); return; }
     releaseTree(); resolution = logicalResolution.slice();
@@ -110,6 +131,7 @@ function createRenderer(THREE, sampleScale = "auto") {
   shapeCamera.position.z = 10;
   function renderTree(node, renderer) {
     for (const child of node.children) renderTree(child, renderer);
+    for (const entry of node.entries) if (entry?.mesh.material.uniforms.coverageSize) entry.mesh.material.uniforms.coverageSize.value.set(size[0], size[1]);
     renderer.render(node.scene, shapeCamera, node.target, true);
   }
   const stats = { renders: 0, width: 0, height: 0, supersample: sampleScale };
@@ -128,6 +150,7 @@ function createRenderer(THREE, sampleScale = "auto") {
     shapeCamera.left = -resolution[0] / 2; shapeCamera.right = resolution[0] / 2;
     shapeCamera.top = resolution[1] / 2; shapeCamera.bottom = -resolution[1] / 2; shapeCamera.updateProjectionMatrix();
     const clearColor = renderer.getClearColor().clone(), clearAlpha = renderer.getClearAlpha(), autoClear = renderer.autoClear;
+    const previousTarget = renderer.getRenderTarget?.();
     try {
       renderer.setClearColor(0, 0); renderer.autoClear = true;
       renderTree(root, renderer);
@@ -136,7 +159,9 @@ function createRenderer(THREE, sampleScale = "auto") {
       resolveMaterial.uniforms.samples.value = scale;
       renderer.render(resolveScene, camera, destination, true);
       stats.renders++;
-    } finally { renderer.setClearColor(clearColor, clearAlpha); renderer.autoClear = autoClear; }
+    } finally { renderer.setClearColor(clearColor, clearAlpha); renderer.autoClear = autoClear;
+      if (renderer.setRenderTarget && previousTarget !== undefined) renderer.setRenderTarget(previousTarget);
+    }
   }
   function dispose() { releaseTree(); for (const resource of allocations) resource.dispose(); allocations.clear(); warmMaterials.clear(); }
   return { render, setCommands, dispose, stats, get scene() { return root?.scene; }, camera: shapeCamera };

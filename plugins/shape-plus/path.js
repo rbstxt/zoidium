@@ -49,7 +49,7 @@ function flattenPath(path, tolerance) {
     const next = flatten(c, tolerance);
     if (points.length) next.shift();
     points.push(...next);
-    if (points.length > 4096) throw Error("Shape+ path point budget exceeded");
+    if (points.length > 32768) throw Error("Shape+ path point budget exceeded");
   }
   if (path.closed && points.length && distance(points[0], points[points.length - 1]) < 1e-9) points.pop();
   return { points, closed: path.closed, id: path.id };

@@ -30,14 +30,11 @@ function install(PZ, Layer, Content, onDispose) {
   }
   const proto = PZ.ui.edit.prototype;
   const watched = new Map();
-  function contentTarget(object) {
-    for (let node = object, depth = 0; node && depth < 64; depth++, node = node.parent ? node.parentObject : null) if (node instanceof Content) return true;
-    return false;
-  }
+  const focus = require("./native-focus.js").createFocus(PZ, Content);
   function watchFocus(panel) {
     if (!panel.options.keyframePanel || watched.has(panel)) return;
     const refresh = () => {
-      if (panel.enabled && panel.selection.some(contentTarget)) panel.options.keyframePanel.objects = panel.selection;
+      if (panel.enabled) focus.refresh(panel);
     };
     panel.onEnabledChanged.watch(refresh); watched.set(panel, refresh);
   }
@@ -89,19 +86,12 @@ function install(PZ, Layer, Content, onDispose) {
     }
     return result;
   });
-  const focused = new Set();
   patch(proto, "selectItems", original => function () {
     const result = original.apply(this, arguments);
-    if (this.options.keyframePanel) {
-      if (this.selection.some(contentTarget)) {
-        // Selection becomes the root, so an arbitrary nested item remains
-        // within the shared three-generation timeline traversal budget.
-        this.options.keyframePanel.objects = this.selection; focused.add(this);
-      } else if (focused.delete(this)) this.options.keyframePanel.objects = this.objects;
-    }
+    focus.refresh(this);
     return result;
   });
-  onDispose(() => { for (const panel of focused) panel.options.keyframePanel.objects = panel.objects; focused.clear(); });
+  onDispose(() => focus.dispose());
   // Native dynamic.group builds an aggregate key containing all child keys.
   // Keep the native channel tracks alive for history/Graph+, but show only
   // the Path aggregate in the timeline. Edit still exposes every channel.

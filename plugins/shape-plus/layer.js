@@ -14,12 +14,14 @@ function createLayerClass(PZ, THREE, Content) {
       this.children.splice(1, 0, this.contents);
       this.engine = createRenderer(THREE);
       this.pass = { render: (renderer, destination) => {
+        try {
         const width = Math.max(1, destination.viewport.z), height = Math.max(1, destination.viewport.w);
         const resolution = this.properties.resolution.get();
         const scale = this.properties.scale.get(this.frame);
         const pixelScale = Math.max(width / resolution[0], height / resolution[1]) * Math.max(Math.abs(scale[0]), Math.abs(scale[1]), 1);
         this.build(.125 / Math.max(pixelScale, 1e-6));
         this.engine.render(renderer, destination);
+        } catch (error) { require("./geometry-failure.js").report(this.type, error); }
       } };
       this.frame = 0; this.signature = null; this.extra = {}; this.buildCount = 0;
     }
@@ -47,12 +49,18 @@ function createLayerClass(PZ, THREE, Content) {
       super.update(frame);
     }
     build(tolerance) {
+      try {
       const contents = Array.from(this.contents, node => node.evaluate(this.frame, this.parentProject.sequence.properties.rate.get()));
       const resolution = this.properties.resolution.get(), signature = JSON.stringify([contents, tolerance, resolution]);
       if (signature === this.signature) return;
       const result = compile(contents, tolerance);
       this.engine.setCommands(result.commands, resolution);
       this.signature = signature; this.buildCount++;
+      } catch (error) {
+        require("./geometry-failure.js").report(this.type, error);
+        this.engine.setCommands([], this.properties.resolution.get());
+        this.signature = null;
+      }
     }
     async prepare(frame, context) { await super.prepare(frame, context); }
     unload() {

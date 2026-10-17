@@ -1,4 +1,5 @@
 "use strict";
+const { check } = require("./geometry-budget.js");
 const C = require("./vendor/clipper.js");
 const GRID = 1024,
   MAX_POINTS = 4096,
@@ -11,15 +12,15 @@ function intersectionBudget(work) {
   const proto = C.Clipper.prototype,
     original = proto.IntersectEdges;
   const restore = [];
-  for (const name of ["BuildIntersectList", "FixupOutPolygon", "JoinCommonEdges", "ProcessEdgesAtTopOfScanbeam", "AddPath"]) {
+  for (const name of ["BuildIntersectList", "FixupOutPolygon", "DoSimplePolygons", "JoinCommonEdges", "ProcessEdgesAtTopOfScanbeam"]) {
     const saved = proto[name];
     if (!saved) continue;
-    proto[name] = function (...args) { require("./geometry-budget.js").check(); return saved.apply(this, args); };
+    proto[name] = function (...args) { check(); return saved.apply(this, args); };
     restore.push(() => { proto[name] = saved; });
   }
   let visits = 0;
   proto.IntersectEdges = function (...args) {
-    if ((visits & 255) === 0) require("./geometry-budget.js").check();
+    if ((visits & 255) === 0) check();
     if (++visits > MAX_INTERSECTIONS)
       throw Error("Shape+ clipping intersection budget exceeded");
     return original.apply(this, args);
@@ -55,7 +56,7 @@ function clip(subject, other, mode) {
   let visits = 0;
   const intersect = engine.IntersectEdges;
   engine.IntersectEdges = function (...args) {
-    if ((visits & 255) === 0) require("./geometry-budget.js").check();
+    if ((visits & 255) === 0) check();
     if (++visits > MAX_INTERSECTIONS)
       throw Error("Shape+ clipping intersection budget exceeded");
     return intersect.apply(this, args);
@@ -243,12 +244,12 @@ function strokeRegion(paths, p, tolerance = 0.125) {
 }
 // Earcut receives only simple Clipper polygons, with explicit hole ancestry.
 // It never receives unresolved crossings or guesses the input winding rule.
-function tessellate(paths, rule = "nonzero", clean = false, maxPoints = 16384) {
+function tessellate(paths, rule = "nonzero", clean = false) {
   const engine = new C.Clipper(C.Clipper.ioStrictlySimple),
     tree = new C.PolyTree();
   let subject = integerPaths(
     paths.map((path) => ({ ...path, closed: true })),
-    maxPoints,
+    16384,
   );
   if (clean) subject = C.Clipper.CleanPolygons(clip(subject, [], "add"), 1);
   engine.AddPaths(subject, C.PolyType.ptSubject, true);
@@ -282,8 +283,7 @@ function tessellate(paths, rule = "nonzero", clean = false, maxPoints = 16384) {
         append(hole);
       }
     points += data.length / 2;
-    require("./geometry-budget.js").check();
-    if (points > maxPoints)
+    if (points > 16384)
       throw Error("Shape+ resolved polygon point budget exceeded");
     const indices = earcut(data, holes, 2);
     for (let i = 0; i < indices.length; i += 3) {
@@ -309,7 +309,4 @@ module.exports = {
   tessellate,
   strokeRegion,
   GRID,
-  clip,
-  output,
-  intersectionBudget,
 };

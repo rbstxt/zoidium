@@ -1,4 +1,5 @@
 "use strict";
+const { check } = require("./geometry-budget.js");
 const cross = (a, b) => a[0] * b[1] - a[1] * b[0];
 function area(points) {
   let sum = 0;
@@ -23,7 +24,7 @@ function triangulate(contours, rule = "nonzero") {
   }
   if (edges.length > 4096) throw Error("Shape+ polygon edge budget exceeded");
   for (let i = 0; i < edges.length; i++) for (let j = i + 1; j < edges.length; j++) {
-    if ((j & 255) === 0) require("./geometry-budget.js").check();
+    if ((j & 255) === 0) check();
     const e = edges[i], f = edges[j];
     if (Math.max(e.min, f.min) >= Math.min(e.max, f.max)) continue;
     if (Math.max(Math.min(e.a[0], e.b[0]), Math.min(f.a[0], f.b[0])) > Math.min(Math.max(e.a[0], e.b[0]), Math.max(f.a[0], f.b[0]))) continue;
@@ -43,7 +44,7 @@ function triangulate(contours, rule = "nonzero") {
   }
   let work = 0;
   for (let i = 0; i < ys.length - 1; i++) {
-    require("./geometry-budget.js").check();
+    check();
     const low = ys[i], high = ys[i + 1], mid = (low + high) / 2;
     if (high - low < 1e-10) continue;
     work += edges.length;
