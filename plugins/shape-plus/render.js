@@ -33,6 +33,24 @@ function createRenderer(THREE, sampleScale = "auto") {
     g.addAttribute("position", new THREE.BufferAttribute(values, 3));
     allocations.add(g); return g;
   }
+  const coverageGeometries = new Map();
+  function coverageGeometry(positions) {
+    let entry=coverageGeometries.get(positions);
+    if(!entry) {entry={geometry:geometry(positions),count:0};coverageGeometries.set(positions,entry);}
+    entry.count++;return entry.geometry;
+  }
+  function releaseCoverage(positions) {
+    const entry=coverageGeometries.get(positions);
+    if(entry && --entry.count===0) {
+      entry.geometry.dispose();allocations.delete(entry.geometry);paintAllocations.delete(entry.geometry);coverageGeometries.delete(positions);
+    }
+  }
+  function coverageTransform(mesh,command) {
+    const m=command.coverageMatrix;
+    if(!m)return;
+    mesh.matrixAutoUpdate=false;
+    mesh.matrix.set(m[0],m[2],0,m[4],m[1],m[3],0,m[5],0,0,1,0,0,0,0,1);
+  }
   function plane() { const g = new THREE.PlaneBufferGeometry(2, 2); allocations.add(g); return g; }
   const resolveScene = new THREE.Scene();
   const resolveShader = "varying vec2 uvShape; uniform sampler2D image; uniform vec2 texel; uniform float samples; void main(){if(samples>2.5){vec4 c=texture2D(image,uvShape+texel)+texture2D(image,uvShape-texel)+texture2D(image,uvShape+vec2(texel.x,-texel.y))+texture2D(image,uvShape+vec2(-texel.x,texel.y));gl_FragColor=c*.25;}else{gl_FragColor=texture2D(image,uvShape);}}";
@@ -42,6 +60,7 @@ function createRenderer(THREE, sampleScale = "auto") {
     const t = new THREE.WebGLRenderTarget(1, 1, { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, format: THREE.RGBAFormat, depthBuffer: false, stencilBuffer: false });
     t.texture.generateMipmaps = false; targets.push(t); return t;
   }
+  let coverageTarget = null;
   let root = null, paintAllocations = new Set(), size = [0, 0], resolution = [1, 1], structureKey = null;
   function releaseTree() {
     for (const value of paintAllocations) {
@@ -49,9 +68,9 @@ function createRenderer(THREE, sampleScale = "auto") {
       if (key && !warmMaterials.has(key)) warmMaterials.set(key, value);
       else { value.dispose(); allocations.delete(value); }
     }
-    paintAllocations.clear();
+    paintAllocations.clear(); coverageGeometries.clear();
     for (const t of targets) t.dispose();
-    targets.length = 0; root = null; structureKey = null;
+    targets.length = 0; coverageTarget = null; root = null; structureKey = null;
   }
   function build(commands) {
     const scene = new THREE.Scene(), children = [], entries = [];
@@ -68,9 +87,10 @@ function createRenderer(THREE, sampleScale = "auto") {
         const uniforms = command.gradient ? paintShader.uniforms(THREE, command) : { color: { value: new THREE.Color(...command.color) }, opacity: { value: command.opacity } };
         if (command.coverage) {
           const scene = new THREE.Scene();
-          const coverageMesh = new THREE.Mesh(geometry(command.coverage), material("void main(){gl_FragColor=vec4(1.0);}", {}, false));
+          const coverageMesh = new THREE.Mesh(coverageGeometry(command.coverage), material("void main(){gl_FragColor=vec4(1.0);}", {}, false));
+          coverageTransform(coverageMesh,command);
           coverageMesh.frustumCulled = false; scene.add(coverageMesh);
-          child = { scene, children: [], entries: [], target: target(), coverageMesh, positionsKey: JSON.stringify(command.coverage) };
+          child = { scene, children: [], entries: [], target: coverageTarget || (coverageTarget = target()), coverageMesh, coverage:command.coverage };
           children.push(child);
           uniforms.coverage = { value: child.target.texture };
           uniforms.coverageSize = { value: new THREE.Vector2() };
@@ -78,7 +98,8 @@ function createRenderer(THREE, sampleScale = "auto") {
         }
         mesh = new THREE.Mesh(geometry(command.positions), material(fragment, uniforms, true, command.gradient ? paintShader.vertexShader : vertexShader));
       }
-      entries.push({ mesh, child, positionsKey: command.positions && JSON.stringify(command.positions) });
+      const singleScene = new THREE.Scene(); singleScene.children.push(mesh);
+      entries.push({ mesh, child, singleScene, positionsKey: command.positions && JSON.stringify(command.positions) });
       mesh.renderOrder = order++; mesh.frustumCulled = false; scene.add(mesh);
     }
     return { scene, children, entries, target: target() };
@@ -91,13 +112,12 @@ function createRenderer(THREE, sampleScale = "auto") {
       if (entry.child && !entry.child.coverageMesh) updateTree(entry.child, command.commands);
       else {
         if (entry.child?.coverageMesh) {
-          const key = JSON.stringify(command.coverage);
-          if (key !== entry.child.positionsKey) {
-            const previous = entry.child.coverageMesh.geometry;
-            entry.child.coverageMesh.geometry = geometry(command.coverage); paintAllocations.add(entry.child.coverageMesh.geometry);
-            previous.dispose(); allocations.delete(previous); paintAllocations.delete(previous);
-            entry.child.positionsKey = key;
+          if (command.coverage !== entry.child.coverage) {
+            const previous = entry.child.coverage;
+            entry.child.coverageMesh.geometry = coverageGeometry(command.coverage);paintAllocations.add(entry.child.coverageMesh.geometry);
+            releaseCoverage(previous);entry.child.coverage=command.coverage;
           }
+          coverageTransform(entry.child.coverageMesh,command);
         }
         if (command.gradient) {
           const uniforms = paintShader.uniforms(THREE, command);
@@ -130,9 +150,20 @@ function createRenderer(THREE, sampleScale = "auto") {
   const shapeCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, .1, 100);
   shapeCamera.position.z = 10;
   function renderTree(node, renderer) {
-    for (const child of node.children) renderTree(child, renderer);
+    for (const child of node.children) if (!child.coverageMesh) renderTree(child, renderer);
     for (const entry of node.entries) if (entry?.mesh.material.uniforms.coverageSize) entry.mesh.material.uniforms.coverageSize.value.set(size[0], size[1]);
-    renderer.render(node.scene, shapeCamera, node.target, true);
+    if (node.entries.some(entry=>entry?.child?.coverageMesh)) {
+      // All stroke masks share one target. Consume each mask immediately,
+      // before the next paint overwrites it, in the normal paint order.
+      const autoClear=renderer.autoClear;let first=true;
+      try {
+        renderer.autoClear=false;
+        for (const entry of node.entries) if (entry) {
+          if (entry.child?.coverageMesh) renderer.render(entry.child.scene,shapeCamera,entry.child.target,true);
+          renderer.render(entry.singleScene,shapeCamera,node.target,first);first=false;
+        }
+      } finally {renderer.autoClear=autoClear;}
+    } else renderer.render(node.scene, shapeCamera, node.target, true);
   }
   const stats = { renders: 0, width: 0, height: 0, supersample: sampleScale };
   function render(renderer, destination) {

@@ -116,6 +116,7 @@ function procedural(contents, tolerance, depth, budget, api) {
       const itemTolerance = tolerance / futureScales[index];
       const p = item.properties;
       if (p.enabled === 0) continue;
+      try {
       if (item.kind === "group") {
         const m = matrix(p),
           scale = Math.max(
@@ -251,8 +252,32 @@ function procedural(contents, tolerance, depth, budget, api) {
       );
       if (points > 16384 || views.length > 2048)
         throw Error("Shape+ path collection budget exceeded");
+      } catch (error) {
+        require("./geometry-failure.js").report(item.id, error);
+        // A failed modifier invalidates only the paths it was operating on.
+        // Deferred paints of those paths must not draw pre-modifier geometry.
+        if (["trim", "roundCorners", "twist", "zigZag", "puckerBloat", "wigglePaths", "offsetPaths", "mergePaths", "repeater", "wiggleTransform"].includes(item.kind)) {
+          for (const view of views) view.base.paths = [];
+          views = [];
+        }
+      }
     }
     return { views, commands };
+  }
+  const geometryCache = new WeakMap();
+  function paintGeometry(command, fill) {
+    const p=command.properties;
+    const signature=command.views.map(view=>[view.matrix.join(","),...view.base.paths.map(path=>path.points)]);
+    const entries=geometryCache.get(p)||[];
+    // Points are shared by repeated copies; compare their identity, never
+    // serialize the full path or recompute its stroke for each copy.
+    const matches=entry=>entry.tolerance===command.tolerance&&entry.signature.length===signature.length&&entry.signature.every((v,i)=>v.length===signature[i].length&&v.every((part,j)=>part===signature[i][j]));
+    const cached=entries.find(matches);
+    if(cached)return cached.positions;
+    const paths=command.views.flatMap(viewPaths);
+    const positions=fill ? paths.some(path=>path.proceduralGeometry) ? tessellate(paths,p.fillRule) : triangulate(paths.map(path=>path.points),p.fillRule) : stroke(paths,p,command.tolerance);
+    entries.push({signature,tolerance:command.tolerance,positions});geometryCache.set(p,entries);
+    return positions;
   }
   function render(command) {
     return require("./geometry-failure.js").paint(command.id, () => renderCommand(command));
@@ -275,14 +300,8 @@ function procedural(contents, tolerance, depth, budget, api) {
         : children;
     }
     const p = command.properties,
-      paths = command.views.flatMap(viewPaths),
       fill = command.type === "fill" || command.type === "gradientFill";
-    const positions = fill
-      ? paths.some(path=>path.proceduralGeometry) ? tessellate(paths,p.fillRule) : triangulate(
-          paths.map((path) => path.points),
-          p.fillRule,
-        )
-      : stroke(paths, p, command.tolerance);
+    const positions = paintGeometry(command,fill);
     budget.coordinates += positions.length;
     if (budget.coordinates > 1800000 || !positions.every(Number.isFinite))
       throw Error("Shape+ geometry budget exceeded");

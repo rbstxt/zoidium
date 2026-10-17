@@ -2,10 +2,12 @@
 const { check } = require("./geometry-budget.js");
 // Coverage is accumulated with blending disabled, then sampled once by the
 // paint quad. Overlapping pieces never apply paint opacity more than once.
-function stroke(paths, style, tolerance) {
+function stroke(paths, style, tolerance, polygons) {
   const profiled = style.dashPairs > 0 || style.startLength > 0 || style.endLength > 0 || style.waveAmount > 0;
-  const source = profiled ? require("./stroke-profile.js").profile(paths, style) : paths;
-  const polygons = require("./stroke.js").outlines(source, style, tolerance, 262144);
+  if (!polygons) {
+    const source = profiled ? require("./stroke-profile.js").profile(paths, style) : paths;
+    polygons = require("./stroke.js").outlines(source, style, tolerance, 262144);
+  }
   const coverage = [];
   let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
   for(const polygon of polygons) {

@@ -1,4 +1,5 @@
 "use strict";
+const { check } = require("./geometry-budget.js");
 const { lengthTable, mix, distance, flattenPath } = require("./path.js");
 const clamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v));
 const wrap = (v, period = 1) => ((v % period) + period) % period;
@@ -130,7 +131,7 @@ function dash(paths, style) {
     let cursor = 0,
       visits = 0;
     while (cursor < total - 1e-9) {
-      require("./geometry-budget.js").check();
+      check();
       if (++visits > MAX_FRAGMENTS * 8)
         throw Error("Shape+ dash fragment budget exceeded");
       const end = Math.min(total, cursor + pattern[index] - phase);

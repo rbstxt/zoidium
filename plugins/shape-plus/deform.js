@@ -1,4 +1,5 @@
 "use strict";
+const { check } = require("./geometry-budget.js");
 const {
   flattenPath,
   verticesToCubics,
@@ -59,6 +60,7 @@ function resample(path, spacing = 8) {
     count = path.closed ? source.length : source.length - 1;
   const segments = [];
   for (let i = 0; i < count; i++) {
+    check();
     const a = source[i],
       b = source[(i + 1) % source.length];
     const n = Math.max(
