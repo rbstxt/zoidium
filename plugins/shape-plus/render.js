@@ -2,7 +2,20 @@
 // WebGL1 render targets have no canvas MSAA. Render at twice the explicit
 // destination viewport resolution or four times up to 2048 pixels, then
 // box-resolve with bilinear taps. Every intermediate stores premultiplied RGBA.
+// An optional 2D affine [a, b, c, d, e, f] (x' = a*x + c*y + e,
+// y' = b*x + d*y + f) bakes the layer transform into the rasterization so the
+// output is already in composition space and stays vector-sharp at any scale.
+// Unchanged content, target size and transform reuse the previous raster and
+// only repeat the resolve into the (shared) destination.
 const paintShader = require("./paint-shader.js");
+function inverseAffine(t) {
+  if (!Array.isArray(t) || t.length !== 6 || !t.every(Number.isFinite)) return null;
+  const [a, b, c, d, e, f] = t, det = a * d - b * c;
+  if (!(Math.abs(det) > 1e-12)) return null;
+  const inverse = [d / det, -b / det, -c / det, a / det, (c * f - d * e) / det, (b * e - a * f) / det];
+  return inverse.every(Number.isFinite) ? inverse : null;
+}
+function setAffine(matrix, t, z) { matrix.set(t[0], t[2], 0, t[4], t[1], t[3], 0, t[5], 0, 0, 1, z, 0, 0, 0, 1); }
 function createRenderer(THREE, sampleScale = "auto") {
   if (!["auto", 1, 2, 4].includes(sampleScale)) throw Error("Invalid Shape+ sample scale");
   const targets = [], allocations = new Set();
@@ -62,6 +75,11 @@ function createRenderer(THREE, sampleScale = "auto") {
   }
   let coverageTarget = null;
   let root = null, paintAllocations = new Set(), size = [0, 0], resolution = [1, 1], structureKey = null;
+  // Full-frame planes that composite isolated child targets; they must stay
+  // screen-aligned when a layer transform is baked into the camera.
+  const planes = [];
+  // appliedTransform: undefined = unknown (force), null = identity, else the key.
+  let contentVersion = 0, rasterKey = null, rasterRenderer = null, appliedTransform;
   function releaseTree() {
     for (const value of paintAllocations) {
       const key = materialKeys.get(value);
@@ -71,6 +89,7 @@ function createRenderer(THREE, sampleScale = "auto") {
     paintAllocations.clear(); coverageGeometries.clear();
     for (const t of targets) t.dispose();
     targets.length = 0; coverageTarget = null; root = null; structureKey = null;
+    planes.length = 0; rasterKey = null; appliedTransform = undefined; contentVersion++;
   }
   function build(commands) {
     const scene = new THREE.Scene(), children = [], entries = [];
@@ -81,6 +100,7 @@ function createRenderer(THREE, sampleScale = "auto") {
         child = build(command.commands); children.push(child);
         const g = plane(); g.scale(resolution[0] / 2, resolution[1] / 2, 1);
         mesh = new THREE.Mesh(g, material(textureShader, { image: { value: child.target.texture }, opacity: { value: command.opacity } }));
+        planes.push(mesh);
       } else {
         if (!command.positions.length) { entries.push(null); continue; }
         let fragment = command.gradient ? paintShader.fragmentShader : "uniform vec3 color; uniform float opacity; void main(){gl_FragColor=vec4(color*opacity,opacity);}";
@@ -136,6 +156,8 @@ function createRenderer(THREE, sampleScale = "auto") {
   function setCommands(commands, logicalResolution) {
     const structure = list => list.map(c => c.kind === "isolation" ? [c.kind, c.id, structure(c.commands)] : [c.kind, c.id, !!c.positions.length, !!c.gradient, !!c.coverage]);
     const key = JSON.stringify([logicalResolution, structure(commands)]);
+    // Callers only pass changed commands; every call invalidates the raster.
+    contentVersion++; rasterKey = null;
     if (root && key === structureKey) { updateTree(root, commands); return; }
     releaseTree(); resolution = logicalResolution.slice();
     const before = new Set(allocations); borrowedMaterials = new Set();
@@ -165,9 +187,25 @@ function createRenderer(THREE, sampleScale = "auto") {
       } finally {renderer.autoClear=autoClear;}
     } else renderer.render(node.scene, shapeCamera, node.target, true);
   }
-  const stats = { renders: 0, width: 0, height: 0, supersample: sampleScale };
-  function render(renderer, destination) {
+  // r91 Camera.updateMatrixWorld rebuilds matrixWorldInverse from matrix, so a
+  // camera at L^-1 * T(0, 0, 10) draws content at L. Isolation planes use L^-1
+  // so the view cancels it and their comp-space child targets stay aligned.
+  function applyTransform(inverse) {
+    const key = inverse ? inverse.join() : null;
+    if (key === appliedTransform) return;
+    appliedTransform = key;
+    if (inverse) setAffine(shapeCamera.matrix, inverse, 10);
+    shapeCamera.matrixAutoUpdate = !inverse; shapeCamera.matrixWorldNeedsUpdate = true;
+    for (const mesh of planes) {
+      if (inverse) setAffine(mesh.matrix, inverse, 0);
+      mesh.matrixAutoUpdate = !inverse; mesh.matrixWorldNeedsUpdate = true;
+    }
+  }
+  const stats = { renders: 0, treeRenders: 0, skips: 0, width: 0, height: 0, supersample: sampleScale, transform: null };
+  function render(renderer, destination, transform = null) {
     if (!root) return;
+    const inverse = transform == null ? null : inverseAffine(transform);
+    if (transform != null && !inverse) throw Error("Invalid Shape+ layer transform");
     const width = Math.max(1, Math.round(destination.viewport.z)), height = Math.max(1, Math.round(destination.viewport.w));
     const scale = sampleScale === "auto" ? (Math.max(width, height) <= 2048 && width * height * 16 * targets.length <= 67108864 ? 4 : 2) : sampleScale;
     const w = width * scale, h = height * scale;
@@ -178,13 +216,22 @@ function createRenderer(THREE, sampleScale = "auto") {
       for (const t of targets) t.setSize(w, h);
       size = [w, h]; stats.width = w; stats.height = h;
     }
-    shapeCamera.left = -resolution[0] / 2; shapeCamera.right = resolution[0] / 2;
-    shapeCamera.top = resolution[1] / 2; shapeCamera.bottom = -resolution[1] / 2; shapeCamera.updateProjectionMatrix();
+    const key = JSON.stringify([contentVersion, w, h, inverse && transform]);
+    const cached = key === rasterKey && renderer === rasterRenderer;
+    stats.transform = inverse ? transform.slice() : null;
     const clearColor = renderer.getClearColor().clone(), clearAlpha = renderer.getClearAlpha(), autoClear = renderer.autoClear;
     const previousTarget = renderer.getRenderTarget?.();
     try {
       renderer.setClearColor(0, 0); renderer.autoClear = true;
-      renderTree(root, renderer);
+      if (cached) stats.skips++;
+      else {
+        rasterKey = null;
+        shapeCamera.left = -resolution[0] / 2; shapeCamera.right = resolution[0] / 2;
+        shapeCamera.top = resolution[1] / 2; shapeCamera.bottom = -resolution[1] / 2; shapeCamera.updateProjectionMatrix();
+        applyTransform(inverse);
+        renderTree(root, renderer);
+        rasterKey = key; rasterRenderer = renderer; stats.treeRenders++;
+      }
       resolveMaterial.uniforms.image.value = root.target.texture;
       resolveMaterial.uniforms.texel.value.set(1 / w, 1 / h);
       resolveMaterial.uniforms.samples.value = scale;

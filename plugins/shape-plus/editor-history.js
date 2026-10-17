@@ -23,10 +23,21 @@ function createGesture(history, read, write, notify = () => {}) {
     const state = active;
     active = null;
     if (!state) return;
-    // Never finish another editor's operation if the target changed mid-drag.
-    if (history.operation !== state.operation) return;
     const after = read(),
       changed = after && JSON.stringify(after) !== JSON.stringify(state.before);
+    // CM3's history does not nest: other code may have replaced or closed this
+    // transaction mid-gesture. Never finish or discard another operation; keep
+    // the edit, recorded as its own entry when the history is free again.
+    if (history.operation !== state.operation) {
+      if (changed && cancel) write(clone(state.before));
+      else if (changed && history.operation === null) {
+        history.startOperation();
+        history.pushCommand(exchange, { history, read, write, data: state.before });
+        history.finishOperation();
+      }
+      notify();
+      return;
+    }
     if (cancel || !after || !changed) {
       if (changed) write(clone(state.before));
       history.discardOperation();

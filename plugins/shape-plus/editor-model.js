@@ -6,6 +6,7 @@ const { topology, channels } = require("./editor-topology.js");
 const tree = require("./editor-tree-data.js");
 const g = require("./editor-geometry.js");
 const { primitivePath } = require("./primitives.js");
+const { planAdd } = require("./contents-ops.js");
 function replaceContents(layer, contents, Content) {
   validate(contents);
   // Load detached first, then publish the whole valid list in one notification.
@@ -134,57 +135,24 @@ function createEditorModel(s) {
   };
   s.setPoints = (points) =>
     s.setValue(s.active().properties.path, g.values(points));
-  s.addItem = (kind, point = [0, 0]) => {
-    const contents = read(),
-      entry = tree.find(contents, s.activeId),
-      list =
-        entry?.item.kind === "group"
-          ? entry.item.contents
-          : entry?.list || contents;
-    const index =
-      entry?.item.kind === "group" ? list.length : (entry?.index ?? 0);
-    const id = s.nextId(),
-      item = { id, kind, properties: {} };
-    if (["rectangle", "ellipse", "polystar"].includes(kind))
-      item.properties.position = {
-        animated: false,
-        keyframes: [{ frame: 0, value: point, tween: 1 }],
-      };
-    if (kind === "group") item.contents = [];
-    if (kind === "path")
-      Object.assign(item, {
-        vertexIds: [s.nextId()],
-        vertexModes: {},
-        properties: {
-          closed: 0,
-          path: {
-            animated: false,
-            keyframes: [{ frame: 0, value: [...point, 0, 0, 0, 0], tween: 1 }],
-          },
-        },
-      });
-    list.splice(index, 0, item);
-    if (["path", "rectangle", "ellipse", "polystar"].includes(kind)) {
-      // Paints below collect the newly inserted geometry. Add defaults only
-      // when the destination group has no paint of that kind below the item.
-      for (const paint of ["fill", "stroke"])
-        if (!list.slice(index + 1).some((n) => n.kind === paint))
-          list.push({
-            id: s.nextId(),
-            kind: paint,
-            properties:
-              paint === "stroke"
-                ? {
-                    width: {
-                      animated: false,
-                      keyframes: [{ frame: 0, value: 2, tween: 1 }],
-                    },
-                  }
-                : {},
-          });
-    }
+  // Pen paths and context-menu shapes use the same AE structure as the
+  // native add menu: a new group owns the shape and its paints unless a
+  // group is selected (see contents-ops.js).
+  s.addItem = (kind, point = [0, 0], options = {}) => {
+    const contents = read();
+    const pen = kind === "path";
+    const { item, select } = planAdd(contents, kind, {
+      nextId: s.nextId,
+      selected: s.activeId ? [s.activeId] : [],
+      point,
+      paints: pen ? ["stroke", "fill"] : ["fill"],
+      strokeWidth: pen ? 2 : undefined,
+      groupsOnly: true,
+      ...options,
+    });
     validate(contents);
     write(contents);
+    const id = pen ? item.id : select;
     s.activeId = id;
     s.treeSelection = new Set([id]);
     s.selection.clear();
@@ -203,6 +171,22 @@ function createEditorModel(s) {
       else if (action === "duplicate")
         selected = tree.duplicate(contents, [...s.treeSelection], s.nextId);
       else if (action === "delete") tree.remove(contents, [...s.treeSelection]);
+      else if (action === "forward" || action === "backward") {
+        // Earlier contents draw on top, so forward moves toward index 0.
+        const step = action === "forward" ? -1 : 1;
+        const entries = [...s.treeSelection].map((id) => tree.find(contents, id)).filter(Boolean)
+          .sort((a, b) => step * (b.index - a.index));
+        for (const entry of entries) {
+          const index = entry.list.indexOf(entry.item), next = index + step;
+          if (next < 0 || next >= entry.list.length || s.treeSelection.has(entry.list[next].id)) continue;
+          entry.list.splice(index, 1);
+          entry.list.splice(next, 0, entry.item);
+        }
+        selected = [...s.treeSelection];
+      } else if (action === "paint") {
+        const { select } = planAdd(contents, args[0], { nextId: s.nextId, selected: [...s.treeSelection] });
+        selected = [select];
+      }
       else if (action === "move") tree.move(contents, ...args);
       write(contents);
       if (selected?.length) {

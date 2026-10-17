@@ -31,17 +31,19 @@ class Target extends EventTarget {
     return event;
   }
 }
-for (const cancel of [
-  "pointercancel",
-  "lostpointercapture",
-  "blur",
-  "escape",
-  "dispose",
-  "target-deletion",
-  "project-replacement",
+// Interruptions keep what the preview already shows; only an explicit
+// cancel (Escape, undo) rolls the gesture back.
+for (const [interruption, outcome] of [
+  ["pointercancel", "end"],
+  ["lostpointercapture", "end"],
+  ["blur", "end"],
+  ["dispose", "end"],
+  ["commit", "end"],
+  ["lost-release", "end"],
+  ["escape", "cancel"],
 ])
   test(
-    "pointer cancellation releases capture and finishes once: " + cancel,
+    "pointer interruption releases capture and finishes once: " + interruption,
     () => {
       const element = new Target(),
         owner = new Target(),
@@ -66,21 +68,54 @@ for (const cancel of [
       element.fire("pointerdown", 2);
       element.fire("pointerup", 2);
       assert.deepEqual(events, []);
-      element.fire("pointermove");
-      if (cancel === "blur") owner.fire("blur");
-      else if (
-        ["escape", "target-deletion", "project-replacement"].includes(cancel)
-      )
-        machine.cancel();
-      else if (cancel === "dispose") machine.dispose();
-      else element.fire(cancel);
+      element.fire("pointermove", 1, { buttons: 1 });
+      if (interruption === "blur") owner.fire("blur");
+      else if (interruption === "escape") machine.cancel();
+      else if (interruption === "commit") machine.commit();
+      else if (interruption === "dispose") machine.dispose();
+      else if (interruption === "lost-release") element.fire("pointermove", 1, { buttons: 0, pointerType: "mouse" });
+      else element.fire(interruption);
       element.fire("pointerup");
-      assert.deepEqual(events, ["move", "cancel"]);
+      assert.deepEqual(events, ["move", outcome]);
       assert.equal(machine.active, null);
       assert.equal(element.captured.size, 0);
       machine.dispose();
     },
   );
+test("a press while a gesture is open ends the stale gesture and starts a new one", () => {
+  const element = new Target(),
+    owner = new Target(),
+    events = [];
+  let count = 0;
+  const machine = createPointerMachine(
+    element,
+    () => {
+      const id = ++count;
+      return { end() { events.push("end" + id); }, cancel() { events.push("cancel" + id); } };
+    },
+    owner,
+  );
+  element.fire("pointerdown");
+  element.fire("pointerdown");
+  assert.deepEqual(events, ["end1"]);
+  element.fire("pointerup");
+  assert.deepEqual(events, ["end1", "end2"]);
+  machine.dispose();
+});
+test("lastMoved tells a drag from a click for double-click handling", () => {
+  const element = new Target(),
+    owner = new Target();
+  const machine = createPointerMachine(element, () => ({}), owner);
+  element.fire("pointerdown", 1, { clientX: 0, clientY: 0 });
+  element.fire("pointermove", 1, { clientX: 1, clientY: 1, buttons: 1 });
+  element.fire("pointerup", 1, { clientX: 1, clientY: 1 });
+  assert.equal(machine.lastMoved, false);
+  element.fire("pointerdown", 1, { clientX: 0, clientY: 0 });
+  element.fire("pointermove", 1, { clientX: 20, clientY: 0, buttons: 1 });
+  element.fire("pointerup", 1, { clientX: 20, clientY: 0 });
+  assert.equal(machine.lastMoved, true);
+  machine.dispose();
+});
 test("pointer completion runs once despite lost capture and ignores secondary pointers", () => {
   const element = new Target(),
     owner = new Target(),
@@ -131,7 +166,7 @@ test("pointer errors cancel ownership and report through the editor boundary", (
   machine.dispose();
 });
 
-test("Pen close, insert and delete clicks commit on release and roll back on capture loss", () => {
+test("Pen close, insert and delete clicks commit on release, on capture loss and roll back on Escape", () => {
   const { createPointer } = require("../plugins/shape-plus/editor-pointer");
   for (const hit of [{ kind: "anchor", index: 0 }, { kind: "anchor", index: 1 }, { kind: "segment", index: 0, t: .5 }]) {
     const element = new Target(), owner = new Target();
@@ -168,14 +203,17 @@ test("Pen close, insert and delete clicks commit on release and roll back on cap
     element.fire("pointerdown", 1, { clientX: 0, clientY: 0 });
     assert.notDeepEqual(data, original);
     assert.equal(entries, 0);
-    element.fire("lostpointercapture");
+    pointer.cancel();
     assert.deepEqual(data, original);
     assert.equal(state.penFinished, false);
     assert.equal(state.gesture.active, false);
     assert.equal(entries, 0);
     element.fire("pointerdown", 1, { clientX: 0, clientY: 0 });
-    element.fire("pointerup");
+    element.fire("lostpointercapture");
     assert.equal(entries, 1);
+    element.fire("pointerdown", 1, { clientX: 0, clientY: 0 });
+    element.fire("pointerup");
+    assert.equal(entries, 2);
     assert.equal(element.captured.size, 0);
     pointer.dispose();
   }

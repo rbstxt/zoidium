@@ -5,6 +5,9 @@ const g = require("./editor-geometry.js");
 const { clone } = require("./model.js");
 const { channels } = require("./editor-topology.js");
 const { createPointerMachine } = require("./editor-pointer-machine.js");
+const xf = require("./editor-transform.js");
+const { pickTarget, parentOf } = require("./editor-pick.js");
+const { transform } = require("./compiler.js");
 function createPointer(s, canvas) {
   const api = s.canvasApi;
   const point = (event) => {
@@ -128,6 +131,9 @@ function createPointer(s, canvas) {
   function begin(event) {
     canvas.focus({ preventScroll: true });
     s.closeMenu?.();
+    // An arrow-key nudge still holding the history transaction ends first, so
+    // this press starts its own transaction instead of joining or losing it.
+    s.finishNudge?.();
     if (!s.valid()) return null;
     const start = point(event);
     if (event.button !== 0) return null;
@@ -136,20 +142,10 @@ function createPointer(s, canvas) {
     if (control) return control;
     if (s.tool === "pen" && api.hit(start)?.kind !== "handle")
       return pen(event, start);
-    let hit = api.hit(start),
-      item = s.active(),
-      size = api.sizeHit(start);
-    if (!hit && !size) {
-      const entry = api.itemAt(start);
-      if (entry) {
-        if (entry.item.id !== s.activeId) {
-          s.selectItem(entry.item.id, false);
-          item = s.active();
-          hit = api.hit(start);
-          size = api.sizeHit(start);
-        }
-      } else item = null;
-    }
+    const boxHandle = s.tool === "select" ? xf.handleAt(s, start) : null;
+    if (boxHandle) return xf.boxGesture(s, boxHandle, start, point);
+    const item = s.active(),
+      hit = s.treeSelection.size === 1 ? api.hit(start) : null;
     const frame = s.localFrame();
     if (s.tool === "select" && hit?.kind === "segment") {
       const origin = s.pathPoints(), startLocal = api.local(start);
@@ -249,66 +245,44 @@ function createPointer(s, canvas) {
         },
       };
     }
-    if (
-      item &&
-      item.kind !== "path" &&
-      (size || api.itemAt(start)?.item.id === item.id)
-    ) {
-      const local = api.local(start);
-      if (!local) return null;
-      const position = item.properties.position.get(frame).slice(),
-        initialSize = item.properties.size?.get(frame).slice(),
-        radius = item.properties.outerRadius?.get(frame),
-        inner = item.properties.innerRadius?.get(frame);
-      return {
-        frame,
-        target: item.id,
-        move(e) {
-          if (Math.hypot(...g.sub(point(e), start)) < 2 && !s.gesture.active)
-            return;
-          const p = api.local(point(e));
-          if (!p) return;
-          transaction(() => {
-            if (size) {
-              const delta = g.sub(p, position);
-              if (initialSize) {
-                let next = delta.map((v) => Math.max(0.01, Math.abs(v) * 2));
-                if (e.shiftKey) next = [Math.max(...next), Math.max(...next)];
-                s.setValue(item.properties.size, next, frame);
-              } else {
-                const next = Math.max(0.01, Math.hypot(...delta) / Math.SQRT2);
-                s.setValue(item.properties.outerRadius, next, frame);
-                if (radius > 0)
-                  s.setValue(
-                    item.properties.innerRadius,
-                    (inner * next) / radius,
-                    frame,
-                  );
-              }
-            } else {
-              let delta = g.sub(p, local);
-              if (e.shiftKey) delta = g.constrain(delta);
-              s.setValue(
-                item.properties.position,
-                api.snap(g.add(position, delta)),
-                frame,
-              );
-            }
-          });
-        },
-        end() {
-          s.gesture.finish();
-        },
-        cancel() {
-          s.gesture.finish(true);
-        },
-      };
+    // A drawn shape: select it (AE-style depth, see editor-pick.js) and drag
+    // the whole selection. Shift toggles the clicked item in the selection.
+    const entry = api.itemAt(start);
+    if (entry) {
+      const target = pickTarget(s.layer.contents, entry.item.id, s.treeSelection);
+      if (event.shiftKey) {
+        if (s.treeSelection.has(target)) {
+          s.treeSelection.delete(target);
+          s.activeId = [...s.treeSelection].at(-1) || null;
+          s.selection.clear();
+          s.refresh();
+          return null;
+        }
+        s.treeSelection.add(target);
+        s.activeId = target;
+        s.selection.clear();
+        s.refresh();
+      } else if (!s.treeSelection.has(target)) s.selectItem(target);
+      return xf.moveGesture(s, start, point, [...s.treeSelection]);
     }
-    // Empty canvas and unselected path interiors start a marquee. Shift adds
-    // to the existing anchor/handle selection without a history operation.
-    const before = event.shiftKey ? new Set(s.selection) : new Set(),
-      entry = api.active();
-    if (!event.shiftKey) s.selection.clear();
+    // Empty space inside the selected box still drags the selection.
+    if (!event.shiftKey && insideSelection(start))
+      return xf.moveGesture(s, start, point, [...s.treeSelection]);
+    // Empty space: a marquee. With a path open for editing it selects
+    // anchors; otherwise it selects whole top-level items.
+    const editing = item?.kind === "path" && s.treeSelection.size === 1;
+    let moved = false;
+    const beforeAnchors = event.shiftKey ? new Set(s.selection) : new Set(),
+      beforeItems = event.shiftKey ? new Set(s.treeSelection) : new Set(),
+      pathEntry = editing ? api.active() : null;
+    if (!event.shiftKey) {
+      s.selection.clear();
+      if (!editing) {
+        s.treeSelection.clear();
+        s.activeId = null;
+        s.refresh();
+      }
+    }
     s.marquee = { start, end: start };
     s.dirty = true;
     return {
@@ -317,68 +291,135 @@ function createPointer(s, canvas) {
       move(e) {
         const end = point(e);
         s.marquee = { start, end };
-        s.selection = new Set(before);
-        const inside = (p) =>
-          p[0] >= Math.min(start[0], end[0]) &&
-          p[0] <= Math.max(start[0], end[0]) &&
-          p[1] >= Math.min(start[1], end[1]) &&
-          p[1] <= Math.max(start[1], end[1]);
-        if (entry?.item.kind === "path")
-          api.cssPoints(entry).forEach((v, i) => {
-            if (inside(v.point))
-              s.selection.add(selectionKey(entry.item.vertexIds[i]));
+        moved = moved || Math.hypot(...g.sub(end, start)) >= 3;
+        const lo = [Math.min(start[0], end[0]), Math.min(start[1], end[1])],
+          hi = [Math.max(start[0], end[0]), Math.max(start[1], end[1])];
+        const inside = (p) => p[0] >= lo[0] && p[0] <= hi[0] && p[1] >= lo[1] && p[1] <= hi[1];
+        if (pathEntry) {
+          s.selection = new Set(beforeAnchors);
+          api.cssPoints(pathEntry).forEach((v, i) => {
+            if (inside(v.point)) s.selection.add(selectionKey(pathEntry.item.vertexIds[i]));
           });
+        } else if (Math.hypot(...g.sub(end, start)) >= 3) {
+          const picked = new Set(beforeItems);
+          for (const top of s.layer.contents) {
+            const points = api.outlines(top.id).flatMap((leaf) => api.cssPoints(leaf).map((v) => v.point));
+            if (!points.length) continue;
+            const min = [Math.min(...points.map((v) => v[0])), Math.min(...points.map((v) => v[1]))],
+              max = [Math.max(...points.map((v) => v[0])), Math.max(...points.map((v) => v[1]))];
+            if (min[0] <= hi[0] && max[0] >= lo[0] && min[1] <= hi[1] && max[1] >= lo[1]) picked.add(top.id);
+          }
+          s.treeSelection = picked;
+          s.activeId = [...picked].at(-1) || null;
+          s.refresh();
+        }
         s.dirty = true;
       },
       end() {
         s.marquee = null;
+        // A plain click on empty space deselects everything, like AE.
+        if (editing && !moved && !event.shiftKey) s.clearSelection?.();
         s.refresh();
       },
       cancel() {
         s.marquee = null;
-        s.selection = before;
+        s.selection = beforeAnchors;
         s.refresh();
       },
     };
   }
+  function insideSelection(p) {
+    const b = xf.selectedBox(s);
+    if (!b || b.kind === "path") return false;
+    const local = g.inverse(b.screen);
+    if (!local) return false;
+    const q = transform(p, local);
+    return q[0] >= b.min[0] && q[0] <= b.max[0] && q[1] >= b.min[1] && q[1] <= b.max[1];
+  }
   const pointer = createPointerMachine(
     canvas,
-    (event) => {
-      const gesture = begin(event);
-      if (gesture && gesture.frame !== undefined) {
-        gesture.matrix = JSON.stringify(api.activeMatrix());
-        gesture.rect = s.viewport ? JSON.stringify(s.viewport.canvas.getBoundingClientRect().toJSON()) : undefined;
-      }
-      return gesture;
-    },
+    begin,
     canvas.ownerDocument.defaultView,
     (error) => {
       s.gesture.finish(true);
       s.message(error.message);
     },
   );
+  // Double-click: on an anchor toggles Corner/Smooth; on a shape it enters
+  // the group and selects the drawn leaf (path anchors appear); on empty
+  // space it steps out to the containing group.
   const double = (event) => {
-    const hit = api.hit(point(event)),
-      item = s.active();
-    if (s.tool !== "select" || hit?.kind !== "anchor") return;
-    s.selection = new Set([selectionKey(item.vertexIds[hit.index])]);
-    s.setMode(
-      item.vertexModes[item.vertexIds[hit.index]] === "corner" ||
-        !item.vertexModes[item.vertexIds[hit.index]]
-        ? "smooth"
-        : "corner",
-    );
+    // The second press of a quick re-grab is a drag, not a double-click.
+    if (s.tool !== "select" || !s.valid() || pointer.lastMoved) return;
+    const p = point(event),
+      item = s.active(),
+      hit = s.treeSelection.size === 1 ? api.hit(p) : null;
     event.preventDefault();
+    if (hit?.kind === "anchor") {
+      s.selection = new Set([selectionKey(item.vertexIds[hit.index])]);
+      s.setMode(
+        item.vertexModes[item.vertexIds[hit.index]] === "corner" ||
+          !item.vertexModes[item.vertexIds[hit.index]]
+          ? "smooth"
+          : "corner",
+      );
+      return;
+    }
+    const entry = api.itemAt(p);
+    if (entry) {
+      if (s.activeId !== entry.item.id || s.treeSelection.size !== 1) s.selectItem(entry.item.id);
+      return;
+    }
+    const parent = s.activeId && parentOf(s.layer.contents, s.activeId);
+    if (parent) s.selectItem(parent);
+    else s.clearSelection?.();
   };
+  // Hover feedback: outline what a click would select and show the cursor
+  // for the handle, anchor or shape under the pointer.
+  const hover = (event) => {
+    if (pointer.active || !s.valid()) return;
+    const p = point(event);
+    let cursor = "default",
+      id = null;
+    if (s.tool === "pen") cursor = "crosshair";
+    else {
+      const handle = xf.handleAt(s, p);
+      if (handle) cursor = xf.cursorFor(handle);
+      else if (s.treeSelection.size === 1 && api.hit(p)) cursor = "pointer";
+      else {
+        const entry = api.itemAt(p);
+        if (entry) {
+          id = pickTarget(s.layer.contents, entry.item.id, s.treeSelection);
+          cursor = "move";
+        } else if (insideSelection(p)) cursor = "move";
+      }
+    }
+    if (canvas.style.cursor !== cursor) canvas.style.cursor = cursor;
+    if (s.hover !== id) {
+      s.hover = id;
+      s.dirty = true;
+    }
+  };
+  const leave = () => {
+    if (s.hover !== null) {
+      s.hover = null;
+      s.dirty = true;
+    }
+  };
+  canvas.addEventListener("pointermove", hover);
+  canvas.addEventListener("pointerleave", leave);
   canvas.addEventListener("dblclick", double);
   return {
     get active() {
       return pointer.active;
     },
     cancel: () => pointer.cancel(),
+    commit: () => pointer.commit(),
     dispose() {
       pointer.dispose();
       canvas.removeEventListener("dblclick", double);
+      canvas.removeEventListener("pointermove", hover);
+      canvas.removeEventListener("pointerleave", leave);
     },
   };
 }
