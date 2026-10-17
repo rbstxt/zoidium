@@ -66,11 +66,41 @@ as a four-vertex rectangle; the Pen starts a new one-vertex open path.
 
 Select a Shape+ clip and open CM3's **Objects** tab. The top half shows the
 ordered Contents tree. Groups expand into their own contents. The native **+**
-menu adds Group, Rectangle, Ellipse, Polystar, Path, Fill, Stroke, Gradient Fill,
-Gradient Stroke, Trim Paths, Repeater and Round Corners. Native row controls
-clone or delete items. Drag to reorder or nest items, right-click a name to
-rename it, and use the eye button to enable or disable it. These edits use
-CM.history. Clone assigns fresh IDs; deletion undo retains the originals.
+menu lists every Contents kind with its icon: Group, Rectangle, Ellipse,
+Polystar, Path, Fill, Stroke, Gradient Fill, Gradient Stroke, the path
+modifiers, Repeater and Merge Paths. Native row controls clone or delete items.
+Drag to reorder or nest items, right-click a name to rename it, and use the eye
+button to enable or disable it. These edits use CM.history. Clone assigns fresh
+IDs; deletion undo retains the originals.
+
+A fill or stroke draws every enabled path above it in the same group,
+including paths in nested groups above it (the After Effects rule). New layers
+therefore start with a "Rectangle 1" group that holds a Rectangle and the Fill
+below it. The **+** menu does not append at the end of the list, where a new
+path would sit below the fill and draw nothing. Shape+ places each item with
+`contents-ops.js` `planAdd` instead, in one undoable history step:
+
+- Geometry added outside a group gets a new top-level group ("Rectangle 2",
+  "Shape 1", ...) with its own Fill, so it is visible immediately.
+- Geometry added inside a group, through that group's Contents **+** or with
+  the group or one of its items selected, goes to the top of the group, where
+  the group's paints already draw it.
+- Paints, modifiers, Repeater and Merge Paths go to the bottom of the context
+  group, below the paths they act on. A root-level selection keeps the root.
+
+The add panel closes as it does natively and the new item, or the new group
+that wraps it, becomes the Objects selection. The filter box, arrow keys and
+Enter keep working. Lists of other CM3 objects keep the native add handler.
+
+Rows in the top half make paint scope visible. Fill and stroke rows show a
+10 px swatch after the name: solid for fills, a hollow ring for strokes, and
+the color stops for gradients, sampled at the clip's current local frame.
+Dim hints mark items that draw nothing: "no fill or stroke" on an enabled path
+no enabled paint draws, and "no paths above" on an enabled paint with no
+enabled path in scope. Hover the name cell for the rule. One
+requestAnimationFrame loop refreshes swatches and hints while Shape+ rows
+exist. It recomputes scope only when ids, kinds, enabled flags, nesting or
+order change, follows animated colors, and stops on disposal.
 
 Select an item to show its native properties in the bottom half, including
 ordinary animation stopwatches, keys and gradient controls. A selected item is
@@ -87,35 +117,60 @@ commands are removed on disposal. `contents`, schemaVersion 1 and renderVersion
 
 ## Editing on the main preview
 
-Selecting a Path, Rectangle, Ellipse, Polystar, gradient or Repeater in Objects
-shows its controls over the main CM3 preview. No window opens, and double-click
-on a clip has no Shape+ launcher. The overlay draws only editing guides; CM3
-continues to own and render the preview canvas in its original parent.
+While a single Shape+ clip is selected, the main CM3 preview is the Shape+
+selection tool. Shapes can be clicked and dragged directly, whether or not
+Objects is open; selection on the preview and in Objects stay in sync. No
+window opens. The overlay draws only guides; CM3 continues to own and render
+the preview canvas in its original parent.
 
-The viewport toolbar has **Shape+ path controls (V)** and **Shape+ pen (P)** next
-to CM3's camera and transform buttons. V selects the path tool, or toggles its
-controls off when already selected. P enables the Pen. These keys are unused
-by the native toolbar. **T** returns control to CM3's layer transform widget;
-V or P resumes path editing. Shortcuts ignore text and native property inputs.
+The viewport toolbar has **Shape+ selection (V)** and **Shape+ pen (P)** next
+to CM3's camera and transform buttons. V toggles the Shape+ tool off when it
+is already selected. **T** returns control to CM3's layer transform widget
+for moving the whole layer; V or P resumes Shape+ editing. Shortcuts ignore
+text and native property inputs.
 
+- Selection follows After Effects. Hovering outlines what a click would pick.
+  The first click on a shape selects its outermost group; inside a selected
+  group, clicks pick items at that depth. Double-click enters the group and
+  selects the drawn leaf (a path then shows its anchors); double-click on
+  empty space or Escape steps out to the containing group, and a second
+  Escape (or a click on empty space) deselects. Shift-click toggles items.
+  Dragging empty space draws a marquee that selects top-level items, or
+  anchors while a path is open for editing.
+- Dragging a selected shape, or empty space inside the selected box, moves
+  the selection: groups, rectangles, ellipses and polystars edit Position, and
+  paths move every vertex. Shift constrains the drag to 45 degrees. A selected
+  group's descendants are carried by the group, never moved twice.
+- One selected group, rectangle, ellipse or polystar shows a bounding box.
+  Corner and edge handles scale with the opposite side fixed; Alt/Option
+  scales about the center and Shift keeps proportions. Groups edit Scale and
+  compensate Position; rectangles and ellipses edit Size and Position;
+  polystars scale both radii. The round handle above the box rotates groups
+  about the box center and polystars about their position; Shift snaps to 15
+  degrees. A selected Fill or Stroke outlines exactly the paths it draws.
 - Pen click adds a corner; drag pulls symmetric handles. Alt/Option breaks a
   handle, and Shift constrains it to 45 degrees. Click the first anchor to
   close. Enter/Escape finishes an open contour. Click a segment to insert an
-  exact cubic split; click an existing anchor to delete it. Insertion, deletion
-  and reversal update every animated Path key without flattening metadata.
-- Select click/Shift-click selects anchors or handles. Drag empty preview space
-  for a marquee. Drag anchors together, drag individual handles, or drag a
-  segment to bend it with its endpoints fixed. Double-click an anchor toggles
-  Corner/Smooth. The right-click native select menu also offers Symmetric,
-  Independent, Close/Open and Reverse, plus static primitive conversion.
+  exact cubic split; click an existing anchor to delete it. A new contour goes
+  into the selected group, otherwise into a new "Shape N" group with its own
+  Stroke and Fill. Insertion, deletion and reversal update every animated Path
+  key without flattening metadata.
+- On a path open for editing, click/Shift-click selects anchors or handles.
+  Drag anchors together, drag individual handles, or drag a segment to bend it
+  with its endpoints fixed. Double-click an anchor toggles Corner/Smooth.
+- Right-click selects what is under the pointer and opens one Shape+ menu:
+  path point types, Close/Open and Reverse, Convert to Path, Add Fill/Stroke
+  to the group, Group/Ungroup, Bring Forward/Send Backward, Rename, Duplicate
+  and Delete. On empty space it adds a rectangle, ellipse or polystar at the
+  pointer. The menu suppresses the browser's own menu.
 - Arrows nudge selected anchors or handles by one local pixel, or ten with
-  Shift. Repeated keydown events through keyup make one history entry.
-  Cmd/Ctrl+A selects path anchors. Delete removes anchors or selected items.
-- Rectangle/Ellipse corner handles resize about the center. Shift keeps size
-  square. Drag a selected shape's interior to move it. Star handles adjust
-  radius. Gradient start/end and Repeater anchor handles edit native animated
-  values. Snapping uses other anchors within eight CSS pixels. There is no
-  separate grid, pan, zoom or preview renderer.
+  Shift; with no anchors selected they move the selected items in their
+  parent space. Repeated keydown events through keyup make one history entry.
+  Cmd/Ctrl+A selects path anchors, Cmd/Ctrl+D duplicates, Cmd/Ctrl+G groups,
+  Shift+Cmd/Ctrl+G ungroups, Cmd/Ctrl+] and [ reorder. Delete removes anchors
+  or selected items. Gradient start/end and Repeater anchor handles edit
+  native animated values. Snapping uses other anchors within eight CSS pixels.
+  There is no separate grid, pan, zoom or preview renderer.
 - Use the native Path row stopwatch and key button for grouped animation.
   Cmd/Ctrl+Z, Y and Shift+Z use the shared native history. Each pointer gesture
   creates one history entry. Selection and hover do not create project edits.
@@ -123,13 +178,17 @@ V or P resumes path editing. Shortcuts ignore text and native property inputs.
 Coordinates use the visible preview canvas rect, including letterboxing, then
 invert layer position/scale/rotation and every nested group anchor/transform.
 Negative scales are supported. Player+ quality changes backing resolution,
-not pointer coordinates. Handles stay the size and gray colors of the native
-2D widget, independent of preview quality and display pixel ratio.
+not pointer coordinates. Handle sizes are CSS pixels, independent of preview
+quality and display pixel ratio.
 
-Escape, pointercancel, capture loss, window/focus loss, playhead or projection
-change, selection/project replacement, target deletion and disposal cancel the
-complete gesture and release capture/history ownership. The selected native
-row follows stable IDs when topology edits or undo reconstruct the contents.
+Only Escape, undo during a drag and an editing error roll a gesture back.
+Interruptions keep the edit the preview already shows and record it as one
+history entry: pointercancel, capture loss, a release outside the window,
+window/focus loss, playhead change, tool or selection change, target deletion
+and disposal. Layout or projection changes mid-drag do not end a gesture.
+A transaction replaced by other code mid-drag is recorded as its own entry
+afterwards. The selected native row follows stable IDs when topology edits or
+undo reconstruct the contents.
 
 Editing is available for a single direct Shape+ clip in the active sequence.
 It hides in perspective/editing-camera contexts, outside the clip's time span,
@@ -200,6 +259,25 @@ allows it, otherwise at 2x. A box resolve uses four bilinear taps at 4x and one
 at 2x. The decision depends only on explicit output dimensions and authored
 isolation count. Large outputs retain 2x instead of exceeding the 4x memory
 cost. There is no silent 1x fallback.
+
+Layer transforms are rasterized continuously. When a Shape+ layer has no
+effects and its composite transform is purely 2D (no X/Y rotation and no Z
+offset), the position, Z rotation and scale written to the layer's composite
+group (by CM3 or by Camera+) are baked into the Shape+ camera, and the group is
+reset to identity for that composite. Contents are therefore drawn in
+composition space at full resolution instead of being rasterized at layer size
+and magnified, so edges stay sharp at any Scale. The flattening tolerance uses
+the baked scale. Isolation planes stay screen-aligned, because child targets
+are rendered with the same camera. Content outside the layer frame that the
+transform brings into view is now visible, like a continuously rasterized
+vector layer in other compositors. Layers with effects keep the previous
+behavior: effects work on the untransformed layer frame, which CM3 then
+transforms and resamples. A zero scale is left to the compositor.
+
+CM3 calls the layer pass on every animation frame, even while idle. Shape+
+keeps the supersampled targets between calls and redraws them only when the
+commands, target size or baked transform change. Every call still resolves
+into the shared destination buffer.
 
 A thin cubic stroke was compared with Canvas2D at 640 x 360 on ANGLE Metal,
 Apple M2, Chromium WebGL1. RMSE covers the nonzero-pixel union, in alpha bytes.

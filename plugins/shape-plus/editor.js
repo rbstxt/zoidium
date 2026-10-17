@@ -24,7 +24,7 @@ function editableClip(editor, viewport, Layer, PZ) {
 function mountOverlay(context, layer, Content, viewport, panels, tool) {
   const canvas = document.createElement("canvas"), editor = window.CM, PZ = window.PZ;
   canvas.className = "shape-plus-overlay";
-  canvas.setAttribute("aria-label", "Shape+ path controls");
+  canvas.setAttribute("aria-label", "Shape+ selection");
   canvas.tabIndex = 0;
   canvas.style.cssText = "position:absolute;touch-action:none;z-index:1;outline:none";
   viewport.el.append(canvas);
@@ -32,7 +32,7 @@ function mountOverlay(context, layer, Content, viewport, panels, tool) {
     context, layer, Content, viewport, editor, PZ, document, window,
     project: editor.project, canvas, tool, snap: true,
     selection: new Set(), treeSelection: new Set(), activeId: null,
-    penFinished: false, dirty: true,
+    penFinished: false, dirty: true, hover: null,
   };
   s.nextId = () => "sp-" + window.crypto.randomUUID();
   s.make = (tag, className, text) => {
@@ -57,45 +57,55 @@ function mountOverlay(context, layer, Content, viewport, panels, tool) {
   }
   s.refresh = () => { s.dirty = true; syncSelection(); };
   s.selectItem = (id, extend = false) => {
-    s.pointer?.cancel(); s.finishNudge?.(true);
+    s.pointer?.commit(); s.finishNudge?.();
     if (!extend) s.treeSelection.clear();
     s.treeSelection.add(id); s.activeId = id;
     s.selection.clear(); s.penFinished = false; s.refresh();
   };
+  s.clearSelection = () => {
+    s.pointer?.commit(); s.finishNudge?.();
+    s.treeSelection.clear(); s.activeId = null;
+    s.selection.clear(); s.penFinished = false; s.refresh();
+  };
+  // A new Pen path goes into the selected group, otherwise into a new
+  // untransformed group (see contents-ops.js planAdd with groupsOnly).
   s.insertionMatrix = () => {
     const entry = find(layer.contents, s.activeId);
-    if (!entry) return identity;
-    const chain = [...entry.ancestors, ...(entry.item.kind === "group" ? [entry.item] : [])];
-    return chain.reduce((m, item) => multiply(m, matrix(item.evaluate(s.localFrame()).properties)), identity);
+    if (!entry || entry.item.kind !== "group") return identity;
+    return [...entry.ancestors, entry.item].reduce((m, item) => multiply(m, matrix(item.evaluate(s.localFrame()).properties)), identity);
   };
   s.canvasApi = createCanvas(s, canvas);
   s.pointer = createPointer(s, canvas);
   const actions = installActions(s, canvas);
   let disposed = false;
-  function cancel() { s.pointer.cancel(); s.finishNudge(true); s.gesture.finish(true); }
+  // Tool switches, native selection and teardown end an edit in progress but
+  // keep it: what the preview shows is what history records. Only Escape and
+  // undo (editor-actions.js) or an error roll a gesture back.
+  function settle() { s.pointer.commit(); s.finishNudge(); s.gesture.finish(); }
   const changed = () => { if (!disposed && s.valid()) s.refresh(); };
   s.project.ui.onChanged.watch(changed);
   function update() {
     if (disposed) return;
     s.canvasApi.resize();
+    // Gestures capture their frame and inverse transforms when they start,
+    // so layout or projection changes mid-drag cannot corrupt them. A frame
+    // change (playback) or a removed target ends the drag where it is.
     const gesture = s.pointer.active;
-    if (gesture && (gesture.frame !== s.localFrame() || gesture.target !== s.activeId ||
-        gesture.matrix !== JSON.stringify(s.canvasApi.activeMatrix()) ||
-        gesture.rect !== JSON.stringify(viewport.canvas.getBoundingClientRect().toJSON()))) cancel();
+    if (gesture && (gesture.frame !== s.localFrame() || (gesture.target != null && !s.find(gesture.target)))) settle();
     actions.check();
     s.canvasApi.draw();
   }
   return {
-    canvas, state: s, update, cancel,
-    tool(next) { cancel(); s.tool = next; s.penFinished = false; canvas.focus(); },
+    canvas, state: s, update, settle,
+    tool(next) { settle(); s.tool = next; s.penFinished = false; canvas.focus(); },
     select(items) {
       const ids = items.filter(item => item instanceof Content).map(item => item.id);
       if (ids[0] === s.activeId && ids.length === s.treeSelection.size && ids.every(id => s.treeSelection.has(id))) return;
-      cancel(); s.activeId = ids[0] || null; s.treeSelection = new Set(ids); s.selection.clear(); s.penFinished = false;
+      settle(); s.activeId = ids[0] || null; s.treeSelection = new Set(ids); s.selection.clear(); s.penFinished = false;
     },
     dispose() {
       if (disposed) return;
-      cancel(); actions.dispose(); s.pointer.dispose(); s.canvasApi.dispose();
+      settle(); actions.dispose(); s.pointer.dispose(); s.canvasApi.dispose();
       s.project.ui.onChanged.unwatch(changed);
       disposed = true; canvas.remove();
     },
@@ -117,7 +127,7 @@ function install(context, Layer, Content) {
     tick(false);
   }
   for (const [name, key, nativeIcon, title] of [
-    ["select", "v", "edit2", "Shape+ path controls (v)"],
+    ["select", "v", "edit2", "Shape+ selection (v)"],
     ["pen", "p", null, "Shape+ pen (p)"],
   ]) {
     const command = { title, key, fn: () => setTool(name) };
@@ -134,10 +144,10 @@ function install(context, Layer, Content) {
   const select = panels.top.selectItems;
   function selected() {
     if (!view) return select.apply(this, arguments);
-    // Cancellation can rebuild the native rows. Retain the clicked IDs before
-    // rollback, then select their live replacements instead of stale instances.
+    // Finishing an edit can rebuild the native rows. Retain the clicked IDs
+    // first, then select their live replacements instead of stale instances.
     const requested = Array.from(this.list.getElementsByClassName("selected"), row => row.pz_object);
-    view?.cancel();
+    view?.settle();
     this.deselectItems();
     for (const row of this.list.querySelectorAll("li"))
       if (requested.some(item => item instanceof Content ? row.pz_object instanceof Content && row.pz_object.id === item.id : row.pz_object === item))
@@ -161,15 +171,14 @@ function install(context, Layer, Content) {
     if (disposed) return;
     const clip = editableClip(editor, viewport, Layer, PZ);
     const layer = clip?.object;
-    const item = panels.top.selection.length === 1 ? panels.top.selection[0] : null;
-    const entry = item instanceof Content && layer ? find(layer.contents, item.id) : null;
-    const editable = entry && [...entry.ancestors, entry.item].every(item => item.properties.enabled.get() !== 0) &&
-      inverse([...entry.ancestors, ...(entry.item.kind === "group" ? [entry.item] : [])].reduce((m, group) => multiply(m, matrix(group.evaluate(editor.playback.currentFrame - clip.start + (clip.offset || 0)).properties)), identity));
-    const visible = enabled && layer && (!entry || editable) && (tool === "pen" || editable &&
-      ["path", "rectangle", "ellipse", "polystar", "gradientFill", "gradientStroke", "repeater", "twist", "wiggleTransform"].includes(item.kind));
+    // The overlay is the Shape+ selection tool: it stays active for any
+    // directly edited Shape+ clip so shapes can be clicked and dragged even
+    // before anything is selected in Objects. T hands control to CM3.
+    const visible = enabled && !!layer;
     if (view && (!visible || view.state.layer !== layer || !view.state.valid())) { view.dispose(); view = null; }
     if (visible && !view) {
       view = mountOverlay(context, layer, Content, viewport, panels, tool);
+      view.state.setTool = setTool;
       view.select(panels.top.selection);
     }
     if (view) {

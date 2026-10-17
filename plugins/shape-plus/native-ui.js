@@ -22,6 +22,57 @@ function findObjectsPanel(PZ, editor, document) {
   const bottom = top && panels.find(panel => panel instanceof PZ.ui.edit && panel.objects === top.selection);
   return top && bottom ? { top, bottom } : null;
 }
+// The native "+" list appends at the end of the Contents list, below any
+// paint, so a new path would draw nothing. Route it through planAdd instead:
+// geometry gets its own group and fill, paints go below the paths they draw.
+function createAddRouting(PZ, Layer, Content) {
+  const layerOf = object => {
+    for (let node = object, depth = 0; node && depth < 64; depth++, node = node.parent ? node.parentObject : null)
+      if (node instanceof Layer) return node;
+    return null;
+  };
+  function select(panel, id) {
+    const row = Array.from(panel.list.querySelectorAll("li")).find(li => li.pz_object instanceof Content && li.pz_object.id === id);
+    if (!row) return;
+    panel.deselectItems();
+    row.classList.add("selected");
+    panel.selectItems();
+    row.scrollIntoViewIfNeeded?.(false);
+  }
+  return function addTo(panel, list, kind, container) {
+    const owner = list.parentObject, layer = owner instanceof Layer ? owner : owner instanceof Content ? layerOf(owner) : null;
+    if (!layer) return false;
+    const { clone, validate } = require("./model.js");
+    const { replaceContents } = require("./editor-model.js");
+    const { createGesture } = require("./editor-history.js");
+    const { planAdd } = require("./contents-ops.js");
+    const editor = panel.editor, project = editor.project, address = layer.getAddress();
+    const resolve = () => {
+      try { return project.addressLookup(address); } catch (_error) { return null; }
+    };
+    const read = () => resolve() instanceof Layer ? clone(resolve().contents) : null;
+    const write = data => {
+      const target = resolve();
+      if (target instanceof Layer) replaceContents(target, data, Content);
+    };
+    const selected = Array.from(panel.selection).filter(item => item instanceof Content && layerOf(item) === layer).map(item => item.id);
+    let plan = null;
+    try {
+      createGesture(editor.history, read, write).run(() => {
+        const contents = read();
+        plan = planAdd(contents, kind, { nextId: () => "sp-" + crypto.randomUUID(), selected, groupId: owner instanceof Content ? owner.id : null });
+        validate(contents);
+        write(contents);
+      });
+    } catch (error) {
+      plan = null;
+      console.error("Shape+ could not add the item:", error);
+    }
+    container.firstElementChild?.click();
+    if (plan) select(panel, plan.select);
+    return true;
+  };
+}
 function install(PZ, Layer, Content, onDispose) {
   function patch(target, key, wrap) {
     const original = target[key], replacement = wrap(original);
@@ -41,11 +92,15 @@ function install(PZ, Layer, Content, onDispose) {
   onDispose(() => { for (const [panel, refresh] of watched) panel.onEnabledChanged.unwatch(refresh); watched.clear(); });
   const panels = findObjectsPanel(PZ, window.CM, document);
   if (panels) connectObjectsPanel(PZ, panels.top, panels.bottom, Content, onDispose);
+  const icons = require("./editor-icons.js");
+  const hints = require("./native-hints.js").createHints({ PZ, Layer, Content, document });
+  onDispose(() => hints.dispose());
+  const addTo = createAddRouting(PZ, Layer, Content);
   patch(proto, "generateListItem", original => function (container, object) {
     if (object instanceof Content) watchFocus(this);
     const row = original.apply(this, arguments);
     if (object instanceof Content) {
-      const image=require("./editor-icons.js").icon(document,object.kind);
+      const image=icons.icon(document,object.kind);
       if(image){image.style.cssText="width:17px;height:17px;vertical-align:middle;margin-right:5px;color:#ccc;pointer-events:none";row.firstElementChild.insertBefore(image,row.firstElementChild.querySelector("span"));}
     }
     if (object instanceof Content && this === panels?.top) {
@@ -62,8 +117,9 @@ function install(PZ, Layer, Content, onDispose) {
         this.editor.history.finishOperation();
       };
       property.onChanged.watch(refresh, true);
-      row.pz_shapeCleanup = () => property.onChanged.unwatch(refresh);
+      row.pz_shapeCleanup = () => { property.onChanged.unwatch(refresh); hints.detach(row); };
       row.children[1].prepend(button);
+      hints.attach(row, object);
     }
     if (object instanceof Content && this.options.showPropertyControls && this !== panels?.top)
       require("./native-properties.js").decorate(this, row, object);
@@ -80,9 +136,16 @@ function install(PZ, Layer, Content, onDispose) {
   });
   patch(proto, "generateAdd", original => function(list) {
     const result=original.apply(this,arguments);
-    if(list.type===Content)for(const row of this.el.querySelectorAll(".pz-options li")) {
-      const image=require("./editor-icons.js").icon(document,row.pz_item?.type);
+    if(list.type!==Content)return result;
+    // CM3 appends the add container last: Cancel, filter box, option list.
+    // The filter and Enter key reuse these same <li> elements and handlers.
+    const container=this.el.lastElementChild;
+    for(const row of container.querySelectorAll(".pz-options li")) {
+      const item=row.pz_item, image=icons.icon(document,item?.type);
       if(image){image.style.cssText="width:20px;height:20px;vertical-align:middle;margin-right:7px;color:#ccc;pointer-events:none";row.prepend(image);}
+      if(!item||item.list||typeof item.type!=="string")continue;
+      const native=row.onclick;
+      row.onclick=event=>{ if(!addTo(this,list,item.type,container))return native.call(row,event); };
     }
     return result;
   });
@@ -112,4 +175,4 @@ function install(PZ, Layer, Content, onDispose) {
   });
   return panels;
 }
-module.exports = { install, connectObjectsPanel, findObjectsPanel };
+module.exports = { install, connectObjectsPanel, findObjectsPanel, createAddRouting };

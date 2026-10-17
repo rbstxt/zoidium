@@ -71,7 +71,11 @@ function createModel(PZ) {
   Content.prototype.defaultName = "Content";
   return { Content, nextId };
 }
+// New layers start with the AE structure: a group that owns its path and the
+// fill drawing it. Saved contents keep whatever structure they were saved with.
 function defaults() {
-  return [{ id: "shape", kind: "rectangle", properties: {} }, { id: "fill", kind: "fill", properties: {} }];
+  return [{ id: "group", kind: "group", properties: { name: "Rectangle 1" }, contents: [
+    { id: "shape", kind: "rectangle", properties: {} }, { id: "fill", kind: "fill", properties: {} },
+  ] }];
 }
 module.exports = { clone, validate, createModel, defaults };

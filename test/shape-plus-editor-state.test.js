@@ -135,3 +135,37 @@ test("ungroup preserves a disabled group's effective visibility", () => {
   tree.ungroup(contents, "group");
   assert.equal(contents[0].properties.enabled, 0);
 });
+test("a gesture whose transaction was replaced mid-drag keeps its edit and stays undoable", () => {
+  const history = new History();
+  let data = [0];
+  const gesture = createGesture(history, () => data.slice(), (value) => { data = value; });
+  gesture.begin();
+  data[0] = 5;
+  // CM3's startOperation does not nest: other code replaces and closes it.
+  history.startOperation();
+  history.finishOperation();
+  gesture.finish();
+  assert.deepEqual(data, [5]);
+  assert.equal(history.undoStack.length, 1);
+  assert.equal(history.operation, null);
+  history.undo();
+  assert.deepEqual(data, [0]);
+  // While another operation is still open, the edit is kept but never
+  // pushed into, finished or discarded with that operation.
+  gesture.begin();
+  data[0] = 7;
+  history.startOperation();
+  const foreign = history.operation;
+  gesture.finish();
+  assert.deepEqual(data, [7]);
+  assert.equal(history.operation, foreign);
+  assert.equal(foreign.length, 0);
+  history.finishOperation();
+  // An explicit cancel still restores the snapshot.
+  gesture.begin();
+  data[0] = 9;
+  history.startOperation();
+  history.finishOperation();
+  gesture.finish(true);
+  assert.deepEqual(data, [7]);
+});

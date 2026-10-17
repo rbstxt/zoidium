@@ -6,6 +6,10 @@ const { primitivePath } = require("./primitives.js");
 const controls = require("./editor-controls.js");
 const { displayMatrix } = require("./viewport-mapping.js");
 const { verticesToCubics } = require("./path.js");
+const { find } = require("./editor-tree-data.js");
+const { PAINTS, paintScope } = require("./contents-ops.js");
+const xf = require("./editor-transform.js");
+const ACCENT = "#58a6ff", HOVER = "rgba(88,166,255,.85)";
 function scene(
   contents,
   frame,
@@ -84,54 +88,19 @@ function createCanvas(s, canvas) {
         )
       : null;
   }
-  function primitiveHandles(entry = active()) {
-    if (!entry || entry.item.kind === "path") return [];
-    const p = entry.properties,
-      half = p.size
-        ? p.size.map((v) => Math.abs(v) / 2)
-        : [p.outerRadius, p.outerRadius];
-    return [
-      [-1, -1],
-      [1, -1],
-      [1, 1],
-      [-1, 1],
-    ].map((sign) => ({
-      sign,
-      point: g.add(
-        p.position,
-        g.mul([half[0] * sign[0], half[1] * sign[1]], 1),
-      ),
-    }));
-  }
-  function sizeHit(point) {
-    const entry = active();
-    if (!entry?.enabled) return null;
-    return (
-      primitiveHandles(entry).find(
-        (h) => Math.hypot(...g.sub(screen(h.point, entry.matrix), point)) <= 8,
-      ) || null
-    );
-  }
+  // The topmost drawn leaf under a CSS point. Earlier contents draw on top,
+  // so the list is searched in order. Fill interiors (open paths close for
+  // fills) and an 8 px band around every outline both count.
   function itemAt(point) {
-    const selected = active();
-    if (selected?.enabled && selected.item.kind !== "path") {
-      context.save();
-      context.setTransform(1, 0, 0, 1, 0, 0);
-      trace(cssPoints(selected), selected.path.closed);
-      const inside = context.isPointInPath(point[0], point[1]);
-      context.restore();
-      if (inside) return selected;
-    }
-    const list = entries()
-      .filter((e) => e.enabled)
-      .reverse();
-    for (const e of list) {
+    for (const e of entries()) {
+      if (!e.enabled) continue;
       const points = cssPoints(e);
       if (g.hit(points, e.path.closed, point, 1, false)) return e;
+      if (points.length < 3) continue;
       context.save();
       context.setTransform(1, 0, 0, 1, 0, 0);
-      trace(points, e.path.closed);
-      const inside = e.path.closed && context.isPointInPath(point[0], point[1]);
+      trace(points, true);
+      const inside = context.isPointInPath(point[0], point[1]);
       context.restore();
       if (inside) return e;
     }
@@ -162,76 +131,126 @@ function createCanvas(s, canvas) {
     });
     return !!projection;
   }
+  // Outlines of every drawn leaf under an item (the item itself for a leaf).
+  function outlines(id) {
+    const entry = find(s.layer.contents, id);
+    if (!entry) return [];
+    const inside = new Set([id]);
+    (function walk(item) { for (const child of item.contents || []) { inside.add(child.id); walk(child); } })(entry.item);
+    return entries().filter((e) => e.enabled && inside.has(e.item.id));
+  }
+  function strokeOutline(e, color, width = 1, dash = []) {
+    trace(cssPoints(e), e.path.closed);
+    context.setLineDash(dash);
+    context.lineWidth = width + 2;
+    context.strokeStyle = "rgba(0,0,0,.55)";
+    context.stroke();
+    context.lineWidth = width;
+    context.strokeStyle = color;
+    context.stroke();
+    context.setLineDash([]);
+  }
+  function square(p, fill, size = 4) {
+    context.fillStyle = fill;
+    context.strokeStyle = "#1b1b1b";
+    context.lineWidth = 1;
+    context.fillRect(p[0] - size, p[1] - size, size * 2, size * 2);
+    context.strokeRect(p[0] - size + 0.5, p[1] - size + 0.5, size * 2 - 1, size * 2 - 1);
+  }
+  function drawBox(b) {
+    const corners = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([x, y]) => transform(xf.at(b, x, y), b.screen));
+    context.beginPath();
+    corners.forEach((p, i) => (i ? context.lineTo(...p) : context.moveTo(...p)));
+    context.closePath();
+    context.lineWidth = 1;
+    context.strokeStyle = ACCENT;
+    context.stroke();
+    for (const h of xf.handles(b)) {
+      if (h.rotate) {
+        context.beginPath();
+        context.moveTo(...h.from);
+        context.lineTo(...h.point);
+        context.strokeStyle = ACCENT;
+        context.stroke();
+        context.beginPath();
+        context.arc(...h.point, 4.5, 0, Math.PI * 2);
+        context.fillStyle = "#fff";
+        context.fill();
+        context.strokeStyle = "#1b1b1b";
+        context.stroke();
+      } else square(h.point, "#fff");
+    }
+  }
+  function drawPath(e) {
+    const points = cssPoints(e);
+    points.forEach((v, i) => {
+      const id = e.item.vertexIds[i];
+      for (const side of ["in", "out"]) {
+        if (
+          !e.path.closed &&
+          (s.tool !== "pen" || s.penFinished) &&
+          ((side === "in" && i === 0) ||
+            (side === "out" && i === points.length - 1))
+        )
+          continue;
+        if (Math.hypot(...v[side]) < 1e-8) continue;
+        const p = g.add(v.point, v[side]);
+        context.beginPath();
+        context.strokeStyle = ACCENT;
+        context.lineWidth = 1;
+        context.moveTo(...v.point);
+        context.lineTo(...p);
+        context.stroke();
+        context.beginPath();
+        context.arc(...p, 3.5, 0, Math.PI * 2);
+        context.fillStyle = s.selection.has(selectionKey(id, side)) ? ACCENT : "#fff";
+        context.fill();
+        context.strokeStyle = "#1b1b1b";
+        context.stroke();
+      }
+      square(v.point, s.selection.has(selectionKey(id)) ? ACCENT : "#fff", 4);
+    });
+  }
   function draw() {
     if (!resize() || !view.width) return;
     const dpr = canvas.width / view.width;
     context.setTransform(dpr, 0, 0, dpr, 0, 0);
     context.clearRect(0, 0, view.width, view.height);
-    const accent = "#ccc", entry = active();
-    context.strokeStyle = accent;
-    context.lineWidth = 1;
-    for (const e of entries()) {
-      if (!e.enabled) continue;
-      const selected = s.treeSelection.has(e.item.id);
-      if (!selected && e !== entry && e.item.id !== s.activeId) continue;
-      const points = cssPoints(e);
-      trace(points, e.path.closed);
-      context.strokeStyle = accent;
-      context.strokeStyle = "#666";
-      context.lineWidth = 3;
-      context.stroke();
-      context.strokeStyle = accent;
-      context.lineWidth = 1;
-      context.stroke();
-      if (e.item.kind !== "path") {
-        for (const h of primitiveHandles(e)) {
-          const p = screen(h.point, e.matrix);
-          context.strokeStyle = "#555";
-          context.fillStyle = "#ccc";
-          context.fillRect(p[0] - 5, p[1] - 5, 10, 10);
-          context.strokeRect(p[0] - 5, p[1] - 5, 10, 10);
-        }
+    const selected = [...s.treeSelection];
+    if (s.hover && !s.treeSelection.has(s.hover) && !s.pointer?.active)
+      for (const e of outlines(s.hover)) strokeOutline(e, HOVER);
+    let scope = null;
+    for (const id of selected) {
+      const item = s.find(id);
+      if (!item) continue;
+      if (PAINTS.includes(item.kind)) {
+        // A selected fill/stroke shows exactly which paths it draws.
+        scope = scope || paintScope(JSON.parse(JSON.stringify(s.layer.contents)));
+        const targets = new Set(scope.get(id)?.targets || []);
+        for (const e of entries()) if (targets.has(e.item.id)) strokeOutline(e, ACCENT, 1, [5, 4]);
         continue;
       }
-      points.forEach((v, i) => {
-        const id = e.item.vertexIds[i];
-        for (const side of ["in", "out"]) {
-          if (
-            !e.path.closed &&
-            (s.tool !== "pen" || s.penFinished) &&
-            ((side === "in" && i === 0) ||
-              (side === "out" && i === points.length - 1))
-          )
-            continue;
-          if (Math.hypot(...v[side]) < 1e-8) continue;
-          const p = g.add(v.point, v[side]);
-          context.beginPath();
-          context.strokeStyle = accent;
-          context.moveTo(...v.point);
-          context.lineTo(...p);
-          context.stroke();
-          context.beginPath();
-          context.arc(...p, 4, 0, Math.PI * 2);
-          context.fillStyle = s.selection.has(selectionKey(id, side))
-            ? "#555"
-            : "#ccc";
-          context.fill();
-          context.strokeStyle = "#555";
-          context.stroke();
-        }
-        context.fillStyle = s.selection.has(selectionKey(id))
-          ? "#555"
-          : "#ccc";
-        context.strokeStyle = "#555";
-        context.fillRect(v.point[0] - 5, v.point[1] - 5, 10, 10);
-        context.strokeRect(v.point[0] - 5, v.point[1] - 5, 10, 10);
-      });
+      for (const e of outlines(id)) strokeOutline(e, ACCENT);
+      if (item.kind === "path" && id === s.activeId && selected.length === 1) {
+        const e = active();
+        if (e?.enabled) drawPath(e);
+      }
     }
-    controls.draw(s, context, accent);
+    if (selected.length === 1 && !(s.tool === "pen" && !s.penFinished)) {
+      const b = xf.selectedBox(s);
+      if (b && b.kind !== "path") drawBox(b);
+    }
+    // Pen in progress on a path that is not the selection's leaf.
+    if (s.tool === "pen" && !s.penFinished && s.active()?.kind === "path" && selected.length !== 1) {
+      const e = active();
+      if (e?.enabled) drawPath(e);
+    }
+    controls.draw(s, context, ACCENT);
     if (s.marquee) {
       const { start, end } = s.marquee;
-      context.fillStyle = "rgba(204,204,204,.12)";
-      context.strokeStyle = accent;
+      context.fillStyle = "rgba(88,166,255,.12)";
+      context.strokeStyle = ACCENT;
+      context.lineWidth = 1;
       context.fillRect(...start, end[0] - start[0], end[1] - start[1]);
       context.strokeRect(...start, end[0] - start[0], end[1] - start[1]);
     }
@@ -273,10 +292,10 @@ function createCanvas(s, canvas) {
     local,
     cssPoints,
     hit,
-    sizeHit,
     itemAt,
     snap,
-    primitiveHandles,
+    outlines,
+    projection: () => projection,
     dispose: () => observer.disconnect(),
   };
 }
