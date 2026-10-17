@@ -25,13 +25,17 @@ function setup() {
     },
     createTrackList(track, list) { calls.push({ track, list }); },
   };
+  class Object3d {}
+  class Effect {}
+  const Clip = { video: class {}, audio: class {} };
   const context = { PZ: { property: Property, objectList: ObjectList, objectSingleton: Singleton,
+    object3d: Object3d, effect: Effect, clip: Clip,
     ui: { timeline: { keyframes: { prototype: proto } } } } };
   vm.createContext(context);
   const source = fs.readFileSync(require.resolve("../zoidium/plugin-apis.js"), "utf8");
   const load = () => vm.runInContext(source, context);
   load();
-  return { proto, calls, ObjectList, Singleton, Property, load };
+  return { proto, calls, ObjectList, Singleton, Property, Object3d, Effect, Clip, load };
 }
 
 test("plugin container lists reach native timeline builders without changing ownership", () => {
@@ -81,4 +85,16 @@ test("added container lists stop three object generations below the selection", 
     container = listUnder(track);
   }
   assert.deepEqual(depths, [1, 1, 1, 0, 0]);
+});
+
+test("lists of CM3's own classes stay with the panels that edit them", () => {
+  const { proto, calls, ObjectList, Object3d, Effect, Clip } = setup();
+  const list = (type) => { const value = new ObjectList(); value.type = type; return value; };
+  class SceneChild extends Object3d {}
+  const objects = list(Object3d), effects = list(Effect), clips = list(Clip.video);
+  const plugin = list(SceneChild);
+  proto.createKeyframeTrack({}, { children: [objects, effects, clips, plugin] });
+  // A Scene layer's 3D objects and a layer's effects are not listed under the
+  // clip; a plugin class, even one derived from a CM3 class, still is.
+  assert.deepEqual(calls.map(call => call.list), [plugin]);
 });
