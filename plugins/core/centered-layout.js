@@ -208,8 +208,23 @@
         if (rightTitles.indexOf(panel.title) !== -1 && left.panels.length > 1) transfer(panel, left, right, false);
       }
     }).observe(left.tabcontainer, { childList: true });
-    var center = new PZ.ui.splitPanel(CM, root.panels[1], right, 0.74, 1);
+    var center = new PZ.ui.splitPanel(CM, root.panels[1], right, 0.7, 1);
     return new PZ.ui.splitPanel(CM, root.panels[0], center, 0.22, 1);
+  }
+
+  // An Edit panel fixes its name column at half its width on the first resize.
+  // The right sidebar is built and resized before it is attached (width 0),
+  // which left a zero-width name column. Measure once the panel has a width.
+  var editPrototype = PZ.ui.edit && PZ.ui.edit.prototype;
+  if (editPrototype && typeof editPrototype.resize === "function") {
+    var editResize = editPrototype.resize;
+    editPrototype.resize = function () {
+      if (!this.columnTemplate && this.el && this.el.clientWidth === 0) {
+        this.needsResize = true;
+        return;
+      }
+      return editResize.apply(this, arguments);
+    };
   }
 
   var createMainWindow = CM.createMainWindow;
