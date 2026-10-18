@@ -13,7 +13,7 @@
     return !target || typeof target.nodeType !== "number";
   }
 
-  function hideInvalidStylesheets(editor) {
+  function hideNativeStylesheets(editor) {
     var sourceWindow = editor && editor.windows && editor.windows[0] && editor.windows[0].window;
     var sourceDocument = sourceWindow && sourceWindow.document;
     var head = sourceDocument && sourceDocument.head;
@@ -23,7 +23,10 @@
     var hidden = [];
     for (var index = 0; index < links.length; index += 1) {
       var link = links[index];
-      if (link.getAttribute("href") !== null || !link.parentNode) continue;
+      // CM3 flattens even valid URLs before the mirroring pass can replace
+      // them. Hide all source links during construction so those requests
+      // never start. Restoration and mirroring happen in the same JS turn.
+      if (!link.parentNode) continue;
 
       var parent = link.parentNode;
       var nextSibling = link.nextSibling;
@@ -34,7 +37,7 @@
   }
 
   function restoreStylesheets(hidden) {
-    for (var index = 0; index < hidden.length; index += 1) {
+    for (var index = hidden.length - 1; index >= 0; index -= 1) {
       var entry = hidden[index];
       if (!entry.parent || entry.link.parentNode) continue;
 
@@ -88,7 +91,7 @@
     var secondary = isSecondaryWindowRequest(target);
     if (secondary) {
       try {
-        hidden = hideInvalidStylesheets(editor);
+        hidden = hideNativeStylesheets(editor);
       } catch (_error) {
         // Stylesheet probing is best effort; the popup opens unguarded.
         hidden = [];

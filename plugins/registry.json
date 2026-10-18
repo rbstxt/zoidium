@@ -26,14 +26,14 @@
       "id": "core",
       "name": "Zoidium Core",
       "author": "Zoidium",
-      "version": "67",
+      "version": "68",
       "visibility": "hidden",
       "alwaysEnabled": true,
       "tagline": "Built-in core extensions",
       "description": "Hidden built-in extensions that always run. Not shown in the Plugins panel and never stored in projects.",
-      "manifest": "./plugins/core/manifest.json?v=67",
-      "bundle": "./plugins/core/bundle.json?v=67",
-      "integrity": "sha256-BmS3k/10mr2IByoyNdVDU90qI+ziNsBoxobYrpTnRz8="
+      "manifest": "./plugins/core/manifest.json?v=68",
+      "bundle": "./plugins/core/bundle.json?v=68",
+      "integrity": "sha256-IcnPHdNA52RdtpPEv+Z7gYzrSagHeiMPevtadvgPYBA="
     },
     {
       "id": "easing-plus",
@@ -127,7 +127,7 @@
       "description": "Replaces the keyframe graph editor with DaviFX's Graph Editor 2: easing presets, tangent tools, ruler scrubbing, a track list with live values and a full keyboard set.",
       "manifest": "./plugins/graph-plus/manifest.json?v=12",
       "bundle": "./plugins/graph-plus/bundle.json?v=12",
-      "integrity": "sha256-ibtOSF/I+xVsCJZKOIYgaV8wTHqKMK3PR9ML1uDPubI="
+      "integrity": "sha256-Cc/lMS2wEsqHoza2f19DUSYNMve3DwQd+OGzixff11U="
     },
     {
       "id": "motion-path",
