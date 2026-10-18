@@ -78,7 +78,11 @@ function createInteraction(s) {
       if (channels) g.session.preview(edit.toggleKey(channels, frame, s.easings));
       return;
     }
-    if (g.type === "key" && !event.shiftKey && !g.toggled) { set.clear(); set.add(frame); }
+    if (g.type !== "key") return;
+    if (event.shiftKey) {
+      if (set.has(frame)) set.delete(frame);
+      else set.add(frame);
+    } else { set.clear(); set.add(frame); }
   }
   function finish(cancel, event) {
     const g = active;
@@ -104,7 +108,7 @@ function createInteraction(s) {
     const g = {
       model, key, side: side === "in" ? 0 : 1, pointerId: event.pointerId,
       x: event.clientX, y: event.clientY, moved: false, alt: event.altKey, session: null,
-      frame: s.editor.playback.currentFrame, toggled: false,
+      frame: s.editor.playback.currentFrame,
     };
     if (side) {
       g.type = "handle";
@@ -113,10 +117,9 @@ function createInteraction(s) {
       g.start = key.handles[side].point;
     } else {
       g.type = event.altKey ? "pull" : "key";
-      if (g.type === "key") {
-        if (event.shiftKey) { g.toggled = true; if (set.has(key.frame)) set.delete(key.frame); else set.add(key.frame); }
-        else if (!set.has(key.frame)) { set.clear(); set.add(key.frame); }
-      }
+      // Shift-click toggles the key on release; Shift during a drag only
+      // constrains it, so a press never changes the selection with Shift.
+      if (g.type === "key" && !event.shiftKey && !set.has(key.frame)) { set.clear(); set.add(key.frame); }
       // Pulling handles starts at the key; the out handle follows the
       // pointer (the in handle on the last key).
       const last = key.frame === model.frames[model.frames.length - 1];
