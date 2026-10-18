@@ -388,6 +388,7 @@ const GraphPlus = (() => {
     try {
       state.selectionHost = installSelection({
         PZ, editor, document: typeof document !== "undefined" ? document : null,
+        styleDocument: injectStyle, unstyleDocument: removeStyle,
         open() {
           const win = editor.createWindow({ title: "Graph editor" });
           if (!win.panel) win.setPanel(new PZ.ui.graphEditor(editor));

@@ -1,13 +1,13 @@
 "use strict";
 
-const { controllers, Selection, curvesFor } = require("./selection.js");
+const { controllers, Selection, curvesFor, sameSet } = require("./selection.js");
 
-module.exports = function installSelection({ PZ, editor, document: doc, open }) {
+module.exports = function installSelection({ PZ, editor, document: doc, open, styleDocument, unstyleDocument }) {
   const storage = (() => { try { return doc?.defaultView?.localStorage; } catch (_error) { return null; } })();
   const selection = new Selection(PZ, storage);
   controllers.set(editor, selection);
-  const cleanups = [], labels = new WeakMap(), decorated = new Map();
-  let disposed = false, menu = null, pending = null, queued = false;
+  const cleanups = [], labels = new WeakMap(), keySelections = new WeakMap(), decorated = new Map(), documents = new Map();
+  let disposed = false, menu = null, pending = null, queued = false, lastRow = null;
   function patch(target, key, after) {
     if (typeof target?.[key] !== "function") return;
     const original = target[key], descriptor = Object.getOwnPropertyDescriptor(target, key);
@@ -42,6 +42,13 @@ module.exports = function installSelection({ PZ, editor, document: doc, open }) 
     row.tabIndex = 0;
     row.title = "Show in Graph Editor (Alt+Shift+G)";
   }
+  function restoreRow(row, original) {
+    row.classList.remove("g2-property-selected", "g2-property-label");
+    labels.delete(row);
+    for (const key of ["tabindex", "title"]) {
+      if (original[key] === null) row.removeAttribute(key); else row.setAttribute(key, original[key]);
+    }
+  }
   function propertyRow(row) {
     return row && curvesFor(PZ, row.pz_object).length > 0;
   }
@@ -64,11 +71,13 @@ module.exports = function installSelection({ PZ, editor, document: doc, open }) 
     }
   }
   function pick(row, additive) {
+    lastRow = row;
     decorate(row);
     selection.select([targetProperty(row)], additive);
     paint();
   }
   function show(row) {
+    lastRow = row;
     const panel = open();
     if (panel) { selection.show(targetProperty(row), panel); paint(); }
   }
@@ -77,27 +86,37 @@ module.exports = function installSelection({ PZ, editor, document: doc, open }) 
     const row = rowAt(event.target);
     if (!row) return;
     event.preventDefault(); event.stopPropagation();
+    // macOS reports Control-click as a context-menu gesture. Keep the
+    // documented additive selection working there as well as on Windows.
+    if (event.ctrlKey) { closeMenu(); pick(row, true); return; }
     closeMenu();
-    menu = doc.createElement("div");
+    const owner = row.ownerDocument || doc;
+    menu = owner.createElement("div");
     menu.className = "g2-property-menu";
     menu.setAttribute("role", "menu");
-    const button = doc.createElement("button");
+    const button = owner.createElement("button");
     button.setAttribute("role", "menuitem");
     button.textContent = "Show in Graph Editor";
     button.title = "Alt+Shift+G";
     button.addEventListener("click", () => { closeMenu(); show(row); });
     menu.appendChild(button);
-    doc.body.appendChild(menu);
+    owner.body.appendChild(menu);
     const box = menu.getBoundingClientRect();
-    menu.style.left = Math.max(0, Math.min(event.clientX, doc.defaultView.innerWidth - box.width)) + "px";
-    menu.style.top = Math.max(0, Math.min(event.clientY, doc.defaultView.innerHeight - box.height)) + "px";
+    menu.style.left = Math.max(0, Math.min(event.clientX, owner.defaultView.innerWidth - box.width)) + "px";
+    menu.style.top = Math.max(0, Math.min(event.clientY, owner.defaultView.innerHeight - box.height)) + "px";
     button.focus({ preventScroll: true });
   }
   function keydown(event) {
     if (event.key === "Escape" && menu) { closeMenu(); return; }
     if (!event.altKey || !event.shiftKey || event.ctrlKey || event.metaKey ||
         !(event.code === "KeyG" || event.key?.toLowerCase() === "g")) return;
-    const row = rowAt(event.target);
+    let row = rowAt(event.target);
+    // CM3 moves focus from a clicked label to the containing Edit panel.
+    // Its selected property remains the shortcut target in that panel.
+    if (!row && lastRow?.isConnected && selection.properties.includes(targetProperty(lastRow))) {
+      const owner = editPanel(event.target);
+      if (owner && owner === editPanel(lastRow)) row = lastRow;
+    }
     if (!row) return;
     event.preventDefault(); event.stopPropagation();
     show(row);
@@ -106,7 +125,21 @@ module.exports = function installSelection({ PZ, editor, document: doc, open }) 
     if (menu && !menu.contains(event.target)) closeMenu();
     if (event.button !== 0) return;
     const row = rowAt(event.target);
-    if (!row) return;
+    if (!row) {
+      const clip = event.target.closest?.(".clip");
+      if (clip?.pz_object) {
+        const timeline = editPanel(clip);
+        if (timeline?.editor === editor) {
+          const objects = event.ctrlKey || event.metaKey || event.shiftKey
+            ? Array.from(new Set([...(timeline.tracks?.selection || []), clip.pz_object])) : [clip.pz_object];
+          // Re-clicking an already selected layer emits no native list change,
+          // but still leaves property/key selection and requests animated curves.
+          lastRow = null;
+          selection.objects(objects); paint();
+        }
+      }
+      return;
+    }
     // Capture before inputs stop propagation; following never changes focus.
     pick(row, event.ctrlKey || event.metaKey || event.shiftKey);
     if (!event.target.closest("button, input, textarea, select, [contenteditable]")) row.focus({ preventScroll: true });
@@ -119,9 +152,11 @@ module.exports = function installSelection({ PZ, editor, document: doc, open }) 
   }
   function timelineSelection(host) {
     schedule(() => {
-      const properties = Array.from(host.container.querySelectorAll(".kfobject.selected"))
-        .map(key => key.parentElement.pz_object);
-      if (properties.length) selection.select(Array.from(new Set(properties)));
+      const keys = Array.from(host.container.querySelectorAll(".kfobject.selected"));
+      if (sameSet(keys, keySelections.get(host) || [])) return;
+      keySelections.set(host, keys);
+      const properties = keys.map(key => key.parentElement.pz_object);
+      if (properties.length) selection.select(Array.from(new Set(properties)), false, true);
       else selection.objects(host.objects);
     });
   }
@@ -143,17 +178,26 @@ module.exports = function installSelection({ PZ, editor, document: doc, open }) 
   });
   patch(PZ.ui.edit?.prototype, "selectItems", function () {
     if (this.editor === editor && !this.el.closest(".g2-editor")) {
+      // Native edit rows are draggable objects too. Their mouse-up selection
+      // uses Shift alone and must not replace our Ctrl/Shift property set.
+      if (Array.from(this.selection).some(property => curvesFor(PZ, property).length)) return;
       schedule(() => selection.objects(this.selection));
     }
   });
-  function refreshRows() {
-    for (const element of doc?.querySelectorAll?.(".editorpanel") || []) {
+  function refreshRows(owner = doc, initial = true) {
+    let objects = [], properties = [];
+    for (const element of owner?.querySelectorAll?.(".editorpanel") || []) {
       const panel = element.pz_panel;
       if (panel instanceof PZ.ui.edit && panel.editor === editor && panel.options.showPropertyControls && !element.closest(".g2-editor")) {
         for (const row of panel.list.querySelectorAll("li")) if (propertyRow(row)) decorate(row);
+        const selected = Array.from(panel.selection || []);
+        const selectedProperties = selected.filter(property => curvesFor(PZ, property).length);
+        if (selectedProperties.length) properties = selectedProperties;
+        else if (selected.length) objects = selected;
       }
       const keys = panel?.keyframes;
       if (keys?.timeline?.editor === editor) {
+        if (!objects.length) objects = Array.from(keys.timeline.tracks?.selection || []);
         for (const track of keys.container.querySelectorAll(".kftrack")) if (propertyRow(track)) {
           labels.set(track.pz_label, track.pz_object);
           track.pz_label.classList.add("g2-property-label");
@@ -161,28 +205,61 @@ module.exports = function installSelection({ PZ, editor, document: doc, open }) 
         }
       }
     }
-  }
-  refreshRows();
-  if (doc?.addEventListener) {
-    for (const [type, fn] of [["pointerdown", pointer], ["contextmenu", context], ["keydown", keydown], ["focusin", focus]]) {
-      doc.addEventListener(type, fn, true);
-      cleanups.push(() => doc.removeEventListener(type, fn, true));
+    if (initial) {
+      if (properties.length) selection.select(properties);
+      else selection.objects(objects);
     }
   }
-  const reset = () => { closeMenu(); selection.properties = []; selection.curves = []; schedule(() => selection.sync()); };
+  refreshRows();
+  function bindDocument(owner) {
+    if (!owner?.addEventListener || documents.has(owner)) return;
+    const listeners = [["pointerdown", pointer], ["contextmenu", context], ["keydown", keydown], ["focusin", focus]];
+    for (const [type, fn] of listeners) owner.addEventListener(type, fn, true);
+    const release = () => {
+      for (const [type, fn] of listeners) owner.removeEventListener(type, fn, true);
+      owner.defaultView?.removeEventListener?.("pagehide", release);
+      documents.delete(owner);
+      for (const [row, original] of decorated) if (row.ownerDocument === owner) {
+        restoreRow(row, original); decorated.delete(row);
+      }
+      if (lastRow?.ownerDocument === owner) lastRow = null;
+      if (owner !== doc) unstyleDocument?.(owner);
+    };
+    documents.set(owner, release);
+    if (owner !== doc) {
+      styleDocument?.(owner);
+      owner.defaultView?.addEventListener?.("pagehide", release);
+    }
+  }
+  bindDocument(doc);
+  // Native duplicated Edit windows adopt rows into their own document.
+  // Bind at mount time, including already-open popups, without a frame poll.
+  for (const win of editor.windows || []) {
+    const owner = win.panel?.el?.ownerDocument;
+    if (owner && owner !== doc) { bindDocument(owner); refreshRows(owner, false); }
+  }
+  patch(PZ.ui.window?.prototype, "setPanel", function () {
+    if (this.editor !== editor) return;
+    const owner = this.panel?.el?.ownerDocument;
+    bindDocument(owner);
+    if (owner && owner !== doc) refreshRows(owner, false);
+  });
+  const reset = () => {
+    closeMenu(); lastRow = null; selection.properties = []; selection.objectSelection = []; selection.curves = [];
+    // A pin belongs to the current project; release stale property references.
+    schedule(() => { for (const panel of selection.panels) selection.apply(panel); });
+  };
   editor.onProjectChanged?.watch(reset);
   editor.onSequenceChanged?.watch(reset);
   cleanups.push(() => { editor.onProjectChanged?.unwatch(reset); editor.onSequenceChanged?.unwatch(reset); });
   return {
     selection,
     dispose() {
-      disposed = true; pending = null; closeMenu();
+      disposed = true; pending = null; lastRow = null; closeMenu();
+      for (const release of Array.from(documents.values())) release();
       for (const cleanup of cleanups.reverse()) cleanup();
       for (const [row, original] of decorated) {
-        row.classList.remove("g2-property-selected", "g2-property-label");
-        for (const key of ["tabindex", "title"]) {
-          if (original[key] === null) row.removeAttribute(key); else row.setAttribute(key, original[key]);
-        }
+        restoreRow(row, original);
       }
       decorated.clear(); selection.dispose();
       controllers.delete(editor);
