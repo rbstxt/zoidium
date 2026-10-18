@@ -293,6 +293,7 @@
       defaultProjectSettings.setFrameRate(state.settings.defaultFrameRate);
     }
     applySettings();
+    global.dispatchEvent(new CustomEvent("zoidium:theme-changed"));
   }
 
   function updateGeneratedRows() {
@@ -390,7 +391,6 @@
           state.settings.theme = THEME_OPTIONS[index].value;
           if (state.settings.theme !== "custom") state.settings.hue = THEME_OPTIONS[index].hue;
           persistAndApply();
-          global.dispatchEvent(new CustomEvent("zoidium:theme-changed"));
         },
       },
       state,
@@ -414,6 +414,7 @@
         set: function (value) {
           var hue = Number(value);
           if (!Number.isFinite(hue)) return;
+          state.settings.themeId = null;
           state.settings.theme = "custom";
           state.settings.hue = clamp(hue, -180, 180);
           persistAndApply();
@@ -438,6 +439,7 @@
         set: function (value) {
           var saturation = Number(value);
           if (!Number.isFinite(saturation)) return;
+          state.settings.themeId = null;
           state.settings.theme = "custom";
           state.settings.saturation = clampSaturation(saturation);
           persistAndApply();
@@ -480,7 +482,7 @@
     if (!state.controls) return;
     // Hue and saturation only apply to the Custom profile. Preset and Gray
     // profiles fix both values, so their rows stay hidden.
-    var display = state.settings.theme === "custom" ? "" : "none";
+    var display = state.settings.theme === "custom" && !themeEditor.selected() ? "" : "none";
     ["hueRow", "saturationRow"].forEach(function (key) {
       var row = state.controls[key];
       if (row && row.style) row.style.display = display;
