@@ -94,6 +94,9 @@
     var open = function () {
       var inWindow = isInsideWindow(this.el);
       var result = original.apply(this, arguments);
+      // Every popup sits above the sidebars' tab columns (z-index 2), which
+      // otherwise cover a picker opened near them, e.g. in a right sidebar.
+      if (this.picker) this.picker.classList.add("zoidium-color-picker");
       if (inWindow && this.picker) this.picker.classList.add("zoidium-window-color-picker");
       return result;
     };
@@ -569,6 +572,9 @@
       if (!prefix || win.id.indexOf(prefix) === 0) win.close();
     });
   }
+
+  // Editor color pickers need the stacking fix before any window opens.
+  installWindowColorPicker();
 
   var builder = global.ZoidiumUIBuilder = global.ZoidiumUIBuilder || {};
   builder.windows = {
