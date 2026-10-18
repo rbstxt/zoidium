@@ -98,3 +98,14 @@ The compatibility, legacy render, temporal sampler, plugin API, shadow quality
 and output frame tests cover migration without version checks, explicit
 choices, new objects, round trips, duplication, history reloads, mode-aware
 cache keys and historical output comparisons.
+
+## Motion paths
+
+Motion Paths stores edits in CM3's existing Position channels and native
+keyframe fields only. It adds no rendering mode, object type or spatial path
+field. Older builds can evaluate those edits without the plugin. Visibility
+and local path-key selection are editor state and are not saved in projects.
+Showing a path leaves existing animation untouched. Materializing an axis key
+preserves hold, linear and bezier curves; other easing presets retain the
+neighbouring tween and can change timing within the split segment. See
+`plugins/motion-path/README.md` for the temporal handle mapping and limits.
