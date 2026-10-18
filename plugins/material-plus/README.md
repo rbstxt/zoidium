@@ -98,9 +98,9 @@ pnpm run verify
 ## Node Material and node graphs
 
 Node Material (`nodes`) uses a MeshPhysicalMaterial and bakes a project-owned,
-versioned JSON graph into color, luminance, roughness, metalness, bump and opacity
-maps. A connected Fresnel node controls the view-angle tint. Open Node Editor
-opens the shared Zoidium graph component in a floating window with a color-map
+versioned JSON graph into color, luminance, RGB emission, tangent-space normal,
+roughness, metalness, bump and opacity maps. A connected Fresnel node controls
+the view-angle tint. Open Node Editor opens the shared Zoidium graph component in a floating window with a color-map
 preview. Each completed graph gesture records one native undo operation.
 Image and Texture nodes use the native Selected node image property,
 which imports images through CM3's project asset picker.
@@ -151,19 +151,43 @@ shader and graph runtime and adds these optional controls:
 - Cel diffuse/specular levels and smoothness.
 - UV, spherical, cylindrical or cubic projection, with projection transforms.
 - Reflection layer strength, opacity and roughness; specular strength/opacity.
+- Animated Clearcoat, Clearcoat roughness and Reflectivity. The existing
+  reflection layer owns clearcoat while enabled; otherwise the new controls
+  apply. Reflectivity defaults to r91's 0.5 dielectric response.
+- RGB Emission output with animated Emission strength. Emission adds to the
+  existing Luminance output; Luminance brightness and PBR+ Emissive controls
+  retain their existing behavior.
+- Environment image, animated Environment intensity and Environment rotation.
+  Choose an equirectangular image through the native project asset picker.
+  A chosen image supplies reflections independently of the Reflection switch;
+  clearing it restores the existing scene-environment behavior. Existing
+  reflection brightness/intensity controls multiply Environment intensity.
+  The native picker decodes ordinary image formats, not Radiance HDR or EXR.
+  Exposure comes from intensity; this does not recover HDR image data. The r91
+  renderer uses power-of-two mipmaps for roughness blur, not PMREM filtering.
+- Shadow side: Auto, Front, Back or Double. Auto retains native single-sided
+  shadows and uses Back for double-sided materials to avoid self-shadow lines.
+  Open meshes may need an explicit side to cast their intended shadows.
 - Use node graph and bake resolution. The Node Editor button appears while
   Use node graph is on.
 
 Ramp, procedural bump, Fresnel, ambient occlusion, cel, reflection layer and
-graphs default off. The physical material has zero clear coat until the
-reflection layer is enabled. PBR+ and Node Material expose their settings
-in native property rows, with a floating window for graph editing.
+graphs default off. Clearcoat defaults to zero, so the physical material has
+zero clear coat until Clearcoat or the reflection layer is enabled. PBR+ and
+Node Material expose their settings in native property rows, with a floating window for graph editing.
 
 Normal maps combine with graph Bump output or Bump Noise in both PBR+ and
 Node Material. Set the image in Normal map and adjust Normal scale and Bump
 Strength independently. The shader reorients the bump detail along the mapped
 normal before lighting and Fresnel; either map used alone retains the native
 shading behavior. Bump Noise still takes precedence over graph Bump output.
+The Output Normal input adds node-driven detail to the Normal map property
+using the same reorientation method, then applies Bump. Its Normal input mode
+accepts either tangent-space RGB or Height. Normal strength adjusts the baked
+normal detail; Height uses deterministic wrapped central differences in UV
+units, so its strength does not grow with bake resolution. Normal scale still
+controls the imported Normal map independently. All node maps use the shared
+Material+ UV layout and material UV transforms.
 
 ## Image+ Material
 
