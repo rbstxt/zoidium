@@ -67,9 +67,9 @@
     var layouts = manifest.layouts || {};
     var fallback = manifest.defaultLayout || "clipmaker";
     var requested = readStoredLayout() || fallback;
-    // "<layout>-centered" runs the same editor; plugins/core/centered-layout.js
+    // "<layout>-centered" (and "-centered2") runs the same editor; plugins/core/centered-layout.js
     // then adds the right-hand sidebar.
-    var base = typeof requested === "string" ? requested.replace(/-centered$/, "") : requested;
+    var base = typeof requested === "string" ? requested.replace(/-centered\d*$/, "") : requested;
     var layout = layouts[requested] ? requested : layouts[base] ? base : fallback;
     var profile = layouts[layout];
     if (!profile || typeof profile.entryScript !== "string") {

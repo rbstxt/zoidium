@@ -1,7 +1,8 @@
 (function installCenteredLayout(global) {
   "use strict";
 
-  // "Clipmaker 3 / Video Editor 2 (centered viewport)": the editor with a
+  // "Clipmaker 3 / Video Editor 2 (centered viewport)" and "Video Editor 2
+  // (centered viewport, full-height sidebar)": the editor with a
   // second tab sidebar on the right, so the preview sits between two columns
   // of panels. Both editors build their panel tree in setUpEditor and hand the
   // root to the main window's setPanel; this pre-init patch rearranges that
@@ -9,7 +10,10 @@
   // Tabs move between the sidebars from their right-click menu, and the
   // arrangement is remembered with the other editor settings.
   var STORAGE_KEY = "zoidium.editor-settings";
-  var LAYOUTS = { "clipmaker-centered": "clipmaker", "videoeditor-centered": "videoeditor" };
+  // Video Editor's "centered 2" variant runs the right sidebar from the top of
+  // the window to the bottom, beside the timeline as well as the preview.
+  var LAYOUTS = { "clipmaker-centered": "clipmaker", "videoeditor-centered": "videoeditor", "videoeditor-centered2": "videoeditor" };
+  var FULL_HEIGHT = { "videoeditor-centered2": true };
   var DEFAULT_RIGHT = ["Objects", "Effects"];
   var PZ = global.PZ, CM = global.CM;
 
@@ -234,6 +238,7 @@
         if (rightTitles.indexOf(panel.title) !== -1 && left.panels.length > 1) transfer(panel, left, right, false);
       }
     }).observe(left.tabcontainer, { childList: true });
+    if (FULL_HEIGHT[settings.layout]) return new PZ.ui.splitPanel(CM, root, right, 0.8, 1);
     var center = new PZ.ui.splitPanel(CM, column.panels[1], right, 0.7, 1);
     return rebuild(root, column, new PZ.ui.splitPanel(CM, column.panels[0], center, Math.min(column.ratio, 0.24), 1));
   }
