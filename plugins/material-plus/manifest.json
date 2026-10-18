@@ -98,6 +98,11 @@
       "id": "legacy-pbr-uv",
       "type": "text",
       "source": "./plugins/material-plus/legacy-pbr-uv.js?v=23"
+    },
+    {
+      "id": "graph-spectra",
+      "type": "text",
+      "source": "./plugins/material-plus/graph-spectra.js?v=23"
     }
   ],
   "modules": [

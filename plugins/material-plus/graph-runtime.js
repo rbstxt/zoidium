@@ -53,7 +53,7 @@ function createGraphRuntime(PZ, document) {
         var params = {};
         for (var i = 0; i < definition.params.length; i++) {
             var param = definition.params[i];
-            params[param.key] = Array.isArray(param.value) ? param.value.slice() : param.value;
+            params[param.key] = Array.isArray(param.value) ? JSON.parse(JSON.stringify(param.value)) : param.value;
         }
         return { id: id, type: type, x: 40, y: 40, params: params };
     };
@@ -85,6 +85,7 @@ function createGraphRuntime(PZ, document) {
                 if (p.type === "number" && Number.isFinite(Number(v))) v = clamp(Number(v), p.min ?? -Number.MAX_VALUE, p.max ?? Number.MAX_VALUE);
                 else if (p.type === "option" && Number.isFinite(Number(v))) v = clamp(Math.round(Number(v)), 0, p.items.length - 1);
                 else if (p.type === "color" && Array.isArray(v) && v.length >= 3) v = v.slice(0, 3).map(c => clamp(Number(c) || 0, 0, 1));
+                else if (p.sanitize) v = p.sanitize(v);
                 else if (p.type === "asset" && typeof v === "string" && !/^(?:https?:|data:|blob:)/i.test(v)) v = v.slice(0, 1024);
                 else continue;
                 node.params[p.key] = v;
@@ -148,7 +149,7 @@ function createGraphRuntime(PZ, document) {
                     const setting = key => {
                         const source = nodes.findLink(graph, node.id, key);
                         if (!source) return node.params[key];
-                        const value = nodes.evaluate(graph, context.size || 32, time, context, source.from);
+                        const value = nodes.evaluate(graph, context.size || 32, time, context, source.from, source.fromPort);
                         return value ? reduceValue(value, key === "color") : node.params[key];
                     };
                     return {
@@ -164,12 +165,12 @@ function createGraphRuntime(PZ, document) {
 
     nodes.isAnimated = function (graph, material) {
         const cache = nodes.getImageCache(material);
-        return graph.nodes.some(n => (["noise", "ridgedFractal", "turbulence", "marble", "dirt"].includes(n.type) && (n.params.speedX || n.params.speedY || graph.links.some(l => l.to === n.id && ["speedX", "speedY"].includes(l.toPort)))) || cache[n.params.asset]?.loaded?.data?.gif?.frames?.length > 1);
+        return graph.nodes.some(n => (["noise", "ridgedFractal", "turbulence", "marble", "dirt", "voronoi"].includes(n.type) && (n.params.speedX || n.params.speedY || graph.links.some(l => l.to === n.id && ["speedX", "speedY"].includes(l.toPort)))) || cache[n.params.asset]?.loaded?.data?.gif?.frames?.length > 1);
     };
     nodes.cacheKey = function (graph, resolution, frame, assets) {
         return JSON.stringify([nodes.parse(graph), resolution, frame, assets]);
     };
-    nodes.evaluate = function (graph, size, time, context, target) {
+    nodes.evaluate = function (graph, size, time, context, target, targetPort = "out") {
         size = Math.max(1, Math.min(2048, Math.round(size) || 128));
         graph = nodes.parse(graph);
         var outputs = {};
@@ -182,13 +183,13 @@ function createGraphRuntime(PZ, document) {
         function inputBuffer(nodeId, port, stack) {
             var link = nodes.findLink(graph, nodeId, port);
             if (link) {
-                return evaluateNode(link.from, stack);
+                return evaluateNode(link.from, stack, link.fromPort);
             }
             return null;
         }
 
-        function evaluateNode(id, stack) {
-            if (cache[id] !== undefined) return cache[id];
+        function evaluateNode(id, stack, port = "out") {
+            if (cache[id]?.[port] !== undefined) return cache[id][port];
             if (stack.indexOf(id) >= 0) return null;
             var node = nodeMap[id];
             if (!node) return null;
@@ -219,14 +220,14 @@ function createGraphRuntime(PZ, document) {
             else if (node.type === "math") result = numericMath(size, inputs, params);
             else {
                 for (const key of Object.keys(inputs)) if (!definition.params.some(p => p.key === key)) inputs[key] = asTexture(inputs[key], size);
-                result = definition.evaluate ? definition.evaluate(size, inputs, params, time, context) : null;
+                result = definition.evaluatePort ? definition.evaluatePort(size, inputs, params, time, context, port) : definition.evaluate ? definition.evaluate(size, inputs, params, time, context) : null;
             }
             stack.pop();
-            cache[id] = result;
+            (cache[id] || (cache[id] = Object.create(null)))[port] = result;
             return result;
         }
 
-        if (target !== undefined) return evaluateNode(target, []);
+        if (target !== undefined) return evaluateNode(target, [], targetPort);
         for (var n = 0; n < graph.nodes.length; n++) {
             var node = graph.nodes[n];
             if (node.type !== "output") continue;
