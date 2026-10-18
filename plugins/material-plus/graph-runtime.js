@@ -220,7 +220,11 @@ function createGraphRuntime(PZ, document) {
             else if (node.type === "math") result = numericMath(size, inputs, params);
             else {
                 for (const key of Object.keys(inputs)) if (!definition.params.some(p => p.key === key)) inputs[key] = asTexture(inputs[key], size);
-                result = definition.evaluatePort ? definition.evaluatePort(size, inputs, params, time, context, port) : definition.evaluate ? definition.evaluate(size, inputs, params, time, context) : null;
+                if (definition.evaluateOutputs) {
+                    const values = definition.evaluateOutputs(size, inputs, params, time, context);
+                    cache[id] = values;
+                    result = values[port];
+                } else result = definition.evaluatePort ? definition.evaluatePort(size, inputs, params, time, context, port) : definition.evaluate ? definition.evaluate(size, inputs, params, time, context) : null;
             }
             stack.pop();
             (cache[id] || (cache[id] = Object.create(null)))[port] = result;

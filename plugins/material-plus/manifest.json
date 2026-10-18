@@ -103,6 +103,36 @@
       "id": "graph-spectra",
       "type": "text",
       "source": "./plugins/material-plus/graph-spectra.js?v=23"
+    },
+    {
+      "id": "graph-curves",
+      "type": "text",
+      "source": "./plugins/material-plus/graph-curves.js?v=23"
+    },
+    {
+      "id": "graph-catalogue",
+      "type": "text",
+      "source": "./plugins/material-plus/graph-catalogue.js?v=23"
+    },
+    {
+      "id": "graph-procedural",
+      "type": "text",
+      "source": "./plugins/material-plus/graph-procedural.js?v=23"
+    },
+    {
+      "id": "graph-blend",
+      "type": "text",
+      "source": "./plugins/material-plus/graph-blend.js?v=23"
+    },
+    {
+      "id": "graph-recipes",
+      "type": "text",
+      "source": "./plugins/material-plus/graph-recipes.js?v=23"
+    },
+    {
+      "id": "node-curves-style",
+      "type": "text",
+      "source": "./plugins/native-fx/colorcurves.css?v=23"
     }
   ],
   "modules": [

@@ -17,7 +17,7 @@ for (const id of Object.keys(nodes.types).filter(id => id !== "math")) test(`Ope
   const inputs = Object.fromEntries(def.inputs.map(p => [p.key, input]));
   assert.equal(hash(def.evaluate?.(8, inputs, node.params, .5, { images: {} })), golden[id === "legacyMath" ? "math" : id]);
 });
-test("all historical types remain available alongside the new Math", () => assert.equal(Object.keys(nodes.types).length, 32));
+test("all historical types remain available alongside the new Math", () => assert.ok(Object.keys(nodes.types).length >= 32));
 test("animated noise is independent of seek order", () => {
   for (const type of ["noise", "ridgedFractal", "turbulence", "marble", "dirt"]) {
     const node = nodes.createNode(type, "n"); node.params.speedX = 1;

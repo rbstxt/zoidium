@@ -90,7 +90,7 @@
 
       function renderMenuItems(query) {
         if (!menu) return;
-        var tokens = String(query || "").toLowerCase().split(/\s+/).filter(Boolean);
+
         var list = menu.list;
         list.textContent = "";
         menu.items = [];
@@ -99,8 +99,7 @@
           var spec = cx.types[typeId];
           if (spec.hidden) return;
           if (menu.ctx && !menuAccepts(spec, menu.ctx)) return;
-          var haystack = (spec.title + " " + spec.category + " " + typeId).toLowerCase();
-          if (!tokens.every(function (token) { return haystack.indexOf(token) >= 0; })) return;
+          if (!graphTools.matchesSearch(spec, typeId, query)) return;
           if (!groups.has(spec.category)) groups.set(spec.category, []);
           groups.get(spec.category).push(spec);
         });

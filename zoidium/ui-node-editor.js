@@ -69,6 +69,7 @@
 
     var cx = {
       doc: doc,
+      recipes: opts.recipes || [],
       types: types,
       canConnect: canConnect,
       readOnly: readOnly,
@@ -96,6 +97,13 @@
     parts.createView(cx);
     parts.createFields(cx);
     parts.createMenu(cx);
+    cx.loadRecipe = function (recipe) {
+      if (readOnly || cx.destroyed) return;
+      cx.graph = normalizeGraph(recipe.graph, types);
+      setSelection([], true);
+      cx.pendingFrame = true;
+      commit("recipe", "Load " + recipe.label);
+    };
     cx.setSelection = setSelection;
     cx.commit = commit;
     cx.makerFor = makerFor;

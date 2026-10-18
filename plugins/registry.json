@@ -206,7 +206,7 @@
       "zoidiumOnly": true,
       "manifest": "./plugins/material-plus/manifest.json?v=23",
       "bundle": "./plugins/material-plus/bundle.json?v=23",
-      "integrity": "sha256-1F4ndPiybjkqwmZ2MF8/mxnVyYdHDn2BJKv/Ntp+8xc="
+      "integrity": "sha256-EZVYeoraVIlzvFEX1kl7GFGNtYmn6gVqyJsQWKHw4Ks="
     },
     {
       "id": "text-plus",
@@ -320,7 +320,7 @@
       "zoidiumOnly": true,
       "manifest": "./plugins/native-fx/manifest.json?v=17",
       "bundle": "./plugins/native-fx/bundle.json?v=17",
-      "integrity": "sha256-S229Ku3w7BR+dO7iLxwcOnISBZstnydK7gdq9eh/yIw="
+      "integrity": "sha256-HWRZ8hPm44YwCGj5lpiDAqyQRg7wXXNpevben7UDxaI="
     },
     {
       "id": "afterclip",

@@ -8,6 +8,10 @@
 const GRAPH_MODULES = [
   "graph-buffers.js",
   "graph-spectra.js",
+  "graph-curves.js",
+  "graph-blend.js",
+  "graph-procedural.js",
+  "graph-catalogue.js",
   "graph-images.js",
   "graph-types.js",
   "graph-runtime.js",

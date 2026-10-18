@@ -95,6 +95,11 @@
       "id": "fxtrans-math",
       "type": "text",
       "source": "/plugins/native-fx/effects/fxtrans-math.js?v=17"
+    },
+    {
+      "id": "graph-curves",
+      "type": "text",
+      "source": "./plugins/material-plus/graph-curves.js?v=17"
     }
   ],
   "category": "NATIVE FX",
@@ -111,7 +116,8 @@
       "description": "Adjusts composite and RGB channels with a direct-manipulation curve editor.",
       "source": "./plugins/native-fx/effects/colorcurves.js?v=17",
       "requiresApis": [
-        "propertyControls"
+        "propertyControls",
+        "modules"
       ]
     },
     {
