@@ -1,0 +1,31 @@
+/* Theme Editor uses the CM3 panel font, rows and shared window tokens. */
+.zoidium-theme-editor .zoidium-window-body { padding: 12px; }
+.zoidium-theme-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; }
+.zoidium-theme-toolbar button { padding: 4px 7px; font-size: var(--zui-font-size-small); }
+.zoidium-theme-select { flex: 1 1 110px; width: 110px; min-width: 110px; min-height: 30px; font-size: var(--zui-font-size-small); }
+.zoidium-theme-editor .pz-inputbox {
+  font-family: var(--zui-font); color: var(--zui-text); background-color: var(--zui-bg-input);
+  border: 1px solid var(--zui-border); border-radius: 0;
+}
+.zoidium-theme-editor button:hover:not(:disabled) { background-color: var(--zui-hover); }
+.zoidium-theme-editor :is(button, input, select, summary):focus-visible,
+.zoidium-theme-edit:focus-visible { outline: 2px solid var(--zui-accent); outline-offset: 1px; }
+.zoidium-theme-editor button:disabled { opacity: .4; cursor: default; }
+.zoidium-theme-status-row { display: flex; gap: 5px; align-items: center; margin: 8px 0; min-height: 34px; }
+.zoidium-theme-status { flex: 1; font-size: var(--zui-font-size-small); color: var(--zui-text-muted); }
+.zoidium-theme-status-row button { width: 28px; height: 26px; }
+.zoidium-theme-heading { font-size: var(--zui-font-size); font-weight: normal; color: var(--zui-text-strong); margin: 13px 0 7px; }
+.zoidium-theme-color-row { display: flex; gap: 6px; align-items: center; min-height: 34px; border-bottom: 1px solid var(--zui-border-soft); }
+.zoidium-theme-color-label { flex: 1; min-width: 95px; overflow-wrap: anywhere; font-size: var(--zui-font-size-small); }
+.zoidium-theme-hex { width: 86px; box-sizing: border-box; padding: 3px; font-size: var(--zui-font-size-small); }
+.zoidium-theme-editor input[aria-invalid="true"] { border-color: var(--zui-danger); outline-color: var(--zui-danger); }
+.zoidium-theme-mode { width: 78px; font-size: var(--zui-font-size-small); padding: 2px; }
+.zoidium-theme-color-row > button:last-child:not(:nth-child(2)) { width: 26px; height: 25px; }
+.zoidium-theme-preview { display: flex; margin: 9px 0; gap: 3px; }
+.zoidium-theme-preview-item { flex: 1; padding: 6px 3px; min-width: 0; font-size: var(--zui-font-size-compact); text-align: center; overflow-wrap: anywhere; }
+.zoidium-theme-advanced { border-bottom: 1px solid var(--zui-border); padding-bottom: 5px; }
+.zoidium-theme-advanced summary { cursor: pointer; }
+.zoidium-theme-clip-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.zoidium-theme-link { color: var(--zui-value) !important; border: 0 !important; background: none !important; font-size: var(--zui-font-size-small); cursor: pointer; }
+.zoidium-theme-name { width: 100%; box-sizing: border-box; }
+.zoidium-theme-edit { margin-left: 8px; padding: 2px 8px; font: inherit; color: var(--zoidium-theme-link); background: #222; border: 1px solid #1b1b1b; }

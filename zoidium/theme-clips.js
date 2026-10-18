@@ -75,7 +75,7 @@
     global.removeEventListener("zoidium:theme-changed", refresh);
   }, { once: true });
   builder.themeClips = {
-    types: types,
+    types: types, refresh: refresh,
     register: function (spec) {
       registered.set(spec.type, spec);
       if (spec.legacyType !== undefined) aliases[spec.legacyType] = spec.type;
