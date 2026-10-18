@@ -144,7 +144,7 @@
         Object.keys(labels).forEach(function (key) {
           var item = el("div", "zoidium-theme-preview-item");
           item.dataset.color = key; item.title = labels[key];
-          item.appendChild(el("span", "", labels[key])); preview.appendChild(item);
+          item.appendChild(el("span", "", { focus: "Focus", link: "Link", clip: "Clip", clipSelected: "Selected", clipSelection: "Band" }[key])); preview.appendChild(item);
         });
         body.appendChild(preview);
         var advanced = el("details", "zoidium-theme-advanced");
@@ -169,7 +169,7 @@
               var option = el("option", "", item.label); option.value = item.value; group.appendChild(option);
             }); select.appendChild(group);
           });
-          select.value = state.selection(); renameButton.disabled = deleteButton.disabled = !state.selected();
+          select.value = state.selection(); select.title = state.name(); renameButton.disabled = deleteButton.disabled = !state.selected();
           rows.forEach(function (row) { row.update(); });
           var palette = state.palette();
           Array.from(preview.children).forEach(function (item) {
@@ -199,6 +199,7 @@
         refresh();
         return function () {
           disposed = true;
+          global.ZoidiumUI.getWindow("zoidium:theme-name")?.close();
           global.removeEventListener("zoidium:theme-changed", refresh);
           global.removeEventListener("zoidium:theme-types-changed", refresh);
           win.element.removeEventListener("keydown", onKey);

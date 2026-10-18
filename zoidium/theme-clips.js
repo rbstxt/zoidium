@@ -21,7 +21,19 @@
     if (PZ.layer.texture) add(0, "Media/footage");
     add(5, "Layer");
     result.set("audio", { key: "audio", name: "Audio" });
-    registered.forEach(function (spec) { add(spec.type, spec.name || spec.id); });
+    registered.forEach(function (spec) {
+      var key = model.typeKey(spec.type, false, aliases);
+      if (!result.has(key)) add(spec.type, spec.name || spec.id);
+    });
+    (global.CM?.project?.media || []).forEach(function (media) {
+      if (!media.preset) return;
+      var name = media.properties?.name?.get();
+      (media.data || []).forEach(function (track) {
+        (track.clips || []).forEach(function (clip) {
+          if (clip.object && clip.object.type !== undefined) add(clip.object.type, name);
+        });
+      });
+    });
     global.document.querySelectorAll(".clip").forEach(function (element) {
       var key = keyFor(element.pz_object);
       if (key && !result.has(key)) result.set(key, { key: key, name: key });
@@ -78,11 +90,14 @@
     types: types, refresh: refresh,
     register: function (spec) {
       registered.set(spec.type, spec);
-      if (spec.legacyType !== undefined) aliases[spec.legacyType] = spec.type;
+      var canonical = typeof spec.type === "number" ? model.typeKey("zoidium:" + spec.id) || model.typeKey(spec.type) : spec.type;
+      aliases[spec.type] = canonical;
+      if (spec.legacyType !== undefined) aliases[spec.legacyType] = canonical;
       global.dispatchEvent(new CustomEvent("zoidium:theme-types-changed"));
       refresh();
       return function () {
         registered.delete(spec.type);
+        delete aliases[spec.type];
         if (spec.legacyType !== undefined) delete aliases[spec.legacyType];
         global.dispatchEvent(new CustomEvent("zoidium:theme-types-changed"));
         refresh();
