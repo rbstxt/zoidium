@@ -44,3 +44,10 @@ test("collapsed bezier handles leave their key available for dragging", () => {
   assert.equal(hit([model], 0, 50).side, null);
   assert.equal(hit([model], 100, 50).side, null);
 });
+
+
+test("export and Player+ paused drawing suppress path collection", () => {
+  const { collect } = require("../plugins/motion-path/targets.js");
+  assert.deepEqual(collect({ editor: { enabled: false }, viewport: { enabled: true } }), []);
+  assert.deepEqual(collect({ editor: { enabled: true, sequence: {} }, viewport: { enabled: true, __zoidiumPlayerPlusPaused: true } }), []);
+});
