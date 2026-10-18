@@ -19,6 +19,7 @@
     { value: "clipmaker", label: "Clipmaker 3" },
     { value: "clipmaker-centered", label: "Clipmaker 3 (centered viewport)" },
     { value: "videoeditor", label: "Video Editor 2" },
+    { value: "videoeditor-centered", label: "Video Editor 2 (centered viewport)" },
   ];
 
   var FONT_OPTIONS = [
