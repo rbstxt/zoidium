@@ -101,7 +101,7 @@ function install(PZ, Layer, Content, onDispose) {
     const row = original.apply(this, arguments);
     if (object instanceof Content) {
       const image=icons.icon(document,object.kind);
-      if(image){image.style.cssText="width:17px;height:17px;vertical-align:middle;margin-right:5px;color:#ccc;pointer-events:none";row.firstElementChild.insertBefore(image,row.firstElementChild.querySelector("span"));}
+      if(image){image.style.cssText="width:17px;height:17px;vertical-align:middle;margin-right:5px;color:var(--zui-text);pointer-events:none";row.firstElementChild.insertBefore(image,row.firstElementChild.querySelector("span"));}
     }
     if (object instanceof Content && this === panels?.top) {
       const button = this.generateButton("visible"), property = object.properties.enabled;
@@ -142,7 +142,7 @@ function install(PZ, Layer, Content, onDispose) {
     const container=this.el.lastElementChild;
     for(const row of container.querySelectorAll(".pz-options li")) {
       const item=row.pz_item, image=icons.icon(document,item?.type);
-      if(image){image.style.cssText="width:20px;height:20px;vertical-align:middle;margin-right:7px;color:#ccc;pointer-events:none";row.prepend(image);}
+      if(image){image.style.cssText="width:20px;height:20px;vertical-align:middle;margin-right:7px;color:var(--zui-text);pointer-events:none";row.prepend(image);}
       if(!item||item.list||typeof item.type!=="string")continue;
       const native=row.onclick;
       row.onclick=event=>{ if(!addTo(this,list,item.type,container))return native.call(row,event); };

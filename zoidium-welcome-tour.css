@@ -3,7 +3,7 @@
    in the CM3 accent colors. No fonts, theme colors or overlays are added. */
 
 .zoidium-welcome-tour .zoidium-welcome-copy {
-  color: #ccc;
+  color: var(--zui-text);
   font-size: 13px;
   line-height: 1.5;
   border-bottom: 0;
@@ -14,10 +14,10 @@
 }
 
 .zoidium-welcome-tour .zoidium-welcome-link {
-  color: #7e8fb9;
+  color: var(--zui-value);
   text-decoration: underline;
 }
 
 .zoidium-welcome-tour .zoidium-welcome-link:hover {
-  color: #a5b4dc;
+  color: var(--zui-value-strong);
 }

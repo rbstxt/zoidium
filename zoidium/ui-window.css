@@ -18,14 +18,21 @@
   --zui-font-size-small: 14px;
   --zui-font-size-title: 18px;
   --zui-font-size-compact: 12px;
+  --zui-menu-font-size: 13px;
+  --zui-menu-title-font-size: 12px;
+  --zui-menu-padding: 4px 0;
+  --zui-menu-item-padding: 5px 14px;
+  --zui-menu-title-padding: 4px 14px 5px;
+  --zui-menu-active: color-mix(in srgb, var(--zui-accent) 55%, var(--zui-bg));
+  --zui-shadow: #000;
   --zui-accent: var(--zoidium-theme-focus, #384668);
   --zui-accent-rgb: var(--zoidium-theme-focus-rgb, 56 70 104);
-  --zui-accent-strong: color-mix(in srgb, var(--zui-accent) 70%, #fff);
+  --zui-accent-strong: color-mix(in srgb, var(--zui-accent) 70%, var(--zui-text-bright));
   --zui-value: var(--zoidium-theme-link, #7e8fb9);
-  --zui-value-strong: color-mix(in srgb, var(--zui-value) 60%, #fff);
+  --zui-value-strong: color-mix(in srgb, var(--zui-value) 60%, var(--zui-text-bright));
   --zui-bg: #2a2a2a;
   --zui-bg-title: #222;
-  --zui-bg-title-focused: color-mix(in srgb, var(--zui-accent) 22%, #222);
+  --zui-bg-title-focused: color-mix(in srgb, var(--zui-accent) 22%, var(--zui-bg-title));
   --zui-bg-input: #202020;
   --zui-bg-sunken: #1d1d1d;
   --zui-border: #1b1b1b;
@@ -72,7 +79,7 @@ body > .zoidium-window-color-picker {
   font-size: var(--zui-font-size);
   background-color: var(--zui-bg);
   border: 1px solid var(--zui-hover);
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.55);
+  box-shadow: 0 8px 28px color-mix(in srgb, var(--zui-shadow) 55%, transparent);
   outline: 0;
 }
 
@@ -251,8 +258,41 @@ body > .zoidium-window-color-picker {
   bottom: 9px;
   width: 6px;
   height: 6px;
-  border-right: 2px solid #555;
-  border-bottom: 2px solid #555;
+  border-right: 2px solid var(--zui-text-faint);
+  border-bottom: 2px solid var(--zui-text-faint);
+}
+
+/* Native row/control builders used inside extension surfaces still carry
+   CM3's literal default colors. Override only these Zoidium containers. */
+:is(.zoidium-window, .zoidium-settings-panel, .zoidium-restore-panel, .zoidium-plugin-panel) .proprow {
+  color: var(--zui-text);
+  border-bottom-color: var(--zui-border-soft);
+}
+:is(.zoidium-window, .zoidium-settings-panel, .zoidium-restore-panel, .zoidium-plugin-panel) .proprow:is(.proptitle, .spacer) {
+  background-color: var(--zui-bg-title);
+}
+:is(.zoidium-window, .zoidium-settings-panel, .zoidium-restore-panel, .zoidium-plugin-panel, .zoidium-project-toolbar) :is(.pz-inputbox, .pz-textarea, .pz-filterbox) {
+  color: var(--zui-text);
+  background-color: var(--zui-bg-input);
+  border-color: var(--zui-border);
+}
+:is(.zoidium-window, .zoidium-settings-panel, .zoidium-restore-panel, .zoidium-plugin-panel) .pzinput {
+  color: var(--zui-value);
+}
+:is(.zoidium-window, .zoidium-settings-panel, .zoidium-restore-panel, .zoidium-plugin-panel) .pzinput.edit {
+  background-color: var(--zui-bg-input);
+  border-color: var(--zui-border);
+}
+:is(.zoidium-window, .zoidium-settings-panel, .zoidium-restore-panel, .zoidium-plugin-panel) :is(.pz-inputbox, .pz-textarea, .pz-filterbox)::placeholder {
+  color: var(--zui-text-faint);
+}
+:where(.zoidium-window, .zoidium-settings-panel, .zoidium-restore-panel, .zoidium-plugin-panel) .proprow.propbutton {
+  color: var(--zui-text);
+  background-color: var(--zui-bg-input);
+}
+:where(.zoidium-window, .zoidium-settings-panel, .zoidium-restore-panel, .zoidium-plugin-panel) .proprow.propbutton:hover {
+  background-color: var(--zui-hover);
+  border-color: var(--zui-border);
 }
 
 /* Fields ------------------------------------------------------------- */
@@ -490,7 +530,7 @@ textarea.zoidium-text {
   display: flex;
   flex-wrap: wrap;
   background-color: var(--zui-bg-sunken);
-  border-bottom: 1px solid #111;
+  border-bottom: 1px solid var(--zui-border);
 }
 
 .zoidium-tab {
@@ -506,7 +546,7 @@ textarea.zoidium-text {
 
 .zoidium-tab:hover {
   color: var(--zui-text-bright);
-  background-color: #262626;
+  background-color: var(--zui-hover);
 }
 
 .zoidium-tab.selected {
@@ -562,7 +602,7 @@ textarea.zoidium-text {
 
 .zoidium-note.warning {
   color: var(--zui-danger);
-  background-color: rgba(120, 34, 34, 0.18);
+  background-color: color-mix(in srgb, var(--zui-danger) 18%, transparent);
 }
 
 /* Confirm dialog message: roomier than an inline note, and it keeps the
@@ -578,7 +618,7 @@ textarea.zoidium-text {
 /* Maximized and custom-chrome windows ------------------------------- */
 
 .zoidium-window.maximized {
-  box-shadow: 0 0 0 1px var(--zui-border), 0 12px 40px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 0 0 1px var(--zui-border), 0 12px 40px color-mix(in srgb, var(--zui-shadow) 60%, transparent);
 }
 
 .zoidium-window.maximized .zoidium-window-grip {

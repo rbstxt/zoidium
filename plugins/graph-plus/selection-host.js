@@ -81,7 +81,7 @@ module.exports = function installSelection({ PZ, editor, document: doc, open, st
     const panel = open();
     if (panel) { selection.show(targetProperty(row), panel); paint(); }
   }
-  function closeMenu() { menu?.remove(); menu = null; }
+  function closeMenu() { const open = menu; menu = null; open?.close(false); }
   function context(event) {
     const row = rowAt(event.target);
     if (!row) return;
@@ -90,24 +90,22 @@ module.exports = function installSelection({ PZ, editor, document: doc, open, st
     // documented additive selection working there as well as on Windows.
     if (event.ctrlKey) { closeMenu(); pick(row, true); return; }
     closeMenu();
-    const owner = row.ownerDocument || doc;
-    menu = owner.createElement("div");
-    menu.className = "g2-property-menu";
-    menu.setAttribute("role", "menu");
-    const button = owner.createElement("button");
-    button.setAttribute("role", "menuitem");
-    button.textContent = "Show in Graph Editor";
-    button.title = "Alt+Shift+G";
-    button.addEventListener("click", () => { closeMenu(); show(row); });
-    menu.appendChild(button);
-    owner.body.appendChild(menu);
-    const box = menu.getBoundingClientRect();
-    menu.style.left = Math.max(0, Math.min(event.clientX, owner.defaultView.innerWidth - box.width)) + "px";
-    menu.style.top = Math.max(0, Math.min(event.clientY, owner.defaultView.innerHeight - box.height)) + "px";
-    button.focus({ preventScroll: true });
+    // The shared kit menu keeps every Zoidium context menu identical,
+    // including detached CM3 property windows (owner document aware).
+    const kit = (doc?.defaultView || globalThis).ZoidiumUI;
+    if (typeof kit?.openMenu !== "function") return;
+    const handle = kit.openMenu({
+      document: row.ownerDocument || doc,
+      owner: row,
+      x: event.clientX,
+      y: event.clientY,
+      focusReturn: row,
+      items: [{ label: "Show in Graph Editor", shortcut: "Alt+Shift+G", action: () => show(row) }],
+      onClose: () => { if (menu === handle) menu = null; },
+    });
+    menu = handle;
   }
   function keydown(event) {
-    if (event.key === "Escape" && menu) { closeMenu(); return; }
     if (!event.altKey || !event.shiftKey || event.ctrlKey || event.metaKey ||
         !(event.code === "KeyG" || event.key?.toLowerCase() === "g")) return;
     let row = rowAt(event.target);
@@ -122,7 +120,6 @@ module.exports = function installSelection({ PZ, editor, document: doc, open, st
     show(row);
   }
   function pointer(event) {
-    if (menu && !menu.contains(event.target)) closeMenu();
     if (event.button !== 0) return;
     const row = rowAt(event.target);
     if (!row) {

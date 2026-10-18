@@ -109,6 +109,23 @@
     Object.keys(PALETTE).forEach(function (key) { result[key] = hex(shiftThemeColor(PALETTE[key], degrees, scale)); });
     return result;
   }
+  // Neutral Zoidium chrome stays dark for every palette because CM3's own
+  // panels never change their surfaces; only accent-derived tokens follow
+  // the theme, so extension windows always match the surrounding editor.
+  function uiTokens(palette) {
+    var colors = {
+      bg: "#2a2a2a", "bg-title": "#222222", "bg-input": "#202020", "bg-sunken": "#1d1d1d",
+      border: "#1b1b1b", "border-soft": "#242424", hover: "#333333",
+      text: "#cccccc", "text-strong": "#dadada", "text-bright": "#e4e4e4", "text-muted": "#9a9a9a", "text-faint": "#6d6d6d",
+      danger: "#df9b9b",
+    };
+    colors.value = palette.link;
+    colors["accent-strong"] = "color-mix(in srgb, var(--zui-accent) 70%, var(--zui-text-bright))";
+    colors["value-strong"] = "color-mix(in srgb, var(--zui-value) 60%, var(--zui-text-bright))";
+    colors["bg-title-focused"] = "color-mix(in srgb, var(--zui-accent) 22%, var(--zui-bg-title))";
+    colors.shadow = "#000000";
+    return colors;
+  }
   function validTypeKey(key) {
     return typeof key === "string" && (/^cm3:\d+$/.test(key) || key === "audio" || /^zoidium:[a-z0-9-]+\/[a-z0-9-]+$/.test(key));
   }
@@ -182,6 +199,6 @@
     return (l + 0.05) / (dark + 0.05) >= (light + 0.05) / (l + 0.05) ? "#2c323f" : "#f4f4f4";
   }
   return { PALETTE: PALETTE, PRESETS: PRESETS, color: color, hsl: hsl, derive: derive, presetPalette: presetPalette,
-    shiftThemeColor: shiftThemeColor, typeKey: typeKey, validateTheme: validateTheme, parseStorage: parseStorage,
+    shiftThemeColor: shiftThemeColor, uiTokens: uiTokens, typeKey: typeKey, validateTheme: validateTheme, parseStorage: parseStorage,
     parseImport: parseImport, uniqueName: uniqueName, copyPalette: copyPalette, selectedClip: selectedClip, labelColor: labelColor };
 });

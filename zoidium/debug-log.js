@@ -83,8 +83,8 @@
       banner.setAttribute("role", "alert");
       banner.style.cssText =
         "position:fixed;z-index:2147483646;right:16px;bottom:16px;max-width:520px;" +
-        "padding:12px 14px;background:#231d1d;color:#f4dddd;border:1px solid #a94b4b;" +
-        "border-radius:4px;box-shadow:0 4px 18px rgba(0,0,0,.45);font:13px/1.45 sans-serif";
+        "padding:12px 14px;background:var(--zui-bg, #231d1d);color:var(--zui-text, #f4dddd);border:1px solid var(--zui-danger, #a94b4b);" +
+        "border-radius:4px;box-shadow:0 4px 18px color-mix(in srgb,var(--zui-shadow, black) 45%,transparent);font:13px/1.45 sans-serif";
 
       const title = documentObject.createElement("strong");
       title.textContent = "Zoidium recorded an error";
@@ -117,7 +117,7 @@
           part.href = target[0];
           part.target = "_blank";
           part.rel = target[1];
-          part.style.color = "#ffd0d0";
+          part.style.color = "var(--zui-danger, #ffd0d0)";
         }
         help.appendChild(part);
       });
@@ -139,7 +139,7 @@
         fallback.type = "button";
         fallback.textContent = label;
         fallback.style.cssText =
-          "padding:6px 9px;background:#3a2b2b;color:#ffe4e4;border:1px solid #dca8a8;" +
+          "padding:6px 9px;background:var(--zui-bg-input, #3a2b2b);color:var(--zui-text, #ffe4e4);border:1px solid var(--zui-danger, #dca8a8);" +
           "border-radius:3px;cursor:pointer;font:inherit";
         fallback.addEventListener("click", onClick);
         return fallback;

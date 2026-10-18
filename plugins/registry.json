@@ -26,29 +26,29 @@
       "id": "core",
       "name": "Zoidium Core",
       "author": "Zoidium",
-      "version": "68",
+      "version": "69",
       "visibility": "hidden",
       "alwaysEnabled": true,
       "tagline": "Built-in core extensions",
       "description": "Hidden built-in extensions that always run. Not shown in the Plugins panel and never stored in projects.",
-      "manifest": "./plugins/core/manifest.json?v=68",
-      "bundle": "./plugins/core/bundle.json?v=68",
-      "integrity": "sha256-IcnPHdNA52RdtpPEv+Z7gYzrSagHeiMPevtadvgPYBA="
+      "manifest": "./plugins/core/manifest.json?v=69",
+      "bundle": "./plugins/core/bundle.json?v=69",
+      "integrity": "sha256-zMh0++y5xPzRS3/HylgQeOx5lSmGcBsO5AzTWiLUs4g="
     },
     {
       "id": "easing-plus",
       "category": "utilities",
       "name": "Easing+",
       "author": "Zoidium",
-      "version": "27",
+      "version": "28",
       "itemCount": 1,
       "format": "curve editor",
       "tagline": "Extended Bezier Easing",
       "color": "#384668",
       "description": "A normalized cubic Bezier editor with a focused set of reusable presets.",
-      "manifest": "./plugins/easing-plus/manifest.json?v=27",
-      "bundle": "./plugins/easing-plus/bundle.json?v=27",
-      "integrity": "sha256-D8QkiljDU1XezT+xEC/kUq/z8L2g3k+Xhvpxc6LtRfY="
+      "manifest": "./plugins/easing-plus/manifest.json?v=28",
+      "bundle": "./plugins/easing-plus/bundle.json?v=28",
+      "integrity": "sha256-nxrz/A1N9oWIEFBvMFfPa2Jhy9Na55CBU4GwUcquYks="
     },
     {
       "id": "player-plus",
@@ -71,16 +71,16 @@
       "category": "utilities",
       "name": "Assets",
       "author": "Zoidium",
-      "version": "9",
+      "version": "10",
       "defaultEnabled": true,
       "itemCount": 1,
       "format": "workflow",
       "tagline": "Project panel for every asset",
       "color": "#6f8f5a",
       "description": "An After Effects style Project panel: every file, font, image, model and composition in the project, where each is used, and which are missing or failed.",
-      "manifest": "./plugins/asset-manager/manifest.json?v=9",
-      "bundle": "./plugins/asset-manager/bundle.json?v=9",
-      "integrity": "sha256-Gd/37VEwkU399O0mJ0BYD3FKvBUiKAxesQIkgKqYhVo="
+      "manifest": "./plugins/asset-manager/manifest.json?v=10",
+      "bundle": "./plugins/asset-manager/bundle.json?v=10",
+      "integrity": "sha256-421F8gGz0yiHbUYPvI3tIDCKZVNHWexfwmqduosoWzc="
     },
     {
       "id": "precomp-plus",
@@ -127,22 +127,22 @@
       "description": "Replaces the keyframe graph editor with DaviFX's Graph Editor 2: easing presets, tangent tools, ruler scrubbing, a track list with live values and a full keyboard set.",
       "manifest": "./plugins/graph-plus/manifest.json?v=12",
       "bundle": "./plugins/graph-plus/bundle.json?v=12",
-      "integrity": "sha256-Cc/lMS2wEsqHoza2f19DUSYNMve3DwQd+OGzixff11U="
+      "integrity": "sha256-zsbFRkyTSNZCfQWNJ2szvp0k441mVRjx/io93OXQ104="
     },
     {
       "id": "motion-path",
       "category": "utilities",
       "name": "Motion Paths",
       "author": "Zoidium",
-      "version": "2",
+      "version": "3",
       "itemCount": 1,
       "format": "viewport tool",
       "tagline": "Editable motion paths in the preview",
       "description": "After Effects style motion paths for animated Position in the preview, with draggable keyframes and bezier handles.",
       "defaultEnabled": true,
-      "manifest": "./plugins/motion-path/manifest.json?v=2",
-      "bundle": "./plugins/motion-path/bundle.json?v=2",
-      "integrity": "sha256-2UCvgylsD5b0HcZUImAZ2GiVf4N761XBIV2i1Lzptdc="
+      "manifest": "./plugins/motion-path/manifest.json?v=3",
+      "bundle": "./plugins/motion-path/bundle.json?v=3",
+      "integrity": "sha256-udk4H22htL7/AIcgY/osp2Vku/lfiiz7aNO8NsEzcVY="
     },
     {
       "id": "light-plus",
@@ -247,16 +247,16 @@
       "category": "scene",
       "name": "Rowbyte & Red Giant Suite",
       "author": "DaviFX",
-      "version": "37",
+      "version": "38",
       "itemCount": 14,
       "format": "3D objects",
       "tagline": "Particular, Form, Plexus and C4D lights",
       "color": "#c9a13b",
       "description": "Trapcode Particular, Form and Plexus 3D objects with floating designer windows, deterministic simulation and audio analysis, plus C4D-style lights.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/trapcode-suite/manifest.json?v=37",
-      "bundle": "./plugins/trapcode-suite/bundle.json?v=37",
-      "integrity": "sha256-Bba7DIolVqE4rplr+T2qkEGX/+du8Rm5FPrrItHm3r0="
+      "manifest": "./plugins/trapcode-suite/manifest.json?v=38",
+      "bundle": "./plugins/trapcode-suite/bundle.json?v=38",
+      "integrity": "sha256-LHin5TaxjnIbUxsdAsNBhlwGbnRdEU1pb9XoI+nKsxQ="
     },
     {
       "id": "optical-flares",
@@ -397,16 +397,16 @@
       "category": "adjustment",
       "name": "Magic Looks",
       "author": "DaviFX",
-      "version": "14",
+      "version": "15",
       "itemCount": 29,
       "format": "setup",
       "tagline": "Looks-style color grading",
       "color": "#f7941d",
       "description": "Magic Bullet Looks-style color grading: 29 color, light and lens tools in a reorderable chain with look presets and a floating setup window.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/magic-looks/manifest.json?v=14",
-      "bundle": "./plugins/magic-looks/bundle.json?v=14",
-      "integrity": "sha256-iJTunqz1kyypQqBLPYrSfhnxQMaubCbCz1/lV/ZoyA4="
+      "manifest": "./plugins/magic-looks/manifest.json?v=15",
+      "bundle": "./plugins/magic-looks/bundle.json?v=15",
+      "integrity": "sha256-a+XGZAqseIasVz/fzPhf7o7mmmBh8f9yRM9M5aGmAmY="
     },
     {
       "id": "layer-input",
@@ -429,14 +429,14 @@
       "id": "shape-plus",
       "name": "Shape+",
       "author": "Zoidium",
-      "version": "13",
+      "version": "14",
       "tagline": "Animated vector layers",
       "description": "Animated vector layers, procedural contents, SVG import and native preview path editing.",
       "category": "scene",
       "defaultEnabled": true,
-      "manifest": "./plugins/shape-plus/manifest.json?v=13",
-      "bundle": "./plugins/shape-plus/bundle.json?v=13",
-      "integrity": "sha256-WoJi80igis+UI0x09CAywY5grpLmtTcAGauMQO0ZTUE="
+      "manifest": "./plugins/shape-plus/manifest.json?v=14",
+      "bundle": "./plugins/shape-plus/bundle.json?v=14",
+      "integrity": "sha256-whmesaXrUj0E+V9oxTr3NdqdtcG9f6AnHX5KdMAmJdg="
     },
     {
       "id": "constraints",

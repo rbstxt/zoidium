@@ -53,9 +53,12 @@
   // through context.ui close automatically when the plugin is disabled.
   function createModuleUi(plugin, lifecycle) {
     const owned = new Set();
+    const menus = new Set();
     lifecycle.onDispose(() => {
       for (const win of Array.from(owned)) win.close();
       owned.clear();
+      for (const menu of Array.from(menus)) menu.close(false);
+      menus.clear();
     });
     // Registrations are released on disable, in reverse order.
     const owns = (release) => {
@@ -83,6 +86,16 @@
       confirm: (options) => ZoidiumUI.confirm(options),
       getWindow: (id) => ZoidiumUI.getWindow(`${plugin.id}:${id}`),
       openWindow,
+      openMenu(options) {
+        let handle;
+        const config = options || {};
+        handle = ZoidiumUI.openMenu({ ...config, onClose() {
+          menus.delete(handle);
+          config.onClose?.();
+        } });
+        if (handle.isOpen()) menus.add(handle);
+        return handle;
+      },
       // Scoped stylesheet for this plugin's windows: openWindow({ skin: name }).
       registerSkin: (name, css) => owns(ZoidiumUI.registerSkin(skinId(name), css)),
       // Sidebar panel with the standard page chrome; removed on disable.

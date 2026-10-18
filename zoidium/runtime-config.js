@@ -8,10 +8,10 @@
     // loader appends it automatically, so per-file ?v= queries are never
     // hand-edited here. Plugin asset URLs are versioned separately by
     // tools/build-plugin-bundles.js from each manifest's own version.
-    assetVersion: 160,
+    assetVersion: 161,
     // Plugin registry consumed by plugins/plugin-manager.js. It is preloaded
     // below, so its URL lives here as the single source.
-    registryUrl: "./plugins/registry.json?v=111",
+    registryUrl: "./plugins/registry.json?v=112",
     // Source Code Pro is imported through fonts.css as its own sheet (listed
     // before runtime-fonts.css) so the font files are not discovered only
     // after an @import chain has finished downloading.
@@ -103,6 +103,7 @@
       "./zoidium/ui-kit-skins.js",
       "./zoidium/ui-kit-windows.js",
       "./zoidium/ui-kit-controls.js",
+      "./zoidium/ui-kit-menus.js",
       "./zoidium/ui-kit.js",
       "./zoidium/project-restore-store.js",
       "./zoidium/project-restore-snapshots.js",

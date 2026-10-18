@@ -17,7 +17,8 @@ function gpSyncTheme(doc) {
     }
     var tokens = ["font", "accent", "accent-rgb", "accent-strong", "value", "value-strong",
       "bg", "bg-title", "bg-title-focused", "bg-input", "bg-sunken", "border", "border-soft",
-      "hover", "text", "text-strong", "text-bright", "text-muted", "text-faint", "danger"];
+      "hover", "text", "text-strong", "text-bright", "text-muted", "text-faint", "danger", "shadow",
+      "menu-active", "menu-font-size", "menu-title-font-size", "menu-padding", "menu-item-padding", "menu-title-padding"];
     tokens.forEach(function (name) {
       var key = "--zui-" + name;
       copy(key);
@@ -153,9 +154,6 @@ return [
     ".g2-pill.live{border-color:var(--zui-accent);color:var(--zui-value)}",
     ".g2-curve-label{font-weight:700;paint-order:stroke;stroke:var(--zui-bg-sunken);stroke-width:3px}",
     ".g2-property-selected{outline:1px solid var(--zui-accent);outline-offset:-1px;background:rgb(var(--zui-accent-rgb) / 0.12)}",
-    ".g2-property-menu{position:fixed;z-index:100000;padding:4px;background:var(--zui-bg);color:var(--zui-text);border:1px solid var(--zui-border);border-radius:3px}",
-    ".g2-property-menu button{display:block;width:100%;padding:7px 14px;border:0;background:transparent;color:inherit;text-align:left;font:inherit;cursor:pointer}",
-    ".g2-property-menu button:hover,.g2-property-menu button:focus{background:var(--zui-hover);outline:none}",
   ].join("\n");
 }
 

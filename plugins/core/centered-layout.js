@@ -202,63 +202,38 @@
 
   var menu = null;
   function closeMenu() {
-    if (!menu) return;
-    menu.remove();
+    if (menu) menu.close(false);
     menu = null;
-    global.document.removeEventListener("pointerdown", outside, true);
-  }
-  function outside(event) {
-    if (menu && !menu.contains(event.target)) closeMenu();
   }
   function openMenu(x, y, tab, elevator) {
     closeMenu();
     var toRight = elevator === left;
     var target = toRight ? right : left;
     var tabs = tabsOf(elevator), index = tabs.indexOf(tab);
-    menu = global.document.createElement("div");
-    menu.className = "zoidium-tab-menu";
-    menu.setAttribute("role", "menu");
+    var items = [];
     function add(label, disabled, action) {
-      var item = global.document.createElement("div");
-      item.className = "zoidium-tab-menu-item";
-      item.setAttribute("role", "menuitem");
-      item.textContent = label;
-      if (disabled) item.classList.add("disabled");
-      item.addEventListener("click", function () {
-        closeMenu();
+      items.push({ label: label, disabled: disabled, action: function () {
         if (action()) remember();
-      });
-      menu.appendChild(item);
+      } });
     }
     var first = index <= 0, last = index < 0 || index >= tabs.length - 1;
     add("Move to top", first, function () { return moveToEnd(tab, elevator, true); });
     add("Move up", first, function () { return shift(tab, elevator, -1); });
     add("Move down", last, function () { return shift(tab, elevator, 1); });
     add("Move to bottom", last, function () { return moveToEnd(tab, elevator, false); });
-    var separator = global.document.createElement("div");
-    separator.className = "zoidium-tab-menu-separator";
-    menu.appendChild(separator);
+    items.push({ separator: true });
     add(toRight ? "Move to right sidebar" : "Move to left sidebar", elevator.panels.length <= 1,
       function () { return transfer(tab.pz_tab, elevator, target, true); });
-    menu.style.left = Math.min(x, global.innerWidth - 220) + "px";
-    menu.style.top = Math.min(y, global.innerHeight - 160) + "px";
-    global.document.body.appendChild(menu);
-    global.document.addEventListener("pointerdown", outside, true);
+    menu = global.ZoidiumUI.openMenu({ x: x, y: y, items: items, owner: tab, focusReturn: tab });
   }
 
   function installStyle() {
     var style = global.document.createElement("style");
     style.textContent =
-      ".zoidium-tab-menu{position:fixed;z-index:10000;min-width:200px;padding:4px 0;background:#262626;" +
-      "border:1px solid #474747;box-shadow:0 6px 18px rgba(0,0,0,.55);color:#ddd;font:inherit;font-size:13px}" +
-      ".zoidium-tab-menu-item{padding:5px 14px;cursor:default;white-space:nowrap}" +
-      ".zoidium-tab-menu-item:hover{background:#3d4d75}" +
-      ".zoidium-tab-menu-item.disabled{color:#666;pointer-events:none}" +
-      ".zoidium-tab-menu-separator{height:1px;margin:4px 0;background:#3a3a3a}" +
       // The right sidebar mirrors the left one: its tab column sits on the
       // window's outer edge and opens toward the preview.
       ".zoidium-right-sidebar>.elevator{left:auto;right:0}" +
-      ".zoidium-right-sidebar>.elevator.open{box-shadow:-5px 0 10px rgba(0,0,0,.5)}" +
+      ".zoidium-right-sidebar>.elevator.open{box-shadow:-5px 0 10px color-mix(in srgb,var(--zui-shadow) 50%,transparent)}" +
       ".zoidium-right-sidebar>.elevatorcontrols{left:0;right:60px}";
     global.document.head.appendChild(style);
   }

@@ -150,3 +150,22 @@ test("unregister closes native setup windows before removing their factories", a
   assert.deepEqual(events, ["fixture:", "deactivate", "unregister"]);
   assert.equal(state.runtimeModules.length, 0);
 });
+
+test("plugin-scoped menus release on dismissal and close on plugin disposal", async () => {
+  const start = source.indexOf("  function createModuleUi("), end = source.indexOf("  async function registerManifest(", start);
+  const cleanups = [], handles = [];
+  const ZoidiumUI = { openMenu(options) {
+    let open = true;
+    const handle = { isOpen: () => open, close() { if (open) { open = false; options.onClose(); } } };
+    handles.push(handle); return handle;
+  } };
+  const create = vm.runInNewContext(source.slice(start, end) + "\ncreateModuleUi", { ZoidiumUI });
+  const ui = create({ id: "fixture" }, { onDispose: fn => cleanups.push(fn) });
+  let closed = 0;
+  const first = ui.openMenu({ onClose: () => closed++ }); first.close();
+  const second = ui.openMenu({ onClose: () => closed++ });
+  assert.equal(cleanups.length, 1, "menus share the module's ownership cleanup");
+  for (const cleanup of cleanups) await cleanup();
+  assert.equal(second.isOpen(), false); assert.equal(closed, 2);
+  assert.ok(handles.every(handle => !handle.isOpen()));
+});

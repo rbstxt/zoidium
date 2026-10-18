@@ -149,7 +149,9 @@ node tools/new-plugin.js --kind=native-fx --template=temporal --id=my-time-fx
   product-specific look with `context.ui.registerSkin`. Everything registered
   through `context.ui` is removed when the plugin is disabled. Fullscreen
   overlays, bundled UI fonts and borrowed preview viewports are not accepted.
-  See [Plugin UI](plugin-ui.md).
+  Use `context.ui.openMenu()` for context and anchored menus. It supports
+  shortcuts, hints, swatches, checks, disabled items and owner disposal.
+  See [Plugin UI](plugin-ui.md#context-and-anchored-menus) for the full API.
 
 See Player+ and Easing+ for ordinary extension modules. A separate settings-page
 API has not been added; persistent per-object settings belong in project

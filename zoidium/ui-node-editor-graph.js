@@ -30,7 +30,7 @@
   var DUPLICATE_OFFSET = 20;
   var CURVE_STEPS = 16;
   var KEY_SEP = "\u0001";
-  var MISSING_TINT = "#8a4a4a";
+  var MISSING_TINT = "var(--zui-danger)";
   var DEFAULT_SIZE = { w: NODE_WIDTH, h: 60, headH: HEADER_HEIGHT };
   var TYPE_COLORS = { float: "#a0a0a0", vector: "#8176dd", color: "#dcc44e" };
   var DEFAULT_SOCKET_COLOR = "#7d8ba3";
