@@ -427,14 +427,14 @@
       "id": "constraints",
       "name": "Constraints",
       "author": "Zoidium",
-      "version": "1",
+      "version": "2",
       "tagline": "Track To for objects, cameras and lights",
       "description": "Adds Blender-style object constraints to native 3D objects. Track To points an object, the scene camera or a spot/directional light at another object of the same 3D Scene, every frame, without changing its rotation keyframes.",
       "category": "scene",
       "defaultEnabled": true,
-      "manifest": "./plugins/constraints/manifest.json?v=1",
-      "bundle": "./plugins/constraints/bundle.json?v=1",
-      "integrity": "sha256-jp1273Bsi5kdIyytY32f05nhlMB932KcAeqe2liJ0ts="
+      "manifest": "./plugins/constraints/manifest.json?v=2",
+      "bundle": "./plugins/constraints/bundle.json?v=2",
+      "integrity": "sha256-t8EXEK0FLhQ/XLLWJu+8CT5OX04UptgUlQqmwl+IsDQ="
     }
   ]
 }

@@ -30,6 +30,11 @@ Shape+ adds animated vector contents, procedural modifiers, SVG import and expli
 native shape conversion through CM3's Objects panel and main preview. It is enabled
 by default in Scene Extensions. See the [Shape+ contract](./plugins/shape-plus/README.md).
 
+Constraints adds Track To in native 3D object properties. Objects, scene cameras,
+and directional lights can follow another object without changing Rotation
+keyframes. It is enabled by default in Scene Extensions. See the
+[Constraints guide](./plugins/constraints/README.md).
+
 ## Quick start
 
 Requirements: Node.js 22.12+ and pnpm 11.1.2. The repository pins pnpm in

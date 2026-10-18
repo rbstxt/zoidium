@@ -160,7 +160,7 @@ function createPropertyStore(options) {
     onValueChanged(object);
   }
 
-  function omitDefault(property, defaultJson) {
+  function omitDefault(property, defaultJson, keepDefault) {
     const nativeToJSON = property.toJSON;
     Object.defineProperty(property, "toJSON", {
       configurable: true,
@@ -168,7 +168,7 @@ function createPropertyStore(options) {
       value: function toJSON() {
         const json = nativeToJSON.apply(this, arguments);
         try {
-          if (JSON.stringify(json) === defaultJson) return undefined;
+          if (!keepDefault && JSON.stringify(json) === defaultJson) return undefined;
         } catch (_error) {
           // An unserializable value is never the default; keep it.
         }
@@ -309,13 +309,17 @@ function createPropertyStore(options) {
     if (!isObject3d(object) || attached.has(object)) return false;
     const kind = classify(object);
     const properties = object.properties;
-    if (kind === "none" || !properties || typeof properties.addAll !== "function") return false;
+    if (!properties || typeof properties.addAll !== "function") return false;
     if (ALL_KEYS.some((key) => properties[key])) return false;
     const entry = definitionsFor(kind, isCameraLike(object));
     const created = {};
     for (const key of ALL_KEYS) {
       created[key] = PZ.property.create(entry.definitions[key]);
-      omitDefault(created[key], entry.defaults[key]);
+      // The host preserves unknown saved properties before these rows attach.
+      // Write an explicit default for previously saved keys so clearing a
+      // constraint cannot resurrect that preserved value on the next save.
+      const wasSaved = Object.prototype.hasOwnProperty.call(data?.properties || {}, key);
+      omitDefault(created[key], entry.defaults[key], wasSaved);
     }
     loading.add(object);
     try {
@@ -329,6 +333,19 @@ function createPropertyStore(options) {
           value = undefined;
         }
         created[key].load(value);
+      }
+      // Native rows follow the enumerable property order. Move only the
+      // suffix after rotation/order, retaining the same property instances,
+      // parent links and watchers.
+      const keys = Object.keys(properties).filter((key) => !ALL_KEYS.includes(key));
+      const anchor = keys.includes("eulerOrder") ? "eulerOrder" : "rotation";
+      const index = keys.indexOf(anchor);
+      if (index >= 0) {
+        const suffix = keys.slice(index + 1).map((key) => [key, Object.getOwnPropertyDescriptor(properties, key)]);
+        const rows = ALL_KEYS.map((key) => [key, Object.getOwnPropertyDescriptor(properties, key)]);
+        for (const [key] of rows.concat(suffix)) delete properties[key];
+        for (const [key, descriptor] of rows) Object.defineProperty(properties, key, descriptor);
+        for (const [key, descriptor] of suffix) Object.defineProperty(properties, key, descriptor);
       }
       attached.add(object);
       syncVisibility(object, false);
