@@ -100,6 +100,9 @@ function findCyclicKeys(nodes, byKey) {
 //   isConstrained(object) -> boolean
 function constraintDependencies(object, target, parentOf, isConstrained) {
   const deps = new Set();
+  // Direct target edges also reject reciprocal/chained tracking, even when
+  // the objects are siblings and their origins would not move.
+  if (target && isConstrained(target)) deps.add(target);
   for (const start of [object, target]) {
     let current = start ? parentOf(start) : null;
     let guard = 0;
