@@ -464,12 +464,12 @@ body > .pz-dropdown li > span[style],
    and waveform canvas retain their CM3 colors. */
 .zoidium-editor-window .clip,
 .zoidium-window .clip {
-  background-color: var(--zoidium-theme-clip, #526183);
+  background-color: var(--zoidium-layer-clip, var(--zoidium-theme-clip, #526183));
 }
 
 .zoidium-editor-window .clip.selected,
 .zoidium-window .clip.selected {
-  background-color: var(--zoidium-theme-clip-selected, #7f94c7);
+  background-color: var(--zoidium-layer-clip-selected, var(--zoidium-theme-clip-selected, #7f94c7));
   border-color: var(--zoidium-theme-focus, #384668);
 }
 
@@ -565,4 +565,13 @@ body > .pz-dropdown li > span[style],
   .zoidium-project-toast {
     transition: none;
   }
+}
+
+/* Only the native clip name changes contrast; waveform canvases and handles
+   retain their own paints. Proxy names use the same first-child structure. */
+.clip[data-zoidium-layer-type] > div:first-child:not(.handle) {
+  color: var(--zoidium-clip-label, #2c323f) !important;
+}
+.clip.selected[data-zoidium-layer-type] > div:first-child:not(.handle) {
+  color: var(--zoidium-clip-label-selected, #2c323f) !important;
 }
