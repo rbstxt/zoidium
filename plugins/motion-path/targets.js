@@ -17,7 +17,7 @@ function clipState(editor, PZ, clip) {
   const frame = editor.playback.currentFrame;
   // Same span guard as Shape+'s editableClip: the clip must be on screen.
   if (!(frame >= clip.start && frame < clip.start + clip.length)) return null;
-  return { frame, local: frame - clip.start };
+  return { frame, local: frame - clip.start + (clip.offset || 0) };
 }
 function rect(element) {
   const r = element.getBoundingClientRect();
@@ -31,7 +31,7 @@ function layerPath(context, clip, state) {
   const mapping = projection.sequenceMapping(canvasRect, editor.sequence.properties.resolution.get());
   if (!mapping) return null;
   return {
-    id: clip, kind: "2d", owner: layer, clip, ...position, local: state.local, length: clip.length,
+    id: clip, kind: "2d", owner: layer, clip, ...position, local: state.local, length: clip.length, startFrame: clip.offset || 0, endFrame: (clip.offset || 0) + clip.length,
     space: projection.planarSpace(mapping),
   };
 }
@@ -98,9 +98,11 @@ function objectPaths(context) {
     const camera = cameras.get(scene.layer);
     if (!camera) continue;
     const parent = projection.ancestorMatrix(THREE, PZ, object, state.local);
+    if (Math.abs(parent.determinant()) < 1e-12) continue;
     paths.push({
-      id: object, kind: "3d", owner: object, clip: scene.clip, ...position, local: state.local, length: scene.clip.length,
+      id: object, kind: "3d", owner: object, clip: scene.clip, ...position, local: state.local, length: scene.clip.length, startFrame: scene.clip.offset || 0, endFrame: (scene.clip.offset || 0) + scene.clip.length,
       space: projection.cameraSpace(THREE, { parent, ...camera }),
+      spaceAt: frame => projection.cameraSpace(THREE, { parent: projection.ancestorMatrix(THREE, PZ, object, frame), ...camera }),
     });
   }
   return paths;
