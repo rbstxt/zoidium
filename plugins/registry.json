@@ -142,7 +142,7 @@
       "defaultEnabled": true,
       "manifest": "./plugins/motion-path/manifest.json?v=2",
       "bundle": "./plugins/motion-path/bundle.json?v=2",
-      "integrity": "sha256-k0FcctJr3r7d/IiTF+OZYvzrgy53dX6C2SRBXtxJoT0="
+      "integrity": "sha256-2UCvgylsD5b0HcZUImAZ2GiVf4N761XBIV2i1Lzptdc="
     },
     {
       "id": "light-plus",

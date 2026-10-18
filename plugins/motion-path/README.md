@@ -81,7 +81,7 @@ apply additional transforms outside native Position/Rotation/Scale are not
 represented by the parent mapping. Perspective and spatial image effects on a
 2D layer are not inverted; the path describes its native Position before those
 effects. Dense paths can have overlapping handles. Drawing bounds long spans
-to 1,500 path samples and omits frame dots beyond 900 frames. Native key squares
+to 1,500 line segments and omits frame dots beyond 900 frames. Native key squares
 remain available across the visible clip span.
 
 ## Development
@@ -92,3 +92,11 @@ contain pure evaluation and edit planners; `projection.js`, `targets.js` and
 `edit-session.js` records native history; `runtime.js` owns the toolbar and
 lifecycle. Run `node --test test/motion-path-*.test.js`, bump the manifest
 version, run `node tools/build-plugin-bundles.js`, then `pnpm run verify`.
+
+The Node tests cover curve evaluation/insertion, edit planning, channel
+materialization, exact history round trips and cancellation, CSS-pixel mapping,
+trimmed spans, parent evaluation and collapsed-handle hit testing. Browser
+verification covers native key and tangent drags, modifiers, undo/redo,
+save/reopen, nested 3D groups, Shape+ pass-through, Graph Editor 2 updates,
+playback/scrubbing and image export. Standard and centered CM3 layouts also
+cover paused drawing, inactive clips, plugin disposal and reactivation.

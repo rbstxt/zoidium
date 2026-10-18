@@ -114,7 +114,7 @@ function shapePlusActive(viewport) {
 // the viewport is paused, and (for layers) in the editing-camera view.
 function collect(context) {
   const { PZ, editor, viewport } = context;
-  if (editor.enabled === false || !viewport.enabled || !editor.sequence) return [];
+  if (editor.enabled === false || !viewport.enabled || viewport.__zoidiumPlayerPlusPaused || !editor.sequence) return [];
   const paths = [];
   const clips = viewport.objects;
   if (!viewport.renderMode && clips?.length === 1 && (viewport.widget2d?.edit || shapePlusActive(viewport))) {
