@@ -60,3 +60,12 @@ test("registered plugin legacy aliases and media display names resolve consisten
   h.listeners.get("pagehide")();
   assert.equal(h.listeners.has("zoidium:theme-changed"), false);
 });
+
+test("audio clips use a separate stable key even when their object has no layer type", () => {
+  const h = harness();
+  const clip = new h.window.PZ.clip.audio(); clip.object = new h.window.PZ.audio();
+  const node = h.proto.createClipElement(clip);
+  assert.equal(node.dataset.zoidiumLayerType, "audio");
+  h.setTheme({ clips: { audio: "#aabbcc" } }); h.adapter.refresh();
+  assert.equal(node.properties.get("--zoidium-layer-clip"), "#aabbcc");
+});
