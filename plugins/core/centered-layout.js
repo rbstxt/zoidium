@@ -1,8 +1,8 @@
 (function installCenteredLayout(global) {
   "use strict";
 
-  // "Clipmaker 3 / Video Editor 2 (centered viewport)" and "Video Editor 2
-  // (centered viewport, full-height sidebar)": the editor with a
+  // "Clipmaker 3 Centered", "Video Editor 2 Centered" and "Video Editor 2
+  // Centered 2" (full-height sidebar): the editor with a
   // second tab sidebar on the right, so the preview sits between two columns
   // of panels. Both editors build their panel tree in setUpEditor and hand the
   // root to the main window's setPanel; this pre-init patch rearranges that
