@@ -212,3 +212,85 @@ test("corrupt stored collapse never hides anything", () => {
   manager.decoratePickerList(list);
   assert.deepEqual(childTags(list), ["SPAN:COLOR", "LI:Negative"]);
 });
+
+test("plugin categories nest under their heading, start collapsed and count their rows", () => {
+  const { manager, storage, effectTypes } = loadPickerManager();
+  const pack = { name: "PACK", category: true, _zoidiumPluginId: "pack" };
+  const blur = { name: "Gaussian", desc: "", _zoidiumPluginId: "pack", _zoidiumPluginEffectId: "g" };
+  const warp = { name: "Twirl", desc: "", _zoidiumPluginId: "pack", _zoidiumPluginEffectId: "t" };
+  const loose = { name: "Loose", desc: "", _zoidiumPluginId: "pack", _zoidiumPluginEffectId: "l" };
+  const entries = manager.categorizedEffectEntries(pack, [warp, blur, loose], (entry) => ({ g: "Blur", t: "Distort" })[entry._zoidiumPluginEffectId]);
+  assert.deepEqual(Array.from(entries, (entry) => entry.name), ["PACK", "Loose", "Blur", "Gaussian", "Distort", "Twirl"]);
+  assert.equal(entries[2].subcategory, true);
+  effectTypes.splice(0, effectTypes.length, { name: "COLOR", category: true }, effectTypes[1], ...entries);
+  const { list } = buildPicker(effectTypes);
+  manager.decoratePickerList(list);
+  assert.deepEqual(childTags(list), ["SPAN:COLOR", "LI:Negative", "SPAN:PACK", "LI:Loose", "SPAN:Blur", "SPAN:Distort"]);
+  const spans = list.children.filter((child) => child.tagName === "SPAN");
+  assert.equal(spans[1].getAttribute("data-zoidium-count"), "3");
+  assert.equal(spans[2].getAttribute("data-zoidium-count"), "1");
+  assert.ok(spans[2].classList.contains("zoidium-picker-subgroup"));
+  spans[2].click();
+  assert.deepEqual(childTags(list), ["SPAN:COLOR", "LI:Negative", "SPAN:PACK", "LI:Loose", "SPAN:Blur", "LI:Gaussian", "SPAN:Distort"]);
+  assert.deepEqual(JSON.parse(storage.get("zoidium.picker.expanded.effects")), ["pack/blur"]);
+  // Collapsing the parent also hides its nested headings; expanding restores them as they were.
+  spans[1].click();
+  assert.deepEqual(childTags(list), ["SPAN:COLOR", "LI:Negative", "SPAN:PACK"]);
+  spans[1].click();
+  assert.deepEqual(childTags(list), ["SPAN:COLOR", "LI:Negative", "SPAN:PACK", "LI:Loose", "SPAN:Blur", "LI:Gaussian", "SPAN:Distort"]);
+});
+
+test("a heading that already exists takes a plugin's entries instead of appearing twice", () => {
+  const { manager } = loadPickerManager();
+  const effects = [
+    { name: "COLOR", category: true }, { name: "Negative", type: "negative" },
+    { name: "MISC", category: true }, { name: "Custom", type: "custom" },
+  ];
+  manager.insertEffectEntries(effects, [{ name: "COLOR", category: true, _zoidiumPluginId: "looks" }, { name: "Looks", _zoidiumPluginId: "looks" }]);
+  manager.insertEffectEntries(effects, [{ name: "NATIVE FX", category: true, _zoidiumPluginId: "a" }, { name: "A1", _zoidiumPluginId: "a" }]);
+  manager.insertEffectEntries(effects, [{ name: "Native FX", category: true, _zoidiumPluginId: "b" }, { name: "B1", _zoidiumPluginId: "b" }]);
+  assert.deepEqual(effects.map((entry) => entry.name), ["COLOR", "Negative", "Looks", "NATIVE FX", "A1", "B1", "MISC", "Custom"]);
+  // Removing the heading's first owner keeps it for the remaining entries.
+  for (let index = effects.length - 1; index >= 0; index -= 1) {
+    if (effects[index]._zoidiumPluginId === "a" && !manager.keepsSharedHeading(effects, index, "a")) effects.splice(index, 1);
+  }
+  assert.deepEqual(effects.map((entry) => entry.name), ["COLOR", "Negative", "Looks", "NATIVE FX", "B1", "MISC", "Custom"]);
+  assert.equal(effects[3]._zoidiumPluginId, "b");
+  for (let index = effects.length - 1; index >= 0; index -= 1) {
+    if (effects[index]._zoidiumPluginId === "b" && !manager.keepsSharedHeading(effects, index, "b")) effects.splice(index, 1);
+  }
+  assert.deepEqual(effects.map((entry) => entry.name), ["COLOR", "Negative", "Looks", "MISC", "Custom"]);
+});
+
+test("recently added effects are listed first as working copies of their rows", () => {
+  const { sandbox, manager, effectTypes } = loadPickerManager();
+  sandbox.document.createElement = (tag) => new FakeElement(tag);
+  FakeElement.prototype.cloneNode = function () {
+    const copy = new FakeElement(this.tagName);
+    copy.textContent = this.textContent;
+    return copy;
+  };
+  try {
+    effectTypes[1].type = "negative";
+    effectTypes[2].type = "bloom";
+    const { list } = buildPicker([{ name: "COLOR", category: true }, effectTypes[1], effectTypes[2]]);
+    const negative = list.children[1];
+    negative.onclick = () => "added";
+    manager.recordPickerUse(effectTypes[2]);
+    manager.recordPickerUse(effectTypes[1]);
+    manager.recordPickerUse({ name: "Group", list: [] });
+    manager.decoratePickerList(list);
+    assert.deepEqual(childTags(list), ["SPAN:RECENT", "LI:Negative", "LI:Bloom", "SPAN:COLOR", "LI:Negative", "LI:Bloom"]);
+    const copy = list.children[1];
+    assert.notEqual(copy, negative);
+    assert.equal(copy.pz_item, negative.pz_item);
+    assert.equal(copy.onclick(), "added");
+    assert.equal(list.children[0].getAttribute("data-zoidium-count"), "2");
+    // A second pass with the same recent list changes nothing.
+    const before = list.children.slice();
+    manager.decoratePickerList(list);
+    assert.ok(list.children.every((child, index) => child === before[index]));
+  } finally {
+    delete FakeElement.prototype.cloneNode;
+  }
+});
