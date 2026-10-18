@@ -49,6 +49,7 @@ test("every visible plugin belongs to a declared pack", () => {
       "effector-plus",
       "camera-plus",
       "shape-plus",
+      "constraints",
     ],
     adjustment: [
       "native-fx",
