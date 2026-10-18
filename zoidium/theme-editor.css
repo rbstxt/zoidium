@@ -2,7 +2,7 @@
 .zoidium-theme-editor .zoidium-window-body { padding: 12px; }
 .zoidium-theme-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; }
 .zoidium-theme-toolbar button { padding: 4px 7px; font-size: var(--zui-font-size-small); }
-.zoidium-theme-select { flex: 1 1 110px; width: 110px; min-width: 110px; min-height: 30px; font-size: var(--zui-font-size-small); }
+.zoidium-theme-select { flex: 1 1 100%; width: 100%; min-width: 0; min-height: 30px; font-size: var(--zui-font-size-small); }
 .zoidium-theme-editor .pz-inputbox {
   font-family: var(--zui-font); color: var(--zui-text); background-color: var(--zui-bg-input);
   border: 1px solid var(--zui-border); border-radius: 0;
