@@ -7,7 +7,8 @@
   // of panels. Both editors build their panel tree in setUpEditor and hand the
   // root to the main window's setPanel; this pre-init patch rearranges that
   // root once. The runtime loader starts the base editor for these layouts.
-  // A tab's right-click menu moves it up, down or to the other sidebar, and
+  // A tab's right-click menu moves it up, down, to the top or bottom, or to
+  // the other sidebar, and
   // the arrangement is remembered with the other editor settings.
   var STORAGE_KEY = "zoidium.editor-settings";
   // Video Editor's "centered 2" variant runs the right sidebar from the top of
@@ -173,6 +174,16 @@
     elevator.panels.sort(function (a, b) { return order.indexOf(a) - order.indexOf(b); });
   }
 
+  // Move a tab to the top or bottom of its sidebar.
+  function moveToEnd(tab, elevator, top) {
+    var tabs = tabsOf(elevator), index = tabs.indexOf(tab);
+    if (index < 0 || (top ? index === 0 : index === tabs.length - 1)) return false;
+    if (top) elevator.tabcontainer.insertBefore(tab, tabs[0]);
+    else elevator.tabcontainer.insertBefore(tab, tabs[tabs.length - 1].nextSibling);
+    syncPanels(elevator);
+    return true;
+  }
+
   // Swap a tab with its neighbour in the same sidebar.
   function shift(tab, elevator, step) {
     var tabs = tabsOf(elevator), index = tabs.indexOf(tab), other = tabs[index + step];
@@ -219,15 +230,18 @@
       });
       menu.appendChild(item);
     }
-    add("Move up", index <= 0, function () { return shift(tab, elevator, -1); });
-    add("Move down", index < 0 || index >= tabs.length - 1, function () { return shift(tab, elevator, 1); });
+    var first = index <= 0, last = index < 0 || index >= tabs.length - 1;
+    add("Move to top", first, function () { return moveToEnd(tab, elevator, true); });
+    add("Move up", first, function () { return shift(tab, elevator, -1); });
+    add("Move down", last, function () { return shift(tab, elevator, 1); });
+    add("Move to bottom", last, function () { return moveToEnd(tab, elevator, false); });
     var separator = global.document.createElement("div");
     separator.className = "zoidium-tab-menu-separator";
     menu.appendChild(separator);
     add(toRight ? "Move to right sidebar" : "Move to left sidebar", elevator.panels.length <= 1,
       function () { return transfer(tab.pz_tab, elevator, target, true); });
     menu.style.left = Math.min(x, global.innerWidth - 220) + "px";
-    menu.style.top = Math.min(y, global.innerHeight - 110) + "px";
+    menu.style.top = Math.min(y, global.innerHeight - 160) + "px";
     global.document.body.appendChild(menu);
     global.document.addEventListener("pointerdown", outside, true);
   }
