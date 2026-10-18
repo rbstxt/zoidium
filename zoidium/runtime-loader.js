@@ -67,7 +67,10 @@
     var layouts = manifest.layouts || {};
     var fallback = manifest.defaultLayout || "clipmaker";
     var requested = readStoredLayout() || fallback;
-    var layout = layouts[requested] ? requested : fallback;
+    // "<layout>-centered" runs the same editor; plugins/core/centered-layout.js
+    // then adds the right-hand sidebar.
+    var base = typeof requested === "string" ? requested.replace(/-centered$/, "") : requested;
+    var layout = layouts[requested] ? requested : layouts[base] ? base : fallback;
     var profile = layouts[layout];
     if (!profile || typeof profile.entryScript !== "string") {
       throw new Error("The selected editor layout is missing from the runtime stage");
