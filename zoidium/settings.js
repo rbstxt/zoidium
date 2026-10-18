@@ -305,6 +305,12 @@
 
   function refreshControls() {
     updateGeneratedRows();
+    var summary = state.controls?.themeRow?.querySelector("select")?.lastElementChild;
+    if (summary) {
+      summary.disabled = true;
+      summary.hidden = !themeEditor.selected();
+      summary.textContent = themeEditor.selected() ? themeEditor.name() : "My theme";
+    }
     updateCustomRowsVisibility();
   }
 
@@ -393,7 +399,8 @@
     edit.type = "button"; edit.textContent = "Edit…"; edit.className = "zoidium-theme-edit";
     edit.setAttribute("aria-label", "Edit color profile");
     edit.addEventListener("click", function () { themeEditor.open(); });
-    row.appendChild(edit);
+    row.classList.add("zoidium-theme-settings-row");
+    row.children[1].appendChild(edit);
     return row;
   }
 

@@ -726,8 +726,10 @@
       return result;
     }; });
     if (global.CM && global.CM.project) addMediaPreset(global.CM.project, spec);
+    global.dispatchEvent?.(new CustomEvent("zoidium:theme-types-changed"));
     return function () {
       mediaPresets.delete(spec.id);
+      global.dispatchEvent?.(new CustomEvent("zoidium:theme-types-changed"));
       var project = global.CM && global.CM.project;
       if (project) for (var i = project.media.length - 1; i >= 0; i--) if (project.media[i].__zoidiumPreset === spec.id) { project.media[i].unload(); project.media.splice(i, 1); }
       if (!mediaPresets.size && restorePresetLoad) { restorePresetLoad(); restorePresetLoad = null; }

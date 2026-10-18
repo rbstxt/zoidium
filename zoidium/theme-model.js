@@ -114,7 +114,7 @@
   }
   function typeKey(type, audio, aliases) {
     if (audio) return "audio";
-    if (aliases && aliases[type]) return aliases[type];
+    if (aliases && Object.hasOwn(aliases, type)) return typeKey(aliases[type]);
     if (Number.isInteger(type) && type >= 0) return "cm3:" + type;
     return validTypeKey(type) ? type : null;
   }
@@ -138,7 +138,7 @@
   function parseStorage(text) {
     try {
       var value = JSON.parse(text);
-      if (!record(value) || value.version !== 1 || !Array.isArray(value.themes) || value.themes.length > 200) return [];
+      if (!record(value) || value.version !== 1 || !Array.isArray(value.themes)) return [];
       var ids = new Set(), themes = [];
       for (var item of value.themes) {
         var theme = validateTheme(item);

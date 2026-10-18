@@ -310,3 +310,17 @@ colliding. A rule emptied by sanitizing is dropped.
 - Close windows whose target object is deleted (`isValid`) and release every
   listener in the `mount` cleanup.
 - All text is English.
+
+## Core Theme Editor
+
+Settings > Color profile > Edit… opens the single Theme Editor window.
+Named user themes, main-color derivation, advanced overrides and clip colors
+preview immediately and persist locally. Editing a built-in creates a named
+copy. Custom hue/saturation profiles remain available in Settings. The window
+uses the standard resizable chrome and remembers geometry.
+
+The theme controller is an internal `ZoidiumUIBuilder.themeEditor` component;
+`open()` is available to core code and is not part of the public `ZoidiumUI`
+or plugin API. Plugins continue to use `--zui-*` tokens. Layer registration
+and media presets supply the runtime type names; plugin authors do not need
+to add theme controls. See [editor theme storage and compatibility](project-compatibility.md#editor-themes).
