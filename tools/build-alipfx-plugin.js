@@ -11,7 +11,7 @@ const descriptionsPath = path.join(outputRoot, "descriptions.json");
 const PACK_ID = "alipfx-shader-pack-4";
 const PACK_NAME = "Afterzoid Shader Pack 5";
 const PACK_CATEGORY = "ALIPFX · SHADER PACK 5";
-const PACK_VERSION = "8";
+const PACK_VERSION = "9";
 
 if (!sourceRoot) {
   console.error("Usage: node tools/build-alipfx-plugin.js <shader-pack-directory>");
@@ -64,6 +64,11 @@ function descriptionFor(id, displayName) {
 // distinct display name here, keyed by effect id, so the effect picker never
 // lists two entries with the same title. Ids and saved projects are unchanged.
 const displayNamesPath = path.join(outputRoot, "display-names.json");
+// Picker groups inside the pack (Blur & Sharpen, Distort, ...), keyed by id.
+const categoriesPath = path.join(outputRoot, "categories.json");
+const categories = fs.existsSync(categoriesPath)
+  ? JSON.parse(fs.readFileSync(categoriesPath, "utf8"))
+  : {};
 const displayNames = fs.existsSync(displayNamesPath)
   ? JSON.parse(fs.readFileSync(displayNamesPath, "utf8"))
   : {};
@@ -132,6 +137,7 @@ for (const sourcePath of sourceFiles) {
     id,
     name: shownName,
     description: descriptionFor(id, shownName),
+    ...(typeof categories[id] === "string" && categories[id] ? { category: categories[id] } : {}),
     source: relativeSource,
     shader: `./plugins/alipfx/${shaderFile}`,
     preset: `./plugins/alipfx/${presetFile}`,

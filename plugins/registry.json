@@ -330,7 +330,7 @@
       "category": "adjustment",
       "name": "Afterzoid Shader Pack 5",
       "author": "AlipFX",
-      "version": "8",
+      "version": "9",
       "effectCount": 200,
       "format": "GLSL",
       "tagline": "Shader Preset Pack",
@@ -338,9 +338,9 @@
       "color": "#a04ed1",
       "description": "A rich shader preset pack by AlipFX.",
       "credits": "Credits: AlipFX",
-      "manifest": "./plugins/alipfx/manifest.json?v=8",
-      "bundle": "./plugins/alipfx/bundle.json?v=8",
-      "integrity": "sha256-AhX48JCJe3kw/OPR6RRqQaYgjv01li17bB87SnfowMk="
+      "manifest": "./plugins/alipfx/manifest.json?v=9",
+      "bundle": "./plugins/alipfx/bundle.json?v=9",
+      "integrity": "sha256-pmTX3fNSWRe6V9NaCBMfv/hqMvg3E5zhgqoc9NYQt5k="
     },
     {
       "id": "ccfx-shader-pack",
