@@ -127,10 +127,32 @@ sample local expressions per pixel, using luminance for numbers and RGB for
 colors. Lattice settings, seed, animation speed, whole-image transforms,
 Random Color and Fresnel shader settings use the spatial mean.
 Float values and Math links retain signed values outside 0-1. Math texture
-operands evaluate per pixel. The add menu contains one Math node with Add,
-Subtract, Multiply, Divide, Power, Minimum, Maximum, Modulo, Absolute, Invert,
-Clamp, Compare, Sine and Round. Saved historical arithmetic nodes retain their
-old evaluators; historical Math migrates to a hidden legacy type.
+operands evaluate per pixel. The add menu contains one Math node with arithmetic,
+comparison, trigonometry, rounding, logarithm/exponent, smooth min/max, snap, wrap and ping-pong operations.
+C sets smoothness for smooth min/max and the lower bound for Wrap; B is Wrap's
+upper bound. New operations and blend modes append to the existing lists, so
+saved indices keep their meaning. Historical arithmetic nodes retain their old
+evaluators; historical Math migrates to a hidden legacy type.
+
+Value (Float) is also searchable as Float, Number and Scalar. Search accepts
+aliases such as ColorRamp and Hue Saturation. Color Ramp supports positioned
+RGBA stops with Constant, Linear, Ease and Cardinal interpolation. Drag stops,
+edit their position/color/alpha or add/remove them inside the node. Its Factor
+socket samples textures per pixel; Color and Alpha are independent outputs.
+Colorizer keeps its historical five-stop behavior.
+
+Noise retains its original Value output and adds decorrelated Color. Voronoi
+provides Distance, random cell Color and cell Position, with F1, F2, Smooth F1
+and Distance to Edge; four distance metrics, randomness, scale, seed and speed
+controls are available. Distance to Edge uses geometric Euclidean bisectors.
+Wave, Brick, Magic and White Noise add more UV-driven textures. Map Range,
+Separate/Combine RGB and HSV, and RGB Curves provide conversion and correction.
+RGB Curves reuses the Color Curves effect's channel widget and sampled LUT.
+
+Nodes with no path to Output are dimmed and marked "Not connected to Output".
+Recipes replace the graph in one undo step: Brushed metal, Rough plastic,
+Bumpy stone and Noise minus Voronoi cells. These use the existing Output ports.
+The editor explains Repeat, Bake resolution and the Selected node image picker.
 
 RGB Spectrum Wavelength and Gaussian Spectrum Center shift connected Input
 relative to 550 nm. Blackbody Kelvin shifts it relative to 4000 K. Without

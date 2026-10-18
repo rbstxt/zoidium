@@ -27,7 +27,7 @@ const hash = (pixels) => pixels ? crypto.createHash("sha256").update(Buffer.from
 
 test("split entry exposes the full node runtime", () => {
   assert.equal(typeof create, "function");
-  assert.equal(Object.keys(nodes.types).length, 32);
+  assert.equal(Object.keys(nodes.types).length, 44);
   for (const key of ["parse", "evaluate", "cacheKey", "createNode", "defaultGraph", "findLink", "fresnelSettings", "isAnimated"]) {
     assert.equal(typeof nodes[key], "function", key);
   }

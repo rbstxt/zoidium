@@ -416,30 +416,46 @@ function activate(context) {
   PZ.material.fnList.nodes = factory;
 
   function editorGraph(material) {
-    const graph = nodes.parse(material.properties.graph.get());
-    return { schemaVersion: 1, nodes: graph.nodes.map(n => ({ ...n, params: Object.fromEntries(Object.entries(n.params).map(([k, v]) => [k, Array.isArray(v) ? "#" + v.map(c => Math.round(c * 255).toString(16).padStart(2, "0")).join("") : v])) })), links: graph.links.map((l, i) => ({ id: "l" + i, from: { node: l.from, port: l.fromPort }, to: { node: l.to, port: l.toPort } })) };
+    return toEditorGraph(nodes.parse(material.properties.graph.get()));
+  }
+  function toEditorGraph(graph) {
+    return { schemaVersion: 1, nodes: graph.nodes.map(n => ({ ...n, params: Object.fromEntries(Object.entries(n.params).map(([k, v]) => [k, nodes.types[n.type].params.find(p => p.key === k)?.type === "color" ? "#" + v.map(c => Math.round(c * 255).toString(16).padStart(2, "0")).join("") : v])) })), links: graph.links.map((l, i) => ({ id: "l" + i, from: { node: l.from, port: l.fromPort }, to: { node: l.to, port: l.toPort } })) };
   }
   function openEditor(material) {
     if (!ids.has(material)) ids.set(material, ++nextId);
     const CM = context.window.CM;
     return context.ui.openWindow({ id: "nodes:" + ids.get(material), title: "Node Editor", width: 1000, height: 620, placement: "center", maximizable: true, persistKey: "node-editor", isValid: () => materials.has(material), mount(body) {
       body.style.display = "flex";
+      if (!doc.getElementById("zoidium-node-curves-style")) {
+        const style = doc.createElement("style"); style.id = "zoidium-node-curves-style";
+        style.textContent = context.getAsset("text", "./plugins/native-fx/colorcurves.css"); doc.head.appendChild(style);
+        context.lifecycle.onDispose(() => style.remove());
+      }
       const host = doc.createElement("div"); host.style.cssText = "flex:1;min-width:0;height:100%";
       const strip = doc.createElement("div"); strip.style.cssText = "width:140px;padding:8px;overflow:auto";
       const canvas = doc.createElement("canvas"); canvas.width = canvas.height = 128; canvas.style.width = "128px";
       // The canvas shows the graph's Color result; it is not an input. Image and
       // Texture nodes take their picture from the row shown below it on selection.
       const caption = context.ui.controls.note("Color output").element;
-      const note = context.ui.controls.note("Select an Image or Texture node to choose its picture.").element;
-      const previewChildren = [caption, canvas, note];
+      const note = context.ui.controls.note("Select an Image or Texture node, then use Selected node image and the project asset picker to choose its picture.").element;
+      note.title = "The preview shows Color output. Images come from the selected node's project asset, not the preview.";
+      const bakeHelp = context.ui.controls.note("Repeat tiles the baked map across the object's UVs. Bake resolution sets pixels per tile: higher values show more detail and take longer to update.").element;
+      const previewChildren = [caption, canvas, note, bakeHelp];
       strip.append(...previewChildren);
       body.append(host, strip);
       const registry = {};
       for (const [id, def] of Object.entries(nodes.types)) registry[id] = {
-        title: def.name, category: def.category, hidden: def.hidden, hint: def.hint, ...(id === "output" ? { maxInstances: 1, deletable: false } : {}),
+        aliases: def.aliases, title: def.name, category: def.category, hidden: def.hidden, hint: def.hint, ...(id === "output" ? { maxInstances: 1, deletable: false } : {}),
         inputs: def.inputs.map(p => ({ id: p.key, label: p.name, type: p.type === "number" || (id === "math" && ["a", "b"].includes(p.key)) ? "float" : p.key === "uv" ? "vector" : ["t", "roughness", "metalness", "bump", "opacity", "fresnel"].includes(p.key) ? "float" : "color" })),
-        outputs: def.outputs.map(p => ({ id: p.key, label: p.name, type: ["projection", "uvw"].includes(id) ? "vector" : p.name === "Value" ? "float" : "color" })),
-        params: def.params.filter(p => p.type !== "asset").map(p => ({ id: p.key, label: p.name, socket: ["number", "color"].includes(p.type), control: p.type === "option" ? "select" : p.type, min: p.min, max: p.max, step: p.step, default: p.type === "color" ? "#" + p.value.map(c => Math.round(c * 255).toString(16).padStart(2, "0")).join("") : p.value, options: p.items?.map((label, value) => ({ label, value })) })),
+        outputs: def.outputs.map(p => ({ id: p.key, label: p.name, type: ["projection", "uvw"].includes(id) ? "vector" : ["Value", "Distance", "Alpha", "Mortar", "Red", "Green", "Blue", "Hue", "Saturation"].includes(p.name) ? "float" : p.name === "Position" ? "vector" : "color" })),
+        params: def.params.filter(p => p.type !== "asset").map(p => ({ id: p.key, label: p.name, socket: ["number", "color"].includes(p.type), control: p.type === "option" ? "select" : p.type,
+          ...(p.type === "ramp" ? { sample: bundleRequire("./graph-catalogue.js").rampSample } : {}),
+          ...(p.type === "curve" ? { createControl(value, commit) {
+            const curves = bundleRequire("./graph-curves.js"); let current = value, original = value;
+            return curves.createCurveControl({ get: () => current, set: value => { current = value; } }, { document: doc, controls: {
+              editStart() { original = current; }, editFinish(property, discard) { if (discard) current = original; else if (current !== original) commit(current); },
+            } });
+          } } : {}), min: p.min, max: p.max, step: p.step, default: p.type === "color" ? "#" + p.value.map(c => Math.round(c * 255).toString(16).padStart(2, "0")).join("") : p.value, options: p.items?.map((label, value) => ({ label, value })) })),
       };
       function commit(graph) {
         const previous = new Map(nodes.parse(material.properties.graph.get()).nodes.map(n => [n.id, n]));
@@ -457,7 +473,7 @@ function activate(context) {
         finally { CM.history.finishOperation(); }
       }
       let editorDisposed = false;
-      const editor = context.window.ZoidiumUI.nodeEditor({ nodeTypes: registry, canConnect: () => true, graph: editorGraph(material), onChange: commit, onSelect(selected) {
+      const editor = context.window.ZoidiumUI.nodeEditor({ recipes: bundleRequire("./graph-recipes.js")(nodes).map(recipe => ({ label: recipe.label, graph: toEditorGraph(recipe.graph) })), nodeTypes: registry, canConnect: () => true, graph: editorGraph(material), onChange: commit, onSelect(selected) {
         const selectedId = selected[0];
         // The host selects a newly added node before committing the gesture.
         Promise.resolve().then(() => {

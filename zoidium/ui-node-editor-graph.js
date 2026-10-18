@@ -154,6 +154,24 @@
 
   // Registry entries are copied and validated; a bad entry is skipped rather
   // than thrown, so one broken type never blanks the editor.
+  function matchesSearch(spec, typeId, query) {
+    var haystack = [spec.title, spec.category, typeId].concat(Array.isArray(spec.aliases) ? spec.aliases : []).join(" ").toLowerCase();
+    return String(query || "").toLowerCase().split(/\s+/).filter(Boolean).every(function (token) { return haystack.indexOf(token) >= 0; });
+  }
+
+  function connectedToOutput(graph) {
+    var reached = new Set(graph.nodes.filter(function (n) { return n.type === "output"; }).map(function (n) { return n.id; }));
+    if (!reached.size) return new Set(graph.nodes.map(function (n) { return n.id; }));
+    var changed = true;
+    while (changed) {
+      changed = false;
+      graph.links.forEach(function (link) {
+        if (reached.has(link.to.node) && !reached.has(link.from.node)) { reached.add(link.from.node); changed = true; }
+      });
+    }
+    return reached;
+  }
+
   function normalizeTypes(raw) {
     var out = Object.create(null);
     if (!isObject(raw)) return out;
@@ -501,6 +519,8 @@
 
   var graphTools = Object.freeze({
     normalizeTypes: normalizeTypes,
+    matchesSearch: matchesSearch,
+    connectedToOutput: connectedToOutput,
     normalizeGraph: normalizeGraph,
     createIdMaker: createIdMaker,
     canConnect: defaultCanConnect,

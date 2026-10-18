@@ -492,11 +492,31 @@ module.exports = function defineGraphTypes(buffers) {
         },
     };
 
+    Object.assign(TYPES, require("./graph-catalogue.js")(buffers));
+    TYPES.noise.outputs.push({ key: "color", name: "Color" });
+    TYPES.noise.evaluatePort = function (size, inputs, params, time, context, port) {
+        if (port === "out") return noiseBuffer(size, params, time || 0, inputs.uv);
+        const out = buffers.newBuffer(size);
+        const seed = params.seed;
+        for (let c = 0; c < 3; c++) {
+            params.seed = seed + 173 * c + 331;
+            const values = noiseBuffer(size, params, time || 0, inputs.uv);
+            for (let i = 0; i < out.length; i += 4) { out[i + c] = values[i]; out[i + 3] = 255; }
+        }
+        params.seed = seed;
+        return out;
+    };
+    TYPES.float.aliases = ["Value", "Number", "Scalar"];
+    TYPES.float.name = "Value (Float)";
+    TYPES.colorCorrection.aliases = ["Hue Saturation", "Brightness Contrast", "Gamma"];
+    TYPES.projection.aliases = ["Texture Coordinate", "Mapping"];
+
     TYPES.legacyMath = { ...TYPES.math, hidden: true, params: TYPES.math.params.map(p => p.key === "op" ? { ...p, items: MATH_MODES.slice(0, 6) } : p) };
     TYPES.math = { ...TYPES.math, inputs: [{ key: "a", name: "A" }, { key: "b", name: "B" }], evaluate: (size, inputs, params) => asTexture(numericMath(size, inputs, params), size), category: "Shader", params: [
         { key: "op", name: "Operation", type: "option", items: MATH_MODES, value: 0 },
         { key: "a", name: "A", type: "number", value: 0, step: 0.01 },
         { key: "b", name: "B", type: "number", value: 1, step: 0.01 },
+        { key: "c", name: "C / Smoothness", type: "number", value: .5, step: .01 },
     ] };
     for (const id of ["invert", "clampTexture", "multiply", "add", "subtract", "compare"]) TYPES[id].hidden = true;
     delete TYPES.float.params[0].min;
@@ -509,9 +529,10 @@ module.exports = function defineGraphTypes(buffers) {
             def.inputs.push({ key: p.key, name: p.name, parameter: true, type: p.type });
     }
 
-    const pixelTypes = new Set(["add", "blackbody", "checker", "clampTexture", "colorCorrection", "colorizer", "compare", "cosineMix", "dirt", "gaussianSpectrum", "gradient", "invert", "marble", "mix", "multiply", "noise", "rgbSpectrum", "ridgedFractal", "sineWave", "subtract", "turbulence"]);
+    const pixelTypes = new Set(["add", "blackbody", "checker", "clampTexture", "colorCorrection", "colorizer", "compare", "cosineMix", "dirt", "gaussianSpectrum", "gradient", "invert", "marble", "mix", "multiply", "noise", "rgbSpectrum", "ridgedFractal", "sineWave", "subtract", "turbulence", "colorRamp", "mapRange", "rgbCurves", "combineRGB", "combineHSV", "wave", "brick", "magic", "whiteNoise"]);
     const latticeParams = new Set(["scale", "ratio", "octaves", "seed", "speedX", "speedY", "fractalScale"]);
     function pixelParameter(type, key) {
+        if (["wave", "brick", "magic", "whiteNoise"].includes(type) && ["scale", "seed", "depth", "detail", "distortion"].includes(key)) return false;
         if (!pixelTypes.has(type)) return false;
         if (["noise", "ridgedFractal", "turbulence", "marble", "dirt"].includes(type) && latticeParams.has(key)) return false;
         return true;
@@ -532,8 +553,8 @@ module.exports = function defineGraphTypes(buffers) {
         return value instanceof Uint8ClampedArray ? value : new Uint8ClampedArray(value);
     }
     function numericMath(size, inputs, params) {
-        const a = inputs.a || { scalar: params.a }, b = inputs.b || { scalar: params.b };
-        function operation(x, y) {
+        const a = inputs.a || { scalar: params.a }, b = inputs.b || { scalar: params.b }, c = inputs.c || { scalar: params.c ?? .5 };
+        function operation(x, y, z) {
             let v;
             switch (params.op) {
                 case 0: v = x + y; break;
@@ -550,13 +571,33 @@ module.exports = function defineGraphTypes(buffers) {
                 case 11: v = Math.abs(x - y) <= 0.01 ? 1 : 0; break;
                 case 12: v = Math.sin(x); break;
                 case 13: v = Math.round(x); break;
+                case 14: v = Math.sqrt(x); break;
+                case 15: v = x > 0 && y > 0 && y !== 1 ? Math.log(x) / Math.log(y) : 0; break;
+                case 16: v = Math.exp(x); break;
+                case 17: v = Math.floor(x); break;
+                case 18: v = Math.ceil(x); break;
+                case 19: v = x - Math.floor(x); break;
+                case 20: v = Math.sign(x); break;
+                case 21: case 22: {
+                    const k = Math.max(0, z), a = params.op === 22 ? -x : x, b = params.op === 22 ? -y : y;
+                    const h = k ? Math.max(k - Math.abs(a - b), 0) / k : 0;
+                    v = (Math.min(a, b) - h * h * k * .25) * (params.op === 22 ? -1 : 1); break;
+                }
+                case 23: v = y ? Math.floor(x / y) * y : 0; break;
+                case 24: { const range = y - z; v = range ? x - range * Math.floor((x - z) / range) : z; break; }
+                case 25: { const scale = Math.abs(y); v = scale ? scale - Math.abs(((x % (2 * scale)) + 2 * scale) % (2 * scale) - scale) : 0; break; }
+                case 26: v = Math.cos(x); break;
+                case 27: v = Math.tan(x); break;
+                case 28: v = Math.atan2(x, y); break;
+                case 29: v = Number(x > y); break;
+                case 30: v = Number(x < y); break;
             }
             return Number.isFinite(v) ? clamp(v, -1e30, 1e30) : 0;
         }
-        if (a.scalar !== undefined && b.scalar !== undefined) return { scalar: operation(a.scalar, b.scalar) };
+        if (a.scalar !== undefined && b.scalar !== undefined && c.scalar !== undefined) return { scalar: operation(a.scalar, b.scalar, c.scalar) };
         const buffer = new Float32Array(size * size * 4);
         for (let i = 0; i < buffer.length; i += 4) {
-            const v = operation(a.scalar ?? luminanceAt(a, i), b.scalar ?? luminanceAt(b, i)) * 255;
+            const v = operation(a.scalar ?? luminanceAt(a, i), b.scalar ?? luminanceAt(b, i), c.scalar ?? luminanceAt(c, i)) * 255;
             buffer[i] = buffer[i + 1] = buffer[i + 2] = v;
             buffer[i + 3] = 255;
         }

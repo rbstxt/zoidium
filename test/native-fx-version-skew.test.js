@@ -54,7 +54,7 @@ function evaluateEffectSource(source, apis) {
     setTimeout,
   };
   sandbox.__instance = {
-    _zoidiumGetAsset: () => null,
+    _zoidiumGetAsset: (type, name) => name === "./plugins/material-plus/graph-curves.js" ? fs.readFileSync(path.join(projectRoot, "plugins/material-plus/graph-curves.js"), "utf8") : null,
     properties: {
       addAll() {},
       load() {},
@@ -83,7 +83,7 @@ test("a stale extension shell reproduces the reported load failure", () => {
   const colorcurves = evaluateEffectSource(colorcurvesSource, staleApis);
   assert.throws(
     () => colorcurves.evaluate(),
-    /Cannot read properties of undefined \(reading 'register'\)/
+    /Cannot read properties of undefined \(reading 'createRequire'\)/
   );
 });
 
@@ -171,7 +171,7 @@ function loadManagerScope(apis) {
 }
 
 function makeFactoryInstance() {
-  const instance = { _zoidiumGetAsset: () => null, properties: {} };
+  const instance = { _zoidiumGetAsset: (type, name) => name === "./plugins/material-plus/graph-curves.js" ? fs.readFileSync(path.join(projectRoot, "plugins/material-plus/graph-curves.js"), "utf8") : null, properties: {} };
   instance.properties.add = function add(id, definition) {
     instance.properties[id] = { ...definition, load() {} };
   };
@@ -268,5 +268,5 @@ test("Color Curves and Echo declare the extension APIs they need", () => {
     manifest.nativeEffects.map((effect) => [effect.id, effect])
   );
   assert.deepEqual(byId.echo.requiresApis, ["defineFrameSampler"]);
-  assert.deepEqual(byId.colorcurves.requiresApis, ["propertyControls"]);
+  assert.deepEqual(byId.colorcurves.requiresApis, ["propertyControls", "modules"]);
 });
