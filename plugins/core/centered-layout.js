@@ -181,7 +181,12 @@
       "border:1px solid #474747;box-shadow:0 6px 18px rgba(0,0,0,.55);color:#ddd;font:inherit;font-size:13px}" +
       ".zoidium-tab-menu-item{padding:5px 14px;cursor:default;white-space:nowrap}" +
       ".zoidium-tab-menu-item:hover{background:#3d4d75}" +
-      ".zoidium-tab-menu-item.disabled{color:#666;pointer-events:none}";
+      ".zoidium-tab-menu-item.disabled{color:#666;pointer-events:none}" +
+      // The right sidebar mirrors the left one: its tab column sits on the
+      // window's outer edge and opens toward the preview.
+      ".zoidium-right-sidebar>.elevator{left:auto;right:0}" +
+      ".zoidium-right-sidebar>.elevator.open{box-shadow:-5px 0 10px rgba(0,0,0,.5)}" +
+      ".zoidium-right-sidebar>.elevatorcontrols{left:0;right:60px}";
     global.document.head.appendChild(style);
   }
 
@@ -220,6 +225,7 @@
     if (!moving.length) return root;
     var first = moving[0];
     right = new PZ.ui.elevator(CM, [first]);
+    right.el.classList.add("zoidium-right-sidebar");
     var firstTab = tabOf(right, first);
     // The new sidebar built its own tab for the first panel; drop the left one.
     var leftTab = tabOf(left, first);
