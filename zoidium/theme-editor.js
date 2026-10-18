@@ -107,7 +107,10 @@
           input.addEventListener("input", function () { input.setAttribute("aria-invalid", model.color(input.value) ? "false" : "true"); });
           input.addEventListener("keydown", function (event) {
             if (event.key === "Enter") { event.preventDefault(); applyInput(); }
-            if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); refresh(); }
+            if (event.key === "Escape") {
+              event.preventDefault(); event.stopPropagation();
+              input.value = currentColor(); input.setAttribute("aria-invalid", "false"); refresh();
+            }
           });
           var mode, reset;
           if (section !== "main") {
@@ -177,8 +180,9 @@
           });
           var types = builder.themeClips.types(), nextSignature = JSON.stringify(types);
           if (signature !== nextSignature) {
+            signature = nextSignature;
             clipRows.forEach(function (row) { if (row.picker.editing) row.picker.close(true); });
-            clipRows = []; clips.replaceChildren(); signature = nextSignature;
+            clipRows = []; clips.replaceChildren();
             types.forEach(function (type) { addRow(clips, type.name, "clips", type.key, clipRows); });
           }
           clipRows.forEach(function (row) { row.update(); });
