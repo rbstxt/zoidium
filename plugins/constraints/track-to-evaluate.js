@@ -12,7 +12,6 @@
 const math = require("./track-to-math.js");
 const graph = require("./constraint-graph.js");
 
-const IDENTITY_QUATERNION = [0, 0, 0, 1];
 const IDENTITY_LINEAR = [1, 0, 0, 0, 1, 0, 0, 0, 1];
 
 function createEvaluator(options) {
@@ -113,27 +112,11 @@ function createEvaluator(options) {
     aim.updateMatrixWorld(true);
   }
 
-  function ownRotation(object, frame) {
-    const three = object.threeObj;
-    let value = null;
-    try {
-      value = object.properties.rotation.get(frame);
-    } catch (_error) {
-      value = null;
-    }
-    if (!Array.isArray(value) || value.length < 3) {
-      const q = three.quaternion;
-      return { base: [q.x, q.y, q.z, q.w], extra: IDENTITY_QUATERNION };
-    }
-    const base = math.quaternionFromEuler(value[0], value[1], value[2], three.rotation.order);
-    // Cameras add their own shake or vibrate after the rotation property on
-    // every frame. Keep that offset on top of the constrained orientation.
-    if (store.isCameraLike(object)) {
-      const q = three.quaternion;
-      const extra = math.multiplyQuaternions(math.conjugateQuaternion(base), [q.x, q.y, q.z, q.w]);
-      return { base, extra: math.normalizeQuaternion(extra) };
-    }
-    return { base, extra: IDENTITY_QUATERNION };
+  function ownRotation(object) {
+    // Read the evaluated pose, including transforms applied by other plugins.
+    // Native scene.update resets that pose on every frame before this pass.
+    const q = object.threeObj.quaternion;
+    return [q.x, q.y, q.z, q.w];
   }
 
   function applyRotation(object, target, frame) {
@@ -143,7 +126,7 @@ function createEvaluator(options) {
     const parentLinear = three.parent
       ? math.linearPartOfMatrix4(three.parent.matrixWorld.elements)
       : IDENTITY_LINEAR;
-    const own = ownRotation(object, frame);
+    const own = ownRotation(object);
     const solved = math.solveTrackTo({
       direction: [
         targetPosition.x - objectPosition.x,
@@ -151,13 +134,13 @@ function createEvaluator(options) {
         targetPosition.z - objectPosition.z,
       ],
       parentLinear,
-      own: own.base,
+      own,
       influence: store.readInfluence(object, frame),
       trackAxis: store.readTrackAxis(object),
       upAxis: store.readUpAxis(object),
     });
     if (!solved) return;
-    const result = math.normalizeQuaternion(math.multiplyQuaternions(solved, own.extra));
+    const result = math.normalizeQuaternion(solved);
     if (!result.every(Number.isFinite)) return;
     three.quaternion.set(result[0], result[1], result[2], result[3]);
     three.updateMatrixWorld(true);

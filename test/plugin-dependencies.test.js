@@ -389,3 +389,10 @@ test("registered native-fx consumers retain their track-source dependency after 
   const plugin = pluginById({ type: "future-layer-map", properties: { source: "track:id:second" } }, "layer-input");
   assert.deepEqual(plugin.features, ["layer-source"]);
 });
+
+test("Track To records require Constraints but inert target IDs and cleared rows do not", () => {
+  const project = { sequence: { nested: { type: 6, properties: { zoidiumTrackTo: "target-uuid" } } } };
+  assert.deepEqual(pluginById(project, "constraints").features, ["track-to"]);
+  assert.equal(pluginById({ type: 1, properties: { zoidiumId: "target-uuid", zoidiumTrackTo: "" } }, "constraints"), undefined);
+  assert.equal(pluginById({ zoidiumTrackTo: "unrelated" }, "constraints"), undefined);
+});

@@ -81,6 +81,7 @@
     [9, { pluginId: CAMERA_PLUS_PLUGIN_ID, layerId: "camera-layer" }],
   ]);
   const PLUGIN_DEPENDENCY_INFO = new Map([
+    ["constraints", { name: "Constraints", author: "Zoidium" }],
     [NATIVE_FX_PLUGIN_ID, { name: "Native FX", author: "Zoidium" }],
     [LAYER_INPUT_PLUGIN_ID, { name: "Layer Input", author: "Zoidium" }],
     [MATERIAL_PLUS_PLUGIN_ID, { name: "Material+", author: "Zoidium" }],
