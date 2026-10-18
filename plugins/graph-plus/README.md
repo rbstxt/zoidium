@@ -38,6 +38,7 @@ no reload is required.
 
 Right-click an animatable property row in Edit, Objects, Effects, Sequence,
 or the corresponding timeline label/track and choose **Show in Graph Editor**.
+Native detached Edit windows support the same menu and shortcut.
 All components of a vector or color open together in the existing graph window
 and fit to its canvas. Focus a row or one of its fields and press **Alt+Shift+G**
 for the same action. This modifier combination is unused by the native CM3
@@ -58,8 +59,8 @@ shortcut and native selection hooks, as well as the graph window. The property
 menu and shortcut are available only while Graph Editor 2 is enabled.
 
 Coexists with Easing+: Easing+ patches the property-row controls and the
-keyframe move/scale paths, while Graph Editor 2 only replaces the graph
-panel classes. Both read and write the same Bezier handles through
+keyframe move/scale paths. Graph Editor 2 follows row and selection events
+without replacing their controls or history operations. Both read and write the same Bezier handles through
 `PZ.tween.correctCurve` and the native `propertyOps` hooks.
 
 The bundle loads its source modules with the shared `modules.createRequire`

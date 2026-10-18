@@ -10,11 +10,15 @@ class Channel {
 class Group {
   constructor(name, axes) { this.definition = { name }; this.objects = axes.map(axis => new Channel(axis)); }
 }
+class PropertyList {
+  constructor(properties) { this.properties = properties; }
+  *[Symbol.iterator]() { yield* this.properties; }
+}
 class Edit {}
 class Timeline {}
 class Keys {}
 Timeline.keyframes = Keys;
-const PZ = { property: { dynamic: { keyframes: Channel, group: Group } }, ui: { edit: Edit, timeline: Timeline } };
+const PZ = { propertyList: PropertyList, property: { dynamic: { keyframes: Channel, group: Group } }, ui: { edit: Edit, timeline: Timeline } };
 function panel() {
   return { _left: { selection: [], list: { querySelectorAll: () => [] } }, _right: {
     width: 600, height: 300, fits: 0, fitAll() { this.fits++; }, followBtn: new FakeElement("button"),
@@ -87,7 +91,7 @@ test("animated object fallback traverses nested lists once and ignores unkeyed a
   const a = new Channel("Opacity", true), pos = new Group("Position", ["X", "Y", "Z"]), unkeyed = new Channel("Static"), expression = new Channel("Expression", true);
   expression.expression = {};
   pos.objects[0].animated = true;
-  const material = { children: [[a, unkeyed, expression]] }, object = { children: [material, pos, material] };
+  const material = { children: [new PropertyList([a, unkeyed, expression])] }, object = { children: [material, pos, material] };
   assert.deepEqual(animatedCurves(PZ, [object]), [a, pos.objects[0]]);
   const model = new Selection(PZ), graph = panel(); model.attach(graph); model.objects([object]);
   assert.deepEqual(graph._left.selection, [a, pos.objects[0]]);
@@ -118,6 +122,9 @@ test("real row event handlers replace/add, preserve field focus, open by menu an
   f.event("pointerdown", r, { ctrlKey: true }); assert.deepEqual(f.graph._left.selection, [...pos.objects, ...rot.objects]);
   f.event("pointerdown", p, { shiftKey: true }); assert.equal(f.graph._left.selection.length, 6);
   f.event("pointerdown", r); assert.deepEqual(f.graph._left.selection, rot.objects);
+  f.event("contextmenu", p, { ctrlKey: true });
+  assert.deepEqual(f.graph._left.selection, [...rot.objects, ...pos.objects]);
+  assert.equal(f.doc.body.children.length, 0);
   const shortcut = f.event("keydown", p, { key: "G", code: "KeyG", altKey: true, shiftKey: true });
   assert.equal(shortcut.prevented, true); assert.equal(f.opens, 1); assert.deepEqual(f.graph._left.selection, pos.objects);
   assert.equal(f.event("keydown", p, { key: "g", ctrlKey: true }).prevented, undefined);
@@ -177,4 +184,79 @@ test("timeline labels map to the track property and are removed on disable", () 
   assert.equal(label.classList.contains("g2-property-label"), true);
   f.host.dispose(); assert.equal(label.classList.contains("g2-property-label"), false);
   delete Keys.prototype.createKeyframeTrack;
+});
+
+
+test("native property-row mouse-up selection cannot replace the additive property set", async () => {
+  Edit.prototype.selectItems = function () {};
+  const f = fixture(), a = new Channel("A"), b = new Channel("B");
+  f.host.selection.attach(f.graph);
+  f.event("pointerdown", f.row(a)); f.edit.selection = [a]; f.edit.selectItems(); await Promise.resolve();
+  f.event("pointerdown", f.row(b), { ctrlKey: true }); f.edit.selection = [b]; f.edit.selectItems(); await Promise.resolve();
+  assert.deepEqual(f.graph._left.selection, [a, b]);
+  f.host.dispose(); delete Edit.prototype.selectItems;
+});
+
+
+test("shortcut uses the selected row after CM3 moves focus to the containing Edit panel", () => {
+  const f = fixture(), a = new Channel("A"), b = new Channel("B"), row = f.row(a);
+  f.host.selection.attach(f.graph); f.host.selection.select([b]); f.host.selection.setFollow(false);
+  f.event("pointerdown", row);
+  const parent = { closest: selector => selector === ".editorpanel" ? { pz_panel: f.edit } : null };
+  const event = f.event("keydown", parent, { key: "G", code: "KeyG", altKey: true, shiftKey: true });
+  assert.equal(event.prevented, true); assert.equal(f.opens, 1); assert.deepEqual(f.graph._left.selection, [a]);
+  f.host.dispose();
+});
+
+
+test("clicking an already selected layer leaves property selection and shows animated curves", () => {
+  const f = fixture(), a = new Channel("A", true), b = new Channel("B", true), clip = { children: [new PropertyList([a, b])] };
+  f.host.selection.attach(f.graph); f.host.selection.select([a]);
+  const timeline = { editor: f.editor, tracks: { selection: [clip] } };
+  const target = { pz_object: clip, closest: selector => selector === ".clip" ? target : selector === ".editorpanel" ? { pz_panel: timeline } : null };
+  f.event("pointerdown", target); assert.deepEqual(f.graph._left.selection, [a, b]);
+  f.host.selection.setFollow(false); f.host.selection.show(a, f.graph); f.event("pointerdown", target);
+  assert.deepEqual(f.graph._left.selection, [a]);
+  f.host.dispose();
+});
+
+
+test("a different object selection clears manual curves even when neither object has animated properties", () => {
+  const model = new Selection(PZ), graph = panel(), a = {}, b = {}, manual = new Channel("Manual");
+  model.attach(graph); model.objects([a]); graph._left.selection.push(manual);
+  model.objects([a]); assert.deepEqual(graph._left.selection, [manual]);
+  model.objects([b]); assert.deepEqual(graph._left.selection, []);
+});
+
+test("selecting another timeline key restores its curve after a manual picker change", async () => {
+  Keys.prototype.selectKeyframe = function (key) { this.selected = [key]; };
+  const f = fixture(), property = new Channel("A"), other = new Channel("Manual");
+  const keys = [0, 60].map(frame => ({ frame, parentElement: { pz_object: property } }));
+  const timeline = Object.assign(new Keys(), { timeline: { editor: f.editor }, selected: [],
+    container: { querySelectorAll() { return timeline.selected; } } });
+  f.host.selection.attach(f.graph); timeline.selectKeyframe(keys[0]); await Promise.resolve();
+  f.graph._left.selection.splice(0, 1, other);
+  timeline.selectKeyframe(keys[0]); await Promise.resolve(); assert.deepEqual(f.graph._left.selection, [other]);
+  timeline.selectKeyframe(keys[1]); await Promise.resolve(); assert.deepEqual(f.graph._left.selection, [property]);
+  f.host.dispose(); delete Keys.prototype.selectKeyframe;
+});
+
+
+test("native detached Edit windows get property menus and shortcuts and release document listeners on disable", () => {
+  class NativeWindow { setPanel(panel) { this.panel = panel; } }
+  PZ.ui.window = NativeWindow;
+  const original = NativeWindow.prototype.setPanel, f = fixture(), listeners = new Map(), lifecycle = new Map();
+  const popup = { ...f.doc, body: new FakeElement("body"),
+    defaultView: { ...f.doc.defaultView, addEventListener: (type, fn) => lifecycle.set(type, fn), removeEventListener: type => lifecycle.delete(type) },
+    addEventListener: (type, fn) => listeners.set(type, fn), removeEventListener: type => listeners.delete(type) };
+  const win = Object.assign(new NativeWindow(), { editor: f.editor });
+  win.setPanel({ el: { ownerDocument: popup } });
+  const row = f.row(new Channel("Detached")); row.ownerDocument = popup;
+  listeners.get("contextmenu")({ target: row, clientX: 10, clientY: 20, preventDefault() {}, stopPropagation() {} });
+  assert.equal(popup.body.children.length, 1); assert.equal(f.doc.body.children.length, 0);
+  popup.body.children[0].children[0].click(); assert.equal(f.opens, 1);
+  lifecycle.get("pagehide")(); assert.equal(listeners.size, 0); assert.equal(lifecycle.size, 0);
+  assert.equal(row.getAttribute("title"), null);
+  f.host.dispose(); assert.equal(listeners.size, 0); assert.equal(NativeWindow.prototype.setPanel, original);
+  delete PZ.ui.window;
 });

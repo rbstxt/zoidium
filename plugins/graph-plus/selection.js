@@ -24,7 +24,9 @@ function animatedCurves(PZ, objects) {
     // CM3 children include property lists, nested materials, geometry and plugin lists.
     for (const child of object.children || []) visit(child);
     if (object instanceof PZ.property.dynamic.group) for (const child of object.objects || []) visit(child);
-    if (Array.isArray(object)) for (const child of object) visit(child);
+    if (Array.isArray(object) || (PZ.propertyList && object instanceof PZ.propertyList)) {
+      for (const child of object) visit(child);
+    }
   }
   for (const object of objects || []) visit(object);
   return result;
@@ -38,20 +40,24 @@ class Selection {
     this.storage = storage;
     this.follow = readFollow(storage);
     this.properties = [];
+    this.objectSelection = [];
     this.curves = [];
     this.panels = new Set();
   }
-  select(properties, additive = false) {
+  select(properties, additive = false, refresh = false) {
     const next = Array.from(new Set(additive ? [...this.properties, ...properties] : properties));
-    if (sameSet(next, this.properties)) return false;
+    if (sameSet(next, this.properties)) { if (refresh) this.sync(); return false; }
     this.properties = next;
+    this.objectSelection = [];
     this.curves = Array.from(new Set(next.flatMap(property => curvesFor(this.PZ, property))));
     this.sync();
     return true;
   }
   objects(objects) {
-    const curves = animatedCurves(this.PZ, objects);
-    if (!this.properties.length && sameSet(curves, this.curves)) return;
+    const next = Array.from(new Set(objects || []));
+    const curves = animatedCurves(this.PZ, next);
+    if (!this.properties.length && sameSet(next, this.objectSelection) && sameSet(curves, this.curves)) return;
+    this.objectSelection = next;
     this.properties = [];
     this.curves = curves;
     this.sync();
@@ -94,9 +100,10 @@ class Selection {
   sync() { if (this.follow) for (const panel of this.panels) this.apply(panel); }
   show(property, panel) {
     this.properties = [property];
+    this.objectSelection = [];
     this.curves = curvesFor(this.PZ, property);
     this.apply(panel);
   }
-  dispose() { this.panels.clear(); this.properties = []; this.curves = []; }
+  dispose() { this.panels.clear(); this.properties = []; this.objectSelection = []; this.curves = []; }
 }
 module.exports = { controllers, Selection, curvesFor, animatedCurves, sameSet, readFollow, FOLLOW_KEY };
