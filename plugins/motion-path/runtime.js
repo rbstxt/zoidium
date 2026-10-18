@@ -37,6 +37,18 @@ function install(context) {
   canvas.className = "motion-path-overlay";
   canvas.setAttribute("aria-hidden", "true");
   canvas.style.cssText = "position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;z-index:2;touch-action:none";
+  let interaction, command, button, request = 0, disposed = false;
+  // Own cleanup before installing DOM or listeners so partial activation can
+  // be unwound by the plugin manager too.
+  context.lifecycle.onDispose(() => {
+    disposed = true;
+    window.cancelAnimationFrame(request);
+    interaction?.dispose();
+    canvas.remove();
+    const index = toolbar.buttons.indexOf(command);
+    if (index >= 0) toolbar.buttons.splice(index, 1);
+    button?.remove();
+  });
   viewport.el.append(canvas);
   const ctx = canvas.getContext("2d");
   const s = {
@@ -45,11 +57,11 @@ function install(context) {
     selection: new Map(), models: [], dirty: true,
     requestDraw() { s.dirty = true; },
   };
-  const interaction = createInteraction(s);
-  let visible = readVisible(window.localStorage), disposed = false, request = 0, drawn = false;
+  interaction = createInteraction(s);
+  let visible = readVisible(window.localStorage), drawn = false;
 
-  const command = { title: TITLE, key: SHORTCUT, fn: () => setVisible(!visible) };
-  const button = document.createElement("button");
+  command = { title: TITLE, key: SHORTCUT, fn: () => setVisible(!visible) };
+  button = document.createElement("button");
   button.title = TITLE;
   button.setAttribute("aria-label", TITLE);
   button.cmd = command;
@@ -108,14 +120,6 @@ function install(context) {
     drawn = true;
   }
   request = window.requestAnimationFrame(frame);
-  context.lifecycle.onDispose(() => {
-    disposed = true;
-    window.cancelAnimationFrame(request);
-    interaction.dispose();
-    canvas.remove();
-    const index = toolbar.buttons.indexOf(command);
-    if (index >= 0) toolbar.buttons.splice(index, 1);
-    button.remove();
-  });
+
 }
 module.exports = { install, STORAGE_KEY, SHORTCUT };

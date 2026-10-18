@@ -53,7 +53,10 @@ function build(path, easings, selected) {
     for (const [side, h] of [["in", info.in], ["out", info.out]]) {
       if (!h.visible) continue;
       const target = add(point, h.vector), at = space.toClient(target);
-      if (at) handles[side] = { vector: h.vector, point: target, client: at };
+      // A collapsed handle must not cover its own key. Alt-drag on the
+      // square can pull that tangent out again.
+      if (at && Math.hypot(at[0] - client[0], at[1] - client[1]) > SIZE.key / 2 + SIZE.handle / 2 + 2)
+        handles[side] = { vector: h.vector, point: target, client: at };
     }
     keys.push({ frame, point, client, selected: !!selected?.has(frame), handles });
   }
