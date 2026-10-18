@@ -65,8 +65,20 @@ const PZ_UV_PROJECTION_CODE = [
 ].join("\n");
 
 const PZ_FRAGMENT_HEADER = [
+    "#ifndef PZ_GRAPH_EMISSION",
+    "#define PZ_GRAPH_EMISSION 0",
+    "#endif",
+    "#ifndef PZ_GRAPH_NORMAL",
+    "#define PZ_GRAPH_NORMAL 0",
+    "#endif",
+    "#ifndef PZ_NORMAL_IMAGE",
+    "#define PZ_NORMAL_IMAGE 0",
+    "#endif",
     "varying vec2 vPzUv;",
     "uniform vec3 uPzColor;",
+    "uniform sampler2D uPzGraphEmission;",
+    "uniform sampler2D uPzGraphNormal;",
+    "uniform float uPzEmissionStrength;",
     "uniform sampler2D uPzRamp;",
     "uniform float uPzRampFactor;",
     "uniform vec3 uPzFresnelColor;",
@@ -87,7 +99,7 @@ const PZ_FRAGMENT_HEADER = [
     // onto the normal-map result, then apply that same rotation to the bump
     // normal, preserving the detail's strength instead of averaging it away.
     // https://blog.selfshadow.com/publications/blending-in-detail/
-    "#if defined( USE_NORMALMAP ) && defined( USE_BUMPMAP )",
+    "#if ( defined( USE_NORMALMAP ) && defined( USE_BUMPMAP ) ) || PZ_GRAPH_NORMAL",
     "vec3 pzReorientBump( vec3 surfaceNormal, vec3 mapNormal, vec3 bumpNormal ) {",
     "    vec4 q = vec4( cross( surfaceNormal, mapNormal ), 1.0 + clamp( dot( surfaceNormal, mapNormal ), -1.0, 1.0 ) );",
     // At opposite normals the shortest rotation is ambiguous. Choose a

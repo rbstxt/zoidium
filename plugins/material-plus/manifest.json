@@ -98,6 +98,11 @@
       "id": "legacy-pbr-uv",
       "type": "text",
       "source": "./plugins/material-plus/legacy-pbr-uv.js?v=23"
+    },
+    {
+      "id": "surface-controls",
+      "type": "text",
+      "source": "./plugins/material-plus/surface-controls.js?v=23"
     }
   ],
   "modules": [

@@ -21,6 +21,8 @@ module.exports = function defineGraphTypes(buffers) {
             inputs: [
                 { key: "color", name: "Color" },
                 { key: "luminance", name: "Luminance" },
+                { key: "emission", name: "Emission" },
+                { key: "normal", name: "Normal" },
                 { key: "roughness", name: "Roughness" },
                 { key: "metalness", name: "Metalness" },
                 { key: "bump", name: "Bump" },
@@ -28,7 +30,10 @@ module.exports = function defineGraphTypes(buffers) {
                 { key: "fresnel", name: "Fresnel" },
             ],
             outputs: [],
-            params: [],
+            params: [
+                { key: "normalMode", name: "Normal input", type: "option", value: 0, items: ["Tangent-space color", "Height"] },
+                { key: "normalStrength", name: "Normal strength", type: "number", value: 1, min: 0, max: 8, step: 0.01 },
+            ],
         },
         noise: {
             name: "Noise",

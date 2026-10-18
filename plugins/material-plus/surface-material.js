@@ -19,12 +19,16 @@ target.load = function (e) {
     this.threeObj.color.setRGB(1, 1, 1);
     this.pzImages = { texture: null, ao: null };
     this.pzTextures = { texture: null, ao: null };
-    this.pzGraphTextures = { color: null, luminance: null, roughness: null, metalness: null, bump: null, opacity: null };
+    this.pzGraphTextures = { color: null, luminance: null, emission: null, normal: null, roughness: null, metalness: null, bump: null, opacity: null };
     this.pzNoiseTexture = null;
     this.pzFresnel = null;
     this.pzAnimated = false;
     this.pzGraph = null;
     this.pzUniforms = {
+        uPzGraphEmission: { value: null },
+        uPzGraphNormal: { value: null },
+        uPzEmissionStrength: { value: 1 },
+        uPzEnvironmentRotation: { value: 0 },
         uPzRepeat: { value: new THREE.Vector2(1, 1) },
         uPzOffset: { value: new THREE.Vector2(0, 0) },
         uPzCenter: { value: new THREE.Vector2(0, 0) },
@@ -63,12 +67,34 @@ target.load = function (e) {
             .replace("#include <uv_pars_vertex>", "#include <uv_pars_vertex>\nvarying vec2 vPzUv;")
             .replace("#include <begin_vertex>", PZ_UV_PROJECTION_CODE)
             .replace("void main() {", PZ_VERTEX_HEADER + "\nvoid main() {");
+        const normalChunk = THREE.ShaderChunk?.normalmap_pars_fragment;
+        const environmentChunk = THREE.ShaderChunk?.lights_pars_maps;
+        if (normalChunk) shader.fragmentShader = shader.fragmentShader.replace("#include <normalmap_pars_fragment>",
+            normalChunk.replace("vec3 mapN = texture2D( normalMap, vUv ).xyz * 2.0 - 1.0;", [
+                "vec3 mapN = texture2D( normalMap, vUv ).xyz * 2.0 - 1.0;",
+                "#if PZ_GRAPH_NORMAL && !PZ_NORMAL_IMAGE",
+                "mapN = vec3( 0.0, 0.0, 1.0 );",
+                "#endif",
+            ].join("\n")).replace("mat3 tsn = mat3( S, T, N );", [
+                "#if PZ_GRAPH_NORMAL",
+                "vec3 detailN = texture2D( uPzGraphNormal, vPzUv ).xyz * 2.0 - 1.0;",
+                "mapN = pzReorientBump( vec3( 0.0, 0.0, 1.0 ), normalize( mapN ), normalize( detailN ) );",
+                "#endif",
+                "mat3 tsn = mat3( S, T, N );",
+            ].join("\n")));
+        if (environmentChunk) shader.fragmentShader = shader.fragmentShader.replace("#include <lights_pars_maps>",
+            "#ifndef PZ_ENVIRONMENT\n#define PZ_ENVIRONMENT 0\n#endif\nuniform float uPzEnvironmentRotation;\n" + environmentChunk.replace(
+                "reflectVec = inverseTransformDirection( reflectVec, viewMatrix );",
+                "reflectVec = inverseTransformDirection( reflectVec, viewMatrix );\n#if PZ_ENVIRONMENT\n" +
+                "float pzCos = cos( uPzEnvironmentRotation ), pzSin = sin( uPzEnvironmentRotation );\n" +
+                "reflectVec.xz = mat2( pzCos, -pzSin, pzSin, pzCos ) * reflectVec.xz;\n#endif"));
         shader.fragmentShader = shader.fragmentShader
             .replace(
                 "#include <lights_physical_pars_fragment>",
                 PZ_FRAGMENT_HEADER + "\n#include <lights_physical_pars_fragment>"
             )
             .replace("#include <map_fragment>", PZ_MAP_CODE)
+            .replace("#include <emissivemap_fragment>", "#include <emissivemap_fragment>\n#if PZ_GRAPH_EMISSION\ntotalEmissiveRadiance += texture2D( uPzGraphEmission, vPzUv ).rgb * uPzEmissionStrength;\n#endif")
             .replace("#include <normal_fragment_maps>", PZ_FRESNEL_CODE)
             .replace("#include <lights_physical_fragment>", PZ_PHYSICAL_CODE)
             .replace("#include <lights_fragment_end>", PZ_LIGHTING_CODE);
@@ -207,6 +233,10 @@ target.pzAssignMap = function (slot, texture) {
 target.updateDefines = function () {
     var graph = this.pzGraphTextures || {};
     var defines = {
+        PZ_GRAPH_EMISSION: graph.emission ? 1 : 0,
+        PZ_GRAPH_NORMAL: graph.normal ? 1 : 0,
+        PZ_NORMAL_IMAGE: (this.pzTextures.normalMap || this._zoidiumTextureSlots?.normalMap?.texture) ? 1 : 0,
+        PZ_ENVIRONMENT: this.pzEnvironment?.texture ? 1 : 0,
         PZ_PROJECTION: this.properties.projection.get() || 0,
         PZ_RAMP: this.properties.rampEnabled.get() === 1 ? 1 : 0,
         PZ_RAMP_SRC: this.properties.rampSource.get() || 0,
@@ -289,6 +319,12 @@ target.bindGraphChannel = function (slot) {
     if (slot === "color") {
         this.pzUniforms.uPzGraphColor.value = graph.color || null;
         return false;
+    } else if (slot === "emission") {
+        this.pzUniforms.uPzGraphEmission.value = graph.emission;
+        return false;
+    } else if (slot === "normal") {
+        this.pzUniforms.uPzGraphNormal.value = graph.normal;
+        return this.pzAssignMap("normalMap", this.pzTextures.normalMap || graph.normal);
     } else if (slot === "luminance") {
         return this.pzAssignMap("emissiveMap", graph.luminance);
     } else if (slot === "roughness") {
@@ -380,6 +416,8 @@ target.bakeGraph = function (time) {
         var definesDirty = false;
         definesDirty = this.setGraphChannel("color", outputs.color, true) || definesDirty;
         definesDirty = this.setGraphChannel("luminance", outputs.luminance, true) || definesDirty;
+        definesDirty = this.setGraphChannel("emission", outputs.emission, true) || definesDirty;
+        definesDirty = this.setGraphChannel("normal", outputs.normal, true) || definesDirty;
         definesDirty = this.setGraphChannel("roughness", outputs.roughness, true) || definesDirty;
         definesDirty = this.setGraphChannel("metalness", outputs.metalness, true) || definesDirty;
         definesDirty = this.setGraphChannel("bump", outputs.bump, true) || definesDirty;
