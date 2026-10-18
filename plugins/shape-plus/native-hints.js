@@ -7,7 +7,7 @@ const { GEOMETRY, PAINTS, paintScope } = require("./contents-ops.js");
 const { stops } = require("./paint.js");
 const RULE = "A fill or stroke draws the paths above it in the same group.";
 const NO_PAINT = "no fill or stroke", NO_PATHS = "no paths above";
-const HINT_STYLE = "color:#7d7d7d;margin-left:6px;font-size:11px;white-space:nowrap;pointer-events:none";
+const HINT_STYLE = "color:var(--zui-text-muted);margin-left:6px;font-size:11px;white-space:nowrap;pointer-events:none";
 const SWATCH_STYLE = "display:inline-block;box-sizing:border-box;width:10px;height:10px;margin-left:6px;vertical-align:middle;pointer-events:none;";
 const valueOf = property => property && typeof property.get === "function" ? property.get() : property;
 // Live Content objects or plain contents -> the minimal plain tree that
@@ -39,9 +39,9 @@ function gradientCss(value) {
 function swatchStyle(kind, value) {
   const gradient = kind === "gradientFill" || kind === "gradientStroke";
   const paint = gradient ? gradientCss(value) : rgb(value);
-  if (kind === "fill" || kind === "gradientFill") return SWATCH_STYLE + "border:1px solid #000;background:" + paint;
+  if (kind === "fill" || kind === "gradientFill") return SWATCH_STYLE + "border:1px solid var(--zui-border);background:" + paint;
   return SWATCH_STYLE + (gradient ? "border:3px solid transparent;border-image:" + paint + " 1" : "border:3px solid " + paint) +
-    ";background:transparent;outline:1px solid #000;outline-offset:-1px";
+    ";background:transparent;outline:1px solid var(--zui-border);outline-offset:-1px";
 }
 function createHints({ PZ, Layer, Content, document, view = document.defaultView }) {
   const rows = new Map(), cache = new WeakMap();

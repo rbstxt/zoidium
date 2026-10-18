@@ -1,3 +1,5 @@
+@import url("../zoidium/ui-window.css");
+
 @font-face {
   font-family: "Inter";
   font-style: normal;
@@ -15,8 +17,8 @@
 }
 
 :root {
-  color: #ccc;
-  background-color: #333;
+  color: var(--zui-text);
+  background-color: var(--zui-bg);
   font-family: "Inter", "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic",
     "Meiryo", sans-serif;
   line-height: 1.8;
@@ -26,14 +28,14 @@ body {
   max-width: 760px;
   margin: 0 auto;
   padding: 48px 24px 72px;
-  background-color: #333;
+  background-color: var(--zui-bg);
   font-family: "Inter", "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic",
     "Meiryo", sans-serif;
 }
 
 header {
   margin-bottom: 48px;
-  border-bottom: 1px solid #555;
+  border-bottom: 1px solid var(--zui-border);
   padding-bottom: 24px;
 }
 
@@ -47,11 +49,11 @@ nav a + a {
 }
 
 a {
-  color: #9ecbff;
+  color: var(--zui-value);
 }
 
 a:hover {
-  color: #d2e8ff;
+  color: var(--zui-value-strong);
 }
 
 h1,
@@ -81,7 +83,7 @@ ul {
 
 .meta {
   margin: 0;
-  color: #aaa;
+  color: var(--zui-text-muted);
   font-size: 0.92rem;
 }
 
@@ -92,13 +94,13 @@ ul {
 .notice,
 .summary {
   margin: 24px 0 32px;
-  border-left: 3px solid #777;
+  border-left: 3px solid var(--zui-text-faint);
   padding: 12px 16px;
-  background: #2a2a2a;
+  background: var(--zui-bg-title);
 }
 
 .commitment {
-  border-color: #9ecbff;
+  border-color: var(--zui-value);
 }
 
 .commitment p:last-child {
@@ -106,7 +108,7 @@ ul {
 }
 
 .summary {
-  border-color: #9ecbff;
+  border-color: var(--zui-value);
   padding: 16px 18px;
 }
 
@@ -121,9 +123,9 @@ ul {
 
 .rescue-tool {
   margin: 24px 0 32px;
-  border-left: 3px solid #e8a33c;
+  border-left: 3px solid var(--zui-accent);
   padding: 16px 18px;
-  background: #2a2a2a;
+  background: var(--zui-bg-title);
 }
 
 .rescue-bookmarklet {
@@ -131,16 +133,16 @@ ul {
   margin: 4px 0 8px;
   border-radius: 6px;
   padding: 10px 18px;
-  color: #1d1f24;
-  background: #e8a33c;
+  color: var(--zui-text-bright);
+  background: var(--zui-accent);
   font-weight: 700;
   text-decoration: none;
   cursor: grab;
 }
 
 .rescue-bookmarklet:hover {
-  color: #1d1f24;
-  background: #f2bb62;
+  color: var(--zui-text-bright);
+  background: var(--zui-hover);
 }
 
 .rescue-bookmarklet.is-loading {
@@ -150,11 +152,11 @@ ul {
 
 .rescue-actions button {
   margin: 4px 8px 4px 0;
-  border: 1px solid #777;
+  border: 1px solid var(--zui-text-faint);
   border-radius: 4px;
   padding: 6px 12px;
-  color: #eee;
-  background: #444;
+  color: var(--zui-text-bright);
+  background: var(--zui-bg-input);
   font: inherit;
   cursor: pointer;
 }
@@ -166,12 +168,12 @@ ul {
 
 .rescue-status {
   margin: 8px 0 0;
-  color: #9be29b;
+  color: var(--zui-value);
   font-size: 0.92rem;
 }
 
 .rescue-status.is-error {
-  color: #ff8a80;
+  color: var(--zui-danger);
 }
 
 .rescue-source {
@@ -179,19 +181,19 @@ ul {
   width: 100%;
   height: 160px;
   margin-top: 8px;
-  color: #ddd;
-  background: #222;
+  color: var(--zui-text);
+  background: var(--zui-bg-input);
   font: 12px/1.4 monospace;
 }
 
 .rescue-support {
-  border-color: #7289da;
+  border-color: var(--zui-value);
 }
 
 kbd {
-  border: 1px solid #666;
+  border: 1px solid var(--zui-border);
   border-radius: 3px;
   padding: 0 4px;
-  background: #2a2a2a;
+  background: var(--zui-bg-title);
   font-size: 0.9em;
 }

@@ -66,8 +66,8 @@
           observable: viewport.onEditChanged,
           update: function (button) {
             button.children[0].style.fill = viewport.edit
-              ? "#8a2828"
-              : "#acacac";
+              ? "var(--zui-danger)"
+              : "var(--zui-text-muted)";
           },
           fn: function () {
             viewport.edit = !viewport.edit;
@@ -83,8 +83,8 @@
           update: function (button) {
             var widget2d = viewport.widget2d;
             button.children[0].style.fill = widget2d && widget2d.edit
-              ? "#8a2828"
-              : "#acacac";
+              ? "var(--zui-danger)"
+              : "var(--zui-text-muted)";
           },
           fn: function () {
             if (viewport.widget2d) {
@@ -101,8 +101,8 @@
       loopButton.observable = editor.playback.onLoopChanged;
       loopButton.update = function (button) {
         button.children[0].style.fill = this.editor.playback.loop
-          ? "#8a2828"
-          : "#acacac";
+          ? "var(--zui-danger)"
+          : "var(--zui-text-muted)";
       };
     }
 

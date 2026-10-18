@@ -64,7 +64,7 @@
     var enabled = track.enabled !== false;
     button.title = enabled ? "disable track" : "enable track";
     button.setAttribute("aria-label", button.title);
-    icon.style.fill = enabled ? "#ccc" : "#8a2828";
+    icon.style.fill = enabled ? "var(--zui-text)" : "var(--zui-danger)";
   }
 
   function restoreAudioPosition(playback, sequence) {

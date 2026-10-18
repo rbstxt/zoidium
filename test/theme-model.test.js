@@ -66,3 +66,19 @@ test("selected custom clips lighten and label contrast follows the actual backgr
   assert.equal(model.labelColor("#000000"), "#f4f4f4");
   assert.equal(model.labelColor("#ffffff"), "#2c323f");
 });
+
+test("all built-in themes retain dark chrome and light custom themes use contrasting neutrals", () => {
+  for (const preset of model.PRESETS) {
+    const tokens = model.uiTokens(model.presetPalette(preset.value, 0, 100));
+    assert.equal(tokens.bg, "#2a2a2a");
+    assert.equal(tokens.danger, "#df9b9b");
+    assert.equal(tokens.shadow, "#000000");
+  }
+  const light = model.uiTokens(model.derive("#cad9f4"));
+  assert.equal(light.bg, "#f1f1f1");
+  assert.ok(model.hsl(light.text)[2] < model.hsl(light.bg)[2]);
+  assert.ok(model.hsl(light.value)[2] < 0.4);
+  assert.equal(light.danger, "#9b3030");
+  const darkKeys = Object.keys(model.uiTokens(model.derive("#384668"))).sort();
+  assert.deepEqual(Object.keys(light).sort(), darkKeys);
+});

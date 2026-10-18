@@ -163,8 +163,8 @@
     if (!button) return;
     button.type = "button";
     button.textContent = "Download debug log";
-    button.style.cssText = "padding:7px 10px;border:1px solid #dca8a8;border-radius:3px;" +
-      "background:#3a2020;color:#ffd6d6;font:inherit;cursor:pointer";
+    button.style.cssText = "padding:7px 10px;border:1px solid var(--zui-danger, #dca8a8);border-radius:3px;" +
+      "background:var(--zui-bg-title, #3a2020);color:var(--zui-text, #ffd6d6);font:inherit;cursor:pointer";
     button.onclick = function () {
       button.disabled = true;
       button.textContent = "Preparing debug log...";
@@ -192,7 +192,7 @@
     box.textContent = "Zoidium could not start its CM3 extension layer.\n\n" + message;
     box.style.cssText =
       "position:fixed;z-index:2147483647;inset:16px;padding:16px;overflow:auto;" +
-      "background:#221b1b;color:#ffd6d6;font:13px/1.5 monospace;white-space:pre-wrap";
+      "background:var(--zui-bg, #221b1b);color:var(--zui-text, #ffd6d6);font:13px/1.5 monospace;white-space:pre-wrap";
     addFailureActions(box, error);
     if (document.body) document.body.appendChild(box);
     global.dispatchEvent(new CustomEvent("zoidium:extension-load-error", { detail: error }));

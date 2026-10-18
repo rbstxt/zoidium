@@ -216,6 +216,8 @@ var Looks = Looks || {};
     canvas.addEventListener("pointerup", onUp);
     canvas.addEventListener("pointercancel", onUp);
     canvas.addEventListener("dblclick", onDbl);
+    var themeView = canvas.ownerDocument && canvas.ownerDocument.defaultView;
+    if (themeView) themeView.addEventListener("zoidium:theme-changed", draw);
     draw();
 
     return {
@@ -230,6 +232,7 @@ var Looks = Looks || {};
       },
       destroy: function () {
         disposed = true;
+        if (themeView) themeView.removeEventListener("zoidium:theme-changed", draw);
         canvas.removeEventListener("pointerdown", onDown);
         canvas.removeEventListener("pointermove", onMove);
         canvas.removeEventListener("pointerup", onUp);
@@ -242,7 +245,7 @@ var Looks = Looks || {};
 
   /* ---------------- CurvesPad ---------------- */
 
-  var CHANNEL_COLORS = { RGB: "#ccc", Red: "#e05a5a", Green: "#5ae05a", Blue: "#5a8ae0" };
+  var CHANNEL_COLORS = { Red: "#e05a5a", Green: "#5ae05a", Blue: "#5a8ae0" };
 
   // Curve editor for the Curves tool. `state` is the channels map
   // ({ RGB, Red, Green, Blue } point lists). Click empty space to add a point,
@@ -385,6 +388,8 @@ var Looks = Looks || {};
     canvas.addEventListener("pointerup", onUp);
     canvas.addEventListener("pointercancel", onUp);
     canvas.addEventListener("contextmenu", onContext);
+    var themeView = canvas.ownerDocument && canvas.ownerDocument.defaultView;
+    if (themeView) themeView.addEventListener("zoidium:theme-changed", draw);
     draw();
 
     return {
@@ -402,6 +407,7 @@ var Looks = Looks || {};
       },
       destroy: function () {
         disposed = true;
+        if (themeView) themeView.removeEventListener("zoidium:theme-changed", draw);
         canvas.removeEventListener("pointerdown", onDown);
         canvas.removeEventListener("pointermove", onMove);
         canvas.removeEventListener("pointerup", onUp);

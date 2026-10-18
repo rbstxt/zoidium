@@ -494,7 +494,7 @@
         function icon(hostPZ, doc, name) {
             if (hostPZ.ui && typeof hostPZ.ui.generateIcon === "function") {
                 var svg = hostPZ.ui.generateIcon(name);
-                svg.style = "fill:#ccc;width:17px;height:17px;";
+                svg.style = "fill:var(--zui-text);width:17px;height:17px;";
                 return svg;
             }
             var fallback = doc.createElement("span");
@@ -575,7 +575,7 @@
                     refresh();
                     refreshProfile(owner);
                 };
-                var label = doc.createElement("span"); label.style = "color:#999;";
+                var label = doc.createElement("span"); label.style = "color:var(--zui-text-muted);";
                 row.style.lineHeight = "0"; label.style.verticalAlign = "middle";
                 function refresh() {
                     var name = property.get();

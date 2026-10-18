@@ -13,7 +13,10 @@
     return !target || typeof target.nodeType !== "number";
   }
 
-  function hideInvalidStylesheets(editor) {
+  // The native popup constructor copies only each stylesheet's filename.
+  // Hide links during that synchronous copy so invalid requests never start;
+  // restore the source links before mirroring their complete resolved URLs.
+  function hidePopupStylesheets(editor) {
     var sourceWindow = editor && editor.windows && editor.windows[0] && editor.windows[0].window;
     var sourceDocument = sourceWindow && sourceWindow.document;
     var head = sourceDocument && sourceDocument.head;
@@ -23,7 +26,7 @@
     var hidden = [];
     for (var index = 0; index < links.length; index += 1) {
       var link = links[index];
-      if (link.getAttribute("href") !== null || !link.parentNode) continue;
+      if (!link.parentNode) continue;
 
       var parent = link.parentNode;
       var nextSibling = link.nextSibling;
@@ -74,6 +77,12 @@
       copy.setAttribute("data-zoidium-mirrored", "");
       head.appendChild(copy);
     }
+    mirrorTheme(popupWindow, sourceDocument);
+  }
+
+  function mirrorTheme(popupWindow, sourceDocument) {
+    var popupDocument = popupWindow && popupWindow.document;
+    if (!popupDocument || !sourceDocument) return;
     var rootStyle = sourceDocument.documentElement && sourceDocument.documentElement.getAttribute("style");
     if (rootStyle && popupDocument.documentElement) popupDocument.documentElement.setAttribute("style", rootStyle);
     var theme = sourceDocument.documentElement && sourceDocument.documentElement.dataset;
@@ -88,7 +97,7 @@
     var secondary = isSecondaryWindowRequest(target);
     if (secondary) {
       try {
-        hidden = hideInvalidStylesheets(editor);
+        hidden = hidePopupStylesheets(editor);
       } catch (_error) {
         // Stylesheet probing is best effort; the popup opens unguarded.
         hidden = [];
@@ -103,6 +112,14 @@
         try {
           var sourceWindow = editor && editor.windows && editor.windows[0] && editor.windows[0].window;
           mirrorStylesheets(this.window, sourceWindow && sourceWindow.document);
+          var popup = this.window;
+          var refreshTheme = function () {
+            if (popup.closed) { sourceWindow.removeEventListener("zoidium:theme-changed", refreshTheme); return; }
+            mirrorTheme(popup, sourceWindow.document);
+            popup.dispatchEvent(new popup.CustomEvent("zoidium:theme-changed"));
+          };
+          sourceWindow.addEventListener("zoidium:theme-changed", refreshTheme);
+          popup.addEventListener("pagehide", function () { sourceWindow.removeEventListener("zoidium:theme-changed", refreshTheme); }, { once: true });
         } catch (_error) { /* a closed or blocked popup keeps CM3's own links */ }
       }
     }

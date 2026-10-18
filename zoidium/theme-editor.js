@@ -143,6 +143,7 @@
         }
         body.appendChild(el("h3", "zoidium-theme-heading", "Main color"));
         addRow(body, "Main", "main", null, rows);
+        body.appendChild(el("p", "zoidium-theme-status", "Light main colors use light Zoidium windows. CM3 keeps its native panel colors."));
         var preview = el("div", "zoidium-theme-preview");
         Object.keys(labels).forEach(function (key) {
           var item = el("div", "zoidium-theme-preview-item");

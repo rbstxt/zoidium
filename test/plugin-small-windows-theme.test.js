@@ -101,6 +101,7 @@ function loadLooksWidgets() {
 
 function makeDomStubs(theme) {
   const recorded = { fill: [], stroke: [] };
+  const events = new Map();
   const gradient = { addColorStop() {} };
   const makeCtx = () => ({
     setTransform() {}, clearRect() {}, drawImage() {},
@@ -113,6 +114,7 @@ function makeDomStubs(theme) {
   const stubs = {};
   const doc = {
     defaultView: {
+      addEventListener(type, fn) { events.set(type, fn); }, removeEventListener(type) { events.delete(type); },
       getComputedStyle: () => ({
         getPropertyValue: (name) => theme[name] || "",
       }),
@@ -138,6 +140,7 @@ function makeDomStubs(theme) {
   };
   stubs.document = doc;
   stubs.recorded = recorded;
+  stubs.events = events;
   stubs.container = { appendChild() {} };
   return stubs;
 }
@@ -164,7 +167,12 @@ test("curves pad canvas follows the theme at draw time", () => {
     assert.ok(stubs.recorded.stroke.includes("rgb(11, 11, 11)"), "pad diagonal follows the theme");
     assert.ok(stubs.recorded.fill.includes("rgb(12, 12, 12)"), "pad points follow the theme");
     assert.ok(stubs.recorded.stroke.includes("rgb(13, 13, 13)"), "RGB curve follows the text token");
+    theme["--lk-pad-bg"] = "rgb(230, 230, 230)";
+    stubs.events.get("zoidium:theme-changed")();
+    assert.equal(stubs.recorded.fill.at(-1) !== undefined, true);
+    assert.ok(stubs.recorded.fill.includes("rgb(230, 230, 230)"), "an open pad redraws on theme change");
     pad.destroy();
+    assert.equal(stubs.events.size, 0, "destroy removes the theme listener");
   } finally {
     if (realDocument === undefined) delete globalThis.document;
     else globalThis.document = realDocument;
@@ -183,7 +191,11 @@ test("color wheel tint dot follows the theme at draw time", () => {
     });
     assert.ok(stubs.recorded.stroke.includes("rgb(21, 21, 21)"), "dot ring follows the theme");
     assert.ok(stubs.recorded.fill.includes("rgb(22, 22, 22)"), "dot core follows the theme");
+    theme["--lk-dot-ring"] = "rgb(40, 40, 40)";
+    stubs.events.get("zoidium:theme-changed")();
+    assert.ok(stubs.recorded.stroke.includes("rgb(40, 40, 40)"), "an open wheel redraws on theme change");
     wheel.destroy();
+    assert.equal(stubs.events.size, 0);
   } finally {
     if (realDocument === undefined) delete globalThis.document;
     else globalThis.document = realDocument;

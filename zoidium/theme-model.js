@@ -109,6 +109,30 @@
     Object.keys(PALETTE).forEach(function (key) { result[key] = hex(shiftThemeColor(PALETTE[key], degrees, scale)); });
     return result;
   }
+  // Neutral Zoidium chrome follows the main color's lightness. Built-in
+  // presets retain their classic dark surfaces; a light main color in the
+  // Theme Editor produces light extension windows without recoloring CM3.
+  function uiTokens(palette) {
+    var light = hsl(palette.focus)[2] > 0.6;
+    var colors = light ? {
+      bg: "#f1f1f1", "bg-title": "#e3e3e3", "bg-input": "#fafafa", "bg-sunken": "#e9e9e9",
+      border: "#b8b8b8", "border-soft": "#d6d6d6", hover: "#dedede",
+      text: "#303030", "text-strong": "#222222", "text-bright": "#161616", "text-muted": "#595959", "text-faint": "#707070",
+      danger: "#9b3030",
+    } : {
+      bg: "#2a2a2a", "bg-title": "#222222", "bg-input": "#202020", "bg-sunken": "#1d1d1d",
+      border: "#1b1b1b", "border-soft": "#242424", hover: "#333333",
+      text: "#cccccc", "text-strong": "#dadada", "text-bright": "#e4e4e4", "text-muted": "#9a9a9a", "text-faint": "#6d6d6d",
+      danger: "#df9b9b",
+    };
+    var value = hsl(palette.link);
+    colors.value = light ? fromHsl(value[0], value[1], Math.min(value[2], 0.36)) : palette.link;
+    colors["accent-strong"] = "color-mix(in srgb, var(--zui-accent) 70%, var(--zui-text-bright))";
+    colors["value-strong"] = "color-mix(in srgb, var(--zui-value) 60%, var(--zui-text-bright))";
+    colors["bg-title-focused"] = "color-mix(in srgb, var(--zui-accent) 22%, var(--zui-bg-title))";
+    colors.shadow = "#000000";
+    return colors;
+  }
   function validTypeKey(key) {
     return typeof key === "string" && (/^cm3:\d+$/.test(key) || key === "audio" || /^zoidium:[a-z0-9-]+\/[a-z0-9-]+$/.test(key));
   }
@@ -182,6 +206,6 @@
     return (l + 0.05) / (dark + 0.05) >= (light + 0.05) / (l + 0.05) ? "#2c323f" : "#f4f4f4";
   }
   return { PALETTE: PALETTE, PRESETS: PRESETS, color: color, hsl: hsl, derive: derive, presetPalette: presetPalette,
-    shiftThemeColor: shiftThemeColor, typeKey: typeKey, validateTheme: validateTheme, parseStorage: parseStorage,
+    shiftThemeColor: shiftThemeColor, uiTokens: uiTokens, typeKey: typeKey, validateTheme: validateTheme, parseStorage: parseStorage,
     parseImport: parseImport, uniqueName: uniqueName, copyPalette: copyPalette, selectedClip: selectedClip, labelColor: labelColor };
 });

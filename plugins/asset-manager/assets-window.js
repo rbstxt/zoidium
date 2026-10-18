@@ -136,107 +136,44 @@ function createAssetsWindow(session) {
   // ---- Usage menu (AE: the arrow beside "Used N times") -------------------
 
   function closeUsageMenu() {
-    if (!usageMenu) return;
-    usageMenu.remove();
+    usageMenu?.close(false);
     usageMenu = null;
-    doc.removeEventListener("pointerdown", onOutsidePointer, true);
-  }
-
-  function onOutsidePointer(event) {
-    if (usageMenu && !usageMenu.contains(event.target) && !parts.uses.contains(event.target)) closeUsageMenu();
   }
 
   function toggleUsageMenu() {
-    if (usageMenu) {
-      closeUsageMenu();
-      return;
-    }
+    if (usageMenu) { closeUsageMenu(); return; }
     const item = selectedItem();
     if (!item || !model.usageCount(item)) return;
-    usageMenu = make(doc, "div", "zam-usage-menu");
-    usageMenu.setAttribute("role", "menu");
-    for (const usage of item.usages) {
-      const entry = make(doc, "button", "zam-usage-entry", model.usagePath(usage));
-      entry.type = "button";
-      entry.setAttribute("role", "menuitem");
-      entry.title = usage.revealable ? "Select this use in the editor" : "Not selectable from here";
-      if (!usage.revealable) entry.classList.add("zam-muted");
-      entry.addEventListener("click", () => {
-        closeUsageMenu();
-        reveal(usage);
-      });
-      usageMenu.appendChild(entry);
-    }
-    parts.info.appendChild(usageMenu);
-    doc.addEventListener("pointerdown", onOutsidePointer, true);
-    const first = usageMenu.querySelector("button");
-    if (first) first.focus();
+    usageMenu = session.kit.openMenu({
+      document: doc, owner: parts.root, anchor: parts.uses,
+      items: item.usages.map(usage => ({
+        label: model.usagePath(usage), muted: !usage.revealable,
+        hint: usage.revealable ? "Select this use in the editor" : "Not selectable from here",
+        action: () => reveal(usage),
+      })),
+      onClose: () => { usageMenu = null; },
+    });
   }
 
   // ---- Commands: icon bar and row context menu ----------------------------
 
   function closeContextMenu() {
-    if (!contextMenu) return;
-    contextMenu.remove();
+    contextMenu?.close(false);
     contextMenu = null;
-    doc.removeEventListener("pointerdown", onContextOutside, true);
   }
 
-  function onContextOutside(event) {
-    if (contextMenu && !contextMenu.contains(event.target)) closeContextMenu();
-  }
-
-  // One menu at a time. `place` = { x, y } (pointer) or { anchor } (button).
-  // Entries: { label, hint, enabled, run, color? }.
+  // Commands retain their hints and content label colors. Placement and
+  // dismissal use the same component as viewport and sidebar menus.
   function showMenu(entries, place) {
     closeContextMenu();
-    const menu = make(doc, "div", "zam-usage-menu zam-context-menu");
-    menu.setAttribute("role", "menu");
-    for (const command of entries) {
-      const entry = make(doc, "button", "zam-usage-entry");
-      entry.type = "button";
-      entry.setAttribute("role", "menuitem");
-      if (command.color !== undefined) {
-        const swatch = make(doc, "span", "zam-label zam-menu-swatch");
-        if (command.color) swatch.style.background = command.color;
-        entry.appendChild(swatch);
-      }
-      entry.appendChild(doc.createTextNode(command.label));
-      entry.disabled = command.enabled === false;
-      if (command.hint) entry.title = command.hint;
-      entry.addEventListener("click", () => {
-        closeContextMenu();
-        command.run();
-      });
-      menu.appendChild(entry);
-    }
-    const bounds = parts.root.getBoundingClientRect();
-    if (place.anchor) {
-      const at = place.anchor.getBoundingClientRect();
-      menu.style.top = (at.bottom - bounds.top + 2) + "px";
-      if (at.left - bounds.left < bounds.width / 2) {
-        menu.style.left = Math.max(0, at.left - bounds.left) + "px";
-        menu.style.right = "auto";
-      } else {
-        menu.style.left = "auto";
-        menu.style.right = Math.max(0, bounds.right - at.right) + "px";
-      }
-    } else {
-      menu.style.left = Math.max(0, place.x - bounds.left) + "px";
-      menu.style.top = Math.max(0, place.y - bounds.top) + "px";
-      menu.style.right = "auto";
-    }
-    parts.root.appendChild(menu);
-    // Open upward when the menu would leave the window at the bottom.
-    const rect = menu.getBoundingClientRect();
-    if (rect.bottom > bounds.bottom) {
-      const above = place.anchor ? place.anchor.getBoundingClientRect().top : place.y;
-      menu.style.top = Math.max(0, above - bounds.top - rect.height - 2) + "px";
-    }
-    contextMenu = menu;
-    doc.addEventListener("pointerdown", onContextOutside, true);
-    const first = menu.querySelector("button:not(:disabled)");
-    if (first) first.focus();
+    contextMenu = session.kit.openMenu({
+      document: doc, owner: parts.root, ...place,
+      items: entries.map(command => ({
+        label: command.label, hint: command.hint, color: command.color,
+        disabled: command.enabled === false, action: command.run,
+      })),
+      onClose: () => { contextMenu = null; },
+    });
   }
 
   function labelEntries(ids) {
