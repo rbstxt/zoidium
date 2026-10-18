@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "id": "constraints",
+  "name": "Constraints",
+  "author": "Zoidium",
+  "version": "1",
+  "kind": "extension",
+  "description": "Object constraints for 3D objects. Track To points an object, camera or light at another object of the same scene on every frame.",
+  "category": "scene",
+  "modules": [
+    {
+      "id": "constraints",
+      "source": "./plugins/constraints/constraints.js?v=1"
+    }
+  ],
+  "resources": [
+    {
+      "id": "track-to-math",
+      "type": "text",
+      "source": "./plugins/constraints/track-to-math.js?v=1"
+    },
+    {
+      "id": "constraint-graph",
+      "type": "text",
+      "source": "./plugins/constraints/constraint-graph.js?v=1"
+    },
+    {
+      "id": "constraint-properties",
+      "type": "text",
+      "source": "./plugins/constraints/constraint-properties.js?v=1"
+    },
+    {
+      "id": "track-to-evaluate",
+      "type": "text",
+      "source": "./plugins/constraints/track-to-evaluate.js?v=1"
+    },
+    {
+      "id": "constraint-ui",
+      "type": "text",
+      "source": "./plugins/constraints/constraint-ui.js?v=1"
+    },
+    {
+      "id": "constraint-overlay",
+      "type": "text",
+      "source": "./plugins/constraints/constraint-overlay.js?v=1"
+    }
+  ]
+}
