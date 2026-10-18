@@ -1,5 +1,7 @@
 "use strict";
 
+const { controllers, readFollow } = require("./selection.js");
+
 module.exports = function (environment) {
 const { PZ, tileIcon, customEaseIcon, toolIcon, focusNoScroll, g2doc, g2win } = environment;
 /* Break / Auto tangents on selected keys */
@@ -166,6 +168,15 @@ PZ.ui.graph.prototype.buildToolbar = function () {
   var spacer = mk("span");
   spacer.className = "g2-spacer";
   tb.appendChild(spacer);
+  var gf = group();
+  this.followBtn = small(gf, toolIcon("link"), "Follow selection", "", "Follow selection", function () {
+    var controller = controllers.get(self.editor);
+    if (controller) controller.setFollow(!controller.follow);
+  });
+  var controller = controllers.get(this.editor);
+  var follow = controller ? controller.follow : readFollow(null);
+  this.followBtn.classList.toggle("on", follow);
+  this.followBtn.setAttribute("aria-pressed", String(follow));
   var gv = group();
   this.panBtn = small(gv, toolIcon("pan"), "Pan", "H", "Pan tool — left-drag moves the grid (default)", function () { self.setTool("pan"); }, "on");
   this.selToolBtn = small(gv, toolIcon("marquee"), "Marquee", "V", "Marquee tool — left-drag selects keys (Shift+drag in any tool)", function () { self.setTool("sel"); });

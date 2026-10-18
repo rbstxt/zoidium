@@ -16,7 +16,7 @@ const GraphPlus = (() => {
   const STYLE_ID = "zoidium-graph-plus-css";
   const MODULE = "GraphPlus";
 
-  let gpDefineGraphEditor, gpCssText, gpInjectStyle, gpRemoveStyle;
+  let gpDefineGraphEditor, gpCssText, gpInjectStyle, gpRemoveStyle, installSelection;
   let g2doc, g2win, beginPointerDrag, gpPointerDrags, sharedEmptyNote;
 
   function loadDependencies(context) {
@@ -26,6 +26,7 @@ const GraphPlus = (() => {
     ({ g2doc, g2win, beginPointerDrag, gpPointerDrags, sharedEmptyNote } = require("./pointer.js"));
     ({ gpCssText, gpInjectStyle, gpRemoveStyle } = require("./theme.js"));
     gpDefineGraphEditor = require("./editor.js");
+    installSelection = require("./selection-host.js");
   }
 
   const state = {
@@ -37,6 +38,7 @@ const GraphPlus = (() => {
     originals: null,
     floating: null,
     windowPatch: null,
+    selectionHost: null,
   };
 
   function logError(message, error) {
@@ -336,6 +338,8 @@ const GraphPlus = (() => {
   }
 
   function uninstall() {
+    state.selectionHost?.dispose();
+    state.selectionHost = null;
     if (state.floating) state.floating.host.close();
     const patch = state.windowPatch;
     patch?.editor.onProjectChanged?.unwatch(patch.projectChanged);
@@ -382,6 +386,15 @@ const GraphPlus = (() => {
     state.editor = editor;
     let rebuilt = 0;
     try {
+      state.selectionHost = installSelection({
+        PZ, editor, document: typeof document !== "undefined" ? document : null,
+        open() {
+          const win = editor.createWindow({ title: "Graph editor" });
+          if (!win.panel) win.setPanel(new PZ.ui.graphEditor(editor));
+          win.enabled = true;
+          return win.panel;
+        },
+      });
       rebuilt = install(PZ, editor);
       installFloatingWindow(context);
     } catch (error) {

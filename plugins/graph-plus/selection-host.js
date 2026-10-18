@@ -1,0 +1,191 @@
+"use strict";
+
+const { controllers, Selection, curvesFor } = require("./selection.js");
+
+module.exports = function installSelection({ PZ, editor, document: doc, open }) {
+  const storage = (() => { try { return doc?.defaultView?.localStorage; } catch (_error) { return null; } })();
+  const selection = new Selection(PZ, storage);
+  controllers.set(editor, selection);
+  const cleanups = [], labels = new WeakMap(), decorated = new Map();
+  let disposed = false, menu = null, pending = null, queued = false;
+  function patch(target, key, after) {
+    if (typeof target?.[key] !== "function") return;
+    const original = target[key], descriptor = Object.getOwnPropertyDescriptor(target, key);
+    function replacement(...args) {
+      const result = original.apply(this, args);
+      if (!disposed) after.call(this, result, ...args);
+      return result;
+    }
+    target[key] = replacement;
+    cleanups.push(() => {
+      if (target[key] !== replacement) return;
+      if (descriptor) Object.defineProperty(target, key, descriptor);
+      else delete target[key];
+    });
+  }
+  // Coalesce native recursive key selection and list changes into one update.
+  // This is event-driven and never runs from a playback/frame update.
+  function schedule(fn) {
+    pending = fn;
+    if (queued) return;
+    queued = true;
+    queueMicrotask(() => {
+      queued = false;
+      const action = pending;
+      pending = null;
+      if (!disposed) { action?.(); paint(); }
+    });
+  }
+  function decorate(row) {
+    if (!row || decorated.has(row)) return;
+    decorated.set(row, { tabindex: row.getAttribute("tabindex"), title: row.getAttribute("title") });
+    row.tabIndex = 0;
+    row.title = "Show in Graph Editor (Alt+Shift+G)";
+  }
+  function propertyRow(row) {
+    return row && curvesFor(PZ, row.pz_object).length > 0;
+  }
+  function editPanel(row) { return row?.closest?.(".editorpanel")?.pz_panel; }
+  function rowAt(target) {
+    if (!target?.closest || target.closest(".g2-editor")) return null;
+    const label = target.closest(".g2-property-label");
+    if (label && labels.has(label)) return label;
+    const row = target.closest("li, .kftrack");
+    if (!propertyRow(row)) return null;
+    if (row.classList.contains("kftrack")) return row;
+    const panel = editPanel(row);
+    return panel instanceof PZ.ui.edit && panel.editor === editor && panel.options.showPropertyControls ? row : null;
+  }
+  function targetProperty(row) { return labels.get(row) || row.pz_object; }
+  function paint() {
+    for (const row of decorated.keys()) {
+      if (!row.isConnected) { decorated.delete(row); continue; }
+      row.classList.toggle("g2-property-selected", selection.properties.includes(targetProperty(row)));
+    }
+  }
+  function pick(row, additive) {
+    decorate(row);
+    selection.select([targetProperty(row)], additive);
+    paint();
+  }
+  function show(row) {
+    const panel = open();
+    if (panel) { selection.show(targetProperty(row), panel); paint(); }
+  }
+  function closeMenu() { menu?.remove(); menu = null; }
+  function context(event) {
+    const row = rowAt(event.target);
+    if (!row) return;
+    event.preventDefault(); event.stopPropagation();
+    closeMenu();
+    menu = doc.createElement("div");
+    menu.className = "g2-property-menu";
+    menu.setAttribute("role", "menu");
+    const button = doc.createElement("button");
+    button.setAttribute("role", "menuitem");
+    button.textContent = "Show in Graph Editor";
+    button.title = "Alt+Shift+G";
+    button.addEventListener("click", () => { closeMenu(); show(row); });
+    menu.appendChild(button);
+    doc.body.appendChild(menu);
+    const box = menu.getBoundingClientRect();
+    menu.style.left = Math.max(0, Math.min(event.clientX, doc.defaultView.innerWidth - box.width)) + "px";
+    menu.style.top = Math.max(0, Math.min(event.clientY, doc.defaultView.innerHeight - box.height)) + "px";
+    button.focus({ preventScroll: true });
+  }
+  function keydown(event) {
+    if (event.key === "Escape" && menu) { closeMenu(); return; }
+    if (!event.altKey || !event.shiftKey || event.ctrlKey || event.metaKey ||
+        !(event.code === "KeyG" || event.key?.toLowerCase() === "g")) return;
+    const row = rowAt(event.target);
+    if (!row) return;
+    event.preventDefault(); event.stopPropagation();
+    show(row);
+  }
+  function pointer(event) {
+    if (menu && !menu.contains(event.target)) closeMenu();
+    if (event.button !== 0) return;
+    const row = rowAt(event.target);
+    if (!row) return;
+    // Capture before inputs stop propagation; following never changes focus.
+    pick(row, event.ctrlKey || event.metaKey || event.shiftKey);
+    if (!event.target.closest("button, input, textarea, select, [contenteditable]")) row.focus({ preventScroll: true });
+  }
+  function focus(event) {
+    const row = rowAt(event.target);
+    // Pointer gestures already handle add/replace. A tab into another row
+    // selects it without losing a multi-selection when its field takes focus.
+    if (row && !selection.properties.includes(targetProperty(row))) pick(row, false);
+  }
+  function timelineSelection(host) {
+    schedule(() => {
+      const properties = Array.from(host.container.querySelectorAll(".kfobject.selected"))
+        .map(key => key.parentElement.pz_object);
+      if (properties.length) selection.select(Array.from(new Set(properties)));
+      else selection.objects(host.objects);
+    });
+  }
+  const timeline = PZ.ui.timeline?.keyframes?.prototype;
+  patch(timeline, "createKeyframeTrack", function (track) {
+    if (this.timeline.editor !== editor || !propertyRow(track)) return;
+    labels.set(track.pz_label, track.pz_object);
+    track.pz_label.classList.add("g2-property-label");
+    decorate(track.pz_label); decorate(track);
+  });
+  for (const method of ["selectKeyframe", "deselectKeyframe", "deselectAll"]) {
+    patch(timeline, method, function () { if (this.timeline.editor === editor) timelineSelection(this); });
+  }
+  patch(PZ.ui.timeline?.prototype, "selectionChanged", function () {
+    if (this.editor === editor) schedule(() => selection.objects(this.tracks.selection));
+  });
+  patch(PZ.ui.edit?.prototype, "generateListItem", function (row) {
+    if (this.editor === editor && this.options.showPropertyControls && propertyRow(row)) decorate(row);
+  });
+  patch(PZ.ui.edit?.prototype, "selectItems", function () {
+    if (this.editor === editor && !this.el.closest(".g2-editor")) {
+      schedule(() => selection.objects(this.selection));
+    }
+  });
+  function refreshRows() {
+    for (const element of doc?.querySelectorAll?.(".editorpanel") || []) {
+      const panel = element.pz_panel;
+      if (panel instanceof PZ.ui.edit && panel.editor === editor && panel.options.showPropertyControls && !element.closest(".g2-editor")) {
+        for (const row of panel.list.querySelectorAll("li")) if (propertyRow(row)) decorate(row);
+      }
+      const keys = panel?.keyframes;
+      if (keys?.timeline?.editor === editor) {
+        for (const track of keys.container.querySelectorAll(".kftrack")) if (propertyRow(track)) {
+          labels.set(track.pz_label, track.pz_object);
+          track.pz_label.classList.add("g2-property-label");
+          decorate(track.pz_label); decorate(track);
+        }
+      }
+    }
+  }
+  refreshRows();
+  if (doc?.addEventListener) {
+    for (const [type, fn] of [["pointerdown", pointer], ["contextmenu", context], ["keydown", keydown], ["focusin", focus]]) {
+      doc.addEventListener(type, fn, true);
+      cleanups.push(() => doc.removeEventListener(type, fn, true));
+    }
+  }
+  const reset = () => { closeMenu(); selection.properties = []; selection.curves = []; schedule(() => selection.sync()); };
+  editor.onProjectChanged?.watch(reset);
+  editor.onSequenceChanged?.watch(reset);
+  cleanups.push(() => { editor.onProjectChanged?.unwatch(reset); editor.onSequenceChanged?.unwatch(reset); });
+  return {
+    selection,
+    dispose() {
+      disposed = true; pending = null; closeMenu();
+      for (const cleanup of cleanups.reverse()) cleanup();
+      for (const [row, original] of decorated) {
+        row.classList.remove("g2-property-selected", "g2-property-label");
+        for (const key of ["tabindex", "title"]) {
+          if (original[key] === null) row.removeAttribute(key); else row.setAttribute(key, original[key]);
+        }
+      }
+      decorated.clear(); selection.dispose();
+      controllers.delete(editor);
+    },
+  };
+};

@@ -2,6 +2,7 @@
 
 const pointer = require("./pointer.js");
 const theme = require("./theme.js");
+const { controllers } = require("./selection.js");
 
 module.exports = function gpDefineGraphEditor(PZ) {
 if (!PZ || !PZ.ui) throw new Error("Graph Editor 2 needs the CM3 user interface (PZ.ui).");
@@ -47,6 +48,8 @@ PZ.ui.graphEditor = function (editor, opts) {
   self.objects = null;
   self.onObjectsChanged.watch(function () { left.objects = self.objects; });
   self._left = left; self._right = right;
+  right._selectionPanel = self;
+  controllers.get(editor)?.attach(self);
   void opts;
   return self;
 };

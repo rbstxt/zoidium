@@ -79,7 +79,8 @@ PZ.ui.graph.prototype.resize = function () {
     if (this.canvasEl) { this.canvasEl.scrollTop = 0; this.canvasEl.scrollLeft = 0; }
   } catch (e) {}
   // BUGFIX: don't lock init view while panel still has zero size (hidden tab)
-  if (!this._didInitView && this.width > 50 && this.height > 50) {
+  if ((!this._didInitView || this._selectionFitPending) && this.width > 50 && this.height > 50) {
+    this._selectionFitPending = false;
     this._didInitView = true;
     if (this.propGroups().length) this.fitAll(false);
     else {

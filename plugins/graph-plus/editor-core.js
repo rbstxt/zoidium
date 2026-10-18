@@ -1,5 +1,7 @@
 "use strict";
 
+const { controllers } = require("./selection.js");
+
 // Warn-once reporter for failure sites that run per frame or per pointer move:
 // the first failure is logged, repeats stay silent so the console stays readable.
 var gpWarned = {};
@@ -267,6 +269,8 @@ PZ.ui.graph.prototype._installResizeObserver = function () {
   } catch (e4) { /* Optional per-window rebinding; the previous bindings stay. */ }
 };
 PZ.ui.graph.prototype.unload = function () {
+  controllers.get(this.editor)?.panels.delete(this._selectionPanel);
+  this._selectionPanel = null;
   this.closeEasePopup();
   try { clearTimeout(this._tipTO); } catch (_timerError) {}
   this._tipTO = null;
