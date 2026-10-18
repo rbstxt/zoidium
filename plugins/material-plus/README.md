@@ -159,6 +159,12 @@ graphs default off. The physical material has zero clear coat until the
 reflection layer is enabled. PBR+ and Node Material expose their settings
 in native property rows, with a floating window for graph editing.
 
+Normal maps combine with graph Bump output or Bump Noise in both PBR+ and
+Node Material. Set the image in Normal map and adjust Normal scale and Bump
+Strength independently. The shader reorients the bump detail along the mapped
+normal before lighting and Fresnel; either map used alone retains the native
+shading behavior. Bump Noise still takes precedence over graph Bump output.
+
 ## Image+ Material
 
 Image+ (`imageplus`) adds a separate MeshBasicMaterial with a project image,
