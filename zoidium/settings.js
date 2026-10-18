@@ -275,6 +275,7 @@
       editorWindow.dataset.zoidiumTheme = state.settings.theme;
     }
     applyThemePalette(editorWindow);
+    global.ZoidiumUIBuilder.themeClips?.refresh();
     refreshControls();
   }
 
