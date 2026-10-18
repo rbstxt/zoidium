@@ -31,3 +31,16 @@ test("overlay clamps trimmed clips, evaluates parent space per sample, and hit-t
   assert.equal(hit([model], 200, 20).key.frame, 20);
   assert.equal(hit([model], 150, 15), null, "a path segment never consumes input");
 });
+
+
+test("collapsed bezier handles leave their key available for dragging", () => {
+  const keys = [c.makeKey(0, 0, 1), c.makeKey(20, 100, 257)];
+  const path = {
+    axes: [{ keyframes: keys, animated: true, get: f => c.evaluate(keys, f, [null, x => x]) }],
+    length: 50, local: 10, space: { toClient: point => [point[0], 50] },
+  };
+  const model = build(path, [null, x => x]);
+  assert.equal(model.keys[0].handles.out, undefined);
+  assert.equal(hit([model], 0, 50).side, null);
+  assert.equal(hit([model], 100, 50).side, null);
+});
