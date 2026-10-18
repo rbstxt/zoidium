@@ -376,3 +376,10 @@ test("plugin cards show credits below descriptions without active counts", () =>
   assert.match(managerSource, /zoidium-plugin-credits/, "credits have a dedicated line");
   assert.doesNotMatch(managerSource, /\b(?:active|Enabled|Disabled)\b/, "plugin cards no longer expose status labels");
 });
+
+test("Constraints starts enabled and advertises its required extension", () => {
+  const plugin = registry.plugins.find((entry) => entry.id === "constraints");
+  assert.equal(plugin.defaultEnabled, true);
+  assert.equal(plugin.zoidiumOnly, true);
+  assert.match(plugin.warning, /require Zoidium/);
+});

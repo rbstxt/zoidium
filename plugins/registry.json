@@ -434,7 +434,9 @@
       "defaultEnabled": true,
       "manifest": "./plugins/constraints/manifest.json?v=2",
       "bundle": "./plugins/constraints/bundle.json?v=2",
-      "integrity": "sha256-t8EXEK0FLhQ/XLLWJu+8CT5OX04UptgUlQqmwl+IsDQ="
+      "integrity": "sha256-t8EXEK0FLhQ/XLLWJu+8CT5OX04UptgUlQqmwl+IsDQ=",
+      "zoidiumOnly": true,
+      "warning": "Track To projects require Zoidium. Other builds open the project with the unconstrained rotation."
     }
   ]
 }
