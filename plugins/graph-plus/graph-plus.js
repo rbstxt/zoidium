@@ -98,6 +98,9 @@ const GraphPlus = (() => {
           const fromSel = from && from.selection;
           const toSel = to && to.selection;
           if (fromSel && toSel && fromSel !== toSel && typeof fromSel.length === "number") {
+            // A following replacement may already contain curves from the
+            // current property selection. Carry manual picks as one set.
+            if (fromSel.length && toSel.length && typeof toSel.splice === "function") toSel.splice(0, toSel.length);
             for (let index = 0; index < fromSel.length; index += 1) {
               try {
                 toSel.push(fromSel[index]);

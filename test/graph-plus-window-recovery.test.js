@@ -30,3 +30,13 @@ test("disposing a disabled CM3 property picker unloads deferred list rows and th
   load().disposePanel(panel);
   assert.deepEqual(calls, ["rows unloaded", "removed"]);
 });
+
+
+test("rebuilding carries manual picks without duplicating an already-following target selection", () => {
+  const picked = {}, following = {};
+  function Old() { this._left = { selection: [picked] }; this.el = { remove() {} }; }
+  function Next() { this._left = { selection: [following, picked] }; }
+  const win = { panel: new Old(), setPanel(panel) { this.panel = panel; } };
+  assert.equal(load().rebuildOpenPanels([win], Old, Next), 1);
+  assert.deepEqual(win.panel._left.selection, [picked]);
+});
