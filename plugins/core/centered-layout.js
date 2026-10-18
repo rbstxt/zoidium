@@ -7,8 +7,8 @@
   // of panels. Both editors build their panel tree in setUpEditor and hand the
   // root to the main window's setPanel; this pre-init patch rearranges that
   // root once. The runtime loader starts the base editor for these layouts.
-  // Tabs move between the sidebars from their right-click menu, and the
-  // arrangement is remembered with the other editor settings.
+  // A tab's right-click menu moves it up, down or to the other sidebar, and
+  // the arrangement is remembered with the other editor settings.
   var STORAGE_KEY = "zoidium.editor-settings";
   // Video Editor's "centered 2" variant runs the right sidebar from the top of
   // the window to the bottom, beside the timeline as well as the preview.
@@ -26,10 +26,11 @@
     }
   }
 
-  function writeRightTabs(titles) {
+  function writeTabs(leftTitles, rightTitles) {
     try {
       var settings = readSettings();
-      settings.rightTabs = titles;
+      settings.leftTabs = leftTitles;
+      settings.rightTabs = rightTitles;
       global.localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
     } catch (_error) {
       // The arrangement still applies for this session.
@@ -40,9 +41,11 @@
   if (!Object.prototype.hasOwnProperty.call(LAYOUTS, settings.layout) || LAYOUTS[settings.layout] !== global.ZOIDIUM_LAYOUT || !CM || typeof CM.createMainWindow !== "function" ||
       !PZ || !PZ.ui || typeof PZ.ui.elevator !== "function" || typeof PZ.ui.splitPanel !== "function") return;
 
-  var rightTitles = Array.isArray(settings.rightTabs)
-    ? settings.rightTabs.filter(function (title) { return typeof title === "string" && title; })
-    : DEFAULT_RIGHT.slice();
+  var titleList = function (value) {
+    return Array.isArray(value) ? value.filter(function (title) { return typeof title === "string" && title; }) : null;
+  };
+  var rightTitles = titleList(settings.rightTabs) || DEFAULT_RIGHT.slice();
+  var leftTitles = titleList(settings.leftTabs) || [];
   var left = null, right = null, keyframeOwner = null;
 
   function findElevator(panel, depth) {
@@ -137,9 +140,53 @@
     return true;
   }
 
+  function tabsOf(elevator) {
+    return Array.prototype.filter.call(elevator.tabcontainer.children, function (tab) { return tab.pz_tab; });
+  }
+
+  function titlesOf(elevator) {
+    return tabsOf(elevator).map(function (tab) { return tab.pz_tab.title; }).filter(Boolean);
+  }
+
+  // Put the remembered tabs back in their remembered order. They take the
+  // slots they already occupy, so tabs that are not remembered (a plugin
+  // installed since) stay where they were added. Nothing moves when the order
+  // already matches, so this is safe to run from a mutation observer.
+  function applyOrder(elevator, titles) {
+    var tabs = tabsOf(elevator);
+    var known = tabs.filter(function (tab) { return titles.indexOf(tab.pz_tab.title) !== -1; });
+    var wanted = known.slice().sort(function (a, b) { return titles.indexOf(a.pz_tab.title) - titles.indexOf(b.pz_tab.title); });
+    if (wanted.every(function (tab, i) { return tab === known[i]; })) return;
+    var markers = known.map(function (tab) {
+      var marker = global.document.createComment("");
+      elevator.tabcontainer.insertBefore(marker, tab);
+      return marker;
+    });
+    wanted.forEach(function (tab, i) { elevator.tabcontainer.insertBefore(tab, markers[i]); });
+    markers.forEach(function (marker) { marker.remove(); });
+    syncPanels(elevator);
+  }
+
+  // The elevator's panel list follows its tab order.
+  function syncPanels(elevator) {
+    var order = tabsOf(elevator).map(function (tab) { return tab.pz_tab; });
+    elevator.panels.sort(function (a, b) { return order.indexOf(a) - order.indexOf(b); });
+  }
+
+  // Swap a tab with its neighbour in the same sidebar.
+  function shift(tab, elevator, step) {
+    var tabs = tabsOf(elevator), index = tabs.indexOf(tab), other = tabs[index + step];
+    if (index < 0 || !other) return false;
+    if (step < 0) elevator.tabcontainer.insertBefore(tab, other);
+    else elevator.tabcontainer.insertBefore(other, tab);
+    syncPanels(elevator);
+    return true;
+  }
+
   function remember() {
-    rightTitles = right.panels.map(function (panel) { return panel.title; }).filter(Boolean);
-    writeRightTabs(rightTitles);
+    rightTitles = titlesOf(right);
+    leftTitles = titlesOf(left);
+    writeTabs(leftTitles, rightTitles);
   }
 
   var menu = null;
@@ -156,20 +203,31 @@
     closeMenu();
     var toRight = elevator === left;
     var target = toRight ? right : left;
-    var item = global.document.createElement("div");
-    item.className = "zoidium-tab-menu-item";
-    item.textContent = toRight ? "Move to right sidebar" : "Move to left sidebar";
-    if (elevator.panels.length <= 1) item.classList.add("disabled");
-    item.addEventListener("click", function () {
-      closeMenu();
-      if (transfer(tab.pz_tab, elevator, target, true)) remember();
-    });
+    var tabs = tabsOf(elevator), index = tabs.indexOf(tab);
     menu = global.document.createElement("div");
     menu.className = "zoidium-tab-menu";
     menu.setAttribute("role", "menu");
-    menu.appendChild(item);
+    function add(label, disabled, action) {
+      var item = global.document.createElement("div");
+      item.className = "zoidium-tab-menu-item";
+      item.setAttribute("role", "menuitem");
+      item.textContent = label;
+      if (disabled) item.classList.add("disabled");
+      item.addEventListener("click", function () {
+        closeMenu();
+        if (action()) remember();
+      });
+      menu.appendChild(item);
+    }
+    add("Move up", index <= 0, function () { return shift(tab, elevator, -1); });
+    add("Move down", index < 0 || index >= tabs.length - 1, function () { return shift(tab, elevator, 1); });
+    var separator = global.document.createElement("div");
+    separator.className = "zoidium-tab-menu-separator";
+    menu.appendChild(separator);
+    add(toRight ? "Move to right sidebar" : "Move to left sidebar", elevator.panels.length <= 1,
+      function () { return transfer(tab.pz_tab, elevator, target, true); });
     menu.style.left = Math.min(x, global.innerWidth - 220) + "px";
-    menu.style.top = Math.min(y, global.innerHeight - 40) + "px";
+    menu.style.top = Math.min(y, global.innerHeight - 110) + "px";
     global.document.body.appendChild(menu);
     global.document.addEventListener("pointerdown", outside, true);
   }
@@ -182,6 +240,7 @@
       ".zoidium-tab-menu-item{padding:5px 14px;cursor:default;white-space:nowrap}" +
       ".zoidium-tab-menu-item:hover{background:#3d4d75}" +
       ".zoidium-tab-menu-item.disabled{color:#666;pointer-events:none}" +
+      ".zoidium-tab-menu-separator{height:1px;margin:4px 0;background:#3a3a3a}" +
       // The right sidebar mirrors the left one: its tab column sits on the
       // window's outer edge and opens toward the preview.
       ".zoidium-right-sidebar>.elevator{left:auto;right:0}" +
@@ -237,12 +296,17 @@
     watchElevator(left);
     watchElevator(right);
     installStyle();
-    // Tabs that plugins add later land on the left; honor the remembered side.
+    applyOrder(left, leftTitles);
+    applyOrder(right, rightTitles);
+    // Tabs that plugins add later land on the left; honor the remembered side
+    // and order.
     new global.MutationObserver(function () {
       for (var j = left.panels.length - 1; j >= 0; j--) {
         var panel = left.panels[j];
         if (rightTitles.indexOf(panel.title) !== -1 && left.panels.length > 1) transfer(panel, left, right, false);
       }
+      applyOrder(left, leftTitles);
+      applyOrder(right, rightTitles);
     }).observe(left.tabcontainer, { childList: true });
     if (FULL_HEIGHT[settings.layout]) return new PZ.ui.splitPanel(CM, root, right, 0.8, 1);
     var center = new PZ.ui.splitPanel(CM, column.panels[1], right, 0.7, 1);
