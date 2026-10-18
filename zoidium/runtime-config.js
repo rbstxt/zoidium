@@ -8,10 +8,10 @@
     // loader appends it automatically, so per-file ?v= queries are never
     // hand-edited here. Plugin asset URLs are versioned separately by
     // tools/build-plugin-bundles.js from each manifest's own version.
-    assetVersion: 152,
+    assetVersion: 153,
     // Plugin registry consumed by plugins/plugin-manager.js. It is preloaded
     // below, so its URL lives here as the single source.
-    registryUrl: "./plugins/registry.json?v=104",
+    registryUrl: "./plugins/registry.json?v=105",
     // Source Code Pro is imported through fonts.css as its own sheet (listed
     // before runtime-fonts.css) so the font files are not discovered only
     // after an @import chain has finished downloading.
@@ -189,7 +189,7 @@
       // Storage may be blocked; the default layout is still hinted.
       stored = null;
     }
-    var base = typeof stored === "string" ? stored.replace(/-centered$/, "") : stored;
+    var base = typeof stored === "string" ? stored.replace(/-centered\d*$/, "") : stored;
     var selected = layouts[stored] ? stored : layouts[base] ? base : profiles.defaultLayout || "clipmaker";
     if (layouts[selected] && typeof layouts[selected].entryScript === "string") {
       hint(versioned(layouts[selected].entryScript), "script");
