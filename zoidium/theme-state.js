@@ -21,8 +21,8 @@
   }
   function changed() {
     try { global.localStorage.setItem("zoidium.themes", JSON.stringify({ version: 1, themes: themes })); } catch (_error) { /* Session storage only. */ }
+    // Settings applies the palette and notifies every open editor once.
     host.apply();
-    global.dispatchEvent(new CustomEvent("zoidium:theme-changed"));
   }
   function transact(fn, message) {
     var before = snapshot();
