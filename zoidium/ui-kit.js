@@ -3,8 +3,8 @@
 
   // Assembler for the Zoidium UI kit: toast notifications, the shared confirm
   // dialog, and the frozen ZoidiumUI surface built from the split part files
-  // (ui-kit-panels.js, ui-kit-skins.js, ui-kit-windows.js and
-  // ui-kit-controls.js, loaded before this file; see postInitScripts in
+  // (ui-kit-panels.js, ui-kit-skins.js, ui-kit-windows.js,
+  // ui-kit-controls.js and ui-kit-menus.js, loaded before this file; see postInitScripts in
   // zoidium/runtime-config.js). Larger UI components (embedded property
   // editors, editor launchers, the node editor) live in their own files,
   // loaded before the kit parts. Each queues { name, install(api) } on
@@ -164,7 +164,7 @@
   // Every part is required: a missing part is a fatal startup error, just
   // like a missing UI kit was before the split.
   var builder = global.ZoidiumUIBuilder || {};
-  ["panels", "skins", "windows", "controls"].forEach(function (name) {
+  ["panels", "skins", "windows", "controls", "menus"].forEach(function (name) {
     if (!builder[name]) {
       throw new Error("ZoidiumUI is missing its " + name + " part; refusing to start with a partial UI kit");
     }
@@ -188,6 +188,7 @@
     createButton: builder.panels.createButton,
     confirm: confirm,
     openWindow: builder.windows.openWindow,
+    openMenu: builder.menus.openMenu,
     getWindow: builder.windows.getWindow,
     closeWindows: builder.windows.closeWindows,
     registerSkin: builder.skins.registerSkin,

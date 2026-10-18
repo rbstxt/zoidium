@@ -47,6 +47,7 @@ test("the assembled surface keeps every public member", () => {
     "nodeEditor",
     "notify",
     "openAttributePanel",
+    "openMenu",
     "openWindow",
     "properties",
     "refreshEditors",

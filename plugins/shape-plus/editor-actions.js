@@ -6,7 +6,7 @@ const xf = require("./editor-transform.js");
 const { pickTarget, parentOf } = require("./editor-pick.js");
 function installActions(s, root) {
   let nudge = null;
-  const menu = createMenu(s.document);
+  const menu = createMenu(s.document, root, s.context?.ui || s.window.ZoidiumUI);
   s.closeMenu = () => menu.close(false);
   const mac = /Mac|iPhone|iPad/.test(s.window.navigator?.platform || "");
   const key = (text) => (mac ? text.replace("Ctrl+Shift+", "\u21e7\u2318").replace("Ctrl+", "\u2318") : text);

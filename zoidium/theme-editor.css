@@ -28,7 +28,7 @@
 .zoidium-theme-clip-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
 .zoidium-theme-link { color: var(--zui-value) !important; border: 0 !important; background: none !important; font-size: var(--zui-font-size-small); cursor: pointer; }
 .zoidium-theme-name { width: 100%; box-sizing: border-box; }
-.zoidium-theme-edit { margin-left: 8px; padding: 2px 8px; font: inherit; color: var(--zoidium-theme-link); background: #222; border: 1px solid #1b1b1b; }
+.zoidium-theme-edit { margin-left: 8px; padding: 2px 8px; font: inherit; color: var(--zui-value); background: var(--zui-bg-title); border: 1px solid var(--zui-border); }
 
 .zoidium-theme-settings-row > div { display: flex; align-items: center; gap: 5px; }
 .zoidium-theme-settings-row > div > select { flex: 1; min-width: 0; }

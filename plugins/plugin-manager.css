@@ -8,9 +8,9 @@
 
   --zoidium-scrollbar-width: 12px;
 
-  --zoidium-plugin-warning-background: rgba(120, 34, 34, 0.18);
-  --zoidium-plugin-warning-border: #a94b4b;
-  --zoidium-plugin-warning-color: #df9b9b;
+  --zoidium-plugin-warning-background: color-mix(in srgb, var(--zui-danger) 18%, transparent);
+  --zoidium-plugin-warning-border: var(--zui-danger);
+  --zoidium-plugin-warning-color: var(--zui-danger);
 }
 
 .zoidium-plugin-panel[hidden] {
@@ -89,11 +89,11 @@
    group's heading is the row after the previous item). Mirror the row
    highlight so the stop stays visible; Enter then toggles that group. */
 .pz-options > span.zoidium-picker-group.active {
-  background-color: #3f3f3f;
-  box-shadow: inset 0 0 0 1px #676767;
+  background-color: var(--zui-hover);
+  box-shadow: inset 0 0 0 1px var(--zui-text-faint);
 }
 .pz-options > span.zoidium-picker-group:focus-visible {
-  outline: 1px solid var(--zui-accent, #58a6ff);
+  outline: 1px solid var(--zui-accent);
   outline-offset: -1px;
 }
 /* Row count after each heading, and nested headings for a plugin's own
@@ -378,10 +378,10 @@
 }
 
 .zoidium-plugin-experimental-badge {
-  background-color: rgba(197, 107, 61, 0.2);
-  border: 1px solid rgba(197, 107, 61, 0.6);
+  background-color: color-mix(in srgb, var(--zui-value) 20%, transparent);
+  border: 1px solid color-mix(in srgb, var(--zui-value) 60%, transparent);
   border-radius: 2px;
-  color: #d8a583;
+  color: var(--zui-value-strong);
   display: inline-block;
   font-size: 0.72em;
   line-height: 1.05;
@@ -410,7 +410,7 @@
 }
 
 .zoidium-plugin-error {
-  color: #ffb4b4;
+  color: var(--zui-danger);
   padding: 8px 12px;
   overflow-wrap: anywhere;
 }

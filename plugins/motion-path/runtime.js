@@ -73,7 +73,7 @@ function install(context) {
   toolbar.buttons.push(command);
   function paintButton() {
     button.setAttribute("aria-pressed", String(visible));
-    image.style.color = visible ? "#8a2828" : "#acacac";
+    image.style.color = visible ? "var(--zui-danger)" : "var(--zui-text-muted)";
   }
   function setVisible(next) {
     visible = !!next;

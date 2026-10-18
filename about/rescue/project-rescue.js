@@ -695,8 +695,8 @@
     const panel = document.createElement("div");
     panel.id = "pzrescue-panel";
     panel.style.cssText = "position:fixed;top:12px;right:12px;z-index:2147483647;width:350px;max-height:85vh;overflow:auto;" +
-      "background:#1d1f24;color:#eee;font:12px/1.45 system-ui,sans-serif;padding:12px;border:2px solid #e8a33c;" +
-      "border-radius:8px;box-shadow:0 6px 24px #000a;pointer-events:auto;user-select:text;text-align:left";
+      "background:var(--zui-bg, #1d1f24);color:var(--zui-text, #eee);font:12px/1.45 system-ui,sans-serif;padding:12px;border:2px solid var(--zui-value, #e8a33c);" +
+      "border-radius:8px;box-shadow:0 6px 24px color-mix(in srgb,var(--zui-shadow, black) 67%,transparent);pointer-events:auto;user-select:text;text-align:left";
     const add = (tag, text, style, parent) => {
       const element = document.createElement(tag);
       element.textContent = text;
@@ -705,8 +705,8 @@
       return element;
     };
     const button = (text, handler, color) => {
-      const element = add("button", text, "display:block;width:100%;margin:6px 0;padding:7px;color:#fff;border:0;" +
-        "border-radius:5px;cursor:pointer;text-align:left;font:inherit;background:" + (color || "#2f6fd6"));
+      const element = add("button", text, "display:block;width:100%;margin:6px 0;padding:7px;color:var(--zui-text-bright, #fff);border:0;" +
+        "border-radius:5px;cursor:pointer;text-align:left;font:inherit;background:" + (color || "var(--zui-accent, #2f6fd6)"));
       element.addEventListener("click", event => {
         event.stopPropagation();
         Promise.resolve().then(handler).then(result => {
@@ -723,15 +723,15 @@
     add("div", "Zoidium project rescue", "font-weight:bold;font-size:14px;margin-bottom:4px");
     add("div", !api.finished ? "Working: " + (api.current || "starting") + " ..." :
       packaged ? "Done. The rescued file was downloaded; it is also available below." : "Finished, but no project file could be built.",
-    "margin-bottom:4px;color:" + (!api.finished ? "#9ecbff" : packaged ? "#9be29b" : "#ff8a80"));
+    "margin-bottom:4px;color:" + (!api.finished ? "var(--zui-value, #9ecbff)" : packaged ? "var(--zui-value, #9be29b)" : "var(--zui-danger, #ff8a80)"));
     add("div", "Keep this tab open until a rescued file opens correctly in another tab.", "opacity:.8;margin-bottom:6px");
-    const steps = add("div", "", "margin:6px 0;font-size:11px;max-height:170px;overflow:auto;border-top:1px solid #444;padding-top:4px");
+    const steps = add("div", "", "margin:6px 0;font-size:11px;max-height:170px;overflow:auto;border-top:1px solid var(--zui-bg-input, #444);padding-top:4px");
     for (const record of api.steps) {
       const label = { ok: "[ok] ", running: "[..] ", FAILED: "[FAILED] ", STUCK: "[STUCK] " }[record.status] || "";
       add("div", label + record.step + (record.status !== "ok" && record.detail ? ": " + record.detail : ""),
-        "color:" + (record.status === "ok" ? "#aaa" : record.status === "running" ? "#9ecbff" : "#ff8a80"), steps);
+        "color:" + (record.status === "ok" ? "var(--zui-text-muted, #aaa)" : record.status === "running" ? "var(--zui-value, #9ecbff)" : "var(--zui-danger, #ff8a80)"), steps);
     }
-    api.diagnosis.forEach(text => add("div", "Diagnosis: " + text, "color:#ffd27a;font-size:11px;margin:4px 0"));
+    api.diagnosis.forEach(text => add("div", "Diagnosis: " + text, "color:var(--zui-danger, #ffd27a);font-size:11px;margin:4px 0"));
     for (const output of outputs) {
       button("Save " + output.label + " (" + megabytes(output.blob.size) + ")", () => deliver(output.blob, output.filename, true));
       add("div", output.note + (output.validator ? " Zoidium check: " + output.validator : ""), "opacity:.75;font-size:11px;margin:-2px 0 6px");
@@ -745,23 +745,23 @@
         list.slice(0, 40).forEach((record, index) => {
           const when = record.createdAt ? new Date(record.createdAt).toLocaleString() : "unknown time";
           const element = add("button", "Restore point " + index + ": " + (record.projectName || "project") + ", " + when,
-            "display:block;width:100%;margin:4px 0;padding:5px;background:#444;color:#fff;border:0;border-radius:4px;cursor:pointer;text-align:left", pointsArea);
+            "display:block;width:100%;margin:4px 0;padding:5px;background:var(--zui-bg-input, #444);color:var(--zui-text-bright, #fff);border:0;border-radius:4px;cursor:pointer;text-align:left", pointsArea);
           element.addEventListener("click", event => {
             event.stopPropagation();
             api.downloadRestorePoint(index, Boolean(record.blob)).catch(error => { element.textContent += " - failed: " + describe(error); });
           }, true);
         });
-      }, "#555");
+      }, "var(--zui-hover, #555)");
       panel.appendChild(pointsArea);
     }
     const help = add("div", "Still not working? Report the bug on the Zoidium Discord server and paste the copied report.",
-      "margin-top:10px;padding-top:8px;border-top:1px solid #444");
-    const link = add("a", "Open the Zoidium Discord: " + SUPPORT_URL.replace("https://", ""), "display:block;color:#8fb8ff;margin-top:4px", help);
+      "margin-top:10px;padding-top:8px;border-top:1px solid var(--zui-bg-input, #444)");
+    const link = add("a", "Open the Zoidium Discord: " + SUPPORT_URL.replace("https://", ""), "display:block;color:var(--zui-value, #8fb8ff);margin-top:4px", help);
     link.href = SUPPORT_URL;
     link.target = "_blank";
     link.rel = "noopener noreferrer";
-    button("Copy report for the bug report", copyReport, "#555");
-    button("Close panel (PZRescue.panel() reopens it)", () => { panelClosed = true; panel.remove(); }, "#333");
+    button("Copy report for the bug report", copyReport, "var(--zui-hover, #555)");
+    button("Close panel (PZRescue.panel() reopens it)", () => { panelClosed = true; panel.remove(); }, "var(--zui-bg-title, #333)");
     document.documentElement.appendChild(panel);
     return panel;
   };

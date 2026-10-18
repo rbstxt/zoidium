@@ -122,14 +122,14 @@ test("audio track labels add an eye-like audio toggle", () => {
   assert.equal(icon.iconName, "audio");
   assert.equal(button.title, "disable track");
   assert.equal(button.attributes["aria-label"], "disable track");
-  assert.equal(icon.style.fill, "#ccc");
+  assert.equal(icon.style.fill, "var(--zui-text)");
 
   button.onclick();
 
   assert.equal(audioTrack.enabled, false);
   assert.equal(button.title, "enable track");
   assert.equal(icon.iconName, "audio");
-  assert.equal(icon.style.fill, "#8a2828");
+  assert.equal(icon.style.fill, "var(--zui-danger)");
   assert.equal(playback.currentFrame, 42.25);
   assert.equal(playback._exactFrame, 42.25);
   assert.equal(playback.speed, 1);
@@ -138,7 +138,7 @@ test("audio track labels add an eye-like audio toggle", () => {
 
   button.onclick();
   assert.equal(audioTrack.enabled, true);
-  assert.equal(icon.style.fill, "#ccc");
+  assert.equal(icon.style.fill, "var(--zui-text)");
   const combined = PZ.schedule.combineTracks([audioTrack]);
   assert.equal(combined.length, 1);
   assert.equal(combined[0], audioTrack);
