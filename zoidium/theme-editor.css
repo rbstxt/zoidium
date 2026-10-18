@@ -32,6 +32,7 @@
 
 .zoidium-theme-settings-row > div { display: flex; align-items: center; gap: 5px; }
 .zoidium-theme-settings-row > div > select { flex: 1; min-width: 0; }
-.zoidium-theme-settings-row .zoidium-theme-edit { flex: none; width: auto; margin: 0; padding: 2px 6px; }
+/* Match the native select beside it: same height, font size and baseline. */
+.zoidium-theme-settings-row .zoidium-theme-edit { flex: none; width: auto; height: 21px; margin: 0; padding: 0 6px; box-sizing: border-box; font-size: 13.3333px; line-height: 19px; }
 .zoidium-theme-settings-row { display: grid; grid-template-columns: max-content minmax(0, 1fr); align-items: center; gap: 8px; }
 .zoidium-theme-settings-row > span { white-space: nowrap; }
