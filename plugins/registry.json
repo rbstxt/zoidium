@@ -197,16 +197,16 @@
       "category": "scene",
       "name": "Material+",
       "author": "Zoidium",
-      "version": "23",
+      "version": "24",
       "itemCount": 5,
       "format": "3D materials",
       "tagline": "Node, PBR+, Matcap & Image+ materials",
       "color": "#b36bca",
       "description": "Adds procedural Node Materials with a node editor, PBR+ with ramps, Fresnel, cel shading and projection, Image+ with opacity, Matcap, and corrected-UV materials for 3D objects.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/material-plus/manifest.json?v=23",
-      "bundle": "./plugins/material-plus/bundle.json?v=23",
-      "integrity": "sha256-3DTOq3EcHEdx7OvqXPzMXC8x4Zpu8Udfj8OYM55bihU="
+      "manifest": "./plugins/material-plus/manifest.json?v=24",
+      "bundle": "./plugins/material-plus/bundle.json?v=24",
+      "integrity": "sha256-FxQygshk2d0UpziV+qrzz0/h8nN8nD5S6STz9TXC+4M="
     },
     {
       "id": "text-plus",
@@ -311,16 +311,16 @@
       "category": "adjustment",
       "name": "Native FX",
       "author": "Zoidium",
-      "version": "17",
+      "version": "18",
       "itemCount": 6,
       "format": "native effects",
       "tagline": "Native Effects and Time Tools",
       "color": "#c56b3d",
       "description": "Adds native filters, direct visual controls, and time effects.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/native-fx/manifest.json?v=17",
-      "bundle": "./plugins/native-fx/bundle.json?v=17",
-      "integrity": "sha256-S229Ku3w7BR+dO7iLxwcOnISBZstnydK7gdq9eh/yIw="
+      "manifest": "./plugins/native-fx/manifest.json?v=18",
+      "bundle": "./plugins/native-fx/bundle.json?v=18",
+      "integrity": "sha256-/W65reZq9sOC5AWF+fA/GSm4DKHk1n/YbQj/pFg5vx0="
     },
     {
       "id": "afterclip",
