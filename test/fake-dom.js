@@ -103,6 +103,10 @@ class FakeElement {
     child.parentElement = this;
     return child;
   }
+  replaceChildren(...children) {
+    this.textContent = "";
+    children.forEach(child => this.appendChild(child));
+  }
   removeChild(child) {
     this.children = this.children.filter((entry) => entry !== child);
     child.parentElement = null;

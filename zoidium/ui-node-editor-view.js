@@ -91,6 +91,15 @@
       var frameButton = headerTool("Frame all", "Fit every node in view (Home)");
       var hint = el("span", "zoidium-node-editor-hint", "Drag from a socket to connect. Right-click the grid to add nodes.");
       if (!cx.readOnly) header.appendChild(addButton);
+      if (!cx.readOnly && cx.recipes.length) {
+        var recipes = el("select", "zoidium-node-editor-tool zoidium-node-editor-control");
+        recipes.setAttribute("aria-label", "Starter recipe");
+        recipes.title = "Replace this graph with a starter recipe in one undo step";
+        var placeholder = el("option", "", "Recipes…"); placeholder.value = ""; recipes.appendChild(placeholder);
+        cx.recipes.forEach(function (recipe, index) { var option = el("option", "", recipe.label); option.value = String(index); recipes.appendChild(option); });
+        recipes.addEventListener("change", function () { if (recipes.value !== "") cx.loadRecipe(cx.recipes[Number(recipes.value)]); recipes.value = ""; });
+        header.appendChild(recipes);
+      }
       header.appendChild(frameButton);
       header.appendChild(hint);
       root.appendChild(header);

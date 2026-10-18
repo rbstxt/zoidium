@@ -38,6 +38,7 @@ module.exports = function createPixelBuffers(document) {
         return (buffer[index] * 0.3 + buffer[index + 1] * 0.59 + buffer[index + 2] * 0.11) / 255;
     }
 
+    const extraBlend = require("./graph-blend.js");
     function blend(base, top, mode) {
         if (mode === 1) return base + top;
         if (mode === 2) return base - top;
@@ -47,11 +48,11 @@ module.exports = function createPixelBuffers(document) {
         if (mode === 6) return Math.min(base, top);
         if (mode === 7) return Math.max(base, top);
         if (mode === 8) return Math.abs(base - top);
-        return top;
+        return mode >= 9 ? extraBlend.blend(base, top, mode) : top;
     }
 
-    var BLEND_MODES = ["normal", "add", "subtract", "multiply", "screen", "overlay", "darken", "lighten", "difference"];
-    var MATH_MODES = ["Add", "Subtract", "Multiply", "Divide", "Minimum", "Maximum", "Power", "Modulo", "Absolute", "Invert", "Clamp", "Compare", "Sine", "Round"];
+    var BLEND_MODES = ["normal", "add", "subtract", "multiply", "screen", "overlay", "darken", "lighten", "difference", ...extraBlend.names];
+    var MATH_MODES = ["Add", "Subtract", "Multiply", "Divide", "Minimum", "Maximum", "Power", "Modulo", "Absolute", "Invert", "Clamp", "Compare", "Sine", "Round", "Square Root", "Logarithm", "Exponent", "Floor", "Ceiling", "Fraction", "Sign", "Smooth Minimum", "Smooth Maximum", "Snap", "Wrap", "Ping-Pong", "Cosine", "Tangent", "Arctan2", "Greater Than", "Less Than"];
 
     function coordsAt(uv, index, size, x, y, coords) {
         coords[0] = uv ? uv[index] / 255 : x / size;
@@ -494,6 +495,7 @@ module.exports = function createPixelBuffers(document) {
 
     function gradientBuffer(size, position, base, params) {
         var buffer = newBuffer(size);
+        const hsvA = new Float64Array(3), hsvB = new Float64Array(3), rgb = new Float64Array(3);
         for (var y = 0; y < size; y++) {
             for (var x = 0; x < size; x++) {
                 var index = (x + y * size) * 4;
@@ -513,9 +515,10 @@ module.exports = function createPixelBuffers(document) {
                     var br = base[index] / 255;
                     var bg = base[index + 1] / 255;
                     var bb = base[index + 2] / 255;
-                    buffer[index] = (br + (blend(br, cr, mode) - br) * opacity) * 255;
-                    buffer[index + 1] = (bg + (blend(bg, cg, mode) - bg) * opacity) * 255;
-                    buffer[index + 2] = (bb + (blend(bb, cb, mode) - bb) * opacity) * 255;
+                    if (mode >= 15) extraBlend.blendColor(br, bg, bb, cr, cg, cb, mode, hsvA, hsvB, rgb);
+                    buffer[index] = (br + ((mode >= 15 ? rgb[0] : blend(br, cr, mode)) - br) * opacity) * 255;
+                    buffer[index + 1] = (bg + ((mode >= 15 ? rgb[1] : blend(bg, cg, mode)) - bg) * opacity) * 255;
+                    buffer[index + 2] = (bb + ((mode >= 15 ? rgb[2] : blend(bb, cb, mode)) - bb) * opacity) * 255;
                 } else {
                     buffer[index] = cr * 255;
                     buffer[index + 1] = cg * 255;
@@ -593,16 +596,18 @@ module.exports = function createPixelBuffers(document) {
 
     function mixBuffer(size, a, b, params) {
         var buffer = newBuffer(size);
+        const hsvA = new Float64Array(3), hsvB = new Float64Array(3), rgb = new Float64Array(3);
         for (var p = 0; p < size * size; p++) {
             var index = p * 4;
             params._pixel = index;
             var opacity = clamp(params.opacity, 0, 1);
             var mode = params.mode;
+            if (mode >= 15) extraBlend.blendColor(a ? a[index] / 255 : 0, a ? a[index + 1] / 255 : 0, a ? a[index + 2] / 255 : 0, b ? b[index] / 255 : a ? a[index] / 255 : 0, b ? b[index + 1] / 255 : a ? a[index + 1] / 255 : 0, b ? b[index + 2] / 255 : a ? a[index + 2] / 255 : 0, mode, hsvA, hsvB, rgb);
 
             for (var c = 0; c < 3; c++) {
                 var base = a ? a[index + c] / 255 : 0;
                 var top = b ? b[index + c] / 255 : base;
-                buffer[index + c] = (base + (blend(base, top, mode) - base) * opacity) * 255;
+                buffer[index + c] = (base + ((mode >= 15 ? rgb[c] : blend(base, top, mode)) - base) * opacity) * 255;
             }
             buffer[index + 3] = 255;
         }

@@ -28,6 +28,7 @@ function loadColorCurves() {
       },
     },
     ZoidiumPluginApis: {
+      modules: { createRequire: () => () => require("../plugins/material-plus/graph-curves.js") },
       propertyControls: { register() {} },
       defineFilter(spec) {
         this._spec = spec;
