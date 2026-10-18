@@ -8,6 +8,8 @@ const GRID = 1024,
 C.Error = (message) => {
   throw Error("Shape+ clipping: " + message);
 };
+// Containment tests per work unit (about one microsecond each).
+const CONTAINMENT_PER_UNIT = 200;
 function intersectionBudget(work) {
   const proto = C.Clipper.prototype,
     original = proto.IntersectEdges;
@@ -33,6 +35,23 @@ function intersectionBudget(work) {
       }while(point!==record.Pts);
     }
   };
+  // JoinCommonEdges runs a containment search whose cost is the product of
+  // the two rings' lengths, and polygon appends and area tests walk whole
+  // rings; together they dominate dense self-crossing strokes. Charge their
+  // cost before they run (measuring a ring is one linear walk).
+  const ring = (point) => { let length = 0, current = point; do { length++; current = current.Next; } while (current !== point && length < 1e6); return length; };
+  for (const [name, cost] of [
+    ["Poly2ContainsPoly1", (inner, outer) => ring(inner) * ring(outer) / CONTAINMENT_PER_UNIT],
+    ["UpdateOutPtIdxs", (record) => ring(record.Pts) / CONTAINMENT_PER_UNIT],
+    // Ring walks repeated for every polygon append and area test.
+    ["GetBottomPt", (point) => ring(point) / CONTAINMENT_PER_UNIT],
+    ["Area", (point) => (point ? ring(point) : 0) / CONTAINMENT_PER_UNIT],
+  ]) {
+    const saved = proto[name];
+    if (!saved) continue;
+    proto[name] = function (...args) { check(1 + cost(...args)); return saved.apply(this, args); };
+    restore.push(() => { proto[name] = saved; });
+  }
   let probes = 0;
   // These predicates also run inside Clipper's quadratic duplicate search
   // and active-edge sorting, before IntersectEdges gets a chance to run.
@@ -93,12 +112,12 @@ function clip(subject, other, mode) {
     exclude: C.ClipType.ctXor,
   };
   if (
-    !engine.Execute(
+    !intersectionBudget(() => engine.Execute(
       types[mode],
       result,
       C.PolyFillType.pftNonZero,
       C.PolyFillType.pftNonZero,
-    )
+    ))
   )
     throw Error("Shape+ clipping failed");
   return result;

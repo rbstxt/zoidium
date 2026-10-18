@@ -13,7 +13,9 @@
   const ensureEffectEntryIds = (...args) => manager.ensureEffectEntryIds(...args);
   const scheduleEffectPickerBadges = (...args) => manager.scheduleEffectPickerBadges(...args);
   const getObjectTypes = (...args) => manager.getObjectTypes(...args);
-  const insertionIndex = (...args) => manager.insertionIndex(...args);
+  const insertEffectEntries = (...args) => manager.insertEffectEntries(...args);
+  const categorizedEffectEntries = (...args) => manager.categorizedEffectEntries(...args);
+  const keepsSharedHeading = (...args) => manager.keepsSharedHeading(...args);
   const createLazyEffectData = (...args) => manager.createLazyEffectData(...args);
   const loadGroupData = (...args) => manager.loadGroupData(...args);
   const syncUsageTooltip = (...args) => manager.syncUsageTooltip(...args);
@@ -162,20 +164,24 @@
             loadGroupData(plugin, group, state.groupCache, state.bundleAssets)
           )
         );
+        const categories = new Map(pluginEffects.map((effect) => [effect.id, effect.category]));
         const entries = [
-          {
-            name: manifest.category || manifest.name.toUpperCase(),
-            category: true,
-            _zoidiumPluginId: plugin.id,
-          },
-          ...pluginEffects.map((effect) => ({
-            name: effect.name,
-            desc: effect.description || `${effect.name} — ${manifest.name}`,
-            type: 1,
-            data: createLazyEffectData(plugin, effect, state.effectCache, state.bundleAssets),
-            _zoidiumPluginId: plugin.id,
-            _zoidiumPluginEffectId: effect.id,
-          })),
+          ...categorizedEffectEntries(
+            {
+              name: manifest.category || manifest.name.toUpperCase(),
+              category: true,
+              _zoidiumPluginId: plugin.id,
+            },
+            pluginEffects.map((effect) => ({
+              name: effect.name,
+              desc: effect.description || `${effect.name} — ${manifest.name}`,
+              type: 1,
+              data: createLazyEffectData(plugin, effect, state.effectCache, state.bundleAssets),
+              _zoidiumPluginId: plugin.id,
+              _zoidiumPluginEffectId: effect.id,
+            })),
+            (entry) => categories.get(entry._zoidiumPluginEffectId)
+          ),
           ...pluginGroups.map((group, index) => ({
             name: group.name,
             desc: group.description || `${group.name} — ${manifest.name}`,
@@ -186,7 +192,7 @@
           })),
         ];
         ensureEffectEntryIds(entries);
-        effects.splice(insertionIndex(effects), 0, ...entries);
+        insertEffectEntries(effects, entries);
       }
     }
 
@@ -225,7 +231,7 @@
         })),
       ];
       ensureEffectEntryIds(entries);
-      effects.splice(insertionIndex(effects), 0, ...entries);
+      insertEffectEntries(effects, entries);
     }
 
     const materialTypes = manifest.materialTypes || [];
@@ -369,7 +375,7 @@
             }
           }
         }
-        if (entry?._zoidiumPluginId === pluginId) entries.splice(index, 1);
+        if (entry?._zoidiumPluginId === pluginId && !keepsSharedHeading(entries, index, pluginId)) entries.splice(index, 1);
       }
     }
     const state = pluginStates.get(pluginId);

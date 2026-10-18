@@ -17,6 +17,7 @@
 
   var LAYOUT_OPTIONS = [
     { value: "clipmaker", label: "Clipmaker 3" },
+    { value: "clipmaker-centered", label: "Clipmaker 3 (centered viewport)" },
     { value: "videoeditor", label: "Video Editor 2" },
   ];
 

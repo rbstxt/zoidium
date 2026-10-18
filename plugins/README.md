@@ -18,6 +18,16 @@ registry order of the plugins themselves is kept inside each pack. Packs open
 by default; a category adds `collapsed: true` to start folded, as
 `experimental` does.
 
+In the effect add picker, a plugin's effects appear under a heading named by
+the manifest `category` (or the plugin name). A heading that already exists,
+such as CM3's own COLOR, takes the plugin's effects at the end of its group
+instead of appearing twice. An effect may also set its own `category`; those
+effects follow nested headings inside the plugin's group, sorted by name and
+collapsed until opened (the shader pack keeps its assignments in
+`plugins/alipfx/categories.json`). Headings show their row counts, every group
+remembers whether it is open, a RECENT group lists the last eight effects added,
+and typing in the filter box still searches every effect.
+
 `bundle.json` files are generated artifacts. Source manifests and assets remain
 in the plugin directory for editing and rebuilding, but are not part of the
 normal runtime load path:
