@@ -83,6 +83,22 @@ const PZ_FRAGMENT_HEADER = [
     "uniform float uPzSpecularStrength;",
     "uniform float uPzSpecularEnabled;",
     "uniform float uPzSpecularOpacity;",
+    // Reoriented normal mapping in view space. Rotate the geometric normal
+    // onto the normal-map result, then apply that same rotation to the bump
+    // normal, preserving the detail's strength instead of averaging it away.
+    // https://blog.selfshadow.com/publications/blending-in-detail/
+    "#if defined( USE_NORMALMAP ) && defined( USE_BUMPMAP )",
+    "vec3 pzReorientBump( vec3 surfaceNormal, vec3 mapNormal, vec3 bumpNormal ) {",
+    "    vec4 q = vec4( cross( surfaceNormal, mapNormal ), 1.0 + clamp( dot( surfaceNormal, mapNormal ), -1.0, 1.0 ) );",
+    // At opposite normals the shortest rotation is ambiguous. Choose a
+    // perpendicular axis so imported normals cannot produce a zero quaternion.
+    "    if ( q.w < 0.00001 ) {",
+    "        vec3 axis = abs( surfaceNormal.z ) < 0.999 ? vec3( 0.0, 0.0, 1.0 ) : vec3( 0.0, 1.0, 0.0 );",
+    "        q = vec4( normalize( cross( surfaceNormal, axis ) ), 0.0 );",
+    "    }",
+    "    return normalize( bumpNormal + 2.0 * cross( q.xyz, cross( q.xyz, bumpNormal ) + q.w * bumpNormal ) / dot( q, q ) );",
+    "}",
+    "#endif",
     "float pzRampCoord( vec3 color, vec2 uv ) {",
     "#if PZ_RAMP_SRC == 1",
     "    return clamp( uv.x, 0.0, 1.0 );",
@@ -116,7 +132,14 @@ const PZ_PHYSICAL_CODE = [
 ].join("\n");
 
 const PZ_FRESNEL_CODE = [
+    "#if defined( USE_NORMALMAP ) && defined( USE_BUMPMAP )",
+    "vec3 pzSurfaceNormal = normal;",
+    "#endif",
     "#include <normal_fragment_maps>",
+    "#if defined( USE_NORMALMAP ) && defined( USE_BUMPMAP )",
+    "vec3 pzBumpNormal = perturbNormalArb( -vViewPosition, pzSurfaceNormal, dHdxy_fwd() );",
+    "normal = pzReorientBump( pzSurfaceNormal, normal, pzBumpNormal );",
+    "#endif",
     "#if PZ_FRESNEL",
     "float pzFresnel = 1.0 - saturate( dot( normalize( normal ), normalize( vViewPosition ) ) );",
     "pzFresnel = pow( pzFresnel, uPzFresnelPower ) * uPzFresnelMix;",
