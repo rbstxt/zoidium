@@ -96,6 +96,17 @@
   outline: 1px solid var(--zui-accent, #58a6ff);
   outline-offset: -1px;
 }
+/* Row count after each heading, and nested headings for a plugin's own
+   categories (a shader pack's Blur & Sharpen, Distort, ...). */
+.pz-options > span.zoidium-picker-group[data-zoidium-count]:not([data-zoidium-count=""])::after {
+  content: attr(data-zoidium-count);
+  margin-left: 6px;
+  opacity: 0.55;
+}
+.pz-options > span.zoidium-picker-group.zoidium-picker-subgroup {
+  padding-left: 18px;
+  text-transform: none;
+}
 
 .zoidium-plugin-description {
   color: var(--zui-text-muted);
