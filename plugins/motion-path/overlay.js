@@ -28,31 +28,36 @@ const add = (a, b) => a.map((x, i) => x + b[i]);
 function build(path, easings, selected) {
   const channels = channelsOf(path), frames = edit.pathFrames(channels);
   if (!frames.length) return null;
-  const start = Math.max(0, frames[0]), end = Math.min(path.length, frames[frames.length - 1]);
+  const first = path.startFrame ?? 0, last = path.endFrame ?? path.length;
+  const start = Math.max(first, frames[0]), end = Math.min(last, frames[frames.length - 1]);
+  const spaceAt = frame => path.spaceAt?.(frame) || path.space;
   const line = [], ticks = [];
   if (end > start) {
     const steps = Math.min(MAX_SAMPLES, Math.max(1, Math.ceil((end - start) * 4)));
-    for (let i = 0; i <= steps; i++) line.push(path.space.toClient(valueAt(path, start + (end - start) * i / steps)));
+    for (let i = 0; i <= steps; i++) {
+      const frame = start + (end - start) * i / steps;
+      line.push(spaceAt(frame).toClient(valueAt(path, frame)));
+    }
     if (end - start <= MAX_TICKS)
       for (let f = Math.ceil(start); f <= end; f++) {
-        const p = path.space.toClient(valueAt(path, f));
+        const p = spaceAt(f).toClient(valueAt(path, f));
         if (p) ticks.push(p);
       }
   }
   const keys = [];
   for (const frame of frames) {
-    if (frame < 0 || frame > path.length) continue;
-    const point = valueAt(path, frame), client = path.space.toClient(point);
+    if (frame < first || frame >= last) continue;
+    const space = spaceAt(frame), point = valueAt(path, frame), client = space.toClient(point);
     if (!client) continue;
     const info = edit.keyInfo(channels, frame, easings), handles = {};
     for (const [side, h] of [["in", info.in], ["out", info.out]]) {
       if (!h.visible) continue;
-      const target = add(point, h.vector), at = path.space.toClient(target);
+      const target = add(point, h.vector), at = space.toClient(target);
       if (at) handles[side] = { vector: h.vector, point: target, client: at };
     }
     keys.push({ frame, point, client, selected: !!selected?.has(frame), handles });
   }
-  const local = path.local, current = local >= start && local <= end ? path.space.toClient(valueAt(path, local)) : null;
+  const local = path.local, current = local >= start && local <= end ? spaceAt(local).toClient(valueAt(path, local)) : null;
   return { path, channels, frames, keys, line, ticks, current };
 }
 function stroke(ctx, width, color) {

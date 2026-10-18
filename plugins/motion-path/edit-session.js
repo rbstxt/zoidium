@@ -22,14 +22,20 @@ function assign(key, from) {
 function notify(axis, key) {
   try { axis.onKeyframeChanged.update(key); } catch (error) { console.warn("[Zoidium] motion-path: a keyframe view failed to refresh", error); }
 }
-function apply(ops, address, change) {
-  const { frame, fields } = change;
-  if (fields.tween !== undefined) ops.setTween({ property: address, frame, tween: fields.tween });
-  // Setting a continuous tangent re-mirrors the control points natively, so
-  // it runs before the final control points are written.
-  if (fields.continuousTangent !== undefined) ops.setContinuousTangent({ property: address, frame, continuous: fields.continuousTangent });
-  if (fields.controlPoints) ops.setControlPoints({ property: address, frame, controlPoints: fields.controlPoints });
-  if (fields.value !== undefined) ops.setValue({ property: address, frame, value: fields.value });
+// Exchange all native fields together. Native setContinuousTangent(true)
+// mirrors both time and value offsets, so replaying individual setters during
+// undo would destroy an asymmetric, formerly continuous tangent.
+function exchange({ ops, address, frame, fields }) {
+  const axis = ops.editor.project.addressLookup(address), key = axis.getKeyframe(frame);
+  const before = c.cloneKey(key);
+  for (const [name, value] of Object.entries(fields)) {
+    key[name] = name === "controlPoints" ? value.map(p => p.slice()) : value;
+  }
+  ops.editor.history.pushCommand(exchange, { ops, address, frame, fields: before });
+  notify(axis, key);
+}
+function apply(ops, address, { frame, fields }) {
+  exchange({ ops, address, frame, fields });
 }
 function createSession({ PZ, editor, path, easings }) {
   const history = editor.history;

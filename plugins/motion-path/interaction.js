@@ -28,8 +28,8 @@ function createInteraction(s) {
     if (!set) s.selection.set(model.path.id, (set = new Set()));
     return set;
   }
-  function plane(model, point) {
-    return model.path.space.plane(point);
+  function plane(model, point, frame) {
+    return (model.path.spaceAt?.(frame) || model.path.space).plane(point);
   }
   // Ensure keys on the axes an edit touches, then return planning channels.
   function prepare(g, axes, frames) {
@@ -50,7 +50,7 @@ function createInteraction(s) {
     const frame = g.key.frame;
     let planned = null;
     if (g.type === "key") {
-      const axes = delta.map((d, i) => (d ? i : -1)).filter(i => i >= 0);
+      const axes = editable(g.model);
       const channels = prepare(g, axes, g.frames);
       if (channels) planned = edit.moveKeys(channels, g.frames, delta);
     } else if (g.type === "pull") {
@@ -113,7 +113,7 @@ function createInteraction(s) {
     if (side) {
       g.type = "handle";
       g.vector = key.handles[side].vector.slice();
-      g.toParent = plane(model, key.handles[side].point);
+      g.toParent = plane(model, key.handles[side].point, key.frame);
       g.start = key.handles[side].point;
     } else {
       g.type = event.altKey ? "pull" : "key";
@@ -126,7 +126,7 @@ function createInteraction(s) {
       g.side = last ? 0 : 1;
       g.vector = model.channels.map(() => 0);
       g.frames = set.has(key.frame) ? [...set].filter(f => model.frames.includes(f)).sort((a, b) => a - b) : [key.frame];
-      g.toParent = plane(model, key.point);
+      g.toParent = plane(model, key.point, key.frame);
       g.start = key.point;
     }
     const start = g.toParent(event.clientX, event.clientY);
@@ -135,7 +135,9 @@ function createInteraction(s) {
     return g;
   }
   function down(event) {
-    if (active || event.button !== 0 || event.isPrimary === false) return;
+    if (event.button !== 0 || event.isPrimary === false) return;
+    if (active && active.pointerId !== event.pointerId) return;
+    if (active) finish(false);
     const found = hit(s.models, event.clientX, event.clientY);
     if (!found) {
       // A press elsewhere in the viewport clears the path key selection but
