@@ -33,7 +33,7 @@ function build(path, easings, selected) {
   const spaceAt = frame => path.spaceAt?.(frame) || path.space;
   const line = [], ticks = [];
   if (end > start) {
-    const steps = Math.min(MAX_SAMPLES, Math.max(1, Math.ceil((end - start) * 4)));
+    const steps = Math.min(MAX_SAMPLES, Math.max(1, Math.ceil(end - start)));
     for (let i = 0; i <= steps; i++) {
       const frame = start + (end - start) * i / steps;
       line.push(spaceAt(frame).toClient(valueAt(path, frame)));
@@ -57,7 +57,7 @@ function build(path, easings, selected) {
     }
     keys.push({ frame, point, client, selected: !!selected?.has(frame), handles });
   }
-  const local = path.local, current = local >= start && local <= end ? spaceAt(local).toClient(valueAt(path, local)) : null;
+  const local = path.local, current = spaceAt(local).toClient(valueAt(path, local));
   return { path, channels, frames, keys, line, ticks, current };
 }
 function stroke(ctx, width, color) {

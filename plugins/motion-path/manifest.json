@@ -3,56 +3,56 @@
   "id": "motion-path",
   "name": "Motion Paths",
   "author": "Zoidium",
-  "version": "1",
+  "version": "2",
   "kind": "extension",
   "description": "After Effects style motion paths for animated Position in the preview, with draggable keyframes and bezier handles.",
   "category": "utilities",
   "modules": [
     {
       "id": "motion-path",
-      "source": "./plugins/motion-path/motion-path.js?v=1"
+      "source": "./plugins/motion-path/motion-path.js?v=2"
     }
   ],
   "resources": [
     {
       "id": "runtime",
       "type": "text",
-      "source": "./plugins/motion-path/runtime.js?v=1"
+      "source": "./plugins/motion-path/runtime.js?v=2"
     },
     {
       "id": "curves",
       "type": "text",
-      "source": "./plugins/motion-path/curves.js?v=1"
+      "source": "./plugins/motion-path/curves.js?v=2"
     },
     {
       "id": "path-edit",
       "type": "text",
-      "source": "./plugins/motion-path/path-edit.js?v=1"
+      "source": "./plugins/motion-path/path-edit.js?v=2"
     },
     {
       "id": "projection",
       "type": "text",
-      "source": "./plugins/motion-path/projection.js?v=1"
+      "source": "./plugins/motion-path/projection.js?v=2"
     },
     {
       "id": "targets",
       "type": "text",
-      "source": "./plugins/motion-path/targets.js?v=1"
+      "source": "./plugins/motion-path/targets.js?v=2"
     },
     {
       "id": "overlay",
       "type": "text",
-      "source": "./plugins/motion-path/overlay.js?v=1"
+      "source": "./plugins/motion-path/overlay.js?v=2"
     },
     {
       "id": "edit-session",
       "type": "text",
-      "source": "./plugins/motion-path/edit-session.js?v=1"
+      "source": "./plugins/motion-path/edit-session.js?v=2"
     },
     {
       "id": "interaction",
       "type": "text",
-      "source": "./plugins/motion-path/interaction.js?v=1"
+      "source": "./plugins/motion-path/interaction.js?v=2"
     }
   ]
 }
