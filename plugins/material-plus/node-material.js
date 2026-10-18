@@ -44,6 +44,10 @@ function activate(context) {
     id: "material-plus/graph-images",
     async reload(key, asset) {
       await Promise.all(Array.from(materials, async material => {
+        if (material.pzEnvironment?.key === key && material.pzEnvironment.asset === asset) {
+          material.pzLoadEnvironment();
+          await material.pzEnvironment?.loading;
+        }
         if (!await nodes.reloadImages(material, key, asset)) return;
         material.pzBakeKey = null;
         await material._surfacePrepare?.(material._surfaceFrame || 0);
@@ -104,6 +108,14 @@ function activate(context) {
     };
     // Graph maps take precedence only while enabled; disconnected channels restore native maps.
     material.bindGraphChannel = function (slot) {
+      if (slot === "emission") {
+        this.pzUniforms.uPzGraphEmission.value = this.pzGraphTextures.emission;
+        return false;
+      }
+      if (slot === "normal") {
+        this.pzUniforms.uPzGraphNormal.value = this.pzGraphTextures.normal;
+        return this.pzAssignMap("normalMap", this.pzTextures.normalMap || this._zoidiumTextureSlots?.normalMap?.texture || this.pzGraphTextures.normal);
+      }
       const map = { color: null, luminance: "emissiveMap", roughness: "roughnessMap", metalness: "metalnessMap", bump: "bumpMap", opacity: "alphaMap" }[slot];
       const texture = this.pzGraphTextures[slot];
       if (slot === "color") {
@@ -121,11 +133,14 @@ function activate(context) {
     let environmentSource = null;
     if (nodeMode) material.initReflection = function () {
       const enabled = this.properties.reflection.get() === 1 || this.properties.reflReflection.get() === 1;
-      const source = enabled ? this.parentLayer?.envMap : null;
-      if (source === environmentSource) return;
+      const custom = this.pzEnvironment?.texture;
+      const source = !custom && enabled ? this.parentLayer?.envMap : null;
+      if (source === environmentSource) {
+        if (custom ? this.threeObj.envMap === custom : source || !this.threeObj.envMap) return;
+      }
       environmentSource?.releaseTexture?.();
       environmentSource = source || null;
-      this.threeObj.envMap = environmentSource?.getTexture?.() || null;
+      this.threeObj.envMap = custom || environmentSource?.getTexture?.() || null;
       this.threeObj.needsUpdate = true;
     };
     let worker = null;
@@ -270,6 +285,7 @@ function activate(context) {
         const lit = this.pzGraphTextures.luminance ? 1 : 0;
         this.threeObj.emissive.setRGB(lit, lit, lit);
       }
+      this.pzUpdateSurfaceControls(frame);
       if (!exact && lastIdentity === identity) return;
       lastIdentity = identity;
       if (refinement !== null) clearTimeout(refinement);
@@ -323,6 +339,8 @@ function activate(context) {
           if (disposed) return;
           if (this._surfaceError) throw this._surfaceError;
           await Promise.all(Object.values(this.pzImages || {}).map(image => image?.loading));
+          await this.pzEnvironment?.loading;
+          if (!disposed) this.pzUpdateSurfaceControls(frame);
         } finally { preparing = false; }
       };
       const result = prepareQueue.then(prepare);
@@ -334,6 +352,7 @@ function activate(context) {
       if (disposed) return;
       disposed = true;
       uvLayout.releaseMaterial(this);
+      this.pzDisposeEnvironment();
       if (refinement !== null) clearTimeout(refinement);
       pending = null;
       cancelBake?.();
@@ -377,6 +396,7 @@ function activate(context) {
       this.threeObj.normalMap = this.pzTextures.normalMap || null;
       this.refreshAO();
       this.updateBumpMap();
+      this.pzLoadEnvironment();
       this.initReflection();
       this.threeObj.transparent = this.properties.transparent.get() === 1;
       this.threeObj.side = [THREE.FrontSide, THREE.BackSide, THREE.DoubleSide][this.properties.side.get()];

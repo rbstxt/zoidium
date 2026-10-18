@@ -169,6 +169,33 @@ function createGraphRuntime(PZ, document) {
     nodes.cacheKey = function (graph, resolution, frame, assets) {
         return JSON.stringify([nodes.parse(graph), resolution, frame, assets]);
     };
+    // Output-only conversion. Central differences wrap at the bake boundary,
+    // use UV units rather than pixel units, and never modify upstream buffers.
+    function normalBuffer(source, size, params) {
+        const result = new Uint8ClampedArray(source.length);
+        const strength = params.normalStrength ?? 1;
+        const height = (x, y) => luminanceAt(source, (((y + size) % size) * size + (x + size) % size) * 4);
+        for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+            const i = (y * size + x) * 4;
+            let nx, ny, nz;
+            if (params.normalMode === 1) {
+                nx = (height(x - 1, y) - height(x + 1, y)) * size * 0.5 * strength;
+                // Canvas rows run downwards; tangent V runs upwards.
+                ny = (height(x, y + 1) - height(x, y - 1)) * size * 0.5 * strength;
+                nz = 1;
+            } else {
+                nx = (source[i] / 255 * 2 - 1) * strength;
+                ny = (source[i + 1] / 255 * 2 - 1) * strength;
+                nz = source[i + 2] / 255 * 2 - 1;
+            }
+            const length = Math.hypot(nx, ny, nz) || 1;
+            result[i] = (nx / length * 0.5 + 0.5) * 255;
+            result[i + 1] = (ny / length * 0.5 + 0.5) * 255;
+            result[i + 2] = (nz / length * 0.5 + 0.5) * 255;
+            result[i + 3] = 255;
+        }
+        return result;
+    }
     nodes.evaluate = function (graph, size, time, context, target) {
         size = Math.max(1, Math.min(2048, Math.round(size) || 128));
         graph = nodes.parse(graph);
@@ -235,7 +262,8 @@ function createGraphRuntime(PZ, document) {
                 var key = definition.inputs[j].key;
                 var buffer = inputBuffer(node.id, key, []);
                 if (buffer) {
-                    outputs[key] = bufferToCanvas(size, asTexture(buffer, size));
+                    const pixels = asTexture(buffer, size);
+                    outputs[key] = bufferToCanvas(size, key === "normal" ? normalBuffer(pixels, size, node.params) : pixels);
                 }
             }
         }

@@ -10,6 +10,7 @@
 const createSurfaceShader = require("./surface-shader.js");
 const installSurfaceMaterial = require("./surface-material.js");
 const installSurfaceProps = require("./surface-props.js");
+const installSurfaceControls = require("./surface-controls.js");
 
 function installSurface(PZ, THREE, nodes, document) {
 this.defaultName = "PBR Material";
@@ -87,6 +88,7 @@ this.update = function (e) {
     uniforms.uPzSpecularOpacity.value = props.reflSpecularOpacity.get(e);
 };
     installSurfaceProps(this, env);
+    installSurfaceControls(this, env);
 delete this.props.nodeEditor;
 this.props.graph.value = JSON.stringify({ schemaVersion: 1, nodes: [{ id: "output", type: "output", x: 640, y: 80, params: {} }], links: [] });
 this.props.aoEnabled.name = "Ambient occlusion map";

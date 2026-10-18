@@ -198,6 +198,15 @@ function releaseEnvironmentMap(material) {
 function syncEnvironmentMap(material) {
   if (!material.threeObj) return;
 
+  const custom = material.pzEnvironment?.texture;
+  if (custom) {
+    if (material._zoidiumEnvironmentSource) releaseEnvironmentMap(material);
+    if (material.threeObj.envMap !== custom) {
+      material.threeObj.envMap = custom;
+      material.threeObj.needsUpdate = true;
+    }
+    return;
+  }
   const enabled = (getOptionValue(material.properties.reflection, 0) === 1 || getOptionValue(material.properties.reflReflection, 0) === 1);
   const layer = material.parentLayer;
   const source = layer?.envMap;
@@ -292,6 +301,7 @@ function createTextureProperty(name, slotName) {
       const material = this.parentObject;
       if (material?._zoidiumLoading) return;
       loadTextureSlot(material, material._zoidiumTextureSlots[slotName], this.value);
+      if (slotName === "normalMap") material.refreshBindings?.();
     },
   };
 }
@@ -534,6 +544,7 @@ function createMaterialFactory(plugin) {
       material.updateBumpMap?.();
       loadAllTextureSlots(material);
       applyRenderSettings(material);
+      material.pzLoadEnvironment?.();
       syncEnvironmentMap(material);
       material.update(0);
       trackMaterial(material, plugin);
@@ -565,6 +576,8 @@ function createMaterialFactory(plugin) {
       material.threeObj.opacity = opacity;
 
       applyTextureSettings(material, false, frame);
+      syncEnvironmentMap(material);
+      material.pzUpdateSurfaceControls?.(frame);
       if (
         material._zoidiumEnvironmentLayer !== material.parentLayer ||
         material._zoidiumEnvironmentSource !== material.parentLayer?.envMap

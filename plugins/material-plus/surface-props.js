@@ -209,9 +209,8 @@ target.props = {
         changed: function () {
             if (this.parentObject.pzLoading || this.parentObject._zoidiumLoading || !this.parentObject.pzUniforms) return;
             var e = this.parentObject;
-            if (e.pzAssignMap("normalMap", e.setImage("normalMap", this.value))) {
-                e.threeObj.needsUpdate = true;
-            }
+            e.setImage("normalMap", this.value);
+            e.refreshBindings();
         },
     },
     normalScale: {
