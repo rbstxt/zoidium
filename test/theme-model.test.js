@@ -66,3 +66,17 @@ test("selected custom clips lighten and label contrast follows the actual backgr
   assert.equal(model.labelColor("#000000"), "#f4f4f4");
   assert.equal(model.labelColor("#ffffff"), "#2c323f");
 });
+
+test("every palette keeps dark neutral chrome to match CM3's native panels", () => {
+  const dark = model.uiTokens(model.presetPalette(model.PRESETS[0].value, 0, 100));
+  for (const preset of model.PRESETS) {
+    const tokens = model.uiTokens(model.presetPalette(preset.value, 0, 100));
+    assert.equal(tokens.bg, "#2a2a2a");
+    assert.equal(tokens.danger, "#df9b9b");
+    assert.equal(tokens.shadow, "#000000");
+  }
+  const light = model.uiTokens(model.derive("#cad9f4"));
+  assert.equal(light.bg, dark.bg);
+  assert.equal(light.text, dark.text);
+  assert.deepEqual(Object.keys(light).sort(), Object.keys(dark).sort());
+});

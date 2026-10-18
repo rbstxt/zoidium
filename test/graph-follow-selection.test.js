@@ -28,9 +28,29 @@ function observable() {
   const listeners = new Set();
   return { watch: fn => listeners.add(fn), unwatch: fn => listeners.delete(fn), emit: () => { for (const fn of listeners) fn(); }, listeners };
 }
+// Minimal stand-in for ZoidiumUI.openMenu: one element per open menu in the
+// requested document, items as clickable children, and a closable handle.
+function fakeKit() {
+  return { openMenu(options) {
+    const element = new FakeElement("div"), body = options.document.body;
+    let open = true;
+    const handle = { element, isOpen: () => open, close() {
+      if (!open) return; open = false;
+      const index = body.children.indexOf(element); if (index >= 0) body.children.splice(index, 1);
+      options.onClose?.();
+    } };
+    for (const item of options.items) {
+      const button = new FakeElement("div"); button.textContent = item.label;
+      button.click = () => { handle.close(); item.action(); };
+      element.children.push(button);
+    }
+    body.children.push(element);
+    return handle;
+  } };
+}
 function fixture() {
   const listeners = new Map(), rows = [];
-  const doc = { defaultView: { innerWidth: 1000, innerHeight: 800 }, body: new FakeElement("body"),
+  const doc = { defaultView: { innerWidth: 1000, innerHeight: 800, ZoidiumUI: fakeKit() }, body: new FakeElement("body"),
     createElement: tag => new FakeElement(tag), querySelectorAll: () => [],
     addEventListener: (name, fn) => listeners.set(name, fn), removeEventListener: name => listeners.delete(name) };
   const editor = { onProjectChanged: observable(), onSequenceChanged: observable(), history: new Proxy({}, { get() { throw Error("History must not be read"); } }) };

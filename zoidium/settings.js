@@ -221,6 +221,10 @@
     var hue = state.settings.theme === "gray" ? 0 : state.settings.hue;
     var saturation = effectiveSaturation();
     var palette = themeEditor.palette();
+    var chrome = themeModel.uiTokens(palette);
+    hosts.forEach(function (host) {
+      Object.keys(chrome).forEach(function (key) { host.style.setProperty("--zui-" + key, chrome[key]); });
+    });
     var properties = { focus: "focus", link: "link", clip: "clip", clipSelected: "clip-selected", clipSelection: "clip-selection" };
     Object.keys(properties).forEach(function (key) {
       hosts.forEach(function (host) { host.style.setProperty("--zoidium-theme-" + properties[key], palette[key]); });

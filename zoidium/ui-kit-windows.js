@@ -536,7 +536,12 @@
       });
     });
     root.addEventListener("wheel", function (event) { event.stopPropagation(); }, { passive: true });
-    root.addEventListener("contextmenu", function (event) { event.stopPropagation(); });
+    root.addEventListener("contextmenu", function (event) {
+      // Text editing retains the browser's spelling/copy/paste menu. Other
+      // window chrome follows CM3's suppression of the native browser menu.
+      if (!event.target.closest?.("input,textarea,[contenteditable]:not([contenteditable='false'])")) event.preventDefault();
+      event.stopPropagation();
+    });
 
     openWindows.set(id, win);
     layer.appendChild(root);

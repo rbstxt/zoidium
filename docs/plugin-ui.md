@@ -7,9 +7,9 @@ behind it, so changes preview live in the normal viewport. Fullscreen
 overlays that hide the editor, bundled UI fonts and borrowed preview viewports
 are not used; a window can be maximized by the user when more room helps.
 
-Windows and controls share CM3 panel chrome: the editor UI font, `#2a2a2a`
-panels, `#222` title rows, the theme accent for focus/selection, the theme
-value color, scrubbable numbers and `proprow propbutton` buttons. Styles live
+Windows and controls use the editor UI font, themed panels and title rows,
+the theme accent for focus/selection, the theme value color, scrubbable
+numbers and `proprow propbutton` buttons. Styles live
 in `zoidium/ui-window.css`. Colors and the font are **theme tokens** (below),
 so windows follow Settings (theme, hue, saturation, UI font).
 
@@ -324,3 +324,61 @@ The theme controller is an internal `ZoidiumUIBuilder.themeEditor` component;
 or plugin API. Plugins continue to use `--zui-*` tokens. Layer registration
 and media presets supply the runtime type names; plugin authors do not need
 to add theme controls. See [editor theme storage and compatibility](project-compatibility.md#editor-themes).
+
+## Context and anchored menus
+
+Use `context.ui.openMenu(options)` for plugin menus, or
+`ZoidiumUI.openMenu(options)` outside a module context. The scoped version
+also closes the menu when the plugin is disabled. Both return
+`{ element, close(restoreFocus = true), isOpen() }`.
+
+```js
+const menu = context.ui.openMenu({
+  owner: win.element,          // remove the owner to dismiss the menu
+  anchor: moreButton,          // or x: event.clientX, y: event.clientY
+  align: "end",               // optional anchor alignment; default is start
+  title: "Selection",         // optional overall heading and accessible label
+  items: [
+    { label: "Rename", shortcut: "F2", action: rename },
+    { separator: true },
+    { title: "Display" },      // optional section heading
+    { label: "Visible", checked: visible, action: toggleVisible },
+    { label: "Red", color: "#b53838", hint: "Asset label", action: setRedLabel },
+    { label: "Delete", disabled: locked, action: remove },
+  ],
+});
+// Menus tied to a temporary operation can instead pass an AbortSignal.
+menu.close(false);            // dismiss without moving focus back
+```
+
+`owner` accepts a DOM element or a Zoidium window handle. `document` defaults
+to the anchor's or owner's document, then the main document. Pointer coordinates
+belong to that document's viewport. Popup callers must supply their own owner
+or document, and load the shared UI styles just as they do for other kit UI.
+`focusReturn` overrides the anchor or previously focused element. `signal`
+and `onClose` provide explicit disposal and notification. No submenus are
+provided. Actions can open another menu, as the Assets label picker does.
+
+Menus measure their rendered size, flip at viewport edges, and clamp to the
+viewport. They close on outside pointerdown, Escape, host scroll/resize,
+window blur/pagehide, owner removal or abort. Scrolling within the menu
+keeps it open. Arrow keys, Home/End and Tab/Shift+Tab move focus between enabled
+items; Enter/Space activate. Tab cycles within the open menu, preserving the
+Shape+ interaction. Disabled entries cannot activate. `muted: true` dims an informational action
+without disabling it, as in Assets usage guidance. Hover and keyboard
+selection use the same highlight. One menu is open across the application,
+including popup documents and the searchable node add menu.
+
+Menu colors use existing theme tokens. `--zui-menu-active` is derived from the
+accent and panel background. `--zui-shadow` supplies the shadow pigment.
+Shared metrics are `--zui-menu-font-size` (13px),
+`--zui-menu-title-font-size` (12px), `--zui-menu-padding` (4px 0),
+`--zui-menu-item-padding` (5px 14px), and `--zui-menu-title-padding`
+(4px 14px 5px). The searchable node add menu uses these same metrics.
+
+The Theme Editor derives light extension chrome when the main focus color's
+HSL lightness exceeds 60%. All built-in themes retain dark chrome. Text,
+inputs, borders, danger text and value colors update together, including open
+menus, custom canvases and mirrored popup documents. Content colors such as
+asset labels, channel curves and rendered thumbnails retain their meaning.
+Standalone help pages read the same saved theme and follow storage changes.

@@ -33,6 +33,7 @@
     var countType = base.countType;
     var cloneValue = base.cloneValue;
     var menu = null;
+    var releaseMenu = null;
     var clipboard = null;
 
       // ---- add menu ------------------------------------------------------
@@ -71,6 +72,7 @@
         element.appendChild(search);
         element.appendChild(list);
         cx.root.appendChild(element);
+        if (global.ZoidiumUIBuilder?.menus) releaseMenu = global.ZoidiumUIBuilder.menus.claim(function () { closeMenu(false); });
         menu = {
           element: element,
           search: search,
@@ -212,6 +214,8 @@
         if (!menu) return;
         var closing = menu;
         menu = null;
+        if (releaseMenu) releaseMenu();
+        releaseMenu = null;
         closing.element.remove();
         if (refocus && !cx.destroyed) cx.root.focus({ preventScroll: true });
       }

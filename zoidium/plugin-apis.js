@@ -654,13 +654,13 @@
       button.dataset.zoidiumTrackButton = spec.id;
       button.className = "actionbutton";
       button.textContent = spec.label;
-      button.style.cssText = "min-width:22px;height:16px;font-size:10px;border:1px solid var(--zui-border,#555);border-radius:3px;padding:0 2px;cursor:pointer";
+      button.style.cssText = "min-width:22px;height:16px;font-size:10px;border:1px solid var(--zui-border);border-radius:3px;padding:0 2px;cursor:pointer";
       function refresh() {
         var active = !!spec.isActive(track);
         button.title = typeof spec.title === "function" ? spec.title(track) : spec.title || spec.label;
         button.setAttribute("aria-pressed", String(active));
-        button.style.background = active ? "var(--zui-accent,#384668)" : "transparent";
-        button.style.color = active ? "var(--zui-text-bright,#fff)" : "var(--zui-text-muted,#888)";
+        button.style.background = active ? "var(--zui-accent)" : "transparent";
+        button.style.color = active ? "var(--zui-text-bright)" : "var(--zui-text-muted)";
       }
       button.onclick = function (event) { event.stopPropagation(); spec.onToggle(track, editor); refresh(); };
       button.pz_refresh = refresh;

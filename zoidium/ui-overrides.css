@@ -25,6 +25,18 @@
   background-color: transparent;
 }
 
+/* Theme extension scrollbars without recoloring CM3's native panels. */
+:is(.zoidium-window, .zoidium-restore-panel, .zoidium-plugin-panel, .zoidium-settings-panel)::-webkit-scrollbar-track,
+:is(.zoidium-window, .zoidium-restore-panel, .zoidium-plugin-panel, .zoidium-settings-panel) ::-webkit-scrollbar-track,
+:is(.zoidium-window, .zoidium-restore-panel, .zoidium-plugin-panel, .zoidium-settings-panel)::-webkit-scrollbar-track-piece,
+:is(.zoidium-window, .zoidium-restore-panel, .zoidium-plugin-panel, .zoidium-settings-panel) ::-webkit-scrollbar-track-piece {
+  background-color: var(--zui-bg-title);
+}
+:is(.zoidium-window, .zoidium-restore-panel, .zoidium-plugin-panel, .zoidium-settings-panel)::-webkit-scrollbar-thumb,
+:is(.zoidium-window, .zoidium-restore-panel, .zoidium-plugin-panel, .zoidium-settings-panel) ::-webkit-scrollbar-thumb {
+  background-color: var(--zui-text-faint);
+}
+
 /* CM3 clips the sidebar tab column (overflow: hidden). With Zoidium's extra
    tabs the column outgrows short sidebars, e.g. the Video Editor layout, and
    the last tabs became unreachable. Let it scroll by wheel or touch; a
@@ -95,11 +107,11 @@
   height: 100%;
   overflow-y: auto;
   scrollbar-gutter: auto;
-  background-color: #2a2a2a;
+  background-color: var(--zui-bg);
   --zoidium-scrollbar-width: 12px;
-  --zoidium-plugin-warning-background: rgba(120, 34, 34, 0.18);
-  --zoidium-plugin-warning-border: #a94b4b;
-  --zoidium-plugin-warning-color: #df9b9b;
+  --zoidium-plugin-warning-background: color-mix(in srgb, var(--zui-danger) 18%, transparent);
+  --zoidium-plugin-warning-border: var(--zui-danger);
+  --zoidium-plugin-warning-color: var(--zui-danger);
 }
 
 .zoidium-restore-panel .zoidium-restore-header {
@@ -112,7 +124,7 @@
 }
 
 .zoidium-restore-title {
-  color: #ccc;
+  color: var(--zui-text);
   font-size: var(--zui-font-size-title);
   font-weight: bold;
 }
@@ -154,9 +166,9 @@
 .zoidium-restore-note {
   width: 100%;
   padding: 5px calc(5px + var(--zoidium-scrollbar-width)) 5px 5px;
-  color: #969696;
+  color: var(--zui-text-muted);
   font-size: var(--zui-font-size-small);
-  border-bottom: 1px solid #242424;
+  border-bottom: 1px solid var(--zui-border-soft);
   box-sizing: border-box;
 }
 
@@ -170,7 +182,7 @@
 .zoidium-backup-setting > span {
   min-width: 0;
   overflow: hidden;
-  color: #ccc;
+  color: var(--zui-text);
   font-size: var(--zui-font-size);
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -185,8 +197,8 @@
 .zoidium-restore-warning {
   background: var(--zoidium-plugin-warning-background);
   border-left: 3px solid var(--zoidium-plugin-warning-border);
-  border-top: 1px solid #242424;
-  border-bottom: 1px solid #242424;
+  border-top: 1px solid var(--zui-border-soft);
+  border-bottom: 1px solid var(--zui-border-soft);
   box-sizing: border-box;
   color: var(--zoidium-plugin-warning-color);
   font-size: var(--zui-font-size-small);
@@ -204,9 +216,9 @@
   display: block;
   width: 100%;
   padding: 4px 5px;
-  color: #6d6d6d;
-  background-color: #222;
-  border-bottom: 1px solid #1d1d1d;
+  color: var(--zui-text-faint);
+  background-color: var(--zui-bg-title);
+  border-bottom: 1px solid var(--zui-bg-sunken);
   box-sizing: border-box;
   font-size: var(--zui-font-size);
 }
@@ -219,13 +231,13 @@
   width: 100%;
   min-height: 44px;
   padding: 5px calc(5px + var(--zoidium-scrollbar-width)) 5px 5px;
-  color: #ccc;
-  border-bottom: 1px solid #242424;
+  color: var(--zui-text);
+  border-bottom: 1px solid var(--zui-border-soft);
   box-sizing: border-box;
 }
 
 .zoidium-restore-entry:hover {
-  background-color: #333;
+  background-color: var(--zui-hover);
 }
 
 .zoidium-restore-copy {
@@ -234,7 +246,7 @@
 
 .zoidium-restore-name {
   overflow: hidden;
-  color: #eee;
+  color: var(--zui-text-bright);
   font-size: var(--zui-font-size);
   font-weight: bold;
   line-height: 1.25;
@@ -244,7 +256,7 @@
 
 .zoidium-restore-meta {
   overflow: hidden;
-  color: #969696;
+  color: var(--zui-text-muted);
   font-size: var(--zui-font-size-small);
   line-height: 1.35;
   text-overflow: ellipsis;
@@ -252,12 +264,12 @@
 }
 
 .zoidium-restore-entry.is-unusable .zoidium-restore-meta {
-  color: #c58989;
+  color: var(--zui-danger);
   white-space: normal;
 }
 
 .zoidium-restore-entry.is-unusable .zoidium-restore-name {
-  color: #999;
+  color: var(--zui-text-muted);
 }
 
 .zoidium-restore-actions {
@@ -269,13 +281,13 @@
 .zoidium-restore-action {
   width: 27px;
   height: 27px;
-  color: #acacac;
+  color: var(--zui-text-muted);
   border: 2px solid transparent;
   box-sizing: border-box;
 }
 
 .zoidium-restore-action:hover {
-  background-color: #2f2f2f;
+  background-color: var(--zui-hover);
 }
 
 .zoidium-restore-action:disabled {
@@ -290,18 +302,18 @@
 .zoidium-restore-action svg {
   width: 20px;
   height: 20px;
-  fill: #acacac;
+  fill: var(--zui-text-muted);
   pointer-events: none;
 }
 
 .zoidium-restore-empty {
   padding: 22px 10px;
-  color: #777;
+  color: var(--zui-text-faint);
   text-align: center;
 }
 
 .zoidium-restore-empty.is-error {
-  color: #c58989;
+  color: var(--zui-danger);
 }
 
 .zoidium-project-toast {
@@ -311,10 +323,10 @@
   z-index: 2147483000;
   width: min(360px, calc(100vw - 28px));
   padding: 10px;
-  color: #ccc;
-  background-color: #242424;
+  color: var(--zui-text);
+  background-color: var(--zui-border-soft);
   border: 2px solid var(--zoidium-theme-focus, #384668);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--zui-shadow) 45%, transparent);
   box-sizing: border-box;
   opacity: 0;
   pointer-events: none;
@@ -329,7 +341,7 @@
 }
 
 .zoidium-project-toast.is-error {
-  border-color: #8a2828;
+  border-color: var(--zui-danger);
 }
 
 .zoidium-project-toast-head {
@@ -340,7 +352,7 @@
 }
 
 .zoidium-project-toast-title {
-  color: #eee;
+  color: var(--zui-text-bright);
   font-size: var(--zui-font-size);
   font-weight: bold;
 }
@@ -348,7 +360,7 @@
 .zoidium-project-toast-close {
   width: 24px;
   height: 24px;
-  color: #acacac;
+  color: var(--zui-text-muted);
   font-size: 23px;
   line-height: 20px;
   border: 2px solid transparent;
@@ -490,7 +502,7 @@ body > .pz-dropdown li > span[style],
   height: 100%;
   overflow-y: auto;
   scrollbar-gutter: auto;
-  background-color: #2a2a2a;
+  background-color: var(--zui-bg);
 }
 
 .zoidium-project-toast-close:focus {
@@ -501,14 +513,14 @@ body > .pz-dropdown li > span[style],
 .zoidium-project-toast-message {
   margin-top: 3px;
   overflow-wrap: anywhere;
-  color: #aaa;
+  color: var(--zui-text-muted);
   font-size: var(--zui-font-size-small);
   line-height: 1.4;
 }
 
 .zoidium-project-toast-help {
   margin-top: 6px;
-  color: #aaa;
+  color: var(--zui-text-muted);
   font-size: var(--zui-font-size-small);
   line-height: 1.4;
 }
@@ -518,7 +530,7 @@ body > .pz-dropdown li > span[style],
 }
 
 .zoidium-project-toast-help a {
-  color: #9ecbff;
+  color: var(--zui-value-strong);
 }
 
 .zoidium-project-toast-actions {
