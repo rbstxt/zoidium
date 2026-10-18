@@ -726,8 +726,10 @@
       return result;
     }; });
     if (global.CM && global.CM.project) addMediaPreset(global.CM.project, spec);
+    global.dispatchEvent?.(new CustomEvent("zoidium:theme-types-changed"));
     return function () {
       mediaPresets.delete(spec.id);
+      global.dispatchEvent?.(new CustomEvent("zoidium:theme-types-changed"));
       var project = global.CM && global.CM.project;
       if (project) for (var i = project.media.length - 1; i >= 0; i--) if (project.media[i].__zoidiumPreset === spec.id) { project.media[i].unload(); project.media.splice(i, 1); }
       if (!mediaPresets.size && restorePresetLoad) { restorePresetLoad(); restorePresetLoad = null; }
@@ -748,6 +750,7 @@
     if (!parsed && !legacy) throw new Error("New layers require a namespaced type");
     if (legacy) claims.set(spec.legacyType, spec.id);
     layerTypes.set(spec.type, spec);
+    var removeThemeType = global.ZoidiumUIBuilder?.themeClips?.register(spec);
     if (!restoreLayerFactory) restoreLayerFactory = ownedPatch(PZ.layer, "create", function (original) { return function (type) {
       var found = layerTypes.get(type);
       if (!found) layerTypes.forEach(function (entry) { if (entry.legacyType !== undefined && entry.legacyType === type) found = entry; });
@@ -775,6 +778,7 @@
       if (disposed) return;
       disposed = true;
       layerTypes.delete(spec.type);
+      if (removeThemeType) removeThemeType();
       if (legacy && claims.get(spec.legacyType) === spec.id) claims.delete(spec.legacyType);
       if (!layerTypes.size && restoreLayerFactory) { restoreLayerFactory(); restoreLayerFactory = null; }
     };

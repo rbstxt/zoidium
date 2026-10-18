@@ -24,6 +24,7 @@ function harness() {
   class ClockDate extends Date { static now() { return now; } }
   // settings.js calls ZoidiumSharedJson directly (zoidium/shared/json.js loads
   // just before it in postInitScripts), so the fake window carries the table.
+  window.ZoidiumUIBuilder = { themeModel: require("../zoidium/theme-model.js"), themeEditor: { configure() {}, palette() {} } };
   window.ZoidiumSharedJson = require("./shared-test-apis.js").loadSharedTables().json;
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, "../zoidium/settings.js"), "utf8"), {
     window, Date: ClockDate, CustomEvent: class { constructor(type, options) { this.type = type; this.detail = options.detail; } },
