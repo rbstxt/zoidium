@@ -49,6 +49,10 @@
 
 /* CM3 popups opened from a window must stay above the window layer. */
 body > .pz-dropdown,
+body > .zoidium-color-picker {
+  z-index: 3;
+}
+
 body > .zoidium-window-color-picker {
   z-index: 1000;
 }
