@@ -136,3 +136,47 @@ plugin. No compatibility mode is needed because projects without a nonempty
 Track to field retain their existing rendering. Camera+ sequence camera layers
 are outside the same-scene target contract. See the
 [Constraints guide](../plugins/constraints/README.md) for light conventions.
+
+## Editor themes
+
+Theme Editor preferences do not enter project files, object properties or
+rendering modes. They change editor chrome and timeline DOM colors only.
+Saved projects retain their existing rendered output. Older builds ignore
+`themeId` in `zoidium.editor-settings` and use its retained `theme`, `hue` and
+`saturation` profile. The existing Custom profile remains supported.
+
+Named themes live in localStorage `zoidium.themes` as
+`{version:1,themes:[{id,name,main,overrides,clips}]}`. IDs start with `user:`.
+`main` and color values are six-digit hex strings. `overrides` accepts
+`focus`, `link`, `clip`, `clipSelected` and `clipSelection`; absent keys mean
+Auto. `clips` maps stable type keys to colors, with absent keys using the
+theme clip color. Native layers use `cm3:<numeric type>`, audio uses `audio`,
+and registered plugin layers use their namespaced type. Legacy numeric plugin
+layers use `zoidium:<registration id>` when that id is namespaced, including
+Camera+. Their registered numeric aliases resolve to the same key. Disabling
+a plugin keeps its saved clip-color entry available for later reuse.
+
+Single-theme JSON files have `{version:1,theme:{id,name,main,overrides,clips}}`.
+Import validates every color and key, assigns a new ID and adds a numeric
+suffix to a colliding name. Unsupported or corrupt local theme storage loads
+no user themes; a missing selected theme falls back to Panzoid Classic.
+Neither import nor export fetches resources or transmits project data.
+
+For Auto colors, convert the main color and original Classic palette to HSL.
+For palette entry `p` and Classic focus `f`, compute
+`H = main.H + p.H - f.H`, `S = main.S * p.S / f.S`, and
+`L = main.L + p.L - f.L`. Wrap hue, clamp saturation/lightness, then round
+RGB channels to bytes. Focus is the exact main hex value. Classic's main
+`#384668` reproduces all five original colors exactly. Built-in profiles use
+the original hue/saturation transformation without any change. Duplicating
+one preserves byte-exact colors with minimal overrides for channel-rounding
+differences. A custom clip's selected color moves its HSL lightness 35% toward
+white. Its label chooses the higher WCAG contrast of CM3's `#2c323f` and
+`#f4f4f4`; native preset labels retain their original tint.
+
+Theme Editor keeps one undo entry per committed preference edit, including
+an entire native color-picker gesture. Its Undo/Redo buttons and keyboard
+shortcuts operate only on theme preferences, separate from project history.
+Escape cancels a picker gesture. Revert restores all theme preferences from
+when the window opened and can itself be undone. Delete asks for confirmation.
+Window geometry stays in the shared UI window storage, outside project files.

@@ -9,6 +9,7 @@
     layout: "clipmaker",
     font: "source-code-pro",
     theme: "panzoid",
+    themeId: null,
     hue: 0,
     saturation: 100,
     defaultFrameRate: DEFAULT_FRAME_RATE,
@@ -91,28 +92,14 @@
     },
   ];
 
-  var THEME_OPTIONS = [
-    { value: "panzoid", label: "Panzoid Classic", hue: 0 },
-    { value: "signal", label: "Signal Blue", hue: -18 },
-    { value: "ember", label: "Ember Console", hue: 154 },
-    { value: "moss", label: "Moss Terminal", hue: 78 },
-    { value: "rose", label: "Rose Signal", hue: -72 },
-    { value: "gray", label: "Gray", hue: 0 },
-    { value: "custom", label: "Custom", hue: 0 },
-  ];
+  var themeEditor = global.ZoidiumUIBuilder.themeEditor;
+  var themeModel = global.ZoidiumUIBuilder.themeModel;
+  var THEME_OPTIONS = themeModel.PRESETS;
 
   var state = {
     settings: null,
     panel: null,
     controls: null,
-  };
-
-  var THEME_PALETTE = {
-    focus: 0x384668,
-    link: 0x7e8fb9,
-    clip: 0x526183,
-    clipSelected: 0x7f94c7,
-    clipSelection: 0x273465,
   };
 
   function clamp(value, min, max) {
@@ -215,65 +202,8 @@
       || global.document.querySelector(".editorwindow");
   }
 
-  function colorToHex(color) {
-    return "#" + color.toString(16).padStart(6, "0");
-  }
-
   function colorToRgbString(color) {
     return [color >> 16 & 255, color >> 8 & 255, color & 255].join(" ");
-  }
-
-  function shiftThemeColor(color, degrees, saturationScale) {
-    var red = (color >> 16 & 255) / 255;
-    var green = (color >> 8 & 255) / 255;
-    var blue = (color & 255) / 255;
-    var max = Math.max(red, green, blue);
-    var min = Math.min(red, green, blue);
-    var lightness = (max + min) / 2;
-    var saturation = 0;
-    var hue = 0;
-
-    if (max !== min) {
-      var delta = max - min;
-      saturation = lightness > 0.5
-        ? delta / (2 - max - min)
-        : delta / (max + min);
-      if (max === red) hue = (green - blue) / delta + (green < blue ? 6 : 0);
-      else if (max === green) hue = (blue - red) / delta + 2;
-      else hue = (red - green) / delta + 4;
-      hue /= 6;
-    }
-
-    hue = (hue + degrees / 360) % 1;
-    if (hue < 0) hue += 1;
-
-    var scale = Number(saturationScale);
-    saturation = clamp(saturation * (Number.isFinite(scale) ? scale : 1), 0, 1);
-
-    function hueToRgb(first, second, value) {
-      if (value < 0) value += 1;
-      if (value > 1) value -= 1;
-      if (value < 1 / 6) return first + (second - first) * 6 * value;
-      if (value < 1 / 2) return second;
-      if (value < 2 / 3) return first + (second - first) * (2 / 3 - value) * 6;
-      return first;
-    }
-
-    if (saturation === 0) {
-      red = green = blue = lightness;
-    } else {
-      var second = lightness < 0.5
-        ? lightness * (1 + saturation)
-        : lightness + saturation - lightness * saturation;
-      var first = 2 * lightness - second;
-      red = hueToRgb(first, second, hue + 1 / 3);
-      green = hueToRgb(first, second, hue);
-      blue = hueToRgb(first, second, hue - 1 / 3);
-    }
-
-    return (Math.round(red * 255) << 16)
-      | (Math.round(green * 255) << 8)
-      | Math.round(blue * 255);
   }
 
   function applyThemePalette(editorWindow) {
@@ -290,26 +220,19 @@
     // Gray mode ignores the hue shift and removes all saturation instead.
     var hue = state.settings.theme === "gray" ? 0 : state.settings.hue;
     var saturation = effectiveSaturation();
-    var palette = {
-      "--zoidium-theme-focus": THEME_PALETTE.focus,
-      "--zoidium-theme-link": THEME_PALETTE.link,
-      "--zoidium-theme-clip": THEME_PALETTE.clip,
-      "--zoidium-theme-clip-selected": THEME_PALETTE.clipSelected,
-      "--zoidium-theme-clip-selection": THEME_PALETTE.clipSelection,
-    };
-
-    Object.keys(palette).forEach(function (property) {
-      var value = colorToHex(shiftThemeColor(palette[property], hue, saturation));
-      hosts.forEach(function (host) {
-        host.style.setProperty(property, value);
-      });
+    var palette = themeEditor.palette();
+    var properties = { focus: "focus", link: "link", clip: "clip", clipSelected: "clip-selected", clipSelection: "clip-selection" };
+    Object.keys(properties).forEach(function (key) {
+      hosts.forEach(function (host) { host.style.setProperty("--zoidium-theme-" + properties[key], palette[key]); });
     });
     hosts.forEach(function (host) {
-      host.style.setProperty(
-        "--zoidium-theme-focus-rgb",
-        colorToRgbString(shiftThemeColor(THEME_PALETTE.focus, hue, saturation)),
-      );
+      host.style.setProperty("--zoidium-theme-focus-rgb", colorToRgbString(parseInt(palette.focus.slice(1), 16)));
     });
+    if (themeEditor.selected()) {
+      var main = themeModel.hsl(palette.focus), classic = themeModel.hsl(themeModel.PALETTE.focus);
+      hue = (main[0] - classic[0]) * 360;
+      saturation = main[1] / classic[1];
+    }
 
     // Font previews are a raster sprite tinted with a CSS filter (see
     // ui-overrides.css). Expose the hue shift so the filter can follow themes.
@@ -352,6 +275,7 @@
       editorWindow.dataset.zoidiumTheme = state.settings.theme;
     }
     applyThemePalette(editorWindow);
+    global.ZoidiumUIBuilder.themeClips?.refresh();
     refreshControls();
   }
 
@@ -369,6 +293,7 @@
       defaultProjectSettings.setFrameRate(state.settings.defaultFrameRate);
     }
     applySettings();
+    global.dispatchEvent(new CustomEvent("zoidium:theme-changed"));
   }
 
   function updateGeneratedRows() {
@@ -381,6 +306,12 @@
 
   function refreshControls() {
     updateGeneratedRows();
+    var summary = state.controls?.themeRow?.querySelector("select")?.lastElementChild;
+    if (summary) {
+      summary.disabled = true;
+      summary.hidden = !themeEditor.selected();
+      summary.textContent = themeEditor.selected() ? themeEditor.name() : "My theme";
+    }
     updateCustomRowsVisibility();
   }
 
@@ -443,17 +374,20 @@
   }
 
   function createThemeRow(legacy) {
-    return legacy.generateDropdown(
+    var row = legacy.generateDropdown(
       {
         title: "Color profile",
-        items: THEME_OPTIONS.map(function (theme) { return theme.label; }).join(";"),
+        items: THEME_OPTIONS.map(function (theme) { return theme.label; }).join(";") + ";My theme",
+        // The editor owns the named-theme picker; this summary keeps the legacy row stable.
         get: function () {
+          if (themeEditor.selected()) return THEME_OPTIONS.length;
           return Math.max(0, THEME_OPTIONS.findIndex(function (theme) {
             return theme.value === state.settings.theme;
           }));
         },
         set: function (index) {
           if (!THEME_OPTIONS[index]) return;
+          state.settings.themeId = null;
           state.settings.theme = THEME_OPTIONS[index].value;
           if (state.settings.theme !== "custom") state.settings.hue = THEME_OPTIONS[index].hue;
           persistAndApply();
@@ -461,6 +395,13 @@
       },
       state,
     );
+    var edit = global.document.createElement("button");
+    edit.type = "button"; edit.textContent = "Edit…"; edit.className = "zoidium-theme-edit";
+    edit.setAttribute("aria-label", "Edit color profile");
+    edit.addEventListener("click", function () { themeEditor.open(); });
+    row.classList.add("zoidium-theme-settings-row");
+    row.children[1].appendChild(edit);
+    return row;
   }
 
   function createHueRow(legacy) {
@@ -473,6 +414,7 @@
         set: function (value) {
           var hue = Number(value);
           if (!Number.isFinite(hue)) return;
+          state.settings.themeId = null;
           state.settings.theme = "custom";
           state.settings.hue = clamp(hue, -180, 180);
           persistAndApply();
@@ -497,6 +439,7 @@
         set: function (value) {
           var saturation = Number(value);
           if (!Number.isFinite(saturation)) return;
+          state.settings.themeId = null;
           state.settings.theme = "custom";
           state.settings.saturation = clampSaturation(saturation);
           persistAndApply();
@@ -539,7 +482,7 @@
     if (!state.controls) return;
     // Hue and saturation only apply to the Custom profile. Preset and Gray
     // profiles fix both values, so their rows stay hidden.
-    var display = state.settings.theme === "custom" ? "" : "none";
+    var display = state.settings.theme === "custom" && !themeEditor.selected() ? "" : "none";
     ["hueRow", "saturationRow"].forEach(function (key) {
       var row = state.controls[key];
       if (row && row.style) row.style.display = display;
@@ -697,6 +640,7 @@
 
   function start() {
     state.settings = readSettings();
+    themeEditor.configure({ get: function () { return state.settings; }, apply: persistAndApply });
     applySettings();
     installDeadline = Date.now() + 30000;
     installEditor = global.CM || null;
