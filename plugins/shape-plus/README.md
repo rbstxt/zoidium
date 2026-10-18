@@ -561,8 +561,10 @@ while manual-save failures and unrelated backup errors still report normally.
 
 ### Dense strokes and geometry failures
 
-Small strokes keep the original floating-point union tessellation. If its
-edge, intersection, or time budget is exhausted, Shape+ draws the same segment,
+Small strokes keep the original floating-point union tessellation. Budgets
+count work, never wall-clock time, so the same contents take the same path on
+every machine and under any load; preview and export always match. If the
+union's edge, intersection, or work budget is exhausted, Shape+ draws the same segment,
 join, and cap polygons into an opaque coverage mask. A separate paint quad
 applies the color, gradient, and opacity once. Self crossings therefore do not
 accumulate opacity. Masks share one render target and repeated paint copies
