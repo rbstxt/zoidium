@@ -8,10 +8,10 @@
     // loader appends it automatically, so per-file ?v= queries are never
     // hand-edited here. Plugin asset URLs are versioned separately by
     // tools/build-plugin-bundles.js from each manifest's own version.
-    assetVersion: 150,
+    assetVersion: 152,
     // Plugin registry consumed by plugins/plugin-manager.js. It is preloaded
     // below, so its URL lives here as the single source.
-    registryUrl: "./plugins/registry.json?v=101",
+    registryUrl: "./plugins/registry.json?v=104",
     // Source Code Pro is imported through fonts.css as its own sheet (listed
     // before runtime-fonts.css) so the font files are not discovered only
     // after an @import chain has finished downloading.
@@ -177,7 +177,8 @@
     }
 
     // Hint only the editor entry the loader will select (same rule as
-    // runtime-loader.js: the stored layout when valid, else the default).
+    // runtime-loader.js: the stored layout when valid, a "-centered" variant's
+    // base editor, else the default).
     var profiles = global.ZOIDIUM_RUNTIME_PROFILES || {};
     var layouts = profiles.layouts || {};
     var stored = null;
@@ -188,7 +189,8 @@
       // Storage may be blocked; the default layout is still hinted.
       stored = null;
     }
-    var selected = layouts[stored] ? stored : profiles.defaultLayout || "clipmaker";
+    var base = typeof stored === "string" ? stored.replace(/-centered$/, "") : stored;
+    var selected = layouts[stored] ? stored : layouts[base] ? base : profiles.defaultLayout || "clipmaker";
     if (layouts[selected] && typeof layouts[selected].entryScript === "string") {
       hint(versioned(layouts[selected].entryScript), "script");
     }

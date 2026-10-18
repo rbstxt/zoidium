@@ -389,6 +389,15 @@
     return found;
   }
 
+  function findConstraintFeatures(value, found = new Set(), visited = new WeakSet()) {
+    if (!value || typeof value !== "object" || visited.has(value)) return found;
+    visited.add(value);
+    if (value.type !== undefined && typeof value.properties?.zoidiumTrackTo === "string" &&
+        value.properties.zoidiumTrackTo.length > 0) found.add("track-to");
+    for (const child of Object.values(value)) findConstraintFeatures(child, found, visited);
+    return found;
+  }
+
   function projectPluginRequirements(data) {
     const plugins = normalizeProjectPlugins(data?.plugins);
     const detectedEffects = Array.from(findNativeFxTypes(data)).sort();
@@ -402,6 +411,7 @@
     const detectedTextPlusFeatures = findTextPlusFeatures(data);
     const detectedParticlesPlusSprites = findParticlesPlusSprites(data);
     const detectedCompositions = findCompositionFeatures(data);
+    const detectedConstraints = findConstraintFeatures(data);
     if (
       detectedEffects.length === 0 &&
       detectedPluginNative.size === 0 &&
@@ -414,7 +424,8 @@
       detectedC4DLights.size === 0 &&
       detectedTextPlusFeatures.size === 0 &&
       detectedParticlesPlusSprites.size === 0 &&
-      detectedCompositions.size === 0
+      detectedCompositions.size === 0 &&
+      detectedConstraints.size === 0
     ) {
       return plugins;
     }
@@ -451,6 +462,7 @@
     for (const [pluginId, layerIds] of detectedNumericLayers) {
       mergeDetectedPluginItems(plugins, pluginId, "objects", layerIds);
     }
+    mergeDetectedPluginItems(plugins, "constraints", "features", detectedConstraints);
     mergeDetectedPluginItems(plugins, "precomp-plus", "features", detectedCompositions);
     mergeDetectedPluginItems(plugins, TRAPCODE_SUITE_PLUGIN_ID, "features", detectedC4DLights);
     mergeDetectedPluginItems(
