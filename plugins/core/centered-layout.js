@@ -1,14 +1,15 @@
 (function installCenteredLayout(global) {
   "use strict";
 
-  // "Clipmaker 3 (centered viewport)": the Clipmaker 3 editor with a second
-  // tab sidebar on the right, so the preview sits between two columns of
-  // panels. CM3 builds its panel tree in CM.setUpEditor and hands the root to
-  // the main window's setPanel; this pre-init patch rearranges that root once.
+  // "Clipmaker 3 / Video Editor 2 (centered viewport)": the editor with a
+  // second tab sidebar on the right, so the preview sits between two columns
+  // of panels. Both editors build their panel tree in setUpEditor and hand the
+  // root to the main window's setPanel; this pre-init patch rearranges that
+  // root once. The runtime loader starts the base editor for these layouts.
   // Tabs move between the sidebars from their right-click menu, and the
   // arrangement is remembered with the other editor settings.
   var STORAGE_KEY = "zoidium.editor-settings";
-  var LAYOUT = "clipmaker-centered";
+  var LAYOUTS = { "clipmaker-centered": "clipmaker", "videoeditor-centered": "videoeditor" };
   var DEFAULT_RIGHT = ["Objects", "Effects"];
   var PZ = global.PZ, CM = global.CM;
 
@@ -32,7 +33,7 @@
   }
 
   var settings = readSettings();
-  if (settings.layout !== LAYOUT || !CM || typeof CM.createMainWindow !== "function" ||
+  if (!Object.prototype.hasOwnProperty.call(LAYOUTS, settings.layout) || LAYOUTS[settings.layout] !== global.ZOIDIUM_LAYOUT || !CM || typeof CM.createMainWindow !== "function" ||
       !PZ || !PZ.ui || typeof PZ.ui.elevator !== "function" || typeof PZ.ui.splitPanel !== "function") return;
 
   var rightTitles = Array.isArray(settings.rightTabs)
@@ -180,9 +181,34 @@
     global.document.head.appendChild(style);
   }
 
+  function contains(panel, target, depth) {
+    if (!panel || depth > 12) return false;
+    if (panel === target) return true;
+    return (panel.panels || []).some(function (child) { return contains(child, target, depth + 1); });
+  }
+
+  // The side-by-side split whose first half holds the sidebar: Clipmaker's
+  // root, or the top row above Video Editor's full-width timeline.
+  function columnSplit(panel, depth) {
+    if (!panel || !panel.panels || panel.panels.length !== 2 || depth > 12) return null;
+    if (panel.options && panel.options.direction === 1 && panel.panels[0] !== left &&
+        contains(panel.panels[0], left, 0) && !contains(panel.panels[1], left, 0)) return panel;
+    return columnSplit(panel.panels[0], depth + 1) || columnSplit(panel.panels[1], depth + 1);
+  }
+
+  // Rebuild the path from the root to the column split with fresh split
+  // panels (a split adopts its children's elements when it is created).
+  function rebuild(panel, column, replacement) {
+    if (panel === column) return replacement;
+    if (!panel.panels || !contains(panel, column, 0)) return panel;
+    return new PZ.ui.splitPanel(CM, rebuild(panel.panels[0], column, replacement),
+      rebuild(panel.panels[1], column, replacement), panel.ratio, panel.options.direction);
+  }
+
   function arrange(root) {
     left = findElevator(root, 0);
-    if (!left || !root.panels || root.panels.length !== 2 || root.panels[0] === left) return root;
+    var column = left && columnSplit(root, 0);
+    if (!column) return root;
     var moving = left.panels.filter(function (panel) { return rightTitles.indexOf(panel.title) !== -1; });
     if (!moving.length || moving.length >= left.panels.length) {
       moving = left.panels.filter(function (panel) { return DEFAULT_RIGHT.indexOf(panel.title) !== -1; });
@@ -208,8 +234,23 @@
         if (rightTitles.indexOf(panel.title) !== -1 && left.panels.length > 1) transfer(panel, left, right, false);
       }
     }).observe(left.tabcontainer, { childList: true });
-    var center = new PZ.ui.splitPanel(CM, root.panels[1], right, 0.74, 1);
-    return new PZ.ui.splitPanel(CM, root.panels[0], center, 0.22, 1);
+    var center = new PZ.ui.splitPanel(CM, column.panels[1], right, 0.7, 1);
+    return rebuild(root, column, new PZ.ui.splitPanel(CM, column.panels[0], center, Math.min(column.ratio, 0.24), 1));
+  }
+
+  // An Edit panel fixes its name column at half its width on the first resize.
+  // The right sidebar is built and resized before it is attached (width 0),
+  // which left a zero-width name column. Measure once the panel has a width.
+  var editPrototype = PZ.ui.edit && PZ.ui.edit.prototype;
+  if (editPrototype && typeof editPrototype.resize === "function") {
+    var editResize = editPrototype.resize;
+    editPrototype.resize = function () {
+      if (!this.columnTemplate && this.el && this.el.clientWidth === 0) {
+        this.needsResize = true;
+        return;
+      }
+      return editResize.apply(this, arguments);
+    };
   }
 
   var createMainWindow = CM.createMainWindow;

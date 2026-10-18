@@ -109,3 +109,30 @@ Showing a path leaves existing animation untouched. Materializing an axis key
 preserves hold, linear and bezier curves; other easing presets retain the
 neighbouring tween and can change timing within the split segment. See
 `plugins/motion-path/README.md` for the temporal handle mapping and limits.
+
+## Track To constraints
+
+Constraints adds optional `zoidiumTrackTo`, `zoidiumTrackAxis`, `zoidiumUpAxis`
+and `zoidiumInfluence` keys inside each constrained native 3D object's
+`properties`. The influence uses the host's ordinary dynamic number format,
+including keyframes and expressions. Track-axis options are +X, +Y, +Z, -X,
+-Y, -Z at indices 0 through 5; up-axis indices 0 through 2 mean X, Y, Z.
+Only objects used as targets receive `properties.zoidiumId`, a persistent UUID.
+A nonempty target adds the `constraints` plugin dependency with feature
+`track-to`, including when found inside a composition or preserved payload.
+
+Missing fields leave rendering unchanged. Untouched objects omit default
+constraint fields. When clearing previously saved values, explicit defaults
+override the host's retained unknown fields. Missing targets and skipped cycles
+use the object's own evaluated pose. The plugin never rewrites Rotation
+keyframes. UUID collisions regenerate the incoming copy's identity; a copied
+group or scene remaps its internal target links as one load batch. Renaming
+and reordering have no effect on identity.
+
+Builds without Constraints can open these projects and ignore the extra keys,
+but render the unconstrained keyed pose. Builds with the existing unknown-field
+preservation retain those keys on resave. Inert UUIDs alone do not require the
+plugin. No compatibility mode is needed because projects without a nonempty
+Track to field retain their existing rendering. Camera+ sequence camera layers
+are outside the same-scene target contract. See the
+[Constraints guide](../plugins/constraints/README.md) for light conventions.
