@@ -136,7 +136,8 @@ function createPropertyStore(options) {
     };
     const entry = { definitions, defaults: {} };
     for (const key of ALL_KEYS) {
-      const probe = PZ.property.create(definitions[key]);
+      const { changed: _changed, ...probeDefinition } = definitions[key];
+      const probe = PZ.property.create(probeDefinition);
       probe.load(undefined);
       entry.defaults[key] = JSON.stringify(probe);
     }
@@ -145,8 +146,13 @@ function createPropertyStore(options) {
   }
 
   function handleChange(property, targetChanged) {
-    const object = property.parentObject;
-    if (!object || loading.has(object)) return;
+    let object = null;
+    try {
+      object = property.parentObject;
+    } catch (_error) {
+      object = null;
+    }
+    if (!object || loading.has(object) || !attached.has(object)) return;
     if (targetChanged) {
       syncVisibility(object, true);
       onTargetChanged(object);

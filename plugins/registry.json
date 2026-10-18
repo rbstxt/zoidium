@@ -434,7 +434,7 @@
       "defaultEnabled": true,
       "manifest": "./plugins/constraints/manifest.json?v=1",
       "bundle": "./plugins/constraints/bundle.json?v=1",
-      "integrity": "sha256-KNo0udVw5YwgD/lg++xfg90nXokKq3h9Y7W697Ue/YE="
+      "integrity": "sha256-3CL1QrpVuxkXbSbhFu1EnLhXS6ahI9OfFtUpBTZtRjY="
     }
   ]
 }
