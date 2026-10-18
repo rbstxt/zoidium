@@ -422,6 +422,21 @@
       "manifest": "./plugins/shape-plus/manifest.json?v=13",
       "bundle": "./plugins/shape-plus/bundle.json?v=13",
       "integrity": "sha256-WoJi80igis+UI0x09CAywY5grpLmtTcAGauMQO0ZTUE="
+    },
+    {
+      "id": "constraints",
+      "name": "Constraints",
+      "author": "Zoidium",
+      "version": "2",
+      "tagline": "Track To for objects, cameras and lights",
+      "description": "Adds Blender-style object constraints to native 3D objects. Track To points an object, the scene camera or a spot/directional light at another object of the same 3D Scene, every frame, without changing its rotation keyframes.",
+      "category": "scene",
+      "defaultEnabled": true,
+      "manifest": "./plugins/constraints/manifest.json?v=2",
+      "bundle": "./plugins/constraints/bundle.json?v=2",
+      "integrity": "sha256-t8EXEK0FLhQ/XLLWJu+8CT5OX04UptgUlQqmwl+IsDQ=",
+      "zoidiumOnly": true,
+      "warning": "Track To projects require Zoidium. Other builds open the project with the unconstrained rotation."
     }
   ]
 }
