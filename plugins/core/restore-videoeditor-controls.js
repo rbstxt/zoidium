@@ -16,12 +16,14 @@
   }
 
   var originalSetUpEditor = editor.setUpEditor;
+  // Later pre-init scripts (main-viewport.js among them) wrap ui.viewport and
+  // ui.toolbar. Read the constructors when the editor is built, not now, so
+  // the restored controls never bypass those wrappers.
   var originalToolbar = ui.toolbar;
-  var originalViewport = ui.viewport;
 
-  function copyToolbarStatics(toolbar) {
-    Object.keys(originalToolbar).forEach(function (key) {
-      toolbar[key] = originalToolbar[key];
+  function copyStatics(toolbar, source) {
+    Object.keys(source).forEach(function (key) {
+      toolbar[key] = source[key];
     });
   }
 
@@ -127,9 +129,11 @@
 
   editor.setUpEditor = function setUpEditorWithRestoredControls(account) {
     var viewport = null;
+    var currentViewport = ui.viewport;
+    var currentToolbar = ui.toolbar;
 
     function ViewportProxy(editorInstance, options) {
-      var instance = new originalViewport(editorInstance, options);
+      var instance = new currentViewport(editorInstance, options);
       if (editorInstance === editor) viewport = instance;
       return instance;
     }
@@ -138,20 +142,21 @@
       var restoredButtons = isPlaybackToolbar(editorInstance, buttons)
         ? restoreButtons(buttons, viewport)
         : buttons;
-      return new originalToolbar(editorInstance, restoredButtons);
+      return new currentToolbar(editorInstance, restoredButtons);
     }
 
-    ViewportProxy.prototype = originalViewport.prototype;
-    ToolbarProxy.prototype = originalToolbar.prototype;
-    copyToolbarStatics(ToolbarProxy);
+    ViewportProxy.prototype = currentViewport.prototype;
+    ToolbarProxy.prototype = currentToolbar.prototype;
+    copyStatics(ViewportProxy, currentViewport);
+    copyStatics(ToolbarProxy, currentToolbar);
     ui.viewport = ViewportProxy;
     ui.toolbar = ToolbarProxy;
 
     try {
       return originalSetUpEditor.call(this, account);
     } finally {
-      ui.viewport = originalViewport;
-      ui.toolbar = originalToolbar;
+      ui.viewport = currentViewport;
+      ui.toolbar = currentToolbar;
     }
   };
   editor.__zoidiumControlsRestored = true;
