@@ -356,6 +356,9 @@ playback is running.
   prefetched; their frames are still kept as they are shown.
 - Memory: the Settings **Preview cache** value bounds the counted RGBA8 bytes
   (512 MiB by default, 0 disables it; 1920 x 1080 frames hold at most 64).
+  Settings accepts up to 16384 MiB, with at most 8192 retained entries. GPU
+  allocation failure or context loss reduces a session-only ceiling that
+  preference changes cannot raise. See [preview cache memory](project-compatibility.md#preview-cache-memory).
   The prefetch copy adds a second sampler pool (256 MiB plus mandatory taps)
   and duplicated geometry while it exists. Project replacement, resolution
   changes, plugin state changes, a smaller setting and compositor unload
