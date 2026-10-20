@@ -1,6 +1,6 @@
 "use strict";
 
-const { chooseCodecs, frameCount, frameTiming, projectFrame, SAMPLE_RATE } = require("./export-math.js");
+const { chooseCodecs, frameCount, frameTiming, isMemoryError, projectFrame, SAMPLE_RATE } = require("./export-math.js");
 const { createStorage } = require("./stream-target.js");
 const { createAudioMixer, hasAudio } = require("./audio-mix.js");
 const { createAudioEncoding } = require("./audio-encode.js");
@@ -94,7 +94,7 @@ function createJob(scope, PZ, exporter, loadBunny) {
         return await storage.finish();
       } catch (error) {
         if (cancelled) throw new DOMException("MP4 export cancelled.", "AbortError");
-        if (error?.name === "QuotaExceededError" || error instanceof RangeError || /out of memory/i.test(error?.message || "")) {
+        if (isMemoryError(error)) {
           throw new Error("MP4 ran out of memory or temporary storage. Reduce the output size or close other projects and try again.");
         }
         throw error;

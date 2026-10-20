@@ -3,6 +3,11 @@
 const MP4_FORMAT = "mp4_h264";
 const SAMPLE_RATE = 48000;
 
+function isMemoryError(error) {
+  return error?.name === "QuotaExceededError" || error instanceof RangeError ||
+    /out of memory|allocation failed|memory allocation|cannot enlarge memory/i.test(error?.message || "");
+}
+
 function isMp4(params) {
   return params?.format === MP4_FORMAT;
 }
@@ -38,7 +43,8 @@ async function firstSupported(Encoder, configs) {
   for (const config of configs) {
     try {
       if ((await Encoder.isConfigSupported(config)).supported) return config;
-    } catch (_error) {
+    } catch (error) {
+      if (isMemoryError(error)) throw error;
       // A rejected profile is a capability miss; try the next explicit config.
     }
   }
@@ -74,5 +80,5 @@ async function chooseCodecs(scope, params, profiles, haveAudio) {
 
 module.exports = {
   MP4_FORMAT, SAMPLE_RATE, chooseCodecs, evenDimension, firstSupported,
-  frameCount, frameTiming, isMp4, projectFrame, videoBitrate,
+  frameCount, frameTiming, isMemoryError, isMp4, projectFrame, videoBitrate,
 };

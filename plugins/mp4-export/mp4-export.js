@@ -10,6 +10,7 @@ function install(context) {
   const { createJob } = load("./render.js");
   const prototype = PZ.ui.export.device.prototype;
   const owned = [];
+  const qualityHint = "MP4 quality uses the Bitrate setting. Quality presets apply to MKV/WebM.";
   function patch(key, wrap) {
     const original = prototype[key];
     const replacement = wrap(original);
@@ -19,10 +20,11 @@ function install(context) {
     prototype[key] = replacement;
   }
   context.lifecycle.onDispose(() => {
-    for (const { select, change, wrapped, option, owner } of owned) {
+    for (const { select, change, wrapped, option, owner, restoreQuality } of owned) {
       if (select.onchange === wrapped) select.onchange = change;
       if (isMp4(owner.params)) { owner.params.format = owner.DEVICE_FORMATS[0]; select.selectedIndex = 0; }
       option.remove();
+      restoreQuality();
     }
   });
   patch("createOptionsPage", (original) => function mp4OptionsPage() {
@@ -38,11 +40,27 @@ function install(context) {
     select.appendChild(option);
     const owner = this;
     const change = select.onchange;
+    const quality = Array.from(page.querySelectorAll("select")).find(
+      (element) => element.options.length === 5 && /^very low/.test(element.options[0].text),
+    );
+    const qualityDisabled = quality?.disabled;
+    const qualityTitle = quality?.title;
+    function restoreQuality() {
+      if (quality?.title === qualityHint) {
+        quality.disabled = qualityDisabled;
+        quality.title = qualityTitle;
+      }
+    }
     const wrapped = function mp4FormatChange(event) {
-      if (select.selectedIndex === index) owner.params.format = MP4_FORMAT;
-      else return change?.call(this, event);
+      if (select.selectedIndex === index) {
+        owner.params.format = MP4_FORMAT;
+        if (quality) { quality.disabled = true; quality.title = qualityHint; }
+      } else {
+        restoreQuality();
+        return change?.call(this, event);
+      }
     };
-    owned.push({ select, change, wrapped, option, owner });
+    owned.push({ select, change, wrapped, option, owner, restoreQuality });
     select.onchange = wrapped;
     return page;
   });
