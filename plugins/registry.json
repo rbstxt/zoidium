@@ -467,6 +467,19 @@
       "manifest": "./plugins/node-effect/manifest.json?v=2",
       "bundle": "./plugins/node-effect/bundle.json?v=2",
       "integrity": "sha256-191u+dJnM1VrKfi1cKOw3LxpfZBEHNt5dR+KFmc/vi0="
+    },
+    {
+      "id": "mp4-export",
+      "name": "MP4 Export",
+      "author": "Zoidium",
+      "version": "1",
+      "category": "utilities",
+      "defaultEnabled": true,
+      "tagline": "H.264 MP4 video export",
+      "description": "Export MP4 from the native Export panel with AAC or Opus audio. Requires WebCodecs encoder support.",
+      "manifest": "./plugins/mp4-export/manifest.json?v=1",
+      "integrity": "sha256-CG6gdqgoPCfSqHndtJ8w0IRZIWZI9AE/wj8zO/XcILk=",
+      "bundle": "./plugins/mp4-export/bundle.json?v=1"
     }
   ]
 }
