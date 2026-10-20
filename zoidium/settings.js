@@ -329,7 +329,7 @@
     var text = "Using " + Math.round((usage?.bytes || 0) / 1048576).toLocaleString("en-US") + " MiB";
     if (usage?.width && usage?.height) {
       var frames = Math.floor(usage.bytes / (usage.width * usage.height * 4));
-      text += " · about " + frames.toLocaleString("en-US") + " frames at " + usage.width + "×" + usage.height;
+      text += " · about " + frames.toLocaleString("en-US") + (frames === 1 ? " frame at " : " frames at ") + usage.width + "×" + usage.height;
     }
     if (usage && usage.limit < state.settings.previewCacheMiB * 1048576) {
       text += " · session limit " + Math.floor(usage.limit / 1048576).toLocaleString("en-US") + " MiB";
