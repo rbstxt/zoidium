@@ -40,6 +40,9 @@ function install(PZ,effect,data) {
   // expression. Existing records include their complete key/tween metadata.
   p.load(record.keyframes || record.objects ? record : undefined);
   if(!record.keyframes && !record.objects) {if(record.type.zoidiumDefault!==undefined)p.set(clone(record.type.zoidiumDefault),0);p.properties.load(record.properties);if(record.expression)p.expression=new PZ.expression(record.expression);}
+  if(p.definition.type===PZ.property.type.VECTOR2)for(const child of p.objects||[]) {
+   Object.assign(child.definition,{min:record.type.min,max:record.type.max,step:record.type.step});
+  }
   label(p);
  }
  effect.fragmentShaderNeedsUpdate=true;

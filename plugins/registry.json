@@ -457,16 +457,16 @@
       "id": "node-effect",
       "name": "Node Effect",
       "author": "Zoidium",
-      "version": "1",
+      "version": "2",
       "category": "adjustment",
       "defaultEnabled": true,
       "itemCount": 1,
       "format": "node editor",
       "tagline": "Build layer effects with nodes",
       "description": "Build GPU layer effects with a node graph. Saved effects render through the native Custom Shader.",
-      "manifest": "./plugins/node-effect/manifest.json?v=1",
-      "bundle": "./plugins/node-effect/bundle.json?v=1",
-      "integrity": "sha256-nfV97kpJe18xVVEnDIRnRLA/YoybX0CIeFEe9z/k6YI="
+      "manifest": "./plugins/node-effect/manifest.json?v=2",
+      "bundle": "./plugins/node-effect/bundle.json?v=2",
+      "integrity": "sha256-191u+dJnM1VrKfi1cKOw3LxpfZBEHNt5dR+KFmc/vi0="
     }
   ]
 }

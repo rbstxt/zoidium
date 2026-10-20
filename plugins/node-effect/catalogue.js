@@ -40,6 +40,9 @@ for (const space of ["RGB", "HSV"]) {
  types["separate"+space] = def("Separate "+space,"Color",[c],keys.map((key,i)=>port(key,labels[i])));
  types["combine"+space] = def("Combine "+space,"Color",[],[c],keys.map((key,i)=>number(key,labels[i],0)));
 }
+types.sample=def("Sample Layer at UV","Sampling",[uv],[c,port("alpha","Alpha")],[],["Displace","Texture sample"]);
+types.blur=def("Blur","Sampling",[uv],[c,port("alpha","Alpha")],[option("mode","Type",["Box","Gaussian","Directional","Radial"]),{...number("taps","Samples",9,1,32),step:1,socket:false},number("radius","Radius (px)",8),number("angle","Angle",0),number("cx","Center X",.5),number("cy","Center Y",.5)]);
+types.edge=def("Edge Detect","Sampling",[uv],[c,port("out","Value"),port("alpha","Alpha")],[number("radius","Radius (px)",1),number("strength","Strength",1)], ["Sobel","Outline"]);
 for (const spec of Object.values(types)) {
  spec.outputs ||= [port("out","Value")];
  // Every local numeric/color field can be driven per pixel by a socket.

@@ -2,6 +2,7 @@
 const {types} = require("./catalogue.js");
 const model = require("./model.js");
 const header = require("./glsl.js");
+const {compileSampling}=require("./sampling.js");
 const f = n => {if(!Number.isFinite(n)) throw new Error("Invalid shader constant.");return Number.isInteger(n)?n.toFixed(1):String(n);};
 const scalar = x => `vec4(vec3(${x}),1.0)`;
 const rgb = x => `vec4(${x},1.0)`;
@@ -13,7 +14,8 @@ function literal(value) {
 function compile(source) {
  const graph=model.validate(source),byId=new Map(graph.nodes.map(n=>[n.id,n])),incoming=new Map(graph.links.map(l=>[l.to.node+":"+l.to.port,l.from]));
  const parameters=model.parameters(graph),vars=new Map(),lines=[],functions=[];
- let counter=0;
+ let counter=0,samples=0;
+ const cost=count=>{samples+=count;if(samples>256)throw new Error("Node Effect is limited to 256 source samples per pixel.");};
  function emit(nodeId) {
   if(vars.has(nodeId))return vars.get(nodeId);
   const node=byId.get(nodeId),p=node.params,spec=types[node.type],outs={};
@@ -31,7 +33,7 @@ function compile(source) {
   const out=(e)=>add(spec.outputs[0].id,e);
   const all=(e)=>{out(scalar(e));};
   switch(node.type) {
-   case "layer":add("color","ne_sample(vUv)");add("alpha",scalar(`(${outs.color}).a`));break;
+   case "layer":cost(1);add("color","ne_sample(vUv)");add("alpha",scalar(`(${outs.color}).a`));break;
    case "uv":out("vec4(vUv,0.0,1.0)");break;
    case "pixel":out("vec4(vUv*resolution,0.0,1.0)");break;
    case "resolution":out("vec4(resolution,0.0,1.0)");break;
@@ -77,10 +79,14 @@ function compile(source) {
    case "levels":out(rgb(`mix(vec3(${num("outBlack")}),vec3(${num("outWhite")}),pow(clamp((${col("color")}-${num("black")})/max(${num("white")}-${num("black")},1.0e-12),0.0,1.0),vec3(1.0/max(${num("gamma")},1.0e-6))))`));break;
    case "invert":out(rgb(`mix(${col("color")},1.0-${col("color")},clamp(${num("factor")},0.0,1.0))`));break;
    case "output":{
+    if(!incoming.has(nodeId+":color"))cost(1);
     const color=input("color","ne_sample(vUv)"),alpha=num("alpha");
     lines.push(` float ne_alpha=clamp(${alpha},0.0,1.0);`,` gl_FragColor=vec4((${color}).rgb*ne_alpha,ne_alpha);`);break;
    }
-   default:throw new Error(node.id+": unsupported node.");
+   default:{
+    if(!compileSampling(node,{input,num,col,add,functions,cost,allocate:prefix=>"ne_"+prefix+(counter++)}))throw new Error(node.id+": unsupported node.");
+    if(outs.color) {add("alpha",scalar(`${outs.color}.a`));if(node.type==="edge")add("out",scalar(`${outs.color}.x`));}
+   }
   }
   vars.set(nodeId,outs);return outs;
  }
@@ -90,6 +96,6 @@ function compile(source) {
  if(time)uniforms.push("uniform float ne_time;");
  const shader=header+uniforms.join("\n")+"\n"+functions.join("\n")+"\nvoid main(){\n"+lines.join("\n")+"\n}\n";
  if(shader.length>model.MAX_BYTES)throw new Error("Compiled Node Effect exceeds the shader size limit.");
- return {graph,shader:model.embed(shader,graph),parameters,time};
+ return {graph,shader:model.embed(shader,graph),parameters,time,samples};
 }
 module.exports={compile,literal};
