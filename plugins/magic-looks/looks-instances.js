@@ -56,7 +56,8 @@ function toolKeys(tool, tools) {
   return collect(tools.propMap()[tool]);
 }
 // Native panels have a narrow name column. Keep the instance identity first,
-// then a short tool name and the parameter; storage keys never use these labels.
+// then the parameter. Each tool's enable row names the tool, while numeric
+// lanes keep the distinguishing parameter first. Storage keys never change.
 const SHORT_NAMES = {
   "color-contrast": "Color", "hsl-colors": "HSL", "color-ranges": "Ranges",
   "color-reversal": "Reversal", "three-strip": "3-Strip", "lift-gamma-gain": "LGG",
@@ -67,7 +68,7 @@ const SHORT_NAMES = {
 };
 function parameterName(name) {
   return name.replace(/^Enable$/, "On").replace(/Exposure Compensation/, "Exposure")
-    .replace(/Distortion/, "Distort").replace(/Saturation/g, "Sat")
+    .replace(/^Strength$/, "Mix").replace(/Distortion/, "Distort").replace(/Saturation/g, "Sat")
     .replace(/Highlight/g, "High").replace(/Midtone/g, "Mid").replace(/Shadow/g, "Low")
     .replace(/Component Balance/, "Balance");
 }
@@ -81,8 +82,15 @@ function definitions(instance, tools, PZ) {
   for (const property of toolKeys(instance.tool, tools)) {
     const name = tools.byId(instance.tool).name;
     const label = base[property].name.slice(name.length).trim();
-    result[key(instance.id, property)] = { ...base[property],
-      name: instance.id.slice(1) + " " + (SHORT_NAMES[instance.tool] || name) + ": " + parameterName(label) };
+    let shortLabel = label === "Enable" ? (SHORT_NAMES[instance.tool] || name) + ":On" : parameterName(label);
+    if (instance.tool === "ranged-saturation") {
+      const map = tools.propMap()[instance.tool].params;
+      for (const [zone, title] of [["Highlight", "High"], ["Midtone", "Mid"], ["Shadow", "Low"]]) {
+        if (property === map["sat" + zone]) shortLabel = "Sat " + title;
+        if (property === map["threshold" + zone]) shortLabel = title + " limit";
+      }
+    }
+    result[key(instance.id, property)] = { ...base[property], name: instance.id.slice(1) + " " + shortLabel };
     // Text and asset channels are storage for visual editors, never raw rows.
     if ([PZ.property.type.TEXT, PZ.property.type.ASSET].includes(base[property].type)) {
       result[key(instance.id, property)].visible = false;

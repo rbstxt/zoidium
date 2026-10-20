@@ -266,3 +266,9 @@ current single-pass output with the pre-change source and Davidium output with
 `f56811c`, including Lens Distortion and spatial tools, then repeats after a
 serialization round trip. Pixel-identical preservation applies to legacy paths;
 new instance chains use layer-sized half-float intermediate images.
+
+Magic Looks version 17 changes instance labels and setup layout only. Native
+keys and complete property records are unchanged. Text/asset storage channels
+are hidden from native lists; curve and LUT editors still edit those same
+channels through native history. No project migration or rendering change is
+introduced by this UI revision.

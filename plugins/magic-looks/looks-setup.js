@@ -878,7 +878,7 @@ function openSetup(effect) {
     win = state.ui.openWindow({
       id: id,
       title: "Magic Looks Setup",
-      subtitle: "Color grade",
+      subtitle: "",
       persistKey: "looks-setup",
       width: effect.looksInstances ? 620 : 360,
       height: 620,

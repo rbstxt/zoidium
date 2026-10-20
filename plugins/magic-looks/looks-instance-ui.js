@@ -55,8 +55,16 @@ function mount({ state, body, effect, session, view, custom }) {
     control.setDisabled(disabled); control.element.dataset.action = title;
     return control.element;
   }
+  function sectionFor(title, id, collapsed = false) {
+    view.sections ||= {};
+    const section = ctl.section({ title, collapsed: view.sections[id] ?? collapsed });
+    section.element.querySelector(".zoidium-section-title").addEventListener("click", () => {
+      view.sections[id] = section.element.classList.contains("collapsed");
+    });
+    return section;
+  }
   function chainSection() {
-    const section = ctl.section("Tool chain"), chain = effect.looksInstances.order;
+    const section = sectionFor("Tool chain", "chain"), chain = effect.looksInstances.order;
     const list = el("ol", null, "lk-chain");
     list.setAttribute("aria-label", "Tool chain");
     for (const [index, item] of chain.entries()) {
@@ -71,7 +79,7 @@ function mount({ state, body, effect, session, view, custom }) {
       row.addEventListener("drop", event => {
         event.preventDefault();
         const id = dragging; dragging = null;
-        if (id) commit(model.move(effect.looksInstances, id, index, tools));
+        if (id) commit(model.move(effect.looksInstances, id, index, tools), undefined, id);
       });
       const select = el("button", `${index + 1}. ${tool.name} ${item.id.slice(1)}`, "lk-chain-select");
       select.title = select.textContent;
@@ -91,7 +99,7 @@ function mount({ state, body, effect, session, view, custom }) {
         }
       });
       const actions = el("div", null, "lk-chain-actions");
-      actions.append(button(on ? "On" : "Off", () => { session.commit([{ key, value: on ? 0 : 1 }]); rebuild(); }, false,
+      actions.append(button(on ? "On" : "Off", () => { view.selectedTool = item.id; session.commit([{ key, value: on ? 0 : 1 }]); rebuild(); }, false,
         "Enable or disable " + tool.name),
       button("Duplicate", () => add(item.tool, item), chain.length >= model.MAX_INSTANCES),
       button("Remove", () => commit(model.remove(effect.looksInstances, item.id, tools))));
@@ -140,7 +148,7 @@ function mount({ state, body, effect, session, view, custom }) {
     commit(schema, properties);
   }
   function lookSection() {
-    const section = ctl.section({ title: "Look presets", collapsed: true });
+    const section = sectionFor("Look presets", "presets", true);
     section.body.appendChild(ctl.text({ label: "Search looks", value: view.filter.text,
       onChange(value) { view.filter.text = String(value).toLowerCase(); rebuild(); } }).element);
     section.body.appendChild(ctl.select({ label: "Look", value: "", options: [{ value: "", label: "Choose a look" }].concat(
@@ -153,9 +161,9 @@ function mount({ state, body, effect, session, view, custom }) {
     return section.element;
   }
   function parameters() {
-    const section = ctl.section("Parameters");
+    const section = sectionFor("Parameters", "parameters");
     section.element.classList.add("lk-parameters");
-    section.element.dataset.instance = view.selectedTool || "";
+    section.element.dataset.selected = view.selectedTool || "";
     const item = effect.looksInstances.order.find(item => item.id === view.selectedTool);
     if (!item) return section.element;
     const tool = tools.byId(item.tool), keys = model.toolKeys(item.tool, tools);
@@ -182,7 +190,7 @@ function mount({ state, body, effect, session, view, custom }) {
     if (tool.custom === "curves") custom.buildCurves(projected, mappedSession, tool, section.body, widgets, after, view);
     else if (tool.custom === "scurve") custom.buildScurve(projected, mappedSession, tool, section.body, after);
     else if (tool.custom === "lut") Looks.lutUI.buildLut({ Looks, ctl, effect: projected, session: mappedSession,
-      tool, body: section.body, view, afterCommit: after, ...custom.lut });
+      tool, body: section.body, view, afterCommit: after, nativeParameters: true, ...custom.lut });
     // Wheels keep the visual tint gesture alongside the native RGB channels.
     custom.buildWheels(projected, mappedSession, tool, section.body, widgets, after);
     if (tool.custom === "fourway") custom.buildFourway(projected, mappedSession, tool, section.body, widgets, after);
@@ -207,13 +215,21 @@ function mount({ state, body, effect, session, view, custom }) {
     root.dataset.selected = view.selectedTool || "";
     root.append(chainSection(), parameters(), lookSection());
     if (row && action) {
-      const id = effect.looksInstances.order.some(item => item.id === row.dataset.instance) ? row.dataset.instance : view.selectedTool;
+      const changed = oldSelection !== root.dataset.selected;
+      const id = !changed && effect.looksInstances.order.some(item => item.id === row.dataset.instance) ? row.dataset.instance : view.selectedTool;
       const nextRow = root.querySelector(`.lk-chain-row[data-instance="${id}"]`);
-      Array.from(nextRow?.querySelectorAll("button") || []).find(button => button.dataset.action === action)?.focus({ preventScroll: true });
+      Array.from(nextRow?.querySelectorAll("button") || []).find(button => button.dataset.action === (changed ? "select" : action))?.focus({ preventScroll: true });
     } else if (focusIndex >= 0 && oldSelection === root.dataset.selected) {
       root.querySelectorAll(fields)[focusIndex]?.focus({ preventScroll: true });
     }
-    root.querySelector(".lk-chain").scrollTop = chainScroll;
+    const chain = root.querySelector(".lk-chain");
+    chain.scrollTop = chainScroll;
+    const selected = chain.querySelector(".selected");
+    if (selected) {
+      const item = selected.getBoundingClientRect(), list = chain.getBoundingClientRect();
+      if (item.top < list.top) chain.scrollTop += item.top - list.top;
+      else if (item.bottom > list.bottom) chain.scrollTop += item.bottom - list.bottom;
+    }
     body.scrollTop = scroll; signature = historySig();
   }
   rebuild();

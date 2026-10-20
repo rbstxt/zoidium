@@ -107,3 +107,36 @@ test("CPU spatial stages sample the output of the preceding grade", () => {
   assert.ok(a.some((value, index) => Math.abs(value - b[index]) > .01));
   assert.deepEqual(reference.gradeImage(input, 8, 8, [{ tool: "diffusion", state: diffusion, enabled: false }], Looks), input);
 });
+
+
+test("visual storage stays serialized but hidden in every instance tool", () => {
+  const PZ = { property: { type: { NUMBER: 0, OPTION: 6, TEXT: 7, ASSET: 8 } }, asset: { type: { MISC: 5 } } };
+  for (const tool of tools.TOOLS) {
+    const definitions = model.definitions({ id: "i12", tool: tool.id }, tools, PZ);
+    assert.deepEqual(Object.keys(definitions), model.toolKeys(tool.id, tools).map(key => model.key("i12", key)));
+    const visible = Object.values(definitions).filter(definition => definition.visible !== false);
+    assert.equal(new Set(visible.map(definition => definition.name)).size, visible.length, tool.id);
+    for (const definition of Object.values(definitions)) {
+      if ([PZ.property.type.TEXT, PZ.property.type.ASSET].includes(definition.type)) assert.equal(definition.visible, false);
+      assert.match(definition.name, /^12 /);
+    }
+  }
+  const lens = model.definitions({ id: "i2", tool: "lens-distortion" }, tools, PZ);
+  assert.equal(lens.ml_i2_lensEnable.name, "2 Lens:On");
+  assert.equal(lens.ml_i2_lensDistortion.name, "2 Distort");
+  assert.equal(lens.ml_i2_lensFlatten.name, "2 Flatten");
+  const curves = model.definitions({ id: "i1", tool: "curves" }, tools, PZ);
+  assert.equal(curves.ml_i1_curvEnable.name, "1 Curves:On");
+  assert.ok(JSON.parse(curves.ml_i1_curvCurvesJson.value).RGB);
+});
+
+test("selection preserves identity through reorder and chooses an adjacent removed row", () => {
+  let state = model.empty();
+  for (const tool of ["curves", "lens-distortion", "curves"]) state = model.append(state, tool, tools);
+  const moved = model.move(state, "i2", 0, tools);
+  assert.equal(model.selection(moved, "i2", state.order), "i2");
+  assert.equal(model.selection(model.remove(state, "i2", tools), "i2", state.order), "i3");
+  assert.equal(model.selection(model.remove(state, "i3", tools), "i3", state.order), "i2");
+  assert.equal(model.selection(state, "missing"), "i1");
+  assert.equal(model.selection(model.empty(), "i1", state.order), undefined);
+});

@@ -13,16 +13,22 @@ Enable Magic Looks, add its effect from the COLOR category, then choose
 - Drag a chain row to reorder it. Move up / Move down and Alt+Arrow Up/Down
   on the selected row provide keyboard alternatives. Lens Distortion can move
   anywhere in a new chain.
-- Each row has On/Off, Duplicate and Remove. Duplicate preserves native
-  keyframes, expressions and curve data. Removing an instance removes its
+- Each row has On/Off, Duplicate and Remove. Narrow windows place these
+  controls below the name. The chain scrolls independently and reveals the
+  selection; Arrow Up/Down and Home/End select tools. Expanded sections stay
+  expanded while editing. Duplicate preserves native keyframes, expressions and curve data. Removing an instance removes its
   channels; Undo restores them.
 - The selected instance's parameters are native CM3 property rows, with the
   usual animation toggles and expressions. They also appear in Effects;
-  numeric channels work in Graph Editor 2. Instance numbers identify channels
-  independently of order. Curve shapes retain native text snapshot channels,
+  numeric channels work in Graph Editor 2. Compact native labels put the
+  stable instance number first. The enable row names the tool; numeric rows
+  use labels such as `2 Distort`, `2 Flatten` and `5 Mix`. The Parameters heading shows the full selected tool name.
+  Instance numbers identify channels independently of order. Curve shapes retain native text snapshot channels,
   so shape keys change at keys rather than interpolating individual points.
 - Curves, wheels and LUT import retain their visual controls alongside native
-  channels. On a focused wheel, arrows adjust hue/strength and Home resets.
+  channels. Curve tables, LUT names and asset references remain serialized
+  channels, hidden from native lists and edited through their visual controls.
+  On a focused wheel, arrows adjust hue/strength and Home resets.
   On a focused curve, Home/End and Page Up/Down select a point, arrows move it,
   Insert adds a point after it, and Delete removes an interior point.
 - Look presets reset the chain's values and apply their values to the first
