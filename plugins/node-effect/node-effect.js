@@ -4,6 +4,8 @@ function activate(context) {
  const require=context.apis.modules.createRequire(context.getAsset,{root:"./plugins/node-effect/"});
  const {compile}=require("./compiler.js"),model=require("./model.js"),params=require("./parameters.js");
  const {types}=require("./catalogue.js");
+ const shaderCheck=require("./shader-check.js").createShaderCheck(doc);
+ context.lifecycle.onDispose(()=>shaderCheck.dispose());
  const ids=new WeakMap();let nextId=0;
  function graphOf(effect) {try{return effect?.type===1?model.extract(effect.properties.fragShader.get()):null;}catch{return null;}}
  function snapshot(effect) {return {shader:effect.properties.fragShader.get(),custom:JSON.parse(JSON.stringify(effect.customProperties))};}
@@ -24,7 +26,7 @@ function activate(context) {
   if(CM.history.operation!==null)throw new Error("Finish the current edit before changing the node graph.");
   CM.history.startOperation();
   try {apply(effect,after);CM.history.pushCommand(exchange,{address:effect.getAddress(),data:before});CM.history.finishOperation();}
-  catch(error){apply(effect,before);CM.history.discardOperation();throw error;}
+  catch(error){try{apply(effect,before);}finally{CM.history.discardOperation();}throw error;}
  }
  function open(effect) {
   if(!ids.has(effect))ids.set(effect,++nextId);
@@ -39,6 +41,7 @@ function activate(context) {
    function onChange(graph) {
     try {
      const compiled=compile(graph);
+     shaderCheck.check(compiled.shader);
      changing=true;
      try {commit(effect,compiled);}finally{changing=false;}
      lastShader=effect.properties.fragShader.get();
@@ -56,7 +59,7 @@ function activate(context) {
    };
    const error=message=>{status.textContent="Node Effect shader error: "+String(message);status.style.color="var(--zui-danger)";};
    effect.properties.fragShader.onChanged.watch(sync);effect.onShaderError.watch(error);
-   const frame=win.requestAnimationFrame(()=>editor.frameAll());
+   let frame=win.requestAnimationFrame(()=>{frame=win.requestAnimationFrame(()=>editor.frameAll());});
    return ()=>{win.cancelAnimationFrame(frame);effect.properties.fragShader.onChanged.unwatch(sync);effect.onShaderError.unwatch(error);editor.destroy();};
   }});
  }

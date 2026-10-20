@@ -47,6 +47,11 @@
       "id": "parameters",
       "type": "text",
       "source": "./plugins/node-effect/parameters.js?v=1"
+    },
+    {
+      "id": "shader-check",
+      "type": "text",
+      "source": "./plugins/node-effect/shader-check.js?v=1"
     }
   ]
 }
