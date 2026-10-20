@@ -9,6 +9,7 @@ const {
 const { createAudioMixer, hasAudio } = require("../plugins/mp4-export/audio-mix.js");
 const { createStorage } = require("../plugins/mp4-export/stream-target.js");
 const { createJob } = require("../plugins/mp4-export/render.js");
+const { packetTiming } = require("../plugins/mp4-export/audio-encode.js");
 
 const params = { width: 640, height: 360, rate: 30, quality: 2, bitrateScale: 1, start: 0, length: 30 };
 const profiles = Array.from({ length: 5 }, () => ({ bitrate: 1 }));
@@ -120,10 +121,11 @@ test("streaming fallback produces one Blob from sequential chunks and rejects co
   const writer = storage.target.stream.getWriter();
   await writer.write({ position: 0, data: Uint8Array.of(1, 2) });
   await writer.write({ position: 2, data: Uint8Array.of(3) });
+  await writer.write({ position: 1, data: Uint8Array.of(9) });
   await writer.close();
   const blob = await storage.finish();
   assert.equal(blob.type, "video/mp4");
-  assert.deepEqual([...new Uint8Array(await blob.arrayBuffer())], [1, 2, 3]);
+  assert.deepEqual([...new Uint8Array(await blob.arrayBuffer())], [1, 9, 3]);
   await storage.dispose();
   const invalid = await createStorage({ navigator: {} }, { StreamTarget });
   await assert.rejects(invalid.target.stream.getWriter().write({ position: 1, data: Uint8Array.of(0) }), /offset/);
@@ -137,4 +139,115 @@ test("cancel during capability probing never allocates a writer or encoder", asy
   const result = job.run();
   job.cancel(); resume({ supported: true });
   await assert.rejects(result, { name: "AbortError" });
+});
+
+function fakeBunny(events) {
+  return {
+    StreamTarget: class { constructor(stream) { this.stream = stream; } },
+    Output: class {
+      constructor(options) { this.target = options.target; this.state = "pending"; }
+      addVideoTrack() {}
+      addAudioTrack() {}
+      async start() { this.state = "started"; }
+      async finalize() {
+        const writer = this.target.stream.getWriter();
+        await writer.write({ position: 0, data: Uint8Array.of(1) });
+        await writer.close();
+        this.state = "finalized";
+      }
+      async cancel() { events.push("cancel"); this.state = "canceled"; }
+    },
+    Mp4OutputFormat: class {}, Quality: class {},
+    CanvasSource: class { async add() {} },
+    AudioSampleSource: class { async add(sample) { events.push(sample.length); } },
+    AudioSample: { fromAudioBuffer(buffer) { return [{ length: buffer.length, close() {} }]; } },
+    EncodedAudioPacketSource: class { async add() {} close() {} },
+    EncodedPacket: { fromEncodedChunk(chunk) { return { ...chunk, clone(timing) { return { ...this, ...timing }; } }; } },
+  };
+}
+
+test("a fractional final second retains every mixed audio sample", async () => {
+  const events = [];
+  const settings = { ...params, length: 31, rate: 30 };
+  const exporter = {
+    params: settings, sequence: { audioSchedules: [{ items: [1] }], properties: { rate: { get: () => 30 } } },
+    renderer: { domElement: { width: 640, height: 360 } }, framesRendered: 0,
+    analyzeSegment() { return []; },
+    async renderAudioSegment(_segments, _offset, count) { return { getChannelData() { return new Float32Array(count); } }; },
+    async getVideoFrame() { this.framesRendered++; },
+  };
+  const scope = {
+    VideoEncoder: supports(() => true), navigator: {},
+    AudioData: class { constructor(init) { Object.assign(this, init); } close() {} },
+    AudioEncoder: class {
+      static async isConfigSupported(config) { return { supported: config.codec === "opus" }; }
+      constructor(callbacks) { this.callbacks = callbacks; this.state = "configured"; }
+      configure() {}
+      encode(sample) {
+        events.push(sample.numberOfFrames);
+        this.callbacks.output({ timestamp: sample.timestamp / 1000000, duration: sample.numberOfFrames / 48000 });
+      }
+      async flush() {}
+      close() { this.state = "closed"; }
+    },
+  };
+  const job = createJob(scope, { av: { profiles } }, exporter, () => fakeBunny(events));
+  await job.run();
+  assert.deepEqual(events, [48000, 1600]);
+  assert.equal(exporter.framesRendered, 31);
+});
+
+test("audio packets retain negative priming for the MP4 edit list and trim tail padding", () => {
+  assert.deepEqual(packetTiming(0, 1024 / 48000, 2112 / 48000, 2), {
+    timestamp: -2112 / 48000, duration: 1024 / 48000,
+  });
+  assert.equal(packetTiming(3, 0.02, 0.04, 2), null);
+  assert.deepEqual(packetTiming(2.04, 0.02, 0.05, 2), { timestamp: 1.99, duration: 2 - 1.99 });
+});
+
+test("cancel closes the encoder while a native frame is still preparing", async () => {
+  const events = [];
+  let finishFrame, frameStarted;
+  const waiting = new Promise((resolve) => { frameStarted = resolve; });
+  const exporter = {
+    params, sequence: { properties: { rate: { get: () => 30 } } },
+    renderer: { domElement: { width: 640, height: 360 } }, framesRendered: 0,
+    getVideoFrame() { frameStarted(); return new Promise((resolve) => { finishFrame = resolve; }); },
+  };
+  const scope = { VideoEncoder: supports(() => true), navigator: {} };
+  const job = createJob(scope, { av: { profiles } }, exporter, () => fakeBunny(events));
+  const result = job.run();
+  await waiting;
+  job.cancel();
+  assert.deepEqual(events, ["cancel"]);
+  finishFrame();
+  await assert.rejects(result, { name: "AbortError" });
+  assert.deepEqual(events, ["cancel"]);
+});
+
+test("MKV and WebM UI methods forward the original receiver, arguments and result", () => {
+  const plugin = require("../plugins/mp4-export/mp4-export.js");
+  const disposers = [];
+  const result = {};
+  const calls = [];
+  const prototype = {};
+  for (const key of ["createOptionsPage", "createProgressPage", "createFinishedPage"]) {
+    prototype[key] = function () { calls.push({ key, receiver: this, args: [...arguments] }); return result; };
+  }
+  const originals = { ...prototype };
+  const context = {
+    PZ: { ui: { export: { device: { prototype } } } },
+    apis: { modules: { createRequire() { return (name) => require("../plugins/mp4-export/" + name); } } },
+    lifecycle: { onDispose(dispose) { disposers.push(dispose); } },
+  };
+  plugin.activate(context);
+  for (const format of ["mkv_vp8_opus", "webm_vp8_opus"]) {
+    const owner = { params: { format } };
+    for (const key of ["createProgressPage", "createFinishedPage"]) {
+      assert.equal(prototype[key].call(owner, 4, "unchanged"), result);
+      assert.deepEqual(calls.at(-1), { key, receiver: owner, args: [4, "unchanged"] });
+    }
+  }
+  for (const dispose of disposers.reverse()) dispose();
+  assert.deepEqual(prototype, originals);
 });

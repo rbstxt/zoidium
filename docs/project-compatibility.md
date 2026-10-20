@@ -6,6 +6,13 @@ mode loads as `legacy`, regardless of the plugin versions recorded in the file.
 Explicit `legacy` and `current` fields always win. New objects use `current`
 and serialize that choice. There are no new UI controls.
 
+MP4 Export adds no project fields or rendering modes. Format, bitrate and
+codec decisions belong to the current Device render page. Disabling the
+plugin or opening a project in an older build leaves its rendering unchanged.
+The plugin uses the same deterministic frame renderer and native offline
+audio mixer. Odd output dimensions receive a black padding pixel at the
+right or bottom for H.264, without resizing the rendered image.
+
 | Behavior | Serialized field | Owner |
 | --- | --- | --- |
 | PBR+ UV layout | `zoidiumUvMode` | Each PBR+ material |
