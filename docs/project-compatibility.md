@@ -259,3 +259,28 @@ copy/paste, and history snapshots. No compatibility mode or change to existing
 effect classes is needed. Projects without Node Effect retain their existing
 rendering. See [Node Effect](../plugins/node-effect/README.md) for limits and
 alpha handling.
+
+## Sequence Controls
+
+The native sequence Properties record has one optional hidden text field,
+`properties.zoidiumControls`. Its JSON value is
+`{version:1,nextId,controls:[nativePropertyRecord,...]}`. Each record is a
+native custom dynamic property with its ordinary values, keyframes, tangents
+and expression source. Its type carries `zoidiumControlId` and
+`zoidiumControlKind`, plus Slider min/max/step or Angle display conversion.
+IDs are local to a sequence and do not change when a control is reordered.
+
+The live Controls list is a native child of the sequence and has native
+property addresses for history and graph editing. The hidden text property's
+serializer reads that list; the list is not a second serialized authority.
+Loading or pasting sequence Properties rebuilds it before the editor reads
+its values. Empty, untouched sequences omit the field. Sequence Controls add
+feature `sequence-controls` to the Expressions+ dependency.
+
+Current unknown-field preservation includes sequence properties, so disabling
+Expressions+ retains the payload on resave. Earlier builds whose preservation
+covers only layers, clips and media may drop it when resaving; keep the original
+file. Vanilla CM3 ignores the field. These builds cannot evaluate control links.
+Generated links use `control(name, id)` to survive rename/reorder. Manual
+name-only links follow exact names. Deleting the ID makes a generated link fail
+and use its own keyed value, rather than selecting a replacement control.

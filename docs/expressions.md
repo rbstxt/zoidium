@@ -121,3 +121,35 @@ warmup frames, measured 5.4 ms median and 14.5 ms p95 for
 `const x=sin(time); value + x * 2`. The slowest sample was 44.5 ms under
 concurrent verification load. This is a measurement, not a deadline enforced
 by the evaluator. Loops and property navigation add work to that budget.
+
+## Sequence Controls
+
+Open Sequence and expand Controls. The + button adds Slider, Angle, Checkbox,
+Color, Point 2D or Point 3D. Right-click a control to rename it, change its
+order, remove it or edit a Slider's min/max/step. Angle values use radians
+internally and display degrees. Checkbox uses native off/on values 0 and 1.
+Control names must be unique within a sequence. A sequence supports 256 controls.
+
+These are native dynamic properties. Use their animation buttons, keyframes,
+curves, Graph Editor 2 and native value controls. Each add, remove, rename,
+reorder, settings change or generated link is one undo entry. A control's
+keyframes and expressions survive save/reopen and copying sequence settings.
+
+Expressions at any level in the same sequence can read:
+
+```js
+controls.Amount * 2
+```
+
+Names with spaces use `control("Glow radius")` or `controls["Glow radius"]`.
+Right-click a numeric/vector/color property row, choose Link to control… and
+select a compatible control. The generated expression includes the control's
+stable ID, so renaming or reordering it keeps that link working. Hand-written
+name-only expressions must be updated after a rename. Removing a referenced
+control reports an expression error and restores the property's own value.
+
+For an effect radius linked to a Slider named Amount:
+
+```js
+control("Amount")
+```
