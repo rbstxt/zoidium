@@ -3,7 +3,7 @@
   "id": "magic-looks",
   "name": "Magic Looks",
   "author": "DaviFX",
-  "version": "15",
+  "version": "16",
   "kind": "extension",
   "description": "Magic Bullet Looks-style color grading: 29 color, light and lens tools in a reorderable chain, with look presets and a floating setup window.",
   "category": "COLOR",
@@ -12,60 +12,80 @@
       "id": "looks",
       "name": "Magic Looks",
       "description": "Full-chain color grade: lens distortion first, then a reorderable chain of color, light and lens tools.",
-      "source": "./plugins/magic-looks/looks-fx.js?v=15"
+      "source": "./plugins/magic-looks/looks-fx.js?v=16"
     }
   ],
   "modules": [
     {
       "id": "looks-setup",
-      "source": "./plugins/magic-looks/looks-setup.js?v=15"
+      "source": "./plugins/magic-looks/looks-setup.js?v=16"
     }
   ],
   "resources": [
     {
       "id": "looks-color",
       "type": "text",
-      "source": "./plugins/magic-looks/looks-color.js?v=15"
+      "source": "./plugins/magic-looks/looks-color.js?v=16"
     },
     {
       "id": "looks-tools",
       "type": "text",
-      "source": "./plugins/magic-looks/looks-tools.js?v=15"
+      "source": "./plugins/magic-looks/looks-tools.js?v=16"
     },
     {
       "id": "looks-cube",
       "type": "text",
-      "source": "./plugins/magic-looks/looks-cube.js?v=15"
+      "source": "./plugins/magic-looks/looks-cube.js?v=16"
     },
     {
       "id": "looks-lut-ui",
       "type": "text",
-      "source": "./plugins/magic-looks/looks-lut-ui.js?v=15"
+      "source": "./plugins/magic-looks/looks-lut-ui.js?v=16"
     },
     {
       "id": "looks-widgets",
       "type": "text",
-      "source": "./plugins/magic-looks/looks-widgets.js?v=15"
+      "source": "./plugins/magic-looks/looks-widgets.js?v=16"
     },
     {
       "id": "looks-style",
       "type": "text",
-      "source": "./plugins/magic-looks/looks-setup.css?v=15"
+      "source": "./plugins/magic-looks/looks-setup.css?v=16"
     },
     {
       "id": "looks-vert",
       "type": "text",
-      "source": "./plugins/magic-looks/looks-vert.glsl?v=15"
+      "source": "./plugins/magic-looks/looks-vert.glsl?v=16"
     },
     {
       "id": "looks-grade-shader",
       "type": "text",
-      "source": "./plugins/magic-looks/looks-grade.glsl?v=15"
+      "source": "./plugins/magic-looks/looks-grade.glsl?v=16"
     },
     {
       "id": "looks-lut-assets",
       "type": "text",
-      "source": "./plugins/magic-looks/looks-lut-assets.js?v=15"
+      "source": "./plugins/magic-looks/looks-lut-assets.js?v=16"
+    },
+    {
+      "id": "looks-instances",
+      "type": "text",
+      "source": "./plugins/magic-looks/looks-instances.js?v=16"
+    },
+    {
+      "id": "looks-passes",
+      "type": "text",
+      "source": "./plugins/magic-looks/looks-passes.js?v=16"
+    },
+    {
+      "id": "looks-instance-runtime",
+      "type": "text",
+      "source": "./plugins/magic-looks/looks-instance-runtime.js?v=16"
+    },
+    {
+      "id": "looks-instance-ui",
+      "type": "text",
+      "source": "./plugins/magic-looks/looks-instance-ui.js?v=16"
     }
   ]
 }
