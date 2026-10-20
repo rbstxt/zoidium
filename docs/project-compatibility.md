@@ -180,3 +180,24 @@ shortcuts operate only on theme preferences, separate from project history.
 Escape cancels a picker gesture. Revert restores all theme preferences from
 when the window opened and can itself be undone. Delete asks for confirmation.
 Window geometry stays in the shared UI window storage, outside project files.
+
+## Preview cache memory
+
+`previewCacheMiB` stays in localStorage `zoidium.editor-settings`, outside
+project files. Its default remains 512 MiB and existing valid values remain
+unchanged. The accepted range is now 0 through 16384 MiB. Older builds clamp
+values above their 2048 MiB maximum when reading them. No project field,
+rendering mode, frame key or invalidation rule changes.
+
+The runtime retains at most 8192 finished preview frames, bounded by their
+counted RGBA8 bytes. Driver overhead and other render targets are extra.
+An OUT_OF_MEMORY error reduces the session ceiling to 90 percent of current
+retained usage and evicts to that ceiling. Context loss forgets all entries
+without disposing dead textures and halves the ceiling. If the host renderer
+restores successfully, caching can resume below that ceiling. A second context
+loss disables captures for the rest of the session. One notice reports the
+first memory failure or context loss. These ceilings survive project changes,
+cache clears and preference changes, and reset only when the page reloads.
+Settings reports live usage at the current drawing-buffer size and any reduced
+session limit. The larger preference is a maximum, not a reservation of GPU
+memory. It cannot guarantee enough free GPU or shared system memory.

@@ -5,7 +5,8 @@ const path = require("node:path");
 const test = require("node:test");
 const vm = require("node:vm");
 
-function harness() {
+function harness(stored = null) {
+  let settingsReader;
   let now = 0;
   let nextId = 0;
   const timers = new Map();
@@ -15,7 +16,7 @@ function harness() {
   const window = {
     CM: editor,
     document: { readyState: "complete", getElementById() { return null; }, querySelector() { return null; } },
-    localStorage: { getItem() { return null; } },
+    localStorage: { getItem() { return stored; } },
     setTimeout(callback, delay) { const id = ++nextId; timers.set(id, { callback, due: now + delay }); return id; },
     clearTimeout(id) { timers.delete(id); },
     addEventListener(name, callback) { listeners.set(name, callback); },
@@ -24,13 +25,14 @@ function harness() {
   class ClockDate extends Date { static now() { return now; } }
   // settings.js calls ZoidiumSharedJson directly (zoidium/shared/json.js loads
   // just before it in postInitScripts), so the fake window carries the table.
-  window.ZoidiumUIBuilder = { themeModel: require("../zoidium/theme-model.js"), themeEditor: { configure() {}, palette() {} } };
+  window.ZoidiumUIBuilder = { themeModel: require("../zoidium/theme-model.js"), themeEditor: { configure(options) { settingsReader = options.get; }, palette() {} } };
+  window.ZoidiumOutputFrameStore = require("../plugins/core/output-frame-store.js");
   window.ZoidiumSharedJson = require("./shared-test-apis.js").loadSharedTables().json;
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, "../zoidium/settings.js"), "utf8"), {
     window, Date: ClockDate, CustomEvent: class { constructor(type, options) { this.type = type; this.detail = options.detail; } },
   });
   return {
-    window, editor, events, listeners, timers,
+    window, editor, events, listeners, timers, settings: () => settingsReader(),
     advance(ms) {
       const end = now + ms;
       while (timers.size) {
@@ -78,4 +80,27 @@ test("an installed Settings panel stops further polling", () => {
   state.advance(250);
   assert.equal(state.timers.size, 0);
   assert.equal(state.events.length, 0);
+});
+
+
+for (const value of [0, 1, 511, 512, 1024, 2048, 4096, 8193, 16384]) {
+  test("preview cache preferences retain stored " + value + " MiB without migration", () => {
+    const h = harness(JSON.stringify({ previewCacheMiB: value }));
+    assert.equal(h.settings().previewCacheMiB, value);
+    h.listeners.get("pagehide")();
+  });
+}
+for (const [value, expected] of [[-1, 0], [32768, 16384], ["bad", 512], ["4096", 4096], [4096.9, 4096]]) {
+  test("preview cache preferences clamp " + value + " to " + expected, () => {
+    const h = harness(JSON.stringify({ previewCacheMiB: value }));
+    assert.equal(h.settings().previewCacheMiB, expected);
+    h.listeners.get("pagehide")();
+  });
+}
+test("missing and corrupt preview cache preferences keep the 512 MiB default", () => {
+  for (const value of [null, "{}", "{broken"]) {
+    const h = harness(value);
+    assert.equal(h.settings().previewCacheMiB, 512);
+    h.listeners.get("pagehide")();
+  }
 });
