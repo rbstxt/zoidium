@@ -9,7 +9,7 @@ vec4 ne_sample(vec2 uv) {
  vec4 p=texture2D(tDiffuse,uv*uvScale);
  return vec4(p.a>0.000001?p.rgb/p.a:vec3(0.0),p.a);
 }
-float ne_safe(float x) { return x<=1.0e19 && x>=-1.0e19 ? x : 0.0; }
+float ne_safe(float x) { return x<=1.0e30 && x>=-1.0e30 ? x : 0.0; }
 float ne_div(float a,float b) { return abs(b)<1.0e-12 ? 0.0 : ne_safe(a/b); }
 vec3 ne_rgb(vec3 c) {
  vec3 p=abs(fract(c.xxx+vec3(0.0,2.0/3.0,1.0/3.0))*6.0-3.0);
@@ -20,7 +20,7 @@ vec3 ne_hsv(vec3 c) {
  if(d>0.0) { if(hi==c.r) h=mod((c.g-c.b)/d,6.0); else if(hi==c.g) h=(c.b-c.r)/d+2.0; else h=(c.r-c.g)/d+4.0; }
  return vec3(fract(h/6.0),hi==0.0?0.0:d/hi,hi);
 }
-float ne_math(float a,float b,int mode) {
+float ne_math(float a,float b,float c,int mode) {
  float r=0.0;
  if(mode==0) r=a+b;
  else if(mode==1) r=a-b;
@@ -28,25 +28,25 @@ float ne_math(float a,float b,int mode) {
  else if(mode==3) r=ne_div(a,b);
  else if(mode==4) r=min(a,b);
  else if(mode==5) r=max(a,b);
- else if(mode==6) r=pow(a,b);
- else if(mode==7) r=abs(b)<1.0e-12?0.0:a-b*floor(a/b);
+ else if(mode==6) r=a<0.0?(fract(b)==0.0?pow(-a,b)*(mod(abs(b),2.0)==0.0?1.0:-1.0):0.0):pow(a,b);
+ else if(mode==7) r=abs(b)<1.0e-12?0.0:a-b*(a/b<0.0?ceil(a/b):floor(a/b));
  else if(mode==8) r=abs(a);
  else if(mode==9) r=1.0-a;
  else if(mode==10) r=clamp(a,0.0,1.0);
  else if(mode==11) r=abs(a-b)<=0.01?1.0:0.0;
  else if(mode==12) r=sin(a);
  else if(mode==13) r=floor(a+0.5);
- else if(mode==14) r=sqrt(max(a,0.0));
+ else if(mode==14) r=sqrt(a);
  else if(mode==15) r=a>0.0 && b>0.0 && abs(b-1.0)>1.0e-12 ? log(a)/log(b) : 0.0;
  else if(mode==16) r=exp(a);
  else if(mode==17) r=floor(a);
  else if(mode==18) r=ceil(a);
  else if(mode==19) r=fract(a);
  else if(mode==20) r=sign(a);
- else if(mode==21 || mode==22) { float k=0.1,h=max(k-abs(a-b),0.0)/k; r=mode==21?min(a,b)-h*h*k*0.25:max(a,b)+h*h*k*0.25; }
+ else if(mode==21 || mode==22) { float k=max(c,0.0),h=k==0.0?0.0:max(k-abs(a-b),0.0)/k; r=mode==21?min(a,b)-h*h*k*0.25:max(a,b)+h*h*k*0.25; }
  else if(mode==23) r=abs(b)<1.0e-12?0.0:floor(a/b)*b;
- else if(mode==24) r=abs(b)<1.0e-12?0.0:mod(a,abs(b));
- else if(mode==25) r=abs(b)<1.0e-12?0.0:abs(mod(a-abs(b),2.0*abs(b))-abs(b));
+ else if(mode==24) r=b==c?c:a-(b-c)*floor((a-c)/(b-c));
+ else if(mode==25) r=abs(b)<1.0e-12?0.0:abs(b)-abs(mod(a,2.0*abs(b))-abs(b));
  else if(mode==26) r=cos(a);
  else if(mode==27) r=tan(a);
  else if(mode==28) r=a==0.0 && b==0.0?0.0:atan(a,b);
@@ -59,7 +59,7 @@ float ne_blend(float a,float b,int m) {
  if(m==4)return 1.0-(1.0-a)*(1.0-b);
  if(m==5)return a<0.5?2.0*a*b:1.0-2.0*(1.0-a)*(1.0-b);
  if(m==6)return min(a,b); if(m==7)return max(a,b); if(m==8)return abs(a-b);
- if(m==9)return b<=0.5?a-(1.0-2.0*b)*a*(1.0-a):a+(2.0*b-1.0)*((a<=0.25?((16.0*a-12.0)*a+4.0)*a:sqrt(max(a,0.0)))-a);
+ if(m==9)return b<=0.5?a-(1.0-2.0*b)*a*(1.0-a):a+(2.0*b-1.0)*((a<=0.25?((16.0*a-12.0)*a+4.0)*a:sqrt(a))-a);
  if(m==10)return b>=1.0?1.0:min(1.0,a/(1.0-b));
  if(m==11)return b<=0.0?0.0:1.0-min(1.0,(1.0-a)/b);
  if(m==12)return a+2.0*b-1.0; if(m==13)return ne_div(a,b); if(m==14)return a+b-2.0*a*b;

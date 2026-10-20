@@ -12,7 +12,7 @@ vec4 ne_sample(vec2 uv) {
  vec4 p=texture2D(tDiffuse,uv*uvScale);
  return vec4(p.a>0.000001?p.rgb/p.a:vec3(0.0),p.a);
 }
-float ne_safe(float x) { return x<=1.0e19 && x>=-1.0e19 ? x : 0.0; }
+float ne_safe(float x) { return x<=1.0e30 && x>=-1.0e30 ? x : 0.0; }
 float ne_div(float a,float b) { return abs(b)<1.0e-12 ? 0.0 : ne_safe(a/b); }
 vec3 ne_rgb(vec3 c) {
  vec3 p=abs(fract(c.xxx+vec3(0.0,2.0/3.0,1.0/3.0))*6.0-3.0);
@@ -31,7 +31,7 @@ float ne_math(float a,float b,float c,int mode) {
  else if(mode==3) r=ne_div(a,b);
  else if(mode==4) r=min(a,b);
  else if(mode==5) r=max(a,b);
- else if(mode==6) r=pow(a,b);
+ else if(mode==6) r=a<0.0?(fract(b)==0.0?pow(-a,b)*(mod(abs(b),2.0)==0.0?1.0:-1.0):0.0):pow(a,b);
  else if(mode==7) r=abs(b)<1.0e-12?0.0:a-b*(a/b<0.0?ceil(a/b):floor(a/b));
  else if(mode==8) r=abs(a);
  else if(mode==9) r=1.0-a;

@@ -466,7 +466,7 @@
       "description": "Build GPU layer effects with a node graph. Saved effects render through the native Custom Shader.",
       "manifest": "./plugins/node-effect/manifest.json?v=1",
       "bundle": "./plugins/node-effect/bundle.json?v=1",
-      "integrity": "sha256-7qMCcS7ZJ4hLNmgHKzA7avOt0ScpsOyMZujaY7KY+Ko="
+      "integrity": "sha256-nfV97kpJe18xVVEnDIRnRLA/YoybX0CIeFEe9z/k6YI="
     }
   ]
 }
