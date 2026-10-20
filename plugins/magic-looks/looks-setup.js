@@ -527,6 +527,12 @@ function buildFourway(effect, session, tool, body, widgets, afterCommit) {
 
 // Window body. Returns a cleanup that destroys widgets and listeners.
 function buildBody(body, effect, session, view) {
+  if (effect.looksInstances) {
+    const require = ZoidiumPluginApis.modules.createRequire(state.getAsset, { root: "./plugins/magic-looks/" });
+    return require("./looks-instance-ui.js").mount({ state, body, effect, session, view,
+      custom: { buildCurves, buildScurve, buildWheels, buildFourway,
+        lut: { readProp, readNum, round, make } } });
+  }
   const Looks = state.Looks;
   const ctl = state.ui.controls;
   const root = make("div", "lk-root");
@@ -867,9 +873,9 @@ function openSetup(effect) {
       title: "Magic Looks Setup",
       subtitle: "Color grade",
       persistKey: "looks-setup",
-      width: 360,
+      width: effect.looksInstances ? 620 : 360,
       height: 620,
-      minWidth: 300,
+      minWidth: effect.looksInstances ? 500 : 300,
       minHeight: 260,
       mount: function (body) {
         return buildBody(body, effect, session, view);
@@ -921,7 +927,8 @@ module.exports = {
         async reload(key, asset) {
           const jobs = [];
           CM.project?.sequence?.traverse?.(effect => {
-            if (effect._looksLutAssets) jobs.push(effect._looksLutAssets.reload(key, asset));
+            if (effect._looksPipeline) jobs.push(effect._looksPipeline.reload(key, asset));
+            else if (effect._looksLutAssets) jobs.push(effect._looksLutAssets.reload(key, asset));
           });
           await Promise.all(jobs);
         },

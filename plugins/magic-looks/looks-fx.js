@@ -406,3 +406,17 @@ this.resize = function () {
     let resolution = this.parentLayer.properties.resolution.get();
     this.pass.uniforms.resolution.value.set(resolution[0], resolution[1]);
 };
+
+// Saved, unmarked effects keep the released single-pass implementation above.
+// New effects opt into instances explicitly and persist that choice on save.
+var looksLegacy = { load: this.load, prepare: this.prepare, update: this.update, unload: this.unload };
+this.load = async function (data) {
+    await looksLegacy.load.call(this, data);
+    if (data && !data.looksInstances) return;
+    var require = ZoidiumPluginApis.modules.createRequire(this._zoidiumGetAsset, {
+        root: "./plugins/magic-looks/",
+    });
+    this._looksSavedSchema = data && data.looksInstances;
+    this._looksSavedProperties = data && data.properties;
+    require("./looks-instance-runtime.js").install(this, PZ, THREE, Looks, looksLegacy);
+};
