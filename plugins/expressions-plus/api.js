@@ -103,7 +103,11 @@ function createAPI(options) {
     });
   }
   const controls = Object.create(null);
-  for (const p of options.controls?.(sequence) || []) Object.defineProperty(controls, named(p) || p.definition?.name, { enumerable: true, get: () => copy(read(p, absolute)) });
+  const controlIds = new Map();
+  for (const p of options.controls?.(sequence) || []) {
+    Object.defineProperty(controls, named(p) || p.definition?.name, { enumerable: true, get: () => copy(read(p, absolute)) });
+    if (p.definition?.zoidiumControlId) controlIds.set(p.definition.zoidiumControlId, p);
+  }
   const own = objectHandle(owner);
   const api = record({
     value: copy(base), thisProperty: property ? propertyHandle(property) : record({ value: copy(base) }), thisObject: own,
@@ -111,7 +115,11 @@ function createAPI(options) {
     thisClip: objectHandle(clip), thisSequence: objectHandle(sequence), thisComp: objectHandle(sequence),
     layer: name => objectHandle(find(layers(), name)),
     effect: name => own?.effect(name), object: name => own?.object(name),
-    controls, control(name) { if (!Object.hasOwn(controls, name)) throw new Error("Expression control was not found: " + name); return controls[name]; },
+    controls, control(name, id) {
+      if (id && controlIds.has(id)) return copy(read(controlIds.get(id), absolute));
+      if (!Object.hasOwn(controls, name)) throw new Error("Expression control was not found: " + name);
+      return controls[name];
+    },
     prop(path) {
       const segments = String(path).split("/").filter(Boolean);
       let node = String(path).startsWith("/") ? sequence : owner;

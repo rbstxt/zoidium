@@ -27,3 +27,5 @@ test('base values and extended API are sampled without previous-frame state',{sk
  const {PZ,a}=host();a.expression=new PZ.expression('seedRandom(15,true); value + random()');
  const expected=a.get(30);for(const f of [0,90,5,30])assert.equal(a.get(f),expected);
 });
+
+module.exports={host,cache,core};
