@@ -3,21 +3,24 @@
 const { chooseCodecs, frameCount, frameTiming, projectFrame, SAMPLE_RATE } = require("./export-math.js");
 const { createStorage } = require("./stream-target.js");
 const { createAudioMixer, hasAudio } = require("./audio-mix.js");
+const { createAudioEncoding } = require("./audio-encode.js");
 
 function createJob(scope, PZ, exporter, loadBunny) {
   let cancelled = false;
   let output = null;
   let cancellation = null;
+  const controller = new AbortController();
   function check() {
     if (cancelled) throw new DOMException("MP4 export cancelled.", "AbortError");
   }
   return {
     cancel() {
       cancelled = true;
+      controller.abort();
       if (output) cancellation ||= output.cancel().catch(() => {});
     },
     async run() {
-      let storage = null, mixer = null;
+      let storage = null, mixer = null, audio = null;
       try {
         const params = exporter.params;
         const count = frameCount(params.length);
@@ -28,7 +31,9 @@ function createJob(scope, PZ, exporter, loadBunny) {
         storage = await createStorage(scope, bunny);
         check();
         output = new bunny.Output({
-          format: new bunny.Mp4OutputFormat({ fastStart: "fragmented", minimumFragmentDuration: 1 }),
+          // Metadata at the end keeps memory bounded and gives the audio edit
+          // list a known duration, including priming and final packet trimming.
+          format: new bunny.Mp4OutputFormat({ fastStart: false }),
           target: storage.target,
         });
         let canvas = exporter.renderer.domElement;
@@ -46,15 +51,10 @@ function createJob(scope, PZ, exporter, loadBunny) {
           latencyMode: "quality", keyFrameInterval: 2,
         });
         output.addVideoTrack(video, { frameRate: params.rate });
-        let audio = null;
         if (codecs.audio) {
-          audio = new bunny.AudioSampleSource({
-            codec: codecs.audio.codec === "opus" ? "opus" : "aac",
-            fullCodecString: codecs.audio.codec,
-            quality: new bunny.Quality({ bitrate: codecs.audio.bitrate }),
-          });
-          output.addAudioTrack(audio);
-          mixer = createAudioMixer(scope, exporter, check);
+          audio = await createAudioEncoding(scope, bunny, codecs.audio, count / params.rate, controller.signal);
+          output.addAudioTrack(audio.source);
+          mixer = createAudioMixer(scope, exporter, check, controller.signal);
         }
         await output.start();
         check();
@@ -68,12 +68,7 @@ function createJob(scope, PZ, exporter, loadBunny) {
           if (audio && audioOffset < totalSamples && (index + 1) / params.rate > audioOffset / SAMPLE_RATE) {
             const size = Math.min(SAMPLE_RATE, totalSamples - audioOffset);
             const buffer = await mixer.render(audioOffset, size);
-            const samples = bunny.AudioSample.fromAudioBuffer(buffer, audioOffset / SAMPLE_RATE);
-            try {
-              for (const sample of samples) { check(); await audio.add(sample); }
-            } finally {
-              for (const sample of samples) sample.close();
-            }
+            await audio.add(buffer, audioOffset);
             audioOffset += size;
             exporter.samplesRendered = audioOffset;
           }
@@ -93,6 +88,7 @@ function createJob(scope, PZ, exporter, loadBunny) {
           await new Promise((resolve) => setTimeout(resolve, 0));
         }
         check();
+        await audio?.finish();
         await output.finalize();
         check();
         return await storage.finish();
@@ -107,8 +103,8 @@ function createJob(scope, PZ, exporter, loadBunny) {
           cancellation ||= output.cancel().catch(() => {});
           await cancellation;
         }
-        await mixer?.dispose();
-        await storage?.dispose();
+        audio?.dispose();
+        try { await mixer?.dispose(); } finally { await storage?.dispose(); }
       }
     },
   };

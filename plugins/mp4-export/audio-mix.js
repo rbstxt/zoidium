@@ -1,12 +1,13 @@
 "use strict";
 
 const { SAMPLE_RATE } = require("./export-math.js");
+const { decodeAudio } = require("./audio-decode.js");
 
 function hasAudio(sequence) {
   return (sequence.audioSchedules || []).some((schedule) => schedule.items?.length > 0);
 }
 
-function createAudioMixer(scope, exporter, check) {
+function createAudioMixer(scope, exporter, check, signal) {
   let decoder = null;
   let decoded = new Map();
   return {
@@ -22,11 +23,7 @@ function createAudioMixer(scope, exporter, check) {
         let buffer = current.get(media) || decoded.get(media);
         if (!buffer) {
           decoder ||= new scope.AudioContext({ sampleRate: SAMPLE_RATE });
-          try {
-            buffer = await decoder.decodeAudioData(await media.file.arrayBuffer());
-          } catch (_error) {
-            throw new Error("MP4 could not decode an audio asset. Convert the asset to WAV and try again, or use MKV/WebM.");
-          }
+          buffer = await decodeAudio(scope, decoder, media.file, signal);
           check();
         }
         current.set(media, buffer);

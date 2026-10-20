@@ -1,11 +1,26 @@
 "use strict";
 
-// Fragmented MP4 writes monotonically. OPFS bounds page memory; the fallback
-// retains Blob chunks without constructing a second contiguous movie buffer.
+function replaceChunks(parts, blob, start) {
+  const end = start + blob.size;
+  const next = [];
+  for (const part of parts) {
+    const partEnd = part.start + part.blob.size;
+    if (partEnd <= start || part.start >= end) next.push(part);
+    else {
+      if (part.start < start) next.push({ start: part.start, blob: part.blob.slice(0, start - part.start) });
+      if (partEnd > end) next.push({ start: end, blob: part.blob.slice(end - part.start) });
+    }
+  }
+  next.push({ start, blob });
+  return next.sort((a, b) => a.start - b.start);
+}
+
+// OPFS bounds page memory. The fallback retains immutable Blob chunks and
+// supports header rewrites without constructing a contiguous movie buffer.
 async function createStorage(scope, bunny) {
   let directory, name, file, writer;
-  const parts = [];
-  let position = 0;
+  let parts = [];
+  let length = 0;
   let closed = false;
   try {
     if (scope.navigator.storage?.getDirectory) {
@@ -20,10 +35,10 @@ async function createStorage(scope, bunny) {
   }
   const stream = new WritableStream({
     async write(chunk) {
-      if (chunk.position !== position) throw new Error("The MP4 writer produced an invalid file offset.");
-      if (writer) await writer.write(chunk.data);
-      else parts.push(new Blob([chunk.data]));
-      position += chunk.data.byteLength;
+      if (chunk.position < 0 || chunk.position > length) throw new Error("The MP4 writer produced an invalid file offset.");
+      if (writer) await writer.write({ type: "write", position: chunk.position, data: chunk.data });
+      else parts = replaceChunks(parts, new Blob([chunk.data]), chunk.position);
+      length = Math.max(length, chunk.position + chunk.data.byteLength);
     },
     async close() {
       if (writer && !closed) { closed = true; await writer.close(); }
@@ -35,8 +50,8 @@ async function createStorage(scope, bunny) {
   return {
     target: new bunny.StreamTarget(stream, { chunked: true, chunkSize: 1024 * 1024 }),
     async finish() {
-      if (!position) throw new Error("The MP4 export is empty.");
-      if (!file) return new Blob(parts, { type: "video/mp4" });
+      if (!length) throw new Error("The MP4 export is empty.");
+      if (!file) return new Blob(parts.map((part) => part.blob), { type: "video/mp4" });
       // Detach from our temporary file once, using browser Blob storage. The
       // normal download manager then receives a stable Blob, not a live File.
       return new Response((await file.getFile()).stream(), {
@@ -51,4 +66,4 @@ async function createStorage(scope, bunny) {
   };
 }
 
-module.exports = { createStorage };
+module.exports = { createStorage, replaceChunks };
