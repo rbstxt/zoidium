@@ -100,6 +100,9 @@
     settings: null,
     panel: null,
     controls: null,
+    cacheUsage: null,
+    cacheCaution: null,
+    cacheTimer: null,
   };
 
   function clamp(value, min, max) {
@@ -317,6 +320,22 @@
       summary.textContent = themeEditor.selected() ? themeEditor.name() : "My theme";
     }
     updateCustomRowsVisibility();
+    updateCacheUsage();
+  }
+
+  function updateCacheUsage() {
+    if (!state.cacheUsage) return;
+    var usage = global.ZoidiumFrameCache?.usage();
+    var text = "Using " + Math.round((usage?.bytes || 0) / 1048576).toLocaleString("en-US") + " MiB";
+    if (usage?.width && usage?.height) {
+      var frames = Math.floor(usage.bytes / (usage.width * usage.height * 4));
+      text += " · about " + frames.toLocaleString("en-US") + (frames === 1 ? " frame at " : " frames at ") + usage.width + "×" + usage.height;
+    }
+    if (usage && usage.limit < state.settings.previewCacheMiB * 1048576) {
+      text += " · session limit " + Math.floor(usage.limit / 1048576).toLocaleString("en-US") + " MiB";
+    }
+    state.cacheUsage.textContent = text;
+    state.cacheCaution.hidden = state.settings.previewCacheMiB <= 4096;
   }
 
   function notifyReloadRequired() {
@@ -519,12 +538,18 @@
     var defaultFrameRateRow = createDefaultFrameRateRow(legacy);
     var cacheControl = global.ZoidiumUI.controls.number({
       label: "Preview cache", value: state.settings.previewCacheMiB,
-      min: 0, max: 2048, step: 64, unit: "MiB",
+      min: 0, max: global.ZoidiumOutputFrameStore.MAX_MIB, step: 1, dragSpeed: 64, unit: "MiB",
       onChange: function (value) {
         state.settings.previewCacheMiB = global.ZoidiumOutputFrameStore.sizeMiB(value);
         persistAndApply();
       },
     });
+    cacheControl.input.setAttribute("aria-label", "Preview cache (MiB)");
+    var cacheUsage = global.ZoidiumUI.controls.note("Using 0 MiB").element;
+    cacheUsage.setAttribute("data-preview-cache-usage", "");
+    var cacheCaution = global.ZoidiumUI.controls.note(
+      "The GPU needs this much free memory. Macs share GPU memory with system RAM.", "warning"
+    ).element;
     var fontRow = createFontRow(legacy);
     var themeRow = createThemeRow(legacy);
     var hueRow = createHueRow(legacy);
@@ -544,6 +569,8 @@
     panel.appendChild(layoutNote);
     panel.appendChild(defaultFrameRateRow);
     panel.appendChild(cacheControl.element);
+    panel.appendChild(cacheUsage);
+    panel.appendChild(cacheCaution);
     panel.appendChild(global.ZoidiumUI.controls.note(
       "Finished preview frames use up to this much GPU memory. Set 0 to turn off caching. Temporal input textures use up to another 256 MiB, plus active samples and rendering buffers."
     ).element);
@@ -553,6 +580,8 @@
     panel.appendChild(saturationRow);
 
     state.panel = panel;
+    state.cacheUsage = cacheUsage;
+    state.cacheCaution = cacheCaution;
     state.controls = {
       layoutRow: layoutRow,
       defaultFrameRateRow: defaultFrameRateRow,
@@ -609,6 +638,9 @@
       return false;
     }
     applySettings();
+    state.cacheTimer = global.setInterval(function () {
+      if (state.panel?.isConnected && state.panel.style.display !== "none") updateCacheUsage();
+    }, 500);
     return true;
   }
 
@@ -621,6 +653,8 @@
     installStopped = true;
     if (installTimer !== null) global.clearTimeout(installTimer);
     installTimer = null;
+    if (state.cacheTimer !== null) global.clearInterval(state.cacheTimer);
+    state.cacheTimer = null;
   }
 
   function retryInstall() {
