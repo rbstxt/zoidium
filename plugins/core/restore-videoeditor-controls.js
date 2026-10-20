@@ -68,8 +68,8 @@
           observable: viewport.onEditChanged,
           update: function (button) {
             button.children[0].style.fill = viewport.edit
-              ? "var(--zui-danger)"
-              : "var(--zui-text-muted)";
+              ? "var(--zui-toggle-on)"
+              : "var(--zui-toggle-off)";
           },
           fn: function () {
             viewport.edit = !viewport.edit;
@@ -85,8 +85,8 @@
           update: function (button) {
             var widget2d = viewport.widget2d;
             button.children[0].style.fill = widget2d && widget2d.edit
-              ? "var(--zui-danger)"
-              : "var(--zui-text-muted)";
+              ? "var(--zui-toggle-on)"
+              : "var(--zui-toggle-off)";
           },
           fn: function () {
             if (viewport.widget2d) {
@@ -103,8 +103,8 @@
       loopButton.observable = editor.playback.onLoopChanged;
       loopButton.update = function (button) {
         button.children[0].style.fill = this.editor.playback.loop
-          ? "var(--zui-danger)"
-          : "var(--zui-text-muted)";
+          ? "var(--zui-toggle-on)"
+          : "var(--zui-toggle-off)";
       };
     }
 

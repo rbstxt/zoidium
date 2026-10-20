@@ -50,10 +50,10 @@ const animated = (a, b) => ({ animated: true, keyframes: [{ frame: 0, value: a, 
 test("swatch styles: solid fill, hollow stroke ring and gradient stops", () => {
   const fill = hints.swatchStyle("fill", [1, 0.5, 0]);
   assert.match(fill, /width:10px;height:10px/);
-  assert.match(fill, /border:1px solid var\(--zui-border\);background:rgb\(255,128,0\)$/);
+  assert.match(fill, /border:1px solid #000;background:rgb\(255,128,0\)$/);
   const stroke = hints.swatchStyle("stroke", [0, 0, 1.5]);
   assert.match(stroke, /border:3px solid rgb\(0,0,255\)/);
-  assert.match(stroke, /background:transparent;outline:1px solid var\(--zui-border\);outline-offset:-1px/);
+  assert.match(stroke, /background:transparent;outline:1px solid #000;outline-offset:-1px/);
   const stops = [{ position: 1, color: "rgba(26,102,255,1)" }, { position: 0, color: "rgba(255,77,26,0.5)" }];
   assert.equal(hints.gradientCss(stops), "linear-gradient(90deg,rgba(255,77,26,0.5) 0%,rgba(26,102,255,1) 100%)");
   assert.match(hints.swatchStyle("gradientFill", stops), /background:linear-gradient\(90deg,/);

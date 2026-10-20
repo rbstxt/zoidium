@@ -575,7 +575,7 @@
                     refresh();
                     refreshProfile(owner);
                 };
-                var label = doc.createElement("span"); label.style = "color:var(--zui-text-muted);";
+                var label = doc.createElement("span"); label.style = "color:#999;";
                 row.style.lineHeight = "0"; label.style.verticalAlign = "middle";
                 function refresh() {
                     var name = property.get();

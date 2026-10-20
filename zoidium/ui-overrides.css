@@ -109,8 +109,8 @@
   scrollbar-gutter: auto;
   background-color: var(--zui-bg);
   --zoidium-scrollbar-width: 12px;
-  --zoidium-plugin-warning-background: color-mix(in srgb, var(--zui-danger) 18%, transparent);
-  --zoidium-plugin-warning-border: var(--zui-danger);
+  --zoidium-plugin-warning-background: rgba(120, 34, 34, 0.18);
+  --zoidium-plugin-warning-border: #a94b4b;
   --zoidium-plugin-warning-color: var(--zui-danger);
 }
 
@@ -166,7 +166,7 @@
 .zoidium-restore-note {
   width: 100%;
   padding: 5px calc(5px + var(--zoidium-scrollbar-width)) 5px 5px;
-  color: var(--zui-text-muted);
+  color: #969696;
   font-size: var(--zui-font-size-small);
   border-bottom: 1px solid var(--zui-border-soft);
   box-sizing: border-box;
@@ -246,7 +246,7 @@
 
 .zoidium-restore-name {
   overflow: hidden;
-  color: var(--zui-text-bright);
+  color: #eee;
   font-size: var(--zui-font-size);
   font-weight: bold;
   line-height: 1.25;
@@ -256,7 +256,7 @@
 
 .zoidium-restore-meta {
   overflow: hidden;
-  color: var(--zui-text-muted);
+  color: #969696;
   font-size: var(--zui-font-size-small);
   line-height: 1.35;
   text-overflow: ellipsis;
@@ -264,12 +264,12 @@
 }
 
 .zoidium-restore-entry.is-unusable .zoidium-restore-meta {
-  color: var(--zui-danger);
+  color: #c58989;
   white-space: normal;
 }
 
 .zoidium-restore-entry.is-unusable .zoidium-restore-name {
-  color: var(--zui-text-muted);
+  color: #999;
 }
 
 .zoidium-restore-actions {
@@ -281,13 +281,13 @@
 .zoidium-restore-action {
   width: 27px;
   height: 27px;
-  color: var(--zui-text-muted);
+  color: #acacac;
   border: 2px solid transparent;
   box-sizing: border-box;
 }
 
 .zoidium-restore-action:hover {
-  background-color: var(--zui-hover);
+  background-color: #2f2f2f;
 }
 
 .zoidium-restore-action:disabled {
@@ -302,18 +302,18 @@
 .zoidium-restore-action svg {
   width: 20px;
   height: 20px;
-  fill: var(--zui-text-muted);
+  fill: #acacac;
   pointer-events: none;
 }
 
 .zoidium-restore-empty {
   padding: 22px 10px;
-  color: var(--zui-text-faint);
+  color: #777;
   text-align: center;
 }
 
 .zoidium-restore-empty.is-error {
-  color: var(--zui-danger);
+  color: #c58989;
 }
 
 .zoidium-project-toast {
@@ -341,7 +341,7 @@
 }
 
 .zoidium-project-toast.is-error {
-  border-color: var(--zui-danger);
+  border-color: #8a2828;
 }
 
 .zoidium-project-toast-head {
@@ -352,7 +352,7 @@
 }
 
 .zoidium-project-toast-title {
-  color: var(--zui-text-bright);
+  color: #eee;
   font-size: var(--zui-font-size);
   font-weight: bold;
 }
@@ -360,7 +360,7 @@
 .zoidium-project-toast-close {
   width: 24px;
   height: 24px;
-  color: var(--zui-text-muted);
+  color: #acacac;
   font-size: 23px;
   line-height: 20px;
   border: 2px solid transparent;
@@ -513,14 +513,14 @@ body > .pz-dropdown li > span[style],
 .zoidium-project-toast-message {
   margin-top: 3px;
   overflow-wrap: anywhere;
-  color: var(--zui-text-muted);
+  color: #aaa;
   font-size: var(--zui-font-size-small);
   line-height: 1.4;
 }
 
 .zoidium-project-toast-help {
   margin-top: 6px;
-  color: var(--zui-text-muted);
+  color: #aaa;
   font-size: var(--zui-font-size-small);
   line-height: 1.4;
 }
@@ -530,7 +530,7 @@ body > .pz-dropdown li > span[style],
 }
 
 .zoidium-project-toast-help a {
-  color: var(--zui-value-strong);
+  color: #9ecbff;
 }
 
 .zoidium-project-toast-actions {
