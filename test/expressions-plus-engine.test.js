@@ -17,3 +17,14 @@ test('base values and extended API are sampled without previous-frame state',{sk
  const expected=a.get(30);for(const f of [0,90,5,30])assert.equal(a.get(f),expected);
 });
 
+test('Trapcode seven-argument compiled calls retain Math identity and guarded API evaluation',{skip:!fs.existsSync(core)},()=>{
+ const {PZ,a}=host();new Function('PZ',fs.readFileSync(path.join(__dirname,'../plugins/trapcode-suite/trapcode-expressions.js'),'utf8'))(PZ);PZ.trapcode.installExpressionSupport(PZ);
+ a.expression=new PZ.expression('sin === cos ? 1 : 2');assert.equal(a.get(0),2);
+ a.expression=new PZ.expression('const n=2; value+n');assert.equal(a.get(0),9);
+ a.expression=new PZ.expression('sin["con"+"structor"]("return 29")()');assert.equal(a.get(0),7);assert.match(a.expression.error,/cannot call/);
+});
+test('disposal can restore native compiled entries for existing legacy expressions',{skip:!fs.existsSync(core)},()=>{
+ const {PZ,a,engine}=host();a.expression=new PZ.expression('sin(time)+3');assert.equal(a.expression.fn(0,1,PZ.expression.methods,{}),Math.sin(1)+3);
+ engine.restore({forEachItemOfType(_type,visit){visit(a);}});
+ assert.doesNotMatch(a.expression.fn.toString(),/__z/);assert.equal(a.expression.fn(0,1,PZ.expression.methods,{}),Math.sin(1)+3);
+});

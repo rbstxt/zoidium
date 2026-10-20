@@ -6,6 +6,7 @@ const { createAPI, copy, ancestor } = require("./api.js");
 function installEngine(options) {
   const { PZ, document: doc, patch } = options;
   const compiled = new WeakMap(), active = new Set(), errors = new WeakMap();
+  const nativeParse = PZ.expression.prototype.parse;
   const reported = new Set();
   const guard = createCallGuard();
   function report(expression, property, error) {
@@ -24,7 +25,19 @@ function installEngine(options) {
       const result = compile(source, Object.keys(PZ.expression.methods));
       const fn = sandboxFunction(doc, result.code);
       compiled.set(this, { ...result, fn }); this.error = null;
-      return fn;
+      const expression = this;
+      // Trapcode's existing adapter invokes .fn with seven legacy arguments
+      // instead of chaining evaluate(). Keep that entry point compatible, then
+      // use the same guarded evaluator as every native property read.
+      return function legacyEntry(frame, time, methods, custom, _parent, property, value) {
+        if (property?.get) return evaluate(expression, frame, property.parentObject, property);
+        if (!active.size) guard.reset();
+        const context = createAPI({ PZ, owner: null, property: null, frame, time, base: value, read, baseAt,
+          methods: methods || PZ.expression.methods, wiggleMethods: options.wiggleMethods, controls: options.controls, world: options.world });
+        const previous = guard.swapOverrides(context.overrides), pure = fn.zoidiumPure;
+        try { return fn(frame, time, context.methods, custom, pure.Math, { ...guard, api: context.api, pure }); }
+        finally { guard.swapOverrides(previous); }
+      };
     } catch (error) { report(this, null, error); compiled.set(this, { failed: true }); return this.noop; }
   });
   // Obtain the native value through the original getter, with the expression
@@ -84,6 +97,12 @@ function installEngine(options) {
   });
   return { baseAt, read, error: p => errors.get(p) || p?.expression?.error || null,
     isExtended: expression => !!compiled.get(expression)?.extended,
-    compile, guard };
+    compile, guard,
+    restore(project) {
+      project?.forEachItemOfType?.(PZ.property.dynamic, property => {
+        const expression = property.expression;
+        if (expression) expression.fn = nativeParse.call(expression, expression.source);
+      });
+    } };
 }
 module.exports = { installEngine };

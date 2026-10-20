@@ -4,9 +4,13 @@ function activate(context) {
   const { PZ, document: doc, window: win } = context;
   const require = context.apis.modules.createRequire(context.getAsset, { root: "./plugins/expressions-plus/" });
   const disposers = [];
-  context.lifecycle.onDispose(() => { for (const dispose of disposers.splice(0).reverse()) dispose(); runtime = null; });
+  let live = true;
+  context.lifecycle.onDispose(() => { live = false; for (const dispose of disposers.splice(0).reverse()) dispose(); runtime = null; });
   function patch(holder, key, make) {
-    const original = holder[key], replacement = make(original);
+    const original = holder[key], implementation = make(original);
+    // A later plugin may wrap this method. Its retained reference must become
+    // a native passthrough when Expressions+ no longer owns the outer slot.
+    const replacement = function () { return (live ? implementation : original).apply(this, arguments); };
     disposers.push(() => { if (holder[key] === replacement) holder[key] = original; });
     holder[key] = replacement;
   }
@@ -17,6 +21,7 @@ function activate(context) {
   const store = require("./controls.js").createControlsStore({ PZ, patch, notify: () => { if (context.editor?.project?.ui) context.editor.project.ui.dirty = true; } });
   const world = require("./world.js").createWorldProvider({ PZ, THREE: win.THREE, createConstraintEvaluator: sharedRequire("./constraints/track-to-evaluate.js").createEvaluator });
   const engine = require("./engine.js").installEngine({ PZ, document: doc, patch, wiggleMethods: PZ.trapcode.expressionMethods, controls: sequence => sequence ? store.list(sequence) : [], world });
+  disposers.push(() => engine.restore(context.editor?.project));
   const shaders = require("./shaders.js").installShaders({ PZ, THREE: win.THREE, store, engine, patch });
   const controlsUI = require("./controls-ui.js").installControlsUI({ context, store, patch });
   if (context.editor?.sequence) store.ensure(context.editor.sequence);
