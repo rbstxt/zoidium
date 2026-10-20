@@ -1,102 +1,103 @@
 # Magic Looks
 
-A Zoidium `extension` plugin: a Magic Bullet Looks-style color grading effect
-with 29 tools, an ordered tool chain, look presets, and a floating setup window.
-It is an external extension layer around CM3; it is not affiliated with or
-endorsed by Panzoid.
+A Zoidium extension plugin with 29 color, light and lens tools, animated tool
+instances, look presets and a floating setup window. Zoidium is an external
+extension layer around CM3, independent of and not endorsed by Panzoid.
 
 ## Using it
 
-- Enabling the plugin only makes the **Magic Looks** effect available (COLOR
-  category). Nothing is displayed or applied until the effect is added to a layer.
-- A fresh effect renders the source unchanged. Color Contrast ships switched off
-  because its fixed contrast amount is part of its character.
-- The **Open Magic Looks Setup** button at the top of the effect's properties
-  opens a floating window
-  (zoidium/ui-kit.js). The viewport behind it is the live preview.
-  - **Look**: presets, filterable and grouped. Choosing one resets every tool to
-    neutral and applies the preset as one undoable step. **Clear look** resets
-    the tools and keeps the chain order.
-  - **Tool Chain**: the tools in order, with Up, Down, Enable/Disable and Remove
-    for the selected tool, and an Add tool menu. Lens Distortion always runs
-    first and cannot be moved.
-  - **Parameters**: the selected tool's values, plus its color wheels, HSL
-    sliders, curves pad, S-curve sliders, four-way wheels, or LUT controls.
-- Select LUT in the tool chain and choose **Import .cube...** to load an Adobe
-  or Resolve 3D LUT with size 2..128. Its title and size appear beside the
-  controls. **Strength** mixes the LUT with the stage input; **LUT Gamma**
-  retains the same input/output gamma behavior as the built-in presets.
-  **Clear** removes the imported LUT. Import and Clear each create one undo step.
-  The original file is stored in the project, so another machine can open it.
-  Files over 80 MB, 1D LUTs, and combined 1D/3D LUTs are rejected.
-- Every committed edit is one undo/redo step on the effect's properties. Live
-  drags only preview. Setup keeps its scroll position, input focus and look filter
-  after edits, and removing a tool selects its neighbour.
-- The plugin cannot be disabled while a project uses its effect. After removing
-  its effects, disabling closes its windows, removes its editor entry, and
-  removes its stylesheet.
+Enable Magic Looks, add its effect from the COLOR category, then choose
+**Open Magic Looks Setup**. A new effect starts with an empty, neutral chain.
 
-## Tools
+- Choose a Category and Add tool. Every addition creates an independent instance.
+- Drag a chain row to reorder it. Move up / Move down and Alt+Arrow Up/Down
+  on the selected row provide keyboard alternatives. Lens Distortion can move
+  anywhere in a new chain.
+- Each row has On/Off, Duplicate and Remove. Narrow windows place these
+  controls below the name. The chain scrolls independently and reveals the
+  selection; Arrow Up/Down and Home/End select tools. Expanded sections stay
+  expanded while editing. Duplicate preserves native keyframes, expressions and curve data. Removing an instance removes its
+  channels; Undo restores them.
+- The selected instance's parameters are native CM3 property rows, with the
+  usual animation toggles and expressions. They also appear in Effects;
+  numeric channels work in Graph Editor 2. Compact native labels put the
+  stable instance number first. The enable row names the tool; numeric rows
+  use labels such as `2 Distort`, `2 Flatten` and `5 Mix`. The Parameters heading shows the full selected tool name.
+  Instance numbers identify channels independently of order. Curve shapes retain native text snapshot channels,
+  so shape keys change at keys rather than interpolating individual points.
+- Curves, wheels and LUT import retain their visual controls alongside native
+  channels. Curve tables, LUT names and asset references remain serialized
+  channels, hidden from native lists and edited through their visual controls.
+  On a focused wheel, arrows adjust hue/strength and Home resets.
+  On a focused curve, Home/End and Page Up/Down select a point, arrows move it,
+  Insert adds a point after it, and Delete removes an interior point.
+- Look presets reset the chain's values and apply their values to the first
+  instance of each required tool, adding missing tools. Clear look restores
+  neutral values while retaining instance identities and order. Each action is
+  one undo step. Applying a preset resets existing animation as well.
 
-- 16 color tools: Color Contrast, HSL Colors, Color Ranges, Crush, Contrast,
-  Color Reversal, 3-Strip Process, Lift-Gamma-Gain, Ranged Saturation, Warm/Cool,
-  4-Way Color, Mojo II, Auto Shoulder, Curves, S Curve, LUT.
-- 8 light tools: Lightflex, Deflare, Vignette, Haze/Flare, Pop, Diffusion, Star
-  Filter, Anamorphic Flare.
-- 5 lens tools: Lens Distortion, Shutter Streak, Edge Softness, Chromatic
-  Aberration, Telecine Net.
+Imported 3D `.cube` LUTs are stored as project assets. Each LUT instance has its
+own file, strength and gamma channels. Tables support sizes 2 through 128;
+1D/combined tables and files larger than 80 MB are rejected.
 
-Vignette Strength darkens the edges; its Color wheel adds a tint. Edge Softness
-blurs outside its Radius. Size, range, and gamma-space controls shape an active
-tool; they may leave the image unchanged while its strength or tint is neutral.
+## Rendering and limits
 
-## Files
+Every stage reads the preceding stage's output. Spatial tools each need an
+image pass. Consecutive pointwise color tools share a draw, including repeated
+instances with independent uniforms. Color groups split after eight tools or
+six LUT/curve samplers to stay within shader limits. A chain contains at most
+64 instances.
 
-- `looks-tools.js`: catalog, neutral defaults, default chain, look presets, and
-  property definitions (single source of truth).
-- `looks-color.js`: color math and the JS reference grade. It mirrors the shader
-  tool-for-tool and is what the tests check.
-- `looks-grade.glsl` / `looks-vert.glsl`: the grade shader. It is compiled once.
-  Per-frame work is uniform updates only; the chain order and the curve tables
-  are re-uploaded only when their stored text changes.
-- `looks-cube.js`: the 3D LUT parser, byte atlas layout, and CPU sampler.
-- `looks-lut-assets.js`: project file loading and atlas texture lifecycle.
-- `looks-lut-ui.js`: the LUT section and import controls.
-- `looks-fx.js`: the native effect (properties, uniforms, pass gating).
-- `looks-setup.js`, `looks-setup.css`, `looks-widgets.js`: the setup window, its
-  stylesheet, and the two custom canvases (color wheel, curves pad).
+The effect allocates at most two layer-sized RGBA half-float targets for
+intermediate images. They are reused across frames, resized with the layer,
+and disposed with the effect. A one-pass chain allocates no intermediate target.
+Intermediate color stays straight and unclipped. The first pass reads
+premultiplied input; the final pass clamps and premultiplies the output.
+Resampling a Lens Distortion stage also resamples alpha. Input UV scaling is
+applied only when reading CM3's shared buffer. Rendering depends on native
+property values at the requested frame, never on preceding frames.
 
-## Rendering rules
+Multipass chains require renderable, filterable half-float textures. Rendering
+on GPUs without that support is not verified. Half-float storage can round
+new multipass results between spatial stages; saved legacy looks never use it.
 
-- Math is on straight color. Premultiplied input is unpremultiplied once,
-  graded, clamped to [0,1], and premultiplied on output. Alpha passes through.
-- Each tool is gated by its enable property. While every property holds its
-  default, the pass is disabled and the layer is untouched.
-- Lens Distortion is a geometric resample and runs before the chain. The other
-  tools run in the order stored in the `chainOrder` property.
-- Tools with a fixed contrast or threshold (Color Contrast, zone thresholds)
-  use the values documented in the catalog; no hidden state is kept between
-  frames.
+## Saved project compatibility
 
-## Compatibility with saved projects
+Three formats coexist without converting a saved look to new semantics.
 
-- Vignette now attenuates the edges with a neutral white tint. Existing looks
-  with nonzero Vignette Strength render darker at the edges. Fresh Edge Softness
-  tools use Radius 0.35 so Blur Size works immediately; stored radii are kept.
-- Projects saved with the Davidium build keep their values. Projects without a
-  `chainOrder` property get the legacy pipeline order.
-- Two render fixes also change older projects: transparent pixels stay
-  transparent (the old shader forced alpha to 1), and the LUT gamma setting
-  only applies when a LUT is selected.
-- Removed controls (Mojo II tint, Deflare size, the Star Filter and Anamorphic
-  threshold softness, the Color Ranges threshold, and the S-curve Log choice)
-  are no longer in the catalog. Their stored values are ignored.
-- Color Ranges zone tints now apply in their own tool. Previously they were
-  applied inside Ranged Saturation, so a project that set those wheels will
-  look different. Other projects are unaffected.
-- The S-curve tool now applies its black/white levels after the Curves tool.
-  Previously they came before it. Projects that set black or white points away
-  from 0 and 1 may differ slightly.
+- Saved effects with `chainOrder` and no `looksInstances` keep the released
+  single-pass renderer from version 15, including its original-source spatial
+  sampling and Lens Distortion before the chain.
+- Davidium effects without `chainOrder` use the original imported grading
+  implementation from `f56811c`. Its catalog, CPU math and GLSL are isolated in
+  `davidium-looks-*`. This retains original alpha, LUT gamma, Color Ranges,
+  S-curve and Vignette behavior. Resaving adds `looksLegacyFormat: "davidium"`
+  so the decision survives later saves. Its tool order remains fixed.
+- New effects serialize `looksInstances` version 1. The ordered `{id, tool}`
+  records have monotonically allocated local IDs. Native properties use keys
+  `ml_<id>_<catalog property>`, retaining CM3's complete animation records.
+
+Current-format effects that were previously imported and resaved retain their
+current look. Their original Davidium provenance cannot be recovered from a
+resave that already added `chainOrder`; it is not guessed from plugin versions.
+Existing effects never silently switch to instances when edited.
+
+Older builds ignore instance metadata and render the neutral legacy fallback
+properties. They cannot reproduce instance chains. Builds with unknown-field
+preservation retain the extra schema and native channels when resaving.
+Builds without historical-format support also ignore `looksLegacyFormat` and
+use their own existing grading behavior for Davidium data.
+See [project compatibility](../../docs/project-compatibility.md#magic-looks).
+
+## Implementation
+
+`looks-tools.js` defines the current tool catalog. `looks-fx.js` retains the
+released renderer and routes formats at load. `looks-instances.js` validates
+identity and plans passes; `looks-instance-runtime.js` installs native channels;
+`looks-passes.js` compiles instance-specific copies of the released tool math.
+`looks-instance-reference.js` provides a floating-point CPU ordering reference.
+`looks-instance-ui.js` owns instance authoring and structural history; the
+existing setup module retains legacy editing and shared custom controls.
 
 ```bash
 pnpm run build:plugin-bundles

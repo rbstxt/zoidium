@@ -36,7 +36,14 @@ var Looks = {};
     }
 })();
 
+function looksHideStorage(effect) {
+    for (const definition of Object.values(effect.propertyDefinitions)) {
+        if ([PZ.property.type.TEXT, PZ.property.type.ASSET].includes(definition.type)) definition.visible = false;
+    }
+}
+
 this.propertyDefinitions = Looks.tools.buildPropertyDefinitions(PZ);
+looksHideStorage(this);
 this.properties.addAll(this.propertyDefinitions, this);
 
 // Default values per property key: a value equal to its default is identity.
@@ -405,4 +412,41 @@ this.resize = function () {
     }
     let resolution = this.parentLayer.properties.resolution.get();
     this.pass.uniforms.resolution.value.set(resolution[0], resolution[1]);
+};
+
+// Saved, unmarked effects keep the released single-pass implementation above.
+// New effects opt into instances explicitly and persist that choice on save.
+var looksLegacy = { load: this.load, prepare: this.prepare, update: this.update, unload: this.unload };
+this.unload = function () {
+    if (this._looksPipeline) { this._looksPipeline.dispose(); this.pass = null; }
+    else if (this._looksHistoricalUnload) this._looksHistoricalUnload.call(this);
+    else looksLegacy.unload.call(this);
+};
+this.load = async function (data) {
+    if (data && !data.looksInstances && (data.looksLegacyFormat === "davidium" ||
+        data.properties && !Object.prototype.hasOwnProperty.call(data.properties, LOOKS_CHAIN_KEY))) {
+        var originalResolver = this._zoidiumGetAsset.bind(this);
+        Object.keys(this.propertyDefinitions).forEach(key => this.properties.remove(key));
+        this._zoidiumGetAsset = function (kind, path) {
+            return originalResolver(kind, path.replace("/magic-looks/looks-", "/magic-looks/davidium-looks-"));
+        };
+        var historicalSource = originalResolver("text", "./plugins/magic-looks/davidium-looks-fx.js");
+        var managedUnload = this.unload;
+        new Function("PZ", "THREE", historicalSource).call(this, PZ, THREE);
+        looksHideStorage(this);
+        this._looksHistoricalUnload = this.unload;
+        this.unload = managedUnload;
+        await this.load(data);
+        this.looksLegacyFormat = "davidium";
+        this.toJSON = function () { return { type: this.type, properties: this.properties, looksLegacyFormat: "davidium" }; };
+        return;
+    }
+    await looksLegacy.load.call(this, data);
+    if (data && !data.looksInstances) return;
+    var require = ZoidiumPluginApis.modules.createRequire(this._zoidiumGetAsset, {
+        root: "./plugins/magic-looks/",
+    });
+    this._looksSavedSchema = data && data.looksInstances;
+    this._looksSavedProperties = data && data.properties;
+    require("./looks-instance-runtime.js").install(this, PZ, THREE, Looks, looksLegacy);
 };

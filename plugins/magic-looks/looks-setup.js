@@ -420,7 +420,8 @@ function buildCurves(effect, session, tool, body, widgets, afterCommit, view) {
     },
   });
   body.appendChild(sel.element);
-  const pad = new W.CurvesPad(body, { channels: channels, channel: view.curveChannel, width: 300, height: 200 });
+  const pad = new W.CurvesPad(body, { channels: channels, channel: view.curveChannel, width: 300, height: 200,
+    selectedPoint: view.curveSelectedPoint || 0, onSelectionChange(index) { view.curveSelectedPoint = index; } });
   widgets.push(pad);
   pad.onInput(function (chs) { session.live(key, JSON.stringify(chs)); });
   pad.onCommit(function (chs) {
@@ -527,6 +528,12 @@ function buildFourway(effect, session, tool, body, widgets, afterCommit) {
 
 // Window body. Returns a cleanup that destroys widgets and listeners.
 function buildBody(body, effect, session, view) {
+  if (effect.looksInstances) {
+    const require = ZoidiumPluginApis.modules.createRequire(state.getAsset, { root: "./plugins/magic-looks/" });
+    return require("./looks-instance-ui.js").mount({ state, body, effect, session, view,
+      custom: { buildCurves, buildScurve, buildWheels, buildFourway,
+        lut: { readProp, readNum, round, make } } });
+  }
   const Looks = state.Looks;
   const ctl = state.ui.controls;
   const root = make("div", "lk-root");
@@ -620,6 +627,12 @@ function buildBody(body, effect, session, view) {
 
   function chainSection() {
     const sec = section("Tool Chain");
+    if (effect.looksLegacyFormat === "davidium") {
+      sec.body.appendChild(ctl.note("Legacy look · fixed tool order").element);
+      sec.body.appendChild(ctl.list({ items: Looks.tools.defaultChain().map(id => ({ id, title: Looks.tools.byId(id).name })),
+        value: view.selectedTool, onSelect(id) { view.selectedTool = id; rebuild(); } }).element);
+      return sec.element;
+    }
     const chain = readChain(effect);
     const toolsById = Looks.tools.byId;
     const items = chain.map(function (id, i) {
@@ -781,7 +794,7 @@ function buildBody(body, effect, session, view) {
     if (disposed) return;
     // Rebuilding controls must not move the user's scroll or drop a typed
     // field's focus. Remember the control's position within this tool panel.
-    const fields = Array.from(root.querySelectorAll("input, select, textarea, button"));
+    const fields = Array.from(root.querySelectorAll("input, select, textarea, button, canvas"));
     const active = document.activeElement;
     const focusIndex = fields.indexOf(active);
     const focusTool = root.dataset.tool;
@@ -796,7 +809,7 @@ function buildBody(body, effect, session, view) {
     root.appendChild(toolSection());
     root.dataset.tool = view.selectedTool || "";
     if (focusIndex >= 0 && focusTool === root.dataset.tool) {
-      const field = root.querySelectorAll("input, select, textarea, button")[focusIndex];
+      const field = root.querySelectorAll("input, select, textarea, button, canvas")[focusIndex];
       if (field && typeof field.focus === "function") {
         field.focus({ preventScroll: true });
         if (selection && typeof field.setSelectionRange === "function") {
@@ -865,11 +878,11 @@ function openSetup(effect) {
     win = state.ui.openWindow({
       id: id,
       title: "Magic Looks Setup",
-      subtitle: "Color grade",
+      subtitle: "",
       persistKey: "looks-setup",
-      width: 360,
+      width: effect.looksInstances ? 620 : 360,
       height: 620,
-      minWidth: 300,
+      minWidth: effect.looksInstances ? 360 : 300,
       minHeight: 260,
       mount: function (body) {
         return buildBody(body, effect, session, view);
@@ -921,7 +934,8 @@ module.exports = {
         async reload(key, asset) {
           const jobs = [];
           CM.project?.sequence?.traverse?.(effect => {
-            if (effect._looksLutAssets) jobs.push(effect._looksLutAssets.reload(key, asset));
+            if (effect._looksPipeline) jobs.push(effect._looksPipeline.reload(key, asset));
+            else if (effect._looksLutAssets) jobs.push(effect._looksLutAssets.reload(key, asset));
           });
           await Promise.all(jobs);
         },

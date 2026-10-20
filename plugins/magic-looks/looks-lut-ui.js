@@ -38,27 +38,30 @@ var Looks = Looks || {};
     }).element;
     env.body.appendChild(lutSelect);
 
-    env.body.appendChild(ctl.slider({
-      label: "Strength",
-      value: readNum(effect, rec.custom.lutStrength, 1),
-      min: 0, max: 1, step: 0.01,
-      onInput: function (v) { session.live(rec.custom.lutStrength, round(v)); },
-      onChange: function (v) {
-        session.commit([{ key: rec.custom.lutStrength, value: round(v) }]);
-        afterCommit();
-      },
-    }).element);
+    if (!env.nativeParameters) {
+      env.body.appendChild(ctl.slider({
+        label: "Strength",
+        value: readNum(effect, rec.custom.lutStrength, 1),
+        min: 0, max: 1, step: 0.01,
+        onInput: function (v) { session.live(rec.custom.lutStrength, round(v)); },
+        onChange: function (v) {
+          session.commit([{ key: rec.custom.lutStrength, value: round(v) }]);
+          afterCommit();
+        },
+      }).element);
 
-    var gammaOptions = ["Same As Input", "Input", "Output"];
-    env.body.appendChild(ctl.select({
-      label: "LUT Gamma",
-      value: String(Math.max(0, Math.round(readNum(effect, rec.custom.lutGamma, 0)))),
-      options: gammaOptions.map(function (g, i) { return { value: String(i), label: g }; }),
-      onChange: function (v) {
-        session.commit([{ key: rec.custom.lutGamma, value: Number(v) || 0 }]);
-        afterCommit();
-      },
-    }).element);
+      var gammaOptions = ["Same As Input", "Input", "Output"];
+      env.body.appendChild(ctl.select({
+        label: "LUT Gamma",
+        value: String(Math.max(0, Math.round(readNum(effect, rec.custom.lutGamma, 0)))),
+        options: gammaOptions.map(function (g, i) { return { value: String(i), label: g }; }),
+        onChange: function (v) {
+          session.commit([{ key: rec.custom.lutGamma, value: Number(v) || 0 }]);
+          afterCommit();
+        },
+      }).element);
+
+    }
 
     var status;
     if (view.lutError) {

@@ -233,3 +233,50 @@ copy/paste, and history snapshots. No compatibility mode or change to existing
 effect classes is needed. Projects without Node Effect retain their existing
 rendering. See [Node Effect](../plugins/node-effect/README.md) for limits and
 alpha handling.
+
+## Magic Looks
+
+Magic Looks chooses its renderer in the effect loader, independently of the
+project-wide compatibility annotator. New effects save top-level
+`looksInstances: {version:1,nextId,order:[{id,tool}]}`. IDs are local to the
+effect and survive reordering. Parameters use native property keys
+`ml_<id>_<catalog property>`, including enable, keyframes, tangents, expressions,
+curve text and imported LUT asset references. Duplicating creates another ID
+and copies complete native records. Structural edits, preset application and
+Clear look each create one history entry; parameter rows use native history.
+
+Any saved effect without `looksInstances` retains a legacy renderer. Records
+with `properties.chainOrder` keep version 15's single-pass shader and property
+updates unchanged. Records without that field use the original Davidium
+implementation from `f56811c`, including its opaque alpha, original-source
+spatial sampling, fixed tool order and historical grading behavior. Resaving
+that format adds `looksLegacyFormat: "davidium"`, which wins over the presence
+of `chainOrder` on later loads. No plugin-version inference is used. A project
+may contain all three formats. No in-place conversion to instances is offered.
+
+A Davidium effect previously resaved by a release that added `chainOrder`
+already follows that release's rendering; its lost provenance is not inferred.
+Native effect type `looks` stays unchanged. Save/reopen, copy/paste and history
+retain the schema and native animation. An older plugin ignores instance
+metadata and renders the untouched neutral legacy properties, so it cannot
+reproduce new chains. The existing unknown-field preservation retains the new
+fields when those builds resave the project.
+Older plugins also ignore `looksLegacyFormat`; they do not reproduce the
+restored Davidium renderer. Curve/S Curve shapes remain native text snapshot
+channels with held changes. Numeric instance channels support interpolation,
+expressions and Graph Editor 2.
+
+`test/magic-looks-instances.test.js` covers identity, ordering, validation,
+shader isolation, pass budgets and the CPU ordering reference. Historical
+shader hashes are pinned separately. GPU compatibility evidence compares
+current single-pass output with the pre-change source and Davidium output with
+`f56811c`, including Lens Distortion and spatial tools, then repeats after a
+serialization round trip. Pixel-identical preservation applies to legacy paths;
+new instance chains use layer-sized half-float intermediate images.
+
+Magic Looks version 17 changes instance labels and setup layout only. Native
+keys and complete property records are unchanged. Text/asset storage channels
+are hidden from native lists in both instance and legacy formats; curve and
+LUT editors still edit those same
+channels through native history. No project migration or rendering change is
+introduced by this UI revision.

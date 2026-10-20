@@ -75,11 +75,12 @@
 
 .lk-fourway {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
   gap: 6px;
 }
 
 .lk-four-cell {
+  min-width: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -88,7 +89,32 @@
   padding: 4px;
 }
 
+.lk-four-cell .lk-wheel-block { width: 100%; }
+
 .lk-four-name {
   color: var(--zui-value);
   font-size: var(--zui-font-size-small);
 }
+
+.lk-instances { container-type: inline-size; min-width: 0; }
+.lk-chain { list-style: none; margin: 0; padding: 0; max-height: 240px; overflow: auto; }
+.lk-chain-row { display: grid; grid-template-columns: minmax(0, 1fr) max-content; align-items: center; gap: 4px; padding: 4px; border: 1px solid var(--zui-border-soft); }
+.lk-chain-row + .lk-chain-row { margin-top: 3px; }
+.lk-chain-row.selected { background: var(--zui-hover); border-color: var(--zui-accent); }
+.lk-instances .lk-chain-select { display: block; min-width: 0; width: 100%; box-sizing: border-box; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left; border: 0; background: transparent; color: var(--zui-text); font: inherit; padding: 8px 4px; cursor: grab; }
+.lk-chain-select:focus-visible { outline: 2px solid var(--zui-accent); }
+.lk-curves:focus-visible, .lk-wheel:focus-visible { outline: 2px solid var(--zui-accent); outline-offset: 2px; }
+.lk-chain-actions { display: flex; gap: 4px; }
+.lk-instances .lk-chain-actions > .zoidium-button { flex: 0 0 auto; width: auto; min-width: max-content; padding: 4px 8px; white-space: nowrap; }
+.lk-chain-moves { display: flex; gap: 6px; margin: 6px 0; }
+.lk-instances .lk-chain-moves > .zoidium-button { flex: 1 1 0; width: auto; white-space: nowrap; }
+.lk-parameters > .zoidium-section-title { position: sticky; top: 0; z-index: 1; background: var(--zui-bg-title); }
+.lk-instances .lk-curves { max-width: 100%; height: auto; }
+@container (max-width: 520px) {
+  .lk-chain-row { grid-template-columns: minmax(0, 1fr); }
+  .lk-chain-actions { justify-content: flex-end; }
+  .lk-parameters > .zoidium-section-title { font-size: var(--zui-font-size); }
+}
+
+.lk-parameters > .zoidium-section-title { height: auto; min-height: 28px; }
+.lk-parameters > .zoidium-section-title span:last-child { min-width: 0; white-space: normal; overflow-wrap: anywhere; }
