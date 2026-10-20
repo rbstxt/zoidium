@@ -3,7 +3,8 @@
   "use strict";
 
   const DEFAULT_BYTES = 512 * 1024 * 1024;
-  const MAX_MIB = 2048;
+  const MAX_MIB = 16384;
+  const MAX_ENTRIES = 8192;
 
   function sizeMiB(value) {
     const number = Number(value);
@@ -11,13 +12,17 @@
   }
 
   class FrameStore {
-    constructor(limit = DEFAULT_BYTES, maxEntries = 512) {
+    constructor(limit = DEFAULT_BYTES, maxEntries = MAX_ENTRIES) {
       this.limit = limit;
-      this.maxEntries = Math.max(1, Math.min(512, Math.floor(maxEntries) || 512));
+      this.maxEntries = Math.max(1, Math.min(MAX_ENTRIES, Math.floor(maxEntries) || MAX_ENTRIES));
+      this.ceiling = Infinity;
+      this.contextLost = false;
+      this.contextLosses = 0;
       this.bytes = 0;
       this.entries = new Map();
       this.generation = 0;
     }
+    get effectiveLimit() { return this.contextLost ? 0 : Math.min(this.limit, this.ceiling); }
     get(key) {
       const entry = this.entries.get(key);
       if (entry) {
@@ -31,20 +36,22 @@
       if (!entry) return;
       this.entries.delete(key);
       this.bytes -= entry.bytes;
-      entry.dispose();
+      if (!this.contextLost) entry.dispose();
     }
     reserve(bytes) {
-      if (!(bytes > 0) || bytes > this.limit) return false;
-      while (this.bytes + bytes > this.limit) this.delete(this.entries.keys().next().value);
+      if (!(bytes > 0) || bytes > this.effectiveLimit) return false;
+      while (this.bytes + bytes > this.effectiveLimit || this.entries.size >= this.maxEntries) {
+        this.delete(this.entries.keys().next().value);
+      }
       return true;
     }
     put(key, entry, generation = this.generation) {
       if (generation !== this.generation || entry.complete !== true) {
-        entry.dispose();
+        if (!this.contextLost) entry.dispose();
         return false;
       }
       this.delete(key);
-      if (!this.reserve(entry.bytes)) { entry.dispose(); return false; }
+      if (!this.reserve(entry.bytes)) { if (!this.contextLost) entry.dispose(); return false; }
       while (this.entries.size >= this.maxEntries) this.delete(this.entries.keys().next().value);
       this.entries.set(key, entry);
       this.bytes += entry.bytes;
@@ -53,7 +60,29 @@
     resize(limit) {
       this.limit = Math.max(0, limit);
       this.generation += 1;
-      while (this.bytes > this.limit) this.delete(this.entries.keys().next().value);
+      this.trim();
+    }
+    trim() {
+      while (this.bytes > this.effectiveLimit) this.delete(this.entries.keys().next().value);
+    }
+    memoryPressure() {
+      const usage = this.bytes;
+      this.ceiling = Math.min(this.ceiling, Math.floor(usage * 0.9));
+      this.generation += 1;
+      this.trim();
+      return usage;
+    }
+    loseContext() {
+      if (this.contextLost) return;
+      this.contextLosses += 1;
+      // Allow one conservative recovery. A second loss disables optional
+      // captures for this session rather than repeatedly risking the renderer.
+      this.ceiling = this.contextLosses > 1 ? 0 : Math.min(this.ceiling, Math.floor(this.bytes / 2));
+      this.contextLost = true;
+      this.clear();
+    }
+    restoreContext() {
+      this.contextLost = false;
     }
     clear() {
       this.generation += 1;
@@ -139,7 +168,8 @@
     return JSON.stringify(sort(JSON.parse(JSON.stringify(value))));
   }
 
-  const api = { assetCompletion, assetsComplete, decoderComplete, restoreLinkKeys, canonicalJSON, DEFAULT_BYTES, FrameStore, revisionOf, sizeMiB };
+  const api = { assetCompletion, assetsComplete, decoderComplete, restoreLinkKeys, canonicalJSON,
+    DEFAULT_BYTES, MAX_MIB, MAX_ENTRIES, FrameStore, revisionOf, sizeMiB };
   global.ZoidiumOutputFrameStore = api;
   if (typeof module === "object" && module.exports) module.exports = api;
 })(typeof globalThis !== "undefined" ? globalThis : this);

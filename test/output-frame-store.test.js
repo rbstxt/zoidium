@@ -117,9 +117,9 @@ test("font completion changes the key even without serialized edits", () => {
   assert.notEqual(revisionOf(s.viewport, s.plugins, () => 1, 0), revisionOf(s.viewport, s.plugins, () => 1, 1));
 });
 
-test("the size setting is clamped to 0..2048 MiB", () => {
+test("the size setting is clamped to 0..16384 MiB", () => {
   assert.equal(sizeMiB(0), 0); assert.equal(sizeMiB(-3), 0);
-  assert.equal(sizeMiB(NaN), 512); assert.equal(sizeMiB(100000), 2048);
+  assert.equal(sizeMiB(NaN), 512); assert.equal(sizeMiB(100000), 16384);
 });
 
 
@@ -198,4 +198,58 @@ test("track visibility is keyed even when the host serializer omits it", () => {
   s.sequence.toJSON = function () { return { properties: this.properties, clips: this.videoTracks[0].clips }; };
   const before = s.key(); s.sequence.videoTracks[0].enabled = false;
   assert.notEqual(s.key(), before);
+});
+
+
+test("the raised byte and entry limits retain more than 512 frames", () => {
+  const cache = new FrameStore(16384 * 1024 * 1024);
+  for (let i = 0; i < 8193; i++) cache.put(i, entry(4));
+  assert.equal(cache.entries.size, 8192);
+  assert.equal(cache.get(0), undefined);
+  assert.ok(cache.get(8192));
+  assert.equal(cache.bytes, 8192 * 4);
+});
+
+test("memory pressure evicts at least ten percent and cannot be reset by preferences or clear", () => {
+  const cache = new FrameStore(1000);
+  const frames = Array.from({ length: 10 }, () => entry(100));
+  frames.forEach((frame, i) => cache.put(i, frame));
+  assert.equal(cache.memoryPressure(), 1000);
+  assert.equal(cache.effectiveLimit, 900);
+  assert.equal(cache.bytes, 900);
+  assert.equal(frames[0].released, 1);
+  cache.clear(); cache.resize(2000);
+  assert.equal(cache.effectiveLimit, 900);
+  cache.resize(500);
+  assert.equal(cache.effectiveLimit, 500);
+  cache.resize(2000);
+  assert.equal(cache.effectiveLimit, 900);
+  cache.put("large", entry(901));
+  assert.equal(cache.entries.size, 0);
+});
+
+test("context loss drops dead textures without disposal and bounds recovery", () => {
+  const cache = new FrameStore(1000), frames = [entry(100), entry(100)];
+  frames.forEach((frame, i) => cache.put(i, frame));
+  const generation = cache.generation;
+  cache.loseContext();
+  assert.equal(cache.bytes, 0);
+  assert.equal(cache.entries.size, 0);
+  assert.deepEqual(frames.map(f => f.released), [0, 0]);
+  assert.equal(cache.reserve(1), false);
+  assert.equal(cache.put("late", frames[0], generation), false);
+  assert.equal(frames[0].released, 0);
+  cache.loseContext(); // The event and isContextLost() can describe one loss.
+  cache.restoreContext();
+  assert.equal(cache.effectiveLimit, 100);
+  assert.equal(cache.put("recovered", entry(100)), true);
+  cache.loseContext(); cache.restoreContext(); cache.clear(); cache.resize(10000);
+  assert.equal(cache.effectiveLimit, 0);
+  assert.equal(cache.reserve(1), false);
+});
+
+test("failure with no retained frames disables optional allocations for the session", () => {
+  const cache = new FrameStore();
+  cache.memoryPressure(); cache.resize(16384 * 1024 * 1024);
+  assert.equal(cache.reserve(16), false);
 });
