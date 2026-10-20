@@ -18,7 +18,7 @@ const hostGlobals = {
 
 module.exports = [
   {
-    ignores: ["plugins/alipfx/**", "**/bundle.json", "node_modules/**", "dist/**", ".zoidium-resources/**"],
+    ignores: ["plugins/alipfx/**", "plugins/mp4-export/vendor/**", "**/bundle.json", "node_modules/**", "dist/**", ".zoidium-resources/**"],
   },
   {
     files: ["**/*.js", "**/*.cjs"],
