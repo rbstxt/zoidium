@@ -20,6 +20,11 @@ function activate(context) {
   const shaders = require("./shaders.js").installShaders({ PZ, THREE: win.THREE, store, engine, patch });
   const controlsUI = require("./controls-ui.js").installControlsUI({ context, store, patch });
   if (context.editor?.sequence) store.ensure(context.editor.sequence);
+  const errorRows = new Set();
+  const errorTimer = win.setInterval(() => {
+    for (const row of errorRows) { if (!row.el.isConnected) errorRows.delete(row); else row.sync(); }
+  }, 250);
+  disposers.push(() => { win.clearInterval(errorTimer); errorRows.clear(); });
   patch(PZ.ui.controls, "createExpressionControls", original => function expressionControls(property) {
     const el = original.apply(this, arguments);
     const indicator = el.querySelector('button[title="show error"]'), text = el.querySelector("textarea");
@@ -32,14 +37,13 @@ function activate(context) {
     if (indicator) indicator.onclick = () => { update(); if (text) text.focus(); };
     let last;
     const sync = () => { const error = engine.error(property); if (error !== last) { last = error; update(); } };
-    const timer = win.setInterval(() => { if (el.isConnected) sync(); }, 250);
-    disposers.push(() => win.clearInterval(timer));
+    errorRows.add({ el, sync });
     update(); return el;
   });
   const api = { engine, controls: store, controlsUI, shaders };
   win.ZoidiumExpressions = api;
   disposers.push(() => { if (win.ZoidiumExpressions === api) delete win.ZoidiumExpressions; });
-  runtime = { context, engine, store };
+  runtime = { context, engine, store, shaders };
 }
 module.exports = {
   activate,
@@ -47,6 +51,9 @@ module.exports = {
     let used = false;
     if (runtime?.context.editor?.sequence && runtime.store.list(runtime.context.editor.sequence).length) return true;
     runtime?.context.editor?.project?.forEachItemOfType(runtime.context.PZ.property.dynamic, p => { if (p.expression && runtime.engine.isExtended(p.expression)) used = true; });
+    runtime?.context.editor?.project?.forEachItemOfType(runtime.context.PZ.effect.shader, effect => {
+      if (/\bz(?:Time|Frame)\b|\bctl_\w+|\/\/\s*#include\s*<zoidium\//.test(effect.properties.fragShader.get())) used = true;
+    });
     return used;
   },
   inUseReason: () => "This project uses Expressions+ syntax or API. Remove those expressions before disabling Expressions+.",

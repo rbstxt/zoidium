@@ -39,7 +39,7 @@ function createAPI(options) {
   function propertyHandle(p) {
     if (!p) throw new Error("Expression property was not found");
     const get = at => copy(read(p, localFrame(p, at)));
-    const keys = Array.from(p.keyframes || p.objects?.[0]?.keyframes || []);
+    const keys = p.keyframes ? Array.from(p.keyframes) : Array.from(new Set(Array.from(p.objects || []).flatMap(axis => Array.from(axis.keyframes || [], k => k.frame)))).sort((a, b) => a - b).map(frame => ({ frame, value: baseAt(p, frame) }));
     const key = index => {
       const k = keys[index - 1];
       if (!k) throw new Error("Expression key index is out of range");
@@ -105,18 +105,22 @@ function createAPI(options) {
   }
   const controls = Object.create(null);
   const controlIds = new Map();
-  for (const p of options.controls?.(sequence) || []) {
-    Object.defineProperty(controls, named(p) || p.definition?.name, { enumerable: true, get: () => copy(read(p, absolute)) });
-    if (p.definition?.zoidiumControlId) controlIds.set(p.definition.zoidiumControlId, p);
+  let controlsReady = false;
+  function loadControls() {
+    if (controlsReady) return controls;
+    controlsReady = true;
+    for (const p of options.controls?.(sequence) || []) {
+      Object.defineProperty(controls, named(p) || p.definition?.name, { enumerable: true, get: () => copy(read(p, absolute)) });
+      if (p.definition?.zoidiumControlId) controlIds.set(p.definition.zoidiumControlId, p);
+    }
+    return controls;
   }
-  const own = objectHandle(owner);
   const api = record({
-    value: copy(base), thisProperty: property ? propertyHandle(property) : record({ value: copy(base) }), thisObject: own,
-    thisLayer: objectHandle(ancestor(owner, is(PZ.layer))) || own,
-    thisClip: objectHandle(clip), thisSequence: objectHandle(sequence), thisComp: objectHandle(sequence),
+    value: copy(base),
     layer: name => objectHandle(find(layers(), name)),
-    effect: name => own?.effect(name), object: name => own?.object(name),
-    controls, control(name, id) {
+    effect: name => objectHandle(owner)?.effect(name), object: name => objectHandle(owner)?.object(name),
+    control(name, id) {
+      loadControls();
       if (id) {
         if (!controlIds.has(id)) throw new Error("Expression control was not found: " + name);
         return copy(read(controlIds.get(id), absolute));
@@ -140,6 +144,16 @@ function createAPI(options) {
     degreesToRadians: x => x * Math.PI / 180,
     radiansToDegrees: x => x * 180 / Math.PI,
     lookAt(from, to) { const d = to.map((v, i) => v - from[i]); return [Math.atan2(-d[1], Math.hypot(d[0], d[2])), Math.atan2(d[0], d[2]), 0]; },
+  });
+  let ownProperty;
+  Object.defineProperties(api, {
+    thisProperty: { enumerable: true, get: () => ownProperty ||= property ? propertyHandle(property) : record({ value: copy(base) }) },
+    thisObject: { enumerable: true, get: () => objectHandle(owner) },
+    thisLayer: { enumerable: true, get: () => objectHandle(ancestor(owner, is(PZ.layer))) || objectHandle(owner) },
+    thisClip: { enumerable: true, get: () => objectHandle(clip) },
+    thisSequence: { enumerable: true, get: () => objectHandle(sequence) },
+    thisComp: { enumerable: true, get: () => objectHandle(sequence) },
+    controls: { enumerable: true, get: loadControls },
   });
   if (options.world) Object.assign(api, options.world(owner, { frame, absolute, sequence, read, propertyHandle, cache: worldCache }));
   let seed = 0, timeless = false, randomIndex = 0, seeded = false;

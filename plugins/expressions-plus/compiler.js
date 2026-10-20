@@ -61,15 +61,15 @@ function compile(source, methodNames = [], mathNames = Object.getOwnPropertyName
     if (PURE_NAMES.has(name)) { extended = true; return member(member(id("__z"), "pure"), name); }
     throw new ReferenceError(name + " is not defined");
   }
-  function pattern(node, scopes) {
+  function pattern(node, scopes, assignment = false) {
     if (!node) return node;
-    if (node.type === "Identifier") return node;
-    if (node.type === "AssignmentPattern") { node.left = pattern(node.left, scopes); node.right = visit(node.right, scopes); }
-    else if (node.type === "RestElement") node.argument = pattern(node.argument, scopes);
-    else if (node.type === "ArrayPattern") node.elements = node.elements.map(p => pattern(p, scopes));
+    if (node.type === "Identifier") return assignment ? reference(node, scopes) : node;
+    if (node.type === "AssignmentPattern") { node.left = pattern(node.left, scopes, assignment); node.right = visit(node.right, scopes); }
+    else if (node.type === "RestElement") node.argument = pattern(node.argument, scopes, assignment);
+    else if (node.type === "ArrayPattern") node.elements = node.elements.map(p => pattern(p, scopes, assignment));
     else if (node.type === "ObjectPattern") node.properties.forEach(p => {
-      if (p.type === "RestElement") p.argument = pattern(p.argument, scopes);
-      else { if (p.computed) p.key = visit(p.key, scopes); p.value = pattern(p.value, scopes); }
+      if (p.type === "RestElement") p.argument = pattern(p.argument, scopes, assignment);
+      else { if (p.computed) p.key = visit(p.key, scopes); p.value = pattern(p.value, scopes, assignment); if (p.value.type !== "Identifier") p.shorthand = false; }
     });
     return node;
   }
@@ -77,6 +77,12 @@ function compile(source, methodNames = [], mathNames = Object.getOwnPropertyName
     if (!node || typeof node.type !== "string") return node;
     if (FORBIDDEN.has(node.type)) throw new SyntaxError(node.type + " is not allowed in expressions");
     if (node.type === "Identifier") return reference(node, scopes);
+    if (node.type === "AssignmentExpression" && ["ObjectPattern", "ArrayPattern"].includes(node.left.type)) {
+      node.left = pattern(node.left, scopes, true);node.right = visit(node.right, scopes);return node;
+    }
+    if (node.type === "UnaryExpression" && node.operator === "delete" && node.argument.type === "ChainExpression") {
+      node.argument.zoidiumDelete = true;return visit(node.argument, scopes);
+    }
     if (node.type === "ChainExpression") {
       extended = true;
       const steps = [];
@@ -90,16 +96,17 @@ function compile(source, methodNames = [], mathNames = Object.getOwnPropertyName
       const body = [{ type: "VariableDeclaration", kind: "let", declarations: [{ type: "VariableDeclarator", id: receiver, init: null }] }];
       const assign = (left, right) => ({ type: "ExpressionStatement", expression: { type: "AssignmentExpression", operator: "=", left, right } });
       for (const step of steps) {
-        if (step.optional) body.push({ type: "IfStatement", test: { type: "BinaryExpression", operator: "==", left: value, right: { type: "Literal", value: null } }, consequent: { type: "ReturnStatement", argument: null }, alternate: null });
+        if (step.optional) body.push({ type: "IfStatement", test: { type: "BinaryExpression", operator: "==", left: value, right: { type: "Literal", value: null } }, consequent: { type: "ReturnStatement", argument: node.zoidiumDelete ? { type: "Literal", value: true } : null }, alternate: null });
         if (step.type === "MemberExpression") {
           body.push(assign(receiver, value));
-          body.push(assign(value, { ...step, object: value, property: step.computed ? visit(step.property, scopes) : step.property, optional: false }));
+          const access = { ...step, object: value, property: step.computed ? visit(step.property, scopes) : step.property, optional: false };
+          body.push(assign(value, node.zoidiumDelete && step === steps.at(-1) ? { type: "UnaryExpression", operator: "delete", prefix: true, argument: access } : access));
         } else {
           body.push(assign(value, call(helper("invoke"), [value, receiver, { type: "ArrayExpression", elements: step.arguments.map(a => visit(a, scopes)) }])));
           body.push(assign(receiver, { type: "UnaryExpression", operator: "void", prefix: true, argument: { type: "Literal", value: 0 } }));
         }
       }
-      body.push({ type: "ReturnStatement", argument: value });
+      body.push({ type: "ReturnStatement", argument: node.zoidiumDelete && steps.at(-1)?.type !== "MemberExpression" ? { type: "Literal", value: true } : value });
       return call({ type: "ArrowFunctionExpression", params: [value], body: { type: "BlockStatement", body }, async: false, expression: false }, [initial]);
     }
     if (/Function/.test(node.type)) {

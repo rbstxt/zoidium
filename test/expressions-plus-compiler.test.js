@@ -20,6 +20,10 @@ test('modern syntax, patterns, scope, functions, rest, spread and explicit retur
   assert.equal(evaluate('const square=function(n){return n*n}; square(4)'), 16);
   assert.equal(evaluate('let a=1; {let a=9;} a'), 1);
   assert.equal(evaluate('const o={a:2}; const {a:b}=o; b'), 2);
+  assert.equal(evaluate('let x; ({foo:x}={foo:6}); x'),6);
+  assert.throws(()=>compile('({foo:missing}={foo:6})'),ReferenceError);
+  assert.equal(evaluate('const a={x:1}; delete a?.x; a.x'),undefined);
+  assert.equal(evaluate('delete null?.x'),true);
 });
 test('optional chains retain receiver, getter count and skipped argument evaluation', () => {
   assert.equal(evaluate('let n=0; null?.x.foo(n++); n'), 0);
@@ -27,7 +31,7 @@ test('optional chains retain receiver, getter count and skipped argument evaluat
   assert.equal(evaluate('const a={}; a.f?.(sin.constructor("skipped"))'), undefined); // free names are checked even in skipped branches
 });
 test('unknown identifiers are static ReferenceErrors even in dead code', () => {
-  for (const name of ['window','document','globalThis','self','top','parentWindow','frames','Function','eval','Date','arguments','missing']) {
+  for (const name of ['window','document','globalThis','self','top','parentWindow','parent','frames','Function','eval','Date','arguments','missing']) {
     assert.throws(()=>compile(`false && ${name}`), ReferenceError, name);
   }
   assert.throws(()=>compile('if(false){missing()}'), ReferenceError);
@@ -55,6 +59,7 @@ test('calls, callbacks, aliases, bind, apply, new and tagged templates reject co
     '["return 29"].map(sin.constructor.bind(null))',
     'sin.constructor`return 29`',
     'sin.constructor?.("return 29")',
+    'JSON.parse("\\\"return 29\\\"",sin.constructor)()',
     'foreign("return 29")',
     '["return 29"].reduce(foreign,0)',
     'ev("29")',

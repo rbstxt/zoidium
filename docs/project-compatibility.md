@@ -284,3 +284,17 @@ file. Vanilla CM3 ignores the field. These builds cannot evaluate control links.
 Generated links use `control(name, id)` to survive rename/reorder. Manual
 name-only links follow exact names. Deleting the ID makes a generated link fail
 and use its own keyed value, rather than selecting a replacement control.
+
+## Expressions+ shader extensions and world links
+
+World/camera links add only ordinary expression source strings. There are no
+new transform fields, camera copies or frame caches in saved projects.
+
+Shader includes and automatic uniform declarations remain in the native
+`properties.fragShader` string and add dependency feature `shader-extensions`.
+Expansion happens only during compilation; expanded library code and runtime
+uniform values are never serialized. Native custom properties are unchanged.
+Older builds can open and retain the GLSL, but do not expand include comments
+or supply automatic uniforms, so their output may differ or fail to compile.
+Shaders that do not opt into these extensions retain their original source
+bytes, compiler path and uniforms.
