@@ -11,7 +11,7 @@ function graph(){
  const track={clips:[clip],getCurrentClip:()=>clip};sequence.videoTracks.push(track);
  const effect={parent:layer,properties:{name:p('Name','Glow'),radius:p('Radius',20)}};layer.effects.push(effect);
  const property=p('Opacity',.5);property.parent=layer;
- const control=p('Amount',7);control.properties={name:p('Name','Amount')};control.parent=sequence;
+ const control=p('Amount',7);control.properties={name:p('Name','Amount')};control.parent=sequence;control.definition.zoidiumControlId='c1';
  const reads=[];
  const api=createAPI({PZ,owner:layer,property,frame:20,time:1,base:.5,read:(p,f)=>{reads.push(f);return p.get(f);},baseAt:(p,f)=>f/30,controls:()=>[control],methods:{random:n=>Math.sin(n),linear:(a,b,t)=>a+(b-a)*t,clamp:(v,a,b)=>v.map(n=>Math.max(a,Math.min(b,n)))}});
  return {...api,sequence,clip,layer,property,control,reads};
@@ -23,7 +23,7 @@ test('API crosses layers/effects/parents and paths using copied values',()=>{
  assert.equal(api.prop('/Scene/Glow/Radius'),20);
  assert.equal(api.thisLayer.property('Position').value[1],2);
  assert.equal(api.thisObject.parent.name,'');assert.equal(api.thisObject.parent(2),api.thisSequence);
- assert.equal(api.controls.Amount,7);assert.equal(api.control('Amount'),7);assert.ok(reads.every(Number.isFinite));
+ assert.equal(api.control('Old name','c1'),7);assert.throws(()=>api.control('Amount','missing'),/not found/);assert.equal(api.controls.Amount,7);assert.equal(api.control('Amount'),7);assert.ok(reads.every(Number.isFinite));
  const value=api.thisLayer.property('Position').value;value[0]=900;assert.equal(api.thisLayer.property('Position').value[0],1);
  assert.equal(Object.getPrototypeOf(api),null);assert.equal(Object.getPrototypeOf(api.thisObject),null);
  assert.equal(api.thisObject.parentObject,undefined);assert.equal(api.thisObject.threeObj,undefined);

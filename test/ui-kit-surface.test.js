@@ -53,6 +53,7 @@ test("the assembled surface keeps every public member", () => {
     "refreshEditors",
     "registerAttributePanel",
     "registerEditor",
+    "registerMenuExtension",
     "registerSkin",
     "removeMenubarTab",
   ]);

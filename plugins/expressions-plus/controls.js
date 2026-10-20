@@ -36,10 +36,19 @@ function createControlsStore({ PZ, patch, notify = () => {} }) {
       const p = PZ.property.create(clone(saved.type));
       state.list.push(p); p.load(clone(saved)); label(p);
     }
-    notify(sequence);
+    if (!state.restoringMetadata) notify(sequence);
   }
   function ensure(sequence) {
     if (states.has(sequence)) return states.get(sequence);
+    let saved;
+    try {
+      // A plugin enabled after project load must recover the manager's
+      // retained unknown field as well as sequences loaded while enabled.
+      const properties = sequence.toJSON()?.properties;
+      const data = properties?.toJSON ? properties.toJSON() : properties;
+      saved = data?.[STORAGE];
+      if (saved?.toJSON) saved = saved.toJSON();
+    } catch (_error) { /* A newly constructed sequence has no payload yet. */ }
     const list = new PZ.objectList(sequence, PZ.property.dynamic);
     list.name = "Controls";
     sequence.children.push(list);
@@ -49,9 +58,12 @@ function createControlsStore({ PZ, patch, notify = () => {} }) {
     sequence.properties.add(STORAGE, meta);
     meta.toJSON = () => list.length ? JSON.stringify(snapshot(sequence)) : "";
     meta.onChanged.watch(() => {
+      state.restoringMetadata = true;
       try { restore(sequence, meta.get()); }
       catch (error) { console.warn("[Zoidium] Sequence Controls: " + error.message); }
+      finally { state.restoringMetadata = false; }
     });
+    meta.load(saved);
     return state;
   }
   function add(sequence, kind, options = {}) {

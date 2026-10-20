@@ -382,3 +382,12 @@ inputs, borders, danger text and value colors update together, including open
 menus, custom canvases and mirrored popup documents. Content colors such as
 asset labels, channel curves and rendered thumbnails retain their meaning.
 Standalone help pages read the same saved theme and follow storage changes.
+
+`ZoidiumUI.registerMenuExtension({id, items(options)})` appends actions to a
+shared menu without replacing another plugin's context-menu handler. Return
+an array of items, or `[]` when the owner/items do not match. IDs must be
+unique. Register the returned disposer with `context.lifecycle.onDispose`.
+The callback receives the original menu options and a copy of its current
+item array. It should inspect state only. A failing extension leaves the
+host's menu available and logs an English diagnostic. Expressions+ uses this
+to join Graph Editor 2's property menu while retaining Show in Graph Editor.

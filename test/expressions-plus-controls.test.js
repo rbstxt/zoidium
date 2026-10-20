@@ -32,3 +32,10 @@ test('an untouched sequence omits control storage, and invalid payloads are reje
  assert.throws(()=>decode({version:2,controls:[]}),/Unsupported/);
  assert.throws(()=>decode({version:1,controls:[{type:{zoidiumControlId:'c1',zoidiumControlKind:'Date'}}]}),/Invalid/);
 });
+test('enabling after native load recovers retained sequence control data',{skip:!fs.existsSync(core)},()=>{
+ const {PZ,store,seq}=setup();store.add(seq,'Slider',{name:'Restored',value:9});
+ const payload=JSON.parse(JSON.stringify(seq.properties)).zoidiumControls;
+ const target=new PZ.sequence();target.properties.load();const nativeJSON=target.toJSON;
+ target.toJSON=function(){const data=nativeJSON.call(this);return {...data,properties:{...JSON.parse(JSON.stringify(data.properties)),zoidiumControls:payload}};};
+ store.ensure(target);assert.equal(store.list(target).length,1);assert.equal(store.label(store.list(target)[0]),'Restored');assert.equal(store.list(target)[0].get(0),9);
+});
