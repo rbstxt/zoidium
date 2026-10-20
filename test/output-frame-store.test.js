@@ -253,3 +253,19 @@ test("failure with no retained frames disables optional allocations for the sess
   cache.memoryPressure(); cache.resize(16384 * 1024 * 1024);
   assert.equal(cache.reserve(16), false);
 });
+
+test("large preferences preserve the default and enforce the byte limit before allocation", () => {
+  const MiB = 1024 * 1024, cache = new FrameStore();
+  assert.equal(cache.limit, 512 * MiB);
+  assert.equal(cache.maxEntries, 8192);
+  cache.resize(sizeMiB(16384) * MiB);
+  const a = entry(8192 * MiB), b = entry(8192 * MiB);
+  assert.equal(cache.put("a", a), true);
+  assert.equal(cache.put("b", b), true);
+  assert.equal(cache.bytes, 16384 * MiB);
+  assert.equal(cache.reserve(1), true);
+  assert.equal(a.released, 1);
+  assert.equal(cache.bytes, 8192 * MiB);
+  assert.equal(cache.reserve(16384 * MiB + 1), false);
+  assert.equal(b.released, 0);
+});
