@@ -882,7 +882,7 @@ function openSetup(effect) {
       persistKey: "looks-setup",
       width: effect.looksInstances ? 620 : 360,
       height: 620,
-      minWidth: effect.looksInstances ? 500 : 300,
+      minWidth: effect.looksInstances ? 320 : 300,
       minHeight: 260,
       mount: function (body) {
         return buildBody(body, effect, session, view);
