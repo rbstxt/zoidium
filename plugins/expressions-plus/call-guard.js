@@ -12,8 +12,9 @@ const callbackSlots = new Map([
 ]);
 
 function createCallGuard(limit = 10000000) {
-  let remaining = limit;
-  const info = new WeakMap(), wrappers = new WeakMap();
+  let remaining = limit, depth = 0;
+  let overrides = new Map();
+  const info = new WeakMap(), wrappers = new WeakMap(), receivers = new WeakMap();
   function tick() { if (--remaining < 0) throw new Error("Expression iteration/call budget exceeded"); }
   function describe(fn) {
     if (typeof fn !== "function") return {};
@@ -37,6 +38,11 @@ function createCallGuard(limit = 10000000) {
     return proxy;
   }
   function invoke(fn, receiver, args, newTarget) {
+    if (++depth > 256) { depth--; throw new Error("Expression recursion budget exceeded"); }
+    try { return dispatch(fn, receiver, args, newTarget); }
+    finally { depth--; }
+  }
+  function dispatch(fn, receiver, args, newTarget) {
     tick();
     let meta = describe(fn);
     while (meta.target) {
@@ -44,6 +50,7 @@ function createCallGuard(limit = 10000000) {
       fn = meta.target; meta = describe(fn);
     }
     if (meta.forbidden) throw new Error("Expression cannot call Function constructors or eval");
+    if (overrides.has(fn)) return apply(overrides.get(fn), receiver, args);
     if (meta.native === "call") return invoke(receiver, args[0], args.slice(1));
     if (meta.native === "apply") return invoke(receiver, args[0], args[1] == null ? [] : Array.from(args[1]));
     if (meta.native === "bind") {
@@ -70,11 +77,17 @@ function createCallGuard(limit = 10000000) {
   }
   return {
     tick,
+    invoke,
+    swapOverrides(next) { const previous = overrides; overrides = next; return previous; },
     reset() { remaining = limit; },
     guard: fn => wrap(fn),
     receiver(value) {
       if (value == null) return value;
-      return new Proxy(Object(value), { get(target, key) { return wrap(Reflect.get(target, key, value), value, true); } });
+      const object = Object(value);
+      if (receivers.has(object)) return receivers.get(object);
+      const proxy = new Proxy(Object.create(null), { get(_target, key) { return wrap(Reflect.get(object, key, value), value, true); } });
+      receivers.set(object, proxy);
+      return proxy;
     },
   };
 }

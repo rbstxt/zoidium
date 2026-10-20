@@ -6,6 +6,32 @@ mode loads as `legacy`, regardless of the plugin versions recorded in the file.
 Explicit `legacy` and `current` fields always win. New objects use `current`
 and serialize that choice. There are no new UI controls.
 
+## Expressions+
+
+Expressions remain source strings in native dynamic properties. No compiled
+code enters project files. Extended syntax/API adds the `expressions-plus`
+dependency with feature `expressions`; scanning includes preserved and nested
+project records. Source strings stay intact through native serialization,
+archive saving, copy/paste and history. Older Zoidium builds can warn from the
+dependency descriptor. Vanilla CM3 cannot interpret the plugin dependency;
+it displays its native expression error for unsupported syntax/API.
+
+Constructor and prototype member reads retain CM3's results, including computed
+reads. The security exception is invoking a Function-like constructor or eval
+through any path, including `new`, aliases and callbacks. Those calls now
+produce an English expression error and use the property's own value. Unknown
+free globals, `this`, async and generator syntax remain unavailable. Compilation
+uses the Function constructor of a temporary sandboxed iframe removed before
+evaluation. No new API handle exposes a host or realm object.
+
+Execution also has explicit deterministic limits of 10,000,000 loop/call steps
+and 256 nested calls per outer evaluation. Exceeding a limit or any other
+expression error falls back to the property's keyed value. This replaces
+CM3's undefined error result. Legacy expressions within these limits keep
+their native signatures and detached-realm intrinsic identities. The native
+corpus test compares accepted repository expressions against the cached CM3
+compiler without checking CM3 code or captured data into Git.
+
 MP4 Export adds no project fields or rendering modes. Format, bitrate and
 codec decisions belong to the current Device render page. Disabling the
 plugin or opening a project in an older build leaves its rendering unchanged.

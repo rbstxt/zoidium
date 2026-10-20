@@ -8,9 +8,6 @@ function installEngine(options) {
   const compiled = new WeakMap(), active = new Set(), errors = new WeakMap();
   const reported = new Set();
   const guard = createCallGuard();
-  const math = Object.assign(Object.create(null), ...Object.getOwnPropertyNames(Math).map(k => ({ [k]: Math[k] })));
-  math.random = () => { throw new Error("Expression Math.random is unavailable; use seeded random()"); };
-  const pure = Object.assign(Object.create(null), { Array, Number, String, Boolean, parseFloat, parseInt, isNaN, isFinite, Infinity, NaN, undefined, JSON: { parse: JSON.parse, stringify: JSON.stringify }, Math: math });
   function report(expression, property, error) {
     const message = error ? "Expression error: " + String(error.message || error) : null;
     expression.error = message;
@@ -24,7 +21,7 @@ function installEngine(options) {
   }
   patch(PZ.expression.prototype, "parse", () => function parseExtended(source) {
     try {
-      const result = compile(source, [...Object.keys(PZ.expression.methods), "wiggle", "linear", "ease", "clamp"]);
+      const result = compile(source, Object.keys(PZ.expression.methods));
       const fn = sandboxFunction(doc, result.code);
       compiled.set(this, { ...result, fn }); this.error = null;
       return fn;
@@ -48,7 +45,9 @@ function installEngine(options) {
   }
   function read(p, frame) {
     if (active.has(p)) throw new Error("Expression property cycle detected");
-    return p.get(frame);
+    const result = p.get(frame);
+    if (active.size && errors.get(p)?.includes("cycle detected")) throw new Error("Expression property cycle detected");
+    return result;
   }
   function evaluate(expression, frame, owner, property) {
     if (!compiled.has(expression)) { expression.fn = expression.parse(expression.source); }
@@ -57,6 +56,7 @@ function installEngine(options) {
     if (!result || result.failed) return base;
     if (active.has(property)) { report(expression, property, new Error("Expression property cycle detected")); return base; }
     const outer = active.size === 0;
+    let previousOverrides;
     if (outer) guard.reset();
     active.add(property);
     try {
@@ -65,13 +65,15 @@ function installEngine(options) {
       const context = createAPI({ PZ, owner, property, frame, time, base, read, baseAt,
         methods: PZ.expression.methods, wiggleMethods: options.wiggleMethods,
         controls: options.controls, world: options.world });
+      const pure = result.fn.zoidiumPure;
       const helpers = { ...guard, api: context.api, pure };
+      previousOverrides = guard.swapOverrides(context.overrides);
       const custom = expression.getCustomProperties(frame, owner);
-      const value = result.fn(frame, time, context.methods, custom, math, helpers);
+      const value = result.fn(frame, time, context.methods, custom, pure.Math, helpers);
       report(expression, property, null);
       return value;
     } catch (error) { report(expression, property, error); return base; }
-    finally { active.delete(property); }
+    finally { if (previousOverrides) guard.swapOverrides(previousOverrides); active.delete(property); }
   }
   patch(PZ.expression.prototype, "evaluate", () => function evaluateExtended(frame, owner, property) {
     return evaluate(this, frame, owner, property);
