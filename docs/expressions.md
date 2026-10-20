@@ -153,3 +153,94 @@ For an effect radius linked to a Slider named Amount:
 ```js
 control("Amount")
 ```
+
+## World and camera links
+
+Object handles and the owning-object helpers have `toWorld(point)`,
+`fromWorld(point)`, `worldPosition()` and `worldRotation()`. Points are
+three-component arrays. Rotations are XYZ Euler angles in radians, after
+parent group transforms and Track To. World reads sample native transform
+properties at the requested frame and solve constraints on temporary Three
+objects. They do not change the live scene or reuse the previous frame's pose.
+Native camera shake and Camera+ vibrate/projection run on camera copies.
+
+`object.toScreen(localPoint)` returns `[x, y, depth]` in composition pixels,
+with the origin at the top left. `depth` is normalized device depth, -1 at
+near and +1 at far. The renderer's active native or Camera+ camera is selected
+at that frame; shared camera tracks apply when the target scene track has 3D
+tracking enabled. Native scene layer position, scale and rotation are included.
+`fromScreen([x,y,depth])` reverses the mapping to object-local coordinates.
+Preserve the returned depth for a round-trip. Zero-scale transforms cannot
+be inverted. Helpers without a 3D owner use world coordinates in the owning
+scene, or the first active scene when the owner is a 2D layer.
+
+To pin a native Transform effect's Image position to the center of a 3D object
+named Shape in a scene named Scene:
+
+```js
+const pixel = layer("Scene").object("Shape").toScreen([0, 0, 0]);
+const size = thisComp.property("Resolution").value;
+[pixel[0] - size[0] / 2, size[1] / 2 - pixel[1], 0]
+```
+
+To drive its Image rotation from a Camera+ Z roll:
+
+```js
+[0, 0, layer("Scene").object("Camera+").worldRotation()[2]]
+```
+
+These helpers describe authored object/group transforms and the rendering
+camera. Repeater instances, deformed vertices, post-effect image distortion
+and nested composition time mappings are outside the coordinate contract.
+For sheared or nonuniformly scaled parent chains, worldRotation uses Three's
+matrix decomposition; its Euler angles are not a unique shear decomposition.
+
+## Shader extensions
+
+Custom Shader effects keep their original saved GLSL. Expressions+ expands
+these exact full-line directives only in the compiler input:
+
+```glsl
+// #include <zoidium/hash>
+// #include <zoidium/noise>
+// #include <zoidium/color>
+// #include <zoidium/sdf>
+```
+
+Chunks are emitted once. Noise includes hash automatically. The GLSL ES 1.00
+library has `zHash(float/vec2/vec3)`, `zNoise(vec2/vec3)`, `zSrgbToLinear(vec3)`,
+`zLinearToSrgb(vec3)`, `zRgbToHsv(vec3)`, `zHsvToRgb(vec3)`,
+`zSdCircle(vec2,float)`, `zSdSphere(vec3,float)`, `zSdBox(vec2,vec2)`,
+`zSdBox(vec3,vec3)` and `zSmoothUnion(float,float,float)`. Hash/noise return
+0–1; HSV uses hue in 0–1. SDF distances are negative inside. Color conversions
+operate on RGB and leave alpha to the shader author.
+
+Declare `uniform float zTime;` and `uniform float zFrame;` to receive the
+owning clip's Time in seconds and effect-local frame. Scalar `int` uniforms
+are also accepted and truncate toward zero. Declare `ctl_<Name>` as float,
+int, vec2, vec3 or vec4 to bind a Sequence Control. Non-ASCII/space/punctuation
+characters in names become `_`; colliding normalized names report an error.
+The control's dimension must match. Color binds RGB as vec3 or opaque RGBA as vec4; Point 2D/3D bind
+vec2/vec3. Comma-separated uniform declarations are accepted. Automatic
+binding does not support uniform arrays.
+
+For a Slider named Amount:
+
+```glsl
+precision highp float;
+uniform float zTime;
+uniform float zFrame;
+uniform float ctl_Amount;
+varying vec2 vUvScaled;
+// #include <zoidium/noise>
+void main() {
+  float n = zNoise(vUvScaled * 8.0 + vec2(zTime));
+  gl_FragColor = vec4(vec3(ctl_Amount * n), 1.0);
+}
+```
+
+Native custom-property expressions and Node Effect exposed parameters use the
+same expression engine. Existing shaders without these declarations/includes
+receive their exact original compiler input and native uniforms. Shader errors
+appear through CM3's shader error handler; missing controls can recover as
+soon as a compatible control exists.

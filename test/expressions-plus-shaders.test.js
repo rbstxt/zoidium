@@ -12,6 +12,7 @@ test('include expansion is bounded, deduplicated, comment-aware and opt-in',()=>
 test('uniform discovery ignores comments and handles precision and supported dimensions',()=>{
  assert.deepEqual(analyze('// uniform float zTime;\nuniform highp float zFrame;\nuniform vec4 ctl_Color;\n/*uniform float ctl_Missing;*/').uniforms,[{name:'zFrame',type:'float',size:1},{name:'ctl_Color',type:'vec4',size:4}]);
 });
+test('comma-separated automatic uniform declarations are discovered',()=>{assert.deepEqual(analyze('uniform float zTime, zFrame;').uniforms.map(u=>u.name),['zTime','zFrame']);});
 test('native shader hook preserves raw source and binds local time, frame and absolute control values',{skip:!fs.existsSync(core)},()=>{
  const {THREE}=host();class Sequence{}class Clip{}class Shader{
   updateFragmentShader(){this.pass.material.fragmentShader=this.properties.fragShader.get();this.pass.uniforms={tDiffuse:{value:null}};}

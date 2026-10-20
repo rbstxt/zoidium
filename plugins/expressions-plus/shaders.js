@@ -32,15 +32,17 @@ function expandIncludes(source) {
 function analyze(source) {
   const expanded = expandIncludes(source), text = stripComments(expanded);
   const uniforms = [];
-  const pattern = /\buniform\s+(?:(?:lowp|mediump|highp)\s+)?(float|int|vec[234])\s+([A-Za-z_]\w*)\s*;/g;
+  const pattern = /\buniform\s+(?:(?:lowp|mediump|highp)\s+)?(float|int|vec[234])\s+([^;]+);/g;
   for (const match of text.matchAll(pattern)) {
-    const [, type, name] = match;
-    if (name === "zTime" || name === "zFrame" || name.startsWith("ctl_")) uniforms.push({ name, type, size: type.startsWith("vec") ? Number(type[3]) : 1 });
+    const [, type, names] = match;
+    for (const name of names.split(",").map(n => n.trim())) {
+      if (/^[A-Za-z_]\w*$/.test(name) && (name === "zTime" || name === "zFrame" || name.startsWith("ctl_"))) uniforms.push({ name, type, size: type.startsWith("vec") ? Number(type[3]) : 1 });
+    }
   }
   return { source: expanded, uniforms, used: expanded !== source || uniforms.length > 0 };
 }
 function installShaders({ PZ, THREE, store, engine, patch }) {
-  const metadata = new WeakMap(), failed = new WeakMap(), reports = new Set();
+  const metadata = new WeakMap(), failed = new WeakMap(), lastError = new WeakMap(), reports = new Set();
   const prototype = PZ.effect.shader.prototype;
   patch(prototype, "updateFragmentShader", original => function compileWithExtensions() {
     const property = this.properties.fragShader, raw = property.get(), parsed = analyze(raw);
@@ -63,8 +65,10 @@ function installShaders({ PZ, THREE, store, engine, patch }) {
       if (!parsed) return result;
       const sequence = ancestor(this, n => n instanceof PZ.sequence), clip = ancestor(this, n => n instanceof PZ.clip);
       const absolute = frame + (clip?.start || 0), names = new Map();
-      for (const p of sequence ? store.list(sequence) : []) {
+      const wanted = new Set(parsed.uniforms.filter(u => u.name.startsWith("ctl_")).map(u => u.name.slice(4)));
+      for (const p of sequence && wanted.size ? store.list(sequence) : []) {
         const name = named(p).replace(/[^A-Za-z0-9_]/g, "_");
+        if (!wanted.has(name)) continue;
         if (names.has(name)) throw new Error("Control names collide in shader uniform: ctl_" + name);
         names.set(name, p);
       }
@@ -79,16 +83,19 @@ function installShaders({ PZ, THREE, store, engine, patch }) {
           const control = names.get(uniform.name.slice(4));
           if (!control) throw new Error("Shader control was not found: " + uniform.name);
           value = engine.read(control, absolute);
+          if (uniform.size === 4 && Array.isArray(value) && value.length === 3 && control.definition?.zoidiumControlKind === "Color") value = [...value, 1];
           if (uniform.size !== (Array.isArray(value) ? value.length : 1)) throw new Error("Shader control has the wrong dimension: " + uniform.name);
         }
         if (uniform.size === 1) this.pass.uniforms[uniform.name].value = uniform.type === "int" ? Math.trunc(Number(value)) : Number(value);
         else this.pass.uniforms[uniform.name].value.set(...value);
       }
+      lastError.delete(this);
       return result;
     } catch (error) {
       const message = "Expressions+ shader error: " + error.message;
       if (!reports.has(message)) { reports.add(message); if (reports.size > 128) reports.delete(reports.values().next().value); console.warn("[Zoidium] " + message); }
-      this.onShaderError.update(message);this.pass.enabled = false;
+      if (lastError.get(this) !== message) { lastError.set(this, message); this.onShaderError.update(message); }
+      this.pass.enabled = false;
       // Include parse errors cannot recover until source changes. Missing
       // controls can recover immediately after an ordinary control edit.
       if (/include/i.test(error.message)) failed.set(this, raw);

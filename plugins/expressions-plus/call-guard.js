@@ -9,6 +9,7 @@ const callbackSlots = new Map([
   ["find", 0], ["findIndex", 0], ["findLast", 0], ["findLastIndex", 0], ["sort", 0],
   ["toSorted", 0], ["reduce", 0], ["reduceRight", 0], ["from", 1], ["groupBy", 1],
   ["replace", 1], ["replaceAll", 1],
+  ["parse", 1], ["stringify", 1],
 ]);
 
 function createCallGuard(limit = 10000000) {
@@ -17,10 +18,10 @@ function createCallGuard(limit = 10000000) {
   const info = new WeakMap(), wrappers = new WeakMap(), receivers = new WeakMap();
   function tick() { if (--remaining < 0) throw new Error("Expression iteration/call budget exceeded"); }
   function describe(fn) {
-    if (typeof fn !== "function") return {};
+    if (typeof fn !== "function") return Object.create(null);
     if (info.has(fn)) return info.get(fn);
     const source = apply(nativeSource, fn, []);
-    const value = { forbidden: constructors.test(source), native: nativeName.exec(source)?.[1] };
+    const value = Object.assign(Object.create(null), { forbidden: constructors.test(source), native: nativeName.exec(source)?.[1] });
     info.set(fn, value);
     return value;
   }
@@ -33,7 +34,7 @@ function createCallGuard(limit = 10000000) {
     });
     // Store the target, including its native identity. Passing an already
     // guarded callable through call/apply must not erase that identity.
-    info.set(proxy, { ...describe(fn), target: fn, receiver, bound });
+    info.set(proxy, Object.assign(Object.create(null), describe(fn), { target: fn, receiver, bound }));
     if (!bound) wrappers.set(fn, proxy);
     return proxy;
   }
