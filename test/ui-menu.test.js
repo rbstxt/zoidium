@@ -201,3 +201,17 @@ test("resize dismissal observes the host panel, allowing ordinary owner text to 
   width = 420; resizers[0].fn(); assert.equal(menu.isOpen(), false);
   assert.equal(resizers[0].disconnected, true);
 });
+
+test("registered menu extensions append actions without mutating host items and dispose independently", () => {
+  const { api } = load();
+  const source = [item("Host")];
+  const remove = api.registerExtension({ id: "fixture", items: config => config.items[0].label === "Host" ? [item("Extension")] : [] });
+  assert.throws(() => api.registerExtension({ id: "fixture", items() {} }), /already registered/);
+  let menu = api.openMenu({ items: source });
+  assert.deepEqual(rows(menu).map(row => row.querySelector(".zui-menu-label").textContent), ["Host", "Extension"]);
+  assert.equal(source.length, 1);
+  remove();
+  menu = api.openMenu({ items: source });
+  assert.equal(rows(menu).length, 1);
+  assert.throws(() => api.registerExtension({ id: "bad" }), /items function/);
+});

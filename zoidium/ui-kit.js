@@ -189,6 +189,7 @@
     confirm: confirm,
     openWindow: builder.windows.openWindow,
     openMenu: builder.menus.openMenu,
+    registerMenuExtension: builder.menus.registerExtension,
     getWindow: builder.windows.getWindow,
     closeWindows: builder.windows.closeWindows,
     registerSkin: builder.skins.registerSkin,
