@@ -410,6 +410,11 @@ this.resize = function () {
 // Saved, unmarked effects keep the released single-pass implementation above.
 // New effects opt into instances explicitly and persist that choice on save.
 var looksLegacy = { load: this.load, prepare: this.prepare, update: this.update, unload: this.unload };
+this.unload = function () {
+    if (this._looksPipeline) { this._looksPipeline.dispose(); this.pass = null; }
+    else if (this._looksHistoricalUnload) this._looksHistoricalUnload.call(this);
+    else looksLegacy.unload.call(this);
+};
 this.load = async function (data) {
     if (data && !data.looksInstances && (data.looksLegacyFormat === "davidium" ||
         data.properties && !Object.prototype.hasOwnProperty.call(data.properties, LOOKS_CHAIN_KEY))) {
@@ -419,7 +424,10 @@ this.load = async function (data) {
             return originalResolver(kind, path.replace("/magic-looks/looks-", "/magic-looks/davidium-looks-"));
         };
         var historicalSource = originalResolver("text", "./plugins/magic-looks/davidium-looks-fx.js");
+        var managedUnload = this.unload;
         new Function("PZ", "THREE", historicalSource).call(this, PZ, THREE);
+        this._looksHistoricalUnload = this.unload;
+        this.unload = managedUnload;
         await this.load(data);
         this.looksLegacyFormat = "davidium";
         this.toJSON = function () { return { type: this.type, properties: this.properties, looksLegacyFormat: "davidium" }; };
