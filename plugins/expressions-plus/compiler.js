@@ -77,6 +77,7 @@ function compile(source, methodNames = [], mathNames = Object.getOwnPropertyName
     if (!node || typeof node.type !== "string") return node;
     if (FORBIDDEN.has(node.type)) throw new SyntaxError(node.type + " is not allowed in expressions");
     if (node.type === "Identifier") return reference(node, scopes);
+    if (node.type === "ReturnStatement" || node.type === "ThrowStatement" || node.type === "LogicalExpression" && node.operator === "??" || node.type === "AssignmentExpression" && ["&&=", "||=", "??="].includes(node.operator) || node.type === "Literal" && (node.bigint !== undefined || /\d_\d/.test(node.raw || "") || /[dv]/.test(node.regex?.flags || ""))) extended = true;
     if (node.type === "AssignmentExpression" && ["ObjectPattern", "ArrayPattern"].includes(node.left.type)) {
       node.left = pattern(node.left, scopes, true);node.right = visit(node.right, scopes);return node;
     }
@@ -154,11 +155,13 @@ function compile(source, methodNames = [], mathNames = Object.getOwnPropertyName
     if (node.type === "VariableDeclaration") {
       if (node.kind !== "var") extended = true;
       for (const d of node.declarations) { d.id = pattern(d.id, scopes); d.init = visit(d.init, scopes); }
+      if (node.declarations.some(d => d.id.type !== "Identifier" && names(d.id).length > 0)) extended = true;
       return node;
     }
     if (node.type === "MemberExpression") {
       node.object = visit(node.object, scopes);
       if (node.computed) node.property = visit(node.property, scopes);
+      else if (node.property.type === "Identifier" && !scopes.some(scope => scope.has(node.property.name)) && !methods.has(node.property.name) && !math.has(node.property.name) && !["frame", "time", "methods", "properties"].includes(node.property.name)) extended = true;
       return node;
     }
     if (node.type === "Property") {

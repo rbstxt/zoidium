@@ -45,7 +45,7 @@ function activate(context) {
     errorRows.add({ el, sync });
     update(); return el;
   });
-  const api = { engine, controls: store, controlsUI, shaders };
+  const api = { engine, controls: store, controlsUI, shaders, requires: source => engine.requiresSource(source) };
   win.ZoidiumExpressions = api;
   disposers.push(() => { if (win.ZoidiumExpressions === api) delete win.ZoidiumExpressions; });
   runtime = { context, engine, store, shaders };

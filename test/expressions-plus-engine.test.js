@@ -28,3 +28,15 @@ test('disposal can restore native compiled entries for existing legacy expressio
  engine.restore({forEachItemOfType(_type,visit){visit(a);}});
  assert.doesNotMatch(a.expression.fn.toString(),/__z/);assert.equal(a.expression.fn(0,1,PZ.expression.methods,{}),Math.sin(1)+3);
 });
+test('legacy extra arguments keep native helper semantics; modern programs opt into AE overloads',{skip:!fs.existsSync(core)},()=>{
+ const {PZ,a}=host();a.expression=new PZ.expression('linear(.5,0,1,10,20)');assert.equal(a.get(0),0);
+ a.expression=new PZ.expression('const t=.5; linear(t,0,1,10,20)');assert.equal(a.get(0),15);
+});
+test('modern programs are bounded while CM3-compatible finite loops retain native results',{skip:!fs.existsSync(core)},()=>{
+ const {PZ,a}=host({stepLimit:1000});a.expression=new PZ.expression('var n=0; for(var i=0;i<5000;i++)n++; n');assert.equal(a.get(0),5000);
+ a.expression=new PZ.expression('let n=0; for(let i=0;i<5000;i++)n++; n');assert.equal(a.get(0),7);assert.match(a.expression.error,/budget exceeded/);
+});
+test('dependency classification follows syntax and invalidates when method availability changes',{skip:!fs.existsSync(core)},()=>{
+ const {PZ,engine}=host();assert.equal(engine.requiresSource('var n=3; linear(n,0,1,10,20)'),false);assert.equal(engine.requiresSource('const n=3; linear(n,0,1,10,20)'),true);assert.equal(engine.requiresSource('return 3'),true);assert.equal(engine.requiresSource('throw "error"'),true);assert.equal(engine.requiresSource('/x/d'),true);
+ assert.equal(engine.requiresSource('wiggle(1,2)'),true);PZ.expression.methods.wiggle=()=>1;assert.equal(engine.requiresSource('wiggle(1,2)'),false);
+});

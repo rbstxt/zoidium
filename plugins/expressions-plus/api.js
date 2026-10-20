@@ -170,10 +170,10 @@ function createAPI(options) {
   for (const name of ["linear", "ease", "easeIn", "easeOut"]) {
     const original = methods[name];
     const curve = name === "easeIn" ? t => t * t : name === "easeOut" ? t => t * (2 - t) : name === "ease" ? t => t * t * (3 - 2 * t) : t => t;
-    if (original) overrides.set(original, (...args) => args.length === 5 ? interpolate(args, curve) : original.apply(options.methods, args));
+    if (original) overrides.set(original, (...args) => options.extended !== false && args.length === 5 ? interpolate(args, curve) : original.apply(options.methods, args));
   }
   const oldClamp = methods.clamp;
-  overrides.set(oldClamp, (v, a, b) => Array.isArray(v) ? oldClamp.call(options.methods, v, a, b) : Math.min(Math.max(v, a), b));
+  overrides.set(oldClamp, (v, a, b) => Array.isArray(v) || options.extended === false ? oldClamp.call(options.methods, v, a, b) : Math.min(Math.max(v, a), b));
   const privateContext = Object.assign(Object.create(options.methods), { currentFrame: frame, currentValue: base, currentProperty: property });
   for (const [name, fn] of Object.entries(options.wiggleMethods || {})) {
     if (typeof fn === "function") privateContext[name] = fn;

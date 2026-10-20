@@ -13,10 +13,10 @@ const callbackSlots = new Map([
 ]);
 
 function createCallGuard(limit = 10000000) {
-  let remaining = limit, depth = 0;
+  let remaining = limit, depth = 0, bounded = true;
   let overrides = new Map();
   const info = new WeakMap(), wrappers = new WeakMap(), receivers = new WeakMap();
-  function tick() { if (--remaining < 0) throw new Error("Expression iteration/call budget exceeded"); }
+  function tick() { if (bounded && --remaining < 0) throw new Error("Expression iteration/call budget exceeded"); }
   function describe(fn) {
     if (typeof fn !== "function") return Object.create(null);
     if (info.has(fn)) return info.get(fn);
@@ -39,7 +39,7 @@ function createCallGuard(limit = 10000000) {
     return proxy;
   }
   function invoke(fn, receiver, args, newTarget) {
-    if (++depth > 256) { depth--; throw new Error("Expression recursion budget exceeded"); }
+    if (++depth > 256 && bounded) { depth--; throw new Error("Expression recursion budget exceeded"); }
     try { return dispatch(fn, receiver, args, newTarget); }
     finally { depth--; }
   }
@@ -80,7 +80,7 @@ function createCallGuard(limit = 10000000) {
     tick,
     invoke,
     swapOverrides(next) { const previous = overrides; overrides = next; return previous; },
-    reset() { remaining = limit; },
+    reset(enableBudget = true) { remaining = limit; bounded = enableBudget; },
     guard: fn => wrap(fn),
     receiver(value) {
       if (value == null) return value;
