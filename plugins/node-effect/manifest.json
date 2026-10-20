@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "id": "node-effect",
+  "name": "Node Effect",
+  "author": "Zoidium",
+  "version": "2",
+  "kind": "extension",
+  "category": "NATIVE FX",
+  "description": "Build GPU layer effects with a node graph. Saved effects render through the native Custom Shader.",
+  "effects": [
+    {
+      "id": "node-effect",
+      "name": "Node Effect",
+      "description": "Build a 2D layer effect with nodes.",
+      "shader": "./plugins/node-effect/default.glsl?v=2",
+      "preset": "./plugins/node-effect/preset.json?v=2"
+    }
+  ],
+  "modules": [
+    {
+      "id": "node-effect",
+      "source": "./plugins/node-effect/node-effect.js?v=2"
+    }
+  ],
+  "resources": [
+    {
+      "id": "catalogue",
+      "type": "text",
+      "source": "./plugins/node-effect/catalogue.js?v=2"
+    },
+    {
+      "id": "model",
+      "type": "text",
+      "source": "./plugins/node-effect/model.js?v=2"
+    },
+    {
+      "id": "compiler",
+      "type": "text",
+      "source": "./plugins/node-effect/compiler.js?v=2"
+    },
+    {
+      "id": "glsl",
+      "type": "text",
+      "source": "./plugins/node-effect/glsl.js?v=2"
+    },
+    {
+      "id": "parameters",
+      "type": "text",
+      "source": "./plugins/node-effect/parameters.js?v=2"
+    },
+    {
+      "id": "shader-check",
+      "type": "text",
+      "source": "./plugins/node-effect/shader-check.js?v=2"
+    },
+    {
+      "id": "sampling",
+      "type": "text",
+      "source": "./plugins/node-effect/sampling.js?v=2"
+    },
+    {
+      "id": "recipes",
+      "type": "text",
+      "source": "./plugins/node-effect/recipes.js?v=2"
+    }
+  ]
+}
