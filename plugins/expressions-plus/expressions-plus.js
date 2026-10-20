@@ -15,7 +15,9 @@ function activate(context) {
   const sharedRequire = context.apis.modules.createRequire(context.getAsset, { root: "./plugins/", scope: { PZ } });
   sharedRequire("./trapcode-suite/trapcode-expressions.js");
   const store = require("./controls.js").createControlsStore({ PZ, patch, notify: () => { if (context.editor?.project?.ui) context.editor.project.ui.dirty = true; } });
-  const engine = require("./engine.js").installEngine({ PZ, document: doc, patch, wiggleMethods: PZ.trapcode.expressionMethods, controls: sequence => sequence ? store.list(sequence) : [] });
+  const world = require("./world.js").createWorldProvider({ PZ, THREE: win.THREE, createConstraintEvaluator: sharedRequire("./constraints/track-to-evaluate.js").createEvaluator });
+  const engine = require("./engine.js").installEngine({ PZ, document: doc, patch, wiggleMethods: PZ.trapcode.expressionMethods, controls: sequence => sequence ? store.list(sequence) : [], world });
+  const shaders = require("./shaders.js").installShaders({ PZ, THREE: win.THREE, store, engine, patch });
   const controlsUI = require("./controls-ui.js").installControlsUI({ context, store, patch });
   if (context.editor?.sequence) store.ensure(context.editor.sequence);
   patch(PZ.ui.controls, "createExpressionControls", original => function expressionControls(property) {
@@ -34,7 +36,7 @@ function activate(context) {
     disposers.push(() => win.clearInterval(timer));
     update(); return el;
   });
-  const api = { engine, controls: store, controlsUI };
+  const api = { engine, controls: store, controlsUI, shaders };
   win.ZoidiumExpressions = api;
   disposers.push(() => { if (win.ZoidiumExpressions === api) delete win.ZoidiumExpressions; });
   runtime = { context, engine, store };

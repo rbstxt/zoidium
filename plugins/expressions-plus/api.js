@@ -34,6 +34,7 @@ function createAPI(options) {
   const sequence = ancestor(owner, is(PZ.sequence)) || options.sequence;
   const rate = sequence?.properties?.rate?.get?.() || 30;
   const absolute = frame + (clip?.start || 0);
+  const worldCache = new Map();
   const localFrame = (p, at = absolute) => at - (ancestor(p, is(PZ.clip))?.start || 0);
   function propertyHandle(p) {
     if (!p) throw new Error("Expression property was not found");
@@ -89,7 +90,7 @@ function createAPI(options) {
       name: { configurable: true, get: () => named(node) },
       parent: { get: () => objectHandle(parentObject(node)) },
     });
-    if (options.world) Object.assign(handle, options.world(node, { frame: localFrame(node), absolute, sequence, read, propertyHandle }));
+    if (options.world) Object.assign(handle, options.world(node, { frame: localFrame(node), absolute, sequence, read, propertyHandle, cache: worldCache }));
     return handle;
   }
   function parentObject(node) {
@@ -140,7 +141,7 @@ function createAPI(options) {
     radiansToDegrees: x => x * 180 / Math.PI,
     lookAt(from, to) { const d = to.map((v, i) => v - from[i]); return [Math.atan2(-d[1], Math.hypot(d[0], d[2])), Math.atan2(d[0], d[2]), 0]; },
   });
-  if (options.world) Object.assign(api, options.world(owner, { frame, absolute, sequence, read, propertyHandle }));
+  if (options.world) Object.assign(api, options.world(owner, { frame, absolute, sequence, read, propertyHandle, cache: worldCache }));
   let seed = 0, timeless = false, randomIndex = 0, seeded = false;
   api.seedRandom = (offset = 0, stable = false) => { seed = Number(offset); timeless = !!stable; randomIndex = 0; seeded = true; };
   const methods = options.methods, overrides = new Map();

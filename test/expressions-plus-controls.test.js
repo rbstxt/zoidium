@@ -1,6 +1,6 @@
 "use strict";
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs');
-const {host,core}=require('./expressions-plus-engine.test');
+const {host,core}=require('./expressions-plus-harness');
 const {createControlsStore,decode,KINDS}=require('../plugins/expressions-plus/controls');
 function setup(){
  const {PZ}=host();const store=createControlsStore({PZ,patch:(h,k,f)=>{h[k]=f(h[k]);}});const seq=new PZ.sequence();
