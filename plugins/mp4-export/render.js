@@ -65,7 +65,7 @@ function createJob(scope, PZ, exporter, loadBunny) {
         for (let index = 0; index < count; index++) {
           check();
           // Both tracks advance together so the muxer holds only a fragment.
-          if (audio && audioOffset < totalSamples && index / params.rate >= audioOffset / SAMPLE_RATE) {
+          if (audio && audioOffset < totalSamples && (index + 1) / params.rate > audioOffset / SAMPLE_RATE) {
             const size = Math.min(SAMPLE_RATE, totalSamples - audioOffset);
             const buffer = await mixer.render(audioOffset, size);
             const samples = bunny.AudioSample.fromAudioBuffer(buffer, audioOffset / SAMPLE_RATE);
