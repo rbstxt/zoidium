@@ -17,7 +17,7 @@ function activate(context) {
   const engine = require("./engine.js").installEngine({ PZ, document: doc, patch, wiggleMethods: PZ.trapcode.expressionMethods });
   patch(PZ.ui.controls, "createExpressionControls", original => function expressionControls(property) {
     const el = original.apply(this, arguments);
-    const indicator = el.querySelector("button"), text = el.querySelector("textarea");
+    const indicator = el.querySelector('button[title="show error"]'), text = el.querySelector("textarea");
     function update() {
       const error = engine.error(property);
       el.title = error || "Expression";

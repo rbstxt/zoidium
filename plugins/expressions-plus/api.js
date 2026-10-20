@@ -72,7 +72,10 @@ function createAPI(options) {
   function objectHandle(node) {
     if (!node) return null;
     if (handles.has(node)) return handles.get(node);
-    const handle = name => propertyHandle(propertyOf(node, String(name))).value;
+    const handle = name => {
+      if (typeof name === "number") { let p = node; for (let i = 1; i < name; i++) p = parentObject(p); return objectHandle(p); }
+      return propertyHandle(propertyOf(node, String(name))).value;
+    };
     Object.setPrototypeOf(handle, null);
     handles.set(node, handle);
     Object.assign(handle, {
@@ -106,7 +109,6 @@ function createAPI(options) {
     value: copy(base), thisProperty: property ? propertyHandle(property) : record({ value: copy(base) }), thisObject: own,
     thisLayer: objectHandle(ancestor(owner, is(PZ.layer))) || own,
     thisClip: objectHandle(clip), thisSequence: objectHandle(sequence), thisComp: objectHandle(sequence),
-    parent(n = 1) { let p = owner; for (let i = 0; i < n; i++) p = parentObject(p); return objectHandle(p); },
     layer: name => objectHandle(find(layers(), name)),
     effect: name => own?.effect(name), object: name => own?.object(name),
     controls, control(name) { if (!Object.hasOwn(controls, name)) throw new Error("Expression control was not found: " + name); return controls[name]; },
@@ -128,30 +130,30 @@ function createAPI(options) {
     lookAt(from, to) { const d = to.map((v, i) => v - from[i]); return [Math.atan2(-d[1], Math.hypot(d[0], d[2])), Math.atan2(d[0], d[2]), 0]; },
   });
   if (options.world) Object.assign(api, options.world(owner, { frame, absolute, sequence, read, propertyHandle }));
-  let seed = 0, timeless = false, randomIndex = 0;
-  api.seedRandom = (offset = 0, stable = false) => { seed = Number(offset); timeless = !!stable; randomIndex = 0; };
-  const methods = Object.assign(Object.create(null), options.methods);
+  let seed = 0, timeless = false, randomIndex = 0, seeded = false;
+  api.seedRandom = (offset = 0, stable = false) => { seed = Number(offset); timeless = !!stable; randomIndex = 0; seeded = true; };
+  const methods = options.methods, overrides = new Map();
   const nativeRandom = methods.random;
   // random(seed) retains CM3's exact one-argument meaning. No-argument
   // sampling is reset for every property evaluation and has no frame history.
-  methods.random = function (...args) {
-    if (args.length) return nativeRandom.apply(methods, args);
+  overrides.set(nativeRandom, function (...args) {
+    if (args.length || !seeded) return nativeRandom.apply(methods, args);
     const n = seed + (timeless ? 0 : frame) * 17.173 + randomIndex++ * 71.137;
     return nativeRandom ? nativeRandom.call(methods, n) : (Math.sin(n) * 10000 + 10000) % 1;
-  };
+  });
   for (const name of ["linear", "ease", "easeIn", "easeOut"]) {
     const original = methods[name];
     const curve = name === "easeIn" ? t => t * t : name === "easeOut" ? t => t * (2 - t) : name === "ease" ? t => t * t * (3 - 2 * t) : t => t;
-    methods[name] = (...args) => args.length === 5 || !original ? interpolate(args, curve) : original.apply(options.methods, args);
+    if (original) overrides.set(original, (...args) => args.length === 5 ? interpolate(args, curve) : original.apply(options.methods, args));
   }
   const oldClamp = methods.clamp;
-  methods.clamp = (v, a, b) => Array.isArray(v) ? oldClamp.call(options.methods, v, a, b) : Math.min(Math.max(v, a), b);
-  for (const name of ["degreesToRadians", "radiansToDegrees"]) if (!methods[name]) methods[name] = api[name];
+  overrides.set(oldClamp, (v, a, b) => Array.isArray(v) ? oldClamp.call(options.methods, v, a, b) : Math.min(Math.max(v, a), b));
   const privateContext = Object.assign(Object.create(options.methods), { currentFrame: frame, currentValue: base, currentProperty: property });
   for (const [name, fn] of Object.entries(options.wiggleMethods || {})) {
     if (typeof fn === "function") privateContext[name] = fn;
   }
-  if (!methods.wiggle && privateContext.wiggle) methods.wiggle = (...args) => privateContext.wiggle(...args);
-  return { api, methods, time, frame };
+  if (privateContext.wiggle) api.wiggle = (...args) => privateContext.wiggle(...args);
+  if (methods.wiggle) overrides.set(methods.wiggle, (...args) => privateContext.wiggle(...args));
+  return { api, methods, time, frame, overrides };
 }
 module.exports = { createAPI, copy, record, interpolate, propertyOf, ancestor, named, find };

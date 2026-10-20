@@ -2,9 +2,9 @@
 
 const acorn = require("./vendor/acorn.txt");
 const astring = require("./vendor/astring.txt");
-const API_NAMES = new Set(("value thisProperty thisObject thisLayer thisClip thisSequence thisComp parent layer effect object prop controls control seedRandom easeIn easeOut degreesToRadians radiansToDegrees lookAt toWorld fromWorld worldPosition worldRotation toScreen fromScreen").split(" "));
+const API_NAMES = new Set(("value thisProperty thisObject thisLayer thisClip thisSequence thisComp layer effect object prop controls control seedRandom wiggle easeIn easeOut degreesToRadians radiansToDegrees lookAt toWorld fromWorld worldPosition worldRotation toScreen fromScreen").split(" "));
 const PURE_NAMES = new Set("Array Number String Boolean parseFloat parseInt isNaN isFinite Infinity NaN undefined JSON Math".split(" "));
-const DENIED = new Set("this globalThis window document self top parentWindow frames Function eval Date Reflect Proxy WebAssembly Atomics SharedArrayBuffer".split(" "));
+const DENIED = new Set("this globalThis window document self top parent parentWindow frames Function eval Date Reflect Proxy WebAssembly Atomics SharedArrayBuffer".split(" "));
 const FORBIDDEN = new Set("ThisExpression Super ClassDeclaration ClassExpression ImportDeclaration ExportNamedDeclaration ExportDefaultDeclaration ExportAllDeclaration ImportExpression AwaitExpression YieldExpression WithStatement DebuggerStatement MetaProperty".split(" "));
 const id = name => ({ type: "Identifier", name });
 const member = (object, name) => ({ type: "MemberExpression", object, property: id(name), computed: false, optional: false });
@@ -77,6 +77,31 @@ function compile(source, methodNames = [], mathNames = Object.getOwnPropertyName
     if (!node || typeof node.type !== "string") return node;
     if (FORBIDDEN.has(node.type)) throw new SyntaxError(node.type + " is not allowed in expressions");
     if (node.type === "Identifier") return reference(node, scopes);
+    if (node.type === "ChainExpression") {
+      extended = true;
+      const steps = [];
+      function flatten(n) {
+        if (n.type === "MemberExpression") { const root = flatten(n.object); steps.push(n); return root; }
+        if (n.type === "CallExpression") { const root = flatten(n.callee); steps.push(n); return root; }
+        return n;
+      }
+      const initial = visit(flatten(node.expression), scopes);
+      const value = id("__zc"), receiver = id("__zr");
+      const body = [{ type: "VariableDeclaration", kind: "let", declarations: [{ type: "VariableDeclarator", id: receiver, init: null }] }];
+      const assign = (left, right) => ({ type: "ExpressionStatement", expression: { type: "AssignmentExpression", operator: "=", left, right } });
+      for (const step of steps) {
+        if (step.optional) body.push({ type: "IfStatement", test: { type: "BinaryExpression", operator: "==", left: value, right: { type: "Literal", value: null } }, consequent: { type: "ReturnStatement", argument: null }, alternate: null });
+        if (step.type === "MemberExpression") {
+          body.push(assign(receiver, value));
+          body.push(assign(value, { ...step, object: value, property: step.computed ? visit(step.property, scopes) : step.property, optional: false }));
+        } else {
+          body.push(assign(value, call(helper("invoke"), [value, receiver, { type: "ArrayExpression", elements: step.arguments.map(a => visit(a, scopes)) }])));
+          body.push(assign(receiver, { type: "UnaryExpression", operator: "void", prefix: true, argument: { type: "Literal", value: 0 } }));
+        }
+      }
+      body.push({ type: "ReturnStatement", argument: value });
+      return call({ type: "ArrowFunctionExpression", params: [value], body: { type: "BlockStatement", body }, async: false, expression: false }, [initial]);
+    }
     if (/Function/.test(node.type)) {
       if (node.async || node.generator) throw new SyntaxError("Async and generator functions are not allowed in expressions");
       extended = true;
@@ -168,7 +193,12 @@ function sandboxFunction(doc, code) {
   let Factory, globals;
   try { Factory = iframe.contentWindow.Function; globals = Object.keys(iframe.contentWindow); }
   finally { iframe.remove(); }
-  return Factory("frame", "time", "methods", "properties", "Math", "__z", ...globals.filter(n => !["frame", "time", "methods", "properties", "Math", "__z"].includes(n)), code);
+  const fn = Factory("frame", "time", "methods", "properties", "Math", "__z", ...globals.filter(n => !["frame", "time", "methods", "properties", "Math", "__z"].includes(n)), code);
+  // Preserve intrinsic identity: sin.constructor and [].constructor.constructor
+  // belong to the same detached realm, just as they do in CM3.
+  fn.zoidiumPure = Factory("return {Array, Number, String, Boolean, parseFloat, parseInt, isNaN, isFinite, Infinity, NaN, undefined, JSON, Math}")();
+  fn.zoidiumPure.Math.random = () => { throw new Error("Expression Math.random is unavailable; use seeded random()"); };
+  return fn;
 }
 
 module.exports = { compile, sandboxFunction, API_NAMES, PURE_NAMES };
