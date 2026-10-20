@@ -14,7 +14,10 @@ function activate(context) {
   // effect pack or exposing the private evaluation context to expressions.
   const sharedRequire = context.apis.modules.createRequire(context.getAsset, { root: "./plugins/", scope: { PZ } });
   sharedRequire("./trapcode-suite/trapcode-expressions.js");
-  const engine = require("./engine.js").installEngine({ PZ, document: doc, patch, wiggleMethods: PZ.trapcode.expressionMethods });
+  const store = require("./controls.js").createControlsStore({ PZ, patch, notify: () => { if (context.editor?.project?.ui) context.editor.project.ui.dirty = true; } });
+  const engine = require("./engine.js").installEngine({ PZ, document: doc, patch, wiggleMethods: PZ.trapcode.expressionMethods, controls: sequence => sequence ? store.list(sequence) : [] });
+  const controlsUI = require("./controls-ui.js").installControlsUI({ context, store, patch });
+  if (context.editor?.sequence) store.ensure(context.editor.sequence);
   patch(PZ.ui.controls, "createExpressionControls", original => function expressionControls(property) {
     const el = original.apply(this, arguments);
     const indicator = el.querySelector('button[title="show error"]'), text = el.querySelector("textarea");
@@ -31,15 +34,16 @@ function activate(context) {
     disposers.push(() => win.clearInterval(timer));
     update(); return el;
   });
-  const api = { engine };
+  const api = { engine, controls: store, controlsUI };
   win.ZoidiumExpressions = api;
   disposers.push(() => { if (win.ZoidiumExpressions === api) delete win.ZoidiumExpressions; });
-  runtime = { context, engine };
+  runtime = { context, engine, store };
 }
 module.exports = {
   activate,
   isInUse() {
     let used = false;
+    if (runtime?.context.editor?.sequence && runtime.store.list(runtime.context.editor.sequence).length) return true;
     runtime?.context.editor?.project?.forEachItemOfType(runtime.context.PZ.property.dynamic, p => { if (p.expression && runtime.engine.isExtended(p.expression)) used = true; });
     return used;
   },

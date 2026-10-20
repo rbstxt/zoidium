@@ -184,7 +184,7 @@
   function installSerializedFieldPreservation() {
     // Keep authored extensions out of live host properties. Weak keys release
     // the snapshot with its media/layer/clip, including detached projects.
-    const prototypes = new Set([PZ.media?.prototype, PZ.clip?.prototype, PZ.layer?.prototype]);
+    const prototypes = new Set([PZ.media?.prototype, PZ.clip?.prototype, PZ.layer?.prototype, PZ.sequence?.prototype]);
     for (const key of Object.keys(PZ.layer || {})) {
       const descriptor = Object.getOwnPropertyDescriptor(PZ.layer, key);
       if (typeof descriptor?.value === "function") prototypes.add(descriptor.value.prototype);
