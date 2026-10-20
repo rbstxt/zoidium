@@ -626,6 +626,12 @@ function buildBody(body, effect, session, view) {
 
   function chainSection() {
     const sec = section("Tool Chain");
+    if (effect.looksLegacyFormat === "davidium") {
+      sec.body.appendChild(ctl.note("Legacy look · fixed tool order").element);
+      sec.body.appendChild(ctl.list({ items: Looks.tools.defaultChain().map(id => ({ id, title: Looks.tools.byId(id).name })),
+        value: view.selectedTool, onSelect(id) { view.selectedTool = id; rebuild(); } }).element);
+      return sec.element;
+    }
     const chain = readChain(effect);
     const toolsById = Looks.tools.byId;
     const items = chain.map(function (id, i) {

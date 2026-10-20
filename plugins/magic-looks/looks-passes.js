@@ -4,11 +4,18 @@ const { plan } = require("./looks-instances.js");
 // Reuse the released tool math verbatim. Each instance gets its own uniforms
 // and functions; consecutive color stages share one shader and one draw.
 function compile(source, instances, tools) {
-  const body = source.slice(source.indexOf("uniform sampler2D tDiffuse;"), source.indexOf("void main()"));
+  const functions = ["fxCc", "fxHsl", "fxCr", "fxCru", "fxCon", "fxCrev", "fxStrip", "fxLgg", "fxRsat", "fxWc",
+    "fxFw4", "fxMojo", "fxAsh", "fxCurv", "fxScv", "fxLut", "fxLfl", "fxDfl", "fxVig", "fxHaze", "fxPop",
+    "fxDif", "fxStar", "fxAna", null, "fxShut", "fxEdge", "fxCa", "fxTele"];
+  const shared = source.slice(source.indexOf("uniform sampler2D tDiffuse;"), source.indexOf("// ---------- chain stages"));
   const pieces = ["uniform sampler2D tDiffuse; uniform vec2 resolution; uniform vec2 uvScale;",
     "uniform float mlInputStraight; uniform float mlOutputStraight; varying vec2 vUv;"];
   for (const instance of instances) {
-    let part = body.replace(/^uniform (?:sampler2D tDiffuse|vec2 resolution|vec2 uvScale);$/gm, "")
+    const name = functions[tools.indexOf(instance.tool)];
+    const start = name ? source.indexOf("vec3 " + name + "(") : -1;
+    const end = start < 0 ? -1 : source.indexOf("\n}", start) + 2;
+    let part = (shared + (name ? source.slice(start, end) : ""))
+      .replace(/^uniform (?:sampler2D tDiffuse|vec2 resolution|vec2 uvScale);$/gm, "")
       .replace(/^varying .*;$/gm, "")
       .replace("return t.a > 0.000001 ? t.rgb / t.a : vec3(0.0);",
         "return t.a > 0.000001 ? (mlInputStraight > 0.5 ? t.rgb : t.rgb / t.a) : vec3(0.0);");
@@ -24,7 +31,8 @@ function compile(source, instances, tools) {
   lines.push("vec4 src=texture2D(tDiffuse,clamp(uv,vec2(0.0),vec2(1.0))*uvScale);float a=src.a;",
     "vec3 c=a>0.000001?(mlInputStraight>0.5?src.rgb:src.rgb/a):vec3(0.0);");
   for (const instance of instances) {
-    lines.push(`c=lkApply_${instance.id}(${tools.indexOf(instance.tool).toFixed(1)},c,uv);`);
+    const name = functions[tools.indexOf(instance.tool)];
+    if (name) lines.push(`c=${name}_${instance.id}(c,uv);`);
   }
   lines.push("gl_FragColor=mlOutputStraight>0.5?vec4(a>0.000001?c:vec3(0.0),a):vec4(clamp(c,0.0,1.0)*a,a);}");
   return pieces.concat(lines).join("\n");
