@@ -51,14 +51,48 @@
   try { settings = JSON.parse(global.localStorage.getItem("zoidium.editor-settings") || "{}"); }
   catch (_error) { /* Storage may be unavailable. */ }
   const store = new model.FrameStore(model.sizeMiB(settings.previewCacheMiB ?? 512) * 1024 * 1024);
+  const lostContexts = new Set();
+  let memoryNoticeShown = false;
   const debug = {
     disabled: false, assertKeys: false, prefetchDisabled: false, prefetched: 0, prefetchAborted: 0, disposeErrors: 0,
     hits: 0, misses: 0, liveDraws: 0, stores: 0, validations: 0, keyMismatches: 0,
     rejects: {}, validationCauses: {}, signals: {}, resets: {}, shownFrame: null, shownChanges: 0,
     get bytes() { return store.bytes; },
     get limit() { return store.limit; },
+    get effectiveLimit() { return store.effectiveLimit; },
+    get contextLosses() { return store.contextLosses; },
     get entries() { return store.entries.size; },
   };
+
+  function memoryNotice(message) {
+    if (memoryNoticeShown) return;
+    memoryNoticeShown = true;
+    global.ZoidiumUI?.notify({ title: "Preview cache", message });
+  }
+
+  function contextLost(gl) {
+    if (lostContexts.has(gl)) return;
+    lostContexts.add(gl);
+    store.loseContext();
+    for (const controller of controllers) reset(controller, "context-lost");
+    memoryNotice("The WebGL context was lost; the preview cache has been reduced for this session.");
+  }
+
+  function contextAvailable(gl) {
+    if (gl.isContextLost?.()) contextLost(gl);
+    return !lostContexts.has(gl) && !store.contextLost;
+  }
+
+  function allocationFailed(gl) {
+    if (!contextAvailable(gl)) return;
+    const error = gl.getError();
+    if (error === gl.OUT_OF_MEMORY) {
+      const usage = store.memoryPressure();
+      memoryNotice("The GPU ran out of memory at " + Math.round(usage / 1048576).toLocaleString("en-US") +
+        " MiB; the preview cache will stop there for this session.");
+    }
+    return error !== gl.NO_ERROR;
+  }
 
   function identity(value) {
     if (!value || (typeof value !== "object" && typeof value !== "function")) return value;
@@ -179,6 +213,16 @@
       disposed: false, projectSignal: null, keyCost: 0 };
     viewport.__zoidiumOutputFrames = controller;
     controllers.add(controller);
+    controller.canvas = viewport.renderer.domElement || viewport.renderer.context.canvas;
+    controller.contextLost = () => contextLost(viewport.renderer.context);
+    controller.contextRestored = () => {
+      lostContexts.delete(viewport.renderer.context);
+      if (!lostContexts.size) store.restoreContext();
+      signal("context-restored");
+      reset(controller, "context-restored");
+    };
+    controller.canvas?.addEventListener("webglcontextlost", controller.contextLost);
+    controller.canvas?.addEventListener("webglcontextrestored", controller.contextRestored);
     controller.projectChanged = () => { signal("project"); reset(controller, "project"); watchProject(controller); };
     viewport.compositor.__zoidiumOutputFrameOwner = viewport;
     viewport.editor.onProjectChanged.watch(controller.projectChanged);
@@ -328,6 +372,7 @@
   function display(controller, entry) {
     const renderer = controller.viewport.renderer;
     const gl = renderer.context;
+    if (!contextAvailable(gl)) return;
     const pass = createPass(controller);
     pass.uniforms.tDiffuse.value = entry.target.texture;
     renderer.setRenderTarget(null);
@@ -344,18 +389,29 @@
     const gl = renderer.context;
     const width = gl.drawingBufferWidth, height = gl.drawingBufferHeight;
     const bytes = width * height * 4;
+    if (!contextAvailable(gl) || !store.effectiveLimit || allocationFailed(gl)) return null;
     if (!store.reserve(bytes)) return null;
+    const generation = store.generation;
     const target = new THREE.WebGLRenderTarget(width, height, {
       minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter,
       format: gl.getContextAttributes().alpha ? THREE.RGBAFormat : THREE.RGBFormat,
       type: THREE.UnsignedByteType, depthBuffer: false, stencilBuffer: false,
     });
     target.texture.generateMipmaps = false;
-    renderer.setRenderTarget(target);
-    renderer.setRenderTarget(null);
-    renderer.setTexture2D(target.texture, 0);
-    gl.copyTexSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 0, 0, width, height);
-    if (gl.getError() !== gl.NO_ERROR) { target.dispose(); return null; }
+    try {
+      renderer.setRenderTarget(target);
+      renderer.setRenderTarget(null);
+      renderer.setTexture2D(target.texture, 0);
+      gl.copyTexSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 0, 0, width, height);
+      if (!contextAvailable(gl) || allocationFailed(gl) || generation !== store.generation) {
+        if (contextAvailable(gl)) target.dispose();
+        return null;
+      }
+    } catch (_error) {
+      allocationFailed(gl);
+      if (contextAvailable(gl)) { renderer.setRenderTarget(null); target.dispose(); }
+      return null;
+    }
     return { target, frame, bytes, owner: controller.id, complete: true, dispose: () => target.dispose() };
   }
 
@@ -369,11 +425,12 @@
     // A clock change needs one live evaluation, with no private project,
     // serialization or speculative renders. Samplers keep their cache path.
     if (plainTimeProject(viewport)) return fallback();
-    if (disposed || viewport.__zoidiumImmediateOutput || viewport.renderMode || !store.limit ||
+    if (disposed || viewport.__zoidiumImmediateOutput || viewport.renderMode || !store.effectiveLimit ||
       !viewport.options?.widget2dObjects) return fallback();
     const frame = viewport.editor.playback.currentFrame;
     if (!Number.isInteger(frame) || frame < 0) return fallback();
     const controller = controllerFor(viewport);
+    if (!contextAvailable(viewport.renderer.context)) return fallback();
     const key = currentKey(controller);
     if (key === LIVE) {
       if (viewport.editor.playback.speed === 0) scheduleIdle();
@@ -405,7 +462,7 @@
   function capturePreview(viewport, frame) {
     const controller = viewport.__zoidiumOutputFrames;
     if (controller) shown(frame);
-    if (disposed || debug.disabled || !store.limit || !controller || viewport.renderMode ||
+    if (disposed || debug.disabled || !store.effectiveLimit || !controller || viewport.renderMode ||
       !Number.isInteger(frame) || frame < 0) return;
     const key = keyFor(controller);
     if (!key || key === LIVE || key !== controller.key || store.entries.has(entryKey(controller, frame))) return;
@@ -497,7 +554,7 @@
     const gl = viewport.renderer.context;
     // Keep the whole window inside the byte budget so the LRU never evicts
     // frames this pass just rendered, nor the frame on screen.
-    const fits = Math.floor(store.limit / (gl.drawingBufferWidth * gl.drawingBufferHeight * 4)) - 2;
+    const fits = Math.floor(store.effectiveLimit / (gl.drawingBufferWidth * gl.drawingBufferHeight * 4)) - 2;
     const ahead = Math.min(PREFETCH_AHEAD, Math.max(0, fits - PREFETCH_BEHIND));
     const wanted = frame => frame >= 0 && frame < length && !controller.prefetchSkipped.has(frame) &&
       !store.entries.has(entryKey(controller, frame));
@@ -512,7 +569,8 @@
     const viewport = controller.viewport;
     const epoch = signalEpoch;
     const valid = () => !disposed && !controller.disposed && !debug.disabled && controller.key === key &&
-      signalEpoch === epoch && !plainTimeProject(viewport) && viewport.editor.playback.speed === 0 &&
+      signalEpoch === epoch && contextAvailable(viewport.renderer.context) && !!store.effectiveLimit &&
+      !plainTimeProject(viewport) && viewport.editor.playback.speed === 0 &&
       viewport.editor.playback.currentFrame === current && !viewport.renderMode;
     const snapshot = snapshotFor(controller, key);
     const sequence = snapshot.project.sequence;
@@ -549,7 +607,9 @@
     controller.prefetchCost = performance.now() - start;
     const entry = capture(controller, frame);
     if (entry && store.put(entryKey(controller, frame), entry)) debug.prefetched += 1;
-    display(controller, live);
+    // Pressure can evict the retained on-screen entry during capture.
+    if (store.entries.get(entryKey(controller, current)) === live) display(controller, live);
+    else if (contextAvailable(viewport.renderer.context)) viewport._render();
     return true;
   }
 
@@ -558,12 +618,12 @@
   }
 
   function scheduleIdle(delay = IDLE_MS) {
-    if (idleTimer !== null || disposed || debug.disabled || debug.prefetchDisabled || !store.limit) return;
+    if (idleTimer !== null || disposed || debug.disabled || debug.prefetchDisabled || !store.effectiveLimit) return;
     idleTimer = setTimeout(() => { idleTimer = null; prefetchStep(); }, delay);
   }
 
   async function prefetchStep() {
-    if (disposed || debug.disabled || debug.prefetchDisabled) return;
+    if (disposed || debug.disabled || debug.prefetchDisabled || !store.effectiveLimit) return;
     const quiet = performance.now() - lastSignal;
     if (quiet < IDLE_MS) { scheduleIdle(IDLE_MS - quiet); return; }
     for (const controller of controllers) {
@@ -650,6 +710,10 @@
     controller.projectSignal?.unwatch(signal);
     controller.resolution.unwatch(controller.resized);
     viewport.editor.playback.onSpeedChanged?.unwatch(controller.speedChanged);
+    controller.canvas?.removeEventListener("webglcontextlost", controller.contextLost);
+    controller.canvas?.removeEventListener("webglcontextrestored", controller.contextRestored);
+    lostContexts.delete(viewport.renderer.context);
+    if (!lostContexts.size) store.restoreContext();
     controller.pass?.material.dispose();
     controller.pass?.quad?.geometry?.dispose?.();
     controllers.delete(controller);
@@ -689,6 +753,12 @@
 
   const api = {
     debug, render, release, capturePreview,
+    usage() {
+      const viewport = (global.CM || global.VE)?.mainViewport || controllers.values().next().value?.viewport;
+      const gl = viewport?.renderer?.context;
+      return { bytes: store.bytes, entries: store.entries.size, limit: store.effectiveLimit,
+        width: gl?.drawingBufferWidth || 0, height: gl?.drawingBufferHeight || 0 };
+    },
     setSizeMiB(value) {
       const limit = model.sizeMiB(value) * 1024 * 1024;
       if (limit === store.limit) return;

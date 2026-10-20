@@ -15,7 +15,9 @@ const flush = () => new Promise(resolve => setImmediate(resolve));
 function harness() {
   const events = new Map(), docEvents = new Map(), timers = new Map();
   let nextTimer = 0;
-  const counts = { live: 0, display: 0, disposed: 0, serialized: 0, pick: 0, prepared: 0 };
+  const notices = [], canvasEvents = new Map();
+  const canvas = { addEventListener: (n, f) => canvasEvents.set(n, f), removeEventListener: n => canvasEvents.delete(n) };
+  const counts = { allocated: 0, live: 0, display: 0, disposed: 0, serialized: 0, pick: 0, prepared: 0 };
   const clock = { now: 0 };
   class Sequence {
     constructor() {
@@ -54,7 +56,10 @@ function harness() {
   const PZ = { compositor: Compositor, ui: { viewport: Viewport, history: History },
     zoidium: { getDebugPlugins: () => [], temporal: { frameSamplerRuntimes: temporalRuntimes } } };
   const context = { drawingBufferWidth: 4, drawingBufferHeight: 4, getContextAttributes: () => ({ alpha: false }),
-    copyTexSubImage2D() {}, getError: () => 0, NO_ERROR: 0 };
+    canvas, lost: false, error: 0, copyError: 0,
+    copyTexSubImage2D() { this.error = this.copyError; this.copyError = 0; },
+    getError() { const error = this.error; this.error = 0; return error; },
+    isContextLost() { return this.lost; }, NO_ERROR: 0, OUT_OF_MEMORY: 1285 };
   const renderer = { context, shadowMap: {}, setRenderTarget() {}, setViewport() {}, setTexture2D() {} };
   const project = new Project();
   const history = new History();
@@ -66,11 +71,12 @@ function harness() {
   const THREE = {
     ShaderMaterial: class { constructor(o) { Object.assign(this, o); } dispose() {} },
     ShaderPass: class { constructor(m) { this.material = m; this.uniforms = m.uniforms; } render() { counts.display += 1; } },
-    WebGLRenderTarget: class { constructor() { this.texture = {}; } dispose() { counts.disposed += 1; } },
+    WebGLRenderTarget: class { constructor() { this.texture = {}; counts.allocated += 1; } dispose() { counts.disposed += 1; } },
   };
   const document = { fonts: { status: "loaded", ready: Promise.resolve(), addEventListener() {}, removeEventListener() {} },
     addEventListener: (n, f) => docEvents.set(n, f), removeEventListener: n => docEvents.delete(n) };
   const window = { document, PZ, THREE, ZoidiumOutputFrameStore: model,
+    ZoidiumUI: { notify(message) { notices.push(message); } },
     localStorage: { getItem: () => null }, performance: { now: () => clock.now },
     addEventListener: (n, f) => events.set(n, f), removeEventListener: n => events.delete(n) };
   vm.runInNewContext(fs.readFileSync(require.resolve("../plugins/core/output-frame-cache.js"), "utf8"), {
@@ -86,7 +92,7 @@ function harness() {
   // Leave the post-signal window in which every draw serializes the project.
   function cool() { clock.now += 5000; }
   return { api, viewport, project, history, counts, events, docEvents, clock, warm, cool, temporalRuntimes, timers,
-    Viewport, Compositor, History, PZ };
+    Viewport, Compositor, History, PZ, canvasEvents, notices };
 }
 
 test("a miss draws live exactly once; a complete draw is stored and then replayed", async () => {
@@ -340,4 +346,85 @@ test("plain time operators draw once without serializing or scheduling prefetch"
   assert.equal(h.api.debug.prefetched, 0);
   assert.equal(h.api.debug.entries, 0);
   assert.equal(h.timers.size, 0);
+});
+
+
+test("GPU memory failures lower the ceiling, evict frames and notify only once", async () => {
+  const h = harness(), gl = h.viewport.renderer.context;
+  await h.warm();
+  h.viewport.editor.playback.speed = 1;
+  h.api.capturePreview(h.viewport, 1); h.api.capturePreview(h.viewport, 2);
+  assert.equal(h.api.debug.bytes, 192);
+  gl.copyError = gl.OUT_OF_MEMORY;
+  h.api.capturePreview(h.viewport, 3);
+  assert.equal(h.api.debug.entries, 2);
+  assert.equal(h.api.debug.effectiveLimit, 172);
+  assert.match(h.notices[0].message, /The GPU ran out of memory at 0 MiB/);
+  assert.match(h.notices[0].message, /for this session/);
+  for (let frame = 4; frame < 7; frame++) {
+    gl.copyError = gl.OUT_OF_MEMORY;
+    h.api.capturePreview(h.viewport, frame);
+  }
+  assert.equal(h.notices.length, 1);
+  assert.equal(h.api.debug.entries, 0);
+  h.api.clear(); h.api.setSizeMiB(16384);
+  const allocations = h.counts.allocated;
+  h.api.capturePreview(h.viewport, 10);
+  assert.equal(h.counts.allocated, allocations, "the preference cannot bypass the session ceiling");
+  h.api.dispose();
+});
+
+test("unrelated GL errors drop a capture without claiming memory exhaustion", async () => {
+  const h = harness(); await h.warm();
+  h.viewport.editor.playback.speed = 1;
+  h.viewport.renderer.context.copyError = 1282;
+  h.api.capturePreview(h.viewport, 1);
+  assert.equal(h.api.debug.entries, 1);
+  assert.equal(h.api.debug.effectiveLimit, 512 * 1048576);
+  assert.equal(h.notices.length, 0);
+  h.api.dispose();
+});
+
+test("context loss forgets dead textures and a second loss disables captures", async () => {
+  const h = harness(), gl = h.viewport.renderer.context;
+  await h.warm();
+  h.viewport.editor.playback.speed = 1;
+  h.api.capturePreview(h.viewport, 1); h.api.capturePreview(h.viewport, 2);
+  const disposals = h.counts.disposed;
+  gl.lost = true; h.canvasEvents.get("webglcontextlost")();
+  assert.equal(h.api.debug.entries, 0);
+  assert.equal(h.counts.disposed, disposals);
+  assert.equal(h.api.debug.contextLosses, 1);
+  h.viewport._render();
+  gl.lost = false; h.canvasEvents.get("webglcontextrestored")();
+  assert.equal(h.api.debug.effectiveLimit, 96);
+  await h.warm();
+  assert.equal(h.api.debug.entries, 1);
+  gl.lost = true; h.canvasEvents.get("webglcontextlost")();
+  gl.lost = false; h.canvasEvents.get("webglcontextrestored")();
+  assert.equal(h.api.debug.effectiveLimit, 0);
+  assert.equal(h.notices.length, 1);
+  h.api.dispose();
+  assert.equal(h.canvasEvents.size, 0);
+});
+
+test("synchronous context loss during capture is handled before the event arrives", async () => {
+  const h = harness(), gl = h.viewport.renderer.context;
+  await h.warm(); h.viewport.editor.playback.speed = 1;
+  const disposals = h.counts.disposed;
+  gl.copyTexSubImage2D = () => { gl.lost = true; };
+  h.api.capturePreview(h.viewport, 1);
+  assert.equal(h.api.debug.entries, 0);
+  assert.equal(h.counts.disposed, disposals);
+  h.canvasEvents.get("webglcontextlost")();
+  assert.equal(h.api.debug.contextLosses, 1);
+  h.api.dispose();
+});
+
+test("live usage reports the drawing buffer, retained bytes and effective limit", async () => {
+  const h = harness(); await h.warm();
+  const usage = h.api.usage();
+  assert.equal(usage.width, 4); assert.equal(usage.height, 4);
+  assert.equal(usage.bytes, 64); assert.equal(usage.entries, 1);
+  h.api.dispose();
 });
