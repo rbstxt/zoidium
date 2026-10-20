@@ -55,12 +55,38 @@ function toolKeys(tool, tools) {
     Object.values(value || {}).flatMap(collect);
   return collect(tools.propMap()[tool]);
 }
+// Native panels have a narrow name column. Keep the instance identity first,
+// then a short tool name and the parameter; storage keys never use these labels.
+const SHORT_NAMES = {
+  "color-contrast": "Color", "hsl-colors": "HSL", "color-ranges": "Ranges",
+  "color-reversal": "Reversal", "three-strip": "3-Strip", "lift-gamma-gain": "LGG",
+  "ranged-saturation": "Sat", "warm-cool": "Warm", "four-way": "4-Way",
+  "auto-shoulder": "Shoulder", "haze-flare": "Haze", "star-filter": "Star",
+  "anamorphic-flare": "Flare", "lens-distortion": "Lens", "shutter-streak": "Streak",
+  "edge-softness": "Edge", "chromatic-aberration": "CA", "telecine-net": "Net",
+};
+function parameterName(name) {
+  return name.replace(/^Enable$/, "On").replace(/Exposure Compensation/, "Exposure")
+    .replace(/Distortion/, "Distort").replace(/Saturation/g, "Sat")
+    .replace(/Highlight/g, "High").replace(/Midtone/g, "Mid").replace(/Shadow/g, "Low")
+    .replace(/Component Balance/, "Balance");
+}
+function selection(schema, preferred, previous = []) {
+  if (schema.order.some(item => item.id === preferred)) return preferred;
+  const old = previous.findIndex(item => item.id === preferred);
+  return schema.order[Math.max(0, Math.min(old, schema.order.length - 1))]?.id;
+}
 function definitions(instance, tools, PZ) {
   const base = tools.buildPropertyDefinitions(PZ), result = {};
   for (const property of toolKeys(instance.tool, tools)) {
     const name = tools.byId(instance.tool).name;
-    result[key(instance.id, property)] = { ...base[property], name: name +
-      " " + instance.id.slice(1) + " · " + base[property].name.slice(name.length).trim() };
+    const label = base[property].name.slice(name.length).trim();
+    result[key(instance.id, property)] = { ...base[property],
+      name: instance.id.slice(1) + " " + (SHORT_NAMES[instance.tool] || name) + ": " + parameterName(label) };
+    // Text and asset channels are storage for visual editors, never raw rows.
+    if ([PZ.property.type.TEXT, PZ.property.type.ASSET].includes(base[property].type)) {
+      result[key(instance.id, property)].visible = false;
+    }
     // The old setup scaled fractions to percent before rounding. Native rows
     // display the stored fraction, which needs the extra decimal places.
     if (base[property].type === PZ.property.type.NUMBER) {
@@ -94,4 +120,4 @@ function plan(order, active = () => true) {
 function mode(data) { return data?.looksInstances ? "instances" : data ? "legacy" : "instances"; }
 
 module.exports = { MAX_INSTANCES, SPATIAL, clone, key, empty, validate, append, move, remove,
-  toolKeys, definitions, plan, mode };
+  toolKeys, definitions, selection, plan, mode };

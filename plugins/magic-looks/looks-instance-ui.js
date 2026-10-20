@@ -13,17 +13,20 @@ function mount({ state, body, effect, session, view, custom }) {
   function exchange(command) {
     const target = CM.project.addressLookup(command.address, 0);
     if (!target?.looksSetInstances) return;
-    const before = snapshot(target); apply(target, command.data);
-    CM.history.pushCommand(exchange, { ...command, data: before });
+    const before = snapshot(target), selected = view.selectedTool;
+    apply(target, command.data);
+    if (target === effect) view.selectedTool = model.selection(target.looksInstances, command.selected);
+    CM.history.pushCommand(exchange, { ...command, data: before, selected });
   }
-  function commit(schema, properties = snapshot(effect).properties) {
+  function commit(schema, properties = snapshot(effect).properties, selected = view.selectedTool) {
     if (!effect.parent || effect.parentProject !== CM.project || CM.history.operation !== null) return false;
-    const before = snapshot(effect);
+    const before = snapshot(effect), previousSelection = view.selectedTool;
     if (JSON.stringify(before) === JSON.stringify({ schema, properties })) return false;
     CM.history.startOperation();
     try {
       apply(effect, { schema, properties });
-      CM.history.pushCommand(exchange, { address: effect.getAddress(), data: before });
+      view.selectedTool = model.selection(schema, selected, before.schema.order);
+      CM.history.pushCommand(exchange, { address: effect.getAddress(), data: before, selected: previousSelection });
       CM.history.finishOperation();
     } catch (error) {
       try { apply(effect, before); } finally { CM.history.discardOperation(); }
@@ -39,8 +42,7 @@ function mount({ state, body, effect, session, view, custom }) {
     if (duplicate) for (const key of model.toolKeys(tool, tools)) {
       properties[model.key(instance.id, key)] = model.clone(properties[model.key(duplicate.id, key)]);
     }
-    view.selectedTool = instance.id;
-    commit(next, properties);
+    commit(next, properties, instance.id);
   }
   function el(tag, text, className) {
     const result = document.createElement(tag);
@@ -50,7 +52,8 @@ function mount({ state, body, effect, session, view, custom }) {
   }
   function button(title, action, disabled = false, hint) {
     const control = ctl.button({ title, onClick: action, hint });
-    control.setDisabled(disabled); return control.element;
+    control.setDisabled(disabled); control.element.dataset.action = title;
+    return control.element;
   }
   function chainSection() {
     const section = ctl.section("Tool chain"), chain = effect.looksInstances.order;
@@ -71,17 +74,28 @@ function mount({ state, body, effect, session, view, custom }) {
         if (id) commit(model.move(effect.looksInstances, id, index, tools));
       });
       const select = el("button", `${index + 1}. ${tool.name} ${item.id.slice(1)}`, "lk-chain-select");
+      select.title = select.textContent;
+      select.dataset.action = "select";
       select.type = "button"; select.setAttribute("aria-pressed", String(view.selectedTool === item.id));
       select.addEventListener("click", () => { view.selectedTool = item.id; rebuild(); });
       select.addEventListener("keydown", event => {
         if (event.altKey && ["ArrowUp", "ArrowDown"].includes(event.key)) {
-          event.preventDefault(); commit(model.move(effect.looksInstances, item.id, index + (event.key === "ArrowUp" ? -1 : 1), tools));
+          event.preventDefault(); commit(model.move(effect.looksInstances, item.id, index + (event.key === "ArrowUp" ? -1 : 1), tools), undefined, item.id);
+        } else if (["ArrowUp", "ArrowDown", "Home", "End"].includes(event.key)) {
+          event.preventDefault();
+          const next = event.key === "Home" ? 0 : event.key === "End" ? chain.length - 1 :
+            Math.max(0, Math.min(chain.length - 1, index + (event.key === "ArrowUp" ? -1 : 1)));
+          view.selectedTool = chain[next].id; rebuild();
+          root.querySelector(`[data-instance="${view.selectedTool}"] .lk-chain-select`)?.focus({ preventScroll: true });
+          root.querySelector(`[data-instance="${view.selectedTool}"]`)?.scrollIntoView({ block: "nearest" });
         }
       });
-      row.append(select, button(on ? "On" : "Off", () => { session.commit([{ key, value: on ? 0 : 1 }]); rebuild(); }, false,
+      const actions = el("div", null, "lk-chain-actions");
+      actions.append(button(on ? "On" : "Off", () => { session.commit([{ key, value: on ? 0 : 1 }]); rebuild(); }, false,
         "Enable or disable " + tool.name),
       button("Duplicate", () => add(item.tool, item), chain.length >= model.MAX_INSTANCES),
       button("Remove", () => commit(model.remove(effect.looksInstances, item.id, tools))));
+      row.append(select, actions);
       list.appendChild(row);
     }
     if (!chain.length) section.body.appendChild(ctl.note("Add a tool to start your look.").element);
@@ -140,10 +154,13 @@ function mount({ state, body, effect, session, view, custom }) {
   }
   function parameters() {
     const section = ctl.section("Parameters");
+    section.element.classList.add("lk-parameters");
+    section.element.dataset.instance = view.selectedTool || "";
     const item = effect.looksInstances.order.find(item => item.id === view.selectedTool);
     if (!item) return section.element;
     const tool = tools.byId(item.tool), keys = model.toolKeys(item.tool, tools);
-    section.body.appendChild(el("div", tool.name + " " + item.id.slice(1), "lk-tool-name"));
+    section.element.querySelector(".zoidium-section-title span:last-child").textContent =
+      "Parameters · " + tool.name + " " + item.id.slice(1);
     const mapKey = key => model.key(item.id, key);
     propertyView = ui.properties({ target: effect, labelWidth: 0.65,
       keys: keys.map(mapKey).filter(key => effect.properties[key].definition.visible !== false) });
@@ -178,13 +195,25 @@ function mount({ state, body, effect, session, view, custom }) {
   }
   function rebuild() {
     if (disposed) return;
-    const scroll = body.scrollTop;
+    const scroll = body.scrollTop, chainScroll = root.querySelector(".lk-chain")?.scrollTop || 0;
     const focused = root.contains(document.activeElement) ? document.activeElement : null;
-    const focusIndex = Array.from(root.querySelectorAll("button,input,select,textarea,canvas")).indexOf(focused);
+    const row = focused?.closest(".lk-chain-row");
+    const action = focused?.dataset.action;
+    const oldSelection = root.dataset.selected;
+    const fields = "button,input,select,textarea,canvas";
+    const focusIndex = Array.from(root.querySelectorAll(fields)).indexOf(focused);
     cleanupViews(); root.textContent = "";
-    if (!effect.looksInstances.order.some(item => item.id === view.selectedTool)) view.selectedTool = effect.looksInstances.order[0]?.id;
+    view.selectedTool = model.selection(effect.looksInstances, view.selectedTool);
+    root.dataset.selected = view.selectedTool || "";
     root.append(chainSection(), parameters(), lookSection());
-    if (focusIndex >= 0) root.querySelectorAll("button,input,select,textarea,canvas")[focusIndex]?.focus({ preventScroll: true });
+    if (row && action) {
+      const id = effect.looksInstances.order.some(item => item.id === row.dataset.instance) ? row.dataset.instance : view.selectedTool;
+      const nextRow = root.querySelector(`.lk-chain-row[data-instance="${id}"]`);
+      Array.from(nextRow?.querySelectorAll("button") || []).find(button => button.dataset.action === action)?.focus({ preventScroll: true });
+    } else if (focusIndex >= 0 && oldSelection === root.dataset.selected) {
+      root.querySelectorAll(fields)[focusIndex]?.focus({ preventScroll: true });
+    }
+    root.querySelector(".lk-chain").scrollTop = chainScroll;
     body.scrollTop = scroll; signature = historySig();
   }
   rebuild();
