@@ -201,3 +201,28 @@ cache clears and preference changes, and reset only when the page reloads.
 Settings reports live usage at the current drawing-buffer size and any reduced
 session limit. The larger preference is a maximum, not a reservation of GPU
 memory. It cannot guarantee enough free GPU or shared system memory.
+
+## Node Effect
+
+Node Effect is authored as CM3 Custom Shader effect type 1. Executable GLSL
+in `properties.fragShader` owns the pixels. A trailing
+`// @zoidium-node-effect` line contains compact version-1 graph JSON with
+nodes, links, positions, parameter settings and stable node IDs. The parser
+validates version, structure, values, ports, cycles and size before editing.
+The existing shader stays active if graph validation or shader linking fails.
+
+Exposed channels remain native `customProperties`, including their keyframes,
+tangents and expressions. Generated uniform names encode the node ID, so a
+parameter label change preserves animation. Optional `zoidiumLabel` and
+`zoidiumDefault` fields inside each native custom property definition are
+editor metadata. Older builds ignore them. Changing parameter type replaces
+that channel with its new default. Time is a native float channel with the
+native expression `time`, evaluated from the owning clip's Time property.
+
+Bare CM3 and builds without Node Effect execute the saved shader and native
+channels without evaluating the graph. They can show generated uniform names.
+Graph comments survive native serialization, Zoidium archive saving, effect
+copy/paste, and history snapshots. No compatibility mode or change to existing
+effect classes is needed. Projects without Node Effect retain their existing
+rendering. See [Node Effect](../plugins/node-effect/README.md) for limits and
+alpha handling.
