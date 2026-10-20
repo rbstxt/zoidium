@@ -68,3 +68,16 @@ test("parameter default changes update unanimated defaults and preserve animatio
  first.animated=true;assert.equal(records(b,[first])[0].keyframes[0].value,.2);
  const color=records(compile(graph("parameter",{kind:1,color:"#ff8040"})))[0];assert.deepEqual(color.type.zoidiumDefault,[1,128/255,64/255]);
 });
+test("shader validation links before accepting code and disposes failed shaders",()=>{
+ const {createShaderCheck}=require("../plugins/node-effect/shader-check.js");
+ for(const fail of ["compile","link",null]) {
+  const events=[];
+  const gl={VERTEX_SHADER:1,FRAGMENT_SHADER:2,COMPILE_STATUS:3,LINK_STATUS:4,
+   createShader:type=>({type}),createProgram:()=>({}),shaderSource(){},compileShader(){},attachShader(){},linkProgram(){events.push("link");},
+   getShaderParameter:shader=>fail!=="compile"||shader.type!==2,getShaderInfoLog:()=>"Test compile error",getProgramParameter:()=>fail!=="link",getProgramInfoLog:()=>"Test link error",
+   deleteShader(){events.push("shader disposed");},deleteProgram(){events.push("program disposed");},getExtension:()=>({loseContext(){events.push("context disposed");}})};
+  const check=createShaderCheck({createElement:()=>({getContext:()=>gl})});
+  if(fail)assert.throws(()=>check.check("source"),/Shader/);else check.check("source");
+  assert.equal(events.filter(e=>e==="shader disposed").length,2);assert.ok(events.includes("program disposed"));check.dispose();assert.ok(events.includes("context disposed"));
+ }
+});

@@ -58,6 +58,7 @@ test("every visible plugin belongs to a declared pack", () => {
       "ccfx-shader-pack",
       "openzoid-legacy",
       "magic-looks",
+      "node-effect",
     ],
     experimental: ["layer-input"],
   });
