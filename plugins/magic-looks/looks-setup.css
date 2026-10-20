@@ -75,11 +75,12 @@
 
 .lk-fourway {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
   gap: 6px;
 }
 
 .lk-four-cell {
+  min-width: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -87,6 +88,8 @@
   border: 1px solid var(--zui-border);
   padding: 4px;
 }
+
+.lk-four-cell .lk-wheel-block { width: 100%; }
 
 .lk-four-name {
   color: var(--zui-value);
@@ -110,6 +113,7 @@
 @container (max-width: 520px) {
   .lk-chain-row { grid-template-columns: minmax(0, 1fr); }
   .lk-chain-actions { justify-content: flex-end; }
+  .lk-parameters > .zoidium-section-title { font-size: var(--zui-font-size); }
 }
 
 .lk-parameters > .zoidium-section-title { height: auto; min-height: 28px; }

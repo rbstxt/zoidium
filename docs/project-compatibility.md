@@ -269,6 +269,7 @@ new instance chains use layer-sized half-float intermediate images.
 
 Magic Looks version 17 changes instance labels and setup layout only. Native
 keys and complete property records are unchanged. Text/asset storage channels
-are hidden from native lists; curve and LUT editors still edit those same
+are hidden from native lists in both instance and legacy formats; curve and
+LUT editors still edit those same
 channels through native history. No project migration or rendering change is
 introduced by this UI revision.
