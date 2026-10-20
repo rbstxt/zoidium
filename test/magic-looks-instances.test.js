@@ -122,11 +122,11 @@ test("visual storage stays serialized but hidden in every instance tool", () => 
     }
   }
   const lens = model.definitions({ id: "i2", tool: "lens-distortion" }, tools, PZ);
-  assert.equal(lens.ml_i2_lensEnable.name, "2 Lens:On");
+  assert.equal(lens.ml_i2_lensEnable.name, "2 Lens");
   assert.equal(lens.ml_i2_lensDistortion.name, "2 Distort");
   assert.equal(lens.ml_i2_lensFlatten.name, "2 Flatten");
   const curves = model.definitions({ id: "i1", tool: "curves" }, tools, PZ);
-  assert.equal(curves.ml_i1_curvEnable.name, "1 Curves:On");
+  assert.equal(curves.ml_i1_curvEnable.name, "1 Curves");
   assert.ok(JSON.parse(curves.ml_i1_curvCurvesJson.value).RGB);
 });
 

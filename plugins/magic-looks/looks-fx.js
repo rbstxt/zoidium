@@ -36,7 +36,14 @@ var Looks = {};
     }
 })();
 
+function looksHideStorage(effect) {
+    for (const definition of Object.values(effect.propertyDefinitions)) {
+        if ([PZ.property.type.TEXT, PZ.property.type.ASSET].includes(definition.type)) definition.visible = false;
+    }
+}
+
 this.propertyDefinitions = Looks.tools.buildPropertyDefinitions(PZ);
+looksHideStorage(this);
 this.properties.addAll(this.propertyDefinitions, this);
 
 // Default values per property key: a value equal to its default is identity.
@@ -426,6 +433,7 @@ this.load = async function (data) {
         var historicalSource = originalResolver("text", "./plugins/magic-looks/davidium-looks-fx.js");
         var managedUnload = this.unload;
         new Function("PZ", "THREE", historicalSource).call(this, PZ, THREE);
+        looksHideStorage(this);
         this._looksHistoricalUnload = this.unload;
         this.unload = managedUnload;
         await this.load(data);

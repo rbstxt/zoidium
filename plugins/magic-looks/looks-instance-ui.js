@@ -149,8 +149,10 @@ function mount({ state, body, effect, session, view, custom }) {
   }
   function lookSection() {
     const section = sectionFor("Look presets", "presets", true);
-    section.body.appendChild(ctl.text({ label: "Search looks", value: view.filter.text,
-      onChange(value) { view.filter.text = String(value).toLowerCase(); rebuild(); } }).element);
+    const search = ctl.text({ label: "Search looks", value: view.filter.text,
+      onChange(value) { view.filter.text = String(value).toLowerCase(); rebuild(); } });
+    search.element.querySelector("input").setAttribute("aria-label", "Search looks");
+    section.body.appendChild(search.element);
     section.body.appendChild(ctl.select({ label: "Look", value: "", options: [{ value: "", label: "Choose a look" }].concat(
       tools.PRESETS.filter(p => p.name.toLowerCase().includes(view.filter.text)).map(p => ({ value: p.id, label: p.group + " · " + p.name }))),
     onChange(id) { const preset = tools.PRESETS.find(item => item.id === id); if (preset) applyPreset(preset); } }).element);
@@ -170,7 +172,7 @@ function mount({ state, body, effect, session, view, custom }) {
     section.element.querySelector(".zoidium-section-title span:last-child").textContent =
       "Parameters · " + tool.name + " " + item.id.slice(1);
     const mapKey = key => model.key(item.id, key);
-    propertyView = ui.properties({ target: effect, labelWidth: 0.65,
+    propertyView = ui.properties({ target: effect, labelWidth: 0.46,
       keys: keys.map(mapKey).filter(key => effect.properties[key].definition.visible !== false) });
     section.body.appendChild(propertyView.element);
     const projected = { properties: {}, parent: effect.parent, parentProject: effect.parentProject };

@@ -82,7 +82,8 @@ function definitions(instance, tools, PZ) {
   for (const property of toolKeys(instance.tool, tools)) {
     const name = tools.byId(instance.tool).name;
     const label = base[property].name.slice(name.length).trim();
-    let shortLabel = label === "Enable" ? (SHORT_NAMES[instance.tool] || name) + ":On" : parameterName(label);
+    let shortLabel = label === "Enable" ? (SHORT_NAMES[instance.tool] || name) +
+      (["contrast", "pop"].includes(instance.tool) ? ":On" : "") : parameterName(label);
     if (instance.tool === "ranged-saturation") {
       const map = tools.propMap()[instance.tool].params;
       for (const [zone, title] of [["Highlight", "High"], ["Midtone", "Mid"], ["Shadow", "Low"]]) {
