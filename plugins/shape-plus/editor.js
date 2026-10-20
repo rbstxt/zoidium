@@ -192,8 +192,8 @@ function install(context, Layer, Content) {
     for (const { name, button, image } of buttons) {
       button.disabled = !clip;
       button.setAttribute("aria-pressed", String(!!clip && enabled && name === tool));
-      image.style.fill = name === "pen" ? "none" : enabled && name === tool && clip ? "var(--zui-danger)" : "var(--zui-text-muted)";
-      image.style.color = enabled && name === tool && clip ? "var(--zui-danger)" : "var(--zui-text-muted)";
+      image.style.fill = name === "pen" ? "none" : enabled && name === tool && clip ? "var(--zui-toggle-on)" : "var(--zui-toggle-off)";
+      image.style.color = enabled && name === tool && clip ? "var(--zui-toggle-on)" : "var(--zui-toggle-off)";
     }
     if (schedule) request = window.requestAnimationFrame(() => tick());
   }

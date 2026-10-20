@@ -112,6 +112,7 @@
   // Neutral Zoidium chrome stays dark for every palette because CM3's own
   // panels never change their surfaces; only accent-derived tokens follow
   // the theme, so extension windows always match the surrounding editor.
+  // Strong accent and value tints mix toward white, as they did before themes.
   function uiTokens(palette) {
     var colors = {
       bg: "#2a2a2a", "bg-title": "#222222", "bg-input": "#202020", "bg-sunken": "#1d1d1d",
@@ -120,8 +121,8 @@
       danger: "#df9b9b",
     };
     colors.value = palette.link;
-    colors["accent-strong"] = "color-mix(in srgb, var(--zui-accent) 70%, var(--zui-text-bright))";
-    colors["value-strong"] = "color-mix(in srgb, var(--zui-value) 60%, var(--zui-text-bright))";
+    colors["accent-strong"] = "color-mix(in srgb, var(--zui-accent) 70%, #fff)";
+    colors["value-strong"] = "color-mix(in srgb, var(--zui-value) 60%, #fff)";
     colors["bg-title-focused"] = "color-mix(in srgb, var(--zui-accent) 22%, var(--zui-bg-title))";
     colors.shadow = "#000000";
     return colors;

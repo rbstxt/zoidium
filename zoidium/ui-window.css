@@ -27,12 +27,12 @@
   --zui-shadow: #000;
   --zui-accent: var(--zoidium-theme-focus, #384668);
   --zui-accent-rgb: var(--zoidium-theme-focus-rgb, 56 70 104);
-  --zui-accent-strong: color-mix(in srgb, var(--zui-accent) 70%, var(--zui-text-bright));
+  --zui-accent-strong: color-mix(in srgb, var(--zui-accent) 70%, #fff);
   --zui-value: var(--zoidium-theme-link, #7e8fb9);
-  --zui-value-strong: color-mix(in srgb, var(--zui-value) 60%, var(--zui-text-bright));
+  --zui-value-strong: color-mix(in srgb, var(--zui-value) 60%, #fff);
   --zui-bg: #2a2a2a;
   --zui-bg-title: #222;
-  --zui-bg-title-focused: color-mix(in srgb, var(--zui-accent) 22%, var(--zui-bg-title));
+  --zui-bg-title-focused: color-mix(in srgb, var(--zui-accent) 22%, #222);
   --zui-bg-input: #202020;
   --zui-bg-sunken: #1d1d1d;
   --zui-border: #1b1b1b;
@@ -44,6 +44,14 @@
   --zui-text-muted: #9a9a9a;
   --zui-text-faint: #6d6d6d;
   --zui-danger: #df9b9b;
+  /* CM3's own toggle-button and control colors. Theme palettes do not change
+     them, so Zoidium buttons and native-style controls match CM3's exactly. */
+  --zui-toggle-on: #8a2828;
+  --zui-toggle-off: #acacac;
+  --zui-border-filter: #363636;
+  --zui-button-text: #cbcbcb;
+  --zui-button-bg: #434343;
+  --zui-button-hover-border: #545454;
 }
 
 .zoidium-window-layer {
@@ -263,7 +271,9 @@ body > .zoidium-window-color-picker {
 }
 
 /* Native row/control builders used inside extension surfaces still carry
-   CM3's literal default colors. Override only these Zoidium containers. */
+   CM3's literal default colors. Override only these Zoidium containers. Input
+   boxes and selects keep CM3's value color, filter boxes and buttons keep
+   CM3's own colors, and text areas keep CM3's native look. */
 :is(.zoidium-window, .zoidium-settings-panel, .zoidium-restore-panel, .zoidium-plugin-panel) .proprow {
   color: var(--zui-text);
   border-bottom-color: var(--zui-border-soft);
@@ -271,10 +281,15 @@ body > .zoidium-window-color-picker {
 :is(.zoidium-window, .zoidium-settings-panel, .zoidium-restore-panel, .zoidium-plugin-panel) .proprow:is(.proptitle, .spacer) {
   background-color: var(--zui-bg-title);
 }
-:is(.zoidium-window, .zoidium-settings-panel, .zoidium-restore-panel, .zoidium-plugin-panel, .zoidium-project-toolbar) :is(.pz-inputbox, .pz-textarea, .pz-filterbox) {
-  color: var(--zui-text);
+:is(.zoidium-window, .zoidium-settings-panel, .zoidium-restore-panel, .zoidium-plugin-panel, .zoidium-project-toolbar) .pz-inputbox {
+  color: var(--zui-value);
   background-color: var(--zui-bg-input);
   border-color: var(--zui-border);
+}
+:is(.zoidium-window, .zoidium-settings-panel, .zoidium-restore-panel, .zoidium-plugin-panel, .zoidium-project-toolbar) .pz-filterbox {
+  color: var(--zui-text);
+  background-color: var(--zui-bg);
+  border-color: var(--zui-border-filter);
 }
 :is(.zoidium-window, .zoidium-settings-panel, .zoidium-restore-panel, .zoidium-plugin-panel) .pzinput {
   color: var(--zui-value);
@@ -287,12 +302,11 @@ body > .zoidium-window-color-picker {
   color: var(--zui-text-faint);
 }
 :where(.zoidium-window, .zoidium-settings-panel, .zoidium-restore-panel, .zoidium-plugin-panel) .proprow.propbutton {
-  color: var(--zui-text);
-  background-color: var(--zui-bg-input);
+  color: var(--zui-button-text);
+  background-color: var(--zui-button-bg);
 }
 :where(.zoidium-window, .zoidium-settings-panel, .zoidium-restore-panel, .zoidium-plugin-panel) .proprow.propbutton:hover {
-  background-color: var(--zui-hover);
-  border-color: var(--zui-border);
+  border-color: var(--zui-button-hover-border);
 }
 
 /* Fields ------------------------------------------------------------- */
@@ -530,7 +544,7 @@ textarea.zoidium-text {
   display: flex;
   flex-wrap: wrap;
   background-color: var(--zui-bg-sunken);
-  border-bottom: 1px solid var(--zui-border);
+  border-bottom: 1px solid #111;
 }
 
 .zoidium-tab {
@@ -546,7 +560,7 @@ textarea.zoidium-text {
 
 .zoidium-tab:hover {
   color: var(--zui-text-bright);
-  background-color: var(--zui-hover);
+  background-color: #262626;
 }
 
 .zoidium-tab.selected {
@@ -602,7 +616,7 @@ textarea.zoidium-text {
 
 .zoidium-note.warning {
   color: var(--zui-danger);
-  background-color: color-mix(in srgb, var(--zui-danger) 18%, transparent);
+  background-color: rgba(120, 34, 34, 0.18);
 }
 
 /* Confirm dialog message: roomier than an inline note, and it keeps the
@@ -618,7 +632,7 @@ textarea.zoidium-text {
 /* Maximized and custom-chrome windows ------------------------------- */
 
 .zoidium-window.maximized {
-  box-shadow: 0 0 0 1px var(--zui-border), 0 12px 40px color-mix(in srgb, var(--zui-shadow) 60%, transparent);
+  box-shadow: 0 0 0 1px var(--zui-border), 0 12px 40px rgba(0, 0, 0, 0.6);
 }
 
 .zoidium-window.maximized .zoidium-window-grip {
