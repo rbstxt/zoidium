@@ -58,7 +58,7 @@ function mount({ state, body, effect, session, view, custom }) {
     list.setAttribute("aria-label", "Tool chain");
     for (const [index, item] of chain.entries()) {
       const tool = tools.byId(item.tool), key = model.key(item.id, tools.propMap()[item.tool].enable);
-      const on = effect.properties[key].get(CM.playback.currentFrame) === 1;
+      const on = effect.properties[key].get(CM.playback.currentFrame - effect.properties[key].frameOffset) === 1;
       const row = el("li", null, "lk-chain-row"); row.dataset.instance = item.id;
       row.classList.toggle("selected", view.selectedTool === item.id);
       row.draggable = true;
@@ -145,7 +145,8 @@ function mount({ state, body, effect, session, view, custom }) {
     const tool = tools.byId(item.tool), keys = model.toolKeys(item.tool, tools);
     section.body.appendChild(el("div", tool.name + " " + item.id.slice(1), "lk-tool-name"));
     const mapKey = key => model.key(item.id, key);
-    propertyView = ui.properties({ target: effect, keys: keys.map(mapKey).filter(key => effect.properties[key].definition.visible !== false) });
+    propertyView = ui.properties({ target: effect, labelWidth: 0.65,
+      keys: keys.map(mapKey).filter(key => effect.properties[key].definition.visible !== false) });
     section.body.appendChild(propertyView.element);
     const projected = { properties: {}, parent: effect.parent, parentProject: effect.parentProject };
     for (const key of keys) projected.properties[key] = effect.properties[mapKey(key)];
@@ -154,11 +155,13 @@ function mount({ state, body, effect, session, view, custom }) {
       commit: writes => session.commit(writes.map(write => ({ ...write, key: mapKey(write.key) }))),
     };
     const after = () => rebuild();
-    effect.update(CM.playback.currentFrame);
+    const localFrame = CM.playback.currentFrame - effect.properties.enabled.frameOffset;
+    effect.update(localFrame);
     const stage = effect._looksPipeline.stage(item.id);
     projected._looksLutAssets = stage?._looksLutAssets;
     projected._looksCubeError = stage?._looksCubeError;
     projected._looksCubeAtlas = stage?._looksCubeAtlas;
+    projected.prepare = () => effect.prepare(localFrame);
     if (tool.custom === "curves") custom.buildCurves(projected, mappedSession, tool, section.body, widgets, after, view);
     else if (tool.custom === "scurve") custom.buildScurve(projected, mappedSession, tool, section.body, after);
     else if (tool.custom === "lut") Looks.lutUI.buildLut({ Looks, ctl, effect: projected, session: mappedSession,

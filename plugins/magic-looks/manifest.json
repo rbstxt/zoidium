@@ -5,13 +5,13 @@
   "author": "DaviFX",
   "version": "16",
   "kind": "extension",
-  "description": "Magic Bullet Looks-style color grading: 29 color, light and lens tools in a reorderable chain, with look presets and a floating setup window.",
+  "description": "Color grading with 29 tools, independent animated instances, spatial multipass rendering, look presets and a setup window.",
   "category": "COLOR",
   "nativeEffects": [
     {
       "id": "looks",
       "name": "Magic Looks",
-      "description": "Full-chain color grade: lens distortion first, then a reorderable chain of color, light and lens tools.",
+      "description": "Color grading with repeatable tool instances, freely ordered color, light and lens stages, and look presets.",
       "source": "./plugins/magic-looks/looks-fx.js?v=16"
     }
   ],
@@ -111,6 +111,11 @@
       "id": "davidium-looks-vert",
       "type": "text",
       "source": "./plugins/magic-looks/davidium-looks-vert.glsl?v=16"
+    },
+    {
+      "id": "looks-instance-reference",
+      "type": "text",
+      "source": "./plugins/magic-looks/looks-instance-reference.js?v=16"
     }
   ]
 }

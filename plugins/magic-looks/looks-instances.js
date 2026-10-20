@@ -58,8 +58,9 @@ function toolKeys(tool, tools) {
 function definitions(instance, tools, PZ) {
   const base = tools.buildPropertyDefinitions(PZ), result = {};
   for (const property of toolKeys(instance.tool, tools)) {
-    result[key(instance.id, property)] = { ...base[property], name: tools.byId(instance.tool).name +
-      " " + instance.id.slice(1) + " · " + base[property].name };
+    const name = tools.byId(instance.tool).name;
+    result[key(instance.id, property)] = { ...base[property], name: name +
+      " " + instance.id.slice(1) + " · " + base[property].name.slice(name.length).trim() };
   }
   return result;
 }
@@ -74,14 +75,18 @@ function plan(order, active = () => true) {
       colors = null;
       passes.push({ spatial: true, instances: [instance] });
     } else {
-      if (!colors) { colors = { spatial: false, instances: [] }; passes.push(colors); }
+      const samplers = instance.tool === "lut" ? 3 : ["curves", "s-curve"].includes(instance.tool) ? 1 : 0;
+      if (!colors || colors.instances.length >= 8 || colors.samplers + samplers > 6) {
+        colors = { spatial: false, instances: [], samplers: 0 }; passes.push(colors);
+      }
       colors.instances.push(instance);
+      colors.samplers += samplers;
     }
   }
   return passes;
 }
 // A saved effect never opts into the new renderer based on plugin versions.
-function mode(data) { return data?.looksInstances ? "instances" : data?.properties ? "legacy" : "instances"; }
+function mode(data) { return data?.looksInstances ? "instances" : data ? "legacy" : "instances"; }
 
 module.exports = { MAX_INSTANCES, SPATIAL, clone, key, empty, validate, append, move, remove,
   toolKeys, definitions, plan, mode };

@@ -133,6 +133,10 @@ var Looks = Looks || {};
     var canvas = make("canvas", "lk-wheel");
     canvas.title = "Drag to tint. Double-click to reset.";
     canvas.setAttribute("role", "slider");
+    canvas.tabIndex = 0;
+    canvas.setAttribute("aria-label", "Color tint");
+    canvas.setAttribute("aria-valuemin", "0");
+    canvas.setAttribute("aria-valuemax", "1");
     wrap.appendChild(canvas);
     container.appendChild(wrap);
 
@@ -152,6 +156,8 @@ var Looks = Looks || {};
 
     function draw() {
       var ctx = fitCanvas(canvas, size, size);
+      canvas.setAttribute("aria-valuenow", String(dot.radius));
+      canvas.setAttribute("aria-valuetext", "Hue " + Math.round(dot.angle) + ", strength " + Math.round(dot.radius * 100) + "%");
       var t = wheelTheme(canvas);
       var cx = size / 2, cy = size / 2;
       ctx.clearRect(0, 0, size, size);
@@ -211,11 +217,22 @@ var Looks = Looks || {};
       draw();
       if (commitFn) commitFn(snapshotDot(), rgbNow());
     }
+    function onKey(e) {
+      if (!["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Home"].includes(e.key)) return;
+      e.preventDefault();
+      if (e.key === "Home") { dot.angle = 0; dot.radius = 0; }
+      else if (e.key === "ArrowLeft" || e.key === "ArrowRight") dot.angle =
+        (dot.angle + (e.key === "ArrowLeft" ? -1 : 1) * (e.shiftKey ? 30 : 5) + 360) % 360;
+      else dot.radius = C.clamp(dot.radius + (e.key === "ArrowUp" ? 1 : -1) * (e.shiftKey ? .2 : .02), 0, 1);
+      draw();
+      if (commitFn) commitFn(snapshotDot(), rgbNow());
+    }
     canvas.addEventListener("pointerdown", onDown);
     canvas.addEventListener("pointermove", onMove);
     canvas.addEventListener("pointerup", onUp);
     canvas.addEventListener("pointercancel", onUp);
     canvas.addEventListener("dblclick", onDbl);
+    canvas.addEventListener("keydown", onKey);
     var themeView = canvas.ownerDocument && canvas.ownerDocument.defaultView;
     if (themeView) themeView.addEventListener("zoidium:theme-changed", draw);
     draw();
@@ -238,6 +255,7 @@ var Looks = Looks || {};
         canvas.removeEventListener("pointerup", onUp);
         canvas.removeEventListener("pointercancel", onUp);
         canvas.removeEventListener("dblclick", onDbl);
+        canvas.removeEventListener("keydown", onKey);
         if (wrap.parentElement) wrap.parentElement.removeChild(wrap);
       },
     };
@@ -257,6 +275,9 @@ var Looks = Looks || {};
     var pad = 10;
     var wrap = make("div", "lk-curves-wrap");
     var canvas = make("canvas", "lk-curves");
+    canvas.tabIndex = 0;
+    canvas.setAttribute("role", "group");
+    canvas.setAttribute("aria-label", "Color curves");
     canvas.title = "Click adds a point, drag moves it, right-click removes it.";
     wrap.appendChild(canvas);
     container.appendChild(wrap);
@@ -266,6 +287,7 @@ var Looks = Looks || {};
     var inputFn = null;
     var commitFn = null;
     var dragging = -1;
+    var selected = 0;
     var disposed = false;
 
     function points() {
@@ -382,12 +404,37 @@ var Looks = Looks || {};
       draw();
       emit(true);
     }
+    function onKey(e) {
+      if (!["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Home", "End", "Insert", "Delete", "Backspace", "PageUp", "PageDown"].includes(e.key)) return;
+      e.preventDefault();
+      var pts = points();
+      selected = C.clamp(selected, 0, pts.length - 1);
+      if (e.key === "Home") selected = 0;
+      else if (e.key === "End") selected = pts.length - 1;
+      else if (e.key === "PageUp" || e.key === "PageDown") selected = C.clamp(selected + (e.key === "PageUp" ? -1 : 1), 0, pts.length - 1);
+      else if (e.key === "Insert") {
+        var next = Math.min(pts.length - 1, selected + 1);
+        if (next === selected) return;
+        pts.splice(next, 0, { x: (pts[selected].x + pts[next].x) / 2, y: (pts[selected].y + pts[next].y) / 2 });
+        selected = next; emit(true);
+      } else if (e.key === "Delete" || e.key === "Backspace") {
+        if (selected > 0 && selected < pts.length - 1) { pts.splice(selected, 1); selected--; emit(true); }
+      } else {
+        var step = e.shiftKey ? .1 : .01, p = pts[selected];
+        if (e.key === "ArrowUp" || e.key === "ArrowDown") p.y = C.clamp(p.y + (e.key === "ArrowUp" ? step : -step), 0, 1);
+        else if (selected > 0 && selected < pts.length - 1) p.x = C.clamp(p.x + (e.key === "ArrowRight" ? step : -step), pts[selected - 1].x + .001, pts[selected + 1].x - .001);
+        emit(true);
+      }
+      canvas.setAttribute("aria-label", channel + " curve point " + (selected + 1) + ", X " + pts[selected].x.toFixed(2) + ", Y " + pts[selected].y.toFixed(2));
+      draw();
+    }
 
     canvas.addEventListener("pointerdown", onDown);
     canvas.addEventListener("pointermove", onMove);
     canvas.addEventListener("pointerup", onUp);
     canvas.addEventListener("pointercancel", onUp);
     canvas.addEventListener("contextmenu", onContext);
+    canvas.addEventListener("keydown", onKey);
     var themeView = canvas.ownerDocument && canvas.ownerDocument.defaultView;
     if (themeView) themeView.addEventListener("zoidium:theme-changed", draw);
     draw();
@@ -413,6 +460,7 @@ var Looks = Looks || {};
         canvas.removeEventListener("pointerup", onUp);
         canvas.removeEventListener("pointercancel", onUp);
         canvas.removeEventListener("contextmenu", onContext);
+        canvas.removeEventListener("keydown", onKey);
         if (wrap.parentElement) wrap.parentElement.removeChild(wrap);
       },
     };

@@ -52,7 +52,6 @@ function install(effect, PZ, THREE, Looks, legacy) {
   effect.update = frame => effect._looksPipeline.update(frame);
   effect.prepare = frame => effect._looksPipeline.prepare(frame);
   effect.resize = () => {};
-  effect.unload = () => { effect._looksPipeline.dispose(); effect.pass = null; };
   effect.toJSON = () => ({ type: effect.type, properties: effect.properties, looksInstances: effect.looksInstances });
 }
 module.exports = { install };
