@@ -49,7 +49,7 @@ function activate(context) {
      status.style.color="";
     }catch(error){status.textContent="Node Effect: "+error.message;status.style.color="var(--zui-danger)";}
    }
-   editor=win.ZoidiumUI.nodeEditor({nodeTypes:types,graph:graphOf(effect),canConnect:()=>true,onChange});
+   editor=win.ZoidiumUI.nodeEditor({recipes:require("./recipes.js"),nodeTypes:types,graph:graphOf(effect),canConnect:()=>true,onChange});
    host.append(editor.element);
    const sync=()=>{
     const shader=effect.properties.fragShader.get();

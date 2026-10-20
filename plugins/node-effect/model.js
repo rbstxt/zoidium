@@ -22,6 +22,7 @@ function validate(source) {
     if(!Array.isArray(v)||v.length<2||v.length>32||v.some(s=>!Array.isArray(s)||s.length!==5||s.some(x=>!Number.isFinite(x)||x<0||x>1))) throw new Error(n.id+": use 2 to 32 valid color stops.");
     v=clone(v).sort((a,b)=>a[0]-b[0]);
    }
+   if(p.id==="taps" && (!Number.isInteger(v)||v<1||v>32))throw new Error(n.id+": Samples must be an integer from 1 to 32.");
    params[p.id]=v;
   }
   return {id:n.id,type:n.type,x:Number.isFinite(n.x)?n.x:0,y:Number.isFinite(n.y)?n.y:0,params};

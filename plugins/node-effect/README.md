@@ -65,3 +65,33 @@ limits depend on the GPU and are checked during linking. Noise uses a fixed
 2D value-noise lattice. Voronoi searches nine neighboring cells for F1/F2
 and 25 cells around the nearest cell for edges. These patterns do not use
 feedback or accumulated state.
+
+## Sampling and recipes
+
+Sample Layer at UV reads the effect's input image at a connected coordinate.
+Blur and Edge Detect also read that input, not an upstream graph color.
+Connect UV to move their sample center. Place separate Node Effects in the
+native stack when a neighborhood operation must read an earlier graph result.
+Blur accumulates premultiplied samples, so transparent edges do not acquire
+a dark fringe. Its separate Alpha output can drive Output's Alpha input.
+
+Box and Gaussian Blur use a square grid. Samples selects the largest square
+not exceeding the requested count, with at most 5 x 5 taps. Directional and
+Radial Blur use 1–32 taps. Radius is in pixels; radial blur moves toward and
+away from Center X/Y by Radius divided by the longer image dimension.
+Directional Angle is in radians. Edge Detect uses a fixed nine-tap Sobel
+kernel on premultiplied luminance. Every graph is limited to 256 source
+samples per output pixel, counting only nodes reachable from Output.
+The limit is checked before shader replacement.
+
+The shared editor's Recipes menu replaces the graph in one undo step:
+Glow adds a Gaussian-blurred source; Chromatic aberration offsets red and
+blue sampling with an exposed Vector2 Channel offset; Displacement by noise
+animates input UVs using native clip time; Duotone maps source luminance
+through an editable Color Ramp. Loading a recipe replaces the previous graph
+and its parameter channels; Undo restores them.
+
+Version 2 adds sampling nodes and recipes without changing graph version 1.
+An older Node Effect editor can reject the new node types while the native
+saved shader continues to render. Keep the saved shader intact when moving
+between builds.

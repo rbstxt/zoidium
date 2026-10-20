@@ -81,3 +81,28 @@ test("shader validation links before accepting code and disposes failed shaders"
   assert.equal(events.filter(e=>e==="shader disposed").length,2);assert.ok(events.includes("program disposed"));check.dispose();assert.ok(events.includes("context disposed"));
  }
 });
+test("sampling tap counts and total shader work are bounded",()=>{
+ for(let mode=0;mode<4;mode++)assert.equal(compile(graph("blur",{mode,taps:32})).samples,mode<2?25:32);
+ assert.throws(()=>compile(graph("blur",{taps:33})),/Samples/);assert.throws(()=>compile(graph("blur",{taps:1.5})),/Samples/);
+ const g={nodes:[{id:"o",type:"output"}],links:[]};let last=null;
+ for(let i=0;i<11;i++) {
+  const blur="blur"+i,mix="mix"+i;g.nodes.push({id:blur,type:"blur",params:{taps:25}},{id:mix,type:"mix"});
+  g.links.push({from:{node:blur,port:"color"},to:{node:mix,port:"b"}});
+  if(last)g.links.push({from:{node:last,port:"color"},to:{node:mix,port:"a"}});last=mix;
+ }
+ g.links.push({from:{node:last,port:"color"},to:{node:"o",port:"color"}});assert.throws(()=>compile(g),/256 source samples/);
+ assert.equal(compile(graph("edge")).samples,9);assert.equal(compile(graph("sample")).samples,1);
+});
+test("all recipes validate, round trip and fit the sample budget",()=>{
+ const recipes=require("../plugins/node-effect/recipes.js");assert.deepEqual(recipes.map(r=>r.label),["Glow","Chromatic aberration","Displacement by noise","Duotone"]);
+ for(const recipe of recipes){const result=compile(recipe.graph);assert.deepEqual(model.extract(result.shader),result.graph);assert.ok(result.samples<=256);}
+});
+test("blur averages premultiplied source samples and preserves alpha separately",()=>{
+ const result=compile(graph("blur",{mode:1,taps:25}));assert.match(result.shader,/sum\+=vec4\(s.rgb\*s.a,s.a\)\*w/);assert.match(result.shader,/sum.rgb\/sum.a/);assert.match(result.shader,/sum.a\/total/);
+});
+test("native parameter installation uses array-list operations and nonserialized labels",()=>{
+ const {install}=require("../plugins/node-effect/parameters.js"),list=[{old:true}];
+ const PZ={property:{type:{VECTOR2:1},create(definition){return{definition,properties:{name:{definition:{}},load(value){this.loaded=value;}},load(value){this.loaded=value;},set(value){this.value=value;}};}}};
+ const effect={customProperties:list};const data=records(compile(graph("parameter",{kind:2,x:.2,y:.7,name:"Point"})));
+ install(PZ,effect,data);assert.equal(list.length,1);assert.deepEqual(list[0].value,[.2,.7]);assert.equal(list[0].definition.name,"Point");assert.equal(Object.hasOwn(JSON.parse(JSON.stringify(list[0].definition)),"name"),false);assert.equal(list[0].properties.name.definition.readOnly,true);assert.equal(effect.fragmentShaderNeedsUpdate,true);
+});
