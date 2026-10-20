@@ -1,6 +1,6 @@
 "use strict";
 
-const { SAMPLE_RATE } = require("./export-math.js");
+const { SAMPLE_RATE, isMemoryError } = require("./export-math.js");
 const AAC_PREROLL = 4096;
 const PROBE_IMPULSE = 8192;
 const PROBE_LENGTH = 24576;
@@ -72,6 +72,7 @@ async function measureAacDelay(scope, config, signal) {
     return delay;
   } catch (error) {
     signal.throwIfAborted();
+    if (isMemoryError(error)) throw error;
     throw new Error("MP4 could not verify AAC audio timing in this browser. Try the desktop app or MKV/WebM.", { cause: error });
   } finally {
     signal.removeEventListener("abort", close);
@@ -91,7 +92,8 @@ async function createAudioEncoding(scope, bunny, config, end, signal) {
   const encoder = new scope.AudioEncoder({
     output(chunk, metadata) {
       const packet = bunny.EncodedPacket.fromEncodedChunk(chunk);
-      const timing = packetTiming(packet.timestamp, packet.duration, shift, end);
+      const duration = chunk.duration == null ? (aac ? 1024 / SAMPLE_RATE : 0.02) : packet.duration;
+      const timing = packetTiming(packet.timestamp, duration, shift, end);
       if (!timing) return;
       accepted++;
       pending = pending.then(() => source.add(packet.clone(timing), metadata)).catch((error) => { failure = error; });

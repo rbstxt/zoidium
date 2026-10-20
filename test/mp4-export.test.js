@@ -84,6 +84,11 @@ test("missing encoders and rejected audio support produce clear errors", async (
   await assert.rejects(chooseCodecs({ VideoEncoder: supports(() => true) }, params, profiles, true), /cannot encode AAC or Opus/);
 });
 
+test("capability probes preserve allocation failures for the memory error page", async () => {
+  const error = new RangeError("Allocation failed");
+  await assert.rejects(firstSupported({ isConfigSupported() { throw error; } }, [{}]), (value) => value === error);
+});
+
 test("audio passes native segment timing, source offset, gain and pan through the mixer", async () => {
   const media = { file: { async arrayBuffer() { return new ArrayBuffer(8); } } };
   const decoded = { duration: 3 };
@@ -222,6 +227,22 @@ test("cancel closes the encoder while a native frame is still preparing", async 
   assert.deepEqual(events, ["cancel"]);
   finishFrame();
   await assert.rejects(result, { name: "AbortError" });
+  assert.deepEqual(events, ["cancel"]);
+});
+
+test("an encoder failure cancels the output and reaches the caller once", async () => {
+  const events = [];
+  const error = new DOMException("H.264 encoding failed.", "EncodingError");
+  const bunny = fakeBunny(events);
+  bunny.CanvasSource = class { async add() { throw error; } };
+  const exporter = {
+    params, sequence: { properties: { rate: { get: () => 30 } } },
+    renderer: { domElement: { width: 640, height: 360 } }, framesRendered: 0,
+    async getVideoFrame() { this.framesRendered++; },
+  };
+  const job = createJob({ VideoEncoder: supports(() => true), navigator: {} },
+    { av: { profiles } }, exporter, () => bunny);
+  await assert.rejects(job.run(), (value) => value === error);
   assert.deepEqual(events, ["cancel"]);
 });
 
