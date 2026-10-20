@@ -8,7 +8,9 @@ function installEngine(options) {
   const compiled = new WeakMap(), active = new Set(), errors = new WeakMap();
   const nativeParse = PZ.expression.prototype.parse;
   const reported = new Set();
-  const guard = createCallGuard();
+  const sourceKinds = new Map();
+  let methodStamp = "";
+  const guard = createCallGuard(options.stepLimit);
   function report(expression, property, error) {
     const message = error ? "Expression error: " + String(error.message || error) : null;
     expression.error = message;
@@ -31,9 +33,9 @@ function installEngine(options) {
       // use the same guarded evaluator as every native property read.
       return function legacyEntry(frame, time, methods, custom, _parent, property, value) {
         if (property?.get) return evaluate(expression, frame, property.parentObject, property);
-        if (!active.size) guard.reset();
+        if (!active.size) guard.reset(result.extended);
         const context = createAPI({ PZ, owner: null, property: null, frame, time, base: value, read, baseAt,
-          methods: methods || PZ.expression.methods, wiggleMethods: options.wiggleMethods, controls: options.controls, world: options.world });
+          methods: methods || PZ.expression.methods, wiggleMethods: options.wiggleMethods, controls: options.controls, world: options.world, extended: result.extended });
         const previous = guard.swapOverrides(context.overrides), pure = fn.zoidiumPure;
         try { return fn(frame, time, context.methods, custom, pure.Math, { ...guard, api: context.api, pure }); }
         finally { guard.swapOverrides(previous); }
@@ -70,14 +72,14 @@ function installEngine(options) {
     if (active.has(property)) { report(expression, property, new Error("Expression property cycle detected")); return base; }
     const outer = active.size === 0;
     let previousOverrides;
-    if (outer) guard.reset();
+    if (outer) guard.reset(result.extended);
     active.add(property);
     try {
       const clip = ancestor(owner, n => n instanceof PZ.clip);
       const time = clip ? read(clip.properties.time, frame) : 0;
       const context = createAPI({ PZ, owner, property, frame, time, base, read, baseAt,
         methods: PZ.expression.methods, wiggleMethods: options.wiggleMethods,
-        controls: options.controls, world: options.world });
+        controls: options.controls, world: options.world, extended: result.extended });
       const pure = result.fn.zoidiumPure;
       const helpers = { ...guard, api: context.api, pure };
       previousOverrides = guard.swapOverrides(context.overrides);
@@ -98,6 +100,15 @@ function installEngine(options) {
   return { baseAt, read, error: p => errors.get(p) || p?.expression?.error || null,
     isExtended: expression => !!compiled.get(expression)?.extended,
     compile, guard,
+    requiresSource(source) {
+      const methods = Object.keys(PZ.expression.methods), stamp = methods.join("\0");
+      if (stamp !== methodStamp) { sourceKinds.clear(); methodStamp = stamp; }
+      if (sourceKinds.has(source)) return sourceKinds.get(source);
+      let needed;
+      try { needed = compile(source, methods).extended; } catch (_error) { return undefined; }
+      if (sourceKinds.size >= 512) sourceKinds.delete(sourceKinds.keys().next().value);
+      sourceKinds.set(source, needed);return needed;
+    },
     restore(project) {
       project?.forEachItemOfType?.(PZ.property.dynamic, property => {
         const expression = property.expression;

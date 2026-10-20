@@ -24,10 +24,13 @@ free globals, `this`, async and generator syntax remain unavailable. Compilation
 uses the Function constructor of a temporary sandboxed iframe removed before
 evaluation. No new API handle exposes a host or realm object.
 
-Execution also has explicit deterministic limits of 10,000,000 loop/call steps
-and 256 nested calls per outer evaluation. Exceeding a limit or any other
-expression error falls back to the property's keyed value. This replaces
-CM3's undefined error result. Legacy expressions within these limits keep
+Programs that use Expressions+ syntax or API have deterministic limits of
+10,000,000 loop/call steps and 256 nested calls per outer evaluation. Existing
+CM3-compatible programs retain unbounded loop behavior and native helper
+signatures, including ignored extra arguments. AE overloads apply only to
+programs requiring the extension. A limit failure or any other expression
+error falls back to the property's keyed value. This replaces
+CM3's undefined error result. Legacy expressions keep
 their native signatures and detached-realm intrinsic identities. The native
 corpus test compares accepted repository expressions against the cached CM3
 compiler without checking CM3 code or captured data into Git.

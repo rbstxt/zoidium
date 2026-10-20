@@ -44,10 +44,11 @@ runtime call guard. CM3 method and Math function identities remain intact.
 This is the host's detached-realm expression model with added call hardening,
 not a sandbox for arbitrary third-party plugins.
 
-Each evaluation has 10,000,000 combined loop/call steps and a 256-call recursion
-limit. The counters reset for an outer property read and cover referenced
-expressions. Exceeding either limit is an English expression error. Large
-finite legacy programs can exceed those explicit execution limits.
+Programs that require Expressions+ syntax or API have 10,000,000 combined
+loop/call steps and a 256-call recursion limit. Counters reset for an outer
+property read and cover referenced expressions. Exceeding a limit is an
+English expression error. CM3-compatible programs retain native unbounded
+loop behavior so finite legacy expressions keep their results.
 
 `Array`, `Number`, `String`, `Boolean`, `JSON`, `parseInt`, `parseFloat`,
 `isFinite`, `isNaN`, `Infinity`, `NaN`, `undefined` and `Math` are available.
@@ -92,10 +93,16 @@ links report an error and use each failing property's own keyed value.
 
 Existing CM3 method signatures retain their meaning. In particular,
 `linear(start, end, amount)` and `ease(amount, family, direction)` remain
-unchanged. Use the five-argument AE form `linear(t, tMin, tMax, a, b)` or
+unchanged, including ignored extra arguments. In a program using Expressions+
+syntax or API, use the five-argument AE form `linear(t, tMin, tMax, a, b)` or
 `ease(t, tMin, tMax, a, b)` for clamped scalar or vector interpolation.
 `easeIn` and `easeOut` also accept five arguments. Existing Trapcode helper
-signatures take precedence when that pack is enabled.
+signatures take precedence when that pack is enabled. For example:
+
+```js
+const t = time;
+linear(t, 0, 1, 10, 20)
+```
 
 `clamp(value, min, max)` accepts a number or CM3 vector. Angle helpers use
 `degreesToRadians(x)` and `radiansToDegrees(x)`. `lookAt(from, to)` returns
