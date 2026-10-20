@@ -406,7 +406,7 @@
       "zoidiumOnly": true,
       "manifest": "./plugins/magic-looks/manifest.json?v=16",
       "bundle": "./plugins/magic-looks/bundle.json?v=16",
-      "integrity": "sha256-422UKUxoQ+MNM7OMN0OwEBJya9N5nssr+mkSrMM3Vxc="
+      "integrity": "sha256-ii44YWX9+H4rJjntyEb/98Q+Fg6Lll5XG4hZfEqJ3EU="
     },
     {
       "id": "layer-input",

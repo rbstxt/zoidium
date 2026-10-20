@@ -3,6 +3,7 @@ require("./migrate-test-apis.js").ensureMainRealmApis();
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
+const crypto = require("node:crypto");
 const model = require("../plugins/magic-looks/looks-instances.js");
 const Looks = {};
 for (const file of ["looks-color.js", "looks-tools.js"]) {
@@ -11,6 +12,18 @@ for (const file of ["looks-color.js", "looks-tools.js"]) {
 const tools = Looks.tools;
 const reference = require("../plugins/magic-looks/looks-instance-reference.js");
 const compiler = require("../plugins/magic-looks/looks-passes.js");
+test("historical grading sources remain byte-identical to the imported renderer", () => {
+  const pins = {
+    "looks-grade.glsl": "9a562e72d8d91b461bab2f6d48172bf9044006796725637b02072478daabca2b",
+    "looks-tools.js": "7d73e3283ea71d1b5a857eac7f0321e6b056827bdfb327f63f04482d4b62ea9e",
+    "looks-color.js": "0670b62de40254a9430914cbf5368c651d031ef3266eb49ba3af8eb3510cd2d2",
+    "looks-vert.glsl": "9e79c8236c95c912b1ca44ef3f369636b79dfa3427aab412f2e0de37868ad450",
+  };
+  for (const [file, hash] of Object.entries(pins)) {
+    const source = fs.readFileSync(require.resolve("../plugins/magic-looks/davidium-" + file));
+    assert.equal(crypto.createHash("sha256").update(source).digest("hex"), hash, file);
+  }
+});
 test("duplicates have stable independent identities through reorder and removal", () => {
   let state = model.append(model.empty(), "curves", tools);
   state = model.append(state, "lens-distortion", tools);
@@ -59,6 +72,13 @@ test("pointwise fusion respects sampler and uniform budgets", () => {
   const passes = model.plan(order);
   assert.equal(passes.length, 20);
   assert.ok(passes.every(pass => pass.samplers <= 6 && pass.instances.length <= 8));
+});
+test("native fractional controls retain precision without the old percent display transform", () => {
+  const PZ = { property: { type: { NUMBER: 0, OPTION: 6, TEXT: 7, ASSET: 8 } }, asset: { type: { MISC: 5 } } };
+  const definitions = model.definitions({ id: "i1", tool: "lens-distortion" }, tools, PZ);
+  assert.ok(definitions.ml_i1_lensDistortion.decimals >= 3);
+  assert.equal(definitions.ml_i1_lensDistortion.min, -1);
+  assert.equal(definitions.ml_i1_lensDistortion.max, 1);
 });
 test("compiled Curves instances have separate uniforms and omit unrelated dispatch", () => {
   const shader = compiler.compile(fs.readFileSync(require.resolve("../plugins/magic-looks/looks-grade.glsl"), "utf8"),

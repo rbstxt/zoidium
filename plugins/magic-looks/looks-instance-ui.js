@@ -17,7 +17,7 @@ function mount({ state, body, effect, session, view, custom }) {
     CM.history.pushCommand(exchange, { ...command, data: before });
   }
   function commit(schema, properties = snapshot(effect).properties) {
-    if (CM.history.operation !== null) return false;
+    if (!effect.parent || effect.parentProject !== CM.project || CM.history.operation !== null) return false;
     const before = snapshot(effect);
     if (JSON.stringify(before) === JSON.stringify({ schema, properties })) return false;
     CM.history.startOperation();
@@ -180,11 +180,11 @@ function mount({ state, body, effect, session, view, custom }) {
     if (disposed) return;
     const scroll = body.scrollTop;
     const focused = root.contains(document.activeElement) ? document.activeElement : null;
-    const focusIndex = Array.from(root.querySelectorAll("button,input,select,textarea")).indexOf(focused);
+    const focusIndex = Array.from(root.querySelectorAll("button,input,select,textarea,canvas")).indexOf(focused);
     cleanupViews(); root.textContent = "";
     if (!effect.looksInstances.order.some(item => item.id === view.selectedTool)) view.selectedTool = effect.looksInstances.order[0]?.id;
     root.append(chainSection(), parameters(), lookSection());
-    if (focusIndex >= 0) root.querySelectorAll("button,input,select,textarea")[focusIndex]?.focus({ preventScroll: true });
+    if (focusIndex >= 0) root.querySelectorAll("button,input,select,textarea,canvas")[focusIndex]?.focus({ preventScroll: true });
     body.scrollTop = scroll; signature = historySig();
   }
   rebuild();

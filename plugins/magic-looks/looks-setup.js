@@ -420,7 +420,8 @@ function buildCurves(effect, session, tool, body, widgets, afterCommit, view) {
     },
   });
   body.appendChild(sel.element);
-  const pad = new W.CurvesPad(body, { channels: channels, channel: view.curveChannel, width: 300, height: 200 });
+  const pad = new W.CurvesPad(body, { channels: channels, channel: view.curveChannel, width: 300, height: 200,
+    selectedPoint: view.curveSelectedPoint || 0, onSelectionChange(index) { view.curveSelectedPoint = index; } });
   widgets.push(pad);
   pad.onInput(function (chs) { session.live(key, JSON.stringify(chs)); });
   pad.onCommit(function (chs) {
@@ -793,7 +794,7 @@ function buildBody(body, effect, session, view) {
     if (disposed) return;
     // Rebuilding controls must not move the user's scroll or drop a typed
     // field's focus. Remember the control's position within this tool panel.
-    const fields = Array.from(root.querySelectorAll("input, select, textarea, button"));
+    const fields = Array.from(root.querySelectorAll("input, select, textarea, button, canvas"));
     const active = document.activeElement;
     const focusIndex = fields.indexOf(active);
     const focusTool = root.dataset.tool;
@@ -808,7 +809,7 @@ function buildBody(body, effect, session, view) {
     root.appendChild(toolSection());
     root.dataset.tool = view.selectedTool || "";
     if (focusIndex >= 0 && focusTool === root.dataset.tool) {
-      const field = root.querySelectorAll("input, select, textarea, button")[focusIndex];
+      const field = root.querySelectorAll("input, select, textarea, button, canvas")[focusIndex];
       if (field && typeof field.focus === "function") {
         field.focus({ preventScroll: true });
         if (selection && typeof field.setSelectionRange === "function") {

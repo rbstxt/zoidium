@@ -61,6 +61,11 @@ function definitions(instance, tools, PZ) {
     const name = tools.byId(instance.tool).name;
     result[key(instance.id, property)] = { ...base[property], name: name +
       " " + instance.id.slice(1) + " · " + base[property].name.slice(name.length).trim() };
+    // The old setup scaled fractions to percent before rounding. Native rows
+    // display the stored fraction, which needs the extra decimal places.
+    if (base[property].type === PZ.property.type.NUMBER) {
+      result[key(instance.id, property)].decimals = Math.max(3, base[property].decimals || 0);
+    }
   }
   return result;
 }

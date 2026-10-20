@@ -12,7 +12,10 @@
       "id": "looks",
       "name": "Magic Looks",
       "description": "Color grading with repeatable tool instances, freely ordered color, light and lens stages, and look presets.",
-      "source": "./plugins/magic-looks/looks-fx.js?v=16"
+      "source": "./plugins/magic-looks/looks-fx.js?v=16",
+      "requiresApis": [
+        "modules"
+      ]
     }
   ],
   "modules": [
