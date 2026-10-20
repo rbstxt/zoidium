@@ -287,7 +287,7 @@ var Looks = Looks || {};
     var inputFn = null;
     var commitFn = null;
     var dragging = -1;
-    var selected = 0;
+    var selected = Math.max(0, Number(opts.selectedPoint) || 0);
     var disposed = false;
 
     function points() {
@@ -344,10 +344,10 @@ var Looks = Looks || {};
       ctx.strokeStyle = line;
       ctx.lineWidth = 1.5;
       ctx.stroke();
-      points().forEach(function (p) {
+      points().forEach(function (p, i) {
         var q = toPx(p);
         ctx.beginPath();
-        ctx.arc(q.x, q.y, 4, 0, Math.PI * 2);
+        ctx.arc(q.x, q.y, i === selected ? 5 : 4, 0, Math.PI * 2);
         ctx.fillStyle = t.pointFill;
         ctx.fill();
         ctx.lineWidth = 1.5;
@@ -357,6 +357,7 @@ var Looks = Looks || {};
     }
 
     function emit(commit) {
+      if (opts.onSelectionChange) opts.onSelectionChange(selected);
       var fn = commit ? commitFn : inputFn;
       if (fn) fn(channels);
     }
@@ -367,13 +368,16 @@ var Looks = Looks || {};
       var idx = nearest(px);
       if (idx < 0) {
         var pts = points();
-        pts.push(toVal(px));
+        var added = toVal(px);
+        pts.push(added);
         pts.sort(function (a, b) { return a.x - b.x; });
+        selected = pts.indexOf(added);
         draw();
         emit(true);
         return;
       }
       dragging = idx;
+      selected = idx;
       try { canvas.setPointerCapture(e.pointerId); } catch (_err) { /* optional */ }
       e.preventDefault();
     }
@@ -426,6 +430,7 @@ var Looks = Looks || {};
         emit(true);
       }
       canvas.setAttribute("aria-label", channel + " curve point " + (selected + 1) + ", X " + pts[selected].x.toFixed(2) + ", Y " + pts[selected].y.toFixed(2));
+      if (opts.onSelectionChange) opts.onSelectionChange(selected);
       draw();
     }
 

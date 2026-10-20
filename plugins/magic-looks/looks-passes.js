@@ -101,6 +101,7 @@ function create(effect, THREE, tools, getAsset, makeStage) {
         minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, format: THREE.RGBAFormat,
         type: THREE.HalfFloatType, depthBuffer: false, stencilBuffer: false, generateMipmaps: false,
       }));
+      for (const target of targets) target.texture.generateMipmaps = false;
       for (const target of targets) if (target.width !== width || target.height !== height) target.setSize(width, height);
       let input = readBuffer;
       const resolution = effect.parentLayer.properties.resolution.get();
@@ -119,6 +120,7 @@ function create(effect, THREE, tools, getAsset, makeStage) {
     reload: async (key, asset) => Promise.all(Array.from(stages.values(), stage => stage._looksLutAssets.reload(key, asset))),
     stage: id => stages.get(id),
     dispose() {
+      if (disposed) return;
       disposed = true;
       for (const stage of stages.values()) stage.unload();
       for (const pass of passes.values()) releasePass(pass);

@@ -31,7 +31,8 @@ function install(effect, PZ, THREE, Looks, legacy) {
     const stage = {
       _zoidiumGetAsset: getAsset, properties, parentLayer: effect.parentLayer, parentProject: effect.parentProject,
       _looksDefaults: effect._looksDefaults, _looksPropMap: effect._looksPropMap,
-      _looksToolIds: effect._looksToolIds, update: legacy.update, prepare: legacy.prepare, unload: legacy.unload,
+      _looksToolIds: effect._looksToolIds, update: legacy.update, prepare: legacy.prepare,
+      unload() { const geometry = this.pass?.quad?.geometry; legacy.unload.call(this); geometry?.dispose(); },
     };
     // load initializes uniforms and starts no asynchronous work for neutral LUTs.
     // prepare() awaits the imported LUT before a completed viewport/export draw.
@@ -45,7 +46,9 @@ function install(effect, PZ, THREE, Looks, legacy) {
   delete effect._looksSavedSchema; delete effect._looksSavedProperties;
   // Release the unused legacy pass and its tables, then expose one compositor
   // pass for the whole chain. Its intermediate targets remain layer-sized.
+  const initialGeometry = effect.pass?.quad?.geometry;
   legacy.unload.call(effect);
+  initialGeometry?.dispose();
   effect.pass = { enabled: false, needsSwap: true, clear: true, renderToScreen: false,
     uniforms: { uvScale: { value: new THREE.Vector2(1, 1) } },
     render: (...args) => effect._looksPipeline.render(...args) };
