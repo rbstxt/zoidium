@@ -33,7 +33,9 @@ function createAudioMixer(scope, exporter, check) {
         segment.buffer = buffer;
         // Native remuxAudio trims a source before decoding. With a complete
         // decoded source, the same native mixer uses its absolute source offset.
-        segment.startOffset = segment.offset;
+        // renderAudioSegment divides startOffset by playbackRate. A decoded
+        // complete source must begin at offset seconds even for speed changes.
+        segment.startOffset = segment.offset * segment.playbackRate;
       }
       decoded = current;
       const result = await exporter.renderAudioSegment(segments, start + offset, count);
