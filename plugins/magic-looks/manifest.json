@@ -86,6 +86,31 @@
       "id": "looks-instance-ui",
       "type": "text",
       "source": "./plugins/magic-looks/looks-instance-ui.js?v=16"
+    },
+    {
+      "id": "davidium-looks-fx",
+      "type": "text",
+      "source": "./plugins/magic-looks/davidium-looks-fx.js?v=16"
+    },
+    {
+      "id": "davidium-looks-color",
+      "type": "text",
+      "source": "./plugins/magic-looks/davidium-looks-color.js?v=16"
+    },
+    {
+      "id": "davidium-looks-tools",
+      "type": "text",
+      "source": "./plugins/magic-looks/davidium-looks-tools.js?v=16"
+    },
+    {
+      "id": "davidium-looks-grade",
+      "type": "text",
+      "source": "./plugins/magic-looks/davidium-looks-grade.glsl?v=16"
+    },
+    {
+      "id": "davidium-looks-vert",
+      "type": "text",
+      "source": "./plugins/magic-looks/davidium-looks-vert.glsl?v=16"
     }
   ]
 }

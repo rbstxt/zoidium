@@ -411,6 +411,20 @@ this.resize = function () {
 // New effects opt into instances explicitly and persist that choice on save.
 var looksLegacy = { load: this.load, prepare: this.prepare, update: this.update, unload: this.unload };
 this.load = async function (data) {
+    if (data && !data.looksInstances && (data.looksLegacyFormat === "davidium" ||
+        data.properties && !Object.prototype.hasOwnProperty.call(data.properties, LOOKS_CHAIN_KEY))) {
+        var originalResolver = this._zoidiumGetAsset.bind(this);
+        Object.keys(this.propertyDefinitions).forEach(key => this.properties.remove(key));
+        this._zoidiumGetAsset = function (kind, path) {
+            return originalResolver(kind, path.replace("/magic-looks/looks-", "/magic-looks/davidium-looks-"));
+        };
+        var historicalSource = originalResolver("text", "./plugins/magic-looks/davidium-looks-fx.js");
+        new Function("PZ", "THREE", historicalSource).call(this, PZ, THREE);
+        await this.load(data);
+        this.looksLegacyFormat = "davidium";
+        this.toJSON = function () { return { type: this.type, properties: this.properties, looksLegacyFormat: "davidium" }; };
+        return;
+    }
     await looksLegacy.load.call(this, data);
     if (data && !data.looksInstances) return;
     var require = ZoidiumPluginApis.modules.createRequire(this._zoidiumGetAsset, {
