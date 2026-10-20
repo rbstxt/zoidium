@@ -111,3 +111,6 @@
   .lk-chain-row { grid-template-columns: minmax(0, 1fr); }
   .lk-chain-actions { justify-content: flex-end; }
 }
+
+.lk-parameters > .zoidium-section-title { height: auto; min-height: 28px; }
+.lk-parameters > .zoidium-section-title span:last-child { min-width: 0; white-space: normal; overflow-wrap: anywhere; }
