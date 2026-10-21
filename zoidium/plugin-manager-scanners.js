@@ -412,6 +412,7 @@
     const detectedParticlesPlusSprites = findParticlesPlusSprites(data);
     const detectedCompositions = findCompositionFeatures(data);
     const detectedConstraints = findConstraintFeatures(data);
+    const detectedExpressions = findExpressionFeatures(data);
     if (
       detectedEffects.length === 0 &&
       detectedPluginNative.size === 0 &&
@@ -425,7 +426,8 @@
       detectedTextPlusFeatures.size === 0 &&
       detectedParticlesPlusSprites.size === 0 &&
       detectedCompositions.size === 0 &&
-      detectedConstraints.size === 0
+      detectedConstraints.size === 0 &&
+      detectedExpressions.size === 0
     ) {
       return plugins;
     }
@@ -463,6 +465,7 @@
       mergeDetectedPluginItems(plugins, pluginId, "objects", layerIds);
     }
     mergeDetectedPluginItems(plugins, "constraints", "features", detectedConstraints);
+    mergeDetectedPluginItems(plugins, "expressions-plus", "features", detectedExpressions);
     mergeDetectedPluginItems(plugins, "precomp-plus", "features", detectedCompositions);
     mergeDetectedPluginItems(plugins, TRAPCODE_SUITE_PLUGIN_ID, "features", detectedC4DLights);
     mergeDetectedPluginItems(
@@ -478,6 +481,22 @@
       detectedParticlesPlusSprites
     );
     return plugins;
+  }
+
+  function findExpressionFeatures(value, found = new Set(), visited = new WeakSet()) {
+    if (!value || typeof value !== "object" || visited.has(value)) return found;
+    visited.add(value);
+    const source = typeof value.expression === "string" ? value.expression : value.expression?.source;
+    const expressionKind = typeof source === "string" ? window.ZoidiumExpressions?.requires?.(source) : false;
+    // Conservative scanning also works before the plugin has activated. The
+    // original source remains the serialized expression, including in archives
+    // and unknown payloads, so a disabled plugin cannot hide its requirement.
+    if (expressionKind === true || expressionKind !== false && typeof source === "string" && /\b(?:let|const|function|return|throw|value|thisProperty|thisObject|thisLayer|thisClip|thisSequence|thisComp|prop|controls|control|seedRandom|wiggle|easeIn|easeOut|degreesToRadians|radiansToDegrees|lookAt|toWorld|fromWorld|worldPosition|worldRotation|toScreen|fromScreen|Array|Number|String|Boolean|JSON|Math|parseInt|parseFloat|isFinite|isNaN|Infinity|NaN|undefined)\b|=>|\?\.|\.\.\.|`|\.\s*[A-Za-z_$]|\bvar\s*[\[{]|\b\d[\d_]*n\b|\d_\d|\?\?|&&=|\|\|=/.test(source)) found.add("expressions");
+    if (value.zoidiumControls) found.add("sequence-controls");
+    const shader = value.properties?.fragShader;
+    if (typeof shader === "string" && /\bz(?:Time|Frame)\b|\bctl_\w+|\/\/\s*#include\s*<zoidium\//.test(shader)) found.add("shader-extensions");
+    for (const child of Object.values(value)) findExpressionFeatures(child, found, visited);
+    return found;
   }
 
   // Numeric-type placeholders: projects may reference 3D object or layer
