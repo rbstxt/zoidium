@@ -39,3 +39,8 @@ test('enabling after native load recovers retained sequence control data',{skip:
  target.toJSON=function(){const data=nativeJSON.call(this);return {...data,properties:{...JSON.parse(JSON.stringify(data.properties)),zoidiumControls:payload}};};
  store.ensure(target);assert.equal(store.list(target).length,1);assert.equal(store.label(store.list(target)[0]),'Restored');assert.equal(store.list(target)[0].get(0),9);
 });
+test('reactivation reuses the native child list and keeps its property addresses',{skip:!fs.existsSync(core)},()=>{
+ const {PZ,store,seq}=setup();store.add(seq,'Slider',{value:3});const address=store.list(seq).getAddress(),before=store.snapshot(seq);store.detach(seq);
+ const next=createControlsStore({PZ,patch:(h,k,f)=>{h[k]=f(h[k]);}});next.ensure(seq);
+ assert.deepEqual(next.list(seq).getAddress(),address);assert.equal(seq.children.filter(child=>child.name==='Controls').length,1);assert.deepEqual(next.snapshot(seq),before);assert.equal(next.list(seq).visible,true);
+});

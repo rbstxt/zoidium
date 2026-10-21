@@ -1,5 +1,6 @@
 "use strict";
 const STORAGE = "zoidiumControls";
+const CONTROL_LIST = Symbol.for("zoidium.expressions.controls");
 const KINDS = Object.freeze({ Slider: { type: 0, value: 0 }, Angle: { type: 0, value: 0 }, Checkbox: { type: 6, value: 0 }, Color: { type: 4, value: [1, 1, 1] }, "Point 2D": { type: 1, value: [0, 0] }, "Point 3D": { type: 2, value: [0, 0, 0] } });
 const clone = v => JSON.parse(JSON.stringify(v));
 function decode(text) {
@@ -49,9 +50,11 @@ function createControlsStore({ PZ, patch, notify = () => {} }) {
       saved = data?.[STORAGE];
       if (saved?.toJSON) saved = saved.toJSON();
     } catch (_error) { /* A newly constructed sequence has no payload yet. */ }
-    const list = new PZ.objectList(sequence, PZ.property.dynamic);
+    const list = sequence.children.find(child => child?.[CONTROL_LIST]) || new PZ.objectList(sequence, PZ.property.dynamic);
+    if (!list[CONTROL_LIST]) Object.defineProperty(list, CONTROL_LIST, { value: true });
     list.name = "Controls";
-    sequence.children.push(list);
+    list.visible = true;
+    if (!sequence.children.includes(list)) sequence.children.push(list);
     const state = { list, nextId: 1 };
     states.set(sequence, state); lists.set(list, sequence);
     const meta = PZ.property.create({ name: "Sequence Controls data", type: PZ.property.type.TEXT, value: "", visible: false });
@@ -97,6 +100,7 @@ function createControlsStore({ PZ, patch, notify = () => {} }) {
     return data;
   });
   return { ensure, snapshot, restore, add, rename, remove, move, label, sequenceOfList: list => lists.get(list), list: sequence => ensure(sequence).list,
+    detach(sequence) { const state = states.get(sequence); if (state) state.list.visible = false; },
     isControl: p => !!p?.definition?.zoidiumControlId, sequenceOf: p => lists.get(p?.parent),
     compatible: (p, c) => p?.definition?.type === c?.definition?.type || p?.definition?.type === 0 && c?.definition?.zoidiumControlKind === "Checkbox" };
 }

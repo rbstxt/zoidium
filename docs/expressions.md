@@ -123,10 +123,11 @@ See [saved project compatibility](project-compatibility.md#expressions).
 
 The implementation budget is 16 ms at the 95th percentile for 1,000 simple
 expression properties, excluding drawing and initial compilation. A headless
-Chromium run on the development machine, using 100 measured frames after 10
-warmup frames, measured 5.4 ms median and 14.5 ms p95 for
-`const x=sin(time); value + x * 2`. The slowest sample was 44.5 ms under
-concurrent verification load. This is a measurement, not a deadline enforced
+Chromium run on the development machine, using 100 measured frames after 20
+warmup frames, measured 3.5 ms median and 5.8 ms p95 for
+`const x=sin(time); value + x * 2`. The slowest sample was 10.5 ms.
+Alternating guarded evaluation with a test-only guard bypass measured a
+0.6 ms median guard cost per 1,000 properties (bypass median 2.9 ms). This is a measurement, not a deadline enforced
 by the evaluator. Loops and property navigation add work to that budget.
 
 ## Sequence Controls

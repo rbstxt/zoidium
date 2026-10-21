@@ -19,6 +19,7 @@ function activate(context) {
   const sharedRequire = context.apis.modules.createRequire(context.getAsset, { root: "./plugins/", scope: { PZ } });
   sharedRequire("./trapcode-suite/trapcode-expressions.js");
   const store = require("./controls.js").createControlsStore({ PZ, patch, notify: () => { if (context.editor?.project?.ui) context.editor.project.ui.dirty = true; } });
+  disposers.push(() => store.detach(context.editor?.sequence));
   const world = require("./world.js").createWorldProvider({ PZ, THREE: win.THREE, createConstraintEvaluator: sharedRequire("./constraints/track-to-evaluate.js").createEvaluator });
   const engine = require("./engine.js").installEngine({ PZ, document: doc, patch, wiggleMethods: PZ.trapcode.expressionMethods, controls: sequence => sequence ? store.list(sequence) : [], world });
   disposers.push(() => engine.restore(context.editor?.project));
