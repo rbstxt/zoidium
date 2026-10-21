@@ -5,6 +5,7 @@
   // keep its own contents while participating in the one-menu-at-a-time rule.
   var builder = global.ZoidiumUIBuilder = global.ZoidiumUIBuilder || {};
   var current = null;
+  var extensions = new Map();
   var styled = new WeakSet();
   var CSS = `
 .zui-menu{position:fixed;z-index:10000;box-sizing:border-box;min-width:min(210px,calc(100vw - 8px));max-width:calc(100vw - 8px);max-height:calc(100vh - 8px);overflow:auto;scrollbar-color:var(--zui-text-faint) var(--zui-bg-title);padding:var(--zui-menu-padding,4px 0);background:var(--zui-bg);border:1px solid var(--zui-border);box-shadow:0 6px 18px color-mix(in srgb,var(--zui-shadow) 55%,transparent);color:var(--zui-text);font-family:var(--zui-font);font-size:var(--zui-menu-font-size,13px);outline:none;user-select:none}
@@ -36,6 +37,14 @@
   // All coordinates are CSS pixels in the owner document's viewport.
   function openMenu(options) {
     var config = options || {};
+    var items = Array.from(config.items || []);
+    extensions.forEach(function (extension) {
+      try {
+        var added = extension.items(Object.assign({}, config, { items: items.slice() }));
+        if (Array.isArray(added)) items.push.apply(items, added);
+      } catch (error) { console.warn("[Zoidium] Menu extension failed: " + extension.id, error); }
+    });
+    config = Object.assign({}, config, { items: items });
     var owner = config.owner && (config.owner.element || config.owner);
     var anchor = config.anchor;
     var doc = config.document || (anchor && anchor.ownerDocument) || (owner && owner.ownerDocument) || global.document;
@@ -197,5 +206,11 @@
     if (!closed) { element.focus({ preventScroll: true }); step(1); }
     return { close: close, element: element, isOpen: function () { return !closed; } };
   }
-  builder.menus = { openMenu: openMenu, claim: claim };
+  function registerExtension(extension) {
+    if (!extension || typeof extension.id !== "string" || !extension.id || typeof extension.items !== "function") throw new Error("Menu extension needs an id and items function");
+    if (extensions.has(extension.id)) throw new Error("Menu extension is already registered: " + extension.id);
+    extensions.set(extension.id, extension);
+    return function () { if (extensions.get(extension.id) === extension) extensions.delete(extension.id); };
+  }
+  builder.menus = { openMenu: openMenu, claim: claim, registerExtension: registerExtension };
 })(window);
