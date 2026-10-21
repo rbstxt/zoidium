@@ -38,7 +38,10 @@ var key = "con" + "structor";
 Security exception: invoking Function, AsyncFunction, GeneratorFunction,
 AsyncGeneratorFunction or eval is an expression error, including another
 realm's constructor, aliases, computed paths, call/apply/bind, callbacks,
-optional calls, tagged templates and `new`. Ordinary constructor values can
+optional calls, promise callbacks, the Symbol.replace/match/search/split
+method of an object passed to a string method, tagged templates and `new`.
+Calling a function those constructors created is the same error. Ordinary
+constructor values can
 still be read, compared, stored and returned. Dynamic invocation passes a
 runtime call guard. CM3 method and Math function identities remain intact.
 This is the host's detached-realm expression model with added call hardening,

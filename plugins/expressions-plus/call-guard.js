@@ -3,13 +3,21 @@ const nativeSource = Function.prototype.toString;
 const apply = Reflect.apply;
 const construct = Reflect.construct;
 const constructors = /^function\s+(?:Function|AsyncFunction|GeneratorFunction|AsyncGeneratorFunction|eval)\s*\([^)]*\)\s*\{\s*\[native code\]\s*\}$/;
+// Functions the constructors create report "anonymous" as their source name.
+const dynamic = /^(?:async\s+)?function\s*\*?\s*anonymous\s*\(/;
 const nativeName = /^function\s+([^ (]*)\s*\([^)]*\)\s*\{\s*\[native code\]\s*\}$/;
 const callbackSlots = new Map([
-  ["map", 0], ["flatMap", 0], ["filter", 0], ["forEach", 0], ["some", 0], ["every", 0],
-  ["find", 0], ["findIndex", 0], ["findLast", 0], ["findLastIndex", 0], ["sort", 0],
-  ["toSorted", 0], ["reduce", 0], ["reduceRight", 0], ["from", 1], ["groupBy", 1],
-  ["replace", 1], ["replaceAll", 1],
-  ["parse", 1], ["stringify", 1],
+  ["map", [0]], ["flatMap", [0]], ["filter", [0]], ["forEach", [0]], ["some", [0]], ["every", [0]],
+  ["find", [0]], ["findIndex", [0]], ["findLast", [0]], ["findLastIndex", [0]], ["sort", [0]],
+  ["toSorted", [0]], ["reduce", [0]], ["reduceRight", [0]], ["from", [1]], ["fromAsync", [1]],
+  ["groupBy", [1]], ["replace", [1]], ["replaceAll", [1]], ["parse", [1]], ["stringify", [1]],
+  ["then", [0, 1]], ["catch", [0]], ["finally", [0]],
+]);
+// String methods that hand their argument to its Symbol.replace/match/...
+// method. That method runs natively, so it is checked before the call.
+const protocolMethods = new Map([
+  ["replace", "replace"], ["replaceAll", "replace"], ["match", "match"],
+  ["matchAll", "matchAll"], ["search", "search"], ["split", "split"],
 ]);
 
 function createCallGuard(limit = 10000000) {
@@ -21,7 +29,7 @@ function createCallGuard(limit = 10000000) {
     if (typeof fn !== "function") return Object.create(null);
     if (info.has(fn)) return info.get(fn);
     const source = apply(nativeSource, fn, []);
-    const value = Object.assign(Object.create(null), { forbidden: constructors.test(source), native: nativeName.exec(source)?.[1] });
+    const value = Object.assign(Object.create(null), { forbidden: constructors.test(source) || dynamic.test(source), native: nativeName.exec(source)?.[1] });
     info.set(fn, value);
     return value;
   }
@@ -38,6 +46,11 @@ function createCallGuard(limit = 10000000) {
     if (!bound) wrappers.set(fn, proxy);
     return proxy;
   }
+  function protocolTarget(fn) {
+    let meta = describe(fn);
+    while (meta.target) { fn = meta.target; meta = describe(fn); }
+    return fn;
+  }
   function invoke(fn, receiver, args, newTarget) {
     if (++depth > 256 && bounded) { depth--; throw new Error("Expression recursion budget exceeded"); }
     try { return dispatch(fn, receiver, args, newTarget); }
@@ -50,7 +63,7 @@ function createCallGuard(limit = 10000000) {
       if (meta.bound) receiver = meta.receiver;
       fn = meta.target; meta = describe(fn);
     }
-    if (meta.forbidden) throw new Error("Expression cannot call Function constructors or eval");
+    if (meta.forbidden) throw new Error("Expression cannot call Function constructors or eval, or functions they create");
     if (overrides.has(fn)) return apply(overrides.get(fn), receiver, args);
     if (meta.native === "call") return invoke(receiver, args[0], args.slice(1));
     if (meta.native === "apply") return invoke(receiver, args[0], args[1] == null ? [] : Array.from(args[1]));
@@ -59,8 +72,16 @@ function createCallGuard(limit = 10000000) {
       // compiler call site. Bind the guarded callable, including other realms.
       return apply(fn, wrap(receiver), args);
     }
-    const slot = callbackSlots.get(meta.native);
-    if (slot !== undefined && typeof args[slot] === "function") { args = args.slice(); args[slot] = wrap(args[slot]); }
+    const slots = callbackSlots.get(meta.native);
+    if (slots?.some(slot => typeof args[slot] === "function")) {
+      args = args.slice();
+      for (const slot of slots) if (typeof args[slot] === "function") args[slot] = wrap(args[slot]);
+    }
+    const protocol = protocolMethods.get(meta.native);
+    if (protocol && args[0] !== null && (typeof args[0] === "object" || typeof args[0] === "function")) {
+      // Well-known symbols are shared by every realm.
+      if (describe(protocolTarget(args[0][Symbol[protocol]])).forbidden) throw new Error("Expression cannot call Function constructors or eval, or functions they create");
+    }
     if (meta.native === "__defineGetter__" || meta.native === "__defineSetter__") { args = args.slice(); args[1] = wrap(args[1]); }
     if (meta.native === "defineProperty" && args[2]) {
       args = args.slice(); args[2] = { ...args[2] };
