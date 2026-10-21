@@ -69,6 +69,21 @@ test('calls, callbacks, aliases, bind, apply, new and tagged templates reject co
     for (const source of cases) assert.throws(()=>evaluate(source,{foreign:vm.runInContext(ctor,other),ev:vm.runInContext('eval',other)}), /Expression cannot call Function constructors or eval/, source + ' / ' + ctor);
   }
 });
+test('promise callbacks, string protocol methods and created functions reject escapes', async () => {
+  const S = '({}).constructor.getOwnPropertySymbols([].constructor.prototype)[0].constructor';
+  for (const source of [
+    `var S=${S}; "a".replace({[S.replace]: sin.constructor}, "return 29")`,
+    `var S=${S}; "a".replaceAll({[S.replace]: sin.constructor.bind(null)}, "return 29")`,
+    `var S=${S}; "return 29".match({[S.match]: sin.constructor})`,
+    `var S=${S}; "return 29".search({[S.search]: sin.constructor})`,
+    'made()',
+    '[1].map(made)',
+  ]) assert.throws(() => evaluate(source, { made: vm.runInContext('Function("return 29")', vm.createContext({})) }), /Expression cannot call Function constructors or eval/, source);
+  await assert.rejects(Promise.resolve(evaluate('[].constructor.fromAsync([1]).then(() => "return 29").then(sin.constructor).then(f => f())')), /Expression cannot call Function constructors or eval/);
+  await assert.rejects(Promise.resolve(evaluate('[].constructor.fromAsync(["return 29"], sin.constructor)')), /Expression cannot call Function constructors or eval/);
+  assert.equal(evaluate('"a-b".replace(/-/, () => "+")'), 'a+b');
+  assert.equal(evaluate('"a,b".split(",").length'), 2);
+});
 test('bounded loops and recursion fail deterministically', () => {
   assert.throws(()=>evaluate('let n=0; while(true)n++',{},1000),/budget exceeded/);
   assert.throws(()=>evaluate('function f(){return f()} f()'),/recursion budget exceeded/);

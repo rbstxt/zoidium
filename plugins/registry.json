@@ -63,7 +63,7 @@
       "description": "Modern deterministic expressions, property links and Sequence Controls in native CM3 panels.",
       "manifest": "./plugins/expressions-plus/manifest.json?v=9",
       "bundle": "./plugins/expressions-plus/bundle.json?v=9",
-      "integrity": "sha256-NvPOr0SIMVi4AutNpdamAGoAjAkXQ9LStR4nlJ/trZQ=",
+      "integrity": "sha256-AK6uYGJWwuLOEgSedu16DIKaLlL/XR5cUKl0NrL0Yyo=",
       "zoidiumOnly": true,
       "warning": "Extended expressions and controls require Zoidium with Expressions+."
     },

@@ -18,7 +18,8 @@ it displays its native expression error for unsupported syntax/API.
 
 Constructor and prototype member reads retain CM3's results, including computed
 reads. The security exception is invoking a Function-like constructor or eval
-through any path, including `new`, aliases and callbacks. Those calls now
+through any path, including `new`, aliases, callbacks, promise callbacks and
+string protocol methods, or calling a function they created. Those calls now
 produce an English expression error and use the property's own value. Unknown
 free globals, `this`, async and generator syntax remain unavailable. Compilation
 uses the Function constructor of a temporary sandboxed iframe removed before
