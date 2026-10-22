@@ -6,7 +6,7 @@
 const { KINDS, MAX_PALETTE, kindOf, items, constants } = require("./kinds.js");
 const { SIZE, CURVE_SIZE, parseCurve, parseJSON, bakeGradient, bakeCurve, parsePalette, parseText } = require("./bake.js");
 const { rasterize } = require("./text-raster.js");
-const { helpers, bindCurveRanges } = require("./glsl-library.js");
+const { helpers, bindCurveRanges, bindGradientCycles } = require("./glsl-library.js");
 const FONT_TIMEOUT_MS = 20000;
 
 function installRuntime({ PZ, THREE, doc, patch, curves, editor, presetFont, pipeline, onDispose = () => {} }) {
@@ -111,7 +111,9 @@ function installRuntime({ PZ, THREE, doc, patch, curves, editor, presetFont, pip
     const value = property.get();
     if (kind === "gradient") {
       const key = value;
-      if (entry.key !== key) { entry.texture.image.data.set(bakeGradient(value)); entry.texture.wrapS = parseJSON(value).cyclic ? THREE.RepeatWrapping : THREE.ClampToEdgeWrapping; entry.texture.needsUpdate = true; entry.key = key; }
+      if (entry.key !== key) { entry.texture.image.data.set(bakeGradient(value)); entry.texture.wrapS = parseJSON(value).cyclic ? THREE.RepeatWrapping : THREE.ClampToEdgeWrapping; entry.texture.needsUpdate = true; entry.key = key;
+        const n = Number(parseJSON(value).repetitions); entry.repetitions = Number.isFinite(n) ? Math.max(1, n) : 1;
+      }
     } else if (kind === "curve") {
       if (entry.key !== value) {
         const half = entry.texture.type === THREE.HalfFloatType;
@@ -144,7 +146,10 @@ function installRuntime({ PZ, THREE, doc, patch, curves, editor, presetFont, pip
       if (!KINDS[kind].texture) continue;
       delete defines[name];
       const entry = prepareEntry(effect, property, kind);
-      if (kind === "gradient") uniforms[name] = { type: "t", value: entry.texture };
+      if (kind === "gradient") {
+        uniforms[name] = { type: "t", value: entry.texture };
+        uniforms[name+"_repetitions"] = { type: "f", value: entry.repetitions };
+      }
       if (kind === "curve") {
         uniforms[name] = { type: "t", value: entry.texture };
         uniforms[name + "_range"] = { type: "v2", value: entry.range };
@@ -178,7 +183,10 @@ function installRuntime({ PZ, THREE, doc, patch, curves, editor, presetFont, pip
     transformSource(source) {
       const names = new Set();
       for (const p of this.customProperties || []) if (kindOf(p) === "curve") names.add(this.fixPropertyName(p.properties.name.get()));
-      return names.size ? bindCurveRanges(source, names) : source;
+      if (names.size) source = bindCurveRanges(source, names);
+      const gradients = new Set();
+      for (const p of this.customProperties || []) if (kindOf(p) === "gradient") gradients.add(this.fixPropertyName(p.properties.name.get()));
+      return gradients.size ? bindGradientCycles(source, gradients) : source;
     },
     declare(source) { configure(this, source); },
     update() {
@@ -188,6 +196,9 @@ function installRuntime({ PZ, THREE, doc, patch, curves, editor, presetFont, pip
         if (!kind || !KINDS[kind].texture) continue;
         const entry = prepareEntry(this, property, kind);
         const name = this.fixPropertyName(property.properties.name.get());
+        if (kind === "gradient" && this.pass.uniforms[name+"_repetitions"]) {
+          this.pass.uniforms[name+"_repetitions"].value = entry.repetitions;
+        }
         if (kind === "text" && this.pass.uniforms[name]) {
           this.pass.uniforms[name].value = entry.texture;
           this.pass.uniforms[name + "_aspect"].value = entry.aspect;

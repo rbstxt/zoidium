@@ -2,6 +2,7 @@
 // Pure baking of texture/array kinds. No DOM or WebGL here, so every result
 // is deterministic and testable in Node.
 const { MAX_PALETTE } = require("./kinds.js");
+const { createGraphSampler, pointsWithHandles } = require("./curve-math.js");
 const SIZE = 256, CURVE_SIZE = 1024;
 
 const clamp01 = v => Math.min(1, Math.max(0, Number.isFinite(v) ? v : 0));
@@ -37,7 +38,7 @@ const SPACES = {
 
 function normalizeStops(value) {
   const stops = (Array.isArray(value) ? value : [])
-    .map((stop, index) => ({ position: clamp01(Number(stop?.position)), color: parseColor(stop?.color), index }))
+    .map((stop, index) => ({ position: clamp01(Number(stop?.position)), color: parseColor(stop?.color), midpoint: stop?.midpoint, index }))
     .sort((a, b) => a.position - b.position || a.index - b.index);
   return stops.length ? stops : [{ position: 0, color: [1, 1, 1, 1], index: 0 }];
 }
@@ -49,9 +50,11 @@ function bakeGradient(value, options = {}) {
   const stops = normalizeStops(value), space = SPACES[options.space] || SPACES.srgb;
   const mode = ["linear", "constant", "ease", "cardinal"].includes(options.interpolation) ? options.interpolation : "linear";
   const cyclic = !!options.cyclic && stops.length > 1;
+  const opacityStops = Array.isArray(options.opacityStops) ? options.opacityStops.map(s => ({ position: clamp01(Number(s.position)), alpha: clamp01(Number(s.alpha)), midpoint: s.midpoint })).sort((a, b) => a.position-b.position) : [];
   const data = new Uint8Array(SIZE * 4);
   const mixed = stops.map(stop => ({ ...stop, mixed: space.to(stop.color) }));
   function blend(a, b, f, before = a, after = b) {
+    f = midpoint(f, a.midpoint);
     if (mode === "constant") f = f < 1 ? 0 : 1;
     else if (mode === "ease") f = f * f * (3 - 2 * f);
     const mix = (p, x, y, n) => mode === "cardinal" ? .5 * (2*x + (-p+y)*f + (2*p-5*x+4*y-n)*f*f + (-p+3*x-3*y+n)*f*f*f) : x + (y-x)*f;
@@ -76,9 +79,35 @@ function bakeGradient(value, options = {}) {
       const span = b.position - a.position;
       color = span > 0 ? blend(a, b, (t - a.position) / span, mixed[index > 0 ? index - 1 : cyclic ? mixed.length - 1 : 0], mixed[index + 2 < mixed.length ? index + 2 : cyclic ? 0 : mixed.length - 1]) : (t < b.position ? a : b).color;
     }
+    if (opacityStops.length) color[3] = opacityAt(opacityStops, t, !!options.cyclic, mode);
     for (let c = 0; c < 4; c++) data[i * 4 + c] = Math.round(clamp01(color[c]) * 255);
   }
   return data;
+}
+
+// Optional midpoint remapping is identity when omitted, preserving legacy bytes.
+function midpoint(t, m = .5) {
+  m = clamp01(Number(m));
+  if (m === .5 || t <= 0 || t >= 1) return t;
+  return t <= m ? .5*t/Math.max(m, 1e-12) : .5+.5*(t-m)/Math.max(1-m, 1e-12);
+}
+function opacityAt(stops, t, cyclic, mode) {
+  let a = stops[0], b = stops[stops.length-1], previous, next;
+  if (t < a.position || t > b.position) {
+    if (!cyclic || stops.length < 2) return (t < a.position ? a : b).alpha;
+    previous = stops[Math.max(0, stops.length-2)]; next = stops[Math.min(1, stops.length-1)];
+    [a, b] = [{ ...b, position: b.position-1 }, a]; if (t > b.position) t--;
+  } else {
+    let i = 0; while (i < stops.length-2 && t > stops[i+1].position) i++;
+    a = stops[i]; b = stops[Math.min(i+1, stops.length-1)];
+    previous = stops[i > 0 ? i-1 : cyclic ? stops.length-1 : 0];
+    next = stops[i+2 < stops.length ? i+2 : cyclic ? 0 : stops.length-1];
+  }
+  let f = b.position > a.position ? midpoint((t-a.position)/(b.position-a.position), a.midpoint) : 0;
+  if (mode === "constant") f = f < 1 ? 0 : 1;
+  else if (mode === "ease") f = f*f*(3-2*f);
+  if (mode === "cardinal") return clamp01(.5*(2*a.alpha+(-previous.alpha+b.alpha)*f+(2*previous.alpha-5*a.alpha+4*b.alpha-next.alpha)*f*f+(-previous.alpha+3*a.alpha-3*b.alpha+next.alpha)*f*f*f));
+  return a.alpha+(b.alpha-a.alpha)*f;
 }
 
 // Curve state is the shared Color Curves format. RGB hold the per-channel
@@ -87,6 +116,7 @@ function bakeGradient(value, options = {}) {
 function parseCurve(value, curves) {
   const raw = parseJSON(value), state = curves.parseState(raw);
   if (!raw.composite && raw.points) state.composite = curves.parseState({ composite: raw.points }).composite;
+  if ((raw.composite || raw.points)?.some?.(p => p?.[3])) state.composite = pointsWithHandles(raw.composite || raw.points, curves);
   state.alpha = curves.parseState({ composite: raw.alpha }).composite;
   state.channels = raw.channels === "rgba" ? "rgba" : "single";
   state.range = Array.isArray(raw.range) && raw.range.length === 2 && raw.range.every(Number.isFinite) ? raw.range : [0, 1];
@@ -94,7 +124,8 @@ function parseCurve(value, curves) {
 }
 function bakeCurve(value, curves, half = false) {
   const state = parseCurve(value, curves);
-  const composite = curves.createSampler(state.composite), red = curves.createSampler(state.red);
+  const raw = parseJSON(value);
+  const composite = createGraphSampler(raw.composite || raw.points || state.composite, curves), red = curves.createSampler(state.red);
   const green = curves.createSampler(state.green), blue = curves.createSampler(state.blue), alpha = curves.createSampler(state.alpha);
   const data = half ? new Float32Array(CURVE_SIZE * 4) : new Uint8Array(CURVE_SIZE * 4);
   for (let i = 0; i < CURVE_SIZE; i++) {
