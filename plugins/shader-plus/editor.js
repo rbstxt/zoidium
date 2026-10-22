@@ -14,7 +14,7 @@ function installEditor({ context, patch, presetFont }) {
     return name;
   }
   const menu = PZ.ui.objectTypes.get(PZ.property), added = [{ name: "ZOIDIUM", category: true }];
-  for (const kind of ORDER) {
+  for (const kind of ORDER.filter(key => !KINDS[key].hidden)) {
     const entry = { name: KINDS[kind].label, desc: KINDS[kind].desc };
     entry.data = function () {
       const p = PZ.property.create(KINDS[kind].create(presetFont())); p.load();
@@ -80,7 +80,7 @@ function installEditor({ context, patch, presetFont }) {
     }
     input(body, "name", "Name", p.properties.name.get());
     body.insertBefore(body.lastElementChild, specific);
-    const compatible = ORDER.filter(key => { const c = KINDS[key].create(); return c.type === d.type && !!c.dynamic === !!d.dynamic; });
+    const compatible = ORDER.filter(key => { const c = KINDS[key].create(); return (!KINDS[key].hidden || key === kindOf(p)) && c.type === d.type && !!c.dynamic === !!d.dynamic; });
     const kind = select(body, "kind", "Kind", compatible.map(key => [key, KINDS[key].label]), kindOf(p) || compatible[0] || "");
     body.insertBefore(body.lastElementChild, specific);
     const current = kindOf(p);

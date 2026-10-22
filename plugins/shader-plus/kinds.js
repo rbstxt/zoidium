@@ -19,11 +19,11 @@ function channel(name, value) {
 // be shared by every property created from it.
 const KINDS = {
   point: {
-    label: "Point", desc: "Two coordinates as vec2, in UV or pixel units.", texture: false,
+    label: "Point", desc: "Two coordinates as vec2, in UV or pixel units.", texture: false, hidden: true,
     create: () => ({ custom: true, dynamic: true, group: true, type: T.VECTOR2, objects: ["X", "Y"].map(name => ({ dynamic: true, name, type: T.NUMBER, value: 0.5, step: 0.01, decimals: 2 })), zoidiumShader: { kind: "point", space: "uv" } }),
   },
   checkbox: {
-    label: "Checkbox", desc: "On/off switch. Declare as bool, int or float.", texture: false, discrete: true,
+    label: "Toggle", desc: "Off/on menu. Declare as bool, int or float.", texture: false, discrete: true,
     create: () => ({ custom: true, dynamic: true, type: T.NUMBER, value: 0, min: 0, max: 1, step: 1, decimals: 0, zoidiumControl: "shader-plus/checkbox", zoidiumShader: { kind: "checkbox" } }),
   },
   dropdown: {
@@ -67,6 +67,7 @@ const KINDS = {
     create: font => ({ custom: true, type: T.TEXT, value: JSON.stringify({ text: "Text", font: font || null, size: 128, align: "center", lineHeight: 1.2, letterSpacing: 0, mode: "layout", sdf: false }), zoidiumControl: "shader-plus/text", zoidiumShader: { kind: "text" } }),
   },
 };
+// Hidden kinds stay loadable for saved projects but are not offered in menus.
 const ORDER = ["point", "checkbox", "dropdown", "staticDropdown", "slider", "angle", "seed", "color4", "gradient", "curve", "palette", "text"];
 
 function kindOf(property) {
