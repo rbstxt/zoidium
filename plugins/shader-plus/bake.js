@@ -37,7 +37,7 @@ const SPACES = {
 
 function normalizeStops(value) {
   const stops = (Array.isArray(value) ? value : [])
-    .map((stop, index) => ({ position: clamp01(Number(stop?.position)), color: parseColor(stop?.color), index }))
+    .map((stop, index) => ({ position: clamp01(Number(stop?.position)), color: parseColor(stop?.color), midpoint: stop?.midpoint, index }))
     .sort((a, b) => a.position - b.position || a.index - b.index);
   return stops.length ? stops : [{ position: 0, color: [1, 1, 1, 1], index: 0 }];
 }
@@ -52,6 +52,7 @@ function bakeGradient(value, options = {}) {
   const data = new Uint8Array(SIZE * 4);
   const mixed = stops.map(stop => ({ ...stop, mixed: space.to(stop.color) }));
   function blend(a, b, f, before = a, after = b) {
+    f = midpoint(f, a.midpoint);
     if (mode === "constant") f = f < 1 ? 0 : 1;
     else if (mode === "ease") f = f * f * (3 - 2 * f);
     const mix = (p, x, y, n) => mode === "cardinal" ? .5 * (2*x + (-p+y)*f + (2*p-5*x+4*y-n)*f*f + (-p+3*x-3*y+n)*f*f*f) : x + (y-x)*f;
@@ -76,9 +77,32 @@ function bakeGradient(value, options = {}) {
       const span = b.position - a.position;
       color = span > 0 ? blend(a, b, (t - a.position) / span, mixed[index > 0 ? index - 1 : cyclic ? mixed.length - 1 : 0], mixed[index + 2 < mixed.length ? index + 2 : cyclic ? 0 : mixed.length - 1]) : (t < b.position ? a : b).color;
     }
+    if (Array.isArray(options.opacityStops) && options.opacityStops.length) color[3] = opacityAt(options.opacityStops, t, cyclic, mode);
     for (let c = 0; c < 4; c++) data[i * 4 + c] = Math.round(clamp01(color[c]) * 255);
   }
   return data;
+}
+
+// Optional midpoint remapping is identity when omitted, preserving legacy bytes.
+function midpoint(t, m = .5) {
+  m = clamp01(Number(m));
+  if (m === .5 || t <= 0 || t >= 1) return t;
+  return t <= m ? .5*t/Math.max(m, 1e-12) : .5+.5*(t-m)/Math.max(1-m, 1e-12);
+}
+function opacityAt(raw, t, cyclic, mode) {
+  const stops = raw.map(s => ({ position: clamp01(Number(s.position)), alpha: clamp01(Number(s.alpha)), midpoint: s.midpoint })).sort((a, b) => a.position-b.position);
+  let a = stops[0], b = stops[stops.length-1];
+  if (t < a.position || t > b.position) {
+    if (!cyclic || stops.length < 2) return (t < a.position ? a : b).alpha;
+    [a, b] = [{ ...b, position: b.position-1 }, a]; if (t > b.position) t--;
+  } else {
+    let i = 0; while (i < stops.length-2 && t > stops[i+1].position) i++;
+    a = stops[i]; b = stops[Math.min(i+1, stops.length-1)];
+  }
+  let f = b.position > a.position ? midpoint((t-a.position)/(b.position-a.position), a.midpoint) : 0;
+  if (mode === "constant") f = f < 1 ? 0 : 1;
+  else if (mode === "ease") f = f*f*(3-2*f);
+  return a.alpha+(b.alpha-a.alpha)*f;
 }
 
 // Curve state is the shared Color Curves format. RGB hold the per-channel
