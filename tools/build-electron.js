@@ -12,6 +12,8 @@ const {
   projectRoot,
 } = require("./runtime-resources");
 
+const { buildDocs } = require("./build-docs");
+
 function run(command, args, cwd) {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, { cwd, stdio: "inherit", shell: false });
@@ -41,6 +43,7 @@ async function main() {
       includeDesktopFiles: true,
       offline: true,
     });
+    await buildDocs(stageRoot);
     const packagePath = path.join(stageRoot, "package.json");
     const packageJson = JSON.parse(await fs.promises.readFile(packagePath, "utf8"));
     packageJson.main = "desktop/main.cjs";

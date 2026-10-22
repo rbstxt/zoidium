@@ -1,0 +1,47 @@
+@font-face {
+  font-family: 'Source Code Pro';
+  src: url('../../../fonts/source-code-pro-regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+:root {
+  --sl-font: 'Source Sans 3', 'Segoe UI', sans-serif;
+  --sl-font-mono: 'Source Code Pro', monospace;
+  --sl-content-width: 50rem;
+}
+:root[data-theme='dark'] {
+  --sl-color-bg: #2a2a2a;
+  --sl-color-bg-nav: #222;
+  --sl-color-bg-sidebar: #252525;
+  --sl-color-bg-inline-code: #222;
+  --sl-color-hairline: #414141;
+  --sl-color-hairline-light: #393939;
+  --sl-color-white: #eee;
+  --sl-color-gray-1: #ddd;
+  --sl-color-gray-2: #ccc;
+  --sl-color-gray-3: #aaa;
+  --sl-color-gray-4: #777;
+  --sl-color-gray-5: #414141;
+  --sl-color-gray-6: #222;
+  --sl-color-black: #1c1c1c;
+  --sl-color-accent-low: #384668;
+  --sl-color-accent: #7e8fb9;
+  --sl-color-accent-high: #b4c5ec;
+}
+.site-title { letter-spacing: -.035em; font-weight: 650; }
+h1 { letter-spacing: -.035em; }
+.hero { padding-block: 2rem 3rem; }
+.hero h1 { max-width: 16ch; }
+.hero .tagline { max-width: 45ch; }
+.sl-markdown-content h2 { border-top: 1px solid var(--sl-color-hairline-light); padding-top: 1.25rem; }
+.sl-markdown-content h3[id] { scroll-margin-top: 6rem; }
+.sl-markdown-content table { font-size: .9rem; }
+:root[data-theme='dark'] .card { background: #252525; border-color: #414141; }
+@font-face {
+  font-family: 'Source Sans 3';
+  src: url('../../../fonts/source-sans-3-regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
