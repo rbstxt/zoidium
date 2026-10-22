@@ -15,7 +15,7 @@
     if (typeof bundled === "string") {
       const style = global.document.createElement("style");
       style.id = STYLE_ID;
-      style.textContent = bundled;
+      style.textContent = bundled + "\n" + getAsset("text", "/plugins/native-fx/curve-options.css");
       global.document.head.appendChild(style);
       return;
     }

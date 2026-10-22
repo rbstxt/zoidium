@@ -102,6 +102,11 @@
       "id": "code-window-css",
       "type": "text",
       "source": "./plugins/shader-plus/code-window.css?v=11"
+    },
+    {
+      "id": "curve-options-css",
+      "type": "text",
+      "source": "./plugins/native-fx/curve-options.css?v=11"
     }
   ]
 }

@@ -13,7 +13,7 @@ function activate(context) {
   }
   const editor = () => context.editor;
   const presetFont = () => "/assets/fonts/2d/bebas.ttf";
-  for (const path of ["./plugins/native-fx/colorcurves.css", "./plugins/shader-plus/style.css", "./plugins/shader-plus/code-window.css"]) {
+  for (const path of ["./plugins/native-fx/colorcurves.css", "./plugins/shader-plus/style.css", "./plugins/shader-plus/code-window.css", "./plugins/native-fx/curve-options.css"]) {
     const style = doc.createElement("style"); style.textContent = context.getAsset("text", path); doc.head.append(style); disposers.push(() => style.remove());
   }
   const curves = shared("./material-plus/graph-curves.js");
