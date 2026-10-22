@@ -18,6 +18,9 @@
     canvas.width = 256; canvas.height = 1; bar.append(canvas, markers);
     let value = M.clone(options.value || { stops: builtins[0].stops }), selected = value.stops?.[0], kind = "color", editing = false, before, abortDrag;
     const advanced = options.advanced !== false, readonly = !!options.readOnly;
+    let wheelView = false;
+    const wheel = node("div", "zge-wheel", "Color cycle wheel"), ring = node("div", "zge-ring"), wheelMarkers = node("div", "zge-wheel-markers");
+    wheel.append(ring, wheelMarkers);
     const tools = node("div", "zge-tools"), fields = node("div", "zge-fields");
     function start() {
       if (editing) return true;
@@ -53,6 +56,14 @@
       const b = node("button", "zge-button", label); b.type = "button"; b.textContent = label; b.disabled = readonly;
       b.onclick = e => { e.stopPropagation(); action(); }; parent.append(b); return b;
     }
+    const view = button("Wheel", () => { wheelView = !wheelView; paint(); });
+    view.setAttribute("aria-label", "Gradient view");
+    wheel.onclick = e => {
+      if (e.target !== wheel && e.target !== ring) return;
+      const r = wheel.getBoundingClientRect(), x = (e.clientX-r.left)/r.width-.5, y = (e.clientY-r.top)/r.height-.5;
+      if (Math.hypot(x, y) < .23 || Math.hypot(x, y) > .5) return;
+      add(((Math.atan2(x, -y)/(2*Math.PI))%1+1)%1);
+    };
     function currentList() { return kind === "opacity" ? value.opacityStops || [] : value.stops || []; }
     function sort() { value.stops.sort((a, b) => a.position-b.position); value.opacityStops?.sort((a, b) => a.position-b.position); }
     function remove() {
@@ -93,16 +104,17 @@
         markers.querySelector('[aria-pressed="true"]')?.focus();
       } else if (event.key === "Enter") { event.preventDefault(); (type === "color" ? panel.element.querySelector("input[aria-label='Hex color']") : opacity).focus(); }
     }
-    function marker(stop, type) {
+    function marker(stop, type, wheelMarker = false) {
       const b = node("button", "zge-stop zge-stop-"+type, `${type === "color" ? "Color" : "Opacity"} stop at ${Math.round(stop.position*100)}%`);
       b.type = "button"; b.disabled = readonly; b.style.left = stop.position*100+"%";
       b.style.setProperty("--zge-stop-color", type === "color" ? M.rgba(M.color(stop.color)) : `rgba(255,255,255,${stop.alpha})`);
       b.setAttribute("aria-pressed", String(selected === stop && kind === type));
+      b.dataset.stopType = type;
       b.onclick = e => { e.stopPropagation(); selectStop(stop, type); };
       b.ondblclick = e => { e.stopPropagation(); selectStop(stop, type); (type === "color" ? panel.element.querySelector("input") : opacity).focus(); };
       b.onkeydown = e => stopKey(e, stop, type);
       let moved = false;
-      gesture(b, e => { selected = stop; kind = type; moved = true; const r = bar.getBoundingClientRect(); stop.position = M.clamp((e.clientX-r.left)/r.width); sort(); }, e => {
+      if (!wheelMarker) gesture(b, e => { selected = stop; kind = type; moved = true; const r = bar.getBoundingClientRect(); stop.position = M.clamp((e.clientX-r.left)/r.width); sort(); }, e => {
         if (!moved || !e) return;
         const r = bar.getBoundingClientRect(); selected = stop; kind = type;
         if (Math.abs(e.clientY-(r.top+r.height/2)) > 65 && currentList().length > 1) { currentList().splice(currentList().indexOf(stop), 1); selected = currentList()[0]; input(); }
@@ -131,6 +143,28 @@
       const data = options.bake?.(value);
       for (let i = 0; i < 256; i++) { const c = data ? null : M.sample(value.stops, i/255); for (let j = 0; j < 4; j++) image.data[i*4+j] = data ? data[i*4+j] : Math.round(c[j]*255); }
       ctx.putImageData(image, 0, 0);
+      view.hidden = !advanced || !value.cyclic;
+      const showWheel = wheelView && advanced && value.cyclic;
+      view.textContent = showWheel ? "Bar" : "Wheel";
+      view.setAttribute("aria-pressed", String(!!showWheel));
+      wheel.hidden = !showWheel; bar.classList.toggle("zge-bar-wheel", !!showWheel);
+      wheelMarkers.replaceChildren();
+      if (showWheel) {
+        ring.style.background = "conic-gradient("+Array.from({ length: 129 }, (_, i) => {
+          const at = Math.round(i/128*255)*4, c = Array.from(image.data.slice(at, at+4));
+          return `rgba(${c[0]},${c[1]},${c[2]},${c[3]/255}) ${i/128*100}%`;
+        }).join(",")+")";
+        (value.stops || []).forEach(stop => {
+          const b = marker(stop, "color", true), angle = stop.position*Math.PI*2;
+          b.className = "zge-wheel-stop"; b.style.left = 50+Math.sin(angle)*46+"%"; b.style.top = 50-Math.cos(angle)*46+"%";
+          b.style.setProperty("--zge-angle", angle+"rad");
+          gesture(b, e => {
+            selected = stop; kind = "color"; const r = wheel.getBoundingClientRect();
+            stop.position = ((Math.atan2(e.clientX-r.left-r.width/2, -(e.clientY-r.top-r.height/2))/(2*Math.PI))%1+1)%1; sort();
+          });
+          wheelMarkers.append(b);
+        });
+      }
       markers.replaceChildren();
       for (const type of ["color", ...(advanced ? ["opacity"] : [])]) {
         const list = type === "color" ? value.stops || [] : value.opacityStops || [];
@@ -152,7 +186,7 @@
       panel.element.hidden = kind !== "color"; if (selected && kind === "color") panel.update(M.color(selected.color));
       options.onPaint?.(value, { node, gesture, run, input, selectStop, selected, stopKey, add, marker, kind });
     }
-    root.append(bar, tools, fields, panel.element, presets); presetButtons(); panel.setDisabled(readonly);
+    root.append(wheel, bar, tools, fields, panel.element, presets); presetButtons(); panel.setDisabled(readonly);
     root.addEventListener("keydown", e => { if (!(e.ctrlKey || e.metaKey) || !["z", "y"].includes(e.key.toLowerCase())) e.stopPropagation(); });
     root.addEventListener("mousedown", e => e.stopPropagation());
     paint();
