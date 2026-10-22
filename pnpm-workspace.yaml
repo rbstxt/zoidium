@@ -1,3 +1,6 @@
+packages:
+  - site
+
 allowBuilds:
   electron: true
   electron-winstaller: true
