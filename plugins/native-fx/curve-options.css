@@ -32,3 +32,6 @@
 .zoidium-curve-count { margin-left: auto; color: var(--zui-text-muted); }
 .zoidium-curve-options input[type=number]:disabled { background: var(--zui-bg-input); }
 .zoidium-curve-options input::placeholder { color: var(--zui-text-faint); }
+/* The square graph grows with the value column only up to a fixed size,
+   then stays left-aligned so wide sidebars do not enlarge it further. */
+.zoidium-color-curves-control,.zsp-shared-curve { max-width: 280px; }
