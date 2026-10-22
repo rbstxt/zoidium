@@ -28,7 +28,18 @@
       "type": {
         "custom": true,
         "dynamic": true,
-        "type": 0
+        "type": 0,
+        "zoidiumShader": {
+          "kind": "dropdown",
+          "items": [
+            "Linear",
+            "Radial",
+            "Angle",
+            "Magnet",
+            "Contour"
+          ]
+        },
+        "zoidiumControl": "shader-plus/dropdown"
       },
       "properties": {
         "name": "Gradient_Type"
@@ -140,7 +151,16 @@
       "type": {
         "custom": true,
         "dynamic": true,
-        "type": 0
+        "type": 0,
+        "zoidiumShader": {
+          "kind": "dropdown",
+          "items": [
+            "RGB",
+            "OKLab",
+            "OKLCH"
+          ]
+        },
+        "zoidiumControl": "shader-plus/dropdown"
       },
       "properties": {
         "name": "Gradient_Color_Space"
@@ -168,7 +188,17 @@
       "type": {
         "custom": true,
         "dynamic": true,
-        "type": 0
+        "type": 0,
+        "zoidiumShader": {
+          "kind": "dropdown",
+          "items": [
+            "Shortest",
+            "Longest",
+            "Decreasing",
+            "Increasing"
+          ]
+        },
+        "zoidiumControl": "shader-plus/dropdown"
       },
       "properties": {
         "name": "Gradient_Hue_Interpolation"

@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "id": "shader-plus",
+  "name": "Shader+",
+  "author": "Zoidium",
+  "version": "1",
+  "kind": "extension",
+  "description": "Native custom shader controls and baked gradient, curve, palette and text inputs.",
+  "modules": [
+    {
+      "id": "shader-properties",
+      "source": "./plugins/shader-plus/shader-plus.js?v=1"
+    }
+  ],
+  "resources": [
+    {
+      "id": "0",
+      "type": "text",
+      "source": "./plugins/shader-plus/kinds.js?v=1"
+    },
+    {
+      "id": "1",
+      "type": "text",
+      "source": "./plugins/shader-plus/editor.js?v=1"
+    },
+    {
+      "id": "2",
+      "type": "text",
+      "source": "./plugins/shader-plus/controls.js?v=1"
+    },
+    {
+      "id": "3",
+      "type": "text",
+      "source": "./plugins/shader-plus/runtime.js?v=1"
+    },
+    {
+      "id": "4",
+      "type": "text",
+      "source": "./plugins/shader-plus/bake.js?v=1"
+    },
+    {
+      "id": "5",
+      "type": "text",
+      "source": "./plugins/shader-plus/text-raster.js?v=1"
+    },
+    {
+      "id": "curves",
+      "type": "text",
+      "source": "./plugins/material-plus/graph-curves.js?v=1"
+    },
+    {
+      "id": "curves-css",
+      "type": "text",
+      "source": "./plugins/native-fx/colorcurves.css?v=1"
+    },
+    {
+      "id": "style",
+      "type": "text",
+      "source": "./plugins/shader-plus/style.css?v=1"
+    }
+  ]
+}

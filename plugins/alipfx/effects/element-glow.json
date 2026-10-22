@@ -112,7 +112,21 @@
       "type": {
         "custom": true,
         "dynamic": true,
-        "type": 0
+        "type": 0,
+        "zoidiumShader": {
+          "kind": "dropdown",
+          "items": [
+            "Luminance",
+            "Lightness",
+            "Hue",
+            "Saturation",
+            "Red",
+            "Green",
+            "Blue",
+            "Alpha"
+          ]
+        },
+        "zoidiumControl": "shader-plus/dropdown"
       },
       "properties": {
         "name": "Range_Mode"
@@ -140,7 +154,11 @@
       "type": {
         "custom": true,
         "dynamic": true,
-        "type": 0
+        "type": 0,
+        "zoidiumShader": {
+          "kind": "checkbox"
+        },
+        "zoidiumControl": "shader-plus/checkbox"
       },
       "properties": {
         "name": "Invert_Range"
