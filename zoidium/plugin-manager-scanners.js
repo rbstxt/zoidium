@@ -413,6 +413,7 @@
     const detectedCompositions = findCompositionFeatures(data);
     const detectedConstraints = findConstraintFeatures(data);
     const detectedExpressions = findExpressionFeatures(data);
+    const detectedShaderProperties = findShaderProperties(data);
     if (
       detectedEffects.length === 0 &&
       detectedPluginNative.size === 0 &&
@@ -427,7 +428,8 @@
       detectedParticlesPlusSprites.size === 0 &&
       detectedCompositions.size === 0 &&
       detectedConstraints.size === 0 &&
-      detectedExpressions.size === 0
+      detectedExpressions.size === 0 &&
+      detectedShaderProperties.size === 0
     ) {
       return plugins;
     }
@@ -466,6 +468,7 @@
     }
     mergeDetectedPluginItems(plugins, "constraints", "features", detectedConstraints);
     mergeDetectedPluginItems(plugins, "expressions-plus", "features", detectedExpressions);
+    mergeDetectedPluginItems(plugins, "shader-plus", "features", detectedShaderProperties);
     mergeDetectedPluginItems(plugins, "precomp-plus", "features", detectedCompositions);
     mergeDetectedPluginItems(plugins, TRAPCODE_SUITE_PLUGIN_ID, "features", detectedC4DLights);
     mergeDetectedPluginItems(
@@ -481,6 +484,14 @@
       detectedParticlesPlusSprites
     );
     return plugins;
+  }
+
+  function findShaderProperties(value, found = new Set(), visited = new WeakSet()) {
+    if (!value || typeof value !== "object" || visited.has(value)) return found;
+    visited.add(value);
+    if (["gradient", "curve", "palette", "text"].includes(value.zoidiumShader?.kind)) found.add("shader-properties");
+    for (const child of Object.values(value)) findShaderProperties(child, found, visited);
+    return found;
   }
 
   function findExpressionFeatures(value, found = new Set(), visited = new WeakSet()) {

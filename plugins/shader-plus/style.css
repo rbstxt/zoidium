@@ -21,3 +21,8 @@
 .zsp-group::before { content: '▾ '; }
 .zsp-group[aria-expanded=false]::before { content: '▸ '; }
 .zsp-curve-single .zoidium-color-curves-channel:not([data-channel=composite]) { display: none; }
+
+.zsp-ring { width: 76px; height: 76px; border-radius: 50%; margin: 8px auto; mask-image: radial-gradient(transparent 45%,black 47%); }
+.zsp-gradient .zoidium-node-editor-ramp-track { margin: 10px 8px; }
+.zsp-gradient .zoidium-node-editor-ramp-fields { min-width: 0; }
+.zsp-box [hidden],li[hidden] { display: none !important; }
