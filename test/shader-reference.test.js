@@ -20,6 +20,14 @@ test("reference covers all kinds, native storage and actual runtime auxiliary bi
   const actual = [...runtime.matchAll(/uniforms\[name\s*\+\s*"(_\w+)"\]\s*=\s*\{\s*type:\s*"(\w+)"/g)].map(m => [m[1], aliases[m[2]]]).sort();
   const documented = entries.flatMap(e => e.auxiliary).filter(e => e.type !== "#define").map(e => [e.suffix, e.type]).sort();
   assert.deepEqual(documented, actual);
+  const configure = runtime.slice(runtime.indexOf("function configure"), runtime.indexOf("function dispose("));
+  for (const kind of ["gradient", "curve", "palette", "text"]) {
+    const start = configure.indexOf('if (kind === "' + kind + '") {');
+    const end = configure.indexOf('\n      if (kind ===', start + 1);
+    const block = configure.slice(start, end < 0 ? undefined : end);
+    const bound = [...block.matchAll(/uniforms\[name\s*\+\s*"(_\w+)"\]\s*=\s*\{\s*type:\s*"(\w+)"/g)].map(m => [m[1], aliases[m[2]]]).sort();
+    assert.deepEqual(entries.find(e => e.kind === kind).auxiliary.map(a => [a.suffix, a.type]).sort(), bound, kind);
+  }
   const constants = require("../plugins/shader-plus/kinds.js").constants("Name", ["Option 1", "Option 2"]);
   assert.deepEqual(constants, { Name_Option_1: 0, Name_Option_2: 1 });
 });
@@ -30,5 +38,9 @@ test("reference runtime builtins are bound by Expressions+ and native CM3", () =
   if (!root) return;
   const native = fs.readFileSync(require("node:path").join(root, "core-1.0.102.js"), "utf8");
   const shader = native.slice(native.indexOf("PZ.effect.shader=class"), native.indexOf("PZ.material=class"));
-  for (const e of reference.entries.filter(e => e.category === "builtin" && e.provider === "cm3")) assert.ok(shader.includes(e.name), e.name);
+  const nativeType = { sampler2D: "t", vec2: "v2" };
+  for (const e of reference.entries.filter(e => e.category === "builtin" && e.provider === "cm3")) {
+    if (e.signature.startsWith("varying")) assert.ok(shader.includes(e.signature), e.name);
+    else assert.match(shader, new RegExp(e.name + '=\\{type:"' + nativeType[e.type] + '"'), e.name);
+  }
 });

@@ -429,3 +429,18 @@ New marked handle edits work in single and RGBA channels. Older Shader+ builds
 preserve the TEXT JSON but ignore these flags and use the historical ordered
 composite handles, and ignore per-channel handles. They can render newly edited
 segments differently. Keep the original project when editing in older builds.
+
+## Shader editor development aids
+
+Completion, help, find, scratch compilation, lint hints, draft undo/redo and
+font size add no project fields and perform no source migration. Scratch checks
+use disposable GL programs and detached pipeline state, leaving live uniforms,
+textures and rendered output untouched. Font size is local UI storage only.
+
+A confirmed template replacement edits only the draft. Add properties creates
+ordinary native Shader+ property records in one history entry; applying its
+source is another native history entry. Existing properties and values remain
+unchanged. The template source stays unexpanded in `fragShader`. Gradient,
+Curve and Text templates retain the existing Shader+ compatibility rules;
+Animated noise retains the existing Expressions+ include/time requirements.
+Older editors can keep all these native source strings and property records.

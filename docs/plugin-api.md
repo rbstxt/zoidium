@@ -688,3 +688,12 @@ compile path. Shader+ adds samplers and arrays after native setup, removes
 native TEXT defines, and keeps all number-kind evaluation native.
 
 Shader+ definitions and examples are in [Shader properties](shader-properties.md).
+
+`shaderPipeline.preview(effect, raw)` runs the same compile setup on a detached
+facade and returns `{source, expanded, locations, defines, vertexShader}` for
+editor diagnostics. `locations` maps expanded source lines to authored lines.
+Stages must keep source transforms local to `this`. A `previewDeclare(source)`
+hook replaces `declare` when it owns resources or would mutate shared state;
+it must reproduce compilation defines without loading assets or baking textures.
+The preview never calls stage update/error handlers or draws a pass. Ordinary
+compilation and per-frame updates retain their existing path.

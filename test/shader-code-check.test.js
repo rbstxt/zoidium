@@ -33,3 +33,14 @@ test("scratch checker frees shaders/program on compile failure without drawing o
   assert.deepEqual(issues, [{ line: 2, message: "bad", severity: "error" }]); assert.deepEqual(deleted, ["program", 1, 2]);
   assert.equal(shaders[1], "#define Mode 1\na\nb");
 });
+
+test("actual curve include and injected range/blank lines retain the authored error line", () => {
+  const { expandIncludes } = require("../plugins/core/shader-pipeline.js");
+  const { helpers, bindCurveRanges } = require("../plugins/shader-plus/glsl-library.js");
+  const raw = require("../plugins/shader-plus/code-templates.js").templates.find(t => t.id === "curve").source;
+  const locations = [], expanded = expandIncludes(raw, helpers, locations), transformed = bindCurveRanges(expanded, new Set(["Remap"]));
+  const map = transformedMap(expanded, locations, transformed);
+  const line = transformed.split("\n").findIndex(l => l.includes("gl_FragColor"));
+  assert.equal(map[line], 8);
+  for (let i = 3; i < transformed.split("\n").findIndex(l => l.startsWith("uniform sampler2D")); i++) assert.equal(map[i], 2, "helper line " + i);
+});

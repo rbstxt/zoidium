@@ -26,6 +26,7 @@ test("brackets wrap selections, skip closers, remove empty pairs and ignore comm
   assert.deepEqual(bracketEdit("()", 1, 1, ")"), { text: "()", start: 2, end: 2 });
   assert.deepEqual(bracketEdit("[]", 1, 1, "Backspace"), { text: "", start: 0, end: 0 });
   assert.equal(bracketEdit("// test", 7, 7, "("), null);
+  assert.equal(bracketEdit("abc", 3, 3, "Backspace"), null);
 });
 test("Enter indents blocks and separates paired braces", () => {
   assert.deepEqual(enterEdit("  if (x) {}", 10, 10), { text: "  if (x) {\n    \n  }", start: 15, end: 15 });

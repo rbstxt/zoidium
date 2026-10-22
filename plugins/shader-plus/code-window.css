@@ -50,3 +50,11 @@
 .zsp-code-issue.is-hint { color: var(--zui-text-muted); }
 .zsp-code-hint { display: flex; align-items: center; gap: 10px; }
 .zsp-code-hint .propbutton { width: auto; padding: 2px 8px; }
+.zsp-code-toolbar { flex-wrap: wrap; gap: 6px; }
+.zsp-code-toolbar button { padding: 4px 10px; }
+.zsp-code-symbol-row { display: flex; border-top: 1px solid var(--zui-border-soft); }
+.zsp-code-symbol-row .zsp-code-symbol { min-width: 0; border: 0; flex: 1; }
+.zsp-code-info { flex: 0 0 28px; align-self: center; border: 0; background: transparent; color: var(--zui-text-muted); cursor: pointer; padding: 8px 4px; }
+.zsp-code-info:hover { color: var(--zui-value); background: var(--zui-hover); }
+.zsp-code-window .zsp-code-find > button.proprow.propbutton { flex: 0 0 auto; width: auto; margin: 0; }
+.zsp-code-symbol code { font-size: 13px; }
