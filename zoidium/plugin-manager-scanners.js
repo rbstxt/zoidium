@@ -505,7 +505,7 @@
     if (expressionKind === true || expressionKind !== false && typeof source === "string" && /\b(?:let|const|function|return|throw|value|thisProperty|thisObject|thisLayer|thisClip|thisSequence|thisComp|prop|controls|control|seedRandom|wiggle|easeIn|easeOut|degreesToRadians|radiansToDegrees|lookAt|toWorld|fromWorld|worldPosition|worldRotation|toScreen|fromScreen|Array|Number|String|Boolean|JSON|Math|parseInt|parseFloat|isFinite|isNaN|Infinity|NaN|undefined)\b|=>|\?\.|\.\.\.|`|\.\s*[A-Za-z_$]|\bvar\s*[\[{]|\b\d[\d_]*n\b|\d_\d|\?\?|&&=|\|\|=/.test(source)) found.add("expressions");
     if (value.zoidiumControls) found.add("sequence-controls");
     const shader = value.properties?.fragShader;
-    if (typeof shader === "string" && /\bz(?:Time|Frame)\b|\bctl_\w+|\/\/\s*#include\s*<zoidium\//.test(shader)) found.add("shader-extensions");
+    if (typeof shader === "string" && /\bz(?:Time|Frame)\b|\bctl_\w+|\/\/\s*#include\s*<zoidium\/(?:hash|noise|color|sdf)>/.test(shader)) found.add("shader-extensions");
     for (const child of Object.values(value)) findExpressionFeatures(child, found, visited);
     return found;
   }

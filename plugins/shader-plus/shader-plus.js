@@ -19,9 +19,11 @@ function activate(context) {
   const curves = shared("./material-plus/graph-curves.js");
   const register = (id, type, create) => disposers.push(context.apis.propertyControls.register(id, { type, create }));
   const controls = require("./controls.js").installControls({ PZ, doc, editor, register });
+  require("./angle-control.js").registerAngle({ PZ, doc, register, commit: controls.commit });
   require("./texture-controls.js").installTextureControls({ PZ, doc, curves, register, commit: controls.commit, rampControl: win.ZoidiumNodeEditorParts.createRampControl });
   const runtime = require("./runtime.js").installRuntime({ PZ, THREE: win.THREE, doc, patch, curves, editor, presetFont, pipeline: context.apis.shaderPipeline, onDispose: fn => disposers.push(fn) });
   disposers.push(() => runtime.disposeAll());
+  require("./font-assets.js").registerFontAssets(context, runtime);
   const authoring = require("./editor.js").installEditor({ context, patch, presetFont });
   const api = { runtime, authoring };
   win.ZoidiumShaderPlus = api;

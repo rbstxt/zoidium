@@ -58,7 +58,7 @@ module.exports = {
     if (runtime?.context.editor?.sequence && runtime.store.list(runtime.context.editor.sequence).length) return true;
     runtime?.context.editor?.project?.forEachItemOfType(runtime.context.PZ.property.dynamic, p => { if (p.expression && runtime.engine.isExtended(p.expression)) used = true; });
     runtime?.context.editor?.project?.forEachItemOfType(runtime.context.PZ.effect.shader, effect => {
-      if (/\bz(?:Time|Frame)\b|\bctl_\w+|\/\/\s*#include\s*<zoidium\//.test(effect.properties.fragShader.get())) used = true;
+      if (/\bz(?:Time|Frame)\b|\bctl_\w+|\/\/\s*#include\s*<zoidium\/(?:hash|noise|color|sdf)>/.test(effect.properties.fragShader.get())) used = true;
     });
     return used;
   },

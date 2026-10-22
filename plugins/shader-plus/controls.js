@@ -21,6 +21,8 @@ function installControls({ PZ, doc, register, editor }) {
   function begin(anchor, property) { C.editStart.call(anchor, property); return anchor.parentElement.pz_frame; }
   function finish(anchor, property, discard) { C.editFinish.call(anchor, property, discard); }
   function commit(anchor, property, value) {
+    const currentFrame = (editor()?.playback?.currentFrame || 0) - property.frameOffset;
+    if (JSON.stringify(property.get(currentFrame)) === JSON.stringify(value)) return false;
     const frame = begin(anchor, property);
     try { property.set(value, frame); } catch (error) { finish(anchor, property, true); throw error; }
     finish(anchor, property);

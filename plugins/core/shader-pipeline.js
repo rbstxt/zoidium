@@ -30,6 +30,7 @@
   function forHost(PZ, patch) {
     if (hosts.has(PZ)) return hosts.get(PZ);
     const stages = new Map(), includes = Object.create(null), sources = new WeakMap();
+    let includeVersion = 0;
     const proto = PZ.effect.shader.prototype;
     const wrap = patch || ((holder, key, make) => { holder[key] = make(holder[key]); });
     function handle(effect, error) {
@@ -67,9 +68,10 @@
       },
       registerIncludes(library) {
         for (const key of Object.keys(library)) if (Object.hasOwn(includes, key)) throw new Error("Duplicate shader include: " + key);
-        Object.assign(includes, library);
-        return () => { for (const key of Object.keys(library)) if (includes[key] === library[key]) delete includes[key]; };
+        Object.assign(includes, library); includeVersion++;
+        return () => { for (const key of Object.keys(library)) if (includes[key] === library[key]) delete includes[key]; includeVersion++; };
       },
+      get includeVersion() { return includeVersion; },
       expandIncludes: source => expandIncludes(source, includes),
       source: effect => sources.get(effect),
     };
