@@ -72,15 +72,15 @@
       "category": "utilities",
       "name": "Shader+",
       "author": "Zoidium",
-      "version": "3",
+      "version": "4",
       "defaultEnabled": true,
       "itemCount": 12,
       "format": "shader controls",
       "tagline": "Custom shader property editors",
       "description": "Native custom shader controls with optional baked texture inputs.",
-      "manifest": "./plugins/shader-plus/manifest.json?v=3",
-      "bundle": "./plugins/shader-plus/bundle.json?v=3",
-      "integrity": "sha256-ZDZjcLHuL29chD4KdMLHDIbIrKtgongjv/xlaCPE+k4="
+      "manifest": "./plugins/shader-plus/manifest.json?v=4",
+      "bundle": "./plugins/shader-plus/bundle.json?v=4",
+      "integrity": "sha256-/rbSuWhCU16g4KxgZy1DkkOH6gCvjjxcUj3mJwEonx8="
     },
     {
       "id": "player-plus",

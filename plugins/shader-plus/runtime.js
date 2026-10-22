@@ -48,9 +48,13 @@ function installRuntime({ PZ, THREE, doc, patch, curves, editor, presetFont, pip
     effect?.onShaderError?.update(text);
   }
   function refresh(effect) {
+    const current = editor();
+    // A font can finish while another project is being loaded or exported.
+    // Texture readiness changes no authored data and must never dirty the
+    // previous project or invalidate its in-progress archive transition.
+    if (!current || current.project !== effect.parentProject) return;
     doc.dispatchEvent(new CustomEvent("zoidium:asset-reloaded", { detail: { source: "shader-plus" } }));
-    editor()?.project?.ui?.onChanged?.update?.();
-    editor()?.mainViewport?.requestRender?.();
+    current.mainViewport?.requestRender?.();
   }
 
   function entryFor(effect, property, kind) {
@@ -82,6 +86,7 @@ function installRuntime({ PZ, THREE, doc, patch, curves, editor, presetFont, pip
 
   function bakeText(effect, property, entry, value) {
     const options = parseText(value), project = effect.parentProject;
+    entry.error = null;
     const asset = holdFont(entry, project, options.font || presetFont());
     const token = entry.token = {};
     entry.pending = (async () => {
@@ -98,7 +103,7 @@ function installRuntime({ PZ, THREE, doc, patch, curves, editor, presetFont, pip
       entry.size.set(raster.width, raster.height); entry.grid.set(raster.grid[0], raster.grid[1]);
       entry.aspect = raster.width / raster.height; entry.count = raster.count;
       refresh(effect);
-    })().catch(error => { if (entry.token === token) report(effect, error.message); }).finally(() => { if (entry.token === token) entry.pending = null; });
+    })().catch(error => { if (entry.token === token) { entry.error = error; report(effect, error.message); } }).finally(() => { if (entry.token === token) entry.pending = null; });
   }
 
   function prepareEntry(effect, property, kind) {
@@ -210,6 +215,7 @@ function installRuntime({ PZ, THREE, doc, patch, curves, editor, presetFont, pip
       if (kindOf(property) !== "text") continue;
       prepareEntry(this, property, "text");
       await entries.get(property)?.pending;
+      if (entries.get(property)?.error) throw new Error("Shader+ text preparation failed: " + entries.get(property).error.message);
     }
   });
   patch(proto, "load", original => async function loadWithShaderPlus() {

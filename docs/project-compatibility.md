@@ -358,6 +358,8 @@ render identically without Shader+. Metadata-only changes retain keys,
 tweens, expressions and evaluated fractional values. Checkbox/Dropdown
 editors create integer values and hold keys; old keys are not rewritten.
 Static dropdown uses native static OPTION and compiles without Shader+.
+Zero saves as the numeric string `"0"` to avoid CM3's falsy static-value load
+path. It still expands to GLSL `0`.
 
 Gradient, Curve, Palette and Text use static native TEXT containing JSON.
 They add dependency `shader-plus` feature `shader-properties`; numeric editor

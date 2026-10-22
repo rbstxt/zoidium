@@ -25,11 +25,12 @@ function capture(fx, frame = 0) {
   fx.fragmentShaderNeedsUpdate = true; fx.update(frame);
   return JSON.parse(JSON.stringify({ uniforms: fx.pass.uniforms, defines: fx.pass.material.defines, fragment: fx.pass.material.fragmentShader }));
 }
-function install(PZ, THREE) {
+function install(PZ, THREE, options = {}) {
   const restore = [], pipeline = forHost(PZ, (h, k, make) => { const original = h[k]; restore.push(() => { h[k] = original; }); h[k] = make(original); });
   const runtime = installRuntime({ PZ, THREE, pipeline, onDispose: fn => restore.push(fn), doc: {}, curves: {}, editor: () => null, presetFont: () => null,
-    patch(h, k, make) { const original = h[k]; restore.push(() => { h[k] = original; }); h[k] = make(original); } });
-  return () => { runtime.disposeAll(); for (const fn of restore.reverse()) fn(); };
+    patch(h, k, make) { const original = h[k]; restore.push(() => { h[k] = original; }); h[k] = make(original); }, ...options });
+  const dispose = () => { runtime.disposeAll(); for (const fn of restore.reverse()) fn(); };
+  dispose.runtime = runtime; return dispose;
 }
 test("number kinds preserve native fractional values, linear keys and expressions", { skip: !fs.existsSync(core) }, () => {
   const { PZ, THREE } = host();
@@ -81,4 +82,24 @@ test("static dropdown zero serializes to a vanilla-loadable native OPTION", { sk
   try { const p = PZ.property.create(KINDS.staticDropdown.create()); p.load(); data = JSON.parse(JSON.stringify(p)); assert.equal(data.value, "0"); }
   finally { dispose(); }
   const p = PZ.property.create(data.type); p.load(data); assert.equal(Number(p.get()), 0); assert.equal(p.definition.type, 6);
+});
+test("font preparation awaits rasterization, leaves the previous project untouched, and releases assets", { skip: !fs.existsSync(core) }, async () => {
+  const { PZ, THREE } = host(); let resolveFont, references = 0, notifications = 0;
+  const fontReady = new Promise(resolve => { resolveFont = resolve; });
+  PZ.asset.font = class { getFont() { return fontReady; } };
+  const project = { assets: { load() { references++; return { key: "font" }; }, unload() { references--; } } };
+  const previous = { ui: { onChanged: { update() { throw Error("The previous project was dirtied"); } } } };
+  const doc = { dispatchEvent() { notifications++; }, createElement() { return { getContext() { return { getImageData(x, y, w, h) { return { data: new Uint8Array(w * h * 4) }; } }; } }; } };
+  const definition = KINDS.text.create("font"), fx = effect(PZ, [{ type: definition, properties: { name: "Title" }, value: definition.value }], "void main(){gl_FragColor=vec4(1.0);}");
+  Object.defineProperty(fx, "parentProject", { value: project });
+  const dispose = install(PZ, THREE, { doc, editor: () => ({ project: previous }), presetFont: () => "font" });
+  try {
+    let done = false; const preparing = fx.prepare().then(() => { done = true; }); await Promise.resolve();
+    assert.equal(done, false); assert.equal(references, 1);
+    resolveFont({ unitsPerEm: 1000, ascender: 800, descender: -200, stringToGlyphs: s => [...s].map(() => ({ advanceWidth: 600, getPath: () => ({ draw() {} }) })), getKerningValue: () => 0 });
+    await preparing;
+    const entry = dispose.runtime.entry(fx.customProperties[0]); assert.ok(entry.size.x > 1); assert.equal(notifications, 0);
+    let disposed = false; entry.texture.addEventListener("dispose", () => { disposed = true; });
+    dispose.runtime.disposeAll(); assert.equal(references, 0); assert.equal(disposed, true);
+  } finally { dispose(); }
 });

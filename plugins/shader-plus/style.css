@@ -25,7 +25,7 @@
 .zsp-ring { width: 76px; height: 76px; border-radius: 50%; margin: 8px auto; mask-image: radial-gradient(transparent 45%,black 47%); }
 .zsp-gradient .zoidium-node-editor-ramp-track { margin: 10px 8px; }
 .zsp-gradient .zoidium-node-editor-ramp-fields { min-width: 0; }
-.zsp-box [hidden],li[hidden] { display: none !important; }
+.zsp-box [hidden],.zsp-property[hidden] { display: none !important; }
 
 .zsp-curve .zoidium-color-curves-toolbar { grid-template-columns: minmax(0,1fr) auto; }
 .zsp-curve-rgba .zoidium-color-curves-toolbar { grid-template-columns: repeat(5,minmax(0,1fr)) auto; }

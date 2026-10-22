@@ -100,6 +100,7 @@ function installEditor({ context, patch, presetFont }) {
   patch(PZ.ui.edit.prototype, "generateListItem", original => function shaderPropertyRow(parent, p) {
     const row = original.apply(this, arguments), effect = effectOf(p);
     if (!effect || !this.options.showPropertyControls) return row;
+    row.classList.add("zsp-property");
     rows.add({ row, p, effect });
     row.oncontextmenu = event => { event.preventDefault(); event.stopPropagation(); context.ui.openMenu({ owner: row, x: event.clientX, y: event.clientY, items: actions(row, p) }); };
     sync(); return row;
@@ -116,8 +117,8 @@ function installEditor({ context, patch, presetFont }) {
       const meta = p.definition.zoidiumShader || {}, group = meta.group || "";
       let groups = folded.get(row.parentElement);
       if (!groups) { groups = new Map(); folded.set(row.parentElement, groups); }
-      if (group && !groups.has(group)) {
-        const heading = doc.createElement("button"); heading.className = "zsp-group"; heading.textContent = group; heading.setAttribute("aria-expanded", "true");
+      if (group && (!groups.has(group) || !groups.get(group).heading.isConnected)) {
+        const heading = doc.createElement("button"); heading.className = "zsp-group"; heading.textContent = group; heading.setAttribute("aria-label", group); heading.setAttribute("aria-expanded", "true");
         const state = { heading, collapsed: false }; groups.set(group, state); row.before(heading);
         heading.onclick = () => { state.collapsed = !state.collapsed; heading.setAttribute("aria-expanded", String(!state.collapsed)); sync(); };
       }
