@@ -31,10 +31,6 @@
 .zge-presets { margin-top: 7px; }
 .zge-preset { width: 25px; height: 21px; padding: 0; border: 1px solid var(--zui-border-filter) !important; }
 .zge-preset-remove { padding: 0 2px; margin-left: -4px; height: 23px; }
-/* These editors need a full row; the label keeps the native selection/key UI. */
-.proprow:has(> .zge-property),.proprow:has(> .zsp-curve) { flex-wrap: wrap; height: auto; }
-.proprow > .zge-property,.proprow > .zsp-curve { display: block; width: 100% !important; }
-.proprow > .zge-property,.proprow > .zsp-curve { grid-column: 1 / -1; }
 .zge-wheel { position: relative; width: min(220px,100%); aspect-ratio: 1; margin: 0 auto 5px; cursor: crosshair; touch-action: none; }
 .zge-ring { position: absolute; inset: 10%; border-radius: 50%; mask-image: radial-gradient(transparent 38%,black 39%); }
 .zge-wheel-stop { position: absolute; width: 17px; height: 17px; padding: 0; transform: translate(-50%,-50%) rotate(var(--zge-angle)); clip-path: polygon(0 0,100% 0,50% 100%); border: 1px solid var(--zui-text-muted); background: var(--zge-stop-color); touch-action: none; }
@@ -43,7 +39,7 @@
 .zge-bar-wheel .zge-preview { top: 7px; height: 13px; }
 .zge-bar-wheel .zge-stop-color,.zge-bar-wheel .zge-mid-color { display: none; }
 .zge-bar-wheel .zge-stop-opacity { top: -4px; }
-li > div:has(> .zge-property),li > div:has(> .zsp-curve) { grid-column: 1 / -1; min-width: 0; }
-li:has(> div > .zge-property),li:has(> div > .zsp-curve) { min-width: 0; grid-template-columns: minmax(0,1fr) !important; }
-.editorpanel:has(.zge-property) { container-type: inline-size; }
-.editorpanel .zge-property { width: 100%; max-width: min(100%,calc(100cqw - 12px)); }
+
+/* Gradients sit in the value column like every native control. */
+.zge-property { display: block; width: 100%; }
+.zge-property .zge-editor { padding-left: 0; padding-right: 6px; }

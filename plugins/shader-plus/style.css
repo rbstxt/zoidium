@@ -37,7 +37,7 @@
 .zsp-fields input { width: 100%; min-width: 0; }
 .zsp-fields select { justify-self: start; }
 .zsp-curve-fields { margin: 2px 2px 4px; }
-.zsp-gradient-fields { margin: 2px 0 6px; padding: 0 8px; }
+.zsp-gradient-fields { margin: 2px 0 6px; padding-right: 6px; }
 
 /* Angle: a row-height dial button that opens a large direction dial. */
 .zsp-angle { flex: 0 0 auto; position: relative; width: 18px; height: 18px; padding: 0; border-radius: 50%; border: 1px solid var(--zui-border-filter); background: var(--zui-bg-input); cursor: pointer; }
