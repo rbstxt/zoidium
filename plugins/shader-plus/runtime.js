@@ -133,7 +133,7 @@ function installRuntime({ PZ, THREE, doc, patch, curves, editor, presetFont, pip
     return entry;
   }
 
-  function configure(effect, source = pipeline.source(effect) || "") {
+  function configure(effect, source = pipeline.source(effect) || "", preview = false) {
     const uniforms = effect.pass.uniforms, defines = effect.pass.material.defines;
     const referenced = new Set(source.replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, " ").match(/[A-Za-z_]\w*/g) || []);
     for (const property of effect.customProperties) {
@@ -145,6 +145,7 @@ function installRuntime({ PZ, THREE, doc, patch, curves, editor, presetFont, pip
       }
       if (!KINDS[kind].texture) continue;
       delete defines[name];
+      if (preview) continue;
       const entry = prepareEntry(effect, property, kind);
       if (kind === "gradient") {
         uniforms[name] = { type: "t", value: entry.texture };
@@ -189,6 +190,7 @@ function installRuntime({ PZ, THREE, doc, patch, curves, editor, presetFont, pip
       return gradients.size ? bindGradientCycles(source, gradients) : source;
     },
     declare(source) { configure(this, source); },
+    previewDeclare(source) { configure(this, source, true); },
     update() {
       // Native NUMBER/VECTOR values are never overridden here.
       for (const property of this.customProperties || []) {

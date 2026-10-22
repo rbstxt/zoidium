@@ -40,11 +40,13 @@ function installCodeWindows({ context, patch }) {
         const symbols = expression ? null : node("aside", "zsp-code-symbols", "", content);
         const status = node("div", "zsp-code-status"); status.setAttribute("role", "status");
         const read = () => expression ? property.expression?.source || "" : property.get();
-        let aids;
+        let aids, checks;
         let saved = read(), applying = false, shaderError = "", symbolsStamp = "";
         input.value = saved;
         function lines() { if (grammar) highlight.innerHTML = global.Prism.highlight(input.value + "\n", grammar, language);
-          highlight.scrollTop = input.scrollTop; highlight.scrollLeft = input.scrollLeft; gutter.textContent = Array.from({ length: input.value.split("\n").length }, (_, i) => i + 1).join("\n"); gutter.scrollTop = input.scrollTop; }
+          highlight.scrollTop = input.scrollTop; highlight.scrollLeft = input.scrollLeft; gutter.replaceChildren();
+          input.value.split("\n").forEach((_, i) => { const row = node("span", checks?.lines().has(i + 1) ? "is-error" : "", String(i + 1), gutter); row.dataset.line = i + 1; });
+          gutter.scrollTop = input.scrollTop; }
         function error(message) {
           shaderError = message || ""; status.textContent = shaderError;
           status.title = shaderError; status.classList.toggle("is-error", !!shaderError);
@@ -89,8 +91,9 @@ function installCodeWindows({ context, patch }) {
         }
         apply.onclick = commit;
         aids = require("./code-aids.js").installAids({ input, pane, body, toolbar, node, global, expression, entries: getEntries, changed() {
-          lines(); if (!shaderError) status.textContent = input.value === saved ? "" : "Unapplied changes";
+          lines(); checks?.schedule(); if (!shaderError) status.textContent = input.value === saved ? "" : "Unapplied changes";
         } });
+        if (!expression) checks = require("./code-diagnostics.js").installDiagnostics({ input, pane, body, node, global, context, effect: object, entries: getEntries, aids, valid, status, redraw: lines });
         input.onscroll = () => { gutter.scrollTop = input.scrollTop; highlight.scrollTop = input.scrollTop; highlight.scrollLeft = input.scrollLeft; };
         input.onkeydown = event => {
           if (aids.key(event)) { event.preventDefault(); event.stopPropagation(); }
@@ -100,9 +103,9 @@ function installCodeWindows({ context, patch }) {
         changed.watch(refresh);
         if (!expression) object.onShaderError?.watch(error);
         const timer = global.setInterval(() => { if (!valid()) { win.close(); return; } refreshSymbols(); if (expression) refresh(); }, 250);
-        lines(); refreshSymbols(); refresh(); input.focus();
+        lines(); refreshSymbols(); refresh(); checks?.schedule(); input.focus();
         return () => {
-          aids.dispose(); changed.unwatch(refresh); if (!expression) object.onShaderError?.unwatch(error);
+          checks?.dispose(); aids.dispose(); changed.unwatch(refresh); if (!expression) object.onShaderError?.unwatch(error);
           global.clearInterval(timer); opened.delete(property);
         };
       },
