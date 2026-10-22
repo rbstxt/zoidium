@@ -10,7 +10,7 @@ export default defineConfig({
     defaultLocale: 'root',
     locales: { root: { label: 'English', lang: 'en' } },
     customCss: ['./src/styles/theme.css'],
-    favicon: '/docs/favicon.svg',
+    favicon: '/favicon.svg',
     head: [{ tag: 'meta', attrs: { name: 'color-scheme', content: 'dark light' } }],
     sidebar: [
       { label: 'Start here', items: [
