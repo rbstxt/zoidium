@@ -15,6 +15,7 @@ test("desktop dev startup forwards project paths and flags after the staged appl
   });
   let launch;
   const removed = [];
+  const docsStages = [];
   const requireFake = (name) => {
     if (name === "node:fs") return {
       existsSync: () => true,
@@ -24,6 +25,7 @@ test("desktop dev startup forwards project paths and flags after the staged appl
         rm: async (root) => removed.push(root),
       },
     };
+    if (name === "./build-docs") return { buildDocs: async root => docsStages.push(root) };
     if (name === "./runtime-resources") return {
       projectRoot: "/worktree",
       prepareRuntimeStage: async () => ({ resources: [] }),
@@ -44,6 +46,7 @@ test("desktop dev startup forwards project paths and flags after the staged appl
     require: requireFake, process: processFake, console: { log() {}, error(message) { throw new Error(message); } },
   });
   for (let index = 0; index < 5; index += 1) await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(docsStages, ["/tmp/stage"]);
   assert.equal(launch.command, "/node");
   assert.deepEqual(launch.args, ["/electron/cli.js", "/tmp/stage", "/tmp/My Project.PZ", "--no-sandbox"]);
   assert.equal(launch.options.cwd, "/worktree");

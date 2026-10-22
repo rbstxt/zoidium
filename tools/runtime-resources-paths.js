@@ -55,6 +55,7 @@ const protectedResourcePrefixes = [
   "tools",
   "zoidium",
   "desktop",
+  "docs",
   "zoidium-welcome-tour.css",
   "zoidium-welcome-tour.js",
   "package.json",

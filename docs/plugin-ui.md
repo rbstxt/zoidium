@@ -464,9 +464,10 @@ indentation, Ctrl/Cmd+F literal find/replace and Ctrl/Cmd +/- font size.
 `zoidium.shader-editor.fontSize` stores the 10 to 24 px preference locally.
 Hover or caret placement shows reference signatures. Side-list question marks
 also show examples. `plugins/shader-plus/reference.js` is plain versioned data
-with stable IDs and an empty `docsUrl` hook. Export it with
-`node tools/export-shader-reference.js`; no external documentation link is
-shown with the default hook. Tests check helper overloads, includes, kind
+with stable IDs. Its `docsUrl` points to `/docs/reference/shader/`.
+Side-list help links open that page at the entry ID in a new tab. Web deployments
+and desktop builds include the static documentation. Export the reference with
+`node tools/export-shader-reference.js`. Tests check helper overloads, includes, kind
 storage and auxiliary bindings against their implementations.
 
 After 400 ms without editing, Shader drafts compile and link in disposable

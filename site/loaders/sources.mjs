@@ -21,7 +21,7 @@ export function rewriteLink(url, source) {
   const resolved = path.posix.normalize(path.posix.join(path.posix.dirname(source), file));
   const route = routes.get(resolved);
   if (route) return `/docs/${route}${fragment ? '#' + fragment : ''}`;
-  return `https://github.com/zoidium/zoidium/blob/dev/${resolved}${fragment ? '#' + fragment : ''}`;
+  return `https://github.com/rbstxt/zoidium/blob/dev/${resolved}${fragment ? '#' + fragment : ''}`;
 }
 
 export function rewriteMarkdown(body, source) {

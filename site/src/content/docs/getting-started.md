@@ -1,54 +1,61 @@
 ---
-title: Getting started
-description: Choose a layout, open a project, enable tools and save your work.
+title: Set up the editor
+sidebar:
+  label: Getting started
+description: Open a project, choose a layout, and enable plugins.
 ---
-Zoidium is an open-source collection of tools for extending CM3. It runs as an
-external extension layer around the editor and is independent of Panzoid.
+Set up Zoidium's external extension layer around CM3, then save a project.
+[The overview](/docs/) describes the project and its independent status.
 
-## Web or desktop
+## Open the editor
 
-[Open the web editor](/) to work in the browser. The desktop application packages
-the staged CM3 runtime with the same extension layer. It can open `.pz` files
-from the operating system. Read [desktop project files](/docs/development/desktop-app/)
-for file association and opening behavior.
+[Open the web editor](/). For desktop, start the Zoidium application.
+[Desktop project files](/docs/development/desktop-app/) describes file associations.
 
-For a local checkout, run `pnpm install --frozen-lockfile`, `pnpm run setup`,
-then `pnpm run web`. Open the HTTP address printed by the server. Setup fetches
-the configured CM3 resource graph into an ignored cache. `pnpm run desktop:start`
-starts the desktop development build.
+For a local checkout, run these commands:
 
-## Open and save projects
+```sh
+corepack enable
+pnpm install --frozen-lockfile
+pnpm run setup
+pnpm run web
+```
 
-Use Open in the project toolbar or Ctrl+O to load a `.pz` archive. Zoidium checks
-the archive and offers to enable required installed plugins. If a plugin is
-unavailable, its data can remain as a missing-type placeholder.
-
-Save downloads or writes a validated project archive with attached asset bytes.
-Keep downloaded copies of important work. Restore points use local browser
-storage, which clearing site data can remove. See
-[saving and restore points](/docs/development/project-saving/) for recovery,
-missing assets and save failure behavior.
+Open the HTTP address printed by the server. To start desktop development,
+run `pnpm run desktop:start` instead of `pnpm run web`.
 
 ## Choose a layout
 
-Open Settings and change **Editor layout**. Reload to apply the selection.
-The available layouts are Clipmaker 3, Clipmaker 3 Centered, Video Editor 2,
-Video Editor 2 Centered and Video Editor 2 Centered 2. The centered variants
-rearrange the viewport and panels. They use the same project data and plugins.
+1. Open **Settings**.
+2. Set **Editor layout**.
+3. Reload Zoidium.
 
-## Settings and plugins
+Choose Clipmaker 3, Clipmaker 3 Centered, Video Editor 2, Video Editor 2 Centered,
+or Video Editor 2 Centered 2. Use Settings to choose the theme, UI font,
+gradient editor, and preview cache memory limit.
 
-Settings controls editor appearance, UI font, gradient editor and preview cache
-memory. Appearance and cache preferences stay local to this browser and do not
-change rendered project content. [Preview cache](/docs/features/preview-cache/)
-explains the memory setting.
+[Preview cache](/docs/features/preview-cache/) explains the memory limit.
 
-Open the Plugins sidebar to see the installed tools and their status. Enable a
-plugin before adding its objects, effects or materials. A plugin in use can
-refuse to turn off until its project content is removed. Read the
-[plugin manager guide](/docs/development/plugin-manager/) for groups, dependencies
-and missing types.
+## Enable a plugin
 
-Start with [Shape+](/docs/features/shape-plus/) for 2D paths,
-[Text+](/docs/features/text-plus/) for 3D character animation, or
-[Shader+](/docs/features/shader-plus/) for custom image effects.
+1. Open **Plugins** in the sidebar.
+2. Find the plugin or group.
+3. Enable the plugin.
+4. Add its objects, effects, or materials from the matching picker.
+
+Before disabling a plugin, remove project content that requires the plugin.
+If Zoidium offers to save a restore point, complete that step before continuing.
+[The plugin manager](/docs/development/plugin-manager/) describes the implementation.
+
+## Open and save a project
+
+1. Click **Open** in the project toolbar, or press Ctrl+O.
+2. Choose a `.pz` archive.
+3. If Zoidium requests a required installed plugin, enable the plugin.
+4. Edit the project.
+5. Click **Save**.
+6. Keep a downloaded copy of important work.
+
+[Saving and restore points](/docs/development/project-saving/) describes local
+backups, missing assets, and save failures. Clearing site data can remove local
+restore points.

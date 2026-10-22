@@ -35,6 +35,23 @@ and directional lights can follow another object without changing Rotation
 keyframes. It is enabled by default in Scene Extensions. See the
 [Constraints guide](./plugins/constraints/README.md).
 
+## Documentation
+
+The Astro Starlight workspace in `site/` builds the documentation at `/docs/`.
+Run `pnpm run docs:dev` to edit the site on port 8400. Run `pnpm run docs:build`
+to generate `site/dist/`. `pnpm run build:web` copies that output to
+`dist/web/docs/` before publishing the deployment tree. Desktop build and
+startup also stage the static docs for offline reading. Electron excludes
+`site/` sources and dependencies.
+
+The site loads the eight developer guides directly from `docs/` at build time.
+It generates the shader reference from `plugins/shader-plus/reference.js`.
+Keep those sources canonical. `docs/research` and `docs/investigations` remain
+outside the site. New feature guides live in `site/src/content/docs/`.
+
+Run `node tools/check-docs-links.js` after a web build to check local links
+and anchors. `pnpm run verify` does not build the documentation or fetch CM3.
+
 ## Quick start
 
 Requirements: Node.js 22.12+ and pnpm 11.1.2. The repository pins pnpm in

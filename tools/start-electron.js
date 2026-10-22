@@ -8,6 +8,8 @@ const path = require("node:path");
 const { spawn } = require("node:child_process");
 const { prepareRuntimeStage, projectRoot } = require("./runtime-resources");
 
+const { buildDocs } = require("./build-docs");
+
 async function main() {
   const stageRoot = await fs.promises.mkdtemp(path.join(os.tmpdir(), "zoidium-electron-dev-"));
   let child = null;
@@ -29,6 +31,7 @@ async function main() {
       destinationRoot: stageRoot,
       includeDesktopFiles: true,
     });
+    await buildDocs(stageRoot);
     const sourceNodeModules = path.join(projectRoot, "node_modules");
     if (!fs.existsSync(sourceNodeModules)) {
       throw new Error("node_modules is missing. Run pnpm install --frozen-lockfile first.");

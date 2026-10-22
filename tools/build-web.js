@@ -7,6 +7,8 @@ const fs = require("fs");
 const path = require("path");
 const { prepareRuntimeStage, projectRoot, replaceDirectoryAtomically } = require("./runtime-resources");
 
+const { buildDocs } = require("./build-docs");
+
 async function main() {
   const outputRoot = path.join(projectRoot, "dist", "web");
   // Stage into a temporary sibling directory first so the previous dist/web
@@ -22,6 +24,7 @@ async function main() {
     const runtime = await prepareRuntimeStage({ destinationRoot: stagingRoot });
     console.log(`[Zoidium] static deployment staged in ${stagingRoot}`);
     console.log(`[Zoidium] staged ${runtime.resources.length} CM3 resources from the local cache.`);
+    await buildDocs(stagingRoot);
     await replaceDirectoryAtomically(stagingRoot, outputRoot);
     console.log(`[Zoidium] static deployment published to ${outputRoot}`);
   } finally {
