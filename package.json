@@ -35,7 +35,9 @@
     "desktop:build": "pnpm run build:plugin-bundles && node tools/build-electron.js",
     "dist": "pnpm run desktop:build",
     "cm3:export": "node tools/cm3-snapshot.js export",
-    "cm3:restore": "node tools/cm3-snapshot.js restore"
+    "cm3:restore": "node tools/cm3-snapshot.js restore",
+    "docs:dev": "pnpm --filter @zoidium/docs dev",
+    "docs:build": "pnpm --filter @zoidium/docs build"
   },
   "build": {
     "appId": "com.zoidium.app",
@@ -49,7 +51,8 @@
       "!node_modules{,/**/*}",
       "!dist{,/**/*}",
       "!README*",
-      "!AGENTS.md"
+      "!AGENTS.md",
+      "!site{,/**/*}"
     ],
     "fileAssociations": [
       {

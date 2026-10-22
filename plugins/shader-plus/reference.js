@@ -3,7 +3,7 @@
 // against the implementations. IDs are stable documentation anchors.
 module.exports = {
   "schemaVersion": 1,
-  "docsUrl": "",
+  "docsUrl": "/docs/reference/shader/",
   "entries": [
     {
       "id": "builtin.tDiffuse",

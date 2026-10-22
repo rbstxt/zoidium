@@ -1,0 +1,44 @@
+---
+title: Extend your CM3 workflow
+description: Zoidium guides, shader reference and plugin development.
+template: splash
+hero:
+  tagline: Guides for Zoidium, an open-source collection of tools for extending CM3.
+  actions:
+    - text: Get started
+      link: /docs/getting-started/
+      icon: right-arrow
+    - text: Shader reference
+      link: /docs/reference/shader/
+      variant: secondary
+---
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+<CardGrid>
+  <Card title="Build a scene" icon="puzzle">
+    Edit paths with [Shape+](/docs/features/shape-plus/), animate characters with
+    [Text+](/docs/features/text-plus/), and shade objects with
+    [Material+](/docs/features/material-plus/).
+  </Card>
+  <Card title="Write a shader" icon="seti:shaderlab">
+    Start with [Custom Shader basics](/docs/shaders/basics/), add
+    [property controls](/docs/development/shader-properties/), then use the
+    [editor's completion and live check](/docs/shaders/editor/).
+  </Card>
+  <Card title="Animate and finish" icon="rocket">
+    Link properties with [Expressions+](/docs/features/expressions-plus/), edit
+    [motion paths](/docs/features/motion-path/), grade with
+    [Magic Looks](/docs/features/magic-looks/), and [export MP4](/docs/features/mp4-export/).
+  </Card>
+  <Card title="Develop a plugin" icon="seti:javascript">
+    Read the [plugin API](/docs/development/plugin-api/) and
+    [UI contract](/docs/development/plugin-ui/). Keep
+    [saved project compatibility](/docs/development/project-compatibility/) explicit.
+  </Card>
+</CardGrid>
+
+Zoidium is an independent external extension layer around CM3. It is not
+endorsed by Panzoid. The extension code is open source; CM3 runtime resources
+are fetched separately into a build or runtime stage.
+
+[Open the editor](/) · [About and legal information](/docs/about/)

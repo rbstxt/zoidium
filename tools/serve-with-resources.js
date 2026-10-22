@@ -8,6 +8,7 @@ const compression = require("compression");
 const handler = require("serve-handler");
 const { resolveDirectoryIndexUrl } = require("./directory-index");
 const { prepareRuntimeStage, projectRoot } = require("./runtime-resources");
+const { buildDocs } = require("./build-docs");
 
 const liveProjectEntries = [
   "404.html",
@@ -227,6 +228,7 @@ async function main() {
   }
 
   const runtime = await prepareRuntimeStage();
+  await buildDocs(runtime.root);
   let shuttingDown = false;
   let boundPort = options.port;
   const compressionMiddleware = compression();
