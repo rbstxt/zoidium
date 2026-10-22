@@ -39,7 +39,10 @@ function installDiagnostics({ input, pane, body, node, global, context, effect, 
     try {
       const prepared = context.apis.shaderPipeline.preview(effect, input.value);
       issues = checkShader(context.editor.mainViewport.renderer.getContext(), prepared);
-      if (!issues.length) status.textContent = "Check passed" + (input.value === effect.properties.fragShader.get() ? "" : " · Unapplied changes");
+      if (!issues.length) {
+        status.textContent = "Check passed" + (input.value === effect.properties.fragShader.get() ? "" : " · Unapplied changes");
+        status.classList.remove("is-error"); status.title = "";
+      }
     } catch (e) { issues = [{ line: 1, message: e.message, severity: "error" }]; }
     paint();
   }

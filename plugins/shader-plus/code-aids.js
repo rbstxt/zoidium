@@ -17,12 +17,17 @@ function installAids({ input, pane, body, toolbar, node, global, entries, change
   const count = node("span", "zsp-code-find-count", "", find);
   function button(label, action) { const b = node("button", "proprow propbutton", label, find); b.type = "button"; b.onclick = action; return b; }
   function closeCompletion() { popup.hidden = true; completing = []; input.removeAttribute("aria-activedescendant"); input.setAttribute("aria-expanded", "false"); }
-  function showHelp(name) {
+  function showHelp(name, detail = false) {
     const matches = entries().filter(e => e.name === name), unique = [...new Set(matches.map(e => e.signature).filter(Boolean))];
     help.replaceChildren(); help.hidden = !matches.length;
     if (!matches.length) return;
     node("code", "", unique.join("\n") || name, help);
     node("span", "", matches[0].description || matches[0].hint, help);
+    if (detail && matches[0].example) node("code", "", "Example: " + matches[0].example, help);
+    if (detail) {
+      const url = require("./reference.js").docsUrl;
+      if (url) { const link = node("a", "", "Documentation", help); link.href = url + "#" + matches[0].id; link.target = "_blank"; link.rel = "noopener"; }
+    }
     if (matches[0].include) node("small", "", "// #include <" + matches[0].include + ">", help);
   }
   function caretHelp() {
@@ -102,7 +107,7 @@ function installAids({ input, pane, body, toolbar, node, global, entries, change
   };
   input.addEventListener("blur", closeCompletion);
   return {
-    insert, write, showHelp,
+    insert, write, showHelp, refresh: update,
     reset() { history.reset(selection()); closeCompletion(); update(); },
     key(event) {
       if (event.isComposing) return false;

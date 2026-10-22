@@ -24,7 +24,7 @@ function activate(context) {
   const runtime = require("./runtime.js").installRuntime({ PZ, THREE: win.THREE, doc, patch, curves, editor, presetFont, pipeline: context.apis.shaderPipeline, onDispose: fn => disposers.push(fn) });
   disposers.push(() => runtime.disposeAll());
   require("./font-assets.js").registerFontAssets(context, runtime);
-  const codeWindows = require("./code-window.js").installCodeWindows({ context, patch });
+  const codeWindows = require("./code-window.js").installCodeWindows({ context, patch, presetFont });
   const authoring = require("./editor.js").installEditor({ context, patch, presetFont });
   const api = { runtime, authoring, codeWindows };
   win.ZoidiumShaderPlus = api;

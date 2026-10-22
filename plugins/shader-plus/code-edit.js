@@ -25,7 +25,7 @@ function bracketEdit(text, start, end, key) {
     edit.end = end + 1; return edit;
   }
   if (")]}".includes(key) && text[start] === key && start === end) return { text, start: start + 1, end: start + 1 };
-  if (key === "Backspace" && start === end && pairs[text[start - 1]] === text[start] && start > 0) return replace(text, start - 1, start + 1, "");
+  if (key === "Backspace" && start === end && pairs[text[start - 1]] && pairs[text[start - 1]] === text[start] && start > 0) return replace(text, start - 1, start + 1, "");
   return null;
 }
 function enterEdit(text, start, end) {

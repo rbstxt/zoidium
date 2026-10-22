@@ -24,10 +24,13 @@ function transformedMap(expanded, locations, source) {
   const before = expanded.split("\n"), after = source.split("\n"); let at = 0;
   return after.map((line, i) => {
     if (line === before[at]) return locations[at++];
-    const next = before.indexOf(line, at);
-    if (next >= 0 && next - at < 12) { at = next + 1; return locations[next]; }
-    // Injected auxiliary declarations have no source line of their own.
-    if (/^\s*uniform\b/.test(line) && after.slice(i + 1, i + 5).includes(before[at])) return locations[Math.max(0, at - 1)] || 1;
+    if (!line.trim() || /^uniform (?:float|vec2) \w+_(?:range|repetitions);$/.test(line)) return locations[Math.max(0, at - 1)] || 1;
+    const nextBefore = before.indexOf(line, at + 1), nextAfter = after.indexOf(before[at], i + 1);
+    // Source transforms insert short declaration blocks, including blank
+    // lines, and rewrite calls in place. Account for insertions before
+    // matching repeated helper braces further ahead in the expanded source.
+    if (nextAfter >= 0 && nextAfter - i <= 8 && (nextBefore < 0 || nextAfter - i <= nextBefore - at)) return locations[Math.max(0, at - 1)] || 1;
+    if (nextBefore >= 0 && nextBefore - at < 8) { at = nextBefore + 1; return locations[nextBefore]; }
     return locations[Math.min(at++, locations.length - 1)] || 1;
   });
 }
