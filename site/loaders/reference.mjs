@@ -1,6 +1,6 @@
 export function referenceMarkdown(reference) {
   const lines = ['This reference is generated from the same versioned data used by Shader+ completion and help. IDs remain stable for editor links.',
-    '', '## Contents', ''];
+    '', 'The sections follow built-ins, includes, helpers, and property kinds.', ''];
   const groups = [ ['builtin', 'Built-in uniforms and varyings'], ['include', 'Includes'],
     ['helper', 'Helper functions'], ['kind', 'Property kinds'] ];
   for (const [category, title] of groups) {

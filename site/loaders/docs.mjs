@@ -13,7 +13,7 @@ export function zoidiumDocs() {
       await docsLoader().load(context);
       async function put(id, title, body) {
         const data = await context.parseData({ id, data: { title } });
-        context.store.set({ id, data, body, rendered: await context.renderMarkdown(body),
+        context.store.set({ id, data, body, filePath: `src/content/docs/${id}.md`, rendered: await context.renderMarkdown(body),
           digest: context.generateDigest(body) });
       }
       async function loadSources() {

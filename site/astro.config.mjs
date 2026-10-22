@@ -28,7 +28,7 @@ export default defineConfig({
         { label: 'Porting shaders', slug: 'shaders/porting' },
         { label: 'Shader reference', slug: 'reference/shader' },
       ] },
-      { label: 'Plugin development', items: [{ autogenerate: { directory: 'development' } }] },
+      { label: 'Plugin development', collapsed: true, items: [{ autogenerate: { directory: 'development' } }] },
       { label: 'About Zoidium', slug: 'about' },
     ],
     expressiveCode: { themes: ['github-dark', 'github-light'] },

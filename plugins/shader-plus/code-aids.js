@@ -26,7 +26,7 @@ function installAids({ input, pane, body, toolbar, node, global, entries, change
     if (detail && matches[0].example) node("code", "", "Example: " + matches[0].example, help);
     if (detail) {
       const url = require("./reference.js").docsUrl;
-      if (url) { const link = node("a", "", "Documentation", help); link.href = url + "#" + matches[0].id; link.target = "_blank"; link.rel = "noopener"; }
+      if (url && matches[0].id) { const link = node("a", "", "Documentation", help); link.href = url + "#" + matches[0].id; link.target = "_blank"; link.rel = "noopener"; }
     }
     if (matches[0].include) node("small", "", "// #include <" + matches[0].include + ">", help);
   }
