@@ -430,3 +430,22 @@ Click above an advanced bar to create independent opacity stops. Diamonds edit
 the following segment's midpoint. Presets are local to the browser at
 `zoidium.gradient-presets.v1`, with a maximum of 24 user presets. They contain
 only authored stops; no project or image data is stored there.
+
+## Shared curve control and Shader code windows
+
+`plugins/material-plus/graph-curves.js` supplies Color Curves and Shader+'s
+single/RGBA curve controls. `createCurveControl(property, context)` accepts
+optional `options` for `filled`, `range()` labels, `axis` labels, `tools`,
+`presets` and `reset(channel)`. Optional `handles` supplies `get`, `move` and
+`movePoint` operations. The default sampler and native Color Curves storage
+stay unchanged. These controls fit CM3's value column with a square plot.
+Pointer drags, point fields, presets, Random and Reset each commit one native
+history operation; Escape cancels a drag. Graph/Curves selects presentation
+options on this one widget.
+
+While Shader+ is enabled, native Shader and Expression editor buttons open
+Zoidium windows with persisted geometry. The code area uses Source Code Pro,
+line numbers, Tab/Shift+Tab indentation and Apply, Ctrl/Cmd+S or Ctrl+Enter.
+The Shader side list inserts uniform/helper names. Shader errors use CM3's
+existing define-corrected error event. Reopening focuses the same property
+window, and removing the target or replacing the project closes it.

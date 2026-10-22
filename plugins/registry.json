@@ -72,15 +72,15 @@
       "category": "utilities",
       "name": "Shader+",
       "author": "Zoidium",
-      "version": "10",
+      "version": "11",
       "defaultEnabled": true,
       "itemCount": 12,
       "format": "shader controls",
       "tagline": "Custom shader property editors",
       "description": "Native custom shader controls with optional baked texture inputs.",
-      "manifest": "./plugins/shader-plus/manifest.json?v=10",
-      "bundle": "./plugins/shader-plus/bundle.json?v=10",
-      "integrity": "sha256-vSTxEbSvP8DDhCtlLHuPWv+umQeL2/UZpZy34PSVI+M="
+      "manifest": "./plugins/shader-plus/manifest.json?v=11",
+      "bundle": "./plugins/shader-plus/bundle.json?v=11",
+      "integrity": "sha256-O7HysaGyAOgLRqD/8LPVnFrPRf6SuOCFN1t4gyqkiOw="
     },
     {
       "id": "player-plus",
@@ -229,16 +229,16 @@
       "category": "scene",
       "name": "Material+",
       "author": "Zoidium",
-      "version": "26",
+      "version": "27",
       "itemCount": 5,
       "format": "3D materials",
       "tagline": "Node, PBR+, Matcap & Image+ materials",
       "color": "#b36bca",
       "description": "Adds procedural Node Materials with a node editor, PBR+ with ramps, Fresnel, cel shading and projection, Image+ with opacity, Matcap, and corrected-UV materials for 3D objects.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/material-plus/manifest.json?v=26",
-      "bundle": "./plugins/material-plus/bundle.json?v=26",
-      "integrity": "sha256-t2xEBvWPV0a/JH86YsvBGW5Vg2smz0dsSmuF30mDT54="
+      "manifest": "./plugins/material-plus/manifest.json?v=27",
+      "bundle": "./plugins/material-plus/bundle.json?v=27",
+      "integrity": "sha256-nRdku9WFi16sCVPtseWqZTR7RNCV0ny3W6J8p6Kp+QU="
     },
     {
       "id": "text-plus",
@@ -343,16 +343,16 @@
       "category": "adjustment",
       "name": "Native FX",
       "author": "Zoidium",
-      "version": "20",
+      "version": "21",
       "itemCount": 6,
       "format": "native effects",
       "tagline": "Native Effects and Time Tools",
       "color": "#c56b3d",
       "description": "Adds native filters, direct visual controls, and time effects.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/native-fx/manifest.json?v=20",
-      "bundle": "./plugins/native-fx/bundle.json?v=20",
-      "integrity": "sha256-+tXY38ANdRt6vfAs+xRTxtMC4vfczABlob4qEXn27TM="
+      "manifest": "./plugins/native-fx/manifest.json?v=21",
+      "bundle": "./plugins/native-fx/bundle.json?v=21",
+      "integrity": "sha256-INsLmF5xfio4RvI5KtfRyZ30v4/i7KkABKbPjYdeRZI="
     },
     {
       "id": "afterclip",

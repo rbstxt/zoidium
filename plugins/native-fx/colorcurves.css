@@ -1,18 +1,3 @@
-.zoidium-color-curves-row {
-  grid-template-columns: minmax(0, 1fr) !important;
-  padding-bottom: 4px !important;
-  white-space: normal !important;
-}
-
-.zoidium-color-curves-row > div:first-child {
-  padding-bottom: 3px;
-}
-
-.zoidium-color-curves-row > div:nth-child(2) {
-  min-width: 0;
-  padding: 0 5px 5px !important;
-}
-
 .zoidium-color-curves-control,
 .zoidium-color-curves-editor,
 .zoidium-color-curves-control * {

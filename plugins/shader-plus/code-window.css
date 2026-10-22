@@ -1,0 +1,25 @@
+.zsp-code-body { display: flex; flex-direction: column; padding: 0 !important; overflow: hidden !important; }
+.zsp-code-toolbar { display: flex; align-items: center; gap: 14px; padding: 6px 10px; border-bottom: 1px solid var(--zui-border); }
+.zsp-code-toolbar button { width: auto; padding: 4px 18px; }
+.zsp-code-shortcut { font-size: 12px; color: var(--zui-text-muted); }
+.zsp-code-content { display: flex; flex: 1; min-height: 0; }
+.zsp-code-pane { display: flex; flex: 1; min-width: 0; min-height: 0; background: var(--zui-bg-input); }
+.zsp-code-pane .zsp-code-input, .zsp-code-pane .zsp-code-gutter { font-family: "Source Code Pro", monospace !important; font-size: 13px; line-height: 21px; tab-size: 2; border: 0; border-radius: 0; margin: 0; box-sizing: border-box; padding: 10px 8px; }
+.zsp-code-pane .zsp-code-input { flex: 1; width: 0; min-width: 0; resize: none; outline: none; color: var(--zui-text-bright); background: transparent; white-space: pre; overflow: auto; }
+.zsp-code-pane .zsp-code-gutter { flex: 0 0 48px; text-align: right; user-select: none; overflow: hidden; color: var(--zui-text-faint); background: var(--zui-bg-sunken); }
+.zsp-code-symbols { flex: 0 0 180px; overflow: auto; border-left: 1px solid var(--zui-border); background: var(--zui-bg); }
+.zsp-code-symbol-title { padding: 10px; font-size: 12px; color: var(--zui-text-muted); }
+.zsp-code-symbol { display: flex; flex-direction: column; align-items: start; width: 100%; padding: 6px 10px; border: 0; border-top: 1px solid var(--zui-border-soft); background: transparent; color: var(--zui-value); text-align: left; cursor: pointer; overflow-wrap: anywhere; }
+.zsp-code-symbol:hover, .zsp-code-symbol:focus-visible { background: var(--zui-hover); }
+.zsp-code-symbol small { color: var(--zui-text-muted); }
+.zsp-code-status { min-height: 24px; max-height: 110px; overflow: auto; padding: 4px 10px; white-space: pre-wrap; font: 12px/18px "Source Code Pro", monospace; color: var(--zui-text-muted); border-top: 1px solid var(--zui-border); }
+.zsp-code-status.is-error { color: var(--zui-danger); }
+@media (max-width: 650px) { .zsp-code-symbols { flex-basis: 120px; } }
+
+.zsp-code-pane { position: relative; }
+.zsp-code-pane .zsp-code-highlight { position: absolute; inset: 0 0 0 48px; margin: 0; padding: 10px 8px; overflow: hidden; pointer-events: none; white-space: pre; color: var(--zui-text-bright); font: 13px/21px "Source Code Pro", monospace !important; tab-size: 2; }
+.zsp-code-pane.has-highlight .zsp-code-input { color: transparent; caret-color: var(--zui-text-bright); position: relative; z-index: 1; }
+.zsp-code-highlight .token.comment { color: var(--zui-text-faint); }
+.zsp-code-highlight .token.keyword, .zsp-code-highlight .token.function, .zsp-code-highlight .token.number, .zsp-code-highlight .token.boolean { color: var(--zui-value); }
+.zsp-code-highlight .token.operator, .zsp-code-highlight .token.punctuation { color: var(--zui-text-muted); }
+.zsp-code-highlight .token.string { color: var(--zui-value-strong); }

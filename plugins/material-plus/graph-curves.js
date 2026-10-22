@@ -185,6 +185,8 @@
 
   function createCurveControl(property, context) {
     const channels = context.channels || CHANNELS;
+    const options = context.options || {}, handleApi = context.handles;
+    const readOnly = !!(property.definition?.readOnly || property.animated && property.expression);
     const parse = context.parseState || parseState, serialize = context.serializeState || serializeState;
     const document = context.document;
     const controls = context.controls;
@@ -249,6 +251,9 @@
     svg.appendChild(diagonal);
     const referencePath = svgElement(document, "path", "zoidium-color-curves-reference");
     svg.appendChild(referencePath);
+    const area = svgElement(document, "path", "zoidium-curve-area");
+    area.hidden = !options.filled;
+    svg.appendChild(area);
     const activePath = svgElement(document, "path", "zoidium-color-curves-active");
     svg.appendChild(activePath);
     const pointsLayer = svgElement(document, "g", "zoidium-color-curves-points");
@@ -270,7 +275,58 @@
     let activeChannel = "composite";
     let selectedIndex = null;
     let drag = null;
-    let editing = false;
+    let editing = false, beforeEdit;
+    let handlesVisible = false;
+    let extras;
+    const coordinates = [];
+    function button(parent, label, action) {
+      const el = document.createElement("button"); el.type = "button";
+      el.className = "zoidium-curve-action"; el.textContent = label;
+      el.setAttribute("aria-label", label); el.disabled = readOnly;
+      el.onclick = event => { event.stopPropagation(); action(); };
+      parent.appendChild(el); return el;
+    }
+    function transaction(work) {
+      if (!beginEdit()) return;
+      try { work(); setPropertyValue(); finishEdit(false); }
+      catch (error) { property.set(beforeEdit); finishEdit(true); throw error; }
+    }
+    if (options.tools || handleApi) {
+      extras = document.createElement("div"); extras.className = "zoidium-curve-options"; editor.appendChild(extras);
+      if (handleApi) {
+        const label = document.createElement("label"), input = document.createElement("input"); input.type = "checkbox";
+        input.setAttribute("aria-label", "Handles"); input.onchange = () => { handlesVisible = input.checked; draw(); };
+        label.append(input, document.createTextNode("Handles")); extras.appendChild(label);
+      }
+      if (options.tools) {
+        button(extras, "Delete point", removeSelected);
+        button(extras, "Random", () => transaction(() => {
+          const bytes = new Uint32Array(5); document.defaultView.crypto.getRandomValues(bytes);
+          state[activeChannel] = Array.from(bytes, (n, i) => [i / 4, Math.round(n / 4294967295 * 10000) / 10000]); selectedIndex = 0;
+        }));
+        const count = document.createElement("span"); count.className = "zoidium-curve-count"; extras.appendChild(count);
+        for (const [label, preset] of Object.entries(options.presets || {})) button(extras, label, () => transaction(() => { state[activeChannel] = preset.map(p => p.slice()); selectedIndex = 0; }));
+        for (const [i, label] of ["Point input", "Point value"].entries()) {
+          const input = document.createElement("input"); input.type = "number"; input.step = "any"; input.className = "pz-inputbox";
+          input.setAttribute("aria-label", label); input.title = label; input.disabled = readOnly;
+          input.onchange = () => {
+            const n = Number(input.value); if (!Number.isFinite(n) || selectedIndex == null) return;
+            transaction(() => { const point = activePoints()[selectedIndex].slice(), range = options.range?.() || [0, 1]; point[i] = i ? (n - range[0]) / (range[1] - range[0] || 1) : n; moveSelected(point); });
+          };
+          extras.appendChild(input); coordinates.push(input);
+        }
+      }
+    }
+    if (options.range) {
+      for (const [name, index] of [["maximum", 1], ["minimum", 0]]) {
+        const label = document.createElement("span"); label.className = "zoidium-curve-range zoidium-curve-" + name;
+        label.dataset.rangeIndex = String(index); graph.appendChild(label);
+      }
+    }
+    const axis = document.createElement("div"); axis.className = "zoidium-curve-axis";
+    axis.hidden = !options.axis; editor.insertBefore(axis, footer);
+    if (options.axis) for (const name of options.axis) { const span = document.createElement("span"); span.textContent = name; axis.appendChild(span); }
+    reset.disabled = readOnly;
 
     function activePoints() {
       return state[activeChannel];
@@ -299,7 +355,9 @@
       } else {
         referencePath.setAttribute("d", curvePath(state.composite, context.createSampler));
       }
-      activePath.setAttribute("d", curvePath(activePoints(), context.createSampler));
+      const path = curvePath(activePoints(), context.createSampler);
+      activePath.setAttribute("d", path);
+      area.setAttribute("d", options.filled ? path + " L256 256 L0 256 Z" : "");
       pointsLayer.replaceChildren();
       activePoints().forEach((point, index) => {
         const group = svgElement(document, "g", "zoidium-color-curves-point-wrap");
@@ -314,12 +372,36 @@
         group.appendChild(visible);
         pointsLayer.appendChild(group);
       });
+      if (handleApi && handlesVisible && selectedIndex != null) {
+        const points = activePoints(), p = points[selectedIndex];
+        for (const key of ["in", "out"]) {
+          const index = key === "in" ? selectedIndex - 1 : selectedIndex;
+          if (index < 0 || index >= points.length - 1) continue;
+          const h = handleApi.get(points, index)[key === "in" ? 1 : 0];
+          const line = svgElement(document, "path", "zoidium-curve-tangent");
+          line.setAttribute("d", `M${p[0]*256} ${(1-p[1])*256}L${h[0]*256} ${(1-h[1])*256}`); pointsLayer.appendChild(line);
+          const tip = svgElement(document, "rect", "zoidium-curve-handle"); tip.dataset.handle = key;
+          tip.setAttribute("x", h[0]*256 - 5); tip.setAttribute("y", (1-h[1])*256 - 5);
+          tip.setAttribute("width", 10); tip.setAttribute("height", 10);
+          tip.setAttribute("aria-label", key === "in" ? "Incoming tangent" : "Outgoing tangent"); pointsLayer.appendChild(tip);
+        }
+      }
+      const range = options.range?.() || [0, 1], point = activePoints()[selectedIndex];
+      for (const el of graph.querySelectorAll("[data-range-index]")) el.textContent = range[Number(el.dataset.rangeIndex)];
+      if (extras) {
+        const count = extras.querySelector(".zoidium-curve-count"); if (count) count.textContent = activePoints().length + " pts";
+        for (const el of extras.querySelectorAll('button[aria-label="Delete point"]')) el.disabled = readOnly || selectedIndex == null || selectedIndex === 0 || selectedIndex === activePoints().length - 1;
+      }
+      coordinates.forEach((el, i) => { el.disabled = readOnly || !point; if (point && document.activeElement !== el) el.value = Math.round((i ? range[0] + point[1]*(range[1]-range[0]) : point[0])*10000)/10000; });
       updateStatus();
     }
 
     function beginEdit() {
-      editing = true;
-      controls.editStart.call(editor, property);
+      if (readOnly || editing) return false;
+      const history = root.closest("ul")?.pz_controls?.editor.history;
+      if (history && history.operation !== null) return false;
+      beforeEdit = property.get(); editing = true;
+      controls.editStart.call(editor, property); return true;
     }
 
     function setPropertyValue() {
@@ -328,7 +410,7 @@
     }
 
     function finishEdit(discard) {
-      controls.editFinish.call(editor, property, Boolean(discard));
+      controls.editFinish.call(editor, property, Boolean(discard || property.get() === beforeEdit));
       editing = false;
       root.pz_update();
     }
@@ -344,35 +426,37 @@
     function moveSelected(point) {
       const points = activePoints();
       if (selectedIndex == null || !points[selectedIndex]) return;
-      const current = points[selectedIndex];
+      const current = points[selectedIndex], previous = current.slice();
       const last = points.length - 1;
       const minimumX = selectedIndex === 0 ? 0 : points[selectedIndex - 1][0] + 1 / 1024;
       const maximumX = selectedIndex === last ? 1 : points[selectedIndex + 1][0] - 1 / 1024;
       current[0] = selectedIndex === 0 ? 0 : selectedIndex === last ? 1 : clamp(point[0], minimumX, maximumX);
       current[1] = clamp(point[1], 0, 1);
+      handleApi?.movePoint?.(points, selectedIndex, previous);
     }
 
     function graphPointerDown(event) {
-      if (event.button !== 0 || drag) return;
+      if (event.button !== 0 || drag || readOnly) return;
+      const handle = event.target.closest?.("[data-handle]")?.dataset.handle;
       const pointTarget = event.target.closest?.("[data-point-index]");
       const points = activePoints();
       let created = false;
       if (pointTarget) {
         selectedIndex = Number(pointTarget.dataset.pointIndex);
-      } else {
+      } else if (!handle) {
         if (points.length >= MAX_POINTS) return;
         const point = pointFromEvent(event);
         point[0] = clamp(point[0], 1 / 1024, 1 - 1 / 1024);
         selectedIndex = points.findIndex((candidate) => candidate[0] > point[0]);
         if (selectedIndex < 0) selectedIndex = points.length - 1;
-        beginEdit();
+        if (!beginEdit()) return;
         points.splice(selectedIndex, 0, point);
         created = true;
         setPropertyValue();
       }
-      if (!created) beginEdit();
+      if (!created && !beginEdit()) return;
       drag = {
-        pointerId: event.pointerId,
+        pointerId: event.pointerId, handle,
         created,
         moved: created,
         start: points[selectedIndex].slice(),
@@ -392,8 +476,9 @@
       if (!drag || event.pointerId !== drag.pointerId) return;
       const next = pointFromEvent(event);
       const current = activePoints()[selectedIndex];
-      moveSelected(next);
-      if (Math.abs(current[0] - drag.start[0]) > 0.0001 || Math.abs(current[1] - drag.start[1]) > 0.0001) {
+      if (drag.handle) handleApi.move(activePoints(), selectedIndex, drag.handle, next);
+      else moveSelected(next);
+      if (drag.handle || Math.abs(current[0] - drag.start[0]) > 0.0001 || Math.abs(current[1] - drag.start[1]) > 0.0001) {
         drag.moved = true;
       }
       setPropertyValue();
@@ -402,7 +487,9 @@
 
     function graphPointerUp(event) {
       if (!drag || (event?.pointerId != null && event.pointerId !== drag.pointerId)) return;
-      const discard = !drag.moved;
+      const cancel = event?.type === "pointercancel";
+      if (cancel) property.set(beforeEdit);
+      const discard = cancel || !drag.moved;
       try {
         graph.releasePointerCapture(drag.pointerId);
       } catch (_error) {
@@ -416,7 +503,7 @@
     function removeSelected() {
       const points = activePoints();
       if (selectedIndex == null || selectedIndex === 0 || selectedIndex === points.length - 1) return;
-      beginEdit();
+      if (!beginEdit()) return;
       points.splice(selectedIndex, 1);
       selectedIndex = Math.min(selectedIndex, points.length - 1);
       setPropertyValue();
@@ -425,10 +512,16 @@
 
     function graphKeyDown(event) {
       if (event.key === "Escape") {
+        if (drag) { property.set(beforeEdit); graphPointerUp({ pointerId: drag.pointerId, type: "pointercancel" }); }
         selectedIndex = null;
         draw();
         event.stopPropagation();
         return;
+      }
+      if (readOnly || drag) return;
+      if (event.key === "Tab") {
+        selectedIndex = ((selectedIndex ?? (event.shiftKey ? 0 : -1)) + (event.shiftKey ? activePoints().length - 1 : 1)) % activePoints().length;
+        draw(); event.preventDefault(); return;
       }
       if (event.key === "Delete" || event.key === "Backspace") {
         removeSelected();
@@ -445,7 +538,7 @@
       if (event.key === "ArrowRight") point[0] += step;
       if (event.key === "ArrowUp") point[1] += step;
       if (event.key === "ArrowDown") point[1] -= step;
-      beginEdit();
+      if (!beginEdit()) return;
       moveSelected(point);
       setPropertyValue();
       finishEdit(false);
@@ -466,8 +559,8 @@
       event.stopPropagation();
       const points = activePoints();
       if (points.length === 2 && points[0][1] === 0 && points[1][1] === 1) return;
-      beginEdit();
-      state[activeChannel] = identityPoints();
+      if (!beginEdit()) return;
+      state[activeChannel] = options.reset?.(activeChannel) || identityPoints();
       selectedIndex = null;
       setPropertyValue();
       finishEdit(false);
@@ -494,6 +587,9 @@
       if (selectedIndex != null && !points[selectedIndex]) selectedIndex = null;
       draw();
     };
+    root.dispose = () => { if (drag) graphPointerUp({ pointerId: drag.pointerId, type: "pointercancel" }); };
+    root.addEventListener("mousedown", event => event.stopPropagation());
+    root.addEventListener("keydown", event => { if (!(event.ctrlKey || event.metaKey) || !["z", "y"].includes(event.key.toLowerCase())) event.stopPropagation(); });
     const queueTask = globalThis.queueMicrotask || ((callback) => globalThis.setTimeout(callback, 0));
     queueTask(() => root.closest("li")?.classList.add("zoidium-color-curves-row"));
     draw();

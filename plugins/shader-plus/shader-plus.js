@@ -13,7 +13,7 @@ function activate(context) {
   }
   const editor = () => context.editor;
   const presetFont = () => "/assets/fonts/2d/bebas.ttf";
-  for (const path of ["./plugins/native-fx/colorcurves.css", "./plugins/shader-plus/style.css"]) {
+  for (const path of ["./plugins/native-fx/colorcurves.css", "./plugins/shader-plus/style.css", "./plugins/shader-plus/code-window.css", "./plugins/native-fx/curve-options.css"]) {
     const style = doc.createElement("style"); style.textContent = context.getAsset("text", path); doc.head.append(style); disposers.push(() => style.remove());
   }
   const curves = shared("./material-plus/graph-curves.js");
@@ -24,8 +24,9 @@ function activate(context) {
   const runtime = require("./runtime.js").installRuntime({ PZ, THREE: win.THREE, doc, patch, curves, editor, presetFont, pipeline: context.apis.shaderPipeline, onDispose: fn => disposers.push(fn) });
   disposers.push(() => runtime.disposeAll());
   require("./font-assets.js").registerFontAssets(context, runtime);
+  const codeWindows = require("./code-window.js").installCodeWindows({ context, patch });
   const authoring = require("./editor.js").installEditor({ context, patch, presetFont });
-  const api = { runtime, authoring };
+  const api = { runtime, authoring, codeWindows };
   win.ZoidiumShaderPlus = api;
   disposers.push(() => { if (win.ZoidiumShaderPlus === api) delete win.ZoidiumShaderPlus; });
 }

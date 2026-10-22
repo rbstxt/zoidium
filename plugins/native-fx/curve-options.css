@@ -1,0 +1,30 @@
+/* Shared curve controls stay in CM3's value column, with a square graph. */
+.zoidium-color-curves-row > div { min-width: 0; }
+.zoidium-color-curves-control { max-width: 100%; white-space: normal; }
+.zoidium-color-curves-control .zoidium-color-curves-toolbar { grid-template-columns: repeat(4,minmax(0,1fr)) auto; }
+.zoidium-color-curves-control .zoidium-color-curves-channel { padding: 0 3px; }
+.zoidium-color-curves-control .zoidium-color-curves-reset { padding: 0 3px; gap: 2px; }
+.zoidium-color-curves-control .zoidium-color-curves-reset svg { width: 11px; }
+.zoidium-color-curves-control .zoidium-color-curves-graph { aspect-ratio: 1; }
+.zoidium-color-curves-control .zoidium-color-curves-footer { flex-wrap: wrap; gap: 0; font-size: 10px; }
+.zoidium-color-curves-control .zoidium-color-curves-hint { display: none; }
+.zoidium-curve-area { fill: var(--zoidium-curve-channel); opacity: .22; pointer-events: none; }
+.zoidium-curve-tangent { fill: none; stroke: var(--zui-text-muted); stroke-width: 1; vector-effect: non-scaling-stroke; pointer-events: none; }
+.zoidium-curve-handle { fill: var(--zui-text-muted); stroke: var(--zui-bg-input); stroke-width: 1; vector-effect: non-scaling-stroke; cursor: grab; }
+.zoidium-curve-options { display: flex; flex-wrap: wrap; gap: 3px; padding: 4px; font-size: 11px; align-items: center; }
+.zoidium-curve-options label { display: flex; gap: 3px; align-items: center; }
+.zoidium-curve-action { padding: 2px 4px; border: 1px solid var(--zui-border); background: var(--zui-bg); color: var(--zui-text); font: inherit; cursor: pointer; }
+.zoidium-curve-action:hover { background: var(--zui-hover); }
+.zoidium-curve-action:disabled { opacity: .45; cursor: default; }
+.zoidium-curve-options input[type=number] { flex: 1 1 45px; min-width: 0; width: 50px; }
+.zoidium-curve-count { color: var(--zui-text-muted); }
+.zoidium-curve-range { position: absolute; left: 4px; font-size: 10px; color: var(--zui-text-muted); pointer-events: none; }
+.zoidium-curve-maximum { top: 2px; }.zoidium-curve-minimum { bottom: 2px; }
+.zoidium-curve-axis { display: flex; justify-content: space-between; gap: 3px; padding: 2px 4px; font-size: 10px; color: var(--zui-text-muted); }
+.zsp-code-toolbar button.proprow { flex: 0 0 auto; width: auto !important; }
+.zoidium-curve-axis[hidden] { display: none; }
+
+.zsp-shared-curve .zoidium-color-curves-toolbar { grid-template-columns: minmax(0,1fr) auto; }
+.zsp-shared-curve.zsp-curve-rgba .zoidium-color-curves-toolbar { grid-template-columns: repeat(5,minmax(0,1fr)) auto; }
+.zoidium-color-curves-control .zoidium-color-curves-reset span { display: none; }
+.zoidium-color-curves-control .zoidium-color-curves-channel { font-size: 12px; padding: 0 2px; }
