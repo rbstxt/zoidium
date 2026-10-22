@@ -376,3 +376,27 @@ remain external CM3 resources in the ignored runtime cache. Imported fonts
 are project assets. Texture caches and expanded shader code are not saved.
 The five-effect AlipFX controls mapping changes only build-time editor metadata;
 saved effects keep their existing definitions and rendering.
+
+## Gradient and graph editor extensions
+
+Native particle Color/Size gradients and Shape+ gradient fills/strokes retain
+their original RGBA stop-array format. The editor adds no native fields or
+rendering mode and does not write values when opened. Untouched fractional
+color strings are preserved. Shape+ keeps its local-frame facade and hold
+keys. Gradient editor selection and user presets stay in localStorage, outside
+project files. Classic calls CM3's original generator.
+
+Shader+ Gradient JSON optionally stores per-stop `midpoint`, independent
+`opacityStops` and `repetitions`. Curve points optionally have a fourth element
+with `in`/`out` Bezier handles. Definitions optionally carry
+`zoidiumShader.editor` (`graph` or `curves`) and `axis` labels. Metadata alone
+does not change pixels. Without the new gradient fields or curve handles,
+bakes retain the previous implementation's exact bytes, including floating
+curve values. Existing points are never converted to explicit handles merely
+by displaying them.
+
+Older Shader+ builds retain this TEXT JSON on save but ignore the new sampling
+fields, so gradients with midpoints/opacity/repetitions and curves with explicit
+handles may render differently there. They also ignore graph style and axis
+labels. Bare CM3 still reports the existing texture-kind shader compile error.
+Keep the original file when opening these new authored features in older builds.
