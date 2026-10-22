@@ -72,15 +72,15 @@
       "category": "utilities",
       "name": "Shader+",
       "author": "Zoidium",
-      "version": "9",
+      "version": "10",
       "defaultEnabled": true,
       "itemCount": 12,
       "format": "shader controls",
       "tagline": "Custom shader property editors",
       "description": "Native custom shader controls with optional baked texture inputs.",
-      "manifest": "./plugins/shader-plus/manifest.json?v=9",
-      "bundle": "./plugins/shader-plus/bundle.json?v=9",
-      "integrity": "sha256-CL3PbrtVgToL7P6JTQ5+Z5KDbjXOPsp8owQ54NrfdW4="
+      "manifest": "./plugins/shader-plus/manifest.json?v=10",
+      "bundle": "./plugins/shader-plus/bundle.json?v=10",
+      "integrity": "sha256-vSTxEbSvP8DDhCtlLHuPWv+umQeL2/UZpZy34PSVI+M="
     },
     {
       "id": "player-plus",
@@ -461,14 +461,14 @@
       "id": "shape-plus",
       "name": "Shape+",
       "author": "Zoidium",
-      "version": "15",
+      "version": "16",
       "tagline": "Animated vector layers",
       "description": "Animated vector layers, procedural contents, SVG import and native preview path editing.",
       "category": "scene",
       "defaultEnabled": true,
-      "manifest": "./plugins/shape-plus/manifest.json?v=15",
-      "bundle": "./plugins/shape-plus/bundle.json?v=15",
-      "integrity": "sha256-A+Vkmr9Grv6uYNhbm/e3Jxa+uS3KrrImnBftcU/5/lI="
+      "manifest": "./plugins/shape-plus/manifest.json?v=16",
+      "bundle": "./plugins/shape-plus/bundle.json?v=16",
+      "integrity": "sha256-wLmK6aXQLWlJDmZT+HMVdnPH+KeVVgUvJhRnDxU0r5E="
     },
     {
       "id": "constraints",

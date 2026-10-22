@@ -65,3 +65,40 @@ test("crossing and invalid curve handles produce bounded deterministic samples",
     for (let i = 0; i <= 100; i++) { const y = sample(i/100); assert.ok(Number.isFinite(y) && y >= 0 && y <= 1); assert.equal(sample(i/100), y); }
   }
 });
+test("native additions retain classic byte arithmetic and exact RGBA text", () => {
+  const stops = [{ position: 0, color: "rgba(12.3456, 32.1, 250.2, 0.125)" }, { position: 1, color: "rgba(1.2, 200.3, 50.9, 0.9)" }];
+  for (const t of [.01, .125, .3, .5, .9]) {
+    const a = [12.3456, 32.1, 250.2, .125], b = [1.2, 200.3, 50.9, .9];
+    const expected = "rgba("+a.map((x, i) => x+t*(b[i]-x)).join(", ")+")";
+    assert.equal(M.nativeSample(stops, t), expected);
+  }
+  assert.equal(M.nativeSample(stops, 0), stops[0].color);
+});
+test("Shape+ facade snapshots isolate held keys and follow the current local frame", () => {
+  const { gradientFacade } = require("../plugins/shape-plus/runtime.js");
+  const held = [{ position: 0, color: "rgba(20,220,80,1)" }, { position: 1, color: "rgba(120,40,220,1)" }];
+  let frame = 45, write;
+  class Property {
+    constructor() { this.definition = { type: 5, zoidiumControl: "shape-plus/gradient" }; }
+    get() { return held; }
+    set(value, local) { write = { value, local }; }
+    getAddress() { assert.ok(this instanceof Property); return [2, 4]; }
+  }
+  const property = new Property(), facade = gradientFacade(property, () => frame);
+  const value = facade.get(); value[0].position = .3;
+  assert.equal(held[0].position, 0, "the classic picker cannot mutate a preceding held key");
+  facade.set(value); assert.equal(write.local, 45); assert.equal(write.value[0].position, .3);
+  frame = 60; facade.set(value); assert.equal(write.local, 60);
+  assert.deepEqual(facade.getAddress(), [2, 4]); assert.equal(facade.definition.zoidiumControl, undefined); assert.equal(property.definition.zoidiumControl, "shape-plus/gradient");
+});
+test("cyclic reversal retains the wrap midpoint and independent alpha wraps with one color", () => {
+  const stops = [{ position: .2, color: [1, 0, 0, 1], midpoint: .25 }, { position: .7, color: [0, 1, 0, 1], midpoint: .8 }];
+  const twice = M.reverse(M.reverse(stops, true), true);
+  twice.forEach((s, i) => { assert.ok(Math.abs(s.midpoint-stops[i].midpoint) < 1e-12); });
+  const alpha = [{ position: .2, alpha: 0 }, { position: .8, alpha: 1 }];
+  const data = current.bakeGradient([{ position: 0, color: [1, 0, 0, 1] }], { cyclic: true, opacityStops: alpha });
+  assert.equal(data[3], data[data.length-1]); assert.ok(data[3] > 0 && data[3] < 255);
+});
+test("native stop addition also samples normalized preset colors", () => {
+  assert.equal(M.nativeSample([{ position: 0, color: [0, 0, 0, 1] }, { position: 1, color: [1, 1, 1, 1] }], .5), "rgba(127.5, 127.5, 127.5, 1)");
+});

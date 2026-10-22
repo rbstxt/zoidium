@@ -400,7 +400,8 @@ dispose()}`. `get()` and `set()` copy their values. The value is
 `{stops:[{position,color,midpoint?}],opacityStops?:[{position,alpha,midpoint?}],
 cyclic?:boolean}`. Colors accept normalized RGBA arrays or native RGBA strings.
 Pass `document`, `value`, `readOnly`, and `advanced:false` for native stops.
-Native mode hides midpoints, separate opacity stops and the wheel.
+Native mode hides midpoints, separate opacity stops, the wheel, and user
+presets that require those unsupported fields.
 
 Supply `onStart()` to begin one history operation, `onInput(value)` for live
 preview, and `onFinish(cancel)` to finish or discard it. Returning `false` from

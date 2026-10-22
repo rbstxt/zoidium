@@ -111,7 +111,9 @@ function installRuntime({ PZ, THREE, doc, patch, curves, editor, presetFont, pip
     const value = property.get();
     if (kind === "gradient") {
       const key = value;
-      if (entry.key !== key) { entry.texture.image.data.set(bakeGradient(value)); entry.texture.wrapS = parseJSON(value).cyclic ? THREE.RepeatWrapping : THREE.ClampToEdgeWrapping; entry.texture.needsUpdate = true; entry.key = key; }
+      if (entry.key !== key) { entry.texture.image.data.set(bakeGradient(value)); entry.texture.wrapS = parseJSON(value).cyclic ? THREE.RepeatWrapping : THREE.ClampToEdgeWrapping; entry.texture.needsUpdate = true; entry.key = key;
+        const n = Number(parseJSON(value).repetitions); entry.repetitions = Number.isFinite(n) ? Math.max(1, n) : 1;
+      }
     } else if (kind === "curve") {
       if (entry.key !== value) {
         const half = entry.texture.type === THREE.HalfFloatType;
@@ -146,8 +148,7 @@ function installRuntime({ PZ, THREE, doc, patch, curves, editor, presetFont, pip
       const entry = prepareEntry(effect, property, kind);
       if (kind === "gradient") {
         uniforms[name] = { type: "t", value: entry.texture };
-        const n = Number(parseJSON(property.get()).repetitions);
-        uniforms[name+"_repetitions"] = { type: "f", value: Number.isFinite(n) ? Math.max(1, n) : 1 };
+        uniforms[name+"_repetitions"] = { type: "f", value: entry.repetitions };
       }
       if (kind === "curve") {
         uniforms[name] = { type: "t", value: entry.texture };
@@ -196,8 +197,7 @@ function installRuntime({ PZ, THREE, doc, patch, curves, editor, presetFont, pip
         const entry = prepareEntry(this, property, kind);
         const name = this.fixPropertyName(property.properties.name.get());
         if (kind === "gradient" && this.pass.uniforms[name+"_repetitions"]) {
-          const n = Number(parseJSON(property.get()).repetitions);
-          this.pass.uniforms[name+"_repetitions"].value = Number.isFinite(n) ? Math.max(1, n) : 1;
+          this.pass.uniforms[name+"_repetitions"].value = entry.repetitions;
         }
         if (kind === "text" && this.pass.uniforms[name]) {
           this.pass.uniforms[name].value = entry.texture;
