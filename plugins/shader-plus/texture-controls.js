@@ -16,20 +16,22 @@ function installTextureControls({ PZ, doc, register, curves, commit }) {
       write: value => property.set(JSON.stringify(value)),
     });
     box.classList.add("zsp-box", "zsp-gradient");
-    const anchor = box.firstElementChild, toolbar = node("div", "zsp-text-options"); box.append(toolbar);
+    // Gradient settings use the same labeled field grid as Text rows.
+    const anchor = box.firstElementChild, grid = node("div", "zsp-fields zsp-gradient-fields"); box.append(grid);
     const write = patch => commit(anchor, property, JSON.stringify({ ...read(), ...patch }));
-    const interpolation = select("Gradient interpolation", ["linear", "constant", "ease", "cardinal"], interpolation => write({ interpolation }));
-    const space = select("Gradient color space", ["srgb", "linear", "oklab"], space => write({ space }));
-    const cycleLabel = node("label", "zsp-inline"), cycle = node("input"); cycle.type = "checkbox"; cycle.setAttribute("aria-label", "Cyclic gradient"); cycle.onchange = () => write({ cyclic: cycle.checked });
-    cycleLabel.append(cycle, doc.createTextNode("Cyclic")); toolbar.append(interpolation, space, cycleLabel);
-    const interpolate = node("input"); interpolate.type = "checkbox"; interpolate.setAttribute("aria-label", "Interpolate");
-    interpolate.onchange = () => write({ interpolation: interpolate.checked ? "linear" : "constant" });
-    const interpolateLabel = node("label", "zsp-inline"); interpolateLabel.append(interpolate, doc.createTextNode("Interpolate")); toolbar.append(interpolateLabel);
-    const repetitions = node("input", "pz-inputbox"); repetitions.type = "number"; repetitions.min = 1; repetitions.step = "any"; repetitions.setAttribute("aria-label", "Cycle repetitions"); repetitions.title = "Cycle repetitions";
+    function labeled(label, control) {
+      const name = node("span", "zsp-field-label"); name.textContent = label;
+      control.setAttribute("aria-label", label); grid.append(name, control); return [name, control];
+    }
+    const [, interpolation] = labeled("Blend", select("Gradient interpolation", ["linear", "constant", "ease", "cardinal"], interpolation => write({ interpolation })));
+    const [, space] = labeled("Space", select("Gradient color space", ["srgb", "linear", "oklab"], space => write({ space })));
+    const [, cycle] = labeled("Cyclic", select("Cyclic gradient", ["off", "on"], value => write({ cyclic: value === "on" })));
+    const repetitions = node("input", "pz-inputbox"); repetitions.type = "number"; repetitions.min = 1; repetitions.step = "any"; repetitions.title = "Cycle repetitions";
     repetitions.onchange = () => { const n = Number(repetitions.value); if (Number.isFinite(n) && n >= 1) write({ repetitions: n }); };
-    const repsLabel = node("label", "zsp-inline"); repsLabel.append(doc.createTextNode("Cycle repetitions"), repetitions); toolbar.append(repsLabel);
+    const repsLabel = labeled("Repeat", repetitions);
+    for (const el of [interpolation, space, cycle]) el.classList.add("zsp-option");
     const update = box.pz_update;
-    box.pz_update = () => { update(); const value = read(); interpolation.value = value.interpolation || "linear"; space.value = value.space || "srgb"; cycle.checked = !!value.cyclic; repsLabel.hidden = !value.cyclic; interpolateLabel.hidden = !value.cyclic; interpolate.checked = value.interpolation !== "constant"; if (doc.activeElement !== repetitions) repetitions.value = value.repetitions || 1; };
+    box.pz_update = () => { update(); const value = read(); interpolation.value = value.interpolation || "linear"; space.value = value.space || "srgb"; cycle.value = value.cyclic ? "on" : "off"; for (const el of repsLabel) el.hidden = !value.cyclic; if (doc.activeElement !== repetitions) repetitions.value = value.repetitions || 1; };
     box.pz_update(); return box;
   });
   register("shader-plus/curve", PZ.property.type.TEXT, property => {

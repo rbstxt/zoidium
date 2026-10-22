@@ -1,22 +1,22 @@
 .zge-property,.zge-editor { min-width: 0; max-width: 100%; box-sizing: border-box; }
-.zge-editor { font: inherit; color: var(--zui-text); padding: 8px 9px; background: var(--zui-bg-sunken); white-space: normal; }
+.zge-editor { font: inherit; color: var(--zui-text); padding: 2px 8px 8px; background: transparent; white-space: normal; }
 .zge-editor [hidden] { display: none !important; }
 .zge-editor button,.zge-editor input { font: inherit; box-sizing: border-box; min-width: 0; max-width: 100%; }
 .zge-editor button { cursor: pointer; }
 .zge-editor button:disabled { cursor: default; opacity: .45; }
 .zge-editor :focus-visible { outline: 2px solid var(--zui-value); outline-offset: 2px; }
 .zge-bar { position: relative; height: 64px; margin: 2px 3px 5px; cursor: crosshair; touch-action: none; }
-.zge-preview { position: absolute; top: 15px; left: 0; width: 100%; height: 30px; border: 1px solid var(--zui-border); box-sizing: border-box; background-color: var(--zui-bg-input); background-image: conic-gradient(var(--zui-border) 25%,transparent 0 50%,var(--zui-border) 0 75%,transparent 0); background-size: 10px 10px; }
+.zge-preview { position: absolute; top: 15px; left: 0; width: 100%; height: 30px; border: 1px solid var(--zui-border-filter); box-sizing: border-box; background-color: var(--zui-bg-input); background-image: conic-gradient(var(--zui-border) 25%,transparent 0 50%,var(--zui-border) 0 75%,transparent 0); background-size: 10px 10px; }
 .zge-stop { position: absolute; top: 45px; width: 14px; height: 17px; transform: translateX(-50%); padding: 0; border: 1px solid var(--zui-text-muted); background: var(--zge-stop-color); clip-path: polygon(50% 0,100% 30%,100% 100%,0 100%,0 30%); touch-action: none; }
 .zge-stop-opacity { top: 0; clip-path: polygon(0 0,100% 0,100% 70%,50% 100%,0 70%); }
 .zge-stop[aria-pressed=true] { outline: 2px solid var(--zui-text-bright); outline-offset: 2px; box-shadow: inset 0 0 0 2px var(--zui-text-bright),inset 0 0 0 3px var(--zui-bg); }
 .zge-mid { position: absolute; top: 51px; width: 7px; height: 7px; padding: 0; border: 1px solid var(--zui-text-muted); background: var(--zui-bg-input); transform: translateX(-50%) rotate(45deg); touch-action: none; }
 .zge-mid-opacity { top: 4px; }
 .zge-tools,.zge-presets { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
-.zge-button { color: var(--zui-text); background: var(--zui-bg-input); border: 1px solid var(--zui-border-soft); padding: 3px 5px; font-size: var(--zui-font-size-compact) !important; }
-.zge-button:hover { background: var(--zui-hover); }
+.zge-button { color: var(--zui-button-text); background: var(--zui-button-bg); border: 1px solid transparent; padding: 2px 8px; font-size: var(--zui-font-size-compact) !important; }
+.zge-button:hover:not(:disabled) { border-color: var(--zui-button-hover-border); }
 .zge-fields { display: grid; grid-template-columns: repeat(auto-fit,minmax(66px,1fr)); gap: 5px; margin: 7px 0; font-size: var(--zui-font-size-compact); }
-.zge-fields label { display: flex; flex-direction: column; gap: 2px; }
+.zge-fields label { display: flex; flex-direction: column; gap: 2px; color: var(--zui-text-muted); }
 .zge-fields input { width: 100%; }
 .zge-color { display: grid; grid-template-columns: minmax(55px,1fr) 15px minmax(70px,.65fr); grid-template-rows: 110px 15px; gap: 5px; }
 .zge-sv { position: relative; background: linear-gradient(to top,#000,transparent),linear-gradient(to right,#fff,transparent),var(--zge-hue); cursor: crosshair; touch-action: none; }
@@ -29,7 +29,7 @@
 .zge-alpha { grid-column: 1/-1; margin: 0; width: 100%; height: 12px; appearance: none; background: linear-gradient(to right,transparent,var(--zge-color)),repeating-conic-gradient(var(--zui-border) 0 25%,var(--zui-bg-input) 0 50%) 0/8px 8px; }
 .zge-alpha::-webkit-slider-thumb { width: 5px; height: 15px; }
 .zge-presets { margin-top: 7px; }
-.zge-preset { width: 25px; height: 23px; padding: 0; }
+.zge-preset { width: 25px; height: 21px; padding: 0; border: 1px solid var(--zui-border-filter) !important; }
 .zge-preset-remove { padding: 0 2px; margin-left: -4px; height: 23px; }
 /* These editors need a full row; the label keeps the native selection/key UI. */
 .proprow:has(> .zge-property),.proprow:has(> .zsp-curve) { flex-wrap: wrap; height: auto; }
