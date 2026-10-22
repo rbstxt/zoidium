@@ -22,10 +22,13 @@
       },
     });
     box.append(widget.element);
-    box.pz_update = () => { const value = read(), key = JSON.stringify(value); if (!active && key !== shown) { shown = key; widget.set(value); } };
+    box.pz_update = () => {
+      const value = read(), key = JSON.stringify(value);
+      if (!active && key !== shown) { shown = key; widget.set(value); }
+    };
     box.pz_update(); return box;
   }
-  function replacement(property) { return classic ? original.apply(this, arguments) : propertyControl(property, { advanced: false }); }
+  function replacement(property) { return classic ? original.apply(this, arguments) : propertyControl(property, { advanced: false, sampleColor: M.nativeSample }); }
   let classic;
   api.propertyControl = propertyControl;
   api.setClassic = flag => {

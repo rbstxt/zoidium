@@ -400,3 +400,10 @@ fields, so gradients with midpoints/opacity/repetitions and curves with explicit
 handles may render differently there. They also ignore graph style and axis
 labels. Bare CM3 still reports the existing texture-kind shader compile error.
 Keep the original file when opening these new authored features in older builds.
+
+Shape+'s gradient facade now returns a working copy to either editor. The
+classic picker mutates its working array before calling `set`; returning a
+held key's array directly could alter the preceding key as a new local-frame
+key was created, leaving that earlier mutation after undo. The copy prevents
+that leak. Existing saved keys and their rendered output are unchanged until
+edited; new edits affect only their intended local-frame snapshot.

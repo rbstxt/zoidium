@@ -15,11 +15,12 @@
     if (t >= 1) return 1;
     return t <= m ? .5 * t / Math.max(m, 1e-12) : .5 + .5 * (t-m) / Math.max(1-m, 1e-12);
   }
-  function reverse(stops) {
+  function reverse(stops, cyclic = false) {
     const list = clone(stops).sort((a, b) => a.position-b.position);
     return list.map((s, i) => {
       const next = { ...s, position: 1-s.position }; delete next.midpoint;
-      if (i && list[i-1].midpoint !== undefined) next.midpoint = 1-list[i-1].midpoint;
+      const previous = i ? list[i-1] : cyclic ? list[list.length-1] : null;
+      if (previous?.midpoint !== undefined) next.midpoint = 1-previous.midpoint;
       return next;
     }).reverse();
   }
@@ -32,7 +33,18 @@
     const f = b.position > a.position ? midpoint((t-a.position)/(b.position-a.position), a.midpoint) : 0;
     return c.map((v, j) => v+(d[j]-v)*f);
   }
-  const api = { clamp, clone, color, rgba, midpoint, reverse, sample };
+  // Match the classic picker's byte-space arithmetic and string formatting
+  // when adding native stops, including fractional RGB channels.
+  function nativeSample(stops, t) {
+    const list = stops.slice().sort((a, b) => a.position-b.position);
+    let i = 0; while (i < list.length && list[i].position < t) i++;
+    if (list.length === 1 || i === 0) return list[0].color;
+    if (i === list.length) return list[list.length-1].color;
+    const a = list[i-1], b = list[i], parse = text => Array.isArray(text) ? text.map((v, i) => i < 3 ? v*255 : v) : String(text).slice(String(text).indexOf("(")+1, -1).split(",").map(parseFloat);
+    const c = parse(a.color), d = parse(b.color), f = (t-a.position)/(b.position-a.position);
+    return "rgba("+c.map((n, j) => n+f*(d[j]-n)).join(", ")+")";
+  }
+  const api = { clamp, clone, color, rgba, midpoint, reverse, sample, nativeSample };
   if (typeof module === "object" && module.exports) module.exports = api;
   else global.ZoidiumGradientModel = api;
 })(typeof window === "object" ? window : globalThis);

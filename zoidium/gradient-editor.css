@@ -44,3 +44,6 @@
 .zge-bar-wheel .zge-stop-color,.zge-bar-wheel .zge-mid-color { display: none; }
 .zge-bar-wheel .zge-stop-opacity { top: -4px; }
 li > div:has(> .zge-property),li > div:has(> .zsp-curve) { grid-column: 1 / -1; min-width: 0; }
+li:has(> div > .zge-property),li:has(> div > .zsp-curve) { min-width: 0; grid-template-columns: minmax(0,1fr) !important; }
+.editorpanel:has(.zge-property) { container-type: inline-size; }
+.editorpanel .zge-property { width: 100%; max-width: min(100%,calc(100cqw - 12px)); }
