@@ -141,3 +141,53 @@ add its include. Match color space, stop spacing, hue behavior and alpha
 explicitly. This is a shader migration and can change pixels; keep the old
 shader when exact compatibility is required. The metadata mapping performs
 none of these shader edits.
+
+## Gradient and curve editors
+
+Gradient now uses the shared inline stop editor. It includes a checkerboard
+preview, separate opacity stops, midpoint diamonds, an S/V square, hue/alpha
+strips, hex/RGB fields and local presets. Reverse reverses both stop lists;
+Distribute spaces the selected list evenly. Editing a stop previews live and
+commits one undo step. Cyclic gradients offer Bar/Wheel views, triangular
+markers, Interpolate and Cycle repetitions. The view is editor state only.
+Interpolate chooses linear or constant; the interpolation menu still offers
+ease and cardinal.
+
+Optional gradient JSON fields are:
+
+```json
+{
+  "stops": [{"position":0,"color":[1,0,0,1],"midpoint":0.3},
+            {"position":1,"color":[0,0,1,1]}],
+  "opacityStops": [{"position":0,"alpha":0,"midpoint":0.5},
+                   {"position":1,"alpha":1}],
+  "cyclic": true,
+  "repetitions": 3
+}
+```
+
+A midpoint belongs to the segment following that stop. Its default is 0.5.
+Separate opacity stops override color-stop alpha. `repetitions` is finite and
+at least 1, defaults to 1, and affects `zGradientCycle(Name,t)` through
+`Name_repetitions`. `zGradient(Name,t)` continues to sample a single bar.
+An explicit third argument to `zGradientCycle` overrides the property's
+repetitions. Repetition edits do not recompile the shader.
+
+Single-channel curves default to a filled Graph with numeric 0/1 x labels,
+range-based y labels, point controls, Handles, Random, Reset and shape presets.
+Right-click the property > Property settings > Curve editor chooses Graph
+or Curves. RGBA retains the channel-based Curves editor. Optional
+`zoidiumShader.axis:["Start","Peak","End"]` names the graph's x-axis;
+two labels are also accepted. Axis labels are metadata, not a change to time
+or curve sampling. Property settings accepts the array as JSON.
+
+Points can have explicit cubic Bezier handles as
+`[x,y,null,{"in":[x,y],"out":[x,y]}]`. Handles are absolute normalized
+coordinates. Each is optional. X handles are constrained within the segment
+and ordered for a unique x-to-y mapping; y is clamped to 0–1. Segments without
+explicit handles use the original monotone Color Curves sampler. Showing
+Handles or changing editor style does not write point data. Random authors
+five static points once; renders never generate random points.
+
+Input-luminance histograms are not implemented. `zoidiumShader.histogram`
+is reserved and has no effect in this version.

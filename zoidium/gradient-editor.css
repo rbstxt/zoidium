@@ -43,3 +43,4 @@
 .zge-bar-wheel .zge-preview { top: 7px; height: 13px; }
 .zge-bar-wheel .zge-stop-color,.zge-bar-wheel .zge-mid-color { display: none; }
 .zge-bar-wheel .zge-stop-opacity { top: -4px; }
+li > div:has(> .zge-property),li > div:has(> .zsp-curve) { grid-column: 1 / -1; min-width: 0; }

@@ -46,3 +46,22 @@ test("cycle repetitions bind only known samplers and retain explicit arguments",
   assert.equal(bindGradientCycles(src, new Set()), src);
   assert.equal(bindGradientCycles(bound, new Set(["Ramp"])), bound);
 });
+test("explicit curve handles alter only their segment and preserve range and storage", () => {
+  const { createGraphSampler, pointsWithHandles } = require("../plugins/shader-plus/curve-math.js");
+  const points = [[0, 0], [.5, .5, null, { in: [.45, .1] }], [1, 1]], input = JSON.stringify(points);
+  const sample = createGraphSampler(points, curves), old = curves.createSampler(points);
+  assert.notEqual(sample(.25), old(.25)); assert.equal(sample(.75), old(.75));
+  assert.equal(sample(0), 0); assert.equal(sample(.5), .5); assert.equal(sample(1), 1);
+  const value = JSON.stringify({ points, range: [0, 100] });
+  assert.deepEqual(current.parseCurve(value, curves).composite, pointsWithHandles(points, curves));
+  assert.notDeepEqual(current.bakeCurve(value, curves), legacy.bakeCurve(value, curves));
+  assert.equal(JSON.stringify(points), input);
+  for (let i = 0; i < 1000; i++) { const y = sample(i/999); assert.ok(Number.isFinite(y) && y >= 0 && y <= 1); }
+});
+test("crossing and invalid curve handles produce bounded deterministic samples", () => {
+  const { createGraphSampler } = require("../plugins/shader-plus/curve-math.js");
+  for (const handles of [{ out: [1, 1] }, { out: [Infinity, 0] }, { out: [-20, -2] }]) {
+    const points = [[0, 0, null, handles], [1, 1, null, { in: [0, 1] }]], sample = createGraphSampler(points, curves);
+    for (let i = 0; i <= 100; i++) { const y = sample(i/100); assert.ok(Number.isFinite(y) && y >= 0 && y <= 1); assert.equal(sample(i/100), y); }
+  }
+});

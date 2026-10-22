@@ -1,4 +1,6 @@
 "use strict";
+const { createGraphSampler } = require("./curve-math.js");
+const { createCurveGraph } = require("./curve-graph.js");
 const { parseJSON, parseCurve, bakeGradient } = require("./bake.js");
 function installTextureControls({ PZ, doc, register, curves, commit }) {
   function node(tag, className) { const el = doc.createElement(tag); el.className = className || ""; return el; }
@@ -34,17 +36,23 @@ function installTextureControls({ PZ, doc, register, curves, commit }) {
     const raw = () => parseJSON(property.get());
     const root = node("div", "editbox zsp-box zsp-curve"), host = node("div"), anchor = node("span", "zsp-anchor"), toolbar = node("div", "zsp-text-options");
     root.append(anchor, host, toolbar);
-    let widget, shownChannels;
+    let widget, shownChannels, shownStyle;
     function build() {
       const rgba = raw().channels === "rgba";
       root.classList.toggle("zsp-curve-rgba", rgba);
+      const style = property.definition.zoidiumShader?.editor || "graph";
+      if (!rgba && style === "graph") {
+        widget?.dispose?.(); widget = createCurveGraph(property, { doc, PZ, curves }); host.replaceChildren(widget);
+        shownChannels = raw().channels; shownStyle = style; return;
+      }
       const channels = [{ id: "composite", shortName: rgba ? "RGB" : "Y", name: rgba ? "RGB" : "Value" }];
       if (rgba) channels.push(...[["red", "R"], ["green", "G"], ["blue", "B"], ["alpha", "A"]].map(([id, shortName]) => ({ id, shortName, name: id })));
+      widget?.dispose?.();
       widget = curves.createCurveControl(property, { document: doc, controls: PZ.ui.controls, PZ, channels,
-        parseState: value => parseCurve(value, curves),
+        parseState: value => parseCurve(value, curves), createSampler: points => createGraphSampler(points, curves),
         serializeState: state => JSON.stringify({ ...raw(), ...state, points: state.composite }),
       });
-      host.replaceChildren(widget); shownChannels = raw().channels;
+      host.replaceChildren(widget); shownChannels = raw().channels; shownStyle = style;
     }
     const write = patch => commit(anchor, property, JSON.stringify({ ...raw(), ...patch }));
     const channel = select("Curve channels", ["single", "rgba"], channels => write({ channels })); toolbar.append(channel);
@@ -53,7 +61,7 @@ function installTextureControls({ PZ, doc, register, curves, commit }) {
       input.onchange = () => { const range = parseCurve(property.get(), curves).range.slice(); const value = Number(input.value); if (Number.isFinite(value)) { range[i] = value; write({ range }); } }; toolbar.append(input); return input;
     });
     root.pz_update = () => {
-      if (!widget || shownChannels !== raw().channels) build();
+      if (!widget || shownChannels !== raw().channels || shownStyle !== (property.definition.zoidiumShader?.editor || "graph")) build();
       widget.pz_update(); const state = parseCurve(property.get(), curves); channel.value = state.channels;
       ranges.forEach((input, i) => { if (doc.activeElement !== input) input.value = state.range[i]; });
     };

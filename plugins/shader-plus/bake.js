@@ -2,6 +2,7 @@
 // Pure baking of texture/array kinds. No DOM or WebGL here, so every result
 // is deterministic and testable in Node.
 const { MAX_PALETTE } = require("./kinds.js");
+const { createGraphSampler, pointsWithHandles } = require("./curve-math.js");
 const SIZE = 256, CURVE_SIZE = 1024;
 
 const clamp01 = v => Math.min(1, Math.max(0, Number.isFinite(v) ? v : 0));
@@ -111,6 +112,7 @@ function opacityAt(raw, t, cyclic, mode) {
 function parseCurve(value, curves) {
   const raw = parseJSON(value), state = curves.parseState(raw);
   if (!raw.composite && raw.points) state.composite = curves.parseState({ composite: raw.points }).composite;
+  if ((raw.composite || raw.points)?.some?.(p => p?.[3])) state.composite = pointsWithHandles(raw.composite || raw.points, curves);
   state.alpha = curves.parseState({ composite: raw.alpha }).composite;
   state.channels = raw.channels === "rgba" ? "rgba" : "single";
   state.range = Array.isArray(raw.range) && raw.range.length === 2 && raw.range.every(Number.isFinite) ? raw.range : [0, 1];
@@ -118,7 +120,8 @@ function parseCurve(value, curves) {
 }
 function bakeCurve(value, curves, half = false) {
   const state = parseCurve(value, curves);
-  const composite = curves.createSampler(state.composite), red = curves.createSampler(state.red);
+  const raw = parseJSON(value);
+  const composite = createGraphSampler(raw.composite || raw.points || state.composite, curves), red = curves.createSampler(state.red);
   const green = curves.createSampler(state.green), blue = curves.createSampler(state.blue), alpha = curves.createSampler(state.alpha);
   const data = half ? new Float32Array(CURVE_SIZE * 4) : new Uint8Array(CURVE_SIZE * 4);
   for (let i = 0; i < CURVE_SIZE; i++) {

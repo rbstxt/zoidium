@@ -25,16 +25,17 @@
     box.pz_update = () => { const value = read(), key = JSON.stringify(value); if (!active && key !== shown) { shown = key; widget.set(value); } };
     box.pz_update(); return box;
   }
-  function replacement(property) { return propertyControl(property, { advanced: false }); }
+  function replacement(property) { return classic ? original.apply(this, arguments) : propertyControl(property, { advanced: false }); }
   let classic;
   api.propertyControl = propertyControl;
   api.setClassic = flag => {
     flag = !!flag;
     if (classic === flag) return;
     classic = flag;
-    if (C.generateGradientInput === original || C.generateGradientInput === replacement) C.generateGradientInput = flag ? original : replacement;
+
     global.ZoidiumUI.refreshEditors?.();
   };
   api.isClassic = () => classic;
+  C.generateGradientInput = replacement;
   api.setClassic(false);
 })(window);
