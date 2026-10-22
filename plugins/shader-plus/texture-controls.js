@@ -36,8 +36,9 @@ function installTextureControls({ PZ, doc, register, curves, commit }) {
   });
   register("shader-plus/curve", PZ.property.type.TEXT, property => {
     const raw = () => parseJSON(property.get());
-    const root = node("div", "editbox zsp-box zsp-shared-curve"), host = node("div"), anchor = node("span", "zsp-anchor"), toolbar = node("div", "zsp-text-options");
+    const root = node("div", "editbox zsp-box zsp-shared-curve"), host = node("div"), anchor = node("span", "zsp-anchor"), toolbar = node("div", "zsp-fields zsp-curve-fields");
     root.append(anchor, host, toolbar);
+    const label = text => { const el = node("span", "zsp-field-label"); el.textContent = text; toolbar.append(el); };
     let widget, shownChannels, shownStyle;
     function build() {
       const rgba = raw().channels === "rgba";
@@ -47,9 +48,11 @@ function installTextureControls({ PZ, doc, register, curves, commit }) {
       host.replaceChildren(widget); shownChannels = raw().channels; shownStyle = style;
     }
     const write = patch => commit(anchor, property, JSON.stringify({ ...raw(), ...patch }));
-    const channel = select("Curve channels", ["single", "rgba"], channels => write({ channels })); toolbar.append(channel);
-    const ranges = ["Curve minimum", "Curve maximum"].map((label, i) => {
-      const input = node("input", "pz-inputbox"); input.type = "number"; input.step = "any"; input.title = label; input.setAttribute("aria-label", label);
+    label("Channels");
+    const channel = select("Curve channels", ["single", "rgba"], channels => write({ channels })); channel.classList.add("zsp-option"); toolbar.append(channel);
+    const ranges = ["Curve minimum", "Curve maximum"].map((title, i) => {
+      label(i ? "Max" : "Min"); const label_ = title;
+      const input = node("input", "pz-inputbox"); input.type = "number"; input.step = "any"; input.title = label_; input.setAttribute("aria-label", label_);
       input.onchange = () => { const range = parseCurve(property.get(), curves).range.slice(); const value = Number(input.value); if (Number.isFinite(value)) { range[i] = value; write({ range }); } }; toolbar.append(input); return input;
     });
     root.pz_update = () => {

@@ -3,7 +3,7 @@
   "id": "material-plus",
   "name": "Material+",
   "author": "Zoidium",
-  "version": "27",
+  "version": "28",
   "kind": "material-pack",
   "description": "Adds Matcap, Node Material, Image+, physically based, and corrected-UV material extensions.",
   "materialTypes": [
@@ -37,138 +37,138 @@
     {
       "id": "matcap-vertex-shader",
       "type": "text",
-      "source": "./plugins/material-plus/shaders/matcap.vert.glsl?v=27"
+      "source": "./plugins/material-plus/shaders/matcap.vert.glsl?v=28"
     },
     {
       "id": "matcap-fragment-shader",
       "type": "text",
-      "source": "./plugins/material-plus/shaders/matcap.frag.glsl?v=27"
+      "source": "./plugins/material-plus/shaders/matcap.frag.glsl?v=28"
     },
     {
       "id": "graph-runtime",
       "type": "text",
-      "source": "./plugins/material-plus/graph-runtime.js?v=27"
+      "source": "./plugins/material-plus/graph-runtime.js?v=28"
     },
     {
       "id": "surface-runtime",
       "type": "text",
-      "source": "./plugins/material-plus/surface-runtime.js?v=27"
+      "source": "./plugins/material-plus/surface-runtime.js?v=28"
     },
     {
       "id": "uv-layout",
       "type": "text",
-      "source": "./plugins/material-plus/uv-layout.js?v=27"
+      "source": "./plugins/material-plus/uv-layout.js?v=28"
     },
     {
       "id": "graph-buffers",
       "type": "text",
-      "source": "./plugins/material-plus/graph-buffers.js?v=27"
+      "source": "./plugins/material-plus/graph-buffers.js?v=28"
     },
     {
       "id": "graph-images",
       "type": "text",
-      "source": "./plugins/material-plus/graph-images.js?v=27"
+      "source": "./plugins/material-plus/graph-images.js?v=28"
     },
     {
       "id": "graph-types",
       "type": "text",
-      "source": "./plugins/material-plus/graph-types.js?v=27"
+      "source": "./plugins/material-plus/graph-types.js?v=28"
     },
     {
       "id": "graph-worker",
       "type": "text",
-      "source": "./plugins/material-plus/graph-worker.js?v=27"
+      "source": "./plugins/material-plus/graph-worker.js?v=28"
     },
     {
       "id": "surface-shader",
       "type": "text",
-      "source": "./plugins/material-plus/surface-shader.js?v=27"
+      "source": "./plugins/material-plus/surface-shader.js?v=28"
     },
     {
       "id": "surface-material",
       "type": "text",
-      "source": "./plugins/material-plus/surface-material.js?v=27"
+      "source": "./plugins/material-plus/surface-material.js?v=28"
     },
     {
       "id": "surface-props",
       "type": "text",
-      "source": "./plugins/material-plus/surface-props.js?v=27"
+      "source": "./plugins/material-plus/surface-props.js?v=28"
     },
     {
       "id": "legacy-pbr-uv",
       "type": "text",
-      "source": "./plugins/material-plus/legacy-pbr-uv.js?v=27"
+      "source": "./plugins/material-plus/legacy-pbr-uv.js?v=28"
     },
     {
       "id": "surface-controls",
       "type": "text",
-      "source": "./plugins/material-plus/surface-controls.js?v=27"
+      "source": "./plugins/material-plus/surface-controls.js?v=28"
     },
     {
       "id": "graph-spectra",
       "type": "text",
-      "source": "./plugins/material-plus/graph-spectra.js?v=27"
+      "source": "./plugins/material-plus/graph-spectra.js?v=28"
     },
     {
       "id": "graph-curves",
       "type": "text",
-      "source": "./plugins/material-plus/graph-curves.js?v=27"
+      "source": "./plugins/material-plus/graph-curves.js?v=28"
     },
     {
       "id": "graph-catalogue",
       "type": "text",
-      "source": "./plugins/material-plus/graph-catalogue.js?v=27"
+      "source": "./plugins/material-plus/graph-catalogue.js?v=28"
     },
     {
       "id": "graph-procedural",
       "type": "text",
-      "source": "./plugins/material-plus/graph-procedural.js?v=27"
+      "source": "./plugins/material-plus/graph-procedural.js?v=28"
     },
     {
       "id": "graph-blend",
       "type": "text",
-      "source": "./plugins/material-plus/graph-blend.js?v=27"
+      "source": "./plugins/material-plus/graph-blend.js?v=28"
     },
     {
       "id": "graph-recipes",
       "type": "text",
-      "source": "./plugins/material-plus/graph-recipes.js?v=27"
+      "source": "./plugins/material-plus/graph-recipes.js?v=28"
     },
     {
       "id": "node-curves-style",
       "type": "text",
-      "source": "./plugins/native-fx/colorcurves.css?v=27"
+      "source": "./plugins/native-fx/colorcurves.css?v=28"
     },
     {
       "id": "curve-options-css",
       "type": "text",
-      "source": "./plugins/native-fx/curve-options.css?v=27"
+      "source": "./plugins/native-fx/curve-options.css?v=28"
     }
   ],
   "modules": [
     {
       "id": "material-plus-nodes-runtime",
-      "source": "./plugins/material-plus/node-material.js?v=27"
+      "source": "./plugins/material-plus/node-material.js?v=28"
     },
     {
       "id": "material-plus-runtime",
-      "source": "./plugins/material-plus/material-plus.js?v=27"
+      "source": "./plugins/material-plus/material-plus.js?v=28"
     },
     {
       "id": "material-plus-pbr-runtime",
-      "source": "./plugins/material-plus/pbr-plus.js?v=27"
+      "source": "./plugins/material-plus/pbr-plus.js?v=28"
     },
     {
       "id": "material-plus-uv-custom-runtime",
-      "source": "./plugins/material-plus/uv-custom.js?v=27"
+      "source": "./plugins/material-plus/uv-custom.js?v=28"
     },
     {
       "id": "material-plus-image-runtime",
-      "source": "./plugins/material-plus/image-plus.js?v=27"
+      "source": "./plugins/material-plus/image-plus.js?v=28"
     },
     {
       "id": "material-plus-asset-references",
-      "source": "./plugins/material-plus/asset-references.js?v=27"
+      "source": "./plugins/material-plus/asset-references.js?v=28"
     }
   ]
 }
