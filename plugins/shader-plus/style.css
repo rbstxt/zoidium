@@ -36,6 +36,7 @@
 .zsp-field-label { color: var(--zui-text-muted); white-space: nowrap; }
 .zsp-fields input { width: 100%; min-width: 0; }
 .zsp-fields select { justify-self: start; }
+.zsp-curve-fields { margin: 2px 2px 4px; }
 .zsp-gradient-fields { margin: 2px 0 6px; padding: 0 8px; }
 
 /* Angle: a row-height dial button that opens a large direction dial. */

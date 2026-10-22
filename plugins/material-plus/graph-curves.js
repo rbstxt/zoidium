@@ -292,30 +292,49 @@
       catch (error) { property.set(beforeEdit); finishEdit(true); throw error; }
     }
     if (options.tools || handleApi) {
+      // CM3-style option rows: a labeled field grid, native selects for
+      // choices and CM3 icon buttons for point actions.
       extras = document.createElement("div"); extras.className = "zoidium-curve-options"; editor.appendChild(extras);
-      if (handleApi) {
-        const label = document.createElement("label"), input = document.createElement("input"); input.type = "checkbox";
-        input.setAttribute("aria-label", "Handles"); input.onchange = () => { handlesVisible = input.checked; draw(); };
-        label.append(input, document.createTextNode("Handles")); extras.appendChild(label);
+      const PZ = document.defaultView.PZ;
+      function field(label, control) {
+        const name = document.createElement("span"); name.className = "zoidium-curve-label"; name.textContent = label;
+        control.setAttribute("aria-label", label); extras.append(name, control); return control;
+      }
+      function choice(label, entries, change) {
+        const select = document.createElement("select"); select.className = "pz-inputbox zoidium-curve-select"; select.disabled = readOnly;
+        for (const [value, text] of entries) { const option = document.createElement("option"); option.value = value; option.textContent = text; select.appendChild(option); }
+        select.onchange = () => change(select.value, select); return field(label, select);
+      }
+      function icon(name, label, action) {
+        const el = document.createElement("button"); el.type = "button"; el.className = "actionbutton zoidium-curve-icon"; el.title = label;
+        el.setAttribute("aria-label", label); el.disabled = readOnly;
+        const svg = PZ?.ui?.generateIcon ? PZ.ui.generateIcon(name) : null; if (svg) el.appendChild(svg); else el.textContent = label;
+        el.onclick = event => { event.stopPropagation(); action(); }; return el;
       }
       if (options.tools) {
-        button(extras, "Delete point", removeSelected);
-        button(extras, "Random", () => transaction(() => {
+        const presets = Object.entries(options.presets || {});
+        if (presets.length) choice("Preset", [["", "Choose…"], ...presets.map(([label]) => [label, label])], (label, select) => {
+          select.value = ""; const preset = options.presets[label];
+          if (preset) transaction(() => { state[activeChannel] = preset.map(p => p.slice()); selectedIndex = 0; });
+        });
+        const actions = document.createElement("div"); actions.className = "zoidium-curve-actions";
+        actions.append(icon("random", "Random curve", () => transaction(() => {
           const bytes = new Uint32Array(5); document.defaultView.crypto.getRandomValues(bytes);
           state[activeChannel] = Array.from(bytes, (n, i) => [i / 4, Math.round(n / 4294967295 * 10000) / 10000]); selectedIndex = 0;
-        }));
-        const count = document.createElement("span"); count.className = "zoidium-curve-count"; extras.appendChild(count);
-        for (const [label, preset] of Object.entries(options.presets || {})) button(extras, label, () => transaction(() => { state[activeChannel] = preset.map(p => p.slice()); selectedIndex = 0; }));
-        for (const [i, label] of ["Point input", "Point value"].entries()) {
+        })), icon("delete", "Delete point", removeSelected));
+        const count = document.createElement("span"); count.className = "zoidium-curve-count"; actions.appendChild(count);
+        field("Points", actions);
+        for (const [i, label] of ["Input", "Value"].entries()) {
           const input = document.createElement("input"); input.type = "number"; input.step = "any"; input.className = "pz-inputbox";
-          input.setAttribute("aria-label", label); input.title = label; input.disabled = readOnly;
+          input.title = "Selected point " + label.toLowerCase(); input.disabled = readOnly;
           input.onchange = () => {
             const n = Number(input.value); if (!Number.isFinite(n) || selectedIndex == null) return;
             transaction(() => { const point = activePoints()[selectedIndex].slice(), range = options.range?.() || [0, 1]; point[i] = i ? (n - range[0]) / (range[1] - range[0] || 1) : n; moveSelected(point); });
           };
-          extras.appendChild(input); coordinates.push(input);
+          field(label, input); coordinates.push(input);
         }
       }
+      if (handleApi) choice("Handles", [["off", "off"], ["on", "on"]], value => { handlesVisible = value === "on"; draw(); });
     }
     if (options.range) {
       for (const [name, index] of [["maximum", 1], ["minimum", 0]]) {
@@ -392,7 +411,7 @@
         const count = extras.querySelector(".zoidium-curve-count"); if (count) count.textContent = activePoints().length + " pts";
         for (const el of extras.querySelectorAll('button[aria-label="Delete point"]')) el.disabled = readOnly || selectedIndex == null || selectedIndex === 0 || selectedIndex === activePoints().length - 1;
       }
-      coordinates.forEach((el, i) => { el.disabled = readOnly || !point; if (point && document.activeElement !== el) el.value = Math.round((i ? range[0] + point[1]*(range[1]-range[0]) : point[0])*10000)/10000; });
+      coordinates.forEach((el, i) => { el.disabled = readOnly || !point; el.placeholder = point ? "" : "—"; if (!point) el.value = ""; if (point && document.activeElement !== el) el.value = Math.round((i ? range[0] + point[1]*(range[1]-range[0]) : point[0])*10000)/10000; });
       updateStatus();
     }
 

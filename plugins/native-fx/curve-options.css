@@ -11,13 +11,6 @@
 .zoidium-curve-area { fill: var(--zoidium-curve-channel); opacity: .22; pointer-events: none; }
 .zoidium-curve-tangent { fill: none; stroke: var(--zui-text-muted); stroke-width: 1; vector-effect: non-scaling-stroke; pointer-events: none; }
 .zoidium-curve-handle { fill: var(--zui-text-muted); stroke: var(--zui-bg-input); stroke-width: 1; vector-effect: non-scaling-stroke; cursor: grab; }
-.zoidium-curve-options { display: flex; flex-wrap: wrap; gap: 3px; padding: 4px; font-size: 11px; align-items: center; }
-.zoidium-curve-options label { display: flex; gap: 3px; align-items: center; }
-.zoidium-curve-action { padding: 2px 4px; border: 1px solid var(--zui-border); background: var(--zui-bg); color: var(--zui-text); font: inherit; cursor: pointer; }
-.zoidium-curve-action:hover { background: var(--zui-hover); }
-.zoidium-curve-action:disabled { opacity: .45; cursor: default; }
-.zoidium-curve-options input[type=number] { flex: 1 1 45px; min-width: 0; width: 50px; }
-.zoidium-curve-count { color: var(--zui-text-muted); }
 .zoidium-curve-range { position: absolute; left: 4px; font-size: 10px; color: var(--zui-text-muted); pointer-events: none; }
 .zoidium-curve-maximum { top: 2px; }.zoidium-curve-minimum { bottom: 2px; }
 .zoidium-curve-axis { display: flex; justify-content: space-between; gap: 3px; padding: 2px 4px; font-size: 10px; color: var(--zui-text-muted); }
@@ -28,3 +21,14 @@
 .zsp-shared-curve.zsp-curve-rgba .zoidium-color-curves-toolbar { grid-template-columns: repeat(5,minmax(0,1fr)) auto; }
 .zoidium-color-curves-control .zoidium-color-curves-reset span { display: none; }
 .zoidium-color-curves-control .zoidium-color-curves-channel { font-size: 12px; padding: 0 2px; }
+.zoidium-curve-options { display: grid; grid-template-columns: auto minmax(0,1fr); gap: 4px 6px; align-items: center; padding: 5px 2px 2px; font-size: var(--zui-font-size-compact,12px); }
+.zoidium-curve-label { color: var(--zui-text-muted); white-space: nowrap; }
+.zoidium-curve-options input[type=number] { width: 100%; min-width: 0; box-sizing: border-box; }
+.zoidium-curve-select { justify-self: start; max-width: 100%; }
+.zoidium-curve-actions { display: flex; align-items: center; gap: 2px; min-width: 0; }
+.zoidium-curve-icon { padding: 2px 3px; }
+.zoidium-curve-icon svg { width: 17px; height: 17px; fill: #ccc; display: block; }
+.zoidium-curve-icon:disabled svg { opacity: .35; }
+.zoidium-curve-count { margin-left: auto; color: var(--zui-text-muted); }
+.zoidium-curve-options input[type=number]:disabled { background: var(--zui-bg-input); }
+.zoidium-curve-options input::placeholder { color: var(--zui-text-faint); }
