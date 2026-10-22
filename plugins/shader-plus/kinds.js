@@ -6,7 +6,8 @@
 const T = { NUMBER: 0, VECTOR2: 1, VECTOR4: 3, GRADIENT: 5, OPTION: 6, TEXT: 7 };
 const MAX_ITEMS = 32, MAX_PALETTE = 16;
 
-const DEFAULT_CURVE = JSON.stringify({ version: 1, composite: [[0, 0], [1, 1]], red: [[0, 0], [1, 1]], green: [[0, 0], [1, 1]], blue: [[0, 0], [1, 1]] });
+const DEFAULT_CURVE = JSON.stringify({ points: [[0, 0], [1, 1]], range: [0, 1], channels: "single", composite: [[0, 0], [1, 1]], red: [[0, 0], [1, 1]], green: [[0, 0], [1, 1]], blue: [[0, 0], [1, 1]], alpha: [[0, 0], [1, 1]] });
+const DEFAULT_GRADIENT = JSON.stringify({ stops: [{ position: 0, color: [0, 0, 0, 1] }, { position: 1, color: [1, 1, 1, 1] }], interpolation: "linear", space: "srgb", cyclic: false });
 const DEFAULT_PALETTE = JSON.stringify({ colors: [[0.07, 0.07, 0.1, 1], [0.32, 0.18, 0.5, 1], [0.86, 0.26, 0.36, 1], [1, 0.62, 0.25, 1], [1, 0.94, 0.75, 1]] });
 
 function channel(name, value) {
@@ -51,7 +52,7 @@ const KINDS = {
   },
   gradient: {
     label: "Gradient", desc: "Color stops, sampled with zGradient(Name, t).", texture: true,
-    create: () => ({ custom: true, type: T.GRADIENT, value: [{ position: 0, color: "rgba(0,0,0,1)" }, { position: 1, color: "rgba(255,255,255,1)" }], zoidiumShader: { kind: "gradient", interpolation: "linear", space: "srgb", cyclic: false } }),
+    create: () => ({ custom: true, type: T.TEXT, value: DEFAULT_GRADIENT, zoidiumControl: "shader-plus/gradient", zoidiumShader: { kind: "gradient" } }),
   },
   curve: {
     label: "Curve", desc: "Curve editor, sampled with zCurve(Name, x) or zCurves(Name, rgb).", texture: true,
@@ -103,17 +104,4 @@ function discreteValue(kind, raw, definition) {
   return Math.round(raw);
 }
 
-// GLSL helpers as function-like macros. CM3 corrects error line numbers by
-// the number of defines, so macros keep reported lines exact; they are only
-// added to shaders that use a texture kind.
-const MACROS = {
-  "zLut(x)": "vec2((clamp((x), 0.0, 1.0) * 255.0 + 0.5) / 256.0, 0.5)",
-  "zGradient(s,t)": "texture2D(s, zLut(t))",
-  "zGradientCycle(s,t)": "texture2D(s, zLut(fract(t)))",
-  "zCurve(s,x)": "texture2D(s, zLut(x)).a",
-  "zCurves(s,c)": "vec3(texture2D(s, zLut((c).r)).r, texture2D(s, zLut((c).g)).g, texture2D(s, zLut((c).b)).b)",
-  "zText(s,uv)": "texture2D(s, uv).a",
-  "zGlyph(s,grid,index,uv)": "texture2D(s, vec2((mod(float(index), (grid).x) + (uv).x) / (grid).x, ((grid).y - floor(float(index) / (grid).x) - 1.0 + (uv).y) / (grid).y)).a",
-};
-
-module.exports = { T, KINDS, ORDER, MAX_ITEMS, MAX_PALETTE, DEFAULT_CURVE, DEFAULT_PALETTE, kindOf, identifier, items, constants, discreteValue, MACROS };
+module.exports = { T, KINDS, ORDER, MAX_ITEMS, MAX_PALETTE, DEFAULT_CURVE, DEFAULT_GRADIENT, DEFAULT_PALETTE, kindOf, identifier, items, constants, discreteValue };

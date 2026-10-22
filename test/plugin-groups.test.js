@@ -36,7 +36,8 @@ test("every visible plugin belongs to a declared pack", () => {
   }
 
   assert.deepEqual(Object.fromEntries(packs), {
-    utilities: ["easing-plus", "expressions-plus", "player-plus", "asset-manager", "precomp-plus", "gif-support", "graph-plus", "motion-path", "mp4-export"],
+    utilities: ["easing-plus", "expressions-plus",
+      "shader-plus", "player-plus", "asset-manager", "precomp-plus", "gif-support", "graph-plus", "motion-path", "mp4-export"],
     scene: [
       "light-plus",
       "geometry-plus",

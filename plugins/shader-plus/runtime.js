@@ -1,19 +1,34 @@
 "use strict";
 // Binds Shader+ kinds to CM3's Custom Shader effect. CM3 compiles first; this
 // layer then adds constants, replaces the native `#define` of texture kinds
-// with samplers/arrays, and overrides discrete uniforms each frame. Shaders
+// with samplers/arrays. Native number values stay unchanged. Shaders
 // without Shader+ properties are left exactly as CM3 built them.
 const { KINDS, MAX_PALETTE, kindOf, items, constants } = require("./kinds.js");
-const { SIZE, bakeGradient, bakeCurve, parsePalette, parseText } = require("./bake.js");
+const { SIZE, CURVE_SIZE, parseCurve, parseJSON, bakeGradient, bakeCurve, parsePalette, parseText } = require("./bake.js");
 const { rasterize } = require("./text-raster.js");
+const { helpers, bindCurveRanges } = require("./glsl-library.js");
 const FONT_TIMEOUT_MS = 20000;
 
 function installRuntime({ PZ, THREE, doc, patch, curves, editor, presetFont, pipeline, onDispose = () => {} }) {
   const entries = new WeakMap(), live = new Set();
   const proto = PZ.effect.shader.prototype;
+  // CM3 static.load treats a falsy record.value as the entire record. A
+  // numeric string keeps native OPTION zero loadable in vanilla CM3 too.
+  patch(PZ.property.static.prototype, "toJSON", original => function serializeStaticDropdown() {
+    const data = original.apply(this, arguments);
+    if (kindOf(this) === "staticDropdown" && data.value === 0) data.value = "0";
+    return data;
+  });
+  patch(PZ.property.static.prototype, "load", original => function loadStaticDropdown(data) {
+    if (kindOf(this) === "staticDropdown" && data?.value === 0) data = { ...data, value: "0" };
+    return original.call(this, data);
+  });
 
-  function lutTexture() {
-    const texture = new THREE.DataTexture(new Uint8Array(SIZE * 4), SIZE, 1, THREE.RGBAFormat, THREE.UnsignedByteType);
+  function lutTexture(kind) {
+    const size = kind === "curve" ? CURVE_SIZE : SIZE;
+    const renderer = editor()?.mainViewport?.renderer;
+    const half = kind === "curve" && !!renderer?.extensions?.get("OES_texture_half_float") && !!renderer.extensions.get("OES_texture_half_float_linear") && !!renderer.extensions.get("EXT_color_buffer_half_float");
+    const texture = new THREE.DataTexture(half ? new Uint16Array(size * 4) : new Uint8Array(size * 4), size, 1, THREE.RGBAFormat, half ? THREE.HalfFloatType : THREE.UnsignedByteType);
     texture.minFilter = texture.magFilter = THREE.LinearFilter;
     texture.wrapS = texture.wrapT = THREE.ClampToEdgeWrapping;
     texture.generateMipmaps = false; texture.needsUpdate = true;
@@ -33,7 +48,6 @@ function installRuntime({ PZ, THREE, doc, patch, curves, editor, presetFont, pip
     effect?.onShaderError?.update(text);
   }
   function refresh(effect) {
-    effect.fragmentShaderNeedsUpdate = true;
     doc.dispatchEvent(new CustomEvent("zoidium:asset-reloaded", { detail: { source: "shader-plus" } }));
     editor()?.project?.ui?.onChanged?.update?.();
     editor()?.mainViewport?.requestRender?.();
@@ -44,7 +58,8 @@ function installRuntime({ PZ, THREE, doc, patch, curves, editor, presetFont, pip
     if (!entry || entry.kind !== kind) {
       if (entry) dispose(property);
       entry = { kind, key: null, effect };
-      if (kind === "gradient" || kind === "curve") entry.texture = lutTexture();
+      if (kind === "gradient" || kind === "curve") entry.texture = lutTexture(kind);
+      if (kind === "curve") entry.range = new THREE.Vector2(0, 1);
       if (kind === "palette") { entry.vectors = Array.from({ length: MAX_PALETTE }, () => new THREE.Vector4()); entry.count = 0; }
       if (kind === "text") {
         entry.texture = imageTexture(new Uint8Array(4), 1, 1);
@@ -59,9 +74,9 @@ function installRuntime({ PZ, THREE, doc, patch, curves, editor, presetFont, pip
   // Font asset references live inside the JSON value, so this layer owns
   // them: the project keeps an imported font while a text property uses it.
   function holdFont(entry, project, key) {
-    if (entry.fontKey === key) return entry.fontAsset;
-    if (entry.fontAsset) project?.assets.unload(entry.fontAsset);
-    entry.fontKey = key; entry.fontAsset = key && project ? project.assets.load(key) : null;
+    if (entry.fontKey === key && entry.fontProject === project) return entry.fontAsset;
+    if (entry.fontAsset) entry.fontProject?.assets.unload(entry.fontAsset);
+    entry.fontProject = project; entry.fontKey = key; entry.fontAsset = key && project ? project.assets.load(key) : null;
     return entry.fontAsset;
   }
 
@@ -87,13 +102,20 @@ function installRuntime({ PZ, THREE, doc, patch, curves, editor, presetFont, pip
   }
 
   function prepareEntry(effect, property, kind) {
-    const entry = entryFor(effect, property, kind), settings = property.definition.zoidiumShader || {};
+    const entry = entryFor(effect, property, kind);
     const value = property.get();
     if (kind === "gradient") {
-      const key = JSON.stringify([value, settings.interpolation, settings.space, settings.cyclic]);
-      if (entry.key !== key) { entry.texture.image.data.set(bakeGradient(value, settings)); entry.texture.needsUpdate = true; entry.key = key; }
+      const key = value;
+      if (entry.key !== key) { entry.texture.image.data.set(bakeGradient(value)); entry.texture.wrapS = parseJSON(value).cyclic ? THREE.RepeatWrapping : THREE.ClampToEdgeWrapping; entry.texture.needsUpdate = true; entry.key = key; }
     } else if (kind === "curve") {
-      if (entry.key !== value) { entry.texture.image.data.set(bakeCurve(value, curves)); entry.texture.needsUpdate = true; entry.key = value; }
+      if (entry.key !== value) {
+        const half = entry.texture.type === THREE.HalfFloatType;
+        const data = bakeCurve(value, curves, half);
+        if (half) for (let i = 0; i < data.length; i++) entry.texture.image.data[i] = halfBits(data[i]);
+        else entry.texture.image.data.set(data);
+        entry.range.fromArray(parseCurve(value, curves).range);
+        entry.texture.needsUpdate = true; entry.key = value;
+      }
     } else if (kind === "palette") {
       if (entry.key !== value) {
         const { colors } = parsePalette(value);
@@ -119,9 +141,8 @@ function installRuntime({ PZ, THREE, doc, patch, curves, editor, presetFont, pip
       const entry = prepareEntry(effect, property, kind);
       if (kind === "gradient") uniforms[name] = { type: "t", value: entry.texture };
       if (kind === "curve") {
-        const range = property.definition.zoidiumShader.range;
         uniforms[name] = { type: "t", value: entry.texture };
-        uniforms[name + "_range"] = { type: "v2", value: new THREE.Vector2(Number(range?.[0]) || 0, Number.isFinite(Number(range?.[1])) ? Number(range[1]) : 1) };
+        uniforms[name + "_range"] = { type: "v2", value: entry.range };
       }
       if (kind === "palette") {
         uniforms[name] = { type: "v4v", value: entry.vectors };
@@ -142,12 +163,18 @@ function installRuntime({ PZ, THREE, doc, patch, curves, editor, presetFont, pip
     if (!entry) return;
     entry.token = null;
     entry.texture?.dispose();
-    if (entry.fontAsset) entry.effect?.parentProject?.assets.unload(entry.fontAsset);
+    if (entry.fontAsset) entry.fontProject?.assets.unload(entry.fontAsset);
     entries.delete(property); live.delete(property);
   }
 
+  onDispose(pipeline.registerIncludes(helpers));
   onDispose(pipeline.register({
     id: "shader-plus",
+    transformSource(source) {
+      const names = new Set();
+      for (const p of this.customProperties || []) if (kindOf(p) === "curve") names.add(this.fixPropertyName(p.properties.name.get()));
+      return names.size ? bindCurveRanges(source, names) : source;
+    },
     declare(source) { configure(this, source); },
     update() {
       // Native NUMBER/VECTOR values are never overridden here.
@@ -165,6 +192,17 @@ function installRuntime({ PZ, THREE, doc, patch, curves, editor, presetFont, pip
       }
     },
   }));
+  const changed = new Map();
+  patch(proto, "propertyAdded", original => function addShaderProperty(property) {
+    const result = original.apply(this, arguments);
+    const kind = kindOf(property);
+    if (kind && KINDS[kind].texture) {
+      property.onChanged.unwatch(this.updateFn);
+      const update = () => { prepareEntry(this, property, kindOf(property)); refresh(this); };
+      changed.set(property, { update, effect: this }); property.onChanged.watch(update);
+    }
+    return result;
+  });
   // Exports await font loading so the first frame never misses its text.
   patch(proto, "prepare", original => async function prepareWithShaderPlus() {
     await original.apply(this, arguments);
@@ -182,19 +220,36 @@ function installRuntime({ PZ, THREE, doc, patch, curves, editor, presetFont, pip
     return result;
   });
   patch(proto, "propertyRemoved", original => function propertyRemovedWithShaderPlus(property) {
-    dispose(property);
+    if (changed.has(property)) property.onChanged.unwatch(changed.get(property).update);
+    changed.delete(property); dispose(property);
     return original.apply(this, arguments);
   });
   patch(proto, "unload", original => function unloadWithShaderPlus() {
-    for (const property of this.customProperties || []) dispose(property);
+    for (const property of this.customProperties || []) {
+      if (changed.has(property)) property.onChanged.unwatch(changed.get(property).update);
+      changed.delete(property); dispose(property);
+    }
     return original.apply(this, arguments);
   });
 
   return {
     configure, prepareEntry,
     entry: property => entries.get(property) || null,
-    disposeAll() { for (const property of Array.from(live)) dispose(property); },
+    disposeAll() {
+      for (const [property, { update, effect }] of changed) {
+        property.onChanged.unwatch(update); property.onChanged.watch(effect.updateFn); effect.fragmentShaderNeedsUpdate = true;
+      }
+      changed.clear();
+      for (const property of Array.from(live)) { entries.get(property).effect.fragmentShaderNeedsUpdate = true; dispose(property); }
+    },
   };
 }
 
-module.exports = { installRuntime };
+// Samples are normalized, so this finite 0..1 conversion covers every LUT.
+function halfBits(value) {
+  if (value <= 0) return 0;
+  if (value < Math.pow(2, -14)) return Math.round(value / Math.pow(2, -24));
+  const exponent = Math.floor(Math.log2(value));
+  return ((exponent + 15) << 10) + Math.round((value / Math.pow(2, exponent) - 1) * 1024);
+}
+module.exports = { installRuntime, halfBits };

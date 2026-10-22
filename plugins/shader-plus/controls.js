@@ -5,7 +5,7 @@
 const { KINDS, MAX_PALETTE, discreteValue, items } = require("./kinds.js");
 const { parseJSON, parseText } = require("./bake.js");
 
-function installControls({ PZ, doc, register, curves, editor }) {
+function installControls({ PZ, doc, register, editor }) {
   const C = PZ.ui.controls;
   const native = name => C[name].__zoidiumOriginal || C[name];
   const readOnly = p => !!(p.definition.readOnly || (p.animated && p.expression));
@@ -85,12 +85,6 @@ function installControls({ PZ, doc, register, curves, editor }) {
     return box;
   });
 
-  register("shader-plus/curve", PZ.property.type.TEXT, property => {
-    const root = curves.createCurveControl(property, { document: doc, controls: C, PZ });
-    if (property.definition.zoidiumShader?.channels !== "rgb") root.classList.add("zsp-curve-single");
-    return root;
-  });
-
   register("shader-plus/palette", PZ.property.type.TEXT, property => {
     const box = editbox("zsp-palette"), swatches = element("div", "zsp-swatches"), anchor = element("span", "zsp-anchor");
     const add = element("button", "zsp-button", { type: "button", title: "Add color" }), remove = element("button", "zsp-button", { type: "button", title: "Remove last color" });
@@ -138,7 +132,9 @@ function installControls({ PZ, doc, register, curves, editor }) {
     const sdfLabel = element("label", "zsp-inline", { title: "Store a signed distance field in alpha (0.5 at the edge) for outlines and glows" });
     const sdf = element("input", "", { type: "checkbox" });
     sdfLabel.append(sdf, doc.createTextNode("SDF"));
-    options.append(size, align, mode, sdfLabel);
+    const lineHeight = element("input", "pz-inputbox", { type: "number", min: "0.5", max: "4", step: "0.05", title: "Line height", "aria-label": "Line height" });
+    const letterSpacing = element("input", "pz-inputbox", { type: "number", min: "-0.5", max: "2", step: "0.01", title: "Letter spacing (em)", "aria-label": "Letter spacing" });
+    options.append(size, align, mode, lineHeight, letterSpacing, sdfLabel);
     box.append(anchor, fontButton, fontName, file, text, options);
 
     const raw = () => parseJSON(property.get());
@@ -152,12 +148,14 @@ function installControls({ PZ, doc, register, curves, editor }) {
     file.onchange = async () => {
       const chosen = file.files?.[0]; file.value = "";
       if (!chosen) return;
-      const asset = await property.parentProject.assets.createFromFile(chosen);
+      const asset = await property.parentProject.assets.createFromFile(PZ.asset.type.FONT, chosen);
       write({ font: asset.key });
     };
     text.onchange = () => write({ text: text.value });
     text.addEventListener("keydown", event => event.stopPropagation());
     size.onchange = () => write({ size: Number(size.value) });
+    lineHeight.onchange = () => write({ lineHeight: Number(lineHeight.value) });
+    letterSpacing.onchange = () => write({ letterSpacing: Number(letterSpacing.value) });
     align.onchange = () => write({ align: align.value });
     mode.onchange = () => write({ mode: mode.value });
     sdf.onchange = () => write({ sdf: sdf.checked });
@@ -172,6 +170,8 @@ function installControls({ PZ, doc, register, curves, editor }) {
       fontName.textContent = index >= 0 ? "" : asset?.filename || (value.font ? "Imported font" : "Choose a font");
       if (doc.activeElement !== text) text.value = value.text;
       if (doc.activeElement !== size) size.value = value.size;
+      if (doc.activeElement !== lineHeight) lineHeight.value = value.lineHeight;
+      if (doc.activeElement !== letterSpacing) letterSpacing.value = value.letterSpacing;
       align.value = value.align; mode.value = value.mode; sdf.checked = value.sdf;
     };
     return box;

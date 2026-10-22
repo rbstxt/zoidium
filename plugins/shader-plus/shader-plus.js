@@ -17,7 +17,9 @@ function activate(context) {
     const style = doc.createElement("style"); style.textContent = context.getAsset("text", path); doc.head.append(style); disposers.push(() => style.remove());
   }
   const curves = shared("./material-plus/graph-curves.js");
-  require("./controls.js").installControls({ PZ, doc, curves, editor, register: (id, type, create) => disposers.push(context.apis.propertyControls.register(id, { type, create })) });
+  const register = (id, type, create) => disposers.push(context.apis.propertyControls.register(id, { type, create }));
+  const controls = require("./controls.js").installControls({ PZ, doc, editor, register });
+  require("./texture-controls.js").installTextureControls({ PZ, doc, curves, register, commit: controls.commit, rampControl: win.ZoidiumNodeEditorParts.createRampControl });
   const runtime = require("./runtime.js").installRuntime({ PZ, THREE: win.THREE, doc, patch, curves, editor, presetFont, pipeline: context.apis.shaderPipeline, onDispose: fn => disposers.push(fn) });
   disposers.push(() => runtime.disposeAll());
   const authoring = require("./editor.js").installEditor({ context, patch, presetFont });

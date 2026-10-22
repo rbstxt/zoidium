@@ -539,6 +539,7 @@
         });
         scheduleLinks();
       }
+    cx.rampField = rampField;
     cx.render = render;
     cx.redrawLinks = redrawLinks;
     cx.scheduleLinks = scheduleLinks;
@@ -546,5 +547,14 @@
     cx.paramOr = paramOr;
     cx.defaultFor = defaultFor;
     cx.portTypeOf = portTypeOf;
+  };
+  // Reuse the exact Node Effect ramp widget in native property rows.
+  parts.createRampControl = function (options) {
+    var cx = { doc: options.document, readOnly: !!options.readOnly, nodeEls: new Map(), rampSelection: options.selection || new Map() };
+    parts.createFields(cx);
+    var node = { id: "ramp", params: { interpolation: options.interpolation } };
+    var root = cx.rampField(options.stops, node, { sample: options.sample }, options.onChange);
+    cx.nodeEls.set(node.id, root);
+    return root;
   };
 })(window);

@@ -7,6 +7,18 @@ function installEditor({ context, patch, presetFont }) {
   const menu = PZ.ui.objectTypes.get(PZ.property), added = [{ name: "ZOIDIUM", category: true }];
   for (const kind of ORDER) {
     const entry = { name: KINDS[kind].label, desc: KINDS[kind].desc };
+    entry.data = function () {
+      const p = PZ.property.create(KINDS[kind].create(presetFont())); p.load();
+      const base = { checkbox: "Enabled", dropdown: "Mode", staticDropdown: "Static Mode", color4: "Color" }[kind] || KINDS[kind].label;
+      const names = new Set();
+      CM.project.forEachItemOfType(PZ.effect.shader, effect => { for (const q of effect.customProperties) names.add(q.properties.name.get()); });
+      let name = base, suffix = 2; while (names.has(name)) name = base + " " + suffix++;
+      p.properties.name.set(name);
+      if (["checkbox", "dropdown"].includes(kind)) for (const key of p.keyframes) key.tween = 0;
+      const data = clone(p);
+      if (kind === "staticDropdown" && data.value === 0) data.value = "0";
+      return data;
+    };
     Object.defineProperty(entry, "type", { get: () => KINDS[kind].create(presetFont()) }); added.push(entry);
   }
   menu.push(...added);
@@ -99,7 +111,8 @@ function installEditor({ context, patch, presetFont }) {
   function sync() {
     for (const entry of rows) {
       const { row, p, effect } = entry;
-      if (!row.isConnected) { rows.delete(entry); continue; }
+      if (!row.isConnected) { if (entry.seenConnected) rows.delete(entry); continue; }
+      entry.seenConnected = true;
       const meta = p.definition.zoidiumShader || {}, group = meta.group || "";
       let groups = folded.get(row.parentElement);
       if (!groups) { groups = new Map(); folded.set(row.parentElement, groups); }
