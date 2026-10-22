@@ -23,3 +23,17 @@
 .zsp-code-highlight .token.keyword, .zsp-code-highlight .token.function, .zsp-code-highlight .token.number, .zsp-code-highlight .token.boolean { color: var(--zui-value); }
 .zsp-code-highlight .token.operator, .zsp-code-highlight .token.punctuation { color: var(--zui-text-muted); }
 .zsp-code-highlight .token.string { color: var(--zui-value-strong); }
+
+.zsp-code-pane .zsp-code-input, .zsp-code-pane .zsp-code-gutter, .zsp-code-pane .zsp-code-highlight { font-size: var(--zsp-code-size, 13px) !important; line-height: var(--zsp-code-line, 21px) !important; }
+.zsp-code-completions { position: absolute; z-index: 3; width: min(280px, 90%); max-height: 180px; overflow: auto; background: var(--zui-bg); border: 1px solid var(--zui-accent); box-shadow: 0 3px 9px rgb(0 0 0 / .3); }
+.zsp-code-completions button { display: flex; justify-content: space-between; gap: 8px; width: 100%; border: 0; padding: 5px 8px; background: transparent; color: var(--zui-text); text-align: left; }
+.zsp-code-completions small { color: var(--zui-text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.zsp-code-completions .is-selected { background: var(--zui-accent); }
+.zsp-code-help { display: flex; flex-direction: column; gap: 3px; max-height: 110px; overflow: auto; padding: 6px 10px; border-top: 1px solid var(--zui-border); color: var(--zui-text-muted); font-size: 12px; }
+.zsp-code-help code { color: var(--zui-value); white-space: pre-wrap; }
+.zsp-code-help small { color: var(--zui-text-faint); }
+.zsp-code-find { display: flex; flex-wrap: wrap; gap: 5px; padding: 5px 10px; border-bottom: 1px solid var(--zui-border); }
+.zsp-code-find input { min-width: 60px; width: 115px; }
+.zsp-code-find button { width: auto; padding: 3px 6px; }
+.zsp-code-find-count { color: var(--zui-text-muted); font-size: 12px; }
+.zsp-code-body [hidden] { display: none !important; }
