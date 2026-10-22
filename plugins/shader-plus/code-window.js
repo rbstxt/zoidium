@@ -1,7 +1,7 @@
 "use strict";
-const { indentCode, shaderSymbols } = require("./code-model.js");
+const { shaderSymbols } = require("./code-model.js");
 
-function installCodeWindows({ context, patch }) {
+function installCodeWindows({ context, patch, presetFont }) {
   const { PZ, document: doc, window: global } = context;
   const opened = new Map();
   let nextId = 0;
@@ -40,10 +40,13 @@ function installCodeWindows({ context, patch }) {
         const symbols = expression ? null : node("aside", "zsp-code-symbols", "", content);
         const status = node("div", "zsp-code-status"); status.setAttribute("role", "status");
         const read = () => expression ? property.expression?.source || "" : property.get();
+        let aids, checks, templateTools;
         let saved = read(), applying = false, shaderError = "", symbolsStamp = "";
         input.value = saved;
         function lines() { if (grammar) highlight.innerHTML = global.Prism.highlight(input.value + "\n", grammar, language);
-          highlight.scrollTop = input.scrollTop; highlight.scrollLeft = input.scrollLeft; gutter.textContent = Array.from({ length: input.value.split("\n").length }, (_, i) => i + 1).join("\n"); gutter.scrollTop = input.scrollTop; }
+          highlight.scrollTop = input.scrollTop; highlight.scrollLeft = input.scrollLeft; gutter.replaceChildren();
+          input.value.split("\n").forEach((_, i) => { const row = node("span", checks?.lines().has(i + 1) ? "is-error" : "", String(i + 1), gutter); row.dataset.line = i + 1; });
+          gutter.scrollTop = input.scrollTop; }
         function error(message) {
           shaderError = message || ""; status.textContent = shaderError;
           status.title = shaderError; status.classList.toggle("is-error", !!shaderError);
@@ -51,21 +54,26 @@ function installCodeWindows({ context, patch }) {
         }
         function refresh() {
           const value = read();
-          if (!applying && value !== saved) { input.value = value; lines(); error(""); }
+          if (!applying && value !== saved) { input.value = value; aids?.reset(); lines(); error(""); }
           saved = value;
           if (expression) error(global.ZoidiumExpressions?.engine.error(property) || property.expression?.error || "");
         }
-        function refreshSymbols() {
-          if (!symbols) return;
+        function getEntries() {
           let sequence = object;
           while (sequence && !(sequence instanceof PZ.sequence)) sequence = sequence.parent;
-          const entries = shaderSymbols(object, { expressions: !!global.ZoidiumExpressions, controls: sequence ? global.ZoidiumExpressions?.controls.list(sequence) || [] : [] });
+          return shaderSymbols(object, { source: input.value, expressions: !!global.ZoidiumExpressions, controls: sequence ? global.ZoidiumExpressions?.controls.list(sequence) || [] : [] });
+        }
+        function refreshSymbols() {
+          if (!symbols) return;
+          const entries = getEntries();
           const stamp = JSON.stringify(entries); if (stamp === symbolsStamp) return; symbolsStamp = stamp;
           symbols.replaceChildren(); node("div", "zsp-code-symbol-title", "Available uniforms and helpers", symbols);
           for (const entry of entries) {
-            const button = node("button", "zsp-code-symbol", "", symbols); button.type = "button"; button.title = entry.hint;
+            const item = node("div", "zsp-code-symbol-row", "", symbols);
+            const button = node("button", "zsp-code-symbol", "", item); button.type = "button"; button.title = entry.hint;
             node("code", "", entry.name, button); node("small", "", entry.type, button);
-            button.onclick = () => { input.focus(); input.setRangeText(entry.name, input.selectionStart, input.selectionEnd, "end"); lines(); };
+            button.onclick = () => { aids.insert(entry.category === "include" ? entry.signature : entry.name); };
+            const info = node("button", "zsp-code-info", "?", item); info.type = "button"; info.setAttribute("aria-label", "Help for " + entry.name); info.onclick = () => aids.showHelp(entry.name, true);
           }
         }
         function commit() {
@@ -84,21 +92,23 @@ function installCodeWindows({ context, patch }) {
           if (expression) refresh();
         }
         apply.onclick = commit;
-        input.oninput = () => { lines(); if (!shaderError) status.textContent = input.value === saved ? "" : "Unapplied changes"; };
+        aids = require("./code-aids.js").installAids({ input, pane, body, toolbar, node, global, expression, entries: getEntries, changed() {
+          lines(); checks?.schedule(); if (!shaderError) status.textContent = input.value === saved ? "" : "Unapplied changes";
+        } });
+        if (!expression) checks = require("./code-diagnostics.js").installDiagnostics({ input, pane, body, node, global, context, effect: object, entries: getEntries, aids, valid, status, redraw: lines });
+        if (!expression) templateTools = require("./code-templates.js").installTemplates({ context, object, toolbar, node, aids, input, valid, presetFont, error });
         input.onscroll = () => { gutter.scrollTop = input.scrollTop; highlight.scrollTop = input.scrollTop; highlight.scrollLeft = input.scrollLeft; };
         input.onkeydown = event => {
-          if (event.key === "Tab") {
-            event.preventDefault(); const edit = indentCode(input.value, input.selectionStart, input.selectionEnd, event.shiftKey);
-            input.value = edit.text; input.setSelectionRange(edit.start, edit.end); input.oninput();
-          } else if ((event.ctrlKey || event.metaKey) && (event.key.toLowerCase() === "s" || event.key === "Enter")) { event.preventDefault(); commit(); }
+          if (aids.key(event)) { event.preventDefault(); event.stopPropagation(); }
+          else if ((event.ctrlKey || event.metaKey) && (event.key.toLowerCase() === "s" || event.key === "Enter")) { event.preventDefault(); commit(); }
         };
         const changed = expression ? property.onExpressionChanged : property.onChanged;
         changed.watch(refresh);
         if (!expression) object.onShaderError?.watch(error);
         const timer = global.setInterval(() => { if (!valid()) { win.close(); return; } refreshSymbols(); if (expression) refresh(); }, 250);
-        lines(); refreshSymbols(); refresh(); input.focus();
+        lines(); refreshSymbols(); refresh(); checks?.schedule(); input.focus();
         return () => {
-          changed.unwatch(refresh); if (!expression) object.onShaderError?.unwatch(error);
+          templateTools?.dispose(); checks?.dispose(); aids.dispose(); changed.unwatch(refresh); if (!expression) object.onShaderError?.unwatch(error);
           global.clearInterval(timer); opened.delete(property);
         };
       },

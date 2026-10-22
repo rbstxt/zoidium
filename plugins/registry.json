@@ -26,14 +26,14 @@
       "id": "core",
       "name": "Zoidium Core",
       "author": "Zoidium",
-      "version": "73",
+      "version": "74",
       "visibility": "hidden",
       "alwaysEnabled": true,
       "tagline": "Built-in core extensions",
       "description": "Hidden built-in extensions that always run. Not shown in the Plugins panel and never stored in projects.",
-      "manifest": "./plugins/core/manifest.json?v=73",
-      "bundle": "./plugins/core/bundle.json?v=73",
-      "integrity": "sha256-rnYday2Qn/JpRiot5ILI3LpJqOR4auORlTJvSazY4AI="
+      "manifest": "./plugins/core/manifest.json?v=74",
+      "bundle": "./plugins/core/bundle.json?v=74",
+      "integrity": "sha256-CtjfW57A/XVznAKi3zNDAOZP/ALWX8B99LORz8oT0Pk="
     },
     {
       "id": "easing-plus",
@@ -72,15 +72,15 @@
       "category": "utilities",
       "name": "Shader+",
       "author": "Zoidium",
-      "version": "14",
+      "version": "18",
       "defaultEnabled": true,
       "itemCount": 12,
       "format": "shader controls",
       "tagline": "Custom shader property editors",
       "description": "Native custom shader controls with optional baked texture inputs.",
-      "manifest": "./plugins/shader-plus/manifest.json?v=14",
-      "bundle": "./plugins/shader-plus/bundle.json?v=14",
-      "integrity": "sha256-WkBrRn+U11CNYBe7VgbH22bHa5ql5FVAzEvn+EPdGhk="
+      "manifest": "./plugins/shader-plus/manifest.json?v=18",
+      "bundle": "./plugins/shader-plus/bundle.json?v=18",
+      "integrity": "sha256-Y8lrV4o4a+34ustaHIsDEeehqO/fkHR9RYwSg9Qe5UE="
     },
     {
       "id": "player-plus",

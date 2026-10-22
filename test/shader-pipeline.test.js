@@ -32,3 +32,13 @@ test("include registrations change the recovery revision on add and remove", () 
   assert.match(api.expandIncludes("// #include <zoidium/test>"), /float f/); remove(); assert.equal(api.includeVersion, version + 2);
   assert.throws(() => api.expandIncludes("// #include <zoidium/test>"), /Unknown/);
 });
+test("preview uses native setup and registered stages on an isolated facade", () => {
+  const { PZ, fx } = host(), api = forHost(PZ);
+  fx.pass = { material: { vertexShader: "vertex", defines: { old: 2 } }, uniforms: { live: true } };
+  api.registerIncludes({ sample: "float included;" });
+  api.register({ id: "preview-stage", transformSource(s) { this.transformed = true; return s + "\nend"; }, declare() { throw Error("must use preview declaration"); }, previewDeclare() { this.pass.material.defines.Mode = 1; } });
+  const snapshot = JSON.stringify(fx.pass), preview = api.preview(fx, "// #include <zoidium/sample>\nmain");
+  assert.equal(preview.source, "float included;\nmain\nend"); assert.deepEqual(preview.defines, { Mode: 1 });
+  assert.equal(fx.transformed, undefined); assert.equal(fx.properties.fragShader.get(), "raw"); assert.equal(JSON.stringify(fx.pass), snapshot);
+  assert.deepEqual(preview.locations, [1, 2]); assert.equal(preview.vertexShader, "vertex");
+});
