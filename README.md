@@ -41,7 +41,8 @@ The Astro Starlight workspace in `site/` builds the documentation at `/docs/`.
 Run `pnpm run docs:dev` to edit the site on port 8400. Run `pnpm run docs:build`
 to generate `site/dist/`. `pnpm run build:web` copies that output to
 `dist/web/docs/` before publishing the deployment tree. Desktop build and
-startup also stage the static docs for offline reading. Electron excludes
+startup also stage the static docs for offline reading. `pnpm run web` stages
+the docs before serving the editor, so in-app links work locally too. Electron excludes
 `site/` sources and dependencies.
 
 The site loads the eight developer guides directly from `docs/` at build time.

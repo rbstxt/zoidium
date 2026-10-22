@@ -15,6 +15,7 @@ async function buildDocs(destinationRoot) {
     child.once("exit", (code, signal) => code === 0 ? resolve() :
       reject(new Error(`Documentation build exited with ${signal || code}`)));
   });
+  await fs.rm(path.join(destinationRoot, "docs"), { recursive: true, force: true });
   await fs.cp(path.join(siteRoot, "dist"), path.join(destinationRoot, "docs"), { recursive: true });
 }
 
