@@ -20,8 +20,14 @@ function installTextureControls({ PZ, doc, register, curves, commit }) {
     const space = select("Gradient color space", ["srgb", "linear", "oklab"], space => write({ space }));
     const cycleLabel = node("label", "zsp-inline"), cycle = node("input"); cycle.type = "checkbox"; cycle.setAttribute("aria-label", "Cyclic gradient"); cycle.onchange = () => write({ cyclic: cycle.checked });
     cycleLabel.append(cycle, doc.createTextNode("Cyclic")); toolbar.append(interpolation, space, cycleLabel);
+    const interpolate = node("input"); interpolate.type = "checkbox"; interpolate.setAttribute("aria-label", "Interpolate");
+    interpolate.onchange = () => write({ interpolation: interpolate.checked ? "linear" : "constant" });
+    const interpolateLabel = node("label", "zsp-inline"); interpolateLabel.append(interpolate, doc.createTextNode("Interpolate")); toolbar.append(interpolateLabel);
+    const repetitions = node("input", "pz-inputbox"); repetitions.type = "number"; repetitions.min = 1; repetitions.step = "any"; repetitions.setAttribute("aria-label", "Cycle repetitions"); repetitions.title = "Cycle repetitions";
+    repetitions.onchange = () => { const n = Number(repetitions.value); if (Number.isFinite(n) && n >= 1) write({ repetitions: n }); };
+    const repsLabel = node("label", "zsp-inline"); repsLabel.append(doc.createTextNode("Cycle repetitions"), repetitions); toolbar.append(repsLabel);
     const update = box.pz_update;
-    box.pz_update = () => { update(); const value = read(); interpolation.value = value.interpolation || "linear"; space.value = value.space || "srgb"; cycle.checked = !!value.cyclic; };
+    box.pz_update = () => { update(); const value = read(); interpolation.value = value.interpolation || "linear"; space.value = value.space || "srgb"; cycle.checked = !!value.cyclic; repsLabel.hidden = !value.cyclic; interpolateLabel.hidden = !value.cyclic; interpolate.checked = value.interpolation !== "constant"; if (doc.activeElement !== repetitions) repetitions.value = value.repetitions || 1; };
     box.pz_update(); return box;
   });
   register("shader-plus/curve", PZ.property.type.TEXT, property => {

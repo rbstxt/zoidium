@@ -36,3 +36,13 @@ test("reversing twice preserves stop ownership and native fractional colors", ()
   result.forEach((s, i) => { assert.equal(s.color.toString(), stops[i].color.toString()); assert.ok(Math.abs(s.position-stops[i].position) < 1e-12); if (i<2) assert.ok(Math.abs(s.midpoint-stops[i].midpoint) < 1e-12); });
   assert.equal(stops[0].color, "rgba(12.3456, 2, 3, 0.125)");
 });
+test("cycle repetitions bind only known samplers and retain explicit arguments", () => {
+  const { bindGradientCycles } = require("../plugins/shader-plus/glsl-library.js");
+  const src = "precision highp float;\n// zGradientCycle(Ramp,t)\nvec4 f(){return zGradientCycle(Ramp,max(a,b))+zGradientCycle(Other,t)+zGradientCycle(Ramp,t,3.);}";
+  const bound = bindGradientCycles(src, new Set(["Ramp"]));
+  assert.match(bound, /uniform float Ramp_repetitions;/);
+  assert.match(bound, /max\(a,b\), Ramp_repetitions/);
+  assert.match(bound, /zGradientCycle\(Other,t\)/); assert.match(bound, /zGradientCycle\(Ramp,t,3\.\)/);
+  assert.equal(bindGradientCycles(src, new Set()), src);
+  assert.equal(bindGradientCycles(bound, new Set(["Ramp"])), bound);
+});
