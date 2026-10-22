@@ -661,3 +661,30 @@ It returns `true` when the plugin is enabled, or `false` for a decline, unknown 
 or failed activation. An already enabled plugin does not prompt again. Successful
 requests rebuild open native property editors so newly installed input controls
 appear immediately. This API does not change any plugin's startup defaults.
+
+## Shared Custom Shader pipeline
+
+`ZoidiumPluginApis.shaderPipeline` owns the Custom Shader prototype's compile
+and per-frame hooks. Register a stage and dispose its returned registration:
+
+```js
+const remove = context.apis.shaderPipeline.register({
+  id: "my-plugin",
+  transformSource(source, raw) { return source; },
+  declare(source) { /* this is the native shader effect, after native setup */ },
+  update(frame) { /* native evaluated uniforms are already bound */ },
+});
+context.lifecycle.onDispose(remove);
+```
+
+Includes expand before source transforms. Register a named GLSL library with
+`registerIncludes({name: source})`, then use `// #include <zoidium/name>`.
+Includes are bounded, deduplicated and ignore directives in block comments.
+Every registration returns a disposer. Compilation restores the native source
+property even on failure. Ordinary shaders retain their source bytes and
+uniforms. Expressions+ supplies its existing includes and zTime/zFrame/ctl_
+bindings through this pipeline; Node Effect's native shaders use the same
+compile path. Shader+ adds samplers and arrays after native setup, removes
+native TEXT defines, and keeps all number-kind evaluation native.
+
+Shader+ definitions and examples are in [Shader properties](shader-properties.md).

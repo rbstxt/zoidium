@@ -184,6 +184,8 @@
   }
 
   function createCurveControl(property, context) {
+    const channels = context.channels || CHANNELS;
+    const parse = context.parseState || parseState, serialize = context.serializeState || serializeState;
     const document = context.document;
     const controls = context.controls;
     const root = document.createElement("div");
@@ -199,7 +201,7 @@
     editor.appendChild(toolbar);
 
     const channelButtons = new Map();
-    for (const channel of CHANNELS) {
+    for (const channel of channels) {
       const button = document.createElement("button");
       button.type = "button";
       button.className = "zoidium-color-curves-channel";
@@ -264,7 +266,7 @@
     footer.appendChild(hint);
     editor.appendChild(footer);
 
-    let state = parseState(property.get());
+    let state = parse(property.get());
     let activeChannel = "composite";
     let selectedIndex = null;
     let drag = null;
@@ -278,7 +280,7 @@
       const points = activePoints();
       const point = selectedIndex == null ? null : points[selectedIndex];
       if (!point) {
-        status.textContent = `${CHANNELS.find((channel) => channel.id === activeChannel).name} curve`;
+        status.textContent = `${channels.find((channel) => channel.id === activeChannel).name} curve`;
         return;
       }
       status.textContent = `Input ${Math.round(point[0] * 255)}  Output ${Math.round(point[1] * 255)}`;
@@ -286,7 +288,7 @@
 
     function draw() {
       editor.dataset.channel = activeChannel;
-      for (const channel of CHANNELS) {
+      for (const channel of channels) {
         const button = channelButtons.get(channel.id);
         const selected = channel.id === activeChannel;
         button.classList.toggle("is-active", selected);
@@ -321,7 +323,7 @@
     }
 
     function setPropertyValue() {
-      property.set(serializeState(state));
+      property.set(serialize(state));
       draw();
     }
 
@@ -451,7 +453,7 @@
       event.stopPropagation();
     }
 
-    for (const channel of CHANNELS) {
+    for (const channel of channels) {
       channelButtons.get(channel.id).addEventListener("click", (event) => {
         activeChannel = channel.id;
         selectedIndex = null;
@@ -487,7 +489,7 @@
 
     root.pz_update = function updateCurveControl() {
       if (editing) return;
-      state = parseState(property.get());
+      state = parse(property.get());
       const points = activePoints();
       if (selectedIndex != null && !points[selectedIndex]) selectedIndex = null;
       draw();
