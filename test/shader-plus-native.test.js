@@ -65,3 +65,20 @@ test("dropdown constants only bind tokens in include-expanded source", { skip: !
   } finally { unregister(); dispose(); }
 });
 module.exports = { effect, capture, install };
+test("vanilla CM3 binds texture JSON as a define without throwing during native setup", { skip: !fs.existsSync(core) }, () => {
+  const { PZ } = host();
+  for (const kind of ["gradient", "curve", "palette", "text"]) {
+    const definition = KINDS[kind].create();
+    const fx = effect(PZ, [{ type: definition, properties: { name: "Input" }, value: definition.value }], "uniform sampler2D Input; void main(){gl_FragColor=texture2D(Input,vec2(0.5));}");
+    assert.doesNotThrow(() => fx.updateFragmentShader());
+    assert.equal(typeof fx.pass.material.defines.Input, "string");
+    assert.match(fx.pass.material.defines.Input, /^\{/);
+  }
+});
+test("static dropdown zero serializes to a vanilla-loadable native OPTION", { skip: !fs.existsSync(core) }, () => {
+  const { PZ, THREE } = host(); const dispose = install(PZ, THREE);
+  let data;
+  try { const p = PZ.property.create(KINDS.staticDropdown.create()); p.load(); data = JSON.parse(JSON.stringify(p)); assert.equal(data.value, "0"); }
+  finally { dispose(); }
+  const p = PZ.property.create(data.type); p.load(data); assert.equal(Number(p.get()), 0); assert.equal(p.definition.type, 6);
+});

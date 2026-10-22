@@ -20,7 +20,7 @@ function channel(name, value) {
 const KINDS = {
   point: {
     label: "Point", desc: "Two coordinates as vec2, in UV or pixel units.", texture: false,
-    create: () => ({ custom: true, dynamic: true, group: true, type: T.VECTOR2, objects: [channel("X", 0.5), channel("Y", 0.5)], zoidiumShader: { kind: "point", space: "uv" } }),
+    create: () => ({ custom: true, dynamic: true, group: true, type: T.VECTOR2, objects: ["X", "Y"].map(name => ({ dynamic: true, name, type: T.NUMBER, value: 0.5, step: 0.01, decimals: 2 })), zoidiumShader: { kind: "point", space: "uv" } }),
   },
   checkbox: {
     label: "Checkbox", desc: "On/off switch. Declare as bool, int or float.", texture: false, discrete: true,
@@ -40,7 +40,7 @@ const KINDS = {
   },
   angle: {
     label: "Angle", desc: "Edited in degrees, passed to the shader in radians.", texture: false,
-    create: () => ({ custom: true, dynamic: true, type: T.NUMBER, value: 0, step: 1, decimals: 1, scaleFactor: Math.PI / 180, zoidiumShader: { kind: "angle" } }),
+    create: () => ({ custom: true, dynamic: true, type: T.NUMBER, value: 0, step: 1, decimals: 1, scaleFactor: Math.PI / 180, zoidiumControl: "shader-plus/angle", zoidiumShader: { kind: "angle" } }),
   },
   seed: {
     label: "Seed", desc: "Whole number with a randomize button.", texture: false, discrete: true,

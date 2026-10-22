@@ -39,11 +39,12 @@ function installTextureControls({ PZ, doc, register, curves, commit, rampControl
   });
   register("shader-plus/curve", PZ.property.type.TEXT, property => {
     const raw = () => parseJSON(property.get());
-    const root = node("div", "editbox zsp-box"), host = node("div"), anchor = node("span", "zsp-anchor"), toolbar = node("div", "zsp-text-options");
+    const root = node("div", "editbox zsp-box zsp-curve"), host = node("div"), anchor = node("span", "zsp-anchor"), toolbar = node("div", "zsp-text-options");
     root.append(anchor, host, toolbar);
     let widget, shownChannels;
     function build() {
       const rgba = raw().channels === "rgba";
+      root.classList.toggle("zsp-curve-rgba", rgba);
       const channels = [{ id: "composite", shortName: rgba ? "RGB" : "Y", name: rgba ? "RGB" : "Value" }];
       if (rgba) channels.push(...[["red", "R"], ["green", "G"], ["blue", "B"], ["alpha", "A"]].map(([id, shortName]) => ({ id, shortName, name: id })));
       widget = curves.createCurveControl(property, { document: doc, controls: PZ.ui.controls, PZ, channels,

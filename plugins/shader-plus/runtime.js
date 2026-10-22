@@ -234,6 +234,12 @@ function installRuntime({ PZ, THREE, doc, patch, curves, editor, presetFont, pip
 
   return {
     configure, prepareEntry,
+    reloadFont(key) {
+      for (const p of live) {
+        const entry = entries.get(p);
+        if (entry.kind === "text" && entry.fontKey === key) { entry.key = null; prepareEntry(entry.effect, p, "text"); refresh(entry.effect); }
+      }
+    },
     entry: property => entries.get(property) || null,
     disposeAll() {
       for (const [property, { update, effect }] of changed) {

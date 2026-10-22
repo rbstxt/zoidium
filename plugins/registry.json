@@ -33,7 +33,7 @@
       "description": "Hidden built-in extensions that always run. Not shown in the Plugins panel and never stored in projects.",
       "manifest": "./plugins/core/manifest.json?v=73",
       "bundle": "./plugins/core/bundle.json?v=73",
-      "integrity": "sha256-bGHF7y956RWfuRJJ2Azbt1XbuWD7hjIRhaLhw2AKx3A="
+      "integrity": "sha256-rnYday2Qn/JpRiot5ILI3LpJqOR4auORlTJvSazY4AI="
     },
     {
       "id": "easing-plus",
@@ -63,7 +63,7 @@
       "description": "Modern deterministic expressions, property links and Sequence Controls in native CM3 panels.",
       "manifest": "./plugins/expressions-plus/manifest.json?v=10",
       "bundle": "./plugins/expressions-plus/bundle.json?v=10",
-      "integrity": "sha256-fRO9tGbWY9eusGFmti9gxg3FbhWH1mWfyJT+bfdc9y4=",
+      "integrity": "sha256-mDs65fYHAmvN38PXX/qAbDTjS1Y+jhDWqZ+vbRCrn88=",
       "zoidiumOnly": true,
       "warning": "Extended expressions and controls require Zoidium with Expressions+."
     },
@@ -72,15 +72,15 @@
       "category": "utilities",
       "name": "Shader+",
       "author": "Zoidium",
-      "version": "2",
+      "version": "3",
       "defaultEnabled": true,
       "itemCount": 12,
       "format": "shader controls",
       "tagline": "Custom shader property editors",
       "description": "Native custom shader controls with optional baked texture inputs.",
-      "manifest": "./plugins/shader-plus/manifest.json?v=2",
-      "bundle": "./plugins/shader-plus/bundle.json?v=2",
-      "integrity": "sha256-rUW4+O2jQ2dxTpZRaftkf/4+Py0sLBXlYdBOt0CCgfU="
+      "manifest": "./plugins/shader-plus/manifest.json?v=3",
+      "bundle": "./plugins/shader-plus/bundle.json?v=3",
+      "integrity": "sha256-ZDZjcLHuL29chD4KdMLHDIbIrKtgongjv/xlaCPE+k4="
     },
     {
       "id": "player-plus",

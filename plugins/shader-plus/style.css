@@ -26,3 +26,10 @@
 .zsp-gradient .zoidium-node-editor-ramp-track { margin: 10px 8px; }
 .zsp-gradient .zoidium-node-editor-ramp-fields { min-width: 0; }
 .zsp-box [hidden],li[hidden] { display: none !important; }
+
+.zsp-curve .zoidium-color-curves-toolbar { grid-template-columns: minmax(0,1fr) auto; }
+.zsp-curve-rgba .zoidium-color-curves-toolbar { grid-template-columns: repeat(5,minmax(0,1fr)) auto; }
+.zsp-curve .zoidium-color-curves-channel { padding-left: 3px; padding-right: 3px; }
+
+.zsp-angle { display: inline-block; position: relative; vertical-align: middle; width: 28px; height: 28px; margin-left: 6px; border: 1px solid var(--zui-border,#666); border-radius: 50%; background: var(--zui-bg-input,#222); cursor: crosshair; touch-action: none; }
+.zsp-angle::before { content: ''; position: absolute; width: 2px; height: 10px; top: 3px; left: 12px; background: var(--zui-text-bright,#ddd); transform-origin: 50% 10px; transform: rotate(var(--zsp-angle,0rad)); }

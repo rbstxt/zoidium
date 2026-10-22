@@ -35,7 +35,7 @@ function installShaders({ PZ, THREE, store, engine, patch, pipeline = pipelineCo
     },
     beforeUpdate() {
     const raw = this.properties.fragShader.get();
-    if (failed.get(this) === raw) { this.pass.enabled = false; return false; }
+    if (failed.get(this)?.raw === raw && failed.get(this).version === pipeline.includeVersion) { this.pass.enabled = false; return false; }
       return true;
     },
     update(frame) {
@@ -77,7 +77,7 @@ function installShaders({ PZ, THREE, store, engine, patch, pipeline = pipelineCo
       this.pass.enabled = false;
       // Include parse errors cannot recover until source changes. Missing
       // controls can recover immediately after an ordinary control edit.
-      if (/include/i.test(error.message)) failed.set(this, raw);
+      if (/include/i.test(error.message)) failed.set(this, { raw, version: pipeline.includeVersion });
       return true;
     },
   }));
