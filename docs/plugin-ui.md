@@ -449,3 +449,41 @@ line numbers, Tab/Shift+Tab indentation and Apply, Ctrl/Cmd+S or Ctrl+Enter.
 The Shader side list inserts uniform/helper names. Shader errors use CM3's
 existing define-corrected error event. Reopening focuses the same property
 window, and removing the target or replacing the project closes it.
+
+## Shader editor authoring tools
+
+Shader+ code windows keep drafts and a bounded local undo/redo stack separate
+from CM3 project history. Apply, Ctrl/Cmd+S and Ctrl+Enter retain the native
+property address and one native history operation. Native project undo/redo
+refreshes the window and starts a new local undo stack. Completion accepts with
+Tab/Enter, navigates with arrows and closes with Escape. Escape otherwise
+retains the shared window behavior. IME composition does not accept completions.
+
+The editor supports line comments with Ctrl/Cmd+/, paired brackets, Enter
+indentation, Ctrl/Cmd+F literal find/replace and Ctrl/Cmd +/- font size.
+`zoidium.shader-editor.fontSize` stores the 10 to 24 px preference locally.
+Hover or caret placement shows reference signatures. Side-list question marks
+also show examples. `plugins/shader-plus/reference.js` is plain versioned data
+with stable IDs and an empty `docsUrl` hook. Export it with
+`node tools/export-shader-reference.js`; no external documentation link is
+shown with the default hook. Tests check helper overloads, includes, kind
+storage and auxiliary bindings against their implementations.
+
+After 400 ms without editing, Shader drafts compile and link in disposable
+WebGL programs using the current renderer context. The shared shader pipeline
+runs native setup and registered transforms/declarations on a detached facade.
+Shader+'s preview declaration removes texture defines and adds referenced
+option constants without baking or retaining textures. No property, live pass,
+project history or rendered frame is written by these checks. Diagnostics map
+expanded include lines to their include directive and inserted bindings to the
+nearest authored line. Errors mark the gutter and underline the line; clicking
+a diagnostic selects that line. Muted uniform hints are advisory. Declare adds
+a missing declaration to the draft after its precision declarations.
+
+New from template offers Passthrough, Color adjust, Gradient map, Curve remap,
+Animated noise and Text overlay. Replacing editor text requires confirmation.
+Required properties use collision-free names and an explicit Add properties
+action, which is one native history entry. Apply is a separate source edit.
+Templates leave all existing properties intact. Animated noise requires an
+enabled Expressions+ plugin and is disabled in the menu otherwise. Text uses
+the project's preset-font path through the existing Shader+ font loader.
