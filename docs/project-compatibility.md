@@ -407,3 +407,25 @@ held key's array directly could alter the preceding key as a new local-frame
 key was created, leaving that earlier mutation after undo. The copy prevents
 that leak. Existing saved keys and their rendered output are unchanged until
 edited; new edits affect only their intended local-frame snapshot.
+
+## Shared curve editing and code windows
+
+Color Curves and Shader+ now use the same square, value-column curve widget.
+The Color Curves sampler, LUT and serialized values are unchanged. Shader+
+Graph/Curves is a presentation option on this widget; opening either view or
+showing handles never rewrites a value. Shader/Expression window geometry is
+local editor state and does not enter projects. Apply uses the original native
+property address and one history operation.
+
+Existing Shader+ curve JSON, including crossed explicit handles, retains its
+exact previous bake. Editing a handle adds `inIndependent: true` or
+`outIndependent: true` inside that point's fourth-element handle object. A
+segment with either adjoining flag bounds each handle only by its endpoints,
+allowing its two handle tips to cross. Unmarked segments keep their historical
+ordered-handle sampling. Moving a point with explicit handles also marks its
+moved handles. No migration occurs on load, save or view changes.
+
+New marked handle edits work in single and RGBA channels. Older Shader+ builds
+preserve the TEXT JSON but ignore these flags and use the historical ordered
+composite handles, and ignore per-channel handles. They can render newly edited
+segments differently. Keep the original project when editing in older builds.

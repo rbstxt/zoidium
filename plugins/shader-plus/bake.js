@@ -118,6 +118,9 @@ function parseCurve(value, curves) {
   if (!raw.composite && raw.points) state.composite = curves.parseState({ composite: raw.points }).composite;
   if ((raw.composite || raw.points)?.some?.(p => p?.[3])) state.composite = pointsWithHandles(raw.composite || raw.points, curves);
   state.alpha = curves.parseState({ composite: raw.alpha }).composite;
+  // Older editors never authored channel handles. Only explicitly marked new
+  // edits use them; historical channel JSON keeps the old bake exactly.
+  for (const key of ["red", "green", "blue", "alpha"]) if (raw[key]?.some?.(p => p?.[3]?.inIndependent || p?.[3]?.outIndependent)) state[key] = pointsWithHandles(raw[key], curves);
   state.channels = raw.channels === "rgba" ? "rgba" : "single";
   state.range = Array.isArray(raw.range) && raw.range.length === 2 && raw.range.every(Number.isFinite) ? raw.range : [0, 1];
   return state;
@@ -125,8 +128,8 @@ function parseCurve(value, curves) {
 function bakeCurve(value, curves, half = false) {
   const state = parseCurve(value, curves);
   const raw = parseJSON(value);
-  const composite = createGraphSampler(raw.composite || raw.points || state.composite, curves), red = curves.createSampler(state.red);
-  const green = curves.createSampler(state.green), blue = curves.createSampler(state.blue), alpha = curves.createSampler(state.alpha);
+  const composite = createGraphSampler(raw.composite || raw.points || state.composite, curves), red = createGraphSampler(state.red, curves);
+  const green = createGraphSampler(state.green, curves), blue = createGraphSampler(state.blue, curves), alpha = createGraphSampler(state.alpha, curves);
   const data = half ? new Float32Array(CURVE_SIZE * 4) : new Uint8Array(CURVE_SIZE * 4);
   for (let i = 0; i < CURVE_SIZE; i++) {
     const x = i / (CURVE_SIZE - 1), common = composite(x);

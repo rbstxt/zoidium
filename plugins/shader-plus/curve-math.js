@@ -9,6 +9,7 @@ function pointsWithHandles(raw, curves) {
     const valid = v => Array.isArray(v) && v.length === 2 && v.every(Number.isFinite);
     if (handles && (valid(handles.in) || valid(handles.out))) {
       p[2] = original[2] ?? null; p[3] = {};
+      for (const key of ["inIndependent", "outIndependent"]) if (handles[key] === true) p[3][key] = true;
       for (const key of ["in", "out"]) if (valid(handles[key])) p[3][key] = handles[key].map(clamp);
     }
     return p;
@@ -30,8 +31,11 @@ function automaticSlopes(points) {
 function segmentHandles(points, index, slopes = automaticSlopes(points)) {
   const a = points[index], b = points[index+1], dx = (b[0]-a[0])/3;
   const out = a[3]?.out || [a[0]+dx, a[1]+dx*slopes[index]], inside = b[3]?.in || [b[0]-dx, b[1]-dx*slopes[index+1]];
-  // x handles stay ordered within a segment, giving a unique x -> y mapping.
-  const x1 = Math.max(a[0], Math.min(b[0], out[0])), x2 = Math.max(x1, Math.min(b[0], inside[0]));
+  // Historical JSON keeps the exact ordered-handle sampler. A newly edited
+  // segment opts into independent bounds; crossing handles inside the segment
+  // still give a monotone cubic x coordinate, so bisection remains valid.
+  const independent = a[3]?.outIndependent || b[3]?.inIndependent;
+  const x1 = Math.max(a[0], Math.min(b[0], out[0])), x2 = Math.max(independent ? a[0] : x1, Math.min(b[0], inside[0]));
   return [[x1, out[1]], [x2, inside[1]]];
 }
 function createGraphSampler(raw, curves) {
@@ -54,4 +58,17 @@ const PRESETS = {
   "Fade in-out": [[0, 0], [.25, 1], [.75, 1], [1, 0]],
   Bell: [[0, 0], [.5, 1], [1, 0]], Constant: [[0, 1], [1, 1]], Spike: [[0, 0], [.48, 0], [.5, 1], [.52, 0], [1, 0]],
 };
-module.exports = { pointsWithHandles, automaticSlopes, segmentHandles, createGraphSampler, PRESETS, clamp };
+function moveHandle(points, selected, key, value) {
+  const p = points[selected], edge = points[selected + (key === "in" ? -1 : 1)];
+  if (!edge) return;
+  if (!p[3]) { p[2] = p[2] ?? null; p[3] = {}; }
+  p[3][key] = [Math.max(Math.min(p[0], edge[0]), Math.min(Math.max(p[0], edge[0]), value[0])), clamp(value[1])];
+  p[3][key + "Independent"] = true;
+}
+function movePointHandles(points, selected, previous) {
+  const p = points[selected];
+  for (const key of ["in", "out"]) if (p[3]?.[key]) {
+    const h = p[3][key]; moveHandle(points, selected, key, [h[0]+p[0]-previous[0], h[1]+p[1]-previous[1]]);
+  }
+}
+module.exports = { moveHandle, movePointHandles, pointsWithHandles, automaticSlopes, segmentHandles, createGraphSampler, PRESETS, clamp };
