@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 const fs = require("fs");
+const { applyControls } = require("./alipfx-controls.js");
 const path = require("path");
 
 const sourceRoot = process.argv[2];
@@ -11,7 +12,7 @@ const descriptionsPath = path.join(outputRoot, "descriptions.json");
 const PACK_ID = "alipfx-shader-pack-4";
 const PACK_NAME = "Afterzoid Shader Pack 5";
 const PACK_CATEGORY = "ALIPFX · SHADER PACK 5";
-const PACK_VERSION = "9";
+const PACK_VERSION = "10";
 
 if (!sourceRoot) {
   console.error("Usage: node tools/build-alipfx-plugin.js <shader-pack-directory>");
@@ -123,6 +124,7 @@ for (const sourcePath of sourceFiles) {
 
   const preset = JSON.parse(JSON.stringify(shaderData));
   delete preset.properties.fragShader;
+  applyControls(preset, JSON.parse(fs.readFileSync(path.join(outputRoot, "controls.json"), "utf8"))[id]);
   const shownName = displayNames[id] || displayName;
   preset.properties.name = shownName;
 

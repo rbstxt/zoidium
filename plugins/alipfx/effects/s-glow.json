@@ -450,7 +450,15 @@
       "type": {
         "custom": true,
         "dynamic": true,
-        "type": 0
+        "type": 0,
+        "zoidiumShader": {
+          "kind": "dropdown",
+          "items": [
+            "Result",
+            "Threshold"
+          ]
+        },
+        "zoidiumControl": "shader-plus/dropdown"
       },
       "properties": {
         "name": "Show"
@@ -478,7 +486,18 @@
       "type": {
         "custom": true,
         "dynamic": true,
-        "type": 0
+        "type": 0,
+        "zoidiumShader": {
+          "kind": "dropdown",
+          "items": [
+            "Multiply",
+            "Add",
+            "Screen",
+            "Difference",
+            "Overlay"
+          ]
+        },
+        "zoidiumControl": "shader-plus/dropdown"
       },
       "properties": {
         "name": "Combine"
@@ -506,7 +525,15 @@
       "type": {
         "custom": true,
         "dynamic": true,
-        "type": 0
+        "type": 0,
+        "zoidiumShader": {
+          "kind": "dropdown",
+          "items": [
+            "Transparent",
+            "Reflect"
+          ]
+        },
+        "zoidiumControl": "shader-plus/dropdown"
       },
       "properties": {
         "name": "Edge_Mode"
@@ -534,7 +561,11 @@
       "type": {
         "custom": true,
         "dynamic": true,
-        "type": 0
+        "type": 0,
+        "zoidiumShader": {
+          "kind": "checkbox"
+        },
+        "zoidiumControl": "shader-plus/checkbox"
       },
       "properties": {
         "name": "Affect_Alpha"
@@ -562,7 +593,11 @@
       "type": {
         "custom": true,
         "dynamic": true,
-        "type": 0
+        "type": 0,
+        "zoidiumShader": {
+          "kind": "checkbox"
+        },
+        "zoidiumControl": "shader-plus/checkbox"
       },
       "properties": {
         "name": "Glow_From_Alpha"
@@ -590,7 +625,11 @@
       "type": {
         "custom": true,
         "dynamic": true,
-        "type": 0
+        "type": 0,
+        "zoidiumShader": {
+          "kind": "checkbox"
+        },
+        "zoidiumControl": "shader-plus/checkbox"
       },
       "properties": {
         "name": "Glow_Under_Source"

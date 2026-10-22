@@ -413,6 +413,7 @@
     const detectedCompositions = findCompositionFeatures(data);
     const detectedConstraints = findConstraintFeatures(data);
     const detectedExpressions = findExpressionFeatures(data);
+    const detectedShaderProperties = findShaderProperties(data);
     if (
       detectedEffects.length === 0 &&
       detectedPluginNative.size === 0 &&
@@ -427,7 +428,8 @@
       detectedParticlesPlusSprites.size === 0 &&
       detectedCompositions.size === 0 &&
       detectedConstraints.size === 0 &&
-      detectedExpressions.size === 0
+      detectedExpressions.size === 0 &&
+      detectedShaderProperties.size === 0
     ) {
       return plugins;
     }
@@ -466,6 +468,7 @@
     }
     mergeDetectedPluginItems(plugins, "constraints", "features", detectedConstraints);
     mergeDetectedPluginItems(plugins, "expressions-plus", "features", detectedExpressions);
+    mergeDetectedPluginItems(plugins, "shader-plus", "features", detectedShaderProperties);
     mergeDetectedPluginItems(plugins, "precomp-plus", "features", detectedCompositions);
     mergeDetectedPluginItems(plugins, TRAPCODE_SUITE_PLUGIN_ID, "features", detectedC4DLights);
     mergeDetectedPluginItems(
@@ -483,6 +486,14 @@
     return plugins;
   }
 
+  function findShaderProperties(value, found = new Set(), visited = new WeakSet()) {
+    if (!value || typeof value !== "object" || visited.has(value)) return found;
+    visited.add(value);
+    if (["gradient", "curve", "palette", "text"].includes(value.zoidiumShader?.kind)) found.add("shader-properties");
+    for (const child of Object.values(value)) findShaderProperties(child, found, visited);
+    return found;
+  }
+
   function findExpressionFeatures(value, found = new Set(), visited = new WeakSet()) {
     if (!value || typeof value !== "object" || visited.has(value)) return found;
     visited.add(value);
@@ -494,7 +505,7 @@
     if (expressionKind === true || expressionKind !== false && typeof source === "string" && /\b(?:let|const|function|return|throw|value|thisProperty|thisObject|thisLayer|thisClip|thisSequence|thisComp|prop|controls|control|seedRandom|wiggle|easeIn|easeOut|degreesToRadians|radiansToDegrees|lookAt|toWorld|fromWorld|worldPosition|worldRotation|toScreen|fromScreen|Array|Number|String|Boolean|JSON|Math|parseInt|parseFloat|isFinite|isNaN|Infinity|NaN|undefined)\b|=>|\?\.|\.\.\.|`|\.\s*[A-Za-z_$]|\bvar\s*[\[{]|\b\d[\d_]*n\b|\d_\d|\?\?|&&=|\|\|=/.test(source)) found.add("expressions");
     if (value.zoidiumControls) found.add("sequence-controls");
     const shader = value.properties?.fragShader;
-    if (typeof shader === "string" && /\bz(?:Time|Frame)\b|\bctl_\w+|\/\/\s*#include\s*<zoidium\//.test(shader)) found.add("shader-extensions");
+    if (typeof shader === "string" && /\bz(?:Time|Frame)\b|\bctl_\w+|\/\/\s*#include\s*<zoidium\/(?:hash|noise|color|sdf)>/.test(shader)) found.add("shader-extensions");
     for (const child of Object.values(value)) findExpressionFeatures(child, found, visited);
     return found;
   }

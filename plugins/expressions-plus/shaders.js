@@ -1,34 +1,9 @@
 "use strict";
 const library = require("./glsl-library.js");
 const { ancestor, named } = require("./api.js");
-function stripComments(source) { return source.replace(/\/\*[\s\S]*?\*\//g, s => s.replace(/[^\n]/g, " ")).replace(/\/\/[^\n]*/g, ""); }
-function expandIncludes(source) {
-  if (!/\/\/\s*#include\s*<zoidium\//.test(source)) return source;
-  const emitted = new Set();
-  function expand(text, depth = 0) {
-    if (depth > 8) throw new Error("Shader include nesting limit exceeded");
-    let inComment = false;
-    return text.split("\n").map(line => {
-      const directive = !inComment && /^\s*\/\/\s*#include\s*<zoidium\/([a-z]+)>\s*\r?$/.exec(line);
-      if (directive) {
-        const name = directive[1];
-        if (!Object.hasOwn(library, name)) throw new Error("Unknown Zoidium shader include: " + name);
-        if (emitted.has(name)) return "";
-        emitted.add(name);return expand(library[name], depth + 1);
-      }
-      // GLSL has no quoted strings, so this tracks comment delimiters without
-      // treating a disabled directive inside a block comment as executable.
-      for (let i = 0; i < line.length - 1; i++) {
-        const pair = line.slice(i, i + 2);
-        if (!inComment && pair === "//") break;
-        if (!inComment && pair === "/*") { inComment = true; i++; }
-        else if (inComment && pair === "*/") { inComment = false; i++; }
-      }
-      return line;
-    }).join("\n");
-  }
-  return expand(source);
-}
+const pipelineCore = typeof window !== "undefined" ? window.ZoidiumShaderPipeline : require("../core/shader-pipeline.js");
+const { stripComments } = pipelineCore;
+function expandIncludes(source) { return pipelineCore.expandIncludes(source, library); }
 function analyze(source) {
   const expanded = expandIncludes(source), text = stripComments(expanded);
   const uniforms = [];
@@ -41,28 +16,31 @@ function analyze(source) {
   }
   return { source: expanded, uniforms, used: expanded !== source || uniforms.length > 0 };
 }
-function installShaders({ PZ, THREE, store, engine, patch }) {
+function installShaders({ PZ, THREE, store, engine, patch, pipeline = pipelineCore.forHost(PZ, patch), onDispose = () => {} }) {
   const metadata = new WeakMap(), failed = new WeakMap(), lastError = new WeakMap(), reports = new Set();
-  const prototype = PZ.effect.shader.prototype;
-  patch(prototype, "updateFragmentShader", original => function compileWithExtensions() {
-    const property = this.properties.fragShader, raw = property.get(), parsed = analyze(raw);
-    if (!parsed.used) { metadata.delete(this); return original.apply(this, arguments); }
-    const own = Object.getOwnPropertyDescriptor(property, "get");
-    if (parsed.source !== raw) property.get = () => parsed.source;
-    try { original.apply(this, arguments); }
-    finally { if (own) Object.defineProperty(property, "get", own); else delete property.get; }
-    metadata.set(this, parsed);
+  onDispose(pipeline.registerIncludes(library));
+  onDispose(pipeline.register({
+    id: "expressions-plus",
+    transformSource(source) {
+      const parsed = analyze(source);
+      metadata.set(this, parsed);
+      return parsed.source;
+    },
+    declare() {
+      const parsed = metadata.get(this);
     for (const uniform of parsed.uniforms) {
       const value = uniform.size === 1 ? 0 : new THREE["Vector" + uniform.size]();
       this.pass.uniforms[uniform.name] = { type: uniform.size === 1 ? uniform.type === "int" ? "i" : "f" : "v" + uniform.size, value };
     }
-  });
-  patch(prototype, "update", original => function updateWithExtensions(frame) {
+    },
+    beforeUpdate() {
     const raw = this.properties.fragShader.get();
-    if (failed.get(this) === raw) { this.pass.enabled = false; return; }
-    try {
-      const result = original.apply(this, arguments), parsed = metadata.get(this);
-      if (!parsed) return result;
+    if (failed.get(this)?.raw === raw && failed.get(this).version === pipeline.includeVersion) { this.pass.enabled = false; return false; }
+      return true;
+    },
+    update(frame) {
+      const parsed = metadata.get(this);
+      if (!parsed?.used) return;
       const sequence = ancestor(this, n => n instanceof PZ.sequence), clip = ancestor(this, n => n instanceof PZ.clip);
       const absolute = frame + (clip?.start || 0), names = new Map();
       const wanted = new Set(parsed.uniforms.filter(u => u.name.startsWith("ctl_")).map(u => u.name.slice(4)));
@@ -90,17 +68,19 @@ function installShaders({ PZ, THREE, store, engine, patch }) {
         else this.pass.uniforms[uniform.name].value.set(...value);
       }
       lastError.delete(this);
-      return result;
-    } catch (error) {
+    },
+    error(error) {
+      const raw = this.properties.fragShader.get();
       const message = "Expressions+ shader error: " + error.message;
       if (!reports.has(message)) { reports.add(message); if (reports.size > 128) reports.delete(reports.values().next().value); console.warn("[Zoidium] " + message); }
       if (lastError.get(this) !== message) { lastError.set(this, message); this.onShaderError.update(message); }
       this.pass.enabled = false;
       // Include parse errors cannot recover until source changes. Missing
       // controls can recover immediately after an ordinary control edit.
-      if (/include/i.test(error.message)) failed.set(this, raw);
-    }
-  });
+      if (/include/i.test(error.message)) failed.set(this, { raw, version: pipeline.includeVersion });
+      return true;
+    },
+  }));
   return { analyze, expandIncludes };
 }
 module.exports = { analyze, expandIncludes, stripComments, installShaders };

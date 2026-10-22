@@ -396,3 +396,14 @@ test("Track To records require Constraints but inert target IDs and cleared rows
   assert.equal(pluginById({ type: 1, properties: { zoidiumId: "target-uuid", zoidiumTrackTo: "" } }, "constraints"), undefined);
   assert.equal(pluginById({ zoidiumTrackTo: "unrelated" }, "constraints"), undefined);
 });
+
+test("Shader+ records texture dependencies without making numeric metadata require a plugin", () => {
+  for (const kind of ["slider", "angle", "checkbox", "dropdown", "seed", "point", "color4", "staticDropdown"]) {
+    assert.equal(requirements({ type: { zoidiumShader: { kind } } }).length, 0);
+  }
+  for (const kind of ["gradient", "curve", "palette", "text"]) {
+    const data = { type: { zoidiumShader: { kind } }, properties: { fragShader: "// #include <zoidium/" + (kind === "palette" ? "gradient" : kind) + ">" } };
+    assert.deepEqual(pluginById(data, "shader-plus").features, ["shader-properties"]);
+    assert.equal(pluginById(data, "expressions-plus"), undefined);
+  }
+});

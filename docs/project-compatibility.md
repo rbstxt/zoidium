@@ -349,3 +349,30 @@ Older builds can open and retain the GLSL, but do not expand include comments
 or supply automatic uniforms, so their output may differ or fail to compile.
 Shaders that do not opt into these extensions retain their original source
 bytes, compiler path and uniforms.
+
+## Shader+ property kinds
+
+Custom definitions retain `zoidiumShader: {kind, ...}` and `zoidiumControl` in
+native property records. Number/vector kinds keep their native storage and
+render identically without Shader+. Metadata-only changes retain keys,
+tweens, expressions and evaluated fractional values. Checkbox/Dropdown
+editors create integer values and hold keys; old keys are not rewritten.
+Static dropdown uses native static OPTION and compiles without Shader+.
+Zero saves as the numeric string `"0"` to avoid CM3's falsy static-value load
+path. It still expands to GLSL `0`.
+
+Gradient, Curve, Palette and Text use static native TEXT containing JSON.
+They add dependency `shader-plus` feature `shader-properties`; numeric editor
+metadata alone adds no dependency. Vanilla CM3 and older Zoidium retain and
+resave these definition fields and JSON. They emit a native shader compile
+error for texture/array payloads instead of throwing from property binding.
+They cannot reproduce Shader+ textures or arrays. Keep the original project
+when editing in an older build. Includes remain in the unexpanded shader
+string and require their supplying plugin at render time.
+
+Text JSON contains a font asset key. Shader+ retains that asset while the
+property is loaded, and export preparation awaits the font. Preset font paths
+remain external CM3 resources in the ignored runtime cache. Imported fonts
+are project assets. Texture caches and expanded shader code are not saved.
+The five-effect AlipFX controls mapping changes only build-time editor metadata;
+saved effects keep their existing definitions and rendering.

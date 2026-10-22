@@ -870,6 +870,7 @@
   var sharedWindows = sharedTable("ZoidiumSharedWindows");
 
   var apis = {
+    shaderPipeline: global.ZoidiumShaderPipeline?.forHost(global.PZ),
     assets: global.ZoidiumAssets,
     KINDS: KINDS,
     modules: { createRequire: createRequire },

@@ -8,7 +8,7 @@
     // loader appends it automatically, so per-file ?v= queries are never
     // hand-edited here. Plugin asset URLs are versioned separately by
     // tools/build-plugin-bundles.js from each manifest's own version.
-    assetVersion: 164,
+    assetVersion: 165,
     // Plugin registry consumed by plugins/plugin-manager.js. It is preloaded
     // below, so its URL lives here as the single source.
     registryUrl: "./plugins/registry.json?v=119",
@@ -53,6 +53,7 @@
       "./plugins/core/object3d-registry.js",
       "./plugins/core/shadow-quality.js",
       "./plugins/core/named-property-lists.js",
+      "./plugins/core/shader-pipeline.js",
       "./plugins/core/disable-recovery.js",
       "./plugins/core/remove-ad-panel.js",
       "./plugins/core/centered-layout.js",
