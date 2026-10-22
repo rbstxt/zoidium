@@ -2,8 +2,9 @@
 
 Shader+ adds editors to native Custom Shader properties. Add an effect, open
 Shader properties, click +, then choose a kind under ZOIDIUM. Right-click a
-property and choose "Property settings…" to edit its name, kind, range,
-default, items, group, help or visibility rule. Apply records one undo step.
+property to rename, duplicate or delete it, or choose "Property settings…" to
+edit its name, kind and the settings that kind uses (range, default, options,
+group, tooltip, visibility). Apply records one undo step.
 Kind choices share the property's native storage type. Changing a numeric
 kind preserves all keys, tweens and expressions. A default is authoring
 metadata; changing it does not overwrite the current value.
@@ -11,7 +12,7 @@ metadata; changing it does not overwrite the current value.
 ## Numbers and vectors
 
 Slider is a NUMBER with a range bar. Angle stores radians and displays degrees.
-Checkbox and Dropdown store NUMBER values. Their editors write integers and
+Toggle (an off/on menu) and Dropdown store NUMBER values. Their editors write integers and
 new keys use Hold. Attaching these editors never rounds evaluated values or
 changes old key interpolation. Fractional expressions reach GLSL unchanged:
 
@@ -30,13 +31,14 @@ conversion. Use a float uniform when the shader needs fractional values.
 Dropdown items keep their indices when renamed. `Mode_Linear` is emitted as a
 constant only if the include-expanded shader references that token. Comments
 do not count. Static dropdown uses native OPTION storage and a compile-time
-`#define Mode index`. Seed adds a randomize button. Point is a native vec2
-with UV/pixel metadata; it has no viewport handle in this release. Color +
-alpha is a straight RGBA vec4.
+`#define Mode index`. Seed adds a randomize button. Color + alpha is a
+straight RGBA vec4. Point (a vec2 with UV/pixel metadata) is no longer offered
+in the menu; saved Point properties keep loading and binding as vec2.
 
-Groups appear as collapsible headings in the native list. Help appears on the
-row tooltip. A visibility rule is JSON, for example
-`{"property":"Mode","values":[1,2]}`. It uses the controller's native evaluated
+Groups appear as collapsible headings in the native list. The tooltip
+appears on the row. "Visible when" picks another property of the effect and
+the values that show this row, for example Mode with `1; 2`. It is stored as
+`{"property":"Mode","values":[1,2]}`, uses the controller's native evaluated
 value and affects the editor only.
 
 ## Gradient
