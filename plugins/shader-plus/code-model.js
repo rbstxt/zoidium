@@ -4,7 +4,7 @@
 // rules are the same for Shader and Expression editors.
 function indentCode(text, start, end, unindent = false) {
   if (start === end && !unindent) return { text: text.slice(0, start) + "  " + text.slice(end), start: start + 2, end: start + 2 };
-  const from = text.lastIndexOf("\n", start - 1) + 1;
+  const from = start === 0 ? 0 : text.lastIndexOf("\n", start - 1) + 1;
   const to = end > start && text[end - 1] === "\n" ? end - 1 : end;
   const lines = text.slice(from, to).split("\n");
   let delta = 0, first = 0;
@@ -20,6 +20,14 @@ function indentCode(text, start, end, unindent = false) {
 
 const nativeTypes = ["float", "vec2", "vec3", "vec4", "vec3"];
 function shaderSymbols(effect, { expressions = false, controls = [] } = {}) {
+  const source = (effect?.properties?.fragShader?.get?.() || "").replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, " ");
+  const declared = new Map();
+  for (const match of source.matchAll(/\buniform\s+(?:(?:lowp|mediump|highp)\s+)?(float|int|bool|vec[234]|sampler2D)\s+([^;]+);/g)) {
+    for (const entry of match[2].split(",")) {
+      const name = /^\s*([A-Za-z_]\w*)/.exec(entry)?.[1];
+      if (name) declared.set(name, match[1]);
+    }
+  }
   const result = [
     { name: "tDiffuse", type: "sampler2D", hint: "Input image" },
     { name: "uvScale", type: "vec2", hint: "Input UV scale" },
@@ -28,10 +36,10 @@ function shaderSymbols(effect, { expressions = false, controls = [] } = {}) {
   for (const p of effect?.customProperties || []) {
     const name = String(p.properties.name.get()).replace(/\s/g, "_");
     const kind = p.definition.zoidiumShader?.kind;
-    let type = nativeTypes[p.definition.type] || "#define";
+    let type = declared.get(name) || nativeTypes[p.definition.type] || "#define";
     if (["gradient", "curve", "text"].includes(kind) || p.definition.type === 8) type = "sampler2D";
     if (kind === "palette") type = "vec4[16]";
-    result.push({ name, type, hint: p.dynamic ? "Custom uniform" : type === "#define" ? "Static define" : "Custom property" });
+    result.push({ name, type, hint: p.definition.dynamic ? "Custom uniform" : type === "#define" ? "Static define" : "Custom property" });
     const extras = kind === "curve" ? [["range", "vec2"]] : kind === "gradient" ? [["repetitions", "float"]] : kind === "palette" ? [["count", "int"]] : kind === "text" ? [["aspect", "float"], ["size", "vec2"], ["count", "float"], ["grid", "vec2"]] : [];
     for (const [suffix, type] of extras) result.push({ name: name + "_" + suffix, type, hint: "Shader+ binding" });
   }

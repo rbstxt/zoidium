@@ -15,3 +15,11 @@
 .zsp-code-status { min-height: 24px; max-height: 110px; overflow: auto; padding: 4px 10px; white-space: pre-wrap; font: 12px/18px "Source Code Pro", monospace; color: var(--zui-text-muted); border-top: 1px solid var(--zui-border); }
 .zsp-code-status.is-error { color: var(--zui-danger); }
 @media (max-width: 650px) { .zsp-code-symbols { flex-basis: 120px; } }
+
+.zsp-code-pane { position: relative; }
+.zsp-code-pane .zsp-code-highlight { position: absolute; inset: 0 0 0 48px; margin: 0; padding: 10px 8px; overflow: hidden; pointer-events: none; white-space: pre; color: var(--zui-text-bright); font: 13px/21px "Source Code Pro", monospace !important; tab-size: 2; }
+.zsp-code-pane.has-highlight .zsp-code-input { color: transparent; caret-color: var(--zui-text-bright); position: relative; z-index: 1; }
+.zsp-code-highlight .token.comment { color: var(--zui-text-faint); }
+.zsp-code-highlight .token.keyword, .zsp-code-highlight .token.function, .zsp-code-highlight .token.number, .zsp-code-highlight .token.boolean { color: var(--zui-value); }
+.zsp-code-highlight .token.operator, .zsp-code-highlight .token.punctuation { color: var(--zui-text-muted); }
+.zsp-code-highlight .token.string { color: var(--zui-value-strong); }

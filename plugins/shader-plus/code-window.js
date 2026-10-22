@@ -34,12 +34,16 @@ function installCodeWindows({ context, patch }) {
         const gutter = node("pre", "zsp-code-gutter", "", pane); gutter.setAttribute("aria-hidden", "true");
         const input = node("textarea", "zsp-code-input", "", pane);
         input.setAttribute("aria-label", title + " source"); input.spellcheck = false; input.wrap = "off";
+        const highlight = node("pre", "zsp-code-highlight", "", pane); highlight.setAttribute("aria-hidden", "true");
+        const language = expression ? "javascript" : "glsl", grammar = global.Prism?.languages[language];
+        if (grammar) pane.classList.add("has-highlight");
         const symbols = expression ? null : node("aside", "zsp-code-symbols", "", content);
         const status = node("div", "zsp-code-status"); status.setAttribute("role", "status");
         const read = () => expression ? property.expression?.source || "" : property.get();
         let saved = read(), applying = false, shaderError = "", symbolsStamp = "";
         input.value = saved;
-        function lines() { gutter.textContent = Array.from({ length: input.value.split("\n").length }, (_, i) => i + 1).join("\n"); gutter.scrollTop = input.scrollTop; }
+        function lines() { if (grammar) highlight.innerHTML = global.Prism.highlight(input.value + "\n", grammar, language);
+          highlight.scrollTop = input.scrollTop; highlight.scrollLeft = input.scrollLeft; gutter.textContent = Array.from({ length: input.value.split("\n").length }, (_, i) => i + 1).join("\n"); gutter.scrollTop = input.scrollTop; }
         function error(message) {
           shaderError = message || ""; status.textContent = shaderError;
           status.title = shaderError; status.classList.toggle("is-error", !!shaderError);
@@ -55,7 +59,7 @@ function installCodeWindows({ context, patch }) {
           if (!symbols) return;
           let sequence = object;
           while (sequence && !(sequence instanceof PZ.sequence)) sequence = sequence.parent;
-          const entries = shaderSymbols(object, { expressions: !!global.ZoidiumExpressions, controls: global.ZoidiumExpressions?.controls.list(sequence) || [] });
+          const entries = shaderSymbols(object, { expressions: !!global.ZoidiumExpressions, controls: sequence ? global.ZoidiumExpressions?.controls.list(sequence) || [] : [] });
           const stamp = JSON.stringify(entries); if (stamp === symbolsStamp) return; symbolsStamp = stamp;
           symbols.replaceChildren(); node("div", "zsp-code-symbol-title", "Available uniforms and helpers", symbols);
           for (const entry of entries) {
@@ -81,7 +85,7 @@ function installCodeWindows({ context, patch }) {
         }
         apply.onclick = commit;
         input.oninput = () => { lines(); if (!shaderError) status.textContent = input.value === saved ? "" : "Unapplied changes"; };
-        input.onscroll = () => { gutter.scrollTop = input.scrollTop; };
+        input.onscroll = () => { gutter.scrollTop = input.scrollTop; highlight.scrollTop = input.scrollTop; highlight.scrollLeft = input.scrollLeft; };
         input.onkeydown = event => {
           if (event.key === "Tab") {
             event.preventDefault(); const edit = indentCode(input.value, input.selectionStart, input.selectionEnd, event.shiftKey);
@@ -91,7 +95,7 @@ function installCodeWindows({ context, patch }) {
         const changed = expression ? property.onExpressionChanged : property.onChanged;
         changed.watch(refresh);
         if (!expression) object.onShaderError?.watch(error);
-        const timer = global.setInterval(() => { refreshSymbols(); if (expression) refresh(); }, 250);
+        const timer = global.setInterval(() => { if (!valid()) { win.close(); return; } refreshSymbols(); if (expression) refresh(); }, 250);
         lines(); refreshSymbols(); refresh(); input.focus();
         return () => {
           changed.unwatch(refresh); if (!expression) object.onShaderError?.unwatch(error);
@@ -105,7 +109,8 @@ function installCodeWindows({ context, patch }) {
   patch(PZ.ui.controls, "generateShaderInput", () => function generateShaderInput(property) {
     const root = doc.createElement("div"); root.className = "editbox";
     const button = doc.createElement("button"); button.className = "actionbutton"; button.title = "Open Shader editor";
-    button.append(PZ.ui.generateIcon("code")); button.onclick = () => open(property); root.append(button);
+    const icon = PZ.ui.generateIcon("code"); icon.style.cssText = "width:17px;height:17px;fill:var(--zui-text-muted)";
+    button.append(icon); button.onclick = () => open(property); root.append(button);
     root.pz_update = () => {}; return root;
   });
   patch(PZ.ui.controls, "createExpressionControls", original => function expressionControls(property) {
