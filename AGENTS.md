@@ -188,6 +188,24 @@ other language in Zoidium-owned runtime code, and do not reintroduce locale
 catalogs, runtime translation dictionaries, or locale-detection branches such as
 `window.ZoidiumI18n`.
 
+## Technical writing
+
+Write and review technical documents with the technical-writing skill:
+<https://raw.githubusercontent.com/cursor/plugins/refs/heads/main/pstack/skills/technical-writing/SKILL.md>.
+This covers specifications, design notes, `docs/`, the documentation site
+under `site/`, READMEs, PR descriptions, and commit messages. Load the skill
+before you write. If your environment does not provide it, fetch that file
+and follow it.
+
+Pick the Diátaxis mode first. Then apply the skill's sentence, STE, and
+Global English rules. Japanese pages use the same mode and structure as their
+English source. Apply the rules that carry over to Japanese: one thought per
+sentence, the condition before the instruction, the real symbol and UI names,
+and no idioms. Keep UI labels in English, because the product UI is English.
+
+Product UI strings are not documentation. They follow "User-facing text
+language".
+
 ## Code quality and verification
 
 Before handing off changes:
