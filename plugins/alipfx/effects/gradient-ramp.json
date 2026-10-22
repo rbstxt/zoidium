@@ -360,7 +360,15 @@
       "type": {
         "custom": true,
         "dynamic": true,
-        "type": 0
+        "type": 0,
+        "zoidiumShader": {
+          "kind": "dropdown",
+          "items": [
+            "Linear",
+            "Radial"
+          ]
+        },
+        "zoidiumControl": "shader-plus/dropdown"
       },
       "properties": {
         "name": "Ramp_Shape"
@@ -444,7 +452,11 @@
       "type": {
         "custom": true,
         "dynamic": true,
-        "type": 0
+        "type": 0,
+        "zoidiumShader": {
+          "kind": "checkbox"
+        },
+        "zoidiumControl": "shader-plus/checkbox"
       },
       "properties": {
         "name": "Swap_Colors"

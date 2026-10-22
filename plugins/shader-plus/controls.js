@@ -2,7 +2,7 @@
 // Row editors for Shader+ kinds. Every edit goes through CM3's own
 // editStart/editFinish on the real property, so history, keyframes and
 // expressions behave exactly like native rows.
-const { KINDS, MAX_PALETTE, heldValue, discreteValue, items } = require("./kinds.js");
+const { KINDS, MAX_PALETTE, discreteValue, items } = require("./kinds.js");
 const { parseJSON, parseText } = require("./bake.js");
 
 function installControls({ PZ, doc, register, curves, editor }) {
@@ -32,7 +32,7 @@ function installControls({ PZ, doc, register, curves, editor }) {
     input.disabled = readOnly(property);
     input.onchange = () => commit(input, property, input.checked ? 1 : 0);
     box.append(input);
-    box.pz_update = frame => { input.checked = discreteValue("checkbox", heldValue(property, frameOf(box, frame)), property.definition) === 1; };
+    box.pz_update = frame => { input.checked = discreteValue("checkbox", property.get(frameOf(box, frame)), property.definition) === 1; };
     box.pz_property = property;
     return box;
   });
@@ -43,7 +43,7 @@ function installControls({ PZ, doc, register, curves, editor }) {
     for (const label of items(property.definition)) { const option = element("option"); option.textContent = label; select.append(option); }
     select.onchange = () => commit(select, property, select.selectedIndex);
     box.append(select);
-    box.pz_update = frame => { if (doc.activeElement !== select) select.selectedIndex = discreteValue("dropdown", heldValue(property, frameOf(box, frame)), property.definition); };
+    box.pz_update = frame => { if (doc.activeElement !== select) select.selectedIndex = discreteValue("dropdown", property.get(frameOf(box, frame)), property.definition); };
     box.pz_property = property;
     return box;
   });

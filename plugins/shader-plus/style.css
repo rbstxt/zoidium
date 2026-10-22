@@ -1,0 +1,23 @@
+.zsp-box { min-width: 0; max-width: 100%; box-sizing: border-box; }
+.zsp-box input,.zsp-box select,.zsp-box textarea { box-sizing: border-box; max-width: 100%; }
+.zsp-select { width: 100%; }
+.zsp-range { width: 100%; display: block; }
+.zsp-button { color: inherit; background: transparent; border: 1px solid var(--zui-border,#555); cursor: pointer; }
+.zsp-anchor { display: none; }
+.zsp-text { width: 100%; overflow: hidden; }
+.zsp-textarea { width: 100%; resize: vertical; display: block; margin-top: 4px; }
+.zsp-text-options { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.zsp-text-options input[type=number] { width: 65px; }
+.zsp-font { width: 125px; height: 27px; background: transparent; border: 0; cursor: pointer; }
+.zsp-font-sprite { background-image: url('/fonts.png'); display: block; width: 125px; height: 25px; }
+.zsp-font-name { font-size: 12px; overflow-wrap: anywhere; }
+.zsp-inline { display: inline-flex; align-items: center; gap: 4px; }
+.zsp-swatches { display: flex; flex-wrap: wrap; gap: 3px; }
+.zsp-settings { padding: 8px; background: var(--zui-bg-sunken,#222); }
+.zsp-settings label { display: grid; grid-template-columns: 1fr 1fr; align-items: center; gap: 6px; margin: 4px 0; }
+.zsp-settings input,.zsp-settings select { min-width: 0; width: 100%; box-sizing: border-box; }
+.zsp-settings [role=status] { color: var(--zui-danger,#f99); }
+.zsp-group { display: block; width: 100%; text-align: left; padding: 6px 10px; border: 0; background: var(--zui-bg-title,#333); color: inherit; cursor: pointer; }
+.zsp-group::before { content: '▾ '; }
+.zsp-group[aria-expanded=false]::before { content: '▸ '; }
+.zsp-curve-single .zoidium-color-curves-channel:not([data-channel=composite]) { display: none; }

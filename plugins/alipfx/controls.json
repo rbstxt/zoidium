@@ -1,0 +1,117 @@
+{
+  "gradient-ramp": {
+    "Ramp_Shape": {
+      "kind": "dropdown",
+      "items": [
+        "Linear",
+        "Radial"
+      ]
+    },
+    "Swap_Colors": {
+      "kind": "checkbox"
+    }
+  },
+  "s-glow": {
+    "Show": {
+      "kind": "dropdown",
+      "items": [
+        "Result",
+        "Threshold"
+      ]
+    },
+    "Combine": {
+      "kind": "dropdown",
+      "items": [
+        "Multiply",
+        "Add",
+        "Screen",
+        "Difference",
+        "Overlay"
+      ]
+    },
+    "Edge_Mode": {
+      "kind": "dropdown",
+      "items": [
+        "Transparent",
+        "Reflect"
+      ]
+    },
+    "Affect_Alpha": {
+      "kind": "checkbox"
+    },
+    "Glow_From_Alpha": {
+      "kind": "checkbox"
+    },
+    "Glow_Under_Source": {
+      "kind": "checkbox"
+    }
+  },
+  "progradient": {
+    "Gradient_Type": {
+      "kind": "dropdown",
+      "items": [
+        "Linear",
+        "Radial",
+        "Angle",
+        "Magnet",
+        "Contour"
+      ]
+    },
+    "Gradient_Color_Space": {
+      "kind": "dropdown",
+      "items": [
+        "RGB",
+        "OKLab",
+        "OKLCH"
+      ]
+    },
+    "Gradient_Hue_Interpolation": {
+      "kind": "dropdown",
+      "items": [
+        "Shortest",
+        "Longest",
+        "Decreasing",
+        "Increasing"
+      ]
+    }
+  },
+  "deep-glow": {
+    "Gamma_Correction": {
+      "kind": "checkbox"
+    },
+    "Tint_Mode": {
+      "kind": "dropdown",
+      "items": [
+        "None",
+        "Solid",
+        "Gradient"
+      ]
+    },
+    "Tint_Blend_Mode": {
+      "kind": "dropdown",
+      "items": [
+        "Multiply",
+        "Overlay",
+        "Soft light"
+      ]
+    }
+  },
+  "element-glow": {
+    "Range_Mode": {
+      "kind": "dropdown",
+      "items": [
+        "Luminance",
+        "Lightness",
+        "Hue",
+        "Saturation",
+        "Red",
+        "Green",
+        "Blue",
+        "Alpha"
+      ]
+    },
+    "Invert_Range": {
+      "kind": "checkbox"
+    }
+  }
+}

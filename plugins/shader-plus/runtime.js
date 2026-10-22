@@ -3,12 +3,12 @@
 // layer then adds constants, replaces the native `#define` of texture kinds
 // with samplers/arrays, and overrides discrete uniforms each frame. Shaders
 // without Shader+ properties are left exactly as CM3 built them.
-const { KINDS, MAX_PALETTE, kindOf, items, constants, heldValue, discreteValue, MACROS } = require("./kinds.js");
+const { KINDS, MAX_PALETTE, kindOf, items, constants } = require("./kinds.js");
 const { SIZE, bakeGradient, bakeCurve, parsePalette, parseText } = require("./bake.js");
 const { rasterize } = require("./text-raster.js");
 const FONT_TIMEOUT_MS = 20000;
 
-function installRuntime({ PZ, THREE, doc, patch, curves, editor, presetFont }) {
+function installRuntime({ PZ, THREE, doc, patch, curves, editor, presetFont, pipeline, onDispose = () => {} }) {
   const entries = new WeakMap(), live = new Set();
   const proto = PZ.effect.shader.prototype;
 
@@ -104,16 +104,17 @@ function installRuntime({ PZ, THREE, doc, patch, curves, editor, presetFont }) {
     return entry;
   }
 
-  function configure(effect) {
+  function configure(effect, source = pipeline.source(effect) || "") {
     const uniforms = effect.pass.uniforms, defines = effect.pass.material.defines;
-    let textures = false;
+    const referenced = new Set(source.replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, " ").match(/[A-Za-z_]\w*/g) || []);
     for (const property of effect.customProperties) {
       const kind = kindOf(property);
       if (!kind) continue;
       const name = effect.fixPropertyName(property.properties.name.get());
-      if (kind === "dropdown" || kind === "staticDropdown") Object.assign(defines, constants(name, items(property.definition)));
+      if (kind === "dropdown" || kind === "staticDropdown") {
+        for (const [key, index] of Object.entries(constants(name, items(property.definition)))) if (referenced.has(key)) defines[key] = index;
+      }
       if (!KINDS[kind].texture) continue;
-      textures = true;
       delete defines[name];
       const entry = prepareEntry(effect, property, kind);
       if (kind === "gradient") uniforms[name] = { type: "t", value: entry.texture };
@@ -134,7 +135,6 @@ function installRuntime({ PZ, THREE, doc, patch, curves, editor, presetFont }) {
         uniforms[name + "_count"] = { type: "f", value: entry.count };
       }
     }
-    if (textures) Object.assign(defines, MACROS);
   }
 
   function dispose(property) {
@@ -146,23 +146,25 @@ function installRuntime({ PZ, THREE, doc, patch, curves, editor, presetFont }) {
     entries.delete(property); live.delete(property);
   }
 
-  patch(proto, "updateFragmentShader", original => function updateWithShaderPlus() {
-    const result = original.apply(this, arguments);
-    try { configure(this); } catch (error) { report(this, error.message); }
-    return result;
-  });
-  patch(proto, "update", original => function updateDiscreteKinds(frame) {
-    const result = original.apply(this, arguments);
-    const uniforms = this.pass?.uniforms;
-    if (!uniforms || !this.customProperties) return result;
-    for (const property of this.customProperties) {
-      const kind = kindOf(property);
-      if (!kind || !KINDS[kind].discrete) continue;
-      const uniform = uniforms[this.fixPropertyName(property.properties.name.get())];
-      if (uniform) uniform.value = discreteValue(kind, heldValue(property, frame), property.definition);
-    }
-    return result;
-  });
+  onDispose(pipeline.register({
+    id: "shader-plus",
+    declare(source) { configure(this, source); },
+    update() {
+      // Native NUMBER/VECTOR values are never overridden here.
+      for (const property of this.customProperties || []) {
+        const kind = kindOf(property);
+        if (!kind || !KINDS[kind].texture) continue;
+        const entry = prepareEntry(this, property, kind);
+        const name = this.fixPropertyName(property.properties.name.get());
+        if (kind === "text" && this.pass.uniforms[name]) {
+          this.pass.uniforms[name].value = entry.texture;
+          this.pass.uniforms[name + "_aspect"].value = entry.aspect;
+          this.pass.uniforms[name + "_count"].value = entry.count;
+        }
+        if (kind === "palette" && this.pass.uniforms[name + "_count"]) this.pass.uniforms[name + "_count"].value = entry.count;
+      }
+    },
+  }));
   // Exports await font loading so the first frame never misses its text.
   patch(proto, "prepare", original => async function prepareWithShaderPlus() {
     await original.apply(this, arguments);

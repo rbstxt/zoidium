@@ -3,7 +3,7 @@
 // type; `zoidiumShader` in the saved definition carries the Zoidium meaning
 // and `zoidiumControl` selects the row editor. CM3 saves custom definitions
 // verbatim, so vanilla CM3 and older Zoidium keep (and resave) both fields.
-const T = { NUMBER: 0, VECTOR4: 3, GRADIENT: 5, OPTION: 6, TEXT: 7 };
+const T = { NUMBER: 0, VECTOR2: 1, VECTOR4: 3, GRADIENT: 5, OPTION: 6, TEXT: 7 };
 const MAX_ITEMS = 32, MAX_PALETTE = 16;
 
 const DEFAULT_CURVE = JSON.stringify({ version: 1, composite: [[0, 0], [1, 1]], red: [[0, 0], [1, 1]], green: [[0, 0], [1, 1]], blue: [[0, 0], [1, 1]] });
@@ -17,6 +17,10 @@ function channel(name, value) {
 // `type` object straight to PZ.property.create(), so a shared object would
 // be shared by every property created from it.
 const KINDS = {
+  point: {
+    label: "Point", desc: "Two coordinates as vec2, in UV or pixel units.", texture: false,
+    create: () => ({ custom: true, dynamic: true, group: true, type: T.VECTOR2, objects: [channel("X", 0.5), channel("Y", 0.5)], zoidiumShader: { kind: "point", space: "uv" } }),
+  },
   checkbox: {
     label: "Checkbox", desc: "On/off switch. Declare as bool, int or float.", texture: false, discrete: true,
     create: () => ({ custom: true, dynamic: true, type: T.NUMBER, value: 0, min: 0, max: 1, step: 1, decimals: 0, zoidiumControl: "shader-plus/checkbox", zoidiumShader: { kind: "checkbox" } }),
@@ -62,7 +66,7 @@ const KINDS = {
     create: font => ({ custom: true, type: T.TEXT, value: JSON.stringify({ text: "Text", font: font || null, size: 128, align: "center", lineHeight: 1.2, letterSpacing: 0, mode: "layout", sdf: false }), zoidiumControl: "shader-plus/text", zoidiumShader: { kind: "text" } }),
   },
 };
-const ORDER = ["checkbox", "dropdown", "staticDropdown", "slider", "angle", "seed", "color4", "gradient", "curve", "palette", "text"];
+const ORDER = ["point", "checkbox", "dropdown", "staticDropdown", "slider", "angle", "seed", "color4", "gradient", "curve", "palette", "text"];
 
 function kindOf(property) {
   const kind = property?.definition?.zoidiumShader?.kind;
@@ -92,15 +96,7 @@ function constants(name, list) {
   return defines;
 }
 
-// Discrete kinds hold their value until the next key, whatever the tween,
-// and are rounded/clamped before reaching the shader.
-function heldValue(property, frame) {
-  const keys = property.keyframes;
-  if (property.expression || !property.animated || !Array.isArray(keys) || keys.length < 2) return Number(property.get(frame)) || 0;
-  let value = keys[0].value;
-  for (const key of keys) { if (key.frame <= frame) value = key.value; else break; }
-  return Number(value) || 0;
-}
+// Display-only conversion. The renderer always retains native get(frame).
 function discreteValue(kind, raw, definition) {
   if (kind === "checkbox") return raw >= 0.5 ? 1 : 0;
   if (kind === "dropdown") return Math.min(Math.max(items(definition).length - 1, 0), Math.max(0, Math.round(raw)));
@@ -120,4 +116,4 @@ const MACROS = {
   "zGlyph(s,grid,index,uv)": "texture2D(s, vec2((mod(float(index), (grid).x) + (uv).x) / (grid).x, ((grid).y - floor(float(index) / (grid).x) - 1.0 + (uv).y) / (grid).y)).a",
 };
 
-module.exports = { T, KINDS, ORDER, MAX_ITEMS, MAX_PALETTE, DEFAULT_CURVE, DEFAULT_PALETTE, kindOf, identifier, items, constants, heldValue, discreteValue, MACROS };
+module.exports = { T, KINDS, ORDER, MAX_ITEMS, MAX_PALETTE, DEFAULT_CURVE, DEFAULT_PALETTE, kindOf, identifier, items, constants, discreteValue, MACROS };

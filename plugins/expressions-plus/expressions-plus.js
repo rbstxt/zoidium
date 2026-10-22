@@ -23,7 +23,7 @@ function activate(context) {
   const world = require("./world.js").createWorldProvider({ PZ, THREE: win.THREE, createConstraintEvaluator: sharedRequire("./constraints/track-to-evaluate.js").createEvaluator });
   const engine = require("./engine.js").installEngine({ PZ, document: doc, patch, wiggleMethods: PZ.trapcode.expressionMethods, controls: sequence => sequence ? store.list(sequence) : [], world });
   disposers.push(() => engine.restore(context.editor?.project));
-  const shaders = require("./shaders.js").installShaders({ PZ, THREE: win.THREE, store, engine, patch });
+  const shaders = require("./shaders.js").installShaders({ PZ, THREE: win.THREE, store, engine, patch, pipeline: context.apis.shaderPipeline, onDispose: fn => disposers.push(fn) });
   const controlsUI = require("./controls-ui.js").installControlsUI({ context, store, patch });
   if (context.editor?.sequence) store.ensure(context.editor.sequence);
   const errorRows = new Set();
