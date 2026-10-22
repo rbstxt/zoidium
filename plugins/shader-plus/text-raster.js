@@ -25,13 +25,13 @@ function placeLine(font, line, size, spacing) {
 
 function layout(font, options) {
   let size = options.size;
-  for (let attempt = 0; attempt < 2; attempt++) {
+  for (let attempt = 0; attempt < 8; attempt++) {
     const { ascent, descent } = metrics(font, size), pad = Math.ceil(size * 0.25);
     if (options.mode === "atlas") {
       const chars = Array.from(new Set(Array.from(options.text.replace(/\n/g, "")))).slice(0, 256);
       const count = Math.max(1, chars.length), cols = Math.ceil(Math.sqrt(count)), rows = Math.ceil(count / cols);
       const cell = Math.ceil(Math.max(ascent + descent, size) + pad * 2);
-      if (Math.max(cols, rows) * cell > MAX_SIDE && attempt === 0) { size *= MAX_SIDE / (Math.max(cols, rows) * cell); continue; }
+      if (Math.max(cols, rows) * cell > MAX_SIDE) { size *= (MAX_SIDE - 2) / (Math.max(cols, rows) * cell); continue; }
       const draws = chars.map((ch, index) => {
         const { placed, width } = placeLine(font, ch, size, 0);
         const col = index % cols, row = Math.floor(index / cols);
@@ -42,7 +42,7 @@ function layout(font, options) {
     const lines = options.text.split("\n").map(line => placeLine(font, line, size, options.letterSpacing));
     const lineStep = size * options.lineHeight, inner = Math.max(1, ...lines.map(l => l.width));
     const width = Math.ceil(inner + pad * 2), height = Math.ceil((lines.length - 1) * lineStep + ascent + descent + pad * 2);
-    if (Math.max(width, height) > MAX_SIDE && attempt === 0) { size *= MAX_SIDE / Math.max(width, height); continue; }
+    if (Math.max(width, height) > MAX_SIDE) { size *= (MAX_SIDE - 2) / Math.max(width, height); continue; }
     const draws = lines.map((line, index) => {
       const offset = options.align === "left" ? 0 : options.align === "right" ? inner - line.width : (inner - line.width) / 2;
       return line.placed.map(p => ({ glyph: p.glyph, x: pad + offset + p.x, y: pad + ascent + index * lineStep, size }));

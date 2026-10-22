@@ -103,3 +103,18 @@ test("font preparation awaits rasterization, leaves the previous project untouch
     dispose.runtime.disposeAll(); assert.equal(references, 0); assert.equal(disposed, true);
   } finally { dispose(); }
 });
+test("font failures reject export preparation instead of exporting an empty texture", { skip: !fs.existsSync(core) }, async () => {
+  const { PZ, THREE } = host(); let message, references = 0;
+  PZ.asset.font = class { getFont() { return Promise.reject(new Error("Invalid font data")); } };
+  const project = { assets: { load() { references++; return {}; }, unload() { references--; } } };
+  const definition = KINDS.text.create("font");
+  const fx = effect(PZ, [{ type: definition, properties: { name: "Title" }, value: definition.value }], "void main(){gl_FragColor=vec4(1.0);}");
+  Object.defineProperty(fx, "parentProject", { value: project });
+  fx.onShaderError.update = text => { message = text; };
+  const dispose = install(PZ, THREE);
+  try {
+    await assert.rejects(fx.prepare(), /Shader\+ text preparation failed: Invalid font data/);
+    assert.equal(message, "Shader+: Invalid font data");
+  } finally { dispose(); }
+  assert.equal(references, 0);
+});

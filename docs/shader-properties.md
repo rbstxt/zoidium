@@ -122,7 +122,8 @@ distance in alpha, with 0.5 at the edge. For SDF use `smoothstep` around 0.5
 instead of treating alpha as coverage.
 
 Text rebakes only when its JSON changes. Export preparation awaits font
-loading and rasterization. Shader+ owns font asset load/unload references,
+loading and rasterization. A font failure stops export preparation with an
+English shader error. Shader+ owns font asset load/unload references,
 and releases them with textures on property removal, effect unload or disable.
 Gradient, Curve, Palette and Text are static in this release.
 

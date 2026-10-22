@@ -44,3 +44,13 @@ test("signed distance is deterministic and text layouts stay within bounds", () 
   const font = { unitsPerEm: 1000, ascender: 800, descender: -200, stringToGlyphs: s => [...s].map(() => ({ advanceWidth: 600 })), getKerningValue: () => 0 };
   const options = parseText(JSON.stringify({ text: "AB\nCD", size: 128, mode: "atlas" })); const plan = layout(font, options); assert.equal(plan.count, 4); assert.deepEqual(plan.grid, [2, 2]); assert.ok(plan.width <= 2048);
 });
+
+test("text layout bounds survive rounding for long multiline text and large atlases", () => {
+  const font = { unitsPerEm: 1000, ascender: 800, descender: -200, stringToGlyphs: s => [...s].map(() => ({ advanceWidth: 600 })), getKerningValue: () => 0 };
+  for (const text of ["A\n".repeat(999), "W".repeat(2000), Array.from({ length: 256 }, (_, i) => String.fromCharCode(256 + i)).join("")]) {
+    for (const mode of ["layout", "atlas"]) {
+      const plan = layout(font, parseText(JSON.stringify({ text, mode, size: 512, lineHeight: 4 })));
+      assert.ok(plan.width <= 2048 && plan.height <= 2048, `${mode}: ${plan.width}x${plan.height}`);
+    }
+  }
+});
