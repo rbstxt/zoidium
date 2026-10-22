@@ -1,5 +1,5 @@
 "use strict";
-const { indentCode, shaderSymbols } = require("./code-model.js");
+const { shaderSymbols } = require("./code-model.js");
 
 function installCodeWindows({ context, patch }) {
   const { PZ, document: doc, window: global } = context;
@@ -40,6 +40,7 @@ function installCodeWindows({ context, patch }) {
         const symbols = expression ? null : node("aside", "zsp-code-symbols", "", content);
         const status = node("div", "zsp-code-status"); status.setAttribute("role", "status");
         const read = () => expression ? property.expression?.source || "" : property.get();
+        let aids;
         let saved = read(), applying = false, shaderError = "", symbolsStamp = "";
         input.value = saved;
         function lines() { if (grammar) highlight.innerHTML = global.Prism.highlight(input.value + "\n", grammar, language);
@@ -51,21 +52,24 @@ function installCodeWindows({ context, patch }) {
         }
         function refresh() {
           const value = read();
-          if (!applying && value !== saved) { input.value = value; lines(); error(""); }
+          if (!applying && value !== saved) { input.value = value; aids?.reset(); lines(); error(""); }
           saved = value;
           if (expression) error(global.ZoidiumExpressions?.engine.error(property) || property.expression?.error || "");
         }
-        function refreshSymbols() {
-          if (!symbols) return;
+        function getEntries() {
           let sequence = object;
           while (sequence && !(sequence instanceof PZ.sequence)) sequence = sequence.parent;
-          const entries = shaderSymbols(object, { expressions: !!global.ZoidiumExpressions, controls: sequence ? global.ZoidiumExpressions?.controls.list(sequence) || [] : [] });
+          return shaderSymbols(object, { source: input.value, expressions: !!global.ZoidiumExpressions, controls: sequence ? global.ZoidiumExpressions?.controls.list(sequence) || [] : [] });
+        }
+        function refreshSymbols() {
+          if (!symbols) return;
+          const entries = getEntries();
           const stamp = JSON.stringify(entries); if (stamp === symbolsStamp) return; symbolsStamp = stamp;
           symbols.replaceChildren(); node("div", "zsp-code-symbol-title", "Available uniforms and helpers", symbols);
           for (const entry of entries) {
             const button = node("button", "zsp-code-symbol", "", symbols); button.type = "button"; button.title = entry.hint;
             node("code", "", entry.name, button); node("small", "", entry.type, button);
-            button.onclick = () => { input.focus(); input.setRangeText(entry.name, input.selectionStart, input.selectionEnd, "end"); lines(); };
+            button.onclick = () => { aids.insert(entry.name); };
           }
         }
         function commit() {
@@ -84,13 +88,13 @@ function installCodeWindows({ context, patch }) {
           if (expression) refresh();
         }
         apply.onclick = commit;
-        input.oninput = () => { lines(); if (!shaderError) status.textContent = input.value === saved ? "" : "Unapplied changes"; };
+        aids = require("./code-aids.js").installAids({ input, pane, body, toolbar, node, global, expression, entries: getEntries, changed() {
+          lines(); if (!shaderError) status.textContent = input.value === saved ? "" : "Unapplied changes";
+        } });
         input.onscroll = () => { gutter.scrollTop = input.scrollTop; highlight.scrollTop = input.scrollTop; highlight.scrollLeft = input.scrollLeft; };
         input.onkeydown = event => {
-          if (event.key === "Tab") {
-            event.preventDefault(); const edit = indentCode(input.value, input.selectionStart, input.selectionEnd, event.shiftKey);
-            input.value = edit.text; input.setSelectionRange(edit.start, edit.end); input.oninput();
-          } else if ((event.ctrlKey || event.metaKey) && (event.key.toLowerCase() === "s" || event.key === "Enter")) { event.preventDefault(); commit(); }
+          if (aids.key(event)) { event.preventDefault(); event.stopPropagation(); }
+          else if ((event.ctrlKey || event.metaKey) && (event.key.toLowerCase() === "s" || event.key === "Enter")) { event.preventDefault(); commit(); }
         };
         const changed = expression ? property.onExpressionChanged : property.onChanged;
         changed.watch(refresh);
@@ -98,7 +102,7 @@ function installCodeWindows({ context, patch }) {
         const timer = global.setInterval(() => { if (!valid()) { win.close(); return; } refreshSymbols(); if (expression) refresh(); }, 250);
         lines(); refreshSymbols(); refresh(); input.focus();
         return () => {
-          changed.unwatch(refresh); if (!expression) object.onShaderError?.unwatch(error);
+          aids.dispose(); changed.unwatch(refresh); if (!expression) object.onShaderError?.unwatch(error);
           global.clearInterval(timer); opened.delete(property);
         };
       },
