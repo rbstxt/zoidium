@@ -80,7 +80,7 @@
       "description": "Native custom shader controls with optional baked texture inputs.",
       "manifest": "./plugins/shader-plus/manifest.json?v=11",
       "bundle": "./plugins/shader-plus/bundle.json?v=11",
-      "integrity": "sha256-opPf2FZcqZpoqGWx2jVkTi4miovu1sLX+44N4zPqFr0="
+      "integrity": "sha256-O7HysaGyAOgLRqD/8LPVnFrPRf6SuOCFN1t4gyqkiOw="
     },
     {
       "id": "player-plus",
@@ -238,7 +238,7 @@
       "zoidiumOnly": true,
       "manifest": "./plugins/material-plus/manifest.json?v=27",
       "bundle": "./plugins/material-plus/bundle.json?v=27",
-      "integrity": "sha256-xrWDXLS6kWE3jkIqh5W15mz5LGXDn3UqyjtzOsx7Kf0="
+      "integrity": "sha256-nRdku9WFi16sCVPtseWqZTR7RNCV0ny3W6J8p6Kp+QU="
     },
     {
       "id": "text-plus",
@@ -352,7 +352,7 @@
       "zoidiumOnly": true,
       "manifest": "./plugins/native-fx/manifest.json?v=21",
       "bundle": "./plugins/native-fx/bundle.json?v=21",
-      "integrity": "sha256-J6yROWcLccL6mNcPtDWhQHTUhXnd5+kBoV/fqGtt36s="
+      "integrity": "sha256-INsLmF5xfio4RvI5KtfRyZ30v4/i7KkABKbPjYdeRZI="
     },
     {
       "id": "afterclip",

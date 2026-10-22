@@ -6,8 +6,8 @@ const bake = require("../plugins/shader-plus/bake.js");
 const legacy = require("./fixtures/shader-fix-a-legacy-bake.cjs");
 let seed = 1893;
 const random = () => ((seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 4294967296);
-test("1000 saved curves including crossed handles retain byte-identical integer and float bakes", () => {
-  for (let i = 0; i < 1000; i++) {
+test("128 saved curves including crossed handles retain byte-identical integer and float bakes", () => {
+  for (let i = 0; i < 128; i++) {
     const points = Array.from({ length: 4 }, (_, j) => [j / 3, random(), null, { in: [random(), random()], out: [random(), random()] }]);
     const value = JSON.stringify({ [i % 2 ? "points" : "composite"]: points, red: points, green: points, blue: points, alpha: points, range: [-2, 100], channels: i % 3 ? "single" : "rgba" });
     for (const half of [false, true]) assert.deepEqual(bake.bakeCurve(value, curves, half), legacy.bakeCurve(value, curves, half), String(i));

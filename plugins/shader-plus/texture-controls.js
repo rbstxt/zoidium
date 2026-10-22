@@ -34,7 +34,7 @@ function installTextureControls({ PZ, doc, register, curves, commit }) {
   });
   register("shader-plus/curve", PZ.property.type.TEXT, property => {
     const raw = () => parseJSON(property.get());
-    const root = node("div", "editbox zsp-box zsp-curve"), host = node("div"), anchor = node("span", "zsp-anchor"), toolbar = node("div", "zsp-text-options");
+    const root = node("div", "editbox zsp-box zsp-shared-curve"), host = node("div"), anchor = node("span", "zsp-anchor"), toolbar = node("div", "zsp-text-options");
     root.append(anchor, host, toolbar);
     let widget, shownChannels, shownStyle;
     function build() {

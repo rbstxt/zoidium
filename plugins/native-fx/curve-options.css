@@ -23,3 +23,8 @@
 .zoidium-curve-axis { display: flex; justify-content: space-between; gap: 3px; padding: 2px 4px; font-size: 10px; color: var(--zui-text-muted); }
 .zsp-code-toolbar button.proprow { flex: 0 0 auto; width: auto !important; }
 .zoidium-curve-axis[hidden] { display: none; }
+
+.zsp-shared-curve .zoidium-color-curves-toolbar { grid-template-columns: minmax(0,1fr) auto; }
+.zsp-shared-curve.zsp-curve-rgba .zoidium-color-curves-toolbar { grid-template-columns: repeat(5,minmax(0,1fr)) auto; }
+.zoidium-color-curves-control .zoidium-color-curves-reset span { display: none; }
+.zoidium-color-curves-control .zoidium-color-curves-channel { font-size: 12px; padding: 0 2px; }

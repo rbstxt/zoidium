@@ -5,6 +5,7 @@ test("code editor indentation preserves multiline selection and removes only one
   assert.deepEqual(indentCode("a\nb\nc", 0, 4), { text: "  a\n  b\nc", start: 2, end: 8 });
   assert.deepEqual(indentCode("  a\n\tb\nc", 0, 7, true), { text: "a\nb\nc", start: 0, end: 4 });
   assert.deepEqual(indentCode("ab", 1, 1), { text: "a  b", start: 3, end: 3 });
+  assert.deepEqual(indentCode("\na", 0, 0, true), { text: "\na", start: 0, end: 0 });
   assert.deepEqual(indentCode("a", 0, 0, true), { text: "a", start: 0, end: 0 });
 });
 test("shader symbol list reflects native GLSL types and texture helper bindings", () => {
@@ -15,4 +16,11 @@ test("shader symbol list reflects native GLSL types and texture helper bindings"
   assert.equal(types.Palette, "vec4[16]"); assert.equal(types.Palette_count, "int"); assert.equal(types.Title_size, "vec2");
   assert.equal(types.ctl_My_Slider, "float"); assert.equal(types.zFrame, "float"); assert.equal(types.zCurves, "vec4()");
   assert.ok(!shaderSymbols(null).some(s => s.name === "zTime"));
+});
+
+test("symbol types follow explicit GLSL int and bool declarations", () => {
+  const p = name => ({ definition: { type: 0, dynamic: true }, properties: { name: { get: () => name } } });
+  const entries = shaderSymbols({ properties: { fragShader: { get: () => "uniform highp int Mode; uniform bool Enabled; // uniform vec4 Mode;" } }, customProperties: [p("Mode"), p("Enabled")] });
+  assert.equal(entries.find(e => e.name === "Mode").type, "int");
+  assert.equal(entries.find(e => e.name === "Enabled").type, "bool");
 });
