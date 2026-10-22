@@ -1,7 +1,8 @@
 "use strict";
 // Row editors for Shader+ kinds. Every edit goes through CM3's own
 // editStart/editFinish on the real property, so history, keyframes and
-// expressions behave exactly like native rows.
+// expressions behave exactly like native rows. Controls reuse CM3's native
+// inputs, option menus and icon buttons wherever one exists.
 const { KINDS, MAX_PALETTE, discreteValue, items } = require("./kinds.js");
 const { parseJSON, parseText } = require("./bake.js");
 
@@ -16,6 +17,19 @@ function installControls({ PZ, doc, register, editor }) {
     return el;
   }
   function editbox(extra = "") { return element("div", ("editbox zsp-box " + extra).trim()); }
+  // CM3's icon button: the same element the list uses for clone/delete.
+  function iconButton(icon, label) {
+    const button = element("button", "actionbutton zsp-icon", { type: "button", title: label, "aria-label": label });
+    const svg = PZ.ui.generateIcon(icon); svg.setAttribute("aria-hidden", "true"); button.append(svg);
+    return button;
+  }
+  // A native select with fixed labels, for settings stored inside JSON.
+  function options(label, entries, change) {
+    const select = element("select", "pz-inputbox zsp-option", { "aria-label": label, title: label });
+    for (const [value, text] of entries) { const option = element("option", "", { value }); option.textContent = text; select.append(option); }
+    select.onchange = () => change(select.value);
+    return select;
+  }
   // `anchor` must be a direct child of the editbox: CM3 keeps the edit frame
   // on the anchor's parent and finds the list controller from there.
   function begin(anchor, property) { C.editStart.call(anchor, property); return anchor.parentElement.pz_frame; }
@@ -29,47 +43,46 @@ function installControls({ PZ, doc, register, editor }) {
   }
   const frameOf = (box, frame) => frame ?? ((editor()?.playback?.currentFrame || 0) - (box.pz_property?.frameOffset || 0));
 
-  register("shader-plus/checkbox", PZ.property.type.NUMBER, property => {
-    const box = editbox(), input = element("input", "zsp-check", { type: "checkbox", "aria-label": "On" });
-    input.disabled = readOnly(property);
-    input.onchange = () => commit(input, property, input.checked ? 1 : 0);
-    box.append(input);
-    box.pz_update = frame => { input.checked = discreteValue("checkbox", property.get(frameOf(box, frame)), property.definition) === 1; };
+  // Checkbox and Dropdown are CM3's own option menu over the NUMBER value.
+  // The proxy only supplies the labels; get/set/address stay the real
+  // property's, so history and keyframes are native.
+  function optionRow(property, kind, labels) {
+    const facade = new Proxy(property, { get(target, key) {
+      if (key === "definition") return { ...target.definition, items: labels() };
+      const value = Reflect.get(target, key, target);
+      return typeof value === "function" ? value.bind(target) : value;
+    } });
+    const box = native("generateOptionInput")(facade), select = box.querySelector("select");
+    select.classList.add("zsp-option");
     box.pz_property = property;
+    box.pz_update = frame => { if (doc.activeElement !== select) select.selectedIndex = discreteValue(kind, property.get(frameOf(box, frame)), property.definition); };
     return box;
-  });
-
-  register("shader-plus/dropdown", PZ.property.type.NUMBER, property => {
-    const box = editbox(), select = element("select", "pz-inputbox zsp-select");
-    select.disabled = readOnly(property);
-    for (const label of items(property.definition)) { const option = element("option"); option.textContent = label; select.append(option); }
-    select.onchange = () => commit(select, property, select.selectedIndex);
-    box.append(select);
-    box.pz_update = frame => { if (doc.activeElement !== select) select.selectedIndex = discreteValue("dropdown", property.get(frameOf(box, frame)), property.definition); };
-    box.pz_property = property;
-    return box;
-  });
+  }
+  register("shader-plus/checkbox", PZ.property.type.NUMBER, property => optionRow(property, "checkbox", () => ["off", "on"]));
+  register("shader-plus/dropdown", PZ.property.type.NUMBER, property => optionRow(property, "dropdown", () => items(property.definition)));
 
   register("shader-plus/slider", PZ.property.type.NUMBER, property => {
     const box = native("generateInput")(property);
-    const d = property.definition, scale = d.scaleFactor || 1;
-    const range = element("input", "zsp-range", { type: "range", min: d.min ?? 0, max: d.max ?? 1, step: d.step || "any", "aria-label": "Slider" });
+    box.classList.add("zsp-slider");
+    const d = property.definition, scale = d.scaleFactor || 1, min = d.min ?? 0, max = d.max ?? 1;
+    const range = element("input", "zsp-range", { type: "range", min, max, step: d.step || "any", "aria-label": "Slider" });
     range.disabled = readOnly(property);
     let editing = false;
+    const fill = value => range.style.setProperty("--zsp-fill", (max > min ? Math.min(1, Math.max(0, (value - min) / (max - min))) * 100 : 0) + "%");
     const start = () => { if (!editing) { editing = true; begin(range, property); } };
-    range.addEventListener("pointerdown", start);
-    range.addEventListener("input", () => { start(); property.set(Number(range.value) * scale, box.pz_frame); });
+    range.addEventListener("pointerdown", event => { event.stopPropagation(); start(); });
+    range.addEventListener("input", () => { start(); fill(Number(range.value)); property.set(Number(range.value) * scale, box.pz_frame); });
     range.addEventListener("change", () => { if (editing) { editing = false; finish(range, property); } });
     box.append(range);
     const update = box.pz_update;
-    box.pz_update = frame => { update.call(box, frame); if (!editing) range.value = Number(property.get(frame)) / scale; };
+    box.pz_update = frame => { update.call(box, frame); if (!editing) { range.value = Number(property.get(frame)) / scale; fill(Number(range.value)); } };
     return box;
   });
 
   register("shader-plus/seed", PZ.property.type.NUMBER, property => {
     const box = native("generateInput")(property);
-    const button = element("button", "zsp-button", { type: "button", title: "Randomize seed", "aria-label": "Randomize seed" });
-    button.textContent = "Random";
+    box.classList.add("zsp-inline-row");
+    const button = iconButton("random", "Randomize seed");
     button.disabled = readOnly(property);
     button.onclick = event => { event.stopPropagation(); commit(button, property, Math.floor(Math.random() * 100000)); };
     box.append(button);
@@ -89,9 +102,8 @@ function installControls({ PZ, doc, register, editor }) {
 
   register("shader-plus/palette", PZ.property.type.TEXT, property => {
     const box = editbox("zsp-palette"), swatches = element("div", "zsp-swatches"), anchor = element("span", "zsp-anchor");
-    const add = element("button", "zsp-button", { type: "button", title: "Add color" }), remove = element("button", "zsp-button", { type: "button", title: "Remove last color" });
-    add.textContent = "+"; remove.textContent = "−";
-    box.append(anchor, swatches, add, remove);
+    const add = iconButton("add", "Add color"), remove = iconButton("remove", "Remove last color");
+    box.append(anchor, swatches);
     let shown = null, editing = false;
     const colors = () => { const list = parseJSON(property.get()).colors; return Array.isArray(list) ? list.slice(0, MAX_PALETTE) : []; };
     const write = list => property.set(JSON.stringify({ ...parseJSON(property.get()), colors: list }));
@@ -106,6 +118,7 @@ function installControls({ PZ, doc, register, editor }) {
         picker.update(color.length === 4 ? color : [...color, 1]);
         swatches.append(picker.el);
       });
+      swatches.append(add, remove);
       add.disabled = list.length >= MAX_PALETTE; remove.disabled = list.length <= 1;
     }
     add.onclick = event => { event.stopPropagation(); const list = colors(); commit(anchor, property, JSON.stringify({ ...parseJSON(property.get()), colors: [...list, (list[list.length - 1] || [1, 1, 1, 1]).slice()] })); };
@@ -118,29 +131,35 @@ function installControls({ PZ, doc, register, editor }) {
   register("shader-plus/text", PZ.property.type.TEXT, property => {
     const box = editbox("zsp-text"), anchor = element("span", "zsp-anchor");
     const presets = PZ.asset.font.preset;
+    // The same button CM3's Font rows use: dark pz-tweens frame, fonts.png sprite.
     const fontButton = element("button", "pz-tweens zsp-font", { type: "button", title: "font" });
     const sprite = element("span", "zsp-font-sprite");
     fontButton.append(sprite);
     const fontName = element("span", "zsp-font-name");
+    fontButton.append(fontName);
     const file = element("input", "", { type: "file", accept: ".ttf,.otf,.woff,font/ttf,font/otf,font/woff" });
     file.hidden = true;
     const text = element("textarea", "pz-inputbox zsp-textarea", { rows: "2", "aria-label": "Text", spellcheck: "false" });
-    const options = element("div", "zsp-text-options");
-    const size = element("input", "pz-inputbox zsp-number", { type: "number", min: "4", max: "512", step: "1", title: "Size (px)", "aria-label": "Size" });
-    const align = element("select", "pz-inputbox", { title: "Alignment", "aria-label": "Alignment" });
-    for (const value of ["left", "center", "right"]) { const o = element("option", "", { value }); o.textContent = value[0].toUpperCase() + value.slice(1); align.append(o); }
-    const mode = element("select", "pz-inputbox", { title: "Layout: the text as written. Atlas: each character in a grid cell, for zGlyph().", "aria-label": "Mode" });
-    for (const [value, label] of [["layout", "Layout"], ["atlas", "Atlas"]]) { const o = element("option", "", { value }); o.textContent = label; mode.append(o); }
-    const sdfLabel = element("label", "zsp-inline", { title: "Store a signed distance field in alpha (0.5 at the edge) for outlines and glows" });
-    const sdf = element("input", "", { type: "checkbox" });
-    sdfLabel.append(sdf, doc.createTextNode("SDF"));
-    const lineHeight = element("input", "pz-inputbox", { type: "number", min: "0.5", max: "4", step: "0.05", title: "Line height", "aria-label": "Line height" });
-    const letterSpacing = element("input", "pz-inputbox", { type: "number", min: "-0.5", max: "2", step: "0.01", title: "Letter spacing (em)", "aria-label": "Letter spacing" });
-    options.append(size, align, mode, lineHeight, letterSpacing, sdfLabel);
-    box.append(anchor, fontButton, fontName, file, text, options);
-
+    const grid = element("div", "zsp-fields");
+    function labeled(label, control) {
+      const name = element("span", "zsp-field-label"); name.textContent = label;
+      control.setAttribute("aria-label", label);
+      grid.append(name, control); return control;
+    }
+    const number = (min, max, step) => element("input", "pz-inputbox", { type: "number", min, max, step });
     const raw = () => parseJSON(property.get());
     const write = patch => commit(anchor, property, JSON.stringify({ ...raw(), ...patch }));
+    const size = labeled("Size", number("4", "512", "1"));
+    const align = labeled("Align", options("Align", [["left", "Left"], ["center", "Center"], ["right", "Right"]], value => write({ align: value })));
+    const lineHeight = labeled("Line", number("0.5", "4", "0.05"));
+    const letterSpacing = labeled("Spacing", number("-0.5", "2", "0.01"));
+    const mode = labeled("Mode", options("Mode", [["layout", "Layout"], ["atlas", "Atlas"]], value => write({ mode: value })));
+    const sdf = labeled("SDF", options("SDF", [["off", "off"], ["on", "on"]], value => write({ sdf: value === "on" })));
+    lineHeight.title = "Line height"; letterSpacing.title = "Letter spacing (em)";
+    mode.title = "Layout: the text as written. Atlas: each character in a grid cell, for zGlyph().";
+    sdf.title = "Store a signed distance field in alpha (0.5 at the edge) for outlines and glows";
+    box.append(anchor, fontButton, file, text, grid);
+
     fontButton.onclick = event => { event.stopPropagation(); PZ.editor.showFontDropDown(fontButton); };
     fontButton.pz_set = index => {
       if (index >= 0 && index < presets.length) write({ font: "/assets/fonts/2d/" + presets[index] + ".ttf" });
@@ -158,9 +177,6 @@ function installControls({ PZ, doc, register, editor }) {
     size.onchange = () => write({ size: Number(size.value) });
     lineHeight.onchange = () => write({ lineHeight: Number(lineHeight.value) });
     letterSpacing.onchange = () => write({ letterSpacing: Number(letterSpacing.value) });
-    align.onchange = () => write({ align: align.value });
-    mode.onchange = () => write({ mode: mode.value });
-    sdf.onchange = () => write({ sdf: sdf.checked });
     box.pz_update = () => {
       const value = parseText(property.get());
       const match = value.font && /\/assets\/fonts\/2d\/(.+)\.ttf$/.exec(value.font);
@@ -169,17 +185,18 @@ function installControls({ PZ, doc, register, editor }) {
       fontButton.pz_update();
       sprite.hidden = index < 0;
       const asset = !match && value.font ? property.parentProject?.assets.list[value.font] : null;
-      fontName.textContent = index >= 0 ? "" : asset?.filename || (value.font ? "Imported font" : "Choose a font");
+      fontName.hidden = index >= 0;
+      fontName.textContent = asset?.filename || (value.font ? "Imported font" : "Choose a font");
       if (doc.activeElement !== text) text.value = value.text;
       if (doc.activeElement !== size) size.value = value.size;
       if (doc.activeElement !== lineHeight) lineHeight.value = value.lineHeight;
       if (doc.activeElement !== letterSpacing) letterSpacing.value = value.letterSpacing;
-      align.value = value.align; mode.value = value.mode; sdf.checked = value.sdf;
+      align.value = value.align; mode.value = value.mode; sdf.value = value.sdf ? "on" : "off";
     };
     return box;
   });
 
-  return { commit, KINDS };
+  return { commit, KINDS, options, iconButton };
 }
 
 module.exports = { installControls };

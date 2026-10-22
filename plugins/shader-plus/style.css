@@ -1,39 +1,94 @@
+/* Shader+ rows reuse CM3's native controls; these rules only size and
+   color the pieces CM3 has no equivalent for, with the theme tokens. */
 .zsp-property,.zsp-property > div { min-width: 0; }
 .zsp-box { min-width: 0; max-width: 100%; box-sizing: border-box; }
 .zsp-box input,.zsp-box select,.zsp-box textarea { box-sizing: border-box; max-width: 100%; }
-.zsp-select { width: 100%; }
-.zsp-range { width: 100%; display: block; }
-.zsp-button { color: inherit; background: transparent; border: 1px solid var(--zui-border,#555); cursor: pointer; }
+.zsp-box [hidden],.zsp-property[hidden] { display: none !important; }
 .zsp-anchor { display: none; }
-.zsp-text { width: 100%; overflow: hidden; }
-.zsp-textarea { width: 100%; resize: vertical; display: block; margin-top: 4px; }
-.zsp-text-options { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
-.zsp-text-options input[type=number] { width: 65px; }
-.zsp-font { width: 125px; height: 27px; background: transparent; border: 0; cursor: pointer; }
-.zsp-font-sprite { background-image: url('/fonts.png'); display: block; width: 125px; height: 25px; }
-.zsp-font-name { font-size: 12px; overflow-wrap: anywhere; }
-.zsp-inline { display: inline-flex; align-items: center; gap: 4px; }
-.zsp-swatches { display: flex; flex-wrap: wrap; gap: 3px; }
-.zsp-settings { min-width: 0; max-width: 100%; box-sizing: border-box; white-space: normal; padding: 8px; background: var(--zui-bg-sunken,#222); }
-.zsp-settings label { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); overflow-wrap: anywhere; align-items: center; gap: 6px; margin: 4px 0; }
-.zsp-settings input,.zsp-settings select { min-width: 0; width: 100%; box-sizing: border-box; }
-.zsp-settings [role=status] { color: var(--zui-danger,#f99); }
-.zsp-group { display: block; width: 100%; text-align: left; padding: 6px 10px; border: 0; background: var(--zui-bg-title,#333); color: inherit; cursor: pointer; }
-.zsp-group::before { content: '▾ '; }
-.zsp-group[aria-expanded=false]::before { content: '▸ '; }
-.zsp-curve-single .zoidium-color-curves-channel:not([data-channel=composite]) { display: none; }
+.zsp-option { width: auto; max-width: 100%; }
+.zsp-inline-row,.zsp-slider { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.zsp-slider > :first-child,.zsp-inline-row > :first-child { flex: 0 0 auto; }
 
-.zsp-ring { width: 76px; height: 76px; border-radius: 50%; margin: 8px auto; mask-image: radial-gradient(transparent 45%,black 47%); }
+/* Slider: theme-colored track and thumb instead of the browser default. */
+.zsp-range { flex: 1 1 60px; min-width: 40px; height: 16px; margin: 0 4px 0 0; appearance: none; -webkit-appearance: none; background: transparent; cursor: pointer; }
+.zsp-range::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: linear-gradient(to right,var(--zui-value) var(--zsp-fill,0%),var(--zui-bg-input) var(--zsp-fill,0%)); box-shadow: inset 0 0 0 1px var(--zui-border-filter); }
+.zsp-range::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 12px; height: 12px; margin-top: -4px; border-radius: 50%; background: var(--zui-text-strong); border: 2px solid var(--zui-bg); box-shadow: 0 0 0 1px var(--zui-border-filter); }
+.zsp-range::-moz-range-track { height: 4px; border-radius: 2px; background: var(--zui-bg-input); }
+.zsp-range::-moz-range-progress { height: 4px; border-radius: 2px; background: var(--zui-value); }
+.zsp-range::-moz-range-thumb { width: 10px; height: 10px; border-radius: 50%; background: var(--zui-text-strong); border: 2px solid var(--zui-bg); }
+.zsp-range:hover::-webkit-slider-thumb { background: var(--zui-text-bright); }
+.zsp-range:disabled { opacity: .5; cursor: default; }
+
+/* CM3 icon buttons (Seed, Palette). */
+.zsp-icon { flex: 0 0 auto; padding: 2px 3px; }
+.zsp-icon svg { width: 17px; height: 17px; fill: #ccc; display: block; }
+.zsp-icon:disabled svg { opacity: .35; }
+
+.zsp-palette .zsp-swatches { display: flex; flex-wrap: wrap; gap: 3px; align-items: center; }
+
+/* Text: CM3's own Font button, then the text box and a labeled field grid. */
+.zsp-text { width: 100%; overflow: hidden; }
+.zsp-font { display: block; height: auto; padding: 0; max-width: 100%; overflow: hidden; text-align: left; cursor: pointer; }
+.zsp-font-sprite { display: block; width: 200px; height: 25px; margin: 1px; background-image: url('fonts.png'); }
+.zsp-font-name { display: block; padding: 4px 6px; font-size: var(--zui-font-size-compact); overflow-wrap: anywhere; }
+.zsp-textarea { width: 100%; resize: vertical; display: block; margin-top: 4px; }
+.zsp-fields { display: grid; grid-template-columns: auto minmax(0,1fr); gap: 4px 6px; align-items: center; margin-top: 5px; font-size: var(--zui-font-size-compact); }
+.zsp-field-label { color: var(--zui-text-muted); white-space: nowrap; }
+.zsp-fields input { width: 100%; min-width: 0; }
+.zsp-fields select { justify-self: start; }
+.zsp-gradient-fields { margin: 2px 0 6px; padding: 0 8px; }
+
+/* Angle: a row-height dial button that opens a large direction dial. */
+.zsp-angle { flex: 0 0 auto; position: relative; width: 18px; height: 18px; padding: 0; border-radius: 50%; border: 1px solid var(--zui-border-filter); background: var(--zui-bg-input); cursor: pointer; }
+.zsp-angle:hover,.zsp-angle[aria-expanded=true] { border-color: var(--zui-button-hover-border); }
+.zsp-angle:disabled { opacity: .5; cursor: default; }
+.zsp-angle-needle { position: absolute; left: 50%; top: 2px; width: 2px; height: 6px; margin-left: -1px; border-radius: 1px; background: var(--zui-value); transform-origin: 50% 6px; transform: rotate(var(--zsp-angle,0rad)); }
+.zsp-angle-pop { position: fixed; z-index: 100000; padding: 10px 10px 6px; background: var(--zui-bg-title); border: 1px solid var(--zui-border-filter); border-radius: 4px; box-shadow: 0 6px 18px rgba(0,0,0,.55); font-family: var(--zui-font); }
+.zsp-angle-pop::before { content: ''; position: absolute; top: -6px; left: calc(var(--zsp-caret,50%) - 6px); width: 10px; height: 10px; background: inherit; border-left: 1px solid var(--zui-border-filter); border-top: 1px solid var(--zui-border-filter); transform: rotate(45deg); }
+.zsp-angle-pop-above::before { top: auto; bottom: -6px; transform: rotate(225deg); }
+.zsp-dial { display: block; touch-action: none; cursor: grab; outline: none; }
+.zsp-dial:active { cursor: grabbing; }
+.zsp-dial-face { fill: var(--zui-bg-input); stroke: var(--zui-border-filter); stroke-width: 1; }
+.zsp-dial:focus-visible .zsp-dial-face { stroke: var(--zui-value); }
+.zsp-dial-tick { stroke: var(--zui-text-faint); stroke-width: 1.5; stroke-linecap: round; }
+.zsp-dial-tick-major { stroke: var(--zui-text-muted); stroke-width: 2; }
+.zsp-dial-sector { fill: rgb(var(--zui-accent-rgb) / .6); }
+.zsp-dial-zero { stroke: var(--zui-text-faint); stroke-width: 1.5; stroke-dasharray: 3 3; }
+.zsp-dial-hand { stroke: var(--zui-value-strong); stroke-width: 2.5; stroke-linecap: round; }
+.zsp-dial-hub { fill: var(--zui-value-strong); }
+.zsp-dial-knob-disc { fill: var(--zui-value); stroke: var(--zui-bg-title); stroke-width: 3; }
+.zsp-dial-knob-arrow { fill: none; stroke: var(--zui-bg-title); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.zsp-dial-readout { text-align: center; font-size: var(--zui-font-size-compact); color: var(--zui-value); margin-top: 2px; }
+
+/* Property settings: an inline block of native-looking property rows. */
+.zsp-settings { background: var(--zui-bg-sunken); border-top: 1px solid var(--zui-border); border-bottom: 1px solid var(--zui-border); padding: 2px 0 8px; white-space: normal; }
+.zsp-settings [hidden] { display: none !important; }
+.zsp-settings-title { font-size: var(--zui-font-size-compact); color: var(--zui-text-muted); padding: 6px 0 2px; letter-spacing: .03em; }
+.zsp-settings-line { display: grid; align-items: center; min-height: 28px; }
+.zsp-settings-line > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.zsp-settings-line > .editbox { min-width: 0; padding-right: 8px; }
+.zsp-settings-line input,.zsp-settings-line textarea { width: 100%; box-sizing: border-box; }
+.zsp-settings-line select { max-width: 100%; }
+.zsp-settings-options { resize: vertical; font: inherit; margin: 3px 0; display: block; }
+.zsp-settings-error { color: var(--zui-danger); font-size: var(--zui-font-size-compact); padding-top: 4px; }
+.zsp-settings-error:empty { display: none; }
+.zsp-settings-actions { display: flex; justify-content: flex-end; gap: 8px; padding: 8px 8px 0; }
+.zsp-settings-button { font: inherit; font-size: var(--zui-font-size-small); color: var(--zui-button-text); background: var(--zui-button-bg); border: 1px solid transparent; padding: 3px 14px; cursor: pointer; }
+.zsp-settings-button:hover { border-color: var(--zui-button-hover-border); }
+.zsp-settings-primary { background: var(--zui-accent); color: var(--zui-text-bright); }
+
+/* Group headings look like CM3's list headings. */
+.zsp-group { display: block; width: 100%; box-sizing: border-box; text-align: left; padding-top: 5px; padding-bottom: 5px; padding-right: 8px; border: 0; border-bottom: 1px solid var(--zui-border); background: transparent; color: var(--zui-text); font: inherit; cursor: pointer; }
+.zsp-group:hover { background: var(--zui-hover); }
+.zsp-group::before { content: '▾'; display: inline-block; width: 15px; color: var(--zui-text-muted); }
+.zsp-group[aria-expanded=false]::before { content: '▸'; }
+
 .zsp-gradient .zoidium-node-editor-ramp-track { margin: 10px 8px; }
 .zsp-gradient .zoidium-node-editor-ramp-fields { min-width: 0; }
-.zsp-box [hidden],.zsp-property[hidden] { display: none !important; }
-
+.zsp-curve-single .zoidium-color-curves-channel:not([data-channel=composite]) { display: none; }
 .zsp-curve .zoidium-color-curves-toolbar { grid-template-columns: minmax(0,1fr) auto; }
 .zsp-curve-rgba .zoidium-color-curves-toolbar { grid-template-columns: repeat(5,minmax(0,1fr)) auto; }
 .zsp-curve .zoidium-color-curves-channel { padding-left: 3px; padding-right: 3px; }
-
-.zsp-angle { display: inline-block; position: relative; vertical-align: middle; width: 28px; height: 28px; margin-left: 6px; border: 1px solid var(--zui-border,#666); border-radius: 50%; background: var(--zui-bg-input,#222); cursor: crosshair; touch-action: none; }
-.zsp-angle::before { content: ''; position: absolute; width: 2px; height: 10px; top: 3px; left: 12px; background: var(--zui-text-bright,#ddd); transform-origin: 50% 10px; transform: rotate(var(--zsp-angle,0rad)); }
 .zsp-graph { width: 100%; box-sizing: border-box; padding: 6px; background: var(--zui-bg-sunken); color: var(--zui-text); white-space: normal; }
 .zsp-graph-tools,.zsp-graph-presets { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; font-size: var(--zui-font-size-compact); }
 .zsp-graph-tools input { margin: 0; }
