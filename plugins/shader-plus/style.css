@@ -34,3 +34,20 @@
 
 .zsp-angle { display: inline-block; position: relative; vertical-align: middle; width: 28px; height: 28px; margin-left: 6px; border: 1px solid var(--zui-border,#666); border-radius: 50%; background: var(--zui-bg-input,#222); cursor: crosshair; touch-action: none; }
 .zsp-angle::before { content: ''; position: absolute; width: 2px; height: 10px; top: 3px; left: 12px; background: var(--zui-text-bright,#ddd); transform-origin: 50% 10px; transform: rotate(var(--zsp-angle,0rad)); }
+.zsp-graph { width: 100%; box-sizing: border-box; padding: 6px; background: var(--zui-bg-sunken); color: var(--zui-text); white-space: normal; }
+.zsp-graph-tools,.zsp-graph-presets { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; font-size: var(--zui-font-size-compact); }
+.zsp-graph-tools input { margin: 0; }
+.zsp-graph-count { margin-left: auto; color: var(--zui-text-muted); }
+.zsp-graph-plot { margin: 14px 4px 0 29px; position: relative; }
+.zsp-graph-plot svg { width: 100%; height: 155px; display: block; overflow: visible; background: var(--zui-bg-input); border: 1px solid var(--zui-border); touch-action: none; cursor: crosshair; }
+.zsp-graph-grid { fill: none; stroke: var(--zui-border); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.zsp-graph-fill { fill: var(--zui-value); opacity: .24; }
+.zsp-graph-line { fill: none; stroke: var(--zui-value-strong); stroke-width: 2; vector-effect: non-scaling-stroke; pointer-events: none; }
+.zsp-graph-point { fill: var(--zui-value-strong); stroke: var(--zui-bg); stroke-width: 1; vector-effect: non-scaling-stroke; cursor: grab; }
+.zsp-graph-point[data-selected=true] { stroke: var(--zui-text-bright); stroke-width: 2; }
+.zsp-graph-tangent { fill: none; stroke: var(--zui-text-muted); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.zsp-graph-handle { fill: var(--zui-text-muted); cursor: grab; stroke: var(--zui-bg); vector-effect: non-scaling-stroke; }
+.zsp-graph-max,.zsp-graph-min { position: absolute; left: -29px; font-size: var(--zui-font-size-compact); color: var(--zui-text-muted); }
+.zsp-graph-max { top: -7px; }.zsp-graph-min { bottom: -5px; }
+.zsp-graph-axis { display: flex; justify-content: space-between; margin: 5px 4px 8px 29px; font-size: var(--zui-font-size-compact); color: var(--zui-text-muted); }
+.zsp-graph input:focus-visible,.zsp-graph svg:focus-visible { outline: 2px solid var(--zui-value); outline-offset: 2px; }

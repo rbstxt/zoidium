@@ -14,6 +14,7 @@
     saturation: 100,
     defaultFrameRate: DEFAULT_FRAME_RATE,
     previewCacheMiB: 512,
+    gradientEditor: "zoidium",
   };
 
   var LAYOUT_OPTIONS = [
@@ -267,6 +268,7 @@
   }
 
   function applySettings() {
+    global.ZoidiumGradientEditor?.setClassic(state.settings.gradientEditor === "classic");
     var font = findFont(state.settings.font);
     var root = global.document && global.document.documentElement;
     var editorWindow = findEditorWindow();
@@ -550,6 +552,11 @@
     var cacheCaution = global.ZoidiumUI.controls.note(
       "The GPU needs this much free memory. Macs share GPU memory with system RAM.", "warning"
     ).element;
+    var gradientRow = legacy.generateDropdown({
+      title: "Gradient editor", items: "Zoidium;Classic",
+      get: function () { return state.settings.gradientEditor === "classic" ? 1 : 0; },
+      set: function (index) { state.settings.gradientEditor = index === 1 ? "classic" : "zoidium"; persistAndApply(); },
+    }, state);
     var fontRow = createFontRow(legacy);
     var themeRow = createThemeRow(legacy);
     var hueRow = createHueRow(legacy);
@@ -574,6 +581,7 @@
     panel.appendChild(global.ZoidiumUI.controls.note(
       "Finished preview frames use up to this much GPU memory. Set 0 to turn off caching. Temporal input textures use up to another 256 MiB, plus active samples and rendering buffers."
     ).element);
+    panel.appendChild(gradientRow);
     panel.appendChild(fontRow);
     panel.appendChild(themeRow);
     panel.appendChild(hueRow);
@@ -586,6 +594,7 @@
       layoutRow: layoutRow,
       defaultFrameRateRow: defaultFrameRateRow,
       cacheRow: { pz_update: function () { cacheControl.set(state.settings.previewCacheMiB); } },
+      gradientRow: gradientRow,
       fontRow: fontRow,
       themeRow: themeRow,
       hueRow: hueRow,

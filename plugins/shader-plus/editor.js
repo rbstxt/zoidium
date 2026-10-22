@@ -63,6 +63,12 @@ function installEditor({ context, patch, presetFont }) {
     kind.value = kindOf(p) || kind.options[0]?.value || "";
     for (const [key, label, value] of [["min", "Minimum", d.min], ["max", "Maximum", d.max], ["step", "Step", d.step], ["default", "Default", meta.default ?? d.value]]) field(key, label, typeof value === "object" ? JSON.stringify(value) : value);
     field("items", "Items (semicolon separated)", items(d).join(";"));
+    if (kindOf(p) === "curve") {
+      const style = field("editor", "Curve editor", "", "select");
+      for (const [value, label] of [["graph", "Graph"], ["curves", "Curves"]]) { const option = doc.createElement("option"); option.value = value; option.textContent = label; style.append(option); }
+      style.value = meta.editor || "graph";
+      field("axis", "Axis labels (JSON)", meta.axis ? JSON.stringify(meta.axis) : "");
+    }
     field("space", "Space (uv or pixels)", meta.space || "uv");
     field("group", "Group", meta.group); field("help", "Help", meta.help);
     field("visibleWhen", "Visible when (JSON)", meta.visibleWhen ? JSON.stringify(meta.visibleWhen) : "");
@@ -89,6 +95,14 @@ function installEditor({ context, patch, presetFont }) {
           next.visibleWhen = JSON.parse(fields.visibleWhen.value);
           if (typeof next.visibleWhen.property !== "string" || !Array.isArray(next.visibleWhen.values)) throw new Error("Visible when needs a property name and values array");
         } else delete next.visibleWhen;
+        if (fields.editor) {
+          next.editor = fields.editor.value;
+          if (fields.axis.value.trim()) {
+            const axis = JSON.parse(fields.axis.value);
+            if (!Array.isArray(axis) || axis.length < 2 || axis.length > 3 || !axis.every(s => typeof s === "string")) throw new Error("Axis labels need two or three strings");
+            next.axis = axis;
+          } else delete next.axis;
+        }
         definition.zoidiumShader = next;
         edit(p, { definition, name: fields.name.value }); panel.remove();
       } catch (e) { error.textContent = e.message; }

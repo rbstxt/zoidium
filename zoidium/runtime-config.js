@@ -8,7 +8,7 @@
     // loader appends it automatically, so per-file ?v= queries are never
     // hand-edited here. Plugin asset URLs are versioned separately by
     // tools/build-plugin-bundles.js from each manifest's own version.
-    assetVersion: 165,
+    assetVersion: 167,
     // Plugin registry consumed by plugins/plugin-manager.js. It is preloaded
     // below, so its URL lives here as the single source.
     registryUrl: "./plugins/registry.json?v=120",
@@ -21,6 +21,7 @@
       "./zoidium/ui-window.css",
       "./zoidium/ui-node-editor.css",
       "./zoidium/theme-editor.css",
+      "./zoidium/gradient-editor.css",
       "./plugins/plugin-manager.css",
       "./zoidium-welcome-tour.css",
       "./zoidium/runtime-fonts.css"
@@ -120,6 +121,10 @@
       "./zoidium/theme-state.js",
       "./zoidium/theme-clips.js",
       "./zoidium/theme-editor.js",
+      "./zoidium/gradient-model.js",
+      "./zoidium/gradient-color-panel.js",
+      "./zoidium/gradient-editor.js",
+      "./zoidium/gradient-native.js",
       "./zoidium/settings.js",
       "./zoidium/plugin-apis.js",
       "./zoidium/project-compatibility.js",

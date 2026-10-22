@@ -2,6 +2,18 @@
 const { createModel, defaults } = require("./model.js");
 const { createLayerClass, TYPE } = require("./layer.js");
 const { titles } = require("./properties.js");
+function gradientFacade(property, frame) {
+  return new Proxy(property, { get(target, key) {
+    if (key === "definition") return { ...target.definition, zoidiumControl: undefined };
+    // The classic picker mutates its working array before calling set().
+    // A snapshot prevents that mutation from leaking into the preceding
+    // held key when editStart creates a new key at the local frame.
+    if (key === "get") return () => JSON.parse(JSON.stringify(target.get(frame())));
+    if (key === "set") return value => target.set(value, frame());
+    const value = Reflect.get(target, key, target);
+    return typeof value === "function" ? value.bind(target) : value;
+  } });
+}
 function install(context) {
   const PZ = window.PZ, THREE = window.THREE, apis = context.apis;
   const { Content } = createModel(PZ), Layer = createLayerClass(PZ, THREE, Content);
@@ -19,13 +31,7 @@ function install(context) {
   // preserving the real property identity, address, observables and history.
   own(apis.propertyControls.register("shape-plus/gradient", { type: PZ.property.type.GRADIENT, create(property) {
     const frame = () => window.CM.playback.currentFrame - property.frameOffset;
-    const facade = new Proxy(property, { get(target, key) {
-      if (key === "definition") return { ...target.definition, zoidiumControl: undefined };
-      if (key === "get") return () => target.get(frame());
-      if (key === "set") return value => target.set(value, frame());
-      const value = Reflect.get(target, key, target);
-      return typeof value === "function" ? value.bind(target) : value;
-    } });
+    const facade = gradientFacade(property, frame);
     return PZ.ui.controls.generateGradientInput(facade);
   } }));
   // The group is a real native dynamic.group. Its aggregate row controls all
@@ -42,4 +48,4 @@ function install(context) {
   require("./convert-native.js").install(context, Layer);
   require("./workflow.js").install(context, Layer, Content);
 }
-module.exports = { install };
+module.exports = { install, gradientFacade };

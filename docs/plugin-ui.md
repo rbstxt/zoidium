@@ -391,3 +391,42 @@ The callback receives the original menu options and a copy of its current
 item array. It should inspect state only. A failing extension leaves the
 host's menu available and logs an English diagnostic. Expressions+ uses this
 to join Graph Editor 2's property menu while retaining Show in Graph Editor.
+
+## Shared gradient editor
+
+`window.ZoidiumGradientEditor.create(options)` builds an inline property widget
+with the current theme tokens. It returns `{element,get(),set(value),editing,
+dispose()}`. `get()` and `set()` copy their values. The value is
+`{stops:[{position,color,midpoint?}],opacityStops?:[{position,alpha,midpoint?}],
+cyclic?:boolean}`. Colors accept normalized RGBA arrays or native RGBA strings.
+Pass `document`, `value`, `readOnly`, and `advanced:false` for native stops.
+Native mode hides midpoints, separate opacity stops, the wheel, and user
+presets that require those unsupported fields.
+
+Supply `onStart()` to begin one history operation, `onInput(value)` for live
+preview, and `onFinish(cancel)` to finish or discard it. Returning `false` from
+`onStart` refuses an edit while another operation owns history. Escape cancels
+a drag. Supply `bake(value)` returning a 256-texel RGBA8 LUT to preview a custom
+interpolation/color space. Without it, the widget previews linear RGBA.
+`dispose()` cancels an active pointer gesture and removes its element.
+
+`ZoidiumGradientEditor.propertyControl(property,options)` returns a native
+`editbox` with `pz_update()`, wires the same CM3 editStart/editFinish contract,
+and uses the real property's history address. Optional `read()` and
+`write(value,frame)` adapt a TEXT JSON property. The default adapter keeps native
+`[{position,color:"rgba(...)"}]` storage and preserves untouched color strings,
+including fractional RGB values. Shape+'s local-time facade is supported.
+These widgets span a native property row below its existing label.
+
+Settings > Gradient editor chooses Zoidium or Classic. Classic calls the
+original CM3 generator, including its original picker and history hooks.
+The dispatch stays behind the property-control registry so custom controls
+and Shape+'s facade remain registered when switching editors.
+
+Color and opacity handles support dragging, Delete, arrow-key nudging,
+Shift for larger steps, and Enter/double-click to focus their color/value
+fields. Drag a bar handle more than 65 pixels away vertically to remove it.
+Click above an advanced bar to create independent opacity stops. Diamonds edit
+the following segment's midpoint. Presets are local to the browser at
+`zoidium.gradient-presets.v1`, with a maximum of 24 user presets. They contain
+only authored stops; no project or image data is stored there.

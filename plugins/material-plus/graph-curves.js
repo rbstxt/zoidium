@@ -171,8 +171,8 @@
     return element;
   }
 
-  function curvePath(points) {
-    const sample = createSampler(points);
+  function curvePath(points, sampler = createSampler) {
+    const sample = sampler(points);
     const segments = 96;
     let result = "";
     for (let index = 0; index <= segments; index += 1) {
@@ -297,9 +297,9 @@
       if (activeChannel === "composite") {
         referencePath.removeAttribute("d");
       } else {
-        referencePath.setAttribute("d", curvePath(state.composite));
+        referencePath.setAttribute("d", curvePath(state.composite, context.createSampler));
       }
-      activePath.setAttribute("d", curvePath(activePoints()));
+      activePath.setAttribute("d", curvePath(activePoints(), context.createSampler));
       pointsLayer.replaceChildren();
       activePoints().forEach((point, index) => {
         const group = svgElement(document, "g", "zoidium-color-curves-point-wrap");
