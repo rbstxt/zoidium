@@ -18,7 +18,7 @@ const hostGlobals = {
 
 module.exports = [
   {
-    ignores: ["plugins/alipfx/**", "plugins/mp4-export/vendor/**", "**/bundle.json", "node_modules/**", "dist/**", ".zoidium-resources/**"],
+    ignores: ["plugins/alipfx/**", "plugins/mp4-export/vendor/**", "**/bundle.json", "node_modules/**", "dist/**", "site/dist/**", "site/.astro/**", "site/node_modules/**", ".zoidium-resources/**"],
   },
   {
     files: ["**/*.js", "**/*.cjs"],
@@ -28,6 +28,11 @@ module.exports = [
       sourceType: "script",
       globals: { ...globals.browser, ...globals.worker, ...hostGlobals },
     },
+    rules: { "no-undef": "error" },
+  },
+  {
+    files: ["site/**/*.mjs"],
+    languageOptions: { sourceType: "module", globals: { ...globals.node } },
     rules: { "no-undef": "error" },
   },
   {

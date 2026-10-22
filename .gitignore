@@ -37,3 +37,6 @@ Thumbs.db
 
 # Private CM3 runtime snapshots (see docs/cm3-resources.md)
 *.zcs
+
+# Astro content store and generated types
+site/.astro/
