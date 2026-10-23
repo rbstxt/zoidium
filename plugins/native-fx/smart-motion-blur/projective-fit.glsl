@@ -1,27 +1,6 @@
-uniform sampler2D uCurrent;
-uniform sampler2D uBefore;
-uniform sampler2D uAfter;
-uniform vec2 uSize;
 uniform float uAxis;
 uniform float uRadius;
-float parameters[8];
-float cost(float row) {
-    float sum = 0.0;
-    for (int y = 0; y < 128; y++) {
-        for (int x = 0; x < 128; x++) {
-            if (float(x) >= uSize.x || float(y) >= uSize.y) continue;
-            vec2 uv = (vec2(float(x), float(y)) + 0.5) / uSize;
-            vec2 point = (uv - 0.5) * uProject / 128.0;
-            vec2 moved = vec2(parameters[0] * point.x + parameters[1] * point.y + parameters[4],
-                              parameters[2] * point.x + parameters[3] * point.y + parameters[5]);
-            moved /= 1.0 + parameters[6] * point.x + parameters[7] * point.y;
-            vec2 target = moved * 128.0 / uProject + 0.5;
-            vec4 other = row < 0.5 ? texture2D(uBefore, target) : texture2D(uAfter, target);
-            sum += length(texture2D(uCurrent, uv) - other);
-        }
-    }
-    return sum;
-}
+uniform sampler2D uCosts;
 void main() {
     float column = floor(gl_FragCoord.x), row = floor(gl_FragCoord.y);
     if (uAxis < -0.5) {
@@ -38,19 +17,16 @@ void main() {
         gl_FragColor = encodeCoefficient(value);
         return;
     }
+    float original = coefficient(column, row);
     if (abs(column - uAxis) > 0.1) {
         gl_FragColor = texture2D(uHomography, vUv);
         return;
     }
-    for (int index = 0; index < 8; index++) parameters[index] = coefficient(float(index), row);
-    float original = coefficient(uAxis, row), selected = original, best = cost(row);
-    for (int index = 0; index < 8; index++)
-        if (abs(float(index) - uAxis) < 0.1) parameters[index] = original - uRadius;
-    float score = cost(row);
+    float best = unpackStatistic(texture2D(uCosts, vec2(0.5 / 3.0, (row + 0.5) / 2.0)));
+    float selected = original;
+    float score = unpackStatistic(texture2D(uCosts, vec2(1.5 / 3.0, (row + 0.5) / 2.0)));
     if (score < best) { best = score; selected = original - uRadius; }
-    for (int index = 0; index < 8; index++)
-        if (abs(float(index) - uAxis) < 0.1) parameters[index] = original + uRadius;
-    score = cost(row);
+    score = unpackStatistic(texture2D(uCosts, vec2(2.5 / 3.0, (row + 0.5) / 2.0)));
     if (score < best) selected = original + uRadius;
     gl_FragColor = encodeCoefficient(selected);
 }
