@@ -230,6 +230,36 @@
       "id": "smartmotionblur-combine-glsl",
       "type": "text",
       "source": "./plugins/native-fx/smart-motion-blur/combine.glsl?v=25"
+    },
+    {
+      "id": "smartmotionblur-upsample",
+      "type": "text",
+      "source": "./plugins/native-fx/smart-motion-blur/upsample.glsl?v=25"
+    },
+    {
+      "id": "smartmotionblur-moments-glsl",
+      "type": "text",
+      "source": "./plugins/native-fx/smart-motion-blur/moments.glsl?v=25"
+    },
+    {
+      "id": "smartmotionblur-global-glsl",
+      "type": "text",
+      "source": "./plugins/native-fx/smart-motion-blur/global.glsl?v=25"
+    },
+    {
+      "id": "smartmotionblur-global-check-glsl",
+      "type": "text",
+      "source": "./plugins/native-fx/smart-motion-blur/global-check.glsl?v=25"
+    },
+    {
+      "id": "smartmotionblur-global-field-glsl",
+      "type": "text",
+      "source": "./plugins/native-fx/smart-motion-blur/global-field.glsl?v=25"
+    },
+    {
+      "id": "smartmotionblur-global-js",
+      "type": "text",
+      "source": "./plugins/native-fx/smart-motion-blur/global.js?v=25"
     }
   ],
   "category": "NATIVE FX",

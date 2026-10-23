@@ -2,10 +2,12 @@
 const math = require("./math.js");
 const utilities = require("./gl.js");
 const solver = require("./flow.js");
+const registration = require("./global.js");
 const reconstruction = require("./reconstruction.js");
 
 function create(THREE, api, getAsset) {
   const gl = utilities.create(THREE, api, getAsset);
+  const global = registration.create(gl);
   const flow = solver.create(gl),
     blur = reconstruction.create(gl);
   const copy = gl.pass("copy", { uImage: null, uScale: [1, 1] });
@@ -52,6 +54,7 @@ function create(THREE, api, getAsset) {
     storage = gl.selectStorage(renderer, forcePacked);
     flow.allocate(...processing);
     blur.allocate(...processing);
+    global.allocate(...flow.size);
     first = gl.target(
       Math.ceil(processing[0] / 2),
       Math.ceil(processing[1] / 2),
@@ -124,7 +127,8 @@ function create(THREE, api, getAsset) {
         [input.width, input.height],
         uvScale,
       );
-      const fields = [null, null],
+      let fields = [null, null];
+      const reverseFields = [null, null],
         confidence = [null, null],
         deltas = [1, 1];
       for (let index = 0; index < 2; index++) {
@@ -157,13 +161,19 @@ function create(THREE, api, getAsset) {
           project,
           delta,
         );
+        reverseFields[index] = reverse;
+      }
+      if (fields[0] && fields[1]) fields = global.apply(renderer,
+        flow.guides, flow.guideSize, fields, project, settings.maxDisplacement);
+      for (let index = 0; index < 2; index++) {
+        if (!available[index]) continue;
         const conf = flow.analyze(
           renderer,
           index,
           fields[index],
-          reverse,
+          reverseFields[index],
           project,
-          delta,
+          deltas[index],
         );
         confidence[index] = conf.texture;
       }
@@ -221,6 +231,7 @@ function create(THREE, api, getAsset) {
       );
       // Exposed scratch handles support direct, CM3-free GPU accuracy tests.
       diagnostics.constraints = flow.constraints;
+      diagnostics.registration = global;
       diagnostics.anchors = flow.anchors;
       diagnostics.fields = fields;
       diagnostics.flowSize = flow.size;

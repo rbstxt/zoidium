@@ -1,16 +1,38 @@
 attribute vec2 otherA;
 attribute vec2 otherB;
 uniform sampler2D uFlow;
+uniform sampler2D uImage;
+uniform vec2 uScale;
 uniform vec2 uFlowSize;
 uniform vec2 uProcessing;
 uniform float uTime;
 uniform float uDelta;
 uniform float uTear;
+vec2 guidedMotion(vec2 point, vec4 center) {
+    vec2 base = floor(point * uFlowSize - 0.5);
+    vec2 fraction = clamp(point * uFlowSize - 0.5 - base, 0.0, 1.0);
+    vec2 sum = vec2(0.0);
+    float total = 0.0;
+    for (int y = 0; y < 2; y++) {
+        for (int x = 0; x < 2; x++) {
+            vec2 uv = (base + vec2(float(x), float(y)) + 0.5) / uFlowSize;
+            vec4 difference = features(texture2D(uImage, uv * uScale)) - center;
+            float spatial = (x == 0 ? 1.0 - fraction.x : fraction.x) *
+                            (y == 0 ? 1.0 - fraction.y : fraction.y);
+            float weight = (spatial + 0.001) *
+                           (exp(-dot(difference, difference) * 80.0) + 0.000001);
+            sum += decodeFlow(texture2D(uFlow, uv)) * weight;
+            total += weight;
+        }
+    }
+    return sum / max(total, 0.000001);
+}
 void main() {
     vUv = position.xy;
-    vec2 motion = flowAt(uFlow, vUv, uFlowSize);
-    vec2 first = flowAt(uFlow, otherA, uFlowSize);
-    vec2 second = flowAt(uFlow, otherB, uFlowSize);
+    vec4 center = features(texture2D(uImage, (vUv + otherA + otherB) * uScale / 3.0));
+    vec2 motion = guidedMotion(vUv, center);
+    vec2 first = guidedMotion(otherA, center);
+    vec2 second = guidedMotion(otherB, center);
     vec2 ratio = uProcessing / uProject;
     float jump = max(length((motion - first) * ratio),
                      max(length((motion - second) * ratio), length((first - second) * ratio)));

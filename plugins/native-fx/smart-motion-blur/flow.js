@@ -63,6 +63,7 @@ function create(gl) {
   });
   let scores, anchors;
   const copy = gl.pass("copy", { uImage: null, uScale: [1, 1] });
+  const upsample = gl.pass("upsample", { uFlow: null, uFlowSize: [1, 1] });
   const confidence = gl.pass("confidence", {
     uCurrent: null,
     uOther: null,
@@ -182,6 +183,17 @@ function create(gl) {
       previous = targets[bufferIndex].texture;
       previousSize = size;
     }
+    // Reverse fields only test forward/backward agreement. Dense source
+    // constraints in both directions duplicate the most expensive work.
+    if (resultIndex % 2 === 1) {
+      gl.draw(renderer, upsample, results[resultIndex], {
+        uFlow: previous,
+        uFlowSize: previousSize,
+        uProject: project,
+        uLimit: limit,
+      });
+      return results[resultIndex].texture;
+    }
     const targets = scratch[0];
     const shared = {
       uCurrent: images[currentIndex][0].texture,
@@ -284,6 +296,13 @@ function create(gl) {
     },
     get size() {
       return sizes[0];
+    },
+    get guides() {
+      const level = sizes.findIndex(size => Math.max(...size) <= 128);
+      return images.map(levels => levels[level < 0 ? levels.length - 1 : level].texture);
+    },
+    get guideSize() {
+      return sizes.find(size => Math.max(...size) <= 128) || sizes[sizes.length - 1];
     },
     get current() {
       return images[0][0].texture;
