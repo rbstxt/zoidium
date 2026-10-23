@@ -29,6 +29,9 @@ function create(gl) {
     uOther: null,
     uFlow: null,
     uScore: null,
+    uState: null,
+    uSeed: null,
+    uSearchStage: -1,
     uSize: [1, 1],
     uRadius: 0,
     uOutput: 0,
@@ -61,7 +64,7 @@ function create(gl) {
     uSouthWest: null,
     uSouthEast: null,
   });
-  let scores, anchors;
+  let scores, anchors, constraintState, constraintTargets;
   const copy = gl.pass("copy", { uImage: null, uScale: [1, 1] });
   const upsample = gl.pass("upsample", { uFlow: null, uFlowSize: [1, 1] });
   const confidence = gl.pass("confidence", {
@@ -86,6 +89,11 @@ function create(gl) {
     ]);
     results = Array.from({ length: 4 }, () => gl.target(...sizes[0], true));
     scores = [gl.target(...sizes[0])];
+    constraintState = gl.target(...sizes[0], false, true);
+    constraintTargets = [
+      gl.target(...sizes[0], true),
+      gl.target(...sizes[0], true),
+    ];
     anchors = Array.from({ length: 4 }, () => [
       gl.target(...sizes[0], false, true),
       gl.target(...sizes[0], false, true),
@@ -203,17 +211,35 @@ function create(gl) {
       uProject: project,
       uLimit: limit,
     };
-    gl.draw(renderer, constraints, targets[2], {
+    const constraintSources = {
       ...shared,
       uRawCurrent: sources[currentIndex].image,
       uRawOther: sources[otherIndex].image,
       uRawSize: sources[currentIndex].sourceSize,
       uRawScale: sources[currentIndex].uvScale,
       uFlow: previous,
+      uSeed: previous,
       uScore: null,
+      uState: null,
       uRadius: 0,
       uOutput: 0,
+    };
+    gl.draw(renderer, constraints, constraintState, {
+      ...constraintSources,
+      uSearchStage: -1,
     });
+    let constrained = previous;
+    for (let stage = 0; stage <= 32; stage++) {
+      const target = constraintTargets[stage % 2];
+      gl.draw(renderer, constraints, target, {
+        ...constraintSources,
+        uFlow: constrained,
+        uState: constraintState.texture,
+        uSearchStage: stage,
+      });
+      constrained = target.texture;
+    }
+    gl.draw(renderer, copy, targets[2], { uImage: constrained });
     if (gl.packed) {
       gl.draw(renderer, constraints, scores[0], {
         ...shared,
@@ -224,6 +250,8 @@ function create(gl) {
         uFlow: targets[2].texture,
         uScore: null,
         uRadius: 0,
+        uState: constraintState.texture,
+        uSearchStage: 32,
         uOutput: 1,
       });
     }

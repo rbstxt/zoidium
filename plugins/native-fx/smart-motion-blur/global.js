@@ -3,29 +3,78 @@ const projective = require("./projective.js");
 function create(gl) {
   const homography = projective.create(gl);
   const acceptedBytes = new Uint8Array(8);
-  const moments = gl.pass("moments", {
-    uCurrent: null,
-    uBefore: null,
-    uAfter: null,
-    uSize: [1, 1],
-  }, null, ["statistics"]);
-  const translationCost = gl.pass("translation-cost", {
-    uCurrent: null, uBefore: null, uAfter: null, uPrevious: null, uNext: null,
-    uTranslation: null, uStep: -1,
-  }, null, ["statistics"]);
-  const translation = gl.pass("translation", {
-    uPrevious: null, uNext: null, uTranslation: null, uCosts: null, uStep: -1,
-  }, null, ["statistics"]);
-  const cost = gl.pass("global-cost", {
-    uCurrent: null, uBefore: null, uAfter: null, uMoments: null,
-    uTranslation: null, uHomography: null, uHasHomography: 0, uScale: [1, 1],
-  }, null, ["global", "projective", "statistics"]);
-  const check = gl.pass("global-check", {
-    uMoments: null, uChecks: null, uHasHomography: 0,
-  }, null, ["global", "statistics"]);
-  const reduce = gl.pass("statistics-reduce", {
-    uTiles: null, uGroups: [1, 1], uNormalization: 1,
-  }, null, ["statistics"]);
+  const moments = gl.pass(
+    "moments",
+    {
+      uCurrent: null,
+      uBefore: null,
+      uAfter: null,
+      uSize: [1, 1],
+    },
+    null,
+    ["statistics"],
+  );
+  const translationCost = gl.pass(
+    "translation-cost",
+    {
+      uCurrent: null,
+      uBefore: null,
+      uAfter: null,
+      uPrevious: null,
+      uNext: null,
+      uTranslation: null,
+      uStep: -1,
+    },
+    null,
+    ["statistics"],
+  );
+  const translation = gl.pass(
+    "translation",
+    {
+      uPrevious: null,
+      uNext: null,
+      uTranslation: null,
+      uCosts: null,
+      uStep: -1,
+    },
+    null,
+    ["statistics"],
+  );
+  const cost = gl.pass(
+    "global-cost",
+    {
+      uCurrent: null,
+      uBefore: null,
+      uAfter: null,
+      uMoments: null,
+      uTranslation: null,
+      uHomography: null,
+      uHasHomography: 0,
+      uScale: [1, 1],
+    },
+    null,
+    ["global", "projective", "statistics"],
+  );
+  const check = gl.pass(
+    "global-check",
+    {
+      uMoments: null,
+      uChecks: null,
+      uHasHomography: 0,
+    },
+    null,
+    ["global", "statistics"],
+  );
+  const reduce = gl.pass(
+    "statistics-reduce",
+    {
+      uTiles: null,
+      uGroups: [1, 1],
+      uNormalization: 1,
+    },
+    null,
+    ["statistics"],
+  );
   const field = gl.pass(
     "global-field",
     {
@@ -40,7 +89,14 @@ function create(gl) {
     null,
     ["global", "projective"],
   );
-  let statistics, momentTiles, checks, checkTiles, accepted, fields, translations, translationCosts;
+  let statistics,
+    momentTiles,
+    checks,
+    checkTiles,
+    accepted,
+    fields,
+    translations,
+    translationCosts;
   let projectiveTriggered = false;
   function allocate(width, height) {
     homography.allocate();
@@ -62,35 +118,52 @@ function create(gl) {
     projectiveTriggered = false;
     gl.draw(renderer, moments, momentTiles, { ...sources, uSize: size });
     gl.draw(renderer, reduce, statistics, {
-      uTiles: momentTiles.texture, uGroups: [6, 3],
+      uTiles: momentTiles.texture,
+      uGroups: [6, 3],
       uNormalization: 16384 / (size[0] * size[1]),
     });
     let translationIndex = 0;
     for (const step of [-1, 2, 1, 0.5, 0.25, 0.125]) {
       const shared = {
-        uPrevious: local[0], uNext: local[1],
+        uPrevious: local[0],
+        uNext: local[1],
         uTranslation: translations[translationIndex].texture,
-        uStep: step, uProject: project, uLimit: limit,
+        uStep: step,
+        uProject: project,
+        uLimit: limit,
       };
-      gl.draw(renderer, translationCost, translationCosts, { ...sources, ...shared });
+      gl.draw(renderer, translationCost, translationCosts, {
+        ...sources,
+        ...shared,
+      });
       gl.draw(renderer, translation, translations[1 - translationIndex], {
-        ...shared, uCosts: translationCosts.texture,
+        ...shared,
+        uCosts: translationCosts.texture,
       });
       translationIndex = 1 - translationIndex;
     }
     const translated = translations[translationIndex].texture;
     function validate(proposal) {
       gl.draw(renderer, cost, checkTiles, {
-        uCurrent: raw[0].image, uBefore: raw[1].image, uAfter: raw[2].image,
-        uScale: raw[0].uvScale, uMoments: statistics.texture,
-        uTranslation: translated, uProject: project,
-        uHomography: proposal, uHasHomography: proposal ? 1 : 0,
+        uCurrent: raw[0].image,
+        uBefore: raw[1].image,
+        uAfter: raw[2].image,
+        uScale: raw[0].uvScale,
+        uMoments: statistics.texture,
+        uTranslation: translated,
+        uProject: project,
+        uHomography: proposal,
+        uHasHomography: proposal ? 1 : 0,
       });
       gl.draw(renderer, reduce, checks, {
-        uTiles: checkTiles.texture, uGroups: [7, 2], uNormalization: 1,
+        uTiles: checkTiles.texture,
+        uGroups: [7, 2],
+        uNormalization: 1,
       });
       gl.draw(renderer, check, accepted, {
-        uChecks: checks.texture, uMoments: statistics.texture, uProject: project,
+        uChecks: checks.texture,
+        uMoments: statistics.texture,
+        uProject: project,
         uHasHomography: proposal ? 1 : 0,
       });
     }
@@ -102,7 +175,13 @@ function create(gl) {
       (acceptedBytes[4] === 0 && acceptedBytes[7] > 0)
     ) {
       projectiveTriggered = true;
-      proposal = homography.apply(renderer, statistics.texture, images, size, project);
+      proposal = homography.apply(
+        renderer,
+        statistics.texture,
+        images,
+        size,
+        project,
+      );
       validate(proposal);
     }
     for (let index = 0; index < 2; index++) {
