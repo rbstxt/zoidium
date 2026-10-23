@@ -79,11 +79,14 @@ function create(gl) {
     });
     renderer.readRenderTargetPixels(accepted, 0, 0, 2, 1, acceptedBytes);
     let proposal = null;
-    if ((acceptedBytes[0] === 0 && acceptedBytes[3] > 0) ||
-        (acceptedBytes[4] === 0 && acceptedBytes[7] > 0)) {
+    if (
+      (acceptedBytes[0] === 0 && acceptedBytes[3] > 0) ||
+      (acceptedBytes[4] === 0 && acceptedBytes[7] > 0)
+    ) {
       proposal = homography.apply(renderer, statistics.texture, images, size, project);
       gl.draw(renderer, check, accepted, {
-        uHomography: proposal, uHasHomography: 1,
+        uHomography: proposal,
+        uHasHomography: 1,
       });
     }
     for (let index = 0; index < 2; index++) {
