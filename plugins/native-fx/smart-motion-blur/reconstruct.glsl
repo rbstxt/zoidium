@@ -1,4 +1,6 @@
 uniform sampler2D uImage;
+uniform sampler2D uBefore;
+uniform sampler2D uAfter;
 uniform sampler2D uPrevious;
 uniform sampler2D uNext;
 uniform sampler2D uPreviousMax;
@@ -16,11 +18,18 @@ uniform int uSamples;
 uniform int uView;
 
 vec4 colorAt(vec2 uv) {
-    if(uv.x<0.0 || uv.y<0.0 || uv.x>1.0 || uv.y>1.0) return vec4(0.0);
     vec2 lo=0.5*uScale/uProcessing;
     return texture2D(uImage,clamp(uv*uScale,lo,uScale-lo));
 }
 vec2 velocity(sampler2D field,vec2 uv,float delta,float signValue) {
+    vec4 original=colorAt(uv);
+    vec4 dp=abs(original-texture2D(uBefore,uv*uScale));
+    vec4 dn=abs(original-texture2D(uAfter,uv*uScale));
+    float stationary=dot(dp+dn,vec4(1.0));
+    vec2 texel=1.0/uProcessing;
+    vec4 edge=abs(colorAt(uv+vec2(texel.x,0.0))-colorAt(uv-vec2(texel.x,0.0)))+
+        abs(colorAt(uv+vec2(0.0,texel.y))-colorAt(uv-vec2(0.0,texel.y)));
+    if(stationary<0.001 && dot(edge,vec4(1.0))>0.02) return vec2(0.0);
     // Joint bilateral upsampling keeps a flat object's field off its background.
     vec2 p=uv*uFlowSize-0.5, b=floor(p), f=fract(p);
     vec4 center=features(colorAt(uv));
