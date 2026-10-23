@@ -1,5 +1,6 @@
 uniform sampler2D uTiles;
 uniform vec2 uGroups;
+uniform float uNormalization;
 void main() {
     vec2 group = floor(gl_FragCoord.xy);
     float sum = 0.0;
@@ -9,5 +10,5 @@ void main() {
             vec2 pixel = group * 8.0 + vec2(float(x), float(y));
             sum += unpackStatistic(texture2D(uTiles, (pixel + 0.5) / (uGroups * 8.0))) / 64.0;
         }
-    gl_FragColor = packStatistic(sum);
+    gl_FragColor = packStatistic(sum * uNormalization);
 }

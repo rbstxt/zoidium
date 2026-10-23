@@ -1,50 +1,33 @@
-uniform sampler2D uCurrent;
-uniform sampler2D uBefore;
-uniform sampler2D uAfter;
 uniform sampler2D uPrevious;
 uniform sampler2D uNext;
-float direction;
-vec4 otherAt(vec2 uv) { return direction < 0.5 ? texture2D(uBefore, uv) : texture2D(uAfter, uv); }
-float cost(vec2 motion) {
-    float total = 0.0;
-    for (int y = 0; y < 12; y++) {
-        for (int x = 0; x < 16; x++) {
-            vec2 uv = (vec2(float(x), float(y)) + 0.5) / vec2(16.0, 12.0);
-            vec2 moved = uv + motion / uProject;
-            if (any(lessThan(moved, vec2(0.0))) || any(greaterThan(moved, vec2(1.0))))
-                continue;
-            total += length(texture2D(uCurrent, uv) - otherAt(moved));
-        }
-    }
-    return total;
+uniform sampler2D uTranslation;
+uniform sampler2D uCosts;
+uniform float uStep;
+float cost(float column, float row) {
+    return unpackStatistic(texture2D(uCosts, vec2((column + 0.5) / 65.0, (row + 0.5) / 2.0)));
 }
 void main() {
-    direction = floor(gl_FragCoord.x);
+    float direction = floor(gl_FragCoord.x);
     vec2 best = vec2(0.0);
-    float bestCost = cost(best);
-    for (int y = 0; y < 8; y++) {
-        for (int x = 0; x < 8; x++) {
-            vec2 uv = (vec2(float(x), float(y)) + 0.5) / 8.0;
-            vec2 candidate = direction < 0.5 ? decodeFlow(texture2D(uPrevious, uv))
-                                             : decodeFlow(texture2D(uNext, uv));
-            float score = cost(candidate);
+    if (uStep < -0.5) {
+        float bestCost = cost(64.0, direction);
+        for (int index = 0; index < 64; index++) {
+            float score = cost(float(index), direction);
             if (score < bestCost) {
                 bestCost = score;
-                best = candidate;
+                vec2 uv = (vec2(mod(float(index), 8.0), floor(float(index) / 8.0)) + 0.5) / 8.0;
+                best = direction < 0.5 ? decodeFlow(texture2D(uPrevious, uv)) : decodeFlow(texture2D(uNext, uv));
             }
         }
-    }
-    for (int step = 0; step < 5; step++) {
-        vec2 center = best;
-        float radius = exp2(1.0 - float(step));
-        for (int y = -1; y <= 1; y++) {
-            for (int x = -1; x <= 1; x++) {
-                vec2 candidate = center + vec2(float(x), float(y)) * radius;
-                float score = cost(candidate);
-                if (score < bestCost) {
-                    bestCost = score;
-                    best = candidate;
-                }
+    } else {
+        vec2 center = decodeFlow(texture2D(uTranslation, vec2((direction + 0.5) / 2.0, 0.5)));
+        best = center;
+        float bestCost = cost(4.0, direction);
+        for (int index = 0; index < 9; index++) {
+            float score = cost(float(index), direction);
+            if (score < bestCost) {
+                bestCost = score;
+                best = center + (vec2(mod(float(index), 3.0), floor(float(index) / 3.0)) - 1.0) * uStep;
             }
         }
     }

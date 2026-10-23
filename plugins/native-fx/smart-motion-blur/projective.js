@@ -17,7 +17,7 @@ function create(gl) {
     uSize: [1, 1], uAxis: 0, uRadius: 0,
   }, null, ["projective", "statistics"]);
   const reduce = gl.pass("statistics-reduce", {
-    uTiles: null, uGroups: [3, 2],
+    uTiles: null, uGroups: [3, 2], uNormalization: 1,
   }, null, ["statistics"]);
   let targets, tiles, costs;
   function allocate() {

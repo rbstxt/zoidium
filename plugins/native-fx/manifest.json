@@ -300,6 +300,16 @@
       "id": "smartmotionblur-projective-cost-glsl",
       "type": "text",
       "source": "./plugins/native-fx/smart-motion-blur/projective-cost.glsl?v=27"
+    },
+    {
+      "id": "smartmotionblur-global-cost-glsl",
+      "type": "text",
+      "source": "./plugins/native-fx/smart-motion-blur/global-cost.glsl?v=27"
+    },
+    {
+      "id": "smartmotionblur-translation-cost-glsl",
+      "type": "text",
+      "source": "./plugins/native-fx/smart-motion-blur/translation-cost.glsl?v=27"
     }
   ],
   "category": "NATIVE FX",
