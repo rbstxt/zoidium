@@ -10,9 +10,9 @@ void main() {
     vec4 next = texture2D(uNextConfidence, vUv);
     vec2 first = floor(gl_FragCoord.xy - 0.5) * 2.0;
     float difference = 0.0;
-    for (int y = 0; y < 2; y++) {
-        for (int x = 0; x < 2; x++) {
-            vec2 pixel = min(first + vec2(float(x), float(y)), uActiveSize - 1.0);
+    for (int offsetY = 0; offsetY < 2; offsetY++) {
+        for (int offsetX = 0; offsetX < 2; offsetX++) {
+            vec2 pixel = min(first + vec2(float(offsetX), float(offsetY)), uActiveSize - 1.0);
             vec2 uv = (pixel + 0.5) / uSourceSize;
             vec4 current = texture2D(uCurrent, uv);
             vec4 delta =

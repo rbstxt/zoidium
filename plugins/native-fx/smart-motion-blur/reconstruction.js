@@ -2,6 +2,10 @@
 const math = require("./math.js");
 function create(gl) {
   const tile = gl.pass("tile", {
+    uImage: null,
+    uBefore: null,
+    uAfter: null,
+    uScale: [1, 1],
     uFlow: null,
     uFlowSize: [1, 1],
     uProcessing: [1, 1],
@@ -58,6 +62,10 @@ function create(gl) {
   ) {
     for (let i = 0; i < 2; i++) {
       gl.draw(renderer, tile, tiles[i], {
+        uImage: input,
+        uBefore: sources[0],
+        uAfter: sources[1],
+        uScale: uvScale,
         uFlow: fields[i],
         uFlowSize: flowSize,
         uProcessing: processing,
