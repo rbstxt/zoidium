@@ -190,9 +190,9 @@ function create(THREE, api, getAsset) {
       const statistics = reduction(renderer, first, true);
       diagnostics.readbacks = 1;
       diagnostics.static = statistics[3] === 0;
-      diagnostics.sceneCut =
-        statistics[0] / 255 > 0.35 ||
-        (statistics[0] / 255 > 0.12 && statistics[1] / 255 > 0.6);
+      // Consistency failures include occlusion and aperture ambiguity. Only a
+      // large residual after compensation is evidence for a scene cut.
+      diagnostics.sceneCut = statistics[0] / 255 > 0.35;
       if (diagnostics.static || diagnostics.sceneCut) return copyInput();
       diagnostics.maxSpeed = (statistics[2] / 255) * 256;
       diagnostics.samples = math.sampleCount(

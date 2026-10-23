@@ -1,6 +1,8 @@
 "use strict";
 const math = require("./math.js");
+const splatting = require("./splat.js");
 function create(gl) {
+  const splat = splatting.create(gl);
   const tile = gl.pass("tile", {
     uImage: null,
     uBefore: null,
@@ -40,6 +42,7 @@ function create(gl) {
   });
   let tiles, neighbors, size;
   function allocate(width, height) {
+    splat.allocate(width, height);
     size = [Math.ceil(width / 16), Math.ceil(height / 16)];
     tiles = [gl.target(...size, true), gl.target(...size, true)];
     neighbors = [gl.target(...size, true), gl.target(...size, true)];
@@ -60,6 +63,12 @@ function create(gl) {
     maxSpeed,
     sources,
   ) {
+    if (!settings.view && !settings.forceGather &&
+        renderer.getContext().getParameter(renderer.getContext().MAX_VERTEX_TEXTURE_IMAGE_UNITS) > 0) {
+      splat.render(renderer, output, input, fields, deltas, flowSize, processing,
+        project, uvScale, settings, maxSpeed, sources);
+      return;
+    }
     for (let index = 0; index < 2; index++) {
       gl.draw(renderer, tile, tiles[index], {
         uImage: input,

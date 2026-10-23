@@ -18,7 +18,7 @@ function create(THREE, api, getAsset) {
       throw new Error("[Zoidium] Missing Smart Motion Blur asset: " + name);
     return value;
   }
-  function pass(name, values) {
+  function pass(name, values, vertex) {
     const uniforms = {
       uProject: { value: new THREE.Vector2(1, 1) },
       uLimit: { value: 256 },
@@ -30,7 +30,7 @@ function create(THREE, api, getAsset) {
     }
     const material = new THREE.ShaderMaterial({
       uniforms,
-      vertexShader,
+      vertexShader: vertex ? text("common") + "\n" + text(vertex) : vertexShader,
       fragmentShader: text("common") + "\n" + text(name),
       defines: packed ? { FLOW_PACKED: 1 } : {},
       precision: "highp",
@@ -131,6 +131,7 @@ function create(THREE, api, getAsset) {
     draw,
     preserve,
     selectStorage,
+    THREE,
     clearTargets,
     dispose,
     get packed() {
