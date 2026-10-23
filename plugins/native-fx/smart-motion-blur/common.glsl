@@ -4,8 +4,8 @@ uniform vec2 uProject;
 uniform float uLimit;
 
 vec4 features(vec4 c) {
-    return vec4(dot(c.rgb, vec3(0.299, 0.587, 0.114)),
-        (c.r - c.b) * 0.5, (c.g - (c.r + c.b) * 0.5) * 0.5, c.a * 0.7);
+    return vec4(dot(c.rgb, vec3(0.299, 0.587, 0.114)), (c.r - c.b) * 0.5,
+                (c.g - (c.r + c.b) * 0.5) * 0.5, c.a * 0.7);
 }
 vec2 decodeFlow(vec4 c) {
 #ifdef FLOW_PACKED

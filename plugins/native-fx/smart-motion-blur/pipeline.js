@@ -220,6 +220,8 @@ function create(THREE, api, getAsset) {
         ],
       );
       // Exposed scratch handles support direct, CM3-free GPU accuracy tests.
+      diagnostics.constraints = flow.constraints;
+      diagnostics.anchors = flow.anchors;
       diagnostics.fields = fields;
       diagnostics.flowSize = flow.size;
       diagnostics.confidence = confidence;

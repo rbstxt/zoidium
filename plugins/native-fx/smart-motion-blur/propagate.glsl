@@ -1,85 +1,66 @@
 uniform sampler2D uCurrent;
-uniform sampler2D uOther;
 uniform sampler2D uFlow;
 uniform sampler2D uScore;
+uniform sampler2D uAnchors;
 uniform vec2 uSize;
+uniform vec2 uQuadrant;
 uniform float uRadius;
-uniform float uOutput;
-float patchCost(vec2 v) {
-    float cost=0.0;
-    vec4 center=features(texture2D(uCurrent,vUv));
-    for(int y=-2;y<=2;y++) for(int x=-2;x<=2;x++) {
-        vec2 uv=vUv+vec2(float(x),float(y))/uSize;
-        vec4 a=features(texture2D(uCurrent,uv)),b=features(texture2D(uOther,uv+v/uProject));
-        float ma=1.0-smoothstep(0.002,0.01,dot(a-center,a-center));
-        float mb=1.0-smoothstep(0.002,0.01,dot(b-center,b-center));
-        cost+=abs(ma-mb)+0.01*robust(a-b);
+uniform sampler2D uRawCurrent;
+uniform vec2 uRawSize;
+uniform vec2 uRawScale;
+vec4 guideAt(vec2 uv) {
+    vec2 point = (floor(uv * uRawScale * uRawSize + 0.0001) + 0.5) / uRawSize;
+    return texture2D(uRawCurrent, point);
+}
+
+vec2 decodeAnchor(vec4 value) {
+    vec4 bytes = floor(value * 255.0 + 0.5);
+    return vec2(bytes.r * 256.0 + bytes.g, bytes.b * 256.0 + bytes.a) - 1.0;
+}
+vec4 encodeAnchor(vec2 point) {
+    vec2 code = point + 1.0;
+    return vec4(floor(code.x / 256.0), mod(code.x, 256.0), floor(code.y / 256.0),
+                mod(code.y, 256.0)) /
+           255.0;
+}
+bool connected(vec2 point, vec4 center) {
+    vec2 uv = (point + 0.5) / uSize;
+    // Check the path as well as its endpoint. Equal colors on separate objects
+    // must not let a constraint jump across the intervening background.
+    for (int index = 1; index <= 4; index++) {
+        vec4 difference = features(guideAt(mix(vUv, uv, float(index) / 4.0))) - center;
+        if (dot(difference, difference) > 0.002) return false;
     }
-    return cost/25.0;
-}
-vec4 scoreValue(float valid,float distance) {
-    float code=floor(min(distance*8.0,65535.0)+0.5);
-    return vec4(valid,floor(code/256.0)/255.0,mod(code,256.0)/255.0,1.0);
-}
-float distanceAt(vec4 score) { return (floor(score.g*255.0+0.5)*256.0+floor(score.b*255.0+0.5))/8.0; }
-vec4 readScore(vec2 uv) {
-    vec4 c=texture2D(uScore,uv);
-#ifdef FLOW_PACKED
-    return c;
-#else
-    return scoreValue(c.b,c.a);
-#endif
-}
-vec4 fieldAndScore(vec2 flow,float valid,float distance) {
-    vec4 result=encodeFlow(flow);
-#ifndef FLOW_PACKED
-    result.ba=vec2(valid,distance);
-#endif
-    return result;
+    return true;
 }
 void main() {
-    vec2 best=decodeFlow(texture2D(uFlow,vUv));
-    if(uRadius<0.5) {
-        vec2 e=1.0/uSize;
-        float xx=0.0,xy=0.0,yy=0.0,stationaryPatch=0.0;
-        for(int y=-1;y<=1;y++) for(int x=-1;x<=1;x++) {
-            vec2 p=vUv+vec2(float(x),float(y))*e;
-            vec4 gx=features(texture2D(uCurrent,p+vec2(e.x,0.0)))-features(texture2D(uCurrent,p-vec2(e.x,0.0)));
-            vec4 gy=features(texture2D(uCurrent,p+vec2(0.0,e.y)))-features(texture2D(uCurrent,p-vec2(0.0,e.y)));
-            xx+=dot(gx,gx);xy+=dot(gx,gy);yy+=dot(gy,gy);
-            stationaryPatch+=dot(abs(texture2D(uCurrent,p)-texture2D(uOther,p)),vec4(1.0));
-        }
-        float eigen=(xx+yy-sqrt((xx-yy)*(xx-yy)+4.0*xy*xy))/18.0;
-        float valid=0.0;
-        if(eigen>0.003 && stationaryPatch<0.001) {best=vec2(0.0);valid=1.0;}
-        else if(eigen>0.003) {
-            float cost=patchCost(best);
-            for(int step=0;step<7;step++) {
-                vec2 center=best;
-                float spacing=exp2(2.0-float(step));
-                for(int y=-1;y<=1;y++) for(int x=-1;x<=1;x++) {
-                    vec2 v=center+vec2(float(x),float(y))*spacing*uProject/uSize;
-                    float c=patchCost(v);
-                    if(c<cost-0.000001 && length(v)<=uLimit) {best=v;cost=c;}
-                }
+    if (uRadius < 0.5) {
+#ifdef FLOW_PACKED
+        float valid = texture2D(uScore, vUv).r;
+#else
+        float valid = texture2D(uFlow, vUv).b;
+#endif
+        gl_FragColor = valid > 0.5 ? encodeAnchor(floor(vUv * uSize)) : vec4(0.0);
+        return;
+    }
+    vec2 pixel = floor(vUv * uSize);
+    vec2 best = vec2(-1.0);
+    float bestDistance = 1.0e20;
+    vec4 center = features(guideAt(vUv));
+    for (int y = -1; y <= 1; y++) {
+        for (int x = -1; x <= 1; x++) {
+            vec2 uv = vUv + vec2(float(x), float(y)) * uRadius / uSize;
+            if (any(lessThan(uv, vec2(0.0))) || any(greaterThan(uv, vec2(1.0)))) continue;
+            vec2 point = decodeAnchor(texture2D(uAnchors, uv));
+            if (point.x < 0.0 || point.y < 0.0) continue;
+            vec2 offset = point - pixel;
+            if (any(lessThan(offset * uQuadrant, vec2(-0.01)))) continue;
+            float distance = dot(offset, offset);
+            if (distance < bestDistance && connected(point, center)) {
+                best = point;
+                bestDistance = distance;
             }
-            if(cost<0.08) valid=1.0;
-        }
-        gl_FragColor=uOutput>0.5?scoreValue(valid,0.0):fieldAndScore(best,valid,0.0);return;
-    }
-    vec4 own=readScore(vUv);
-    float distance=own.r>0.5?distanceAt(own):100000.0;
-    vec4 center=features(texture2D(uCurrent,vUv));
-    for(int y=-1;y<=1;y++) for(int x=-1;x<=1;x++) {
-        vec2 offset=vec2(float(x),float(y))*uRadius;
-        vec2 p=vUv+offset/uSize;
-        if(p.x<0.0 || p.y<0.0 || p.x>1.0 || p.y>1.0) continue;
-        vec4 score=readScore(p);
-        float candidateDistance=distanceAt(score)+length(offset*uProject/uSize);
-        vec4 difference=features(texture2D(uCurrent,p))-center;
-        if(score.r>0.5 && candidateDistance<distance && dot(difference,difference)<0.002) {
-            best=decodeFlow(texture2D(uFlow,p));distance=candidateDistance;
         }
     }
-    gl_FragColor=uOutput>0.5?scoreValue(distance<99999.0?1.0:0.0,min(distance,8191.0)):fieldAndScore(best,distance<99999.0?1.0:0.0,min(distance,8191.0));
+    gl_FragColor = best.x < 0.0 ? vec4(0.0) : encodeAnchor(best);
 }

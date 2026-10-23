@@ -190,6 +190,16 @@
       "id": "smartmotionblur-propagate-shader",
       "type": "text",
       "source": "./plugins/native-fx/smart-motion-blur/propagate.glsl?v=24"
+    },
+    {
+      "id": "smartmotionblur-constraints-shader",
+      "type": "text",
+      "source": "./plugins/native-fx/smart-motion-blur/constraints.glsl?v=24"
+    },
+    {
+      "id": "smartmotionblur-interpolate-shader",
+      "type": "text",
+      "source": "./plugins/native-fx/smart-motion-blur/interpolate.glsl?v=24"
     }
   ],
   "category": "NATIVE FX",

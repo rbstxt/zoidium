@@ -39,10 +39,10 @@ function create(THREE, api, getAsset) {
     passes.push(result);
     return result;
   }
-  function target(width, height, field = false) {
+  function target(width, height, field = false, nearest = field) {
     const result = api.createRenderTarget(THREE, width, height, {
-      minFilter: field ? THREE.NearestFilter : THREE.LinearFilter,
-      magFilter: field ? THREE.NearestFilter : THREE.LinearFilter,
+      minFilter: nearest ? THREE.NearestFilter : THREE.LinearFilter,
+      magFilter: nearest ? THREE.NearestFilter : THREE.LinearFilter,
       format: THREE.RGBAFormat,
       type:
         field && packed === false
