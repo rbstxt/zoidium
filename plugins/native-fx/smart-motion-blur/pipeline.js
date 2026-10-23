@@ -172,7 +172,7 @@ function create(THREE, api, getAsset) {
           flow.sources,
           fields,
           project,
-          settings.maxDisplacement,
+          (settings.maxDisplacement * settings.sensitivity) / 100,
         );
       for (let index = 0; index < 2; index++) {
         if (!available[index]) continue;
