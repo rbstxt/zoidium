@@ -3,7 +3,7 @@
   "id": "native-fx",
   "name": "Native FX",
   "author": "Zoidium",
-  "version": "23",
+  "version": "24",
   "kind": "native-fx",
   "resources": [
     {
@@ -105,6 +105,81 @@
       "id": "curve-options-css",
       "type": "text",
       "source": "./plugins/native-fx/curve-options.css?v=23"
+    },
+    {
+      "id": "smartmotionblur-math",
+      "type": "text",
+      "source": "./plugins/native-fx/smart-motion-blur/math.js"
+    },
+    {
+      "id": "smartmotionblur-gl",
+      "type": "text",
+      "source": "./plugins/native-fx/smart-motion-blur/gl.js"
+    },
+    {
+      "id": "smartmotionblur-flow",
+      "type": "text",
+      "source": "./plugins/native-fx/smart-motion-blur/flow.js"
+    },
+    {
+      "id": "smartmotionblur-reconstruction",
+      "type": "text",
+      "source": "./plugins/native-fx/smart-motion-blur/reconstruction.js"
+    },
+    {
+      "id": "smartmotionblur-pipeline",
+      "type": "text",
+      "source": "./plugins/native-fx/smart-motion-blur/pipeline.js"
+    },
+    {
+      "id": "smartmotionblur-common-shader",
+      "type": "text",
+      "source": "./plugins/native-fx/smart-motion-blur/common.glsl"
+    },
+    {
+      "id": "smartmotionblur-pyramid-shader",
+      "type": "text",
+      "source": "./plugins/native-fx/smart-motion-blur/pyramid.glsl"
+    },
+    {
+      "id": "smartmotionblur-seed-shader",
+      "type": "text",
+      "source": "./plugins/native-fx/smart-motion-blur/seed.glsl"
+    },
+    {
+      "id": "smartmotionblur-refine-shader",
+      "type": "text",
+      "source": "./plugins/native-fx/smart-motion-blur/refine.glsl"
+    },
+    {
+      "id": "smartmotionblur-confidence-shader",
+      "type": "text",
+      "source": "./plugins/native-fx/smart-motion-blur/confidence.glsl"
+    },
+    {
+      "id": "smartmotionblur-reduce-shader",
+      "type": "text",
+      "source": "./plugins/native-fx/smart-motion-blur/reduce.glsl"
+    },
+    {
+      "id": "smartmotionblur-difference-shader",
+      "type": "text",
+      "source": "./plugins/native-fx/smart-motion-blur/difference.glsl"
+    },
+    {
+      "id": "smartmotionblur-tile-shader",
+      "type": "text",
+      "source": "./plugins/native-fx/smart-motion-blur/tile.glsl"
+    },
+    {
+      "id": "smartmotionblur-neighbor-shader",
+      "type": "text",
+      "source": "./plugins/native-fx/smart-motion-blur/neighbor.glsl"
+    },
+    {
+      "id": "smartmotionblur-reconstruct-shader",
+      "type": "text",
+      "source": "./plugins/native-fx/smart-motion-blur/reconstruct.glsl"
     }
   ],
   "category": "NATIVE FX",
@@ -250,6 +325,17 @@
       "name": "Radial Shadow",
       "description": "Casts a soft radial shadow of the layer away from a point light source.",
       "source": "./plugins/native-fx/effects/radialshadow.js?v=23"
+    },
+    {
+      "id": "smartmotionblur",
+      "name": "Smart Motion Blur",
+      "description": "Optical-flow motion blur that estimates per-pixel motion between neighboring frames. Use an Adjustment layer for motion from a layer's own transform.",
+      "source": "./plugins/native-fx/effects/smartmotionblur.js",
+      "requiresApis": [
+        "defineFrameSampler",
+        "modules",
+        "gl"
+      ]
     }
   ]
 }
