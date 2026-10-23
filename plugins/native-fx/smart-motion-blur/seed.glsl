@@ -18,10 +18,9 @@ float cost(vec2 velocity) {
                 (abs(float(offsetX)) > 1.0 || abs(float(offsetY)) > 1.0))
                 continue;
             vec2 patchUv = vUv + vec2(float(offsetX), float(offsetY)) / uSize;
-            int index = (offsetY + 2) * 5 + offsetX + 2;
-            vec4 currentFeature = currentFeatures[index];
+            vec4 currentFeature = currentFeatures[(offsetY + 2) * 5 + offsetX + 2];
             vec4 otherFeature = features(texture2D(uOther, patchUv + displacementUv));
-            float weight = currentWeights[index];
+            float weight = currentWeights[(offsetY + 2) * 5 + offsetX + 2];
             totalCost += robust(currentFeature - otherFeature) * weight;
             totalWeight += weight;
         }
@@ -52,10 +51,9 @@ void main() {
     vec4 center = features(texture2D(uCurrent, vUv));
     for (int y = -2; y <= 2; y++)
         for (int x = -2; x <= 2; x++) {
-            int index = (y + 2) * 5 + x + 2;
             vec4 value = features(texture2D(uCurrent, vUv + vec2(float(x), float(y)) / uSize));
-            currentFeatures[index] = value;
-            currentWeights[index] = 0.1 + 0.9 * exp(-dot(value - center, value - center) * 12.0);
+            currentFeatures[(y + 2) * 5 + x + 2] = value;
+            currentWeights[(y + 2) * 5 + x + 2] = 0.1 + 0.9 * exp(-dot(value - center, value - center) * 12.0);
         }
     vec2 horizontalTexel = vec2(1.0 / uSize.x, 0.0), verticalTexel = vec2(0.0, 1.0 / uSize.y);
     currentGradient = vec2(features(texture2D(uCurrent, vUv + horizontalTexel)).r -
