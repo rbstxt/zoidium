@@ -41,7 +41,11 @@ float cost(vec2 velocity) {
 void main() {
     // Fully transparent source texels contribute no foreground sheet.
     // Keep opaque black and textured backgrounds in the ordinary solver.
-    if (texture2D(uCurrent, vUv).a < 0.000001) {
+    float support = 0.0;
+    for (int y = -2; y <= 2; y++)
+        for (int x = -2; x <= 2; x++)
+            support += texture2D(uCurrent, vUv + vec2(float(x), float(y)) / uSize).a;
+    if (support < 0.000001) {
         gl_FragColor = encodeFlow(vec2(0.0));
         return;
     }
