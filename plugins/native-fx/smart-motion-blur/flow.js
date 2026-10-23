@@ -24,7 +24,7 @@ function create(gl) {
     uSize: [1, 1],
     uSmoothness: 0.5,
   });
-  const propagate = gl.pass("propagate", {
+  const constraints = gl.pass("constraints", {
     uCurrent: null,
     uOther: null,
     uFlow: null,
@@ -32,8 +32,35 @@ function create(gl) {
     uSize: [1, 1],
     uRadius: 0,
     uOutput: 0,
+    uRawCurrent: null,
+    uRawOther: null,
+    uRawSize: [1, 1],
+    uRawScale: [1, 1],
   });
-  let scores;
+  const propagate = gl.pass("propagate", {
+    uCurrent: null,
+    uOther: null,
+    uFlow: null,
+    uScore: null,
+    uAnchors: null,
+    uSize: [1, 1],
+    uQuadrant: [1, 1],
+    uRadius: 0,
+    uRawCurrent: null,
+    uRawSize: [1, 1],
+    uRawScale: [1, 1],
+  });
+  const interpolate = gl.pass("interpolate", {
+    uCurrent: null,
+    uOther: null,
+    uFlow: null,
+    uSize: [1, 1],
+    uNorthWest: null,
+    uNorthEast: null,
+    uSouthWest: null,
+    uSouthEast: null,
+  });
+  let scores, anchors;
   const copy = gl.pass("copy", { uImage: null, uScale: [1, 1] });
   const confidence = gl.pass("confidence", {
     uCurrent: null,
@@ -44,6 +71,7 @@ function create(gl) {
     uDelta: 1,
   });
   let images, scratch, results, confidences, sizes;
+  const sources = [];
   function allocate(width, height) {
     sizes = math.pyramidSizes(width, height);
     images = Array.from({ length: 3 }, () =>
@@ -55,10 +83,15 @@ function create(gl) {
       gl.target(w, h, true),
     ]);
     results = Array.from({ length: 4 }, () => gl.target(...sizes[0], true));
-    scores = [gl.target(...sizes[0]), gl.target(...sizes[0])];
+    scores = [gl.target(...sizes[0])];
+    anchors = Array.from({ length: 4 }, () => [
+      gl.target(...sizes[0], false, true),
+      gl.target(...sizes[0], false, true),
+    ]);
     confidences = [gl.target(...sizes[0]), gl.target(...sizes[0])];
   }
   function buildPyramid(renderer, image, index, sourceSize, uvScale) {
+    sources[index] = { image, sourceSize, uvScale };
     let input = image;
     let size = sourceSize,
       scale = uvScale;
@@ -141,45 +174,72 @@ function create(gl) {
       uProject: project,
       uLimit: limit,
     };
-    // Texture-supported corners constrain both components. Fixed jump steps
-    // transport those constraints through flat regions of the same color.
-    gl.draw(renderer, propagate, targets[2], {
+    gl.draw(renderer, constraints, targets[2], {
       ...shared,
+      uRawCurrent: sources[a].image,
+      uRawOther: sources[b].image,
+      uRawSize: sources[a].sourceSize,
+      uRawScale: sources[a].uvScale,
       uFlow: previous,
-      uScore: scores[0].texture,
+      uScore: null,
       uRadius: 0,
       uOutput: 0,
     });
-    // Half-float fields carry reliability and distance in their spare BA
-    // channels. Packed fields require a separate score target.
-    if (gl.packed)
-      gl.draw(renderer, propagate, scores[0], {
+    if (gl.packed) {
+      gl.draw(renderer, constraints, scores[0], {
         ...shared,
+        uRawCurrent: sources[a].image,
+        uRawOther: sources[b].image,
+        uRawSize: sources[a].sourceSize,
+        uRawScale: sources[a].uvScale,
         uFlow: previous,
         uScore: null,
         uRadius: 0,
         uOutput: 1,
       });
-    let field = targets[2],
-      scoreIndex = 0;
-    for (let radius = 1; radius <= 128; radius *= 2) {
-      const next = field === targets[0] ? targets[1] : targets[0];
+    }
+    const directions = [
+      [-1, -1],
+      [1, -1],
+      [-1, 1],
+      [1, 1],
+    ];
+    const anchorTextures = [];
+    for (let direction = 0; direction < directions.length; direction++) {
+      const pair = anchors[direction];
       const values = {
         ...shared,
-        uFlow: field.texture,
-        uScore: gl.packed ? scores[scoreIndex].texture : field.texture,
-        uRadius: radius,
+        uRawCurrent: sources[a].image,
+        uRawSize: sources[a].sourceSize,
+        uRawScale: sources[a].uvScale,
+        uFlow: targets[2].texture,
+        uScore: scores[0].texture,
+        uQuadrant: directions[direction],
       };
-      gl.draw(renderer, propagate, next, { ...values, uOutput: 0 });
-      if (gl.packed)
-        gl.draw(renderer, propagate, scores[1 - scoreIndex], {
+      gl.draw(renderer, propagate, pair[0], {
+        ...values,
+        uAnchors: null,
+        uRadius: 0,
+      });
+      let index = 0;
+      for (let radius = 1; radius <= 256; radius *= 2) {
+        gl.draw(renderer, propagate, pair[1 - index], {
           ...values,
-          uOutput: 1,
+          uAnchors: pair[index].texture,
+          uRadius: radius,
         });
-      field = next;
-      scoreIndex = 1 - scoreIndex;
+        index = 1 - index;
+      }
+      anchorTextures.push(pair[index].texture);
     }
-    gl.draw(renderer, copy, results[resultIndex], { uImage: field.texture });
+    gl.draw(renderer, interpolate, results[resultIndex], {
+      ...shared,
+      uFlow: targets[2].texture,
+      uNorthWest: anchorTextures[0],
+      uNorthEast: anchorTextures[1],
+      uSouthWest: anchorTextures[2],
+      uSouthEast: anchorTextures[3],
+    });
     return results[resultIndex].texture;
   }
   function analyze(renderer, index, forward, reverse, project, delta) {
@@ -199,6 +259,12 @@ function create(gl) {
     buildPyramid,
     solve,
     analyze,
+    get constraints() {
+      return scratch[0][2].texture;
+    },
+    get anchors() {
+      return anchors;
+    },
     get size() {
       return sizes[0];
     },
