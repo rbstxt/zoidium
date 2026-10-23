@@ -57,9 +57,8 @@ vec2 velocity(sampler2D field, vec2 uv, float delta, float signValue) {
     vec2 result = weightedSum / max(totalWeight, 0.000001) * signValue / delta;
     return length(result) < 0.25 ? vec2(0.0) : result;
 }
-vec4 integrate(vec2 uv, float tau, sampler2D field, sampler2D maxField, sampler2D conf, float delta,
+vec4 integrate(vec2 uv, vec2 own, float tau, sampler2D field, sampler2D maxField, sampler2D conf, float delta,
                float signValue) {
-    vec2 own = velocity(field, uv, delta, signValue);
     vec2 candidate = decodeFlow(texture2D(maxField, uv));
     vec2 guideUv = uv - own * tau / uProject;
     if (length(own) > 0.25) {
@@ -107,9 +106,9 @@ void main() {
         float tau = ((float(sampleIndex) + 0.5) / float(uSamples) - 0.5) * uAmount;
         if (tau < 0.0)
             weightedSum +=
-                integrate(vUv, tau, uPrevious, uPreviousMax, uPreviousConfidence, uDeltas.x, -1.0);
+                integrate(vUv, previous, tau, uPrevious, uPreviousMax, uPreviousConfidence, uDeltas.x, -1.0);
         else
-            weightedSum += integrate(vUv, tau, uNext, uNextMax, uNextConfidence, uDeltas.y, 1.0);
+            weightedSum += integrate(vUv, next, tau, uNext, uNextMax, uNextConfidence, uDeltas.y, 1.0);
     }
     // Inputs and output are premultiplied. Never normalize RGB by alpha.
     gl_FragColor = weightedSum / float(uSamples);
