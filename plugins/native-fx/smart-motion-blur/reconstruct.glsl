@@ -44,12 +44,12 @@ vec2 velocity(sampler2D field, vec2 uv, float delta, float signValue) {
     vec4 center = features(colorAt(uv));
     vec2 weightedSum = vec2(0.0);
     float totalWeight = 0.0;
-    for (int y = 0; y < 2; y++)
-        for (int x = 0; x < 2; x++) {
-            vec2 guideUv = (base + vec2(float(x), float(y)) + 0.5) / uFlowSize;
+    for (int sampleY = 0; sampleY < 2; sampleY++)
+        for (int sampleX = 0; sampleX < 2; sampleX++) {
+            vec2 guideUv = (base + vec2(float(sampleX), float(sampleY)) + 0.5) / uFlowSize;
             vec4 guideFeature = features(texture2D(uGuide, guideUv));
-            float weight =
-                (x == 0 ? 1.0 - fraction.x : fraction.x) * (y == 0 ? 1.0 - fraction.y : fraction.y);
+            float weight = (sampleX == 0 ? 1.0 - fraction.x : fraction.x) *
+                           (sampleY == 0 ? 1.0 - fraction.y : fraction.y);
             weight *= exp(-dot(guideFeature - center, guideFeature - center) * 80.0) + 0.00001;
             weightedSum += decodeFlow(texture2D(field, guideUv)) * weight;
             totalWeight += weight;

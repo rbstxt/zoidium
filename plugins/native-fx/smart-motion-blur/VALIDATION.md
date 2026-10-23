@@ -3,7 +3,8 @@
 Status: experimental. Round 2 fails acceptance.
 
 The implementation is not fully working. Rotating text, real-content reconstruction, slow-motion accuracy, and performance still fail required gates.
-These measurements cover implementation commit `40d4c0d` on `feat/smart-motion-blur`.
+Algorithm measurements cover implementation commit `40d4c0d` on `feat/smart-motion-blur`.
+Later identifier cleanup preserves the algorithm and adds a flow-scheduling regression test. The final source passes the GPU smoke check and repository verification.
 
 ## Measurement protocol
 
@@ -149,20 +150,34 @@ The reference is their average before Smart Motion Blur. The reference code runs
 No reference effect or fractional-tap averaging implementation ships in the plugin.
 
 Each test uses a 768 × 512 output and Blur Amount 0.5.
+Motion Sensitivity is 100, Vector Smoothness is 50, Max Displacement is 256, and Analysis Frames is Both.
 PSNR uses premultiplied RGB. The motion region is the union of the 64 reference silhouettes, dilated by four pixels.
 The full-frame gate is 30 dB. The motion-region gate is 24 dB.
-Native-content measurements below use half-float storage. The synthetic matrix covers both storage paths.
+Native-content measurements cover both half-float and forced RGBA8 storage.
 
-| CM3 case | Balanced full, dB | Balanced region, dB | High full, dB | High region, dB | Result |
-| --- | --- | --- | --- | --- | --- |
-| 3D Text translation, ≥40 px/frame | 28.259871090 | 18.223362269 | 28.259871090 | 18.223362269 | Fail |
-| 3D Text Z rotation, 0.25 rad/frame | 27.213884821 | 16.747562649 | 27.221499745 | 16.755171891 | Fail |
-| 3D Text Y rotation, 0.25 rad/frame | 29.786731194 | 18.984967129 | 29.786731194 | 18.984967129 | Fail |
-| 3D Text scale, ×1.1/frame | 33.064191429 | 22.228420314 | 33.064191429 | 22.228420314 | Fail |
-| 2D Text under Adjustment, 60 px/frame | 30.709951104 | 23.667961268 | 30.717572959 | 23.675583123 | Fail |
-| 2D Text under Adjustment, 0.25 rad/frame | 25.416132894 | 17.800590643 | 25.416132894 | 17.800590643 | Fail |
-| 2D Text under Adjustment, ×1.1/frame | 45.008899357 | 36.934924583 | 45.008899357 | 36.934924583 | Pass |
-| Generated testsrc footage under Adjustment, 40 px/frame | 29.375836595 | 29.009404491 | 29.375836595 | 29.009404491 | Fail |
+| CM3 case | Storage | Balanced full, dB | Balanced region, dB | High full, dB | High region, dB | Result |
+| --- | --- | --- | --- | --- | --- | --- |
+| 3D Text translation, ≥40 px/frame | Half-float | 28.259871090 | 18.223362269 | 28.259871090 | 18.223362269 | Fail |
+| 3D Text translation, ≥40 px/frame | RGBA8 | 27.790141282 | 17.751864154 | 27.790141282 | 17.751864154 | Fail |
+| 3D Text Z rotation, 0.25 rad/frame | Half-float | 27.213884821 | 16.747562649 | 27.221499745 | 16.755171891 | Fail |
+| 3D Text Z rotation, 0.25 rad/frame | RGBA8 | 25.907619777 | 15.441268989 | 25.907619777 | 15.441268989 | Fail |
+| 3D Text Y rotation, 0.25 rad/frame | Half-float | 29.786731194 | 18.984967129 | 29.786731194 | 18.984967129 | Fail |
+| 3D Text Y rotation, 0.25 rad/frame | RGBA8 | 29.991896354 | 19.190132289 | 29.991896354 | 19.190132289 | Fail |
+| 3D Text scale, ×1.1/frame | Half-float | 33.064191429 | 22.228420314 | 33.064191429 | 22.228420314 | Fail |
+| 3D Text scale, ×1.1/frame | RGBA8 | 34.217271659 | 23.381500543 | 34.217271659 | 23.381500543 | Fail |
+| 2D Text under Adjustment, 60 px/frame | Half-float | 30.709951104 | 23.667961268 | 30.717572959 | 23.675583123 | Fail |
+| 2D Text under Adjustment, 60 px/frame | RGBA8 | 31.340390423 | 24.298446841 | 31.342750230 | 24.300771964 | Pass |
+| 2D Text under Adjustment, 0.25 rad/frame | Half-float | 25.416132894 | 17.800590643 | 25.416132894 | 17.800590643 | Fail |
+| 2D Text under Adjustment, 0.25 rad/frame | RGBA8 | 30.597732527 | 22.982190276 | 30.597622676 | 22.982087441 | Fail |
+| 2D Text under Adjustment, ×1.1/frame | Half-float | 45.008899357 | 36.934924583 | 45.008899357 | 36.934924583 | Pass |
+| 2D Text under Adjustment, ×1.1/frame | RGBA8 | 44.707926059 | 36.633951286 | 44.707926059 | 36.633951286 | Pass |
+| Generated testsrc footage under Adjustment, 40 px/frame | Half-float | 29.375836595 | 29.009404491 | 29.375836595 | 29.009404491 | Fail |
+| Generated testsrc footage under Adjustment, 40 px/frame | RGBA8 | 29.335930827 | 28.969454034 | 29.335930827 | 28.969454034 | Fail |
+
+The cut detector incorrectly bypasses these moving fixtures:
+
+- 2D Text under Adjustment, 0.25 rad/frame in half-float.
+- 3D Text Z rotation, 0.25 rad/frame in RGBA8.
 
 The measured 3D Text centroid speed is 40.646319985 pixels per frame.
 The generated H.264 footage repeats a testsrc image. An animated layer transform supplies its continuous pan under an Adjustment layer.
@@ -181,8 +196,8 @@ Comparison crops contain the current frame, reference, Balanced result, and High
 - `adjustment-scaling-crops.png`
 - `footage-pan-crops.png`
 
-The quality harness records one video-seek timeout after its final footage measurement during teardown:
-`[Zoidium] frame sampler preparation failed: Error: Timed out seeking video to 0.000000s.`
+The quality harness records 1 media preparation error during teardown after the final footage measurement:
+`[Zoidium] frame sampler preparation failed: Error: Timed out while loading video metadata.`
 The saved result file includes that error. Every measured native-content render reports GL error zero.
 
 ## Performance
@@ -204,7 +219,7 @@ The new cost includes four directional constraint fields and the wider source ma
 These are whole-pipeline measurements. They do not isolate the timing contribution of the readback change.
 
 The separate 1080p CM3 3D Text capture test captures two neighboring source frames per iteration.
-After 5 warm-up iterations, 20 measurements give a 0.899999976 ms median and 3.600000024 ms p95.
+After 5 warm-up iterations, 20 measurements give a 0.600000024 ms median and 1.900000095 ms p95.
 That test clears the sampler cache between iterations and excludes optical-flow processing. It reports GL error zero.
 
 ## Editor workflow checks
@@ -226,11 +241,23 @@ The independent UI suite uses the same Metal flags and one Chromium instance.
 
 The UI suite records 0 console errors. Its GL result is 0.
 The Adjustment fixture uses explicit 60-pixel-per-frame keyframes and advances to frame 10.
+The exported Matroska contains 60 VP8 frames at 640 × 360 pixels and lasts 2.008 seconds.
 Passing workflow checks does not satisfy the failed image-quality gates.
 
 ## Repository checks
 
-The final repository checks are pending.
+- `pnpm run build:plugin-bundles`: Pass. 31 bundles checked; Native FX includes all 19 supporting Smart Motion Blur assets.
+- `pnpm run check:plugin-manifests`: Pass. 31 manifests.
+- `pnpm run check:plugin-bundles`: Pass. 31 bundles.
+- `pnpm run verify`: Pass. 2,667 tests; zero failures. File length, ESLint, syntax, manifests, and bundles pass.
+- `pnpm run build:web`: Pass. Native FX version 24, all 19 supporting assets, matching bundle, bootstrap, and local fonts verified. dist/web removed after inspection.
+- `Resource boundary`: Pass. No CM3 runtime files or generated deployment stage are tracked. Only the ignored resource cache remains in the worktree.
+
+## Exploratory results
+
+The truncated color-cost trial gave an 11.144344409-pixel rotating-square interior error in Balanced half-float. It was replaced by the current matching cost.
+A quarter-frame analysis-interval experiment before final motion calibration gave 30.155508386 dB full-frame and 20.000398773 dB motion-region PSNR on 3D Text in Balanced.
+High gave 29.999410958 dB full-frame and 19.844301345 dB in the motion region. That experiment failed its quality target and was not shipped.
 
 ## Remaining limitations
 

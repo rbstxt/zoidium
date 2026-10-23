@@ -76,12 +76,12 @@ function create(gl) {
   function allocate(width, height) {
     sizes = math.pyramidSizes(width, height);
     images = Array.from({ length: 3 }, () =>
-      sizes.map(([w, h]) => gl.target(w, h)),
+      sizes.map(([width, height]) => gl.target(width, height)),
     );
-    scratch = sizes.map(([w, h]) => [
-      gl.target(w, h, true),
-      gl.target(w, h, true),
-      gl.target(w, h, true),
+    scratch = sizes.map(([width, height]) => [
+      gl.target(width, height, true),
+      gl.target(width, height, true),
+      gl.target(width, height, true),
     ]);
     results = Array.from({ length: 4 }, () => gl.target(...sizes[0], true));
     scores = [gl.target(...sizes[0])];
@@ -91,19 +91,19 @@ function create(gl) {
     ]);
     confidences = [gl.target(...sizes[0]), gl.target(...sizes[0])];
   }
-  function buildPyramid(renderer, image, index, sourceSize, uvScale) {
-    sources[index] = { image, sourceSize, uvScale };
+  function buildPyramid(renderer, image, imageIndex, sourceSize, uvScale) {
+    sources[imageIndex] = { image, sourceSize, uvScale };
     let input = image;
-    let size = sourceSize,
-      scale = uvScale;
-    for (let i = 0; i < sizes.length; i++) {
-      gl.draw(renderer, pyramid, images[index][i], {
+    let size = sourceSize;
+    let scale = uvScale;
+    for (let levelIndex = 0; levelIndex < sizes.length; levelIndex++) {
+      gl.draw(renderer, pyramid, images[imageIndex][levelIndex], {
         uImage: input,
         uScale: scale,
         uSourceSize: size,
       });
-      input = images[index][i].texture;
-      size = sizes[i];
+      input = images[imageIndex][levelIndex].texture;
+      size = sizes[levelIndex];
       scale = [1, 1];
     }
   }
@@ -126,12 +126,16 @@ function create(gl) {
     // aperture solution. Both qualities use the stable quarter-resolution
     // initialization and full-source constraints. High raises shutter sampling.
     const finest = Math.min(1, sizes.length - 1);
-    for (let i = sizes.length - 1; i >= finest; i--) {
-      const size = sizes[i],
-        targets = scratch[i];
+    for (
+      let levelIndex = sizes.length - 1;
+      levelIndex >= finest;
+      levelIndex--
+    ) {
+      const size = sizes[levelIndex],
+        targets = scratch[levelIndex];
       gl.draw(renderer, seed, targets[0], {
-        uCurrent: images[currentIndex][i].texture,
-        uOther: images[otherIndex][i].texture,
+        uCurrent: images[currentIndex][levelIndex].texture,
+        uOther: images[otherIndex][levelIndex].texture,
         uFlow: previous,
         uSize: size,
         uFlowSize: previousSize,
@@ -140,13 +144,13 @@ function create(gl) {
         uLimit: limit,
         uStep: 1,
       });
-      let index = 0;
+      let bufferIndex = 0;
       if (!previous) {
         for (let step = 0.5; step >= 1 / 64; step /= 2) {
-          gl.draw(renderer, seed, targets[1 - index], {
-            uCurrent: images[currentIndex][i].texture,
-            uOther: images[otherIndex][i].texture,
-            uFlow: targets[index].texture,
+          gl.draw(renderer, seed, targets[1 - bufferIndex], {
+            uCurrent: images[currentIndex][levelIndex].texture,
+            uOther: images[otherIndex][levelIndex].texture,
+            uFlow: targets[bufferIndex].texture,
             uSize: size,
             uFlowSize: size,
             uCoarse: 0,
@@ -154,26 +158,28 @@ function create(gl) {
             uProject: project,
             uLimit: limit,
           });
-          index = 1 - index;
+          bufferIndex = 1 - bufferIndex;
         }
       }
       for (let warp = 0; warp < warps; warp++) {
-        gl.draw(renderer, copy, targets[2], { uImage: targets[index].texture });
-        for (let j = 0; j < iterations; j++) {
-          gl.draw(renderer, refine, targets[1 - index], {
-            uCurrent: images[currentIndex][i].texture,
-            uOther: images[otherIndex][i].texture,
-            uFlow: targets[index].texture,
+        gl.draw(renderer, copy, targets[2], {
+          uImage: targets[bufferIndex].texture,
+        });
+        for (let iteration = 0; iteration < iterations; iteration++) {
+          gl.draw(renderer, refine, targets[1 - bufferIndex], {
+            uCurrent: images[currentIndex][levelIndex].texture,
+            uOther: images[otherIndex][levelIndex].texture,
+            uFlow: targets[bufferIndex].texture,
             uWarp: targets[2].texture,
             uSize: size,
             uProject: project,
             uLimit: limit,
             uSmoothness: settings.smoothness / 100,
           });
-          index = 1 - index;
+          bufferIndex = 1 - bufferIndex;
         }
       }
-      previous = targets[index].texture;
+      previous = targets[bufferIndex].texture;
       previousSize = size;
     }
     const targets = scratch[0];

@@ -59,7 +59,7 @@ function create(THREE, api, getAsset) {
     chain = [];
     let size = [first.width, first.height];
     while (size[0] > 1 || size[1] > 1) {
-      size = size.map((n) => Math.ceil(n / 2));
+      size = size.map((dimension) => Math.ceil(dimension / 2));
       chain.push(gl.target(...size));
     }
     signature = key;
@@ -127,45 +127,45 @@ function create(THREE, api, getAsset) {
       const fields = [null, null],
         confidence = [null, null],
         deltas = [1, 1];
-      for (let i = 0; i < 2; i++) {
-        const tap = available[i];
+      for (let index = 0; index < 2; index++) {
+        const tap = available[index];
         if (!tap) continue;
         const delta = Math.abs(tap.frame - currentFrame);
-        deltas[i] = delta;
+        deltas[index] = delta;
         flow.buildPyramid(
           renderer,
           tap.texture,
-          i + 1,
+          index + 1,
           [input.width, input.height],
           uvScale,
         );
-        fields[i] = flow.solve(
+        fields[index] = flow.solve(
           renderer,
           0,
-          i + 1,
-          i * 2,
+          index + 1,
+          index * 2,
           settings,
           project,
           delta,
         );
         const reverse = flow.solve(
           renderer,
-          i + 1,
+          index + 1,
           0,
-          i * 2 + 1,
+          index * 2 + 1,
           settings,
           project,
           delta,
         );
         const conf = flow.analyze(
           renderer,
-          i,
-          fields[i],
+          index,
+          fields[index],
           reverse,
           project,
           delta,
         );
-        confidence[i] = conf.texture;
+        confidence[index] = conf.texture;
       }
       // A missing clip-boundary direction mirrors the available velocity.
       if (!fields[0]) {

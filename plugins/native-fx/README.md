@@ -67,7 +67,8 @@ Validation measurements appear in [Smart Motion Blur validation](smart-motion-bl
 ### Limits
 
 This version remains experimental.
-Round 2 fails the whole-foreground accuracy gate at 2.5 pixels per frame, rotating-text silhouette gates, native-content PSNR gates, and the 1080p Balanced performance gate.
+Round 2 fails the accuracy gate at 2.5 pixels per frame and the rotating-text silhouette gates.
+Native-content PSNR and 1080p Balanced performance also fail their gates.
 Broken strokes, streaks, notches, and incorrect trajectories remain visible.
 Fixed-noise translation at 1, 16, 64, and 128 pixels per frame passes its measured gates.
 Rotation and scaling of a square also pass their measured gates.
