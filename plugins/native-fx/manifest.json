@@ -260,6 +260,11 @@
       "id": "smartmotionblur-global-js",
       "type": "text",
       "source": "./plugins/native-fx/smart-motion-blur/global.js?v=25"
+    },
+    {
+      "id": "smartmotionblur-translation",
+      "type": "text",
+      "source": "./plugins/native-fx/smart-motion-blur/translation.glsl?v=25"
     }
   ],
   "category": "NATIVE FX",

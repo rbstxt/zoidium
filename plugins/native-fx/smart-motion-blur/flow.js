@@ -298,11 +298,19 @@ function create(gl) {
       return sizes[0];
     },
     get guides() {
-      const level = sizes.findIndex(size => Math.max(...size) <= 128);
-      return images.map(levels => levels[level < 0 ? levels.length - 1 : level].texture);
+      const level = sizes.findIndex((size) => Math.max(...size) <= 128);
+      return images.map(
+        (levels) => levels[level < 0 ? levels.length - 1 : level].texture,
+      );
+    },
+    get sources() {
+      return sources;
     },
     get guideSize() {
-      return sizes.find(size => Math.max(...size) <= 128) || sizes[sizes.length - 1];
+      return (
+        sizes.find((size) => Math.max(...size) <= 128) ||
+        sizes[sizes.length - 1]
+      );
     },
     get current() {
       return images[0][0].texture;
