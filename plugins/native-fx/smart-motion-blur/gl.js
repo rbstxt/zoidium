@@ -31,12 +31,12 @@ function create(THREE, api, getAsset) {
     const material = new THREE.ShaderMaterial({
       uniforms,
       vertexShader: vertex
-        ? text("common") + "\n" + text(vertex)
+        ? text("common") + "\n" + [vertex].flat().map(text).join("\n")
         : vertexShader,
       fragmentShader:
         text("common") +
         "\n" +
-        (shared ? text(shared) + "\n" : "") +
+        (shared ? [shared].flat().map(text).join("\n") + "\n" : "") +
         text(name),
       defines: packed ? { FLOW_PACKED: 1 } : {},
       precision: "highp",

@@ -17,7 +17,7 @@ function create(gl) {
       uDelta: 1,
       uTear: 16,
     },
-    "splat-vertex",
+    ["splat-flow", "splat-vertex"],
   );
   const base = gl.pass("background", {
     uImage: null,
@@ -30,7 +30,7 @@ function create(gl) {
     uTime: 0,
     uDelta: 1,
   });
-  const accumulate = gl.pass("accumulate", { uImage: null, uWeight: 1 });
+  const accumulate = gl.pass("accumulate", { uImage: null, uPrevious: null, uWeight: 1 });
   const combine = gl.pass("combine", {
     uFirst: null,
     uSecond: null,
@@ -57,18 +57,13 @@ function create(gl) {
   // Empty fragments never write depth.
   warp.material.depthTest = true;
   warp.material.depthWrite = true;
-  accumulate.material.blending = THREE.CustomBlending;
-  accumulate.material.blendSrc = THREE.OneFactor;
-  accumulate.material.blendDst = THREE.OneFactor;
-  accumulate.material.blendEquation = THREE.AddEquation;
-  accumulate.material.transparent = true;
   let sample, batches, dimensions, meshKey;
 
   function allocate(width, height) {
     dimensions = [width, height];
     sample = gl.target(width, height, false, false, true);
     batches = Array.from({ length: 4 }, () =>
-      gl.target(width, height, true, false),
+      [gl.target(width, height, true, false), gl.target(width, height, true, false)],
     );
   }
   function mesh(step) {
@@ -138,8 +133,7 @@ function create(gl) {
     const previousAutoClear = renderer.autoClear;
     try {
       for (let batch = 0; batch < 4; batch++) {
-        renderer.setRenderTarget(batches[batch]);
-        renderer.clear();
+        let previous = null;
         const { start, end } = partition[batch];
         for (let index = start; index < end; index++) {
           const time = times[index],
@@ -176,22 +170,21 @@ function create(gl) {
           }
           // ShaderPass forces clear=true, so render the grid scene directly.
           renderer.render(warp.scene, warp.camera, sample, false);
-          accumulate.uniforms.uImage.value = sample.texture;
-          accumulate.uniforms.uWeight.value = 1 / (end - start);
-          renderer.render(
-            accumulate.scene,
-            accumulate.camera,
-            batches[batch],
-            false,
-          );
+          const target = batches[batch][(index - start) % 2];
+          gl.draw(renderer, accumulate, target, {
+            uImage: sample.texture,
+            uPrevious: previous,
+            uWeight: 1 / (index - start + 1),
+          });
+          previous = target.texture;
         }
       }
       renderer.autoClear = true;
       gl.draw(renderer, combine, output, {
-        uFirst: batches[0].texture,
-        uSecond: batches[1].texture,
-        uThird: batches[2].texture,
-        uFourth: batches[3].texture,
+        uFirst: batches[0][(partition[0].end - partition[0].start - 1) % 2].texture,
+        uSecond: batches[1][(partition[1].end - partition[1].start - 1) % 2].texture,
+        uThird: batches[2][(partition[2].end - partition[2].start - 1) % 2].texture,
+        uFourth: batches[3][(partition[3].end - partition[3].start - 1) % 2].texture,
         uImage: input,
         uBefore: sources[0],
         uAfter: sources[1],

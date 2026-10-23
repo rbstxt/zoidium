@@ -1,5 +1,8 @@
 "use strict";
+const projective = require("./projective.js");
 function create(gl) {
+  const homography = projective.create(gl);
+  const acceptedBytes = new Uint8Array(8);
   const moments = gl.pass("moments", {
     uCurrent: null,
     uBefore: null,
@@ -21,10 +24,12 @@ function create(gl) {
       uAfter: null,
       uMoments: null,
       uTranslation: null,
+      uHomography: null,
+      uHasHomography: 0,
       uScale: [1, 1],
     },
     null,
-    "global",
+    ["global", "projective"],
   );
   const field = gl.pass(
     "global-field",
@@ -35,12 +40,14 @@ function create(gl) {
       uAccepted: null,
       uDirection: 1,
       uTranslation: null,
+      uHomography: null,
     },
     null,
-    "global",
+    ["global", "projective"],
   );
   let statistics, accepted, fields, translations;
   function allocate(width, height) {
+    homography.allocate();
     translations = gl.target(2, 1, true);
     statistics = gl.target(6, 3, false, true);
     accepted = gl.target(2, 1, false, true);
@@ -68,12 +75,23 @@ function create(gl) {
       uMoments: statistics.texture,
       uTranslation: translations.texture,
       uProject: project,
+      uHasHomography: 0,
     });
+    renderer.readRenderTargetPixels(accepted, 0, 0, 2, 1, acceptedBytes);
+    let proposal = null;
+    if ((acceptedBytes[0] === 0 && acceptedBytes[3] > 0) ||
+        (acceptedBytes[4] === 0 && acceptedBytes[7] > 0)) {
+      proposal = homography.apply(renderer, statistics.texture, images, size, project);
+      gl.draw(renderer, check, accepted, {
+        uHomography: proposal, uHasHomography: 1,
+      });
+    }
     for (let index = 0; index < 2; index++) {
       gl.draw(renderer, field, fields[index], {
         uTranslation: translations.texture,
         uMoments: statistics.texture,
         uAccepted: accepted.texture,
+        uHomography: proposal,
         uFlow: local[index],
         uOpposite: local[1 - index],
         uDirection: index + 1,

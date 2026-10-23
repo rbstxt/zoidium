@@ -164,7 +164,8 @@ function create(THREE, api, getAsset) {
         );
         reverseFields[index] = reverse;
       }
-      if (fields[0] && fields[1])
+      let registrationReadbacks = 0;
+      if (fields[0] && fields[1]) {
         fields = global.apply(
           renderer,
           flow.guides,
@@ -174,6 +175,8 @@ function create(THREE, api, getAsset) {
           project,
           (settings.maxDisplacement * settings.sensitivity) / 100,
         );
+        registrationReadbacks = 1;
+      }
       for (let index = 0; index < 2; index++) {
         if (!available[index]) continue;
         const conf = flow.analyze(
@@ -207,7 +210,7 @@ function create(THREE, api, getAsset) {
         uActiveSize: processing,
       });
       const statistics = reduction(renderer, first, true);
-      diagnostics.readbacks = 1;
+      diagnostics.readbacks = 1 + registrationReadbacks;
       diagnostics.static = statistics[3] === 0;
       // Consistency failures include occlusion and aperture ambiguity. Only a
       // large residual after compensation is evidence for a scene cut.
