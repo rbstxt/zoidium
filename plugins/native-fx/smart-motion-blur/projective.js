@@ -12,13 +12,30 @@ function create(gl) {
     null,
     ["global", "projective", "statistics"],
   );
-  const cost = gl.pass("projective-cost", {
-    uHomography: null, uCurrent: null, uBefore: null, uAfter: null,
-    uSize: [1, 1], uAxis: 0, uRadius: 0,
-  }, null, ["projective", "statistics"]);
-  const reduce = gl.pass("statistics-reduce", {
-    uTiles: null, uGroups: [3, 2], uNormalization: 1,
-  }, null, ["statistics"]);
+  const cost = gl.pass(
+    "projective-cost",
+    {
+      uHomography: null,
+      uCurrent: null,
+      uBefore: null,
+      uAfter: null,
+      uSize: [1, 1],
+      uAxis: 0,
+      uRadius: 0,
+    },
+    null,
+    ["projective", "statistics"],
+  );
+  const reduce = gl.pass(
+    "statistics-reduce",
+    {
+      uTiles: null,
+      uGroups: [3, 2],
+      uNormalization: 1,
+    },
+    null,
+    ["statistics"],
+  );
   let targets, tiles, costs;
   function allocate() {
     tiles = gl.target(24, 16, false, true);
@@ -33,13 +50,22 @@ function create(gl) {
       uSize: size,
       uProject: project,
     };
-    gl.draw(renderer, fit, targets[0], { uMoments: moments, uProject: project, uAxis: -1 });
+    gl.draw(renderer, fit, targets[0], {
+      uMoments: moments,
+      uProject: project,
+      uAxis: -1,
+    });
     let index = 0;
-    for (const radius of [0.08, 0.04, 0.02, 0.01, 0.005, 0.0025, 0.00125, 0.000625]) {
+    for (const radius of [
+      0.08, 0.04, 0.02, 0.01, 0.005, 0.0025, 0.00125, 0.000625,
+    ]) {
       for (let iteration = 0; iteration < 4; iteration++) {
         for (const axis of [4, 5, 0, 3, 1, 2, 6, 7]) {
           gl.draw(renderer, cost, tiles, {
-            ...shared, uHomography: targets[index].texture, uAxis: axis, uRadius: radius,
+            ...shared,
+            uHomography: targets[index].texture,
+            uAxis: axis,
+            uRadius: radius,
           });
           gl.draw(renderer, reduce, costs, { uTiles: tiles.texture });
           gl.draw(renderer, fit, targets[1 - index], {

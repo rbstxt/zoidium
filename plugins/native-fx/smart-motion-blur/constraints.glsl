@@ -2,6 +2,9 @@ uniform sampler2D uCurrent;
 uniform sampler2D uOther;
 uniform sampler2D uFlow;
 uniform sampler2D uScore;
+uniform sampler2D uState;
+uniform sampler2D uSeed;
+uniform float uSearchStage;
 uniform vec2 uSize;
 uniform float uRadius;
 uniform float uOutput;
@@ -130,14 +133,11 @@ vec4 fieldAndScore(vec2 flow, float valid, float distance) {
     return result;
 }
 void main() {
-    // Fully transparent source texels contribute no foreground sheet.
-    // Keep opaque black and textured backgrounds in the ordinary solver.
     if (texture2D(uCurrent, vUv).a < 0.000001) {
         gl_FragColor = encodeFlow(vec2(0.0));
         return;
     }
-    vec2 bestMotion = decodeFlow(texture2D(uFlow, vUv));
-    if (uRadius < 0.5) {
+    if (uSearchStage < -0.5) {
         vec2 texelSize = 1.0 / (uRawSize * uRawScale);
         float normalXX = 0.0, normalXY = 0.0, normalYY = 0.0, stationaryPatch = 0.0;
         vec4 centerFeature = features(currentAt(vUv));
@@ -180,48 +180,6 @@ void main() {
             (normalXX + normalYY -
              sqrt((normalXX - normalYY) * (normalXX - normalYY) + 4.0 * normalXY * normalXY)) /
             18.0;
-        float valid = 0.0;
-        if (eigen > 0.003 && stationaryPatch < 0.001) {
-            bestMotion = vec2(0.0);
-            valid = 1.0;
-        } else if (eigen > 0.003) {
-            float cost = patchCost(bestMotion, 1.0);
-            // The packed score pass validates the stored vector. It does not
-            // repeat the displacement search performed by the flow pass.
-            if (uOutput < 0.5) {
-                cost = patchCost(bestMotion, 16.0);
-                for (int searchY = -8; searchY <= 8; searchY++) {
-                    for (int searchX = -8; searchX <= 8; searchX++) {
-                        vec2 candidate = vec2(float(searchX), float(searchY)) * 32.0 * uProject /
-                                         (uRawSize * uRawScale);
-                        float candidateCost = patchCost(candidate, 16.0);
-                        if (candidateCost < cost - 0.000001 && length(candidate) <= uLimit) {
-                            bestMotion = candidate;
-                            cost = candidateCost;
-                        }
-                    }
-                }
-                cost = patchCost(bestMotion, 1.0);
-                for (int step = 0; step < 8; step++) {
-                    vec2 center = bestMotion;
-                    float spacing = exp2(4.0 - float(step));
-                    for (int offsetY = -1; offsetY <= 1; offsetY++)
-                        for (int offsetX = -1; offsetX <= 1; offsetX++) {
-                            vec2 candidateMotion = center + vec2(float(offsetX), float(offsetY)) *
-                                                                spacing * uProject /
-                                                                (uRawSize * uRawScale);
-                            float candidateCost = patchCost(candidateMotion, 1.0);
-                            if (candidateCost < cost - 0.000001 &&
-                                length(candidateMotion) <= uLimit) {
-                                bestMotion = candidateMotion;
-                                cost = candidateCost;
-                            }
-                        }
-                }
-            }
-            if (cost < 0.08 && supportedMatch(bestMotion)) valid = 1.0;
-        }
-        if (valid < 0.5) {
             vec2 gaussianStep = 1.0 / uSize;
             float gaussianXX = 0.0;
             float gaussianXY = 0.0;
@@ -244,32 +202,70 @@ void main() {
                                    sqrt((gaussianXX - gaussianYY) * (gaussianXX - gaussianYY) +
                                         4.0 * gaussianXY * gaussianXY)) /
                                   18.0;
-            if (gaussianEigen > 0.003) {
-                bestMotion = decodeFlow(texture2D(uFlow, vUv));
-                float cost = gaussianCost(bestMotion);
-                if (uOutput < 0.5) {
-                    for (int step = 0; step < 7; step++) {
-                        vec2 center = bestMotion;
-                        float spacing = exp2(2.0 - float(step));
-                        for (int offsetY = -1; offsetY <= 1; offsetY++) {
-                            for (int offsetX = -1; offsetX <= 1; offsetX++) {
-                                vec2 candidate = center + vec2(float(offsetX), float(offsetY)) *
-                                                              spacing * uProject / uSize;
-                                float candidateCost = gaussianCost(candidate);
-                                if (candidateCost < cost - 0.000001 &&
-                                    length(candidate) <= uLimit) {
-                                    bestMotion = candidate;
-                                    cost = candidateCost;
-                                }
-                            }
-                        }
-                    }
-                }
-                if (cost < 0.08 && supportedMatch(bestMotion)) valid = 0.5;
-            }
-        }
-        gl_FragColor =
-            uOutput > 0.5 ? scoreValue(valid, 0.0) : fieldAndScore(bestMotion, valid, 0.0);
+        gl_FragColor = vec4(uniformPatch ? 1.0 : 0.0, eigen > 0.003 ? 1.0 : 0.0,
+                            gaussianEigen > 0.003 ? 1.0 : 0.0, stationaryPatch < 0.001 ? 1.0 : 0.0);
         return;
     }
+    vec4 state = texture2D(uState, vUv);
+    uniformPatch = state.r > 0.5;
+    vec2 bestMotion = decodeFlow(texture2D(uFlow, vUv));
+    float valid = 0.0;
+    if (state.g > 0.5 && state.a > 0.5) {
+        bestMotion = vec2(0.0);
+        valid = 1.0;
+    } else if (uSearchStage < 24.5) {
+        if (state.g > 0.5) {
+            bool coarse = uSearchStage < 16.5;
+            float cost = patchCost(bestMotion, coarse ? 16.0 : 1.0);
+            if (coarse) {
+                // One row of 17 candidates per draw bounds this fragment to
+                // 18 patch costs, at most 3186 source texture samples.
+                for (int searchX = -8; searchX <= 8; searchX++) {
+                    vec2 candidate = vec2(float(searchX), uSearchStage - 8.0) * 32.0 * uProject /
+                                     (uRawSize * uRawScale);
+                    float candidateCost = patchCost(candidate, 16.0);
+                    if (candidateCost < cost - 0.000001 && length(candidate) <= uLimit) {
+                        bestMotion = candidate;
+                        cost = candidateCost;
+                    }
+                }
+            } else {
+                vec2 center = bestMotion;
+                float spacing = exp2(4.0 - (uSearchStage - 17.0));
+                for (int offsetY = -1; offsetY <= 1; offsetY++)
+                    for (int offsetX = -1; offsetX <= 1; offsetX++) {
+                        vec2 candidate = center + vec2(float(offsetX), float(offsetY)) * spacing *
+                                                  uProject / (uRawSize * uRawScale);
+                        float candidateCost = patchCost(candidate, 1.0);
+                        if (candidateCost < cost - 0.000001 && length(candidate) <= uLimit) {
+                            bestMotion = candidate;
+                            cost = candidateCost;
+                        }
+                    }
+            }
+        }
+    } else {
+        if (state.g > 0.5 && patchCost(bestMotion, 1.0) < 0.08 && supportedMatch(bestMotion))
+            valid = 1.0;
+        if (valid < 0.5 && state.b > 0.5) {
+            if (uSearchStage < 25.5 && uOutput < 0.5)
+                bestMotion = decodeFlow(texture2D(uSeed, vUv));
+            float cost = gaussianCost(bestMotion);
+            if (uSearchStage < 31.5 && uOutput < 0.5) {
+                vec2 center = bestMotion;
+                float spacing = exp2(2.0 - (uSearchStage - 25.0));
+                for (int offsetY = -1; offsetY <= 1; offsetY++)
+                    for (int offsetX = -1; offsetX <= 1; offsetX++) {
+                        vec2 candidate = center + vec2(float(offsetX), float(offsetY)) * spacing * uProject / uSize;
+                        float candidateCost = gaussianCost(candidate);
+                        if (candidateCost < cost - 0.000001 && length(candidate) <= uLimit) {
+                            bestMotion = candidate;
+                            cost = candidateCost;
+                        }
+                    }
+            }
+            if (cost < 0.08 && supportedMatch(bestMotion)) valid = 0.5;
+        }
+    }
+    gl_FragColor = uOutput > 0.5 ? scoreValue(valid, 0.0) : fieldAndScore(bestMotion, valid, 0.0);
 }

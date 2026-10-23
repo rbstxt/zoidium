@@ -6,9 +6,11 @@ uniform vec2 uFlowSize;
 uniform float uCoarse;
 uniform float uStep;
 
+vec4 currentFeatures[25];
+float currentWeights[25];
+vec2 currentGradient;
 float cost(vec2 velocity) {
     vec2 displacementUv = velocity / uProject;
-    vec4 center = features(texture2D(uCurrent, vUv));
     float totalCost = 0.0, totalWeight = 0.0;
     for (int offsetY = -2; offsetY <= 2; offsetY++) {
         for (int offsetX = -2; offsetX <= 2; offsetX++) {
@@ -16,10 +18,10 @@ float cost(vec2 velocity) {
                 (abs(float(offsetX)) > 1.0 || abs(float(offsetY)) > 1.0))
                 continue;
             vec2 patchUv = vUv + vec2(float(offsetX), float(offsetY)) / uSize;
-            vec4 currentFeature = features(texture2D(uCurrent, patchUv));
+            int index = (offsetY + 2) * 5 + offsetX + 2;
+            vec4 currentFeature = currentFeatures[index];
             vec4 otherFeature = features(texture2D(uOther, patchUv + displacementUv));
-            float weight =
-                0.1 + 0.9 * exp(-dot(currentFeature - center, currentFeature - center) * 12.0);
+            float weight = currentWeights[index];
             totalCost += robust(currentFeature - otherFeature) * weight;
             totalWeight += weight;
         }
@@ -27,10 +29,6 @@ float cost(vec2 velocity) {
     // Luma gradient constancy adds edge orientation without dropping chroma
     // or alpha information from the patch term.
     vec2 horizontalTexel = vec2(1.0 / uSize.x, 0.0), verticalTexel = vec2(0.0, 1.0 / uSize.y);
-    vec2 currentGradient = vec2(features(texture2D(uCurrent, vUv + horizontalTexel)).r -
-                                    features(texture2D(uCurrent, vUv - horizontalTexel)).r,
-                                features(texture2D(uCurrent, vUv + verticalTexel)).r -
-                                    features(texture2D(uCurrent, vUv - verticalTexel)).r);
     vec2 otherGradient =
         vec2(features(texture2D(uOther, vUv + displacementUv + horizontalTexel)).r -
                  features(texture2D(uOther, vUv + displacementUv - horizontalTexel)).r,
@@ -49,6 +47,21 @@ void main() {
         gl_FragColor = encodeFlow(vec2(0.0));
         return;
     }
+    // Cache the invariant side of every patch cost. Even the 83 coarse
+    // candidates now need fewer than 2500 texture samples per fragment.
+    vec4 center = features(texture2D(uCurrent, vUv));
+    for (int y = -2; y <= 2; y++)
+        for (int x = -2; x <= 2; x++) {
+            int index = (y + 2) * 5 + x + 2;
+            vec4 value = features(texture2D(uCurrent, vUv + vec2(float(x), float(y)) / uSize));
+            currentFeatures[index] = value;
+            currentWeights[index] = 0.1 + 0.9 * exp(-dot(value - center, value - center) * 12.0);
+        }
+    vec2 horizontalTexel = vec2(1.0 / uSize.x, 0.0), verticalTexel = vec2(0.0, 1.0 / uSize.y);
+    currentGradient = vec2(features(texture2D(uCurrent, vUv + horizontalTexel)).r -
+                                    features(texture2D(uCurrent, vUv - horizontalTexel)).r,
+                                features(texture2D(uCurrent, vUv + verticalTexel)).r -
+                                    features(texture2D(uCurrent, vUv - verticalTexel)).r);
     vec2 base = vec2(0.0);
     if (uCoarse < 0.5) base = flowAt(uFlow, vUv, uFlowSize);
     vec2 bestMotion = base;
