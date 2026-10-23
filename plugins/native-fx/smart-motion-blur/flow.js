@@ -4,9 +4,11 @@ const math = require("./math.js");
 function create(gl) {
   const pyramid = gl.pass("pyramid", { uImage: null, uScale: [1, 1], uSourceSize: [1, 1] });
   const seed = gl.pass("seed", { uCurrent: null, uOther: null, uFlow: null,
-    uSize: [1, 1], uFlowSize: [1, 1], uCoarse: 1 });
+    uSize: [1, 1], uFlowSize: [1, 1], uCoarse: 1, uStep: 1 });
   const refine = gl.pass("refine", { uCurrent: null, uOther: null, uFlow: null, uWarp: null,
     uSize: [1, 1], uSmoothness: 0.5 });
+  const propagate=gl.pass("propagate",{uCurrent:null,uOther:null,uFlow:null,uScore:null,uSize:[1,1],uRadius:0,uOutput:0});
+  let scores;
   const copy = gl.pass("copy", { uImage: null, uScale: [1, 1] });
   const confidence = gl.pass("confidence", { uCurrent: null, uOther: null, uFlow: null,
     uReverse: null, uSize: [1, 1], uDelta: 1 });
@@ -16,6 +18,7 @@ function create(gl) {
     images = Array.from({ length: 3 }, () => sizes.map(([w,h]) => gl.target(w,h)));
     scratch = sizes.map(([w,h]) => [gl.target(w,h,true),gl.target(w,h,true),gl.target(w,h,true)]);
     results = Array.from({ length: 4 }, () => gl.target(...sizes[0],true));
+    scores=[gl.target(...sizes[0]),gl.target(...sizes[0])];
     confidences = [gl.target(...sizes[0]),gl.target(...sizes[0])];
   }
   function buildPyramid(renderer, image, index, sourceSize, uvScale) {
@@ -35,8 +38,16 @@ function create(gl) {
       const size = sizes[i], targets = scratch[i];
       gl.draw(renderer,seed,targets[0], { uCurrent: images[a][i].texture, uOther: images[b][i].texture,
         uFlow: previous, uSize: size, uFlowSize: previousSize, uCoarse: previous ? 0 : 1,
-        uProject: project, uLimit: limit });
+        uProject: project, uLimit: limit, uStep: 1 });
       let index = 0;
+      if(!previous) {
+        for(let step=0.5;step>=1/64;step/=2) {
+          gl.draw(renderer,seed,targets[1-index], {uCurrent:images[a][i].texture,uOther:images[b][i].texture,
+            uFlow:targets[index].texture,uSize:size,uFlowSize:size,uCoarse:0,uStep:step,
+            uProject:project,uLimit:limit});
+          index=1-index;
+        }
+      }
       for (let warp = 0; warp < warps; warp++) {
         gl.draw(renderer,copy,targets[2],{ uImage: targets[index].texture });
         for (let j = 0; j < iterations; j++) {
@@ -49,7 +60,22 @@ function create(gl) {
       previous = targets[index].texture;
       previousSize = size;
     }
-    gl.draw(renderer,copy,results[resultIndex],{ uImage: previous });
+    const targets=scratch[0];
+    const shared={uCurrent:images[a][0].texture,uOther:images[b][0].texture,
+      uSize:sizes[0],uProject:project,uLimit:limit};
+    // Texture-supported corners constrain both components. Fixed jump steps
+    // transport those constraints through flat regions of the same color.
+    gl.draw(renderer,propagate,targets[2],{...shared,uFlow:previous,uScore:scores[0].texture,uRadius:0,uOutput:0});
+    gl.draw(renderer,propagate,scores[0],{...shared,uFlow:previous,uScore:null,uRadius:0,uOutput:1});
+    let field=targets[2],scoreIndex=0;
+    for(let radius=1;radius<=128;radius*=2) {
+      const next=field===targets[0]?targets[1]:targets[0];
+      const values={...shared,uFlow:field.texture,uScore:scores[scoreIndex].texture,uRadius:radius};
+      gl.draw(renderer,propagate,next,{...values,uOutput:0});
+      gl.draw(renderer,propagate,scores[1-scoreIndex],{...values,uOutput:1});
+      field=next;scoreIndex=1-scoreIndex;
+    }
+    gl.draw(renderer,copy,results[resultIndex],{ uImage: field.texture });
     return results[resultIndex].texture;
   }
   function analyze(renderer, index, forward, reverse, project, delta) {

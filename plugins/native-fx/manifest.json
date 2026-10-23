@@ -185,6 +185,11 @@
       "id": "smartmotionblur-copy-shader",
       "type": "text",
       "source": "./plugins/native-fx/smart-motion-blur/copy.glsl?v=24"
+    },
+    {
+      "id": "smartmotionblur-propagate-shader",
+      "type": "text",
+      "source": "./plugins/native-fx/smart-motion-blur/propagate.glsl?v=24"
     }
   ],
   "category": "NATIVE FX",

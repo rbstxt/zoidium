@@ -4,6 +4,7 @@ uniform sampler2D uFlow;
 uniform vec2 uSize;
 uniform vec2 uFlowSize;
 uniform float uCoarse;
+uniform float uStep;
 
 float cost(vec2 velocity) {
     vec2 d = velocity / uProject;
@@ -33,15 +34,17 @@ void main() {
     if (uCoarse < 0.5) base = flowAt(uFlow, vUv, uFlowSize);
     vec2 best = base;
     float bestCost = cost(best);
+    float zeroCost = cost(vec2(0.0));
+    if(zeroCost < bestCost - 0.000001) { best=vec2(0.0);bestCost=zeroCost; }
     // Constant loop bounds are required by GLSL ES 1.00. Fine levels evaluate
     // only the central 3x3 candidates.
     for (int y = -4; y <= 4; y++) {
         for (int x = -4; x <= 4; x++) {
-            if (uCoarse < 0.5 && (abs(x) > 1 || abs(y) > 1)) continue;
-            vec2 v = base + vec2(float(x), float(y)) * uProject / uSize;
+            if (uCoarse < 0.5 && (abs(float(x)) > 1.0 || abs(float(y)) > 1.0)) continue;
+            vec2 v = base + vec2(float(x), float(y)) * uStep * uProject / uSize;
             if (length(v) > uLimit) continue;
             float c = cost(v);
-            if (c < bestCost - 0.000001 || (abs(c-bestCost) <= 0.000001 && dot(v,v) < dot(best,best))) {
+            if (c < bestCost - 0.000001 || (uCoarse > 0.5 && abs(c-bestCost) <= 0.000001 && dot(v,v) < dot(best,best))) {
                 best = v; bestCost = c;
             }
         }

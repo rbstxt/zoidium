@@ -81,7 +81,7 @@ function create(THREE, api, getAsset) {
       diagnostics.maxSpeed=Math.max(...stats.map(s=>s[2]/255*256));
       diagnostics.samples=math.sampleCount(settings.amount,diagnostics.maxSpeed,settings.quality);
       blur.render(renderer,output,input.texture,fields,confidence,deltas,flow.size,flow.current,
-        processing,project,uvScale,settings,diagnostics.maxSpeed);
+        processing,project,uvScale,settings,diagnostics.maxSpeed,[(pair.previous||pair.next).texture,(pair.next||pair.previous).texture]);
       // Exposed scratch handles support direct, CM3-free GPU accuracy tests.
       diagnostics.fields=fields;diagnostics.flowSize=flow.size;diagnostics.confidence=confidence;
     });
