@@ -5,8 +5,13 @@ function create(THREE, api, getAsset) {
   const passes = [],
     targets = [];
   let packed = null;
-  const vertexShader =
-    "varying vec2 vUv; void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}";
+  const vertexShader = [
+    "varying vec2 vUv;",
+    "void main() {",
+    "  vUv = uv;",
+    "  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);",
+    "}",
+  ].join("\n");
   function text(name) {
     const value = getAsset("text", root + name + ".glsl");
     if (typeof value !== "string")
@@ -81,20 +86,20 @@ function create(THREE, api, getAsset) {
       }
     }
     packed = !half;
-    for (const p of passes) {
-      p.material.defines = packed ? { FLOW_PACKED: 1 } : {};
-      p.material.needsUpdate = true;
+    for (const pass of passes) {
+      pass.material.defines = packed ? { FLOW_PACKED: 1 } : {};
+      pass.material.needsUpdate = true;
     }
     return packed ? "rgba8" : "half";
   }
-  function draw(renderer, p, output, values) {
+  function draw(renderer, renderPass, output, values) {
     for (const [key, value] of Object.entries(values || {})) {
-      if (Array.isArray(value)) p.uniforms[key].value.set(...value);
-      else p.uniforms[key].value = value;
+      if (Array.isArray(value)) renderPass.uniforms[key].value.set(...value);
+      else renderPass.uniforms[key].value = value;
     }
     // All inputs are explicit uniforms. CM3's ShaderPass would try to assign
     // tDiffuse if readBuffer were non-null.
-    p.render(renderer, output, null, true);
+    renderPass.render(renderer, output, null, true);
   }
   function preserve(renderer, run) {
     const previous = renderer.getRenderTarget();
@@ -112,12 +117,12 @@ function create(THREE, api, getAsset) {
     }
   }
   function clearTargets() {
-    for (const t of targets) api.disposeTarget(t);
+    for (const target of targets) api.disposeTarget(target);
     targets.length = 0;
   }
   function dispose() {
     clearTargets();
-    for (const p of passes) api.disposePass(p);
+    for (const pass of passes) api.disposePass(pass);
     passes.length = 0;
   }
   return {
