@@ -107,22 +107,31 @@ function create(gl) {
       scale = [1, 1];
     }
   }
-  function solve(renderer, a, b, resultIndex, settings, project, delta) {
+  function solve(
+    renderer,
+    currentIndex,
+    otherIndex,
+    resultIndex,
+    settings,
+    project,
+    delta,
+  ) {
     let previous = null,
       previousSize = [1, 1];
     const limit =
       ((settings.maxDisplacement * settings.sensitivity) / 100) * delta;
-    const warps = settings.quality ? 3 : 2,
-      iterations = settings.quality ? 8 : 4;
-    // Balanced keeps the half-resolution guide and constraints, but avoids
-    // its most expensive patch-search and Jacobi passes.
-    const finest = settings.quality ? 0 : Math.min(1, sizes.length - 1);
+    const warps = 2;
+    const iterations = 4;
+    // Finer Jacobi refinement can collapse a rotating flat region onto an
+    // aperture solution. Both qualities use the stable quarter-resolution
+    // initialization and full-source constraints. High raises shutter sampling.
+    const finest = Math.min(1, sizes.length - 1);
     for (let i = sizes.length - 1; i >= finest; i--) {
       const size = sizes[i],
         targets = scratch[i];
       gl.draw(renderer, seed, targets[0], {
-        uCurrent: images[a][i].texture,
-        uOther: images[b][i].texture,
+        uCurrent: images[currentIndex][i].texture,
+        uOther: images[otherIndex][i].texture,
         uFlow: previous,
         uSize: size,
         uFlowSize: previousSize,
@@ -135,8 +144,8 @@ function create(gl) {
       if (!previous) {
         for (let step = 0.5; step >= 1 / 64; step /= 2) {
           gl.draw(renderer, seed, targets[1 - index], {
-            uCurrent: images[a][i].texture,
-            uOther: images[b][i].texture,
+            uCurrent: images[currentIndex][i].texture,
+            uOther: images[otherIndex][i].texture,
             uFlow: targets[index].texture,
             uSize: size,
             uFlowSize: size,
@@ -152,8 +161,8 @@ function create(gl) {
         gl.draw(renderer, copy, targets[2], { uImage: targets[index].texture });
         for (let j = 0; j < iterations; j++) {
           gl.draw(renderer, refine, targets[1 - index], {
-            uCurrent: images[a][i].texture,
-            uOther: images[b][i].texture,
+            uCurrent: images[currentIndex][i].texture,
+            uOther: images[otherIndex][i].texture,
             uFlow: targets[index].texture,
             uWarp: targets[2].texture,
             uSize: size,
@@ -169,18 +178,18 @@ function create(gl) {
     }
     const targets = scratch[0];
     const shared = {
-      uCurrent: images[a][0].texture,
-      uOther: images[b][0].texture,
+      uCurrent: images[currentIndex][0].texture,
+      uOther: images[otherIndex][0].texture,
       uSize: sizes[0],
       uProject: project,
       uLimit: limit,
     };
     gl.draw(renderer, constraints, targets[2], {
       ...shared,
-      uRawCurrent: sources[a].image,
-      uRawOther: sources[b].image,
-      uRawSize: sources[a].sourceSize,
-      uRawScale: sources[a].uvScale,
+      uRawCurrent: sources[currentIndex].image,
+      uRawOther: sources[otherIndex].image,
+      uRawSize: sources[currentIndex].sourceSize,
+      uRawScale: sources[currentIndex].uvScale,
       uFlow: previous,
       uScore: null,
       uRadius: 0,
@@ -189,11 +198,11 @@ function create(gl) {
     if (gl.packed) {
       gl.draw(renderer, constraints, scores[0], {
         ...shared,
-        uRawCurrent: sources[a].image,
-        uRawOther: sources[b].image,
-        uRawSize: sources[a].sourceSize,
-        uRawScale: sources[a].uvScale,
-        uFlow: previous,
+        uRawCurrent: sources[currentIndex].image,
+        uRawOther: sources[otherIndex].image,
+        uRawSize: sources[currentIndex].sourceSize,
+        uRawScale: sources[currentIndex].uvScale,
+        uFlow: targets[2].texture,
         uScore: null,
         uRadius: 0,
         uOutput: 1,
@@ -210,9 +219,9 @@ function create(gl) {
       const pair = anchors[direction];
       const values = {
         ...shared,
-        uRawCurrent: sources[a].image,
-        uRawSize: sources[a].sourceSize,
-        uRawScale: sources[a].uvScale,
+        uRawCurrent: sources[currentIndex].image,
+        uRawSize: sources[currentIndex].sourceSize,
+        uRawScale: sources[currentIndex].uvScale,
         uFlow: targets[2].texture,
         uScore: scores[0].texture,
         uQuadrant: directions[direction],

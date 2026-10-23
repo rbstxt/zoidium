@@ -179,34 +179,39 @@ void main() {
             bestMotion = vec2(0.0);
             valid = 1.0;
         } else if (eigen > 0.003) {
-            float cost = patchCost(bestMotion, 16.0);
-            vec2 initial = bestMotion;
-            for (int searchY = -8; searchY <= 8; searchY++) {
-                for (int searchX = -8; searchX <= 8; searchX++) {
-                    vec2 candidate = vec2(float(searchX), float(searchY)) * 32.0 * uProject /
-                                     (uRawSize * uRawScale);
-                    float candidateCost = patchCost(candidate, 16.0);
-                    if (candidateCost < cost - 0.000001 && length(candidate) <= uLimit) {
-                        bestMotion = candidate;
-                        cost = candidateCost;
-                    }
-                }
-            }
-            cost = patchCost(bestMotion, 1.0);
-            for (int step = 0; step < 8; step++) {
-                vec2 center = bestMotion;
-                float spacing = exp2(4.0 - float(step));
-                for (int offsetY = -1; offsetY <= 1; offsetY++)
-                    for (int offsetX = -1; offsetX <= 1; offsetX++) {
-                        vec2 candidateMotion = center + vec2(float(offsetX), float(offsetY)) *
-                                                            spacing * uProject /
-                                                            (uRawSize * uRawScale);
-                        float candidateCost = patchCost(candidateMotion, 1.0);
-                        if (candidateCost < cost - 0.000001 && length(candidateMotion) <= uLimit) {
-                            bestMotion = candidateMotion;
+            float cost = patchCost(bestMotion, 1.0);
+            // The packed score pass validates the stored vector. It does not
+            // repeat the displacement search performed by the flow pass.
+            if (uOutput < 0.5) {
+                cost = patchCost(bestMotion, 16.0);
+                for (int searchY = -8; searchY <= 8; searchY++) {
+                    for (int searchX = -8; searchX <= 8; searchX++) {
+                        vec2 candidate = vec2(float(searchX), float(searchY)) * 32.0 * uProject /
+                                         (uRawSize * uRawScale);
+                        float candidateCost = patchCost(candidate, 16.0);
+                        if (candidateCost < cost - 0.000001 && length(candidate) <= uLimit) {
+                            bestMotion = candidate;
                             cost = candidateCost;
                         }
                     }
+                }
+                cost = patchCost(bestMotion, 1.0);
+                for (int step = 0; step < 8; step++) {
+                    vec2 center = bestMotion;
+                    float spacing = exp2(4.0 - float(step));
+                    for (int offsetY = -1; offsetY <= 1; offsetY++)
+                        for (int offsetX = -1; offsetX <= 1; offsetX++) {
+                            vec2 candidateMotion = center + vec2(float(offsetX), float(offsetY)) *
+                                                                spacing * uProject /
+                                                                (uRawSize * uRawScale);
+                            float candidateCost = patchCost(candidateMotion, 1.0);
+                            if (candidateCost < cost - 0.000001 &&
+                                length(candidateMotion) <= uLimit) {
+                                bestMotion = candidateMotion;
+                                cost = candidateCost;
+                            }
+                        }
+                }
             }
             if (cost < 0.08 && supportedMatch(bestMotion)) valid = 1.0;
         }
@@ -236,17 +241,20 @@ void main() {
             if (gaussianEigen > 0.003) {
                 bestMotion = decodeFlow(texture2D(uFlow, vUv));
                 float cost = gaussianCost(bestMotion);
-                for (int step = 0; step < 7; step++) {
-                    vec2 center = bestMotion;
-                    float spacing = exp2(2.0 - float(step));
-                    for (int offsetY = -1; offsetY <= 1; offsetY++) {
-                        for (int offsetX = -1; offsetX <= 1; offsetX++) {
-                            vec2 candidate = center + vec2(float(offsetX), float(offsetY)) *
-                                                          spacing * uProject / uSize;
-                            float candidateCost = gaussianCost(candidate);
-                            if (candidateCost < cost - 0.000001 && length(candidate) <= uLimit) {
-                                bestMotion = candidate;
-                                cost = candidateCost;
+                if (uOutput < 0.5) {
+                    for (int step = 0; step < 7; step++) {
+                        vec2 center = bestMotion;
+                        float spacing = exp2(2.0 - float(step));
+                        for (int offsetY = -1; offsetY <= 1; offsetY++) {
+                            for (int offsetX = -1; offsetX <= 1; offsetX++) {
+                                vec2 candidate = center + vec2(float(offsetX), float(offsetY)) *
+                                                              spacing * uProject / uSize;
+                                float candidateCost = gaussianCost(candidate);
+                                if (candidateCost < cost - 0.000001 &&
+                                    length(candidate) <= uLimit) {
+                                    bestMotion = candidate;
+                                    cost = candidateCost;
+                                }
                             }
                         }
                     }
