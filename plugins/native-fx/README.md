@@ -23,7 +23,7 @@ Footage, objects inside a **3D Scene** layer, and content inside a precompositio
 | Vector Smoothness | 50 | 0 to 100 | Regularization weight between nearby flow estimates. |
 | Max Displacement (px/frame) | 256 | 1 to 256 | Maximum tracked displacement in project pixels per frame. |
 | Analysis Frames | Both | Both, Previous, Next | Neighboring project frames used to estimate motion. A single direction supplies a mirrored velocity for the other shutter half. |
-| Quality | Balanced | Balanced, High | Balanced uses 2 warps and 4 refinement iterations per pyramid level. High uses 3 warps and 8 iterations. |
+| Quality | Balanced | Balanced, High | Balanced uses 2 warps and 4 iterations through quarter resolution. High uses 3 warps and 8 iterations through half resolution. |
 | View | Result | Result, Motion Vectors, Confidence | Result shows the blur. Motion Vectors encodes signed horizontal and vertical velocity in red and green. Blue indicates speed. Confidence shows agreement and residual as grayscale. |
 
 A Blur Amount or Motion Sensitivity value of zero copies the input exactly.
@@ -37,7 +37,9 @@ A large image residual, or a residual combined with widespread inconsistent flow
 The solver builds a Gaussian pyramid with up to six levels.
 A coarse patch search initializes fixed-count warping and robust flow refinement.
 Luma, chroma, and alpha contribute to tracking.
-Texture-supported constraints propagate through regions with similar colors.
+Texture-supported constraints propagate at half resolution through regions with similar colors.
+Balanced retains the half-resolution image for constraints and reconstruction guidance.
+Its flow refinement stops at quarter resolution to reduce processing cost.
 Tile and neighboring velocity maxima propose foreground trajectories for the shutter reconstruction.
 The reconstruction averages premultiplied RGBA without dividing RGB by alpha.
 
@@ -56,6 +58,10 @@ This switch applies to the current session and is not saved in projects.
 The effect instance's `_smartMotionBlur.diagnostics` reports storage, maximum speed, bypass status, and sample count.
 
 ### Limits
+
+This version remains experimental.
+GPU validation fails the foreground-flow accuracy gates on noisy backgrounds and rotating squares.
+These failures can produce incorrect blur trajectories.
 
 Motion beyond the search limit cannot be tracked correctly.
 Disoccluded content, repeating patterns, thin features, and multiple motions with similar colors can produce incorrect trajectories.

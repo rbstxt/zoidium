@@ -34,7 +34,10 @@ function create(gl) {
     let previous = null, previousSize = [1,1];
     const limit = settings.maxDisplacement * settings.sensitivity / 100 * delta;
     const warps = settings.quality ? 3 : 2, iterations = settings.quality ? 8 : 4;
-    for (let i = sizes.length-1; i >= 0; i--) {
+    // Balanced keeps the half-resolution guide and constraints, but avoids
+    // its most expensive patch-search and Jacobi passes.
+    const finest=settings.quality?0:Math.min(1,sizes.length-1);
+    for (let i = sizes.length-1; i >= finest; i--) {
       const size = sizes[i], targets = scratch[i];
       gl.draw(renderer,seed,targets[0], { uCurrent: images[a][i].texture, uOther: images[b][i].texture,
         uFlow: previous, uSize: size, uFlowSize: previousSize, uCoarse: previous ? 0 : 1,
@@ -66,13 +69,15 @@ function create(gl) {
     // Texture-supported corners constrain both components. Fixed jump steps
     // transport those constraints through flat regions of the same color.
     gl.draw(renderer,propagate,targets[2],{...shared,uFlow:previous,uScore:scores[0].texture,uRadius:0,uOutput:0});
-    gl.draw(renderer,propagate,scores[0],{...shared,uFlow:previous,uScore:null,uRadius:0,uOutput:1});
+    // Half-float fields carry reliability and distance in their spare BA
+    // channels. Packed fields require a separate score target.
+    if(gl.packed) gl.draw(renderer,propagate,scores[0],{...shared,uFlow:previous,uScore:null,uRadius:0,uOutput:1});
     let field=targets[2],scoreIndex=0;
     for(let radius=1;radius<=128;radius*=2) {
       const next=field===targets[0]?targets[1]:targets[0];
-      const values={...shared,uFlow:field.texture,uScore:scores[scoreIndex].texture,uRadius:radius};
+      const values={...shared,uFlow:field.texture,uScore:gl.packed?scores[scoreIndex].texture:field.texture,uRadius:radius};
       gl.draw(renderer,propagate,next,{...values,uOutput:0});
-      gl.draw(renderer,propagate,scores[1-scoreIndex],{...values,uOutput:1});
+      if(gl.packed) gl.draw(renderer,propagate,scores[1-scoreIndex],{...values,uOutput:1});
       field=next;scoreIndex=1-scoreIndex;
     }
     gl.draw(renderer,copy,results[resultIndex],{uImage:field.texture});
