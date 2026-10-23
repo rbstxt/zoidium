@@ -60,22 +60,22 @@ function create(gl) {
     maxSpeed,
     sources,
   ) {
-    for (let i = 0; i < 2; i++) {
-      gl.draw(renderer, tile, tiles[i], {
+    for (let index = 0; index < 2; index++) {
+      gl.draw(renderer, tile, tiles[index], {
         uImage: input,
         uBefore: sources[0],
         uAfter: sources[1],
         uScale: uvScale,
-        uFlow: fields[i],
+        uFlow: fields[index],
         uFlowSize: flowSize,
         uProcessing: processing,
         uProject: project,
-        uDelta: deltas[i],
-        uSign: i === 0 ? -1 : 1,
+        uDelta: deltas[index],
+        uSign: index === 0 ? -1 : 1,
         uLimit: settings.maxDisplacement,
       });
-      gl.draw(renderer, neighbor, neighbors[i], {
-        uFlow: tiles[i].texture,
+      gl.draw(renderer, neighbor, neighbors[index], {
+        uFlow: tiles[index].texture,
         uSize: size,
         uProcessing: processing,
         uProject: project,

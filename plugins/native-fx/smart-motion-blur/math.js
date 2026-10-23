@@ -1,7 +1,8 @@
 "use strict";
 
 // All distances in the public settings and stored fields are project pixels.
-const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+const clamp = (value, minimum, maximum) =>
+  Math.min(maximum, Math.max(minimum, value));
 const ID = "smartmotionblur";
 const DISPLAY_NAME = "Smart Motion Blur";
 const RANGE = 256;
@@ -39,16 +40,20 @@ function properties(types) {
 function readSettings(props, frame) {
   const defaults = properties({ NUMBER: 0, OPTION: 1 });
   const result = {};
-  for (const [key, def] of Object.entries(defaults)) {
-    let v;
+  for (const [key, definition] of Object.entries(defaults)) {
+    let value;
     try {
-      v = Number(props[key]?.get(frame));
+      value = Number(props[key]?.get(frame));
     } catch (_error) {
-      v = NaN;
+      value = NaN;
     }
-    const hi = def.max ?? def.items.split(";").length - 1;
-    result[key] = clamp(Number.isFinite(v) ? v : def.value, def.min ?? 0, hi);
-    if (def.items) result[key] = Math.round(result[key]);
+    const maximum = definition.max ?? definition.items.split(";").length - 1;
+    result[key] = clamp(
+      Number.isFinite(value) ? value : definition.value,
+      definition.min ?? 0,
+      maximum,
+    );
+    if (definition.items) result[key] = Math.round(result[key]);
   }
   return result;
 }
@@ -66,28 +71,29 @@ function sampleCount(amount, speed, quality) {
 function shutterTimes(amount, count) {
   return Array.from(
     { length: count },
-    (_, i) => ((i + 0.5) / count - 0.5) * clamp(amount, 0, 1),
+    (_, index) => ((index + 0.5) / count - 0.5) * clamp(amount, 0, 1),
   );
 }
 function neighbors(samples, current) {
   let previous = null,
     next = null;
   for (const tap of samples) {
-    const d = tap.frame - current;
+    const delta = tap.frame - current;
     // The sampler clamps to length - 1e-9. Treat that epsilon as a duplicate.
-    if (d < -1e-7 && (!previous || tap.frame > previous.frame)) previous = tap;
-    if (d > 1e-7 && (!next || tap.frame < next.frame)) next = tap;
+    if (delta < -1e-7 && (!previous || tap.frame > previous.frame))
+      previous = tap;
+    if (delta > 1e-7 && (!next || tap.frame < next.frame)) next = tap;
   }
   return { previous, next };
 }
 function scale(processing, project) {
-  return processing.map((v, i) => v / Math.max(1, project[i]));
+  return processing.map((value, index) => value / Math.max(1, project[index]));
 }
 function toProcessing(vector, ratio) {
-  return vector.map((v, i) => v * ratio[i]);
+  return vector.map((value, index) => value * ratio[index]);
 }
 function toProject(vector, ratio) {
-  return vector.map((v, i) => v / ratio[i]);
+  return vector.map((value, index) => value / ratio[index]);
 }
 function packComponent(value) {
   const code = clamp(

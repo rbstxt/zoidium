@@ -18,10 +18,10 @@ test("Smart Motion Blur has stable serialized properties and native identity", (
     "view",
   ]);
   assert.deepEqual(
-    Object.values(props).map((p) => p.value),
+    Object.values(props).map((property) => property.value),
     [0.5, 70, 50, 256, 0, 0, 0],
   );
-  assert.ok(Object.values(props).every((p) => p.dynamic));
+  assert.ok(Object.values(props).every((property) => property.dynamic));
   assert.equal(props.analysis.items, "Both;Previous;Next");
   assert.equal(props.quality.items, "Balanced;High");
   assert.equal(props.view.items, "Result;Motion Vectors;Confidence");
@@ -57,11 +57,17 @@ test("adaptive sampling uses displacement, shutter and quality with fixed bounds
 test("fixed point fields preserve exact zero and signed extremes", () => {
   assert.deepEqual(math.pack([0, 0]), [128, 0, 128, 0]);
   assert.deepEqual(math.unpack(math.pack([0, 0])), [0, 0]);
-  for (let x = -256; x <= 256; x += 0.137) {
-    const vector = [x, -x];
+  for (
+    let componentValue = -256;
+    componentValue <= 256;
+    componentValue += 0.137
+  ) {
+    const vector = [componentValue, -componentValue];
     const decoded = math.unpack(math.pack(vector));
     assert.ok(
-      decoded.every((v, i) => Math.abs(v - vector[i]) <= 256 / 65534 + 1e-12),
+      decoded.every(
+        (value, i) => Math.abs(value - vector[i]) <= 256 / 65534 + 1e-12,
+      ),
     );
   }
   assert.deepEqual(math.unpack(math.pack([-256, 256])), [-256, 256]);
@@ -95,9 +101,9 @@ test("preview and export distances scale independently on both axes", () => {
     [1000, 563],
   ]) {
     const ratio = math.scale(processing, [1920, 1080]);
-    const v = [128, -32];
-    const output = math.toProject(math.toProcessing(v, ratio), ratio);
-    assert.ok(output.every((n, i) => Math.abs(n - v[i]) < 1e-12));
+    const value = [128, -32];
+    const output = math.toProject(math.toProcessing(value, ratio), ratio);
+    assert.ok(output.every((n, i) => Math.abs(n - value[i]) < 1e-12));
   }
   assert.equal(math.pyramidSizes(1920, 1080).length, 6);
   assert.deepEqual(math.pyramidSizes(1, 1), [[1, 1]]);
@@ -235,9 +241,9 @@ test("native entry uses the bundle loader, project tap times, and exact active U
   };
   const THREE = {
     Vector2: class {
-      constructor(x, y) {
-        this.x = x;
-        this.y = y;
+      constructor(horizontal, vertical) {
+        this.x = horizontal;
+        this.y = vertical;
       }
     },
   };
@@ -259,4 +265,87 @@ test("native entry uses the bundle loader, project tap times, and exact active U
   assert.deepEqual(rendered[6], [0.5, 0.25]);
   assert.deepEqual(spec.getRequest(effect, 7).frames, [-1, 1]);
   assert.equal(/\bfetch\s*\(/.test(source), false);
+});
+
+test("flow scheduling preserves image identity, pyramid dimensions, and separate ping-pong targets", () => {
+  const createFlow =
+    require("../plugins/native-fx/smart-motion-blur/flow.js").create;
+  for (const packed of [false, true]) {
+    const draws = [];
+    const gl = {
+      packed,
+      pass(name) {
+        return { name };
+      },
+      target(width, height) {
+        return { width, height, texture: { width, height, origin: null } };
+      },
+      draw(renderer, pass, output, uniforms) {
+        for (const value of Object.values(uniforms)) {
+          assert.notEqual(
+            value,
+            output.texture,
+            "a pass cannot sample its own destination",
+          );
+        }
+        if (pass.name === "pyramid")
+          output.texture.origin = uniforms.uImage.origin;
+        draws.push({ pass: pass.name, output, uniforms });
+      },
+    };
+    const flow = createFlow(gl);
+    flow.allocate(768, 512);
+    const origins = ["current", "previous", "next"];
+    for (let imageIndex = 0; imageIndex < origins.length; imageIndex++) {
+      flow.buildPyramid(
+        {},
+        { origin: origins[imageIndex] },
+        imageIndex,
+        [768, 512],
+        [1, 1],
+      );
+    }
+    const levels = math.pyramidSizes(768, 512);
+    const pyramidDraws = draws.filter((draw) => draw.pass === "pyramid");
+    assert.equal(pyramidDraws.length, levels.length * origins.length);
+    for (let imageIndex = 0; imageIndex < origins.length; imageIndex++) {
+      for (let levelIndex = 0; levelIndex < levels.length; levelIndex++) {
+        const draw = pyramidDraws[imageIndex * levels.length + levelIndex];
+        assert.equal(draw.output.texture.origin, origins[imageIndex]);
+        assert.deepEqual(
+          [draw.output.width, draw.output.height],
+          levels[levelIndex],
+        );
+      }
+    }
+    const output = flow.solve(
+      {},
+      0,
+      2,
+      0,
+      {
+        sensitivity: 100,
+        maxDisplacement: 256,
+        smoothness: 50,
+        quality: 0,
+      },
+      [768, 512],
+      1,
+    );
+    assert.deepEqual([output.width, output.height], levels[0]);
+    for (const draw of draws.filter((draw) =>
+      ["seed", "refine"].includes(draw.pass),
+    )) {
+      assert.equal(draw.uniforms.uCurrent.origin, "current");
+      assert.equal(draw.uniforms.uOther.origin, "next");
+      assert.deepEqual(
+        [draw.uniforms.uCurrent.width, draw.uniforms.uCurrent.height],
+        draw.uniforms.uSize,
+      );
+      assert.deepEqual(
+        [draw.uniforms.uOther.width, draw.uniforms.uOther.height],
+        draw.uniforms.uSize,
+      );
+    }
+  }
 });
