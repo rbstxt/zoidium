@@ -116,3 +116,17 @@ The isolated run awaits that operation before further edits.
 
 The editor proof does not measure pixels on unaffected layers against a separate oracle.
 GL state restoration has a unit test, including the exception path.
+
+## Repository checks
+
+`pnpm run build:plugin-bundles`, `pnpm run check:plugin-manifests`, and `pnpm run check:plugin-bundles` pass.
+`pnpm run verify` passes all 2,666 tests, including nine Smart Motion Blur tests.
+An earlier concurrent run failed an existing Shape+ timing assertion.
+The successful run has no Chromium process competing with the tests.
+
+`pnpm run build:web` passes.
+The inspected stage contains Native FX version 24, the `smartmotionblur` entry, and all 17 supporting bundle assets.
+Its Native FX bundle matches the checked-in bundle byte for byte.
+The stage includes the Source Code Pro font and the Zoidium bootstrap.
+The generated `dist/web/` tree is removed after inspection.
+No CM3 runtime files are tracked or added to repository source directories.
