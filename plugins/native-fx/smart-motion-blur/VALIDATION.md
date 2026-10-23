@@ -13,7 +13,7 @@ No changes were pushed or merged.
 | 2.5-pixel square flow | Fail | Noise: 0.269662417 px half-float, 0.268565558 px RGBA8; gate ≤0.25 |
 | 16, 64, and 128-pixel square flow | Pass | 0.115634467 px worst median |
 | Stationary background | Fail | 6 codes worst change; gate ≤1 |
-| Square rotation, square scale, and text-mask rotation | Pass | Minimum IoU 0.967672173; maximum alpha error 0.728113932% |
+| Square rotation, square scale, and text-mask rotation | Fail | Rotating-square median endpoint error 17.827628280 px exceeds 2 px. Minimum IoU 0.967672173; maximum alpha error 0.728113932% |
 | Shutter trail and white composite | Pass | Maximum trail error 2 px; dark fringe 0 codes |
 | Static, amount zero, hard cut, and duplicate-only boundary | Pass | 0 changed bytes in each case |
 | Frame-order determinism | Pass | 0 differing bytes across 28 renders |
