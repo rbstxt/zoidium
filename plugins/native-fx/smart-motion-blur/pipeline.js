@@ -52,6 +52,7 @@ function create(THREE, api, getAsset) {
       const copyInput=()=>gl.draw(renderer,copy,output,{uImage:input.texture,uScale:uvScale});
       const pair=math.neighbors(neighbors,currentFrame);
       diagnostics.sceneCut=false;diagnostics.static=false;diagnostics.maxSpeed=0;
+      diagnostics.samples=0;diagnostics.fields=null;diagnostics.confidence=null;diagnostics.flowSize=null;
       if(!settings.amount || !settings.sensitivity || (!pair.previous && !pair.next)) return copyInput();
       const processing=allocate(renderer,input,uvScale,forcePacked);
       const available=[pair.previous,pair.next];
