@@ -50,7 +50,7 @@ function create(THREE, api, getAsset) {
     passes.push(result);
     return result;
   }
-  function target(width, height, field = false, nearest = field) {
+  function target(width, height, field = false, nearest = field, depth = false) {
     const result = api.createRenderTarget(THREE, width, height, {
       minFilter: nearest ? THREE.NearestFilter : THREE.LinearFilter,
       magFilter: nearest ? THREE.NearestFilter : THREE.LinearFilter,
@@ -59,7 +59,7 @@ function create(THREE, api, getAsset) {
         field && packed === false
           ? THREE.HalfFloatType
           : THREE.UnsignedByteType,
-      depthBuffer: false,
+      depthBuffer: depth,
       stencilBuffer: false,
     });
     targets.push(result);

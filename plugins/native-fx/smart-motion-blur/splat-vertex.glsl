@@ -52,5 +52,6 @@ void main() {
     vec2 destination = vUv + motion * uTime / (uProject * uDelta);
     // All three vertices evaluate the same triangle test. Collapsing the
     // triangle avoids interpolating between unrelated foreground/background.
-    gl_Position = jump > uTear ? vec4(2.0, 2.0, 0.0, 1.0) : vec4(destination * 2.0 - 1.0, 0.0, 1.0);
+    float depth = 0.99 - min(length(motion * ratio) / abs(uDelta), 256.0) / 256.0;
+    gl_Position = jump > uTear ? vec4(2.0, 2.0, 0.0, 1.0) : vec4(destination * 2.0 - 1.0, depth, 1.0);
 }

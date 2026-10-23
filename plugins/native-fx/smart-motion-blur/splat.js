@@ -53,6 +53,10 @@ function create(gl) {
   warp.material.blendDst = THREE.OneMinusSrcAlphaFactor;
   warp.material.blendEquation = THREE.AddEquation;
   warp.material.transparent = true;
+  // Faster sheets occlude slower sheets when the warped mesh overlaps.
+  // Empty fragments never write depth.
+  warp.material.depthTest = true;
+  warp.material.depthWrite = true;
   accumulate.material.blending = THREE.CustomBlending;
   accumulate.material.blendSrc = THREE.OneFactor;
   accumulate.material.blendDst = THREE.OneFactor;
@@ -62,7 +66,7 @@ function create(gl) {
 
   function allocate(width, height) {
     dimensions = [width, height];
-    sample = gl.target(width, height);
+    sample = gl.target(width, height, false, false, true);
     batches = Array.from({ length: 4 }, () =>
       gl.target(width, height, true, false),
     );
