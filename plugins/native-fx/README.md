@@ -44,7 +44,9 @@ Validation measurements appear in [Smart Motion Blur validation](../../docs/inve
 ### Limits
 
 Perspective motion requires additional image registration.
-The measured cost appears in the [validation report](../../docs/investigations/smart-motion-blur-validation.md#performance).
+On Apple M2 with ANGLE Metal, measured 1080p Balanced medians are 134 to 138 ms per frame.
+High medians are 176 to 180 ms per frame.
+The [validation report](../../docs/investigations/smart-motion-blur-validation.md#performance) describes the fixtures and measurements.
 
 Motion beyond the search limit cannot be tracked correctly.
 Disoccluded content, repeating patterns, thin features, and multiple motions with similar colors can produce incorrect trajectories.
