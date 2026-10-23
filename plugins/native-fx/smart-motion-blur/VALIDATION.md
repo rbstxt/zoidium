@@ -1,191 +1,307 @@
-# Smart Motion Blur validation
+# Smart Motion Blur round 3 validation
 
-Status: experimental. Round 2 fails acceptance.
+Round 3 is not accepted. The experimental label remains.
+The source and generated Native FX bundle are version 25.
+All repository changes belong to `feat/smart-motion-blur` in `/Users/dia/.t3/worktrees/Zoidium/t3-b60c3199`.
+No changes were pushed or merged.
 
-The implementation is not fully working. Rotating text, real-content reconstruction, slow-motion accuracy, and performance still fail required gates.
-Algorithm measurements cover implementation commit `40d4c0d` on `feat/smart-motion-blur`.
-Later identifier cleanup preserves the algorithm and adds a flow-scheduling regression test. The final source passes the GPU smoke check and repository verification.
+## Gate summary
 
-## Measurement protocol
+| Gate | Result | Measurement |
+| --- | --- | --- |
+| 1-pixel square flow | Pass | 0.164036988 px worst median; gate ≤0.25 |
+| 2.5-pixel square flow | Fail | Noise: 0.269662417 px half-float, 0.268565558 px RGBA8; gate ≤0.25 |
+| 16, 64, and 128-pixel square flow | Pass | 0.115634467 px worst median |
+| Stationary background | Fail | 6 codes worst change; gate ≤1 |
+| Square rotation, square scale, and text-mask rotation | Pass | Minimum IoU 0.967672173; maximum alpha error 0.728113932% |
+| Shutter trail and white composite | Pass | Maximum trail error 2 px; dark fringe 0 codes |
+| Static, amount zero, hard cut, and duplicate-only boundary | Pass | 0 changed bytes in each case |
+| Frame-order determinism | Pass | 0 differing bytes across 28 renders |
+| Native CM3 PSNR | Fail | 28/32 modes pass; Y rotation fails |
+| Native rotating-text silhouette and alpha | Fail | Z rotation passes; Y rotation fails. Detailed values follow. |
+| No broken strokes, notches, or speckles | Fail | Y-rotation crops retain stroke defects |
+| Both false-cut regression rotations | Pass | 0 false cuts across 8 modes |
+| 1080p Balanced median | Pass | 81.799999952 ms half-float; 77.799999952 ms RGBA8; gate ≤100 |
+| Vertex-texture fallback | Pass | 0 differing bytes against forced gather on both storage paths |
+| Editor workflows and moving Player+ half preview | Pass | 0 console errors and GL error zero |
+| Repository checks and resource boundary | Pass | 2,668 tests; 31 bundles; deployment tree inspected and removed |
 
-The GPU run uses Chromium with `--use-angle=metal --enable-gpu --ignore-gpu-blocklist`.
-The renderer reports `ANGLE Metal Renderer: Apple M2`. Only one Chromium instance runs at a time.
+## Test environment
 
-The acceptance matrix contains 148 cases at 768 × 512 pixels.
-A separate 72-case run records the median endpoint error over the entire foreground.
-The square measures 256 × 256 project pixels. Synthetic shutter references average 512 geometric samples.
-The rotating-text fixture uses the alpha mask of rendered CM3 3D Text.
+GPU: Apple M2 through ANGLE Metal. The host has 8 GB RAM.
+Each browser harness uses `--use-angle=metal --enable-gpu --ignore-gpu-blocklist`.
+One harness Chromium runs at a time.
+The host's existing applications remain open during measurement.
+The copied CM3 resource cache is configured with `ZOIDIUM_RESOURCE_DIR`.
+The editor uses port 8157. The isolated GPU harness uses port 8158.
+The cache, source captures, references, logs, projects, and crops remain outside Git in:
 
-Endpoint errors below include the foreground boundary. Earlier interior-only measurements underestimate the error at 2.5 pixels per frame.
-The binary square rasterizer changes the sampled width at a half-pixel shift. The reported error still uses the requested 2.5-pixel displacement.
-The gate remains 0.25 pixels. Values above that gate are failures.
+`/Users/dia/Projects/GitHub/zoidium-beta-work/rsmb/round3/`
 
-The machine-local harness, complete JSON records, screenshots, and crops are outside the repository at:
+## Algorithm
 
-`/Users/dia/Projects/GitHub/zoidium-beta-work/rsmb/round2/`
+The result path uses forward mesh warping for each centered shutter sample.
+Balanced uses one grid vertex every four processing pixels. High uses two.
+Vertices read the previous-direction field for negative shutter times and the next-direction field for positive times.
+Color-guided field interpolation separates foreground and background motion at mesh boundaries.
+A triangle collapses when its vertex vectors differ by more than 16 processing pixels.
+A speed-based depth value places faster overlapping sheets in front of slower sheets.
+Transparent fragments do not write depth. This rule is an occlusion heuristic.
 
-The records retain full floating-point values. Tables display nine decimal places. Pass and fail results use the unrounded values.
+Each sample draws a background base before its displaced mesh.
+Validated transparent scenes use the border observation for uncovered pixels.
+Validated opaque scenes use the neighboring image, warped toward the shutter time.
+Local-flow scenes prefer a lower-energy neighbor observation where the current foreground moves.
+This heuristic can misidentify bright backgrounds behind dark foregrounds.
 
-## Algorithm changes
+Four batches accumulate premultiplied RGBA.
+Each batch normalizes its own sample count before the final weighted combination.
+This preserves total weight when the sample count is not divisible by four.
+Half-float batches use half-float targets. RGBA8 batches limit repeated 8-bit additions.
+No reconstruction pass divides RGB by accumulated alpha.
 
-The solver retains source positions for sparse constraints in four quadrants.
-A spatially weighted affine fit fills flat regions. A similarity fit or a translation handles constraints with insufficient spatial support.
-Four color checks along each propagation path reject observed boundaries. These checks do not guarantee connectivity across thin gaps.
+A coarse moment fit proposes a similarity or affine transform.
+A search over source-flow candidates also proposes a coherent translation.
+A proposal must reduce the compensated residual on raw source textures before it replaces local flow.
+Validating only blurred pyramid images incorrectly moved stationary noise and was rejected.
+The final validation uses a 128 by 96 sample grid.
 
-Raw-source matching uses a soft census cost for textured patches and region membership for uniform patches.
-The matcher classifies source texels before bilinear interpolation to reduce the slow-motion bias at an edge.
-A stationary patch covers the full corner-detection neighborhood.
-The matcher searches the configured displacement range before its local refinement.
+Fully transparent source texels skip seed, refinement, constraint, propagation, and interpolation searches. Opaque black and noise use the ordinary solver.
 
-Reconstruction uses nearby reachable motion tiles and corrects donor positions for nonconstant motion.
-A texture test preserves exposed stationary backgrounds without freezing solid foreground edges.
-These changes reduce artifacts but do not remove the broken strokes and notches in real Text.
+Forward flow retains two warps and four iterations through quarter resolution.
+Reverse fields use one warp and two iterations. Reverse fields omit source constraints and their four propagation fields.
+A synchronized profile confirms that the constraints-and-propagation group falls from 164 to 82 draws per frame.
+That profile adds synchronization to every pass and does not represent normal frame time.
 
-Both quality modes use two warps and four refinement iterations through quarter resolution, followed by full-source constraints.
-The removed fine Jacobi stage produced a 47.685855738-pixel interior error on a rotating square in the earlier High half-float trial.
-High now raises the shutter-sample cap from 32 to 64. Effect IDs and serialized property names remain unchanged.
+Cut detection requires a large residual after motion compensation.
+Forward/backward inconsistency alone no longer triggers a cut.
+The renderer retains one four-byte statistics readback per analyzed frame.
+Amount-zero and duplicate-only boundary frames do not require that readback.
 
-The difference, confidence, consistency, and speed statistics share one reduction and one four-byte GPU readback per processed frame.
-The earlier moving-frame path used three readbacks. Amount-zero and missing-sample bypasses use none.
-The packed score pass validates the stored vector without repeating the displacement search.
+The fallback uses round-2 gather reconstruction when fewer than four vertex texture units are available.
+`PZ.zoidium.debugForceSmartMotionBlurGather` forces this path.
+The existing RGBA8 debug switch remains available.
 
-## Translation endpoint accuracy
+The 1 and 2.5 pixel translation inputs use exact box-filtered square coverage.
+Each square pixel receives the area of its intersection with the translated rectangle.
+The fixed-noise background remains stationary before foreground compositing.
 
-Each cell is the median endpoint error over the entire foreground, in project pixels per frame.
-The 1- and 2.5-pixel cases use the 0.25-pixel gate on every background.
+## Translation endpoint error
+
+Distances are project pixels. The gate applies to the median of the whole square foreground.
+The interior-only result does not determine a pass.
+Each row contains both qualities and both storage paths.
 
 ### Black background
 
 | Speed | Half Balanced | Half High | RGBA8 Balanced | RGBA8 High | Gate | Result |
 | --- | --- | --- | --- | --- | --- | --- |
-| 1 | 0.050002107 | 0.050002107 | 0.044173948 | 0.044173948 | ≤0.25 | Pass |
-| 2.5 | 0.258369590 | 0.258369590 | 0.258807566 | 0.258807566 | ≤0.25 | Fail |
-| 16 | 0.054900211 | 0.054900211 | 0.027764263 | 0.027764263 | ≤1 | Pass |
-| 64 | 0.008053186 | 0.008053186 | 0.029297769 | 0.029297769 | ≤1 | Pass |
-| 128 | 0.059114093 | 0.059114093 | 0.011719108 | 0.011719108 | ≤2 | Pass |
+| 1 | 0.000030519 | 0.000030519 | 0.007843257 | 0.007843257 | ≤0.25 | Pass |
+| 2.5 | 0.023361919 | 0.023361919 | 0.023361919 | 0.023361919 | ≤0.25 | Pass |
+| 16 | 0.007324442 | 0.007324442 | 0.000488296 | 0.000488296 | ≤1 | Pass |
+| 64 | 0.029297769 | 0.029297769 | 0.005859554 | 0.005859554 | ≤1 | Pass |
+| 128 | 0.058595538 | 0.058595538 | 0.003906369 | 0.003906369 | ≤2 | Pass |
 
 ### Transparent background
 
 | Speed | Half Balanced | Half High | RGBA8 Balanced | RGBA8 High | Gate | Result |
 | --- | --- | --- | --- | --- | --- | --- |
-| 1 | 0.034925991 | 0.034925991 | 0.042044550 | 0.042044550 | ≤0.25 | Pass |
-| 2.5 | 0.251179856 | 0.251179856 | 0.257862454 | 0.257862454 | ≤0.25 | Fail |
-| 16 | 0.027901329 | 0.027901329 | 0.028442989 | 0.028442989 | ≤1 | Pass |
-| 64 | 0.037519451 | 0.037519451 | 0.015747078 | 0.015747078 | ≤1 | Pass |
-| 128 | 0.058595538 | 0.058595538 | 0.021036442 | 0.021036442 | ≤2 | Pass |
+| 1 | 0.000030519 | 0.000030519 | 0.000030519 | 0.000030519 | ≤0.25 | Pass |
+| 2.5 | 0.023361919 | 0.023361919 | 0.023361919 | 0.023361919 | ≤0.25 | Pass |
+| 16 | 0.000488296 | 0.000488296 | 0.000488296 | 0.000488296 | ≤1 | Pass |
+| 64 | 0.029297769 | 0.029297769 | 0.001953185 | 0.001953185 | ≤1 | Pass |
+| 128 | 0.058595538 | 0.058595538 | 0.003906369 | 0.003906369 | ≤2 | Pass |
 
 ### Fixed-noise background
 
 | Speed | Half Balanced | Half High | RGBA8 Balanced | RGBA8 High | Gate | Result |
 | --- | --- | --- | --- | --- | --- | --- |
 | 1 | 0.164036988 | 0.164036988 | 0.164036988 | 0.164036988 | ≤0.25 | Pass |
-| 2.5 | 0.273968095 | 0.273968095 | 0.265824238 | 0.265824238 | ≤0.25 | Fail |
+| 2.5 | 0.269662417 | 0.269662417 | 0.268565558 | 0.268565558 | ≤0.25 | Fail |
 | 16 | 0.049645577 | 0.049645577 | 0.056745391 | 0.056745391 | ≤2 | Pass |
 | 64 | 0.115634467 | 0.115634467 | 0.098068541 | 0.098068541 | ≤2 | Pass |
 | 128 | 0.003906369 | 0.003906369 | 0.003906369 | 0.003906369 | ≤3 | Pass |
 
-### Stationary background output
+## Stationary background outside the shutter sweep
 
-Outside the shutter swept area, the maximum change on fixed noise is zero RGBA8 codes in all 20 translation cases.
-The gate allows one code. The output-preservation gate passes.
-This measurement does not assert that every estimated background vector is exactly zero.
+The maximum permitted difference is one RGBA8 code. These values include every pixel outside the swept area plus a four-pixel margin.
 
-## Rotation and scale
-
-The square rotates 0.25 radians per frame or scales by 1.1 per frame.
-The flow gate is a median endpoint error of at most two pixels. The silhouette IoU gate is at least 0.95.
-
-| Fixture | Storage and quality | Foreground error, px | Silhouette IoU | Alpha-mass error, % | Flow and silhouette |
-| --- | --- | --- | --- | --- | --- |
-| Rotating square | Half-float Balanced | 0.491368602 | 0.953666566 | 1.847817447 | Pass |
-| Rotating square | Half-float High | 0.491368602 | 0.953666566 | 1.847817447 | Pass |
-| Rotating square | RGBA8 Balanced | 0.497158842 | 0.953436552 | 1.392134521 | Pass |
-| Rotating square | RGBA8 High | 0.497158842 | 0.953436552 | 1.392134521 | Pass |
-| Scaling square | Half-float Balanced | 0.218742962 | 0.977434299 | 0.807665152 | Pass |
-| Scaling square | Half-float High | 0.218742962 | 0.977434299 | 0.807665152 | Pass |
-| Scaling square | RGBA8 Balanced | 0.245792799 | 0.997319504 | 0.160748101 | Pass |
-| Scaling square | RGBA8 High | 0.245792799 | 0.997319504 | 0.160748101 | Pass |
-| Rotating text | Half-float Balanced | 2.172007674 | 0.804765332 | 9.716667004 | Fail |
-| Rotating text | Half-float High | 2.172007674 | 0.805180052 | 9.726309413 | Fail |
-| Rotating text | RGBA8 Balanced | 6.949858699 | 0.796795697 | 12.164760955 | Fail |
-| Rotating text | RGBA8 High | 6.949858699 | 0.796795697 | 12.164760955 | Fail |
-
-The white-composite fringe error is zero codes in these transparent fixtures.
-Rotating text loses approximately 9.7% to 12.2% of the reference alpha mass. Its silhouette and mass gates fail.
-
-## Shutter, alpha, and bypasses
-
-The square translates 64 pixels per frame. The trail tolerance is two pixels. The alpha-mass tolerance is 2%.
-
-| Storage and quality | Amount | Expected trail, px | Measured trail, px | Alpha-mass error, % | Fringe, codes | Result |
+| Background | Speed | Half Balanced | Half High | RGBA8 Balanced | RGBA8 High | Result |
 | --- | --- | --- | --- | --- | --- | --- |
-| Half-float Balanced | 0.25 | 16 | 16 | 0.000167547 | 0 | Pass |
-| Half-float Balanced | 0.5 | 32 | 30 | 0.000047871 | 0 | Pass |
-| Half-float Balanced | 1 | 64 | 62 | 0.001101026 | 0 | Pass |
-| Half-float High | 0.25 | 16 | 16 | 0.000167547 | 0 | Pass |
-| Half-float High | 0.5 | 32 | 30 | 0.000047871 | 0 | Pass |
-| Half-float High | 1 | 64 | 62 | 0.001202752 | 0 | Pass |
-| RGBA8 Balanced | 0.25 | 16 | 16 | 0.000418869 | 0 | Pass |
-| RGBA8 Balanced | 0.5 | 32 | 30 | 0.002806420 | 0 | Pass |
-| RGBA8 Balanced | 1 | 64 | 62 | 0.000837737 | 0 | Pass |
-| RGBA8 High | 0.25 | 16 | 16 | 0.000418869 | 0 | Pass |
-| RGBA8 High | 0.5 | 32 | 30 | 0.002806420 | 0 | Pass |
-| RGBA8 High | 1 | 64 | 62 | 0.006779689 | 0 | Pass |
+| black | 1 | 0 | 0 | 0 | 0 | Pass |
+| black | 2.5 | 0 | 0 | 0 | 0 | Pass |
+| black | 16 | 0 | 0 | 0 | 0 | Pass |
+| black | 64 | 0 | 0 | 0 | 0 | Pass |
+| black | 128 | 0 | 0 | 0 | 1 | Pass |
+| transparent | 1 | 0 | 0 | 0 | 0 | Pass |
+| transparent | 2.5 | 0 | 0 | 0 | 0 | Pass |
+| transparent | 16 | 0 | 0 | 0 | 0 | Pass |
+| transparent | 64 | 0 | 0 | 0 | 0 | Pass |
+| transparent | 128 | 0 | 0 | 0 | 0 | Pass |
+| noise | 1 | 0 | 0 | 0 | 0 | Pass |
+| noise | 2.5 | 0 | 0 | 0 | 0 | Pass |
+| noise | 16 | 0 | 0 | 1 | 1 | Pass |
+| noise | 64 | 0 | 5 | 2 | 6 | Fail |
+| noise | 128 | 0 | 1 | 4 | 4 | Fail |
 
-| Check | Maximum differing bytes | Result |
+## Rotation, scale, and shutter coverage
+
+| Fixture | Mode | Median error, px | Silhouette IoU | Alpha-mass error, % | Result |
+| --- | --- | --- | --- | --- | --- |
+| Rotating square | Half-float Balanced | 17.827628280 | 0.984972874 | 0.003298509 | Fail |
+| Scaling square | Half-float Balanced | 0.024156573 | 1.000000000 | 0.084716939 | Pass |
+| Rotating text mask | Half-float Balanced | 0.074068194 | 0.967715479 | 0.684116835 | Pass |
+| Rotating square | Half-float High | 17.827628280 | 0.985849801 | 0.039438220 | Fail |
+| Scaling square | Half-float High | 0.024156573 | 1.000000000 | 0.084621234 | Pass |
+| Rotating text mask | Half-float High | 0.074068194 | 0.967672173 | 0.728113932 | Pass |
+| Rotating square | RGBA8 Balanced | 17.756064015 | 0.984599707 | 0.023260667 | Fail |
+| Scaling square | RGBA8 Balanced | 0.019986624 | 1.000000000 | 0.090865977 | Pass |
+| Rotating text mask | RGBA8 Balanced | 0.077505510 | 0.967716682 | 0.666929868 | Pass |
+| Rotating square | RGBA8 High | 17.756064015 | 0.985404498 | 0.038570561 | Fail |
+| Scaling square | RGBA8 High | 0.019986624 | 1.000000000 | 0.090842051 | Pass |
+| Rotating text mask | RGBA8 High | 0.077505510 | 0.967709460 | 0.714910954 | Pass |
+
+The text-mask fixture uses the existing CM3 text mask. Native CM3 rotation coverage is also reported below.
+The square rotation is 0.25 radians per frame. The scale factor is 1.1 per frame.
+
+| Mode | Amount | Expected trail, px | Measured trail, px | Alpha-mass error, % | Fringe, codes | Result |
+| --- | --- | --- | --- | --- | --- | --- |
+| Half-float Balanced | 0.25 | 16 | 16 | 0.000000000 | 0 | Pass |
+| Half-float Balanced | 0.5 | 32 | 30 | 0.001531863 | 0 | Pass |
+| Half-float Balanced | 1 | 64 | 62 | 0.002979952 | 0 | Pass |
+| Half-float High | 0.25 | 16 | 16 | 0.000000000 | 0 | Pass |
+| Half-float High | 0.5 | 32 | 30 | 0.001531863 | 0 | Pass |
+| Half-float High | 1 | 64 | 62 | 0.010794845 | 0 | Pass |
+| RGBA8 Balanced | 0.25 | 16 | 16 | 0.000000000 | 0 | Pass |
+| RGBA8 Balanced | 0.5 | 32 | 30 | 0.009191176 | 0 | Pass |
+| RGBA8 Balanced | 1 | 64 | 62 | 0.003063725 | 0 | Pass |
+| RGBA8 High | 0.25 | 16 | 16 | 0.000000000 | 0 | Pass |
+| RGBA8 High | 0.5 | 32 | 30 | 0.009191176 | 0 | Pass |
+| RGBA8 High | 1 | 64 | 62 | 0.356935987 | 0 | Pass |
+
+## Exact bypasses and frame order
+
+| Check | Differing bytes | Result |
 | --- | --- | --- |
-| Static black and static noise | 0 | Pass |
-| Blur Amount zero | 0 | Pass |
+| Static black and fixed noise | 0 | Pass |
+| Amount zero | 0 | Pass |
 | Hard cut | 0 | Pass |
-| Duplicate-only clip-boundary samples | 0 | Pass |
-| Forward, reverse, and shuffled translation frames | 0 | Pass |
+| Duplicate-only boundary | 0 | Pass |
+| Forward, reverse, and shuffled frames | 0 | Pass |
 
-The frame-order run contains 28 renders across both qualities and storage paths.
-All 148 acceptance cases and 72 endpoint cases report GL error zero. Both runs record zero console and shader errors.
+All 148 synthetic cases report GL error zero. Console and shader errors: 0.
 
 ## Real CM3 content
 
-The native frame sampler supplies 64 fractional taps over the centered shutter interval `[-0.25, +0.25]`.
-The reference is their average before Smart Motion Blur. The reference code runs only in the external harness.
-No reference effect or fractional-tap averaging implementation ships in the plugin.
-
-Each test uses a 768 × 512 output and Blur Amount 0.5.
-Motion Sensitivity is 100, Vector Smoothness is 50, Max Displacement is 256, and Analysis Frames is Both.
-PSNR uses premultiplied RGB. The motion region is the union of the 64 reference silhouettes, dilated by four pixels.
+Each test renders at 768 by 512 with Blur Amount 0.5, Motion Sensitivity 100, Vector Smoothness 50, Max Displacement 256, and Analysis Frames Both.
+The reference averages 64 native fractional taps over the centered interval `[-0.25, +0.25]`.
+The reference renderer remains in the external harness. It does not ship in the plugin.
+PSNR uses premultiplied RGB. The motion region is the union of reference silhouettes, dilated by four pixels.
 The full-frame gate is 30 dB. The motion-region gate is 24 dB.
-Native-content measurements cover both half-float and forced RGBA8 storage.
 
 | CM3 case | Storage | Balanced full, dB | Balanced region, dB | High full, dB | High region, dB | Result |
 | --- | --- | --- | --- | --- | --- | --- |
-| 3D Text translation, ≥40 px/frame | Half-float | 28.259871090 | 18.223362269 | 28.259871090 | 18.223362269 | Fail |
-| 3D Text translation, ≥40 px/frame | RGBA8 | 27.790141282 | 17.751864154 | 27.790141282 | 17.751864154 | Fail |
-| 3D Text Z rotation, 0.25 rad/frame | Half-float | 27.213884821 | 16.747562649 | 27.221499745 | 16.755171891 | Fail |
-| 3D Text Z rotation, 0.25 rad/frame | RGBA8 | 25.907619777 | 15.441268989 | 25.907619777 | 15.441268989 | Fail |
-| 3D Text Y rotation, 0.25 rad/frame | Half-float | 29.786731194 | 18.984967129 | 29.786731194 | 18.984967129 | Fail |
-| 3D Text Y rotation, 0.25 rad/frame | RGBA8 | 29.991896354 | 19.190132289 | 29.991896354 | 19.190132289 | Fail |
-| 3D Text scale, ×1.1/frame | Half-float | 33.064191429 | 22.228420314 | 33.064191429 | 22.228420314 | Fail |
-| 3D Text scale, ×1.1/frame | RGBA8 | 34.217271659 | 23.381500543 | 34.217271659 | 23.381500543 | Fail |
-| 2D Text under Adjustment, 60 px/frame | Half-float | 30.709951104 | 23.667961268 | 30.717572959 | 23.675583123 | Fail |
-| 2D Text under Adjustment, 60 px/frame | RGBA8 | 31.340390423 | 24.298446841 | 31.342750230 | 24.300771964 | Pass |
-| 2D Text under Adjustment, 0.25 rad/frame | Half-float | 25.416132894 | 17.800590643 | 25.416132894 | 17.800590643 | Fail |
-| 2D Text under Adjustment, 0.25 rad/frame | RGBA8 | 30.597732527 | 22.982190276 | 30.597622676 | 22.982087441 | Fail |
-| 2D Text under Adjustment, ×1.1/frame | Half-float | 45.008899357 | 36.934924583 | 45.008899357 | 36.934924583 | Pass |
-| 2D Text under Adjustment, ×1.1/frame | RGBA8 | 44.707926059 | 36.633951286 | 44.707926059 | 36.633951286 | Pass |
-| Generated testsrc footage under Adjustment, 40 px/frame | Half-float | 29.375836595 | 29.009404491 | 29.375836595 | 29.009404491 | Fail |
-| Generated testsrc footage under Adjustment, 40 px/frame | RGBA8 | 29.335930827 | 28.969454034 | 29.335930827 | 28.969454034 | Fail |
+| scene-translation | Half-float | 46.250427882 | 36.203947004 | 46.250427882 | 36.203947004 | Pass |
+| scene-translation | RGBA8 | 44.663716916 | 34.617236038 | 44.663716916 | 34.617236038 | Pass |
+| scene-rotation-z | Half-float | 39.915114939 | 29.448764151 | 39.912092260 | 29.445741472 | Pass |
+| scene-rotation-z | RGBA8 | 39.930952693 | 29.464601905 | 39.918707778 | 29.452356990 | Pass |
+| scene-rotation-y | Half-float | 29.418792554 | 18.681456692 | 29.952779886 | 19.245683385 | Fail |
+| scene-rotation-y | RGBA8 | 29.851295984 | 19.136585134 | 30.401556655 | 19.723718908 | Fail |
+| scene-scaling | Half-float | 40.174842171 | 29.339071055 | 40.207791435 | 29.372020320 | Pass |
+| scene-scaling | RGBA8 | 40.168229329 | 29.332458214 | 40.204320819 | 29.368549703 | Pass |
+| adjustment-translation | Half-float | 55.196523203 | 48.154533367 | 47.207719125 | 40.165729289 | Pass |
+| adjustment-translation | RGBA8 | 54.912794628 | 47.870804792 | 47.246362050 | 40.204372214 | Pass |
+| adjustment-rotation | Half-float | 38.139704123 | 30.524161871 | 38.165790730 | 30.550248479 | Pass |
+| adjustment-rotation | RGBA8 | 38.177863582 | 30.562321331 | 38.197857606 | 30.582315355 | Pass |
+| adjustment-scaling | Half-float | 51.054622531 | 42.980647758 | 51.226467208 | 43.152492435 | Pass |
+| adjustment-scaling | RGBA8 | 50.752343624 | 42.678368851 | 51.164083058 | 43.090108285 | Pass |
+| footage-pan | Half-float | 48.226537925 | 47.860067038 | 48.226495820 | 47.860024933 | Pass |
+| footage-pan | RGBA8 | 48.149950072 | 47.783479053 | 48.150107463 | 47.783636445 | Pass |
 
-The cut detector incorrectly bypasses these moving fixtures:
+### Native rotating-text coverage
 
-- 2D Text under Adjustment, 0.25 rad/frame in half-float.
-- 3D Text Z rotation, 0.25 rad/frame in RGBA8.
+| CM3 case | Mode | Silhouette IoU | Alpha-mass error, % | Result |
+| --- | --- | --- | --- | --- |
+| scene-rotation-z | Half-float Balanced | 0.970436538 | 0.713658625 | Pass |
+| scene-rotation-z | Half-float High | 0.970502467 | 0.762192546 | Pass |
+| scene-rotation-z | RGBA8 Balanced | 0.970400269 | 0.697557598 | Pass |
+| scene-rotation-z | RGBA8 High | 0.970467290 | 0.746668617 | Pass |
+| scene-rotation-y | Half-float Balanced | 0.922395274 | 2.846856706 | Fail |
+| scene-rotation-y | Half-float High | 0.932054753 | 2.124201588 | Fail |
+| scene-rotation-y | RGBA8 Balanced | 0.925884701 | 2.509776808 | Fail |
+| scene-rotation-y | RGBA8 High | 0.927582008 | 1.819742900 | Fail |
+| adjustment-rotation | Half-float Balanced | 0.972045184 | 0.763650408 | Pass |
+| adjustment-rotation | Half-float High | 0.971915240 | 0.741492524 | Pass |
+| adjustment-rotation | RGBA8 Balanced | 0.971816522 | 0.693981348 | Pass |
+| adjustment-rotation | RGBA8 High | 0.971621379 | 0.672672530 | Pass |
 
-The measured 3D Text centroid speed is 40.646319985 pixels per frame.
-The generated H.264 footage repeats a testsrc image. An animated layer transform supplies its continuous pan under an Adjustment layer.
+### False-cut regressions
 
-Visual inspection confirms broken strokes, streaks, and notches in the translating and rotating Text crops.
-The no-hole and no-notch gate fails. The footage crop also contains incorrect edge reconstruction.
+| CM3 case | Mode | Scene cut | Changed bytes from sharp source | Result |
+| --- | --- | --- | --- | --- |
+| scene-rotation-z | Half-float Balanced | False | 49292 | Pass |
+| scene-rotation-z | Half-float High | False | 49264 | Pass |
+| scene-rotation-z | RGBA8 Balanced | False | 49304 | Pass |
+| scene-rotation-z | RGBA8 High | False | 49288 | Pass |
+| adjustment-rotation | Half-float Balanced | False | 135603 | Pass |
+| adjustment-rotation | Half-float High | False | 135635 | Pass |
+| adjustment-rotation | RGBA8 Balanced | False | 134705 | Pass |
+| adjustment-rotation | RGBA8 High | False | 134766 | Pass |
 
-Comparison crops contain the current frame, reference, Balanced result, and High result:
+All native-content renders report GL error zero.
+Native-content console and preparation errors: 0.
+
+## Performance
+
+Each test uses 20 warm-up frames and 300 measured frames at 1920 by 1080.
+The whole-effect time includes its readback and a GPU completion wait. Scene capture is excluded.
+The input is a 256 by 256 square translating 64 pixels per frame over transparency.
+The gate is a Balanced median of at most 100 ms on each storage path.
+
+| Mode | Frames | Median, ms | p95, ms | Balanced gate |
+| --- | --- | --- | --- | --- |
+| Half-float Balanced | 300 | 81.799999952 | 90.699999928 | Pass |
+| Half-float High | 300 | 116.000000000 | 134.300000072 | Not specified |
+| RGBA8 Balanced | 300 | 77.799999952 | 87.199999928 | Pass |
+| RGBA8 High | 300 | 135.800000072 | 288.700000048 | Not specified |
+
+Performance console and shader errors: 0.
+The same host had other applications open during the measurements. The reported values are the measured results; no failure is reclassified.
+
+## Gather fallback
+
+| Storage | Forced zero vertex units path | Forced-gather path | Differing bytes | GL error |
+| --- | --- | --- | --- | --- |
+| Half-float | gather | gather | 0 | 0 |
+| RGBA8 | gather | gather | 0 | 0 |
+
+The test forces `MAX_VERTEX_TEXTURE_IMAGE_UNITS` to zero and compares the output with the explicit gather switch.
+Both paths use the same 64-pixel translation fixture.
+Fallback console and shader errors: 0.
+
+## Real editor workflow
+
+| Operation | Result |
+| --- | --- |
+| 3D scene moving Text | Pass |
+| change every property | Pass |
+| scrub play half preview | Pass |
+| adjustment above moving Text layer | Pass |
+| video footage effect | Pass |
+| save and reopen project | Pass |
+| normal export | Pass |
+| delete effect cleanly | Pass |
+| GL error | 0 |
+
+UI console errors: 0.
+
+The separate moving Player+ half-preview check passes. It records 28 shutter samples, a 274 by 154 flow field, `static = false`, splat reconstruction, GL error zero, and zero console errors.
+The normal export contains 60 VP8 frames at 640 by 360 and lasts 2.008 seconds.
+
+## Crops
+
+Each comparison contains the sharp source, the 64-tap reference, and both qualities on both storage paths.
+All paths are relative to `/Users/dia/Projects/GitHub/zoidium-beta-work/rsmb/round3/`.
 
 - `scene-translation-crops.png`
 - `scene-rotation-z-crops.png`
@@ -196,79 +312,30 @@ Comparison crops contain the current frame, reference, Balanced result, and High
 - `adjustment-scaling-crops.png`
 - `footage-pan-crops.png`
 
-The quality harness records 1 media preparation error during teardown after the final footage measurement:
-`[Zoidium] frame sampler preparation failed: Error: Timed out while loading video metadata.`
-The saved result file includes that error. Every measured native-content render reports GL error zero.
-
-## Performance
-
-Each whole-effect measurement uses 20 warm-up frames and 300 measured frames at 1920 × 1080 pixels.
-The input is a 256 × 256 white square translating 64 pixels per frame over transparency.
-Textures are already uploaded. Timings include effect readbacks and a GPU completion wait. They exclude scene capture.
-
-| Storage and quality | Frames | Median, ms | p95, ms | Balanced ≤100 ms gate |
-| --- | --- | --- | --- | --- |
-| Half-float Balanced | 300 | 135.899999976 | 190.000000000 | Fail |
-| Half-float High | 300 | 109.299999952 | 144.299999952 | Not specified |
-| RGBA8 Balanced | 300 | 120.399999976 | 206.099999905 | Fail |
-| RGBA8 High | 300 | 147.900000095 | 167.500000000 | Not specified |
-
-The Round 1 Balanced medians were 66.2 ms for half-float and 77.0 ms for RGBA8.
-The readback count decreased from three to one, but the full effect became slower.
-The new cost includes four directional constraint fields and the wider source matching search.
-These are whole-pipeline measurements. They do not isolate the timing contribution of the readback change.
-
-The separate 1080p CM3 3D Text capture test captures two neighboring source frames per iteration.
-After 5 warm-up iterations, 20 measurements give a 0.600000024 ms median and 1.900000095 ms p95.
-That test clears the sampler cache between iterations and excludes optical-flow processing. It reports GL error zero.
-
-## Editor workflow checks
-
-The editor uses a copied resource cache through `ZOIDIUM_RESOURCE_DIR` on port 8157.
-The independent UI suite uses the same Metal flags and one Chromium instance.
-
-| UI operation | Result |
-| --- | --- |
-| 3D scene moving Text | Pass |
-| change every property | Pass |
-| scrub play half preview | Pass |
-| adjustment above moving Text layer | Pass |
-| video footage effect | Pass |
-| save and reopen project | Pass |
-| normal export | Pass |
-| delete effect cleanly | Pass |
-| GL error | Pass |
-
-The UI suite records 0 console errors. Its GL result is 0.
-The Adjustment fixture uses explicit 60-pixel-per-frame keyframes and advances to frame 10.
-The exported Matroska contains 60 VP8 frames at 640 × 360 pixels and lasts 2.008 seconds.
-Passing workflow checks does not satisfy the failed image-quality gates.
-
 ## Repository checks
 
-- `pnpm run build:plugin-bundles`: Pass. 31 bundles checked; Native FX includes all 19 supporting Smart Motion Blur assets.
+- `pnpm run build:plugin-bundles`: Pass. 31 bundles, including 32 Smart Motion Blur supporting assets.
 - `pnpm run check:plugin-manifests`: Pass. 31 manifests.
 - `pnpm run check:plugin-bundles`: Pass. 31 bundles.
-- `pnpm run verify`: Pass. 2,667 tests; zero failures. File length, ESLint, syntax, manifests, and bundles pass.
-- `pnpm run build:web`: Pass. Native FX version 24, all 19 supporting assets, matching bundle, bootstrap, and local fonts verified. dist/web removed after inspection.
-- `Resource boundary`: Pass. No CM3 runtime files or generated deployment stage are tracked. Only the ignored resource cache remains in the worktree.
+- `pnpm run verify`: Pass. 2,668 tests, zero failures. File length, ESLint, syntax, manifests, and bundles pass.
+- `pnpm run build:web`: Pass. Native FX version 25, current bundle, bootstrap, and local Source Code Pro verified. The inspected deployment tree is removed.
+- Resource boundary: no CM3 runtime files or generated deployment stage are tracked. The copied CM3 cache stays outside Git.
 
-## Exploratory results
+## Remaining limitations and rejected trials
 
-The truncated color-cost trial gave an 11.144344409-pixel rotating-square interior error in Balanced half-float. It was replaced by the current matching cost.
-A quarter-frame analysis-interval experiment before final motion calibration gave 30.155508386 dB full-frame and 20.000398773 dB motion-region PSNR on 3D Text in Balanced.
-High gave 29.999410958 dB full-frame and 19.844301345 dB in the motion region. That experiment failed its quality target and was not shipped.
+The local matcher still exceeds the 0.25-pixel gate on the 2.5-pixel fixed-noise fixture.
+Replacing its small-motion membership cost with a color residual increased the 1-pixel noise error to 1 pixel.
+The same trial increased the 2.5-pixel noise error to 0.637322077 pixels. That trial was rejected.
 
-## Remaining limitations
+Torn local meshes and RGBA8 batch rounding still change some stationary pixels by more than one code.
+A centered-difference RGBA8 accumulation trial left a four-code background error and introduced an alpha offset.
+The final code retains four ordinary normalized batches. The background gate remains unmet.
 
-The local affine fit does not resolve incorrect matches on repeated or thin Text features.
-RGBA8 constraint validation changes some constraint priorities and produces a larger rotating-text error than half-float.
-Four sampled path checks do not provide a strict geodesic boundary guarantee.
+Y rotation changes the projected widths and occlusions of extruded Text.
+The tested similarity and covariance-affine proposals do not pass the raw residual check.
+Local flow remains active and retains visible stroke defects in the Y-rotation crops.
+The real-content PSNR and no-artifact gates remain unmet for that case.
 
-The 2.5-pixel whole-foreground accuracy gate remains unmet. The binary input rasterization and the inferred small scale change contribute to this error.
-No gate was relaxed to classify the interior-only result as a pass.
-
-The current-frame reconstruction still loses coverage at disocclusions and thin strokes.
-It fails the native Text PSNR and artifact gates. The broader matching and interpolation also exceed the Balanced performance limit.
-
-Round 2 is not accepted. The experimental label remains.
+A 4-pixel mesh also trades boundary coverage for processing cost. A 2-pixel mesh increases GPU work.
+RGBA8 storage and the gather fallback retain separate precision and occlusion limitations.
+No gate has been relaxed, and failed values are not rounded into passes.
