@@ -6,6 +6,12 @@ uniform vec2 uSize;
 uniform float uSmoothness;
 
 void main() {
+    // Fully transparent source texels contribute no foreground sheet.
+    // Keep opaque black and textured backgrounds in the ordinary solver.
+    if (texture2D(uCurrent, vUv).a < 0.000001) {
+        gl_FragColor = encodeFlow(vec2(0.0));
+        return;
+    }
     vec2 texelSize = 1.0 / uSize;
     vec4 currentFeature = features(texture2D(uCurrent, vUv));
     vec2 weightedMotion = vec2(0.0);

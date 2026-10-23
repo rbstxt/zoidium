@@ -13,6 +13,12 @@ vec2 decodeAnchor(vec4 value) {
     return vec2(bytes.r * 256.0 + bytes.g, bytes.b * 256.0 + bytes.a) - 1.0;
 }
 void main() {
+    // Fully transparent source texels contribute no foreground sheet.
+    // Keep opaque black and textured backgrounds in the ordinary solver.
+    if (texture2D(uCurrent, vUv).a < 0.000001) {
+        gl_FragColor = encodeFlow(vec2(0.0));
+        return;
+    }
     vec2 points[4];
     points[0] = decodeAnchor(texture2D(uNorthWest, vUv));
     points[1] = decodeAnchor(texture2D(uNorthEast, vUv));

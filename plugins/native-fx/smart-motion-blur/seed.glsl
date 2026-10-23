@@ -39,6 +39,12 @@ float cost(vec2 velocity) {
     return totalCost / totalWeight + 0.1 * length(currentGradient - otherGradient);
 }
 void main() {
+    // Fully transparent source texels contribute no foreground sheet.
+    // Keep opaque black and textured backgrounds in the ordinary solver.
+    if (texture2D(uCurrent, vUv).a < 0.000001) {
+        gl_FragColor = encodeFlow(vec2(0.0));
+        return;
+    }
     vec2 base = vec2(0.0);
     if (uCoarse < 0.5) base = flowAt(uFlow, vUv, uFlowSize);
     vec2 bestMotion = base;
