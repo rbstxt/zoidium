@@ -1,35 +1,15 @@
+uniform sampler2D uChecks;
 uniform float uHasHomography;
-uniform sampler2D uTranslation;
-uniform vec2 uScale;
-uniform sampler2D uCurrent;
-uniform sampler2D uBefore;
-uniform sampler2D uAfter;
-vec4 otherAt(vec2 uv, float row) {
-    if (row < 1.5)
-        return texture2D(uBefore, uv * uScale);
-    return texture2D(uAfter, uv * uScale);
+float metric(float column, float row) {
+    return unpackStatistic(texture2D(uChecks, vec2((column + 0.5) / 7.0, (row - 0.5) / 2.0)));
 }
 void main() {
     float row = floor(gl_FragCoord.x) + 1.0;
     prepareGlobal(row);
-    vec4 background = texture2D(uCurrent, vec2(0.001) * uScale);
-    vec2 translation = decodeFlow(texture2D(uTranslation, vec2((row - 0.5) / 2.0, 0.5)));
-    float projective = 0.0;
-    float raw = 0.0, compensated = 0.0, translated = 0.0, affine = 0.0, weight = 0.0;
-    for (int y = 0; y < 96; y++) {
-        for (int x = 0; x < 128; x++) {
-            vec2 uv = (vec2(float(x), float(y)) + 0.5) / vec2(128.0, 96.0);
-            vec4 current = texture2D(uCurrent, uv * uScale);
-            vec2 moved = uv + globalMotion(uv) / uProject;
-            raw += length(current - otherAt(uv, row));
-            if (uHasHomography > 0.5)
-                projective += length(current - otherAt(uv + projectiveMotion(uv, row - 1.0) / uProject, row));
-            affine += length(current - otherAt(uv + affineMotion(uv) / uProject, row));
-            translated += length(current - otherAt(uv + translation / uProject, row));
-            compensated += length(current - otherAt(moved, row));
-            weight += length(current - background);
-        }
-    }
+    float raw = metric(0.0, row), compensated = metric(1.0, row);
+    float affine = metric(2.0, row), translated = metric(3.0, row);
+    float projective = metric(4.0, row), weight = metric(5.0, row);
+    float border = metric(6.0, row);
     float mode = 0.0;
     if (affine < compensated) {
         compensated = affine;
@@ -43,9 +23,11 @@ void main() {
         compensated = projective;
         mode = 0.25;
     }
-    bool accepted = raw > 0.01 && compensated < raw * 0.6 && compensated < max(weight, 0.01) * 0.3;
+    bool accepted = raw > 0.01 / 24576.0 && compensated < raw * 0.6 && compensated < max(weight, 0.01 / 24576.0) * 0.3;
+    // Full-frame footage and opaque handheld shots have occupied borders.
+    // A projective proposal is reserved for an isolated subject with a stable border.
     bool candidate = abs(globalAffine.x - globalAffine.z) > 0.03 &&
-                     abs(globalAffine.z - 1.0) < 0.2;
-    gl_FragColor = vec4(accepted ? 1.0 : 0.0, compensated / max(weight, 0.01), mode,
+                     abs(globalAffine.z - 1.0) < 0.2 && border < 0.002;
+    gl_FragColor = vec4(accepted ? 1.0 : 0.0, compensated / max(weight, 0.01 / 24576.0), mode,
                        candidate ? 1.0 : 0.0);
 }
