@@ -57,6 +57,8 @@ For GPU testing, `PZ.zoidium.debugForceSmartMotionBlurRGBA8 = true` forces RGBA8
 This switch applies to the current session and is not saved in projects.
 The effect instance's `_smartMotionBlur.diagnostics` reports storage, maximum speed, bypass status, and sample count.
 
+Validation measurements appear in [Smart Motion Blur validation](smart-motion-blur/VALIDATION.md).
+
 ### Limits
 
 This version remains experimental.
