@@ -66,3 +66,84 @@ test("preview and export distances scale independently on both axes", () => {
   assert.equal(math.pyramidSizes(1920, 1080).length, 6);
   assert.deepEqual(math.pyramidSizes(1, 1), [[1, 1]]);
 });
+
+test("GL state is restored when an optical-flow pass throws", () => {
+  const gl = require("../plugins/native-fx/smart-motion-blur/gl.js").create({}, {}, () => "");
+  const state = { target: { name: "caller" }, color: { r: 0.2 }, alpha: 0.7 };
+  const renderer = {
+    autoClear: false,
+    getRenderTarget() { return state.target; },
+    getClearColor() { return { clone: () => state.color }; },
+    getClearAlpha() { return state.alpha; },
+    setRenderTarget(value) { state.target = value; },
+    setClearColor(color, alpha) { state.color = color; state.alpha = alpha; },
+  };
+  const target = state.target, color = state.color;
+  assert.throws(() => gl.preserve(renderer, () => {
+    renderer.setRenderTarget({ name: "scratch" });
+    throw new Error("pass failure");
+  }), /pass failure/);
+  assert.equal(renderer.autoClear, false);
+  assert.equal(state.target, target);
+  assert.equal(state.color, color);
+  assert.equal(state.alpha, 0.7);
+});
+
+test("half-float selection checks filtering, framebuffer completeness, and disposes its probe", () => {
+  const disposed = [];
+  const gl = require("../plugins/native-fx/smart-motion-blur/gl.js").create(
+    { HalfFloatType: 1, RGBAFormat: 2, LinearFilter: 3 },
+    { createRenderTarget() { return { dispose() { disposed.push(true); } }; } }, () => "",
+  );
+  const caller = {};
+  let target = caller;
+  const renderer = {
+    extensions: { get: () => ({}) },
+    getRenderTarget: () => target,
+    setRenderTarget: value => { target = value; },
+    getContext: () => ({ FRAMEBUFFER: 1, FRAMEBUFFER_COMPLETE: 2, checkFramebufferStatus: () => 2 }),
+  };
+  assert.equal(gl.selectStorage(renderer, false), "half");
+  assert.equal(target, caller);
+  assert.equal(disposed.length, 1);
+  assert.equal(gl.selectStorage(renderer, true), "rgba8");
+  assert.equal(disposed.length, 1);
+  renderer.getContext = () => ({ FRAMEBUFFER: 1, FRAMEBUFFER_COMPLETE: 2, checkFramebufferStatus: () => 0 });
+  assert.equal(gl.selectStorage(renderer, false), "rgba8");
+  assert.equal(target, caller);
+  assert.equal(disposed.length, 2);
+});
+
+test("native entry uses the bundle loader, project tap times, and exact active UV scale", () => {
+  let spec, rendered;
+  const getAsset = () => "bundled";
+  const effect = {
+    _zoidiumGetAsset: getAsset, _zoidiumFrameSamplerFrame: 7,
+    parentProject: { sequence: {} },
+    parentLayer: { tryGetParentOfType: () => ({ start: 40 }),
+      properties: { resolution: { get: () => [1920, 1080] } } },
+    properties: { load() {} },
+  };
+  const pipeline = { create() { return { render(...args) { rendered = args; }, dispose() {} }; } };
+  const api = {
+    gl: {}, modules: { createRequire(resolver, options) {
+      assert.equal(typeof resolver, "function");
+      assert.equal(options.root, "./plugins/native-fx/smart-motion-blur/");
+      return name => name === "./math.js" ? math : pipeline;
+    } },
+    defineFrameSampler(value) { spec = value; Object.assign(this, value.lifecycle); },
+  };
+  const PZ = { clip: class {}, property: { type: { NUMBER: 1, OPTION: 2 } },
+    zoidium: { temporal: { resolveFrameSamples: () => [{ frame: 46 }, { frame: 48 }] } } };
+  const THREE = { Vector2: class { constructor(x,y) { this.x=x;this.y=y; } } };
+  const source = fs.readFileSync(path.join(__dirname,"../plugins/native-fx/effects/smartmotionblur.js"),"utf8");
+  new Function("PZ", "THREE", "ZoidiumPluginApis", source).call(effect, PZ, THREE, api);
+  effect.load({});
+  effect.pass.uniforms.uvScale.value = { x: 0.5, y: 0.25 };
+  effect.pass.render({}, {}, { width: 1024, height: 1024 });
+  assert.equal(rendered[4], 47);
+  assert.deepEqual(rendered[5], [1920, 1080]);
+  assert.deepEqual(rendered[6], [0.5, 0.25]);
+  assert.deepEqual(spec.getRequest(effect, 7).frames, [-1, 1]);
+  assert.equal(/\bfetch\s*\(/.test(source), false);
+});

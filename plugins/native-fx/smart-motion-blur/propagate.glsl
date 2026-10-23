@@ -26,17 +26,17 @@ void main() {
     vec2 best=decodeFlow(texture2D(uFlow,vUv));
     if(uRadius<0.5) {
         vec2 e=1.0/uSize;
-        float xx=0.0,xy=0.0,yy=0.0;
+        float xx=0.0,xy=0.0,yy=0.0,stationaryPatch=0.0;
         for(int y=-1;y<=1;y++) for(int x=-1;x<=1;x++) {
             vec2 p=vUv+vec2(float(x),float(y))*e;
             vec4 gx=features(texture2D(uCurrent,p+vec2(e.x,0.0)))-features(texture2D(uCurrent,p-vec2(e.x,0.0)));
             vec4 gy=features(texture2D(uCurrent,p+vec2(0.0,e.y)))-features(texture2D(uCurrent,p-vec2(0.0,e.y)));
             xx+=dot(gx,gx);xy+=dot(gx,gy);yy+=dot(gy,gy);
+            stationaryPatch+=dot(abs(texture2D(uCurrent,p)-texture2D(uOther,p)),vec4(1.0));
         }
         float eigen=(xx+yy-sqrt((xx-yy)*(xx-yy)+4.0*xy*xy))/18.0;
         float valid=0.0;
-        vec4 stationary=abs(texture2D(uCurrent,vUv)-texture2D(uOther,vUv));
-        if(eigen>0.003 && dot(stationary,vec4(1.0))<0.001) {best=vec2(0.0);valid=1.0;}
+        if(eigen>0.003 && stationaryPatch<0.001) {best=vec2(0.0);valid=1.0;}
         else if(eigen>0.003) {
             float cost=patchCost(best);
             for(int step=0;step<7;step++) {

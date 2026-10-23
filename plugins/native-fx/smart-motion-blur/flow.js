@@ -75,7 +75,7 @@ function create(gl) {
       gl.draw(renderer,propagate,scores[1-scoreIndex],{...values,uOutput:1});
       field=next;scoreIndex=1-scoreIndex;
     }
-    gl.draw(renderer,copy,results[resultIndex],{ uImage: field.texture });
+    gl.draw(renderer,copy,results[resultIndex],{uImage:field.texture});
     return results[resultIndex].texture;
   }
   function analyze(renderer, index, forward, reverse, project, delta) {
