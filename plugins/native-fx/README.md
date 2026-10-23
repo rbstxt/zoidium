@@ -38,6 +38,8 @@ The solver builds a Gaussian pyramid with up to six levels.
 A coarse patch search initializes flow refinement through quarter resolution.
 Raw-source constraints use a soft census cost for textured patches and region membership for uniform patches.
 The matcher classifies source texels before interpolation to reduce edge bias at slow speeds.
+Seed and refinement passes retain a two-texel halo around transparent silhouettes.
+Below four pixels per frame, symmetric local fields cancel opposing coverage biases.
 
 Four directional fields retain the positions of sparse constraints.
 A spatially weighted affine fit fills flat regions.
@@ -48,6 +50,9 @@ A coarse image-moment fit proposes a coherent rotation, scale, or affine transfo
 A source-flow search also proposes a whole-image translation.
 The effect accepts a proposal only when it reduces the raw-source warped residual.
 This validation retains the source texture detail, including stationary noise.
+When a rejected affine proposal indicates unequal horizontal and vertical scale, a coordinate search fits a homography.
+The same raw-source acceptance thresholds validate the homography.
+Accepted translations, rotations, and scales bypass this search.
 
 The reconstruction forward-warps a mesh for each shutter sample.
 A triangle is removed when its vertex motions differ by more than 16 processing pixels.
@@ -63,11 +68,14 @@ For local motion, the base prefers the lower-energy observation where motion is 
 This rule can fail when a bright background becomes visible behind a dark foreground.
 
 Four independently normalized batches accumulate premultiplied RGBA.
+Each batch uses an incremental mean through two distinct render targets.
+Equal shutter samples preserve the source code exactly, including on RGBA8.
 Half-float batches use half-float render targets.
-RGBA8 batches reduce accumulation error but still leave measurable background errors.
+For opaque inputs, an unchanged textured patch can identify stationary background through either neighboring observation.
 The reconstruction never divides RGB by alpha.
 When fewer than four vertex texture units are available, the effect uses the gather fallback.
 One reduction combines static, cut, confidence, and speed statistics into one four-byte GPU readback.
+Coherent registration also reads an eight-byte decision before optional projective fitting.
 Reverse fields use one warp and two refinement iterations for consistency checks.
 Forward fields retain two warps and four refinement iterations.
 
@@ -90,17 +98,16 @@ Validation measurements appear in [Smart Motion Blur validation](smart-motion-bl
 
 ### Limits
 
-This version remains experimental.
-Round 3 still fails the 2.5-pixel fixed-noise accuracy gate and some stationary-background checks.
-The native 3D Text Y-rotation PSNR gate also remains unmet.
-Translation, Z rotation, and scale improve with validated coherent motion.
-The complete quality and performance results appear in the validation report.
+Round 4 meets the requested synthetic, native-content, workflow, and translation-benchmark gates.
+The complete measurements appear in the validation report.
+The 100 ms Balanced benchmark measures a translating square.
+Projective fitting can take seconds on the tested Apple M2 GPU.
 
 Motion beyond the search limit cannot be tracked correctly.
 Disoccluded content, repeating patterns, thin features, and multiple motions with similar colors can produce incorrect trajectories.
 The current and neighboring frames supply the reconstruction. Background detail hidden in all of those frames is unavailable.
 The effect does not provide a separate motion-vector input.
 
-Native FX version 25 remains outside the finished-preview cache allowlist.
+Native FX version 26 remains outside the finished-preview cache allowlist.
 Version 17 is the last version approved by that cache's output oracle.
-Version 25 renders live and retains the core frame sampler's input-cache behavior.
+Version 26 renders live and retains the core frame sampler's input-cache behavior.
