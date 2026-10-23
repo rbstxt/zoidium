@@ -352,7 +352,7 @@
       "zoidiumOnly": true,
       "manifest": "./plugins/native-fx/manifest.json?v=24",
       "bundle": "./plugins/native-fx/bundle.json?v=24",
-      "integrity": "sha256-vleVYnF1CXSdaT/cTN8ezA9fknx5IPI9zsymlQe1JdY="
+      "integrity": "sha256-g+ISQgDzB36oicEhYTl94PyXZ2EUvSxxlTI6i/vCuTA="
     },
     {
       "id": "afterclip",

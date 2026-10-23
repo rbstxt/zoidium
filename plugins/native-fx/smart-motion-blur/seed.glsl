@@ -7,56 +7,63 @@ uniform float uCoarse;
 uniform float uStep;
 
 float cost(vec2 velocity) {
-    vec2 d = velocity / uProject;
+    vec2 displacementUv = velocity / uProject;
     vec4 center = features(texture2D(uCurrent, vUv));
-    float sum = 0.0, weights = 0.0;
-    for (int y = -2; y <= 2; y++) {
-        for (int x = -2; x <= 2; x++) {
-            if (uCoarse < 0.5 && uStep >= 1.0 && (abs(float(x)) > 1.0 || abs(float(y)) > 1.0))
+    float totalCost = 0.0, totalWeight = 0.0;
+    for (int offsetY = -2; offsetY <= 2; offsetY++) {
+        for (int offsetX = -2; offsetX <= 2; offsetX++) {
+            if (uCoarse < 0.5 && uStep >= 1.0 &&
+                (abs(float(offsetX)) > 1.0 || abs(float(offsetY)) > 1.0))
                 continue;
-            vec2 p = vUv + vec2(float(x), float(y)) / uSize;
-            vec4 a = features(texture2D(uCurrent, p));
-            vec4 b = features(texture2D(uOther, p + d));
-            float w = 0.1 + 0.9 * exp(-dot(a - center, a - center) * 12.0);
-            sum += robust(a - b) * w;
-            weights += w;
+            vec2 patchUv = vUv + vec2(float(offsetX), float(offsetY)) / uSize;
+            vec4 currentFeature = features(texture2D(uCurrent, patchUv));
+            vec4 otherFeature = features(texture2D(uOther, patchUv + displacementUv));
+            float weight =
+                0.1 + 0.9 * exp(-dot(currentFeature - center, currentFeature - center) * 12.0);
+            totalCost += robust(currentFeature - otherFeature) * weight;
+            totalWeight += weight;
         }
     }
     // Luma gradient constancy adds edge orientation without dropping chroma
     // or alpha information from the patch term.
-    vec2 e = vec2(1.0 / uSize.x, 0.0), f = vec2(0.0, 1.0 / uSize.y);
-    vec2 ga =
-        vec2(features(texture2D(uCurrent, vUv + e)).r - features(texture2D(uCurrent, vUv - e)).r,
-             features(texture2D(uCurrent, vUv + f)).r - features(texture2D(uCurrent, vUv - f)).r);
-    vec2 gb = vec2(
-        features(texture2D(uOther, vUv + d + e)).r - features(texture2D(uOther, vUv + d - e)).r,
-        features(texture2D(uOther, vUv + d + f)).r - features(texture2D(uOther, vUv + d - f)).r);
-    return sum / weights + 0.1 * length(ga - gb);
+    vec2 horizontalTexel = vec2(1.0 / uSize.x, 0.0), verticalTexel = vec2(0.0, 1.0 / uSize.y);
+    vec2 currentGradient = vec2(features(texture2D(uCurrent, vUv + horizontalTexel)).r -
+                                    features(texture2D(uCurrent, vUv - horizontalTexel)).r,
+                                features(texture2D(uCurrent, vUv + verticalTexel)).r -
+                                    features(texture2D(uCurrent, vUv - verticalTexel)).r);
+    vec2 otherGradient =
+        vec2(features(texture2D(uOther, vUv + displacementUv + horizontalTexel)).r -
+                 features(texture2D(uOther, vUv + displacementUv - horizontalTexel)).r,
+             features(texture2D(uOther, vUv + displacementUv + verticalTexel)).r -
+                 features(texture2D(uOther, vUv + displacementUv - verticalTexel)).r);
+    return totalCost / totalWeight + 0.1 * length(currentGradient - otherGradient);
 }
 void main() {
     vec2 base = vec2(0.0);
     if (uCoarse < 0.5) base = flowAt(uFlow, vUv, uFlowSize);
-    vec2 best = base;
-    float bestCost = cost(best);
+    vec2 bestMotion = base;
+    float bestCost = cost(bestMotion);
     float zeroCost = cost(vec2(0.0));
     if (zeroCost < bestCost - 0.000001) {
-        best = vec2(0.0);
+        bestMotion = vec2(0.0);
         bestCost = zeroCost;
     }
     // Constant loop bounds are required by GLSL ES 1.00. Fine levels evaluate
     // only the central 3x3 candidates.
-    for (int y = -4; y <= 4; y++) {
-        for (int x = -4; x <= 4; x++) {
-            if (uCoarse < 0.5 && (abs(float(x)) > 1.0 || abs(float(y)) > 1.0)) continue;
-            vec2 v = base + vec2(float(x), float(y)) * uStep * uProject / uSize;
-            if (length(v) > uLimit) continue;
-            float c = cost(v);
-            if (c < bestCost - 0.000001 ||
-                (uCoarse > 0.5 && abs(c - bestCost) <= 0.000001 && dot(v, v) < dot(best, best))) {
-                best = v;
-                bestCost = c;
+    for (int offsetY = -4; offsetY <= 4; offsetY++) {
+        for (int offsetX = -4; offsetX <= 4; offsetX++) {
+            if (uCoarse < 0.5 && (abs(float(offsetX)) > 1.0 || abs(float(offsetY)) > 1.0)) continue;
+            vec2 candidateMotion =
+                base + vec2(float(offsetX), float(offsetY)) * uStep * uProject / uSize;
+            if (length(candidateMotion) > uLimit) continue;
+            float candidateCost = cost(candidateMotion);
+            if (candidateCost < bestCost - 0.000001 ||
+                (uCoarse > 0.5 && abs(candidateCost - bestCost) <= 0.000001 &&
+                 dot(candidateMotion, candidateMotion) < dot(bestMotion, bestMotion))) {
+                bestMotion = candidateMotion;
+                bestCost = candidateCost;
             }
         }
     }
-    gl_FragColor = encodeFlow(best);
+    gl_FragColor = encodeFlow(bestMotion);
 }

@@ -55,30 +55,31 @@ void main() {
     }
     meanPosition /= total;
     meanMotion /= total;
-    float xx = 0.0, xy = 0.0, yy = 0.0;
-    vec2 rhsX = vec2(0.0), rhsY = vec2(0.0);
+    float normalXX = 0.0, normalXY = 0.0, normalYY = 0.0;
+    vec2 rightHandSideX = vec2(0.0), rightHandSideY = vec2(0.0);
     for (int index = 0; index < 4; index++) {
         vec2 position = positions[index] - meanPosition;
         vec2 motion = motions[index] - meanMotion;
         float weight = weights[index];
-        xx += weight * position.x * position.x;
-        xy += weight * position.x * position.y;
-        yy += weight * position.y * position.y;
-        rhsX += weight * position.x * motion;
-        rhsY += weight * position.y * motion;
+        normalXX += weight * position.x * position.x;
+        normalXY += weight * position.x * position.y;
+        normalYY += weight * position.y * position.y;
+        rightHandSideX += weight * position.x * motion;
+        rightHandSideY += weight * position.y * motion;
     }
-    float determinant = xx * yy - xy * xy;
+    float determinant = normalXX * normalYY - normalXY * normalXY;
     vec2 result = meanMotion;
-    if (determinant > 0.00001 * (xx + yy) * (xx + yy) && min(xx, yy) > 0.002 * total) {
+    if (determinant > 0.00001 * (normalXX + normalYY) * (normalXX + normalYY) &&
+        min(normalXX, normalYY) > 0.002 * total) {
         // Centering the normal equations keeps an affine fit well conditioned.
-        vec2 slopeX = (yy * rhsX - xy * rhsY) / determinant;
-        vec2 slopeY = (xx * rhsY - xy * rhsX) / determinant;
+        vec2 slopeX = (normalYY * rightHandSideX - normalXY * rightHandSideY) / determinant;
+        vec2 slopeY = (normalXX * rightHandSideY - normalXY * rightHandSideX) / determinant;
         result -= slopeX * meanPosition.x + slopeY * meanPosition.y;
-    } else if (xx + yy > 0.002 * total) {
+    } else if (normalXX + normalYY > 0.002 * total) {
         // Two constraints still determine a similarity transform. This avoids
         // translation-only extrapolation near the edge of the constraint hull.
-        float scale = (rhsX.x + rhsY.y) / (xx + yy);
-        float rotation = (rhsX.y - rhsY.x) / (xx + yy);
+        float scale = (rightHandSideX.x + rightHandSideY.y) / (normalXX + normalYY);
+        float rotation = (rightHandSideX.y - rightHandSideY.x) / (normalXX + normalYY);
         result -= vec2(scale * meanPosition.x - rotation * meanPosition.y,
                        rotation * meanPosition.x + scale * meanPosition.y);
     }

@@ -48,9 +48,9 @@ void main() {
     float bestDistance = 1.0e20;
     float bestPriority = 0.0;
     vec4 center = features(guideAt(vUv));
-    for (int y = -1; y <= 1; y++) {
-        for (int x = -1; x <= 1; x++) {
-            vec2 uv = vUv + vec2(float(x), float(y)) * uRadius / uSize;
+    for (int offsetY = -1; offsetY <= 1; offsetY++) {
+        for (int offsetX = -1; offsetX <= 1; offsetX++) {
+            vec2 uv = vUv + vec2(float(offsetX), float(offsetY)) * uRadius / uSize;
             if (any(lessThan(uv, vec2(0.0))) || any(greaterThan(uv, vec2(1.0)))) continue;
             vec2 point = decodeAnchor(texture2D(uAnchors, uv));
             if (point.x < 0.0 || point.y < 0.0) continue;
