@@ -31,6 +31,7 @@ function create(gl) {
     {
       uMoments: null,
       uFlow: null,
+      uOpposite: null,
       uAccepted: null,
       uDirection: 1,
       uTranslation: null,
@@ -74,6 +75,7 @@ function create(gl) {
         uMoments: statistics.texture,
         uAccepted: accepted.texture,
         uFlow: local[index],
+        uOpposite: local[1 - index],
         uDirection: index + 1,
         uProject: project,
         uLimit: limit,
