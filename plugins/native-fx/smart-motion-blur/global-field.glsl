@@ -1,5 +1,6 @@
 uniform sampler2D uTranslation;
 uniform sampler2D uFlow;
+uniform sampler2D uOpposite;
 uniform sampler2D uAccepted;
 uniform float uDirection;
 void main() {
@@ -11,6 +12,12 @@ void main() {
         prepareGlobal(uDirection);
         gl_FragColor = encodeFlow(accepted.b > 0.25 ? affineMotion(vUv) : globalMotion(vUv));
     } else {
-        gl_FragColor = texture2D(uFlow, vUv);
+        vec2 motion = decodeFlow(texture2D(uFlow, vUv));
+        vec2 opposite = decodeFlow(texture2D(uOpposite, vUv));
+        // At subpixel speeds, symmetric observations cancel the opposite
+        // coverage biases of the two boundary matches.
+        if (max(length(motion), length(opposite)) < 4.0 && dot(motion, opposite) < 0.0)
+            motion = (motion - opposite) * 0.5;
+        gl_FragColor = encodeFlow(motion);
     }
 }
