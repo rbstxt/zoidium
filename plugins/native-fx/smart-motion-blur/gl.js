@@ -30,8 +30,14 @@ function create(THREE, api, getAsset) {
     }
     const material = new THREE.ShaderMaterial({
       uniforms,
-      vertexShader: vertex ? text("common") + "\n" + text(vertex) : vertexShader,
-      fragmentShader: text("common") + "\n" + (shared ? text(shared) + "\n" : "") + text(name),
+      vertexShader: vertex
+        ? text("common") + "\n" + text(vertex)
+        : vertexShader,
+      fragmentShader:
+        text("common") +
+        "\n" +
+        (shared ? text(shared) + "\n" : "") +
+        text(name),
       defines: packed ? { FLOW_PACKED: 1 } : {},
       precision: "highp",
       blending: THREE.NoBlending,

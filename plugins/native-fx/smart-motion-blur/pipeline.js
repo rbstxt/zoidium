@@ -112,6 +112,7 @@ function create(THREE, api, getAsset) {
       diagnostics.fields = null;
       diagnostics.confidence = null;
       diagnostics.flowSize = null;
+      diagnostics.reconstruction = null;
       if (
         !settings.amount ||
         !settings.sensitivity ||
@@ -163,8 +164,16 @@ function create(THREE, api, getAsset) {
         );
         reverseFields[index] = reverse;
       }
-      if (fields[0] && fields[1]) fields = global.apply(renderer,
-        flow.guides, flow.guideSize, fields, project, settings.maxDisplacement);
+      if (fields[0] && fields[1])
+        fields = global.apply(
+          renderer,
+          flow.guides,
+          flow.guideSize,
+          flow.sources,
+          fields,
+          project,
+          settings.maxDisplacement,
+        );
       for (let index = 0; index < 2; index++) {
         if (!available[index]) continue;
         const conf = flow.analyze(
@@ -210,7 +219,7 @@ function create(THREE, api, getAsset) {
         diagnostics.maxSpeed,
         settings.quality,
       );
-      blur.render(
+      diagnostics.reconstruction = blur.render(
         renderer,
         output,
         input.texture,
@@ -222,7 +231,13 @@ function create(THREE, api, getAsset) {
         processing,
         project,
         uvScale,
-        settings,
+        {
+          ...settings,
+          registration:
+            fields[0] && fields[1] && pair.previous && pair.next
+              ? global.accepted.texture
+              : null,
+        },
         diagnostics.maxSpeed,
         [
           (pair.previous || pair.next).texture,

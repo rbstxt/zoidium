@@ -63,11 +63,28 @@ function create(gl) {
     maxSpeed,
     sources,
   ) {
-    if (!settings.view && !settings.forceGather &&
-        renderer.getContext().getParameter(renderer.getContext().MAX_VERTEX_TEXTURE_IMAGE_UNITS) > 0) {
-      splat.render(renderer, output, input, fields, deltas, flowSize, processing,
-        project, uvScale, settings, maxSpeed, sources);
-      return;
+    if (
+      !settings.view &&
+      !settings.forceGather &&
+      renderer
+        .getContext()
+        .getParameter(renderer.getContext().MAX_VERTEX_TEXTURE_IMAGE_UNITS) >= 4
+    ) {
+      splat.render(
+        renderer,
+        output,
+        input,
+        fields,
+        deltas,
+        flowSize,
+        processing,
+        project,
+        uvScale,
+        settings,
+        maxSpeed,
+        sources,
+      );
+      return "splat";
     }
     for (let index = 0; index < 2; index++) {
       gl.draw(renderer, tile, tiles[index], {
@@ -112,6 +129,7 @@ function create(gl) {
       uSamples: math.sampleCount(settings.amount, maxSpeed, settings.quality),
       uView: settings.view,
     });
+    return "gather";
   }
   return { allocate, render };
 }
