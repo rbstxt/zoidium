@@ -8,14 +8,30 @@ const math = require("../plugins/native-fx/smart-motion-blur/math.js");
 test("Smart Motion Blur has stable serialized properties and native identity", () => {
   assert.equal(math.ID, "smartmotionblur");
   const props = math.properties({ NUMBER: 42, OPTION: 43 });
-  assert.deepEqual(Object.keys(props), ["amount", "sensitivity", "smoothness", "maxDisplacement", "analysis", "quality", "view"]);
-  assert.deepEqual(Object.values(props).map(p => p.value), [0.5, 70, 50, 256, 0, 0, 0]);
-  assert.ok(Object.values(props).every(p => p.dynamic));
+  assert.deepEqual(Object.keys(props), [
+    "amount",
+    "sensitivity",
+    "smoothness",
+    "maxDisplacement",
+    "analysis",
+    "quality",
+    "view",
+  ]);
+  assert.deepEqual(
+    Object.values(props).map((p) => p.value),
+    [0.5, 70, 50, 256, 0, 0, 0],
+  );
+  assert.ok(Object.values(props).every((p) => p.dynamic));
   assert.equal(props.analysis.items, "Both;Previous;Next");
   assert.equal(props.quality.items, "Balanced;High");
   assert.equal(props.view.items, "Result;Motion Vectors;Confidence");
-  const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, "../plugins/native-fx/manifest.json")));
-  assert.equal(manifest.nativeEffects.find(e => e.id === math.ID).name, math.DISPLAY_NAME);
+  const manifest = JSON.parse(
+    fs.readFileSync(path.join(__dirname, "../plugins/native-fx/manifest.json")),
+  );
+  assert.equal(
+    manifest.nativeEffects.find((e) => e.id === math.ID).name,
+    math.DISPLAY_NAME,
+  );
 });
 
 test("shutter taps use project frames, centered midpoint quadrature and a single shutter span", () => {
@@ -24,7 +40,7 @@ test("shutter taps use project frames, centered midpoint quadrature and a single
   assert.deepEqual(math.offsets(2), [1]);
   for (const amount of [0, 0.25, 0.5, 1]) {
     const times = math.shutterTimes(amount, 32);
-    assert.ok(times.every(t => Math.abs(t) <= amount / 2));
+    assert.ok(times.every((t) => Math.abs(t) <= amount / 2));
     assert.equal(times[0], -times.at(-1));
     assert.ok(Math.abs(times.reduce((a, b) => a + b, 0)) < 1e-12);
     assert.ok(Math.abs(times.at(-1) - times[0] + amount / 32 - amount) < 1e-12);
@@ -44,20 +60,40 @@ test("fixed point fields preserve exact zero and signed extremes", () => {
   for (let x = -256; x <= 256; x += 0.137) {
     const vector = [x, -x];
     const decoded = math.unpack(math.pack(vector));
-    assert.ok(decoded.every((v, i) => Math.abs(v - vector[i]) <= 256 / 65534 + 1e-12));
+    assert.ok(
+      decoded.every((v, i) => Math.abs(v - vector[i]) <= 256 / 65534 + 1e-12),
+    );
   }
   assert.deepEqual(math.unpack(math.pack([-256, 256])), [-256, 256]);
 });
 
 test("duplicate boundary taps never create fictitious directions", () => {
-  assert.deepEqual(math.neighbors([{ frame: 0 }, { frame: 1 }], 0), { previous: null, next: { frame: 1 } });
-  assert.deepEqual(math.neighbors([{ frame: 9 }, { frame: 10 - 1e-9 }], 10), { previous: { frame: 9 }, next: null });
-  assert.deepEqual(math.neighbors([{ frame: 7 }, { frame: 7 }], 7), { previous: null, next: null });
-  assert.deepEqual(math.neighbors([{ frame: 50 }, { frame: 52 }], 51), { previous: { frame: 50 }, next: { frame: 52 } });
+  assert.deepEqual(math.neighbors([{ frame: 0 }, { frame: 1 }], 0), {
+    previous: null,
+    next: { frame: 1 },
+  });
+  assert.deepEqual(math.neighbors([{ frame: 9 }, { frame: 10 - 1e-9 }], 10), {
+    previous: { frame: 9 },
+    next: null,
+  });
+  assert.deepEqual(math.neighbors([{ frame: 7 }, { frame: 7 }], 7), {
+    previous: null,
+    next: null,
+  });
+  assert.deepEqual(math.neighbors([{ frame: 50 }, { frame: 52 }], 51), {
+    previous: { frame: 50 },
+    next: { frame: 52 },
+  });
 });
 
 test("preview and export distances scale independently on both axes", () => {
-  for (const processing of [[1920, 1080], [960, 540], [480, 270], [240, 135], [1000, 563]]) {
+  for (const processing of [
+    [1920, 1080],
+    [960, 540],
+    [480, 270],
+    [240, 135],
+    [1000, 563],
+  ]) {
     const ratio = math.scale(processing, [1920, 1080]);
     const v = [128, -32];
     const output = math.toProject(math.toProcessing(v, ratio), ratio);
@@ -68,21 +104,41 @@ test("preview and export distances scale independently on both axes", () => {
 });
 
 test("GL state is restored when an optical-flow pass throws", () => {
-  const gl = require("../plugins/native-fx/smart-motion-blur/gl.js").create({}, {}, () => "");
+  const gl = require("../plugins/native-fx/smart-motion-blur/gl.js").create(
+    {},
+    {},
+    () => "",
+  );
   const state = { target: { name: "caller" }, color: { r: 0.2 }, alpha: 0.7 };
   const renderer = {
     autoClear: false,
-    getRenderTarget() { return state.target; },
-    getClearColor() { return { clone: () => state.color }; },
-    getClearAlpha() { return state.alpha; },
-    setRenderTarget(value) { state.target = value; },
-    setClearColor(color, alpha) { state.color = color; state.alpha = alpha; },
+    getRenderTarget() {
+      return state.target;
+    },
+    getClearColor() {
+      return { clone: () => state.color };
+    },
+    getClearAlpha() {
+      return state.alpha;
+    },
+    setRenderTarget(value) {
+      state.target = value;
+    },
+    setClearColor(color, alpha) {
+      state.color = color;
+      state.alpha = alpha;
+    },
   };
-  const target = state.target, color = state.color;
-  assert.throws(() => gl.preserve(renderer, () => {
-    renderer.setRenderTarget({ name: "scratch" });
-    throw new Error("pass failure");
-  }), /pass failure/);
+  const target = state.target,
+    color = state.color;
+  assert.throws(
+    () =>
+      gl.preserve(renderer, () => {
+        renderer.setRenderTarget({ name: "scratch" });
+        throw new Error("pass failure");
+      }),
+    /pass failure/,
+  );
   assert.equal(renderer.autoClear, false);
   assert.equal(state.target, target);
   assert.equal(state.color, color);
@@ -93,22 +149,41 @@ test("half-float selection checks filtering, framebuffer completeness, and dispo
   const disposed = [];
   const gl = require("../plugins/native-fx/smart-motion-blur/gl.js").create(
     { HalfFloatType: 1, RGBAFormat: 2, LinearFilter: 3 },
-    { createRenderTarget() { return { dispose() { disposed.push(true); } }; } }, () => "",
+    {
+      createRenderTarget() {
+        return {
+          dispose() {
+            disposed.push(true);
+          },
+        };
+      },
+    },
+    () => "",
   );
   const caller = {};
   let target = caller;
   const renderer = {
     extensions: { get: () => ({}) },
     getRenderTarget: () => target,
-    setRenderTarget: value => { target = value; },
-    getContext: () => ({ FRAMEBUFFER: 1, FRAMEBUFFER_COMPLETE: 2, checkFramebufferStatus: () => 2 }),
+    setRenderTarget: (value) => {
+      target = value;
+    },
+    getContext: () => ({
+      FRAMEBUFFER: 1,
+      FRAMEBUFFER_COMPLETE: 2,
+      checkFramebufferStatus: () => 2,
+    }),
   };
   assert.equal(gl.selectStorage(renderer, false), "half");
   assert.equal(target, caller);
   assert.equal(disposed.length, 1);
   assert.equal(gl.selectStorage(renderer, true), "rgba8");
   assert.equal(disposed.length, 1);
-  renderer.getContext = () => ({ FRAMEBUFFER: 1, FRAMEBUFFER_COMPLETE: 2, checkFramebufferStatus: () => 0 });
+  renderer.getContext = () => ({
+    FRAMEBUFFER: 1,
+    FRAMEBUFFER_COMPLETE: 2,
+    checkFramebufferStatus: () => 0,
+  });
   assert.equal(gl.selectStorage(renderer, false), "rgba8");
   assert.equal(target, caller);
   assert.equal(disposed.length, 2);
@@ -118,26 +193,64 @@ test("native entry uses the bundle loader, project tap times, and exact active U
   let spec, rendered;
   const getAsset = () => "bundled";
   const effect = {
-    _zoidiumGetAsset: getAsset, _zoidiumFrameSamplerFrame: 7,
+    _zoidiumGetAsset: getAsset,
+    _zoidiumFrameSamplerFrame: 7,
     parentProject: { sequence: {} },
-    parentLayer: { tryGetParentOfType: () => ({ start: 40 }),
-      properties: { resolution: { get: () => [1920, 1080] } } },
+    parentLayer: {
+      tryGetParentOfType: () => ({ start: 40 }),
+      properties: { resolution: { get: () => [1920, 1080] } },
+    },
     properties: { load() {} },
   };
-  const pipeline = { create() { return { render(...args) { rendered = args; }, dispose() {} }; } };
-  const api = {
-    gl: {}, modules: { createRequire(resolver, options) {
-      assert.equal(typeof resolver, "function");
-      assert.equal(options.root, "./plugins/native-fx/smart-motion-blur/");
-      return name => name === "./math.js" ? math : pipeline;
-    } },
-    defineFrameSampler(value) { spec = value; Object.assign(this, value.lifecycle); },
+  const pipeline = {
+    create() {
+      return {
+        render(...args) {
+          rendered = args;
+        },
+        dispose() {},
+      };
+    },
   };
-  const PZ = { clip: class {}, property: { type: { NUMBER: 1, OPTION: 2 } },
-    zoidium: { temporal: { resolveFrameSamples: () => [{ frame: 46 }, { frame: 48 }] } } };
-  const THREE = { Vector2: class { constructor(x,y) { this.x=x;this.y=y; } } };
-  const source = fs.readFileSync(path.join(__dirname,"../plugins/native-fx/effects/smartmotionblur.js"),"utf8");
-  new Function("PZ", "THREE", "ZoidiumPluginApis", source).call(effect, PZ, THREE, api);
+  const api = {
+    gl: {},
+    modules: {
+      createRequire(resolver, options) {
+        assert.equal(typeof resolver, "function");
+        assert.equal(options.root, "./plugins/native-fx/smart-motion-blur/");
+        return (name) => (name === "./math.js" ? math : pipeline);
+      },
+    },
+    defineFrameSampler(value) {
+      spec = value;
+      Object.assign(this, value.lifecycle);
+    },
+  };
+  const PZ = {
+    clip: class {},
+    property: { type: { NUMBER: 1, OPTION: 2 } },
+    zoidium: {
+      temporal: { resolveFrameSamples: () => [{ frame: 46 }, { frame: 48 }] },
+    },
+  };
+  const THREE = {
+    Vector2: class {
+      constructor(x, y) {
+        this.x = x;
+        this.y = y;
+      }
+    },
+  };
+  const source = fs.readFileSync(
+    path.join(__dirname, "../plugins/native-fx/effects/smartmotionblur.js"),
+    "utf8",
+  );
+  new Function("PZ", "THREE", "ZoidiumPluginApis", source).call(
+    effect,
+    PZ,
+    THREE,
+    api,
+  );
   effect.load({});
   effect.pass.uniforms.uvScale.value = { x: 0.5, y: 0.25 };
   effect.pass.render({}, {}, { width: 1024, height: 1024 });

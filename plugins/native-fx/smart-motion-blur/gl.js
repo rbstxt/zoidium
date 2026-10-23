@@ -2,24 +2,38 @@
 
 function create(THREE, api, getAsset) {
   const root = "/plugins/native-fx/smart-motion-blur/";
-  const passes = [], targets = [];
+  const passes = [],
+    targets = [];
   let packed = null;
-  const vertexShader = "varying vec2 vUv; void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}";
+  const vertexShader =
+    "varying vec2 vUv; void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}";
   function text(name) {
     const value = getAsset("text", root + name + ".glsl");
-    if (typeof value !== "string") throw new Error("[Zoidium] Missing Smart Motion Blur asset: " + name);
+    if (typeof value !== "string")
+      throw new Error("[Zoidium] Missing Smart Motion Blur asset: " + name);
     return value;
   }
   function pass(name, values) {
-    const uniforms = { uProject: { value: new THREE.Vector2(1, 1) }, uLimit: { value: 256 } };
+    const uniforms = {
+      uProject: { value: new THREE.Vector2(1, 1) },
+      uLimit: { value: 256 },
+    };
     for (const [key, value] of Object.entries(values)) {
-      uniforms[key] = { value: Array.isArray(value) ? new THREE.Vector2(...value) : value };
+      uniforms[key] = {
+        value: Array.isArray(value) ? new THREE.Vector2(...value) : value,
+      };
     }
     const material = new THREE.ShaderMaterial({
-      uniforms, vertexShader, fragmentShader: text("common") + "\n" + text(name),
+      uniforms,
+      vertexShader,
+      fragmentShader: text("common") + "\n" + text(name),
       defines: packed ? { FLOW_PACKED: 1 } : {},
-      precision: "highp", blending: THREE.NoBlending, depthTest: false, depthWrite: false,
-      transparent: false, premultipliedAlpha: true,
+      precision: "highp",
+      blending: THREE.NoBlending,
+      depthTest: false,
+      depthWrite: false,
+      transparent: false,
+      premultipliedAlpha: true,
     });
     const result = new THREE.ShaderPass(material);
     passes.push(result);
@@ -30,8 +44,12 @@ function create(THREE, api, getAsset) {
       minFilter: field ? THREE.NearestFilter : THREE.LinearFilter,
       magFilter: field ? THREE.NearestFilter : THREE.LinearFilter,
       format: THREE.RGBAFormat,
-      type: field && packed === false ? THREE.HalfFloatType : THREE.UnsignedByteType,
-      depthBuffer: false, stencilBuffer: false,
+      type:
+        field && packed === false
+          ? THREE.HalfFloatType
+          : THREE.UnsignedByteType,
+      depthBuffer: false,
+      stencilBuffer: false,
     });
     targets.push(result);
     return result;
@@ -39,17 +57,24 @@ function create(THREE, api, getAsset) {
   function selectStorage(renderer, forcePacked) {
     const gl = renderer.getContext();
     let half = false;
-    if (!forcePacked && renderer.extensions.get("OES_texture_half_float") &&
-        renderer.extensions.get("OES_texture_half_float_linear")) {
+    if (
+      !forcePacked &&
+      renderer.extensions.get("OES_texture_half_float") &&
+      renderer.extensions.get("OES_texture_half_float_linear")
+    ) {
       const previous = renderer.getRenderTarget();
       const probe = api.createRenderTarget(THREE, 2, 2, {
-        type: THREE.HalfFloatType, format: THREE.RGBAFormat,
-        minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter,
-        depthBuffer: false, stencilBuffer: false,
+        type: THREE.HalfFloatType,
+        format: THREE.RGBAFormat,
+        minFilter: THREE.LinearFilter,
+        magFilter: THREE.LinearFilter,
+        depthBuffer: false,
+        stencilBuffer: false,
       });
       try {
         renderer.setRenderTarget(probe);
-        half = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
+        half =
+          gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
       } finally {
         renderer.setRenderTarget(previous);
         probe.dispose();
@@ -95,7 +120,17 @@ function create(THREE, api, getAsset) {
     for (const p of passes) api.disposePass(p);
     passes.length = 0;
   }
-  return { pass, target, draw, preserve, selectStorage, clearTargets, dispose,
-    get packed() { return packed; } };
+  return {
+    pass,
+    target,
+    draw,
+    preserve,
+    selectStorage,
+    clearTargets,
+    dispose,
+    get packed() {
+      return packed;
+    },
+  };
 }
 module.exports = { create };
