@@ -34,6 +34,12 @@ bool connected(vec2 point, vec4 center) {
     return true;
 }
 void main() {
+    // Fully transparent source texels contribute no foreground sheet.
+    // Keep opaque black and textured backgrounds in the ordinary solver.
+    if (texture2D(uCurrent, vUv).a < 0.000001) {
+        gl_FragColor = vec4(0.0);
+        return;
+    }
     if (uRadius < 0.5) {
 #ifdef FLOW_PACKED
         float valid = texture2D(uScore, vUv).r;

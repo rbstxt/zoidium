@@ -130,6 +130,12 @@ vec4 fieldAndScore(vec2 flow, float valid, float distance) {
     return result;
 }
 void main() {
+    // Fully transparent source texels contribute no foreground sheet.
+    // Keep opaque black and textured backgrounds in the ordinary solver.
+    if (texture2D(uCurrent, vUv).a < 0.000001) {
+        gl_FragColor = encodeFlow(vec2(0.0));
+        return;
+    }
     vec2 bestMotion = decodeFlow(texture2D(uFlow, vUv));
     if (uRadius < 0.5) {
         vec2 texelSize = 1.0 / (uRawSize * uRawScale);
