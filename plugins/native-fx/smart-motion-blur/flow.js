@@ -51,6 +51,7 @@ function create(gl) {
     uRawScale: [1, 1],
   });
   const interpolate = gl.pass("interpolate", {
+    uScore: null,
     uCurrent: null,
     uOther: null,
     uFlow: null,
@@ -235,6 +236,7 @@ function create(gl) {
     gl.draw(renderer, interpolate, results[resultIndex], {
       ...shared,
       uFlow: targets[2].texture,
+      uScore: scores[0].texture,
       uNorthWest: anchorTextures[0],
       uNorthEast: anchorTextures[1],
       uSouthWest: anchorTextures[2],
