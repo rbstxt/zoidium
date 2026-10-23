@@ -30,7 +30,11 @@ function create(gl) {
     uTime: 0,
     uDelta: 1,
   });
-  const accumulate = gl.pass("accumulate", { uImage: null, uPrevious: null, uWeight: 1 });
+  const accumulate = gl.pass("accumulate", {
+    uImage: null,
+    uPrevious: null,
+    uWeight: 1,
+  });
   const combine = gl.pass("combine", {
     uFirst: null,
     uSecond: null,
@@ -62,9 +66,10 @@ function create(gl) {
   function allocate(width, height) {
     dimensions = [width, height];
     sample = gl.target(width, height, false, false, true);
-    batches = Array.from({ length: 4 }, () =>
-      [gl.target(width, height, true, false), gl.target(width, height, true, false)],
-    );
+    batches = Array.from({ length: 4 }, () => [
+      gl.target(width, height, true, false),
+      gl.target(width, height, true, false),
+    ]);
   }
   function mesh(step) {
     const key = [...dimensions, step].join(":");
