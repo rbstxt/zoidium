@@ -27,14 +27,13 @@ function create(gl) {
   }
   function apply(renderer, moments, images, size, project) {
     const shared = {
-      uMoments: moments,
       uCurrent: images[0],
       uBefore: images[1],
       uAfter: images[2],
       uSize: size,
       uProject: project,
     };
-    gl.draw(renderer, fit, targets[0], { ...shared, uAxis: -1 });
+    gl.draw(renderer, fit, targets[0], { uMoments: moments, uProject: project, uAxis: -1 });
     let index = 0;
     for (const radius of [0.08, 0.04, 0.02, 0.01, 0.005, 0.0025, 0.00125, 0.000625]) {
       for (let iteration = 0; iteration < 4; iteration++) {
