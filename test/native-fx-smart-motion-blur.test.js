@@ -368,3 +368,60 @@ test("shutter batches preserve every sample weight when the count is not divisib
     );
   }
 });
+
+test("constraint stages preserve the seed and never read their own destination", () => {
+  for (const packed of [false, true]) {
+    for (const size of [
+      [1, 1],
+      [768, 512],
+    ]) {
+      const draws = [];
+      const gl = {
+        packed,
+        pass: (name) => ({ name }),
+        target: (width, height) => ({ width, height, texture: {} }),
+        draw(renderer, pass, output, uniforms) {
+          for (const value of Object.values(uniforms)) {
+            assert.notEqual(value, output.texture);
+          }
+          draws.push({ name: pass.name, output, uniforms });
+        },
+      };
+      const flow =
+        require("../plugins/native-fx/smart-motion-blur/flow.js").create(gl);
+      flow.allocate(...size);
+      for (let index = 0; index < 3; index++)
+        flow.buildPyramid({}, {}, index, size, [1, 1]);
+      flow.solve(
+        {},
+        0,
+        1,
+        0,
+        {
+          sensitivity: 100,
+          maxDisplacement: 256,
+          smoothness: 50,
+          quality: 0,
+        },
+        size,
+        1,
+      );
+      const stages = draws.filter((draw) => draw.name === "constraints");
+      assert.deepEqual(
+        stages.slice(0, 34).map((draw) => draw.uniforms.uSearchStage),
+        Array.from({ length: 34 }, (_, index) => index - 1),
+      );
+      const seed = stages[0].uniforms.uSeed;
+      for (let index = 1; index <= 33; index++) {
+        assert.equal(stages[index].uniforms.uSeed, seed);
+        assert.equal(stages[index].uniforms.uState, stages[0].output.texture);
+        if (index > 1)
+          assert.equal(
+            stages[index].uniforms.uFlow,
+            stages[index - 1].output.texture,
+          );
+      }
+      assert.equal(stages.length, packed ? 35 : 34);
+    }
+  }
+});

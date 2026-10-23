@@ -180,28 +180,28 @@ void main() {
             (normalXX + normalYY -
              sqrt((normalXX - normalYY) * (normalXX - normalYY) + 4.0 * normalXY * normalXY)) /
             18.0;
-            vec2 gaussianStep = 1.0 / uSize;
-            float gaussianXX = 0.0;
-            float gaussianXY = 0.0;
-            float gaussianYY = 0.0;
-            for (int offsetY = -1; offsetY <= 1; offsetY++) {
-                for (int offsetX = -1; offsetX <= 1; offsetX++) {
-                    vec2 point = vUv + vec2(float(offsetX), float(offsetY)) * gaussianStep;
-                    vec4 gradientX =
-                        features(texture2D(uCurrent, point + vec2(gaussianStep.x, 0.0))) -
-                        features(texture2D(uCurrent, point - vec2(gaussianStep.x, 0.0)));
-                    vec4 gradientY =
-                        features(texture2D(uCurrent, point + vec2(0.0, gaussianStep.y))) -
-                        features(texture2D(uCurrent, point - vec2(0.0, gaussianStep.y)));
-                    gaussianXX += dot(gradientX, gradientX);
-                    gaussianXY += dot(gradientX, gradientY);
-                    gaussianYY += dot(gradientY, gradientY);
-                }
+        vec2 gaussianStep = 1.0 / uSize;
+        float gaussianXX = 0.0;
+        float gaussianXY = 0.0;
+        float gaussianYY = 0.0;
+        for (int offsetY = -1; offsetY <= 1; offsetY++) {
+            for (int offsetX = -1; offsetX <= 1; offsetX++) {
+                vec2 point = vUv + vec2(float(offsetX), float(offsetY)) * gaussianStep;
+                vec4 gradientX =
+                    features(texture2D(uCurrent, point + vec2(gaussianStep.x, 0.0))) -
+                    features(texture2D(uCurrent, point - vec2(gaussianStep.x, 0.0)));
+                vec4 gradientY =
+                    features(texture2D(uCurrent, point + vec2(0.0, gaussianStep.y))) -
+                    features(texture2D(uCurrent, point - vec2(0.0, gaussianStep.y)));
+                gaussianXX += dot(gradientX, gradientX);
+                gaussianXY += dot(gradientX, gradientY);
+                gaussianYY += dot(gradientY, gradientY);
             }
-            float gaussianEigen = (gaussianXX + gaussianYY -
-                                   sqrt((gaussianXX - gaussianYY) * (gaussianXX - gaussianYY) +
-                                        4.0 * gaussianXY * gaussianXY)) /
-                                  18.0;
+        }
+        float gaussianEigen = (gaussianXX + gaussianYY -
+                               sqrt((gaussianXX - gaussianYY) * (gaussianXX - gaussianYY) +
+                                    4.0 * gaussianXY * gaussianXY)) /
+                              18.0;
         gl_FragColor = vec4(uniformPatch ? 1.0 : 0.0, eigen > 0.003 ? 1.0 : 0.0,
                             gaussianEigen > 0.003 ? 1.0 : 0.0, stationaryPatch < 0.001 ? 1.0 : 0.0);
         return;
