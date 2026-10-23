@@ -3,288 +3,303 @@
   "id": "native-fx",
   "name": "Native FX",
   "author": "Zoidium",
-  "version": "26",
+  "version": "27",
   "kind": "native-fx",
   "resources": [
     {
       "id": "radialblurspin-shader",
       "type": "text",
-      "source": "/plugins/native-fx/shaders/fx_radialblurspin.glsl?v=26"
+      "source": "/plugins/native-fx/shaders/fx_radialblurspin.glsl?v=27"
     },
     {
       "id": "colorcurves-shader",
       "type": "text",
-      "source": "/plugins/native-fx/shaders/fx_colorcurves.glsl?v=26"
+      "source": "/plugins/native-fx/shaders/fx_colorcurves.glsl?v=27"
     },
     {
       "id": "colorcurves-style",
       "type": "text",
-      "source": "/plugins/native-fx/colorcurves.css?v=26"
+      "source": "/plugins/native-fx/colorcurves.css?v=27"
     },
     {
       "id": "timedisplacement-shader",
       "type": "text",
-      "source": "/plugins/native-fx/shaders/fx_timedisplacement.glsl?v=26"
+      "source": "/plugins/native-fx/shaders/fx_timedisplacement.glsl?v=27"
     },
     {
       "id": "ccwidetime-shader",
       "type": "text",
-      "source": "/plugins/native-fx/shaders/fx_ccwidetime.glsl?v=26"
+      "source": "/plugins/native-fx/shaders/fx_ccwidetime.glsl?v=27"
     },
     {
       "id": "timedifference-shader",
       "type": "text",
-      "source": "/plugins/native-fx/shaders/fx_timedifference.glsl?v=26"
+      "source": "/plugins/native-fx/shaders/fx_timedifference.glsl?v=27"
     },
     {
       "id": "colordiffkey-shader",
       "type": "text",
-      "source": "/plugins/native-fx/shaders/fx_colordiffkey.glsl?v=26"
+      "source": "/plugins/native-fx/shaders/fx_colordiffkey.glsl?v=27"
     },
     {
       "id": "advspill-shader",
       "type": "text",
-      "source": "/plugins/native-fx/shaders/fx_advspill.glsl?v=26"
+      "source": "/plugins/native-fx/shaders/fx_advspill.glsl?v=27"
     },
     {
       "id": "keycleaner-shader",
       "type": "text",
-      "source": "/plugins/native-fx/shaders/fx_keycleaner.glsl?v=26"
+      "source": "/plugins/native-fx/shaders/fx_keycleaner.glsl?v=27"
     },
     {
       "id": "linearcolorkey-shader",
       "type": "text",
-      "source": "/plugins/native-fx/shaders/fx_linearcolorkey.glsl?v=26"
+      "source": "/plugins/native-fx/shaders/fx_linearcolorkey.glsl?v=27"
     },
     {
       "id": "fxgen-math",
       "type": "text",
-      "source": "/plugins/native-fx/effects/fxgen-math.js?v=26"
+      "source": "/plugins/native-fx/effects/fxgen-math.js?v=27"
     },
     {
       "id": "radiowaves-shader",
       "type": "text",
-      "source": "/plugins/native-fx/shaders/fx_radiowaves.glsl?v=26"
+      "source": "/plugins/native-fx/shaders/fx_radiowaves.glsl?v=27"
     },
     {
       "id": "beam-shader",
       "type": "text",
-      "source": "/plugins/native-fx/shaders/fx_beam.glsl?v=26"
+      "source": "/plugins/native-fx/shaders/fx_beam.glsl?v=27"
     },
     {
       "id": "textfield-shader",
       "type": "text",
-      "source": "/plugins/native-fx/shaders/fx_textfield.glsl?v=26"
+      "source": "/plugins/native-fx/shaders/fx_textfield.glsl?v=27"
     },
     {
       "id": "ccpageturn-shader",
       "type": "text",
-      "source": "/plugins/native-fx/shaders/fx_ccpageturn.glsl?v=26"
+      "source": "/plugins/native-fx/shaders/fx_ccpageturn.glsl?v=27"
     },
     {
       "id": "cardwipe-shader",
       "type": "text",
-      "source": "/plugins/native-fx/shaders/fx_cardwipe.glsl?v=26"
+      "source": "/plugins/native-fx/shaders/fx_cardwipe.glsl?v=27"
     },
     {
       "id": "radialshadow-shader",
       "type": "text",
-      "source": "/plugins/native-fx/shaders/fx_radialshadow.glsl?v=26"
+      "source": "/plugins/native-fx/shaders/fx_radialshadow.glsl?v=27"
     },
     {
       "id": "fxtrans-math",
       "type": "text",
-      "source": "/plugins/native-fx/effects/fxtrans-math.js?v=26"
+      "source": "/plugins/native-fx/effects/fxtrans-math.js?v=27"
     },
     {
       "id": "graph-curves",
       "type": "text",
-      "source": "./plugins/material-plus/graph-curves.js?v=26"
+      "source": "./plugins/material-plus/graph-curves.js?v=27"
     },
     {
       "id": "curve-options-css",
       "type": "text",
-      "source": "./plugins/native-fx/curve-options.css?v=26"
+      "source": "./plugins/native-fx/curve-options.css?v=27"
     },
     {
       "id": "smartmotionblur-math",
       "type": "text",
-      "source": "./plugins/native-fx/smart-motion-blur/math.js?v=26"
+      "source": "./plugins/native-fx/smart-motion-blur/math.js?v=27"
     },
     {
       "id": "smartmotionblur-gl",
       "type": "text",
-      "source": "./plugins/native-fx/smart-motion-blur/gl.js?v=26"
+      "source": "./plugins/native-fx/smart-motion-blur/gl.js?v=27"
     },
     {
       "id": "smartmotionblur-flow",
       "type": "text",
-      "source": "./plugins/native-fx/smart-motion-blur/flow.js?v=26"
+      "source": "./plugins/native-fx/smart-motion-blur/flow.js?v=27"
     },
     {
       "id": "smartmotionblur-reconstruction",
       "type": "text",
-      "source": "./plugins/native-fx/smart-motion-blur/reconstruction.js?v=26"
+      "source": "./plugins/native-fx/smart-motion-blur/reconstruction.js?v=27"
     },
     {
       "id": "smartmotionblur-pipeline",
       "type": "text",
-      "source": "./plugins/native-fx/smart-motion-blur/pipeline.js?v=26"
+      "source": "./plugins/native-fx/smart-motion-blur/pipeline.js?v=27"
     },
     {
       "id": "smartmotionblur-common-shader",
       "type": "text",
-      "source": "./plugins/native-fx/smart-motion-blur/common.glsl?v=26"
+      "source": "./plugins/native-fx/smart-motion-blur/common.glsl?v=27"
     },
     {
       "id": "smartmotionblur-pyramid-shader",
       "type": "text",
-      "source": "./plugins/native-fx/smart-motion-blur/pyramid.glsl?v=26"
+      "source": "./plugins/native-fx/smart-motion-blur/pyramid.glsl?v=27"
     },
     {
       "id": "smartmotionblur-seed-shader",
       "type": "text",
-      "source": "./plugins/native-fx/smart-motion-blur/seed.glsl?v=26"
+      "source": "./plugins/native-fx/smart-motion-blur/seed.glsl?v=27"
     },
     {
       "id": "smartmotionblur-refine-shader",
       "type": "text",
-      "source": "./plugins/native-fx/smart-motion-blur/refine.glsl?v=26"
+      "source": "./plugins/native-fx/smart-motion-blur/refine.glsl?v=27"
     },
     {
       "id": "smartmotionblur-confidence-shader",
       "type": "text",
-      "source": "./plugins/native-fx/smart-motion-blur/confidence.glsl?v=26"
+      "source": "./plugins/native-fx/smart-motion-blur/confidence.glsl?v=27"
     },
     {
       "id": "smartmotionblur-reduce-shader",
       "type": "text",
-      "source": "./plugins/native-fx/smart-motion-blur/reduce.glsl?v=26"
+      "source": "./plugins/native-fx/smart-motion-blur/reduce.glsl?v=27"
     },
     {
       "id": "smartmotionblur-difference-shader",
       "type": "text",
-      "source": "./plugins/native-fx/smart-motion-blur/difference.glsl?v=26"
+      "source": "./plugins/native-fx/smart-motion-blur/difference.glsl?v=27"
     },
     {
       "id": "smartmotionblur-tile-shader",
       "type": "text",
-      "source": "./plugins/native-fx/smart-motion-blur/tile.glsl?v=26"
+      "source": "./plugins/native-fx/smart-motion-blur/tile.glsl?v=27"
     },
     {
       "id": "smartmotionblur-neighbor-shader",
       "type": "text",
-      "source": "./plugins/native-fx/smart-motion-blur/neighbor.glsl?v=26"
+      "source": "./plugins/native-fx/smart-motion-blur/neighbor.glsl?v=27"
     },
     {
       "id": "smartmotionblur-reconstruct-shader",
       "type": "text",
-      "source": "./plugins/native-fx/smart-motion-blur/reconstruct.glsl?v=26"
+      "source": "./plugins/native-fx/smart-motion-blur/reconstruct.glsl?v=27"
     },
     {
       "id": "smartmotionblur-copy-shader",
       "type": "text",
-      "source": "./plugins/native-fx/smart-motion-blur/copy.glsl?v=26"
+      "source": "./plugins/native-fx/smart-motion-blur/copy.glsl?v=27"
     },
     {
       "id": "smartmotionblur-propagate-shader",
       "type": "text",
-      "source": "./plugins/native-fx/smart-motion-blur/propagate.glsl?v=26"
+      "source": "./plugins/native-fx/smart-motion-blur/propagate.glsl?v=27"
     },
     {
       "id": "smartmotionblur-constraints-shader",
       "type": "text",
-      "source": "./plugins/native-fx/smart-motion-blur/constraints.glsl?v=26"
+      "source": "./plugins/native-fx/smart-motion-blur/constraints.glsl?v=27"
     },
     {
       "id": "smartmotionblur-interpolate-shader",
       "type": "text",
-      "source": "./plugins/native-fx/smart-motion-blur/interpolate.glsl?v=26"
+      "source": "./plugins/native-fx/smart-motion-blur/interpolate.glsl?v=27"
     },
     {
       "id": "smartmotionblur-splat-js",
       "type": "text",
-      "source": "./plugins/native-fx/smart-motion-blur/splat.js?v=26"
+      "source": "./plugins/native-fx/smart-motion-blur/splat.js?v=27"
     },
     {
       "id": "smartmotionblur-splat-glsl",
       "type": "text",
-      "source": "./plugins/native-fx/smart-motion-blur/splat.glsl?v=26"
+      "source": "./plugins/native-fx/smart-motion-blur/splat.glsl?v=27"
     },
     {
       "id": "smartmotionblur-splat-vertex-glsl",
       "type": "text",
-      "source": "./plugins/native-fx/smart-motion-blur/splat-vertex.glsl?v=26"
+      "source": "./plugins/native-fx/smart-motion-blur/splat-vertex.glsl?v=27"
     },
     {
       "id": "smartmotionblur-background-glsl",
       "type": "text",
-      "source": "./plugins/native-fx/smart-motion-blur/background.glsl?v=26"
+      "source": "./plugins/native-fx/smart-motion-blur/background.glsl?v=27"
     },
     {
       "id": "smartmotionblur-accumulate-glsl",
       "type": "text",
-      "source": "./plugins/native-fx/smart-motion-blur/accumulate.glsl?v=26"
+      "source": "./plugins/native-fx/smart-motion-blur/accumulate.glsl?v=27"
     },
     {
       "id": "smartmotionblur-combine-glsl",
       "type": "text",
-      "source": "./plugins/native-fx/smart-motion-blur/combine.glsl?v=26"
+      "source": "./plugins/native-fx/smart-motion-blur/combine.glsl?v=27"
     },
     {
       "id": "smartmotionblur-upsample",
       "type": "text",
-      "source": "./plugins/native-fx/smart-motion-blur/upsample.glsl?v=26"
+      "source": "./plugins/native-fx/smart-motion-blur/upsample.glsl?v=27"
     },
     {
       "id": "smartmotionblur-moments-glsl",
       "type": "text",
-      "source": "./plugins/native-fx/smart-motion-blur/moments.glsl?v=26"
+      "source": "./plugins/native-fx/smart-motion-blur/moments.glsl?v=27"
     },
     {
       "id": "smartmotionblur-global-glsl",
       "type": "text",
-      "source": "./plugins/native-fx/smart-motion-blur/global.glsl?v=26"
+      "source": "./plugins/native-fx/smart-motion-blur/global.glsl?v=27"
     },
     {
       "id": "smartmotionblur-global-check-glsl",
       "type": "text",
-      "source": "./plugins/native-fx/smart-motion-blur/global-check.glsl?v=26"
+      "source": "./plugins/native-fx/smart-motion-blur/global-check.glsl?v=27"
     },
     {
       "id": "smartmotionblur-global-field-glsl",
       "type": "text",
-      "source": "./plugins/native-fx/smart-motion-blur/global-field.glsl?v=26"
+      "source": "./plugins/native-fx/smart-motion-blur/global-field.glsl?v=27"
     },
     {
       "id": "smartmotionblur-global-js",
       "type": "text",
-      "source": "./plugins/native-fx/smart-motion-blur/global.js?v=26"
+      "source": "./plugins/native-fx/smart-motion-blur/global.js?v=27"
     },
     {
       "id": "smartmotionblur-translation",
       "type": "text",
-      "source": "./plugins/native-fx/smart-motion-blur/translation.glsl?v=26"
+      "source": "./plugins/native-fx/smart-motion-blur/translation.glsl?v=27"
     },
     {
       "id": "smartmotionblur-splat-flow-glsl",
       "type": "text",
-      "source": "./plugins/native-fx/smart-motion-blur/splat-flow.glsl?v=26"
+      "source": "./plugins/native-fx/smart-motion-blur/splat-flow.glsl?v=27"
     },
     {
       "id": "smartmotionblur-projective-js",
       "type": "text",
-      "source": "./plugins/native-fx/smart-motion-blur/projective.js?v=26"
+      "source": "./plugins/native-fx/smart-motion-blur/projective.js?v=27"
     },
     {
       "id": "smartmotionblur-projective-glsl",
       "type": "text",
-      "source": "./plugins/native-fx/smart-motion-blur/projective.glsl?v=26"
+      "source": "./plugins/native-fx/smart-motion-blur/projective.glsl?v=27"
     },
     {
       "id": "smartmotionblur-projective-fit-glsl",
       "type": "text",
-      "source": "./plugins/native-fx/smart-motion-blur/projective-fit.glsl?v=26"
+      "source": "./plugins/native-fx/smart-motion-blur/projective-fit.glsl?v=27"
+    },
+    {
+      "id": "smartmotionblur-statistics-glsl",
+      "type": "text",
+      "source": "./plugins/native-fx/smart-motion-blur/statistics.glsl?v=27"
+    },
+    {
+      "id": "smartmotionblur-statistics-reduce-glsl",
+      "type": "text",
+      "source": "./plugins/native-fx/smart-motion-blur/statistics-reduce.glsl?v=27"
+    },
+    {
+      "id": "smartmotionblur-projective-cost-glsl",
+      "type": "text",
+      "source": "./plugins/native-fx/smart-motion-blur/projective-cost.glsl?v=27"
     }
   ],
   "category": "NATIVE FX",
@@ -293,13 +308,13 @@
       "id": "radialblurspin",
       "name": "Radial Blur (Spin)",
       "description": "Applies a radial spin blur around an adjustable center.",
-      "source": "./plugins/native-fx/effects/radialblurspin.js?v=26"
+      "source": "./plugins/native-fx/effects/radialblurspin.js?v=27"
     },
     {
       "id": "colorcurves",
       "name": "Color Curves",
       "description": "Adjusts composite and RGB channels with a direct-manipulation curve editor.",
-      "source": "./plugins/native-fx/effects/colorcurves.js?v=26",
+      "source": "./plugins/native-fx/effects/colorcurves.js?v=27",
       "requiresApis": [
         "propertyControls",
         "modules"
@@ -309,7 +324,7 @@
       "id": "echo",
       "name": "Echo",
       "description": "Composites explicitly evaluated earlier frames on an Adjustment layer with configurable opacity decay and blending.",
-      "source": "./plugins/native-fx/effects/echo.js?v=26",
+      "source": "./plugins/native-fx/effects/echo.js?v=27",
       "requiresApis": [
         "defineFrameSampler"
       ]
@@ -318,25 +333,25 @@
       "id": "dropshadow",
       "name": "Drop Shadow",
       "description": "Adds a colored, offset, blurred shadow behind the layer.",
-      "source": "./plugins/native-fx/effects/dropshadow.js?v=26"
+      "source": "./plugins/native-fx/effects/dropshadow.js?v=27"
     },
     {
       "id": "timeoffset",
       "name": "Time Offset",
       "description": "Evaluates the layer at a deterministic time offset; on an Adjustment layer, time-shifts only the image fed into that layer.",
-      "source": "./plugins/native-fx/effects/timeoffset.js?v=26"
+      "source": "./plugins/native-fx/effects/timeoffset.js?v=27"
     },
     {
       "id": "posterizetime",
       "name": "Posterize Time",
       "description": "Evaluates the layer on a deterministic lower frame-rate clock; on an Adjustment layer, quantizes only the image fed into that layer.",
-      "source": "./plugins/native-fx/effects/posterizetime.js?v=26"
+      "source": "./plugins/native-fx/effects/posterizetime.js?v=27"
     },
     {
       "id": "timedisplacement",
       "name": "Time Displacement",
       "description": "Displaces each pixel in time by the luminance of a displacement map, sampled across bounded time slices.",
-      "source": "./plugins/native-fx/effects/timedisplacement.js?v=26",
+      "source": "./plugins/native-fx/effects/timedisplacement.js?v=27",
       "requiresApis": [
         "defineFrameSampler"
       ]
@@ -345,7 +360,7 @@
       "id": "ccwidetime",
       "name": "CC Wide Time",
       "description": "Blends forward and backward frame steps around the current time, averaged or accumulated.",
-      "source": "./plugins/native-fx/effects/ccwidetime.js?v=26",
+      "source": "./plugins/native-fx/effects/ccwidetime.js?v=27",
       "requiresApis": [
         "defineFrameSampler"
       ]
@@ -354,7 +369,7 @@
       "id": "timedifference",
       "name": "Time Difference",
       "description": "Shows the difference between the layer now and the layer at a time offset, with contrast and alpha modes.",
-      "source": "./plugins/native-fx/effects/timedifference.js?v=26",
+      "source": "./plugins/native-fx/effects/timedifference.js?v=27",
       "requiresApis": [
         "defineFrameSampler"
       ]
@@ -363,79 +378,79 @@
       "id": "colordiffkey",
       "name": "Color Difference Key",
       "description": "Keys green/blue screens with two partial mattes, levels for each, and matte inspection views.",
-      "source": "./plugins/native-fx/effects/colordiffkey.js?v=26"
+      "source": "./plugins/native-fx/effects/colordiffkey.js?v=27"
     },
     {
       "id": "advspill",
       "name": "Advanced Spill Suppressor",
       "description": "Removes key-color spill from foreground edges with Standard or Ultra suppression.",
-      "source": "./plugins/native-fx/effects/advspill.js?v=26"
+      "source": "./plugins/native-fx/effects/advspill.js?v=27"
     },
     {
       "id": "keycleaner",
       "name": "Key Cleaner",
       "description": "Cleans keyed matte edges with chatter reduction, edge decontamination, and alpha contrast.",
-      "source": "./plugins/native-fx/effects/keycleaner.js?v=26"
+      "source": "./plugins/native-fx/effects/keycleaner.js?v=27"
     },
     {
       "id": "linearcolorkey",
       "name": "Linear Color Key",
       "description": "Keys pixels by RGB, hue, or chroma distance to a key color with tolerance and softness.",
-      "source": "./plugins/native-fx/effects/linearcolorkey.js?v=26"
+      "source": "./plugins/native-fx/effects/linearcolorkey.js?v=27"
     },
     {
       "id": "radiowaves",
       "name": "Radio Waves",
       "description": "Emits analytic concentric polygon waves from a producer point.",
-      "source": "./plugins/native-fx/effects/radiowaves.js?v=26"
+      "source": "./plugins/native-fx/effects/radiowaves.js?v=27"
     },
     {
       "id": "beam",
       "name": "Beam",
       "description": "Draws a laser beam from a starting point to an ending point.",
-      "source": "./plugins/native-fx/effects/beam.js?v=26"
+      "source": "./plugins/native-fx/effects/beam.js?v=27"
     },
     {
       "id": "numbers",
       "name": "Numbers",
       "description": "Draws a deterministic number, timecode, date or hexadecimal value.",
-      "source": "./plugins/native-fx/effects/numbers.js?v=26"
+      "source": "./plugins/native-fx/effects/numbers.js?v=27"
     },
     {
       "id": "timecode",
       "name": "Timecode",
       "description": "Displays the layer time as SMPTE timecode, frames or feet and frames.",
-      "source": "./plugins/native-fx/effects/timecode.js?v=26"
+      "source": "./plugins/native-fx/effects/timecode.js?v=27"
     },
     {
       "id": "ccpageturn",
       "name": "CC Page Turn",
       "description": "Curls the layer like a turning page with an adjustable fold and paper back.",
-      "source": "./plugins/native-fx/effects/ccpageturn.js?v=26"
+      "source": "./plugins/native-fx/effects/ccpageturn.js?v=27"
     },
     {
       "id": "cardwipe",
       "name": "Card Wipe",
       "description": "Flips the layer away as a grid of 3D cards in a chosen order.",
-      "source": "./plugins/native-fx/effects/cardwipe.js?v=26"
+      "source": "./plugins/native-fx/effects/cardwipe.js?v=27"
     },
     {
       "id": "ccpixelpolly",
       "name": "CC Pixel Polly",
       "description": "Breaks the layer into flying polygons under force and gravity.",
-      "source": "./plugins/native-fx/effects/ccpixelpolly.js?v=26"
+      "source": "./plugins/native-fx/effects/ccpixelpolly.js?v=27"
     },
     {
       "id": "radialshadow",
       "name": "Radial Shadow",
       "description": "Casts a soft radial shadow of the layer away from a point light source.",
-      "source": "./plugins/native-fx/effects/radialshadow.js?v=26"
+      "source": "./plugins/native-fx/effects/radialshadow.js?v=27"
     },
     {
       "id": "smartmotionblur",
       "name": "Smart Motion Blur",
       "description": "Optical-flow motion blur that estimates per-pixel motion between neighboring frames. Use an Adjustment layer for motion from a layer's own transform.",
-      "source": "./plugins/native-fx/effects/smartmotionblur.js?v=26",
+      "source": "./plugins/native-fx/effects/smartmotionblur.js?v=27",
       "requiresApis": [
         "defineFrameSampler",
         "modules",
