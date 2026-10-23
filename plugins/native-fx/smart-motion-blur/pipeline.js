@@ -11,7 +11,10 @@ function create(THREE, api, getAsset) {
   const copy = gl.pass("copy", { uImage: null, uScale: [1, 1] });
   const difference = gl.pass("difference", {
     uCurrent: null,
-    uOther: null,
+    uBefore: null,
+    uAfter: null,
+    uPreviousConfidence: null,
+    uNextConfidence: null,
     uSourceSize: [1, 1],
     uActiveSize: [1, 1],
   });
@@ -80,15 +83,6 @@ function create(THREE, api, getAsset) {
     renderer.readRenderTargetPixels(source, 0, 0, 1, 1, bytes);
     return Array.from(bytes);
   }
-  function identical(renderer, current, other, input, processing) {
-    gl.draw(renderer, difference, first, {
-      uCurrent: current,
-      uOther: other,
-      uSourceSize: [input.width, input.height],
-      uActiveSize: processing,
-    });
-    return reduction(renderer, first, false)[0] === 0;
-  }
   function render(
     renderer,
     output,
@@ -111,6 +105,7 @@ function create(THREE, api, getAsset) {
       diagnostics.static = false;
       diagnostics.maxSpeed = 0;
       diagnostics.samples = 0;
+      diagnostics.readbacks = 0;
       diagnostics.fields = null;
       diagnostics.confidence = null;
       diagnostics.flowSize = null;
@@ -122,11 +117,6 @@ function create(THREE, api, getAsset) {
         return copyInput();
       const processing = allocate(renderer, input, uvScale, forcePacked);
       const available = [pair.previous, pair.next];
-      const active = available.filter(Boolean);
-      diagnostics.static = active.every((tap) =>
-        identical(renderer, input.texture, tap.texture, input, processing),
-      );
-      if (diagnostics.static) return copyInput();
       flow.buildPyramid(
         renderer,
         input.texture,
@@ -137,7 +127,6 @@ function create(THREE, api, getAsset) {
       const fields = [null, null],
         confidence = [null, null],
         deltas = [1, 1];
-      const stats = [];
       for (let i = 0; i < 2; i++) {
         const tap = available[i];
         if (!tap) continue;
@@ -177,7 +166,6 @@ function create(THREE, api, getAsset) {
           delta,
         );
         confidence[i] = conf.texture;
-        stats.push(reduction(renderer, conf, true));
       }
       // A missing clip-boundary direction mirrors the available velocity.
       if (!fields[0]) {
@@ -190,11 +178,23 @@ function create(THREE, api, getAsset) {
         confidence[1] = confidence[0];
         deltas[1] = -deltas[0];
       }
-      diagnostics.sceneCut = stats.some(
-        (s) => s[0] / 255 > 0.35 || (s[0] / 255 > 0.12 && s[1] / 255 > 0.6),
-      );
-      if (diagnostics.sceneCut) return copyInput();
-      diagnostics.maxSpeed = Math.max(...stats.map((s) => (s[2] / 255) * 256));
+      gl.draw(renderer, difference, first, {
+        uCurrent: input.texture,
+        uBefore: (pair.previous || pair.next).texture,
+        uAfter: (pair.next || pair.previous).texture,
+        uPreviousConfidence: confidence[0],
+        uNextConfidence: confidence[1],
+        uSourceSize: [input.width, input.height],
+        uActiveSize: processing,
+      });
+      const statistics = reduction(renderer, first, true);
+      diagnostics.readbacks = 1;
+      diagnostics.static = statistics[3] === 0;
+      diagnostics.sceneCut =
+        statistics[0] / 255 > 0.35 ||
+        (statistics[0] / 255 > 0.12 && statistics[1] / 255 > 0.6);
+      if (diagnostics.static || diagnostics.sceneCut) return copyInput();
+      diagnostics.maxSpeed = (statistics[2] / 255) * 256;
       diagnostics.samples = math.sampleCount(
         settings.amount,
         diagnostics.maxSpeed,

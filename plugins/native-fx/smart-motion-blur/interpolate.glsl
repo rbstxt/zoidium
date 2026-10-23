@@ -1,6 +1,7 @@
 uniform sampler2D uCurrent;
 uniform sampler2D uOther;
 uniform sampler2D uFlow;
+uniform sampler2D uScore;
 uniform sampler2D uNorthWest;
 uniform sampler2D uNorthEast;
 uniform sampler2D uSouthWest;
@@ -17,6 +18,17 @@ void main() {
     points[1] = decodeAnchor(texture2D(uNorthEast, vUv));
     points[2] = decodeAnchor(texture2D(uSouthWest, vUv));
     points[3] = decodeAnchor(texture2D(uSouthEast, vUv));
+    float priority[4];
+    float bestPriority = 0.0;
+    for (int index = 0; index < 4; index++) {
+#ifdef FLOW_PACKED
+        priority[index] = texture2D(uScore, (points[index] + 0.5) / uSize).r;
+#else
+        priority[index] = texture2D(uFlow, (points[index] + 0.5) / uSize).b;
+#endif
+        if (points[index].x < 0.0) priority[index] = 0.0;
+        bestPriority = max(bestPriority, priority[index]);
+    }
     vec2 positions[4];
     vec2 motions[4];
     float weights[4];
@@ -26,7 +38,9 @@ void main() {
     for (int index = 0; index < 4; index++) {
         vec2 point = points[index];
         vec2 position = (point + 0.5 - vUv * uSize) / 128.0;
-        float weight = point.x < 0.0 ? 0.0 : 1.0 / (0.25 + dot(position, position));
+        float weight = point.x < 0.0 || priority[index] < bestPriority - 0.1
+                           ? 0.0
+                           : 1.0 / (0.25 + dot(position, position));
         vec2 motion = decodeFlow(texture2D(uFlow, (point + 0.5) / uSize));
         positions[index] = position;
         motions[index] = motion;
@@ -55,12 +69,12 @@ void main() {
     }
     float determinant = xx * yy - xy * xy;
     vec2 result = meanMotion;
-    if (determinant > 0.00001 * (xx + yy) * (xx + yy)) {
+    if (determinant > 0.00001 * (xx + yy) * (xx + yy) && min(xx, yy) > 0.002 * total) {
         // Centering the normal equations keeps an affine fit well conditioned.
         vec2 slopeX = (yy * rhsX - xy * rhsY) / determinant;
         vec2 slopeY = (xx * rhsY - xy * rhsX) / determinant;
         result -= slopeX * meanPosition.x + slopeY * meanPosition.y;
-    } else if (xx + yy > 0.00001) {
+    } else if (xx + yy > 0.002 * total) {
         // Two constraints still determine a similarity transform. This avoids
         // translation-only extrapolation near the edge of the constraint hull.
         float scale = (rhsX.x + rhsY.y) / (xx + yy);

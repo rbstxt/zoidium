@@ -40,12 +40,13 @@ void main() {
 #else
         float valid = texture2D(uFlow, vUv).b;
 #endif
-        gl_FragColor = valid > 0.5 ? encodeAnchor(floor(vUv * uSize)) : vec4(0.0);
+        gl_FragColor = valid > 0.25 ? encodeAnchor(floor(vUv * uSize)) : vec4(0.0);
         return;
     }
     vec2 pixel = floor(vUv * uSize);
     vec2 best = vec2(-1.0);
     float bestDistance = 1.0e20;
+    float bestPriority = 0.0;
     vec4 center = features(guideAt(vUv));
     for (int y = -1; y <= 1; y++) {
         for (int x = -1; x <= 1; x++) {
@@ -56,9 +57,17 @@ void main() {
             vec2 offset = point - pixel;
             if (any(lessThan(offset * uQuadrant, vec2(-0.01)))) continue;
             float distance = dot(offset, offset);
-            if (distance < bestDistance && connected(point, center)) {
+#ifdef FLOW_PACKED
+            float priority = texture2D(uScore, (point + 0.5) / uSize).r;
+#else
+            float priority = texture2D(uFlow, (point + 0.5) / uSize).b;
+#endif
+            if ((priority > bestPriority + 0.1 ||
+                 (abs(priority - bestPriority) < 0.1 && distance < bestDistance)) &&
+                connected(point, center)) {
                 best = point;
                 bestDistance = distance;
+                bestPriority = priority;
             }
         }
     }

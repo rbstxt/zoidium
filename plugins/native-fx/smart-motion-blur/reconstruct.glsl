@@ -25,7 +25,7 @@ vec2 velocity(sampler2D field, vec2 uv, float delta, float signValue) {
     vec4 original = colorAt(uv);
     vec4 dp = abs(original - texture2D(uBefore, uv * uScale));
     vec4 dn = abs(original - texture2D(uAfter, uv * uScale));
-    float stationary = dot(dp + dn, vec4(1.0));
+    float stationary = min(dot(dp, vec4(1.0)), dot(dn, vec4(1.0)));
     vec2 texel = 1.0 / uProcessing;
     vec4 edge = abs(colorAt(uv + vec2(texel.x, 0.0)) - colorAt(uv - vec2(texel.x, 0.0))) +
                 abs(colorAt(uv + vec2(0.0, texel.y)) - colorAt(uv - vec2(0.0, texel.y)));
@@ -60,7 +60,7 @@ vec4 integrate(vec2 uv, float tau, sampler2D field, sampler2D maxField, sampler2
     vec2 error = (donor + tracked * tau / uProject - uv) * uProcessing;
     float confidence = texture2D(conf, donor).a;
     if (length(candidate) > 0.25 && length(error) < 1.5 &&
-        dot(tracked, candidate) > 0.75 * dot(candidate, candidate) && confidence > 0.12 &&
+        dot(tracked, candidate) > 0.75 * dot(candidate, candidate) && confidence > 0.5 &&
         length(tracked) >= length(own) - 0.5) {
         result = colorAt(donor);
     }
