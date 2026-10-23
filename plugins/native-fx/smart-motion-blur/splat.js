@@ -130,13 +130,13 @@ function create(gl) {
     mesh(settings.quality ? 2 : 4);
     const count = math.sampleCount(settings.amount, maxSpeed, settings.quality);
     const times = math.shutterTimes(settings.amount, count);
+    const partition = math.sampleBatches(count);
     const previousAutoClear = renderer.autoClear;
     try {
       for (let batch = 0; batch < 4; batch++) {
         renderer.setRenderTarget(batches[batch]);
         renderer.clear();
-        const start = Math.floor((batch * count) / 4);
-        const end = Math.floor(((batch + 1) * count) / 4);
+        const { start, end } = partition[batch];
         for (let index = start; index < end; index++) {
           const time = times[index],
             direction = time < 0 ? 0 : 1;
@@ -196,9 +196,7 @@ function create(gl) {
         ...Object.fromEntries(
           ["First", "Second", "Third", "Fourth"].map((name, index) => [
             "u" + name + "Weight",
-            (Math.floor(((index + 1) * count) / 4) -
-              Math.floor((index * count) / 4)) /
-              count,
+            partition[index].weight,
           ]),
         ),
       });
