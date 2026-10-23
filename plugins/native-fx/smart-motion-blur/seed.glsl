@@ -12,6 +12,7 @@ float cost(vec2 velocity) {
     float sum = 0.0, weights = 0.0;
     for (int y = -2; y <= 2; y++) {
         for (int x = -2; x <= 2; x++) {
+            if(uCoarse<0.5 && uStep>=1.0 && (abs(float(x))>1.0 || abs(float(y))>1.0))continue;
             vec2 p = vUv + vec2(float(x), float(y)) / uSize;
             vec4 a = features(texture2D(uCurrent, p));
             vec4 b = features(texture2D(uOther, p + d));
