@@ -11,6 +11,9 @@ uniform float uTime;
 uniform float uDelta;
 uniform float uTear;
 bool stationaryPatch(vec2 point) {
+    // Transparent antialiased content can retain the same interior colors
+    // while its boundary moves. Only classify an opaque background here.
+    if (texture2D(uImage, vec2(0.00001)).a < 0.99) return false;
     vec4 color = texture2D(uImage, point * uScale);
     if (color.a > 0.99) {
         vec2 texel = uScale / uProcessing;
