@@ -9,6 +9,10 @@ void main() {
     if (accepted.r > 0.5 && accepted.b > 0.75) {
         gl_FragColor = texture2D(uTranslation, point);
     } else if (accepted.r > 0.5) {
+        if (accepted.b > 0.125 && accepted.b < 0.375) {
+            gl_FragColor = encodeFlow(projectiveMotion(vUv, uDirection - 1.0));
+            return;
+        }
         prepareGlobal(uDirection);
         gl_FragColor = encodeFlow(accepted.b > 0.25 ? affineMotion(vUv) : globalMotion(vUv));
     } else {
