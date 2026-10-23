@@ -5,7 +5,7 @@ function create(gl) {
   const THREE = gl.THREE;
   const warp = gl.pass("splat", {
     uImage: null, uFlow: null, uFlowSize: [1, 1], uScale: [1, 1],
-    uProcessing: [1, 1], uTime: 0, uDelta: 1, uTear: 4,
+    uProcessing: [1, 1], uTime: 0, uDelta: 1, uTear: 16,
   }, "splat-vertex");
   const base = gl.pass("background", {
     uImage: null, uOther: null, uFlow: null, uFlowSize: [1, 1], uScale: [1, 1],
@@ -13,6 +13,7 @@ function create(gl) {
   const accumulate = gl.pass("accumulate", { uImage: null, uWeight: 1 });
   const combine = gl.pass("combine", {
     uFirst: null, uSecond: null, uThird: null, uFourth: null,
+    uFirstWeight: 0.25, uSecondWeight: 0.25, uThirdWeight: 0.25, uFourthWeight: 0.25,
   });
   // ShaderPass is also the owner of the replacement grid geometry.
   warp.material.side = THREE.DoubleSide;
@@ -97,7 +98,7 @@ function create(gl) {
           // ShaderPass forces clear=true, so render the grid scene directly.
           renderer.render(warp.scene, warp.camera, sample, false);
           accumulate.uniforms.uImage.value = sample.texture;
-          accumulate.uniforms.uWeight.value = 4 / count;
+          accumulate.uniforms.uWeight.value = 1 / (end - start);
           renderer.render(accumulate.scene, accumulate.camera, batches[batch], false);
         }
       }
@@ -105,6 +106,9 @@ function create(gl) {
       gl.draw(renderer, combine, output, {
         uFirst: batches[0].texture, uSecond: batches[1].texture,
         uThird: batches[2].texture, uFourth: batches[3].texture,
+        ...Object.fromEntries(["First", "Second", "Third", "Fourth"].map((name, index) =>
+          ["u" + name + "Weight", (Math.floor((index + 1) * count / 4) -
+                                   Math.floor(index * count / 4)) / count])),
       });
     } finally {
       renderer.autoClear = previousAutoClear;

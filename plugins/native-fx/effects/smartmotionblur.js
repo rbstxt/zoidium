@@ -60,6 +60,8 @@ ZoidiumPluginApis.defineFrameSampler.call(this, {
           // This explicit testing switch is not serialized or quality-dependent.
           const forcePacked =
             PZ.zoidium.debugForceSmartMotionBlurRGBA8 === true;
+          settings.forceGather =
+            PZ.zoidium.debugForceSmartMotionBlurGather === true;
           effect._smartMotionBlur.render(
             renderer,
             writeBuffer,
