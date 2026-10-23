@@ -4,7 +4,7 @@ float coefficient(float column, float row) {
     return dot(bytes, vec3(65536.0, 256.0, 1.0)) * (8.0 / 16777215.0) - 4.0;
 }
 vec4 encodeCoefficient(float value) {
-    float code = floor(clamp((value + 4.0) / 8.0, 0.0, 1.0) * 16777215.0 + 0.5);
+    float code = min(floor(clamp((value + 4.0) / 8.0, 0.0, 1.0) * 16777215.0 + 0.5), 16777215.0);
     return vec4(floor(code / 65536.0), mod(floor(code / 256.0), 256.0), mod(code, 256.0), 255.0) / 255.0;
 }
 vec2 projectiveMotion(vec2 uv, float row) {
