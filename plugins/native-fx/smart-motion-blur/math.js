@@ -74,6 +74,13 @@ function shutterTimes(amount, count) {
     (_, index) => ((index + 0.5) / count - 0.5) * clamp(amount, 0, 1),
   );
 }
+function sampleBatches(count) {
+  return Array.from({ length: 4 }, (_, index) => {
+    const start = Math.floor((index * count) / 4);
+    const end = Math.floor(((index + 1) * count) / 4);
+    return { start, end, weight: (end - start) / count };
+  });
+}
 function neighbors(samples, current) {
   let previous = null,
     next = null;
@@ -135,6 +142,7 @@ module.exports = {
   offsets,
   sampleCount,
   shutterTimes,
+  sampleBatches,
   neighbors,
   scale,
   toProcessing,

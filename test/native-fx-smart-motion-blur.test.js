@@ -349,3 +349,22 @@ test("flow scheduling preserves image identity, pyramid dimensions, and separate
     }
   }
 });
+
+test("shutter batches preserve every sample weight when the count is not divisible by four", () => {
+  for (let count = 8; count <= 64; count++) {
+    const batches = math.sampleBatches(count);
+    const weights = [];
+    for (const batch of batches) {
+      assert.ok(batch.end > batch.start);
+      for (let index = batch.start; index < batch.end; index++) {
+        weights[index] = batch.weight / (batch.end - batch.start);
+      }
+    }
+    assert.equal(weights.length, count);
+    assert.ok(weights.every((weight) => Math.abs(weight - 1 / count) < 1e-15));
+    assert.ok(
+      Math.abs(batches.reduce((sum, batch) => sum + batch.weight, 0) - 1) <
+        1e-15,
+    );
+  }
+});

@@ -121,8 +121,9 @@ function create(gl) {
       previousSize = [1, 1];
     const limit =
       ((settings.maxDisplacement * settings.sensitivity) / 100) * delta;
-    const warps = 2;
-    const iterations = 4;
+    const reverse = resultIndex % 2 === 1;
+    const warps = reverse ? 1 : 2;
+    const iterations = reverse ? 2 : 4;
     // Finer Jacobi refinement can collapse a rotating flat region onto an
     // aperture solution. Both qualities use the stable quarter-resolution
     // initialization and full-source constraints. High raises shutter sampling.
@@ -185,7 +186,7 @@ function create(gl) {
     }
     // Reverse fields only test forward/backward agreement. Dense source
     // constraints in both directions duplicate the most expensive work.
-    if (resultIndex % 2 === 1) {
+    if (reverse) {
       gl.draw(renderer, upsample, results[resultIndex], {
         uFlow: previous,
         uFlowSize: previousSize,

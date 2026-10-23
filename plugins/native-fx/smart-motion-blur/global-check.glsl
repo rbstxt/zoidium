@@ -14,9 +14,9 @@ void main() {
     vec4 background = texture2D(uCurrent, vec2(0.001) * uScale);
     vec2 translation = decodeFlow(texture2D(uTranslation, vec2((row - 0.5) / 2.0, 0.5)));
     float raw = 0.0, compensated = 0.0, translated = 0.0, affine = 0.0, weight = 0.0;
-    for (int y = 0; y < 64; y++) {
-        for (int x = 0; x < 96; x++) {
-            vec2 uv = (vec2(float(x), float(y)) + 0.5) / vec2(96.0, 64.0);
+    for (int y = 0; y < 96; y++) {
+        for (int x = 0; x < 128; x++) {
+            vec2 uv = (vec2(float(x), float(y)) + 0.5) / vec2(128.0, 96.0);
             vec4 current = texture2D(uCurrent, uv * uScale);
             vec2 moved = uv + globalMotion(uv) / uProject;
             raw += length(current - otherAt(uv, row));
