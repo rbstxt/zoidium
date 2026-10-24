@@ -368,6 +368,15 @@
       if (layer.update.__zoidiumTemporalOuterUpdate) return;
       const original = layer.update;
       const update = function temporalOuterLayerUpdate(frame) {
+        delete this.__zoidiumTemporalEvaluationStamp;
+        try {
+          return evaluate.apply(this, arguments);
+        } catch (error) {
+          delete this.__zoidiumTemporalEvaluationStamp;
+          throw error;
+        }
+      };
+      function evaluate(frame) {
         const context = state.contexts[state.contexts.length - 1];
         if (!context?.singleEvaluation || state.evaluatingLayers.has(this) ||
             state.restoringLayers.has(this)) return original.apply(this, arguments);
@@ -376,7 +385,7 @@
         state.evaluatingLayers.add(this);
         try { return original.call(this, mapped?.sourceFrame ?? frame); }
         finally { state.evaluatingLayers.delete(this); }
-      };
+      }
       update.__zoidiumTemporalOuterUpdate = true;
       layer.update = update;
     }
