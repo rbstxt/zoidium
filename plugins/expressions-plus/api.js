@@ -39,10 +39,19 @@ function createAPI(options) {
   function propertyHandle(p) {
     if (!p) throw new Error("Expression property was not found");
     const get = at => copy(read(p, localFrame(p, at)));
-    const keys = p.keyframes ? Array.from(p.keyframes) : Array.from(new Set(Array.from(p.objects || []).flatMap(axis => Array.from(axis.keyframes || [], k => k.frame)))).sort((a, b) => a - b).map(frame => ({ frame, value: baseAt(p, frame) }));
+    let keys;
+    const grouped = !p.keyframes;
+    function keyMetadata() {
+      return keys ||= grouped
+        ? Array.from(new Set(Array.from(p.objects || []).flatMap(axis => Array.from(axis.keyframes || [], k => k.frame)))).sort((a, b) => a - b).map(frame => ({ frame }))
+        : Array.from(p.keyframes);
+    }
     const key = index => {
-      const k = keys[index - 1];
+      const k = keyMetadata()[index - 1];
       if (!k) throw new Error("Expression key index is out of range");
+      // Sample only the selected grouped key. Retain a private copy so key
+      // records cannot mutate later reads or the native interpolation result.
+      if (grouped && !Object.hasOwn(k, "value")) k.value = copy(baseAt(p, k.frame));
       return record({ index, time: k.frame / rate, value: copy(k.value) });
     };
     const derivative = () => {
@@ -54,8 +63,9 @@ function createAPI(options) {
     const handle = record({
       name: p.definition?.name || named(p),
       valueAtTime: t => p === property ? copy(baseAt(p, Number(t) * rate)) : get(Number(t) * rate + (ancestor(p, is(PZ.clip))?.start || 0)),
-      numKeys: keys.length, key,
+      key,
       nearestKey(t) {
+        const keys = keyMetadata();
         if (!keys.length) throw new Error("Expression property has no keys");
         let best = 0;
         keys.forEach((k, i) => { if (Math.abs(k.frame / rate - t) < Math.abs(keys[best].frame / rate - t)) best = i; });
@@ -63,6 +73,7 @@ function createAPI(options) {
       },
     });
     Object.defineProperties(handle, {
+      numKeys: { enumerable: true, get: () => keyMetadata().length },
       value: { enumerable: true, get: () => p === property ? copy(base) : get() },
       velocity: { enumerable: true, get: derivative },
       speed: { enumerable: true, get: () => { const v = derivative(); return Array.isArray(v) ? Math.hypot(...v) : Math.abs(v); } },
