@@ -1,5 +1,6 @@
 "use strict";
 const { ancestor, named } = require("./api.js");
+const { createWorldIndex } = require("./world-index.js");
 const CAMERA_PLUS = "zoidium:camera-plus/camera";
 function projectPoint(THREE, point, camera, resolution) {
   camera.updateMatrixWorld(true);
@@ -11,12 +12,13 @@ function unprojectPoint(THREE, point, camera, resolution) {
   camera.updateMatrixWorld(true);
   return new THREE.Vector3(point[0] * 2 / resolution[0] - 1, 1 - point[1] * 2 / resolution[1], point[2] ?? 0).unproject(camera).toArray();
 }
-function createWorldProvider({ PZ, THREE, createConstraintEvaluator }) {
+function createWorldProvider({ PZ, THREE, createConstraintEvaluator, patch }) {
   const is = type => n => typeof type === "function" && n instanceof type;
   const sceneOf = node => ancestor(node, is(PZ.layer.scene));
   const clipOf = node => ancestor(node, is(PZ.clip));
   const read = (p, frame, context, fallback) => p?.get ? context.read(p, frame) : fallback;
   const poseActive = new Set();
+  const index = createWorldIndex({ PZ, patch });
   function graph(scene, context, requested) {
     if (!scene) throw new Error("Expression could not find a 3D scene");
     const cache = context.cache;
@@ -27,11 +29,16 @@ function createWorldProvider({ PZ, THREE, createConstraintEvaluator }) {
     try {
       const local = context.absolute - (clipOf(scene)?.start || 0);
       const byHost = new Map(), root = { objects: [], threeObj: new THREE.Object3D() };
-      const parents = new Map(), ids = new Map(), required = new Set();
-      function collect(nodes, parent) {
-        for (const host of nodes || []) { parents.set(host, parent); const id = read(host.properties?.zoidiumId, local, context, ""); if (id) ids.set(id, host); collect(host.objects, host); }
+      const structure = index(scene, p => read(p, local, context, ""));
+      const { parents, order } = structure, required = new Set();
+      let ids = structure.ids;
+      if (structure.sampledIds.length) {
+        ids = new Map(ids);
+        for (const host of structure.sampledIds) {
+          const id = read(host.properties?.zoidiumId, local, context, "");
+          if (id && (!ids.has(id) || order.get(host) > order.get(ids.get(id)))) ids.set(id, host);
+        }
       }
-      collect(scene.objects, null);
       function need(host) { for (; host && !required.has(host); host = parents.get(host)) required.add(host); }
       need(requested);
       // Only sample the requested hierarchy and Track To dependencies. Eagerly
@@ -61,9 +68,12 @@ function createWorldProvider({ PZ, THREE, createConstraintEvaluator }) {
           three.scale.set(1, 1, 1);
           parent.threeObj.remove(node.threeObj);parent.threeObj.add(three);node.threeObj = three;
         }
-        for (const child of host.objects || []) add(child, node);
       }
-      for (const host of scene.objects || []) add(host, root);
+      // Preserve authored order for constraint sorting, without constructing
+      // or updating mirrors for unrelated objects or descendants.
+      for (const host of Array.from(required).sort((a, b) => order.get(a) - order.get(b))) {
+        add(host, byHost.get(parents.get(host)) || root);
+      }
       root.threeObj.updateMatrixWorld(true);
       if (createConstraintEvaluator) {
         const value = (node, key, fallback) => read(node._host.properties?.[key], local, context, fallback);

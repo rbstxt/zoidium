@@ -42,3 +42,31 @@ test('seeded streams reset while existing function identities remain intact',()=
  assert.equal(a.methods.linear.length,3);assert.equal(a.overrides.get(a.methods.linear)(.5,0,1,10,20),15);
  assert.equal(a.overrides.get(a.methods.linear)(10,20,.25),12.5);
 });
+
+test('grouped handles sample no key values until a key is selected',()=>{
+ const {layer,sequence}=graph();let baseCalls=0,metadataReads=0;
+ const frames=Array.from({length:1000},(_,frame)=>({frame}));
+ const axis=keys=>({get keyframes(){metadataReads++;return keys;}});
+ const property={definition:{name:'Position'},objects:[axis(frames),axis(frames.slice().reverse()),axis(frames.filter(k=>k.frame%2===0))]};
+ const nativeValue=[0,0,0];
+ const {api}=createAPI({PZ,owner:layer,sequence,property,frame:15,time:.5,base:[1,2,3],read:()=>[1,2,3],baseAt:(_p,f)=>{baseCalls++;nativeValue.splice(0,3,f,f*2,f*3);return nativeValue;},methods:{random:()=>0,clamp(){}}});
+ const handle=api.thisProperty;
+ assert.deepEqual(handle.value,[1,2,3]);assert.equal(baseCalls,0);assert.equal(metadataReads,0);
+ assert.equal(handle.numKeys,1000);assert.equal(baseCalls,0);assert.equal(metadataReads,3);
+ const last=handle.key(1000);assert.deepEqual(last.value,[999,1998,2997]);assert.equal(last.time,999/30);assert.equal(baseCalls,1);
+ last.value[0]=-1;
+ assert.deepEqual(handle.key(1000).value,[999,1998,2997]);assert.equal(baseCalls,1);
+ assert.deepEqual(handle.nearestKey(1.01),Object.assign(Object.create(null),{index:31,time:1,value:[30,60,90]}));
+ assert.equal(baseCalls,2);assert.deepEqual(handle.key(1000).value,[999,1998,2997]);
+ assert.equal(handle.nearestKey(.5/30).index,1); // Equidistant keys choose the earlier frame.
+ assert.throws(()=>handle.key(1001),/out of range/);
+});
+
+test('scalar key records retain native order and copied values',()=>{
+ const {layer,property}=graph();let baseCalls=0;
+ property.keyframes=[{frame:30,value:[3,4]},{frame:0,value:[1,2]}];
+ const {api}=createAPI({PZ,owner:layer,property,frame:0,time:0,base:[1,2],read:()=>0,baseAt:()=>{baseCalls++;return 0;},methods:{random:()=>0,clamp(){}}});
+ assert.equal(api.thisProperty.numKeys,2);assert.equal(api.thisProperty.key(1).time,1);
+ api.thisProperty.key(1).value[0]=100;
+ assert.deepEqual(api.thisProperty.nearestKey(1).value,[3,4]);assert.equal(baseCalls,0);
+});
