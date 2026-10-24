@@ -336,6 +336,7 @@ parts.shared = function (options) {
     next?.forEachItemOfType?.(PZ.layer, layer => ensureDepth(layer));
     next?.forEachItemOfType?.(PZ.track, trackUsage);
     if (next?.sequence) ensureSequence(next.sequence);
+    apis.timeline.refreshTrackButtons();
   }, cameraFor(scene, time) {
     const track = ownerTrack(scene);
     if (!track?.track3d) return null;

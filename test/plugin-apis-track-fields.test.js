@@ -91,3 +91,22 @@ test('enabling a field after a disabled-plugin load revives the retained live va
   assert.equal(track.track3d, true);
   assert.equal(track.toJSON().track3d, true);
 });
+
+test('project preparation restores every registered field on the loaded project before editor replacement', async () => {
+  const { Track, apis, context } = host();
+  const oldTrack = new Track(); oldTrack.load({ clips: [], track3d: false, customTrack: 4 });
+  const loadedTrack = new Track(); loadedTrack.load({ clips: [], track3d: true, customTrack: 9 });
+  const defaultTrack = new Track(); defaultTrack.load({ clips: [] });
+  context.CM = { project: { forEachItemOfType(type, fn) { fn(oldTrack); } } };
+  apis.timeline.registerTrackField('track3d', { default: false });
+  apis.timeline.registerTrackField('customTrack', { default: 2 });
+  const loaded = { forEachItemOfType(type, fn) { assert.equal(type, Track); fn(loadedTrack); fn(defaultTrack); } };
+  assert.equal(loadedTrack.track3d, undefined, 'the old editor project is still current');
+  apis.timeline.restoreTrackFields(loaded);
+  assert.equal(loadedTrack.track3d, true); assert.equal(loadedTrack.customTrack, 9);
+  assert.equal(defaultTrack.track3d, false); assert.equal(defaultTrack.customTrack, 2);
+  assert.equal(oldTrack.track3d, false); assert.equal(oldTrack.customTrack, 4);
+  loadedTrack.track3d = false;
+  apis.timeline.restoreTrackFields(loaded);
+  assert.equal(loadedTrack.track3d, false, 'restoration does not undo live edits');
+});

@@ -448,3 +448,19 @@ test("a failed nested effect load leaves the rest of the project openable, as in
 });
 
 module.exports = { createHarness, addProjectEntries, flush };
+
+test('project loading restores track fields after plugin activation and nested loads, before editor replacement', async () => {
+  const harness = createHarness(); const editor = harness.makeEditor();
+  const previous = editor.project; const activation = deferred(); const trackLoad = deferred();
+  const project = { _zoidiumPluginActivationPending: activation.promise, children: [{ loading: trackLoad.promise }] };
+  editor.loadedProject = project;
+  const restored = [];
+  harness.windowObject.ZoidiumPluginApis = { timeline: { restoreTrackFields(target) {
+    assert.equal(editor.project, previous); restored.push(target);
+  } } };
+  const loading = editor.loadProject({});
+  await flush(); assert.equal(restored.length, 0);
+  activation.resolve(); await flush(); assert.equal(restored.length, 0);
+  trackLoad.resolve(); assert.equal(await loading, project);
+  assert.deepEqual(restored, [project]);
+});
