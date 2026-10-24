@@ -26,14 +26,14 @@
       "id": "core",
       "name": "Zoidium Core",
       "author": "Zoidium",
-      "version": "74",
+      "version": "75",
       "visibility": "hidden",
       "alwaysEnabled": true,
       "tagline": "Built-in core extensions",
       "description": "Hidden built-in extensions that always run. Not shown in the Plugins panel and never stored in projects.",
-      "manifest": "./plugins/core/manifest.json?v=74",
-      "bundle": "./plugins/core/bundle.json?v=74",
-      "integrity": "sha256-CtjfW57A/XVznAKi3zNDAOZP/ALWX8B99LORz8oT0Pk="
+      "manifest": "./plugins/core/manifest.json?v=75",
+      "bundle": "./plugins/core/bundle.json?v=75",
+      "integrity": "sha256-qrc95Z0lJ3ZVly1uiXnvLXt8cFJ1qvPXDzPb5s/cOYQ="
     },
     {
       "id": "easing-plus",
@@ -504,14 +504,14 @@
       "id": "mp4-export",
       "name": "MP4 Export",
       "author": "Zoidium",
-      "version": "5",
+      "version": "6",
       "category": "utilities",
       "defaultEnabled": true,
       "tagline": "H.264 MP4 video export",
       "description": "Export MP4 from the native Export panel with AAC or Opus audio. Requires WebCodecs encoder support.",
-      "manifest": "./plugins/mp4-export/manifest.json?v=5",
-      "integrity": "sha256-WHhleA34sdX7/lIBJMzJUUUBwmNs4B+k51vJyYYFekA=",
-      "bundle": "./plugins/mp4-export/bundle.json?v=5"
+      "manifest": "./plugins/mp4-export/manifest.json?v=6",
+      "integrity": "sha256-k6R7L4ipr85g+/YzuI+s5Be51aFOV+HIL5bq7UQsxpU=",
+      "bundle": "./plugins/mp4-export/bundle.json?v=6"
     }
   ]
 }
