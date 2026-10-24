@@ -68,3 +68,36 @@ test("echo restores every source once if cloning fails", () => {
   assert.throws(() => repeater.rebuildEchoInstances(12), /clone failed/);
   assert.deepEqual(calls, [12, 12]);
 });
+
+for (const mode of ["step", "linear", "random"]) {
+  test(`${mode} preparation retains instances and detects source resource and topology edits`, async () => {
+    const { repeater, source } = fixture(mode);
+    source.threeObj.geometry = { uuid: "geometry-a" };
+    source.threeObj.material = { uuid: "material-a" };
+    repeater.update(12);
+    let roots = repeater._instanceRoots;
+    source.prepare = async () => { source.threeObj.position.set(19, 2, 3); };
+    await repeater.prepare(19);
+    assert.equal(repeater._instanceRoots, roots);
+    assert.deepEqual(roots[0].clones[0].clone.position.values, [19, 2, 3]);
+    // A prepared deformation's geometry must survive the subsequent update.
+    roots[0].clones[0].clone.geometry = { uuid: "completed-deformation" };
+    await repeater.prepare(19);
+    repeater.update(19);
+    assert.equal(repeater._instanceRoots, roots);
+    assert.equal(roots[0].clones[0].clone.geometry.uuid, "completed-deformation");
+    for (const edit of [
+      () => { source.threeObj.geometry = { uuid: "geometry-b" }; },
+      () => { source.threeObj.material = { uuid: "material-b" }; },
+      () => source.threeObj.add(new Node()),
+      () => { source.threeObj.children[0] = new Node(); },
+      () => { repeater.repeaterProperties.count.get = () => 3; },
+    ]) {
+      source.prepare = async () => { edit(); };
+      await repeater.prepare(19);
+      assert.notEqual(repeater._instanceRoots, roots);
+      roots = repeater._instanceRoots;
+    }
+    assert.equal(roots.length, 3);
+  });
+}
