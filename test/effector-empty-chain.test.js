@@ -15,8 +15,8 @@ function harness() {
   const source = { threeObj: mesh };
   const cache = { sourceStage(node) { calls.push(["stage", node]); return { positions: new Float32Array([0,0,0, 1,0,0, 0,1,0]) }; },
     deformMesh(...args) { calls.push(["deform", ...args]); },
-    restoreMesh(mesh) { calls.push(["restore", mesh]); }, restoreTree() {}, dispose() {} };
-  const previous = { cache: state.meshDeformerCache, three: state.meshDeformerThree, library: state.library };
+    restoreMesh(mesh) { calls.push(["restore", mesh]); }, restoreTree() {}, pending() { return []; }, dispose() {} };
+  const previous = { cache: state.meshDeformerCache, three: state.meshDeformerThree, library: state.library, jobs: state.meshJobs };
   state.meshDeformerCache = cache;
   state.meshDeformerThree = THREE;
   state.library = { core };
@@ -26,6 +26,7 @@ function harness() {
     state.meshDeformerCache = previous.cache;
     state.meshDeformerThree = previous.three;
     state.library = previous.library;
+    state.meshJobs = previous.jobs;
   } };
 }
 
@@ -38,6 +39,24 @@ test("scenes without effectors skip the render tree and matrix pass", () => {
     for (const frame of [8, 12, 0]) h.support.apply(scene, frame);
     assert.deepEqual(h.calls, []);
     assert.equal(matrixPasses, 0);
+  } finally { h.close(); }
+});
+
+test("object preparation tracks geometry that needs restoring before the first scene apply", async () => {
+  const h = harness();
+  const layer = { objects: [] };
+  const effector = { parentLayer: layer, threeObj: {}, objects: [h.source], properties: {},
+    deformPositions() {}, update() {} };
+  layer.objects.push(effector);
+  try {
+    state.meshJobs = {};
+    await h.support.prepareObject(effector, 12);
+    assert.equal(h.calls.filter(call => call[0] === "deform").length, 1);
+    h.calls.length = 0;
+    layer.objects = [];
+    h.support.apply(layer, 12);
+    h.support.apply(layer, 13);
+    assert.deepEqual(h.calls, [["restore", h.mesh]]);
   } finally { h.close(); }
 });
 
