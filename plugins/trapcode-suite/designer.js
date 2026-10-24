@@ -200,6 +200,8 @@ var PZ = PZ || {};
     // the selected block of the selected target.
     function Session(ui, id, root, config) {
         this.ui = ui;
+        this.editor = CM;
+        this.project = CM.project;
         this.id = id;
         this.root = root;
         this.config = config;
@@ -212,6 +214,16 @@ var PZ = PZ || {};
         this.win = null;
         this.nodes = null;
     }
+
+    Session.prototype.valid = function () {
+        var attached = false;
+        if (CM === this.editor && CM.project === this.project) {
+            try { attached = this.project.addressLookup(this.root.getAddress()) === this.root; }
+            catch (_) { /* Removed ancestors have no live address. */ }
+        }
+        if (!attached && this.win) this.win.close();
+        return attached;
+    };
 
     Session.prototype.targetList = function () {
         var list = this.config.targets ? this.config.targets(this.root) : null;
@@ -228,6 +240,7 @@ var PZ = PZ || {};
     };
 
     Session.prototype.group = function () {
+        if (!this.valid()) return null;
         if (!this.target || !this.block) return null;
         if (this.config.groupFor) return this.config.groupFor(this.target, this.block);
         return this.target.properties ? this.target.properties[this.block] : null;
@@ -237,6 +250,7 @@ var PZ = PZ || {};
     // removed or renamed elsewhere) re-renders the window; otherwise only the
     // frame counter moves.
     Session.prototype.sync = function () {
+        if (!this.valid()) return null;
         var list = this.targetList();
         var labels = this.labelsOf(list);
         var changed = labels.length !== this.labels.length ||
@@ -292,6 +306,7 @@ var PZ = PZ || {};
     };
 
     Session.prototype.addTarget = function (kind) {
+        if (!this.valid()) return null;
         var self = this;
         var list = this.config.targets ? this.config.targets(this.root) : null;
         var created = null;
@@ -319,7 +334,7 @@ var PZ = PZ || {};
             row.appendChild(bar);
             row.appendChild(el("span", "", scheme.name));
             row.onclick = function () {
-                if (!self.target) return;
+                if (!self.valid() || !self.target) return;
                 recordChanges(self.target, function () { T.applyPalette(self.target, scheme); });
                 self.refreshParams();
             };
@@ -353,6 +368,15 @@ var PZ = PZ || {};
         var self = this;
         var ui = this.ui;
         this.win = win;
+        // Native parameter controls also write through the current editor.
+        // Reject their events before the target control handles them.
+        var guardedEvents = ["pointerdown", "mousedown", "input", "change", "keydown", "click"];
+        function guard(event) {
+            if (self.valid()) return;
+            event.preventDefault();
+            event.stopImmediatePropagation();
+        }
+        guardedEvents.forEach(function (type) { body.addEventListener?.(type, guard, true); });
 
         var root = el("div", "tc-designer");
         var style = el("style");
@@ -381,7 +405,7 @@ var PZ = PZ || {};
 
         (this.config.presets || []).forEach(function (preset) {
             presets.appendChild(el("div", "tc-preset", preset.name)).onclick = function () {
-                if (!self.target || !self.config.applyPreset) return;
+                if (!self.valid() || !self.target || !self.config.applyPreset) return;
                 recordChanges(self.target, function () {
                     self.config.applyPreset(self.root, self.target, preset);
                 });
@@ -443,6 +467,7 @@ var PZ = PZ || {};
         sessions[this.id] = this;
 
         return function dispose() {
+            guardedEvents.forEach(function (type) { body.removeEventListener?.(type, guard, true); });
             clearInterval(self.timer);
             self.timer = 0;
             if (sessions[self.id] === self) delete sessions[self.id];
@@ -518,7 +543,7 @@ var PZ = PZ || {};
             minWidth: 760,
             minHeight: 420,
             className: "trapcode-designer-window",
-            isValid: function () { return root.parent != null; },
+            isValid: function () { return session.valid(); },
             mount: function (body, win) { return session.mount(body, win); },
         });
     };

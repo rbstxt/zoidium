@@ -160,7 +160,7 @@ function activate(context) {
     state.meshDeformerCache = null;
   }
   try {
-    state.deformationSupport = deform.createDeformationSupport(PZ, THREE);
+    state.deformationSupport = deform.createDeformationSupport(PZ, THREE, context.editor);
     const definitions = [
       ["step", "zoidium:repeater/repeater", "Repeater"],
       ["linear", "zoidium:repeater/linear-repeater", "Linear Repeater"],

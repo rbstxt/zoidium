@@ -48,15 +48,20 @@ function create(effect, THREE, tools, getAsset, makeStage) {
     pass.material.dispose();
     pass.quad?.geometry?.dispose();
   }
-  function syncStages() {
+  function syncStages(all = true) {
     const order = effect.looksInstances.order;
     const next = order.map(item => item.id + ":" + item.tool).join("/");
-    if (next === chain) return;
-    for (const pass of passes.values()) releasePass(pass);
-    for (const stage of stages.values()) stage.unload();
-    passes.clear(); stages.clear(); active = [];
-    chain = next;
-    for (const instance of order) stages.set(instance.id, makeStage(instance));
+    if (next !== chain) {
+      for (const pass of passes.values()) releasePass(pass);
+      for (const stage of stages.values()) stage.unload();
+      passes.clear(); stages.clear(); active = [];
+      chain = next;
+    }
+    if (all) for (const instance of order) ensureStage(instance);
+  }
+  function ensureStage(instance) {
+    if (!stages.has(instance.id)) stages.set(instance.id, makeStage(instance));
+    return stages.get(instance.id);
   }
   function reconcile() {
     const order = effect.looksInstances.order;
@@ -136,6 +141,12 @@ function create(effect, THREE, tools, getAsset, makeStage) {
     },
     reload: async (key, asset) => Promise.all(Array.from(stages.values(), stage => stage._looksLutAssets.reload(key, asset))),
     stage: id => stages.get(id),
+    editorStage(id) {
+      if (disposed) return undefined;
+      syncStages(false);
+      const instance = effect.looksInstances.order.find(item => item.id === id);
+      return instance ? ensureStage(instance) : undefined;
+    },
     dispose() {
       if (disposed) return;
       disposed = true;

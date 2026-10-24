@@ -235,6 +235,8 @@ function mountWindow(windowOptions) {
 function setupHarness(moduleFile, effectFile, type) {
   const effect = loadEffect(LEGACY + effectFile, type);
   const editor = createEditor(() => effect);
+  effect.getAddress = () => ["effect"];
+  editor.project = { addressLookup: () => effect.parent ? effect : null };
   const PZ = {
     property: { type: { TEXT: 15, NUMBER: 0, OPTION: 9 } },
     layer: { adjustment: class Adjustment {} },
@@ -548,3 +550,24 @@ test("historical setup TEXT keys remain defined and hidden for VHS and Datamosh"
     assert.equal(setup.get(), "historical setup value");
   }
 });
+
+for (const [type, label, key] of [["vhs", "Signal Strength", "signalStrength"], ["datamosh", "Intensity", "intensity"]]) {
+  for (const invalidation of ["project", "ancestor", "replacement"]) {
+    test(`${type}: stale setup controls reject ${invalidation} changes before the validity poll`, () => {
+      const h = setupHarness(type + "-setup.js", "effects/" + type + ".js", type);
+      const win = openFromEditor(h, type === "vhs" ? "VHS Setup" : "Datamosh Setup", h.effect);
+      const cleanup = mountWindow(win);
+      const control = findControl(h.created, label);
+      const before = h.effect.properties[key].get();
+      if (invalidation === "project") h.editor.project = { addressLookup: () => h.effect };
+      else h.editor.project.addressLookup = () => invalidation === "replacement" ? {} : null;
+      control.options.onInput(0.99);
+      control.options.onChange(0.99);
+      findControl(h.created, "Preset").options.onChange("clean");
+      assert.equal(h.effect.properties[key].get(), before);
+      assert.deepEqual(h.editor.log, [], "stale controls start no history operation");
+      assert.equal(win.isValid(), false);
+      cleanup();
+    });
+  }
+}

@@ -20,8 +20,10 @@ function harness() {
   state.meshDeformerCache = cache;
   state.meshDeformerThree = THREE;
   state.library = { core };
-  const support = createDeformationSupport({ layer: { scene: Scene } }, THREE);
-  return { calls, mesh, source, support, close() {
+  const watchers = new Set();
+  const editor = { project: {}, onProjectChanged: { watch(fn) { watchers.add(fn); }, unwatch(fn) { watchers.delete(fn); } } };
+  const support = createDeformationSupport({ layer: { scene: Scene } }, THREE, editor);
+  return { calls, mesh, source, support, editor, watchers, cache, close() {
     support.deactivate();
     state.meshDeformerCache = previous.cache;
     state.meshDeformerThree = previous.three;
@@ -132,4 +134,41 @@ test("active effector evaluation maps 420 authored children without repeated tre
     assert.equal(h.calls.filter(call => call[0] === "deform").length, 420);
     assert.equal(h.calls.filter(call => call[0] === "stage").length, 420);
   } finally { h.close(); }
+});
+
+test("project replacement restores old deformations and releases the retained scene before another update", () => {
+  const h = harness();
+  const effector = { threeObj: {}, objects: [h.source], properties: {}, deformPositions() {} };
+  const scene = { objects: [effector] };
+  try {
+    h.support.apply(scene, 3);
+    h.calls.length = 0;
+    h.editor.project = {};
+    for (const watch of h.watchers) watch();
+    assert.deepEqual(h.calls, [["restore", h.mesh]]);
+    h.calls.length = 0;
+    for (const watch of h.watchers) watch();
+    assert.deepEqual(h.calls, [], "the previous scene is no longer retained");
+  } finally { h.close(); }
+  assert.equal(h.watchers.size, 0, "disable removes the project watcher");
+});
+
+test("an in-flight object preparation cannot restore ownership of a replaced project", async () => {
+  const h = harness(), layer = { objects: [] };
+  const effector = { parentLayer: layer, threeObj: {}, objects: [h.source], properties: {},
+    deformPositions() {}, update() {} };
+  layer.objects.push(effector);
+  let complete;
+  const pending = new Promise(resolve => { complete = resolve; });
+  h.cache.pending = () => { h.cache.pending = () => []; return [pending]; };
+  try {
+    state.meshJobs = {};
+    const preparing = h.support.prepareObject(effector, 12);
+    h.editor.project = {};
+    for (const watch of h.watchers) watch();
+    h.calls.length = 0;
+    complete();
+    await preparing;
+    assert.deepEqual(h.calls, [], "old preparation exits before another deformation pass");
+  } finally { complete(); h.close(); }
 });

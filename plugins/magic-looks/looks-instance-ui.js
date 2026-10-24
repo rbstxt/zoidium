@@ -184,11 +184,11 @@ function mount({ state, body, effect, session, view, custom }) {
     const after = () => rebuild();
     const localFrame = CM.playback.currentFrame - effect.properties.enabled.frameOffset;
     effect.update(localFrame);
-    const stage = effect._looksPipeline.stage(item.id);
+    const stage = effect._looksPipeline.editorStage(item.id);
     projected._looksLutAssets = stage?._looksLutAssets;
     projected._looksCubeError = stage?._looksCubeError;
     projected._looksCubeAtlas = stage?._looksCubeAtlas;
-    projected.prepare = () => effect.prepare(localFrame);
+    projected.prepare = () => stage.prepare(localFrame);
     if (tool.custom === "curves") custom.buildCurves(projected, mappedSession, tool, section.body, widgets, after, view);
     else if (tool.custom === "scurve") custom.buildScurve(projected, mappedSession, tool, section.body, after);
     else if (tool.custom === "lut") Looks.lutUI.buildLut({ Looks, ctl, effect: projected, session: mappedSession,

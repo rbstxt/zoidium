@@ -317,7 +317,7 @@ function rgbToHex(rgb) {
 
 // Reads and writes effect properties through CM3's property operations so
 // that every committed edit is a native history step.
-function createBridge(context, effect) {
+function createBridge(context, effect, valid) {
   const editor = context.editor;
   const ops = new context.PZ.ui.properties(editor);
   const gestures = new Map();
@@ -346,6 +346,7 @@ function createBridge(context, effect) {
     read,
     // Live preview during a drag: updates the project without a history step.
     preview(key, value) {
+      if (!valid()) return;
       const p = property(key);
       if (!p) return;
       const frame = frameOf(p);
@@ -354,6 +355,7 @@ function createBridge(context, effect) {
     },
     // One history step per user edit. A preceding drag supplies the start value.
     commit(key, value) {
+      if (!valid()) return;
       const p = property(key);
       const before = gestures.has(key) ? gestures.get(key) : read(key);
       gestures.delete(key);
@@ -364,6 +366,7 @@ function createBridge(context, effect) {
     },
     // A preset is one history step containing every assignment.
     apply(assignments) {
+      if (!valid()) return;
       inOperation(function () {
         for (const key of Object.keys(assignments)) {
           const p = property(key);
@@ -503,6 +506,7 @@ function disarmPlacement(build) {
 }
 
 function armPlacement(build, index) {
+  if (!build.valid()) return;
   disarmPlacement(build);
   const viewport = build.context.editor.mainViewport;
   const canvas = viewport && viewport.canvas;
@@ -513,6 +517,7 @@ function armPlacement(build, index) {
   const placement = { canvas, cursor: canvas.style.cursor, armed: true, timer: null };
   const pointKey = "point" + index;
   placement.handler = function (event) {
+    if (!build.valid()) { disarmPlacement(build); return; }
     if (event.type === "keydown") {
       if (placement.armed && event.key === "Escape") {
         event.preventDefault();
@@ -557,6 +562,7 @@ function armPlacement(build, index) {
 function buildPresetRow(build) {
   const { spec, bridge, controls } = build;
   const applyPreset = function (preset) {
+    if (!build.valid()) return;
     bridge.apply(spec.assignments(preset, bridge.read));
     syncBindings(build);
   };
@@ -635,6 +641,7 @@ function buildGroup(build, group) {
 // Refreshes controls whose property changed outside the window (undo, keyframes,
 // other panels). Unchanged values are skipped so an active drag is not reset.
 function syncBindings(build) {
+  if (!build.valid()) return;
   for (const binding of build.bindings) {
     const value = build.bridge.read(binding.key);
     const text = JSON.stringify(value);
@@ -644,7 +651,7 @@ function syncBindings(build) {
   }
 }
 
-function mountWindow(context, spec, effect, body, win) {
+function mountWindow(context, spec, effect, body, win, valid) {
   const build = {
     context,
     spec,
@@ -652,7 +659,8 @@ function mountWindow(context, spec, effect, body, win) {
     win,
     PZ: context.PZ,
     controls: context.ui.controls,
-    bridge: createBridge(context, effect),
+    bridge: createBridge(context, effect, valid),
+    valid,
     bindings: [],
     placement: null,
   };
@@ -666,16 +674,27 @@ function mountWindow(context, spec, effect, body, win) {
 }
 
 function openSetupWindow(context, spec, effect) {
-  const win = context.ui.openWindow({
+  const editor = context.editor, project = editor.project;
+  let win;
+  const valid = () => {
+    let attached = false;
+    if (editor.project === project) {
+      try { attached = project.addressLookup(effect.getAddress()) === effect; }
+      catch { /* Removed ancestors have no live address. */ }
+    }
+    if (!attached) win?.close();
+    return attached;
+  };
+  win = context.ui.openWindow({
     id: spec.kind + ":" + effectWindowKey(effect),
     title: spec.title,
     persistKey: spec.persistKey,
     width: spec.width,
     height: spec.height,
     mount(body, openedWindow) {
-      return mountWindow(context, spec, effect, body, openedWindow || win);
+      return mountWindow(context, spec, effect, body, openedWindow || win, valid);
     },
-    isValid: function () { return effect.parent != null; },
+    isValid: valid,
     footer: [{ title: "Done", variant: "primary", onClick: function () { win.close(); } }],
   });
   return win;

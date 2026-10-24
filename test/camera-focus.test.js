@@ -217,3 +217,23 @@ test("Set creates a missing playhead key and enables animation in the same opera
     assert.equal(ctx.editor.log[2][1].data.value, 80);
   } finally { runtime.deactivate(); teardownGlobals(); }
 });
+
+for (const invalidation of ["project", "ancestor"]) {
+  test(`focus target window rejects ${invalidation} replacement before its poll`, () => {
+    const { ctx, runtime, cameraPlus } = setupScene();
+    try {
+      const parts = {};
+      new Function("PZ", "THREE", "parts", require("node:fs").readFileSync(require.resolve("../plugins/camera-plus/focus-ui.js"), "utf8"))(ctx.PZ, ctx.THREE, parts);
+      const tools = parts.focus.createFocusTools({ PZ: ctx.PZ, THREE: ctx.THREE, ui: ctx.zoidiumUI,
+        getEditor: () => ctx.editor, nextKey: () => 100, objectType: TYPE }, cameraPlus);
+      const win = tools.openTargetWindow("link");
+      const picker = mountWindow(ctx, win);
+      if (invalidation === "project") ctx.editor.project = { addressLookup: () => cameraPlus };
+      else ctx.project.register(cameraPlus.getAddress(), null);
+      ctx.editor.log.length = 0;
+      picker.options.onSelect(picker.options.items[0].id);
+      assert.deepEqual(ctx.editor.log, []);
+      assert.equal(win.options.isValid(), false);
+    } finally { runtime.deactivate(); teardownGlobals(); }
+  });
+}
