@@ -32,7 +32,9 @@ function createInvalidation(s) {
       properties(path.clip, next, visited);
       // Scene objects include the active camera and all possible camera parents.
       // Only observers are installed here; no property values are evaluated.
-      for (let node = path.owner, depth = 0; node && depth < 64; node = node.parentObject, depth++)
+      // CM3's project root has no parent. Its parentObject getter dereferences
+      // parent directly, so stop before evaluating it on an unparented node.
+      for (let node = path.owner, depth = 0; node && depth < 64; node = node.parent ? node.parentObject : null, depth++)
         properties(node, next, visited);
     }
     for (const signal of hooks) if (!next.has(signal)) { signal.unwatch(dirty); hooks.delete(signal); }
