@@ -77,8 +77,8 @@ test("link renderers stay within the point caps and write valid indices", () => 
   root.objects[1].properties.renderer.rendererType.set(2);
   root.objects[1].properties.renderer.maxDistance.set(60);
   root.update(0);
-  const index = root.mesh.geometry.index;
-  assert.ok(Array.isArray(index));
+  const index = root.mesh.geometry.index.array.subarray(0, root.mesh.geometry.drawRange.count);
+  assert.ok(index instanceof Uint16Array);
   assert.equal(index.length % 3, 0, "triangle list");
   const limit = Math.min(root._count, 4000);
   for (const value of index) assert.ok(value < limit, "facet indices within the mesh cap");
@@ -158,7 +158,7 @@ test("facets and triangulation render without throwing on the default source", (
     root.objects[1].properties.renderer.maxDistance.set(110);
     root.update(0);
     assert.ok(root.mesh.visible);
-    assert.equal(root.mesh.geometry.index.length % 3, 0);
+    assert.equal(root.mesh.geometry.drawRange.count % 3, 0);
   }
 });
 
@@ -278,4 +278,39 @@ test("effector amount 100 keeps legacy output, 0 bypasses the effector", () => {
   // Bypassed output equals the raw gathered sources.
   root.update(0);
   assert.deepEqual(Array.from(root._work.slice(0, root._count * 3)), bypassed);
+});
+
+test("mesh updates reuse one index attribute and normals never see capacity padding", () => {
+  const { root, THREE } = setup();
+  root._work = new Float32Array(70000 * 3);
+  let indices = [0, 1, 2, 2, 1, 3];
+  root.linkCount = () => 4;
+  root.facets = () => indices;
+  const state = { maxDistance: 10, maxConnections: 3 };
+  root.buildMesh(4, state);
+  const first = root.mesh.geometry, attribute = first.index;
+  let normals = 0;
+  first.computeVertexNormals = function () {
+    normals++;
+    assert.deepEqual([...this.index.array], indices, "r91 sees the exact live array");
+  };
+  for (let i = 0; i < 100; i++) {
+    indices = i % 2 ? [0, 2, 3] : [0, 1, 2, 2, 1, 3];
+    root.buildMesh(4, state);
+    assert.equal(root.mesh.geometry, first);
+    assert.equal(first.index, attribute);
+    assert.equal(first.drawRange.count, indices.length);
+    assert.equal(attribute.needsUpdate, true);
+  }
+  assert.equal(normals, 100);
+  let disposedWithIndex;
+  first.dispose = function () { disposedWithIndex = this.index; };
+  indices = Array.from({ length: attribute.array.length + 3 }, (_, i) => i % 4);
+  root.buildMesh(4, state);
+  assert.equal(disposedWithIndex, attribute, "old index is attached during GPU disposal");
+  assert.notEqual(root.mesh.geometry.index, attribute);
+  indices = [0, 1, 65536];
+  root.buildMesh(4, state);
+  assert.ok(root.mesh.geometry.index.array instanceof Uint32Array);
+  assert.ok(root.mesh.geometry.index instanceof THREE.BufferAttribute);
 });
