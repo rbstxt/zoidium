@@ -232,6 +232,7 @@ parts.dof = (function () {
       this.enabled = false;
       this.depthMaterial = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking });
       this.pointDepthMaterials = new Map();
+      this.pointDepthScenes = new Map();
       // The passes share the uniform objects, so configure() and the
       // per-render sizes reach all of them.
       const uniforms = {
@@ -417,17 +418,30 @@ parts.dof = (function () {
         scene.overrideMaterial = previous;
         for (const [node, material] of changed) node.material = material;
         for (const [node, visible] of hidden) node.visible = visible;
-        for (const [source, material] of this.pointDepthMaterials) {
-          if (used.has(source)) continue;
-          material.dispose();
-          this.pointDepthMaterials.delete(source);
-        }
+        this.pointDepthScenes.set(scene, used);
+        this.prunePointDepthMaterials();
       }
+    };
+
+    SceneDof.prototype.prunePointDepthMaterials = function () {
+      const used = new Set();
+      for (const sources of this.pointDepthScenes.values()) for (const source of sources) used.add(source);
+      for (const [source, material] of this.pointDepthMaterials) {
+        if (used.has(source)) continue;
+        material.dispose();
+        this.pointDepthMaterials.delete(source);
+      }
+    };
+
+    SceneDof.prototype.releaseDepthScene = function (scene) {
+      this.pointDepthScenes.delete(scene);
+      this.prunePointDepthMaterials();
     };
 
     SceneDof.prototype.unload = function () {
       for (const material of this.pointDepthMaterials.values()) material.dispose();
       this.pointDepthMaterials.clear();
+      this.pointDepthScenes.clear();
       for (const key of ["colorTarget", "depthTarget", "tileTarget", "dilateTarget"]) {
         if (this[key]) this[key].dispose();
         this[key] = null;

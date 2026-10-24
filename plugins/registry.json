@@ -336,7 +336,7 @@
       "zoidiumOnly": true,
       "manifest": "./plugins/camera-plus/manifest.json?v=18",
       "bundle": "./plugins/camera-plus/bundle.json?v=18",
-      "integrity": "sha256-Q+xXTt4puktiRBMLVnVPBE61FUG16+HNmIaIoqO9sV0="
+      "integrity": "sha256-PclAgxpm1Ku+0UbPSEQVOFMOe0ZJlKvTyrUChhGMIy8="
     },
     {
       "id": "native-fx",
