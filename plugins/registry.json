@@ -327,16 +327,16 @@
       "category": "scene",
       "name": "Camera+",
       "author": "DaviFX",
-      "version": "17",
+      "version": "18",
       "itemCount": 1,
       "format": "camera rig",
       "tagline": "Camera layers, 3D tracks and DOF",
       "color": "#3d7bc5",
       "description": "Adds a separate Camera+ object with depth of field, seeded vibrate and focus tools, Camera layers, and a 3D switch on video tracks that lets scenes and flat layers follow the shared camera. The default CM3 camera is left unchanged.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/camera-plus/manifest.json?v=17",
-      "bundle": "./plugins/camera-plus/bundle.json?v=17",
-      "integrity": "sha256-mfb+J1RraZMCdgV2iIWdxEChjSgZej8N4M/z9Xy/Oms="
+      "manifest": "./plugins/camera-plus/manifest.json?v=18",
+      "bundle": "./plugins/camera-plus/bundle.json?v=18",
+      "integrity": "sha256-Q+xXTt4puktiRBMLVnVPBE61FUG16+HNmIaIoqO9sV0="
     },
     {
       "id": "native-fx",

@@ -3,7 +3,7 @@
   "id": "camera-plus",
   "name": "Camera+",
   "author": "DaviFX",
-  "version": "17",
+  "version": "18",
   "kind": "object",
   "description": "Camera layers, shared 3D tracking, and Camera+ objects with film controls, depth of field and deterministic shutter sampling.",
   "category": "CAMERA",
@@ -30,54 +30,54 @@
   "modules": [
     {
       "id": "camera-runtime",
-      "source": "./plugins/camera-plus/camera-runtime.js?v=17"
+      "source": "./plugins/camera-plus/camera-runtime.js?v=18"
     }
   ],
   "resources": [
     {
       "id": "camera-vibrate",
       "type": "text",
-      "source": "./plugins/camera-plus/vibrate.js?v=17"
+      "source": "./plugins/camera-plus/vibrate.js?v=18"
     },
     {
       "id": "camera-dof",
       "type": "text",
-      "source": "./plugins/camera-plus/scene-dof.js?v=17"
+      "source": "./plugins/camera-plus/scene-dof.js?v=18"
     },
     {
       "id": "camera-class",
       "type": "text",
-      "source": "./plugins/camera-plus/camera-class.js?v=17"
+      "source": "./plugins/camera-plus/camera-class.js?v=18"
     },
     {
       "id": "camera-focus-ui",
       "type": "text",
-      "source": "./plugins/camera-plus/focus-ui.js?v=17"
+      "source": "./plugins/camera-plus/focus-ui.js?v=18"
     },
     {
       "id": "camera-track-hint",
       "type": "text",
-      "source": "./plugins/camera-plus/track-hint.js?v=17"
+      "source": "./plugins/camera-plus/track-hint.js?v=18"
     },
     {
       "id": "camera-motion-blur",
       "type": "text",
-      "source": "./plugins/camera-plus/scene-motion-blur.js?v=17"
+      "source": "./plugins/camera-plus/scene-motion-blur.js?v=18"
     },
     {
       "id": "shared-camera",
       "type": "text",
-      "source": "./plugins/camera-plus/shared-camera.js?v=17"
+      "source": "./plugins/camera-plus/shared-camera.js?v=18"
     },
     {
       "id": "shared-depth",
       "type": "text",
-      "source": "./plugins/camera-plus/shared-depth.js?v=17"
+      "source": "./plugins/camera-plus/shared-depth.js?v=18"
     },
     {
       "id": "camera-search",
       "type": "text",
-      "source": "./plugins/camera-plus/camera-search.js?v=17"
+      "source": "./plugins/camera-plus/camera-search.js?v=18"
     }
   ]
 }
