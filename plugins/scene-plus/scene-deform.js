@@ -343,8 +343,18 @@ function createDeformationSupport(PZ, THREE) {
     }
     object.update(frame);
     object.parentLayer?.threeObj?.updateMatrixWorld?.(true);
-    await settle(() => evaluateTree(() => walkRenderedObject(object, [], frame, object.threeObj,
-      mapRenderNodes(object.threeObj, object.threeObj))));
+    await settle(() => {
+      const meshes = evaluateTree(() => walkRenderedObject(object, [], frame, object.threeObj,
+        mapRenderNodes(object.threeObj, object.threeObj)));
+      const layer = object.parentLayer;
+      if (!layer || !meshes.size) return;
+      // Object.prepare can finish before Scene.apply has ever run. These
+      // working geometries also need restoration if the effector is removed.
+      const previous = affectedMeshes.get(layer) || new Set();
+      for (const mesh of meshes) previous.add(mesh);
+      affectedMeshes.set(layer, previous);
+      layers.add(layer);
+    });
   }
 
   const patchedPrepare = async function prepareWithEffectors(frame, ...args) {
