@@ -57,7 +57,11 @@ function harness() {
     zoidium: { getDebugPlugins: () => [], temporal: { frameSamplerRuntimes: temporalRuntimes } } };
   const context = { drawingBufferWidth: 4, drawingBufferHeight: 4, getContextAttributes: () => ({ alpha: false }),
     canvas, lost: false, error: 0, copyError: 0,
-    copyTexSubImage2D() { this.error = this.copyError; this.copyError = 0; },
+    copyTexSubImage2D(...args) {
+      counts.copies = (counts.copies || 0) + 1;
+      counts.copySize = args.slice(-2);
+      this.error = this.copyError; this.copyError = 0;
+    },
     getError() { const error = this.error; this.error = 0; return error; },
     isContextLost() { return this.lost; }, NO_ERROR: 0, OUT_OF_MEMORY: 1285 };
   const renderer = { context, shadowMap: {}, setRenderTarget() {}, setViewport() {}, setTexture2D() {} };
@@ -426,5 +430,46 @@ test("live usage reports the drawing buffer, retained bytes and effective limit"
   const usage = h.api.usage();
   assert.equal(usage.width, 4); assert.equal(usage.height, 4);
   assert.equal(usage.bytes, 64); assert.equal(usage.entries, 1);
+  h.api.dispose();
+});
+
+test("five new frames with a two-target budget recycle fully overwritten targets", async () => {
+  const h = harness();
+  // Each test frame is 512 KiB. A 1 MiB budget holds two targets.
+  h.viewport.renderer.context.drawingBufferWidth = 512;
+  h.viewport.renderer.context.drawingBufferHeight = 256;
+  h.api.setSizeMiB(1);
+  await h.warm(); h.cool();
+  for (let frame = 1; frame < 5; frame++) {
+    h.viewport.editor.playback.currentFrame = frame;
+    for (let attempt = 0; attempt < 6 && h.viewport.lastFrame !== frame; attempt++) {
+      h.viewport._render(); await flush();
+    }
+    // The frame readiness promise needs one subsequent complete live draw.
+    h.viewport._render(); await flush(); h.viewport._render();
+  }
+  assert.equal(h.api.debug.entries, 2);
+  assert.equal(h.counts.allocated, 2);
+  assert.equal(h.counts.disposed, 0);
+  assert.equal(h.counts.copies, 5);
+  assert.deepEqual(h.counts.copySize, [512, 256]);
+  h.api.dispose();
+  assert.equal(h.counts.disposed, 2);
+});
+
+test("a failed copy into a recycled target never publishes its old pixels", async () => {
+  const h = harness();
+  h.viewport.renderer.context.drawingBufferWidth = 512;
+  h.viewport.renderer.context.drawingBufferHeight = 512;
+  h.api.setSizeMiB(1);
+  await h.warm(); h.cool();
+  const allocated = h.counts.allocated;
+  h.viewport.editor.playback.currentFrame = 1;
+  h.viewport._render(); await flush();
+  h.viewport.renderer.context.copyError = 1280;
+  h.viewport._render();
+  assert.equal(h.counts.allocated, allocated);
+  assert.equal(h.api.debug.entries, 0);
+  assert.equal(h.counts.disposed, 1);
   h.api.dispose();
 });

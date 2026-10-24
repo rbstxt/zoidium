@@ -269,3 +269,41 @@ test("large preferences preserve the default and enforce the byte limit before a
   assert.equal(cache.reserve(16384 * MiB + 1), false);
   assert.equal(b.released, 0);
 });
+
+test("an evicted target transfers ownership only after a complete fresh capture", () => {
+  const cache = new FrameStore(32), a = entry(), b = entry();
+  cache.put("a", a); cache.put("b", b); cache.get("a");
+  const reservation = cache.take(16, () => true);
+  assert.equal(reservation.recycled, b);
+  assert.equal(cache.entries.has("b"), false);
+  assert.equal(b.complete, false);
+  assert.equal(cache.bytes, 16);
+  assert.equal(b.released, 0);
+  assert.equal(cache.put("c", b), false);
+  assert.equal(b.released, 1);
+});
+
+for (const field of ["renderer", "width", "height", "format", "type"]) {
+  test("incompatible recycled " + field + " is disposed before allocation", () => {
+    const cache = new FrameStore(16), a = entry();
+    const expected = { renderer: {}, width: 2, height: 2, format: "RGBA", type: "byte" };
+    Object.assign(a, expected);
+    a[field] = field === "renderer" ? {} : "different";
+    cache.put("a", a);
+    const reservation = cache.take(16, value => Object.keys(expected).every(key => value[key] === expected[key]));
+    assert.equal(reservation.recycled, null);
+    assert.equal(a.released, 1);
+  });
+}
+
+test("a recycled target from an expired generation cannot be published", () => {
+  const cache = new FrameStore(16), a = entry();
+  cache.put("a", a);
+  const generation = cache.generation;
+  const { recycled } = cache.take(16, () => true);
+  cache.clear();
+  recycled.complete = true;
+  assert.equal(cache.put("new", recycled, generation), false);
+  assert.equal(a.released, 1);
+  assert.equal(cache.entries.size, 0);
+});

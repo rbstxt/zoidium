@@ -71,6 +71,7 @@
     const state = {
       contexts: [],
       layerUpdateRevision: 0,
+      evaluationEpoch: 0,
       compositorsBySequence: new WeakMap(),
       evaluatingLayers: new WeakSet(),
       frameSamplerRuntimes: new WeakMap(),
@@ -144,6 +145,7 @@
     state.layerPrototype = prototype;
     state.originalLayerUpdate = prototype.update;
     prototype.update = function temporalTrackedLayerUpdate(frame) {
+      delete this.__zoidiumTemporalEvaluationStamp;
       this.__zoidiumTemporalUpdateRevision = ++state.layerUpdateRevision;
       installEffectUpdatePatches(state, this);
       const context = state.contexts[state.contexts.length - 1];
@@ -154,6 +156,12 @@
           ? state.mapLayerFrame(this, frame)
           : null;
 
+      // Scoped updates can also mutate descendants of an already drawn layer.
+      // Invalidate their owners conservatively, then stamp only a completed
+      // unscoped update at its exact input clock.
+      const scoped = context?.singleEvaluation || context?.frameSamplerScope ||
+        state.evaluatingLayers.has(this) || Boolean(mapped);
+      if (scoped) state.evaluationEpoch += 1;
       if (mapped && Math.abs(mapped.sourceFrame - frame) > EPSILON) {
         const renderOnly = isSceneLayer(this);
         this.__zoidiumTemporalLastUpdateFrame = renderOnly
@@ -170,7 +178,11 @@
 
       delete this.__zoidiumTemporalSequenceMapping;
       this.__zoidiumTemporalLastUpdateFrame = frame;
-      return state.originalLayerUpdate.apply(this, arguments);
+      const result = state.originalLayerUpdate.apply(this, arguments);
+      if (!scoped && Number.isFinite(frame)) {
+        this.__zoidiumTemporalEvaluationStamp = { frame, epoch: state.evaluationEpoch };
+      }
+      return result;
     };
     Object.defineProperty(prototype, LAYER_UPDATE_MARKER, {
       configurable: true,
@@ -190,7 +202,7 @@
     prototype.renderSequence = function temporalRenderSequence(frame) {
       registerCompositor(state, this);
       const singleEvaluation = layers.usesSingleEvaluation(this._sequence);
-      if (singleEvaluation) layers.installSingleEvaluation(state, this._sequence);
+      layers.installSingleEvaluation(state, this._sequence);
       state.contexts.push({
         singleEvaluation,
         compositor: this,
@@ -253,6 +265,8 @@
           delete layer.__zoidiumTemporalSequenceMapping;
           state.restoringLayers.add(layer);
           try {
+            delete layer.__zoidiumTemporalEvaluationStamp;
+            state.evaluationEpoch += 1;
             state.originalLayerUpdate.call(layer, sequenceMapping.localFrame);
             layer.__zoidiumTemporalLastUpdateFrame = sequenceMapping.localFrame;
           } finally {
