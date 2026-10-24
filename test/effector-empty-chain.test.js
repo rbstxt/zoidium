@@ -92,3 +92,25 @@ test("render-node mapping reads children linearly and sees same-sized topology r
   assert.equal(nodes.get(children[0]), rendered.children[0]);
   assert.equal(reads, 840);
 });
+
+test("active effector evaluation maps 420 authored children without repeated tree searches", () => {
+  const h = harness();
+  let reads = 0;
+  const meshes = Array.from({ length: 420 }, () => ({
+    isMesh: true, geometry: {}, children: [], traverse(visit) { visit(this); },
+  }));
+  const children = new Proxy(meshes, { get(target, key) {
+    if (/^\d+$/.test(String(key))) reads++;
+    return target[key];
+  } });
+  const effector = {
+    threeObj: { children }, deformPositions() {}, properties: {},
+    objects: meshes.map(threeObj => ({ threeObj })),
+  };
+  try {
+    h.support.apply({ objects: [effector] }, 3);
+    assert.equal(reads, 840, "one parallel source/render traversal");
+    assert.equal(h.calls.filter(call => call[0] === "deform").length, 420);
+    assert.equal(h.calls.filter(call => call[0] === "stage").length, 420);
+  } finally { h.close(); }
+});
