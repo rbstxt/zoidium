@@ -364,6 +364,8 @@
       const frame = projectFrame - finiteNumber(clip.start, 0);
       if (state && layers.usesSingleEvaluation(getSequenceForLayer(layer))) {
         const input = state.mapLayerFrame(layer, frame)?.sourceFrame ?? frame;
+        delete layer.__zoidiumTemporalEvaluationStamp;
+        state.evaluationEpoch += 1;
         state.originalLayerUpdate.call(layer, input);
         layer.__zoidiumTemporalLastUpdateFrame = input;
         layer.__zoidiumTemporalUpdateRevision = ++state.layerUpdateRevision;
@@ -496,6 +498,8 @@
           // children or applying the time operators for a second time.
           const input = finiteNumber(previousFrame,
             currentFrame - finiteNumber(getClipForLayer(layer)?.start, 0));
+          delete layer.__zoidiumTemporalEvaluationStamp;
+          state.evaluationEpoch += 1;
           state.originalLayerUpdate.call(layer, input);
           layer.__zoidiumTemporalLastUpdateFrame = input;
           layer.__zoidiumTemporalUpdateRevision = ++state.layerUpdateRevision;
@@ -577,6 +581,8 @@
         if (restoreOnly && state && context?.singleEvaluation) {
           const input = layer === stage.layer ? localFrame
             : state.mapLayerFrame(layer, localFrame)?.sourceFrame ?? localFrame;
+          delete layer.__zoidiumTemporalEvaluationStamp;
+          state.evaluationEpoch += 1;
           state.originalLayerUpdate.call(layer, input);
           layer.__zoidiumTemporalLastUpdateFrame = input;
           layer.__zoidiumTemporalUpdateRevision = ++state.layerUpdateRevision;
@@ -942,7 +948,12 @@
       if (!layers.usesSingleEvaluation(sequence)) {
         for (const track of sequence.videoTracks || []) {
           const layer = track.getCurrentClip?.(frame)?.object;
-          if (layer) restoreLayerAtContextFrame(layer, liveFrame);
+          const stamp = layer?.__zoidiumTemporalEvaluationStamp;
+          const state = typeof PZ !== "undefined" ? PZ.zoidium?.temporal : null;
+          const localFrame = liveFrame - finiteNumber(getClipForLayer(layer)?.start, 0);
+          if (layer && (!stamp || stamp.frame !== localFrame || stamp.epoch !== state?.evaluationEpoch)) {
+            restoreLayerAtContextFrame(layer, liveFrame);
+          }
         }
       }
     }
