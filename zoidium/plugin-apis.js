@@ -626,18 +626,22 @@
     }; });
     trackFieldHooks = true;
   }
+  function restoreTrackFields(project) {
+    if (!project || typeof project.forEachItemOfType !== "function") return;
+    project.forEachItemOfType(global.PZ.track, function (track) {
+      var retained = retainedTrackFields.get(track);
+      trackFields.forEach(function (field, name) {
+        if (track[name] === undefined) track[name] = retained && Object.prototype.hasOwnProperty.call(retained, name) ? retained[name] : field.default;
+      });
+    });
+  }
   function registerTrackField(name, spec) {
     if (!name || ["__proto__", "constructor", "prototype", "type", "clips"].includes(name)) throw new Error("Invalid track field");
     if (trackFields.has(name) && trackFields.get(name).active !== false) throw new Error("Track field already registered: " + name);
     var registration = { default: spec.default, active: true };
     trackFields.set(name, registration);
     installTrackFieldHooks();
-    var project = global.CM && global.CM.project;
-    if (project && typeof project.forEachItemOfType === "function") project.forEachItemOfType(global.PZ.track, function (track) {
-      if (track[name] !== undefined) return;
-      var retained = retainedTrackFields.get(track);
-      track[name] = retained && Object.prototype.hasOwnProperty.call(retained, name) ? retained[name] : spec.default;
-    });
+    restoreTrackFields(global.CM && global.CM.project);
     // Keep serialization support after disposal so disabled plugins do not erase data.
     return function () { registration.active = false; };
   }
@@ -874,7 +878,7 @@
     assets: global.ZoidiumAssets,
     KINDS: KINDS,
     modules: { createRequire: createRequire },
-    timeline: { registerTrackButton: registerTrackButton, registerTrackField: registerTrackField, refreshTrackButtons: refreshTrackButtons },
+    timeline: { registerTrackButton: registerTrackButton, registerTrackField: registerTrackField, restoreTrackFields: restoreTrackFields, refreshTrackButtons: refreshTrackButtons },
     media: { registerPreset: registerMediaPreset },
     layers: { registerType: registerLayerType, registerPicker: registerLayerPicker },
     defineTemporal: defineTemporal,

@@ -186,3 +186,20 @@ test('DoubleSide belongs only to the shared-camera follow path and restores when
     assert.equal(material.side, 0, 'ordinary Transform stays unchanged');
   } finally { runtime.deactivate(); }
 });
+
+test('project replacement tracks restored 3D flags and refreshes the loaded track buttons', () => {
+  const ctx = harness.createContext(); let listener; let refreshes = 0;
+  const tracked = new Set();
+  ctx.editor.onProjectChanged = { watch(fn) { listener = fn; }, unwatch() {} };
+  ctx.apis.timeline.refreshTrackButtons = () => refreshes++;
+  ctx.PZ.zoidium.trackPluginResource = track => tracked.add(track);
+  ctx.PZ.zoidium.untrackPluginResource = track => tracked.delete(track);
+  const runtime = harness.loadRuntime(); runtime.activate(ctx.context);
+  try {
+    const track = new ctx.PZ.track.video(); track.track3d = true;
+    ctx.editor.project = { forEachItemOfType(type, fn) { if (type === ctx.PZ.track) fn(track); } };
+    listener();
+    assert.equal(tracked.has(track), true); assert.equal(refreshes, 1);
+  } finally { runtime.deactivate(); }
+  assert.equal(tracked.size, 0);
+});
