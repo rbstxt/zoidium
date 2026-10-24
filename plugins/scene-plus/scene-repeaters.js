@@ -103,7 +103,7 @@ function createRepeaterClass(PZ, THREE, mode, type) {
       await Promise.all(this.objects.map((source) => source?.loading));
       this.detachTemplateObjects();
       if (this._mode === "echo") this.rebuildEchoInstances(frame);
-      else this.rebuildInstances(frame);
+      else this.refreshInstances(frame);
     }
 
     clearInstances() {
@@ -197,6 +197,10 @@ function createRepeaterClass(PZ, THREE, mode, type) {
         this.rebuildEchoInstances(frame);
         return;
       }
+      this.refreshInstances(frame);
+    }
+
+    refreshInstances(frame) {
       const sources = this.objects.filter((source) => source?.threeObj);
       const signatureParts = [];
       for (const source of sources) objectSignature(source.threeObj, signatureParts);
