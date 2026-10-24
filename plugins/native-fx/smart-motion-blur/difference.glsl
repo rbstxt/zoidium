@@ -1,3 +1,4 @@
+uniform float uSourceOnly;
 uniform sampler2D uCurrent;
 uniform sampler2D uBefore;
 uniform sampler2D uAfter;
@@ -6,8 +7,11 @@ uniform sampler2D uNextConfidence;
 uniform vec2 uSourceSize;
 uniform vec2 uActiveSize;
 void main() {
-    vec4 previous = texture2D(uPreviousConfidence, vUv);
-    vec4 next = texture2D(uNextConfidence, vUv);
+    vec4 previous = vec4(0.0), next = vec4(0.0);
+    if (uSourceOnly < 0.5) {
+        previous = texture2D(uPreviousConfidence, vUv);
+        next = texture2D(uNextConfidence, vUv);
+    }
     vec2 first = floor(gl_FragCoord.xy - 0.5) * 2.0;
     float difference = 0.0;
     for (int offsetY = 0; offsetY < 2; offsetY++) {
