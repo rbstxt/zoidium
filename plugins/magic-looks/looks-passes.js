@@ -1,5 +1,5 @@
 "use strict";
-const { plan } = require("./looks-instances.js");
+const { plan, MAX_INSTANCES } = require("./looks-instances.js");
 
 // Reuse the released tool math verbatim. Each instance gets its own uniforms
 // and functions; consecutive color stages share one shader and one draw.
@@ -41,16 +41,25 @@ function compile(source, instances, tools) {
 function create(effect, THREE, tools, getAsset, makeStage) {
   const stages = new Map(), passes = new Map();
   let active = [], targets = [], disposed = false;
+  let chain = null;
   const source = getAsset("text", "./plugins/magic-looks/looks-grade.glsl");
   const vertex = getAsset("text", "./plugins/magic-looks/looks-vert.glsl");
   function releasePass(pass) {
     pass.material.dispose();
     pass.quad?.geometry?.dispose();
   }
+  function syncStages() {
+    const order = effect.looksInstances.order;
+    const next = order.map(item => item.id + ":" + item.tool).join("/");
+    if (next === chain) return;
+    for (const pass of passes.values()) releasePass(pass);
+    for (const stage of stages.values()) stage.unload();
+    passes.clear(); stages.clear(); active = [];
+    chain = next;
+    for (const instance of order) stages.set(instance.id, makeStage(instance));
+  }
   function reconcile() {
-    const order = effect.looksInstances.order, ids = new Set(order.map(item => item.id));
-    for (const [id, stage] of stages) if (!ids.has(id)) { stage.unload(); stages.delete(id); }
-    for (const instance of order) if (!stages.has(instance.id)) stages.set(instance.id, makeStage(instance));
+    const order = effect.looksInstances.order;
     const wanted = new Set();
     active = plan(order, item => stages.get(item.id)._looksActiveTools[item.tool]);
     for (const entry of active) {
@@ -72,23 +81,32 @@ function create(effect, THREE, tools, getAsset, makeStage) {
         passes.set(signature, new THREE.ShaderPass(material));
       }
       entry.pass = passes.get(signature);
+      // Map insertion order is the LRU order. Uniform objects belong to the
+      // stages, so cached signatures always read this evaluation's values.
+      passes.delete(signature);
+      passes.set(signature, entry.pass);
     }
+    // Keep one chain's worth of inactive signatures as well as active passes.
     for (const [signature, pass] of passes) if (!wanted.has(signature)) {
+      if (passes.size <= MAX_INSTANCES * 2) break;
       releasePass(pass); passes.delete(signature);
     }
   }
   return {
     async prepare(frame) {
-      if (disposed) return;
-      reconcile();
+      if (disposed || effect.properties.enabled.get(frame) !== 1) return;
+      syncStages();
       await Promise.all(Array.from(stages.values(), stage => stage.prepare(frame)));
     },
     update(frame) {
       if (disposed) return;
-      reconcile();
+      if (effect.properties.enabled.get(frame) !== 1) {
+        active = []; effect.pass.enabled = false; return;
+      }
+      syncStages();
       for (const stage of stages.values()) stage.update(frame);
       reconcile();
-      effect.pass.enabled = effect.properties.enabled.get(frame) === 1 && active.length > 0;
+      effect.pass.enabled = active.length > 0;
     },
     render(renderer, writeBuffer, readBuffer) {
       if (!active.length) return;
@@ -96,7 +114,6 @@ function create(effect, THREE, tools, getAsset, makeStage) {
       const width = Math.max(1, Math.round(readBuffer.width * scale.x));
       const height = Math.max(1, Math.round(readBuffer.height * scale.y));
       const needed = Math.min(2, active.length - 1);
-      while (targets.length > needed) targets.pop().dispose();
       while (targets.length < needed) targets.push(new THREE.WebGLRenderTarget(width, height, {
         minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, format: THREE.RGBAFormat,
         type: THREE.HalfFloatType, depthBuffer: false, stencilBuffer: false, generateMipmaps: false,

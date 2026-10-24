@@ -429,16 +429,16 @@
       "category": "adjustment",
       "name": "Magic Looks",
       "author": "DaviFX",
-      "version": "17",
+      "version": "18",
       "itemCount": 29,
       "format": "setup",
       "tagline": "Looks-style color grading",
       "color": "#f7941d",
       "description": "Magic Bullet Looks-style color grading: 29 color, light and lens tools in a reorderable chain with look presets and a floating setup window.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/magic-looks/manifest.json?v=17",
-      "bundle": "./plugins/magic-looks/bundle.json?v=17",
-      "integrity": "sha256-EPnrXQzr7huc+4YA9Vk4ZHDQZ+z9BFFddy9CgOElsxg="
+      "manifest": "./plugins/magic-looks/manifest.json?v=18",
+      "bundle": "./plugins/magic-looks/bundle.json?v=18",
+      "integrity": "sha256-mpH8yJr0yUn2OKhObY8smV0iTaXHmugXFbmznnBr31M="
     },
     {
       "id": "layer-input",

@@ -8,9 +8,9 @@ for (const file of ["looks-color.js", "looks-tools.js"]) {
 }
 function harness() {
   const draws = [], targets = [], stages = new Map();
-  let materialDisposals = 0;
+  let materialDisposals = 0, materials = 0;
   class Vector2 { constructor(x, y) { this.set(x, y); } set(x, y) { this.x = x; this.y = y; } }
-  class ShaderMaterial { constructor(options) { Object.assign(this, options); } dispose() { materialDisposals++; } }
+  class ShaderMaterial { constructor(options) { materials++; Object.assign(this, options); } dispose() { materialDisposals++; } }
   class ShaderPass {
     constructor(material) { this.material = material; this.uniforms = material.uniforms; }
     render(renderer, output, input) {
@@ -38,7 +38,7 @@ function harness() {
       async prepare(frame) { this.prepared = frame; }, unload() { this.disposals++; } };
     stages.set(instance.id, stage); return stage;
   });
-  return { effect, pipeline, targets, stages, draws, materialDisposals: () => materialDisposals };
+  return { effect, pipeline, targets, stages, draws, materials: () => materials, materialDisposals: () => materialDisposals };
 }
 test("multipass routing samples each previous output and converts alpha only at chain boundaries", async () => {
   const h = harness(), input = { width: 96, height: 64, texture: {} }, output = {};
@@ -62,13 +62,51 @@ test("multipass routing samples each previous output and converts alpha only at 
   assert.ok(Array.from(h.stages.values()).every(stage => stage.disposals === 1));
   assert.ok(h.materialDisposals() > 0);
 });
-test("disabling a spatial stage allows fusion and releases unneeded target storage", () => {
+test("neutral samples reuse compiled signatures and scratch storage", () => {
   const h = harness(), input = { width: 96, height: 64, texture: {} };
   h.pipeline.update(0); h.pipeline.render({}, {}, input);
   h.stages.get("i2").active = false; h.pipeline.update(1);
   h.draws.length = 0; h.pipeline.render({}, {}, input);
   assert.equal(h.draws.length, 1);
   assert.equal(h.draws[0].input, input);
-  assert.ok(h.targets.every(target => target.disposals === 1));
+  assert.ok(h.targets.every(target => target.disposals === 0));
+  const materials = h.materials();
+  for (let frame = 2; frame < 30; frame++) {
+    h.stages.get("i2").active = frame % 2 === 0;
+    h.pipeline.update(frame); h.pipeline.render({}, {}, input);
+  }
+  assert.equal(h.materials(), materials, "alternating samples allocate no materials after warmup");
+  assert.equal(h.targets.length, 2);
+  assert.equal(h.materialDisposals(), 0);
+  h.pipeline.dispose();
+  assert.equal(h.materialDisposals(), materials);
+});
+
+test("master disable skips stage updates and preparation, then evaluates the requested time on re-enable", async () => {
+  const h = harness(); h.pipeline.update(1);
+  await h.pipeline.prepare(1);
+  h.effect.properties.enabled.get = () => 0;
+  h.pipeline.update(40); await h.pipeline.prepare(40);
+  assert.equal(h.effect.pass.enabled, false);
+  assert.ok([...h.stages.values()].every(stage => stage.frame === 1 && stage.prepared === 1));
+  h.effect.properties.enabled.get = () => 1;
+  h.pipeline.update(40); await h.pipeline.prepare(40);
+  assert.ok([...h.stages.values()].every(stage => stage.frame === 40 && stage.prepared === 40));
+  h.pipeline.dispose();
+});
+
+test("signature cache is bounded and authored chain changes release it", () => {
+  const h = harness();
+  h.effect.looksInstances.order = Array.from({ length: 8 }, (_, i) => ({ id: "i" + (i + 1), tool: "contrast" }));
+  h.pipeline.update(0);
+  for (let mask = 1; mask < 256; mask++) {
+    for (let i = 0; i < 8; i++) h.stages.get("i" + (i + 1)).active = !!(mask & (1 << i));
+    h.pipeline.update(mask);
+    assert.ok(h.materials() - h.materialDisposals() <= 128);
+  }
+  const oldStages = [...h.stages.values()], count = h.materials();
+  h.effect.looksInstances.order.reverse(); h.pipeline.update(1);
+  assert.equal(h.materialDisposals(), count);
+  assert.ok(oldStages.every(stage => stage.disposals === 1));
   h.pipeline.dispose();
 });
