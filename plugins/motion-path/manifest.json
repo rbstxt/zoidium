@@ -3,56 +3,61 @@
   "id": "motion-path",
   "name": "Motion Paths",
   "author": "Zoidium",
-  "version": "4",
+  "version": "5",
   "kind": "extension",
   "description": "After Effects style motion paths for animated Position in the preview, with draggable keyframes and bezier handles.",
   "category": "utilities",
   "modules": [
     {
       "id": "motion-path",
-      "source": "./plugins/motion-path/motion-path.js?v=4"
+      "source": "./plugins/motion-path/motion-path.js?v=5"
     }
   ],
   "resources": [
     {
       "id": "runtime",
       "type": "text",
-      "source": "./plugins/motion-path/runtime.js?v=4"
+      "source": "./plugins/motion-path/runtime.js?v=5"
     },
     {
       "id": "curves",
       "type": "text",
-      "source": "./plugins/motion-path/curves.js?v=4"
+      "source": "./plugins/motion-path/curves.js?v=5"
     },
     {
       "id": "path-edit",
       "type": "text",
-      "source": "./plugins/motion-path/path-edit.js?v=4"
+      "source": "./plugins/motion-path/path-edit.js?v=5"
     },
     {
       "id": "projection",
       "type": "text",
-      "source": "./plugins/motion-path/projection.js?v=4"
+      "source": "./plugins/motion-path/projection.js?v=5"
     },
     {
       "id": "targets",
       "type": "text",
-      "source": "./plugins/motion-path/targets.js?v=4"
+      "source": "./plugins/motion-path/targets.js?v=5"
     },
     {
       "id": "overlay",
       "type": "text",
-      "source": "./plugins/motion-path/overlay.js?v=4"
+      "source": "./plugins/motion-path/overlay.js?v=5"
     },
     {
       "id": "edit-session",
       "type": "text",
-      "source": "./plugins/motion-path/edit-session.js?v=4"
+      "source": "./plugins/motion-path/edit-session.js?v=5"
     },
     {
       "id": "interaction",
       "type": "text",
-      "source": "./plugins/motion-path/interaction.js?v=4"
+      "source": "./plugins/motion-path/interaction.js?v=5"
+    },
+    {
+      "id": "invalidation",
+      "type": "text",
+      "source": "./plugins/motion-path/invalidation.js?v=5"
     }
   ]
 }
