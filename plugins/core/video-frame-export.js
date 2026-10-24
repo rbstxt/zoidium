@@ -177,7 +177,7 @@
     });
   };
 
-  PZ.export.prototype.getVideoFrame = async function getDeterministicVideoFrame(output) {
+  PZ.export.prototype.renderVideoFrame = async function renderDeterministicVideoFrame(output) {
     // Compose with temporal-render.js regardless of load order: when it loads
     // after this script its wrapper delegates here, and when it loads first
     // this call keeps the export compositor registered after replacing its
@@ -207,7 +207,7 @@
 
     this.compositor.renderSequence(projectFrame);
 
-    if (this.readPixelsWorkaround) {
+    if (output && this.readPixelsWorkaround) {
       const context = this.renderer.context;
       const drawingBufferWidth = context.drawingBufferWidth;
       const drawingBufferHeight = context.drawingBufferHeight;
@@ -230,7 +230,7 @@
           drawingBufferHeight,
         ).data,
       );
-    } else {
+    } else if (output) {
       const context = this.renderer.context;
       context.readPixels(
         0,
@@ -248,6 +248,10 @@
     this.frameWaiting = -1;
     this.framePromise = null;
     return 1;
+  };
+
+  PZ.export.prototype.getVideoFrame = function getDeterministicVideoFrame(output) {
+    return this.renderVideoFrame(output);
   };
 
   PZ.schedule.prototype.__zoidiumVideoExportPatch = true;

@@ -26,14 +26,14 @@
       "id": "core",
       "name": "Zoidium Core",
       "author": "Zoidium",
-      "version": "75",
+      "version": "76",
       "visibility": "hidden",
       "alwaysEnabled": true,
       "tagline": "Built-in core extensions",
       "description": "Hidden built-in extensions that always run. Not shown in the Plugins panel and never stored in projects.",
-      "manifest": "./plugins/core/manifest.json?v=75",
-      "bundle": "./plugins/core/bundle.json?v=75",
-      "integrity": "sha256-grBX1jD0CU1ik5uhQRt5/byBj9haeKTUnAayZZElKjg="
+      "manifest": "./plugins/core/manifest.json?v=76",
+      "bundle": "./plugins/core/bundle.json?v=76",
+      "integrity": "sha256-+PAwx/gJzOmVq2+zi+hfB7feZCsADOMAINLxaBMOUrQ="
     },
     {
       "id": "easing-plus",
@@ -87,16 +87,16 @@
       "category": "utilities",
       "name": "Player+",
       "author": "Zoidium",
-      "version": "13",
+      "version": "14",
       "defaultEnabled": true,
       "itemCount": 1,
       "format": "playback controls",
       "tagline": "Playback Quality Controls",
       "color": "#4f7dbf",
       "description": "Adds drawing pause, single-render, and preview quality controls to the playback bar.",
-      "manifest": "./plugins/player-plus/manifest.json?v=13",
-      "bundle": "./plugins/player-plus/bundle.json?v=13",
-      "integrity": "sha256-Ldl7PviTCZ/wF24WtSINDf0KOoZXC31tbnZFLyuT+F0="
+      "manifest": "./plugins/player-plus/manifest.json?v=14",
+      "bundle": "./plugins/player-plus/bundle.json?v=14",
+      "integrity": "sha256-BTJm2oVp3EqgUsd+FOtjORV8Yn+ZWPGPaQOcwc5a3zc="
     },
     {
       "id": "asset-manager",
@@ -135,16 +135,16 @@
       "category": "utilities",
       "name": "Animated GIF",
       "author": "DaviFX",
-      "version": "4",
+      "version": "5",
       "itemCount": 1,
       "format": "animated images",
       "tagline": "Animated GIF image assets",
       "color": "#4f7dbf",
       "description": "Decodes animated GIF image assets and animates them deterministically from clip-local time.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/gif-support/manifest.json?v=4",
-      "bundle": "./plugins/gif-support/bundle.json?v=4",
-      "integrity": "sha256-wuZKj2iv+nD/WGDNtIAT2IztIq4CwVUlpsVt4YGYiUQ="
+      "manifest": "./plugins/gif-support/manifest.json?v=5",
+      "bundle": "./plugins/gif-support/bundle.json?v=5",
+      "integrity": "sha256-eatDuxfPWkstAOGo1dNTnx/A522fHQJxRpmA0KPybLA="
     },
     {
       "id": "graph-plus",
@@ -279,16 +279,16 @@
       "category": "scene",
       "name": "Rowbyte & Red Giant Suite",
       "author": "DaviFX",
-      "version": "39",
+      "version": "40",
       "itemCount": 14,
       "format": "3D objects",
       "tagline": "Particular, Form, Plexus and C4D lights",
       "color": "#c9a13b",
       "description": "Trapcode Particular, Form and Plexus 3D objects with floating designer windows, deterministic simulation and audio analysis, plus C4D-style lights.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/trapcode-suite/manifest.json?v=39",
-      "bundle": "./plugins/trapcode-suite/bundle.json?v=39",
-      "integrity": "sha256-6EwIMglHpOLf+b/het11Mtu05ClsGB2Eb9BsUomyrms="
+      "manifest": "./plugins/trapcode-suite/manifest.json?v=40",
+      "bundle": "./plugins/trapcode-suite/bundle.json?v=40",
+      "integrity": "sha256-PnHp5LViVvdit9ZGYuE5euH3K2v9j3Xxa2ik1047Xrs="
     },
     {
       "id": "optical-flares",
@@ -429,16 +429,16 @@
       "category": "adjustment",
       "name": "Magic Looks",
       "author": "DaviFX",
-      "version": "17",
+      "version": "18",
       "itemCount": 29,
       "format": "setup",
       "tagline": "Looks-style color grading",
       "color": "#f7941d",
       "description": "Magic Bullet Looks-style color grading: 29 color, light and lens tools in a reorderable chain with look presets and a floating setup window.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/magic-looks/manifest.json?v=17",
-      "bundle": "./plugins/magic-looks/bundle.json?v=17",
-      "integrity": "sha256-EPnrXQzr7huc+4YA9Vk4ZHDQZ+z9BFFddy9CgOElsxg="
+      "manifest": "./plugins/magic-looks/manifest.json?v=18",
+      "bundle": "./plugins/magic-looks/bundle.json?v=18",
+      "integrity": "sha256-mpH8yJr0yUn2OKhObY8smV0iTaXHmugXFbmznnBr31M="
     },
     {
       "id": "layer-input",
@@ -504,14 +504,14 @@
       "id": "mp4-export",
       "name": "MP4 Export",
       "author": "Zoidium",
-      "version": "5",
+      "version": "6",
       "category": "utilities",
       "defaultEnabled": true,
       "tagline": "H.264 MP4 video export",
       "description": "Export MP4 from the native Export panel with AAC or Opus audio. Requires WebCodecs encoder support.",
-      "manifest": "./plugins/mp4-export/manifest.json?v=5",
-      "integrity": "sha256-WHhleA34sdX7/lIBJMzJUUUBwmNs4B+k51vJyYYFekA=",
-      "bundle": "./plugins/mp4-export/bundle.json?v=5"
+      "manifest": "./plugins/mp4-export/manifest.json?v=6",
+      "integrity": "sha256-k6R7L4ipr85g+/YzuI+s5Be51aFOV+HIL5bq7UQsxpU=",
+      "bundle": "./plugins/mp4-export/bundle.json?v=6"
     }
   ]
 }

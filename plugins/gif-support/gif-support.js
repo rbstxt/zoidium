@@ -30,6 +30,22 @@ const GifSupport = (() => {
   const MIN_FRAME_SECONDS = 0.1;
   const DEFAULT_RATE = 30;
 
+  // Assets and undo history own decoded data. Iteration must not keep a
+  // removed asset, layer, or texture consumer alive.
+  function weakEntries() {
+    let references = new WeakMap();
+    const entries = new Set();
+    return {
+      add(value) { if (!references.has(value)) { const ref = new WeakRef(value); references.set(value, ref); entries.add(ref); } },
+      has(value) { return references.has(value); },
+      delete(value) { entries.delete(references.get(value)); references.delete(value); },
+      clear() { entries.clear(); references = new WeakMap(); },
+      *[Symbol.iterator]() {
+        for (const ref of entries) { const value = ref.deref(); if (value) yield value; else entries.delete(ref); }
+      },
+    };
+  }
+
   const state = {
     active: false,
     installation: null,
@@ -38,8 +54,14 @@ const GifSupport = (() => {
     Clip: null,
     originals: null,
     patched: null,
-    records: new Set(),
-    wrappers: new Set(),
+    records: weakEntries(),
+    wrappers: weakEntries(),
+    consumers: new WeakMap(),
+    consumerEntries: weakEntries(),
+    epoch: 0,
+    project: null,
+    projectHooks: [],
+    editor: null,
     clock: null,
   };
 
@@ -452,6 +474,7 @@ const GifSupport = (() => {
           record.cumulative = decoded.cumulative;
           record.total = decoded.total;
           state.records.add(record);
+          state.epoch++;
           data.image = decoded.frames[0].canvas;
           refreshWrappersForRecord(record);
           resolve();
@@ -480,7 +503,7 @@ const GifSupport = (() => {
   // Collects every live PZ.asset.image wrapper under a layer without any
   // per-material-type knowledge. Bounded (depth + node budget) and skips
   // host back-pointers and THREE subtrees.
-  function collectImageWrappers(root) {
+  function collectImageWrappers(root, consumer) {
     const found = [];
     if (!root || !state.ImageAsset) return found;
     const seen = new Set();
@@ -492,8 +515,17 @@ const GifSupport = (() => {
       if (seen.has(value)) continue;
       seen.add(value);
       budget--;
+      for (const key of ["onListChanged", "onParentChanged", "onChanged", "onExpressionChanged", "onAnimatedChanged"]) {
+        const signal = value[key];
+        if (!signal?.watch || !signal?.unwatch || consumer.hooks.has(signal)) continue;
+        signal.watch(consumer.invalidate);
+        consumer.hooks.add(signal);
+      }
       if (value instanceof state.ImageAsset) {
-        found.push(value);
+        if (value.data?.gif) {
+          found.push(value);
+          if (value.__gifTextures?.length) state.wrappers.add(value);
+        }
         continue;
       }
       if (depth >= 16) continue;
@@ -570,20 +602,57 @@ const GifSupport = (() => {
     return projectMediaTime();
   }
 
-  function hasAnimatedRecords() {
-    for (const record of state.records) {
-      if (record.frames && record.frames.length > 1 && record.total > 0) return true;
+  function clearConsumers() {
+    for (const consumer of state.consumerEntries) {
+      for (const signal of consumer.hooks) signal.unwatch(consumer.invalidate);
     }
-    return false;
+    state.consumerEntries.clear();
+    state.consumers = new WeakMap();
+  }
+
+  function syncProject() {
+    const project = state.editor?.project || null;
+    if (state.project === project) return;
+    for (const [signal, callback] of state.projectHooks) signal.unwatch(callback);
+    state.projectHooks = [];
+    clearConsumers();
+    state.project = project;
+    state.epoch++;
+    const invalidate = () => { state.epoch++; };
+    for (const signal of [project?.ui?.onChanged, project?.assets?.onAssetCreated, project?.assets?.onAssetRemoved]) {
+      if (!signal?.watch || !signal?.unwatch) continue;
+      signal.watch(invalidate); state.projectHooks.push([signal, invalidate]);
+    }
+    // Old projects still own their data, but no longer take part in rendering.
+    if (project?.assets?.list) {
+      const data = new Set(Object.values(project.assets.list).map(asset => asset.data?.get(state.ImageAsset)));
+      for (const record of state.records) if (!data.has(record.data)) state.records.delete(record);
+      for (const wrapper of state.wrappers) if (!data.has(wrapper.data)) state.wrappers.delete(wrapper);
+      for (const item of data) if (item?.gif?.frames) state.records.add(item.gif);
+    }
   }
 
   function seekLayerWrappers(layer, localFrame) {
-    // Without a decoded multi-frame GIF there is nothing to seek; skip the
-    // walk so projects without GIFs pay nothing per layer update.
-    if (!hasAnimatedRecords()) return;
+    syncProject();
+    // Texture registration invalidates the ownership cache synchronously.
+    // Ordinary frame evaluation only visits this layer's registered consumers.
+    if (!state.records[Symbol.iterator]().next().value) return;
+    let consumer = state.consumers.get(layer);
+    if (!consumer) {
+      consumer = { epoch: -1, dirty: true, hooks: new Set(), wrappers: [] };
+      consumer.invalidate = () => { consumer.dirty = true; };
+      state.consumers.set(layer, consumer); state.consumerEntries.add(consumer);
+    }
+    if (consumer.dirty || consumer.epoch !== state.epoch) {
+      for (const signal of consumer.hooks) signal.unwatch(consumer.invalidate);
+      consumer.hooks.clear();
+      consumer.wrappers = collectImageWrappers(layer, consumer);
+      consumer.epoch = state.epoch; consumer.dirty = false;
+    }
+    if (!consumer.wrappers.length) return;
     const mediaTime = layerMediaTime(layer, localFrame);
     if (mediaTime === null || mediaTime === undefined || !isFinite(mediaTime)) return;
-    const wrappers = collectImageWrappers(layer);
+    const wrappers = consumer.wrappers;
     for (const wrapper of wrappers) {
       try {
         const record = wrapper.data && wrapper.data.gif;
@@ -645,6 +714,7 @@ const GifSupport = (() => {
     const host = (context.PZ || (typeof window !== "undefined" ? window.PZ : null) || {});
     const doc = context.document || (typeof document !== "undefined" ? document : null);
     state.PZ = host;
+    state.editor = context.editor || context.window?.CM || null;
     try {
       host.__gifDocument = doc;
     } catch (_error) {
@@ -710,8 +780,9 @@ const GifSupport = (() => {
         const record = this.data && this.data.gif;
         if (!record) return texture;
         if (!this.__gifTextures) this.__gifTextures = [];
-        if (this.__gifTextures.indexOf(texture) < 0) this.__gifTextures.push(texture);
+        if (this.__gifTextures.indexOf(texture) < 0) { this.__gifTextures.push(texture); state.epoch++; }
         state.wrappers.add(this);
+        state.records.add(record);
         if (record.frames && record.frames.length) {
           const index = Math.min(currentFrameIndex(this), record.frames.length - 1);
           this.__gifApplied = false;
@@ -725,7 +796,11 @@ const GifSupport = (() => {
               if (list) {
                 const at = list.indexOf(texture);
                 if (at >= 0) list.splice(at, 1);
-                if (list.length === 0 && state.wrappers.has(wrapper)) state.wrappers.delete(wrapper);
+                if (list.length === 0) {
+                  state.wrappers.delete(wrapper);
+                  state.epoch++;
+                  if (!Array.from(state.wrappers).some(item => item.data?.gif === record)) state.records.delete(record);
+                }
               }
             } catch (_error) {
               // Disposal cleanup is best-effort.
@@ -754,6 +829,7 @@ const GifSupport = (() => {
     function patchedRenderSequence() {
       if (installation.active) {
         try {
+          syncProject();
           const sequence = this._sequence;
           if (sequence) {
             const rate = readRate(sequence);
@@ -803,10 +879,12 @@ const GifSupport = (() => {
       throw error;
     }
     state.active = true;
+    syncProject();
     const assets = context.apis?.assets || context.window?.ZoidiumAssets || globalThis.ZoidiumAssets;
     if (assets?.registerReloader) context.lifecycle.onDispose(assets.registerReloader({
       id: "gif-support/frames",
       async reload(_key, asset) {
+        state.epoch++;
         const data = asset.data?.get(ImageAsset);
         for (const record of state.records) if (record.data === data && data.gif !== record) state.records.delete(record);
         if (data?.gif?.frames?.length) refreshWrappersForRecord(data.gif);
@@ -819,6 +897,9 @@ const GifSupport = (() => {
     state.active = false;
     if (state.installation) state.installation.active = false;
     restoreOriginals();
+    clearConsumers();
+    for (const [signal, callback] of state.projectHooks) signal.unwatch(callback);
+    state.projectHooks = []; state.project = null; state.editor = null;
     state.records.clear();
     state.wrappers.clear();
     state.clock = null;

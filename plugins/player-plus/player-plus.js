@@ -314,13 +314,14 @@ const PlayerPlus = (() => {
     state.paused = next;
     const viewports = getViewports();
     for (const viewport of viewports) {
+      const wasPaused = viewport.__zoidiumPlayerPlusPaused === true;
       viewport.__zoidiumPlayerPlusPaused = next;
       if (next) {
         if (viewport.animFrameReq != null) {
           state.window.cancelAnimationFrame(viewport.animFrameReq);
           viewport.animFrameReq = null;
         }
-      } else if (viewport.enabled && typeof viewport._renderFn === "function") {
+      } else if (wasPaused && viewport.enabled && viewport.animFrameReq == null && typeof viewport._renderFn === "function") {
         viewport.animFrameReq = state.window.requestAnimationFrame(viewport._renderFn);
       }
     }

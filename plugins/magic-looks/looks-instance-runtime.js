@@ -31,7 +31,7 @@ function install(effect, PZ, THREE, Looks, legacy) {
     const stage = {
       _zoidiumGetAsset: getAsset, properties, parentLayer: effect.parentLayer, parentProject: effect.parentProject,
       _looksDefaults: effect._looksDefaults, _looksPropMap: effect._looksPropMap,
-      _looksToolIds: effect._looksToolIds, update: legacy.update, prepare: legacy.prepare,
+      _looksToolIds: [instance.tool], update: legacy.update, prepare: legacy.prepare,
       unload() { const geometry = this.pass?.quad?.geometry; legacy.unload.call(this); geometry?.dispose(); },
     };
     // load initializes uniforms and starts no asynchronous work for neutral LUTs.
