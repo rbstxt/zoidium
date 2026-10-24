@@ -78,9 +78,94 @@
     return null;
   }
 
+  // Only authored membership is cached. Active clips, enabled state, clip
+  // timing, sampler scope and operator values remain live reads.
+  const structuralEvents = new WeakSet();
+  const sequenceStructures = new WeakMap();
+  let structureRevision = 0;
+  const invalidateStructure = () => { structureRevision += 1; };
+  let observedPrototype = null;
+
+  function observeStructure(event) {
+    const prototype = typeof PZ !== "undefined" ? PZ.observable?.prototype : null;
+    if (!event || !prototype || typeof prototype.update !== "function" || !(event instanceof PZ.observable)) return false;
+    if (observedPrototype !== prototype) {
+      const original = prototype.update;
+      prototype.update = function temporalStructureChanged() {
+        if (structuralEvents.has(this)) invalidateStructure();
+        return original.apply(this, arguments);
+      };
+      observedPrototype = prototype;
+    }
+    structuralEvents.add(event);
+    return true;
+  }
+
+  if (typeof document !== "undefined") {
+    for (const name of ["zoidium:plugin-state-change", "zoidium:project-load-start"]) {
+      document.addEventListener?.(name, invalidateStructure);
+    }
+  }
+
+  function getSequenceStructure(sequence) {
+    if (!sequence) return null;
+    const previous = sequenceStructures.get(sequence);
+    if (previous?.cacheable && previous.revision === structureRevision && previous.tracks === sequence.videoTracks) return previous;
+    const result = { tracks: sequence.videoTracks, indexes: new WeakMap(), adjustments: [],
+      temporal: false, sampler: false, cacheable: true, revision: structureRevision };
+    const visited = new WeakSet();
+    function list(items) {
+      if (items && !observeStructure(items.onListChanged)) result.cacheable = false;
+      return items || [];
+    }
+    function visit(layer) {
+      if (!layer || visited.has(layer)) return;
+      visited.add(layer);
+      observeStructure(layer.onParentChanged);
+      for (const effect of list(layer.effects)) {
+        result.temporal ||= Boolean(effect?._zoidiumTemporal);
+        result.sampler ||= Boolean(effect?._zoidiumFrameSampler);
+      }
+      for (const track of list(layer.nestedTracks?.())) {
+        for (const clip of list(track.clips)) visit(clip.object);
+      }
+      if (layer instanceof PZ.layer.composite) {
+        for (const child of list(layer.objects)) visit(child);
+      }
+    }
+    let index = 0;
+    for (const track of list(sequence.videoTracks)) {
+      let adjustment = false;
+      for (const clip of list(track.clips)) {
+        const layer = clip.object;
+        if (layer) {
+          const indexes = result.indexes.get(layer) || [];
+          indexes.push(index);
+          result.indexes.set(layer, indexes);
+          visit(layer);
+          adjustment ||= isAdjustmentLayer(layer) && Array.from(layer.effects || [])
+            .some(effect => Boolean(effect?._zoidiumTemporal));
+        }
+      }
+      if (adjustment) result.adjustments.push(index);
+      observeStructure(track.onEnabledChanged);
+      index += 1;
+    }
+    observeStructure(sequence.parentProject?.ui?.onChanged);
+    sequenceStructures.set(sequence, result);
+    return result;
+  }
+
   function getVideoTrackIndex(sequence, layer) {
     const tracks = sequence?.videoTracks;
     if (!tracks || !layer) return -1;
+    const structure = getSequenceStructure(sequence);
+    if (structure?.cacheable) {
+      for (const index of structure.indexes.get(layer) || []) {
+        if (tracks[index]?.layer === layer) return index;
+      }
+      return -1;
+    }
     for (let index = 0; index < tracks.length; index += 1) {
       if (tracks[index]?.layer === layer) return index;
     }
@@ -193,7 +278,11 @@
     // from every lower track.
     const scope = getFrameSamplerScope();
     const end = scope ? Math.min(tracks.length, scope.trackIndex) : tracks.length;
-    for (let index = targetIndex + 1; index < end; index += 1) {
+    const structure = getSequenceStructure(sequence);
+    const candidates = structure?.cacheable ? structure.adjustments
+      : Array.from({ length: Math.max(0, end - targetIndex - 1) }, (_, i) => targetIndex + i + 1);
+    for (const index of candidates) {
+      if (index <= targetIndex || index >= end) continue;
       const adjustmentLayer = tracks[index]?.layer;
       if (!isAdjustmentLayer(adjustmentLayer)) continue;
 
@@ -208,6 +297,8 @@
   }
 
   function getTemporalLayerFrame(layer, localFrame, sequence) {
+    const structure = getSequenceStructure(sequence);
+    if (structure?.cacheable && !structure.temporal) return null;
     const clip = getClipForLayer(layer);
     if (!clip) return null;
 
@@ -246,31 +337,9 @@
     };
   }
 
-  // Scan descriptors, never serialized project data. Cache bypass still
-  // excludes samplers, while concrete dispatch maps every temporal sequence.
   function usesSingleEvaluation(sequence, excludeSamplers = false) {
-    let temporal = false;
-    let sampler = false;
-    const visited = new WeakSet();
-    function visit(layer) {
-      if (!layer || visited.has(layer)) return;
-      visited.add(layer);
-      for (const track of layer.nestedTracks?.() || []) {
-        for (const clip of track.clips || []) visit(clip.object);
-      }
-      for (const effect of layer?.effects || []) {
-        temporal ||= Boolean(effect?._zoidiumTemporal);
-        sampler ||= Boolean(effect?._zoidiumFrameSampler);
-      }
-      // Composite children are layers; Scene children are 3D objects.
-      if (layer instanceof PZ.layer.composite) {
-        for (const child of layer.objects || []) visit(child);
-      }
-    }
-    for (const track of sequence?.videoTracks || []) {
-      for (const clip of track.clips || []) visit(clip.object);
-    }
-    return temporal && !(excludeSamplers && sampler);
+    const structure = getSequenceStructure(sequence);
+    return Boolean(structure?.temporal && !(excludeSamplers && structure.sampler));
   }
 
   function hasNestedFrameSampler(layer) {
@@ -282,6 +351,9 @@
   }
 
   function installSingleEvaluation(state, sequence) {
+    const structure = getSequenceStructure(sequence);
+    if (structure?.cacheable && structure.singleEvaluationState === state) return;
+    if (structure) structure.singleEvaluationState = state;
     const visited = new WeakSet();
     function visit(layer) {
       if (!layer || visited.has(layer)) return;
