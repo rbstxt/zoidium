@@ -45,7 +45,7 @@ test("overlay admits one direct planar clip and rejects ambiguous or singular co
   const layer = new Layer(); layer.effects = [];
   layer.properties = { position: property([20, 50]), scale: property([-2, .5]), rotation: property(.3) };
   const clip = { start: 10, length: 30, offset: 5, object: layer, tryGetParentOfType: () => sequence };
-  layer.parentObject = clip;
+  layer.parent = clip; clip.parent = sequence; layer.parentObject = clip;
   const viewport = { enabled: true, renderMode: false, objects: [clip] };
   const check = () => editableClip(editor, viewport, Layer, PZ);
   assert.equal(check(), clip);

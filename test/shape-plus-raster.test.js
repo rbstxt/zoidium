@@ -124,6 +124,7 @@ function layerHost() {
   const ShapeLayer = createLayerClass({ layer: Layer, objectList: ObjectList }, h.THREE, class {});
   const layer = new ShapeLayer();
   layer.parentProject = { sequence: { properties: { rate: { get: () => 30 }, resolution: { get: () => [640, 360] } } } };
+  layer.tryGetParentOfType = () => layer.parentProject;
   const tolerances = [], build = layer.build;
   layer.build = function (tolerance) { tolerances.push(tolerance); return build.call(this, tolerance); };
   return { h, layer, tolerances };

@@ -14,6 +14,7 @@ function createLayerClass(PZ, THREE, Content) {
       this.children.splice(1, 0, this.contents);
       this.engine = createRenderer(THREE);
       this.pass = { render: (renderer, destination) => {
+        if (this.disposed || !this.tryGetParentOfType(PZ.project)) return;
         try {
         const width = Math.max(1, destination.viewport.z), height = Math.max(1, destination.viewport.w);
         const resolution = this.properties.resolution.get();
@@ -30,20 +31,28 @@ function createLayerClass(PZ, THREE, Content) {
       data = clone(data || { type: TYPE, contents: defaults(), effects: [] });
       if ((data.schemaVersion || 1) !== 1 || (data.renderVersion || 1) !== 1) throw Error("Unsupported Shape+ format version");
       validate(data.contents || []);
+      const project = this.tryGetParentOfType(PZ.project);
+      // Native load creates project-owned shaders. A detached import can
+      // publish its data now and allocate those shaders after attachment.
+      if (!project) { this.pendingData = data; return; }
+      this.pendingData = null; this.assetProject = project; this.disposed = false;
       this.extra = data;
       super.load({ ...data, effects: data.effects || [] });
       this.properties.load(data.properties);
-      const resolution = this.parentProject.sequence.properties.resolution.get();
+      const resolution = project.sequence.properties.resolution.get();
       this.properties.resolution.set(resolution.slice()); this.composite.quad.scale.set(...resolution, 1);
       for (const child of this.contents) child.unload();
       this.contents.splice(0, this.contents.length);
       for (const item of data.contents || []) { const node = new Content(item.kind, item); this.contents.push(node); node.load(item); }
       this.signature = null;
     }
-    toJSON() { return { ...this.extra, ...super.toJSON(), schemaVersion: 1, renderVersion: 1, contents: this.contents }; }
+    toJSON() { return this.pendingData || { ...this.extra, ...super.toJSON(), schemaVersion: 1, renderVersion: 1, contents: this.contents }; }
     update(frame) {
+      const project = this.tryGetParentOfType(PZ.project);
+      if (this.disposed || !project) return;
+      if (this.pendingData) this.load(this.pendingData);
       this.frame = frame; this.bakedTransform = null;
-      const resolution = this.parentProject.sequence.properties.resolution.get(), current = this.properties.resolution.get();
+      const resolution = project.sequence.properties.resolution.get(), current = this.properties.resolution.get();
       if (current[0] !== resolution[0] || current[1] !== resolution[1]) {
         this.properties.resolution.set(resolution.slice()); this.composite.quad.scale.set(...resolution, 1);
       }
@@ -55,6 +64,7 @@ function createLayerClass(PZ, THREE, Content) {
     // reset to identity for this composite, so scaled layers stay sharp.
     // Effects work in pre-transform layer space and keep the native path.
     takeCompositeTransform() {
+      if (this.disposed || !this.tryGetParentOfType(PZ.project)) return null;
       const group = this.composite.group, p = group.position, r = group.rotation, s = group.scale;
       if (this.effects.length || r.x !== 0 || r.y !== 0 || p.z !== 0) { this.bakedTransform = null; return null; }
       const identity = p.x === 0 && p.y === 0 && r.z === 0 && s.x === 1 && s.y === 1;
@@ -71,8 +81,10 @@ function createLayerClass(PZ, THREE, Content) {
       this.bakedTransform = transform; return transform;
     }
     build(tolerance) {
+      const project = this.tryGetParentOfType(PZ.project);
+      if (this.disposed || !project) return;
       try {
-      const contents = Array.from(this.contents, node => node.evaluate(this.frame, this.parentProject.sequence.properties.rate.get()));
+      const contents = Array.from(this.contents, node => node.evaluate(this.frame, project.sequence.properties.rate.get()));
       const resolution = this.properties.resolution.get(), signature = JSON.stringify([contents, tolerance, resolution]);
       if (signature === this.signature) return;
       const result = compile(contents, tolerance);
@@ -84,10 +96,27 @@ function createLayerClass(PZ, THREE, Content) {
         this.signature = null;
       }
     }
-    async prepare(frame, context) { await super.prepare(frame, context); }
+    async prepare(frame, context) {
+      if (this.disposed || !this.tryGetParentOfType(PZ.project)) return;
+      if (this.pendingData) this.load(this.pendingData);
+      await super.prepare(frame, context);
+    }
+    getParentOfType(type) {
+      // Native layer/effect unload releases project assets through this
+      // lookup even when the owning clip has already left the timeline.
+      if (this.unloading && type === PZ.project) return this.assetProject;
+      return super.getParentOfType(type);
+    }
     unload() {
+      if (this.disposed) return;
+      this.disposed = true;
       this.engine.dispose(); for (const child of this.contents) child.unload();
-      super.unload(); this.composite.quad.geometry.dispose(); this.composite.quad.material.dispose();
+      this.unloading = true;
+      try { if (this.assetProject) super.unload(); }
+      finally {
+        this.unloading = false; this.assetProject = null;
+        this.composite.quad.geometry.dispose(); this.composite.quad.material.dispose();
+      }
     }
   };
 }

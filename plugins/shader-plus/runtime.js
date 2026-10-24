@@ -47,12 +47,17 @@ function installRuntime({ PZ, THREE, doc, patch, curves, editor, presetFont, pip
     console.warn("[Zoidium] " + text);
     effect?.onShaderError?.update(text);
   }
+  function projectOf(effect) {
+    try { return effect.parentProject || null; }
+    catch (_error) { return null; }
+  }
   function refresh(effect) {
     const current = editor();
     // A font can finish while another project is being loaded or exported.
     // Texture readiness changes no authored data and must never dirty the
     // previous project or invalidate its in-progress archive transition.
-    if (!current || current.project !== effect.parentProject) return;
+    const project = projectOf(effect);
+    if (!current || !project || current.project !== project) return;
     doc.dispatchEvent(new CustomEvent("zoidium:asset-reloaded", { detail: { source: "shader-plus" } }));
     current.mainViewport?.requestRender?.();
   }
@@ -85,7 +90,7 @@ function installRuntime({ PZ, THREE, doc, patch, curves, editor, presetFont, pip
   }
 
   function bakeText(effect, property, entry, value) {
-    const options = parseText(value), project = effect.parentProject;
+    const options = parseText(value), project = projectOf(effect);
     entry.error = null;
     const asset = holdFont(entry, project, options.font || presetFont());
     const token = entry.token = {};
@@ -108,6 +113,7 @@ function installRuntime({ PZ, THREE, doc, patch, curves, editor, presetFont, pip
 
   function prepareEntry(effect, property, kind) {
     const entry = entryFor(effect, property, kind);
+    if (kind === "text" && !projectOf(effect)) return entry;
     const value = property.get();
     if (kind === "gradient") {
       const key = value;
@@ -233,8 +239,10 @@ function installRuntime({ PZ, THREE, doc, patch, curves, editor, presetFont, pip
   });
   patch(proto, "load", original => async function loadWithShaderPlus() {
     const result = await original.apply(this, arguments);
+    const project = projectOf(this);
+    if (!project) return result;
     for (const property of this.customProperties || []) {
-      if (kindOf(property) === "text") holdFont(entryFor(this, property, "text"), this.parentProject, parseText(property.get()).font || presetFont());
+      if (kindOf(property) === "text") holdFont(entryFor(this, property, "text"), project, parseText(property.get()).font || presetFont());
     }
     return result;
   });

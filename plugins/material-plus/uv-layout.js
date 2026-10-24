@@ -508,10 +508,20 @@ function uvMeshMaterial(mesh) {
   return Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
 }
 
+const uvOwners = new WeakMap();
+function uvOwner(material) {
+  // A removed material's native parentObject getter dereferences null.
+  if ("parent" in material && !material.parent) return null;
+  return material.parentObject;
+}
+
 // Call from the material's update. Cheap once the geometry is laid out.
 function uvEnsureMaterial(material) {
+  const owner = uvOwner(material);
+  if (!owner) return;
+  uvOwners.set(material, owner);
   if (material.threeObj) material.threeObj.__zoidiumUvLayout = true;
-  uvForEachMesh(material.parentObject?.threeObj, (_mesh, geometry) => {
+  uvForEachMesh(owner.threeObj, (_mesh, geometry) => {
     uvApplyToGeometry(geometry);
   });
 }
@@ -520,7 +530,9 @@ function uvEnsureMaterial(material) {
 // now renders keeps its layout, so switching between Material+ types does not
 // flash the native UVs.
 function uvReleaseMaterial(material) {
-  uvForEachMesh(material.parentObject?.threeObj, (mesh, geometry) => {
+  const owner = uvOwners.get(material) || uvOwner(material);
+  uvOwners.delete(material);
+  uvForEachMesh(owner?.threeObj, (mesh, geometry) => {
     const current = uvMeshMaterial(mesh);
     if (current && current !== material.threeObj && current.__zoidiumUvLayout) return;
     uvRestoreGeometry(geometry);

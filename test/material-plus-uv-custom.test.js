@@ -15,6 +15,20 @@ const getAsset = (type, source) => {
   return layoutSource;
 };
 
+test("UV layout cleanup restores the mesh after its material is detached", () => {
+  const geometry = extrudedSquare(), original = JSON.stringify(geometry.faceVertexUvs);
+  const mesh = { geometry }, owner = { threeObj: mesh };
+  const material = { parent: owner, threeObj: {}, get parentObject() { return this.parent || this.parent.parentObject; } };
+  mesh.material = material.threeObj;
+  UvLayout.ensureMaterial(material);
+  assert.notEqual(JSON.stringify(geometry.faceVertexUvs), original);
+  material.parent = null;
+  assert.doesNotThrow(() => UvLayout.ensureMaterial(material));
+  assert.doesNotThrow(() => UvLayout.releaseMaterial(material));
+  assert.equal(JSON.stringify(geometry.faceVertexUvs), original);
+  assert.doesNotThrow(() => UvLayout.releaseMaterial(material));
+});
+
 function uv(x, y) {
   return {
     x,
