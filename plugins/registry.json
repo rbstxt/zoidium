@@ -33,7 +33,7 @@
       "description": "Hidden built-in extensions that always run. Not shown in the Plugins panel and never stored in projects.",
       "manifest": "./plugins/core/manifest.json?v=74",
       "bundle": "./plugins/core/bundle.json?v=74",
-      "integrity": "sha256-CtjfW57A/XVznAKi3zNDAOZP/ALWX8B99LORz8oT0Pk="
+      "integrity": "sha256-HmzPzXjrw2leBkR6vuY3NL9glEs7tE+ql7BF2cK+WNo="
     },
     {
       "id": "easing-plus",
@@ -336,7 +336,7 @@
       "zoidiumOnly": true,
       "manifest": "./plugins/camera-plus/manifest.json?v=16",
       "bundle": "./plugins/camera-plus/bundle.json?v=16",
-      "integrity": "sha256-L92GijMQCpkpxjEbJPgMpOa4xdBI96+D/dhPkIYDip8="
+      "integrity": "sha256-qdlZEHkeIKJ3MIBfUe2+oIEOO0Y7B7JYS53EbWUVzRI="
     },
     {
       "id": "native-fx",

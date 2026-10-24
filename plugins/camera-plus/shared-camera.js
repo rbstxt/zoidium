@@ -167,16 +167,18 @@ parts.shared = function (options) {
     project.forEachItemOfType(PZ.track, trackUsage);
   }
 
+  const cameraSearch = parts.cameraSearch(PZ, TYPE);
   function entries(sequence, time) {
     const out = [];
     function walk(layer, track, index, depth, insideCard) {
-      if (!layer) return;
+      if (!layer || insideCard) return;
       if (layer instanceof PZ.layer.scene) {
+        const evaluation = cameraSearch.plan(layer);
+        if (!evaluation) return;
         const local = time - (track.getCurrentClip(time)?.start || 0);
         // Explicitly evaluate every candidate at t before scoring. Track/render
         // order and previous pass.camera values never decide the master.
-        for (const object of layer.objects) object.update(local);
-        layer.threeObj.updateMatrixWorld(true);
+        cameraSearch.update(layer, local, evaluation);
         const camera = layer instanceof CameraLayer ? layer.getCamera(local) : findActiveCamera(layer, local) || nativeCameraObjectOf(layer);
         if (camera?.threeObj && !insideCard) out.push({ layer, track, index, depth, camera, local,
           score: [layer instanceof CameraLayer ? 0 : 1, /camera/i.test((layer.properties.name.get() || "") + " " + (track.getCurrentClip(time)?.properties?.name?.get() || "")) ? 0 : 1, depth, index] });
@@ -319,7 +321,7 @@ parts.shared = function (options) {
     } finally {
       depthPass.end(this);
       this.copyPass.uniforms.opacity.value = 1;
-      for (const track of sequence.videoTracks) if (track.layer) track.layer.update(frame - track.layer.parent.start);
+      if (count > 1) for (const track of sequence.videoTracks) if (track.layer) track.layer.update(frame - track.layer.parent.start);
     }
   }, teardown);
   return { CameraLayer, masterAt, toggleTrack3d, projectChanged() {
@@ -334,6 +336,7 @@ parts.shared = function (options) {
     next?.forEachItemOfType?.(PZ.layer, layer => ensureDepth(layer));
     next?.forEachItemOfType?.(PZ.track, trackUsage);
     if (next?.sequence) ensureSequence(next.sequence);
+    apis.timeline.refreshTrackButtons();
   }, cameraFor(scene, time) {
     const track = ownerTrack(scene);
     if (!track?.track3d) return null;
