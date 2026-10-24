@@ -155,7 +155,7 @@ function fieldGuidePoints(field) {
   return points;
 }
 
-function createDeformationSupport(PZ, THREE) {
+function createDeformationSupport(PZ, THREE, editor) {
   const sceneClass = PZ.layer?.scene;
   const prototype = sceneClass?.prototype;
   if (!prototype || typeof prototype.update !== "function") {
@@ -176,6 +176,20 @@ function createDeformationSupport(PZ, THREE) {
   const originalUnload = prototype.unload;
   const meshDeformer = getMeshDeformer(THREE);
   const disposeFieldHelpers = installFieldHelpers(THREE);
+
+  let project = editor?.project, generation = 0;
+  function releaseLayers() {
+    generation += 1;
+    for (const layer of layers) restore(layer);
+    layers.clear();
+    affectedMeshes.clear();
+  }
+  function projectChanged() {
+    if (editor.project === project) return;
+    project = editor.project;
+    releaseLayers();
+  }
+  editor?.onProjectChanged?.watch(projectChanged);
 
   let preparingMeshes = null;
   let tasks = null;
@@ -324,7 +338,9 @@ function createDeformationSupport(PZ, THREE) {
   // CM3 calls Scene.prepare from sequence.prepare before export getVideoFrame.
   // Update after child preparation to capture animated/generated source meshes.
   async function settle(evaluate) {
+    const started = generation;
     for (;;) {
+      if (started !== generation) return;
       const meshes = new Set();
       preparingMeshes = meshes;
       try { evaluate(); } finally { preparingMeshes = null; }
@@ -358,8 +374,9 @@ function createDeformationSupport(PZ, THREE) {
   }
 
   const patchedPrepare = async function prepareWithEffectors(frame, ...args) {
+    const started = generation;
     await originalPrepare?.call(this, frame, ...args);
-    if (!state.meshJobs) return;
+    if (started !== generation || !state.meshJobs) return;
     const affected = objects => Array.from(objects || []).some(object =>
       typeof object?.deformPositions === "function" || affected(object?.objects));
     if (!affected(this.objects)) return;
@@ -388,9 +405,8 @@ function createDeformationSupport(PZ, THREE) {
     apply,
     prepareObject,
     deactivate() {
-      for (const layer of layers) restore(layer);
-      layers.clear();
-      affectedMeshes.clear();
+      editor?.onProjectChanged?.unwatch(projectChanged);
+      releaseLayers();
       disposeFieldHelpers();
       meshDeformer.dispose();
       if (prototype.prepare === patchedPrepare) prototype.prepare = originalPrepare;

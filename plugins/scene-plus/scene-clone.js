@@ -29,6 +29,49 @@ function copyObjectState(source, target) {
   if (source.rotation?.order) target.rotation.order = source.rotation.order;
   if (source.layers && target.layers) target.layers.mask = source.layers.mask;
   target.renderDepth = source.renderDepth;
+  // Match the non-resource state copied by Three.js r91 clone(). Keep the
+  // retained geometry and material, including completed deformation buffers.
+  for (const key of ["name", "castShadow", "receiveShadow", "frustumCulled", "renderOrder", "matrixWorldNeedsUpdate"]) {
+    target[key] = source[key];
+  }
+  for (const key of ["up", "matrix", "matrixWorld"]) target[key]?.copy(source[key]);
+  if (source.isLight) {
+    target.color.copy(source.color);
+    for (const key of ["intensity", "distance", "decay", "angle", "penumbra", "width", "height"]) {
+      if (key in source) target[key] = source[key];
+    }
+    if (source.groundColor) target.groundColor.copy(source.groundColor);
+    if (source.target) copyObjectState(source.target, target.target);
+    if (source.shadow && target.shadow) {
+      target.shadow.bias = source.shadow.bias;
+      target.shadow.radius = source.shadow.radius;
+      if (target.shadow.map && !target.shadow.mapSize.equals(source.shadow.mapSize)) {
+        target.shadow.map.dispose();
+        target.shadow.map = null;
+      }
+      target.shadow.mapSize.copy(source.shadow.mapSize);
+      copyObjectState(source.shadow.camera, target.shadow.camera);
+    }
+  }
+  if (source.isCamera) {
+    target.matrixWorldInverse.copy(source.matrixWorldInverse);
+    target.projectionMatrix.copy(source.projectionMatrix);
+    for (const key of ["fov", "zoom", "near", "far", "focus", "aspect", "filmGauge", "filmOffset",
+      "left", "right", "top", "bottom"]) {
+      if (key in source) target[key] = source[key];
+    }
+    if ("view" in source) target.view = source.view === null ? null : { ...source.view };
+  }
+  if (source.isMesh) {
+    target.drawMode = source.drawMode;
+    if (source.morphTargetInfluences) {
+      target.morphTargetInfluences = source.morphTargetInfluences.slice();
+    }
+    if (source.morphTargetDictionary) target.morphTargetDictionary = { ...source.morphTargetDictionary };
+  }
+  if (source.isSprite && source.center) target.center.copy(source.center);
+  // LOD.clone() rebuilds levels from children. Reuse those same child clones.
+  if (source.isLOD) target.levels.forEach((level, index) => { level.distance = source.levels[index].distance; });
   const length = Math.min(source.children.length, target.children.length);
   for (let index = 0; index < length; index += 1) {
     copyObjectState(source.children[index], target.children[index]);

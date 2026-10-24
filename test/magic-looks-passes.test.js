@@ -110,3 +110,23 @@ test("signature cache is bounded and authored chain changes release it", () => {
   assert.ok(oldStages.every(stage => stage.disposals === 1));
   h.pipeline.dispose();
 });
+
+test("disabled editor access creates only the selected stage without preparing, updating, or compiling passes", async () => {
+  const h = harness();
+  h.effect.properties.enabled.get = () => 0;
+  h.pipeline.update(5); await h.pipeline.prepare(5);
+  assert.equal(h.stages.size, 0);
+  const selected = h.pipeline.editorStage("i2");
+  assert.equal(h.stages.size, 1);
+  assert.equal(selected.frame, undefined);
+  assert.equal(selected.prepared, undefined);
+  assert.equal(h.materials(), 0);
+  assert.equal(h.effect.pass.enabled, false);
+  assert.equal(h.pipeline.editorStage("i2"), selected);
+  h.effect.properties.enabled.get = () => 1;
+  h.pipeline.update(9);
+  assert.equal(h.stages.size, 3);
+  assert.equal(selected.frame, 9);
+  h.pipeline.dispose();
+  assert.equal(h.pipeline.editorStage("i2"), undefined);
+});
