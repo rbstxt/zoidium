@@ -58,7 +58,6 @@ function createJob(scope, PZ, exporter, loadBunny) {
         }
         await output.start();
         check();
-        const pixels = new Uint8Array(params.width * params.height * 4);
         const totalSamples = Math.floor(count / params.rate * SAMPLE_RATE);
         let audioOffset = 0;
         exporter.totalFrames = count;
@@ -74,7 +73,7 @@ function createJob(scope, PZ, exporter, loadBunny) {
           }
           check();
           exporter.frame = projectFrame(index, params.start, exporter.sequence.properties.rate.get(), params.rate);
-          await exporter.getVideoFrame(pixels);
+          await exporter.renderVideoFrame();
           check();
           if (padding) {
             padding.fillStyle = "black";
