@@ -27,7 +27,7 @@
 // Sources in ./plugins/camera-plus/*.js are evaluated through the bundle asset
 // resolver and publish their parts on a shared `parts` object.
 
-const PART_FILES = ["vibrate.js", "scene-dof.js", "scene-motion-blur.js", "camera-class.js", "track-hint.js", "focus-ui.js", "shared-depth.js", "shared-camera.js"];
+const PART_FILES = ["vibrate.js", "scene-dof.js", "scene-motion-blur.js", "camera-class.js", "track-hint.js", "focus-ui.js", "shared-depth.js", "camera-search.js", "shared-camera.js"];
 const LEGACY_LAYER_TYPE = 9;
 const CAMERA_OBJECT_TYPE_NUMBER = 6;
 const REPORT_PREFIX = "Camera+:";

@@ -818,10 +818,10 @@
       }
     }
     await visit(project);
+    global.ZoidiumPluginApis?.timeline?.restoreTrackFields(project);
     return project;
   }
 
-  // Resolves true once the promise settles either way, false after the delay.
   function settledWithin(promise, milliseconds) {
     var timer;
     return Promise.race([
