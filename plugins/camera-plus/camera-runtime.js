@@ -320,19 +320,6 @@ function activateCameraPlus(context, teardown) {
   const sceneProto = PZ.layer.scene.prototype;
   const originalSceneUpdate = sceneProto.update;
   patchMethod(sceneProto, "update", function updateWithCameraPlus(time) {
-    // CM3 captures future model-view matrices before updating the output
-    // frame. With Camera+, compute that future camera view explicitly; the
-    // camera inverse left by the previous render is not a valid sample.
-    if (live && this.motionBlur?.velocityBuffer) {
-      const entry = scenes.get(this);
-      const sampledCamera = entry?.sampling ? entry.cameraObject : shared.cameraFor(this, time + .5) || findActiveCamera(this, time);
-      if (sampledCamera) {
-        for (const object of this.objects) object.update(time + 0.5);
-        this.threeObj.updateMatrixWorld(true);
-        sampledCamera.threeObj.matrixWorldInverse.getInverse(sampledCamera.threeObj.matrixWorld);
-        this.pass.camera = sampledCamera.threeObj;
-      }
-    }
     const out = originalSceneUpdate.apply(this, arguments);
     if (live) {
       try {
@@ -343,6 +330,44 @@ function activateCameraPlus(context, teardown) {
     }
     return out;
   }, teardown);
+
+  // CM3 calls scene.traverse immediately after its future object/matrix
+  // evaluation. Read the camera there, after Constraints' matrix hook returns,
+  // regardless of which plugin wrapped motionBlur.update first.
+  const velocityProto = PZ.motionBlur?.prototype;
+  if (typeof velocityProto?.update === "function") {
+    const originalVelocityUpdate = velocityProto.update;
+    patchMethod(velocityProto, "update", function updateVelocityCamera(time) {
+      const layer = this.layer, scene = this.scene;
+      if (!live || !this.velocityBuffer || !layer || !scene) return originalVelocityUpdate.apply(this, arguments);
+      const entry = scenes.get(layer);
+      const sampledCamera = entry?.sampling ? entry.cameraObject : shared.cameraFor(layer, time + .5) || findActiveCamera(layer, time);
+      if (!sampledCamera) return originalVelocityUpdate.apply(this, arguments);
+      const traverseDescriptor = Object.getOwnPropertyDescriptor(scene, "traverse");
+      const matrixDescriptor = Object.getOwnPropertyDescriptor(scene, "updateMatrixWorld");
+      const traverse = scene.traverse, updateMatrices = scene.updateMatrixWorld;
+      let ready = false;
+      scene.updateMatrixWorld = function () {
+        const result = updateMatrices.apply(this, arguments);
+        ready = true;
+        return result;
+      };
+      scene.traverse = function () {
+        if (ready) {
+          sampledCamera.threeObj.matrixWorldInverse.getInverse(sampledCamera.threeObj.matrixWorld);
+          layer.pass.camera = sampledCamera.threeObj;
+        }
+        return traverse.apply(this, arguments);
+      };
+      try { return originalVelocityUpdate.apply(this, arguments); }
+      finally {
+        if (traverseDescriptor) Object.defineProperty(scene, "traverse", traverseDescriptor);
+        else delete scene.traverse;
+        if (matrixDescriptor) Object.defineProperty(scene, "updateMatrixWorld", matrixDescriptor);
+        else delete scene.updateMatrixWorld;
+      }
+    }, teardown);
+  }
 
   const originalSceneUnload = sceneProto.unload;
   patchMethod(sceneProto, "unload", function unloadWithCameraPlus() {

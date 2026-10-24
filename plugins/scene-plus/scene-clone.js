@@ -134,8 +134,21 @@ function getRenderNode(root, path) {
   return node || null;
 }
 
+// Build once for this evaluation. Source or clone topology can change during
+// any object update, so no mapping survives into the next evaluation.
+function mapRenderNodes(source, rendered, nodes = new Map()) {
+  if (!source || !rendered) return nodes;
+  nodes.set(source, rendered);
+  const children = source.children || [];
+  const copies = rendered.children || [];
+  for (let index = 0; index < children.length; index += 1) {
+    mapRenderNodes(children[index], copies[index], nodes);
+  }
+  return nodes;
+}
+
 module.exports = {
   objectSignature, copyObjectState, cloneMaterial, copyRenderCallbacks,
   cloneRenderTree, disposeClonedResources, markGeneratedRenderTree,
-  restoreDeformedTree, traverseDeformMeshes, findRenderNodePath, getRenderNode
+  restoreDeformedTree, traverseDeformMeshes, findRenderNodePath, getRenderNode, mapRenderNodes
 };

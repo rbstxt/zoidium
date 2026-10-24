@@ -29,6 +29,7 @@ function loadDeps() {
         return {
             shaders: require("./optflares-shaders.js")(),
             createDefs: require("./optflares-defs.js"),
+            createWorldPosition: require("./optflares-world.js"),
         };
     }
     throw new Error("Optical Flares needs its bundled sources.");
@@ -171,22 +172,7 @@ module.exports = function installOptflares(PZ, THREE) {
         },
     };
 
-    // Shared by the source lookup and the render hook. Renders the quad's
-    // source uniforms without reading any state from a previous frame.
-    function worldPosition(object3d) {
-        if (!object3d || !object3d.threeObj) return null;
-        var node = object3d.threeObj;
-        if (typeof node.updateWorldMatrix === "function") {
-            node.updateWorldMatrix(true, false);
-        } else {
-            // CM3 ships THREE r91, before updateWorldMatrix was introduced.
-            // Refresh the ancestor chain as well as the source's local matrix.
-            while (node.parent) node = node.parent;
-            node.updateMatrixWorld(true);
-        }
-        var e = object3d.threeObj.matrixWorld.elements;
-        return [e[12], e[13], e[14]];
-    }
+    var worldPosition = deps.createWorldPosition(THREE);
 
     // Rewrite uniforms from the camera drawing the color pass. The runtime
     // preserves this callback around CM3's velocity traversal.
@@ -389,7 +375,7 @@ module.exports = function installOptflares(PZ, THREE) {
             this.quad.renderOrder = 9999;
             var self = this;
             hookRender(this.quad, function (camera) {
-                self.prepareFrame(camera);
+                self.prepareFrame(camera, true);
             });
             this.threeObj.add(this.quad);
             // Foreground fade: the depth-tested quad draws the flare at "fade"
@@ -411,7 +397,7 @@ module.exports = function installOptflares(PZ, THREE) {
             this.underQuad.renderOrder = 9998;
             this.underQuad.visible = false;
             hookRender(this.underQuad, function (camera) {
-                self.prepareFrame(camera);
+                self.prepareFrame(camera, true);
             });
             this.threeObj.add(this.underQuad);
             this.applyGlobalBlending(0);
@@ -652,7 +638,7 @@ module.exports = function installOptflares(PZ, THREE) {
         // Phase 2, from the render hook of the quad: the camera drawing the
         // pass and the world transforms of this frame. Everything is recomputed
         // on every call.
-        prepareFrame(camera) {
+        prepareFrame(camera, rendered) {
             var frame = this._frame;
             var u = this.material.uniforms;
             var resolution = frame.resolution;
@@ -662,8 +648,8 @@ module.exports = function installOptflares(PZ, THREE) {
                 state = { source: frame.screenSource, depth: null, fade: 1, scale: 1 };
             } else if (camera && camera.matrixWorldInverse && camera.projectionMatrix) {
                 var world = frame.sourceType === 2
-                    ? worldPosition(frame.light)
-                    : worldPosition(this);
+                    ? worldPosition(frame.light, rendered)
+                    : worldPosition(this, rendered);
                 if (world) {
                     state = math.screenState({
                         world: world,
