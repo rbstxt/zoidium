@@ -81,7 +81,7 @@ for (const name of ["track insertion", "track removal", "track reorder", "clip i
       h.documentEvents.get("zoidium:plugin-state-change")?.forEach(fn => fn());
     } else {
       adjustment.layer.effects.splice(0);
-      if (name === "project load") h.documentEvents.get("zoidium:project-load-start").forEach(fn => fn());
+      if (name === "project load") h.documentEvents.get("zoidium:project-load-start")?.forEach(fn => fn());
       else h.sequence.parentProject.ui.onChanged.update();
     }
     const expected = name === "effect insertion" ? 20 :
@@ -186,4 +186,18 @@ test("switching to an inserted clip uses its new layer index immediately", () =>
   h.tracks[0].clips.push(next.clips[0]); h.tracks[0].clips.onListChanged.update();
   h.tracks[0].layer = next.layer;
   assert.equal(h.api.getVideoTrackIndex(h.sequence, next.layer), 0);
+});
+
+test("late effect initialization invalidates cached descriptor flags", () => {
+  const h = host(), layer = h.tracks[0].layer;
+  const effect = { properties: h.list([]) };
+  layer.effects.push(effect); layer.effects.onListChanged.update();
+  assert.equal(h.api.usesSingleEvaluation(h.sequence), false);
+  Object.assign(effect, h.operator());
+  effect.properties.onListChanged.update();
+  assert.equal(h.api.usesSingleEvaluation(h.sequence, true), true);
+  assert.equal(h.api.getTemporalLayerFrame(layer, 13, h.sequence).sourceFrame, 18);
+  effect._zoidiumFrameSampler = {};
+  effect.properties.onListChanged.update();
+  assert.equal(h.api.usesSingleEvaluation(h.sequence, true), false);
 });
