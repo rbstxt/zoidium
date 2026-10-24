@@ -390,12 +390,15 @@
     const width = gl.drawingBufferWidth, height = gl.drawingBufferHeight;
     const bytes = width * height * 4;
     if (!contextAvailable(gl) || !store.effectiveLimit || allocationFailed(gl)) return null;
-    if (!store.reserve(bytes)) return null;
+    const format = gl.getContextAttributes().alpha ? THREE.RGBAFormat : THREE.RGBFormat;
+    const type = THREE.UnsignedByteType;
+    const reservation = store.take(bytes, entry => entry.renderer === renderer &&
+      entry.width === width && entry.height === height && entry.format === format && entry.type === type);
+    if (!reservation) return null;
     const generation = store.generation;
-    const target = new THREE.WebGLRenderTarget(width, height, {
+    const target = reservation.recycled?.target || new THREE.WebGLRenderTarget(width, height, {
       minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter,
-      format: gl.getContextAttributes().alpha ? THREE.RGBAFormat : THREE.RGBFormat,
-      type: THREE.UnsignedByteType, depthBuffer: false, stencilBuffer: false,
+      format, type, depthBuffer: false, stencilBuffer: false,
     });
     target.texture.generateMipmaps = false;
     try {
@@ -412,7 +415,8 @@
       if (contextAvailable(gl)) { renderer.setRenderTarget(null); target.dispose(); }
       return null;
     }
-    return { target, frame, bytes, owner: controller.id, complete: true, dispose: () => target.dispose() };
+    return { target, frame, bytes, renderer, width, height, format, type,
+      owner: controller.id, complete: true, dispose: () => target.dispose() };
   }
 
   function entryKey(controller, frame) { return controller.id + ":" + frame; }

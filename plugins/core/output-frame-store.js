@@ -38,12 +38,23 @@
       this.bytes -= entry.bytes;
       if (!this.contextLost) entry.dispose();
     }
-    reserve(bytes) {
-      if (!(bytes > 0) || bytes > this.effectiveLimit) return false;
+    reserve(bytes) { return Boolean(this.take(bytes)); }
+    take(bytes, matches) {
+      if (!(bytes > 0) || bytes > this.effectiveLimit) return null;
+      let recycled = null;
       while (this.bytes + bytes > this.effectiveLimit || this.entries.size >= this.maxEntries) {
-        this.delete(this.entries.keys().next().value);
+        const key = this.entries.keys().next().value;
+        const entry = this.entries.get(key);
+        if (!recycled && matches?.(entry)) {
+          // Remove ownership before overwriting. No key may display these pixels
+          // until the caller completes a fresh full-frame copy and put().
+          this.entries.delete(key);
+          this.bytes -= entry.bytes;
+          entry.complete = false;
+          recycled = entry;
+        } else this.delete(key);
       }
-      return true;
+      return { recycled };
     }
     put(key, entry, generation = this.generation) {
       if (generation !== this.generation || entry.complete !== true) {
