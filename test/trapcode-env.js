@@ -114,7 +114,9 @@ function createTHREE() {
       return this;
     }
     setIndex(index) {
-      this.index = index;
+      // Three r91 allocates an attribute when setIndex receives an array.
+      const IndexArray = Array.isArray(index) && index.some(value => value > 65535) ? Uint32Array : Uint16Array;
+      this.index = Array.isArray(index) ? new BufferAttribute(new IndexArray(index), 1) : index;
       return this;
     }
     setDrawRange(start, count) {
