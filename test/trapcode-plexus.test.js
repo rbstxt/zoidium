@@ -10,6 +10,12 @@ const { loadSuite } = require("./trapcode-env");
 
 function setup() {
   const { PZ, THREE } = loadSuite(["trapcode-common.js", "plexus.js"]);
+  // Three r91 allocates an attribute when setIndex receives an array.
+  THREE.BufferGeometry.prototype.setIndex = function (index) {
+    const IndexArray = Array.isArray(index) && index.some(value => value > 65535) ? Uint32Array : Uint16Array;
+    this.index = Array.isArray(index) ? new THREE.BufferAttribute(new IndexArray(index), 1) : index;
+    return this;
+  };
   const root = new PZ.object3d.plexus();
   root.load(null);
   return { PZ, THREE, root };
