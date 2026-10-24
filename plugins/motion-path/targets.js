@@ -12,6 +12,19 @@ function positionGroup(PZ, owner, size) {
   if (!channels.some(axis => axis.animated && !axis.expression)) return null;
   return { group, axes: channels };
 }
+function expressionDriven(owner) {
+  if (!owner) return false;
+  if (owner.expression) return true;
+  return Array.from(owner.objects || []).some(expressionDriven);
+}
+function dynamicGeometry(PZ, owner) {
+  for (let node = owner, depth = 0; node && depth < 64; node = node.parentObject, depth++) {
+    const p = node.properties || {};
+    if ([p.position, p.rotation, p.scale].some(expressionDriven)) return true;
+    if (!(node.parentObject instanceof PZ.object3d)) break;
+  }
+  return false;
+}
 function clipState(editor, PZ, clip) {
   if (!(clip instanceof PZ.clip.video) || clip.tryGetParentOfType(PZ.sequence) !== editor.sequence) return null;
   const frame = editor.playback.currentFrame;
@@ -32,7 +45,9 @@ function layerPath(context, clip, state) {
   if (!mapping) return null;
   return {
     id: clip, kind: "2d", owner: layer, clip, ...position, local: state.local, length: clip.length, startFrame: clip.offset || 0, endFrame: (clip.offset || 0) + clip.length,
+    dynamicGeometry: expressionDriven(position.group),
     space: projection.planarSpace(mapping),
+    projectionKey: JSON.stringify([canvasRect.left, canvasRect.top, canvasRect.width, canvasRect.height, mapping.ratio]),
   };
 }
 function sceneClip(PZ, object) {
@@ -61,7 +76,9 @@ function cameraFor(context, layer, clip, local) {
     if (viewport.layer !== layer) return null;
     const camera = viewport.camera;
     camera.updateMatrixWorld();
-    return { view: new THREE.Matrix4().getInverse(camera.matrixWorld), projection: camera.projectionMatrix, ndc: projection.canvasNdc(canvasRect) };
+    return { view: new THREE.Matrix4().getInverse(camera.matrixWorld), projection: camera.projectionMatrix, ndc: projection.canvasNdc(canvasRect),
+      key: JSON.stringify([camera.matrixWorld.elements, camera.projectionMatrix.elements,
+        canvasRect.left, canvasRect.top, canvasRect.width, canvasRect.height]) };
   }
   const camera = layer.pass?.camera;
   if (!camera) return null;
@@ -79,10 +96,13 @@ function cameraFor(context, layer, clip, local) {
   }
   const mapping = projection.sequenceMapping(canvasRect, editor.sequence.properties.resolution.get());
   const p = layer.properties;
-  const transform = projection.layerTransform(p.position.get(local), p.scale.get(local), p.rotation.get(local));
-  const ndc = mapping && projection.layerNdc(mapping, p.resolution.get(), transform);
+  const position = p.position.get(local), scale = p.scale.get(local), rotation = p.rotation.get(local), resolution = p.resolution.get();
+  const transform = projection.layerTransform(position, scale, rotation);
+  const ndc = mapping && projection.layerNdc(mapping, resolution, transform);
   if (!ndc) return null;
-  return { view: new THREE.Matrix4().getInverse(world), projection: camera.projectionMatrix, ndc };
+  return { view: new THREE.Matrix4().getInverse(world), projection: camera.projectionMatrix, ndc,
+    key: JSON.stringify([world.elements, camera.projectionMatrix.elements, position, scale, rotation, resolution,
+      canvasRect.left, canvasRect.top, canvasRect.width, canvasRect.height, mapping.ratio]) };
 }
 function objectPaths(context) {
   const { PZ, THREE, editor, viewport } = context;
@@ -101,6 +121,8 @@ function objectPaths(context) {
     if (Math.abs(parent.determinant()) < 1e-12) continue;
     paths.push({
       id: object, kind: "3d", owner: object, clip: scene.clip, ...position, local: state.local, length: scene.clip.length, startFrame: scene.clip.offset || 0, endFrame: (scene.clip.offset || 0) + scene.clip.length,
+      dynamicGeometry: dynamicGeometry(PZ, object),
+      projectionKey: camera.key,
       space: projection.cameraSpace(THREE, { parent, ...camera }),
       spaceAt: frame => projection.cameraSpace(THREE, { parent: projection.ancestorMatrix(THREE, PZ, object, frame), ...camera }),
     });
