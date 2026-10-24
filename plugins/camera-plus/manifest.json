@@ -73,6 +73,11 @@
       "id": "shared-depth",
       "type": "text",
       "source": "./plugins/camera-plus/shared-depth.js?v=16"
+    },
+    {
+      "id": "camera-search",
+      "type": "text",
+      "source": "./plugins/camera-plus/camera-search.js?v=16"
     }
   ]
 }
