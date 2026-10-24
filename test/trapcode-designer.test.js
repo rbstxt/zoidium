@@ -172,6 +172,8 @@ function createEnvironment() {
   const root = new Particular();
   root.systems = [makeSystem()];
   root.parent = {};
+  root.getAddress = () => ["root"];
+  T.testRoot = root;
   return { PZ, T, root, Particular, applied, makeSystem };
 }
 
@@ -222,6 +224,7 @@ function withGlobals(fn) {
 }
 
 function loadDesigner(PZ) {
+  CM.project = { addressLookup: () => PZ.trapcode.testRoot?.parent ? PZ.trapcode.testRoot : null };
   new Function("PZ", source)(PZ);
   return PZ.trapcode.designer;
 }
@@ -535,3 +538,19 @@ test("curve and gradient picker controls are constrained to the parameter card",
     assert.ok(!line.startsWith(".editbox"), "no unscoped control rule: " + line.slice(0, 60));
   }
 });
+
+for (const invalidation of ["project", "ancestor"]) {
+  test(`designer rejects ${invalidation} replacement before presets or timer refresh`, () => withGlobals(({ timers, history }) => {
+    const { root, applied, designer, ui } = setup();
+    const win = designer.open(root);
+    const preset = byClass(win.body, "tc-preset")[0];
+    if (invalidation === "project") CM.project = { addressLookup: () => root };
+    else CM.project.addressLookup = () => null;
+    preset.onclick();
+    assert.deepEqual(applied, []);
+    assert.equal(history.started, 0);
+    for (const timer of [...timers.values()]) timer.fn();
+    assert.equal(win.options.isValid(), false);
+    assert.equal(win.open, false, "invalid session closes before timer refresh");
+  }));
+}

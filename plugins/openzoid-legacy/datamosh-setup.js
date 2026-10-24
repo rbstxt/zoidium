@@ -125,7 +125,10 @@ module.exports = {
       return found ? found.id : "custom";
     }
 
-    function buildWindow(body, effect) {
+    function buildWindow(body, effect, valid) {
+      function record(changes) {
+        if (valid()) recordChanges(changes);
+      }
       body.style.flexBasis = "0px";
       const props = effect.properties;
       const rows = [];
@@ -137,15 +140,17 @@ module.exports = {
       }
 
       function applyPreset(id) {
+        if (!valid()) return;
         const preset = PRESETS.find((entry) => entry.id === id);
         if (!preset) return;
-        recordChanges(Object.keys(preset.values)
+        record(Object.keys(preset.values)
           .filter((key) => props[key])
           .map((key) => ({ property: props[key], value: preset.values[key], previous: valueOf(key) })));
         refresh();
       }
 
       function refresh() {
+        if (!valid()) return;
         rows.forEach((row) => {
           const value = readValue(row.property);
           if (row.select) {
@@ -167,13 +172,15 @@ module.exports = {
         let gesture = null;
         const handlers = {
           onInput(value) {
+            if (!valid()) return;
             if (gesture === null) gesture = valueOf(key);
             property.set(value, localFrame(property));
           },
           onChange(value) {
+            if (!valid()) return;
             const previous = gesture === null ? valueOf(key) : gesture;
             gesture = null;
-            recordChanges([{ property: property, value: value, previous: previous }]);
+            record([{ property: property, value: value, previous: previous }]);
             refresh();
           },
         };
@@ -218,7 +225,7 @@ module.exports = {
             group: typeof label === "object" ? label.group : grouped ? lookGroup(label, index) : "",
           })),
           onChange(value) {
-            recordChanges([{ property: property, value: Number(value), previous: valueOf(key) }]);
+            record([{ property: property, value: Number(value), previous: valueOf(key) }]);
             refresh();
           },
         });
@@ -230,6 +237,7 @@ module.exports = {
       // derives every value from that seed, so the result is reproducible and
       // the whole click is one undo step. Ranges mirror the donor buttons.
       function moshBurst() {
+        if (!valid()) return;
         const seed = nextSeed(valueOf("seed"));
         const blockPicks = [6, 8, 10, 12, 14, 16, 20];
         const lookPicks = [11, 12, 13, 14, 15, 16, 6, 9, 50, 54, 67, 71, 43, 34];
@@ -251,7 +259,7 @@ module.exports = {
           key: "hold",
           value: hash01(seed, 7) < 0.5 ? range(0.2, 0.6, 8) : range(0, 0.2, 9),
         });
-        recordChanges(changes
+        record(changes
           .filter((change) => props[change.key])
           .map((change) => ({ property: props[change.key], value: change.value, previous: valueOf(change.key) })));
         refresh();
@@ -259,8 +267,9 @@ module.exports = {
 
       // Seeded I-frame kill: hold to full plus an intensity floor, one step.
       function removeFrame() {
+        if (!valid()) return;
         const seed = nextSeed(valueOf("seed"));
-        recordChanges([
+        record([
           { property: props.seed, value: seed, previous: valueOf("seed") },
           { property: props.hold, value: 1, previous: valueOf("hold") },
           {
@@ -314,7 +323,7 @@ module.exports = {
             hint: "Store a new seed for the block pattern",
             onClick() {
               // Advance the stored seed once per click; playback never changes it.
-              recordChanges([{
+              record([{
                 property: props.seed,
                 value: nextSeed(valueOf("seed")),
                 previous: valueOf("seed"),
@@ -334,13 +343,24 @@ module.exports = {
     }
 
     function openSetup(effect) {
+      const project = CM.project;
+      let win;
+      const valid = () => {
+        let attached = false;
+        if (CM.project === project) {
+          try { attached = project.addressLookup(effect.getAddress()) === effect; }
+          catch { /* Removed ancestors have no live address. */ }
+        }
+        if (!attached) win?.close();
+        return attached;
+      };
       let id = windowIds.get(effect);
       if (!id) {
         windowCounter += 1;
         id = `datamosh-${windowCounter}`;
         windowIds.set(effect, id);
       }
-      return context.ui.openWindow({
+      win = context.ui.openWindow({
         id: id,
         title: "Datamosh Setup",
         subtitle: "Segment motion",
@@ -350,9 +370,9 @@ module.exports = {
         height: 780,
         minHeight: 240,
         mount(body) {
-          return buildWindow(body, effect);
+          return buildWindow(body, effect, valid);
         },
-        isValid: () => effect.parent != null,
+        isValid: valid,
         footer: [{
           title: "Done",
           variant: "primary",
@@ -362,6 +382,7 @@ module.exports = {
           },
         }],
       });
+      return win;
     }
 
     // The shared property-panel entry: an "Open Datamosh Setup" launch row

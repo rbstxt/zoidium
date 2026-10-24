@@ -129,7 +129,10 @@ module.exports = {
       return found ? found.id : "custom";
     }
 
-    function buildWindow(body, effect) {
+    function buildWindow(body, effect, valid) {
+      function record(changes) {
+        if (valid()) recordChanges(changes);
+      }
       body.style.flexBasis = "0px";
       const props = effect.properties;
       const rows = [];
@@ -141,15 +144,17 @@ module.exports = {
       }
 
       function applyPreset(id) {
+        if (!valid()) return;
         const preset = PRESETS.find((entry) => entry.id === id);
         if (!preset) return;
-        recordChanges(Object.keys(preset.values)
+        record(Object.keys(preset.values)
           .filter((key) => props[key])
           .map((key) => ({ property: props[key], value: preset.values[key], previous: valueOf(key) })));
         refresh();
       }
 
       function refresh() {
+        if (!valid()) return;
         rows.forEach((row) => {
           const value = readValue(row.property);
           if (!sameValue(row.control.get(), value)) row.control.set(value);
@@ -163,6 +168,7 @@ module.exports = {
       // derives every value from that seed, so the result is reproducible and
       // the whole click is one undo step. Ranges mirror the donor button.
       function glitchBurst() {
+        if (!valid()) return;
         const hasSeed = Boolean(props.glitchSeed);
         const seed = hasSeed ? nextSeed(valueOf("glitchSeed")) : 0;
         const range = function (lo, hi, at) { return lo + hash01(seed, at) * (hi - lo); };
@@ -205,7 +211,7 @@ module.exports = {
         if (hasSeed) {
           changes.unshift({ property: props.glitchSeed, value: seed, previous: valueOf("glitchSeed") });
         }
-        recordChanges(changes);
+        record(changes);
         refresh();
       }
 
@@ -223,13 +229,15 @@ module.exports = {
           value: valueOf(key),
           hint: key === "persistence" ? TRAIL_HINT : undefined,
           onInput(value) {
+            if (!valid()) return;
             if (gesture === null) gesture = valueOf(key);
             property.set(value, localFrame(property));
           },
           onChange(value) {
+            if (!valid()) return;
             const previous = gesture === null ? valueOf(key) : gesture;
             gesture = null;
-            recordChanges([{ property: property, value: value, previous: previous }]);
+            record([{ property: property, value: value, previous: previous }]);
             refresh();
           },
         });
@@ -278,13 +286,24 @@ module.exports = {
     }
 
     function openSetup(effect) {
+      const project = CM.project;
+      let win;
+      const valid = () => {
+        let attached = false;
+        if (CM.project === project) {
+          try { attached = project.addressLookup(effect.getAddress()) === effect; }
+          catch { /* Removed ancestors have no live address. */ }
+        }
+        if (!attached) win?.close();
+        return attached;
+      };
       let id = windowIds.get(effect);
       if (!id) {
         windowCounter += 1;
         id = `vhs-${windowCounter}`;
         windowIds.set(effect, id);
       }
-      return context.ui.openWindow({
+      win = context.ui.openWindow({
         id: id,
         title: "VHS Setup",
         subtitle: "Signal chain",
@@ -293,9 +312,9 @@ module.exports = {
         height: 780,
         minHeight: 240,
         mount(body) {
-          return buildWindow(body, effect);
+          return buildWindow(body, effect, valid);
         },
-        isValid: () => effect.parent != null,
+        isValid: valid,
         footer: [{
           title: "Done",
           variant: "primary",
@@ -305,6 +324,7 @@ module.exports = {
           },
         }],
       });
+      return win;
     }
 
     // The shared property-panel entry: an "Open VHS Setup" launch row above

@@ -37,6 +37,19 @@ parts.focus = (function () {
     const THREE = options.THREE;
     const ui = options.ui;
     const focusProperty = camera.properties.depthOfField.focusDistance;
+    const originalEditor = resolveEditor(options.getEditor), project = originalEditor?.project;
+    const windows = new Set();
+    function valid(target = camera) {
+      const editor = resolveEditor(options.getEditor);
+      let attached = false;
+      if (editor === originalEditor && editor?.project === project) {
+        try { attached = project.addressLookup(target.getAddress()) === target &&
+          project.addressLookup(camera.getAddress()) === camera; }
+        catch { /* Removed ancestors have no live address. */ }
+      }
+      if (!attached) for (const win of windows) win.close();
+      return attached;
+    }
 
     function notify(message) {
       try {
@@ -47,6 +60,7 @@ parts.focus = (function () {
     // Targets are limited to the camera's scene. Their transforms are updated
     // in the same scene pass as the camera, so a link reads current values.
     function listTargets() {
+      if (!valid()) return { items: [], byId: new Map() };
       const scene = camera.tryGetParentOfType(PZ.layer);
       const items = [];
       const byId = new Map();
@@ -67,6 +81,7 @@ parts.focus = (function () {
 
     // Every button is one history operation, so it undoes in a single step.
     function edit(label, run) {
+      if (!valid()) return;
       const editor = resolveEditor(options.getEditor);
       if (!editor || !editor.history || !editor.project || !editor.playback) {
         notify("No active editor to " + label + ".");
@@ -91,6 +106,7 @@ parts.focus = (function () {
     }
 
     function link(target) {
+      if (!valid(target)) return;
       edit("link the focus distance", function (editor, ops) {
         const source = METHOD_NAME + "(" + JSON.stringify(camera.getAddress()) + ", " +
           JSON.stringify(target.getAddress()) + ")";
@@ -99,6 +115,7 @@ parts.focus = (function () {
     }
 
     function setOnce(target) {
+      if (!valid(target)) return;
       edit("set the focus distance", function (editor, ops) {
         const distance = options.worldDistance(THREE, camera, target);
         clearExpression(ops);
@@ -134,12 +151,13 @@ parts.focus = (function () {
         title: mode === "link" ? "Link focus distance to..." : "Set focus distance to...",
         width: 320,
         height: 280,
-        isValid: () => camera.parent != null,
+        isValid: () => valid(),
         mount(body) {
           body.appendChild(ui.controls.list({
             items: current.items,
             emptyText: "No other 3D objects in this scene.",
             onSelect(id) {
+              if (!valid()) return;
               const target = current.byId.get(id);
               if (!target || target.tryGetParentOfType(PZ.layer) !== camera.tryGetParentOfType(PZ.layer)) return;
               if (mode === "link") link(target);
@@ -149,6 +167,7 @@ parts.focus = (function () {
           }).element);
         },
       });
+      windows.add(win);
       return win;
     }
 
@@ -164,7 +183,7 @@ parts.focus = (function () {
         return selectedId !== null ? current.byId.get(selectedId) || null : null;
       }
       const controls = ui.controls;
-      return ui.openWindow({
+      const win = ui.openWindow({
         id: WINDOW_PREFIX + camera._focusWindowKey,
         title: "Focus Tools",
         subtitle: camera.properties.name.get(),
@@ -223,12 +242,13 @@ parts.focus = (function () {
           };
         },
         isValid: () => {
+          if (!valid()) return false;
           if (typeof camera._focusRefreshTargets === "function") {
             try {
               camera._focusRefreshTargets();
             } catch (_error) { /* a stale list is better than a closed window */ }
           }
-          return camera.parent != null;
+          return true;
         },
         footer: [
           {
@@ -251,6 +271,8 @@ parts.focus = (function () {
           { title: "Unlink", onClick: () => unlink() },
         ],
       });
+      windows.add(win);
+      return win;
     }
 
     return { openWindow: openWindow, openTargetWindow: openTargetWindow, unlink: unlink, listTargets: listTargets };
