@@ -116,3 +116,41 @@ for (const fail of [false, true]) {
     assert.equal(dof.pointDepthMaterials.size, 0);
   });
 }
+
+test("alternating particle scenes retain depth programs and release removed scenes", () => {
+  const { THREE, dof } = setup();
+  let clones = 0, disposals = 0;
+  const sources = [new PointMaterial(), new PointMaterial()];
+  const scenes = sources.map(source => {
+    source.clone = () => {
+      clones++;
+      const material = new PointMaterial().copy(source);
+      material.dispose = () => { disposals++; };
+      return material;
+    };
+    const scene = new THREE.Scene(), point = new THREE.Object3D();
+    point.isPoints = true; point.material = source; scene.add(point);
+    return scene;
+  });
+  for (let sample = 0; sample < 3; sample++) for (const scene of scenes) {
+    dof.renderDepth({ render() {} }, {}, scene, {}, true);
+  }
+  assert.equal(clones, 2);
+  assert.equal(disposals, 0);
+  const material = dof.pointDepthMaterials.get(sources[1]);
+  sources[1].uniforms.time.value = 42;
+  sources[1].defines.USE_CPU = 0;
+  material.needsUpdate = false;
+  dof.renderDepth({ render() {} }, {}, scenes[1], {}, true);
+  assert.equal(material.uniforms.time.value, 42);
+  assert.equal(material.needsUpdate, true);
+  scenes[0].remove(scenes[0].children[0]);
+  dof.renderDepth({ render() {} }, {}, scenes[0], {}, true);
+  assert.equal(disposals, 1);
+  assert.equal(dof.pointDepthMaterials.get(sources[1]), material);
+  dof.releaseDepthScene(scenes[1]);
+  assert.equal(disposals, 2);
+  assert.equal(dof.pointDepthMaterials.size, 0);
+  dof.unload();
+  assert.equal(dof.pointDepthScenes.size, 0);
+});

@@ -265,24 +265,66 @@ test("failed blur sampling still restores time, clear settings and the sampling 
   runtime.deactivate();
 });
 
-test("native velocity capture starts with the deterministic future Camera+ view", () => {
-  const { ctx, runtime, scene, makeCameraPlus } = setup();
-  const original = ctx.PZ.layer.scene.prototype.update;
-  const captured = [];
-  ctx.PZ.layer.scene.prototype.update = function (time) {
-    captured.push(this.pass.camera.matrixWorldInverse.sampleTime);
-    return original.call(this, time);
-  };
-  runtime.activate(ctx.context);
-  const camera = makeCameraPlus();
-  camera.threeObj.matrixWorld = {};
-  camera.threeObj.matrixWorldInverse = { getInverse(matrix) {
-    assert.equal(matrix, camera.threeObj.matrixWorld);
-    this.sampleTime = camera._time;
-  } };
-  scene.motionBlur = { velocityBuffer: {} };
-  for (const time of [20, 3, 50, 20]) scene.update(time);
-  assert.deepEqual(captured, [20.5, 3.5, 50.5, 20.5]);
-  assert.equal(camera._time, 20);
-  runtime.deactivate();
-});
+for (const constraintsFirst of [false, true]) {
+  test(`native velocity capture evaluates each sample once after parent constraints: ${constraintsFirst}`, () => {
+    const { ctx, runtime, scene, makeCameraPlus } = setup();
+    const original = ctx.PZ.layer.scene.prototype.update;
+    const captured = [], updates = [];
+    let camera, constrained = false, fail = false;
+    ctx.PZ.motionBlur = class {
+      update(time) {
+        // Optical Flares can traverse before native evaluation.
+        this.scene.traverse(() => {});
+        for (const object of this.layer.objects) object.update(time + .5);
+        constrained = false;
+        this.scene.updateMatrixWorld();
+        this.scene.traverse(() => {
+          captured.push(this.layer.pass.camera.matrixWorldInverse.sampleTime);
+          if (fail) throw new Error("capture failed");
+        });
+      }
+    };
+    const installConstraints = () => {
+      const previous = ctx.PZ.motionBlur.prototype.update;
+      ctx.PZ.motionBlur.prototype.update = function (time) {
+        const matrix = this.scene.updateMatrixWorld;
+        this.scene.updateMatrixWorld = function () {
+          const out = matrix.apply(this, arguments);
+          constrained = true;
+          camera.threeObj.matrixWorld.parentTime = time + .5;
+          return out;
+        };
+        try { return previous.call(this, time); }
+        finally { this.scene.updateMatrixWorld = matrix; }
+      };
+    };
+    ctx.PZ.layer.scene.prototype.update = function (time) {
+      this.motionBlur.update(time);
+      return original.call(this, time);
+    };
+    if (constraintsFirst) installConstraints();
+    runtime.activate(ctx.context);
+    if (!constraintsFirst) installConstraints();
+    camera = makeCameraPlus();
+    const update = camera.update;
+    camera.update = function (time) { updates.push(time); return update.call(this, time); };
+    camera.threeObj.matrixWorld = {};
+    camera.threeObj.matrixWorldInverse = { getInverse(matrix) {
+      assert.equal(constrained, true);
+      assert.equal(matrix.parentTime, camera._time);
+      this.sampleTime = camera._time;
+    } };
+    scene.threeObj.traverse = fn => fn(scene.threeObj);
+    const traverse = scene.threeObj.traverse, matrices = scene.threeObj.updateMatrixWorld;
+    scene.motionBlur = Object.assign(new ctx.PZ.motionBlur(), { layer: scene, scene: scene.threeObj, velocityBuffer: {} });
+    for (const time of [20, 3, 50, 20]) scene.update(time);
+    assert.deepEqual(captured, [20.5, 3.5, 50.5, 20.5]);
+    assert.deepEqual(updates, [20.5, 20, 3.5, 3, 50.5, 50, 20.5, 20]);
+    assert.equal(camera._time, 20);
+    fail = true;
+    assert.throws(() => scene.update(12), /capture failed/);
+    assert.equal(scene.threeObj.traverse, traverse);
+    assert.equal(scene.threeObj.updateMatrixWorld, matrices);
+    runtime.deactivate();
+  });
+}

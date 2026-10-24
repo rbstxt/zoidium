@@ -299,7 +299,7 @@ test("custom image textures are disposed on replacement and unload", () => {
 });
 
 
-test("THREE r91 sources refresh the ancestor matrices without updateWorldMatrix", () => {
+test("render callbacks read established world matrices without a root update", () => {
   const { PZ } = buildEnv();
   const flare = createFlare(PZ, { objectType: 0 });
   placeFlare(flare, [0, 0, -10]);
@@ -308,7 +308,7 @@ test("THREE r91 sources refresh the ancestor matrices without updateWorldMatrix"
   flare.threeObj.parent = { parent: null, updateMatrixWorld(force) { updated = force; } };
   flare.update(0);
   flare.quad.onBeforeRender({}, null, camera([0, 0, 0], 0));
-  assert.equal(updated, true);
+  assert.equal(updated, false);
   assert.ok(flare.material.uniforms.uBrightness.value > 0);
 });
 

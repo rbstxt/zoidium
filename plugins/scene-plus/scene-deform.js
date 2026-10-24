@@ -6,7 +6,7 @@
 
 const { fieldFromProperties, numberPropertyValue, optionPropertyValue } = require("./scene-fields.js");
 const {
-  findRenderNodePath, getRenderNode, restoreDeformedTree, traverseDeformMeshes,
+  mapRenderNodes, restoreDeformedTree, traverseDeformMeshes,
 } = require("./scene-clone.js");
 const state = require("./scene-state.js");
 const { installFieldEdit } = require("./scene-field-edit.js");
@@ -170,6 +170,7 @@ function createDeformationSupport(PZ, THREE) {
   }
 
   const layers = new Set();
+  const affectedMeshes = new Map();
   const originalUpdate = prototype.update;
   const originalPrepare = prototype.prepare;
   const originalUnload = prototype.unload;
@@ -179,6 +180,7 @@ function createDeformationSupport(PZ, THREE) {
   let preparingMeshes = null;
   let tasks = null;
   function deformMeshesUnder(root, chain, frame) {
+    if (!chain.length) return;
     const { polygonCount, legacy } = curveSubdivision(chain.map((entry) => entry.effector), frame);
     traverseDeformMeshes(root, (mesh) => {
       preparingMeshes?.add(mesh);
@@ -190,7 +192,7 @@ function createDeformationSupport(PZ, THREE) {
   // The chain lists enabled deformers from outermost to innermost. Each entry
   // keeps the render node that carries the deformer's transform, so deformers
   // evaluate in their own frame.
-  function walkRenderedObject(object, chain, frame, renderRoot) {
+  function walkRenderedObject(object, chain, frame, renderRoot, nodes) {
     if (!object) return;
     const liveRoot = renderRoot || object.threeObj;
     if (liveRoot) liveRoot.__zoidiumEffectorTransformOwner = object;
@@ -205,11 +207,13 @@ function createDeformationSupport(PZ, THREE) {
       const sources = object.objects && typeof object.objects.length === "number"
         ? Array.from(object.objects)
         : [];
+      const byRoot = new Map(sources.map(source => [source?.threeObj, source]));
       for (const instance of object._instanceRoots || []) {
         for (const clone of instance.clones || []) {
-          const sourceObject = sources.find((source) => source?.threeObj === clone.source);
+          const sourceObject = byRoot.get(clone.source);
           if (sourceObject) {
-            walkRenderedObject(sourceObject, nextChain, frame, clone.clone);
+            walkRenderedObject(sourceObject, nextChain, frame, clone.clone,
+              mapRenderNodes(clone.source, clone.clone));
           } else {
             deformMeshesUnder(clone.clone, nextChain, frame);
           }
@@ -219,11 +223,9 @@ function createDeformationSupport(PZ, THREE) {
     }
 
     if (object.objects && typeof object.objects.length === "number") {
-      const sourceRoot = object.threeObj;
       for (const child of object.objects) {
-        const path = findRenderNodePath(sourceRoot, child?.threeObj);
-        const childRoot = path ? getRenderNode(renderRoot || sourceRoot, path) : null;
-        walkRenderedObject(child, nextChain, frame, childRoot);
+        const childRoot = nodes?.get(child?.threeObj) || null;
+        walkRenderedObject(child, nextChain, frame, childRoot, nodes);
       }
       return;
     }
@@ -233,7 +235,8 @@ function createDeformationSupport(PZ, THREE) {
   function walk(objects, chain, frame) {
     if (!objects || typeof objects.length !== "number") return;
     for (const object of objects) {
-      walkRenderedObject(object, chain, frame, object?.threeObj);
+      walkRenderedObject(object, chain, frame, object?.threeObj,
+        mapRenderNodes(object?.threeObj, object?.threeObj));
     }
   }
 
@@ -282,18 +285,38 @@ function createDeformationSupport(PZ, THREE) {
         for (const entry of chain) { entry.effector._fieldBounds = entry.bounds; entry.effector._effectorFrame = task.frame; }
         meshDeformer.deformMesh(task.mesh, chain, task.frame, task.polygonCount, task.legacy);
       }
+      return new Set(tasks.map(task => task.mesh));
     } finally { tasks = null; }
+  }
+
+  function hasActiveEffectors(objects, frame) {
+    return Array.from(objects || []).some(object => object && (
+      (typeof object.deformPositions === "function" && (!object.properties?.enabled ||
+        optionPropertyValue(object.properties.enabled, frame, 1) === 1)) ||
+      hasActiveEffectors(object.objects, frame)));
   }
 
   function apply(layer, frame) {
     if (!layer?.objects) return;
+    frame = Number.isFinite(frame) ? frame : 0;
+    const previous = affectedMeshes.get(layer);
+    if (!hasActiveEffectors(layer.objects, frame)) {
+      if (previous) for (const mesh of previous) meshDeformer.restoreMesh(mesh);
+      affectedMeshes.delete(layer);
+      layers.delete(layer);
+      return;
+    }
     layers.add(layer);
     layer.threeObj?.updateMatrixWorld?.(true);
-    evaluateTree(() => walk(layer.objects, [], Number.isFinite(frame) ? frame : 0));
+    const current = evaluateTree(() => walk(layer.objects, [], frame));
+    if (previous) for (const mesh of previous) if (!current.has(mesh)) meshDeformer.restoreMesh(mesh);
+    affectedMeshes.set(layer, current);
   }
 
   function restore(layer) {
     if (!layer?.objects) return;
+    for (const mesh of affectedMeshes.get(layer) || []) meshDeformer.restoreMesh(mesh);
+    affectedMeshes.delete(layer);
     const seen = new Set();
     for (const object of layer.objects) restoreRenderedObject(object, seen);
   }
@@ -320,7 +343,18 @@ function createDeformationSupport(PZ, THREE) {
     }
     object.update(frame);
     object.parentLayer?.threeObj?.updateMatrixWorld?.(true);
-    await settle(() => evaluateTree(() => walkRenderedObject(object, [], frame, object.threeObj)));
+    await settle(() => {
+      const meshes = evaluateTree(() => walkRenderedObject(object, [], frame, object.threeObj,
+        mapRenderNodes(object.threeObj, object.threeObj)));
+      const layer = object.parentLayer;
+      if (!layer || !meshes.size) return;
+      // Object.prepare can finish before Scene.apply has ever run. These
+      // working geometries also need restoration if the effector is removed.
+      const previous = affectedMeshes.get(layer) || new Set();
+      for (const mesh of meshes) previous.add(mesh);
+      affectedMeshes.set(layer, previous);
+      layers.add(layer);
+    });
   }
 
   const patchedPrepare = async function prepareWithEffectors(frame, ...args) {
@@ -335,6 +369,7 @@ function createDeformationSupport(PZ, THREE) {
   const patchedUnload = function unloadWithEffectors(...args) {
     restore(this);
     layers.delete(this);
+    affectedMeshes.delete(this);
     return originalUnload?.apply(this, args);
   };
   prototype.prepare = patchedPrepare;
@@ -355,6 +390,7 @@ function createDeformationSupport(PZ, THREE) {
     deactivate() {
       for (const layer of layers) restore(layer);
       layers.clear();
+      affectedMeshes.clear();
       disposeFieldHelpers();
       meshDeformer.dispose();
       if (prototype.prepare === patchedPrepare) prototype.prepare = originalPrepare;

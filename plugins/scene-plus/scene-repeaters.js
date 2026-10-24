@@ -103,7 +103,7 @@ function createRepeaterClass(PZ, THREE, mode, type) {
       await Promise.all(this.objects.map((source) => source?.loading));
       this.detachTemplateObjects();
       if (this._mode === "echo") this.rebuildEchoInstances(frame);
-      else this.rebuildInstances(frame);
+      else this.refreshInstances(frame);
     }
 
     clearInstances() {
@@ -135,27 +135,31 @@ function createRepeaterClass(PZ, THREE, mode, type) {
       const sources = this.objects.filter((source) => source?.threeObj);
       const echoFrames = getEchoFrames(currentFrame, count, delay);
 
+      // Group repeated/clamped times without sharing any cloned resources.
+      const byFrame = new Map();
       for (let index = 0; index < echoFrames.length; index += 1) {
-        const root = new THREE.Object3D();
-        root.name = `${this.defaultName || "Echo Repeater"} ${index + 1}`;
-        const clones = [];
         const sourceFrame = echoFrames[index];
-
-        // Echoes are evaluated from an explicit source frame. No result from
-        // an earlier playback tick is used to construct the current output.
-        try {
+        if (!byFrame.has(sourceFrame)) byFrame.set(sourceFrame, []);
+        byFrame.get(sourceFrame).push(index);
+      }
+      try {
+        for (const [sourceFrame, indices] of byFrame) {
           for (const source of sources) source.update(sourceFrame);
-          for (const source of sources) {
-            const clone = cloneRenderTree(source.threeObj);
-            root.add(clone);
-            clones.push({ source: source.threeObj, clone });
+          for (const index of indices) {
+            const root = new THREE.Object3D();
+            root.name = `${this.defaultName || "Echo Repeater"} ${index + 1}`;
+            const clones = [];
+            for (const source of sources) {
+              const clone = cloneRenderTree(source.threeObj);
+              root.add(clone);
+              clones.push({ source: source.threeObj, clone });
+            }
+            this.threeObj.add(root);
+            this._instanceRoots.push({ root, clones, sourceFrame });
           }
-        } finally {
-          for (const source of sources) source.update(currentFrame);
         }
-
-        this.threeObj.add(root);
-        this._instanceRoots.push({ root, clones, sourceFrame });
+      } finally {
+        for (const source of sources) source.update(currentFrame);
       }
 
       this._cloneDirty = false;
@@ -193,6 +197,10 @@ function createRepeaterClass(PZ, THREE, mode, type) {
         this.rebuildEchoInstances(frame);
         return;
       }
+      this.refreshInstances(frame);
+    }
+
+    refreshInstances(frame) {
       const sources = this.objects.filter((source) => source?.threeObj);
       const signatureParts = [];
       for (const source of sources) objectSignature(source.threeObj, signatureParts);

@@ -212,7 +212,7 @@
       "category": "scene",
       "name": "Effector",
       "author": "Zoidium",
-      "version": "31",
+      "version": "32",
       "defaultEnabled": true,
       "itemCount": 7,
       "format": "3D effectors",
@@ -220,9 +220,9 @@
       "color": "#6c7fb5",
       "description": "Adds procedural repeaters plus Twist, Warp and Voronoi Fracture effectors to 3D Scene.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/scene-plus/manifest.json?v=31",
-      "bundle": "./plugins/scene-plus/bundle.json?v=31",
-      "integrity": "sha256-vfCHS3S32a1gOYyZLtTqYZ6YDLUdGXpkN/5W8auAyz8="
+      "manifest": "./plugins/scene-plus/manifest.json?v=32",
+      "bundle": "./plugins/scene-plus/bundle.json?v=32",
+      "integrity": "sha256-wcaFmpgwHUZry6MPFCFGxMjcTDezntx2JqoocQLq7h0="
     },
     {
       "id": "material-plus",
@@ -295,16 +295,16 @@
       "category": "scene",
       "name": "Optical Flares",
       "author": "DaviFX",
-      "version": "17",
+      "version": "18",
       "itemCount": 5,
       "format": "3D objects",
       "tagline": "3D lens flares",
       "color": "#4a90d9",
       "description": "Video Copilot style lens flares placed in 3D space and projected through the scene camera, edited in one floating window.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/optical-flares/manifest.json?v=17",
-      "bundle": "./plugins/optical-flares/bundle.json?v=17",
-      "integrity": "sha256-gYoIP4ZhaIrfjnpYwVk6vquJpjvxgtgu/yYwKQB/SWI="
+      "manifest": "./plugins/optical-flares/manifest.json?v=18",
+      "bundle": "./plugins/optical-flares/bundle.json?v=18",
+      "integrity": "sha256-5WLxKv34YGqBJ52ri8HEGXH3lj3GpgTEb+wJ8jVEul0="
     },
     {
       "id": "effector-plus",
@@ -327,16 +327,16 @@
       "category": "scene",
       "name": "Camera+",
       "author": "DaviFX",
-      "version": "17",
+      "version": "18",
       "itemCount": 1,
       "format": "camera rig",
       "tagline": "Camera layers, 3D tracks and DOF",
       "color": "#3d7bc5",
       "description": "Adds a separate Camera+ object with depth of field, seeded vibrate and focus tools, Camera layers, and a 3D switch on video tracks that lets scenes and flat layers follow the shared camera. The default CM3 camera is left unchanged.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/camera-plus/manifest.json?v=17",
-      "bundle": "./plugins/camera-plus/bundle.json?v=17",
-      "integrity": "sha256-mfb+J1RraZMCdgV2iIWdxEChjSgZej8N4M/z9Xy/Oms="
+      "manifest": "./plugins/camera-plus/manifest.json?v=18",
+      "bundle": "./plugins/camera-plus/bundle.json?v=18",
+      "integrity": "sha256-PclAgxpm1Ku+0UbPSEQVOFMOe0ZJlKvTyrUChhGMIy8="
     },
     {
       "id": "native-fx",
