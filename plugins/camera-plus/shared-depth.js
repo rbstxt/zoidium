@@ -40,6 +40,11 @@ parts.sharedDepth = function ({ PZ, THREE, teardown, patchMethod, masterAt, Came
     owned.delete(compositor);
   }
   teardown.push(() => { for (const compositor of owned.keys()) dispose(compositor); });
+  const unloadScene = PZ.layer.scene.prototype.unload;
+  patchMethod(PZ.layer.scene.prototype, 'unload', function () {
+    for (const entry of owned.values()) entry.dof.releaseDepthScene(this.threeObj);
+    return unloadScene.apply(this, arguments);
+  }, teardown);
   if (PZ.compositor.prototype.unload) {
     const unload = PZ.compositor.prototype.unload;
     patchMethod(PZ.compositor.prototype, 'unload', function () { dispose(this); return unload.apply(this, arguments); }, teardown);
