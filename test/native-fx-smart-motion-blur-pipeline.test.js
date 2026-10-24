@@ -60,3 +60,21 @@ test("amount zero and duplicate-only boundary taps still copy without a readback
     assert.equal(p.reads(), 0);
   }
 });
+
+
+test("scene cuts retain flow statistics and skip reconstruction", () => {
+  const p = probe([[0, 0, 0, 255], [255, 0, 255, 255]]);
+  p.render();
+  assert.equal(p.calls.filter(c => c.name === "solve").length, 4);
+  assert.equal(p.calls.filter(c => c.name === "blur").length, 0);
+  assert.equal(p.calls.at(-1).name, "copy");
+  assert.equal(p.pipeline.diagnostics.sceneCut, true);
+});
+
+test("one-sided moving boundary taps keep mirrored flow without registration", () => {
+  const p = probe([[0, 0, 0, 1], [0, 0, 20, 1]]);
+  p.render({}, [{ frame: 11, texture: {} }]);
+  assert.equal(p.calls.filter(c => c.name === "solve").length, 2);
+  assert.equal(p.calls.filter(c => c.name === "blur").length, 1);
+  assert.equal(p.pipeline.diagnostics.readbacks, 2);
+});

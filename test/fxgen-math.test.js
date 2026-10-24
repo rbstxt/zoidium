@@ -375,8 +375,8 @@ test("numbers layer png bytes match the analytic coverage", () => {
 });
 
 
-test("disabled text effects skip all layout reads and rebuild current text on enable", () => {
-  for (const file of ["numbers.js", "timecode.js"]) {
+for (const file of ["numbers.js", "timecode.js"]) {
+  test(`${file} skips disabled layout reads and rebuilds current text on enable`, () => {
     const spec = loadEffectSpec(file), effect = fakeEffect(spec);
     effect.pass = { enabled: true, uniforms: spec.uniforms };
     spec.onLoad(effect);
@@ -405,5 +405,5 @@ test("disabled text effects skip all layout reads and rebuild current text on en
     assert.notEqual(effect._fxgenLayer.key, key);
     assert.equal(uploads, 2, "enabling uploads coverage for the current properties");
     spec.onUnload(effect);
-  }
-});
+  });
+}
