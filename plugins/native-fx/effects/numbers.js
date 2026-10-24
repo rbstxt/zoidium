@@ -158,6 +158,7 @@ ZoidiumPluginApis.defineFilter.call(fxgenNumbersEffect, {
   update(frame) {
     if (!this.pass) return;
     this.pass.enabled = numbersNumber(this.properties.enabled, frame, 1) === 1;
+    if (!this.pass.enabled) return;
     const uniforms = this.pass.uniforms;
     uniforms.uBoxOn.value = 0;
     if (!FXGenNumbersMath || !this._fxgenLayer) return;

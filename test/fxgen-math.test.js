@@ -373,3 +373,37 @@ test("numbers layer png bytes match the analytic coverage", () => {
   spec.update.call(effect, 0);
   assert.match(effect._fxgenLayer.key, /^8\|/, "the layer key starts with the drawn string");
 });
+
+
+test("disabled text effects skip all layout reads and rebuild current text on enable", () => {
+  for (const file of ["numbers.js", "timecode.js"]) {
+    const spec = loadEffectSpec(file), effect = fakeEffect(spec);
+    effect.pass = { enabled: true, uniforms: spec.uniforms };
+    spec.onLoad(effect);
+    let uploads = 0;
+    const ensure = effect._fxgenLayer.ensure;
+    effect._fxgenLayer.ensure = function () { uploads++; return ensure.apply(this, arguments); };
+    spec.update.call(effect, 0);
+    const key = effect._fxgenLayer.key;
+    const prop = file === "numbers.js" ? "value" : "startingFrame";
+    effect.properties[prop] = stubProp(1234);
+    effect.properties.enabled = stubProp(0);
+    let reads = 0;
+    for (const [name, property] of Object.entries(effect.properties)) {
+      if (name === "enabled") continue;
+      const get = property.get;
+      property.get = () => { reads++; return get(); };
+    }
+    for (let frame = 0; frame < 60; frame++) spec.update.call(effect, frame);
+    assert.equal(reads, 0, file);
+    assert.equal(uploads, 1);
+    assert.equal(effect.pass.enabled, false);
+    assert.equal(effect._fxgenLayer.key, key, "disabled frames leave the cache untouched");
+    effect.properties.enabled = stubProp(1);
+    spec.update.call(effect, 60);
+    assert.equal(effect.pass.enabled, true);
+    assert.notEqual(effect._fxgenLayer.key, key);
+    assert.equal(uploads, 2, "enabling uploads coverage for the current properties");
+    spec.onUnload(effect);
+  }
+});

@@ -148,6 +148,7 @@ ZoidiumPluginApis.defineFilter.call(fxgenTimecodeEffect, {
   update(frame) {
     if (!this.pass) return;
     this.pass.enabled = timecodeNumber(this.properties.enabled, frame, 1) === 1;
+    if (!this.pass.enabled) return;
     const uniforms = this.pass.uniforms;
     uniforms.uBoxOn.value = 0;
     if (!FXGenTimecodeMath || !this._fxgenLayer) return;
