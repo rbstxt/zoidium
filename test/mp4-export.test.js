@@ -179,7 +179,8 @@ test("a fractional final second retains every mixed audio sample", async () => {
     renderer: { domElement: { width: 640, height: 360 } }, framesRendered: 0,
     analyzeSegment() { return []; },
     async renderAudioSegment(_segments, _offset, count) { return { getChannelData() { return new Float32Array(count); } }; },
-    async getVideoFrame() { this.framesRendered++; },
+    async renderVideoFrame() { this.framesRendered++; },
+    getVideoFrame() { return this.renderVideoFrame(); },
   };
   const scope = {
     VideoEncoder: supports(() => true), navigator: {},
@@ -217,7 +218,8 @@ test("cancel closes the encoder while a native frame is still preparing", async 
   const exporter = {
     params, sequence: { properties: { rate: { get: () => 30 } } },
     renderer: { domElement: { width: 640, height: 360 } }, framesRendered: 0,
-    getVideoFrame() { frameStarted(); return new Promise((resolve) => { finishFrame = resolve; }); },
+    renderVideoFrame() { frameStarted(); return new Promise((resolve) => { finishFrame = resolve; }); },
+    getVideoFrame() { return this.renderVideoFrame(); },
   };
   const scope = { VideoEncoder: supports(() => true), navigator: {} };
   const job = createJob(scope, { av: { profiles } }, exporter, () => fakeBunny(events));
@@ -238,7 +240,8 @@ test("an encoder failure cancels the output and reaches the caller once", async 
   const exporter = {
     params, sequence: { properties: { rate: { get: () => 30 } } },
     renderer: { domElement: { width: 640, height: 360 } }, framesRendered: 0,
-    async getVideoFrame() { this.framesRendered++; },
+    async renderVideoFrame() { this.framesRendered++; },
+    getVideoFrame() { return this.renderVideoFrame(); },
   };
   const job = createJob({ VideoEncoder: supports(() => true), navigator: {} },
     { av: { profiles } }, exporter, () => bunny);
@@ -271,4 +274,29 @@ test("MKV and WebM UI methods forward the original receiver, arguments and resul
   }
   for (const dispose of disposers.reverse()) dispose();
   assert.deepEqual(prototype, originals);
+});
+
+test("MP4 submits the prepared canvas directly and pads only after rendering", async () => {
+  const events = [], canvas = { width: 641, height: 361 }, padded = {};
+  let readbacks = 0;
+  const settings = { ...params, width: 641, height: 361, length: 3 };
+  const exporter = {
+    params: settings, sequence: { properties: { rate: { get: () => 30 } } }, renderer: { domElement: canvas },
+    async renderVideoFrame() { await Promise.resolve(); canvas.frame = this.frame; events.push("render " + this.frame); },
+    getVideoFrame() { readbacks++; return this.renderVideoFrame(); },
+  };
+  const bunny = fakeBunny(events);
+  bunny.CanvasSource = class {
+    constructor(input) { assert.equal(input, padded); }
+    async add() { events.push("encode " + padded.frame); }
+  };
+  const scope = { VideoEncoder: supports(() => true), navigator: {}, document: {
+    createElement() { return Object.assign(padded, { getContext() { return {
+      fillRect() { events.push("clear"); }, drawImage(input) { assert.equal(input, canvas); padded.frame = input.frame; },
+    }; } }); },
+  } };
+  await createJob(scope, { av: { profiles } }, exporter, () => bunny).run();
+  assert.equal(readbacks, 0, "MP4 must not extract CPU pixels");
+  assert.deepEqual(events, ["render 0", "clear", "encode 0", "render 1", "clear", "encode 1", "render 2", "clear", "encode 2"]);
+  assert.equal(padded.width, 642); assert.equal(padded.height, 362);
 });

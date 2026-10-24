@@ -1,6 +1,7 @@
 "use strict";
 
 require("./migrate-test-apis.js").ensureMainRealmApis();
+require("../zoidium/plugin-apis.js");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
@@ -45,6 +46,7 @@ function loadEffect() {
   }
   FakeProp.prototype.get = function () { return this.v; };
   FakeProp.prototype.set = function (v) { this.v = v; };
+  FakeProp.prototype.load = function (v) { if (v !== undefined) this.v = v; };
   const fakeThis = {
     _zoidiumGetAsset: (kind, url) => readPack(String(url).split("/").pop().split("?")[0]),
     properties: {
@@ -57,6 +59,7 @@ function loadEffect() {
         }
       },
       load() {},
+      remove(key) { delete this[key]; delete store[key]; },
       store,
     },
   };
@@ -203,4 +206,26 @@ test("Edge Softness Blur Size affects the image at its fresh default radius", ()
   const sample = uv => uv[0] > 0.85 ? [1,1,1] : [0,0,0];
   const c = Looks.grade.gradePixel([1,1,1], [0.9,0.9], state.tools, on, sample, [16,16], Looks.grade.buildFrameLuts(state.tools));
   assert.ok(c[0] < 0.95);
+});
+
+test("each authored instance evaluates only its own tool and preserves legacy classification", async () => {
+  const probe = loadEffect().fakeThis;
+  for (const tool of probe._looksToolIds) {
+    const { fakeThis: effect } = loadEffect();
+    const { fakeThis: reference } = loadEffect();
+    await reference.load({}); reference.update(3.25);
+    await effect.load({ looksInstances: { version: 1, nextId: 2, order: [{ id: "i1", tool }] } });
+    await effect.prepare(3.25); effect.update(3.25);
+    const stage = effect._looksPipeline.stage("i1");
+    assert.deepEqual(stage._looksToolIds, [tool]);
+    assert.deepEqual(Object.keys(stage._looksActiveTools), [tool], "one classification per instance");
+    assert.equal(stage._looksActiveTools[tool], reference._looksActiveTools[tool], tool);
+    const rec = stage._looksPropMap[tool];
+    for (const key of [rec.enable, ...Object.values(rec.params)]) {
+      assert.deepEqual(stage.pass.uniforms["u_" + key].value, reference.pass.uniforms["u_" + key].value, key);
+    }
+    assert.deepEqual(stage._looksCurvesBytes, reference._looksCurvesBytes);
+    assert.deepEqual(stage._looksScurveBytes, reference._looksScurveBytes);
+    effect.unload(); reference.unload();
+  }
 });

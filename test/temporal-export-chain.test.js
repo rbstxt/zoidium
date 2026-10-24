@@ -189,3 +189,22 @@ test("deterministic export works when the temporal core never loads", async () =
   assert.equal(result, 1);
   assert.equal(exportCalls.prepare, 1, "degraded boot still exports");
 });
+
+for (const order of [["temporal", "video-frame"], ["video-frame", "temporal"]]) {
+  test(`canvas-only export preserves stepping without readback in ${order.join(" then ")} order`, async () => {
+    const { sandbox, PZ } = loadInOrder(order);
+    const { exp, calls, sequence, compositor } = makeExport(PZ);
+    let reads = 0, copies = 0;
+    exp.renderer.context.readPixels = () => { reads++; };
+    exp.readPixelsCtx = { drawImage() { copies++; }, getImageData() { throw new Error("unneeded CPU copy"); } };
+    exp.readPixelsWorkaround = true;
+    assert.equal(await exp.renderVideoFrame(), 1);
+    assert.equal(await exp.renderVideoFrame(), 1);
+    assert.equal(await exp.renderVideoFrame(), 0);
+    assert.equal(reads, 0); assert.equal(copies, 0);
+    assert.equal(calls.prepare, 2); assert.equal(calls.renderSequence, 2);
+    assert.equal(exp.framesRendered, 2); assert.equal(exp.frame, 12);
+    assert.equal(exp.frameWaiting, -1); assert.equal(exp.framePromise, null);
+    assert.equal(sandbox.PZ.zoidium.temporal.rootSequences.get(compositor), sequence);
+  });
+}

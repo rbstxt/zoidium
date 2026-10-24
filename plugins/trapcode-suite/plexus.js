@@ -634,18 +634,40 @@ var PZ = PZ || {};
                 indices = this.facets(n, maxDistance, state.maxConnections);
             }
             var geometry = this.mesh.geometry;
-            if (!geometry.attributes.position || geometry.attributes.position.array.length < n * 3) {
+            var positionGrows = !geometry.attributes.position || geometry.attributes.position.array.length < n * 3;
+            var maxIndex = 0;
+            for (var i = 0; i < indices.length; i++) maxIndex = Math.max(maxIndex, indices[i]);
+            var IndexArray = maxIndex > 65535 ? Uint32Array : Uint16Array;
+            var index = geometry.index;
+            var indexGrows = !index || index.array.length < indices.length ||
+                (IndexArray === Uint32Array && !(index.array instanceof Uint32Array));
+            if (positionGrows || indexGrows) {
+                // r91 deletes attributes only on geometry disposal, not when
+                // setIndex replaces one. Dispose while the old index is attached.
+                var positionSize = Math.max(n * 3, geometry.attributes.position?.array.length || 192);
+                var indexSize = Math.max(indices.length, index?.array.length * 2 || 192);
+                var groups = !positionGrows && geometry.groups;
                 if (geometry.dispose) geometry.dispose();
                 geometry = new THREE.BufferGeometry();
-                geometry.addAttribute("position", new THREE.BufferAttribute(new Float32Array(Math.max(n, 64) * 3), 3));
+                geometry.addAttribute("position", new THREE.BufferAttribute(new Float32Array(positionSize), 3));
+                geometry.setIndex(new THREE.BufferAttribute(new IndexArray(indexSize), 1));
+                if (groups) geometry.groups = groups;
                 this.mesh.geometry = geometry;
             }
             geometry.attributes.position.array.set(this._work.subarray(0, n * 3));
             geometry.attributes.position.needsUpdate = true;
-            geometry.setIndex(indices.length ? indices : []);
+            index = geometry.index;
+            var storage = index.array;
+            storage.set(indices);
+            index.needsUpdate = true;
             geometry.setDrawRange(0, indices.length);
             if (n >= 3 && indices.length >= 3) {
-                geometry.computeVertexNormals();
+                // r91 reads index.array, ignoring drawRange and index.count.
+                // Give it exactly the original index length, including its
+                // existing group behavior, then restore the GPU allocation.
+                index.array = storage.subarray(0, indices.length);
+                try { geometry.computeVertexNormals(); }
+                finally { index.array = storage; }
             }
             // Keep mesh visible even when triangulation yields few tris so the
             // renderer does not look dead; empty geometry simply draws nothing.
