@@ -12,7 +12,7 @@ function editableClip(editor, viewport, Layer, PZ) {
   const clips = viewport.objects;
   if (!viewport.enabled || viewport.renderMode || clips?.length !== 1) return null;
   const clip = clips[0], layer = clip.object, frame = editor.playback.currentFrame;
-  if (!(layer instanceof Layer) || layer.parentObject !== clip ||
+  if (!(layer instanceof Layer) || !clip.parent || !layer.parent || layer.parentObject !== clip ||
       frame < clip.start || frame >= clip.start + clip.length) return null;
   // Handles edit pre-effect layer space, including with spatial image effects.
   // Composite/perspective parents require a different inverse projection.

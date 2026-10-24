@@ -3,271 +3,271 @@
   "id": "shape-plus",
   "name": "Shape+",
   "author": "Zoidium",
-  "version": "16",
+  "version": "17",
   "kind": "extension",
   "description": "Animated vector layers, procedural contents, SVG import and native preview path editing.",
   "category": "scene",
   "modules": [
     {
       "id": "shape-plus",
-      "source": "./plugins/shape-plus/shape-plus.js?v=16"
+      "source": "./plugins/shape-plus/shape-plus.js?v=17"
     }
   ],
   "resources": [
     {
       "id": "compiler",
       "type": "text",
-      "source": "./plugins/shape-plus/compiler.js?v=16"
+      "source": "./plugins/shape-plus/compiler.js?v=17"
     },
     {
       "id": "fill",
       "type": "text",
-      "source": "./plugins/shape-plus/fill.js?v=16"
+      "source": "./plugins/shape-plus/fill.js?v=17"
     },
     {
       "id": "layer",
       "type": "text",
-      "source": "./plugins/shape-plus/layer.js?v=16"
+      "source": "./plugins/shape-plus/layer.js?v=17"
     },
     {
       "id": "model",
       "type": "text",
-      "source": "./plugins/shape-plus/model.js?v=16"
+      "source": "./plugins/shape-plus/model.js?v=17"
     },
     {
       "id": "path",
       "type": "text",
-      "source": "./plugins/shape-plus/path.js?v=16"
+      "source": "./plugins/shape-plus/path.js?v=17"
     },
     {
       "id": "primitives",
       "type": "text",
-      "source": "./plugins/shape-plus/primitives.js?v=16"
+      "source": "./plugins/shape-plus/primitives.js?v=17"
     },
     {
       "id": "properties",
       "type": "text",
-      "source": "./plugins/shape-plus/properties.js?v=16"
+      "source": "./plugins/shape-plus/properties.js?v=17"
     },
     {
       "id": "render",
       "type": "text",
-      "source": "./plugins/shape-plus/render.js?v=16"
+      "source": "./plugins/shape-plus/render.js?v=17"
     },
     {
       "id": "runtime",
       "type": "text",
-      "source": "./plugins/shape-plus/runtime.js?v=16"
+      "source": "./plugins/shape-plus/runtime.js?v=17"
     },
     {
       "id": "stroke",
       "type": "text",
-      "source": "./plugins/shape-plus/stroke.js?v=16"
+      "source": "./plugins/shape-plus/stroke.js?v=17"
     },
     {
       "id": "native-ui",
       "type": "text",
-      "source": "./plugins/shape-plus/native-ui.js?v=16"
+      "source": "./plugins/shape-plus/native-ui.js?v=17"
     },
     {
       "id": "editor",
       "type": "text",
-      "source": "./plugins/shape-plus/editor.js?v=16"
+      "source": "./plugins/shape-plus/editor.js?v=17"
     },
     {
       "id": "editor-model",
       "type": "text",
-      "source": "./plugins/shape-plus/editor-model.js?v=16"
+      "source": "./plugins/shape-plus/editor-model.js?v=17"
     },
     {
       "id": "editor-geometry",
       "type": "text",
-      "source": "./plugins/shape-plus/editor-geometry.js?v=16"
+      "source": "./plugins/shape-plus/editor-geometry.js?v=17"
     },
     {
       "id": "editor-topology",
       "type": "text",
-      "source": "./plugins/shape-plus/editor-topology.js?v=16"
+      "source": "./plugins/shape-plus/editor-topology.js?v=17"
     },
     {
       "id": "editor-tree-data",
       "type": "text",
-      "source": "./plugins/shape-plus/editor-tree-data.js?v=16"
+      "source": "./plugins/shape-plus/editor-tree-data.js?v=17"
     },
     {
       "id": "editor-history",
       "type": "text",
-      "source": "./plugins/shape-plus/editor-history.js?v=16"
+      "source": "./plugins/shape-plus/editor-history.js?v=17"
     },
     {
       "id": "editor-canvas",
       "type": "text",
-      "source": "./plugins/shape-plus/editor-canvas.js?v=16"
+      "source": "./plugins/shape-plus/editor-canvas.js?v=17"
     },
     {
       "id": "editor-pointer-machine",
       "type": "text",
-      "source": "./plugins/shape-plus/editor-pointer-machine.js?v=16"
+      "source": "./plugins/shape-plus/editor-pointer-machine.js?v=17"
     },
     {
       "id": "editor-pointer",
       "type": "text",
-      "source": "./plugins/shape-plus/editor-pointer.js?v=16"
+      "source": "./plugins/shape-plus/editor-pointer.js?v=17"
     },
     {
       "id": "editor-actions",
       "type": "text",
-      "source": "./plugins/shape-plus/editor-actions.js?v=16"
+      "source": "./plugins/shape-plus/editor-actions.js?v=17"
     },
     {
       "id": "editor-selection",
       "type": "text",
-      "source": "./plugins/shape-plus/editor-selection.js?v=16"
+      "source": "./plugins/shape-plus/editor-selection.js?v=17"
     },
     {
       "id": "paint-shader",
       "type": "text",
-      "source": "./plugins/shape-plus/paint-shader.js?v=16"
+      "source": "./plugins/shape-plus/paint-shader.js?v=17"
     },
     {
       "id": "editor-icons",
       "type": "text",
-      "source": "./plugins/shape-plus/editor-icons.js?v=16"
+      "source": "./plugins/shape-plus/editor-icons.js?v=17"
     },
     {
       "id": "paint",
       "type": "text",
-      "source": "./plugins/shape-plus/paint.js?v=16"
+      "source": "./plugins/shape-plus/paint.js?v=17"
     },
     {
       "id": "operators",
       "type": "text",
-      "source": "./plugins/shape-plus/operators.js?v=16"
+      "source": "./plugins/shape-plus/operators.js?v=17"
     },
     {
       "id": "stroke-profile",
       "type": "text",
-      "source": "./plugins/shape-plus/stroke-profile.js?v=16"
+      "source": "./plugins/shape-plus/stroke-profile.js?v=17"
     },
     {
       "id": "compiler-procedural",
       "type": "text",
-      "source": "./plugins/shape-plus/compiler-procedural.js?v=16"
+      "source": "./plugins/shape-plus/compiler-procedural.js?v=17"
     },
     {
       "id": "editor-controls",
       "type": "text",
-      "source": "./plugins/shape-plus/editor-controls.js?v=16"
+      "source": "./plugins/shape-plus/editor-controls.js?v=17"
     },
     {
       "id": "viewport-mapping",
       "type": "text",
-      "source": "./plugins/shape-plus/viewport-mapping.js?v=16"
+      "source": "./plugins/shape-plus/viewport-mapping.js?v=17"
     },
     {
       "id": "native-properties",
       "type": "text",
-      "source": "./plugins/shape-plus/native-properties.js?v=16"
+      "source": "./plugins/shape-plus/native-properties.js?v=17"
     },
     {
       "id": "deform",
       "type": "text",
-      "source": "./plugins/shape-plus/deform.js?v=16"
+      "source": "./plugins/shape-plus/deform.js?v=17"
     },
     {
       "id": "topology",
       "type": "text",
-      "source": "./plugins/shape-plus/topology.js?v=16"
+      "source": "./plugins/shape-plus/topology.js?v=17"
     },
     {
       "id": "vendor-clipper",
       "type": "text",
-      "source": "./plugins/shape-plus/vendor/clipper.js?v=16"
+      "source": "./plugins/shape-plus/vendor/clipper.js?v=17"
     },
     {
       "id": "license-boost",
       "type": "text",
-      "source": "./plugins/shape-plus/vendor/LICENSE-Boost.txt?v=16"
+      "source": "./plugins/shape-plus/vendor/LICENSE-Boost.txt?v=17"
     },
     {
       "id": "license-jsbn",
       "type": "text",
-      "source": "./plugins/shape-plus/vendor/LICENSE-JSBN.txt?v=16"
+      "source": "./plugins/shape-plus/vendor/LICENSE-JSBN.txt?v=17"
     },
     {
       "id": "svg-path",
       "type": "text",
-      "source": "./plugins/shape-plus/svg-path.js?v=16"
+      "source": "./plugins/shape-plus/svg-path.js?v=17"
     },
     {
       "id": "svg-import",
       "type": "text",
-      "source": "./plugins/shape-plus/svg-import.js?v=16"
+      "source": "./plugins/shape-plus/svg-import.js?v=17"
     },
     {
       "id": "convert-native",
       "type": "text",
-      "source": "./plugins/shape-plus/convert-native.js?v=16"
+      "source": "./plugins/shape-plus/convert-native.js?v=17"
     },
     {
       "id": "workflow",
       "type": "text",
-      "source": "./plugins/shape-plus/workflow.js?v=16"
+      "source": "./plugins/shape-plus/workflow.js?v=17"
     },
     {
       "id": "vendor-earcut",
       "type": "text",
-      "source": "./plugins/shape-plus/vendor/earcut.js?v=16"
+      "source": "./plugins/shape-plus/vendor/earcut.js?v=17"
     },
     {
       "id": "license-earcut",
       "type": "text",
-      "source": "./plugins/shape-plus/vendor/LICENSE-Earcut.txt?v=16"
+      "source": "./plugins/shape-plus/vendor/LICENSE-Earcut.txt?v=17"
     },
     {
       "id": "geometry-budget",
       "type": "text",
-      "source": "./plugins/shape-plus/geometry-budget.js?v=16"
+      "source": "./plugins/shape-plus/geometry-budget.js?v=17"
     },
     {
       "id": "geometry-failure",
       "type": "text",
-      "source": "./plugins/shape-plus/geometry-failure.js?v=16"
+      "source": "./plugins/shape-plus/geometry-failure.js?v=17"
     },
     {
       "id": "stroke-scalable",
       "type": "text",
-      "source": "./plugins/shape-plus/stroke-scalable.js?v=16"
+      "source": "./plugins/shape-plus/stroke-scalable.js?v=17"
     },
     {
       "id": "native-focus",
       "type": "text",
-      "source": "./plugins/shape-plus/native-focus.js?v=16"
+      "source": "./plugins/shape-plus/native-focus.js?v=17"
     },
     {
       "id": "contents-ops",
       "type": "text",
-      "source": "./plugins/shape-plus/contents-ops.js?v=16"
+      "source": "./plugins/shape-plus/contents-ops.js?v=17"
     },
     {
       "id": "editor-menu",
       "type": "text",
-      "source": "./plugins/shape-plus/editor-menu.js?v=16"
+      "source": "./plugins/shape-plus/editor-menu.js?v=17"
     },
     {
       "id": "editor-pick",
       "type": "text",
-      "source": "./plugins/shape-plus/editor-pick.js?v=16"
+      "source": "./plugins/shape-plus/editor-pick.js?v=17"
     },
     {
       "id": "editor-transform",
       "type": "text",
-      "source": "./plugins/shape-plus/editor-transform.js?v=16"
+      "source": "./plugins/shape-plus/editor-transform.js?v=17"
     },
     {
       "id": "native-hints",
       "type": "text",
-      "source": "./plugins/shape-plus/native-hints.js?v=16"
+      "source": "./plugins/shape-plus/native-hints.js?v=17"
     }
   ]
 }

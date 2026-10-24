@@ -42,6 +42,7 @@ test("layer build catches invalid geometry and automatically recovers",()=>{
   const Layer=createLayerClass({layer:class{}},null,null);
   let fail=true,commands;
   const layer={type:"test",frame:0,signature:null,buildCount:0,contents:[{evaluate(){if(fail)throw Error("invalid geometry");return fixture(60)[0];}}, {evaluate(){return fixture(60).at(-1);}}],parentProject:{sequence:{properties:{rate:{get:()=>30}}}},properties:{resolution:{get:()=>[1920,1080]}},engine:{setCommands(value){commands=value;}}};
+  layer.tryGetParentOfType = () => layer.parentProject;
   assert.doesNotThrow(()=>Layer.prototype.build.call(layer,.03125));assert.deepEqual(commands,[]);
   fail=false;Layer.prototype.build.call(layer,.03125);assert.ok(commands[0]?.positions.length);
   const builds=layer.buildCount;Layer.prototype.build.call(layer,.03125);assert.equal(layer.buildCount,builds);
