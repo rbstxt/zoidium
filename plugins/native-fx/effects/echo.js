@@ -142,12 +142,20 @@ ZoidiumPluginApis.defineFrameSampler.call(echoEffect, {
     },
   },
   getRequest(effect, frame) {
+    const opacity = echoNumber(effect.properties.opacity, frame, 0.75);
+    const decay = echoNumber(effect.properties.decay, frame, 0.75);
+    let count = Math.min(16, Math.max(0, Math.round(echoNumber(effect.properties.echoes, frame, 4))));
+    // Match the sampler's clamping and weight arithmetic, including exact
+    // underflow to zero. No texture with zero weight can affect premultiplied RGBA.
+    const weight = Math.min(1, Math.max(0, opacity));
+    const attenuation = Math.min(1, Math.max(0, decay));
+    while (count > 0 && weight * Math.pow(attenuation, count - 1) === 0) count--;
     return {
-      enabled: echoNumber(effect.properties.enabled, frame, 1) === 1,
-      count: echoNumber(effect.properties.echoes, frame, 4),
+      enabled: echoNumber(effect.properties.enabled, frame, 1) === 1 && count > 0,
+      count,
       offsetFrames: -Math.max(0, echoNumber(effect.properties.delay, frame, 3)),
-      startOpacity: echoNumber(effect.properties.opacity, frame, 0.75),
-      decay: echoNumber(effect.properties.decay, frame, 0.75),
+      startOpacity: opacity,
+      decay,
     };
   },
   lifecycle: {
@@ -229,7 +237,8 @@ ZoidiumPluginApis.defineFrameSampler.call(echoEffect, {
       if (!echoEffect.pass) return;
       echoEffect.pass.enabled =
         echoNumber(echoEffect.properties.enabled, frame, 1) === 1 &&
-        echoNumber(echoEffect.properties.echoes, frame, 4) >= 1;
+        echoNumber(echoEffect.properties.echoes, frame, 4) >= 1 &&
+        echoNumber(echoEffect.properties.opacity, frame, 0.75) > 0;
       echoEffect._zoidiumEchoComposite = Math.min(
         4,
         Math.max(0, Math.round(echoNumber(echoEffect.properties.composite, frame, 0))),
