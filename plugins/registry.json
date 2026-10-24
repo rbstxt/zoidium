@@ -87,16 +87,16 @@
       "category": "utilities",
       "name": "Player+",
       "author": "Zoidium",
-      "version": "13",
+      "version": "14",
       "defaultEnabled": true,
       "itemCount": 1,
       "format": "playback controls",
       "tagline": "Playback Quality Controls",
       "color": "#4f7dbf",
       "description": "Adds drawing pause, single-render, and preview quality controls to the playback bar.",
-      "manifest": "./plugins/player-plus/manifest.json?v=13",
-      "bundle": "./plugins/player-plus/bundle.json?v=13",
-      "integrity": "sha256-Ldl7PviTCZ/wF24WtSINDf0KOoZXC31tbnZFLyuT+F0="
+      "manifest": "./plugins/player-plus/manifest.json?v=14",
+      "bundle": "./plugins/player-plus/bundle.json?v=14",
+      "integrity": "sha256-BTJm2oVp3EqgUsd+FOtjORV8Yn+ZWPGPaQOcwc5a3zc="
     },
     {
       "id": "asset-manager",
