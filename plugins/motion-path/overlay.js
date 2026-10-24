@@ -60,8 +60,13 @@ function build(path, easings, selected) {
     }
     keys.push({ frame, point, client, selected: !!selected?.has(frame), handles });
   }
-  const local = path.local, current = spaceAt(local).toClient(valueAt(path, local));
-  return { path, channels, frames, keys, line, ticks, current };
+  const model = { path, channels, frames, keys, line, ticks, current: null };
+  updateCurrent(model);
+  return model;
+}
+function updateCurrent(model) {
+  const path = model.path, frame = path.local;
+  model.current = (path.spaceAt?.(frame) || path.space).toClient(valueAt(path, frame));
 }
 function stroke(ctx, width, color) {
   ctx.lineWidth = width;
@@ -138,4 +143,4 @@ function hit(models, x, y) {
   }
   return null;
 }
-module.exports = { build, draw, hit, channelsOf, valueAt, SIZE, COLOR };
+module.exports = { build, updateCurrent, draw, hit, channelsOf, valueAt, SIZE, COLOR };

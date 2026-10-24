@@ -6,9 +6,10 @@ const path = require("node:path");
 const test = require("node:test");
 const vm = require("node:vm");
 
-function loadEchoDefinition() {
+function loadEchoDefinition(effect = {}) {
   let definition = null;
   const sandbox = {
+    ...effect,
     PZ: {
       property: {
         type: { NUMBER: 0, OPTION: 10 },
@@ -93,4 +94,19 @@ test("Echo restores the preparation context omitted by CM3's layer", async () =>
   const context = { sequence, export: true };
   await effect.prepare(18, context);
   assert.equal(received, context);
+});
+
+
+test("Echo omits exactly zero-weight captures and disables its pass", () => {
+  for (const [opacity, decay, expected] of [[0, 1, 0], [1, 0, 1], [1e-100, 1e-100, 3], [1e-10, 0.5, 16]]) {
+    const effect = { pass: {}, properties: {
+      enabled: property(1), echoes: property(16), delay: property(3),
+      opacity: property(opacity), decay: property(decay), composite: property(0),
+    } };
+    const definition = loadEchoDefinition(effect);
+    const request = definition.getRequest(effect, 20);
+    assert.equal(request.enabled ? request.count : 0, expected);
+    definition.lifecycle.update.call(effect, 20);
+    assert.equal(effect.pass.enabled, expected > 0);
+  }
 });

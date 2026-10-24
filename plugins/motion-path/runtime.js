@@ -2,6 +2,7 @@
 // Installs the viewport overlay, the toolbar toggle and the redraw loop.
 const targets = require("./targets.js");
 const overlay = require("./overlay.js");
+const { createInvalidation } = require("./invalidation.js");
 const { createInteraction } = require("./interaction.js");
 
 const STORAGE_KEY = "zoidium.motion-path.visible";
@@ -37,13 +38,14 @@ function install(context) {
   canvas.className = "motion-path-overlay";
   canvas.setAttribute("aria-hidden", "true");
   canvas.style.cssText = "position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;z-index:2;touch-action:none";
-  let interaction, command, button, request = 0, disposed = false;
+  let interaction, invalidation, command, button, request = 0, disposed = false;
   // Own cleanup before installing DOM or listeners so partial activation can
   // be unwound by the plugin manager too.
   context.lifecycle.onDispose(() => {
     disposed = true;
     window.cancelAnimationFrame(request);
     interaction?.dispose();
+    invalidation?.dispose();
     canvas.remove();
     const index = toolbar.buttons.indexOf(command);
     if (index >= 0) toolbar.buttons.splice(index, 1);
@@ -55,9 +57,14 @@ function install(context) {
     PZ, THREE, editor, viewport, canvas, window, document,
     easings: PZ.tween.easingList.map(entry => entry.fn || null),
     selection: new Map(), models: [], dirty: true,
-    requestDraw() { s.dirty = true; },
+    requestDraw() {
+      s.dirty = true;
+      if (!disposed && !request) request = window.requestAnimationFrame(frame);
+    },
   };
   interaction = createInteraction(s);
+  invalidation = createInvalidation(s);
+  invalidation.sync([]);
   let visible = readVisible(window.localStorage), drawn = false;
 
   command = { title: TITLE, key: SHORTCUT, fn: () => setVisible(!visible) };
@@ -80,6 +87,7 @@ function install(context) {
     writeVisible(window.localStorage, visible);
     if (!visible) interaction.commit();
     paintButton();
+    s.requestDraw();
   }
   paintButton();
 
@@ -89,19 +97,55 @@ function install(context) {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     drawn = false;
   }
+  let previousFrame, viewKey;
   function frame() {
+    request = 0;
     if (disposed) return;
-    request = window.requestAnimationFrame(frame);
-    let models = [];
-    try {
-      if (visible && canvas.isConnected) {
-        const paths = targets.collect(s);
-        models = paths.map(path => overlay.build(path, s.easings, s.selection.get(path.id))).filter(Boolean);
+    const rect = canvas.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+    const currentFrame = editor.playback.currentFrame;
+    const sourceRect = viewport.canvas.getBoundingClientRect();
+    const camera = viewport.camera;
+    // Editing-camera controls, zoom/pan, layout, quality, and host mode flags
+    // can change without property signals. Comparing this small state never
+    // evaluates an animated Position channel or an ancestor transform.
+    const key = JSON.stringify([rect.left, rect.top, rect.width, rect.height, dpr,
+      sourceRect.left, sourceRect.top, sourceRect.width, sourceRect.height,
+      viewport.renderMode, viewport.enabled, editor.enabled, viewport.__zoidiumPlayerPlusPaused,
+      camera?.matrixWorld?.elements, camera?.projectionMatrix?.elements]);
+    if (key !== viewKey) s.dirty = true;
+    const moved = previousFrame !== currentFrame;
+    let models = s.models;
+    if (s.dirty || moved) {
+      const rebuild = s.dirty;
+      // Clear before evaluation so a signal emitted during collection is not lost.
+      s.dirty = false;
+      try {
+        const paths = visible && canvas.isConnected ? targets.collect(s) : [];
+        invalidation.sync(paths);
+        const cached = new Map(models.map(model => [model.path.id, model]));
+        models = paths.map(path => {
+          const model = cached.get(path.id), previous = model?.path;
+          if (!rebuild && previous && previous.projectionKey === path.projectionKey &&
+              previous.startFrame === path.startFrame && previous.endFrame === path.endFrame &&
+              !path.dynamicGeometry && previous.axes?.every((axis, index) => axis === path.axes[index])) {
+            // Sampled positions, frame ticks, keys and handle projections stay
+            // fixed when only the playhead moves, including in a static 3D view.
+            model.path = path;
+            overlay.updateCurrent(model);
+            return model;
+          }
+          return overlay.build(path, s.easings, s.selection.get(path.id));
+        }).filter(Boolean);
+      } catch (error) {
+        if (!s.warned) { s.warned = true; console.warn("[Zoidium] motion-path: the path could not be evaluated", error); }
+        models = [];
       }
-    } catch (error) {
-      if (!s.warned) { s.warned = true; console.warn("[Zoidium] motion-path: the path could not be evaluated", error); }
-      models = [];
+    } else {
+      if (models.length) request = window.requestAnimationFrame(frame);
+      return;
     }
+    previousFrame = currentFrame;
+    viewKey = key;
     for (const id of s.selection.keys()) if (!models.some(m => m.path.id === id)) s.selection.delete(id);
     s.models = models;
     interaction.check(models);
@@ -110,7 +154,6 @@ function install(context) {
       if (!interaction.active) canvas.style.pointerEvents = "none";
       return;
     }
-    const rect = canvas.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
     const width = Math.max(1, Math.round(rect.width * dpr)), height = Math.max(1, Math.round(rect.height * dpr));
     if (canvas.width !== width || canvas.height !== height) { canvas.width = width; canvas.height = height; }
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -118,8 +161,9 @@ function install(context) {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     overlay.draw(ctx, models, rect);
     drawn = true;
+    if (!request) request = window.requestAnimationFrame(frame);
   }
-  request = window.requestAnimationFrame(frame);
+  s.requestDraw();
 
 }
 module.exports = { install, STORAGE_KEY, SHORTCUT };
