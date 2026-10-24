@@ -123,6 +123,9 @@
       visited.add(layer);
       observeStructure(layer.onParentChanged);
       for (const effect of list(layer.effects)) {
+        // Effect scripts install descriptors before addAll() publishes their
+        // property definitions. The effect may already be in its owner list.
+        observeStructure(effect?.properties?.onListChanged);
         result.temporal ||= Boolean(effect?._zoidiumTemporal);
         result.sampler ||= Boolean(effect?._zoidiumFrameSampler);
       }
