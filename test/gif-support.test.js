@@ -400,3 +400,70 @@ test("lifecycle: activation fails cleanly on an incompatible host", async () => 
   // The module is still usable afterwards.
   assert.equal(typeof GifSupport.decode, "function");
 });
+
+function signal() {
+  const callbacks = new Set();
+  return { watch(fn) { callbacks.add(fn); }, unwatch(fn) { callbacks.delete(fn); },
+    update() { for (const fn of [...callbacks]) fn(); }, callbacks };
+}
+
+test("ownership is scanned once per layer and invalidated by lists, edits, replacement and undo", async () => {
+  const { GifSupport } = loadGifSupport({ fetch: async () => ({ ok: true, arrayBuffer: async () => gifArrayBuffer() }) });
+  const { PZ } = makeFakeHost();
+  const editor = { project: { ui: { onChanged: signal() } } };
+  await GifSupport.activate({ PZ, editor, window: {}, document: { createElement: () => makeFakeCanvas() }, lifecycle: { onDispose() {} } });
+  try {
+    const record = makeAssetRecord("anim.gif", "/anim.gif"), wrapper = new PZ.asset.image(record);
+    wrapper.decodeBrowser(); await record.data.loading;
+    const texture = wrapper.getTexture();
+    let reads = 0;
+    const layers = Array.from({ length: 100 }, () => {
+      const layer = new PZ.layer();
+      Object.defineProperty(layer, "watched", { enumerable: true, get() { reads++; return null; } });
+      layer.onListChanged = signal();
+      layer.tryGetParentOfType = () => ({ properties: { time: { get: frame => frame / 30 } } });
+      return layer;
+    });
+    layers[0].consumer = wrapper;
+    for (let frame = 0; frame < 20; frame++) for (const layer of layers) layer.update(frame);
+    assert.equal(reads, 100, "twenty samples walk each layer only once");
+    assert.equal(texture.image, record.data.gif.frames[1].canvas);
+    layers[0].consumer = null; layers[0].onListChanged.update(); layers[0].update(0);
+    assert.equal(reads, 101);
+    assert.equal(texture.image, record.data.gif.frames[1].canvas, "removed consumer is not sought");
+    layers[0].consumer = wrapper; editor.project.ui.onChanged.update(); layers[0].update(0);
+    assert.equal(texture.image, record.data.gif.frames[0].canvas, "undo restores clip-local seeking");
+    const other = new PZ.asset.image(record), shared = other.getTexture();
+    layers[1].consumer = other; layers[1].update(6); layers[0].update(0);
+    assert.equal(shared.image, record.data.gif.frames[1].canvas);
+    assert.equal(texture.image, record.data.gif.frames[0].canvas, "shared data has independent consumer clocks");
+  } finally { GifSupport.deactivate(); }
+});
+
+test("last texture disposal prunes render work without discarding undo-retained decoded data", async () => {
+  const { GifSupport } = loadGifSupport({ fetch: async () => ({ ok: true, arrayBuffer: async () => gifArrayBuffer() }) });
+  const { PZ } = makeFakeHost();
+  const editor = { project: { ui: { onChanged: signal() }, assets: { list: {} } } };
+  await GifSupport.activate({ PZ, editor, window: {}, document: { createElement: () => makeFakeCanvas() }, lifecycle: { onDispose() {} } });
+  try {
+    const asset = makeAssetRecord("anim.gif", "/anim.gif"), wrapper = new PZ.asset.image(asset);
+    wrapper.decodeBrowser(); await asset.data.loading;
+    editor.project.assets.list.gif = { data: new Map([[PZ.asset.image, asset.data]]) };
+    const a = wrapper.getTexture(), b = new PZ.asset.image(asset).getTexture();
+    const compositor = new PZ.compositor();
+    compositor._sequence = { properties: { rate: { get: () => 30 } } };
+    compositor.renderSequence(0);
+    const decoded = asset.data.gif, frames = decoded.frames;
+    a.dispose(); compositor.renderSequence(6);
+    assert.equal(asset.data.image, frames[1].canvas, "one live texture keeps fallback active");
+    b.dispose(); compositor.renderSequence(0);
+    assert.equal(asset.data.image, frames[1].canvas, "no consumers means no per-render record work");
+    assert.equal(decoded.frames, frames, "undo retains all decoded canvases");
+    const restored = wrapper.getTexture(); compositor.renderSequence(0);
+    assert.equal(asset.data.image, frames[0].canvas);
+    editor.project = { ui: { onChanged: signal() }, assets: { list: {} } };
+    compositor.renderSequence(6);
+    assert.equal(asset.data.image, frames[0].canvas, "old project no longer participates");
+    assert.ok(restored);
+  } finally { GifSupport.deactivate(); }
+});
