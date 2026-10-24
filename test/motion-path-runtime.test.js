@@ -86,10 +86,10 @@ test("property previews, history, parent/camera edits and selection wake stopped
   const target = { addEventListener() {}, removeEventListener() {} };
   let dirties = 0;
   const axis = { onKeyframeChanged: signal(), onAnimatedChanged: signal() };
-  const parent = { properties: { rotation: { onChanged: signal() } }, objects: [] };
+  const parent = { parent: null, properties: { rotation: { onChanged: signal() } }, objects: [] };
   const camera = { properties: { fov: { onChanged: signal() } } };
   parent.objects.push(camera);
-  const owner = { parentObject: parent, properties: { position: { objects: [axis] } } };
+  const owner = { parent: {}, parentObject: parent, properties: { position: { objects: [axis] } } };
   const project = { ui: { onChanged: signal() } };
   const objects = { onListChanged: signal() };
   const viewport = { ...target, el: target, canvas: target, controls: target,
@@ -122,4 +122,25 @@ test("60 unchanged ticks skip 324540 animated-axis evaluations on an 899-frame t
   for (let i = 0; i < 60; i++) h.tick();
   assert.equal(h.evaluations() - initial, 0);
   h.dispose();
+});
+
+
+test("invalidation stops before the CM3 project root's unparented getter", () => {
+  const { createInvalidation } = require("../plugins/motion-path/invalidation.js");
+  let rootParentReads = 0, notifications = 0;
+  const listeners = new Set();
+  const changed = { watch: fn => listeners.add(fn), unwatch: fn => listeners.delete(fn) };
+  const project = { parent: null, ui: { onChanged: changed },
+    get parentObject() { rootParentReads++; throw new TypeError("CM3 root has no parent"); } };
+  const owner = { parent: {}, parentObject: project, properties: {} };
+  const target = { addEventListener() {}, removeEventListener() {} };
+  const viewport = { el: target, canvas: target };
+  const invalidation = createInvalidation({ window: target, document: target, viewport,
+    editor: { project }, models: [], requestDraw() { notifications++; } });
+  assert.doesNotThrow(() => invalidation.sync([{ owner }]));
+  assert.equal(rootParentReads, 0, "the root parent getter is never evaluated");
+  for (const notify of listeners) notify();
+  assert.equal(notifications, 1, "project edits still invalidate the overlay");
+  invalidation.dispose();
+  assert.equal(listeners.size, 0);
 });
