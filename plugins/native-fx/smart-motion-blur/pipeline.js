@@ -12,6 +12,7 @@ function create(THREE, api, getAsset) {
     blur = reconstruction.create(gl);
   const copy = gl.pass("copy", { uImage: null, uScale: [1, 1] });
   const difference = gl.pass("difference", {
+    uSourceOnly: 0,
     uCurrent: null,
     uBefore: null,
     uAfter: null,
@@ -121,6 +122,20 @@ function create(THREE, api, getAsset) {
         return copyInput();
       const processing = allocate(renderer, input, uvScale, forcePacked);
       const available = [pair.previous, pair.next];
+      // The alpha channel uses source pixels only. Run its unchanged exact
+      // maximum reduction before building pyramids or solving either flow.
+      gl.draw(renderer, difference, first, {
+        uSourceOnly: 1,
+        uCurrent: input.texture,
+        uBefore: (pair.previous || pair.next).texture,
+        uAfter: (pair.next || pair.previous).texture,
+        uSourceSize: [input.width, input.height],
+        uActiveSize: processing,
+      });
+      const sourceStatistics = reduction(renderer, first, true);
+      diagnostics.readbacks = 1;
+      diagnostics.static = sourceStatistics[3] === 0;
+      if (diagnostics.static) return copyInput();
       flow.buildPyramid(
         renderer,
         input.texture,
@@ -201,6 +216,7 @@ function create(THREE, api, getAsset) {
         deltas[1] = -deltas[0];
       }
       gl.draw(renderer, difference, first, {
+        uSourceOnly: 0,
         uCurrent: input.texture,
         uBefore: (pair.previous || pair.next).texture,
         uAfter: (pair.next || pair.previous).texture,
@@ -210,7 +226,7 @@ function create(THREE, api, getAsset) {
         uActiveSize: processing,
       });
       const statistics = reduction(renderer, first, true);
-      diagnostics.readbacks = 1 + registrationReadbacks;
+      diagnostics.readbacks = 2 + registrationReadbacks;
       diagnostics.static = statistics[3] === 0;
       // Consistency failures include occlusion and aperture ambiguity. Only a
       // large residual after compensation is evidence for a scene cut.
