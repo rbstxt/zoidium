@@ -116,7 +116,9 @@ function host({ adjustment, request }) {
     "zoidium/plugin-apis.js",
     "plugins/core/temporal-math.js",
     "plugins/core/temporal-layers.js",
+    "plugins/core/temporal-capture.js",
     "plugins/core/temporal-sampler.js",
+    "plugins/core/temporal-export.js",
     "plugins/core/temporal-render.js",
   ]) {
     vm.runInContext(fs.readFileSync(relative, "utf8"), sandbox, { filename: relative });

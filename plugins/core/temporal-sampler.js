@@ -16,6 +16,7 @@
   if (!math || !layers) {
     throw new Error("[Zoidium] temporal-math.js and temporal-layers.js must load before temporal-sampler.js.");
   }
+  if (typeof module === "object" && module.exports) require("./temporal-capture.js");
   var EPSILON = math.EPSILON;
   var MAX_FRAME_SAMPLER_DEPTH = math.MAX_FRAME_SAMPLER_DEPTH;
   var finiteNumber = math.finiteNumber;
@@ -357,7 +358,7 @@
     }
   }
 
-  function restoreLayerAtContextFrame(layer, projectFrame, state) {
+  function restoreLayerAtContextFrame(layer, projectFrame, state, exportPolicy) {
     const clip = getClipForLayer(layer);
     if (!clip || typeof layer?.update !== "function") return;
     try {
@@ -371,7 +372,8 @@
         layer.__zoidiumTemporalUpdateRevision = ++state.layerUpdateRevision;
       } else layer.update(frame);
     } catch (_error) {
-      // A failed restoration must not stop the main compositor pass.
+      if (exportPolicy) throw _error;
+      // Preview can retain its current layer state if restoration fails.
     }
   }
 
@@ -390,129 +392,8 @@
     };
   }
 
-  function captureFrameSamplerInput(
-    state,
-    root,
-    runtime,
-    stage,
-    projectFrame,
-    restoreFrame,
-    depth,
-    target,
-    mediaSamples = [],
-    inputContext = null,
-  ) {
-    const sequence = root?._sequence;
-    const requestedFrame = projectFrame;
-    projectFrame = getFrameSamplerInputFrame(stage, projectFrame);
-    const capture = getFrameSamplerCapture(runtime, root, depth, sequence);
-    if (!capture || !sequence) return false;
-
-    const renderer = root.renderer;
-    const parentContext = state.contexts[state.contexts.length - 1];
-    const currentFrame = finiteNumber(restoreFrame, parentContext?.outputFrame);
-    const singleEvaluation = inputContext?.singleEvaluation ?? parentContext?.singleEvaluation ?? layers.usesSingleEvaluation(sequence);
-    if (singleEvaluation && !inputContext?.singleEvaluation && !parentContext?.singleEvaluation) layers.installSingleEvaluation(state, sequence);
-    const wasEvaluatingOwner = state.evaluatingLayers.has(stage.layer);
-    const evaluateOwner = math.temporalMode(stage.effect) !== "legacy" || !isAdjustmentLayer(stage.layer);
-    const changedLayers = new Map();
-    const previousClearColor = renderer.getClearColor
-      ? renderer.getClearColor(new THREE.Color())
-      : null;
-    const previousClearAlpha = renderer.getClearAlpha ? renderer.getClearAlpha() : null;
-
-    const preparedLayers = inputContext?.frameSamplerPreparedLayers;
-    const restoreTextures = bindSampleTextures(mediaSamples);
-    renderer.setClearColor(0, 0);
-    capture.clear(0);
-    state.contexts.push({
-      compositor: capture,
-      singleEvaluation,
-      frameSamplerDepth: depth,
-      outputFrame: projectFrame,
-      renderingSequence: true,
-      rootCompositor: root,
-      frameSamplerScope: ownsFrameSamplerScope(stage, requestedFrame)
-        ? stage : inputContext?.frameSamplerScope || parentContext?.frameSamplerScope,
-    });
-    try {
-      const tracks = sequence.videoTracks || [];
-      for (let index = 0; index < (isAdjustmentLayer(stage.layer) ? stage.trackIndex : 0); index += 1) {
-        const track = tracks[index];
-        if (!track || track.enabled === false) continue;
-        const clip = track.getCurrentClip?.(projectFrame);
-        const layer = clip?.object;
-        if (!clip || !canRenderLayer(layer)) continue;
-        changedLayers.set(layer, layer.__zoidiumTemporalLastUpdateFrame);
-        if (!Number.isFinite(preparedLayers?.get(layer)) ||
-          preparedLayers.get(layer) !== layer.__zoidiumTemporalUpdateRevision) {
-          layer.update(projectFrame - finiteNumber(clip.start, 0));
-        }
-        capture.renderLayer(layer, 0, false);
-      }
-
-      changedLayers.set(stage.layer, stage.layer.__zoidiumTemporalLastUpdateFrame);
-      if (evaluateOwner) state.evaluatingLayers.add(stage.layer);
-      // Decoding and prefix preparation can yield to live playback updates.
-      // Skip the duplicate evaluation only if the prepared layer is untouched.
-      if (!Number.isFinite(preparedLayers?.get(stage.layer)) ||
-        preparedLayers.get(stage.layer) !== stage.layer.__zoidiumTemporalUpdateRevision) {
-        stage.layer.update(projectFrame - finiteNumber(stage.clip.start, 0));
-      }
-      // Render the owner's content with the host's viewport and UV rules, then
-      // stop before its composite transform. Samples represent effect input,
-      // not a transformed layer or the last screen buffer.
-      const renderEffects = capture.renderEffects;
-      const captured = {};
-      capture.renderEffects = function (effects, uvX, uvY) {
-        if (effects !== stage.layer.effects) {
-          return renderEffects.call(this, effects, uvX, uvY);
-        }
-        const prefix = Array.prototype.slice.call(effects, 0, stage.effectIndex);
-        renderEffects.call(this, prefix, uvX, uvY);
-        const viewport = this.readBuffer.viewport;
-        target.viewport.set(0, 0, viewport.z, viewport.w);
-        copyRenderTarget(this, target, this.readBuffer, uvX, uvY);
-        throw captured;
-      };
-      try {
-        capture.renderLayer(stage.layer, 0, false);
-      } catch (error) {
-        if (error !== captured) throw error;
-      } finally {
-        capture.renderEffects = renderEffects;
-      }
-      return true;
-    } catch (error) {
-      console.error("[Zoidium] frame sampler capture failed:", error);
-      return false;
-    } finally {
-      state.contexts.pop();
-      restoreTextures();
-      for (const [layer, previousFrame] of changedLayers) {
-        if (inputContext?.frameSamplerChangedLayers) inputContext.frameSamplerChangedLayers.add(layer);
-        else if (singleEvaluation) {
-          // The content is already in the captured texture. Only the owner's
-          // transforms/effect uniforms can still be read by the current pass.
-          // Restore their actual input clock, without walking Scene/Composite
-          // children or applying the time operators for a second time.
-          const input = finiteNumber(previousFrame,
-            currentFrame - finiteNumber(getClipForLayer(layer)?.start, 0));
-          delete layer.__zoidiumTemporalEvaluationStamp;
-          state.evaluationEpoch += 1;
-          state.originalLayerUpdate.call(layer, input);
-          layer.__zoidiumTemporalLastUpdateFrame = input;
-          layer.__zoidiumTemporalUpdateRevision = ++state.layerUpdateRevision;
-        } else restoreLayerAtContextFrame(layer, currentFrame);
-      }
-      if (!wasEvaluatingOwner && evaluateOwner) state.evaluatingLayers.delete(stage.layer);
-      if (previousClearColor) {
-        renderer.setClearColor(
-          previousClearColor,
-          previousClearAlpha == null ? 1 : previousClearAlpha,
-        );
-      }
-    }
+  function captureFrameSamplerInput(...args) {
+    return registry.capture.captureFrameSamplerInput(...args);
   }
 
   async function prepareLowerSchedules(sequence, stage, projectFrame, context, runtime, allTracks = false, state = null) {
@@ -557,9 +438,12 @@
           await isolated.ffDecodeFrame(Math.round(time * getProjectRate(stage.layer, sequence)),
             getProjectRate(stage.layer, sequence));
         } else {
-          await isolated.decodeFrame(time);
+          await isolated.decodeFrame(time, context);
         }
+        registry.capture.checkPolicy(context);
         samples.push({ item, texture: isolated.texture });
+      } else if (context?.exportPolicy) {
+        throw new Error(`Required video sample at requested frame ${sourceFrame} is unavailable`);
       }
     }
     return samples;
@@ -570,6 +454,7 @@
     const tracks = sequence.videoTracks || [];
     const start = isAdjustmentLayer(stage.layer) ? 0 : stage.trackIndex;
     for (let index = start; index <= stage.trackIndex; index += 1) {
+      registry.capture.checkPolicy(context);
       if (tracks[index]?.enabled === false) continue;
       const clip = index === stage.trackIndex ? stage.clip : tracks[index]?.getCurrentClip?.(frame);
       const layer = clip?.object;
@@ -621,14 +506,20 @@
     if (singleEvaluation && !context?.singleEvaluation) layers.installSingleEvaluation(state, sequence);
     context = Object.assign({}, context, { singleEvaluation });
     const parentContext = state.contexts[state.contexts.length - 1];
+    context.exportPolicy ||= parentContext?.exportPolicy;
+    registry.capture.checkPolicy(context);
     const depth = finiteNumber(context?.frameSamplerDepth ?? parentContext?.frameSamplerDepth, 0) + 1;
-    if (depth > MAX_FRAME_SAMPLER_DEPTH) return;
+    if (depth > MAX_FRAME_SAMPLER_DEPTH) {
+      if (context.exportPolicy) throw registry.capture.sampleError(stage, projectFrame, "Maximum sampler nesting depth exceeded");
+      return;
+    }
     const controlFrame = getFrameSamplerControlFrame(stage, localFrame,
       context?.frameSamplerScope || parentContext?.frameSamplerScope);
     let request;
     try {
       request = effect._zoidiumFrameSampler.getRequest(effect, controlFrame);
     } catch (error) {
+      if (context.exportPolicy) throw registry.capture.sampleError(stage, projectFrame, error);
       console.error("[Zoidium] frame sampler request failed during prepare:", error);
       return;
     }
@@ -698,6 +589,8 @@
         for (let index = 0; index < plan.length; index += 1) {
           const item = plan[index];
           const sourceProjectFrame = finiteNumber(clip.start, 0) + item.frame;
+          context.exportPolicy && (context.exportPolicy.requestedSampleFrame = sourceProjectFrame);
+          registry.capture.checkPolicy(context);
           const inputFrame = getFrameSamplerInputFrame(stage, sourceProjectFrame);
           const cached = inputCache?.get(cacheKey(sourceProjectFrame));
           const reusable = !frameSamplerReuseDisabled() && cached && cached.stamp === cached.sample.target.inputStamp &&
@@ -716,10 +609,14 @@
           inputContext.frameSamplerChangedLayers = changedLayers;
           inputContext.frameSamplerPreparedLayers =
             await prepareInputEffects(sequence, stage, inputFrame, inputContext, state);
+          registry.capture.checkPolicy(context);
           const mediaSamples = await prepareLowerSchedules(sequence, stage, inputFrame, inputContext,
             runtime, false, state);
           if (runtime.disposed || runtime.generation !== generation ||
-            revision !== frameSamplerInputKey(sequence, root, stage, scope)) return;
+            revision !== frameSamplerInputKey(sequence, root, stage, scope)) {
+            if (context.exportPolicy) throw new Error("Sample input changed during export preparation");
+            return;
+          }
           const target = selectFrameSamplerTarget(runtime, effect, cacheDepth, reservedTargets, width, height, capacity, revision);
           // Any synchronous fallback or another nested plan using this slot
           // invalidates the old memoized value before writing into it.
@@ -759,6 +656,10 @@
             samples.push(sample);
           }
         }
+        if (context.exportPolicy && samples.length !== plan.length) {
+          throw new Error(`Incomplete required sample set: ${samples.length} of ${plan.length}`);
+        }
+        for (const sample of samples) runtime.exportPins?.add(sample.target);
         if (samples.length > 0) {
           if (depth === 1) runtime.publishedReservations.set(effect, new Set(samples.map(sample => sample.target)));
           runtime.prepared.set(effect, {
@@ -771,18 +672,21 @@
         }
       }
     } catch (error) {
+      if (context.exportPolicy) throw registry.capture.sampleError(stage, context.exportPolicy.requestedSampleFrame ?? projectFrame, error);
       console.error("[Zoidium] frame sampler preparation failed:", error);
     } finally {
       try {
-        const tracks = sequence.videoTracks || [];
-        const currentLayers = new Set([stage.layer]);
-        for (let i = 0; i < stage.trackIndex; i += 1) {
-          if (tracks[i]?.enabled !== false) currentLayers.add(tracks[i]?.getCurrentClip?.(projectFrame)?.object);
+        if (!context?.exportPolicy?.signal?.aborted) {
+          const tracks = sequence.videoTracks || [];
+          const currentLayers = new Set([stage.layer]);
+          for (let i = 0; i < stage.trackIndex; i += 1) {
+            if (tracks[i]?.enabled !== false) currentLayers.add(tracks[i]?.getCurrentClip?.(projectFrame)?.object);
+          }
+          for (const changedLayer of changedLayers) {
+            if (!currentLayers.has(changedLayer)) restoreLayerAtContextFrame(changedLayer, projectFrame, state, context?.exportPolicy);
+          }
+          await prepareInputEffects(sequence, stage, projectFrame, context, state, true);
         }
-        for (const changedLayer of changedLayers) {
-          if (!currentLayers.has(changedLayer)) restoreLayerAtContextFrame(changedLayer, projectFrame, state);
-        }
-        await prepareInputEffects(sequence, stage, projectFrame, context, state, true);
       } finally {
         for (const { runtime, reservedTargets } of reservations) runtime.reservations.delete(reservedTargets);
         state.preparingEffects.delete(effect);
@@ -817,6 +721,7 @@
     try {
       request = descriptor.getRequest(effect, controlFrame);
     } catch (error) {
+      if (context?.exportPolicy) throw registry.capture.sampleError(stage, currentProjectFrame, error);
       console.error("[Zoidium] frame sampler request failed:", error);
       return [];
     }
@@ -871,6 +776,10 @@
       if (cachedSamples.every(Boolean)) return cachedSamples;
     }
 
+    if (context?.exportPolicy) {
+      throw registry.capture.sampleError(stage, currentProjectFrame,
+        "Required exact media sample was not prepared before the synchronous draw");
+    }
     const samples = [];
     const capturedFrames = new Map();
     state.samplingEffects.add(effect);
@@ -960,6 +869,7 @@
   }
 
   registry.sampler = {
+    ownsFrameSamplerScope,
     FRAME_SAMPLER_CACHE_BYTES,
     frameSamplerCacheDepth,
     clearFrameSamplerTargets,

@@ -113,7 +113,9 @@ test("helpers are reachable from PZ.zoidium.temporal at runtime", () => {
   for (const relative of [
     "plugins/core/temporal-math.js",
     "plugins/core/temporal-layers.js",
+    "plugins/core/temporal-capture.js",
     "plugins/core/temporal-sampler.js",
+    "plugins/core/temporal-export.js",
     "plugins/core/temporal-render.js",
   ]) {
     vm.runInContext(
