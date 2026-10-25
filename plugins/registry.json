@@ -343,16 +343,16 @@
       "category": "adjustment",
       "name": "Native FX",
       "author": "Zoidium",
-      "version": "28",
+      "version": "29",
       "itemCount": 6,
       "format": "native effects",
       "tagline": "Native Effects and Time Tools",
       "color": "#c56b3d",
       "description": "Adds native filters, direct visual controls, and time effects.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/native-fx/manifest.json?v=28",
-      "bundle": "./plugins/native-fx/bundle.json?v=28",
-      "integrity": "sha256-eUJCA2XYkeOYLm+LUMDwLylzaF1H9UoOhqAEWYDcJLs="
+      "manifest": "./plugins/native-fx/manifest.json?v=29",
+      "bundle": "./plugins/native-fx/bundle.json?v=29",
+      "integrity": "sha256-7ewwPagXtpDgxIvM6j1VrqcwLuWLitqZWTWtHZj8Rxc="
     },
     {
       "id": "afterclip",
