@@ -93,3 +93,63 @@ test("missing shutter captures copy the current input without allocating scratch
   assert.deepEqual(output.texture.weights, { current: 1 });
   assert.equal(probe.allocations(), 0);
 });
+
+test("native entry requests fractional scene taps and disposes scratch on mode switches", () => {
+  class Scene {}
+  const counts = { flow: 0, shutter: 0, flowDisposed: 0, shutterDisposed: 0 };
+  let spec, rendered;
+  const settings = { amount: 1, sensitivity: 70, smoothness: 100,
+    maxDisplacement: 151, analysis: 1, quality: 0, view: 0, reconstruction: 0 };
+  const effect = {
+    _zoidiumGetAsset() {}, parentLayer: new Scene(),
+    _zoidiumFrameSamplerFrame: 7, parentProject: { sequence: {} },
+    properties: Object.fromEntries(Object.keys(settings).map(key => [key, { get: () => settings[key] }])),
+  };
+  effect.properties.load = () => {};
+  effect.parentLayer.properties = { resolution: { get: () => [1920, 1080] } };
+  effect.parentLayer.tryGetParentOfType = () => ({ start: 40 });
+  const factories = Object.fromEntries(["flow", "shutter"].map(mode => [mode, {
+    create() {
+      counts[mode]++;
+      return {
+        render(...args) { rendered = { mode, args }; },
+        dispose() { counts[mode + "Disposed"]++; },
+      };
+    },
+  }]));
+  const PZ = {
+    layer: { scene: Scene }, clip: class {}, property: { type: { NUMBER: 0, OPTION: 1 } },
+    zoidium: { temporal: { resolveFrameSamples: () => Array.from({ length: 32 },
+      (_, index) => ({ frame: 47 + (index + 0.5) / 32 - 0.5, texture: {} })) } },
+  };
+  const api = {
+    gl: {}, modules: { createRequire: () => name => name === "./math.js" ? math
+      : factories[name === "./shutter.js" ? "shutter" : "flow"] },
+    defineFrameSampler(value) { spec = value; Object.assign(this, value.lifecycle); },
+  };
+  const THREE = { Vector2: class { constructor(x, y) { this.x = x; this.y = y; } } };
+  new Function("PZ", "THREE", "ZoidiumPluginApis", fs.readFileSync(require.resolve(
+    "../plugins/native-fx/effects/smartmotionblur.js"), "utf8")).call(effect, PZ, THREE, api);
+  effect.load({});
+  assert.deepEqual(spec.getRequest(effect, 7).frames, math.shutterTimes(1, 32));
+  effect.pass.uniforms.uvScale.value = { x: 0.5, y: 0.25 };
+  effect.pass.render({}, {}, { width: 1024, height: 1024 });
+  assert.equal(rendered.mode, "shutter");
+  assert.deepEqual(rendered.args[4], [0.5, 0.25]);
+  assert.equal(rendered.args[3][0].frame, 47 - 0.5 + 0.5 / 32);
+  assert.equal(counts.flowDisposed, 1);
+  settings.quality = 1;
+  assert.deepEqual(spec.getRequest(effect, 7).frames, math.shutterTimes(1, 64));
+  settings.view = 1;
+  assert.deepEqual(spec.getRequest(effect, 7).frames, [-1]);
+  effect.pass.render({}, {}, { width: 1024, height: 1024 });
+  assert.equal(rendered.mode, "flow");
+  assert.equal(rendered.args[4], 47);
+  assert.equal(counts.flow, 2);
+  assert.equal(counts.shutterDisposed, 1);
+  settings.sensitivity = 0;
+  assert.equal(spec.getRequest(effect, 7).enabled, false);
+  effect.unload();
+  assert.equal(counts.flowDisposed, 2);
+  assert.equal(counts.shutterDisposed, 1);
+});
