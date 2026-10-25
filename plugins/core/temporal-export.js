@@ -51,7 +51,8 @@
       Math.max(1, Math.min(cameraShutter ? 128 : Infinity, Math.floor(properties.motionBlurSamples?.get(frame) || 1)));
     if (count <= 1) return;
     const shutter = properties.motionBlurShutter?.get(frame) || 0;
-    const sensitivity = cameraShutter ? (properties.motionBlurSensitivity?.get(frame) ?? 100) * 0.01 : 1;
+    const span = cameraShutter
+      ? shutter * (properties.motionBlurSensitivity?.get(frame) ?? 100) * 0.01 : shutter;
     const direction = cameraShutter ? properties.motionBlurTrackFrame?.get(frame) : 2;
     for (let sample = 0; sample < count; sample++) {
       for (const track of tracks) {
@@ -60,16 +61,13 @@
         if (!clip || !hasSampler(layer) || cameraShutter && track.enabled === false) continue;
         const local = frame - clip.start;
         const amount = cameraShutter ? layer.properties.motionBlurAmount?.get(local) ?? 1 : 1;
-        const span = shutter * sensitivity;
         const offset = ((direction === 1 ? -span : direction === 2 ? 0 : -0.5 * span) + sample / count * span) * amount;
-        if (offset === 0) continue; // sequence.prepare already prepared the output time.
         exporter.exportPolicy.check();
         const source = state.mapLayerFrame(layer, local + offset)?.sourceFrame ?? local + offset;
-        const requested = clip.start + source;
-        // Use the same layer clock and nested prepare traversal as the host.
-        clip.update?.(requested);
-        if (!clip.update) layer.update(source);
-        if (clip.prepare) await clip.prepare(requested, exporter);
+        // CM3 updates the local clock directly. Adding clip.start and then
+        // subtracting it in clip.prepare can change a fractional shutter time.
+        layer.update(source);
+        if (layer.prepare) await layer.prepare(source, exporter);
         else for (const effect of layer.effects || []) await effect.prepare?.(source, exporter);
         exporter.exportPolicy.check();
       }

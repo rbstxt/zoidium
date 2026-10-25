@@ -396,7 +396,7 @@
     return registry.capture.captureFrameSamplerInput(...args);
   }
 
-  async function prepareLowerSchedules(sequence, stage, projectFrame, context, runtime, allTracks = false, state = null) {
+  function frameSamplerMediaInputs(sequence, stage, projectFrame, allTracks = false) {
     const activeClips = new Set();
     const tracks = sequence?.videoTracks || [];
     const start = allTracks || isAdjustmentLayer(stage.layer) ? 0 : stage.trackIndex;
@@ -407,11 +407,17 @@
       const clip = track.getCurrentClip?.(projectFrame);
       if (clip) activeClips.add(clip);
     }
-    const samples = [];
+    const inputs = [];
     for (const schedule of sequence.videoSchedules || []) {
-      const found = findScheduleItemAtFrame(schedule, projectFrame);
-      const item = found?.item;
-      if (!item?.clip || !activeClips.has(item.clip) || !item.media) continue;
+      const item = findScheduleItemAtFrame(schedule, projectFrame)?.item;
+      if (item?.clip && activeClips.has(item.clip) && item.media) inputs.push({ schedule, item });
+    }
+    return inputs;
+  }
+
+  async function prepareLowerSchedules(sequence, stage, projectFrame, context, runtime, allTracks = false, state = null) {
+    const samples = [];
+    for (const { schedule, item } of frameSamplerMediaInputs(sequence, stage, projectFrame, allTracks)) {
       // Never seek the playback/export schedule to obtain another frame.
       // Its shared texture must remain the current input until capture finishes.
       let isolated = runtime.schedules.get(schedule);
@@ -776,7 +782,11 @@
       if (cachedSamples.every(Boolean)) return cachedSamples;
     }
 
-    if (context?.exportPolicy) {
+    const needsVideo = context?.exportPolicy && plan.some(item => {
+      const frame = finiteNumber(stage.clip.start, 0) + item.frame;
+      return frameSamplerMediaInputs(sequence, stage, getFrameSamplerInputFrame(stage, frame)).length > 0;
+    });
+    if (needsVideo) {
       throw registry.capture.sampleError(stage, currentProjectFrame,
         "Required exact media sample was not prepared before the synchronous draw");
     }
@@ -793,14 +803,11 @@
           samples.push(Object.assign({}, reused, { frame: projectFrame, index: item.index, opacity: item.opacity }));
           continue;
         }
-        const target = getFrameSamplerTarget(
-          runtime,
-          effect,
-          depth,
-          index,
-          width,
-          height,
-        );
+        const target = context?.exportPolicy
+          ? selectFrameSamplerTarget(runtime, effect, frameSamplerCacheDepth(stage, depth),
+            runtime.exportPins || new Set(), width, height, plan.length, revision)
+          : getFrameSamplerTarget(runtime, effect, depth, index, width, height);
+        if (context?.exportPolicy) runtime.exportPins?.add(target);
         target.inputStamp = {};
         forgetFrameSamplerInput(target);
         if (
@@ -813,6 +820,8 @@
             currentProjectFrame,
             depth,
             target,
+            [],
+            context,
           )
         ) {
           const sample = {
