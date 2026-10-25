@@ -52,11 +52,20 @@ function host(options = {}) {
     },
   };
   vm.runInNewContext(fs.readFileSync("zoidium/plugin-apis.js", "utf8"), context);
-  context.ZoidiumPluginApis.defineFilter.call(effect, {
+  const spec = {
     properties: {}, fragShaderUrl: "/filter.glsl",
     uniforms: { amount: { type: "f", value: 0.75 } }, defines: { TEST: 1 },
     onLoad: options.onLoad ? () => hook.promise : undefined,
-  });
+  };
+  if (options.keyCleaner) {
+    context.PZ.property = { type: {} };
+    context.THREE.Vector2 = class { constructor(x, y) { this.x = x; this.y = y; } };
+    effect._zoidiumGetAsset = (_kind, file) => fs.readFileSync(`.${file}`, "utf8");
+    context.effect = effect;
+    vm.runInNewContext(`(function () {${fs.readFileSync("plugins/native-fx/effects/keycleaner.js", "utf8")}\n}).call(effect);`, context);
+  } else {
+    context.ZoidiumPluginApis.defineFilter.call(effect, spec);
+  }
   return { effect, project, assets, vertex, fragment, hook, materials, passes, unloaded, reads, loadedProperties };
 }
 
@@ -147,4 +156,22 @@ test("attached filter shader failures still reject the load", async () => {
   h.vertex.reject(new Error("shader failure"));
   await assert.rejects(loading, /shader failure/);
   h.effect.unload();
+});
+
+test("Key Cleaner canceled during shader loading creates no late material; completed unload stays idempotent", async () => {
+  const h = host({ keyCleaner: true });
+  const loading = h.effect.load({});
+  h.effect.unload();
+  h.vertex.resolve("vertex");
+  await loading;
+  assert.equal(h.materials.length, 0);
+  assert.equal(h.loadedProperties.length, 0);
+  assert.equal(h.unloaded.length, 1, "only the native vertex shader needs release");
+  const control = host({ keyCleaner: true });
+  control.vertex.resolve("vertex");
+  await control.effect.load({});
+  assert.equal(control.effect.pass.material.fragmentShader,
+    fs.readFileSync("plugins/native-fx/shaders/fx_keycleaner.glsl", "utf8"));
+  control.effect.unload(); control.effect.unload();
+  assert.equal(control.materials[0].disposals, 1);
 });

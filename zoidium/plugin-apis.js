@@ -324,13 +324,16 @@
     effect.propertyDefinitions = spec.properties;
     effect.properties.addAll(spec.properties, effect);
 
+    var loadGeneration = 0, releaseShaders = function () {};
     effect.load = async function load(data) {
-      effect.vertShader = effect.parentProject.assets.createFromPreset(
+      var generation = ++loadGeneration, project = effect.parentProject;
+      releaseShaders();
+      var vertShader = project.assets.createFromPreset(
         PZ.asset.type.SHADER,
         "/assets/shaders/vertex/common.glsl"
       );
-      effect.vertShader = new PZ.asset.shader(
-        effect.parentProject.assets.load(effect.vertShader)
+      effect.vertShader = vertShader = new PZ.asset.shader(
+        project.assets.load(vertShader)
       );
       var bundled =
         typeof effect.shaderUrl === "string" && effect._zoidiumGetAsset
@@ -344,13 +347,32 @@
         effect.fragShader = { getShader: async function () { return spec.fragShader; } };
       } else {
         effect._zoidiumBundledFragShader = false;
-        var preset = effect.parentProject.assets.createFromPreset(
+        var preset = project.assets.createFromPreset(
           PZ.asset.type.SHADER,
           effect.shaderUrl
         );
         effect.fragShader = new PZ.asset.shader(
-          effect.parentProject.assets.load(preset)
+          project.assets.load(preset)
         );
+      }
+      var fragShader = effect.fragShader, bundledFragShader = effect._zoidiumBundledFragShader;
+      var shadersReleased = false, material;
+      var release = releaseShaders = function () {
+        if (shadersReleased) return;
+        shadersReleased = true;
+        if (releaseShaders === release) releaseShaders = function () {};
+        project.assets.unload(vertShader);
+        if (!bundledFragShader) project.assets.unload(fragShader);
+      };
+      function currentLoad() {
+        var current = generation === loadGeneration;
+        try { current = current && effect.parentProject === project; }
+        catch (_error) { current = false; }
+        if (!current) {
+          release();
+          if (material) material.dispose();
+        }
+        return current;
       }
       var uniforms = { tDiffuse: { type: "t", value: null } };
       Object.keys(spec.uniforms || {}).forEach(function (name) {
@@ -360,10 +382,14 @@
           value: cloneUniformValue(definition.value),
         };
       });
-      var material = new THREE.ShaderMaterial({
+      var vertexShader = await vertShader.getShader();
+      if (!currentLoad()) return;
+      var fragmentShader = await fragShader.getShader();
+      if (!currentLoad()) return;
+      material = new THREE.ShaderMaterial({
         uniforms: uniforms,
-        vertexShader: await effect.vertShader.getShader(),
-        fragmentShader: await effect.fragShader.getShader(),
+        vertexShader: vertexShader,
+        fragmentShader: fragmentShader,
       });
       material.premultipliedAlpha = true;
       Object.keys(spec.defines || {}).forEach(function (name) {
@@ -380,8 +406,12 @@
         filterMaterialDisposed = true;
         if (disposeFilterMaterial) disposeFilterMaterial();
       };
-      effect.pass = new THREE.ShaderPass(material);
+      if (!currentLoad()) return;
+      var pass = new THREE.ShaderPass(material);
+      if (!currentLoad()) return;
+      effect.pass = pass;
       if (typeof spec.onLoad === "function") await spec.onLoad(effect);
+      if (!currentLoad()) return;
       effect.properties.load(data && data.properties);
     };
 
@@ -390,11 +420,9 @@
     };
 
     effect.unload = function unload() {
+      loadGeneration++;
       if (typeof spec.onUnload === "function") spec.onUnload(effect);
-      if (effect.vertShader) effect.parentProject.assets.unload(effect.vertShader);
-      if (!effect._zoidiumBundledFragShader && effect.fragShader) {
-        effect.parentProject.assets.unload(effect.fragShader);
-      }
+      releaseShaders();
       // The pass may be gone and its material may already be disposed by
       // onUnload; the wrapped dispose above makes this call idempotent.
       var material = effect.pass && effect.pass.material;
