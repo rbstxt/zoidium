@@ -108,8 +108,42 @@
   const pluginStates = new Map();
   const pluginGroups = [];
   const pluginGroupByPluginId = new Map();
-  const trackedNativeEffects = new Set();
-  const missingNativeEffects = new Set();
+  // Projects own their effects. Tracking must not keep an abandoned project
+  // alive when the editor replaces it without unloading every effect.
+  function iterableWeakSet() {
+    let referencesByItem = new WeakMap();
+    const references = new Set();
+    return {
+      add(item) {
+        if (!referencesByItem.has(item)) {
+          const reference = new WeakRef(item);
+          referencesByItem.set(item, reference);
+          references.add(reference);
+        }
+        return this;
+      },
+      has(item) { return referencesByItem.has(item); },
+      delete(item) {
+        const reference = referencesByItem.get(item);
+        referencesByItem.delete(item);
+        return references.delete(reference);
+      },
+      clear() {
+        referencesByItem = new WeakMap();
+        references.clear();
+      },
+      *[Symbol.iterator]() {
+        for (const reference of references) {
+          const item = reference.deref();
+          if (item) yield item;
+          else references.delete(reference);
+        }
+      },
+      get size() { return Array.from(this).length; },
+    };
+  }
+  const trackedNativeEffects = iterableWeakSet();
+  const missingNativeEffects = iterableWeakSet();
   const trackedPluginMaterials = new Set();
   const missingPluginMaterials = new Set();
   const trackedPluginObjects = new Set();
