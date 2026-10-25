@@ -350,9 +350,9 @@ test("the project-name field installs once and survives toolbar rebuilds", () =>
   const harness = loadToolbarHarness();
   assert.equal(harness.globalListeners["zoidium:project-name-changed"].length, 1);
 
-  // The observer watches the toolbar parent, not the whole document body.
+  // One observer watches the document body, so re-parented toolbars are seen.
   assert.equal(harness.observers.length, 1);
-  assert.equal(harness.observers[0].target, harness.toolbarParent);
+  assert.equal(harness.observers[0].target, harness.documentObject.body);
   assert.equal(harness.observers[0].options.childList, true);
   assert.equal(harness.observers[0].options.subtree, true);
 
@@ -377,12 +377,12 @@ test("the project-name field installs once and survives toolbar rebuilds", () =>
   assert.ok(rebuilt, "expected the field to be reinstalled after a rebuild");
   assert.equal(harness.globalListeners["zoidium:project-name-changed"].length, 1);
 
-  // A replaced parent is observed again and still installs the field.
-  const wrapper = harness.replaceToolbarParent();
+  // A replaced parent is still inside the observed body and installs the field.
+  harness.replaceToolbarParent();
   harness.rebuildToolbar();
   harness.fireObserver();
   assert.ok(harness.fieldInput(), "expected the field after the parent was replaced");
-  assert.equal(harness.observers[0].target, wrapper);
+  assert.equal(harness.observers.length, 1);
   assert.equal(harness.globalListeners["zoidium:project-name-changed"].length, 1);
 });
 

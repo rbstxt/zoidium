@@ -772,37 +772,21 @@
     showProjectError(detail);
   });
 
-  // The field must reappear when CM3 rebuilds the toolbar, but watching the
-  // whole document forever costs a callback on every DOM change. Watch only
-  // the toolbar's parent once it exists, and re-attach when that parent is
-  // replaced. Installed fields short-circuit inside installProjectNameField,
-  // so steady-state mutations cost two queries and no DOM writes.
-  var toolbarObserver = null;
-  var observedToolbarParent = null;
-
-  function watchToolbarParent() {
-    var toolbar = findToolbar();
-    var target = (toolbar && toolbar.parentElement) || global.document.body;
-    if (toolbarObserver && observedToolbarParent === target) return;
-    if (toolbarObserver) toolbarObserver.disconnect();
-    observedToolbarParent = target;
-    toolbarObserver.observe(target, { childList: true, subtree: true });
-  }
-
+  // The field must reappear wherever CM3 or a layout change rebuilds or
+  // re-parents the toolbar, so the whole document stays observed. Installed
+  // fields short-circuit inside installProjectNameField, so steady-state
+  // mutations cost two queries and no DOM writes.
   var toolbarTimer = global.setInterval(function () {
     if (installProjectNameField()) {
       global.clearInterval(toolbarTimer);
-      watchToolbarParent();
     }
   }, 100);
-  toolbarObserver = new MutationObserver(function () {
+  var toolbarObserver = new MutationObserver(function () {
     installProjectNameField();
-    watchToolbarParent();
   });
-  watchToolbarParent();
+  toolbarObserver.observe(global.document.body, { childList: true, subtree: true });
   if (installProjectNameField()) {
     global.clearInterval(toolbarTimer);
-    watchToolbarParent();
   }
 
   parts.panel = { recoverFromLatestBackup: recoverFromLatestBackup, createSnapshot: createSnapshot };
