@@ -1,7 +1,7 @@
 (function installTemporalRenderPatch(global) {
   "use strict";
 
-  // In the browser the three part files above load first as classic scripts
+  // In the browser the part files above load first as classic scripts
   // (see plugins/core/manifest.json and zoidium/runtime-config.js) and share
   // their exports through this registry. Node tests load them with require.
   // The IIFE argument is the window in a browser tab but null in Node and in
@@ -13,6 +13,7 @@
       math: require("./temporal-math.js"),
       layers: require("./temporal-layers.js"),
       sampler: require("./temporal-sampler.js"),
+      capture: host.__zoidiumTemporalParts.capture,
     };
     if (host) host.__zoidiumTemporalParts = parts;
   }
@@ -129,6 +130,12 @@
       // must not depend on wrapper order. Either this wrapper runs (it calls
       // the wrapped function) or the deterministic export runs (it calls
       // this), so the compositor is registered exactly once per frame.
+      beginExportSamples(compositor) {
+        return parts.exportPreparation?.begin(this, compositor) || (() => {});
+      },
+      prepareExportSamples(exporter, frame) {
+        return parts.exportPreparation?.prepare(this, exporter, frame);
+      },
       registerExportCompositor(compositor) {
         return registerCompositor(this, compositor);
       },
@@ -204,6 +211,7 @@
       const singleEvaluation = layers.usesSingleEvaluation(this._sequence);
       layers.installSingleEvaluation(state, this._sequence);
       state.contexts.push({
+        exportPolicy: this.__zoidiumExportPolicy,
         singleEvaluation,
         compositor: this,
         frameSamplerDepth: 0,
@@ -309,49 +317,57 @@
     state.originalSchedulePrepare = prototype.prepare;
     prototype.prepare = async function temporalSchedulePrepare(projectFrame) {
       const args = Array.prototype.slice.call(arguments, 1);
-      const found = findScheduleItemAtFrame(this, projectFrame);
-      if (found?.item?.clip) {
-        const clip = found.item.clip;
-        const layer = clip?.object;
-        const sequence = clip?.parentProject?.sequence || null;
-        const localFrame = projectFrame - finiteNumber(clip.start, 0);
-        const mapped = layer ? getTemporalLayerFrame(layer, localFrame, sequence) : null;
-        const isProceduralSchedule =
-          this.type === PZ.schedule?.type?.NONE || !found.item.media;
-        const singleEvaluation = layers.usesSingleEvaluation(sequence);
-        if ((mapped || singleEvaluation) && isProceduralSchedule) {
-          const sourceProjectFrame = mapped?.projectFrame ?? projectFrame;
-          // Procedural clips (Scene/Adjustment) can render beyond their
-          // out-point. The original prepare() would look up the schedule at
-          // the warped source frame, find no item, and leave the previous
-          // frame on screen (a long freeze). Evaluate the output-active
-          // clip directly at the warped source frame instead.
-          this.currentItem = found.item;
-          const itemIndex = Array.prototype.indexOf.call(this.items, found.item);
-          if (Number.isInteger(itemIndex) && itemIndex >= 0) this.index = itemIndex;
-          try {
-            // Plain clock operators evaluate in renderSequence, after all
-            // async resources settle. prepare() reads properties at its
-            // explicit frame and does not need a second content update.
-            if (!singleEvaluation) clip.update(sourceProjectFrame);
-          } catch (_error) {
-            if (args[0]?.previewFrameCacheStrict) throw _error;
-            // A failing procedural update must not break the export loop.
+      const previousContext = this.__zoidiumExportContext;
+      this.__zoidiumExportContext = args[0];
+      try {
+        const found = findScheduleItemAtFrame(this, projectFrame);
+        if (found?.item?.clip) {
+          const clip = found.item.clip;
+          const layer = clip?.object;
+          const sequence = clip?.parentProject?.sequence || null;
+          const localFrame = projectFrame - finiteNumber(clip.start, 0);
+          const mapped = layer ? getTemporalLayerFrame(layer, localFrame, sequence) : null;
+          const isProceduralSchedule =
+            this.type === PZ.schedule?.type?.NONE || !found.item.media;
+          const singleEvaluation = layers.usesSingleEvaluation(sequence);
+          if ((mapped || singleEvaluation) && isProceduralSchedule) {
+            const sourceProjectFrame = mapped?.projectFrame ?? projectFrame;
+            // Procedural clips (Scene/Adjustment) can render beyond their
+            // out-point. The original prepare() would look up the schedule at
+            // the warped source frame, find no item, and leave the previous
+            // frame on screen (a long freeze). Evaluate the output-active
+            // clip directly at the warped source frame instead.
+            this.currentItem = found.item;
+            const itemIndex = Array.prototype.indexOf.call(this.items, found.item);
+            if (Number.isInteger(itemIndex) && itemIndex >= 0) this.index = itemIndex;
+            try {
+              // Plain clock operators evaluate in renderSequence, after all
+              // async resources settle. prepare() reads properties at its
+              // explicit frame and does not need a second content update.
+              if (!singleEvaluation) clip.update(sourceProjectFrame);
+            } catch (_error) {
+              if (args[0]?.previewFrameCacheStrict || args[0]?.exportPolicy) {
+                throw parts.capture?.sampleError({ clip, effect: null }, sourceProjectFrame, _error) || _error;
+              }
+              // Preview retains its existing procedural fallback.
+            }
+            try {
+              if (typeof clip.prepare === "function") await clip.prepare(sourceProjectFrame, args[0]);
+            } catch (_error) {
+              if (args[0]?.previewFrameCacheStrict || args[0]?.exportPolicy) {
+                throw parts.capture?.sampleError({ clip, effect: null }, sourceProjectFrame, _error) || _error;
+              }
+              // Preview can render the available procedural content.
+            }
+            return;
           }
-          try {
-            if (typeof clip.prepare === "function") await clip.prepare(sourceProjectFrame, args[0]);
-          } catch (_error) {
-            if (args[0]?.previewFrameCacheStrict) throw _error;
-            // Ignore prepare failures here; the compositor still renders.
+          if (mapped) {
+            return await state.originalSchedulePrepare.call(this, mapped.projectFrame, ...args);
           }
-          return;
         }
-        if (mapped) {
-          return state.originalSchedulePrepare.call(this, mapped.projectFrame, ...args);
-        }
-      }
-      const sourceFrame = getScheduleSourceFrame(this, projectFrame);
-      return state.originalSchedulePrepare.call(this, sourceFrame, ...args);
+        const sourceFrame = getScheduleSourceFrame(this, projectFrame);
+        return await state.originalSchedulePrepare.call(this, sourceFrame, ...args);
+      } finally { this.__zoidiumExportContext = previousContext; }
     };
     Object.defineProperty(prototype, SCHEDULE_PREPARE_MARKER, {
       configurable: true,
@@ -577,6 +593,7 @@
     if (!state) return null;
     installLayerUpdatePatch(state);
     installCompositorPatch(state);
+    parts.exportPreparation?.installPreparationPolicy();
     installSchedulePreparePatch(state);
     installPlaybackPatch(state);
     installViewportPatch(state);

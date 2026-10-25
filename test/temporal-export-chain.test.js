@@ -18,7 +18,9 @@ const projectRoot = path.resolve(__dirname, "..");
 const temporalSources = [
   "plugins/core/temporal-math.js",
   "plugins/core/temporal-layers.js",
+  "plugins/core/temporal-capture.js",
   "plugins/core/temporal-sampler.js",
+  "plugins/core/temporal-export.js",
   "plugins/core/temporal-render.js",
 ].map((relative) => ({
   filename: path.basename(relative),
@@ -68,7 +70,7 @@ function stubPZ() {
 
 function loadInOrder(order) {
   const { PZ, calls, originalGetVideoFrame } = stubPZ();
-  const sandbox = { console, PZ };
+  const sandbox = { console, PZ, AbortController };
   vm.createContext(sandbox);
   for (const name of order) {
     if (name === "temporal") {
@@ -181,7 +183,7 @@ test("reinstalling the temporal core does not double-wrap the export", async () 
 
 test("deterministic export works when the temporal core never loads", async () => {
   const { PZ } = stubPZ();
-  const sandbox = { console, PZ };
+  const sandbox = { console, PZ, AbortController };
   vm.createContext(sandbox);
   vm.runInContext(videoFrameSource, sandbox, { filename: "video-frame-export.js" });
   const { exp, calls: exportCalls } = makeExport(PZ);
