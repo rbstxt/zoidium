@@ -37,7 +37,8 @@ A large residual after motion compensation triggers a scene-cut bypass. Inconsis
 For GPU testing, `PZ.zoidium.debugForceSmartMotionBlurRGBA8 = true` forces RGBA8 storage.
 Forcing `PZ.zoidium.debugForceSmartMotionBlurGather = true` selects the gather fallback.
 These switches apply to the current session and are not saved in projects.
-The effect instance's `_smartMotionBlur.diagnostics` reports storage, reconstruction path, maximum speed, bypass status, and sample count.
+On the optical-flow route, the effect instance's `_smartMotionBlur.diagnostics` reports storage, reconstruction path, maximum speed, bypass status, and sample count.
+On the shutter route, `_smartMotionBlurShutter.diagnostics` reports the reconstruction path, sample count, and readback count.
 
 Validation measurements appear in [Smart Motion Blur validation](../../docs/investigations/smart-motion-blur-validation.md).
 
