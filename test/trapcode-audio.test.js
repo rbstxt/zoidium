@@ -120,9 +120,10 @@ test("load decodes an asset once and shares the pending promise", async () => {
     const first = T.audioAnalysis.load(project, "song.mp3");
     const second = T.audioAnalysis.load(project, "song.mp3");
     assert.equal(first, second, "pending promise shared");
-    assert.equal(await first, true);
+    const record = await first;
+    assert.ok(record.buffer, "load returns the decoded record for the consumer to retain");
     assert.equal(T.audioAnalysis.has("song.mp3"), true);
-    assert.equal(await T.audioAnalysis.load(project, "song.mp3"), true);
+    assert.equal(await T.audioAnalysis.load(project, "song.mp3"), record);
     assert.equal(decodes, 1);
     assert.equal(reads, 1);
     assert.ok(T.audioAnalysis.levelAt("song.mp3", 0.5) > 0);

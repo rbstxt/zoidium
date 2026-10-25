@@ -27,7 +27,18 @@ var PZ = PZ || {};
     var AUDIO_MAX_DB = -30;
     var AUDIO_MEMO_LIMIT = 4096;
     var AUDIO_SOURCE_LIMIT = 8;
+    // Only the last eight records are held strongly here. Live consumers hold
+    // their own records; the weak index keeps those sources available without
+    // retaining unloaded owners or their PCM.
     var audioSources = new Map();
+    var audioRecords = new Map();
+
+    function audioRecord(source) {
+        var ref = audioRecords.get(source);
+        var record = ref && ref.deref();
+        if (!record) audioRecords.delete(source);
+        return record;
+    }
     var audioPending = new Map();
 
     function audioFft(re, im) {
@@ -150,25 +161,30 @@ var PZ = PZ || {};
     T.audioAnalysis = {
         fftSize: AUDIO_FFT_SIZE,
         invalidate: function (source) {
-            var present = audioSources.has(source) || audioPending.has(source);
+            var present = !!audioRecord(source) || audioPending.has(source);
             audioSources.delete(source);
+            audioRecords.delete(source);
             audioPending.delete(source);
             return present;
         },
         has: function (source) {
-            return audioSources.has(source);
+            return !!audioRecord(source);
         },
         // Registers decoded PCM (an AudioBuffer-like object) under a source key.
         register: function (source, buffer) {
+            var record = { buffer: buffer, memo: new Map() };
+            for (var key of audioRecords.keys()) audioRecord(key);
+            audioRecords.set(source, new WeakRef(record));
             audioSources.delete(source);
-            audioSources.set(source, { buffer: buffer, memo: new Map() });
+            audioSources.set(source, record);
             while (audioSources.size > AUDIO_SOURCE_LIMIT) {
                 audioSources.delete(audioSources.keys().next().value);
             }
+            return record;
         },
         // Level 0..1 at a media time in seconds, or null when the source is not decoded.
         levelAt: function (source, seconds) {
-            var entry = audioSources.get(source);
+            var entry = audioRecord(source);
             if (!entry || !isFinite(seconds)) return entry ? 0 : null;
             var bucket = Math.round(seconds * 1000);
             if (entry.memo.has(bucket)) return entry.memo.get(bucket);
@@ -180,16 +196,17 @@ var PZ = PZ || {};
             entry.memo.set(bucket, level);
             return level;
         },
-        // Decodes the asset once; concurrent callers share one promise.
+        // Decodes once; callers retain the returned record for their lifetime.
+        // Concurrent callers share one promise and the same record.
         load: function (project, source) {
-            if (audioSources.has(source)) return Promise.resolve(true);
+            var record = audioRecord(source);
+            if (record) return Promise.resolve(record);
             if (audioPending.has(source)) return audioPending.get(source);
             var promise = audioDecodeSource(project, source).then(
                 function (buffer) {
                     if (audioPending.get(source) !== promise) return false;
                     audioPending.delete(source);
-                    T.audioAnalysis.register(source, buffer);
-                    return true;
+                    return T.audioAnalysis.register(source, buffer);
                 },
                 function (error) {
                     if (audioPending.get(source) === promise) audioPending.delete(source);

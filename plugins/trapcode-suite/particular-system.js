@@ -319,18 +319,27 @@ var PZ = PZ || {};
         var source = audio.audioLayer.get(e);
         return !source || T.audioAnalysis.has(source);
     };
+    // Retain decoded records in the owner's cache, including sources that were
+    // already decoded by another system. Shared cache eviction cannot silence
+    // any system prepared for the same frame.
+    PZ.object3d.particular.system.prototype.requestAudio = function (e) {
+        var audio = this.properties.audio;
+        if (!audioReactorsOn(audio, e)) return null;
+        var source = audio.audioLayer.get(e);
+        if (!source) return null;
+        if (!this._audioAssets) this._audioAssets = new T.AssetCache();
+        var project = T.findParent(this, PZ.project);
+        return this._audioAssets.request("audio", source, function (value) {
+            return T.audioAnalysis.load(project, value).catch(function (err) {
+                console.warn("Trapcode Particular: the audio reactor source could not be decoded; reactors stay neutral.", err);
+                return null;
+            });
+        });
+    };
     // Audio reactors need decoded PCM before a final render; export awaits this.
     PZ.object3d.particular.system.prototype.prepareAudio = async function (e) {
-        var audio = this.properties.audio;
-        if (!audioReactorsOn(audio, e)) return;
-        var source = audio.audioLayer.get(e);
-        if (!source || T.audioAnalysis.has(source)) return;
-        var project = T.findParent(this, PZ.project);
-        try {
-            await T.audioAnalysis.load(project, source);
-        } catch (err) {
-            console.warn("Trapcode Particular: the audio reactor source could not be decoded; reactors stay neutral.", err);
-        }
+        var entry = this.requestAudio(e);
+        if (entry) await entry.promise;
     };
 
     PZ.object3d.particular.system.prototype.defaultName = "System";
