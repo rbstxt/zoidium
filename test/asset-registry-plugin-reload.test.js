@@ -58,7 +58,8 @@ test("a stale Trapcode audio decode cannot repopulate PCM after source invalidat
     const stale = analysis.load(project, "audio"); await Promise.resolve(); await Promise.resolve();
     analysis.invalidate("audio"); const current = analysis.load(project, "audio"); await Promise.resolve(); await Promise.resolve();
     completions[0]({ index: "old" }); assert.equal(await stale, false); assert.equal(analysis.has("audio"), false);
-    completions[1]({ index: "current" }); assert.equal(await current, true); assert.equal(analysis.has("audio"), true);
+    const buffer = { index: "current" };
+    completions[1](buffer); assert.equal((await current).buffer, buffer); assert.equal(analysis.has("audio"), true);
   } finally { global.window = oldWindow; }
 });
 
