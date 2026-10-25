@@ -178,19 +178,23 @@ function wrapFinishedPage(PZ, editor, proto) {
     const device = this;
     const mode = moshModeOf(device);
     const blob = PZ.downloadBlob;
+    const args = Array.prototype.slice.call(arguments);
     if (!(mode > 0) || !isMoshableBlob(blob)) {
-      return original.apply(this, arguments);
+      return original.apply(this, args);
     }
+    let cancelled = false;
     const progress = device.export.createPage(PROGRESS_TITLE, true, function () {
+      cancelled = true;
       device.renderCleanUp();
       return true;
     });
     progress.appendChild(describe(PZ, PROGRESS_DESCRIPTION));
     runTrueMosh(PZ, editor, device, blob, mode).then(function (result) {
+      if (cancelled) return;
       PZ.downloadBlob = result.blob;
       PZ.downloadFilename = result.filename;
       device.moshNote = result.note;
-      const page = original.apply(device, []);
+      const page = original.apply(device, args);
       try {
         const note = describe(PZ, "Your render is finished! Click below to download." + noteHtml(result.note));
         page.insertBefore(note, page.lastElementChild);

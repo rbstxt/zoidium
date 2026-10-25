@@ -20,6 +20,26 @@ test("manager bundle assets normalize paths and ignore inherited assets", () => 
   assert.equal(api.bundledJson(assets, "preset.json").value, 3);
   assert.throws(() => api.bundledText(assets, "missing", "fixture"), /Missing bundled text asset: fixture/);
 });
+test("manager effect and group loaders require bundle assets", async () => {
+  const api = section("  function createLazyEffectData", "  async function loadPluginPackage",
+    "createLazyEffectData,loadGroupData", {
+      SHADER_PLUGIN_MARKER: "// @zoidium-plugin ",
+      ZoidiumPluginApis: { props: { cloneJson: (value) => JSON.parse(JSON.stringify(value)) } },
+    });
+  const plugin = { id: "fixture", name: "Fixture", author: "Author", version: 1 };
+  await assert.rejects(
+    api.createLazyEffectData(plugin, { id: "effect" }, new Map(), null)(),
+    /requires bundle assets: fixture\/effect/,
+  );
+  await assert.rejects(
+    api.createLazyEffectData(plugin, { id: "effect" }, new Map(), undefined)(),
+    /requires bundle assets: fixture\/effect/,
+  );
+  await assert.rejects(
+    api.loadGroupData(plugin, { id: "group" }, new Map(), null),
+    /requires bundle assets: fixture\/group/,
+  );
+});
 test("manager shader markers keep serialized metadata and use the last marker", () => {
   const api = section("  function createPluginMarker", "  function createLazyEffectData", "createPluginMarker,readPluginMarker", { SHADER_PLUGIN_MARKER: "// @zoidium-plugin " });
   const marker = api.createPluginMarker({ id: "fixture", name: "Fixture", author: "Author", version: 7 }, { id: "effect" });

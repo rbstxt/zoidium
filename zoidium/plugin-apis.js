@@ -369,6 +369,17 @@
       Object.keys(spec.defines || {}).forEach(function (name) {
         material.defines[name] = spec.defines[name];
       });
+      // An effect's onUnload may already dispose the material, so disposal is
+      // wrapped once here: every later dispose() call is idempotent.
+      var disposeFilterMaterial = typeof material.dispose === "function"
+        ? material.dispose.bind(material)
+        : null;
+      var filterMaterialDisposed = false;
+      material.dispose = function disposeFilterMaterialOnce() {
+        if (filterMaterialDisposed) return;
+        filterMaterialDisposed = true;
+        if (disposeFilterMaterial) disposeFilterMaterial();
+      };
       effect.pass = new THREE.ShaderPass(material);
       if (typeof spec.onLoad === "function") await spec.onLoad(effect);
       effect.properties.load(data && data.properties);
@@ -384,6 +395,10 @@
       if (!effect._zoidiumBundledFragShader && effect.fragShader) {
         effect.parentProject.assets.unload(effect.fragShader);
       }
+      // The pass may be gone and its material may already be disposed by
+      // onUnload; the wrapped dispose above makes this call idempotent.
+      var material = effect.pass && effect.pass.material;
+      if (material && typeof material.dispose === "function") material.dispose();
     };
 
     effect.update = function update(frame) {
@@ -651,6 +666,11 @@
   var trackLabels = new Set();
   var restoreTrackLabels = null;
   function decorateTrackLabel(label, track, kind, editor) {
+    // Entries for removed labels leave the set the next time any label is
+    // decorated, instead of waiting for a refresh pass.
+    trackLabels.forEach(function (entry) {
+      if (!entry.label.isConnected) trackLabels.delete(entry);
+    });
     if (!Array.from(trackLabels).some(function (entry) { return entry.label === label; })) trackLabels.add({ label: label, track: track, kind: kind, editor: editor, grid: label.style.gridTemplateColumns });
     trackButtons.forEach(function (spec) {
       if (!spec.kinds.includes(kind) || Array.from(label.children).some(function (child) { return child.dataset?.zoidiumTrackButton === spec.id; })) return;
