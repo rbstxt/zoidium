@@ -59,6 +59,14 @@ test("Shape+ conversion rejects an unloaded plugin session", async t => {
   assert.equal(h.clip.object, h.layer); assert.equal(h.unloads, 1);
   assert.equal(h.editor.history.operation, null); assert.equal(h.editor.history.undoStack.length, 0);
 });
+test("Shape+ conversion rejects project replacement while native shaders load", async t => {
+  const h = setup(t), converting = h.api.convert(h.layer); await h.began.promise;
+  const replacement = fixture({ PZ: window.PZ });
+  h.editor.project = replacement.project; h.gate.resolve("void main(){}");
+  await assert.rejects(converting, /changed during conversion/);
+  assert.equal(h.clip.object, h.layer); assert.equal(h.unloads, 1);
+  assert.equal(h.editor.history.operation, null); assert.equal(h.editor.history.undoStack.length, 0);
+});
 test("failed Shape+ exchange restores clip and track and discards history", async t => {
   const h = setup(t), converting = h.api.convert(h.layer); await h.began.promise;
   h.track.layer = h.layer;
@@ -71,6 +79,16 @@ test("failed Shape+ exchange restores clip and track and discards history", asyn
   assert.ok(h.clip.children.includes(h.layer)); assert.ok(!h.clip.children.includes(h.next));
   assert.equal(h.layer.parent, h.clip); assert.equal(h.unloads, 1);
   assert.equal(h.editor.history.operation, null); assert.equal(h.editor.history.undoStack.length, 0);
+});
+test("failed Shape+ history notification removes the published operation and preserves redo", async t => {
+  const h = setup(t), converting = h.api.convert(h.layer); await h.began.promise;
+  const redo = []; h.editor.history.redoStack.push(redo);
+  h.project.ui.onChanged.watch(() => { throw Error("Project notification failed"); });
+  h.gate.resolve("void main(){}");
+  await assert.rejects(converting, /Project notification failed/);
+  assert.equal(h.clip.object, h.layer); assert.equal(h.editor.history.operation, null);
+  assert.equal(h.editor.history.undoStack.length, 0); assert.equal(h.unloads, 1);
+  assert.equal(h.editor.history.redoStack.length, 1); assert.equal(h.editor.history.redoStack.pop(), redo);
 });
 test("attached Shape+ conversion preserves replacement data and native undo and redo", async t => {
   const h = setup(t), converting = h.api.convert(h.layer); await h.began.promise;
