@@ -9,7 +9,11 @@ function install(context) {
   const { MP4_FORMAT, isMp4 } = load("./export-math.js");
   const { createJob } = load("./render.js");
   const prototype = PZ.ui.export.device.prototype;
-  const owned = [];
+  // The page owns its restoration record. The activation only keeps weak
+  // page references so closed dialogs and their devices can be collected.
+  const owned = new Set();
+  const records = new WeakMap();
+  const collected = new FinalizationRegistry(ref => owned.delete(ref));
   const qualityHint = "MP4 quality uses the Bitrate setting. Quality presets apply to MKV/WebM.";
   function patch(key, wrap) {
     const original = prototype[key];
@@ -20,12 +24,19 @@ function install(context) {
     prototype[key] = replacement;
   }
   context.lifecycle.onDispose(() => {
-    for (const { select, change, wrapped, option, owner, restoreQuality } of owned) {
+    for (const ref of owned) {
+      collected.unregister(ref);
+      const page = ref.deref();
+      const record = page && records.get(page);
+      if (!record) continue;
+      records.delete(page);
+      const { select, change, wrapped, option, owner, restoreQuality } = record;
       if (select.onchange === wrapped) select.onchange = change;
       if (isMp4(owner.params)) { owner.params.format = owner.DEVICE_FORMATS[0]; select.selectedIndex = 0; }
       option.remove();
       restoreQuality();
     }
+    owned.clear();
   });
   patch("createOptionsPage", (original) => function mp4OptionsPage() {
     const page = original.apply(this, arguments);
@@ -60,7 +71,10 @@ function install(context) {
         return change?.call(this, event);
       }
     };
-    owned.push({ select, change, wrapped, option, owner, restoreQuality });
+    records.set(page, { select, change, wrapped, option, owner, restoreQuality });
+    const ref = new WeakRef(page);
+    owned.add(ref);
+    collected.register(page, ref, ref);
     select.onchange = wrapped;
     return page;
   });
