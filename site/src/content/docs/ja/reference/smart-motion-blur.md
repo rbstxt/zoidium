@@ -17,6 +17,8 @@ title: Smart Motion Blur のプロパティ
 | View | Result | Result、Motion Vectors、Confidence | Result はブラーを表示します。Motion Vectors は赤と緑で水平と垂直の速度、青で速さを表示します。Confidence は動きの整合性と画像の差をグレースケールで表示します。両方の診断表示は、Reconstruction にかかわらずオプティカルフローを使用します。 |
 | Reconstruction | Automatic | Automatic、Optical Flow、Shutter Samples | Automatic は、3D Scene レイヤーでは Shutter Samples、それ以外では Optical Flow を使用します。Shutter Samples は、中心対称の小数時刻で取得した画像を平均し、遮蔽の変化を含めます。 |
 
+**Reconstruction** の保存値がないプロジェクトは、**Automatic** を使用します。
+
 ## 制限
 
 **Blur Amount** または **Motion Sensitivity** が 0 の場合、入力をそのまま出力します。

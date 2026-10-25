@@ -17,6 +17,8 @@ title: Smart Motion Blur properties
 | View | Result | Result, Motion Vectors, Confidence | Result shows the blur. Motion Vectors encodes signed horizontal and vertical velocity in red and green. Blue indicates speed. Confidence shows agreement and residual as grayscale. Both diagnostic views use optical flow regardless of Reconstruction. |
 | Reconstruction | Automatic | Automatic, Optical Flow, Shutter Samples | Automatic uses Shutter Samples on a 3D Scene layer and Optical Flow on other layers. Shutter Samples averages centered fractional captures and includes changing visibility. |
 
+Projects without a stored **Reconstruction** value use **Automatic**.
+
 ## Limits
 
 A zero **Blur Amount** or **Motion Sensitivity** copies the input exactly.

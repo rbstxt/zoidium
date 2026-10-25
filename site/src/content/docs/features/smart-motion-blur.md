@@ -22,6 +22,7 @@ An **Adjustment** layer captures that motion after the moving layers are composi
 For objects rotating inside a **3D Scene**, keep **Reconstruction** at **Automatic**.
 This captures the scene at fractional times across the shutter, including changing silhouettes and visible extrusion faces.
 For footage, **Automatic** uses optical flow.
+To use optical flow on a **3D Scene**, select **Optical Flow**.
 For animated layer transforms under an **Adjustment** layer, select **Shutter Samples** to capture those transforms directly.
 
 ## Tune the blur
