@@ -11,6 +11,7 @@ function createJob(scope, PZ, exporter, loadBunny) {
   let cancellation = null;
   const controller = new AbortController();
   function check() {
+    exporter.checkExportContext?.();
     if (cancelled) throw new DOMException("MP4 export cancelled.", "AbortError");
   }
   return {
@@ -80,8 +81,10 @@ function createJob(scope, PZ, exporter, loadBunny) {
             padding.fillRect(0, 0, canvas.width, canvas.height);
             padding.drawImage(exporter.renderer.domElement, 0, 0);
           }
+          exporter.checkExportContext?.("before encoder submission");
           const timing = frameTiming(index, params.rate);
           await video.add(timing.timestamp / 1000000, timing.duration / 1000000);
+          exporter.__zoidiumPendingFrame = null;
           // Yield even if the encoder immediately accepts this frame, so the
           // native Cancel/back button remains responsive on small projects.
           await new Promise((resolve) => setTimeout(resolve, 0));
@@ -92,6 +95,7 @@ function createJob(scope, PZ, exporter, loadBunny) {
         check();
         return await storage.finish();
       } catch (error) {
+        try { exporter.failExportFrame?.(error); } catch (_cleanupError) { /* Preserve the export failure. */ }
         if (cancelled) throw new DOMException("MP4 export cancelled.", "AbortError");
         if (isMemoryError(error)) {
           throw new Error("MP4 ran out of memory or temporary storage. Reduce the output size or close other projects and try again.");

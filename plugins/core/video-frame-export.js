@@ -10,6 +10,9 @@
   const DEFAULT_TIMEOUT_MS = 15000;
   const FRAME_CALLBACK_GRACE_MS = 500;
   const SAME_TIME_EPSILON = 1e-7;
+  // Chromium can round an observed media clock down by two microseconds.
+  // This tolerance validates seek completion, not reuse of a decoded frame.
+  const SEEK_TIME_EPSILON = 2e-6;
 
   const diagnostics = (PZ.videoFrameExportDiagnostics =
     PZ.videoFrameExportDiagnostics || {
@@ -44,154 +47,205 @@
     return mediaTime;
   }
 
-  function waitForMetadata(video, timeoutMs) {
-    if (video.readyState >= HAVE_METADATA) return Promise.resolve();
-
+  function waitForExport(promise, policy) {
     return new Promise((resolve, reject) => {
-      let timeoutId;
-
-      function cleanUp() {
-        clearTimeout(timeoutId);
-        video.removeEventListener("loadedmetadata", onLoadedMetadata);
-        video.removeEventListener("error", onError);
-      }
-
-      function onLoadedMetadata() {
-        cleanUp();
-        resolve();
-      }
-
-      function onError() {
-        cleanUp();
-        reject(video.error || new Error("Unable to load video metadata."));
-      }
-
-      video.addEventListener("loadedmetadata", onLoadedMetadata, { once: true });
-      video.addEventListener("error", onError, { once: true });
-      timeoutId = setTimeout(() => {
-        cleanUp();
-        reject(new Error("Timed out while loading video metadata."));
-      }, timeoutMs);
+      const signal = policy.signal;
+      const aborted = () => { cleanUp(); reject(signal.reason); };
+      const cleanUp = () => signal.removeEventListener("abort", aborted);
+      signal.addEventListener("abort", aborted, { once: true });
+      Promise.resolve(promise).then(value => { cleanUp(); resolve(value); }, error => { cleanUp(); reject(error); });
+      if (signal.aborted) aborted();
     });
   }
-
-  function seekToMediaTime(video, mediaTime, timeoutMs) {
+  const decoderQueues = new WeakMap();
+  function safeMessage(error) {
+    return String(error?.message || error || "Unknown video failure")
+      .replace(/(?:blob:|file:|https?:)[^\s<>"']+/gi, "[media source]");
+  }
+  function mediaError(video) {
+    if (video.error) throw video.error;
+  }
+  function waitForEvent(video, event, timeoutMs, policy, action) {
     return new Promise((resolve, reject) => {
       let timeoutId;
-
-      function cleanUp() {
+      const cleanUp = () => {
         clearTimeout(timeoutId);
-        video.removeEventListener("seeked", onSeeked);
-        video.removeEventListener("error", onError);
-      }
-
-      function onSeeked() {
-        cleanUp();
-        resolve();
-      }
-
-      function onError() {
-        cleanUp();
-        reject(video.error || new Error("Video seek failed."));
-      }
-
-      video.addEventListener("seeked", onSeeked, { once: true });
-      video.addEventListener("error", onError, { once: true });
-      timeoutId = setTimeout(() => {
-        cleanUp();
-        reject(new Error(`Timed out seeking video to ${mediaTime.toFixed(6)}s.`));
-      }, timeoutMs);
-
+        video.removeEventListener(event, done);
+        video.removeEventListener("error", failed);
+        policy?.signal?.removeEventListener("abort", aborted);
+      };
+      const fail = error => { cleanUp(); reject(error); };
+      const failed = () => fail(video.error || new Error("Video decode failed."));
+      const aborted = () => fail(policy.signal.reason || new Error("Export stopped."));
+      const done = () => {
+        try { mediaError(video); policy?.check?.(); }
+        catch (error) { fail(error); return; }
+        cleanUp(); resolve();
+      };
       try {
-        video.currentTime = mediaTime;
-      } catch (error) {
-        cleanUp();
-        reject(error);
-      }
+        mediaError(video); policy?.check?.();
+        video.addEventListener(event, done);
+        video.addEventListener("error", failed);
+        policy?.signal?.addEventListener("abort", aborted, { once: true });
+        timeoutId = setTimeout(() => fail(new Error(`Timed out waiting for video ${event}.`)), timeoutMs);
+        action?.();
+      } catch (error) { fail(error); }
     });
   }
-
-  function waitForPresentedFrame(video) {
-    if (typeof video.requestVideoFrameCallback !== "function") {
-      return Promise.resolve(null);
-    }
-
-    return new Promise((resolve) => {
-      let callbackId = null;
-      const timeoutId = setTimeout(() => {
-        if (callbackId !== null && typeof video.cancelVideoFrameCallback === "function") {
-          video.cancelVideoFrameCallback(callbackId);
-        }
-        resolve(null);
-      }, FRAME_CALLBACK_GRACE_MS);
-
+  function waitForMetadata(video, timeoutMs, policy) {
+    mediaError(video);
+    if (video.readyState >= HAVE_METADATA) return Promise.resolve();
+    return waitForEvent(video, "loadedmetadata", timeoutMs, policy);
+  }
+  function presentedFrame(video) {
+    if (typeof video.requestVideoFrameCallback !== "function") return { promise: Promise.resolve(null), cancel() {} };
+    let callbackId, timeoutId, finish;
+    const cancel = () => {
+      clearTimeout(timeoutId);
+      if (callbackId != null) video.cancelVideoFrameCallback?.(callbackId);
+      finish?.(null);
+    };
+    const promise = new Promise(resolve => {
+      finish = resolve;
+      timeoutId = setTimeout(cancel, FRAME_CALLBACK_GRACE_MS);
       callbackId = video.requestVideoFrameCallback((_now, metadata) => {
-        clearTimeout(timeoutId);
-        resolve(metadata || null);
+        clearTimeout(timeoutId); callbackId = null; resolve(metadata || null);
       });
     });
+    return { promise, cancel };
   }
-
-  PZ.schedule.prototype.decodeFrame = async function decodeExactExportFrame(requestedTime) {
-    const video = this.el;
+  async function decode(schedule, requestedTime, context) {
+    const video = schedule.el;
     if (!video) return;
-
+    const policy = context?.exportPolicy;
     const timeoutMs = diagnostics.timeoutMs || DEFAULT_TIMEOUT_MS;
-    await waitForMetadata(video, timeoutMs);
-
-    const mediaTime = clampMediaTime(video, requestedTime);
-    const sourceId = getSourceId(video);
-    const state = this.__zoidiumVideoExportState || {
-      sourceId: "",
-      requestedTime: NaN,
-      presentedMediaTime: NaN,
-    };
-    this.__zoidiumVideoExportState = state;
-
-    const hasRequestedFrame =
-      Math.abs(video.currentTime - mediaTime) <= SAME_TIME_EPSILON &&
-      !video.seeking &&
-      video.readyState >= HAVE_CURRENT_DATA;
-    let presentedMetadata = null;
-    if (!hasRequestedFrame) {
-      const presentedFramePromise = waitForPresentedFrame(video);
-      await seekToMediaTime(video, mediaTime, timeoutMs);
-      presentedMetadata = await presentedFramePromise;
+    let stage = "metadata";
+    for (let attempt = 0; attempt < 2; attempt++) {
+      let presentation = null;
+      try {
+        policy?.check?.();
+        stage = "metadata";
+        await waitForMetadata(video, timeoutMs, policy);
+        const mediaTime = clampMediaTime(video, requestedTime);
+        const sourceId = getSourceId(video);
+        const state = schedule.__zoidiumVideoExportState || {};
+        schedule.__zoidiumVideoExportState = state;
+        stage = "before seek";
+        mediaError(video); policy?.check?.();
+        const reused = Math.abs(video.currentTime - mediaTime) <= SAME_TIME_EPSILON &&
+          !video.seeking && video.readyState >= HAVE_CURRENT_DATA &&
+          (!state.sourceId || state.sourceId === sourceId);
+        let metadata = null;
+        if (!reused) {
+          presentation = presentedFrame(video);
+          await waitForEvent(video, "seeked", timeoutMs, policy, () => { video.currentTime = mediaTime; });
+          stage = "after seek";
+          mediaError(video); policy?.check?.();
+          if (Math.abs(video.currentTime - mediaTime) > SEEK_TIME_EPSILON || video.seeking) {
+            throw new Error("Video seek completed at a different requested time.");
+          }
+          metadata = await presentation.promise;
+        }
+        stage = "texture validation";
+        mediaError(video); policy?.check?.();
+        if (getSourceId(video) !== sourceId || video.readyState < HAVE_CURRENT_DATA) {
+          throw new Error("The requested video frame is unavailable.");
+        }
+        Object.assign(state, { sourceId, requestedTime: mediaTime,
+          presentedMediaTime: Number.isFinite(metadata?.mediaTime) ? metadata.mediaTime : video.currentTime });
+        if (schedule.texture) schedule.texture.needsUpdate = true;
+        recordDiagnostic({ source: sourceId, requestedMediaTime: mediaTime,
+          presentedMediaTime: state.presentedMediaTime, difference: state.presentedMediaTime - mediaTime, reused });
+        return;
+      } catch (error) {
+        presentation?.cancel();
+        // Reset the browser decoder once. The HTML element and its texture
+        // stay bound to the same clip, and the retry repeats the exact time.
+        if (attempt === 0 && policy && video.error && typeof video.load === "function") {
+          policy.check?.();
+          const source = schedule.currentItem?.media?.url || getSourceId(video);
+          if (source) {
+            video.pause?.(); video.removeAttribute?.("src"); video.load();
+            video.src = source; video.load();
+            delete schedule.__zoidiumVideoExportState;
+            continue;
+          }
+        }
+        const clip = schedule.currentItem?.clip;
+        let name = clip?.name || clip?.object?.name || schedule.currentItem?.media?.filename || "video clip";
+        try { name = clip?.properties?.name?.get?.() || name; } catch (_nameError) { /* Retain the clip fallback. */ }
+        throw new Error(`Video decode failed for clip "${safeMessage(name)}", requested media time ${Number(requestedTime).toFixed(6)}s, output frame ${policy?.outputIndex ?? "unknown"}, stage ${stage}: ${safeMessage(error)}`, { cause: error });
+      } finally { presentation?.cancel(); }
     }
+  }
+  PZ.schedule.prototype.decodeFrame = function decodeExactExportFrame(time, context) {
+    if (!this.el) return Promise.resolve();
+    context ||= this.__zoidiumExportContext;
+    const element = this.el;
+    const previous = decoderQueues.get(element);
+    const run = () => decode(this, time, context);
+    const pending = previous ? previous.catch(() => {}).then(run) : run();
+    decoderQueues.set(element, pending);
+    pending.finally(() => {
+      if (decoderQueues.get(element) === pending) decoderQueues.delete(element);
+    }).catch(() => {});
+    return pending;
+  };
 
-    state.sourceId = sourceId;
-    state.requestedTime = mediaTime;
-    state.presentedMediaTime =
-      presentedMetadata && Number.isFinite(presentedMetadata.mediaTime)
-        ? presentedMetadata.mediaTime
-        : video.currentTime;
-
-    if (this.texture) this.texture.needsUpdate = true;
-
-    recordDiagnostic({
-      source: sourceId,
-      requestedMediaTime: mediaTime,
-      presentedMediaTime: state.presentedMediaTime,
-      difference: state.presentedMediaTime - mediaTime,
-      reused: hasRequestedFrame,
-    });
+  const originalUnload = PZ.export.prototype.unload;
+  PZ.export.prototype.unload = function unloadExportResources() {
+    if (this.__zoidiumExportDisposed) return;
+    this.__zoidiumExportDisposed = true;
+    const guard = this.__zoidiumExportGuard;
+    guard?.canvas?.removeEventListener?.("webglcontextlost", guard.onLoss);
+    if (this.compositor) delete this.compositor.__zoidiumExportPolicy;
+    if (originalUnload) originalUnload.call(this);
+    else { this.compositor?.unload?.(); this.renderer?.dispose?.(); }
+  };
+  PZ.export.prototype.checkExportContext = function checkExportContext(stage = "before encoder submission") {
+    let guard = this.__zoidiumExportGuard;
+    if (!guard) {
+      const controller = new AbortController();
+      guard = this.__zoidiumExportGuard = { controller,
+        canvas: this.renderer?.domElement || this.renderer?.context?.canvas };
+      guard.onLoss = () => { guard.lost = true; controller.abort(this.exportContextError()); };
+      guard.canvas?.addEventListener?.("webglcontextlost", guard.onLoss);
+      this.exportPolicy = { outputIndex: this.framesRendered, signal: controller.signal,
+        check: () => this.checkExportContext("during preparation") };
+      if (this.compositor) this.compositor.__zoidiumExportPolicy = this.exportPolicy;
+    }
+    if (guard.lost || this.renderer?.context?.isContextLost?.() || this.renderer?.getContext?.()?.isContextLost?.()) {
+      throw this.exportContextError(stage);
+    }
+    if (guard.controller.signal.aborted) throw guard.controller.signal.reason;
+  };
+  PZ.export.prototype.exportContextError = function exportContextError(stage = "context loss event") {
+    const pending = this.__zoidiumPendingFrame;
+    const index = pending?.index ?? this.exportPolicy?.outputIndex ?? this.framesRendered;
+    const frame = pending?.frame ?? this.frame;
+    const rate = this.sequence?.properties?.rate?.get?.() || 30;
+    return new Error(`WebGL context lost at output index ${index}, project frame ${frame}, time ${(frame / rate).toFixed(6)}s (${stage}). Start a new export.`);
+  };
+  PZ.export.prototype.failExportFrame = function failExportFrame(error) {
+    this.__zoidiumExportGuard?.controller.abort(error || new Error("Export stopped."));
+    if (this.__zoidiumPendingFrame) {
+      this.framesRendered = this.__zoidiumPendingFrame.index;
+      this.frame = this.__zoidiumPendingFrame.frame;
+      this.__zoidiumPendingFrame = null;
+    }
+    this.frameWaiting = -1; this.framePromise = null;
+    // Original schedules belong to the editor. Release their decoder source
+    // on failure; update() reloads it from the clip on the next preparation.
+    for (const schedule of this.sequence?.videoSchedules || []) {
+      schedule.el?.pause?.(); schedule.el?.removeAttribute?.("src"); schedule.el?.load?.();
+      schedule.decoder?.process?.kill?.(); schedule.currentItem = null;
+    }
+    this.unload();
   };
 
   PZ.export.prototype.renderVideoFrame = async function renderDeterministicVideoFrame(output) {
-    // Compose with temporal-render.js regardless of load order: when it loads
-    // after this script its wrapper delegates here, and when it loads first
-    // this call keeps the export compositor registered after replacing its
-    // wrapper. Guarded so a degraded boot without the temporal core still
-    // exports deterministically.
-    try {
-      const temporal = PZ.zoidium && PZ.zoidium.temporal;
-      if (temporal && typeof temporal.registerExportCompositor === "function") {
-        temporal.registerExportCompositor(this.compositor);
-      }
-    } catch (_error) {
-      // Registration must never break the export loop.
-    }
-
+    const temporal = PZ.zoidium?.temporal;
+    temporal?.registerExportCompositor?.(this.compositor);
     if (this.framesRendered >= this.totalFrames) return 0;
 
     // Image export uses rate=0. In that mode frameAdvance is Infinity, so
@@ -200,54 +254,69 @@
     // keep using that value so Single Frame Capture also prepares frame 0.
     const projectFrame = this.frame;
 
-    this.frame = projectFrame;
-    this.frameWaiting = projectFrame;
-    this.framePromise = this.sequence.prepare(projectFrame, this);
-    await this.framePromise;
+    let releaseSamples;
+    try {
+      this.checkExportContext("before preparation");
+      this.exportPolicy.outputIndex = this.framesRendered;
+      this.frameSamplerRoot = this.compositor;
+      releaseSamples = temporal?.beginExportSamples?.(this.compositor);
+      this.frame = projectFrame;
+      this.frameWaiting = projectFrame;
+      this.framePromise = this.sequence.prepare(projectFrame, this);
+      await waitForExport(this.framePromise, this.exportPolicy);
+      this.checkExportContext("after preparation");
+      await waitForExport(temporal?.prepareExportSamples?.(this, projectFrame), this.exportPolicy);
+      this.checkExportContext("after shutter preparation");
+      this.compositor.renderSequence(projectFrame);
+      this.checkExportContext("after composition");
 
-    this.compositor.renderSequence(projectFrame);
-
-    if (output && this.readPixelsWorkaround) {
-      const context = this.renderer.context;
-      const drawingBufferWidth = context.drawingBufferWidth;
-      const drawingBufferHeight = context.drawingBufferHeight;
-      this.readPixelsCtx.drawImage(
-        context.canvas,
-        0,
-        0,
-        drawingBufferWidth,
-        drawingBufferHeight,
-        0,
-        -drawingBufferHeight,
-        drawingBufferWidth,
-        drawingBufferHeight,
-      );
-      output.set(
-        this.readPixelsCtx.getImageData(
+      if (output && this.readPixelsWorkaround) {
+        const context = this.renderer.context;
+        const drawingBufferWidth = context.drawingBufferWidth;
+        const drawingBufferHeight = context.drawingBufferHeight;
+        this.readPixelsCtx.drawImage(
+          context.canvas,
           0,
           0,
           drawingBufferWidth,
           drawingBufferHeight,
-        ).data,
-      );
-    } else if (output) {
-      const context = this.renderer.context;
-      context.readPixels(
-        0,
-        0,
-        this.params.width,
-        this.params.height,
-        context.RGBA,
-        context.UNSIGNED_BYTE,
-        output,
-      );
-    }
+          0,
+          -drawingBufferHeight,
+          drawingBufferWidth,
+          drawingBufferHeight,
+        );
+        output.set(
+          this.readPixelsCtx.getImageData(
+            0,
+            0,
+            drawingBufferWidth,
+            drawingBufferHeight,
+          ).data,
+        );
+      } else if (output) {
+        const context = this.renderer.context;
+        context.readPixels(
+          0,
+          0,
+          this.params.width,
+          this.params.height,
+          context.RGBA,
+          context.UNSIGNED_BYTE,
+          output,
+        );
+      }
 
-    this.framesRendered += 1;
-    this.frame += this.frameAdvance;
-    this.frameWaiting = -1;
-    this.framePromise = null;
-    return 1;
+      this.checkExportContext("after pixel capture");
+      if (!output) this.__zoidiumPendingFrame = { index: this.framesRendered, frame: projectFrame };
+      this.framesRendered += 1;
+      this.frame += this.frameAdvance;
+      this.frameWaiting = -1;
+      this.framePromise = null;
+      return 1;
+    } catch (error) {
+      try { this.failExportFrame(error); } catch (_cleanupError) { /* Preserve the frame failure. */ }
+      throw error;
+    } finally { releaseSamples?.(); }
   };
 
   PZ.export.prototype.getVideoFrame = function getDeterministicVideoFrame(output) {

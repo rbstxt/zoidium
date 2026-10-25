@@ -300,3 +300,23 @@ test("MP4 submits the prepared canvas directly and pads only after rendering", a
   assert.deepEqual(events, ["render 0", "clear", "encode 0", "render 1", "clear", "encode 1", "render 2", "clear", "encode 2"]);
   assert.equal(padded.width, 642); assert.equal(padded.height, 362);
 });
+
+test("context loss after padding rejects before encoder submission and releases the output", async () => {
+  const events = [], bunny = fakeBunny(events);
+  let lost = false, submitted = 0, disposed = 0;
+  bunny.CanvasSource = class { async add() { submitted++; } };
+  const exporter = {
+    params: { ...params, width: 641, length: 1 }, framesRendered: 0,
+    sequence: { properties: { rate: { get: () => 30 } } },
+    renderer: { domElement: { width: 641, height: 360 } },
+    checkExportContext() { if (lost) throw new Error("WebGL context lost at output index 0, project frame 0, time 0s"); },
+    async renderVideoFrame() { this.framesRendered++; },
+    failExportFrame() { this.framesRendered = 0; disposed++; },
+  };
+  const scope = { VideoEncoder: supports(() => true), navigator: {}, document: {
+    createElement() { return { getContext() { return { fillRect() {}, drawImage() { lost = true; } }; } }; },
+  } };
+  await assert.rejects(createJob(scope, { av: { profiles } }, exporter, () => bunny).run(), /WebGL context lost/);
+  assert.equal(submitted, 0); assert.equal(exporter.framesRendered, 0); assert.equal(disposed, 1);
+  assert.deepEqual(events, ["cancel"]);
+});

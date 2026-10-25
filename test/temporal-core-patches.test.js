@@ -414,7 +414,7 @@ function videoFrameSandbox() {
   Export.prototype.getVideoFrame = async function () { return 0; };
   const PZ = { schedule: Schedule, export: Export };
   const sandbox = {
-    console, PZ, setTimeout, clearTimeout, queueMicrotask, Promise,
+    console, PZ, setTimeout, clearTimeout, queueMicrotask, Promise, AbortController,
   };
   vm.createContext(sandbox);
   vm.runInContext(read("plugins/core/video-frame-export.js"), sandbox, {
@@ -496,6 +496,7 @@ test("decodeFrame waits for metadata when the video is not ready", async () => {
   schedule.el = video;
   schedule.texture = { needsUpdate: false };
   const pending = schedule.decodeFrame(2);
+  video.readyState = 2;
   video.__fire("loadedmetadata");
   await pending;
   assert.equal(video.currentTime, 2);
