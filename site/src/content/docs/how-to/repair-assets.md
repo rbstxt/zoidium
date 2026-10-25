@@ -40,7 +40,7 @@ If a replacement gives the wrong result, use Undo before switching compositions.
 1. Open the Assets project menu.
 2. Choose **Resolve Fonts…**.
 3. For each problem font, choose a built-in font in **Replace with**, or click **Font file…**.
-4. To leave a font unchanged, keep **Keep as is** selected.
+4. To leave a font unchanged, select **Keep as is**.
 5. Click **Replace**.
 6. Check the text layout and line breaks.
 

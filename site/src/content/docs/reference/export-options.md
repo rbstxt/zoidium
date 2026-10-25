@@ -38,7 +38,7 @@ For still images, **Quality** has **very low**, **low**, **good**, **very good**
 
 **Resolution** offers 426×240, 640×360, 854×480, 1280×720, 1920×1080, 2560×1440, and 3840×2160 presets. Frame capture also retains the project resolution as a choice when it differs from these presets.
 
-**Aspect ratio** sets the output width-to-height ratio. The sizing path retains the selected resolution's longer edge and derives the other edge from the ratio. It rounds both dimensions to even values. A portrait ratio therefore makes the longer edge vertical.
+**Aspect ratio** sets the output width-to-height ratio. The sizing path retains the selected resolution's longer edge and derives the other edge from the ratio. Each dimension rounds to an even value, except at the one-pixel minimum. A portrait ratio therefore makes the longer edge vertical.
 
 **Device** starts at 16:9. Frame capture starts at the project aspect ratio.
 
