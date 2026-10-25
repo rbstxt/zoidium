@@ -132,8 +132,10 @@
     var headerLabel = header.querySelector(".proplabel");
     if (headerLabel) headerLabel.classList.add("zoidium-restore-title");
     panel.appendChild(header);
-    panel.innerHTML =
-      panel.innerHTML +
+    // Static markup only: insertAdjacentHTML keeps the header nodes and
+    // listeners above intact instead of re-serializing the panel.
+    panel.insertAdjacentHTML(
+      "beforeend",
       '<div class="zoidium-restore-note">' +
       '<label class="zoidium-backup-setting">' +
       '<span>Automatic backup interval</span>' +
@@ -149,7 +151,8 @@
       '<div class="zoidium-restore-section-title noselect">RESTORE POINTS</div>' +
       '<div class="zoidium-restore-list" role="list"></div>' +
       '<div class="zoidium-restore-delete-footer">' +
-      '</div>';
+      '</div>'
+    );
     var intervalSelect = panel.querySelector(".zoidium-backup-interval");
     BACKUP_INTERVAL_OPTIONS.forEach(function (option) {
       var element = global.document.createElement("option");
@@ -668,9 +671,13 @@
     });
   }
 
-  function installProjectNameField() {
-    var toolbar = global.document.querySelector("#controls .toolbarpanel") ||
+  function findToolbar() {
+    return global.document.querySelector("#controls .toolbarpanel") ||
       global.document.querySelector(".toolbarpanel");
+  }
+
+  function installProjectNameField() {
+    var toolbar = findToolbar();
     if (!toolbar) return false;
     toolbar.classList.add("zoidium-project-toolbar");
     var field = toolbar.querySelector(".zoidium-project-name");
@@ -711,19 +718,18 @@
       });
       field.appendChild(input);
       toolbar.insertBefore(field, toolbar.firstElementChild);
-
-      global.addEventListener("zoidium:project-name-changed", function (event) {
-        var detail = event.detail || {};
-        if (detail.editor !== editor || global.document.activeElement === input) return;
-        input.value = projectFiles.displayNameForUi(detail.name);
-        input.title = input.value;
-      });
     }
 
     var actions = toolbar.querySelector(".zoidium-project-actions");
     if (!actions) {
       actions = global.document.createElement("div");
       actions.className = "zoidium-project-actions";
+    }
+    if (field && toolbar.firstElementChild === field &&
+        actions && toolbar.lastElementChild === actions) {
+      // The field and actions are already in place, so later toolbar
+      // mutations cost two queries and no DOM writes.
+      return true;
     }
     Array.from(toolbar.children).forEach(function (child) {
       if (child !== field && child !== actions) actions.appendChild(child);
@@ -735,6 +741,17 @@
     return true;
   }
 
+  // The project-name listener is registered once and looks the input up at
+  // event time, so toolbar rebuilds never stack duplicate listeners.
+  global.addEventListener("zoidium:project-name-changed", function (event) {
+    var detail = event.detail || {};
+    if (detail.editor !== editor) return;
+    var toolbar = findToolbar();
+    var input = toolbar ? toolbar.querySelector(".zoidium-project-name input") : null;
+    if (!input || global.document.activeElement === input) return;
+    input.value = projectFiles.displayNameForUi(detail.name);
+    input.title = input.value;
+  });
   global.addEventListener("zoidium:project-saved", function (event) {
     var detail = event.detail || {};
     if (detail.editor !== editor) return;
@@ -755,18 +772,37 @@
     showProjectError(detail);
   });
 
-  var toolbarObserver;
+  // The field must reappear when CM3 rebuilds the toolbar, but watching the
+  // whole document forever costs a callback on every DOM change. Watch only
+  // the toolbar's parent once it exists, and re-attach when that parent is
+  // replaced. Installed fields short-circuit inside installProjectNameField,
+  // so steady-state mutations cost two queries and no DOM writes.
+  var toolbarObserver = null;
+  var observedToolbarParent = null;
+
+  function watchToolbarParent() {
+    var toolbar = findToolbar();
+    var target = (toolbar && toolbar.parentElement) || global.document.body;
+    if (toolbarObserver && observedToolbarParent === target) return;
+    if (toolbarObserver) toolbarObserver.disconnect();
+    observedToolbarParent = target;
+    toolbarObserver.observe(target, { childList: true, subtree: true });
+  }
+
   var toolbarTimer = global.setInterval(function () {
     if (installProjectNameField()) {
       global.clearInterval(toolbarTimer);
+      watchToolbarParent();
     }
   }, 100);
   toolbarObserver = new MutationObserver(function () {
     installProjectNameField();
+    watchToolbarParent();
   });
-  toolbarObserver.observe(global.document.body, { childList: true, subtree: true });
+  watchToolbarParent();
   if (installProjectNameField()) {
     global.clearInterval(toolbarTimer);
+    watchToolbarParent();
   }
 
   parts.panel = { recoverFromLatestBackup: recoverFromLatestBackup, createSnapshot: createSnapshot };
