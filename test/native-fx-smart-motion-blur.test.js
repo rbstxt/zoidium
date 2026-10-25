@@ -16,10 +16,11 @@ test("Smart Motion Blur has stable serialized properties and native identity", (
     "analysis",
     "quality",
     "view",
+    "reconstruction",
   ]);
   assert.deepEqual(
     Object.values(props).map((property) => property.value),
-    [0.5, 70, 50, 256, 0, 0, 0],
+    [0.5, 70, 50, 256, 0, 0, 0, 0],
   );
   assert.ok(Object.values(props).every((property) => property.dynamic));
   assert.equal(props.analysis.items, "Both;Previous;Next");
@@ -408,8 +409,8 @@ test("constraint stages preserve the seed and never read their own destination",
       );
       const stages = draws.filter((draw) => draw.name === "constraints");
       assert.deepEqual(
-        stages.slice(0, 34).map((draw) => draw.uniforms.uSearchStage),
-        Array.from({ length: 34 }, (_, index) => index - 1),
+        stages.slice(0, math.constraintStages(size, size, 256).length + 1).map((draw) => draw.uniforms.uSearchStage),
+        [-1, ...math.constraintStages(size, size, 256)],
       );
       const seed = stages[0].uniforms.uSeed;
       for (let index = 1; index <= 33; index++) {

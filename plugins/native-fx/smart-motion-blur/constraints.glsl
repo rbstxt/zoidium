@@ -223,10 +223,12 @@ void main() {
                 for (int searchX = -8; searchX <= 8; searchX++) {
                     vec2 candidate = vec2(float(searchX), uSearchStage - 8.0) * 32.0 * uProject /
                                      (uRawSize * uRawScale);
-                    float candidateCost = patchCost(candidate, 16.0);
-                    if (candidateCost < cost - 0.000001 && length(candidate) <= uLimit) {
-                        bestMotion = candidate;
-                        cost = candidateCost;
+                    if (length(candidate) <= uLimit) {
+                        float candidateCost = patchCost(candidate, 16.0);
+                        if (candidateCost < cost - 0.000001) {
+                            bestMotion = candidate;
+                            cost = candidateCost;
+                        }
                     }
                 }
             } else {
@@ -236,10 +238,12 @@ void main() {
                     for (int offsetX = -1; offsetX <= 1; offsetX++) {
                         vec2 candidate = center + vec2(float(offsetX), float(offsetY)) * spacing *
                                                   uProject / (uRawSize * uRawScale);
-                        float candidateCost = patchCost(candidate, 1.0);
-                        if (candidateCost < cost - 0.000001 && length(candidate) <= uLimit) {
-                            bestMotion = candidate;
-                            cost = candidateCost;
+                        if (length(candidate) <= uLimit) {
+                            float candidateCost = patchCost(candidate, 1.0);
+                            if (candidateCost < cost - 0.000001) {
+                                bestMotion = candidate;
+                                cost = candidateCost;
+                            }
                         }
                     }
             }
@@ -257,10 +261,12 @@ void main() {
                 for (int offsetY = -1; offsetY <= 1; offsetY++)
                     for (int offsetX = -1; offsetX <= 1; offsetX++) {
                         vec2 candidate = center + vec2(float(offsetX), float(offsetY)) * spacing * uProject / uSize;
-                        float candidateCost = gaussianCost(candidate);
-                        if (candidateCost < cost - 0.000001 && length(candidate) <= uLimit) {
-                            bestMotion = candidate;
-                            cost = candidateCost;
+                        if (length(candidate) <= uLimit) {
+                            float candidateCost = gaussianCost(candidate);
+                            if (candidateCost < cost - 0.000001) {
+                                bestMotion = candidate;
+                                cost = candidateCost;
+                            }
                         }
                     }
             }

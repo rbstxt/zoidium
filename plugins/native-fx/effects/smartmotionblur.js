@@ -12,6 +12,13 @@ const smartMotionBlurRequire = ZoidiumPluginApis.modules.createRequire(
 );
 const smartMotionBlurMath = smartMotionBlurRequire("./math.js");
 const smartMotionBlurPipeline = smartMotionBlurRequire("./pipeline.js");
+const smartMotionBlurShutter = smartMotionBlurRequire("./shutter.js");
+function smartMotionBlurUsesShutter(effect, settings) {
+  const Scene = PZ.layer?.scene;
+  return smartMotionBlurMath.usesShutterSamples(
+    settings, Boolean(Scene && effect.parentLayer instanceof Scene),
+  );
+}
 
 ZoidiumPluginApis.defineFrameSampler.call(this, {
   displayName: smartMotionBlurMath.DISPLAY_NAME,
@@ -20,7 +27,9 @@ ZoidiumPluginApis.defineFrameSampler.call(this, {
     const settings = smartMotionBlurMath.readSettings(effect.properties, frame);
     return {
       enabled: settings.amount > 0 && settings.sensitivity > 0,
-      frames: smartMotionBlurMath.offsets(settings.analysis),
+      frames: smartMotionBlurUsesShutter(effect, settings)
+        ? smartMotionBlurMath.shutterTimes(settings.amount, smartMotionBlurMath.captureCount(settings.quality))
+        : smartMotionBlurMath.offsets(settings.analysis),
     };
   },
   lifecycle: {
@@ -30,6 +39,7 @@ ZoidiumPluginApis.defineFrameSampler.call(this, {
         ZoidiumPluginApis.gl,
         smartMotionBlurGetAsset,
       );
+      this._smartMotionBlurShutter = null;
       this.pass = {
         enabled: true,
         needsSwap: true,
@@ -57,6 +67,25 @@ ZoidiumPluginApis.defineFrameSampler.call(this, {
           if (!Array.isArray(project) || !(project[0] > 0 && project[1] > 0))
             project = [readBuffer.width, readBuffer.height];
           const scale = effect.pass.uniforms.uvScale.value;
+          if (smartMotionBlurUsesShutter(effect, settings) && settings.amount && settings.sensitivity) {
+            if (!effect._smartMotionBlurShutter) {
+              effect._smartMotionBlurShutter = smartMotionBlurShutter.create(
+                THREE, ZoidiumPluginApis.gl, smartMotionBlurGetAsset,
+              );
+              // Release optical-flow scratch storage after changing modes.
+              effect._smartMotionBlur.dispose();
+              effect._smartMotionBlur = null;
+            }
+            effect._smartMotionBlurShutter.render(
+              renderer, writeBuffer, readBuffer, samples, [scale.x, scale.y],
+            );
+            return;
+          }
+          effect._smartMotionBlurShutter?.dispose();
+          effect._smartMotionBlurShutter = null;
+          if (!effect._smartMotionBlur) effect._smartMotionBlur = smartMotionBlurPipeline.create(
+            THREE, ZoidiumPluginApis.gl, smartMotionBlurGetAsset,
+          );
           // This explicit testing switch is not serialized or quality-dependent.
           const forcePacked =
             PZ.zoidium.debugForceSmartMotionBlurRGBA8 === true;
@@ -82,6 +111,8 @@ ZoidiumPluginApis.defineFrameSampler.call(this, {
     resize() {}, // Allocation is keyed by physical input size and active UV region at render time.
     unload() {
       this._smartMotionBlur?.dispose();
+      this._smartMotionBlurShutter?.dispose();
+      this._smartMotionBlurShutter = null;
       this._smartMotionBlur = null;
       this.pass = null;
     },

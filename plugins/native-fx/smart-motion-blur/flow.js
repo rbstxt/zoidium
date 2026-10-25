@@ -229,8 +229,11 @@ function create(gl) {
       uSearchStage: -1,
     });
     let constrained = previous;
-    for (let stage = 0; stage <= 32; stage++) {
-      const target = constraintTargets[stage % 2];
+    let constraintIndex = 0;
+    for (const stage of math.constraintStages(sources[currentIndex].sourceSize.map(
+      (value, axis) => value * sources[currentIndex].uvScale[axis],
+    ), project, limit)) {
+      const target = constraintTargets[constraintIndex++ % 2];
       gl.draw(renderer, constraints, target, {
         ...constraintSources,
         uFlow: constrained,

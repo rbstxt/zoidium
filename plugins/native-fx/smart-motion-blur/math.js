@@ -34,6 +34,7 @@ function properties(types) {
     analysis: option("Analysis Frames", "Both;Previous;Next"),
     quality: option("Quality", "Balanced;High"),
     view: option("View", "Result;Motion Vectors;Confidence"),
+    reconstruction: option("Reconstruction", "Automatic;Optical Flow;Shutter Samples"),
   };
 }
 
@@ -60,6 +61,19 @@ function readSettings(props, frame) {
 
 function offsets(analysis) {
   return analysis === 1 ? [-1] : analysis === 2 ? [1] : [-1, 1];
+}
+function usesShutterSamples(settings, scene) {
+  return !settings.view &&
+    (settings.reconstruction === 2 || (!settings.reconstruction && scene));
+}
+function captureCount(quality) {
+  return quality ? 64 : 32;
+}
+function constraintStages(processing, project, limit) {
+  // A coarse row outside the search circle cannot change the field.
+  return Array.from({ length: 33 }, (_, stage) => stage).filter(stage =>
+    stage > 16 || Math.abs((stage - 8) * 32 * project[1] / processing[1]) <= limit,
+  );
 }
 function sampleCount(amount, speed, quality) {
   return clamp(
@@ -140,6 +154,9 @@ module.exports = {
   properties,
   readSettings,
   offsets,
+  usesShutterSamples,
+  captureCount,
+  constraintStages,
   sampleCount,
   shutterTimes,
   sampleBatches,
