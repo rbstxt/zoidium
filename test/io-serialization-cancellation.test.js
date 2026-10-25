@@ -2,7 +2,7 @@
 
 const assert = require("node:assert/strict");
 const test = require("node:test");
-const { createIoSerializer } = require("../plugins/core/io-serialization");
+const { createIoSerializer, createWebLockRunner } = require("../plugins/core/io-serialization");
 
 function deferred() {
   let resolve;
@@ -123,6 +123,43 @@ test("Cancel and quota resolution in the same turn cannot start the native encod
   await flush();
   assert.equal(calls, 0);
   assert.equal(result.state, "pending");
+});
+
+test("Cancel while waiting for the origin lock prevents quota and native work", { timeout: 2000 }, async () => {
+  const gate = deferred();
+  const events = [];
+  const io = createIoSerializer({
+    runExclusive: createWebLockRunner({
+      request: async (_name, _options, task) => {
+        await gate.promise;
+        return task();
+      },
+    }),
+    ensureQuota: () => events.push("quota requested"),
+  });
+  const result = watchResult(io.wrapEncode(() => {
+    events.push("native encode starts");
+    return videoBlob();
+  })());
+  await flush();
+  io.wrapStop(() => {})();
+  gate.resolve();
+  await io.enqueue("barrier", () => {});
+  await flush();
+  assert.deepEqual(events, []);
+  assert.equal(result.state, "pending");
+  assert.equal(io.state().running, null);
+});
+
+test("quota errors still reject an uncancelled encode and release its slot", { timeout: 2000 }, async () => {
+  const failure = new Error("Quota denied");
+  const io = createIoSerializer({ ensureQuota: () => Promise.reject(failure) });
+  let calls = 0;
+  const encode = io.wrapEncode(() => { calls += 1; return videoBlob(); });
+  await assert.rejects(encode(), (error) => error === failure);
+  await io.enqueue("barrier", () => {});
+  assert.equal(calls, 0);
+  assert.equal(io.state().running, null);
 });
 
 test("normal queued exports preserve receiver, arguments, quota, and output bytes", { timeout: 2000 }, async () => {

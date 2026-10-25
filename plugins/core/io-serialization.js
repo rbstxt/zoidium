@@ -328,6 +328,7 @@
     let tail = Promise.resolve();
     let queued = 0;
     let running = null;
+    const encodeHolders = new Set();
     let completed = 0;
     let originalTar = null;
     let resetRemuxQueue = null;
@@ -342,6 +343,7 @@
     function settle(holder) {
       if (!holder || holder.settled) return;
       holder.settled = true;
+      encodeHolders.delete(holder);
       if (running === holder) running = null;
     }
     function enqueue(kind, task, options) {
@@ -369,6 +371,7 @@
       const holder = {
         kind,
         taskSettled: false,
+        encodeStarted: false,
         encodeSettled: false,
         cancelled: false,
         settled: false,
@@ -380,6 +383,7 @@
           resolveCancellation(CANCELLED);
         },
       };
+      if (kind === "encode") encodeHolders.add(holder);
       const cancellation = {
         promise: cancellationPromise,
         signal: abortController && abortController.signal,
@@ -432,12 +436,23 @@
       return previous.then(start, start);
     }
     function releaseEncodeHolder() {
-      const holder = running;
-      if (!holder || holder.kind !== "encode" || holder.settled) return;
-      holder.releaseTail();
-      setTimeout(function () {
-        if (!holder.encodeSettled) holder.cancel();
-      }, 0);
+      const holders = Array.from(encodeHolders);
+      const holder = running && running.kind === "encode" ? running : null;
+      const cancelRequests = function () {
+        for (const request of holders) {
+          if (!request.encodeSettled) request.cancel();
+        }
+      };
+      if (holder && holder.encodeStarted && !holder.encodeSettled) {
+        // Native completion calls stop() before resolving its encode promise.
+        // Keep queued requests behind this holder until that case is known.
+        setTimeout(function () {
+          if (!holder.encodeSettled) cancelRequests();
+          holder.releaseTail();
+        }, 0);
+      } else {
+        cancelRequests();
+      }
     }
     function wrapEncode(original, profiles) {
       if (typeof original !== "function" || original[PATCH_MARKER]) {
@@ -450,6 +465,8 @@
           await ensureQuota(estimateVideoStorageBytes(args[1], profiles));
           let blob;
           try {
+            if (holder.cancelled) return CANCELLED;
+            holder.encodeStarted = true;
             blob = await original.apply(receiver, args);
           } finally {
             holder.encodeSettled = true;
