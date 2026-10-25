@@ -56,7 +56,8 @@ function compile(source, methodNames = [], mathNames = Object.getOwnPropertyName
     if (scopes.some(scope => scope.has(name))) return node;
     if (name.startsWith("__z") || DENIED.has(name) || name === "arguments") throw new ReferenceError(name + " is not defined");
     if (["frame", "time", "methods", "properties"].includes(name)) {
-      if (name === "methods") allMethods = true;
+      // Custom properties can return original helper functions too.
+      if (name === "methods" || name === "properties") allMethods = true;
       return node;
     }
     // Keep existing CM3/Trapcode names and overloads ahead of the added API.

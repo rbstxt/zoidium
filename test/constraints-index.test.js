@@ -4,9 +4,17 @@ const { host, core } = require("./expressions-plus-harness");
 const { createPropertyStore } = require("../plugins/constraints/constraint-properties");
 const { createEvaluator } = require("../plugins/constraints/track-to-evaluate");
 
+test("both bundles embed the same constraint evaluator source", () => {
+  const key = "/plugins/constraints/track-to-evaluate.js";
+  const source = fs.readFileSync(require.resolve("../plugins/constraints/track-to-evaluate.js"), "utf8");
+  for (const plugin of ["constraints", "expressions-plus"]) {
+    assert.equal(require(`../plugins/${plugin}/bundle.json`).assets.text[key], source);
+  }
+});
+
 test("native empty constraint index skips getters and follows structure and identity events", { skip: !fs.existsSync(core) }, () => {
   const { PZ, THREE } = host();
-  const store = createPropertyStore({ PZ });
+  const store = createPropertyStore({ PZ, onStructureChanged: () => evaluator.invalidate() });
   let reads = 0;
   const evaluator = createEvaluator({ PZ, THREE, store: { ...store,
     readId(object) { reads++; return store.readId(object); },
@@ -20,7 +28,9 @@ test("native empty constraint index skips getters and follows structure and iden
   const a = group(), b = group();
   const beforeAttach = evaluator.collect(scene);
   const late = new PZ.object3d.group(); late.load({objects:[]}); scene.objects.push(late);
-  evaluator.collect(scene); store.attach(late, {properties:{zoidiumTrackTo:"missing"}});
+  evaluator.collect(scene);
+  late.properties.onListChanged.watch(() => evaluator.collect(scene));
+  store.attach(late, {properties:{zoidiumTrackTo:"missing"}});
   assert.notEqual(evaluator.collect(scene), beforeAttach);
   assert.equal(evaluator.hasConstraints(scene), true);
   late.properties.zoidiumTrackTo.set("");

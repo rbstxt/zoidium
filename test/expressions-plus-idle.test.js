@@ -49,3 +49,21 @@ test("activation prepares existing expressions and native serialized copies", { 
   // An existing property can be prepared without changing its getter.
   state.engine.prepare(b); assert.equal(Object.hasOwn(b, "get"), false);
 });
+test("computed custom-property calls retain legacy helper receivers", { skip: !fs.existsSync(core) }, () => {
+  const optimized = host(), original = host({ installEngine: full.exports.installEngine });
+  for (const state of [optimized, original]) {
+    wiggle(state);
+    const { PZ, owner } = state, root = owner.parent;
+    const project = new PZ.object(); project.children = [root]; root.parent = project;
+    root.customProperties = new PZ.objectList(root, PZ.property.dynamic);
+    root.children.push(root.customProperties);
+    const helper = PZ.property.create({ custom: true, dynamic: true, type: 0, value: 0 });
+    root.customProperties.push(helper); helper.load(); helper.properties.name.set("Fn");
+    helper.expression = new PZ.expression("wiggle");
+    state.a.expression = new PZ.expression('properties["Fn"](2,3)');
+  }
+  for (const frame of [0, 12.5, 90, 3, 12.5]) {
+    assert.equal(optimized.a.get(frame), original.a.get(frame));
+    assert.equal(optimized.engine.error(optimized.a), null);
+  }
+});

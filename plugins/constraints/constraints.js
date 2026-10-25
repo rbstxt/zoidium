@@ -85,6 +85,7 @@ function install(context, teardown) {
   const store = createPropertyStore({
     PZ,
     crypto: win.crypto || globalThis.crypto,
+    onStructureChanged: () => evaluator.invalidate(),
     onValueChanged: () => {
       const project = editor()?.project;
       if (project?.ui) project.ui.dirty = true;

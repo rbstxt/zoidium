@@ -63,7 +63,7 @@
       "description": "Modern deterministic expressions, property links and Sequence Controls in native CM3 panels.",
       "manifest": "./plugins/expressions-plus/manifest.json?v=12",
       "bundle": "./plugins/expressions-plus/bundle.json?v=12",
-      "integrity": "sha256-euvvdT5Q6HgzBI4CVd2hTTdUtbe4OySneFlWQbCOT6E=",
+      "integrity": "sha256-G37ikXE7B0IQ9luRBEdzQh54cjCv7Eb4dhzQzN9u6j4=",
       "zoidiumOnly": true,
       "warning": "Extended expressions and controls require Zoidium with Expressions+."
     },
@@ -481,7 +481,7 @@
       "defaultEnabled": true,
       "manifest": "./plugins/constraints/manifest.json?v=3",
       "bundle": "./plugins/constraints/bundle.json?v=3",
-      "integrity": "sha256-wQiQCPgCRZTC2Mxcxo136/Y0p+NIxMAJl3vstZfAf/w=",
+      "integrity": "sha256-uaqU8B0xJKCM3CGvRbyrPQVXZlraMjPRcCHuTrStiCQ=",
       "zoidiumOnly": true,
       "warning": "Track To projects require Zoidium. Other builds open the project with the unconstrained rotation."
     },
