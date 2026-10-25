@@ -95,8 +95,9 @@ function createJob(scope, PZ, exporter, loadBunny) {
         check();
         return await storage.finish();
       } catch (error) {
-        try { exporter.failExportFrame?.(error); } catch (_cleanupError) { /* Preserve the export failure. */ }
-        if (cancelled) throw new DOMException("MP4 export cancelled.", "AbortError");
+        const failure = cancelled ? new DOMException("MP4 export cancelled.", "AbortError") : error;
+        try { exporter.failExportFrame?.(failure); } catch (_cleanupError) { /* Preserve the export failure. */ }
+        if (cancelled) throw failure;
         if (isMemoryError(error)) {
           throw new Error("MP4 ran out of memory or temporary storage. Reduce the output size or close other projects and try again.");
         }

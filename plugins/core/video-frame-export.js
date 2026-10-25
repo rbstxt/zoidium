@@ -10,9 +10,9 @@
   const DEFAULT_TIMEOUT_MS = 15000;
   const FRAME_CALLBACK_GRACE_MS = 500;
   const SAME_TIME_EPSILON = 1e-7;
-  // Chromium can round an observed media clock down by two microseconds.
+  // Allow media clocks coarsened by browser timer-precision settings.
   // This tolerance validates seek completion, not reuse of a decoded frame.
-  const SEEK_TIME_EPSILON = 2e-6;
+  const SEEK_TIME_EPSILON = 2e-3;
 
   const diagnostics = (PZ.videoFrameExportDiagnostics =
     PZ.videoFrameExportDiagnostics || {
@@ -236,7 +236,8 @@
     this.frameWaiting = -1; this.framePromise = null;
     // Original schedules belong to the editor. Release their decoder source
     // on failure; update() reloads it from the clip on the next preparation.
-    for (const schedule of this.sequence?.videoSchedules || []) {
+    // Cancellation preserves their current frame for the resumed preview.
+    if (error?.name !== "AbortError") for (const schedule of this.sequence?.videoSchedules || []) {
       schedule.el?.pause?.(); schedule.el?.removeAttribute?.("src"); schedule.el?.load?.();
       schedule.decoder?.process?.kill?.(); schedule.currentItem = null;
     }
