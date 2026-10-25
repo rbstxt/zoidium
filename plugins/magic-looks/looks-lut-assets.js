@@ -108,11 +108,12 @@ var Looks = Looks || {};
       importFile: async function (file) {
         if (disposed) throw new Error("The effect has been unloaded.");
         if (file.size > Looks.cube.MAX_TEXT_LENGTH) throw new Error("The file is larger than 80 MB and cannot be imported.");
+        var project = effect.parentProject;
         var atlas = Looks.cube.buildAtlas(Looks.cube.parseCubeLut(await file.text()));
         if (disposed) throw new Error("The effect has been unloaded.");
-        var asset = await effect.parentProject.assets.createFromFile(PZ.asset.type.MISC, file);
+        var asset = await project.assets.createFromFile(PZ.asset.type.MISC, file);
         if (disposed) {
-          effect.parentProject.assets.removeIfUnused(asset);
+          project.assets.removeIfUnused(asset);
           throw new Error("The effect has been unloaded.");
         }
         var entry = entryFor(asset.key, atlas);

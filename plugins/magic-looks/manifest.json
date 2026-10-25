@@ -3,7 +3,7 @@
   "id": "magic-looks",
   "name": "Magic Looks",
   "author": "DaviFX",
-  "version": "19",
+  "version": "20",
   "kind": "extension",
   "description": "Color grading with 29 tools, independent animated instances, spatial multipass rendering, look presets and a setup window.",
   "category": "COLOR",
@@ -12,7 +12,7 @@
       "id": "looks",
       "name": "Magic Looks",
       "description": "Color grading with repeatable tool instances, freely ordered color, light and lens stages, and look presets.",
-      "source": "./plugins/magic-looks/looks-fx.js?v=19",
+      "source": "./plugins/magic-looks/looks-fx.js?v=20",
       "requiresApis": [
         "modules"
       ]
@@ -21,104 +21,104 @@
   "modules": [
     {
       "id": "looks-setup",
-      "source": "./plugins/magic-looks/looks-setup.js?v=19"
+      "source": "./plugins/magic-looks/looks-setup.js?v=20"
     }
   ],
   "resources": [
     {
       "id": "looks-color",
       "type": "text",
-      "source": "./plugins/magic-looks/looks-color.js?v=19"
+      "source": "./plugins/magic-looks/looks-color.js?v=20"
     },
     {
       "id": "looks-tools",
       "type": "text",
-      "source": "./plugins/magic-looks/looks-tools.js?v=19"
+      "source": "./plugins/magic-looks/looks-tools.js?v=20"
     },
     {
       "id": "looks-cube",
       "type": "text",
-      "source": "./plugins/magic-looks/looks-cube.js?v=19"
+      "source": "./plugins/magic-looks/looks-cube.js?v=20"
     },
     {
       "id": "looks-lut-ui",
       "type": "text",
-      "source": "./plugins/magic-looks/looks-lut-ui.js?v=19"
+      "source": "./plugins/magic-looks/looks-lut-ui.js?v=20"
     },
     {
       "id": "looks-widgets",
       "type": "text",
-      "source": "./plugins/magic-looks/looks-widgets.js?v=19"
+      "source": "./plugins/magic-looks/looks-widgets.js?v=20"
     },
     {
       "id": "looks-style",
       "type": "text",
-      "source": "./plugins/magic-looks/looks-setup.css?v=19"
+      "source": "./plugins/magic-looks/looks-setup.css?v=20"
     },
     {
       "id": "looks-vert",
       "type": "text",
-      "source": "./plugins/magic-looks/looks-vert.glsl?v=19"
+      "source": "./plugins/magic-looks/looks-vert.glsl?v=20"
     },
     {
       "id": "looks-grade-shader",
       "type": "text",
-      "source": "./plugins/magic-looks/looks-grade.glsl?v=19"
+      "source": "./plugins/magic-looks/looks-grade.glsl?v=20"
     },
     {
       "id": "looks-lut-assets",
       "type": "text",
-      "source": "./plugins/magic-looks/looks-lut-assets.js?v=19"
+      "source": "./plugins/magic-looks/looks-lut-assets.js?v=20"
     },
     {
       "id": "looks-instances",
       "type": "text",
-      "source": "./plugins/magic-looks/looks-instances.js?v=19"
+      "source": "./plugins/magic-looks/looks-instances.js?v=20"
     },
     {
       "id": "looks-passes",
       "type": "text",
-      "source": "./plugins/magic-looks/looks-passes.js?v=19"
+      "source": "./plugins/magic-looks/looks-passes.js?v=20"
     },
     {
       "id": "looks-instance-runtime",
       "type": "text",
-      "source": "./plugins/magic-looks/looks-instance-runtime.js?v=19"
+      "source": "./plugins/magic-looks/looks-instance-runtime.js?v=20"
     },
     {
       "id": "looks-instance-ui",
       "type": "text",
-      "source": "./plugins/magic-looks/looks-instance-ui.js?v=19"
+      "source": "./plugins/magic-looks/looks-instance-ui.js?v=20"
     },
     {
       "id": "davidium-looks-fx",
       "type": "text",
-      "source": "./plugins/magic-looks/davidium-looks-fx.js?v=19"
+      "source": "./plugins/magic-looks/davidium-looks-fx.js?v=20"
     },
     {
       "id": "davidium-looks-color",
       "type": "text",
-      "source": "./plugins/magic-looks/davidium-looks-color.js?v=19"
+      "source": "./plugins/magic-looks/davidium-looks-color.js?v=20"
     },
     {
       "id": "davidium-looks-tools",
       "type": "text",
-      "source": "./plugins/magic-looks/davidium-looks-tools.js?v=19"
+      "source": "./plugins/magic-looks/davidium-looks-tools.js?v=20"
     },
     {
       "id": "davidium-looks-grade",
       "type": "text",
-      "source": "./plugins/magic-looks/davidium-looks-grade.glsl?v=19"
+      "source": "./plugins/magic-looks/davidium-looks-grade.glsl?v=20"
     },
     {
       "id": "davidium-looks-vert",
       "type": "text",
-      "source": "./plugins/magic-looks/davidium-looks-vert.glsl?v=19"
+      "source": "./plugins/magic-looks/davidium-looks-vert.glsl?v=20"
     },
     {
       "id": "looks-instance-reference",
       "type": "text",
-      "source": "./plugins/magic-looks/looks-instance-reference.js?v=19"
+      "source": "./plugins/magic-looks/looks-instance-reference.js?v=20"
     }
   ]
 }
