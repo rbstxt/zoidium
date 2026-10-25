@@ -12,6 +12,15 @@ const state = require("./scene-state.js");
 const { installFieldEdit } = require("./scene-field-edit.js");
 const legacySubdivision = require("./legacy-subdivision.js");
 
+function liveObjectLayer(object, PZ) {
+  if (!object?.threeObj) return null;
+  if (typeof object.tryGetParentOfType === "function") {
+    if (!object.tryGetParentOfType(PZ.project)) return null;
+    return object.tryGetParentOfType(PZ.layer);
+  }
+  return object.parentLayer || null;
+}
+
 function getMeshDeformer(THREE) {
   if (!state.meshDeformerCache || state.meshDeformerThree !== THREE) {
     state.meshDeformerCache = state.library.mesh.createMeshDeformer(THREE, state.meshJobs);
@@ -352,18 +361,21 @@ function createDeformationSupport(PZ, THREE, editor) {
 
   async function prepareObject(object, frame) {
     if (!state.meshJobs || object.__zoidiumRepeater) return;
+    const layer = liveObjectLayer(object, PZ);
+    if (!layer) return;
+    const started = object._prepareGeneration;
     // The outer effector prepares the full chain after its children are ready.
     for (let parent = object.parent; parent && parent !== object; parent = parent.parent) {
       if (typeof parent.deformPositions === "function" || parent.__zoidiumRepeater) return;
       if (parent === parent.parent) break;
     }
     object.update(frame);
-    object.parentLayer?.threeObj?.updateMatrixWorld?.(true);
+    layer.threeObj?.updateMatrixWorld?.(true);
     await settle(() => {
+      if (started !== object._prepareGeneration || liveObjectLayer(object, PZ) !== layer) return;
       const meshes = evaluateTree(() => walkRenderedObject(object, [], frame, object.threeObj,
         mapRenderNodes(object.threeObj, object.threeObj)));
-      const layer = object.parentLayer;
-      if (!layer || !meshes.size) return;
+      if (!meshes.size) return;
       // Object.prepare can finish before Scene.apply has ever run. These
       // working geometries also need restoration if the effector is removed.
       const previous = affectedMeshes.get(layer) || new Set();
@@ -420,5 +432,5 @@ function createDeformationSupport(PZ, THREE, editor) {
 
 module.exports = {
   getMeshDeformer, installFieldHelpers, fieldGuidePoints, curvePolygonCount,
-  createDeformationSupport
+  createDeformationSupport, liveObjectLayer
 };
