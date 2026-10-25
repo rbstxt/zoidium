@@ -18,6 +18,12 @@ test("native empty constraint index skips getters and follows structure and iden
     scene.objects.push(object); return object;
   }
   const a = group(), b = group();
+  const beforeAttach = evaluator.collect(scene);
+  const late = new PZ.object3d.group(); late.load({objects:[]}); scene.objects.push(late);
+  evaluator.collect(scene); store.attach(late, {properties:{zoidiumTrackTo:"missing"}});
+  assert.notEqual(evaluator.collect(scene), beforeAttach);
+  assert.equal(evaluator.hasConstraints(scene), true);
+  late.properties.zoidiumTrackTo.set("");
   assert.equal(evaluator.hasConstraints(scene), false);
   const empty = evaluator.collect(scene); reads = 0;
   for (let i = 0; i < 100; i++) {
@@ -41,6 +47,23 @@ test("native empty constraint index skips getters and follows structure and iden
   const saved = group({ properties: { zoidiumTrackTo: "b" } });
   assert.equal(evaluator.collect(scene).trackers.includes(saved), true);
   store.detach(saved); assert.equal(evaluator.collect(scene).trackers.includes(saved), false);
+  // Cached structure still samples moving targets and fractional-frame
+  // influence on every pass, including the velocity buffer sample.
+  const uncached = createEvaluator({ THREE, store });
+  a.properties.zoidiumTrackTo.set("b");
+  a.properties.zoidiumInfluence.get = frame => frame * 2;
+  const structure = evaluator.collect(scene);
+  for (const frame of [12, 12.5, 50, 3, 12.5]) {
+    b.threeObj.position.set(10, frame, frame / 2);
+    b.threeObj.updateMatrixWorld(true);
+    const sample = evaluator => {
+      a.threeObj.quaternion.set(0, 0, 0, 1); a.threeObj.updateMatrixWorld(true);
+      evaluator.applyScene(scene, frame);
+      return a.threeObj.quaternion.toArray();
+    };
+    assert.deepEqual(sample(evaluator), sample(uncached));
+    assert.equal(evaluator.collect(scene), structure);
+  }
   const replacement = new PZ.object3d.group(); replacement.load({ objects: [] });
   assert.equal(evaluator.hasConstraints(replacement), false);
 });

@@ -23,7 +23,8 @@ test('actual cached CM3 accepts the authored/plugin corpus with equal guarded re
  const doc={body:{appendChild(){}},createElement(){const realm=vm.createContext({});return {setAttribute(){},remove(){},contentWindow:{Function:vm.runInContext('Function',realm)}};}};
  c.ISNODE=false;c.document=doc;
  let accepted=0,comparisons=0;
- for(const source of corpus()){
+ const contextSources = new Set(['methods.wiggle(1,2)','var w=methods["wiggle"]; w.call(methods,1,2)','var f=random; f.call(null,frame)','clamp.call(null,[1,2],0,1)']);
+ for(const source of new Set([...corpus(),...contextSources])){
   const legacy=new c.PZ.expression(source);if(legacy.error)continue;
   const compiled=compile(source,Object.keys(methods)),modern=sandboxFunction(doc,compiled.code),guard=createCallGuard();
   const norm=value=> typeof value==='function'?'function':JSON.stringify(value);
@@ -31,7 +32,7 @@ test('actual cached CM3 accepts the authored/plugin corpus with equal guarded re
    Object.assign(methods,{currentFrame:frame,currentValue:0,currentProperty:null});
    let a,b,ae,be;try{a=legacy.fn(frame,frame/30,methods,{Strength:2});}catch(e){ae=e.name;}
    try{guard.reset(compiled.extended);const context=createAPI({PZ:c.PZ,owner:null,property:null,base:0,frame,time:frame/30,methods,wiggleMethods:c.PZ.trapcode.expressionMethods,read:()=>0,baseAt:()=>0,extended:compiled.extended});guard.swapOverrides(context.overrides);b=modern(frame,frame/30,methods,{Strength:2},modern.zoidiumPure.Math,{...guard,api:context.api,pure:modern.zoidiumPure});}catch(e){be=e.name;}
-   assert.equal(be,ae,source+' exception at '+frame);assert.equal(norm(b),norm(a),source+' at '+frame);
+   if (!contextSources.has(source)) { assert.equal(be,ae,source+' exception at '+frame);assert.equal(norm(b),norm(a),source+' at '+frame); }
    const run = needs => {
     guard.reset(compiled.extended);
     const context=createAPI({PZ:c.PZ,owner:null,property:null,base:0,frame,time:frame/30,methods,wiggleMethods:c.PZ.trapcode.expressionMethods,read:()=>0,baseAt:()=>0,extended:compiled.extended,needs});
