@@ -107,8 +107,22 @@ function createJob(scope, PZ, exporter, loadBunny) {
           cancellation ||= output.cancel().catch(() => {});
           await cancellation;
         }
-        audio?.dispose();
-        try { await mixer?.dispose(); } finally { await storage?.dispose(); }
+        // Cleanup failures must never replace the export result: a file that
+        // was written stays a success even when a dispose step later fails.
+        // Every step still runs, and each failure is reported once.
+        const cleanups = [
+          ["audio", () => audio?.dispose()],
+          ["mixer", () => mixer?.dispose()],
+          ["storage", () => storage?.dispose()],
+        ];
+        for (const [name, dispose] of cleanups) {
+          try {
+            await dispose();
+          } catch (cleanupError) {
+            console.warn("[Zoidium] MP4 export cleanup failed (" + name + "): " +
+              (cleanupError && cleanupError.message ? cleanupError.message : String(cleanupError)));
+          }
+        }
       }
     },
   };

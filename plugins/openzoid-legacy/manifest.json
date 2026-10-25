@@ -3,7 +3,7 @@
   "id": "openzoid-legacy",
   "name": "OpenZoid Legacy",
   "author": "DaviFX",
-  "version": "23",
+  "version": "24",
   "kind": "native-fx",
   "description": "OpenZoid effects ported to Zoidium's deterministic render path: Echo (Legacy) and Posterize Time (Legacy) on the core temporal APIs, Jpeg Damage, VHS and Datamosh, Tracery tracking callouts and ASCII character cells, with floating setup windows and an opt-in true-datamosh export pass.",
   "category": "SETUP LEGACY",
