@@ -300,9 +300,10 @@ var PZ = PZ || {};
                 if (kind) shadeSetVec({ value: kind }, [3, 0, 0]);
                 continue;
             }
+            // uShadeLightColor always carries color times full intensity.
+            // shadeSurface applies the ambient half factor once, as shadePoint does.
             var scaled = [light.color[0] * light.intensity, light.color[1] * light.intensity, light.color[2] * light.intensity];
             if (light.kind === T.shading.KIND_AMBIENT) {
-                scaled = [scaled[0] * 0.5, scaled[1] * 0.5, scaled[2] * 0.5];
                 if (pos) shadeSetVec({ value: pos }, [0, 0, 0]);
             } else if (light.kind === T.shading.KIND_DIRECTIONAL) {
                 if (pos) shadeSetVec({ value: pos }, light.direction);
