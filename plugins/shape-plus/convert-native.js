@@ -190,17 +190,29 @@ function install(context, Layer) {
     proto = PZ.ui.edit.prototype,
     original = proto.generateItemCommands;
   const retained = new Set();
+  let disposed = false;
+  function saveStack(stack) {
+    const entries = [];
+    while (stack.length) entries.push(stack.pop());
+    entries.reverse();
+    for (const entry of entries) stack.push(entry);
+    return entries;
+  }
+  function restoreStack(stack, entries) {
+    stack.clear();
+    for (const entry of entries) stack.push(entry);
+  }
   function refresh() {
     for (const el of document.querySelectorAll(".editorpanel"))
       if (el.pz_panel instanceof PZ.ui.edit) el.pz_panel.objectsChanged();
   }
   function exchange({ clip, next, history }) {
     const previous = clip.object,
-      index = clip.children.indexOf(previous);
+      index = clip.children.indexOf(previous),
+      track = clip.parentObject;
     clip.object = next;
     next.parent = clip;
     clip.children.splice(index, 1, next);
-    const track = clip.parentObject;
     if (track?.layer === previous) track.layer = next;
     retained.add(previous);
     retained.delete(next);
@@ -212,11 +224,22 @@ function install(context, Layer) {
       project = editor.project;
     if (!(clip instanceof PZ.clip) || clip.object !== layer)
       throw Error("Select a direct native shape clip to convert");
+    const address = clip.getAddress();
+    function check() {
+      let attached = false;
+      try { attached = project.addressLookup(address) === clip; }
+      catch { /* Native address lookup throws when a tree item is missing. */ }
+      if (disposed || editor.project !== project || !attached || clip.object !== layer)
+        throw Error("The selected native shape changed during conversion");
+    }
+    check();
     await layer.loading;
+    check();
     await layer.prepare(editor.playback.currentFrame - clip.start, {
       project,
       sequence: editor.sequence,
     });
+    check();
     layer.update(editor.playback.currentFrame - clip.start);
     const data = convertNative(layer, () => "sp-" + crypto.randomUUID()),
       next = new Layer();
@@ -224,22 +247,47 @@ function install(context, Layer) {
     try {
       next.loading = next.load(data);
       await next.loading;
+      check();
       await next.prepare(0, { project, sequence: editor.sequence });
+      check();
     } catch (error) {
       next.unload();
       throw error;
     }
-    if (
-      editor.project !== project ||
-      clip.object !== layer ||
-      editor.history.operation !== null
-    ) {
+    if (editor.history.operation !== null) {
       next.unload();
       throw Error("The selected native shape changed during conversion");
     }
-    editor.history.startOperation();
-    exchange({ clip, next, history: editor.history });
-    editor.history.finishOperation();
+    const history = editor.history, track = clip.parentObject,
+      children = Array.from(clip.children), trackLayer = track.layer,
+      undo = saveStack(history.undoStack), redo = saveStack(history.redoStack);
+    history.startOperation();
+    const operation = history.operation;
+    try {
+      exchange({ clip, next, history });
+      history.finishOperation();
+    } catch (error) {
+      clip.object = layer;
+      clip.children.splice(0, clip.children.length, ...children);
+      layer.parent = clip;
+      track.layer = trackLayer;
+      retained.delete(layer);
+      retained.delete(next);
+      if (history.operation === operation || history.operation === null) {
+        // finishOperation publishes history before notifying project listeners.
+        // A listener failure must also remove the just-published undo entry.
+        restoreStack(history.undoStack, undo);
+        restoreStack(history.redoStack, redo);
+        history.operation = operation;
+        // State is restored explicitly. Do not run the inverse exchange,
+        // which can repeat the UI failure that aborted this transaction.
+        operation.length = 0;
+        history.discardOperation();
+      }
+      next.unload();
+      next.parent = null;
+      throw error;
+    }
   }
   function replacement(row, object) {
     const result = original.apply(this, arguments);
@@ -280,6 +328,7 @@ function install(context, Layer) {
   };
   editor.onProjectChanged.watch(cleanup);
   context.lifecycle.onDispose(() => {
+    disposed = true;
     if (proto.generateItemCommands === replacement)
       proto.generateItemCommands = original;
     editor.onProjectChanged.unwatch(cleanup);

@@ -8,8 +8,9 @@ test("a repeated textarea change followed by blur commits exactly one native edi
   const PZ = { property: { type: {} }, ui: { controls: {
     editStart() { starts++; box.pz_frame = 10; }, editFinish() { finishes++; },
   } } };
-  const { commit } = installControls({ PZ, doc: {}, register() {}, editor: () => ({ playback: { currentFrame: 10 } }) });
-  const property = { frameOffset: 0, get: () => value, set: next => { value = next; } };
+  const project = { addressLookup: () => property };
+  const { commit } = installControls({ PZ, doc: {}, register() {}, editor: () => ({ project, playback: { currentFrame: 10 } }) });
+  const property = { getAddress: () => [0], frameOffset: 0, get: () => value, set: next => { value = next; } };
   commit(anchor, property, "after"); commit(anchor, property, "after");
   assert.equal(starts, 1); assert.equal(finishes, 1); assert.equal(value, "after");
 });
