@@ -60,12 +60,16 @@ async function runTrueMosh(PZ, editor, device, blob, mode) {
   try {
     const render = PZ.datamoshRender;
     if (!render) throw new Error("the datamosh renderer is not installed");
-    const buffer = await blobToArrayBuffer(blob);
     let ranges = null;
     if (mode === 2) {
       const cuts = render.cutTimesMs(editor.sequence);
-      ranges = cuts.length ? render.rangesAroundCuts(cuts, CUT_WINDOW_MS) : null;
+      if (!cuts.length) {
+        return { blob, filename: fallbackName,
+          note: "True mosh: no clip cuts to mosh. Clean render delivered." };
+      }
+      ranges = render.rangesAroundCuts(cuts, CUT_WINDOW_MS);
     }
+    const buffer = await blobToArrayBuffer(blob);
     const out = render.mosh(buffer, ranges ? { rangesMs: ranges } : {});
     const BlobCtor = typeof Blob === "function" ? Blob : null;
     if (!BlobCtor) throw new Error("downloads are not supported here");
