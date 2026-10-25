@@ -33,7 +33,7 @@
       "description": "Hidden built-in extensions that always run. Not shown in the Plugins panel and never stored in projects.",
       "manifest": "./plugins/core/manifest.json?v=78",
       "bundle": "./plugins/core/bundle.json?v=78",
-      "integrity": "sha256-KByTqPG/Kg7MOAG1mjNvPnZpRZ12EFSA3HsEJmv1UnY="
+      "integrity": "sha256-dfaBlK/c1z5AnIScC5Tpc5kgm9cp+K6a4PQ9wqfOLqQ="
     },
     {
       "id": "easing-plus",
@@ -510,7 +510,7 @@
       "tagline": "H.264 MP4 video export",
       "description": "Export MP4 from the native Export panel with AAC or Opus audio. Requires WebCodecs encoder support.",
       "manifest": "./plugins/mp4-export/manifest.json?v=7",
-      "integrity": "sha256-tcBXbWNZJDkC0USsM7TGUYKV4uUz1Orq1RuHEnjLiJI=",
+      "integrity": "sha256-CQ11GrTNmhXmQzGTABjcaJRbBahpG7IBoK3CdQ95GLo=",
       "bundle": "./plugins/mp4-export/bundle.json?v=7"
     }
   ]
