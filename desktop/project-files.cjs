@@ -8,6 +8,12 @@ const { pipeline } = require("node:stream/promises");
 // CM3 imports the archive with its 32-bit tar worker. Stream the input instead
 // of copying a potentially large archive into a main-process IPC buffer.
 const MAX_PROJECT_BYTES = 0x7fffffff;
+// The web deployment sends these headers for every response (see _headers);
+// the desktop project route applies the same pair to each of its responses.
+const projectSecurityHeaders = {
+  "X-Content-Type-Options": "nosniff",
+  "Content-Security-Policy": "frame-ancestors 'self'; object-src 'none'",
+};
 const PROJECT_ROUTE = "/_zoidium/desktop-project/";
 const READY_CHANNEL = "zoidium:desktop-project-ready";
 const FILE_CHANNEL = "zoidium:desktop-project-file";
@@ -146,6 +152,8 @@ function createProjectFileController({ app, ipcMain, argv, defaultApp, appPath,
       const requestPath = String(request.url || "").split("?")[0];
       if (!requestPath.startsWith(PROJECT_ROUTE)) return false;
       response.setHeader("Cache-Control", "no-store");
+      response.setHeader("X-Content-Type-Options", projectSecurityHeaders["X-Content-Type-Options"]);
+      response.setHeader("Content-Security-Policy", projectSecurityHeaders["Content-Security-Policy"]);
       if (!["GET", "HEAD"].includes(request.method)) {
         response.writeHead(405, { Allow: "GET, HEAD" });
         response.end();
@@ -170,7 +178,8 @@ function createProjectFileController({ app, ipcMain, argv, defaultApp, appPath,
         response.writeHead(200, {
           "Content-Type": "application/octet-stream",
           "Content-Length": stat.size,
-          "X-Content-Type-Options": "nosniff",
+          "X-Content-Type-Options": projectSecurityHeaders["X-Content-Type-Options"],
+          "Content-Security-Policy": projectSecurityHeaders["Content-Security-Policy"],
         });
         if (request.method === "HEAD") response.end();
         else await pipeline(file.createReadStream({ autoClose: false }), response);

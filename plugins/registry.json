@@ -343,16 +343,16 @@
       "category": "adjustment",
       "name": "Native FX",
       "author": "Zoidium",
-      "version": "29",
+      "version": "30",
       "itemCount": 6,
       "format": "native effects",
       "tagline": "Native Effects and Time Tools",
       "color": "#c56b3d",
       "description": "Adds native filters, direct visual controls, and time effects.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/native-fx/manifest.json?v=29",
-      "bundle": "./plugins/native-fx/bundle.json?v=29",
-      "integrity": "sha256-7ewwPagXtpDgxIvM6j1VrqcwLuWLitqZWTWtHZj8Rxc="
+      "manifest": "./plugins/native-fx/manifest.json?v=30",
+      "bundle": "./plugins/native-fx/bundle.json?v=30",
+      "integrity": "sha256-slBXWEZw5MXRCktZEI29aiz1z1Rxg5z9e6ljolMt9lU="
     },
     {
       "id": "afterclip",
@@ -413,16 +413,16 @@
       "category": "adjustment",
       "name": "OpenZoid Legacy",
       "author": "DaviFX",
-      "version": "23",
+      "version": "24",
       "itemCount": 12,
       "format": "native effects",
       "tagline": "Echo, Posterize Time, JPEG, VHS, Datamosh, Tracery",
       "color": "#8f6bc5",
       "description": "OpenZoid effects on Zoidium deterministic rendering: Echo and Posterize Time (Legacy), Jpeg Damage, VHS, Datamosh, Tracery and ASCII, with floating setup windows.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/openzoid-legacy/manifest.json?v=23",
-      "bundle": "./plugins/openzoid-legacy/bundle.json?v=23",
-      "integrity": "sha256-xlj5BYQ7zhIz3gTTmE4FRi5PlgwiXV5GB0AtJAn19rQ="
+      "manifest": "./plugins/openzoid-legacy/manifest.json?v=24",
+      "bundle": "./plugins/openzoid-legacy/bundle.json?v=24",
+      "integrity": "sha256-2l6in5GrAXylzU5Col5oPtmln2oVSp5eaabY7FhSOv8="
     },
     {
       "id": "magic-looks",
@@ -445,7 +445,7 @@
       "category": "experimental",
       "name": "Layer Input",
       "author": "Zoidium",
-      "version": "14",
+      "version": "15",
       "itemCount": 4,
       "format": "layer sources",
       "tagline": "Layer-to-Layer Inputs",
@@ -453,9 +453,9 @@
       "description": "Lets effects, 3D materials, and Custom Shaders use another video track as an information source.",
       "zoidiumOnly": true,
       "warning": "Layer Input projects require Zoidium. This feature is extremely experimental and may cause unexpected crashes.",
-      "manifest": "./plugins/layer-input/manifest.json?v=14",
-      "bundle": "./plugins/layer-input/bundle.json?v=14",
-      "integrity": "sha256-J+zP8fmroJthq8eq6ufRpbXRTIxhSpzFNuAHT3K/shY="
+      "manifest": "./plugins/layer-input/manifest.json?v=15",
+      "bundle": "./plugins/layer-input/bundle.json?v=15",
+      "integrity": "sha256-+Kos9wsQ5ehdmPuXApK5b084Y23nTwERF1yW//zBY0A="
     },
     {
       "id": "shape-plus",
@@ -504,14 +504,14 @@
       "id": "mp4-export",
       "name": "MP4 Export",
       "author": "Zoidium",
-      "version": "7",
+      "version": "8",
       "category": "utilities",
       "defaultEnabled": true,
       "tagline": "H.264 MP4 video export",
       "description": "Export MP4 from the native Export panel with AAC or Opus audio. Requires WebCodecs encoder support.",
-      "manifest": "./plugins/mp4-export/manifest.json?v=7",
-      "integrity": "sha256-CQ11GrTNmhXmQzGTABjcaJRbBahpG7IBoK3CdQ95GLo=",
-      "bundle": "./plugins/mp4-export/bundle.json?v=7"
+      "manifest": "./plugins/mp4-export/manifest.json?v=8",
+      "integrity": "sha256-2yNZYgvwHxb54M8rHjaTVqu9T9CHCPVC1tqyXw8/haU=",
+      "bundle": "./plugins/mp4-export/bundle.json?v=8"
     }
   ]
 }

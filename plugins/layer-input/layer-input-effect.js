@@ -55,19 +55,21 @@ function readLayerInputProperty(property, frame, fallback) {
   (this.load = async function (data) {
     this._zoidiumLoading = true;
     this.cachedOpacity = 1;
-    const bundledShader = this._zoidiumGetAsset?.(
-      "text",
-      "./plugins/layer-input/layer-input.glsl?v=3"
-    );
-    const response = typeof bundledShader === "string"
-      ? null
-      : await fetch("./plugins/layer-input/layer-input.glsl?v=3", {
-          cache: "default",
-        });
-    if (response && !response.ok) throw new Error(`HTTP ${response.status}: layer-input.glsl`);
-    const fragmentShader = typeof bundledShader === "string"
-      ? bundledShader
-      : await response.text();
+    let bundledShader;
+    try {
+      bundledShader = this._zoidiumGetAsset?.(
+        "text",
+        "./plugins/layer-input/layer-input.glsl?v=3"
+      );
+    } catch (_error) {
+      bundledShader = undefined;
+    }
+    if (typeof bundledShader !== "string") {
+      throw new Error(
+        "Missing bundled asset: layer-input.glsl (./plugins/layer-input/layer-input.glsl)",
+      );
+    }
+    const fragmentShader = bundledShader;
     const effect = this;
     const emptySourceTexture = new THREE.DataTexture(
       new Uint8Array([0, 0, 0, 0]),
