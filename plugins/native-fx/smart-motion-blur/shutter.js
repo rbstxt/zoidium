@@ -28,7 +28,9 @@ function create(THREE, api, getAsset) {
         gl.clearTargets();
         levels = [];
         for (let count = samples.length; count > 1; count = Math.ceil(count / 8)) {
-          levels.push(Array.from({ length: Math.ceil(count / 8) }, () =>
+          const size = Math.ceil(count / 8);
+          // The single-group final level draws straight into the output.
+          levels.push(size === 1 ? [null] : Array.from({ length: size }, () =>
             gl.target(input.width, input.height),
           ));
         }
@@ -49,7 +51,7 @@ function create(THREE, api, getAsset) {
             uScale: uvScale,
           });
         }
-        sources = targets.map(target => target.texture);
+        if (level < levels.length - 1) sources = targets.map(target => target.texture);
         uvScale = [1, 1];
       }
     });
