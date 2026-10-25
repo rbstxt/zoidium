@@ -343,16 +343,16 @@
       "category": "adjustment",
       "name": "Native FX",
       "author": "Zoidium",
-      "version": "28",
+      "version": "29",
       "itemCount": 6,
       "format": "native effects",
       "tagline": "Native Effects and Time Tools",
       "color": "#c56b3d",
       "description": "Adds native filters, direct visual controls, and time effects.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/native-fx/manifest.json?v=28",
-      "bundle": "./plugins/native-fx/bundle.json?v=28",
-      "integrity": "sha256-eUJCA2XYkeOYLm+LUMDwLylzaF1H9UoOhqAEWYDcJLs="
+      "manifest": "./plugins/native-fx/manifest.json?v=29",
+      "bundle": "./plugins/native-fx/bundle.json?v=29",
+      "integrity": "sha256-ixwj/CXoheCJIjB7AQqHFlVKt0Cvv+WuysyGar5+lzA="
     },
     {
       "id": "afterclip",
@@ -445,7 +445,7 @@
       "category": "experimental",
       "name": "Layer Input",
       "author": "Zoidium",
-      "version": "14",
+      "version": "15",
       "itemCount": 4,
       "format": "layer sources",
       "tagline": "Layer-to-Layer Inputs",
@@ -453,9 +453,9 @@
       "description": "Lets effects, 3D materials, and Custom Shaders use another video track as an information source.",
       "zoidiumOnly": true,
       "warning": "Layer Input projects require Zoidium. This feature is extremely experimental and may cause unexpected crashes.",
-      "manifest": "./plugins/layer-input/manifest.json?v=14",
-      "bundle": "./plugins/layer-input/bundle.json?v=14",
-      "integrity": "sha256-J+zP8fmroJthq8eq6ufRpbXRTIxhSpzFNuAHT3K/shY="
+      "manifest": "./plugins/layer-input/manifest.json?v=15",
+      "bundle": "./plugins/layer-input/bundle.json?v=15",
+      "integrity": "sha256-+Kos9wsQ5ehdmPuXApK5b084Y23nTwERF1yW//zBY0A="
     },
     {
       "id": "shape-plus",

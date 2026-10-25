@@ -9,37 +9,37 @@
     {
       "id": "layer-input-state",
       "type": "text",
-      "source": "./plugins/layer-input/layer-input-state.js?v=14"
+      "source": "./plugins/layer-input/layer-input-state.js?v=15"
     },
     {
       "id": "layer-input-sources",
       "type": "text",
-      "source": "./plugins/layer-input/layer-input-sources.js?v=14"
+      "source": "./plugins/layer-input/layer-input-sources.js?v=15"
     },
     {
       "id": "layer-input-render",
       "type": "text",
-      "source": "./plugins/layer-input/layer-input-render.js?v=14"
+      "source": "./plugins/layer-input/layer-input-render.js?v=15"
     },
     {
       "id": "layer-input-ui",
       "type": "text",
-      "source": "./plugins/layer-input/layer-input-ui.js?v=14"
+      "source": "./plugins/layer-input/layer-input-ui.js?v=15"
     },
     {
       "id": "layer-input-host",
       "type": "text",
-      "source": "./plugins/layer-input/layer-input-host.js?v=14"
+      "source": "./plugins/layer-input/layer-input-host.js?v=15"
     },
     {
       "id": "layer-input-shader",
       "type": "text",
-      "source": "./plugins/layer-input/layer-input.glsl?v=14"
+      "source": "./plugins/layer-input/layer-input.glsl?v=15"
     },
     {
       "id": "layer-input-displacement-shader",
       "type": "text",
-      "source": "./plugins/layer-input/layer-input-displacement.glsl?v=14"
+      "source": "./plugins/layer-input/layer-input-displacement.glsl?v=15"
     }
   ],
   "materialTypes": [
@@ -52,7 +52,7 @@
   "modules": [
     {
       "id": "layer-input-runtime",
-      "source": "./plugins/layer-input/layer-input.js?v=14"
+      "source": "./plugins/layer-input/layer-input.js?v=15"
     }
   ],
   "nativeEffects": [
@@ -60,13 +60,13 @@
       "id": "layerinput",
       "name": "Layer Input",
       "description": "Composites a selected video track into the current layer.",
-      "source": "./plugins/layer-input/layer-input-effect.js?v=14"
+      "source": "./plugins/layer-input/layer-input-effect.js?v=15"
     },
     {
       "id": "layerinputdisplacement",
       "name": "Layer Input Displacement Map",
       "description": "Uses a selected video track as a displacement map.",
-      "source": "./plugins/layer-input/layer-input-displacement-effect.js?v=14"
+      "source": "./plugins/layer-input/layer-input-displacement-effect.js?v=15"
     }
   ]
 }
