@@ -70,9 +70,9 @@ test("old and shared scanners agree on every existing dependency-test input", ()
 });
 
 test("old and shared scanners agree on all checked-in JSON fixtures", () => {
-  const files = fs.readdirSync(path.join(__dirname, "fixtures")).filter(file => file.endsWith(".json"));
+  const files = fs.readdirSync(__dirname, { recursive: true }).filter(file => file.endsWith(".json"));
   assert.ok(files.length > 0);
-  for (const file of files) compare(JSON.parse(read("test/fixtures/" + file)));
+  for (const file of files) compare(JSON.parse(read("test/" + file)));
 });
 
 test("old and shared scanners agree on every legacy project migration fixture", () => {
@@ -99,6 +99,46 @@ test("old and shared scanners agree on every legacy project migration fixture", 
     return localRequire(id);
   });
   assert.ok(comparisons >= 10, `compared ${comparisons} legacy migrations before and after migration`);
+});
+
+test("old and shared scanners agree on all Precomp+ engine project fixtures", async () => {
+  const filename = path.join(__dirname, "precomp-engine.test.js");
+  const localRequire = createRequire(filename);
+  const fixtures = localRequire("./precomp-fixtures.js");
+  const cases = [], projects = [];
+  const wrapped = {
+    ...fixtures,
+    createEnvironment() {
+      const env = fixtures.createEnvironment();
+      projects.push(env.project);
+      return env;
+    },
+    async reloadProject(env, data) {
+      compare(data);
+      const project = await fixtures.reloadProject(env, data);
+      projects.push(project);
+      return project;
+    },
+  };
+  const previousPZ = globalThis.PZ, previousApis = globalThis.ZoidiumPluginApis;
+  let comparisons = 0;
+  try {
+    const run = new Function("require", fs.readFileSync(filename, "utf8"));
+    run(id => {
+      if (id === "node:test") return (_name, fn) => cases.push(fn);
+      if (id === "./precomp-fixtures.js") return wrapped;
+      return localRequire(id);
+    });
+    for (const fn of cases) {
+      await fn();
+      for (const project of projects.splice(0)) { compare(plain(project)); comparisons++; }
+    }
+    assert.ok(cases.length >= 30 && comparisons >= 30,
+      `compared ${comparisons} projects across ${cases.length} composition cases`);
+  } finally {
+    globalThis.PZ = previousPZ;
+    globalThis.ZoidiumPluginApis = previousApis;
+  }
 });
 
 test("every detector preserves requirements and descriptor ordering", () => {
