@@ -33,8 +33,10 @@ function propertyOf(node, name) {
 function createLegacyAPI(options) {
   const methods = options.methods, overrides = new Map();
   const names = options.needs.methods || Object.keys(methods);
-  for (const name of names) {
+  const used = new Set(names.map(name => methods[name]));
+  for (const name of ["random", "linear", "ease", "easeIn", "easeOut", "clamp", "wiggle"]) {
     const original = methods[name];
+    if (!used.has(original)) continue;
     if (["random", "linear", "ease", "easeIn", "easeOut"].includes(name) && original) {
       overrides.set(original, (...args) => original.apply(methods, args));
     } else if (name === "clamp" && original) {

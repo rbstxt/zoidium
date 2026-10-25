@@ -91,7 +91,7 @@ function install(context, teardown) {
     },
   });
   const evaluator = createEvaluator({
-    THREE,
+    THREE, PZ, patch: (holder, key, make) => patchMethod(holder, key, make, teardown),
     store,
     report: (message, error) => (error ? console.warn(message, error) : console.warn(message)),
   });
@@ -141,6 +141,7 @@ function install(context, teardown) {
       return original.apply(this, arguments);
     } finally {
       store.endLoad();
+      evaluator.invalidate();
     }
   }, teardown);
 
