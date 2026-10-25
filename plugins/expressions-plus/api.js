@@ -27,7 +27,32 @@ function propertyOf(node, name) {
 
 // Every public handle contains copied values and closure methods only. Host
 // objects, Three objects, DOM nodes and project mutation methods stay private.
+// Legacy programs use the same guarded compiler and original method objects.
+// Only wiggle needs a private receiver; other legacy overrides bind the native
+// receiver exactly as the full API does, including call/apply invocations.
+function createLegacyAPI(options) {
+  const methods = options.methods, overrides = new Map();
+  const names = options.needs.methods || Object.keys(methods);
+  for (const name of names) {
+    const original = methods[name];
+    if (["random", "linear", "ease", "easeIn", "easeOut"].includes(name) && original) {
+      overrides.set(original, (...args) => original.apply(methods, args));
+    } else if (name === "clamp" && original) {
+      overrides.set(original, (v, a, b) => original.call(methods, v, a, b));
+    } else if (name === "wiggle" && original) {
+      const privateContext = Object.assign(Object.create(methods), {
+        currentFrame: options.frame, currentValue: options.base, currentProperty: options.property,
+      });
+      for (const [key, fn] of Object.entries(options.wiggleMethods || {})) {
+        if (typeof fn === "function") privateContext[key] = fn;
+      }
+      overrides.set(original, (...args) => privateContext.wiggle(...args));
+    }
+  }
+  return { methods, overrides };
+}
 function createAPI(options) {
+  if (options.needs?.full === false) return createLegacyAPI(options);
   const { PZ, owner, property, frame, time, base, read, baseAt } = options;
   const is = type => n => typeof type === "function" && n instanceof type;
   const clip = ancestor(owner, is(PZ.clip));

@@ -40,3 +40,27 @@ test('dependency classification follows syntax and invalidates when method avail
  const {PZ,engine}=host();assert.equal(engine.requiresSource('var n=3; linear(n,0,1,10,20)'),false);assert.equal(engine.requiresSource('const n=3; linear(n,0,1,10,20)'),true);assert.equal(engine.requiresSource('return 3'),true);assert.equal(engine.requiresSource('throw "error"'),true);assert.equal(engine.requiresSource('/x/d'),true);
  assert.equal(engine.requiresSource('wiggle(1,2)'),true);PZ.expression.methods.wiggle=()=>1;assert.equal(engine.requiresSource('wiggle(1,2)'),false);
 });
+
+test('only assigned properties intercept reads through clear and history replay',{skip:!fs.existsSync(core)},()=>{
+ const {PZ,a,b,owner,engine}=host();
+ const native=a.get;assert.equal(Object.hasOwn(a,'get'),false);
+ const shared=new PZ.expression('value + thisObject.property("B").value');
+ a.expression=shared;assert.notEqual(a.get,native);assert.equal(a.get(0),18);
+ a.expression=null;assert.equal(a.get,native);assert.equal(Object.hasOwn(a,'get'),false);
+ // Native undo and redo assign the same observable slot.
+ a.expression=shared;assert.equal(a.get(0),18);a.expression=null;assert.equal(a.get(0),7);
+ a.load({expression:'value + 3',keyframes:[{frame:0,value:7}]});assert.equal(a.get(0),10);
+ a.expression=null;
+ const copy=new PZ.propertyList({c:{name:'C',dynamic:true,type:0,value:19}},owner);copy.load();
+ const expression=new PZ.expression('value + 2');a.expression=expression;copy.c.expression=expression;
+ assert.equal(a.get(0),9);assert.equal(copy.c.get(0),21);assert.equal(Object.hasOwn(b,'get'),false);
+ engine.restore({forEachItemOfType(_type,visit){visit(a);visit(copy.c);}});
+ assert.equal(a.get,native);assert.equal(Object.hasOwn(copy.c,'get'),false);
+});
+test('legacy compilation skips the world provider while modern handles still construct it',{skip:!fs.existsSync(core)},()=>{
+ let calls=0;const {PZ,a}=host({world(){calls++;return {};}});
+ for(const source of ['sin(frame)*20','random(frame)','linear(.5,0,1,10,20)','var helper=methods.random; helper(frame)']) {
+  a.expression=new PZ.expression(source);a.get(12);
+ }
+ assert.equal(calls,0);a.expression=new PZ.expression('value + 1');assert.equal(a.get(0),8);assert.equal(calls,1);
+});
