@@ -232,11 +232,22 @@ function listen(localServer, port) {
 }
 
 function requestedPath(requestUrl) {
-  let pathname;
+  let parsed;
   try {
-    pathname = decodeURIComponent(new URL(requestUrl, "http://zoidium.invalid").pathname);
+    parsed = new URL(requestUrl, "http://zoidium.invalid");
   } catch (_error) {
     // Unparseable request targets serve no file.
+    return null;
+  }
+  // Absolute-form request targets (a full URL instead of an origin-form path)
+  // serve no file. Node accepts them in the URL parser, so the origin check
+  // is what rejects them.
+  if (parsed.origin !== "http://zoidium.invalid") return null;
+  let pathname;
+  try {
+    pathname = decodeURIComponent(parsed.pathname);
+  } catch (_error) {
+    // Undecodable request targets serve no file.
     return null;
   }
   if (pathname.includes("\u0000") || pathname.includes("\\")) return null;
@@ -278,16 +289,64 @@ function parseByteRange(value, size) {
   return { start, end };
 }
 
+// DNS-rebinding hardening for the desktop loopback server: only loopback Host
+// values on this server's bound port are served. Anything else (an attacker
+// domain resolving to 127.0.0.1, a foreign port, a missing header) gets a 403
+// before any file is read. This mirrors tools/serve-with-resources.js and is
+// duplicated here because the desktop app ships without tools/.
+const loopbackHostnames = new Set(["127.0.0.1", "localhost", "::1"]);
+
+function isAllowedHost(hostHeader, expectedPort) {
+  if (typeof hostHeader !== "string") return false;
+  const raw = hostHeader.trim();
+  if (!raw || /[\s@/\\?]/.test(raw)) return false;
+  let hostname = raw;
+  let port = null;
+  if (hostname.startsWith("[")) {
+    const end = hostname.indexOf("]");
+    if (end < 0) return false;
+    port = hostname.slice(end + 1);
+    hostname = hostname.slice(1, end);
+    if (port) {
+      if (!port.startsWith(":")) return false;
+      port = port.slice(1);
+    } else {
+      port = null;
+    }
+  } else if (hostname.includes(":")) {
+    const parts = hostname.split(":");
+    if (parts.length !== 2) return false;
+    [hostname, port] = parts;
+  }
+  if (!loopbackHostnames.has(hostname.toLowerCase())) return false;
+  if (port !== null && port !== "") {
+    if (!/^\d+$/.test(port) || Number(port) !== Number(expectedPort)) return false;
+  }
+  return true;
+}
+
+// The web deployment sends these headers for every response (see _headers);
+// the desktop server applies the same pair to each of its own responses.
+const desktopSecurityHeaders = {
+  "X-Content-Type-Options": "nosniff",
+  "Content-Security-Policy": "frame-ancestors 'self'; object-src 'none'",
+};
+
 async function serveRequest(request, response) {
+  if (!isAllowedHost(request.headers && request.headers.host, desktopPort)) {
+    response.writeHead(403, { ...desktopSecurityHeaders, "Content-Type": "text/plain; charset=utf-8" });
+    response.end("Forbidden");
+    return;
+  }
   if (request.method !== "GET" && request.method !== "HEAD") {
-    response.writeHead(405, { Allow: "GET, HEAD" });
+    response.writeHead(405, { ...desktopSecurityHeaders, Allow: "GET, HEAD" });
     response.end("Method Not Allowed");
     return;
   }
 
   const relativePath = requestedPath(request.url);
   if (relativePath == null) {
-    response.writeHead(400, { "Content-Type": "text/plain; charset=utf-8" });
+    response.writeHead(400, { ...desktopSecurityHeaders, "Content-Type": "text/plain; charset=utf-8" });
     response.end("Bad Request");
     return;
   }
@@ -302,6 +361,7 @@ async function serveRequest(request, response) {
 
   const etag = etagFor(stat);
   const headers = {
+    ...desktopSecurityHeaders,
     "Cache-Control": /^plugins\/[^/]+\/bundle\.json$/.test(relativePath)
       ? "public, max-age=31536000, immutable"
       : "no-cache",
@@ -312,7 +372,11 @@ async function serveRequest(request, response) {
     "Accept-Ranges": "bytes",
   };
   if (request.headers["if-none-match"] === etag) {
-    response.writeHead(304, { ETag: etag, "Cache-Control": headers["Cache-Control"] });
+    response.writeHead(304, {
+      ...desktopSecurityHeaders,
+      ETag: etag,
+      "Cache-Control": headers["Cache-Control"],
+    });
     response.end();
     return;
   }
@@ -351,7 +415,10 @@ async function startServer() {
       logMain("error", "local server request failed", errorDetails(error));
       if (!response.headersSent) {
         const status = error?.code === "ENOENT" ? 404 : 500;
-        response.writeHead(status, { "Content-Type": "text/plain; charset=utf-8" });
+        response.writeHead(status, {
+          ...desktopSecurityHeaders,
+          "Content-Type": "text/plain; charset=utf-8",
+        });
       }
       response.end(error?.code === "ENOENT" ? "Not Found" : "Internal Server Error");
     }
