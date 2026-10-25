@@ -3,7 +3,7 @@
   "id": "layer-input",
   "name": "Layer Input",
   "author": "Zoidium",
-  "version": "14",
+  "version": "15",
   "kind": "native-fx",
   "resources": [
     {

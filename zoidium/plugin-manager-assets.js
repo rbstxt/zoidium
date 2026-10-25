@@ -228,39 +228,24 @@
   function createLazyEffectData(plugin, effect, cache, assets) {
     return async function () {
       if (!cache.has(effect.id)) {
-        if (assets) {
-          cache.set(
-            effect.id,
-            Promise.resolve().then(() => {
-              const preset = ZoidiumPluginApis.props.cloneJson(bundledJson(assets, effect.preset, `effect preset ${effect.id}`));
-              const shader = bundledText(assets, effect.shader, `effect shader ${effect.id}`);
-              if (preset.type !== 1 || !preset.properties) {
-                throw new Error(`Invalid shader preset: ${effect.id}`);
-              }
-              preset.properties.fragShader = `${shader.replace(/\s+$/, "")}\n${createPluginMarker(
-                plugin,
-                effect
-              )}\n`;
-              return preset;
-            })
-          );
-        } else {
-          cache.set(
-            effect.id,
-            Promise.all([fetchJson(effect.preset), fetchText(effect.shader)]).then(
-              ([preset, shader]) => {
-                if (preset.type !== 1 || !preset.properties) {
-                  throw new Error(`Invalid shader preset: ${effect.id}`);
-                }
-                preset.properties.fragShader = `${shader.replace(/\s+$/, "")}\n${createPluginMarker(
-                  plugin,
-                  effect
-                )}\n`;
-                return preset;
-              }
-            )
-          );
+        if (!assets) {
+          throw new Error(`Plugin effect requires bundle assets: ${plugin.id}/${effect.id}`);
         }
+        cache.set(
+          effect.id,
+          Promise.resolve().then(() => {
+            const preset = ZoidiumPluginApis.props.cloneJson(bundledJson(assets, effect.preset, `effect preset ${effect.id}`));
+            const shader = bundledText(assets, effect.shader, `effect shader ${effect.id}`);
+            if (preset.type !== 1 || !preset.properties) {
+              throw new Error(`Invalid shader preset: ${effect.id}`);
+            }
+            preset.properties.fragShader = `${shader.replace(/\s+$/, "")}\n${createPluginMarker(
+              plugin,
+              effect
+            )}\n`;
+            return preset;
+          })
+        );
       }
       const data = await cache.get(effect.id);
       return ZoidiumPluginApis.props.cloneJson(data);
@@ -311,36 +296,23 @@
 
   async function loadGroupData(plugin, group, cache, assets) {
     if (!cache.has(group.id)) {
-      if (assets) {
-        cache.set(
-          group.id,
-          Promise.resolve().then(() => {
-            const preset = ZoidiumPluginApis.props.cloneJson(bundledJson(assets, group.preset, `group preset ${group.id}`));
-            const shaderEntries = (group.shaders || []).map((source) => [
-              source,
-              bundledText(assets, source, `group shader ${group.id}`),
-            ]);
-            if (preset.type !== 0 || !preset.properties || !Array.isArray(preset.objects)) {
-              throw new Error(`Invalid group preset: ${group.id}`);
-            }
-            return hydrateGroupShaders(preset, indexGroupShaders(shaderEntries), plugin, group);
-          })
-        );
-      } else {
-        cache.set(
-          group.id,
-          Promise.all([
-            fetchJson(group.preset),
-            ...(group.shaders || []).map(async (source) => [source, await fetchText(source)]),
-          ]).then(([preset, ...shaderEntries]) => {
-            if (preset.type !== 0 || !preset.properties || !Array.isArray(preset.objects)) {
-              throw new Error(`Invalid group preset: ${group.id}`);
-            }
-            const shaders = indexGroupShaders(shaderEntries);
-            return hydrateGroupShaders(preset, shaders, plugin, group);
-          })
-        );
+      if (!assets) {
+        throw new Error(`Plugin group requires bundle assets: ${plugin.id}/${group.id}`);
       }
+      cache.set(
+        group.id,
+        Promise.resolve().then(() => {
+          const preset = ZoidiumPluginApis.props.cloneJson(bundledJson(assets, group.preset, `group preset ${group.id}`));
+          const shaderEntries = (group.shaders || []).map((source) => [
+            source,
+            bundledText(assets, source, `group shader ${group.id}`),
+          ]);
+          if (preset.type !== 0 || !preset.properties || !Array.isArray(preset.objects)) {
+            throw new Error(`Invalid group preset: ${group.id}`);
+          }
+          return hydrateGroupShaders(preset, indexGroupShaders(shaderEntries), plugin, group);
+        })
+      );
     }
     return ZoidiumPluginApis.props.cloneJson(await cache.get(group.id));
   }
