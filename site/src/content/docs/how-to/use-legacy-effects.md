@@ -32,7 +32,7 @@ For a repeatable variation, click **Glitch!** in VHS or **Mosh!** in Datamosh. E
 
 To place a marker manually, turn **Detection** off. Enable the required **Point 1** through **Point 6** controls and set their positions. Animate the point properties with keyframes or expressions.
 
-To find regions by color, turn **Detection** on and set **Key Color**. Turn **Show Mask** on while adjusting **Threshold**. Turn **Show Mask** off before exporting the callout result. Color detection is not an automatic motion-tracking analysis that writes point keyframes.
+To find regions by color, turn **Detection** on and set **Key Color**. While adjusting **Threshold**, turn **Show Mask** on. Turn **Show Mask** off before exporting the callout result. Color detection is not an automatic motion-tracking analysis that writes point keyframes.
 
 ## Export the result
 

@@ -55,7 +55,7 @@ Composition rows use composition commands. File reload and download do not apply
 | **New Folder** | Creates an organizational folder. |
 | **Remove Unused Items** | Removes imported files with no references. It does not ask for confirmation. Undo restores them. |
 | **Consolidate All Footage** | Merges files with identical bytes. Closed-composition uses can keep an original item alive and are reported. |
-| **Collect Files…** | Downloads a ZIP with available files under `Assets` and a report of missing files. It is not a `.pz` project archive. |
+| **Collect Files…** | Downloads a ZIP with available files in the Assets window's folder structure and a report of missing files. It is not a `.pz` project archive. |
 | **Resolve Fonts…** | Replaces used missing or failed fonts with a built-in font or a font file. |
 
 Collection does not repair missing bytes. Built-in and plugin items are not ordinary imported files eligible for unused-file cleanup.

@@ -26,7 +26,7 @@ For audio-only selections, no replacement clip remains on the current timeline. 
 2. Select the composition.
 3. Click **Open**, or double-click the composition.
 4. Edit its clips on the timeline.
-5. When you have finished, click **Back to Main** in **Compositions**.
+5. When you have finished, in **Compositions**, click **Back to Main**.
 
 Before step 3 or step 5, finish any Undo or Redo work that you need. Each switch clears both histories. Changes stay in the composition when you return to Main.
 
