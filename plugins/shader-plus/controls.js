@@ -34,7 +34,13 @@ function installControls({ PZ, doc, register, editor }) {
   // on the anchor's parent and finds the list controller from there.
   function begin(anchor, property) { C.editStart.call(anchor, property); return anchor.parentElement.pz_frame; }
   function finish(anchor, property, discard) { C.editFinish.call(anchor, property, discard); }
+  function currentProperty(project, property, address) {
+    try { return !!project && editor()?.project === project && project.addressLookup(address) === property; }
+    catch { return false; } // Native lookup throws when an address no longer exists.
+  }
   function commit(anchor, property, value) {
+    const project = editor()?.project;
+    if (!currentProperty(project, property, property.getAddress())) return false;
     const currentFrame = (editor()?.playback?.currentFrame || 0) - property.frameOffset;
     if (JSON.stringify(property.get(currentFrame)) === JSON.stringify(value)) return false;
     const frame = begin(anchor, property);
@@ -169,7 +175,13 @@ function installControls({ PZ, doc, register, editor }) {
     file.onchange = async () => {
       const chosen = file.files?.[0]; file.value = "";
       if (!chosen) return;
-      const asset = await property.parentProject.assets.createFromFile(PZ.asset.type.FONT, chosen);
+      const project = editor()?.project, address = property.getAddress();
+      if (!currentProperty(project, property, address)) return;
+      const asset = await project.assets.createFromFile(PZ.asset.type.FONT, chosen);
+      if (!currentProperty(project, property, address)) {
+        project.assets.removeIfUnused(asset);
+        return;
+      }
       write({ font: asset.key });
     };
     text.onchange = () => write({ text: text.value });
