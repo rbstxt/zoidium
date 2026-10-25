@@ -413,16 +413,16 @@
       "category": "adjustment",
       "name": "OpenZoid Legacy",
       "author": "DaviFX",
-      "version": "23",
+      "version": "24",
       "itemCount": 12,
       "format": "native effects",
       "tagline": "Echo, Posterize Time, JPEG, VHS, Datamosh, Tracery",
       "color": "#8f6bc5",
       "description": "OpenZoid effects on Zoidium deterministic rendering: Echo and Posterize Time (Legacy), Jpeg Damage, VHS, Datamosh, Tracery and ASCII, with floating setup windows.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/openzoid-legacy/manifest.json?v=23",
-      "bundle": "./plugins/openzoid-legacy/bundle.json?v=23",
-      "integrity": "sha256-xlj5BYQ7zhIz3gTTmE4FRi5PlgwiXV5GB0AtJAn19rQ="
+      "manifest": "./plugins/openzoid-legacy/manifest.json?v=24",
+      "bundle": "./plugins/openzoid-legacy/bundle.json?v=24",
+      "integrity": "sha256-2l6in5GrAXylzU5Col5oPtmln2oVSp5eaabY7FhSOv8="
     },
     {
       "id": "magic-looks",
@@ -504,14 +504,14 @@
       "id": "mp4-export",
       "name": "MP4 Export",
       "author": "Zoidium",
-      "version": "7",
+      "version": "8",
       "category": "utilities",
       "defaultEnabled": true,
       "tagline": "H.264 MP4 video export",
       "description": "Export MP4 from the native Export panel with AAC or Opus audio. Requires WebCodecs encoder support.",
-      "manifest": "./plugins/mp4-export/manifest.json?v=7",
-      "integrity": "sha256-CQ11GrTNmhXmQzGTABjcaJRbBahpG7IBoK3CdQ95GLo=",
-      "bundle": "./plugins/mp4-export/bundle.json?v=7"
+      "manifest": "./plugins/mp4-export/manifest.json?v=8",
+      "integrity": "sha256-2yNZYgvwHxb54M8rHjaTVqu9T9CHCPVC1tqyXw8/haU=",
+      "bundle": "./plugins/mp4-export/bundle.json?v=8"
     }
   ]
 }
