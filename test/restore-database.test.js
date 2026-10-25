@@ -106,6 +106,20 @@ class FakeElement {
     this.children = [];
   }
 
+  insertAdjacentHTML(position, markup) {
+    if (position !== "beforeend" && position !== "afterbegin") {
+      throw new Error(`Unsupported insertAdjacentHTML position: ${position}`);
+    }
+    const holder = new FakeElement("div");
+    holder.innerMarkup = String(markup);
+    if (position === "afterbegin") {
+      this.children.unshift(holder);
+      holder.parent = this;
+    } else {
+      this.appendChild(holder);
+    }
+  }
+
   setAttribute(name, value) {
     this.attributes[name] = String(value);
   }

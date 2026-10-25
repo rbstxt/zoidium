@@ -46,16 +46,17 @@ function timeDifferenceTarget(width, height) {
 
 async function timeDifferenceShaderText(fetchAsset) {
   if (typeof fetchAsset === "function") {
+    let bundled;
     try {
-      const bundled = fetchAsset("text", TIME_DIFFERENCE_SHADER_URL);
-      if (typeof bundled === "string") return bundled;
+      bundled = fetchAsset("text", TIME_DIFFERENCE_SHADER_URL);
     } catch (_error) {
-      // Fall through to a network fetch below.
+      bundled = undefined;
     }
+    if (typeof bundled === "string") return bundled;
   }
-  const response = await fetch(TIME_DIFFERENCE_SHADER_URL, { cache: "default" });
-  if (!response.ok) throw new Error(`HTTP ${response.status}: fx_timedifference.glsl`);
-  return response.text();
+  throw new Error(
+    "Missing bundled asset: fx_timedifference.glsl (/plugins/native-fx/shaders/fx_timedifference.glsl)",
+  );
 }
 
 ZoidiumPluginApis.defineFrameSampler.call(timeDifferenceEffect, {

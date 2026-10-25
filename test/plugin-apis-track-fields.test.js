@@ -68,6 +68,27 @@ test('track buttons support existing labels, multiple registrations, refresh and
   assert.equal(label.style.gridTemplateColumns, '1fr auto auto');
   assert.equal(tracks.prototype.createTrackLabel, original);
 });
+test('decorating a label prunes disconnected entries immediately', () => {
+  const label = element(); label.children = [element(), element(), element()];
+  const track = { active: false };
+  const tracks = { prototype: { createTrackLabel() { const next = element(); next.children = [element(), element(), element()]; return next; } } };
+  const editor = { project: { sequence: { videoTracks: [track] } } };
+  const context = { console, CM: editor, PZ: { ui: { timeline: { tracks } } }, document: { createElement: element, querySelectorAll: () => [] } };
+  vm.runInNewContext(fs.readFileSync('zoidium/plugin-apis.js', 'utf8'), context);
+  const timeline = context.ZoidiumPluginApis.timeline;
+  const spec = id => ({ id, label: '3D', kinds: ['video'], isActive: () => false, onToggle() {} });
+  const first = timeline.registerTrackButton(spec('first'));
+  const created = tracks.prototype.createTrackLabel.call({ timeline: { editor } }, track, 0);
+  assert.equal(created.querySelectorAll().length, 1);
+  // Detaching the label and decorating another one drops the stale entry, so
+  // a later unregister no longer touches the detached label.
+  created.isConnected = false;
+  const replacement = tracks.prototype.createTrackLabel.call({ timeline: { editor } }, track, 0);
+  assert.equal(replacement.querySelectorAll().length, 1);
+  first();
+  assert.equal(created.querySelectorAll().length, 1, 'expected the pruned label to keep its button');
+  assert.equal(replacement.querySelectorAll().length, 0);
+});
 test('media presets follow project load and are removed on disposal', async () => {
   class Project { constructor() { this.media = []; } load() {} toJSON() { return { media: this.media.filter(m => !m.preset) }; } }
   class Media { async load(data) { Object.assign(this, data); } unload() {} }

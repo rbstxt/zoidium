@@ -234,3 +234,34 @@ test("a failed pass falls back to the clean render with a failure note", async (
   assert.match(device.moshNote, /failed.*clean render delivered/);
   assert.equal(h.navigated.length, 1);
 });
+
+test("cancel during the pass delivers nothing and keeps the clean file", async () => {
+  const h = createHarness();
+  loadModule().activate(h.context);
+  const device = new h.Device(h.exporter, h.editor);
+  device.createOptionsPage();
+  device.params.mosh = 1;
+  const clean = new Blob([webmBytes()], { type: "video/webm" });
+  h.PZ.downloadBlob = clean;
+  h.PZ.downloadFilename = "video.webm";
+  let cleanups = 0;
+  const renderCleanUp = device.renderCleanUp.bind(device);
+  device.renderCleanUp = () => { cleanups += 1; return renderCleanUp(); };
+  let onCancel = null;
+  const createPage = h.exporter.createPage;
+  h.exporter.createPage = function () {
+    onCancel = arguments[arguments.length - 1];
+    return createPage.apply(this, arguments);
+  };
+  const progress = device.createFinishedPage();
+  assert.equal(progress.name, "progress", "a mosh status page shows first");
+  assert.equal(typeof onCancel, "function", "the progress page offers Cancel");
+  onCancel();
+  assert.equal(cleanups, 1, "Cancel runs the render cleanup once");
+  await flushAsync();
+  assert.equal(h.navigated.length, 0, "no finished page after cancel");
+  assert.equal(h.finishedCalls.length, 0, "the finished page is never built");
+  assert.equal(h.PZ.downloadBlob, clean, "the original blob is unchanged");
+  assert.equal(h.PZ.downloadFilename, "video.webm", "the original filename is unchanged");
+  assert.equal(device.moshNote, undefined, "no finished note after cancel");
+});
