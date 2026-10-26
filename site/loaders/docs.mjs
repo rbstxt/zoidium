@@ -22,14 +22,19 @@ export function zoidiumDocs() {
           const markdown = await fs.readFile(path.join(root, source), 'utf8');
           const title = /^# (.+)$/m.exec(markdown)?.[1] || name;
           await put(`development/${name}`, title, rewriteMarkdown(markdown.replace(/^# .+\n/, ''), source));
+          const jaSource = `docs/ja/${name}.md`;
+          const jaMarkdown = await fs.readFile(path.join(root, jaSource), 'utf8');
+          const jaTitle = /^# (.+)$/m.exec(jaMarkdown)?.[1] || name;
+          await put(`ja/development/${name}`, jaTitle, rewriteMarkdown(jaMarkdown.replace(/^# .+\n/, ''), jaSource, 'ja'));
         }
         const referencePath = require.resolve('../../plugins/shader-plus/reference.js');
         delete require.cache[referencePath];
         await put('reference/shader', 'Shader reference', referenceMarkdown(require(referencePath)));
+        await put('ja/reference/shader', 'シェーダーリファレンス', referenceMarkdown(require(referencePath), 'ja'));
       }
       await loadSources();
       if (context.watcher) {
-        const files = developerDocs.map(id => path.join(root, `docs/${id}.md`));
+        const files = developerDocs.flatMap(id => [path.join(root, `docs/${id}.md`), path.join(root, `docs/ja/${id}.md`)]);
         files.push(path.join(root, 'plugins/shader-plus/reference.js'));
         context.watcher.add(files);
         context.watcher.on('change', async file => { if (files.includes(file)) await loadSources(); });
