@@ -61,6 +61,33 @@ test("native addAll notifications can build the gradient before load initializes
   assert.deepEqual(JSON.parse(JSON.stringify(f.widgets[0].value.stops)), stops);
 });
 
+test("material load completes its name and numeric values while its gradient panel is open", {
+  skip: !fs.existsSync(core),
+}, async () => {
+  const { PZ } = nativeHost(), f = fixture(), labels = [];
+  const material = PZ.material.create("panelprobe");
+  material.properties.name.onChanged.watch(() => labels.push(material.properties.name.get()), true);
+  let box;
+  material.properties.onListChanged.watch(() => {
+    box = f.controls.generateGradientInput(material.properties.ramp);
+  });
+  PZ.material.fnList.panelprobe = Promise.resolve(function () {
+    this.defaultName = "Panel probe material";
+    this.properties.addAll({
+      roughness: { name: "Roughness", dynamic: true, type: PZ.property.type.NUMBER, value: 0.5 },
+      ramp: { name: "Color Ramp Curve", type: PZ.property.type.GRADIENT, value: stops },
+    });
+    this.load = function () { this.properties.load(); };
+  });
+  await material.load();
+  box.pz_update(0);
+  assert.equal(labels.at(-1), "Panel probe material");
+  assert.equal(material.properties.roughness.get(0), 0.5);
+  assert.deepEqual(JSON.parse(JSON.stringify(f.widgets[0].value.stops)), stops);
+  assert.equal(f.calls.length, 0, "initialization must not fall back to Classic");
+  assert.equal(f.warnings.length, 0);
+});
+
 test("gradient updates read the supplied local frame and contain a failing preview", () => {
   const f = fixture(), frames = [];
   const property = { definition: {}, get(frame) { frames.push(frame); return stops; } };
