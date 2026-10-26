@@ -1,5 +1,7 @@
 "use strict";
 const test = require("node:test");
+require("../zoidium/plugin-apis.js");
+const { installFrameSamplerContext } = global.ZoidiumPluginApis;
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const vm = require("node:vm");
@@ -125,6 +127,7 @@ test("native entry requests fractional scene taps and disposes scratch on mode s
   const api = {
     gl: {}, modules: { createRequire: () => name => name === "./math.js" ? math
       : factories[name === "./shutter.js" ? "shutter" : "flow"] },
+    installFrameSamplerContext,
     defineFrameSampler(value) { spec = value; Object.assign(this, value.lifecycle); },
   };
   const THREE = { Vector2: class { constructor(x, y) { this.x = x; this.y = y; } } };

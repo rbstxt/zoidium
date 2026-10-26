@@ -4,6 +4,8 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const test = require("node:test");
+require("../zoidium/plugin-apis.js");
+const { installFrameSamplerContext } = global.ZoidiumPluginApis;
 const vm = require("node:vm");
 
 function loadEchoDefinition(effect = {}) {
@@ -16,6 +18,7 @@ function loadEchoDefinition(effect = {}) {
       },
     },
     ZoidiumPluginApis: {
+      installFrameSamplerContext,
       defineFrameSampler(spec) {
         definition = spec;
       },
@@ -84,9 +87,12 @@ test("Echo restores the preparation context omitted by CM3's layer", async () =>
   const sequence = {};
   const effect = { parentProject: { sequence } };
   let received;
-  const apis = { defineFrameSampler() {
-    this.prepare = async function (_frame, context) { received = context; };
-  } };
+  const apis = {
+    installFrameSamplerContext,
+    defineFrameSampler() {
+      this.prepare = async function (_frame, context) { received = context; };
+    },
+  };
   const source = fs.readFileSync(path.join(__dirname, "../plugins/native-fx/effects/echo.js"), "utf8");
   new Function("PZ", "ZoidiumPluginApis", source).call(effect, { property: { type: { NUMBER: 0, OPTION: 10 } } }, apis);
   await effect.prepare(17);

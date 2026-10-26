@@ -299,6 +299,22 @@
     return effect;
   }
 
+  // Restore the context omitted by CM3 layer.prepare, but never prepare an
+  // unloaded effect or follow its throwing parentProject getter after deletion.
+  function installFrameSamplerContext(effect) {
+    var prepare = effect.prepare, load = effect.load, unload = effect.unload, unloaded = false;
+    effect.load = function () { unloaded = false; return load.apply(this, arguments); };
+    effect.unload = function () { unloaded = true; return unload.apply(this, arguments); };
+    effect.prepare = function (frame, context) {
+      if (unloaded) return;
+      var project = typeof effect.tryGetParentOfType === "function"
+        ? effect.tryGetParentOfType(global.PZ.project) : effect.parentProject;
+      if (!project) return;
+      if (!context?.sequence) context = Object.assign({}, context, { sequence: project.sequence });
+      return prepare.call(this, frame, context);
+    };
+  }
+
   // Single-pass shader filter: the common native-fx shape (one fragment
   // shader, one THREE ShaderPass, per-frame uniform updates).
   // spec: { displayName, properties, fragShaderUrl, fragShader,
@@ -931,6 +947,7 @@
     layers: { registerType: registerLayerType, registerPicker: registerLayerPicker },
     defineTemporal: defineTemporal,
     defineFrameSampler: defineFrameSampler,
+    installFrameSamplerContext: installFrameSamplerContext,
     defineFilter: defineFilter,
     installLifecycleDefaults: installLifecycleDefaults,
     propertyControls: {

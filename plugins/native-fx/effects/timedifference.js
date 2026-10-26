@@ -225,14 +225,4 @@ ZoidiumPluginApis.defineFrameSampler.call(timeDifferenceEffect, {
   },
 });
 
-// CM3's layer prepare() does not forward its render context to effects.
-// Lower-track media preparation still needs the sequence and project rate.
-const timeDifferencePrepareWithContext = this.prepare;
-if (typeof timeDifferencePrepareWithContext === "function") {
-    this.prepare = function (frame, context) {
-        if (!context || !context.sequence) {
-            context = Object.assign({}, context, { sequence: this.parentProject.sequence });
-        }
-        return timeDifferencePrepareWithContext.call(this, frame, context);
-    };
-}
+ZoidiumPluginApis.installFrameSamplerContext(this);

@@ -232,7 +232,7 @@ test("manifest declares only existing sources and stable effect ids", () => {
     ["echo-legacy", "posterizetime-legacy", "jpegdamage", "vhs", "datamosh", "tracery", "ascii"]
   );
   const echo = manifest.nativeEffects.find((e) => e.id === "echo-legacy");
-  assert.deepEqual(echo.requiresApis, ["defineFrameSampler"]);
+  assert.deepEqual(echo.requiresApis, ["defineFrameSampler", "installFrameSamplerContext"]);
   const entries = [
     ...manifest.nativeEffects.map((e) => e.source),
     ...manifest.modules.map((m) => m.source),
