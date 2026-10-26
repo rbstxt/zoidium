@@ -158,6 +158,8 @@ var PZ = PZ || {};
             lifeBound: Math.min(life * (1 + Math.abs(lifeRandom) / 2), SIM.MAX_LIFE),
             speed: speed,
             spread: speed * velocityRandom + speed * directionSpread,
+            velocityRandom: velocityRandom,
+            velocityDistribution: clamp(num(E.velocityDistribution, 0.5), 0, 1),
             direction: simVector(E.direction, frame, [0, 0, 0]),
             position: simVector(E.position, frame, [0, 0, 0]),
             emitterSize: num(E.emitterSize, 100),
@@ -170,7 +172,7 @@ var PZ = PZ || {};
             massSize: num(Y.sizeAffectsMass, 0) / 100,
             airRandom: num(Y.airResistanceRandom, 0) / 100,
             airSize: num(Y.sizeAffectsAirResistance, 0) / 100,
-            drag: num(Y.drag, 0),
+            drag: num(Y.drag, 0) * Math.max(num(V.airDensity, 1), 0),
             wind: [
                 num(V.windX, 0) + gravityDir[0] * gravity,
                 num(V.windY, 0) + gravityDir[1] * gravity + (fluidBuoyant ? num(Y.buoyancy, 5) * 10 : 0),
@@ -202,7 +204,10 @@ var PZ = PZ || {};
             swirl: swirlOn ? num(Y.fluidSwirlStrength, 100) : 0,
             swirlScale: Math.max(num(Y.fluidSwirlScale, 100), 0.0001),
             swirlSeed: num(Y.fluidSeed, 0),
-            disperse: num(P.displace.disperse, 0),
+            disperse: num(D.disperse, 0),
+            disperseLife: num(D.disperseStrengthOver, 0) === 1,
+            disperseCurve: D.disperseStrengthCurve ? D.disperseStrengthCurve.get(frame) : null,
+            drift: [num(D.driftX, 0), num(D.driftY, 0), num(D.driftZ, 0)],
             twist: num(P.displace.twist, 0),
             mirror: [num(K.mirrorX, 0) === 1, num(K.mirrorY, 0) === 1, num(K.mirrorZ, 0) === 1],
             kaleidoCenter: simVector(K.center, frame, [720, 540, 0]),
@@ -374,6 +379,12 @@ var PZ = PZ || {};
             oy = (jy / jl) * row.emitterSize * 0.5;
             oz = (jz / jl) * row.emitterSize * 0.5;
         }
+        var speedScale = 1;
+        if (row.velocityDistribution !== 0.5 && row.velocityRandom !== 0) {
+            var rv = simHash(seed, key, 31);
+            speedScale = 1 + 2 * row.velocityRandom *
+                (Math.pow(rv, Math.exp((0.5 - row.velocityDistribution) * 4)) - rv);
+        }
         var px, py, pz, vx, vy, vz, spreadScale;
         if (row.fromParent) {
             var src = simParentSource(table, ev);
@@ -401,6 +412,7 @@ var PZ = PZ || {};
                 vy = (jy / dl) * row.speed;
                 vz = (jz / dl) * row.speed;
             }
+            vx *= speedScale; vy *= speedScale; vz *= speedScale;
             spreadScale = 1;
             if (row.emitAmt !== 0) {
                 var motion = table.emitterVelocityAt(ev.birth);
@@ -503,7 +515,7 @@ var PZ = PZ || {};
     }
 
     // Forces and motion for one fixed sub-step. Row values are sampled at the sub-step time.
-    function simAdvance(st, row, dt, time, kk) {
+    function simAdvance(st, row, dt, time, kk, phase) {
         var x = st.x, y = st.y, z = st.z;
         var vx = st.vx, vy = st.vy, vz = st.vz;
         if (row.turbulence !== 0) {
@@ -598,6 +610,7 @@ var PZ = PZ || {};
         }
         if (row.disperse !== 0) {
             var amt = row.disperse * dt;
+            if (row.disperseLife) amt *= T.curveValue(row.disperseCurve, phase);
             x += Math.sin(kk * 12.9898 + time) * amt;
             y += Math.sin(kk * 78.233 + time) * amt;
             z += Math.sin(kk * 37.719 + time) * amt;
@@ -665,7 +678,7 @@ var PZ = PZ || {};
         while (t - tc > 1e-9) {
             var dt = Math.min(SIM.STEP, t - tc);
             var last = tc;
-            simAdvance(st, table.rowAtTime(tc), dt, tc, kk);
+            simAdvance(st, table.rowAtTime(tc), dt, tc, kk, clamp((tc - ev.birth) / ev.life, 0, 1));
             tc += dt;
             if (dt === SIM.STEP) {
                 steps++;
@@ -686,6 +699,12 @@ var PZ = PZ || {};
         if (orbit) {
             st.x += orbit.offset[0]; st.y += orbit.offset[1]; st.z += orbit.offset[2];
             st.vx += orbit.velocity[0]; st.vy += orbit.velocity[1]; st.vz += orbit.velocity[2];
+        }
+        var drift = table.rowAtTime(t).drift;
+        var age = t - ev.birth;
+        if (drift[0] || drift[1] || drift[2]) {
+            st.x += drift[0] * age; st.y += drift[1] * age; st.z += drift[2] * age;
+            st.vx += drift[0]; st.vy += drift[1]; st.vz += drift[2];
         }
         return st;
     }

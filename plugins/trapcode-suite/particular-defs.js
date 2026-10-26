@@ -27,7 +27,7 @@ var PZ = PZ || {};
 
     PZ.object3d.particular.system.emitterDefinitions = {
         name: { visible: false, name: "Name", type: PZ.property.type.TEXT, value: "Emitter" },
-        emitterType: option("Emitter type", 0, "point;box;sphere;light;layer;model;text"),
+        emitterType: option("Emitter type", 0, "point;box;sphere"),
         emitterBehavior: option("Emitter behavior", 0, "continuous;explode;burst"),
         emitFromParent: option("Emit from parent", 0, "off;on"),
         parentSystemIndex: number("Parent system index", 0, { min: 0, step: 1, decimals: 0 }),
@@ -124,7 +124,7 @@ var PZ = PZ || {};
         sizeAffectsAirResistance: number("Size affects air resistance", 0, { min: 0, max: 100, step: 0.1, decimals: 1 }),
         rotationalAirResistance: number("Rotational air resistance", 0, { min: 0, step: 0.01, decimals: 3 }),
         bounceEnabled: option("Enable bounce", 0, "off;on"),
-        bounceHeight: number("Bounce height", 500, { step: 1 }),
+        bounceHeight: number("Bounce boost", 500, { step: 1 }),
         bounceStrength: number("Bounce strength", 50, { min: 0, max: 100, step: 0.1, decimals: 1 }),
         meanderEnabled: option("Enable meander", 0, "off;on"),
         meanderAffectDirection: number("Affect direction", 20, { step: 0.1, decimals: 1 }),
@@ -174,7 +174,7 @@ var PZ = PZ || {};
         spinAmplitude: number("Spin amplitude", 0, { step: 1 }),
         spinFrequency: number("Spin frequency", 1, { step: 0.01, decimals: 2 }),
         disperse: number("Disperse", 0, { step: 1 }),
-        disperseStrengthOver: option("Disperse strength over", 0, "off;life;velocity;position"),
+        disperseStrengthOver: option("Disperse strength over", 0, "off;life"),
         disperseStrengthCurve: curveProperty("Disperse curve"),
         twist: number("Twist", 0, { step: 1 }),
         turbulenceAffectSize: number("Turbulence field affect size", 0, { step: 1 }),
@@ -259,6 +259,14 @@ var PZ = PZ || {};
         reflectionStrength: number("Reflection strength", 100, { min: 0, step: 0.1, decimals: 1 }),
         shadowlet: option("Shadowlet", 0, "off;on", false),
     };
+
+    // Keep unsupported properties in the schema so saved values round-trip.
+    var System = PZ.object3d.particular.system;
+    System.particleDefinitions.particleType.visible = false;
+    System.particleDefinitions.setColor.visible = false;
+    ["flockingEnabled", "flockAttract", "flockSeparate", "flockAlign", "flockRangeValue", "flockFieldOfView"].forEach(function (key) {
+        System.physicsDefinitions[key].visible = false;
+    });
 
     if (PZ.ui && PZ.ui.objectTypes) {
         PZ.ui.objectTypes.set(PZ.object3d.particular.system, [
