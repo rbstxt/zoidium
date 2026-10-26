@@ -3,7 +3,7 @@
   "use strict";
   const receipt = {
   "schemaVersion": 1,
-  "fingerprint": "f75e52f93b6698abebd2c7154a6073a87d819858d5103e0f1e8061c238cd9742",
+  "fingerprint": "8abab3b59a770464ad6f832151bcde4b4009bcb80706a75162a4151e05f107f9",
   "plugins": {
     "native-fx": {
       "version": "36",
@@ -32,6 +32,8 @@
         "smartmotionblur",
         "smartmotionblur-mode-1",
         "smartmotionblur-mode-2",
+        "unrelated-bundle-error",
+        "video-outside-prefetch-window",
         "radialblurspin-full"
       ]
     },
