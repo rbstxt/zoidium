@@ -126,13 +126,26 @@
     ]);
   }
 
-  function fullKey(viewport) {
+  function fullKey(controller) {
+    const viewport = controller.viewport;
+    controller.keyReason = null;
     const plugins = global.PZ?.zoidium?.getDebugPlugins?.();
     // Booting or failed plugins cannot provide a stable render contract.
-    if (!plugins || plugins.some(plugin => plugin.phase === "loading" || plugin.lastError)) return null;
-    if (global.document?.fonts?.status === "loading") return null;
-    try { return model.revisionOf(viewport, plugins, identity, fontEpoch, approvedPlugins); }
-    catch (_error) { return null; }
+    if (!plugins || plugins.some(plugin => plugin.phase === "loading" || plugin.lastError)) {
+      controller.keyReason = "Plugins are loading or have errors";
+      return null;
+    }
+    if (global.document?.fonts?.status === "loading") {
+      controller.keyReason = "Fonts are loading";
+      return null;
+    }
+    try {
+      return model.revisionOf(viewport, plugins, identity, fontEpoch, approvedPlugins,
+        reason => { controller.keyReason = reason; });
+    } catch (_error) {
+      controller.keyReason = "Project state could not be validated";
+      return null;
+    }
   }
 
   // The project serialization is recomputed only after a signal, during an
@@ -144,19 +157,20 @@
     const hot = performance.now() - lastSignal < HOT_MS || viewport.editor.history?.operation;
     if (hot || controller.validated !== signalEpoch || controller.cheap !== cheap) {
       if ((hot || viewport.editor.playback.speed !== 0) && controller.keyCost > KEY_BUDGET_MS) {
+        controller.reason = "Project validation is deferred until playback stops and editing is idle";
         debug.liveDraws += 1;
         return LIVE;
       }
       const cause = hot ? "hot" : controller.validated !== signalEpoch ? "signal" : "cheap";
       debug.validationCauses[cause] = (debug.validationCauses[cause] || 0) + 1;
       const start = performance.now();
-      controller.full = fullKey(viewport);
+      controller.full = fullKey(controller);
       controller.keyCost = performance.now() - start;
       controller.cheap = cheap;
       controller.validated = signalEpoch;
       debug.validations += 1;
     } else if (debug.assertKeys) {
-      const fresh = fullKey(viewport);
+      const fresh = fullKey(controller);
       if (fresh !== controller.full) {
         debug.keyMismatches += 1;
         let at = 0;
@@ -191,6 +205,7 @@
     controller.key = null;
     controller.settled = null;
     controller.ready = null;
+    controller.reason = "Waiting for a complete preview frame";
     controller.prefetchCost = 0;
     controller.prefetchSkipped = new Set();
     removeEntries(controller);
@@ -331,8 +346,9 @@
     return false;
   }
 
-  function reject(reason) {
+  function reject(controller, reason, message) {
     debug.rejects[reason] = (debug.rejects[reason] || 0) + 1;
+    controller.reason = message;
     return false;
   }
 
@@ -340,15 +356,21 @@
     const viewport = controller.viewport;
     const sequence = viewport.editor.project.sequence;
     const playing = viewport.editor.playback.speed !== 0;
-    if (!settle(controller, key)) return reject("resources");
-    if (global.document.fonts?.status === "loading" || !model.assetsComplete(viewport.editor.project)) return reject("assets");
-    if (!fromPreview && global.PZ?.zoidium?.temporal?.frameSamplerRuntimes?.get(viewport.compositor)?.previewPending) {
-      return reject("preview");
+    if (!settle(controller, key)) return reject(controller, "resources", "Waiting for scene resources");
+    if (global.document.fonts?.status === "loading" || !model.assetsComplete(viewport.editor.project)) {
+      return reject(controller, "assets", "Assets or fonts are loading or have errors");
     }
-    if (!activeClips(sequence, frame).every(clip => objectsReady(clip.object.objects, frame - clip.start))) return reject("objects");
+    if (!fromPreview && global.PZ?.zoidium?.temporal?.frameSamplerRuntimes?.get(viewport.compositor)?.previewPending) {
+      return reject(controller, "preview", "Waiting for a complete temporal preview");
+    }
+    if (!activeClips(sequence, frame).every(clip => objectsReady(clip.object.objects, frame - clip.start))) {
+      return reject(controller, "objects", "Waiting for procedural objects");
+    }
     const videos = visibleVideos(sequence, frame);
-    if (videos.length && !previewCoversVideo(viewport, frame, videos, fromPreview)) return reject("video");
-    if (!playing && !ready(controller, key, frame)) return reject("ready");
+    if (videos.length && !previewCoversVideo(viewport, frame, videos, fromPreview)) {
+      return reject(controller, "video", "Waiting for exact video frames");
+    }
+    if (!playing && !ready(controller, key, frame)) return reject(controller, "ready", "Waiting for frame preparation");
     return true;
   }
 
@@ -389,12 +411,18 @@
     const gl = renderer.context;
     const width = gl.drawingBufferWidth, height = gl.drawingBufferHeight;
     const bytes = width * height * 4;
-    if (!contextAvailable(gl) || !store.effectiveLimit || allocationFailed(gl)) return null;
+    if (!contextAvailable(gl) || !store.effectiveLimit || allocationFailed(gl)) {
+      controller.reason = "GPU memory or context is unavailable";
+      return null;
+    }
     const format = gl.getContextAttributes().alpha ? THREE.RGBAFormat : THREE.RGBFormat;
     const type = THREE.UnsignedByteType;
     const reservation = store.take(bytes, entry => entry.renderer === renderer &&
       entry.width === width && entry.height === height && entry.format === format && entry.type === type);
-    if (!reservation) return null;
+    if (!reservation) {
+      controller.reason = "One frame exceeds the preview cache memory limit";
+      return null;
+    }
     const generation = store.generation;
     const target = reservation.recycled?.target || new THREE.WebGLRenderTarget(width, height, {
       minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter,
@@ -407,10 +435,12 @@
       renderer.setTexture2D(target.texture, 0);
       gl.copyTexSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 0, 0, width, height);
       if (!contextAvailable(gl) || allocationFailed(gl) || generation !== store.generation) {
+        controller.reason = "GPU capture failed or was invalidated";
         if (contextAvailable(gl)) target.dispose();
         return null;
       }
     } catch (_error) {
+      controller.reason = "GPU capture failed";
       allocationFailed(gl);
       if (contextAvailable(gl)) { renderer.setRenderTarget(null); target.dispose(); }
       return null;
@@ -440,9 +470,13 @@
       if (viewport.editor.playback.speed === 0) scheduleIdle();
       return fallback();
     }
-    if (!key) return fallback();
+    if (!key) {
+      controller.reason = controller.keyReason;
+      return fallback();
+    }
     const hit = !debug.disabled && store.get(entryKey(controller, frame));
     if (hit) {
+      controller.reason = null;
       display(controller, hit);
       debug.hits += 1;
       if (viewport.editor.playback.speed === 0) scheduleIdle();
@@ -452,6 +486,7 @@
     // Both the native draw and the temporal prepared preview record the frame
     // they drew. A pending temporal preview draws nothing.
     const previous = viewport.lastFrame;
+    controller.reason = "Waiting for a complete preview frame";
     viewport.lastFrame = NaN;
     const result = fallback();
     const drew = viewport.lastFrame === frame;
@@ -475,7 +510,10 @@
 
   function storeFrame(controller, frame) {
     const entry = capture(controller, frame);
-    if (entry && store.put(entryKey(controller, frame), entry)) debug.stores += 1;
+    if (entry && store.put(entryKey(controller, frame), entry)) {
+      controller.reason = null;
+      debug.stores += 1;
+    }
   }
 
   // ---- Idle prefetch -------------------------------------------------------
@@ -755,13 +793,28 @@
   }
   compositorPrototype.unload = unloadWithOutputFrames;
 
+  function usageReason(viewport) {
+    if (disposed) return "Preview cache is unavailable";
+    if (!store.limit || debug.disabled) return "Preview caching is disabled";
+    if (store.contextLost) return "The WebGL context was lost";
+    if (!store.effectiveLimit) return "GPU memory is unavailable for this session";
+    if (!viewport) return "Waiting for a preview viewport";
+    if (viewport.__zoidiumPlayerPlusPaused) return "Preview drawing is paused";
+    if (viewport.renderMode || !viewport.options?.widget2dObjects) return "The 3D editing camera is active";
+    if (plainTimeProject(viewport)) return "Time operators use live preview evaluation";
+    const frame = viewport.editor.playback.currentFrame;
+    if (!Number.isInteger(frame) || frame < 0) return "The playhead is not on a cacheable frame";
+    return viewport.__zoidiumOutputFrames?.reason ??
+      (viewport.__zoidiumOutputFrames ? null : "Waiting for a complete preview frame");
+  }
+
   const api = {
     debug, render, release, capturePreview,
     usage() {
       const viewport = (global.CM || global.VE)?.mainViewport || controllers.values().next().value?.viewport;
       const gl = viewport?.renderer?.context;
       return { bytes: store.bytes, entries: store.entries.size, limit: store.effectiveLimit,
-        width: gl?.drawingBufferWidth || 0, height: gl?.drawingBufferHeight || 0 };
+        width: gl?.drawingBufferWidth || 0, height: gl?.drawingBufferHeight || 0, reason: usageReason(viewport) };
     },
     setSizeMiB(value) {
       const limit = model.sizeMiB(value) * 1024 * 1024;

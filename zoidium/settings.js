@@ -336,6 +336,7 @@
     if (usage && usage.limit < state.settings.previewCacheMiB * 1048576) {
       text += " · session limit " + Math.floor(usage.limit / 1048576).toLocaleString("en-US") + " MiB";
     }
+    if (usage?.reason) text += " · Not caching: " + usage.reason;
     state.cacheUsage.textContent = text;
     state.cacheCaution.hidden = state.settings.previewCacheMiB <= 4096;
   }
@@ -550,7 +551,7 @@
     var cacheUsage = global.ZoidiumUI.controls.note("Using 0 MiB").element;
     cacheUsage.setAttribute("data-preview-cache-usage", "");
     var cacheCaution = global.ZoidiumUI.controls.note(
-      "The GPU needs this much free memory. Macs share GPU memory with system RAM.", "warning"
+      "The GPU needs this much free memory. Integrated GPUs share memory with system RAM.", "warning"
     ).element;
     var gradientRow = legacy.generateDropdown({
       title: "Gradient editor", items: "Zoidium;Classic",

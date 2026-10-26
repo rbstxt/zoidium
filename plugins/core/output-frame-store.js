@@ -145,17 +145,24 @@
     return Object.values(value).some(child => containsCommunity(child, seen));
   }
 
-  function revisionOf(viewport, plugins, assetId, fontEpoch = 0, approvedPlugins = null) {
+  function revisionOf(viewport, plugins, assetId, fontEpoch = 0, approvedPlugins = null, onReject = () => {}) {
     const project = viewport.editor.project;
     const sequence = project.sequence;
     const content = typeof project.toJSON === "function" ? project.toJSON() : project;
     // Isolated receipts have their own exact preparation contract. Finished
     // frame caching and private prefetch clones have no approval for them.
-    if (containsCommunity(content)) return null;
-    if (approvedPlugins && (content.plugins || []).some(requirement => {
+    if (containsCommunity(content)) {
+      onReject("Community content is not verified for preview caching");
+      return null;
+    }
+    for (const requirement of approvedPlugins ? content.plugins || [] : []) {
       const current = plugins.find(plugin => plugin.id === requirement.id);
-      return !current?.enabled || approvedPlugins.get(requirement.id) !== String(current.version);
-    })) return null;
+      if (!current?.enabled || approvedPlugins.get(requirement.id) !== String(current.version)) {
+        onReject("Plugin " + requirement.id + (current ? " version " + current.version : "") +
+          " is not verified for preview caching");
+        return null;
+      }
+    }
     const gl = viewport.renderer.context;
     return JSON.stringify([
       content,
