@@ -10,6 +10,8 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const test = require("node:test");
+require("../zoidium/plugin-apis.js");
+const { installFrameSamplerContext } = global.ZoidiumPluginApis;
 
 const projectRoot = path.resolve(__dirname, "..");
 const PZ = { asset: { type: { IMAGE: 1 } }, property: { type: { NUMBER: 0, OPTION: 10, LIST: 20, ASSET: 30 } } };
@@ -17,6 +19,7 @@ const PZ = { asset: { type: { IMAGE: 1 } }, property: { type: { NUMBER: 0, OPTIO
 function loadEffect(filename) {
   let definition = null;
   const apis = {
+    installFrameSamplerContext,
     defineFrameSampler(spec) {
       definition = spec;
     },
@@ -218,6 +221,7 @@ test("Time effects restore the preparation context omitted by CM3's layer", asyn
     );
     let received;
     const apis = {
+      installFrameSamplerContext,
       defineFrameSampler() {
         this.prepare = async function prepare(_frame, context) {
           received = context;

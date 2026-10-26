@@ -235,6 +235,43 @@ test("a failed pass falls back to the clean render with a failure note", async (
   assert.equal(h.navigated.length, 1);
 });
 
+test("at-cuts mosh maps trimmed project cuts into output timestamps at either export rate", async () => {
+  for (const [sequenceRate, exportRate] of [[30, 30], [24, 60], [29.97, 59.94]]) {
+    const h = createHarness(), plugin = loadModule();
+    plugin.activate(h.context);
+    h.editor.sequence.properties.rate.get = () => sequenceRate;
+    h.editor.sequence.videoTracks = [{ clips: [
+      { start: sequenceRate * 10, length: sequenceRate },
+      { start: sequenceRate * 11, length: sequenceRate },
+    ] }];
+    const device = { params: { start: sequenceRate * 10, rate: exportRate, length: exportRate * 2 } };
+    const clean = new Blob([webmBytes()], { type: "video/webm" });
+    const result = await plugin.runTrueMosh(h.PZ, h.editor, device, clean, 2);
+    const keys = h.PZ.datamoshRender.probe(await result.blob.arrayBuffer()).keyframes.map(k => k.ts);
+    assert.deepEqual(keys, [0], `sequence ${sequenceRate} FPS, export ${exportRate} FPS`);
+    assert.match(result.note, /dropped 1 of 2 keyframes/);
+  }
+});
+
+test("at-cuts mosh excludes cuts outside the exported interval before building windows", async () => {
+  const h = createHarness(), plugin = loadModule();
+  plugin.activate(h.context);
+  // Cuts just before the start, exactly at the end, and just after the end
+  // must not let their 300 ms windows reach into the output.
+  h.editor.sequence.videoTracks = [{ clips: [
+    { start: 294, length: 3 },
+    { start: 330, length: 3 },
+  ] }];
+  const clean = new Blob([webmBytes()], { type: "video/webm" });
+  h.PZ.downloadFilename = "trimmed.webm";
+  const device = { params: { start: 300, rate: 60, length: 60 } };
+  h.PZ.datamoshRender.mosh = () => assert.fail("Cuts outside the export must skip the mosh pass.");
+  const result = await plugin.runTrueMosh(h.PZ, h.editor, device, clean, 2);
+  assert.equal(result.blob, clean);
+  assert.equal(result.filename, "trimmed.webm");
+  assert.match(result.note, /no clip cuts to mosh/);
+});
+
 test("at-cuts mosh with no clip cuts delivers the original blob and filename", async () => {
   const h = createHarness();
   loadModule().activate(h.context);

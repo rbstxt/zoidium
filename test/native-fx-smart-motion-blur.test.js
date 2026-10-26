@@ -1,5 +1,7 @@
 "use strict";
 const test = require("node:test");
+require("../zoidium/plugin-apis.js");
+const { installFrameSamplerContext } = global.ZoidiumPluginApis;
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
@@ -228,6 +230,7 @@ test("native entry uses the bundle loader, project tap times, and exact active U
         return (name) => (name === "./math.js" ? math : pipeline);
       },
     },
+    installFrameSamplerContext,
     defineFrameSampler(value) {
       spec = value;
       Object.assign(this, value.lifecycle);

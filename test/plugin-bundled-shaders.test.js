@@ -7,6 +7,8 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const test = require("node:test");
+require("../zoidium/plugin-apis.js");
+const { installFrameSamplerContext } = global.ZoidiumPluginApis;
 
 const projectRoot = path.resolve(__dirname, "..");
 
@@ -29,7 +31,7 @@ const PZ = {
 
 function loadNativeFxEffect(filename) {
   let definition = null;
-  const apis = { defineFrameSampler(spec) { definition = spec; } };
+  const apis = { installFrameSamplerContext, defineFrameSampler(spec) { definition = spec; } };
   const source = fs.readFileSync(path.join(projectRoot, "plugins/native-fx/effects", filename), "utf8");
   const effect = {};
   new Function("PZ", "ZoidiumPluginApis", "THREE", source).call(effect, PZ, apis, {});

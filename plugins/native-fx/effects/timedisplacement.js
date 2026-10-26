@@ -425,14 +425,4 @@ ZoidiumPluginApis.defineFrameSampler.call(timeDisplacementEffect, {
   },
 });
 
-// CM3's layer prepare() does not forward its render context to effects.
-// Lower-track media preparation still needs the sequence and project rate.
-const timeDisplacementPrepareWithContext = this.prepare;
-if (typeof timeDisplacementPrepareWithContext === "function") {
-    this.prepare = function (frame, context) {
-        if (!context || !context.sequence) {
-            context = Object.assign({}, context, { sequence: this.parentProject.sequence });
-        }
-        return timeDisplacementPrepareWithContext.call(this, frame, context);
-    };
-}
+ZoidiumPluginApis.installFrameSamplerContext(this);

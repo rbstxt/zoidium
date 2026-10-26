@@ -267,6 +267,9 @@ test("Color Curves and Echo declare the extension APIs they need", () => {
   const byId = Object.fromEntries(
     manifest.nativeEffects.map((effect) => [effect.id, effect])
   );
-  assert.deepEqual(byId.echo.requiresApis, ["defineFrameSampler"]);
+  assert.deepEqual(byId.echo.requiresApis, ["defineFrameSampler", "installFrameSamplerContext"]);
+  for (const id of ["echo", "ccwidetime", "timedifference", "timedisplacement", "smartmotionblur"]) {
+    assert.ok(byId[id].requiresApis.includes("installFrameSamplerContext"), id);
+  }
   assert.deepEqual(byId.colorcurves.requiresApis, ["propertyControls", "modules"]);
 });

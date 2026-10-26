@@ -62,7 +62,15 @@ async function runTrueMosh(PZ, editor, device, blob, mode) {
     if (!render) throw new Error("the datamosh renderer is not installed");
     let ranges = null;
     if (mode === 2) {
-      const cuts = render.cutTimesMs(editor.sequence);
+      const sequenceRate = Number(editor.sequence.properties.rate.get()) || 30;
+      const params = device && device.params || {};
+      const startMs = (Number(params.start) || 0) / sequenceRate * 1000;
+      const exportRate = Number(params.rate) || sequenceRate;
+      const length = Number(params.length);
+      const durationMs = Number.isFinite(length) ? Math.max(0, length) / exportRate * 1000 : Infinity;
+      const cuts = render.cutTimesMs(editor.sequence)
+        .map(time => time - startMs)
+        .filter(time => time >= 0 && time < durationMs);
       if (!cuts.length) {
         return { blob, filename: fallbackName,
           note: "True mosh: no clip cuts to mosh. Clean render delivered." };

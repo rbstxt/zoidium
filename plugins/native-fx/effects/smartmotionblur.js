@@ -119,12 +119,4 @@ ZoidiumPluginApis.defineFrameSampler.call(this, {
   },
 });
 
-// CM3 does not pass the sequence through a layer's ordinary prepare method.
-const smartMotionBlurPrepare = this.prepare;
-this.prepare = function (frame, context) {
-  if (!context?.sequence)
-    context = Object.assign({}, context, {
-      sequence: this.parentProject.sequence,
-    });
-  return smartMotionBlurPrepare.call(this, frame, context);
-};
+ZoidiumPluginApis.installFrameSamplerContext(this);

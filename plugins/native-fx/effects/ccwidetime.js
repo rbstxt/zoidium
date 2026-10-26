@@ -253,14 +253,4 @@ ZoidiumPluginApis.defineFrameSampler.call(ccWideTimeEffect, {
   },
 });
 
-// CM3's layer prepare() does not forward its render context to effects.
-// Lower-track media preparation still needs the sequence and project rate.
-const ccWideTimePrepareWithContext = this.prepare;
-if (typeof ccWideTimePrepareWithContext === "function") {
-    this.prepare = function (frame, context) {
-        if (!context || !context.sequence) {
-            context = Object.assign({}, context, { sequence: this.parentProject.sequence });
-        }
-        return ccWideTimePrepareWithContext.call(this, frame, context);
-    };
-}
+ZoidiumPluginApis.installFrameSamplerContext(this);

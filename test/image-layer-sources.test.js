@@ -4,6 +4,8 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const test = require("node:test");
+require("../zoidium/plugin-apis.js");
+const { installFrameSamplerContext } = global.ZoidiumPluginApis;
 const vm = require("node:vm");
 const { managerSource } = require("./plugin-manager-source");
 const { loadSharedTables } = require("./shared-test-apis");
@@ -46,7 +48,7 @@ function fixture() {
   const PZ = { asset: { type: { IMAGE: 1 }, image: Image }, property: { type: { LIST: 20, ASSET: 30 } }, zoidium: {} };
   const sandbox = { console, PZ, THREE, Uint8Array, module: { exports: {} }, require, setTimeout, clearTimeout };
   vm.createContext(sandbox);
-  const apis = { ...loadSharedTables(), defineFrameSampler(spec) {
+  const apis = { ...loadSharedTables(), installFrameSamplerContext, defineFrameSampler(spec) {
     this.properties.addAll(spec.properties);
     Object.assign(this, spec.lifecycle);
   } };
