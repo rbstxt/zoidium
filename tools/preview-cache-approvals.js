@@ -62,7 +62,7 @@ function check() {
   const defer = process.env.ZOIDIUM_PREVIEW_CACHE_APPROVALS === "defer";
   if (defer && (receipt.fingerprint !== fingerprint() ||
       Object.entries(receipt.plugins).some(([id, record]) => record.version !== versions()[id]))) {
-    console.warn("Preview cache approvals are stale (deferred). Until the oracle reruns, changed plugins render live.");
+    console.warn("Preview cache approvals are stale (deferred). Until the oracle reruns, preview frames render live.");
     return;
   }
   if (receipt.fingerprint !== fingerprint()) throw new Error("Preview cache approvals are stale. Run pnpm run test:preview-cache -- --profile=<directory> --report=<file> --write, then rebuild plugin bundles.");

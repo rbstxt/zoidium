@@ -4,6 +4,7 @@
 // and the full resource-stage builder.
 const fs = require("fs");
 const path = require("path");
+const { spawnSync } = require("child_process");
 const approvals = require("./preview-cache-approvals");
 const {
   assertNoSymlinkComponents,
@@ -288,7 +289,12 @@ async function copyProjectFiles(stageRoot, { includeDesktopFiles = false } = {})
   }
   await copyPluginRuntime(resolvedStageRoot);
   const receipt = require(path.join(projectRoot, approvals.approvalPath));
-  if (receipt.fingerprint !== approvals.fingerprint()) {
+  // Bundles are excluded from the fingerprint, so they must also match the
+  // sources before their approval can be used in this stage.
+  const bundlesCurrent = receipt.fingerprint === approvals.fingerprint() &&
+    spawnSync(process.execPath, [path.join(projectRoot, "tools/build-plugin-bundles.js"), "--check"],
+      { cwd: projectRoot, stdio: "ignore" }).status === 0;
+  if (!bundlesCurrent) {
     await writeStageFile(resolvedStageRoot, approvals.approvalPath,
       approvals.source({ ...receipt, plugins: {}, stale: true }));
   }
