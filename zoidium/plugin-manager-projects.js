@@ -296,6 +296,7 @@
     window.addEventListener("zoidium:project-changed", refreshPluginUsageLocks);
     installSerializedFieldPreservation();
     window.ZoidiumProjectCompatibility.installTextMode(PZ);
+    window.ZoidiumProjectCompatibility.installText2D(PZ);
 
     const projectPrototype = PZ.project.prototype;
     const originalProjectToJSON = projectPrototype.toJSON;
