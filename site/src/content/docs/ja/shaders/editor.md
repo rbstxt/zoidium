@@ -42,4 +42,4 @@ Add properties はプロジェクトの履歴エントリを 1 つ作成しま�
 - Ctrl または Cmd + S、または Ctrl + Enter はドラフトを適用します。
 - Ctrl または Cmd + Plus または Minus はコードのフォントサイズを変更します。
 
-プロジェクトの「元に戻す」を実行すると、保存されたプロパティからドラフトが更新されます。フォントサイズはローカルに保持され、プロジェクトには保存されません。[エディターの互換性](/docs/ja/development/project-compatibility/#shader-editor-development-aids) を参照します。
+プロジェクトの「元に戻す」を実行すると、保存されたプロパティからドラフトが更新されます。フォントサイズはローカルに保持され、プロジェクトには保存されません。[エディターの互換性](/docs/ja/development/project-compatibility/#シェーダーエディターの開発支援) を参照します。
