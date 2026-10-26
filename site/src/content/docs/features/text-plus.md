@@ -56,6 +56,26 @@ To affect specific characters, use Selected Character Transform and enter
 one-based numbers such as `1,4,5` in **Characters**. To scatter text, use Random
 Scatter and animate **Amount**. To animate Character Shake, animate **Phase**.
 
+## Assign materials to selected 3D characters
+
+1. In a 3D Scene's **Objects** panel, add **Character Material** from Text+.
+2. Put a native 3D Text object inside the parent.
+3. In **Character**, enter one-based numbers such as `1,3,4` in **Characters**.
+4. To affect every character, leave **Characters** empty.
+5. Open **Front material** and use its change button to choose a material for both caps.
+6. Open **Side material** and choose a material for the extrusion walls and bevels.
+7. Edit or keyframe each material's native properties.
+
+To keep the source Text material on a face, delete the material from that slot.
+To swap the materials on a letter, add a nested **Character Material** parent.
+Select that letter in the inner parent's **Characters** field, then reverse the two material choices.
+The innermost parent that selects a character controls both slots.
+An empty inner slot uses the source Text material.
+
+To animate the same text, nest the material parent with any Text+ animation parent.
+Keep other object types in the group if needed. Character Material changes only 3D Text.
+When you open the project without Text+, the source Text materials render and the saved slots remain available.
+
 [Text+ source contract](https://github.com/rbstxt/zoidium/blob/dev/plugins/text-plus/README.md)
 describes pivots, delay, shake, and nested parents.
 [Text+ compatibility](/docs/development/project-compatibility/#text-scale-composition)

@@ -37,7 +37,7 @@ Existing 3D Text+ objects keep their published types and behavior.
 
 ## 3D Text parents
 
-Text+ adds six parent objects to 3D Scene. Put one or more 3D Text objects
+Text+ adds seven parent objects to 3D Scene. Put one or more 3D Text objects
 inside any parent, directly or through ordinary Groups, and Text+ renders
 each character as an independent 3D mesh. Non-text descendants keep their
 normal Group behavior. Text+ also adds advanced bevel controls to the native
@@ -49,8 +49,9 @@ Text object and uses them when it rebuilds character meshes.
 - `Selected Character Transform` transforms only entered character numbers.
 - `Selected Character Shake` shakes only entered character numbers.
 - `Random Scatter` gives every character a seeded random transform.
+- `Character Material` assigns separate materials to selected caps and sides.
 
-The source Text object still owns its text, font, extrusion, bevel, material,
+The source Text object still owns its text, font, extrusion, bevel, default material,
 center point, and object transform. Text+ preserves those settings and adds the
 following animated controls around each character's own geometry center.
 
@@ -168,7 +169,7 @@ layers with different local depth or scale stay aligned.
 
 ## Pivot
 
-Every parent except Gradient Transform has a `Pivot` control. `Character`
+Every animation parent except Gradient Transform has a `Pivot` control. `Character`
 rotates and scales each character around its own geometry center. `Text` uses
 the center of the full rendered text bounds, independent of the Text object's
 Center point setting. Position is unchanged by the pivot choice.
@@ -184,3 +185,27 @@ Group-like objects such as Repeater.
 
 The per-character meshes exist only at runtime. Project JSON stores the Text+
 object, its controls, and the original child objects once.
+
+## Character materials
+
+`Character Material` has a `Characters` field and two native material slots,
+`Front material` and `Side material`. Front covers both caps. Side covers the
+extrusion walls and bevels. Each slot supports native and Material+ materials,
+including their properties, asset references, and keyframes.
+
+The Characters field uses the same one-based syntax as the selected animation
+parents. An empty field selects every character. Spaces count as character
+slots. The Text object's Index offset also applies to material selection.
+
+For nested Character Material parents, the innermost parent that selects a
+character owns both slots. An empty slot uses the source Text material for
+that face, even when an outer parent has a material in that slot. Unselected
+characters use the nearest outer parent that selects them, or their source
+Text material. Other object types retain their materials.
+
+Material+ applies its shared UV layout only to faces that use a UV-sampling
+Material+ material. Native materials retain their native UVs on the other faces.
+Generated glyph meshes and material arrays are runtime data. Project JSON stores
+`frontMaterial` and `sideMaterial` on the parent, alongside its native Group data.
+Missing Text+ retains these slots and renders the children as a native Group.
+The Plugins panel prevents disabling Text+ while its parent objects are in use.
