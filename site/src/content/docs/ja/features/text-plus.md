@@ -51,4 +51,24 @@ Text+ を使用せずにネイティブの Text を描画するには、**Plugin
 
 特定の文字に影響を与えるには、Selected Character Transform を使用し、**Characters** に `1,4,5` などの 1 から始まる数値を入力します。テキストを散乱させるには、Random Scatter を使用して **Amount** をアニメーション化します。Character Shake をアニメーション化するには、**Phase** をアニメーション化します。
 
+## 選択した 3D 文字にマテリアルを割り当てる
+
+1. 3D Scene の **Objects** パネルで、Text+ から **Character Material** を追加します。
+2. ネイティブの 3D Text オブジェクトを親の中に置きます。
+3. **Character** の **Characters** に、`1,3,4` などの 1 から始まる番号を入力します。
+4. すべての文字を対象にするには、**Characters** を空にします。
+5. **Front material** を開き、change ボタンで両方のキャップのマテリアルを選択します。
+6. **Side material** を開き、押し出しの側面とベベルのマテリアルを選択します。
+7. 各マテリアルのネイティブプロパティを編集するか、キーフレームを設定します。
+
+面に元の Text のマテリアルを使うには、そのスロットのマテリアルを削除します。
+文字のマテリアルを入れ替えるには、内側に **Character Material** の親を追加します。
+内側の親の **Characters** で対象の文字を選択し、2 つのマテリアルの選択を逆にします。
+文字を選択する最も内側の親が両方のスロットを制御します。
+内側の空のスロットは、元の Text のマテリアルを使います。
+
+同じ Text にアニメーションを設定するには、マテリアルの親と Text+ のアニメーションの親を入れ子にします。
+必要に応じて、他の種類のオブジェクトもグループに入れられます。Character Material が変更するのは 3D Text だけです。
+Text+ なしでプロジェクトを開くと、元の Text のマテリアルで描画します。保存したスロットは保持します。
+
 [Text+ のソースコントラクト](https://github.com/rbstxt/zoidium/blob/dev/plugins/text-plus/README.md)では、ピボット、ディレイ、シェイク、ネストされた親について説明しています。[Text+ の互換性](/docs/ja/development/project-compatibility/#text-スケール合成)では、保存されたスケールモードについて説明しています。

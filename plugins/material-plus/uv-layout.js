@@ -469,6 +469,7 @@ function uvRestoreGeometry(geometry) {
   const original = geometry.__zoidiumUvOriginal;
   delete geometry.__zoidiumUvNormalized;
   delete geometry.__zoidiumUvOriginal;
+  delete geometry.__zoidiumUvFaceMask;
   if (!original) return;
   const layers = geometry.faceVertexUvs;
   for (let layer = 0; layer < original.length; layer += 1) {
@@ -504,8 +505,33 @@ function uvForEachMesh(root, callback) {
   }
 }
 
-function uvMeshMaterial(mesh) {
-  return Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
+// A glyph may mix native and Material+ materials. Keep native UVs on each
+// face whose material does not use the shared layout. Rebuild only when the
+// face mask changes, never on an unchanged frame.
+function uvSyncCharacterMesh(mesh, geometry, removed) {
+  const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+  let mask = 0;
+  for (let i = 0; i < materials.length; i++) {
+    if (materials[i] !== removed && materials[i]?.__zoidiumUvLayout) mask |= Array.isArray(mesh.material) ? 1 << i : 3;
+  }
+  if (!geometry || geometry.__zoidiumUvFaceMask === mask) return;
+  uvRestoreGeometry(geometry);
+  if (mask && uvApplyToGeometry(geometry)) {
+    const original = geometry.__zoidiumUvOriginal[0];
+    const target = geometry.faceVertexUvs[0];
+    for (let i = 0; i < geometry.faces.length; i++) {
+      if (mask & (1 << (geometry.faces[i].materialIndex || 0))) continue;
+      for (let j = 0; j < (original[i]?.length || 0); j++) {
+        target[i][j].set(original[i][j].x, original[i][j].y);
+      }
+    }
+  }
+  geometry.__zoidiumUvFaceMask = mask;
+}
+
+function uvHasOtherLayout(mesh, removed) {
+  const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+  return materials.some(current => current && current !== removed && current.__zoidiumUvLayout);
 }
 
 const uvOwners = new WeakMap();
@@ -521,7 +547,13 @@ function uvEnsureMaterial(material) {
   if (!owner) return;
   uvOwners.set(material, owner);
   if (material.threeObj) material.threeObj.__zoidiumUvLayout = true;
-  uvForEachMesh(owner.threeObj, (_mesh, geometry) => {
+  uvForEachMesh(owner.threeObj, (mesh, geometry) => {
+    // Slot owners contain unselected Text and ordinary meshes too.
+    if (owner.zoidiumTextPlusMode === "character-material" && !mesh.__zoidiumSyncMaterialUvs) return;
+    if (mesh.__zoidiumSyncMaterialUvs) {
+      uvSyncCharacterMesh(mesh, geometry);
+      return;
+    }
     uvApplyToGeometry(geometry);
   });
 }
@@ -533,8 +565,12 @@ function uvReleaseMaterial(material) {
   const owner = uvOwners.get(material) || uvOwner(material);
   uvOwners.delete(material);
   uvForEachMesh(owner?.threeObj, (mesh, geometry) => {
-    const current = uvMeshMaterial(mesh);
-    if (current && current !== material.threeObj && current.__zoidiumUvLayout) return;
+    if (owner?.zoidiumTextPlusMode === "character-material" && !mesh.__zoidiumSyncMaterialUvs) return;
+    if (mesh.__zoidiumSyncMaterialUvs) {
+      uvSyncCharacterMesh(mesh, geometry, material.threeObj);
+      return;
+    }
+    if (uvHasOtherLayout(mesh, material.threeObj)) return;
     uvRestoreGeometry(geometry);
   });
 }
@@ -546,6 +582,7 @@ return {
   reconstructContours: uvReconstructContours,
   applyToGeometry: uvApplyToGeometry,
   restoreGeometry: uvRestoreGeometry,
+  syncCharacterMesh: uvSyncCharacterMesh,
   ensureMaterial: uvEnsureMaterial,
   releaseMaterial: uvReleaseMaterial,
 };

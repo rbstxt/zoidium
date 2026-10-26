@@ -7,7 +7,7 @@ const plugin = require("../plugins/text-plus/text-plus.js");
 const { _test } = plugin;
 
 
-test("Text+ registers six independent group parent types", () => {
+test("Text+ registers seven independent group parent types", () => {
   class PropertyList {
     constructor(definitions, parent) {
       this.parent = parent;
@@ -101,6 +101,7 @@ test("Text+ registers six independent group parent types", () => {
           name: "Selected Character Shake",
         },
         { type: _test.RANDOM_SCATTER_TYPE, name: "Random Scatter" },
+        { type: "zoidium:text-plus/character-material", name: "Character Material" },
       ]
     );
     const transform = registrations[0].factory();
@@ -182,6 +183,7 @@ test("Text+ registers six independent group parent types", () => {
     _test.SELECTED_TRANSFORM_TYPE,
     _test.SELECTED_SHAKE_TYPE,
     _test.RANDOM_SCATTER_TYPE,
+    "zoidium:text-plus/character-material",
   ]);
   assert.equal(TextObject.propertyDefinitions, originalTextPropertyDefinitions);
 });

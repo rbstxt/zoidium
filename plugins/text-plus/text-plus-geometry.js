@@ -20,6 +20,7 @@ const {
   getTextPlusControls,
   propertyValue,
 } = require("./text-plus-controls.js");
+const characterMaterials = require("./text-plus-materials.js");
 const {
   clearTextFontWarnings,
   countGeometryVertices,
@@ -726,6 +727,8 @@ function updateCharacterRendering(textObject, splitState, layers, frame) {
   for (const entry of splitState.entries) {
     copyMeshState(sourceMesh, entry.mesh);
     const range = getEffectiveCharacterRange(textObject, frame, entry.index, entry.count);
+    characterMaterials.apply(entry, sourceMesh.material,
+      characterMaterials.resolve(layers, frame, range.index, range.count));
     for (let index = 0; index < layers.length; index += 1) {
       const controls = getTextPlusControls(
         layers[index],

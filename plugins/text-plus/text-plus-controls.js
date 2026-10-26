@@ -255,6 +255,7 @@ function getRandomScatterControls(scatter, frame, index) {
 
 function getTextPlusControls(textPlus, frame, index, count) {
   const mode = textPlus.zoidiumTextPlusMode;
+  if (mode === "character-material") return neutralCharacterControls(frame);
   if (mode === "random-scatter") {
     return getRandomScatterControls(textPlus, frame, index);
   }

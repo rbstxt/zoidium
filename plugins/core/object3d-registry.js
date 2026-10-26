@@ -96,7 +96,9 @@
 
   function createMissing(type, data) {
     var metadata = getObjectMetadata(type, null, true);
-    var missing = new MissingObject3D(type, metadata);
+    var missing = type === "zoidium:text-plus/character-material" && PZ.object3d.group
+      ? new MissingCharacterMaterial(type)
+      : new MissingObject3D(type, metadata);
     missing.type = type;
     trackObject(missing, metadata, true);
     if (data !== undefined) {
@@ -359,6 +361,32 @@
         object._zoidiumObjectMetadata.id === pluginId
       );
     });
+  }
+
+  // Material parents retain a native Group when Text+ is unavailable. Their
+  // serialized slot payloads stay untouched while descendant Text renders.
+  class MissingCharacterMaterial extends (PZ.object3d.group || PZ.object3d) {
+    constructor(type) {
+      super();
+      this.missingType = type;
+      this._zoidiumMissingData = { type: type, objects: [], customProperties: [] };
+    }
+
+    load(data) {
+      if (data && typeof data.toJSON === "function") data = data.toJSON();
+      this._zoidiumMissingData = cloneJson(data || this._zoidiumMissingData);
+      var normalized = Object.assign({ objects: [], customProperties: [] }, this._zoidiumMissingData);
+      super.load(normalized);
+    }
+
+    toJSON() {
+      return Object.assign(cloneJson(this._zoidiumMissingData), super.toJSON(), { type: this.missingType });
+    }
+
+    unload() {
+      super.unload();
+      untrackObject(this);
+    }
   }
 
   class MissingObject3D extends PZ.object3d {
