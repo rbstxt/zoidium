@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "apiVersion": 1,
+  "id": "community-14f1d1d721e94a38900d314d510c482e",
+  "name": "Isolated gain example",
+  "author": "Zoidium",
+  "version": "1",
+  "profile": "isolated-effects",
+  "sourceFormat": "guest-script-v1",
+  "entry": "guest.js",
+  "assets": ["guest.js"],
+  "effects": [{
+    "id": "community-14f1d1d721e94a38900d314d510c482e-fx-gain",
+    "name": "Gain",
+    "dataSchema": 1,
+    "template": "gain-v1",
+    "properties": [{"key":"gain","label":"Gain","type":"number","default":1,"min":0,"max":2}],
+    "actions": ["reset"],
+    "ui": [{"kind":"section","label":"Gain","children":[
+      {"kind":"control","label":"Gain","property":"gain"},
+      {"kind":"button","label":"Reset","action":"reset"}
+    ]}]
+  }]
+}
