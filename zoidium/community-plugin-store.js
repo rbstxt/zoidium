@@ -16,6 +16,9 @@
   function earlySafeMode(location = root.location) {
     return root.ZOIDIUM_COMMUNITY_SAFE_MODE === true || new URLSearchParams(location?.search || "").get("communitySafeMode") === "1";
   }
+  function previewEnabled() {
+    try { return root.localStorage?.getItem("zoidium.community-preview") === "1"; } catch (_) { return false; }
+  }
   function createStore({ adapter = D.createIndexedDBAdapter(), occupied = [], limits = P.LIMITS, safeMode = earlySafeMode() } = {}) {
     const reserved = new Set(occupied);
     let current = empty(), ready = false;
@@ -80,7 +83,7 @@
       return bundle.manifest;
     }
     function view() {
-      return { schemaVersion: 1, revision: current.revision, safeMode: safeMode || current.safeMode, activationAvailable: false,
+      return { schemaVersion: 1, revision: current.revision, safeMode: safeMode || current.safeMode, activationAvailable: previewEnabled(),
         bytes: Object.values(current.blobs).reduce((sum, b) => sum + b.byteLength, 0),
         packages: current.records.map(r => {
           let manifest;
@@ -88,7 +91,8 @@
           const hash = r.pending || r.selected;
           const approved = r.approvals.includes(hash);
           return { ...structuredClone(r), hash, manifest, approved, installed: Boolean(r.selected),
-            readiness: r.quarantine ? "Quarantined" : !approved ? "Needs approval" : r.staged ? "Pending reload" : "Unavailable until rendering support lands" };
+            readiness: r.quarantine ? "Quarantined" : !approved ? "Needs approval" : r.staged ? "Pending reload" :
+              previewEnabled() ? r.enabled ? "Selected for preview" : "Disabled" : "Unavailable until rendering support lands" };
         }) };
     }
     async function open({ reload = false } = {}) {
@@ -188,16 +192,31 @@
         if (typeof enabled !== "boolean") fail("Invalid safe mode setting.");
         const state = snapshot(revision); state.safeMode = enabled; return commit(state, revision);
       },
-      beforeEvaluation: async () => {
+      beforeEvaluation: async (id, hash) => {
         await open();
         if (safeMode || current.safeMode) fail("Community safe mode is enabled.", "COMMUNITY_SAFE_MODE");
         if (current.attempts.length) fail("A previous community activation did not finish.", "ACTIVATION_INTERRUPTED");
-        fail("Community activation is unavailable until rendering support lands.", "RENDERING_UNAVAILABLE");
+        if (!previewEnabled()) fail("Community activation is unavailable until rendering support lands.", "RENDERING_UNAVAILABLE");
+        const state = snapshot(current.revision), r = record(state, id);
+        if (!r.enabled || r.quarantine || r.selected !== hash || !r.approvals.includes(hash) || !r.verified.includes(hash)) fail("Approve and select the exact package before previewing it.");
+        await inspect(state, r, hash);
+        state.attempts.push({ id, hash });
+        await commit(state);
+        return { bytes: state.blobs[hash].slice(), hash };
+      },
+      completeActivation: (id, hash, revision) => change(id, revision, (_r, state) => {
+        state.attempts = state.attempts.filter(a => a.id !== id || a.hash !== hash);
+      }),
+      authorized: async (id, hash) => {
+        if (!previewEnabled() || safeMode) return false;
+        const state = validate(await adapter.load() || empty()), r = state.records.find(r => r.id === id);
+        return Boolean(!state.safeMode && r?.enabled && !r.quarantine && r.selected === hash &&
+          r.verified.includes(hash) && r.approvals.includes(hash));
       },
       close: () => adapter.close?.(),
     };
   }
-  const api = { createStore, hashBytes, earlySafeMode };
+  const api = { createStore, hashBytes, earlySafeMode, previewEnabled };
   if (commonJS) module.exports = api;
   else root.ZoidiumCommunityStore = api;
 })(globalThis);
