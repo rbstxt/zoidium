@@ -36,7 +36,7 @@ function owner(f, name, key) {
   return prop;
 }
 
-test("Collect Files zips every attached file in its Assets folder and reports missing files", async () => {
+test("Collect Files zips every attached file in its panel folders and reports missing files", async () => {
   const f = retainedFixture();
   const a = await f.add("logo.png", "image/png", "first bytes");
   const b = await f.add("logo.png", "image/png", "other bytes");
@@ -73,6 +73,18 @@ test("Collect Files zips every attached file in its Assets folder and reports mi
   assert.match(report, /lost\.png {2}\(used 1 time\)/);
   // Collecting changes nothing in the project.
   assert.equal(f.editor.history.undoStack.length, 4);
+});
+
+test("Collect Files tooltip describes root files and Assets window folders without a new Assets directory", async () => {
+  const { createActions } = require("../plugins/asset-manager/assets-actions.js");
+  const f = retainedFixture();
+  await f.add("one.txt", "text/plain", "one");
+  const command = createActions({ document: {}, registry: () => f.api }).collectCommand(f.api.snapshot());
+  assert.equal(command.hint, "Download a ZIP with available files in the Assets window's folder structure and a missing-file report");
+  const result = await f.api.collectFiles();
+  const entries = readZip(Buffer.from(await result.blob.arrayBuffer()));
+  assert.deepEqual(Array.from(entries.keys()), ["one.txt", "Collect Files Report.txt"]);
+  assert.equal(entries.get("one.txt"), "one");
 });
 
 test("identical archives come out for the same files", async () => {

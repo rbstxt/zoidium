@@ -256,8 +256,52 @@
       return page;
     };
 
+    const originalRender = prototype.render;
+    const originalCreateErrorPage = prototype.createErrorPage;
+    if (typeof originalRender === "function" && typeof originalCreateErrorPage === "function") {
+      const failures = new WeakMap();
+      prototype.render = async function renderImageWithDiagnostic() {
+        failures.delete(this);
+        try {
+          return await originalRender.apply(this, arguments);
+        } catch (error) {
+          failures.set(this, error?.message || String(error));
+          // CM3's progress page handles undefined as failure. Returning it
+          // lets that page clear its timer, show the error page, and unload.
+          return undefined;
+        }
+      };
+      prototype.createErrorPage = function createImageErrorPageWithDiagnostic() {
+        const page = originalCreateErrorPage.apply(this, arguments);
+        if (!failures.has(this)) return page;
+        const message = failures.get(this);
+        failures.delete(this);
+        this.renderCleanUp();
+        // Native descriptions accept HTML. Keep renderer diagnostics as text,
+        // as the video export adapter does, because clip names are user input.
+        const description = PZ.ui.controls.legacy.generateDescription({ content: "" });
+        description.textContent = "Image export failed. " + message;
+        page.appendChild(description);
+        return page;
+      };
+    }
+
     prototype[PATCH_MARKER] = true;
   }
 
+  function installImageEncoderPatch() {
+    const encoder = PZ.imageEncoder;
+    const marker = "__zoidiumImageEncoderMimePatch";
+    if (!encoder?.canvasToBlob || encoder[marker]) return;
+    const original = encoder.canvasToBlob;
+    encoder.canvasToBlob = function canvasToBlobWithJpegMime(canvas, format, ...args) {
+      // CM3 prefixes the format with image/. The browser recognizes jpeg,
+      // while jpg silently falls back to PNG. Preserve quality and filenames.
+      return original.call(this, canvas, format === "jpg" ? "jpeg" : format, ...args);
+    };
+    encoder[marker] = true;
+  }
+
+  installImageEncoderPatch();
   installImageExportPatch();
 })();

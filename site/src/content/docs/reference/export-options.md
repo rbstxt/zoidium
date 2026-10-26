@@ -13,10 +13,10 @@ The current local format choices are listed below. VP9 support in the True datam
 | **.mkv (vp8/opus)** | Native VP8 path | Opus | No Zoidium alpha guarantee |
 | **.webm (vp8/opus)** | Native VP8 path | Opus | No Zoidium alpha guarantee |
 | **.png** | Browser PNG image | None | Yes, for transparent rendered pixels |
-| **.jpg** | Browser image encoder | None | JPEG has no alpha. See the browser fallback below. |
+| **.jpg** | Browser JPEG image | None | No |
 | **.webp** | Browser WebP image | None | Yes, when the browser supports WebP encoding |
 
-The image encoder passes the selected MIME type to the browser. The **.jpg** path requests `image/jpg`. A browser can fall back to PNG for an unsupported MIME type, while the filename remains `image.jpg`. The **.webp** path also depends on browser encoder support.
+The **.jpg** path requests `image/jpeg` and saves JPEG bytes as `image.jpg`. The browser receives the selected **Quality** value unchanged. The **.webp** path depends on browser encoder support.
 
 **black fill** adds opaque black bars, including for PNG and WebP. A format's alpha support does not make an opaque project background transparent.
 
@@ -60,5 +60,7 @@ MP4 uses a writable private browser file when available and Blob chunks otherwis
 ## Failure diagnostics
 
 Graphics-context loss stops export with the output index, project frame, time, and stage in the error. Video decode failures identify the clip, requested media time, output frame, and decode stage. The failed export does not resume.
+
+For **Single frame capture**, a rejected render opens **Render error** with the diagnostic and restores editor controls.
 
 [Export an MP4](/docs/features/mp4-export/) contains recovery steps. [Export a frame](/docs/how-to/export-frame/) covers still capture. [True datamosh export](/docs/how-to/export-true-datamosh/) covers the optional WebM pass.
