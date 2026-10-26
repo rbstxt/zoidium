@@ -60,3 +60,14 @@ test("interpreter bounds syntax, serialized output and invalid results", async (
   await assert.rejects(I.evaluate("function prepare(){return undefined}", "prepareEffect", {}), /JSON record/);
   await assert.rejects(I.evaluate("function prepare(){return {constructor:1}}", "prepareEffect", {}), /poisoned/);
 });
+
+test("pinned interpreter enforces a 64 MiB WASM maximum", async () => {
+  const q = await require("../zoidium/vendor/quickjs/quickjs").create();
+  const memory = q.getWasmMemory();
+  assert.equal(memory.buffer.byteLength, 16 * 1024 * 1024);
+  assert.throws(() => memory.grow(1025), RangeError);
+  const runtime = q.newRuntime(), context = runtime.newContext();
+  const result = context.evalCode("1+1");
+  try { assert.equal(context.getNumber(result.value), 2); }
+  finally { result.value.dispose(); context.dispose(); runtime.dispose(); }
+});

@@ -121,6 +121,52 @@
                 "label",
                 "type",
                 "default"
+              ],
+              "allOf": [
+                {
+                  "if": {
+                    "properties": {
+                      "type": {
+                        "const": "number"
+                      }
+                    }
+                  },
+                  "then": {
+                    "properties": {
+                      "default": {
+                        "type": "number"
+                      },
+                      "min": {
+                        "type": "number"
+                      },
+                      "max": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "min",
+                      "max"
+                    ]
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "type": {
+                        "const": "boolean"
+                      }
+                    }
+                  },
+                  "then": {
+                    "properties": {
+                      "default": {
+                        "type": "boolean"
+                      },
+                      "min": false,
+                      "max": false
+                    }
+                  }
+                }
               ]
             }
           },
@@ -214,12 +260,14 @@
             }
           },
           "then": {
+            "properties": {
+              "children": {},
+              "property": false,
+              "action": false
+            },
             "required": [
               "children"
-            ],
-            "properties": {
-              "children": {}
-            }
+            ]
           }
         },
         {
@@ -231,12 +279,14 @@
             }
           },
           "then": {
+            "properties": {
+              "children": false,
+              "property": {},
+              "action": false
+            },
             "required": [
               "property"
-            ],
-            "properties": {
-              "property": {}
-            }
+            ]
           }
         },
         {
@@ -248,12 +298,31 @@
             }
           },
           "then": {
+            "properties": {
+              "children": false,
+              "property": false,
+              "action": {}
+            },
             "required": [
               "action"
-            ],
+            ]
+          }
+        },
+        {
+          "if": {
             "properties": {
-              "action": {}
+              "kind": {
+                "const": "label"
+              }
             }
+          },
+          "then": {
+            "properties": {
+              "children": false,
+              "property": false,
+              "action": false
+            },
+            "required": []
           }
         }
       ]

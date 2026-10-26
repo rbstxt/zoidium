@@ -21,7 +21,7 @@ async function build() {
   const hash = b => crypto.createHash("sha256").update(b).digest("hex");
   const destination = path.join(root, "zoidium/vendor/quickjs");
   fs.mkdirSync(destination, { recursive: true });
-  const metadata = JSON.stringify({ version: "0.32.0", variant: "release-sync", wasmBytes: wasm.length, wasmSha256: hash(wasm), bundleBytes: bytes.length, bundleSha256: hash(bytes) }, null, 2) + "\n";
+  const metadata = JSON.stringify({ version: "0.32.0", variant: "release-sync", wasmMemoryInitialBytes: 16 * 1024 * 1024, wasmMemoryMaximumBytes: 64 * 1024 * 1024, wasmBytes: wasm.length, wasmSha256: hash(wasm), bundleBytes: bytes.length, bundleSha256: hash(bytes) }, null, 2) + "\n";
   for (const [name, data] of [["quickjs.js", bytes], ["build.json", metadata]]) {
     const output = path.join(destination, name);
     if (process.argv.includes("--check")) {

@@ -63,8 +63,8 @@ async function networkProbes(targets) {
   await attempt('dom-form', () => {const f=document.createElement('form');f.action=target('form');f.submit();});
   await attempt('dns-prefetch-dom', () => {const l=document.createElement('link');l.rel='dns-prefetch';l.href='https://zoidium-plugin-network-probe.invalid';document.head.append(l);});
   await attempt('location-navigate', () => {location.href=target('navigate');return location.href;});
-  await attempt('tcp-socket', () => new TCPSocket('127.0.0.1',targets.port));
-  await attempt('udp-socket', () => new UDPSocket({remoteAddress:'127.0.0.1',remotePort:targets.udpPort}));
+  await attempt('tcp-socket', () => new globalThis.TCPSocket('127.0.0.1',targets.port));
+  await attempt('udp-socket', () => new globalThis.UDPSocket({remoteAddress:'127.0.0.1',remotePort:targets.udpPort}));
   await attempt('eval-constructor', () => Function('return 42')());
   await delay(150);
   return {results,violations,globals:Object.fromEntries(['fetch','XMLHttpRequest','WebSocket','WebSocketStream','EventSource','Worker','SharedWorker','Image','FontFace','OffscreenCanvas','WebTransport','RTCPeerConnection','RTCDataChannel','document','open','BroadcastChannel','TCPSocket','UDPSocket'].map(k=>[k,typeof globalThis[k]])),origin:self.origin,location:location.href,secure:isSecureContext};

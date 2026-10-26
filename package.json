@@ -40,7 +40,7 @@
     "docs:build": "pnpm --filter @zoidium/docs build",
     "pack:community": "node tools/pack-community-plugin.js",
     "build:community-interpreter": "node tools/build-community-interpreter.js",
-    "test:community-network": "node tools/test-community-network.js"
+    "test:community-network": "node tools/community-network-suite.js"
   },
   "build": {
     "appId": "com.zoidium.app",

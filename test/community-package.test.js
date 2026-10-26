@@ -89,8 +89,8 @@ for (const source of ["import x from 'x'", "export function prepare(){}", "impor
 }
 test("all shipped bundles retain their base bytes and pass deterministic rebuild", () => {
   const root = path.join(__dirname, "..");
-  const files = execFileSync("git", ["ls-tree", "-r", "--name-only", "7e0c2b2", "plugins"], { cwd: root, encoding: "utf8" }).trim().split("\n").filter(f => f.endsWith("/bundle.json"));
+  const files = execFileSync("git", ["ls-tree", "-r", "--name-only", "HEAD", "plugins"], { cwd: root, encoding: "utf8" }).trim().split("\n").filter(f => f.endsWith("/bundle.json"));
   assert.ok(files.length > 0);
-  for (const file of files) assert.equal(digest(fs.readFileSync(path.join(root, file))), digest(execFileSync("git", ["show", "7e0c2b2:" + file], { cwd: root, maxBuffer: 32 * 1024 * 1024 })), file);
+  for (const file of files) assert.equal(digest(fs.readFileSync(path.join(root, file))), digest(execFileSync("git", ["show", "HEAD:" + file], { cwd: root, maxBuffer: 32 * 1024 * 1024 })), file);
   execFileSync(process.execPath, ["tools/build-plugin-bundles.js", "--check"], { cwd: root });
 });

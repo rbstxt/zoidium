@@ -73,6 +73,12 @@ async function runnerCases(page, fixture, folder) {
     const base = { protocolVersion: 1, interpreterVersion: V.INTERPRETER, instanceId: "instance", instanceGeneration: 1, projectGeneration: 1, revision: 1, frameKey: "exact-frame-0.5" };
     let counter = 0;
     async function start(source = runtimeSource) { return B.createRunner({ bytes, approvedHash: options.hash, runtimeSource: source }); }
+    async function guestRunner(code) {
+      const bundle = JSON.parse(new TextDecoder().decode(bytes)); bundle.assets[bundle.manifest.entry] = code;
+      const changed = new TextEncoder().encode(JSON.stringify(bundle));
+      const approvedHash = "sha256-" + btoa(String.fromCharCode(...new Uint8Array(await crypto.subtle.digest("SHA-256", changed))));
+      return B.createRunner({ bytes: changed, approvedHash, runtimeSource });
+    }
     function message(runner, operation, payload) { return { ...base, ...runner.binding, requestId: "request-" + (++counter), operation, payload }; }
     const input = { properties: { gain: 0.5 }, frame: 0.5, time: 1 / 60, frameRate: 30, width: 64, height: 64, pixelAspect: 1, seed: 1 };
     const effectId = options.effectId;
@@ -85,6 +91,10 @@ async function runnerCases(page, fixture, folder) {
       results.push({ name: "duplicate request rejected", ok: await r.request(duplicate).then(() => false, () => true) });
       const bad = message(r, "initialize", {}); bad.protocolVersion = 2;
       results.push({ name: "incompatible protocol rejected", ok: await r.request(bad).then(() => false, () => true) });
+      const incompatible = message(r, "initialize", {}); incompatible.interpreterVersion = "unknown-runtime";
+      results.push({ name: "incompatible interpreter rejected", ok: await r.request(incompatible).then(() => false, () => true) });
+      const urlInput = message(r, "prepareEffect", { effectId, input: { ...input, url: options.sink } });
+      results.push({ name: "URL-bearing host operation rejected", ok: await r.request(urlInput).then(() => false, () => true) });
       const foreign = message(r, "initialize", {}); foreign.packageHash = "sha256-" + "B".repeat(43) + "=";
       results.push({ name: "foreign binding rejected", ok: await r.request(foreign).then(() => false, () => true) });
       const handle = message(r, "initialize", {}), channel = new MessageChannel(); handle.payload = { port: channel.port1 };
@@ -92,6 +102,16 @@ async function runnerCases(page, fixture, folder) {
       results.push({ name: "dispose", ok: (await r.request(message(r, "dispose", {}))).operation === "disposed" });
     } finally { r.dispose(); }
     results.push({ name: "exact-hash approval", ok: await B.createRunner({ bytes, approvedHash: "wrong", runtimeSource }).then(() => false, () => true) });
+    for (const [name, code, expected] of [
+      ["guest network calls denied", `function prepare(){const attempts=[()=>fetch(${JSON.stringify(options.sink)}),()=>new WebSocket(${JSON.stringify(options.sink.replace('http:','ws:'))}),()=>new Worker(${JSON.stringify(options.sink)}),()=>Function('return this')().fetch(${JSON.stringify(options.sink)}),()=>({}).constructor.constructor('return this')().fetch(${JSON.stringify(options.sink)})];return {uniforms:{gain:attempts.every(f=>{try{f();return false}catch(e){return true}})?0.5:999}}}`, "prepared"],
+      ["temporal dependency fails locally", "function prepare(){return {uniforms:{},temporal:{offsets:[0]}}}", "LOCAL_DEPENDENCY_UNAVAILABLE"],
+    ]) {
+      const runner = await guestRunner(code);
+      try {
+        const reply = await runner.request(message(runner, "prepareEffect", { effectId, input })).then(value => value, error => error);
+        results.push({ name, ok: expected === "prepared" ? reply.payload?.uniforms.gain === 0.5 : reply.message?.includes(expected) });
+      } finally { runner.dispose(); }
+    }
     // Trusted hostile-runtime fixtures exercise host checks independently of guest code.
     for (const [name, body] of [
       ["stale reply rejected", "postMessage({...e.data,revision:e.data.revision+1,operation:'prepared',payload:{uniforms:{gain:1}}})"],
@@ -108,7 +128,7 @@ async function runnerCases(page, fixture, folder) {
       } finally { runner.dispose(); }
     }
     return results;
-  }, { bytes, hash: result.hash, runtime: runtimeSource(), effectId: require("../examples/community-filter/manifest.json").effects[0].id });
+  }, { bytes, hash: result.hash, runtime: runtimeSource(), sink: fixture.targets.sink + "/probe/guest-operation", effectId: require("../examples/community-filter/manifest.json").effects[0].id });
   for (const result of results) check(result.ok, "production runner " + result.name);
   report.runner = results;
 }
@@ -173,6 +193,11 @@ async function main() {
     const errors = []; page.on("console", m => { if (m.type() === "error") errors.push(m.text().slice(0, 500)); });
     await page.goto(fixture.targets.host);
     await controls(page, fixture); fixture.reset();
+    await page.evaluate(() => {
+      globalThis.communityBroadcastLeaks = [];
+      globalThis.communityBroadcastControl = new BroadcastChannel("zoidium-host-probe");
+      globalThis.communityBroadcastControl.onmessage = event => globalThis.communityBroadcastLeaks.push(event.data);
+    });
     // A deliberately weakened policy must leak into the sink. The suite detects it.
     const doc = bootstrapDocument("blob");
     await page.evaluate(runInFrame, { html: doc.html.replace("connect-src 'none'", "connect-src *"), scheme: "blob", source: "fetch(" + JSON.stringify(fixture.targets.sink + "/control/policy-failure") + ").then(()=>postMessage({done:true}));" });
@@ -187,6 +212,11 @@ async function main() {
     await page.waitForTimeout(200);
     report.runnerCounts = { requests: fixture.requests.length, tcp: fixture.connections.length, udp: fixture.datagrams.length };
     for (const [name, count] of Object.entries(report.runnerCounts)) check(count === 0, "production runner zero " + name);
+    report.broadcastMessages = await page.evaluate(() => {
+      globalThis.communityBroadcastControl.close();
+      return globalThis.communityBroadcastLeaks.length;
+    });
+    check(report.broadcastMessages === 0, "opaque workers cannot reach editor BroadcastChannel");
     report.diagnostics = errors;
     await browser.close(); browser = null;
     const events = JSON.parse(fs.readFileSync(netlog, "utf8")).events;
@@ -199,7 +229,10 @@ async function main() {
     if (locked) fs.rmSync(lock, { recursive: true });
     report.finished = new Date().toISOString();
     const output = process.env.ZOIDIUM_COMMUNITY_NETWORK_REPORT;
-    if (output) fs.writeFileSync(output, JSON.stringify(report, null, 2) + "\n");
+    if (output) {
+      fs.writeFileSync(output, JSON.stringify(report, null, 2) + "\n");
+      if (fs.existsSync(netlog)) fs.copyFileSync(netlog, output + ".netlog.json");
+    }
     fs.rmSync(folder, { recursive: true, force: true });
   }
   console.log(JSON.stringify(report, null, 2));

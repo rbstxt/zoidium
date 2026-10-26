@@ -7,6 +7,7 @@ export function create() {
   const bytes = Uint8Array.from(atob(wasm), c => c.charCodeAt(0));
   return newQuickJSWASMModuleFromVariant(newVariant(RELEASE_SYNC, {
     wasmBinary: bytes.buffer,
+    wasmMemory: new WebAssembly.Memory({ initial: 256, maximum: 1024 }),
     // Emscripten asks for a locator even when wasmBinary is supplied.
     locateFile: () => "data:application/wasm;base64,",
   }));
