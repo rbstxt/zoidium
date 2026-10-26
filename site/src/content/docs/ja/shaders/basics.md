@@ -2,7 +2,7 @@
 title: パススルーシェーダーを作成する
 description: 入力画像を保持する Custom Shader を作成します。
 ---
-入力画像をそのまま返す Custom Shader エフェクトを作成します。開始する前に、Plugins で Shader+ を有効にします。
+入力画像をそのまま返す Custom Shader エフェクトを作成します。始める前に、Plugins で Shader+ を有効にします。
 
 ## エフェクトを追加する
 
@@ -39,7 +39,7 @@ void main() {
 
 2. **Apply** をクリックします。
 
-出力には赤と緑の座標ランプが表示されます。`vUv` は出力画像全体に広がります。入力サンプリングの場合、`vUvScaled` は `vUv * uvScale` と等しくなります。`resolution` は出力の幅と高さをピクセル単位で提供します。[シェーダーリファレンス](/docs/ja/reference/shader/)にそれらの宣言が記載されています。
+出力には赤と緑の座標ランプが現れます。`vUv` は出力画像全体に広がります。入力サンプリングの場合、`vUvScaled` は `vUv * uvScale` と等しくなります。`resolution` は出力の幅と高さをピクセル単位で示します。[シェーダーリファレンス](/docs/ja/reference/shader/)にそれらの宣言が記載されています。
 
 ## コントロールを追加する
 
@@ -64,4 +64,4 @@ void main() {
 7. **Apply** をクリックします。
 8. エフェクトプロパティで Amount を変更します。
 
-Amount によって画像の明るさがスケーリングされるようになりました。1 の場合、入力は変更されません。その他の種類については、[プロパティコントロール](/docs/ja/development/shader-properties/) を参照します。
+Amount で画像の明るさをスケーリングできるようになりました。1 の場合、入力は変更されません。その他の種類については、[プロパティコントロール](/docs/ja/development/shader-properties/) を参照します。
