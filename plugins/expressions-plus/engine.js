@@ -94,12 +94,24 @@ function installEngine(options) {
     return evaluate(this, frame, owner, property);
   });
   // Observe assignment, including native load and history replay, instead of
-  // adding a dispatch function to every dynamic property read.
-  const expressionEvents = new WeakMap(), intercepted = new WeakMap();
+  // adding a dispatch function to every dynamic property read. Only the
+  // onExpressionChanged observable of each dynamic property is wrapped, so
+  // every other observable in CM3 keeps calling the native update untouched.
+  const intercepted = new WeakMap(), hookedUpdates = new WeakMap();
   let enabled = true;
+  function hookEvents(property) {
+    const observable = property.onExpressionChanged;
+    if (!observable || hookedUpdates.has(observable)) return;
+    const nativeUpdate = observable.update;
+    hookedUpdates.set(observable, nativeUpdate);
+    observable.update = function () {
+      if (enabled) prepare(property);
+      return nativeUpdate.apply(this, arguments);
+    };
+  }
   function prepare(property) {
     if (!(property instanceof PZ.property.dynamic)) return;
-    expressionEvents.set(property.onExpressionChanged, property);
+    hookEvents(property);
     const previous = intercepted.get(property);
     if (!property.expression) {
       if (previous) {
@@ -127,11 +139,6 @@ function installEngine(options) {
     if (name === "expression" && object instanceof PZ.property.dynamic) prepare(object);
     return result;
   });
-  patch(PZ.observable.prototype, "update", original => function () {
-    const property = expressionEvents.get(this);
-    if (property) prepare(property);
-    return original.apply(this, arguments);
-  });
   options.project?.forEachItemOfType?.(PZ.property.dynamic, prepare);
   return { baseAt, read, prepare, error: p => errors.get(p) || p?.expression?.error || null,
     isExtended: expression => !!compiled.get(expression)?.extended,
@@ -154,6 +161,9 @@ function installEngine(options) {
           else delete property.get;
         }
         intercepted.delete(property);
+        const observable = property.onExpressionChanged, nativeUpdate = observable && hookedUpdates.get(observable);
+        if (nativeUpdate && observable.update !== nativeUpdate) observable.update = nativeUpdate;
+        if (observable) hookedUpdates.delete(observable);
         const expression = property.expression;
         if (expression) expression.fn = nativeParse.call(expression, expression.source);
       });

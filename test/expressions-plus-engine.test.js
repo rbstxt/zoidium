@@ -64,3 +64,28 @@ test('legacy compilation skips the world provider while modern handles still con
  }
  assert.equal(calls,0);a.expression=new PZ.expression('value + 1');assert.equal(a.get(0),8);assert.equal(calls,1);
 });
+test('non-expression observables keep the native update untouched',{skip:!fs.existsSync(core)},()=>{
+  const {PZ,a,b,engine}=host();
+  const nativeUpdate=PZ.observable.prototype.update;
+  const seen=[];
+  const plain=new PZ.observable();
+  plain.watch(v=>seen.push(v));
+  for(let i=0;i<1000;i++)plain.update(i);
+  assert.deepEqual(seen,[...Array(1000).keys()]);
+  // Nothing off the expression path is wrapped.
+  assert.equal(plain.update,nativeUpdate);
+  assert.equal(a.onAnimatedChanged.update,nativeUpdate);
+  assert.equal(Object.hasOwn(a,'get'),false);
+  assert.equal(Object.hasOwn(b,'get'),false);
+  // Expression assignment still hooks after unrelated updates, and clearing restores both paths.
+  a.expression=new PZ.expression('value + 1');
+  assert.notEqual(a.get,Object.getPrototypeOf(a).get);
+  assert.equal(a.get(0),8);
+  for(let i=1000;i<1100;i++)plain.update(i);
+  assert.equal(seen.length,1100);
+  a.expression=null;
+  assert.equal(a.get(0),7);
+  assert.equal(Object.hasOwn(a,'get'),false);
+  engine.restore({forEachItemOfType(_type,visit){visit(a);visit(b);}});
+  assert.equal(a.onExpressionChanged.update,nativeUpdate);
+});
