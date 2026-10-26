@@ -117,6 +117,8 @@
         effect.properties.addAll(U.definitions(declaration, PZ.property.type));
         effect.properties.add("community-setup", { name: "Community setup", readOnly: true, type: PZ.property.type.TEXT,
           value: "", zoidiumControl: "community-setup-v1" });
+        effect.properties.add("community-status", { name: "Community status", readOnly: true,
+          type: PZ.property.type.TEXT, value: "Ready" });
         const instance = effect._community = { id: "instance-" + (++nextInstance), generation: 1, declaration,
           frame: 0, receipt: null, project: null, unloaded: false };
         const temporal = instance.temporal = Temporal.install({ effect, instance, stamp, sameStamp, PZ,

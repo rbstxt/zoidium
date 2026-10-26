@@ -16,7 +16,9 @@
       name: "Community status", readOnly: true, type: root.PZ.property.type.TEXT, value: message || "Ready",
     });
     const property = effect.properties["community-status"];
-    if (property.get() !== (message || "Ready")) property.set(message || "Ready");
+    // Status is transient host UI state. Native property setters publish
+    // project edits, which would invalidate the preparation reporting it.
+    property.value = message || "Ready";
   }
   function unavailable(effect, data, message = "Community package is disabled or unavailable. Its data is preserved and this effect renders as identity.") {
     effect._communityOpaque = clone(data || { type: effect.type });

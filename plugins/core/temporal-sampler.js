@@ -734,8 +734,8 @@
     }
   }
 
-  const frameSamplerAuthority = registry.capture.frameSamplerAuthority;
-  const drawAuthority = registry.capture.drawAuthority;
+  const frameSamplerAuthority = (...args) => registry.capture.frameSamplerAuthority(...args);
+  const drawAuthority = (...args) => registry.capture.drawAuthority(...args);
 
   function resolveFrameSamples(state, effect) {
     const context = state.contexts[state.contexts.length - 1];

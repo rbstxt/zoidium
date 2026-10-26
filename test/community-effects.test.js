@@ -358,3 +358,12 @@ test("only preview startup loads staged trusted Worker data", async t => {
   assert.equal(output.ZoidiumCommunityRuntimeSource, require("../tools/community-runtime-source").runtimeSource());
   assert.equal(network, 0);
 });
+
+test("transient preparation status never publishes a native project edit", async () => {
+  const h = await setup();
+  const property = h.effect.properties["community-status"];
+  property.set = () => assert.fail("transient status entered native history");
+  await h.effect.prepare(0.125);
+  assert.equal(property.get(), "Ready");
+  assert.equal(h.effect._community.receipt.authority.revision, E.frameStamp(h.effect, 0.125).revision);
+});

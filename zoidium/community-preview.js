@@ -9,6 +9,7 @@
       const original = target?._render;
       if (typeof original !== "function") return;
       const wrapped = function () {
+        if (this.__zoidiumCommunityPrepared) return original.apply(this, arguments);
         if (!active || !enabled() || this.renderMode ||
             this.__zoidiumPlayerPlusPaused && !this.__zoidiumPlayerPlusRenderOnce) return original.apply(this, arguments);
         const project = this.editor?.project, sequence = this.compositor?._sequence;

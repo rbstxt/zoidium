@@ -69,3 +69,18 @@ test("guest failures draw identity and repeated failures produce one named repor
   assert.equal(h.counts().draws, 2); assert.equal(h.reports.length, 1);
   assert.match(h.reports[0], /Community preview preparation failed: guest stopped/); h.remove();
 });
+
+test("stacked instance and prototype bridges forward the completed draw exactly once", async () => {
+  const sequence = { videoTracks: [] }, project = { sequence }, layer = {};
+  let prepares = 0, draws = 0;
+  const effect = { parentProject: project, parentLayer: layer, _community: { receipt: null },
+    async prepare(frame) { prepares++; this._community.receipt = { authority: { frame } }; } };
+  sequence.videoTracks.push({ getCurrentClip: () => ({ object: layer, start: 0 }) });
+  class Viewport { _render() { draws++; } }
+  const viewport = new Viewport();
+  Object.assign(viewport, { editor: { project, playback: { currentFrame: 0.125 } }, compositor: { _sequence: sequence } });
+  const remove = install({ getEffects: () => [effect], stamp: (_effect, frame) => ({ frame }),
+    sameStamp: (a, b) => a.frame === b.frame, viewport, PZ: { ui: { viewport: Viewport } } });
+  viewport._render(); await tick();
+  assert.equal(prepares, 1); assert.equal(draws, 1); remove();
+});
