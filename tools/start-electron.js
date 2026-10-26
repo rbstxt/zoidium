@@ -49,8 +49,11 @@ async function main() {
 
     const electronScript = require.resolve("electron/cli.js");
     console.log(`[Zoidium] staged ${runtime.resources.length} CM3 resources for desktop development.`);
+    const electronEnvironment = { ...process.env };
+    delete electronEnvironment.ELECTRON_RUN_AS_NODE;
     child = spawn(process.execPath, [electronScript, stageRoot, ...process.argv.slice(2)], {
       cwd: projectRoot,
+      env: electronEnvironment,
       stdio: "inherit",
     });
     const exitCode = await new Promise((resolve, reject) => {

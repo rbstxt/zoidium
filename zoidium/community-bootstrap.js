@@ -54,15 +54,17 @@
     if (activePackages.size >= 4 || activePackages.has(bundle.manifest.id)) throw new Error("Runner capacity reached");
     activePackages.add(bundle.manifest.id);
     const challenge = randomToken(), nonce = randomToken();
-    const frame = document.createElement("iframe"); frame.sandbox = "allow-scripts"; frame.hidden = true;
+    const desktop = Boolean(root.ZoidiumDesktopCommunity);
+    const frame = desktop ? null : document.createElement("iframe");
+    if (frame) { frame.sandbox = "allow-scripts"; frame.hidden = true; }
     const channel = new MessageChannel(); let pending, closed = false, initialized = false;
     function close(reason = "Runner disposed") {
       if (closed) return; closed = true;
       activePackages.delete(bundle.manifest.id);
       removeEventListener("message", ready);
       clearTimeout(startupTimer);
-      channel.port1.postMessage({ terminate: challenge });
-      channel.port1.close(); channel.port2.close(); frame.remove();
+      channel.port1.postMessage({ terminate: desktop ? true : challenge });
+      channel.port1.close(); channel.port2.close(); frame?.remove();
       if (pending) { clearTimeout(pending.timer); pending.reject(new Error(reason)); pending = null; }
     }
     let bootResolve, bootReject;
@@ -73,7 +75,7 @@
       removeEventListener("message", ready);
       frame.contentWindow.postMessage({ challenge, runtimeSource, config: { binding, bundle } }, "*", [channel.port2]);
     }
-    addEventListener("message", ready);
+    if (!desktop) addEventListener("message", ready);
     channel.port1.onmessage = event => {
       try {
         if (event.ports.length) throw new Error("Transferred handles are forbidden");
@@ -88,7 +90,9 @@
       } catch (error) { bootReject(error); close(error.message); }
     };
     channel.port1.onmessageerror = () => { bootReject(new Error("Invalid runner message")); close("Invalid runner message"); };
-    frame.srcdoc = documentSource(location.origin, challenge, nonce); document.body.append(frame);
+    if (desktop) {
+      window.postMessage({ type: "zoidium:community-connect", config: { bytes, approvedHash, runnerGeneration } }, location.origin, [channel.port2]);
+    } else { frame.srcdoc = documentSource(location.origin, challenge, nonce); document.body.append(frame); }
     try { await boot; } catch (error) { close(); throw error; }
     const seen = new Set();
     return {
