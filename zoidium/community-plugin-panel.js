@@ -30,7 +30,10 @@
         if (controller) state = store.view();
         render();
       }
-      catch (error) { status.textContent = error.message || "Community storage is unavailable."; }
+      catch (error) {
+        if (store && state) { state = store.view(); render(); }
+        status.textContent = error.message || "Community storage is unavailable.";
+      }
       finally { busy = false; buttonsDisabled(!store); }
     }
     function button(parent, label, action) {

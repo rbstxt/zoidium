@@ -249,6 +249,7 @@ test("disabled sessions dispose once, render identity, and preserve effect data"
 test("unknown schema, hash changes, and native expression records remain opaque", async () => {
   for (const change of [
     data => { data.community.dataSchema++; }, data => { data.community.packageHash = "sha256-" + "B".repeat(43) + "="; },
+    data => { data.type = "community-foreign-type"; },
     data => { data.properties[U.keyFor("gain")] = { expression: "fetch('https://sink.invalid')", value: 1 }; },
     data => { data.properties.foreign = "https://sink.invalid"; }, data => { data.unknown = { html: "<img src=https://sink.invalid>" }; },
   ]) {

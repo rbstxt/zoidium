@@ -105,6 +105,7 @@
   function loadValues(effect, declaration, data, binding) {
     const values = {};
     S.data(data); S.keys(data, ["type"], ["properties", "community"]);
+    if (data.type !== declaration.id) S.fail("community effect type changed");
     if (data.community !== undefined) {
       S.keys(data.community, ["schemaVersion", "packageId", "packageHash", "dataSchema"]);
       if (data.community.schemaVersion !== 1 || data.community.packageId !== binding.packageId ||
