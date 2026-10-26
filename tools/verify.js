@@ -13,6 +13,7 @@ if (process.env.ZOIDIUM_TEST_CONCURRENCY) {
   testOptions.push(`--test-concurrency=${concurrency}`);
 }
 const checks = [
+  ["preview cache approval freshness", ["tools/preview-cache-approvals.js"]],
   ["plugin manifest schema", ["tools/validate-plugin-manifests.js"]],
   ["plugin bundle freshness", ["tools/build-plugin-bundles.js", "--check"]],
   ["JavaScript syntax", ["tools/check-syntax.js"]],

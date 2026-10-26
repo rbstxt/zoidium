@@ -14,12 +14,10 @@
 
   const model = global.ZoidiumOutputFrameStore;
   if (!model) throw new Error("[Zoidium] output-frame-store.js must load before output-frame-cache.js.");
-  // Only versions covered by the output oracle matrix opt in. Packs with other
-  // render dependencies retain the existing live preview path.
-  const approvedPlugins = new Map([
-    ["native-fx", "17"], ["ccfx-shader-pack", "2"], ["text-plus", "24"],
-    ["repeater", "31"], ["trapcode-suite", "29"], ["optical-flares", "16"],
-  ]);
+  // The browser oracle records exact versions. Verification pins the render
+  // sources and oracle, so a version or source edit cannot silently expire it.
+  const approvedPlugins = new Map(Object.entries(global.ZoidiumOutputFrameApprovals?.plugins || {})
+    .map(([id, record]) => [id, record.version]));
   // Edits arrive through input events and native history operations. Their
   // asynchronous follow-up work (file reads, imports) can land a little later,
   // so the full serialization is rechecked on every draw for this long.
