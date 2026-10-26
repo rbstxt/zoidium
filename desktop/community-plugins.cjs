@@ -55,7 +55,9 @@ function createDiskAdapter(userData) {
     let total = 0;
     for (const hash of Object.keys(packages)) {
       if (packages[hash] !== true) throw new Error("Invalid community package index.");
-      const data = await regularFile(path.join(blobs, filename(hash)), P.LIMITS.packageBytes);
+      let data;
+      try { data = await regularFile(path.join(blobs, filename(hash)), P.LIMITS.packageBytes); }
+      catch (error) { if (error.code !== "ENOENT") throw error; data = Buffer.alloc(0); }
       total += data.byteLength;
       if (total > P.LIMITS.storageBytes) throw new Error("Community storage quota exceeded.");
       // Preserve corrupt bytes for the store's quarantine and management path.

@@ -42,7 +42,8 @@
     "build:community-interpreter": "node tools/build-community-interpreter.js",
     "test:community-network": "node tools/community-network-suite.js",
     "test:preview-cache": "node tools/preview-cache-oracle.js",
-    "check:preview-cache-approvals": "node tools/preview-cache-approvals.js"
+    "check:preview-cache-approvals": "node tools/preview-cache-approvals.js",
+    "test:community-desktop": "node tools/community-desktop-suite.js"
   },
   "build": {
     "appId": "com.zoidium.app",

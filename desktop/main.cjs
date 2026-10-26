@@ -778,7 +778,7 @@ async function createWindow() {
 
   mainWindow = window;
   projectFiles.attachWindow(window);
-  if (!communityDesktop) communityDesktop = require("./community-broker.cjs").createCommunityBroker({
+  if (!communityDesktop) communityDesktop = require(path.join(__dirname, "community-broker.cjs")).createCommunityBroker({
     electron: require("electron"), userData: app.getPath("userData"),
     getWindow: () => mainWindow, getOrigin: () => serverOrigin,
     safeMode: process.argv.includes("--community-safe-mode"),

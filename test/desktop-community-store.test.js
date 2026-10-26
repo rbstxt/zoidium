@@ -84,3 +84,12 @@ test("desktop activation interruption and launch safe mode preserve management w
   await assert.rejects(reopened.beforeEvaluation(manifest.id, hash), { code: "COMMUNITY_SAFE_MODE" });
   await reopened.uninstall(manifest.id, reopened.view().revision);
 });
+
+test("desktop missing package bytes remain quarantined and uninstallable", async t => {
+  const { root, store } = await fixture(t), hash = await install(store);
+  await fs.rm(path.join(root, "community-plugins/packages", filename(hash)));
+  const reopened = createStore({ adapter: createDiskAdapter(root) }); await reopened.open();
+  assert.match(reopened.view().packages[0].quarantine, /hash/);
+  await reopened.uninstall(manifest.id, reopened.view().revision);
+  assert.deepEqual(reopened.view().packages, []);
+});
