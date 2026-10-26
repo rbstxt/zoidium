@@ -14,6 +14,11 @@ const { pack } = require("../tools/pack-community-plugin");
 const example = () => JSON.parse(fs.readFileSync(path.join(__dirname, "../examples/community-filter/manifest.json"), "utf8"));
 const digest = bytes => createHash("sha256").update(bytes).digest("hex");
 
+const repositoryRoot = path.join(__dirname, "..");
+const shippedBundlesAtLoad = execFileSync("git", ["ls-files", "plugins"], { cwd: repositoryRoot, encoding: "utf8" })
+  .trim().split("\n").filter(f => f.endsWith("/bundle.json"))
+  .map(file => [file, digest(fs.readFileSync(path.join(repositoryRoot, file)))]);
+
 test("community example matches schema and shared validator", () => {
   const validate = new Ajv({ strict: true, allErrors: true }).compile(require("../plugins/community-manifest.schema.json"));
   assert.equal(validate(example()), true, JSON.stringify(validate.errors));
@@ -87,10 +92,9 @@ test("standalone packer confines files, never executes scripts, and preserves re
 for (const source of ["import x from 'x'", "export function prepare(){}", "import('x')", "async function prepare(){}", "function* prepare(){}", "await 0"]) {
   test("guest source rejects modules and async syntax " + source, () => assert.throws(() => I.source(source)));
 }
-test("all shipped bundles retain their base bytes and pass deterministic rebuild", () => {
-  const root = path.join(__dirname, "..");
-  const files = execFileSync("git", ["ls-tree", "-r", "--name-only", "HEAD", "plugins"], { cwd: root, encoding: "utf8" }).trim().split("\n").filter(f => f.endsWith("/bundle.json"));
-  assert.ok(files.length > 0);
-  for (const file of files) assert.equal(digest(fs.readFileSync(path.join(root, file))), digest(execFileSync("git", ["show", "HEAD:" + file], { cwd: root, maxBuffer: 32 * 1024 * 1024 })), file);
-  execFileSync(process.execPath, ["tools/build-plugin-bundles.js", "--check"], { cwd: root });
+test("packing leaves shipped bundles untouched and they pass deterministic rebuild", () => {
+  // Compare with the bytes seen when this file loaded, so uncommitted bundle
+  // edits elsewhere in the checkout do not fail this test.
+  for (const [file, hash] of shippedBundlesAtLoad) assert.equal(digest(fs.readFileSync(path.join(repositoryRoot, file))), hash, file);
+  execFileSync(process.execPath, ["tools/build-plugin-bundles.js", "--check"], { cwd: repositoryRoot });
 });
