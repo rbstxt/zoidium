@@ -25,7 +25,8 @@ and animate **Amount**. To animate either Shake mode, animate **Phase**.
 
 For native Text, use X and Y for Position and Scale. Rotation turns in the layer's
 plane. Keep the native **Text**, **Font**, **Size**, **Fill**, and **Stroke** controls.
-To move the whole text, edit its native **Transform** controls.
+To move the whole text, edit the native **Position**, **Rotation**, and **Scale**
+controls above **Character**.
 
 To disable character animation, set **Mode** to **None**. To render native Text
 without Text+, disable **Text+** in **Plugins**. Save the project to retain its

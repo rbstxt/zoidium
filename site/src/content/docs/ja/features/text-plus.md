@@ -24,7 +24,7 @@ sidebar:
 
 ネイティブの Text では、Position と Scale に X と Y を使用します。Rotation はレイヤーの平面内で回転します。
 ネイティブの **Text**、**Font**、**Size**、**Fill**、**Stroke** コントロールを使用します。
-テキスト全体を移動するには、ネイティブの **Transform** コントロールを編集します。
+テキスト全体を移動するには、**Character** より上にあるネイティブの **Position**、**Rotation**、**Scale** コントロールを編集します。
 
 文字のアニメーションを無効にするには、**Mode** を **None** に設定します。
 Text+ を使用せずにネイティブの Text を描画するには、**Plugins** で **Text+** を無効にします。

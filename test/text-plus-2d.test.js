@@ -4,7 +4,7 @@ require("./migrate-test-apis.js").ensureMainRealmApis();
 const assert = require("node:assert/strict"), test = require("node:test");
 const { harness, canvas, glyph, clone } = require("./text-plus-2d-harness.js");
 const { install } = require("../plugins/text-plus/text-plus-2d.js");
-const { controlSource } = require("../plugins/text-plus/text-plus-2d-properties.js");
+const { controlSource, loadCharacters } = require("../plugins/text-plus/text-plus-2d-properties.js");
 const { glyphBounds, center, unionBounds } = require("../plugins/text-plus/text-plus-2d-draw.js");
 const { getTextPlusControls } = require("../plugins/text-plus/text-plus-controls.js");
 
@@ -47,6 +47,42 @@ test("2D controls use native types and expose only the chosen mode's fields", ()
   assert.equal(p.characterNumbers.visible, true);
   assert.equal(p.shakeAmplitude.visible, true);
   assert.equal(p.charPosition.visible, false);
+  h.dispose();
+});
+
+test("reload replaces native keyframes and expressions without changing property identities", () => {
+  const h = setup(), property = h.p.charRotation;
+  assert.equal(property.keyframes.length, 1);
+  assert.equal(h.p.charPosition.objects[0].keyframes.length, 1);
+  h.p.charRotation.expression = "frame * 2";
+  h.p.charRotation.animated = true;
+  for (let i = 0; i < 3; i++) {
+    loadCharacters(h.p, { charRotation: { animated: true, keyframes: [
+      { frame: 0, value: 0 }, { frame: 24, value: 0.6 },
+    ] } });
+    assert.equal(h.p.charRotation, property);
+    assert.equal(property.expression, null);
+    assert.equal(property.keyframes.length, 2);
+    assert.equal(property.get(12), 0.3);
+  }
+  loadCharacters(h.p);
+  assert.equal(property.animated, false);
+  assert.equal(property.keyframes.length, 1);
+  assert.equal(property.get(0), 0);
+  h.dispose();
+});
+
+test("mode changes defer panel rebuilding until the native option handler finishes", async () => {
+  const h = setup();
+  await Promise.resolve();
+  let changes = 0;
+  h.p.onListChanged.watch(() => changes++);
+  h.p.mode.set(1);
+  assert.equal(changes, 0);
+  h.p.mode.set(3);
+  await Promise.resolve();
+  assert.equal(changes, 1);
+  assert.equal(h.p.shakeAmplitude.visible, true);
   h.dispose();
 });
 

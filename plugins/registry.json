@@ -256,7 +256,7 @@
       "zoidiumOnly": true,
       "manifest": "./plugins/text-plus/manifest.json?v=25",
       "bundle": "./plugins/text-plus/bundle.json?v=25",
-      "integrity": "sha256-Yx1dCm5S3hq6guwa5zEz1/Bin65o7WLTDuxYD38jOAo="
+      "integrity": "sha256-qJCNjPKFO2+4Ja1i/pMyGW/aMjKBNuB1EH2AjWzD7ro="
     },
     {
       "id": "particles-plus",

@@ -32,11 +32,12 @@ class Property extends Item {
   }
   load(data) {
     const def = this.definition;
-    this.expression = data?.expression;
+    if (data?.expression) this.expression = data.expression;
     if (this.objects) this.objects.forEach((property, index) => property.load(data?.objects?.[index]));
     else if (def.dynamic) {
-      this.animated = !!data?.animated;
-      this.keyframes = clone(data?.keyframes || [{ value: def.value, frame: 0, tween: 1 }]);
+      if (data) this.animated = !!data.animated;
+      else if (this.animated === undefined) this.animated = false;
+      this.keyframes = (this.keyframes || []).concat(clone(data?.keyframes || [{ value: def.value, frame: 0, tween: 1 }]));
     } else this.value = data === undefined ? def.value : data;
     this.onChanged.update();
   }

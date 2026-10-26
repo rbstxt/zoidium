@@ -1,6 +1,6 @@
 "use strict";
 
-const { createCharacters, refreshVisibility, snapshot } = require("./text-plus-2d-properties.js");
+const { createCharacters, refreshVisibility, snapshot, loadCharacters } = require("./text-plus-2d-properties.js");
 const { drawCharacters } = require("./text-plus-2d-draw.js");
 
 function install(context) {
@@ -16,7 +16,7 @@ function install(context) {
     if (saved && saved.schemaVersion !== 1) return null;
     let list = layer.textPlusCharacters;
     if (!list) list = createCharacters(PZ, layer);
-    if (reload || !states.has(layer)) list.load(saved?.characterProperties);
+    if (reload || !states.has(layer)) loadCharacters(list, saved?.characterProperties);
     list.visible = true;
     refreshVisibility(list);
     Object.defineProperty(layer, "zoidiumTextPlus2D", {
@@ -52,9 +52,16 @@ function install(context) {
     states.delete(this);
     return unload.apply(this, arguments);
   });
+  function refreshPanels() {
+    for (const el of context.document?.querySelectorAll?.(".editorpanel") || []) {
+      const panel = el.pz_panel;
+      if (PZ.ui?.edit && panel instanceof PZ.ui.edit) panel.objectsChanged_bound?.();
+    }
+  }
   // Native load adds its text settings after the base layer's load. The
   // category must exist before native panel and package code traverse it.
   editor?.project?.forEachItemOfType?.(Text, layer => attach(layer));
+  refreshPanels();
   return () => {
     live = false;
     // Keep the hidden property lists at their original addresses. Native
@@ -67,6 +74,7 @@ function install(context) {
     }
     layers.clear();
     for (const undo of restore.reverse()) undo();
+    refreshPanels();
   };
 }
 

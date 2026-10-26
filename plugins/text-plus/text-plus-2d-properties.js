@@ -17,6 +17,7 @@ const MODE_LABELS = [
 ];
 const GROUPS = [null, "transform", "gradient", "shake", "transform", "shake", "scatter"];
 const clone = value => JSON.parse(JSON.stringify(value));
+const refreshQueued = new WeakSet();
 
 function definitions2D(PZ, definitions) {
   const result = {};
@@ -42,7 +43,12 @@ function refreshVisibility(list) {
     list[key].visible = key === "mode" || visible.includes(key);
   }
   list.characterNumbers.visible = mode === 4 || mode === 5;
-  list.onListChanged.update();
+  // The native option handler still uses its row after property.set(). Rebuild
+  // only after that handler returns, so its controls are not detached mid-edit.
+  if (!refreshQueued.has(list)) {
+    refreshQueued.add(list);
+    queueMicrotask(() => { refreshQueued.delete(list); list.onListChanged.update(); });
+  }
 }
 
 function createCharacters(PZ, layer) {
@@ -77,6 +83,21 @@ function snapshot(list, saved) {
     characterProperties: { ...saved?.characterProperties, ...properties } };
 }
 
+function loadCharacters(list, data) {
+  function reset(property) {
+    // Native dynamic.load appends keyframes and leaves old expressions in
+    // place. Reuse property identities for history, but replace their state.
+    if ("expression" in property) property.expression = null;
+    if (property.keyframes) {
+      property.keyframes.splice(0, property.keyframes.length);
+      property.animated = false;
+    }
+    if (property.objects) for (const child of property.objects) reset(child);
+  }
+  for (const property of list) reset(property);
+  list.load(data);
+}
+
 // Adapt native scalar rotations to the shared 3D control readers. The actual
 // properties keep their native 2D types, parents, addresses, and expressions.
 function controlSource(list) {
@@ -93,4 +114,4 @@ function controlSource(list) {
 }
 
 module.exports = { MODES, MODE_LABELS, GROUPS, definitions2D, createCharacters,
-  refreshVisibility, snapshot, controlSource };
+  refreshVisibility, snapshot, loadCharacters, controlSource };
