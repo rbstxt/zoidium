@@ -6,6 +6,7 @@ const path = require("node:path");
 const { createHash } = require("node:crypto");
 const S = require("../zoidium/community-safe-json");
 const P = require("../zoidium/community-package");
+const I = require("../zoidium/community-interpreter");
 
 function pack(sourceRoot, outputFolder, occupied = []) {
   const root = fs.realpathSync(sourceRoot);
@@ -25,6 +26,7 @@ function pack(sourceRoot, outputFolder, occupied = []) {
     assets[name] = read(name); total += Buffer.byteLength(assets[name]);
     if (total > P.LIMITS.packageBytes) throw new Error("Community package size limit exceeded");
   }
+  I.source(assets[manifest.entry]);
   const bundle = P.bundle({ schemaVersion: 1, manifest, assets }, occupied);
   const bytes = Buffer.from(JSON.stringify(bundle) + "\n");
   if (bytes.length > P.LIMITS.packageBytes) throw new Error("Community package size limit exceeded");

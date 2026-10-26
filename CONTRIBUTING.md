@@ -92,3 +92,46 @@ Source Code Pro font under `fonts/` is a Zoidium UI dependency and is allowed.
 Run `pnpm run verify`. If the change affects runtime staging and network access
 is available, also run `pnpm run build:web` and inspect `dist/web/`. Generated
 deployment output is ignored and should not be committed.
+
+## Test isolated community packages
+
+To pack the isolated filter example into a separate output folder, run:
+
+```bash
+pnpm run pack:community -- examples/community-filter /tmp/zoidium-community-example
+```
+
+Use an empty output folder. The packer refuses to overwrite a package.
+Keep the immutable `community-<32 hexadecimal UUID digits>` ID when you update
+an existing package. For a new package, generate a new UUID and change its
+effect IDs to match. Use one synchronous `guest-script-v1` entry file.
+Do not use imports, async functions, package scripts, or remote resources.
+Use `identity-v1` or `gain-v1` host templates. Arbitrary GLSL is unavailable.
+
+To rebuild the embedded interpreter after a reviewed dependency change, run:
+
+```bash
+pnpm run build:community-interpreter
+node tools/build-community-interpreter.js --check
+```
+
+Commit the generated bundle, build hashes, lockfile, and third-party notices.
+Do not add runtime CDN or WASM fetches.
+
+To run the Chromium containment tests, install the pinned browser and run:
+
+```bash
+pnpm exec playwright install chromium
+pnpm run test:community-network
+```
+
+The browser suite fails if Chromium is missing. It acquires
+`/tmp/zoidium-browser.lock` before it starts local servers or a browser.
+It waits for the lock and releases the lock after cleanup. Do not remove a
+lock owned by another process. To save detailed measurements, set
+`ZOIDIUM_COMMUNITY_NETWORK_REPORT` to an output JSON file path.
+
+Before changing the runner, run `pnpm run verify` and the browser suite.
+`verify` runs package, protocol, and interpreter tests without a browser.
+The isolated runner has no editor entry point in this implementation.
+Do not pass community packages to the first-party plugin evaluator.

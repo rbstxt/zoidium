@@ -1,0 +1,8 @@
+{
+  "version": "0.32.0",
+  "variant": "release-sync",
+  "wasmBytes": 503134,
+  "wasmSha256": "105c3bed22d457e43e3d1c3c1c6959fda62a8fe06f0fc8a985303c3a2be72232",
+  "bundleBytes": 844538,
+  "bundleSha256": "b0ef642406b1282523b800e31716bcadd55e33f9d10553f1366ec5215b3d4c6f"
+}

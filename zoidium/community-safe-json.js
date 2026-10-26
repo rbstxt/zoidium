@@ -6,8 +6,8 @@
   function fail(message) { throw new Error("Community data: " + message); }
   function parse(text, maxBytes = 16 * 1024 * 1024, maxDepth = 64) {
     if (typeof text !== "string" || new TextEncoder().encode(text).length > maxBytes) fail("size limit exceeded");
-    let pos = 0;
-    const space = () => { while (/\s/.test(text[pos] || "") && pos < text.length) pos++; };
+    let pos = 0, nodes = 0;
+    const space = () => { while (/[ \t\r\n]/.test(text[pos] || "") && pos < text.length) pos++; };
     function string() {
       const start = pos++;
       while (pos < text.length) {
@@ -18,7 +18,7 @@
       fail("unterminated string");
     }
     function value(depth) {
-      if (depth > maxDepth) fail("nesting limit exceeded");
+      if (++nodes > 200000 || depth > maxDepth) fail("nesting or node limit exceeded");
       space();
       if (text[pos] === '"') return string();
       const c = text[pos];
