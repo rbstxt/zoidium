@@ -18,4 +18,4 @@ Text+ の親オブジェクトを使用して、ネイティブの 3D Text を�
 
 特定の文字に影響を与えるには、Selected Character Transform を使用し、**Characters** に `1,4,5` などの 1 から始まる数値を入力します。テキストを散乱させるには、Random Scatter を使用して **Amount** をアニメーション化します。Character Shake をアニメーション化するには、**Phase** をアニメーション化します。
 
-[Text+ のソースコントラクト](https://github.com/rbstxt/zoidium/blob/dev/plugins/text-plus/README.md)では、ピボット、ディレイ、シェイク、ネストされた親について説明しています。[Text+ の互換性](/docs/ja/development/project-compatibility/#text-scale-composition)では、保存されたスケールモードについて説明しています。
+[Text+ のソースコントラクト](https://github.com/rbstxt/zoidium/blob/dev/plugins/text-plus/README.md)では、ピボット、ディレイ、シェイク、ネストされた親について説明しています。[Text+ の互換性](/docs/ja/development/project-compatibility/#text-スケール合成)では、保存されたスケールモードについて説明しています。

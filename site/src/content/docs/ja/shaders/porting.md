@@ -29,4 +29,4 @@ description: Shadertoy スタイルのエントリーポイントと番号付き
 6. 以前の補間呼び出しを `zGradient(Ramp, t)` に置き換えます。
 7. ソースを適用し、その出力をオリジナルと比較します。
 
-新しいサンプリングが必要な外観と一致しない場合は、元のシェーダーを保持します。パックがビルド時に付けるコントロールのメタデータでは、これらのソースの編集は行われません。[AlipFX の移行](/docs/ja/development/shader-properties/#alipfx-migration)を参照します。
+新しいサンプリングが必要な外観と一致しない場合は、元のシェーダーを保持します。パックがビルド時に付けるコントロールのメタデータでは、これらのソースの編集は行われません。[AlipFX の移行](/docs/ja/development/shader-properties/#alipfx-移行)を参照します。

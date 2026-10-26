@@ -15,15 +15,24 @@ const routes = new Map(developerDocs.map(id => [`docs/${id}.md`, `development/${
 for (const id of featureIds) routes.set(`plugins/${id}/README.md`, `features/${id}/`);
 
 // Resolve repository-relative Markdown links without modifying their canonical sources.
-export function rewriteLink(url, source) {
-  if (/^(?:[a-z]+:|\/|#)/i.test(url)) return url;
+// locale is "root" for English or "ja" for Japanese; routes gain a ja/ prefix.
+export function rewriteLink(url, source, locale = 'root') {
+  const prefix = locale === 'ja' ? 'ja/' : '';
+  // Japanese sources live under docs/ja/ but link like their English originals.
+  if (locale === 'ja') source = source.replace(/^docs\/ja\//, 'docs/');
+  if (/^(?:[a-z]+:|\/|#)/i.test(url)) {
+    if (locale === 'ja' && url.startsWith('/docs/') && !url.startsWith('/docs/ja/')) {
+      return url.replace(/^\/docs\//, '/docs/ja/');
+    }
+    return url;
+  }
   const [file, fragment] = url.split('#');
   const resolved = path.posix.normalize(path.posix.join(path.posix.dirname(source), file));
   const route = routes.get(resolved);
-  if (route) return `/docs/${route}${fragment ? '#' + fragment : ''}`;
+  if (route) return `/docs/${prefix}${route}${fragment ? '#' + fragment : ''}`;
   return `https://github.com/rbstxt/zoidium/blob/dev/${resolved}${fragment ? '#' + fragment : ''}`;
 }
 
-export function rewriteMarkdown(body, source) {
-  return body.replace(/(\]\()([^\s)]+)(\))/g, (_, start, url, end) => start + rewriteLink(url, source) + end);
+export function rewriteMarkdown(body, source, locale = 'root') {
+  return body.replace(/(\]\()([^\s)]+)(\))/g, (_, start, url, end) => start + rewriteLink(url, source, locale) + end);
 }

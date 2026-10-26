@@ -1,7 +1,12 @@
-export function referenceMarkdown(reference) {
-  const lines = ['This reference is generated from the same versioned data used by Shader+ completion and help. IDs remain stable for editor links.',
+export function referenceMarkdown(reference, locale = 'root') {
+  const ja = locale === 'ja';
+  const lines = ja ? ['このリファレンスは、Shader+ の補完とヘルプが使うものと同じバージョン管理されたデータから生成されます。ID はエディターのリンク用に安定しています。',
+    '', 'セクションは組み込み、include、ヘルパー、プロパティの種類の順です。', '']
+    : ['This reference is generated from the same versioned data used by Shader+ completion and help. IDs remain stable for editor links.',
     '', 'The sections follow built-ins, includes, helpers, and property kinds.', ''];
-  const groups = [ ['builtin', 'Built-in uniforms and varyings'], ['include', 'Includes'],
+  const groups = ja ? [ ['builtin', '組み込み uniform と varying'], ['include', 'Include'],
+    ['helper', 'ヘルパー関数'], ['kind', 'プロパティの種類'] ]
+    : [ ['builtin', 'Built-in uniforms and varyings'], ['include', 'Includes'],
     ['helper', 'Helper functions'], ['kind', 'Property kinds'] ];
   for (const [category, title] of groups) {
     lines.push(`\n## ${title}\n`);
