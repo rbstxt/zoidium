@@ -135,6 +135,7 @@ test("native entry requests fractional scene taps and disposes scratch on mode s
     "../plugins/native-fx/effects/smartmotionblur.js"), "utf8")).call(effect, PZ, THREE, api);
   effect.load({});
   assert.deepEqual(spec.getRequest(effect, 7).frames, math.shutterTimes(1, 32));
+  assert.equal(spec.getRequest(effect, 7).preserveInputRGB, true);
   effect.pass.uniforms.uvScale.value = { x: 0.5, y: 0.25 };
   effect.pass.render({}, {}, { width: 1024, height: 1024 });
   assert.equal(rendered.mode, "shutter");
@@ -145,6 +146,7 @@ test("native entry requests fractional scene taps and disposes scratch on mode s
   assert.deepEqual(spec.getRequest(effect, 7).frames, math.shutterTimes(1, 64));
   settings.view = 1;
   assert.deepEqual(spec.getRequest(effect, 7).frames, [-1]);
+  assert.equal(spec.getRequest(effect, 7).preserveInputRGB, false);
   effect.pass.render({}, {}, { width: 1024, height: 1024 });
   assert.equal(rendered.mode, "flow");
   assert.equal(rendered.args[4], 47);

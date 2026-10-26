@@ -27,6 +27,7 @@
     target,
     mediaSamples = [],
     inputContext = null,
+    preserveInputRGB = false,
   ) {
     const { finiteNumber, temporalMode } = registry.math;
     const { usesSingleEvaluation, installSingleEvaluation, canRenderLayer, getClipForLayer, isAdjustmentLayer } = registry.layers;
@@ -111,7 +112,7 @@
         renderEffects.call(this, prefix, uvX, uvY);
         const viewport = this.readBuffer.viewport;
         target.viewport.set(0, 0, viewport.z, viewport.w);
-        copyRenderTarget(this, target, this.readBuffer, uvX, uvY);
+        copyRenderTarget(this, target, this.readBuffer, uvX, uvY, preserveInputRGB);
         didCapture = true;
         throw captured;
       };

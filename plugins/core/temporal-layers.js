@@ -556,7 +556,7 @@
     return typeof PZ !== "undefined" && PZ.zoidium?.debugDisableFrameSamplerInputReuse === true;
   }
 
-  function frameSamplerInputKey(sequence, compositor, stage, scope) {
+  function frameSamplerInputKey(sequence, compositor, stage, scope, preserveInputRGB = false) {
     const scoped = !frameSamplerReuseDisabled() && frameSamplerScopedContent(sequence, stage, scope);
     const assets = Object.entries(sequence.parentProject?.assets?.list || {}).map(([id, asset]) =>
       [id, asset.url, asset.sha256, asset.filename, asset.size, frameSamplerIdentity(asset),
@@ -565,7 +565,8 @@
     // preview key from matching across one without reading every plugin state.
     const settings = [compositor.__zoidiumRenderSettings,
       [compositor.renderer?.shadowMap?.type, compositor.renderer?.shadowMap?.enabled], pluginStateEpoch,
-      frameSamplerReuseDisabled(), math.temporalMode(stage?.effect), math.temporalMode(scope?.effect)];
+      frameSamplerReuseDisabled(), math.temporalMode(stage?.effect), math.temporalMode(scope?.effect),
+      preserveInputRGB === true];
     if (scoped) {
       const serialized = JSON.stringify(["layer-prefix", compositor.readBuffer.width, compositor.readBuffer.height,
         scoped, sequence.videoTracks[stage.trackIndex].enabled, assets, settings]);
