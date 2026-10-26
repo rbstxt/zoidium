@@ -91,6 +91,8 @@ each line describes one visible change.
 
 ### Fixed
 
+- Settings shows why the preview cache is not storing frames ("Not caching:"
+  followed by the reason). The memory warning no longer mentions only Macs.
 - Smart Motion Blur with Shutter Samples no longer darkens soft or
   semi-transparent content such as particles. The sample capture applied
   alpha twice. Opaque content, Optical Flow, and other effects are
