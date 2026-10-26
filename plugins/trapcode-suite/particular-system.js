@@ -50,7 +50,10 @@ var PZ = PZ || {};
                 if (wants === myIndex) return true;
             }
         }
-        if (e.position.animated || e.direction.animated || e.velocity.animated) return true;
+        if (e.position.animated || e.direction.animated || e.velocity.animated || e.velocityDistribution?.animated) return true;
+        // Air density scales resistance. Its integrated path also handles
+        // density zero, without changing the legacy density-one GPU path.
+        if ((tnum(p.environment, "airDensity", 1) !== 1 || p.environment.airDensity?.animated) && tnum(p.physics, "drag", 0) > 0) return true;
         if (p.physics.enabled.get(PZ.trapcode.currentTime) === 1) return true;
         if (p.physics.bounceEnabled.get(PZ.trapcode.currentTime) === 1) return true;
         if (p.physics.meanderEnabled.get(PZ.trapcode.currentTime) === 1) return true;
@@ -203,6 +206,16 @@ var PZ = PZ || {};
         u.behavior.value = vectors.behavior;
         u.burstInterval.value = Math.max(vectors.burstInterval, 0.0001);
         u.vspread.value = vectors.spread;
+        u.controlSeed.value = tnum(emitter, "randomSeed", 100000);
+        u.velocityRandom.value = tnum(emitter, "velocityRandom", 20) / 100;
+        u.velocityDistribution.value = T.clamp(tnum(emitter, "velocityDistribution", 0.5), 0, 1);
+        u.drift.value.set(tnum(p.displace, "driftX", 0), tnum(p.displace, "driftY", 0), tnum(p.displace, "driftZ", 0));
+        u.opacityRandom.value = T.clamp(tnum(p.particle, "opacityRandom", 0) / 100, 0, 1);
+        u.colorRandom.value = T.clamp(tnum(p.particle, "colorRandom", 0) / 100, 0, 1);
+        u.aspect.value = Math.max(tnum(p.particle, "aspect", 1), 0.01);
+        u.turbulenceSize.value = tnum(p.displace, "turbulenceAffectSize", 0) / 100;
+        u.turbulenceOpacity.value = tnum(p.displace, "turbulenceAffectOpacity", 0) / 100;
+        u.turbulenceScale.value = Math.max(tnum(p.environment, "turbulenceScale", 10), 0.0001);
         var gravity = p.physics.gravity.get(PZ.trapcode.currentTime);
         // Guarded: absent on projects saved before the direction control.
         var gravityDir = [0, 1, 0];
