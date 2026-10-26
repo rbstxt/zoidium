@@ -131,6 +131,7 @@ ZoidiumPluginApis.defineFrameSampler.call(ccWideTimeEffect, {
   getRequest(effect, frame) {
     const { forward, backward } = ccWideTimeSteps(effect.properties, frame);
     return {
+      preserveInputRGB: true,
       enabled:
         ccWideTimeNumber(effect.properties.enabled, frame, 1) === 1 &&
         forward + backward >= 1,

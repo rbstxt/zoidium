@@ -146,7 +146,7 @@ test("native entry requests fractional scene taps and disposes scratch on mode s
   assert.deepEqual(spec.getRequest(effect, 7).frames, math.shutterTimes(1, 64));
   settings.view = 1;
   assert.deepEqual(spec.getRequest(effect, 7).frames, [-1]);
-  assert.equal(spec.getRequest(effect, 7).preserveInputRGB, false);
+  assert.equal(spec.getRequest(effect, 7).preserveInputRGB, true);
   effect.pass.render({}, {}, { width: 1024, height: 1024 });
   assert.equal(rendered.mode, "flow");
   assert.equal(rendered.args[4], 47);

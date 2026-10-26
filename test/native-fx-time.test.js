@@ -178,6 +178,7 @@ test("Time Difference requests a single tap at the seconds offset", () => {
   };
   // 30 fps fallback: 1.5 s -> 45 frames.
   assert.deepEqual(definition.getRequest(effect, 20), {
+    preserveInputRGB: true,
     enabled: true,
     count: 1,
     offsetFrames: 45,

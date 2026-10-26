@@ -84,6 +84,7 @@ test("echo legacy requests earlier frames with the legacy decay weights", () => 
   const echo = evaluateEffect("effects/echo-legacy.js", fakeEffect({}), apis, PZ);
   const request = echo._zoidiumFrameSampler.getRequest(echo, 10);
   assert.deepEqual(request, {
+    preserveInputRGB: true,
     enabled: true,
     count: 6,
     offsetFrames: -1,

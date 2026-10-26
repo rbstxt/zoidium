@@ -214,6 +214,7 @@ ZoidiumPluginApis.defineFrameSampler.call(timeDisplacementEffect, {
       timeDisplacementRate(effect),
     );
     return {
+      preserveInputRGB: true,
       enabled:
         timeDisplacementNumber(effect.properties.enabled, frame, 1) === 1 &&
         plan.maxSeconds !== 0,

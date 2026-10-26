@@ -107,6 +107,7 @@ ZoidiumPluginApis.defineFrameSampler.call(timeDifferenceEffect, {
   getRequest(effect, frame) {
     const seconds = timeDifferenceNumber(effect.properties.offset, frame, 0);
     return {
+      preserveInputRGB: true,
       enabled: timeDifferenceNumber(effect.properties.enabled, frame, 1) === 1,
       count: 1,
       offsetFrames: seconds * timeDifferenceRate(effect),
