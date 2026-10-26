@@ -31,7 +31,17 @@ run `pnpm run desktop:start` instead of `pnpm run web`.
 3. Reload Zoidium.
 
 Choose Clipmaker 3, Clipmaker 3 Centered, Video Editor 2, Video Editor 2 Centered,
-or Video Editor 2 Centered 2. Use Settings to choose the theme, UI font,
+or Video Editor 2 Centered 2. The three Centered layouts add a second tab
+sidebar on the right, so the preview sits between two panel columns.
+Video Editor 2 Centered 2 also runs the right sidebar beside the timeline.
+
+To rearrange panels in a Centered layout, right-click a panel tab and choose
+**Move to top**, **Move up**, **Move down**, **Move to bottom**, or
+**Move to right sidebar** (**Move to left sidebar** in the right sidebar).
+Each sidebar keeps at least one tab. Zoidium remembers the arrangement with
+the other editor settings.
+
+Use Settings to choose the theme, UI font,
 gradient editor, and preview cache memory limit.
 
 [Preview cache](/docs/features/preview-cache/) explains the memory limit.
