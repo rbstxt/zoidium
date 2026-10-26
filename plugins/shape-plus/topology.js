@@ -33,6 +33,7 @@ proto.DoSimplePolygons = function () {
     do {
       const key = point.Pt.X + "," + point.Pt.Y;
       if (seen.has(key)) {
+        // Charge the native pass as well as its linear precheck.
         check();
         return simplePolygons.call(this);
       }
