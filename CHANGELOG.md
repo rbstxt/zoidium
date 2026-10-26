@@ -82,6 +82,11 @@ each line describes one visible change.
 
 ### Fixed
 
+- Material panels no longer go blank with the Zoidium gradient editor. Adding
+  a PBR+ material while its panel was open could stop the material from
+  loading, which left the header as "undefined" and the values empty. A
+  failing custom control now falls back to the standard control instead of
+  stopping the panel.
 - UV Custom Material keeps **Wrap** set to **none** when a saved project
   is opened again. Before, the texture tiled after reopening.
 - Detached temporal effects are skipped safely, and datamosh export cuts
