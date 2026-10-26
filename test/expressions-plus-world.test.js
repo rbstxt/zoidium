@@ -99,6 +99,27 @@ test('structure revision invalidates IDs and parents on native list edits, reloa
  }finally{undo.reverse().forEach(fn=>fn());}
 });
 
+test('world index leaves the shared update alone and wraps observed lists per instance',{skip:!fs.existsSync(core)},()=>{
+  const undo=[],patch=(holder,key,make)=>{const original=holder[key];holder[key]=make(original);undo.push(()=>{holder[key]=original;});};
+  const {scene,object,provider,context,native}=setup({patch});
+  const nativeUpdate=native.observable.prototype.update;
+  try{
+    // Creating the provider installs no global hook.
+    assert.equal(native.observable.prototype.update,nativeUpdate);
+    const a=object(scene,[2,0,0]),b=object(scene,[10,0,0]),child=object(a,[1,0,0]);
+    for(const node of [scene,a,b])node.objects=Object.assign(new native.objectList(),node.objects);
+    approx(provider(child,context(0)).worldPosition(),[3,0,0]);
+    // The visited structural list carries a per-instance wrapper ...
+    assert.notEqual(scene.objects.onListChanged.update,nativeUpdate);
+    // ... while unrelated observables and the shared prototype stay native.
+    assert.equal(new native.observable().update,nativeUpdate);
+    assert.equal(native.observable.prototype.update,nativeUpdate);
+    // A native list edit still invalidates through the instance hook.
+    a.objects.splice(0,1);b.objects.push(child);child.parent=b;
+    approx(provider(child,context(.5)).worldPosition(),[11,0,0]);
+    assert.equal(native.observable.prototype.update,nativeUpdate);
+  }finally{undo.reverse().forEach(fn=>fn());}
+});
 test('camera and parent expressions sample exact sub-frame times in any order',{skip:!fs.existsSync(core)},()=>{
  const {scene,object,camera,provider,context}=setup(),group=object(scene),child=object(group,[2,1,0]);
  group.properties.position={get:f=>[f/3,f/7,0]};camera.properties.position={get:f=>[f/5,0,80+f]};

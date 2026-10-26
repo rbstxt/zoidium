@@ -2,18 +2,33 @@
 
 // Cache authored structure only. Every pose still samples fresh properties at
 // the caller's exact time. Weak event keys do not retain deleted projects.
+//
+// The structural observables visited by index() are wrapped per instance, so
+// projects that never evaluate a world helper keep the native shared update
+// untouched. Passing patch opts into cached indexing; without it every call
+// re-collects, which is also the path for callers outside the native project
+// model.
 function createWorldIndex({ PZ, patch }) {
-  const events = new WeakSet(), indexes = new WeakMap();
+  const events = new WeakMap(), indexes = new WeakMap();
   let revision = 0;
-  if (patch && PZ.observable?.prototype) {
-    patch(PZ.observable.prototype, "update", original => function () {
-      if (events.has(this)) revision++;
-      return original.apply(this, arguments);
-    });
-  }
   function observe(event) {
-    if (event && patch) { events.add(event); return true; }
-    return false;
+    if (!event || !patch) return false;
+    if (!events.has(event)) {
+      // A re-activated provider adopts the live root instead of chaining a
+      // wrapper around a previous provider's stale delegation.
+      let native = event.update;
+      while (typeof native === "function" && native.zoidiumWorldIndexRoot !== undefined) native = native.zoidiumWorldIndexRoot;
+      if (typeof native === "function") {
+        const wrapped = function () {
+          revision++;
+          return native.apply(this, arguments);
+        };
+        wrapped.zoidiumWorldIndexRoot = native;
+        event.update = wrapped;
+      }
+      events.set(event, native);
+    }
+    return true;
   }
   return function index(scene, readId) {
     const previous = indexes.get(scene);

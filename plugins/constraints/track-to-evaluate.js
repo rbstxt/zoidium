@@ -18,18 +18,31 @@ function createEvaluator(options) {
   const THREE = options.THREE;
   const store = options.store;
   const report = options.report || ((message) => console.warn(message));
-  const indexes = new WeakMap(), events = new WeakSet();
+  const indexes = new WeakMap(), events = new WeakMap();
   let revision = 0;
   const PZ = options.PZ, patch = options.patch;
-  if (PZ?.observable?.prototype && patch) {
-    patch(PZ.observable.prototype, "update", original => function () {
-      if (events.has(this)) revision++;
-      return original.apply(this, arguments);
-    });
-  }
   function observe(event) {
+    // The structural observables visited by collect() are wrapped per
+    // instance, so projects without constraints keep the native shared update
+    // untouched. Passing patch opts into cached indexing; without it every
+    // call re-collects. This is also the path of the evaluator embedded in
+    // the Expressions+ world provider, which never installs hooks.
     if (!event || !patch || !PZ?.observable || !(event instanceof PZ.observable)) return false;
-    events.add(event);
+    if (!events.has(event)) {
+      // A re-activated provider adopts the live root instead of chaining a
+      // wrapper around a previous provider's stale delegation.
+      let native = event.update;
+      while (typeof native === "function" && native.zoidiumTrackToRoot !== undefined) native = native.zoidiumTrackToRoot;
+      if (typeof native === "function") {
+        const wrapped = function () {
+          revision++;
+          return native.apply(this, arguments);
+        };
+        wrapped.zoidiumTrackToRoot = native;
+        event.update = wrapped;
+      }
+      events.set(event, native);
+    }
     return true;
   }
   function invalidate() { revision++; }
