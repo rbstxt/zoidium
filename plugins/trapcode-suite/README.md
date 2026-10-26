@@ -26,6 +26,13 @@ around CM3; it is not part of, and not endorsed by, Panzoid.
    Gravity, wind and air resistance keep applying while fluid mode is on, and
    gravity has a direction (default +Y). New controls default to the legacy
    behavior, so older projects render identically.
+  Particular also supports velocity distribution, sprite aspect ratio, seeded
+  opacity and color randomness, age-based drift, air-density resistance,
+  disperse over life, and turbulence-field size and opacity modulation.
+  Particle type, Set color, flocking, unsupported emitter types, and disperse
+  velocity and position modes are hidden. Their saved values remain intact.
+  Bounce boost retains the serialized `bounceHeight` key and its rebound-speed
+  contribution. The bounce plane stays at Y = 0.
 - **Trapcode Form** (type 11) — particle lattice (box, sphere, sphere grid,
   cylinder, circle, plane, 3D model, text/mask image) deformed by disperse,
   twist, spherical fields, a fractal field, fluid motion and kaleidospace
