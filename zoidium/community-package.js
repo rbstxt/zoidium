@@ -12,12 +12,21 @@
   function properties(definitions) {
     list(definitions, 64); unique(definitions.map(p => p.key));
     for (const p of definitions) {
-      S.keys(p, ["key", "label", "type", "default"], ["min", "max"]); token(p.key); text(p.label);
+      S.keys(p, ["key", "label", "type", "default"], ["min", "max", "options"]); token(p.key); text(p.label);
       if (p.type === "number") {
+        if ("options" in p) S.fail("unexpected property options");
         finite(p.default); finite(p.min); finite(p.max);
         if (p.min > p.max || p.default < p.min || p.default > p.max) S.fail("invalid property bounds");
       } else if (p.type === "boolean") {
-        if (typeof p.default !== "boolean" || "min" in p || "max" in p) S.fail("invalid boolean property");
+        if (typeof p.default !== "boolean" || "min" in p || "max" in p || "options" in p) S.fail("invalid boolean property");
+      } else if (p.type === "color") {
+        if ("min" in p || "max" in p || "options" in p || typeof p.default !== "string" || !/^#[a-fA-F0-9]{6}$/.test(p.default)) S.fail("invalid color property");
+      } else if (p.type === "option") {
+        if ("min" in p || "max" in p) S.fail("invalid option property");
+        list(p.options, 64); unique(p.options.map(o => o.value));
+        if (!p.options.length) S.fail("empty property options");
+        for (const o of p.options) { S.keys(o, ["value", "label"]); token(o.value); text(o.label); }
+        if (!p.options.some(o => o.value === p.default)) S.fail("invalid option default");
       } else S.fail("unsupported property type");
     }
   }
@@ -26,7 +35,9 @@
     for (const [key, value] of Object.entries(values)) {
       const p = definitions.find(item => item.key === key);
       if (p.type === "number") { finite(value); if (value < p.min || value > p.max) S.fail("property value outside bounds"); }
-      else if (typeof value !== "boolean") S.fail("expected boolean value");
+      else if (p.type === "boolean") { if (typeof value !== "boolean") S.fail("expected boolean value"); }
+      else if (p.type === "color") { if (typeof value !== "string" || !/^#[a-fA-F0-9]{6}$/.test(value)) S.fail("invalid color value"); }
+      else if (p.type === "option" && !p.options.some(o => o.value === value)) S.fail("unknown option value");
     }
   }
   function ui(nodes, definitions, actions) {
@@ -80,7 +91,7 @@
     const value = typeof bytes === "string" ? bytes : new TextDecoder("utf-8", { fatal: true }).decode(bytes);
     return bundle(S.parse(value, LIMITS.packageBytes), occupied);
   }
-  const api = { LIMITS, ID, manifest, bundle, parse, properties, state, finite, token, list };
+  const api = { LIMITS, ID, manifest, bundle, parse, properties, state, ui, finite, token, list };
   if (typeof module === "object" && module.exports) module.exports = api;
   else root.ZoidiumCommunityPackage = api;
 })(globalThis);

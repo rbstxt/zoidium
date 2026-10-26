@@ -66,8 +66,13 @@
       for (const key of ["frame", "time", "frameRate", "width", "height", "pixelAspect", "seed"]) P.finite(i[key]);
       if (i.frameRate <= 0 || i.pixelAspect <= 0 || !Number.isInteger(i.width) || !Number.isInteger(i.height) || i.width < 1 || i.height < 1 || i.width > 16384 || i.height > 16384 || !Number.isSafeInteger(i.seed)) S.fail("invalid frame input");
     } else {
-      S.keys(i, ["action", "state"]);
-      if (!effect.actions.includes(i.action)) S.fail("unknown UI action");
+      S.keys(i, ["state"], ["action", "property", "value"]);
+      if (Object.hasOwn(i, "action")) {
+        if (Object.hasOwn(i, "property") || Object.hasOwn(i, "value") || !effect.actions.includes(i.action)) S.fail("unknown UI action");
+      } else {
+        if (!Object.hasOwn(i, "property") || !Object.hasOwn(i, "value")) S.fail("missing UI property event");
+        P.state({ [i.property]: i.value }, effect.properties);
+      }
       P.state(i.state, effect.properties);
     }
     return effect;
