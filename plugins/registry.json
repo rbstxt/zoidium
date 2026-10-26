@@ -135,16 +135,16 @@
       "category": "utilities",
       "name": "Animated GIF",
       "author": "DaviFX",
-      "version": "5",
+      "version": "6",
       "itemCount": 1,
       "format": "animated images",
       "tagline": "Animated GIF image assets",
       "color": "#4f7dbf",
       "description": "Decodes animated GIF image assets and animates them deterministically from clip-local time.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/gif-support/manifest.json?v=5",
-      "bundle": "./plugins/gif-support/bundle.json?v=5",
-      "integrity": "sha256-eatDuxfPWkstAOGo1dNTnx/A522fHQJxRpmA0KPybLA="
+      "manifest": "./plugins/gif-support/manifest.json?v=6",
+      "bundle": "./plugins/gif-support/bundle.json?v=6",
+      "integrity": "sha256-KAmkFmDrWwrLQ2QiTgNF6MM6iG18r48EbJn1x5f7Y28="
     },
     {
       "id": "graph-plus",
@@ -295,16 +295,16 @@
       "category": "scene",
       "name": "Optical Flares",
       "author": "DaviFX",
-      "version": "18",
+      "version": "19",
       "itemCount": 5,
       "format": "3D objects",
       "tagline": "3D lens flares",
       "color": "#4a90d9",
       "description": "Video Copilot style lens flares placed in 3D space and projected through the scene camera, edited in one floating window.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/optical-flares/manifest.json?v=18",
-      "bundle": "./plugins/optical-flares/bundle.json?v=18",
-      "integrity": "sha256-5WLxKv34YGqBJ52ri8HEGXH3lj3GpgTEb+wJ8jVEul0="
+      "manifest": "./plugins/optical-flares/manifest.json?v=19",
+      "bundle": "./plugins/optical-flares/bundle.json?v=19",
+      "integrity": "sha256-ZV25vsb9KrKmrNH0IyuE5Z9QQDNxgCENB+J5tIoPCvA="
     },
     {
       "id": "effector-plus",

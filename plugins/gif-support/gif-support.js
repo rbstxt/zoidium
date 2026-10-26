@@ -5,7 +5,7 @@
 // Decoder design is a port of the gif.js decoder from DaviFX's OpenZoid
 // (https://www.youtube.com/@davifxarts): GIF87a/89a, LZW, interlace,
 // palettes, transparency and disposal modes 0-3 composited on a scratch
-// buffer, per-frame canvases, delay clamped to a minimum of 100 ms, and caps
+// buffer, per-frame canvases, 0-1 cs delays replaced by 100 ms, and caps
 // of 512 frames / 64 megapixels. The integration below is a Zoidium rewrite:
 // instead of seeking every GIF by project-global time, each consumer texture
 // is driven by the time local to the clip that uses it.

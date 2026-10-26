@@ -30,7 +30,7 @@ module.exports = function createWindowData() {
             path: "positioning.foreground.fade",
             label: "Fade amount",
             kind: "number",
-            hint: "Stored with the project. Occlusion is per pixel, so Fade does not change the render.",
+            hint: "With Occlude on, how much of the flare is hidden behind 3D objects. 100 hides it fully; 0 keeps it fully visible.",
         },
         { path: "positioning.margin", label: "Edge margin", kind: "number" },
         { path: "positioning.distanceFalloff", label: "Distance falloff", kind: "number" },

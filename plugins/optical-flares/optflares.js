@@ -92,8 +92,8 @@ module.exports = function installOptflares(PZ, THREE) {
         lightIndex: number("Light Index", 0, { min: 0, max: 32, step: 1, decimals: 0 }),
         occlude: option("Occlude", 0, "off;on", true),
         // Restored from the donor editor so its projects keep the value.
-        // Occlusion here is per pixel through the depth buffer, so Fade has
-        // no render effect; 100 matches the current full-occlusion look.
+        // With Occlude on, Fade splits the gain between the depth-tested quad
+        // and an untested underlay; 100 is full occlusion.
         fade: number("Fade Amount", 100, { min: 0, max: 100, step: 1, decimals: 0 }),
         margin: number("Edge Margin", 0.25, { min: 0, max: 2, step: 0.01, decimals: 2 }),
         distanceFalloff: number("Distance Falloff", 0, { min: 0, max: 2, step: 0.01, decimals: 2 }),
