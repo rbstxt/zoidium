@@ -45,6 +45,10 @@ function fixtures() {
     const shader = fs.readFileSync(path.join(root, effect.shader.split("?")[0]), "utf8");
     for (const property of data.customProperties || []) {
       if (property.properties?.name === "wipePercent") Object.assign(property, scalar(0.25, 0.75));
+      if (effect.id.includes("-transitions-")) {
+        const settings = { borderWidth: 0.04, borderSoftness: 0.01, gradAdd: 0.2, edgeSoftness: 0.02 };
+        if (Object.hasOwn(settings, property.properties?.name)) Object.assign(property, scalar(settings[property.properties.name]));
+      }
     }
     data.properties.fragShader = shader + "\n// @zoidium-plugin " + JSON.stringify({
       id: ccfx.id, name: ccfx.name, author: ccfx.author, version: ccfx.version, effect: effect.id,
@@ -149,15 +153,15 @@ async function compareFixture(fixture) {
     editor.playback.currentFrame = frame;
     cache.debug.disabled = !capture;
     await editor.project.sequence.prepare(frame, { sequence: editor.project.sequence });
-    const initialStores = cache.debug.stores;
+
     for (let attempt = 0; attempt < 250; attempt++) {
-      const stores = cache.debug.stores;
+      const hits = cache.debug.hits;
       viewport.__zoidiumPlayerPlusRenderOnce = true;
       viewport.lastFrame = NaN;
       viewport._render();
       // Read synchronously while the default framebuffer is still preserved.
       let bytes = viewport.lastFrame === frame ? pixels() : null;
-      if (capture && cache.debug.stores > stores) return bytes || pixels();
+      if (capture && cache.debug.hits > hits) return bytes || pixels();
       const runtime = temporal.frameSamplerRuntimes?.get(viewport.compositor);
       if (!capture && bytes && !runtime?.previewPending) return bytes;
       const controller = viewport.__zoidiumOutputFrames;
@@ -172,35 +176,49 @@ async function compareFixture(fixture) {
         }
         await pause(8);
       }
-      // Temporal completion happens asynchronously. Render once again to
-      // display its prepared result in this task before reading the canvas.
-      if (capture && cache.debug.stores > initialStores && viewport.lastFrame === frame) {
-        viewport.__zoidiumPlayerPlusRenderOnce = true;
-        viewport._render();
-        return pixels();
-      }
+
     }
     throw new Error("Frame " + frame + " did not complete: " + cache.usage().reason);
+  }
+  async function replay(frame) {
+    const viewport = editor.mainViewport, stores = cache.debug.stores;
+    editor.playback.currentFrame = frame;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const hits = cache.debug.hits;
+      viewport.__zoidiumPlayerPlusRenderOnce = true;
+      viewport._render();
+      // A live recapture would no longer test the original retained pixels.
+      if (cache.debug.stores !== stores) throw new Error("Replay unexpectedly recaptured frame " + frame);
+      if (cache.debug.hits === hits + 1) return pixels();
+      if (!cache.usage().reason?.includes("validation is deferred")) break;
+      await pause(1550);
+    }
+    throw new Error("Expected cache hit at " + frame + ": " + cache.usage().reason);
   }
   const frames = fixture.full ? [11] : fixture.prefetch ? [0, 1, 11, 37] : [0, 11, 37];
   const references = new Map();
   for (const frame of frames) { await load(); references.set(frame, await draw(frame, false)); }
   await load();
   const checks = [];
-  for (const frame of [...frames].reverse()) {
-    const live = await draw(frame, !fixture.liveOnly);
-    equal(references.get(frame), live, "fresh vs seek " + frame);
-    checks.push("fresh-seek-" + frame);
-  }
+  let warmPasses = 0;
+  do {
+    // Resource completion can invalidate entries captured earlier in this pass.
+    // Retain the whole window before asserting replay hits. Every capture is
+    // read back only after the actual cache display path reports a hit.
+    for (const frame of [...frames].reverse()) {
+      const live = await draw(frame, !fixture.liveOnly);
+      equal(references.get(frame), live, "fresh vs seek " + frame);
+      checks.push("fresh-seek-" + frame);
+    }
+    warmPasses++;
+  } while (!fixture.liveOnly && cache.debug.entries < frames.length && warmPasses < 4);
+  if (!fixture.liveOnly && cache.debug.entries < frames.length) throw new Error("Cache window did not settle");
   const order = fixture.full ? [11] : [11, 37, 0, 37, 11, 0];
   for (const frame of order) {
-    const hits = cache.debug.hits;
-    const viewport = editor.mainViewport;
-    editor.playback.currentFrame = frame;
-    viewport.__zoidiumPlayerPlusRenderOnce = true;
-    viewport._render();
-    if (!fixture.liveOnly && cache.debug.hits !== hits + 1) throw new Error("Expected cache hit at " + frame);
-    equal(references.get(frame), pixels(), "cached vs fresh " + frame);
+    let bytes;
+    if (fixture.liveOnly) bytes = await draw(frame, false);
+    else bytes = await replay(frame);
+    equal(references.get(frame), bytes, "cached vs fresh " + frame);
     checks.push("replay-" + frame);
   }
   // Fresh live draws after other seeks also have to match the cold references.
@@ -226,11 +244,7 @@ async function compareFixture(fixture) {
     if (cache.debug.prefetched > before) {
       let frame = 1;
       while (viewport.__zoidiumOutputFrames.prefetchSkipped.has(frame)) frame++;
-      editor.playback.currentFrame = frame;
-      const hits = cache.debug.hits;
-      viewport.__zoidiumPlayerPlusRenderOnce = true; viewport._render();
-      if (cache.debug.hits !== hits + 1) throw new Error("Prefetch did not retain frame " + frame + ": " + cache.usage().reason);
-      const cached = pixels();
+      const cached = await replay(frame);
       if (!references.has(frame)) { await load(); references.set(frame, await draw(frame, false)); }
       equal(references.get(frame), cached, "private prefetch vs fresh " + frame);
       checks.push("prefetch-" + frame); prefetch = "matched"; prefetchFrame = frame;
@@ -241,15 +255,22 @@ async function compareFixture(fixture) {
     Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)), b => b.toString(16).padStart(2, "0")).join("")]);
   if (cache.debug.keyMismatches !== mismatches) throw new Error("Project key changed without invalidation");
   if (fixture.liveOnly && cache.debug.entries !== 0) throw new Error("Plain time operator unexpectedly retained frames");
-  const sample = references.get(frames[0]);
+  const colorsOf = bytes => {
+    const values = new Set();
+    for (let i = 0; i < bytes.length; i += 4) values.add(bytes.slice(i, i + 4).join(","));
+    return values.size;
+  };
+  // Transition endpoints may be fully transparent or a solid fill. Require
+  // visible detail somewhere in the fixture, while comparing every sampled frame.
+  const sample = [...references.values()].sort((a, b) => colorsOf(b) - colorsOf(a))[0];
   const corrupted = sample.slice(); corrupted[0] ^= 1;
   let detected = false;
   try { equal(sample, corrupted, "oracle control"); } catch (_error) { detected = true; }
   if (!detected) throw new Error("Byte mismatch control failed");
   const digest = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", sample)), b => b.toString(16).padStart(2, "0")).join("");
-  const colors = new Set(); for (let i = 0; i < sample.length; i += 4) colors.add(sample.slice(i, i + 4).join(","));
-  if (colors.size < 2) throw new Error("Fixture has no visible content");
-  return { checks: checks.length, prefetch, prefetchFrame, referenceDigests, bytes: sample.length, colors: colors.size, digest,
+  const colors = colorsOf(sample);
+  if (colors < 2) throw new Error("Fixture has no visible content");
+  return { checks: checks.length, warmPasses, prefetch, prefetchFrame, referenceDigests, bytes: sample.length, colors, digest,
     entries: cache.debug.entries, liveOnly: !!fixture.liveOnly };
 }
 module.exports = { fixtures, compareFixture };

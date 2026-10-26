@@ -86,5 +86,5 @@ function check() {
   console.log("Preview cache approvals are current: " + Object.keys(receipt.plugins).join(", "));
 }
 
-if (require.main === module) check();
 module.exports = { root, approvalPath, candidates, versions, fingerprint, source, check };
+if (require.main === module) check();

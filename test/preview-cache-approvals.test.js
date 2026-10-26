@@ -55,3 +55,10 @@ test("plugin activation defaults change the approval fingerprint", t => {
   tree.write("plugins/registry.json", '{"plugins":[{"id":"example","defaultEnabled":true}]}');
   assert.notEqual(tree.digest(), before);
 });
+
+test("approval checker runs through its standalone CLI entry point", () => {
+  const { spawnSync } = require("node:child_process");
+  const result = spawnSync(process.execPath, [require.resolve("../tools/preview-cache-approvals.js")], { encoding: "utf8" });
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /Preview cache approvals are current/);
+});
