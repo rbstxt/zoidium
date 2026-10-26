@@ -265,3 +265,13 @@ test("Camera+ master-track channels scale, while FPS, seconds, counters and shut
   assert.equal(sequence.properties.motionBlurShutter.get(), originalShutter);
   assert.deepEqual(effects.map(property => property.get()), [12, 1.5, -6, 100, 3]);
 });
+
+
+test("adjacent boundaries agree exactly even when floating subtraction loses a bit", () => {
+  const h = fixture(); h.sequence.properties.rate.set(3);
+  const first = h.clip(false, 7, 25), second = h.clip(false, 32, 25);
+  h.edit(1);
+  assert.equal(first.endFrame, second.start);
+  close(second.start, 32 / 3);
+  h.editor.history.undo(); assert.equal(first.start, 7); assert.equal(first.length, 25); assert.equal(second.start, 32);
+});

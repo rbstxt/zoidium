@@ -71,22 +71,26 @@
     }
   }
 
-  function scaleClip(values, ratio) {
-    const start = values.start * ratio;
-    // Scale shared boundaries, so adjacent clips keep the same boundary.
-    values.length = (values.start + values.length) * ratio - start;
+  function scaleClip(values, ratio, boundaries) {
+    const oldEnd = values.start + values.length;
+    const start = boundaries?.get(values.start) ?? values.start * ratio;
+    // Reuse the actual end of an adjacent clip, including its last floating
+    // point bit. Independent subtraction and addition can differ by one ULP.
+    values.length = oldEnd * ratio - start;
     values.start = start;
+    boundaries?.set(oldEnd, start + values.length);
     if (Number.isFinite(values.offset)) values.offset *= ratio;
   }
 
-  function scaleStored(node, ratio, owner = null, field = null) {
+  function scaleStored(node, ratio, owner = null, field = null, boundaries = null) {
     if (!node || typeof node !== "object") return;
     if (Array.isArray(node)) {
-      for (const child of node) scaleStored(child, ratio, owner, field);
+      const clipBoundaries = field === "clips" ? new Map() : null;
+      for (const child of node) scaleStored(child, ratio, owner, field, clipBoundaries);
       return;
     }
     if (typeof node.type === "number" || typeof node.type === "string") owner = node;
-    if (node.object && Number.isFinite(node.start) && Number.isFinite(node.length)) scaleClip(node, ratio);
+    if (node.object && Number.isFinite(node.start) && Number.isFinite(node.length)) scaleClip(node, ratio, boundaries);
     if (node.compId && Number.isFinite(node.offset)) node.offset *= ratio;
     if (Array.isArray(node.keyframes)) scaleKeys(node.keyframes, ratio, isDuration(owner, field));
     if (isDuration(owner, field) && Number.isFinite(node.value)) node.value *= ratio;
@@ -118,9 +122,14 @@
     after.rate = newRate;
     after.length *= ratio;
     after.frame *= ratio;
+    const trackBoundaries = new Map();
     for (const record of after.records) {
       if (record.kind === "keys") scaleKeys(record.keys, ratio, record.duration);
-      else if (record.kind === "clip") scaleClip(record.values, ratio);
+      else if (record.kind === "clip") {
+        const track = JSON.stringify(record.address.slice(0, -1));
+        if (!trackBoundaries.has(track)) trackBoundaries.set(track, new Map());
+        scaleClip(record.values, ratio, trackBoundaries.get(track));
+      }
       else for (const key of Object.keys(record.values)) record.values[key] *= ratio;
     }
     for (const root of after.stored) scaleStored(root.data, ratio);
