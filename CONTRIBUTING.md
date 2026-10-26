@@ -144,6 +144,8 @@ The native picker adds an identifier suffix to each community effect name.
 
 Preview controls use static CM3 properties and native undo and redo.
 Keyframes, expressions, arbitrary GLSL, and temporal inputs are unavailable.
+The preview prepares effects directly on top-level layers.
+Nested compositions and remapped time can render as identity when no exact-frame result is available.
 Video and image export with community effects are refused.
 To export, remove community effects from the project.
 Missing or disabled packages render as identity and preserve their effect data.
