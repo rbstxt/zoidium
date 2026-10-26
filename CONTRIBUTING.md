@@ -87,6 +87,26 @@ Do not commit CM3 HTML, JavaScript bundles, effects, materials, workers, WASM,
 shaders, textures, icons, favicons, or CM3 fonts. The separately licensed
 Source Code Pro font under `fonts/` is a Zoidium UI dependency and is allowed.
 
+## Preview cache approvals
+
+The preview cache stores finished frames only for plugin versions that passed
+the browser oracle. `pnpm run verify` fails when plugin, runtime, or font
+sources changed after the last oracle run. To refresh the approvals, run the
+oracle, then rebuild the bundles:
+
+```bash
+pnpm run test:preview-cache -- --profile=<directory> --report=<file> --write
+pnpm run build:plugin-bundles
+```
+
+The oracle compares cached frames with live renders byte for byte. It takes a
+few minutes and uses one Chromium instance. It also honors
+`ZOIDIUM_BROWSER_LOCK`.
+
+On a work branch, you can set `ZOIDIUM_PREVIEW_CACHE_APPROVALS=defer` to turn
+the stale-approval failure into a warning. Until someone reruns the oracle,
+changed plugins render live in the editor. Rerun the oracle before you merge.
+
 ## Before opening a pull request
 
 Run `pnpm run verify`. If the change affects runtime staging and network access

@@ -16,6 +16,20 @@ When paused and idle, eligible scenes pre-render a bounded window through a
 private project copy. Video projects and scenes taking over 50 ms for a synchronous
 draw skip that work. Frames shown normally can still be retained.
 
+## Plugin verification
+
+Plugin approvals record the installed versions and the browser oracle's render
+source fingerprint. `plugins/core/output-frame-approvals.js` contains the receipt.
+`pnpm run verify` fails if runtime sources, plugin manifests,
+assets, bootstrap order, activation defaults, or oracle fixtures change. Deployment
+version numbers and rebuilt bundles do not expire an unchanged approval.
+
+The browser oracle compares GPU readback bytes against a newly loaded project's
+live render at the same frame. The matrix covers forward, reverse, and repeated
+seeks, temporal effects, private pre-rendered frames, and brief **Full quality** checks.
+A plugin with a failed fixture keeps live previews. The oracle's `--write` option
+records approvals only after a complete matrix run. Filtered runs cannot update them.
+
 ## When nothing is cached
 
 The usage note shows **Not caching:** and the current reason when preview frames
@@ -25,6 +39,7 @@ cannot be retained or reused. A larger memory limit does not remove these checks
   The note identifies the required plugin and its version when available.
 - Time operators without frame samplers use live evaluation. Smart Motion Blur
   does not disable caching by itself, but its plugin version must pass verification.
+- Any loading plugin or plugin error prevents caching, including errors in an unused plugin.
 - Resource loading, frame preparation, and exact video decoding must finish before
   a frame can be retained.
 - If project validation takes over 8 ms, caching waits until playback stops and

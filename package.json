@@ -40,7 +40,9 @@
     "docs:build": "pnpm --filter @zoidium/docs build",
     "pack:community": "node tools/pack-community-plugin.js",
     "build:community-interpreter": "node tools/build-community-interpreter.js",
-    "test:community-network": "node tools/community-network-suite.js"
+    "test:community-network": "node tools/community-network-suite.js",
+    "test:preview-cache": "node tools/preview-cache-oracle.js",
+    "check:preview-cache-approvals": "node tools/preview-cache-approvals.js"
   },
   "build": {
     "appId": "com.zoidium.app",

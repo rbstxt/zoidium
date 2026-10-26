@@ -80,6 +80,7 @@ function harness() {
   const document = { fonts: { status: "loaded", ready: Promise.resolve(), addEventListener() {}, removeEventListener() {} },
     addEventListener: (n, f) => docEvents.set(n, f), removeEventListener: n => docEvents.delete(n) };
   const window = { document, PZ, THREE, CM: { mainViewport: viewport }, ZoidiumOutputFrameStore: model,
+    ZoidiumOutputFrameApprovals: require("../plugins/core/output-frame-approvals.js"),
     ZoidiumUI: { notify(message) { notices.push(message); } },
     localStorage: { getItem: () => null }, performance: { now: () => clock.now },
     addEventListener: (n, f) => events.set(n, f), removeEventListener: n => events.delete(n) };
@@ -264,7 +265,7 @@ test("unapproved plugins keep the live preview", async () => {
   h.api.dispose();
 });
 
-test("current Native FX reports its unverified version without retaining sampler output", async () => {
+test("an older Native FX version cannot use the current approval", async () => {
   const h = harness();
   h.project.plugins = [{ id: "native-fx" }];
   h.PZ.zoidium.getDebugPlugins = () => [{ id: "native-fx", version: "34", enabled: true, phase: "enabled" }];
@@ -276,7 +277,24 @@ test("current Native FX reports its unverified version without retaining sampler
   h.api.dispose();
 });
 
+for (const [id, record] of Object.entries(require("../plugins/core/output-frame-approvals.js").plugins)) {
+  test("oracle-approved " + id + " retains completed sampler output", async () => {
+    const h = harness();
+    h.project.plugins = [{ id }];
+    h.PZ.zoidium.getDebugPlugins = () => [{ id, version: record.version, enabled: true, phase: "enabled" }];
+    h.PZ.zoidium.temporal.usesSingleEvaluation = (_sequence, excludeSamplers) => !excludeSamplers;
+    await h.warm();
+    assert.equal(h.api.debug.entries, 1);
+    const live = h.counts.live;
+    h.viewport._render();
+    assert.equal(h.counts.live, live);
+    assert.equal(h.api.debug.hits, 1);
+    h.api.dispose();
+  });
+}
+
 for (const [name, setup, expected] of [
+  ["unrelated plugin error", h => { h.PZ.zoidium.getDebugPlugins = () => [{ id: "unused", enabled: false, phase: "disabled", lastError: { message: "failed" } }]; }, /Plugins are loading or have errors/],
   ["loading plugins", h => { h.PZ.zoidium.getDebugPlugins = () => [{ phase: "loading" }]; }, /Plugins are loading/],
   ["loading fonts", h => { h.document.fonts.status = "loading"; }, /Fonts are loading/],
   ["invalid serialization", h => { h.project.toJSON = () => { throw new Error("invalid"); }; }, /could not be validated/],

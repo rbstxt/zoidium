@@ -91,6 +91,11 @@ each line describes one visible change.
 
 ### Fixed
 
+- The preview cache works again for projects that use Native FX, Text+,
+  Effector, Trapcode, Optical Flares, or the CCFX pack. Its approval list
+  had fallen behind the plugin versions, so these projects were never
+  cached. Every approved plugin passed a byte-for-byte check of cached
+  frames against live renders.
 - Settings shows why the preview cache is not storing frames ("Not caching:"
   followed by the reason). The memory warning no longer mentions only Macs.
 - Smart Motion Blur with Shutter Samples no longer darkens soft or
