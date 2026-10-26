@@ -234,6 +234,7 @@ ZoidiumPluginApis.defineFrameSampler.call(echo, {
     );
     const decay = Math.min(0.99, Math.max(0, echoNumber(props.decay, frame, 0.88)));
     return {
+      preserveInputRGB: true,
       enabled:
         echoNumber(props.enabled, frame, 1) === 1 &&
         strength > 0.0005 &&

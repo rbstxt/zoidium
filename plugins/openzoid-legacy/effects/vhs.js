@@ -40,6 +40,7 @@ ZoidiumPluginApis.defineFrameSampler.call(vhsEffect, {
         const interlace = vhsHelpers.clamp01(vhsHelpers.readNumber(effect.properties.interlace, frame, 0.4));
         const enabled = vhsHelpers.readNumber(effect.properties.enabled, frame, 1) === 1;
         return {
+            preserveInputRGB: true,
             enabled: enabled && vhsHelpers.vhsTrailMix(amount, persistence, interlace) > 0.001,
             count: 2 + Math.round(persistence * 8),
             offsetFrames: -1,

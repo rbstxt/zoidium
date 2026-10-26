@@ -38,7 +38,7 @@ ZoidiumPluginApis.defineFrameSampler.call(this, {
     const shutter = smartMotionBlurUsesShutter(effect, settings);
     return {
       enabled: settings.amount > 0 && settings.sensitivity > 0,
-      preserveInputRGB: shutter,
+      preserveInputRGB: true,
       reduceSamples: shutter ? smartMotionBlurReduce : undefined,
       frames: shutter
         ? smartMotionBlurMath.shutterTimes(settings.amount, smartMotionBlurMath.captureCount(settings.quality))

@@ -151,6 +151,7 @@ ZoidiumPluginApis.defineFrameSampler.call(echoEffect, {
     const attenuation = Math.min(1, Math.max(0, decay));
     while (count > 0 && weight * Math.pow(attenuation, count - 1) === 0) count--;
     return {
+      preserveInputRGB: true,
       enabled: echoNumber(effect.properties.enabled, frame, 1) === 1 && count > 0,
       count,
       offsetFrames: -Math.max(0, echoNumber(effect.properties.delay, frame, 3)),

@@ -508,6 +508,7 @@ function datamoshRequest(effect, frame) {
     }
     return {
         enabled: true,
+        preserveInputRGB: true,
         count: steps,
         offsetFrames: -Math.floor(age / steps),
         startOpacity: 1,

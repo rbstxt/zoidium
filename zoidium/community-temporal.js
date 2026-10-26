@@ -51,7 +51,7 @@
     function getRequest(_effect, frame, context = {}) {
       if (context.exportPolicy?.communityBypass) return null;
       const receipt = lookup(frame, context), temporal = receipt?.result.temporal;
-      return temporal ? { frames: temporal.offsets } : null;
+      return temporal ? { frames: temporal.offsets, preserveInputRGB: true } : null;
     }
     function drawReceipt() {
       const temporal = PZ.zoidium?.temporal;

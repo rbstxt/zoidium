@@ -73,6 +73,7 @@ test("Echo requests explicit earlier frames with animated opacity decay", () => 
   assert.deepEqual(
     JSON.parse(JSON.stringify(definition.getRequest(effect, 24))),
     {
+      preserveInputRGB: true,
       enabled: true,
       count: 6,
       offsetFrames: -2.5,
