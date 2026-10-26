@@ -34,8 +34,15 @@
     if (new TextEncoder().encode(JSON.stringify(value)).length > 65536) S.fail("result size limit exceeded");
     if (operation === "uiEvent") { S.keys(value, ["state"]); P.state(value.state, effect.properties); return value; }
     S.keys(value, ["uniforms"], ["temporal", "textures"]);
-    // No temporal broker exists yet. Fail before any host resource operation.
-    if (Object.hasOwn(value, "temporal")) throw new Error("LOCAL_DEPENDENCY_UNAVAILABLE: temporal sampling is unavailable");
+    if (value.temporal !== undefined) {
+      S.keys(value.temporal, ["offsets", "weights"]);
+      P.list(value.temporal.offsets, 8); P.list(value.temporal.weights, 8);
+      if (!value.temporal.offsets.length || value.temporal.weights.length !== value.temporal.offsets.length) S.fail("invalid temporal tap count");
+      for (const offset of value.temporal.offsets) { P.finite(offset); if (Math.abs(offset) > 120) S.fail("temporal offset outside bounds"); }
+      for (const weight of value.temporal.weights) { P.finite(weight); if (weight < 0 || weight > 1) S.fail("temporal weight outside bounds"); }
+      const total = value.temporal.weights.reduce((sum, weight) => sum + weight, 0);
+      if (Math.abs(total - 1) > 1e-9) S.fail("temporal weights must sum to one");
+    }
     const allowed = effect.template === "gain-v1" ? ["gain"] : [];
     S.keys(value.uniforms, [], allowed);
     for (const number of Object.values(value.uniforms)) { P.finite(number); if (Math.abs(number) > 1000000) S.fail("uniform outside bounds"); }

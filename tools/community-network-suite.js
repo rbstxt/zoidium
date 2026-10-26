@@ -105,7 +105,7 @@ async function runnerCases(page, fixture, folder) {
     results.push({ name: "exact-hash approval", ok: await B.createRunner({ bytes, approvedHash: "wrong", runtimeSource }).then(() => false, () => true) });
     for (const [name, code, expected] of [
       ["guest network calls denied", `function prepare(){const attempts=[()=>fetch(${JSON.stringify(options.sink)}),()=>new WebSocket(${JSON.stringify(options.sink.replace('http:','ws:'))}),()=>new Worker(${JSON.stringify(options.sink)}),()=>Function('return this')().fetch(${JSON.stringify(options.sink)}),()=>({}).constructor.constructor('return this')().fetch(${JSON.stringify(options.sink)})];return {uniforms:{gain:attempts.every(f=>{try{f();return false}catch(e){return true}})?0.5:999}}}`, "prepared"],
-      ["temporal dependency fails locally", "function prepare(){return {uniforms:{},temporal:{offsets:[0]}}}", "LOCAL_DEPENDENCY_UNAVAILABLE"],
+      ["incomplete temporal plan fails validation", "function prepare(){return {uniforms:{},temporal:{offsets:[0]}}}", "missing field"],
     ]) {
       const runner = await guestRunner(code);
       try {

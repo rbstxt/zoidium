@@ -32,14 +32,15 @@ test("protocol rejects transferred handles, buffers, accessors and platform obje
     assert.throws(() => S.data(JSON.parse('{"__proto__":0}')), /poisoned/);
   } finally { channel.port1.close(); channel.port2.close(); }
 });
-test("protocol validates local input ownership, textures, UI state and temporal refusal", () => {
+test("protocol validates local input ownership, textures, UI state and bounded temporal plans", () => {
   const m = request(); V.requestPayload(m, { manifest });
   for (const change of [i => { i.url = "https://example.invalid"; }, i => { i.properties.foreign = 1; }, i => { i.width = 0; }, i => { i.properties.gain = "1+1"; }]) {
     const bad = structuredClone(m); change(bad.payload.input); assert.throws(() => V.requestPayload(bad, { manifest }));
   }
   assert.deepEqual(V.result({ uniforms: { gain: 1 } }, effect, "prepareEffect"), { uniforms: { gain: 1 } });
   for (const value of [{ uniforms: { url: "https://example.invalid" } }, { uniforms: { gain: Infinity } }, { uniforms: {}, temporal: { offsets: [0] } }, { uniforms: {}, textures: [{ id: "a", width: 1, height: 1, pixels: [0] }] }, { uniforms: {}, textures: [{ id: "a", width: 257, height: 1, pixels: [] }] }]) assert.throws(() => V.result(value, effect, "prepareEffect"));
-  assert.throws(() => V.result({ uniforms: {}, temporal: {} }, effect, "prepareEffect"), /LOCAL_DEPENDENCY_UNAVAILABLE/);
+  assert.throws(() => V.result({ uniforms: {}, temporal: {} }, effect, "prepareEffect"), /missing field/);
+  assert.deepEqual(V.result({ uniforms: {}, temporal: { offsets: [-0.125, 1.5], weights: [0.25, 0.75] } }, effect, "prepareEffect").temporal.offsets, [-0.125, 1.5]);
   assert.throws(() => V.result({ state: { other: 1 } }, effect, "uiEvent"));
 });
 test("interpreter exposes no browser or network capabilities, including constructor chains", async () => {

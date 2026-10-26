@@ -4,11 +4,22 @@
   const commonJS = typeof module === "object" && module.exports;
   const S = commonJS ? require("./community-safe-json") : root.ZoidiumCommunityJSON;
   const U = commonJS ? require("./community-ui") : root.ZoidiumCommunityUI;
+  const T = commonJS ? require("./community-temporal-pass") : root.ZoidiumCommunityTemporalPass;
   const instances = new Set();
   const projectsWithCommunityData = new WeakSet();
   const EXPORT_ERROR = "Community effect export is unavailable in the developer preview. Remove community effects before exporting video or images.";
   const isCommunity = type => typeof type === "string" && type.startsWith("community-");
   const clone = value => S.parse(JSON.stringify(value));
+  function status(effect, message) {
+    effect._communityError = message || null;
+    if (!effect.properties["community-status"]) effect.properties.add("community-status", {
+      name: "Community status", readOnly: true, type: root.PZ.property.type.TEXT, value: message || "Ready",
+    });
+    const property = effect.properties["community-status"];
+    // Status is transient host UI state. Native property setters publish
+    // project edits, which would invalidate the preparation reporting it.
+    property.value = message || "Ready";
+  }
   function unavailable(effect, data, message = "Community package is disabled or unavailable. Its data is preserved and this effect renders as identity.") {
     effect._communityOpaque = clone(data || { type: effect.type });
     effect._communityError = message; effect.pass = null;
@@ -92,7 +103,7 @@
       renderer.autoClear = autoClear; renderer.setClearColor(color, alpha);
     }
   }
-  function makePass(template, gain, THREE = root.THREE) {
+  function makePass(template, gain, THREE = root.THREE, temporal = () => null) {
     if (!["identity-v1", "gain-v1"].includes(template)) S.fail("unsupported host template");
     const material = new THREE.ShaderMaterial({
       uniforms: { tDiffuse: { value: null }, uvScale: { value: new THREE.Vector2(1, 1) }, gain: { value: 1 } },
@@ -103,15 +114,25 @@
     });
     const pass = new THREE.ShaderPass(material);
     const render = pass.render;
+    let temporalPass;
     pass.render = function (renderer) {
       // Recheck the exact receipt immediately before drawing. Identity is the
       // only permitted output when the frame or revision no longer matches.
-      this.uniforms.gain.value = gain();
-      return restoreRenderer(renderer, () => render.apply(this, arguments), THREE);
+      return restoreRenderer(renderer, () => {
+        const plan = temporal();
+        if (plan?.samples.length) {
+          temporalPass ||= T.create(THREE, template);
+          temporalPass.render(renderer, arguments[1], arguments[2], plan, gain());
+          return;
+        }
+        this.uniforms.gain.value = plan ? 1 : gain();
+        return render.apply(this, arguments);
+      }, THREE);
     };
     let disposed = false;
     pass.release = () => {
       if (disposed) return; disposed = true;
+      temporalPass?.release();
       material.dispose(); pass.quad?.geometry?.dispose();
     };
     return pass;
@@ -146,6 +167,6 @@
       packageHash: binding.packageHash, dataSchema: declaration.dataSchema } };
   }
   const api = { instances, EXPORT_ERROR, clone, isCommunity, unavailable, placeholder, contains, assertExport,
-    installGuards, restoreRenderer, makePass, loadValues, serialize };
+    status, installGuards, restoreRenderer, makePass, loadValues, serialize };
   if (commonJS) module.exports = api; else root.ZoidiumCommunityEffectHost = api;
 })(globalThis);

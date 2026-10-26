@@ -358,3 +358,30 @@ test("only preview startup loads staged trusted Worker data", async t => {
   assert.equal(output.ZoidiumCommunityRuntimeSource, require("../tools/community-runtime-source").runtimeSource());
   assert.equal(network, 0);
 });
+
+test("transient preparation status never publishes a native project edit", async () => {
+  const h = await setup();
+  const property = h.effect.properties["community-status"];
+  property.set = () => assert.fail("transient status entered native history");
+  await h.effect.prepare(0.125);
+  assert.equal(property.get(), "Ready");
+  assert.equal(h.effect._community.receipt.authority.revision, E.frameStamp(h.effect, 0.125).revision);
+});
+
+test("concurrent frame preparations serialize captures and keep exact receipts for each requested time", async () => {
+  const h = await setup(); const e = h.effect;
+  let inFlight = 0, maximum = 0;
+  h.gate(async () => { inFlight++; maximum = Math.max(maximum, inFlight); await new Promise(r => setImmediate(r)); inFlight--; });
+  await Promise.all([e.prepare(0.125), e.prepare(2.5), e.prepare(1.75)]);
+  assert.equal(maximum, 1);
+  for (const frame of [0.125, 2.5, 1.75]) assert.ok(e._community.temporal.lookup(frame));
+});
+
+test("an exact cached receipt cannot bypass a revoked local package authorization", async () => {
+  const h = await setup(), e = h.effect;
+  await e.prepare(0.125); assert.ok(e._community.temporal.lookup(0.125));
+  const requests = h.requests(); h.disable();
+  await e.prepare(0.125);
+  assert.equal(h.requests(), requests); assert.equal(e.pass, null);
+  assert.equal(e._community.temporal.lookup(0.125), null);
+});

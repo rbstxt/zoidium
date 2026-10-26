@@ -7,13 +7,21 @@
   const U = commonJS ? require("./community-ui") : root.ZoidiumCommunityUI;
   const H = commonJS ? require("./community-effect-host") : root.ZoidiumCommunityEffectHost;
   const B = commonJS ? require("./community-bootstrap") : root.ZoidiumCommunityBootstrap;
+  const Temporal = commonJS ? require("./community-temporal") : root.ZoidiumCommunityTemporal;
   const Preview = commonJS ? require("./community-preview") : root.ZoidiumCommunityPreview;
   const previewEnabled = () => {
     try { return root.localStorage?.getItem("zoidium.community-preview") === "1"; } catch (_) { return false; }
   };
   const projectStates = new WeakMap();
   let nextProject = 0, nextInstance = 0, nextRunner = 0;
-  function frameStamp(effect, frame) {
+  const identities = new WeakMap();
+  let nextIdentity = 0;
+  function identity(value) {
+    if (!value || typeof value !== "object") return 0;
+    if (!identities.has(value)) identities.set(value, ++nextIdentity);
+    return identities.get(value);
+  }
+  function frameStamp(effect, frame, context = {}) {
     P.finite(frame);
     const project = effect.parentProject;
     if (!project) throw new Error("Community effect has no project.");
@@ -34,11 +42,19 @@
     const rate = sequence.properties.rate.get();
     const input = { properties: U.read(effect, effect._community.declaration), frame, time: frame / rate, frameRate: rate,
       width: resolution[0], height: resolution[1], pixelAspect: 1, seed: 1 };
-    const frameKey = JSON.stringify([frame, rate, ...resolution]);
-    return { project, projectGeneration: state.generation, revision: state.revision, frameKey, input };
+    const compositor = context.frameSamplerRoot;
+    const frameKey = JSON.stringify([frame, rate, ...resolution, effect._community.generation,
+      compositor?.readBuffer?.width, compositor?.readBuffer?.height,
+      context.frameSamplerDepth, context.scopeId, context.stageId]);
+    const assetKey = JSON.stringify(Object.entries(project.assets?.list || {}).map(([id, asset]) =>
+      [id, identity(asset), identity(asset.file), asset.url, asset.sha256, asset.source,
+        ...Array.from(asset.data?.values?.() || [], data => data.zoidiumAssetRevision || 0)]));
+    const contextKey = JSON.stringify([identity(compositor), context.scopeId, context.frameSamplerDepth]);
+    return { project, projectGeneration: state.generation, revision: state.revision, frameKey, input,
+      assetKey, contextKey, context };
   }
   function sameStamp(a, b) {
-    return a.project === b.project && a.projectGeneration === b.projectGeneration && a.revision === b.revision && a.frameKey === b.frameKey;
+    return a.project === b.project && a.projectGeneration === b.projectGeneration && a.revision === b.revision && a.frameKey === b.frameKey && a.assetKey === b.assetKey && a.contextKey === b.contextKey;
   }
   function createController({ store, runtimeSource = root.ZoidiumCommunityRuntimeSource,
     createRunner = B.createRunner, PZ = root.PZ, ui = root.ZoidiumUI, stamp = frameStamp, makePass = H.makePass } = {}) {
@@ -59,7 +75,7 @@
       if (session.closed) return;
       session.closed = true; session.runner.dispose();
       for (const effect of session.effects) {
-        effect._community.receipt = null; effect._community.window?.close();
+        effect._community.temporal?.clear(); effect._community.receipt = null; effect._community.window?.close();
         effect.pass?.release(); effect.pass = null;
       }
       const entries = PZ.ui.objectTypes.get(PZ.effect);
@@ -81,13 +97,13 @@
       V.message(message); V.requestPayload(message, session.bundle);
       session.queued++;
       const work = session.tail.then(async () => {
-        if (!valid(effect, session) || instance.generation !== message.instanceGeneration || !sameStamp(authority, stamp(effect, authority.input.frame))) return null;
+        if (!valid(effect, session) || instance.generation !== message.instanceGeneration || !sameStamp(authority, stamp(effect, authority.input.frame, authority.context))) return null;
         if (!await store.authorized(session.id, session.hash)) { stop(session); return null; }
         const reply = await session.runner.request(message);
         V.matches(reply, message);
         if (reply.operation === "error") throw new Error("Community guest failed.");
         V.result(reply.payload, instance.declaration, operation);
-        if (!valid(effect, session) || instance.generation !== message.instanceGeneration || !sameStamp(authority, stamp(effect, authority.input.frame)) ||
+        if (!valid(effect, session) || instance.generation !== message.instanceGeneration || !sameStamp(authority, stamp(effect, authority.input.frame, authority.context)) ||
             !await store.authorized(session.id, session.hash)) return null;
         return H.clone(reply.payload);
       });
@@ -101,8 +117,13 @@
         effect.properties.addAll(U.definitions(declaration, PZ.property.type));
         effect.properties.add("community-setup", { name: "Community setup", readOnly: true, type: PZ.property.type.TEXT,
           value: "", zoidiumControl: "community-setup-v1" });
+        effect.properties.add("community-status", { name: "Community status", readOnly: true,
+          type: PZ.property.type.TEXT, value: "Ready" });
         const instance = effect._community = { id: "instance-" + (++nextInstance), generation: 1, declaration,
           frame: 0, receipt: null, project: null, unloaded: false };
+        const temporal = instance.temporal = Temporal.install({ effect, instance, stamp, sameStamp, PZ,
+          valid: () => valid(effect, session),
+          compute: authority => request(session, effect, "prepareEffect", authority.input, authority) });
         effect._communityOpen = editor => {
           if (!valid(effect, session) || editor.project !== instance.project) return;
           instance.window = ui.openWindow({ id: instance.id, title: "Community effect setup", width: 360, height: 400,
@@ -124,36 +145,54 @@
         effect.load = async data => {
           if (instance.unloaded) return;
           instance.generation++; effect.pass?.release(); effect.pass = null; instance.window?.close();
-          instance.project = effect.parentProject; instance.receipt = null;
+          instance.project = effect.parentProject; temporal.clear();
           const record = data || { type: effect.type };
           H.instances.add(effect); session.effects.add(effect);
           try {
             if (!previewEnabled() || session.closed) throw new Error("Community package is disabled or unavailable.");
             H.loadValues(effect, declaration, record, session.runner.binding);
             delete effect._communityOpaque;
-            effect.pass = makePass(declaration.template, () => {
-              if (!valid(effect, session) || !instance.receipt) return 1;
-              try {
-                const now = stamp(effect, instance.frame);
-                return sameStamp(instance.receipt.authority, now) ? instance.receipt.result.uniforms.gain ?? 1 : 1;
-              } catch (_) { return 1; }
-            });
+            effect.pass = makePass(declaration.template, () => temporal.drawReceipt()?.result.uniforms.gain ?? 1,
+              undefined, () => {
+                const receipt = temporal.drawReceipt();
+                if (!receipt?.result.temporal) return null;
+                const samples = PZ.zoidium?.temporal?.resolveFrameSamples(effect) || [];
+                if (samples.length !== receipt.result.temporal.offsets.length) {
+                  H.status(effect, "COMMUNITY_PREPARATION_PENDING: exact temporal inputs are unavailable");
+                  return { samples: [], weights: [] };
+                }
+                return { samples, weights: receipt.result.temporal.weights };
+              });
           } catch (error) { H.unavailable(effect, record, error.message); }
         };
         effect.toJSON = () => H.serialize(effect, declaration, session.runner.binding);
-        effect.prepare = async (frame, context) => {
-          instance.receipt = null;
-          if (context?.exportPolicy || context instanceof (PZ.export || class {})) throw new Error(H.EXPORT_ERROR);
-          if (!valid(effect, session)) return;
-          const authority = stamp(effect, frame);
-          const result = await request(session, effect, "prepareEffect", authority.input, authority);
-          if (result && valid(effect, session) && sameStamp(authority, stamp(effect, frame))) instance.receipt = { authority, result };
+        let preparation = Promise.resolve(), queuedPreparations = 0;
+        effect.prepare = (frame, context) => {
+          if (context?.exportPolicy || context instanceof (PZ.export || class {})) return Promise.reject(new Error(H.EXPORT_ERROR));
+          const host = PZ.zoidium?.temporal;
+          if (!valid(effect, session) || host?.preparingEffects?.has(effect)) return;
+          if (queuedPreparations >= 8) return Promise.reject(new Error("Community preview preparation is busy."));
+          queuedPreparations++;
+          // Serialize captures for this instance as well as its guest jobs.
+          // Concurrent seeks must not share mutable decoder or target state.
+          const work = preparation.then(async () => {
+            if (!valid(effect, session)) return;
+            try {
+              if (!await store.authorized(session.id, session.hash)) { stop(session); return; }
+              if (host?.prepareFrameSamples) await host.prepareFrameSamples(effect, frame, context);
+              else await temporal.preflight(effect, frame, context);
+            } catch (error) {
+              temporal.clear(); H.status(effect, String(error.message).slice(0, 4096)); throw error;
+            }
+          });
+          preparation = work.catch(() => {}).finally(() => { queuedPreparations--; });
+          return work;
         };
-        effect.update = frame => { instance.frame = frame; };
-        effect.resize = () => { instance.receipt = null; };
+        effect.update = frame => { instance.frame = frame; effect._zoidiumFrameSamplerFrame = frame; };
+        effect.resize = () => temporal.clear();
         effect.unload = () => {
           if (instance.unloaded) return;
-          instance.unloaded = true; instance.generation++; instance.receipt = null; instance.window?.close();
+          instance.unloaded = true; instance.generation++; temporal.clear(); instance.window?.close();
           effect.pass?.release(); effect.pass = null; session.effects.delete(effect); H.instances.delete(effect);
         };
       };
@@ -199,6 +238,10 @@
         throw error;
       }
     }
+    const invalidateReceipts = () => {
+      for (const session of sessions.values()) for (const effect of session.effects) effect._community.temporal.clear();
+    };
+    root.document?.addEventListener?.("zoidium:plugin-state-change", invalidateReceipts);
     const unregister = PZ && root.ZoidiumPluginApis?.propertyControls.register("community-setup-v1", {
       type: PZ.property.type.TEXT,
       create(property) {
@@ -212,7 +255,8 @@
         if (store.view().safeMode) return;
         for (const p of store.view().packages) if (p.enabled && !p.quarantine) await activate(p.id);
       },
-      dispose() { if (disposed) return; disposed = true; for (const s of sessions.values()) stop(s); unregister?.(); removePreview(); },
+      dispose() { if (disposed) return; disposed = true; for (const s of sessions.values()) stop(s); unregister?.(); removePreview();
+        root.document?.removeEventListener?.("zoidium:plugin-state-change", invalidateReceipts); },
     };
   }
   const api = { createController, frameStamp, sameStamp, previewEnabled };

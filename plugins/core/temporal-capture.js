@@ -15,7 +15,7 @@
     const clip = objectName(stage.clip, objectName(stage.clip?.object, "video clip"));
     return new Error(`Temporal sample failed for effect "${safeMessage(effect)}", clip "${safeMessage(clip)}", requested frame ${frame}: ${safeMessage(error)}`, { cause: error });
   }
-  function checkPolicy(context) { context?.exportPolicy?.check?.(); }
+  function checkPolicy(context) { context?.exportPolicy?.check?.(); context?.resourcePolicy?.check?.(); }
   function captureFrameSamplerInput(
     state,
     root,
@@ -33,6 +33,8 @@
     const { getFrameSamplerInputFrame, getFrameSamplerCapture, copyRenderTarget,
       bindSampleTextures, restoreLayerAtContextFrame, ownsFrameSamplerScope } = registry.sampler;
     const sequence = root?._sequence;
+    checkPolicy(inputContext);
+    inputContext?.resourcePolicy?.assertStage(sequence, stage, projectFrame);
     const requestedFrame = projectFrame;
     projectFrame = getFrameSamplerInputFrame(stage, projectFrame);
     const capture = getFrameSamplerCapture(runtime, root, depth, sequence);
@@ -61,6 +63,7 @@
     capture.clear(0);
     state.contexts.push({
       exportPolicy: inputContext?.exportPolicy || parentContext?.exportPolicy,
+      resourcePolicy: inputContext?.resourcePolicy || parentContext?.resourcePolicy,
       compositor: capture,
       singleEvaluation,
       frameSamplerDepth: depth,
@@ -124,6 +127,7 @@
       return true;
     } catch (error) {
       if (inputContext?.exportPolicy || parentContext?.exportPolicy) throw sampleError(stage, requestedFrame, error);
+      if (inputContext?.resourcePolicy || parentContext?.resourcePolicy) throw error;
       console.error("[Zoidium] frame sampler capture failed:", error);
       return false;
     } finally {
@@ -239,6 +243,43 @@
       },
     };
   }
-  registry.capture = { captureFrameSamplerInput, safeMessage, sampleError, checkPolicy,
+  function frameSamplerAuthority(state, stage, controlFrame, context, depth) {
+    const layers = registry.layers;
+    const root = context?.frameSamplerRoot || context?.rootCompositor || context?.compositor;
+    const scope = context?.frameSamplerScope;
+    return { ...context, controlFrame, frameSamplerRoot: root, frameSamplerDepth: depth,
+      scopeId: scope?.effect ? layers.frameSamplerIdentity(scope.effect) : 0,
+      stageId: layers.frameSamplerIdentity(stage.effect) };
+  }
+
+  function drawAuthority(state, effect) {
+    const layers = registry.layers, math = registry.math;
+    const context = state.contexts[state.contexts.length - 1];
+    const root = context?.rootCompositor || context?.compositor;
+    const stage = layers.findFrameSamplerStage(root?._sequence, effect, context?.outputFrame);
+    if (!stage) return null;
+    const local = math.finiteNumber(stage.layer.__zoidiumTemporalLastUpdateFrame,
+      context.outputFrame - math.finiteNumber(stage.clip.start, 0));
+    const frame = layers.isAdjustmentLayer(stage.layer)
+      ? registry.sampler.getFrameSamplerControlFrame(stage, local, context.frameSamplerScope)
+      : math.finiteNumber(effect._zoidiumFrameSamplerFrame, local);
+    return frameSamplerAuthority(state, stage, frame, context, math.finiteNumber(context.frameSamplerDepth, 0) + 1);
+  }
+
+  async function prepareChildren(layer, frame, context) {
+    const children = layer.nestedTracks
+      ? layer.nested.flatMap(track => track.enabled === false ? [] : [track.getCurrentClip(frame + (layer.offset || 0))].filter(Boolean))
+      : Array.from(layer.objects || [], object => ({ object }));
+    for (const child of children) {
+      if (!(child.object instanceof PZ.layer)) continue;
+      const local = frame + (layer.nestedTracks ? (layer.offset || 0) - child.start : 0);
+      const input = PZ.zoidium?.temporal?.mapLayerFrame(child.object, local)?.sourceFrame ?? local;
+      context.resourcePolicy.assertLayer(child.object);
+      await prepareChildren(child.object, input, context);
+      for (const effect of child.object.effects || []) await context.resourcePolicy.prepareEffect(effect, input, context);
+    }
+  }
+
+  registry.capture = { frameSamplerAuthority, drawAuthority, prepareChildren, captureFrameSamplerInput, safeMessage, sampleError, checkPolicy,
     reductionKey, cachedReduction, createReduction };
 })(typeof globalThis !== "undefined" ? globalThis : this);
