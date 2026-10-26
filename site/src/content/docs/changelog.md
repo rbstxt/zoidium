@@ -57,6 +57,11 @@ each line describes one visible change.
 
 ### Changed
 
+- Existing projects, new look: effects that read other frames no longer
+  darken soft or semi-transparent input (particles, text edges, faded
+  layers). This affects Echo, CC Wide Time, Time Difference, Time
+  Displacement, Smart Motion Blur with Optical Flow, Echo (Legacy), VHS,
+  and Datamosh. Opaque footage renders the same.
 - Existing projects, new look: Trapcode Particular now applies Velocity
   distribution, Aspect ratio, Opacity random, Color random, Air density,
   Drift X/Y/Z, Disperse strength over (life) with its curve, and Turbulence

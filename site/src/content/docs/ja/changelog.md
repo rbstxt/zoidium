@@ -37,6 +37,7 @@ sidebar:
 
 ### 変更
 
+- 既存プロジェクトの見た目の変更。ほかのフレームを読み込むエフェクトで、柔らかい部分や半透明の部分（パーティクル、文字の縁、フェード中のレイヤー）が暗くならなくなりました。対象は Echo、CC Wide Time、Time Difference、Time Displacement、Optical Flow を使う Smart Motion Blur、Echo (Legacy)、VHS、Datamosh です。不透明な映像の描画は変わりません。
 - 既存プロジェクトの見た目の変更。Trapcode Particular で、Velocity distribution、Aspect ratio、Opacity random、Color random、Air density、Drift X/Y/Z、Disperse strength over（life）とそのカーブ、Turbulence field affect size と affect opacity が描画に反映されます。これらは以前は効果がありませんでした。既定値のままのプロジェクトの描画は変わりません。
 - Trapcode Particular で、効果のないコントロールを非表示にしました。対象は Particle type、Set color、flocking のコントロール、Emitter type の light/layer/model/text、Disperse strength over の velocity/position です。保存された値は残ります。Bounce height の名前は Bounce boost になりました。
 - 既存プロジェクトの見た目の変更。3D Scene レイヤーでは、Smart Motion Blur の Automatic が Shutter Samples を使用し、それ以外では Optical Flow を使用します。Reconstruction の保存値がないプロジェクトは Automatic を使用します。3D Scene でフローベースのブラーを維持するには、Optical Flow を選択します。
