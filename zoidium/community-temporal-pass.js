@@ -28,8 +28,10 @@
           if (sample) uniforms["scale" + i].value.set(sample.target.viewport.z / sample.target.width,
             sample.target.viewport.w / sample.target.height);
         }
-        pass.render(renderer, writeBuffer, readBuffer, true);
-        for (let i = 0; i < 8; i++) uniforms["tap" + i].value = null;
+        // CM3's ShaderPass always assigns tDiffuse when a read buffer is
+        // supplied. This pass binds only its eight host-owned tap uniforms.
+        try { pass.render(renderer, writeBuffer, null, true); }
+        finally { for (let i = 0; i < 8; i++) uniforms["tap" + i].value = null; }
       },
       release() { material.dispose(); pass.quad?.geometry?.dispose(); },
     };

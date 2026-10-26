@@ -108,7 +108,11 @@
             }
             draw();
           } catch (error) {
-            for (const job of jobs) job.effect._community.temporal?.clear();
+            for (const job of jobs) {
+              job.effect._community.temporal?.clear();
+              if (root.ZoidiumCommunityEffectHost) root.ZoidiumCommunityEffectHost.status(job.effect, String(error.message).slice(0, 4096));
+              else job.effect._communityError = String(error.message).slice(0, 4096);
+            }
             const message = "Community preview preparation failed: " + String(error.message).slice(0, 4096);
             if (!reported.has(message)) { reported.add(message); report(message); }
             if (!String(error.message).includes("LOCAL_DEPENDENCY_UNAVAILABLE")) draw();
