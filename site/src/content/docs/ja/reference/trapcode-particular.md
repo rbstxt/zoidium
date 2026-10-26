@@ -4,7 +4,7 @@ description: Trapcode Particular のコントロール、範囲、初期値、�
 sidebar:
   label: Trapcode Particular
 ---
-Trapcode Particular はデザイナーとプロパティパネルにネイティブのプロパティを持つスイートのオブジェクトです。表はスキーマの初期値を示します。プリセットとピッカーの項目が初期値を変更する場合があります。
+Trapcode Particular は、デザイナーとプロパティパネルにネイティブのプロパティを持つスイートのオブジェクトです。表はスキーマの初期値を示します。プリセットとピッカーの項目が初期値を上書きする場合があります。
 
 
 ## Emitter

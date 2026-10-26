@@ -33,11 +33,11 @@ sidebar:
 - デバイスレンダーオプションに Export Bitrate 倍率を追加しました。
 - 他のレイヤーのフレームを入力として読み取るエフェクトソースを使用できます。
 - Particular Displace Spin のシード付き円軌道と、共有 Twist ピボットを使用できます。
-- 開発者向けプレビュー（既定ではオフ）: ローカルのコミュニティエフェクトパッケージ（検証済みコントロール付き）、ローカルのパッケージ保存、ほかのフレームのローカル限定サンプリング、パッケージがなくても失われないプロジェクトのデータ。一般向けの機能ではありません。
+- 開発者向けプレビュー（既定ではオフ）: ローカルのコミュニティエフェクトパッケージ（検証済みコントロール付き）、ローカルのパッケージ保存、他のフレームのローカル限定サンプリング、パッケージがなくても失われないプロジェクトのデータ。一般向けの機能ではありません。
 
 ### 変更
 
-- 既存プロジェクトの見た目の変更。ほかのフレームを読み込むエフェクトで、柔らかい部分や半透明の部分（パーティクル、文字の縁、フェード中のレイヤー）が暗くならなくなりました。対象は Echo、CC Wide Time、Time Difference、Time Displacement、Optical Flow を使う Smart Motion Blur、Echo (Legacy)、VHS、Datamosh です。不透明な映像の描画は変わりません。
+- 既存プロジェクトの見た目の変更。他のフレームを読み込むエフェクトで、柔らかい部分や半透明の部分（パーティクル、文字の縁、フェード中のレイヤー）が暗くならなくなりました。対象は Echo、CC Wide Time、Time Difference、Time Displacement、Optical Flow を使う Smart Motion Blur、Echo (Legacy)、VHS、Datamosh です。不透明な映像の描画は変わりません。
 - 既存プロジェクトの見た目の変更。Trapcode Particular で、Velocity distribution、Aspect ratio、Opacity random、Color random、Air density、Drift X/Y/Z、Disperse strength over（life）とそのカーブ、Turbulence field affect size と affect opacity が描画に反映されます。これらは以前は効果がありませんでした。既定値のままのプロジェクトの描画は変わりません。
 - Trapcode Particular で、効果のないコントロールを非表示にしました。対象は Particle type、Set color、flocking のコントロール、Emitter type の light/layer/model/text、Disperse strength over の velocity/position です。保存された値は残ります。Bounce height の名前は Bounce boost になりました。
 - 既存プロジェクトの見た目の変更。3D Scene レイヤーでは、Smart Motion Blur の Automatic が Shutter Samples を使用し、それ以外では Optical Flow を使用します。Reconstruction の保存値がないプロジェクトは Automatic を使用します。3D Scene でフローベースのブラーを維持するには、Optical Flow を選択します。
@@ -51,7 +51,7 @@ sidebar:
 ### 修正
 
 - プレビューキャッシュがフレームを保存しないとき、Settings にその理由（「Not caching:」に続く説明）を表示します。メモリー警告は Mac 専用の表現ではなくなりました。
-- Smart Motion Blur の Shutter Samples で、パーティクルのような柔らかい部分や半透明の部分が暗くならなくなりました。以前は、サンプルを取り込むときにアルファを2回掛けていました。不透明な部分、Optical Flow、ほかのエフェクトの出力は変わりません。
+- Smart Motion Blur の Shutter Samples で、パーティクルのような柔らかい部分や半透明の部分が暗くならなくなりました。以前は、サンプルを取り込むときにアルファを2回掛けていました。不透明な部分、Optical Flow、他のエフェクトの出力は変わりません。
 - Zoidium のグラデーションエディターを使っているときに、マテリアルのパネルが空にならなくなりました。以前は、パネルを開いたまま PBR+ マテリアルを追加すると、マテリアルの読み込みが止まることがありました。その場合、見出しが「undefined」になり、値が空になりました。カスタムコントロールでエラーが起きたときは、パネルを止めずに標準のコントロールを表示します。
 - UV Custom Material で **Wrap** を **none** にして保存したプロジェクトは、開き直しても **none** のままです。以前は、開き直すとテクスチャがタイル状に繰り返されました。
 - デタッチされたテンポラルエフェクトを安全にスキップし、datamosh 書き出しのカット位置を維持します。カットのないカット限定書き出しも正常に動作します。

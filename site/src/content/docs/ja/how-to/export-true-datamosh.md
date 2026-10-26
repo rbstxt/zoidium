@@ -13,7 +13,7 @@ VP8 または VP9 の WebM を使ってください。現在の **Device** セ�
 2. コンポジションを開いている場合は、**Main** に戻ります。
 3. **Export** を開き、**Device** を選択します。
 4. **Format** で **.webm (vp8/opus)** を選択します。
-5. ほかの[書き出しオプション](/docs/ja/reference/export-options/)を設定します。
+5. 他の[書き出しオプション](/docs/ja/reference/export-options/)を設定します。
 6. **True datamosh** で **full video** または **at clip cuts** を選択します。未処理のまま書き出す場合は、**off** のままにします。
 7. **Start** をクリックします。
 8. レンダリングと **True datamosh...** の処理が終わるまで待ちます。
