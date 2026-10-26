@@ -23,4 +23,14 @@ For a closer inspection, select **1/4 quality**, **1/2 quality**, or **Full qual
 
 These choices scale viewport pixel dimensions. They do not change project resolution or the export settings. Set the output size separately on the export page.
 
-To reuse completed preview frames, configure the [preview cache](/docs/features/preview-cache/). Cache memory and Player+ preview quality are separate controls.
+## Reuse frames with the preview cache
+
+The preview cache keeps finished editor frames in GPU memory. Returning to a cached frame and project state redraws without recomputation.
+
+1. Open **Settings**.
+2. Set **Preview cache** above 0. The default is 512 MiB. A value of 0 disables caching.
+3. Read the usage line below the control. It reports the counted memory and the retained frame count.
+
+Edits, resource loads, and resolution or plugin changes invalidate the cached state. Video projects and scenes with a slow synchronous draw skip background pre-rendering, so their frames may never enter the cache. Export and eyedropper draws use separate paths and do not fill the cache. Counted memory covers RGBA8 frame bytes; allocation failure lowers a session ceiling that raising the preference cannot override. After a second GPU context loss, captures stay disabled until reload.
+
+Cache memory and Player+ preview quality are separate controls. A larger cache does not speed up the first draw of a new frame.
