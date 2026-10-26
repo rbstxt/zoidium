@@ -282,7 +282,9 @@ function create(gl) {
         uRadius: 0,
       });
       let index = 0;
-      for (let radius = 1; radius <= 256; radius *= 2) {
+      // Larger offsets leave the image in every nonzero direction. The center
+      // anchor already passed the same connection test at the preceding radius.
+      for (let radius = 1; radius <= 256 && radius < Math.max(...sizes[0]); radius *= 2) {
         gl.draw(renderer, propagate, pair[1 - index], {
           ...values,
           uAnchors: pair[index].texture,

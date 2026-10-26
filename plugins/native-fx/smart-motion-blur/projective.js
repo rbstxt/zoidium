@@ -26,20 +26,9 @@ function create(gl) {
     null,
     ["projective", "statistics"],
   );
-  const reduce = gl.pass(
-    "statistics-reduce",
-    {
-      uTiles: null,
-      uGroups: [3, 2],
-      uNormalization: 1,
-    },
-    null,
-    ["statistics"],
-  );
-  let targets, tiles, costs;
+  let targets, tiles;
   function allocate() {
     tiles = gl.target(24, 16, false, true);
-    costs = gl.target(3, 2, false, true);
     targets = [gl.target(8, 2, false, true), gl.target(8, 2, false, true)];
   }
   function apply(renderer, moments, images, size, project) {
@@ -67,9 +56,8 @@ function create(gl) {
             uAxis: axis,
             uRadius: radius,
           });
-          gl.draw(renderer, reduce, costs, { uTiles: tiles.texture });
           gl.draw(renderer, fit, targets[1 - index], {
-            uCosts: costs.texture,
+            uCosts: tiles.texture,
             uHomography: targets[index].texture,
             uAxis: axis,
             uRadius: radius,

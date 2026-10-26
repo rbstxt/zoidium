@@ -1,6 +1,16 @@
 uniform float uAxis;
 uniform float uRadius;
 uniform sampler2D uCosts;
+float candidateCost(float column, float row) {
+    float sum = 0.0;
+    // Preserve statistics-reduce's traversal and fixed-point round trip.
+    for (int y = 0; y < 8; y++)
+        for (int x = 0; x < 8; x++) {
+            vec2 pixel = vec2(column, row) * 8.0 + vec2(float(x), float(y));
+            sum += unpackStatistic(texture2D(uCosts, (pixel + 0.5) / vec2(24.0, 16.0))) / 64.0;
+        }
+    return unpackStatistic(packStatistic(sum));
+}
 void main() {
     float column = floor(gl_FragCoord.x), row = floor(gl_FragCoord.y);
     if (uAxis < -0.5) {
@@ -22,11 +32,11 @@ void main() {
         gl_FragColor = texture2D(uHomography, vUv);
         return;
     }
-    float best = unpackStatistic(texture2D(uCosts, vec2(0.5 / 3.0, (row + 0.5) / 2.0)));
+    float best = candidateCost(0.0, row);
     float selected = original;
-    float score = unpackStatistic(texture2D(uCosts, vec2(1.5 / 3.0, (row + 0.5) / 2.0)));
+    float score = candidateCost(1.0, row);
     if (score < best) { best = score; selected = original - uRadius; }
-    score = unpackStatistic(texture2D(uCosts, vec2(2.5 / 3.0, (row + 0.5) / 2.0)));
+    score = candidateCost(2.0, row);
     if (score < best) selected = original + uRadius;
     gl_FragColor = encodeCoefficient(selected);
 }

@@ -8,6 +8,10 @@ void main() {
     float candidate = floor(gl_FragCoord.x / 8.0);
     float row = floor(gl_FragCoord.y / 8.0);
     vec2 tile = mod(floor(gl_FragCoord.xy), 8.0);
+    if (any(greaterThanEqual(tile * 16.0, uSize))) {
+        gl_FragColor = packStatistic(0.0);
+        return;
+    }
     float parameters[8];
     for (int index = 0; index < 8; index++) {
         float delta = abs(float(index) - uAxis) < 0.1 ? uRadius : 0.0;
