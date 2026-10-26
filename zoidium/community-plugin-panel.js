@@ -83,7 +83,10 @@
       if (!root.ZoidiumCommunityStore) throw new Error("Community storage could not load. First-party plugins remain available.");
       store = root.ZoidiumCommunityStore.createStore({ occupied: registry.plugins.map(p => p.id) });
       try { return await store.open({ reload: true }); }
-      catch (error) { await store.close(); store = null; throw error; }
+      catch (error) {
+        try { await store.close(); } catch (_) { /* A failed database open can also reject close. */ }
+        store = null; throw error;
+      }
     });
     return { initialized, section };
   }
