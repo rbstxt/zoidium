@@ -3,9 +3,9 @@ title: Text+ で文字をアニメーションさせる
 sidebar:
   label: Text+
 ---
-ネイティブの 2D Text は **Character** カテゴリで、3D Text は Text+ の親オブジェクトでアニメーション化します。
+ネイティブの 2D Text は **Character** カテゴリで動かし、3D Text は Text+ の親オブジェクトで動かします。
 
-## ネイティブの Text レイヤーをアニメーション化する
+## ネイティブの Text レイヤーを動かす
 
 1. **Plugins** で **Text+** を有効にします。
 2. **LAYERS** から **Text** を追加します。
@@ -20,7 +20,7 @@ sidebar:
 特定の文字に影響を与えるには、**Selected Character Transform** を選択し、**Characters** に `1,4,5` などの 1 から始まる数値を入力します。スペースも文字の数に含みます。
 テキストの先頭から末尾に向けて変形を変えるには、**Gradient Transform** を選択し、**First** と **Last** の各コントロールを設定します。
 文字を散乱させるには、**Random Scatter** を選択して **Amount** をアニメーション化します。
-各 Shake モードをアニメーション化するには、**Phase** をアニメーション化します。
+各 Shake モードを動かすには、**Phase** をアニメーションさせます。
 
 ネイティブの Text では、Position と Scale に X と Y を使用します。Rotation はレイヤーの平面内で回転します。
 ネイティブの **Text**、**Font**、**Size**、**Fill**、**Stroke** コントロールを使用します。
@@ -28,17 +28,17 @@ sidebar:
 
 複数のアニメーションを組み合わせるには、**Character** > **Mode** を設定してから **Character 2** を使います。
 **Character 2** は、最初の **Mode** が **None** 以外のときに **Character** の下に表示されます。**Character 3** も同じように表示されます。
-後のカテゴリは、前のカテゴリで動かした後の文字をさらに動かします。たとえば、**Character** で文字を揺らし、**Character 2** で散乱させます。
+後のカテゴリは、前のカテゴリが残した状態から文字をさらに動かします。たとえば、**Character** で文字を揺らし、**Character 2** で散乱させます。
 
 文字のアニメーションを無効にするには、すべての **Mode** を **None** に設定します。
 Text+ を使用せずにネイティブの Text を描画するには、**Plugins** で **Text+** を無効にします。
-文字の設定を保持するには、プロジェクトを保存します。
+文字の設定を残すには、プロジェクトを保存します。
 アニメーションを復元するには、**Text+** を再び有効にします。
 
 レイヤーを Shape+ に変換する前に、すべての **Character** カテゴリで **Mode** を **None** に設定します。
 変換した Shape+ レイヤーには編集可能なアウトラインがあり、Text+ の文字コントロールはありません。
 
-## 親オブジェクトで 3D Text をアニメーション化する
+## 親オブジェクトで 3D Text を動かす
 
 1. 3D Scene の **Objects** パネルを開きます。
 2. Text+ から **Character Transform** を追加します。
@@ -49,7 +49,7 @@ Text+ を使用せずにネイティブの Text を描画するには、**Plugin
 7. **Delay order** を選択します。
 8. 文字のプロパティにキーフレームを設定します。
 
-特定の文字に影響を与えるには、Selected Character Transform を使用し、**Characters** に `1,4,5` などの 1 から始まる数値を入力します。テキストを散乱させるには、Random Scatter を使用して **Amount** をアニメーション化します。Character Shake をアニメーション化するには、**Phase** をアニメーション化します。
+特定の文字に影響を与えるには、Selected Character Transform を使用し、**Characters** に `1,4,5` などの 1 から始まる数値を入力します。テキストを散らすには、Random Scatter を使って **Amount** をアニメーションさせます。Character Shake を動かすには、**Phase** をアニメーションさせます。
 
 ## 選択した 3D 文字にマテリアルを割り当てる
 
