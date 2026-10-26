@@ -131,6 +131,11 @@ The suite then waits for that lock before it starts local servers or a
 browser, and releases it after cleanup. To save detailed measurements, set
 `ZOIDIUM_COMMUNITY_NETWORK_REPORT` to an output JSON file path.
 
+The plugin manager's **Community** section is a developer preview while
+community effects cannot run. To show it, run
+`localStorage.setItem("zoidium.community-preview", "1")` in the editor's
+console and reload.
+
 Before changing the runner, run `pnpm run verify` and the browser suite.
 `verify` runs package, protocol, and interpreter tests without a browser.
 The isolated runner has no editor entry point in this implementation.

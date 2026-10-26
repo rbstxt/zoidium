@@ -76,7 +76,11 @@
         if (shouldStartEnabled(state.plugin)) await enablePlugin(state, false);
       }
       try {
-        manager.mountCommunityPanel?.(panel, registry);
+        // Community packages cannot run yet, so their management section stays
+        // a developer preview until rendering support lands.
+        if (window.localStorage?.getItem("zoidium.community-preview") === "1") {
+          manager.mountCommunityPanel?.(panel, registry);
+        }
       } catch (error) {
         console.error("[Zoidium] community management is unavailable:", error);
       }
