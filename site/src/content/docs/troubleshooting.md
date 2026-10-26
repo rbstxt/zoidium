@@ -30,15 +30,16 @@ Each entry names a symptom, its cause, and the fix.
 
 ## Preview cache shows 0 frames
 
-**Cause:** nothing eligible has been cached yet, or caching is off. **Settings** reports the counted memory and retained frame count below the **Preview cache** control.
+**Cause:** nothing eligible has been cached yet, caching is off, or the project cannot be cached. **Settings** reports the counted memory and retained frame count below the **Preview cache** control. When the project cannot be cached, the same line ends with **Not caching:** and the reason.
 
 **Fix:**
 
-1. Open **Settings** and set **Preview cache** above 0. The default is 512 MiB.
-2. Draw the frame normally first. Returning to the same frame and project state reuses it.
-3. Avoid edits, resource loads, and resolution or plugin changes between visits. Each invalidates the cached state.
-4. Expect no background caching for video projects and slow scenes. They skip pre-rendering.
-5. If allocation failed earlier, the session ceiling stays lowered even after raising the preference. After a second GPU context loss, reload the editor to re-enable captures.
+1. Read the reason after **Not caching:** in **Settings**. A larger **Preview cache** value does not change it.
+2. Open **Settings** and set **Preview cache** above 0. The default is 512 MiB.
+3. Draw the frame normally first. Returning to the same frame and project state reuses it.
+4. Avoid edits, resource loads, and resolution or plugin changes between visits. Each invalidates the cached state.
+5. Expect no background caching for video projects and slow scenes. They skip pre-rendering.
+6. If allocation failed earlier, the session ceiling stays lowered even after raising the preference. After a second GPU context loss, reload the editor to re-enable captures.
 
 ## An export refuses because of missing or failed plugins
 
