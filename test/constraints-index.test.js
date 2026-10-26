@@ -77,3 +77,27 @@ test("native empty constraint index skips getters and follows structure and iden
   const replacement = new PZ.object3d.group(); replacement.load({ objects: [] });
   assert.equal(evaluator.hasConstraints(replacement), false);
 });
+
+test("constraint evaluator leaves the shared update alone and wraps observed events per instance", { skip: !fs.existsSync(core) }, () => {
+  const { PZ, THREE } = host();
+  const nativeUpdate = PZ.observable.prototype.update;
+  const store = createPropertyStore({ PZ, onStructureChanged: () => evaluator.invalidate() });
+  const evaluator = createEvaluator({ PZ, THREE, store,
+    patch(holder, key, make) { holder[key] = make(holder[key]); } });
+  assert.equal(PZ.observable.prototype.update, nativeUpdate);
+  const plain = new PZ.observable();
+  assert.equal(plain.update, nativeUpdate);
+  const scene = new PZ.object3d.group(); scene.load({ objects: [] });
+  evaluator.collect(scene);
+  // The visited structural event carries a per-instance wrapper ...
+  assert.notEqual(scene.objects.onListChanged.update, nativeUpdate);
+  // ... while unrelated observables and the shared prototype stay native.
+  assert.equal(plain.update, nativeUpdate);
+  assert.equal(PZ.observable.prototype.update, nativeUpdate);
+  // A native list edit still invalidates through the instance hook.
+  const before = evaluator.collect(scene);
+  const extra = new PZ.object3d.group(); extra.load({ objects: [] });
+  scene.objects.push(extra);
+  assert.notEqual(evaluator.collect(scene), before);
+  assert.equal(PZ.observable.prototype.update, nativeUpdate);
+});
