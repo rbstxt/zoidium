@@ -168,6 +168,7 @@
         effect.toJSON = () => H.serialize(effect, declaration, session.runner.binding);
         let preparation = Promise.resolve(), queuedPreparations = 0;
         effect.prepare = (frame, context) => {
+          if (context?.exportPolicy?.communityBypass) return;
           if (context?.exportPolicy || context instanceof (PZ.export || class {})) return Promise.reject(new Error(H.EXPORT_ERROR));
           const host = PZ.zoidium?.temporal;
           if (!valid(effect, session) || host?.preparingEffects?.has(effect)) return;
@@ -206,7 +207,7 @@
         // Native picker implementations may interpret names as markup. Keep
         // package labels exclusively in the text-only host UI.
         const entry = { name: "Community " + (d.template === "gain-v1" ? "Gain" : "Identity") + " " + d.id.slice(-8),
-          type: d.id, desc: "Isolated developer preview. Video and image export are unavailable." };
+          type: d.id, desc: "Isolated developer preview. Export requires explicitly bypassing all community effects." };
         entries.push(entry); session.entries.push(entry);
       }
     }

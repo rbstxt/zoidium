@@ -58,6 +58,11 @@
   async function activateProjectPlugins(project, plugins) {
     await registryReady;
     for (const requested of plugins) {
+      if (window.ZoidiumCommunityProjects?.enabled() && window.ZoidiumCommunityProjects.isCommunity(requested.id)) {
+        // Installation and exact-hash approval stay in the local package store.
+        // A project cannot request privileged activation or a guest migration.
+        continue;
+      }
       const state = pluginStates.get(requested.id);
       if (!state) {
         const versionSuffix = requested.version ? ` v${requested.version}` : "";
@@ -306,7 +311,9 @@
       // host's own result and passes through untouched.
       if (!json || typeof json !== "object") return json;
       const trackedPlugins = collectProjectPlugins(this);
-      const plugins = projectPluginRequirements({ ...ZoidiumPluginApis.props.cloneJson(json), plugins: trackedPlugins });
+      const community = window.ZoidiumCommunityProjects;
+      const retained = community?.enabled() ? community.retained(json, trackedPlugins, this._zoidiumProjectPlugins) : trackedPlugins;
+      const plugins = projectPluginRequirements({ ...ZoidiumPluginApis.props.cloneJson(json), plugins: retained });
       if (plugins.length > 0) json.plugins = serializeProjectPlugins(plugins);
       else delete json.plugins;
       return json;

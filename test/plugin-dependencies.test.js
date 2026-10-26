@@ -312,7 +312,7 @@ test("empty optional dependency fields are omitted from saved project metadata",
 test("save hooks rescan serialized JSON before metadata and warnings are produced", () => {
   assert.match(
     managerSource,
-    /projectPluginRequirements\(\{ \.\.\.ZoidiumPluginApis\.props\.cloneJson\(json\), plugins: trackedPlugins \}\)/
+    /projectPluginRequirements\(\{ \.\.\.ZoidiumPluginApis\.props\.cloneJson\(json\), plugins: retained \}\)/
   );
   assert.match(
     managerSource,
