@@ -1,7 +1,7 @@
 "use strict";
 
 (function (root) {
-  const isCommunity = type => typeof type === "string" && /^community-[a-f0-9]{32}(?:-fx-|$)/.test(type);
+  const isCommunity = type => typeof type === "string" && type.startsWith("community-");
   const enabled = () => {
     try { return root.localStorage?.getItem("zoidium.community-preview") === "1"; } catch (_) { return false; }
   };
@@ -54,9 +54,12 @@
     return [...tracked, ...community];
   }
   function warning(plugin) {
+    const requirements = (plugin.requirements || []).map(requirement =>
+      `${requirement.effect}: ${requirement.packageHash || "unknown hash"}, schema ${requirement.dataSchema ?? "unknown"}`).join("; ");
     return `Community plugin "${plugin.name || plugin.id}" (${plugin.id}) requires its saved package hash and data schema. ` +
       "Missing, disabled, quarantined, updated, or incompatible packages remain opaque. Their project data is preserved. " +
-      "Community effects cannot be exported in this preview. Export with missing or failed plugins bypasses all community effects for the entire export.";
+      "Community effects cannot be exported in this preview. Export with missing or failed plugins bypasses all community effects for the entire export." +
+      (requirements ? ` Required packages: ${requirements}.` : "");
   }
   const api = { isCommunity, enabled, clone, records, packageId, normalizeRequirements, requirements, retained, warning };
   if (typeof module === "object" && module.exports) module.exports = api;

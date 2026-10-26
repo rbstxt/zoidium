@@ -385,3 +385,11 @@ test("an exact cached receipt cannot bypass a revoked local package authorizatio
   assert.equal(h.requests(), requests); assert.equal(e.pass, null);
   assert.equal(e._community.temporal.lookup(0.125), null);
 });
+
+test("an explicit fallback export never prepares active community guests or changes their project records", async () => {
+  const h = await setup(), saved = JSON.stringify(h.project);
+  await h.effect.prepare(0.125, { exportPolicy: { communityBypass: true } });
+  await h.effect._zoidiumFrameSampler.preflight(h.effect, 0.125, { exportPolicy: { communityBypass: true } });
+  assert.equal(h.effect._zoidiumFrameSampler.getRequest(h.effect, 0.125, { exportPolicy: { communityBypass: true } }), null);
+  assert.equal(h.requests(), 0); assert.equal(JSON.stringify(h.project), saved);
+});

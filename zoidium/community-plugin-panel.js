@@ -12,8 +12,8 @@
       <input type="file" accept=".json,application/json" aria-label="Choose a local community plugin" hidden>
       <button type="button" data-community-refresh>Refresh</button>
       <button type="button" data-community-fallback>Export with missing or failed plugins</button>
-      <p class="zoidium-plugin-meta" data-community-project-warnings role="status"></p>
-      <p class="zoidium-plugin-meta" role="status" aria-live="polite"></p></div>
+      <p class="zoidium-plugin-meta" role="status" aria-live="polite"></p>
+      <p class="zoidium-plugin-meta" data-community-project-warnings role="status"></p></div>
       <div class="zoidium-plugin-category-list"></div>`;
     panel.appendChild(section);
     const input = section.querySelector("input"), importButton = section.querySelector("[data-community-import]");
