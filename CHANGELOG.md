@@ -54,6 +54,8 @@ each line describes one visible change.
 
 ### Changed
 
+- Shape+ boolean, offset, and stroke operations run faster (boolean
+  intersection about twice as fast). The generated shapes are unchanged.
 - Existing projects, new look: effects that read other frames no longer
   darken soft or semi-transparent input (particles, text edges, faded
   layers). This affects Echo, CC Wide Time, Time Difference, Time
