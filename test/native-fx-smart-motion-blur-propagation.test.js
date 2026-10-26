@@ -21,7 +21,9 @@ function probe() {
     }
     solver.solve({}, 0, 1, 0,
       { maxDisplacement: 256, sensitivity: 70, smoothness: 50 }, [1920, 1080], 1);
-    return draws.filter(draw => draw.name === "propagate");
+    const propagation = draws.filter(draw => draw.name === "propagate");
+    propagation.result = draws.find(draw => draw.name === "interpolate").values;
+    return propagation;
   }
   return { render };
 }
@@ -51,6 +53,8 @@ test("propagation uses the final written anchor after size changes", () => {
       for (let index = 1; index < group.length; index++) {
         assert.equal(group[index].values.uAnchors, group[index - 1].target.texture);
       }
+      const key = ["uNorthWest", "uNorthEast", "uSouthWest", "uSouthEast"][direction];
+      assert.equal(draws.result[key], group.at(-1).target.texture);
     }
   }
 });
