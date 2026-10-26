@@ -140,6 +140,11 @@
       "./zoidium/plugin-manager-fallbacks.js",
       "./zoidium/plugin-manager-projects.js",
       "./zoidium/plugin-manager-panel.js",
+      "./zoidium/community-safe-json.js",
+      "./zoidium/community-package.js",
+      "./zoidium/community-store-indexeddb.js",
+      "./zoidium/community-plugin-store.js",
+      "./zoidium/community-plugin-panel.js",
       "./plugins/plugin-manager.js",
       "./zoidium-welcome-tour.js"
     ],

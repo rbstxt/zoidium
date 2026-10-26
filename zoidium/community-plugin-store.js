@@ -90,6 +90,7 @@
         }) };
     }
     async function open({ reload = false } = {}) {
+      ready = false;
       current = validate(await adapter.load() || empty()); ready = true;
       const next = structuredClone(current), allClaims = new Set(reserved);
       for (const r of next.records) {
@@ -170,6 +171,7 @@
         if (!r.previous || !r.verified.includes(r.previous) || !r.approvals.includes(r.previous)) fail("No approved rollback package is available.");
         await inspect(state, r, r.previous);
         r.pending = r.previous; r.previous = null; r.staged = true; r.quarantine = ""; r.enabled = false;
+        state.attempts = state.attempts.filter(a => a.id !== id);
       }),
       uninstall: (id, revision) => change(id, revision, (_r, state) => { state.records = state.records.filter(r => r.id !== id); }),
       quarantine: (id, reason, revision) => change(id, revision, r => {
@@ -177,8 +179,8 @@
       }),
       setEnabled: (id, enabled, revision) => change(id, revision, r => {
         if (typeof enabled !== "boolean") fail("Invalid enable intent.");
-        if (enabled) fail("Community activation is unavailable until rendering support lands.", "RENDERING_UNAVAILABLE");
-        r.enabled = false;
+        if (enabled && (r.quarantine || !r.selected || !r.approvals.includes(r.selected))) fail("Approve the selected package before enabling it.");
+        r.enabled = enabled;
       }),
       setSafeMode: async (enabled, revision) => {
         if (typeof enabled !== "boolean") fail("Invalid safe mode setting.");

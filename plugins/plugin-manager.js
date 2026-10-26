@@ -75,6 +75,11 @@
       for (const state of startupStates) {
         if (shouldStartEnabled(state.plugin)) await enablePlugin(state, false);
       }
+      try {
+        manager.mountCommunityPanel?.(panel, registry);
+      } catch (error) {
+        console.error("[Zoidium] community management is unavailable:", error);
+      }
     } catch (error) {
       console.error("[Zoidium] plugin manager failed to initialize:", error);
     } finally {
