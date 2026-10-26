@@ -292,7 +292,7 @@ playback is running.
   must be keyed by every input that affects the result.
 - Core memoizes sampler input textures by exact serialized content, asset/file
   identity, output resolution and aspect settings, plugin state changes, source time,
-  effect, nesting depth and adjustment scope. Every key cuts the sampler's
+  effect, nesting depth, adjustment scope, and input copy mode. Every key cuts the sampler's
   layer before the sampler, so editing the sampler itself or a later effect
   retains its inputs. Audited ordinary layer content (audited effects before
   the sampler) keys only its clip timing, sequence properties and that effect
@@ -305,6 +305,10 @@ playback is running.
   inputs retain their depth because lower tracks may recurse into samplers.
   `PZ.zoidium.debugDisableFrameSamplerInputReuse = true` disables reuse between
   preparations for pixel comparisons while preserving the current prepared plan.
+- A `defineFrameSampler` request with `preserveInputRGB: true` copies source
+  RGBA without blending. This preserves premultiplied RGB for subframe averages.
+  Smart Motion Blur uses this mode for Shutter Samples. Requests that omit
+  the option retain CM3's native transparent copy behavior.
 - The sampler allocates optional retained RGBA8 targets only while their total
   is at most 256 MiB per root compositor, with at most 128 slots per effect and
   input nesting depth. Single-tap requests reuse one target. Other plans

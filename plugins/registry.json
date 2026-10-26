@@ -26,14 +26,14 @@
       "id": "core",
       "name": "Zoidium Core",
       "author": "Zoidium",
-      "version": "86",
+      "version": "87",
       "visibility": "hidden",
       "alwaysEnabled": true,
       "tagline": "Built-in core extensions",
       "description": "Hidden built-in extensions that always run. Not shown in the Plugins panel and never stored in projects.",
-      "manifest": "./plugins/core/manifest.json?v=86",
-      "bundle": "./plugins/core/bundle.json?v=86",
-      "integrity": "sha256-oGJUiNnsItlaBXG0//QuF2coc3yNga12Qi43EIHj7ak="
+      "manifest": "./plugins/core/manifest.json?v=87",
+      "bundle": "./plugins/core/bundle.json?v=87",
+      "integrity": "sha256-0vtpCkJ8xtqf0ZT7ZqwA8zEvT7acI9+eBv0iK97NRTw="
     },
     {
       "id": "easing-plus",
@@ -343,16 +343,16 @@
       "category": "adjustment",
       "name": "Native FX",
       "author": "Zoidium",
-      "version": "33",
+      "version": "34",
       "itemCount": 6,
       "format": "native effects",
       "tagline": "Native Effects and Time Tools",
       "color": "#c56b3d",
       "description": "Adds native filters, direct visual controls, and time effects.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/native-fx/manifest.json?v=33",
-      "bundle": "./plugins/native-fx/bundle.json?v=33",
-      "integrity": "sha256-5NCVfd4dyRLY4zylX+U1B2pxnFZ1zPv0YCbn+pjft38="
+      "manifest": "./plugins/native-fx/manifest.json?v=34",
+      "bundle": "./plugins/native-fx/bundle.json?v=34",
+      "integrity": "sha256-vYnNdKgpYr6pdeNj0QSMZI3GN9/DA+2WloaVmKZ4Ir8="
     },
     {
       "id": "afterclip",

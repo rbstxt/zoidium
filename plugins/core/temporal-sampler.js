@@ -344,16 +344,22 @@
     return target;
   }
 
-  function copyRenderTarget(compositor, target, source, uvX = 1, uvY = 1) {
+  function copyRenderTarget(compositor, target, source, uvX = 1, uvY = 1, preserveInputRGB = false) {
     if (!compositor?.copyPass || !target || !source) return;
     const uniforms = compositor.copyPass.uniforms;
     uniforms.tDiffuse.value = source.texture;
     uniforms.opacity.value = 1;
     uniforms.uvScale?.value?.set?.(uvX, uvY);
     uniforms.uvOffset?.value?.set?.(0, 0);
+    const material = compositor.copyPass.material;
+    const blending = material?.blending;
     try {
+      // CM3's transparent copy multiplies premultiplied RGB by alpha again.
+      // Raw sample averages opt out; ordinary temporal effects keep their pixels.
+      if (preserveInputRGB && material) material.blending = THREE.NoBlending;
       compositor.copyPass.render(compositor.renderer, target, null, true);
     } finally {
+      if (preserveInputRGB && material) material.blending = blending;
       uniforms.uvScale?.value?.set?.(1, 1);
     }
   }
@@ -586,7 +592,7 @@
         // Reuse neighbouring taps and segment anchors across output frames.
         // A target stamp prevents reading a slot after it has been overwritten.
         const scope = context?.frameSamplerScope || parentContext?.frameSamplerScope;
-        const revision = frameSamplerInputKey(sequence, root, stage, scope);
+        const revision = frameSamplerInputKey(sequence, root, stage, scope, request.preserveInputRGB);
         if (Array.from(runtime.targets).some(target => target.width !== width || target.height !== height)) {
           clearFrameSamplerTargets(runtime);
         }
@@ -651,7 +657,7 @@
           const mediaSamples = await prepareLowerSchedules(sequence, stage, inputFrame, inputContext,
             runtime, false, state);
           if (runtime.disposed || runtime.generation !== generation ||
-            revision !== frameSamplerInputKey(sequence, root, stage, scope)) {
+            revision !== frameSamplerInputKey(sequence, root, stage, scope, request.preserveInputRGB)) {
             if (context.exportPolicy) throw new Error("Sample input changed during export preparation");
             return;
           }
@@ -676,6 +682,7 @@
               target,
               mediaSamples,
               inputContext,
+              request.preserveInputRGB === true,
             )
           ) {
             const sample = {
@@ -786,7 +793,7 @@
     if (!runtime || !(width > 0) || !(height > 0)) return [];
     const prepared = runtime.prepared.get(effect);
     const scope = context?.frameSamplerScope;
-    const revision = frameSamplerInputKey(sequence, root, stage, scope);
+    const revision = frameSamplerInputKey(sequence, root, stage, scope, request.preserveInputRGB);
     const reducing = typeof request.reduceSamples === "function" && (plan.length === 32 || plan.length === 64);
     const reductionKey = registry.capture.reductionKey(plan, depth, scope);
     if (reducing) {
@@ -887,6 +894,7 @@
             target,
             [],
             context,
+            request.preserveInputRGB === true,
           )
         ) {
           const sample = {

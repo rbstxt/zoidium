@@ -83,6 +83,10 @@ each line describes one visible change.
 
 ### Fixed
 
+- Smart Motion Blur with Shutter Samples no longer darkens soft or
+  semi-transparent content such as particles. The sample capture applied
+  alpha twice. Opaque content, Optical Flow, and other effects are
+  unchanged.
 - Material panels no longer go blank with the Zoidium gradient editor. Adding
   a PBR+ material while its panel was open could stop the material from
   loading, which left the header as "undefined" and the values empty. A
