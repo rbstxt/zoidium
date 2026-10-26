@@ -206,7 +206,7 @@ test("closed setup windows discard delayed UI patches and action floods", async 
     dispatch: () => { calls++; return new Promise(resolve => { resume = resolve; }); } });
   const action = h.controls.find(c => c.kind === "button");
   for (let i = 0; i < 200; i++) action.config.onClick();
-  assert.equal(calls, 1); cleanup(); cleanup(); resume({ gain: 0 });
+  assert.equal(calls, 1); cleanup(); cleanup(); resume({ values: { gain: 0 }, isCurrent: () => true });
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(U.read(h.effect, declaration).gain, 1); assert.equal(h.editor.history.past.length, 0);
   h.controller.dispose(); h.effect.unload();
@@ -218,6 +218,25 @@ test("unvalidated property patches never enter native history", async () => {
     assert.equal(h.editor.history.past.length, 0); assert.equal(network, 0);
   }
   h.controller.dispose(); h.effect.unload();
+});
+test("a revision change between a UI reply and its commit discards the patch", async () => {
+  const h = await setup(); let current = true;
+  const cleanup = U.mount({ body: { appendChild() {} }, effect: h.effect, declaration, editor: h.editor, ui: h.ui,
+    valid: () => true, dispatch: async () => {
+      queueMicrotask(() => { current = false; });
+      return { values: { gain: 0 }, isCurrent: () => current };
+    } });
+  cleanupTasks.push(cleanup);
+  h.controls.find(c => c.kind === "button").config.onClick();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(U.read(h.effect, declaration).gain, 1); assert.equal(h.editor.history.past.length, 0);
+});
+test("invalid guest uniforms terminate the session and release the host pass", async () => {
+  const h = await setup({ source: "function prepare(){return {uniforms:{foreign:1}};}" });
+  await assert.rejects(h.effect.prepare(0), /unknown field/);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(h.effect.pass, null); assert.equal(h.disposals(), 1); assert.equal(h.releases(), 1);
+  assert.match(h.store.view().packages[0].quarantine, /unknown field/);
 });
 test("disabled sessions dispose once, render identity, and preserve effect data", async () => {
   const h = await setup(); const saved = H.clone(h.effect.toJSON());
@@ -300,4 +319,23 @@ test("preview selection requires exact approval and interrupted activation quara
   const reopened = createStore({ adapter }); await reopened.open();
   assert.match(reopened.view().packages[0].quarantine, /did not finish/);
   assert.equal(await reopened.authorized(manifest.id, exact), false);
+});
+test("only preview startup loads staged trusted Worker data", async t => {
+  const config = fs.readFileSync(require.resolve("../zoidium/runtime-config.js"), "utf8");
+  for (const enabled of [false, true]) {
+    const window = { localStorage: { getItem: () => enabled ? "1" : null } };
+    vm.runInNewContext(config, { window });
+    const scripts = window.ZOIDIUM_RUNTIME.postInitScripts;
+    const index = scripts.indexOf("./zoidium/community-runtime-source.js");
+    assert.equal(index >= 0, enabled);
+    if (enabled) assert.ok(index < scripts.indexOf("./zoidium/community-effects.js"));
+  }
+  const os = require("node:os"), path = require("node:path");
+  const stage = fs.mkdtempSync(path.join(os.tmpdir(), "zoidium-community-host-stage-"));
+  t.after(() => fs.rmSync(stage, { recursive: true, force: true }));
+  await require("../tools/runtime-resources-stage").copyProjectFiles(stage);
+  const output = {};
+  vm.runInNewContext(fs.readFileSync(path.join(stage, "zoidium/community-runtime-source.js"), "utf8"), output);
+  assert.equal(output.ZoidiumCommunityRuntimeSource, require("../tools/community-runtime-source").runtimeSource());
+  assert.equal(network, 0);
 });

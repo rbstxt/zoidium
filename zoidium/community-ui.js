@@ -71,7 +71,9 @@
       lastAction = now; busy = true; sync();
       try {
         const patch = await dispatch(event);
-        if (patch && alive()) apply(effect, declaration, editor, patch, alive);
+        if (patch && alive() && patch.isCurrent()) {
+          apply(effect, declaration, editor, patch.values, () => alive() && patch.isCurrent());
+        }
       } catch (error) {
         if (alive()) status.element.textContent = String(error.message).slice(0, 4096);
       } finally { busy = false; sync(); }

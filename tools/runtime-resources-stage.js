@@ -286,10 +286,10 @@ async function copyProjectFiles(stageRoot, { includeDesktopFiles = false } = {})
     await copyEntry(resolvedStageRoot, entry, { required: true });
   }
   await copyPluginRuntime(resolvedStageRoot);
-  // Supply fixed Worker bytes with the host adapter. Activation never loads a
+  // Supply fixed Worker bytes as host data. Activation never loads a
   // package-selected URL or fetches interpreter/WASM/module dependencies.
-  await fs.promises.appendFile(safeStagePath(resolvedStageRoot, "zoidium/community-effects.js"),
-    "\n;globalThis.ZoidiumCommunityRuntimeSource = " + JSON.stringify(require("./community-runtime-source").runtimeSource()) + ";\n");
+  await writeStageFile(resolvedStageRoot, "zoidium/community-runtime-source.js",
+    "\"use strict\";\nglobalThis.ZoidiumCommunityRuntimeSource = " + JSON.stringify(require("./community-runtime-source").runtimeSource()) + ";\n");
   if (!includeDesktopFiles) return;
   for (const entry of ["desktop", "package.json"]) {
     await copyEntry(resolvedStageRoot, entry, { required: true });

@@ -160,6 +160,15 @@
     }
   };
 
+  // Load the staged trusted Worker data before any package can be selected.
+  // No community package controls this URL or initiates this script load.
+  try {
+    if (global.localStorage?.getItem("zoidium.community-preview") === "1") {
+      defaults.postInitScripts.splice(defaults.postInitScripts.indexOf("./zoidium/community-effects.js"), 0,
+        "./zoidium/community-runtime-source.js");
+    }
+  } catch (_error) { /* Preview stays unavailable when storage is blocked. */ }
+
   var overrides = global.ZOIDIUM_RUNTIME_OVERRIDES || {};
   var config = Object.assign({}, defaults, overrides, {
     policy: Object.assign({}, defaults.policy, overrides.policy || {}),

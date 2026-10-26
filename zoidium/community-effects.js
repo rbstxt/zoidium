@@ -112,7 +112,9 @@
                 const state = { ...authority.input.properties };
                 if (event.property) state[event.property] = event.value;
                 const patch = await request(session, effect, "uiEvent", { ...event, state }, authority);
-                return patch && editor.playback.currentFrame - (effect.frameOffset || 0) === frame ? { ...state, ...patch.state } : null;
+                return patch ? { values: { ...state, ...patch.state }, isCurrent: () =>
+                  valid(effect, session) && editor.project === instance.project &&
+                  editor.playback.currentFrame - (effect.frameOffset || 0) === frame && sameStamp(authority, stamp(effect, frame)) } : null;
               } }),
           });
         };
