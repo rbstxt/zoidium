@@ -17,7 +17,7 @@ sidebar:
 
 最上位に追加したオブジェクトは、同じ階層に並ぶ兄弟になります。オブジェクトに作用させるには、エフェクターの階層内に配置してください。
 
-始点と終点の変換の間に複製を配置するには、**Linear Repeater** を選択します。範囲内に複製を散布するには、**Random Repeater** を選び、**Seed** を設定します。前のフレームを評価した複製には、**Echo Repeater** を選び、**Offset** を設定します。
+始点と終点の変換の間に複製を配置するには、**Linear Repeater** を選択します。範囲内に複製を散布するには、**Random Repeater** を選び、**Seed** を設定します。前のフレームの状態で評価される複製には、**Echo Repeater** を選び、**Offset** を設定します。
 
 ## フィールドでメッシュを変形する
 
@@ -26,7 +26,7 @@ sidebar:
 3. Twist では **Axis** と **Angle** を調整します。Warp では **Axis** と **Strength** を調整します。
 4. 作用する領域を制限するには、**Field** を **infinite** から **box** または **sphere** に変更します。
 5. **Field position**、**Field rotation**、**Field scale**、**Falloff** を調整します。
-6. 曲げるための形状が不足する場合は、[メッシュの制限](/docs/ja/reference/effector/)の範囲内で **Subdivision** を増やします。
+6. 曲げに必要なジオメトリが足りない場合は、[メッシュの制限](/docs/ja/reference/effector/)の範囲内で **Subdivision** を増やします。
 
 エフェクターの変換が、ローカルの軸とフィールドの座標系を定義します。
 
@@ -48,9 +48,9 @@ sidebar:
 3. **Cells**、**Seed**、**Distribution** を設定します。
 4. 切断面を閉じるには、**Inner faces** を **closed** に設定します。
 5. **Distance**、**Scatter**、**Spin** のいずれかをアニメーションさせて、破片を離します。
-6. メッシュ全体に順番に動きを与えるには、**Field > linear** を選び、**Sweep** をアニメーションさせます。
+6. メッシュ全体に動きを走査させるには、**Field > linear** を選び、**Sweep** をアニメーションさせます。
 
-文字を選択する場合は、先に **Text+** を有効にしてください。**Characters** に `1,3-5` のような 1 始まりの範囲を入力します。ほかの文字に作用させるには、**Invert selection** を使用します。
+文字を選択する場合は、先に **Text+** を有効にしてください。**Characters** に `1,3-5` のような 1 始まりの範囲を入力します。他の文字に作用させるには、**Invert selection** を使用します。
 
 ## 各部分の動きを遅らせる
 

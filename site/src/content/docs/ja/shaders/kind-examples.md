@@ -45,7 +45,7 @@ float amount = Enabled ? 1.0 : 0.0;
 
 ## Dropdown
 
-Linear および Smooth という名前の項目は、参照される定数 `Mode_Linear` と`Mode_Smooth` を定義します。項目のインデックスは、名前を変更しても安定して維持されます。
+Linear や Smooth という名前の項目は、参照される定数 `Mode_Linear` と `Mode_Smooth` を定義します。名前を変更しても、項目のインデックスは安定して維持されます。
 
 ```glsl
 uniform int Mode;
@@ -55,7 +55,7 @@ float amount = Mode == Mode_Smooth ? 1.0 : 0.0;
 
 ## Static dropdown
 
-プロパティが定義を提供します。uniform の宣言は存在しません。
+プロパティが定義を提供します。uniform の宣言はありません。
 
 ```glsl
 // Mode is a native compile-time definition.
@@ -78,7 +78,7 @@ gl_FragColor = vec4(Tint.rgb * Tint.a, Tint.a);
 
 ## Point
 
-Point は保存されたプロパティで引き続き使用できますが、追加メニューからは非表示になっています。
+Point は保存済みのプロパティでは引き続き使えますが、追加メニューからは非表示になっています。
 
 ```glsl
 uniform vec2 Center;
@@ -89,7 +89,7 @@ float distanceFromCenter = length(vUv - Center);
 
 ## Gradient
 
-include がヘルパーを提供します。Shader+ はプロパティの周期的反復設定用の`Ramp_repetitions` を提供します。
+include がヘルパーを提供します。Shader+ はプロパティの周期的反復設定用の `Ramp_repetitions` を提供します。
 
 ```glsl
 // #include <zoidium/gradient>

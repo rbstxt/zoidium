@@ -18,6 +18,6 @@ Player+ はプレイヤーのツールバーに描画操作を追加します。
 
 **Preview quality** には **Full quality**、**1/2 quality**、**1/4 quality**、**1/8 quality** があります。各比率はビューポートの幅と高さのピクセル数に適用されます。選択はローカルに保存されます。
 
-Player+ が変更するのは、エディターのビューポートサイズです。プロジェクトの解像度と書き出し設定は別に管理されます。[プレビューキャッシュ](/docs/ja/features/preview-cache/)には独立したメモリ予算があります。
+Player+ が変更するのは、エディターのビューポートサイズです。プロジェクトの解像度と書き出し設定は別に管理されます。[プレビューキャッシュ](/docs/ja/features/preview-cache/)には独立したメモリー予算があります。
 
 コントロールのリファレンス: [editor-controls](/docs/ja/reference/editor-controls/).

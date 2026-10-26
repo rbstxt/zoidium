@@ -12,9 +12,9 @@ sidebar:
 5. ネイティブパラメーターを編集します。
 6. 通常のビューポートで結果を確認します。
 
-エミッターベースのパーティクルシステムには Particular を選択します。パーティクルラティスにはForm を選択します。ソースポイントを線またはファセットで接続するには Plexus を選択します。
+エミッターベースのパーティクルシステムには Particular を選択します。パーティクルラティスには Form を選択します。ソースポイントを線またはファセットで接続するには Plexus を選択します。
 
-スイートのライトを使用するには、ピッカーで **Trapcode Lights** を開きます。測光データをインポートするには、Photometric IES を選択し、TILT=NONE のローカル LM-63 Type C ファイルを選択します。
+スイートのライトを使用するには、ピッカーで **Trapcode Lights** を開きます。測光データを取り込むには、Photometric IES を選択し、TILT=NONE のローカル LM-63 Type C ファイルを選択します。
 
 [Suite のソースコントラクト](https://github.com/rbstxt/zoidium/blob/dev/plugins/trapcode-suite/README.md)では、決定論的モーション、音声分析、ライトの動作、制限について説明しています。
 

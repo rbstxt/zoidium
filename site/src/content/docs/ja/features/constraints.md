@@ -3,7 +3,7 @@ title: Track To でオブジェクトを向ける
 sidebar:
   label: Constraints と Track To
 ---
-同一のネイティブ 3D Scene 内で、3D オブジェクトをターゲットに向けます。
+同じネイティブ 3D Scene 内で、3D オブジェクトをターゲットに向けます。
 
 1. **Objects** でオブジェクトを選択します。
 2. Rotation の各行の下にある **Track to** を設定します。
