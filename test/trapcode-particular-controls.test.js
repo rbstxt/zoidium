@@ -148,6 +148,17 @@ test("air density scales resistance with a CPU fallback and leaves density one u
   assert.deepEqual(system.simulateFrame(30), normal);
 });
 
+test("animated air resistance keeps the integrated path after it reaches zero", () => {
+  const { system, p } = burst(setup());
+  p.environment.airDensity.set(2);
+  p.physics.drag.set(0);
+  assert.equal(system.needsCPU(), false, "static zero resistance stays on the GPU path");
+  p.physics.drag.animated = true;
+  assert.equal(system.needsCPU(), true, "earlier damping must not be dropped at a zero keyframe");
+  p.environment.airDensity.set(1);
+  assert.equal(system.needsCPU(), false, "density one keeps the legacy path");
+});
+
 test("disperse life mode samples the curve at each particle age and ignores hidden modes", () => {
   const { system, p } = burst(setup());
   p.displace.disperse.set(70);

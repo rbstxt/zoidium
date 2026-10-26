@@ -95,6 +95,8 @@ each line describes one visible change.
 
 ### Fixed
 
+- Trapcode Particular no longer jumps particles when an animated Air
+  resistance reaches 0 while Air density is not 1.
 - The preview cache works again for projects that use Native FX, Text+,
   Effector, Trapcode, Optical Flares, or the CCFX pack. Its approval list
   had fallen behind the plugin versions, so these projects were never

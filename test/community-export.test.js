@@ -117,6 +117,13 @@ test("saved fallback history cannot authorize a fresh export or a new project", 
   await assert.rejects(exp.getVideoFrame(new Uint8Array(4)), /Community effect export is unavailable/);
   h.setEnabled(false); assert.equal(await h.api.requestFallback(h.project), false);
 });
+test("with the preview on, a first-party export also scans once instead of on every frame check", async () => {
+  const h = host({ enabled: true, community: false }), exp = h.exporter();
+  const toJSON = h.project.toJSON; let scans = 0;
+  h.project.toJSON = () => { scans++; return toJSON(); };
+  for (let i = 0; i < 3; i++) assert.equal(await exp.renderVideoFrame(new Uint8Array(4)), 1);
+  assert.equal(scans, 1);
+});
 test("without the preview, an export scans a first-party project once instead of on every frame check", async () => {
   const h = host({ enabled: false, community: false }), exp = h.exporter();
   const toJSON = h.project.toJSON; let scans = 0;

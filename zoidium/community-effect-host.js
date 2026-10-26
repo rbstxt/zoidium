@@ -48,18 +48,18 @@
     return Object.values(value).some(child => contains(child, seen));
   }
   function assertExport(project, exporter) {
-    // Every export frame calls this several times. Without the preview, no
-    // community record can appear mid-export, so one clean full scan per
-    // exporter is enough and later calls skip the project serialization.
-    const preview = Boolean(root.ZoidiumCommunityProjects?.enabled?.());
-    if (!preview && !instances.size && cleanExports.has(exporter)) return;
+    // Every export frame calls this several times. Every community effect,
+    // including an unavailable placeholder, registers in instances when it is
+    // created, so while none exist one clean full scan per exporter is enough
+    // and later calls skip the project serialization.
+    if (!instances.size && !projectsWithCommunityData.has(project) && cleanExports.has(exporter)) return;
     // Inspection grants no execution authority. Do not impose package byte
     // limits on the rest of a first-party project's serialized data.
     if (project && contains(JSON.parse(JSON.stringify(project)))) {
       if (root.ZoidiumCommunityExport) return root.ZoidiumCommunityExport.check(project, exporter);
       throw new Error(EXPORT_ERROR);
     }
-    if (!preview && exporter && typeof exporter === "object" && !exporter.__zoidiumCommunityBypass) cleanExports.add(exporter);
+    if (exporter && typeof exporter === "object" && !exporter.__zoidiumCommunityBypass) cleanExports.add(exporter);
     // An export must also fail if its community records were removed mid-run.
     if (exporter?.__zoidiumCommunityBypass) root.ZoidiumCommunityExport?.check(project, exporter);
   }

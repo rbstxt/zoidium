@@ -33,7 +33,7 @@
       "description": "Hidden built-in extensions that always run. Not shown in the Plugins panel and never stored in projects.",
       "manifest": "./plugins/core/manifest.json?v=89",
       "bundle": "./plugins/core/bundle.json?v=89",
-      "integrity": "sha256-XzSs3RnHxZfFLdyPkkhmXhNXIq1pVGwJ5ypMqcPvyHc="
+      "integrity": "sha256-Sl0H7c1UaGFMiVod/i1nQ1n0Ud+ElfFZPIQs+ebOsAE="
     },
     {
       "id": "easing-plus",
@@ -279,16 +279,16 @@
       "category": "scene",
       "name": "Rowbyte & Red Giant Suite",
       "author": "DaviFX",
-      "version": "43",
+      "version": "44",
       "itemCount": 14,
       "format": "3D objects",
       "tagline": "Particular, Form, Plexus and C4D lights",
       "color": "#c9a13b",
       "description": "Trapcode Particular, Form and Plexus 3D objects with floating designer windows, deterministic simulation and audio analysis, plus C4D-style lights.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/trapcode-suite/manifest.json?v=43",
-      "bundle": "./plugins/trapcode-suite/bundle.json?v=43",
-      "integrity": "sha256-lesI/PoVdDdfhIhXmM4UTGrW/i5v2kZsQXNPXtruTvI="
+      "manifest": "./plugins/trapcode-suite/manifest.json?v=44",
+      "bundle": "./plugins/trapcode-suite/bundle.json?v=44",
+      "integrity": "sha256-sOsN81Cn6Qvu2o/5hmPoDiFK5iNWEYpXDLBVAGdzE6Y="
     },
     {
       "id": "optical-flares",

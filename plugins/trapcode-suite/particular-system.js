@@ -53,7 +53,10 @@ var PZ = PZ || {};
         if (e.position.animated || e.direction.animated || e.velocity.animated || e.velocityDistribution?.animated) return true;
         // Air density scales resistance. Its integrated path also handles
         // density zero, without changing the legacy density-one GPU path.
-        if ((tnum(p.environment, "airDensity", 1) !== 1 || p.environment.airDensity?.animated) && tnum(p.physics, "drag", 0) > 0) return true;
+        // Animated resistance stays integrated at zero: the GPU path has no
+        // damping history, so switching paths there would jump particles.
+        if ((tnum(p.environment, "airDensity", 1) !== 1 || p.environment.airDensity?.animated) &&
+            (tnum(p.physics, "drag", 0) > 0 || p.physics.drag?.animated)) return true;
         if (p.physics.enabled.get(PZ.trapcode.currentTime) === 1) return true;
         if (p.physics.bounceEnabled.get(PZ.trapcode.currentTime) === 1) return true;
         if (p.physics.meanderEnabled.get(PZ.trapcode.currentTime) === 1) return true;
