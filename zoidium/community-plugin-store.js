@@ -14,15 +14,12 @@
   function hashes(record) { return [...new Set([record.selected, record.previous, record.pending].filter(Boolean))]; }
   function claims(manifest) { return [manifest.id, ...manifest.effects.map(e => e.id)]; }
   function earlySafeMode(location = root.location) {
-    return root.ZOIDIUM_COMMUNITY_SAFE_MODE === true || new URLSearchParams(location?.search || "").get("communitySafeMode") === "1";
+    return root.ZoidiumDesktopCommunity?.safeMode === true || root.ZOIDIUM_COMMUNITY_SAFE_MODE === true || new URLSearchParams(location?.search || "").get("communitySafeMode") === "1";
   }
   function previewEnabled() {
     try { return root.localStorage?.getItem("zoidium.community-preview") === "1"; } catch (_) { return false; }
   }
-  function createStore({ adapter = D.createIndexedDBAdapter(), occupied = [], limits = P.LIMITS, safeMode = earlySafeMode() } = {}) {
-    const reserved = new Set(occupied);
-    let current = empty(), ready = false;
-    function validate(state) {
+  function validateStorage(state, limits = P.LIMITS) {
       if (!state || state.schemaVersion !== 1 || !Number.isSafeInteger(state.revision) || state.revision < 0 ||
           !Array.isArray(state.records) || !state.blobs || typeof state.blobs !== "object" ||
           typeof state.safeMode !== "boolean" || !Array.isArray(state.attempts)) fail("Unsupported or corrupt community storage.");
@@ -38,16 +35,20 @@
       for (const a of state.attempts) {
         if (!a || !P.ID.test(a.id) || !HASH.test(a.hash)) fail("Corrupt community activation record.");
       }
-      quota(state);
+      quota(state, limits);
       return state;
     }
-    function quota(state) {
+  function quota(state, limits) {
       const bytes = Object.values(state.blobs).reduce((sum, b) => {
         if (!(b instanceof Uint8Array) || b.byteLength > limits.packageBytes) fail("Invalid stored community bytes.");
         return sum + b.byteLength;
       }, 0);
       if (state.records.length > limits.installed || bytes > limits.storageBytes) fail("Community storage quota exceeded.", "QUOTA_EXCEEDED");
     }
+  function createStore({ adapter = root.ZoidiumDesktopCommunity ? { load: () => root.ZoidiumDesktopCommunity.load(), commit: (revision, next) => root.ZoidiumDesktopCommunity.commit(revision, next) } : D.createIndexedDBAdapter(), occupied = [], limits = P.LIMITS, safeMode = earlySafeMode() } = {}) {
+    const validate = state => validateStorage(state, limits);
+    const reserved = new Set(occupied);
+    let current = empty(), ready = false;
     function prune(state) {
       const retained = new Set(state.records.flatMap(hashes));
       for (const hash of Object.keys(state.blobs)) if (!retained.has(hash)) delete state.blobs[hash];
@@ -216,7 +217,7 @@
       close: () => adapter.close?.(),
     };
   }
-  const api = { createStore, hashBytes, earlySafeMode, previewEnabled };
+  const api = { createStore, hashBytes, earlySafeMode, previewEnabled, validateStorage };
   if (commonJS) module.exports = api;
   else root.ZoidiumCommunityStore = api;
 })(globalThis);
