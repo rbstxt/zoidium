@@ -31,9 +31,9 @@ Clipmaker 3、Clipmaker 3 Centered、Video Editor 2、Video Editor 2 Centered、
 
 Centered レイアウトでパネルを並べ替えるには、パネルのタブを右クリックして、**Move to top**、**Move up**、**Move down**、**Move to bottom**、または **Move to right sidebar** (右サイドバーでは **Move to left sidebar**) を選択します。各サイドバーには、少なくとも 1 つのタブが残ります。Zoidium は、この配置を他のエディター設定と共に記憶します。
 
-テーマ、UI フォント、グラデーションエディター、およびプレビューキャッシュのメモリ制限を選択するには、Settings を使用します。
+テーマ、UI フォント、グラデーションエディター、プレビューキャッシュのメモリー上限は Settings で選びます。
 
-[プレビューキャッシュ](/docs/ja/features/preview-cache/) では、メモリ制限について説明しています。
+[プレビューキャッシュ](/docs/ja/features/preview-cache/) では、メモリー上限について説明しています。
 
 ## プラグインを有効にする
 
