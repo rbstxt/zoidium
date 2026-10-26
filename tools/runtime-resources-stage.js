@@ -4,6 +4,7 @@
 // and the full resource-stage builder.
 const fs = require("fs");
 const path = require("path");
+const approvals = require("./preview-cache-approvals");
 const {
   assertNoSymlinkComponents,
   assertNoSymlinksRecursively,
@@ -286,6 +287,11 @@ async function copyProjectFiles(stageRoot, { includeDesktopFiles = false } = {})
     await copyEntry(resolvedStageRoot, entry, { required: true });
   }
   await copyPluginRuntime(resolvedStageRoot);
+  const receipt = require(path.join(projectRoot, approvals.approvalPath));
+  if (receipt.fingerprint !== approvals.fingerprint()) {
+    await writeStageFile(resolvedStageRoot, approvals.approvalPath,
+      approvals.source({ ...receipt, plugins: {}, stale: true }));
+  }
   // Supply fixed Worker bytes as host data. Activation never loads a
   // package-selected URL or fetches interpreter/WASM/module dependencies.
   await writeStageFile(resolvedStageRoot, "zoidium/community-runtime-source.js",

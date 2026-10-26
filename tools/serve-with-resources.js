@@ -7,31 +7,10 @@ const { spawn } = require("child_process");
 const compression = require("compression");
 const handler = require("serve-handler");
 const { resolveDirectoryIndexUrl } = require("./directory-index");
-const { prepareRuntimeStage, projectRoot } = require("./runtime-resources");
+const { prepareRuntimeStage } = require("./runtime-resources");
 const { buildDocs } = require("./build-docs");
 
-const liveProjectEntries = [
-  "404.html",
-  "_headers",
-  "_redirects",
-  "about",
-  "fonts",
-  "plugins/core",
-  "plugins/plugin-manager.css",
-  "plugins/plugin-manager.js",
-  "plugins/registry.json",
-  "zoidium",
-  "zoidium-welcome-tour.css",
-  "zoidium-welcome-tour.js",
-];
-const liveProjectBundlePattern = /^plugins\/[^/]+\/bundle\.json$/;
 const portFallbackAttempts = 20;
-const liveProjectHeaders = [
-  {
-    source: "**",
-    headers: [{ key: "Cache-Control", value: "no-cache" }],
-  },
-];
 
 function requestPathname(requestUrl) {
   let parsed;
@@ -55,16 +34,6 @@ function requestPathname(requestUrl) {
   const segments = pathname.split("/").filter(Boolean);
   if (segments.some((segment) => segment === "." || segment === "..")) return null;
   return segments.join("/");
-}
-
-function isLiveProjectPath(relativePath) {
-  if (!relativePath) return false;
-  // The fixed interpreter and Worker bytes exist only in the generated stage.
-  if (relativePath === "zoidium/community-runtime-source.js") return false;
-  if (liveProjectBundlePattern.test(relativePath)) return true;
-  return liveProjectEntries.some(
-    (entry) => relativePath === entry || relativePath.startsWith(`${entry}/`)
-  );
 }
 
 // DNS-rebinding hardening for the development server: only loopback Host
@@ -102,11 +71,6 @@ function isAllowedHost(hostHeader, expectedPort) {
   return true;
 }
 
-function shouldServeFromProject(requestUrl) {
-  const relativePath = requestPathname(requestUrl);
-  return relativePath != null && isLiveProjectPath(relativePath);
-}
-
 function parseOptions(argv) {
   const options = { open: false, port: 8123 };
   for (const argument of argv) {
@@ -125,10 +89,8 @@ function printHelp() {
   console.log(`Usage: node tools/serve-with-resources.js [options]
 
 Ensures the CM3 resource graph is available in the Git-ignored cache, then
-serves its patched index.html on both local loopback addresses. Zoidium-owned
-runtime files are served directly from the repository so a browser reload sees
-source changes without restarting this server. The cache remains after the
-server stops.
+serves its patched index.html on both local loopback addresses. Restart the
+server to stage source changes. The cache remains after the server stops.
 
 Options:
   --port=<number>      preferred listen port (default: 8123); falls forward to
@@ -254,17 +216,14 @@ async function main() {
       }
       compressionMiddleware(request, response, async () => {
         try {
-          const liveProjectFile = shouldServeFromProject(request.url);
-          const publicRoot = liveProjectFile ? projectRoot : runtime.root;
+          const publicRoot = runtime.root;
           const directoryIndexUrl = await resolveDirectoryIndexUrl(request.url, publicRoot);
           if (directoryIndexUrl) request.url = directoryIndexUrl;
 
-          const headers = publicRoot === projectRoot ? liveProjectHeaders : undefined;
           handler(request, response, {
             cleanUrls: false,
             directoryListing: false,
             etag: true,
-            headers,
             public: publicRoot,
             rewrites: [{ source: "/", destination: "/index.html" }],
           }).catch((error) => {
@@ -314,8 +273,6 @@ if (require.main === module) {
 
 module.exports = {
   isAllowedHost,
-  isLiveProjectPath,
   listenOnAvailablePort,
   requestPathname,
-  shouldServeFromProject,
 };
