@@ -3,95 +3,95 @@
   "id": "expressions-plus",
   "name": "Expressions+",
   "author": "Zoidium",
-  "version": "11",
+  "version": "12",
   "kind": "extension",
   "description": "Modern deterministic expressions, property links and Sequence Controls in native CM3 panels.",
   "modules": [
     {
       "id": "expressions-runtime",
-      "source": "./plugins/expressions-plus/expressions-plus.js?v=11"
+      "source": "./plugins/expressions-plus/expressions-plus.js?v=12"
     }
   ],
   "resources": [
     {
       "id": "0",
       "type": "text",
-      "source": "./plugins/expressions-plus/compiler.js?v=11"
+      "source": "./plugins/expressions-plus/compiler.js?v=12"
     },
     {
       "id": "1",
       "type": "text",
-      "source": "./plugins/expressions-plus/call-guard.js?v=11"
+      "source": "./plugins/expressions-plus/call-guard.js?v=12"
     },
     {
       "id": "2",
       "type": "text",
-      "source": "./plugins/expressions-plus/api.js?v=11"
+      "source": "./plugins/expressions-plus/api.js?v=12"
     },
     {
       "id": "3",
       "type": "text",
-      "source": "./plugins/expressions-plus/engine.js?v=11"
+      "source": "./plugins/expressions-plus/engine.js?v=12"
     },
     {
       "id": "4",
       "type": "text",
-      "source": "./plugins/expressions-plus/vendor/acorn.txt?v=11"
+      "source": "./plugins/expressions-plus/vendor/acorn.txt?v=12"
     },
     {
       "id": "5",
       "type": "text",
-      "source": "./plugins/expressions-plus/vendor/astring.txt?v=11"
+      "source": "./plugins/expressions-plus/vendor/astring.txt?v=12"
     },
     {
       "id": "wiggle-source",
       "type": "text",
-      "source": "./plugins/trapcode-suite/trapcode-expressions.js?v=11"
+      "source": "./plugins/trapcode-suite/trapcode-expressions.js?v=12"
     },
     {
       "id": "controls",
       "type": "text",
-      "source": "./plugins/expressions-plus/controls.js?v=11"
+      "source": "./plugins/expressions-plus/controls.js?v=12"
     },
     {
       "id": "controls-ui",
       "type": "text",
-      "source": "./plugins/expressions-plus/controls-ui.js?v=11"
+      "source": "./plugins/expressions-plus/controls-ui.js?v=12"
     },
     {
       "id": "p3-0",
       "type": "text",
-      "source": "./plugins/expressions-plus/world.js?v=11"
+      "source": "./plugins/expressions-plus/world.js?v=12"
     },
     {
       "id": "p3-1",
       "type": "text",
-      "source": "./plugins/expressions-plus/shaders.js?v=11"
+      "source": "./plugins/expressions-plus/shaders.js?v=12"
     },
     {
       "id": "p3-2",
       "type": "text",
-      "source": "./plugins/expressions-plus/glsl-library.js?v=11"
+      "source": "./plugins/expressions-plus/glsl-library.js?v=12"
     },
     {
       "id": "p3-3",
       "type": "text",
-      "source": "./plugins/constraints/track-to-evaluate.js?v=11"
+      "source": "./plugins/constraints/track-to-evaluate.js?v=12"
     },
     {
       "id": "p3-4",
       "type": "text",
-      "source": "./plugins/constraints/track-to-math.js?v=11"
+      "source": "./plugins/constraints/track-to-math.js?v=12"
     },
     {
       "id": "p3-5",
       "type": "text",
-      "source": "./plugins/constraints/constraint-graph.js?v=11"
+      "source": "./plugins/constraints/constraint-graph.js?v=12"
     },
     {
       "id": "world-index",
       "type": "text",
-      "source": "./plugins/expressions-plus/world-index.js?v=11"
+      "source": "./plugins/expressions-plus/world-index.js?v=12"
     }
   ]
 }

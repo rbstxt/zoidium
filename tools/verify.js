@@ -6,13 +6,19 @@ const path = require("path");
 const { spawn } = require("child_process");
 
 const projectRoot = path.resolve(__dirname, "..");
+const testOptions = [];
+if (process.env.ZOIDIUM_TEST_CONCURRENCY) {
+  const concurrency = process.env.ZOIDIUM_TEST_CONCURRENCY;
+  if (!/^[1-9]\d*$/.test(concurrency)) throw new Error("ZOIDIUM_TEST_CONCURRENCY must be a positive integer");
+  testOptions.push(`--test-concurrency=${concurrency}`);
+}
 const checks = [
   ["plugin manifest schema", ["tools/validate-plugin-manifests.js"]],
   ["plugin bundle freshness", ["tools/build-plugin-bundles.js", "--check"]],
   ["JavaScript syntax", ["tools/check-syntax.js"]],
   ["source file length", ["tools/check-file-length.js"]],
   ["undefined references (ESLint no-undef)", ["node_modules/eslint/bin/eslint.js", "."]],
-  ["tests", ["--test"]],
+  ["tests", ["--test", ...testOptions]],
 ];
 
 function run(label, args) {

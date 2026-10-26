@@ -35,7 +35,7 @@ function installEngine(options) {
         if (property?.get) return evaluate(expression, frame, property.parentObject, property);
         if (!active.size) guard.reset(result.extended);
         const context = createAPI({ PZ, owner: null, property: null, frame, time, base: value, read, baseAt,
-          methods: methods || PZ.expression.methods, wiggleMethods: options.wiggleMethods, controls: options.controls, world: options.world, extended: result.extended });
+          methods: methods || PZ.expression.methods, wiggleMethods: options.wiggleMethods, controls: options.controls, world: options.world, extended: result.extended, needs: result.needs });
         const previous = guard.swapOverrides(context.overrides), pure = fn.zoidiumPure;
         try { return fn(frame, time, context.methods, custom, pure.Math, { ...guard, api: context.api, pure }); }
         finally { guard.swapOverrides(previous); }
@@ -79,7 +79,7 @@ function installEngine(options) {
       const time = clip ? read(clip.properties.time, frame) : 0;
       const context = createAPI({ PZ, owner, property, frame, time, base, read, baseAt,
         methods: PZ.expression.methods, wiggleMethods: options.wiggleMethods,
-        controls: options.controls, world: options.world, extended: result.extended });
+        controls: options.controls, world: options.world, extended: result.extended, needs: result.needs });
       const pure = result.fn.zoidiumPure;
       const helpers = { ...guard, api: context.api, pure };
       previousOverrides = guard.swapOverrides(context.overrides);
@@ -93,11 +93,47 @@ function installEngine(options) {
   patch(PZ.expression.prototype, "evaluate", () => function evaluateExtended(frame, owner, property) {
     return evaluate(this, frame, owner, property);
   });
-  for (const proto of protos) patch(proto, "get", original => function getWithExpressions(frame) {
-    if (this.expression) return evaluate(this.expression, frame, this.parentObject, this);
+  // Observe assignment, including native load and history replay, instead of
+  // adding a dispatch function to every dynamic property read.
+  const expressionEvents = new WeakMap(), intercepted = new WeakMap();
+  let enabled = true;
+  function prepare(property) {
+    if (!(property instanceof PZ.property.dynamic)) return;
+    expressionEvents.set(property.onExpressionChanged, property);
+    const previous = intercepted.get(property);
+    if (!property.expression) {
+      if (previous) {
+        if (property.get === previous.get) {
+          if (previous.descriptor) Object.defineProperty(property, "get", previous.descriptor);
+          else delete property.get;
+        }
+        intercepted.delete(property);
+      }
+      return;
+    }
+    if (previous) return;
+    const descriptor = Object.getOwnPropertyDescriptor(property, "get");
+    const original = property.get;
+    const get = function (frame) {
+      return enabled && this.expression
+        ? evaluate(this.expression, frame, this.parentObject, this)
+        : original.apply(this, arguments);
+    };
+    Object.defineProperty(property, "get", { configurable: true, writable: true, value: get });
+    intercepted.set(property, { get, descriptor });
+  }
+  patch(PZ.observable, "defineObservableProp", original => function (object, name) {
+    const result = original.apply(this, arguments);
+    if (name === "expression" && object instanceof PZ.property.dynamic) prepare(object);
+    return result;
+  });
+  patch(PZ.observable.prototype, "update", original => function () {
+    const property = expressionEvents.get(this);
+    if (property) prepare(property);
     return original.apply(this, arguments);
   });
-  return { baseAt, read, error: p => errors.get(p) || p?.expression?.error || null,
+  options.project?.forEachItemOfType?.(PZ.property.dynamic, prepare);
+  return { baseAt, read, prepare, error: p => errors.get(p) || p?.expression?.error || null,
     isExtended: expression => !!compiled.get(expression)?.extended,
     compile, guard,
     requiresSource(source) {
@@ -110,7 +146,14 @@ function installEngine(options) {
       sourceKinds.set(source, needed);return needed;
     },
     restore(project) {
+      enabled = false;
       project?.forEachItemOfType?.(PZ.property.dynamic, property => {
+        const previous = intercepted.get(property);
+        if (previous && property.get === previous.get) {
+          if (previous.descriptor) Object.defineProperty(property, "get", previous.descriptor);
+          else delete property.get;
+        }
+        intercepted.delete(property);
         const expression = property.expression;
         if (expression) expression.fn = nativeParse.call(expression, expression.source);
       });

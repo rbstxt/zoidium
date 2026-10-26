@@ -85,13 +85,14 @@ function install(context, teardown) {
   const store = createPropertyStore({
     PZ,
     crypto: win.crypto || globalThis.crypto,
+    onStructureChanged: () => evaluator.invalidate(),
     onValueChanged: () => {
       const project = editor()?.project;
       if (project?.ui) project.ui.dirty = true;
     },
   });
   const evaluator = createEvaluator({
-    THREE,
+    THREE, PZ, patch: (holder, key, make) => patchMethod(holder, key, make, teardown),
     store,
     report: (message, error) => (error ? console.warn(message, error) : console.warn(message)),
   });
@@ -141,6 +142,7 @@ function install(context, teardown) {
       return original.apply(this, arguments);
     } finally {
       store.endLoad();
+      evaluator.invalidate();
     }
   }, teardown);
 

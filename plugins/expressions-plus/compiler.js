@@ -49,13 +49,19 @@ function compile(source, methodNames = [], mathNames = Object.getOwnPropertyName
   const root = new Set();
   hoist(tree, root);
   let extended = false;
+  const usedMethods = new Set();
+  let allMethods = false;
   function reference(node, scopes) {
     const name = node.name;
     if (scopes.some(scope => scope.has(name))) return node;
     if (name.startsWith("__z") || DENIED.has(name) || name === "arguments") throw new ReferenceError(name + " is not defined");
-    if (["frame", "time", "methods", "properties"].includes(name)) return node;
+    if (["frame", "time", "methods", "properties"].includes(name)) {
+      // Custom properties can return original helper functions too.
+      if (name === "methods" || name === "properties") allMethods = true;
+      return node;
+    }
     // Keep existing CM3/Trapcode names and overloads ahead of the added API.
-    if (methods.has(name)) return member(id("methods"), name);
+    if (methods.has(name)) { usedMethods.add(name); return member(id("methods"), name); }
     if (math.has(name)) return member(id("Math"), name);
     if (API_NAMES.has(name)) { extended = true; return member(member(id("__z"), "api"), name); }
     if (PURE_NAMES.has(name)) { extended = true; return member(member(id("__z"), "pure"), name); }
@@ -193,7 +199,7 @@ function compile(source, methodNames = [], mathNames = Object.getOwnPropertyName
   visit(tree, [root]);
   const last = tree.body.at(-1);
   if (last?.type === "ExpressionStatement") tree.body[tree.body.length - 1] = { type: "ReturnStatement", argument: last.expression };
-  return { code: astring.generate(tree), extended };
+  return { code: astring.generate(tree), extended, needs: { full: extended, methods: allMethods ? null : Array.from(usedMethods) } };
 }
 
 function sandboxFunction(doc, code) {

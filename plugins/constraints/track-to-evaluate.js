@@ -18,6 +18,21 @@ function createEvaluator(options) {
   const THREE = options.THREE;
   const store = options.store;
   const report = options.report || ((message) => console.warn(message));
+  const indexes = new WeakMap(), events = new WeakSet();
+  let revision = 0;
+  const PZ = options.PZ, patch = options.patch;
+  if (PZ?.observable?.prototype && patch) {
+    patch(PZ.observable.prototype, "update", original => function () {
+      if (events.has(this)) revision++;
+      return original.apply(this, arguments);
+    });
+  }
+  function observe(event) {
+    if (!event || !patch || !PZ?.observable || !(event instanceof PZ.observable)) return false;
+    events.add(event);
+    return true;
+  }
+  function invalidate() { revision++; }
   const reportedCycles = new WeakSet();
   const reportedFailures = new WeakSet();
   const objectPosition = new THREE.Vector3();
@@ -41,28 +56,42 @@ function createEvaluator(options) {
 
   // Walks the scene once: parent links, id lookup and constrained objects.
   function collect(scene) {
+    const previous = indexes.get(scene);
+    if (previous?.cacheable && previous.revision === revision) return previous;
+    let cacheable = Boolean(patch && PZ?.observable);
     const parents = new Map();
     const byId = new Map();
     const trackers = [];
     const pending = [];
     const roots = childObjects(scene);
     if (!roots) return null;
+    if (!observe(roots.onListChanged)) cacheable = false;
     for (let i = roots.length - 1; i >= 0; i -= 1) pending.push([roots[i], null]);
     while (pending.length > 0) {
       const [object, parent] = pending.pop();
       if (!object || parents.has(object)) continue;
       parents.set(object, parent);
+      if (!observe(object.onParentChanged)) cacheable = false;
+      if (!observe(object.properties?.onListChanged)) cacheable = false;
       if (store.isAttached(object)) {
+        for (const key of ["zoidiumId", "zoidiumTrackTo"]) {
+          const property = object.properties?.[key];
+          // Unobservable or dynamic identity fields cannot be cached safely.
+          if (!(PZ?.property?.static && property instanceof PZ.property.static && observe(property.onChanged))) cacheable = false;
+        }
         const id = store.readId(object);
         if (id && !byId.has(id)) byId.set(id, object);
         if (store.readTarget(object)) trackers.push(object);
       }
       const children = childObjects(object);
       if (children) {
+        if (!observe(children.onListChanged)) cacheable = false;
         for (let i = children.length - 1; i >= 0; i -= 1) pending.push([children[i], object]);
       }
     }
-    return { parents, byId, trackers };
+    const result = { parents, byId, trackers, revision, cacheable };
+    indexes.set(scene, result);
+    return result;
   }
 
   function sceneOf(object, PZ) {
@@ -194,7 +223,7 @@ function createEvaluator(options) {
     return Boolean(info && info.trackers.length > 0);
   }
 
-  return { applyScene, hasConstraints, resolveTarget, sceneOf, collect };
+  return { applyScene, hasConstraints, resolveTarget, sceneOf, collect, invalidate };
 }
 
 module.exports = { createEvaluator };

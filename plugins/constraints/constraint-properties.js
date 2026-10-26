@@ -51,6 +51,7 @@ function createPropertyStore(options) {
   const cryptoApi = options.crypto || null;
   const onTargetChanged = options.onTargetChanged || (() => {});
   const onValueChanged = options.onValueChanged || (() => {});
+  const onStructureChanged = options.onStructureChanged || (() => {});
   const T = PZ.property.type;
 
   // Weak, so deleted objects and replaced projects are released.
@@ -360,6 +361,7 @@ function createPropertyStore(options) {
     }
     if (batch) batch.objects.push(object);
     if (readTarget(object)) onTargetChanged(object);
+    onStructureChanged(object);
     return true;
   }
 
@@ -400,6 +402,7 @@ function createPropertyStore(options) {
       if (properties[key]) delete properties[key];
     }
     properties.onListChanged?.update?.();
+    onStructureChanged(object);
   }
 
   function detachAll(projects) {
