@@ -235,7 +235,8 @@ parts.shared = function (options) {
     let root = layer;
     while (root.parent && !(root.parent instanceof PZ.track.video) && root.parent.start === undefined) root = root.parent;
     const frame = time + (root.parent?.start || 0);
-    const sequence = this._sequence || layer.parentProject?.sequence;
+    // A detached layer has no project; its parentProject getter would throw.
+    const sequence = this._sequence || layer.tryGetParentOfType?.(PZ.project)?.sequence;
     if (!sequence || !track?.track3d) {
       restoreMaterialSides(layer);
       return originalRenderLayer.apply(this, arguments);
