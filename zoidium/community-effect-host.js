@@ -5,6 +5,7 @@
   const S = commonJS ? require("./community-safe-json") : root.ZoidiumCommunityJSON;
   const U = commonJS ? require("./community-ui") : root.ZoidiumCommunityUI;
   const instances = new Set();
+  const projectsWithCommunityData = new WeakSet();
   const EXPORT_ERROR = "Community effect export is unavailable in the developer preview. Remove community effects before exporting video or images.";
   const isCommunity = type => typeof type === "string" && type.startsWith("community-");
   const clone = value => S.parse(JSON.stringify(value));
@@ -33,10 +34,21 @@
     return Object.values(value).some(contains);
   }
   function assertExport(project) {
-    if (project && contains(clone(project))) throw new Error(EXPORT_ERROR);
+    // Inspection grants no execution authority. Do not impose package byte
+    // limits on the rest of a first-party project's serialized data.
+    if (project && contains(JSON.parse(JSON.stringify(project)))) throw new Error(EXPORT_ERROR);
   }
   function installGuards(PZ = root.PZ) {
     if (!PZ?.effect?.create) return;
+    const projectLoad = PZ.project?.prototype?.load;
+    if (projectLoad && !projectLoad.__zoidiumCommunity) {
+      const load = function (data) {
+        if (contains(data)) projectsWithCommunityData.add(this);
+        else projectsWithCommunityData.delete(this);
+        return projectLoad.apply(this, arguments);
+      };
+      load.__zoidiumCommunity = true; PZ.project.prototype.load = load;
+    }
     if (!PZ.effect.create.__zoidiumCommunity) {
       const create = PZ.effect.create;
       PZ.effect.create = function (type) {
@@ -54,8 +66,9 @@
       const original = PZ.export?.prototype?.[name];
       if (!original || original.__zoidiumCommunity) continue;
       const wrapped = function () {
-        // With no community instances, retain the first-party export path.
-        if (instances.size) assertExport(this.sequence?.parentProject || this.sequence);
+        const project = this.sequence?.parentProject || this.sequence;
+        // Opaque missing layers can retain effects without creating instances.
+        if (instances.size || projectsWithCommunityData.has(project)) assertExport(project);
         return original.apply(this, arguments);
       };
       wrapped.__zoidiumCommunity = true; PZ.export.prototype[name] = wrapped;

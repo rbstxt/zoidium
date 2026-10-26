@@ -269,6 +269,20 @@ test("missing packages bypass native effect fetching and export is explicitly re
   assert.throws(() => exporter.getVideoFrame(), /Community effect export is unavailable/); assert.equal(h.draws(), 0);
   effect.unload(); effect.unload();
 });
+test("export refuses opaque community data before any effect instance exists", () => {
+  const h = host(); globalThis.PZ = h.PZ;
+  h.PZ.project = class {
+    load(data) { this.data = data; }
+    toJSON() { return this.data; }
+  };
+  H.installGuards();
+  const project = new h.PZ.project(); project.load({ missingLayer: { effects: [{ type: declaration.id }] } });
+  const exporter = new h.PZ.export(); exporter.sequence = { parentProject: project };
+  assert.equal(H.instances.size, 0);
+  assert.throws(() => exporter.getVideoFrame(), /Community effect export is unavailable/);
+  project.load({ firstParty: true });
+  assert.equal(exporter.getVideoFrame(), 1);
+});
 test("preview flag off preserves first-party calls and serialization", async () => {
   const h = await setup(); h.controller.dispose(); h.effect.unload(); preview = false;
   let creations = 0;
