@@ -79,7 +79,7 @@ function harness() {
   };
   const document = { fonts: { status: "loaded", ready: Promise.resolve(), addEventListener() {}, removeEventListener() {} },
     addEventListener: (n, f) => docEvents.set(n, f), removeEventListener: n => docEvents.delete(n) };
-  const window = { document, PZ, THREE, ZoidiumOutputFrameStore: model,
+  const window = { document, PZ, THREE, CM: { mainViewport: viewport }, ZoidiumOutputFrameStore: model,
     ZoidiumUI: { notify(message) { notices.push(message); } },
     localStorage: { getItem: () => null }, performance: { now: () => clock.now },
     addEventListener: (n, f) => events.set(n, f), removeEventListener: n => events.delete(n) };
@@ -96,7 +96,7 @@ function harness() {
   // Leave the post-signal window in which every draw serializes the project.
   function cool() { clock.now += 5000; }
   return { api, viewport, project, history, counts, events, docEvents, clock, warm, cool, temporalRuntimes, timers,
-    Viewport, Compositor, History, PZ, canvasEvents, notices };
+    Viewport, Compositor, History, PZ, document, canvasEvents, notices };
 }
 
 test("a miss draws live exactly once; a complete draw is stored and then replayed", async () => {
@@ -104,6 +104,7 @@ test("a miss draws live exactly once; a complete draw is stored and then replaye
   h.viewport._render();
   assert.equal(h.counts.live, 1);
   assert.equal(h.api.debug.entries, 0, "readiness has not settled yet");
+  assert.match(h.api.usage().reason, /scene resources/);
   await h.warm();
   assert.equal(h.api.debug.entries, 1);
   const live = h.counts.live;
@@ -111,6 +112,7 @@ test("a miss draws live exactly once; a complete draw is stored and then replaye
   assert.equal(h.counts.live, live, "a hit skips the live draw");
   assert.equal(h.counts.display, 1);
   assert.equal(h.viewport.lastFrame, 0);
+  assert.equal(h.api.usage().reason, null);
   h.api.dispose();
 });
 
@@ -258,6 +260,65 @@ test("unapproved plugins keep the live preview", async () => {
   for (let i = 0; i < 6; i++) { h.viewport._render(); await flush(); }
   assert.equal(h.api.debug.entries, 0);
   assert.equal(h.counts.live, 6);
+  assert.match(h.api.usage().reason, /unverified.*not verified/);
+  h.api.dispose();
+});
+
+test("current Native FX reports its unverified version without retaining sampler output", async () => {
+  const h = harness();
+  h.project.plugins = [{ id: "native-fx" }];
+  h.PZ.zoidium.getDebugPlugins = () => [{ id: "native-fx", version: "34", enabled: true, phase: "enabled" }];
+  h.PZ.zoidium.temporal.usesSingleEvaluation = (_sequence, excludeSamplers) => !excludeSamplers;
+  await h.warm();
+  assert.equal(h.api.debug.entries, 0);
+  assert.match(h.api.usage().reason, /native-fx.*34.*not verified/);
+  assert.equal(h.counts.allocated, 0);
+  h.api.dispose();
+});
+
+for (const [name, setup, expected] of [
+  ["loading plugins", h => { h.PZ.zoidium.getDebugPlugins = () => [{ phase: "loading" }]; }, /Plugins are loading/],
+  ["loading fonts", h => { h.document.fonts.status = "loading"; }, /Fonts are loading/],
+  ["invalid serialization", h => { h.project.toJSON = () => { throw new Error("invalid"); }; }, /could not be validated/],
+]) {
+  test("usage explains " + name + " while preserving live draws", async () => {
+    const h = harness(); setup(h);
+    await h.warm();
+    assert.equal(h.api.debug.entries, 0);
+    assert.equal(h.counts.live, 6);
+    assert.match(h.api.usage().reason, expected);
+    h.api.dispose();
+  });
+}
+
+test("usage explains community rejection and clears the reason after an eligible draw", async () => {
+  const h = harness();
+  h.project.sequence.value = { type: "community-example-fx" };
+  await h.warm();
+  assert.match(h.api.usage().reason, /Community/);
+  h.project.sequence.value = null;
+  h.project.ui.onChanged.update();
+  await h.warm();
+  assert.equal(h.api.debug.entries, 1);
+  assert.equal(h.api.usage().reason, null);
+  h.api.dispose();
+});
+
+test("usage explains disabled, undersized and paused caches without serializing", async () => {
+  const h = harness();
+  h.api.setSizeMiB(0);
+  assert.match(h.api.usage().reason, /disabled/);
+  h.api.setSizeMiB(1);
+  h.viewport.renderer.context.drawingBufferWidth = 1024;
+  h.viewport.renderer.context.drawingBufferHeight = 1024;
+  await h.warm();
+  assert.match(h.api.usage().reason, /frame exceeds/);
+  h.viewport.__zoidiumPlayerPlusPaused = true;
+  assert.match(h.api.usage().reason, /drawing is paused/);
+  assert.match(h.api.usage().reason, /frame exceeds/, "paused drawing does not hide the capture rejection");
+  const before = h.counts.serialized;
+  for (let i = 0; i < 10; i++) h.api.usage();
+  assert.equal(h.counts.serialized, before);
   h.api.dispose();
 });
 
@@ -328,6 +389,7 @@ test("a slow-to-serialize project draws live after input and during playback", a
   assert.equal(h.counts.serialized, serialized, "no serialization per draw");
   assert.equal(h.counts.live, live + 10, "every draw is the native live draw");
   assert.equal(h.api.debug.hits, hits, "unvalidated frames are never replayed");
+  assert.match(h.api.usage().reason, /validation is deferred/);
 
   h.project.sequence.value = 2; // An edit only the serialization sees.
   h.viewport.editor.playback.speed = 0;
@@ -350,6 +412,7 @@ test("plain time operators draw once without serializing or scheduling prefetch"
   assert.equal(h.api.debug.prefetched, 0);
   assert.equal(h.api.debug.entries, 0);
   assert.equal(h.timers.size, 0);
+  assert.match(h.api.usage().reason, /Time operators/);
 });
 
 
