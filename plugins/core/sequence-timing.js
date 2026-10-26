@@ -62,7 +62,8 @@
   function scaleKeys(keys, ratio, duration) {
     for (const key of keys) {
       key.frame *= ratio;
-      for (const point of key.controlPoints || []) {
+      key.controlPoints ||= [[-10, 0], [10, 0]];
+      for (const point of key.controlPoints) {
         point[0] *= ratio;
         if (duration) point[1] *= ratio;
       }
@@ -84,7 +85,7 @@
       for (const child of node) scaleStored(child, ratio, owner, field);
       return;
     }
-    if (node.type !== undefined && !node.keyframes && !node.objects?.[0]?.keyframes) owner = node;
+    if (typeof node.type === "number" || typeof node.type === "string") owner = node;
     if (node.object && Number.isFinite(node.start) && Number.isFinite(node.length)) scaleClip(node, ratio);
     if (node.compId && Number.isFinite(node.offset)) node.offset *= ratio;
     if (Array.isArray(node.keyframes)) scaleKeys(node.keyframes, ratio, isDuration(owner, field));
@@ -99,7 +100,15 @@
       // are not frame positions and must never be interpreted as a timeline.
       if (key === "value") continue;
       const child = node[key];
-      if (isDuration(owner, key) && Number.isFinite(child)) node[key] *= ratio;
+      // Expressions+ stores its authored sequence controls in a JSON string.
+      // Decode only this declared field, never arbitrary text or expressions.
+      if (key === "zoidiumControls" && typeof child === "string" && child) {
+        try {
+          const controls = JSON.parse(child);
+          scaleStored(controls, ratio);
+          node[key] = JSON.stringify(controls);
+        } catch (_error) { /* Invalid plugin metadata stays available for repair. */ }
+      } else if (isDuration(owner, key) && Number.isFinite(child)) node[key] *= ratio;
       else scaleStored(child, ratio, owner, key === "properties" ? null : key);
     }
   }
@@ -187,7 +196,14 @@
     const operation = editor.history.operation;
     restore({ editor, state: after, inverse: before });
     if (ownsOperation) editor.history.finishOperation();
-    notify(editor, operation);
+    // Native controls also call setValue before discarding a cancelled edit.
+    // Wait for the operation to commit before showing its notice.
+    Promise.resolve().then(() => {
+      const stack = editor.history.undoStack;
+      if (stack.length && stack.stack[(stack.idx - 1 + stack.stack.length) % stack.stack.length] === operation) {
+        notify(editor, operation);
+      }
+    });
   };
   prototype.__zoidiumSequenceTiming = true;
 })(window);

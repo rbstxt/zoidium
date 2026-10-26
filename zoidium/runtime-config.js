@@ -32,6 +32,7 @@
       "./zoidium/debug-log.js",
       "./plugins/core/window-stylesheet-guard.js",
       "./plugins/core/project-media-fps.js",
+      "./plugins/core/sequence-timing.js",
       "./plugins/core/audio-track-visibility.js",
       "./plugins/core/default-project-settings.js",
       "./plugins/core/preview-context-menu.js",
