@@ -286,3 +286,11 @@ test.after(() => {
   }
   assert.equal(networkCalls, 0, "all local preparation, capture, media and font rejection paths use zero network APIs");
 });
+
+test("first-party getters retain their synchronous preparation timing and two-argument contract", async () => {
+  const h = host(false); let calls = 0;
+  h.effect._zoidiumFrameSampler = { getRequest() { assert.equal(arguments.length, 2); calls++; return null; } };
+  const work = h.effect.prepare(20.125);
+  assert.equal(calls, 1, "a first-party getter runs before prepare returns its Promise");
+  await work;
+});

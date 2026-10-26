@@ -367,3 +367,12 @@ test("transient preparation status never publishes a native project edit", async
   assert.equal(property.get(), "Ready");
   assert.equal(h.effect._community.receipt.authority.revision, E.frameStamp(h.effect, 0.125).revision);
 });
+
+test("concurrent frame preparations serialize captures and keep exact receipts for each requested time", async () => {
+  const h = await setup(); const e = h.effect;
+  let inFlight = 0, maximum = 0;
+  h.gate(async () => { inFlight++; maximum = Math.max(maximum, inFlight); await new Promise(r => setImmediate(r)); inFlight--; });
+  await Promise.all([e.prepare(0.125), e.prepare(2.5), e.prepare(1.75)]);
+  assert.equal(maximum, 1);
+  for (const frame of [0.125, 2.5, 1.75]) assert.ok(e._community.temporal.lookup(frame));
+});

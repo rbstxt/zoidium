@@ -143,9 +143,20 @@ Use **Open community setup** to change its controls.
 The native picker adds an identifier suffix to each community effect name.
 
 Preview controls use static CM3 properties and native undo and redo.
-Keyframes, expressions, arbitrary GLSL, and temporal inputs are unavailable.
-The preview prepares effects directly on top-level layers.
-Nested compositions and remapped time can render as identity when no exact-frame result is available.
+Keyframes, expressions, and arbitrary GLSL are unavailable.
+A guest can return `temporal: { offsets: [...], weights: [...] }` alongside its uniforms.
+A plan accepts 1 to 8 frame offsets in `[-120, 120]` and nonnegative weights that sum to one.
+Offsets can contain fractional values. The host captures the effect input before its own pass.
+The guest receives no image pixels, asset URLs, or decoder access.
+
+The preview awaits exact-frame preparation for top-level layers and resident Composite and Precomp children.
+Captures use attached local video files, resident images and shaders, and audited numeric content paths.
+Text, fonts, custom shader inputs, expressions, and other unsupported content paths fail with `LOCAL_DEPENDENCY_UNAVAILABLE`.
+Remote-backed video also fails with this error before the host creates a decoder or assigns a media URL.
+Attach local media separately. The preview never fetches a missing dependency.
+If a receipt is missing or stale, the effect renders as identity with a named pending status.
+If the host cannot prove that a content path is local-only, Render once reports the failure and does not draw that frame.
+Finished-frame caching and prefetch remain unavailable for projects with community effects.
 Video and image export with community effects are refused.
 To export, remove community effects from the project.
 Missing or disabled packages render as identity and preserve their effect data.

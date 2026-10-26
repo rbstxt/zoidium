@@ -536,12 +536,15 @@
     }
     const controlFrame = getFrameSamplerControlFrame(stage, localFrame,
       context?.frameSamplerScope || parentContext?.frameSamplerScope);
-    const authority = frameSamplerAuthority(state, stage, controlFrame, context, depth);
     let request;
     try {
-      await effect._zoidiumFrameSampler.preflight?.(effect, controlFrame, authority);
-      registry.capture.checkPolicy(context);
-      request = effect._zoidiumFrameSampler.getRequest(effect, controlFrame, authority);
+      const descriptor = effect._zoidiumFrameSampler;
+      if (descriptor.preflight) {
+        const authority = frameSamplerAuthority(state, stage, controlFrame, context, depth);
+        await descriptor.preflight(effect, controlFrame, authority);
+        registry.capture.checkPolicy(context);
+        request = descriptor.getRequest(effect, controlFrame, authority);
+      } else request = descriptor.getRequest(effect, controlFrame);
     } catch (error) {
       if (context.resourcePolicy) throw error;
       if (context.exportPolicy) throw registry.capture.sampleError(stage, projectFrame, error);
@@ -763,7 +766,9 @@
       : finiteNumber(effect._zoidiumFrameSamplerFrame, lastLayerFrame);
     let request;
     try {
-      request = descriptor.getRequest(effect, controlFrame, frameSamplerAuthority(state, stage, controlFrame, context, depth));
+      request = descriptor.preflight
+        ? descriptor.getRequest(effect, controlFrame, frameSamplerAuthority(state, stage, controlFrame, context, depth))
+        : descriptor.getRequest(effect, controlFrame);
     } catch (error) {
       if (context?.exportPolicy) throw registry.capture.sampleError(stage, currentProjectFrame, error);
       console.error("[Zoidium] frame sampler request failed:", error);

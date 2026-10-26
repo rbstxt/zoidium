@@ -54,7 +54,11 @@
     function drawReceipt() {
       const temporal = PZ.zoidium?.temporal;
       const authority = root.__zoidiumTemporalParts?.sampler?.drawAuthority(temporal, effect);
-      return authority ? lookup(authority.controlFrame, authority) : lookup(instance.frame);
+      const receipt = authority ? lookup(authority.controlFrame, authority) : lookup(instance.frame);
+      if (!receipt && valid() && !effect._communityError && effect.properties?.add) {
+        Host.status(effect, "COMMUNITY_PREPARATION_PENDING: exact frame receipt is unavailable");
+      }
+      return receipt;
     }
     effect._zoidiumFrameSampler = { preflight, getRequest, resourcePolicy: policy };
     return { clear, preflight, lookup, drawReceipt, policy };

@@ -166,16 +166,26 @@
           } catch (error) { H.unavailable(effect, record, error.message); }
         };
         effect.toJSON = () => H.serialize(effect, declaration, session.runner.binding);
-        effect.prepare = async (frame, context) => {
-          if (context?.exportPolicy || context instanceof (PZ.export || class {})) throw new Error(H.EXPORT_ERROR);
-          if (!valid(effect, session)) return;
-          try {
-            const host = PZ.zoidium?.temporal;
-            if (host?.prepareFrameSamples) await host.prepareFrameSamples(effect, frame, context);
-            else await temporal.preflight(effect, frame, context);
-          } catch (error) {
-            temporal.clear(); H.status(effect, String(error.message).slice(0, 4096)); throw error;
-          }
+        let preparation = Promise.resolve(), queuedPreparations = 0;
+        effect.prepare = (frame, context) => {
+          if (context?.exportPolicy || context instanceof (PZ.export || class {})) return Promise.reject(new Error(H.EXPORT_ERROR));
+          const host = PZ.zoidium?.temporal;
+          if (!valid(effect, session) || host?.preparingEffects?.has(effect)) return;
+          if (queuedPreparations >= 8) return Promise.reject(new Error("Community preview preparation is busy."));
+          queuedPreparations++;
+          // Serialize captures for this instance as well as its guest jobs.
+          // Concurrent seeks must not share mutable decoder or target state.
+          const work = preparation.then(async () => {
+            if (!valid(effect, session)) return;
+            try {
+              if (host?.prepareFrameSamples) await host.prepareFrameSamples(effect, frame, context);
+              else await temporal.preflight(effect, frame, context);
+            } catch (error) {
+              temporal.clear(); H.status(effect, String(error.message).slice(0, 4096)); throw error;
+            }
+          });
+          preparation = work.catch(() => {}).finally(() => { queuedPreparations--; });
+          return work;
         };
         effect.update = frame => { instance.frame = frame; effect._zoidiumFrameSamplerFrame = frame; };
         effect.resize = () => temporal.clear();
