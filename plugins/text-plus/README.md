@@ -3,8 +3,10 @@
 ## Native 2D Text
 
 Native **Text** layers have a **Character** category when Text+ is enabled.
-**Mode** selects None or one of the six animators listed below. Only one mode
-acts on a native Text layer at a time. Position and Scale use X and Y.
+**Mode** selects None or one of the six animators listed below. When a category's
+**Mode** is not None, the next category appears: **Character 2**, then
+**Character 3**. Each later category transforms the characters as the earlier
+categories left them, like nested 3D parents. Position and Scale use X and Y.
 Rotation and Shake turn in the layer's plane. Both selected modes use the
 **Characters** field. Spaces keep their native glyph slots and count toward
 selection, delay, and gradient order.
@@ -21,14 +23,16 @@ randomness use the same rules as the 3D animators. Expressions use native dynami
 properties, including delayed frame reads for Character Transform.
 
 The layer remains type `7`. Project JSON stores settings in `zoidiumTextPlus2D`
-with `schemaVersion: 1` and a `characterProperties` object. The extension layer
+with `schemaVersion: 1` and a `characterProperties` object. Projects that use
+**Character 2** or **Character 3** also store `extraCharacterProperties`, an array
+in category order. Files without later categories keep their earlier shape. The extension layer
 retains that data when Text+ is disabled or missing. The layer then renders as
 native Text. Re-enabling Text+ restores the controls and animation. Hidden live
 properties retain their native addresses after disable, so existing undo
 commands can still edit the saved values.
 
-Shape+ conversion rejects active character animation. Setting **Mode** to
-**None** permits conversion to editable outlines without Text+ controls.
+Shape+ conversion rejects active character animation. Setting every category's
+**Mode** to **None** permits conversion to editable outlines without Text+ controls.
 Existing 3D Text+ objects keep their published types and behavior.
 
 ## 3D Text parents

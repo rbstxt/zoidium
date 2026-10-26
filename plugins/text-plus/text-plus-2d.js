@@ -1,6 +1,6 @@
 "use strict";
 
-const { createCharacters, refreshVisibility, snapshot, loadCharacters } = require("./text-plus-2d-properties.js");
+const { createCharacterStack, updateStackVisibility, refreshVisibility, snapshot, loadCharacters } = require("./text-plus-2d-properties.js");
 const { drawCharacters } = require("./text-plus-2d-draw.js");
 
 function install(context) {
@@ -14,17 +14,22 @@ function install(context) {
     const saved = layer.zoidiumTextPlus2D;
     // Retain future metadata without interpreting or rewriting its schema.
     if (saved && saved.schemaVersion !== 1) return null;
-    let list = layer.textPlusCharacters;
-    if (!list) list = createCharacters(PZ, layer);
-    if (reload || !states.has(layer)) loadCharacters(list, saved?.characterProperties);
-    list.visible = true;
-    refreshVisibility(list);
+    const stack = createCharacterStack(PZ, layer);
+    stack.refreshPanels = refreshPanels;
+    if (reload || !states.has(layer)) {
+      stack.forEach((list, slot) => loadCharacters(list,
+        slot ? saved?.extraCharacterProperties?.[slot - 1] : saved?.characterProperties));
+    }
+    stack.live = true;
+    stack[0].visible = true;
+    for (const list of stack) refreshVisibility(list);
+    updateStackVisibility(stack);
     Object.defineProperty(layer, "zoidiumTextPlus2D", {
-      configurable: true, get: () => snapshot(list, saved),
+      configurable: true, get: () => snapshot(stack, saved),
     });
-    states.set(layer, list);
+    states.set(layer, stack);
     layers.add(new WeakRef(layer));
-    return list;
+    return stack;
   }
   function patch(key, implementation) {
     const descriptor = Object.getOwnPropertyDescriptor(proto, key), original = proto[key];
@@ -45,8 +50,8 @@ function install(context) {
     return result;
   });
   const draw = patch("draw", function (ctx) {
-    const list = attach(this);
-    return list ? drawCharacters(this, list, ctx, draw, arguments, boundsCache) : draw.apply(this, arguments);
+    const stack = attach(this);
+    return stack ? drawCharacters(this, stack, ctx, draw, arguments, boundsCache) : draw.apply(this, arguments);
   });
   const unload = patch("unload", function () {
     states.delete(this);
@@ -67,9 +72,10 @@ function install(context) {
     // Keep the hidden property lists at their original addresses. Native
     // undo commands still resolve them, and serialization reads live values.
     for (const reference of layers) {
-      const layer = reference.deref(), list = layer && states.get(layer);
-      if (!list) continue;
-      list.visible = false;
+      const layer = reference.deref(), stack = layer && states.get(layer);
+      if (!stack) continue;
+      stack.live = false;
+      for (const list of stack) list.visible = false;
       layer.properties?.onListChanged?.update();
     }
     layers.clear();

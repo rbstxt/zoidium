@@ -28,11 +28,17 @@ plane. Keep the native **Text**, **Font**, **Size**, **Fill**, and **Stroke** co
 To move the whole text, edit the native **Position**, **Rotation**, and **Scale**
 controls above **Character**.
 
-To disable character animation, set **Mode** to **None**. To render native Text
+To combine animators, set **Character** > **Mode**, then use **Character 2**. It
+appears below **Character** when the first **Mode** is not **None**. **Character 3**
+appears the same way. Each later category moves the characters as the earlier
+categories left them. For example, shake the characters in **Character**, then
+scatter them in **Character 2**.
+
+To disable character animation, set every **Mode** to **None**. To render native Text
 without Text+, disable **Text+** in **Plugins**. Save the project to retain its
 character settings. To restore the animation, enable **Text+** again.
 
-Before converting the layer to Shape+, set **Character** > **Mode** to **None**.
+Before converting the layer to Shape+, set **Mode** to **None** in every **Character** category.
 The converted Shape+ layer has editable outlines and no Text+ character controls.
 
 ## Animate 3D Text through a parent

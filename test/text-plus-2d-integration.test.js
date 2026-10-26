@@ -22,7 +22,10 @@ test("saved native Text advertises Text+ even when its plugin is missing", () =>
 test("Shape+ refuses to discard active native Text character animation", () => {
   assert.throws(() => convertNative({ type: 7, zoidiumTextPlus2D: {
     schemaVersion: 1, characterProperties: { mode: 4 },
-  } }), /Set Character Mode to None/);
+  } }), /Set every Character Mode to None/);
+  assert.throws(() => convertNative({ type: 7, zoidiumTextPlus2D: {
+    schemaVersion: 1, characterProperties: { mode: 0 }, extraCharacterProperties: [{ mode: 3 }, { mode: 0 }],
+  } }), /Set every Character Mode to None/, "a later category also blocks conversion");
   assert.throws(() => convertNative({ type: 7, zoidiumTextPlus2D: {
     schemaVersion: 1, characterProperties: { mode: 0 },
   } }), /glyph outlines/);
