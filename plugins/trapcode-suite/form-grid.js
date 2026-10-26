@@ -275,7 +275,7 @@ var PZ = PZ || {};
         if (formAudio && this.audioReactorsOn(t)) {
             var audioProject = T.findParent(this, PZ.project);
             entries.push(this._assets.request("audio", formAudio.audioLayer.get(t), function (value) {
-                return T.audioAnalysis.load(audioProject, value).then(function () { return true; }, function () { return null; });
+                return T.audioAnalysis.load(audioProject, value);
             }));
         }
         return entries.filter(Boolean);

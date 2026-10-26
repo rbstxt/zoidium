@@ -638,11 +638,12 @@ var PZ = PZ || {};
             var factors = [1, 1, 1, 1];
             if (audioReactorsOn(audio, frame)) {
                 var source = audio.audioLayer.get(frame);
+                var audioEntry = this.requestAudio(frame);
                 if (source && !T.audioAnalysis.has(source) && this._audioRequest !== source) {
                     this._audioRequest = source;
-                    var project = T.findParent(this, PZ.project);
                     var self = this;
-                    T.audioAnalysis.load(project, source).then(function () {
+                    audioEntry.promise.then(function () {
+                        if (audioEntry.status !== "ready") return;
                         // The preview path never awaits prepareAudio: without
                         // an explicit redraw the reactors stay neutral until
                         // some unrelated change redraws (BUG-02). Re-running
@@ -691,6 +692,7 @@ var PZ = PZ || {};
             return { type: this.type, properties: this.properties };
         }
         unload() {
+            if (this._audioAssets) this._audioAssets.clear();
             if (this.threeObj && this.threeObj.parent) this.threeObj.parent.remove(this.threeObj);
             if (this.threeObj && this.threeObj.geometry) this.threeObj.geometry.dispose();
             T.disposeImageUniform(this.material, "image");

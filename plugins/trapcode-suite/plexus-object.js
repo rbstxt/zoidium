@@ -137,7 +137,7 @@ var PZ = PZ || {};
                 var audioValue = this.properties.effector.audioLayer.get(t);
                 var audioProject = T.findParent(this, PZ.project);
                 var audioEntry = this._assets.request("audio", audioValue, function (value) {
-                    return T.audioAnalysis.load(audioProject, value).then(function () { return true; }, function () { return null; });
+                    return T.audioAnalysis.load(audioProject, value);
                 });
                 if (audioEntry) out.push(audioEntry);
                 return out;
