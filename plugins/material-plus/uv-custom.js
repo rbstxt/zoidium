@@ -111,7 +111,7 @@ function uvLoadTexture(material, key, property, value) {
   if (!value || !material.parentProject?.assets || !material.threeObj) return;
   material[key] = new uvCustomState.PZ.asset.image(material.parentProject.assets.load(value));
   const texture = material[key].getTexture(true);
-  const wrap = uvOptionValue(material.properties.wrap, 1) || 1;
+  const wrap = uvOptionValue(material.properties.wrap, 1);
   texture.wrapS = uvWrapValues()[wrap];
   texture.wrapT = uvWrapValues()[wrap];
   material.threeObj[property] = texture;

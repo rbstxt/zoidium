@@ -76,6 +76,8 @@ each line describes one visible change.
 
 ### Fixed
 
+- UV Custom Material keeps **Wrap** set to **none** when a saved project
+  is opened again. Before, the texture tiled after reopening.
 - Detached temporal effects are skipped safely, and datamosh export cuts
   stay aligned, including clean cut-only exports with no cuts.
 - Frame capture encodes JPEG captures and recovers from frame export

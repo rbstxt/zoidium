@@ -345,6 +345,20 @@ test("the material normalizes its object and restores the UVs on unload", async 
   assert.equal(harness.untracked.length, 1);
 });
 
+test("a reloaded texture keeps Wrap none instead of tiling", async () => {
+  const harness = createHarness();
+  UvCustom.deactivate(); // the previous test leaves the plugin active
+  UvCustom.activate({ PZ: harness.PZ, window: { THREE: harness.THREE }, getAsset, plugin: { id: "material-plus" } });
+  const material = await createMaterial(harness, extrudedSquare());
+  material.properties.wrap.set(0);
+  material.properties.texture.set("image");
+  material.load({ properties: {} });
+  assert.equal(material.threeObj.map.wrapS, harness.THREE.ClampToEdgeWrapping);
+  assert.equal(material.threeObj.map.wrapT, harness.THREE.ClampToEdgeWrapping);
+  material.unload();
+  UvCustom.deactivate();
+});
+
 test("the shared layout keeps UVs while another layout material renders the mesh", () => {
   const geometry = extrudedSquare();
   const original = geometry.faceVertexUvs[0][0].map((entry) => `${entry.x},${entry.y}`).join(" ");
