@@ -68,4 +68,5 @@ If Zoidium offers to save a restore point, complete that step before continuing.
 
 [Saving and restore points](/docs/development/project-saving/) describes local
 backups, missing assets, and save failures. Clearing site data can remove local
-restore points.
+restore points. [Troubleshooting](/docs/troubleshooting/) covers common error
+symptoms and fixes.

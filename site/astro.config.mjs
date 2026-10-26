@@ -18,6 +18,7 @@ export default defineConfig({
         { label: 'Getting started', translations: { ja: 'はじめかた' }, slug: 'getting-started' },
         { label: 'Saving and restore points', translations: { ja: '保存と復元ポイント' }, slug: 'development/project-saving' },
         { label: 'Plugin manager', translations: { ja: 'プラグインマネージャー' }, slug: 'development/plugin-manager' },
+        { label: 'Troubleshooting', translations: { ja: 'トラブルシューティング' }, slug: 'troubleshooting' },
       ] },
       { label: 'Feature guides', translations: { ja: '機能ガイド' }, items: [{ autogenerate: { directory: 'features' } }] },
       { label: 'How-to guides', translations: { ja: '操作ガイド' }, items: [{ autogenerate: { directory: 'how-to' } }] },
