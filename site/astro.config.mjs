@@ -32,6 +32,7 @@ export default defineConfig({
       ] },
       { label: 'Plugin development', translations: { ja: 'プラグイン開発' }, collapsed: true, items: [{ autogenerate: { directory: 'development' } }] },
       { label: 'About Zoidium', translations: { ja: 'Zoidium について' }, slug: 'about' },
+      { label: 'Changelog', translations: { ja: '変更履歴' }, slug: 'changelog' },
     ],
     expressiveCode: { themes: ['github-dark', 'github-light'] },
   })],

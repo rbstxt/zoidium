@@ -27,7 +27,11 @@ pnpm run web
 2. **Editor layout** を設定します。
 3. Zoidium を再読み込みします。
 
-Clipmaker 3、Clipmaker 3 Centered、Video Editor 2、Video Editor 2 Centered、または Video Editor 2 Centered 2 を選択します。テーマ、UI フォント、グラデーションエディター、およびプレビューキャッシュのメモリ制限を選択するには、Settings を使用します。
+Clipmaker 3、Clipmaker 3 Centered、Video Editor 2、Video Editor 2 Centered、または Video Editor 2 Centered 2 を選択します。Centered が付く 3 つのレイアウトでは、右側にもう 1 つのタブサイドバーが追加され、プレビューが 2 つのパネル列の間に配置されます。Video Editor 2 Centered 2 では、右サイドバーがタイムラインの横にも表示されます。
+
+Centered レイアウトでパネルを並べ替えるには、パネルのタブを右クリックして、**Move to top**、**Move up**、**Move down**、**Move to bottom**、または **Move to right sidebar** (右サイドバーでは **Move to left sidebar**) を選択します。各サイドバーには、少なくとも 1 つのタブが残ります。Zoidium は、この配置を他のエディター設定と共に記憶します。
+
+テーマ、UI フォント、グラデーションエディター、およびプレビューキャッシュのメモリ制限を選択するには、Settings を使用します。
 
 [プレビューキャッシュ](/docs/ja/features/preview-cache/) では、メモリ制限について説明しています。
 
