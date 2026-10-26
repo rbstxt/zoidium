@@ -20,3 +20,5 @@ before using its [shader includes](/docs/reference/shader/#includes).
 
 [Expression compatibility](/docs/development/project-compatibility/#expressions)
 describes saved source and fallback values.
+
+Control reference: [sequence-controls](/docs/reference/sequence-controls/).

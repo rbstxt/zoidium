@@ -72,3 +72,5 @@ Text+ を使用せずにネイティブの Text を描画するには、**Plugin
 Text+ なしでプロジェクトを開くと、元の Text のマテリアルで描画します。保存したスロットは保持します。
 
 [Text+ のソースコントラクト](https://github.com/rbstxt/zoidium/blob/dev/plugins/text-plus/README.md)では、ピボット、ディレイ、シェイク、ネストされた親について説明しています。[Text+ の互換性](/docs/ja/development/project-compatibility/#text-スケール合成)では、保存されたスケールモードについて説明しています。
+
+コントロールのリファレンス: [text-plus](/docs/ja/reference/text-plus/).

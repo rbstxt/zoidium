@@ -28,3 +28,5 @@ sidebar:
 3. カメラオブジェクトのプロパティをアニメーションさせます。
 
 [Camera+ ソースコントラクト](https://github.com/rbstxt/zoidium/blob/dev/plugins/camera-plus/README.md)に、カメラの選択、モーションブラー、フォーカスリンク、および保存形式が記載されています。
+
+コントロールのリファレンス: [camera-plus](/docs/ja/reference/camera-plus/).

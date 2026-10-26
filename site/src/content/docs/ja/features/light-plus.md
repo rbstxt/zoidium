@@ -31,3 +31,5 @@ Intensity は 0 から 100、Spot の Angle は 0 から 90 度を受け付け�
 Light+ は標準ライトのプロパティを使用します。追加のライトの種類やコントロールを使うには、[Rowbyte & Red Giant Suite](/docs/ja/features/trapcode-suite/) を使用してください。
 
 ライトを選ぶときは、提供元のプラグインをどちらか一方だけ有効にしてください。Light+ とスイートは両方ともライトのピッカー項目を追加し、メニューとコントロールが異なります。
+
+コントロールのリファレンス: [light-plus](/docs/ja/reference/light-plus/).

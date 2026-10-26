@@ -18,3 +18,5 @@ option to match the path.
 [Material+](/docs/features/material-plus/) provides PBR and node-based materials.
 The [Geometry+ manifest](https://github.com/rbstxt/zoidium/blob/dev/plugins/geometry-plus/manifest.json)
 lists the namespaced object types and descriptions.
+
+Control reference: [geometry-plus](/docs/reference/geometry-plus/).

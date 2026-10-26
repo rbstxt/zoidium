@@ -34,3 +34,5 @@ choose a recipe. Undo restores the previous graph.
 describes node operations, baking, UV layout, and surface controls.
 [PBR+ compatibility](/docs/development/project-compatibility/#pbr-uv-layout)
 describes legacy UVs.
+
+Control reference: [material-plus](/docs/reference/material-plus/), [material-nodes](/docs/reference/material-nodes/).

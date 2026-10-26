@@ -17,3 +17,5 @@ sidebar:
 選択を変更するには、Shift を押しながらクリックします。移動を制限するには、ドラッグ中に Shift を押し続けます。連続性を解除するには、タンジェントを Alt を押しながらドラッグします。隣接するリニアセグメントとベジェセグメントを切り替えるには、キーを Alt を押しながらクリックします。ドラッグをキャンセルするには、Escape を押します。
 
 [Motion Paths のソースコントラクト](https://github.com/rbstxt/zoidium/blob/dev/plugins/motion-path/README.md)では、時間ハンドルと編集制限について説明しています。[Motion Paths の互換性](/docs/ja/development/project-compatibility/#motion-paths)では、ネイティブのキー保存について説明しています。
+
+コントロールのリファレンス: [editor-controls](/docs/ja/reference/editor-controls/).

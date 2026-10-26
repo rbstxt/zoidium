@@ -80,3 +80,5 @@ When you open the project without Text+, the source Text materials render and th
 describes pivots, delay, shake, and nested parents.
 [Text+ compatibility](/docs/development/project-compatibility/#text-scale-composition)
 describes saved scale modes.
+
+Control reference: [text-plus](/docs/reference/text-plus/).

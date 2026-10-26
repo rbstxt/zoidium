@@ -24,3 +24,5 @@ layers are outside the same-scene target contract.
 describes missing targets, cycles, and supported lights.
 [Track To compatibility](/docs/development/project-compatibility/#track-to-constraints)
 describes saved UUIDs and constraint properties.
+
+Control reference: [constraints](/docs/reference/constraints/).

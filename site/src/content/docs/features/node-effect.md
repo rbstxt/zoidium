@@ -28,3 +28,5 @@ describes sampling, alpha, parameters, and limits.
 describes saved GLSL and graph metadata.
 
 [Native FX reference](/docs/reference/native-fx/) lists ready-made filters in the same **NATIVE FX** category.
+
+Control reference: [node-effect](/docs/reference/node-effect/).

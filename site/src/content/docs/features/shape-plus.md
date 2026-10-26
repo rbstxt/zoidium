@@ -28,3 +28,5 @@ hide an item.
 
 [Shape+ source contract](https://github.com/rbstxt/zoidium/blob/dev/plugins/shape-plus/README.md)
 describes coordinates, paint scope, modifiers, and saved data.
+
+Control reference: [shape-plus](/docs/reference/shape-plus/).

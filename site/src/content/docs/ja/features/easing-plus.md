@@ -38,3 +38,5 @@ Easing+ が有効な間、キーの移動や値の変更では、編集したハ
 離す前に境界から 24 ピクセル以内に戻ると、その側の拡張は解除されます。既にオーバーシュートのあるカーブでは、対応する側を広げて開きます。
 
 キーと接線を直接編集する場合は、[Graph Editor 2](/docs/ja/features/graph-editor-2/) を参照してください。
+
+コントロールのリファレンス: [editor-controls](/docs/ja/reference/editor-controls/).

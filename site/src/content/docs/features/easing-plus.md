@@ -38,3 +38,5 @@ While Easing+ is enabled, moving keys or changing their values rescales edited h
 Returning within 24 pixels before release disarms that side. A curve with existing overshoot opens with the corresponding side expanded.
 
 For direct keyframe and tangent editing, see [Graph Editor 2](/docs/features/graph-editor-2/).
+
+Control reference: [editor-controls](/docs/reference/editor-controls/).
