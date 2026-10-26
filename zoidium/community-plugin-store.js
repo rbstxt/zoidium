@@ -54,7 +54,9 @@
       }
       state.attempts = state.attempts.filter(a => state.records.some(r => r.id === a.id));
     }
-    async function commit(next, revision = current.revision) {
+    // Keep the snapshot revision across awaits. A concurrent cancellation on
+    // this same store must conflict instead of being overwritten by read-back.
+    async function commit(next, revision = next.revision) {
       prune(next); next.revision = revision + 1; validate(next);
       await adapter.commit(revision, next);
       current = next;

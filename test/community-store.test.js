@@ -29,13 +29,22 @@ async function update(store, version = "2") {
   await store.stageOnReload(manifest.id, store.view().revision);
   return store.open({ reload: true });
 }
-test("local imports and management never execute guest code or call network APIs", async t => {
-  let requests = 0;
+let networkRequests = 0;
+const networkDescriptors = new Map();
+test.before(() => {
   for (const api of ["fetch", "XMLHttpRequest", "WebSocket"]) {
-    const prior = Object.getOwnPropertyDescriptor(globalThis, api);
-    Object.defineProperty(globalThis, api, { configurable: true, writable: true, value: function () { requests++; throw new Error("network forbidden"); } });
-    t.after(() => { if (prior) Object.defineProperty(globalThis, api, prior); else delete globalThis[api]; });
+    networkDescriptors.set(api, Object.getOwnPropertyDescriptor(globalThis, api));
+    Object.defineProperty(globalThis, api, { configurable: true, writable: true, value: function () { networkRequests++; throw new Error("network forbidden"); } });
   }
+});
+test.after(() => {
+  for (const [api, prior] of networkDescriptors) {
+    if (prior) Object.defineProperty(globalThis, api, prior);
+    else delete globalThis[api];
+  }
+  assert.equal(networkRequests, 0, "all store paths make zero network API calls");
+});
+test("local imports and management never execute guest code or call network APIs", async () => {
   const { store } = await setup();
   let view = await install(store);
   assert.equal(view.packages[0].readiness, "Needs approval");
@@ -47,7 +56,7 @@ test("local imports and management never execute guest code or call network APIs
   await store.open({ reload: true });
   await store.quarantine(manifest.id, "Test quarantine", store.view().revision);
   await store.uninstall(manifest.id, store.view().revision);
-  assert.equal(requests, 0);
+  assert.equal(networkRequests, 0);
   assert.deepEqual(store.view().packages, []);
 });
 test("import accepts native local bytes only and checks byte limits before reading", async () => {
@@ -172,4 +181,25 @@ test("enable intent persists without making activation available", async () => {
   assert.equal(next.view().packages[0].enabled, true);
   assert.equal(next.view().activationAvailable, false);
   await assert.rejects(next.beforeEvaluation(), { code: "RENDERING_UNAVAILABLE" });
+});
+
+
+test("cancellation during read-back cannot resurrect an import on the same store", async t => {
+  const { store } = await setup();
+  const digest = crypto.subtle.digest.bind(crypto.subtle);
+  let calls = 0, resume, reached;
+  const paused = new Promise(resolve => { reached = resolve; });
+  const continuation = new Promise(resolve => { resume = resolve; });
+  t.mock.method(crypto.subtle, "digest", async (...args) => {
+    if (++calls === 2) { reached(); await continuation; }
+    return digest(...args);
+  });
+  const importing = install(store);
+  await paused;
+  await store.cancel(manifest.id, store.view().revision);
+  resume();
+  await assert.rejects(importing, { code: "REVISION_CONFLICT" });
+  await store.open();
+  assert.deepEqual(store.view().packages, []);
+  assert.equal(store.view().bytes, 0);
 });
