@@ -9,9 +9,9 @@ Research date: 2026-10-01. This is an investigation, not a merge.
 ## Source identity and comparison method
 
 The donor is the **modified working tree** at
-`/Users/dia/Projects/GitHub/Davidium/zoidium`, not its Git remote. Its HEAD is
+`Davidium/zoidium`, not its Git remote. Its HEAD is
 `0faf124f681dd8ea378ddc5ec49b132c875ef062`. The destination is the modified
-working tree at `/Users/dia/Projects/GitHub/Zoidium`, HEAD
+working tree at the Zoidium checkout, HEAD
 `1d643a2c0f07da342df0fc2320c94bdb491cdfe0`. Neither HEAD describes all the
 code under investigation. Both have substantial local edits, and the donor
 still has the original `rbstxt/zoidium` remote.

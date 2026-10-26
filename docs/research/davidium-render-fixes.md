@@ -1,7 +1,7 @@
 # Davidium render and asset fixes
 
 Date: 2026-10-01. These changes repair the local donor implementations under
-`/Users/dia/Projects/GitHub/Davidium/zoidium` and selected raw implementations
+`Davidium/zoidium` and selected raw implementations
 under `Davidium/openzoid-main/openzoid-main`. No CM3 source/resource files were
 copied into the destination Zoidium checkout.
 

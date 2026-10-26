@@ -7,10 +7,10 @@ original inventory and reproduced failures remain historical evidence.
 ## Scope and placement
 
 Common host and tooling repairs were applied to both
-`/Users/dia/Projects/GitHub/Zoidium` and
-`/Users/dia/Projects/GitHub/Davidium/zoidium`. Repairs to the six donor-only
+the Zoidium checkout and
+`Davidium/zoidium`. Repairs to the six donor-only
 plugins remain in the donor. Raw Node Material/PBR repairs remain in
-`/Users/dia/Projects/GitHub/Davidium/openzoid-main/openzoid-main`. The destination
+`Davidium/openzoid-main`. The destination
 still has 14 plugins; this change does not import six whole packs whose remaining
 rendering and composition contracts need agreement.
 

@@ -1,7 +1,7 @@
 # Davidium tooling and project-storage fixes
 
 Implemented on 2026-10-01 in the modified local working trees. The donor is
-`/Users/dia/Projects/GitHub/Davidium/zoidium`; the destination is this checkout.
+`Davidium/zoidium`; the destination is this checkout.
 Existing destination changes were retained. This note describes implementation,
 not the earlier audit's unmodified behavior.
 

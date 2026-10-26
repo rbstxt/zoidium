@@ -10,10 +10,10 @@ user. It recommends integration work; it does not merge runtime files.
 ## Source identity and comparison scope
 
 The authoritative donor for this report is
-`/Users/dia/Projects/GitHub/Davidium/openzoid-main/openzoid-main`, abbreviated
+`Davidium/openzoid-main`, abbreviated
 `O` below. The sibling Zoidium checkout at
-`/Users/dia/Projects/GitHub/Davidium/zoidium` is `D`. The current target working
-tree at `/Users/dia/Projects/GitHub/Zoidium` is `Z`. Links to `O` and `D` refer
+`Davidium/zoidium` is `D`. The current target working
+tree at the Zoidium checkout is `Z`. Links to `O` and `D` refer
 to these exact local files, including uncommitted changes.
 
 `O` has no `.git` directory. Both Zoidium checkouts have the remote
@@ -61,23 +61,23 @@ incomplete in `Z`. These are different integration jobs.
 
 | Change | Location and evidence | Current status | Recommendation |
 | --- | --- | --- | --- |
-| Procedural Node Material and 31-node graph evaluator/editor | [O/nodes.js](/Users/dia/Projects/GitHub/Davidium/openzoid-main/openzoid-main/nodes.js:1270), [material/nodes.js](/Users/dia/Projects/GitHub/Davidium/openzoid-main/openzoid-main/material/nodes.js:198) | Raw only. Material+ declares Matcap, PBR+, UV Custom, with no node material | Improve runtime and UI before porting |
-| Node graph baked into PBR channels | [O/material/pbr.js](/Users/dia/Projects/GitHub/Davidium/openzoid-main/openzoid-main/material/pbr.js:607) | Raw only. PBR+ texture maps are not graph support | Improve alongside the graph evaluator |
-| Expanded Custom Material | [O/material/custom.js](/Users/dia/Projects/GitHub/Davidium/openzoid-main/openzoid-main/material/custom.js:574) | Raw only. Replaces the native `custom` implementation | Extract selected additions into a new material type; discuss serialized compatibility |
-| Expanded PBR Material | [O/material/pbr.js](/Users/dia/Projects/GitHub/Davidium/openzoid-main/openzoid-main/material/pbr.js:737) | Partially overlaps PBR+; ramps, procedural bump, Fresnel, cel shading, projection and reflection controls remain missing | Port small deterministic features first, retain PBR+ IDs |
-| Animated GIF image decoding and project-time seeking | [O/gif.js](/Users/dia/Projects/GitHub/Davidium/openzoid-main/openzoid-main/gif.js:292) | Raw only | Improve lifecycle and time mapping, then extract as a media module |
-| Image material transparency and opacity | [O/material/texture.js](/Users/dia/Projects/GitHub/Davidium/openzoid-main/openzoid-main/material/texture.js:172) | Raw only | Good early implementation candidate through a small extension patch |
-| Graph Editor 2 | [O/graph-editor-2.0.js](/Users/dia/Projects/GitHub/Davidium/openzoid-main/openzoid-main/graph-editor-2.0.js:1) | Raw only. Easing+ is complementary and does not contain this replacement | Discuss editor scope; refactor before adoption |
-| Expression parser/property additions | [O/core](/Users/dia/Projects/GitHub/Davidium/openzoid-main/openzoid-main/core-1.0.102.js:958) | Raw only except Camera+ implements its own focus helper | Split implemented helpers from advertised stubs; improve context handling |
-| Voronoi Fracture object | [O/core](/Users/dia/Projects/GitHub/Davidium/openzoid-main/openzoid-main/core-1.0.102.js:22708), [D/deformer-objects.js](/Users/dia/Projects/GitHub/Davidium/zoidium/plugins/effector-plus/deformer-objects.js:154) | Extracted in donor Effector+, absent target Effector | Discuss intended fracture quality; then integrate into target Effector |
-| Media composition metadata persistence | [O/core](/Users/dia/Projects/GitHub/Davidium/openzoid-main/openzoid-main/core-1.0.102.js:19951) | Raw support missing from donor Precomp+ | Required fix before Precomp+ integration |
-| Video-track 3D/mute persistence | [O/core](/Users/dia/Projects/GitHub/Davidium/openzoid-main/openzoid-main/core-1.0.102.js:18839) | Raw `track3d` support missing from donor Camera+ serialization | Required round-trip fix before Camera+ integration |
-| Per-camera and sequence DOF, layer depth, film/projection/vibrate, camera layers and 3D footage tracking | [O/core](/Users/dia/Projects/GitHub/Davidium/openzoid-main/openzoid-main/core-1.0.102.js:16370), [D/camera-runtime.js](/Users/dia/Projects/GitHub/Davidium/zoidium/plugins/camera-plus/camera-runtime.js:1428) | Extracted in donor Camera+, missing from target | Use donor plugin as starting point, do not port core twice |
-| Reel Smart Motion Blur controls and video blur/warp history | [O/core](/Users/dia/Projects/GitHub/Davidium/openzoid-main/openzoid-main/core-1.0.102.js:16570), [D/render-layer.js](/Users/dia/Projects/GitHub/Davidium/zoidium/plugins/camera-plus/render-layer.js:179) | Donor Camera+ ports the history ring | Defer the temporal branch until deterministic sampling is defined |
-| Composition panel, switching, precompose, source reveal and clip context actions | [O/ui](/Users/dia/Projects/GitHub/Davidium/openzoid-main/openzoid-main/ui-1.0.72.js:8538), [D/comps.js](/Users/dia/Projects/GitHub/Davidium/zoidium/plugins/precomp-plus/comps.js:194) | Donor Precomp+, missing target | Fix metadata and non-destructive editing model first |
-| Particular, Form, Plexus, C4D lights, shared designer | [O/clipmaker.html](/Users/dia/Projects/GitHub/Davidium/openzoid-main/openzoid-main/clipmaker.html:2084) | Donor Trapcode Suite, missing target | Covered by plugin audit, not raw-only |
-| Optical Flares renderer/editor | [O/clipmaker.html](/Users/dia/Projects/GitHub/Davidium/openzoid-main/openzoid-main/clipmaker.html:2089) | Donor Optical Flares, missing target | Covered by plugin audit, not raw-only |
-| Five legacy effects, VHS/Datamosh setup, export mosh | [O/clipmaker.html](/Users/dia/Projects/GitHub/Davidium/openzoid-main/openzoid-main/clipmaker.html:2082) | Donor Setup Legacy, missing target | Covered by plugin audit, not raw-only |
+| Procedural Node Material and 31-node graph evaluator/editor | [O/nodes.js](Davidium/openzoid-main/nodes.js:1270), [material/nodes.js](Davidium/openzoid-main/material/nodes.js:198) | Raw only. Material+ declares Matcap, PBR+, UV Custom, with no node material | Improve runtime and UI before porting |
+| Node graph baked into PBR channels | [O/material/pbr.js](Davidium/openzoid-main/material/pbr.js:607) | Raw only. PBR+ texture maps are not graph support | Improve alongside the graph evaluator |
+| Expanded Custom Material | [O/material/custom.js](Davidium/openzoid-main/material/custom.js:574) | Raw only. Replaces the native `custom` implementation | Extract selected additions into a new material type; discuss serialized compatibility |
+| Expanded PBR Material | [O/material/pbr.js](Davidium/openzoid-main/material/pbr.js:737) | Partially overlaps PBR+; ramps, procedural bump, Fresnel, cel shading, projection and reflection controls remain missing | Port small deterministic features first, retain PBR+ IDs |
+| Animated GIF image decoding and project-time seeking | [O/gif.js](Davidium/openzoid-main/gif.js:292) | Raw only | Improve lifecycle and time mapping, then extract as a media module |
+| Image material transparency and opacity | [O/material/texture.js](Davidium/openzoid-main/material/texture.js:172) | Raw only | Good early implementation candidate through a small extension patch |
+| Graph Editor 2 | [O/graph-editor-2.0.js](Davidium/openzoid-main/graph-editor-2.0.js:1) | Raw only. Easing+ is complementary and does not contain this replacement | Discuss editor scope; refactor before adoption |
+| Expression parser/property additions | [O/core](Davidium/openzoid-main/core-1.0.102.js:958) | Raw only except Camera+ implements its own focus helper | Split implemented helpers from advertised stubs; improve context handling |
+| Voronoi Fracture object | [O/core](Davidium/openzoid-main/core-1.0.102.js:22708), [D/deformer-objects.js](Davidium/zoidium/plugins/effector-plus/deformer-objects.js:154) | Extracted in donor Effector+, absent target Effector | Discuss intended fracture quality; then integrate into target Effector |
+| Media composition metadata persistence | [O/core](Davidium/openzoid-main/core-1.0.102.js:19951) | Raw support missing from donor Precomp+ | Required fix before Precomp+ integration |
+| Video-track 3D/mute persistence | [O/core](Davidium/openzoid-main/core-1.0.102.js:18839) | Raw `track3d` support missing from donor Camera+ serialization | Required round-trip fix before Camera+ integration |
+| Per-camera and sequence DOF, layer depth, film/projection/vibrate, camera layers and 3D footage tracking | [O/core](Davidium/openzoid-main/core-1.0.102.js:16370), [D/camera-runtime.js](Davidium/zoidium/plugins/camera-plus/camera-runtime.js:1428) | Extracted in donor Camera+, missing from target | Use donor plugin as starting point, do not port core twice |
+| Reel Smart Motion Blur controls and video blur/warp history | [O/core](Davidium/openzoid-main/core-1.0.102.js:16570), [D/render-layer.js](Davidium/zoidium/plugins/camera-plus/render-layer.js:179) | Donor Camera+ ports the history ring | Defer the temporal branch until deterministic sampling is defined |
+| Composition panel, switching, precompose, source reveal and clip context actions | [O/ui](Davidium/openzoid-main/ui-1.0.72.js:8538), [D/comps.js](Davidium/zoidium/plugins/precomp-plus/comps.js:194) | Donor Precomp+, missing target | Fix metadata and non-destructive editing model first |
+| Particular, Form, Plexus, C4D lights, shared designer | [O/clipmaker.html](Davidium/openzoid-main/clipmaker.html:2084) | Donor Trapcode Suite, missing target | Covered by plugin audit, not raw-only |
+| Optical Flares renderer/editor | [O/clipmaker.html](Davidium/openzoid-main/clipmaker.html:2089) | Donor Optical Flares, missing target | Covered by plugin audit, not raw-only |
+| Five legacy effects, VHS/Datamosh setup, export mosh | [O/clipmaker.html](Davidium/openzoid-main/clipmaker.html:2082) | Donor Setup Legacy, missing target | Covered by plugin audit, not raw-only |
 
 The offline resource layer, copied source page, worker/font/shader/material
 payloads, source CSS inlining, popup download changes, experimental media
@@ -94,13 +94,13 @@ gradient/color/checker, image/texture, Fresnel, arithmetic/comparison,
 spectra/blackbody/random color, color processing, projection, and UV transforms.
 The six texture outputs are color, luminance, roughness, metalness, bump,
 and opacity. Fresnel has a separate settings path. Sources are
-[types](/Users/dia/Projects/GitHub/Davidium/openzoid-main/openzoid-main/nodes.js:794),
-[seeded noise](/Users/dia/Projects/GitHub/Davidium/openzoid-main/openzoid-main/nodes.js:61),
-and [graph evaluation](/Users/dia/Projects/GitHub/Davidium/openzoid-main/openzoid-main/nodes.js:1383).
+[types](Davidium/openzoid-main/nodes.js:794),
+[seeded noise](Davidium/openzoid-main/nodes.js:61),
+and [graph evaluation](Davidium/openzoid-main/nodes.js:1383).
 
 The material caches the wrong thing. Both
-[Node Material update](/Users/dia/Projects/GitHub/Davidium/openzoid-main/openzoid-main/material/nodes.js:237)
-and [PBR update](/Users/dia/Projects/GitHub/Davidium/openzoid-main/openzoid-main/material/pbr.js:680)
+[Node Material update](Davidium/openzoid-main/material/nodes.js:237)
+and [PBR update](Davidium/openzoid-main/material/pbr.js:680)
 bake only when the requested time differs from the last baked time by at
 least 1/15 second. The cached image remains from whichever time was visited
 previously. A paused refresh can also change the image after an asynchronous
@@ -126,23 +126,23 @@ silently inherit a 15 fps texture animation limit.
 
 Further required fixes:
 
-- [isAnimated](/Users/dia/Projects/GitHub/Davidium/openzoid-main/openzoid-main/nodes.js:1367)
+- [isAnimated](Davidium/openzoid-main/nodes.js:1367)
   checks animated `noise` and cached GIF `image` only. Source execution
   returned `false` for `ridgedFractal` and `turbulence` with `speedX = 1`,
   though their evaluator accepts time and their controls expose speed.
-- [Node Material prepare](/Users/dia/Projects/GitHub/Davidium/openzoid-main/openzoid-main/material/nodes.js:133)
+- [Node Material prepare](Davidium/openzoid-main/material/nodes.js:133)
   is empty. Graph image loads begin inside evaluation. Export must await
   graph assets before rendering; a temporary fallback is not a final frame.
-- [Image cache](/Users/dia/Projects/GitHub/Davidium/openzoid-main/openzoid-main/nodes.js:726)
+- [Image cache](Davidium/openzoid-main/nodes.js:726)
   uses the asset key alone, shares state between materials, and reads a
   GIF's current globally selected frame. Include project identity and
   requested time, and release asset references when no material uses them.
 - Graph edits call `properties.graph.set()` after a 40 ms timeout.
-  [Commit](/Users/dia/Projects/GitHub/Davidium/openzoid-main/openzoid-main/nodes.js:1707)
+  [Commit](Davidium/openzoid-main/nodes.js:1707)
   does not use the editor's undo operations. Define one undo entry per
   gesture, graph schema/versioning, duplicate-ID/port validation, and a
   bounded node count before integrating imported graph JSON.
-- The [editor](/Users/dia/Projects/GitHub/Davidium/openzoid-main/openzoid-main/nodes.js:1472)
+- The [editor](Davidium/openzoid-main/nodes.js:1472)
   opens a blank browser popup, clones host CSS, and falls back to a fixed
   in-document overlay with Open Sans. Use Zoidium window/dialog ownership,
   local Source Code Pro, keyboard access, focus restoration, scoped styles,
@@ -158,14 +158,14 @@ existing bundle asset resolver and project asset system. Do not import
 The raw Custom Material replaces the behavior of published `custom`.
 Raw PBR uses `pbr`, while Zoidium publishes `pbrplus`. Replacing either
 existing target type without a migration changes old projects. Current
-[PBR+ source](/Users/dia/Projects/GitHub/Zoidium/plugins/material-plus/pbr-plus.js:297)
+[PBR+ source](../../plugins/material-plus/pbr-plus.js:297)
 already supports PBR parameters, map slots, reflection intensity,
 transparency, alpha test and UV tiling. It does not implement the donor's
 graph editor, color ramps, procedural bump controls, Fresnel, AO tinting,
 cel shading, procedural projections or separate reflection/specular layer.
 
-Raw [Custom Material](/Users/dia/Projects/GitHub/Davidium/openzoid-main/openzoid-main/material/custom.js:3)
-and [PBR Material](/Users/dia/Projects/GitHub/Davidium/openzoid-main/openzoid-main/material/pbr.js:3)
+Raw [Custom Material](Davidium/openzoid-main/material/custom.js:3)
+and [PBR Material](Davidium/openzoid-main/material/pbr.js:3)
 duplicate much of this expanded behavior. Consolidate their shared code
 rather than shipping two near-identical new runtimes. Their procedural
 bump uses a reset seeded generator, so it is a reasonable independent port.
@@ -175,7 +175,7 @@ increments after shader compilation and frame-order tests.
 The advertised AO modifies lighting from a texture or bump map; it is not
 scene-space occlusion. The shader explicitly falls back to bump-map
 luminance in
-[custom.js](/Users/dia/Projects/GitHub/Davidium/openzoid-main/openzoid-main/material/custom.js:108).
+[custom.js](Davidium/openzoid-main/material/custom.js:108).
 Ask the author whether this appearance is intended before presenting it
 as a new general AO feature. Validate reflection/specular scaling and
 transparent blending against the target r91 runtime, including Text+,
@@ -189,7 +189,7 @@ save/load validation; do not copy `material/texture.js` into the repository.
 
 ## GIF images and their time model
 
-[gif.js](/Users/dia/Projects/GitHub/Davidium/openzoid-main/openzoid-main/gif.js:97)
+[gif.js](Davidium/openzoid-main/gif.js:97)
 implements decoding, frame disposal/composition, image textures, and
 render/viewport hooks. `seek()` selects a decoded frame from cumulative
 durations using modulo project time, including negative time normalization.
@@ -214,9 +214,9 @@ passes the current base value and property object, writes current frame,
 property and value into shared `PZ.expression.methods`, and exposes
 `PZ.expression.prototype.methods`. Dynamic scalar/group classes separate
 `getBaseValue()` from expression evaluation. Sources are
-[parser](/Users/dia/Projects/GitHub/Davidium/openzoid-main/openzoid-main/core-1.0.102.js:958),
-[context](/Users/dia/Projects/GitHub/Davidium/openzoid-main/openzoid-main/core-1.0.102.js:1072),
-and [dynamic properties](/Users/dia/Projects/GitHub/Davidium/openzoid-main/openzoid-main/core-1.0.102.js:6112).
+[parser](Davidium/openzoid-main/core-1.0.102.js:958),
+[context](Davidium/openzoid-main/core-1.0.102.js:1072),
+and [dynamic properties](Davidium/openzoid-main/core-1.0.102.js:6112).
 
 New helpers include `focusDistanceTo`, `valueAtTime`, identity `property`,
 seeded harmonic `wiggle`, `_propertySeed`, `_wiggleVector`, formatting and
@@ -224,7 +224,7 @@ angle conversions, and quadratic easing aliases. `loopIn`, `loopOut`,
 and `pingPong` simply return their first argument. The ease aliases ignore
 their other arguments. These are explicit stubs or narrower semantics,
 not completed After Effects expression compatibility. See
-[helpers](/Users/dia/Projects/GitHub/Davidium/openzoid-main/openzoid-main/core-1.0.102.js:1181).
+[helpers](Davidium/openzoid-main/core-1.0.102.js:1181).
 
 Port each helper with defined units and examples. `wiggle()` uses the current
 frame as its default time and adds noise to the current base value. Its
@@ -248,9 +248,9 @@ The raw class seeds cells, subdivides triangles, assigns each triangle's
 centroid to the nearest cell and creates fragment surfaces with capped
 boundary loops. It is an approximation of volume fracture, not exact
 Voronoi-plane clipping. Sources are
-[subdivision](/Users/dia/Projects/GitHub/Davidium/openzoid-main/openzoid-main/core-1.0.102.js:22720),
-[assignment](/Users/dia/Projects/GitHub/Davidium/openzoid-main/openzoid-main/core-1.0.102.js:22822),
-and [caps](/Users/dia/Projects/GitHub/Davidium/openzoid-main/openzoid-main/core-1.0.102.js:23100).
+[subdivision](Davidium/openzoid-main/core-1.0.102.js:22720),
+[assignment](Davidium/openzoid-main/core-1.0.102.js:22822),
+and [caps](Davidium/openzoid-main/core-1.0.102.js:23100).
 It allows up to 200 cells, subdivision depth five, and an outer triangle
 budget of 98,304 before caps. That can be expensive on animated upstream
 geometry because it compares all positions and rebuilds cells when they
@@ -262,14 +262,14 @@ simulation through previously played frames. Its cache therefore has a
 plausible deterministic design, but the port must correctly restore
 source geometry/materials and invalidate topology. Multi-material meshes
 take a different path, and cap UVs duplicate one boundary vertex's UV.
-See [fractureGeometry](/Users/dia/Projects/GitHub/Davidium/openzoid-main/openzoid-main/core-1.0.102.js:23222).
+See [fractureGeometry](Davidium/openzoid-main/core-1.0.102.js:23222).
 
 Discuss whether an approximate visual breakup is the desired product,
 what non-manifold/thin/text meshes should do, and whether fragment IDs
 must remain stable while source geometry animates. Then add a namespaced
 object to the existing target Effector pipeline. Do not restore the raw
 numeric object table or overwrite the target's newer Twist/Warp code.
-Existing target [Effector](/Users/dia/Projects/GitHub/Zoidium/plugins/scene-plus/README.md:1)
+Existing target [Effector](../../plugins/scene-plus/README.md:1)
 already restores mesh positions before frame evaluation and handles
 generated Repeater output, so it is the correct integration point.
 
@@ -291,8 +291,8 @@ and clean up observers and animation loops. Decide whether it belongs
 as a selectable alternative editor, an incremental native graph patch,
 or a full replacement. A host editor-registration API would be safer
 than unconditional reassignment. Source is
-[Graph Editor 2](/Users/dia/Projects/GitHub/Davidium/openzoid-main/openzoid-main/graph-editor-2.0.js:1),
-with target [Easing+ lifecycle](/Users/dia/Projects/GitHub/Zoidium/plugins/easing-plus/easing-plus.js:1737).
+[Graph Editor 2](Davidium/openzoid-main/graph-editor-2.0.js:1),
+with target [Easing+ lifecycle](../../plugins/easing-plus/easing-plus.js:1737).
 
 Smaller raw UI changes include property-list `displayName`, definition-level
 action buttons, a custom `getValue` reader, a camera helper refresh callback,
@@ -316,8 +316,8 @@ and ignores disabled tracks in update. Donor Camera+ changes `track3d` in
 memory and adds UI buttons, but needs persistent serialization support.
 Test save/open, restore backups, duplicate tracks, precompose, linked
 media, cross-plugin disabling and composition switching. Relevant raw
-evidence is [track persistence](/Users/dia/Projects/GitHub/Davidium/openzoid-main/openzoid-main/core-1.0.102.js:18839)
-and [media persistence](/Users/dia/Projects/GitHub/Davidium/openzoid-main/openzoid-main/core-1.0.102.js:19951).
+evidence is [track persistence](Davidium/openzoid-main/core-1.0.102.js:18839)
+and [media persistence](Davidium/openzoid-main/core-1.0.102.js:19951).
 
 The extra render-order and camera-ancestor matrix updates, transform-video
 scene ownership, layer rotation X/Y/depth/motion-blur fields, sequence
@@ -327,15 +327,15 @@ It writes a new texture and increments `_mbHead` on every render, with
 no frame-key lookup. The same requested time can sample different
 "previous/next" images according to playback order. Define sample times
 and request exact decoded frames, or omit the history mode initially.
-Source is [raw blur](/Users/dia/Projects/GitHub/Davidium/openzoid-main/openzoid-main/core-1.0.102.js:16609)
-and [donor blur](/Users/dia/Projects/GitHub/Davidium/zoidium/plugins/camera-plus/render-layer.js:179).
+Source is [raw blur](Davidium/openzoid-main/core-1.0.102.js:16609)
+and [donor blur](Davidium/zoidium/plugins/camera-plus/render-layer.js:179).
 
 ## Already integrated work and deliberate exclusions
 
 - Native text spacing and bevel controls, typeface outline creation, and
   staged `ExtrudeGeometry` bevel extensions already exist in target Text+.
-  The target [portability note](/Users/dia/Projects/GitHub/Zoidium/docs/research/openzoid-dof-text-portability.md:43)
-  records parity, and [runtime-resources.js](/Users/dia/Projects/GitHub/Zoidium/tools/runtime-resources.js:840)
+  The target [portability note](../../docs/research/openzoid-dof-text-portability.md:43)
+  records parity, and [runtime-resources.js](../../tools/runtime-resources.js:840)
   patches only generated stages. No second text port is needed.
 - Twist/Warp already exist in the modified target Effector, including
   source-position restoration and subdivision controls. Donor Effector+
