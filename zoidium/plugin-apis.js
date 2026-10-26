@@ -119,7 +119,7 @@
   // CM3's property list looks up the row's first ".editbox" and binds its
   // pz_update to the property's onChanged, so every control must provide one.
   // Custom controls that only render buttons or canvases get a no-op update.
-  function ensureEditbox(element) {
+  function ensureEditbox(element, report) {
     if (!element || typeof element !== "object") return element;
     var editbox = element.classList && element.classList.contains("editbox")
       ? element
@@ -132,6 +132,13 @@
       editbox.pz_update = typeof element.pz_refresh === "function"
         ? function () { element.pz_refresh(); }
         : function () {};
+    }
+    if (editbox && report) {
+      var update = editbox.pz_update;
+      editbox.pz_update = function () {
+        try { return update.apply(this, arguments); }
+        catch (error) { report(error); }
+      };
     }
     return element;
   }
@@ -154,7 +161,7 @@
       throw new Error("ZoidiumPluginApis.propertyControls.register needs a supported CM3 property type");
     }
 
-    var registration = { id: id, type: spec.type, create: spec.create };
+    var registration = { id: id, type: spec.type, create: spec.create, reported: new WeakSet() };
     propertyControlRegistrations[id] = registration;
 
     if (!propertyControlPatches[generator]) {
@@ -165,14 +172,21 @@
           : null;
         var custom = controlId ? propertyControlRegistrations[controlId] : null;
         if (custom && property.definition.type === custom.type) {
-          var result = custom.create.call(this, property, {
-            PZ: global.PZ,
-            THREE: global.THREE,
-            controls: controls,
-            document: global.document,
-            window: global,
-          });
-          if (result) return ensureEditbox(result);
+          var report = function (error) {
+            if (custom.reported.has(property)) return;
+            custom.reported.add(property);
+            console.warn("[Zoidium] Property control failed: " + controlId, error);
+          };
+          try {
+            var result = custom.create.call(this, property, {
+              PZ: global.PZ,
+              THREE: global.THREE,
+              controls: controls,
+              document: global.document,
+              window: global,
+            });
+            if (result) return ensureEditbox(result, report);
+          } catch (error) { report(error); }
         }
         return original.apply(this, arguments);
       };
