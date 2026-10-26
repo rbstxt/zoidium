@@ -10,7 +10,7 @@ Optical Flares を使うと、3D シーンにレンズフレアを配置し、�
 
 1. **Plugins** で **Optical Flares** を有効にします。
 2. シーンの 3D オブジェクトのピッカーを開きます。
-3. **Optical Flares** の下で **Default Lens Flare** または別のプリセットを選択します。
+3. **Optical Flares** の下で **Optical Flares** または別のプリセットを選択します。
 4. フレアのプロパティを選択します。
 5. **Open Optical Flares** をクリックします。
 6. ウィンドウの **Source** セクションで、**Source** を **Object 3D** のままにします。

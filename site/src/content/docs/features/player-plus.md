@@ -4,7 +4,7 @@ description: How Player+ separates viewport drawing from playback and export.
 sidebar:
   label: Player+
 ---
-Player+ adds drawing controls to the player toolbar. Pausing drawing keeps the current viewport image visible while you edit.
+Player+ adds drawing controls to the player toolbar. You can edit a project while viewport drawing is paused.
 
 ## Drawing and playback
 
@@ -18,4 +18,4 @@ The [heavy-project preview guide](/docs/how-to/preview-heavy-project/) describes
 
 **Preview quality** offers **Full quality**, **1/2 quality**, **1/4 quality**, and **1/8 quality**. Each fraction scales both viewport pixel dimensions. The choice persists locally.
 
-Player+ changes the editor viewport size. Project resolution and export settings remain separate. The [preview cache](/docs/features/preview-cache/) also has separate memory and quality controls.
+Player+ changes the editor viewport size. Project resolution and export settings remain separate. The [preview cache](/docs/features/preview-cache/) has its own memory budget.

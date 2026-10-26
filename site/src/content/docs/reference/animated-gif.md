@@ -6,6 +6,8 @@ sidebar:
 ---
 Animated GIF supports GIF87a and GIF89a image assets. The decoder supports palettes, transparency, interlace, and disposal modes 0 through 3.
 
+GIF detection uses the image asset's filename or URL with a `.gif` extension, ignoring letter case and an optional query or fragment.
+
 ## Timing
 
 The decoded animation loops, including for negative media time. A clip's media time selects the frame. Without a clip context, project frame divided by sequence rate supplies the time.

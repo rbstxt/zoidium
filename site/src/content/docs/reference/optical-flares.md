@@ -20,7 +20,7 @@ Optical Flares is a 3D object with a configurable element stack. The labels belo
 
 The active layer camera projects a 3D source. A source behind the camera or beyond the edge fade region disappears. Elements lie along the axis from the source through **Center**.
 
-Camera-distance size scaling uses `(reference / distance) ^ falloff`. This is separate from the element-axis scaling switches below.
+Camera-distance size scaling uses `(reference / distance) ^ falloff`, clamped to 0.05 through 20. Distance is the source's forward depth in camera space. This is separate from the element-axis scaling switches below.
 
 ## Global and advanced controls
 
@@ -74,6 +74,8 @@ These defaults apply when an element is added. Preset stacks can override them. 
 ## Presets, limits, and saved state
 
 The five base presets are **Default Lens Flare**, **Anamorphic Blue**, **Sparkle Burst**, **Cinematic Warm**, and **Sci-Fi Plasma**.
+
+The 3D object picker names the default preset **Optical Flares**. The options window's Flare browser names it Default Lens Flare.
 
 The renderer reads at most the first 24 elements in stack order. Elements beyond that range do not render. An empty saved stack stays empty.
 

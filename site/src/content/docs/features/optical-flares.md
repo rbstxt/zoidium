@@ -10,7 +10,7 @@ Use Optical Flares to place a lens flare in a 3D scene and edit its component el
 
 1. In **Plugins**, enable **Optical Flares**.
 2. Open the scene's 3D object picker.
-3. Under **Optical Flares**, choose **Default Lens Flare** or another preset.
+3. Under **Optical Flares**, choose **Optical Flares** or another preset.
 4. Select the flare's properties.
 5. Click **Open Optical Flares**.
 6. In the window's **Source** section, keep **Source** set to **Object 3D**.

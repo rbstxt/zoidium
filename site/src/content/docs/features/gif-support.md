@@ -20,7 +20,7 @@ For a large GIF, check the [decoder limits](/docs/reference/animated-gif/) befor
 GIFs loop. Inside a clip, the selected GIF frame follows that clip's media time, including its offset and retiming.
 
 1. Select the clip that contains the GIF consumer.
-2. Adjust the clip's media-time animation to change the GIF timing.
+2. Animate the clip's **Time** property to change the GIF timing.
 3. Inspect a frame near the loop boundary.
 4. To verify repeatable timing, return to an earlier frame.
 

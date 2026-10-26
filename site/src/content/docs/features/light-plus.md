@@ -14,8 +14,17 @@ Single Color and Matcap materials do not respond to lights. For a visible lighti
 2. Open the scene's 3D object picker.
 3. Open **Light+**.
 4. Choose **Spot light**, **Point light**, **Directional light**, or **Hemisphere light**.
-5. For a positional light, adjust its position in the native property panel.
+5. For a positional light, adjust **Position** in the native property panel.
 6. Inspect the result on an object in the same scene.
+
+## Adjust the light
+
+1. For Spot, Point, or Directional lights, set **Color** and **Intensity**.
+2. For Spot or Directional lights, adjust **Target** to aim the light.
+3. For a Spot light, adjust **Angle** to change the cone width.
+4. For a Hemisphere light, set **Sky color**, **Ground color**, and **Intensity**.
+
+Intensity accepts 0 to 100. Spot Angle accepts 0 to 90 degrees. Hemisphere lights have no Position or Target rows.
 
 ## Choose the light provider
 

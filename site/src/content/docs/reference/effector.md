@@ -81,7 +81,7 @@ The editor shows field and falloff guides for linear, box, sphere, and cylinder 
 | **Gravity**, **Randomness** | Gravity moves pieces along effector -Y. Randomness reduces motion strength by seeded amounts, 0 to 100. Both default to 0. |
 | **Characters**, **Invert selection** | One-based text ranges, such as `1,3-5`, and selection inversion. Spaces count. Newlines do not. Empty Characters selects all. Invalid nonempty ranges select none. |
 
-Character selection requires Text+. A nonempty selection excludes non-character meshes. Invert selection does not change the empty selection's all-characters behavior.
+Character selection requires Text+. Non-text sources ignore character ranges. Invert selection does not change the empty selection's all-characters behavior.
 
 Fracture limits are 40,000 source triangles, 400,000 output triangles, and 10,000,000 clipping operations per build. A build over those limits leaves the source unfractured. Invalid or excessive cap contours can fall back to open fragments.
 
