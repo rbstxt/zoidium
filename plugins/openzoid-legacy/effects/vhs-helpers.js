@@ -9,9 +9,18 @@
 const VHS_TRAIL_DECAY = 0.6;
 // New effects use a clip-local clock plus an offset. Older explicit clocks
 // retain their absolute value, including custom expressions and keyframes.
+function effectRate(effect) {
+    // Detached effects (clip deleted) throw when reading parentProject.
+    // Fall back to the default project rate.
+    try {
+        return Number(effect.parentProject?.sequence?.properties?.rate?.get?.()) || 30;
+    } catch (_error) {
+        return 30;
+    }
+}
 function effectTime(effect, frame) {
     const props = effect.properties;
-    const rate = Number(effect.parentProject?.sequence?.properties?.rate?.get?.()) || 30;
+    const rate = effectRate(effect);
     const value = Number(props.time.get(frame));
     const clock = Number.isFinite(value) ? value : 0;
     return props.timeMode.get() === 0 ? clock : Number(frame || 0) / rate + clock;
@@ -145,6 +154,7 @@ const vhsProperties = {
 
 module.exports = {
   VHS_TRAIL_DECAY,
+  effectRate,
   effectTime,
   loadEffectTime,
   vhsTrailMix,

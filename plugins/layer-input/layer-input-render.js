@@ -212,9 +212,18 @@ module.exports = function createRender(state, deps) {
     }
   }
 
+  function consumerProject(consumer) {
+    // Detached consumers (clip deleted) throw when reading parentProject.
+    try {
+      return consumer?.parentProject || null;
+    } catch (_error) {
+      return null;
+    }
+  }
+
   function releaseSourceImage(consumer) {
     if (consumer._zoidiumSourceImage) {
-      consumer.parentProject.assets.unload(consumer._zoidiumSourceImage);
+      consumerProject(consumer)?.assets?.unload?.(consumer._zoidiumSourceImage);
       consumer._zoidiumSourceImageTexture?.dispose?.();
     }
     consumer._zoidiumSourceImage = null;
@@ -224,7 +233,9 @@ module.exports = function createRender(state, deps) {
   function loadSourceImage(consumer, value) {
     releaseSourceImage(consumer);
     if (!value) return;
-    const image = new state.PZ.asset.image(consumer.parentProject.assets.load(value));
+    const assets = consumerProject(consumer)?.assets;
+    if (!assets) return;
+    const image = new state.PZ.asset.image(assets.load(value));
     consumer._zoidiumSourceImage = image;
     const texture = image.getTexture(true);
     texture.minFilter = texture.magFilter = THREE.LinearFilter;

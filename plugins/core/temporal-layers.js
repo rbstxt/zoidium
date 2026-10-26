@@ -33,6 +33,20 @@
     }
   }
 
+  function getSequenceForClip(clip) {
+    try {
+      if (clip?.parentProject?.sequence) return clip.parentProject.sequence;
+    } catch (_error) {
+      // Detached clips have no project link; fall through to the safe lookup.
+    }
+    try {
+      return clip?.tryGetParentOfType?.(PZ.sequence) || null;
+    } catch (_error) {
+      // Detached clips belong to no sequence.
+      return null;
+    }
+  }
+
   function isTopLevelClipLayer(layer, clip) {
     return Boolean(layer && clip && clip.object === layer);
   }
@@ -408,7 +422,7 @@
     if (!found || !clip) return projectFrame;
     const layer = clip?.object;
     if (!layer) return projectFrame;
-    const sequence = clip?.parentProject?.sequence || null;
+    const sequence = getSequenceForClip(clip);
     const localFrame = projectFrame - finiteNumber(clip.start, 0);
     const mapped = getTemporalLayerFrame(layer, localFrame, sequence);
     return mapped ? mapped.projectFrame : projectFrame;
@@ -607,6 +621,7 @@
     installSingleEvaluation,
     getSequenceForLayer: getSequenceForLayer,
     getClipForLayer: getClipForLayer,
+    getSequenceForClip: getSequenceForClip,
     isTopLevelClipLayer: isTopLevelClipLayer,
     getProjectRate: getProjectRate,
     isAdjustmentLayer: isAdjustmentLayer,

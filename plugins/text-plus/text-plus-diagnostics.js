@@ -178,7 +178,14 @@ function watchFontLoad(textObject) {
 
 function reportUnavailableFont(textObject) {
   const wrapper = textObject?.font;
-  const project = textObject?.parentProject;
+  // Detached text (clip deleted) throws when reading parentProject. Without
+  // a project link the editor comparison cannot run, so stay silent.
+  let project = null;
+  try {
+    project = textObject?.parentProject || null;
+  } catch (_error) {
+    project = null;
+  }
   const projectReady = !!project && state.editor?.project === project;
   if (!wrapper) {
     if (projectReady) reportTextFontIssue(textObject, "font-missing");
