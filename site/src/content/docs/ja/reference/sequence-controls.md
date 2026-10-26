@@ -4,7 +4,7 @@ description: コントロールの種類、初期値、スライダーの設定�
 sidebar:
   label: Sequence Controls
 ---
-Expressions+ は各シーケンスに **Controls** リストを追加します。上限はシーケンスごとに256コントロールです。各コントロールはネイティブのアニメーションプロパティです。
+Expressions+ は各シーケンスに **Controls** リストを追加します。上限はシーケンスごとに 256 コントロールです。各コントロールはネイティブのアニメーションプロパティです。
 
 
 ## コントロールの種類
@@ -25,6 +25,6 @@ Expressions+ は各シーケンスに **Controls** リストを追加します�
 
 **Slider settings…** は **min**、**max**、**step** を表示します。値は有限で、max は min 以上、step は正の値である必要があります。
 
-**Link to control…** は一致するプロパティの型を一覧にします。数値のプロパティは Checkbox にも対応します。接続は `control(name, id)` の式を設定します。固定の ID は名前を変えても接続を保持します。
+**Link to control…** は一致するプロパティの型を一覧にします。数値のプロパティにも Checkbox を接続できます。接続は `control(name, id)` の式を設定します。固定の ID は名前を変えても接続を保持します。
 
 [Expressions+ を使う](/docs/ja/features/expressions-plus/)
