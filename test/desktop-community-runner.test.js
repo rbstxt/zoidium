@@ -48,3 +48,13 @@ test("runner response and early meta CSP permit only fixed nonce script and loca
   const nonce = /nonce-([a-f0-9]+)/.exec(policy)[1]; assert.ok(html.includes('nonce="' + nonce + '"'));
   for (const forbidden of ["'unsafe-eval'", "report-uri", "report-to", "sourceMappingURL", "http://", "https://"]) assert.equal(policy.includes(forbidden), false);
 });
+
+test("runner refuses unknown bootstrap ownership even before a window exists", () => {
+  let listener;
+  const session = new EventEmitter(); session.webRequest = { onBeforeRequest: fn => { listener = fn; } };
+  for (const name of ["setPermissionRequestHandler", "setPermissionCheckHandler", "setDevicePermissionHandler", "setDisplayMediaRequestHandler"]) session[name] = () => {};
+  installSessionPolicy(session, "http://127.0.0.1:12345/runner", () => undefined);
+  let cancelled;
+  listener({ url: "http://127.0.0.1:12345/runner", method: "GET", resourceType: "mainFrame" }, result => { cancelled = result.cancel; });
+  assert.equal(cancelled, true);
+});

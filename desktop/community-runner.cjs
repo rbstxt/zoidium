@@ -4,7 +4,6 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { randomBytes } = require("node:crypto");
 const S = require("../zoidium/community-safe-json");
-const P = require("../zoidium/community-package");
 const V = require("../zoidium/community-protocol");
 
 // This document runs only trusted bootstrap code. Package source enters the
@@ -43,8 +42,9 @@ function installSessionPolicy(session, bootstrapURL, getContentsId) {
   // This module owns the session and its sole WebRequest listener. It does
   // not infer worker ownership from frame, referrer, or initiator metadata.
   session.webRequest.onBeforeRequest((details, callback) => {
-    const allow = available && details.url === bootstrapURL && details.method === "GET" &&
-      details.resourceType === "mainFrame" && details.webContentsId === getContentsId();
+    const owner = getContentsId();
+    const allow = Number.isInteger(owner) && available && details.url === bootstrapURL && details.method === "GET" &&
+      details.resourceType === "mainFrame" && details.webContentsId === owner;
     if (allow) available = false;
     callback({ cancel: !allow });
   });
