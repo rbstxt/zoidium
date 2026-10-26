@@ -26,14 +26,14 @@
       "id": "core",
       "name": "Zoidium Core",
       "author": "Zoidium",
-      "version": "78",
+      "version": "79",
       "visibility": "hidden",
       "alwaysEnabled": true,
       "tagline": "Built-in core extensions",
       "description": "Hidden built-in extensions that always run. Not shown in the Plugins panel and never stored in projects.",
-      "manifest": "./plugins/core/manifest.json?v=78",
-      "bundle": "./plugins/core/bundle.json?v=78",
-      "integrity": "sha256-dfaBlK/c1z5AnIScC5Tpc5kgm9cp+K6a4PQ9wqfOLqQ="
+      "manifest": "./plugins/core/manifest.json?v=79",
+      "bundle": "./plugins/core/bundle.json?v=79",
+      "integrity": "sha256-t7EN/Knyhu8Bn5gjPjStXkCvJ4H3lSnWgRu+7y07uFY="
     },
     {
       "id": "easing-plus",
@@ -212,7 +212,7 @@
       "category": "scene",
       "name": "Effector",
       "author": "Zoidium",
-      "version": "33",
+      "version": "34",
       "defaultEnabled": true,
       "itemCount": 7,
       "format": "3D effectors",
@@ -220,9 +220,9 @@
       "color": "#6c7fb5",
       "description": "Adds procedural repeaters plus Twist, Warp and Voronoi Fracture effectors to 3D Scene.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/scene-plus/manifest.json?v=33",
-      "bundle": "./plugins/scene-plus/bundle.json?v=33",
-      "integrity": "sha256-fDsQrgpZBuPDKuaRMJ4HdLWzyCh+cYO2SwUy7bWF79o="
+      "manifest": "./plugins/scene-plus/manifest.json?v=34",
+      "bundle": "./plugins/scene-plus/bundle.json?v=34",
+      "integrity": "sha256-vV1uZNQOniU8+W2/BPUqt9IcZ+kLmjXEY9qGeu/JXek="
     },
     {
       "id": "material-plus",
@@ -279,16 +279,16 @@
       "category": "scene",
       "name": "Rowbyte & Red Giant Suite",
       "author": "DaviFX",
-      "version": "41",
+      "version": "42",
       "itemCount": 14,
       "format": "3D objects",
       "tagline": "Particular, Form, Plexus and C4D lights",
       "color": "#c9a13b",
       "description": "Trapcode Particular, Form and Plexus 3D objects with floating designer windows, deterministic simulation and audio analysis, plus C4D-style lights.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/trapcode-suite/manifest.json?v=41",
-      "bundle": "./plugins/trapcode-suite/bundle.json?v=41",
-      "integrity": "sha256-9DhXdKKJdO3ekH6/kR1Sa5lU1ZEiwTyVTKQmAbBSxVs="
+      "manifest": "./plugins/trapcode-suite/manifest.json?v=42",
+      "bundle": "./plugins/trapcode-suite/bundle.json?v=42",
+      "integrity": "sha256-NCdnLJluH2aM7JIJYP1vMzTpWBwbRFNlctjHajUFwcs="
     },
     {
       "id": "optical-flares",
@@ -429,16 +429,16 @@
       "category": "adjustment",
       "name": "Magic Looks",
       "author": "DaviFX",
-      "version": "19",
+      "version": "20",
       "itemCount": 29,
       "format": "setup",
       "tagline": "Looks-style color grading",
       "color": "#f7941d",
       "description": "Magic Bullet Looks-style color grading: 29 color, light and lens tools in a reorderable chain with look presets and a floating setup window.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/magic-looks/manifest.json?v=19",
-      "bundle": "./plugins/magic-looks/bundle.json?v=19",
-      "integrity": "sha256-r6kvxXvxEPkU4EKKYnt456+QNGq+ZBOvqbE0GgkbfMU="
+      "manifest": "./plugins/magic-looks/manifest.json?v=20",
+      "bundle": "./plugins/magic-looks/bundle.json?v=20",
+      "integrity": "sha256-E3yOK3HZMZB+KxQT0umDPn1xj/kzyDDJmaAn8+4F6P0="
     },
     {
       "id": "layer-input",
