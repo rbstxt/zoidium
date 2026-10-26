@@ -10,69 +10,77 @@ C.Error = (message) => {
 };
 // Containment tests per work unit (about one microsecond each).
 const CONTAINMENT_PER_UNIT = 200;
-function intersectionBudget(work) {
-  const proto = C.Clipper.prototype,
-    original = proto.IntersectEdges;
-  const restore = [];
-  for (const name of ["BuildIntersectList", "FixupOutPolygon", "DoSimplePolygons", "JoinCommonEdges", "ProcessEdgesAtTopOfScanbeam"]) {
-    const saved = proto[name];
-    if (!saved) continue;
-    proto[name] = function (...args) { check(); return saved.apply(this, args); };
-    restore.push(() => { proto[name] = saved; });
-  }
-  const simple = proto.DoSimplePolygons;
-  proto.DoSimplePolygons = function () {
-    // The native pass is quadratic even when there is nothing to split.
-    // A linear precheck is exact: without repeated coordinates it is a no-op.
-    for (const record of this.m_PolyOuts) {
-      check();
-      if (!record.Pts || record.IsOpen) continue;
-      const seen = new Set();let point=record.Pts;
-      do {
-        const key=point.Pt.X+","+point.Pt.Y;
-        if(seen.has(key))return simple.call(this);
-        seen.add(key);point=point.Next;
-      }while(point!==record.Pts);
-    }
+// Clipper is private to this bundle. Keep its hot methods stable between
+// operations, and charge work only while a clipping operation is active.
+let clippingWork = null;
+const proto = C.Clipper.prototype;
+for (const name of ["BuildIntersectList", "FixupOutPolygon", "JoinCommonEdges", "ProcessEdgesAtTopOfScanbeam"]) {
+  const saved = proto[name];
+  proto[name] = function (...args) {
+    if (clippingWork) check();
+    return saved.apply(this, args);
   };
-  // JoinCommonEdges runs a containment search whose cost is the product of
-  // the two rings' lengths, and polygon appends and area tests walk whole
-  // rings; together they dominate dense self-crossing strokes. Charge their
-  // cost before they run (measuring a ring is one linear walk).
-  const ring = (point) => { let length = 0, current = point; do { length++; current = current.Next; } while (current !== point && length < 1e6); return length; };
-  for (const [name, cost] of [
-    ["Poly2ContainsPoly1", (inner, outer) => ring(inner) * ring(outer) / CONTAINMENT_PER_UNIT],
-    ["UpdateOutPtIdxs", (record) => ring(record.Pts) / CONTAINMENT_PER_UNIT],
-    // Ring walks repeated for every polygon append and area test.
-    ["GetBottomPt", (point) => ring(point) / CONTAINMENT_PER_UNIT],
-    ["Area", (point) => (point ? ring(point) : 0) / CONTAINMENT_PER_UNIT],
-  ]) {
-    const saved = proto[name];
-    if (!saved) continue;
-    proto[name] = function (...args) { check(1 + cost(...args)); return saved.apply(this, args); };
-    restore.push(() => { proto[name] = saved; });
+}
+const simplePolygons = proto.DoSimplePolygons;
+proto.DoSimplePolygons = function () {
+  if (!clippingWork) return simplePolygons.call(this);
+  // Without a repeated coordinate the original quadratic pass is a no-op.
+  for (const record of this.m_PolyOuts) {
+    check();
+    if (!record.Pts || record.IsOpen) continue;
+    const seen = new Set();
+    let point = record.Pts;
+    do {
+      const key = point.Pt.X + "," + point.Pt.Y;
+      if (seen.has(key)) {
+        check();
+        return simplePolygons.call(this);
+      }
+      seen.add(key);
+      point = point.Next;
+    } while (point !== record.Pts);
   }
-  let probes = 0;
-  // These predicates also run inside Clipper's quadratic duplicate search
-  // and active-edge sorting, before IntersectEdges gets a chance to run.
-  for (const [owner, name] of [[C.IntPoint, "op_Equality"], [C.Clipper, "TopX"]]) {
-    const saved = owner[name];
-    owner[name] = function (...args) { if ((++probes & 1023) === 0) check(); return saved.apply(this, args); };
-    restore.push(() => { owner[name] = saved; });
-  }
-  let visits = 0;
-  proto.IntersectEdges = function (...args) {
-    if ((visits & 255) === 0) check();
-    if (++visits > MAX_INTERSECTIONS)
+};
+// Containment searches charge the product of the two rings' lengths.
+// Polygon appends and area tests charge their linear ring walks.
+const ring = (point) => { let length = 0, current = point; do { length++; current = current.Next; } while (current !== point && length < 1e6); return length; };
+for (const [name, cost] of [
+  ["Poly2ContainsPoly1", (inner, outer) => ring(inner) * ring(outer) / CONTAINMENT_PER_UNIT],
+  ["UpdateOutPtIdxs", (record) => ring(record.Pts) / CONTAINMENT_PER_UNIT],
+  ["GetBottomPt", (point) => ring(point) / CONTAINMENT_PER_UNIT],
+  ["Area", (point) => (point ? ring(point) : 0) / CONTAINMENT_PER_UNIT],
+]) {
+  const saved = proto[name];
+  proto[name] = function (...args) {
+    if (clippingWork) check(1 + cost(...args));
+    return saved.apply(this, args);
+  };
+}
+// These predicates run inside duplicate searches and active-edge sorting,
+// before IntersectEdges gets a chance to run. Reset counts per operation.
+for (const [owner, name] of [[C.IntPoint, "op_Equality"], [C.Clipper, "TopX"]]) {
+  const saved = owner[name];
+  owner[name] = function (...args) {
+    if (clippingWork && (++clippingWork.probes & 1023) === 0) check();
+    return saved.apply(this, args);
+  };
+}
+const intersectEdges = proto.IntersectEdges;
+proto.IntersectEdges = function (...args) {
+  if (clippingWork) {
+    if ((clippingWork.visits & 255) === 0) check();
+    if (++clippingWork.visits > MAX_INTERSECTIONS)
       throw Error("Shape+ clipping intersection budget exceeded");
-    return original.apply(this, args);
-  };
-  // Clipper is synchronous and private to this bundle. Restore even on errors.
+  }
+  return intersectEdges.apply(this, args);
+};
+function intersectionBudget(work) {
+  const previous = clippingWork;
+  clippingWork = { probes: 0, visits: 0 };
   try {
     return work();
   } finally {
-    proto.IntersectEdges = original;
-    for (const reset of restore) reset();
+    clippingWork = previous;
   }
 }
 function integerPaths(paths, maxPoints = MAX_POINTS, minPoints = 3) {
@@ -95,14 +103,6 @@ function integerPaths(paths, maxPoints = MAX_POINTS, minPoints = 3) {
 function clip(subject, other, mode) {
   const engine = new C.Clipper(C.Clipper.ioStrictlySimple),
     result = [];
-  let visits = 0;
-  const intersect = engine.IntersectEdges;
-  engine.IntersectEdges = function (...args) {
-    if ((visits & 255) === 0) check();
-    if (++visits > MAX_INTERSECTIONS)
-      throw Error("Shape+ clipping intersection budget exceeded");
-    return intersect.apply(this, args);
-  };
   engine.AddPaths(subject, C.PolyType.ptSubject, true);
   engine.AddPaths(other, C.PolyType.ptClip, true);
   const types = {
