@@ -15,7 +15,8 @@ const { runtimeSource } = require("./community-runtime-source");
 const { pack } = require("./pack-community-plugin");
 const V = require("../zoidium/community-protocol");
 const B = require("../zoidium/community-bootstrap");
-const lock = "/tmp/zoidium-browser.lock";
+// Optional: serialize browser runs with other local tools through a lock directory.
+const lock = process.env.ZOIDIUM_BROWSER_LOCK || "";
 const report = { started: new Date().toISOString(), cases: [], assertions: [] };
 function check(condition, name) { assert.ok(condition, name); report.assertions.push(name); }
 async function acquire() {
@@ -185,7 +186,7 @@ async function main() {
   const netlog = path.join(folder, "netlog.json");
   let browser, fixture, locked = false;
   try {
-    await acquire(); locked = true;
+    if (lock) { await acquire(); locked = true; }
     fixture = await startFixture();
     browser = await chromium.launch({ headless: true, args: ["--log-net-log=" + netlog, "--net-log-capture-mode=Default"] });
     report.chromium = browser.version();

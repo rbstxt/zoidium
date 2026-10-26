@@ -125,10 +125,10 @@ pnpm exec playwright install chromium
 pnpm run test:community-network
 ```
 
-The browser suite fails if Chromium is missing. It acquires
-`/tmp/zoidium-browser.lock` before it starts local servers or a browser.
-It waits for the lock and releases the lock after cleanup. Do not remove a
-lock owned by another process. To save detailed measurements, set
+The browser suite fails if Chromium is missing. To serialize browser runs
+with other local tools, set `ZOIDIUM_BROWSER_LOCK` to a lock directory path.
+The suite then waits for that lock before it starts local servers or a
+browser, and releases it after cleanup. To save detailed measurements, set
 `ZOIDIUM_COMMUNITY_NETWORK_REPORT` to an output JSON file path.
 
 Before changing the runner, run `pnpm run verify` and the browser suite.
