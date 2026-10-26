@@ -172,21 +172,23 @@ function create(gl) {
         }
       }
       for (let warp = 0; warp < warps; warp++) {
-        gl.draw(renderer, copy, targets[2], {
-          uImage: targets[bufferIndex].texture,
-        });
+        // Keep the warp immutable and refine through the other two targets.
+        // All three targets use the same field format and nearest filtering.
+        const warpTexture = targets[bufferIndex].texture;
+        const refinementIndices = [0, 1, 2].filter(index => index !== bufferIndex);
         for (let iteration = 0; iteration < iterations; iteration++) {
-          gl.draw(renderer, refine, targets[1 - bufferIndex], {
+          const nextIndex = refinementIndices[iteration % 2];
+          gl.draw(renderer, refine, targets[nextIndex], {
             uCurrent: images[currentIndex][levelIndex].texture,
             uOther: images[otherIndex][levelIndex].texture,
             uFlow: targets[bufferIndex].texture,
-            uWarp: targets[2].texture,
+            uWarp: warpTexture,
             uSize: size,
             uProject: project,
             uLimit: limit,
             uSmoothness: settings.smoothness / 100,
           });
-          bufferIndex = 1 - bufferIndex;
+          bufferIndex = nextIndex;
         }
       }
       previous = targets[bufferIndex].texture;
@@ -282,7 +284,9 @@ function create(gl) {
         uRadius: 0,
       });
       let index = 0;
-      for (let radius = 1; radius <= 256; radius *= 2) {
+      // Larger offsets leave the image in every nonzero direction. The center
+      // anchor already passed the same connection test at the preceding radius.
+      for (let radius = 1; radius <= 256 && radius < Math.max(...sizes[0]); radius *= 2) {
         gl.draw(renderer, propagate, pair[1 - index], {
           ...values,
           uAnchors: pair[index].texture,
