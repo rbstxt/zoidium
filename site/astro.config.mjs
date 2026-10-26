@@ -20,6 +20,8 @@ export default defineConfig({
         { label: 'Plugin manager', translations: { ja: 'プラグインマネージャー' }, slug: 'development/plugin-manager' },
       ] },
       { label: 'Feature guides', translations: { ja: '機能ガイド' }, items: [{ autogenerate: { directory: 'features' } }] },
+      { label: 'How-to guides', translations: { ja: '操作ガイド' }, items: [{ autogenerate: { directory: 'how-to' } }] },
+      { label: 'Reference', translations: { ja: 'リファレンス' }, items: [{ autogenerate: { directory: 'reference' } }] },
       { label: 'Shader authoring', translations: { ja: 'シェーダーの作成' }, items: [
         { label: 'Custom Shader basics', translations: { ja: 'Custom Shader の基本' }, slug: 'shaders/basics' },
         { label: 'Property controls', translations: { ja: 'プロパティの種類' }, slug: 'development/shader-properties' },

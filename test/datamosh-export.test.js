@@ -235,6 +235,28 @@ test("a failed pass falls back to the clean render with a failure note", async (
   assert.equal(h.navigated.length, 1);
 });
 
+test("at-cuts mosh with no clip cuts delivers the original blob and filename", async () => {
+  const h = createHarness();
+  loadModule().activate(h.context);
+  const device = new h.Device(h.exporter, h.editor);
+  device.createOptionsPage();
+  device.params.mosh = 2;
+  h.editor.sequence.videoTracks = [{ clips: [] }];
+  assert.deepEqual(Array.from(h.PZ.datamoshRender.cutTimesMs(h.editor.sequence)), []);
+  const clean = new Blob([webmBytes()], { type: "video/webm" });
+  h.PZ.downloadBlob = clean;
+  h.PZ.downloadFilename = "clean.webm";
+  h.PZ.datamoshRender.mosh = () => assert.fail("No cuts must skip the mosh pass.");
+  device.createFinishedPage();
+  await flushAsync();
+  assert.equal(h.PZ.downloadBlob, clean);
+  assert.deepEqual(new Uint8Array(await h.PZ.downloadBlob.arrayBuffer()), webmBytes());
+  assert.equal(h.PZ.downloadFilename, "clean.webm");
+  assert.equal(device.moshNote, "True mosh: no clip cuts to mosh. Clean render delivered.");
+  assert.equal(h.navigated.length, 1);
+  assert.equal(h.navigated[0].children.length, 4, "the finished page includes the note");
+});
+
 test("cancel during the pass delivers nothing and keeps the clean file", async () => {
   const h = createHarness();
   loadModule().activate(h.context);
