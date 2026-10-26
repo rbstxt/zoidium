@@ -44,7 +44,9 @@
           const promise = Promise.resolve(placeholder(type)); promise._zoidiumCommunity = true;
           PZ.effect.fnList[type] = promise;
         }
-        return create.apply(this, arguments);
+        const effect = create.apply(this, arguments);
+        if (isCommunity(type)) instances.add(effect);
+        return effect;
       };
       PZ.effect.create.__zoidiumCommunity = true;
     }

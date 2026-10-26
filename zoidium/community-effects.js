@@ -78,13 +78,13 @@
       V.message(message); V.requestPayload(message, session.bundle);
       session.queued++;
       const work = session.tail.then(async () => {
-        if (!valid(effect, session) || !sameStamp(authority, stamp(effect, authority.input.frame))) return null;
+        if (!valid(effect, session) || instance.generation !== message.instanceGeneration || !sameStamp(authority, stamp(effect, authority.input.frame))) return null;
         if (!await store.authorized(session.id, session.hash)) { stop(session); return null; }
         const reply = await session.runner.request(message);
         V.matches(reply, message);
         if (reply.operation === "error") throw new Error("Community guest failed.");
         V.result(reply.payload, instance.declaration, operation);
-        if (!valid(effect, session) || !sameStamp(authority, stamp(effect, authority.input.frame)) ||
+        if (!valid(effect, session) || instance.generation !== message.instanceGeneration || !sameStamp(authority, stamp(effect, authority.input.frame)) ||
             !await store.authorized(session.id, session.hash)) return null;
         return H.clone(reply.payload);
       });
@@ -117,12 +117,15 @@
           });
         };
         effect.load = async data => {
+          if (instance.unloaded) return;
+          instance.generation++; effect.pass?.release(); effect.pass = null; instance.window?.close();
           instance.project = effect.parentProject; instance.receipt = null;
           const record = data || { type: effect.type };
           H.instances.add(effect); session.effects.add(effect);
           try {
             if (!previewEnabled() || session.closed) throw new Error("Community package is disabled or unavailable.");
             H.loadValues(effect, declaration, record, session.runner.binding);
+            delete effect._communityOpaque;
             effect.pass = makePass(declaration.template, () => {
               if (!valid(effect, session) || !instance.receipt) return 1;
               try {
@@ -165,7 +168,11 @@
     }
     async function activate(id) {
       if (disposed || !previewEnabled()) return false;
-      if (sessions.has(id)) return !sessions.get(id).closed;
+      if (sessions.has(id)) {
+        if (sessions.get(id).closed) throw new Error("Reload the editor to restart this community package.");
+        return true;
+      }
+      if (store.view().safeMode) return false;
       const item = store.view().packages.find(p => p.id === id);
       if (!item?.enabled || !item.selected || item.quarantine) return false;
       if (typeof runtimeSource !== "string" || !runtimeSource.length) throw new Error("Trusted community runtime is unavailable. Rebuild the runtime stage.");
@@ -197,6 +204,7 @@
       activate,
       async reconcile() {
         for (const s of sessions.values()) if (!await store.authorized(s.id, s.hash)) stop(s);
+        if (store.view().safeMode) return;
         for (const p of store.view().packages) if (p.enabled && !p.quarantine) await activate(p.id);
       },
       dispose() { if (disposed) return; disposed = true; for (const s of sessions.values()) stop(s); unregister?.(); },
