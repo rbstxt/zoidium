@@ -489,11 +489,14 @@
       });
       preparedLayers.set(layer, layer.__zoidiumTemporalUpdateRevision);
       context?.frameSamplerChangedLayers?.add(layer);
+      if (context?.resourcePolicy) await scoped(() => registry.capture.prepareChildren(layer,
+        finiteNumber(layer.__zoidiumTemporalLastUpdateFrame, localFrame), context));
       const count = index === stage.trackIndex ? stage.effectIndex : layer.effects?.length || 0;
       for (let i = 0; i < count; i += 1) {
-        context?.resourcePolicy?.assertEffect(layer.effects[i]);
-        await scoped(() => layer.effects[i]?.prepare?.(
-          finiteNumber(layer.__zoidiumTemporalLastUpdateFrame, localFrame), context));
+        const input = finiteNumber(layer.__zoidiumTemporalLastUpdateFrame, localFrame);
+        await scoped(() => context?.resourcePolicy
+          ? context.resourcePolicy.prepareEffect(layer.effects[i], input, context)
+          : layer.effects[i]?.prepare?.(input, context));
       }
     }
     return preparedLayers;
@@ -527,6 +530,7 @@
     registry.capture.checkPolicy(context);
     const depth = finiteNumber(context?.frameSamplerDepth ?? parentContext?.frameSamplerDepth, 0) + 1;
     if (depth > MAX_FRAME_SAMPLER_DEPTH) {
+      if (context.resourcePolicy) throw new Error("LOCAL_DEPENDENCY_UNAVAILABLE: maximum sampler nesting depth exceeded");
       if (context.exportPolicy) throw registry.capture.sampleError(stage, projectFrame, "Maximum sampler nesting depth exceeded");
       return;
     }
@@ -730,26 +734,8 @@
     }
   }
 
-  function frameSamplerAuthority(state, stage, controlFrame, context, depth) {
-    const root = context?.frameSamplerRoot || context?.rootCompositor || context?.compositor;
-    const scope = context?.frameSamplerScope;
-    return { ...context, controlFrame, frameSamplerRoot: root, frameSamplerDepth: depth,
-      scopeId: scope?.effect ? frameSamplerIdentity(scope.effect) : 0,
-      stageId: frameSamplerIdentity(stage.effect) };
-  }
-
-  function drawAuthority(state, effect) {
-    const context = state.contexts[state.contexts.length - 1];
-    const root = context?.rootCompositor || context?.compositor;
-    const stage = findFrameSamplerStage(root?._sequence, effect, context?.outputFrame);
-    if (!stage) return null;
-    const local = finiteNumber(stage.layer.__zoidiumTemporalLastUpdateFrame,
-      context.outputFrame - finiteNumber(stage.clip.start, 0));
-    const frame = isAdjustmentLayer(stage.layer)
-      ? getFrameSamplerControlFrame(stage, local, context.frameSamplerScope)
-      : finiteNumber(effect._zoidiumFrameSamplerFrame, local);
-    return frameSamplerAuthority(state, stage, frame, context, finiteNumber(context.frameSamplerDepth, 0) + 1);
-  }
+  const frameSamplerAuthority = registry.capture.frameSamplerAuthority;
+  const drawAuthority = registry.capture.drawAuthority;
 
   function resolveFrameSamples(state, effect) {
     const context = state.contexts[state.contexts.length - 1];
@@ -758,6 +744,7 @@
     const descriptor = effect?._zoidiumFrameSampler;
     const outputFrame = finiteNumber(context?.outputFrame, NaN);
     if (!sequence || !descriptor || !Number.isFinite(outputFrame)) return [];
+    registry.capture.checkPolicy(context);
 
     const depth = finiteNumber(context?.frameSamplerDepth, 0) + 1;
     if (depth > MAX_FRAME_SAMPLER_DEPTH || state.samplingEffects.has(effect)) return [];

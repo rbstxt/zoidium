@@ -307,3 +307,11 @@ test("a recycled target from an expired generation cannot be published", () => {
   assert.equal(a.released, 1);
   assert.equal(cache.entries.size, 0);
 });
+
+
+test("community data never enters finished-frame or private prefetch approval", () => {
+  const s = scene();
+  assert.equal(typeof s.key(), "string");
+  s.sequence.videoTracks[0].clips[0].object.effects.push({ type: "community-" + "a".repeat(32) + "-fx-gain" });
+  assert.equal(s.key(), null);
+});

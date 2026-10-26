@@ -138,10 +138,20 @@
 
   // The full project state that a finished frame depends on. The cache decides
   // when to recompute it (see output-frame-cache.js keyFor()).
+  function containsCommunity(value, seen = new Set()) {
+    if (!value || typeof value !== "object" || seen.has(value)) return false;
+    seen.add(value);
+    if (typeof value.type === "string" && value.type.startsWith("community-")) return true;
+    return Object.values(value).some(child => containsCommunity(child, seen));
+  }
+
   function revisionOf(viewport, plugins, assetId, fontEpoch = 0, approvedPlugins = null) {
     const project = viewport.editor.project;
     const sequence = project.sequence;
     const content = typeof project.toJSON === "function" ? project.toJSON() : project;
+    // Isolated receipts have their own exact preparation contract. Finished
+    // frame caching and private prefetch clones have no approval for them.
+    if (containsCommunity(content)) return null;
     if (approvedPlugins && (content.plugins || []).some(requirement => {
       const current = plugins.find(plugin => plugin.id === requirement.id);
       return !current?.enabled || approvedPlugins.get(requirement.id) !== String(current.version);
