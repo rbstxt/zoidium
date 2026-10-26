@@ -570,7 +570,7 @@
         }
         const generation = runtime.generation;
         const reductionKey = registry.capture.reductionKey(plan, depth, scope);
-        const reduced = reducing && registry.capture.cachedReduction(runtime, effect, revision, reductionKey, width, height);
+        const reduced = reducing && registry.capture.cachedReduction(runtime, effect, revision, reductionKey, width, height, cacheDepth);
         if (reduced) {
           if (depth === 1) runtime.publishedReservations.set(effect, new Set(reduced.map(sample => sample.target)));
           continue;
@@ -760,7 +760,8 @@
     const reducing = typeof request.reduceSamples === "function" && (plan.length === 32 || plan.length === 64);
     const reductionKey = registry.capture.reductionKey(plan, depth, scope);
     if (reducing) {
-      const reduced = registry.capture.cachedReduction(runtime, effect, revision, reductionKey, width, height);
+      const reduced = registry.capture.cachedReduction(runtime, effect, revision, reductionKey, width, height,
+        frameSamplerCacheDepth(stage, depth));
       if (reduced) return reduced;
     }
     if (

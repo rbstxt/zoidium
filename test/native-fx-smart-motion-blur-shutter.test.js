@@ -153,3 +153,27 @@ test("native entry requests fractional scene taps and disposes scratch on mode s
   assert.equal(counts.flowDisposed, 2);
   assert.equal(counts.shutterDisposed, 1);
 });
+
+test("streamed eight-tap means preserve the original reduction tree and active UV scale", () => {
+  for (const count of [32, 64]) {
+    const probe = shutterProbe(), output = { texture: {} };
+    const groups = [];
+    for (let i = 0; i < count; i += 8) {
+      const target = { texture: {}, width: 80, height: 40, viewport: { z: 80, w: 40 } };
+      probe.engine.reduceBatch({}, target, Array.from({ length: 8 }, (_, j) => ({
+        texture: { weights: { [i + j]: 1 } },
+        target: { width: 80, height: 40, viewport: { z: 40, w: 10 } },
+      })));
+      groups.push({ target, texture: target.texture });
+      assert.deepEqual(Array.from(probe.calls.at(-1).values.uScale), [0.5, 0.25]);
+    }
+    probe.engine.reduceBatch({}, output, groups);
+    for (let i = 0; i < count; i++) assert.equal(output.texture.weights[i], 1 / count);
+    assert.deepEqual(Array.from(probe.calls.at(-1).values.uScale), [1, 1]);
+    const input = { width: 80, height: 40, texture: { weights: { current: 1 } } };
+    probe.engine.render({}, { texture: {} }, input, [{ texture: output.texture, reducedCount: count }], [0.5, 0.25]);
+    assert.deepEqual(Array.from(probe.calls.at(-1).values.uScale), [1, 1]);
+    assert.equal(probe.engine.diagnostics.samples, count);
+    assert.equal(probe.allocations(), 0);
+  }
+});

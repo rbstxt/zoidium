@@ -17,7 +17,9 @@ function create(THREE, api, getAsset) {
       gl.draw(renderer, mean, output, {
         uFirst: taps[0], uSecond: taps[1], uThird: taps[2], uFourth: taps[3],
         uFifth: taps[4], uSixth: taps[5], uSeventh: taps[6], uEighth: taps[7],
-        uScale: [1, 1],
+        uScale: samples[0].target?.viewport
+          ? [samples[0].target.viewport.z / samples[0].target.width,
+            samples[0].target.viewport.w / samples[0].target.height] : [1, 1],
       });
     });
   }

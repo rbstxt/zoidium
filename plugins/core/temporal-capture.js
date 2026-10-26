@@ -161,17 +161,37 @@
     return JSON.stringify(["reduced", depth, scope?.effect
       ? registry.layers.frameSamplerIdentity(scope.effect) : 0, plan]);
   }
-  function cachedReduction(runtime, effect, revision, key, width, height) {
+  function cachedReduction(runtime, effect, revision, key, width, height, depth) {
+    if (registry.layers.frameSamplerReuseDisabled()) return null;
     const cached = runtime.inputCache.get(effect)?.get(revision)?.get(key);
     const sample = cached?.sample, target = sample?.target;
     if (!target || cached.stamp !== target.inputStamp || target.width !== width || target.height !== height) return null;
     target.inputUsed = ++runtime.inputClock;
     runtime.exportPins?.add(target);
+    trimReductionTargets(runtime, effect, depth, 8 + sample.reducedCount / 8, new Set([target]));
     return [sample];
+  }
+  function trimReductionTargets(runtime, effect, depth, capacity, reserved) {
+    const sampler = registry.sampler;
+    const record = runtime.records.get(effect)?.[Math.max(0, depth - 1)];
+    // Drop idle slots left by a larger request or a previous reconstruction.
+    // Published results and outer export clocks must stay valid until consumed.
+    for (const value of record?.targets.slice() || []) {
+      if (record.targets.length <= capacity) break;
+      if (reserved.has(value) || Array.from(runtime.reservations)
+        .concat(Array.from(runtime.publishedReservations.values())).some(batch => batch.has(value))) continue;
+      sampler.forgetFrameSamplerInput(value);
+      record.targets.splice(record.targets.indexOf(value), 1);
+      runtime.targets.delete(value);
+      runtime.targetOwners.delete(value);
+      runtime.targetBytes -= value.width * value.height * 4;
+      value.dispose?.();
+    }
   }
   function createReduction(runtime, root, effect, depth, reserved, width, height, plan, reduce, revision, key, release) {
     const sampler = registry.sampler;
     const capacity = 8 + Math.ceil(plan.length / 8);
+    trimReductionTargets(runtime, effect, depth, capacity, reserved);
     let batch = [], groups = [], count = 0;
     function target() {
       const value = sampler.selectFrameSamplerTarget(runtime, effect, depth, reserved, width, height, capacity, revision);
