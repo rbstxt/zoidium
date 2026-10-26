@@ -219,6 +219,8 @@ function install() {
 
 PZ.precomp = {
   version: VERSION,
+  timingState: engine.timingState,
+  restoreTimingState: engine.restoreTimingState,
   install: install,
   subscribe: engine.subscribe,
   hasComps: engine.hasComps,
