@@ -258,6 +258,49 @@ test("unapproved plugins keep the live preview", async () => {
   for (let i = 0; i < 6; i++) { h.viewport._render(); await flush(); }
   assert.equal(h.api.debug.entries, 0);
   assert.equal(h.counts.live, 6);
+  assert.match(h.api.usage().reason, /unverified.*not verified/);
+  h.api.dispose();
+});
+
+test("current Native FX reports its unverified version without retaining sampler output", async () => {
+  const h = harness();
+  h.project.plugins = [{ id: "native-fx" }];
+  h.PZ.zoidium.getDebugPlugins = () => [{ id: "native-fx", version: "34", enabled: true, phase: "enabled" }];
+  h.PZ.zoidium.temporal.usesSingleEvaluation = (_sequence, excludeSamplers) => !excludeSamplers;
+  await h.warm();
+  assert.equal(h.api.debug.entries, 0);
+  assert.match(h.api.usage().reason, /native-fx.*34.*not verified/);
+  assert.equal(h.counts.allocated, 0);
+  h.api.dispose();
+});
+
+test("usage explains community rejection and clears the reason after an eligible draw", async () => {
+  const h = harness();
+  h.project.sequence.value = { type: "community-example-fx" };
+  await h.warm();
+  assert.match(h.api.usage().reason, /Community/);
+  h.project.sequence.value = null;
+  h.project.ui.onChanged.update();
+  await h.warm();
+  assert.equal(h.api.debug.entries, 1);
+  assert.equal(h.api.usage().reason, null);
+  h.api.dispose();
+});
+
+test("usage explains disabled, undersized and paused caches without serializing", async () => {
+  const h = harness();
+  h.api.setSizeMiB(0);
+  assert.match(h.api.usage().reason, /disabled/);
+  h.api.setSizeMiB(1);
+  h.viewport.renderer.context.drawingBufferWidth = 1024;
+  h.viewport.renderer.context.drawingBufferHeight = 1024;
+  await h.warm();
+  assert.match(h.api.usage().reason, /frame exceeds/);
+  h.viewport.__zoidiumPlayerPlusPaused = true;
+  assert.match(h.api.usage().reason, /drawing is paused/);
+  const before = h.counts.serialized;
+  for (let i = 0; i < 10; i++) h.api.usage();
+  assert.equal(h.counts.serialized, before);
   h.api.dispose();
 });
 
