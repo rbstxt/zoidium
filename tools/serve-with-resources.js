@@ -228,49 +228,8 @@ async function main() {
   }
 
   const runtime = await prepareRuntimeStage();
-  await buildDocs(runtime.root);
   let shuttingDown = false;
-  let boundPort = options.port;
-  const compressionMiddleware = compression();
-  const handleRequest = (request, response) => {
-    if (!isAllowedHost(request.headers && request.headers.host, boundPort)) {
-      response.writeHead(403, { "Content-Type": "text/plain; charset=utf-8" });
-      response.end("Forbidden");
-      return;
-    }
-    compressionMiddleware(request, response, async () => {
-      try {
-        const liveProjectFile = shouldServeFromProject(request.url);
-        const publicRoot = liveProjectFile ? projectRoot : runtime.root;
-        const directoryIndexUrl = await resolveDirectoryIndexUrl(request.url, publicRoot);
-        if (directoryIndexUrl) request.url = directoryIndexUrl;
-
-        const headers = publicRoot === projectRoot ? liveProjectHeaders : undefined;
-        handler(request, response, {
-          cleanUrls: false,
-          directoryListing: false,
-          etag: true,
-          headers,
-          public: publicRoot,
-          rewrites: [{ source: "/", destination: "/index.html" }],
-        }).catch((error) => {
-          console.error("[Zoidium] local server request failed:", error);
-          if (!response.headersSent) response.writeHead(500, { "Content-Type": "text/plain" });
-          response.end("Internal Server Error");
-        });
-      } catch (error) {
-        console.error("[Zoidium] local server request failed:", error);
-        if (!response.headersSent) response.writeHead(500, { "Content-Type": "text/plain" });
-        response.end("Internal Server Error");
-        return;
-      }
-    });
-  };
-  const listeners = [
-    { host: "127.0.0.1", server: http.createServer(handleRequest) },
-    { host: "::1", server: http.createServer(handleRequest) },
-  ];
-
+  const listeners = [];
   const shutdown = async (exitCode = 0) => {
     if (shuttingDown) return;
     shuttingDown = true;
@@ -280,10 +239,53 @@ async function main() {
     });
     process.exitCode = exitCode;
   };
-  process.once("SIGINT", () => shutdown(0).then(() => process.exit()));
-  process.once("SIGTERM", () => shutdown(0).then(() => process.exit()));
 
   try {
+    await buildDocs(runtime.root);
+    let boundPort = options.port;
+    const compressionMiddleware = compression();
+    const handleRequest = (request, response) => {
+      if (!isAllowedHost(request.headers && request.headers.host, boundPort)) {
+        response.writeHead(403, { "Content-Type": "text/plain; charset=utf-8" });
+        response.end("Forbidden");
+        return;
+      }
+      compressionMiddleware(request, response, async () => {
+        try {
+          const liveProjectFile = shouldServeFromProject(request.url);
+          const publicRoot = liveProjectFile ? projectRoot : runtime.root;
+          const directoryIndexUrl = await resolveDirectoryIndexUrl(request.url, publicRoot);
+          if (directoryIndexUrl) request.url = directoryIndexUrl;
+
+          const headers = publicRoot === projectRoot ? liveProjectHeaders : undefined;
+          handler(request, response, {
+            cleanUrls: false,
+            directoryListing: false,
+            etag: true,
+            headers,
+            public: publicRoot,
+            rewrites: [{ source: "/", destination: "/index.html" }],
+          }).catch((error) => {
+            console.error("[Zoidium] local server request failed:", error);
+            if (!response.headersSent) response.writeHead(500, { "Content-Type": "text/plain" });
+            response.end("Internal Server Error");
+          });
+        } catch (error) {
+          console.error("[Zoidium] local server request failed:", error);
+          if (!response.headersSent) response.writeHead(500, { "Content-Type": "text/plain" });
+          response.end("Internal Server Error");
+          return;
+        }
+      });
+    };
+    listeners.push(
+      { host: "127.0.0.1", server: http.createServer(handleRequest) },
+      { host: "::1", server: http.createServer(handleRequest) },
+    );
+
+    process.once("SIGINT", () => shutdown(0).then(() => process.exit()));
+    process.once("SIGTERM", () => shutdown(0).then(() => process.exit()));
+
     const port = await listenOnAvailablePort(listeners, options.port);
     boundPort = port;
     if (options.port !== 0 && port !== options.port) {

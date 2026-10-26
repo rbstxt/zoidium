@@ -15,6 +15,7 @@ const {
   optionPropertyValue, propertyValue, vectorDefinition,
 } = require("./scene-fields.js");
 const { restoreDeformedTree } = require("./scene-clone.js");
+const { liveObjectLayer } = require("./scene-deform.js");
 const state = require("./scene-state.js");
 
 function createEffectorBaseClass(PZ, THREE) {
@@ -24,6 +25,7 @@ function createEffectorBaseClass(PZ, THREE) {
       super();
       this.zoidiumSubdivisionMode = "current";
       this.threeObj = null;
+      this._prepareGeneration = 0;
       if (!this.objects) this.objects = new PZ.objectList(this, PZ.object3d);
       this.objects.name = "Source objects";
       if (!this.children.includes(this.objects)) this.children.push(this.objects);
@@ -139,14 +141,20 @@ function createEffectorBaseClass(PZ, THREE) {
     }
 
     async prepare(frame) {
+      const started = this._prepareGeneration;
+      const isCurrent = () => started === this._prepareGeneration && liveObjectLayer(this, PZ);
+      if (!isCurrent()) return;
       for (const child of this.objects) {
         await child.loading;
+        if (!isCurrent()) return;
         await child.prepare(frame);
+        if (!isCurrent()) return;
       }
       await state.deformationSupport?.prepareObject?.(this, frame);
     }
 
     unload() {
+      this._prepareGeneration += 1;
       restoreDeformedTree(this.threeObj);
       this.objects.onListChanged?.unwatch?.(this._onObjectsChanged);
       for (const child of this.objects) child.unload();
