@@ -49,8 +49,8 @@ for (const denied of [false, true]) test(`named project warnings and the fallbac
   const mounted = root.ZoidiumPluginManagerInternals.mountCommunityPanel({ appendChild() {} }, { plugins: [] });
   await mounted.initialized;
   assert.equal(fallback.disabled, false);
+  assert.match(warnings.textContent, /Named missing package.*saved hash and schema.*not installed/);
   if (!denied) {
-    assert.match(warnings.textContent, /Named missing package.*saved hash and schema.*not installed/);
     assert.equal(status.textContent, "No community plugins installed.");
   }
   listeners.get("fallback")(); await new Promise(resolve => setImmediate(resolve));

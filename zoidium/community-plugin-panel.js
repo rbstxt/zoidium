@@ -109,6 +109,7 @@
     });
     root.addEventListener?.("zoidium:project-changed", renderWarnings);
     root.document?.addEventListener?.("zoidium:project-load-complete", renderWarnings);
+    renderWarnings();
     importButton.addEventListener("click", () => { input.value = ""; input.click(); });
     input.addEventListener("change", () => {
       const file = input.files?.[0];
