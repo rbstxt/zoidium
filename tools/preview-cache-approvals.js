@@ -62,7 +62,7 @@ function check() {
   const defer = process.env.ZOIDIUM_PREVIEW_CACHE_APPROVALS === "defer";
   if (defer && (receipt.fingerprint !== fingerprint() ||
       Object.entries(receipt.plugins).some(([id, record]) => record.version !== versions()[id]))) {
-    console.warn("Preview cache approvals are stale (deferred). Until the oracle reruns, changed plugins render live.");
+    console.warn("Preview cache approvals are stale (deferred). Until the oracle reruns, preview frames render live.");
     return;
   }
   if (receipt.fingerprint !== fingerprint()) throw new Error("Preview cache approvals are stale. Run pnpm run test:preview-cache -- --profile=<directory> --report=<file> --write, then rebuild plugin bundles.");
@@ -94,5 +94,20 @@ function check() {
   console.log("Preview cache approvals are current: " + Object.keys(receipt.plugins).join(", "));
 }
 
-module.exports = { root, approvalPath, candidates, versions, fingerprint, source, check };
+// The receipt a runtime stage or the development server may serve. A stale
+// fingerprint or stale plugin bundles withdraw every approval, so preview
+// frames render live and Settings names the reason.
+function stagedSource() {
+  const file = path.join(root, approvalPath);
+  delete require.cache[require.resolve(file)];
+  const receipt = require(file);
+  const { spawnSync } = require("node:child_process");
+  // Read through module.exports so tests and tools can substitute the fingerprint.
+  const current = receipt.fingerprint === module.exports.fingerprint() &&
+    spawnSync(process.execPath, [path.join(root, "tools/build-plugin-bundles.js"), "--check"],
+      { cwd: root, stdio: "ignore" }).status === 0;
+  return current ? fs.readFileSync(file, "utf8") : source({ ...receipt, plugins: {}, stale: true });
+}
+
+module.exports = { root, approvalPath, candidates, versions, fingerprint, source, stagedSource, check };
 if (require.main === module) check();

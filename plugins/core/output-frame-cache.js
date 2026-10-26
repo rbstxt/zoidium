@@ -14,6 +14,7 @@
 
   const model = global.ZoidiumOutputFrameStore;
   if (!model) throw new Error("[Zoidium] output-frame-store.js must load before output-frame-cache.js.");
+  const approvalsStale = global.ZoidiumOutputFrameApprovals?.stale === true;
   // The browser oracle records exact versions. Verification pins the render
   // sources and oracle, so a version or source edit cannot silently expire it.
   const approvedPlugins = new Map(Object.entries(global.ZoidiumOutputFrameApprovals?.plugins || {})
@@ -457,6 +458,7 @@
   }
 
   function render(viewport, fallback) {
+    if (approvalsStale) return fallback();
     // A clock change needs one live evaluation, with no private project,
     // serialization or speculative renders. Samplers keep their cache path.
     if (plainTimeProject(viewport)) return fallback();
@@ -797,6 +799,7 @@
   compositorPrototype.unload = unloadWithOutputFrames;
 
   function usageReason(viewport) {
+    if (approvalsStale) return "Preview cache approvals are stale for this build";
     if (disposed) return "Preview cache is unavailable";
     if (!store.limit || debug.disabled) return "Preview caching is disabled";
     if (store.contextLost) return "The WebGL context was lost";

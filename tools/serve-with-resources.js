@@ -254,6 +254,14 @@ async function main() {
       }
       compressionMiddleware(request, response, async () => {
         try {
+          if (requestPathname(request.url) === "plugins/core/output-frame-approvals.js") {
+            const approvals = require("./preview-cache-approvals");
+            // Live source edits can make the checked-in receipt stale. Serve
+            // the same checked receipt that a runtime stage would contain.
+            response.writeHead(200, { "Content-Type": "text/javascript; charset=utf-8", "Cache-Control": "no-cache" });
+            response.end(approvals.stagedSource());
+            return;
+          }
           const liveProjectFile = shouldServeFromProject(request.url);
           const publicRoot = liveProjectFile ? projectRoot : runtime.root;
           const directoryIndexUrl = await resolveDirectoryIndexUrl(request.url, publicRoot);

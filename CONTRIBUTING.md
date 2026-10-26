@@ -104,8 +104,10 @@ few minutes and uses one Chromium instance. It also honors
 `ZOIDIUM_BROWSER_LOCK`.
 
 On a work branch, you can set `ZOIDIUM_PREVIEW_CACHE_APPROVALS=defer` to turn
-the stale-approval failure into a warning. Until someone reruns the oracle,
-changed plugins render live in the editor. Rerun the oracle before you merge.
+the stale-approval failure into a warning. When the fingerprint is stale, the
+runtime stage and `pnpm run web` disable preview caching for every project. A stale plugin bundle
+also disables caching. Settings shows the reason. Rerun the oracle before you
+merge. Without `defer`, verification still fails for a stale receipt.
 
 ## Before opening a pull request
 
