@@ -56,6 +56,15 @@ each line describes one visible change.
 
 ### Changed
 
+- Existing projects, new look: Trapcode Particular now applies Velocity
+  distribution, Aspect ratio, Opacity random, Color random, Air density,
+  Drift X/Y/Z, Disperse strength over (life) with its curve, and Turbulence
+  field affect size and opacity. These controls had no effect before.
+  Projects that keep their default values render the same.
+- Trapcode Particular hides controls that have no effect: Particle type,
+  Set color, the flocking controls, the light/layer/model/text emitter
+  types, and the velocity/position modes of Disperse strength over.
+  Saved values are kept. Bounce height is now named Bounce boost.
 - Existing projects, new look: Smart Motion Blur at Automatic now uses
   Shutter Samples on a 3D Scene layer and Optical Flow elsewhere. Projects
   without a stored Reconstruction value use Automatic. To keep flow-based
