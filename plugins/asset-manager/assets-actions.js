@@ -202,8 +202,8 @@ function createActions(session) {
     };
   }
 
-  // AE File > Dependencies > Collect Files: one archive with every file in
-  // its Assets folder, plus a report of files the project lacks.
+  // Collect available files in the Assets window's folder structure, plus
+  // a report of files the project lacks. Unfiled items stay at the ZIP root.
   function collectCommand(snapshot) {
     const api = session.registry();
     const files = (snapshot ? snapshot.items : []).filter((item) => item.source === "file" || item.source === "embedded");
@@ -211,7 +211,7 @@ function createActions(session) {
       id: "collect-files",
       label: "Collect Files…",
       icon: "export",
-      hint: "Download a .zip with every file of the project in its Assets folder",
+      hint: "Download a ZIP with available files in the Assets window's folder structure and a missing-file report",
       enabled: !!(api && api.collectFiles) && files.length > 0,
       run: () => guarded({ id: "project" }, "Collect Files", async () => {
         const result = await session.registry().collectFiles();
