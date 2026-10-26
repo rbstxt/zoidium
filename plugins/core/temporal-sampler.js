@@ -541,7 +541,8 @@
     // Retain the interleaved playback window and a small scrub margin without
     // allocating new GPU targets on every frame until the byte cap is full.
     const frames = plan.map(item => item.frame);
-    const capacity = plan.length === 1 ? 1 : Math.min(128, plan.length +
+    const reducing = typeof request.reduceSamples === "function" && (plan.length === 32 || plan.length === 64);
+    const capacity = reducing ? 8 + Math.ceil(plan.length / 8) : plan.length === 1 ? 1 : Math.min(128, plan.length +
       Math.ceil(Math.max(...frames) - Math.min(...frames)) + 4);
     state.preparingEffects.add(effect);
     try {
@@ -568,6 +569,12 @@
           clearFrameSamplerTargets(runtime);
         }
         const generation = runtime.generation;
+        const reductionKey = registry.capture.reductionKey(plan, depth, scope);
+        const reduced = reducing && registry.capture.cachedReduction(runtime, effect, revision, reductionKey, width, height, cacheDepth);
+        if (reduced) {
+          if (depth === 1) runtime.publishedReservations.set(effect, new Set(reduced.map(sample => sample.target)));
+          continue;
+        }
         const batchCache = runtime.inputCache;
         let revisions = batchCache.get(effect);
         if (!revisions) {
@@ -576,10 +583,13 @@
         }
         // Store the exact content string once per resident revision, rather
         // than copying an entire project into every source-frame map key.
-        const inputCache = revisions.get(revision) || new Map();
+        const inputCache = !reducing && revisions.get(revision) || new Map();
         const reservedTargets = new Set();
         runtime.reservations.add(reservedTargets);
         reservations.push({ runtime, reservedTargets });
+        const reduction = reducing && registry.capture.createReduction(runtime, root, effect, cacheDepth,
+          reservedTargets, width, height, plan, request.reduceSamples, revision, reductionKey, () => capturedFrames.clear());
+        const append = sample => { samples.push(sample); reduction && reduction.append(sample); };
         const cacheKey = frame => JSON.stringify([getFrameSamplerInputFrame(stage, frame), cacheDepth,
           scope?.effect ? frameSamplerIdentity(scope.effect) : 0]);
         const wantedFrames = new Set(plan.map(item => cacheKey(finiteNumber(clip.start, 0) + item.frame)));
@@ -604,7 +614,7 @@
           const reused = capturedFrames.get(inputFrame) || (reusable && cached.sample);
           if (reused) {
             reused.target.inputUsed = ++runtime.inputClock;
-            samples.push(Object.assign({}, reused, { frame: sourceProjectFrame, index: item.index, opacity: item.opacity }));
+            append(Object.assign({}, reused, { frame: sourceProjectFrame, index: item.index, opacity: item.opacity }));
             continue;
           }
           const inputContext = Object.assign({}, context, {
@@ -655,16 +665,19 @@
               texture: target.texture,
             };
             const key = cacheKey(sourceProjectFrame);
-            inputCache.set(key, { sample, stamp: target.inputStamp });
-            revisions.set(revision, inputCache);
-            target.inputEntry = { cache: inputCache, key, revisions, revision };
+            if (!reducing) {
+              inputCache.set(key, { sample, stamp: target.inputStamp });
+              revisions.set(revision, inputCache);
+              target.inputEntry = { cache: inputCache, key, revisions, revision };
+            }
             capturedFrames.set(inputFrame, sample);
-            samples.push(sample);
+            append(sample);
           }
         }
         if (context.exportPolicy && samples.length !== plan.length) {
           throw new Error(`Incomplete required sample set: ${samples.length} of ${plan.length}`);
         }
+        if (reduction) samples.splice(0, samples.length, ...reduction.finish());
         for (const sample of samples) runtime.exportPins?.add(sample.target);
         if (samples.length > 0) {
           if (depth === 1) runtime.publishedReservations.set(effect, new Set(samples.map(sample => sample.target)));
@@ -744,8 +757,15 @@
     const prepared = runtime.prepared.get(effect);
     const scope = context?.frameSamplerScope;
     const revision = frameSamplerInputKey(sequence, root, stage, scope);
+    const reducing = typeof request.reduceSamples === "function" && (plan.length === 32 || plan.length === 64);
+    const reductionKey = registry.capture.reductionKey(plan, depth, scope);
+    if (reducing) {
+      const reduced = registry.capture.cachedReduction(runtime, effect, revision, reductionKey, width, height,
+        frameSamplerCacheDepth(stage, depth));
+      if (reduced) return reduced;
+    }
     if (
-      prepared && prepared.revision === revision && prepared.depth === depth &&
+      !reducing && prepared && prepared.revision === revision && prepared.depth === depth &&
       prepared.scope === scope &&
       Math.abs(finiteNumber(prepared.projectFrame, NaN) - currentProjectFrame) <= EPSILON &&
       prepared.samples.length === plan.length &&
@@ -792,6 +812,12 @@
     }
     const samples = [];
     const capturedFrames = new Map();
+    const reserved = new Set();
+    if (reducing) runtime.reservations.add(reserved);
+    const reduction = reducing && registry.capture.createReduction(runtime, root, effect,
+      frameSamplerCacheDepth(stage, depth), reserved, width, height, plan, request.reduceSamples,
+      revision, reductionKey, () => capturedFrames.clear());
+    const append = sample => { samples.push(sample); reduction && reduction.append(sample); };
     state.samplingEffects.add(effect);
     try {
       for (let index = 0; index < plan.length; index += 1) {
@@ -800,14 +826,18 @@
         const inputFrame = getFrameSamplerInputFrame(stage, projectFrame);
         const reused = capturedFrames.get(inputFrame);
         if (reused) {
-          samples.push(Object.assign({}, reused, { frame: projectFrame, index: item.index, opacity: item.opacity }));
+          append(Object.assign({}, reused, { frame: projectFrame, index: item.index, opacity: item.opacity }));
           continue;
         }
-        const target = context?.exportPolicy
+        const target = reducing
+          ? selectFrameSamplerTarget(runtime, effect, frameSamplerCacheDepth(stage, depth),
+            reserved, width, height, reduction.capacity, revision)
+          : context?.exportPolicy
           ? selectFrameSamplerTarget(runtime, effect, frameSamplerCacheDepth(stage, depth),
             runtime.exportPins || new Set(), width, height, plan.length, revision)
           : getFrameSamplerTarget(runtime, effect, depth, index, width, height);
-        if (context?.exportPolicy) runtime.exportPins?.add(target);
+        if (reducing) reserved.add(target);
+        else if (context?.exportPolicy) runtime.exportPins?.add(target);
         target.inputStamp = {};
         forgetFrameSamplerInput(target);
         if (
@@ -832,10 +862,12 @@
             texture: target.texture,
           };
           capturedFrames.set(inputFrame, sample);
-          samples.push(sample);
+          append(sample);
         }
       }
+      if (reduction) samples.splice(0, samples.length, ...reduction.finish());
     } finally {
+      if (reducing) runtime.reservations.delete(reserved);
       state.samplingEffects.delete(effect);
     }
     return samples;
@@ -892,6 +924,7 @@
     getFrameSamplerCapture: getFrameSamplerCapture,
     getFrameSamplerTarget: getFrameSamplerTarget,
     copyRenderTarget: copyRenderTarget,
+    forgetFrameSamplerInput,
     restoreLayerAtContextFrame: restoreLayerAtContextFrame,
     bindSampleTextures: bindSampleTextures,
     captureFrameSamplerInput: captureFrameSamplerInput,

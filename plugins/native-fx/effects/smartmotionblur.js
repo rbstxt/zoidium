@@ -19,15 +19,27 @@ function smartMotionBlurUsesShutter(effect, settings) {
     settings, Boolean(Scene && effect.parentLayer instanceof Scene),
   );
 }
+function smartMotionBlurReduce(renderer, output, samples) {
+  if (!smartMotionBlurEffect._smartMotionBlurShutter) {
+    smartMotionBlurEffect._smartMotionBlurShutter = smartMotionBlurShutter.create(
+      THREE, ZoidiumPluginApis.gl, smartMotionBlurGetAsset,
+    );
+    smartMotionBlurEffect._smartMotionBlur?.dispose();
+    smartMotionBlurEffect._smartMotionBlur = null;
+  }
+  smartMotionBlurEffect._smartMotionBlurShutter.reduceBatch(renderer, output, samples);
+}
 
 ZoidiumPluginApis.defineFrameSampler.call(this, {
   displayName: smartMotionBlurMath.DISPLAY_NAME,
   properties: smartMotionBlurMath.properties(PZ.property.type),
   getRequest(effect, frame) {
     const settings = smartMotionBlurMath.readSettings(effect.properties, frame);
+    const shutter = smartMotionBlurUsesShutter(effect, settings);
     return {
       enabled: settings.amount > 0 && settings.sensitivity > 0,
-      frames: smartMotionBlurUsesShutter(effect, settings)
+      reduceSamples: shutter ? smartMotionBlurReduce : undefined,
+      frames: shutter
         ? smartMotionBlurMath.shutterTimes(settings.amount, smartMotionBlurMath.captureCount(settings.quality))
         : smartMotionBlurMath.offsets(settings.analysis),
     };

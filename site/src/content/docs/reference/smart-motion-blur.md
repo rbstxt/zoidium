@@ -31,7 +31,12 @@ It does not use **Analysis Frames**, **Vector Smoothness**, or **Max Displacemen
 Positive **Motion Sensitivity** values do not change its output.
 Recorded footage does not gain intermediate source frames.
 Cuts inside the shutter are averaged. Thin moving edges can show sample bands.
-Capture cost scales with scene complexity. Up to 64 full-size input targets are required.
+Capture cost scales with scene complexity. An uncached output still evaluates 32 or 64 scene times.
+The sampler reuses capture targets in groups of eight and preserves the eight-tap reduction order.
+One non-nested request uses at most 16 full-size RGBA8 sampler targets, including the reduced output.
+At 1920 × 1080, the sampler pool uses up to 94.9 MiB in Balanced or 126.6 MiB in High.
+These counts exclude the capture compositor, effect output, depth buffers, other effects, and driver storage.
+Nested samplers and export preparation can retain additional targets for unconsumed results.
 
 With **Optical Flow**, the maximum tracked displacement is 256 project pixels per frame.
 Disocclusion, repeated patterns, thin features, and similar colors across separate motions can produce incorrect trajectories.
