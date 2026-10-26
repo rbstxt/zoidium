@@ -26,9 +26,11 @@ test("Color Ramp interpolates arbitrary RGBA stops, including duplicate and boun
     const n = rt.createNode("colorRamp", "r"), copy = rt.createNode("colorRamp", "copy"); n.params.stops[0][1] = .8;
     assert.equal(copy.params.stops[0][1], 0);
     for (const interpolation of [0, 1, 2, 3]) {
-        const pixels = evaluate("colorRamp", { stops, interpolation, factor: .1 });
-        rampSample(stops, .1, interpolation, out); near(pixels[0], Math.round(out[0] * 255), 1);
-        near(evaluate("colorRamp", { stops, interpolation, factor: .1 }, "alpha")[0], Math.round(out[3] * 255), 1);
+        for (const factor of [0, .1, .25, .4, .5, .75, 1, -2, 2]) {
+            const pixels = evaluate("colorRamp", { stops, interpolation, factor });
+            rampSample(stops, factor, interpolation, out); near(pixels[0], Math.round(out[0] * 255), 1);
+            near(evaluate("colorRamp", { stops, interpolation, factor }, "alpha")[0], Math.round(out[3] * 255), 1);
+        }
     }
 });
 test("multi-output links serialize in both layouts and sample Factor per pixel", () => {
