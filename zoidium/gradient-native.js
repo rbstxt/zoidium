@@ -2,10 +2,18 @@
   "use strict";
   const api = global.ZoidiumGradientEditor, M = global.ZoidiumGradientModel, C = global.PZ.ui.controls;
   const original = C.generateGradientInput;
+  const reported = new WeakSet();
+  function warn(property, error) {
+    if (reported.has(property)) return;
+    reported.add(property);
+    console.warn("[Zoidium] Gradient control failed", error);
+  }
   function propertyControl(property, options = {}) {
     const doc = global.document, box = doc.createElement("div"), anchor = doc.createElement("span");
     box.className = "editbox zge-property"; anchor.hidden = true; box.append(anchor);
-    const read = options.read || (() => ({ stops: property.get() }));
+    // addAll notifies open panels before load initializes the new properties.
+    // Show an empty preview until the value arrives; do not write a default.
+    const read = options.read || (() => ({ stops: property.get(box.pz_frame) ?? [] }));
     const write = options.write || (value => property.set(value.stops.map(s => ({ position: s.position, color: typeof s.color === "string" ? s.color : M.rgba(s.color) }))));
     let active = false, before, shown;
     const widget = api.create({ ...options, document: doc, value: read(), readOnly: !!(property.definition.readOnly || property.animated && property.expression),
@@ -22,13 +30,22 @@
       },
     });
     box.append(widget.element);
-    box.pz_update = () => {
-      const value = read(), key = JSON.stringify(value);
-      if (!active && key !== shown) { shown = key; widget.set(value); }
+    box.pz_update = frame => {
+      box.pz_frame = frame;
+      try {
+        const value = read(), key = JSON.stringify(value);
+        if (!active && key !== shown) { widget.set(value); shown = key; }
+      } catch (error) { warn(property, error); }
     };
     box.pz_update(); return box;
   }
-  function replacement(property) { return classic ? original.apply(this, arguments) : propertyControl(property, { advanced: false, sampleColor: M.nativeSample }); }
+  function replacement(property) {
+    if (!classic) {
+      try { return propertyControl(property, { advanced: false, sampleColor: M.nativeSample }); }
+      catch (error) { warn(property, error); }
+    }
+    return original.apply(this, arguments);
+  }
   let classic;
   api.propertyControl = propertyControl;
   api.setClassic = flag => {
