@@ -186,10 +186,10 @@
         }
 
         const color = this.cachedColor || [0, 0, 0];
-        const opacity = this.cachedOpacity || 0.5;
-        const angle = this.cachedAngle || 135;
-        const distance = this.cachedDistance || 10;
-        const blur = this.cachedBlur || 10;
+        const opacity = this.cachedOpacity ?? 0.5;
+        const angle = this.cachedAngle ?? 135;
+        const distance = this.cachedDistance ?? 10;
+        const blur = this.cachedBlur ?? 10;
         const resolution = this.cachedResolution || [width, height];
         const radians = (angle * Math.PI) / 180;
         const offsetX = (Math.cos(radians) * distance) / resolution[0];

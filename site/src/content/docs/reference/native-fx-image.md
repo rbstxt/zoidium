@@ -64,17 +64,16 @@ Editor location: **Effects** picker > **NATIVE FX** > **Drop Shadow**.
 | --- | --- | --- | --- | --- |
 | **Enabled** | Option | **off**, **on** | **on** | off bypasses the effect. on applies it. |
 | **Shadow Color** | Color | No effect-specific numeric bounds | `[0, 0, 0]` | Shadow tint. |
-| **Opacity** | Number | 0 to 1 | 0.5 | Shadow alpha multiplier. A stored zero currently renders with the 0.5 fallback. |
-| **Angle** | Number | 0 to 360 | 135 | Offset direction in degrees. A stored zero currently renders with the 135 fallback. |
-| **Distance** | Number | 0 to 200 | 10 | Offset distance in layer pixels. A stored zero currently renders with the 10 fallback. |
-| **Blur** | Number | 0 to 50 | 10 | Blur amount. Three horizontal and vertical blur pairs use a kernel delta of Blur / 10. Zero currently uses the 10 fallback. |
+| **Opacity** | Number | 0 to 1 | 0.5 | Shadow alpha multiplier. 0 hides the shadow. |
+| **Angle** | Number | 0 to 360 | 135 | Offset direction in degrees. |
+| **Distance** | Number | 0 to 200 | 10 | Offset distance in layer pixels. |
+| **Blur** | Number | 0 to 50 | 10 | Blur amount. Three horizontal and vertical blur pairs use a kernel delta of Blur / 10. |
 
 ### Rendering and limits
 
 The shadow uses the current input alpha. It does not sample another frame.
 The shadow is clipped to the effect buffer. The original input composites over the shadow.
 The implementation allocates two scratch targets and performs three horizontal and vertical blur pairs.
-Stored zero values for **Opacity**, **Angle**, **Distance**, and **Blur** currently take their nonzero fallback values during rendering.
 
 ## Radial Shadow
 
