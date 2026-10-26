@@ -311,7 +311,7 @@
       // host's own result and passes through untouched.
       if (!json || typeof json !== "object") return json;
       const trackedPlugins = collectProjectPlugins(this);
-      const community = window.ZoidiumCommunityProjects;
+      const community = typeof window === "undefined" ? null : window.ZoidiumCommunityProjects;
       const retained = community?.enabled() ? community.retained(json, trackedPlugins, this._zoidiumProjectPlugins) : trackedPlugins;
       const plugins = projectPluginRequirements({ ...ZoidiumPluginApis.props.cloneJson(json), plugins: retained });
       if (plugins.length > 0) json.plugins = serializeProjectPlugins(plugins);
