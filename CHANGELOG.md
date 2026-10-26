@@ -48,8 +48,9 @@ each line describes one visible change.
 - Particular Displace Spin along seeded circular orbits and a shared
   Twist pivot.
 - Developer preview, off by default: local community effect packages with
-  validated controls, local package storage, and local-only frame sampling
-  of other frames. Not yet for general use.
+  validated controls, local package storage, local-only frame sampling of
+  other frames, and project records that survive a missing package. Not yet
+  for general use.
 
 ### Changed
 

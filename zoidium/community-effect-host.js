@@ -7,6 +7,7 @@
   const T = commonJS ? require("./community-temporal-pass") : root.ZoidiumCommunityTemporalPass;
   const instances = new Set();
   const projectsWithCommunityData = new WeakSet();
+  const cleanExports = new WeakSet();
   const EXPORT_ERROR = "Community effect export is unavailable in the developer preview. Remove community effects before exporting video or images.";
   const isCommunity = type => typeof type === "string" && type.startsWith("community-");
   const clone = value => JSON.parse(JSON.stringify(value));
@@ -47,12 +48,18 @@
     return Object.values(value).some(child => contains(child, seen));
   }
   function assertExport(project, exporter) {
+    // Every export frame calls this several times. Without the preview, no
+    // community record can appear mid-export, so one clean full scan per
+    // exporter is enough and later calls skip the project serialization.
+    const preview = Boolean(root.ZoidiumCommunityProjects?.enabled?.());
+    if (!preview && !instances.size && cleanExports.has(exporter)) return;
     // Inspection grants no execution authority. Do not impose package byte
     // limits on the rest of a first-party project's serialized data.
     if (project && contains(JSON.parse(JSON.stringify(project)))) {
       if (root.ZoidiumCommunityExport) return root.ZoidiumCommunityExport.check(project, exporter);
       throw new Error(EXPORT_ERROR);
     }
+    if (!preview && exporter && typeof exporter === "object" && !exporter.__zoidiumCommunityBypass) cleanExports.add(exporter);
     // An export must also fail if its community records were removed mid-run.
     if (exporter?.__zoidiumCommunityBypass) root.ZoidiumCommunityExport?.check(project, exporter);
   }
