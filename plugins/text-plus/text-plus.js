@@ -23,6 +23,7 @@ function loadTextPlusParts(context) {
       diagnostics: bundleRequire("./text-plus-diagnostics.js"),
       geometry: bundleRequire("./text-plus-geometry.js"),
       twoD: bundleRequire("./text-plus-2d.js"),
+      materials: bundleRequire("./text-plus-materials.js"),
     };
   }
   return {
@@ -32,6 +33,7 @@ function loadTextPlusParts(context) {
     diagnostics: require("./text-plus-diagnostics.js"),
     geometry: require("./text-plus-geometry.js"),
     twoD: require("./text-plus-2d.js"),
+    materials: require("./text-plus-materials.js"),
   };
 }
 
@@ -691,7 +693,10 @@ function activate(context) {
   }
 
   try {
+    parts.materials.configure(context);
     state.restoreText2D = parts.twoD.install(context);
+    const MaterialClass = parts.materials.createClass(PZ);
+    state.objectClasses.push(MaterialClass);
     for (const definition of getTextParentDefinitions()) {
       const ObjectClass = createTextParentObjectClass(PZ, definition);
       state.objectClasses.push(ObjectClass);
@@ -704,6 +709,10 @@ function activate(context) {
         })
       );
     }
+    state.unregisterObjectClasses.push(object3d.registerClass({
+      type: parts.materials.TYPE, schemaVersion: 1, name: parts.materials.NAME,
+      factory: () => new MaterialClass(),
+    }));
   } catch (error) {
     deactivate();
     throw error;
