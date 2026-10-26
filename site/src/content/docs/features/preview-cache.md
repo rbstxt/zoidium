@@ -29,11 +29,12 @@ cannot be retained or reused. A larger memory limit does not remove these checks
   a frame can be retained.
 - If project validation takes over 8 ms, caching waits until playback stops and
   editing is idle before it validates a changed state.
-- **Pause drawing**, the 3D editing camera, and a memory limit smaller than one
-  frame also prevent new captures.
+- The 3D editing camera and a memory limit smaller than one frame also prevent
+  new captures.
 
-The note updates after the next preview draw. **Pause drawing** reports its state
-without a draw. **Render once** can capture a complete frame while drawing is paused.
+The note updates after the next preview draw. **Pause drawing** stops normal
+preview draws and reports its state without a draw. **Render once** can capture
+a complete frame while drawing is paused. Idle pre-rendering has its own checks.
 
 ## Memory limits
 

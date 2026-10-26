@@ -799,7 +799,10 @@
     if (store.contextLost) return "The WebGL context was lost";
     if (!store.effectiveLimit) return "GPU memory is unavailable for this session";
     if (!viewport) return "Waiting for a preview viewport";
-    if (viewport.__zoidiumPlayerPlusPaused) return "Preview drawing is paused";
+    if (viewport.__zoidiumPlayerPlusPaused) {
+      const reason = viewport.__zoidiumOutputFrames?.reason;
+      return "Preview drawing is paused" + (reason ? "; " + reason : "");
+    }
     if (viewport.renderMode || !viewport.options?.widget2dObjects) return "The 3D editing camera is active";
     if (plainTimeProject(viewport)) return "Time operators use live preview evaluation";
     const frame = viewport.editor.playback.currentFrame;
