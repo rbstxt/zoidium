@@ -142,6 +142,12 @@
       "./zoidium/plugin-manager-panel.js",
       "./zoidium/community-safe-json.js",
       "./zoidium/community-package.js",
+      "./zoidium/community-protocol.js",
+      "./zoidium/community-bootstrap.js",
+      "./zoidium/community-ui.js",
+      "./zoidium/community-effect-host.js",
+      "./zoidium/community-preview.js",
+      "./zoidium/community-effects.js",
       "./zoidium/community-store-indexeddb.js",
       "./zoidium/community-plugin-store.js",
       "./zoidium/community-plugin-panel.js",
@@ -154,6 +160,15 @@
       community: "offline"
     }
   };
+
+  // Load the staged trusted Worker data before any package can be selected.
+  // No community package controls this URL or initiates this script load.
+  try {
+    if (global.localStorage?.getItem("zoidium.community-preview") === "1") {
+      defaults.postInitScripts.splice(defaults.postInitScripts.indexOf("./zoidium/community-effects.js"), 0,
+        "./zoidium/community-runtime-source.js");
+    }
+  } catch (_error) { /* Preview stays unavailable when storage is blocked. */ }
 
   var overrides = global.ZOIDIUM_RUNTIME_OVERRIDES || {};
   var config = Object.assign({}, defaults, overrides, {

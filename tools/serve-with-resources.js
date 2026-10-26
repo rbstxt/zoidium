@@ -59,6 +59,8 @@ function requestPathname(requestUrl) {
 
 function isLiveProjectPath(relativePath) {
   if (!relativePath) return false;
+  // The fixed interpreter and Worker bytes exist only in the generated stage.
+  if (relativePath === "zoidium/community-runtime-source.js") return false;
   if (liveProjectBundlePattern.test(relativePath)) return true;
   return liveProjectEntries.some(
     (entry) => relativePath === entry || relativePath.startsWith(`${entry}/`)

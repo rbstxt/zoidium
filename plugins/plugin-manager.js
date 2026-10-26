@@ -36,6 +36,7 @@
       return;
     }
 
+    window.ZoidiumCommunityEffectHost?.installGuards();
     installProjectPluginHooks();
     installEditorPluginHooks();
     PZ.zoidium.define("requestPlugin", (...args) => manager.requestPlugin(...args), "plugin-manager");
@@ -76,8 +77,7 @@
         if (shouldStartEnabled(state.plugin)) await enablePlugin(state, false);
       }
       try {
-        // Community packages cannot run yet, so their management section stays
-        // a developer preview until rendering support lands.
+        window.ZoidiumCommunityEffectHost?.installGuards();
         if (window.localStorage?.getItem("zoidium.community-preview") === "1") {
           manager.mountCommunityPanel?.(panel, registry);
         }
