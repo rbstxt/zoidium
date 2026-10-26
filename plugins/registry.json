@@ -343,16 +343,16 @@
       "category": "adjustment",
       "name": "Native FX",
       "author": "Zoidium",
-      "version": "30",
+      "version": "31",
       "itemCount": 6,
       "format": "native effects",
       "tagline": "Native Effects and Time Tools",
       "color": "#c56b3d",
       "description": "Adds native filters, direct visual controls, and time effects.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/native-fx/manifest.json?v=30",
-      "bundle": "./plugins/native-fx/bundle.json?v=30",
-      "integrity": "sha256-CWLJzjpX2YGFRJT3oIqQc3btizl+T7NpgAHUxovteSk="
+      "manifest": "./plugins/native-fx/manifest.json?v=31",
+      "bundle": "./plugins/native-fx/bundle.json?v=31",
+      "integrity": "sha256-3C+tiAG5PGcJOdRlQY0L19IOd52h5mrINFT7/MsstTI="
     },
     {
       "id": "afterclip",
@@ -413,16 +413,16 @@
       "category": "adjustment",
       "name": "OpenZoid Legacy",
       "author": "DaviFX",
-      "version": "25",
+      "version": "26",
       "itemCount": 12,
       "format": "native effects",
       "tagline": "Echo, Posterize Time, JPEG, VHS, Datamosh, Tracery",
       "color": "#8f6bc5",
       "description": "OpenZoid effects on Zoidium deterministic rendering: Echo and Posterize Time (Legacy), Jpeg Damage, VHS, Datamosh, Tracery and ASCII, with floating setup windows.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/openzoid-legacy/manifest.json?v=25",
-      "bundle": "./plugins/openzoid-legacy/bundle.json?v=25",
-      "integrity": "sha256-rG5w75+xaP68Q+9zBXQ6yRNCGEI99DvsTY/NtQiGdrg="
+      "manifest": "./plugins/openzoid-legacy/manifest.json?v=26",
+      "bundle": "./plugins/openzoid-legacy/bundle.json?v=26",
+      "integrity": "sha256-J0utrL9JYAyndOFJmbWaxc6vABgaZ8xKKTcdOaMZPxQ="
     },
     {
       "id": "magic-looks",
