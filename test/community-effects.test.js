@@ -198,6 +198,10 @@ test("UI events commit only validated patches and use native undo and redo", asy
   h.editor.history.undo(); assert.equal(U.read(e, declaration).gain, 1);
   h.editor.history.redo(); assert.equal(U.read(e, declaration).gain, 1.7);
   const saved = H.clone(e.toJSON()); await e.load(saved); assert.deepEqual(H.clone(e.toJSON()), saved);
+  saved.properties.name = "<svg onload=fetch('https://sink.invalid')>";
+  await e.load(saved);
+  assert.equal(e.properties.name.get(), "Community effect");
+  assert.equal(JSON.stringify(e.toJSON()), JSON.stringify(saved));
   cleanup(); cleanup(); h.controller.dispose(); e.unload();
 });
 test("closed setup windows discard delayed UI patches and action floods", async () => {

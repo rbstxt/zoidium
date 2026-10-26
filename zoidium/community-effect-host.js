@@ -28,10 +28,11 @@
       effect.unload = () => { instances.delete(effect); };
     };
   }
-  function contains(value) {
-    if (!value || typeof value !== "object") return false;
+  function contains(value, seen = new Set()) {
+    if (!value || typeof value !== "object" || seen.has(value)) return false;
+    seen.add(value);
     if (isCommunity(value.type)) return true;
-    return Object.values(value).some(contains);
+    return Object.values(value).some(child => contains(child, seen));
   }
   function assertExport(project) {
     // Inspection grants no execution authority. Do not impose package byte
@@ -134,11 +135,12 @@
       (commonJS ? require("./community-package") : root.ZoidiumCommunityPackage).state(single, declaration.properties);
     }
     for (const p of declaration.properties) effect.properties[U.keyFor(p.key)].set(values[p.key]);
+    effect._communitySavedName = properties.name ?? "Community effect";
     effect.properties.name.set("Community effect");
   }
   function serialize(effect, declaration, binding) {
     if (effect._communityOpaque) return clone(effect._communityOpaque);
-    const properties = { name: "Community effect" };
+    const properties = { name: effect._communitySavedName ?? "Community effect" };
     for (const [key, value] of Object.entries(U.read(effect, declaration))) properties[U.keyFor(key)] = value;
     return { type: effect.type, properties, community: { schemaVersion: 1, packageId: binding.packageId,
       packageHash: binding.packageHash, dataSchema: declaration.dataSchema } };
