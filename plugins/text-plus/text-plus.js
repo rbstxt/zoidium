@@ -22,6 +22,7 @@ function loadTextPlusParts(context) {
       controls: bundleRequire("./text-plus-controls.js"),
       diagnostics: bundleRequire("./text-plus-diagnostics.js"),
       geometry: bundleRequire("./text-plus-geometry.js"),
+      twoD: bundleRequire("./text-plus-2d.js"),
     };
   }
   return {
@@ -30,6 +31,7 @@ function loadTextPlusParts(context) {
     controls: require("./text-plus-controls.js"),
     diagnostics: require("./text-plus-diagnostics.js"),
     geometry: require("./text-plus-geometry.js"),
+    twoD: require("./text-plus-2d.js"),
   };
 }
 
@@ -689,6 +691,7 @@ function activate(context) {
   }
 
   try {
+    state.restoreText2D = parts.twoD.install(context);
     for (const definition of getTextParentDefinitions()) {
       const ObjectClass = createTextParentObjectClass(PZ, definition);
       state.objectClasses.push(ObjectClass);
@@ -709,6 +712,8 @@ function activate(context) {
 
 function deactivate() {
   if (!parts) return;
+  state.restoreText2D?.();
+  state.restoreText2D = null;
   state.restoreCharacterRequest?.();
   state.restoreCharacterRequest = null;
   parts.geometry.clearCharacterSplitRequests();

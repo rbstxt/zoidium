@@ -1,5 +1,38 @@
 # Text+
 
+## Native 2D Text
+
+Native **Text** layers have a **Character** category when Text+ is enabled.
+**Mode** selects None or one of the six animators listed below. Only one mode
+acts on a native Text layer at a time. Position and Scale use X and Y.
+Rotation and Shake turn in the layer's plane. Both selected modes use the
+**Characters** field. Spaces keep their native glyph slots and count toward
+selection, delay, and gradient order.
+
+Text+ transforms the native glyph paths during drawing. It retains CM3's
+font layout, centering, native half-unit alignment, and fill and stroke operations.
+Native Text has no line layout, alignment selector, kerning adjustment, or
+letter-spacing control. Text+ preserves that behavior. Effects and masks receive
+the combined layer image after character animation.
+
+At neutral transform values, Text+ calls the native renderer without additional
+canvas operations. **Mode** defaults to **None**. Frame evaluation and seeded
+randomness use the same rules as the 3D animators. Expressions use native dynamic
+properties, including delayed frame reads for Character Transform.
+
+The layer remains type `7`. Project JSON stores settings in `zoidiumTextPlus2D`
+with `schemaVersion: 1` and a `characterProperties` object. The extension layer
+retains that data when Text+ is disabled or missing. The layer then renders as
+native Text. Re-enabling Text+ restores the controls and animation. Hidden live
+properties retain their native addresses after disable, so existing undo
+commands can still edit the saved values.
+
+Shape+ conversion rejects active character animation. Setting **Mode** to
+**None** permits conversion to editable outlines without Text+ controls.
+Existing 3D Text+ objects keep their published types and behavior.
+
+## 3D Text parents
+
 Text+ adds six parent objects to 3D Scene. Put one or more 3D Text objects
 inside any parent, directly or through ordinary Groups, and Text+ renders
 each character as an independent 3D mesh. Non-text descendants keep their

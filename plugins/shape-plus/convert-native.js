@@ -65,6 +65,8 @@ function convertNative(layer, nextId) {
     throw Error(
       "Only native Shape, Text and Preset Shape layers can be converted",
     );
+  if (layer.type === 7 && Number(layer.zoidiumTextPlus2D?.characterProperties?.mode || 0) !== 0)
+    throw Error("Set Character Mode to None before converting native Text to Shape+");
   let seed = 0;
   nextId = nextId || (() => "converted-" + ++seed);
   const saved = clone(layer),

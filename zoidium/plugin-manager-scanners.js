@@ -329,6 +329,7 @@
   }
 
   function detectTextPlusFeatures(value, found) {
+    if (value.type === 7 && value.zoidiumTextPlus2D) found.add("2d-characters");
     if (isSerializedTextObject(value)) {
       const properties = value.properties;
       if (

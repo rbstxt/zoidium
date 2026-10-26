@@ -16,7 +16,7 @@ async function retentionProbe() {
     document: { dispatchEvent() {} },
     CustomEvent: class {},
     PZ: { project: class { toJSON() { return {}; } } },
-    ZoidiumProjectCompatibility: { installTextMode() {} },
+    ZoidiumProjectCompatibility: { installTextMode() {}, installText2D() {} },
     ZoidiumPluginApis: { props: { cloneJson: (value) => JSON.parse(JSON.stringify(value)) } },
   };
   sandbox.window = sandbox;

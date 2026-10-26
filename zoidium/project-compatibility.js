@@ -70,7 +70,30 @@
     proto.__zoidiumTextScaleSerialization = true;
   }
 
-  const api = { migrateProject, installTextMode };
+  // Keep native Text's character settings even when Text+ is unavailable.
+  // The plugin owns live properties and rendering; this hook only carries JSON.
+  function installText2D(PZ) {
+    const proto = PZ.layer?.shape?.text?.prototype;
+    if (!proto || owns(proto, "__zoidiumText2DSerialization") || !proto.load || !proto.toJSON) return;
+    const load = proto.load, toJSON = proto.toJSON;
+    const clone = value => JSON.parse(JSON.stringify(value));
+    proto.load = function (data) {
+      Object.defineProperty(this, "zoidiumTextPlus2D", {
+        value: data?.zoidiumTextPlus2D ? clone(data.zoidiumTextPlus2D) : undefined,
+        writable: true, configurable: true,
+      });
+      return load.apply(this, arguments);
+    };
+    proto.toJSON = function () {
+      const json = toJSON.apply(this, arguments);
+      const settings = this.zoidiumTextPlus2D;
+      if (settings !== undefined) json.zoidiumTextPlus2D = clone(settings);
+      return json;
+    };
+    proto.__zoidiumText2DSerialization = true;
+  }
+
+  const api = { migrateProject, installTextMode, installText2D };
   if (typeof module === "object" && module.exports) module.exports = api;
   else global.ZoidiumProjectCompatibility = api;
 })(typeof window !== "undefined" ? window : null);
