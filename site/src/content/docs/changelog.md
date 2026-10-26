@@ -95,6 +95,9 @@ each line describes one visible change.
 
 ### Fixed
 
+- The preview cache keeps working when an unused, disabled plugin failed to
+  download, and pre-renders frames in projects with video when no video is
+  near those frames.
 - Trapcode Particular no longer jumps particles when an animated Air
   resistance reaches 0 while Air density is not 1.
 - The preview cache works again for projects that use Native FX, Text+,

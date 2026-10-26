@@ -38,6 +38,9 @@
           state.manifest = pluginPackage.manifest;
           state.bundleAssets = pluginPackage.assets;
         }
+        // Registration can execute plugin code that patches shared factories.
+        // Keep this history even after rollback or disable: cleanup can fail.
+        state.activationStarted = true;
         await registerManifest(state.plugin, state.manifest, state);
         closeOpenAddPickers();
         await PZ.zoidium?.object3d?.restoreMissing?.(state.plugin.id);
@@ -281,6 +284,7 @@
       groupCache: new Map(),
       replacedObjectTypes: [],
       runtimeModules: [],
+      activationStarted: false,
       enablePromise: null,
       lastError: null,
     };
@@ -317,6 +321,7 @@
       groupCache: new Map(),
       replacedObjectTypes: [],
       runtimeModules: [],
+      activationStarted: false,
       enablePromise: null,
       lastError: null,
     };

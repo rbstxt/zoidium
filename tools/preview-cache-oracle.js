@@ -102,6 +102,10 @@ async function main() {
         await page.locator('[aria-label="Preview quality"]').selectOption(fixture.full ? "1" : "0.125");
         const begin = Date.now();
         const entry = { plugin: fixture.plugin, name: fixture.name, full: !!fixture.full };
+        const failedBundle = "**/plugins/" + fixture.bundleFailure + "/bundle.json*";
+        if (fixture.bundleFailure) await page.route(failedBundle, route => route.fulfill({
+          status: 503, contentType: "text/plain", body: "Synthetic bundle failure",
+        }));
         try {
           let timer;
           try {
@@ -116,6 +120,8 @@ async function main() {
           entry.passed = false;
           if (entry.error.includes("Fixture timed out")) throw error;
           report.failures.push({ plugin: fixture.plugin, name: fixture.name, error: entry.error });
+        } finally {
+          if (fixture.bundleFailure) await page.unroute(failedBundle);
         }
         entry.elapsedMs = Date.now() - begin;
         report.cases.push(entry);

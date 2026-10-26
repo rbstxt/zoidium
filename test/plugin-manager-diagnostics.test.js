@@ -24,3 +24,27 @@ test("storage and placeholder failures keep their existing defaults and warn onc
   assert.equal(JSON.stringify(missing.toJSON()), '{"type":7}');
   assert.equal(warnings.length, 7);
 });
+
+
+test("bundle failures retain proof that plugin activation never started", async () => {
+  const { sandbox, manager } = loadManager();
+  sandbox.PZ = {};
+  sandbox.console = { error() {} };
+  manager.unregisterPlugin = async () => {};
+  manager.loadPluginPackageForState = async () => { throw new Error("bundle unavailable"); };
+  const state = manager.createHiddenPluginState({ id: "fixture", name: "Fixture" });
+  await manager.enablePlugin(state, false);
+  assert.equal(manager.getDebugPlugins()[0].activationStarted, false);
+  assert.equal(manager.getDebugPlugins()[0].phase, "error");
+  assert.equal(manager.getDebugPlugins()[0].lastError.message, "bundle unavailable");
+  manager.loadPluginPackageForState = async () => ({ manifest: {}, assets: {} });
+  manager.registerManifest = async () => { throw new Error("activation failed after shared patch"); };
+  await manager.enablePlugin(state, false);
+  assert.equal(manager.getDebugPlugins()[0].activationStarted, true);
+  assert.equal(manager.getDebugPlugins()[0].lastError.message, "activation failed after shared patch");
+  await manager.unregisterPlugin(state.plugin.id);
+  state.manifest = null;
+  manager.loadPluginPackageForState = async () => { throw new Error("bundle unavailable again"); };
+  await manager.enablePlugin(state, false);
+  assert.equal(manager.getDebugPlugins()[0].activationStarted, true, "rollback and a later fetch failure cannot prove shared patches were restored");
+});

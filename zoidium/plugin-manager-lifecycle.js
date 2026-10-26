@@ -516,6 +516,7 @@
       phase: state.card ? state.card.dataset.phase || "disabled" : state.phase || "disabled",
       persistedEnabled: isPersistedEnabled(state.plugin.id),
       featureCount: state.manifest ? manifestFeatureCount(state.manifest) : null,
+      activationStarted: state.activationStarted !== false,
       lastError: state.lastError || null,
     })).sort((a, b) => a.id.localeCompare(b.id));
   }

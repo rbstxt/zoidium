@@ -120,7 +120,9 @@
       gl.drawingBufferWidth, gl.drawingBufferHeight,
       viewport.compositor.__zoidiumRenderSettings || null,
       renderer.shadowMap.enabled, renderer.shadowMap.type, renderer.toneMapping, renderer.toneMappingExposure,
-      pluginEpoch, fontEpoch, global.document.fonts?.status,
+      pluginEpoch, global.PZ?.zoidium?.getDebugPlugins?.().map(plugin =>
+        [plugin.id, plugin.version, plugin.enabled, plugin.phase, plugin.activationStarted, !!plugin.lastError]),
+      fontEpoch, global.document.fonts?.status,
     ]);
   }
 
@@ -128,8 +130,9 @@
     const viewport = controller.viewport;
     controller.keyReason = null;
     const plugins = global.PZ?.zoidium?.getDebugPlugins?.();
-    // Booting or failed plugins cannot provide a stable render contract.
-    if (!plugins || plugins.some(plugin => plugin.phase === "loading" || plugin.lastError)) {
+    // Registration can still change shared factories while any plugin loads.
+    // Failed plugins need the serialized requirements check in revisionOf().
+    if (!plugins || plugins.some(plugin => plugin.phase === "loading")) {
       controller.keyReason = "Plugins are loading or have errors";
       return null;
     }
@@ -597,7 +600,7 @@
     const fits = Math.floor(store.effectiveLimit / (gl.drawingBufferWidth * gl.drawingBufferHeight * 4)) - 2;
     const ahead = Math.min(PREFETCH_AHEAD, Math.max(0, fits - PREFETCH_BEHIND));
     const wanted = frame => frame >= 0 && frame < length && !controller.prefetchSkipped.has(frame) &&
-      !store.entries.has(entryKey(controller, frame));
+      !store.entries.has(entryKey(controller, frame)) && !videoPrefetchBlocked(viewport.editor.project.sequence, frame);
     for (let offset = 1; offset <= ahead; offset += 1) if (wanted(current + offset)) return current + offset;
     for (let offset = 1; offset <= Math.min(PREFETCH_BEHIND, fits); offset += 1) {
       if (wanted(current - offset)) return current - offset;
@@ -612,6 +615,7 @@
       signalEpoch === epoch && contextAvailable(viewport.renderer.context) && !!store.effectiveLimit &&
       !plainTimeProject(viewport) && viewport.editor.playback.speed === 0 &&
       viewport.editor.playback.currentFrame === current && !viewport.renderMode;
+    if (videoPrefetchBlocked(viewport.editor.project.sequence, frame)) return false;
     const snapshot = snapshotFor(controller, key);
     const sequence = snapshot.project.sequence;
     if (!snapshot.ready) {
@@ -625,6 +629,7 @@
       }
       snapshot.ready = true;
     }
+    if (videoPrefetchBlocked(sequence, frame)) { controller.prefetchSkipped.add(frame); return false; }
     sequence.update(frame);
     for (const schedule of sequence.videoSchedules) {
       await schedule.prepare(frame, { sequence, previewFrameCacheStrict: true, compositor: snapshot.compositor,
@@ -653,8 +658,11 @@
     return true;
   }
 
-  function hasVideo(sequence) {
-    return (sequence.videoSchedules || []).some(schedule => (schedule.items || []).some(item => item?.media));
+  function videoPrefetchBlocked(sequence, frame) {
+    // Samplers can seek beyond the output frame. Keep video projects with
+    // temporal sampling live-only for prefetch until their decode work is bounded.
+    const sampling = PZ.zoidium.temporal.usesSingleEvaluation?.(sequence) !== false;
+    return model.videoPrefetchBlocked(sequence, frame, sampling);
   }
 
   function scheduleIdle(delay = IDLE_MS) {
@@ -680,9 +688,6 @@
       }
       const key = controller.key;
       if (!key || controller.settled !== key || controller.unsupported === key) continue;
-      // Private video decoders compete with the editor's own and slowed later
-      // playback, while seek-based decoding filled only ~2 frames per second.
-      if (hasVideo(viewport.editor.project.sequence)) continue;
       const current = viewport.editor.playback.currentFrame;
       if (!store.entries.has(entryKey(controller, current)) || controller.prefetchCost > PREFETCH_SYNC_MS) continue;
       const frame = nextPrefetchFrame(controller, current);

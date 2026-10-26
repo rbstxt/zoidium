@@ -136,6 +136,18 @@
       Math.abs(video.currentTime - decoded.requestedTime) <= 1e-6;
   }
 
+  function videoPrefetchBlocked(sequence, frame, temporalSampling) {
+    return (sequence.videoSchedules || []).some(schedule => (schedule.items || []).some(item => {
+      if (!item?.media) return false;
+      // No private decoder may start, including schedule.update()'s padded
+      // preload. Temporal taps and multisample blur can cross these bounds.
+      if (temporalSampling || sequence.properties?.motionBlur?.get?.()) return true;
+      const { start, length } = item, { padding } = schedule;
+      if (![start, length, padding].every(Number.isFinite) || length < 0 || padding < 0) return true;
+      return frame >= start - padding && frame < start + length;
+    }));
+  }
+
   // The full project state that a finished frame depends on. The cache decides
   // when to recompute it (see output-frame-cache.js keyFor()).
   function containsCommunity(value, seen = new Set()) {
@@ -149,6 +161,15 @@
     const project = viewport.editor.project;
     const sequence = project.sequence;
     const content = typeof project.toJSON === "function" ? project.toJSON() : project;
+    const required = new Set((content.plugins || []).map(plugin => plugin.id));
+    // A failed bundle fetch cannot have patched rendering. Once registration
+    // started, an unrelated error still blocks: rollback is not proof that
+    // every global patch was restored. Core scripts run before registration.
+    if (plugins.some(plugin => plugin.lastError && (required.has(plugin.id) ||
+        plugin.activationStarted !== false || plugin.enabled || plugin.kind === "core" || plugin.id === "core"))) {
+      onReject("Plugins are loading or have errors");
+      return null;
+    }
     // Isolated receipts have their own exact preparation contract. Finished
     // frame caching and private prefetch clones have no approval for them.
     if (containsCommunity(content)) {
@@ -175,7 +196,8 @@
       viewport.renderer.shadowMap.enabled, viewport.renderer.shadowMap.type,
       viewport.renderer.gammaInput, viewport.renderer.gammaOutput,
       viewport.renderer.toneMapping, viewport.renderer.toneMappingExposure,
-      plugins.map(plugin => [plugin.id, plugin.version, plugin.enabled, plugin.phase]), fontEpoch,
+      plugins.map(plugin => [plugin.id, plugin.version, plugin.enabled, plugin.phase,
+        plugin.activationStarted, !!plugin.lastError]), fontEpoch,
     ]);
   }
 
@@ -196,7 +218,7 @@
     return JSON.stringify(sort(JSON.parse(JSON.stringify(value))));
   }
 
-  const api = { assetCompletion, assetsComplete, decoderComplete, restoreLinkKeys, canonicalJSON,
+  const api = { assetCompletion, assetsComplete, decoderComplete, videoPrefetchBlocked, restoreLinkKeys, canonicalJSON,
     DEFAULT_BYTES, MAX_MIB, MAX_ENTRIES, FrameStore, revisionOf, sizeMiB };
   global.ZoidiumOutputFrameStore = api;
   if (typeof module === "object" && module.exports) module.exports = api;
