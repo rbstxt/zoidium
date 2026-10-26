@@ -306,9 +306,10 @@ playback is running.
   `PZ.zoidium.debugDisableFrameSamplerInputReuse = true` disables reuse between
   preparations for pixel comparisons while preserving the current prepared plan.
 - A `defineFrameSampler` request with `preserveInputRGB: true` copies source
-  RGBA without blending. This preserves premultiplied RGB for subframe averages.
-  Smart Motion Blur uses this mode for Shutter Samples. Requests that omit
-  the option retain CM3's native transparent copy behavior.
+  RGBA without blending. This preserves premultiplied RGB in sampled frames.
+  Every built-in frame-sampler effect uses this mode. Requests that omit the
+  option retain CM3's native transparent copy, which multiplies RGB by alpha
+  again and darkens semi-transparent input.
 - The sampler allocates optional retained RGBA8 targets only while their total
   is at most 256 MiB per root compositor, with at most 128 slots per effect and
   input nesting depth. Single-tap requests reuse one target. Other plans
