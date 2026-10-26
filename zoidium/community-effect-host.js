@@ -89,7 +89,10 @@
         // Opaque missing layers can retain effects without creating instances.
         if (instances.size || projectsWithCommunityData.has(project) || this.__zoidiumCommunityBypass) {
           try { assertExport(project, this); }
-          catch (error) { this.failExportFrame?.(error); throw error; }
+          catch (error) {
+            try { this.failExportFrame?.(error); } catch (_) { /* Preserve the policy refusal. */ }
+            throw error;
+          }
         }
         return original.apply(this, arguments);
       };

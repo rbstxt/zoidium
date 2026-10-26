@@ -24,6 +24,7 @@
     let store, state, controller, busy = false;
     function buttonsDisabled(disabled) {
       section.querySelectorAll("button").forEach(button => { button.disabled = disabled; });
+      if (fallbackButton) fallbackButton.disabled = busy || !root.ZoidiumCommunityProjects?.enabled();
     }
     async function run(action) {
       if (busy) return;
@@ -32,7 +33,7 @@
         state = await action();
         await controller?.reconcile();
         if (controller) state = store.view();
-        render();
+        if (state) render();
       }
       catch (error) {
         if (store && state) { state = store.view(); render(); }
@@ -103,7 +104,7 @@
         const approved = await root.ZoidiumCommunityExport.requestFallback(project);
         root.ZoidiumUI.notify({ title: approved ? "Fallback export selected" : "Fallback export not selected",
           message: approved ? "The next export bypasses all community effects at every frame. Project records stay unchanged." : "Export still requires a new explicit choice." });
-        return store.view();
+        return store?.view() || state;
       });
     });
     root.addEventListener?.("zoidium:project-changed", renderWarnings);
