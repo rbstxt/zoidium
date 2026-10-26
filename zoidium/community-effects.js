@@ -7,6 +7,7 @@
   const U = commonJS ? require("./community-ui") : root.ZoidiumCommunityUI;
   const H = commonJS ? require("./community-effect-host") : root.ZoidiumCommunityEffectHost;
   const B = commonJS ? require("./community-bootstrap") : root.ZoidiumCommunityBootstrap;
+  const Preview = commonJS ? require("./community-preview") : root.ZoidiumCommunityPreview;
   const previewEnabled = () => {
     try { return root.localStorage?.getItem("zoidium.community-preview") === "1"; } catch (_) { return false; }
   };
@@ -43,6 +44,8 @@
     createRunner = B.createRunner, PZ = root.PZ, ui = root.ZoidiumUI, stamp = frameStamp, makePass = H.makePass } = {}) {
     const sessions = new Map();
     let disposed = false;
+    const removePreview = Preview.install({ PZ, stamp, sameStamp, enabled: previewEnabled,
+      getEffects: () => [...sessions.values()].filter(s => !s.closed).flatMap(s => [...s.effects]) });
     function valid(effect, session) {
       return !disposed && !session.closed && previewEnabled() && !effect._community?.unloaded &&
         !effect._communityOpaque && Boolean(effect.parent) && effect.parentProject === effect._community.project;
@@ -209,7 +212,7 @@
         if (store.view().safeMode) return;
         for (const p of store.view().packages) if (p.enabled && !p.quarantine) await activate(p.id);
       },
-      dispose() { if (disposed) return; disposed = true; for (const s of sessions.values()) stop(s); unregister?.(); },
+      dispose() { if (disposed) return; disposed = true; for (const s of sessions.values()) stop(s); unregister?.(); removePreview(); },
     };
   }
   const api = { createController, frameStamp, sameStamp, previewEnabled };

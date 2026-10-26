@@ -146,6 +146,7 @@
       "./zoidium/community-bootstrap.js",
       "./zoidium/community-ui.js",
       "./zoidium/community-effect-host.js",
+      "./zoidium/community-preview.js",
       "./zoidium/community-effects.js",
       "./zoidium/community-store-indexeddb.js",
       "./zoidium/community-plugin-store.js",
