@@ -57,6 +57,8 @@ each line describes one visible change.
 
 ### Changed
 
+- Smart Motion Blur with Optical Flow skips redundant GPU passes (about
+  6–12% less GPU time at 1/8 quality). The output is unchanged.
 - Shape+ boolean, offset, and stroke operations run faster (boolean
   intersection about twice as fast). The generated shapes are unchanged.
 - Existing projects, new look: effects that read other frames no longer

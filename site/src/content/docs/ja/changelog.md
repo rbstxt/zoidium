@@ -37,6 +37,7 @@ sidebar:
 
 ### 変更
 
+- Optical Flow を使う Smart Motion Blur で、不要な GPU の処理を省きました（1/8 品質で GPU 時間が約 6〜12% 減ります）。出力は変わりません。
 - Shape+ のブーリアン演算、オフセット、ストロークの処理が速くなりました（ブーリアンの交差は約2倍）。生成される形は変わりません。
 - 既存プロジェクトの見た目の変更。他のフレームを読み込むエフェクトで、柔らかい部分や半透明の部分（パーティクル、文字の縁、フェード中のレイヤー）が暗くならなくなりました。対象は Echo、CC Wide Time、Time Difference、Time Displacement、Optical Flow を使う Smart Motion Blur、Echo (Legacy)、VHS、Datamosh です。不透明な映像の描画は変わりません。
 - 既存プロジェクトの見た目の変更。Trapcode Particular で、Velocity distribution、Aspect ratio、Opacity random、Color random、Air density、Drift X/Y/Z、Disperse strength over（life）とそのカーブ、Turbulence field affect size と affect opacity が描画に反映されます。これらは以前は効果がありませんでした。既定値のままのプロジェクトの描画は変わりません。

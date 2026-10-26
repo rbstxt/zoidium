@@ -3,10 +3,10 @@
   "use strict";
   const receipt = {
   "schemaVersion": 1,
-  "fingerprint": "6046b14eb04a7c686a5b1412f5587f82f8bad23ef906fec91cff02a3621ed264",
+  "fingerprint": "f75e52f93b6698abebd2c7154a6073a87d819858d5103e0f1e8061c238cd9742",
   "plugins": {
     "native-fx": {
-      "version": "35",
+      "version": "36",
       "cases": [
         "radialblurspin",
         "colorcurves",
