@@ -17,3 +17,5 @@ sidebar:
 スポットライトまたはディレクショナルライトの場合は、Track to と Influence を設定します。これらのライトはネイティブの Target 位置を通じて向きを合わせ、トラック軸のコントロールは表示されません。Track To によるカメラショットには、ネイティブのシーンカメラを使用します。Camera+ のシーケンスカメラレイヤーは、同一シーンのターゲット規約の対象外です。
 
 [Constraints ソースコントラクト](https://github.com/rbstxt/zoidium/blob/dev/plugins/constraints/README.md)に、見つからないターゲット、循環参照、およびサポートされているライトについて記載されています。[Track To の互換性](/docs/ja/development/project-compatibility/#track-to-コンストレイント)に、保存される UUID とコンストレイントのプロパティについて記載されています。
+
+コントロールのリファレンス: [constraints](/docs/ja/reference/constraints/).

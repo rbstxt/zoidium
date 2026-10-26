@@ -13,3 +13,5 @@ sidebar:
 Rounded Box、Polyhedron、Cone、Capsule、Tube、Gear、Helix、または Spline を選択します。中空の円柱を作成するには、Tube を選択して壁の厚さを調整します。スイープパスを作成するには、Spline を選択してそのポイントを編集します。パスに合わせて補間と閉ループのオプションを設定します。
 
 [Material+](/docs/ja/features/material-plus/) は PBR およびノードベースのマテリアルを提供します。[Geometry+ マニフェスト](https://github.com/rbstxt/zoidium/blob/dev/plugins/geometry-plus/manifest.json)に、名前空間付きのオブジェクトタイプと説明が記載されています。
+
+コントロールのリファレンス: [geometry-plus](/docs/ja/reference/geometry-plus/).

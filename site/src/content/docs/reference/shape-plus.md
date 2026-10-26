@@ -61,7 +61,7 @@ Every item has **Enabled**, an **off**, **on** choice that defaults to **on**. N
 | Control | Type | Range or options | Default | Effect on output |
 | --- | --- | --- | --- | --- |
 | **Closed** | Choice | **off**, **on** | **on** | Connects the last vertex to the first. |
-| **Path** | Number | No declared bounds | `Four-vertex rectangle` | Six animated scalar channels per vertex: X, Y, In X, In Y, Out X, and Out Y. Tangents are relative to the vertex. |
+| **Path** | Number | No declared bounds | Four-vertex rectangle | Six animated scalar channels per vertex: X, Y, In X, In Y, Out X, and Out Y. Tangents are relative to the vertex. |
 
 
 ## Fill

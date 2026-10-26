@@ -23,3 +23,5 @@ adjacent linear and bezier segments. Press Escape to cancel a drag.
 describes temporal handles and edit limits.
 [Motion Paths compatibility](/docs/development/project-compatibility/#motion-paths)
 describes native key storage.
+
+Control reference: [editor-controls](/docs/reference/editor-controls/).

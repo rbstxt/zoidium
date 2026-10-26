@@ -60,10 +60,10 @@ Field of view depends on focal length, sensor, zoom, and sequence aspect ratio. 
 | **Seed** | Number | 0 to 100000 | `0` | Seed for repeatable random values. |
 | **Enable Position** | Choice | **off**, **on** | **off** | Enables positional shake. |
 | **Position Amplitude** | 3D vector | ≥ 0 | `[0, 0, 0]` | Maximum shake displacement on each axis. |
-| **Position Frequency** | Number | ≥ 0 | `2` | Position noise frequency per second. |
+| **Position Frequency** | Number | ≥ 0 | `2` | Position noise frequency per local frame. |
 | **Enable Rotation** | Choice | **off**, **on** | **off** | Enables rotational shake. |
 | **Rotation Amplitude** | 3D vector | ≥ 0 | `[0, 0, 0]` | Maximum shake angle on each axis, in degrees. |
-| **Rotation Frequency** | Number | ≥ 0 | `2` | Rotation noise frequency per second. |
+| **Rotation Frequency** | Number | ≥ 0 | `2` | Rotation noise frequency per local frame. |
 
 
 ## Tracking
@@ -76,10 +76,17 @@ Field of view depends on focal length, sensor, zoom, and sequence aspect ratio. 
 | **Rotation Y (3D)** | Number | No declared bounds | `0` | Layer rotation about Y in degrees. |
 
 
+## Sequence multisampling
+
+**Track Frame** is an animated choice: **auto**, **previous**, or **next**, default **auto**. Auto centers the shared-camera shutter interval. Previous ends the interval at the current frame. Next starts it at the current frame.
+
+**Motion Sensitivity** is an animated number from 0 to 200, default 100. It multiplies the sequence shutter by its value divided by 100. These controls use sequence multisampling and are separate from Camera Motion Blur.
+
+
 ## Projection and sampling limits
 
 Orthographic uses a base span of 0.1 scene units per sequence pixel, divided by Zoom. Focal Length and Sensor do not set that span.
 
-Vibrate reads time in seconds and uses seeded noise. A direct seek to the same time produces the same shake. Relative shake is zero on an axis whose base value is zero.
+Vibrate reads the local frame and uses seeded noise. A direct seek to the same frame produces the same shake. Relative shake is zero on an axis whose base value is zero.
 
 [Use Camera+](/docs/features/camera-plus/)

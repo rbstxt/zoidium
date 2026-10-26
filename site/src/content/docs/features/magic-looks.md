@@ -29,3 +29,5 @@ describes LUT limits and multipass requirements.
 describes the historical renderers and new instance chains.
 
 [Color Curves properties](/docs/reference/native-fx-image/#color-curves) describes the separate Native FX filter for direct RGB curve control.
+
+Control reference: [magic-looks](/docs/reference/magic-looks/).

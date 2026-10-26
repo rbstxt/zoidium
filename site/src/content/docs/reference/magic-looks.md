@@ -8,6 +8,8 @@ New Magic Looks effects use independent tool instances. A chain contains at most
 
 Tables show labels for instance `1` in **Parameters**. Other instances replace the numeric prefix with their stable identity. Fractional controls display stored numbers: `1` means 100 percent. Legacy setup fields can display percentages.
 
+The effect-level **Enabled** choice is **off** or **on**, default **on**. Off bypasses the entire look.
+
 
 ## Chain and presets
 

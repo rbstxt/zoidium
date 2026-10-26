@@ -20,3 +20,5 @@ choose Photometric IES and select a local LM-63 Type C file with TILT=NONE.
 
 [Suite source contract](https://github.com/rbstxt/zoidium/blob/dev/plugins/trapcode-suite/README.md)
 describes deterministic motion, audio analysis, light behavior, and limits.
+
+Control reference: [trapcode-particular](/docs/reference/trapcode-particular/), [trapcode-form](/docs/reference/trapcode-form/), [plexus](/docs/reference/plexus/), [trapcode-lights](/docs/reference/trapcode-lights/).

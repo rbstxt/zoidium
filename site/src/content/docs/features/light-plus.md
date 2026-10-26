@@ -31,3 +31,5 @@ Intensity accepts 0 to 100. Spot Angle accepts 0 to 90 degrees. Hemisphere light
 Light+ uses native light properties. For the suite's additional light types and controls, use [Rowbyte & Red Giant Suite](/docs/features/trapcode-suite/).
 
 Keep one light provider enabled when choosing lights. Light+ and the suite both add light picker entries, and their menus and controls differ.
+
+Control reference: [light-plus](/docs/reference/light-plus/).

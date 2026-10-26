@@ -19,3 +19,5 @@ The [heavy-project preview guide](/docs/how-to/preview-heavy-project/) describes
 **Preview quality** offers **Full quality**, **1/2 quality**, **1/4 quality**, and **1/8 quality**. Each fraction scales both viewport pixel dimensions. The choice persists locally.
 
 Player+ changes the editor viewport size. Project resolution and export settings remain separate. The [preview cache](/docs/features/preview-cache/) has its own memory budget.
+
+Control reference: [editor-controls](/docs/reference/editor-controls/).
