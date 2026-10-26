@@ -27,3 +27,5 @@ To apply a LUT, add a LUT tool and import a 3D `.cube` file in that instance.
 describes LUT limits and multipass requirements.
 [Magic Looks compatibility](/docs/development/project-compatibility/#magic-looks)
 describes the historical renderers and new instance chains.
+
+[Color Curves properties](/docs/reference/native-fx-image/#color-curves) describes the separate Native FX filter for direct RGB curve control.
