@@ -11,14 +11,24 @@ function create(THREE, api, getAsset) {
   const copy = gl.pass("copy", { uImage: null, uScale: [1, 1] });
   let signature, levels;
   const diagnostics = { reconstruction: "shutter", samples: 0, readbacks: 0 };
+  function reduceBatch(renderer, output, samples) {
+    return gl.preserve(renderer, () => {
+      const taps = Array.from({ length: 8 }, (_, tap) => samples[tap % samples.length].texture);
+      gl.draw(renderer, mean, output, {
+        uFirst: taps[0], uSecond: taps[1], uThird: taps[2], uFourth: taps[3],
+        uFifth: taps[4], uSixth: taps[5], uSeventh: taps[6], uEighth: taps[7],
+        uScale: [1, 1],
+      });
+    });
+  }
   function render(renderer, output, input, samples, scale) {
     return gl.preserve(renderer, () => {
-      diagnostics.samples = samples.length;
+      diagnostics.samples = samples[0]?.reducedCount || samples.length;
       if (!samples.length) return gl.draw(renderer, copy, output, {
         uImage: input.texture, uScale: scale,
       });
       if (samples.length === 1) return gl.draw(renderer, copy, output, {
-        uImage: samples[0].texture, uScale: scale,
+        uImage: samples[0].texture, uScale: samples[0].reducedCount ? [1, 1] : scale,
       });
       // The host retains repeated boundary taps with their individual weights.
       // Requests have 32 or 64 entries. Repeat the four final means twice in
@@ -56,6 +66,6 @@ function create(THREE, api, getAsset) {
       }
     });
   }
-  return { render, diagnostics, dispose() { gl.dispose(); signature = null; } };
+  return { render, reduceBatch, diagnostics, dispose() { gl.dispose(); signature = null; } };
 }
 module.exports = { create };

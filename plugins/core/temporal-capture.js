@@ -155,5 +155,70 @@
     }
   }
 
-  registry.capture = { captureFrameSamplerInput, safeMessage, sampleError, checkPolicy };
+  // Only the shutter request opts in. Keep the ordinary temporal-input cache
+  // and all of its per-tap/export reservations on the existing path.
+  function reductionKey(plan, depth, scope) {
+    return JSON.stringify(["reduced", depth, scope?.effect
+      ? registry.layers.frameSamplerIdentity(scope.effect) : 0, plan]);
+  }
+  function cachedReduction(runtime, effect, revision, key, width, height) {
+    const cached = runtime.inputCache.get(effect)?.get(revision)?.get(key);
+    const sample = cached?.sample, target = sample?.target;
+    if (!target || cached.stamp !== target.inputStamp || target.width !== width || target.height !== height) return null;
+    target.inputUsed = ++runtime.inputClock;
+    runtime.exportPins?.add(target);
+    return [sample];
+  }
+  function createReduction(runtime, root, effect, depth, reserved, width, height, plan, reduce, revision, key, release) {
+    const sampler = registry.sampler;
+    const capacity = 8 + Math.ceil(plan.length / 8);
+    let batch = [], groups = [], count = 0;
+    function target() {
+      const value = sampler.selectFrameSamplerTarget(runtime, effect, depth, reserved, width, height, capacity, revision);
+      sampler.forgetFrameSamplerInput(value);
+      value.inputStamp = {};
+      value.inputGeneration = runtime.generation;
+      value.inputRevision = revision;
+      value.inputUsed = ++runtime.inputClock;
+      value.viewport.set(0, 0, width, height);
+      reserved.add(value);
+      return value;
+    }
+    function combine(samples) {
+      const output = target();
+      reduce(root.renderer, output, samples);
+      return { target: output, texture: output.texture, stamp: output.inputStamp };
+    }
+    return {
+      capacity,
+      append(sample) {
+        batch.push(sample);
+        count++;
+        if (batch.length !== 8) return;
+        const group = combine(batch);
+        for (const item of batch) reserved.delete(item.target);
+        batch = [];
+        release();
+        groups.push(group);
+      },
+      finish() {
+        // A partial preview must never silently change the shutter weights.
+        if (batch.length || count !== plan.length) return [];
+        const sample = combine(groups);
+        for (const item of groups) reserved.delete(item.target);
+        groups = [];
+        sample.reducedCount = count;
+        let revisions = runtime.inputCache.get(effect);
+        if (!revisions) runtime.inputCache.set(effect, revisions = new Map());
+        let cache = revisions.get(revision);
+        if (!cache) revisions.set(revision, cache = new Map());
+        cache.set(key, { sample, stamp: sample.stamp });
+        sample.target.inputEntry = { cache, key, revisions, revision };
+        runtime.exportPins?.add(sample.target);
+        return [sample];
+      },
+    };
+  }
+  registry.capture = { captureFrameSamplerInput, safeMessage, sampleError, checkPolicy,
+    reductionKey, cachedReduction, createReduction };
 })(typeof globalThis !== "undefined" ? globalThis : this);
