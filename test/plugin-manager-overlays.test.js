@@ -172,3 +172,22 @@ test("numeric placeholder layers are restored on their clip, not only the active
   assert.deepEqual(loads.map((entry) => entry.parent), [current, other], "layers load attached to their clip");
   assert.equal(m.missingNumericLayers.size, 0);
 });
+
+
+test("community storage failures cannot change first-party startup order or evaluation", async () => {
+  const { sandbox, manager: m } = loadManager();
+  const order = [];
+  sandbox.PZ = { effect: {}, ui: { objectTypes: {} }, zoidium: { define() {} } };
+  sandbox.console = { error() {} };
+  for (const name of ["installProjectPluginHooks", "installEditorPluginHooks", "installObject3DUsageTracker", "installMissingNativeFactories", "installNumericFallbacks", "configureBundledLightDefault", "createTab", "installEffectPickerBadges"]) m[name] = () => {};
+  const plugins = [{ id: "first", defaultEnabled: true }, { id: "second", defaultEnabled: true }, { id: "off" }];
+  m.fetchJson = async () => ({ schemaVersion: 1, plugins });
+  m.createPanel = () => { for (const plugin of plugins) m.pluginStates.set(plugin.id, { plugin }); return {}; };
+  m.loadPluginPackageForState = async state => { order.push("preload " + state.plugin.id); };
+  m.enablePlugin = async state => { order.push("enable " + state.plugin.id); };
+  m.mountCommunityPanel = () => { order.push("community"); throw new Error("IndexedDB denied"); };
+  vm.runInContext(fs.readFileSync(path.join(__dirname, "../plugins/plugin-manager.js"), "utf8"), sandbox);
+  await m.registryReady;
+  assert.deepEqual(order, ["preload first", "preload second", "enable first", "enable second", "community"]);
+  assert.deepEqual(Array.from(m.pluginStates.keys()), ["first", "second", "off"]);
+});
