@@ -88,12 +88,9 @@
         }
         const ready = jobs.every(job => {
           const cache = job.effect._community.temporal;
-          if (cache) {
-            const receipt = cache.lookup(job.control, job.authority);
-            // Temporal inputs still need sampler preparation even when the
-            // guest receipt is cached. The host reuses exact GPU captures.
-            return receipt && !receipt.result.temporal;
-          }
+          // Cached guest results still await the local store's exact-hash
+          // authorization check and the sampler's GPU-input validation.
+          if (cache) return false;
           const receipt = job.effect._community.receipt;
           return receipt && sameStamp(receipt.authority, stamp(job.effect, job.frame));
         });

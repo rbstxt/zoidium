@@ -178,6 +178,7 @@
           const work = preparation.then(async () => {
             if (!valid(effect, session)) return;
             try {
+              if (!await store.authorized(session.id, session.hash)) { stop(session); return; }
               if (host?.prepareFrameSamples) await host.prepareFrameSamples(effect, frame, context);
               else await temporal.preflight(effect, frame, context);
             } catch (error) {
@@ -237,6 +238,10 @@
         throw error;
       }
     }
+    const invalidateReceipts = () => {
+      for (const session of sessions.values()) for (const effect of session.effects) effect._community.temporal.clear();
+    };
+    root.document?.addEventListener?.("zoidium:plugin-state-change", invalidateReceipts);
     const unregister = PZ && root.ZoidiumPluginApis?.propertyControls.register("community-setup-v1", {
       type: PZ.property.type.TEXT,
       create(property) {
@@ -250,7 +255,8 @@
         if (store.view().safeMode) return;
         for (const p of store.view().packages) if (p.enabled && !p.quarantine) await activate(p.id);
       },
-      dispose() { if (disposed) return; disposed = true; for (const s of sessions.values()) stop(s); unregister?.(); removePreview(); },
+      dispose() { if (disposed) return; disposed = true; for (const s of sessions.values()) stop(s); unregister?.(); removePreview();
+        root.document?.removeEventListener?.("zoidium:plugin-state-change", invalidateReceipts); },
     };
   }
   const api = { createController, frameStamp, sameStamp, previewEnabled };
