@@ -1,0 +1,10 @@
+{
+  "version": "0.32.0",
+  "variant": "release-sync",
+  "wasmMemoryInitialBytes": 16777216,
+  "wasmMemoryMaximumBytes": 67108864,
+  "wasmBytes": 503134,
+  "wasmSha256": "105c3bed22d457e43e3d1c3c1c6959fda62a8fe06f0fc8a985303c3a2be72232",
+  "bundleBytes": 844600,
+  "bundleSha256": "515372088f70896c0956672348a823f2dd4482710c04c7179ad42f8fa076453c"
+}

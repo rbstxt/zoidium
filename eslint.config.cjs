@@ -18,7 +18,7 @@ const hostGlobals = {
 
 module.exports = [
   {
-    ignores: ["plugins/alipfx/**", "plugins/mp4-export/vendor/**", "**/bundle.json", "node_modules/**", "dist/**", "site/dist/**", "site/.astro/**", "site/node_modules/**", ".zoidium-resources/**"],
+    ignores: ["plugins/alipfx/**", "plugins/mp4-export/vendor/**", "zoidium/vendor/**", "**/bundle.json", "node_modules/**", "dist/**", "site/dist/**", "site/.astro/**", "site/node_modules/**", ".zoidium-resources/**"],
   },
   {
     files: ["**/*.js", "**/*.cjs"],
@@ -31,7 +31,7 @@ module.exports = [
     rules: { "no-undef": "error" },
   },
   {
-    files: ["site/**/*.mjs"],
+    files: ["site/**/*.mjs", "tools/**/*.mjs"],
     languageOptions: { sourceType: "module", globals: { ...globals.node } },
     rules: { "no-undef": "error" },
   },
@@ -45,7 +45,7 @@ module.exports = [
     },
   },
   {
-    files: ["tools/**", "desktop/**", "test/**", "eslint.config.cjs"],
+    files: ["tools/**/*.js", "tools/**/*.cjs", "desktop/**", "test/**", "eslint.config.cjs"],
     languageOptions: { sourceType: "commonjs", globals: { ...globals.node } },
   },
 ];

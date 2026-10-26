@@ -37,7 +37,10 @@
     "cm3:export": "node tools/cm3-snapshot.js export",
     "cm3:restore": "node tools/cm3-snapshot.js restore",
     "docs:dev": "pnpm --filter @zoidium/docs dev",
-    "docs:build": "pnpm --filter @zoidium/docs build"
+    "docs:build": "pnpm --filter @zoidium/docs build",
+    "pack:community": "node tools/pack-community-plugin.js",
+    "build:community-interpreter": "node tools/build-community-interpreter.js",
+    "test:community-network": "node tools/community-network-suite.js"
   },
   "build": {
     "appId": "com.zoidium.app",
@@ -82,11 +85,16 @@
     "compression": "^1.8.1"
   },
   "devDependencies": {
+    "@jitl/quickjs-wasmfile-release-sync": "0.32.0",
+    "acorn": "8.15.0",
     "ajv": "^8.18.0",
     "electron": "^44.4.3",
     "electron-builder": "^26.15.3",
+    "esbuild": "0.25.12",
     "eslint": "^10.12.0",
     "globals": "^17.13.0",
+    "playwright": "1.56.1",
+    "quickjs-emscripten-core": "0.32.0",
     "serve": "^14.2.6",
     "serve-handler": "^6.1.7"
   }
