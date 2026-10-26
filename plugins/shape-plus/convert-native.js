@@ -65,8 +65,10 @@ function convertNative(layer, nextId) {
     throw Error(
       "Only native Shape, Text and Preset Shape layers can be converted",
     );
-  if (layer.type === 7 && Number(layer.zoidiumTextPlus2D?.characterProperties?.mode || 0) !== 0)
-    throw Error("Set Character Mode to None before converting native Text to Shape+");
+  const text2D = layer.type === 7 ? layer.zoidiumTextPlus2D : null;
+  if (text2D && [text2D.characterProperties, ...(text2D.extraCharacterProperties || [])]
+    .some(properties => Number(properties?.mode || 0) !== 0))
+    throw Error("Set every Character Mode to None before converting native Text to Shape+");
   let seed = 0;
   nextId = nextId || (() => "converted-" + ++seed);
   const saved = clone(layer),

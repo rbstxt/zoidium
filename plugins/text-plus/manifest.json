@@ -3,7 +3,7 @@
   "id": "text-plus",
   "name": "Text+",
   "author": "Zoidium",
-  "version": "25",
+  "version": "26",
   "kind": "object",
   "description": "Adds per-character animation to native 2D Text and 3D Text, plus advanced 3D bevel controls.",
   "objectClassParent": {
@@ -152,53 +152,53 @@
     {
       "id": "text-plus-utils",
       "type": "text",
-      "source": "./plugins/text-plus/text-plus-utils.js?v=25"
+      "source": "./plugins/text-plus/text-plus-utils.js?v=26"
     },
     {
       "id": "text-plus-properties",
       "type": "text",
-      "source": "./plugins/text-plus/text-plus-properties.js?v=25"
+      "source": "./plugins/text-plus/text-plus-properties.js?v=26"
     },
     {
       "id": "text-plus-controls",
       "type": "text",
-      "source": "./plugins/text-plus/text-plus-controls.js?v=25"
+      "source": "./plugins/text-plus/text-plus-controls.js?v=26"
     },
     {
       "id": "text-plus-diagnostics",
       "type": "text",
-      "source": "./plugins/text-plus/text-plus-diagnostics.js?v=25"
+      "source": "./plugins/text-plus/text-plus-diagnostics.js?v=26"
     },
     {
       "id": "text-plus-geometry",
       "type": "text",
-      "source": "./plugins/text-plus/text-plus-geometry.js?v=25"
+      "source": "./plugins/text-plus/text-plus-geometry.js?v=26"
     },
     {
       "id": "legacy-text-scale",
       "type": "text",
-      "source": "./plugins/text-plus/legacy-text-scale.js?v=25"
+      "source": "./plugins/text-plus/legacy-text-scale.js?v=26"
     },
     {
       "id": "text-plus-2d",
       "type": "text",
-      "source": "./plugins/text-plus/text-plus-2d.js?v=25"
+      "source": "./plugins/text-plus/text-plus-2d.js?v=26"
     },
     {
       "id": "text-plus-2d-properties",
       "type": "text",
-      "source": "./plugins/text-plus/text-plus-2d-properties.js?v=25"
+      "source": "./plugins/text-plus/text-plus-2d-properties.js?v=26"
     },
     {
       "id": "text-plus-2d-draw",
       "type": "text",
-      "source": "./plugins/text-plus/text-plus-2d-draw.js?v=25"
+      "source": "./plugins/text-plus/text-plus-2d-draw.js?v=26"
     }
   ],
   "modules": [
     {
       "id": "text-plus-runtime",
-      "source": "./plugins/text-plus/text-plus.js?v=25"
+      "source": "./plugins/text-plus/text-plus.js?v=26"
     }
   ]
 }

@@ -42,31 +42,38 @@ function unionBounds(boxes) {
     maxX: Math.max(...visible.map(box => box.maxX)), maxY: Math.max(...visible.map(box => box.maxY)) };
 }
 
-function drawCharacters(layer, list, context, originalDraw, args, cache) {
-  const source = controlSource(list);
+function drawCharacters(layer, stack, context, originalDraw, args, cache) {
+  const sources = (Array.isArray(stack) ? stack : [stack]).map(controlSource).filter(Boolean);
   const glyphs = layer.objects?.[0]?.objects;
-  if (!source || !glyphs?.length) return originalDraw.apply(layer, args);
+  if (!sources.length || !glyphs?.length) return originalDraw.apply(layer, args);
   const frame = Number.isFinite(layer.frame) ? layer.frame : 0;
-  const controls = Array.from(glyphs, (_, index) => getTextPlusControls(source, frame, index, glyphs.length));
+  // controls[glyph][category], in category order.
+  const controls = Array.from(glyphs, (_, index) =>
+    sources.map(source => getTextPlusControls(source, frame, index, glyphs.length)));
   // Neutral values call the original renderer with no extra canvas calls,
   // wrappers, path replacement, or changes to native property values.
-  if (controls.every(isNeutral)) return originalDraw.apply(layer, args);
+  if (controls.every(list => list.every(isNeutral))) return originalDraw.apply(layer, args);
   const bounds = Array.from(glyphs, glyph => glyphBounds(glyph, frame, cache));
   const textCenter = center(unionBounds(bounds)), restore = [];
   try {
     for (let index = 0; index < glyphs.length; index++) {
-      const controlsForGlyph = controls[index];
-      if (isNeutral(controlsForGlyph)) continue;
+      const active = controls[index].filter(item => !isNeutral(item));
+      if (!active.length) continue;
       const glyph = glyphs[index], original = glyph.draw;
       const descriptor = Object.getOwnPropertyDescriptor(glyph, "draw");
-      const pivot = controlsForGlyph.pivot === "text" ? textCenter : center(bounds[index]);
+      const steps = active.map(item => ({ item, pivot: item.pivot === "text" ? textCenter : center(bounds[index]) }));
       glyph.draw = function drawCharacter(frame, ctx) {
         ctx.save();
         try {
-          ctx.translate(pivot[0] + controlsForGlyph.position[0], pivot[1] - controlsForGlyph.position[1]);
-          ctx.rotate(-controlsForGlyph.rotation[2] - controlsForGlyph.shake);
-          ctx.scale(controlsForGlyph.scale[0], controlsForGlyph.scale[1]);
-          ctx.translate(-pivot[0], -pivot[1]);
+          // The last category is applied outermost, so each category moves the
+          // characters as the earlier categories left them.
+          for (let step = steps.length - 1; step >= 0; step--) {
+            const { item, pivot } = steps[step];
+            ctx.translate(pivot[0] + item.position[0], pivot[1] - item.position[1]);
+            ctx.rotate(-item.rotation[2] - item.shake);
+            ctx.scale(item.scale[0], item.scale[1]);
+            ctx.translate(-pivot[0], -pivot[1]);
+          }
           return original.call(this, frame, ctx);
         } finally { ctx.restore(); }
       };
