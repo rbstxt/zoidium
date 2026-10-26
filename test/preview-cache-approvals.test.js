@@ -66,6 +66,25 @@ test("approval checker runs through its standalone CLI entry point", () => {
   const { spawnSync } = require("node:child_process");
   const env = { ...process.env }; delete env.ZOIDIUM_PREVIEW_CACHE_APPROVALS;
   const result = spawnSync(process.execPath, [require.resolve("../tools/preview-cache-approvals.js")], { encoding: "utf8", env });
-  assert.equal(result.status, 0, result.stderr);
-  assert.match(result.stdout, /Preview cache approvals are current/);
+  const current = require("../plugins/core/output-frame-approvals.js").fingerprint === approvals.fingerprint();
+  assert.equal(result.status, current ? 0 : 1, result.stderr);
+  assert.match(current ? result.stdout : result.stderr, current ? /approvals are current/ : /approvals are stale/);
+});
+
+test("staging preserves a fresh receipt and disables stale approvals", async t => {
+  const { copyProjectFiles } = require("../tools/runtime-resources-stage");
+  const receipt = require("../plugins/core/output-frame-approvals.js");
+  const originalFingerprint = approvals.fingerprint;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "zoidium-receipt-stage-"));
+  t.after(() => { approvals.fingerprint = originalFingerprint; fs.rmSync(dir, { recursive: true, force: true }); });
+  approvals.fingerprint = () => receipt.fingerprint;
+  await copyProjectFiles(dir);
+  const stagedPath = path.join(dir, approvals.approvalPath);
+  assert.deepEqual(fs.readFileSync(stagedPath), fs.readFileSync(path.join(approvals.root, approvals.approvalPath)));
+  approvals.fingerprint = () => "different";
+  await copyProjectFiles(dir);
+  const staged = require(stagedPath);
+  assert.equal(staged.stale, true);
+  assert.deepEqual(staged.plugins, {});
+  assert.equal(staged.fingerprint, receipt.fingerprint);
 });

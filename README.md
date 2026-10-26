@@ -69,10 +69,9 @@ pnpm run desktop:dev   # alias for the Electron development app
 pnpm run verify     # check manifests, bundles, syntax, and tests
 ```
 
-The local web server reads Zoidium-owned runtime files directly from the
-checkout, so reloading the browser picks up edits without restarting the
-server. If a plugin source or manifest changed, rebuild its generated bundle
-with `pnpm run build:plugin-bundles`; the next reload then uses it immediately.
+The local web server serves a snapshot of the Zoidium-owned runtime files.
+Restart the server to apply source edits. If a plugin source or manifest
+changed, run `pnpm run build:plugin-bundles` before restarting the server.
 
 Do not open the repository's `index.html` with `file://`. It is a bootstrap
 placeholder; the actual CM3 page is generated into the runtime stage, and

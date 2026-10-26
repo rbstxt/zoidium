@@ -12,7 +12,7 @@ function observable() {
 }
 const flush = () => new Promise(resolve => setImmediate(resolve));
 
-function harness({ prefetch = false } = {}) {
+function harness({ prefetch = false, stale = false } = {}) {
   const events = new Map(), docEvents = new Map(), timers = new Map();
   let nextTimer = 0;
   const notices = [], canvasEvents = new Map();
@@ -99,7 +99,7 @@ function harness({ prefetch = false } = {}) {
   const document = { fonts: { status: "loaded", ready: Promise.resolve(), addEventListener() {}, removeEventListener() {} },
     addEventListener: (n, f) => docEvents.set(n, f), removeEventListener: n => docEvents.delete(n) };
   const window = { document, PZ, THREE, CM: { mainViewport: viewport }, ZoidiumOutputFrameStore: model,
-    ZoidiumOutputFrameApprovals: require("../plugins/core/output-frame-approvals.js"),
+    ZoidiumOutputFrameApprovals: { ...require("../plugins/core/output-frame-approvals.js"), stale },
     ZoidiumUI: { notify(message) { notices.push(message); } },
     localStorage: { getItem: () => null }, performance: { now: () => clock.now },
     addEventListener: (n, f) => events.set(n, f), removeEventListener: n => events.delete(n) };
@@ -119,6 +119,17 @@ function harness({ prefetch = false } = {}) {
   return { api, viewport, project, history, counts, events, docEvents, clock, warm, cool, temporalRuntimes, timers,
     Viewport, Compositor, History, PZ, document, canvasEvents, notices };
 }
+
+test("stale approvals keep every preview live and explain why", async () => {
+  const h = harness({ stale: true });
+  await h.warm();
+  h.viewport._render();
+  assert.equal(h.counts.live, 7);
+  assert.equal(h.api.debug.entries, 0);
+  assert.equal(h.counts.allocated, 0);
+  assert.equal(h.api.usage().reason, "Preview cache approvals are stale for this build");
+  h.api.dispose();
+});
 
 test("a miss draws live exactly once; a complete draw is stored and then replayed", async () => {
   const h = harness();

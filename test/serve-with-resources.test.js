@@ -6,21 +6,11 @@ const test = require("node:test");
 const {
   listenOnAvailablePort,
   requestPathname,
-  shouldServeFromProject,
 } = require("../tools/serve-with-resources");
 
-test("development server recognizes live Zoidium runtime files", () => {
+test("development server parses request paths", () => {
   assert.equal(requestPathname("/zoidium/runtime-loader.js?v=1"), "zoidium/runtime-loader.js");
-  assert.equal(shouldServeFromProject("/zoidium/runtime-loader.js?v=1"), true);
-  assert.equal(shouldServeFromProject("/zoidium/community-runtime-source.js?v=1"), false);
-  assert.equal(shouldServeFromProject("/plugins/core/temporal-render.js"), true);
-  assert.equal(shouldServeFromProject("/plugins/player-plus/bundle.json?v=3"), true);
-});
-
-test("development server does not expose unrelated repository files", () => {
-  assert.equal(shouldServeFromProject("/plugins/player-plus/player-plus.js"), false);
-  assert.equal(shouldServeFromProject("/package.json"), false);
-  assert.equal(shouldServeFromProject("/plugins/../package.json"), false);
+  assert.equal(requestPathname("/plugins/%2e%2e%2fpackage.json"), null);
 });
 
 function listenForTest(server, port = 0) {
