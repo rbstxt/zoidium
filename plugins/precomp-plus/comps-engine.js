@@ -721,6 +721,44 @@ function activeProjectJSON(project, json) {
   }
 }
 
+// The sequence rate is shared by every composition. Keep the parked Main
+// timeline and stored compositions available to the core timing command.
+function timingState(project) {
+  const session = sessionOf(project);
+  const roots = compMedia(project).map(media => ({ id: media.comp.id, data: clone(media.data) }));
+  if (session.mainJSON) roots.push({ id: MAIN_ID, data: clone(session.mainJSON) });
+  return roots;
+}
+
+function restoreTimingState(project, roots) {
+  const session = sessionOf(project);
+  for (const root of roots) {
+    if (root.id === MAIN_ID) session.mainJSON = clone(root.data);
+    else {
+      const media = findComp(project, root.id);
+      if (media) media.data = clone(root.data);
+    }
+  }
+  function invalidate(node) {
+    if (node.compId) {
+      // These are render instances, never authored timeline objects. Release
+      // media and GPU resources before rebuilding them at the new rate.
+      for (const track of [...(node.nested || []), ...(node.nestedAudio || [])]) {
+        for (const clip of track.clips) clip.unload();
+      }
+      node.nested = null;
+      node.nestedAudio = null;
+      node.activeClips.length = 0;
+      node.objects.length = 0;
+      return;
+    }
+    if (Array.isArray(node)) node.forEach(invalidate);
+    else for (const child of node.children || []) invalidate(child);
+  }
+  invalidate(project.sequence);
+  notifyListeners();
+}
+
 function resetRenderDepth() {
   renderDepth = 0;
 }
@@ -743,6 +781,8 @@ function activeName(editor) {
 
 module.exports = {
   sessionOf: sessionOf,
+  timingState: timingState,
+  restoreTimingState: restoreTimingState,
   notifyListeners: notifyListeners,
   subscribe: subscribe,
   hasComps: hasComps,
