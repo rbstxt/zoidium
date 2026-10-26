@@ -315,3 +315,26 @@ test("community data never enters finished-frame or private prefetch approval", 
   s.sequence.videoTracks[0].clips[0].object.effects.push({ type: "community-" + "a".repeat(32) + "-fx-gain" });
   assert.equal(s.key(), null);
 });
+
+
+test("video prefetch excludes only decode windows in projects without temporal sampling", () => {
+  const { videoPrefetchBlocked } = require("../plugins/core/output-frame-store.js");
+  const sequence = { properties: { motionBlur: { get: () => 0 } }, videoSchedules: [
+    { padding: 60, items: [{ start: 300, length: 30, media: {} }] },
+  ] };
+  for (const frame of [0, 1, 150, 239, 330, 400]) assert.equal(videoPrefetchBlocked(sequence, frame, false), false, "frame " + frame);
+  for (const frame of [240, 299, 300, 329]) assert.equal(videoPrefetchBlocked(sequence, frame, false), true, "frame " + frame);
+  assert.equal(videoPrefetchBlocked(sequence, 0, true), true, "samplers can request distant video frames");
+  sequence.properties.motionBlur.get = () => 1;
+  assert.equal(videoPrefetchBlocked(sequence, 330, false), true, "motion blur can sample across boundaries");
+  sequence.videoSchedules[0].items[0].media = null;
+  assert.equal(videoPrefetchBlocked(sequence, 300, true), false, "procedural items have no decoder");
+});
+
+test("unknown video schedule bounds never enable private decoding", () => {
+  const { videoPrefetchBlocked } = require("../plugins/core/output-frame-store.js");
+  for (const item of [{ media: {} }, { start: NaN, length: 20, media: {} }, { start: 300, length: -1, media: {} }]) {
+    assert.equal(videoPrefetchBlocked({ videoSchedules: [{ padding: 60, items: [item] }] }, 0, false), true);
+  }
+  assert.equal(videoPrefetchBlocked({ videoSchedules: [{ items: [{ start: 300, length: 30, media: {} }] }] }, 0, false), true);
+});

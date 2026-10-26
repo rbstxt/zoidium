@@ -293,6 +293,36 @@ for (const [id, record] of Object.entries(require("../plugins/core/output-frame-
   });
 }
 
+test("an unrelated bundle failure before activation permits cache hits", async () => {
+  const h = harness();
+  h.PZ.zoidium.getDebugPlugins = () => [{ id: "unused", enabled: false, phase: "error",
+    activationStarted: false, lastError: { operation: "enable", message: "bundle unavailable" } }];
+  await h.warm();
+  assert.equal(h.api.debug.entries, 1);
+  const live = h.counts.live;
+  h.viewport._render();
+  assert.equal(h.counts.live, live);
+  assert.equal(h.api.debug.hits, 1);
+  h.api.dispose();
+});
+
+for (const [name, plugin, required] of [
+  ["required bundle failure", { activationStarted: false }, true],
+  ["failed activation", { activationStarted: true }, false],
+  ["unknown activation history", {}, false],
+  ["core failure", { activationStarted: false, kind: "core" }, false],
+  ["enabled plugin error", { activationStarted: false, enabled: true }, false],
+]) test(name + " still blocks finished frames", async () => {
+  const h = harness();
+  h.PZ.zoidium.getDebugPlugins = () => [{ id: "unused", enabled: false, phase: "error",
+    lastError: { message: "failed" }, ...plugin }];
+  if (required) h.project.plugins = [{ id: "unused" }];
+  await h.warm();
+  assert.equal(h.api.debug.entries, 0);
+  assert.match(h.api.usage().reason, /Plugins are loading or have errors/);
+  h.api.dispose();
+});
+
 for (const [name, setup, expected] of [
   ["unrelated plugin error", h => { h.PZ.zoidium.getDebugPlugins = () => [{ id: "unused", enabled: false, phase: "disabled", lastError: { message: "failed" } }]; }, /Plugins are loading or have errors/],
   ["loading plugins", h => { h.PZ.zoidium.getDebugPlugins = () => [{ phase: "loading" }]; }, /Plugins are loading/],
