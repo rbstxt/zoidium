@@ -47,8 +47,8 @@ each line describes one visible change.
 - Effect sources that read frames from another layer as input.
 - Particular Displace Spin along seeded circular orbits and a shared
   Twist pivot.
-- Local community effect preview with validated controls, plus local
-  community package storage.
+- Developer preview, off by default: local community effect packages with
+  validated controls and local package storage. Not yet for general use.
 
 ### Changed
 
