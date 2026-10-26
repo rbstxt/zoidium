@@ -43,6 +43,9 @@ function fixtures() {
   const shaderData = effect => {
     const data = JSON.parse(fs.readFileSync(path.join(root, effect.preset.split("?")[0]), "utf8"));
     const shader = fs.readFileSync(path.join(root, effect.shader.split("?")[0]), "utf8");
+    for (const property of data.customProperties || []) {
+      if (property.properties?.name === "wipePercent") Object.assign(property, scalar(0.25, 0.75));
+    }
     data.properties.fragShader = shader + "\n// @zoidium-plugin " + JSON.stringify({
       id: ccfx.id, name: ccfx.name, author: ccfx.author, version: ccfx.version, effect: effect.id,
     });
@@ -57,14 +60,37 @@ function fixtures() {
       if (folder === "text-plus") {
         data.objects = [{ type: 1, properties: { text: "CACHE", detail: 2 },
           material: { type: "singlecolor", properties: { color: vector([0.2, 0.65, 1]) } } }];
-        data.characterProperties = { ...(data.characterProperties || {}), shakeAmplitude: scalar(3) };
+        data.characterProperties = { ...(data.characterProperties || {}), shakeAmplitude: scalar(0.25),
+          charRotation: vector([0, 0, 0], [0, 0, 0.4]), delayPerCharacter: scalar(2),
+          lastPosition: vector([0, 2, 0], [0, 6, 0]), amount: scalar(0, 1) };
+        if (String(data.type).endsWith("character-material")) {
+          data.frontMaterial = { type: "singlecolor", properties: { color: vector([0.1, 0.8, 0.3]) } };
+          data.sideMaterial = { type: "singlecolor", properties: { color: vector([0.8, 0.1, 0.6]) } };
+        }
       }
-      if (folder === "scene-plus") data.objects = [box()];
-      add(m.id, entry.name, project([data]));
+      if (folder === "scene-plus") {
+        data.objects = [box()];
+        data.properties = { ...data.properties, angle: scalar(0.2, 1.1), amount: scalar(2, 8),
+          offsetPosition: vector([0, 0, 0], [3, 5, 0]) };
+      }
+      if (folder === "optical-flares") data.properties = { position: vector([-8, 0, 0], [8, 4, 0]) };
+      const objects = [data];
+      if (folder === "trapcode-suite" && String(data.type).includes("light")) {
+        data.properties = { ...data.properties, position: vector([0, 0, 30]), target: vector([0, 0, 0]),
+          intensity: scalar(8), width: scalar(60), height: scalar(60) };
+        const subject = box(); subject.material.type = "custom"; objects.push(subject);
+      }
+      add(m.id, entry.name, project(objects));
     }
   }
   for (const type of [7, 8, 9]) add("effector-plus", "legacy-type-" + type,
-    project([{ type, objects: [box()], properties: {}, repeaterProperties: {} }]));
+    project([{ type, objects: [box()], properties: { angle: scalar(0.2, 1.1), amount: scalar(2, 8) }, repeaterProperties: {} }]));
+  for (const fixture of result) {
+    fixture.requiredPlugin = fixture.plugin === "effector-plus" ? "repeater" : fixture.plugin;
+    if (fixture.plugin === "ccfx-shader-pack") fixture.requiredPlugin = null;
+    fixture.prefetch = !fixture.liveOnly && (fixture.name === result.find(item => item.plugin === fixture.plugin)?.name ||
+      /echo|smartmotionblur|timedisplacement|ccwidetime|timedifference|Shake|Delay|Particular|Form|Plexus/.test(fixture.name));
+  }
   return result;
 }
 
@@ -72,6 +98,8 @@ function fixtures() {
 async function compareFixture(fixture) {
   const editor = globalThis.CM, cache = globalThis.ZoidiumFrameCache;
   const temporal = globalThis.PZ.zoidium.temporal;
+  cache.debug.assertKeys = true;
+  const mismatches = cache.debug.keyMismatches;
   const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
   async function resources(object, seen = new Set()) {
     if (!object || typeof object !== "object" || seen.has(object)) return;
@@ -96,7 +124,7 @@ async function compareFixture(fixture) {
     const viewport = editor.mainViewport;
     if (!viewport.__zoidiumPlayerPlusPaused) throw new Error("Pause drawing must stay enabled");
     const requirements = JSON.parse(JSON.stringify(editor.project)).plugins || [];
-    if (!requirements.some(item => item.id === fixture.plugin)) {
+    if (fixture.requiredPlugin && !requirements.some(item => item.id === fixture.requiredPlugin)) {
       throw new Error("Fixture does not require its plugin: " + JSON.stringify(requirements));
     }
   }
@@ -132,7 +160,18 @@ async function compareFixture(fixture) {
       if (capture && cache.debug.stores > stores) return bytes || pixels();
       const runtime = temporal.frameSamplerRuntimes?.get(viewport.compositor);
       if (!capture && bytes && !runtime?.previewPending) return bytes;
-      await pause(8);
+      const controller = viewport.__zoidiumOutputFrames;
+      if (capture && controller?.reason?.includes("validation is deferred")) await pause(1550);
+      else {
+        // Wait for preparation without driving another viewport draw each tick.
+        for (let wait = 0; wait < 1000; wait++) {
+          const pending = temporal.frameSamplerRuntimes?.get(viewport.compositor)?.previewPending ||
+            controller?.settling || controller?.readying;
+          if (!pending) break;
+          await pause(8);
+        }
+        await pause(8);
+      }
       // Temporal completion happens asynchronously. Render once again to
       // display its prepared result in this task before reading the canvas.
       if (capture && cache.debug.stores > initialStores && viewport.lastFrame === frame) {
@@ -143,7 +182,7 @@ async function compareFixture(fixture) {
     }
     throw new Error("Frame " + frame + " did not complete: " + cache.usage().reason);
   }
-  const frames = fixture.full ? [11] : [0, 11, 37];
+  const frames = fixture.full ? [11] : fixture.prefetch ? [0, 1, 11, 37] : [0, 11, 37];
   const references = new Map();
   for (const frame of frames) { await load(); references.set(frame, await draw(frame, false)); }
   await load();
@@ -169,11 +208,48 @@ async function compareFixture(fixture) {
     equal(references.get(frame), await draw(frame, false), "history vs fresh " + frame);
     checks.push("history-" + frame);
   }
+  let prefetch = "not selected", prefetchFrame = null;
+  if (fixture.prefetch && !fixture.full) {
+    cache.clear();
+    await draw(0, true);
+    const before = cache.debug.prefetched;
+    cache.debug.prefetchDisabled = false;
+    const viewport = editor.mainViewport;
+    viewport.__zoidiumPlayerPlusRenderOnce = true; viewport._render();
+    for (let attempt = 0; attempt < 400 && cache.debug.prefetched === before; attempt++) {
+      if (viewport.__zoidiumOutputFrames.unsupported) break;
+      await pause(8);
+    }
+    cache.debug.prefetchDisabled = true;
+    // Let any in-flight capture finish before a seek invalidates its graph.
+    while (viewport.__zoidiumOutputFrames.prefetching) await pause(8);
+    if (cache.debug.prefetched > before) {
+      let frame = 1;
+      while (viewport.__zoidiumOutputFrames.prefetchSkipped.has(frame)) frame++;
+      editor.playback.currentFrame = frame;
+      const hits = cache.debug.hits;
+      viewport.__zoidiumPlayerPlusRenderOnce = true; viewport._render();
+      if (cache.debug.hits !== hits + 1) throw new Error("Prefetch did not retain frame " + frame + ": " + cache.usage().reason);
+      const cached = pixels();
+      if (!references.has(frame)) { await load(); references.set(frame, await draw(frame, false)); }
+      equal(references.get(frame), cached, "private prefetch vs fresh " + frame);
+      checks.push("prefetch-" + frame); prefetch = "matched"; prefetchFrame = frame;
+    } else prefetch = viewport.__zoidiumOutputFrames.unsupported ? "serialization gate" : "not produced";
+  }
+  const referenceDigests = [];
+  for (const [frame, bytes] of references) referenceDigests.push([frame,
+    Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)), b => b.toString(16).padStart(2, "0")).join("")]);
+  if (cache.debug.keyMismatches !== mismatches) throw new Error("Project key changed without invalidation");
+  if (fixture.liveOnly && cache.debug.entries !== 0) throw new Error("Plain time operator unexpectedly retained frames");
   const sample = references.get(frames[0]);
+  const corrupted = sample.slice(); corrupted[0] ^= 1;
+  let detected = false;
+  try { equal(sample, corrupted, "oracle control"); } catch (_error) { detected = true; }
+  if (!detected) throw new Error("Byte mismatch control failed");
   const digest = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", sample)), b => b.toString(16).padStart(2, "0")).join("");
   const colors = new Set(); for (let i = 0; i < sample.length; i += 4) colors.add(sample.slice(i, i + 4).join(","));
   if (colors.size < 2) throw new Error("Fixture has no visible content");
-  return { checks: checks.length, bytes: sample.length, colors: colors.size, digest,
+  return { checks: checks.length, prefetch, prefetchFrame, referenceDigests, bytes: sample.length, colors: colors.size, digest,
     entries: cache.debug.entries, liveOnly: !!fixture.liveOnly };
 }
 module.exports = { fixtures, compareFixture };

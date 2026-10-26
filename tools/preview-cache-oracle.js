@@ -5,6 +5,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const http = require("node:http");
+const { execFileSync } = require("node:child_process");
 const handler = require("serve-handler");
 const { chromium } = require("playwright");
 const { prepareRuntimeStage } = require("./runtime-resources");
@@ -31,6 +32,7 @@ async function run(options, test) {
   try {
     if (lock) { await acquire(lock); locked = true; }
     runtime = await prepareRuntimeStage();
+    options.onStage?.(runtime.root);
     server = http.createServer((request, response) => handler(request, response, {
       public: runtime.root, cleanUrls: false, directoryListing: false, rewrites: [{ source: "/", destination: "/index.html" }],
     }));
@@ -41,6 +43,9 @@ async function run(options, test) {
     if (options.candidates) await browser.route("**/plugins/core/output-frame-approvals.js*", route => route.fulfill({
       contentType: "text/javascript", body: approvals.source({ plugins: options.candidates }),
     }));
+    const stop = () => { browser?.close().catch(() => {}); };
+    process.once("SIGINT", stop); process.once("SIGTERM", stop);
+    browser.once("close", () => { process.off("SIGINT", stop); process.off("SIGTERM", stop); });
     const page = browser.pages()[0];
     page.setDefaultTimeout(30000);
     page.on("pageerror", error => console.error(error.message));
@@ -71,9 +76,10 @@ async function main() {
   if (!profile || !reportPath) throw new Error("Use --profile=<directory> --report=<file> [--write] [--filter=<text>]");
   const filter = option("--filter");
   if (args.includes("--write") && filter) throw new Error("Filtered runs cannot write approvals");
+  execFileSync(process.execPath, [path.join(approvals.root, "tools/build-plugin-bundles.js"), "--check"], { stdio: "inherit" });
   const current = approvals.versions();
   const candidates = Object.fromEntries(Object.entries(current).map(([id, version]) => [id, { version }]));
-  const report = { schemaVersion: 1, fingerprint: approvals.fingerprint(), plugins: {}, cases: [], failures: [] };
+  const report = { schemaVersion: 1, fingerprint: approvals.fingerprint(), plugins: {}, excluded: {}, cases: [], failures: [] };
   const all = fixtures();
   let matrix = all.filter(fixture => !filter || (fixture.plugin + "/" + fixture.name).includes(filter));
   // Brief full-quality checks cover one content fixture per candidate pack.
@@ -82,23 +88,33 @@ async function main() {
     matrix.push({ ...sample, name: sample.name + "-full", full: true });
   }
   try {
-    await run({ profile: path.resolve(profile), candidates }, async page => {
+    await run({ profile: path.resolve(profile), candidates, onStage: stage => { report.stage = stage; } }, async page => {
       await page.waitForFunction(ids => ids.every(id => globalThis.PZ.zoidium.getDebugPlugins()
         .some(plugin => plugin.id === id && plugin.enabled && plugin.phase === "enabled")), approvals.candidates);
-      await page.evaluate(() => { globalThis.ZoidiumFrameCache.debug.prefetchDisabled = true; });
+      report.environment = await page.evaluate(() => {
+        globalThis.ZoidiumFrameCache.debug.prefetchDisabled = true;
+        const gl = globalThis.CM.mainViewport.renderer.context;
+        return { core: typeof PZVERSION === "undefined" ? null : PZVERSION,
+          ui: Array.from(document.scripts, script => script.src.split("/").pop()).find(name => /^ui-\d/.test(name)),
+          webgl: gl.getParameter(gl.VERSION), renderer: gl.getParameter(gl.RENDERER), userAgent: navigator.userAgent };
+      });
       for (const fixture of matrix) {
         await page.locator('[aria-label="Preview quality"]').selectOption(fixture.full ? "1" : "0.125");
         const begin = Date.now();
         const entry = { plugin: fixture.plugin, name: fixture.name, full: !!fixture.full };
         try {
-          entry.result = await Promise.race([
-            page.evaluate(compareFixture, fixture),
-            new Promise((_, reject) => { const timer = setTimeout(() => reject(new Error("Fixture timed out")), 45000); timer.unref(); }),
-          ]);
+          let timer;
+          try {
+            entry.result = await Promise.race([
+              page.evaluate(compareFixture, fixture),
+              new Promise((_, reject) => { timer = setTimeout(() => reject(new Error("Fixture timed out")), 90000); }),
+            ]);
+          } finally { clearTimeout(timer); }
           entry.passed = true;
         } catch (error) {
           entry.error = String(error.message).split("\n").slice(0, 3).join(" ");
           entry.passed = false;
+          if (entry.error.includes("Fixture timed out")) throw error;
           report.failures.push({ plugin: fixture.plugin, name: fixture.name, error: entry.error });
         }
         entry.elapsedMs = Date.now() - begin;
@@ -109,13 +125,13 @@ async function main() {
     });
     for (const id of approvals.candidates) {
       const cases = report.cases.filter(entry => entry.plugin === id);
-      if (cases.length && cases.every(entry => entry.passed)) report.plugins[id] = {
-        version: current[id], cases: cases.map(entry => entry.name),
-      };
+      const record = { version: current[id], cases: cases.map(entry => entry.name) };
+      if (cases.length && cases.every(entry => entry.passed)) report.plugins[id] = record;
+      else report.excluded[id] = { ...record, failed: cases.filter(entry => !entry.passed).map(entry => entry.name) };
     }
     if (report.fingerprint !== approvals.fingerprint()) throw new Error("Render sources changed during the oracle run");
     if (args.includes("--write")) fs.writeFileSync(path.join(approvals.root, approvals.approvalPath), approvals.source({
-      schemaVersion: 1, fingerprint: report.fingerprint, plugins: report.plugins,
+      schemaVersion: 1, fingerprint: report.fingerprint, plugins: report.plugins, excluded: report.excluded,
     }));
     if (report.failures.length) process.exitCode = 1;
   } finally { fs.writeFileSync(reportPath, JSON.stringify(report, null, 2) + "\n"); }

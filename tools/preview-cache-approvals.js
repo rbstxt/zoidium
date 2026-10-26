@@ -24,17 +24,26 @@ function versions() {
 // Deliberately conservative: plugins can wrap shared factories and each other.
 // Pin all owned runtime sources, manifests and assets, not only one pack's JS.
 // Generated bundles, this receipt and deployment cache-busters are excluded.
-function fingerprint() {
+function fingerprint(directory = root) {
   const hash = crypto.createHash("sha256");
-  const files = ["plugins", "zoidium", "fonts"].flatMap(folder => filesBelow(path.join(root, folder)))
-    .map(file => path.relative(root, file).split(path.sep).join("/"))
+  const files = ["plugins", "zoidium", "fonts"].flatMap(folder => filesBelow(path.join(directory, folder)))
+    .map(file => path.relative(directory, file).split(path.sep).join("/"))
     .filter(file => file !== approvalPath && file !== "zoidium/runtime-config.js" &&
       !/(^|\/)(bundle\.json|registry\.json|README[^/]*|LICENSE[^/]*)$/i.test(file))
     .sort();
-  for (const file of files) hash.update(file + "\0").update(fs.readFileSync(path.join(root, file))).update("\0");
+  for (const file of files) hash.update(file + "\0").update(fs.readFileSync(path.join(directory, file))).update("\0");
   for (const file of ["tools/preview-cache-oracle.js", "tools/preview-cache-oracle-fixtures.js", "tools/preview-cache-approvals.js"]) {
-    hash.update(file + "\0").update(fs.readFileSync(path.join(root, file))).update("\0");
+    hash.update(file + "\0").update(fs.readFileSync(path.join(directory, file))).update("\0");
   }
+  const config = fs.readFileSync(path.join(directory, "zoidium/runtime-config.js"), "utf8")
+    .replace(/assetVersion: \d+/, "assetVersion: 0")
+    .replace(/registryUrl: "([^"]*?)\?v=\d+"/, 'registryUrl: "$1"');
+  hash.update("zoidium/runtime-config.js\0" + config);
+  const registry = JSON.parse(fs.readFileSync(path.join(directory, "plugins/registry.json"), "utf8"));
+  hash.update(JSON.stringify((registry.plugins || []).map(plugin => ({
+    id: plugin.id, defaultEnabled: plugin.defaultEnabled, alwaysEnabled: plugin.alwaysEnabled,
+    visibility: plugin.visibility, manifest: plugin.manifest?.replace(/\?v=\d+$/, ""),
+  }))));
   return hash.digest("hex");
 }
 
@@ -48,8 +57,28 @@ function source(receipt) {
 
 function check() {
   const receipt = require(path.join(root, approvalPath));
-  if (receipt.fingerprint !== fingerprint()) throw new Error("Preview cache approvals are stale. Run pnpm run test:preview-cache -- --write with the browser oracle.");
+  if (receipt.fingerprint !== fingerprint()) throw new Error("Preview cache approvals are stale. Run pnpm run test:preview-cache -- --profile=<directory> --report=<file> --write, then rebuild plugin bundles.");
   const current = versions();
+  const { fixtures } = require("./preview-cache-oracle-fixtures");
+  const matrix = fixtures();
+  const records = { ...receipt.plugins, ...receipt.excluded };
+  if (Object.keys(receipt.plugins).some(id => Object.hasOwn(receipt.excluded, id))) {
+    throw new Error("Preview cache approval is also excluded");
+  }
+  if (Object.values(receipt.excluded).some(record => !record.failed?.length)) {
+    throw new Error("Preview cache exclusion has no failed fixture");
+  }
+  if (JSON.stringify(Object.keys(records).sort()) !== JSON.stringify([...candidates].sort())) {
+    throw new Error("Preview cache oracle must cover every candidate plugin");
+  }
+  for (const [id, record] of Object.entries(records)) {
+    const expected = matrix.filter(fixture => fixture.plugin === id).map(fixture => fixture.name);
+    expected.push(matrix.find(fixture => fixture.plugin === id && !fixture.liveOnly).name + "-full");
+    if (JSON.stringify([...record.cases].sort()) !== JSON.stringify(expected.sort())) {
+      throw new Error("Preview cache oracle fixtures differ for " + id);
+    }
+    if (record.version !== current[id]) throw new Error("Preview cache oracle version differs for " + id);
+  }
   for (const [id, record] of Object.entries(receipt.plugins)) {
     if (!candidates.includes(id) || record.version !== current[id]) throw new Error("Preview cache approval version differs for " + id);
     if (!record.cases?.length) throw new Error("Preview cache approval has no passing fixtures for " + id);
