@@ -25,6 +25,7 @@
     }
     function clear() { generation++; receipts.clear(); pending.clear(); instance.receipt = null; }
     async function preflight(_effect, frame, context = {}) {
+      if (context.exportPolicy?.communityBypass) return;
       if (!valid()) { clear(); return; }
       const authority = current(frame, context), cacheKey = key(authority);
       const cached = lookup(frame, context);
@@ -48,6 +49,7 @@
       return work;
     }
     function getRequest(_effect, frame, context = {}) {
+      if (context.exportPolicy?.communityBypass) return null;
       const receipt = lookup(frame, context), temporal = receipt?.result.temporal;
       return temporal ? { frames: temporal.offsets } : null;
     }

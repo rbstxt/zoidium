@@ -9,7 +9,7 @@
   const projectsWithCommunityData = new WeakSet();
   const EXPORT_ERROR = "Community effect export is unavailable in the developer preview. Remove community effects before exporting video or images.";
   const isCommunity = type => typeof type === "string" && type.startsWith("community-");
-  const clone = value => S.parse(JSON.stringify(value));
+  const clone = value => JSON.parse(JSON.stringify(value));
   function status(effect, message) {
     effect._communityError = message || null;
     if (!effect.properties["community-status"]) effect.properties.add("community-status", {
@@ -26,8 +26,9 @@
     if (!effect.properties["community-status"]) effect.properties.add("community-status", {
       name: "Community effect", readOnly: true, type: root.PZ.property.type.TEXT, value: message,
     });
-    effect.properties["community-status"].set(message);
+    effect.properties["community-status"].value = `${data?.community?.packageId || typePackage(effect.type)}: ${message}`;
   }
+  function typePackage(type) { return type?.match(/^(community-[a-f0-9]{32})/)?.[1] || type; }
   function placeholder(type) {
     return function () {
       const effect = this;
@@ -45,13 +46,19 @@
     if (isCommunity(value.type)) return true;
     return Object.values(value).some(child => contains(child, seen));
   }
-  function assertExport(project) {
+  function assertExport(project, exporter) {
     // Inspection grants no execution authority. Do not impose package byte
     // limits on the rest of a first-party project's serialized data.
-    if (project && contains(JSON.parse(JSON.stringify(project)))) throw new Error(EXPORT_ERROR);
+    if (project && contains(JSON.parse(JSON.stringify(project)))) {
+      if (root.ZoidiumCommunityExport) return root.ZoidiumCommunityExport.check(project, exporter);
+      throw new Error(EXPORT_ERROR);
+    }
+    // An export must also fail if its community records were removed mid-run.
+    if (exporter?.__zoidiumCommunityBypass) root.ZoidiumCommunityExport?.check(project, exporter);
   }
   function installGuards(PZ = root.PZ) {
     if (!PZ?.effect?.create) return;
+    root.ZoidiumCommunityExport?.install(PZ);
     const projectLoad = PZ.project?.prototype?.load;
     if (projectLoad && !projectLoad.__zoidiumCommunity) {
       const load = function (data) {
@@ -80,7 +87,13 @@
       const wrapped = function () {
         const project = this.sequence?.parentProject || this.sequence;
         // Opaque missing layers can retain effects without creating instances.
-        if (instances.size || projectsWithCommunityData.has(project)) assertExport(project);
+        if (instances.size || projectsWithCommunityData.has(project) || this.__zoidiumCommunityBypass) {
+          try { assertExport(project, this); }
+          catch (error) {
+            try { this.failExportFrame?.(error); } catch (_) { /* Preserve the policy refusal. */ }
+            throw error;
+          }
+        }
         return original.apply(this, arguments);
       };
       wrapped.__zoidiumCommunity = true; PZ.export.prototype[name] = wrapped;

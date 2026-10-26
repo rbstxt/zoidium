@@ -14,6 +14,9 @@
     const seen = new WeakMap();
     function visit(value, kind) {
       if (!value || typeof value !== "object") return value;
+      // An isolated effect owns its complete schema, including nested keys
+      // that happen to resemble native objects. Only its package can migrate it.
+      if (typeof value.type === "string" && value.type.startsWith("community-")) return value;
       if (seen.has(value)) return seen.get(value);
       let copy = value;
       seen.set(value, value);

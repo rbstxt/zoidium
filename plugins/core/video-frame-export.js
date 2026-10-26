@@ -203,6 +203,7 @@
     else { this.compositor?.unload?.(); this.renderer?.dispose?.(); }
   };
   PZ.export.prototype.checkExportContext = function checkExportContext(stage = "before encoder submission") {
+    globalThis.ZoidiumCommunityEffectHost?.assertExport(this.sequence?.parentProject || this.sequence, this);
     let guard = this.__zoidiumExportGuard;
     if (!guard) {
       const controller = new AbortController();
@@ -211,6 +212,7 @@
       guard.onLoss = () => { guard.lost = true; controller.abort(this.exportContextError()); };
       guard.canvas?.addEventListener?.("webglcontextlost", guard.onLoss);
       this.exportPolicy = { outputIndex: this.framesRendered, signal: controller.signal,
+        communityBypass: Boolean(this.__zoidiumCommunityBypass),
         check: () => this.checkExportContext("during preparation") };
       if (this.compositor) this.compositor.__zoidiumExportPolicy = this.exportPolicy;
     }

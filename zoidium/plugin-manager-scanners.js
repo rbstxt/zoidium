@@ -47,6 +47,11 @@
         if (!Array.isArray(descriptor[field])) continue;
         entry[field].push(...descriptor[field].filter((item) => typeof item === "string"));
       }
+      const community = typeof window === "undefined" ? null : window.ZoidiumCommunityProjects;
+      if (community?.enabled() && community.isCommunity(entry.id)) {
+        entry.requirements = community.normalizeRequirements([...(entry.requirements || []),
+          ...(Array.isArray(descriptor.requirements) ? descriptor.requirements : [])]);
+      }
     }
     return Array.from(normalized.values(), (entry) => {
       for (const field of ["effects", "materials", "objects", "sprites", "features"]) {
@@ -477,6 +482,8 @@
     while (stack.length) {
       const task = stack.pop(), value = task.value;
       if (!value || typeof value !== "object") continue;
+      const community = typeof window === "undefined" ? null : window.ZoidiumCommunityProjects;
+      if (community?.enabled() && community.isCommunity(value.type)) continue;
       const previous = seen.get(value) || 0;
       // Tracks and layers shared one visited set in the legacy detector.
       let mode = task.mode & ~previous;
@@ -547,6 +554,8 @@
 
   function projectPluginRequirements(data) {
     const plugins = normalizeProjectPlugins(data?.plugins);
+    const community = typeof window === "undefined" ? null : window.ZoidiumCommunityProjects;
+    if (community?.enabled()) community.requirements(data, plugins);
     const {
       detectedEffects, detectedPluginNative, detectedLayerInput, detectedMaterialTypes,
       detectedObjectTypes, detectedNumericObjects, detectedNumericLayers, detectedC4DLights,

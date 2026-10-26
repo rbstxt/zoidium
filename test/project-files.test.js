@@ -464,3 +464,32 @@ test('project loading restores track fields after plugin activation and nested l
   trackLoad.resolve(); assert.equal(await loading, project);
   assert.deepEqual(restored, [project]);
 });
+
+test("community payloads survive archives and restore points without package bytes or approvals", async () => {
+  const h = createHarness(), editor = h.makeEditor();
+  const manifest = require("../examples/community-filter/manifest.json");
+  const payload = { type: manifest.effects[0].id, community: { schemaVersion: 500, dataSchema: "future",
+    packageId: manifest.id, packageHash: "retained-hash" }, properties: { unknown: [null, false, 7] } };
+  const data = { assets: {}, sequence: {}, media: [{ data: { effects: [payload] } }],
+    plugins: [{ id: manifest.id, name: "Saved plugin", requirements: [{ effect: payload.type,
+      packageHash: "retained-hash", dataSchema: "future", schemaVersion: 500 }] }] };
+  editor.project.toJSON = () => data;
+  // Installation state belongs to the host, never the project serializer.
+  h.windowObject.ZoidiumCommunityInstalledPackages = { bytes: "PRIVATE_PACKAGE_CODE", approvals: "PRIVATE_APPROVAL" };
+  h.PZ.project.save = archive => addProjectEntries(archive, editor.project);
+  const result = await h.projectFiles.createArchive(editor);
+  const archive = await h.projectFiles.openValidatedArchive(result.blob, "open");
+  const read = async value => new TextDecoder().decode(await h.windowObject.PZ.zoidiumProjectArchive.bytes(value));
+  const saved = await read(archive.peekFile("project").data);
+  assert.equal(saved, JSON.stringify(data));
+  for (const entry of archive.files) assert.doesNotMatch(await read(entry.data), /PRIVATE_PACKAGE_CODE|PRIVATE_APPROVAL/);
+  h.windowObject.__zoidiumRestoreParts = { store: { getSnapshot() {}, loadAssets() {} } };
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, "../zoidium/project-restore-snapshots.js"), "utf8"), {
+    window: h.windowObject, TextEncoder, TextDecoder, Uint8Array, Blob,
+  });
+  const restored = await h.windowObject.__zoidiumRestoreParts.snapshots.restorePointToArchive({
+    projectBlob: result.blob, assetRefs: [],
+  }, []);
+  assert.equal(await read(restored.peekFile("project").data), saved);
+  for (const entry of restored.files) assert.doesNotMatch(await read(entry.data), /PRIVATE_PACKAGE_CODE|PRIVATE_APPROVAL/);
+});

@@ -96,6 +96,15 @@
   }
 
   function installMissingNativeFactory(type, name, metadata) {
+    if (window.ZoidiumCommunityProjects?.enabled() && window.ZoidiumCommunityProjects.isCommunity(type)) {
+      // Community records must never enter a privileged plugin factory.
+      if (!PZ.effect.fnList[type]?._zoidiumCommunity) {
+        const promise = Promise.resolve(window.ZoidiumCommunityEffectHost.placeholder(type));
+        promise._zoidiumCommunity = true;
+        PZ.effect.fnList[type] = promise;
+      }
+      return;
+    }
     const missingMetadata = getNativeEffectMetadata(
       metadata,
       { id: type, name },
