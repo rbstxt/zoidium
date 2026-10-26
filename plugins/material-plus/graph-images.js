@@ -6,6 +6,14 @@
 module.exports = function attachGraphImages(nodes, env) {
     const { PZ, document, newBuffer } = env;
     const imageCaches = new WeakMap();
+    function projectAssets(material) {
+        // Detached materials (clip deleted) throw when reading parentProject.
+        try {
+            return material?.parentProject?.assets || null;
+        } catch (_error) {
+            return null;
+        }
+    }
     nodes.getImageCache = function (material) {
         if (!material) return Object.create(null);
         if (!imageCaches.has(material)) imageCaches.set(material, Object.create(null));
@@ -13,9 +21,10 @@ module.exports = function attachGraphImages(nodes, env) {
     };
     nodes.releaseImages = function (material) {
         const cache = imageCaches.get(material);
+        const assets = projectAssets(material);
         if (cache) for (const entry of Object.values(cache)) {
             entry.disposed = true;
-            if (entry.asset) material.parentProject.assets.unload(entry.asset);
+            if (entry.asset) assets?.unload?.(entry.asset);
         }
         imageCaches.delete(material);
     };
@@ -39,15 +48,17 @@ module.exports = function attachGraphImages(nodes, env) {
     };
     nodes.prepareImages = async function (graph, material) {
         const cache = nodes.getImageCache(material);
+        const assets = projectAssets(material);
         const keys = new Set(graph.nodes.map(n => n.params.asset).filter(Boolean));
         for (const key of Object.keys(cache)) if (!keys.has(key)) {
             cache[key].disposed = true;
-            material.parentProject.assets.unload(cache[key].asset);
+            if (assets) assets.unload(cache[key].asset);
             delete cache[key];
         }
+        if (!assets) return;
         await Promise.all(Array.from(keys, key => {
             if (cache[key]) return cache[key].loading;
-            const asset = material.parentProject.assets.load(key);
+            const asset = assets.load(key);
             const loaded = new PZ.asset.image(asset);
             loaded.getImage();
             const entry = cache[key] = { asset, loaded, revision: 0, disposed: false };

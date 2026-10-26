@@ -12,6 +12,16 @@ module.exports = function installSurfaceMaterial(target, env) {
   PZ_PHYSICAL_CODE, PZ_FRESNEL_CODE, PZ_LIGHTING_CODE, pzNoiseCanvas,
   pzDrawGradient,
  } = env;
+ function projectAssetsOf(material) {
+     // Detached materials (clip deleted) throw when reading parentProject.
+     // The immediate parentLayer link stays readable, so only this lookup
+     // needs the guard.
+     try {
+         return material?.parentProject?.assets || null;
+     } catch (_error) {
+         return null;
+     }
+ }
 target.load = function (e) {
     var material = this;
     this.pzUnloaded = false;
@@ -148,10 +158,11 @@ target.unload = function () {
         this.threeObj.envMap = null;
     }
     var slots = Object.keys(this.pzImages);
+    var assets = projectAssetsOf(this);
     for (var i = 0; i < slots.length; i++) {
         var asset = this.pzImages[slots[i]];
         if (asset) {
-            this.parentProject.assets.unload(asset);
+            if (assets) assets.unload(asset);
         }
         var texture = this.pzTextures[slots[i]];
         if (texture) {
@@ -184,9 +195,10 @@ target.toJSON = function () {
 };
 
 target.setImage = function (slot, path) {
+    var assets = projectAssetsOf(this);
     var asset = this.pzImages[slot];
     if (asset) {
-        this.parentProject.assets.unload(asset);
+        if (assets) assets.unload(asset);
         this.pzImages[slot] = null;
     }
     var texture = this.pzTextures[slot];
@@ -194,8 +206,8 @@ target.setImage = function (slot, path) {
         texture.dispose();
         this.pzTextures[slot] = null;
     }
-    if (!path) return null;
-    var loaded = new PZ.asset.image(this.parentProject.assets.load(path));
+    if (!path || !assets) return null;
+    var loaded = new PZ.asset.image(assets.load(path));
     var threeTexture = loaded.getTexture(true);
     this.pzImages[slot] = loaded;
     this.pzTextures[slot] = threeTexture;
