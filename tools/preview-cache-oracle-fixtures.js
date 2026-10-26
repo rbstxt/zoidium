@@ -95,6 +95,17 @@ function fixtures() {
     fixture.prefetch = !fixture.liveOnly && (fixture.name === result.find(item => item.plugin === fixture.plugin)?.name ||
       /echo|smartmotionblur|timedisplacement|ccwidetime|timedifference|Shake|Delay|Particular|Form|Plexus/.test(fixture.name));
   }
+  add(native.id, "unrelated-bundle-error", project(), {
+    bundleFailure: "easing-plus", prefetch: true, requirePrefetch: true,
+  });
+  const video = project();
+  video.assets["oracle-video"] = { sha256: "oracle-video", source: 1, filename: "oracle-video.webm" };
+  video.sequence.length = 360;
+  video.sequence.videoTracks.push({ type: 0, clips: [{ start: 300, length: 30,
+    properties: { media: "oracle-video" }, object: { type: 0, properties: {}, effects: [] } }] });
+  add(native.id, "video-outside-prefetch-window", video, {
+    syntheticVideo: true, prefetch: true, requirePrefetch: true,
+  });
   return result;
 }
 
@@ -105,6 +116,32 @@ async function compareFixture(fixture) {
   cache.debug.assertKeys = true;
   const mismatches = cache.debug.keyMismatches;
   const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
+  let videoBlob = null, pluginError = null;
+  if (fixture.bundleFailure) {
+    const manager = globalThis.ZoidiumPluginManagerInternals;
+    const state = manager.pluginStates.get(fixture.bundleFailure);
+    if (!state || state.activationStarted !== false) throw new Error("Failure fixture must start before activation");
+    await manager.enablePlugin(state, false);
+    pluginError = PZ.zoidium.getDebugPlugins().find(plugin => plugin.id === fixture.bundleFailure);
+    if (!pluginError?.lastError || pluginError.activationStarted || pluginError.phase !== "error") {
+      throw new Error("Fixture did not produce a bundle failure before activation");
+    }
+  }
+  if (fixture.syntheticVideo) {
+    // Generated locally from a canvas. No user media or external fixture files.
+    const canvas = document.createElement("canvas");
+    canvas.width = 16; canvas.height = 16;
+    const context = canvas.getContext("2d");
+    context.fillStyle = "#e04020"; context.fillRect(0, 0, 16, 16);
+    const stream = canvas.captureStream(10), chunks = [];
+    const recorder = new MediaRecorder(stream, { mimeType: "video/webm;codecs=vp8" });
+    recorder.ondataavailable = event => chunks.push(event.data);
+    const stopped = new Promise(resolve => { recorder.onstop = resolve; });
+    recorder.start(); await pause(150); recorder.stop(); await stopped;
+    for (const track of stream.getTracks()) track.stop();
+    videoBlob = new Blob(chunks, { type: "video/webm" });
+    if (!videoBlob.size) throw new Error("Synthetic video recording is empty");
+  }
   async function resources(object, seen = new Set()) {
     if (!object || typeof object !== "object" || seen.has(object)) return;
     seen.add(object);
@@ -118,7 +155,9 @@ async function compareFixture(fixture) {
   }
   async function load() {
     const project = new globalThis.PZ.project();
-    project.load(JSON.parse(JSON.stringify(fixture.data)));
+    const data = JSON.parse(JSON.stringify(fixture.data));
+    if (videoBlob) data.assets["oracle-video"].file = videoBlob;
+    project.load(data);
     editor.project = project;
     await project._zoidiumPluginActivationPending;
     await resources(editor.project.sequence);
@@ -131,6 +170,9 @@ async function compareFixture(fixture) {
     if (fixture.requiredPlugin && !requirements.some(item => item.id === fixture.requiredPlugin)) {
       throw new Error("Fixture does not require its plugin: " + JSON.stringify(requirements));
     }
+    if (pluginError && requirements.some(item => item.id === pluginError.id)) throw new Error("Failed plugin is required");
+    if (fixture.syntheticVideo && !project.sequence.videoSchedules.some(schedule =>
+      schedule.items.some(item => item.media && item.start === 300))) throw new Error("Video schedule is missing");
   }
   function pixels() {
     const renderer = editor.mainViewport.renderer, gl = renderer.context;
@@ -226,7 +268,7 @@ async function compareFixture(fixture) {
     equal(references.get(frame), await draw(frame, false), "history vs fresh " + frame);
     checks.push("history-" + frame);
   }
-  let prefetch = "not selected", prefetchFrame = null;
+  let prefetch = "not selected", prefetchFrame = null, privateVideos = 0;
   if (fixture.prefetch && !fixture.full) {
     cache.clear();
     await draw(0, true);
@@ -242,6 +284,13 @@ async function compareFixture(fixture) {
     // Let any in-flight capture finish before a seek invalidates its graph.
     while (viewport.__zoidiumOutputFrames.prefetching) await pause(8);
     if (cache.debug.prefetched > before) {
+      if (fixture.syntheticVideo) {
+        const schedules = viewport.__zoidiumOutputFrames.snapshot?.project.sequence.videoSchedules || [];
+        const videos = schedules.filter(schedule => schedule.items.some(item => item.media));
+        privateVideos = videos.length;
+        if (!privateVideos || videos.some(schedule => schedule.currentItem || schedule.el?.getAttribute("src") ||
+            schedule.__zoidiumVideoExportState)) throw new Error("Private video decoder started outside its window");
+      }
       let frame = 1;
       while (viewport.__zoidiumOutputFrames.prefetchSkipped.has(frame)) frame++;
       const cached = await replay(frame);
@@ -249,6 +298,7 @@ async function compareFixture(fixture) {
       equal(references.get(frame), cached, "private prefetch vs fresh " + frame);
       checks.push("prefetch-" + frame); prefetch = "matched"; prefetchFrame = frame;
     } else prefetch = viewport.__zoidiumOutputFrames.unsupported ? "serialization gate" : "not produced";
+    if (fixture.requirePrefetch && prefetch !== "matched") throw new Error("Required prefetch comparison: " + prefetch);
   }
   const referenceDigests = [];
   for (const [frame, bytes] of references) referenceDigests.push([frame,
@@ -270,7 +320,9 @@ async function compareFixture(fixture) {
   const digest = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", sample)), b => b.toString(16).padStart(2, "0")).join("");
   const colors = colorsOf(sample);
   if (colors < 2) throw new Error("Fixture has no visible content");
-  return { checks: checks.length, warmPasses, prefetch, prefetchFrame, referenceDigests, bytes: sample.length, colors, digest,
+  return { checks: checks.length, warmPasses, prefetch, prefetchFrame, privateVideos,
+    pluginError: pluginError && { id: pluginError.id, phase: pluginError.phase, activationStarted: pluginError.activationStarted },
+    referenceDigests, bytes: sample.length, colors, digest,
     entries: cache.debug.entries, liveOnly: !!fixture.liveOnly };
 }
 module.exports = { fixtures, compareFixture };

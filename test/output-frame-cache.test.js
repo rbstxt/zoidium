@@ -12,7 +12,7 @@ function observable() {
 }
 const flush = () => new Promise(resolve => setImmediate(resolve));
 
-function harness() {
+function harness({ prefetch = false } = {}) {
   const events = new Map(), docEvents = new Map(), timers = new Map();
   let nextTimer = 0;
   const notices = [], canvasEvents = new Map();
@@ -21,20 +21,37 @@ function harness() {
   const clock = { now: 0 };
   class Sequence {
     constructor() {
-      this.length = 100; this.videoSchedules = []; this.audioSchedules = [];
+      this.length = 100; this.audioTracks = []; this.videoSchedules = []; this.audioSchedules = [];
       this.properties = { resolution: { onChanged: observable() } };
       this.object = { objects: [], effects: [], loading: Promise.resolve() };
       this.clip = { start: 0, length: 100, object: this.object };
-      this.videoTracks = [{ enabled: true, getCurrentClip: () => this.clip }];
+      this.videoTracks = [{ enabled: true, clips: [], getCurrentClip: () => this.clip }];
     }
-    toJSON() { counts.serialized += 1; return { length: this.length, value: this.value }; }
+    toJSON() {
+      counts.serialized += 1;
+      return { length: this.length, value: this.value,
+        ...(prefetch ? { schedules: this.videoSchedules.map(({ padding, items }) => ({ padding, items })) } : {}) };
+    }
+    load(data) {
+      this.length = data.length; this.value = data.value;
+      this.videoSchedules = data.schedules.map(schedule => ({ ...schedule,
+        prepare(frame) {
+          if (schedule.items.some(item => frame >= item.start - schedule.padding && frame < item.start + item.length)) {
+            counts.privateDecodes = (counts.privateDecodes || 0) + 1;
+          }
+        },
+        unload() {},
+      }));
+    }
+    update() {}
   }
   class Project {
-    constructor() { this.assets = { list: {} }; this.sequence = new Sequence(); this.ui = { onChanged: observable() }; }
+    constructor() { this.media = []; this.assets = { list: {} }; this.sequence = new Sequence(); this.ui = { onChanged: observable() }; }
     toJSON() { return { sequence: this.sequence, plugins: this.plugins }; }
   }
   class Compositor {
     constructor(renderer) { this.renderer = renderer; }
+    renderSequence(frame) { (counts.privateFrames ||= []).push(frame); }
     unload() {}
   }
   class History {
@@ -54,7 +71,9 @@ function harness() {
   }
   const temporalRuntimes = new Map();
   const PZ = { compositor: Compositor, ui: { viewport: Viewport, history: History },
-    zoidium: { getDebugPlugins: () => [], temporal: { frameSamplerRuntimes: temporalRuntimes } } };
+    project: Project, asset: class {},
+    zoidium: { getDebugPlugins: () => [], temporal: { frameSamplerRuntimes: temporalRuntimes,
+      usesSingleEvaluation: () => false, registerExportCompositor() {} } } };
   const context = { drawingBufferWidth: 4, drawingBufferHeight: 4, getContextAttributes: () => ({ alpha: false }),
     canvas, lost: false, error: 0, copyError: 0,
     copyTexSubImage2D(...args) {
@@ -84,6 +103,7 @@ function harness() {
     ZoidiumUI: { notify(message) { notices.push(message); } },
     localStorage: { getItem: () => null }, performance: { now: () => clock.now },
     addEventListener: (n, f) => events.set(n, f), removeEventListener: n => events.delete(n) };
+  window.__zoidiumTemporalParts = { sampler: { getFrameSamplerRuntime: () => ({ schedules: new Map() }) } };
   vm.runInNewContext(fs.readFileSync(require.resolve("../plugins/core/output-frame-cache.js"), "utf8"), {
     window, PZ, THREE, performance: window.performance, console,
     setTimeout: fn => { timers.set(++nextTimer, fn); return nextTimer; }, clearTimeout: id => timers.delete(id),
@@ -306,11 +326,29 @@ test("an unrelated bundle failure before activation permits cache hits", async (
   h.api.dispose();
 });
 
+test("a retry that starts loading without an event drops retained frames", async () => {
+  const h = harness();
+  const plugin = { id: "unused", enabled: false, phase: "error", activationStarted: false,
+    lastError: { message: "bundle unavailable" } };
+  h.PZ.zoidium.getDebugPlugins = () => [plugin];
+  await h.warm(); h.cool(); h.viewport._render();
+  assert.equal(h.api.debug.entries, 1);
+  plugin.phase = "loading";
+  h.viewport._render();
+  assert.equal(h.api.debug.entries, 0);
+  assert.match(h.api.usage().reason, /Plugins are loading/);
+  plugin.phase = "error"; plugin.activationStarted = true;
+  await h.warm();
+  assert.equal(h.api.debug.entries, 0);
+  h.api.dispose();
+});
+
 for (const [name, plugin, required] of [
   ["required bundle failure", { activationStarted: false }, true],
   ["failed activation", { activationStarted: true }, false],
   ["unknown activation history", {}, false],
   ["core failure", { activationStarted: false, kind: "core" }, false],
+  ["core bundle failure", { id: "core", activationStarted: false }, false],
   ["enabled plugin error", { activationStarted: false, enabled: true }, false],
 ]) test(name + " still blocks finished frames", async () => {
   const h = harness();
@@ -582,5 +620,29 @@ test("a failed copy into a recycled target never publishes its old pixels", asyn
   assert.equal(h.counts.allocated, allocated);
   assert.equal(h.api.debug.entries, 0);
   assert.equal(h.counts.disposed, 1);
+  h.api.dispose();
+});
+
+
+for (const [name, start, padding, expected] of [
+  ["distant video", 300, 60, 1],
+  ["video preload and active frames", 2, 1, 4],
+]) test("idle prefetch skips " + name + " without starting a private decoder", async () => {
+  const h = harness({ prefetch: true });
+  h.project.sequence.length = 360;
+  h.project.sequence.videoSchedules.push({ padding, items: [{ start, length: 2, media: {} }] });
+  await h.warm(); h.cool(); h.viewport._render();
+  const timer = h.timers.values().next().value;
+  assert.equal(typeof timer, "function");
+  timer();
+  for (let i = 0; i < 10; i++) await flush();
+  assert.equal(h.api.debug.prefetched, 1);
+  assert.deepEqual(h.counts.privateFrames, [expected]);
+  assert.equal(h.counts.privateDecodes || 0, 0);
+  assert.equal(h.api.debug.entries, 2);
+  h.viewport.editor.playback.currentFrame = expected;
+  const live = h.counts.live;
+  h.viewport._render();
+  assert.equal(h.counts.live, live, "the privately rendered candidate is a cache hit");
   h.api.dispose();
 });

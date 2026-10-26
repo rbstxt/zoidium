@@ -13,8 +13,11 @@ and plugin changes invalidate the relevant state. Export and eyedropper draws
 keep their own paths; caching does not change saved project content.
 
 When paused and idle, eligible scenes pre-render a bounded window through a
-private project copy. Video projects and scenes taking over 50 ms for a synchronous
-draw skip that work. Frames shown normally can still be retained.
+private project copy. Candidates inside a video item's decode window skip that
+work, including the schedule's preload padding. Video projects with temporal
+sampling or multisample motion blur skip all idle pre-rendering. Scenes taking
+over 50 ms for a synchronous draw also skip it. Frames shown normally can still
+be retained.
 
 ## Plugin verification
 
@@ -39,7 +42,10 @@ cannot be retained or reused. A larger memory limit does not remove these checks
   The note identifies the required plugin and its version when available.
 - Time operators without frame samplers use live evaluation. Smart Motion Blur
   does not disable caching by itself, but its plugin version must pass verification.
-- Any loading plugin or plugin error prevents caching, including errors in an unused plugin.
+- Any loading plugin prevents caching. A required plugin's error also prevents
+  caching. An unused plugin's bundle-load error permits caching only if its
+  activation has never started. Errors after activation starts still block all
+  projects because plugin code can patch shared factories. Core errors always block caching.
 - Resource loading, frame preparation, and exact video decoding must finish before
   a frame can be retained.
 - If project validation takes over 8 ms, caching waits until playback stops and
