@@ -268,6 +268,7 @@
       effect.defaultName = spec.displayName;
     }
     effect._zoidiumFrameSampler = { getRequest: spec.getRequest };
+    if (typeof spec.preflight === "function") effect._zoidiumFrameSampler.preflight = spec.preflight;
     var PZ = global.PZ;
     if (!PZ || !effect.properties || typeof effect.properties.addAll !== "function") {
       throw new Error("ZoidiumPluginApis.defineFrameSampler needs a CM3 effect instance (this)");

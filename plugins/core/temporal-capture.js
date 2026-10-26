@@ -15,7 +15,7 @@
     const clip = objectName(stage.clip, objectName(stage.clip?.object, "video clip"));
     return new Error(`Temporal sample failed for effect "${safeMessage(effect)}", clip "${safeMessage(clip)}", requested frame ${frame}: ${safeMessage(error)}`, { cause: error });
   }
-  function checkPolicy(context) { context?.exportPolicy?.check?.(); }
+  function checkPolicy(context) { context?.exportPolicy?.check?.(); context?.resourcePolicy?.check?.(); }
   function captureFrameSamplerInput(
     state,
     root,
@@ -33,6 +33,8 @@
     const { getFrameSamplerInputFrame, getFrameSamplerCapture, copyRenderTarget,
       bindSampleTextures, restoreLayerAtContextFrame, ownsFrameSamplerScope } = registry.sampler;
     const sequence = root?._sequence;
+    checkPolicy(inputContext);
+    inputContext?.resourcePolicy?.assertStage(sequence, stage, projectFrame);
     const requestedFrame = projectFrame;
     projectFrame = getFrameSamplerInputFrame(stage, projectFrame);
     const capture = getFrameSamplerCapture(runtime, root, depth, sequence);
@@ -61,6 +63,7 @@
     capture.clear(0);
     state.contexts.push({
       exportPolicy: inputContext?.exportPolicy || parentContext?.exportPolicy,
+      resourcePolicy: inputContext?.resourcePolicy || parentContext?.resourcePolicy,
       compositor: capture,
       singleEvaluation,
       frameSamplerDepth: depth,
@@ -124,6 +127,7 @@
       return true;
     } catch (error) {
       if (inputContext?.exportPolicy || parentContext?.exportPolicy) throw sampleError(stage, requestedFrame, error);
+      if (inputContext?.resourcePolicy || parentContext?.resourcePolicy) throw error;
       console.error("[Zoidium] frame sampler capture failed:", error);
       return false;
     } finally {

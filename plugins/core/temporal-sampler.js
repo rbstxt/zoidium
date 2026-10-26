@@ -417,9 +417,12 @@
 
   async function prepareLowerSchedules(sequence, stage, projectFrame, context, runtime, allTracks = false, state = null) {
     const samples = [];
+    registry.capture.checkPolicy(context);
+    context?.resourcePolicy?.assertStage(sequence, stage, projectFrame, allTracks);
     for (const { schedule, item } of frameSamplerMediaInputs(sequence, stage, projectFrame, allTracks)) {
       // Never seek the playback/export schedule to obtain another frame.
       // Its shared texture must remain the current input until capture finishes.
+      context?.resourcePolicy?.assertMedia(item.media);
       let isolated = runtime.schedules.get(schedule);
       if (!isolated) {
         isolated = new PZ.schedule(schedule.type);
@@ -437,8 +440,11 @@
       const sourceFrame = !allTracks && !isAdjustmentLayer(stage.layer)
         ? projectFrame : state
           ? withFrameSamplerInputContext(state, stage, projectFrame, context, mapSource) : mapSource();
+      registry.capture.checkPolicy(context);
+      context?.resourcePolicy?.assertMedia(item.media);
       isolated.update(sourceFrame, getProjectRate(stage.layer, sequence));
       if (isolated.currentItem) {
+        context?.resourcePolicy?.assertMedia(item.media);
         const time = item.clip.properties.time.get(sourceFrame - item.start);
         if (typeof ISNODE !== "undefined" && ISNODE) {
           await isolated.ffDecodeFrame(Math.round(time * getProjectRate(stage.layer, sequence)),
@@ -456,6 +462,7 @@
   }
 
   async function prepareInputEffects(sequence, stage, frame, context, state, restoreOnly = false) {
+    context?.resourcePolicy?.assertStage(sequence, stage, frame);
     const preparedLayers = new Map();
     const tracks = sequence.videoTracks || [];
     const start = isAdjustmentLayer(stage.layer) ? 0 : stage.trackIndex;
@@ -465,6 +472,7 @@
       const clip = index === stage.trackIndex ? stage.clip : tracks[index]?.getCurrentClip?.(frame);
       const layer = clip?.object;
       if (!layer) continue;
+      context?.resourcePolicy?.assertLayer(layer);
       const localFrame = frame - finiteNumber(clip.start, 0);
       const scoped = callback => state
         ? withFrameSamplerInputContext(state, stage, frame, context, callback) : callback();
@@ -483,6 +491,7 @@
       context?.frameSamplerChangedLayers?.add(layer);
       const count = index === stage.trackIndex ? stage.effectIndex : layer.effects?.length || 0;
       for (let i = 0; i < count; i += 1) {
+        context?.resourcePolicy?.assertEffect(layer.effects[i]);
         await scoped(() => layer.effects[i]?.prepare?.(
           finiteNumber(layer.__zoidiumTemporalLastUpdateFrame, localFrame), context));
       }
@@ -513,6 +522,8 @@
     context = Object.assign({}, context, { singleEvaluation });
     const parentContext = state.contexts[state.contexts.length - 1];
     context.exportPolicy ||= parentContext?.exportPolicy;
+    context.resourcePolicy ||= parentContext?.resourcePolicy;
+    context.resourcePolicy ||= effect._zoidiumFrameSampler.resourcePolicy;
     registry.capture.checkPolicy(context);
     const depth = finiteNumber(context?.frameSamplerDepth ?? parentContext?.frameSamplerDepth, 0) + 1;
     if (depth > MAX_FRAME_SAMPLER_DEPTH) {
@@ -521,10 +532,14 @@
     }
     const controlFrame = getFrameSamplerControlFrame(stage, localFrame,
       context?.frameSamplerScope || parentContext?.frameSamplerScope);
+    const authority = frameSamplerAuthority(state, stage, controlFrame, context, depth);
     let request;
     try {
-      request = effect._zoidiumFrameSampler.getRequest(effect, controlFrame);
+      await effect._zoidiumFrameSampler.preflight?.(effect, controlFrame, authority);
+      registry.capture.checkPolicy(context);
+      request = effect._zoidiumFrameSampler.getRequest(effect, controlFrame, authority);
     } catch (error) {
+      if (context.resourcePolicy) throw error;
       if (context.exportPolicy) throw registry.capture.sampleError(stage, projectFrame, error);
       console.error("[Zoidium] frame sampler request failed during prepare:", error);
       return;
@@ -692,10 +707,12 @@
       }
     } catch (error) {
       if (context.exportPolicy) throw registry.capture.sampleError(stage, context.exportPolicy.requestedSampleFrame ?? projectFrame, error);
+      if (context.resourcePolicy) throw error;
       console.error("[Zoidium] frame sampler preparation failed:", error);
     } finally {
       try {
         if (!context?.exportPolicy?.signal?.aborted) {
+          context.resourcePolicy?.check?.();
           const tracks = sequence.videoTracks || [];
           const currentLayers = new Set([stage.layer]);
           for (let i = 0; i < stage.trackIndex; i += 1) {
@@ -711,6 +728,27 @@
         state.preparingEffects.delete(effect);
       }
     }
+  }
+
+  function frameSamplerAuthority(state, stage, controlFrame, context, depth) {
+    const root = context?.frameSamplerRoot || context?.rootCompositor || context?.compositor;
+    const scope = context?.frameSamplerScope;
+    return { ...context, controlFrame, frameSamplerRoot: root, frameSamplerDepth: depth,
+      scopeId: scope?.effect ? frameSamplerIdentity(scope.effect) : 0,
+      stageId: frameSamplerIdentity(stage.effect) };
+  }
+
+  function drawAuthority(state, effect) {
+    const context = state.contexts[state.contexts.length - 1];
+    const root = context?.rootCompositor || context?.compositor;
+    const stage = findFrameSamplerStage(root?._sequence, effect, context?.outputFrame);
+    if (!stage) return null;
+    const local = finiteNumber(stage.layer.__zoidiumTemporalLastUpdateFrame,
+      context.outputFrame - finiteNumber(stage.clip.start, 0));
+    const frame = isAdjustmentLayer(stage.layer)
+      ? getFrameSamplerControlFrame(stage, local, context.frameSamplerScope)
+      : finiteNumber(effect._zoidiumFrameSamplerFrame, local);
+    return frameSamplerAuthority(state, stage, frame, context, finiteNumber(context.frameSamplerDepth, 0) + 1);
   }
 
   function resolveFrameSamples(state, effect) {
@@ -738,7 +776,7 @@
       : finiteNumber(effect._zoidiumFrameSamplerFrame, lastLayerFrame);
     let request;
     try {
-      request = descriptor.getRequest(effect, controlFrame);
+      request = descriptor.getRequest(effect, controlFrame, frameSamplerAuthority(state, stage, controlFrame, context, depth));
     } catch (error) {
       if (context?.exportPolicy) throw registry.capture.sampleError(stage, currentProjectFrame, error);
       console.error("[Zoidium] frame sampler request failed:", error);
@@ -767,13 +805,14 @@
     if (
       !reducing && prepared && prepared.revision === revision && prepared.depth === depth &&
       prepared.scope === scope &&
-      Math.abs(finiteNumber(prepared.projectFrame, NaN) - currentProjectFrame) <= EPSILON &&
+      (descriptor.preflight ? prepared.projectFrame === currentProjectFrame
+        : Math.abs(finiteNumber(prepared.projectFrame, NaN) - currentProjectFrame) <= EPSILON) &&
       prepared.samples.length === plan.length &&
       prepared.samples.every((sample, index) => {
         const item = plan[index];
         const frame = finiteNumber(stage.clip.start, 0) + item.frame;
         return (
-          Math.abs(finiteNumber(sample.frame, NaN) - frame) <= EPSILON &&
+          (descriptor.preflight ? sample.frame === frame : Math.abs(finiteNumber(sample.frame, NaN) - frame) <= EPSILON) &&
           Math.abs(finiteNumber(sample.opacity, NaN) - item.opacity) <= EPSILON &&
           sample.stamp === sample.target.inputStamp &&
           sample.target.width === width && sample.target.height === height
@@ -801,6 +840,10 @@
       });
       if (cachedSamples.every(Boolean)) return cachedSamples;
     }
+
+    // Isolated plans consume only prepared GPU inputs. Synchronous drawing
+    // cannot acquire resources or recover a missing plan by capturing live.
+    if (descriptor.preflight || context?.resourcePolicy) return [];
 
     const needsVideo = context?.exportPolicy && plan.some(item => {
       const frame = finiteNumber(stage.clip.start, 0) + item.frame;
@@ -910,6 +953,7 @@
   }
 
   registry.sampler = {
+    drawAuthority,
     ownsFrameSamplerScope,
     FRAME_SAMPLER_CACHE_BYTES,
     frameSamplerCacheDepth,

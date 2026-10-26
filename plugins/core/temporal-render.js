@@ -212,6 +212,7 @@
       layers.installSingleEvaluation(state, this._sequence);
       state.contexts.push({
         exportPolicy: this.__zoidiumExportPolicy,
+        resourcePolicy: this.__zoidiumCommunityResourcePolicy,
         singleEvaluation,
         compositor: this,
         frameSamplerDepth: 0,
@@ -421,6 +422,7 @@
     state.originalViewportRender = prototype._render;
     prototype._render = function temporalViewportRender() {
       registerCompositor(state, this.compositor);
+      if (this.__zoidiumCommunityPrepared) return state.originalViewportRender.apply(this, arguments);
       if (!this.renderMode || !this.layer) {
         const sequence = this.compositor?._sequence;
         const frame = finiteNumber(this.editor?.playback?.currentFrame, 0);
@@ -428,7 +430,7 @@
         function visit(layer, clip, localFrame) {
           const sourceFrame = state.mapLayerFrame(layer, localFrame)?.sourceFrame ?? localFrame;
           for (const effect of layer.effects || []) {
-            if (!effect._zoidiumFrameSampler) continue;
+            if (!effect._zoidiumFrameSampler || effect._zoidiumFrameSampler.preflight) continue;
             const controlFrame = getAdjustmentEffectFrame(layer, effect, sourceFrame);
             const request = effect._zoidiumFrameSampler.getRequest(effect, controlFrame);
             const tapCount = Array.isArray(request?.frames) ? request.frames.length : Number(request?.count);
