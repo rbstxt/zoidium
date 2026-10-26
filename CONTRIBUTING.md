@@ -98,7 +98,7 @@ deployment output is ignored and should not be committed.
 To pack the isolated filter example into a separate output folder, run:
 
 ```bash
-pnpm run pack:community -- examples/community-filter /tmp/zoidium-community-example
+pnpm run pack:community examples/community-filter /tmp/zoidium-community-example
 ```
 
 Use an empty output folder. The packer refuses to overwrite a package.
@@ -131,12 +131,24 @@ The suite then waits for that lock before it starts local servers or a
 browser, and releases it after cleanup. To save detailed measurements, set
 `ZOIDIUM_COMMUNITY_NETWORK_REPORT` to an output JSON file path.
 
-The plugin manager's **Community** section is a developer preview while
-community effects cannot run. To show it, run
+To show the plugin manager's **Community** developer preview, run
 `localStorage.setItem("zoidium.community-preview", "1")` in the editor's
 console and reload.
 
+Import the local package file, expand its card, and click **Approve**.
+Review the exact hash in the confirmation window, then click **Approve**.
+Expand the card again and click **Select for preview**.
+Add the registered **Community Gain** effect to a layer.
+Use **Open community setup** to change its controls.
+The native picker adds an identifier suffix to each community effect name.
+
+Preview controls use static CM3 properties and native undo and redo.
+Keyframes, expressions, arbitrary GLSL, and temporal inputs are unavailable.
+Video and image export with community effects are refused.
+To export, remove community effects from the project.
+Missing or disabled packages render as identity and preserve their effect data.
+After disabling a package, reload the editor before selecting it again.
+
 Before changing the runner, run `pnpm run verify` and the browser suite.
 `verify` runs package, protocol, and interpreter tests without a browser.
-The isolated runner has no editor entry point in this implementation.
 Do not pass community packages to the first-party plugin evaluator.
