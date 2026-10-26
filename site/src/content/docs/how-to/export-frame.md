@@ -17,8 +17,10 @@ Save the playhead frame as a still image. If a Precomp+ composition is open, ret
 8. Click **Start**.
 9. Click **Download your image**.
 
-For transparency, choose PNG or WebP. Check the downloaded image in its destination application. The download stays in the current editor document.
+For a JPEG file, select **.jpg**. For transparency, choose PNG or WebP. Check the downloaded image in its destination application. The download stays in the current editor document.
 
 Before clicking **Start**, set **Resolution** and **Aspect ratio** to the output size you need. These controls affect the image export. They do not change the project resolution.
+
+If capture opens **Render error**, read the diagnostic before starting a new export. For a video decode failure, repair or replace the named source first.
 
 [Export options](/docs/reference/export-options/) lists the size rules. [MP4 export recovery](/docs/features/mp4-export/) covers graphics-context and video-source failures.
