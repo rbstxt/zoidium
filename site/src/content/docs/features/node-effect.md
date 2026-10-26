@@ -26,3 +26,5 @@ graph's output. These nodes sample the current effect's input image.
 describes sampling, alpha, parameters, and limits.
 [Node Effect compatibility](/docs/development/project-compatibility/#node-effect)
 describes saved GLSL and graph metadata.
+
+[Native FX reference](/docs/reference/native-fx/) lists ready-made filters in the same **NATIVE FX** category.

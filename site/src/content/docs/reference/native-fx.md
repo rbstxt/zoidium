@@ -6,7 +6,7 @@ sidebar:
   order: 70
 ---
 Native FX is an effect pack in Zoidium, an external extension layer around CM3.
-When **Native FX** is enabled in **Plugins**, its 22 effects appear under **NATIVE FX** in the **Effects** picker.
+When **Plugins** has **Native FX** enabled, its 22 effects appear in the **Effects** picker under **NATIVE FX**.
 
 ## Effects
 
