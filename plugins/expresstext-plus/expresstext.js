@@ -34,20 +34,20 @@ function loadExpressPlugin(context) {
   return require("./expresstext-plugin.js");
 }
 
-let plugin = null;
+let boundPlugin = null;
 
 // The sibling files need no host context under plain Node require, but the
 // bundle loader does; when neither is available yet, stay unbound and let
 // ensureExpressPlugin(context) bind later at activation.
 try {
-  if (typeof require === "function") plugin = loadExpressPlugin(null);
+  if (typeof require === "function") boundPlugin = loadExpressPlugin(null);
 } catch (error) {
-  plugin = null;
+  boundPlugin = null;
 }
 
 function ensureExpressPlugin(context) {
-  if (!plugin) plugin = loadExpressPlugin(context);
-  return plugin;
+  if (!boundPlugin) boundPlugin = loadExpressPlugin(context);
+  return boundPlugin;
 }
 
 module.exports = {
@@ -55,10 +55,10 @@ module.exports = {
     return ensureExpressPlugin(context).activate(context);
   },
   deactivate() {
-    if (plugin) return plugin.deactivate();
+    if (boundPlugin) return boundPlugin.deactivate();
     return undefined;
   },
   get _test() {
-    return (plugin && plugin._test) || {};
+    return (boundPlugin && boundPlugin._test) || {};
   },
 };
