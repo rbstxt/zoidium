@@ -3,6 +3,7 @@
 // Serialized into the Electron main process by the explicit desktop suite.
 async function desktopBoundaries(electron, options) {
   const { app, BrowserWindow, session, MessageChannelMain } = electron;
+  const require = process.getBuiltinModule("node:module").createRequire(app.getAppPath() + "/package.json");
   const path = require("node:path"), http = require("node:http");
   const { createRunnerHost } = require(path.join(app.getAppPath(), "desktop/community-runner.cjs"));
   const P = require(path.join(app.getAppPath(), "zoidium/community-package.js"));
