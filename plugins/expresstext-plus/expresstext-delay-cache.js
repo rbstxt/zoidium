@@ -7,6 +7,7 @@ const { EFFECTOR_BUILDERS } = require("./expresstext-properties.js");
 const staticReaders = new WeakMap();
 const WINDOW_SAMPLES = 7202;
 const MAX_LETTERS = 48;
+const MAX_PARAM_STAGES = 2;
 const MAX_FINGERPRINT = 262144;
 const keysByKind = new Map();
 let generation = null;
@@ -69,8 +70,14 @@ function stackInput(layers) {
     }
     const props = layer.props;
     const own = props && staticReaders.get(props);
+    if (own && props.get !== own.readerGet) throw new Error("Changed Delay reader");
     return [kind, keysByKind.get(kind).map(key => {
-      if (own) return [key, "owned", own[key]];
+      if (own) {
+        const row = own.store[key];
+        if (!row) return [key, "owned", undefined];
+        if (row.get !== own.getters[key]) throw new Error("Changed Delay row reader");
+        return [key, "owned", own.values[key], row.value, row.definition && row.definition.value];
+      }
       const property = !props ? undefined : typeof props.get === "function" ? props.get(key) : props[key];
       return [key, trackInput(property)];
     })];
@@ -103,7 +110,8 @@ function delayCacheFor(layers, index, list, base, aux) {
     let entry = letters.get(key);
     if (!entry) {
       if (letters.size >= MAX_LETTERS) letters.delete(letters.keys().next().value);
-      entry = { frames: new Float64Array(WINDOW_SAMPLES).fill(-1), values: new Float64Array(WINDOW_SAMPLES * 9) };
+      entry = { frames: new Float64Array(WINDOW_SAMPLES).fill(-1),
+        values: new Float64Array(WINDOW_SAMPLES * 9), params: [] };
     }
     // LRU bounds even scenes with changing bases and many letters.
     letters.delete(key);
@@ -135,4 +143,25 @@ function cachedDelayTarget(entry, frame, sample) {
   };
 }
 
-module.exports = { cachedDelayTarget, clearDelayCache, delayCacheFor, staticReaders, MAX_LETTERS, WINDOW_SAMPLES };
+// Delay parameters depend on the same tracks, selections, base and layout as
+// targets. The first two stages get bounded buffers; further stages stay cold.
+function cachedDelayParams(entry, stage, frame, sample) {
+  if (!entry || stage >= MAX_PARAM_STAGES || !Number.isSafeInteger(frame) || frame < 0) return sample(frame);
+  let buffer = entry.params[stage];
+  if (!buffer) {
+    buffer = { frames: new Float64Array(WINDOW_SAMPLES).fill(-1), values: new Float64Array(WINDOW_SAMPLES * 6) };
+    entry.params[stage] = buffer;
+  }
+  const slot = frame % WINDOW_SAMPLES, offset = slot * 6, values = buffer.values;
+  if (buffer.frames[slot] !== frame) {
+    const params = sample(frame);
+    values[offset] = params ? 1 : 0;
+    if (params) values.set([params.strength, params.mode, +params.position, +params.scale, +params.rotation], offset + 1);
+    buffer.frames[slot] = frame;
+    return params;
+  }
+  return values[offset] ? { strength: values[offset + 1], mode: values[offset + 2],
+    position: !!values[offset + 3], scale: !!values[offset + 4], rotation: !!values[offset + 5] } : null;
+}
+
+module.exports = { cachedDelayParams, cachedDelayTarget, clearDelayCache, delayCacheFor, staticReaders, MAX_LETTERS, WINDOW_SAMPLES };

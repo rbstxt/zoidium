@@ -2,7 +2,7 @@
 
 // ExpressText+ Delay chase simulation over the effector stack.
 
-const { cachedDelayTarget, delayCacheFor } = require("./expresstext-delay-cache.js");
+const { cachedDelayParams, cachedDelayTarget, delayCacheFor } = require("./expresstext-delay-cache.js");
 const { PZ_EULER_ORDERS } = require("./expresstext-constants.js");
 const { isLetterSelected, numberValue, resolveSelection, strengthWeight } = require("./expresstext-select.js");
 const { applyFieldWeight, blankControls, readProp } = require("./expresstext-eval.js");
@@ -241,10 +241,10 @@ function sampleStageTarget(layers, stepFrame, letterIndex, list, base, aux) {
 // a sampler for the next layer: integer steps read the output table
 // (linearly interpolated for fractional queries), the exact end frame
 // reads the fractional tail.
-function runDelayLetterStage(layers, delayProps, sampleInput, endFrame, lastStep, index, list, base, retainTable = true) {
+function runDelayLetterStage(layers, delayProps, sampleInput, endFrame, lastStep, index, list, base, retainTable = true, sampleParams) {
   const firstStep = Math.max(0, lastStep - DELAY_SIM_WINDOW);
   const listsAt = (f) => plainListsAt(layers, f);
-  const paramsAt = (f) => delayLinkParams(delayProps, f, index, list, base, listsAt(f));
+  const paramsAt = sampleParams || ((f) => delayLinkParams(delayProps, f, index, list, base, listsAt(f)));
   // Stage targets over the window; Even paces itself on their travel.
   const targets = [];
   for (let f = firstStep; f <= lastStep; f += 1) targets.push(sampleInput(f));
@@ -356,7 +356,9 @@ function simulateDelayLetter(layers, delays, frame, index, list, base, aux) {
       index,
       list,
       base,
-      stage < delays.length - 1
+      stage < delays.length - 1,
+      (stepFrame) => cachedDelayParams(cache, stage, stepFrame, (f) =>
+        delayLinkParams(delay.props, f, index, list, base, plainListsAt(layers, f)))
     );
     sample = staged.sample;
     out = sample(endFrame);

@@ -50,10 +50,8 @@ function staticProps(values) {
       return store[key];
     },
   };
-  // Track only the keys created above, matching this reader after additions.
-  const inputs = {};
-  for (const key of Object.keys(store)) Object.defineProperty(inputs, key, { get: () => values[key] });
-  staticReaders.set(reader, inputs);
+  staticReaders.set(reader, { readerGet: reader.get, values, store,
+    getters: Object.fromEntries(Object.entries(store).map(([key, row]) => [key, row.get])) });
   return reader;
 }
 
