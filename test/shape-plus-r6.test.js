@@ -1,6 +1,7 @@
 "use strict";
 const test=require("node:test"),assert=require("node:assert/strict");
 const {compile}=require("../plugins/shape-plus/compiler");
+const {withinCpuBudget}=require("./cpu-budget.cjs");
 const {createModel}=require("../plugins/shape-plus/model");
 const {PZ}=require("./shape-plus-host");
 const {Content}=createModel(PZ);
@@ -20,9 +21,8 @@ function fixture(n,style={},modifier) {
 }
 for(const n of [60,256])for(const [name,style]of Object.entries({plain:{},dash:{dashPairs:1,dash1:20,gap1:10},squareBevel:{dashPairs:1,cap:"square",join:"bevel"},wave:{waveAmount:11,waveUnits:"length",wavelength:100},taper:{startLength:35,endLength:35},wide:{width:200}})) {
   test(`${n} vertex ${name} stroke has bounded, nonempty paint coverage`,()=>{
-    const start=performance.now(),r=compile(fixture(n,style),.125/4);
+    const items=fixture(n,style),r=withinCpuBudget(()=>compile(items,.125/4),250,"compile");
     assert.ok(r.commands.length);assert.ok(r.commands[0].positions.length);
-    assert.ok(performance.now()-start<250,"compile exceeded 250 ms");
     if(r.commands[0].coverage)assert.equal(r.commands[0].positions.length,18,"paint quad has disjoint interiors");
   });
 }
@@ -111,16 +111,16 @@ test("warning deduplication and a fresh compile recover after a deadline",()=>{
   }finally{console.warn=old;}
 });
 for(const n of [60,256])test(`${n} vertices support three dash pairs, offset, taper and wave together`,()=>{
-  const start=performance.now();
-  const result=compile(fixture(n,{width:200,dashPairs:3,dash1:20,gap1:40,dash2:30,gap2:45,dash3:10,gap3:50,dashOffset:17,startLength:25,endLength:25,waveAmount:11,waveUnits:"length",wavelength:100},"zigZag"),.03125);
-  assert.ok(result.commands[0]?.positions.length);assert.ok(performance.now()-start<250);
+  const items=fixture(n,{width:200,dashPairs:3,dash1:20,gap1:40,dash2:30,gap2:45,dash3:10,gap3:50,dashOffset:17,startLength:25,endLength:25,waveAmount:11,waveUnits:"length",wavelength:100},"zigZag");
+  const result=withinCpuBudget(()=>compile(items,.03125),250,"complex compile");
+  assert.ok(result.commands[0]?.positions.length);
 });
 test("128 repeated dense strokes share one coverage array and retain independent paint quads",()=>{
   const items=fixture(60,{dashPairs:1});
   const repeater=new Content("repeater",{id:"copies"});repeater.load({id:"copies",kind:"repeater",properties:properties({copies:128,position:[2,0]})});
   items.push(repeater.evaluate(0));
-  const start=performance.now(),result=compile(items,.03125);
-  assert.equal(result.commands.length,128);assert.ok(performance.now()-start<250);
+  const result=withinCpuBudget(()=>compile(items,.03125),250,"repeated stroke compile");
+  assert.equal(result.commands.length,128);
   assert.equal(new Set(result.commands.map(c=>c.coverage)).size,1);
   assert.ok(result.commands.every(c=>c.positions.length===18&&c.coverageMatrix));
 });

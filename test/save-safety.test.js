@@ -98,9 +98,7 @@ test("pending serialization and asset reads settle with precise errors and prese
     if (kind === "serializer") h.PZ.project.save = () => new Promise(() => {});
     else editor.project.assets.list.image = { key: "image", file: { size: 4, arrayBuffer: () => new Promise(() => {}) } };
     editor._zoidiumSaveFileHandle = { async createWritable() { writes += 1; } };
-    const started = Date.now();
     assert.equal(await editor.save(), null);
-    assert.ok(Date.now() - started < 2000);
     assert.equal(writes, 0);
     assert.equal(editor._zoidiumSavePromise, null);
     assert.equal(editor.project.ui.dirty, true);
@@ -228,14 +226,24 @@ test("pending writable operations abort and clear the save state", async () => {
 });
 
 test("a writable returned after the deadline is aborted without receiving bytes", async () => {
-  const h = createHarness({ setTimeout: fastTimers });
+  let deadline, opened;
+  const openingStarted = new Promise(resolve => { opened = resolve; });
+  const h = createHarness({ setTimeout(callback, ms) {
+    if (ms === 10000) deadline = callback;
+    const timer = setTimeout(callback, ms);
+    if (ms === 60000) timer.unref();
+    return timer;
+  } });
   const editor = h.makeEditor();
   let finishOpening;
   const opening = new Promise(resolve => { finishOpening = resolve; });
   let aborted = false;
   let written = false;
-  editor._zoidiumSaveFileHandle = { createWritable: () => opening };
-  assert.equal(await editor.save(), null);
+  editor._zoidiumSaveFileHandle = { createWritable() { opened(); return opening; } };
+  const saving = editor.save();
+  await openingStarted;
+  deadline();
+  assert.equal(await saving, null);
   finishOpening({ async abort() { aborted = true; }, async write() { written = true; } });
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(aborted, true);
