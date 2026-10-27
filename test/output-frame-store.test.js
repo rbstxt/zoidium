@@ -182,10 +182,14 @@ test("playing, seeking, unready or differently decoded videos fail the completen
   const { decoderComplete } = require("../plugins/core/output-frame-store.js");
   const s = { lastFrame: 30, currentItem: { start: 0, media: {} },
     el: { paused: true, seeking: false, readyState: 2, currentTime: 1, src: "blob:video" },
-    __zoidiumVideoExportState: { sourceId: "blob:video", requestedTime: 1 } };
+    __zoidiumVideoExportState: { sourceId: "blob:video", requestedTime: 1, observedTime: 1 } };
   assert.equal(decoderComplete(s), true);
   assert.equal(decoderComplete({ ...s, el: { ...s.el, currentTime: 1.333333 },
-    __zoidiumVideoExportState: { sourceId: "blob:video", requestedTime: 40 / 30 } }), true);
+    __zoidiumVideoExportState: { sourceId: "blob:video", requestedTime: 40 / 30, observedTime: 1.333333 } }), true);
+  assert.equal(decoderComplete({ ...s, el: { ...s.el, currentTime: 0.499999 },
+    __zoidiumVideoExportState: { sourceId: "blob:video", requestedTime: 0.5005, observedTime: 0.499999 } }), true);
+  assert.equal(decoderComplete({ ...s, el: { ...s.el, currentTime: 0.500001 },
+    __zoidiumVideoExportState: { sourceId: "blob:video", requestedTime: 0.5005, observedTime: 0.499999 } }), false);
   for (const change of [{ paused: false }, { seeking: true }, { readyState: 1 }, { currentTime: 0.5 }]) {
     assert.equal(decoderComplete({ ...s, el: { ...s.el, ...change } }), false);
   }

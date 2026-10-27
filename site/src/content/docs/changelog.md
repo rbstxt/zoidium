@@ -96,6 +96,8 @@ each line describes one visible change.
 
 ### Fixed
 
+- The preview cache no longer stops preparing video frames at some frames of
+  29.97 fps clips.
 - While paused, the preview cache also prepares up to 30 frames ahead and 4
   behind in projects with visible video, using the same exact decoding. Any
   input stops this work at once.

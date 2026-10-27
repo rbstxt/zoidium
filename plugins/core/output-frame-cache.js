@@ -56,13 +56,18 @@
   const debug = {
     disabled: false, assertKeys: false, prefetchDisabled: false, prefetched: 0, prefetchAborted: 0, disposeErrors: 0,
     hits: 0, misses: 0, liveDraws: 0, stores: 0, validations: 0, keyMismatches: 0,
-    rejects: {}, validationCauses: {}, signals: {}, resets: {}, shownFrame: null, shownChanges: 0,
+    rejects: {}, validationCauses: {}, signals: {}, resets: {}, videoSkipped: {}, shownFrame: null, shownChanges: 0,
     get bytes() { return store.bytes; },
     get limit() { return store.limit; },
     get effectiveLimit() { return store.effectiveLimit; },
     get contextLosses() { return store.contextLosses; },
     get entries() { return store.entries.size; },
   };
+
+  function skipPrefetch(controller, frame, reason) {
+    controller.prefetchSkipped.add(frame);
+    debug.videoSkipped[frame] = reason;
+  }
 
   function memoryNotice(message) {
     if (memoryNoticeShown) return;
@@ -663,7 +668,7 @@
       }
       snapshot.ready = true;
     }
-    if (videoPrefetchBlocked(sequence, frame)) { controller.prefetchSkipped.add(frame); return false; }
+    if (videoPrefetchBlocked(sequence, frame)) { skipPrefetch(controller, frame, "Video prefetch is blocked."); return false; }
     sequence.update(frame);
     for (const schedule of sequence.videoSchedules) {
       await schedule.prepare(frame, { sequence, previewFrameCacheStrict: true, compositor: snapshot.compositor,
@@ -674,7 +679,7 @@
     if (!valid() || global.document.fonts?.status === "loading" || !model.assetsComplete(snapshot.project) ||
       ![...sequence.videoSchedules, ...runtime.schedules.values()].every(model.decoderComplete) ||
       !activeClips(sequence, frame).every(clip => objectsReady(clip.object.objects, frame - clip.start))) {
-      controller.prefetchSkipped.add(frame);
+      skipPrefetch(controller, frame, "Frame dependencies are incomplete.");
       return false;
     }
     // The private compositor draws into the shared canvas. Copy the result,
@@ -705,6 +710,7 @@
     const start = performance.now();
     let retained = controller.videoLive;
     let stored = false;
+    let skipReason = "Frame capture or storage failed.";
     controller.reason = "Preparing video frames for the preview cache.";
     try {
       const snapshot = snapshotFor(controller, key);
@@ -713,13 +719,18 @@
       await global.document.fonts?.ready;
       policy.check();
       if (fullKey(controller) !== key || model.canonicalJSON(snapshot.project) !==
-          model.canonicalJSON(viewport.editor.project) || !model.assetsComplete(snapshot.project) ||
-          ![...prepared.runtime.schedules.values()].every(model.decoderComplete) ||
-          !activeClips(snapshot.project.sequence, frame).every(clip => objectsReady(clip.object.objects, frame - clip.start))) return;
+          model.canonicalJSON(viewport.editor.project)) { skipReason = "Project changed during preparation."; return; }
+      if (!model.assetsComplete(snapshot.project)) { skipReason = "Assets are incomplete."; return; }
+      if (![...prepared.runtime.schedules.values()].every(model.decoderComplete)) {
+        skipReason = "Video decoder is incomplete."; return;
+      }
+      if (!activeClips(snapshot.project.sequence, frame).every(clip => objectsReady(clip.object.objects, frame - clip.start))) {
+        skipReason = "Clip objects are incomplete."; return;
+      }
       // Preserve the actual live image, even when it is an inexact video draw.
       // This backup never enters the frame store. Restore it in the same task.
       const live = capture(controller, current);
-      if (!live || live.frame !== current) return;
+      if (!live || live.frame !== current) { skipReason = "Live frame capture failed."; return; }
       const restoreTextures = sampler.bindSampleTextures(prepared.samples);
       try {
         policy.check();
@@ -740,8 +751,9 @@
       }
     } catch (error) {
       if (!policy.signal.aborted) {
-        controller.prefetchSkipped.add(frame);
         debug.videoError = String(error.message);
+        skipReason = debug.videoError;
+        skipPrefetch(controller, frame, skipReason);
       }
     } finally {
       debug.videoFillMs = performance.now() - start;
@@ -752,7 +764,7 @@
       policy.dispose();
       controller.videoJob = null;
       if (controller.reason) controller.reason = "Video frames are not cached in this preview.";
-      if (!stored && valid()) controller.prefetchSkipped.add(frame);
+      if (!stored && valid()) skipPrefetch(controller, frame, skipReason);
       if (!stored || policy.signal.aborted || controller.key !== key) disposeSnapshot(controller);
     }
   }
