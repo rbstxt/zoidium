@@ -10,6 +10,9 @@ each line describes one visible change.
 
 ### Added
 
+- ExpressText+ by DaviFX: a container over 3D Text that moves each letter
+  with Shake, Plain, Random, Formula, Delay, Spline, Orbit, Repeater, Twist,
+  Wrap, and Voronoi effectors.
 - Assets panel in the After Effects style: every file, font, image, model, and
   composition in one place, with usage, missing, and failed badges.
 - Asset commands: Import, Delete, Remove Unused Items, Replace, Reload,
@@ -96,6 +99,8 @@ each line describes one visible change.
 
 ### Fixed
 
+- Redo after undoing an added property group with nested groups no longer
+  raises an error.
 - Shape+ Offset Paths now works on open paths. It outlines the path on both
   sides. Before, a stroke after it drew nothing.
 - The preview cache no longer stops preparing video frames at some frames of

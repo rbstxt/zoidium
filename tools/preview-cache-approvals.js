@@ -5,7 +5,7 @@ const path = require("node:path");
 const crypto = require("node:crypto");
 const root = path.resolve(__dirname, "..");
 const approvalPath = "plugins/core/output-frame-approvals.js";
-const candidates = ["native-fx", "ccfx-shader-pack", "text-plus", "repeater", "effector-plus", "trapcode-suite", "optical-flares"];
+const candidates = ["native-fx", "ccfx-shader-pack", "text-plus", "repeater", "effector-plus", "trapcode-suite", "optical-flares", "expresstext-plus"];
 
 function filesBelow(folder) {
   // Dotfiles such as .DS_Store are local clutter, never runtime sources.

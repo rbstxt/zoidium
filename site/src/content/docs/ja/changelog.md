@@ -9,6 +9,7 @@ sidebar:
 
 ### 追加
 
+- DaviFX による ExpressText+。3D Text の上に置くコンテナーで、Shake、Plain、Random、Formula、Delay、Spline、Orbit、Repeater、Twist、Wrap、Voronoi のエフェクターで文字を 1 つずつ動かします。
 - After Effects 形式の Assets パネル。すべてのファイル、フォント、画像、モデル、コンポジションを 1 か所に集め、使用状況、見つからない項目、失敗した項目をバッジで示します。
 - アセットコマンド。Import、Delete、Remove Unused Items、Replace、Reload、Relink、Resolve Fonts、Export を使用できます。
 - ドラッグアンドドロップ対応のアセットフォルダーとラベル。Collect Files と Consolidate All Footage も使用できます。
@@ -52,6 +53,7 @@ sidebar:
 
 ### 修正
 
+- 入れ子のグループを持つプロパティグループを追加して取り消したあと、やり直すとエラーになる問題を修正しました。
 - Shape+ の Offset Paths が開いたパスでも使えるようになりました。パスの両側を囲む輪郭を作ります。以前は、後に続くストロークが何も描きませんでした。
 - 29.97 fps の映像で、プレビューキャッシュが一部のフレームで映像の準備を止めてしまう問題を修正しました。
 - 一時停止中は、映像が表示されているプロジェクトでも、プレビューキャッシュが前方 30 フレームと後方 4 フレームまでを同じ正確なデコードで準備します。操作があるとすぐに中止します。
