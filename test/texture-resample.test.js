@@ -50,6 +50,10 @@ function createDocument(spy, hooks = {}) {
 class FakeTexture {
   constructor(image) {
     this.image = image;
+    // Three r91 defaults: clamp wrapping with a mipmap filter.
+    this.wrapS = 1001;
+    this.wrapT = 1001;
+    this.minFilter = 1008;
     this.needsUpdate = false;
     this.listeners = {};
   }
@@ -219,6 +223,17 @@ test("a 1920x1080 image resamples to 2048x1024 once", () => {
   assert.equal(texture.needsUpdate, true);
   assert.equal(texture.image.context.imageSmoothingQuality, "high");
   assert.deepEqual(spy.canvases.length, 1);
+});
+
+test("clamped textures without mipmaps keep the original image", () => {
+  const ImageAsset = createImageAssetClass({ Texture: FakeTexture });
+  installResampler(ImageAsset, { maxTextureSize: 8192 });
+  const source = { width: 1920, height: 1080 };
+  const texture = new ImageAsset(createAsset(source)).getTexture();
+  texture.minFilter = 1006;
+  assert.equal(texture.image, source);
+  texture.wrapS = 1000;
+  assert.equal(texture.image.width, 2048);
 });
 
 test("shared images share one canvas and reloads make a new one", async () => {

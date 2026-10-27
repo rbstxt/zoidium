@@ -26,6 +26,13 @@
     return [width, height];
   }
 
+  // Three r91 resizes an image only for repeat wrapping or a mipmap filter
+  // (ClampToEdgeWrapping 1001, NearestFilter 1003, LinearFilter 1006).
+  function needsPowerOfTwo(texture) {
+    return texture.wrapS !== 1001 || texture.wrapT !== 1001 ||
+      (texture.minFilter !== 1003 && texture.minFilter !== 1006);
+  }
+
   function isPowerOfTwo(value) {
     return value >= MIN_TEXTURE_SIZE && (value & (value - 1)) === 0;
   }
@@ -243,7 +250,10 @@
             enumerable: true,
             get() {
               const entry = slots.get(texture);
-              return entry ? entry.current : undefined;
+              if (!entry) return undefined;
+              // Three uploads clamped textures without mipmaps at their own size.
+              if (entry.current !== raws.get(texture) && !needsPowerOfTwo(texture)) return raws.get(texture);
+              return entry.current;
             },
             set(next) {
               const entry = slots.get(texture);
