@@ -56,7 +56,14 @@ function fixtures() {
     return data;
   };
   for (const effect of ccfx.effects) add(ccfx.id, effect.id, project([box()], [shaderData(effect)]));
-  for (const folder of ["text-plus", "scene-plus", "trapcode-suite", "optical-flares"]) {
+  // ExpressText+ section rows carry the plugin's stamped effector keys so the
+  // stack reader finds them; values use the stock animated envelopes.
+  const expressRow = (name, effectorKey, value) => ({ definition: { name, effectorKey }, ...copy(value) });
+  const expressVector = (name, effectorKey, value, end) => ({
+    definition: { name, effectorKey },
+    objects: value.map((v, i) => scalar(v, end?.[i])),
+  });
+  for (const folder of ["text-plus", "scene-plus", "trapcode-suite", "optical-flares", "expresstext-plus"]) {
     const m = manifest(folder);
     const entries = m.objectTypes.flatMap(group => group.list || []);
     for (const entry of entries) {
@@ -78,6 +85,29 @@ function fixtures() {
           offsetPosition: vector([0, 0, 0], [3, 5, 0]) };
       }
       if (folder === "optical-flares") data.properties = { position: vector([-8, 0, 0], [8, 4, 0]) };
+      if (folder === "expresstext-plus") {
+        data.objects = [{ type: 1, properties: { text: "CACHE", detail: 2 },
+          material: { type: "singlecolor", properties: { color: vector([0.2, 0.65, 1]) } } }];
+        data.customProperties = [
+          { type: "zoidium:expresstext-plus/plain", properties: { name: "Plain" },
+            definition: { name: "Plain" },
+            objects: [
+              expressRow("Plain", "plainEnable", scalar(1)),
+              expressRow("Plain Strength", "plainStrength", scalar(100)),
+              expressVector("Plain Position", "plainPosition", [0, 0, 0], [0, 6, 0]),
+              expressRow("Plain Field", "plainField", scalar(1)),
+              expressVector("Plain Field position", "plainFieldPosition", [0, 0, 0]),
+              expressVector("Plain Field scale", "plainFieldScale", [100, 100, 100]),
+            ] },
+          { type: "zoidium:expresstext-plus/delay", properties: { name: "Delay" },
+            definition: { name: "Delay" },
+            objects: [
+              expressRow("Delay", "delayEnable", scalar(1)),
+              expressRow("Delay Strength", "delayStrength", scalar(100)),
+              expressRow("Delay Mode", "delayMode", scalar(0)),
+            ] },
+        ];
+      }
       const objects = [data];
       if (folder === "trapcode-suite" && String(data.type).includes("light")) {
         data.properties = { ...data.properties, position: vector([0, 0, 30]), target: vector([0, 0, 0]),
