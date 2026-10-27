@@ -132,8 +132,9 @@
     const decoded = schedule.__zoidiumVideoExportState;
     return video.paused === true && !video.seeking && video.readyState >= 2 &&
       !!decoded && decoded.sourceId === (video.currentSrc || video.src || "") &&
-      // Chromium exposes currentTime in whole microseconds after a seek.
-      Math.abs(video.currentTime - decoded.requestedTime) <= 1e-6;
+      // Compare with the clock value accepted by the decoder after the seek.
+      // It may be rounded differently from the requested time.
+      Math.abs(video.currentTime - decoded.observedTime) <= 1e-7;
   }
 
   function videoPrefetchBlocked(sequence, frame, temporalSampling) {

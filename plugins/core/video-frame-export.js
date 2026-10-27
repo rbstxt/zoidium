@@ -151,7 +151,7 @@
         if (getSourceId(video) !== sourceId || video.readyState < HAVE_CURRENT_DATA) {
           throw new Error("The requested video frame is unavailable.");
         }
-        Object.assign(state, { sourceId, requestedTime: mediaTime,
+        Object.assign(state, { sourceId, requestedTime: mediaTime, observedTime: video.currentTime,
           presentedMediaTime: Number.isFinite(metadata?.mediaTime) ? metadata.mediaTime : video.currentTime });
         if (schedule.texture) schedule.texture.needsUpdate = true;
         recordDiagnostic({ source: sourceId, requestedMediaTime: mediaTime,
