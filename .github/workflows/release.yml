@@ -19,10 +19,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 22
 
@@ -59,10 +59,10 @@ jobs:
       ZOIDIUM_R2_SECRET_ACCESS_KEY: ${{ secrets.ZOIDIUM_R2_SECRET_ACCESS_KEY }}
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 22
 
@@ -94,7 +94,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out source metadata
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Download installers
         uses: actions/download-artifact@v4
