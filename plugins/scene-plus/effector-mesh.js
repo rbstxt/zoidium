@@ -215,9 +215,16 @@ function createMeshDeformer(THREE, jobs) {
     const recompile = material.version !== original.version || material.vertexColors !== Boolean(vertexColors);
     material.version = original.version;
     material.vertexColors = Boolean(vertexColors);
+    const hasCaps = Boolean(mesh.geometry?.groups?.some(group => group.materialIndex === 1 && group.count > 0));
     material.shown.forEach((clone, index) => {
       copyMaterialState(original, clone);
-      clone.side = THREE.DoubleSide;
+      // Outer faces keep the source culling when caps close the pieces. Open
+      // fragments have no caps, so their walls stay visible from inside.
+      const side = index === 1 || !hasCaps ? THREE.DoubleSide : original.side;
+      if (clone.side !== side) {
+        clone.side = side;
+        clone.needsUpdate = true;
+      }
       // The original asked for a recompile (map added, transparency, defines).
       if (recompile) {
         clone.vertexColors = Boolean(vertexColors);
