@@ -99,6 +99,8 @@ each line describes one visible change.
 
 ### Fixed
 
+- Playback no longer stops the preview with "offset is out of bounds" when an
+  Effector with Voronoi Fracture alternates with simpler frames.
 - Image textures and Image layers keep more detail. An image whose sides are
   not a power of two now uploads at the nearest power of two with smooth
   resampling, so a 1920-pixel image uses 2048 pixels instead of 1024.
