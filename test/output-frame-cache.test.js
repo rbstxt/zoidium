@@ -726,6 +726,24 @@ test("video queue bounds respect the cache budget", () => {
   assert.deepEqual(windowBounds(0), { ahead: 0, behind: 0 });
 });
 
+test("two slow video preparations stop the queue", async () => {
+  const h = await videoHarness();
+  const prepare = h.sampler.prepareLowerSchedules;
+  h.sampler.prepareLowerSchedules = async (...args) => {
+    const result = await prepare(...args);
+    h.clock.now += 1001;
+    return result;
+  };
+  await h.start(); h.finish();
+  for (let i = 0; i < 10; i++) await flush();
+  await Array.from(h.timers.values()).at(-1)();
+  for (let i = 0; i < 10; i++) await flush();
+  assert.deepEqual(h.counts.privateFrames, [0, 1]);
+  assert.equal(h.viewport.__zoidiumOutputFrames.snapshot, null);
+  assert.equal(h.viewport.__zoidiumOutputFrames.videoSlow, 2);
+  h.api.dispose();
+});
+
 test("input cancels a later video frame and releases the reused snapshot", async () => {
   const h = await videoHarness();
   await h.start(); h.finish();

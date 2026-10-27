@@ -801,6 +801,7 @@
           controller.prefetching = true;
           try { await fillVideoFrame(controller, key, current); }
           finally { controller.prefetching = false; }
+          controller.videoSlow = (controller.videoSlow || 0) + (debug.videoFillMs > 1000 ? 1 : 0);
           if (store.entries.has(entryKey(controller, current))) scheduleIdle(0);
         }
         continue;
