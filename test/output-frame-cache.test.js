@@ -93,7 +93,9 @@ function harness({ prefetch = false, stale = false } = {}) {
     options: { widget2dObjects: [] } });
   const THREE = {
     ShaderMaterial: class { constructor(o) { Object.assign(this, o); } dispose() {} },
-    ShaderPass: class { constructor(m) { this.material = m; this.uniforms = m.uniforms; } render() { counts.display += 1; } },
+    ShaderPass: class { constructor(m) { this.material = m; this.uniforms = m.uniforms; } render() {
+      counts.display += 1; (counts.displayTextures ||= []).push(this.uniforms.tDiffuse.value);
+    } },
     WebGLRenderTarget: class { constructor() { this.texture = {}; counts.allocated += 1; } dispose() { counts.disposed += 1; } },
   };
   const document = { fonts: { status: "loaded", ready: Promise.resolve(), addEventListener() {}, removeEventListener() {} },
@@ -689,7 +691,7 @@ async function videoHarness() {
   return h;
 }
 
-test("idle video fill restores the retained live image and only adds the current frame", async () => {
+test("idle video fill restores the retained live image and reuses its snapshot", async () => {
   const h = await videoHarness();
   await h.start();
   assert.match(h.api.usage().reason, /Preparing video frames/);
@@ -699,13 +701,77 @@ test("idle video fill restores the retained live image and only adds the current
   assert.deepEqual(h.counts.privateFrames, [0]);
   assert.equal(h.counts.display, 1, "restores the pre-idle live pixels");
   assert.equal(h.api.debug.entries, 1);
-  assert.equal(h.viewport.__zoidiumOutputFrames.snapshot, null, "releases private decoders after one fill");
+  const snapshot = h.viewport.__zoidiumOutputFrames.snapshot;
+  assert.ok(snapshot);
+  const timer = Array.from(h.timers.values()).at(-1);
+  await timer();
+  for (let i = 0; i < 10; i++) await flush();
+  assert.equal(h.viewport.__zoidiumOutputFrames.snapshot, snapshot);
+  assert.deepEqual(h.counts.privateFrames, [0, 1]);
+  assert.notEqual(h.counts.displayTextures[0], h.counts.displayTextures[1], "each fill backs up the current framebuffer");
+  h.events.get("keydown")({ type: "keydown" });
+  assert.equal(h.viewport.__zoidiumOutputFrames.snapshot, null);
   assert.equal(h.counts.unloadedCompositors, 1);
   assert.equal(h.counts.unloadedSchedules, 1);
   const live = h.counts.live;
   h.viewport._render();
   assert.equal(h.counts.live, live, "the next draw replays the retained exact frame");
   h.api.dispose();
+});
+
+test("video queue bounds respect the cache budget", () => {
+  const { windowBounds } = require("../plugins/core/output-frame-video.js");
+  assert.deepEqual(windowBounds(100), { ahead: 30, behind: 4 });
+  assert.deepEqual(windowBounds(6), { ahead: 2, behind: 4 });
+  assert.deepEqual(windowBounds(0), { ahead: 0, behind: 0 });
+});
+
+test("two slow video preparations stop the queue", async () => {
+  const h = await videoHarness();
+  const prepare = h.sampler.prepareLowerSchedules;
+  h.sampler.prepareLowerSchedules = async (...args) => {
+    const result = await prepare(...args);
+    h.clock.now += 1001;
+    return result;
+  };
+  await h.start(); h.finish();
+  for (let i = 0; i < 10; i++) await flush();
+  await Array.from(h.timers.values()).at(-1)();
+  for (let i = 0; i < 10; i++) await flush();
+  assert.deepEqual(h.counts.privateFrames, [0, 1]);
+  assert.equal(h.viewport.__zoidiumOutputFrames.snapshot, null);
+  assert.equal(h.viewport.__zoidiumOutputFrames.videoSlow, 2);
+  h.api.dispose();
+});
+
+test("input cancels a later video frame and releases the reused snapshot", async () => {
+  const h = await videoHarness();
+  await h.start(); h.finish();
+  for (let i = 0; i < 10; i++) await flush();
+  let finish;
+  h.sampler.prepareLowerSchedules = async sequence => {
+    await new Promise(resolve => { finish = resolve; });
+    return sequence.videoSchedules.flatMap(s => s.items.map(item => ({ item, texture: {} })));
+  };
+  const timer = Array.from(h.timers.values()).at(-1);
+  timer();
+  for (let i = 0; i < 10 && !finish; i++) await flush();
+  assert.equal(typeof finish, "function");
+  h.events.get("keydown")({ type: "keydown" });
+  finish();
+  for (let i = 0; i < 10; i++) await flush();
+  assert.deepEqual(h.counts.privateFrames, [0]);
+  assert.equal(h.viewport.__zoidiumOutputFrames.snapshot, null);
+  assert.equal(h.counts.unloadedCompositors, 1);
+  h.api.dispose();
+});
+
+test("temporal sampling and motion blur prevent private video prefetch", () => {
+  const { eligible } = require("../plugins/core/output-frame-video.js");
+  const sequence = { properties: { motionBlur: { get: () => false } } };
+  assert.equal(eligible(sequence, { usesSingleEvaluation: () => true }), false);
+  sequence.properties.motionBlur.get = () => true;
+  assert.equal(eligible(sequence, { usesSingleEvaluation: () => false }), false);
 });
 
 for (const [name, change] of [

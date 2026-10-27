@@ -96,6 +96,9 @@ each line describes one visible change.
 
 ### Fixed
 
+- While paused, the preview cache also prepares up to 30 frames ahead and 4
+  behind in projects with visible video, using the same exact decoding. Any
+  input stops this work at once.
 - The preview cache now stores the paused frame in projects with visible
   video. After the editor is idle for a moment, Zoidium decodes that frame
   exactly and caches it. Frames during playback are still drawn live.

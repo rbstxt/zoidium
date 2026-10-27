@@ -105,7 +105,11 @@
     debug.signals[name] = (debug.signals[name] || 0) + 1;
     signalEpoch += 1;
     lastSignal = performance.now();
-    for (const controller of controllers) controller.videoJob?.cancel();
+    for (const controller of controllers) {
+      controller.videoJob?.cancel();
+      controller.videoSlow = 0;
+      if (!controller.prefetching) endVideoQueue(controller);
+    }
   }
 
   // Cheap state that can change without an edit: asset replacement and
@@ -214,6 +218,7 @@
     controller.ready = null;
     controller.reason = "Waiting for a complete preview frame";
     controller.prefetchCost = 0;
+    controller.videoSlow = 0;
     controller.prefetchSkipped = new Set();
     removeEntries(controller);
     // A running prefetch still owns its private graph; it disposes it after.
@@ -490,6 +495,8 @@
     if (hit) {
       controller.reason = null;
       display(controller, hit);
+      controller.videoLive?.dispose();
+      controller.videoLive = null;
       debug.hits += 1;
       if (viewport.editor.playback.speed === 0) scheduleIdle();
       return;
@@ -610,18 +617,26 @@
     controller.viewport.renderer.renderLists?.dispose?.();
   }
 
-  function nextPrefetchFrame(controller, current) {
+  function endVideoQueue(controller) {
+    disposeSnapshot(controller);
+    if (contextAvailable(controller.viewport.renderer.context)) controller.videoLive?.dispose();
+    controller.videoLive = null;
+  }
+
+  function nextPrefetchFrame(controller, current, video = false) {
     const viewport = controller.viewport;
     const length = viewport.editor.project.sequence.length;
     const gl = viewport.renderer.context;
     // Keep the whole window inside the byte budget so the LRU never evicts
     // frames this pass just rendered, nor the frame on screen.
     const fits = Math.floor(store.effectiveLimit / (gl.drawingBufferWidth * gl.drawingBufferHeight * 4)) - 2;
-    const ahead = Math.min(PREFETCH_AHEAD, Math.max(0, fits - PREFETCH_BEHIND));
+    const bounds = video ? videoFrames.windowBounds(fits) :
+      { ahead: Math.min(PREFETCH_AHEAD, Math.max(0, fits - PREFETCH_BEHIND)), behind: Math.min(PREFETCH_BEHIND, fits) };
     const wanted = frame => frame >= 0 && frame < length && !controller.prefetchSkipped.has(frame) &&
-      !store.entries.has(entryKey(controller, frame)) && !videoPrefetchBlocked(viewport.editor.project.sequence, frame);
-    for (let offset = 1; offset <= ahead; offset += 1) if (wanted(current + offset)) return current + offset;
-    for (let offset = 1; offset <= Math.min(PREFETCH_BEHIND, fits); offset += 1) {
+      !store.entries.has(entryKey(controller, frame)) && (!videoPrefetchBlocked(viewport.editor.project.sequence, frame) ||
+        (video && videoFrames.inputs(viewport.editor.project.sequence, frame, global.__zoidiumTemporalParts.sampler).length));
+    for (let offset = 1; offset <= bounds.ahead; offset += 1) if (wanted(current + offset)) return current + offset;
+    for (let offset = 1; offset <= bounds.behind; offset += 1) {
       if (wanted(current - offset)) return current - offset;
     }
     return undefined;
@@ -677,21 +692,23 @@
     return true;
   }
 
-  async function fillVideoFrame(controller, key, frame) {
+  async function fillVideoFrame(controller, key, frame, current = frame) {
     const viewport = controller.viewport, temporal = PZ.zoidium.temporal;
     const sampler = global.__zoidiumTemporalParts.sampler;
     const epoch = signalEpoch, generation = controller.generation, cheap = cheapKey(viewport);
     const valid = () => !disposed && !controller.disposed && !debug.disabled && !debug.prefetchDisabled &&
       controller.key === key && controller.generation === generation && signalEpoch === epoch &&
-      viewport.editor.playback.speed === 0 && viewport.editor.playback.currentFrame === frame &&
+      viewport.editor.playback.speed === 0 && viewport.editor.playback.currentFrame === current &&
       !viewport.renderMode && contextAvailable(viewport.renderer.context) && !!store.effectiveLimit &&
       cheapKey(viewport) === cheap;
     const policy = controller.videoJob = videoFrames.job(valid);
     const start = performance.now();
     let retained = controller.videoLive;
+    let stored = false;
     controller.reason = "Preparing video frames for the preview cache.";
     try {
       const snapshot = snapshotFor(controller, key);
+      snapshot.videoCurrent = current;
       const prepared = await videoFrames.prepare(snapshot, frame, policy, temporal, sampler, awaitResources);
       await global.document.fonts?.ready;
       policy.check();
@@ -701,9 +718,8 @@
           !activeClips(snapshot.project.sequence, frame).every(clip => objectsReady(clip.object.objects, frame - clip.start))) return;
       // Preserve the actual live image, even when it is an inexact video draw.
       // This backup never enters the frame store. Restore it in the same task.
-      const live = controller.videoLive;
-      retained = live;
-      if (!live || live.frame !== frame) return;
+      const live = capture(controller, current);
+      if (!live || live.frame !== current) return;
       const restoreTextures = sampler.bindSampleTextures(prepared.samples);
       try {
         policy.check();
@@ -711,13 +727,16 @@
         policy.check();
         const entry = capture(controller, frame);
         if (entry && store.put(entryKey(controller, frame), entry)) {
+          stored = true;
           debug.stores += 1;
           debug.videoFilled = (debug.videoFilled || 0) + 1;
+          if (frame !== current) debug.prefetched += 1;
           controller.reason = null;
         }
       } finally {
         restoreTextures();
         if (contextAvailable(viewport.renderer.context)) display(controller, live);
+        if (contextAvailable(viewport.renderer.context)) live.dispose();
       }
     } catch (error) {
       if (!policy.signal.aborted) {
@@ -726,14 +745,15 @@
       }
     } finally {
       debug.videoFillMs = performance.now() - start;
-      if (controller.videoLive === retained) {
+      if (controller.videoLive === retained && retained) {
         if (contextAvailable(viewport.renderer.context)) retained?.dispose();
         controller.videoLive = null;
       }
       policy.dispose();
       controller.videoJob = null;
       if (controller.reason) controller.reason = "Video frames are not cached in this preview.";
-      disposeSnapshot(controller);
+      if (!stored && valid()) controller.prefetchSkipped.add(frame);
+      if (!stored || policy.signal.aborted || controller.key !== key) disposeSnapshot(controller);
     }
   }
 
@@ -750,7 +770,10 @@
   }
 
   async function prefetchStep() {
-    if (disposed || debug.disabled || debug.prefetchDisabled || !store.effectiveLimit) return;
+    if (disposed || debug.disabled || debug.prefetchDisabled || !store.effectiveLimit) {
+      for (const controller of controllers) if (!controller.prefetching) endVideoQueue(controller);
+      return;
+    }
     const quiet = performance.now() - lastSignal;
     if (quiet < IDLE_MS) { scheduleIdle(IDLE_MS - quiet); return; }
     for (const controller of controllers) {
@@ -769,6 +792,7 @@
       if (!key || controller.unsupported === key) continue;
       if (!settle(controller, key)) { scheduleIdle(25); continue; }
       const current = viewport.editor.playback.currentFrame;
+      if (controller.snapshot?.videoCurrent !== undefined && controller.snapshot.videoCurrent !== current) endVideoQueue(controller);
       if (!store.entries.has(entryKey(controller, current))) {
         const sequence = viewport.editor.project.sequence;
         if (videoFrames?.eligible(sequence, PZ.zoidium.temporal) &&
@@ -777,16 +801,27 @@
           controller.prefetching = true;
           try { await fillVideoFrame(controller, key, current); }
           finally { controller.prefetching = false; }
+          controller.videoSlow = (controller.videoSlow || 0) + (debug.videoFillMs > 1000 ? 1 : 0);
+          if (store.entries.has(entryKey(controller, current))) scheduleIdle(0);
         }
         continue;
       }
-      if (controller.prefetchCost > PREFETCH_SYNC_MS) continue;
-      const frame = nextPrefetchFrame(controller, current);
-      if (frame === undefined) { disposeSnapshot(controller); continue; }
+      if (controller.prefetchCost > PREFETCH_SYNC_MS) { endVideoQueue(controller); continue; }
+      const sequence = viewport.editor.project.sequence;
+      const video = videoFrames?.eligible(sequence, PZ.zoidium.temporal) &&
+        (sequence.videoSchedules || []).some(schedule => (schedule.items || []).some(item => item?.media));
+      if (video && controller.videoSlow >= 2) { endVideoQueue(controller); continue; }
+      const frame = nextPrefetchFrame(controller, current, video);
+      if (frame === undefined) { endVideoQueue(controller); continue; }
       controller.prefetching = true;
       let rendered = false;
       try {
-        rendered = await prefetchFrame(controller, key, frame, current);
+        if (video && videoFrames.inputs(sequence, frame, global.__zoidiumTemporalParts.sampler).length) {
+          await fillVideoFrame(controller, key, frame, current);
+          controller.videoSlow = (controller.videoSlow || 0) + (debug.videoFillMs > 1000 ? 1 : 0);
+          rendered = store.entries.has(entryKey(controller, frame));
+          if (controller.videoSlow >= 2) { endVideoQueue(controller); return; }
+        } else rendered = await prefetchFrame(controller, key, frame, current);
       } catch (error) {
         controller.unsupported = key;
         console.error("[Zoidium] preview prefetch failed:", error);

@@ -21,8 +21,8 @@ be retained.
 
 While video is visible, the editor's own video playback is not frame-exact, so
 live draws are not retained. Instead, when playback is paused and the editor is
-idle for about 0.8 seconds, the current frame is decoded exactly through a
-private project copy and retained. Playback and other frames still draw live.
+idle for about 0.8 seconds, the current frame and then up to 30 frames ahead
+and 4 behind are decoded exactly through a private project copy and retained. Playback and other frames still draw live.
 **Settings** shows **Video frames are not cached in this preview.** or
 **Preparing video frames for the preview cache.** for these states.
 

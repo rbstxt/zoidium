@@ -2,6 +2,12 @@
 (function outputFrameVideoModule(global) {
   "use strict";
 
+  const AHEAD = 30, BEHIND = 4;
+
+  function windowBounds(fits) {
+    return { ahead: Math.min(AHEAD, Math.max(0, fits - BEHIND)), behind: Math.min(BEHIND, Math.max(0, fits)) };
+  }
+
   function inputs(sequence, frame, sampler) {
     return sampler.frameSamplerMediaInputs(sequence, null, frame, true);
   }
@@ -54,7 +60,7 @@
     return { samples, runtime, context };
   }
 
-  const api = { inputs, eligible, job, prepare };
+  const api = { inputs, eligible, job, prepare, windowBounds };
   global.ZoidiumOutputFrameVideo = api;
   if (typeof module === "object" && module.exports) module.exports = api;
 })(typeof window !== "undefined" ? window : globalThis);
