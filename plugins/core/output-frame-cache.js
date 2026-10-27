@@ -718,8 +718,7 @@
           !activeClips(snapshot.project.sequence, frame).every(clip => objectsReady(clip.object.objects, frame - clip.start))) return;
       // Preserve the actual live image, even when it is an inexact video draw.
       // This backup never enters the frame store. Restore it in the same task.
-      const live = controller.videoLive?.frame === current ? controller.videoLive : store.get(entryKey(controller, current));
-      retained = live;
+      const live = capture(controller, current);
       if (!live || live.frame !== current) return;
       const restoreTextures = sampler.bindSampleTextures(prepared.samples);
       try {
@@ -737,6 +736,7 @@
       } finally {
         restoreTextures();
         if (contextAvailable(viewport.renderer.context)) display(controller, live);
+        if (contextAvailable(viewport.renderer.context)) live.dispose();
       }
     } catch (error) {
       if (!policy.signal.aborted) {
@@ -745,7 +745,7 @@
       }
     } finally {
       debug.videoFillMs = performance.now() - start;
-      if (!stored && controller.videoLive === retained && retained) {
+      if (controller.videoLive === retained && retained) {
         if (contextAvailable(viewport.renderer.context)) retained?.dispose();
         controller.videoLive = null;
       }
