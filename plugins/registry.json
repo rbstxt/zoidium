@@ -212,7 +212,7 @@
       "category": "scene",
       "name": "Effector",
       "author": "Zoidium",
-      "version": "35",
+      "version": "36",
       "defaultEnabled": true,
       "itemCount": 7,
       "format": "3D effectors",
@@ -220,9 +220,9 @@
       "color": "#6c7fb5",
       "description": "Adds procedural repeaters plus Twist, Warp and Voronoi Fracture effectors to 3D Scene.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/scene-plus/manifest.json?v=35",
-      "bundle": "./plugins/scene-plus/bundle.json?v=35",
-      "integrity": "sha256-5YSIRYpVBxY9uA2WQHBNnKSsdbqBjypmx3IOIerSFTQ="
+      "manifest": "./plugins/scene-plus/manifest.json?v=36",
+      "bundle": "./plugins/scene-plus/bundle.json?v=36",
+      "integrity": "sha256-xOIyBks6etglpIGj3CyJ5omQrxTFmOf/UP9EbcRdb1k="
     },
     {
       "id": "material-plus",
@@ -245,7 +245,7 @@
       "category": "scene",
       "name": "Text+",
       "author": "Zoidium",
-      "version": "29",
+      "version": "30",
       "defaultEnabled": true,
       "itemCount": 7,
       "format": "2D and 3D text",
@@ -254,9 +254,9 @@
       "description": "Adds per-character animation and 3D face materials to Text, plus advanced 3D bevel controls.",
       "credits": "Credits: DaviFX",
       "zoidiumOnly": true,
-      "manifest": "./plugins/text-plus/manifest.json?v=29",
-      "bundle": "./plugins/text-plus/bundle.json?v=29",
-      "integrity": "sha256-TeH+AyGKYjv3imCdZVzOOA220IKUHhdvMor4u2km7U8="
+      "manifest": "./plugins/text-plus/manifest.json?v=30",
+      "bundle": "./plugins/text-plus/bundle.json?v=30",
+      "integrity": "sha256-yPW+84Vb7bdPHQp/0QYyydNB72BbbSRYbUZZTUQO0GU="
     },
     {
       "id": "expresstext-plus",

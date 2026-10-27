@@ -417,7 +417,7 @@ test("Voronoi Fracture caches its topology across animation and rebuilds only wh
   }
 });
 
-test("Voronoi Fracture output is deterministic for a frame and clones its material for double-sided pieces", () => {
+test("Voronoi Fracture output is deterministic and clones its material with double-sided caps", () => {
   const PZ = createHarness();
   const Voronoi = _test.createVoronoiClass(PZ, THREE);
   const voronoi = new Voronoi();
@@ -434,9 +434,10 @@ test("Voronoi Fracture output is deterministic for a frame and clones its materi
   const [walls, caps] = mesh.material;
   assert.notEqual(walls, original);
   for (const clone of mesh.material) {
-    assert.equal(clone.side, THREE.DoubleSide);
     assert.equal(clone.vertexColors, true);
   }
+  assert.equal(walls.side, original.side);
+  assert.equal(caps.side, THREE.DoubleSide);
   assert.equal(walls.polygonOffset, undefined, "walls keep the original depth");
   assert.deepEqual([caps.polygonOffset, caps.polygonOffsetFactor, caps.polygonOffsetUnits], [true, 1, 1], "caps yield to the walls they meet");
   assert.deepEqual(mesh.geometry.groups.map(group => group.materialIndex), [0, 1]);
@@ -771,7 +772,7 @@ test("the fracture material clone follows edits to the original material", () =>
   assert.equal(clone.roughness, 0.9);
   assert.equal(clone.map, texture, "textures are shared by reference");
   assert.equal(clone.needsUpdate, true, "a recompile request reaches the clone");
-  assert.equal(clone.side, THREE.DoubleSide);
+  assert.equal(clone.side, original.side);
   assert.notEqual(clone._listeners, original._listeners);
   deformer.dispose();
 });

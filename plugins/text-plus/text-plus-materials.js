@@ -102,10 +102,12 @@ function apply(entry, source, owner) {
     pair[0] = owner.frontMaterials[0]?.threeObj || source;
     pair[1] = owner.sideMaterials[0]?.threeObj || source;
     mesh.material = pair;
-    mesh.__zoidiumSyncMaterialUvs = syncUvs;
   }
-  // A glyph that leaves the selection must restore its source UV layout too.
-  mesh.__zoidiumSyncMaterialUvs?.();
+  // Generated glyphs appear after the native material update. Apply their
+  // current layout now, before an effector snapshots them or the first draw.
+  // This also restores source UVs when a glyph leaves a material selection.
+  mesh.__zoidiumSyncMaterialUvs = syncUvs;
+  mesh.__zoidiumSyncMaterialUvs();
 }
 
 module.exports = { TYPE, NAME, configure, createClass, resolve, apply };

@@ -217,7 +217,13 @@ function createMeshDeformer(THREE, jobs) {
     material.vertexColors = Boolean(vertexColors);
     material.shown.forEach((clone, index) => {
       copyMaterialState(original, clone);
-      clone.side = THREE.DoubleSide;
+      // Outer faces keep the source culling. Only newly exposed cap faces
+      // need to be visible from both sides as fragments move apart.
+      const side = index === 1 ? THREE.DoubleSide : original.side;
+      if (clone.side !== side) {
+        clone.side = side;
+        clone.needsUpdate = true;
+      }
       // The original asked for a recompile (map added, transparency, defines).
       if (recompile) {
         clone.vertexColors = Boolean(vertexColors);
