@@ -99,6 +99,10 @@ each line describes one visible change.
 
 ### Fixed
 
+- Voronoi Fracture keeps the source material's face sides for closed pieces,
+  so resting pieces shade like the unbroken object.
+- Text+ characters use their Material+ texture layout from the first frame,
+  so textures no longer change after a later update.
 - Playback no longer stops the preview with "offset is out of bounds" when an
   Effector with Voronoi Fracture alternates with simpler frames.
 - Image textures and Image layers keep more detail. An image whose sides are
