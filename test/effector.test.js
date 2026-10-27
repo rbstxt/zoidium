@@ -417,6 +417,21 @@ test("Voronoi Fracture caches its topology across animation and rebuilds only wh
   }
 });
 
+test("open Voronoi fragments keep double-sided walls because they have no caps", () => {
+  const PZ = createHarness();
+  const Voronoi = _test.createVoronoiClass(PZ, THREE);
+  const voronoi = new Voronoi();
+  setProperty(voronoi, "cells", 6);
+  setProperty(voronoi, "closed", 0);
+  setProperty(voronoi, "distance", 0.5);
+  const original = new Material();
+  const mesh = makeMesh(cubePositions(), original);
+  deformerFor(mesh, voronoi, 0);
+  assert.deepEqual(mesh.geometry.groups.map(group => group.materialIndex), [0]);
+  assert.notEqual(original.side, THREE.DoubleSide);
+  assert.equal(mesh.material[0].side, THREE.DoubleSide);
+});
+
 test("Voronoi Fracture output is deterministic and clones its material with double-sided caps", () => {
   const PZ = createHarness();
   const Voronoi = _test.createVoronoiClass(PZ, THREE);
