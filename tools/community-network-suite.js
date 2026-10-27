@@ -19,6 +19,12 @@ const B = require("../zoidium/community-bootstrap");
 const lock = process.env.ZOIDIUM_BROWSER_LOCK || "";
 const report = { started: new Date().toISOString(), cases: [], assertions: [] };
 function check(condition, name) { assert.ok(condition, name); report.assertions.push(name); }
+function checkZeroNetwork(counts, label) {
+  for (const [name, count] of Object.entries(counts)) check(count === 0, label + " zero " + name);
+}
+function networkCounts(fixture) {
+  return { requests: fixture.requests.length, tcp: fixture.connections.length, udp: fixture.datagrams.length };
+}
 async function acquire() {
   for (;;) {
     try { fs.mkdirSync(lock); fs.writeFileSync(path.join(lock, "owner"), process.pid + " community-network\n"); return; }
@@ -203,16 +209,19 @@ async function main() {
     const doc = bootstrapDocument("blob");
     await page.evaluate(runInFrame, { html: doc.html.replace("connect-src 'none'", "connect-src *"), scheme: "blob", source: "fetch(" + JSON.stringify(fixture.targets.sink + "/control/policy-failure") + ").then(()=>postMessage({done:true}));" });
     check(fixture.requests.some(r => r.url === "/control/policy-failure"), "weakened-policy leak detected");
+    report.forcedPolicyFailure = networkCounts(fixture);
+    assert.throws(() => checkZeroNetwork(report.forcedPolicyFailure, "forced policy failure"), { message: "forced policy failure zero requests" });
+    check(true, "zero-network gate rejects weakened policy");
     fixture.reset();
     await rawPolicies(page, fixture);
     await productionPolicy(page, fixture);
     await guestCases(page);
-    report.policyCounts = { requests: fixture.requests.length, tcp: fixture.connections.length, udp: fixture.datagrams.length };
-    for (const [name, count] of Object.entries(report.policyCounts)) check(count === 0, "raw and guest zero " + name);
+    report.policyCounts = networkCounts(fixture);
+    checkZeroNetwork(report.policyCounts, "raw and guest");
     await runnerCases(page, fixture, path.join(folder, "package"));
     await page.waitForTimeout(200);
-    report.runnerCounts = { requests: fixture.requests.length, tcp: fixture.connections.length, udp: fixture.datagrams.length };
-    for (const [name, count] of Object.entries(report.runnerCounts)) check(count === 0, "production runner zero " + name);
+    report.runnerCounts = networkCounts(fixture);
+    checkZeroNetwork(report.runnerCounts, "production runner");
     report.broadcastMessages = await page.evaluate(() => {
       globalThis.communityBroadcastControl.close();
       return globalThis.communityBroadcastLeaks.length;
