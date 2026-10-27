@@ -103,14 +103,14 @@ module.exports = function createPixelBuffers(document) {
                 var rowSmooth = fyRow * fyRow * (3 - 2 * fyRow);
                 var row0 = ((floorY % cellsY) + cellsY) % cellsY;
                 var row1 = (row0 + 1) % cellsY;
-                for (var x = 0; x < size; x++) {
+                for (x = 0; x < size; x++) {
                     var index = (x + y * size) * 4;
                     var ix0, ix1, iy0, iy1, sx, sy;
                     if (uv) {
-                        var gx = uv[index] / 255 * cellsX + offsetX;
+                        gx = uv[index] / 255 * cellsX + offsetX;
                         var gy = uv[index + 1] / 255 * cellsY + offsetY;
                         var x0 = Math.floor(gx), y0 = Math.floor(gy);
-                        var fx = gx - x0, fy = gy - y0;
+                        fx = gx - x0; var fy = gy - y0;
                         sx = fx * fx * (3 - 2 * fx);
                         sy = fy * fy * (3 - 2 * fy);
                         ix0 = ((x0 % cellsX) + cellsX) % cellsX;
@@ -151,7 +151,7 @@ module.exports = function createPixelBuffers(document) {
             normalized = (normalized - 0.5) * contrast + 0.5;
             normalized = clamp(normalized * brightness, 0, 1);
             var gray = Math.round(normalized * 255);
-            var index = p * 4;
+            index = p * 4;
             buffer[index] = gray;
             buffer[index + 1] = gray;
             buffer[index + 2] = gray;

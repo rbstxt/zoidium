@@ -3,7 +3,7 @@
   "id": "text-plus",
   "name": "Text+",
   "author": "Zoidium",
-  "version": "28",
+  "version": "29",
   "kind": "object",
   "description": "Adds per-character animation and 3D face materials to Text, plus advanced 3D bevel controls.",
   "objectClassParent": {
@@ -175,63 +175,63 @@
     {
       "id": "text-plus-utils",
       "type": "text",
-      "source": "./plugins/text-plus/text-plus-utils.js?v=28"
+      "source": "./plugins/text-plus/text-plus-utils.js?v=29"
     },
     {
       "id": "text-plus-properties",
       "type": "text",
-      "source": "./plugins/text-plus/text-plus-properties.js?v=28"
+      "source": "./plugins/text-plus/text-plus-properties.js?v=29"
     },
     {
       "id": "text-plus-controls",
       "type": "text",
-      "source": "./plugins/text-plus/text-plus-controls.js?v=28"
+      "source": "./plugins/text-plus/text-plus-controls.js?v=29"
     },
     {
       "id": "text-plus-diagnostics",
       "type": "text",
-      "source": "./plugins/text-plus/text-plus-diagnostics.js?v=28"
+      "source": "./plugins/text-plus/text-plus-diagnostics.js?v=29"
     },
     {
       "id": "text-plus-geometry",
       "type": "text",
-      "source": "./plugins/text-plus/text-plus-geometry.js?v=28"
+      "source": "./plugins/text-plus/text-plus-geometry.js?v=29"
     },
     {
       "id": "legacy-text-scale",
       "type": "text",
-      "source": "./plugins/text-plus/legacy-text-scale.js?v=28"
+      "source": "./plugins/text-plus/legacy-text-scale.js?v=29"
     },
     {
       "id": "text-plus-2d",
       "type": "text",
-      "source": "./plugins/text-plus/text-plus-2d.js?v=28"
+      "source": "./plugins/text-plus/text-plus-2d.js?v=29"
     },
     {
       "id": "text-plus-2d-properties",
       "type": "text",
-      "source": "./plugins/text-plus/text-plus-2d-properties.js?v=28"
+      "source": "./plugins/text-plus/text-plus-2d-properties.js?v=29"
     },
     {
       "id": "text-plus-2d-draw",
       "type": "text",
-      "source": "./plugins/text-plus/text-plus-2d-draw.js?v=28"
+      "source": "./plugins/text-plus/text-plus-2d-draw.js?v=29"
     },
     {
       "id": "text-plus-materials",
       "type": "text",
-      "source": "./plugins/text-plus/text-plus-materials.js?v=28"
+      "source": "./plugins/text-plus/text-plus-materials.js?v=29"
     },
     {
       "id": "character-material-uv-layout",
       "type": "text",
-      "source": "./plugins/material-plus/uv-layout.js?v=28"
+      "source": "./plugins/material-plus/uv-layout.js?v=29"
     }
   ],
   "modules": [
     {
       "id": "text-plus-runtime",
-      "source": "./plugins/text-plus/text-plus.js?v=28"
+      "source": "./plugins/text-plus/text-plus.js?v=29"
     }
   ]
 }

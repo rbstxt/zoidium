@@ -393,13 +393,13 @@ this.update = function (e) {
     u.u_scvEnable.value *= this._looksScurveIdentity ? 0 : 1;
     // Compact the stored chain without changing its order. Running all 29
     // identity stages for one edited tool is especially costly on software GL.
-    var slots = u.u_chain.value;
+    var chain = u.u_chain.value;
     var count = 0;
     var order = this._looksChainOrder || [];
     for (var c = 0; c < order.length; c++) {
-        if (this._looksActiveTools[order[c]]) slots[count++] = Looks.tools.indexOf(order[c]);
+        if (this._looksActiveTools[order[c]]) chain[count++] = Looks.tools.indexOf(order[c]);
     }
-    for (var unused = count; unused < slots.length; unused++) slots[unused] = -1;
+    for (var unused = count; unused < chain.length; unused++) chain[unused] = -1;
     u.u_chainCount.value = count;
     this._looksChainCount = count;
     var masterOn = this.properties.enabled.get(e) === 1;

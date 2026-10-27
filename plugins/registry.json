@@ -33,7 +33,7 @@
       "description": "Hidden built-in extensions that always run. Not shown in the Plugins panel and never stored in projects.",
       "manifest": "./plugins/core/manifest.json?v=93",
       "bundle": "./plugins/core/bundle.json?v=93",
-      "integrity": "sha256-RBFWZMbjdAGp8TtojALHxGYDEuicy7IiLkGYKpUE2qg="
+      "integrity": "sha256-MC6wyzWK9Iq1doh72zykuOLNFTm2X0lSK+CmrIcX9cQ="
     },
     {
       "id": "easing-plus",
@@ -119,16 +119,16 @@
       "category": "utilities",
       "name": "Precomp+",
       "author": "DaviFX",
-      "version": "13",
+      "version": "14",
       "itemCount": 1,
       "format": "workflow",
       "tagline": "Pre-compose and nested compositions",
       "color": "#4f9db6",
       "description": "Pre-compose selected video clips into compositions, manage them in a Compositions window, and render them nested in Main.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/precomp-plus/manifest.json?v=13",
-      "bundle": "./plugins/precomp-plus/bundle.json?v=13",
-      "integrity": "sha256-nbUSt+xNw42rvT1rGhcTZM5AaclkmUibVp7L889sNn0="
+      "manifest": "./plugins/precomp-plus/manifest.json?v=14",
+      "bundle": "./plugins/precomp-plus/bundle.json?v=14",
+      "integrity": "sha256-UQV17jizVwOvRrnZ3rZcvOhm/6au81+NA/eT5+rjgRU="
     },
     {
       "id": "gif-support",
@@ -151,15 +151,15 @@
       "category": "utilities",
       "name": "Graph Editor 2",
       "author": "DaviFX",
-      "version": "12",
+      "version": "13",
       "itemCount": 1,
       "format": "graph editor",
       "tagline": "Rebuilt keyframe graph editor",
       "color": "#4f7dbf",
       "description": "Replaces the keyframe graph editor with DaviFX's Graph Editor 2: easing presets, tangent tools, ruler scrubbing, a track list with live values and a full keyboard set.",
-      "manifest": "./plugins/graph-plus/manifest.json?v=12",
-      "bundle": "./plugins/graph-plus/bundle.json?v=12",
-      "integrity": "sha256-zsbFRkyTSNZCfQWNJ2szvp0k441mVRjx/io93OXQ104="
+      "manifest": "./plugins/graph-plus/manifest.json?v=13",
+      "bundle": "./plugins/graph-plus/bundle.json?v=13",
+      "integrity": "sha256-g1n9iMYCN1TxN8HPHfcv5U4KkEb8rZu0w2A+UPzQrFo="
     },
     {
       "id": "motion-path",
@@ -229,23 +229,23 @@
       "category": "scene",
       "name": "Material+",
       "author": "Zoidium",
-      "version": "32",
+      "version": "33",
       "itemCount": 5,
       "format": "3D materials",
       "tagline": "Node, PBR+, Matcap & Image+ materials",
       "color": "#b36bca",
       "description": "Adds procedural Node Materials with a node editor, PBR+ with ramps, Fresnel, cel shading and projection, Image+ with opacity, Matcap, and corrected-UV materials for 3D objects.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/material-plus/manifest.json?v=32",
-      "bundle": "./plugins/material-plus/bundle.json?v=32",
-      "integrity": "sha256-ZJmMEAYgfgW1JT9v665KwLPHzIbZAivbMhagzeCdurU="
+      "manifest": "./plugins/material-plus/manifest.json?v=33",
+      "bundle": "./plugins/material-plus/bundle.json?v=33",
+      "integrity": "sha256-j2Wzf1Dg4kJn+841LuRbvHesSMrXdAgI/mlS+9yivx4="
     },
     {
       "id": "text-plus",
       "category": "scene",
       "name": "Text+",
       "author": "Zoidium",
-      "version": "28",
+      "version": "29",
       "defaultEnabled": true,
       "itemCount": 7,
       "format": "2D and 3D text",
@@ -254,9 +254,9 @@
       "description": "Adds per-character animation and 3D face materials to Text, plus advanced 3D bevel controls.",
       "credits": "Credits: DaviFX",
       "zoidiumOnly": true,
-      "manifest": "./plugins/text-plus/manifest.json?v=28",
-      "bundle": "./plugins/text-plus/bundle.json?v=28",
-      "integrity": "sha256-tu1M8dBc3DIeQ+ELWRY7bZv3DP96fMFkVkkmPNY1GwI="
+      "manifest": "./plugins/text-plus/manifest.json?v=29",
+      "bundle": "./plugins/text-plus/bundle.json?v=29",
+      "integrity": "sha256-TeH+AyGKYjv3imCdZVzOOA220IKUHhdvMor4u2km7U8="
     },
     {
       "id": "particles-plus",
@@ -279,16 +279,16 @@
       "category": "scene",
       "name": "Rowbyte & Red Giant Suite",
       "author": "DaviFX",
-      "version": "44",
+      "version": "45",
       "itemCount": 14,
       "format": "3D objects",
       "tagline": "Particular, Form, Plexus and C4D lights",
       "color": "#c9a13b",
       "description": "Trapcode Particular, Form and Plexus 3D objects with floating designer windows, deterministic simulation and audio analysis, plus C4D-style lights.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/trapcode-suite/manifest.json?v=44",
-      "bundle": "./plugins/trapcode-suite/bundle.json?v=44",
-      "integrity": "sha256-sOsN81Cn6Qvu2o/5hmPoDiFK5iNWEYpXDLBVAGdzE6Y="
+      "manifest": "./plugins/trapcode-suite/manifest.json?v=45",
+      "bundle": "./plugins/trapcode-suite/bundle.json?v=45",
+      "integrity": "sha256-l7ukZr0hc/rmA2vpry4/WYOmJO+SUDZv+lVweSbCPck="
     },
     {
       "id": "optical-flares",
@@ -429,16 +429,16 @@
       "category": "adjustment",
       "name": "Magic Looks",
       "author": "DaviFX",
-      "version": "20",
+      "version": "21",
       "itemCount": 29,
       "format": "setup",
       "tagline": "Looks-style color grading",
       "color": "#f7941d",
       "description": "Magic Bullet Looks-style color grading: 29 color, light and lens tools in a reorderable chain with look presets and a floating setup window.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/magic-looks/manifest.json?v=20",
-      "bundle": "./plugins/magic-looks/bundle.json?v=20",
-      "integrity": "sha256-E3yOK3HZMZB+KxQT0umDPn1xj/kzyDDJmaAn8+4F6P0="
+      "manifest": "./plugins/magic-looks/manifest.json?v=21",
+      "bundle": "./plugins/magic-looks/bundle.json?v=21",
+      "integrity": "sha256-mZZiKzQjUQhQb5eFdQriWhnrlCwgLYRG3bzIC/yDV+Q="
     },
     {
       "id": "layer-input",

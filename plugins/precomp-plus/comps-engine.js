@@ -233,15 +233,6 @@ function timelineElementsFor(tracks, clips) {
   });
 }
 
-function timelineElementsFor(tracks, clips) {
-  const wanted = new Set(clips);
-  const container = tracks.container;
-  if (!container || !container.getElementsByClassName) return [];
-  return Array.from(container.getElementsByClassName("clip")).filter(function (el) {
-    return el.pz_object && wanted.has(el.pz_object);
-  });
-}
-
 function renameComp(editor, id, rawName) {
   const project = editor.project;
   const media = findComp(project, id);
