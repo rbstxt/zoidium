@@ -40,7 +40,7 @@ function harness({ prefetch = false, stale = false } = {}) {
             counts.privateDecodes = (counts.privateDecodes || 0) + 1;
           }
         },
-        unload() {},
+        unload() { counts.unloadedSchedules = (counts.unloadedSchedules || 0) + 1; },
       }));
     }
     update() {}
@@ -52,7 +52,7 @@ function harness({ prefetch = false, stale = false } = {}) {
   class Compositor {
     constructor(renderer) { this.renderer = renderer; }
     renderSequence(frame) { (counts.privateFrames ||= []).push(frame); }
-    unload() {}
+    unload() { counts.unloadedCompositors = (counts.unloadedCompositors || 0) + 1; }
   }
   class History {
     startOperation() { this.operation = []; }
@@ -700,6 +700,8 @@ test("idle video fill restores the retained live image and only adds the current
   assert.equal(h.counts.display, 1, "restores the pre-idle live pixels");
   assert.equal(h.api.debug.entries, 1);
   assert.equal(h.viewport.__zoidiumOutputFrames.snapshot, null, "releases private decoders after one fill");
+  assert.equal(h.counts.unloadedCompositors, 1);
+  assert.equal(h.counts.unloadedSchedules, 1);
   const live = h.counts.live;
   h.viewport._render();
   assert.equal(h.counts.live, live, "the next draw replays the retained exact frame");

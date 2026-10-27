@@ -580,7 +580,7 @@
   // Map disposes its texture uniform, which is still null while the map
   // image loads. A private graph can be dropped at any time, so one failing
   // object must not stop the rest of it from being released.
-  function release(unload) {
+  function releaseResource(unload) {
     try { unload(); } catch (_error) { debug.disposeErrors += 1; }
   }
 
@@ -588,7 +588,7 @@
     const snapshot = controller.snapshot;
     if (!snapshot) return;
     controller.snapshot = null;
-    release(() => snapshot.compositor.unload());
+    releaseResource(() => snapshot.compositor.unload());
     // CM3 does not dispose its floating accumulation buffers in unload().
     snapshot.compositor.canvasTexture?.dispose?.();
     snapshot.compositor.copyPass?.material?.dispose?.();
@@ -596,11 +596,11 @@
     for (const target of snapshot.compositor.accumBuffers || []) target?.dispose?.();
     const sequence = snapshot.project.sequence;
     for (const track of [...sequence.videoTracks, ...sequence.audioTracks]) {
-      for (const clip of track.clips) release(() => clip.unload());
+      for (const clip of track.clips) releaseResource(() => clip.unload());
     }
-    for (const media of snapshot.project.media) release(() => media.unload?.());
+    for (const media of snapshot.project.media) releaseResource(() => media.unload?.());
     for (const schedule of [...sequence.videoSchedules, ...sequence.audioSchedules]) {
-      release(() => {
+      releaseResource(() => {
         schedule.el?.pause();
         schedule.el?.removeAttribute("src");
         schedule.el?.load();
