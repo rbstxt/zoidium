@@ -50,8 +50,17 @@ jobs:
         if: steps.credentials.outputs.available == 'true'
         run: pnpm exec playwright install-deps chromium
 
+      # Ubuntu restricts unprivileged user namespaces through AppArmor, which
+      # stops the Chromium sandbox. Lift that runner restriction instead of
+      # launching Electron without its sandbox.
+      - name: Allow the Chromium sandbox
+        if: steps.credentials.outputs.available == 'true'
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+
       - name: Test community desktop isolation
         if: steps.credentials.outputs.available == 'true'
+        env:
+          DEBUG: pw:browser
         run: |
           unset ELECTRON_RUN_AS_NODE
           xvfb-run -a pnpm run test:community-desktop
