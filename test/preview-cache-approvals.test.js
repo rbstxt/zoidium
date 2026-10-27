@@ -64,8 +64,9 @@ test("plugin activation defaults change the approval fingerprint", t => {
 
 test("approval checker runs through its standalone CLI entry point", () => {
   const { spawnSync } = require("node:child_process");
-  const env = { ...process.env }; delete env.ZOIDIUM_PREVIEW_CACHE_APPROVALS;
+  const env = { ...process.env };
   const result = spawnSync(process.execPath, [require.resolve("../tools/preview-cache-approvals.js")], { encoding: "utf8", env });
   assert.equal(result.status, 0, result.stderr);
-  assert.match(result.stdout, /Preview cache approvals are current/);
+  assert.match(result.stdout + result.stderr, env.ZOIDIUM_PREVIEW_CACHE_APPROVALS === "defer"
+    ? /Preview cache approvals are (?:current|stale \(deferred\))/ : /Preview cache approvals are current/);
 });

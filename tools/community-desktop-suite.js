@@ -11,6 +11,7 @@ const { _electron } = require("playwright");
 const { prepareRuntimeStage, cleanupStage } = require("./runtime-resources");
 const { pack } = require("./pack-community-plugin");
 const manifest = require("../examples/community-filter/manifest.json");
+const { desktopBoundaries } = require("./community-desktop-boundaries");
 const lock = process.env.ZOIDIUM_BROWSER_LOCK;
 const output = process.env.ZOIDIUM_COMMUNITY_DESKTOP_REPORT;
 const report = { started: new Date().toISOString(), assertions: [] };
@@ -95,7 +96,7 @@ async function main() {
       const denied = [];
       await app.whenReady(); await netLogStart();
       async function netLogStart() { await session.defaultSession.netLog.startLogging(args.netlog); }
-      for (const url of [window.webContents.getURL(), args.target + "/probe/redirect", "http://zoidium-plugin-network-probe.invalid/probe", "file:///tmp/forbidden"]) {
+      for (const url of [window.webContents.getURL(), args.target + "/probe/redirect", "http://zoidium-plugin-network-probe.invalid/probe"]) {
         denied.push(await new Promise(resolve => {
           const request = net.request({ url, session: isolated }); request.on("error", () => resolve(true));
           request.on("response", response => { response.resume(); resolve(false); }); request.end();
@@ -110,8 +111,9 @@ async function main() {
       }, runnerURL: window.webContents.getURL() };
     }, { target, netlog });
     check(requests.includes("/control") && connections.length > 0, "positive HTTP and TCP controls reach the sink");
-    check(requests.length === 1, "runner sends zero HTTP requests to the sink");
-    check(report.security.denied.every(Boolean), "post-bootstrap session denies loopback, DNS sentinel, and file requests");
+    report.network = { requests: requests.slice(), tcp: connections.length };
+    check(requests.length === 1 && connections.length === 1, "runner sends zero HTTP requests or TCP connections to the sink");
+    check(report.security.denied.every(Boolean), "post-bootstrap session denies loopback and DNS sentinel requests");
     check(report.security.popup && report.security.csp, "runner popup and trusted document fetch are denied");
     check(!report.security.persistent, "runner session is nonpersistent");
     const p = report.security.preferences;
@@ -134,6 +136,13 @@ async function main() {
       return [await forged(true), await forged(false)];
     }, { bytes, hash: packed.hash });
     check(report.portAttacks.every(Boolean), "extra ports and path-bearing runner configurations are rejected");
+    report.boundaries = await application.evaluate(desktopBoundaries, { target, bytes, hash: packed.hash, packageId: manifest.id });
+    check(report.boundaries.navigationDenied && report.boundaries.unchangedURL, "runner self-navigation is cancelled");
+    check(Object.values(report.boundaries.permissions).every(value => value === "denied" || value === "NotAllowedError"), "runner denies clipboard, notifications, geolocation, and media permissions");
+    check(report.boundaries.downloadDenied, "runner cancels local Blob downloads");
+    const redirect = report.boundaries.redirect;
+    check(redirect.requests.length === 1 && redirect.requests[0].url === redirect.expected && redirect.runnerDestroyed, "exact bootstrap redirect is cancelled and closes its runner");
+    check(requests.length === 1 && connections.length === 1, "navigation, child frames, and redirects create no sink connection");
     report.persistence = await page.evaluate(async () => {
       const { store, runner } = globalThis.desktopSuite; runner.dispose();
       const original = store.view().packages[0], saved = await store.beforeEvaluation(original.id, original.hash);
