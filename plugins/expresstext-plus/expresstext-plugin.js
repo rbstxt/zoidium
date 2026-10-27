@@ -1,6 +1,7 @@
 "use strict";
 
 // ExpressText+ container class, text patches and activation.
+const { clearDelayCache } = require("./expresstext-delay-cache.js");
 const { DELAY_MODE_LABELS, DELAY_ORDER_LABELS, EXPRESS_TEXT_NAME, EXPRESS_TEXT_TYPE, FIELD_LABELS, RANDOM_MODE_LABELS, RANDOM_SPACE_LABELS, REPEATER_MAX_COPIES, REPEATER_MODE_LABELS, SCHEMA_VERSION, SPLINE_MODE_LABELS, SPLINE_PATH_LABELS, SPLINE_PLANE_LABELS, SPLINE_TRANSFORM_LABELS, TWIST_AXIS_LABELS, WRAP_DIRECTION_LABELS, state } = require("./expresstext-constants.js");
 const { fieldWeight, isLetterSelected, numberValue, parseLetterSelection, resolveSelection, selectedList, splitSelectionTokens, strengthWeight, vector3 } = require("./expresstext-select.js");
 const { compileFormula, parseFormula, tokenizeFormula } = require("./expresstext-formula.js");
@@ -403,6 +404,7 @@ function activate(context) {
 }
 
 function deactivate() {
+  clearDelayCache();
   unregisterEffectorEntries();
   restoreTextPatches();
   for (const textObject of Array.from(state.splitTexts)) {

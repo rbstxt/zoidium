@@ -3,7 +3,7 @@
   "id": "expresstext-plus",
   "name": "ExpressText+",
   "author": "DaviFX",
-  "version": "1",
+  "version": "2",
   "kind": "object",
   "description": "Tracked-letter text effector stack: its Custom properties + offers only Shake, Plain, Random, Formula, Delay, Spline, Orbit, Repeater, Twist, Wrap and Voronoi with letter fields and C4D-style animation.",
   "objectClassParent": {
@@ -51,74 +51,79 @@
   "modules": [
     {
       "id": "expresstext-runtime",
-      "source": "./plugins/expresstext-plus/expresstext.js?v=1"
+      "source": "./plugins/expresstext-plus/expresstext.js?v=2"
     }
   ],
   "resources": [
     {
       "id": "expresstext-constants",
       "type": "text",
-      "source": "./plugins/expresstext-plus/expresstext-constants.js?v=1"
+      "source": "./plugins/expresstext-plus/expresstext-constants.js?v=2"
     },
     {
       "id": "expresstext-select",
       "type": "text",
-      "source": "./plugins/expresstext-plus/expresstext-select.js?v=1"
+      "source": "./plugins/expresstext-plus/expresstext-select.js?v=2"
     },
     {
       "id": "expresstext-formula",
       "type": "text",
-      "source": "./plugins/expresstext-plus/expresstext-formula.js?v=1"
+      "source": "./plugins/expresstext-plus/expresstext-formula.js?v=2"
     },
     {
       "id": "expresstext-random",
       "type": "text",
-      "source": "./plugins/expresstext-plus/expresstext-random.js?v=1"
+      "source": "./plugins/expresstext-plus/expresstext-random.js?v=2"
     },
     {
       "id": "expresstext-eval",
       "type": "text",
-      "source": "./plugins/expresstext-plus/expresstext-eval.js?v=1"
+      "source": "./plugins/expresstext-plus/expresstext-eval.js?v=2"
     },
     {
       "id": "expresstext-effectors",
       "type": "text",
-      "source": "./plugins/expresstext-plus/expresstext-effectors.js?v=1"
+      "source": "./plugins/expresstext-plus/expresstext-effectors.js?v=2"
     },
     {
       "id": "expresstext-voronoi",
       "type": "text",
-      "source": "./plugins/expresstext-plus/expresstext-voronoi.js?v=1"
+      "source": "./plugins/expresstext-plus/expresstext-voronoi.js?v=2"
     },
     {
       "id": "expresstext-delay",
       "type": "text",
-      "source": "./plugins/expresstext-plus/expresstext-delay.js?v=1"
+      "source": "./plugins/expresstext-plus/expresstext-delay.js?v=2"
     },
     {
       "id": "expresstext-sections",
       "type": "text",
-      "source": "./plugins/expresstext-plus/expresstext-sections.js?v=1"
+      "source": "./plugins/expresstext-plus/expresstext-sections.js?v=2"
     },
     {
       "id": "expresstext-properties",
       "type": "text",
-      "source": "./plugins/expresstext-plus/expresstext-properties.js?v=1"
+      "source": "./plugins/expresstext-plus/expresstext-properties.js?v=2"
     },
     {
       "id": "expresstext-layout",
       "type": "text",
-      "source": "./plugins/expresstext-plus/expresstext-layout.js?v=1"
+      "source": "./plugins/expresstext-plus/expresstext-layout.js?v=2"
     },
     {
       "id": "expresstext-render",
       "type": "text",
-      "source": "./plugins/expresstext-plus/expresstext-render.js?v=1"
+      "source": "./plugins/expresstext-plus/expresstext-render.js?v=2"
     },
     {
       "id": "expresstext-plugin",
       "type": "text",
-      "source": "./plugins/expresstext-plus/expresstext-plugin.js?v=1"
+      "source": "./plugins/expresstext-plus/expresstext-plugin.js?v=2"
+    },
+    {
+      "id": "expresstext-delay-cache",
+      "type": "text",
+      "source": "./plugins/expresstext-plus/expresstext-delay-cache.js?v=2"
     }
   ]
 }

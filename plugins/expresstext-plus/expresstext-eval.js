@@ -3,6 +3,7 @@
 // ExpressText+ Per-letter evaluation helpers: property readers and contexts.
 
 const { fieldWeight, numberValue, resolveSelection, strengthWeight, vector3 } = require("./expresstext-select.js");
+const { staticReaders } = require("./expresstext-delay-cache.js");
 const { delayRank } = require("./expresstext-random.js");
 
 /* ------------------------------------------------------- per-letter evaluation */
@@ -44,11 +45,16 @@ function staticProps(values) {
   for (const key of Object.keys(values || {})) {
     store[key] = { get: () => values[key] };
   }
-  return {
+  const reader = {
     get(key) {
       return store[key];
     },
   };
+  // Track only the keys created above, matching this reader after additions.
+  const inputs = {};
+  for (const key of Object.keys(store)) Object.defineProperty(inputs, key, { get: () => values[key] });
+  staticReaders.set(reader, inputs);
+  return reader;
 }
 
 // Effector envelope shared inputs for one letter. plainLists carries the

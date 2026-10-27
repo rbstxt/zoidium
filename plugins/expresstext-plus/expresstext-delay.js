@@ -2,6 +2,7 @@
 
 // ExpressText+ Delay chase simulation over the effector stack.
 
+const { cachedDelayTarget, delayCacheFor } = require("./expresstext-delay-cache.js");
 const { PZ_EULER_ORDERS } = require("./expresstext-constants.js");
 const { isLetterSelected, numberValue, resolveSelection, strengthWeight } = require("./expresstext-select.js");
 const { applyFieldWeight, blankControls, readProp } = require("./expresstext-eval.js");
@@ -240,7 +241,7 @@ function sampleStageTarget(layers, stepFrame, letterIndex, list, base, aux) {
 // a sampler for the next layer: integer steps read the output table
 // (linearly interpolated for fractional queries), the exact end frame
 // reads the fractional tail.
-function runDelayLetterStage(layers, delayProps, sampleInput, endFrame, lastStep, index, list, base) {
+function runDelayLetterStage(layers, delayProps, sampleInput, endFrame, lastStep, index, list, base, retainTable = true) {
   const firstStep = Math.max(0, lastStep - DELAY_SIM_WINDOW);
   const listsAt = (f) => plainListsAt(layers, f);
   const paramsAt = (f) => delayLinkParams(delayProps, f, index, list, base, listsAt(f));
@@ -278,15 +279,15 @@ function runDelayLetterStage(layers, delayProps, sampleInput, endFrame, lastStep
           rotation: params.rotation,
         }
       : null;
-    const chased = copyDelayState(state);
-    const nextVel = copyDelayVelocity(velocity);
-    chaseToward(chased, nextVel, own, own, chase, travel, 1);
-    velocity = nextVel;
+    const chased = retainTable ? copyDelayState(state) : state;
+    chaseToward(chased, velocity, own, own, chase, travel, 1);
     state = chased;
     // Spring blends (its deadbeat point is singular, so the trail would
     // never fully switch off otherwise); Even and Blend carry their
     // off-ramp in the pacing and catch-up.
-    table.push(mode === 2 ? blendDelayOutput(own, chased, params ? params.strength : 0) : chased);
+    const output = mode === 2 ? blendDelayOutput(own, chased, params ? params.strength : 0) : chased;
+    if (retainTable) table.push(output);
+    else table[0] = output;
   }
   // Fractional tail at the exact end frame.
   const frac = endFrame - lastStep;
@@ -340,9 +341,12 @@ function simulateDelayLetter(layers, delays, frame, index, list, base, aux) {
     return sampleStageTarget(layers, endFrame, index, list, base, aux);
   }
   const lastStep = Math.floor(endFrame);
-  let sample = (stepFrame) => sampleStageTarget(layers, stepFrame, index, list, base, aux);
+  const cache = delayCacheFor(layers, index, list, base, aux);
+  const target = (stepFrame) => sampleStageTarget(layers, stepFrame, index, list, base, aux);
+  let sample = (stepFrame) => cachedDelayTarget(cache, stepFrame, target);
   let out = null;
-  for (const delay of delays) {
+  for (let stage = 0; stage < delays.length; stage += 1) {
+    const delay = delays[stage];
     const staged = runDelayLetterStage(
       layers,
       delay.props,
@@ -351,7 +355,8 @@ function simulateDelayLetter(layers, delays, frame, index, list, base, aux) {
       lastStep,
       index,
       list,
-      base
+      base,
+      stage < delays.length - 1
     );
     sample = staged.sample;
     out = sample(endFrame);
