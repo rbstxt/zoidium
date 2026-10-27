@@ -28,7 +28,7 @@ function fixtures() {
   for (const effect of native.nativeEffects) {
     const properties = { enabled: scalar(1) };
     const overrides = { timeoffset: { offset: 3 }, posterizetime: { rate: 12 },
-      echo: { echoes: 3, delay: 2 }, ccwidetime: { forwardSteps: 2, backwardSteps: 2 },
+      echo: { echoes: 3, delay: 2 }, timedifference: { offset: 0.1 }, ccwidetime: { forwardSteps: 2, backwardSteps: 2 },
       smartmotionblur: { amount: 0.5 }, cardwipe: { transition: 35 }, ccpageturn: { foldPosition: 0.4 } };
     for (const [key, value] of Object.entries(overrides[effect.id] || {})) properties[key] = scalar(value);
     add(native.id, effect.id, project([box()], [{ type: effect.id, properties }], true), {

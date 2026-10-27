@@ -96,6 +96,11 @@ each line describes one visible change.
 
 ### Fixed
 
+- Smart Motion Blur on an Adjustment layer with nothing opaque below it now
+  blurs. Before, Optical Flow (also used by Automatic on Adjustment layers)
+  treated every frame as a scene cut and returned the sharp image. Other
+  effects that read other frames on such Adjustment layers now see the same
+  opaque black background as the current frame.
 - The preview cache keeps working when an unused, disabled plugin failed to
   download, and pre-renders frames in projects with video when no video is
   near those frames.

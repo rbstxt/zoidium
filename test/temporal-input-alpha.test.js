@@ -91,3 +91,25 @@ test("streamed shutter means cannot reuse a reduction made with a different copy
   assert.equal(h.copies.length, 64);
   assert.ok(h.copies.slice(32).every(value => value === false));
 });
+
+test("capture clears the sequence for adjustments and clears layer inputs transparently", () => {
+  for (const adjustment of [false, true]) {
+    const h = host(adjustment), clears = [], layers = [];
+    h.root.renderer.setClearColor = (color, alpha) => clears.push([color, alpha]);
+    h.root.renderer.getClearColor = color => color;
+    h.root.renderer.getClearAlpha = () => 0.4;
+    const original = h.PZ.compositor.prototype.renderLayer;
+    h.PZ.compositor.prototype.renderLayer = function (layer, ...args) {
+      layers.push(layer);
+      return original.call(this, layer, ...args);
+    };
+    const stage = { layer: h.owner, clip: h.ownerClip, effect: h.effect, effectIndex: 1, trackIndex: adjustment ? 1 : 0 };
+    const target = new h.sandbox.THREE.WebGLRenderTarget(80, 40);
+    assert.equal(h.parts.capture.captureFrameSamplerInput(h.state, h.root,
+      h.parts.sampler.getFrameSamplerRuntime(h.state, h.root), stage, 30, 30, 1, target), true);
+    assert.deepEqual(clears[0], [0, adjustment ? 1 : 0]);
+    assert.deepEqual(clears[1], [0, 0]);
+    assert.equal(clears.at(-1)[1], 0.4);
+    assert.deepEqual(layers, adjustment ? [h.source, h.owner] : [h.owner]);
+  }
+});
