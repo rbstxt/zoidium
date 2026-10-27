@@ -972,6 +972,7 @@
     restoreLayerAtContextFrame: restoreLayerAtContextFrame,
     bindSampleTextures: bindSampleTextures,
     captureFrameSamplerInput: captureFrameSamplerInput,
+    frameSamplerMediaInputs,
     prepareLowerSchedules: prepareLowerSchedules,
     prepareInputEffects: prepareInputEffects,
     prepareFrameSamples: prepareFrameSamples,

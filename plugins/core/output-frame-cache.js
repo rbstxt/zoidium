@@ -206,6 +206,8 @@
     debug.resets[reason] = (debug.resets[reason] || 0) + 1;
     if (debug.resetLog) debug.resetLog.push([Math.round(performance.now()), reason, store.entries.size, debug.prefetched]);
     controller.videoJob?.cancel();
+    if (contextAvailable(controller.viewport.renderer.context)) controller.videoLive?.dispose();
+    controller.videoLive = null;
     controller.generation += 1;
     controller.key = null;
     controller.settled = null;
@@ -256,11 +258,11 @@
     // the speed change and stops on its own.
     controller.speedChanged = () => {
       controller.videoJob?.cancel();
+      if (contextAvailable(viewport.renderer.context)) controller.videoLive?.dispose();
+      controller.videoLive = null;
       if (!controller.prefetching) disposeSnapshot(controller);
     };
     viewport.editor.playback.onSpeedChanged?.watch(controller.speedChanged);
-    controller.frameChanged = () => controller.videoJob?.cancel();
-    viewport.editor.playback.onCurrentFrameChanged?.watch(controller.frameChanged);
     return controller;
   }
 
@@ -503,7 +505,14 @@
     if (Number.isNaN(viewport.lastFrame)) viewport.lastFrame = previous;
     if (drew) shown(frame);
     if (drew && !debug.disabled && complete(controller, key, frame)) storeFrame(controller, frame);
-    if (drew && viewport.editor.playback.speed === 0) scheduleIdle();
+    if (drew && !debug.disabled && viewport.editor.playback.speed === 0) {
+      if (videoFrames?.eligible(viewport.editor.project.sequence, PZ.zoidium.temporal) &&
+          videoFrames.inputs(viewport.editor.project.sequence, frame, global.__zoidiumTemporalParts.sampler).length) {
+        controller.videoLive?.dispose();
+        controller.videoLive = capture(controller, frame);
+      }
+      scheduleIdle();
+    }
     return result;
   }
 
@@ -691,8 +700,8 @@
           !activeClips(snapshot.project.sequence, frame).every(clip => objectsReady(clip.object.objects, frame - clip.start))) return;
       // Preserve the actual live image, even when it is an inexact video draw.
       // This backup never enters the frame store. Restore it in the same task.
-      const live = capture(controller, frame);
-      if (!live) return;
+      const live = controller.videoLive;
+      if (!live || live.frame !== frame) return;
       const restoreTextures = sampler.bindSampleTextures(prepared.samples);
       try {
         policy.check();
@@ -706,7 +715,7 @@
         }
       } finally {
         restoreTextures();
-        if (contextAvailable(viewport.renderer.context)) { display(controller, live); live.dispose(); }
+        if (contextAvailable(viewport.renderer.context)) display(controller, live);
       }
     } catch (error) {
       if (!policy.signal.aborted) {
@@ -715,6 +724,9 @@
       }
     } finally {
       debug.videoFillMs = performance.now() - start;
+      if (contextAvailable(viewport.renderer.context)) controller.videoLive?.dispose();
+      controller.videoLive = null;
+      policy.dispose();
       controller.videoJob = null;
       if (controller.reason) controller.reason = "Video frames are not cached in this preview.";
       disposeSnapshot(controller);
@@ -750,7 +762,8 @@
         continue;
       }
       const key = controller.key;
-      if (!key || controller.settled !== key || controller.unsupported === key) continue;
+      if (!key || controller.unsupported === key) continue;
+      if (!settle(controller, key)) { scheduleIdle(25); continue; }
       const current = viewport.editor.playback.currentFrame;
       if (!store.entries.has(entryKey(controller, current))) {
         const sequence = viewport.editor.project.sequence;
@@ -829,7 +842,6 @@
     controller.projectSignal?.unwatch(signal);
     controller.resolution.unwatch(controller.resized);
     viewport.editor.playback.onSpeedChanged?.unwatch(controller.speedChanged);
-    viewport.editor.playback.onCurrentFrameChanged?.unwatch(controller.frameChanged);
     controller.canvas?.removeEventListener("webglcontextlost", controller.contextLost);
     controller.canvas?.removeEventListener("webglcontextrestored", controller.contextRestored);
     lostContexts.delete(viewport.renderer.context);

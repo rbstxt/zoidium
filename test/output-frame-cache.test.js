@@ -99,11 +99,13 @@ function harness({ prefetch = false, stale = false } = {}) {
   const document = { fonts: { status: "loaded", ready: Promise.resolve(), addEventListener() {}, removeEventListener() {} },
     addEventListener: (n, f) => docEvents.set(n, f), removeEventListener: n => docEvents.delete(n) };
   const window = { document, PZ, THREE, CM: { mainViewport: viewport }, ZoidiumOutputFrameStore: model,
+    ZoidiumOutputFrameVideo: require("../plugins/core/output-frame-video.js"),
     ZoidiumOutputFrameApprovals: { ...require("../plugins/core/output-frame-approvals.js"), stale },
     ZoidiumUI: { notify(message) { notices.push(message); } },
     localStorage: { getItem: () => null }, performance: { now: () => clock.now },
     addEventListener: (n, f) => events.set(n, f), removeEventListener: n => events.delete(n) };
-  window.__zoidiumTemporalParts = { sampler: { getFrameSamplerRuntime: () => ({ schedules: new Map() }) } };
+  window.__zoidiumTemporalParts = { sampler: { frameSamplerMediaInputs: require("../plugins/core/temporal-sampler.js").frameSamplerMediaInputs,
+    getFrameSamplerRuntime: () => ({ schedules: new Map() }) } };
   vm.runInNewContext(fs.readFileSync(require.resolve("../plugins/core/output-frame-cache.js"), "utf8"), {
     window, PZ, THREE, performance: window.performance, console,
     setTimeout: fn => { timers.set(++nextTimer, fn); return nextTimer; }, clearTimeout: id => timers.delete(id),
@@ -117,7 +119,7 @@ function harness({ prefetch = false, stale = false } = {}) {
   // Leave the post-signal window in which every draw serializes the project.
   function cool() { clock.now += 5000; }
   return { api, viewport, project, history, counts, events, docEvents, clock, warm, cool, temporalRuntimes, timers,
-    Viewport, Compositor, History, PZ, document, canvasEvents, notices };
+    Viewport, Compositor, History, PZ, document, canvasEvents, notices, sampler: window.__zoidiumTemporalParts.sampler };
 }
 
 test("stale approvals keep every preview live and explain why", async () => {
@@ -655,5 +657,71 @@ for (const [name, start, padding, expected] of [
   const live = h.counts.live;
   h.viewport._render();
   assert.equal(h.counts.live, live, "the privately rendered candidate is a cache hit");
+  h.api.dispose();
+});
+
+
+async function videoHarness() {
+  const h = harness({ prefetch: true });
+  const schedule = { padding: 0, items: [{ start: 0, length: 20, media: { url: "blob:video" } }] };
+  schedule.currentItem = schedule.items[0];
+  h.project.sequence.videoSchedules.push(schedule);
+  h.sampler.frameSamplerMediaInputs = (sequence, _stage, frame) => sequence.videoSchedules.flatMap(s =>
+    s.items.filter(item => frame >= item.start && frame < item.start + item.length).map(item => ({ schedule: s, item })));
+  let finish;
+  h.preparation = new Promise(resolve => { finish = resolve; });
+  h.finish = finish;
+  h.sampler.prepareLowerSchedules = async sequence => {
+    h.counts.decoding = (h.counts.decoding || 0) + 1;
+    await h.preparation;
+    return sequence.videoSchedules.flatMap(s => s.items.map(item => ({ item, texture: {} })));
+  };
+  h.sampler.bindSampleTextures = () => () => {};
+  await h.warm(); h.cool(); h.viewport._render();
+  h.start = async () => {
+    const timer = h.timers.values().next().value;
+    assert.equal(typeof timer, "function");
+    const pending = timer();
+    for (let i = 0; i < 10 && !h.counts.decoding; i++) await flush();
+    assert.equal(h.counts.decoding, 1);
+    return pending;
+  };
+  return h;
+}
+
+test("idle video fill restores the retained live image and only adds the current frame", async () => {
+  const h = await videoHarness();
+  await h.start();
+  assert.match(h.api.usage().reason, /Preparing video frames/);
+  h.finish();
+  for (let i = 0; i < 10; i++) await flush();
+  assert.equal(h.api.debug.videoFilled, 1);
+  assert.deepEqual(h.counts.privateFrames, [0]);
+  assert.equal(h.counts.display, 1, "restores the pre-idle live pixels");
+  assert.equal(h.api.debug.entries, 1);
+  assert.equal(h.viewport.__zoidiumOutputFrames.snapshot, null, "releases private decoders after one fill");
+  const live = h.counts.live;
+  h.viewport._render();
+  assert.equal(h.counts.live, live, "the next draw replays the retained exact frame");
+  h.api.dispose();
+});
+
+for (const [name, change] of [
+  ["edit", h => h.events.get("input")({ type: "input" })],
+  ["revision change without a signal", h => { h.project.sequence.value = 2; }],
+  ["seek", h => { h.viewport.editor.playback.currentFrame = 1; }],
+  ["playback start", h => { h.viewport.editor.playback.speed = 1; }],
+  ["context loss", h => h.canvasEvents.get("webglcontextlost")()],
+  ["source change", h => { h.project.assets.list.a = { url: "blob:changed" }; }],
+  ["cache clear", h => h.api.clear()],
+]) test("idle video fill rejects completion after " + name, async () => {
+  const h = await videoHarness();
+  await h.start();
+  change(h); h.finish();
+  for (let i = 0; i < 10; i++) await flush();
+  assert.equal(h.api.debug.videoFilled || 0, 0);
+  assert.equal(h.api.debug.entries, 0);
+  assert.equal(h.counts.privateFrames, undefined, "stale work never draws on the shared canvas");
+  assert.equal(h.viewport.__zoidiumOutputFrames.snapshot, null);
   h.api.dispose();
 });

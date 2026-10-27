@@ -12,13 +12,18 @@
   }
 
   function job(valid) {
+    let timer;
     const controller = new AbortController();
     const check = () => {
       if (!valid() && !controller.signal.aborted) controller.abort(new Error("Preview cache preparation cancelled."));
       if (controller.signal.aborted) throw controller.signal.reason;
     };
-    return { signal: controller.signal, check,
-      cancel() { controller.abort(new Error("Preview cache preparation cancelled.")); } };
+    const poll = () => {
+      try { check(); timer = setTimeout(poll, 25); } catch (_error) { /* Cancellation stops polling. */ }
+    };
+    timer = setTimeout(poll, 25);
+    return { signal: controller.signal, check, dispose() { clearTimeout(timer); },
+      cancel() { clearTimeout(timer); controller.abort(new Error("Preview cache preparation cancelled.")); } };
   }
 
   async function prepare(snapshot, frame, policy, temporal, sampler, awaitResources) {
@@ -32,7 +37,7 @@
     const runtime = sampler.getFrameSamplerRuntime(temporal, compositor);
     const context = { sequence, compositor, frameSamplerRoot: compositor,
       previewFrameCacheStrict: true, exportPolicy: policy };
-    const samples = await sampler.prepareLowerSchedules(sequence, null, frame, context, runtime, true, temporal);
+    const samples = await sampler.prepareLowerSchedules(sequence, { layer: null }, frame, context, runtime, true);
     policy.check();
     const wanted = inputs(sequence, frame, sampler);
     if (!wanted.length || wanted.some(({ item }) => !samples.some(sample => sample.item === item))) {
