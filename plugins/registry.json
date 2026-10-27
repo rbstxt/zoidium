@@ -31,8 +31,8 @@
       "alwaysEnabled": true,
       "tagline": "Built-in core extensions",
       "description": "Hidden built-in extensions that always run. Not shown in the Plugins panel and never stored in projects.",
-      "manifest": "./plugins/core/manifest.json?v=95",
-      "bundle": "./plugins/core/bundle.json?v=95",
+      "manifest": "./plugins/core/manifest.json?v=96",
+      "bundle": "./plugins/core/bundle.json?v=96",
       "integrity": "sha256-KraSDfPErbSw6cAyXMQZSnt7KX+iVCvnP1QmI2WmVz0="
     },
     {
