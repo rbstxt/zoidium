@@ -41,7 +41,7 @@ function trackInput(property) {
   const proto = Object.getPrototypeOf(property);
   // Reject own getter overrides, subclasses, and expressions, including
   // expressions on vector components. They can read beyond the track.
-  if (Object.hasOwn(property, "get")) throw new Error("Custom Delay property reader");
+  if (Object.hasOwn(property, "get") || Object.hasOwn(property, "getClosestKeyframeIndex")) throw new Error("Custom Delay property reader");
   const fallback = property.definition && property.definition.value;
   if (P.static && proto === P.static.prototype) return ["static", identity(property.get), property.value, fallback];
   if (property.expression !== null) throw new Error("Expression Delay property reader");
@@ -54,6 +54,14 @@ function trackInput(property) {
   const tracks = Array.from(property.keyframes, k => {
     // Missing values invoke readProp's mutable fallback. Keep that path cold.
     if (k.value === null || k.value === undefined) throw new Error("Empty Delay keyframe");
+    const easing = state.PZ.tween && state.PZ.tween.easingList[k.tween & 255];
+    const points = k.controlPoints;
+    if (!easing || !(easing.fn === null || typeof easing.fn === "function") ||
+        !Array.isArray(points) || points.length !== 2 ||
+        points.some(pair => !Array.isArray(pair) || pair.length !== 2 ||
+          pair.some(value => typeof value !== "number" || !Number.isFinite(value)))) {
+      throw new Error("Unsupported Delay keyframe interpolation");
+    }
     return [k.frame, k.value, k.tween, k.controlPoints];
   });
   return ["track", identity(property.get), identity(property.getClosestKeyframeIndex),

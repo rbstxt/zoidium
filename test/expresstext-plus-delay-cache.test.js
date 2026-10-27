@@ -122,6 +122,17 @@ test("Delay invalidates edits, text layout, stack order, enable, selections, and
   }
 });
 
+test("malformed native interpolation retains mutable readProp fallbacks", t => {
+  const PZ = setup(t), f = fixture(PZ);
+  const track = f.layers[0].props.plainStrength;
+  track.keyframes.push(new PZ.keyframe(60, 2000, 255));
+  track.value = 10;
+  assert.equal(C.delayCacheFor(f.layers, f.index, f.list, f.base, f.aux), null);
+  evaluate(f, 50);
+  track.value = 75;
+  equalNumbers(evaluate(f, 50), evaluate(f, 50, referenceStack));
+});
+
 test("opaque readers never reuse samples after closure state changes", () => {
   let amount = 1;
   const layers = [{ kind: "plain", props: { get(key) { return key === "plainPosition" ? { get: f => [amount * f, 0, 0] } : undefined; } } },
