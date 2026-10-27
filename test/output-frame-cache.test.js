@@ -93,7 +93,9 @@ function harness({ prefetch = false, stale = false } = {}) {
     options: { widget2dObjects: [] } });
   const THREE = {
     ShaderMaterial: class { constructor(o) { Object.assign(this, o); } dispose() {} },
-    ShaderPass: class { constructor(m) { this.material = m; this.uniforms = m.uniforms; } render() { counts.display += 1; } },
+    ShaderPass: class { constructor(m) { this.material = m; this.uniforms = m.uniforms; } render() {
+      counts.display += 1; (counts.displayTextures ||= []).push(this.uniforms.tDiffuse.value);
+    } },
     WebGLRenderTarget: class { constructor() { this.texture = {}; counts.allocated += 1; } dispose() { counts.disposed += 1; } },
   };
   const document = { fonts: { status: "loaded", ready: Promise.resolve(), addEventListener() {}, removeEventListener() {} },
@@ -706,6 +708,7 @@ test("idle video fill restores the retained live image and reuses its snapshot",
   for (let i = 0; i < 10; i++) await flush();
   assert.equal(h.viewport.__zoidiumOutputFrames.snapshot, snapshot);
   assert.deepEqual(h.counts.privateFrames, [0, 1]);
+  assert.equal(h.counts.displayTextures[0], h.counts.displayTextures[1], "both fills restore the original live image");
   h.events.get("keydown")({ type: "keydown" });
   assert.equal(h.viewport.__zoidiumOutputFrames.snapshot, null);
   assert.equal(h.counts.unloadedCompositors, 1);
