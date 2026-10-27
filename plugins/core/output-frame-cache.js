@@ -688,6 +688,7 @@
       cheapKey(viewport) === cheap;
     const policy = controller.videoJob = videoFrames.job(valid);
     const start = performance.now();
+    let retained = controller.videoLive;
     controller.reason = "Preparing video frames for the preview cache.";
     try {
       const snapshot = snapshotFor(controller, key);
@@ -701,6 +702,7 @@
       // Preserve the actual live image, even when it is an inexact video draw.
       // This backup never enters the frame store. Restore it in the same task.
       const live = controller.videoLive;
+      retained = live;
       if (!live || live.frame !== frame) return;
       const restoreTextures = sampler.bindSampleTextures(prepared.samples);
       try {
@@ -724,8 +726,10 @@
       }
     } finally {
       debug.videoFillMs = performance.now() - start;
-      if (contextAvailable(viewport.renderer.context)) controller.videoLive?.dispose();
-      controller.videoLive = null;
+      if (controller.videoLive === retained) {
+        if (contextAvailable(viewport.renderer.context)) retained?.dispose();
+        controller.videoLive = null;
+      }
       policy.dispose();
       controller.videoJob = null;
       if (controller.reason) controller.reason = "Video frames are not cached in this preview.";

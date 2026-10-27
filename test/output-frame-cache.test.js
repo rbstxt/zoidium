@@ -725,3 +725,18 @@ for (const [name, change] of [
   assert.equal(h.viewport.__zoidiumOutputFrames.snapshot, null);
   h.api.dispose();
 });
+
+
+test("cancelled video work leaves a newer live backup owned by the next request", async () => {
+  const h = await videoHarness();
+  await h.start();
+  h.viewport.editor.playback.currentFrame = 1;
+  h.viewport._render();
+  const newer = h.viewport.__zoidiumOutputFrames.videoLive;
+  assert.equal(newer.frame, 1);
+  h.finish();
+  for (let i = 0; i < 10; i++) await flush();
+  assert.equal(h.viewport.__zoidiumOutputFrames.videoLive, newer);
+  assert.equal(h.api.debug.entries, 0);
+  h.api.dispose();
+});
