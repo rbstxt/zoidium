@@ -1,8 +1,10 @@
 "use strict";
 
-// ESLint runs in `pnpm run verify` with one rule, no-undef: split files share
+// ESLint runs in `pnpm run verify` with five rules: no-undef (split files share
 // helpers through explicit imports, and a missing import otherwise only fails
-// at runtime on the path that uses it.
+// at runtime on the path that uses it), plus no-redeclare, no-func-assign,
+// no-dupe-keys, and no-dupe-class-members (a later duplicate declaration
+// silently replaces the earlier one, which once leaked private resources).
 
 const globals = require("globals");
 
@@ -18,7 +20,7 @@ const hostGlobals = {
 
 module.exports = [
   {
-    ignores: ["plugins/alipfx/**", "plugins/mp4-export/vendor/**", "zoidium/vendor/**", "**/bundle.json", "node_modules/**", "dist/**", "site/dist/**", "site/.astro/**", "site/node_modules/**", ".zoidium-resources/**"],
+    ignores: ["plugins/alipfx/**", "plugins/mp4-export/vendor/**", "plugins/shape-plus/vendor/**", "zoidium/vendor/**", "**/bundle.json", "node_modules/**", "dist/**", "site/dist/**", "site/.astro/**", "site/node_modules/**", ".zoidium-resources/**"],
   },
   {
     files: ["**/*.js", "**/*.cjs"],
@@ -28,7 +30,13 @@ module.exports = [
       sourceType: "script",
       globals: { ...globals.browser, ...globals.worker, ...hostGlobals },
     },
-    rules: { "no-undef": "error" },
+    rules: {
+      "no-undef": "error",
+      "no-redeclare": "error",
+      "no-func-assign": "error",
+      "no-dupe-keys": "error",
+      "no-dupe-class-members": "error",
+    },
   },
   {
     files: ["site/**/*.mjs", "tools/**/*.mjs"],
