@@ -99,6 +99,11 @@ each line describes one visible change.
 
 ### Fixed
 
+- Effector preview frames now always show the exact result for that frame, the
+  same as export. Playback may slow on heavy fractures instead of showing an
+  earlier frame or the unbroken object.
+- Voronoi Fracture accepts larger meshes and cap outlines, so bevelled 3D text
+  breaks with closed pieces instead of falling back.
 - Voronoi Fracture keeps the source material's face sides for closed pieces,
   so resting pieces shade like the unbroken object.
 - Text+ characters use their Material+ texture layout from the first frame,
