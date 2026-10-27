@@ -9,6 +9,53 @@ permissions:
   contents: read
 
 jobs:
+  community-desktop:
+    name: Electron desktop isolation
+    runs-on: ubuntu-latest
+    env:
+      ZOIDIUM_CM3_SNAPSHOT: r2://zoidium-cm3-cache/cm3-snapshot.zcs
+      ZOIDIUM_R2_ACCOUNT_ID: 06a22facf684f7266a7e1722c236cd18
+      ZOIDIUM_R2_ACCESS_KEY_ID: ${{ secrets.ZOIDIUM_R2_ACCESS_KEY_ID }}
+      ZOIDIUM_R2_SECRET_ACCESS_KEY: ${{ secrets.ZOIDIUM_R2_SECRET_ACCESS_KEY }}
+    steps:
+      - name: Check snapshot credentials
+        id: credentials
+        run: |
+          if [[ -n "$ZOIDIUM_R2_ACCESS_KEY_ID" && -n "$ZOIDIUM_R2_SECRET_ACCESS_KEY" ]]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "Desktop isolation test skipped: private CM3 snapshot credentials are unavailable."
+          fi
+
+      - name: Check out source
+        if: steps.credentials.outputs.available == 'true'
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        if: steps.credentials.outputs.available == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Enable pnpm
+        if: steps.credentials.outputs.available == 'true'
+        run: corepack enable
+
+      - name: Install dependencies
+        if: steps.credentials.outputs.available == 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Linux display and browser dependencies
+        if: steps.credentials.outputs.available == 'true'
+        run: pnpm exec playwright install-deps chromium
+
+      - name: Test community desktop isolation
+        if: steps.credentials.outputs.available == 'true'
+        run: |
+          unset ELECTRON_RUN_AS_NODE
+          xvfb-run -a pnpm run test:community-desktop
+
   community-network:
     name: Chromium network isolation
     runs-on: ubuntu-latest

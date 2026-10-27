@@ -8,7 +8,7 @@ const path = require("node:path");
 const http = require("node:http");
 const assert = require("node:assert/strict");
 const { _electron } = require("playwright");
-const { prepareRuntimeStage, cleanupStage } = require("./runtime-resources");
+const { prepareRuntimeStage } = require("./runtime-resources");
 const { pack } = require("./pack-community-plugin");
 const manifest = require("../examples/community-filter/manifest.json");
 const { desktopBoundaries } = require("./community-desktop-boundaries");
@@ -178,7 +178,6 @@ async function main() {
   } finally {
     if (application) await application.close();
     if (sink) { sink.closeAllConnections(); await new Promise(resolve => sink.close(resolve)); }
-    if (stage) await cleanupStage(stage);
     if (locked) fs.rmSync(lock, { recursive: true });
     report.finished = new Date().toISOString();
     if (output) fs.writeFileSync(output, JSON.stringify(report, null, 2) + "\n");
