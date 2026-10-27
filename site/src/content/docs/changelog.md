@@ -99,6 +99,9 @@ each line describes one visible change.
 
 ### Fixed
 
+- Image textures and Image layers keep more detail. An image whose sides are
+  not a power of two now uploads at the nearest power of two with smooth
+  resampling, so a 1920-pixel image uses 2048 pixels instead of 1024.
 - Redo after undoing an added property group with nested groups no longer
   raises an error.
 - Shape+ Offset Paths now works on open paths. It outlines the path on both
