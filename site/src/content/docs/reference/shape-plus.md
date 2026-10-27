@@ -251,7 +251,7 @@ Every item has **Enabled**, an **off**, **on** choice that defaults to **on**. N
 | **Join** | Choice | **miter**, **round**, **bevel** | **miter** | Shape where stroke segments meet. |
 | **Miter limit** | Number | 1 to 100 | `4` | Maximum miter extension relative to stroke width. Larger joins fall back to bevels. |
 
-An open path offsets on both sides into a closed outline with round ends for a **round** join and flat ends for other joins, and the sign of **Amount** does not matter for open paths.
+An open path is offset on both sides into a closed outline. A **round** join gives round ends, and the other joins give flat ends. On an open path, a negative **Amount** gives the same result as a positive one.
 
 
 ## Merge Paths

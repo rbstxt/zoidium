@@ -96,6 +96,8 @@ each line describes one visible change.
 
 ### Fixed
 
+- Shape+ Offset Paths now works on open paths. It outlines the path on both
+  sides. Before, a stroke after it drew nothing.
 - The preview cache no longer stops preparing video frames at some frames of
   29.97 fps clips.
 - While paused, the preview cache also prepares up to 30 frames ahead and 4
