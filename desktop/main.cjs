@@ -59,6 +59,7 @@ let server = null;
 let serverOrigin = null;
 let mainWindow = null;
 let projectFiles = null;
+let communityDesktop = null;
 let mainRecovery = null;
 let closingPromise = null;
 let quitting = false;
@@ -350,6 +351,9 @@ async function serveRequest(request, response) {
     response.end("Bad Request");
     return;
   }
+
+  // The HTTP tests evaluate serveRequest without the window-scoped broker.
+  if (typeof communityDesktop !== "undefined" && communityDesktop?.serve(request, response, serverOrigin)) return;
 
   let filePath = safePath(relativePath);
   let stat = await fs.promises.stat(filePath);
@@ -738,6 +742,7 @@ async function createWindow() {
     backgroundColor: "#111318",
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
+      additionalArguments: process.argv.includes("--community-safe-mode") ? ["--zoidium-community-safe-mode"] : [],
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
@@ -774,7 +779,17 @@ async function createWindow() {
 
   mainWindow = window;
   projectFiles.attachWindow(window);
+  if (!communityDesktop) communityDesktop = require(path.join(__dirname, "community-broker.cjs")).createCommunityBroker({
+    electron: require("electron"), userData: app.getPath("userData"),
+    getWindow: () => mainWindow, getOrigin: () => serverOrigin,
+    safeMode: process.argv.includes("--community-safe-mode"),
+  });
+  window.webContents.on("did-start-navigation", (_event, _url, inPlace, isMainFrame) => {
+    // Same-document navigation keeps the editor realm and its runner ports.
+    if (isMainFrame && !inPlace) communityDesktop.close();
+  });
   window.on("closed", () => {
+    communityDesktop?.close();
     if (mainWindow === window) {
       mainWindow = null;
       mainRecovery = null;

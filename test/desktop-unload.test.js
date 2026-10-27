@@ -103,6 +103,7 @@ function loadMainProcess({ dialogChoice = 1, dialogThrows = false, whenReady = t
   const dialogCalls = [];
   const electron = {
     app,
+    ipcMain: { handle() {}, on() {} },
     BrowserWindow: FakeWindow,
     Menu: { setApplicationMenu() {}, buildFromTemplate() { return {}; } },
     crashReporter: { start() {} },

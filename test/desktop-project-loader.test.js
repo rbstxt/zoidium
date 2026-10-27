@@ -129,10 +129,12 @@ test("sandboxed preload exposes fixed channels without leaking the IPC event", (
   let receive;
   const sent = [];
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, "../desktop/preload.cjs"), "utf8"), {
+    process: { argv: [] },
+    window: { addEventListener() {} },
     require(name) {
       assert.equal(name, "electron");
       return {
-        contextBridge: { exposeInMainWorld(name, value) { assert.equal(name, "ZoidiumDesktopProjects"); api = value; } },
+        contextBridge: { exposeInMainWorld(name, value) { if (name === "ZoidiumDesktopProjects") api = value; else assert.equal(name, "ZoidiumDesktopCommunity"); } },
         ipcRenderer: { on(channel, callback) { assert.equal(channel, "zoidium:desktop-project-file"); receive = callback; }, send: (...args) => sent.push(args) },
       };
     },

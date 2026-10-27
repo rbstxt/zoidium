@@ -153,6 +153,18 @@ The suite then waits for that lock before it starts local servers or a
 browser, and releases it after cleanup. To save detailed measurements, set
 `ZOIDIUM_COMMUNITY_NETWORK_REPORT` to an output JSON file path.
 
+To test desktop persistence and the dedicated runner session, run:
+
+```bash
+pnpm run test:community-desktop
+```
+
+The desktop suite uses the installed Electron version and a disposable runtime stage.
+Set `ZOIDIUM_COMMUNITY_DESKTOP_EXECUTABLE` to test a packaged application executable instead.
+Set `ZOIDIUM_COMMUNITY_DESKTOP_REPORT` to save its results outside the repository.
+The suite honors `ZOIDIUM_BROWSER_LOCK` and uses a separate application profile.
+It checks approved package execution, denied requests, broker validation, restart persistence, and launch safe mode.
+
 To show the plugin manager's **Community** developer preview, run
 `localStorage.setItem("zoidium.community-preview", "1")` in the editor's
 console and reload.
@@ -184,6 +196,11 @@ To export, remove community effects from the project.
 Missing or disabled packages render as identity and preserve their effect data.
 After disabling a package, reload the editor before selecting it again.
 
-Before changing the runner, run `pnpm run verify` and the browser suite.
+On desktop, packages and exact-hash approvals persist under `userData`.
+The editor keeps its existing session. Each community runner uses a separate nonpersistent session.
+To open desktop management controls without running community code, launch with `--community-safe-mode`.
+The preview flag still controls whether the Community panel is available.
+
+Before changing the runner, run `pnpm run verify` and both containment suites.
 `verify` runs package, protocol, and interpreter tests without a browser.
 Do not pass community packages to the first-party plugin evaluator.

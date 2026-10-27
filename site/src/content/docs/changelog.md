@@ -52,8 +52,9 @@ each line describes one visible change.
   Twist pivot.
 - Developer preview, off by default: local community effect packages with
   validated controls, local package storage, local-only frame sampling of
-  other frames, and project records that survive a missing package. Not yet
-  for general use.
+  other frames, and project records that survive a missing package. On
+  desktop, packages persist in the app data folder and each package runs in
+  its own isolated session. Not yet for general use.
 
 ### Changed
 
