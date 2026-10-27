@@ -38,7 +38,7 @@ Each entry names a symptom, its cause, and the fix.
 2. Open **Settings** and set **Preview cache** above 0. The default is 512 MiB.
 3. Draw the frame normally first. Returning to the same frame and project state reuses it.
 4. Avoid edits, resource loads, and resolution or plugin changes between visits. Each invalidates the cached state.
-5. Expect no background caching for video projects and slow scenes. They skip pre-rendering.
+5. Expect no background caching for video projects and slow scenes. They skip pre-rendering. While video is visible, only the paused frame is cached, after the editor is idle for about 0.8 seconds.
 6. If allocation failed earlier, the session ceiling stays lowered even after raising the preference. After a second GPU context loss, reload the editor to re-enable captures.
 
 ## An export refuses because of missing or failed plugins

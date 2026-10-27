@@ -19,6 +19,13 @@ sampling or multisample motion blur skip all idle pre-rendering. Scenes taking
 over 50 ms for a synchronous draw also skip it. Frames shown normally can still
 be retained.
 
+While video is visible, the editor's own video playback is not frame-exact, so
+live draws are not retained. Instead, when playback is paused and the editor is
+idle for about 0.8 seconds, the current frame is decoded exactly through a
+private project copy and retained. Playback and other frames still draw live.
+**Settings** shows **Video frames are not cached in this preview.** or
+**Preparing video frames for the preview cache.** for these states.
+
 ## Plugin verification
 
 Plugin approvals record the installed versions and the browser oracle's render
