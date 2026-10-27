@@ -7,14 +7,10 @@ global.PZ = { property: { type: { OPTION: 10, NUMBER: 0 } } };
 require("../zoidium/plugin-apis.js");
 const apis = global.ZoidiumPluginApis;
 
-function toFailAfter(ms, message) {
-  return new Promise((resolve, reject) => {
-    setTimeout(() => reject(new Error(message)), ms);
-  });
-}
-
-function withTimeout(promise, ms, message) {
-  return Promise.race([promise, toFailAfter(ms, message)]);
+function withTurnLimit(promise, message) {
+  return Promise.race([promise, new Promise((resolve, reject) => {
+    setImmediate(() => reject(new Error(message)));
+  })]);
 }
 
 function temporalSpec(kind) {
@@ -80,12 +76,12 @@ test("defineTemporal replaces the inherited host load so CM3 base load terminate
     await host.load(data);
   }
   host.load = baseLoad;
-  await withTimeout(host.load({}), 2000, "temporal load hung");
+  await withTurnLimit(host.load({}), "temporal load hung");
   assert.equal(baseCalls, 1);
   assert.equal(Object.prototype.hasOwnProperty.call(host, "load"), true);
   assert.equal(host._zoidiumTemporal.kind, "posterize-time");
   assert.deepEqual(Object.keys(host.properties.added), ["enabled", "fps"]);
-  await withTimeout(host.load({}), 2000, "second temporal load hung");
+  await withTurnLimit(host.load({}), "second temporal load hung");
   assert.equal(baseCalls, 1);
 });
 

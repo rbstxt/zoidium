@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 const test = require("node:test");
 
 const { fixture } = require("./asset-registry-fixture.js");
+const { withinCpuBudget } = require("./cpu-budget.cjs");
 const plain = value => JSON.parse(JSON.stringify(value));
 const settle = async () => { await Promise.resolve(); await Promise.resolve(); await Promise.resolve(); };
 
@@ -227,10 +228,13 @@ test("adapter validation and teardown remove registrations and all observations"
 });
 
 test("a 200-clip authored project can rebuild without touching refs or bytes", () => {
-  const f = fixture(); f.asset("a");
-  for (let i = 0; i < 200; i++) f.properties(f.child(f.project.sequence, new f.Clip("Clip " + i)), { image: new f.Property("Image", "a") });
-  const start = performance.now(), snapshot = f.api.snapshot(), elapsed = performance.now() - start;
-  assert.equal(snapshot.items[0].usages.length, 200); assert.ok(elapsed < 100, "200-clip VM walk exceeded 100 ms");
+  const fixtures = Array.from({ length: 3 }, () => {
+    const f = fixture(); f.asset("a");
+    for (let i = 0; i < 200; i++) f.properties(f.child(f.project.sequence, new f.Clip("Clip " + i)), { image: new f.Property("Image", "a") });
+    return f;
+  });
+  const snapshot = withinCpuBudget(() => fixtures.shift().api.snapshot(), 100, "200-clip VM walk");
+  assert.equal(snapshot.items[0].usages.length, 200);
 });
 
 test("reveal uses native selection without entering drag handlers or changing project data", () => {

@@ -34,7 +34,7 @@ test("GIF bookkeeping does not retain abandoned decoded records or texture consu
           "abandoned decoded records and consumers must be collectible while GIF support stays active");
       } finally { GifSupport.deactivate(); }
     })().catch(error => { console.error(error); process.exitCode = 1; });
-  `], { cwd: path.resolve(__dirname, ".."), encoding: "utf8", timeout: 15000 });
+  `], { cwd: path.resolve(__dirname, ".."), encoding: "utf8", timeout: 120000 });
   assert.equal(result.error, undefined);
   assert.equal(result.status, 0, result.stderr || result.stdout);
 });

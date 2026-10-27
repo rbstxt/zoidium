@@ -17,12 +17,12 @@ function pickPort() {
   return 40000 + Math.floor(Math.random() * 20000);
 }
 
-function waitFor(predicate, timeoutMs = 4000) {
-  const started = Date.now();
+function waitFor(predicate, maxChecks = 400) {
+  let checks = 0;
   return new Promise((resolve, reject) => {
     const check = () => {
       if (predicate()) return resolve();
-      if (Date.now() - started > timeoutMs) return reject(new Error("timed out"));
+      if (++checks >= maxChecks) return reject(new Error("timed out"));
       setTimeout(check, 10);
     };
     check();
