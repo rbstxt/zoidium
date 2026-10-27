@@ -84,11 +84,11 @@ function intersectionBudget(work) {
     clippingWork = previous;
   }
 }
-function integerPaths(paths, maxPoints = MAX_POINTS, minPoints = 3) {
+function integerPaths(paths, maxPoints = MAX_POINTS, minPoints = 3, requireClosed = true) {
   let count = 0;
   return paths
     .map((path) => {
-      if (!path.closed) throw Error("Shape+ topology requires closed contours");
+      if (requireClosed && !path.closed) throw Error("Shape+ topology requires closed contours");
       return path.points.map((point) => {
         if (++count > maxPoints)
           throw Error("Shape+ clipping point budget exceeded");
@@ -174,17 +174,7 @@ function merge(paths, p, id = "merge", maxPoints = MAX_POINTS) {
   }
   return output(p.clean ? C.Clipper.CleanPolygons(result, 1) : result, id);
 }
-function offset(paths, p, tolerance = 0.125, id = "offset") {
-  const integers = clip(integerPaths(paths), [], "add"),
-    amount = p.amount ?? 10;
-  if (!Number.isFinite(amount) || Math.abs(amount) > 100000)
-    throw Error("Shape+ offset amount budget exceeded");
-  if (amount === 0) return output(integers, id);
-  const arcTolerance = Math.max(1 / GRID, Math.min(tolerance, 0.25));
-  const estimate =
-    integers.reduce((n, path) => n + path.length, 0) *
-    (3 + Math.PI * Math.sqrt(Math.abs(amount) / arcTolerance));
-  if (estimate > 2097152) throw Error("Shape+ offset work budget exceeded");
+function offsetEngine(p, arcTolerance) {
   const engine = new C.ClipperOffset(
     Math.max(1, Math.min(100, p.miterLimit ?? 4)),
     arcTolerance * GRID,
@@ -199,18 +189,17 @@ function offset(paths, p, tolerance = 0.125, id = "offset") {
         Y: C.ClipperOffset.Round(this.m_srcPoly[j].Y + this.m_delta * normal.Y),
       });
   };
-  const miter=engine.DoMiter;
-  engine.DoMiter=function(j,k,r){
-    if(Math.sqrt(2/r)>Math.max(1,Math.min(100,p.miterLimit??4)))this.DoSquare(j,k);
-    else miter.call(this,j,k,r);
+  const miter = engine.DoMiter;
+  engine.DoMiter = function (j, k, r) {
+    if (Math.sqrt(2 / r) > Math.max(1, Math.min(100, p.miterLimit ?? 4))) this.DoSquare(j, k);
+    else miter.call(this, j, k, r);
   };
-  const join = {
-    miter: C.JoinType.jtMiter,
-    round: C.JoinType.jtRound,
-    bevel: C.JoinType.jtSquare,
-  }[p.join || "miter"];
-  if (join === undefined) throw Error("Invalid Shape+ offset join");
-  engine.AddPaths(integers, join, C.EndType.etClosedPolygon);
+  return engine;
+}
+function runOffset(p, arcTolerance, integers, join, end, amount) {
+  if (!integers.length) return [];
+  const engine = offsetEngine(p, arcTolerance);
+  engine.AddPaths(integers, join, end);
   const result = [];
   const generate = engine.DoOffset;
   engine.DoOffset = function (delta) {
@@ -219,7 +208,57 @@ function offset(paths, p, tolerance = 0.125, id = "offset") {
       throw Error("Shape+ offset output budget exceeded");
   };
   intersectionBudget(() => engine.Execute(result, amount * GRID));
-  return output(result, id);
+  return result;
+}
+function offset(paths, p, tolerance = 0.125, id = "offset") {
+  const closedPaths = paths.filter((path) => path.closed);
+  // Open paths offset on both sides into a closed outline. Paths with fewer
+  // than two distinct points have no outline and are dropped.
+  const openPaths = paths.filter(
+    (path) =>
+      !path.closed &&
+      new Set(path.points.map((point) => point.join(","))).size >= 2,
+  );
+  const closedIntegers =
+    closedPaths.length || !openPaths.length
+      ? clip(integerPaths(closedPaths), [], "add")
+      : [];
+  const amount = p.amount ?? 10;
+  if (!Number.isFinite(amount) || Math.abs(amount) > 100000)
+    throw Error("Shape+ offset amount budget exceeded");
+  if (amount === 0) {
+    const passthrough = output(closedIntegers, id);
+    const base = passthrough.length;
+    for (const [index, path] of openPaths.entries())
+      passthrough.push({
+        id: id + ":" + (base + index),
+        closed: false,
+        points: path.points.map((point) => point.slice()),
+        proceduralGeometry: true,
+      });
+    return passthrough;
+  }
+  const closedCount = closedPaths.reduce((n, path) => n + path.points.length, 0);
+  const openIntegers = integerPaths(openPaths, MAX_POINTS - closedCount, 2, false);
+  const arcTolerance = Math.max(1 / GRID, Math.min(tolerance, 0.25));
+  const estimate =
+    (closedIntegers.reduce((n, path) => n + path.length, 0) +
+      openIntegers.reduce((n, path) => n + path.length, 0)) *
+    (3 + Math.PI * Math.sqrt(Math.abs(amount) / arcTolerance));
+  if (estimate > 2097152) throw Error("Shape+ offset work budget exceeded");
+  const join = {
+    miter: C.JoinType.jtMiter,
+    round: C.JoinType.jtRound,
+    bevel: C.JoinType.jtSquare,
+  }[p.join || "miter"];
+  if (join === undefined) throw Error("Invalid Shape+ offset join");
+  const end =
+    (p.join || "miter") === "round" ? C.EndType.etOpenRound : C.EndType.etOpenButt;
+  const closedResult = runOffset(p, arcTolerance, closedIntegers, join, C.EndType.etClosedPolygon, amount);
+  const openResult = runOffset(p, arcTolerance, openIntegers, join, end, Math.abs(amount));
+  if (closedResult.length && openResult.length)
+    return output(clip(closedResult.concat(openResult), [], "add"), id);
+  return output(closedResult.length ? closedResult : openResult, id);
 }
 function strokeRegion(paths, p, tolerance = 0.125) {
   const width = Math.max(0, p.width || 0);
