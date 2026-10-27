@@ -143,6 +143,11 @@ test("target size covers both axes and the device clamp", () => {
   assert.deepEqual(resample.targetSize(9000, 9000, 4096), [4096, 4096]);
   assert.deepEqual(resample.targetSize(9000, 700, 4096), [4096, 512]);
   assert.deepEqual(resample.targetSize(1920, 1080, undefined), [2048, 1024]);
+  // Above 4096 the size never rounds up; it matches Three's floor size.
+  assert.deepEqual(resample.targetSize(5000, 2500, 16384), [4096, 2048]);
+  assert.deepEqual(resample.targetSize(7680, 4320, 16384), [4096, 4096]);
+  assert.deepEqual(resample.targetSize(12000, 12000, 16384), [8192, 8192]);
+  assert.deepEqual(resample.targetSize(8192, 8192, 16384), [8192, 8192]);
 });
 
 test("step plan halves large downscales and skips small ones", () => {

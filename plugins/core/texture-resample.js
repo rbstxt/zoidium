@@ -9,6 +9,7 @@
   // and leaves it alone. Power-of-two sources pass through untouched.
   const PATCH_MARKER = "__zoidiumTextureResample";
   const FALLBACK_MAX_TEXTURE_SIZE = 4096;
+  const UPSCALE_LIMIT = 4096;
   const MIN_TEXTURE_SIZE = 1;
 
   function floorDimension(value) {
@@ -43,12 +44,17 @@
     return Math.max(MIN_TEXTURE_SIZE, 2 ** Math.round(Math.log2(value)));
   }
 
+  // Rounding up past UPSCALE_LIMIT would quadruple memory for very large
+  // photographs; there the size stays at Three's floor, resampled smoothly.
+  function targetAxis(value, limit) {
+    const nearest = nearestPowerOfTwo(value);
+    const size = nearest <= UPSCALE_LIMIT ? nearest : 2 ** Math.floor(Math.log2(value));
+    return Math.max(MIN_TEXTURE_SIZE, Math.min(limit, size));
+  }
+
   function targetSize(sourceWidth, sourceHeight, maxSize) {
     const limit = floorDimension(maxSize) || FALLBACK_MAX_TEXTURE_SIZE;
-    return [
-      Math.max(MIN_TEXTURE_SIZE, Math.min(limit, nearestPowerOfTwo(sourceWidth))),
-      Math.max(MIN_TEXTURE_SIZE, Math.min(limit, nearestPowerOfTwo(sourceHeight))),
-    ];
+    return [targetAxis(sourceWidth, limit), targetAxis(sourceHeight, limit)];
   }
 
   // Intermediate sizes for downscales over 2x per axis. Each step scales an
