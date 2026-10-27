@@ -221,13 +221,13 @@ PZ.ui.graph.prototype.pasteAtPlayhead = function () {
     for (var gi = 0; gi < groups.length; gi++) {
       var prop = groups[gi].pz_object;
       var off = groups[gi].pz_frameOffset || 0;
-      for (var e = 0; e < arr.length; e++) {
-        var data = arr[e].data;
-        var shift = cf - arr[e].minFrame - off;
+      for (var ai = 0; ai < arr.length; ai++) {
+        var data = arr[ai].data;
+        var shift = cf - arr[ai].minFrame - off;
         var list = data[prop.definition.name];
         if (list) {
           if (list.length) self.ensureAnimated(prop, list[0].frame + shift);
-          try { self.propertyOps.pasteKeyframes(prop, JSON.parse(JSON.stringify(list)), shift); } catch (err) { gpWarnOnce("paste:" + gi + ":" + e, "pasting keyframes failed", err); }
+          try { self.propertyOps.pasteKeyframes(prop, JSON.parse(JSON.stringify(list)), shift); } catch (err) { gpWarnOnce("paste:" + gi + ":" + ai, "pasting keyframes failed", err); }
           delete data[prop.definition.name];
         }
       }

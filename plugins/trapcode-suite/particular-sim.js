@@ -584,10 +584,10 @@ var PZ = PZ || {};
         }
         if (row.swirl !== 0) {
             var sn = simNoise(x / row.swirlScale, y / row.swirlScale, z / row.swirlScale, time + row.swirlSeed);
-            var sAmt = row.swirl * row.fluidTime * dt;
-            vx += sn[0] * sAmt;
-            vy += sn[1] * sAmt;
-            vz += sn[2] * sAmt;
+            var swirlAmt = row.swirl * row.fluidTime * dt;
+            vx += sn[0] * swirlAmt;
+            vy += sn[1] * swirlAmt;
+            vz += sn[2] * swirlAmt;
         }
         var massDiv = row.massBase * (st.massVar || 1);
         if (!(massDiv > 0)) massDiv = 1;
