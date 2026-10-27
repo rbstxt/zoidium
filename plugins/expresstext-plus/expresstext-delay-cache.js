@@ -5,6 +5,7 @@
 const { state } = require("./expresstext-constants.js");
 const { EFFECTOR_BUILDERS } = require("./expresstext-properties.js");
 const staticReaders = new WeakMap();
+const sectionReaders = new WeakMap();
 const WINDOW_SAMPLES = 7202;
 const MAX_LETTERS = 48;
 const MAX_PARAM_STAGES = 2;
@@ -63,15 +64,20 @@ function stackInput(layers) {
   return layers.map(layer => {
     if (!layer || !layer.kind) return null;
     const kind = layer.kind;
-    if (!keysByKind.has(kind)) {
-      const builder = EFFECTOR_BUILDERS[kind];
+    let keys = keysByKind.get(kind);
+    if (!keys) {
+      const builder = Object.hasOwn(EFFECTOR_BUILDERS, kind) ? EFFECTOR_BUILDERS[kind] : null;
       const PZ = { property: { type: { NUMBER: 0, VECTOR3: 2, OPTION: 6, TEXT: 7 } } };
-      keysByKind.set(kind, builder ? Object.keys(builder(PZ)) : [`${kind}Letters`]);
+      keys = builder ? Object.keys(builder(PZ)) : [`${kind}Letters`];
+      if (builder) keysByKind.set(kind, keys);
     }
     const props = layer.props;
     const own = props && staticReaders.get(props);
+    if (props && typeof props.get === "function" && !own && sectionReaders.get(props) !== props.get) {
+      throw new Error("Unknown Delay section reader");
+    }
     if (own && props.get !== own.readerGet) throw new Error("Changed Delay reader");
-    return [kind, keysByKind.get(kind).map(key => {
+    return [kind, keys.map(key => {
       if (own) {
         const row = own.store[key];
         if (!row) return [key, "owned", undefined];
@@ -107,6 +113,7 @@ function delayCacheFor(layers, index, list, base, aux) {
       letters.clear();
     }
     const key = encode([index, base]);
+    if (key.length > MAX_FINGERPRINT) return null;
     let entry = letters.get(key);
     if (!entry) {
       if (letters.size >= MAX_LETTERS) letters.delete(letters.keys().next().value);
@@ -164,4 +171,4 @@ function cachedDelayParams(entry, stage, frame, sample) {
     position: !!values[offset + 3], scale: !!values[offset + 4], rotation: !!values[offset + 5] } : null;
 }
 
-module.exports = { cachedDelayParams, cachedDelayTarget, clearDelayCache, delayCacheFor, staticReaders, MAX_LETTERS, WINDOW_SAMPLES };
+module.exports = { cachedDelayParams, cachedDelayTarget, clearDelayCache, delayCacheFor, staticReaders, sectionReaders, MAX_LETTERS, WINDOW_SAMPLES };

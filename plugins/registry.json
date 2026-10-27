@@ -273,7 +273,7 @@
       "zoidiumOnly": true,
       "manifest": "./plugins/expresstext-plus/manifest.json?v=2",
       "bundle": "./plugins/expresstext-plus/bundle.json?v=2",
-      "integrity": "sha256-OHbTZvFCIg0kFI8oqbKFh9mjOZqfGOsyVf1bKN+4o/0="
+      "integrity": "sha256-9dUx/Jt5JQBlk5ALb0fVa3wtINRCWGjuv8ipJgh3f1c="
     },
     {
       "id": "particles-plus",

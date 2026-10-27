@@ -132,6 +132,20 @@ test("opaque readers never reuse samples after closure state changes", () => {
   equalNumbers(evaluate(f, 900.125), evaluate(f, 900.125, referenceStack));
 });
 
+test("fingerprinting never calls an opaque section reader", () => {
+  let reads = 0;
+  const layers = [{ kind: "plain", props: { get(key) {
+    reads++;
+    return key === "plainPosition" ? { get: frame => [frame, 0, 0] } : undefined;
+  } } }, { kind: "delay", props: staticProps({ delayMode: 1 }) }];
+  const f = { layers, container: {}, list: { order: [0], total: 1 }, base: [0, 0, 0], index: 0 };
+  const actual = evaluate(f, 20.5), actualReads = reads;
+  reads = 0;
+  const expected = evaluate(f, 20.5, referenceStack);
+  equalNumbers(actual, expected);
+  assert.equal(actualReads, reads);
+});
+
 test("owned static rows invalidate value edits and reject replaced getters", () => {
   C.clearDelayCache();
   const values = { plainPosition: [10, 0, -0] }, props = staticProps(values);

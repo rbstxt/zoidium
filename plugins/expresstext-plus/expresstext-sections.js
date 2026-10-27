@@ -2,6 +2,7 @@
 
 // ExpressText+ Custom-property section readers and the effector tables.
 
+const { sectionReaders } = require("./expresstext-delay-cache.js");
 const { EFFECTOR_ORDER } = require("./expresstext-properties.js");
 const { expressStackOf } = require("./expresstext-layout.js");
 
@@ -34,7 +35,7 @@ function sectionGroupOf(container, displayName) {
 }
 
 function groupReader(group) {
-  return {
+  const reader = {
     get(key) {
       if (!group) return undefined;
       try {
@@ -49,6 +50,8 @@ function groupReader(group) {
       return undefined;
     },
   };
+  sectionReaders.set(reader, reader.get);
+  return reader;
 }
 
 // Full stack for one letter: inline customs sections first (fixed panel
