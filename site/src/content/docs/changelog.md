@@ -96,6 +96,12 @@ each line describes one visible change.
 
 ### Fixed
 
+- The preview cache now stores the paused frame in projects with visible
+  video. After the editor is idle for a moment, Zoidium decodes that frame
+  exactly and caches it. Frames during playback are still drawn live.
+  Settings now says when video frames are not cached.
+- The preview cache now releases the private copies it uses to prepare
+  frames, instead of keeping them in memory.
 - Smart Motion Blur on an Adjustment layer with nothing opaque below it now
   blurs. Before, Optical Flow (also used by Automatic on Adjustment layers)
   treated every frame as a scene cut and returned the sharp image. Other
