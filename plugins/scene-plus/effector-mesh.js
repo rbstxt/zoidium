@@ -22,13 +22,35 @@ function sameArray(a, b) {
 }
 
 function createMeshDeformer(THREE, jobs) {
+  // Load after this module exports the shared normal helpers. The evaluator
+  // imports those helpers too, so a top-level import would create a cycle.
+  const { evaluateMesh, createStageCache } = require("./effector-evaluate.js");
+  const stageCache = createStageCache(64 * 1024 * 1024, 64);
   const convertedGeometries = new WeakMap();
   const sourceStages = new WeakMap();
   const derivedStages = new WeakMap();
   const meshStates = new WeakMap();
   const warnings = new Set();
   const liveMeshes = new Set();
+  const fractureStatuses = new Map();
   let sourceSerial = 0;
+
+  function syncFractureStatus(mesh, state, chain, codes) {
+    const owners = new Set(chain.map(entry => entry.effector).filter(owner => owner.setFractureJobStatus));
+    for (const owner of new Set([...(state.statusOwners || []), ...owners])) {
+      let results = fractureStatuses.get(owner);
+      if (!results) fractureStatuses.set(owner, results = new Map());
+      if (owners.has(owner)) results.set(mesh, codes);
+      else results.delete(mesh);
+      // Synchronous meshes complete one by one. Aggregate their diagnostics so
+      // the last successful character cannot hide another character's warning.
+      owner.setFractureJobStatus(results, true);
+      owner.setFractureJobStatus(results, false, Array.from(new Set(Array.from(results.values()).flat())));
+      if (!results.size) fractureStatuses.delete(owner);
+    }
+    state.statusOwners = owners;
+    state.fractureCodes = codes;
+  }
 
   function warnOnce(key, message) {
     if (warnings.has(key)) return;
@@ -253,6 +275,7 @@ function createMeshDeformer(THREE, jobs) {
   }
 
   function releaseState(mesh, state) {
+    syncFractureStatus(mesh, state, [], []);
     meshStates.delete(mesh);
     delete mesh.__zoidiumSourceGeometry;
     releaseMaterial(mesh, state);
@@ -268,6 +291,7 @@ function createMeshDeformer(THREE, jobs) {
     if (state) releaseState(mesh, state);
     if (state?.sourceId && !Array.from(liveMeshes).some(other => meshStates.get(other)?.sourceId === state.sourceId)) {
       jobs?.forget?.(state.sourceId);
+      stageCache.forget(state.sourceId);
     }
   }
 
@@ -308,20 +332,19 @@ function createMeshDeformer(THREE, jobs) {
       if (state) releaseState(mesh, state);
       return;
     }
-    if (state && mesh.geometry !== state.working && !(state.asyncPending && mesh.geometry === state.source)) {
+    if (state && mesh.geometry !== state.working) {
       // Something else replaced the geometry; the old working copy is stale.
       jobs?.release(mesh);
-      if (jobs && (state.asyncKey || state.asyncPending)) {
+      if (state.evaluationKey) {
         // Retain the material clone so changing source geometry does not drop
         // THREE's last reference to its compiled shader program.
         if (mesh.geometry !== state.source) {
           state.working?.dispose();
           state.working = null;
           state.source = mesh.geometry;
-          state.asyncKey = null;
+          state.evaluationKey = null;
           state.topologyKey = null;
         }
-        state.asyncPending = true;
       } else {
         releaseState(mesh, state);
         state = null;
@@ -337,10 +360,10 @@ function createMeshDeformer(THREE, jobs) {
     let polygonCount = core.budgetSubdivision(requestedPolygonCount, budget, legacySubdivision);
     // be6ea2b raised the minimum from two to four for uniform subdivision.
     if (polygonCount < (legacySubdivision ? 2 : core.SMOOTH_TRIANGLE_BUDGET_MIN_POLYGONS)) polygonCount = 1;
-    // Fracture and large curved meshes include topology, deformation, and normal
-    // averaging in the worker. Small Twist/Warp previews keep their cheap path.
-    if (jobs && (chain.some(entry => typeof entry.effector.produceStage === "function") ||
-      chain.some(entry => ["plain", "delay"].includes(entry.effector.workerCommand?.(frame)?.kind)) || triangleCount * polygonCount >= 5000) && chain.every(entry => typeof entry.effector.workerCommand === "function")) {
+    // Built-in chains always finish the command evaluator before rendering.
+    // Preview and export share this path at every size and frame. Publishing
+    // a source placeholder or a completed result from another frame is unsafe.
+    if (chain.every(entry => typeof entry.effector.workerCommand === "function")) {
       let historyBudget = 96;
       const sampledWorlds = new Map();
       const world = (node, time) => {
@@ -363,46 +386,21 @@ function createMeshDeformer(THREE, jobs) {
       });
       const commands = sampleCommands(frame, chain.length);
       const key = base.sourceId + ":" + polygonCount + ":" + legacySubdivision + ":" + JSON.stringify(commands);
-      const lastFracture = commands.map(command => command.kind).lastIndexOf("fracture");
-      const topologyInputs = lastFracture < 0 ? [] : [commands.slice(0, lastFracture),
-        commands[lastFracture].topology, commands[lastFracture].limits];
-      const buildKey = base.sourceId + ":" + polygonCount + ":" + legacySubdivision + ":" + JSON.stringify(topologyInputs);
       const colors = chain.reduce((options, entry) => entry.effector.surfaceOptions?.(frame) || options, null);
-      if (state?.asyncKey === key) {
-        jobs.release(mesh);
-        state.asyncPending = false;
+      if (state?.evaluationKey === key) {
+        syncFractureStatus(mesh, state, chain, state.fractureCodes);
         mesh.geometry = state.working;
         syncMaterial(mesh, state, state.fractured, colors?.vertexColors || false);
         return;
       }
-      const attributes = {};
-      for (const [name, attribute] of Object.entries(base.attributes)) {
-        attributes[name] = { array: attribute.array, itemSize: attribute.itemSize, normalized: attribute.normalized };
-      }
-      const input = { sourceId: base.sourceId, polygonCount, legacySubdivision, commands, buildKey,
-        base: { ...base, attributes, indexRef: null } };
-      const entry = jobs.request(mesh, key, input);
+      const input = { sourceId: base.sourceId, polygonCount, legacySubdivision, commands, base };
       liveMeshes.add(mesh);
-      // While the exact frame is in the worker, keep showing the newest result of
-      // the same topology so edits and playback update continuously. Export
-      // waits for the exact result through pending().
-      const completed = entry?.status === "done" ? entry : jobs.latest?.(buildKey);
-      if (!completed) {
-        // Nothing of this topology has finished yet: show the pristine source.
-        const pending = state || { source, working: null, material: null };
-        pending.asyncPending = true;
-        pending.sourceId = base.sourceId;
-        mesh.geometry = pending.source;
-        if (pending.material && mesh.material === pending.material.shown) mesh.material = pending.material.original;
-        rememberState(mesh, pending);
-        return;
-      }
-      const exact = completed === entry;
-      const result = completed.value;
-      for (const error of result.errors) warnOnce(error, "Effector skipped a fracture build: " + error + ".");
+      const result = evaluateMesh(input, stageCache);
+      const codes = [...result.errors, ...result.warnings];
+      for (const code of codes) warnOnce(code, "Effector fracture: " + code + ".");
       const next = state || { source, working: null, material: null };
-      const completedKey = completed.key || key;
-      if (next.asyncKey !== completedKey) {
+      syncFractureStatus(mesh, next, chain, codes);
+      if (next.evaluationKey !== key) {
         if (!next.working || next.topologyKey !== result.topologyKey ||
           next.working.attributes.position.array.length !== result.positions.length) {
           next.working?.dispose();
@@ -414,20 +412,19 @@ function createMeshDeformer(THREE, jobs) {
           next.working.attributes.normal.needsUpdate = true;
         }
         next.working.boundingSphere = new THREE.Sphere(new THREE.Vector3(...result.sphere.center), result.sphere.radius);
-        next.asyncKey = completedKey;
+        next.evaluationKey = key;
         next.topologyKey = result.topologyKey;
       }
       next.stage = null;
       next.sourceId = base.sourceId;
-      next.asyncPending = !exact;
       next.fractured = result.kind === "fracture";
       mesh.geometry = next.working;
       syncMaterial(mesh, next, result.kind === "fracture", colors?.vertexColors || false);
       rememberState(mesh, next);
-      if (exact) jobs.release(mesh);
       return;
     }
     jobs?.release(mesh);
+    if (state) syncFractureStatus(mesh, state, [], []);
     liveMeshes.delete(mesh);
     let stage = polygonCount > 1 ? subdivided(base, polygonCount, legacySubdivision) : base;
 
@@ -471,8 +468,8 @@ function createMeshDeformer(THREE, jobs) {
       next.working = buildWorking(stage);
       next.stage = stage;
       next.fresh = true;
-      // The worker path must not reuse this copy as its last published result.
-      next.asyncKey = null;
+      // A custom callback chain cannot supply a built-in command result.
+      next.evaluationKey = null;
       next.topologyKey = null;
     }
     const attribute = next.working.attributes.position;
@@ -510,6 +507,7 @@ function createMeshDeformer(THREE, jobs) {
     pending(meshes) { return jobs ? jobs.pending(meshes) : []; },
     dispose() {
       for (const mesh of liveMeshes) restoreMesh(mesh);
+      stageCache.clear();
       jobs?.dispose();
     },
     jobStats() { return jobs?.stats(); },

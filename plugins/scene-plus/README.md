@@ -47,9 +47,11 @@ Voronoi Fracture topology is cached by source geometry, input positions, seed,
 cell count, inner faces, distribution, and cell scale. Cells supports 1 through
 1000. Nearby sites are clipped first; sites that cannot intersect the remaining
 cell are skipped. Animating motion or any
-field control only updates vertices. Meshes above 40,000 source triangles, or output above
-400,000 triangles, or builds requiring more than 10 million polygon clipping
-operations, are left unfractured and a console warning explains why.
+field control only updates vertices. Limits are 160,000 source triangles,
+1,600,000 output triangles, 4,096 vertices per concave cap contour with holes,
+and 80,000,000 polygon clipping operations per build. Source, output, or work
+limits leave the mesh unfractured. Invalid or excessive cap contours fall back
+to open fragments. Fracture status and the console report these fallbacks.
 
 Fragments keep the shading of the surface they were cut from. Their normals
 are the source normals carried through each piece's own transform (Voronoi
@@ -61,22 +63,17 @@ original surface and one for the inner faces. The inner-face clone uses a
 polygon offset so that, where both meet along a cut, the wall wins instead of
 speckling.
 
-Fracture builds run in a persistent Blob Worker, using source text supplied by
-the plugin bundle asset API. Large Twist/Warp meshes, subdivision, normal
-averaging, and bounds also run there. Interactive preview shows the pristine
-source or a completed result of the same topology while work is pending and
-redraws after completion. Motion changes keep an active topology build alive
-and replace obsolete queued motion frames. Object
-and scene `prepare()` await that work before CM3 exports a frame.
+Built-in effector chains use one synchronous command evaluator for preview
+and export. Each draw finishes the requested frame before rendering. Expensive
+frames can delay playback or scrubbing. Preview never substitutes the source
+geometry or a result from another frame while a build is pending.
 
-Identical input keys share a job. Changed inputs cancel work with no remaining
-consumer, and unloading objects or disabling the plugin disposes their jobs.
-Only one build runs at a time. The worker retains at most four topology stages
-within 64 MiB; the main thread retains at most four unused frame results within
-96 MiB. Pending inputs refer to source buffers until dispatch, and completed
-meshes keep their normal render geometry. Source buffers are never transferred
-out of the editor. Material clones remain alive during pending builds so
-editing inputs does not discard their compiled shader programs.
+The evaluator retains up to 64 topology stages within 64 MiB across meshes.
+Motion changes reuse topology while input positions and topology settings stay
+unchanged. Oversized stages are evaluated without retention. Each mesh owns
+its current render geometry. Unloading the last mesh for a source releases
+that source's cached stages. Material clones remain alive when source geometry
+changes, so edits retain their compiled shader programs.
 
 ## Voronoi Fracture
 

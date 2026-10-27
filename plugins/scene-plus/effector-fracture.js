@@ -26,10 +26,10 @@ const MIN_TRIANGLE_LENGTH = 1e-12;
 const LOOP_LIMIT = 4096;
 
 const DEFAULT_LIMITS = Object.freeze({
-  maxSourceTriangles: 40000,
-  maxOutputTriangles: 400000,
-  maxCapVertices: 512,
-  maxClipOperations: 10000000,
+  maxSourceTriangles: 160000,
+  maxOutputTriangles: 1600000,
+  maxCapVertices: 4096,
+  maxClipOperations: 80000000,
 });
 
 function clampCells(value) {

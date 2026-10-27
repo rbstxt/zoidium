@@ -13,11 +13,7 @@ const DEGREES_TO_RADIANS = Math.PI / 180;
 const VORONOI_TYPE = "zoidium:repeater/voronoi-fracture";
 const DEFAULT_FRACTURE_CELLS = 24;
 const MAX_FRACTURE_CELLS = 1000;
-const FRACTURE_LIMITS = Object.freeze({
-  maxSourceTriangles: 40000,
-  maxOutputTriangles: 400000,
-  maxCapVertices: 512,
-});
+const { DEFAULT_LIMITS: FRACTURE_LIMITS } = require("./effector-fracture.js");
 const LEGACY_EFFECTOR_TYPES = Object.freeze({
   7: TWIST_TYPE,
   8: WARP_TYPE,
