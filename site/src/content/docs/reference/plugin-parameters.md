@@ -19,6 +19,7 @@ This index maps plugin features to their control references or existing guides. 
 | Effector / Scene+ | [Effector / Scene+ controls](/docs/reference/effector/) |
 | Effector+ compatibility | [Effector+ compatibility controls](/docs/reference/effector/) |
 | Expressions+ | [Expressions+ controls](/docs/reference/sequence-controls/) |
+| ExpressText+ | [ExpressText+ controls](/docs/reference/expresstext-plus/) |
 | Geometry+ | [Geometry+ controls](/docs/reference/geometry-plus/) |
 | GIF Support | [GIF Support controls](/docs/reference/animated-gif/) |
 | Graph Editor 2 | [Graph Editor 2 controls](/docs/reference/graph-editor/) |
