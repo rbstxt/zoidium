@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 1,
+  "id": "expresstext-plus",
+  "name": "ExpressText+",
+  "author": "Zoidium",
+  "version": "23",
+  "kind": "object",
+  "description": "Tracked-letter text effector stack: its Custom properties + offers only Shake, Plain, Random, Formula, Delay, Spline, Orbit, Repeater, Twist, Wrap and Voronoi with letter fields and C4D-style animation.",
+  "objectClassParent": {
+    "name": "ExpressText+",
+    "type": 5
+  },
+  "objectTypes": [
+    {
+      "target": "object3d",
+      "name": "ExpressText+",
+      "desc": "Track separate letters, then add Shake, Plain, Random, Formula, Delay, Spline, Orbit, Repeater, Twist, Wrap and Voronoi effectors with the + control.",
+      "type": 5,
+      "list": [
+        {
+          "name": "ExpressText+",
+          "type": "zoidium:expresstext-plus/expresstext",
+          "data": {
+            "type": "zoidium:expresstext-plus/expresstext",
+            "schemaVersion": 1,
+            "properties": {
+              "name": "ExpressText+"
+            },
+            "characterProperties": {},
+            "customProperties": [],
+            "objects": [],
+            "expressProperties": {}
+          }
+        }
+      ]
+    }
+  ],
+  "objectClasses": [
+    {
+      "id": "expresstext",
+      "type": "zoidium:expresstext-plus/expresstext",
+      "name": "ExpressText+",
+      "description": "Tracks separate 3D text letters for the effector stack. Effectors are added with the + control, never from the picker.",
+      "schemaVersion": 1,
+      "defaultData": {
+        "type": "zoidium:expresstext-plus/expresstext",
+        "schemaVersion": 1
+      }
+    }
+  ],
+  "modules": [
+    {
+      "id": "expresstext-runtime",
+      "source": "./plugins/expresstext-plus/expresstext.js?v=23"
+    }
+  ]
+}
