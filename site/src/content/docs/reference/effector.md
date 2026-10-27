@@ -83,9 +83,9 @@ The editor shows field and falloff guides for linear, box, sphere, and cylinder 
 
 Character selection requires Text+. Non-text sources ignore character ranges. Invert selection does not change the empty selection's all-characters behavior.
 
-Fracture limits are 40,000 source triangles, 400,000 output triangles, and 10,000,000 clipping operations per build. A build over those limits leaves the source unfractured. Invalid or excessive cap contours can fall back to open fragments.
+Fracture limits are 160,000 source triangles, 1,600,000 output triangles, 4,096 vertices per concave cap contour with holes, and 80,000,000 clipping operations per build. A build over those limits leaves the source unfractured. Invalid or excessive cap contours can fall back to open fragments.
 
-Large builds run asynchronously. Preview can show pristine geometry or an available result while work is pending. Export preparation waits for the work.
+Built-in effector chains use the same synchronous evaluator for preview and export. Each draw finishes the requested frame before rendering. Expensive frames can delay playback or scrubbing. Preview never substitutes source geometry or a result from another frame.
 
 ## Plain and Delay
 

@@ -16,7 +16,7 @@ function byteSize(value, seen = new Set()) {
   return Object.values(value).reduce((sum, item) => sum + byteSize(item, seen), 0);
 }
 
-function createStageCache(maxBytes = 64 * 1024 * 1024) {
+function createStageCache(maxBytes = 64 * 1024 * 1024, maxEntries = 4) {
   const entries = new Map();
   let bytes = 0;
   return {
@@ -28,7 +28,7 @@ function createStageCache(maxBytes = 64 * 1024 * 1024) {
         bytes += entry.bytes;
       } else entries.delete(key);
       entries.set(key, entry);
-      while (entries.size > 4 || bytes > maxBytes) {
+      while (entries.size > maxEntries || bytes > maxBytes) {
         const first = entries.keys().next().value;
         bytes -= entries.get(first).bytes;
         entries.delete(first);
@@ -65,7 +65,7 @@ function normalsFor(stage, positions, rigid = false) {
         for (const offset of offsets) for (let axis = 0; axis < 3; axis++) normal[offset + axis] += n[axis];
       }
     } else {
-      for (let offset = 0; offset < positions.length; offset += 9) {
+      for (let offset = 0; offset + 8 < positions.length; offset += 9) {
         const n = face(offset, offset + 3, offset + 6);
         for (let corner = 0; corner < 3; corner++) normal.set(n, offset + corner * 3);
       }
@@ -94,16 +94,18 @@ function evaluateMesh(input, cache = createStageCache()) {
   let work = new Float32Array(stage.positions);
   let prefix = topologyKey;
   const errors = [];
+  const warnings = new Set();
   let curved = false;
   for (const command of commands) {
     if (command.kind === "twist" || command.kind === "warp") curved = true;
     if (command.kind === "fracture") {
-      const key = prefix + ":fracture:" + JSON.stringify(command.topology);
+      const key = prefix + ":fracture:" + JSON.stringify([command.topology, command.limits]);
       const result = cache.get(key, () => fracture.buildVoronoiFracture(
         { positions: work, index: stage.index, uvs: stage.uvs, normals: stage.attributes.normal?.array }, command.topology, command.limits
       ));
       if (result.error) errors.push(result.error);
       else { stage = result; work = new Float32Array(stage.positions); topologyKey = key; }
+      if (result.warning) warnings.add(result.warning);
     }
     if (command.kind === "delay" && command.history?.length && command.strength > 0) {
       const sum = new Float64Array(work.length);
@@ -174,7 +176,7 @@ function evaluateMesh(input, cache = createStageCache()) {
   }
   return { kind: stage.kind, smooth: stage.smooth, count: stage.count, positions: work, attributes,
     index: stage.index ? new stage.index.constructor(stage.index) : null,
-    groups: stage.groups, topologyKey, errors, sphere: { center, radius: Math.sqrt(radiusSquared) } };
+    groups: stage.groups, topologyKey, errors, warnings: Array.from(warnings), sphere: { center, radius: Math.sqrt(radiusSquared) } };
 }
 
 module.exports = { byteSize, createStageCache, evaluateMesh, normalsFor };

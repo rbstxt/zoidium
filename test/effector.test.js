@@ -610,7 +610,7 @@ function controlledJobs() {
   };
 }
 
-test("pending fracture renders the source, then publishes the exact completed input", () => {
+test("fracture input changes publish exact geometry without replacing the material", () => {
   const jobs = controlledJobs();
   const deformer = require("../plugins/scene-plus/effector-mesh.js").createMeshDeformer(THREE, jobs);
   const Voronoi = _test.createVoronoiClass(createHarness(), THREE), effector = new Voronoi();
@@ -618,33 +618,29 @@ test("pending fracture renders the source, then publishes the exact completed in
   const mesh = makeMesh(cubePositions()), source = mesh.geometry, originalMaterial = mesh.material;
   const chain = [{ effector, node: nodeAt(identity()) }];
   deformer.deformMesh(mesh, chain, 0, 1);
-  assert.equal(mesh.geometry, source);
-  assert.equal(mesh.material, originalMaterial);
-  jobs.complete(); deformer.deformMesh(mesh, chain, 0, 1);
+  assert.notEqual(mesh.geometry, source);
   assert.ok(mesh.geometry.attributes.position.count > source.attributes.position.count);
   const completed = mesh.geometry, clone = mesh.material;
   setProperty(effector, "seed", 9);
   deformer.deformMesh(mesh, chain, 0, 1);
-  assert.equal(mesh.geometry, source, "changed input never shows stale fractured geometry");
-  assert.equal(mesh.material, originalMaterial);
-  assert.equal(clone[0].disposeCount, 0, "the pending build retains its compiled material");
-  jobs.complete(); deformer.deformMesh(mesh, chain, 0, 1);
+  assert.notEqual(mesh.geometry, source);
   assert.notEqual(mesh.geometry, completed);
   assert.equal(mesh.material, clone);
+  assert.equal(clone[0].disposeCount, 0);
   assert.equal(completed.disposeCount, 1);
-  const latest = mesh.geometry;
+  const expected = Array.from(mesh.geometry.attributes.position.array);
   setProperty(effector, "seed", 17);
   deformer.deformMesh(mesh, chain, 0, 1);
-  assert.equal(mesh.geometry, source);
   setProperty(effector, "seed", 9);
   deformer.deformMesh(mesh, chain, 0, 1);
-  assert.equal(mesh.geometry, latest, "returning to the completed key restores its geometry immediately");
+  assert.deepEqual(Array.from(mesh.geometry.attributes.position.array), expected);
+  assert.equal(jobs.entries.size, 0);
   deformer.dispose();
   assert.equal(mesh.geometry, source); assert.equal(mesh.material, originalMaterial);
   assert.equal(clone[0].disposeCount, 1);
 });
 
-test("a synchronous frame between worker frames never leaves a stale working copy", () => {
+test("changing built-in chains never leaves a stale working copy", () => {
   const jobs = controlledJobs();
   const deformer = require("../plugins/scene-plus/effector-mesh.js").createMeshDeformer(THREE, jobs);
   const PZ = createHarness();
@@ -657,13 +653,13 @@ test("a synchronous frame between worker frames never leaves a stale working cop
   deformer.deformMesh(mesh, fractured, 0, 1); jobs.complete(); deformer.deformMesh(mesh, fractured, 0, 1);
   const pieces = mesh.geometry.attributes.position.count;
   assert.ok(pieces > source.attributes.position.count);
-  // A small Twist-only chain takes the synchronous path and builds its own copy.
+  // A small Twist-only chain builds its own exact working copy.
   deformer.deformMesh(mesh, twisted, 1, 1);
   assert.equal(mesh.geometry.attributes.position.count, source.attributes.position.count);
-  // Returning to the completed fracture key must show fractured geometry again.
+  // Returning to the fracture key must show fractured geometry again.
   deformer.deformMesh(mesh, fractured, 0, 1);
   assert.equal(mesh.geometry.attributes.position.count, pieces);
-  // A new result with the same topology must not be copied into the smaller copy.
+  // A fracture result must never be copied into the smaller Twist copy.
   deformer.deformMesh(mesh, twisted, 1, 1);
   setProperty(voronoi, "distance", 3);
   deformer.deformMesh(mesh, fractured, 2, 1); jobs.complete();
@@ -672,7 +668,7 @@ test("a synchronous frame between worker frames never leaves a stale working cop
   deformer.dispose();
 });
 
-test("source replacement retains the fracture material while awaiting new geometry", () => {
+test("source replacement retains the fracture material on the exact first draw", () => {
   const jobs = controlledJobs();
   const deformer = require("../plugins/scene-plus/effector-mesh.js").createMeshDeformer(THREE, jobs);
   const Voronoi = _test.createVoronoiClass(createHarness(), THREE), effector = new Voronoi();
@@ -683,38 +679,38 @@ test("source replacement retains the fracture material while awaiting new geomet
   const replacement = makeMesh(cubePositions().map(value => value * 2)).geometry;
   mesh.geometry = replacement;
   deformer.deformMesh(mesh, chain, 0, 1);
-  assert.equal(mesh.geometry, replacement); assert.equal(clone[0].disposeCount, 0);
+  assert.notEqual(mesh.geometry, replacement); assert.equal(clone[0].disposeCount, 0);
   jobs.complete();deformer.deformMesh(mesh, chain, 0, 1);
   assert.equal(mesh.material, clone);
   deformer.restoreMesh(mesh);assert.equal(mesh.geometry, replacement);
 });
 
-test("source attribute revisions invalidate queued topology inputs without mutating their snapshots", () => {
+test("source attribute revisions invalidate cached topology without mutating source snapshots", () => {
   const jobs = controlledJobs();
   const deformer = require("../plugins/scene-plus/effector-mesh.js").createMeshDeformer(THREE, jobs);
   const Voronoi = _test.createVoronoiClass(createHarness(), THREE), effector = new Voronoi();
   const mesh = makeMesh(cubePositions()), chain = [{ effector, node: nodeAt(identity()) }];
   const uv = new BufferAttribute(new Float32Array(24 * 3).fill(0.25), 2);mesh.geometry.addAttribute("uv", uv);
   deformer.deformMesh(mesh, chain, 0, 1);
-  const old = Array.from(jobs.entries.values())[0].input;
+  const old = deformer.sourceStage(mesh);
   uv.array.fill(0.75);uv.needsUpdate = true;
   deformer.deformMesh(mesh, chain, 0, 1);
-  assert.equal(jobs.entries.size, 2);
-  assert.equal(old.base.attributes.uv.array[0], 0.25);
-  assert.equal(Array.from(jobs.entries.values())[1].input.base.attributes.uv.array[0], 0.75);
+  assert.equal(jobs.entries.size, 0);
+  assert.equal(old.attributes.uv.array[0], 0.25);
+  assert.equal(deformer.sourceStage(mesh).attributes.uv.array[0], 0.75);
+  assert.equal(mesh.geometry.attributes.uv.array[0], 0.75);
   deformer.dispose();
 });
 
-test("indexed smooth meshes respect the 400k triangle cap before worker dispatch", () => {
+test("indexed smooth meshes respect the 400k triangle cap during exact evaluation", () => {
   const jobs = controlledJobs();
   const deformer = require("../plugins/scene-plus/effector-mesh.js").createMeshDeformer(THREE, jobs);
   const Twist = _test.createTwistClass(createHarness(), THREE), effector = new Twist();
   const mesh = makeMesh([0, 0, 0, 1, 0, 0, 0, 1, 0]);
   mesh.geometry.setIndex(new BufferAttribute(new Uint16Array(60000).map((_, i) => i % 3), 1));
   deformer.deformMesh(mesh, [{ effector, node: nodeAt(identity()) }], 0, 50);
-  const entry = Array.from(jobs.entries.values())[0];
-  assert.equal(entry.input.polygonCount, 16);
-  assert.equal(entry.input.base.index.length / 3 * entry.input.polygonCount, 320000);
+  assert.equal(jobs.entries.size, 0);
+  assert.equal(mesh.geometry.attributes.position.count / 3, 320000);
   deformer.dispose();
 });
 
