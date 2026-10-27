@@ -51,7 +51,9 @@ async function main() {
     }
     async function launch(extra = []) {
       application = await _electron.launch({ ...(executablePath ? { executablePath } : {}),
-        args: [...(stage ? [stage] : []), "--user-data-dir=" + profile, ...extra], env, timeout: 90000 });
+        // A fake capture device makes getUserMedia reach the permission handler
+        // on hosts without audio hardware, such as CI runners.
+        args: [...(stage ? [stage] : []), "--user-data-dir=" + profile, "--use-fake-device-for-media-stream", ...extra], env, timeout: 90000 });
       const page = await application.firstWindow();
       await editorReady(page);
       return page;
@@ -142,7 +144,7 @@ async function main() {
     check(report.portAttacks.every(Boolean), "extra ports and path-bearing runner configurations are rejected");
     report.boundaries = await application.evaluate(desktopBoundaries, { target, bytes, hash: packed.hash, packageId: manifest.id });
     check(report.boundaries.navigationDenied && report.boundaries.unchangedURL, "runner self-navigation is cancelled");
-    check(Object.values(report.boundaries.permissions).every(value => value === "denied" || value === "NotAllowedError"), "runner denies clipboard, notifications, geolocation, and media permissions");
+    check(Object.values(report.boundaries.permissions).every(value => value === "denied" || value === "NotAllowedError"), "runner denies clipboard, notifications, geolocation, and media permissions: " + JSON.stringify(report.boundaries.permissions));
     check(report.boundaries.downloadDenied, "runner cancels local Blob downloads");
     const redirect = report.boundaries.redirect;
     check(redirect.requests.length === 1 && redirect.requests[0].url === redirect.expected && redirect.runnerDestroyed, "exact bootstrap redirect is cancelled and closes its runner");
