@@ -21,7 +21,8 @@ sidebar:
 
 **3D Scene** 内で回転するオブジェクトには、**Reconstruction** の **Automatic** を使用します。
 シャッター区間内の小数時刻でシーンを取得するため、輪郭や押し出し面の見え方の変化も反映します。
-映像では、**Automatic** はオプティカルフローを使用します。
+映像と **Adjustment** レイヤーでは、**Automatic** はオプティカルフローを使用します。
+**Adjustment** レイヤーで速い 3D 回転や見える部分の変化を捉えるには、**Shutter Samples** を選択します。
 **3D Scene** でオプティカルフローを使用するには、**Optical Flow** を選択します。
 **Adjustment** レイヤーの下にあるレイヤー変形を直接取得するには、**Shutter Samples** を選択します。
 

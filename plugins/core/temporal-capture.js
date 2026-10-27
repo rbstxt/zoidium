@@ -63,6 +63,7 @@
     // The sequence starts opaque black; individual layer inputs start transparent.
     renderer.setClearColor(0, isAdjustmentLayer(stage.layer) ? 1 : 0);
     capture.clear(0);
+    renderer.setClearColor(0, 0);
     state.contexts.push({
       exportPolicy: inputContext?.exportPolicy || parentContext?.exportPolicy,
       resourcePolicy: inputContext?.resourcePolicy || parentContext?.resourcePolicy,
