@@ -56,13 +56,13 @@ function fixtures() {
     return data;
   };
   for (const effect of ccfx.effects) add(ccfx.id, effect.id, project([box()], [shaderData(effect)]));
-  // ExpressText+ section rows carry the plugin's stamped effector keys so the
-  // stack reader finds them; values use the stock animated envelopes.
-  const expressRow = (name, effectorKey, value) => ({ definition: { name, effectorKey }, ...copy(value) });
-  const expressVector = (name, effectorKey, value, end) => ({
-    definition: { name, effectorKey },
-    objects: value.map((v, i) => scalar(v, end?.[i])),
-  });
+  const { effectorEntryDefs } = require("../plugins/expresstext-plus/expresstext-properties");
+  const propertyTypes = { NUMBER: 0, VECTOR3: 2, OPTION: 6, TEXT: 7 };
+  const expressEntries = effectorEntryDefs({ property: { type: propertyTypes } });
+  const expressSection = (name, values) => {
+    const type = copy(expressEntries.find(entry => entry.name === name).type);
+    return { type, objects: type.objects.map(definition => copy(values[definition.effectorKey] || {})) };
+  };
   for (const folder of ["text-plus", "scene-plus", "trapcode-suite", "optical-flares", "expresstext-plus"]) {
     const m = manifest(folder);
     const entries = m.objectTypes.flatMap(group => group.list || []);
@@ -89,23 +89,11 @@ function fixtures() {
         data.objects = [{ type: 1, properties: { text: "CACHE", detail: 2 },
           material: { type: "singlecolor", properties: { color: vector([0.2, 0.65, 1]) } } }];
         data.customProperties = [
-          { type: "zoidium:expresstext-plus/plain", properties: { name: "Plain" },
-            definition: { name: "Plain" },
-            objects: [
-              expressRow("Plain", "plainEnable", scalar(1)),
-              expressRow("Plain Strength", "plainStrength", scalar(100)),
-              expressVector("Plain Position", "plainPosition", [0, 0, 0], [0, 6, 0]),
-              expressRow("Plain Field", "plainField", scalar(1)),
-              expressVector("Plain Field position", "plainFieldPosition", [0, 0, 0]),
-              expressVector("Plain Field scale", "plainFieldScale", [100, 100, 100]),
-            ] },
-          { type: "zoidium:expresstext-plus/delay", properties: { name: "Delay" },
-            definition: { name: "Delay" },
-            objects: [
-              expressRow("Delay", "delayEnable", scalar(1)),
-              expressRow("Delay Strength", "delayStrength", scalar(100)),
-              expressRow("Delay Mode", "delayMode", scalar(0)),
-            ] },
+          expressSection("Plain", { plainPosition: { objects: [scalar(0), { animated: true, keyframes: [
+            { frame: 0, value: 0, tween: 1 }, { frame: 7, value: 0, tween: 1 },
+            { frame: 8, value: 6, tween: 1 },
+          ] }, scalar(0)] } }),
+          expressSection("Delay", { delayStrength: scalar(100), delayMode: scalar(0) }),
         ];
       }
       const objects = [data];
@@ -267,7 +255,8 @@ async function compareFixture(fixture) {
     }
     throw new Error("Expected cache hit at " + frame + ": " + cache.usage().reason);
   }
-  const frames = fixture.full ? [11] : fixture.prefetch ? [0, 1, 11, 37] : [0, 11, 37];
+  const frames = fixture.full ? [11] : fixture.plugin === "expresstext-plus" ? [0, 1, 8, 11, 37] :
+    fixture.prefetch ? [0, 1, 11, 37] : [0, 11, 37];
   const references = new Map();
   for (const frame of frames) { await load(); references.set(frame, await draw(frame, false)); }
   await load();
