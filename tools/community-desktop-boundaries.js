@@ -9,8 +9,8 @@ async function desktopBoundaries(electron, options) {
   const P = require(path.join(app.getAppPath(), "zoidium/community-package.js"));
   const active = BrowserWindow.getAllWindows().find(window => window.webContents.session !== session.defaultSession);
   const contents = active.webContents, initialURL = contents.getURL();
-  let navigationDenied = false;
-  contents.once("will-navigate", event => { navigationDenied = event.defaultPrevented; });
+  const navigationEvents = [];
+  for (const name of ["will-frame-navigate", "will-navigate"]) contents.once(name, () => navigationEvents.push(name));
   await contents.executeJavaScript("location.href=" + JSON.stringify(options.target + "/navigation") + ";true");
   const permissions = await contents.executeJavaScript(`(async () => {
     const result = {};
@@ -49,7 +49,7 @@ async function desktopBoundaries(electron, options) {
       route: (url, doc) => { if (doc) expected = new URL(url).pathname; },
     });
     await host.ready;
-    return { navigationDenied, unchangedURL: contents.getURL() === initialURL, permissions, downloadDenied, child,
+    return { navigationDenied: navigationEvents.length > 0, navigationEvents, unchangedURL: contents.getURL() === initialURL, permissions, downloadDenied, child,
       redirect: { requests, expected, runnerDestroyed: host.window.isDestroyed() } };
   } finally {
     host?.close(); channel.port2.close(); server.closeAllConnections(); await new Promise(resolve => server.close(resolve));

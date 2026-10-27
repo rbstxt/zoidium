@@ -136,10 +136,6 @@ async function main() {
       return [await forged(true), await forged(false)];
     }, { bytes, hash: packed.hash });
     check(report.portAttacks.every(Boolean), "extra ports and path-bearing runner configurations are rejected");
-    if (process.env.ZOIDIUM_COMMUNITY_DESKTOP_EDITOR_PROBE) {
-      report.editor = await page.evaluate(fs.readFileSync(process.env.ZOIDIUM_COMMUNITY_DESKTOP_EDITOR_PROBE, "utf8"));
-      check(report.editor.passed, "authored editor fixture renders through the desktop controller and native shader pass");
-    }
     report.boundaries = await application.evaluate(desktopBoundaries, { target, bytes, hash: packed.hash, packageId: manifest.id });
     check(report.boundaries.navigationDenied && report.boundaries.unchangedURL, "runner self-navigation is cancelled");
     check(Object.values(report.boundaries.permissions).every(value => value === "denied" || value === "NotAllowedError"), "runner denies clipboard, notifications, geolocation, and media permissions");
@@ -147,6 +143,10 @@ async function main() {
     const redirect = report.boundaries.redirect;
     check(redirect.requests.length === 1 && redirect.requests[0].url === redirect.expected && redirect.runnerDestroyed, "exact bootstrap redirect is cancelled and closes its runner");
     check(requests.length === 1 && connections.length === 1, "navigation, child frames, and redirects create no sink connection");
+    if (process.env.ZOIDIUM_COMMUNITY_DESKTOP_EDITOR_PROBE) {
+      report.editor = await page.evaluate(fs.readFileSync(process.env.ZOIDIUM_COMMUNITY_DESKTOP_EDITOR_PROBE, "utf8"));
+      check(report.editor.passed, "authored editor fixture renders through the desktop controller and native shader pass");
+    }
     report.persistence = await page.evaluate(async () => {
       const { store, runner } = globalThis.desktopSuite; runner.dispose();
       const original = store.view().packages[0], saved = await store.beforeEvaluation(original.id, original.hash);
