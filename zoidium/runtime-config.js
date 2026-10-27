@@ -85,6 +85,7 @@
       "./plugins/core/asset-registry-reveal.js",
       "./plugins/core/asset-registry-fetch.js",
       "./plugins/core/asset-registry-decode.js",
+      "./plugins/core/texture-resample.js",
       "./plugins/core/asset-registry-consumers.js",
       "./plugins/core/asset-registry-actions.js",
       "./plugins/core/asset-retention.js",
