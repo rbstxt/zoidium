@@ -19,6 +19,7 @@ sidebar:
 | Effector / Scene+ | [Effector / Scene+ のコントロール](/docs/ja/reference/effector/) |
 | Effector+ compatibility | [Effector+ compatibility のコントロール](/docs/ja/reference/effector/) |
 | Expressions+ | [Expressions+ のコントロール](/docs/ja/reference/sequence-controls/) |
+| ExpressText+ | [ExpressText+ のコントロール](/docs/ja/reference/expresstext-plus/) |
 | Geometry+ | [Geometry+ のコントロール](/docs/ja/reference/geometry-plus/) |
 | GIF Support | [GIF Support のコントロール](/docs/ja/reference/animated-gif/) |
 | Graph Editor 2 | [Graph Editor 2 のコントロール](/docs/ja/reference/graph-editor/) |

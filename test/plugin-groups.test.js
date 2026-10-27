@@ -44,6 +44,7 @@ test("every visible plugin belongs to a declared pack", () => {
       "repeater",
       "material-plus",
       "text-plus",
+      "expresstext-plus",
       "particles-plus",
       "trapcode-suite",
       "optical-flares",

@@ -56,7 +56,14 @@ function fixtures() {
     return data;
   };
   for (const effect of ccfx.effects) add(ccfx.id, effect.id, project([box()], [shaderData(effect)]));
-  for (const folder of ["text-plus", "scene-plus", "trapcode-suite", "optical-flares"]) {
+  const { effectorEntryDefs } = require("../plugins/expresstext-plus/expresstext-properties");
+  const propertyTypes = { NUMBER: 0, VECTOR3: 2, OPTION: 6, TEXT: 7 };
+  const expressEntries = effectorEntryDefs({ property: { type: propertyTypes } });
+  const expressSection = (name, values) => {
+    const type = copy(expressEntries.find(entry => entry.name === name).type);
+    return { type, objects: type.objects.map(definition => copy(values[definition.effectorKey] || {})) };
+  };
+  for (const folder of ["text-plus", "scene-plus", "trapcode-suite", "optical-flares", "expresstext-plus"]) {
     const m = manifest(folder);
     const entries = m.objectTypes.flatMap(group => group.list || []);
     for (const entry of entries) {
@@ -78,6 +85,17 @@ function fixtures() {
           offsetPosition: vector([0, 0, 0], [3, 5, 0]) };
       }
       if (folder === "optical-flares") data.properties = { position: vector([-8, 0, 0], [8, 4, 0]) };
+      if (folder === "expresstext-plus") {
+        data.objects = [{ type: 1, properties: { text: "CACHE", detail: 2 },
+          material: { type: "singlecolor", properties: { color: vector([0.2, 0.65, 1]) } } }];
+        data.customProperties = [
+          expressSection("Plain", { plainPosition: { objects: [scalar(0), { animated: true, keyframes: [
+            { frame: 0, value: 0, tween: 1 }, { frame: 7, value: 0, tween: 1 },
+            { frame: 8, value: 6, tween: 1 },
+          ] }, scalar(0)] } }),
+          expressSection("Delay", { delayStrength: scalar(100), delayMode: scalar(0) }),
+        ];
+      }
       const objects = [data];
       if (folder === "trapcode-suite" && String(data.type).includes("light")) {
         data.properties = { ...data.properties, position: vector([0, 0, 30]), target: vector([0, 0, 0]),
@@ -237,7 +255,8 @@ async function compareFixture(fixture) {
     }
     throw new Error("Expected cache hit at " + frame + ": " + cache.usage().reason);
   }
-  const frames = fixture.full ? [11] : fixture.prefetch ? [0, 1, 11, 37] : [0, 11, 37];
+  const frames = fixture.full ? [11] : fixture.plugin === "expresstext-plus" ? [0, 1, 8, 11, 37] :
+    fixture.prefetch ? [0, 1, 11, 37] : [0, 11, 37];
   const references = new Map();
   for (const frame of frames) { await load(); references.set(frame, await draw(frame, false)); }
   await load();

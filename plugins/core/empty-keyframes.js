@@ -25,3 +25,20 @@
   };
   prototype.__zoidiumEmptyKeyframesRepair = true;
 })(typeof window !== "undefined" ? window : globalThis);
+(function installGroupHistoryRepair(global) {
+  "use strict";
+
+  var Group = global.PZ && global.PZ.property && global.PZ.property.dynamic && global.PZ.property.dynamic.group;
+  var prototype = Group && Group.prototype;
+  if (!prototype || typeof prototype.load !== "function" || prototype.__zoidiumGroupHistoryRepair) return;
+
+  var originalLoad = prototype.load;
+  prototype.load = function load(data) {
+    // History passes a deleted live group to load. Its child groups have a
+    // read-only animated getter, but CM3's legacy loader writes to it.
+    // Use the same data that the project's JSON serializer would save.
+    if (data instanceof Group) data = JSON.parse(JSON.stringify(data));
+    return originalLoad.call(this, data);
+  };
+  prototype.__zoidiumGroupHistoryRepair = true;
+})(typeof window !== "undefined" ? window : globalThis);

@@ -26,14 +26,14 @@
       "id": "core",
       "name": "Zoidium Core",
       "author": "Zoidium",
-      "version": "95",
+      "version": "96",
       "visibility": "hidden",
       "alwaysEnabled": true,
       "tagline": "Built-in core extensions",
       "description": "Hidden built-in extensions that always run. Not shown in the Plugins panel and never stored in projects.",
-      "manifest": "./plugins/core/manifest.json?v=95",
-      "bundle": "./plugins/core/bundle.json?v=95",
-      "integrity": "sha256-bfKQKhtSm2aBdrRAXehV3zNp5khDawumlqDkvw2VatM="
+      "manifest": "./plugins/core/manifest.json?v=96",
+      "bundle": "./plugins/core/bundle.json?v=96",
+      "integrity": "sha256-KraSDfPErbSw6cAyXMQZSnt7KX+iVCvnP1QmI2WmVz0="
     },
     {
       "id": "easing-plus",
@@ -257,6 +257,23 @@
       "manifest": "./plugins/text-plus/manifest.json?v=29",
       "bundle": "./plugins/text-plus/bundle.json?v=29",
       "integrity": "sha256-TeH+AyGKYjv3imCdZVzOOA220IKUHhdvMor4u2km7U8="
+    },
+    {
+      "id": "expresstext-plus",
+      "category": "scene",
+      "name": "ExpressText+",
+      "author": "DaviFX",
+      "version": "2",
+      "defaultEnabled": true,
+      "itemCount": 11,
+      "format": "3D text containers",
+      "tagline": "Tracked-letter text effector stack",
+      "color": "#b2704f",
+      "description": "Tracks separate 3D text letters and drives them with Shake, Plain, Random, Formula, Delay, Spline, Orbit, Repeater, Twist, Wrap and Voronoi effectors.",
+      "zoidiumOnly": true,
+      "manifest": "./plugins/expresstext-plus/manifest.json?v=2",
+      "bundle": "./plugins/expresstext-plus/bundle.json?v=2",
+      "integrity": "sha256-dDIxqSLDud8ghy5PaeoLpVighASgU4KQmftWUOzqNJM="
     },
     {
       "id": "particles-plus",
