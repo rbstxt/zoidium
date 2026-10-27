@@ -396,7 +396,8 @@ function createMeshDeformer(THREE, jobs) {
       const next = state || { source, working: null, material: null };
       const completedKey = completed.key || key;
       if (next.asyncKey !== completedKey) {
-        if (!next.working || next.topologyKey !== result.topologyKey) {
+        if (!next.working || next.topologyKey !== result.topologyKey ||
+          next.working.attributes.position.array.length !== result.positions.length) {
           next.working?.dispose();
           next.working = buildWorking({ ...result, indexRef: result.index ? new THREE.BufferAttribute(result.index, 1) : null });
         } else {
@@ -463,6 +464,9 @@ function createMeshDeformer(THREE, jobs) {
       next.working = buildWorking(stage);
       next.stage = stage;
       next.fresh = true;
+      // The worker path must not reuse this copy as its last published result.
+      next.asyncKey = null;
+      next.topologyKey = null;
     }
     const attribute = next.working.attributes.position;
     const target = attribute.array;

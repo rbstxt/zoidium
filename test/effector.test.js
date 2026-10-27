@@ -628,6 +628,34 @@ test("pending fracture renders the source, then publishes the exact completed in
   assert.equal(clone[0].disposeCount, 1);
 });
 
+test("a synchronous frame between worker frames never leaves a stale working copy", () => {
+  const jobs = controlledJobs();
+  const deformer = require("../plugins/scene-plus/effector-mesh.js").createMeshDeformer(THREE, jobs);
+  const PZ = createHarness();
+  const Voronoi = _test.createVoronoiClass(PZ, THREE), voronoi = new Voronoi();
+  const Twist = _test.createTwistClass(PZ, THREE), twist = new Twist();
+  setProperty(voronoi, "cells", 8); setProperty(twist, "angle", 0.2);
+  const mesh = makeMesh(cubePositions()), source = mesh.geometry;
+  const fractured = [{ effector: voronoi, node: nodeAt(identity()) }];
+  const twisted = [{ effector: twist, node: nodeAt(identity()) }];
+  deformer.deformMesh(mesh, fractured, 0, 1); jobs.complete(); deformer.deformMesh(mesh, fractured, 0, 1);
+  const pieces = mesh.geometry.attributes.position.count;
+  assert.ok(pieces > source.attributes.position.count);
+  // A small Twist-only chain takes the synchronous path and builds its own copy.
+  deformer.deformMesh(mesh, twisted, 1, 1);
+  assert.equal(mesh.geometry.attributes.position.count, source.attributes.position.count);
+  // Returning to the completed fracture key must show fractured geometry again.
+  deformer.deformMesh(mesh, fractured, 0, 1);
+  assert.equal(mesh.geometry.attributes.position.count, pieces);
+  // A new result with the same topology must not be copied into the smaller copy.
+  deformer.deformMesh(mesh, twisted, 1, 1);
+  setProperty(voronoi, "distance", 3);
+  deformer.deformMesh(mesh, fractured, 2, 1); jobs.complete();
+  assert.doesNotThrow(() => deformer.deformMesh(mesh, fractured, 2, 1));
+  assert.equal(mesh.geometry.attributes.position.count, pieces);
+  deformer.dispose();
+});
+
 test("source replacement retains the fracture material while awaiting new geometry", () => {
   const jobs = controlledJobs();
   const deformer = require("../plugins/scene-plus/effector-mesh.js").createMeshDeformer(THREE, jobs);
