@@ -40,10 +40,7 @@ async function main() {
     const packed = pack(path.join(__dirname, "../examples/community-filter"), path.join(folder, "package"));
     const bytes = Array.from(fs.readFileSync(packed.output));
     const env = { ...process.env, ZOIDIUM_DESKTOP_PORT: "18473" }; delete env.ELECTRON_RUN_AS_NODE;
-    async function launch(extra = []) {
-      application = await _electron.launch({ ...(executablePath ? { executablePath } : {}),
-        args: [...(stage ? [stage] : []), "--user-data-dir=" + profile, ...extra], env, timeout: 90000 });
-      const page = await application.firstWindow();
+    async function editorReady(page) {
       await page.waitForFunction(() => globalThis.CM?.mainViewport && globalThis.ZoidiumPluginManagerInternals?.registryReady, { timeout: 90000 });
       await page.evaluate(async () => {
         await globalThis.ZoidiumPluginManagerInternals.registryReady;
@@ -51,6 +48,12 @@ async function main() {
         const quality = document.querySelector('select[title="Preview quality"]');
         if (quality) { quality.value = "0.125"; quality.dispatchEvent(new Event("change", { bubbles: true })); }
       });
+    }
+    async function launch(extra = []) {
+      application = await _electron.launch({ ...(executablePath ? { executablePath } : {}),
+        args: [...(stage ? [stage] : []), "--user-data-dir=" + profile, ...extra], env, timeout: 90000 });
+      const page = await application.firstWindow();
+      await editorReady(page);
       return page;
     }
     let page = await launch();
@@ -61,6 +64,7 @@ async function main() {
     check(!fs.existsSync(path.join(profile, "community-plugins")), "disabled preview creates no community files");
     check(await application.evaluate(({ BrowserWindow, session }) => BrowserWindow.getAllWindows().length === 1 && BrowserWindow.getAllWindows()[0].webContents.session === session.defaultSession), "editor retains its default session");
     await page.evaluate(() => localStorage.setItem("zoidium.community-preview", "1"));
+    await page.reload(); await editorReady(page);
     await page.evaluate(async options => {
       const store = globalThis.ZoidiumCommunityStore.createStore(); await store.open({ reload: true });
       await store.importFile(new Blob([new Uint8Array(options.bytes)]), store.view().revision);
