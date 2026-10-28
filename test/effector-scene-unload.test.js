@@ -10,7 +10,7 @@ const { createMeshDeformer } = require("../plugins/scene-plus/effector-mesh.js")
 const { createMeshJobs } = require("../plugins/scene-plus/effector-jobs.js");
 const { evaluateMesh } = require("../plugins/scene-plus/effector-evaluate.js");
 
-function fixture(t, useWorker) {
+function fixture(t, useWorker, privateProject = false) {
   const { PZ, THREE } = host(), saved = { ...state };
   const project = new PZ.project();
   project.sequence.properties.load(); project.assets.unload = () => {};
@@ -19,7 +19,7 @@ function fixture(t, useWorker) {
   const layer = clip.object; layer.properties.load(); layer.threeObj = new THREE.Scene();
   layer.motionBlur = { update() {} };
   layer.composite.quad.material.uniforms = { opacity: { value: 1 } };
-  const editor = editorFor(PZ, project), workers = [];
+  const editor = editorFor(PZ, privateProject ? new PZ.project() : project), workers = [];
   const workerHost = {
     Blob: class {}, URL: { createObjectURL: () => "blob:fixture", revokeObjectURL() {} },
     Worker: class {
@@ -81,4 +81,15 @@ test("Scene.prepare does not reevaluate after unload during worker settlement", 
   assert.equal(h.source.threeObj.geometry === h.geometry, true);
   assert.equal(h.workers.length, 1, "settlement cannot launch another job");
   assert.equal(h.staleDeforms(), 0, "settlement cannot allocate or retain a detached mesh");
+});
+
+test("Scene.prepare still deforms scenes of a private snapshot project", async t => {
+  // The preview frame cache prepares scenes in a project that is not editor.project.
+  const h = fixture(t, false, true);
+  const preparing = h.layer.prepare(10);
+  const entered = await Promise.race([h.entered.promise.then(() => true),
+    new Promise(resolve => setTimeout(resolve, 1000, false))]);
+  assert.equal(entered, true, "native child preparation runs");
+  h.gate.resolve(); await preparing;
+  assert.notEqual(h.source.threeObj.geometry, h.geometry, "effectors applied during private preparation");
 });

@@ -197,9 +197,13 @@ function createDeformationSupport(PZ, THREE, editor) {
     let token = preparationTokens.get(layer);
     if (!token) { token = {}; preparationTokens.set(layer, token); }
     const started = generation, expectedProject = editor?.project;
-    const attached = () => !PZ.project || typeof layer.tryGetParentOfType !== "function" ||
-      !!layer.tryGetParentOfType(PZ.project) &&
-        (!editor || layer.tryGetParentOfType(PZ.project) === expectedProject);
+    // Private snapshot projects (preview frame cache) prepare scenes outside
+    // editor.project, so only require the scene to stay in the project it
+    // started in.
+    const projectOf = () => PZ.project && typeof layer.tryGetParentOfType === "function"
+      ? layer.tryGetParentOfType(PZ.project) || null : undefined;
+    const startProject = projectOf();
+    const attached = () => projectOf() === startProject;
     return () => started === generation && preparationTokens.get(layer) === token &&
       editor?.project === expectedProject && attached();
   }
