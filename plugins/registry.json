@@ -222,7 +222,7 @@
       "zoidiumOnly": true,
       "manifest": "./plugins/scene-plus/manifest.json?v=41",
       "bundle": "./plugins/scene-plus/bundle.json?v=41",
-      "integrity": "sha256-sZpeUfx6bFPS2ozLEEVuMtztv8f9iKQP/N7UKqEUTkA="
+      "integrity": "sha256-yQEExyWz8Oj7GgXW4Uh9I4chO2zhFEiczebKm46SHdA="
     },
     {
       "id": "material-plus",

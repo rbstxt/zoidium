@@ -64,8 +64,35 @@ const legacyCapContours = String.raw`function capContours(loops, plane, epsilon,
 }
 `;
 
+const legacyClipRecords = String.raw`function clipRecords(polygon, plane, eps) {
+  const count = polygon.length;
+  const signed = new Float64Array(count);
+  let allInside = true;
+  for (let index = 0; index < count; index += 1) {
+    const point = polygon[index].p;
+    signed[index] = plane.nx * point[0] + plane.ny * point[1] + plane.nz * point[2] - plane.d;
+    if (signed[index] > eps) allInside = false;
+  }
+  if (allInside) return polygon;
+  const output = [];
+  for (let index = 0; index < count; index += 1) {
+    const next = (index + 1) % count;
+    const si = signed[index];
+    const sj = signed[next];
+    if (si <= eps) output.push(polygon[index]);
+    if ((si > eps && sj < -eps) || (si < -eps && sj > eps)) {
+      output.push(intersectRecords(polygon[index], polygon[next], si, sj));
+    }
+  }
+  return output;
+}
+`;
+
 function oracle() {
-  const source = fs.readFileSync(require.resolve("../plugins/scene-plus/effector-fracture.js"), "utf8");
+  let source = fs.readFileSync(require.resolve("../plugins/scene-plus/effector-fracture.js"), "utf8");
+  const clipStart = source.indexOf("function clipRecords(");
+  const clipEnd = source.indexOf("\nfunction intersectRecords(", clipStart);
+  source = source.slice(0, clipStart) + legacyClipRecords + source.slice(clipEnd);
   const start = source.indexOf("function capContours(");
   const end = source.indexOf("\nfunction pieceColor(", start);
   const module = { exports: {} };

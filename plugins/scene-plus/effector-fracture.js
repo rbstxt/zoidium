@@ -210,16 +210,18 @@ function buildCells(sites, low, high, eps, metric = [1, 1, 1]) {
 }
 
 // Source triangle corners carry position and optional UV coordinates.
-function clipRecords(polygon, plane, eps) {
+function clipRecords(polygon, plane, eps, signed) {
   const count = polygon.length;
-  const signed = new Float64Array(count);
   let allInside = true;
+  let allOutside = true;
   for (let index = 0; index < count; index += 1) {
     const point = polygon[index].p;
     signed[index] = plane.nx * point[0] + plane.ny * point[1] + plane.nz * point[2] - plane.d;
     if (signed[index] > eps) allInside = false;
+    else allOutside = false;
   }
   if (allInside) return polygon;
+  if (allOutside) return [];
   const output = [];
   for (let index = 0; index < count; index += 1) {
     const next = (index + 1) % count;
@@ -605,7 +607,7 @@ function buildVoronoiFracture(source, options, limits) {
       points.push({
         p: [positions[vertex * 3], positions[vertex * 3 + 1], positions[vertex * 3 + 2]],
         uv: uvs ? [uvs[vertex * 2], uvs[vertex * 2 + 1]] : null,
-        normal: normals ? Array.from(normals.subarray(vertex * 3, vertex * 3 + 3)) : null,
+        normal: normals ? [normals[vertex * 3], normals[vertex * 3 + 1], normals[vertex * 3 + 2]] : null,
       });
     }
     sourcePolygons.push({ points, cap: false, materialIndex: materialIds[triangle] });
@@ -622,6 +624,7 @@ function buildVoronoiFracture(source, options, limits) {
   const maxOutput = limit.maxOutputTriangles;
 
   let clipOperations = 0;
+  const signed = [];
   for (let piece = 0; piece < cells; piece += 1) {
     let surface = sourcePolygons;
     for (const plane of cellInfo[piece].planes) {
@@ -630,10 +633,11 @@ function buildVoronoiFracture(source, options, limits) {
       const next = [];
       const cuts = [];
       for (const polygon of surface) {
-        const points = clipRecords(polygon.points, plane, planeEpsilon);
+        const points = clipRecords(polygon.points, plane, planeEpsilon, signed);
         if (points.length < 3) continue;
+        if (points === polygon.points) { next.push(polygon); continue; }
         next.push({ points, cap: polygon.cap, materialIndex: polygon.materialIndex });
-        if (!closed || points === polygon.points) continue;
+        if (!closed) continue;
         for (let i = 0; i < points.length; i += 1) {
           const a = points[i].p;
           const b = points[(i + 1) % points.length].p;
