@@ -16,7 +16,7 @@ function byteSize(value, seen = new Set()) {
   return Object.values(value).reduce((sum, item) => sum + byteSize(item, seen), 0);
 }
 
-function createStageCache(maxBytes = 64 * 1024 * 1024, maxEntries = 4) {
+function createStageCache(maxBytes = 64 * 1024 * 1024, maxEntries = 64) {
   const entries = new Map();
   let bytes = 0;
   return {
@@ -86,10 +86,22 @@ function normalsFor(stage, positions, rigid = false) {
   return normal;
 }
 
+// Same identity as the last topology stage in evaluateMesh. Motion after that
+// stage cannot invalidate an in-flight cold build while the playhead advances.
+function meshBuildKey(input) {
+  let prefix = input.sourceId + ":subdivide:" + input.polygonCount + ":" + (input.legacySubdivision || false) + ((input.materialCount || 1) > 1 ? ":materials:" + input.materialCount : "");
+  let key = prefix;
+  for (const command of input.commands) {
+    if (command.kind === "fracture") key = prefix + ":fracture:" + JSON.stringify([command.topology, command.limits]);
+    prefix += ":" + JSON.stringify(command);
+  }
+  return key;
+}
+
 function evaluateMesh(input, cache = createStageCache()) {
-  const { base, commands, polygonCount, sourceId, legacySubdivision = false } = input;
-  if (!base.pieceIds) Object.assign(base, core.connectedPieces(base));
-  let topologyKey = sourceId + ":subdivide:" + polygonCount + ":" + legacySubdivision;
+  const { base, commands, polygonCount, sourceId, legacySubdivision = false, materialCount = 1 } = input;
+  if (!base.pieceIds) Object.assign(base, cache.get(sourceId + ":pieces", () => core.connectedPieces(base)));
+  let topologyKey = sourceId + ":subdivide:" + polygonCount + ":" + legacySubdivision + (materialCount > 1 ? ":materials:" + materialCount : "");
   let stage = polygonCount > 1 ? cache.get(topologyKey, () => core.subdivideStage(base, polygonCount, legacySubdivision)) : base;
   let work = new Float32Array(stage.positions);
   let prefix = topologyKey;
@@ -101,7 +113,7 @@ function evaluateMesh(input, cache = createStageCache()) {
     if (command.kind === "fracture") {
       const key = prefix + ":fracture:" + JSON.stringify([command.topology, command.limits]);
       const result = cache.get(key, () => fracture.buildVoronoiFracture(
-        { positions: work, index: stage.index, uvs: stage.uvs, normals: stage.attributes.normal?.array }, command.topology, command.limits
+        { positions: work, index: stage.index, uvs: stage.uvs, normals: stage.attributes.normal?.array, groups: materialCount > 1 ? stage.groups : [], materialCount }, command.topology, command.limits
       ));
       if (result.error) errors.push(result.error);
       else { stage = result; work = new Float32Array(stage.positions); topologyKey = key; }
@@ -114,7 +126,7 @@ function evaluateMesh(input, cache = createStageCache()) {
       const filtered = current?.map(t => t ? { center: [0,0,0], scale: [0,0,0], rotation: [0,0,0,0] } : null);
       let total = 0;
       for (let i = 0; i < command.history.length; i++) {
-        const sample = evaluateMesh({ base, commands: command.history[i], polygonCount, legacySubdivision, sourceId, geometryOnly: true }, cache);
+        const sample = evaluateMesh({ base, commands: command.history[i], polygonCount, legacySubdivision, sourceId, materialCount, geometryOnly: true }, cache);
         // Only matching topology can be interpolated by vertex index.
         if (sample.topologyKey !== topologyKey || sample.positions.length !== work.length) continue;
         const age = (i + 1) / command.history.length;
@@ -176,7 +188,7 @@ function evaluateMesh(input, cache = createStageCache()) {
   }
   return { kind: stage.kind, smooth: stage.smooth, count: stage.count, positions: work, attributes,
     index: stage.index ? new stage.index.constructor(stage.index) : null,
-    groups: stage.groups, topologyKey, errors, warnings: Array.from(warnings), sphere: { center, radius: Math.sqrt(radiusSquared) } };
+    groups: stage.groups, capMaterialIndex: stage.capMaterialIndex, topologyKey, errors, warnings: Array.from(warnings), sphere: { center, radius: Math.sqrt(radiusSquared) } };
 }
 
-module.exports = { byteSize, createStageCache, evaluateMesh, normalsFor };
+module.exports = { meshBuildKey, byteSize, createStageCache, evaluateMesh, normalsFor };

@@ -294,6 +294,16 @@
       "id": "legacy-subdivision",
       "type": "text",
       "source": "./plugins/scene-plus/legacy-subdivision.js?v=38"
+    },
+    {
+      "id": "effector-preview",
+      "type": "text",
+      "source": "./plugins/scene-plus/effector-preview.js?v=38"
+    },
+    {
+      "id": "effector-material",
+      "type": "text",
+      "source": "./plugins/scene-plus/effector-material.js?v=38"
     }
   ]
 }

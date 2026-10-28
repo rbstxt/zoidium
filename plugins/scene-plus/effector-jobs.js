@@ -193,6 +193,7 @@ function createMeshJobs(workerSource, host = globalThis, redraw = () => {}) {
   }
 
   return {
+    available: typeof host.Worker === "function",
     request, release,
     latest(buildKey) {
       return Array.from(entries.values()).reverse().find(entry => entry.buildKey === buildKey && entry.status === "done");

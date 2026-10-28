@@ -24,8 +24,9 @@ function sameArray(a, b) {
 function createMeshDeformer(THREE, jobs) {
   // Load after this module exports the shared normal helpers. The evaluator
   // imports those helpers too, so a top-level import would create a cycle.
-  const { evaluateMesh, createStageCache } = require("./effector-evaluate.js");
+  const { evaluateMesh, createStageCache, meshBuildKey } = require("./effector-evaluate.js");
   const stageCache = createStageCache(64 * 1024 * 1024, 64);
+  const { releaseMaterial, syncMaterial } = require("./effector-material.js").createFractureMaterials(THREE);
   const convertedGeometries = new WeakMap();
   const sourceStages = new WeakMap();
   const derivedStages = new WeakMap();
@@ -92,9 +93,7 @@ function createMeshDeformer(THREE, jobs) {
       count: group.count,
       materialIndex: group.materialIndex,
     }));
-    const pieces = core.connectedPieces({ positions, count: positions.length / 3, index: base.index?.array });
     return {
-      ...pieces,
       sourceId: ++sourceSerial,
       kind: "source",
       smooth: false,
@@ -169,6 +168,7 @@ function createMeshDeformer(THREE, jobs) {
       }
     }
     if (stage.indexRef) geometry.setIndex(stage.indexRef);
+    geometry.__zoidiumCapMaterialIndex = stage.capMaterialIndex ?? 1;
     for (const group of stage.groups) geometry.addGroup(group.start, group.count, group.materialIndex);
     return geometry;
   }
@@ -186,86 +186,6 @@ function createMeshDeformer(THREE, jobs) {
       geometry.computeVertexNormals();
     }
     geometry.computeBoundingSphere();
-  }
-
-  // Material properties that the fracture clone keeps for itself. `_listeners`
-  // holds the renderer's dispose hook, which must stay per material.
-  const CLONE_OWN_KEYS = new Set(["id", "uuid", "name", "type", "side", "vertexColors", "uniforms", "version", "userData", "_listeners"]);
-
-  // The clone takes the original's current values every frame: CM3 materials
-  // write colors, numbers and maps into their THREE material on update, and
-  // replace maps when an image changes. Textures and other objects are shared
-  // by reference; colors and vectors are copied into the clone's own instances.
-  function copyMaterialState(original, clone) {
-    for (const key of Object.keys(original)) {
-      if (CLONE_OWN_KEYS.has(key)) continue;
-      const value = original[key];
-      const target = clone[key];
-      if (value && target && target !== value && !value.isTexture && typeof target.copy === "function" &&
-        value.constructor === target.constructor) target.copy(value);
-      else clone[key] = value;
-    }
-  }
-
-  // Fracture output renders with two clones of the mesh's material: group 0
-  // (the cut walls of the source surface) and group 1 (inner cap faces). Caps
-  // meet the walls exactly along the cuts, so at equal depth they speckled
-  // through resting pieces; the cap clone is drawn with a polygon offset that
-  // lets the wall win there.
-  function releaseMaterial(mesh, state) {
-    if (!state.material) return;
-    if (mesh.material === state.material.shown) mesh.material = state.material.original;
-    for (const clone of state.material.shown) clone.dispose();
-    state.material = null;
-  }
-
-  function syncMaterial(mesh, state, wantFracture, vertexColors) {
-    if (!wantFracture) {
-      releaseMaterial(mesh, state);
-      return;
-    }
-    const current = mesh.material === state.material?.shown ? state.material.original
-      : Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
-    if (!current) return;
-    const original = current;
-    if (!state.material || state.material.original !== original) {
-      releaseMaterial(mesh, state);
-      const shown = [original.clone(), original.clone()];
-      state.material = { original, clone: shown[0], shown, vertexColors: null, version: original.version };
-    }
-    const material = state.material;
-    const recompile = material.version !== original.version || material.vertexColors !== Boolean(vertexColors);
-    material.version = original.version;
-    material.vertexColors = Boolean(vertexColors);
-    const hasCaps = Boolean(mesh.geometry?.groups?.some(group => group.materialIndex === 1 && group.count > 0));
-    material.shown.forEach((clone, index) => {
-      copyMaterialState(original, clone);
-      // Outer faces keep the source culling when caps close the pieces. Open
-      // fragments have no caps, so their walls stay visible from inside.
-      const side = index === 1 || !hasCaps ? THREE.DoubleSide : original.side;
-      if (clone.side !== side) {
-        clone.side = side;
-        clone.needsUpdate = true;
-      }
-      // The original asked for a recompile (map added, transparency, defines).
-      if (recompile) {
-        clone.vertexColors = Boolean(vertexColors);
-        clone.needsUpdate = true;
-      }
-      if (index === 1) {
-        clone.polygonOffset = true;
-        clone.polygonOffsetFactor = 1;
-        clone.polygonOffsetUnits = 1;
-      }
-      // Shader uniforms are copied by reference so animated custom materials
-      // keep following their original material after cloning.
-      if (clone.uniforms && original.uniforms) {
-        for (const name of Object.keys(clone.uniforms)) {
-          if (original.uniforms[name]) clone.uniforms[name].value = original.uniforms[name].value;
-        }
-      }
-    });
-    if (mesh.material !== material.shown) mesh.material = material.shown;
   }
 
   // Material+ lays out UVs on the source geometry, not on the working copy.
@@ -332,13 +252,13 @@ function createMeshDeformer(THREE, jobs) {
       if (state) releaseState(mesh, state);
       return;
     }
-    if (state && mesh.geometry !== state.working) {
+    if (state?.working && mesh.geometry !== state.working) {
       // Something else replaced the geometry; the old working copy is stale.
-      jobs?.release(mesh);
       if (state.evaluationKey) {
         // Retain the material clone so changing source geometry does not drop
         // THREE's last reference to its compiled shader program.
         if (mesh.geometry !== state.source) {
+          jobs?.release(mesh);
           state.working?.dispose();
           state.working = null;
           state.source = mesh.geometry;
@@ -346,6 +266,7 @@ function createMeshDeformer(THREE, jobs) {
           state.topologyKey = null;
         }
       } else {
+        jobs?.release(mesh);
         releaseState(mesh, state);
         state = null;
       }
@@ -360,9 +281,9 @@ function createMeshDeformer(THREE, jobs) {
     let polygonCount = core.budgetSubdivision(requestedPolygonCount, budget, legacySubdivision);
     // be6ea2b raised the minimum from two to four for uniform subdivision.
     if (polygonCount < (legacySubdivision ? 2 : core.SMOOTH_TRIANGLE_BUDGET_MIN_POLYGONS)) polygonCount = 1;
-    // Built-in chains always finish the command evaluator before rendering.
-    // Preview and export share this path at every size and frame. Publishing
-    // a source placeholder or a completed result from another frame is unsafe.
+    // Built-in chains share one evaluator in the worker and synchronous fallback.
+    // Pending jobs keep the mesh untouched. The preview guard holds presentation
+    // until every scene mesh belongs to the exact requested frame.
     if (chain.every(entry => typeof entry.effector.workerCommand === "function")) {
       let historyBudget = 96;
       const sampledWorlds = new Map();
@@ -385,17 +306,27 @@ function createMeshDeformer(THREE, jobs) {
         return command;
       });
       const commands = sampleCommands(frame, chain.length);
-      const key = base.sourceId + ":" + polygonCount + ":" + legacySubdivision + ":" + JSON.stringify(commands);
+      const sourceMaterial = mesh.material === state?.material?.shown ? state.material.original : mesh.material;
+      const materialCount = Array.isArray(sourceMaterial) ? sourceMaterial.length : 1;
+      const key = base.sourceId + ":materials:" + materialCount + ":" + polygonCount + ":" + legacySubdivision + ":" + JSON.stringify(commands);
       const colors = chain.reduce((options, entry) => entry.effector.surfaceOptions?.(frame) || options, null);
       if (state?.evaluationKey === key) {
+        jobs?.release(mesh);
         syncFractureStatus(mesh, state, chain, state.fractureCodes);
         mesh.geometry = state.working;
         syncMaterial(mesh, state, state.fractured, colors?.vertexColors || false);
         return;
       }
-      const input = { sourceId: base.sourceId, polygonCount, legacySubdivision, commands, base };
+      const input = { sourceId: base.sourceId, polygonCount, legacySubdivision, commands, base, materialCount };
       liveMeshes.add(mesh);
-      const result = evaluateMesh(input, stageCache);
+      let result;
+      if (jobs?.available) {
+        input.buildKey = meshBuildKey(input);
+        const entry = jobs.request(mesh, key, input);
+        if (entry?.status !== "done") return;
+        result = entry.value;
+        jobs.release(mesh);
+      } else result = evaluateMesh(input, stageCache);
       const codes = [...result.errors, ...result.warnings];
       for (const code of codes) warnOnce(code, "Effector fracture: " + code + ".");
       const next = state || { source, working: null, material: null };
@@ -426,6 +357,7 @@ function createMeshDeformer(THREE, jobs) {
     jobs?.release(mesh);
     if (state) syncFractureStatus(mesh, state, [], []);
     liveMeshes.delete(mesh);
+    if (!base.pieceIds) Object.assign(base, core.connectedPieces(base));
     let stage = polygonCount > 1 ? subdivided(base, polygonCount, legacySubdivision) : base;
 
     // Reuse the per-mesh scratch buffer when the topology is unchanged. Effectors

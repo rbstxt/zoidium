@@ -9,6 +9,7 @@ const {
   mapRenderNodes, restoreDeformedTree, traverseDeformMeshes,
 } = require("./scene-clone.js");
 const state = require("./scene-state.js");
+const { installPreviewHold } = require("./effector-preview.js");
 const { installFieldEdit } = require("./scene-field-edit.js");
 const legacySubdivision = require("./legacy-subdivision.js");
 
@@ -185,6 +186,7 @@ function createDeformationSupport(PZ, THREE, editor) {
   const originalUnload = prototype.unload;
   const meshDeformer = getMeshDeformer(THREE);
   const disposeFieldHelpers = installFieldHelpers(THREE);
+  const presentation = installPreviewHold(PZ, meshDeformer);
 
   let project = editor?.project, generation = 0;
   function releaseLayers() {
@@ -334,6 +336,7 @@ function createDeformationSupport(PZ, THREE, editor) {
     const current = evaluateTree(() => walk(layer.objects, [], frame));
     if (previous) for (const mesh of previous) if (!current.has(mesh)) meshDeformer.restoreMesh(mesh);
     affectedMeshes.set(layer, current);
+    presentation.holdIfPending(current);
   }
 
   function restore(layer) {
@@ -420,6 +423,7 @@ function createDeformationSupport(PZ, THREE, editor) {
       editor?.onProjectChanged?.unwatch(projectChanged);
       releaseLayers();
       disposeFieldHelpers();
+      presentation.dispose();
       meshDeformer.dispose();
       if (prototype.prepare === patchedPrepare) prototype.prepare = originalPrepare;
       if (prototype.unload === patchedUnload) prototype.unload = originalUnload;

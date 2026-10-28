@@ -197,7 +197,15 @@ test("bundled Blob worker source executes in an actual worker without source-tre
     worker.postMessage({ id: 1, input });
     const result = await done;
     assert.equal(result.error, undefined);
-    assert.deepEqual(result.value.positions, evaluateMesh(input).positions);
+    assert.deepEqual(result.value, evaluateMesh(input));
+    for (const frame of [3, 1, 0, 3]) {
+      const nextInput = { ...input, commands: [{ ...input.commands[0], motion: {
+        distance: frame / 10, spin: frame / 5, fragmentScale: frame ? 70 : 0, randomness: 100,
+      } }] };
+      const completed = new Promise((resolve, reject) => { worker.once("message", resolve); worker.once("error", reject); });
+      worker.postMessage({ id: 20 + frame, input: nextInput });
+      assert.deepEqual((await completed).value, evaluateMesh(nextInput), "worker and fallback match every attribute bit for bit");
+    }
     // Reuse the same worker and source identity across both modes. A topology
     // cached for one mode must never supply the other mode's vertices.
     const fixtures = require("./fixtures/legacy-render-outputs.json");
