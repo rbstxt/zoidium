@@ -99,6 +99,15 @@ each line describes one visible change.
 
 ### Fixed
 
+- Voronoi Fracture builds its pieces in the background. The preview keeps the
+  last exact image and shows "Fracturing..." until the new frame is ready,
+  instead of freezing the editor.
+- Fragment scale 0 now shrinks every fully affected piece to nothing, even with
+  Randomness. Projects that combine Fragment scale with Randomness change size.
+- Fractured pieces keep each face's own material and follow later changes to
+  the source material's shader values, textures, and colors.
+- Overlapping fractured pieces draw in a fixed order, so the same frame looks
+  the same every time. A few pixels on overlap edges can change.
 - Leaving or reloading the page while a project is saving now asks first, and
   a "Saving..." notice stays until the save finishes. If a save into a newly
   chosen file fails, the message says the file may now be empty.
