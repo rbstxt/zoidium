@@ -94,8 +94,9 @@ function createMeshJobs(workerSource, host = globalThis, redraw = () => {}) {
             // A cancelled frame that was left to finish is only discarded.
             if (entries.get(completed.key) === completed) {
               completed.value = data.value;
+              completed.stages = data.stages;
               completeStatus(completed, [...(data.value.errors || []), ...(data.value.warnings || [])]);
-              completed.bytes = byteSize(data.value);
+              completed.bytes = byteSize({ value: data.value, stages: data.stages });
               bytes += completed.bytes;
               completed.resolve(data.value);
               redraw();
@@ -241,9 +242,11 @@ const evaluator = load("effector-evaluate.js");
 const cache = evaluator.createStageCache();
 const reportedErrors = new Set();
 let warnings = new Set();
+let sharedStages = null;
 const readStage = cache.get;
 cache.get = (key, build) => {
   const stage = readStage(key, build);
+  if (sharedStages) sharedStages.get(key, () => stage);
   if (stage.warning) warnings.add(stage.warning);
   return stage;
 };
@@ -251,8 +254,12 @@ onmessage = ({data}) => {
   if (data.forgetSourceId !== undefined) { cache.forget(data.forgetSourceId); return; }
   try {
     warnings = new Set();
+    sharedStages = data.input.shareStages ? evaluator.createStageCache() : null;
     const value = evaluator.evaluateMesh(data.input, cache);
     if (warnings.size) value.warnings = Array.from(warnings);
+    // Retain the worker's own arrays. The main thread imports these immutable
+    // stages into its bounded cache and evaluates ready motion without a queue.
+    const stages = sharedStages ? structuredClone(sharedStages.snapshot()) : undefined;
     const buffers = new Set();
     function visit(item) {
       if (!item || typeof item !== "object") return;
@@ -260,8 +267,11 @@ onmessage = ({data}) => {
       else for (const child of Object.values(item)) visit(child);
     }
     visit(value);
-    postMessage({id:data.id, value}, Array.from(buffers));
+    visit(stages);
+    postMessage({id:data.id, value, stages}, Array.from(buffers));
+    sharedStages = null;
   } catch (error) {
+    sharedStages = null;
     if (!reportedErrors.has(error.message)) {
       reportedErrors.add(error.message);
       console.warn("[Zoidium] Effector worker: mesh evaluation failed", error);

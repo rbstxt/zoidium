@@ -140,3 +140,21 @@ test("normalization caches cannot survive changed geometry or scale after restor
   assert.notEqual(fingerprint(geometry), original);
   assert.equal(fingerprint(geometry), fingerprint(fresh));
 });
+
+test("extrusion rings reuse identical XY nearest-outline queries without changing wall UVs", () => {
+  const probe = { calls: 0 };
+  const measured = vm.runInNewContext(`(function () {${source.replace(
+    "function uvOutlineCandidates(outline, x, y, scale) {",
+    "function uvOutlineCandidates(outline, x, y, scale) { probe.calls++;"
+  )}})()`, { probe })();
+  const points = ring(96);
+  const shallow = extrusion(points, [0, 1]);
+  measured.normalizeGeometry(shallow);
+  const shallowCalls = probe.calls;
+  probe.calls = 0;
+  const deep = extrusion(points, Array.from({ length: 20 }, (_, i) => i));
+  measured.normalizeGeometry(deep);
+  assert.equal(fingerprint(deep), "6c863f6c644cb40fdd25ac97a1785d659cdb11c7a28d8ad0d3d767155277dcec");
+  assert.ok(probe.calls <= shallowCalls * 1.1,
+    `Repeated XY queries across rings must reuse their exact candidates: ${shallowCalls} vs ${probe.calls}`);
+});

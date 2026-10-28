@@ -48,6 +48,9 @@ function createFractureMaterials(THREE) {
       // material and yield to the outer surface at equal depth.
       const shown = sources.map(source => source.clone());
       shown[capIndex] = sources[0].clone();
+      // Layout ownership belongs to source faces. The extra cap slot must not
+      // change Text+'s source UV mask while these clones are displayed.
+      Object.defineProperty(shown, "__zoidiumSourceMaterials", { value: original });
       state.material = { original, sources: sources.slice(), shown, capIndex, signatures: [] };
     }
     const material = state.material;
@@ -71,6 +74,10 @@ function createFractureMaterials(THREE) {
       const recompile = !previous || previous.key !== key || previous.version !== source.version ||
         previous.hook !== source.onBeforeCompile || previous.uniforms !== source.uniforms ||
         clone.side !== side || clone.vertexColors !== colors;
+      // r91 keeps its shader record when needsUpdate produces the same program
+      // code. That record still owns the old uniform table and hook bindings.
+      // Dispose only a replaced binding; value animation keeps its program.
+      if (previous && (previous.hook !== source.onBeforeCompile || previous.uniforms !== source.uniforms)) clone.dispose();
       copyMaterialState(source, clone);
       clone.onBeforeCompile = source.onBeforeCompile;
       clone.defines = source.defines;
