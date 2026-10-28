@@ -23,6 +23,7 @@ function createEditorModel(s) {
   const { PZ, editor, layer, Content, project } = s;
   const address = layer.getAddress();
   const resolve = () => {
+    if (editor.project !== project) return null;
     try {
       return project.addressLookup(address);
     } catch (_error) {
@@ -32,12 +33,12 @@ function createEditorModel(s) {
   const read = (history = false) => {
     const target = resolve();
     if (!history && target !== layer) return null;
-    return target?.type === layer.type ? clone(target.contents) : null;
+    return target && target.type === layer.type ? clone(target.contents) : null;
   };
   const write = (data, history = false) => {
     const target = resolve();
     if (!history && target !== layer) return;
-    if (target?.type === layer.type) replaceContents(target, data, Content);
+    if (target && target.type === layer.type) replaceContents(target, data, Content);
   };
   s.valid = () => editor.project === project && resolve() === layer;
   s.read = read;
@@ -54,9 +55,7 @@ function createEditorModel(s) {
       editor.playback.currentFrame - (clip?.start || 0) + (clip?.offset || 0)
     );
   };
-  s.gesture = createGesture(editor.history, read, write, () =>
-    s.refresh?.(true),
-  );
+  s.gesture = createGesture(editor.history, read, write, () => s.refresh?.(true), () => editor.project);
   s.preview = () => {
     layer.signature = null;
     // Native playback redraws evaluated layer data continuously. Project
