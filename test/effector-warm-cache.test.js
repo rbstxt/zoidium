@@ -21,7 +21,7 @@ function fixture() {
 }
 
 function workerSource() {
-  const names = ["earcut", "legacy-subdivision", "effector-core", "effector-fracture", "effector-mesh", "effector-evaluate"];
+  const names = ["earcut", "legacy-subdivision", "effector-core", "effector-fracture-index", "effector-fracture", "effector-mesh", "effector-evaluate"];
   const sources = Object.fromEntries(names.map(name => [name + ".js", fs.readFileSync(path.join(__dirname, "../plugins/scene-plus", name + ".js"), "utf8")]));
   return createWorkerSource(sources);
 }

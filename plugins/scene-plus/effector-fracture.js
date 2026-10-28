@@ -20,6 +20,7 @@
 const core = require("./effector-core.js");
 // Earcut 2.2.4, ISC license, fetched from its npm package.
 const earcut = require("./earcut.js");
+const { createEdgePointIndex } = require("./effector-fracture-index.js");
 
 const MAX_CELLS = 1000;
 const MIN_TRIANGLE_LENGTH = 1e-12;
@@ -487,6 +488,7 @@ function capContours(loops, plane, epsilon, maxVertices) {
     const flat = points.flatMap(p => [dot3(p, u), dot3(p, v)]);
     const indices = earcut(flat, starts, 2);
     if (!indices.length || earcut.deviation(flat, starts, 2, indices) > 1e-5) return null;
+    const edgePoints = createEdgePointIndex(points, epsilon);
     for (let k = 0; k < indices.length; k += 3) {
       const triple = [points[indices[k]], points[indices[k + 1]], points[indices[k + 2]]];
       const ab = triple[1].map((x, a) => x - triple[0][a]), ac = triple[2].map((x, a) => x - triple[0][a]);
@@ -498,13 +500,15 @@ function capContours(loops, plane, epsilon, maxVertices) {
         const a = triple[e], b = triple[(e + 1) % 3], d = b.map((x, axis) => x - a[axis]), length = dot3(d, d);
         boundary.push(a);
         const along = [];
-        for (const p of points) {
-          const delta = p.map((x, axis) => x - a[axis]), t = dot3(delta, d) / length;
-          const endpointTolerance = epsilon / Math.sqrt(length);
+        const endpointTolerance = epsilon / Math.sqrt(length);
+        for (const id of edgePoints(a, b)) {
+          const p = points[id];
+          const t = ((p[0] - a[0]) * d[0] + (p[1] - a[1]) * d[1] + (p[2] - a[2]) * d[2]) / length;
           if (t <= endpointTolerance || t >= 1 - endpointTolerance) continue;
-          if (distanceSquared3(p, a.map((x, axis) => x + t * d[axis])) <= epsilon * epsilon * 4) along.push({ t, p });
+          const x = p[0] - (a[0] + t * d[0]), y = p[1] - (a[1] + t * d[1]), z = p[2] - (a[2] + t * d[2]);
+          if (x * x + y * y + z * z <= epsilon * epsilon * 4) along.push({ t, p, id });
         }
-        along.sort((a, b) => a.t - b.t); boundary.push(...along.map(item => item.p));
+        along.sort((a, b) => a.t - b.t || a.id - b.id); boundary.push(...along.map(item => item.p));
       }
       polygons.push(boundary);
     }

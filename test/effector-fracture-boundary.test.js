@@ -120,3 +120,41 @@ test("cap boundary search preserves every stage byte on bevelled, open, and mult
     }
   }
 });
+
+test("cap boundary search preserves collinear ties, duplicate points, and translated thin cuts", () => {
+  const previous = oracle();
+  for (const scale of [1e-5, 1, 1e5]) for (const offset of [0, 1e8 * scale]) {
+    const loop = [];
+    // A concave, densely subdivided boundary forces the Earcut restoration path.
+    const corners = [[0, 0], [5, 0], [5, 4], [3, 2], [0, 4]];
+    for (let edge = 0; edge < corners.length; edge++) for (let step = 0; step < 20; step++) {
+      const a = corners[edge], b = corners[(edge + 1) % corners.length], t = step / 20;
+      loop.push([offset + (a[0] + t * (b[0] - a[0])) * scale,
+        -offset + (a[1] + t * (b[1] - a[1])) * scale, offset + scale * 0.3]);
+    }
+    loop.splice(7, 0, loop[7].slice());
+    const plane = { nx: 0, ny: 0, nz: 1, d: offset + scale * 0.3 };
+    exact(fracture.capContours([loop], plane, scale * 1e-7, 4096),
+      previous.capContours([loop], plane, scale * 1e-7, 4096));
+  }
+});
+
+test("edge bounds retain candidates within the exact distance tolerance", () => {
+  const { createEdgePointIndex } = require("../plugins/scene-plus/effector-fracture-index.js");
+  for (const scale of [1e-8, 1, 1e8]) {
+    const epsilon = scale * 1e-7;
+    const points = Array.from({ length: 100 }, (_, i) => [i / 99 * scale, (i % 3 - 1) * epsilon * 2, scale]);
+    const query = createEdgePointIndex(points, epsilon);
+    for (const [a, b] of [[[0, 0, scale], [scale, 0, scale]],
+      [[scale, 0, scale], [0, 0, scale]], [[0, 0, scale], [0, scale, scale]]]) {
+      const candidates = new Set(query(a, b));
+      const d = b.map((v, axis) => v - a[axis]), length = d.reduce((s, v) => s + v * v, 0);
+      points.forEach((p, id) => {
+        const t = p.reduce((s, v, axis) => s + (v - a[axis]) * d[axis], 0) / length;
+        const tolerance = epsilon / Math.sqrt(length);
+        const distance = p.reduce((s, v, axis) => s + (v - (a[axis] + t * d[axis])) ** 2, 0);
+        if (t > tolerance && t < 1 - tolerance && distance <= epsilon * epsilon * 4) assert.ok(candidates.has(id));
+      });
+    }
+  }
+});

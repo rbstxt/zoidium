@@ -76,7 +76,7 @@ test("bundled worker keeps fallback diagnostics when the topology comes from its
   const fs = require("node:fs"), vm = require("node:vm");
   const { createWorkerSource } = require("../plugins/scene-plus/effector-jobs.js");
   const sources = {};
-  for (const name of ["earcut.js", "effector-core.js", "effector-fracture.js", "effector-mesh.js", "effector-evaluate.js"]) {
+  for (const name of ["earcut.js", "effector-core.js", "effector-fracture-index.js", "effector-fracture.js", "effector-mesh.js", "effector-evaluate.js"]) {
     sources[name] = fs.readFileSync(require.resolve("../plugins/scene-plus/" + name), "utf8");
   }
   const outputs = [];
