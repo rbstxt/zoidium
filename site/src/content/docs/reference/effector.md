@@ -89,7 +89,9 @@ Fracture limits are 160,000 source triangles, 1,600,000 output triangles, 4,096 
 
 Opaque fractured meshes use source hierarchy order within each render priority. This makes equal-depth overlaps independent of material creation order. Existing projects can change some overlap-edge pixels. Transparent materials retain native sorting.
 
-Built-in effector chains use the same evaluator for preview and export. In browsers with worker support, geometry evaluation runs in a worker, including cold topology builds after changes to Cells, Seed, or the source geometry. While the requested result is pending, preview holds the last presented image and shows **Fracturing...**. Playback can hold or drop frames. Scrubbing ends on the exact requested frame. Export and **Render once** wait for that exact result. Preview never substitutes source geometry or a result from another frame. Hosts without worker support evaluate synchronously.
+Built-in effector chains use the same evaluator for preview and export. In browsers with worker support, geometry evaluation runs in a worker, including cold topology builds after changes to Cells, Seed, or the source geometry. While the requested result is pending, preview holds the last presented image and shows **Fracturing...**. Playback can hold or drop frames. Scrubbing ends on the exact requested frame. Export and **Render once** wait for that exact result. While worker evaluation is pending, preview does not substitute source geometry or a result from another frame. Hosts without worker support evaluate synchronously.
+
+Worker failures retry the same frame synchronously in preview and export. If that evaluation also fails, both use the unbroken source and report a warning. Startup preview preparation waits up to 10 seconds. A rejected or timed-out preparation releases the hold for that frame and displays available content. Preparation retries when the frame or project changes. Export retains resource-preparation errors and waits without the preview timeout.
 
 ## Plain and Delay
 

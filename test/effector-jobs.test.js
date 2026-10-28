@@ -127,12 +127,14 @@ test("unused frame results are bounded by count and bytes", () => {
   jobs.dispose();
 });
 
-test("worker errors reject frame preparation and cleanup still completes", async () => {
+test("worker errors settle once, remain inspectable on retry, and are never pending", async () => {
   const harness = hostHarness(); const jobs = createMeshJobs("source", harness.host);
   const mesh = {}, entry = jobs.request(mesh, "key", {});
   harness.workers[0].finish(null, "invalid geometry");
   await assert.rejects(entry.promise, /invalid geometry/);
-  assert.throws(() => jobs.request(mesh, "key", {}), /invalid geometry/);
+  assert.equal(jobs.request(mesh, "key", {}), entry);
+  assert.equal(entry.status, "error");
+  assert.deepEqual(jobs.pending([mesh]), []);
   jobs.dispose();
 });
 

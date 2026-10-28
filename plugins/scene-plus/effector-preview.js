@@ -36,16 +36,23 @@ function installPreviewHold(PZ, meshDeformer, editor) {
     if (disposed || viewport === target) return original.apply(target, args);
     const previousViewport = viewport, previousFrame = target.lastFrame;
     viewport = target;
+    let completed = false, pending = false;
     try {
       const result = original.apply(target, args);
-      status(target, false);
+      completed = true;
       return result;
     } catch (error) {
       if (error !== pendingFrame) throw error;
-      target.lastFrame = previousFrame;
-      target.renderer?.setRenderTarget?.(null);
-      status(target, true);
-    } finally { viewport = previousViewport; }
+      pending = true;
+    } finally {
+      try {
+        if (!completed) {
+          target.lastFrame = previousFrame;
+          target.renderer?.setRenderTarget?.(null);
+        }
+        status(target, pending);
+      } finally { viewport = previousViewport; }
+    }
   }
 
   function patch(target) {

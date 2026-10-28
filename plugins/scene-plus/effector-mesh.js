@@ -320,14 +320,29 @@ function createMeshDeformer(THREE, jobs) {
       const input = { sourceId: base.sourceId, polygonCount, legacySubdivision, commands, base, materialCount };
       liveMeshes.add(mesh);
       let result;
+      const failures = [];
+      const synchronous = () => {
+        try { return evaluateMesh(input, stageCache); }
+        catch (error) {
+          failures.push("mesh evaluation failed; rendering the unbroken source: " + error.message);
+          // Keep a failed frame defined in preview and export. The pristine
+          // snapshot uses no failed topology or motion, and the key caches it.
+          return { ...base, topologyKey: "unbroken:" + key, errors: [], warnings: [] };
+        }
+      };
       if (jobs?.available) {
         input.buildKey = meshBuildKey(input);
         const entry = jobs.request(mesh, key, input);
-        if (entry?.status !== "done") return;
-        result = entry.value;
+        if (entry?.status === "error") {
+          failures.push(entry.error.message);
+          result = synchronous();
+        } else {
+          if (entry?.status !== "done") return;
+          result = entry.value;
+        }
         jobs.release(mesh);
-      } else result = evaluateMesh(input, stageCache);
-      const codes = [...result.errors, ...result.warnings];
+      } else result = synchronous();
+      const codes = [...result.errors, ...result.warnings, ...failures];
       for (const code of codes) warnOnce(code, "Effector fracture: " + code + ".");
       const next = state || { source, working: null, material: null };
       syncFractureStatus(mesh, next, chain, codes);
@@ -342,7 +357,9 @@ function createMeshDeformer(THREE, jobs) {
           next.working.attributes.position.needsUpdate = true;
           next.working.attributes.normal.needsUpdate = true;
         }
-        next.working.boundingSphere = new THREE.Sphere(new THREE.Vector3(...result.sphere.center), result.sphere.radius);
+        if (result.sphere) {
+          next.working.boundingSphere = new THREE.Sphere(new THREE.Vector3(...result.sphere.center), result.sphere.radius);
+        } else next.working.computeBoundingSphere();
         next.evaluationKey = key;
         next.topologyKey = result.topologyKey;
       }

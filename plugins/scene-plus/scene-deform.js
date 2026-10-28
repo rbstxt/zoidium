@@ -12,6 +12,7 @@ const state = require("./scene-state.js");
 const { installPreviewHold } = require("./effector-preview.js");
 const { installFieldEdit } = require("./scene-field-edit.js");
 const legacySubdivision = require("./legacy-subdivision.js");
+const PREVIEW_PREPARE_TIMEOUT_MS = 10000;
 
 function liveObjectLayer(object, PZ) {
   if (!object?.threeObj) return null;
@@ -197,6 +198,7 @@ function createDeformationSupport(PZ, THREE, editor) {
     layers.clear();
     affectedMeshes.clear();
     preparedLayers = new WeakSet();
+    for (const record of previewPrepares.values()) clearTimeout(record.timer);
     previewPrepares.clear();
   }
   function projectChanged() {
@@ -326,40 +328,64 @@ function createDeformationSupport(PZ, THREE, editor) {
       hasActiveEffectors(object.objects, frame)));
   }
 
+  function preparePreview(layer, frame) {
+    clearTimeout(previewPrepares.get(layer)?.timer);
+    const record = { frame, status: "pending", generation };
+    previewPrepares.set(layer, record);
+    const current = () => record.generation === generation && previewPrepares.get(layer) === record;
+    const redraw = () => {
+      const viewport = editor?.mainViewport;
+      if (!current() || !viewport?.enabled) return;
+      viewport.__zoidiumPlayerPlusRenderOnce = true;
+      try { viewport._render?.(); }
+      catch (error) { console.warn("[Zoidium] Effector preview redraw failed", error); }
+      finally { viewport.__zoidiumPlayerPlusRenderOnce = false; }
+    };
+    const failed = error => {
+      if (!current() || record.status !== "pending") return;
+      clearTimeout(record.timer);
+      record.status = "failed";
+      console.warn("[Zoidium] Effector preview preparation failed", error);
+      redraw();
+    };
+    record.timer = setTimeout(() => failed(new Error("Scene preparation timed out; displaying available content.")),
+      PREVIEW_PREPARE_TIMEOUT_MS);
+    Promise.resolve().then(() => layer.prepare(frame)).then(() => {
+      if (!current()) return;
+      clearTimeout(record.timer);
+      record.status = "ready";
+      redraw();
+    }, failed);
+    return record;
+  }
+
   function apply(layer, frame) {
     if (!layer?.objects) return;
     frame = Number.isFinite(frame) ? frame : 0;
     const previous = affectedMeshes.get(layer);
     if (!hasActiveEffectors(layer.objects, frame)) {
+      clearTimeout(previewPrepares.get(layer)?.timer);
+      previewPrepares.delete(layer);
       if (previous) for (const mesh of previous) meshDeformer.restoreMesh(mesh);
       affectedMeshes.delete(layer);
       layers.delete(layer);
       return;
     }
     layers.add(layer);
-    // Before fonts and source assets are prepared, there may be no mesh to
-    // queue yet. A preview must hold through that first preparation too.
+    // Missing source assets may mean no mesh job exists yet. A failed or
+    // timed-out startup releases this frame; a new frame can retry preparation.
+    let availablePreview = false;
     if (presentation.isPresenting() && !preparingMeshes && !preparedLayers.has(layer)) {
-      if (!previewPrepares.has(layer)) {
-        const started = generation;
-        const task = Promise.resolve().then(() => layer.prepare(frame)).then(() => {
-          if (started !== generation) return;
-          const viewport = editor?.mainViewport;
-          if (!viewport?.enabled) return;
-          viewport.__zoidiumPlayerPlusRenderOnce = true;
-          try { viewport._render?.(); } finally { viewport.__zoidiumPlayerPlusRenderOnce = false; }
-        }).catch(error => {
-          console.warn("[Zoidium] Effector preview preparation failed", error);
-        }).finally(() => previewPrepares.delete(layer));
-        previewPrepares.set(layer, task);
-      }
-      presentation.hold();
+      let record = previewPrepares.get(layer);
+      if (!record || record.frame !== frame) record = preparePreview(layer, frame);
+      if (record.status === "pending") presentation.hold();
+      availablePreview = record.status === "failed";
     }
     layer.threeObj?.updateMatrixWorld?.(true);
     const current = evaluateTree(() => walk(layer.objects, [], frame));
     if (previous) for (const mesh of previous) if (!current.has(mesh)) meshDeformer.restoreMesh(mesh);
     affectedMeshes.set(layer, current);
-    presentation.holdIfPending(current);
+    if (!availablePreview) presentation.holdIfPending(current);
   }
 
   function restore(layer) {
@@ -381,7 +407,8 @@ function createDeformationSupport(PZ, THREE, editor) {
       try { evaluate(); } finally { preparingMeshes = null; }
       const pending = meshDeformer.pending(meshes);
       if (!pending.length) return;
-      await Promise.all(pending);
+      // A rejected worker job is reevaluated synchronously on the next pass.
+      await Promise.allSettled(pending);
     }
   }
 
@@ -423,6 +450,9 @@ function createDeformationSupport(PZ, THREE, editor) {
     if (started === generation) preparedLayers.add(this);
   };
   const patchedUnload = function unloadWithEffectors(...args) {
+    clearTimeout(previewPrepares.get(this)?.timer);
+    previewPrepares.delete(this);
+    preparedLayers.delete(this);
     restore(this);
     layers.delete(this);
     affectedMeshes.delete(this);
@@ -459,6 +489,6 @@ function createDeformationSupport(PZ, THREE, editor) {
 }
 
 module.exports = {
-  getMeshDeformer, installFieldHelpers, fieldGuidePoints, curvePolygonCount,
+  PREVIEW_PREPARE_TIMEOUT_MS, getMeshDeformer, installFieldHelpers, fieldGuidePoints, curvePolygonCount,
   createDeformationSupport, liveObjectLayer
 };
