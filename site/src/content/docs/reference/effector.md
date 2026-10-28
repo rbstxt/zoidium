@@ -109,6 +109,6 @@ Nested Delay histories share a total budget of 96 samples per mesh. Samples with
 
 Numeric Twist, Warp, and fracture types 7, 8, and 9 migrate to the namespaced Effector classes. Effector+ supplies compatibility for those numeric types and adds no new picker entries.
 
-Old field and subdivision settings can retain compatibility behavior. New controls use the current percentage-based fields and uniform subdivision model.
+Old field and subdivision settings can retain compatibility behavior. Saved legacy subdivision also applies when fracture character selection is active. New controls use the current percentage-based fields and uniform subdivision model.
 
 For task steps, see [Repeat and deform objects with Effector](/docs/features/effector/).

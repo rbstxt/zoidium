@@ -61,7 +61,7 @@ function acquireSelectionFilter(deformer) {
   let entry = filters.get(deformer);
   if (!entry) {
     const original = deformer.deformMesh;
-    const patched = function deformMesh(mesh, chain, frame, polygons) {
+    const patched = function deformMesh(mesh, chain, frame, ...options) {
       trackCharacterCloneDisposal(mesh);
       let selected = chain;
       if (chain.some(item => typeof item.effector.acceptsCharacterMesh === "function")) {
@@ -69,7 +69,7 @@ function acquireSelectionFilter(deformer) {
           item.effector.acceptsCharacterMesh(mesh, frame));
         if (filtered.length !== chain.length) selected = filtered;
       }
-      return original.call(this, mesh, selected, frame, polygons);
+      return original.call(this, mesh, selected, frame, ...options);
     };
     entry = { original, patched, owners: 0 };
     filters.set(deformer, entry);

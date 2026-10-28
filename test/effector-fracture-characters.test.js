@@ -47,6 +47,9 @@ test("the owned filter preserves the exact empty chain and only removes rejected
   mesh.selected = false;
   deformer.deformMesh(mesh, chain, 18, 4);
   assert.deepEqual(calls[1], [mesh, [chain[0], chain[2]], 18, 4]);
+  deformer.deformMesh(mesh, chain, 18, 4, true, 0.0002);
+  assert.deepEqual(calls[2], [mesh, [chain[0], chain[2]], 18, 4, true, 0.0002],
+    "character selection retains saved subdivision and deterministic render priority");
   release(); release();
   assert.notEqual(deformer.deformMesh, original);
   releaseOther();
