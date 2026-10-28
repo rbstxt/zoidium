@@ -8,7 +8,14 @@
 
   // These values are durations in sequence frames. Media Time values are
   // seconds; FPS, shutter fractions, sample counts, and seeds keep their units.
-  function isDuration(owner, field) {
+  const expressDurations = new Set([
+    "shakeDelay", "plainDelay", "randomDelay", "formulaDelay", "splineDelay",
+    "orbitDelay", "repeaterDelay", "repeaterLag", "twistDelay", "wrapDelay", "voronoiDelay",
+  ]);
+  function isDuration(owner, field, property, definition) {
+    const key = definition?.effectorKey ?? property?.definition?.effectorKey;
+    if (expressDurations.has(key)) return true;
+    if (String(owner?.type).startsWith("zoidium:expresstext-plus/") && expressDurations.has(field)) return true;
     return owner?.type === "echo" && field === "delay" ||
       owner?.type === "timeoffset" && field === "offset" ||
       field === "delayPerCharacter" && (owner?.type === 7 ||
@@ -46,10 +53,10 @@
       } else if (node.compId && Number.isFinite(node.offset)) {
         records.push({ kind: "offset", address: node.getAddress(), values: { offset: node.offset } });
       } else if (node instanceof PZ.property.dynamic.keyframes) {
-        records.push({ kind: "keys", address: node.getAddress(), duration: isDuration(owner, field),
+        records.push({ kind: "keys", address: node.getAddress(), duration: isDuration(owner, field, node),
           keys: Array.from(node.keyframes, key => ({ frame: key.frame,
-            controlPoints: clone(key.controlPoints), ...(isDuration(owner, field) ? { value: key.value } : {}) })) });
-      } else if (node instanceof PZ.property.static && isDuration(owner, field)) {
+            controlPoints: clone(key.controlPoints), ...(isDuration(owner, field, node) ? { value: key.value } : {}) })) });
+      } else if (node instanceof PZ.property.static && isDuration(owner, field, node)) {
         records.push({ kind: "value", address: node.getAddress(), values: { value: node.get() } });
       }
     });
@@ -82,24 +89,27 @@
     if (Number.isFinite(values.offset)) values.offset *= ratio;
   }
 
-  function scaleStored(node, ratio, owner = null, field = null, boundaries = null) {
+  function scaleStored(node, ratio, owner = null, field = null, boundaries = null, definition = null) {
     if (!node || typeof node !== "object") return;
     if (Array.isArray(node)) {
       const clipBoundaries = field === "clips" ? new Map() : null;
-      for (const child of node) scaleStored(child, ratio, owner, field, clipBoundaries);
+      node.forEach((child, index) => scaleStored(child, ratio, owner, field, clipBoundaries, definition?.[index]));
       return;
     }
     if (typeof node.type === "number" || typeof node.type === "string") owner = node;
     if (node.object && Number.isFinite(node.start) && Number.isFinite(node.length)) scaleClip(node, ratio, boundaries);
     if (node.compId && Number.isFinite(node.offset)) node.offset *= ratio;
-    if (Array.isArray(node.keyframes)) scaleKeys(node.keyframes, ratio, isDuration(owner, field));
-    if (isDuration(owner, field) && Number.isFinite(node.value)) node.value *= ratio;
+    const duration = isDuration(owner, field, node, definition);
+    if (Array.isArray(node.keyframes)) scaleKeys(node.keyframes, ratio, duration);
+    if (duration && Number.isFinite(node.value)) node.value *= ratio;
     if (node.videoTracks && node.audioTracks && Number.isFinite(node.length)) {
       node.length *= ratio;
       node.properties.rate *= ratio;
     }
     for (const key of Object.keys(node)) {
-      if (key === "keyframes") continue;
+      // Serialized Custom properties keep row declarations in type.objects.
+      // Pair them with authored values, and leave declaration defaults intact.
+      if (key === "keyframes" || key === "type" || key === "definition") continue;
       // Property values can hold paths, gradients, or user JSON. Their numbers
       // are not frame positions and must never be interpreted as a timeline.
       if (key === "value") continue;
@@ -113,7 +123,8 @@
           node[key] = JSON.stringify(controls);
         } catch (_error) { /* Invalid plugin metadata stays available for repair. */ }
       } else if (isDuration(owner, key) && Number.isFinite(child)) node[key] *= ratio;
-      else scaleStored(child, ratio, owner, key === "properties" ? null : key);
+      else scaleStored(child, ratio, owner, key === "properties" ? null : key, null,
+        key === "objects" ? node.type?.objects : null);
     }
   }
 
