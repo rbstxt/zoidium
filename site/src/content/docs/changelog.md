@@ -99,6 +99,14 @@ each line describes one visible change.
 
 ### Fixed
 
+- Voronoi Fracture plays back smoothly again. Frames whose pieces are already
+  built are computed right away instead of waiting in the background queue, so
+  playback no longer stays on one held image.
+- Fractured pieces follow Node Material graphs that rebuild their shader, and
+  fractured Text+ Character Material text no longer keeps rebuilding its UVs.
+  Fractured single-material meshes now use the same Material+ UV layout as the
+  unbroken mesh.
+- Material+ lays out UVs for deep extrusions much faster, with the same result.
 - ExpressText+ Orbit and Spline give the same result on the first render of a
   frame as on later renders.
 - ExpressText+ letters inside nested Groups move with the Group once, follow a
