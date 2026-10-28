@@ -88,9 +88,198 @@ const legacyClipRecords = String.raw`function clipRecords(polygon, plane, eps) {
 }
 `;
 
+const legacyBuild = String.raw`function buildVoronoiFracture(source, options, limits) {
+  const limit = Object.assign({}, DEFAULT_LIMITS, limits || {});
+  const cells = clampCells(options.cells);
+  const seed = Math.trunc(core.finiteOr(options.seed, 1));
+  const closed = options.closed !== false;
+  const positions = source.positions;
+  if (!positions) return { error: "invalid" };
+  for (const value of positions) if (!Number.isFinite(value)) return { error: "invalid" };
+  const index = source.index || null;
+  const uvs = source.uvs || null;
+  const normals = source.normals || null;
+  const triangleCount = index ? Math.floor(index.length / 3) : Math.floor(positions.length / 9);
+  if (!triangleCount) return { error: "empty" };
+  if (triangleCount > limit.maxSourceTriangles) return { error: "source-limit" };
+
+  const vertexAt = (triangle, corner) => (index ? Number(index[triangle * 3 + corner]) : triangle * 3 + corner);
+  for (let triangle = 0; triangle < triangleCount; triangle += 1) {
+    for (let corner = 0; corner < 3; corner += 1) {
+      const vertex = vertexAt(triangle, corner);
+      if (!(vertex >= 0 && vertex * 3 + 2 < positions.length)) return { error: "invalid" };
+    }
+  }
+
+  const bounds = core.boundsOf(positions);
+  const size = [bounds.max[0] - bounds.min[0], bounds.max[1] - bounds.min[1], bounds.max[2] - bounds.min[2]];
+  const maxExtent = Math.max(size[0], size[1], size[2]);
+  if (!(maxExtent > 0) || !Number.isFinite(maxExtent)) return { error: "degenerate" };
+  const padding = 0.1 * maxExtent;
+  const planeEpsilon = maxExtent * 1e-9;
+  const weldEpsilon = maxExtent * 1e-7;
+
+  const distribution = core.clampIndex(options.distribution, 3);
+  const cellScale = options.cellScale || [100, 100, 100];
+  const metric = cellScale.map(v => 1 / Math.max(Math.abs(core.finiteOr(v, 100)) / 100, 0.0001) ** 2);
+  const areas = [];
+  let totalArea = 0;
+  if (distribution === 1) for (let t = 0; t < triangleCount; t++) {
+    const points = [0, 1, 2].map(c => Array.from(positions.slice(vertexAt(t, c) * 3, vertexAt(t, c) * 3 + 3)));
+    const a = points[1].map((v, i) => v - points[0][i]), b = points[2].map((v, i) => v - points[0][i]);
+    totalArea += Math.hypot(...cross3(a, b)) / 2;
+    areas.push(totalArea);
+  }
+  const sites = [];
+  for (let cell = 0; cell < cells; cell += 1) {
+    let unit = [0, 1, 2].map(i => core.hash01(seed, cell, i));
+    if (distribution === 1 && totalArea > 0) {
+      const target = core.hash01(seed, cell, 3) * totalArea;
+      let lo = 0, hi = areas.length - 1;
+      while (lo < hi) { const mid = (lo + hi) >>> 1; if (areas[mid] < target) lo = mid + 1; else hi = mid; }
+      const u = Math.sqrt(unit[0]), v = unit[1], weights = [1 - u, u * (1 - v), u * v];
+      sites.push([0, 1, 2].map(i => weights.reduce((sum, w, c) => sum + w * positions[vertexAt(lo, c) * 3 + i], 0)));
+      continue;
+    }
+    if (distribution === 2) unit = unit.map(v => 0.5 + Math.sign(v - 0.5) * 0.5 * (2 * Math.abs(v - 0.5)) ** 2);
+    if (distribution === 3) unit = unit.map(v => 0.5 + Math.sign(v - 0.5) * 0.5 * Math.sqrt(2 * Math.abs(v - 0.5)));
+    sites.push(unit.map((v, i) => bounds.min[i] + size[i] * v));
+  }
+  const low = bounds.min.map((value) => value - padding);
+  const high = bounds.max.map((value) => value + padding);
+  const cellInfo = buildCells(sites, low, high, planeEpsilon, metric);
+
+  // Clip a closed surface one plane at a time. Caps made on an earlier plane
+  // participate in the next cut, so cell ridges join two planar caps. Capping
+  // only the final source boundary would incorrectly fill a non-planar loop
+  // and lose cells entirely inside the source volume.
+  const sourcePolygons = [];
+  const materialIds = new Uint16Array(triangleCount);
+  for (const group of source.groups || []) {
+    const end = Math.min(triangleCount, Math.floor((group.start + group.count) / 3));
+    for (let t = Math.ceil(group.start / 3); t < end; t++) materialIds[t] = group.materialIndex || 0;
+  }
+  for (let triangle = 0; triangle < triangleCount; triangle += 1) {
+    const points = [];
+    for (let local = 0; local < 3; local += 1) {
+      const vertex = vertexAt(triangle, local);
+      points.push({
+        p: [positions[vertex * 3], positions[vertex * 3 + 1], positions[vertex * 3 + 2]],
+        uv: uvs ? [uvs[vertex * 2], uvs[vertex * 2 + 1]] : null,
+        normal: normals ? Array.from(normals.subarray(vertex * 3, vertex * 3 + 3)) : null,
+      });
+    }
+    sourcePolygons.push({ points, cap: false, materialIndex: materialIds[triangle] });
+  }
+  const fragmentPositions = [];
+  const fragmentNormals = [];
+  const capNormals = [];
+  const fragmentUvs = [];
+  const fragmentPiece = [];
+  const fragmentMaterials = [];
+  const capPositions = [];
+  const capPieces = [];
+  let capTriangleCount = 0;
+  const maxOutput = limit.maxOutputTriangles;
+
+  let clipOperations = 0;
+  for (let piece = 0; piece < cells; piece += 1) {
+    let surface = sourcePolygons;
+    for (const plane of cellInfo[piece].planes) {
+      clipOperations += surface.length;
+      if (clipOperations > limit.maxClipOperations) return { error: "work-limit" };
+      const next = [];
+      const cuts = [];
+      for (const polygon of surface) {
+        const points = clipRecords(polygon.points, plane, planeEpsilon);
+        if (points.length < 3) continue;
+        next.push({ points, cap: polygon.cap, materialIndex: polygon.materialIndex });
+        if (!closed || points === polygon.points) continue;
+        for (let i = 0; i < points.length; i += 1) {
+          const a = points[i].p;
+          const b = points[(i + 1) % points.length].p;
+          const onPlane = (p) => Math.abs(plane.nx * p[0] + plane.ny * p[1] + plane.nz * p[2] - plane.d) <= planeEpsilon * 4;
+          if (onPlane(a) && onPlane(b)) cuts.push([a, b]);
+        }
+      }
+      if (closed && cuts.length) {
+        const caps = capContours(cutLoops(cuts, weldEpsilon), plane, weldEpsilon, limit.maxCapVertices);
+        if (!caps) {
+          // Keep the source surface visible when concave caps cannot be built.
+          // Rebuild without caps using the same sites and clipping order.
+          const open = buildVoronoiFracture(source, { ...options, closed: false }, limit);
+          if (!open.error) open.warning = "cap-invalid";
+          return open;
+        }
+        for (const loop of caps) next.push({ cap: true, points: loop.map(p => ({ p, uv: null })) });
+      }
+
+      surface = next;
+      if (!surface.length) break;
+      if (surface.length > maxOutput) return { error: "output-limit" };
+    }
+    for (const polygon of surface) {
+      let triples;
+      if (polygon.cap) {
+        triples = triangulateLoop(polygon.points.map((point) => point.p), limit.maxCapVertices)
+          .map((triple) => triple.map((p) => ({ p, uv: null })));
+      } else {
+        triples = [];
+        for (let fan = 1; fan + 1 < polygon.points.length; fan += 1) {
+          triples.push([polygon.points[0], polygon.points[fan], polygon.points[fan + 1]]);
+        }
+      }
+      for (const triple of triples) {
+        const a = triple[0].p;
+        const b = triple[1].p;
+        const c = triple[2].p;
+        const area = cross3([b[0] - a[0], b[1] - a[1], b[2] - a[2]], [c[0] - a[0], c[1] - a[1], c[2] - a[2]]);
+        if (!(dot3(area, area) > 1e-28 * maxExtent ** 4)) continue;
+        for (const point of triple) {
+          const target = polygon.cap ? capPositions : fragmentPositions;
+          target.push(...point.p);
+          if (normals) (polygon.cap ? capNormals : fragmentNormals).push(...(point.normal || normalize3(area, [0, 0, 1])));
+          if (!polygon.cap) {
+            fragmentPiece.push(piece);
+            fragmentMaterials.push(polygon.materialIndex || 0);
+            if (uvs) fragmentUvs.push(...(point.uv || [0, 0]));
+          }
+        }
+        if (polygon.cap) {
+          capPieces.push(piece);
+          capTriangleCount += 1;
+        }
+        if (fragmentPiece.length / 3 + capTriangleCount > maxOutput) return { error: "output-limit" };
+      }
+    }
+  }
+  if (!fragmentPiece.length && !capTriangleCount) return { error: "empty" };
+
+  return assembleStage({
+    cells,
+    seed,
+    closed,
+    sites,
+    bounds,
+    fragmentPositions,
+    fragmentNormals, capNormals, hasNormals: Boolean(normals),
+    fragmentUvs,
+    fragmentPiece,
+    fragmentMaterials, materialCount: source.materialCount || 1,
+    capPositions,
+    capPieces,
+    capTriangleCount,
+    hasUvs: Boolean(uvs),
+  });
+}
+`;
+
 function oracle() {
   let source = fs.readFileSync(require.resolve("../plugins/scene-plus/effector-fracture.js"), "utf8");
   source = source.replace(/if \(!prepared.classify[^\n]+/, "").replace("const classify = prepared.classify;", "const classify = null;");
+  const buildStart = source.indexOf("function buildVoronoiFracture(");
+  const buildEnd = source.indexOf("\nfunction assembleStage(", buildStart);
+  source = source.slice(0, buildStart) + legacyBuild + source.slice(buildEnd);
   const clipStart = source.indexOf("function clipRecords(");
   const clipEnd = source.indexOf("\nfunction intersectRecords(", clipStart);
   source = source.slice(0, clipStart) + legacyClipRecords + source.slice(clipEnd);
@@ -185,4 +374,12 @@ test("edge bounds retain candidates within the exact distance tolerance", () => 
       });
     }
   }
+});
+
+test("short optional source attributes retain the previous output bytes", () => {
+  const previous = oracle(), source = extrusion();
+  source.normals = source.normals.slice(0, 5);
+  source.uvs = source.uvs.slice(0, 3);
+  const options = { cells: 3, seed: 7, closed: true };
+  exact(fracture.buildVoronoiFracture(source, options), previous.buildVoronoiFracture(source, options));
 });

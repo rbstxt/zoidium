@@ -542,7 +542,7 @@ function prepareFractureSource(source) {
       points.push({
         p: [positions[vertex * 3], positions[vertex * 3 + 1], positions[vertex * 3 + 2]],
         uv: uvs ? [uvs[vertex * 2], uvs[vertex * 2 + 1]] : null,
-        normal: normals ? [normals[vertex * 3], normals[vertex * 3 + 1], normals[vertex * 3 + 2]] : null,
+        normal: normals ? Array.from(normals.subarray(vertex * 3, vertex * 3 + 3)) : null,
       });
     }
     sourcePolygons.push({ points, cap: false, materialIndex: materialIds[triangle], sourceTriangle: triangle });
@@ -631,6 +631,7 @@ function buildVoronoiFracture(source, options, limits, prepare) {
   const capPieces = [];
   let capTriangleCount = 0;
   const maxOutput = limit.maxOutputTriangles;
+  const minimumAreaSquared = 1e-28 * maxExtent ** 4;
 
   let clipOperations = 0;
   const signed = [];
@@ -691,16 +692,24 @@ function buildVoronoiFracture(source, options, limits, prepare) {
         const a = triple[0].p;
         const b = triple[1].p;
         const c = triple[2].p;
-        const area = cross3([b[0] - a[0], b[1] - a[1], b[2] - a[2]], [c[0] - a[0], c[1] - a[1], c[2] - a[2]]);
-        if (!(dot3(area, area) > 1e-28 * maxExtent ** 4)) continue;
+        const abx = b[0] - a[0], aby = b[1] - a[1], abz = b[2] - a[2];
+        const acx = c[0] - a[0], acy = c[1] - a[1], acz = c[2] - a[2];
+        const area = [aby * acz - abz * acy, abz * acx - abx * acz, abx * acy - aby * acx];
+        if (!(dot3(area, area) > minimumAreaSquared)) continue;
+        let faceNormal;
         for (const point of triple) {
           const target = polygon.cap ? capPositions : fragmentPositions;
-          target.push(...point.p);
-          if (normals) (polygon.cap ? capNormals : fragmentNormals).push(...(point.normal || normalize3(area, [0, 0, 1])));
+          target.push(point.p[0], point.p[1], point.p[2]);
+          if (normals) {
+            const normal = point.normal || (faceNormal ||= normalize3(area, [0, 0, 1]));
+            const targetNormal = polygon.cap ? capNormals : fragmentNormals;
+            if (normal.length === 3) targetNormal.push(normal[0], normal[1], normal[2]);
+            else targetNormal.push(...normal);
+          }
           if (!polygon.cap) {
             fragmentPiece.push(piece);
             fragmentMaterials.push(polygon.materialIndex || 0);
-            if (uvs) fragmentUvs.push(...(point.uv || [0, 0]));
+            if (uvs) { const uv = point.uv || [0, 0]; fragmentUvs.push(uv[0], uv[1]); }
           }
         }
         if (polygon.cap) {
