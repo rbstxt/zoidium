@@ -43,6 +43,7 @@ function createMeshJobs(workerSource, host = globalThis, redraw = () => {}) {
       const diagnostic = entry.buildKey + ":" + code;
       if (reportedJobFailures.has(diagnostic)) continue;
       reportedJobFailures.add(diagnostic);
+      if (reportedJobFailures.size > 1024) reportedJobFailures.delete(reportedJobFailures.values().next().value);
       const message = fractureErrorText(code);
       console.warn("[Zoidium] Voronoi Fracture: " + message + ".");
       host.ZoidiumUI?.notify({ title: "Voronoi Fracture warning", message });
@@ -132,7 +133,11 @@ function createMeshJobs(workerSource, host = globalThis, redraw = () => {}) {
     owners.delete(entry.buildKey);
     owners.set(entry.buildKey, slot);
     if (owners.size > 256) owners.delete(owners.keys().next().value);
-    if (entry.sourceId !== undefined) sourceOwners.set(entry.sourceId, slot);
+    if (entry.sourceId !== undefined) {
+      sourceOwners.delete(entry.sourceId);
+      sourceOwners.set(entry.sourceId, slot);
+      if (sourceOwners.size > 256) sourceOwners.delete(sourceOwners.keys().next().value);
+    }
     try {
       startWorker(slot);
       slot.worker.postMessage({ id: entry.id, input: entry.input, cacheBytes });
@@ -205,6 +210,7 @@ function createMeshJobs(workerSource, host = globalThis, redraw = () => {}) {
         const diagnostic = String(entry.sourceId ?? entry.buildKey) + ":" + error.message;
         if (reportedJobFailures.has(diagnostic)) return;
         reportedJobFailures.add(diagnostic);
+        if (reportedJobFailures.size > 1024) reportedJobFailures.delete(reportedJobFailures.values().next().value);
         console.warn("[Zoidium] Effector: mesh job failed", error);
       });
       entries.set(key, entry);
