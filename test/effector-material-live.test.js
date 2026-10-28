@@ -13,7 +13,7 @@ function harness(material) {
     workerCommand: () => ({ kind: "fracture", topology: { cells: 4, seed: 3, closed: true }, motion: {} }),
     surfaceOptions: () => ({ vertexColors: false }),
   } }];
-  const update = () => deformer.deformMesh(mesh, chain, 0, 1);
+  const update = offset => deformer.deformMesh(mesh, chain, 0, 1, false, offset);
   update();
   return { mesh, deformer, update };
 }
@@ -79,4 +79,21 @@ test("fracture retains every source material slot and tracks replacements inside
   assert.equal(h.mesh.material[1].uniforms, sources[1].uniforms);
   h.deformer.dispose();
   assert.equal(h.mesh.material, sources, "restore the complete source array");
+});
+
+
+test("opaque fragment order survives material changes and restores native priorities and transparency sorting", () => {
+  const original = new THREE.MeshStandardMaterial(), h = harness(original);
+  h.mesh.renderOrder = 7;
+  h.update(0.0001);
+  assert.equal(h.mesh.renderOrder, 7.0001);
+  original.transparent = true;
+  h.update(0.0002);
+  assert.equal(h.mesh.renderOrder, 7, "transparent fragments retain the original render priority");
+  original.transparent = false;
+  h.mesh.renderOrder = 9;
+  h.update(0.0002);
+  assert.equal(h.mesh.renderOrder, 9.0002, "native priority edits remain authoritative");
+  h.deformer.dispose();
+  assert.equal(h.mesh.renderOrder, 9, "unload restores the last native render priority");
 });

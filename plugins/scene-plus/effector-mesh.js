@@ -244,7 +244,7 @@ function createMeshDeformer(THREE, jobs) {
   // Evaluates one mesh. `chain` lists {effector, node} outer to inner. The
   // deformers run in their own local space (node.matrixWorld relative to the
   // mesh), so transformed effectors and nested groups act in their own frame.
-  function deformMesh(mesh, chain, frame, requestedPolygonCount, legacySubdivision = false) {
+  function deformMesh(mesh, chain, frame, requestedPolygonCount, legacySubdivision = false, renderOrderOffset = 0) {
     let state = meshStates.get(mesh);
     if (!chain.length) {
       jobs?.release(mesh);
@@ -314,7 +314,7 @@ function createMeshDeformer(THREE, jobs) {
         jobs?.release(mesh);
         syncFractureStatus(mesh, state, chain, state.fractureCodes);
         mesh.geometry = state.working;
-        syncMaterial(mesh, state, state.fractured, colors?.vertexColors || false);
+        syncMaterial(mesh, state, state.fractured, colors?.vertexColors || false, renderOrderOffset);
         return;
       }
       const input = { sourceId: base.sourceId, polygonCount, legacySubdivision, commands, base, materialCount };
@@ -350,7 +350,7 @@ function createMeshDeformer(THREE, jobs) {
       next.sourceId = base.sourceId;
       next.fractured = result.kind === "fracture";
       mesh.geometry = next.working;
-      syncMaterial(mesh, next, result.kind === "fracture", colors?.vertexColors || false);
+      syncMaterial(mesh, next, result.kind === "fracture", colors?.vertexColors || false, renderOrderOffset);
       rememberState(mesh, next);
       return;
     }
@@ -426,7 +426,7 @@ function createMeshDeformer(THREE, jobs) {
     next.fresh = false;
     next.workBuffer = work.length === stage.positions.length ? work : null;
     if (mesh.geometry !== next.working) mesh.geometry = next.working;
-    syncMaterial(mesh, next, stage.kind === "fracture", surfaceColors ? surfaceColors.vertexColors : false);
+    syncMaterial(mesh, next, stage.kind === "fracture", surfaceColors ? surfaceColors.vertexColors : false, renderOrderOffset);
     rememberState(mesh, next);
   }
 

@@ -87,6 +87,8 @@ Character selection requires Text+. Non-text sources ignore character ranges. In
 
 Fracture limits are 160,000 source triangles, 1,600,000 output triangles, 4,096 vertices per concave cap contour with holes, and 80,000,000 clipping operations per build. A build over those limits leaves the source unfractured. Invalid or excessive cap contours can fall back to open fragments.
 
+Opaque fractured meshes use source hierarchy order within each render priority. This makes equal-depth overlaps independent of material creation order. Existing projects can change some overlap-edge pixels. Transparent materials retain native sorting.
+
 Built-in effector chains use the same evaluator for preview and export. In browsers with worker support, geometry evaluation runs in a worker, including cold topology builds after changes to Cells, Seed, or the source geometry. While the requested result is pending, preview holds the last presented image and shows **Fracturing...**. Playback can hold or drop frames. Scrubbing ends on the exact requested frame. Export and **Render once** wait for that exact result. Preview never substitutes source geometry or a result from another frame. Hosts without worker support evaluate synchronously.
 
 ## Plain and Delay

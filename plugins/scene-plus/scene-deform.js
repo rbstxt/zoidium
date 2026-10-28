@@ -309,10 +309,11 @@ function createDeformationSupport(PZ, THREE, editor) {
           }
         }
       }
-      for (const task of tasks) {
+      for (const [index, task] of tasks.entries()) {
         const chain = task.chain.map(entry => ({ ...entry, bounds: bounds.get(entry.node) }));
         for (const entry of chain) { entry.effector._fieldBounds = entry.bounds; entry.effector._effectorFrame = task.frame; }
-        meshDeformer.deformMesh(task.mesh, chain, task.frame, task.polygonCount, task.legacy);
+        meshDeformer.deformMesh(task.mesh, chain, task.frame, task.polygonCount, task.legacy,
+          (index + 1) / (tasks.length + 1) * 0.001);
       }
       return new Set(tasks.map(task => task.mesh));
     } finally { tasks = null; }

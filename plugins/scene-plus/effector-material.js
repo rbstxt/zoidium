@@ -28,11 +28,13 @@ function createFractureMaterials(THREE) {
   function releaseMaterial(mesh, state) {
     if (!state.material) return;
     if (mesh.material === state.material.shown) mesh.material = state.material.original;
+    const order = state.material.renderOrder;
+    if (order && mesh.renderOrder === order.shown) mesh.renderOrder = order.original;
     for (const clone of state.material.shown) clone.dispose();
     state.material = null;
   }
 
-  function syncMaterial(mesh, state, wantFracture, vertexColors) {
+  function syncMaterial(mesh, state, wantFracture, vertexColors, renderOrderOffset = 0) {
     if (!wantFracture) { releaseMaterial(mesh, state); return; }
     const original = mesh.material === state.material?.shown ? state.material.original : mesh.material;
     if (!original) return;
@@ -49,6 +51,17 @@ function createFractureMaterials(THREE) {
       state.material = { original, sources: sources.slice(), shown, capIndex, signatures: [] };
     }
     const material = state.material;
+    if (renderOrderOffset) {
+      // Shader and material IDs reflect compilation history. Give opaque
+      // fragments a hierarchy order so equal-depth overlaps stay deterministic.
+      if (!material.renderOrder || mesh.renderOrder !== material.renderOrder.shown) {
+        material.renderOrder = { original: mesh.renderOrder };
+      }
+      const base = material.renderOrder.original;
+      const ordered = sources.every(source => !source.transparent) && Number.isFinite(base);
+      mesh.renderOrder = ordered ? base + renderOrderOffset : base;
+      material.renderOrder.shown = mesh.renderOrder;
+    }
     const hasCaps = mesh.geometry.groups.some(group => group.materialIndex === capIndex && group.count > 0);
     material.shown.forEach((clone, index) => {
       const source = sources[index === capIndex ? 0 : index];
