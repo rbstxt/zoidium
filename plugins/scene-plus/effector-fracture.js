@@ -839,7 +839,7 @@ function applyFragmentMotion(positions, stage, motion, matrix) {
     shift[piece * 3] = (outward[0] * distance + scatterDirection[0] * scatterMagnitude * scatter + core.finiteOr(direction[0], 0)) * weight;
     shift[piece * 3 + 1] = (outward[1] * distance + scatterDirection[1] * scatterMagnitude * scatter + core.finiteOr(direction[1], 0)) * weight - gravity * fieldWeight * fieldWeight * variation;
     shift[piece * 3 + 2] = (outward[2] * distance + scatterDirection[2] * scatterMagnitude * scatter + core.finiteOr(direction[2], 0)) * weight;
-    scale[piece] = Math.max(0, 1 - (offset / 100) * weight) * Math.max(0, 1 + (fragmentScale / 100 - 1) * weight);
+    scale[piece] = Math.max(0, 1 - (offset / 100) * weight) * Math.max(0, 1 + (fragmentScale / 100 - 1) * fieldWeight);
     rotation.set([
       cosine + x * x * oneMinus, x * y * oneMinus - z * sine, x * z * oneMinus + y * sine,
       y * x * oneMinus + z * sine, cosine + y * y * oneMinus, y * z * oneMinus - x * sine,
