@@ -104,3 +104,23 @@ test("hung startup preparation has a bounded hold even if mesh jobs remain pendi
   assert.equal(h.draws(), 2);
   assert.equal(h.prepares(), 1, "the same failed frame cannot restart the hold");
 });
+
+for (const phase of ["queued", "pending"]) {
+  test(`unloading a scene drops its ${phase} startup preparation and preview hold`, async t => {
+    t.mock.timers.enable({ apis: ["setTimeout"] });
+    let ready;
+    const gate = new Promise(resolve => { ready = resolve; });
+    const h = failingStartup(t, () => gate);
+    h.viewport._render();
+    assert.equal(h.badges.size, 1);
+    if (phase === "pending") await Promise.resolve();
+    h.scene.unload(); h.scene.objects = [];
+    h.viewport._render();
+    assert.equal(h.badges.size, 0, "the next draw releases the unloaded scene's hold");
+    assert.equal(h.draws(), 1);
+    ready(); await new Promise(resolve => setImmediate(resolve));
+    t.mock.timers.tick(20000);
+    assert.equal(h.prepares(), phase === "queued" ? 0 : 1);
+    assert.equal(h.draws(), 1, "unloaded preparation never redraws or times out");
+  });
+}
