@@ -6,16 +6,18 @@ const { fractureErrorText } = require("./effector-fracture.js");
 
 const { byteSize } = require("./effector-evaluate.js");
 
-// One persistent worker reuses topology across motion frames. Unused work is
-// terminated immediately; queued inputs have no copied large buffers yet.
+// Keep each topology on one worker so motion reuses its cached stages.
+// New topologies use idle workers within one shared stage-cache budget.
 function createMeshJobs(workerSource, host = globalThis, redraw = () => {}) {
   const maxBytes = 96 * 1024 * 1024;
   const entries = new Map();
   const consumers = new Map();
-  // Topologies the worker has finished at least once. Its stage cache holds
-  // them, so later jobs of the same topology are cheap motion frames.
-  const built = new Set();
-  let worker = null, url = null, active = null, disposed = false, serial = 0;
+  const concurrency = Math.min(4, Math.max(1, Math.floor(host.navigator?.hardwareConcurrency || 2) - 1));
+  const slots = Array.from({ length: concurrency }, () => ({ worker: null, url: null, active: null, built: new Set() }));
+  const owners = new Map();
+  const sourceOwners = new Map();
+  const cacheBytes = Math.floor(64 * 1024 * 1024 / concurrency);
+  let disposed = false, serial = 0;
   let bytes = 0;
 
   function reportFracture(entry, consumer, pending, codes = [], cancelled = false) {
@@ -47,13 +49,28 @@ function createMeshJobs(workerSource, host = globalThis, redraw = () => {}) {
     }
   }
 
-  function stopWorker() {
-    built.clear();
-    worker?.terminate();
-    worker = null;
-    if (url) host.URL.revokeObjectURL(url);
-    url = null;
-    active = null;
+  function affinity(entry) { return entry.sourceId === undefined ? "build:" + entry.buildKey : "source:" + entry.sourceId; }
+
+  function stopWorker(slot) {
+    slot.built.clear();
+    slot.worker?.terminate();
+    slot.worker = null;
+    if (slot.url) host.URL.revokeObjectURL(slot.url);
+    slot.url = null;
+    slot.active = null;
+  }
+
+  function fail(slot, error) {
+    const entry = slot.active;
+    stopWorker(slot);
+    if (entry) {
+      entry.status = "error";
+      entry.input = null;
+      entry.error = error;
+      completeStatus(entry, ["worker failed: " + error.message]);
+      entry.reject(error);
+      redraw();
+    }
   }
 
   function trim() {
@@ -68,20 +85,22 @@ function createMeshJobs(workerSource, host = globalThis, redraw = () => {}) {
     }
   }
 
-  function pump() {
-    if (disposed || active) return;
-    const entry = Array.from(entries.values()).find(item => item.status === "queued");
-    if (!entry) return;
+  function dispatch(slot, entry) {
+    slot.active = entry;
+    entry.slot = slot;
+    entry.status = "running";
+    owners.delete(entry.buildKey);
+    owners.set(entry.buildKey, slot);
+    if (owners.size > 256) owners.delete(owners.keys().next().value);
+    if (entry.sourceId !== undefined) sourceOwners.set(entry.sourceId, slot);
     try {
-      if (!worker) {
-        url = host.URL.createObjectURL(new host.Blob([workerSource], { type: "text/javascript" }));
-        worker = new host.Worker(url);
-        const currentWorker = worker;
+      if (!slot.worker) {
+        slot.url = host.URL.createObjectURL(new host.Blob([workerSource], { type: "text/javascript" }));
+        const worker = slot.worker = new host.Worker(slot.url);
         worker.onmessage = ({ data }) => {
-          if (worker !== currentWorker) return;
-          if (!active || data.id !== active.id) return;
-          const completed = active;
-          active = null;
+          if (slot.worker !== worker || !slot.active || data.id !== slot.active.id) return;
+          const completed = slot.active;
+          slot.active = null;
           if (data.error) {
             completed.status = "error";
             completed.error = new Error("Effector worker failed: " + data.error);
@@ -90,7 +109,7 @@ function createMeshJobs(workerSource, host = globalThis, redraw = () => {}) {
             redraw();
           } else {
             completed.status = "done";
-            built.add(completed.buildKey);
+            slot.built.add(completed.buildKey);
             // A cancelled frame that was left to finish is only discarded.
             if (entries.get(completed.key) === completed) {
               completed.value = data.value;
@@ -107,32 +126,25 @@ function createMeshJobs(workerSource, host = globalThis, redraw = () => {}) {
           pump();
         };
         worker.onerror = event => {
-          if (worker !== currentWorker) return;
-          const failed = active;
-          stopWorker();
-          if (failed) {
-            failed.status = "error";
-            failed.input = null;
-            failed.error = new Error("Effector worker failed: " + event.message);
-            completeStatus(failed, ["worker failed: " + event.message]);
-            failed.reject(failed.error);
-            redraw();
-          }
+          if (slot.worker !== worker) return;
+          fail(slot, new Error("Effector worker failed: " + event.message));
           pump();
         };
       }
-      active = entry;
-      entry.status = "running";
-      worker.postMessage({ id: entry.id, input: entry.input });
+      slot.worker.postMessage({ id: entry.id, input: entry.input, cacheBytes });
     } catch (error) {
-      stopWorker();
-      entry.status = "error";
-      entry.input = null;
-      entry.error = error;
-      completeStatus(entry, ["worker failed: " + error.message]);
-      entry.reject(error);
-      redraw();
-      pump();
+      fail(slot, error);
+    }
+  }
+
+  function pump() {
+    if (disposed) return;
+    for (const entry of entries.values()) {
+      if (entry.status !== "queued") continue;
+      const owner = owners.get(entry.buildKey);
+      const sourceOwner = sourceOwners.get(entry.sourceId);
+      const slot = owner || (sourceOwner && !sourceOwner.active ? sourceOwner : slots.find(item => !item.active));
+      if (slot && !slot.active) dispatch(slot, entry);
     }
   }
 
@@ -140,7 +152,7 @@ function createMeshJobs(workerSource, host = globalThis, redraw = () => {}) {
     // Terminating the worker also drops every cached topology, which would turn
     // the next frame of each mesh into a full rebuild. Only abort unwanted first
     // builds; an unwanted motion frame finishes quickly and is discarded.
-    if (active === entry && !built.has(entry.buildKey)) stopWorker();
+    if (entry.slot?.active === entry && !entry.slot.built.has(entry.buildKey)) stopWorker(entry.slot);
     entries.delete(entry.key);
     entry.input = null;
     entry.resolve(null);
@@ -156,11 +168,14 @@ function createMeshJobs(workerSource, host = globalThis, redraw = () => {}) {
     if (!entry.users.size && entry.status !== "done") {
       // Motion edits must not continually restart a valid first topology build.
       // Let that build populate the worker cache, then evaluate the latest motion.
-      if (active !== entry || entry.buildKey !== preserveBuildKey) cancel(entry);
+      if (entry.slot?.active !== entry || entry.buildKey !== preserveBuildKey) cancel(entry);
       pump();
     }
-    if (preserveBuildKey === undefined && active && !active.users.size &&
-      !Array.from(entries.values()).some(item => item.status === "queued" && item.users.size)) cancel(active);
+    if (preserveBuildKey === undefined) for (const slot of slots) {
+      const active = slot.active;
+      if (active && !active.users.size && !Array.from(entries.values()).some(item =>
+        item.status === "queued" && item.users.size && affinity(item) === affinity(active))) cancel(active);
+    }
     trim();
   }
 
@@ -172,7 +187,11 @@ function createMeshJobs(workerSource, host = globalThis, redraw = () => {}) {
     }
     const buildKey = input.buildKey || key;
     release(consumer, buildKey);
-    if (active && !active.users.size && active.buildKey !== buildKey) cancel(active);
+    for (const slot of slots) {
+      const active = slot.active;
+      if (active && !active.users.size && active.buildKey !== buildKey &&
+        (input.sourceId !== undefined ? active.sourceId === input.sourceId : active.buildKey === previous?.buildKey)) cancel(active);
+    }
     let entry = entries.get(key);
     if (!entry) {
       entry = { id: ++serial, key, input, buildKey, sourceId: input.sourceId, fracture: input.commands?.some(command => command.kind === "fracture"), status: "queued", users: new Set(), bytes: 0 };
@@ -202,12 +221,17 @@ function createMeshJobs(workerSource, host = globalThis, redraw = () => {}) {
       return Array.from(entries.values()).reverse().find(entry => entry.buildKey === buildKey && entry.status === "done");
     },
     forget(sourceId) {
-      if (active?.sourceId === sourceId && !active.users.size) cancel(active);
+      for (const slot of slots) if (slot.active?.sourceId === sourceId && !slot.active.users.size) cancel(slot.active);
       for (const [key, entry] of entries) if (entry.sourceId === sourceId && !entry.users.size) {
         bytes -= entry.bytes;
         entries.delete(key);
       }
-      worker?.postMessage({ forgetSourceId: sourceId });
+      // Parameter edits can build on another idle worker. Forget every copy.
+      for (const slot of slots) {
+        try { slot.worker?.postMessage({ forgetSourceId: sourceId }); }
+        catch (error) { fail(slot, error); }
+      }
+      sourceOwners.delete(sourceId);
       pump();
     },
     pending(consumersToWait) {
@@ -217,14 +241,14 @@ function createMeshJobs(workerSource, host = globalThis, redraw = () => {}) {
     dispose() {
       if (disposed) return;
       disposed = true;
-      stopWorker();
+      for (const slot of slots) stopWorker(slot);
       for (const entry of entries.values()) {
         for (const consumer of entry.users) reportFracture(entry, consumer, false, [], true);
         entry.resolve(null);
       }
-      consumers.clear(); entries.clear(); bytes = 0;
+      consumers.clear(); entries.clear(); owners.clear(); sourceOwners.clear(); bytes = 0;
     },
-    stats() { return { entries: entries.size, consumers: consumers.size, bytes, running: Boolean(active), disposed }; },
+    stats() { return { entries: entries.size, consumers: consumers.size, bytes, running: slots.some(slot => Boolean(slot.active)), disposed }; },
   };
 }
 
@@ -239,18 +263,23 @@ function load(id) {
   return module.exports;
 }
 const evaluator = load("effector-evaluate.js");
-const cache = evaluator.createStageCache();
+let cache;
 const reportedErrors = new Set();
 let warnings = new Set();
 let sharedStages = null;
-const readStage = cache.get;
-cache.get = (key, build) => {
-  const stage = readStage(key, build);
-  if (sharedStages) sharedStages.get(key, () => stage);
-  if (stage.warning) warnings.add(stage.warning);
-  return stage;
-};
+function stageCache(maxBytes) {
+  const result = evaluator.createStageCache(maxBytes);
+  const readStage = result.get;
+  result.get = (key, build) => {
+    const stage = readStage(key, build);
+    if (sharedStages) sharedStages.get(key, () => stage);
+    if (stage.warning) warnings.add(stage.warning);
+    return stage;
+  };
+  return result;
+}
 onmessage = ({data}) => {
+  if (!cache) cache = stageCache(data.cacheBytes);
   if (data.forgetSourceId !== undefined) { cache.forget(data.forgetSourceId); return; }
   try {
     warnings = new Set();
