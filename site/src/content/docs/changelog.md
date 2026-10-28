@@ -99,6 +99,15 @@ each line describes one visible change.
 
 ### Fixed
 
+- ExpressText+ Orbit and Spline give the same result on the first render of a
+  frame as on later renders.
+- ExpressText+ letters inside nested Groups move with the Group once, follow a
+  Text moved to another Group, and keep the latest text when ExpressText+ is
+  removed or turned off.
+- ExpressText+ Formula and Shake count seconds at the sequence frame rate.
+  Projects at 30 fps look the same; other rates change speed.
+- Changing the sequence frame rate converts ExpressText+ frame delays, so
+  staggers keep their length in seconds.
 - Voronoi Fracture builds its pieces in the background. The preview keeps the
   last exact image and shows "Fracturing..." until the new frame is ready,
   instead of freezing the editor.
