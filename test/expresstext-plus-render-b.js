@@ -4,7 +4,7 @@
 
 const assert = require("node:assert/strict");
 const test = require("node:test");
-const { T, fakeRow, fakeSection, mod, props, recordingThree } = require("./expresstext-plus-helpers.js");
+const { T, fakeRow, fakeSection, mod, props, recordingThree, recordingParent } = require("./expresstext-plus-helpers.js");
 
 test("letter rotation spins inside its position offset", () => {
   // Minimal real math (X rotation only): distinguishes orbiting the
@@ -102,7 +102,7 @@ test("repeater ghosts ride letter anchors through the render path", () => {
   const sourceMesh = {
     material: { clone: () => ({ transparent: false, opacity: 1 }) },
     geometry: { parameters: { options: { depth: 4 } } },
-    parent: { add: (r) => added.push(r) },
+    parent: recordingParent(added),
   };
   let liveCopies = 2;
   const repeaterRows = () => ({
@@ -269,7 +269,7 @@ test("voronoi chunks shatter the letter through the render path", () => {
   const sourceMesh = {
     material: "mat",
     geometry: { parameters: { options: { depth: 4 } } },
-    parent: { add: (r) => added.push(r) },
+    parent: recordingParent(added),
   };
   const container = {
     zoidiumExpressTextObject: true,
@@ -367,7 +367,7 @@ test("each text keeps its own placement across texts", () => {
   const mkSource = () => ({
     material: "mat",
     geometry: { parameters: { options: { depth: 4 } } },
-    parent: { add: () => {} },
+    parent: recordingParent(),
   });
   const container = {
     zoidiumExpressTextObject: true,
@@ -432,7 +432,7 @@ test("each text keeps its own placement across texts", () => {
   }
 });
 
-test("grouped texts render with composed placement and shared numbering", () => {
+test("grouped texts render in parent coordinates with shared numbering", () => {
   const THREE = recordingThree();
   const fontData = {
     resolution: 1000,
@@ -444,7 +444,7 @@ test("grouped texts render with composed placement and shared numbering", () => 
   const mkSource = () => ({
     material: "mat",
     geometry: { parameters: { options: { depth: 4 } } },
-    parent: { add: () => {} },
+    parent: recordingParent(),
   });
   const container = {
     zoidiumExpressTextObject: true,
@@ -515,8 +515,8 @@ test("grouped texts render with composed placement and shared numbering", () => 
     }
     const s1 = T.getSplitState(t1);
     const s2 = T.getSplitState(t2);
-    assert.equal(s1.renderRoot.position.x, -25, "group plus text offsets compose");
-    assert.equal(s2.renderRoot.position.x, 25, "second group composes too");
+    assert.equal(s1.renderRoot.position.x, 5, "root keeps the first Text local offset");
+    assert.equal(s2.renderRoot.position.x, -5, "root keeps the second Text local offset");
     // Plain Letters "1" addresses the run's first letter through the
     // group boundary: only the first text's letter moves.
     const moved = (s) => s.entries[0].anchor.position.x - s.entries[0].base[0];

@@ -13,7 +13,7 @@ const { DELAY_BLEND_CATCH, DELAY_EVEN_SPAN, DELAY_SIM_WINDOW, DELAY_SPRING_DAMP,
 const { EFFECTOR_PIVOT_KEYS, customSections, customsChildren, groupReader, kindOfGroup, kindOfKey, rawArray, reattachCustomDefinitions, sectionGroupOf, stackLayersFor } = require("./expresstext-sections.js");
 const { EFFECTOR_KINDS, EFFECTOR_NAMES, EFFECTOR_ORDER, EFFECTOR_TYPES, createContainerPropertyDefinitions, createDelayPropertyDefinitions, createFormulaPropertyDefinitions, createOrbitPropertyDefinitions, createPlainPropertyDefinitions, createRandomPropertyDefinitions, createRepeaterPropertyDefinitions, createShakePropertyDefinitions, createSplinePropertyDefinitions, createTwistPropertyDefinitions, createVoronoiPropertyDefinitions, createWrapPropertyDefinitions, customPropertyClass, effectorEntryDefs, newEffectorInstance, registerEffectorEntries, unregisterEffectorEntries, withPrefix } = require("./expresstext-properties.js");
 const { collectExpressObjects, expressContainerOf, expressStackOf, getAncestorObject, getExpressCenterOffset, getExpressLayout, getExpressTextCenter, repeaterCopyOffset, repeaterCopyOpacity, repeaterSpecsFor } = require("./expresstext-layout.js");
-const { applyLetterTransform, buildExpressRendering, containerLetterRun, containerTexts, disposeExpressRendering, eulerParts, geometryTriangleArrays, getSplitState, layoutLetterCount, ownTransformOf, restoreExpressRendering, sourceExtrudeOptions, syncExpressRendering, textWorldOf, throughParent, updateExpressRendering } = require("./expresstext-render.js");
+const { applyLetterTransform, buildExpressRendering, containerLetterRun, containerTexts, disposeExpressRendering, eulerParts, geometryTriangleArrays, getSplitState, layoutLetterCount, ownTransformOf, restoreExpressRendering, retainNativeGeometry, sourceExtrudeOptions, syncExpressRendering, textWorldOf, throughParent, updateExpressRendering } = require("./expresstext-render.js");
 
 /* ------------------------------------------------- container + patching */
 
@@ -301,7 +301,10 @@ function installTextPatches(PZ) {
           // Never swap the stale snapshot back in here — that froze the
           // text at its first-built state.
           const splitState = state.splitStates.get(this);
-          if (splitState) disposeExpressRendering(splitState);
+          if (splitState) {
+            retainNativeGeometry(this, splitState);
+            disposeExpressRendering(splitState);
+          }
         } catch (_error) {}
         return out;
       };

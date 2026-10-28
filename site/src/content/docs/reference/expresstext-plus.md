@@ -9,6 +9,20 @@ ExpressText+ tracks the separate letters of native 3D Text and drives them with 
 When a Text+ container owns the text, ExpressText+ steps aside and leaves the letters to Text+.
 
 
+## Output changes in version 3
+
+Existing projects change output in these cases:
+
+- Cross-Text selections use every Text's current undeformed letter bases before any effector evaluates. **Orbit** now uses the complete selection center on the first render and immediately after source edits. Same-frame redraws produce the same transforms.
+- When a Text leaves ExpressText+ or the plugin deactivates, its native geometry keeps the latest text, size, font, and bevel settings.
+- Nested **Group** transforms apply once to split letters. Earlier versions applied the intermediate Group transforms twice.
+- When a Text moves between Groups, its split letters follow the current parent. Reorder, undo, and redo keep the same parent relationship.
+- Formula `t` and Shake **Frequency** use the owning sequence's frame rate. At rates other than 30 fps, their motion now follows seconds. Their 30 fps output stays identical. Random **Animation speed** keeps its frame-based unit.
+- Frame-rate changes scale section **Delay** values and Repeater **Lag** values to preserve their durations in seconds. Constant values, animated values, curve tangents, stored compositions, undo, and redo use the same conversion. Frequencies, **Animation speed**, and sample counts keep their values.
+
+Projects at 30 fps retain their transforms when they do not encounter these cases.
+
+
 ## Container
 
 | Control | Type | Range or options | Default | Effect on output |
@@ -37,7 +51,7 @@ The **Delay** section replaces the stagger rows with channel picks. Its table li
 
 ## Shake
 
-Sinusoidal position, rotation, and scale. **Frequency** counts cycles per second at 30 fps. **Offset** shifts the phase in cycles.
+Sinusoidal position, rotation, and scale. **Frequency** counts cycles per second at the owning sequence's frame rate. **Offset** shifts the phase in cycles.
 
 | Control | Type | Range or options | Default | Effect on output |
 | --- | --- | --- | --- | --- |
@@ -63,7 +77,7 @@ Static pose for the selected letters. Blank **Letters** selects every letter. **
 
 ## Random
 
-Deterministic per-letter values in the Min and Max ranges, rescaled by **Minimum** and **Maximum** percent. **Mode** picks the distribution. **Synchronized** shares one value across position, rotation, and scale. **Indexed** samples each axis separately for Noise and Turbulence. **Space** pins the noise to the world or to the letter. **Animation speed** animates Noise and Turbulence over time.
+Deterministic per-letter values in the Min and Max ranges, rescaled by **Minimum** and **Maximum** percent. **Mode** picks the distribution. **Synchronized** shares one value across position, rotation, and scale. **Indexed** samples each axis separately for Noise and Turbulence. **Space** pins the noise to the world or to the letter. **Animation speed** advances Noise and Turbulence per frame. A value of `100` advances the noise time parameter by one unit per 30 frames at every sequence frame rate.
 
 | Control | Type | Range or options | Default | Effect on output |
 | --- | --- | --- | --- | --- |
@@ -74,7 +88,7 @@ Deterministic per-letter values in the Min and Max ranges, rescaled by **Minimum
 | **Indexed** | Choice | **off**, **on** | **on** | Samples each axis separately for Noise and Turbulence. |
 | **Seed** | Number | No declared bounds | `1` | Reseeds every value. |
 | **Space** | Choice | **Global**, **UV** | **Global** | Pins noise to the world or to the letter. |
-| **Animation speed** | Number | ≥ 0 | `0` | Animates Noise and Turbulence over time. |
+| **Animation speed** | Number | ≥ 0 | `0` | Advances Noise and Turbulence by `value / 100` units of the noise time parameter per 30 frames. |
 | **Noise scale** | Number | ≥ 0 | `100` | Feature size of Noise and Turbulence. |
 | **Min position** | 3D vector | No declared bounds | `[-10, -10, -10]` | Lower bound of random translation. |
 | **Max position** | 3D vector | No declared bounds | `[10, 10, 10]` | Upper bound of random translation. |
@@ -86,7 +100,7 @@ Deterministic per-letter values in the Min and Max ranges, rescaled by **Minimum
 
 ## Formula
 
-One typed expression drives every letter. Variables: `px`, `py`, `pz` letter base position; `rx`, `ry`, `rz` incoming rotation; `sx`, `sy`, `sz` incoming scale; `u`, `v`, `w` letter position across the line from 0 to 1; `id` zero-based letter index; `count` letter total; `falloff` field weight; `t` project time in seconds; `f` the **Frequency** row. Functions take degrees for trigonometry. Unknown names, empty input, and non-finite results read as `0`.
+One typed expression drives every letter. Variables: `px`, `py`, `pz` letter base position; `rx`, `ry`, `rz` incoming rotation; `sx`, `sy`, `sz` incoming scale; `u`, `v`, `w` letter position across the line from 0 to 1; `id` zero-based letter index; `count` letter total; `falloff` field weight; `t` time in seconds; `f` the **Frequency** row. Formula measures `t` after the per-letter stagger using the owning sequence's frame rate. Functions take degrees for trigonometry. Unknown names, empty input, and non-finite results read as `0`.
 
 | Control | Type | Range or options | Default | Effect on output |
 | --- | --- | --- | --- | --- |

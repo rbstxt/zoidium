@@ -119,6 +119,15 @@ function fakeThree(boxes, captured) {
   return { Object3D: Obj, Mesh, ExtrudeGeometry: Extrude, BufferGeometry: Buffer, TextGeometry, ShapePath };
 }
 
+// Native Object3D.add() sets the child's parent. Rendering reconciles against
+// that relationship after native moves, so recording parents must model it.
+function recordingParent(added = []) {
+  return {
+    add(child) { child.parent = this; added.push(child); },
+    remove(child) { if (child.parent === this) child.parent = null; },
+  };
+}
+
 // Recording THREE stubs: capture exactly what the renderer writes onto
 // letter anchors (rotation/position/scale), with identity matrix math.
 function recordingThree() {
@@ -217,4 +226,4 @@ function recordingThree() {
   };
 }
 
-module.exports = { mod, T, props, keyedProps, copyState, copyVel, fakePZ, fakeRow, fakeSection, fakeThree, recordingThree };
+module.exports = { mod, T, props, keyedProps, copyState, copyVel, fakePZ, fakeRow, fakeSection, fakeThree, recordingThree, recordingParent };

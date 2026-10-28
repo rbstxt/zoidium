@@ -46,7 +46,7 @@ function disposeExpressRendering(splitState) {
       } catch (_chunk) {}
     }
   }
-  splitState.emptyGeometry?.dispose?.();
+  // The native mesh can still reference this placeholder until the next build.
   splitState.renderRoot = null;
   splitState.entries = [];
   splitState.signature = null;
@@ -56,16 +56,24 @@ function disposeExpressRendering(splitState) {
   // the whole state instead).
 }
 
+function retainNativeGeometry(textObject, splitState) {
+  const geometry = textObject.threeObj?.geometry;
+  if (!geometry || geometry === splitState.emptyGeometry || geometry === splitState.fullGeometry) return;
+  splitState.fullGeometry?.dispose?.();
+  splitState.fullGeometry = geometry;
+}
+
 function restoreExpressRendering(textObject) {
   const splitState = state.splitStates.get(textObject);
   if (!splitState) return;
   try {
     if (splitState.fullGeometry && textObject.threeObj) {
-      splitState.emptyGeometry?.dispose?.();
+      retainNativeGeometry(textObject, splitState);
       textObject.threeObj.geometry = splitState.fullGeometry;
     }
   } catch (_error) {}
   disposeExpressRendering(splitState);
+  splitState.emptyGeometry?.dispose?.();
   state.splitStates.delete(textObject);
   state.splitTexts.delete(textObject);
 }
@@ -403,7 +411,7 @@ function buildExpressRendering(textObject, splitState, repeatCounts, voronoiSpec
     }
     if (sourceMesh.parent) sourceMesh.parent.add(renderRoot);
     else if (sourceMesh.add) sourceMesh.add(renderRoot);
-    splitState.fullGeometry = splitState.fullGeometry || sourceMesh.geometry;
+    retainNativeGeometry(textObject, splitState);
     if (!splitState.emptyGeometry && typeof THREE.BufferGeometry === "function") {
       splitState.emptyGeometry = new THREE.BufferGeometry();
     }
@@ -579,8 +587,7 @@ function layoutLetterCount(textObject, frame) {
 // Connected letter run for a container: continuous numbering across all
 // its texts in outliner order, so selections, id/u/count, ranks and
 // centers span texts. Counts come from layout (exact from frame 0);
-// world bases come from built entries when available (exact in steady
-// state; brand-new texts join within a frame).
+// all undeformed bases are prepared from current source data before evaluation.
 function containerLetterRun(container, selfText, selfEntries, frame) {
   const fallbackWorld = textWorldOf(selfText, frame);
   if (!selfText) {
@@ -649,15 +656,18 @@ function containerLetterRun(container, selfText, selfEntries, frame) {
   return { total, order, starts, counts, bases, extent, selfStart: starts[selfAt], selfWorld };
 }
 
-function updateExpressRendering(textObject, splitState, layers, frame) {
-  const THREE = state.THREE;
-  const sourceMesh = textObject.threeObj;
-  if (!THREE || !sourceMesh) return;
+// Prepare geometry for every Text before evaluating the connected run. Native
+// source rebuilds can otherwise occur later in the Group update traversal.
+function prepareExpressRendering(textObject, splitState, stack, frame) {
+  if (textObject.fontNeedsUpdate && typeof textObject.updateFont === "function") {
+    textObject.updateFont();
+    textObject.fontNeedsUpdate = false;
+  }
+  if (textObject.geometryNeedsUpdate && typeof textObject.updateGeometry === "function") {
+    textObject.updateGeometry();
+    textObject.geometryNeedsUpdate = false;
+  }
   const signature = expressSignature(textObject);
-  const container = expressContainerOf(layers);
-  if (!container) return;
-  const containerProps = getExpressProperties(container);
-  const stack = stackLayersFor(container, layers);
   const repeaters = repeaterSpecsFor(stack, frame);
   const repeatKey = repeaters.map((r) => r.copies).join(",");
   // Voronoi partition from the first layer asking for chunks; motion
@@ -690,28 +700,48 @@ function updateExpressRendering(textObject, splitState, layers, frame) {
     splitState.signature = fullSig;
     splitState.repeatLayers = refs;
   }
+  // Native parentChanged() can move the mesh without changing geometry.
+  const sourceMesh = textObject.threeObj;
+  const parent = sourceMesh?.parent || sourceMesh;
+  if (parent && splitState.renderRoot?.parent !== parent) parent.add(splitState.renderRoot);
+  return repeaters;
+}
+
+function updateExpressRendering(textObject, splitState, layers, frame) {
+  const THREE = state.THREE;
+  const sourceMesh = textObject.threeObj;
+  const container = expressContainerOf(layers);
+  if (!THREE || !sourceMesh || !container) return;
+  const containerProps = getExpressProperties(container);
+  const stack = stackLayersFor(container, layers);
+  const texts = containerTexts(container);
+  if (!texts.includes(textObject)) texts.push(textObject);
+  let repeaters;
+  for (const text of texts) {
+    const prepared = prepareExpressRendering(text, getSplitState(text),
+      text === textObject ? stack : stackLayersFor(container, collectExpressObjects(text)), frame);
+    if (text === textObject) repeaters = prepared;
+  }
+  if (!repeaters) return;
   // Connected letter run: continuous numbering across every text under
   // this container, so selections, id/u/count, ranks and centers span
   // texts. Single texts resolve to their own local numbering exactly.
   const run = containerLetterRun(container, textObject, splitState.entries, frame);
-  const selfWorld = run.selfWorld;
-  // The text keeps its own placement: carry the Text object's transform
-  // onto its render root so multiple texts compose by position instead
-  // of piling on the origin. Reads at the current frame, so keyframed
-  // text motion carries its letters.
+  // The split root is a sibling of the native mesh. Its actual parent
+  // already applies every Group transform, so copy only the native local pose.
   try {
-    splitState.renderRoot.position.set(
-      selfWorld.position[0],
-      selfWorld.position[1],
-      selfWorld.position[2]
-    );
-    splitState.renderRoot.rotation.set(
-      selfWorld.rotation[0],
-      selfWorld.rotation[1],
-      selfWorld.rotation[2],
-      selfWorld.eulerOrder
-    );
-    splitState.renderRoot.scale.set(selfWorld.scale[0], selfWorld.scale[1], selfWorld.scale[2]);
+    const root = splitState.renderRoot;
+    const local = root.parent === sourceMesh
+      ? { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1], eulerOrder: "XYZ" }
+      : ownTransformOf(textObject, frame);
+    root.position.set(...local.position);
+    root.rotation.set(...local.rotation, local.eulerOrder);
+    root.scale.set(...local.scale);
+    if (root.parent !== sourceMesh && sourceMesh.position && sourceMesh.rotation && sourceMesh.scale) {
+      root.position.copy(sourceMesh.position);
+      root.rotation.copy(sourceMesh.rotation);
+      root.scale.copy(sourceMesh.scale);
+    }
   } catch (_rootTransform) {}
   const entries = splitState.entries;
   const globalList = { order: run.order, total: run.total };
@@ -730,7 +760,11 @@ function updateExpressRendering(textObject, splitState, layers, frame) {
     }
   }
   const sharedPivot = textPivot ? splitState.textCenter || [0, 0, 0] : null;
+  let sequence;
+  try { sequence = textObject.getParentOfType?.(state.PZ?.sequence); } catch (_detached) {}
+  sequence ||= textObject.parentProject?.sequence;
   const aux = {
+    rate: propertyValue(sequence?.properties?.rate, frame, 30),
     extent: run.extent,
     bases: run.bases,
     selfWorld: run.selfWorld,
@@ -854,4 +888,4 @@ function syncExpressRendering(textObject, frame) {
   }
 }
 
-module.exports = { EXTRUDE_OPTION_KEYS, applyLetterTransform, buildExpressRendering, containerLetterRun, containerTexts, disposeExpressRendering, eulerParts, expressSignature, geometryTriangleArrays, getSplitState, layoutLetterCount, ownTransformOf, restoreExpressRendering, setChunkAttribute, sourceExtrudeOptions, syncExpressRendering, textWorldOf, throughParent, updateExpressRendering };
+module.exports = { retainNativeGeometry, EXTRUDE_OPTION_KEYS, applyLetterTransform, buildExpressRendering, containerLetterRun, containerTexts, disposeExpressRendering, eulerParts, expressSignature, geometryTriangleArrays, getSplitState, layoutLetterCount, ownTransformOf, restoreExpressRendering, setChunkAttribute, sourceExtrudeOptions, syncExpressRendering, textWorldOf, throughParent, updateExpressRendering };
