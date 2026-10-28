@@ -99,6 +99,11 @@ each line describes one visible change.
 
 ### Fixed
 
+- Leaving or reloading the page while a project is saving now asks first, and
+  a "Saving..." notice stays until the save finishes. If a save into a newly
+  chosen file fails, the message says the file may now be empty.
+- Opening an empty project file explains that a save was probably interrupted
+  and points to the Restore points panel.
 - Effector preview frames now always show the exact result for that frame, the
   same as export. Playback may slow on heavy fractures instead of showing an
   earlier frame or the unbroken object.
