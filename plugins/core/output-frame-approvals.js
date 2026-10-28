@@ -3,7 +3,7 @@
   "use strict";
   const receipt = {
   "schemaVersion": 1,
-  "fingerprint": "11b51de01b8571451be7fdbc1c52237abcd903f17859c44e57a5733e19455b03",
+  "fingerprint": "4c8c5ace2b16d85f6334edafa4705f0b86f1679d859f920c5e6590d4bfb4cc76",
   "plugins": {
     "native-fx": {
       "version": "37",
@@ -69,7 +69,7 @@
       ]
     },
     "repeater": {
-      "version": "39",
+      "version": "40",
       "cases": [
         "Repeater",
         "Linear Repeater",

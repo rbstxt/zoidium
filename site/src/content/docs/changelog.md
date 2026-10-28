@@ -99,6 +99,12 @@ each line describes one visible change.
 
 ### Fixed
 
+- Collect Files no longer creates a ZIP where a file and a folder share a name,
+  which some extractors could not open.
+- Deleting a scene while its Effectors are still preparing no longer keeps
+  their fracture data in memory.
+- Opening another project in the middle of a Shape Editor drag no longer adds
+  that drag to the new project's undo history.
 - Voronoi Fracture plays back smoothly again. Frames whose pieces are already
   built are computed right away instead of waiting in the background queue, so
   playback no longer stays on one held image.
