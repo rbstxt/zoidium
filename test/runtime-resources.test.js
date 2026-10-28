@@ -2,9 +2,14 @@
 
 const assert = require("node:assert/strict");
 const test = require("node:test");
+const fs = require("node:fs/promises");
+const os = require("node:os");
+const path = require("node:path");
 const {
+  buildResourceStage,
   discoverEditorEntryScript,
   discoverTextReferences,
+  inspectResourceCache,
   normalizeResourcePath,
   patchIndexHtml,
   patchThreeR91Source,
@@ -139,4 +144,45 @@ test("a network error retries but a fetch AbortError does not", async () => {
     fetchImpl: async () => { calls += 1; throw new DOMException("cancelled", "AbortError"); },
   }), { name: "AbortError" });
   assert.equal(calls, 1);
+});
+
+test("repeated transient failures stop after three attempts with the last error", async () => {
+  let calls = 0;
+  await assert.rejects(fetchBytes("https://example.test/cm3/script.js", {
+    timeoutMs: 30000,
+    fetchImpl: async () => { calls += 1; return new Response("busy", { status: 503 }); },
+  }), /HTTP 503 for https:\/\/example\.test\/cm3\/script\.js/);
+  assert.equal(calls, 3);
+});
+
+test("a challenge page fails fast without retry", async () => {
+  let calls = 0;
+  await assert.rejects(fetchBytes("https://example.test/cm3/script.js", {
+    fetchImpl: async () => { calls += 1; return new Response("<html><body>Just a moment...</body></html>", { status: 200 }); },
+  }), /browser check/);
+  assert.equal(calls, 1);
+});
+
+test("a tampered cached resource fails validation without refetching", async (t) => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "zoidium-integrity-test-"));
+  t.after(() => fs.rm(root, { force: true, recursive: true }));
+  const sourcePageUrl = "https://example.test/cm3/clipmaker.html";
+  const videoEditorSourcePageUrl = "https://example.test/cm3/videoeditor.html";
+  const page = (layout) => `<html><head><script src="core-1.js"></script><script src="${layout}-1.js"></script><script>PZ.ui.ads.init(); initTool();</script></head></html>`;
+  const fetchImpl = async (url) => new Response(
+    url === sourcePageUrl ? page("clipmaker") : url === videoEditorSourcePageUrl ? page("videoeditor") : "// CM3 fixture",
+  );
+  const cacheRoot = path.join(root, "cache");
+  await buildResourceStage(cacheRoot, sourcePageUrl, { videoEditorSourcePageUrl, fetchImpl });
+  const options = { sourcePageUrl, videoEditorSourcePageUrl };
+  assert.equal((await inspectResourceCache({ ...options, cacheRoot, verifyHashes: true })).valid, true);
+  const metadata = (await inspectResourceCache({ ...options, cacheRoot, verifyHashes: true })).metadata;
+  assert.ok(metadata.resources.length > 0);
+  const tampered = path.join(cacheRoot, metadata.resources[0].sourcePath);
+  const bytes = await fs.readFile(tampered);
+  bytes[0] ^= 0xff;
+  await fs.writeFile(tampered, bytes);
+  const inspection = await inspectResourceCache({ ...options, cacheRoot, verifyHashes: true });
+  assert.equal(inspection.valid, false);
+  assert.match(inspection.reason, /hash does not match/);
 });
