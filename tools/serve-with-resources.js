@@ -107,6 +107,18 @@ function shouldServeFromProject(requestUrl) {
   return relativePath != null && isLiveProjectPath(relativePath);
 }
 
+// Browsers request /favicon.ico unconditionally. The staged page carries an
+// empty data: icon instead, so the development server answers with empty
+// success rather than a 404.
+function isFaviconRequest(requestUrl) {
+  return requestPathname(requestUrl) === "favicon.ico";
+}
+
+function sendFaviconSilence(response) {
+  response.writeHead(204, { "Content-Length": "0" });
+  response.end();
+}
+
 function parseOptions(argv) {
   const options = { open: false, port: 8123 };
   for (const argument of argv) {
@@ -252,6 +264,10 @@ async function main() {
         response.end("Forbidden");
         return;
       }
+      if (isFaviconRequest(request.url)) {
+        sendFaviconSilence(response);
+        return;
+      }
       compressionMiddleware(request, response, async () => {
         try {
           if (requestPathname(request.url) === "plugins/core/output-frame-approvals.js") {
@@ -322,8 +338,10 @@ if (require.main === module) {
 
 module.exports = {
   isAllowedHost,
+  isFaviconRequest,
   isLiveProjectPath,
   listenOnAvailablePort,
   requestPathname,
+  sendFaviconSilence,
   shouldServeFromProject,
 };

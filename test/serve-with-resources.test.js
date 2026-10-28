@@ -4,8 +4,10 @@ const assert = require("node:assert/strict");
 const http = require("node:http");
 const test = require("node:test");
 const {
+  isFaviconRequest,
   listenOnAvailablePort,
   requestPathname,
+  sendFaviconSilence,
   shouldServeFromProject,
 } = require("../tools/serve-with-resources");
 
@@ -21,6 +23,29 @@ test("development server does not expose unrelated repository files", () => {
   assert.equal(shouldServeFromProject("/plugins/player-plus/player-plus.js"), false);
   assert.equal(shouldServeFromProject("/package.json"), false);
   assert.equal(shouldServeFromProject("/plugins/../package.json"), false);
+});
+
+test("development server recognizes favicon requests at the site root only", () => {
+  assert.equal(isFaviconRequest("/favicon.ico"), true);
+  assert.equal(isFaviconRequest("/favicon.ico?v=2"), true);
+  assert.equal(isFaviconRequest("/assets/favicon.ico"), false);
+  assert.equal(isFaviconRequest("/index.html"), false);
+  // URL dot-segment normalization collapses this to the root icon; answering
+  // it reads no file, so silence stays safe.
+  assert.equal(isFaviconRequest("/%2e%2e/favicon.ico"), true);
+});
+
+test("development server answers favicon requests with empty success", () => {
+  const calls = [];
+  const response = {
+    writeHead: (status, headers) => { calls.push(["writeHead", status, headers]); },
+    end: (body) => { calls.push(["end", body]); },
+  };
+  sendFaviconSilence(response);
+  assert.deepEqual(calls, [
+    ["writeHead", 204, { "Content-Length": "0" }],
+    ["end", undefined],
+  ]);
 });
 
 function listenForTest(server, port = 0) {
