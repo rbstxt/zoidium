@@ -71,6 +71,7 @@
       "./plugins/core/playback-seek-sync.js",
       "./plugins/core/export-audio-trace.js",
       "./zoidium/direct-download.js",
+      "./plugins/core/project-files-shared.js",
       "./plugins/core/project-files.js",
       "./plugins/core/panel-fullscreen-shortcut.js",
       "./plugins/core/output-frame-approvals.js",

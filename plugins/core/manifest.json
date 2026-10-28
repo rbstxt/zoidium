@@ -211,6 +211,11 @@
       "phase": "pre-init"
     },
     {
+      "id": "project-files-shared",
+      "source": "./plugins/core/project-files-shared.js",
+      "phase": "pre-init"
+    },
+    {
       "id": "project-files",
       "source": "./plugins/core/project-files.js",
       "phase": "pre-init"

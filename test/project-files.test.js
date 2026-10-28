@@ -210,9 +210,14 @@ function createHarness(options = {}) {
     path.join(__dirname, "../plugins/core/project-files.js"),
     "utf8",
   );
+  const sharedSource = fs.readFileSync(
+    path.join(__dirname, "../plugins/core/project-files-shared.js"),
+    "utf8",
+  );
   const archiveIO = require("./project-archive-harness.cjs").installArchive(windowObject, options);
   const encode = archiveIO.encode;
   archiveIO.encode = function (archive) { tarCalls += 1; return encode(archive); };
+  vm.runInContext(sharedSource, context);
   vm.runInContext(source, context);
 
   function makeEditor() {

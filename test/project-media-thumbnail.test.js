@@ -15,6 +15,10 @@ const projectFilesSource = fs.readFileSync(
   path.join(__dirname, "../plugins/core/project-files.js"),
   "utf8",
 );
+const projectFilesSharedSource = fs.readFileSync(
+  path.join(__dirname, "../plugins/core/project-files-shared.js"),
+  "utf8",
+);
 const plain = (value) => JSON.parse(JSON.stringify(value));
 
 // Runs only installSerializedFieldPreservation from plugin-manager.js. The
@@ -190,6 +194,7 @@ function projectFilesHarness({ archiveFiles = null } = {}) {
   const encode = io.encode;
   io.encode = async function (archive) { captured.push(archive); return encode(archive); };
   if (archiveFiles) io.decode = async function () { const archive = new Archive(); await archive.untar(); return archive; };
+  vm.runInContext(projectFilesSharedSource, context);
   vm.runInContext(projectFilesSource, context);
   return { PZ, projectFiles: PZ.zoidium.projectFiles, captured, Editor };
 }
