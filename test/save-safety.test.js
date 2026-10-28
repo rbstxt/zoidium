@@ -1,7 +1,7 @@
 "use strict";
 const assert = require("node:assert/strict");
 const test = require("node:test");
-const { createHarness, addProjectEntries } = require("./project-files.test.js");
+const { createHarness, addProjectEntries, flush } = require("./project-files.test.js");
 
 function setup() {
   const h = createHarness();
@@ -425,4 +425,124 @@ test("an unavailable Restore panel asks before replacing the project instead of 
     else await assert.rejects(backup, /restore-point storage is not ready/);
     assert.equal(prompts[0].confirmLabel, "Continue without backup");
   }
+});
+
+function fireBeforeUnload(listener) {
+  const event = { returnValue: undefined, preventDefault() { this.defaultPrevented = true; } };
+  listener(event);
+  return event;
+}
+
+function gatedWriteHandle(onWrite) {
+  return { async createWritable() { return {
+    async write(blob) { await onWrite(blob); },
+    async close() {},
+    async abort() {},
+  }; } };
+}
+
+test("a leave-page guard asks before unloading only while a save is pending", async () => {
+  const h = createHarness();
+  const editor = h.makeEditor();
+  let writeStarted = false;
+  let finishWrite;
+  const writeGate = new Promise((resolve) => { finishWrite = resolve; });
+  editor._zoidiumSaveFileHandle = gatedWriteHandle(async () => { writeStarted = true; await writeGate; });
+  assert.deepEqual(h.listeners.beforeunload || [], []);
+  const saving = editor.save();
+  assert.equal((h.listeners.beforeunload || []).length, 1, "the guard is installed synchronously with the save");
+  while (!writeStarted) await flush(1);
+  const event = fireBeforeUnload(h.listeners.beforeunload[0]);
+  assert.equal(event.defaultPrevented, true);
+  assert.equal(event.returnValue, "");
+  finishWrite();
+  await saving;
+  assert.deepEqual(h.listeners.beforeunload || [], [], "the guard is removed after success");
+});
+
+test("the leave-page guard is removed after a failed or cancelled save", async () => {
+  const h = createHarness();
+  const editor = h.makeEditor();
+  let writeStarted = false;
+  let finishWrite;
+  const writeGate = new Promise((resolve) => { finishWrite = resolve; });
+  editor._zoidiumSaveFileHandle = gatedWriteHandle(async () => {
+    writeStarted = true;
+    await writeGate;
+    throw new Error("Write failed");
+  });
+  const saving = editor.save();
+  assert.equal((h.listeners.beforeunload || []).length, 1);
+  while (!writeStarted) await flush(1);
+  finishWrite();
+  assert.equal(await saving, null);
+  assert.deepEqual(h.listeners.beforeunload || [], [], "the guard is removed after an error");
+
+  const cancelled = createHarness();
+  let rejectPicker;
+  cancelled.windowObject.showSaveFilePicker = () => new Promise((resolve, reject) => { rejectPicker = reject; });
+  const cancelling = cancelled.makeEditor().save();
+  assert.equal((cancelled.listeners.beforeunload || []).length, 1);
+  const abort = new Error("The user aborted a request.");
+  abort.name = "AbortError";
+  rejectPicker(abort);
+  assert.equal(await cancelling, null);
+  assert.deepEqual(cancelled.listeners.beforeunload || [], [], "the guard is removed after a cancel");
+  assert.equal(cancelled.events.filter((event) => event.type === "zoidium:notification").length, 0);
+});
+
+test("a save shows one keep-open notice until it finishes", async () => {
+  for (const via of ["remembered", "picker"]) {
+    const h = createHarness();
+    const editor = h.makeEditor();
+    const writable = gatedWriteHandle(async () => {});
+    if (via === "remembered") editor._zoidiumSaveFileHandle = writable;
+    else h.windowObject.showSaveFilePicker = async () => ({ name: "picked.pz", ...writable });
+    await editor.save();
+    const notices = h.events.filter((event) => event.type === "zoidium:notification");
+    assert.equal(notices.length, 1, "one notice per " + via + " save");
+    assert.equal(notices[0].detail.title, "Saving...");
+    assert.match(notices[0].detail.message, /Keep this page open until saving finishes/);
+    assert.ok(h.events.some((event) => event.type === "zoidium:project-saved"));
+  }
+});
+
+test("a failure after the picker warns that the chosen file may be empty", async () => {
+  const h = createHarness();
+  h.windowObject.showSaveFilePicker = async () => ({ name: "new.pz" });
+  h.PZ.project.save = () => { throw new Error("Serialization failed."); };
+  assert.equal(await h.makeEditor().save(), null);
+  const buildError = h.events.find((event) => event.type === "zoidium:project-error");
+  assert.match(buildError.detail.message, /chosen file may now be empty/);
+  assert.match(buildError.detail.message, /Save again to replace it/);
+  assert.doesNotMatch(buildError.detail.message, /Download/);
+
+  const written = createHarness();
+  const writable = gatedWriteHandle(async () => { throw new Error("Write failed"); });
+  written.windowObject.showSaveFilePicker = async () => ({ name: "new.pz", ...writable });
+  assert.equal(await written.makeEditor().save(), null);
+  const writeError = written.events.find((event) => event.type === "zoidium:project-error");
+  assert.match(writeError.detail.message, /chosen file may now be empty/);
+  assert.match(writeError.detail.message, /or use Download/);
+  assert.equal(typeof writeError.detail.download, "function");
+
+  const resaved = createHarness();
+  const editor = resaved.makeEditor();
+  editor._zoidiumSaveFileHandle = gatedWriteHandle(async () => { throw new Error("Write failed"); });
+  assert.equal(await editor.save(), null);
+  const resaveError = resaved.events.find((event) => event.type === "zoidium:project-error");
+  assert.match(resaveError.detail.message, /Write failed/);
+  assert.doesNotMatch(resaveError.detail.message, /empty/);
+});
+
+test("opening a 0-byte file names the interrupted save and the restore points", async () => {
+  const h = createHarness();
+  await assert.rejects(h.projectFiles.openValidatedArchive(new Blob([]), "open"), (error) => {
+    assert.equal(error.name, "ProjectDataError");
+    assert.match(error.message, /cannot be opened.*file is empty/);
+    assert.match(error.message, /probably interrupted/);
+    assert.match(error.message, /RESTORE POINTS/);
+    return true;
+  });
+  await assert.rejects(h.projectFiles.openValidatedArchive(new Blob([]), "save"), /The archive is empty/);
 });

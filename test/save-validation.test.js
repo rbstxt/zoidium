@@ -128,6 +128,7 @@ function createHarness(options = {}) {
     window: windowObject,
   });
   const source = fs.readFileSync(path.join(__dirname, "../plugins/core/project-files.js"), "utf8");
+  const sharedSource = fs.readFileSync(path.join(__dirname, "../plugins/core/project-files-shared.js"), "utf8");
   const io = require("./project-archive-harness.cjs").installArchive(windowObject);
   const encode = io.encode;
   const decode = io.decode;
@@ -141,6 +142,7 @@ function createHarness(options = {}) {
     if (source && Array.isArray(source.entries)) { const archive = new Archive(); await archive.untar(source); return archive; }
     return decode(source, ArchiveType);
   };
+  vm.runInContext(sharedSource, context);
   vm.runInContext(source, context);
 
   function makeEditor() {
@@ -298,7 +300,7 @@ test("opening a file that is empty reports a recoverable project data error", as
     harness.projectFiles.openValidatedArchive(new Blob([]), "open"),
     (error) => {
       assert.equal(harness.projectFiles.isProjectDataError(error), true);
-      assert.equal(error.message, "This project file cannot be opened. The archive is empty.");
+      assert.equal(error.message, "This project file cannot be opened. The file is empty. A save into this file was probably interrupted. Recent versions may be in the RESTORE POINTS panel.");
       return true;
     },
   );

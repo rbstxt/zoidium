@@ -6,87 +6,64 @@
   if (!editorPrototype) return;
 
   var PATCH_MARKER = "__zoidiumProjectFilesPatch";
-  var DEFAULT_PROJECT_NAME = "project";
   var archiveIO = PZ.zoidiumProjectArchive;
   if (!archiveIO) throw new Error("Project archive support is unavailable.");
+
+  // Naming and error helpers live in the project-files-shared core script,
+  // which always runs first. Bind them here so the rest of this file is
+  // unchanged.
+  var shared = PZ.zoidium && PZ.zoidium.projectFilesShared;
+  if (!shared) throw new Error("Project file naming support is unavailable.");
+  var DEFAULT_PROJECT_NAME = shared.DEFAULT_PROJECT_NAME;
+  var normalizeProjectName = shared.normalizeProjectName;
+  var fileNameForProject = shared.fileNameForProject;
+  var projectNameFromFileName = shared.projectNameFromFileName;
+  var displayNameForUi = shared.displayNameForUi;
+  var fileDiagnostics = shared.fileDiagnostics;
+  var errorMessage = shared.errorMessage;
+  var isPlainObject = shared.isPlainObject;
+  var isProjectDataError = shared.isProjectDataError;
+  var projectDataError = shared.projectDataError;
 
   if (editorPrototype[PATCH_MARKER]) return;
   editorPrototype[PATCH_MARKER] = true;
 
   PZ.zoidium = PZ.zoidium || {};
 
-  function normalizeProjectName(value) {
-    var name = String(value == null ? "" : value).trim();
-    return name || DEFAULT_PROJECT_NAME;
-  }
-
-  function fileNameForProject(value) {
-    var name = normalizeProjectName(value)
-      .replace(/\.pz$/i, "")
-      .replace(/[<>:"/\\|?*\u0000-\u001f]/g, "-")
-      .replace(/\s+/g, " ")
-      .trim()
-      .slice(0, 120);
-    return (name || DEFAULT_PROJECT_NAME) + ".pz";
-  }
-
-  function projectNameFromFileName(value) {
-    var name = String(value || "").replace(/\.pz$/i, "").trim();
-    return normalizeProjectName(name);
-  }
-
-  // Older desktop builds replaced non-ASCII names with labels such as
-  // "Project [U+3046 U+304A]" before the renderer's font path was fixed.
-  // Decode that exact legacy format at the UI boundary so existing restore
-  // points become readable without changing unrelated user-entered names.
-  function decodeLegacyDisplayName(value) {
-    var name = normalizeProjectName(value);
-    var match = /^Project \[((?:U\+[0-9A-Fa-f]{1,6})(?: U\+[0-9A-Fa-f]{1,6})*)\]$/.exec(name);
-    if (!match) return name;
-
-    var tokens = match[1].split(" ");
-    var codePoints = [];
-    for (var index = 0; index < tokens.length; index += 1) {
-      var codePoint = Number.parseInt(tokens[index].slice(2), 16);
-      if (!Number.isInteger(codePoint) || codePoint < 0 || codePoint > 0x10ffff) {
-        return name;
-      }
-      codePoints.push(codePoint);
-    }
-
-    try {
-      return String.fromCodePoint.apply(String, codePoints) || name;
-    } catch (_error) {
-      // Overlong escapes fall back to the raw filename.
-      return name;
-    }
-  }
-
-  // Keep this as a single display-name hook so project-name rendering stays
-  // consistent across the toolbar, restore points, and accessibility labels.
-  // Electron's font backend is configured in the desktop main process; the
-  // renderer must not replace a user's real name with an artificial label.
-  function displayNameForUi(value) {
-    return decodeLegacyDisplayName(value);
-  }
-
-  function fileDiagnostics(file) {
-    if (!file) return {};
-    return {
-      filename: typeof file.name === "string" ? file.name : "",
-      size: Number.isFinite(Number(file.size)) ? Number(file.size) : null,
-      type: typeof file.type === "string" ? file.type : "",
-      lastModified: Number.isFinite(Number(file.lastModified))
-        ? Number(file.lastModified)
-        : null,
-    };
-  }
-
   function dispatch(type, detail) {
     try {
       global.dispatchEvent(new CustomEvent(type, { detail: detail || {} }));
     } catch (_error) {
       // Status notifications must never interrupt file operations.
+    }
+  }
+
+  // An interrupted save must never strand the user on a blank page without
+  // warning: while editor._zoidiumSavePromise is pending the browser asks
+  // before closing or reloading. Installed once per save in saveProject and
+  // removed when the save settles.
+  function saveGuardHandler(event) {
+    event.preventDefault();
+    event.returnValue = "";
+  }
+
+  function addSaveGuard() {
+    try {
+      if (typeof global.addEventListener === "function") {
+        global.addEventListener("beforeunload", saveGuardHandler);
+      }
+    } catch (_error) {
+      // A missing event target must never break saving.
+    }
+  }
+
+  function removeSaveGuard() {
+    try {
+      if (typeof global.removeEventListener === "function") {
+        global.removeEventListener("beforeunload", saveGuardHandler);
+      }
+    } catch (_error) {
+      // A missing event target must never break saving.
     }
   }
 
@@ -180,25 +157,6 @@
 
   var PROJECT_ENTRY = "project";
   var META_ENTRY = "meta";
-  var VALIDATION_PREFIX = {
-    save: "Nothing was saved.",
-    open: "This project file cannot be opened.",
-    restore: "This restore point cannot be opened.",
-  };
-
-  function isPlainObject(value) {
-    return value !== null && typeof value === "object" && !Array.isArray(value);
-  }
-
-  function isProjectDataError(error) {
-    return Boolean(error && error.name === "ProjectDataError");
-  }
-
-  function projectDataError(mode, detail) {
-    var error = new Error((VALIDATION_PREFIX[mode] || VALIDATION_PREFIX.open) + " " + String(detail).replace(/[.]+$/, "") + ".");
-    error.name = "ProjectDataError";
-    return error;
-  }
 
   // Reads an archive entry without removing it. CM3's getFile() splices the
   // entry out of the archive, so the validator must never use it.
@@ -345,7 +303,11 @@
   // waiting on a slow disk instead of failing at the size-scaled deadline.
   async function openValidatedArchive(source, mode, onSlow) {
     if (!(Number(source && source.size) > 0)) {
-      throw projectDataError(mode, "The archive is empty");
+      // A 0-byte file is usually a save that was interrupted after the
+      // picker truncated the chosen file. Point at the restore points.
+      throw projectDataError(mode, mode === "open"
+        ? "The file is empty. A save into this file was probably interrupted. Recent versions may be in the RESTORE POINTS panel"
+        : "The archive is empty");
     }
     var archive;
     try {
@@ -505,11 +467,17 @@
     }, 60000);
   }
 
-  function errorMessage(error, fallback) {
-    if (error && typeof error.message === "string" && error.message.trim()) {
-      return error.message;
-    }
-    return fallback;
+  // The picker truncates a newly chosen file before the archive is built,
+  // so a later failure may leave that file empty. Say so and point at the
+  // retry that replaces it. Re-saves through a remembered handle keep their
+  // current message.
+  function withEmptyTargetNote(error, archiveResult) {
+    var note = "The chosen file may now be empty. Save again" +
+      (archiveResult && archiveResult.blob ? " or use Download" : "") +
+      " to replace it.";
+    var annotated = new Error(errorMessage(error, "Could not save the project.") + " " + note);
+    if (error && typeof error.name === "string" && error.name) annotated.name = error.name;
+    return annotated;
   }
 
   function emitError(editor, error, archiveResult, retry) {
@@ -607,10 +575,19 @@
     var savedProject = editor.project;
     var savedRevision = getProjectRevision(editor);
     var archiveResult = null;
+    // The picker already truncated a newly chosen file, and a re-save will
+    // overwrite the remembered one. Warn once against leaving the page while
+    // the archive is built and written; completion still toasts "Saved."
+    if (handle || pickedHandle) {
+      dispatch("zoidium:notification", {
+        title: "Saving...",
+        message: "Keep this page open until saving finishes.",
+      });
+    }
     try {
       archiveResult = await createArchive(editor, { interactive: true });
     } catch (error) {
-      emitError(editor, error, null, function () {
+      emitError(editor, pickedHandle ? withEmptyTargetNote(error, null) : error, null, function () {
         return saveProject(editor);
       });
       return null;
@@ -690,7 +667,7 @@
           // Keep the original write error for the user.
         }
       }
-      emitError(editor, error, archiveResult, function () {
+      emitError(editor, pickedHandle ? withEmptyTargetNote(error, archiveResult) : error, archiveResult, function () {
         return saveProject(editor);
       });
       return null;
@@ -705,16 +682,19 @@
     // transient user activation.
     var operation = runSaveProject(editor);
     editor._zoidiumSavePromise = operation;
+    addSaveGuard();
     operation.then(
       function () {
         if (editor._zoidiumSavePromise === operation) {
           editor._zoidiumSavePromise = null;
         }
+        removeSaveGuard();
       },
       function () {
         if (editor._zoidiumSavePromise === operation) {
           editor._zoidiumSavePromise = null;
         }
+        removeSaveGuard();
       },
     );
     return operation;

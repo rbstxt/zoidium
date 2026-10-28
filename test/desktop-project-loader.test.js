@@ -40,7 +40,7 @@ function harness() {
   const io = require("./project-archive-harness.cjs").installArchive(window);
   io.decode = async function (file) { const archive = new Archive(); await archive.untar(file); return archive; };
   window.__zoidiumRestoreParts = { panel: { createSnapshot: async () => { calls.push("backup"); } } };
-  vm.runInNewContext(fs.readFileSync(path.join(__dirname, "../plugins/core/project-files.js"), "utf8"), {
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, "../plugins/core/project-files-shared.js"), "utf8") + "\n" + fs.readFileSync(path.join(__dirname, "../plugins/core/project-files.js"), "utf8"), {
     window, Blob, ArrayBuffer, TextEncoder, TextDecoder, Uint8Array,
     CustomEvent: class { constructor(type, { detail }) { this.type = type; this.detail = detail; } },
   });
