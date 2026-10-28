@@ -4,25 +4,26 @@ const { clone } = require("./model.js");
 // Commands resolve the layer address afresh, so tree replacement never leaves
 // undo closures pointing at dead Content/property instances.
 function exchange(p) {
+  if (p.currentProject() !== p.project) return;
   const current = p.read(true);
   if (!current) return;
   p.write(clone(p.data), true);
   p.history.pushCommand(exchange, { ...p, data: current });
 }
-function createGesture(history, read, write, notify = () => {}) {
+function createGesture(history, read, write, notify = () => {}, currentProject = () => undefined) {
   let active = null;
   function begin() {
     if (active || history.operation !== null) return false;
     const before = read();
     if (!before) return false;
     history.startOperation();
-    active = { before, operation: history.operation };
+    active = { before, operation: history.operation, project: currentProject() };
     return true;
   }
   function finish(cancel = false) {
     const state = active;
     active = null;
-    if (!state) return;
+    if (!state || currentProject() !== state.project) return;
     const after = read(),
       changed = after && JSON.stringify(after) !== JSON.stringify(state.before);
     // CM3's history does not nest: other code may have replaced or closed this
@@ -32,7 +33,7 @@ function createGesture(history, read, write, notify = () => {}) {
       if (changed && cancel) write(clone(state.before));
       else if (changed && history.operation === null) {
         history.startOperation();
-        history.pushCommand(exchange, { history, read, write, data: state.before });
+        history.pushCommand(exchange, { history, read, write, data: state.before, project: state.project, currentProject });
         history.finishOperation();
       }
       notify();
@@ -47,6 +48,8 @@ function createGesture(history, read, write, notify = () => {}) {
         read,
         write,
         data: state.before,
+        project: state.project,
+        currentProject,
       });
       history.finishOperation();
     }

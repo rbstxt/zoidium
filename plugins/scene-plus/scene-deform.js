@@ -192,6 +192,21 @@ function createDeformationSupport(PZ, THREE, editor) {
   let project = editor?.project, generation = 0;
   let preparedLayers = new WeakSet();
   const previewPrepares = new Map();
+  const preparationTokens = new WeakMap();
+  function scenePreparation(layer) {
+    let token = preparationTokens.get(layer);
+    if (!token) { token = {}; preparationTokens.set(layer, token); }
+    const started = generation, expectedProject = editor?.project;
+    // Private snapshot projects (preview frame cache) prepare scenes outside
+    // editor.project, so only require the scene to stay in the project it
+    // started in.
+    const projectOf = () => PZ.project && typeof layer.tryGetParentOfType === "function"
+      ? layer.tryGetParentOfType(PZ.project) || null : undefined;
+    const startProject = projectOf();
+    const attached = () => projectOf() === startProject;
+    return () => started === generation && preparationTokens.get(layer) === token &&
+      editor?.project === expectedProject && attached();
+  }
   function releaseLayers() {
     generation += 1;
     for (const layer of layers) restore(layer);
@@ -330,9 +345,10 @@ function createDeformationSupport(PZ, THREE, editor) {
 
   function preparePreview(layer, frame) {
     clearTimeout(previewPrepares.get(layer)?.timer);
-    const record = { frame, status: "pending", generation };
+    const record = { frame, status: "pending" };
     previewPrepares.set(layer, record);
-    const current = () => record.generation === generation && previewPrepares.get(layer) === record;
+    const preparing = scenePreparation(layer);
+    const current = () => preparing() && previewPrepares.get(layer) === record;
     const redraw = () => {
       const viewport = editor?.mainViewport;
       if (!current() || !viewport?.enabled) return;
@@ -350,7 +366,7 @@ function createDeformationSupport(PZ, THREE, editor) {
     };
     record.timer = setTimeout(() => failed(new Error("Scene preparation timed out; displaying available content.")),
       PREVIEW_PREPARE_TIMEOUT_MS);
-    Promise.resolve().then(() => layer.prepare(frame)).then(() => {
+    Promise.resolve().then(() => current() ? layer.prepare(frame) : undefined).then(() => {
       if (!current()) return;
       clearTimeout(record.timer);
       record.status = "ready";
@@ -398,10 +414,10 @@ function createDeformationSupport(PZ, THREE, editor) {
 
   // CM3 calls Scene.prepare from sequence.prepare before export getVideoFrame.
   // Update after child preparation to capture animated/generated source meshes.
-  async function settle(evaluate) {
+  async function settle(evaluate, current = () => true) {
     const started = generation;
     for (;;) {
-      if (started !== generation) return;
+      if (started !== generation || !current()) return;
       const meshes = new Set();
       preparingMeshes = meshes;
       try { evaluate(); } finally { preparingMeshes = null; }
@@ -417,6 +433,9 @@ function createDeformationSupport(PZ, THREE, editor) {
     const layer = liveObjectLayer(object, PZ);
     if (!layer) return;
     const started = object._prepareGeneration;
+    const preparing = scenePreparation(layer);
+    const current = () => preparing() && started === object._prepareGeneration && liveObjectLayer(object, PZ) === layer;
+    if (!current()) return;
     // The outer effector prepares the full chain after its children are ready.
     for (let parent = object.parent; parent && parent !== object; parent = parent.parent) {
       if (typeof parent.deformPositions === "function" || parent.__zoidiumRepeater) return;
@@ -425,7 +444,6 @@ function createDeformationSupport(PZ, THREE, editor) {
     object.update(frame);
     layer.threeObj?.updateMatrixWorld?.(true);
     await settle(() => {
-      if (started !== object._prepareGeneration || liveObjectLayer(object, PZ) !== layer) return;
       const meshes = evaluateTree(() => walkRenderedObject(object, [], frame, object.threeObj,
         mapRenderNodes(object.threeObj, object.threeObj)));
       if (!meshes.size) return;
@@ -435,21 +453,23 @@ function createDeformationSupport(PZ, THREE, editor) {
       for (const mesh of meshes) previous.add(mesh);
       affectedMeshes.set(layer, previous);
       layers.add(layer);
-    });
+    }, current);
   }
 
   const patchedPrepare = async function prepareWithEffectors(frame, ...args) {
-    const started = generation;
+    const current = scenePreparation(this);
+    if (!current()) return;
     await originalPrepare?.call(this, frame, ...args);
-    if (started !== generation || !state.meshJobs) return;
+    if (!current() || !state.meshJobs) return;
     const affected = objects => Array.from(objects || []).some(object =>
       typeof object?.deformPositions === "function" || affected(object?.objects));
     if (!affected(this.objects)) return;
     originalUpdate.call(this, frame);
-    await settle(() => apply(this, frame));
-    if (started === generation) preparedLayers.add(this);
+    await settle(() => apply(this, frame), current);
+    if (current()) preparedLayers.add(this);
   };
   const patchedUnload = function unloadWithEffectors(...args) {
+    preparationTokens.delete(this);
     clearTimeout(previewPrepares.get(this)?.timer);
     previewPrepares.delete(this);
     preparedLayers.delete(this);

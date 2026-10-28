@@ -2,7 +2,7 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 const zlib = require("node:zlib");
-const { webcrypto } = require("node:crypto");
+const { createHash, webcrypto } = require("node:crypto");
 const { retainedFixture } = require("./asset-retention-fixture.js");
 
 // Reads a stored (uncompressed) ZIP through its central directory.
@@ -93,6 +93,74 @@ test("identical archives come out for the same files", async () => {
   const first = Buffer.from(await (await f.api.collectFiles({ name: "p" })).blob.arrayBuffer());
   const second = Buffer.from(await (await f.api.collectFiles({ name: "p" })).blob.arrayBuffer());
   assert.deepEqual(first, second);
+});
+
+test("Collect Files keeps an existing collision-free archive byte-identical", async () => {
+  const f = retainedFixture();
+  try {
+    await f.add("root.txt", "text/plain", "root");
+    const clip = await f.add("clip.txt", "text/plain", "clip");
+    const footage = f.api.createFolder("Footage");
+    const nested = f.api.createFolder("Nested", footage);
+    f.api.moveItems([clip.key], nested);
+    const result = await f.api.collectFiles({ name: "Stable project" });
+    assert.equal(result.ok, true);
+    const bytes = Buffer.from(await result.blob.arrayBuffer());
+    assert.equal(createHash("sha256").update(bytes).digest("hex"),
+      "21c5343ff7ad7e66fcebba6635a91f57e0d2c256c85cef6589539cb835f40da0");
+  } finally { f.api.dispose(); }
+});
+
+test("Collect Files preserves archive bytes when a missing file shares an attached file name", async () => {
+  const f = retainedFixture();
+  try {
+    f.project.assets.list.lost = { key: "lost", filename: "same.png", source: 1,
+      file: null, url: null, data: new Map(), references: 1 };
+    owner(f, "Layer", "lost");
+    const file = await f.add("same.png", "image/png", "attached");
+    const footage = f.api.createFolder("Footage");
+    f.api.moveItems(["lost", file.key], footage);
+    const result = await f.api.collectFiles({ name: "Stable missing" });
+    assert.equal(result.ok, true);
+    const bytes = Buffer.from(await result.blob.arrayBuffer());
+    assert.equal(createHash("sha256").update(bytes).digest("hex"),
+      "dc4b3bfcb849db7485a9929eb525f2c76d0c6231baa7b1225ae99fc74dc93ffd");
+  } finally { f.api.dispose(); }
+});
+
+test("Collect Files shares case-insensitive names between folders, files, and the report", async () => {
+  const f = retainedFixture();
+  try {
+    await f.add("footage", "text/plain", "root file");
+    const child = await f.add("clip.txt", "text/plain", "child file");
+    const nestedFile = await f.add("NESTED", "text/plain", "nested file");
+    const reportChild = await f.add("notes.txt", "text/plain", "report child");
+    const footage = f.api.createFolder("Footage");
+    const reportFolder = f.api.createFolder("collect files report.TXT");
+    f.project.assets.list.lost = { key: "lost", filename: "lost.png", source: 1,
+      file: null, url: null, data: new Map(), references: 1 };
+    owner(f, "Missing", "lost");
+    const nested = f.api.createFolder("Nested", footage);
+    f.api.moveItems([nestedFile.key], footage);
+    f.api.moveItems([child.key], nested);
+    f.api.moveItems([reportChild.key, "lost"], reportFolder);
+    const result = await f.api.collectFiles();
+    assert.equal(result.ok, true);
+    const entries = readZip(Buffer.from(await result.blob.arrayBuffer()));
+    const names = Array.from(entries.keys());
+    const normalized = names.map(name => name.replace(/\/$/, "").toLowerCase());
+    assert.equal(new Set(normalized).size, names.length, "files and directories must coexist on extraction");
+    assert.equal(entries.get("footage (2)"), "root file");
+    assert.equal(entries.get("Footage/NESTED (2)"), "nested file");
+    assert.equal(entries.get("Footage/Nested/clip.txt"), "child file");
+    assert.equal(entries.get("collect files report (2).TXT/notes.txt"), "report child");
+    assert.equal(result.missing[0].path, "collect files report (2).TXT/lost.png");
+    assert.ok(result.report.includes("  " + result.missing[0].path + "  ("));
+    for (const item of result.collected) {
+      assert.ok(entries.has(item.path));
+      assert.ok(result.report.includes("  " + item.path + "  ("));
+    }
+  } finally { f.api.dispose(); }
 });
 
 function presetFixture() {

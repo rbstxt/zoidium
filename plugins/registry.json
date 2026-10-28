@@ -26,14 +26,14 @@
       "id": "core",
       "name": "Zoidium Core",
       "author": "Zoidium",
-      "version": "99",
+      "version": "100",
       "visibility": "hidden",
       "alwaysEnabled": true,
       "tagline": "Built-in core extensions",
       "description": "Hidden built-in extensions that always run. Not shown in the Plugins panel and never stored in projects.",
-      "manifest": "./plugins/core/manifest.json?v=99",
-      "bundle": "./plugins/core/bundle.json?v=99",
-      "integrity": "sha256-CtJselu5OF6Z75BUYTYCrGyk3cN/QU3T6mYAiMyRIBE="
+      "manifest": "./plugins/core/manifest.json?v=100",
+      "bundle": "./plugins/core/bundle.json?v=100",
+      "integrity": "sha256-uMlRA/4p3BWk6RmIf5Ju0O/pcfwLaQBCCFhbK0URD/E="
     },
     {
       "id": "easing-plus",
@@ -212,7 +212,7 @@
       "category": "scene",
       "name": "Effector",
       "author": "Zoidium",
-      "version": "39",
+      "version": "40",
       "defaultEnabled": true,
       "itemCount": 7,
       "format": "3D effectors",
@@ -220,9 +220,9 @@
       "color": "#6c7fb5",
       "description": "Adds procedural repeaters plus Twist, Warp and Voronoi Fracture effectors to 3D Scene.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/scene-plus/manifest.json?v=39",
-      "bundle": "./plugins/scene-plus/bundle.json?v=39",
-      "integrity": "sha256-WH7YCNJW5WsOdEaQWQN8L73zrwnPsBGBqIEi0WsF6Ng="
+      "manifest": "./plugins/scene-plus/manifest.json?v=40",
+      "bundle": "./plugins/scene-plus/bundle.json?v=40",
+      "integrity": "sha256-t7mMwJwk+rJw4BZCFqHaMp+1RcokAyGxTGBxifaWhrA="
     },
     {
       "id": "material-plus",
@@ -478,14 +478,14 @@
       "id": "shape-plus",
       "name": "Shape+",
       "author": "Zoidium",
-      "version": "22",
+      "version": "23",
       "tagline": "Animated vector layers",
       "description": "Animated vector layers, procedural contents, SVG import and native preview path editing.",
       "category": "scene",
       "defaultEnabled": true,
-      "manifest": "./plugins/shape-plus/manifest.json?v=22",
-      "bundle": "./plugins/shape-plus/bundle.json?v=22",
-      "integrity": "sha256-fVD+/ZvGofkE4ho4tqC2bntK/8siGeQk3ZIrHpGPSHo="
+      "manifest": "./plugins/shape-plus/manifest.json?v=23",
+      "bundle": "./plugins/shape-plus/bundle.json?v=23",
+      "integrity": "sha256-z3OjjaVCOHTjbJk/sIfEKxSUR25FFX0G7JCtUboXpR4="
     },
     {
       "id": "constraints",
