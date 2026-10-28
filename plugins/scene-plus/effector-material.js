@@ -71,6 +71,10 @@ function createFractureMaterials(THREE) {
       const recompile = !previous || previous.key !== key || previous.version !== source.version ||
         previous.hook !== source.onBeforeCompile || previous.uniforms !== source.uniforms ||
         clone.side !== side || clone.vertexColors !== colors;
+      // r91 keeps its shader record when needsUpdate produces the same program
+      // code. That record still owns the old uniform table and hook bindings.
+      // Dispose only a replaced binding; value animation keeps its program.
+      if (previous && (previous.hook !== source.onBeforeCompile || previous.uniforms !== source.uniforms)) clone.dispose();
       copyMaterialState(source, clone);
       clone.onBeforeCompile = source.onBeforeCompile;
       clone.defines = source.defines;
