@@ -99,6 +99,9 @@ each line describes one visible change.
 
 ### Fixed
 
+- Voronoi Fracture builds several pieces at once and skips work that cannot
+  change the result. The first fractured frame and Cells or Seed changes are
+  ready about three to five times sooner, with the same output.
 - Collect Files no longer creates a ZIP where a file and a folder share a name,
   which some extractors could not open.
 - Deleting a scene while its Effectors are still preparing no longer keeps
