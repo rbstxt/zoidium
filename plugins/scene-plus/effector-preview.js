@@ -68,6 +68,8 @@ function installPreviewHold(PZ, meshDeformer, editor) {
   for (const target of existing) if (target && Object.hasOwn(target, "_render")) patch(target);
 
   return {
+    isPresenting() { return viewport !== null; },
+    hold() { if (viewport) throw pendingFrame; },
     holdIfPending(meshes) {
       if (viewport && meshDeformer.pending(meshes).length) throw pendingFrame;
     },

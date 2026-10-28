@@ -189,11 +189,15 @@ function createDeformationSupport(PZ, THREE, editor) {
   const presentation = installPreviewHold(PZ, meshDeformer, editor);
 
   let project = editor?.project, generation = 0;
+  let preparedLayers = new WeakSet();
+  const previewPrepares = new Map();
   function releaseLayers() {
     generation += 1;
     for (const layer of layers) restore(layer);
     layers.clear();
     affectedMeshes.clear();
+    preparedLayers = new WeakSet();
+    previewPrepares.clear();
   }
   function projectChanged() {
     if (editor.project === project) return;
@@ -332,6 +336,24 @@ function createDeformationSupport(PZ, THREE, editor) {
       return;
     }
     layers.add(layer);
+    // Before fonts and source assets are prepared, there may be no mesh to
+    // queue yet. A preview must hold through that first preparation too.
+    if (presentation.isPresenting() && !preparingMeshes && !preparedLayers.has(layer)) {
+      if (!previewPrepares.has(layer)) {
+        const started = generation;
+        const task = Promise.resolve().then(() => layer.prepare(frame)).then(() => {
+          if (started !== generation) return;
+          const viewport = editor?.mainViewport;
+          if (!viewport?.enabled) return;
+          viewport.__zoidiumPlayerPlusRenderOnce = true;
+          try { viewport._render?.(); } finally { viewport.__zoidiumPlayerPlusRenderOnce = false; }
+        }).catch(error => {
+          console.warn("[Zoidium] Effector preview preparation failed", error);
+        }).finally(() => previewPrepares.delete(layer));
+        previewPrepares.set(layer, task);
+      }
+      presentation.hold();
+    }
     layer.threeObj?.updateMatrixWorld?.(true);
     const current = evaluateTree(() => walk(layer.objects, [], frame));
     if (previous) for (const mesh of previous) if (!current.has(mesh)) meshDeformer.restoreMesh(mesh);
@@ -397,6 +419,7 @@ function createDeformationSupport(PZ, THREE, editor) {
     if (!affected(this.objects)) return;
     originalUpdate.call(this, frame);
     await settle(() => apply(this, frame));
+    if (started === generation) preparedLayers.add(this);
   };
   const patchedUnload = function unloadWithEffectors(...args) {
     restore(this);
