@@ -81,11 +81,17 @@ The editor shows field and falloff guides for linear, box, sphere, and cylinder 
 | **Gravity**, **Randomness** | Gravity moves pieces along effector -Y. Randomness reduces motion strength by seeded amounts, 0 to 100. Both default to 0. |
 | **Characters**, **Invert selection** | One-based text ranges, such as `1,3-5`, and selection inversion. Spaces count. Newlines do not. Empty Characters selects all. Invalid nonempty ranges select none. |
 
+At full field strength, **Fragment scale** reaches the specified percentage independently of **Randomness**. A value of 0 collapses every vertex of each affected fragment, including inner faces, to one point. Partial field strength interpolates between the original size and the specified size. Zero field strength leaves the fragment unchanged. Existing projects with nonzero **Randomness** now use the specified scale instead of a randomized scale. Other motion controls retain their seeded variation.
+
 Character selection requires Text+. Non-text sources ignore character ranges. Invert selection does not change the empty selection's all-characters behavior.
 
 Fracture limits are 160,000 source triangles, 1,600,000 output triangles, 4,096 vertices per concave cap contour with holes, and 80,000,000 clipping operations per build. A build over those limits leaves the source unfractured. Invalid or excessive cap contours can fall back to open fragments.
 
-Built-in effector chains use the same synchronous evaluator for preview and export. Each draw finishes the requested frame before rendering. Expensive frames can delay playback or scrubbing. Preview never substitutes source geometry or a result from another frame.
+Opaque fractured meshes use source hierarchy order within each render priority. This makes equal-depth overlaps independent of material creation order. Existing projects can change some overlap-edge pixels. Transparent materials retain native sorting.
+
+Built-in effector chains use the same evaluator for preview and export. In browsers with worker support, geometry evaluation runs in a worker, including cold topology builds after changes to Cells, Seed, or the source geometry. While the requested result is pending, preview holds the last presented image and shows **Fracturing...**. Playback can hold or drop frames. Scrubbing ends on the exact requested frame. Export and **Render once** wait for that exact result. While worker evaluation is pending, preview does not substitute source geometry or a result from another frame. Hosts without worker support evaluate synchronously.
+
+Worker failures retry the same frame synchronously in preview and export. If that evaluation also fails, both use the unbroken source and report a warning. Startup preview preparation waits up to 10 seconds. A rejected or timed-out preparation releases the hold for that frame and displays available content. Preparation retries when the frame or project changes. Export retains resource-preparation errors and waits without the preview timeout.
 
 ## Plain and Delay
 
@@ -105,6 +111,6 @@ Nested Delay histories share a total budget of 96 samples per mesh. Samples with
 
 Numeric Twist, Warp, and fracture types 7, 8, and 9 migrate to the namespaced Effector classes. Effector+ supplies compatibility for those numeric types and adds no new picker entries.
 
-Old field and subdivision settings can retain compatibility behavior. New controls use the current percentage-based fields and uniform subdivision model.
+Old field and subdivision settings can retain compatibility behavior. Saved legacy subdivision also applies when fracture character selection is active. New controls use the current percentage-based fields and uniform subdivision model.
 
 For task steps, see [Repeat and deform objects with Effector](/docs/features/effector/).

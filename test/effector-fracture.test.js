@@ -312,7 +312,7 @@ test("expanded motion and animated fields are deterministic in shuffled frame or
   const motion = t => ({ distance: t, scatter: t / 2, spin: t, offset: 10 * t, direction: [t, 2 * t, -t], rotation: [40 * t, 80 * t, 15 * t], fragmentScale: 100 - 30 * t, gravity: t * 2, randomness: 50,
     field: { type: 1, position: [0, 0, 0], scale: [100, 100, 100], rotation: [0, 0, 30], falloff: 40, sweep: 100 * t } });
   const cache = createStageCache(); let builds = 0;
-  const tracked = { get(key, build) { return cache.get(key, () => { builds++; return build(); }); } };
+  const tracked = { get(key, build) { return cache.get(key, () => { if (key.includes(":fracture:")) builds++; return build(); }); } };
   const run = t => evaluateMesh({ base, polygonCount: 1, sourceId: "expanded", commands: [{ kind: "fracture", topology, motion: motion(t), relation: { identity: true } }] }, tracked);
   const expected = new Map([0, 0.5, 1].map(t => [t, run(t).positions]));
   for (const t of [1, 0, 0.5, 1, 0.5, 0]) {

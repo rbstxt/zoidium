@@ -589,6 +589,11 @@ function buildVoronoiFracture(source, options, limits) {
   // only the final source boundary would incorrectly fill a non-planar loop
   // and lose cells entirely inside the source volume.
   const sourcePolygons = [];
+  const materialIds = new Uint16Array(triangleCount);
+  for (const group of source.groups || []) {
+    const end = Math.min(triangleCount, Math.floor((group.start + group.count) / 3));
+    for (let t = Math.ceil(group.start / 3); t < end; t++) materialIds[t] = group.materialIndex || 0;
+  }
   for (let triangle = 0; triangle < triangleCount; triangle += 1) {
     const points = [];
     for (let local = 0; local < 3; local += 1) {
@@ -599,13 +604,14 @@ function buildVoronoiFracture(source, options, limits) {
         normal: normals ? Array.from(normals.subarray(vertex * 3, vertex * 3 + 3)) : null,
       });
     }
-    sourcePolygons.push({ points, cap: false });
+    sourcePolygons.push({ points, cap: false, materialIndex: materialIds[triangle] });
   }
   const fragmentPositions = [];
   const fragmentNormals = [];
   const capNormals = [];
   const fragmentUvs = [];
   const fragmentPiece = [];
+  const fragmentMaterials = [];
   const capPositions = [];
   const capPieces = [];
   let capTriangleCount = 0;
@@ -622,7 +628,7 @@ function buildVoronoiFracture(source, options, limits) {
       for (const polygon of surface) {
         const points = clipRecords(polygon.points, plane, planeEpsilon);
         if (points.length < 3) continue;
-        next.push({ points, cap: polygon.cap });
+        next.push({ points, cap: polygon.cap, materialIndex: polygon.materialIndex });
         if (!closed || points === polygon.points) continue;
         for (let i = 0; i < points.length; i += 1) {
           const a = points[i].p;
@@ -670,6 +676,7 @@ function buildVoronoiFracture(source, options, limits) {
           if (normals) (polygon.cap ? capNormals : fragmentNormals).push(...(point.normal || normalize3(area, [0, 0, 1])));
           if (!polygon.cap) {
             fragmentPiece.push(piece);
+            fragmentMaterials.push(polygon.materialIndex || 0);
             if (uvs) fragmentUvs.push(...(point.uv || [0, 0]));
           }
         }
@@ -693,6 +700,7 @@ function buildVoronoiFracture(source, options, limits) {
     fragmentNormals, capNormals, hasNormals: Boolean(normals),
     fragmentUvs,
     fragmentPiece,
+    fragmentMaterials, materialCount: source.materialCount || 1,
     capPositions,
     capPieces,
     capTriangleCount,
@@ -758,6 +766,16 @@ function assembleStage(parts) {
   const attributes = { color: { array: colors, itemSize: 3, normalized: false } };
   if (parts.hasNormals) attributes.normal = { array: new Float32Array([...parts.fragmentNormals, ...parts.capNormals]), itemSize: 3, normalized: false };
   if (uvs) attributes.uv = { array: uvs, itemSize: 2, normalized: false };
+  const groups = [];
+  for (let start = 0; start < fragmentVertices;) {
+    const materialIndex = parts.fragmentMaterials[start];
+    let end = start + 1;
+    while (end < fragmentVertices && parts.fragmentMaterials[end] === materialIndex) end++;
+    groups.push({ start, count: end - start, materialIndex });
+    start = end;
+  }
+  if (vertexCount > fragmentVertices) groups.push({ start: fragmentVertices,
+    count: vertexCount - fragmentVertices, materialIndex: parts.materialCount });
   return {
     kind: "fracture",
     smooth: false,
@@ -767,10 +785,8 @@ function assembleStage(parts) {
     uvs,
     index: null,
     indexRef: null,
-    // Group 1 holds the inner cap faces; the renderer draws them with a polygon
-    // offset so the cut walls win where the two meet.
-    groups: [{ start: 0, count: fragmentVertices, materialIndex: 0 },
-      ...(vertexCount > fragmentVertices ? [{ start: fragmentVertices, count: vertexCount - fragmentVertices, materialIndex: 1 }] : [])],
+    groups,
+    capMaterialIndex: parts.materialCount,
     pieceIds,
     pieceCount: parts.cells,
     pieceCentroids: centroids,
@@ -839,7 +855,7 @@ function applyFragmentMotion(positions, stage, motion, matrix) {
     shift[piece * 3] = (outward[0] * distance + scatterDirection[0] * scatterMagnitude * scatter + core.finiteOr(direction[0], 0)) * weight;
     shift[piece * 3 + 1] = (outward[1] * distance + scatterDirection[1] * scatterMagnitude * scatter + core.finiteOr(direction[1], 0)) * weight - gravity * fieldWeight * fieldWeight * variation;
     shift[piece * 3 + 2] = (outward[2] * distance + scatterDirection[2] * scatterMagnitude * scatter + core.finiteOr(direction[2], 0)) * weight;
-    scale[piece] = Math.max(0, 1 - (offset / 100) * weight) * Math.max(0, 1 + (fragmentScale / 100 - 1) * weight);
+    scale[piece] = Math.max(0, 1 - (offset / 100) * weight) * Math.max(0, 1 + (fragmentScale / 100 - 1) * fieldWeight);
     rotation.set([
       cosine + x * x * oneMinus, x * y * oneMinus - z * sine, x * z * oneMinus + y * sine,
       y * x * oneMinus + z * sine, cosine + y * y * oneMinus, y * z * oneMinus - x * sine,

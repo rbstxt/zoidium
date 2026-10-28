@@ -127,12 +127,14 @@ test("unused frame results are bounded by count and bytes", () => {
   jobs.dispose();
 });
 
-test("worker errors reject frame preparation and cleanup still completes", async () => {
+test("worker errors settle once, remain inspectable on retry, and are never pending", async () => {
   const harness = hostHarness(); const jobs = createMeshJobs("source", harness.host);
   const mesh = {}, entry = jobs.request(mesh, "key", {});
   harness.workers[0].finish(null, "invalid geometry");
   await assert.rejects(entry.promise, /invalid geometry/);
-  assert.throws(() => jobs.request(mesh, "key", {}), /invalid geometry/);
+  assert.equal(jobs.request(mesh, "key", {}), entry);
+  assert.equal(entry.status, "error");
+  assert.deepEqual(jobs.pending([mesh]), []);
   jobs.dispose();
 });
 
@@ -197,7 +199,15 @@ test("bundled Blob worker source executes in an actual worker without source-tre
     worker.postMessage({ id: 1, input });
     const result = await done;
     assert.equal(result.error, undefined);
-    assert.deepEqual(result.value.positions, evaluateMesh(input).positions);
+    assert.deepEqual(result.value, evaluateMesh(input));
+    for (const frame of [3, 1, 0, 3]) {
+      const nextInput = { ...input, commands: [{ ...input.commands[0], motion: {
+        distance: frame / 10, spin: frame / 5, fragmentScale: frame ? 70 : 0, randomness: 100,
+      } }] };
+      const completed = new Promise((resolve, reject) => { worker.once("message", resolve); worker.once("error", reject); });
+      worker.postMessage({ id: 20 + frame, input: nextInput });
+      assert.deepEqual((await completed).value, evaluateMesh(nextInput), "worker and fallback match every attribute bit for bit");
+    }
     // Reuse the same worker and source identity across both modes. A topology
     // cached for one mode must never supply the other mode's vertices.
     const fixtures = require("./fixtures/legacy-render-outputs.json");

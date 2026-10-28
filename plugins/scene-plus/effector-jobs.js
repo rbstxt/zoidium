@@ -87,6 +87,7 @@ function createMeshJobs(workerSource, host = globalThis, redraw = () => {}) {
             completed.error = new Error("Effector worker failed: " + data.error);
             completeStatus(completed, ["worker failed: " + data.error]);
             completed.reject(completed.error);
+            redraw();
           } else {
             completed.status = "done";
             built.add(completed.buildKey);
@@ -114,6 +115,7 @@ function createMeshJobs(workerSource, host = globalThis, redraw = () => {}) {
             failed.error = new Error("Effector worker failed: " + event.message);
             completeStatus(failed, ["worker failed: " + event.message]);
             failed.reject(failed.error);
+            redraw();
           }
           pump();
         };
@@ -128,6 +130,7 @@ function createMeshJobs(workerSource, host = globalThis, redraw = () => {}) {
       entry.error = error;
       completeStatus(entry, ["worker failed: " + error.message]);
       entry.reject(error);
+      redraw();
       pump();
     }
   }
@@ -164,7 +167,6 @@ function createMeshJobs(workerSource, host = globalThis, redraw = () => {}) {
     if (disposed) return null;
     const previous = consumers.get(consumer);
     if (previous?.key === key) {
-      if (previous.error) throw previous.error;
       return previous;
     }
     const buildKey = input.buildKey || key;
@@ -186,13 +188,14 @@ function createMeshJobs(workerSource, host = globalThis, redraw = () => {}) {
     entry.users.add(consumer);
     consumers.set(consumer, entry);
     if (input.commands?.some(command => command.kind === "fracture")) {
-      reportFracture(entry, consumer, entry.status !== "done", [...(entry.value?.errors || []), ...(entry.value?.warnings || [])]);
+      reportFracture(entry, consumer, entry.status === "queued" || entry.status === "running", [...(entry.value?.errors || []), ...(entry.value?.warnings || [])]);
     }
     pump();
     return entry;
   }
 
   return {
+    available: typeof host.Worker === "function",
     request, release,
     latest(buildKey) {
       return Array.from(entries.values()).reverse().find(entry => entry.buildKey === buildKey && entry.status === "done");
@@ -208,7 +211,7 @@ function createMeshJobs(workerSource, host = globalThis, redraw = () => {}) {
     },
     pending(consumersToWait) {
       return Array.from(new Set(Array.from(consumersToWait, consumer => consumers.get(consumer))))
-        .filter(entry => entry && entry.status !== "done").map(entry => entry.promise);
+        .filter(entry => entry && (entry.status === "queued" || entry.status === "running")).map(entry => entry.promise);
     },
     dispose() {
       if (disposed) return;

@@ -9,8 +9,10 @@ const {
   mapRenderNodes, restoreDeformedTree, traverseDeformMeshes,
 } = require("./scene-clone.js");
 const state = require("./scene-state.js");
+const { installPreviewHold } = require("./effector-preview.js");
 const { installFieldEdit } = require("./scene-field-edit.js");
 const legacySubdivision = require("./legacy-subdivision.js");
+const PREVIEW_PREPARE_TIMEOUT_MS = 10000;
 
 function liveObjectLayer(object, PZ) {
   if (!object?.threeObj) return null;
@@ -185,13 +187,19 @@ function createDeformationSupport(PZ, THREE, editor) {
   const originalUnload = prototype.unload;
   const meshDeformer = getMeshDeformer(THREE);
   const disposeFieldHelpers = installFieldHelpers(THREE);
+  const presentation = installPreviewHold(PZ, meshDeformer, editor);
 
   let project = editor?.project, generation = 0;
+  let preparedLayers = new WeakSet();
+  const previewPrepares = new Map();
   function releaseLayers() {
     generation += 1;
     for (const layer of layers) restore(layer);
     layers.clear();
     affectedMeshes.clear();
+    preparedLayers = new WeakSet();
+    for (const record of previewPrepares.values()) clearTimeout(record.timer);
+    previewPrepares.clear();
   }
   function projectChanged() {
     if (editor.project === project) return;
@@ -303,10 +311,11 @@ function createDeformationSupport(PZ, THREE, editor) {
           }
         }
       }
-      for (const task of tasks) {
+      for (const [index, task] of tasks.entries()) {
         const chain = task.chain.map(entry => ({ ...entry, bounds: bounds.get(entry.node) }));
         for (const entry of chain) { entry.effector._fieldBounds = entry.bounds; entry.effector._effectorFrame = task.frame; }
-        meshDeformer.deformMesh(task.mesh, chain, task.frame, task.polygonCount, task.legacy);
+        meshDeformer.deformMesh(task.mesh, chain, task.frame, task.polygonCount, task.legacy,
+          (index + 1) / (tasks.length + 1) * 0.001);
       }
       return new Set(tasks.map(task => task.mesh));
     } finally { tasks = null; }
@@ -319,21 +328,64 @@ function createDeformationSupport(PZ, THREE, editor) {
       hasActiveEffectors(object.objects, frame)));
   }
 
+  function preparePreview(layer, frame) {
+    clearTimeout(previewPrepares.get(layer)?.timer);
+    const record = { frame, status: "pending", generation };
+    previewPrepares.set(layer, record);
+    const current = () => record.generation === generation && previewPrepares.get(layer) === record;
+    const redraw = () => {
+      const viewport = editor?.mainViewport;
+      if (!current() || !viewport?.enabled) return;
+      viewport.__zoidiumPlayerPlusRenderOnce = true;
+      try { viewport._render?.(); }
+      catch (error) { console.warn("[Zoidium] Effector preview redraw failed", error); }
+      finally { viewport.__zoidiumPlayerPlusRenderOnce = false; }
+    };
+    const failed = error => {
+      if (!current() || record.status !== "pending") return;
+      clearTimeout(record.timer);
+      record.status = "failed";
+      console.warn("[Zoidium] Effector preview preparation failed", error);
+      redraw();
+    };
+    record.timer = setTimeout(() => failed(new Error("Scene preparation timed out; displaying available content.")),
+      PREVIEW_PREPARE_TIMEOUT_MS);
+    Promise.resolve().then(() => layer.prepare(frame)).then(() => {
+      if (!current()) return;
+      clearTimeout(record.timer);
+      record.status = "ready";
+      redraw();
+    }, failed);
+    return record;
+  }
+
   function apply(layer, frame) {
     if (!layer?.objects) return;
     frame = Number.isFinite(frame) ? frame : 0;
     const previous = affectedMeshes.get(layer);
     if (!hasActiveEffectors(layer.objects, frame)) {
+      clearTimeout(previewPrepares.get(layer)?.timer);
+      previewPrepares.delete(layer);
       if (previous) for (const mesh of previous) meshDeformer.restoreMesh(mesh);
       affectedMeshes.delete(layer);
       layers.delete(layer);
       return;
     }
     layers.add(layer);
+    // Missing source assets may mean no mesh job exists yet. A failed or
+    // timed-out startup releases this frame; a new frame can retry preparation.
+    let availablePreview = false;
+    if (presentation.isPresenting() && !preparingMeshes && !preparedLayers.has(layer)) {
+      let record = previewPrepares.get(layer);
+      if (!record || record.frame !== frame) record = preparePreview(layer, frame);
+      if (record.status === "pending") presentation.hold();
+      availablePreview = record.status === "failed";
+    }
     layer.threeObj?.updateMatrixWorld?.(true);
     const current = evaluateTree(() => walk(layer.objects, [], frame));
     if (previous) for (const mesh of previous) if (!current.has(mesh)) meshDeformer.restoreMesh(mesh);
     affectedMeshes.set(layer, current);
+    if (!availablePreview) presentation.holdIfPending(current);
   }
 
   function restore(layer) {
@@ -355,7 +407,8 @@ function createDeformationSupport(PZ, THREE, editor) {
       try { evaluate(); } finally { preparingMeshes = null; }
       const pending = meshDeformer.pending(meshes);
       if (!pending.length) return;
-      await Promise.all(pending);
+      // A rejected worker job is reevaluated synchronously on the next pass.
+      await Promise.allSettled(pending);
     }
   }
 
@@ -394,8 +447,12 @@ function createDeformationSupport(PZ, THREE, editor) {
     if (!affected(this.objects)) return;
     originalUpdate.call(this, frame);
     await settle(() => apply(this, frame));
+    if (started === generation) preparedLayers.add(this);
   };
   const patchedUnload = function unloadWithEffectors(...args) {
+    clearTimeout(previewPrepares.get(this)?.timer);
+    previewPrepares.delete(this);
+    preparedLayers.delete(this);
     restore(this);
     layers.delete(this);
     affectedMeshes.delete(this);
@@ -420,6 +477,7 @@ function createDeformationSupport(PZ, THREE, editor) {
       editor?.onProjectChanged?.unwatch(projectChanged);
       releaseLayers();
       disposeFieldHelpers();
+      presentation.dispose();
       meshDeformer.dispose();
       if (prototype.prepare === patchedPrepare) prototype.prepare = originalPrepare;
       if (prototype.unload === patchedUnload) prototype.unload = originalUnload;
@@ -431,6 +489,6 @@ function createDeformationSupport(PZ, THREE, editor) {
 }
 
 module.exports = {
-  getMeshDeformer, installFieldHelpers, fieldGuidePoints, curvePolygonCount,
+  PREVIEW_PREPARE_TIMEOUT_MS, getMeshDeformer, installFieldHelpers, fieldGuidePoints, curvePolygonCount,
   createDeformationSupport, liveObjectLayer
 };
