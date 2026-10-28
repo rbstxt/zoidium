@@ -140,3 +140,16 @@ test("new topology uses an idle worker when its source's previous worker is busy
   assert.equal(jobs.pending([a, c]).length, 2);
   jobs.dispose();
 });
+
+test("fracture loading can prewarm the bounded pool before the first mesh request", () => {
+  const { jobs, workers } = harness();
+  jobs.prewarm(); jobs.prewarm();
+  assert.equal(workers.length, 4);
+  assert.ok(workers.every(worker => !worker.messages.length));
+  assert.equal(jobs.stats().running, false);
+  request(jobs, {}, 1);
+  assert.equal(workers.length, 4);
+  assert.equal(workers[0].messages.length, 1);
+  jobs.dispose(); jobs.prewarm();
+  assert.equal(workers.length, 4);
+});

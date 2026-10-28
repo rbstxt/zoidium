@@ -90,6 +90,7 @@ const legacyClipRecords = String.raw`function clipRecords(polygon, plane, eps) {
 
 function oracle() {
   let source = fs.readFileSync(require.resolve("../plugins/scene-plus/effector-fracture.js"), "utf8");
+  source = source.replace(/if \(!prepared.classify[^\n]+/, "").replace("const classify = prepared.classify;", "const classify = null;");
   const clipStart = source.indexOf("function clipRecords(");
   const clipEnd = source.indexOf("\nfunction intersectRecords(", clipStart);
   source = source.slice(0, clipStart) + legacyClipRecords + source.slice(clipEnd);

@@ -85,6 +85,46 @@ function createMeshJobs(workerSource, host = globalThis, redraw = () => {}) {
     }
   }
 
+  function startWorker(slot) {
+    if (!slot.worker) {
+      slot.url = host.URL.createObjectURL(new host.Blob([workerSource], { type: "text/javascript" }));
+      const worker = slot.worker = new host.Worker(slot.url);
+      worker.onmessage = ({ data }) => {
+        if (slot.worker !== worker || !slot.active || data.id !== slot.active.id) return;
+        const completed = slot.active;
+        slot.active = null;
+        if (data.error) {
+          completed.status = "error";
+          completed.error = new Error("Effector worker failed: " + data.error);
+          completeStatus(completed, ["worker failed: " + data.error]);
+          completed.reject(completed.error);
+          redraw();
+        } else {
+          completed.status = "done";
+          slot.built.add(completed.buildKey);
+          // A cancelled frame that was left to finish is only discarded.
+          if (entries.get(completed.key) === completed) {
+            completed.value = data.value;
+            completed.stages = data.stages;
+            completeStatus(completed, [...(data.value.errors || []), ...(data.value.warnings || [])]);
+            completed.bytes = byteSize({ value: data.value, stages: data.stages });
+            bytes += completed.bytes;
+            completed.resolve(data.value);
+            redraw();
+          }
+        }
+        completed.input = null;
+        trim();
+        pump();
+      };
+      worker.onerror = event => {
+        if (slot.worker !== worker) return;
+        fail(slot, new Error("Effector worker failed: " + event.message));
+        pump();
+      };
+    }
+  }
+
   function dispatch(slot, entry) {
     slot.active = entry;
     entry.slot = slot;
@@ -94,43 +134,7 @@ function createMeshJobs(workerSource, host = globalThis, redraw = () => {}) {
     if (owners.size > 256) owners.delete(owners.keys().next().value);
     if (entry.sourceId !== undefined) sourceOwners.set(entry.sourceId, slot);
     try {
-      if (!slot.worker) {
-        slot.url = host.URL.createObjectURL(new host.Blob([workerSource], { type: "text/javascript" }));
-        const worker = slot.worker = new host.Worker(slot.url);
-        worker.onmessage = ({ data }) => {
-          if (slot.worker !== worker || !slot.active || data.id !== slot.active.id) return;
-          const completed = slot.active;
-          slot.active = null;
-          if (data.error) {
-            completed.status = "error";
-            completed.error = new Error("Effector worker failed: " + data.error);
-            completeStatus(completed, ["worker failed: " + data.error]);
-            completed.reject(completed.error);
-            redraw();
-          } else {
-            completed.status = "done";
-            slot.built.add(completed.buildKey);
-            // A cancelled frame that was left to finish is only discarded.
-            if (entries.get(completed.key) === completed) {
-              completed.value = data.value;
-              completed.stages = data.stages;
-              completeStatus(completed, [...(data.value.errors || []), ...(data.value.warnings || [])]);
-              completed.bytes = byteSize({ value: data.value, stages: data.stages });
-              bytes += completed.bytes;
-              completed.resolve(data.value);
-              redraw();
-            }
-          }
-          completed.input = null;
-          trim();
-          pump();
-        };
-        worker.onerror = event => {
-          if (slot.worker !== worker) return;
-          fail(slot, new Error("Effector worker failed: " + event.message));
-          pump();
-        };
-      }
+      startWorker(slot);
       slot.worker.postMessage({ id: entry.id, input: entry.input, cacheBytes });
     } catch (error) {
       fail(slot, error);
@@ -217,6 +221,12 @@ function createMeshJobs(workerSource, host = globalThis, redraw = () => {}) {
   return {
     available: typeof host.Worker === "function",
     request, release,
+    prewarm() {
+      if (disposed) return;
+      for (const slot of slots) {
+        try { startWorker(slot); } catch (_) { stopWorker(slot); }
+      }
+    },
     latest(buildKey) {
       return Array.from(entries.values()).reverse().find(entry => entry.buildKey === buildKey && entry.status === "done");
     },

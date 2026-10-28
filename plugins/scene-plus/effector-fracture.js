@@ -20,7 +20,7 @@
 const core = require("./effector-core.js");
 // Earcut 2.2.4, ISC license, fetched from its npm package.
 const earcut = require("./earcut.js");
-const { createEdgePointIndex } = require("./effector-fracture-index.js");
+const { createEdgePointIndex, createPolygonPlaneIndex } = require("./effector-fracture-index.js");
 
 const MAX_CELLS = 1000;
 const MIN_TRIANGLE_LENGTH = 1e-12;
@@ -525,11 +525,36 @@ function pieceColor(seed, piece) {
   return ZoidiumPluginApis.color.hslToRgb(hue, saturation, lightness);
 }
 
+function prepareFractureSource(source) {
+  const { positions, index, uvs, normals } = source;
+  const triangleCount = index ? Math.floor(index.length / 3) : Math.floor(positions.length / 9);
+  const vertexAt = (triangle, corner) => index ? Number(index[triangle * 3 + corner]) : triangle * 3 + corner;
+  const sourcePolygons = [];
+  const materialIds = new Uint16Array(triangleCount);
+  for (const group of source.groups || []) {
+    const end = Math.min(triangleCount, Math.floor((group.start + group.count) / 3));
+    for (let t = Math.ceil(group.start / 3); t < end; t++) materialIds[t] = group.materialIndex || 0;
+  }
+  for (let triangle = 0; triangle < triangleCount; triangle += 1) {
+    const points = [];
+    for (let local = 0; local < 3; local += 1) {
+      const vertex = vertexAt(triangle, local);
+      points.push({
+        p: [positions[vertex * 3], positions[vertex * 3 + 1], positions[vertex * 3 + 2]],
+        uv: uvs ? [uvs[vertex * 2], uvs[vertex * 2 + 1]] : null,
+        normal: normals ? [normals[vertex * 3], normals[vertex * 3 + 1], normals[vertex * 3 + 2]] : null,
+      });
+    }
+    sourcePolygons.push({ points, cap: false, materialIndex: materialIds[triangle], sourceTriangle: triangle });
+  }
+  return { sourcePolygons, classify: null };
+}
+
 // Builds the cached fracture stage for one input. `source` is
 // {positions, index?, uvs?}; options includes cells, seed, closed, distribution,
 // and cellScale. Returns a stage
 // (kind "fracture") or {error} when a limit is hit or the input is unusable.
-function buildVoronoiFracture(source, options, limits) {
+function buildVoronoiFracture(source, options, limits, prepare) {
   const limit = Object.assign({}, DEFAULT_LIMITS, limits || {});
   const cells = clampCells(options.cells);
   const seed = Math.trunc(core.finiteOr(options.seed, 1));
@@ -594,24 +619,8 @@ function buildVoronoiFracture(source, options, limits) {
   // participate in the next cut, so cell ridges join two planar caps. Capping
   // only the final source boundary would incorrectly fill a non-planar loop
   // and lose cells entirely inside the source volume.
-  const sourcePolygons = [];
-  const materialIds = new Uint16Array(triangleCount);
-  for (const group of source.groups || []) {
-    const end = Math.min(triangleCount, Math.floor((group.start + group.count) / 3));
-    for (let t = Math.ceil(group.start / 3); t < end; t++) materialIds[t] = group.materialIndex || 0;
-  }
-  for (let triangle = 0; triangle < triangleCount; triangle += 1) {
-    const points = [];
-    for (let local = 0; local < 3; local += 1) {
-      const vertex = vertexAt(triangle, local);
-      points.push({
-        p: [positions[vertex * 3], positions[vertex * 3 + 1], positions[vertex * 3 + 2]],
-        uv: uvs ? [uvs[vertex * 2], uvs[vertex * 2 + 1]] : null,
-        normal: normals ? [normals[vertex * 3], normals[vertex * 3 + 1], normals[vertex * 3 + 2]] : null,
-      });
-    }
-    sourcePolygons.push({ points, cap: false, materialIndex: materialIds[triangle] });
-  }
+  const prepared = prepare ? prepare(() => prepareFractureSource(source)) : prepareFractureSource(source);
+  const { sourcePolygons } = prepared;
   const fragmentPositions = [];
   const fragmentNormals = [];
   const capNormals = [];
@@ -625,6 +634,8 @@ function buildVoronoiFracture(source, options, limits) {
 
   let clipOperations = 0;
   const signed = [];
+  if (!prepared.classify && triangleCount >= 128 && cells > 1) prepared.classify = createPolygonPlaneIndex(sourcePolygons);
+  const classify = prepared.classify;
   for (let piece = 0; piece < cells; piece += 1) {
     let surface = sourcePolygons;
     for (const plane of cellInfo[piece].planes) {
@@ -632,7 +643,11 @@ function buildVoronoiFracture(source, options, limits) {
       if (clipOperations > limit.maxClipOperations) return { error: "work-limit" };
       const next = [];
       const cuts = [];
+      const sides = classify?.(plane, planeEpsilon);
       for (const polygon of surface) {
+        const side = sides?.[polygon.sourceTriangle];
+        if (side === 2) continue;
+        if (side === 1) { next.push(polygon); continue; }
         const points = clipRecords(polygon.points, plane, planeEpsilon, signed);
         if (points.length < 3) continue;
         if (points === polygon.points) { next.push(polygon); continue; }
@@ -650,7 +665,7 @@ function buildVoronoiFracture(source, options, limits) {
         if (!caps) {
           // Keep the source surface visible when concave caps cannot be built.
           // Rebuild without caps using the same sites and clipping order.
-          const open = buildVoronoiFracture(source, { ...options, closed: false }, limit);
+          const open = buildVoronoiFracture(source, { ...options, closed: false }, limit, prepare);
           if (!open.error) open.warning = "cap-invalid";
           return open;
         }

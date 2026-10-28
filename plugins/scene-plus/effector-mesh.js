@@ -21,14 +21,26 @@ function sameArray(a, b) {
   return true;
 }
 
+function sameBytes(a, b) {
+  if (!a || !b) return !a && !b;
+  if (a.constructor !== b.constructor || a.byteLength !== b.byteLength) return false;
+  const left = new Uint8Array(a.buffer, a.byteOffset, a.byteLength);
+  const right = new Uint8Array(b.buffer, b.byteOffset, b.byteLength);
+  for (let i = 0; i < left.length; i++) if (left[i] !== right[i]) return false;
+  return true;
+}
+
 function createMeshDeformer(THREE, jobs) {
   // Load after this module exports the shared normal helpers. The evaluator
   // imports those helpers too, so a top-level import would create a cycle.
-  const { evaluateMesh, evaluateCachedMesh, createStageCache, meshBuildKey } = require("./effector-evaluate.js");
+  const { evaluateMesh, evaluateCachedMesh, createStageCache, meshBuildKey, byteSize } = require("./effector-evaluate.js");
   const stageCache = createStageCache(64 * 1024 * 1024, 64);
   const { releaseMaterial, syncMaterial } = require("./effector-material.js").createFractureMaterials(THREE);
   const convertedGeometries = new WeakMap();
   const sourceStages = new WeakMap();
+  const sourceSnapshots = new WeakMap();
+  const sourceCandidates = new Map();
+  let sourceBytes = 0;
   const derivedStages = new WeakMap();
   const meshStates = new WeakMap();
   const warnings = new Set();
@@ -119,8 +131,31 @@ function createMeshDeformer(THREE, jobs) {
     const layout = JSON.stringify([names, base.groups, ...refs.map(attribute => [attribute?.itemSize, attribute?.normalized])]);
     const cached = sourceStages.get(base);
     if (cached && cached.layout === layout && arrays.every((array, i) => array === cached.arrays[i] && versions[i] === cached.versions[i])) return cached.stage;
-    const stage = buildSourceStage(base);
+    const matches = candidate => candidate?.layout === layout && sameBytes(candidate.stage.positions, position.array) &&
+      sameBytes(candidate.stage.index, base.index?.array) && names.every(name => name === "position" ||
+        sameBytes(candidate.stage.attributes[name]?.array, base.attributes[name].array));
+    let previous = sourceSnapshots.get(geometry);
+    if (!matches(previous)) previous = Array.from(sourceCandidates.values()).reverse().find(matches);
+    let stage;
+    if (previous) {
+      // A UV revision or native conversion can replace buffers with identical
+      // bytes. Keep the topology identity, but use the current attribute refs.
+      stage = { ...previous.stage, indexRef: base.index || null,
+        attributes: Object.fromEntries(Object.entries(previous.stage.attributes).map(([name, attribute]) =>
+          [name, { ...attribute, ref: base.attributes[name] }])) };
+    } else stage = buildSourceStage(base);
     sourceStages.set(base, { versions, arrays, layout, stage });
+    sourceSnapshots.set(geometry, { layout, stage });
+    sourceBytes -= sourceCandidates.get(stage.sourceId)?.bytes || 0;
+    sourceCandidates.delete(stage.sourceId);
+    const bytes = byteSize(stage);
+    sourceCandidates.set(stage.sourceId, { layout, stage, bytes });
+    sourceBytes += bytes;
+    while (sourceCandidates.size > 16 || sourceBytes > 32 * 1024 * 1024) {
+      const key = sourceCandidates.keys().next().value;
+      sourceBytes -= sourceCandidates.get(key).bytes;
+      sourceCandidates.delete(key);
+    }
     return stage;
   }
 
@@ -464,6 +499,7 @@ function createMeshDeformer(THREE, jobs) {
     dispose() {
       for (const mesh of liveMeshes) restoreMesh(mesh);
       stageCache.clear();
+      sourceCandidates.clear(); sourceBytes = 0;
       jobs?.dispose();
     },
     jobStats() { return jobs?.stats(); },

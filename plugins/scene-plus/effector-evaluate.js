@@ -19,24 +19,26 @@ function byteSize(value, seen = new Set()) {
 function createStageCache(maxBytes = 64 * 1024 * 1024, maxEntries = 64) {
   const entries = new Map();
   let bytes = 0;
+  function get(key, build, privateEntry = false, estimate = 0) {
+    let entry = entries.get(key);
+    if (!entry) {
+      const value = build();
+      entry = { value, bytes: privateEntry && estimate > 0 ? estimate : byteSize(value), privateEntry };
+      bytes += entry.bytes;
+    } else entries.delete(key);
+    entries.set(key, entry);
+    while (entries.size > maxEntries || bytes > maxBytes) {
+      const first = entries.keys().next().value;
+      bytes -= entries.get(first).bytes;
+      entries.delete(first);
+    }
+    return entry.value;
+  }
   return {
-    get(key, build) {
-      let entry = entries.get(key);
-      if (!entry) {
-        const value = build();
-        entry = { value, bytes: byteSize(value) };
-        bytes += entry.bytes;
-      } else entries.delete(key);
-      entries.set(key, entry);
-      while (entries.size > maxEntries || bytes > maxBytes) {
-        const first = entries.keys().next().value;
-        bytes -= entries.get(first).bytes;
-        entries.delete(first);
-      }
-      return entry.value;
-    },
+    get,
+    getPrivate(key, build, estimate) { return get(key, build, true, estimate); },
     clear() { entries.clear(); bytes = 0; },
-    snapshot() { return Array.from(entries, ([key, entry]) => [key, entry.value]); },
+    snapshot() { return Array.from(entries).filter(([, entry]) => !entry.privateEntry).map(([key, entry]) => [key, entry.value]); },
     forget(sourceId) {
       for (const [key, entry] of entries) if (key.startsWith(sourceId + ":")) {
         bytes -= entry.bytes; entries.delete(key);
@@ -127,7 +129,11 @@ function evaluateMesh(input, cache = createStageCache()) {
     if (command.kind === "fracture") {
       const key = prefix + ":fracture:" + JSON.stringify([command.topology, command.limits]);
       const result = cache.get(key, () => fracture.buildVoronoiFracture(
-        { positions: work, index: stage.index, uvs: stage.uvs, normals: stage.attributes.normal?.array, groups: materialCount > 1 ? stage.groups : [], materialCount }, command.topology, command.limits
+        { positions: work, index: stage.index, uvs: stage.uvs, normals: stage.attributes.normal?.array, groups: materialCount > 1 ? stage.groups : [], materialCount }, command.topology, command.limits, build => cache.getPrivate
+          // Include the records, coordinate arrays, and spatial index. These
+          // private objects stay within the same budget and never cross threads.
+          ? cache.getPrivate(prefix + ":fracture-source", build, (stage.index ? stage.index.length : work.length / 3) * 300)
+          : build()
       ));
       if (result.error) errors.push(result.error);
       else { stage = result; work = new Float32Array(stage.positions); topologyKey = key; }
