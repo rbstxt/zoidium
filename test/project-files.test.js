@@ -84,6 +84,7 @@ function createHarness(options = {}) {
   const events = [];
   let tarCalls = 0;
   let downloads = 0;
+  const listeners = {};
 
   class Archive {
     constructor() {
@@ -154,6 +155,13 @@ function createHarness(options = {}) {
     dispatchEvent(event) {
       events.push(event);
     },
+    addEventListener(type, callback) {
+      listeners[type] = listeners[type] || [];
+      listeners[type].push(callback);
+    },
+    removeEventListener(type, callback) {
+      listeners[type] = (listeners[type] || []).filter((value) => value !== callback);
+    },
     document: {
       body: {
         appendChild() {},
@@ -220,6 +228,7 @@ function createHarness(options = {}) {
   return {
     PZ,
     events,
+    listeners,
     makeEditor,
     projectFiles: PZ.zoidium.projectFiles,
     tarCalls: () => tarCalls,

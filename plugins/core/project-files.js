@@ -90,6 +90,35 @@
     }
   }
 
+  // An interrupted save must never strand the user on a blank page without
+  // warning: while editor._zoidiumSavePromise is pending the browser asks
+  // before closing or reloading. Installed once per save in saveProject and
+  // removed when the save settles.
+  function saveGuardHandler(event) {
+    event.preventDefault();
+    event.returnValue = "";
+  }
+
+  function addSaveGuard() {
+    try {
+      if (typeof global.addEventListener === "function") {
+        global.addEventListener("beforeunload", saveGuardHandler);
+      }
+    } catch (_error) {
+      // A missing event target must never break saving.
+    }
+  }
+
+  function removeSaveGuard() {
+    try {
+      if (typeof global.removeEventListener === "function") {
+        global.removeEventListener("beforeunload", saveGuardHandler);
+      }
+    } catch (_error) {
+      // A missing event target must never break saving.
+    }
+  }
+
   function getProjectName(editor) {
     return normalizeProjectName(editor && editor._zoidiumProjectName);
   }
@@ -345,7 +374,11 @@
   // waiting on a slow disk instead of failing at the size-scaled deadline.
   async function openValidatedArchive(source, mode, onSlow) {
     if (!(Number(source && source.size) > 0)) {
-      throw projectDataError(mode, "The archive is empty");
+      // A 0-byte file is usually a save that was interrupted after the
+      // picker truncated the chosen file. Point at the restore points.
+      throw projectDataError(mode, mode === "open"
+        ? "The file is empty. A save into this file was probably interrupted. Recent versions may be in the RESTORE POINTS panel"
+        : "The archive is empty");
     }
     var archive;
     try {
@@ -512,6 +545,19 @@
     return fallback;
   }
 
+  // The picker truncates a newly chosen file before the archive is built,
+  // so a later failure may leave that file empty. Say so and point at the
+  // retry that replaces it. Re-saves through a remembered handle keep their
+  // current message.
+  function withEmptyTargetNote(error, archiveResult) {
+    var note = "The chosen file may now be empty. Save again" +
+      (archiveResult && archiveResult.blob ? " or use Download" : "") +
+      " to replace it.";
+    var annotated = new Error(errorMessage(error, "Could not save the project.") + " " + note);
+    if (error && typeof error.name === "string" && error.name) annotated.name = error.name;
+    return annotated;
+  }
+
   function emitError(editor, error, archiveResult, retry) {
     var filename = fileNameForProject(getProjectName(editor));
     dispatch("zoidium:project-error", {
@@ -607,10 +653,19 @@
     var savedProject = editor.project;
     var savedRevision = getProjectRevision(editor);
     var archiveResult = null;
+    // The picker already truncated a newly chosen file, and a re-save will
+    // overwrite the remembered one. Warn once against leaving the page while
+    // the archive is built and written; completion still toasts "Saved."
+    if (handle || pickedHandle) {
+      dispatch("zoidium:notification", {
+        title: "Saving...",
+        message: "Keep this page open until saving finishes.",
+      });
+    }
     try {
       archiveResult = await createArchive(editor, { interactive: true });
     } catch (error) {
-      emitError(editor, error, null, function () {
+      emitError(editor, pickedHandle ? withEmptyTargetNote(error, null) : error, null, function () {
         return saveProject(editor);
       });
       return null;
@@ -690,7 +745,7 @@
           // Keep the original write error for the user.
         }
       }
-      emitError(editor, error, archiveResult, function () {
+      emitError(editor, pickedHandle ? withEmptyTargetNote(error, archiveResult) : error, archiveResult, function () {
         return saveProject(editor);
       });
       return null;
@@ -705,16 +760,19 @@
     // transient user activation.
     var operation = runSaveProject(editor);
     editor._zoidiumSavePromise = operation;
+    addSaveGuard();
     operation.then(
       function () {
         if (editor._zoidiumSavePromise === operation) {
           editor._zoidiumSavePromise = null;
         }
+        removeSaveGuard();
       },
       function () {
         if (editor._zoidiumSavePromise === operation) {
           editor._zoidiumSavePromise = null;
         }
+        removeSaveGuard();
       },
     );
     return operation;
