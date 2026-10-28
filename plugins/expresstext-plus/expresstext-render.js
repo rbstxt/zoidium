@@ -723,24 +723,21 @@ function updateExpressRendering(textObject, splitState, layers, frame) {
   // this container, so selections, id/u/count, ranks and centers span
   // texts. Single texts resolve to their own local numbering exactly.
   const run = containerLetterRun(container, textObject, splitState.entries, frame);
-  const selfWorld = run.selfWorld;
-  // The text keeps its own placement: carry the Text object's transform
-  // onto its render root so multiple texts compose by position instead
-  // of piling on the origin. Reads at the current frame, so keyframed
-  // text motion carries its letters.
+  // The split root is a sibling of the native mesh. Its actual parent
+  // already applies every Group transform, so copy only the native local pose.
   try {
-    splitState.renderRoot.position.set(
-      selfWorld.position[0],
-      selfWorld.position[1],
-      selfWorld.position[2]
-    );
-    splitState.renderRoot.rotation.set(
-      selfWorld.rotation[0],
-      selfWorld.rotation[1],
-      selfWorld.rotation[2],
-      selfWorld.eulerOrder
-    );
-    splitState.renderRoot.scale.set(selfWorld.scale[0], selfWorld.scale[1], selfWorld.scale[2]);
+    const root = splitState.renderRoot;
+    const local = root.parent === sourceMesh
+      ? { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1], eulerOrder: "XYZ" }
+      : ownTransformOf(textObject, frame);
+    root.position.set(...local.position);
+    root.rotation.set(...local.rotation, local.eulerOrder);
+    root.scale.set(...local.scale);
+    if (root.parent !== sourceMesh && sourceMesh.position && sourceMesh.rotation && sourceMesh.scale) {
+      root.position.copy(sourceMesh.position);
+      root.rotation.copy(sourceMesh.rotation);
+      root.scale.copy(sourceMesh.scale);
+    }
   } catch (_rootTransform) {}
   const entries = splitState.entries;
   const globalList = { order: run.order, total: run.total };

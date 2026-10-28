@@ -125,3 +125,30 @@ test("Orbit reads source edits on a later Text before that Text updates", () => 
     }
   } finally { h.close(); }
 });
+
+for (const pose of [
+  { position: [30, 0, 0] },
+  { rotation: [0.4, -0.7, 1.2] },
+  { scale: [2, 0.5, 3] },
+  { position: [9, 3, -2], rotation: [0.2, 0.6, -0.4], scale: [2, 0.5, 3] },
+]) {
+  test(`nested split world matrices match native Text for ${JSON.stringify(pose)}`, () => {
+    const h = fixture();
+    try {
+      const outer = h.group(), inner = h.group(outer), text = h.text(inner, "A");
+      for (const [key, value] of Object.entries(pose)) outer.properties[key].set(value, 0);
+      inner.properties.position.set([5, 2, -3], 0);
+      inner.properties.rotation.set([0.3, 0.1, -0.2], 0);
+      text.properties.position.set([4, -1, 2], 0);
+      text.properties.rotation.set([0.1, 0.4, -0.5], 0);
+      text.properties.scale.set([0.8, 1.3, 2], 0);
+      h.container.update(0);
+      h.project.threeObj.updateMatrixWorld(true);
+      const split = h.T.getSplitState(text);
+      assert.deepEqual(Array.from(split.renderRoot.matrixWorld.elements), Array.from(text.threeObj.matrixWorld.elements));
+      const actual = split.entries[0].anchor.matrixWorld;
+      const expected = text.threeObj.matrixWorld.clone().multiply(new h.THREE.Matrix4().makeTranslation(...split.entries[0].base));
+      Array.from(actual.elements).forEach((value, i) => assert.ok(Math.abs(value - expected.elements[i]) < 1e-10));
+    } finally { h.close(); }
+  });
+}
