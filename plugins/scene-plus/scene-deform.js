@@ -193,6 +193,7 @@ function createDeformationSupport(PZ, THREE, editor) {
   let preparedLayers = new WeakSet();
   const previewPrepares = new Map();
   const preparationTokens = new WeakMap();
+  let projectPrepare = Promise.resolve();
   function scenePreparation(layer) {
     let token = preparationTokens.get(layer);
     if (!token) { token = {}; preparationTokens.set(layer, token); }
@@ -220,8 +221,27 @@ function createDeformationSupport(PZ, THREE, editor) {
     if (editor.project === project) return;
     project = editor.project;
     releaseLayers();
+    prepareProject();
   }
   editor?.onProjectChanged?.watch(projectChanged);
+
+  function prepareProject() {
+    const expected = project, started = generation;
+    if (!expected?.sequence) { projectPrepare = Promise.resolve(); return; }
+    const current = () => expected && editor?.project === expected && generation === started;
+    projectPrepare = Promise.resolve(expected?._zoidiumPluginActivationPending).then(async () => {
+      if (!current()) return;
+      const sequence = expected.sequence, frame = editor?.playback?.currentFrame || 0;
+      const objects = Array.from(sequence?.videoTracks || []).flatMap(track =>
+        Array.from(track.clips || [], clip => clip.object));
+      if (typeof sequence?.prepare !== "function" || !hasActiveEffectors(objects, frame)) return;
+      // Start the same exact preparation as export while the project opens.
+      // Preview still checks its requested frame and never presents a warmup.
+      await sequence.prepare(frame, { sequence });
+    }).catch(error => {
+      if (current()) console.warn("[Zoidium] Effector project preparation failed", error);
+    });
+  }
 
   let preparingMeshes = null;
   let tasks = null;
@@ -366,7 +386,7 @@ function createDeformationSupport(PZ, THREE, editor) {
     };
     record.timer = setTimeout(() => failed(new Error("Scene preparation timed out; displaying available content.")),
       PREVIEW_PREPARE_TIMEOUT_MS);
-    Promise.resolve().then(() => current() ? layer.prepare(frame) : undefined).then(() => {
+    Promise.resolve(projectPrepare).then(() => current() ? layer.prepare(frame) : undefined).then(() => {
       if (!current()) return;
       clearTimeout(record.timer);
       record.status = "ready";
@@ -489,6 +509,7 @@ function createDeformationSupport(PZ, THREE, editor) {
   prototype.update = patchedUpdate;
   prototype.__zoidiumEffectorDeformPatch = true;
   prototype.__zoidiumEffectorDeformSupport = { apply, restore, prepareObject };
+  prepareProject();
 
   return {
     apply,

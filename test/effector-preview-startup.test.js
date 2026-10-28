@@ -124,3 +124,33 @@ for (const phase of ["queued", "pending"]) {
     assert.equal(h.draws(), 1, "unloaded preparation never redraws or times out");
   });
 }
+
+test("project opening prepares active effectors before a viewport request and cancels stale startup", async t => {
+  let activate, prepares = 0;
+  const activation = new Promise(resolve => { activate = resolve; });
+  class Scene { update() {} }
+  const effect = { deformPositions() {}, objects: [] };
+  const sequence = { videoTracks: [{ clips: [{ object: { objects: [effect] } }] }],
+    async prepare(frame, options) { prepares++; assert.equal(frame, 42); assert.equal(options.sequence, sequence); } };
+  const watchers = new Set(), project = { sequence, _zoidiumPluginActivationPending: activation };
+  const editor = { project, playback: { currentFrame: 42 }, onProjectChanged: {
+    watch(fn) { watchers.add(fn); }, unwatch(fn) { watchers.delete(fn); },
+  } };
+  const THREE = {}, saved = { ...state };
+  Object.assign(state, { meshJobs: {}, meshDeformerThree: THREE, library: { core: {} },
+    meshDeformerCache: { pending: () => [], restoreMesh() {}, restoreTree() {}, dispose() {} } });
+  const support = createDeformationSupport({ layer: { scene: Scene } }, THREE, editor);
+  t.after(() => { support.deactivate(); Object.assign(state, saved); });
+  await Promise.resolve(); assert.equal(prepares, 0);
+  activate(); await new Promise(resolve => setImmediate(resolve));
+  assert.equal(prepares, 1, "startup needs no draw request");
+  let later;
+  editor.project = { sequence, _zoidiumPluginActivationPending: new Promise(resolve => { later = resolve; }) };
+  for (const watcher of watchers) watcher();
+  editor.project = {}; for (const watcher of watchers) watcher();
+  later(); await new Promise(resolve => setImmediate(resolve));
+  assert.equal(prepares, 1, "a replaced project cannot start queued preparation");
+  editor.project = { sequence }; for (const watcher of watchers) watcher();
+  support.deactivate(); await new Promise(resolve => setImmediate(resolve));
+  assert.equal(prepares, 1, "deactivation invalidates queued preparation");
+});

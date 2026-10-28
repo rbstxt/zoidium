@@ -20,6 +20,7 @@
 const core = require("./effector-core.js");
 // Earcut 2.2.4, ISC license, fetched from its npm package.
 const earcut = require("./earcut.js");
+const { createEdgePointIndex, createPolygonPlaneIndex } = require("./effector-fracture-index.js");
 
 const MAX_CELLS = 1000;
 const MIN_TRIANGLE_LENGTH = 1e-12;
@@ -209,16 +210,18 @@ function buildCells(sites, low, high, eps, metric = [1, 1, 1]) {
 }
 
 // Source triangle corners carry position and optional UV coordinates.
-function clipRecords(polygon, plane, eps) {
+function clipRecords(polygon, plane, eps, signed) {
   const count = polygon.length;
-  const signed = new Float64Array(count);
   let allInside = true;
+  let allOutside = true;
   for (let index = 0; index < count; index += 1) {
     const point = polygon[index].p;
     signed[index] = plane.nx * point[0] + plane.ny * point[1] + plane.nz * point[2] - plane.d;
     if (signed[index] > eps) allInside = false;
+    else allOutside = false;
   }
   if (allInside) return polygon;
+  if (allOutside) return [];
   const output = [];
   for (let index = 0; index < count; index += 1) {
     const next = (index + 1) % count;
@@ -487,6 +490,7 @@ function capContours(loops, plane, epsilon, maxVertices) {
     const flat = points.flatMap(p => [dot3(p, u), dot3(p, v)]);
     const indices = earcut(flat, starts, 2);
     if (!indices.length || earcut.deviation(flat, starts, 2, indices) > 1e-5) return null;
+    const edgePoints = createEdgePointIndex(points, epsilon);
     for (let k = 0; k < indices.length; k += 3) {
       const triple = [points[indices[k]], points[indices[k + 1]], points[indices[k + 2]]];
       const ab = triple[1].map((x, a) => x - triple[0][a]), ac = triple[2].map((x, a) => x - triple[0][a]);
@@ -498,13 +502,15 @@ function capContours(loops, plane, epsilon, maxVertices) {
         const a = triple[e], b = triple[(e + 1) % 3], d = b.map((x, axis) => x - a[axis]), length = dot3(d, d);
         boundary.push(a);
         const along = [];
-        for (const p of points) {
-          const delta = p.map((x, axis) => x - a[axis]), t = dot3(delta, d) / length;
-          const endpointTolerance = epsilon / Math.sqrt(length);
+        const endpointTolerance = epsilon / Math.sqrt(length);
+        for (const id of edgePoints(a, b)) {
+          const p = points[id];
+          const t = ((p[0] - a[0]) * d[0] + (p[1] - a[1]) * d[1] + (p[2] - a[2]) * d[2]) / length;
           if (t <= endpointTolerance || t >= 1 - endpointTolerance) continue;
-          if (distanceSquared3(p, a.map((x, axis) => x + t * d[axis])) <= epsilon * epsilon * 4) along.push({ t, p });
+          const x = p[0] - (a[0] + t * d[0]), y = p[1] - (a[1] + t * d[1]), z = p[2] - (a[2] + t * d[2]);
+          if (x * x + y * y + z * z <= epsilon * epsilon * 4) along.push({ t, p, id });
         }
-        along.sort((a, b) => a.t - b.t); boundary.push(...along.map(item => item.p));
+        along.sort((a, b) => a.t - b.t || a.id - b.id); boundary.push(...along.map(item => item.p));
       }
       polygons.push(boundary);
     }
@@ -519,11 +525,36 @@ function pieceColor(seed, piece) {
   return ZoidiumPluginApis.color.hslToRgb(hue, saturation, lightness);
 }
 
+function prepareFractureSource(source) {
+  const { positions, index, uvs, normals } = source;
+  const triangleCount = index ? Math.floor(index.length / 3) : Math.floor(positions.length / 9);
+  const vertexAt = (triangle, corner) => index ? Number(index[triangle * 3 + corner]) : triangle * 3 + corner;
+  const sourcePolygons = [];
+  const materialIds = new Uint16Array(triangleCount);
+  for (const group of source.groups || []) {
+    const end = Math.min(triangleCount, Math.floor((group.start + group.count) / 3));
+    for (let t = Math.ceil(group.start / 3); t < end; t++) materialIds[t] = group.materialIndex || 0;
+  }
+  for (let triangle = 0; triangle < triangleCount; triangle += 1) {
+    const points = [];
+    for (let local = 0; local < 3; local += 1) {
+      const vertex = vertexAt(triangle, local);
+      points.push({
+        p: [positions[vertex * 3], positions[vertex * 3 + 1], positions[vertex * 3 + 2]],
+        uv: uvs ? [uvs[vertex * 2], uvs[vertex * 2 + 1]] : null,
+        normal: normals ? Array.from(normals.subarray(vertex * 3, vertex * 3 + 3)) : null,
+      });
+    }
+    sourcePolygons.push({ points, cap: false, materialIndex: materialIds[triangle], sourceTriangle: triangle });
+  }
+  return { sourcePolygons, classify: null };
+}
+
 // Builds the cached fracture stage for one input. `source` is
 // {positions, index?, uvs?}; options includes cells, seed, closed, distribution,
 // and cellScale. Returns a stage
 // (kind "fracture") or {error} when a limit is hit or the input is unusable.
-function buildVoronoiFracture(source, options, limits) {
+function buildVoronoiFracture(source, options, limits, prepare) {
   const limit = Object.assign({}, DEFAULT_LIMITS, limits || {});
   const cells = clampCells(options.cells);
   const seed = Math.trunc(core.finiteOr(options.seed, 1));
@@ -588,24 +619,8 @@ function buildVoronoiFracture(source, options, limits) {
   // participate in the next cut, so cell ridges join two planar caps. Capping
   // only the final source boundary would incorrectly fill a non-planar loop
   // and lose cells entirely inside the source volume.
-  const sourcePolygons = [];
-  const materialIds = new Uint16Array(triangleCount);
-  for (const group of source.groups || []) {
-    const end = Math.min(triangleCount, Math.floor((group.start + group.count) / 3));
-    for (let t = Math.ceil(group.start / 3); t < end; t++) materialIds[t] = group.materialIndex || 0;
-  }
-  for (let triangle = 0; triangle < triangleCount; triangle += 1) {
-    const points = [];
-    for (let local = 0; local < 3; local += 1) {
-      const vertex = vertexAt(triangle, local);
-      points.push({
-        p: [positions[vertex * 3], positions[vertex * 3 + 1], positions[vertex * 3 + 2]],
-        uv: uvs ? [uvs[vertex * 2], uvs[vertex * 2 + 1]] : null,
-        normal: normals ? Array.from(normals.subarray(vertex * 3, vertex * 3 + 3)) : null,
-      });
-    }
-    sourcePolygons.push({ points, cap: false, materialIndex: materialIds[triangle] });
-  }
+  const prepared = prepare ? prepare(() => prepareFractureSource(source)) : prepareFractureSource(source);
+  const { sourcePolygons } = prepared;
   const fragmentPositions = [];
   const fragmentNormals = [];
   const capNormals = [];
@@ -616,8 +631,12 @@ function buildVoronoiFracture(source, options, limits) {
   const capPieces = [];
   let capTriangleCount = 0;
   const maxOutput = limit.maxOutputTriangles;
+  const minimumAreaSquared = 1e-28 * maxExtent ** 4;
 
   let clipOperations = 0;
+  const signed = [];
+  if (!prepared.classify && triangleCount >= 128 && cells > 1) prepared.classify = createPolygonPlaneIndex(sourcePolygons);
+  const classify = prepared.classify;
   for (let piece = 0; piece < cells; piece += 1) {
     let surface = sourcePolygons;
     for (const plane of cellInfo[piece].planes) {
@@ -625,11 +644,16 @@ function buildVoronoiFracture(source, options, limits) {
       if (clipOperations > limit.maxClipOperations) return { error: "work-limit" };
       const next = [];
       const cuts = [];
+      const sides = classify?.(plane, planeEpsilon);
       for (const polygon of surface) {
-        const points = clipRecords(polygon.points, plane, planeEpsilon);
+        const side = sides?.[polygon.sourceTriangle];
+        if (side === 2) continue;
+        if (side === 1) { next.push(polygon); continue; }
+        const points = clipRecords(polygon.points, plane, planeEpsilon, signed);
         if (points.length < 3) continue;
+        if (points === polygon.points) { next.push(polygon); continue; }
         next.push({ points, cap: polygon.cap, materialIndex: polygon.materialIndex });
-        if (!closed || points === polygon.points) continue;
+        if (!closed) continue;
         for (let i = 0; i < points.length; i += 1) {
           const a = points[i].p;
           const b = points[(i + 1) % points.length].p;
@@ -642,7 +666,7 @@ function buildVoronoiFracture(source, options, limits) {
         if (!caps) {
           // Keep the source surface visible when concave caps cannot be built.
           // Rebuild without caps using the same sites and clipping order.
-          const open = buildVoronoiFracture(source, { ...options, closed: false }, limit);
+          const open = buildVoronoiFracture(source, { ...options, closed: false }, limit, prepare);
           if (!open.error) open.warning = "cap-invalid";
           return open;
         }
@@ -668,16 +692,24 @@ function buildVoronoiFracture(source, options, limits) {
         const a = triple[0].p;
         const b = triple[1].p;
         const c = triple[2].p;
-        const area = cross3([b[0] - a[0], b[1] - a[1], b[2] - a[2]], [c[0] - a[0], c[1] - a[1], c[2] - a[2]]);
-        if (!(dot3(area, area) > 1e-28 * maxExtent ** 4)) continue;
+        const abx = b[0] - a[0], aby = b[1] - a[1], abz = b[2] - a[2];
+        const acx = c[0] - a[0], acy = c[1] - a[1], acz = c[2] - a[2];
+        const area = [aby * acz - abz * acy, abz * acx - abx * acz, abx * acy - aby * acx];
+        if (!(dot3(area, area) > minimumAreaSquared)) continue;
+        let faceNormal;
         for (const point of triple) {
           const target = polygon.cap ? capPositions : fragmentPositions;
-          target.push(...point.p);
-          if (normals) (polygon.cap ? capNormals : fragmentNormals).push(...(point.normal || normalize3(area, [0, 0, 1])));
+          target.push(point.p[0], point.p[1], point.p[2]);
+          if (normals) {
+            const normal = point.normal || (faceNormal ||= normalize3(area, [0, 0, 1]));
+            const targetNormal = polygon.cap ? capNormals : fragmentNormals;
+            if (normal.length === 3) targetNormal.push(normal[0], normal[1], normal[2]);
+            else targetNormal.push(...normal);
+          }
           if (!polygon.cap) {
             fragmentPiece.push(piece);
             fragmentMaterials.push(polygon.materialIndex || 0);
-            if (uvs) fragmentUvs.push(...(point.uv || [0, 0]));
+            if (uvs) { const uv = point.uv || [0, 0]; fragmentUvs.push(uv[0], uv[1]); }
           }
         }
         if (polygon.cap) {

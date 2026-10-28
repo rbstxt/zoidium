@@ -21,7 +21,7 @@ function fixture() {
 }
 
 function workerSource() {
-  const names = ["earcut", "legacy-subdivision", "effector-core", "effector-fracture", "effector-mesh", "effector-evaluate"];
+  const names = ["earcut", "legacy-subdivision", "effector-core", "effector-fracture-index", "effector-fracture", "effector-mesh", "effector-evaluate"];
   const sources = Object.fromEntries(names.map(name => [name + ".js", fs.readFileSync(path.join(__dirname, "../plugins/scene-plus", name + ".js"), "utf8")]));
   return createWorkerSource(sources);
 }
@@ -135,4 +135,29 @@ test("shared stages preserve subdivision modes, material slots, curved normals, 
       assert.equal(evaluateCachedMesh(edited, cache), null, "upstream motion changes the required topology");
     }
   } finally { await w.instance.terminate(); }
+});
+
+test("private fracture preparation shares the stage budget and never enters transferred snapshots", () => {
+  const cache = createStageCache(100), geometry = { points: [[0, 0, 0]], classify() {} };
+  let builds = 0;
+  cache.getPrivate("1:fracture-source", () => { builds++; return geometry; }, 80);
+  cache.getPrivate("1:fracture-source", () => { builds++; return geometry; }, 80);
+  assert.equal(builds, 1);
+  assert.deepEqual(cache.snapshot(), [], "functions and source record graphs cannot reach structuredClone");
+  cache.get("1:stage", () => new Uint8Array(30));
+  cache.getPrivate("1:fracture-source", () => { builds++; return geometry; }, 80);
+  assert.equal(builds, 2, "the explicit source estimate participates in byte eviction");
+  cache.forget(1);
+  cache.getPrivate("1:fracture-source", () => { builds++; return geometry; }, 80);
+  assert.equal(builds, 3);
+});
+
+test("Cells and Seed edits reuse immutable source records and keep all output bytes exact", () => {
+  const f = fixture(), cache = createStageCache();
+  for (const [cells, seed, distribution] of [[8, 3, 0], [12, 3, 0], [12, 7, 0], [12, 7, 1], [8, 3, 0]]) {
+    const input = f.input(3);
+    input.commands[0].topology = { cells, seed, distribution, closed: true };
+    assert.deepEqual(evaluateMesh(input, cache), evaluateMesh(input));
+  }
+  assert.equal(cache.snapshot().filter(([key]) => key.endsWith(":fracture-source")).length, 0);
 });

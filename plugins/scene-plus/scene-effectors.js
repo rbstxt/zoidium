@@ -362,6 +362,7 @@ function createVoronoiClass(PZ, THREE, type = VORONOI_TYPE) {
   class VoronoiObject extends BaseEffector {
     constructor() {
       super();
+      state.meshJobs?.prewarm?.();
       status.installFractureStatus(this, PZ);
       this._releaseCharacterFilter = characters.acquireSelectionFilter(state.meshDeformerCache);
       this.properties.addAll({
