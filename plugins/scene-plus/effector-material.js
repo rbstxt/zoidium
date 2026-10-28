@@ -48,6 +48,9 @@ function createFractureMaterials(THREE) {
       // material and yield to the outer surface at equal depth.
       const shown = sources.map(source => source.clone());
       shown[capIndex] = sources[0].clone();
+      // Layout ownership belongs to source faces. The extra cap slot must not
+      // change Text+'s source UV mask while these clones are displayed.
+      Object.defineProperty(shown, "__zoidiumSourceMaterials", { value: original });
       state.material = { original, sources: sources.slice(), shown, capIndex, signatures: [] };
     }
     const material = state.material;

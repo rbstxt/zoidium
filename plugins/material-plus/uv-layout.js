@@ -507,10 +507,11 @@ function uvForEachMesh(root, callback) {
 // face whose material does not use the shared layout. Rebuild only when the
 // face mask changes, never on an unchanged frame.
 function uvSyncCharacterMesh(mesh, geometry, removed) {
-  const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+  const source = mesh.material?.__zoidiumSourceMaterials || mesh.material;
+  const materials = Array.isArray(source) ? source : [source];
   let mask = 0;
   for (let i = 0; i < materials.length; i++) {
-    if (materials[i] !== removed && materials[i]?.__zoidiumUvLayout) mask |= Array.isArray(mesh.material) ? 1 << i : 3;
+    if (materials[i] !== removed && materials[i]?.__zoidiumUvLayout) mask |= Array.isArray(source) ? 1 << i : 3;
   }
   if (!geometry || geometry.__zoidiumUvFaceMask === mask) return;
   uvRestoreGeometry(geometry);
@@ -528,7 +529,8 @@ function uvSyncCharacterMesh(mesh, geometry, removed) {
 }
 
 function uvHasOtherLayout(mesh, removed) {
-  const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+  const source = mesh.material?.__zoidiumSourceMaterials || mesh.material;
+  const materials = Array.isArray(source) ? source : [source];
   return materials.some(current => current && current !== removed && current.__zoidiumUvLayout);
 }
 

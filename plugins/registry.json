@@ -222,7 +222,7 @@
       "zoidiumOnly": true,
       "manifest": "./plugins/scene-plus/manifest.json?v=39",
       "bundle": "./plugins/scene-plus/bundle.json?v=39",
-      "integrity": "sha256-TC84cP4+8uBz+Y9G7MUDwChjVppMNGRgI/WxUKdgPYI="
+      "integrity": "sha256-WH7YCNJW5WsOdEaQWQN8L73zrwnPsBGBqIEi0WsF6Ng="
     },
     {
       "id": "material-plus",
@@ -238,7 +238,7 @@
       "zoidiumOnly": true,
       "manifest": "./plugins/material-plus/manifest.json?v=34",
       "bundle": "./plugins/material-plus/bundle.json?v=34",
-      "integrity": "sha256-qjz39qq3jCAFGk1/RszYKtIAHe+pcFlJI3PgWISryIU="
+      "integrity": "sha256-fc8jl3EHd3Rwo+2J9QBVA2rVFsyNt0LPxpXUlbE2vEg="
     },
     {
       "id": "text-plus",
@@ -256,7 +256,7 @@
       "zoidiumOnly": true,
       "manifest": "./plugins/text-plus/manifest.json?v=31",
       "bundle": "./plugins/text-plus/bundle.json?v=31",
-      "integrity": "sha256-1HRnca4Cw8/N9vqr2cqCDahtPajIdnY5mwtkI2xNCOU="
+      "integrity": "sha256-Jp6mT5E8/cNTqICS9SUjMBMrnCUt7+jqbs5ZEYuKobM="
     },
     {
       "id": "expresstext-plus",

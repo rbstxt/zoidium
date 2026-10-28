@@ -8,8 +8,9 @@ const { createFractureMaterials } = require("../plugins/scene-plus/effector-mate
 const NodeMaterial = require("../plugins/material-plus/node-material.js");
 const { harness } = require("./material-node-harness.js");
 
-function adapter(source) {
+function adapter(source, capIndex) {
   const mesh = new THREE.Mesh(new THREE.BufferGeometry(), source), state = {};
+  mesh.geometry.__zoidiumCapMaterialIndex = capIndex;
   mesh.geometry.addGroup(0, 3, 0);
   const materials = createFractureMaterials(THREE);
   const update = () => materials.syncMaterial(mesh, state, true, false);
@@ -37,6 +38,35 @@ test("replaced ShaderMaterial uniforms invalidate r91's retained shader table", 
   h.update();
   for (const clone of shown) assert.equal(h.disposals.get(clone), 1, "value animation keeps the existing program");
   h.release();
+});
+
+test("fracture caps do not change a character's source UV mask or restart its topology", () => {
+  const fs = require("node:fs");
+  const layout = new Function(fs.readFileSync(path.join(__dirname, "../plugins/material-plus/uv-layout.js"), "utf8"))()();
+  const shape = new THREE.Shape();
+  shape.moveTo(0, 0);shape.lineTo(4, 0);shape.lineTo(4, 4);shape.lineTo(0, 4);shape.lineTo(0, 0);
+  const geometry = new THREE.ExtrudeGeometry(shape, { amount: 2, bevelEnabled: false, steps: 2 });
+  const sources = [new THREE.MeshPhysicalMaterial(), new THREE.MeshPhysicalMaterial()];
+  for (const material of sources) material.__zoidiumUvLayout = true;
+  layout.syncCharacterMesh({ material: sources }, geometry);
+  const revision = geometry.__zoidiumUvRevision;
+  const uvs = JSON.stringify(geometry.faceVertexUvs);
+  const h = adapter(sources, 2);
+  try {
+    for (let frame = 0; frame < 4; frame++) {
+      layout.syncCharacterMesh(h.mesh, geometry);
+      assert.equal(geometry.__zoidiumUvFaceMask, 3, "caps have no faces in the pristine source geometry");
+      assert.equal(geometry.__zoidiumUvRevision, revision, "material updates cannot invalidate the ready source stage");
+      assert.equal(JSON.stringify(geometry.faceVertexUvs), uvs);
+      layout.syncCharacterMesh({ material: sources }, geometry);
+      h.update();
+    }
+    sources[1].__zoidiumUvLayout = false;
+    h.update();
+    layout.syncCharacterMesh(h.mesh, geometry);
+    assert.equal(geometry.__zoidiumUvFaceMask, 1, "a real source face-material edit still updates its UV mask");
+    assert.ok(geometry.__zoidiumUvRevision > revision);
+  } finally { h.release();geometry.dispose();for (const material of sources) material.dispose(); }
 });
 
 test("rebuilt Node Material hooks replace compiled fragment uniforms without discarding the material", async () => {
