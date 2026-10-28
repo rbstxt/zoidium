@@ -4,7 +4,7 @@
 
 const assert = require("node:assert/strict");
 const test = require("node:test");
-const { T, fakeSection, fakeThree, mod, recordingThree } = require("./expresstext-plus-helpers.js");
+const { T, fakeSection, fakeThree, mod, recordingThree, recordingParent } = require("./expresstext-plus-helpers.js");
 
 test("center offsets follow the native anchor modes", () => {
   const bounds = { min: [0, 0, 0], max: [20, 10, 2] };
@@ -36,7 +36,7 @@ test("letters build centered with the source extrusion", () => {
   const sourceMesh = {
     material: "mat",
     geometry: { parameters: { options: { depth: 5, bevelEnabled: true, curveSegments: 4 } } },
-    parent: { add: (r) => added.push(r) },
+    parent: recordingParent(added),
   };
   const textObject = {
     threeObj: sourceMesh,
@@ -112,7 +112,7 @@ test("rebuilds keep the source extrusion instead of falling back", () => {
   const sourceMesh = {
     material: "mat",
     geometry: { parameters: { options: { depth: 5, bevelEnabled: true, curveSegments: 4 } } },
-    parent: { add: (r) => added.push(r) },
+    parent: recordingParent(added),
   };
   const textObject = {
     threeObj: sourceMesh,
@@ -259,7 +259,7 @@ test("bevel changes rebuild the letters with the fresh options", () => {
   const sourceMesh = {
     material: "mat",
     geometry: flatGeometry,
-    parent: { add: (r) => added.push(r) },
+    parent: recordingParent(added),
   };
   const container = {
     zoidiumExpressTextObject: true,
@@ -353,7 +353,7 @@ test("stock geometry rebuilds invalidate the split without swapping stale geomet
   const sourceMesh = {
     material: "mat",
     geometry: { parameters: { options: { amount: 4, bevelEnabled: false, curveSegments: 3 } } },
-    parent: { add: () => {} },
+    parent: recordingParent(),
   };
   const freshGeometry = {
     parameters: { options: { amount: 4, bevelEnabled: true, bevelThickness: 5, curveSegments: 3 } },
@@ -430,7 +430,7 @@ test("render path wires rows through to mesh transforms", () => {
   const sourceMesh = {
     material: "mat",
     geometry: { parameters: { options: { depth: 4 } } },
-    parent: { add: (r) => added.push(r) },
+    parent: recordingParent(added),
   };
   const container = {
     zoidiumExpressTextObject: true,

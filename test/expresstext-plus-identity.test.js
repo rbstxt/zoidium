@@ -30,10 +30,6 @@ function capture() {
     } finally { h.close(); }
   });
 }
-if (require.main === module && process.argv.includes("--capture")) {
-  require("node:fs").writeFileSync("test/fixtures/expresstext-30fps.json", JSON.stringify(capture(), null, 2) + "\n");
-} else {
-  test("unaffected 30 fps fixtures retain their pre-fix world transforms", () => {
-    assert.deepEqual(capture(), expected);
-  });
-}
+test("unaffected 30 fps fixtures retain their pre-fix world transforms", () => {
+  assert.deepEqual(capture(), expected);
+});
