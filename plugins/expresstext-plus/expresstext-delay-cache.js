@@ -110,7 +110,7 @@ function delayCacheFor(layers, index, list, base, aux) {
     const world = aux && aux.selfWorld;
     const tween = state.PZ && state.PZ.tween;
     const inputs = [stackInput(layers), list.total, list.order,
-      aux && [aux.extent && [aux.extent.lo, aux.extent.hi], aux.bases,
+      aux && [aux.rate, aux.extent && [aux.extent.lo, aux.extent.hi], aux.bases,
         world && [world.position, world.rotation, world.scale, world.eulerOrder]],
       tween && [tween.easingList.map(e => e.fn && identity(e.fn)),
         ...["linear", "correctCurve", "findZero", "bezier"].map(k => identity(tween[k]))]];

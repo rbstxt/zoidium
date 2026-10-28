@@ -760,7 +760,11 @@ function updateExpressRendering(textObject, splitState, layers, frame) {
     }
   }
   const sharedPivot = textPivot ? splitState.textCenter || [0, 0, 0] : null;
+  let sequence;
+  try { sequence = textObject.getParentOfType?.(state.PZ?.sequence); } catch (_detached) {}
+  sequence ||= textObject.parentProject?.sequence;
   const aux = {
+    rate: propertyValue(sequence?.properties?.rate, frame, 30),
     extent: run.extent,
     bases: run.bases,
     selfWorld: run.selfWorld,

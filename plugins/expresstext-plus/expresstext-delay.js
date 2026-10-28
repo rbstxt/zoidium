@@ -123,10 +123,10 @@ function evaluateEffectors(layers, frame, index, list, base, plainLists, aux) {
   const out = blankControls();
   for (const layer of layers) {
     if (!layer || layer.kind === "delay") continue;
-    if (layer.kind === "shake") evaluateShake(layer.props, frame, index, list, base, out, plainLists);
+    if (layer.kind === "shake") evaluateShake(layer.props, frame, index, list, base, out, plainLists, aux);
     else if (layer.kind === "plain") evaluatePlain(layer.props, frame, index, list, base, out, plainLists);
     else if (layer.kind === "random") evaluateRandom(layer.props, frame, index, list, base, out, plainLists);
-    else if (layer.kind === "formula") evaluateFormula(layer.props, frame, index, list, base, out, plainLists);
+    else if (layer.kind === "formula") evaluateFormula(layer.props, frame, index, list, base, out, plainLists, aux);
     else if (layer.kind === "twist") evaluateTwist(layer.props, frame, index, list, base, out, plainLists);
     else if (layer.kind === "wrap") evaluateWrap(layer.props, frame, index, list, base, out, plainLists);
     else if (layer.kind === "orbit") evaluateOrbit(layer.props, frame, index, list, base, out, plainLists, aux);

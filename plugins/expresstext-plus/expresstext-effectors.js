@@ -7,7 +7,12 @@ const { compileFormula } = require("./expresstext-formula.js");
 const { fractalNoise3, hashLattice, shakeValue, shuffledStrata } = require("./expresstext-random.js");
 const { addScaled, applyFieldWeight, letterContext, mulScale, readProp, readVector } = require("./expresstext-eval.js");
 
-function evaluateShake(props, frame, index, list, base, out, plainLists) {
+function evaluationRate(aux) {
+  const rate = numberValue(aux?.rate, 30);
+  return rate > 0 ? rate : 30;
+}
+
+function evaluateShake(props, frame, index, list, base, out, plainLists, aux) {
   if (!numberValue(readProp(props, "shakeEnable", frame, 1), 1)) return;
   const ctx = letterContext(props, "shake", frame, index, list, plainLists);
   if (!isLetterSelected(ctx.selected, index)) return;
@@ -21,7 +26,8 @@ function evaluateShake(props, frame, index, list, base, out, plainLists) {
     localFrame,
     readProp(props, "shakeFrequency", frame, 1),
     readProp(props, "shakeOffset", frame, 0),
-    0
+    0,
+    evaluationRate(aux)
   );
   const amount = value * weight;
   addScaled(out.position, readVector(props, "shakePosition", frame, [0, 0, 0]), amount);
@@ -77,6 +83,7 @@ function randomUnit(mode, index, group, axis, base, frame, opts) {
       opts.space === 1
         ? [index * 3.71, index * 9.13 + 4.7, index * 5.37 + 9.1]
         : [p[0], p[1], p[2]];
+    // Animation speed is frame-based: 100 advances one noise unit per 30 frames.
     const t = (numberValue(frame, 0) * Math.max(0, numberValue(opts.anim, 0))) / 100 / 30;
     const freq = scale / 15;
     const gx = opts.sync ? 0 : group * 13.13;
@@ -146,7 +153,7 @@ function evaluateRandom(props, frame, index, list, base, out, plainLists) {
   }
 }
 
-function evaluateFormula(props, frame, index, list, base, out, plainLists) {
+function evaluateFormula(props, frame, index, list, base, out, plainLists, aux) {
   if (!numberValue(readProp(props, "formulaEnable", frame, 1), 1)) return;
   const ctx = letterContext(props, "formula", frame, index, list, plainLists);
   if (!isLetterSelected(ctx.selected, index)) return;
@@ -179,7 +186,7 @@ function evaluateFormula(props, frame, index, list, base, out, plainLists) {
     id: index,
     count: Math.max(0, numberValue(list.total, 0)),
     falloff: field,
-    t: (numberValue(localFrame, 0) / 30) * numberValue(readProp(props, "formulaTime", frame, 1), 1),
+    t: (numberValue(localFrame, 0) / evaluationRate(aux)) * numberValue(readProp(props, "formulaTime", frame, 1), 1),
     f: numberValue(readProp(props, "formulaFrequency", frame, 1), 1),
   };
   let scalar = 0;

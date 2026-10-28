@@ -119,11 +119,11 @@ function delayRank(order, position, count, seed) {
   return position;
 }
 
-// Shake oscillator: frequency in cycles per second at a 30fps base, offset
+// Shake oscillator: frequency in cycles per second, offset
 // and per-letter delay in cycles. Returns [-1, 1].
-function shakeValue(frame, frequency, offset, stagger) {
+function shakeValue(frame, frequency, offset, stagger, rate = 30) {
   const t =
-    numberValue(frame, 0) * (numberValue(frequency, 1) / 30) +
+    numberValue(frame, 0) * (numberValue(frequency, 1) / rate) +
     numberValue(offset, 0) +
     numberValue(stagger, 0);
   return Math.sin(t * Math.PI * 2);

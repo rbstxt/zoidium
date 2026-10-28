@@ -119,9 +119,9 @@ test("Orbit reads source edits on a later Text before that Text updates", () => 
     for (const [key, value] of [["text", "AB"], ["size", [35, 5]], ["positionMode", 1], ["bevel", 1]]) {
       b.properties[key].set(value);
       a.update(0);
-      const first = h.T.getSplitState(a).entries.map(e => e.anchor.position.toArray());
+      const first = h.T.getSplitState(a).entries.map(e => Array.from(e.anchor.position.toArray()));
       h.container.update(0);
-      assert.deepEqual(h.T.getSplitState(a).entries.map(e => e.anchor.position.toArray()), first, key);
+      assert.deepEqual(h.T.getSplitState(a).entries.map(e => Array.from(e.anchor.position.toArray())), first, key);
     }
   } finally { h.close(); }
 });
@@ -191,5 +191,60 @@ test("split parents follow moves, reorder, undo, and redo without rebuilding let
     assert.equal(b.objects[1], text);
     editor.history.undo(); check(b);
     assert.equal(b.objects[0], text);
+  } finally { h.close(); }
+});
+
+for (const kind of ["Formula", "Shake"]) {
+  test(`${kind} uses sequence seconds at 24, 30, and 60 fps with stagger`, () => {
+    const samples = [24, 30, 60].map(rate => {
+      const h = fixture();
+      try {
+        h.project.sequence.properties.load();
+        h.project.sequence.properties.rate.set(rate);
+        h.section(kind, kind === "Formula"
+          ? { formulaExpression: "t", formulaPosition: [1, 0, 0], formulaDelay: rate / 4 }
+          : { shakePosition: [1, 0, 0], shakeFrequency: 0.7, shakeDelay: rate / 4 });
+        const text = h.text();
+        h.container.update(rate);
+        return h.T.getSplitState(text).entries.map(e => e.anchor.position.x - e.base[0]);
+      } finally { h.close(); }
+    });
+    for (const sample of samples) sample.forEach((v, i) => assert.ok(Math.abs(v - samples[1][i]) < 1e-10));
+  });
+}
+
+test("animated Random retains its frame-based Animation speed across sequence rates", () => {
+  const samples = [24, 30, 60].map(rate => {
+    const h = fixture();
+    try {
+      h.project.sequence.properties.load();
+      h.project.sequence.properties.rate.set(rate);
+      h.section("Random", { randomMode: 2, randomAnimationSpeed: 50 });
+      const text = h.text();
+      h.container.update(45);
+      return h.T.getSplitState(text).entries.map(e => Array.from(e.anchor.position.toArray()));
+    } finally { h.close(); }
+  });
+  assert.deepEqual(samples[0], samples[1]);
+  assert.deepEqual(samples[2], samples[1]);
+});
+
+test("Delay caches invalidate when Formula and Shake change sequence rates", () => {
+  const h = fixture();
+  try {
+    h.project.sequence.properties.load();
+    h.section("Formula", { formulaExpression: "t", formulaPosition: [1, 0, 0] });
+    h.section("Shake", { shakePosition: [1, 0, 0] });
+    h.section("Delay", { delayMode: 1 });
+    const text = h.text(h.container, "A");
+    h.container.update(60);
+    const first = h.T.getSplitState(text).entries[0].anchor.position.x;
+    h.project.sequence.properties.rate.set(60);
+    h.container.update(60);
+    const next = h.T.getSplitState(text).entries[0].anchor.position.x;
+    assert.notEqual(next, first);
+    require("../plugins/expresstext-plus/expresstext-delay-cache.js").clearDelayCache();
+    h.container.update(60);
+    assert.equal(h.T.getSplitState(text).entries[0].anchor.position.x, next);
   } finally { h.close(); }
 });
