@@ -46,7 +46,7 @@ function disposeExpressRendering(splitState) {
       } catch (_chunk) {}
     }
   }
-  splitState.emptyGeometry?.dispose?.();
+  // The native mesh can still reference this placeholder until the next build.
   splitState.renderRoot = null;
   splitState.entries = [];
   splitState.signature = null;
@@ -56,16 +56,24 @@ function disposeExpressRendering(splitState) {
   // the whole state instead).
 }
 
+function retainNativeGeometry(textObject, splitState) {
+  const geometry = textObject.threeObj?.geometry;
+  if (!geometry || geometry === splitState.emptyGeometry || geometry === splitState.fullGeometry) return;
+  splitState.fullGeometry?.dispose?.();
+  splitState.fullGeometry = geometry;
+}
+
 function restoreExpressRendering(textObject) {
   const splitState = state.splitStates.get(textObject);
   if (!splitState) return;
   try {
     if (splitState.fullGeometry && textObject.threeObj) {
-      splitState.emptyGeometry?.dispose?.();
+      retainNativeGeometry(textObject, splitState);
       textObject.threeObj.geometry = splitState.fullGeometry;
     }
   } catch (_error) {}
   disposeExpressRendering(splitState);
+  splitState.emptyGeometry?.dispose?.();
   state.splitStates.delete(textObject);
   state.splitTexts.delete(textObject);
 }
@@ -403,7 +411,7 @@ function buildExpressRendering(textObject, splitState, repeatCounts, voronoiSpec
     }
     if (sourceMesh.parent) sourceMesh.parent.add(renderRoot);
     else if (sourceMesh.add) sourceMesh.add(renderRoot);
-    splitState.fullGeometry = splitState.fullGeometry || sourceMesh.geometry;
+    retainNativeGeometry(textObject, splitState);
     if (!splitState.emptyGeometry && typeof THREE.BufferGeometry === "function") {
       splitState.emptyGeometry = new THREE.BufferGeometry();
     }
@@ -579,8 +587,7 @@ function layoutLetterCount(textObject, frame) {
 // Connected letter run for a container: continuous numbering across all
 // its texts in outliner order, so selections, id/u/count, ranks and
 // centers span texts. Counts come from layout (exact from frame 0);
-// world bases come from built entries when available (exact in steady
-// state; brand-new texts join within a frame).
+// all undeformed bases are prepared from current source data before evaluation.
 function containerLetterRun(container, selfText, selfEntries, frame) {
   const fallbackWorld = textWorldOf(selfText, frame);
   if (!selfText) {
@@ -649,15 +656,18 @@ function containerLetterRun(container, selfText, selfEntries, frame) {
   return { total, order, starts, counts, bases, extent, selfStart: starts[selfAt], selfWorld };
 }
 
-function updateExpressRendering(textObject, splitState, layers, frame) {
-  const THREE = state.THREE;
-  const sourceMesh = textObject.threeObj;
-  if (!THREE || !sourceMesh) return;
+// Prepare geometry for every Text before evaluating the connected run. Native
+// source rebuilds can otherwise occur later in the Group update traversal.
+function prepareExpressRendering(textObject, splitState, stack, frame) {
+  if (textObject.fontNeedsUpdate && typeof textObject.updateFont === "function") {
+    textObject.updateFont();
+    textObject.fontNeedsUpdate = false;
+  }
+  if (textObject.geometryNeedsUpdate && typeof textObject.updateGeometry === "function") {
+    textObject.updateGeometry();
+    textObject.geometryNeedsUpdate = false;
+  }
   const signature = expressSignature(textObject);
-  const container = expressContainerOf(layers);
-  if (!container) return;
-  const containerProps = getExpressProperties(container);
-  const stack = stackLayersFor(container, layers);
   const repeaters = repeaterSpecsFor(stack, frame);
   const repeatKey = repeaters.map((r) => r.copies).join(",");
   // Voronoi partition from the first layer asking for chunks; motion
@@ -690,6 +700,25 @@ function updateExpressRendering(textObject, splitState, layers, frame) {
     splitState.signature = fullSig;
     splitState.repeatLayers = refs;
   }
+  return repeaters;
+}
+
+function updateExpressRendering(textObject, splitState, layers, frame) {
+  const THREE = state.THREE;
+  const sourceMesh = textObject.threeObj;
+  const container = expressContainerOf(layers);
+  if (!THREE || !sourceMesh || !container) return;
+  const containerProps = getExpressProperties(container);
+  const stack = stackLayersFor(container, layers);
+  const texts = containerTexts(container);
+  if (!texts.includes(textObject)) texts.push(textObject);
+  let repeaters;
+  for (const text of texts) {
+    const prepared = prepareExpressRendering(text, getSplitState(text),
+      text === textObject ? stack : stackLayersFor(container, collectExpressObjects(text)), frame);
+    if (text === textObject) repeaters = prepared;
+  }
+  if (!repeaters) return;
   // Connected letter run: continuous numbering across every text under
   // this container, so selections, id/u/count, ranks and centers span
   // texts. Single texts resolve to their own local numbering exactly.
@@ -854,4 +883,4 @@ function syncExpressRendering(textObject, frame) {
   }
 }
 
-module.exports = { EXTRUDE_OPTION_KEYS, applyLetterTransform, buildExpressRendering, containerLetterRun, containerTexts, disposeExpressRendering, eulerParts, expressSignature, geometryTriangleArrays, getSplitState, layoutLetterCount, ownTransformOf, restoreExpressRendering, setChunkAttribute, sourceExtrudeOptions, syncExpressRendering, textWorldOf, throughParent, updateExpressRendering };
+module.exports = { retainNativeGeometry, EXTRUDE_OPTION_KEYS, applyLetterTransform, buildExpressRendering, containerLetterRun, containerTexts, disposeExpressRendering, eulerParts, expressSignature, geometryTriangleArrays, getSplitState, layoutLetterCount, ownTransformOf, restoreExpressRendering, setChunkAttribute, sourceExtrudeOptions, syncExpressRendering, textWorldOf, throughParent, updateExpressRendering };
