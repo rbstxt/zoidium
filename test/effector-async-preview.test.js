@@ -35,8 +35,11 @@ test("pending cold work holds presentation through seeks, topology edits, and so
     }
   }
   const originalRender = Viewport.prototype._render;
-  guard = installPreviewHold({ ui: { viewport: Viewport } }, deformer);
   const viewport = new Viewport(), source = mesh.geometry;
+  // Motion Path installs an instance wrapper before Effector activation.
+  const ownRender = function (...args) { return originalRender.apply(this, args); };
+  viewport._render = ownRender;
+  guard = installPreviewHold({ ui: { viewport: Viewport } }, deformer, { mainViewport: viewport });
   viewport._render();
   assert.equal(presented, 0);
   assert.equal(viewport.lastFrame, 19);
@@ -80,5 +83,28 @@ test("pending cold work holds presentation through seeks, topology edits, and so
   assert.equal(presented, 4);
   guard.dispose(); deformer.dispose();
   assert.equal(Viewport.prototype._render, originalRender);
+  assert.equal(viewport._render, ownRender, "restore the prior instance wrapper too");
   assert.equal(jobs.stats().entries, 0);
+});
+
+
+test("a later instance wrapper can retain a disposed prototype guard without blocking or clearing an outer hold", () => {
+  let pending = true, draws = 0;
+  class Viewport {
+    _render() { guard.holdIfPending([]); draws++; }
+  }
+  const deformer = { pending: () => pending ? [Promise.resolve()] : [] };
+  let guard = installPreviewHold({ ui: { viewport: Viewport } }, deformer);
+  const viewport = new Viewport(), captured = viewport._render;
+  viewport._render = function () { return captured.call(this); };
+  // The new installation wraps a method that already retains a prototype guard.
+  const next = installPreviewHold({ ui: { viewport: Viewport } }, deformer, { mainViewport: viewport });
+  guard.dispose();
+  guard = next;
+  viewport._render();
+  assert.equal(draws, 0);
+  pending = false;
+  viewport._render();
+  assert.equal(draws, 1);
+  next.dispose();
 });

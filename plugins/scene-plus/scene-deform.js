@@ -186,7 +186,7 @@ function createDeformationSupport(PZ, THREE, editor) {
   const originalUnload = prototype.unload;
   const meshDeformer = getMeshDeformer(THREE);
   const disposeFieldHelpers = installFieldHelpers(THREE);
-  const presentation = installPreviewHold(PZ, meshDeformer);
+  const presentation = installPreviewHold(PZ, meshDeformer, editor);
 
   let project = editor?.project, generation = 0;
   function releaseLayers() {
