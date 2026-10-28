@@ -152,3 +152,44 @@ for (const pose of [
     } finally { h.close(); }
   });
 }
+
+test("split parents follow moves, reorder, undo, and redo without rebuilding letters", () => {
+  const h = fixture();
+  try {
+    const { editorFor } = require("./helpers/editor-identity-host.cjs");
+    const editor = editorFor(h.PZ, h.project);
+    const a = h.group(), b = h.group();
+    a.properties.position.set([10, 0, 0], 0);
+    b.properties.position.set([-20, 0, 0], 0);
+    const text = h.text(a, "A");
+    h.text(b, "B");
+    h.container.update(0);
+    const split = h.T.getSplitState(text), entries = split.entries;
+    function move({ from, to, index }) {
+      const oldIndex = from.objects.indexOf(text);
+      from.objects.splice(oldIndex, 1);
+      to.objects.splice(index, 0, text);
+      editor.history.pushCommand(move, { from: to, to: from, index: oldIndex });
+    }
+    function check(parent) {
+      h.container.update(0);
+      h.project.threeObj.updateMatrixWorld(true);
+      assert.equal(split.renderRoot.parent, parent.threeObj);
+      assert.equal(split.entries, entries);
+      assert.deepEqual(Array.from(split.renderRoot.matrixWorld.elements), Array.from(text.threeObj.matrixWorld.elements));
+    }
+    editor.history.startOperation();
+    move({ from: a, to: b, index: 0 });
+    editor.history.finishOperation();
+    check(b);
+    editor.history.undo(); check(a);
+    editor.history.redo(); check(b);
+    editor.history.startOperation();
+    move({ from: b, to: b, index: 1 });
+    editor.history.finishOperation();
+    check(b);
+    assert.equal(b.objects[1], text);
+    editor.history.undo(); check(b);
+    assert.equal(b.objects[0], text);
+  } finally { h.close(); }
+});

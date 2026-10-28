@@ -700,6 +700,10 @@ function prepareExpressRendering(textObject, splitState, stack, frame) {
     splitState.signature = fullSig;
     splitState.repeatLayers = refs;
   }
+  // Native parentChanged() can move the mesh without changing geometry.
+  const sourceMesh = textObject.threeObj;
+  const parent = sourceMesh?.parent || sourceMesh;
+  if (parent && splitState.renderRoot?.parent !== parent) parent.add(splitState.renderRoot);
   return repeaters;
 }
 
