@@ -222,30 +222,30 @@
       "zoidiumOnly": true,
       "manifest": "./plugins/scene-plus/manifest.json?v=39",
       "bundle": "./plugins/scene-plus/bundle.json?v=39",
-      "integrity": "sha256-do1FB6rwTorowj33NMgq4y92AGVWJkH9Eg8x2BafAI4="
+      "integrity": "sha256-TC84cP4+8uBz+Y9G7MUDwChjVppMNGRgI/WxUKdgPYI="
     },
     {
       "id": "material-plus",
       "category": "scene",
       "name": "Material+",
       "author": "Zoidium",
-      "version": "33",
+      "version": "34",
       "itemCount": 5,
       "format": "3D materials",
       "tagline": "Node, PBR+, Matcap & Image+ materials",
       "color": "#b36bca",
       "description": "Adds procedural Node Materials with a node editor, PBR+ with ramps, Fresnel, cel shading and projection, Image+ with opacity, Matcap, and corrected-UV materials for 3D objects.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/material-plus/manifest.json?v=33",
-      "bundle": "./plugins/material-plus/bundle.json?v=33",
-      "integrity": "sha256-j2Wzf1Dg4kJn+841LuRbvHesSMrXdAgI/mlS+9yivx4="
+      "manifest": "./plugins/material-plus/manifest.json?v=34",
+      "bundle": "./plugins/material-plus/bundle.json?v=34",
+      "integrity": "sha256-qjz39qq3jCAFGk1/RszYKtIAHe+pcFlJI3PgWISryIU="
     },
     {
       "id": "text-plus",
       "category": "scene",
       "name": "Text+",
       "author": "Zoidium",
-      "version": "30",
+      "version": "31",
       "defaultEnabled": true,
       "itemCount": 7,
       "format": "2D and 3D text",
@@ -254,9 +254,9 @@
       "description": "Adds per-character animation and 3D face materials to Text, plus advanced 3D bevel controls.",
       "credits": "Credits: DaviFX",
       "zoidiumOnly": true,
-      "manifest": "./plugins/text-plus/manifest.json?v=30",
-      "bundle": "./plugins/text-plus/bundle.json?v=30",
-      "integrity": "sha256-yPW+84Vb7bdPHQp/0QYyydNB72BbbSRYbUZZTUQO0GU="
+      "manifest": "./plugins/text-plus/manifest.json?v=31",
+      "bundle": "./plugins/text-plus/bundle.json?v=31",
+      "integrity": "sha256-1HRnca4Cw8/N9vqr2cqCDahtPajIdnY5mwtkI2xNCOU="
     },
     {
       "id": "expresstext-plus",

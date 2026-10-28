@@ -24,7 +24,7 @@ function sameArray(a, b) {
 function createMeshDeformer(THREE, jobs) {
   // Load after this module exports the shared normal helpers. The evaluator
   // imports those helpers too, so a top-level import would create a cycle.
-  const { evaluateMesh, createStageCache, meshBuildKey } = require("./effector-evaluate.js");
+  const { evaluateMesh, evaluateCachedMesh, createStageCache, meshBuildKey } = require("./effector-evaluate.js");
   const stageCache = createStageCache(64 * 1024 * 1024, 64);
   const { releaseMaterial, syncMaterial } = require("./effector-material.js").createFractureMaterials(THREE);
   const convertedGeometries = new WeakMap();
@@ -281,9 +281,9 @@ function createMeshDeformer(THREE, jobs) {
     let polygonCount = core.budgetSubdivision(requestedPolygonCount, budget, legacySubdivision);
     // be6ea2b raised the minimum from two to four for uniform subdivision.
     if (polygonCount < (legacySubdivision ? 2 : core.SMOOTH_TRIANGLE_BUDGET_MIN_POLYGONS)) polygonCount = 1;
-    // Built-in chains share one evaluator in the worker and synchronous fallback.
-    // Pending jobs keep the mesh untouched. The preview guard holds presentation
-    // until every scene mesh belongs to the exact requested frame.
+    // Built-in chains share one evaluator. Cold stages are built in the worker;
+    // ready stages use its immutable results locally without a motion queue.
+    // Pending jobs keep the mesh untouched until the exact frame is available.
     if (chain.every(entry => typeof entry.effector.workerCommand === "function")) {
       let historyBudget = 96;
       const sampledWorlds = new Map();
@@ -331,14 +331,21 @@ function createMeshDeformer(THREE, jobs) {
         }
       };
       if (jobs?.available) {
-        input.buildKey = meshBuildKey(input);
-        const entry = jobs.request(mesh, key, input);
-        if (entry?.status === "error") {
-          failures.push(entry.error.message);
-          result = synchronous();
-        } else {
-          if (entry?.status !== "done") return;
-          result = entry.value;
+        // A cache miss throws before its cold builder runs. Oversized stages
+        // also miss here and keep the exact asynchronous presentation path.
+        try { result = evaluateCachedMesh(input, stageCache); } catch (_) { /* Retry in the worker. */ }
+        if (!result) {
+          input.buildKey = meshBuildKey(input);
+          input.shareStages = true;
+          const entry = jobs.request(mesh, key, input);
+          if (entry?.status === "error") {
+            failures.push(entry.error.message);
+            result = synchronous();
+          } else {
+            if (entry?.status !== "done") return;
+            result = entry.value;
+            for (const [stageKey, stage] of entry.stages || []) stageCache.get(stageKey, () => stage);
+          }
         }
         jobs.release(mesh);
       } else result = synchronous();

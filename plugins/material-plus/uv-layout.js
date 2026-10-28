@@ -367,9 +367,17 @@ function uvNormalizeGeometry(geometry) {
   const prepared = uvPrepareContours(uvReconstructContours(geometry));
   if (prepared.length === 0) return false;
   const outline = uvBuildOutlineIndex(prepared);
-  // A vertex is shared by multiple wall triangles. This cache lasts only for
-  // this normalization, so all geometry, contour and scale inputs are current.
-  const vertexCandidates = new Map();
+  // Extrusion rings repeat XY coordinates at different depths. Vertex and
+  // triangle-center queries depend only on XY, so share their exact answers
+  // across rings. This cache lasts only for this normalization.
+  const outlineQueries = new Map();
+  function candidatesAt(x, y) {
+    let row = outlineQueries.get(x);
+    if (!row) { row = new Map(); outlineQueries.set(x, row); }
+    let candidates = row.get(y);
+    if (!candidates) { candidates = uvOutlineCandidates(outline, x, y, scale); row.set(y, candidates); }
+    return candidates;
+  }
 
   for (let faceIndex = 0; faceIndex < geometry.faces.length; faceIndex += 1) {
     const face = geometry.faces[faceIndex];
@@ -395,12 +403,7 @@ function uvNormalizeGeometry(geometry) {
     const isCap = maxFaceZ - minFaceZ <= UV_EPSILON;
     let anchorU = 0;
     if (!isCap && counted > 0) {
-      const anchor = uvOutlineCandidates(
-        outline,
-        centroidX / counted,
-        centroidY / counted,
-        scale
-      )[0];
+      const anchor = candidatesAt(centroidX / counted, centroidY / counted)[0];
       anchorU = anchor ? anchor.u : 0;
     }
 
@@ -414,12 +417,7 @@ function uvNormalizeGeometry(geometry) {
         continue;
       }
 
-      const vertexIndex = indices[index];
-      let candidates = vertexCandidates.get(vertexIndex);
-      if (!candidates) {
-        candidates = uvOutlineCandidates(outline, vertex.x, vertex.y, scale);
-        vertexCandidates.set(vertexIndex, candidates);
-      }
+      const candidates = candidatesAt(vertex.x, vertex.y);
       const match = candidates.length > 0 ? uvNearestTo(candidates, anchorU) : null;
       uv.set(match ? match.u : anchorU, (vertex.z - bounds.minZ) / scale);
     }

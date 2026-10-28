@@ -36,6 +36,7 @@ function createStageCache(maxBytes = 64 * 1024 * 1024, maxEntries = 64) {
       return entry.value;
     },
     clear() { entries.clear(); bytes = 0; },
+    snapshot() { return Array.from(entries, ([key, entry]) => [key, entry.value]); },
     forget(sourceId) {
       for (const [key, entry] of entries) if (key.startsWith(sourceId + ":")) {
         bytes -= entry.bytes; entries.delete(key);
@@ -96,6 +97,19 @@ function meshBuildKey(input) {
     prefix += ":" + JSON.stringify(command);
   }
   return key;
+}
+
+const CACHE_MISS = {};
+
+// Use the same evaluator for ready topology without allowing any cold build on
+// the presenting thread. Eviction, edits, and uncached history go to the worker.
+function evaluateCachedMesh(input, cache) {
+  try {
+    return evaluateMesh({ ...input, borrowAttributes: true }, { get(key) { return cache.get(key, () => { throw CACHE_MISS; }); } });
+  } catch (error) {
+    if (error === CACHE_MISS) return null;
+    throw error;
+  }
 }
 
 function evaluateMesh(input, cache = createStageCache()) {
@@ -173,10 +187,11 @@ function evaluateMesh(input, cache = createStageCache()) {
     prefix += ":" + JSON.stringify(command);
   }
   if (input.geometryOnly) return { positions: work, topologyKey };
-  // Copy cached arrays before transferring ownership back to the main thread.
+  // Worker results transfer their arrays. Local evaluation can borrow immutable
+  // UVs, colors, and indices; only positions and normals change with motion.
   const attributes = {};
   for (const [name, attribute] of Object.entries(stage.attributes)) {
-    if (name !== "normal") attributes[name] = { array: new attribute.array.constructor(attribute.array), itemSize: attribute.itemSize, normalized: attribute.normalized };
+    if (name !== "normal") attributes[name] = { array: input.borrowAttributes ? attribute.array : new attribute.array.constructor(attribute.array), itemSize: attribute.itemSize, normalized: attribute.normalized };
   }
   attributes.normal = { array: normalsFor(stage, work, !curved), itemSize: 3, normalized: false };
   const bounds = core.boundsOf(work);
@@ -187,8 +202,8 @@ function evaluateMesh(input, cache = createStageCache()) {
     radiusSquared = Math.max(radiusSquared, x * x + y * y + z * z);
   }
   return { kind: stage.kind, smooth: stage.smooth, count: stage.count, positions: work, attributes,
-    index: stage.index ? new stage.index.constructor(stage.index) : null,
+    index: stage.index ? (input.borrowAttributes ? stage.index : new stage.index.constructor(stage.index)) : null,
     groups: stage.groups, capMaterialIndex: stage.capMaterialIndex, topologyKey, errors, warnings: Array.from(warnings), sphere: { center, radius: Math.sqrt(radiusSquared) } };
 }
 
-module.exports = { meshBuildKey, byteSize, createStageCache, evaluateMesh, normalsFor };
+module.exports = { meshBuildKey, byteSize, createStageCache, evaluateMesh, evaluateCachedMesh, normalsFor };
