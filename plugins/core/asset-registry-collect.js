@@ -23,9 +23,9 @@
       taken.add(candidate.toLowerCase());
       return candidate;
     }
-    function folderPaths(folders) {
+    function folderPaths(folders, taken) {
       const byId = new Map(folders.map(folder => [folder.id, folder]));
-      const names = new Map(), taken = new Map(), paths = new Map();
+      const names = new Map(), paths = new Map();
       for (const folder of folders) {
         const parent = byId.has(folder.parent) ? folder.parent : null;
         if (!taken.has(parent)) taken.set(parent, new Set());
@@ -68,21 +68,22 @@
       const view = current(), project = global.CM?.project;
       if (!project) return { ok: false, reason: "no-project", error: "There is no project to collect." };
       const name = safeName(options.name || project.name || "project");
-      const folders = view.folders || [], paths = folderPaths(folders);
+      const taken = new Map([[null, new Set([REPORT.toLowerCase()])]]);
+      const folders = view.folders || [], paths = folderPaths(folders, taken);
       const entries = Array.from(paths.values()).sort().map(path => ({ path }));
-      const taken = new Map([["", new Set([REPORT.toLowerCase()])]]);
       const collected = [], missing = [];
       for (const item of view.items) {
         if (item.source !== "file" && item.source !== "embedded") continue;
-        const folder = paths.get(item.folder) || "";
+        const parent = paths.has(item.folder) ? item.folder : null;
+        const folder = paths.get(parent) || "";
         const bytes = await bytesOf(item);
         if (global.CM?.project !== project) return { ok: false, reason: "project-changed", error: "The project changed while collecting files." };
         if (!bytes) {
           missing.push({ id: item.id, name: item.name, path: folder + safeName(item.name), uses: item.usages.length });
           continue;
         }
-        if (!taken.has(folder)) taken.set(folder, new Set());
-        const path = folder + unique(taken.get(folder), safeName(bytes.filename || item.name));
+        if (!taken.has(parent)) taken.set(parent, new Set());
+        const path = folder + unique(taken.get(parent), safeName(bytes.filename || item.name));
         entries.push({ path, blob: bytes.blob });
         collected.push({ id: item.id, name: item.name, path, size: bytes.blob.size });
       }
