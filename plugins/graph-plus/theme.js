@@ -190,7 +190,7 @@ return [
     ".g2-wrap.g2-compact .g2-toolbar .g2-tlabel{display:none}",
     ".g2-wrap.g2-compact .g2-group[data-label]{gap:2px;padding-left:2px;padding-right:2px}",
     ".g2-wrap.g2-compact .g2-toolbar .g2-tile .g2-box{width:24px!important}",
-    ".g2-wrap.g2-compact .g2-help{width:24px;flex-basis:24px}",
+    ".g2-wrap.g2-compact .g2-help,.g2-wrap.g2-wide .g2-help{width:24px;flex-basis:24px}",
 ].join("\n");
 }
 
