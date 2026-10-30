@@ -389,25 +389,16 @@
       }
 
       const outputFrame = finiteNumber(this._exactFrame, NaN);
-      const nextOutputFrame = outputFrame + finiteNumber(delta, 0);
       const layer = schedule.currentItem.clip?.object;
-      const current = state.mapProjectFrame(layer, outputFrame);
-      const next = state.mapProjectFrame(layer, nextOutputFrame);
-      if (!current || !next) {
+      if (!state.mapProjectFrame(layer, outputFrame)) {
         return state.originalPlaybackUpdateSchedule.apply(this, arguments);
       }
-
-      const previousExactFrame = this._exactFrame;
-      this._exactFrame = current.projectFrame;
-      try {
-        return state.originalPlaybackUpdateSchedule.call(
-          this,
-          schedule,
-          next.projectFrame - current.projectFrame,
-        );
-      } finally {
-        this._exactFrame = previousExactFrame;
-      }
+      // A discontinuous source clock cannot drive the output playhead or a
+      // forward-only media playbackRate. The viewport uses a paused, isolated
+      // decoder instead, while the native wall/audio clock advances output time.
+      schedule.el?.pause?.();
+      schedule.playing = false;
+      if (this.syncSchedule === schedule) this.syncSchedule = null;
     };
     Object.defineProperty(prototype, PLAYBACK_SCHEDULE_MARKER, {
       configurable: true,

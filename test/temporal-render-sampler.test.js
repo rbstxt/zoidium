@@ -859,3 +859,22 @@ test("a clock-only video preview waits for its private decoder before drawing", 
   await new Promise(setImmediate);
   assert.equal(h.decoded.length, decodes, "unchanged redraw reuses the exact input");
 });
+
+test("a jumping video source cannot become the output playback clock", () => {
+  const h = host(false);
+  h.effect._zoidiumTemporal = { getOperator: () =>
+    ({ kind: "time-offset", enabled: true, offsetFrames: -10 }) };
+  let pauses = 0;
+  const schedule = { type: h.PZ.schedule.type.VIDEO, currentItem: { clip: h.ownerClip },
+    playing: true, el: { pause() { pauses++; } } };
+  const playback = Object.assign(new h.PZ.ui.playback(), { _exactFrame: 30, syncSchedule: schedule });
+  playback.updateSchedule(schedule, 1);
+  assert.equal(playback.syncSchedule, null);
+  assert.equal(playback._exactFrame, 30);
+  assert.equal(schedule.playing, false);
+  assert.equal(pauses, 1);
+  assert.equal(playback.nativeUpdates, undefined);
+  delete h.effect._zoidiumTemporal;
+  playback.updateSchedule(schedule, 1);
+  assert.equal(playback.nativeUpdates, 1, "ordinary video retains native playback");
+});

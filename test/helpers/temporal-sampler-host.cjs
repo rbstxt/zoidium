@@ -84,7 +84,7 @@ function host(adjustment) {
   };
   owner.effects = [{ add: 100, update() {} }, effect, { add: 1000, update() {} }];
   const sandbox = { console, PZ: { layer: Layer, compositor: Compositor, schedule: Schedule, clip: class {}, sequence: class {},
-    ui: { viewport: class { _render() { this.compositor.renderSequence(this.editor.playback.currentFrame); } } } }, THREE: { Texture, WebGLRenderTarget: Target, Color: class {} } };
+    ui: { playback: class { updateSchedule() { this.nativeUpdates = (this.nativeUpdates || 0) + 1; } }, viewport: class { _render() { this.compositor.renderSequence(this.editor.playback.currentFrame); } } } }, THREE: { Texture, WebGLRenderTarget: Target, Color: class {} } };
   sandbox.window = sandbox;
   vm.createContext(sandbox);
   // The shared overlay scripts load before any plugin code runs, so the
