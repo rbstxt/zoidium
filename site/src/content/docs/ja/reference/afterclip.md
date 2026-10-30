@@ -8,61 +8,59 @@ AfterClip は単体エフェクトを 32 個、グループプリセットを 11
 
 ## 単体エフェクト
 
-| エフェクト | ピッカーのカテゴリ | ID |
-| --- | --- | --- |
-| **Circle Dot Wave** | **SHADERS · REPEAT** | `afterclip-repeat-circle-dot-wave` |
-| **Dot Wave** | **SHADERS · REPEAT** | `afterclip-repeat-dot-wave` |
-| **Duplicate (Extended)** | **SHADERS · REPEAT** | `afterclip-repeat-duplicate-extended` |
-| **Gradient Linear Repeat** | **SHADERS · REPEAT** | `afterclip-repeat-gradient-linear-repeat` |
-| **Hex Dot Wave** | **SHADERS · REPEAT** | `afterclip-repeat-hex-dot-wave` |
-| **Linear Repeat** | **SHADERS · REPEAT** | `afterclip-repeat-linear-repeat` |
-| **Radial Repeat** | **SHADERS · REPEAT** | `afterclip-repeat-radial-repeat` |
-| **Stroke (Extended)** | **SHADERS · REPEAT** | `afterclip-repeat-stroke-extended` |
-| **Arrow Shape** | **SHADERS · SHAPE** | `afterclip-shape-arrow` |
-| **Chevron** | **SHADERS · SHAPE** | `afterclip-shape-chevron` |
-| **CLE** | **SHADERS · SHAPE** | `afterclip-shape-cle` |
-| **Gradient (Easeable)** | **SHADERS · SHAPE** | `afterclip-shape-gradient-overlay-easeable` |
-| **Hex Net** | **SHADERS · SHAPE** | `afterclip-shape-hex-net` |
-| **Line Wave Mask** | **SHADERS · SHAPE** | `afterclip-shape-line-wave-mask` |
-| **Line Wave** | **SHADERS · SHAPE** | `afterclip-shape-line-wave` |
-| **Lines** | **SHADERS · SHAPE** | `afterclip-shape-lines` |
-| **Net** | **SHADERS · SHAPE** | `afterclip-shape-net` |
-| **PinWheel** | **SHADERS · SHAPE** | `afterclip-shape-pinwheel` |
-| **Plain Wave Mask** | **SHADERS · SHAPE** | `afterclip-shape-plain-wave-mask` |
-| **Plain Wave** | **SHADERS · SHAPE** | `afterclip-shape-plain-wave` |
-| **Polygon Echo** | **SHADERS · SHAPE** | `afterclip-shape-polygon-echo` |
-| **Polygon** | **SHADERS · SHAPE** | `afterclip-shape-polygon` |
-| **Repeating Dots** | **SHADERS · SHAPE** | `afterclip-shape-repeating-dots` |
-| **RoundedStar** | **SHADERS · SHAPE** | `afterclip-shape-roundedstar` |
-| **Shockwave** | **SHADERS · SHAPE** | `afterclip-shape-shockwave` |
-| **Triangle** | **SHADERS · SHAPE** | `afterclip-shape-triangle` |
-| **Fractal Noise** | **SHADERS · WARP** | `afterclip-warp-fractal-noise` |
-| **Fractal Warp** | **SHADERS · WARP** | `afterclip-warp-fractal-warp` |
-| **Mirror (Fixed)** | **SHADERS · WARP** | `afterclip-warp-mirror-fixed-bugs` |
-| **Polar Coordinates** | **SHADERS · WARP** | `afterclip-warp-polar-coordinates` |
-| **Stretch** | **SHADERS · WARP** | `afterclip-warp-stretch` |
-| **Wavy (Extended)** | **SHADERS · WARP** | `afterclip-warp-wavy-extended` |
+| エフェクト | ピッカーのカテゴリ |
+| --- | --- |
+| **Circle Dot Wave** | **SHADERS · REPEAT** |
+| **Dot Wave** | **SHADERS · REPEAT** |
+| **Duplicate (Extended)** | **SHADERS · REPEAT** |
+| **Gradient Linear Repeat** | **SHADERS · REPEAT** |
+| **Hex Dot Wave** | **SHADERS · REPEAT** |
+| **Linear Repeat** | **SHADERS · REPEAT** |
+| **Radial Repeat** | **SHADERS · REPEAT** |
+| **Stroke (Extended)** | **SHADERS · REPEAT** |
+| **Arrow Shape** | **SHADERS · SHAPE** |
+| **Chevron** | **SHADERS · SHAPE** |
+| **CLE** | **SHADERS · SHAPE** |
+| **Gradient (Easeable)** | **SHADERS · SHAPE** |
+| **Hex Net** | **SHADERS · SHAPE** |
+| **Line Wave Mask** | **SHADERS · SHAPE** |
+| **Line Wave** | **SHADERS · SHAPE** |
+| **Lines** | **SHADERS · SHAPE** |
+| **Net** | **SHADERS · SHAPE** |
+| **PinWheel** | **SHADERS · SHAPE** |
+| **Plain Wave Mask** | **SHADERS · SHAPE** |
+| **Plain Wave** | **SHADERS · SHAPE** |
+| **Polygon Echo** | **SHADERS · SHAPE** |
+| **Polygon** | **SHADERS · SHAPE** |
+| **Repeating Dots** | **SHADERS · SHAPE** |
+| **RoundedStar** | **SHADERS · SHAPE** |
+| **Shockwave** | **SHADERS · SHAPE** |
+| **Triangle** | **SHADERS · SHAPE** |
+| **Fractal Noise** | **SHADERS · WARP** |
+| **Fractal Warp** | **SHADERS · WARP** |
+| **Mirror (Fixed)** | **SHADERS · WARP** |
+| **Polar Coordinates** | **SHADERS · WARP** |
+| **Stretch** | **SHADERS · WARP** |
+| **Wavy (Extended)** | **SHADERS · WARP** |
 
 ## グループプリセット
 
-| プリセット | 直接の子の数 | ID |
-| --- | --- | --- |
-| **Circular DotWave** | 4 | `afterclip-group-dot-waves-circular-dotwave` |
-| **Hex DotWave** | 5 | `afterclip-group-dot-waves-hex-dotwave` |
-| **Square DotWave** | 5 | `afterclip-group-dot-waves-square-dotwave` |
-| **Arrow Effect** | 11 | `afterclip-group-effects-arrow` |
-| **Burst** | 3 | `afterclip-group-effects-burst` |
-| **Fractal Burst** | 8 | `afterclip-group-effects-fractal-burst` |
-| **Fireworks** | 4 | `afterclip-group-effects-fw` |
-| **Line Waves** | 6 | `afterclip-group-effects-line-waves` |
-| **Spiral** | 5 | `afterclip-group-effects-spiral` |
-| **ChevSync** | 1 | `afterclip-group-synctools-chevron` |
-| **SyncTools v2** | 1 | `afterclip-group-synctools-sync` |
+| プリセット | 直接の子の数 |
+| --- | --- |
+| **Circular DotWave** | 4 |
+| **Hex DotWave** | 5 |
+| **Square DotWave** | 5 |
+| **Arrow Effect** | 11 |
+| **Burst** | 3 |
+| **Fractal Burst** | 8 |
+| **Fireworks** | 4 |
+| **Line Waves** | 6 |
+| **Spiral** | 5 |
+| **ChevSync** | 1 |
+| **SyncTools v2** | 1 |
 
 ## プロパティと範囲
 
-多くの図形エフェクトには **Position**、**Rotation**、**Scale**、**Opacity** があります。すべてのエフェクトがこの 4 つを定義するわけではありません。Line Wave は **Time**、**Delay**、**Power**、**Step** を使用します。
-
-ルートにカスタムコントロールがないグループでも、子のプロパティを持ちます。
+多くの図形エフェクトには **Position**、**Rotation**、**Scale**、**Opacity** がありますが、すべてがこの 4 つを持つわけではありません。Line Wave は **Time**、**Delay**、**Power**、**Step** を使用します。
 
 [AfterClip の使用手順](/docs/ja/features/afterclip/).
