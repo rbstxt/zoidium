@@ -4,17 +4,13 @@ description: Frame timing, clip context, and decoder limits for GIF image input.
 sidebar:
   label: Animated GIF limits
 ---
-Animated GIF supports GIF87a and GIF89a image assets. The decoder supports palettes, transparency, interlace, and disposal modes 0 through 3.
-
-GIF detection uses the image asset's filename or URL with a `.gif` extension, ignoring letter case and an optional query or fragment.
+Animated GIF supports GIF87a and GIF89a image assets, including transparency and interlacing.
 
 ## Timing
 
-The decoded animation loops, including for negative media time. A clip's media time selects the frame. Without a clip context, project frame divided by sequence rate supplies the time.
+The decoded animation loops, including for negative media time. A clip's media time selects the frame.
 
 GIF delays use hundredths of a second. A stored delay of 0 or 1 becomes 0.10 seconds. A delay of 2 or more retains its encoded value, so a delay of 2 is 0.02 seconds.
-
-The frame depends on media time rather than elapsed wall-clock time or the order in which frames render.
 
 ## Decoder limits
 
@@ -24,7 +20,7 @@ The frame depends on media time rather than elapsed wall-clock time or the order
 | Canvas area | 67,108,864 pixels | A larger GIF canvas fails decoding. |
 | Accumulated frame area | 67,108,864 pixels | Each full-canvas frame consumes the budget. Decoding stops once the remaining budget is zero or less. |
 
-The pixel budget counts full GIF canvas dimensions for each decoded frame, even when a frame updates only a small rectangle. The final frame can take the accumulated area past the budget.
+Each decoded frame consumes the budget at full canvas size.
 
 These limits apply to input decoding. Animated GIF does not add a GIF export format.
 

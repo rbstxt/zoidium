@@ -4,7 +4,7 @@ description: Easing+ coordinates, Motion Paths gestures, and Player+ drawing and
 sidebar:
   label: Editor controls
 ---
-These controls change editing and preview behavior. Easing+ and Motion Paths write native animation channels. Player+ preferences affect the local viewport.
+These controls change editing and preview behavior. Easing+ and Motion Paths edit the project's animation. Player+ preferences affect the local viewport.
 
 
 ## Easing+ coordinates
@@ -26,7 +26,7 @@ Out controls belong to the start key. In controls belong to the end key. The fir
 | `Alt-click` | Toggles adjacent linear and Bezier segments. |
 | `Escape` | Cancels the current drag. |
 
-Position needs an animated axis without an expression. Expression-driven axes are visible but read-only. A Position group expression suppresses the path. Paths use at most 1500 line segments and omit frame dots beyond 900 frames.
+Position paths need an expression-free animated axis; anything expression-driven is read-only or hidden. Paths use at most 1500 line segments and omit frame dots beyond 900 frames.
 
 [Edit motion with Motion Paths](/docs/features/motion-path/)
 

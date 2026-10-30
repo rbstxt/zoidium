@@ -8,37 +8,37 @@ CCFX registers 12 standalone effects and 7 group presets. A standalone effect in
 
 ## Standalone effects
 
-| Effect | Picker category | ID |
-| --- | --- | --- |
-| **Sunburst V2** | **BACKGROUNDS** | `part-1-backgrounds-sunburst` |
-| **Voronoi Cell Pattern** | **BACKGROUNDS** | `part-1-backgrounds-voronoi-cell-pattern` |
-| **Puddle** | **DISTORT** | `part-1-distort-puddle` |
-| **Skew V2** | **DISTORT** | `part-1-distort-skew-v2` |
-| **Warp Waves** | **DISTORT** | `part-1-distort-warp-waves` |
-| **Wipe Checker** | **TRANSITIONS** | `part-1-transitions-s-wipechecker` |
-| **Wipe Dots** | **TRANSITIONS** | `part-1-transitions-s-wipedots` |
-| **Wipe Rings** | **TRANSITIONS** | `part-1-transitions-s-wiperings` |
-| **Wipe Stripes** | **TRANSITIONS** | `part-1-transitions-s-wipestripes` |
-| **CC Light Sweep** | **PART 2** | `part-2-cc-light-sweep` |
-| **Lens Flare Lite** | **PART 2** | `part-2-lens-flare-lite` |
-| **Plexus V1** | **PART 2** | `part-2-plexus-v1` |
+| Effect | Picker category |
+| --- | --- |
+| **Sunburst V2** | **BACKGROUNDS** |
+| **Voronoi Cell Pattern** | **BACKGROUNDS** |
+| **Puddle** | **DISTORT** |
+| **Skew V2** | **DISTORT** |
+| **Warp Waves** | **DISTORT** |
+| **Wipe Checker** | **TRANSITIONS** |
+| **Wipe Dots** | **TRANSITIONS** |
+| **Wipe Rings** | **TRANSITIONS** |
+| **Wipe Stripes** | **TRANSITIONS** |
+| **CC Light Sweep** | **PART 2** |
+| **Lens Flare Lite** | **PART 2** |
+| **Plexus V1** | **PART 2** |
 
 ## Group presets
 
-| Preset | Direct children | ID |
-| --- | --- | --- |
-| **MxsterFX Dot BG (By CCFX)** | 2 | `group-part-1-backgrounds-mxsterfx-halfdots-bg` |
-| **MxsterFX Square BG (By CCFX)** | 2 | `group-part-1-backgrounds-mxsterfx-square-bg` |
-| **Extrude** | 1 | `group-part-1-miscellaneous-extrude` |
-| **CC Bend It** | 2 | `group-part-2-cc-bend-it` |
-| **Hexagon Array** | 1 | `group-part-2-hexagon-array` |
-| **Plexus V2** | 2 | `group-part-2-plexus-v2` |
-| **AE Warp** | 1 | `group-part-2-warp` |
+| Preset | Direct children |
+| --- | --- |
+| **MxsterFX Dot BG (By CCFX)** | 2 |
+| **MxsterFX Square BG (By CCFX)** | 2 |
+| **Extrude** | 1 |
+| **CC Bend It** | 2 |
+| **Hexagon Array** | 1 |
+| **Plexus V2** | 2 |
+| **AE Warp** | 1 |
 
 ## Properties and scope
 
-Controls vary by preset. Sunburst V2 exposes **rotation**, **speed**, **scale**, and **center**. The CC Bend It group exposes **Start**, **End**, and **Bend**.
+Sunburst V2 exposes **rotation**, **speed**, **scale**, and **center**. The CC Bend It group exposes **Start**, **End**, and **Bend**.
 
-Sunburst V2 drives **uTime** with `time`. Other presets can use manual values or different expressions. There is no pack-wide timing control.
+Sunburst V2 animates over time. Other presets can use manual values or different timing. There is no pack-wide timing control.
 
 [CCFX usage guide](/docs/features/ccfx/).

@@ -9,12 +9,12 @@ The type filter includes **Composition**, **Video**, **Audio**, **Image**, **Fon
 
 | Status | Meaning |
 | --- | --- |
-| **Ready** | The registry has no loading, missing, or failed status for the item. |
+| **Ready** | The item is available with no loading, missing, or failed status. |
 | **Loading** | The resource is loading. |
 | **Missing** | The referenced file is unavailable. |
 | **Failed** | Resource loading failed. |
 
-**Uses** counts references, including uses in closed compositions. A use can be a clip, a property, or a keyframe. A listed use is selectable only when the editor can reveal it. Closed-composition uses report the composition that contains them.
+**Uses** counts references, including uses in closed compositions. A use can be a clip, a property, or a keyframe. Closed-composition uses report their composition.
 
 ## Filters and search
 
@@ -29,17 +29,17 @@ The type filter includes **Composition**, **Video**, **Audio**, **Image**, **Fon
 
 ## Item commands
 
-Commands are enabled only when they apply to the selected item.
+Commands are enabled only when they apply to the selected item. Uses inside closed compositions are out of reach: they are skipped, reported, or need their composition open.
 
 | Command | Result |
 | --- | --- |
-| **Import…** | Adds files as project items. Footage also appears in the native Media panel. |
-| **Reveal in Timeline** | Selects an editable use. Closed-composition uses require that composition to be open. |
+| **Import…** | Adds files as project items. Footage also appears in the Media panel. |
+| **Reveal in Timeline** | Selects an editable use. |
 | **Reload** | Retries the existing resource without selecting a replacement. |
 | **Locate…** | Reattaches an original missing file. A different file can enter the replacement flow after confirmation. |
-| **Replace…** | Replaces editable uses with another file of the same kind. Uses in closed compositions are skipped and reported. |
+| **Replace…** | Replaces editable uses with another file of the same kind. |
 | **Download** | Downloads the available bytes as a separate file. |
-| **Delete** | Removes an unused file, or confirms deletion of its clips and property uses. Uses in closed compositions block deletion. |
+| **Delete** | Removes an unused file, or confirms deletion of its clips and property uses. |
 | **Open Composition** | Opens a composition's source timeline. |
 | **Rename** | Changes a composition's name or a folder's name. |
 | **Duplicate** | Creates a separate composition source. |
@@ -54,15 +54,15 @@ Composition rows use composition commands. File reload and download do not apply
 | --- | --- |
 | **New Folder** | Creates an organizational folder. |
 | **Remove Unused Items** | Removes imported files with no references. It does not ask for confirmation. Undo restores them. |
-| **Consolidate All Footage** | Merges files with identical bytes. Closed-composition uses can keep an original item alive and are reported. |
+| **Consolidate All Footage** | Merges files with identical bytes. |
 | **Collect Files…** | Downloads a ZIP with available files in the Assets window's folder structure and a report of missing files. It is not a `.pz` project archive. |
 | **Resolve Fonts…** | Replaces used missing or failed fonts with a built-in font or a font file. |
 
-Collection does not repair missing bytes. Built-in and plugin items are not ordinary imported files eligible for unused-file cleanup.
+Collection does not repair missing bytes. Built-in and plugin items are never removed as unused files.
 
 ## Folders, labels, and drag operations
 
-Folders organize project items without changing the files on disk. **New Folder Inside** creates a child folder. **Delete Folder** moves its contents to the parent rather than deleting assets. A folder cannot move into itself or a descendant.
+Folders organize project items without changing the files on disk. **New Folder Inside** creates a child folder. **Delete Folder** moves its contents to the parent rather than deleting assets.
 
 The **Label ▸** menu sets one of 16 label colors or **None** on items and folders. Folder structure and label metadata are saved with the project.
 
@@ -70,8 +70,6 @@ Dragging an item or folder onto a folder moves it there. Dropping on empty list 
 
 ## Undo limits
 
-Import, replacement, unused-file removal, consolidation, folder edits, label edits, and asset-property assignment use project history. Reload, collection, and download are resource or file operations, not source-edit recovery copies.
-
-Switching Precomp+ compositions clears Undo and Redo. An Undo operation cannot restore a file that was never available to the project.
+Import, replacement, unused-file removal, consolidation, folder edits, label edits, and asset-property assignment can be undone. Reload, collection, and download cannot.
 
 [Repair assets](/docs/how-to/repair-assets/) gives recovery steps. [Saving and restore points](/docs/development/project-saving/) covers editable archives.
