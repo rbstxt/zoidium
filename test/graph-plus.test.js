@@ -352,6 +352,7 @@ test("arrow nudge records the undo command with the old value", () => {
   };
   proto.keydown.call(self, { key: "ArrowRight", stopPropagation: () => {}, preventDefault: () => {} });
   assert.equal(el.pz_object.frame, 11);
+  assert.equal(el.pz_oldFrame, 10, "native finishMove receives the original frame for undo");
   assert.equal(history.ops, 1);
   assert.equal(history.finished, 1);
   assert.equal(history.commands.length, 1);
