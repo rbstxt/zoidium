@@ -4,7 +4,7 @@ description: Axes, influence, targets, light behavior, and invalid-target rules.
 sidebar:
   label: Constraints reference
 ---
-Track To aims a native 3D object toward another object in the same scene. The constraint changes the evaluated pose and retains the source Rotation keys.
+Track To aims a native 3D object toward another object in the same scene. It changes the object's orientation and keeps the existing Rotation keys.
 
 
 ## Properties
@@ -19,9 +19,9 @@ Track To aims a native 3D object toward another object in the same scene. The co
 
 ## Light and target behavior
 
-Spot and Directional lights expose **Track to** and **Influence**. Their aim uses native Target values, so track and up axes do not affect their beams. Point and Hemisphere lights can be targets but have no directional constraint rows.
+Spot and Directional lights expose **Track to** and **Influence**. Track and up axes do not affect their beams. Point and Hemisphere lights can be targets but have no directional constraint rows.
 
-Missing targets, coincident positions, singular parent transforms, descendant targets, and target cycles leave the source pose unchanged. Renaming and reordering keep the target link. Duplicated hierarchies remap their internal target links.
+A missing, overlapping, descendant, or circular target leaves the pose unchanged. Renaming and reordering keep the target link. Duplicated hierarchies keep their internal target links.
 
 The dashed relationship line appears only in the editing viewport. It does not render in exports. Targets do not cross scene boundaries or shared Camera layers.
 

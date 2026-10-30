@@ -4,7 +4,7 @@ description: Easing+ coordinates, Motion Paths gestures, and Player+ drawing and
 sidebar:
   label: Editor controls
 ---
-These controls change editing and preview behavior. Easing+ and Motion Paths write native animation channels. Player+ preferences affect the local viewport.
+These controls change editing and preview behavior. Easing+ and Motion Paths edit the project's animation. Player+ preferences affect the local viewport.
 
 
 ## Easing+ coordinates

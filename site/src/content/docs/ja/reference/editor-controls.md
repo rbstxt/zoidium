@@ -4,7 +4,7 @@ description: Easing+ の座標、Motion Paths の操作、Player+ の描画と�
 sidebar:
   label: エディターのコントロール
 ---
-これらのコントロールは編集とプレビューの動作を変えます。Easing+ と Motion Paths はネイティブのアニメーションチャンネルに書き込みます。Player+ の設定はローカルのビューポートに作用します。
+これらのコントロールは編集とプレビューの動作を変えます。Easing+ と Motion Paths はプロジェクトのアニメーションを編集します。Player+ の設定はローカルのビューポートに作用します。
 
 
 ## Easing+ の座標
