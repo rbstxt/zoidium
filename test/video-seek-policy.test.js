@@ -85,7 +85,7 @@ test("clamping and source-duration cap apply after correction", () => {
   for (const time of [-100, -1, 0]) assert.equal(target(time, 10, timing), 0);
   for (const time of [10, 100]) assert.equal(target(time, 10, timing), 10 - 1e-7);
   assert.equal(target(9.9999, 10, timing), 9.9999);
-  const fast = readTiming(webm(1 / 10000));
+  const fast = readTiming(webm(1 / 1000));
   const bias = target(0.1, 10, fast) - 0.1;
   assert.ok(bias > 0 && bias < fast.period / 4);
 });
@@ -128,6 +128,25 @@ test("source replacement discards cached WebM timing", async () => {
   el.currentTime = 106 / 60;
   assert.ok(el.currentTime > 106 / 60);
   await ensure(el, { file: new Blob([Buffer.from("....ftypisom")]) });
+  el.currentTime = 106 / 60;
+  assert.equal(el.currentTime, 106 / 60);
+});
+
+
+test("sub-millisecond periods keep unbiased seeks", () => {
+  for (const fps of [1001, 1500, 10000]) {
+    const timing = readTiming(webm(1 / fps));
+    assert.equal(target(timing.period * 10, 10, timing), timing.period * 10);
+  }
+});
+
+test("an unoverridable media clock falls back to unbiased seeks", async () => {
+  let time = 0;
+  const prototype = { get currentTime() { return time; }, set currentTime(value) { time = value; } };
+  const el = Object.preventExtensions(Object.assign(Object.create(prototype), { duration: 10 }));
+  const media = { file: new Blob([webm()]) };
+  await assert.doesNotReject(ensure(el, media));
+  await assert.doesNotReject(ensure(el, media));
   el.currentTime = 106 / 60;
   assert.equal(el.currentTime, 106 / 60);
 });

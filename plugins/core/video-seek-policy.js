@@ -2,6 +2,7 @@
 (function videoSeekPolicyModule(global) {
   "use strict";
   const files = new WeakMap(), elements = new WeakMap();
+  const unavailable = new WeakSet();
   const HEADER_BYTES = 256 * 1024;
   const masters = new Set([0x1a45dfa3, 0x18538067, 0x1549a966, 0x1654ae6b, 0xae]);
 
@@ -65,7 +66,9 @@
   function target(time, duration, timing) {
     const requested = Number.isFinite(time) ? time : 0;
     let result = Math.max(0, requested);
-    if (timing && requested > 0) {
+    // This assumes muxers round nominal PTS to the nearest timestamp tick.
+    // Sub-millisecond periods can have colliding or truncated PTS instead.
+    if (timing && timing.period >= 0.001 && requested > 0) {
       const boundary = Math.round(requested / timing.period) * timing.period;
       // Restrict correction to nominal frame boundaries. Fractional shutter
       // samples, even ones just before a boundary, must retain their frame.
@@ -85,7 +88,7 @@
     return files.get(file);
   }
   function ensure(video, media) {
-    if (!video) return Promise.resolve();
+    if (!video || unavailable.has(video)) return Promise.resolve();
     let state = elements.get(video);
     if (!state) {
       let owner = video, descriptor;
@@ -95,10 +98,15 @@
       }
       if (!descriptor?.get || !descriptor?.set) return Promise.resolve();
       state = { media: null, timing: null };
-      Object.defineProperty(video, "currentTime", { configurable: true,
-        get() { return descriptor.get.call(this); },
-        set(time) { descriptor.set.call(this, target(time, this.duration, state.timing)); },
-      });
+      try {
+        Object.defineProperty(video, "currentTime", { configurable: true,
+          get() { return descriptor.get.call(this); },
+          set(time) { descriptor.set.call(this, target(time, this.duration, state.timing)); },
+        });
+      } catch (_error) {
+        unavailable.add(video);
+        return Promise.resolve();
+      }
       elements.set(video, state);
     }
     const file = media?.file;
