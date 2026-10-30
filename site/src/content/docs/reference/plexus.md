@@ -4,7 +4,7 @@ description: Plexus controls, ranges, defaults, audio behavior, and evaluation l
 sidebar:
   label: Plexus
 ---
-Plexus is a suite object with native properties in its designer and property panel. Tables list defaults for new controls; presets and picker entries can override them.
+Plexus is a suite object with properties in its designer and property panel. A — range means no declared minimum or maximum.
 
 
 ## Object
@@ -22,11 +22,11 @@ Plexus is a suite object with native properties in its designer and property pan
 | **Primitive** | Choice | **box**, **sphere**, **cylinder**, **plane**, **ring** | **box** | Shape of generated primitive points. |
 | **Count** | Number | 0 to 60000 | `200` | Requested number of generated points. |
 | **Size** | 3D vector | ≥ 0 | `[500, 500, 500]` | Dimensions of the generated point cloud. |
-| **Position** | 3D vector | No declared bounds | `[0, 0, 0]` | Position in scene units. |
+| **Position** | 3D vector | — | `[0, 0, 0]` | Position in scene units. |
 | **Path turns** | Number | 0 to 10 | `3` | Turns of the procedural path source. |
 | **Layer** | Asset | image/* | None | Image source for points. |
 | **OBJ file** | Asset | .obj | None | Imported point geometry. |
-| **Random seed** | Number | No declared bounds | `0` | Seed for repeatable random values. |
+| **Random seed** | Number | — | `0` | Seed for repeatable random values. |
 
 
 ## Effector
@@ -34,15 +34,15 @@ Plexus is a suite object with native properties in its designer and property pan
 | Control | Type | Range or options | Default | Effect on output |
 | --- | --- | --- | --- | --- |
 | **Effector type** | Choice | **noise**, **spherical field**, **container**, **transform**, **color map**, **shade**, **sound** | **noise** | Operation applied to source points. |
-| **Amount** | Number | No declared bounds | `100` | Overall effector amount. |
-| **Noise amount** | Number | No declared bounds | `40` | Noise displacement amplitude. |
+| **Amount** | Number | — | `100` | Overall effector amount. |
+| **Noise amount** | Number | — | `40` | Noise displacement amplitude. |
 | **Noise scale** | Number | ≥ 0.0001 | `1` | Spatial scale of noise. |
-| **Strength[%]** | Number | No declared bounds | `50` | Strength of the spherical field in percent. |
+| **Strength[%]** | Number | — | `50` | Strength of the spherical field in percent. |
 | **Radius** | Number | ≥ 0 | `300` | Radius of the spherical field. |
-| **Position** | 3D vector | No declared bounds | `[0, 0, 0]` | Position in scene units. |
+| **Position** | 3D vector | — | `[0, 0, 0]` | Position in scene units. |
 | **Container size** | 3D vector | ≥ 0 | `[500, 500, 500]` | Dimensions of the point container. |
-| **Transform scale** | Number | No declared bounds | `100` | Point-cloud scale in percent. |
-| **Transform rotation** | 3D vector | No declared bounds | `[0, 0, 0]` | Point-cloud rotation in degrees. |
+| **Transform scale** | Number | — | `100` | Point-cloud scale in percent. |
+| **Transform rotation** | 3D vector | — | `[0, 0, 0]` | Point-cloud rotation in degrees. |
 | **Color map by** | Choice | **index**, **height**, **distance** | **index** | Coordinate used to blend Color and Color 2. |
 | **Color** | RGB color | 0 to 1 | `[1, 1, 1]` | Base RGB color. |
 | **Color 2** | RGB color | 0 to 1 | `[0, 0.3, 1]` | Second point color. |
