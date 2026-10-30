@@ -72,8 +72,8 @@ Particles+ adds these 54 names to the native particle Texture picker. These are 
 
 ## Image format and saving
 
-Each image is a 128 × 128 RGBA PNG. RGB is white, and the alpha channel holds the shape and glow. Native textures remain unchanged.
+Each image is a 128 × 128 RGBA PNG. The shape and glow are stored in the alpha channel.
 
-A selected image enters the normal project asset list. The project also records a Particles+ dependency. The plugin cannot be disabled while in use, and the project is marked incompatible with vanilla CM3.
+A selected image enters the project asset list. The project records a Particles+ dependency: the plugin cannot be disabled while in use, and the project is marked incompatible with plain CM3.
 
 [Choose a sprite](/docs/features/particles-plus/).

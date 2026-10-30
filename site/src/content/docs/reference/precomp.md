@@ -24,11 +24,11 @@ Pre-compose moves selected clips into a new source. Their relative timing and so
 
 The moved tracks retain their track switches. Moved clip links are cleared. If the selection includes video, one composition clip replaces the selection on a video track with a free span. An audio-only selection creates the source without a replacement clip.
 
-Composition time uses the parent clip's local frame plus its stored offset. A source's length follows its latest clip end, with a minimum of one frame.
+A source's length follows its latest clip end, with a minimum of one frame.
 
 ## Nesting and audio
 
-Compositions can contain composition clips. Pre-compose rejects a move that would make the open composition contain itself through nested references. Rendering and schedule traversal also stop recursive paths. The nesting guard is 16 levels.
+Compositions can contain composition clips. Pre-compose rejects a move that would make the open composition contain itself through nested references. Rendering also stops recursive paths. Nesting is limited to 16 levels.
 
 Nested video keeps the source track order. Disabled video tracks do not draw. Scheduled nested audio uses Main's normal audio pipeline, including clip timing, volume, and pan. Audio is limited to the containing composition clip's time span.
 
@@ -44,8 +44,8 @@ Deletion reports references from Main and other compositions. Removing those ref
 
 Video export and frame capture require Main as the active timeline. An open composition produces **Export Main** instead of starting the render.
 
-Saving while a composition is open serializes Main and the current source edits. Saved projects record the Precomp+ dependency. Older composition media can migrate to the stable source-reference model.
+Saving while a composition is open saves Main and the current source edits. Saved projects record the Precomp+ dependency.
 
-With the plugin unavailable, preservation of unknown fields retains composition metadata for later saving. Preservation does not render the feature.
+Without the plugin, composition data is preserved for later saving but does not render.
 
 [Precompose clips](/docs/how-to/precompose/) contains the workflow. [Project compatibility](/docs/development/project-compatibility/) describes preserved extension data.
