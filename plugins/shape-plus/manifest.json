@@ -354,6 +354,11 @@
       "id": "text-convert",
       "type": "text",
       "source": "./plugins/shape-plus/text-convert.js?v=24"
+    },
+    {
+      "id": "contents-state",
+      "type": "text",
+      "source": "./plugins/shape-plus/contents-state.js?v=24"
     }
   ]
 }

@@ -1,4 +1,5 @@
 "use strict";
+const { expandText, hasText } = require("./text-paths.js");
 const { primitive } = require("./primitives.js");
 const { triangulate } = require("./fill.js");
 const { stroke } = require("./stroke.js");
@@ -28,9 +29,8 @@ function transformCommand(command, m) {
 // Contents run top-to-bottom for path collection, bottom-to-top for paint.
 // A parent paint sees paths in groups above it, in the parent's coordinates.
 // A group's own paints run in its local coordinates BEFORE its transform.
-function compile(contents, tolerance = .125, depth = 0, budget = { coordinates: 0, points: 0 }) {
-  const expanded = contents.some(item => item.kind === "text" || item.contents && require("./text-paths.js").hasText(item.contents));
-  if (expanded) contents = require("./text-paths.js").expandText(contents);
+function compile(contents, tolerance = .125, depth = 0, budget = { coordinates: 0, points: 0 }, containsText) {
+  if (containsText ?? hasText(contents)) contents = expandText(contents);
   return require("./geometry-budget.js").bounded(() => compileContents(contents, tolerance, depth, budget));
 }
 function compileContents(contents, tolerance, depth, budget) {
@@ -43,7 +43,7 @@ function compileContents(contents, tolerance, depth, budget) {
     if (p.enabled === 0) continue;
     if (item.kind === "group") {
       const m = matrix(p), scale = Math.max(Math.hypot(m[0], m[1]), Math.hypot(m[2], m[3]), 1e-6);
-      const child = compile(item.contents, tolerance / scale, depth + 1, budget);
+      const child = compile(item.contents, tolerance / scale, depth + 1, budget, false);
       paths.push(...child.paths.map(path => ({ ...path, points: path.points.map(point => transform(point, m)) })));
       const commands = child.commands.map(c => transformCommand(c, m));
       schedule.push(p.opacity < 1 ? [{ kind: "isolation", id: item.id, opacity: Math.max(0, p.opacity), commands }] : commands);

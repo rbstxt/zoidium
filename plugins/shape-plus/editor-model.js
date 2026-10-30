@@ -17,7 +17,7 @@ function replaceContents(layer, contents, Content) {
   });
   for (const item of layer.contents) item.unload();
   layer.contents.splice(0, layer.contents.length, ...nodes);
-  layer.signature = null;
+  layer.signature = null; layer.contentsState?.invalidate();
 }
 function createEditorModel(s) {
   const { PZ, editor, layer, Content, project } = s;

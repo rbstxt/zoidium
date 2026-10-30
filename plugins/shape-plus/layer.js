@@ -1,4 +1,5 @@
 "use strict";
+const { trackContents } = require("./contents-state.js");
 const { clone, validate, defaults } = require("./model.js");
 const { compile } = require("./compiler.js");
 const { createRenderer } = require("./render.js");
@@ -8,6 +9,7 @@ function createLayerClass(PZ, THREE, Content) {
     constructor() {
       super(); this.type = TYPE; this.defaultName = "Shape+";
       this.contents = new PZ.objectList(this, Content); this.contents.name = "Contents";
+      this.contentsState = trackContents(this.contents);
       // The native Objects panel maps a selected clip to layer.objects.
       // This alias is transient; the saved format continues to use contents.
       Object.defineProperty(this, "objects", { get: () => this.contents });
@@ -44,7 +46,7 @@ function createLayerClass(PZ, THREE, Content) {
       for (const child of this.contents) child.unload();
       this.contents.splice(0, this.contents.length);
       for (const item of data.contents || []) { const node = new Content(item.kind, item); this.contents.push(node); node.load(item); }
-      this.signature = null;
+      this.signature = null; this.contentsState.invalidate();
     }
     toJSON() { return this.pendingData || { ...this.extra, ...super.toJSON(), schemaVersion: 1, renderVersion: 1, contents: this.contents }; }
     update(frame) {
@@ -87,7 +89,7 @@ function createLayerClass(PZ, THREE, Content) {
       const contents = Array.from(this.contents, node => node.evaluate(this.frame, project.sequence.properties.rate.get()));
       const resolution = this.properties.resolution.get(), signature = JSON.stringify([contents, tolerance, resolution]);
       if (signature === this.signature) return;
-      const result = compile(contents, tolerance);
+      const result = compile(contents, tolerance, 0, undefined, this.contentsState.read());
       this.engine.setCommands(result.commands, resolution);
       this.signature = signature; this.buildCount++;
       } catch (error) {
@@ -100,7 +102,7 @@ function createLayerClass(PZ, THREE, Content) {
       if (this.disposed || !this.tryGetParentOfType(PZ.project)) return;
       if (this.pendingData) this.load(this.pendingData);
       await super.prepare(frame, context);
-      for (const child of this.contents) await child.prepare(frame);
+      if (this.contentsState.read()) for (const child of this.contents) await child.prepare(frame);
     }
     getParentOfType(type) {
       // Native layer/effect unload releases project assets through this
@@ -111,6 +113,7 @@ function createLayerClass(PZ, THREE, Content) {
     unload() {
       if (this.disposed) return;
       this.disposed = true;
+      this.contentsState.dispose();
       this.engine.dispose(); for (const child of this.contents) child.unload();
       this.unloading = true;
       try { if (this.assetProject) super.unload(); }

@@ -1,4 +1,5 @@
 "use strict";
+const { holdValue } = require("./text-properties.js");
 const { definitions, titles } = require("./properties.js");
 const clone = value => JSON.parse(JSON.stringify(value));
 function validate(contents, depth = 0, state = { count: 0, ids: new Set() }) {
@@ -31,14 +32,14 @@ function createModel(PZ, textService) {
           property.get = frame => {
             frame ??= this.textFrame || 0;
             return !property.expression && (property.keyframes?.length || property.data?.keyframes?.length)
-              ? require("./text-properties.js").holdValue(property, frame) : get(frame);
+              ? holdValue(property, frame) : get(frame);
           };
         }
         const name = this.properties.name, get = name.get.bind(name);
         const changed = () => name.onChanged?.update();
         this.properties.sourceText.onChanged?.watch(changed);
         this.properties.sourceText.onKeyframeChanged?.watch(changed);
-        name.get = () => get() === "Text" ? String(require("./text-properties.js").holdValue(this.properties.sourceText, this.textFrame || 0)).split("\n")[0] || "Text" : get();
+        name.get = () => get() === "Text" ? String(holdValue(this.properties.sourceText, this.textFrame || 0)).split("\n")[0] || "Text" : get();
       }
     }
     load(data) {
@@ -79,15 +80,14 @@ function createModel(PZ, textService) {
       return result;
     }
     evaluate(frame, rate = 30) {
-      this.textFrame = frame;
+      if (this.kind === "text") this.textFrame = frame;
       const properties = {};
       for (const key of Object.keys(this.properties)) {
-        const value = this.kind === "text" && this.properties[key].definition.dynamic && [PZ.property.type.TEXT, PZ.property.type.ASSET, PZ.property.type.LIST].includes(this.properties[key].definition.type) ? require("./text-properties.js").holdValue(this.properties[key], frame) : this.properties[key].get(frame);
+        const value = this.kind === "text" && this.properties[key].definition.dynamic && [PZ.property.type.TEXT, PZ.property.type.ASSET, PZ.property.type.LIST].includes(this.properties[key].definition.type) ? holdValue(this.properties[key], frame) : this.properties[key].get(frame);
         if (typeof value === "number" && !Number.isFinite(value) || Array.isArray(value) && key !== "stops" && !value.every(Number.isFinite)) throw Error("Shape+ property must be finite");
         properties[key] = Array.isArray(value) ? value.slice() : value;
       }
       if (["wigglePaths", "wiggleTransform"].includes(this.kind)) properties.time = frame / rate;
-      this.textFrame = frame;
       const textLayout = this.kind === "text" ? textService?.evaluate(this, properties, frame) || { glyphs: [], rows: [] } : null;
       return { ...(textLayout ? { textLayout } : {}), id: this.id, kind: this.kind, vertexIds: this.vertexIds.slice(), properties, ...(this.contents ? { contents: Array.from(this.contents, child => child.evaluate(frame, rate)) } : {}) };
     }
