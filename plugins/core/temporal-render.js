@@ -418,7 +418,10 @@
           // shifted frame and repeatedly reset the browser playback clock.
           if (changing) this._exactFrame = outputFrame;
           return state.originalPlaybackUpdateSchedule.call(this, schedule, changing ? 0 : delta);
-        } finally { this._exactFrame = exactFrame; }
+        } finally {
+          this._exactFrame = exactFrame;
+          if (changing && this.syncSchedule === schedule) this.syncSchedule = null;
+        }
       }
       // A discontinuous source clock cannot drive the output playhead or a
       // forward-only media playbackRate. The viewport uses a paused, isolated
