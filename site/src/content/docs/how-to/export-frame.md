@@ -23,4 +23,4 @@ Before clicking **Start**, set **Resolution** and **Aspect ratio** to the output
 
 If capture opens **Render error**, read the diagnostic before starting a new export. For a video decode failure, repair or replace the named source first.
 
-[Export options](/docs/reference/export-options/) lists the size rules. [MP4 export recovery](/docs/features/mp4-export/) covers graphics-context and video-source failures.
+[Export options](/docs/reference/export-options/) lists the size rules. [MP4 export](/docs/features/mp4-export/) covers export failures.

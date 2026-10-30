@@ -14,7 +14,7 @@ sidebar:
 5. コンテンツが動くフレームに移動します。
 6. **View** を **Result** にしてブラーを確認します。
 
-**3D Scene** レイヤーでは、**Automatic** は **Shutter Samples** を使います。シャッター範囲の小数時刻でシーンを再評価します。この用途では **Adjustment** レイヤーにエフェクトを配置しないでください。**Adjustment** レイヤーは下のレイヤーの合成結果を取り込むため、**Automatic** はオプティカルフローに切り替わり、変化するシルエットや押し出し面を取り逃します。**Adjustment** レイヤーは、レイヤー自体の Position、Rotation、Scale による動きに使います。
+**3D Scene** レイヤーでは、**Automatic** は **Shutter Samples** を使います。シャッター範囲の複数の時刻でシーンを取り込みます。この用途では **Adjustment** レイヤーにエフェクトを配置しないでください。**Adjustment** レイヤーは下のレイヤーの合成結果を取り込むため、**Automatic** はオプティカルフローに切り替わり、変化するシルエットや押し出し面を取り逃します。**Adjustment** レイヤーは、レイヤー自体の Position、Rotation、Scale による動きに使います。
 
 ## 再構成モードを選ぶ
 

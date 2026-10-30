@@ -1,7 +1,7 @@
 ---
 title: Preview cache
 ---
-Settings > Preview cache sets the maximum counted memory for finished editor
+Settings > Preview cache sets how much memory the preview cache may use for finished editor
 frames. The default is 512 MiB; 0 disables caching. The accepted setting is up to
 16384 MiB, with at most 8192 retained frames. This is a limit, not reserved memory.
 
@@ -10,35 +10,20 @@ frames. The default is 512 MiB; 0 disables caching. The accepted setting is up t
 A complete frame can be copied on the GPU and shown again at the same frame and
 project state. A cache miss draws live. Resource loading, project edits, resolution
 and plugin changes invalidate the relevant state. Export and eyedropper draws
-keep their own paths; caching does not change saved project content.
+use separate paths and do not fill the cache.
 
-When paused and idle, eligible scenes pre-render a bounded window through a
-private project copy. Candidates inside a video item's decode window skip that
-work, including the schedule's preload padding. Video projects with temporal
-sampling or multisample motion blur skip all idle pre-rendering. Scenes taking
-over 50 ms for a synchronous draw also skip it. Frames shown normally can still
+When paused and idle, eligible scenes pre-render a bounded window.
+Candidates inside a video item's decode window skip that
+work. Video projects with time-based effects skip all idle pre-rendering.
+Scenes that draw slowly also skip it. Frames shown normally can still
 be retained.
 
 While video is visible, the editor's own video playback is not frame-exact, so
 live draws are not retained. Instead, when playback is paused and the editor is
 idle for about 0.8 seconds, the current frame and then up to 30 frames ahead
-and 4 behind are decoded exactly through a private project copy and retained. Playback and other frames still draw live.
+and 4 behind are decoded exactly and retained. Playback and other frames still draw live.
 **Settings** shows **Video frames are not cached in this preview.** or
 **Preparing video frames for the preview cache.** for these states.
-
-## Plugin verification
-
-Plugin approvals record the installed versions and the browser oracle's render
-source fingerprint. `plugins/core/output-frame-approvals.js` contains the receipt.
-`pnpm run verify` fails if runtime sources, plugin manifests,
-assets, bootstrap order, activation defaults, or oracle fixtures change. Deployment
-version numbers and rebuilt bundles do not expire an unchanged approval.
-
-The browser oracle compares GPU readback bytes against a newly loaded project's
-live render at the same frame. The matrix covers forward, reverse, and repeated
-seeks, temporal effects, private pre-rendered frames, and brief **Full quality** checks.
-A plugin with a failed fixture keeps live previews. The oracle's `--write` option
-records approvals only after a complete matrix run. Filtered runs cannot update them.
 
 ## When nothing is cached
 
@@ -47,15 +32,13 @@ cannot be retained or reused. A larger memory limit does not remove these checks
 
 - Community content and plugin versions without cache verification use live previews.
   The note identifies the required plugin and its version when available.
-- Time operators without frame samplers use live evaluation. Smart Motion Blur
+- Time effects that cannot cache frames use live evaluation. Smart Motion Blur
   does not disable caching by itself, but its plugin version must pass verification.
 - Any loading plugin prevents caching. A required plugin's error also prevents
-  caching. An unused plugin's bundle-load error permits caching only if its
-  activation has never started. Errors after activation starts still block all
-  projects because plugin code can patch shared factories. Core errors always block caching.
+  caching. Core errors always block caching.
 - Resource loading, frame preparation, and exact video decoding must finish before
   a frame can be retained.
-- If project validation takes over 8 ms, caching waits until playback stops and
+- If project validation is slow, caching waits until playback stops and
   editing is idle before it validates a changed state.
 - The 3D editing camera and a memory limit smaller than one frame also prevent
   new captures.
@@ -66,8 +49,7 @@ a complete frame while drawing is paused. Idle pre-rendering has its own checks.
 
 ## Memory limits
 
-Counted RGBA8 bytes exclude driver overhead and other render targets. Allocation
-failure or context loss lowers a session ceiling that raising the preference
+Allocation failure or context loss lowers a session ceiling that raising the preference
 cannot override. A second context loss disables captures until reload. Read
 [preview cache memory](/docs/development/project-compatibility/#preview-cache-memory)
 for the exact behavior.

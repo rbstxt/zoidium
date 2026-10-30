@@ -47,4 +47,4 @@ Solo はプロジェクトに保存され、書き出しにも反映されます
 4. その要素の **Shape** セクションを展開します。
 5. **Texture** を **Custom 1**、**Custom 2**、**Custom 3** のいずれかに設定します。
 
-距離による拡大・縮小、光源の投影、全体のコントロール、保存状態は [Optical Flares リファレンス](/docs/ja/reference/optical-flares/)を参照してください。
+距離による拡大・縮小、光源の投影、全体のコントロールは [Optical Flares リファレンス](/docs/ja/reference/optical-flares/)を参照してください。

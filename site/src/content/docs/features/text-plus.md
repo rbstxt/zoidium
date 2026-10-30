@@ -76,9 +76,4 @@ To animate the same text, nest the material parent with any Text+ animation pare
 Keep other object types in the group if needed. Character Material changes only 3D Text.
 When you open the project without Text+, the source Text materials render and the saved slots remain available.
 
-[Text+ source contract](https://github.com/rbstxt/zoidium/blob/dev/plugins/text-plus/README.md)
-describes pivots, delay, shake, and nested parents.
-[Text+ compatibility](/docs/development/project-compatibility/#text-scale-composition)
-describes saved scale modes.
-
 Control reference: [text-plus](/docs/reference/text-plus/).

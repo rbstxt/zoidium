@@ -40,4 +40,4 @@ To open a composition from a timeline clip, right-click that clip and select **O
 
 If **Export Main** appears, close the export page and use **Back to Main** before retrying. Export is blocked while a source composition is open.
 
-[Precomp+ reference](/docs/reference/precomp/) covers nesting, audio, reuse, deletion, and saved data.
+[Precomp+ reference](/docs/reference/precomp/) covers nesting, audio, reuse, and deletion.

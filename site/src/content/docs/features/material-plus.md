@@ -17,6 +17,13 @@ For a view-dependent image that supplies the shading, choose Matcap. For an
 unlit image, choose Image+. To keep native Custom Material controls with the
 Material+ UV layout, choose UV Custom.
 
+## Add a Color Ramp
+
+1. Set **Color Ramp** to **on**.
+2. Edit the **Color Ramp Curve** gradient.
+3. Choose the ramp input in **Color Ramp Source**.
+4. Set **Color Ramp Interpolation** and **Color Ramp Factor** to blend the ramp into the base color.
+
 ## Build a node material
 
 1. Choose **Node Material**.

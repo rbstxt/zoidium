@@ -14,7 +14,7 @@ Blur particles or objects inside a **3D Scene** with **Smart Motion Blur** on th
 5. Move to a frame where the content moves.
 6. Set **View** to **Result** and inspect the blur.
 
-On a **3D Scene** layer, **Automatic** uses **Shutter Samples**: the effect re-evaluates the scene at fractional times across the shutter. Do not place the effect on an **Adjustment** layer for this case. An **Adjustment** layer captures the composited layers below it, so **Automatic** falls back to optical flow and misses changing silhouettes and extrusion faces. Reserve the **Adjustment** layer for motion from a layer's own Position, Rotation, or Scale.
+On a **3D Scene** layer, **Automatic** uses **Shutter Samples**: the effect captures the scene at several points across the shutter. Do not place the effect on an **Adjustment** layer for this case. An **Adjustment** layer captures the composited layers below it, so **Automatic** falls back to optical flow and misses changing silhouettes and extrusion faces. Reserve the **Adjustment** layer for motion from a layer's own Position, Rotation, or Scale.
 
 ## Pick a reconstruction mode
 

@@ -36,6 +36,6 @@ To find regions by color, turn **Detection** on and set **Key Color**. While adj
 
 ## Export the result
 
-For the viewport effect in a normal export, leave **True datamosh** set to **off** on the Device page. The **Datamosh** effect renders from explicit source samples and does not require earlier playback.
+For the viewport effect in a normal export, leave **True datamosh** set to **off** on the Device page. The **Datamosh** effect does not require earlier playback.
 
 To remove keyframes from an encoded file, follow [True datamosh export](/docs/how-to/export-true-datamosh/). [OpenZoid Legacy reference](/docs/reference/openzoid-legacy/) lists the effects, setup groups, timing, and limits.

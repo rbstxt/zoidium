@@ -47,4 +47,4 @@ Solo is saved in the project and affects export. The window's preview background
 4. Expand its **Shape** section.
 5. Set **Texture** to **Custom 1**, **Custom 2**, or **Custom 3**.
 
-For distance scaling, source projection, global controls, and saved state, see the [Optical Flares reference](/docs/reference/optical-flares/).
+For distance scaling, source projection, and global controls, see the [Optical Flares reference](/docs/reference/optical-flares/).

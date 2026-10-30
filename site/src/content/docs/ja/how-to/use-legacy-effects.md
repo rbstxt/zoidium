@@ -36,6 +36,6 @@ OpenZoid Legacy の時間処理、圧縮、テープ、注釈、文字のエフ�
 
 ## 結果を書き出す
 
-ビューポートのエフェクトを通常の書き出しに使う場合は、Device ページの **True datamosh** を **off** のままにします。**Datamosh** エフェクトは明示的なソースのサンプルから描画するため、事前の再生は不要です。
+ビューポートのエフェクトを通常の書き出しに使う場合は、Device ページの **True datamosh** を **off** のままにします。**Datamosh** エフェクトは、事前の再生を必要としません。
 
 エンコード済みファイルからキーフレームを削除するには、[True datamosh の書き出し](/docs/ja/how-to/export-true-datamosh/)に従ってください。[OpenZoid Legacy リファレンス](/docs/ja/reference/openzoid-legacy/)には、エフェクト、設定グループ、時間、制限をまとめています。
