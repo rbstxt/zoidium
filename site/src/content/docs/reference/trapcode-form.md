@@ -4,7 +4,7 @@ description: Trapcode Form controls, ranges, defaults, audio behavior, and evalu
 sidebar:
   label: Trapcode Form
 ---
-Trapcode Form is a suite object with native properties in its designer and property panel. Tables list schema defaults; presets and picker entries can override them.
+Trapcode Form is a suite object with native properties in its designer and property panel. Tables list defaults for new controls; presets and picker entries can override them.
 
 
 ## Base Form
@@ -20,7 +20,7 @@ Trapcode Form is a suite object with native properties in its designer and prope
 | **Position** | 3D vector | No declared bounds | `[0, 0, 0]` | Position in scene units. |
 | **Rotation** | 3D vector | No declared bounds | `[0, 0, 0]` | Rotation in degrees. |
 | **Strings** | Choice | **off**, **on** | **off** | Connects lattice neighbors with strings. |
-| **String size** | Number | ≥ 0 | `0` | Increases string opacity. It does not widen WebGL lines. |
+| **String size** | Number | ≥ 0 | `0` | Increases string opacity, not width. |
 | **String density** | Number | ≥ 0 | `15` | Density of neighbor connections. |
 | **String size random** | Number | ≥ 0 | `0` | Variation of string brightness. |
 | **String position distribution** | Number | ≥ 0 | `0` | Changes which neighboring pairs connect. |
@@ -33,7 +33,7 @@ Trapcode Form is a suite object with native properties in its designer and prope
 
 | Control | Type | Range or options | Default | Effect on output |
 | --- | --- | --- | --- | --- |
-| **Texture** | Asset | image/* | `/assets/textures/particles/circle_soft.png` | Image used for the particle sprite. |
+| **Texture** | Asset | image/* | Default sprite | Image used for the particle sprite. |
 | **Size** | Number | ≥ 0 | `2` | Base particle size. |
 | **Size Random** | Number | 0 to 100 | `0` | Size variation in percent. |
 | **Size Over** | Choice | **off**, **on** | **off** | Enables Size Curve. |
@@ -187,8 +187,8 @@ Trapcode Form is a suite object with native properties in its designer and prope
 
 ## Evaluation and limits
 
-The lattice is capped at 200,000 points. Strings use one-pixel WebGL lines. String size changes opacity rather than width. Form audio reactors have fixed targets and no offset or trim controls.
+The lattice is capped at 200,000 points. Strings draw as one-pixel lines; String size changes opacity rather than width. Form audio reactors have fixed targets and no offset or trim controls.
 
-Form audio uses project frames divided by the scene rate. Its multipliers remain 1 while no reactor is active or decoding is pending. Active reactors multiply their target by 1 plus the decoded level.
+Form audio follows project-frame time. An active reactor scales its target with the audio level; with no active reactor, targets stay unchanged.
 
 [Add suite objects and lights](/docs/features/trapcode-suite/)

@@ -4,7 +4,7 @@ description: Trapcode Particular controls, ranges, defaults, audio behavior, and
 sidebar:
   label: Trapcode Particular
 ---
-Trapcode Particular is a suite object with native properties in its designer and property panel. Tables list schema defaults; presets and picker entries can override them.
+Trapcode Particular is a suite object with native properties in its designer and property panel. Tables list defaults for new controls; presets and picker entries can override them.
 
 
 ## Emitter
@@ -41,7 +41,7 @@ Trapcode Particular is a suite object with native properties in its designer and
 | --- | --- | --- | --- | --- |
 | **Life (seconds)** | Number | ≥ 0.01 | `3` | Particle lifetime in seconds. CPU simulation caps this at 30 seconds. |
 | **Life random** | Number | 0 to 100 | `0` | Lifetime variation in percent. |
-| **Texture** | Asset | image/* | `/assets/textures/particles/circle_soft.png` | Image used for the particle sprite. |
+| **Texture** | Asset | image/* | Default sprite | Image used for the particle sprite. |
 | **Size** | Number | ≥ 0 | `5` | Base particle size. |
 | **Size random** | Number | 0 to 100 | `0` | Size variation in percent. |
 | **Size over life** | Choice | **off**, **on** | **off** | Enables the Size curve over normalized particle age. |
@@ -85,7 +85,7 @@ Trapcode Particular is a suite object with native properties in its designer and
 | **Size affects air resistance** | Number | 0 to 100 | `0` | Coupling between particle size and drag. |
 | **Rotational air resistance** | Number | ≥ 0 | `0` | Damping of particle spin. |
 | **Enable bounce** | Choice | **off**, **on** | **off** | Enables the bounce plane. |
-| **Bounce boost** | Number | No declared bounds | `500` | Adds 0.01 times this value to rebound velocity. The plane remains at Y = 0. |
+| **Bounce boost** | Number | No declared bounds | `500` | Extra rebound velocity. The plane stays at Y = 0. |
 | **Bounce strength** | Number | 0 to 100 | `50` | Velocity retained after bounce in percent. |
 | **Enable meander** | Choice | **off**, **on** | **off** | Enables meandering motion. |
 | **Affect direction** | Number | No declared bounds | `20` | Direction change from meander. |
@@ -114,7 +114,7 @@ Trapcode Particular is a suite object with native properties in its designer and
 | **Wind X** | Number | No declared bounds | `0` | Wind velocity on X. |
 | **Wind Y** | Number | No declared bounds | `0` | Wind velocity on Y. |
 | **Wind Z** | Number | No declared bounds | `0` | Wind velocity on Z. |
-| **Air density** | Number | ≥ 0 | `1` | Multiplier for Air resistance. A nondefault value with nonzero resistance selects CPU simulation. |
+| **Air density** | Number | ≥ 0 | `1` | Multiplier for Air resistance. A changed value with nonzero resistance uses CPU simulation. |
 | **Air turbulence** | Choice | **off**, **on** | **off** | Enables air turbulence. |
 | **Affect position** | Number | ≥ 0 | `0` | Turbulence displacement strength. |
 | **Affect orientation/spin** | Number | ≥ 0 | `0` | Turbulence spin contribution. |
@@ -225,24 +225,10 @@ Trapcode Particular is a suite object with native properties in its designer and
 | **Shadowlet** | Choice | **off**, **on** | **off** | Enables the particle shadowlet approximation. |
 
 
-## Hidden compatibility values
-
-The following properties remain in saved projects but have no editable control. Loading and saving retain their values.
-
-| Property | Retained behavior |
-| --- | --- |
-| Particle type | All values render textured sprites. |
-| Set color | The gradient always follows particle life. The saved default is at start, but that value never selected a different behavior. |
-| Enable flocking | A saved on value still selects CPU evaluation. No flocking forces apply. |
-| Attract, Separate, Align, Range of view, Field of view | No force contribution. |
-| Emitter type: light, layer, model, text | Saved indices 3 through 6 retain point emission. |
-| Disperse strength over: velocity, position | Saved indices 2 and 3 retain constant strength. |
-
-
 ## Evaluation and limits
 
-The CPU simulation uses a fixed 1/60-second grid. It clamps time to 600 seconds and particle life to 30 seconds. Each system retains at most the newest 20,000 live particles. Parent emission depth is capped at two.
+CPU simulation clamps time to 600 seconds and particle life to 30 seconds. Each system keeps at most the newest 20,000 live particles. Parent emission depth is capped at two.
 
-Audio analysis uses decoded assets and explicit media time. Offset and trim values are seconds. Reactors with the same target multiply their modulation. While decoding is pending, the analysis level is neutral at 0.5. Outside the audio window, it is 0.
+Offset and trim values are seconds. Reactors with the same target multiply their modulation. Outside the audio window, the level is 0.
 
 [Add suite objects and lights](/docs/features/trapcode-suite/)
