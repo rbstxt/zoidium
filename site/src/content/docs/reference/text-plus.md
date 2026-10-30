@@ -4,7 +4,7 @@ description: Defaults and ranges for character transforms, shake, scatter, mater
 sidebar:
   label: Text+ reference
 ---
-Text+ adds six character animation modes and the **Character Material** parent for native 3D Text. Native 2D Text has the same animation modes in its **Character** categories.
+Text+ adds six character animation modes and the **Character Material** parent for 3D Text. 2D Text has the same animation modes in its **Character** categories. A — range means no declared minimum or maximum.
 
 
 ## 2D Character categories
@@ -23,14 +23,14 @@ The Selected variant adds **Characters**, default `1`. Empty selection affects n
 | Control | Type | Range or options | Default | Effect on output |
 | --- | --- | --- | --- | --- |
 | **Characters** | Text | Text | `1` | One-based character numbers. Spaces count. Invalid entries are ignored. |
-| **Position** | 3D vector | No declared bounds | `[0, 0, 0]` | Per-character position offset. |
+| **Position** | 3D vector | — | `[0, 0, 0]` | Per-character position offset. |
 | **Scale** | 3D vector | ≥ 0.001 | `[1, 1, 1]` | Per-character scale multiplier. |
-| **Rotation** | 3D vector | No declared bounds | `[0, 0, 0]` | Per-character Euler rotation in degrees. |
+| **Rotation** | 3D vector | — | `[0, 0, 0]` | Per-character Euler rotation in degrees. |
 | **Rotation order** | Choice | **XYZ**, **YZX**, **ZXY**, **XZY**, **YXZ**, **ZYX** | **XYZ** | Order of the three rotation axes. |
 | **Pivot** | Choice | **Character**, **Text** | **Character** | Rotation and scale pivot at the character or the whole text. |
 | **Delay** | Number | ≥ 0 | `0` | Frame delay between characters. |
 | **Delay order** | Choice | **Forward**, **Reverse**, **Center out**, **Random** | **Forward** | Order in which characters receive the delay. |
-| **Seed** | Number | No declared bounds | `1` | Seed for Random delay order. |
+| **Seed** | Number | — | `1` | Seed for Random delay order. |
 
 
 ## Gradient Transform
@@ -39,12 +39,12 @@ Intermediate characters linearly blend the First and Last values. One character 
 
 | Control | Type | Range or options | Default | Effect on output |
 | --- | --- | --- | --- | --- |
-| **First position** | 3D vector | No declared bounds | `[0, 0, 0]` | Position offset at the first character. |
+| **First position** | 3D vector | — | `[0, 0, 0]` | Position offset at the first character. |
 | **First scale** | 3D vector | ≥ 0.001 | `[1, 1, 1]` | Scale multiplier at the first character. |
-| **First rotation** | 3D vector | No declared bounds | `[0, 0, 0]` | Rotation at the first character in degrees. |
-| **Last position** | 3D vector | No declared bounds | `[0, 0, 0]` | Position offset at the last character. |
+| **First rotation** | 3D vector | — | `[0, 0, 0]` | Rotation at the first character in degrees. |
+| **Last position** | 3D vector | — | `[0, 0, 0]` | Position offset at the last character. |
 | **Last scale** | 3D vector | ≥ 0.001 | `[1, 1, 1]` | Scale multiplier at the last character. |
-| **Last rotation** | 3D vector | No declared bounds | `[0, 0, 0]` | Rotation at the last character in degrees. |
+| **Last rotation** | 3D vector | — | `[0, 0, 0]` | Rotation at the last character in degrees. |
 | **Rotation order** | Choice | **XYZ**, **YZX**, **ZXY**, **XZY**, **YXZ**, **ZYX** | **XYZ** | Order of the three rotation axes. |
 
 
@@ -57,12 +57,12 @@ The Selected variant adds **Characters**, default `1`. Empty selection affects n
 | **Characters** | Text | Text | `1` | One-based character numbers. Spaces count. Invalid entries are ignored. |
 | **Amplitude** | Number | 0 to 360 | `0` | Maximum angular displacement in degrees. |
 | **Period** | Number | ≥ 0 | `24` | Length of a shake cycle in Phase units. |
-| **Phase** | Number | No declared bounds | `0` | Explicit shake progress. A constant Phase produces a static pose. |
-| **Axis** | 3D vector | No declared bounds | `[0, 0, 1]` | Axis of the per-character rotation. |
+| **Phase** | Number | — | `0` | Explicit shake progress. A constant Phase produces a static pose. |
+| **Axis** | 3D vector | — | `[0, 0, 1]` | Axis of the per-character rotation. |
 | **Pivot** | Choice | **Character**, **Text** | **Character** | Rotation and scale pivot at the character or the whole text. |
 | **Phase offset** | Number | ≥ 0 | `0` | Phase offset between characters. |
 | **Offset order** | Choice | **Forward**, **Reverse**, **Center out**, **Random** | **Forward** | Order in which characters receive phase offsets. |
-| **Seed** | Number | No declared bounds | `1` | Seed for Random offset order. |
+| **Seed** | Number | — | `1` | Seed for Random offset order. |
 
 
 ## Random Scatter
@@ -71,13 +71,13 @@ The Selected variant adds **Characters**, default `1`. Empty selection affects n
 | --- | --- | --- | --- | --- |
 | **Amount** | Number | ≥ 0 | `0` | Blends from the original text toward seeded random transforms. |
 | **Pivot** | Choice | **Character**, **Text** | **Character** | Rotation and scale pivot at the character or the whole text. |
-| **Min position** | 3D vector | No declared bounds | `[-10, -10, -10]` | Lower bound of random character translation. |
-| **Max position** | 3D vector | No declared bounds | `[10, 10, 10]` | Upper bound of random character translation. |
-| **Min rotation** | 3D vector | No declared bounds | `[0, 0, 0]` | Lower bound of random character rotation in degrees. |
-| **Max rotation** | 3D vector | No declared bounds | `[0, 0, 0]` | Upper bound of random character rotation in degrees. |
+| **Min position** | 3D vector | — | `[-10, -10, -10]` | Lower bound of random character translation. |
+| **Max position** | 3D vector | — | `[10, 10, 10]` | Upper bound of random character translation. |
+| **Min rotation** | 3D vector | — | `[0, 0, 0]` | Lower bound of random character rotation in degrees. |
+| **Max rotation** | 3D vector | — | `[0, 0, 0]` | Upper bound of random character rotation in degrees. |
 | **Min scale** | 3D vector | ≥ 0.001 | `[1, 1, 1]` | Lower bound of random character scale. |
 | **Max scale** | 3D vector | ≥ 0.001 | `[1, 1, 1]` | Upper bound of random character scale. |
-| **Seed** | Number | No declared bounds | `1` | Seed for repeatable random values. |
+| **Seed** | Number | — | `1` | Seed for repeatable random values. |
 
 
 ## Character Material
@@ -89,7 +89,7 @@ The Selected variant adds **Characters**, default `1`. Empty selection affects n
 The closest Character Material parent that selects a character controls both slots. Other object types keep their materials.
 
 
-## Native 3D Text additions
+## 3D Text additions
 
 | Control | Type | Range or options | Default | Effect on output |
 | --- | --- | --- | --- | --- |
