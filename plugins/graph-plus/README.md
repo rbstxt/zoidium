@@ -71,3 +71,16 @@ tracks owner documents and active drags; `theme.js` owns theme and CSS.
 `selection.js` maps property identities and owns the UI selection model;
 `selection-host.js` binds property rows, timeline keys and native selection events.
 These files are declared text resources inside the same plugin bundle.
+
+Vector and color tracks have parent and axis rows. Click an axis to select its
+keys, or Ctrl-click or Shift-click to combine axes. The parent row selects all
+components. Each axis has an eye button and an S button for solo. Link axes
+moves same-frame siblings in time while value drags stay per axis. Copy and
+paste keep axis names; a single copied axis can target another selected axis.
+
+Expression-driven tracks show dashed, read-only evaluated curves. Fit and Frame
+include the sampled output. The host evaluator receives explicit frames without
+playhead changes. Sampling caches property, expression, and range results and
+invalidates on project changes. Each redraw allows 1,024 evaluations and 6 ms,
+then resumes later. A synchronous host evaluation can exceed that time budget.
+Easing curves subdivide in screen space, and preset entries show thumbnails.

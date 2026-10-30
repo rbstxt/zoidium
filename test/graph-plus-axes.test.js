@@ -42,3 +42,15 @@ test("Link axes includes only same-frame siblings and excludes expression channe
   groups[0]._keys.children[1].pz_object.frame = 11;
   assert.deepEqual(g.timeKeys([y]), [y]);
 });
+
+test("dense-axis move events coalesce to one redraw", async () => {
+  const PZ = { ui: { graph: function () {} } };
+  require("../plugins/graph-plus/curves.js")({ PZ });
+  let redraws = 0;
+  const graph = { redrawAllKeyframes: () => redraws++, updateLegend() {} };
+  const group = { parentElement: {} };
+  for (let i = 0; i < 200; i++) PZ.ui.graph.prototype.onKeyframeMoved.call(graph, group);
+  assert.equal(redraws, 0);
+  await Promise.resolve();
+  assert.equal(redraws, 1);
+});

@@ -320,8 +320,8 @@ PZ.ui.graph.prototype.onSvgDoubleClick = function (e) {
   var g = this.screenToGraph(e.clientX - rect.left, e.clientY - rect.top);
   var absF = Math.round(g.x);
   // find nearest curve within threshold, else use all visible groups
-  var groups = this.propGroups().filter(function (gel) {
-    if (gel.style.display === "none") return false;
+  var groups = this.propGroups().filter((gel) => {
+    if (gel.style.display === "none" || gel.pz_object.expression || (this._selectedAxes?.size && !this._selectedAxes.has(gel.pz_object))) return false;
     return gel.pz_object;
   });
   if (!groups.length) return;

@@ -15,9 +15,19 @@ Graph Editor 2 replaces native graph panels while enabled. Graph+ is an alternat
 | Alt+Shift+G | Reveals the focused property row. |
 | **Follow selection** | Starts on. Property selection replaces curves, and Ctrl-click or Shift-click adds properties. Off pins the displayed curves. |
 
-Vector and color properties reveal all components. Object and layer selection follow animated properties, including nested material, geometry, and plugin properties. Expression-driven properties are excluded from automatic animated-property collection.
+Vector and color properties reveal all components. Object and layer selection follow animated properties, including nested material, geometry, and plugin properties. Expression-driven properties appear as read-only dashed curves with an Expression label. Fit and Frame include their sampled output.
 
 The follow preference and floating-window geometry persist locally. Opening or following curves does not create a project history entry. Disabling the plugin closes its floating window and restores native graph panels and opening behavior.
+
+## Vector and color tracks
+
+Each property has a parent row and colored axis rows. An axis row selects its keys and shows that axis. Ctrl-click or Shift-click combines rows. The parent row selects all components. Eye buttons toggle visibility, and **S** isolates an axis. Visibility stays outside project data.
+
+Easing, tangent, value, delete, copy, and paste operations use the selected axes. **+Key** uses selected axes, or visible axes when no rows are selected. Axis names map to the same destination axes during paste. A single copied axis can target one selected destination axis.
+
+**Link axes** groups time moves for sibling keys at the same frame. Value drags stay per axis. Each gesture creates one undo step.
+
+Expression samples use the host's evaluator. Sampling is limited to 1,024 calls and a 6 ms budget per redraw, with at most 64 samples per frame. Unfinished ranges continue on later redraws. One synchronous host evaluation can exceed the time budget.
 
 ## Interpolation and tangent tools
 
@@ -26,7 +36,7 @@ The follow preference and floating-window geometry persist locally. Opening or f
 | **Linear** | Applies linear easing to selected keys. |
 | **Step** | Holds the preceding value until the next key. |
 | **Ease** | Applies cubic in-out easing. |
-| **Custom easings** | Lists the host's easing presets. |
+| **Custom easings** | Shows the host's easing presets with curve thumbnails. |
 | **Break Tangents** | Makes selected tangent directions independent. |
 | **Auto Tangents** | Makes selected tangents continuous. |
 | **Bezier** | Toggles Bezier and linear interpolation. |

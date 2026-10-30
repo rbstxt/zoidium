@@ -97,9 +97,16 @@ PZ.ui.graph.prototype.onKeyframeDeleted = function (gel, kfObj) {
   this.updateLegend();
 };
 PZ.ui.graph.prototype.onKeyframeMoved = function (gel, evt, kfObj) {
-  // simplest robust: full redraw of that curve
-  this.redrawAllKeyframes(gel);
-  this.updateLegend();
+  // Native finishMove emits once per key. Rebuild once after the gesture,
+  // including undo and redo, so moving a dense axis does not rebuild it N times.
+  if (gel._moveRedrawPending) return;
+  gel._moveRedrawPending = true;
+  Promise.resolve().then(() => {
+    gel._moveRedrawPending = false;
+    if (!gel.parentElement) return;
+    this.redrawAllKeyframes(gel);
+    this.updateLegend();
+  });
 };
 PZ.ui.graph.prototype.onKeyframeChanged = function (gel, kfObj) {
   var at = gel._keys.firstElementChild;

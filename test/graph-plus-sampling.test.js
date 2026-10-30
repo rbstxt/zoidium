@@ -54,3 +54,21 @@ test("expression sample budgets resume and share the redraw limit", () => {
   assert.equal(sampler.sample(prop, 0, 10, 1, budget).points.length, 4);
   assert.equal(sampler.sample(prop, 0, 10, 1, { deadline: 1, remaining: 20 }).complete, true);
 });
+
+test("native expression sampling preserves serialized project, playhead and undo history", () => {
+  const { host, fixture, editorFor } = require("./helpers/editor-identity-host.cjs");
+  const c = host(), { PZ } = c;
+  const { project, layer, clip } = fixture(c);
+  clip.properties.load();
+  const editor = editorFor(PZ, project);
+  const prop = layer.properties.position.objects[1];
+  prop.expression = new PZ.expression("shake(time,15,0,2,1,1)");
+  const before = JSON.stringify(project);
+  const sampler = new ExpressionSamples(() => 0);
+  const result = sampler.sample(prop, 0, 30, 1, { deadline: 1, remaining: 100 });
+  assert.equal(result.points.length, 31);
+  assert.ok(result.points.every(p => Number.isFinite(p[1])));
+  assert.equal(JSON.stringify(project), before);
+  assert.equal(editor.playback.currentFrame, 0);
+  assert.equal(editor.history.undoStack.length, 0);
+});
