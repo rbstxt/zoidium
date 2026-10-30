@@ -242,6 +242,7 @@ PZ.ui.graph.prototype.buildToolbar = function () {
   if (this.options.showLabels === false) this.labelsBtn.classList.remove("on");
   var help = mk("button"); help.className = "g2-help"; help.textContent = "?";
   help.title = "Gestures (?)"; help.setAttribute("aria-label", "Gesture help");
+  this.helpBtn = help;
   help.setAttribute("aria-expanded", "false");
   help.addEventListener("click", function () {
     if (self.gestureCard) { self.gestureCard.remove(); self.gestureCard = null; help.setAttribute("aria-expanded", "false"); return; }
@@ -250,8 +251,10 @@ PZ.ui.graph.prototype.buildToolbar = function () {
       '<tr><td>Wheel: zoom X</td><td>Two fingers: pan X and Y</td></tr>' +
       '<tr><td>Ctrl+wheel: zoom X and Y</td><td>Pinch: zoom X and Y</td></tr>' +
       '<tr><td colspan="2">Alt+wheel or Alt+pinch: zoom Y · Shift+wheel: pan X</td></tr>' +
-      '<tr><td colspan="2">Middle-drag or Space-drag: pan · Left-drag: select · Ruler: scrub</td></tr>' +
-      '<tr><td colspan="2">Handle: Alt-drag breaks or rejoins · Shift: 45° angles · Ctrl/Cmd: snap slope</td></tr>' +
+      '<tr><td colspan="2">Middle-drag or Space-drag: pan · Left-drag: select · RMB or ruler left-drag: scrub</td></tr>' +
+      '<tr><td colspan="2">Key drag: Ctrl locks frames (value only) · Shift locks values (frame only)</td></tr>' +
+      '<tr><td colspan="2">Ruler: all wheel gestures affect X only, including Alt+wheel</td></tr>' +
+      '<tr><td colspan="2">Handle: press Alt to break, release Alt to rejoin · Shift: 45° angles · Ctrl/Cmd: snap slope</td></tr>' +
       '<tr><td colspan="2">Double-click handle: reset · Preset handle drag: convert to Bezier</td></tr></table>';
     self.rootEl.appendChild(card); self.gestureCard = card; help.setAttribute("aria-expanded", "true");
   });

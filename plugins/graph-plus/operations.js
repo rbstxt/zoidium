@@ -399,6 +399,9 @@ PZ.ui.graph.prototype.updateStatus = function (extra) {
 
 /* ---------- keyboard ---------- */
 PZ.ui.graph.prototype.keydown = function (e) {
+  if (e.key === "?" && !e.ctrlKey && !e.metaKey) {
+    e.stopPropagation(); e.preventDefault(); this.helpBtn?.click(); return;
+  }
   var self = this;
   if (e.key === "=" || e.key === "+") {
     e.stopPropagation();

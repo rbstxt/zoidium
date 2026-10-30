@@ -83,9 +83,11 @@ For task steps, see [Edit animation curves with Graph Editor 2](/docs/features/g
 | Alt+pinch | Zooms Y. |
 | Middle-drag or Space-drag | Pans the view. |
 | Left-drag with **Marquee** | Selects keys. This tool starts on. |
-| Left-drag on the ruler | Scrubs the playhead. |
+| Left-drag on the ruler or right-drag on the graph | Scrubs the playhead. |
+| Ctrl during a key drag | Locks the frame; changes the value only. |
+| Shift during a key drag | Locks the value; changes the frame only. |
 
-Wheel gestures on the ruler affect X only. **?** opens the gesture card.
+On the ruler, all wheel gestures affect X only, including Alt+wheel. **?** opens the gesture card.
 
 ## Bezier handle gestures
 
@@ -94,7 +96,7 @@ Selected keys show handles. Short handles have a minimum display length without 
 | Input | Action |
 | --- | --- |
 | Handle drag | Changes the selected keys' handles. Dragging a preset segment converts that segment to Bezier. |
-| Alt-drag | Breaks continuous tangents or rejoins broken tangents. |
+| Alt during a handle drag | Pressing Alt breaks the tangent, including when held at drag start. Releasing Alt rejoins the tangent. |
 | Shift while dragging | Constrains the angle to 45-degree increments. |
 | Ctrl or Command while dragging | Snaps near a flat tangent or the neighboring key's slope. |
 | Double-click a handle | Resets both handles to the default flat ease. |
