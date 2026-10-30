@@ -180,7 +180,7 @@ PZ.ui.graph.prototype.buildToolbar = function () {
   spacer.className = "g2-spacer";
   tb.appendChild(spacer);
   var gf = group();
-  this.followBtn = small(gf, toolIcon("link"), "Follow selection", "", "Follow selection", function () {
+  this.followBtn = small(gf, toolIcon("follow"), "Follow selection", "", "Follow selection", function () {
     var controller = controllers.get(self.editor);
     if (controller) controller.setFollow(!controller.follow);
   });
@@ -188,14 +188,14 @@ PZ.ui.graph.prototype.buildToolbar = function () {
   var follow = controller ? controller.follow : readFollow(null);
   this.followBtn.classList.toggle("on", follow);
   this.followBtn.setAttribute("aria-pressed", String(follow));
-  this.axesBtn = small(gf, toolIcon("link"), "Link axes", "", "Move sibling keys together in time", function () {
+  this.axesBtn = small(gf, toolIcon("axes"), "Link axes", "", "Move sibling keys together in time", function () {
     self.options.linkAxes = !self.options.linkAxes;
     self.axesBtn.classList.toggle("on", self.options.linkAxes);
     self.axesBtn.setAttribute("aria-pressed", String(self.options.linkAxes));
   });
   this.axesBtn.setAttribute("aria-pressed", "false");
   var gv = group();
-  this.panBtn = small(gv, toolIcon("pan"), "Pan", "H", "Pan tool — left-drag moves the grid (default)", function () { self.setTool("pan"); }, "on");
+  this.panBtn = small(gv, toolIcon("pan"), "Pan", "H", "Pan tool — left-drag moves the grid", function () { self.setTool("pan"); }, "on");
   this.selToolBtn = small(gv, toolIcon("marquee"), "Marquee", "V", "Marquee tool — left-drag selects keys (Shift+drag in any tool)", function () { self.setTool("sel"); });
   small(gv, toolIcon("fit"), "Fit", "\\", "Fit all curves", function () { self.fitAll(false); });
   small(gv, toolIcon("frame"), "Frame", "F", "Frame selected keys", function () { self.frameSelected(); });
@@ -240,5 +240,46 @@ PZ.ui.graph.prototype.buildToolbar = function () {
     self.updateViewBox();
   }, "on");
   if (this.options.showLabels === false) this.labelsBtn.classList.remove("on");
+  var help = mk("button"); help.className = "g2-help"; help.textContent = "?";
+  help.title = "Gestures (?)"; help.setAttribute("aria-label", "Gesture help");
+  this.helpBtn = help;
+  help.setAttribute("aria-expanded", "false");
+  help.addEventListener("click", function () {
+    if (self.gestureCard) { self.gestureCard.remove(); self.gestureCard = null; help.setAttribute("aria-expanded", "false"); return; }
+    var card = mk("div"); card.className = "g2-gestures";
+    card.innerHTML = '<b>Graph gestures</b><table><tr><th>Mouse</th><th>Trackpad</th></tr>' +
+      '<tr><td>Wheel: zoom X</td><td>Two fingers: pan X and Y</td></tr>' +
+      '<tr><td>Ctrl+wheel: zoom X and Y</td><td>Pinch: zoom X and Y</td></tr>' +
+      '<tr><td colspan="2">Alt+wheel or Alt+pinch: zoom Y · Shift+wheel: pan X</td></tr>' +
+      '<tr><td colspan="2">Middle-drag or Space-drag: pan · Left-drag: select · RMB or ruler left-drag: scrub</td></tr>' +
+      '<tr><td colspan="2">Key drag: Ctrl locks frames (value only) · Shift locks values (frame only)</td></tr>' +
+      '<tr><td colspan="2">Ruler: all wheel gestures affect X only, including Alt+wheel</td></tr>' +
+      '<tr><td colspan="2">Handle: press Alt to break, release Alt to rejoin · Shift: 45° angles · Ctrl/Cmd: snap slope</td></tr>' +
+      '<tr><td colspan="2">Double-click handle: reset · Preset handle drag: convert to Bezier</td></tr></table>';
+    self.rootEl.appendChild(card); self.gestureCard = card; help.setAttribute("aria-expanded", "true");
+  });
+  var buttons = Array.from(tb.querySelectorAll("button"));
+  while (tb.firstChild) tb.firstChild.remove();
+  var sections = [
+    ["Interpolation", ["Linear", "Step", "Ease", "Custom easings"]],
+    ["Tangents", ["Bezier", "Break Tangents", "Auto Tangents", "Link", "Flat"]],
+    ["View", ["Pan", "Marquee", "Fit", "Frame", "Norm"]],
+    ["Keys", ["+Key", "Del", "Copy", "Paste"]],
+    ["Options", ["Snap", "Labels", "Link axes", "Follow selection"]]
+  ];
+  sections.forEach(function (section) {
+    var container = group(); container.dataset.label = section[0]; container.setAttribute("role", "group");
+    container.setAttribute("aria-label", section[0]);
+    section[1].forEach(function (label) {
+      var button = buttons.find(b => b.getAttribute("aria-label") === label);
+      if (button) {
+        button.dataset.needsKeys = String(["Interpolation", "Tangents"].includes(section[0]) || ["Del", "Copy", "Frame"].includes(label));
+        container.appendChild(button);
+      }
+    });
+  });
+  tb.appendChild(help);
+  this.panBtn.classList.remove("on"); this.selToolBtn.classList.add("on");
+
 };
 };

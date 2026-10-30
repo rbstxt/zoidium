@@ -174,7 +174,7 @@ PZ.ui.graph = function (editor, opts) {
   this._didInitView = false;
   this._hidden = {};   // addr -> true
   this._legendTick = 0;
-  this.tool = "pan";      // C4D-like tool modes: "pan" (default) | "sel" (marquee)
+  this.tool = "sel";      // Select by default. Middle-drag and Space-drag always pan.
   this._spaceDown = false;
   this.create();
 };
@@ -483,6 +483,7 @@ PZ.ui.graph.prototype.fitAll = function (onlySelected) {
   if (this.width > 1) this.zoomX = clamp((r - l) / this.width, 0.02, 200);
   if (this.height > 1) this.zoomY = clamp((b - t) / this.height, 0.001, 5000);
   this.updateViewBox();
+  this.updateStatus?.();
 };
 PZ.ui.graph.prototype.frameSelected = function () {
   if (!this.selectedKeys().length) { this.fitAll(false); return; }

@@ -7,7 +7,7 @@ When enabled, it replaces `PZ.ui.graph`, `PZ.ui.graph.grid` and
 `PZ.ui.graphEditor` with the Graph Editor 2 implementation:
 
 - Toolbar: Linear / Step / Ease / break / auto tangents, custom-easings
-  popup with all 33 `PZ.tween.easingList` presets, Pan / Marquee, Fit (`\`),
+  popup with all 33 `PZ.tween.easingList` presets, Pan / Marquee (default), Fit (`\`),
   Frame (`F`), Normalize (`N`), Snap (`S`), +Key (`K`), Delete, Bezier (`I`),
   Link (`T`), Flat (`R`), Copy / Paste, Labels, Follow selection.
 - Eased-segment rendering through the real easing functions, hold-step
@@ -82,3 +82,36 @@ Expression-driven tracks show dashed, read-only evaluated curves. Fit and Frame
 wait until the expression curves are ready. Very slow expressions may draw
 over several redraws.
 Easing curves subdivide in screen space, and preset entries show thumbnails.
+
+
+## Mouse and trackpad gestures
+
+| Input | Action |
+| --- | --- |
+| Mouse wheel | Zooms X around the pointer. |
+| Alt+wheel | Zooms Y. |
+| Shift+wheel | Pans X. |
+| Trackpad two-finger scroll | Pans X and Y, including inertia. |
+| Pinch or Ctrl+wheel | Zooms X and Y around the pointer. |
+| Alt+pinch | Zooms Y. |
+| Middle-drag or Space-drag | Pans the view. |
+| Left-drag with **Marquee** | Selects keys. This tool starts on. |
+| Left-drag on the ruler or right-drag on the graph | Scrubs the playhead. |
+| Ctrl during a key drag | Locks the frame; changes the value only. |
+| Shift during a key drag | Locks the value; changes the frame only. |
+
+On the ruler, all wheel gestures affect X only, including Alt+wheel. **?** opens the gesture card.
+
+## Bezier handle gestures
+
+Selected keys show handles. Short handles have a minimum display length without changing their values.
+
+| Input | Action |
+| --- | --- |
+| Handle drag | Changes the selected keys' handles. Dragging a preset segment converts that segment to Bezier. |
+| Alt during a handle drag | Pressing Alt breaks the tangent, including when held at drag start. Releasing Alt rejoins the tangent. |
+| Shift while dragging | Constrains the angle to 45-degree increments. |
+| Ctrl or Command while dragging | Snaps near a flat tangent or the neighboring key's slope. |
+| Double-click a handle | Resets both handles to the default flat ease. |
+
+Each handle gesture creates one undo step. With multiple axes selected, value drags apply the same value delta to every selected key.

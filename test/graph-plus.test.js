@@ -578,7 +578,7 @@ test("no wall-clock or random values leak into project data", () => {
   const sources = fs.readdirSync(path.join(projectRoot, "plugins/graph-plus"))
     .filter((file) => file.endsWith(".js"))
     .map((file) => fs.readFileSync(path.join(projectRoot, "plugins/graph-plus", file), "utf8")).join("\n");
-  assert.equal(sources.split("Date.now").length - 1, 2, "only the status hover throttle");
+  assert.equal(sources.split("Date.now").length - 1, 3, "status hover throttle and wheel gesture timeout stay outside project data");
   assert.ok(!sources.includes("Math.random"));
 });
 

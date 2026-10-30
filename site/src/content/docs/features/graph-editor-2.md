@@ -58,3 +58,18 @@ Expression curves use dashed lines and an **Expression** label. Very slow expres
 For an incoming-segment curve editor, use [Easing+](/docs/features/easing-plus/). Both tools use the same native Bezier handles.
 
 For toolbar meanings, focused-window shortcuts, and view controls, see the [Graph Editor 2 reference](/docs/reference/graph-editor/).
+
+## Navigate with a mouse or trackpad
+
+1. To pan with a mouse, middle-drag or Space-drag.
+2. To zoom X, turn the mouse wheel. To zoom Y, hold Alt.
+3. On a trackpad, scroll with two fingers to pan. Pinch to zoom both axes.
+4. To see the full gesture reference, click **?**.
+
+## Adjust Bezier handles
+
+1. Select a key and drag its handle. Preset segments convert to Bezier when dragged.
+2. To break a tangent, press Alt during the drag or hold Alt at the start. To rejoin the tangent, release Alt.
+3. To constrain the angle, hold Shift during the drag.
+4. To snap near flat or the neighboring slope, hold Ctrl or Command during the drag.
+5. To reset both handles, double-click a handle.

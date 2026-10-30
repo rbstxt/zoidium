@@ -69,6 +69,8 @@ PZ.ui.graph.prototype.resize = function () {
     if (this.rootEl && this.rootEl.classList) {
       var wrapW = this.rootEl.clientWidth || 0;
       this.rootEl.classList.toggle("g2-narrow", wrapW > 0 && wrapW < 700);
+      this.rootEl.classList.toggle("g2-compact", wrapW <= 700 && this.rootEl.clientHeight <= 400);
+      this.rootEl.classList.toggle("g2-wide", wrapW >= 800);
     }
   } catch (_narrowError) {}
   if (this.xGrid) this.xGrid.resize();
@@ -302,6 +304,8 @@ PZ.ui.graph.prototype.updateLegend = function () {
     var row = mk("div");
     row.className = "g2-track-row";
     row._gel = gel;
+    row.addEventListener("pointerenter", function () { self.updateStatus((info ? info.axis + " axis" : displayName(prop)) +
+      (expressionOf(prop) ? " · Expression" : " · " + Array.from(gel._keys.children).filter(k => k.classList.contains("selected")).length + " selected keys")); });
     row.title = addrString(prop) + " — click to select all its keys";
     var dot = mk("span");
     dot.className = "g2-swatch";
@@ -356,6 +360,7 @@ PZ.ui.graph.prototype.updateStatus = function (extra) {
   if (!this.statusEl) return;
   var cf = currentFrame(this.editor);
   var sel = this.selectedKeys().length;
+  if (this.toolbarEl?.querySelectorAll) for (var button of this.toolbarEl.querySelectorAll('[data-needs-keys="true"]')) button.disabled = !sel;
   var n = this.propGroups().length;
   this.statusEl.innerHTML = "";
   var self = this;
@@ -374,7 +379,7 @@ PZ.ui.graph.prototype.updateStatus = function (extra) {
   pill("zoom <b>" + (Math.round(this.zoomX * 100) / 100) + " / " + (Math.round(this.zoomY * 1000) / 1000) + "</b>");
   pill((this.options.snap ? "snap ON" : "snap OFF") + " · " + (this.options.normalize ? "norm ON" : "norm OFF"), this.options.snap);
   if (extra) pill(escapeHtml(extra));
-  else pill("LMB:pan · click:deselect · MMB:select · RMB:scrub · dblclick:add · F:frame · \\:fit");
+  else pill("LMB:select · Space/MMB:pan · click:deselect · RMB:scrub · dblclick:add · F:frame · \\:fit");
   // sync track-row highlight with selection
   try {
     if (this.tracksEl) {
@@ -394,6 +399,9 @@ PZ.ui.graph.prototype.updateStatus = function (extra) {
 
 /* ---------- keyboard ---------- */
 PZ.ui.graph.prototype.keydown = function (e) {
+  if (e.key === "?" && !e.ctrlKey && !e.metaKey) {
+    e.stopPropagation(); e.preventDefault(); this.helpBtn?.click(); return;
+  }
   var self = this;
   if (e.key === "=" || e.key === "+") {
     e.stopPropagation();
@@ -453,6 +461,8 @@ PZ.ui.graph.prototype.keydown = function (e) {
     this.editor.history.finishOperation();
   } else if (e.key === "Escape") {
     e.stopPropagation();
+    if (this.gestureCard) { this.gestureCard.remove(); this.gestureCard = null;
+      this.toolbarEl?.querySelector('[aria-label="Gesture help"]')?.setAttribute("aria-expanded", "false"); return; }
     if (this.easePopup) { this.closeEasePopup(); return; }
     this.deselectAllKeyframes();
   } else if (e.key && e.key.indexOf("Arrow") === 0) {

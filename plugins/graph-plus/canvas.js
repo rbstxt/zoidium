@@ -1,9 +1,12 @@
 "use strict";
-const { expressionOf } = require("./property-state.js");
+const { nearestTarget } = require("./targets.js");
+const { classifyWheel, wheelView } = require("./input.js");
+const { expressionOf, evaluatedValue } = require("./property-state.js");
 
 // Warn-once reporter for failure sites that run per pointer move or per item:
 // the first failure is logged, repeats stay silent so the console stays readable.
 var gpWarned = {};
+const coarsePointers = new WeakMap();
 function gpWarnOnce(key, message, error) {
   if (gpWarned[key]) return;
   gpWarned[key] = true;
@@ -117,18 +120,29 @@ PZ.ui.graph.prototype.create = function () {
   this.canvasEl.appendChild(this.emptyEl);
 
   this.canvasEl.addEventListener("wheel", function (e) { self.mouseWheel(e); }, { passive: false });
+  this.rulerEl.addEventListener("wheel", function (e) { self.mouseWheel(e); }, { passive: false });
+  this.svg.addEventListener("pointerdown", function (e) {
+    if (e.button !== 0 || self._spaceDown || self.tool === "pan") return;
+    var hit = self.pickTarget(e);
+    if (hit) { e.stopPropagation(); hit.element._g2down(e); }
+  }, true);
   this.svg.addEventListener("pointerdown", function (e) { self.onSvgPointerDown(e); });
-  // Windows middle-click autoscroll would hijack MMB marquee — kill it
+  // Windows middle-click autoscroll would hijack MMB pan — kill it
   this.svg.addEventListener("mousedown", function (e) { if (e.button === 1) e.preventDefault(); });
   this.svg.addEventListener("auxclick", function (e) { if (e.button === 1) e.preventDefault(); });
   this.rulerEl.addEventListener("mousedown", function (e) { if (e.button === 1) e.preventDefault(); });
   this.svg.addEventListener("pointermove", function (e) { self.onSvgPointerMove(e); });
+  this.svg.addEventListener("dblclick", function (e) {
+    var hit = self.pickTarget(e);
+    if (hit?.handle) { e.stopPropagation(); hit.element._g2double(e); }
+  }, true);
   this.svg.addEventListener("dblclick", function (e) { self.onSvgDoubleClick(e); });
   // ruler scrub (C4D): left-drag the numbers OR the red playhead bar
   this.rulerEl.addEventListener("pointerdown", function (e) {
     if (e.button !== 0 && e.button !== 2) return;
     e.preventDefault();
-    beginPointerDrag(self.rulerEl, e, function (ev) { self.scrubRuler(ev.clientX); }, null);
+    self._dragging = "scrub";
+    beginPointerDrag(self.rulerEl, e, function (ev) { self.scrubRuler(ev.clientX); }, function () { self._dragging = null; });
     self.scrubRuler(e.clientX);
   });
   this.bodyEl.addEventListener("contextmenu", function (e) { e.preventDefault(); });
@@ -145,17 +159,16 @@ PZ.ui.graph.prototype.create = function () {
 /* ---------- mouse ---------- */
 PZ.ui.graph.prototype.mouseWheel = function (e) {
   var r = this.svg.getBoundingClientRect();
-  var mx = e.clientX - r.left, my = e.clientY - r.top;
-  var before = this.screenToGraph(mx, my);
-  var t = 1;
-  if (e.deltaY < 0) t = 0.9; else if (e.deltaY > 0) t = 1.1111;
-  if (!e.ctrlKey) this.zoomX = clamp(this.zoomX * t, 0.05, 500);
-  if (!e.shiftKey) this.zoomY = clamp(this.zoomY * t, 0.001, 10000);
-  // anchor at mouse
-  var vx = before.x - (mx / Math.max(r.width, 1)) * this.viewW();
-  var vy = before.y - (my / Math.max(r.height, 1)) * this.viewH();
-  this.centerX = vx + 0.5 * this.viewW();
-  this.centerY = vy + 0.5 * this.viewH();
+  this._wheelGesture = classifyWheel(e, this._wheelGesture, Date.now());
+  var sx = (this.width || r.width) / Math.max(r.width, 1);
+  var sy = (this.height || r.height) / Math.max(r.height, 1);
+  var input = { deltaX: e.deltaX * sx, deltaY: e.deltaY, deltaMode: e.deltaMode,
+    ctrlKey: e.ctrlKey, altKey: e.altKey, shiftKey: e.shiftKey };
+  if (this._wheelGesture.kind === "pan" && !e.altKey) input.deltaY *= sy;
+  var next = wheelView({ centerX: this.centerX, centerY: this.centerY,
+    zoomX: this.zoomX, zoomY: this.zoomY, width: this.width || r.width, height: this.height || r.height },
+    input, this._wheelGesture, { x: (e.clientX - r.left) * sx, y: (e.clientY - r.top) * sy }, e.currentTarget === this.rulerEl);
+  Object.assign(this, { centerX: next.centerX, centerY: next.centerY, zoomX: next.zoomX, zoomY: next.zoomY });
   this.updateViewBox();
   this.updateStatus();
   e.preventDefault();
@@ -178,13 +191,14 @@ PZ.ui.graph.prototype.onSvgPointerDown = function (e) {
         self.editor.playback.currentFrame = clamp(f, 0, totalFrames(self.editor) - 1);
       } catch (err) { gpWarnOnce("scrub", "playhead scrub failed", err); }
     };
-    beginPointerDrag(self.svg, e, scrub, null);
+    self._dragging = "scrub";
+    beginPointerDrag(self.svg, e, scrub, function () { self._dragging = null; });
     scrub(e);
     return;
   }
   if (e.button !== 0 && e.button !== 1) return;
-  if (e.target && e.target.classList && e.target.classList.contains("g2-kf")) return; // handled by key handlers
-  if (e.target && e.target.classList && e.target.classList.contains("g2-hdl")) return;
+  if (e.button === 0 && !this._spaceDown && this.tool !== "pan" && e.target && e.target.classList && e.target.classList.contains("g2-kf")) return; // handled by key handlers
+  if (e.button === 0 && !this._spaceDown && this.tool !== "pan" && e.target && e.target.classList && e.target.classList.contains("g2-hdl")) return;
   var self2 = this;
   var rect = this.svg.getBoundingClientRect();
   var startPx = { x: e.clientX - rect.left, y: e.clientY - rect.top };
@@ -192,7 +206,7 @@ PZ.ui.graph.prototype.onSvgPointerDown = function (e) {
   // 1) LMB on the red playhead line (within 7px) -> scrub
   var cfNow = currentFrame(this.editor);
   var pxDist = Math.abs((startG.x - cfNow) / Math.max(this.zoomX, 1e-9));
-  if (e.button === 0 && (e.target === this.cursor || pxDist <= 7)) {
+  if (e.button === 0 && !this._spaceDown && this.tool !== "pan" && (e.target === this.cursor || pxDist <= 7)) {
     e.preventDefault();
     try { this.canvasEl.style.cursor = "col-resize"; } catch (err) {}
     var scrubTo = function (ev) {
@@ -204,15 +218,16 @@ PZ.ui.graph.prototype.onSvgPointerDown = function (e) {
       } catch (err) { gpWarnOnce("scrub", "playhead scrub failed", err); }
       self2.updateStatus("playhead " + currentFrame(self2.editor));
     };
+    this._dragging = "scrub";
     beginPointerDrag(this.svg, e, scrubTo, function () {
+      self2._dragging = null;
       try { self2.applyToolCursor(); } catch (err) {}
     });
     scrubTo(e);
     return;
   }
-  // 2) MMB always marquee-selects; LMB marquees with the marquee tool or
-  //    Shift, otherwise LMB-drag pans the view
-  var wantMarquee = (e.button === 1) || (this.tool === "sel") || e.shiftKey;
+  // Middle-drag and Space-drag pan. Select-tool left-drag selects keys.
+  var wantMarquee = e.button === 0 && !this._spaceDown && (this.tool === "sel" || e.shiftKey);
   var isPan = !wantMarquee;
   this._dragging = isPan ? "pan" : "marquee";
   try {
@@ -244,6 +259,7 @@ PZ.ui.graph.prototype.onSvgPointerDown = function (e) {
     var groups = self2.propGroups();
     for (var gi = 0; gi < groups.length; gi++) {
       var gel = groups[gi];
+      if (gel.style.display === "none" || expressionOf(gel.pz_object)) continue;
       var off = gel.pz_frameOffset || 0;
       var keys = gel._keys.children;
       for (var k = 0; k < keys.length; k++) {
@@ -270,7 +286,31 @@ PZ.ui.graph.prototype.onSvgPointerDown = function (e) {
     self2.updateStatus();
   });
 };
+PZ.ui.graph.prototype.pickTarget = function (e) {
+  if (this._dragging) return;
+  var targets = [];
+  var bounds = this.svg.getBoundingClientRect();
+  for (var group of this.propGroups()) {
+    if (group.style.display === "none") continue;
+    for (var key of group._keys.children) {
+      for (var element of [key, ...Array.from(key.pz_handles?.children || []).slice(0, 2)]) {
+        if (!element._g2down || element.style.display === "none" || (element !== key && key.pz_handles.style.display === "none")) continue;
+        var kf = key.pz_object, scale = group.pz_valueScale || 1;
+        var x = kf.frame + (group.pz_frameOffset || 0), y = -kf.value * scale;
+        if (element !== key) { x += Number(element.getAttribute("cx")); y += Number(element.getAttribute("cy")); }
+        targets.push({ element, handle: element !== key,
+          x: bounds.left + (x - this.viewX()) / this.viewW() * bounds.width,
+          y: bounds.top + (y - this.viewY()) / this.viewH() * bounds.height });
+      }
+    }
+  }
+  var owner = this._win();
+  if (owner && !coarsePointers.has(owner)) coarsePointers.set(owner, !!owner.matchMedia?.("(pointer: coarse)").matches);
+  var coarse = owner && coarsePointers.get(owner);
+  return nearestTarget(targets, e.clientX, e.clientY, coarse ? 20 : 12);
+};
 PZ.ui.graph.prototype.onSvgPointerMove = function (e) {
+  if (this._dragging) return;
   var rect = this.svg.getBoundingClientRect();
   var px = e.clientX - rect.left, py = e.clientY - rect.top;
   var g = this.screenToGraph(px, py);
@@ -284,7 +324,20 @@ PZ.ui.graph.prototype.onSvgPointerMove = function (e) {
   }
   var html = "f " + Math.round(g.x) + " · y " + (Math.round(g.y * 10) / 10);
   // hover keyframe?
-  var t = e.target;
+  var hit = this._dragging ? null : this.pickTarget(e);
+  if (this._hoverTarget) this._hoverTarget.classList.remove("g2-hover");
+  this._hoverTarget = hit?.element;
+  if (hit) { hit.element.classList.add("g2-hover"); this.canvasEl.style.cursor = "move"; }
+  var t = hit?.element || e.target;
+  if (!hit && !this._dragging) for (var group of this.propGroups()) {
+    if (group.style.display === "none") continue;
+    var value;
+    try { value = evaluatedValue(group.pz_object, g.x - (group.pz_frameOffset || 0)); } catch (_error) { continue; }
+    if (Math.abs((-value * (group.pz_valueScale || 1) - g.y) / this.viewH() * rect.height) < 8) {
+      html = escapeHtml(displayName(group.pz_object)) + " · curve · frame " + Math.round(g.x) + " · value " + Math.round(value * 100) / 100; break;
+    }
+  }
+  if (hit?.handle) html = "Handle · frame " + t.parentElement.pz_object.frame + " · Alt: break/link · Shift: angle · Ctrl/Cmd: snap";
   if (t && t.classList && t.classList.contains("g2-kf") && t.pz_object) {
     var kf = t.pz_object;
     var gel = t.parentElement.parentElement;

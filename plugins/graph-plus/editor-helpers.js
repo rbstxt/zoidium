@@ -69,6 +69,8 @@ function toolIcon(name) {
   else if (name === "del") inner = '<path d="M2.5 4.5h11M6 4.5V2.5h4v2M4.5 4.5l.8 9h5.4l.8-9" ' + s + "/>";
   else if (name === "bez") inner = '<path d="M2 12.5C6 12.5 6 3.5 14 3.5" ' + s + '/><circle cx="2" cy="12.5" r="1.6" fill="var(--zui-text-bright)" style="fill:var(--zui-text-bright)"/><circle cx="14" cy="3.5" r="1.6" fill="var(--zui-text-bright)" style="fill:var(--zui-text-bright)"/>';
   else if (name === "link") inner = '<path d="M6.5 9.5a3 3 0 0 0 4.2 0l2-2a3 3 0 0 0-4.2-4.2l-1 1M9.5 6.5a3 3 0 0 0-4.2 0l-2 2a3 3 0 0 0 4.2 4.2l1-1" ' + s + "/>";
+  else if (name === "axes") inner = '<path d="M1.5 3h4.5M10 3h4.5M1.5 8h4.5M10 8h4.5M1.5 13h4.5M10 13h4.5M8 1.5v13" ' + s + '/><circle cx="8" cy="3" r="1.4" fill="var(--zui-text-bright)" style="fill:var(--zui-text-bright)"/><circle cx="8" cy="8" r="1.4" fill="var(--zui-text-bright)" style="fill:var(--zui-text-bright)"/><circle cx="8" cy="13" r="1.4" fill="var(--zui-text-bright)" style="fill:var(--zui-text-bright)"/>';
+  else if (name === "follow") inner = '<circle cx="8" cy="8" r="4.5" ' + s + '/><path d="M8 1v2.5M8 12.5V15M1 8h2.5M12.5 8H15" ' + s + '/><circle cx="8" cy="8" r="1.3" fill="var(--zui-text-bright)" style="fill:var(--zui-text-bright)"/>';
   else if (name === "flat") inner = '<path d="M2 8h12" ' + s + "/>";
   else if (name === "copy") inner = '<rect x="5" y="5" width="9" height="9" rx="1" ' + s + '/><path d="M11 5V2.5H2.5V11H5" ' + s + "/>";
   else if (name === "paste") inner = '<rect x="3" y="3.5" width="10" height="10.5" rx="1" ' + s + '/><path d="M6 3.5V1.8h4v1.7" ' + s + "/>";
