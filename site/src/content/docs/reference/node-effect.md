@@ -4,9 +4,9 @@ description: Graph sockets, local parameter defaults, exposed controls, and samp
 sidebar:
   label: Node Effect reference
 ---
-Node Effect compiles a graph into a native Custom Shader effect. Numeric and color fields have per-pixel sockets, except Parameter fields. Connected inputs replace local fields.
+Node Effect builds an effect from a node graph. Except for Parameter fields, numeric and color fields have per-pixel sockets. Connected inputs replace local fields.
 
-Numbers must be finite with absolute values no greater than `100000000`. The table lists narrower declared editor ranges where present. UV coordinates are normalized. Pixel Coordinate and Radius use pixels. Angles use radians.
+Number fields accept values up to ±100,000,000. UV coordinates are normalized. Pixel Coordinate and Radius use pixels. Angles use radians. An unconnected **Scale** input sets pattern frequency; **Time** sets explicit phase in seconds (the Time node supplies clip seconds); **Angle** sets direction in radians. A — range means no declared minimum or maximum.
 
 
 ## Layer Color
@@ -45,7 +45,7 @@ Inputs: None
 
 Outputs: **Seconds**
 
-Outputs native clip time in seconds. It follows trims and time remapping.
+Outputs clip time in seconds. It follows trims and time remapping.
 
 
 ## Parameter
@@ -56,16 +56,16 @@ Outputs: **Value**
 
 | Control | Type | Range or options | Default | Effect on output |
 | --- | --- | --- | --- | --- |
-| **Name** | Text | Text | `Amount` | Label of the exposed native property. |
+| **Name** | Text | Text | `Amount` | Label of the exposed property. |
 | **Type** | Choice | **Float**, **Color**, **Vector2 point** | **Float** | Float, Color, or Vector2 point parameter. |
-| **Default** | Number | No declared bounds | `0.5` | Numeric value used by the node. |
-| **Default color** | RGB color | No declared bounds | `#ffffff` | Default RGB parameter color. |
-| **Default X** | Number | No declared bounds | `0.5` | Default X component. |
-| **Default Y** | Number | No declared bounds | `0.5` | Default Y component. |
-| **Minimum** | Number | No declared bounds | `0` | Minimum for the exposed control. |
-| **Maximum** | Number | No declared bounds | `1` | Maximum for the exposed control. |
+| **Default** | Number | — | `0.5` | Input value. |
+| **Default color** | RGB color | — | `#ffffff` | Default RGB parameter color. |
+| **Default X** | Number | — | `0.5` | Default X component. |
+| **Default Y** | Number | — | `0.5` | Default Y component. |
+| **Minimum** | Number | — | `0` | Minimum for the exposed control. |
+| **Maximum** | Number | — | `1` | Maximum for the exposed control. |
 
-Creates a native animated property. Name is limited to 48 characters. Renaming retains the node identity.
+Creates an animated property. Name is limited to 48 characters.
 
 
 ## Noise
@@ -76,9 +76,9 @@ Outputs: **Value**, **Color**
 
 | Control | Type | Range or options | Default | Effect on output |
 | --- | --- | --- | --- | --- |
-| **Scale** | Number | No declared bounds | `8` | Pattern frequency or lattice scale. |
-| **Time** | Number | No declared bounds | `0` | Explicit pattern phase. The Time input node supplies clip seconds. |
-| **Seed** | Number | No declared bounds | `0` | Seed for deterministic random values. |
+| **Scale** | Number | — | `8` | Pattern frequency. |
+| **Time** | Number | — | `0` | Explicit pattern phase. |
+| **Seed** | Number | — | `0` | Seed for repeatable random values. |
 
 
 ## Voronoi
@@ -90,8 +90,8 @@ Outputs: **Value**
 | Control | Type | Range or options | Default | Effect on output |
 | --- | --- | --- | --- | --- |
 | **Distance** | Choice | **F1**, **F2**, **Edge** | **F1** | Operation selected for this node. |
-| **Scale** | Number | No declared bounds | `8` | Pattern frequency or lattice scale. |
-| **Time** | Number | No declared bounds | `0` | Explicit pattern phase. The Time input node supplies clip seconds. |
+| **Scale** | Number | — | `8` | Pattern frequency. |
+| **Time** | Number | — | `0` | Explicit pattern phase. |
 
 
 ## Gradient
@@ -103,7 +103,7 @@ Outputs: **Value**
 | Control | Type | Range or options | Default | Effect on output |
 | --- | --- | --- | --- | --- |
 | **Type** | Choice | **Linear**, **Radial**, **Angular** | **Linear** | Operation selected for this node. |
-| **Angle** | Number | No declared bounds | `0` | Pattern or sampling direction in radians. |
+| **Angle** | Number | — | `0` | Direction in radians. |
 
 
 ## Checker
@@ -114,9 +114,9 @@ Outputs: **Color**, **Factor**
 
 | Control | Type | Range or options | Default | Effect on output |
 | --- | --- | --- | --- | --- |
-| **Scale** | Number | No declared bounds | `8` | Pattern frequency or lattice scale. |
-| **Color A** | RGB color | No declared bounds | `#000000` | First operand. |
-| **Color B** | RGB color | No declared bounds | `#ffffff` | Second operand or Blue component. |
+| **Scale** | Number | — | `8` | Pattern frequency. |
+| **Color A** | RGB color | — | `#000000` | First operand. |
+| **Color B** | RGB color | — | `#ffffff` | Second operand or Blue component. |
 
 
 ## Wave
@@ -127,9 +127,9 @@ Outputs: **Value**
 
 | Control | Type | Range or options | Default | Effect on output |
 | --- | --- | --- | --- | --- |
-| **Scale** | Number | No declared bounds | `8` | Pattern frequency or lattice scale. |
-| **Time** | Number | No declared bounds | `0` | Explicit pattern phase. The Time input node supplies clip seconds. |
-| **Angle** | Number | No declared bounds | `0` | Pattern or sampling direction in radians. |
+| **Scale** | Number | — | `8` | Pattern frequency. |
+| **Time** | Number | — | `0` | Explicit pattern phase. |
+| **Angle** | Number | — | `0` | Direction in radians. |
 
 
 ## Math
@@ -141,9 +141,9 @@ Outputs: **Value**
 | Control | Type | Range or options | Default | Effect on output |
 | --- | --- | --- | --- | --- |
 | **Operation** | Choice | **Add**, **Subtract**, **Multiply**, **Divide**, **Minimum**, **Maximum**, **Power**, **Modulo**, **Absolute**, **Invert**, **Clamp**, **Compare**, **Sine**, **Round**, **Square Root**, **Logarithm**, **Exponent**, **Floor**, **Ceiling**, **Fraction**, **Sign**, **Smooth Minimum**, **Smooth Maximum**, **Snap**, **Wrap**, **Ping-Pong**, **Cosine**, **Tangent**, **Arctan2**, **Greater Than**, **Less Than** | **Add** | Operation selected for this node. |
-| **A** | Number | No declared bounds | `0.5` | First operand. |
-| **B** | Number | No declared bounds | `0.5` | Second operand or Blue component. |
-| **C** | Number | No declared bounds | `0.5` | Third numeric operand. |
+| **A** | Number | — | `0.5` | First operand. |
+| **B** | Number | — | `0.5` | Second operand or Blue component. |
+| **C** | Number | — | `0.5` | Third numeric operand. |
 
 
 ## Vector Math
@@ -165,11 +165,11 @@ Outputs: **Value**
 
 | Control | Type | Range or options | Default | Effect on output |
 | --- | --- | --- | --- | --- |
-| **Value** | Number | No declared bounds | `0.5` | Numeric value used by the node. |
-| **From min** | Number | No declared bounds | `0` | Lower source range bound. |
-| **From max** | Number | No declared bounds | `1` | Upper source range bound. |
-| **To min** | Number | No declared bounds | `0` | Lower destination range bound. |
-| **To max** | Number | No declared bounds | `1` | Upper destination range bound. |
+| **Value** | Number | — | `0.5` | Input value. |
+| **From min** | Number | — | `0` | Lower source range bound. |
+| **From max** | Number | — | `1` | Upper source range bound. |
+| **To min** | Number | — | `0` | Lower destination range bound. |
+| **To max** | Number | — | `1` | Upper destination range bound. |
 | **Clamp** | Choice | **Off**, **On** | **Off** | Restricts the result to the destination range. |
 
 
@@ -181,9 +181,9 @@ Outputs: **Value**
 
 | Control | Type | Range or options | Default | Effect on output |
 | --- | --- | --- | --- | --- |
-| **Value** | Number | No declared bounds | `0.5` | Numeric value used by the node. |
-| **Minimum** | Number | No declared bounds | `0` | Lower clamp bound. |
-| **Maximum** | Number | No declared bounds | `1` | Upper clamp bound. |
+| **Value** | Number | — | `0.5` | Input value. |
+| **Minimum** | Number | — | `0` | Lower clamp bound. |
+| **Maximum** | Number | — | `1` | Upper clamp bound. |
 
 
 ## Mix
@@ -195,8 +195,8 @@ Outputs: **Color**
 | Control | Type | Range or options | Default | Effect on output |
 | --- | --- | --- | --- | --- |
 | **Blend mode** | Choice | **normal**, **add**, **subtract**, **multiply**, **screen**, **overlay**, **darken**, **lighten**, **difference**, **soft light**, **dodge**, **burn**, **linear light**, **divide**, **exclusion**, **hue**, **saturation**, **color**, **value** | **normal** | Operation selected for this node. |
-| **A** | RGB color | No declared bounds | `#000000` | First operand. |
-| **B** | RGB color | No declared bounds | `#ffffff` | Second operand or Blue component. |
+| **A** | RGB color | — | `#000000` | First operand. |
+| **B** | RGB color | — | `#ffffff` | Second operand or Blue component. |
 | **Factor** | Number | 0 to 1 | `0.5` | Mix or lookup factor. |
 
 
@@ -208,7 +208,7 @@ Outputs: **Color**, **Alpha**
 
 | Control | Type | Range or options | Default | Effect on output |
 | --- | --- | --- | --- | --- |
-| **Factor** | Number | No declared bounds | `0.5` | Mix or lookup factor. |
+| **Factor** | Number | — | `0.5` | Mix or lookup factor. |
 | **Interpolation** | Choice | **Constant**, **Linear**, **Ease**, **Cardinal** | **Linear** | Interpolation between values or stops. |
 | **Stops** | Ramp | Editable stops | `Black to white` | Positioned RGBA color stops. |
 
@@ -221,9 +221,9 @@ Outputs: **Color**
 
 | Control | Type | Range or options | Default | Effect on output |
 | --- | --- | --- | --- | --- |
-| **Hue** | Number | No declared bounds | `0` | Hue shift or hue component. |
-| **Saturation** | Number | No declared bounds | `1` | Saturation multiplier or component. |
-| **Value** | Number | No declared bounds | `1` | Numeric value used by the node. |
+| **Hue** | Number | — | `0` | Hue shift or hue component. |
+| **Saturation** | Number | — | `1` | Saturation multiplier or component. |
+| **Value** | Number | — | `1` | Input value. |
 
 
 ## Brightness/Contrast
@@ -234,8 +234,8 @@ Outputs: **Color**
 
 | Control | Type | Range or options | Default | Effect on output |
 | --- | --- | --- | --- | --- |
-| **Brightness** | Number | No declared bounds | `0` | Brightness multiplier or offset for the node's operation. |
-| **Contrast** | Number | No declared bounds | `0` | Contrast of the result. |
+| **Brightness** | Number | — | `0` | Brightness multiplier or offset for the node's operation. |
+| **Contrast** | Number | — | `0` | Contrast of the result. |
 
 
 ## Levels
@@ -246,11 +246,11 @@ Outputs: **Color**
 
 | Control | Type | Range or options | Default | Effect on output |
 | --- | --- | --- | --- | --- |
-| **Input black** | Number | No declared bounds | `0` | Input black point. |
-| **Input white** | Number | No declared bounds | `1` | Input white point. |
-| **Gamma** | Number | No declared bounds | `1` | Midtone gamma adjustment. |
-| **Output black** | Number | No declared bounds | `0` | Output black point. |
-| **Output white** | Number | No declared bounds | `1` | Output white point. |
+| **Input black** | Number | — | `0` | Input black point. |
+| **Input white** | Number | — | `1` | Input white point. |
+| **Gamma** | Number | — | `1` | Midtone gamma adjustment. |
+| **Output black** | Number | — | `0` | Output black point. |
+| **Output white** | Number | — | `1` | Output white point. |
 
 
 ## Invert
@@ -261,7 +261,7 @@ Outputs: **Color**
 
 | Control | Type | Range or options | Default | Effect on output |
 | --- | --- | --- | --- | --- |
-| **Factor** | Number | No declared bounds | `1` | Mix or lookup factor. |
+| **Factor** | Number | — | `1` | Mix or lookup factor. |
 
 
 ## Output
@@ -274,7 +274,7 @@ Outputs: None
 | --- | --- | --- | --- | --- |
 | **Alpha** | Number | 0 to 1 | `1` | Output alpha. |
 
-Exactly one Output is required. Color is straight RGB here; output uses premultiplied alpha.
+Exactly one Output is required.
 
 
 ## Separate RGB
@@ -292,9 +292,9 @@ Outputs: **Color**
 
 | Control | Type | Range or options | Default | Effect on output |
 | --- | --- | --- | --- | --- |
-| **Red** | Number | No declared bounds | `0` | Red component. |
-| **Green** | Number | No declared bounds | `0` | Green component. |
-| **Blue** | Number | No declared bounds | `0` | Blue component. |
+| **Red** | Number | — | `0` | Red component. |
+| **Green** | Number | — | `0` | Green component. |
+| **Blue** | Number | — | `0` | Blue component. |
 
 
 ## Separate HSV
@@ -312,9 +312,9 @@ Outputs: **Color**
 
 | Control | Type | Range or options | Default | Effect on output |
 | --- | --- | --- | --- | --- |
-| **Hue** | Number | No declared bounds | `0` | Hue component. |
-| **Saturation** | Number | No declared bounds | `0` | Saturation component. |
-| **Value** | Number | No declared bounds | `0` | Value component. |
+| **Hue** | Number | — | `0` | Hue component. |
+| **Saturation** | Number | — | `0` | Saturation component. |
+| **Value** | Number | — | `0` | Value component. |
 
 
 ## Sample Layer at UV
@@ -334,12 +334,10 @@ Outputs: **Color**, **Alpha**
 | --- | --- | --- | --- | --- |
 | **Type** | Choice | **Box**, **Gaussian**, **Directional**, **Radial** | **Box** | Operation selected for this node. |
 | **Samples** | Number | 1 to 32 | `9` | Requested source sample count. |
-| **Radius (px)** | Number | No declared bounds | `8` | Radius of local sampling or dirt detail. |
-| **Angle** | Number | No declared bounds | `0` | Pattern or sampling direction in radians. |
-| **Center X** | Number | No declared bounds | `0.5` | Horizontal center in normalized UV coordinates. |
-| **Center Y** | Number | No declared bounds | `0.5` | Vertical center in normalized UV coordinates. |
-
-Box and Gaussian use a square grid no larger than 5 by 5. Directional and Radial use 1 to 32 taps.
+| **Radius (px)** | Number | — | `8` | Radius of local sampling or dirt detail. |
+| **Angle** | Number | — | `0` | Direction in radians. |
+| **Center X** | Number | — | `0.5` | Horizontal center in normalized UV coordinates. |
+| **Center Y** | Number | — | `0.5` | Vertical center in normalized UV coordinates. |
 
 
 ## Edge Detect
@@ -350,14 +348,14 @@ Outputs: **Color**, **Value**, **Alpha**
 
 | Control | Type | Range or options | Default | Effect on output |
 | --- | --- | --- | --- | --- |
-| **Radius (px)** | Number | No declared bounds | `1` | Radius of local sampling or dirt detail. |
-| **Strength** | Number | No declared bounds | `1` | Amount of the operation. |
+| **Radius (px)** | Number | — | `1` | Radius of local sampling or dirt detail. |
+| **Strength** | Number | — | `1` | Amount of the operation. |
 
-Calculates Sobel edges from premultiplied source luminance.
+Detects edges from image brightness.
 
 
 ## Graph and sampling limits
 
-Graphs accept at most 128 nodes, 256 links, and 196608 JSON characters. Cycles and duplicate destination connections are invalid. Reachable nodes may use at most 256 source samples per output pixel.
+Graphs accept at most 128 nodes and 256 links. Cycles and double connections to one input are rejected. Nodes may use at most 256 source samples per output pixel.
 
 [Build a Node Effect](/docs/features/node-effect/)

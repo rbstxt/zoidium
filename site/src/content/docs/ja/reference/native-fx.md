@@ -28,7 +28,7 @@ Native FX は、CM3 の外部拡張レイヤーである Zoidium 内のエフェ
 | [Linear Color Key](/docs/ja/reference/native-fx-keying/#linear-color-key) | キー色からの色の距離に基づいて、ピクセルを除去または保持します。 |
 | [Radio Waves](/docs/ja/reference/native-fx-generators/#radio-waves) | 発生点から広がる多角形または円の波を描画します。 |
 | [Beam](/docs/ja/reference/native-fx-generators/#beam) | 2 点を結ぶ線分に、着色したビームを描画します。 |
-| [Numbers](/docs/ja/reference/native-fx-generators/#numbers) | 再現可能な数値、書式付き時刻、日付、または 16 進数を描画します。 |
+| [Numbers](/docs/ja/reference/native-fx-generators/#numbers) | 数値、書式付き時刻、日付、または 16 進数を描画します。 |
 | [Timecode](/docs/ja/reference/native-fx-generators/#timecode) | 評価時刻を SMPTE タイムコード、フレーム数、またはフィートとフレーム数で描画します。 |
 | [CC Page Turn](/docs/ja/reference/native-fx-transitions/#cc-page-turn) | 現在の入力を円筒状の折り目に沿って曲げ、陰影のある裏面を描画します。 |
 | [Card Wipe](/docs/ja/reference/native-fx-transitions/#card-wipe) | 現在の入力を格子状のカードに分け、指定した順序で裏返します。 |
@@ -38,7 +38,7 @@ Native FX は、CM3 の外部拡張レイヤーである Zoidium 内のエフェ
 ## コントロールと入力
 
 各リファレンスの表は、このパック固有のすべてのプロパティを記載しています。
-ベクトルの行には、プロパティ定義と同じ **.X** と **.Y** で終わる成分ラベルを記載しています。
+ベクトルの行には、**.X** と **.Y** で終わる成分ラベルを記載しています。
 **Enabled** は、どのエフェクトでも **on** が既定値で、**off** は処理を無効にします。
 共通のレイヤー変形とエフェクトの並び順は CM3 のコントロールのままです。
 

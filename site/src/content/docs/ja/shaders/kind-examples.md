@@ -137,4 +137,4 @@ float coverage = zText(Title, vUv);
 gl_FragColor = vec4(vec3(coverage), coverage);
 ```
 
-Gradient、Curve、Palette、および Text は静的プロパティです。それらの JSON はプロジェクト内に残りますが、生成されたテクスチャは残りません。[プロパティコントロール](/docs/ja/development/shader-properties/)では、それらのエディターと保存フォーマットについて説明しています。
+Gradient、Curve、Palette、および Text は静的プロパティです。[プロパティコントロール](/docs/ja/development/shader-properties/)では、それらのエディターと保存形式について説明しています。

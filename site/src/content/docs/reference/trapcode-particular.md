@@ -4,7 +4,7 @@ description: Trapcode Particular controls, ranges, defaults, audio behavior, and
 sidebar:
   label: Trapcode Particular
 ---
-Trapcode Particular is a suite object with native properties in its designer and property panel. Tables list schema defaults; presets and picker entries can override them.
+Trapcode Particular is a suite object with properties in its designer and property panel. A — range means no declared minimum or maximum.
 
 
 ## Emitter
@@ -20,19 +20,19 @@ Trapcode Particular is a suite object with native properties in its designer and
 | **Burst interval** | Number | ≥ 0.05 | `1` | Seconds between bursts. |
 | **Particles/sec** | Number | ≥ 0 | `100` | Emission rate per second. |
 | **Burst count** | Number | ≥ 0 | `0` | Particles emitted in a burst. |
-| **Position** | 3D vector | No declared bounds | `[0, 0, 0]` | Position in scene units. |
+| **Position** | 3D vector | — | `[0, 0, 0]` | Position in scene units. |
 | **Emitter size** | Number | ≥ 0 | `100` | Extent of the emitter. |
-| **Direction** | 3D vector | No declared bounds | `[0, 0, 0]` | Initial velocity direction. |
+| **Direction** | 3D vector | — | `[0, 0, 0]` | Initial velocity direction. |
 | **Direction spread** | Number | ≥ 0 | `20` | Spread around the initial direction. |
-| **Velocity** | Number | No declared bounds | `100` | Initial particle speed. |
+| **Velocity** | Number | — | `100` | Initial particle speed. |
 | **Velocity random** | Number | 0 to 100 | `20` | Variation of initial speed in percent. |
 | **Velocity distribution** | Number | 0 to 1 | `0.5` | Biases random initial speed toward slower values below 0.5 and faster values above 0.5. Requires Velocity random. At 0.5, the original spread remains unchanged. |
 | **Velocity from emitter motion** | Number | 0 to 100 | `0` | Contribution from emitter movement. |
-| **Rotation** | Number | No declared bounds | `0` | Rotation in degrees. |
+| **Rotation** | Number | — | `0` | Rotation in degrees. |
 | **Rotation random** | Number | ≥ 0 | `0` | Variation of initial sprite angle. |
-| **Rotation speed** | Number | No declared bounds | `0` | Initial sprite spin speed. |
+| **Rotation speed** | Number | — | `0` | Initial sprite spin speed. |
 | **Rotation speed random** | Number | ≥ 0 | `0` | Variation of sprite spin speed. |
-| **Random seed** | Number | No declared bounds | `100000` | Seed for repeatable random values. |
+| **Random seed** | Number | — | `100000` | Seed for repeatable random values. |
 
 
 ## Particle
@@ -41,7 +41,7 @@ Trapcode Particular is a suite object with native properties in its designer and
 | --- | --- | --- | --- | --- |
 | **Life (seconds)** | Number | ≥ 0.01 | `3` | Particle lifetime in seconds. CPU simulation caps this at 30 seconds. |
 | **Life random** | Number | 0 to 100 | `0` | Lifetime variation in percent. |
-| **Texture** | Asset | image/* | `/assets/textures/particles/circle_soft.png` | Image used for the particle sprite. |
+| **Texture** | Asset | image/* | Default sprite | Image used for the particle sprite. |
 | **Size** | Number | ≥ 0 | `5` | Base particle size. |
 | **Size random** | Number | 0 to 100 | `0` | Size variation in percent. |
 | **Size over life** | Choice | **off**, **on** | **off** | Enables the Size curve over normalized particle age. |
@@ -49,13 +49,13 @@ Trapcode Particular is a suite object with native properties in its designer and
 | **Aspect ratio** | Number | ≥ 0.01 | `1` | Width divided by height. Compresses the shorter sprite axis within its point footprint. |
 | **Orient to motion** | Number | 0 to 100 | `0` | Amount of alignment to motion. |
 | **Orient to motion fade-in** | Number | ≥ 0 | `20` | Time over which motion alignment increases. |
-| **Rotate X** | Number | No declared bounds | `0` | Initial X rotation in degrees. |
-| **Rotate Y** | Number | No declared bounds | `0` | Initial Y rotation in degrees. |
-| **Rotate Z** | Number | No declared bounds | `0` | Initial Z rotation in degrees. |
+| **Rotate X** | Number | — | `0` | Initial X rotation in degrees. |
+| **Rotate Y** | Number | — | `0` | Initial Y rotation in degrees. |
+| **Rotate Z** | Number | — | `0` | Initial Z rotation in degrees. |
 | **Random rotation** | Number | 0 to 100 | `0` | Variation of initial rotation. |
-| **Degrees/sec X** | Number | No declared bounds | `0` | X spin speed in degrees per second. |
-| **Degrees/sec Y** | Number | No declared bounds | `0` | Y spin speed in degrees per second. |
-| **Degrees/sec Z** | Number | No declared bounds | `0` | Z spin speed in degrees per second. |
+| **Degrees/sec X** | Number | — | `0` | X spin speed in degrees per second. |
+| **Degrees/sec Y** | Number | — | `0` | Y spin speed in degrees per second. |
+| **Degrees/sec Z** | Number | — | `0` | Z spin speed in degrees per second. |
 | **Random speed rotate** | Number | 0 to 100 | `0` | Variation of spin speed. |
 | **Random speed distribution** | Number | 0 to 1 | `0.5` | Distribution of spin-speed variation. |
 | **Stretch along motion** | Number | 0 to 100 | `0` | Amount of stretching along motion. |
@@ -68,7 +68,7 @@ Trapcode Particular is a suite object with native properties in its designer and
 | **Color random** | Number | 0 to 100 | `0` | Mixes the tinted gradient color with a seeded random RGB color. Alpha remains unchanged. |
 | **Blend mode** | Choice | **normal**, **add**, **screen**, **multiply** | **normal** | Particle blend operation. |
 | **Glow** | Number | ≥ 0 | `0` | Particle brightness multiplier contribution. |
-| **Random seed** | Number | No declared bounds | `0` | Seed for repeatable random values. |
+| **Random seed** | Number | — | `0` | Seed for repeatable random values. |
 
 
 ## Physics
@@ -76,7 +76,7 @@ Trapcode Particular is a suite object with native properties in its designer and
 | Control | Type | Range or options | Default | Effect on output |
 | --- | --- | --- | --- | --- |
 | **Enabled** | Choice | **off**, **on** | **off** | Selects CPU simulation for this system. |
-| **Gravity** | Number | No declared bounds | `0` | Gravity acceleration along Gravity direction. |
+| **Gravity** | Number | — | `0` | Gravity acceleration along Gravity direction. |
 | **Air resistance** | Number | ≥ 0 | `0` | Air drag strength. |
 | **Mass** | Number | ≥ 0.01 | `10` | Particle mass for force response. |
 | **Mass random** | Number | 0 to 100 | `0` | Mass variation in percent. |
@@ -85,71 +85,71 @@ Trapcode Particular is a suite object with native properties in its designer and
 | **Size affects air resistance** | Number | 0 to 100 | `0` | Coupling between particle size and drag. |
 | **Rotational air resistance** | Number | ≥ 0 | `0` | Damping of particle spin. |
 | **Enable bounce** | Choice | **off**, **on** | **off** | Enables the bounce plane. |
-| **Bounce boost** | Number | No declared bounds | `500` | Adds 0.01 times this value to rebound velocity. The plane remains at Y = 0. |
+| **Bounce boost** | Number | — | `500` | Adds 1% of this value to rebound velocity. The plane stays at Y = 0. |
 | **Bounce strength** | Number | 0 to 100 | `50` | Velocity retained after bounce in percent. |
 | **Enable meander** | Choice | **off**, **on** | **off** | Enables meandering motion. |
-| **Affect direction** | Number | No declared bounds | `20` | Direction change from meander. |
-| **Affect speed** | Number | No declared bounds | `20` | Speed change from meander. |
+| **Affect direction** | Number | — | `20` | Direction change from meander. |
+| **Affect speed** | Number | — | `20` | Speed change from meander. |
 | **Enable fluid dynamics** | Choice | **off**, **on** | **off** | Enables the fluid force block. |
 | **Fluid force** | Choice | **vortex**, **buoyancy and swirl** | **vortex** | Chooses vortex or buoyancy and swirl forces. |
-| **Buoyancy** | Number | No declared bounds | `5` | Buoyancy force. |
+| **Buoyancy** | Number | — | `5` | Buoyancy force. |
 | **Random swirl** | Choice | **off**, **on** | **off** | Enables random fluid swirl. |
 | **Swirl scale** | Number | ≥ 0.01 | `100` | Spatial scale of random swirl. |
-| **Swirl strength** | Number | No declared bounds | `100` | Strength of random swirl. |
-| **Fluid seed** | Number | No declared bounds | `0` | Seed for fluid motion. |
-| **Vortex strength** | Number | No declared bounds | `100` | Strength of the vortex. |
+| **Swirl strength** | Number | — | `100` | Strength of random swirl. |
+| **Fluid seed** | Number | — | `0` | Seed for fluid motion. |
+| **Vortex strength** | Number | — | `100` | Strength of the vortex. |
 | **Vortex core size** | Number | 0 to 100 | `50` | Size of the vortex core in percent. |
-| **Vortex tilt** | Number | No declared bounds | `0` | Vortex-axis tilt in degrees. |
-| **Vortex rotate** | Number | No declared bounds | `0` | Vortex orientation in degrees. |
-| **Fluid center offset** | 3D vector | No declared bounds | `[0, 0, 0]` | Position offset of the fluid center. |
+| **Vortex tilt** | Number | — | `0` | Vortex-axis tilt in degrees. |
+| **Vortex rotate** | Number | — | `0` | Vortex orientation in degrees. |
+| **Fluid center offset** | 3D vector | — | `[0, 0, 0]` | Position offset of the fluid center. |
 | **Fluid viscosity** | Number | ≥ 0 | `0` | Fluid damping strength. |
 | **Fluid time scale [%]** | Number | ≥ 0 | `100` | Speed of fluid evolution in percent. |
-| **Gravity direction** | 3D vector | No declared bounds | `[0, 1, 0]` | Normalized direction of gravity. |
+| **Gravity direction** | 3D vector | — | `[0, 1, 0]` | Normalized direction of gravity. |
 
 
 ## Environment
 
 | Control | Type | Range or options | Default | Effect on output |
 | --- | --- | --- | --- | --- |
-| **Wind X** | Number | No declared bounds | `0` | Wind velocity on X. |
-| **Wind Y** | Number | No declared bounds | `0` | Wind velocity on Y. |
-| **Wind Z** | Number | No declared bounds | `0` | Wind velocity on Z. |
-| **Air density** | Number | ≥ 0 | `1` | Multiplier for Air resistance. A nondefault value with nonzero resistance selects CPU simulation. |
+| **Wind X** | Number | — | `0` | Wind velocity on X. |
+| **Wind Y** | Number | — | `0` | Wind velocity on Y. |
+| **Wind Z** | Number | — | `0` | Wind velocity on Z. |
+| **Air density** | Number | ≥ 0 | `1` | Multiplier for Air resistance. A changed value with nonzero resistance uses CPU simulation. |
 | **Air turbulence** | Choice | **off**, **on** | **off** | Enables air turbulence. |
 | **Affect position** | Number | ≥ 0 | `0` | Turbulence displacement strength. |
 | **Affect orientation/spin** | Number | ≥ 0 | `0` | Turbulence spin contribution. |
-| **Scale** | Number | No declared bounds | `10` | Spatial scale of turbulence. |
+| **Scale** | Number | — | `10` | Spatial scale of turbulence. |
 | **Complexity** | Number | 1 to 8 | `3` | Noise complexity. |
-| **Evolution speed** | Number | No declared bounds | `50` | Speed of turbulence evolution. |
+| **Evolution speed** | Number | — | `50` | Speed of turbulence evolution. |
 
 
 ## Displace
 
 | Control | Type | Range or options | Default | Effect on output |
 | --- | --- | --- | --- | --- |
-| **Drift X** | Number | No declared bounds | `0` | Adds Drift X times particle age to the X position, independently of mass and resistance. |
-| **Drift Y** | Number | No declared bounds | `0` | Adds Drift Y times particle age to the Y position, independently of mass and resistance. |
-| **Drift Z** | Number | No declared bounds | `0` | Adds Drift Z times particle age to the Z position, independently of mass and resistance. |
-| **Spin amplitude** | Number | No declared bounds | `0` | Amplitude of displacement spin. |
-| **Spin frequency** | Number | No declared bounds | `1` | Frequency of displacement spin. |
-| **Disperse** | Number | No declared bounds | `0` | Seeded outward displacement. |
-| **Disperse strength over** | Choice | **off**, **life** | **off** | Off keeps constant strength. Life multiplies each displacement step by Disperse curve at the normalized particle age. |
+| **Drift X** | Number | — | `0` | Adds Drift X times particle age to the X position. |
+| **Drift Y** | Number | — | `0` | Adds Drift Y times particle age to the Y position. |
+| **Drift Z** | Number | — | `0` | Adds Drift Z times particle age to the Z position. |
+| **Spin amplitude** | Number | — | `0` | Amplitude of displacement spin. |
+| **Spin frequency** | Number | — | `1` | Frequency of displacement spin. |
+| **Disperse** | Number | — | `0` | Seeded outward displacement. |
+| **Disperse strength over** | Choice | **off**, **life** | **off** | Off keeps constant strength. Life scales each step by the Disperse curve. |
 | **Disperse curve** | Curve | Editable stops | White | Strength multiplier when Disperse strength over is life. A white curve keeps the original displacement. |
-| **Twist** | Number | No declared bounds | `0` | Angular twist contribution. |
-| **Turbulence field affect size** | Number | No declared bounds | `0` | Size modulation in percent from the deterministic spatial turbulence field. Uses Environment Scale independently of Air turbulence. |
-| **Turbulence field affect opacity** | Number | No declared bounds | `0` | Opacity modulation in percent from the same spatial turbulence field used for size. |
+| **Twist** | Number | — | `0` | Angular twist contribution. |
+| **Turbulence field affect size** | Number | — | `0` | Size modulation in percent from the spatial turbulence field. |
+| **Turbulence field affect opacity** | Number | — | `0` | Opacity modulation in percent from the spatial turbulence field. |
 
 
 ## Spherical field
 
 | Control | Type | Range or options | Default | Effect on output |
 | --- | --- | --- | --- | --- |
-| **Strength[%]** | Number | No declared bounds | `0` | Strength of the spherical field in percent. |
+| **Strength[%]** | Number | — | `0` | Strength of the spherical field in percent. |
 | **Radius** | Number | ≥ 0 | `100` | Radius of the spherical field. |
-| **Sphere position** | 3D vector | No declared bounds | `[720, 540, 0]` | Center of the spherical field. |
-| **Scale X** | Number | No declared bounds | `100` | Spherical field axis scale in percent. |
-| **Scale Y** | Number | No declared bounds | `100` | Spherical field axis scale in percent. |
-| **Scale Z** | Number | No declared bounds | `100` | Spherical field axis scale in percent. |
+| **Sphere position** | 3D vector | — | `[720, 540, 0]` | Center of the spherical field. |
+| **Scale X** | Number | — | `100` | Spherical field axis scale in percent. |
+| **Scale Y** | Number | — | `100` | Spherical field axis scale in percent. |
+| **Scale Z** | Number | — | `100` | Spherical field axis scale in percent. |
 | **Feather** | Number | 0 to 100 | `50` | Softness of the field boundary. |
 
 
@@ -160,20 +160,20 @@ Trapcode Particular is a suite object with native properties in its designer and
 | **Mirror on X** | Choice | **off**, **on** | **off** | Mirrors coordinates across the X center plane. |
 | **Mirror on Y** | Choice | **off**, **on** | **off** | Mirrors coordinates across the Y center plane. |
 | **Mirror on Z** | Choice | **off**, **on** | **off** | Mirrors coordinates across the Z center plane. |
-| **Center position** | 3D vector | No declared bounds | `[720, 540, 0]` | Center of the mirror planes. |
+| **Center position** | 3D vector | — | `[720, 540, 0]` | Center of the mirror planes. |
 
 
 ## Transform
 
 | Control | Type | Range or options | Default | Effect on output |
 | --- | --- | --- | --- | --- |
-| **X rotation** | Number | No declared bounds | `0` | Transform rotation about X in degrees. |
-| **Y rotation** | Number | No declared bounds | `0` | Transform rotation about Y in degrees. |
-| **Z rotation** | Number | No declared bounds | `0` | Transform rotation about Z in degrees. |
-| **Scale** | Number | No declared bounds | `100` | Uniform scale in percent. |
-| **X offset** | Number | No declared bounds | `0` | Transform translation on X. |
-| **Y offset** | Number | No declared bounds | `0` | Transform translation on Y. |
-| **Z offset** | Number | No declared bounds | `0` | Transform translation on Z. |
+| **X rotation** | Number | — | `0` | Transform rotation about X in degrees. |
+| **Y rotation** | Number | — | `0` | Transform rotation about Y in degrees. |
+| **Z rotation** | Number | — | `0` | Transform rotation about Z in degrees. |
+| **Scale** | Number | — | `100` | Uniform scale in percent. |
+| **X offset** | Number | — | `0` | Transform translation on X. |
+| **Y offset** | Number | — | `0` | Transform translation on Y. |
+| **Z offset** | Number | — | `0` | Transform translation on Z. |
 
 
 ## Layer maps
@@ -185,7 +185,7 @@ Trapcode Particular is a suite object with native properties in its designer and
 | **Color mix** | Number | 0 to 100 | `100` | Mix amount of the color image. |
 | **Size** | Choice | **off**, **on** | **off** | Enables image-based size modulation. |
 | **Size layer** | Asset | image/* | None | Image source for size. |
-| **Size strength** | Number | No declared bounds | `100` | Strength of the size map. |
+| **Size strength** | Number | — | `100` | Strength of the size map. |
 
 
 ## Audio react
@@ -198,16 +198,16 @@ Trapcode Particular is a suite object with native properties in its designer and
 | **Audio trim out (seconds, 0 = end)** | Number | ≥ 0 | `0` | Last media time in seconds. Zero uses the available end. |
 | **Reactor 1** | Choice | **off**, **on** | **off** | Enables this audio reactor. |
 | **Reactor 1 target** | Choice | **size**, **opacity**, **velocity**, **color** | **size** | Parameter modulated by this reactor. |
-| **Reactor 1 strength** | Number | No declared bounds | `100` | Strength of audio modulation. |
+| **Reactor 1 strength** | Number | — | `100` | Strength of audio modulation. |
 | **Reactor 2** | Choice | **off**, **on** | **off** | Enables this audio reactor. |
 | **Reactor 2 target** | Choice | **size**, **opacity**, **velocity**, **color** | **size** | Parameter modulated by this reactor. |
-| **Reactor 2 strength** | Number | No declared bounds | `100` | Strength of audio modulation. |
+| **Reactor 2 strength** | Number | — | `100` | Strength of audio modulation. |
 | **Reactor 3** | Choice | **off**, **on** | **off** | Enables this audio reactor. |
 | **Reactor 3 target** | Choice | **size**, **opacity**, **velocity**, **color** | **size** | Parameter modulated by this reactor. |
-| **Reactor 3 strength** | Number | No declared bounds | `100` | Strength of audio modulation. |
+| **Reactor 3 strength** | Number | — | `100` | Strength of audio modulation. |
 | **Reactor 4** | Choice | **off**, **on** | **off** | Enables this audio reactor. |
 | **Reactor 4 target** | Choice | **size**, **opacity**, **velocity**, **color** | **size** | Parameter modulated by this reactor. |
-| **Reactor 4 strength** | Number | No declared bounds | `100` | Strength of audio modulation. |
+| **Reactor 4 strength** | Number | — | `100` | Strength of audio modulation. |
 
 
 ## Lighting
@@ -216,7 +216,7 @@ Trapcode Particular is a suite object with native properties in its designer and
 | --- | --- | --- | --- | --- |
 | **Shading** | Choice | **off**, **on** | **off** | Enables particle lighting. |
 | **Light falloff** | Choice | **natural (lux)**, **inverse square**, **inverse cube**, **none** | **natural (lux)** | Distance attenuation model for shading. |
-| **Nominal distance** | Number | No declared bounds | `250` | Reference distance for lighting attenuation. |
+| **Nominal distance** | Number | — | `250` | Reference distance for lighting attenuation. |
 | **Ambient** | Number | 0 to 100 | `20` | Ambient shading contribution in percent. |
 | **Diffuse** | Number | 0 to 100 | `80` | Diffuse shading contribution in percent. |
 | **Specular amount** | Number | 0 to 100 | `0` | Specular highlight amount. |
@@ -225,24 +225,10 @@ Trapcode Particular is a suite object with native properties in its designer and
 | **Shadowlet** | Choice | **off**, **on** | **off** | Enables the particle shadowlet approximation. |
 
 
-## Hidden compatibility values
-
-The following properties remain in saved projects but have no editable control. Loading and saving retain their values.
-
-| Property | Retained behavior |
-| --- | --- |
-| Particle type | All values render textured sprites. |
-| Set color | The gradient always follows particle life. The saved default is at start, but that value never selected a different behavior. |
-| Enable flocking | A saved on value still selects CPU evaluation. No flocking forces apply. |
-| Attract, Separate, Align, Range of view, Field of view | No force contribution. |
-| Emitter type: light, layer, model, text | Saved indices 3 through 6 retain point emission. |
-| Disperse strength over: velocity, position | Saved indices 2 and 3 retain constant strength. |
-
-
 ## Evaluation and limits
 
-The CPU simulation uses a fixed 1/60-second grid. It clamps time to 600 seconds and particle life to 30 seconds. Each system retains at most the newest 20,000 live particles. Parent emission depth is capped at two.
+CPU simulation clamps time to 600 seconds and particle life to 30 seconds. Each system keeps at most the newest 20,000 live particles. Parent emission depth is capped at two.
 
-Audio analysis uses decoded assets and explicit media time. Offset and trim values are seconds. Reactors with the same target multiply their modulation. While decoding is pending, the analysis level is neutral at 0.5. Outside the audio window, it is 0.
+Offset and trim values are seconds. Reactors with the same target multiply their modulation. Outside the audio window, the level is 0.
 
 [Add suite objects and lights](/docs/features/trapcode-suite/)

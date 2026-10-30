@@ -4,7 +4,7 @@ description: Control references and guides for installed plugin features.
 sidebar:
   label: Plugin parameter index
 ---
-This index maps plugin features to their control references or existing guides. It includes shared references for plugins that add editor commands rather than render properties.
+Find the control reference or guide for each plugin feature.
 
 | Feature | Reference or guide |
 | --- | --- |
@@ -47,7 +47,7 @@ This index maps plugin features to their control references or existing guides. 
 
 ## Ranges, defaults, and time
 
-Defaults describe new controls. Presets and saved projects can override them. No declared bounds means the property schema supplies no minimum or maximum. Renderers can still clamp or round values.
+Defaults describe new controls. No declared bounds means no minimum or maximum is declared.
 
 Sequence frame-rate edits keep supported clip boundaries, keys, and timing controls in seconds. Expressions based on `frame` retain their per-frame meaning.
 

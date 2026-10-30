@@ -31,6 +31,4 @@ dependencies or replace them with explicit project properties.
 6. Replace the old interpolation call with `zGradient(Ramp, t)`.
 7. Apply the source and compare its output with the original.
 
-Keep the original shader if the new sampling cannot match the required look.
-The pack's build-time control metadata does not make these source edits. See
-[AlipFX migration](/docs/development/shader-properties/#alipfx-migration).
+Keep the original shader if the new sampling cannot match the required look. See [AlipFX migration](/docs/development/shader-properties/#alipfx-migration).

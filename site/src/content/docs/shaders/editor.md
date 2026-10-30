@@ -21,10 +21,7 @@ Click **Documentation** to open the matching reference anchor.
 3. Click a diagnostic to select its source line.
 4. Correct the code.
 
-The live check compiles a disposable program. The saved effect and preview remain
-unchanged until Apply. Muted uniform hints are advisory; the compiler decides
-whether the shader is valid. If a property lacks a declaration, click **Declare**
-to insert the declaration into the draft.
+The saved effect and preview stay unchanged until you click Apply. Muted uniform hints are advisory; the compiler decides whether the shader is valid. If a property lacks a declaration, click **Declare** to insert it into the draft.
 
 ## Start from a template
 
@@ -34,7 +31,6 @@ to insert the declaration into the draft.
 4. If the template needs properties, click **Add properties**.
 5. Click **Apply** to save the source.
 
-Add properties creates one project history entry. Apply creates a separate entry.
 Animated noise requires Expressions+. Text overlay uses a project font.
 
 ## Find and edit text
@@ -48,5 +44,4 @@ Use these shortcuts while the code area has focus:
 - Ctrl or Cmd + S, or Ctrl + Enter, applies the draft.
 - Ctrl or Cmd + Plus or Minus changes the code font size.
 
-Project undo refreshes the draft from the saved property. Font size stays local
-and does not enter the project. See [editor compatibility](/docs/development/project-compatibility/#shader-editor-development-aids).
+Font size stays local and is not saved with the project. See [editor compatibility](/docs/development/project-compatibility/#shader-editor-development-aids).

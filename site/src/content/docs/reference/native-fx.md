@@ -28,7 +28,7 @@ When **Plugins** has **Native FX** enabled, its 22 effects appear in the **Effec
 | [Linear Color Key](/docs/reference/native-fx-keying/#linear-color-key) | Removes or retains pixels according to their color distance from a key color. |
 | [Radio Waves](/docs/reference/native-fx-generators/#radio-waves) | Draws expanding polygon or circle waves from a producer point. |
 | [Beam](/docs/reference/native-fx-generators/#beam) | Draws a colored beam along a segment between two points. |
-| [Numbers](/docs/reference/native-fx-generators/#numbers) | Draws a deterministic number, formatted time, date, or hexadecimal value. |
+| [Numbers](/docs/reference/native-fx-generators/#numbers) | Draws a number, formatted time, date, or hexadecimal value. |
 | [Timecode](/docs/reference/native-fx-generators/#timecode) | Draws the evaluated time as SMPTE timecode, frames, or feet and frames. |
 | [CC Page Turn](/docs/reference/native-fx-transitions/#cc-page-turn) | Curls the current input around a cylindrical fold with a shaded back page. |
 | [Card Wipe](/docs/reference/native-fx-transitions/#card-wipe) | Flips the current input as a grid of cards in a selected order. |
@@ -38,7 +38,7 @@ When **Plugins** has **Native FX** enabled, its 22 effects appear in the **Effec
 ## Controls and inputs
 
 Each reference table covers every property specific to this pack.
-Vector rows include the exact component labels ending in **.X** and **.Y** from the property definitions.
+Vector rows include the component labels ending in **.X** and **.Y**.
 **Enabled** defaults to **on** in every effect. **off** bypasses processing.
 Common layer transforms and effect ordering remain CM3 controls.
 

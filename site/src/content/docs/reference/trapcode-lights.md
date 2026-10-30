@@ -4,7 +4,7 @@ description: Eight suite light types, visible controls, defaults, and IES restri
 sidebar:
   label: Trapcode lights
 ---
-The suite registers eight light types under **Trapcode Lights**. These are separate from Light+ native variants.
+The suite registers eight light types under **Trapcode Lights**, separate from the Light+ types. A — range means no declared minimum or maximum.
 
 
 ## Light types
@@ -25,8 +25,8 @@ The suite registers eight light types under **Trapcode Lights**. These are separ
 
 | Control | Type | Range or options | Default | Effect on output |
 | --- | --- | --- | --- | --- |
-| **Position** | 3D vector | No declared bounds | `[0, 10, 0]` | Light position in scene units. |
-| **Target** | 3D vector | No declared bounds | `[0, 0, 0]` | Point toward which the light aims. |
+| **Position** | 3D vector | — | `[0, 10, 0]` | Light position in scene units. |
+| **Target** | 3D vector | — | `[0, 0, 0]` | Point toward which the light aims. |
 | **Color** | RGB color | 0 to 1 | `[1, 1, 1]` | Light RGB color. |
 | **Sky color** | RGB color | 0 to 1 | `[1, 1, 1]` | Color from above. |
 | **Ground color** | RGB color | 0 to 1 | `[1, 1, 1]` | Color from below. |
@@ -56,6 +56,6 @@ The suite registers eight light types under **Trapcode Lights**. These are separ
 
 IES imports accept LM-63 Type C profiles with `TILT=NONE`. The profile modifies angular light intensity. Unsupported files leave the previous profile intact.
 
-Area Light and Portal Light use rectangular emitters with standard or physical materials. Without the required floating-point texture filtering, they use nine one-sided spot samples. They do not provide path-traced indirect lighting.
+Area Light and Portal Light use rectangular emitters. They do not provide path-traced indirect lighting.
 
 [Add suite objects and lights](/docs/features/trapcode-suite/)
