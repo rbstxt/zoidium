@@ -7,26 +7,21 @@ sidebar:
 ---
 [Native FX overview](/docs/reference/native-fx/) lists every effect.
 
-Numeric ranges are the minimum and maximum in the property definitions. Color defaults are RGB component values.
-
 ## Time and coordinates
 
 These effects generate graphics over the current input. They do not capture earlier or later frames.
 Point coordinates use 0 to 1 across the image, with X increasing rightward and Y increasing downward.
 Point properties without explicit numeric bounds can also place graphics outside the image.
 For time-based generators, seconds equal the evaluated effect frame divided by the project frame rate.
-The rate helper caps valid rates at 120 FPS and otherwise falls back to 30 FPS.
-Clip placement limits when the output is visible. There is no saved particle or playback history.
+Clip placement limits when the output is visible.
 
 ## Radio Waves
 
 Draws expanding polygon or circle waves from a producer point.
 
-Editor location: **Effects** picker > **NATIVE FX** > **Radio Waves**.
-
 | Property | Type | Range or options | Default | Effect on output |
 | --- | --- | --- | --- | --- |
-| **Enabled** | Option | **off**, **on** | **on** | off bypasses the effect. on applies it. |
+| **Enabled** | Option | **off**, **on** | **on** | Bypasses the effect when off. |
 | **Producer Point** | Vector2 | See component rows | `(0.5, 0.5)` | Wave origin in normalized image coordinates. |
 | **Producer Point.X** | Number | No effect-specific numeric bounds | 0.5 | Horizontal component of Producer Point. |
 | **Producer Point.Y** | Number | No effect-specific numeric bounds | 0.5 | Vertical component of Producer Point. |
@@ -41,7 +36,7 @@ Editor location: **Effects** picker > **NATIVE FX** > **Radio Waves**.
 | **Wave Type** | Option | **Polygon**, **Circle** | **Polygon** | Polygon uses Sides and Star. Circle forces a circle and ignores Star. |
 | **Sides** | Number | 3 to 64 | 64 | Polygon side count, rounded to an integer. 64 with Star off produces a circle. |
 | **Star** | Option | **off**, **on** | **off** | Alternates polygon radii for a star in Polygon mode. |
-| **Star Depth (inner radius)** | Number | -1 to 1 | -0.3 | Star's alternate radius multiplier is max(0, 1 + this value). Zero produces equal radii. |
+| **Star Depth (inner radius)** | Number | -1 to 1 | -0.3 | Star's alternate radius multiplier. Zero produces equal radii. |
 | **Stroke Profile** | Option | **Square**, **Taper Front**, **Taper Back**, **Taper Both**, **Sine**, **Sawtooth Out**, **Sawtooth In** | **Square** | Stroke intensity profile across the wave width. |
 | **Stroke Color** | Color | No effect-specific numeric bounds | `[1, 1, 1]` | Wave stroke color. |
 | **Opacity** | Number | 0 to 100 | 100 | Wave opacity as a percentage, before fades. |
@@ -53,26 +48,21 @@ Editor location: **Effects** picker > **NATIVE FX** > **Radio Waves**.
 
 ### Temporal behavior and limits
 
-At evaluated time `t`, wave `k` is born at `k / Frequency (waves/sec)` and has age `t - k / Frequency (waves/sec)`.
-Its radius is **Expansion (px/sec)** times age. Drift, rotation, width, and fades also depend on age.
-Negative time clamps to zero. Every wave uses the current frame's property values, including waves born earlier.
-The effect does not freeze parameter values at birth.
+Every wave uses the current frame's property values, including waves born earlier.
+Negative time clamps to zero.
 
-Only the newest 24 candidate waves are considered, and waves whose age reaches **Lifespan (sec)** are omitted.
-This fixed cap can omit still-living older waves at high frequencies.
+Only the newest 24 waves are considered; at high frequencies, still-living older waves can drop out.
 **Circle**, or **Polygon** with 64 sides and **Star** off, uses the circular outline.
-Only **Polygon** and **Circle** are implemented. There are no image-contour or mask wave sources.
-Stroke width has an effective minimum of 0.5 layer pixels.
+There are no image-contour or mask wave sources.
+Stroke width has a minimum of 0.5 layer pixels.
 
 ## Beam
 
 Draws a colored beam along a segment between two points.
 
-Editor location: **Effects** picker > **NATIVE FX** > **Beam**.
-
 | Property | Type | Range or options | Default | Effect on output |
 | --- | --- | --- | --- | --- |
-| **Enabled** | Option | **off**, **on** | **on** | off bypasses the effect. on applies it. |
+| **Enabled** | Option | **off**, **on** | **on** | Bypasses the effect when off. |
 | **Starting Point** | Vector2 | See component rows | `(0.25, 0.5)` | Segment start in normalized image coordinates. |
 | **Starting Point.X** | Number | No effect-specific numeric bounds | 0.25 | Horizontal component of Starting Point. |
 | **Starting Point.Y** | Number | No effect-specific numeric bounds | 0.5 | Vertical component of Starting Point. |
@@ -91,22 +81,19 @@ Editor location: **Effects** picker > **NATIVE FX** > **Beam**.
 
 ### Window and limits
 
-For length fraction `L` and time fraction `T`, the visible segment starts at `T * (1 - L)` and ends at `T * (1 - L) + L`.
 **Time (%)** is an explicit property, not an automatic clock. The beam moves only when its properties change.
-This is a single current-frame shader pass. **3D Perspective** changes thickness interpolation, not the scene camera or depth.
-The shader keeps a minimum beam half-width of 0.25 pixels. Zero **Length (%)** hides the beam.
+**3D Perspective** changes thickness interpolation, not the scene camera or depth.
+Zero **Length (%)** hides the beam.
 
 ## Numbers
 
 Draws a deterministic number, formatted time, date, or hexadecimal value.
 
-Editor location: **Effects** picker > **NATIVE FX** > **Numbers**.
-
 | Property | Type | Range or options | Default | Effect on output |
 | --- | --- | --- | --- | --- |
-| **Enabled** | Option | **off**, **on** | **on** | off bypasses the effect. on applies it. |
+| **Enabled** | Option | **off**, **on** | **on** | Bypasses the effect when off. |
 | **Type** | Option | **Number**, **Number (Leading Zeros)**, **Timecode (30)**, **Timecode (25)**, **Timecode (24)**, **Time**, **Numerical Date**, **Short Date**, **Long Date**, **Hexadecimal** | **Number** | Selects the numeric, time, date, or hexadecimal format. Leading zeros pads the integer part to at least five digits. |
-| **Random Values** | Option | **off**, **on** | **off** | Replaces the value with a deterministic frame-and-seed hash multiplied by Value/Offset/Random Max. |
+| **Random Values** | Option | **off**, **on** | **off** | Replaces the value with a repeatable frame-and-seed random value scaled by Value/Offset/Random Max. |
 | **Seed** | Number | 0 to 100000 | 1 | Seed for Random Values. |
 | **Value/Offset/Random Max** | Number | -30000 to 30000 | 0 | Base value, time offset in seconds, date offset in days, or signed random multiplier, depending on Type. |
 | **Decimal Places** | Number | 0 to 10 | 2 | Decimal precision for Number and Number (Leading Zeros), rounded to an integer. |
@@ -125,25 +112,21 @@ Editor location: **Effects** picker > **NATIVE FX** > **Numbers**.
 
 ### Time, date, and limits
 
-**Random Values** hashes the evaluated frame index with **Seed**. The same frame and seed produce the same value regardless of render order.
+The same frame and seed produce the same value.
 **Current Time/Date** uses evaluated effect time, not the system clock.
 It affects **Number**, the three **Timecode** formats, and **Time**. **Number (Leading Zeros)**, date formats, and **Hexadecimal** ignore that switch.
-Dates interpret the integer part of the value as days relative to 1970-01-01. Date names and month names are fixed English strings.
+Dates interpret the integer part of the value as days relative to 1970-01-01. Date and month names are fixed English strings.
 **Hexadecimal** rounds to an integer and uses uppercase digits.
 
-Glyphs use a built-in stroke atlas. There is no font-selection property.
-The implementation rebuilds CPU text coverage and uploads a texture when the string, layout, stroke width, or resolution changes.
-Color-only changes reuse the coverage texture.
+Glyphs use a built-in font. There is no font-selection property.
 
 ## Timecode
 
 Draws the evaluated time as SMPTE timecode, frames, or feet and frames.
 
-Editor location: **Effects** picker > **NATIVE FX** > **Timecode**.
-
 | Property | Type | Range or options | Default | Effect on output |
 | --- | --- | --- | --- | --- |
-| **Enabled** | Option | **off**, **on** | **on** | off bypasses the effect. on applies it. |
+| **Enabled** | Option | **off**, **on** | **on** | Bypasses the effect when off. |
 | **Display Format** | Option | **SMPTE HH:MM:SS:FF**, **Frames**, **Feet + Frames (35mm)**, **Feet + Frames (16mm)** | **SMPTE HH:MM:SS:FF** | SMPTE timecode, total frames, or feet and frames. 35mm uses 16 frames per foot. 16mm uses 40. |
 | **Time Source** | Option | **Layer Source**, **Composition**, **Custom** | **Layer Source** | Layer Source and Composition currently share the evaluated frame clock. Custom uses Time Units (fps) and Starting Frame. |
 | **Time Units (fps)** | Number | 1 to 120 | 30 | Display rate used only by Custom. |
@@ -161,12 +144,8 @@ Editor location: **Effects** picker > **NATIVE FX** > **Timecode**.
 
 ### Clock and limits
 
-For **Layer Source** and **Composition**, displayed frame count is `floor(t * projectFps + 1e-6)`.
-For **Custom**, it is `floor(t * Time Units (fps) + 1e-6) + round(Starting Frame)`.
-Both expressions use evaluated effect time `t` in seconds.
 **Layer Source** does not read embedded source-media timecode. **Composition** currently uses the same clock.
-The effect does not sample another frame. Clip boundaries control visibility rather than a separate display-time clamp.
+The effect does not sample another frame. Clip boundaries control visibility.
 
-Glyphs use the same built-in stroke atlas as **Numbers**. There is no font-selection property.
-Text coverage updates only when the string, size, position, or resolution changes.
-An **Opacity** change alone updates the box but does not refresh the text texture's stored opacity until one of those changes occurs.
+Glyphs use the same built-in font as **Numbers**. There is no font-selection property.
+An **Opacity** change alone updates the box; the text opacity refreshes only when the string, size, position, or resolution changes.
