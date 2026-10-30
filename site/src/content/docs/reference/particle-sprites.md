@@ -1,10 +1,10 @@
 ---
 title: Particle sprite catalogue
-description: All 54 Particles+ texture presets and their image format.
+description: All 54 Particles+ texture presets.
 sidebar:
   label: Particle sprites
 ---
-Particles+ adds these 54 names to the native particle Texture picker. These are texture presets, not separate object types.
+Particles+ adds these 54 names to the particle Texture picker. These are texture presets, not separate object types.
 
 ## Geometry and patterns
 
@@ -72,7 +72,7 @@ Particles+ adds these 54 names to the native particle Texture picker. These are 
 
 ## Image format and saving
 
-Each image is a 128 × 128 RGBA PNG. The shape and glow are stored in the alpha channel.
+Each image is a 128 × 128 white shape with glow.
 
 A selected image enters the project asset list. The project records a Particles+ dependency: the plugin cannot be disabled while in use, and the project is marked incompatible with plain CM3.
 
