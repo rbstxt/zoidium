@@ -30,8 +30,7 @@ Composites explicitly sampled earlier inputs with decreasing opacity.
 
 | Property | Type | Range or options | Default | Effect on output |
 | --- | --- | --- | --- | --- |
-| **Enabled** | Option | **off**, **on** | **on** | Bypasses the effect when off. |
-| **Echoes** | Number | 1 to 16 | 4 | Number of earlier samples, rounded to an integer and capped at 16. |
+| **Echoes** | Number | 1 to 16 | 4 | Number of earlier samples. |
 | **Echo delay (frames)** | Number | 0 to 100000 | 3 | Spacing between earlier samples in project frames. |
 | **First echo opacity** | Number | 0 to 1 | 0.75 | Weight of the first earlier sample. |
 | **Opacity decay** | Number | 0 to 1 | 0.75 | Each successive echo multiplies the previous weight by this value. |
@@ -43,23 +42,18 @@ Samples composite from the nearest to the farthest requested time over the curre
 A zero **First echo opacity** bypasses the effect. A zero **Opacity decay** leaves only the first echo.
 At clip boundaries, the repeated clamped frames can make the echo stronger.
 
-Echo requests are capped at 16.
-
 ## Time Offset
 
 Evaluates the layer input at an offset in project frames.
 
 | Property | Type | Range or options | Default | Effect on output |
 | --- | --- | --- | --- | --- |
-| **Enabled** | Option | **off**, **on** | **on** | Bypasses the effect when off. |
 | **Offset (frames)** | Number | -100000 to 100000 | 0 | Added to the evaluated input time. Positive values read later content, and negative values read earlier content. |
 
 ### Temporal behavior and limits
 
 Fractional offsets are retained.
 This is a clock operator. It does not blend two frames or interpolate recorded footage.
-Media input freezes at the nearest clip boundary when the mapped time exceeds the clip range.
-Procedural **3D Scene** and **Adjustment** input time can continue beyond those boundaries.
 
 ## Posterize Time
 
@@ -67,7 +61,6 @@ Holds the layer input on a lower frame-rate clock.
 
 | Property | Type | Range or options | Default | Effect on output |
 | --- | --- | --- | --- | --- |
-| **Enabled** | Option | **off**, **on** | **on** | Bypasses the effect when off. |
 | **Frame rate** | Number | 1 to 120 | 12 | Held-input rate in frames per second. This does not change the project or export frame rate. |
 
 ### Temporal behavior and limits
@@ -83,11 +76,10 @@ Selects a sampled time for each pixel from a luminance map.
 
 | Property | Type | Range or options | Default | Effect on output |
 | --- | --- | --- | --- | --- |
-| **Enabled** | Option | **off**, **on** | **on** | Bypasses the effect when off. |
 | **Displacement Map Source** | List | **The Layer Itself**, **Image**, **Other Layer…** | **The Layer Itself** | The Layer Itself uses the current input as the map. Image uses Source Image. Other Layer… selects a track through Layer Input. |
 | **Source Image** | Asset | Image asset | None | Image asset used only for the Image source. No image is selected by default. |
 | **Max Displacement Time (sec)** | Number | -30 to 30 | 1 | Signed half-span in seconds. Positive values map black to earlier times and white to later times. Negative values reverse that mapping. |
-| **Time Resolution (slices)** | Number | 2 to 64 | 16 | Number of evenly spaced time slices, rounded to an integer. |
+| **Time Resolution (slices)** | Number | 2 to 64 | 16 | Number of evenly spaced time slices. |
 | **Stretch Map To Fit** | Option | **off**, **on** | **on** | on fills the input with the map. off samples a centered region. |
 
 ### Temporal behavior and limits
@@ -95,7 +87,6 @@ Selects a sampled time for each pixel from a luminance map.
 Each pixel uses the nearest slice for its map brightness.
 Transparent map pixels use luminance 0.5.
 A zero **Max Displacement Time (sec)** bypasses the effect.
-Sample times clamp to the owning clip boundaries as described above.
 
 **Image** works without Layer Input. **Other Layer…** requests the **Layer Input** plugin and its track picker.
 If an image or track texture is unavailable, the current input remains the map.
@@ -110,9 +101,8 @@ Averages or accumulates the current input and neighboring project-frame samples.
 
 | Property | Type | Range or options | Default | Effect on output |
 | --- | --- | --- | --- | --- |
-| **Enabled** | Option | **off**, **on** | **on** | Bypasses the effect when off. |
-| **Forward Steps** | Number | 0 to 45 | 3 | Number of later project-frame offsets, rounded to an integer. |
-| **Backward Steps** | Number | 0 to 45 | 3 | Number of earlier project-frame offsets, rounded to an integer. |
+| **Forward Steps** | Number | 0 to 45 | 3 | Number of later project-frame offsets. |
+| **Backward Steps** | Number | 0 to 45 | 3 | Number of earlier project-frame offsets. |
 | **Native Motion Blur** | Option | **off**, **on** | **off** | off averages the current input and available taps equally. on sums RGB and caps accumulated alpha at 1. |
 
 ### Temporal behavior and limits
@@ -120,7 +110,6 @@ Averages or accumulates the current input and neighboring project-frame samples.
 With default settings, the current input and three frames on each side share the result equally.
 This control changes accumulation. It does not activate CM3's scene motion-blur renderer.
 If both step counts are zero, the effect bypasses processing.
-Sample times clamp to the owning clip boundaries. Repeated boundary taps keep their contributions.
 
 Samples are capped at 64. With both step counts at 45, only offsets −32 through −1 and +1 through +32 remain.
 
@@ -130,7 +119,6 @@ Displays the color or alpha difference between the current input and a time-shif
 
 | Property | Type | Range or options | Default | Effect on output |
 | --- | --- | --- | --- | --- |
-| **Enabled** | Option | **off**, **on** | **on** | Bypasses the effect when off. |
 | **Time Offset (sec)** | Number | -30 to 30 | 0 | Comparison time relative to the current input, in seconds. Positive reads later, and negative reads earlier. |
 | **Contrast** | Number | 0 to 100 | 0 | Difference gain, from 1 to 5. |
 | **Absolute Difference** | Option | **off**, **on** | **on** | on displays absolute RGB differences. off centers signed differences on 0.5 gray. |
@@ -138,7 +126,7 @@ Displays the color or alpha difference between the current input and a time-shif
 
 ### Temporal behavior and limits
 
-The request clamps to the owning clip boundaries. A zero offset compares the input with itself.
+A zero offset compares the input with itself.
 With **Absolute Difference** on, equal colors produce black. With it off, equal colors produce 0.5 gray before alpha multiplication.
 
 ### Alpha modes
