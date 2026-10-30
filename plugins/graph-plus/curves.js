@@ -260,6 +260,13 @@ PZ.ui.graph.prototype.updateCurve = function (path, leftKf, rightKf) {
     eX = Math.max(this.centerX - off + 0.5 * this.width * this.zoomX, leftKf.frame);
     eY = -leftKf.value * scale;
   }
+  // Keep path coordinates in screen units so the SVG rasterizer sees an
+  // isotropic transform even when the graph zoom differs greatly by axis.
+  var originX = this.zoomX ? (this.centerX || 0) - off : 0, originY = this.centerY || 0;
+  var zoomX = this.zoomX || 1, zoomY = this.zoomY || 1;
+  function sx(x) { return (x - originX) / zoomX; }
+  function sy(y) { return (y - originY) / zoomY; }
+  if (this.zoomX && this.zoomY) path.setAttributeNS(null, "transform", "translate(" + originX + " " + originY + ") scale(" + zoomX + " " + zoomY + ")");
   var d;
   if (leftKf && rightKf && (rightKf.tween >> 8)) {
     var corr = 1;
@@ -268,30 +275,30 @@ PZ.ui.graph.prototype.updateCurve = function (path, leftKf, rightKf) {
     var c1y = -leftKf.controlPoints[1][1] * scale * corr - leftKf.value * scale;
     var c2x = rightKf.controlPoints[0][0] * corr + rightKf.frame;
     var c2y = -rightKf.controlPoints[0][1] * scale * corr - rightKf.value * scale;
-    d = "M " + sX + " " + sY + " C " + c1x + " " + c1y + ", " + c2x + " " + c2y + ", " + eX + " " + eY;
+    d = "M " + sx(sX) + " " + sy(sY) + " C " + sx(c1x) + " " + sy(c1y) + ", " + sx(c2x) + " " + sy(c2y) + ", " + sx(eX) + " " + sy(eY);
   } else if (leftKf && rightKf) {
     var easeIdx = rightKf.tween & 255;
     var fn = null;
     try { fn = PZ.tween.easingList[easeIdx].fn; } catch (e) {}
     if (!fn) {
       // hold/step (user design 5): flat run then sharp vertical jump at key
-      d = "M " + sX + " " + sY + " L " + eX + " " + sY + " L " + eX + " " + eY;
+      d = "M " + sx(sX) + " " + sy(sY) + " L " + sx(eX) + " " + sy(sY) + " L " + sx(eX) + " " + sy(eY);
     } else if (easeIdx === 1) {
-      d = "M " + sX + " " + sY + " L " + eX + " " + eY;
+      d = "M " + sx(sX) + " " + sy(sY) + " L " + sx(eX) + " " + sy(eY);
     } else {
       // sample easing (16 segs) — shows TRUE f-curve
-      d = "M " + sX + " " + sY;
+      d = "M " + sx(sX) + " " + sy(sY);
       var N = 20;
       for (var k = 1; k <= N; k++) {
         var u = k / N;
         var fx = leftKf.frame + (rightKf.frame - leftKf.frame) * u;
         var ev = fn(u);
         var vv = (rightKf.value - leftKf.value) * ev + leftKf.value;
-        d += " L " + fx + " " + (-vv * scale);
+        d += " L " + sx(fx) + " " + sy(-vv * scale);
       }
     }
   } else {
-    d = "M " + sX + " " + sY + " L " + eX + " " + eY;
+    d = "M " + sx(sX) + " " + sy(sY) + " L " + sx(eX) + " " + sy(eY);
   }
   path.setAttributeNS(null, "d", d);
 };

@@ -54,3 +54,17 @@ test("Graph+ sampled easing preserves all twenty segments", () => {
   }).join("");
   assert.equal(curve({ ...right, tween: 2 }).d, expected);
 });
+
+test("Graph+ curve coordinates remain finite at extreme anisotropic zoom", () => {
+  const attributes = {};
+  const group = { pz_valueScale: 2, pz_frameOffset: 5, style: {} };
+  graph().updateCurve.call({ options: { curveLineWidth: 2 }, centerX: 10, centerY: 0, zoomX: 1.91, zoomY: 0.007 }, {
+    parentElement: { parentElement: group },
+    setAttributeNS: (_ns, name, value) => { attributes[name] = value; },
+  }, { frame: 2, value: 3 }, { frame: 12, value: 8, tween: 1 });
+  const numbers = attributes.d.match(/-?\d+(?:\.\d+)?/g).map(Number);
+  assert.ok(numbers.every(Number.isFinite));
+  assert.ok(Math.abs(numbers[0] * 1.91 + 5 - 2) < 1e-10);
+  assert.ok(Math.abs(numbers[1] * 0.007 + 6) < 1e-10);
+  assert.equal(attributes.transform, "translate(5 0) scale(1.91 0.007)");
+});
