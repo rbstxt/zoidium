@@ -63,6 +63,6 @@ AfterClip は単体エフェクトを 32 個、グループプリセットを 11
 
 多くの図形エフェクトには **Position**、**Rotation**、**Scale**、**Opacity** があります。すべてのエフェクトがこの 4 つを定義するわけではありません。Line Wave は **Time**、**Delay**、**Power**、**Step** を使用します。
 
-ルートにカスタムコントロールがないグループでも、子のプロパティを持ちます。このパックには Twitch と VHS は含まれません。
+ルートにカスタムコントロールがないグループでも、子のプロパティを持ちます。
 
 [AfterClip の使用手順](/docs/ja/features/afterclip/).

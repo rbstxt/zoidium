@@ -39,6 +39,6 @@ CCFX registers 12 standalone effects and 7 group presets. A standalone effect in
 
 Controls vary by preset. Sunburst V2 exposes **rotation**, **speed**, **scale**, and **center**. The CC Bend It group exposes **Start**, **End**, and **Bend**.
 
-Sunburst V2 drives **uTime** with `time`. Other presets can use manual values or different expressions. There is no pack-wide timing control.
+Sunburst V2 animates over time. Other presets can use manual values or different expressions. There is no pack-wide timing control.
 
 [CCFX usage guide](/docs/features/ccfx/).

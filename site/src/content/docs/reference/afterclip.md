@@ -63,6 +63,6 @@ AfterClip registers 32 standalone effects and 11 group presets. A standalone eff
 
 Many shape effects expose **Position**, **Rotation**, **Scale**, and **Opacity**. Not every effect declares all four. Line Wave uses **Time**, **Delay**, **Power**, and **Step**.
 
-Groups without root custom controls still contain child properties. Twitch and VHS are not included.
+Groups without root custom controls still contain child properties.
 
 [AfterClip usage guide](/docs/features/afterclip/).
