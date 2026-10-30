@@ -5,7 +5,7 @@ sidebar:
   label: Native FX のキーイングエフェクト
   order: 73
 ---
-[Native FX の一覧](/docs/ja/reference/native-fx/)に、すべてのエフェクトを記載しています。
+[Native FX の一覧](/docs/ja/reference/native-fx/)に、すべてのエフェクトを記載しています。— は宣言された範囲がないことを示します。
 
 ## Color Difference Key
 
@@ -13,10 +13,9 @@ sidebar:
 
 | プロパティ | 型 | 範囲または選択肢 | 既定値 | 出力への影響 |
 | --- | --- | --- | --- | --- |
-| **Enabled** | 選択肢 | **off**、**on** | **on** | off の場合はエフェクトを無効にします。 |
 | **View** | 選択肢 | **Final Output**、**Source Only**、**Corrected Matte**、**Uncorrected Matte**、**Corrected Partial A**、**Corrected Partial B** | **Final Output** | キーイング後の画像、元の入力、または 4 種類のマットを表示します。マット表示は元のアルファを掛けた、不透明なグレースケールです。 |
-| **Key Color** | 色 | 個別の数値制限なし | `[0, 1, 0]` | 部分マット A と B の生成に使用する最大チャンネルと、2 つの基準となる差を指定します。 |
-| **Color Matching Accuracy** | 選択肢 | **Faster**、**More Accurate** | **Faster** | Faster は保存された RGB 値を比較します。More Accurate はリニアライトに変換して比較します。 |
+| **Key Color** | 色 | — | `[0, 1, 0]` | 部分マット A と B の生成に使用する最大チャンネルと、2 つの基準となる差を指定します。 |
+| **Color Matching Accuracy** | 選択肢 | **Faster**、**More Accurate** | **Faster** | Faster は速いですが精度が低くなります。 |
 | **Partial A In Black** | 数値 | 0～255 | 0 | 部分マット A の入力黒点です。この値以下は出力黒点に対応します。 |
 | **Partial A In White** | 数値 | 0～255 | 255 | 部分マット A の入力白点です。この値以上は出力白点に対応します。 |
 | **Partial A Gamma** | 数値 | 0.01～10 | 1 | 部分マット A の中間調補正です。1 / Gamma を指数として適用します。 |
@@ -41,9 +40,8 @@ sidebar:
 
 | プロパティ | 型 | 範囲または選択肢 | 既定値 | 出力への影響 |
 | --- | --- | --- | --- | --- |
-| **Enabled** | 選択肢 | **off**、**on** | **on** | off の場合はエフェクトを無効にします。 |
 | **Method** | 選択肢 | **Standard**、**Ultra** | **Standard** | Standard はキー色の最大チャンネルを抑制します。Ultra は、以下で Ultra と示した 5 つのコントロールも有効にします。 |
-| **Key Color** | 色 | 個別の数値制限なし | `[0, 1, 0]` | 抑制する RGB の最大チャンネルを指定します。Ultra では、対象の色相も指定します。 |
+| **Key Color** | 色 | — | `[0, 1, 0]` | 抑制する RGB の最大チャンネルを指定します。Ultra では、対象の色相も指定します。 |
 | **Suppression** | 数値 | 0～200 | 100 | キー色のチャンネルの過剰成分から除去する割合です。 |
 | **Tolerance** | 数値 | 0～100 | 50 | Ultra のみで使用します。Key Color の周囲で処理する色相の範囲です。 |
 | **Desaturate** | 数値 | 0～100 | 0 | Ultra のみで使用します。除去した色かぶりの量に応じて、彩度を下げます。 |
@@ -53,7 +51,6 @@ sidebar:
 
 ### 抑制と制限
 
-**Ultra** は色相によって抑制を制限し、色かぶりの範囲、彩度低下、明るさの補正を加えます。
 入力のアルファは維持します。キーイング用のマットは生成せず、現在のフレームだけをサンプリングします。
 
 ## Key Cleaner
@@ -62,7 +59,6 @@ sidebar:
 
 | プロパティ | 型 | 範囲または選択肢 | 既定値 | 出力への影響 |
 | --- | --- | --- | --- | --- |
-| **Enabled** | 選択肢 | **off**、**on** | **on** | off の場合はエフェクトを無効にします。 |
 | **Additional Edge Radius** | 数値 | 0～100 | 3 | 輪郭の色を局所的に推定するピクセル単位の半径です。 |
 | **Reduce Chatter** | 選択肢 | **off**、**on** | **off** | on は輪郭のアルファに空間ブラーを適用します。過去のフレームはサンプリングしません。 |
 | **Alpha Contrast** | 数値 | 100～500 | 100 | アルファのコントラストを百分率で指定します。100 ではコントラストの倍率が 1 です。 |
@@ -80,9 +76,8 @@ sidebar:
 
 | プロパティ | 型 | 範囲または選択肢 | 既定値 | 出力への影響 |
 | --- | --- | --- | --- | --- |
-| **Enabled** | 選択肢 | **off**、**on** | **on** | off の場合はエフェクトを無効にします。 |
 | **View** | 選択肢 | **Final Output**、**Source Only**、**Matte Only** | **Final Output** | Final Output はキーイングを適用します。Source Only は元の入力を表示します。Matte Only はキーイング後のアルファを不透明なグレースケールで表示します。 |
-| **Key Color** | 色 | 個別の数値制限なし | `[0, 0, 1]` | 距離計算の基準色です。 |
+| **Key Color** | 色 | — | `[0, 0, 1]` | 距離計算の基準色です。 |
 | **Match Colors** | 選択肢 | **Using RGB**、**Using Hue**、**Using Chroma** | **Using RGB** | Using RGB は RGB の距離、Using Hue は環状の色相距離、Using Chroma は正規化した赤と緑の距離を使用します。 |
 | **Matching Tolerance** | 数値 | 0～100 | 10 | 色の距離のしきい値を百分率で指定します。しきい値以下の一致するピクセルを完全にキーイングします。 |
 | **Matching Softness** | 数値 | 0～100 | 10 | Matching Tolerance を超えた位置で、アルファが線形に変化する範囲を百分率で指定します。 |

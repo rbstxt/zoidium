@@ -5,7 +5,7 @@ sidebar:
   label: Native FX keying effects
   order: 73
 ---
-[Native FX overview](/docs/reference/native-fx/) lists every effect.
+[Native FX overview](/docs/reference/native-fx/) lists every effect. A — range means no declared minimum or maximum.
 
 ## Color Difference Key
 
@@ -13,10 +13,9 @@ Builds a keying matte from two differences against the key color's dominant chan
 
 | Property | Type | Range or options | Default | Effect on output |
 | --- | --- | --- | --- | --- |
-| **Enabled** | Option | **off**, **on** | **on** | Bypasses the effect when off. |
 | **View** | Option | **Final Output**, **Source Only**, **Corrected Matte**, **Uncorrected Matte**, **Corrected Partial A**, **Corrected Partial B** | **Final Output** | Shows the final keyed image, the source, or one of the four matte views. Matte views are opaque grayscale multiplied by source alpha. |
-| **Key Color** | Color | No effect-specific numeric bounds | `[0, 1, 0]` | Dominant channel and two reference differences used to construct partial mattes A and B. |
-| **Color Matching Accuracy** | Option | **Faster**, **More Accurate** | **Faster** | Faster compares stored RGB values. More Accurate converts to linear light first. |
+| **Key Color** | Color | — | `[0, 1, 0]` | Dominant channel and two reference differences used to construct partial mattes A and B. |
+| **Color Matching Accuracy** | Option | **Faster**, **More Accurate** | **Faster** | Faster is quicker but less precise. |
 | **Partial A In Black** | Number | 0 to 255 | 0 | Input black point for partial matte A. Values at or below it map to the output black point. |
 | **Partial A In White** | Number | 0 to 255 | 255 | Input white point for partial matte A. Values at or above it map to the output white point. |
 | **Partial A Gamma** | Number | 0.01 to 10 | 1 | Midtone exponent correction for partial matte A, applied as power 1 / Gamma. |
@@ -41,9 +40,8 @@ Suppresses excess key-color channels while preserving input alpha.
 
 | Property | Type | Range or options | Default | Effect on output |
 | --- | --- | --- | --- | --- |
-| **Enabled** | Option | **off**, **on** | **on** | Bypasses the effect when off. |
 | **Method** | Option | **Standard**, **Ultra** | **Standard** | Standard suppresses the dominant key channel. Ultra also enables the five controls marked Ultra below. |
-| **Key Color** | Color | No effect-specific numeric bounds | `[0, 1, 0]` | Selects the dominant RGB channel to suppress and, in Ultra, the hue to match. |
+| **Key Color** | Color | — | `[0, 1, 0]` | Selects the dominant RGB channel to suppress and, in Ultra, the hue to match. |
 | **Suppression** | Number | 0 to 200 | 100 | Percentage of excess key-channel intensity removed. |
 | **Tolerance** | Number | 0 to 100 | 50 | Ultra only. Width of the hue region affected around Key Color. |
 | **Desaturate** | Number | 0 to 100 | 0 | Ultra only. Desaturates pixels in proportion to removed spill. |
@@ -53,7 +51,6 @@ Suppresses excess key-color channels while preserving input alpha.
 
 ### Suppression and limits
 
-**Ultra** limits suppression by hue and adds spill-range, desaturation, and brightness corrections.
 The effect preserves input alpha. It does not create a keying matte, and it samples only the current frame.
 
 ## Key Cleaner
@@ -62,7 +59,6 @@ Refines keyed edges with spatial alpha filtering, contrast, and color decontamin
 
 | Property | Type | Range or options | Default | Effect on output |
 | --- | --- | --- | --- | --- |
-| **Enabled** | Option | **off**, **on** | **on** | Bypasses the effect when off. |
 | **Additional Edge Radius** | Number | 0 to 100 | 3 | Pixel radius for local edge-color estimation. |
 | **Reduce Chatter** | Option | **off**, **on** | **off** | on applies a spatial alpha blur to edges. It does not sample earlier frames. |
 | **Alpha Contrast** | Number | 100 to 500 | 100 | Alpha contrast as a percentage. 100 leaves the contrast multiplier at 1. |
@@ -80,9 +76,8 @@ Removes or retains pixels according to their color distance from a key color.
 
 | Property | Type | Range or options | Default | Effect on output |
 | --- | --- | --- | --- | --- |
-| **Enabled** | Option | **off**, **on** | **on** | Bypasses the effect when off. |
 | **View** | Option | **Final Output**, **Source Only**, **Matte Only** | **Final Output** | Final Output applies the key. Source Only passes the source. Matte Only displays the keyed alpha as opaque grayscale. |
-| **Key Color** | Color | No effect-specific numeric bounds | `[0, 0, 1]` | Reference color for the distance calculation. |
+| **Key Color** | Color | — | `[0, 0, 1]` | Reference color for the distance calculation. |
 | **Match Colors** | Option | **Using RGB**, **Using Hue**, **Using Chroma** | **Using RGB** | Using RGB measures RGB distance. Using Hue measures circular hue distance. Using Chroma measures normalized red and green distance. |
 | **Matching Tolerance** | Number | 0 to 100 | 10 | Color-distance threshold as a percentage. Matching pixels below the threshold are fully keyed. |
 | **Matching Softness** | Number | 0 to 100 | 10 | Width of the linear alpha transition above Matching Tolerance, as a percentage. |
