@@ -71,6 +71,7 @@ PZ.ui.graph.prototype.attachKeyframeHandlers = function (el) {
         off: (gel && gel.pz_frameOffset) || 0
       };
     });
+    var primaryScale = el.parentElement.parentElement.pz_valueScale || 1;
     var curG = startG;
     var moved = false;
     self.editor.history.startOperation();
@@ -92,7 +93,7 @@ PZ.ui.graph.prototype.attachKeyframeHandlers = function (el) {
           s.kf.frame = Math.round(snapped - s.off);
         }
         if (updateValue && valueKeys.has(s.el)) {
-          s.kf.value = s.oldValue + (-dGraphY) / s.scale;
+          s.kf.value = s.oldValue + (-dGraphY) / primaryScale;
           try {
             if (s.gel.pz_object.definition && s.gel.pz_object.definition.min !== undefined)
               s.kf.value = Math.max(s.kf.value, s.gel.pz_object.definition.min);
@@ -104,7 +105,7 @@ PZ.ui.graph.prototype.attachKeyframeHandlers = function (el) {
         if (s.el.pz_handles) self.updateHandles(s.el.pz_handles);
         self.refreshAdjacentCurves(s.el);
       }
-      self.updateStatus();
+      self.updateStatus("Key · frame " + el.pz_object.frame + " · value " + el.pz_object.value);
     };
     var up = function (ev) {
       if (ev && ev.shiftKey && !moved && wasSelected) self.deselectKeyframe(el);
@@ -213,7 +214,6 @@ PZ.ui.graph.prototype.attachHandleHandlers = function (el, cpIdx, kfEl) {
       if (!self._dragging) self._dragging = "handle";
       for (var i = 0; i < snaps.length; i++) {
         var sn = snaps[i];
-        var sc = (sn.gel && sn.gel.pz_valueScale) || 1;
         if (!sn.converted) {
           // The right key owns a segment's easing, including the outgoing handle.
           var owner = cpIdx === 1 ? sn.el.nextElementSibling : sn.el;
@@ -225,7 +225,7 @@ PZ.ui.graph.prototype.attachHandleHandlers = function (el, cpIdx, kfEl) {
         var wantF = sn.oldCP[cpIdx][0] + dF;
         if (cpIdx === 0) cp[0] = Math.min(wantF, 0);
         else cp[0] = Math.max(wantF, 0);
-        cp[1] = sn.oldCP[cpIdx][1] + dV / sc;
+        cp[1] = sn.oldCP[cpIdx][1] + dV / scale;
         var neighbour = cpIdx ? sn.el.nextElementSibling?.pz_object : sn.el.previousElementSibling?.pz_object;
         var slope = neighbour ? (neighbour.value - sn.kf.value) / (neighbour.frame - sn.kf.frame) : 0;
         var constrained = constrainHandle(cp, ev, slope);
@@ -242,6 +242,7 @@ PZ.ui.graph.prototype.attachHandleHandlers = function (el, cpIdx, kfEl) {
         self.updateHandles(sn.el.pz_handles);
         self.refreshAdjacentCurves(sn.el);
       }
+      self.updateStatus("Handle · frame " + kf.frame + " · " + kf.controlPoints[cpIdx].map(v => Math.round(v * 100) / 100).join(", "));
     };
     var up = function (ev) {
       if (moved) {
