@@ -5,24 +5,11 @@ sidebar:
 description: Open a project, choose a layout, and enable plugins.
 ---
 Set up Zoidium's external extension layer around CM3, then save a project.
-[The overview](/docs/) describes the project and its independent status.
 
 ## Open the editor
 
 [Open the web editor](/). For desktop, start the Zoidium application.
 [Desktop project files](/docs/development/desktop-app/) describes file associations.
-
-For a local checkout, run these commands:
-
-```sh
-corepack enable
-pnpm install --frozen-lockfile
-pnpm run setup
-pnpm run web
-```
-
-Open the HTTP address printed by the server. To start desktop development,
-run `pnpm run desktop:start` instead of `pnpm run web`.
 
 ## Choose a layout
 
@@ -55,7 +42,6 @@ gradient editor, and preview cache memory limit.
 
 Before disabling a plugin, remove project content that requires the plugin.
 If Zoidium offers to save a restore point, complete that step before continuing.
-[The plugin manager](/docs/development/plugin-manager/) describes the implementation.
 
 ## Open and save a project
 
