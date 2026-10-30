@@ -22,7 +22,9 @@ function setup() {
   const listeners={};const el={addEventListener:(type,fn)=>{listeners[type]=fn;}};
   graph.attachHandleHandlers(el,1,elements[0]);
   const event=extra=>({button:0,clientX:10,clientY:0,stopPropagation(){},preventDefault(){},...extra});
-  return {graph,editor,project,property,elements,listeners,event,drag(extra={}){
+  return {graph,editor,project,property,elements,listeners,event,sequence(events, start={}){
+    listeners.pointerdown(event(start));for(const change of events)move(event({clientX:20,clientY:-4,...change}));up(event(events.at(-1)));
+  },drag(extra={}){
     listeners.pointerdown(event(extra));move(event({clientX:20,clientY:-4,...extra}));up(event(extra));
   }};
 }
@@ -34,14 +36,17 @@ test("preset handle drag converts the segment in exactly one native history step
   s.editor.history.undo();assert.equal(JSON.stringify(s.project),before);
   s.editor.history.redo();assert.equal(JSON.stringify(s.project),after);
 });
-test("Alt handle drag breaks and rejoins tangents with exact native undo",()=>{
-  const s=setup();
-  for(const continuous of [true,false]){
-    s.property.keyframes[0].continuousTangent=continuous;
-    const before=JSON.stringify(s.project),depth=s.editor.history.undoStack.length;
-    s.drag({altKey:true});assert.equal(s.property.keyframes[0].continuousTangent,!continuous);
-    const after=JSON.stringify(s.project);
-    assert.equal(s.editor.history.undoStack.length-depth,1);
+test("live Alt edges break and rejoin handles with one exact native undo step",()=>{
+  for (const [initial, start, events, expected] of [
+    [true, {}, [{}, {altKey:true}], false],
+    [true, {altKey:true}, [{altKey:true}], false],
+    [false, {}, [{}, {altKey:true}, {altKey:false}], true],
+    [true, {}, [{altKey:true}, {altKey:false}, {altKey:true}], false]
+  ]) {
+    const s=setup();s.property.keyframes[0].continuousTangent=initial;
+    const before=JSON.stringify(s.project);
+    s.sequence(events,start);assert.equal(s.property.keyframes[0].continuousTangent,expected);
+    const after=JSON.stringify(s.project);assert.equal(s.editor.history.undoStack.length,1);
     s.editor.history.undo();assert.equal(JSON.stringify(s.project),before);
     s.editor.history.redo();assert.equal(JSON.stringify(s.project),after);
   }
@@ -74,4 +79,10 @@ test("key value drags change only selected axes and share a delta across normali
   assert.equal(editor.history.undoStack.length,1);
   editor.history.undo();assert.equal(JSON.stringify(s.project),before);
  }
+});
+
+test("Pan tool bypasses key and handle edits",()=>{
+ const s=setup();s.graph.tool="pan";const before=JSON.stringify(s.project);
+ s.listeners.pointerdown(s.event());assert.equal(s.editor.history.undoStack.length,0);
+ assert.equal(JSON.stringify(s.project),before);
 });
