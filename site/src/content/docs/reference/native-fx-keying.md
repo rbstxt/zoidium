@@ -7,20 +7,16 @@ sidebar:
 ---
 [Native FX overview](/docs/reference/native-fx/) lists every effect.
 
-Numeric ranges are the minimum and maximum in the property definitions. Color defaults are RGB component values.
-
 ## Color Difference Key
 
 Builds a keying matte from two differences against the key color's dominant channel.
 
-Editor location: **Effects** picker > **NATIVE FX** > **Color Difference Key**.
-
 | Property | Type | Range or options | Default | Effect on output |
 | --- | --- | --- | --- | --- |
-| **Enabled** | Option | **off**, **on** | **on** | off bypasses the effect. on applies it. |
+| **Enabled** | Option | **off**, **on** | **on** | Bypasses the effect when off. |
 | **View** | Option | **Final Output**, **Source Only**, **Corrected Matte**, **Uncorrected Matte**, **Corrected Partial A**, **Corrected Partial B** | **Final Output** | Shows the final keyed image, the source, or one of the four matte views. Matte views are opaque grayscale multiplied by source alpha. |
 | **Key Color** | Color | No effect-specific numeric bounds | `[0, 1, 0]` | Dominant channel and two reference differences used to construct partial mattes A and B. |
-| **Color Matching Accuracy** | Option | **Faster**, **More Accurate** | **Faster** | Faster compares encoded RGB. More Accurate linearizes RGB and Key Color before comparison. |
+| **Color Matching Accuracy** | Option | **Faster**, **More Accurate** | **Faster** | Faster compares stored RGB values. More Accurate converts to linear light first. |
 | **Partial A In Black** | Number | 0 to 255 | 0 | Input black point for partial matte A. Values at or below it map to the output black point. |
 | **Partial A In White** | Number | 0 to 255 | 255 | Input white point for partial matte A. Values at or above it map to the output white point. |
 | **Partial A Gamma** | Number | 0.01 to 10 | 1 | Midtone exponent correction for partial matte A, applied as power 1 / Gamma. |
@@ -37,21 +33,15 @@ Editor location: **Effects** picker > **NATIVE FX** > **Color Difference Key**.
 
 ### Matte calculation and limits
 
-The key color's largest channel is compared with each other channel to produce partial mattes A and B.
-Each partial matte has input black, input white, gamma, output black, and output white controls.
-The corrected partial mattes combine by maximum before the final matte levels.
-Final output multiplies the input RGBA by the corrected matte. It does not remove color spill.
-This is a current-frame filter with no temporal samples.
+The final output multiplies the input by the matte. It does not remove color spill, and it samples only the current frame.
 
 ## Advanced Spill Suppressor
 
 Suppresses excess key-color channels while preserving input alpha.
 
-Editor location: **Effects** picker > **NATIVE FX** > **Advanced Spill Suppressor**.
-
 | Property | Type | Range or options | Default | Effect on output |
 | --- | --- | --- | --- | --- |
-| **Enabled** | Option | **off**, **on** | **on** | off bypasses the effect. on applies it. |
+| **Enabled** | Option | **off**, **on** | **on** | Bypasses the effect when off. |
 | **Method** | Option | **Standard**, **Ultra** | **Standard** | Standard suppresses the dominant key channel. Ultra also enables the five controls marked Ultra below. |
 | **Key Color** | Color | No effect-specific numeric bounds | `[0, 1, 0]` | Selects the dominant RGB channel to suppress and, in Ultra, the hue to match. |
 | **Suppression** | Number | 0 to 200 | 100 | Percentage of excess key-channel intensity removed. |
@@ -63,42 +53,34 @@ Editor location: **Effects** picker > **NATIVE FX** > **Advanced Spill Suppresso
 
 ### Suppression and limits
 
-**Standard** chooses the dominant channel from **Key Color**, rather than analyzing the whole frame.
 **Ultra** limits suppression by hue and adds spill-range, desaturation, and brightness corrections.
-The shader preserves input alpha. It does not create a keying matte.
-This is one current-frame shader pass with no temporal samples.
+The effect preserves input alpha. It does not create a keying matte, and it samples only the current frame.
 
 ## Key Cleaner
 
 Refines keyed edges with spatial alpha filtering, contrast, and color decontamination.
 
-Editor location: **Effects** picker > **NATIVE FX** > **Key Cleaner**.
-
 | Property | Type | Range or options | Default | Effect on output |
 | --- | --- | --- | --- | --- |
-| **Enabled** | Option | **off**, **on** | **on** | off bypasses the effect. on applies it. |
-| **Additional Edge Radius** | Number | 0 to 100 | 3 | Pixel radius for local edge-color estimation. The implementation derives sigma as half this value. |
+| **Enabled** | Option | **off**, **on** | **on** | Bypasses the effect when off. |
+| **Additional Edge Radius** | Number | 0 to 100 | 3 | Pixel radius for local edge-color estimation. |
 | **Reduce Chatter** | Option | **off**, **on** | **off** | on applies a spatial alpha blur to edges. It does not sample earlier frames. |
 | **Alpha Contrast** | Number | 100 to 500 | 100 | Alpha contrast as a percentage. 100 leaves the contrast multiplier at 1. |
 | **Strength** | Number | 0 to 100 | 100 | Percentage strength of edge-color decontamination. |
 
 ### Edge calculation and limits
 
-**Reduce Chatter** uses a fixed 5 × 5 spatial alpha kernel, followed by a contrast step.
-Edge-color estimation also uses a fixed 5 × 5 kernel. Its sampling step is clamped to 1 to 4 pixels.
-Large **Additional Edge Radius** values therefore remain a bounded approximation.
+Large **Additional Edge Radius** values remain a bounded approximation.
 Fully transparent source pixels remain transparent.
-There is no temporal history or neighboring-frame analysis.
+There is no neighboring-frame analysis.
 
 ## Linear Color Key
 
 Removes or retains pixels according to their color distance from a key color.
 
-Editor location: **Effects** picker > **NATIVE FX** > **Linear Color Key**.
-
 | Property | Type | Range or options | Default | Effect on output |
 | --- | --- | --- | --- | --- |
-| **Enabled** | Option | **off**, **on** | **on** | off bypasses the effect. on applies it. |
+| **Enabled** | Option | **off**, **on** | **on** | Bypasses the effect when off. |
 | **View** | Option | **Final Output**, **Source Only**, **Matte Only** | **Final Output** | Final Output applies the key. Source Only passes the source. Matte Only displays the keyed alpha as opaque grayscale. |
 | **Key Color** | Color | No effect-specific numeric bounds | `[0, 0, 1]` | Reference color for the distance calculation. |
 | **Match Colors** | Option | **Using RGB**, **Using Hue**, **Using Chroma** | **Using RGB** | Using RGB measures RGB distance. Using Hue measures circular hue distance. Using Chroma measures normalized red and green distance. |
@@ -108,7 +90,6 @@ Editor location: **Effects** picker > **NATIVE FX** > **Linear Color Key**.
 
 ### Matching and limits
 
-RGB distance is normalized by `sqrt(3)`. Chroma distance uses normalized red and green components, divided by `sqrt(2)`.
-Hue matching treats source pixels with saturation below 0.02 as distance 1.
-The final keyed result multiplies the original RGBA by the matte, preserving existing transparency.
+Hue matching treats nearly gray source pixels as fully distant.
+The final result multiplies the original by the matte, preserving transparency.
 This is a current-frame filter with no temporal samples or spill suppression.

@@ -38,7 +38,7 @@ When **Plugins** has **Native FX** enabled, its 22 effects appear in the **Effec
 ## Controls and inputs
 
 Each reference table covers every property specific to this pack.
-Vector rows include the exact component labels ending in **.X** and **.Y** from the property definitions.
+Vector rows include the component labels ending in **.X** and **.Y**.
 **Enabled** defaults to **on** in every effect. **off** bypasses processing.
 Common layer transforms and effect ordering remain CM3 controls.
 
