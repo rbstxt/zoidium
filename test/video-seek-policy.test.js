@@ -3,7 +3,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const vm = require("node:vm");
-const { readTiming, target, ensure } = require("../plugins/core/video-seek-policy");
+const { readTiming, target, ensure, isReady, canCapture } = require("../plugins/core/video-seek-policy");
 
 function element(id, body) {
   assert.ok(body.length < 127);
@@ -90,13 +90,13 @@ test("clamping and source-duration cap apply after correction", () => {
   assert.ok(bias > 0 && bias < fast.period / 4);
 });
 
-function video() {
+function video(quantum = 0) {
   const element = new EventTarget();
   let time = 0;
-  Object.assign(element, { duration: 10, readyState: 4, seeking: false, src: "fixture", paused: true,
+  Object.assign(element, { duration: 10, readyState: 4, seeking: false, src: "fixture", paused: true, seeks: [],
     pause() { this.paused = true; } });
   Object.defineProperty(element, "currentTime", { configurable: true, get: () => time,
-    set(value) { time = value; queueMicrotask(() => element.dispatchEvent(new Event("seeked"))); } });
+    set(value) { element.seeks.push(value); time = quantum ? Math.floor(value / quantum) * quantum : value; queueMicrotask(() => element.dispatchEvent(new Event("seeked"))); } });
   return element;
 }
 
@@ -149,4 +149,89 @@ test("an unoverridable media clock falls back to unbiased seeks", async () => {
   await assert.doesNotReject(ensure(el, media));
   el.currentTime = 106 / 60;
   assert.equal(el.currentTime, 106 / 60);
+});
+
+
+function pendingMedia() {
+  let finish;
+  const header = new Promise(resolve => { finish = resolve; });
+  return { media: { file: { arrayBuffer() {}, slice() { return { arrayBuffer: () => header }; } } },
+    finish() { finish(webm().buffer); } };
+}
+
+test("pending timing blocks capture and re-seeks a still-current unbiased boundary once", async () => {
+  const el = video(), pending = pendingMedia(), request = 106 / 60;
+  const resolving = ensure(el, pending.media);
+  el.currentTime = request;
+  assert.equal(el.currentTime, request);
+  const sequence = { videoSchedules: [{ el, currentItem: { media: pending.media, start: 0, length: 600 } }] };
+  assert.equal(canCapture(sequence, 106), false);
+  pending.finish(); await resolving;
+  assert.equal(el.currentTime, request + 0.0005);
+  assert.equal(el.seeks.length, 2, "exactly one corrective seek");
+  assert.equal(canCapture(sequence, 106), true);
+  const corrected = el.currentTime;
+  await ensure(el, pending.media);
+  assert.equal(el.currentTime, corrected, "resolution cannot apply the correction twice");
+  assert.equal(el.seeks.length, 2);
+  el.seeking = true;
+  assert.equal(canCapture(sequence, 106), false, "a corrective seek must finish before capture");
+});
+
+test("timing resolution corrects only the latest request and leaves fractional samples unchanged", async () => {
+  const el = video(), pending = pendingMedia();
+  const resolving = ensure(el, pending.media);
+  el.currentTime = 106 / 60;
+  el.currentTime = 0.125;
+  pending.finish(); await resolving;
+  assert.equal(el.currentTime, 0.125);
+  assert.equal(isReady(el, pending.media), true);
+});
+
+test("timing resolution never rewinds a playing media clock", async () => {
+  const el = video(), pending = pendingMedia();
+  const resolving = ensure(el, pending.media);
+  el.currentTime = 106 / 60; el.paused = false;
+  pending.finish(); await resolving;
+  assert.equal(el.currentTime, 106 / 60);
+  el.paused = true;
+  assert.equal(isReady(el, pending.media), false, "unadjusted data stays out of the cache");
+  el.currentTime = 106 / 60;
+  assert.equal(isReady(el, pending.media), true);
+});
+
+
+test("the native schedule's first unbiased seek retains its unrounded request for correction", async () => {
+  const pending = pendingMedia(), el = video(1e-6), request = 106 / 60;
+  const PZ = { schedule: class {
+    static type = { VIDEO: 0 };
+    update() { this.currentItem = { media: pending.media }; this.el.currentTime = request; }
+  } };
+  const sandbox = { PZ };
+  vm.createContext(sandbox);
+  vm.runInContext(fs.readFileSync("plugins/core/video-seek-policy.js", "utf8"), sandbox);
+  const schedule = Object.assign(new PZ.schedule(), { type: 0, el });
+  schedule.update();
+  assert.equal(el.seeks.length, 1);
+  assert.ok(el.currentTime < 1.767, "the initial unbiased seek presents the preceding frame");
+  pending.finish(); await sandbox.ZoidiumVideoSeekPolicy.ensure(el, pending.media);
+  assert.equal(el.seeks.length, 2);
+  assert.equal(el.seeks[1], request + 0.0005, "correct the logical request, not its rounded clock value");
+  assert.ok(el.currentTime >= 1.767);
+});
+
+
+test("a late timing result cannot correct a replacement media source", async () => {
+  const el = video(), pending = pendingMedia();
+  const old = ensure(el, pending.media);
+  el.currentTime = 106 / 60;
+  const next = { file: new Blob([Buffer.from("....ftypisom")]) };
+  el.src = "replacement";
+  await ensure(el, next);
+  el.currentTime = 0.125;
+  pending.finish(); await old;
+  assert.equal(el.currentTime, 0.125);
+  assert.equal(el.seeks.length, 2);
+  assert.equal(isReady(el, pending.media), false);
+  assert.equal(isReady(el, next), true);
 });

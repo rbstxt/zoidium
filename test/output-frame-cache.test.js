@@ -121,7 +121,7 @@ function harness({ prefetch = false, stale = false } = {}) {
   // Leave the post-signal window in which every draw serializes the project.
   function cool() { clock.now += 5000; }
   return { api, viewport, project, history, counts, events, docEvents, clock, warm, cool, temporalRuntimes, timers,
-    Viewport, Compositor, History, PZ, document, canvasEvents, notices, sampler: window.__zoidiumTemporalParts.sampler };
+    Viewport, Compositor, History, PZ, document, canvasEvents, notices, window, sampler: window.__zoidiumTemporalParts.sampler };
 }
 
 test("stale approvals keep every preview live and explain why", async () => {
@@ -806,5 +806,25 @@ test("cancelled video work leaves a newer live backup owned by the next request"
   for (let i = 0; i < 10; i++) await flush();
   assert.equal(h.viewport.__zoidiumOutputFrames.videoLive, newer);
   assert.equal(h.api.debug.entries, 0);
+  h.api.dispose();
+});
+
+
+test("unresolved video timing prevents both frame storage and native video backups", async () => {
+  const h = harness();
+  let resolved = false;
+  h.window.ZoidiumVideoSeekPolicy = { canCapture: () => resolved };
+  const sequence = h.project.sequence;
+  const item = { start: 0, length: 100, media: {}, clip: sequence.clip };
+  sequence.videoSchedules.push({ currentItem: item, items: [item] });
+  h.temporalRuntimes.set(h.viewport.compositor, { previewPending: false, previewKey: "[0,\"key\"]",
+    previewMedia: [{ item }] });
+  for (let i = 0; i < 6; i++) { h.viewport._render(); await flush(); }
+  assert.equal(h.api.debug.entries, 0);
+  assert.equal(h.counts.allocated, 0, "unbiased pixels must not enter a videoLive backup");
+  assert.equal(h.viewport.__zoidiumOutputFrames.videoLive, null);
+  resolved = true;
+  await h.warm();
+  assert.equal(h.api.debug.entries, 1, "only a subsequent corrected draw can be stored");
   h.api.dispose();
 });

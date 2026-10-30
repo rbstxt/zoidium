@@ -516,8 +516,9 @@
     const drew = viewport.lastFrame === frame;
     if (Number.isNaN(viewport.lastFrame)) viewport.lastFrame = previous;
     if (drew) shown(frame);
-    if (drew && !debug.disabled && complete(controller, key, frame)) storeFrame(controller, frame);
-    if (drew && !debug.disabled && viewport.editor.playback.speed === 0) {
+    const captureReady = global.ZoidiumVideoSeekPolicy?.canCapture(viewport.editor.project.sequence, frame) ?? true;
+    if (drew && captureReady && !debug.disabled && complete(controller, key, frame)) storeFrame(controller, frame);
+    if (drew && captureReady && !debug.disabled && viewport.editor.playback.speed === 0) {
       if (videoFrames?.eligible(viewport.editor.project.sequence, PZ.zoidium.temporal) &&
           videoFrames.inputs(viewport.editor.project.sequence, frame, global.__zoidiumTemporalParts.sampler).length) {
         controller.videoLive?.dispose();

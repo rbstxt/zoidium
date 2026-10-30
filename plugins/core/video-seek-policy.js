@@ -97,11 +97,15 @@
         owner = Object.getPrototypeOf(owner);
       }
       if (!descriptor?.get || !descriptor?.set) return Promise.resolve();
-      state = { media: null, timing: null };
+      state = { media: null, timing: null, resolved: false };
       try {
         Object.defineProperty(video, "currentTime", { configurable: true,
           get() { return descriptor.get.call(this); },
-          set(time) { descriptor.set.call(this, target(time, this.duration, state.timing)); },
+          set(time) {
+            descriptor.set.call(this, target(time, this.duration, state.timing));
+            state.unadjusted = false;
+            state.lastSeek = { requested: time, observed: descriptor.get.call(this), source: this.src || this.currentSrc };
+          },
         });
       } catch (_error) {
         unavailable.add(video);
@@ -111,18 +115,45 @@
     }
     const file = media?.file;
     if (state.media !== media || state.file !== file || !state.pending) {
-      state.media = media; state.file = file; state.timing = null;
-      state.pending = timingFor(media).then(timing => { if (state.media === media && state.file === file) state.timing = timing; });
+      state.media = media; state.file = file; state.timing = null; state.resolved = false; state.unadjusted = false;
+      state.pending = timingFor(media).then(timing => {
+        if (state.media !== media || state.file !== file) return;
+        state.timing = timing; state.resolved = true;
+        const seek = state.lastSeek;
+        if (!seek || !timing || seek.source !== (video.src || video.currentSrc)) return;
+        const corrected = target(seek.requested, video.duration, timing);
+        if (corrected === target(seek.requested, video.duration, null)) return;
+        state.unadjusted = true;
+        try {
+          // Correct only the still-current paused request, once per resolution.
+          // A later seek or a playing clock must never be pulled backwards.
+          if (video.paused && Math.abs(video.currentTime - seek.observed) <= 1e-7) video.currentTime = seek.requested;
+        } catch (_error) { /* Leave this frame ineligible for cache capture. */ }
+      });
     }
     return state.pending;
   }
-  const api = { readTiming, target, ensure,
+  function isReady(video, media) {
+    const state = video && elements.get(video);
+    return !!state && state.media === media && state.file === media?.file && state.resolved &&
+      !state.unadjusted && video.paused === true && !video.seeking && video.readyState >= 2;
+  }
+  const api = { readTiming, target, ensure, isReady,
+    canCapture(sequence, frame) {
+      return (sequence.videoSchedules || []).every(schedule => {
+        const item = schedule.currentItem;
+        return !item?.media || frame < item.start || frame >= item.start + item.length || isReady(schedule.el, item.media);
+      });
+    },
     seekTime(video, time) { return target(time, video.duration, elements.get(video)?.timing); } };
   global.ZoidiumVideoSeekPolicy = api;
   const prototype = global.PZ?.schedule?.prototype;
   if (prototype && !prototype.__zoidiumSeekPolicy) {
     const original = prototype.update;
     prototype.update = function updateWithSeekPolicy() {
+      // Install before the native update's initial seek so its logical time
+      // is retained even if the media clock rounds the observable value.
+      if (this.type === global.PZ.schedule.type.VIDEO) ensure(this.el, this.currentItem?.media);
       const result = original.apply(this, arguments);
       if (this.type === global.PZ.schedule.type.VIDEO) ensure(this.el, this.currentItem?.media);
       return result;
