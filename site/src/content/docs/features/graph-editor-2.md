@@ -53,7 +53,7 @@ Copy and paste preserve axis names. To paste a single axis onto a different axis
 2. To inspect its evaluated output, use **Fit** or **Frame**.
 3. To edit its keys, remove the expression first.
 
-Expression curves use dashed lines and an **Expression** label. Sampling fills the visible range over successive redraws.
+Expression curves use dashed lines and an **Expression** label. Very slow expressions may draw over several redraws.
 
 For an incoming-segment curve editor, use [Easing+](/docs/features/easing-plus/). Both tools use the same native Bezier handles.
 

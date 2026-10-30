@@ -27,7 +27,7 @@ Easing, tangent, value, delete, copy, and paste operations use the selected axes
 
 **Link axes** groups time moves for sibling keys at the same frame. Value drags stay per axis. Each gesture creates one undo step.
 
-Expression samples use the host's evaluator. Sampling is limited to 1,024 calls and a 6 ms budget per redraw, with at most 64 samples per frame. Unfinished ranges continue on later redraws. One synchronous host evaluation can exceed the time budget.
+Very slow expressions may draw over several redraws. **Fit** and **Frame** wait until the expression curves are ready.
 
 ## Interpolation and tangent tools
 

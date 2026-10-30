@@ -79,8 +79,6 @@ moves same-frame siblings in time while value drags stay per axis. Copy and
 paste keep axis names; a single copied axis can target another selected axis.
 
 Expression-driven tracks show dashed, read-only evaluated curves. Fit and Frame
-include the sampled output. The host evaluator receives explicit frames without
-playhead changes. Sampling caches property, expression, and range results and
-invalidates on project changes. Each redraw allows 1,024 evaluations and 6 ms,
-then resumes later. A synchronous host evaluation can exceed that time budget.
+wait until the expression curves are ready. Very slow expressions may draw
+over several redraws.
 Easing curves subdivide in screen space, and preset entries show thumbnails.

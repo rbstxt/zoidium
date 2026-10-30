@@ -29,6 +29,9 @@ function easingPoints(fn, width, height, tolerance = 0.35) {
   return result;
 }
 
+// A redraw shares at most 1,024 host evaluations and 6 ms between tracks.
+// Sampling resumes across redraws; a synchronous host call is not preemptible.
+// Wide frames use finer spacing, capped at 64 samples per frame.
 class ExpressionSamples {
   constructor(now = () => performance.now()) { this.now = now; this.cache = new WeakMap(); }
   invalidate() { this.cache = new WeakMap(); }
