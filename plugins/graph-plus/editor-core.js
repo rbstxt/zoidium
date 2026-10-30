@@ -325,10 +325,14 @@ PZ.ui.graph.prototype.propGroups = function () {
 };
 PZ.ui.graph.prototype.selectedKeys = function () {
   if (!this.svg) return [];
-  return Array.prototype.slice.call(this.svg.querySelectorAll(".g2-kf.selected"));
+  return Array.prototype.slice.call(this.svg.querySelectorAll(".g2-kf.selected")).filter(el => {
+    var group = el.parentElement.parentElement;
+    return !group.pz_object.expression && group.style.display !== "none" &&
+      (!this._selectedAxes?.size || this._selectedAxes.has(group.pz_object));
+  });
 };
 PZ.ui.graph.prototype.graphColor = function (prop) {
-  return curveColor(displayName(prop));
+  return this.axisInfo(prop)?.color || curveColor(displayName(prop));
 };
 PZ.ui.graph.prototype.isHidden = function (prop) {
   return !!this._hidden[addrString(prop)];

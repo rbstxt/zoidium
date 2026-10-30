@@ -216,6 +216,11 @@ PZ.ui.graph.prototype.selectKeyframe = function (kfEl) {
   this.updateHandles(kfEl.pz_handles);
   kfEl.classList.add("selected");
   this.updateKeyframe(kfEl);
+  if (this.options.linkAxes && !this._selectingLinked) {
+    this._selectingLinked = true;
+    for (var sibling of this.timeKeys([kfEl])) if (sibling !== kfEl) this.selectKeyframe(sibling);
+    this._selectingLinked = false;
+  }
 };
 PZ.ui.graph.prototype.deselectKeyframe = function (kfEl) {
   if (!kfEl.classList.contains("selected")) return;
@@ -224,7 +229,7 @@ PZ.ui.graph.prototype.deselectKeyframe = function (kfEl) {
   try { this.updateKeyframe(kfEl); } catch (e) { /* A detached key needs no visual refresh. */ }
 };
 PZ.ui.graph.prototype.deselectAllKeyframes = function () {
-  var sel = this.selectedKeys();
+  var sel = this.svg ? Array.from(this.svg.querySelectorAll(".g2-kf.selected")) : [];
   for (var i = 0; i < sel.length; i++) this.deselectKeyframe(sel[i]);
   this.updateStatus();
 };
@@ -485,6 +490,7 @@ PZ.ui.graph.prototype.objectsChanged = function () {
       }
     }
   }
+  this._selectedAxes = null;
   this.refreshAllScales();
   this.updateLegend();
   this.updateViewBox();

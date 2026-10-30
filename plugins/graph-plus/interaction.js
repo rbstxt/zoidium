@@ -57,7 +57,8 @@ PZ.ui.graph.prototype.attachKeyframeHandlers = function (el) {
     var rect = self.svg.getBoundingClientRect();
     var startPx = { x: e.clientX - rect.left, y: e.clientY - rect.top };
     var startG = self.screenToGraph(startPx.x, startPx.y);
-    var sel = self.selectedKeys();
+    var valueKeys = new Set(self.selectedKeys());
+    var sel = self.timeKeys(Array.from(valueKeys));
     // snapshot
     var snap = sel.map(function (s) {
       var gel = s.parentElement.parentElement;
@@ -89,7 +90,7 @@ PZ.ui.graph.prototype.attachKeyframeHandlers = function (el) {
           var snapped = self.snapFrame(absWant, sel);
           s.kf.frame = Math.round(snapped - s.off);
         }
-        if (updateValue) {
+        if (updateValue && valueKeys.has(s.el)) {
           s.kf.value = s.oldValue + (-dGraphY) / s.scale;
           try {
             if (s.gel.pz_object.definition && s.gel.pz_object.definition.min !== undefined)

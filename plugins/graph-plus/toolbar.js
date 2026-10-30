@@ -188,6 +188,12 @@ PZ.ui.graph.prototype.buildToolbar = function () {
   var follow = controller ? controller.follow : readFollow(null);
   this.followBtn.classList.toggle("on", follow);
   this.followBtn.setAttribute("aria-pressed", String(follow));
+  this.axesBtn = small(gf, toolIcon("link"), "Link axes", "", "Move sibling keys together in time", function () {
+    self.options.linkAxes = !self.options.linkAxes;
+    self.axesBtn.classList.toggle("on", self.options.linkAxes);
+    self.axesBtn.setAttribute("aria-pressed", String(self.options.linkAxes));
+  });
+  this.axesBtn.setAttribute("aria-pressed", "false");
   var gv = group();
   this.panBtn = small(gv, toolIcon("pan"), "Pan", "H", "Pan tool — left-drag moves the grid (default)", function () { self.setTool("pan"); }, "on");
   this.selToolBtn = small(gv, toolIcon("marquee"), "Marquee", "V", "Marquee tool — left-drag selects keys (Shift+drag in any tool)", function () { self.setTool("sel"); });

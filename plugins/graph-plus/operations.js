@@ -157,7 +157,7 @@ PZ.ui.graph.prototype.applyEasingToSelected = function (easeIdx) {
   this.updateStatus("applied " + (nm || ("ease " + easeIdx)));
 };
 PZ.ui.graph.prototype.addKeyframeAtPlayhead = function () {
-  var groups = this.propGroups().filter(function (g) { return g.style.display !== "none" && !g.pz_object.expression; });
+  var groups = this.editableGroups ? this.editableGroups() : this.propGroups().filter(function (g) { return g.style.display !== "none" && !g.pz_object.expression; });
   if (!groups.length) return;
   var cf = currentFrame(this.editor);
   this.editor.history.startOperation();
@@ -183,9 +183,9 @@ PZ.ui.graph.prototype.copySelected = function () {
   var groups = this.propGroups();
   for (var gi = 0; gi < groups.length; gi++) {
     var gel = groups[gi];
-    if (gel.pz_object.expression) continue;
+    if (gel.pz_object.expression || gel.style.display === "none" || (this._selectedAxes?.size && !this._selectedAxes.has(gel.pz_object))) continue;
     var sel = Array.prototype.slice.call(gel._keys.getElementsByClassName("selected"));
-    if (sel.length) map[gel.pz_object.definition.name] = sel.map(function (e) { return e.pz_object; });
+    if (sel.length) map[this.axisInfo?.(gel.pz_object)?.axis || gel.pz_object.definition.name] = sel.map(function (e) { return e.pz_object; });
   }
   // The popup editor lives in a separate window: clipboard access goes
   // through its own navigator (permissions follow the focused document).
@@ -219,7 +219,7 @@ PZ.ui.graph.prototype.pasteAtPlayhead = function () {
     }
     var cf = currentFrame(self.editor);
     self.editor.history.startOperation();
-    var groups = self.propGroups();
+    var groups = self.editableGroups ? self.editableGroups() : self.propGroups();
     for (var gi = 0; gi < groups.length; gi++) {
       var prop = groups[gi].pz_object;
       if (prop.expression || groups[gi].style.display === "none") continue;
@@ -227,11 +227,15 @@ PZ.ui.graph.prototype.pasteAtPlayhead = function () {
       for (var ai = 0; ai < arr.length; ai++) {
         var data = arr[ai].data;
         var shift = cf - arr[ai].minFrame - off;
-        var list = data[prop.definition.name];
+        var axis = self.axisInfo?.(prop)?.axis;
+        var sourceKey = axis && data[axis] ? axis : prop.definition.name;
+        var sourceKeys = Object.keys(data);
+        if (!data[sourceKey] && sourceKeys.length === 1 && groups.length === 1) sourceKey = sourceKeys[0];
+        var list = data[sourceKey];
         if (list) {
           if (list.length) self.ensureAnimated(prop, list[0].frame + shift);
           try { self.propertyOps.pasteKeyframes(prop, JSON.parse(JSON.stringify(list)), shift); } catch (err) { gpWarnOnce("paste:" + gi + ":" + ai, "pasting keyframes failed", err); }
-          delete data[prop.definition.name];
+          delete data[sourceKey];
         }
       }
     }
@@ -274,7 +278,18 @@ PZ.ui.graph.prototype.updateLegend = function () {
     this.tracksEl.appendChild(h);
     return;
   }
+  var parents = new Set();
   groups.forEach(function (gel) {
+    var info = self.axisInfo(gel.pz_object);
+    if (info && !parents.has(info.parent)) {
+      parents.add(info.parent);
+      var parentRow = mk("div"); parentRow.className = "g2-track-row g2-track-parent";
+      parentRow.textContent = displayName(info.parent);
+      parentRow.addEventListener("click", function (ev) {
+        self.selectAxes(groups.filter(g => self.axisInfo(g.pz_object)?.parent === info.parent), ev.ctrlKey || ev.metaKey || ev.shiftKey);
+      });
+      self.tracksEl.appendChild(parentRow);
+    }
     var prop = gel.pz_object;
     var row = mk("div");
     row.className = "g2-track-row";
@@ -286,7 +301,7 @@ PZ.ui.graph.prototype.updateLegend = function () {
     row.appendChild(dot);
     var nm = mk("span");
     nm.className = "g2-track-name";
-    nm.textContent = displayName(prop) + (prop.expression ? " · Expression" : "");
+    nm.textContent = (info ? "  " + info.axis : displayName(prop)) + (prop.expression ? " · Expression" : "");
     row.appendChild(nm);
     var val = mk("span");
     val.className = "g2-track-val";
@@ -301,19 +316,16 @@ PZ.ui.graph.prototype.updateLegend = function () {
     eye.addEventListener("click", function (ev) {
       ev.stopPropagation();
       gel.style.display = gel.style.display === "none" ? "" : "none";
+      self._hidden[addrString(prop)] = gel.style.display === "none";
+      if (gel.style.display === "none") for (var key of Array.from(gel._keys.children)) self.deselectKeyframe(key);
       self.updateViewBox(); self.updateLegend();
     });
     row.appendChild(eye);
-    row.addEventListener("click", function () {
-      // click row = select all keys of that curve
-      var keys = gel._keys.children;
-      var anyUnsel = false;
-      for (var i = 0; i < keys.length; i++) if (!keys[i].classList.contains("selected")) { anyUnsel = true; break; }
-      for (var j = 0; j < keys.length; j++) {
-        if (anyUnsel) self.selectKeyframe(keys[j]);
-        else self.deselectKeyframe(keys[j]);
-      }
-      self.updateStatus();
+    var solo = mk("button"); solo.className = "g2-eye"; solo.textContent = "S"; solo.title = "Solo axis";
+    solo.addEventListener("click", function (ev) { ev.stopPropagation(); self.selectAxes([gel], false); });
+    row.appendChild(solo);
+    row.addEventListener("click", function (ev) {
+      self.selectAxes([gel], ev.ctrlKey || ev.metaKey || ev.shiftKey);
     });
     self.tracksEl.appendChild(row);
   });
@@ -436,7 +448,8 @@ PZ.ui.graph.prototype.keydown = function (e) {
     if (this.easePopup) { this.closeEasePopup(); return; }
     this.deselectAllKeyframes();
   } else if (e.key && e.key.indexOf("Arrow") === 0) {
-    var sel5 = this.selectedKeys();
+    var valueKeys = this.selectedKeys();
+    var sel5 = e.key === "ArrowLeft" || e.key === "ArrowRight" ? (this.timeKeys ? this.timeKeys(valueKeys) : valueKeys) : valueKeys;
     if (!sel5.length) return;
     e.stopPropagation(); e.preventDefault();
     var df = 0, dvPx = 0;

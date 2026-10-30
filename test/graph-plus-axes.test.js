@@ -1,0 +1,44 @@
+"use strict";
+const test = require("node:test");
+const assert = require("node:assert/strict");
+const install = require("../plugins/graph-plus/axes.js");
+const { host, fixture, editorFor } = require("./helpers/editor-identity-host.cjs");
+function graph() {
+  const c = host(), { PZ } = c;
+  const { project } = fixture(c);
+  const owner = new PZ.object(); owner.parent = project.sequence;
+  owner.properties = new PZ.propertyList({ pos: { name: "Position", dynamic: true, group: true, type: 2,
+    objects: ["X", "Y", "Z"].map(name => ({ name, dynamic: true, type: 0, value: 0 })) } }, owner);
+  owner.properties.load();
+  const vector = owner.properties.pos;
+  PZ.ui.graph = function () {};
+  install({ PZ });
+  const groups = Array.from(vector.objects, prop => {
+    prop.keyframes.push(new PZ.keyframe(3, 10, 1));
+    const g = { pz_object: prop, style: {}, _keys: { children: [] } };
+    g._keys.children = Array.from(prop.keyframes, k => ({ pz_object: k, parentElement: { parentElement: g } }));
+    return g;
+  });
+  const g = Object.assign(new PZ.ui.graph(), { editor: editorFor(PZ, project), options: {}, propGroups: () => groups });
+  return { g, groups, vector };
+}
+test("vector axes have stable identity and colours; operations target selected visible axes", () => {
+  const { g, groups, vector } = graph();
+  assert.equal(g.axisInfo(vector.objects[1]).axis, "Y");
+  assert.equal(g.axisInfo(vector.objects[1]).color, "#81c784");
+  g._selectedAxes = new Set([vector.objects[1]]);
+  assert.deepEqual(g.editableGroups(), [groups[1]]);
+  groups[1].style.display = "none";
+  assert.equal(g.editableGroups().length, 0);
+});
+test("Link axes includes only same-frame siblings and excludes expression channels", () => {
+  const { g, groups } = graph();
+  const y = groups[1]._keys.children[1];
+  assert.deepEqual(g.timeKeys([y]), [y]);
+  g.options.linkAxes = true;
+  assert.equal(g.timeKeys([y]).length, 3);
+  groups[2].pz_object.expression = {};
+  assert.equal(g.timeKeys([y]).length, 2);
+  groups[0]._keys.children[1].pz_object.frame = 11;
+  assert.deepEqual(g.timeKeys([y]), [y]);
+});

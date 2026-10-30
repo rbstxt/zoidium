@@ -76,6 +76,11 @@
       "id": "sampling",
       "type": "text",
       "source": "./plugins/graph-plus/sampling.js?v=13"
+    },
+    {
+      "id": "axes",
+      "type": "text",
+      "source": "./plugins/graph-plus/axes.js?v=13"
     }
   ]
 }
