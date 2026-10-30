@@ -840,3 +840,22 @@ test("viewport prepares a nested Precomp sampler and its resources at the mapped
   assert.equal(h.root.frames.at(-1), 30);
   assert.equal(h.state.frameSamplerRuntimes.get(h.root).previewPending, false);
 });
+
+test("a clock-only video preview waits for its private decoder before drawing", async () => {
+  const h = host(false);
+  delete h.effect._zoidiumFrameSampler;
+  h.effect._zoidiumTemporal = { getOperator: () =>
+    ({ kind: "time-offset", enabled: true, offsetFrames: 5 }) };
+  const liveTexture = h.source.texture;
+  const frames = h.root.frames.length;
+  h.viewport._render();
+  assert.equal(h.root.frames.length, frames, "an unfinished seek never reaches the compositor");
+  await new Promise(setImmediate);
+  assert.equal(h.root.frames.at(-1), 30);
+  assert.equal(h.source.texture, liveTexture);
+  assert.equal(liveTexture.frame, 99, "the playback element is never sought for preview");
+  const decodes = h.decoded.length;
+  h.viewport._render();
+  await new Promise(setImmediate);
+  assert.equal(h.decoded.length, decodes, "unchanged redraw reuses the exact input");
+});

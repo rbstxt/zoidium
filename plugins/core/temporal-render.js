@@ -456,7 +456,15 @@
           const clip = track.getCurrentClip?.(frame);
           if (clip) visit(clip.object, clip, frame - clip.start);
         }
-        if (effects.length > 0) {
+        // Clock operators on video also require an exact paused decoder. The
+        // native playback element can still be seeking when the viewport draws.
+        const temporalVideo = (sequence?.videoSchedules || []).some(schedule => {
+          const item = findScheduleItemAtFrame(schedule, frame)?.item;
+          const clip = item?.clip;
+          return item?.media && clip?.object &&
+            getTemporalLayerFrame(clip.object, frame - clip.start, sequence);
+        });
+        if (effects.length > 0 || temporalVideo) {
           // One bounded preparation per viewport. The serialization includes
           // clip timing, effect order, expressions, keys and sequence settings.
           const key = JSON.stringify([frame, frameSamplerInputKey(sequence, this.compositor),
