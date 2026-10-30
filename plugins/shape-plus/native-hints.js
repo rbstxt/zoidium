@@ -64,7 +64,7 @@ function createHints({ PZ, Layer, Content, document, view = document.defaultView
   }
   function update(entry, state) {
     const { content, hint, swatch, cell } = entry;
-    const text = hintFor(state.scope, content);
+    const text = content.kind === "text" && content.textState?.state !== "ready" ? content.textState?.message || "Loading text font" : hintFor(state.scope, content);
     if (entry.text !== text) {
       entry.text = text; hint.textContent = text;
       if (text) cell.title = RULE; else cell.removeAttribute("title");

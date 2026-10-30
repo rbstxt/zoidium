@@ -1,4 +1,5 @@
 "use strict";
+const { holdValue } = require("./text-properties.js");
 const { definitions, titles } = require("./properties.js");
 const clone = value => JSON.parse(JSON.stringify(value));
 function validate(contents, depth = 0, state = { count: 0, ids: new Set() }) {
@@ -11,7 +12,7 @@ function validate(contents, depth = 0, state = { count: 0, ids: new Set() }) {
   }
   return contents;
 }
-function createModel(PZ) {
+function createModel(PZ, textService) {
   let sequence = 0;
   const ownedIds = new Set();
   function nextId() { let id; do { id = "s" + (++sequence).toString(36); } while (ownedIds.has(id)); ownedIds.add(id); return id; }
@@ -25,6 +26,21 @@ function createModel(PZ) {
       this.children = [this.properties];
       if (kind === "group") { this.contents = new PZ.objectList(this, Content); this.contents.name = "Contents"; this.children.push(this.contents); }
       this.extra = {};
+      if (kind === "text") {
+        for (const key of ["sourceText", "font", "fallbackFont", "fontStyle", "caps", "alignment", "textMode"]) {
+          const property = this.properties[key], get = property.get.bind(property);
+          property.get = frame => {
+            frame ??= this.textFrame || 0;
+            return !property.expression && (property.keyframes?.length || property.data?.keyframes?.length)
+              ? holdValue(property, frame) : get(frame);
+          };
+        }
+        const name = this.properties.name, get = name.get.bind(name);
+        const changed = () => name.onChanged?.update();
+        this.properties.sourceText.onChanged?.watch(changed);
+        this.properties.sourceText.onKeyframeChanged?.watch(changed);
+        name.get = () => get() === "Text" ? String(holdValue(this.properties.sourceText, this.textFrame || 0)).split("\n")[0] || "Text" : get();
+      }
     }
     load(data) {
       data = clone(data || {});
@@ -41,6 +57,12 @@ function createModel(PZ) {
         this.children[0] = this.properties;
       }
       this.vertexModes = clone(data.vertexModes || this.vertexModes);
+      if (this.kind === "text" && data.properties) for (const key of ["sourceText", "font", "fallbackFont", "fontStyle", "caps", "alignment", "textMode"]) {
+        const value = data.properties[key];
+        if (value !== undefined && (value === null || typeof value !== "object"))
+          data.properties[key] = { animated: false, keyframes: [{ frame: 0, value, tween: 0 }] };
+      }
+      this.hiddenAxes = clone(data.axisStore || {});
       this.extra = data;
       this.properties.load(data.properties);
       if (this.contents) {
@@ -51,21 +73,31 @@ function createModel(PZ) {
     }
     toJSON() {
       const result = { ...this.extra, id: this.id, kind: this.kind, properties: { ...this.extra.properties, ...clone(this.properties) } };
+      if (this.kind === "text" && Object.keys(this.hiddenAxes || {}).length) result.axisStore = clone(this.hiddenAxes);
+      else if (this.kind === "text") delete result.axisStore;
       if (this.contents) result.contents = this.contents;
       if (this.kind === "path") Object.assign(result, { vertexIds: this.vertexIds, vertexModes: this.vertexModes });
       return result;
     }
     evaluate(frame, rate = 30) {
+      if (this.kind === "text") this.textFrame = frame;
       const properties = {};
       for (const key of Object.keys(this.properties)) {
-        const value = this.properties[key].get(frame);
+        const value = this.kind === "text" && this.properties[key].definition.dynamic && [PZ.property.type.TEXT, PZ.property.type.ASSET, PZ.property.type.LIST].includes(this.properties[key].definition.type) ? holdValue(this.properties[key], frame) : this.properties[key].get(frame);
         if (typeof value === "number" && !Number.isFinite(value) || Array.isArray(value) && key !== "stops" && !value.every(Number.isFinite)) throw Error("Shape+ property must be finite");
         properties[key] = Array.isArray(value) ? value.slice() : value;
       }
       if (["wigglePaths", "wiggleTransform"].includes(this.kind)) properties.time = frame / rate;
-      return { id: this.id, kind: this.kind, vertexIds: this.vertexIds.slice(), properties, ...(this.contents ? { contents: Array.from(this.contents, child => child.evaluate(frame, rate)) } : {}) };
+      const textLayout = this.kind === "text" ? textService?.evaluate(this, properties, frame) || { glyphs: [], rows: [] } : null;
+      const result = { id: this.id, kind: this.kind, vertexIds: this.vertexIds.slice(), properties, ...(this.contents ? { contents: Array.from(this.contents, child => child.evaluate(frame, rate)) } : {}) };
+      if (textLayout) {
+        Object.defineProperty(result, "textLayout", { value: textLayout });
+        result.textLayoutKey = textLayout.cacheKey;
+      }
+      return result;
     }
-    unload() { for (const child of this.contents || []) child.unload(); }
+    async prepare(frame = this.textFrame || 0) { if (this.kind === "text") await textService?.prepare(this, frame); for (const child of this.contents || []) await child.prepare(frame); }
+    unload() { if (this.kind === "text") textService?.release(this); for (const child of this.contents || []) child.unload(); }
     static create(kind) { return new Content(kind); }
   }
   Content.prototype.defaultName = "Content";

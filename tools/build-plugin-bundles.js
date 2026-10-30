@@ -4,9 +4,9 @@
  * Build one self-contained runtime bundle for every registered plugin.
  *
  * The source manifests and asset files remain readable authoring inputs. The
- * generated bundle is the only runtime package fetched by the plugin manager:
- * it contains the manifest plus the text, JSON, and embedded image assets
- * referenced by it.
+ * main bundle contains the manifest and eager assets. Resources grouped by
+ * optionalBundle are emitted separately with integrity digests and loaded
+ * only when the plugin requests them.
  */
 
 "use strict";
@@ -177,6 +177,7 @@ function buildBundle(manifest) {
     }
   }
   for (const resource of manifest.resources || []) {
+    if (resource.optionalBundle) continue;
     if (resource.type === "text") addTextAsset(assets, resource.source, `resource ${resource.id}`);
     else if (resource.type === "json") addJsonAsset(assets, resource.source, `resource ${resource.id}`);
     else if (resource.type === "image") addImageAsset(assets, resource.source, `resource ${resource.id}`);
@@ -292,6 +293,19 @@ function main() {
       if (writeIfChanged(manifestPath, JSON.stringify(manifest, null, 2) + "\n")) changedManifests += 1;
     }
     const bundle = buildBundle(manifest);
+    const groups = [...new Set((manifest.resources || []).map(r => r.optionalBundle).filter(Boolean))];
+    for (const id of groups) {
+      const optional = buildBundle({ resources: manifest.resources.filter(r => r.optionalBundle === id).map(({optionalBundle, ...r}) => r) });
+      const content = JSON.stringify({ schemaVersion: 1, assets: optional.assets }) + "\n";
+      const filename = id + ".bundle.json", target = path.join(path.dirname(manifestPath), filename);
+      if (checkOnly) {
+        if (!fs.existsSync(target) || fs.readFileSync(target, "utf8") !== content) throw new Error("Optional bundle is stale: " + id);
+      } else writeIfChanged(target, content);
+      (bundle.assets.optional ||= {})[id] = {
+        source: "./" + path.relative(projectRoot, target).split(path.sep).join("/") + "?v=" + manifest.version,
+        integrity: "sha256-" + createHash("sha256").update(content).digest("base64"),
+      };
+    }
     const bundlePath = path.join(path.dirname(manifestPath), "bundle.json");
     const bundleJson = JSON.stringify(bundle);
     if (/[\r\n]/.test(bundleJson)) {

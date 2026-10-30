@@ -1,5 +1,6 @@
 "use strict";
 const paths = {
+  text: "M4 5h16M12 5v15M8 20h8M4 5v3M20 5v3",
   group: "M3 6h7l2 2h9v11H3Z",
   rectangle: "M4 6h16v12H4Z",
   ellipse: "M4 12a8 6.5 0 1 0 16 0a8 6.5 0 1 0-16 0Z",

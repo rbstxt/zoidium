@@ -268,3 +268,73 @@ Path tangents are relative to their vertices. New Contents paths start as four-v
 SVG import and native conversion create editable vector contents. Text+ character animation has no equivalent in the converted Shape+ outlines.
 
 [Create paths with Shape+](/docs/features/shape-plus/)
+
+## Text
+
+Text supplies glyph contours to paints and modifiers above its following paints.
+
+| Control | Type | Default | Effect |
+| --- | --- | --- | --- |
+| **Source Text** | Dynamic text | Text | Hold keys and expressions. |
+| **Font Family** | Dynamic font asset | Native default font | Primary font reference. |
+| **Fallback Font** | Dynamic font asset | None | Explicit fallback for unmapped grapheme clusters. |
+| **Style** | Dynamic choice | Default | Writes the named instance's axis values. |
+| Axis tag | Dynamic number | Font default | Font-defined minimum and maximum. |
+| **Size** | Dynamic number | 100 | Composition pixels per em. |
+| **Tracking** | Dynamic number | 0 | Thousandths of Size between glyphs. |
+| **Leading** | Dynamic number | 120 | Baseline distance in composition pixels. |
+| **Baseline Shift** | Dynamic number | 0 | Positive values move glyphs upward. |
+| **Horizontal Scale (%)**, **Vertical Scale (%)** | Dynamic number | 100 | Glyph scale. |
+| **Caps** | Dynamic choice | normal | normal, all, or small. Small uses uppercase at 75 percent size. |
+| **Position** | Dynamic vector | [0, 0] | Baseline origin. |
+| **Alignment** | Dynamic choice | left | left, center, right, justifyLeft, justifyCenter, justifyRight, justifyAll. |
+| **Text Mode** | Dynamic choice | point | point or box. |
+| **Box Size** | Dynamic vector | [600, 400] | Wrap width and visible height. |
+| **First-Line Indent** | Dynamic number | 0 | First line of each paragraph. |
+| **Space Before**, **Space After** | Dynamic number | 0 | Paragraph spacing in composition pixels. |
+
+Discrete text controls use hold keys and support expressions. Animated Style
+sets coordinates for axes without their own animation. Animated axis channels
+retain their own values.
+
+TTF, OTF, variable TrueType, CFF2, and WOFF1 are supported. WOFF2 displays an
+unsupported-format status and retains the font reference. Missing fonts show a
+status beside the item. There is no implicit font fallback. Japanese text uses
+the selected font's Japanese glyphs.
+
+Box text wraps Latin words and breaks CJK per grapheme. Oversized Latin words
+break per grapheme. Newlines start paragraphs. Lines outside the box height
+are hidden. Point text does not wrap. Justification expands spaces. CJK lines without spaces distribute the extra
+width between grapheme clusters. Other lines without spaces retain their advances.
+
+The optional engine bundle loads on the first text use. Electron is untested.
+
+## Create Shapes from Text
+
+**Convert to Path** in the preview and **Create Shapes from Text** on the Objects
+row replace Text with character groups at the current frame. Each contour is
+a separate Path. Spaces produce no group. A ligature's outline belongs to its
+first character; its remaining characters have empty named groups. Combining
+marks stay in their base character's grapheme group. Winding and parent paint
+order are preserved. One history entry restores the live text on Undo.
+
+## Text cache limits
+
+Text layout caches use the font identities, evaluated text and paragraph
+properties, and variation coordinates. Replacing a font file invalidates the
+old result. A layer transform reuses layout and geometry unless it changes
+the flattening tolerance.
+
+Accounting limits are 8 MiB each for layouts, glyph geometry, and glyph paint;
+2 MiB each for parsed contours and shaped runs; 512 KiB for fallback coverage;
+1 MiB for engine shaping results; and 4 MiB for outlines. These limits do not
+measure the browser's full heap.
+
+Touching or overlapping glyphs use compound fills. Sloped and curved contours
+also retain the compound slab arrangement to preserve subpixel rasterization.
+Trim in individual mode and transformed Repeater views invalidate per-glyph
+fill reuse.
+
+Inactive axes remain in the serialized `axisStore`. Their keys and expressions
+return when a font exposes the tag again. Selecting Style leaves
+expression-driven axes unchanged and displays a notice.

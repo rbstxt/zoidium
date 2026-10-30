@@ -1,4 +1,7 @@
 "use strict";
+const textGeometry = require("./text-geometry.js");
+const textFill = require("./text-fill.js");
+const isIdentity = m => m[0]===1 && m[1]===0 && m[2]===0 && m[3]===1 && m[4]===0 && m[5]===0;
 const { primitivePath } = require("./primitives.js");
 const { flattenPath } = require("./path.js");
 const { triangulate } = require("./fill.js");
@@ -31,7 +34,9 @@ function inverse(m) {
   ];
 }
 function transformed(path, m, transform) {
+  if (isIdentity(m)) return path;
   const result = { ...path, points: path.points.map((p) => transform(p, m)) };
+  if (path.textGlyph) delete result.textGlyph;
   if (path.vertices)
     result.vertices = path.vertices.map((v) => {
       const vector = (h) => [
@@ -117,7 +122,9 @@ function procedural(contents, tolerance, depth, budget, api) {
       const p = item.properties;
       if (p.enabled === 0) continue;
       try {
-      if (item.kind === "group") {
+      if (item.kind === "text") {
+        views.push({base:{paths:textGeometry.textGeometry(item,itemTolerance)},matrix:identity});
+      } else if (item.kind === "group") {
         const m = matrix(p),
           scale = Math.max(
             Math.hypot(m[0], m[1]),
@@ -183,10 +190,12 @@ function procedural(contents, tolerance, depth, budget, api) {
         const paths = views.flatMap((view, index) =>
           viewPaths(view).map((path) => ({ ...path, owner: index })),
         );
-        const changed =
+        let changed =
           item.kind === "trim"
             ? trim(paths, p)
             : paths.map((path) => item.kind === "roundCorners" ? roundCorners(path, p.radius, itemTolerance) : deform(path,item.kind,p,itemTolerance));
+        if (item.kind === "trim") changed = textGeometry.trimBatches(changed,p,views.every(view=>isIdentity(view.matrix)));
+        else changed = changed.map(path=>{if(!path.textGlyph)return path;const result={...path};delete result.textGlyph;return result;});
         views.forEach((view, index) => {
           const inv = inverse(view.matrix);
           const selected = changed.filter((path) => path.owner === index);
@@ -274,7 +283,8 @@ function procedural(contents, tolerance, depth, budget, api) {
     const cached=entries.find(matches);
     if(cached)return cached.positions;
     const paths=command.views.flatMap(viewPaths);
-    const positions=fill ? paths.some(path=>path.proceduralGeometry) ? tessellate(paths,p.fillRule) : triangulate(paths.map(path=>path.points),p.fillRule) : stroke(paths,p,command.tolerance);
+    const cachedTextFill=fill ? textGeometry.glyphFill(paths,p.fillRule,command.type) : null;
+    const positions=cachedTextFill || (fill ? paths.length && paths.every(path=>path.textOrigin) && !paths.some(path=>path.proceduralGeometry) ? textFill.triangulate(paths.map(path=>path.points),p.fillRule,textGeometry.fillGroups(paths,p.fillRule)) : paths.some(path=>path.proceduralGeometry) ? tessellate(paths,p.fillRule) : triangulate(paths.map(path=>path.points),p.fillRule) : stroke(paths,p,command.tolerance));
     entries.push({signature,tolerance:command.tolerance,positions});geometryCache.set(p,entries);
     return positions;
   }

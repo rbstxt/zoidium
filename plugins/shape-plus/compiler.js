@@ -1,4 +1,8 @@
 "use strict";
+const geometryBudget = require("./geometry-budget.js");
+const geometryFailure = require("./geometry-failure.js");
+const { procedural } = require("./compiler-procedural.js");
+const { hasText } = require("./text-paths.js");
 const { primitive } = require("./primitives.js");
 const { triangulate } = require("./fill.js");
 const { stroke } = require("./stroke.js");
@@ -11,10 +15,11 @@ function matrix(p) {
 }
 const transform = (p, m) => [m[0] * p[0] + m[2] * p[1] + m[4], m[1] * p[0] + m[3] * p[1] + m[5]];
 function transformCommand(command, m) {
+  if (m.every((v,i)=>v === identity[i])) return command.coverage && !command.coverageMatrix ? {...command,coverageMatrix:identity.slice()} : command;
   if (command.kind === "isolation") return { ...command, commands: command.commands.map(c => transformCommand(c, m)) };
   const positions = [];
   for (let i = 0; i < command.positions.length; i += 3) {
-    if ((i & 1023) === 0) require("./geometry-budget.js").check();
+    if ((i & 1023) === 0) geometryBudget.check();
     positions.push(...transform(command.positions.slice(i, i + 2), m), 0);
   }
   const coverage = command.coverage;
@@ -28,25 +33,27 @@ function transformCommand(command, m) {
 // Contents run top-to-bottom for path collection, bottom-to-top for paint.
 // A parent paint sees paths in groups above it, in the parent's coordinates.
 // A group's own paints run in its local coordinates BEFORE its transform.
-function compile(contents, tolerance = .125, depth = 0, budget = { coordinates: 0, points: 0 }) {
-  return require("./geometry-budget.js").bounded(() => compileContents(contents, tolerance, depth, budget));
+function compile(contents, tolerance = .125, depth = 0, budget = { coordinates: 0, points: 0 }, containsText) {
+  if (containsText ?? hasText(contents)) return geometryBudget.bounded(() =>
+    procedural(contents,tolerance,depth,budget,{matrix,transform,transformCommand}));
+  return geometryBudget.bounded(() => compileContents(contents, tolerance, depth, budget));
 }
 function compileContents(contents, tolerance, depth, budget) {
   if (depth > 16) throw Error("Shape+ group depth budget exceeded");
   const advanced = list => list.some(item => ["trim", "roundCorners", "repeater", "gradientFill", "gradientStroke", "twist", "zigZag", "puckerBloat", "wigglePaths", "wiggleTransform", "offsetPaths", "mergePaths"].includes(item.kind) || item.properties.composite === "above" || item.contents && advanced(item.contents));
-  if (advanced(contents)) return require("./compiler-procedural.js").procedural(contents, tolerance, depth, budget, { matrix, transform, transformCommand });
+  if (advanced(contents)) return procedural(contents, tolerance, depth, budget, { matrix, transform, transformCommand });
   const paths = [], schedule = [];
   for (const item of contents) {
     const p = item.properties;
     if (p.enabled === 0) continue;
     if (item.kind === "group") {
       const m = matrix(p), scale = Math.max(Math.hypot(m[0], m[1]), Math.hypot(m[2], m[3]), 1e-6);
-      const child = compile(item.contents, tolerance / scale, depth + 1, budget);
+      const child = compile(item.contents, tolerance / scale, depth + 1, budget, false);
       paths.push(...child.paths.map(path => ({ ...path, points: path.points.map(point => transform(point, m)) })));
       const commands = child.commands.map(c => transformCommand(c, m));
       schedule.push(p.opacity < 1 ? [{ kind: "isolation", id: item.id, opacity: Math.max(0, p.opacity), commands }] : commands);
     } else if (item.kind === "fill" || item.kind === "stroke") {
-      const positions = require("./geometry-failure.js").paint(item.id, () => item.kind === "fill" ? triangulate(paths.map(path => path.points), p.fillRule) : stroke(paths, p, tolerance));
+      const positions = geometryFailure.paint(item.id, () => item.kind === "fill" ? triangulate(paths.map(path => path.points), p.fillRule) : stroke(paths, p, tolerance));
       budget.coordinates += positions.length;
       if (budget.coordinates > 1800000) throw Error("Shape+ geometry budget exceeded");
       schedule.push([{ kind: "paint", id: item.id, color: p.color.slice(), opacity: Math.max(0, Math.min(1, p.opacity)), positions, ...(positions.coverage ? { coverage: positions.coverage } : {}) }]);
@@ -56,7 +63,7 @@ function compileContents(contents, tolerance, depth, budget) {
       budget.points += path.points.length;
       if (budget.points > 16384) throw Error("Shape+ path collection budget exceeded");
       paths.push(path);
-      } catch (error) { require("./geometry-failure.js").report(item.id, error); }
+      } catch (error) { geometryFailure.report(item.id, error); }
     }
   }
   const commands = schedule.reverse().flat();

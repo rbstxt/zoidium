@@ -77,11 +77,12 @@ function mountOverlay(context, layer, Content, viewport, panels, tool) {
   s.canvasApi = createCanvas(s, canvas);
   s.pointer = createPointer(s, canvas);
   const actions = installActions(s, canvas);
+  const textEditor = require("./text-inline.js").install(s);
   let disposed = false;
   // Tool switches, native selection and teardown end an edit in progress but
   // keep it: what the preview shows is what history records. Only Escape and
   // undo (editor-actions.js) or an error roll a gesture back.
-  function settle() { s.pointer.commit(); s.finishNudge(); s.gesture.finish(); }
+  function settle() { textEditor.finish(); s.pointer.commit(); s.finishNudge(); s.gesture.finish(); }
   const changed = () => { if (!disposed && s.valid()) s.refresh(); };
   s.project.ui.onChanged.watch(changed);
   function update() {
@@ -92,7 +93,7 @@ function mountOverlay(context, layer, Content, viewport, panels, tool) {
     // change (playback) or a removed target ends the drag where it is.
     const gesture = s.pointer.active;
     if (gesture && (gesture.frame !== s.localFrame() || (gesture.target != null && !s.find(gesture.target)))) settle();
-    actions.check();
+    actions.check(); textEditor.check();
     s.canvasApi.draw();
   }
   return {

@@ -16,7 +16,8 @@ function gradientFacade(property, frame) {
 }
 function install(context) {
   const PZ = window.PZ, THREE = window.THREE, apis = context.apis;
-  const { Content } = createModel(PZ), Layer = createLayerClass(PZ, THREE, Content);
+  const textService = require("./text-service.js").createService(context);
+  const { Content } = createModel(PZ, textService), Layer = createLayerClass(PZ, THREE, Content);
   const own = cleanup => context.lifecycle.onDispose(cleanup);
   const plugin = { id: "shape-plus", name: "Shape+", version: context.plugin?.version || "1", author: "Zoidium" };
   own(apis.layers.registerType({ id: "shape-plus/shape-layer", type: TYPE, name: "Shape+", plugin, factory: () => new Layer() }));
@@ -41,6 +42,7 @@ function install(context) {
     element.pz_update = () => { element.textContent = property.objects.length / 6 + " vertices"; };
     element.pz_update(); return element;
   } }));
+  require("./text-controls.js").install(context);
   // Controls must exist before an enabled panel regenerates saved Path rows.
   // Reverse disposal then removes the overlay/panels before their controls.
   require("./native-ui.js").install(PZ, Layer, Content, own);

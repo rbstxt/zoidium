@@ -7,7 +7,7 @@ const { find } = require("./editor-tree-data.js");
 const { matrix, identity, transform } = require("./compiler.js");
 const { evaluate, verticesToCubics } = require("./path.js");
 const g = require("./editor-geometry.js");
-const MOVABLE = ["group", "rectangle", "ellipse", "polystar", "path"];
+const MOVABLE = ["group", "rectangle", "ellipse", "polystar", "path", "text"];
 const HANDLE = 5, ROTATE_OFFSET = 24;
 const linear = m => [m[0], m[1], m[2], m[3], 0, 0];
 const rotate = (v, r) => [v[0] * Math.cos(r) - v[1] * Math.sin(r), v[0] * Math.sin(r) + v[1] * Math.cos(r)];
@@ -44,7 +44,7 @@ function box(s, id) {
 }
 const at = (b, sx, sy) => [(b.min[0] + b.max[0]) / 2 + sx * (b.max[0] - b.min[0]) / 2, (b.min[1] + b.max[1]) / 2 + sy * (b.max[1] - b.min[1]) / 2];
 function handles(b) {
-  if (!b || b.kind === "path") return [];
+  if (!b || ["path", "text"].includes(b.kind)) return [];
   const corners = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
   const width = Math.hypot(...g.sub(transform(at(b, 1, 0), b.screen), transform(at(b, -1, 0), b.screen)));
   const height = Math.hypot(...g.sub(transform(at(b, 0, 1), b.screen), transform(at(b, 0, -1), b.screen)));

@@ -576,3 +576,80 @@ bound allocations. A failed paint is omitted with one English warning per
 item and error reason. Other valid paint items remain available. Content edits
 invalidate the normal signature cache and automatically retry geometry.
 Renderer failures restore the previous render target and clear settings.
+
+## Text contents
+
+Text is a live geometry source. Source Text uses native hold keys and supports
+expressions. Fills, strokes, gradients, path modifiers, Repeater, and Merge Paths
+operate on its glyph contours through the same compiler as other paths.
+
+Font Family and Fallback Font store native asset references in held dynamic
+channels. Font Style, Caps, Alignment, and Text Mode also support native hold
+keys and expressions. Fallback is explicit
+and selected per grapheme cluster. Without a fallback, missing glyphs use the
+primary font's .notdef. Japanese text requires a font with Japanese glyphs.
+Missing assets and unsupported formats appear as an English status beside the
+Text item. TTF, OTF, variable TrueType, CFF2, and WOFF1 are supported. WOFF2 is
+unsupported and keeps its asset reference.
+
+Style lists named instances. Selecting a style writes its axis coordinates in
+one history operation. Each axis remains an ordinary native dynamic NUMBER
+property. Changing fonts retains channels for shared axes. Size, Tracking,
+Leading, Baseline Shift, Horizontal Scale, Vertical Scale, and Position animate.
+Tracking is in thousandths of the font size. Leading is in composition pixels.
+Caps offers normal, all, and small capitals. Small capitals use uppercase glyphs
+at 75 percent size.
+
+Point text supports left, center, and right alignment. Box text adds word wrap,
+CJK character breaks, box size, justification with last-line alignment,
+first-line indent, and space before and after paragraphs. Explicit newlines
+start paragraphs. Box height hides overflow lines.
+
+Double-click a text item in the preview to edit it in a textarea positioned
+over its bounds. Enter adds a newline. Escape or focus loss commits one history
+operation. The textarea retains native IME composition. The native properties
+panel also provides a multiline Source Text field. Expression-driven text is
+read-only in the inline editor.
+
+The HarfBuzz payload is in a verified optional bundle. Projects with no Text
+contents do not request it. Outlines are cached in font units with a bounded
+4 MiB accounting budget. The engine never uses system fonts or browser text
+metrics for output. See `vendor/README.md` for provenance and licenses.
+
+## Create Shapes from Text
+
+The preview context menu's **Convert to Path** command freezes the selected Text
+item at the current local frame. The Objects row also has **Create Shapes from
+Text**. Conversion replaces the item with named character groups at the same
+position in its parent. Each contour becomes an editable Path with six scalar
+channels per vertex. Holes retain their winding. Spaces do not create groups.
+
+A ligature's outline belongs to its first character's group. The remaining
+characters retain named empty groups. Combining marks remain with their base
+character's grapheme group. Paints and modifiers below the original text keep
+applying to the converted paths. Conversion is one undo operation. Undo restores
+the live text and its font references. The existing contents and path budgets
+also apply to the converted result.
+
+## Text cache limits
+
+Text layout is keyed by the active font objects, evaluated text and paragraph
+properties, and variation coordinates. A replaced font file creates a new font
+identity. Renaming a row does not invalidate its layout. A layer transform does
+not invalidate text geometry unless it changes the flattening tolerance.
+
+Derived caches use LRU eviction. The accounting limits are 8 MiB for layouts,
+8 MiB for glyph geometry, 8 MiB for glyph paint, 2 MiB for parsed contours,
+2 MiB for shaped runs, 512 KiB for fallback coverage, and 1 MiB for engine
+shaping results. The existing outline cache remains limited to 4 MiB. These
+are accounting limits, not a measurement of the browser's full heap.
+
+Per-glyph fills require disjoint contours and filled interiors. Touching or
+overlapping glyphs use the compound fill. Sloped and curved contours also use
+the compound slab arrangement, because independent triangulations can change
+Float32 rasterization at subpixel boundaries. Trim in individual mode and
+transformed Repeater views invalidate the per-glyph shortcut.
+
+Inactive variable axes are stored in the serialized `axisStore` field. Their
+keys and expressions return when the selected font exposes the tag again.
+A named Style leaves expression-driven axes unchanged and displays a notice.

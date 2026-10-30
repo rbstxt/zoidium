@@ -24,3 +24,26 @@ Earcut 2.2.4 is copied verbatim from the already licensed dependency in
 `plugins/scene-plus/earcut.js`, including its Mapbox ISC notice. Its separate
 license is a bundle asset. It triangulates only Clipper-resolved simple contours
 with explicit hole ancestry. Existing shapes retain the original slab engine.
+
+## HarfBuzz text engine
+
+HarfBuzz uses `harfbuzzjs` npm 0.4.13 from
+https://registry.npmjs.org/harfbuzzjs/-/harfbuzzjs-0.4.13.tgz.
+`harfbuzz.js` is the unmodified package `hb.js`.
+`harfbuzz-api.js` is package `hbjs.js`, minified with esbuild 0.25.12:
+
+```sh
+esbuild hbjs.js --minify --platform=neutral --outfile=harfbuzz-api.js
+```
+
+`harfbuzz.wasm.base64` contains package `hb.wasm` as base64 text with a trailing
+newline. The decoded module is 371,910 bytes. The adapter passes those bytes to
+`wasmBinary`, so Emscripten does not fetch a WASM URL. The MIT notice, upstream
+HarfBuzz notices, and Apache 2.0 license for the Emscripten libc components are
+bundle assets beside the engine.
+
+The engine supports TrueType and OpenType CFF2 fonts. The font adapter also
+decodes WOFF1 with DecompressionStream. WOFF2 produces an explicit unsupported
+format state. The engine payload is in text-engine.bundle.json, an optional
+resource bundle with a SHA-256 digest in the main bundle. It is fetched and
+verified only when the text engine is requested.
