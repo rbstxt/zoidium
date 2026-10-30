@@ -840,3 +840,128 @@ test("viewport prepares a nested Precomp sampler and its resources at the mapped
   assert.equal(h.root.frames.at(-1), 30);
   assert.equal(h.state.frameSamplerRuntimes.get(h.root).previewPending, false);
 });
+
+test("a clock-only video preview waits for its private decoder before drawing", async () => {
+  const h = host(false);
+  delete h.effect._zoidiumFrameSampler;
+  h.effect._zoidiumTemporal = { getOperator: () =>
+    ({ kind: "time-offset", enabled: true, offsetFrames: 5 }) };
+  const liveTexture = h.source.texture;
+  const frames = h.root.frames.length;
+  h.viewport._render();
+  assert.equal(h.root.frames.length, frames, "an unfinished seek never reaches the compositor");
+  await new Promise(setImmediate);
+  assert.equal(h.root.frames.at(-1), 30);
+  assert.equal(h.source.texture, liveTexture);
+  assert.equal(liveTexture.frame, 99, "the playback element is never sought for preview");
+  const decodes = h.decoded.length;
+  h.viewport._render();
+  await new Promise(setImmediate);
+  assert.equal(h.decoded.length, decodes, "unchanged redraw reuses the exact input");
+});
+
+test("a jumping video source cannot become the output playback clock", () => {
+  const h = host(false);
+  h.effect._zoidiumTemporal = { getOperator: () =>
+    ({ kind: "time-offset", enabled: true, offsetFrames: -10 }) };
+  let pauses = 0;
+  const schedule = { type: h.PZ.schedule.type.VIDEO, currentItem: { clip: h.ownerClip },
+    playing: true, el: { pause() { pauses++; } } };
+  const playback = Object.assign(new h.PZ.ui.playback(), { _exactFrame: 30, syncSchedule: schedule });
+  playback.updateSchedule(schedule, 1);
+  assert.equal(playback.syncSchedule, null);
+  assert.equal(playback._exactFrame, 30);
+  assert.equal(schedule.playing, false);
+  assert.equal(pauses, 1);
+  assert.equal(playback.nativeUpdates, undefined);
+  delete h.effect._zoidiumTemporal;
+  playback.updateSchedule(schedule, 1);
+  assert.equal(playback.nativeUpdates, 1, "ordinary video retains native playback");
+});
+
+for (const disabled of [false, true]) test(`neutral video uses native routing, disabled=${disabled}`, async () => {
+  const h = host(false);
+  delete h.effect._zoidiumFrameSampler;
+  h.effect._zoidiumTemporal = { getOperator: () =>
+    ({ kind: "time-offset", enabled: !disabled, offsetFrames: disabled ? 10 : 0 }) };
+  const schedule = { type: h.PZ.schedule.type.VIDEO, currentItem: { clip: h.ownerClip } };
+  const playback = Object.assign(new h.PZ.ui.playback(), { _exactFrame: 30 });
+  playback.updateSchedule(schedule, 1);
+  assert.equal(playback.nativeUpdates, 1);
+  const count = h.root.frames.length;
+  h.viewport._render();
+  assert.equal(h.root.frames.length, count + 1, "native draw completes synchronously");
+  await new Promise(setImmediate);
+  assert.equal(h.decoded.length, 0, "no private decoder");
+});
+
+test("animated neutral routing cancels publication of an earlier shifted preview", async () => {
+  const h = host(false);
+  delete h.effect._zoidiumFrameSampler;
+  let offset = 5;
+  h.effect._zoidiumTemporal = { getOperator: () =>
+    ({ kind: "time-offset", enabled: true, offsetFrames: offset }) };
+  h.viewport._render();
+  offset = 0;
+  h.viewport.editor.playback.currentFrame = 31;
+  h.viewport._render();
+  await new Promise(setImmediate);
+  assert.equal(h.root.frames.at(-1), 31, "pending shifted frame cannot overwrite native output");
+  offset = -5;
+  h.viewport.editor.playback.currentFrame = 32;
+  h.viewport._render();
+  await new Promise(setImmediate);
+  assert.equal(h.root.frames.at(-1), 32, "return to shifted routing prepares the new frame");
+});
+
+test("animated zero crossings rejoin the native source clock before playback resumes", () => {
+  const h = host(false);
+  let offset = 5;
+  delete h.effect._zoidiumFrameSampler;
+  h.effect._zoidiumTemporal = { getOperator: (_effect, frame) =>
+    ({ kind: "time-offset", enabled: true, offsetFrames: Number.isInteger(frame) ? (frame % 2 ? 0 : offset || 5) : 5 }) };
+  const schedule = Object.assign(h.sequence.videoSchedules[0], {
+    currentItem: h.sequence.videoSchedules[0].items[0],
+    el: { currentTime: 99, readyState: 4, seeking: false, pause() {} }, texture: {},
+  });
+  h.state.originalPlaybackUpdateSchedule = function (_schedule, delta) {
+    this.nativeDelta = delta;
+    this.nativeUpdates = (this.nativeUpdates || 0) + 1;
+    this.syncSchedule = schedule;
+  };
+  const playback = Object.assign(new h.PZ.ui.playback(), { _exactFrame: 30 });
+  for (const [frame, value] of [[30, 5], [31, 0], [32, -5], [33, 0]]) {
+    offset = value; playback._exactFrame = frame - 0.1;
+    playback.updateSchedule(schedule, 1);
+    h.viewport.editor.playback.currentFrame = frame;
+    if (value !== 0) continue;
+    assert.equal(playback.syncSchedule, null, "transient zero does not reanchor the clock");
+    assert.equal(playback.nativeDelta, 0, "transient zero uses a native seek without play/pause churn");
+    assert.equal(schedule.el.currentTime, (frame - h.ownerClip.start) / 30);
+    schedule.el.seeking = true;
+    const before = h.root.frames.length;
+    h.viewport._render();
+    assert.equal(h.root.frames.length, before, "never draw the stale shifted element during rejoin");
+    schedule.el.seeking = false;
+    h.viewport._render();
+    assert.equal(h.root.frames.at(-1), frame);
+    assert.equal(schedule.__zoidiumTemporalRejoin, false);
+  }
+  assert.equal(playback.nativeUpdates, 2, "native routing at both zero crossings");
+});
+
+test("a transient zero crossing invalidates an older async preview even after returning to shifted time", async () => {
+  const h = host(false);
+  delete h.effect._zoidiumFrameSampler;
+  let offset = 5;
+  h.effect._zoidiumTemporal = { getOperator: () =>
+    ({ kind: "time-offset", enabled: true, offsetFrames: offset }) };
+  h.viewport._render();
+  offset = 0; h.viewport.editor.playback.currentFrame = 31; h.viewport._render();
+  offset = -5; h.viewport.editor.playback.currentFrame = 32; h.viewport._render();
+  await new Promise(setImmediate);
+  assert.equal(h.root.frames.at(-1), 31, "superseded work cannot draw after the zero crossing");
+  h.viewport._render();
+  await new Promise(setImmediate);
+  assert.equal(h.root.frames.at(-1), 32);
+});

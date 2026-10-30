@@ -78,6 +78,9 @@
       const failed = () => fail(video.error || new Error("Video decode failed."));
       const aborted = () => fail(policy.signal.reason || new Error("Export stopped."));
       const done = () => {
+        // A queued completion from an earlier playback seek can arrive after
+        // this request starts. It does not complete the newer seek.
+        if (event === "seeked" && video.seeking) return;
         try { mediaError(video); policy?.check?.(); }
         catch (error) { fail(error); return; }
         cleanUp(); resolve();
@@ -125,14 +128,18 @@
       try {
         policy?.check?.();
         stage = "metadata";
+        await globalThis.ZoidiumVideoSeekPolicy?.ensure(video, schedule.currentItem?.media);
         await waitForMetadata(video, timeoutMs, policy);
         const mediaTime = clampMediaTime(video, requestedTime);
+        const seekTime = globalThis.ZoidiumVideoSeekPolicy?.seekTime(video, mediaTime) ?? mediaTime;
         const sourceId = getSourceId(video);
         const state = schedule.__zoidiumVideoExportState || {};
         schedule.__zoidiumVideoExportState = state;
         stage = "before seek";
         mediaError(video); policy?.check?.();
-        const reused = Math.abs(video.currentTime - mediaTime) <= SAME_TIME_EPSILON &&
+        const sameRequest = state.sourceId === sourceId && state.requestedTime === mediaTime &&
+          Math.abs(video.currentTime - state.observedTime) <= SAME_TIME_EPSILON;
+        const reused = (Math.abs(video.currentTime - seekTime) <= SAME_TIME_EPSILON || sameRequest) &&
           !video.seeking && video.readyState >= HAVE_CURRENT_DATA &&
           (!state.sourceId || state.sourceId === sourceId);
         let metadata = null;
@@ -141,7 +148,7 @@
           await waitForEvent(video, "seeked", timeoutMs, policy, () => { video.currentTime = mediaTime; });
           stage = "after seek";
           mediaError(video); policy?.check?.();
-          if (Math.abs(video.currentTime - mediaTime) > SEEK_TIME_EPSILON || video.seeking) {
+          if (Math.abs(video.currentTime - seekTime) > SEEK_TIME_EPSILON || video.seeking) {
             throw new Error("Video seek completed at a different requested time.");
           }
           metadata = await presentation.promise;
@@ -182,11 +189,17 @@
     if (!this.el) return Promise.resolve();
     context ||= this.__zoidiumExportContext;
     const element = this.el;
+    // Playback ticks must not reposition or start this element while an exact
+    // request owns it, including the time spent waiting behind another request.
+    element.pause?.();
+    this.playing = false;
+    this.__zoidiumExactDecodePending = (this.__zoidiumExactDecodePending || 0) + 1;
     const previous = decoderQueues.get(element);
     const run = () => decode(this, time, context);
     const pending = previous ? previous.catch(() => {}).then(run) : run();
     decoderQueues.set(element, pending);
     pending.finally(() => {
+      this.__zoidiumExactDecodePending--;
       if (decoderQueues.get(element) === pending) decoderQueues.delete(element);
     }).catch(() => {});
     return pending;

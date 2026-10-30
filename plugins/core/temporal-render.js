@@ -376,6 +376,8 @@
     });
   }
 
+  function rejoinNow() { return host?.performance?.now?.() ?? Date.now(); }
+
   function installPlaybackPatch(state) {
     const prototype = PZ.ui?.playback?.prototype;
     if (!prototype || prototype[PLAYBACK_SCHEDULE_MARKER]) return;
@@ -383,30 +385,58 @@
     state.playbackPrototype = prototype;
     state.originalPlaybackUpdateSchedule = prototype.updateSchedule;
     prototype.updateSchedule = function temporalUpdateSchedule(schedule, delta) {
+      if (schedule?.__zoidiumExactDecodePending) return;
       if (schedule?.type !== PZ.schedule?.type?.VIDEO || !schedule.currentItem) {
         return state.originalPlaybackUpdateSchedule.apply(this, arguments);
       }
 
-      const outputFrame = finiteNumber(this._exactFrame, NaN);
-      const nextOutputFrame = outputFrame + finiteNumber(delta, 0);
+      // Route from the same integer output frame used by the viewport. An
+      // expression can be zero there but nonzero at the fractional wall clock.
+      const outputFrame = Math.round(finiteNumber(this._exactFrame, NaN));
       const layer = schedule.currentItem.clip?.object;
-      const current = state.mapProjectFrame(layer, outputFrame);
-      const next = state.mapProjectFrame(layer, nextOutputFrame);
-      if (!current || !next) {
-        return state.originalPlaybackUpdateSchedule.apply(this, arguments);
+      const mapped = state.mapProjectFrame(layer, outputFrame);
+      if (!mapped || Math.abs(mapped.sourceFrame - mapped.localFrame) <= EPSILON) {
+        if (schedule.__zoidiumTemporalPlayback) {
+          // Rejoin at output time before native play() can select this element
+          // as its clock. Its last source time may belong to a shifted frame.
+          schedule.__zoidiumTemporalRejoin = false;
+          delete schedule.__zoidiumTemporalRejoinStarted;
+          try {
+            const local = outputFrame - schedule.currentItem.start;
+            const time = schedule.currentItem.clip.properties.time.get(local);
+            schedule.el.currentTime = time;
+            schedule.__zoidiumTemporalRejoin = true;
+            schedule.__zoidiumTemporalRejoinStarted = rejoinNow();
+          } catch (_error) { /* Native playback can retry an unreadable time curve. */ }
+          schedule.__zoidiumTemporalPlayback = false;
+          if (this.syncSchedule === schedule) this.syncSchedule = null;
+        }
+        // A one-frame neutral interval still uses native video, but cannot
+        // briefly anchor the output clock between discontinuous source times.
+        const changing = [outputFrame - 1, outputFrame + 1].some(frame => {
+          const next = state.mapProjectFrame(layer, frame);
+          return next && Math.abs(next.sourceFrame - next.localFrame) > EPSILON;
+        });
+        if (changing && this.syncSchedule === schedule) this.syncSchedule = null;
+        const exactFrame = this._exactFrame;
+        try {
+          // Use the native paused-seek branch for a transient neutral frame.
+          // Starting play() for a single frame would be interrupted at the next
+          // shifted frame and repeatedly reset the browser playback clock.
+          if (changing) this._exactFrame = outputFrame;
+          return state.originalPlaybackUpdateSchedule.call(this, schedule, changing ? 0 : delta);
+        } finally {
+          this._exactFrame = exactFrame;
+          if (changing && this.syncSchedule === schedule) this.syncSchedule = null;
+        }
       }
-
-      const previousExactFrame = this._exactFrame;
-      this._exactFrame = current.projectFrame;
-      try {
-        return state.originalPlaybackUpdateSchedule.call(
-          this,
-          schedule,
-          next.projectFrame - current.projectFrame,
-        );
-      } finally {
-        this._exactFrame = previousExactFrame;
-      }
+      // A discontinuous source clock cannot drive the output playhead or a
+      // forward-only media playbackRate. The viewport uses a paused, isolated
+      // decoder instead, while the native wall/audio clock advances output time.
+      schedule.__zoidiumTemporalPlayback = true;
+      schedule.el?.pause?.();
+      schedule.playing = false;
+      if (this.syncSchedule === schedule) this.syncSchedule = null;
     };
     Object.defineProperty(prototype, PLAYBACK_SCHEDULE_MARKER, {
       configurable: true,
@@ -455,12 +485,22 @@
           const clip = track.getCurrentClip?.(frame);
           if (clip) visit(clip.object, clip, frame - clip.start);
         }
-        if (effects.length > 0) {
+        // Clock operators on video also require an exact paused decoder. The
+        // native playback element can still be seeking when the viewport draws.
+        const temporalVideo = (sequence?.videoSchedules || []).some(schedule => {
+          const item = findScheduleItemAtFrame(schedule, frame)?.item;
+          const clip = item?.clip;
+          const mapped = item?.media && clip?.object &&
+            getTemporalLayerFrame(clip.object, frame - clip.start, sequence);
+          return mapped && Math.abs(mapped.sourceFrame - mapped.localFrame) > EPSILON;
+        });
+        if (effects.length > 0 || temporalVideo) {
           // One bounded preparation per viewport. The serialization includes
           // clip timing, effect order, expressions, keys and sequence settings.
           const key = JSON.stringify([frame, frameSamplerInputKey(sequence, this.compositor),
             effects.map(({ effect }) => frameSamplerIdentity(effect))]);
           const runtime = getFrameSamplerRuntime(state, this.compositor);
+          runtime.previewNeutral = false;
           // Preparation temporarily updates effect uniforms and decoder textures.
           // Even a previously prepared frame must wait until that work finishes.
           if (runtime.previewPending) return;
@@ -468,6 +508,7 @@
             if (!runtime.previewPending) {
               runtime.previewPending = true;
               const viewport = this;
+              const generation = runtime.previewGeneration || 0;
               (async () => {
                 const preparedContent = new Set();
                 async function prepareContent(layer, inputFrame) {
@@ -516,7 +557,7 @@
                 }
                 runtime.previewMedia = await prepareLowerSchedules(sequence,
                   { layer: null, trackIndex: 0 }, frame, { sequence }, runtime, true);
-                if (runtime.disposed || key !== JSON.stringify([frame,
+                if (runtime.disposed || generation !== (runtime.previewGeneration || 0) || runtime.previewNeutral || key !== JSON.stringify([frame,
                   frameSamplerInputKey(sequence, viewport.compositor),
                   effects.map(({ effect }) => frameSamplerIdentity(effect))])) return;
                 runtime.previewKey = key;
@@ -534,6 +575,22 @@
             return;
           }
           return renderPreparedPreview(this, runtime, frame);
+        }
+        const runtime = state.frameSamplerRuntimes.get(this.compositor);
+        if (runtime) {
+          if (!runtime.previewNeutral) runtime.previewGeneration = (runtime.previewGeneration || 0) + 1;
+          runtime.previewNeutral = true;
+          runtime.previewKey = null;
+        }
+        for (const schedule of sequence?.videoSchedules || []) {
+          if (!schedule.__zoidiumTemporalRejoin) continue;
+          const started = schedule.__zoidiumTemporalRejoinStarted ??= rejoinNow();
+          const timeout = PZ.videoFrameExportDiagnostics?.timeoutMs || 15000;
+          const waiting = schedule.el?.seeking || schedule.el?.readyState < 2;
+          if (!schedule.el?.error && waiting && rejoinNow() - started < timeout) return;
+          if (schedule.texture) schedule.texture.needsUpdate = true;
+          schedule.__zoidiumTemporalRejoin = false;
+          delete schedule.__zoidiumTemporalRejoinStarted;
         }
         return state.originalViewportRender.apply(this, arguments);
       }

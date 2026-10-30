@@ -118,6 +118,13 @@ each line describes one visible change.
 
 ### Fixed
 
+- Time Offset on a video no longer shows black or unrelated frames when
+  its offset jumps, for example with a `shake()` expression, and playback
+  no longer jumps the playhead backwards.
+- WebM clips show the correct frame at every frame boundary in preview and
+  export. Before, a frame could show the previous one because WebM stores
+  times in whole milliseconds. Exports of constant-frame-rate WebM clips can
+  change by one source frame at those points. MP4 clips are unchanged.
 - Graph Editor 2 curves stay sharp at extreme zoom. Undo after a key nudge or
   tangent change restores the exact values. Moving many keys no longer slows
   the graph, and deleted layers no longer leave curves behind.

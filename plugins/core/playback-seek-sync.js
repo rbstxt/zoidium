@@ -199,6 +199,7 @@
     if (existing && existing.configurable === false) return false;
 
     function patchedUpdate(frame, frameRate) {
+      if (this.__zoidiumExactDecodePending) return;
       this.lastFrame = frame;
       const result = originalUpdate.call(this, frame, frameRate);
       // Record where the engine just moved to. A later currentFrame write is a
