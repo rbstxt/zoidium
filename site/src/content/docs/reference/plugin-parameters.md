@@ -47,7 +47,7 @@ Find the control reference or guide for each plugin feature.
 
 ## Ranges, defaults, and time
 
-Defaults describe new controls. Presets and saved projects can override them. No declared bounds means no minimum or maximum is declared. The renderer may still clamp or round the value.
+Defaults describe new controls. No declared bounds means no minimum or maximum is declared.
 
 Sequence frame-rate edits keep supported clip boundaries, keys, and timing controls in seconds. Expressions based on `frame` retain their per-frame meaning.
 
