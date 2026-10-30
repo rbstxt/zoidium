@@ -46,7 +46,7 @@ PZ.ui.graph.prototype.snapFrame = function (absFrame, excludeEls) {
 PZ.ui.graph.prototype.attachKeyframeHandlers = function (el) {
   var self = this;
   el._g2down = function (e) {
-    if (e.button !== 0) return;
+    if (e.button !== 0 || self._spaceDown) return;
     e.stopPropagation();
     try { e.preventDefault(); } catch (err) { /* Synthetic host events may lack preventDefault. */ }
     focusNoScroll(self.bodyEl);
@@ -181,7 +181,7 @@ PZ.ui.graph.prototype.finishMovingKeyframes = function (selEls) {
 PZ.ui.graph.prototype.attachHandleHandlers = function (el, cpIdx, kfEl) {
   var self = this;
   el._g2down = function (e) {
-    if (e.button !== 0) return;
+    if (e.button !== 0 || self._spaceDown) return;
     e.stopPropagation();
     try { e.preventDefault(); } catch (err) { /* Synthetic host events may lack preventDefault. */ }
     focusNoScroll(self.bodyEl);
@@ -258,14 +258,15 @@ PZ.ui.graph.prototype.attachHandleHandlers = function (el, cpIdx, kfEl) {
     void startAbsF; void startVal; void scale;
   };
   el.addEventListener("pointerdown", el._g2down);
-  el.addEventListener("dblclick", function (e) {
+  el._g2double = function (e) {
     e.stopPropagation(); e.preventDefault();
     self.editor.history.startOperation();
     var gel = kfEl.parentElement.parentElement;
     self.propertyOps.setControlPoints({ property: gel.pz_object.getAddress(), frame: kfEl.pz_object.frame,
       controlPoints: [[-10, 0], [10, 0]] });
     self.editor.history.finishOperation();
-  });
+  };
+  el.addEventListener("dblclick", el._g2double);
 };
 PZ.ui.graph.prototype.handleDragStart = function () {};
 PZ.ui.graph.prototype.handleDrag = function () {};
@@ -291,13 +292,13 @@ PZ.ui.graph.prototype.finishMovingHandles = function (brokeTangent) {
         try { entry.gel.pz_object.onKeyframeChanged.update(kf); } catch (e) { console.warn("[Zoidium] graph-plus: notifying the keyframe change failed", e); }
         return;
       }
-      if (brokeTangent && kf.continuousTangent) {
-        try { self.propertyOps.setContinuousTangent({ property: addr, frame: kf.frame, continuous: false }); } catch (e) { console.warn("[Zoidium] graph-plus: breaking the tangent failed", e); }
-      }
       self.editor.history.pushCommand(
         PZ.ui.properties.prototype.setControlPoints.bind(self),
         { property: addr, frame: kf.frame, controlPoints: oldCP }
       );
+      if (brokeTangent && kf.continuousTangent) {
+        self.setContinuousTangentExact(entry.gel.pz_object, kf, false);
+      }
       delete kfel.pz_oldControlPoints;
     });
   });

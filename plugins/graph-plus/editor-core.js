@@ -174,7 +174,7 @@ PZ.ui.graph = function (editor, opts) {
   this._didInitView = false;
   this._hidden = {};   // addr -> true
   this._legendTick = 0;
-  this.tool = "sel";      // C4D-like tool modes: "pan" (default) | "sel" (marquee)
+  this.tool = "sel";      // Select by default. Middle-drag and Space-drag always pan.
   this._spaceDown = false;
   this.create();
 };

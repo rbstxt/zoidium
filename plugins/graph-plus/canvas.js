@@ -131,6 +131,10 @@ PZ.ui.graph.prototype.create = function () {
   this.svg.addEventListener("auxclick", function (e) { if (e.button === 1) e.preventDefault(); });
   this.rulerEl.addEventListener("mousedown", function (e) { if (e.button === 1) e.preventDefault(); });
   this.svg.addEventListener("pointermove", function (e) { self.onSvgPointerMove(e); });
+  this.svg.addEventListener("dblclick", function (e) {
+    var hit = self.pickTarget(e);
+    if (hit?.handle) { e.stopPropagation(); hit.element._g2double(e); }
+  }, true);
   this.svg.addEventListener("dblclick", function (e) { self.onSvgDoubleClick(e); });
   // ruler scrub (C4D): left-drag the numbers OR the red playhead bar
   this.rulerEl.addEventListener("pointerdown", function (e) {
@@ -185,8 +189,8 @@ PZ.ui.graph.prototype.onSvgPointerDown = function (e) {
     return;
   }
   if (e.button !== 0 && e.button !== 1) return;
-  if (e.target && e.target.classList && e.target.classList.contains("g2-kf")) return; // handled by key handlers
-  if (e.target && e.target.classList && e.target.classList.contains("g2-hdl")) return;
+  if (e.button === 0 && !this._spaceDown && e.target && e.target.classList && e.target.classList.contains("g2-kf")) return; // handled by key handlers
+  if (e.button === 0 && !this._spaceDown && e.target && e.target.classList && e.target.classList.contains("g2-hdl")) return;
   var self2 = this;
   var rect = this.svg.getBoundingClientRect();
   var startPx = { x: e.clientX - rect.left, y: e.clientY - rect.top };
@@ -194,7 +198,7 @@ PZ.ui.graph.prototype.onSvgPointerDown = function (e) {
   // 1) LMB on the red playhead line (within 7px) -> scrub
   var cfNow = currentFrame(this.editor);
   var pxDist = Math.abs((startG.x - cfNow) / Math.max(this.zoomX, 1e-9));
-  if (e.button === 0 && (e.target === this.cursor || pxDist <= 7)) {
+  if (e.button === 0 && !this._spaceDown && (e.target === this.cursor || pxDist <= 7)) {
     e.preventDefault();
     try { this.canvasEl.style.cursor = "col-resize"; } catch (err) {}
     var scrubTo = function (ev) {

@@ -2,7 +2,7 @@
 function nearestTarget(targets, x, y, radius) {
   return targets.map(target => ({ target, distance: Math.hypot(target.x - x, target.y - y) }))
     .filter(hit => hit.distance <= radius)
-    .sort((a, b) => Number(!!b.target.handle) - Number(!!a.target.handle) || a.distance - b.distance)[0]?.target;
+    .sort((a, b) => (a.distance - (a.target.handle ? 4 : 0)) - (b.distance - (b.target.handle ? 4 : 0)))[0]?.target;
 }
 function visibleHandle(cp, zoomX, zoomY, scale, index) {
   let x = cp[0] / zoomX, y = -cp[1] * scale / zoomY;
