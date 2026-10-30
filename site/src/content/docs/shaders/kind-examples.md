@@ -143,6 +143,5 @@ float coverage = zText(Title, vUv);
 gl_FragColor = vec4(vec3(coverage), coverage);
 ```
 
-Gradient, Curve, Palette, and Text are static properties. Their JSON stays in the
-project; generated textures do not. [Property controls](/docs/development/shader-properties/)
+Gradient, Curve, Palette, and Text are static properties. [Property controls](/docs/development/shader-properties/)
 describes their editors and saved formats.
