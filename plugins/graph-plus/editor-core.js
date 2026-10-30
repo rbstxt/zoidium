@@ -1,4 +1,5 @@
 "use strict";
+const { expressionOf } = require("./property-state.js");
 
 const { controllers } = require("./selection.js");
 
@@ -325,10 +326,14 @@ PZ.ui.graph.prototype.propGroups = function () {
 };
 PZ.ui.graph.prototype.selectedKeys = function () {
   if (!this.svg) return [];
-  return Array.prototype.slice.call(this.svg.querySelectorAll(".g2-kf.selected"));
+  return Array.prototype.slice.call(this.svg.querySelectorAll(".g2-kf.selected")).filter(el => {
+    var group = el.parentElement.parentElement;
+    return !expressionOf(group.pz_object) && group.style.display !== "none" &&
+      (!this._selectedAxes?.size || this._selectedAxes.has(group.pz_object));
+  });
 };
 PZ.ui.graph.prototype.graphColor = function (prop) {
-  return curveColor(displayName(prop));
+  return this.axisInfo(prop)?.color || curveColor(displayName(prop));
 };
 PZ.ui.graph.prototype.isHidden = function (prop) {
   return !!this._hidden[addrString(prop)];
@@ -390,9 +395,11 @@ PZ.ui.graph.prototype.updateViewBox = function () {
   }
   if (this.xGrid) this.xGrid.update();
   if (this.yGrid) this.yGrid.update();
+  this._expressionBudget = { deadline: performance.now() + 6, remaining: 1024 };
   var groups = this.propGroups();
   for (var g = 0; g < groups.length; g++) {
     var gel = groups[g];
+    if (expressionOf(gel.pz_object)) { this.drawExpression(gel); continue; }
     var keys = gel._keys ? Array.prototype.slice.call(gel._keys.children) : [];
     for (var k = 0; k < keys.length; k++) {
       this.updateKeyframe(keys[k]);
@@ -406,9 +413,29 @@ PZ.ui.graph.prototype.updateViewBox = function () {
     if (gel._label) this.positionLabel(gel);
   }
   try { this.drawRuler(); } catch (e) { gpWarnOnce("ruler", "ruler redraw failed", e); }
+  if (this._pendingExpressionFit && groups.every(group => group.style.display === "none" ||
+      !expressionOf(group.pz_object) || group._samples?.complete)) {
+    var request = this._pendingExpressionFit;
+    this._pendingExpressionFit = null;
+    this.fitAll(request.onlySelected);
+  }
 };
 PZ.ui.graph.prototype.fitAll = function (onlySelected) {
   var groups = this.propGroups();
+  this._expressionBudget = { deadline: performance.now() + 6, remaining: 1024 };
+  var pending = false;
+  for (var group of groups) {
+    if (group.style.display === "none" || !expressionOf(group.pz_object)) continue;
+    this.drawExpression(group);
+    if (!group._samples?.complete) pending = true;
+  }
+  if (pending) {
+    // Keep the current range fixed until all of its expression samples exist.
+    // A partial prefix can miss a late peak and produce the wrong fit.
+    this._pendingExpressionFit = { onlySelected: onlySelected };
+    return;
+  }
+  this._pendingExpressionFit = null;
   var t = Infinity, b = -Infinity, l = Infinity, r = -Infinity;
   var tf = totalFrames(this.editor);
   var found = false;
@@ -417,6 +444,16 @@ PZ.ui.graph.prototype.fitAll = function (onlySelected) {
     if (gel.style.display === "none") continue;
     var scale = gel.pz_valueScale || 1;
     var off = gel.pz_frameOffset || 0;
+    if (expressionOf(gel.pz_object)) {
+      this.drawExpression(gel);
+      scale = gel.pz_valueScale || 1;
+      for (var point of gel._samples?.points || []) {
+        if (!Number.isFinite(point[1])) continue;
+        l = Math.min(l, point[0] + off); r = Math.max(r, point[0] + off);
+        t = Math.min(t, -point[1] * scale); b = Math.max(b, -point[1] * scale); found = true;
+      }
+      continue;
+    }
     var keys = onlySelected
       ? Array.prototype.slice.call(gel._keys.querySelectorAll(".selected"))
       : Array.prototype.slice.call(gel._keys.children);

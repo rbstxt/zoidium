@@ -1,4 +1,5 @@
 "use strict";
+const { expressionOf } = require("./property-state.js");
 
 // Warn-once reporter for failure sites that run per pointer move or per item:
 // the first failure is logged, repeats stay silent so the console stays readable.
@@ -320,8 +321,8 @@ PZ.ui.graph.prototype.onSvgDoubleClick = function (e) {
   var g = this.screenToGraph(e.clientX - rect.left, e.clientY - rect.top);
   var absF = Math.round(g.x);
   // find nearest curve within threshold, else use all visible groups
-  var groups = this.propGroups().filter(function (gel) {
-    if (gel.style.display === "none") return false;
+  var groups = this.propGroups().filter((gel) => {
+    if (gel.style.display === "none" || expressionOf(gel.pz_object) || (this._selectedAxes?.size && !this._selectedAxes.has(gel.pz_object))) return false;
     return gel.pz_object;
   });
   if (!groups.length) return;

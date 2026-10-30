@@ -47,10 +47,25 @@ test("Graph+ curve rendering pins linear, hold and corrected Bezier paths", () =
   assert.equal(curve({ ...right, tween: 1, value: "text" }, { frame: NaN, value: 1 }).d, "M 0 0");
 });
 
-test("Graph+ sampled easing preserves all twenty segments", () => {
-  const expected = "M 2 -6" + Array.from({ length: 20 }, (_, i) => {
-    const u = (i + 1) / 20;
-    return " L " + (2 + 10 * u) + " " + (-((8 - 3) * (u * u) + 3) * 2);
-  }).join("");
-  assert.equal(curve({ ...right, tween: 2 }).d, expected);
+test("Graph+ adaptive easing vertices use the playback function", () => {
+  const values = curve({ ...right, tween: 2 }).d.match(/-?\d+(?:\.\d+)?/g).map(Number);
+  assert.ok(values.length > 40);
+  for (let i = 0; i < values.length; i += 2) {
+    const u = (values[i] - 2) / 10;
+    assert.ok(Math.abs(values[i + 1] + (3 + 5 * u * u) * 2) < 1e-10);
+  }
+});
+
+test("Graph+ curve coordinates remain finite at extreme anisotropic zoom", () => {
+  const attributes = {};
+  const group = { pz_valueScale: 2, pz_frameOffset: 5, style: {} };
+  graph().updateCurve.call({ options: { curveLineWidth: 2 }, centerX: 10, centerY: 0, zoomX: 1.91, zoomY: 0.007 }, {
+    parentElement: { parentElement: group },
+    setAttributeNS: (_ns, name, value) => { attributes[name] = value; },
+  }, { frame: 2, value: 3 }, { frame: 12, value: 8, tween: 1 });
+  const numbers = attributes.d.match(/-?\d+(?:\.\d+)?/g).map(Number);
+  assert.ok(numbers.every(Number.isFinite));
+  assert.ok(Math.abs(numbers[0] * 1.91 + 5 - 2) < 1e-10);
+  assert.ok(Math.abs(numbers[1] * 0.007 + 6) < 1e-10);
+  assert.equal(attributes.transform, "translate(5 0) scale(1.91 0.007)");
 });

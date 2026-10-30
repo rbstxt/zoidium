@@ -1,5 +1,7 @@
 "use strict";
+const { expressionOf, segmentType } = require("./property-state.js");
 
+const { easingPoints, ExpressionSamples } = require("./sampling.js");
 var gpNextGroupId = 1;
 
 module.exports = function (environment) {
@@ -96,9 +98,16 @@ PZ.ui.graph.prototype.onKeyframeDeleted = function (gel, kfObj) {
   this.updateLegend();
 };
 PZ.ui.graph.prototype.onKeyframeMoved = function (gel, evt, kfObj) {
-  // simplest robust: full redraw of that curve
-  this.redrawAllKeyframes(gel);
-  this.updateLegend();
+  // Native finishMove emits once per key. Rebuild once after the gesture,
+  // including undo and redo, so moving a dense axis does not rebuild it N times.
+  if (gel._moveRedrawPending) return;
+  gel._moveRedrawPending = true;
+  Promise.resolve().then(() => {
+    gel._moveRedrawPending = false;
+    if (!gel.parentElement) return;
+    this.redrawAllKeyframes(gel);
+    this.updateLegend();
+  });
 };
 PZ.ui.graph.prototype.onKeyframeChanged = function (gel, kfObj) {
   var at = gel._keys.firstElementChild;
@@ -142,7 +151,7 @@ PZ.ui.graph.prototype.updateHandles = function (hEl) {
   // SVG g transform via attribute for reliability
   hEl.setAttributeNS(null, "transform", "translate(" + kf.frame + " " + (-kf.value * scale) + ")");
   var h0 = hEl.children[0], h1 = hEl.children[1], l0 = hEl.children[2], l1 = hEl.children[3];
-  var bez = kf.tween >> 8;
+  var bez = segmentType(PZ, kf.tween) === "bezier";
   hEl.style.display = bez ? "" : "none";
   if (!bez) return;
   h0.setAttributeNS(null, "rx", 0.5 * s * this.zoomX);
@@ -179,8 +188,8 @@ PZ.ui.graph.prototype.updateKeyframe = function (kfEl) {
   var scale = (gel && gel.pz_valueScale) || 1;
   var s = this.options.keyframeSize;
   var sel = kfEl.classList.contains("selected");
-  var isHold = false, isBez = false;
-  try { isHold = (PZ.tween.easingList[255 & kf.tween].fn === null); isBez = (kf.tween >> 8) !== 0; } catch (e) {}
+  var type = segmentType(PZ, kf.tween);
+  var isHold = type === "step", isBez = type === "bezier";
   kfEl.setAttributeNS(null, "width", s * this.zoomX);
   kfEl.setAttributeNS(null, "height", s * this.zoomY);
   kfEl.setAttributeNS(null, "x", kf.frame - 0.5 * s * this.zoomX);
@@ -202,6 +211,7 @@ PZ.ui.graph.prototype.updateKeyframe = function (kfEl) {
   else kfEl.removeAttribute("stroke-dasharray");
 };
 PZ.ui.graph.prototype.selectKeyframe = function (kfEl) {
+  if (expressionOf(kfEl.parentElement.parentElement.pz_object)) return;
   if (kfEl.classList.contains("selected")) return;
   var gel = kfEl.parentElement.parentElement;
   kfEl.pz_handles = this.createHandles(kfEl.pz_object);
@@ -214,6 +224,11 @@ PZ.ui.graph.prototype.selectKeyframe = function (kfEl) {
   this.updateHandles(kfEl.pz_handles);
   kfEl.classList.add("selected");
   this.updateKeyframe(kfEl);
+  if (this.options.linkAxes && !this._selectingLinked) {
+    this._selectingLinked = true;
+    for (var sibling of this.timeKeys([kfEl])) if (sibling !== kfEl) this.selectKeyframe(sibling);
+    this._selectingLinked = false;
+  }
 };
 PZ.ui.graph.prototype.deselectKeyframe = function (kfEl) {
   if (!kfEl.classList.contains("selected")) return;
@@ -222,7 +237,7 @@ PZ.ui.graph.prototype.deselectKeyframe = function (kfEl) {
   try { this.updateKeyframe(kfEl); } catch (e) { /* A detached key needs no visual refresh. */ }
 };
 PZ.ui.graph.prototype.deselectAllKeyframes = function () {
-  var sel = this.selectedKeys();
+  var sel = this.svg ? Array.from(this.svg.querySelectorAll(".g2-kf.selected")) : [];
   for (var i = 0; i < sel.length; i++) this.deselectKeyframe(sel[i]);
   this.updateStatus();
 };
@@ -260,40 +275,67 @@ PZ.ui.graph.prototype.updateCurve = function (path, leftKf, rightKf) {
     eX = Math.max(this.centerX - off + 0.5 * this.width * this.zoomX, leftKf.frame);
     eY = -leftKf.value * scale;
   }
+  // Keep path coordinates in screen units so the SVG rasterizer sees an
+  // isotropic transform even when the graph zoom differs greatly by axis.
+  var originX = this.zoomX ? (this.centerX || 0) - off : 0, originY = this.centerY || 0;
+  var zoomX = this.zoomX || 1, zoomY = this.zoomY || 1;
+  function sx(x) { return (x - originX) / zoomX; }
+  function sy(y) { return (y - originY) / zoomY; }
+  if (this.zoomX && this.zoomY) path.setAttributeNS(null, "transform", "translate(" + originX + " " + originY + ") scale(" + zoomX + " " + zoomY + ")");
   var d;
-  if (leftKf && rightKf && (rightKf.tween >> 8)) {
+  if (leftKf && rightKf && segmentType(PZ, rightKf.tween) === "bezier") {
     var corr = 1;
     try { corr = PZ.tween.correctCurve(leftKf, rightKf); } catch (e) {}
     var c1x = leftKf.controlPoints[1][0] * corr + leftKf.frame;
     var c1y = -leftKf.controlPoints[1][1] * scale * corr - leftKf.value * scale;
     var c2x = rightKf.controlPoints[0][0] * corr + rightKf.frame;
     var c2y = -rightKf.controlPoints[0][1] * scale * corr - rightKf.value * scale;
-    d = "M " + sX + " " + sY + " C " + c1x + " " + c1y + ", " + c2x + " " + c2y + ", " + eX + " " + eY;
+    d = "M " + sx(sX) + " " + sy(sY) + " C " + sx(c1x) + " " + sy(c1y) + ", " + sx(c2x) + " " + sy(c2y) + ", " + sx(eX) + " " + sy(eY);
   } else if (leftKf && rightKf) {
     var easeIdx = rightKf.tween & 255;
     var fn = null;
     try { fn = PZ.tween.easingList[easeIdx].fn; } catch (e) {}
     if (!fn) {
       // hold/step (user design 5): flat run then sharp vertical jump at key
-      d = "M " + sX + " " + sY + " L " + eX + " " + sY + " L " + eX + " " + eY;
+      d = "M " + sx(sX) + " " + sy(sY) + " L " + sx(eX) + " " + sy(sY) + " L " + sx(eX) + " " + sy(eY);
     } else if (easeIdx === 1) {
-      d = "M " + sX + " " + sY + " L " + eX + " " + eY;
+      d = "M " + sx(sX) + " " + sy(sY) + " L " + sx(eX) + " " + sy(eY);
     } else {
-      // sample easing (16 segs) — shows TRUE f-curve
-      d = "M " + sX + " " + sY;
-      var N = 20;
-      for (var k = 1; k <= N; k++) {
-        var u = k / N;
-        var fx = leftKf.frame + (rightKf.frame - leftKf.frame) * u;
-        var ev = fn(u);
-        var vv = (rightKf.value - leftKf.value) * ev + leftKf.value;
-        d += " L " + fx + " " + (-vv * scale);
-      }
+      d = "M " + sx(sX) + " " + sy(sY);
+      easingPoints(fn, Math.abs(eX - sX) / zoomX, (eY - sY) / zoomY).slice(1).forEach(function (point) {
+        d += " L " + sx(sX + (eX - sX) * point[0]) + " " + sy(sY + (eY - sY) * point[1]);
+      });
     }
   } else {
-    d = "M " + sX + " " + sY + " L " + eX + " " + eY;
+    d = "M " + sx(sX) + " " + sy(sY) + " L " + sx(eX) + " " + sy(eY);
   }
   path.setAttributeNS(null, "d", d);
+};
+PZ.ui.graph.prototype.drawExpression = function (gel) {
+  if (!expressionOf(gel.pz_object) || !gel._expression) return;
+  if (!this._expressionSamples) this._expressionSamples = new ExpressionSamples();
+  var off = gel.pz_frameOffset || 0;
+  var record = this._expressionSamples.sample(gel.pz_object,
+    this.centerX - this.width * this.zoomX / 2 - off,
+    this.centerX + this.width * this.zoomX / 2 - off, this.zoomX, this._expressionBudget);
+  gel._samples = record;
+  if (this.options.normalize) {
+    var maxAbs = record.points.reduce((max, point) => Number.isFinite(point[1]) ? Math.max(max, Math.abs(point[1])) : max, 0);
+    gel.pz_valueScale = 80 / (maxAbs > 1e-9 ? maxAbs : 1);
+  }
+  var ox = this.centerX - off, oy = this.centerY;
+  var path = gel._expression, d = "", connected = false;
+  record.points.forEach((point) => {
+    if (!Number.isFinite(point[1])) { connected = false; return; }
+    d += (connected ? " L " : " M ") + ((point[0] - ox) / this.zoomX) + " " +
+      ((-point[1] * gel.pz_valueScale - oy) / this.zoomY);
+    connected = true;
+  });
+  path.setAttributeNS(null, "transform", "translate(" + ox + " " + oy + ") scale(" + this.zoomX + " " + this.zoomY + ")");
+  path.setAttributeNS(null, "d", d);
+  path.setAttributeNS(null, "stroke", gel.pz_color);
+  path.setAttributeNS(null, "stroke-width", this.options.curveLineWidth);
+  path.setAttributeNS(null, "stroke-dasharray", "6 4");
 };
 PZ.ui.graph.prototype.redrawAllKeyframes = function (gel) {
   // BUGFIX: preserve selection across redraw (was losing sel on move)
@@ -307,6 +349,12 @@ PZ.ui.graph.prototype.redrawAllKeyframes = function (gel) {
   while (gel._handles.firstChild) gel._handles.firstChild.remove();
   var prop = gel.pz_object;
   this.refreshScaleFor(gel);
+  if (expressionOf(prop)) {
+    gel._expression = this.createCurve();
+    gel._curves.appendChild(gel._expression);
+    this.drawExpression(gel);
+    return;
+  }
   for (var i = 0; i < prop.keyframes.length; i++) {
     this.onKeyframeCreated(gel, prop.keyframes[i]);
   }
@@ -386,6 +434,22 @@ PZ.ui.graph.prototype.createProperty = function (prop) {
       g.pz_sequence.ui.onClipMoved.watch(g.pz_clipMoved, true);
     }
   } catch (e) { /* Properties outside clips need no offset tracking. */ }
+  g.pz_expressionChanged = function () { self._expressionSamples?.invalidate(); self.redrawAllKeyframes(g); self.updateViewBox(); self.updateLegend(); };
+  prop.onExpressionChanged?.watch(g.pz_expressionChanged);
+  g.pz_groupExpressionSignal = prop.parent?.parent?.onExpressionChanged;
+  g.pz_groupExpressionSignal?.watch(g.pz_expressionChanged);
+  g.pz_projectChanged = function () {
+    if (self._projectRefreshQueued) return;
+    self._projectRefreshQueued = true;
+    Promise.resolve().then(function () {
+      self._projectRefreshQueued = false;
+      self._expressionSamples?.invalidate();
+      self.pruneDetachedProperties();
+      self.updateViewBox();
+    });
+  };
+  g.pz_projectSignal = this.editor.project?.ui?.onChanged;
+  g.pz_projectSignal?.watch(g.pz_projectChanged);
   this.refreshScaleFor(g);
   this.redrawAllKeyframes(g);
   if (this.isHidden(prop)) g.style.display = "none";
@@ -395,6 +459,9 @@ PZ.ui.graph.prototype.unloadProperty = function (g) {
   var prop = g.pz_object;
   try {
     if (g.pz_nameChanged && prop.properties && prop.properties.name) prop.properties.name.onChanged.unwatch(g.pz_nameChanged);
+    prop.onExpressionChanged?.unwatch(g.pz_expressionChanged);
+    g.pz_groupExpressionSignal?.unwatch(g.pz_expressionChanged);
+    g.pz_projectSignal?.unwatch(g.pz_projectChanged);
     prop.onKeyframeCreated.unwatch(g.pz_keyframeCreated);
     prop.onKeyframeDeleted.unwatch(g.el_keyframeDeleted);
     prop.onKeyframeMoved.unwatch(g.pz_keyframeMoved);
@@ -447,6 +514,7 @@ PZ.ui.graph.prototype.objectsChanged = function () {
       }
     }
   }
+  this._selectedAxes = null;
   this.refreshAllScales();
   this.updateLegend();
   this.updateViewBox();

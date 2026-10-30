@@ -1,5 +1,6 @@
 "use strict";
 
+const { easingPoints } = require("./sampling.js");
 const { controllers, readFollow } = require("./selection.js");
 
 module.exports = function (environment) {
@@ -13,7 +14,7 @@ PZ.ui.graph.prototype.setTangentsOnSelected = function (continuous) {
     var gel = sel[i].parentElement.parentElement;
     if (!gel || !gel.pz_object) continue;
     var kf = sel[i].pz_object;
-    this.propertyOps.setContinuousTangent({ property: gel.pz_object.getAddress(), frame: kf.frame, continuous: continuous });
+    this.setContinuousTangentExact(gel.pz_object, kf, continuous);
   }
   this.editor.history.finishOperation();
   this.updateStatus(continuous ? "auto tangents" : "tangents broken");
@@ -43,6 +44,16 @@ PZ.ui.graph.prototype.toggleEasePopup = function () {
     var it = mk("div");
     it.className = "g2-popup-item";
     it.textContent = i + ": " + n;
+    var svg = doc.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("viewBox", "0 -12 64 64");
+    svg.setAttribute("width", "64"); svg.setAttribute("height", "48");
+    svg.setAttribute("aria-hidden", "true");
+    var path = doc.createElementNS("http://www.w3.org/2000/svg", "path");
+    var fn = PZ.tween.easingList[i].fn;
+    var points = fn ? easingPoints(fn, 60, 36) : [[0, 0], [1, 0], [1, 1]];
+    path.setAttribute("d", points.map((p, k) => (k ? "L" : "M") + (2 + p[0] * 60) + " " + (40 - p[1] * 36)).join(" "));
+    path.setAttribute("fill", "none"); path.setAttribute("stroke", "currentColor");
+    path.setAttribute("stroke-width", "1.5"); svg.appendChild(path); it.prepend(svg);
     it.addEventListener("mousedown", function (ev) { ev.preventDefault(); ev.stopPropagation(); });
     it.addEventListener("click", function (ev) {
       ev.stopPropagation();
@@ -177,6 +188,12 @@ PZ.ui.graph.prototype.buildToolbar = function () {
   var follow = controller ? controller.follow : readFollow(null);
   this.followBtn.classList.toggle("on", follow);
   this.followBtn.setAttribute("aria-pressed", String(follow));
+  this.axesBtn = small(gf, toolIcon("link"), "Link axes", "", "Move sibling keys together in time", function () {
+    self.options.linkAxes = !self.options.linkAxes;
+    self.axesBtn.classList.toggle("on", self.options.linkAxes);
+    self.axesBtn.setAttribute("aria-pressed", String(self.options.linkAxes));
+  });
+  this.axesBtn.setAttribute("aria-pressed", "false");
   var gv = group();
   this.panBtn = small(gv, toolIcon("pan"), "Pan", "H", "Pan tool — left-drag moves the grid (default)", function () { self.setTool("pan"); }, "on");
   this.selToolBtn = small(gv, toolIcon("marquee"), "Marquee", "V", "Marquee tool — left-drag selects keys (Shift+drag in any tool)", function () { self.setTool("sel"); });

@@ -1,4 +1,6 @@
 "use strict";
+const { expressionOf, evaluatedValue } = require("./property-state.js");
+const { pasteKey } = require("./axes.js");
 
 // Warn-once reporter for failure sites that run per frame or per item:
 // the first failure is logged, repeats stay silent so the console stays readable.
@@ -46,6 +48,7 @@ PZ.ui.graph.prototype.update = function () {
       this._lastRulerFrame = cf;
       try { this.drawRuler(); } catch (e2) { gpWarnOnce("ruler", "ruler redraw failed", e2); }
     }
+    if (this.propGroups().some(g => g._samples && !g._samples.complete)) this.updateViewBox();
     if ((this._legendTick = (this._legendTick + 1) % 20) === 0) this.updateLegendValues();
   } catch (e) { /* Per-frame DOM refresh is best-effort; the next frame retries. */ }
 };
@@ -109,13 +112,21 @@ PZ.ui.graph.prototype.deleteKeyframes = function (els) {
   }
   this.updateLegend();
 };
+PZ.ui.graph.prototype.setContinuousTangentExact = function (prop, kf, continuous) {
+  if (kf.continuousTangent === continuous) return;
+  // Native undo can enable continuity and mirror the handles again. Preserve
+  // their exact coordinates before the flag command, including roundoff.
+  if (kf.controlPoints) this.editor.history.pushCommand(this.propertyOps.setControlPoints.bind(this.propertyOps),
+    { property: prop.getAddress(), frame: kf.frame, controlPoints: kf.controlPoints.map(point => point.slice()) });
+  this.propertyOps.setContinuousTangent({ property: prop.getAddress(), frame: kf.frame, continuous: continuous });
+};
 PZ.ui.graph.prototype.toggleContinuousTangents = function (els) {
   for (var t = 0; t < els.length; t++) {
     var gel = els[t].parentElement.parentElement;
     if (!gel || !gel.pz_object) continue;
     var prop = gel.pz_object;
     var kf = els[t].pz_object;
-    this.propertyOps.setContinuousTangent({ property: prop.getAddress(), frame: kf.frame, continuous: !kf.continuousTangent });
+    PZ.ui.graph.prototype.setContinuousTangentExact.call(this, prop, kf, !kf.continuousTangent);
   }
 };
 PZ.ui.graph.prototype.toggleInterpolation = function (els) {
@@ -156,7 +167,7 @@ PZ.ui.graph.prototype.applyEasingToSelected = function (easeIdx) {
   this.updateStatus("applied " + (nm || ("ease " + easeIdx)));
 };
 PZ.ui.graph.prototype.addKeyframeAtPlayhead = function () {
-  var groups = this.propGroups().filter(function (g) { return g.style.display !== "none"; });
+  var groups = this.editableGroups ? this.editableGroups() : this.propGroups().filter(function (g) { return g.style.display !== "none" && !expressionOf(g.pz_object); });
   if (!groups.length) return;
   var cf = currentFrame(this.editor);
   this.editor.history.startOperation();
@@ -182,6 +193,7 @@ PZ.ui.graph.prototype.copySelected = function () {
   var groups = this.propGroups();
   for (var gi = 0; gi < groups.length; gi++) {
     var gel = groups[gi];
+    if (expressionOf(gel.pz_object) || gel.style.display === "none" || (this._selectedAxes?.size && !this._selectedAxes.has(gel.pz_object))) continue;
     var sel = Array.prototype.slice.call(gel._keys.getElementsByClassName("selected"));
     if (sel.length) map[gel.pz_object.definition.name] = sel.map(function (e) { return e.pz_object; });
   }
@@ -195,7 +207,7 @@ PZ.ui.graph.prototype.copySelected = function () {
   try {
     var pack = new PZ.package(map, "propertyList");
     var str = JSON.stringify([pack]);
-    if (nav && nav.clipboard && nav.clipboard.writeText) nav.clipboard.writeText(str);
+    if (nav && nav.clipboard && nav.clipboard.writeText) nav.clipboard.writeText(str).catch(function () { /* The session clipboard remains available. */ });
     this._clipCache = str;
     this.updateStatus("copied " + Object.keys(map).length + " curve(s)");
   } catch (e) { console.warn("[Zoidium] graph-plus: copying keyframes failed", e); this.updateStatus("copy failed"); }
@@ -217,18 +229,21 @@ PZ.ui.graph.prototype.pasteAtPlayhead = function () {
     }
     var cf = currentFrame(self.editor);
     self.editor.history.startOperation();
-    var groups = self.propGroups();
+    var groups = self.editableGroups ? self.editableGroups() : self.propGroups();
     for (var gi = 0; gi < groups.length; gi++) {
       var prop = groups[gi].pz_object;
+      if (expressionOf(prop) || groups[gi].style.display === "none") continue;
       var off = groups[gi].pz_frameOffset || 0;
       for (var ai = 0; ai < arr.length; ai++) {
         var data = arr[ai].data;
         var shift = cf - arr[ai].minFrame - off;
-        var list = data[prop.definition.name];
+        var axis = self.axisInfo?.(prop)?.axis;
+        var sourceKey = pasteKey(data, prop.definition.name, axis, groups.length === 1);
+        var list = data[sourceKey];
         if (list) {
           if (list.length) self.ensureAnimated(prop, list[0].frame + shift);
           try { self.propertyOps.pasteKeyframes(prop, JSON.parse(JSON.stringify(list)), shift); } catch (err) { gpWarnOnce("paste:" + gi + ":" + ai, "pasting keyframes failed", err); }
-          delete data[prop.definition.name];
+          delete data[sourceKey];
         }
       }
     }
@@ -271,10 +286,22 @@ PZ.ui.graph.prototype.updateLegend = function () {
     this.tracksEl.appendChild(h);
     return;
   }
+  var parents = new Set();
   groups.forEach(function (gel) {
+    var info = self.axisInfo(gel.pz_object);
+    if (info && !parents.has(info.parent)) {
+      parents.add(info.parent);
+      var parentRow = mk("div"); parentRow.className = "g2-track-row g2-track-parent";
+      parentRow.textContent = displayName(info.parent);
+      parentRow.addEventListener("click", function (ev) {
+        self.selectAxes(groups.filter(g => self.axisInfo(g.pz_object)?.parent === info.parent), ev.ctrlKey || ev.metaKey || ev.shiftKey);
+      });
+      self.tracksEl.appendChild(parentRow);
+    }
     var prop = gel.pz_object;
     var row = mk("div");
     row.className = "g2-track-row";
+    row._gel = gel;
     row.title = addrString(prop) + " — click to select all its keys";
     var dot = mk("span");
     dot.className = "g2-swatch";
@@ -282,7 +309,7 @@ PZ.ui.graph.prototype.updateLegend = function () {
     row.appendChild(dot);
     var nm = mk("span");
     nm.className = "g2-track-name";
-    nm.textContent = displayName(prop);
+    nm.textContent = (info ? "  " + info.axis : displayName(prop)) + (expressionOf(prop) ? " · Expression" : "");
     row.appendChild(nm);
     var val = mk("span");
     val.className = "g2-track-val";
@@ -297,19 +324,16 @@ PZ.ui.graph.prototype.updateLegend = function () {
     eye.addEventListener("click", function (ev) {
       ev.stopPropagation();
       gel.style.display = gel.style.display === "none" ? "" : "none";
+      self._hidden[addrString(prop)] = gel.style.display === "none";
+      if (gel.style.display === "none") for (var key of Array.from(gel._keys.children)) self.deselectKeyframe(key);
       self.updateViewBox(); self.updateLegend();
     });
     row.appendChild(eye);
-    row.addEventListener("click", function () {
-      // click row = select all keys of that curve
-      var keys = gel._keys.children;
-      var anyUnsel = false;
-      for (var i = 0; i < keys.length; i++) if (!keys[i].classList.contains("selected")) { anyUnsel = true; break; }
-      for (var j = 0; j < keys.length; j++) {
-        if (anyUnsel) self.selectKeyframe(keys[j]);
-        else self.deselectKeyframe(keys[j]);
-      }
-      self.updateStatus();
+    var solo = mk("button"); solo.className = "g2-eye"; solo.textContent = "S"; solo.title = "Solo axis";
+    solo.addEventListener("click", function (ev) { ev.stopPropagation(); self.selectAxes([gel], false); });
+    row.appendChild(solo);
+    row.addEventListener("click", function (ev) {
+      self.selectAxes([gel], ev.ctrlKey || ev.metaKey || ev.shiftKey);
     });
     self.tracksEl.appendChild(row);
   });
@@ -323,7 +347,7 @@ PZ.ui.graph.prototype.updateLegendValues = function () {
     var prop = rows[i]._prop, gel = rows[i]._gel;
     try {
       var off = (gel && gel.pz_frameOffset) || 0;
-      var v = prop.get(cf - off);
+      var v = evaluatedValue(prop, cf - off);
       rows[i].textContent = typeof v === "number" ? (Math.round(v * 100) / 100).toString() : "";
     } catch (e) { /* An unreadable property value leaves its cell blank. */ rows[i].textContent = ""; }
   }
@@ -432,7 +456,8 @@ PZ.ui.graph.prototype.keydown = function (e) {
     if (this.easePopup) { this.closeEasePopup(); return; }
     this.deselectAllKeyframes();
   } else if (e.key && e.key.indexOf("Arrow") === 0) {
-    var sel5 = this.selectedKeys();
+    var valueKeys = this.selectedKeys();
+    var sel5 = e.key === "ArrowLeft" || e.key === "ArrowRight" ? (this.timeKeys ? this.timeKeys(valueKeys) : valueKeys) : valueKeys;
     if (!sel5.length) return;
     e.stopPropagation(); e.preventDefault();
     var df = 0, dvPx = 0;
@@ -448,6 +473,7 @@ PZ.ui.graph.prototype.keydown = function (e) {
     });
     for (var i = 0; i < snap.length; i++) {
       var sn = snap[i];
+      sn.el.pz_oldFrame = sn.oldF;
       if (df) sn.kf.frame = Math.round(sn.oldF + df);
       if (dvPx) sn.kf.value = sn.oldV + (dvPx * this.zoomY) / sn.scale;
       this.refreshAdjacentCurves(sn.el);

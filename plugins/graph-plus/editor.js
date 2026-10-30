@@ -14,6 +14,7 @@ require("./canvas.js")(environment);
 require("./interaction.js")(environment);
 require("./curves.js")(environment);
 require("./operations.js")(environment);
+require("./axes.js")(environment);
 /* ================= EDITOR (rebuilt, same API) ================= */
 PZ.ui.graph.grid = GraphGrid;
 PZ.ui.graphEditor = function (editor, opts) {

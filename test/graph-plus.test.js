@@ -71,7 +71,7 @@ function makeFakePZ() {
   function OrigGraph() {}
   OrigGraph.grid = function OrigGrid() {};
   function OrigGraphEditor() {}
-  const easingList = Array.from({ length: 33 }, (_entry, index) => ({ name: `ease${index}` }));
+  const easingList = Array.from({ length: 33 }, (_entry, index) => ({ name: `ease${index}`, fn: index === 0 ? null : u => u }));
   easingList[7] = { name: "ease-in-out" };
   return {
     ui: {
@@ -342,16 +342,30 @@ test("arrow nudge records the undo command with the old value", () => {
   const proto = GraphPlus.__test.gpDefineGraphEditor(PZ).graph.prototype;
   const history = makeHistory();
   const el = keyEl(10, 4, "addr");
+  const committed = [];
   const self = {
     editor: { history },
     zoomY: 1,
     selectedKeys: () => [el],
     refreshAdjacentCurves: () => {},
-    finishMovingKeyframes: () => {},
+    finishMovingKeyframes: proto.finishMovingKeyframes,
+    propertyOps: {
+      startMove: (_prop, count) => Array.from({ length: count }, () => ({ property: "addr", oldFrame: 0, newFrame: 0 })),
+      finishMove: (prop, selected, moves, map) => {
+        assert.equal(prop, el.parentElement.parentElement.pz_object);
+        assert.ok(selected.has(el.pz_object));
+        assert.equal(map.get(moves[0]), el.pz_object);
+        committed.push(...plain(moves));
+      },
+    },
+    updateViewBox: () => {}, updateLegend: () => {},
     updateStatus: () => {},
   };
   proto.keydown.call(self, { key: "ArrowRight", stopPropagation: () => {}, preventDefault: () => {} });
   assert.equal(el.pz_object.frame, 11);
+  assert.deepEqual(committed, [{ property: "addr", oldFrame: 11, newFrame: 10 }],
+    "finishMove receives an inverse move from the current frame to the original frame");
+  assert.equal(el.pz_oldFrame, undefined, "the real move commit consumes the transient original frame");
   assert.equal(history.ops, 1);
   assert.equal(history.finished, 1);
   assert.equal(history.commands.length, 1);
