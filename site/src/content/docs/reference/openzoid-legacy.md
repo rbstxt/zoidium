@@ -110,7 +110,7 @@ There are six manual points. **Point 1** starts enabled at the center. Each poin
 
 **Color mode** offers **band colors**, **footage colors**, **duotone**, **mono**, and **invert**. Additional setup groups cover **Random**, **Sine waves**, **Advanced noise**, **Scroll**, and **Glitch**.
 
-Fonts use bundled Source Code Pro and local fallback families.
+Fonts use the bundled font and local fallbacks.
 
 ## Time, seeds, and saved data
 

@@ -110,7 +110,7 @@ OpenZoid Legacy は **SETUP LEGACY** に 7 つのエフェクトを追加しま�
 
 **Color mode** は **band colors**、**footage colors**、**duotone**、**mono**、**invert** から選択できます。追加の設定グループには **Random**、**Sine waves**、**Advanced noise**、**Scroll**、**Glitch** があります。
 
-フォントは同梱の Source Code Pro とローカルの代替フォントを使います。
+フォントは同梱のフォントとローカルの代替フォントを使います。
 
 ## 時間、シード、保存データ
 
