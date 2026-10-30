@@ -33,18 +33,31 @@
     },
     "kind": {
       "type": "string",
-      "enum": ["shader-pack", "native-fx", "object", "material-pack", "extension", "core"]
+      "enum": [
+        "shader-pack",
+        "native-fx",
+        "object",
+        "material-pack",
+        "extension",
+        "core"
+      ]
     },
     "visibility": {
       "type": "string",
-      "enum": ["visible", "hidden"]
+      "enum": [
+        "visible",
+        "hidden"
+      ]
     },
     "alwaysEnabled": {
       "type": "boolean"
     },
     "phase": {
       "type": "string",
-      "enum": ["pre-init", "post-init"]
+      "enum": [
+        "pre-init",
+        "post-init"
+      ]
     },
     "description": {
       "type": "string"
@@ -123,7 +136,9 @@
   },
   "anyOf": [
     {
-      "required": ["effects"],
+      "required": [
+        "effects"
+      ],
       "properties": {
         "effects": {
           "type": "array",
@@ -132,7 +147,9 @@
       }
     },
     {
-      "required": ["groups"],
+      "required": [
+        "groups"
+      ],
       "properties": {
         "groups": {
           "type": "array",
@@ -141,7 +158,9 @@
       }
     },
     {
-      "required": ["nativeEffects"],
+      "required": [
+        "nativeEffects"
+      ],
       "properties": {
         "nativeEffects": {
           "type": "array",
@@ -150,7 +169,9 @@
       }
     },
     {
-      "required": ["materialTypes"],
+      "required": [
+        "materialTypes"
+      ],
       "properties": {
         "materialTypes": {
           "type": "array",
@@ -159,7 +180,9 @@
       }
     },
     {
-      "required": ["modules"],
+      "required": [
+        "modules"
+      ],
       "properties": {
         "modules": {
           "type": "array",
@@ -168,7 +191,9 @@
       }
     },
     {
-      "required": ["objectTypes"],
+      "required": [
+        "objectTypes"
+      ],
       "properties": {
         "objectTypes": {
           "type": "array",
@@ -177,7 +202,9 @@
       }
     },
     {
-      "required": ["objectClasses"],
+      "required": [
+        "objectClasses"
+      ],
       "properties": {
         "objectClasses": {
           "type": "array",
@@ -186,7 +213,9 @@
       }
     },
     {
-      "required": ["resources"],
+      "required": [
+        "resources"
+      ],
       "properties": {
         "resources": {
           "type": "array",
@@ -195,7 +224,9 @@
       }
     },
     {
-      "required": ["kind"],
+      "required": [
+        "kind"
+      ],
       "properties": {
         "kind": {
           "const": "core"
@@ -215,7 +246,10 @@
     "coreScript": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "source"],
+      "required": [
+        "id",
+        "source"
+      ],
       "properties": {
         "id": {
           "$ref": "#/definitions/identifier"
@@ -225,14 +259,22 @@
         },
         "phase": {
           "type": "string",
-          "enum": ["pre-init", "post-init"]
+          "enum": [
+            "pre-init",
+            "post-init"
+          ]
         }
       }
     },
     "effect": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "name", "shader", "preset"],
+      "required": [
+        "id",
+        "name",
+        "shader",
+        "preset"
+      ],
       "properties": {
         "id": {
           "$ref": "#/definitions/identifier"
@@ -261,7 +303,11 @@
     "group": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "name", "preset"],
+      "required": [
+        "id",
+        "name",
+        "preset"
+      ],
       "properties": {
         "id": {
           "$ref": "#/definitions/identifier"
@@ -293,7 +339,11 @@
     "nativeEffect": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "name", "source"],
+      "required": [
+        "id",
+        "name",
+        "source"
+      ],
       "properties": {
         "id": {
           "$ref": "#/definitions/identifier"
@@ -322,7 +372,10 @@
     "materialType": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "name"],
+      "required": [
+        "id",
+        "name"
+      ],
       "properties": {
         "id": {
           "$ref": "#/definitions/identifier"
@@ -339,7 +392,10 @@
     "module": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "source"],
+      "required": [
+        "id",
+        "source"
+      ],
       "properties": {
         "id": {
           "$ref": "#/definitions/identifier"
@@ -352,23 +408,37 @@
     "resource": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "type", "source"],
+      "required": [
+        "id",
+        "type",
+        "source"
+      ],
       "properties": {
         "id": {
           "$ref": "#/definitions/identifier"
         },
         "type": {
-          "enum": ["text", "json", "image"]
+          "enum": [
+            "text",
+            "json",
+            "image"
+          ]
         },
         "source": {
           "$ref": "#/definitions/source"
+        },
+        "optionalBundle": {
+          "$ref": "#/definitions/identifier"
         }
       }
     },
     "objectClassParent": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["name", "type"],
+      "required": [
+        "name",
+        "type"
+      ],
       "properties": {
         "name": {
           "type": "string",
@@ -382,7 +452,12 @@
     "objectType": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["target", "name", "type", "list"],
+      "required": [
+        "target",
+        "name",
+        "type",
+        "list"
+      ],
       "properties": {
         "target": {
           "const": "object3d"
@@ -415,7 +490,10 @@
     "objectTypeReplacement": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["name", "type"],
+      "required": [
+        "name",
+        "type"
+      ],
       "properties": {
         "name": {
           "type": "string",
@@ -429,7 +507,11 @@
     "objectTypeVariant": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["name", "type", "data"],
+      "required": [
+        "name",
+        "type",
+        "data"
+      ],
       "properties": {
         "name": {
           "type": "string",
@@ -454,7 +536,11 @@
     "objectClass": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "type", "name"],
+      "required": [
+        "id",
+        "type",
+        "name"
+      ],
       "properties": {
         "id": {
           "$ref": "#/definitions/identifier"

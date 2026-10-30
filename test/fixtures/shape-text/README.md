@@ -22,3 +22,8 @@ SHA-256 of the checked-in subset files:
 c79d548be9fb97ae2e2f999e7c73671dca777e0b9b90a8506026c69d3b0b28c2  RobotoFlex-subset.ttf
 be5adb46bc88b3ac38ea0b40831a6d63e0943c4e23137d8d6599561659dfd4d7  SourceSerif-subset.otf
 ```
+
+`NotoSansJP-subset.ttf` is an OFL Japanese fixture from
+https://github.com/google/fonts/tree/main/ofl/notosansjp.
+Its license is `OFL-NotoSansJP.txt`. FontTools 4.64.0 retains its variable weight
+axis and subsets Japanese kana, kanji, punctuation, Latin letters, and digits.

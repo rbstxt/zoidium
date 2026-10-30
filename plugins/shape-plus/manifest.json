@@ -277,32 +277,48 @@
     {
       "id": "vendor-harfbuzz",
       "type": "text",
-      "source": "./plugins/shape-plus/vendor/harfbuzz.js?v=24"
+      "source": "./plugins/shape-plus/vendor/harfbuzz.js?v=24",
+      "optionalBundle": "text-engine"
     },
     {
       "id": "vendor-harfbuzz-api",
       "type": "text",
-      "source": "./plugins/shape-plus/vendor/harfbuzz-api.js?v=24"
+      "source": "./plugins/shape-plus/vendor/harfbuzz-api.js?v=24",
+      "optionalBundle": "text-engine"
     },
     {
       "id": "vendor-harfbuzz-wasm",
       "type": "text",
-      "source": "./plugins/shape-plus/vendor/harfbuzz.wasm.base64?v=24"
+      "source": "./plugins/shape-plus/vendor/harfbuzz.wasm.base64?v=24",
+      "optionalBundle": "text-engine"
     },
     {
       "id": "license-harfbuzz",
       "type": "text",
-      "source": "./plugins/shape-plus/vendor/LICENSE-HarfBuzz.txt?v=24"
+      "source": "./plugins/shape-plus/vendor/LICENSE-HarfBuzz.txt?v=24",
+      "optionalBundle": "text-engine"
     },
     {
       "id": "license-harfbuzz-upstream",
       "type": "text",
-      "source": "./plugins/shape-plus/vendor/LICENSE-HarfBuzz-upstream.txt?v=24"
+      "source": "./plugins/shape-plus/vendor/LICENSE-HarfBuzz-upstream.txt?v=24",
+      "optionalBundle": "text-engine"
     },
     {
       "id": "license-apache",
       "type": "text",
-      "source": "./plugins/shape-plus/vendor/LICENSE-Apache-2.0.txt?v=24"
+      "source": "./plugins/shape-plus/vendor/LICENSE-Apache-2.0.txt?v=24",
+      "optionalBundle": "text-engine"
+    },
+    {
+      "id": "text-font",
+      "type": "text",
+      "source": "./plugins/shape-plus/text-font.js?v=24"
+    },
+    {
+      "id": "text-shaping",
+      "type": "text",
+      "source": "./plugins/shape-plus/text-shaping.js?v=24"
     }
   ]
 }

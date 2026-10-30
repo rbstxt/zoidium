@@ -76,7 +76,7 @@ test("missing assets and compressed or corrupt font bytes produce explicit state
   new DataView(compressed).setUint32(0, 0x774f4632);
   const error = await openAsset(engine, { asset: { file: { arrayBuffer: async () => compressed } } }, "compressed-ref");
   assert.equal(error.state, "error");
-  assert.match(error.message, /uncompressed OpenType/);
+  assert.match(error.message, /Unsupported font format/);
   assert.throws(() => engine.open(new ArrayBuffer(12)), /not supported/);
   const ready = await openAsset(engine, { asset: {}, readFileRemote: async () => buffer() }, "remote-ref");
   assert.equal(ready.state, "ready"); ready.font.dispose();
@@ -90,4 +90,20 @@ test("CFF2 outlines apply variations in font units", async () => {
   assert.notDeepEqual(font.outline(glyph, { wght: 200 }), font.outline(glyph, { wght: 900 }));
   assert.deepEqual(font.outline(glyph, { wght: 200 }), font.outline(glyph, { wght: 200 }));
   font.dispose();
+});
+
+test("named instances, Japanese primary font and explicit grapheme fallback", async () => {
+  const { shapeRuns, clusters } = require("../plugins/shape-plus/text-shaping");
+  const engine = await loader()(), primary = engine.open(buffer(), "latin");
+  assert.ok(primary.instances.length > 0);
+  assert.ok(primary.family.length > 0);
+  const file = fs.readFileSync(path.join(__dirname, "fixtures/shape-text/NotoSansJP-subset.ttf"));
+  const jp = engine.open(file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength), "jp");
+  assert.ok(shapeRuns(jp, null, "ABC日本語").every(g => g.g > 0));
+  const mixed = shapeRuns(primary, jp, "AV日本語");
+  assert.equal(mixed[0].font, primary); assert.equal(mixed.at(-1).font, jp);
+  assert.ok(mixed.every(g => g.g > 0));
+  assert.equal(clusters("a\u0301").length, 1);
+  assert.equal(shapeRuns(primary, null, "日")[0].g, 0);
+  primary.dispose(); jp.dispose();
 });

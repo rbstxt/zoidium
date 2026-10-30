@@ -6,6 +6,7 @@ function createLoader(getAsset, loadModule = require) {
   let pending;
   return function load() {
     if (!pending) pending = (async () => {
+      await getAsset.loadOptional?.("text-engine");
       const encoded = getAsset("text", "./plugins/shape-plus/vendor/harfbuzz.wasm.base64");
       if (typeof encoded !== "string") throw new Error("The Shape+ text engine is missing from the bundle.");
       const binary = Uint8Array.from(atob(encoded.trim()), char => char.charCodeAt(0));
@@ -39,6 +40,7 @@ function createEngine(hb, memoryBytes = () => 0, maxOutlineBytes = 4 * 1024 * 10
       if (view.getUint32(pos) === 0x68656164 && length >= 54) hasHead = true;
     }
     if (!hasHead) throw new Error("The font has no valid OpenType header.");
+    const info = require("./text-font.js").metadata(bytes);
     const blob = hb.createBlob(bytes), face = hb.createFace(blob, 0), font = hb.createFont(face);
     const id = ++nextFont, axes = face.getAxisInfos();
     let disposed = false;
@@ -90,7 +92,7 @@ function createEngine(hb, memoryBytes = () => 0, maxOutlineBytes = 4 * 1024 * 10
       return path;
     }
     return {
-      reference, upem: face.upem, axes, shape, outline, coordinates,
+      ...info, reference, upem: face.upem, axes, shape, outline, coordinates,
       dispose() {
         if (disposed) return;
         disposed = true;
@@ -109,7 +111,7 @@ async function openAsset(engine, wrapper, reference) {
   if (!wrapper?.asset) return { state: "missing", reference, message: "The text font is missing from the project." };
   try {
     const bytes = wrapper.asset.file ? await wrapper.asset.file.arrayBuffer() : await wrapper.readFileRemote();
-    return { state: "ready", reference, font: engine.open(bytes, reference) };
+    return { state: "ready", reference, font: engine.open(await require("./text-font.js").decompress(bytes), reference) };
   } catch (error) {
     return { state: "error", reference, message: error.message || "The text font could not be loaded." };
   }

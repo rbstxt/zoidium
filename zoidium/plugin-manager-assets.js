@@ -38,7 +38,29 @@
   }
 
   function createPluginAssetResolver(assets) {
-    return (kind, url) => getPluginAsset(assets, kind, url);
+    const resolve = (kind, url) => getPluginAsset(assets, kind, url), pending = new Map();
+    resolve.loadOptional = id => {
+      if (!pending.has(id)) pending.set(id, (async () => {
+        const entry = assets?.optional?.[id];
+        if (!entry || !/^sha256-[A-Za-z0-9+/]{43}=$/.test(entry.integrity)) throw new Error("Invalid optional plugin bundle: " + id);
+        const url = new URL(entry.source, window.location.href);
+        if (url.origin !== window.location.origin || !/^\/plugins\/[a-z0-9-]+\/[a-z0-9-]+\.bundle\.json$/.test(url.pathname)) throw new Error("Invalid optional plugin bundle URL");
+        const response = await fetch(url.href, { cache: "no-cache" });
+        if (!response.ok) throw new Error("Optional plugin bundle request failed: " + response.status);
+        const text = await response.text();
+        const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+        if ("sha256-" + btoa(String.fromCharCode(...new Uint8Array(hash))) !== entry.integrity) throw new Error("Optional plugin bundle integrity mismatch: " + id);
+        const bundle = JSON.parse(text);
+        if (bundle.schemaVersion !== 1 || !bundle.assets?.text || !bundle.assets?.json) throw new Error("Invalid optional plugin bundle data: " + id);
+        for (const type of ["text", "json"]) {
+          for (const key of Object.keys(bundle.assets[type])) if (Object.hasOwn(assets[type], key)) throw new Error("Optional plugin asset collision: " + key);
+        }
+        for (const type of ["text", "json"]) Object.assign(assets[type], bundle.assets[type]);
+        return resolve;
+      })().catch(error => { pending.delete(id); throw error; }));
+      return pending.get(id);
+    };
+    return resolve;
   }
 
   function bundledText(assets, url, description) {

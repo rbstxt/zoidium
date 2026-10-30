@@ -42,7 +42,8 @@ newline. The decoded module is 371,910 bytes. The adapter passes those bytes to
 HarfBuzz notices, and Apache 2.0 license for the Emscripten libc components are
 bundle assets beside the engine.
 
-The prototype supports uncompressed TrueType and OpenType CFF2 fonts. It does
-not decode WOFF or WOFF2. No runtime code calls the prototype yet. Module
-initialization is lazy, but the current bundle includes its bytes eagerly.
-A separate bundle delivery design is required before text items can ship.
+The engine supports TrueType and OpenType CFF2 fonts. The font adapter also
+decodes WOFF1 with DecompressionStream. WOFF2 produces an explicit unsupported
+format state. The engine payload is in text-engine.bundle.json, an optional
+resource bundle with a SHA-256 digest in the main bundle. It is fetched and
+verified only when the text engine is requested.
