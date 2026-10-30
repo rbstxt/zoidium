@@ -67,6 +67,36 @@ These shortcuts apply while the graph has keyboard focus. Text inputs retain the
 
 Ctrl+X cuts keys, and Ctrl+A selects all keys. Command+X and Command+A also work. Arrow keys nudge keys. Shift increases the nudge from 1 to 10 units. Horizontal units are frames. Vertical nudges use graph pixels converted to values.
 
-The mouse wheel zooms around the pointer. The graph ruler scrubs the playhead. Double-clicking the graph adds a key.
+Double-clicking the graph adds a key.
 
 For task steps, see [Edit animation curves with Graph Editor 2](/docs/features/graph-editor-2/).
+
+## Mouse and trackpad gestures
+
+| Input | Action |
+| --- | --- |
+| Mouse wheel | Zooms X around the pointer. |
+| Alt+wheel | Zooms Y. |
+| Shift+wheel | Pans X. |
+| Trackpad two-finger scroll | Pans X and Y, including inertia. |
+| Pinch or Ctrl+wheel | Zooms X and Y around the pointer. |
+| Alt+pinch | Zooms Y. |
+| Middle-drag or Space-drag | Pans the view. |
+| Left-drag with **Marquee** | Selects keys. This tool starts on. |
+| Left-drag on the ruler | Scrubs the playhead. |
+
+Wheel gestures on the ruler affect X only. **?** opens the gesture card.
+
+## Bezier handle gestures
+
+Selected keys show handles. Short handles have a minimum display length without changing their values.
+
+| Input | Action |
+| --- | --- |
+| Handle drag | Changes the selected keys' handles. Dragging a preset segment converts that segment to Bezier. |
+| Alt-drag | Breaks continuous tangents or rejoins broken tangents. |
+| Shift while dragging | Constrains the angle to 45-degree increments. |
+| Ctrl or Command while dragging | Snaps near a flat tangent or the neighboring key's slope. |
+| Double-click a handle | Resets both handles to the default flat ease. |
+
+Each handle gesture creates one undo step. With multiple axes selected, value drags apply the same value delta to every selected key.
