@@ -67,7 +67,6 @@ PZ.ui.graph.prototype.attachKeyframeHandlers = function (el) {
         el: s, gel: gel, kf: s.pz_object,
         oldFrame: s.pz_object.frame,
         oldValue: s.pz_object.value,
-        scale: (gel && gel.pz_valueScale) || 1,
         off: (gel && gel.pz_frameOffset) || 0
       };
     });
@@ -248,7 +247,7 @@ PZ.ui.graph.prototype.attachHandleHandlers = function (el, cpIdx, kfEl) {
       }
       self.updateStatus("Handle · frame " + kf.frame + " · " + kf.controlPoints[cpIdx].map(v => Math.round(v * 100) / 100).join(", "));
     };
-    var up = function (ev) {
+    var up = function () {
       if (moved) {
         self.finishMovingHandles(false);
         for (var sn of snaps) {
