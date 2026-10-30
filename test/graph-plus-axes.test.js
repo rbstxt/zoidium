@@ -82,12 +82,22 @@ test("vector paste keeps exact property matches, maps sibling axes, and permits 
   assert.equal(pasteKey(data, "Scale.Z", "Z", false), null);
 });
 
-test("pinned tracks release properties removed from the project", () => {
-  const { g, vector } = graph();
-  const property = vector.objects[1];
-  g.objects = [property];
-  // This fixture's owner is outside the sequence's registered child lists.
-  // Its address cannot resolve back to the property.
+test("pinned pruning unloads detached curve DOM even when the selection array emits no event", () => {
+  const { g, groups, vector } = graph();
+  const property = vector.objects[1], stale = groups[1], live = groups[0];
+  const children = [live, stale], unloaded = [];
+  g.curveLayer = { children };
+  g.propGroups = () => Array.from(g.curveLayer.children);
+  stale.remove = () => children.splice(children.indexOf(stale), 1);
+  g.unloadProperty = group => unloaded.push(group);
+  g.editor.project.addressLookup = address => address === "live" ? live.pz_object : null;
+  live.pz_object.getAddress = () => "live";
+  property.getAddress = () => "detached";
+  g.objects = [live.pz_object, property];
   g.pruneDetachedProperties();
-  assert.equal(g.objects.length, 0);
+  assert.deepEqual(g.objects, [live.pz_object]);
+  assert.deepEqual(unloaded, [stale]);
+  assert.equal(g.propGroups().length, 1);
+  assert.deepEqual(g.curveLayer.children, [live]);
+  assert.ok(!g.propGroups().some(group => group.pz_object === property));
 });

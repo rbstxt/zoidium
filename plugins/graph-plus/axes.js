@@ -20,7 +20,16 @@ module.exports = function ({ PZ, addrString }) {
     for (const property of Array.from(this.objects)) {
       let live = false;
       try { live = project.addressLookup(property.getAddress()) === property; } catch (_error) { /* Deleted properties have no live address. */ }
-      if (!live) this.objects.splice(this.objects.indexOf(property), 1);
+      if (!live) {
+        this.objects.splice(this.objects.indexOf(property), 1);
+        // Plain UI arrays do not emit objectRemoved. Release surviving groups
+        // explicitly, including components of a removed vector property.
+        for (const gel of this.propGroups()) {
+          if (gel.pz_object !== property && !property.objects?.includes(gel.pz_object)) continue;
+          this.unloadProperty(gel);
+          gel.remove();
+        }
+      }
     }
   };
   proto.editableGroups = function () {
