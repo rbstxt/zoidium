@@ -26,6 +26,4 @@ sidebar:
 
 PBR+ グラフでは、エディターを開く前に **Use node graph** を有効にします。画像ノードでは、**Selected node image** を使用してアセットを選択します。スターターマテリアルを試すには、レシピを選択します。元に戻すと、直前のグラフが復元されます。
 
-[Material+ ソースコントラクト](https://github.com/rbstxt/zoidium/blob/dev/plugins/material-plus/README.md)に、ノード操作、ベイク、UV レイアウト、およびサーフェスコントロールについて記載されています。[PBR+ の互換性](/docs/ja/development/project-compatibility/#pbr-uv-レイアウト)に、レガシー UV について記載されています。
-
 コントロールのリファレンス: [material-plus](/docs/ja/reference/material-plus/), [material-nodes](/docs/ja/reference/material-nodes/).

@@ -1,10 +1,10 @@
 ---
 title: Repeat and deform objects with Effector
-description: Set up source children, repeaters, deformation fields, fracture, and Delay. Also known as Scene+.
+description: Set up source children, repeaters, deformation fields, fracture, and Delay.
 sidebar:
   label: Effector
 ---
-Use **Effector** to make procedural copies or deform a group of 3D objects. The plugin's source directory is Scene+.
+Use **Effector** to make procedural copies or deform a group of 3D objects.
 
 ## Add source children
 
@@ -60,4 +60,6 @@ For text selection, enable **Text+** first. In **Characters**, enter one-based r
 4. Animate Plain's **Position offset**, **Rotation offset**, or **Scale offset**.
 5. On Delay, choose **Mode** and adjust **Strength** and **History frames**.
 
-This hierarchy lets Delay sample the upstream Plain motion. For exact controls, budgets, and legacy project behavior, see the [Effector reference](/docs/reference/effector/).
+This hierarchy lets Delay sample the upstream Plain motion.
+
+Control reference: [effector](/docs/reference/effector/).

@@ -30,9 +30,4 @@ For a PBR+ graph, enable **Use node graph** before opening the editor. For image
 nodes, use **Selected node image** to choose the asset. To try a starter material,
 choose a recipe. Undo restores the previous graph.
 
-[Material+ source contract](https://github.com/rbstxt/zoidium/blob/dev/plugins/material-plus/README.md)
-describes node operations, baking, UV layout, and surface controls.
-[PBR+ compatibility](/docs/development/project-compatibility/#pbr-uv-layout)
-describes legacy UVs.
-
 Control reference: [material-plus](/docs/reference/material-plus/), [material-nodes](/docs/reference/material-nodes/).

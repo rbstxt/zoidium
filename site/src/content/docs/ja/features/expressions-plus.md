@@ -15,6 +15,4 @@ sidebar:
 
 シェーダーのノイズ、ハッシュ、カラー、符号付き距離のヘルパーを使う場合は、[シェーダーの include](/docs/ja/reference/shader/#include) を使う前に Expressions+ を有効にします。
 
-[エクスプレッションの互換性](/docs/ja/development/project-compatibility/#expressions)に、保存されるソースとフォールバック値について記載されています。
-
 コントロールのリファレンス: [sequence-controls](/docs/ja/reference/sequence-controls/).

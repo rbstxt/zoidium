@@ -16,7 +16,3 @@ For a custom shader version, use [Shader+](/docs/features/shader-plus/).
 To replace numbered colors with a Gradient, follow
 [Port a shader to Custom Shader](/docs/shaders/porting/#replace-numbered-alipfx-colors).
 Keep the original effect when exact pixel compatibility is required.
-
-The [AlipFX manifest](https://github.com/rbstxt/zoidium/blob/dev/plugins/alipfx/manifest.json)
-lists the effect catalogue. [Acknowledgements](/about/acknowledgements/)
-contains attribution.

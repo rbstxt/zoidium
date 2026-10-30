@@ -20,9 +20,4 @@ through their native Target position and do not expose track-axis controls.
 For a Track To camera shot, use the native scene camera. Camera+ sequence camera
 layers are outside the same-scene target contract.
 
-[Constraints source contract](https://github.com/rbstxt/zoidium/blob/dev/plugins/constraints/README.md)
-describes missing targets, cycles, and supported lights.
-[Track To compatibility](/docs/development/project-compatibility/#track-to-constraints)
-describes saved UUIDs and constraint properties.
-
 Control reference: [constraints](/docs/reference/constraints/).

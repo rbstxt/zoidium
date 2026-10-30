@@ -23,11 +23,6 @@ restore neutral values while retaining instance identities and order.
 
 To apply a LUT, add a LUT tool and import a 3D `.cube` file in that instance.
 
-[Magic Looks source contract](https://github.com/rbstxt/zoidium/blob/dev/plugins/magic-looks/README.md)
-describes LUT limits and multipass requirements.
-[Magic Looks compatibility](/docs/development/project-compatibility/#magic-looks)
-describes the historical renderers and new instance chains.
-
 [Color Curves properties](/docs/reference/native-fx-image/#color-curves) describes the separate Native FX filter for direct RGB curve control.
 
 Control reference: [magic-looks](/docs/reference/magic-looks/).

@@ -19,9 +19,4 @@ Shift-click to change the selection. Hold Shift during a drag to constrain
 movement. Alt-drag a tangent to break continuity. Alt-click a key to toggle
 adjacent linear and bezier segments. Press Escape to cancel a drag.
 
-[Motion Paths source contract](https://github.com/rbstxt/zoidium/blob/dev/plugins/motion-path/README.md)
-describes temporal handles and edit limits.
-[Motion Paths compatibility](/docs/development/project-compatibility/#motion-paths)
-describes native key storage.
-
 Control reference: [editor-controls](/docs/reference/editor-controls/).

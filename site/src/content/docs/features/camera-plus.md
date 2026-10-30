@@ -28,7 +28,4 @@ the expression. Relink after moving the camera or target to another group or tra
 2. Enable **3D** in each video track that must follow the camera.
 3. Animate the camera object's properties.
 
-[Camera+ source contract](https://github.com/rbstxt/zoidium/blob/dev/plugins/camera-plus/README.md)
-describes camera selection, motion blur, focus links, and saved formats.
-
 Control reference: [camera-plus](/docs/reference/camera-plus/).

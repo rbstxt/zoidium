@@ -19,8 +19,6 @@ sidebar:
 
 LUT を適用するには、LUT ツールを追加し、そのインスタンスで 3D の `.cube` ファイルをインポートします。
 
-[Magic Looks ソースコントラクト](https://github.com/rbstxt/zoidium/blob/dev/plugins/magic-looks/README.md)に、LUT の制限とマルチパスの要件が記載されています。[Magic Looks の互換性](/docs/ja/development/project-compatibility/#magic-looks)に、過去のレンダラーと新しいインスタンスチェーンについて記載されています。
-
 [Color Curves のプロパティ](/docs/ja/reference/native-fx-image/#color-curves)に、RGB カーブを直接調整する別の Native FX フィルターについて記載しています。
 
 コントロールのリファレンス: [magic-looks](/docs/ja/reference/magic-looks/).
