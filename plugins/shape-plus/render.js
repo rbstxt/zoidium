@@ -119,7 +119,7 @@ function createRenderer(THREE, sampleScale = "auto") {
         mesh = new THREE.Mesh(geometry(command.positions), material(fragment, uniforms, true, command.gradient ? paintShader.vertexShader : vertexShader));
       }
       const singleScene = new THREE.Scene(); singleScene.children.push(mesh);
-      entries.push({ mesh, child, singleScene, positionsKey: command.positions && JSON.stringify(command.positions) });
+      entries.push({ mesh, child, singleScene, positionsSnapshot: command.positions && Float64Array.from(command.positions) });
       mesh.renderOrder = order++; mesh.frustumCulled = false; scene.add(mesh);
     }
     return { scene, children, entries, target: target() };
@@ -143,12 +143,12 @@ function createRenderer(THREE, sampleScale = "auto") {
           const uniforms = paintShader.uniforms(THREE, command);
           for (const key of Object.keys(uniforms)) entry.mesh.material.uniforms[key].value = uniforms[key].value;
         } else entry.mesh.material.uniforms.color.value = new THREE.Color(...command.color);
-        const key = JSON.stringify(command.positions);
-        if (key !== entry.positionsKey) {
+        const changed = command.positions.length !== entry.positionsSnapshot.length || command.positions.some((value,i)=>value!==entry.positionsSnapshot[i]);
+        if (changed) {
           const previous = entry.mesh.geometry;
           entry.mesh.geometry = geometry(command.positions); paintAllocations.add(entry.mesh.geometry);
           previous.dispose(); allocations.delete(previous); paintAllocations.delete(previous);
-          entry.positionsKey = key;
+          entry.positionsSnapshot = Float64Array.from(command.positions);
         }
       }
     });

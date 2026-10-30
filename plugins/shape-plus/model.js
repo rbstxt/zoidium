@@ -89,7 +89,12 @@ function createModel(PZ, textService) {
       }
       if (["wigglePaths", "wiggleTransform"].includes(this.kind)) properties.time = frame / rate;
       const textLayout = this.kind === "text" ? textService?.evaluate(this, properties, frame) || { glyphs: [], rows: [] } : null;
-      return { ...(textLayout ? { textLayout } : {}), id: this.id, kind: this.kind, vertexIds: this.vertexIds.slice(), properties, ...(this.contents ? { contents: Array.from(this.contents, child => child.evaluate(frame, rate)) } : {}) };
+      const result = { id: this.id, kind: this.kind, vertexIds: this.vertexIds.slice(), properties, ...(this.contents ? { contents: Array.from(this.contents, child => child.evaluate(frame, rate)) } : {}) };
+      if (textLayout) {
+        Object.defineProperty(result, "textLayout", { value: textLayout });
+        result.textLayoutKey = textLayout.cacheKey;
+      }
+      return result;
     }
     async prepare(frame = this.textFrame || 0) { if (this.kind === "text") await textService?.prepare(this, frame); for (const child of this.contents || []) await child.prepare(frame); }
     unload() { if (this.kind === "text") textService?.release(this); for (const child of this.contents || []) child.unload(); }

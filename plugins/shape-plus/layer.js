@@ -89,7 +89,7 @@ function createLayerClass(PZ, THREE, Content) {
       const contents = Array.from(this.contents, node => node.evaluate(this.frame, project.sequence.properties.rate.get()));
       const resolution = this.properties.resolution.get(), signature = JSON.stringify([contents, tolerance, resolution]);
       if (signature === this.signature) return;
-      const result = compile(contents, tolerance, 0, undefined, this.contentsState.read());
+      const result = compile(contents, tolerance, 0, undefined, this.contentsState?.read());
       this.engine.setCommands(result.commands, resolution);
       this.signature = signature; this.buildCount++;
       } catch (error) {
@@ -113,7 +113,7 @@ function createLayerClass(PZ, THREE, Content) {
     unload() {
       if (this.disposed) return;
       this.disposed = true;
-      this.contentsState.dispose();
+      this.contentsState?.dispose();
       this.engine.dispose(); for (const child of this.contents) child.unload();
       this.unloading = true;
       try { if (this.assetProject) super.unload(); }

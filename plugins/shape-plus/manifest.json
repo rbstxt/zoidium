@@ -359,6 +359,21 @@
       "id": "contents-state",
       "type": "text",
       "source": "./plugins/shape-plus/contents-state.js?v=24"
+    },
+    {
+      "id": "text-cache",
+      "type": "text",
+      "source": "./plugins/shape-plus/text-cache.js?v=24"
+    },
+    {
+      "id": "text-geometry",
+      "type": "text",
+      "source": "./plugins/shape-plus/text-geometry.js?v=24"
+    },
+    {
+      "id": "text-fill",
+      "type": "text",
+      "source": "./plugins/shape-plus/text-fill.js?v=24"
     }
   ]
 }

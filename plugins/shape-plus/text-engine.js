@@ -20,6 +20,7 @@ function createLoader(getAsset, loadModule = require) {
 }
 
 function createEngine(hb, memoryBytes = () => 0, maxOutlineBytes = 4 * 1024 * 1024) {
+  const shapes = require("./text-cache.js").createCache(1024 * 1024);
   const outlines = new Map();
   let cachedBytes = 0, nextFont = 0;
   function drop(key) {
@@ -56,6 +57,9 @@ function createEngine(hb, memoryBytes = () => 0, maxOutlineBytes = 4 * 1024 * 10
     function shape(text, values, options = {}) {
       live();
       const coords = coordinates(values);
+      const key = JSON.stringify([id,String(text),coords,options.direction,options.script,options.language,options.features]);
+      const cached = shapes.get(key);
+      if (cached) return cached.map(g=>({...g}));
       font.setVariations(coords);
       font.setScale(face.upem, face.upem);
       const buffer = hb.createBuffer();
@@ -66,7 +70,9 @@ function createEngine(hb, memoryBytes = () => 0, maxOutlineBytes = 4 * 1024 * 10
         if (options.script) buffer.setScript(options.script);
         if (options.language) buffer.setLanguage(options.language);
         hb.shape(font, buffer, options.features || "");
-        return buffer.json();
+        const result = buffer.json();
+        shapes.set(key,result,128+String(text).length*2+result.length*128);
+        return result.map(g=>({...g}));
       } finally { buffer.destroy(); }
     }
     function outline(glyph, values) {
@@ -102,7 +108,7 @@ function createEngine(hb, memoryBytes = () => 0, maxOutlineBytes = 4 * 1024 * 10
     };
   }
   return { open, stats: () => ({ outlineEntries: outlines.size, outlineBytes: cachedBytes,
-    maxOutlineBytes, wasmBytes: memoryBytes() }) };
+    maxOutlineBytes, shaping: shapes.stats(), wasmBytes: memoryBytes() }) };
 }
 
 // The caller persists the native asset reference. Missing fonts remain missing;

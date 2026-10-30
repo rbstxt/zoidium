@@ -630,3 +630,26 @@ character's grapheme group. Paints and modifiers below the original text keep
 applying to the converted paths. Conversion is one undo operation. Undo restores
 the live text and its font references. The existing contents and path budgets
 also apply to the converted result.
+
+## Text cache limits
+
+Text layout is keyed by the active font objects, evaluated text and paragraph
+properties, and variation coordinates. A replaced font file creates a new font
+identity. Renaming a row does not invalidate its layout. A layer transform does
+not invalidate text geometry unless it changes the flattening tolerance.
+
+Derived caches use LRU eviction. The accounting limits are 8 MiB for layouts,
+8 MiB for glyph geometry, 8 MiB for glyph paint, 2 MiB for parsed contours,
+2 MiB for shaped runs, 512 KiB for fallback coverage, and 1 MiB for engine
+shaping results. The existing outline cache remains limited to 4 MiB. These
+are accounting limits, not a measurement of the browser's full heap.
+
+Per-glyph fills require disjoint contours and filled interiors. Touching or
+overlapping glyphs use the compound fill. Sloped and curved contours also use
+the compound slab arrangement, because independent triangulations can change
+Float32 rasterization at subpixel boundaries. Trim in individual mode and
+transformed Repeater views invalidate the per-glyph shortcut.
+
+Inactive variable axes are stored in the serialized `axisStore` field. Their
+keys and expressions return when the selected font exposes the tag again.
+A named Style leaves expression-driven axes unchanged and displays a notice.

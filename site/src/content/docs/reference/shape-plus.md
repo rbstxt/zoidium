@@ -317,3 +317,24 @@ a separate Path. Spaces produce no group. A ligature's outline belongs to its
 first character; its remaining characters have empty named groups. Combining
 marks stay in their base character's grapheme group. Winding and parent paint
 order are preserved. One history entry restores the live text on Undo.
+
+## Text cache limits
+
+Text layout caches use the font identities, evaluated text and paragraph
+properties, and variation coordinates. Replacing a font file invalidates the
+old result. A layer transform reuses layout and geometry unless it changes
+the flattening tolerance.
+
+Accounting limits are 8 MiB each for layouts, glyph geometry, and glyph paint;
+2 MiB each for parsed contours and shaped runs; 512 KiB for fallback coverage;
+1 MiB for engine shaping results; and 4 MiB for outlines. These limits do not
+measure the browser's full heap.
+
+Touching or overlapping glyphs use compound fills. Sloped and curved contours
+also retain the compound slab arrangement to preserve subpixel rasterization.
+Trim in individual mode and transformed Repeater views invalidate per-glyph
+fill reuse.
+
+Inactive axes remain in the serialized `axisStore`. Their keys and expressions
+return when a font exposes the tag again. Selecting Style leaves
+expression-driven axes unchanged and displays a notice.

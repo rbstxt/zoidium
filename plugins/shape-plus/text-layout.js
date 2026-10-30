@@ -1,4 +1,6 @@
 "use strict";
+const { createCache, fontId } = require("./text-cache.js");
+const contoursCache = createCache(2 * 1024 * 1024);
 const { shapeRuns, clusters } = require("./text-shaping.js");
 const { parsePath } = require("./svg-path.js");
 const cjk = text => /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u.test(text);
@@ -16,8 +18,9 @@ function layoutText(primary, fallback, p) {
   const coordinates = Object.fromEntries(Object.keys(primary.axes).map(tag => [tag, p["axis_" + tag] ?? primary.axes[tag].default]));
   const tracking = (p.tracking || 0) * size / 1000, leading = p.leading ?? size * 1.2;
   const box = p.textMode === "box", boxWidth = Math.max(0, p.boxSize?.[0] ?? 600), boxHeight = Math.max(0, p.boxSize?.[1] ?? 400);
-  const rows = [], glyphs = [];
+  const rows = [], glyphs = [], shapedCache = new Map();
   function shape(text) {
+    if (shapedCache.has(text)) return shapedCache.get(text);
     let source = text;
     if (p.caps === "all") source = text.toUpperCase();
     const shaped = p.caps === "small" ? clusters(text).flatMap(cluster => {
@@ -31,7 +34,8 @@ function layoutText(primary, fallback, p) {
       g.advance = g.ax * g.scaleX;
       x += g.advance + (i + 1 < shaped.length ? tracking : 0);
     }
-    return { glyphs: shaped, width: x, text: source };
+    const result = { glyphs: shaped, width: x, text: source };
+    shapedCache.set(text, result); return result;
   }
   let y = 0;
   for (const paragraph of String(p.sourceText ?? "Text").replace(/\r\n?/g, "\n").split("\n")) {
@@ -78,15 +82,20 @@ function layoutText(primary, fallback, p) {
     }
     y -= p.spaceAfter || 0;
   }
-  const parsed = new Map();
+  const parsed = new Map(), coordinatesKey = JSON.stringify(coordinates);
   for (const glyph of glyphs) {
-    const outline = glyph.font.outline(glyph.g, coordinates);
-    if (!parsed.has(outline)) parsed.set(outline, outline.length ? parsePath(outline.map(c => c.type + c.values.join(",")).join("")) : []);
-    glyph.paths = parsed.get(outline).map(path => ({ closed: path.closed, vertices: path.vertices.map(v => ({
+    const key=fontId(glyph.font)+":"+glyph.g+":"+coordinatesKey;
+    if(!parsed.has(key)) {
+      let contours=contoursCache.get(key);
+      if(!contours){const outline=glyph.font.outline(glyph.g,coordinates);contours=outline.length?parsePath(outline.map(c=>c.type+c.values.join(",")).join("")):[];contoursCache.set(key,contours,128+contours.reduce((n,p)=>n+p.vertices.length*256,0));}
+      parsed.set(key,contours);
+    }
+    glyph.contours = parsed.get(key);
+    glyph.paths = glyph.contours.map(path => ({ closed: path.closed, vertices: path.vertices.map(v => ({
       point: [v.point[0] * glyph.scaleX + glyph.x, v.point[1] * glyph.scaleY + glyph.y],
       in: [v.in[0] * glyph.scaleX, v.in[1] * glyph.scaleY], out: [v.out[0] * glyph.scaleX, v.out[1] * glyph.scaleY],
     })) }));
   }
   return { glyphs, rows };
 }
-module.exports = { layoutText, tokens, cjk };
+module.exports = { layoutText, tokens, cjk, contoursStats: contoursCache.stats };
