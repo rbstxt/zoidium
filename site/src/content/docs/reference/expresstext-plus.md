@@ -13,12 +13,12 @@ When a Text+ container owns the text, ExpressText+ steps aside and leaves the le
 
 Existing projects change output in these cases:
 
-- Cross-Text selections use every Text's current undeformed letter bases before any effector evaluates. **Orbit** now uses the complete selection center on the first render and immediately after source edits. Same-frame redraws produce the same transforms.
-- When a Text leaves ExpressText+ or the plugin deactivates, its native geometry keeps the latest text, size, font, and bevel settings.
-- Nested **Group** transforms apply once to split letters. Earlier versions applied the intermediate Group transforms twice.
+- Cross-text selections use every text's current letter positions before any effector evaluates. **Orbit** uses the complete selection center from the first render and immediately after source edits.
+- When a Text leaves ExpressText+ or the plugin deactivates, its text keeps the latest size, font, and bevel settings.
+- Nested **Group** transforms apply once to split letters.
 - When a Text moves between Groups, its split letters follow the current parent. Reorder, undo, and redo keep the same parent relationship.
-- Formula `t` and Shake **Frequency** use the owning sequence's frame rate. At rates other than 30 fps, their motion now follows seconds. Their 30 fps output stays identical. Random **Animation speed** keeps its frame-based unit.
-- Frame-rate changes scale section **Delay** values and Repeater **Lag** values to preserve their durations in seconds. Constant values, animated values, curve tangents, stored compositions, undo, and redo use the same conversion. Frequencies, **Animation speed**, and sample counts keep their values.
+- Formula `t` and Shake **Frequency** use the owning sequence's frame rate. At rates other than 30 fps, their motion follows seconds. Their 30 fps output stays identical. Random **Animation speed** keeps its frame-based unit.
+- Frame-rate changes scale section **Delay** values and Repeater **Lag** values to preserve their durations in seconds. Frequencies, **Animation speed**, and sample counts keep their values.
 
 Projects at 30 fps retain their transforms when they do not encounter these cases.
 
@@ -77,7 +77,7 @@ Static pose for the selected letters. Blank **Letters** selects every letter. **
 
 ## Random
 
-Deterministic per-letter values in the Min and Max ranges, rescaled by **Minimum** and **Maximum** percent. **Mode** picks the distribution. **Synchronized** shares one value across position, rotation, and scale. **Indexed** samples each axis separately for Noise and Turbulence. **Space** pins the noise to the world or to the letter. **Animation speed** advances Noise and Turbulence per frame. A value of `100` advances the noise time parameter by one unit per 30 frames at every sequence frame rate.
+Deterministic per-letter values in the Min and Max ranges, rescaled by **Minimum** and **Maximum** percent. **Mode** picks the distribution. **Synchronized** shares one value across position, rotation, and scale. **Indexed** samples each axis separately for Noise and Turbulence. **Space** pins the noise to the world or to the letter. **Animation speed** advances Noise and Turbulence per frame. A value of `100` advances the noise by one unit per 30 frames at every sequence frame rate.
 
 | Control | Type | Range or options | Default | Effect on output |
 | --- | --- | --- | --- | --- |
@@ -88,7 +88,7 @@ Deterministic per-letter values in the Min and Max ranges, rescaled by **Minimum
 | **Indexed** | Choice | **off**, **on** | **on** | Samples each axis separately for Noise and Turbulence. |
 | **Seed** | Number | No declared bounds | `1` | Reseeds every value. |
 | **Space** | Choice | **Global**, **UV** | **Global** | Pins noise to the world or to the letter. |
-| **Animation speed** | Number | ≥ 0 | `0` | Advances Noise and Turbulence by `value / 100` units of the noise time parameter per 30 frames. |
+| **Animation speed** | Number | ≥ 0 | `0` | Advances Noise and Turbulence by `value / 100` units per 30 frames. |
 | **Noise scale** | Number | ≥ 0 | `100` | Feature size of Noise and Turbulence. |
 | **Min position** | 3D vector | No declared bounds | `[-10, -10, -10]` | Lower bound of random translation. |
 | **Max position** | 3D vector | No declared bounds | `[10, 10, 10]` | Upper bound of random translation. |
