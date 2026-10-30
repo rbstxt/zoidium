@@ -376,6 +376,8 @@
     });
   }
 
+  function rejoinNow() { return host?.performance?.now?.() ?? Date.now(); }
+
   function installPlaybackPatch(state) {
     const prototype = PZ.ui?.playback?.prototype;
     if (!prototype || prototype[PLAYBACK_SCHEDULE_MARKER]) return;
@@ -397,10 +399,15 @@
         if (schedule.__zoidiumTemporalPlayback) {
           // Rejoin at output time before native play() can select this element
           // as its clock. Its last source time may belong to a shifted frame.
-          const local = outputFrame - schedule.currentItem.start;
-          const time = schedule.currentItem.clip.properties.time.get(local);
-          schedule.el.currentTime = time;
-          schedule.__zoidiumTemporalRejoin = true;
+          schedule.__zoidiumTemporalRejoin = false;
+          delete schedule.__zoidiumTemporalRejoinStarted;
+          try {
+            const local = outputFrame - schedule.currentItem.start;
+            const time = schedule.currentItem.clip.properties.time.get(local);
+            schedule.el.currentTime = time;
+            schedule.__zoidiumTemporalRejoin = true;
+            schedule.__zoidiumTemporalRejoinStarted = rejoinNow();
+          } catch (_error) { /* Native playback can retry an unreadable time curve. */ }
           schedule.__zoidiumTemporalPlayback = false;
           if (this.syncSchedule === schedule) this.syncSchedule = null;
         }
@@ -577,9 +584,13 @@
         }
         for (const schedule of sequence?.videoSchedules || []) {
           if (!schedule.__zoidiumTemporalRejoin) continue;
-          if (schedule.el?.seeking || schedule.el?.readyState < 2) return;
+          const started = schedule.__zoidiumTemporalRejoinStarted ??= rejoinNow();
+          const timeout = PZ.videoFrameExportDiagnostics?.timeoutMs || 15000;
+          const waiting = schedule.el?.seeking || schedule.el?.readyState < 2;
+          if (!schedule.el?.error && waiting && rejoinNow() - started < timeout) return;
           if (schedule.texture) schedule.texture.needsUpdate = true;
           schedule.__zoidiumTemporalRejoin = false;
+          delete schedule.__zoidiumTemporalRejoinStarted;
         }
         return state.originalViewportRender.apply(this, arguments);
       }
