@@ -33,7 +33,7 @@
       "description": "Hidden built-in extensions that always run. Not shown in the Plugins panel and never stored in projects.",
       "manifest": "./plugins/core/manifest.json?v=100",
       "bundle": "./plugins/core/bundle.json?v=100",
-      "integrity": "sha256-cZZKzDsm9OHCppsUUPFH1jA+MMGc1AOssYPgLDueuLQ="
+      "integrity": "sha256-BEcpgOa9bzVAffOz4CTrf8+zOrpcvXOn38I6EJtImSM="
     },
     {
       "id": "easing-plus",
@@ -159,7 +159,7 @@
       "description": "Replaces the keyframe graph editor with DaviFX's Graph Editor 2: easing presets, tangent tools, ruler scrubbing, a track list with live values and a full keyboard set.",
       "manifest": "./plugins/graph-plus/manifest.json?v=15",
       "bundle": "./plugins/graph-plus/bundle.json?v=15",
-      "integrity": "sha256-gNx2vEI2I7cDAzbTmUkWM4pEi/bQIEyqzGmcFx0Mbgc="
+      "integrity": "sha256-0LYnOXOvTNz2JyBCY9IViWmoVc6yJxvOk79FIE9gISk="
     },
     {
       "id": "motion-path",

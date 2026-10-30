@@ -67,6 +67,19 @@ each line describes one visible change.
 
 ### Changed
 
+- Graph Editor 2 works with a mouse and a trackpad. The mouse wheel zooms
+  time around the pointer. Two-finger scroll pans. Pinch or Ctrl+wheel
+  zooms both axes. Middle-drag or Space-drag pans. The **?** button lists
+  every gesture.
+- Graph Editor 2 Bezier handles are easier to grab, and short handles stay
+  visible. Alt breaks or rejoins a tangent, even mid-drag. Shift snaps to
+  45°. Ctrl or Cmd snaps to flat or the neighbour's slope. Double-click
+  resets a handle. Dragging a preset easing's handle turns it into Bezier.
+- Graph Editor 2 groups its toolbar by purpose and fits it on one row in
+  wide windows. Buttons that cannot apply are disabled, and the status bar
+  shows what is under the pointer. Axes use the viewport gizmo's red,
+  green, and blue. Dragging values with several axes selected moves each
+  axis by the same amount.
 - Smart Motion Blur with Optical Flow skips redundant GPU passes (about
   6–12% less GPU time at 1/8 quality). The output is unchanged.
 - Shape+ boolean, offset, and stroke operations run faster (boolean
