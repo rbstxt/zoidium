@@ -180,7 +180,7 @@ PZ.ui.graph.prototype.buildToolbar = function () {
   spacer.className = "g2-spacer";
   tb.appendChild(spacer);
   var gf = group();
-  this.followBtn = small(gf, toolIcon("link"), "Follow selection", "", "Follow selection", function () {
+  this.followBtn = small(gf, toolIcon("follow"), "Follow selection", "", "Follow selection", function () {
     var controller = controllers.get(self.editor);
     if (controller) controller.setFollow(!controller.follow);
   });
@@ -188,7 +188,7 @@ PZ.ui.graph.prototype.buildToolbar = function () {
   var follow = controller ? controller.follow : readFollow(null);
   this.followBtn.classList.toggle("on", follow);
   this.followBtn.setAttribute("aria-pressed", String(follow));
-  this.axesBtn = small(gf, toolIcon("link"), "Link axes", "", "Move sibling keys together in time", function () {
+  this.axesBtn = small(gf, toolIcon("axes"), "Link axes", "", "Move sibling keys together in time", function () {
     self.options.linkAxes = !self.options.linkAxes;
     self.axesBtn.classList.toggle("on", self.options.linkAxes);
     self.axesBtn.setAttribute("aria-pressed", String(self.options.linkAxes));
