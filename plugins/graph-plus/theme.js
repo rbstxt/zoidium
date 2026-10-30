@@ -170,6 +170,14 @@ return [
     ".g2-track-row{min-height:28px;box-sizing:border-box}",
     ".g2-track-name{min-width:0}",
     ".g2-wrap .g2-status{flex-wrap:wrap;max-height:48px;gap:4px}",
+    ".g2-wrap .g2-toolbar{flex:0 0 auto;max-height:42%;padding:4px}",
+    ".g2-wrap .g2-group[data-label]{padding:14px 6px 3px;gap:4px}",
+    ".g2-wrap .g2-toolbar .g2-tlabel{display:none}",
+    ".g2-wrap .g2-group[data-label=Options] .g2-tlabel{display:block;font-size:10px}",
+    ".g2-wrap .g2-toolbar .g2-tile .g2-box{width:28px!important;height:24px!important}",
+    ".g2-wrap .g2-toolbar button.g2-custom{min-height:24px!important;width:32px;gap:0!important}",
+    ".g2-wrap .g2-toolbar .g2-custom .g2-clabel{display:none}",
+    ".g2-wrap .g2-toolbar .g2-custom .g2-sbox{width:28px;height:24px}",
 ].join("\n");
 }
 

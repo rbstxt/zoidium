@@ -158,9 +158,14 @@ PZ.ui.graph.prototype.create = function () {
 PZ.ui.graph.prototype.mouseWheel = function (e) {
   var r = this.svg.getBoundingClientRect();
   this._wheelGesture = classifyWheel(e, this._wheelGesture, Date.now());
+  var sx = (this.width || r.width) / Math.max(r.width, 1);
+  var sy = (this.height || r.height) / Math.max(r.height, 1);
+  var input = { deltaX: e.deltaX * sx, deltaY: e.deltaY, deltaMode: e.deltaMode,
+    ctrlKey: e.ctrlKey, altKey: e.altKey, shiftKey: e.shiftKey };
+  if (this._wheelGesture.kind === "pan" && !e.altKey) input.deltaY *= sy;
   var next = wheelView({ centerX: this.centerX, centerY: this.centerY,
-    zoomX: this.zoomX, zoomY: this.zoomY, width: r.width, height: r.height },
-    e, this._wheelGesture, { x: e.clientX - r.left, y: e.clientY - r.top }, e.currentTarget === this.rulerEl);
+    zoomX: this.zoomX, zoomY: this.zoomY, width: this.width || r.width, height: this.height || r.height },
+    input, this._wheelGesture, { x: (e.clientX - r.left) * sx, y: (e.clientY - r.top) * sy }, e.currentTarget === this.rulerEl);
   Object.assign(this, { centerX: next.centerX, centerY: next.centerY, zoomX: next.zoomX, zoomY: next.zoomY });
   this.updateViewBox();
   this.updateStatus();

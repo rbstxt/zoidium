@@ -228,8 +228,10 @@ PZ.ui.graph.prototype.attachHandleHandlers = function (el, cpIdx, kfEl) {
         cp[1] = sn.oldCP[cpIdx][1] + dV / scale;
         var neighbour = cpIdx ? sn.el.nextElementSibling?.pz_object : sn.el.previousElementSibling?.pz_object;
         var slope = neighbour ? (neighbour.value - sn.kf.value) / (neighbour.frame - sn.kf.frame) : 0;
-        var constrained = constrainHandle(cp, ev, slope);
-        cp[0] = constrained[0]; cp[1] = constrained[1];
+        var zx = self.zoomX || 1, zy = self.zoomY || 1;
+        var sc = sn.gel.pz_valueScale || 1;
+        var constrained = constrainHandle([cp[0] / zx, -cp[1] * sc / zy], ev, -slope * sc * zx / zy);
+        cp[0] = constrained[0] * zx; cp[1] = -constrained[1] * zy / sc;
         if ((sn.kf.continuousTangent || (e.altKey && !kf.continuousTangent)) && !breakT) {
           var other = sn.kf.controlPoints[1 - cpIdx];
           // mirror: keep length of other? old code mirrors dragged length onto other
