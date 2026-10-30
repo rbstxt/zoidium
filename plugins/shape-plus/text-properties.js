@@ -25,14 +25,21 @@ function holdValue(property, frame) {
 }
 function axes(PZ, node, font) {
   const p = node.properties, before = node.extra?.properties || {};
+  const hidden = node.hiddenAxes ||= {};
+  for (const key of Object.keys(before)) if (key.startsWith("axis_") && !p[key] && !font.axes[key.slice(5)]) {
+    hidden[key] = JSON.parse(JSON.stringify(before[key])); delete before[key];
+  }
   for (const tag of Object.keys(font.axes)) {
     const key = "axis_" + tag, axis = font.axes[tag];
     if (!p[key]) {
       p.add(key, { name: tag, type: PZ.property.type.NUMBER, dynamic: true, value: axis.default, min: axis.min, max: axis.max, step: 1 });
-      p[key].load(before[key]);
+      p[key].load(hidden[key] ?? before[key]);
+      delete hidden[key];
     } else Object.assign(p[key].definition, { min: axis.min, max: axis.max });
   }
-  for (const key of Object.keys(p)) if (key.startsWith("axis_") && !font.axes[key.slice(5)]) p.remove(key);
+  for (const key of Object.keys(p)) if (key.startsWith("axis_") && !font.axes[key.slice(5)]) {
+    hidden[key] = JSON.parse(JSON.stringify(p[key])); delete before[key]; p.remove(key);
+  }
   p.fontStyle.definition.items = [{ name: font.style, value: "" }, ...font.instances.map(instance => ({ name: instance.name, value: instance.name }))];
   p.onListChanged?.update();
 }

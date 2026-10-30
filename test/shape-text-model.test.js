@@ -31,3 +31,19 @@ test("font, style and paragraph choices are native held dynamic channels",()=>{
  assert.equal(node.evaluate(15).properties.textMode,"point");assert.equal(node.evaluate(30).properties.textMode,"box");
  for(const key of ["font","fallbackFont","fontStyle","caps","alignment","textMode"])assert.equal(node.properties[key].definition.dynamic,true);
 });
+test("inactive custom axis keys and expressions survive font switches and save/load",()=>{
+ const {axes}=require("../plugins/shape-plus/text-properties");
+ class PropertyList extends PZ.propertyList {
+  add(key,definition){this[key]=new PZ.property(definition);this[key].parent=this;}
+  remove(key){delete this[key];}
+ }
+ const host={...PZ,propertyList:PropertyList}, {Content}=createModel(host);
+ const custom={animated:true,expression:"value + 2",keyframes:[{frame:0,value:3,tween:1},{frame:30,value:7,tween:1}]};
+ const node=new Content("text");node.load({properties:{axis_custom:custom}});
+ const withAxis={axes:{custom:{min:0,default:1,max:10}},style:"Regular",instances:[]}, without={axes:{},style:"Regular",instances:[]};
+ axes(host,node,withAxis);assert.deepEqual(clone(node).properties.axis_custom,custom);
+ axes(host,node,without);assert.equal(node.properties.axis_custom,undefined);
+ const saved=clone(node);assert.deepEqual(saved.axisStore.axis_custom,custom);
+ const restored=new Content("text");restored.load(saved);axes(host,restored,without);assert.deepEqual(clone(restored).axisStore.axis_custom,custom);
+ axes(host,restored,withAxis);assert.deepEqual(clone(restored).properties.axis_custom,custom);assert.equal(clone(restored).axisStore,undefined);
+});

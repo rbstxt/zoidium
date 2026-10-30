@@ -61,6 +61,7 @@ function createModel(PZ, textService) {
         if (value !== undefined && (value === null || typeof value !== "object"))
           data.properties[key] = { animated: false, keyframes: [{ frame: 0, value, tween: 0 }] };
       }
+      this.hiddenAxes = clone(data.axisStore || {});
       this.extra = data;
       this.properties.load(data.properties);
       if (this.contents) {
@@ -71,6 +72,8 @@ function createModel(PZ, textService) {
     }
     toJSON() {
       const result = { ...this.extra, id: this.id, kind: this.kind, properties: { ...this.extra.properties, ...clone(this.properties) } };
+      if (this.kind === "text" && Object.keys(this.hiddenAxes || {}).length) result.axisStore = clone(this.hiddenAxes);
+      else if (this.kind === "text") delete result.axisStore;
       if (this.contents) result.contents = this.contents;
       if (this.kind === "path") Object.assign(result, { vertexIds: this.vertexIds, vertexModes: this.vertexModes });
       return result;
