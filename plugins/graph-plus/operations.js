@@ -1,4 +1,5 @@
 "use strict";
+const { pasteKey } = require("./axes.js");
 
 // Warn-once reporter for failure sites that run per frame or per item:
 // the first failure is logged, repeats stay silent so the console stays readable.
@@ -110,13 +111,21 @@ PZ.ui.graph.prototype.deleteKeyframes = function (els) {
   }
   this.updateLegend();
 };
+PZ.ui.graph.prototype.setContinuousTangentExact = function (prop, kf, continuous) {
+  if (kf.continuousTangent === continuous) return;
+  // Native undo can enable continuity and mirror the handles again. Preserve
+  // their exact coordinates before the flag command, including roundoff.
+  if (kf.controlPoints) this.editor.history.pushCommand(this.propertyOps.setControlPoints.bind(this.propertyOps),
+    { property: prop.getAddress(), frame: kf.frame, controlPoints: kf.controlPoints.map(point => point.slice()) });
+  this.propertyOps.setContinuousTangent({ property: prop.getAddress(), frame: kf.frame, continuous: continuous });
+};
 PZ.ui.graph.prototype.toggleContinuousTangents = function (els) {
   for (var t = 0; t < els.length; t++) {
     var gel = els[t].parentElement.parentElement;
     if (!gel || !gel.pz_object) continue;
     var prop = gel.pz_object;
     var kf = els[t].pz_object;
-    this.propertyOps.setContinuousTangent({ property: prop.getAddress(), frame: kf.frame, continuous: !kf.continuousTangent });
+    PZ.ui.graph.prototype.setContinuousTangentExact.call(this, prop, kf, !kf.continuousTangent);
   }
 };
 PZ.ui.graph.prototype.toggleInterpolation = function (els) {
@@ -185,7 +194,7 @@ PZ.ui.graph.prototype.copySelected = function () {
     var gel = groups[gi];
     if (gel.pz_object.expression || gel.style.display === "none" || (this._selectedAxes?.size && !this._selectedAxes.has(gel.pz_object))) continue;
     var sel = Array.prototype.slice.call(gel._keys.getElementsByClassName("selected"));
-    if (sel.length) map[this.axisInfo?.(gel.pz_object)?.axis || gel.pz_object.definition.name] = sel.map(function (e) { return e.pz_object; });
+    if (sel.length) map[gel.pz_object.definition.name] = sel.map(function (e) { return e.pz_object; });
   }
   // The popup editor lives in a separate window: clipboard access goes
   // through its own navigator (permissions follow the focused document).
@@ -197,7 +206,7 @@ PZ.ui.graph.prototype.copySelected = function () {
   try {
     var pack = new PZ.package(map, "propertyList");
     var str = JSON.stringify([pack]);
-    if (nav && nav.clipboard && nav.clipboard.writeText) nav.clipboard.writeText(str);
+    if (nav && nav.clipboard && nav.clipboard.writeText) nav.clipboard.writeText(str).catch(function () { /* The session clipboard remains available. */ });
     this._clipCache = str;
     this.updateStatus("copied " + Object.keys(map).length + " curve(s)");
   } catch (e) { console.warn("[Zoidium] graph-plus: copying keyframes failed", e); this.updateStatus("copy failed"); }
@@ -228,9 +237,7 @@ PZ.ui.graph.prototype.pasteAtPlayhead = function () {
         var data = arr[ai].data;
         var shift = cf - arr[ai].minFrame - off;
         var axis = self.axisInfo?.(prop)?.axis;
-        var sourceKey = axis && data[axis] ? axis : prop.definition.name;
-        var sourceKeys = Object.keys(data);
-        if (!data[sourceKey] && sourceKeys.length === 1 && groups.length === 1) sourceKey = sourceKeys[0];
+        var sourceKey = pasteKey(data, prop.definition.name, axis, groups.length === 1);
         var list = data[sourceKey];
         if (list) {
           if (list.length) self.ensureAnimated(prop, list[0].frame + shift);

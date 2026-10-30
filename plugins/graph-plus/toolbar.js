@@ -14,7 +14,7 @@ PZ.ui.graph.prototype.setTangentsOnSelected = function (continuous) {
     var gel = sel[i].parentElement.parentElement;
     if (!gel || !gel.pz_object) continue;
     var kf = sel[i].pz_object;
-    this.propertyOps.setContinuousTangent({ property: gel.pz_object.getAddress(), frame: kf.frame, continuous: continuous });
+    this.setContinuousTangentExact(gel.pz_object, kf, continuous);
   }
   this.editor.history.finishOperation();
   this.updateStatus(continuous ? "auto tangents" : "tangents broken");

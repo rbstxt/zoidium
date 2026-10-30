@@ -44,3 +44,10 @@ module.exports = function ({ PZ, addrString }) {
   };
 };
 module.exports.axisInfo = axisInfo;
+
+module.exports.pasteKey = function (data, name, axis, singleDestination) {
+  if (data[name]) return name;
+  const keys = Object.keys(data);
+  const match = axis && keys.find(key => key.split(".").pop().toUpperCase() === axis);
+  return match || (singleDestination && keys.length === 1 ? keys[0] : null);
+};

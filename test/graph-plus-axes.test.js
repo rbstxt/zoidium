@@ -54,3 +54,30 @@ test("dense-axis move events coalesce to one redraw", async () => {
   await Promise.resolve();
   assert.equal(redraws, 1);
 });
+
+test("tangent toggle undo and redo preserve exact native handle coordinates", () => {
+  const c = host(), { PZ } = c;
+  const { project, layer } = fixture(c);
+  const editor = editorFor(PZ, project);
+  const property = layer.properties.position.objects[1], key = property.keyframes[0];
+  PZ.ui.graph = function () {};
+  require("../plugins/graph-plus/operations.js")({ PZ });
+  const graph = { editor, propertyOps: new PZ.ui.properties(editor) };
+  const before = JSON.stringify(key);
+  editor.history.startOperation();
+  PZ.ui.graph.prototype.setContinuousTangentExact.call(graph, property, key, false);
+  editor.history.finishOperation();
+  const after = JSON.stringify(key);
+  assert.equal(editor.history.undoStack.length, 1);
+  editor.history.undo(); assert.equal(JSON.stringify(key), before);
+  editor.history.redo(); assert.equal(JSON.stringify(key), after);
+});
+
+test("vector paste keeps exact property matches, maps sibling axes, and permits a single-axis target", () => {
+  const { pasteKey } = require("../plugins/graph-plus/axes.js");
+  const data = { "Position.X": [1], "Position.Y": [2], "Rotation.X": [3] };
+  assert.equal(pasteKey(data, "Rotation.X", "X", false), "Rotation.X");
+  assert.equal(pasteKey(data, "Scale.Y", "Y", false), "Position.Y");
+  assert.equal(pasteKey({ "Position.X": [1] }, "Position.Y", "Y", true), "Position.X");
+  assert.equal(pasteKey(data, "Scale.Z", "Z", false), null);
+});
