@@ -29,6 +29,8 @@ function transformCommand(command, m) {
 // A parent paint sees paths in groups above it, in the parent's coordinates.
 // A group's own paints run in its local coordinates BEFORE its transform.
 function compile(contents, tolerance = .125, depth = 0, budget = { coordinates: 0, points: 0 }) {
+  const expanded = contents.some(item => item.kind === "text" || item.contents && require("./text-paths.js").hasText(item.contents));
+  if (expanded) contents = require("./text-paths.js").expandText(contents);
   return require("./geometry-budget.js").bounded(() => compileContents(contents, tolerance, depth, budget));
 }
 function compileContents(contents, tolerance, depth, budget) {

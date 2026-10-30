@@ -25,6 +25,7 @@ function installActions(s, root) {
     const entries = [];
     if (!item) {
       entries.push(
+        { label: "Add Text", action: add("text"), disabled: !local },
         { label: "Add Rectangle", action: add("rectangle"), disabled: !local },
         { label: "Add Ellipse", action: add("ellipse"), disabled: !local },
         { label: "Add Polystar", action: add("polystar"), disabled: !local },

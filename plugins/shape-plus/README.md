@@ -577,14 +577,39 @@ item and error reason. Other valid paint items remain available. Content edits
 invalidate the normal signature cache and automatically retry geometry.
 Renderer failures restore the previous render target and clear settings.
 
-## Text engine prototype
+## Text contents
 
-`text-engine.js` is an internal prototype for uncompressed variable OpenType
-fonts. It provides HarfBuzz shaping, glyph outlines in font units, explicit
-font error states, and a bounded outline cache. Existing runtime code does not
-call this module. Shape+ has no live Text contents item or text editing controls.
+Text is a live geometry source. Source Text uses native hold keys and supports
+expressions. Fills, strokes, gradients, path modifiers, Repeater, and Merge Paths
+operate on its glyph contours through the same compiler as other paths.
 
-The prototype compiles WASM only when `createLoader()`'s result is called.
-Its bytes are embedded in the Shape+ bundle, so download delivery is not lazy.
-WOFF, WOFF2, font fallback, and family/style selection are not implemented.
-See `vendor/README.md` for dependency provenance and licenses.
+Font Family and Fallback Font store native asset references. Fallback is explicit
+and selected per grapheme cluster. Without a fallback, missing glyphs use the
+primary font's .notdef. Japanese text requires a font with Japanese glyphs.
+Missing assets and unsupported formats appear as an English status beside the
+Text item. TTF, OTF, variable TrueType, CFF2, and WOFF1 are supported. WOFF2 is
+unsupported and keeps its asset reference.
+
+Style lists named instances. Selecting a style writes its axis coordinates in
+one history operation. Each axis remains an ordinary native dynamic NUMBER
+property. Changing fonts retains channels for shared axes. Size, Tracking,
+Leading, Baseline Shift, Horizontal Scale, Vertical Scale, and Position animate.
+Tracking is in thousandths of the font size. Leading is in composition pixels.
+Caps offers normal, all, and small capitals. Small capitals use uppercase glyphs
+at 75 percent size.
+
+Point text supports left, center, and right alignment. Box text adds word wrap,
+CJK character breaks, box size, justification with last-line alignment,
+first-line indent, and space before and after paragraphs. Explicit newlines
+start paragraphs. Box height hides overflow lines.
+
+Double-click a text item in the preview to edit it in a textarea positioned
+over its bounds. Enter adds a newline. Escape or focus loss commits one history
+operation. The textarea retains native IME composition. The native properties
+panel also provides a multiline Source Text field. Expression-driven text is
+read-only in the inline editor.
+
+The HarfBuzz payload is in a verified optional bundle. Projects with no Text
+contents do not request it. Outlines are cached in font units with a bounded
+4 MiB accounting budget. The engine never uses system fonts or browser text
+metrics for output. See `vendor/README.md` for provenance and licenses.

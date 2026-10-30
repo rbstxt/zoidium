@@ -37,8 +37,11 @@
     return undefined;
   }
 
+  const optionalLoads = new WeakMap();
   function createPluginAssetResolver(assets) {
-    const resolve = (kind, url) => getPluginAsset(assets, kind, url), pending = new Map();
+    const resolve = (kind, url) => getPluginAsset(assets, kind, url);
+    const pending = assets && optionalLoads.get(assets) || new Map();
+    if (assets) optionalLoads.set(assets, pending);
     resolve.loadOptional = id => {
       if (!pending.has(id)) pending.set(id, (async () => {
         const entry = assets?.optional?.[id];

@@ -5,6 +5,7 @@ const titles = {
   ellipse: "Ellipse",
   polystar: "Polystar",
   path: "Path",
+  text: "Text",
   fill: "Fill",
   stroke: "Stroke",
   gradientFill: "Gradient Fill",
@@ -50,6 +51,7 @@ function definitions(PZ, kind, vertexIds) {
     name: { name: "Name", type: T.TEXT, value: titles[kind], visible: false },
     enabled: { name: "Enabled", type: T.OPTION, value: 1, items: "off;on" },
   };
+  if (kind === "text") Object.assign(result, require("./text-properties.js").definitions(PZ, number, vector, list));
   if (kind === "group")
     Object.assign(result, {
       anchor: vector("Anchor", [0, 0]),

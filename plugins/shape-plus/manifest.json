@@ -319,6 +319,36 @@
       "id": "text-shaping",
       "type": "text",
       "source": "./plugins/shape-plus/text-shaping.js?v=24"
+    },
+    {
+      "id": "text-layout",
+      "type": "text",
+      "source": "./plugins/shape-plus/text-layout.js?v=24"
+    },
+    {
+      "id": "text-paths",
+      "type": "text",
+      "source": "./plugins/shape-plus/text-paths.js?v=24"
+    },
+    {
+      "id": "text-properties",
+      "type": "text",
+      "source": "./plugins/shape-plus/text-properties.js?v=24"
+    },
+    {
+      "id": "text-service",
+      "type": "text",
+      "source": "./plugins/shape-plus/text-service.js?v=24"
+    },
+    {
+      "id": "text-controls",
+      "type": "text",
+      "source": "./plugins/shape-plus/text-controls.js?v=24"
+    },
+    {
+      "id": "text-inline",
+      "type": "text",
+      "source": "./plugins/shape-plus/text-inline.js?v=24"
     }
   ]
 }

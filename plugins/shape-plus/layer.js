@@ -100,6 +100,7 @@ function createLayerClass(PZ, THREE, Content) {
       if (this.disposed || !this.tryGetParentOfType(PZ.project)) return;
       if (this.pendingData) this.load(this.pendingData);
       await super.prepare(frame, context);
+      for (const child of this.contents) await child.prepare();
     }
     getParentOfType(type) {
       // Native layer/effect unload releases project assets through this

@@ -25,7 +25,7 @@ Earcut 2.2.4 is copied verbatim from the already licensed dependency in
 license is a bundle asset. It triangulates only Clipper-resolved simple contours
 with explicit hole ancestry. Existing shapes retain the original slab engine.
 
-## HarfBuzz text engine prototype
+## HarfBuzz text engine
 
 HarfBuzz uses `harfbuzzjs` npm 0.4.13 from
 https://registry.npmjs.org/harfbuzzjs/-/harfbuzzjs-0.4.13.tgz.

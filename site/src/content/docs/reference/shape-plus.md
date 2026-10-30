@@ -269,8 +269,38 @@ SVG import and native conversion create editable vector contents. Text+ characte
 
 [Create paths with Shape+](/docs/features/shape-plus/)
 
-## Text support status
+## Text
 
-Shape+ has no live Text contents item. The internal text engine prototype supports
-uncompressed variable OpenType fonts, but no runtime code calls it. Font fallback,
-family/style selection, and WOFF/WOFF2 decoding are not implemented.
+Text supplies glyph contours to paints and modifiers above its following paints.
+
+| Control | Type | Default | Effect |
+| --- | --- | --- | --- |
+| **Source Text** | Dynamic text | Text | Hold keys and expressions. |
+| **Font Family** | Font asset | Native default font | Primary font reference. |
+| **Fallback Font** | Font asset | None | Explicit fallback for unmapped grapheme clusters. |
+| **Style** | Choice | Default | Writes the named instance's axis values. |
+| Axis tag | Dynamic number | Font default | Font-defined minimum and maximum. |
+| **Size** | Dynamic number | 100 | Composition pixels per em. |
+| **Tracking** | Dynamic number | 0 | Thousandths of Size between glyphs. |
+| **Leading** | Dynamic number | 120 | Baseline distance in composition pixels. |
+| **Baseline Shift** | Dynamic number | 0 | Positive values move glyphs upward. |
+| **Horizontal Scale (%)**, **Vertical Scale (%)** | Dynamic number | 100 | Glyph scale. |
+| **Caps** | Choice | normal | normal, all, or small. Small uses uppercase at 75 percent size. |
+| **Position** | Dynamic vector | [0, 0] | Baseline origin. |
+| **Alignment** | Choice | left | left, center, right, justifyLeft, justifyCenter, justifyRight, justifyAll. |
+| **Text Mode** | Choice | point | point or box. |
+| **Box Size** | Dynamic vector | [600, 400] | Wrap width and visible height. |
+| **First-Line Indent** | Dynamic number | 0 | First line of each paragraph. |
+| **Space Before**, **Space After** | Dynamic number | 0 | Paragraph spacing in composition pixels. |
+
+TTF, OTF, variable TrueType, CFF2, and WOFF1 are supported. WOFF2 displays an
+unsupported-format status and retains the font reference. Missing fonts show a
+status beside the item. There is no implicit font fallback. Japanese text uses
+the selected font's Japanese glyphs.
+
+Box text wraps Latin words and breaks CJK per grapheme. Oversized Latin words
+break per grapheme. Newlines start paragraphs. Lines outside the box height
+are hidden. Point text does not wrap. Justification expands spaces; a line
+without spaces retains its advances.
+
+The optional engine bundle loads on the first text use. Electron is untested.

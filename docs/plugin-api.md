@@ -702,3 +702,15 @@ hook replaces `declare` when it owns resources or would mutate shared state;
 it must reproduce compilation defines without loading assets or baking textures.
 The preview never calls stage update/error handlers or draws a pass. Ordinary
 compilation and per-frame updates retain their existing path.
+
+### Optional resource bundles
+
+A resource can declare `optionalBundle` with a bundle identifier. The builder
+moves those resources into `<identifier>.bundle.json` and embeds its URL and
+SHA-256 digest in the main bundle. Runtime staging copies both bundles.
+
+`context.getAsset.loadOptional(identifier)` returns a shared Promise. The
+resolver fetches the optional bundle, verifies its digest before parsing, and
+then makes its text and JSON assets available through `context.getAsset`.
+Failures can be retried. No request occurs until `loadOptional()` is called.
+Optional bundle URLs must stay on the same origin under the plugin directory.

@@ -367,6 +367,7 @@ function createPointer(s, canvas) {
     }
     const entry = api.itemAt(p);
     if (entry) {
+      if (entry.item.kind === "text") { s.editText(entry.item); return; }
       if (s.activeId !== entry.item.id || s.treeSelection.size !== 1) s.selectItem(entry.item.id);
       return;
     }

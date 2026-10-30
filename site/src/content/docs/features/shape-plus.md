@@ -28,12 +28,21 @@ hide an item.
 
 Control reference: [shape-plus](/docs/reference/shape-plus/).
 
-## Convert text to paths
+## Add and edit text
 
-1. Create a native **Text** layer.
-2. Select that layer.
-3. Click the layer's **Convert to Shape+** button.
+1. Select a Shape+ layer.
+2. Open **Objects**, then the Contents **+** menu.
+3. Choose **Text**.
+4. Select the Text item and choose **Font Family**.
+5. Edit **Source Text** in the native properties panel.
+6. To edit in the preview, double-click the text.
+7. Press Enter to add a newline.
+8. Press Escape or click outside the editor to commit one undo step.
 
-The result contains outlines. To change the text afterward, edit the native
-**Text** layer and convert it again. See [Text support status](/reference/shape-plus/#text-support-status)
-for the limits of the internal text engine prototype.
+For Japanese text, choose a font with Japanese glyphs. To use a second font
+for missing glyphs, set **Fallback Font**.
+
+To use paragraph text, set **Text Mode** to **box** and edit **Box Size**.
+To animate variable fonts, choose a **Style**, then animate the individual axis
+properties. See [Text](/reference/shape-plus/#text) for the supported formats
+and layout controls.

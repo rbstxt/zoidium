@@ -3,7 +3,7 @@
 // the Objects panel hints. Nothing here touches CM3 objects or the DOM.
 const { titles } = require("./properties.js");
 const { find } = require("./editor-tree-data.js");
-const GEOMETRY = ["rectangle", "ellipse", "polystar", "path"];
+const GEOMETRY = ["rectangle", "ellipse", "polystar", "path", "text"];
 const PAINTS = ["fill", "stroke", "gradientFill", "gradientStroke"];
 const nameOf = item => typeof item.properties?.name === "string" ? item.properties.name : titles[item.kind];
 function names(contents, result = new Set()) {
@@ -30,7 +30,7 @@ function contextGroup(contents, ids, groupsOnly = false) {
 function itemData(kind, nextId, { point = null, vertexCount = 4 } = {}) {
   const item = { id: nextId(), kind, properties: {} };
   if (kind === "group") item.contents = [];
-  if (point && ["rectangle", "ellipse", "polystar"].includes(kind))
+  if (point && ["rectangle", "ellipse", "polystar", "text"].includes(kind))
     item.properties.position = { animated: false, keyframes: [{ frame: 0, value: point.slice(), tween: 1 }] };
   if (kind === "path") {
     item.vertexIds = Array.from({ length: point ? 1 : vertexCount }, () => nextId());

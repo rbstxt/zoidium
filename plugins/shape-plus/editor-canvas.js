@@ -28,6 +28,13 @@ function scene(
         visible,
         result,
       );
+    else if (item.kind === "text") {
+      const layout = item.evaluate(frame).textLayout;
+      const points = layout.glyphs.flatMap(glyph => glyph.paths.flatMap(path => path.vertices.map(v => v.point)));
+      const x = points.length ? Math.min(...points.map(p=>p[0])) : p.position[0], y = points.length ? Math.min(...points.map(p=>p[1])) : p.position[1];
+      const right = points.length ? Math.max(...points.map(p=>p[0])) : x+200, top = points.length ? Math.max(...points.map(p=>p[1])) : y+100;
+      result.push({ item, matrix: parent, enabled: visible, properties: p, path: { closed: true, vertices: [[x,y],[right,y],[right,top],[x,top]].map(point => ({point,in:[0,0],out:[0,0]})) } });
+    }
     else if (["path", "rectangle", "ellipse", "polystar"].includes(item.kind))
       result.push({
         item,
