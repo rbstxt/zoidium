@@ -182,11 +182,17 @@
     if (!this.el) return Promise.resolve();
     context ||= this.__zoidiumExportContext;
     const element = this.el;
+    // Playback ticks must not reposition or start this element while an exact
+    // request owns it, including the time spent waiting behind another request.
+    this.__zoidiumExactDecodePending = (this.__zoidiumExactDecodePending || 0) + 1;
+    element.pause?.();
+    this.playing = false;
     const previous = decoderQueues.get(element);
     const run = () => decode(this, time, context);
     const pending = previous ? previous.catch(() => {}).then(run) : run();
     decoderQueues.set(element, pending);
     pending.finally(() => {
+      this.__zoidiumExactDecodePending--;
       if (decoderQueues.get(element) === pending) decoderQueues.delete(element);
     }).catch(() => {});
     return pending;

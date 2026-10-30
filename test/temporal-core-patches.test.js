@@ -512,3 +512,37 @@ test("video-frame-export reinstall is a no-op", () => {
   assert.equal(PZ.schedule.prototype.decodeFrame, decode);
   assert.equal(PZ.export.prototype.getVideoFrame, frame);
 });
+
+test("exact decode excludes playback schedule writes until queued requests settle", async () => {
+  const { PZ } = videoFrameSandbox();
+  const { installSchedulePatch } = require("../plugins/core/playback-seek-sync");
+  let updates = 0, pauses = 0;
+  PZ.schedule.prototype.update = () => { updates++; };
+  installSchedulePatch(PZ.schedule.prototype);
+  const video = fakeVideo();
+  video.pause = () => { pauses++; };
+  const schedule = Object.assign(new PZ.schedule(), { el: video, texture: {}, playing: true });
+  const first = schedule.decodeFrame(2);
+  const second = schedule.decodeFrame(4);
+  schedule.update(99, 30);
+  assert.equal(updates, 0);
+  assert.equal(schedule.__zoidiumExactDecodePending, 2);
+  await first;
+  schedule.update(99, 30);
+  assert.equal(updates, 0, "queued requests retain ownership");
+  await second;
+  assert.equal(schedule.__zoidiumExactDecodePending, 0);
+  assert.equal(video.currentTime, 4);
+  assert.equal(schedule.playing, false);
+  assert.equal(pauses, 2);
+  schedule.update(99, 30);
+  assert.equal(updates, 1, "native updates resume after decoding");
+});
+
+test("failed exact decode releases playback ownership", async () => {
+  const { PZ } = videoFrameSandbox();
+  const schedule = Object.assign(new PZ.schedule(), { el: fakeVideo(), texture: {} });
+  schedule.el.error = new Error("Synthetic decode failure");
+  await assert.rejects(schedule.decodeFrame(2), /Synthetic decode failure/);
+  assert.equal(schedule.__zoidiumExactDecodePending, 0);
+});

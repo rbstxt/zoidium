@@ -383,6 +383,7 @@
     state.playbackPrototype = prototype;
     state.originalPlaybackUpdateSchedule = prototype.updateSchedule;
     prototype.updateSchedule = function temporalUpdateSchedule(schedule, delta) {
+      if (schedule?.__zoidiumExactDecodePending) return;
       if (schedule?.type !== PZ.schedule?.type?.VIDEO || !schedule.currentItem) {
         return state.originalPlaybackUpdateSchedule.apply(this, arguments);
       }
