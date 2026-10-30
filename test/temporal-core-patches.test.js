@@ -546,3 +546,18 @@ test("failed exact decode releases playback ownership", async () => {
   await assert.rejects(schedule.decodeFrame(2), /Synthetic decode failure/);
   assert.equal(schedule.__zoidiumExactDecodePending, 0);
 });
+
+test("a stale seeked event does not complete an exact request while it is seeking", async () => {
+  const { PZ } = videoFrameSandbox();
+  const video = fakeVideo();
+  const schedule = Object.assign(new PZ.schedule(), { el: video, texture: {} });
+  video.seeking = true;
+  let settled = false;
+  const pending = schedule.decodeFrame(2).then(() => { settled = true; });
+  await new Promise(setImmediate);
+  assert.equal(settled, false);
+  video.seeking = false;
+  video.__fire("seeked");
+  await pending;
+  assert.equal(schedule.__zoidiumVideoExportState.requestedTime, 2);
+});

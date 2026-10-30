@@ -78,6 +78,9 @@
       const failed = () => fail(video.error || new Error("Video decode failed."));
       const aborted = () => fail(policy.signal.reason || new Error("Export stopped."));
       const done = () => {
+        // A queued completion from an earlier playback seek can arrive after
+        // this request starts. It does not complete the newer seek.
+        if (event === "seeked" && video.seeking) return;
         try { mediaError(video); policy?.check?.(); }
         catch (error) { fail(error); return; }
         cleanUp(); resolve();
