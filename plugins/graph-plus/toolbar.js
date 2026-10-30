@@ -240,5 +240,43 @@ PZ.ui.graph.prototype.buildToolbar = function () {
     self.updateViewBox();
   }, "on");
   if (this.options.showLabels === false) this.labelsBtn.classList.remove("on");
+  var help = mk("button"); help.className = "g2-help"; help.textContent = "?";
+  help.title = "Mouse and trackpad gestures"; help.setAttribute("aria-label", "Gesture help");
+  help.setAttribute("aria-expanded", "false");
+  help.addEventListener("click", function () {
+    if (self.gestureCard) { self.gestureCard.remove(); self.gestureCard = null; help.setAttribute("aria-expanded", "false"); return; }
+    var card = mk("div"); card.className = "g2-gestures";
+    card.innerHTML = '<b>Graph gestures</b><table><tr><th>Mouse</th><th>Trackpad</th></tr>' +
+      '<tr><td>Wheel: zoom X</td><td>Two fingers: pan X and Y</td></tr>' +
+      '<tr><td>Ctrl+wheel: zoom X and Y</td><td>Pinch: zoom X and Y</td></tr>' +
+      '<tr><td colspan="2">Alt+wheel or Alt+pinch: zoom Y · Shift+wheel: pan X</td></tr>' +
+      '<tr><td colspan="2">Middle-drag or Space-drag: pan · Left-drag: select · Ruler: scrub</td></tr>' +
+      '<tr><td colspan="2">Handle: Alt-drag breaks or rejoins · Shift: 45° angles · Ctrl/Cmd: snap slope</td></tr>' +
+      '<tr><td colspan="2">Double-click handle: reset · Preset handle drag: convert to Bezier</td></tr></table>';
+    self.rootEl.appendChild(card); self.gestureCard = card; help.setAttribute("aria-expanded", "true");
+  });
+  var buttons = Array.from(tb.querySelectorAll("button"));
+  while (tb.firstChild) tb.firstChild.remove();
+  var sections = [
+    ["Interpolation", ["Linear", "Step", "Ease", "Custom easings"]],
+    ["Tangents", ["Bezier", "Break Tangents", "Auto Tangents", "Link", "Flat"]],
+    ["View", ["Pan", "Marquee", "Fit", "Frame", "Norm"]],
+    ["Keys", ["+Key", "Del", "Copy", "Paste"]],
+    ["Options", ["Snap", "Labels", "Link axes", "Follow selection"]]
+  ];
+  sections.forEach(function (section) {
+    var container = group(); container.dataset.label = section[0]; container.setAttribute("role", "group");
+    container.setAttribute("aria-label", section[0]);
+    section[1].forEach(function (label) {
+      var button = buttons.find(b => b.getAttribute("aria-label") === label);
+      if (button) {
+        button.dataset.needsKeys = String(["Interpolation", "Tangents"].includes(section[0]) || ["Del", "Copy", "Frame"].includes(label));
+        container.appendChild(button);
+      }
+    });
+  });
+  tb.appendChild(help);
+  this.panBtn.classList.remove("on"); this.selToolBtn.classList.add("on");
+
 };
 };

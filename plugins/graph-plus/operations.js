@@ -356,6 +356,7 @@ PZ.ui.graph.prototype.updateStatus = function (extra) {
   if (!this.statusEl) return;
   var cf = currentFrame(this.editor);
   var sel = this.selectedKeys().length;
+  if (this.toolbarEl?.querySelectorAll) for (var button of this.toolbarEl.querySelectorAll('[data-needs-keys="true"]')) button.disabled = !sel;
   var n = this.propGroups().length;
   this.statusEl.innerHTML = "";
   var self = this;
@@ -374,7 +375,7 @@ PZ.ui.graph.prototype.updateStatus = function (extra) {
   pill("zoom <b>" + (Math.round(this.zoomX * 100) / 100) + " / " + (Math.round(this.zoomY * 1000) / 1000) + "</b>");
   pill((this.options.snap ? "snap ON" : "snap OFF") + " · " + (this.options.normalize ? "norm ON" : "norm OFF"), this.options.snap);
   if (extra) pill(escapeHtml(extra));
-  else pill("LMB:pan · click:deselect · MMB:select · RMB:scrub · dblclick:add · F:frame · \\:fit");
+  else pill("LMB:select · Space/MMB:pan · click:deselect · RMB:scrub · dblclick:add · F:frame · \\:fit");
   // sync track-row highlight with selection
   try {
     if (this.tracksEl) {
@@ -453,6 +454,8 @@ PZ.ui.graph.prototype.keydown = function (e) {
     this.editor.history.finishOperation();
   } else if (e.key === "Escape") {
     e.stopPropagation();
+    if (this.gestureCard) { this.gestureCard.remove(); this.gestureCard = null;
+      this.toolbarEl?.querySelector('[aria-label="Gesture help"]')?.setAttribute("aria-expanded", "false"); return; }
     if (this.easePopup) { this.closeEasePopup(); return; }
     this.deselectAllKeyframes();
   } else if (e.key && e.key.indexOf("Arrow") === 0) {

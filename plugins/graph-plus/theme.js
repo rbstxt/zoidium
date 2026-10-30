@@ -154,7 +154,23 @@ return [
     ".g2-pill.live{border-color:var(--zui-accent);color:var(--zui-value)}",
     ".g2-curve-label{font-weight:700;paint-order:stroke;stroke:var(--zui-bg-sunken);stroke-width:3px}",
     ".g2-property-selected{outline:1px solid var(--zui-accent);outline-offset:-1px;background:rgb(var(--zui-accent-rgb) / 0.12)}",
-  ].join("\n");
+      ".g2-hover{filter:brightness(1.5);stroke:var(--zui-text-bright)!important;cursor:move}",
+    ".g2-group[data-label]{position:relative;padding:18px 8px 3px;border-right:1px solid var(--zui-border);gap:6px;flex-wrap:wrap;max-width:100%;box-sizing:border-box}",
+    ".g2-group[data-label]:before{content:attr(data-label);position:absolute;left:8px;top:0;font-size:10px;color:var(--zui-text-muted)}",
+    ".g2-wrap .g2-toolbar{padding:6px;gap:3px;min-height:0;max-height:46%}",
+    ".g2-wrap .g2-tile .g2-box{width:32px!important;height:28px!important}",
+    ".g2-wrap .g2-tile{gap:3px!important;max-width:65px}",
+    ".g2-wrap .g2-tile .g2-tlabel{max-width:65px;font-size:10px}",
+    ".g2-wrap .g2-custom{max-width:100px;gap:3px!important;min-height:28px!important}",
+    ".g2-wrap .g2-custom .g2-sbox{width:32px;height:28px}",
+    ".g2-wrap .g2-toolbar button:disabled{opacity:.35;cursor:default}",
+    ".g2-gestures{position:absolute;right:6px;bottom:32px;max-width:calc(100% - 28px);max-height:calc(100% - 60px);overflow:auto;padding:10px;background:var(--zui-bg);border:1px solid var(--zui-border);z-index:20;font-size:11px;box-shadow:0 4px 16px var(--zui-shadow)}",
+    ".g2-gestures td,.g2-gestures th{padding:5px;text-align:left;white-space:normal}",
+    ".g2-wrap .g2-eye{min-width:26px;min-height:26px;padding:2px}",
+    ".g2-track-row{min-height:28px;box-sizing:border-box}",
+    ".g2-track-name{min-width:0}",
+    ".g2-wrap .g2-status{flex-wrap:wrap;max-height:48px;gap:4px}",
+].join("\n");
 }
 
 module.exports = { gpSyncTheme, gpInjectStyle, gpRemoveStyle, gpCssText };
