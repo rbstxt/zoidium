@@ -15,3 +15,5 @@ Open the **Plugins** page in the sidebar to enable or disable Zoidium plugins.
 2. Disable the plugin in **Plugins**.
 
 Disabling stores a restore point of the current project first. When that backup fails, the switch stays enabled unless you choose to continue without a backup. A plugin that the project still uses cannot be disabled until its content is removed. Saved plugin settings stay in the project and return when the plugin is enabled again.
+
+Implementation details for contributors: [Plugin manager internals](plugin-manager-internals.md).

@@ -19,3 +19,5 @@ An attached asset whose bytes cannot be read stops the save and names the asset.
 ## Open a damaged project
 
 A readable archive with unavailable assets offers **Open readable parts**. It lists the bad assets and keeps their references so they can be attached again. A damaged project document or container cannot be opened partially. Error notifications also offer restore-point recovery.
+
+Implementation details for contributors: [Saving and restore point internals](project-saving-internals.md).
