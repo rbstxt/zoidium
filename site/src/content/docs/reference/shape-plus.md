@@ -268,3 +268,9 @@ Path tangents are relative to their vertices. New Contents paths start as four-v
 SVG import and native conversion create editable vector contents. Text+ character animation has no equivalent in the converted Shape+ outlines.
 
 [Create paths with Shape+](/docs/features/shape-plus/)
+
+## Text support status
+
+Shape+ has no live Text contents item. The internal text engine prototype supports
+uncompressed variable OpenType fonts, but no runtime code calls it. Font fallback,
+family/style selection, and WOFF/WOFF2 decoding are not implemented.

@@ -576,3 +576,15 @@ bound allocations. A failed paint is omitted with one English warning per
 item and error reason. Other valid paint items remain available. Content edits
 invalidate the normal signature cache and automatically retry geometry.
 Renderer failures restore the previous render target and clear settings.
+
+## Text engine prototype
+
+`text-engine.js` is an internal prototype for uncompressed variable OpenType
+fonts. It provides HarfBuzz shaping, glyph outlines in font units, explicit
+font error states, and a bounded outline cache. Existing runtime code does not
+call this module. Shape+ has no live Text contents item or text editing controls.
+
+The prototype compiles WASM only when `createLoader()`'s result is called.
+Its bytes are embedded in the Shape+ bundle, so download delivery is not lazy.
+WOFF, WOFF2, font fallback, and family/style selection are not implemented.
+See `vendor/README.md` for dependency provenance and licenses.

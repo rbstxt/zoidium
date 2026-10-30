@@ -27,3 +27,13 @@ same group. Drag contents to change their order or group. Use the eye button to
 hide an item.
 
 Control reference: [shape-plus](/docs/reference/shape-plus/).
+
+## Convert text to paths
+
+1. Create a native **Text** layer.
+2. Select that layer.
+3. Click the layer's **Convert to Shape+** button.
+
+The result contains outlines. To change the text afterward, edit the native
+**Text** layer and convert it again. See [Text support status](/reference/shape-plus/#text-support-status)
+for the limits of the internal text engine prototype.
