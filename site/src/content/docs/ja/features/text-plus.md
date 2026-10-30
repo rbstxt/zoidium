@@ -11,7 +11,7 @@ sidebar:
 2. **LAYERS** から **Text** を追加します。
 3. Text レイヤーを選択します。
 4. ネイティブのプロパティパネルで **Character** カテゴリを開きます。
-5. **Mode** で **Character Transform** などを選択します。
+5. **Mode** を選択します。オフセットには **Character Transform**、テキスト全体のブレンドには **Gradient Transform**、フェーズ駆動の振動には **Character Shake**、特定の文字には **Selected** の種類、シード付きのばらつきには **Random Scatter** を使います。
 6. **Position**、**Scale**、または **Rotation** を設定します。
 7. 文字間のアニメーションをオフセットするには、**Delay** を設定します。
 8. **Delay order** を選択します。

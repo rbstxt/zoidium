@@ -45,7 +45,7 @@ Each entry names a symptom, its cause, and the fix.
 
 **Cause:** the project uses community effects, and community effect export is unavailable in the developer preview.
 
-**Fix:** approve the one-export bypass when the editor offers **Export with missing or failed plugins**. The export skips every community effect at every frame, including effects in closed compositions. The choice applies to one export only. Install or repair the missing package for a complete export.
+**Fix:** approve the one-export bypass when the editor offers **Export with missing or failed plugins**. The export skips every community effect at every frame, including effects in closed compositions. Project content stays unchanged, and the choice applies to one export only. Install or repair the missing package for a complete export.
 
 ## A project opens with missing plugins or assets
 
