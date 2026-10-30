@@ -54,8 +54,10 @@
         const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
         if ("sha256-" + btoa(String.fromCharCode(...new Uint8Array(hash))) !== entry.integrity) throw new Error("Optional plugin bundle integrity mismatch: " + id);
         const bundle = JSON.parse(text);
-        if (bundle.schemaVersion !== 1 || !bundle.assets?.text || !bundle.assets?.json) throw new Error("Invalid optional plugin bundle data: " + id);
+        if (bundle.schemaVersion !== 1 || !bundle.assets || typeof bundle.assets !== "object" || Array.isArray(bundle.assets)) throw new Error("Invalid optional plugin bundle data: " + id);
         for (const type of ["text", "json"]) {
+          bundle.assets[type] ||= {};
+          if (typeof bundle.assets[type] !== "object" || Array.isArray(bundle.assets[type])) throw new Error("Invalid optional plugin asset section: " + type);
           for (const key of Object.keys(bundle.assets[type])) if (Object.hasOwn(assets[type], key)) throw new Error("Optional plugin asset collision: " + key);
         }
         for (const type of ["text", "json"]) Object.assign(assets[type], bundle.assets[type]);

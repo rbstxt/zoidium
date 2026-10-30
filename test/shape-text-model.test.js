@@ -47,3 +47,10 @@ test("inactive custom axis keys and expressions survive font switches and save/l
  const restored=new Content("text");restored.load(saved);axes(host,restored,without);assert.deepEqual(clone(restored).axisStore.axis_custom,custom);
  axes(host,restored,withAxis);assert.deepEqual(clone(restored).properties.axis_custom,custom);assert.equal(clone(restored).axisStore,undefined);
 });
+
+test("named instances retain expression-driven axes and notify once",()=>{
+ const {applyInstance}=require("../plugins/shape-plus/text-controls");
+ const properties={axis_wght:{expression:"value*2"},axis_wdth:{}},writes=[],notices=[];
+ applyInstance({wght:900,wdth:150},properties,(p,value)=>writes.push([p,value]),message=>notices.push(message));
+ assert.deepEqual(writes,[[properties.axis_wdth,150]]);assert.equal(properties.axis_wght.expression,"value*2");assert.equal(notices.length,1);assert.match(notices[0],/wght/);
+});

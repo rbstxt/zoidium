@@ -1,4 +1,13 @@
 "use strict";
+function applyInstance(coordinates, properties, write, notify) {
+  const skipped = [];
+  for (const [tag, value] of Object.entries(coordinates || {})) {
+    const property = properties["axis_" + tag];
+    if (!property || property.expression) { if (property?.expression) skipped.push(tag); continue; }
+    write(property, value);
+  }
+  if (skipped.length) notify("Expression-driven axes were kept: " + skipped.join(", ") + ".");
+}
 function install(context) {
   const PZ = context.PZ || window.PZ, editor = context.editor || window.CM;
   const at = property => require("./text-properties.js").localFrame(property, editor, PZ);
@@ -39,9 +48,9 @@ function install(context) {
       const node = property.parentObject, font = node.textState?.primary, instance = font?.instances.find(item => item.name === select.value);
       const frame = at(property);
       set(ops, property, select.value, frame);
-      for (const [tag, value] of Object.entries(instance?.coordinates || {})) set(ops, node.properties["axis_" + tag], value, frame);
+      applyInstance(instance?.coordinates, node.properties, (axis, value) => set(ops, axis, value, frame), message => context.ui.notify({title:"Shape+",message}));
     });
     select.pz_update(); return select;
   } }));
 }
-module.exports = { install };
+module.exports = { install, applyInstance };
