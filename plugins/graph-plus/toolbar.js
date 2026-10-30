@@ -241,7 +241,7 @@ PZ.ui.graph.prototype.buildToolbar = function () {
   }, "on");
   if (this.options.showLabels === false) this.labelsBtn.classList.remove("on");
   var help = mk("button"); help.className = "g2-help"; help.textContent = "?";
-  help.title = "Mouse and trackpad gestures"; help.setAttribute("aria-label", "Gesture help");
+  help.title = "Gestures (?)"; help.setAttribute("aria-label", "Gesture help");
   help.setAttribute("aria-expanded", "false");
   help.addEventListener("click", function () {
     if (self.gestureCard) { self.gestureCard.remove(); self.gestureCard = null; help.setAttribute("aria-expanded", "false"); return; }

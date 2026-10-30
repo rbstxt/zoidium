@@ -69,6 +69,8 @@ PZ.ui.graph.prototype.resize = function () {
     if (this.rootEl && this.rootEl.classList) {
       var wrapW = this.rootEl.clientWidth || 0;
       this.rootEl.classList.toggle("g2-narrow", wrapW > 0 && wrapW < 700);
+      this.rootEl.classList.toggle("g2-compact", wrapW <= 700 && this.rootEl.clientHeight <= 400);
+      this.rootEl.classList.toggle("g2-wide", wrapW >= 800);
     }
   } catch (_narrowError) {}
   if (this.xGrid) this.xGrid.resize();

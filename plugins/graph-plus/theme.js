@@ -178,6 +178,18 @@ return [
     ".g2-wrap .g2-toolbar button.g2-custom{min-height:24px!important;width:32px;gap:0!important}",
     ".g2-wrap .g2-toolbar .g2-custom .g2-clabel{display:none}",
     ".g2-wrap .g2-toolbar .g2-custom .g2-sbox{width:28px;height:24px}",
+    ".g2-wrap .g2-help{align-self:flex-start;flex:0 0 28px;width:28px;height:24px;margin-top:14px;padding:0;border:1px solid var(--zui-border);border-radius:2px;background:var(--zui-bg-input);color:var(--zui-text-bright);font:inherit;font-weight:bold;cursor:pointer}",
+    ".g2-wrap .g2-help:hover,.g2-wrap .g2-help[aria-expanded=true]{background:var(--zui-hover);outline:1px solid var(--zui-accent)}",
+    ".g2-wrap .g2-toolbar{box-sizing:border-box}",
+    ".g2-wrap .g2-group[data-label]{flex-wrap:nowrap}",
+    ".g2-wrap.g2-wide .g2-toolbar{flex-wrap:nowrap}",
+    ".g2-wrap.g2-wide .g2-group[data-label]{padding-left:4px;padding-right:4px;gap:2px;flex-shrink:0}",
+    ".g2-wrap.g2-wide .g2-toolbar .g2-tile .g2-box{width:24px!important}",
+    ".g2-wrap.g2-wide .g2-toolbar .g2-tlabel{display:none}",
+    ".g2-wrap.g2-compact .g2-toolbar{max-height:35%;padding:4px;gap:3px}",
+    ".g2-wrap.g2-compact .g2-toolbar .g2-tlabel{display:none}",
+    ".g2-wrap.g2-compact .g2-group[data-label]{gap:2px;padding-left:4px;padding-right:4px}",
+    ".g2-wrap.g2-compact .g2-toolbar .g2-tile .g2-box{width:24px!important}",
 ].join("\n");
 }
 
