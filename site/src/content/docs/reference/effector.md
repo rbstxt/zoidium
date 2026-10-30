@@ -42,7 +42,7 @@ Scale controls have a minimum of 0.001 per axis. Repeater rotation rows display 
 
 **Subdivision** offers 1, 2, 4, 8, and 16 edge segments. The default is 4. These produce 1, 4, 16, 64, and 256 triangles per source triangle.
 
-The subdivision budget is 400,000 triangles per mesh. The implementation reduces subdivision by whole levels to fit the budget. It does not simplify a source that already exceeds that count.
+The subdivision budget is 400,000 triangles per mesh. Subdivision drops by whole levels to fit the budget. It does not simplify a source that already exceeds that count.
 
 ## Fields
 
@@ -65,7 +65,7 @@ Twist and Warp evaluate fields per vertex. Fracture evaluates them at pristine f
 
 The editor shows field and falloff guides for linear, box, sphere, and cylinder fields. Infinite and noise fields have no boundary guide. Guides do not appear in exports.
 
-**Edit field in viewport** is transient editor state. Each completed drag creates one undo step. A selection change or exit from the editing camera leaves the mode.
+Each completed drag creates one undo step. A selection change or exit from the editing camera leaves the mode.
 
 ## Voronoi Fracture
 
@@ -87,11 +87,11 @@ Character selection requires Text+. Non-text sources ignore character ranges. In
 
 Fracture limits are 160,000 source triangles, 1,600,000 output triangles, 4,096 vertices per concave cap contour with holes, and 80,000,000 clipping operations per build. A build over those limits leaves the source unfractured. Invalid or excessive cap contours can fall back to open fragments.
 
-Opaque fractured meshes use source hierarchy order within each render priority. This makes equal-depth overlaps independent of material creation order. Existing projects can change some overlap-edge pixels. Transparent materials retain native sorting.
+Opaque fractured meshes overlap in source hierarchy order at equal depth, so some overlap-edge pixels can differ from earlier versions. Transparent materials keep their existing sorting.
 
-Built-in effector chains use the same evaluator for preview and export. In browsers with worker support, geometry evaluation runs in a worker, including cold topology builds after changes to Cells, Seed, or the source geometry. While the requested result is pending, preview holds the last presented image and shows **Fracturing...**. Playback can hold or drop frames. Scrubbing ends on the exact requested frame. Export and **Render once** wait for that exact result. While worker evaluation is pending, preview does not substitute source geometry or a result from another frame. Hosts without worker support evaluate synchronously.
+Preview and export produce the same result. After changes to Cells, Seed, or the source geometry, preview holds the last image and shows **Fracturing...** until the new result is ready. Playback can hold or drop frames. Scrubbing ends on the exact requested frame. Export and **Render once** wait for that exact result.
 
-Worker failures retry the same frame synchronously in preview and export. If that evaluation also fails, both use the unbroken source and report a warning. Startup preview preparation waits up to 10 seconds. A rejected or timed-out preparation releases the hold for that frame and displays available content. Preparation retries when the frame or project changes. Export retains resource-preparation errors and waits without the preview timeout.
+If evaluation fails, preview and export use the unbroken source and report a warning.
 
 ## Plain and Delay
 
@@ -105,12 +105,12 @@ Plain transforms separate connected pieces, text characters, or upstream fractur
 | **Strength** | Blend with the filtered result, 0 to 100. Default 75. |
 | **History frames** | Earlier samples at one-frame steps, 1 to 24. Default 12. |
 
-Nested Delay histories share a total budget of 96 samples per mesh. Samples with different fracture topology are skipped. Sampling evaluates earlier upstream properties, fields, and native object transforms rather than previous rendered frames.
+Nested Delay histories share a total budget of 96 samples per mesh. Samples with different fracture topology are skipped. Delay re-evaluates upstream motion at earlier times instead of reusing rendered frames.
 
 ## Legacy projects
 
-Numeric Twist, Warp, and fracture types 7, 8, and 9 migrate to the namespaced Effector classes. Effector+ supplies compatibility for those numeric types and adds no new picker entries.
+Old projects using numeric Twist, Warp, and fracture types keep working, with no new picker entries.
 
-Old field and subdivision settings can retain compatibility behavior. Saved legacy subdivision also applies when fracture character selection is active. New controls use the current percentage-based fields and uniform subdivision model.
+Old field and subdivision settings keep their saved behavior, including when fracture character selection is active.
 
 For task steps, see [Repeat and deform objects with Effector](/docs/features/effector/).
