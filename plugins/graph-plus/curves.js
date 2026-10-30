@@ -1,5 +1,5 @@
 "use strict";
-const { expressionOf } = require("./property-state.js");
+const { expressionOf, segmentType } = require("./property-state.js");
 
 const { easingPoints, ExpressionSamples } = require("./sampling.js");
 var gpNextGroupId = 1;
@@ -151,7 +151,7 @@ PZ.ui.graph.prototype.updateHandles = function (hEl) {
   // SVG g transform via attribute for reliability
   hEl.setAttributeNS(null, "transform", "translate(" + kf.frame + " " + (-kf.value * scale) + ")");
   var h0 = hEl.children[0], h1 = hEl.children[1], l0 = hEl.children[2], l1 = hEl.children[3];
-  var bez = kf.tween >> 8;
+  var bez = segmentType(PZ, kf.tween) === "bezier";
   hEl.style.display = bez ? "" : "none";
   if (!bez) return;
   h0.setAttributeNS(null, "rx", 0.5 * s * this.zoomX);
@@ -188,8 +188,8 @@ PZ.ui.graph.prototype.updateKeyframe = function (kfEl) {
   var scale = (gel && gel.pz_valueScale) || 1;
   var s = this.options.keyframeSize;
   var sel = kfEl.classList.contains("selected");
-  var isHold = false, isBez = false;
-  try { isHold = (PZ.tween.easingList[255 & kf.tween].fn === null); isBez = (kf.tween >> 8) !== 0; } catch (e) {}
+  var type = segmentType(PZ, kf.tween);
+  var isHold = type === "step", isBez = type === "bezier";
   kfEl.setAttributeNS(null, "width", s * this.zoomX);
   kfEl.setAttributeNS(null, "height", s * this.zoomY);
   kfEl.setAttributeNS(null, "x", kf.frame - 0.5 * s * this.zoomX);
@@ -283,7 +283,7 @@ PZ.ui.graph.prototype.updateCurve = function (path, leftKf, rightKf) {
   function sy(y) { return (y - originY) / zoomY; }
   if (this.zoomX && this.zoomY) path.setAttributeNS(null, "transform", "translate(" + originX + " " + originY + ") scale(" + zoomX + " " + zoomY + ")");
   var d;
-  if (leftKf && rightKf && ((rightKf.tween >> 8) === 1) && (rightKf.tween & 255)) {
+  if (leftKf && rightKf && segmentType(PZ, rightKf.tween) === "bezier") {
     var corr = 1;
     try { corr = PZ.tween.correctCurve(leftKf, rightKf); } catch (e) {}
     var c1x = leftKf.controlPoints[1][0] * corr + leftKf.frame;

@@ -113,6 +113,16 @@ test("step display agrees with native playback even when a Bezier flag remains s
   assert.equal(attrs.d, "M 0 0 L 100 0 L 100 -20");
   assert.equal(property.get(99.9), 0);
   assert.equal(property.get(100), 20);
+  right.continuousTangent = false;
+  const markerAttrs = { "stroke-dasharray": "2 1" };
+  const marker = { pz_object: right, style: {}, parentElement: { parentElement: group },
+    classList: { contains: () => false },
+    setAttributeNS(_ns, name, value) { markerAttrs[name] = value; },
+    removeAttribute(name) { delete markerAttrs[name]; },
+  };
+  PZ.ui.graph.prototype.updateKeyframe.call({ options: { keyframeSize: 10 }, zoomX: 1, zoomY: 1 }, marker);
+  assert.equal(marker.style.stroke, "var(--zui-text-muted)", "hold marker uses the step style");
+  assert.equal(markerAttrs["stroke-dasharray"], undefined, "old Bezier flags cannot mark a step as Bezier");
 });
 
 test("vector expressions supply component samples and override child keys", () => {

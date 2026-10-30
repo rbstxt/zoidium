@@ -13,4 +13,8 @@ function evaluatedValue(property, frame) {
   if (!owner || owner === property) return property.get(frame);
   return owner.get(frame)?.[owner.objects.indexOf(property)];
 }
-module.exports = { expressionOf, evaluatedValue };
+function segmentType(PZ, tween) {
+  if (!PZ.tween.easingList[tween & 255]?.fn) return "step";
+  return (tween >> 8) === 1 ? "bezier" : "easing";
+}
+module.exports = { expressionOf, evaluatedValue, segmentType };
