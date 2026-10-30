@@ -390,7 +390,8 @@
 
       const outputFrame = finiteNumber(this._exactFrame, NaN);
       const layer = schedule.currentItem.clip?.object;
-      if (!state.mapProjectFrame(layer, outputFrame)) {
+      const mapped = state.mapProjectFrame(layer, outputFrame);
+      if (!mapped || Math.abs(mapped.sourceFrame - mapped.localFrame) <= EPSILON) {
         return state.originalPlaybackUpdateSchedule.apply(this, arguments);
       }
       // A discontinuous source clock cannot drive the output playhead or a
@@ -452,8 +453,9 @@
         const temporalVideo = (sequence?.videoSchedules || []).some(schedule => {
           const item = findScheduleItemAtFrame(schedule, frame)?.item;
           const clip = item?.clip;
-          return item?.media && clip?.object &&
+          const mapped = item?.media && clip?.object &&
             getTemporalLayerFrame(clip.object, frame - clip.start, sequence);
+          return mapped && Math.abs(mapped.sourceFrame - mapped.localFrame) > EPSILON;
         });
         if (effects.length > 0 || temporalVideo) {
           // One bounded preparation per viewport. The serialization includes
@@ -461,6 +463,7 @@
           const key = JSON.stringify([frame, frameSamplerInputKey(sequence, this.compositor),
             effects.map(({ effect }) => frameSamplerIdentity(effect))]);
           const runtime = getFrameSamplerRuntime(state, this.compositor);
+          runtime.previewNeutral = false;
           // Preparation temporarily updates effect uniforms and decoder textures.
           // Even a previously prepared frame must wait until that work finishes.
           if (runtime.previewPending) return;
@@ -516,7 +519,7 @@
                 }
                 runtime.previewMedia = await prepareLowerSchedules(sequence,
                   { layer: null, trackIndex: 0 }, frame, { sequence }, runtime, true);
-                if (runtime.disposed || key !== JSON.stringify([frame,
+                if (runtime.disposed || runtime.previewNeutral || key !== JSON.stringify([frame,
                   frameSamplerInputKey(sequence, viewport.compositor),
                   effects.map(({ effect }) => frameSamplerIdentity(effect))])) return;
                 runtime.previewKey = key;
@@ -534,6 +537,11 @@
             return;
           }
           return renderPreparedPreview(this, runtime, frame);
+        }
+        const runtime = state.frameSamplerRuntimes.get(this.compositor);
+        if (runtime) {
+          runtime.previewNeutral = true;
+          runtime.previewKey = null;
         }
         return state.originalViewportRender.apply(this, arguments);
       }

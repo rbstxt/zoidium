@@ -561,3 +561,11 @@ test("a stale seeked event does not complete an exact request while it is seekin
   await pending;
   assert.equal(schedule.__zoidiumVideoExportState.requestedTime, 2);
 });
+
+test("a throwing pause leaves no exact-decode ownership behind", () => {
+  const { PZ } = videoFrameSandbox();
+  const schedule = Object.assign(new PZ.schedule(), { el: fakeVideo(), texture: {} });
+  schedule.el.pause = () => { throw new Error("Synthetic pause failure"); };
+  assert.throws(() => schedule.decodeFrame(2), /Synthetic pause failure/);
+  assert.equal(schedule.__zoidiumExactDecodePending || 0, 0);
+});

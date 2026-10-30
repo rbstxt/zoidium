@@ -878,3 +878,38 @@ test("a jumping video source cannot become the output playback clock", () => {
   playback.updateSchedule(schedule, 1);
   assert.equal(playback.nativeUpdates, 1, "ordinary video retains native playback");
 });
+
+for (const disabled of [false, true]) test(`neutral video uses native routing, disabled=${disabled}`, async () => {
+  const h = host(false);
+  delete h.effect._zoidiumFrameSampler;
+  h.effect._zoidiumTemporal = { getOperator: () =>
+    ({ kind: "time-offset", enabled: !disabled, offsetFrames: disabled ? 10 : 0 }) };
+  const schedule = { type: h.PZ.schedule.type.VIDEO, currentItem: { clip: h.ownerClip } };
+  const playback = Object.assign(new h.PZ.ui.playback(), { _exactFrame: 30 });
+  playback.updateSchedule(schedule, 1);
+  assert.equal(playback.nativeUpdates, 1);
+  const count = h.root.frames.length;
+  h.viewport._render();
+  assert.equal(h.root.frames.length, count + 1, "native draw completes synchronously");
+  await new Promise(setImmediate);
+  assert.equal(h.decoded.length, 0, "no private decoder");
+});
+
+test("animated neutral routing cancels publication of an earlier shifted preview", async () => {
+  const h = host(false);
+  delete h.effect._zoidiumFrameSampler;
+  let offset = 5;
+  h.effect._zoidiumTemporal = { getOperator: () =>
+    ({ kind: "time-offset", enabled: true, offsetFrames: offset }) };
+  h.viewport._render();
+  offset = 0;
+  h.viewport.editor.playback.currentFrame = 31;
+  h.viewport._render();
+  await new Promise(setImmediate);
+  assert.equal(h.root.frames.at(-1), 31, "pending shifted frame cannot overwrite native output");
+  offset = -5;
+  h.viewport.editor.playback.currentFrame = 32;
+  h.viewport._render();
+  await new Promise(setImmediate);
+  assert.equal(h.root.frames.at(-1), 32, "return to shifted routing prepares the new frame");
+});

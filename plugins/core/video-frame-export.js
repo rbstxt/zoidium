@@ -187,9 +187,9 @@
     const element = this.el;
     // Playback ticks must not reposition or start this element while an exact
     // request owns it, including the time spent waiting behind another request.
-    this.__zoidiumExactDecodePending = (this.__zoidiumExactDecodePending || 0) + 1;
     element.pause?.();
     this.playing = false;
+    this.__zoidiumExactDecodePending = (this.__zoidiumExactDecodePending || 0) + 1;
     const previous = decoderQueues.get(element);
     const run = () => decode(this, time, context);
     const pending = previous ? previous.catch(() => {}).then(run) : run();
