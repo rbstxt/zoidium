@@ -12,7 +12,7 @@ function graph() {
   owner.properties.load();
   const vector = owner.properties.pos;
   PZ.ui.graph = function () {};
-  install({ PZ });
+  install({ PZ, addrString: prop => prop.definition.name });
   const groups = Array.from(vector.objects, prop => {
     prop.keyframes.push(new PZ.keyframe(3, 10, 1));
     const g = { pz_object: prop, style: {}, _keys: { children: [] } };
@@ -100,4 +100,32 @@ test("pinned pruning unloads detached curve DOM even when the selection array em
   assert.equal(g.propGroups().length, 1);
   assert.deepEqual(g.curveLayer.children, [live]);
   assert.ok(!g.propGroups().some(group => group.pz_object === property));
+});
+
+for (const modifier of ["Ctrl", "Shift"]) test(`axis selection isolates, combines with ${modifier}, and restores parent axes`, () => {
+  const { g, groups } = graph();
+  const scalar = { pz_object: { definition: { name: "Opacity" } }, style: {}, _keys: { children: [] } };
+  groups.push(scalar);
+  const selected = new Set(); let clears = 0;
+  Object.assign(g, { _hidden: {},
+    deselectAllKeyframes() { selected.clear(); clears++; },
+    selectKeyframe: key => selected.add(key), updateViewBox() {}, updateLegend() {}, updateStatus() {},
+  });
+  g.selectAxes([groups[1]], false);
+  assert.deepEqual(g.editableGroups(), [groups[1]]);
+  assert.deepEqual(g._hidden, { X: true, Y: false, Z: true, Opacity: true });
+  assert.deepEqual(groups.map(group => group.style.display), ["none", "", "none", "none"]);
+  assert.deepEqual(Array.from(selected), groups[1]._keys.children);
+  g.selectAxes([groups[0]], true);
+  assert.equal(clears, 1, `${modifier} combine preserves the previous key selection`);
+  assert.deepEqual(g.editableGroups(), [groups[0], groups[1]]);
+  assert.deepEqual(g._hidden, { X: false, Y: false, Z: true, Opacity: true });
+  assert.ok(groups[0]._keys.children.every(key => selected.has(key)));
+  assert.ok(groups[1]._keys.children.every(key => selected.has(key)));
+  g.selectAxes(groups.slice(0, 3), false);
+  assert.equal(clears, 2);
+  assert.deepEqual(g.editableGroups(), groups.slice(0, 3));
+  assert.deepEqual(groups.map(group => group.style.display), ["", "", "", "none"]);
+  assert.deepEqual(g._hidden, { X: false, Y: false, Z: false, Opacity: true });
+  assert.equal(selected.size, groups.slice(0, 3).reduce((count, group) => count + group._keys.children.length, 0));
 });
