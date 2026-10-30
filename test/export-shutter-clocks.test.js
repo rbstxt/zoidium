@@ -128,3 +128,25 @@ test("procedural synchronous export captures preserve pinned prepared plans", as
     prepared.forEach((sample,index)=>assert.equal(sample.target.inputStamp,stamps[index]));
   } finally {release();h.root.unload();}
 });
+
+test("16+ native shutter preparations keep fractional media samples outside the timestamp correction", async () => {
+  const { target } = require("../plugins/core/video-seek-policy");
+  const timing = { period: 1 / 30, quantum: 0.001 };
+  let fractional = 0, boundary = 0;
+  for (const count of [16, 32, 64, 128]) for (const shutter of [0.3, 0.5, 0.7]) {
+    const h = shutterHost({ start: 3, count, shutter });
+    await h.state.prepareExportSamples(h.context, 100);
+    for (const local of h.preparedTimes) {
+      const time = h.ownerClip.properties.time.get(local);
+      const corrected = target(time, 10, timing);
+      if (Math.abs(time * 30 - Math.round(time * 30)) <= 1e-9) {
+        assert.ok(corrected > time); boundary++;
+      } else {
+        assert.equal(corrected, time); fractional++;
+      }
+    }
+    h.root.unload();
+  }
+  assert.equal(boundary, 12);
+  assert.equal(fractional, 708);
+});

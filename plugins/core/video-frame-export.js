@@ -128,14 +128,18 @@
       try {
         policy?.check?.();
         stage = "metadata";
+        await globalThis.ZoidiumVideoSeekPolicy?.ensure(video, schedule.currentItem?.media);
         await waitForMetadata(video, timeoutMs, policy);
         const mediaTime = clampMediaTime(video, requestedTime);
+        const seekTime = globalThis.ZoidiumVideoSeekPolicy?.seekTime(video, mediaTime) ?? mediaTime;
         const sourceId = getSourceId(video);
         const state = schedule.__zoidiumVideoExportState || {};
         schedule.__zoidiumVideoExportState = state;
         stage = "before seek";
         mediaError(video); policy?.check?.();
-        const reused = Math.abs(video.currentTime - mediaTime) <= SAME_TIME_EPSILON &&
+        const sameRequest = state.sourceId === sourceId && state.requestedTime === mediaTime &&
+          Math.abs(video.currentTime - state.observedTime) <= SAME_TIME_EPSILON;
+        const reused = (Math.abs(video.currentTime - seekTime) <= SAME_TIME_EPSILON || sameRequest) &&
           !video.seeking && video.readyState >= HAVE_CURRENT_DATA &&
           (!state.sourceId || state.sourceId === sourceId);
         let metadata = null;
@@ -144,7 +148,7 @@
           await waitForEvent(video, "seeked", timeoutMs, policy, () => { video.currentTime = mediaTime; });
           stage = "after seek";
           mediaError(video); policy?.check?.();
-          if (Math.abs(video.currentTime - mediaTime) > SEEK_TIME_EPSILON || video.seeking) {
+          if (Math.abs(video.currentTime - seekTime) > SEEK_TIME_EPSILON || video.seeking) {
             throw new Error("Video seek completed at a different requested time.");
           }
           metadata = await presentation.promise;

@@ -388,15 +388,36 @@
         return state.originalPlaybackUpdateSchedule.apply(this, arguments);
       }
 
-      const outputFrame = finiteNumber(this._exactFrame, NaN);
+      // Route from the same integer output frame used by the viewport. An
+      // expression can be zero there but nonzero at the fractional wall clock.
+      const outputFrame = Math.round(finiteNumber(this._exactFrame, NaN));
       const layer = schedule.currentItem.clip?.object;
       const mapped = state.mapProjectFrame(layer, outputFrame);
       if (!mapped || Math.abs(mapped.sourceFrame - mapped.localFrame) <= EPSILON) {
-        return state.originalPlaybackUpdateSchedule.apply(this, arguments);
+        if (schedule.__zoidiumTemporalPlayback) {
+          // Rejoin at output time before native play() can select this element
+          // as its clock. Its last source time may belong to a shifted frame.
+          const local = outputFrame - schedule.currentItem.start;
+          const time = schedule.currentItem.clip.properties.time.get(local);
+          schedule.el.currentTime = time;
+          schedule.__zoidiumTemporalRejoin = true;
+          schedule.__zoidiumTemporalPlayback = false;
+          if (this.syncSchedule === schedule) this.syncSchedule = null;
+        }
+        const result = state.originalPlaybackUpdateSchedule.apply(this, arguments);
+        // A one-frame neutral interval still uses native video, but cannot
+        // briefly anchor the output clock between discontinuous source times.
+        const changing = [outputFrame - 1, outputFrame + 1].some(frame => {
+          const next = state.mapProjectFrame(layer, frame);
+          return next && Math.abs(next.sourceFrame - next.localFrame) > EPSILON;
+        });
+        if (changing && this.syncSchedule === schedule) this.syncSchedule = null;
+        return result;
       }
       // A discontinuous source clock cannot drive the output playhead or a
       // forward-only media playbackRate. The viewport uses a paused, isolated
       // decoder instead, while the native wall/audio clock advances output time.
+      schedule.__zoidiumTemporalPlayback = true;
       schedule.el?.pause?.();
       schedule.playing = false;
       if (this.syncSchedule === schedule) this.syncSchedule = null;
@@ -471,6 +492,7 @@
             if (!runtime.previewPending) {
               runtime.previewPending = true;
               const viewport = this;
+              const generation = runtime.previewGeneration || 0;
               (async () => {
                 const preparedContent = new Set();
                 async function prepareContent(layer, inputFrame) {
@@ -519,7 +541,7 @@
                 }
                 runtime.previewMedia = await prepareLowerSchedules(sequence,
                   { layer: null, trackIndex: 0 }, frame, { sequence }, runtime, true);
-                if (runtime.disposed || runtime.previewNeutral || key !== JSON.stringify([frame,
+                if (runtime.disposed || generation !== (runtime.previewGeneration || 0) || runtime.previewNeutral || key !== JSON.stringify([frame,
                   frameSamplerInputKey(sequence, viewport.compositor),
                   effects.map(({ effect }) => frameSamplerIdentity(effect))])) return;
                 runtime.previewKey = key;
@@ -540,8 +562,15 @@
         }
         const runtime = state.frameSamplerRuntimes.get(this.compositor);
         if (runtime) {
+          if (!runtime.previewNeutral) runtime.previewGeneration = (runtime.previewGeneration || 0) + 1;
           runtime.previewNeutral = true;
           runtime.previewKey = null;
+        }
+        for (const schedule of sequence?.videoSchedules || []) {
+          if (!schedule.__zoidiumTemporalRejoin) continue;
+          if (schedule.el?.seeking || schedule.el?.readyState < 2) return;
+          if (schedule.texture) schedule.texture.needsUpdate = true;
+          schedule.__zoidiumTemporalRejoin = false;
         }
         return state.originalViewportRender.apply(this, arguments);
       }

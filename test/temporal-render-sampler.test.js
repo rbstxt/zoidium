@@ -913,3 +913,53 @@ test("animated neutral routing cancels publication of an earlier shifted preview
   await new Promise(setImmediate);
   assert.equal(h.root.frames.at(-1), 32, "return to shifted routing prepares the new frame");
 });
+
+test("animated zero crossings rejoin the native source clock before playback resumes", () => {
+  const h = host(false);
+  let offset = 5;
+  delete h.effect._zoidiumFrameSampler;
+  h.effect._zoidiumTemporal = { getOperator: (_effect, frame) =>
+    ({ kind: "time-offset", enabled: true, offsetFrames: Number.isInteger(frame) ? (frame % 2 ? 0 : offset || 5) : 5 }) };
+  const schedule = Object.assign(h.sequence.videoSchedules[0], {
+    currentItem: h.sequence.videoSchedules[0].items[0],
+    el: { currentTime: 99, readyState: 4, seeking: false, pause() {} }, texture: {},
+  });
+  h.state.originalPlaybackUpdateSchedule = function () {
+    this.nativeUpdates = (this.nativeUpdates || 0) + 1;
+    this.syncSchedule = schedule;
+  };
+  const playback = Object.assign(new h.PZ.ui.playback(), { _exactFrame: 30 });
+  for (const [frame, value] of [[30, 5], [31, 0], [32, -5], [33, 0]]) {
+    offset = value; playback._exactFrame = frame - 0.1;
+    playback.updateSchedule(schedule, 1);
+    h.viewport.editor.playback.currentFrame = frame;
+    if (value !== 0) continue;
+    assert.equal(playback.syncSchedule, null, "transient zero does not reanchor the clock");
+    assert.equal(schedule.el.currentTime, (frame - h.ownerClip.start) / 30);
+    schedule.el.seeking = true;
+    const before = h.root.frames.length;
+    h.viewport._render();
+    assert.equal(h.root.frames.length, before, "never draw the stale shifted element during rejoin");
+    schedule.el.seeking = false;
+    h.viewport._render();
+    assert.equal(h.root.frames.at(-1), frame);
+    assert.equal(schedule.__zoidiumTemporalRejoin, false);
+  }
+  assert.equal(playback.nativeUpdates, 2, "native routing at both zero crossings");
+});
+
+test("a transient zero crossing invalidates an older async preview even after returning to shifted time", async () => {
+  const h = host(false);
+  delete h.effect._zoidiumFrameSampler;
+  let offset = 5;
+  h.effect._zoidiumTemporal = { getOperator: () =>
+    ({ kind: "time-offset", enabled: true, offsetFrames: offset }) };
+  h.viewport._render();
+  offset = 0; h.viewport.editor.playback.currentFrame = 31; h.viewport._render();
+  offset = -5; h.viewport.editor.playback.currentFrame = 32; h.viewport._render();
+  await new Promise(setImmediate);
+  assert.equal(h.root.frames.at(-1), 31, "superseded work cannot draw after the zero crossing");
+  h.viewport._render();
+  await new Promise(setImmediate);
+  assert.equal(h.root.frames.at(-1), 32);
+});

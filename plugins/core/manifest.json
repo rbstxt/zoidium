@@ -51,6 +51,11 @@
       "phase": "pre-init"
     },
     {
+      "id": "video-seek-policy",
+      "source": "./plugins/core/video-seek-policy.js",
+      "phase": "pre-init"
+    },
+    {
       "id": "temporal-math",
       "source": "./plugins/core/temporal-math.js",
       "phase": "pre-init"

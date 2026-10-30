@@ -1,0 +1,133 @@
+"use strict";
+const test = require("node:test");
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const vm = require("node:vm");
+const { readTiming, target, ensure } = require("../plugins/core/video-seek-policy");
+
+function element(id, body) {
+  assert.ok(body.length < 127);
+  return [...Buffer.from(id, "hex"), 128 + body.length, ...body];
+}
+function uint(value) {
+  const bytes = [];
+  do { bytes.unshift(value % 256); value = Math.floor(value / 256); } while (value);
+  return bytes;
+}
+function webm(period = 1 / 60, quantum = 0.001) {
+  return new Uint8Array([
+    ...element("1a45dfa3", element("4282", [...Buffer.from("webm")])),
+    ...element("18538067", [
+      ...element("1549a966", element("2ad7b1", uint(Math.round(quantum * 1e9)))),
+      ...element("1654ae6b", element("ae", [
+        ...element("83", [1]), ...element("23e383", uint(Math.floor(period * 1e9))),
+      ])),
+    ]),
+  ]);
+}
+const index = (pts, time) => pts.findLastIndex(value => value <= time);
+
+test("WebM source duration and timestamp quantum come from the video track", () => {
+  const timing = readTiming(webm());
+  assert.equal(timing.period, 1 / 60);
+  assert.equal(timing.quantum, 0.001);
+  assert.equal(readTiming(Buffer.from("....ftypisom")), null);
+  for (let size = 0; size < 10; size++) assert.doesNotThrow(() => readTiming(webm().slice(0, size)));
+});
+
+test("rounded WebM PTS select all nominal frames, including reverse order", () => {
+  for (const fps of [24, 30, 60, 120, 60000 / 1001]) {
+    const timing = readTiming(webm(1 / fps));
+    const pts = Array.from({ length: 600 }, (_, i) => Math.round(i / fps * 1000) / 1000);
+    for (const i of Array.from({ length: 600 }, (_, i) => 599 - i)) {
+      const requested = i / fps;
+      const corrected = target(requested, 600 / fps, timing);
+      assert.equal(index(pts, corrected), i, `source ${i} at ${fps} fps`);
+      assert.ok(corrected - requested <= 0.000500000000001);
+    }
+  }
+});
+
+test("16, 32, 64 and 128 shutter samples preserve every fractional seek", () => {
+  const { shutterTimes } = require("../plugins/native-fx/smart-motion-blur/math");
+  let fractional = 0, corrected = 0;
+  for (const fps of [24, 60, 120]) {
+    const timing = readTiming(webm(1 / fps));
+    for (const samples of [16, 32, 64, 128]) for (let output = 2; output < 12; output++) {
+      for (const offset of shutterTimes(1, samples)) {
+        const time = (output + offset) / fps;
+        assert.equal(target(time, 10, timing), time);
+        fractional++;
+      }
+      const time = output / fps;
+      assert.ok(target(time, 10, timing) > time);
+      corrected++;
+      // A blanket 0.5 ms bias would incorrectly advance this sample.
+      assert.equal(target(time - 0.0002, 10, timing), time - 0.0002);
+    }
+  }
+  assert.equal(fractional, 7200);
+  assert.equal(corrected, 120);
+});
+
+test("exact timebases keep their frame and fractional sample indices", () => {
+  const fps = 60, pts = Array.from({ length: 600 }, (_, i) => i / fps);
+  for (let i = 1; i < 599; i++) for (const fraction of [0, 1 / 32, 0.5, 31 / 32]) {
+    const time = (i + fraction) / fps;
+    assert.equal(target(time, 10, null), time, "MP4 has no WebM correction");
+    assert.equal(index(pts, target(time, 10, null)), i);
+    assert.equal(index(pts, target(time, 10, readTiming(webm()))), i);
+  }
+});
+
+test("clamping and source-duration cap apply after correction", () => {
+  const timing = readTiming(webm());
+  for (const time of [-100, -1, 0]) assert.equal(target(time, 10, timing), 0);
+  for (const time of [10, 100]) assert.equal(target(time, 10, timing), 10 - 1e-7);
+  assert.equal(target(9.9999, 10, timing), 9.9999);
+  const fast = readTiming(webm(1 / 10000));
+  const bias = target(0.1, 10, fast) - 0.1;
+  assert.ok(bias > 0 && bias < fast.period / 4);
+});
+
+function video() {
+  const element = new EventTarget();
+  let time = 0;
+  Object.assign(element, { duration: 10, readyState: 4, seeking: false, src: "fixture", paused: true,
+    pause() { this.paused = true; } });
+  Object.defineProperty(element, "currentTime", { configurable: true, get: () => time,
+    set(value) { time = value; queueMicrotask(() => element.dispatchEvent(new Event("seeked"))); } });
+  return element;
+}
+
+test("native setters and exact export preparation use one correction without double bias", async () => {
+  const PZ = { schedule: class {}, export: class {} };
+  const sandbox = { PZ, setTimeout, clearTimeout, AbortController };
+  vm.createContext(sandbox);
+  for (const name of ["video-seek-policy", "video-frame-export"]) {
+    vm.runInContext(fs.readFileSync(`plugins/core/${name}.js`, "utf8"), sandbox);
+  }
+  const el = video(), media = { file: new Blob([webm()]) };
+  const schedule = Object.assign(new PZ.schedule(), { el, currentItem: { media }, texture: {} });
+  await sandbox.ZoidiumVideoSeekPolicy.ensure(el, media);
+  const pts = Array.from({ length: 600 }, (_, i) => Math.round(i / 60 * 1000) / 1000);
+  for (const frame of [106, 94, 0, 599, 123]) {
+    const time = frame / 60;
+    el.currentTime = time;
+    const native = el.currentTime;
+    await schedule.decodeFrame(time);
+    assert.equal(el.currentTime, native);
+    assert.equal(index(pts, el.currentTime), frame);
+    assert.equal(schedule.__zoidiumVideoExportState.requestedTime, time);
+  }
+});
+
+test("source replacement discards cached WebM timing", async () => {
+  const el = video();
+  await ensure(el, { file: new Blob([webm()]) });
+  el.currentTime = 106 / 60;
+  assert.ok(el.currentTime > 106 / 60);
+  await ensure(el, { file: new Blob([Buffer.from("....ftypisom")]) });
+  el.currentTime = 106 / 60;
+  assert.equal(el.currentTime, 106 / 60);
+});
