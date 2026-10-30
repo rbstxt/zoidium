@@ -93,8 +93,6 @@ If an image or track texture is unavailable, the current input remains the map.
 With **Stretch Map To Fit** off, the map is a centered crop with no letterbox bars.
 [Layer Input](/docs/how-to/use-layer-input/) describes track selection.
 
-Slices are capped at 64.
-
 ## CC Wide Time
 
 Averages or accumulates the current input and neighboring project-frame samples.

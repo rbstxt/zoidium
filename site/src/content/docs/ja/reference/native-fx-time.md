@@ -93,8 +93,6 @@ sidebar:
 **Stretch Map To Fit** が off の場合、マップは中央の切り取りで、レターボックスの帯はありません。
 [Layer Input](/docs/ja/how-to/use-layer-input/)に、トラック選択の方法を記載しています。
 
-上限は 64 スライスです。
-
 ## CC Wide Time
 
 現在の入力と前後のプロジェクトフレームのサンプルを、平均または加算します。
