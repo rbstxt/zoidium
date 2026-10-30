@@ -9,6 +9,9 @@ sidebar:
 
 ### 追加
 
+- Shape+ Text。Shape+ のコンテンツに置く、打ち直せるテキスト項目です。Fill、Stroke、グラデーション、パス修飾、Repeater、Merge Paths が、ほかのパスと同じように文字に効きます。Source Text、フォント、Fallback Font、サイズ、トラッキング、行送り、ベースラインシフト、比率、大文字、揃え、折り返し付きのボックステキストをアニメーションできます。プレビューでテキストをダブルクリックすると編集できます。
+- Shape+ Text の可変フォント対応。フォントの各軸 (太さ、幅など) をアニメーションできるプロパティとして使用でき、**Style** でフォントの名前付きスタイルを適用できます。TTF、OTF、WOFF のフォントを使用できます。WOFF2 には未対応形式の通知を表示します。
+- Shape+ の **Create Shapes from Text**。テキスト項目を、1 文字ずつのグループに分かれた編集できるパスに変換します。変換前のテキストと同じピクセルで描画します。
 - Graph Editor 2 は、エクスプレッションの出力を編集できない破線の曲線で表示します。すべてのイージングプリセットを実際の形で描き、Custom easings で各プリセットの形をプレビューします。
 - Graph Editor 2 は、ベクトルと色のプロパティを 1 行にまとめ、その下に X、Y、Z (または R、G、B、A) の行を表示します。軸ごとに表示、ソロ、編集ができます。**Link axes** は、ほかの軸の同じフレームのキーを時間方向に一緒に動かします。
 - DaviFX による ExpressText+。3D Text の上に置くコンテナーで、Shake、Plain、Random、Formula、Delay、Spline、Orbit、Repeater、Twist、Wrap、Voronoi のエフェクターで文字を 1 つずつ動かします。

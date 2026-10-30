@@ -10,6 +10,16 @@ each line describes one visible change.
 
 ### Added
 
+- Shape+ Text: a live text item in Shape+ contents. Fills, strokes, gradients,
+  path modifiers, Repeater and Merge Paths act on its letters like on any path.
+  Source Text, font, Fallback Font, size, tracking, leading, baseline shift,
+  scale, caps, alignment and box text with wrapping are animatable.
+  Double-click the text in the preview to edit it.
+- Variable fonts in Shape+ Text: each font axis (weight, width and others) is
+  an animatable property, and **Style** applies the font's named styles.
+  TTF, OTF and WOFF fonts work; WOFF2 shows an unsupported-format notice.
+- **Create Shapes from Text** in Shape+ turns a text item into editable paths,
+  one group per character, with the same pixels as the text.
 - Graph Editor 2 shows expression output as a read-only dashed curve, draws
   every easing preset in its true shape, and previews each preset in
   Custom easings.
