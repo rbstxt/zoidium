@@ -1,6 +1,6 @@
 "use strict";
 const { expressionOf } = require("./property-state.js");
-const COLORS = { X: "#ed6a68", Y: "#81c784", Z: "#64b5f6", W: "#c792ea",
+const COLORS = { X: "#ff0000", Y: "#00ff00", Z: "#0000ff", W: "#c792ea",
   R: "#ed6a68", G: "#81c784", B: "#64b5f6", A: "#c792ea" };
 function axisInfo(PZ, prop) {
   const parent = prop.parent?.parent;

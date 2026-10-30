@@ -302,6 +302,8 @@ PZ.ui.graph.prototype.updateLegend = function () {
     var row = mk("div");
     row.className = "g2-track-row";
     row._gel = gel;
+    row.addEventListener("pointerenter", function () { self.updateStatus((info ? info.axis + " axis" : displayName(prop)) +
+      (expressionOf(prop) ? " · Expression" : " · " + Array.from(gel._keys.children).filter(k => k.classList.contains("selected")).length + " selected keys")); });
     row.title = addrString(prop) + " — click to select all its keys";
     var dot = mk("span");
     dot.className = "g2-swatch";

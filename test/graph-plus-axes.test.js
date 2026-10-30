@@ -25,7 +25,7 @@ function graph() {
 test("vector axes have stable identity and colours; operations target selected visible axes", () => {
   const { g, groups, vector } = graph();
   assert.equal(g.axisInfo(vector.objects[1]).axis, "Y");
-  assert.equal(g.axisInfo(vector.objects[1]).color, "#81c784");
+  assert.equal(g.axisInfo(vector.objects[1]).color, "#00ff00");
   g._selectedAxes = new Set([vector.objects[1]]);
   assert.deepEqual(g.editableGroups(), [groups[1]]);
   groups[1].style.display = "none";

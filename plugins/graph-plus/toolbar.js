@@ -195,7 +195,7 @@ PZ.ui.graph.prototype.buildToolbar = function () {
   });
   this.axesBtn.setAttribute("aria-pressed", "false");
   var gv = group();
-  this.panBtn = small(gv, toolIcon("pan"), "Pan", "H", "Pan tool — left-drag moves the grid (default)", function () { self.setTool("pan"); }, "on");
+  this.panBtn = small(gv, toolIcon("pan"), "Pan", "H", "Pan tool — left-drag moves the grid", function () { self.setTool("pan"); }, "on");
   this.selToolBtn = small(gv, toolIcon("marquee"), "Marquee", "V", "Marquee tool — left-drag selects keys (Shift+drag in any tool)", function () { self.setTool("sel"); });
   small(gv, toolIcon("fit"), "Fit", "\\", "Fit all curves", function () { self.fitAll(false); });
   small(gv, toolIcon("frame"), "Frame", "F", "Frame selected keys", function () { self.frameSelected(); });

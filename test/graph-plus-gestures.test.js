@@ -52,3 +52,26 @@ test("double-click handle reset uses one undo step",()=>{
  assert.equal(JSON.stringify(s.property.keyframes[0].controlPoints),'[[-10,0],[10,0]]');
  s.editor.history.undo();assert.equal(JSON.stringify(s.project),before);
 });
+test("key value drags change only selected axes and share a delta across normalized axes",()=>{
+ for(const grouped of [false,true]){
+  const s=setup(),{graph,property,editor}=s;
+  const props=Array.from(property.parent.parent.objects);
+  const keys=props.map((p,i)=>{
+   const gel={pz_object:p,pz_valueScale:i ? .01 : .001,_gid:i};
+   return {pz_object:p.keyframes[0],parentElement:{parentElement:gel},classList:{contains:()=>true},
+    addEventListener(){}};
+  });
+  const selected=grouped?keys:[keys[1]];let move,up;
+  const PZ={ui:{graph:function(){},properties:{prototype:{setValue:graph.propertyOps.setValue}}}};
+  require("../plugins/graph-plus/interaction.js")({PZ,focusNoScroll(){},beginPointerDrag(_el,_e,m,u){move=m;up=u;}});
+  // Exercise the drag closure with the native property operations and history.
+  graph.selectedKeys=()=>selected;graph.timeKeys=x=>x;graph.updateKeyframe=()=>{};
+  graph.snapFrame=x=>Math.round(x);graph.updateLegend=()=>{};
+  PZ.ui.graph.prototype.attachKeyframeHandlers.call(graph,keys[1]);
+  const before=JSON.stringify(s.project),values=props.map(p=>p.keyframes[0].value);
+  keys[1]._g2down(s.event());move(s.event({clientY:-10,ctrlKey:true}));up(s.event());
+  assert.deepEqual(props.map((p,i)=>p.keyframes[0].value-values[i]),grouped?[1000,1000]:[0,1000]);
+  assert.equal(editor.history.undoStack.length,1);
+  editor.history.undo();assert.equal(JSON.stringify(s.project),before);
+ }
+});

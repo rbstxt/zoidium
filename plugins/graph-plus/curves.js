@@ -152,7 +152,12 @@ PZ.ui.graph.prototype.updateHandles = function (hEl) {
   // SVG g transform via attribute for reliability
   hEl.setAttributeNS(null, "transform", "translate(" + kf.frame + " " + (-kf.value * scale) + ")");
   var h0 = hEl.children[0], h1 = hEl.children[1], l0 = hEl.children[2], l1 = hEl.children[3];
-  var bez = segmentType(PZ, kf.tween) !== "step";
+  var keyEl = Array.from(gel._keys?.children || []).find(el => el.pz_object === kf);
+  var incoming = segmentType(PZ, kf.tween) !== "step";
+  var outgoing = keyEl?.nextElementSibling ? segmentType(PZ, keyEl.nextElementSibling.pz_object.tween) !== "step" : incoming;
+  var bez = incoming || outgoing;
+  h0.style.display = l0.style.display = incoming ? "" : "none";
+  h1.style.display = l1.style.display = outgoing ? "" : "none";
   hEl.style.display = bez ? "" : "none";
   if (!bez) return;
   var cp0 = visibleHandle(kf.controlPoints[0], this.zoomX, this.zoomY, scale, 0);

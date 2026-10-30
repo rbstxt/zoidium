@@ -1,7 +1,7 @@
 "use strict";
 const { nearestTarget } = require("./targets.js");
 const { classifyWheel, wheelView } = require("./input.js");
-const { expressionOf } = require("./property-state.js");
+const { expressionOf, evaluatedValue } = require("./property-state.js");
 
 // Warn-once reporter for failure sites that run per pointer move or per item:
 // the first failure is logged, repeats stay silent so the console stays readable.
@@ -278,13 +278,18 @@ PZ.ui.graph.prototype.onSvgPointerDown = function (e) {
 };
 PZ.ui.graph.prototype.pickTarget = function (e) {
   var targets = [];
+  var bounds = this.svg.getBoundingClientRect();
   for (var group of this.propGroups()) {
     if (group.style.display === "none") continue;
     for (var key of group._keys.children) {
       for (var element of [key, ...Array.from(key.pz_handles?.children || []).slice(0, 2)]) {
-        if (!element._g2down || (element !== key && key.pz_handles.style.display === "none")) continue;
-        var r = element.getBoundingClientRect();
-        targets.push({ element, handle: element !== key, x: r.left + r.width / 2, y: r.top + r.height / 2 });
+        if (!element._g2down || element.style.display === "none" || (element !== key && key.pz_handles.style.display === "none")) continue;
+        var kf = key.pz_object, scale = group.pz_valueScale || 1;
+        var x = kf.frame + (group.pz_frameOffset || 0), y = -kf.value * scale;
+        if (element !== key) { x += Number(element.getAttribute("cx")); y += Number(element.getAttribute("cy")); }
+        targets.push({ element, handle: element !== key,
+          x: bounds.left + (x - this.viewX()) / this.viewW() * bounds.width,
+          y: bounds.top + (y - this.viewY()) / this.viewH() * bounds.height });
       }
     }
   }
@@ -310,6 +315,14 @@ PZ.ui.graph.prototype.onSvgPointerMove = function (e) {
   this._hoverTarget = hit?.element;
   if (hit) { hit.element.classList.add("g2-hover"); this.canvasEl.style.cursor = "move"; }
   var t = hit?.element || e.target;
+  if (!hit && !this._dragging) for (var group of this.propGroups()) {
+    if (group.style.display === "none") continue;
+    var value;
+    try { value = evaluatedValue(group.pz_object, g.x - (group.pz_frameOffset || 0)); } catch (_error) { continue; }
+    if (Math.abs((-value * (group.pz_valueScale || 1) - g.y) / this.viewH() * rect.height) < 8) {
+      html = escapeHtml(displayName(group.pz_object)) + " · curve · frame " + Math.round(g.x) + " · value " + Math.round(value * 100) / 100; break;
+    }
+  }
   if (hit?.handle) html = "Handle · frame " + t.parentElement.pz_object.frame + " · Alt: break/link · Shift: angle · Ctrl/Cmd: snap";
   if (t && t.classList && t.classList.contains("g2-kf") && t.pz_object) {
     var kf = t.pz_object;
