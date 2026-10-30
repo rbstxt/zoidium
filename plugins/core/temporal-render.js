@@ -404,7 +404,6 @@
           schedule.__zoidiumTemporalPlayback = false;
           if (this.syncSchedule === schedule) this.syncSchedule = null;
         }
-        const result = state.originalPlaybackUpdateSchedule.apply(this, arguments);
         // A one-frame neutral interval still uses native video, but cannot
         // briefly anchor the output clock between discontinuous source times.
         const changing = [outputFrame - 1, outputFrame + 1].some(frame => {
@@ -412,7 +411,14 @@
           return next && Math.abs(next.sourceFrame - next.localFrame) > EPSILON;
         });
         if (changing && this.syncSchedule === schedule) this.syncSchedule = null;
-        return result;
+        const exactFrame = this._exactFrame;
+        try {
+          // Use the native paused-seek branch for a transient neutral frame.
+          // Starting play() for a single frame would be interrupted at the next
+          // shifted frame and repeatedly reset the browser playback clock.
+          if (changing) this._exactFrame = outputFrame;
+          return state.originalPlaybackUpdateSchedule.call(this, schedule, changing ? 0 : delta);
+        } finally { this._exactFrame = exactFrame; }
       }
       // A discontinuous source clock cannot drive the output playhead or a
       // forward-only media playbackRate. The viewport uses a paused, isolated

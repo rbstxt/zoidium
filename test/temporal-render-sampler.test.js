@@ -924,7 +924,8 @@ test("animated zero crossings rejoin the native source clock before playback res
     currentItem: h.sequence.videoSchedules[0].items[0],
     el: { currentTime: 99, readyState: 4, seeking: false, pause() {} }, texture: {},
   });
-  h.state.originalPlaybackUpdateSchedule = function () {
+  h.state.originalPlaybackUpdateSchedule = function (_schedule, delta) {
+    this.nativeDelta = delta;
     this.nativeUpdates = (this.nativeUpdates || 0) + 1;
     this.syncSchedule = schedule;
   };
@@ -935,6 +936,7 @@ test("animated zero crossings rejoin the native source clock before playback res
     h.viewport.editor.playback.currentFrame = frame;
     if (value !== 0) continue;
     assert.equal(playback.syncSchedule, null, "transient zero does not reanchor the clock");
+    assert.equal(playback.nativeDelta, 0, "transient zero uses a native seek without play/pause churn");
     assert.equal(schedule.el.currentTime, (frame - h.ownerClip.start) / 30);
     schedule.el.seeking = true;
     const before = h.root.frames.length;
