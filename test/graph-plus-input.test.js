@@ -49,3 +49,17 @@ test("Shift constrains angles and Ctrl or Cmd snaps to flat or neighbour slope",
   const shift=constrainHandle([10,8],{shiftKey:true},0);
   assert.ok(Math.abs(shift[0]-shift[1])<1e-9);
 });
+
+test("coarse pointer detection is cached per window and dragging bypasses target scans", () => {
+  const PZ={ui:{graph:function(){}}};
+  require("../plugins/graph-plus/canvas.js")({PZ});
+  let queries=0, scans=0;
+  const owner=()=>({matchMedia(){queries++;return {matches:true};}});
+  let win=owner();
+  const graph=Object.assign(new PZ.ui.graph(),{_win:()=>win,
+    svg:{getBoundingClientRect:()=>({})},propGroups:()=>{scans++;return [];}});
+  graph.pickTarget({});graph.pickTarget({});assert.equal(queries,1);
+  win=owner();graph.pickTarget({});assert.equal(queries,2);
+  graph._dragging="key";graph.pickTarget({});graph.onSvgPointerMove({});
+  assert.equal(scans,3);assert.equal(queries,2);
+});

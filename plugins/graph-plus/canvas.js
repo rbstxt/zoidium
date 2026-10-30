@@ -6,6 +6,7 @@ const { expressionOf, evaluatedValue } = require("./property-state.js");
 // Warn-once reporter for failure sites that run per pointer move or per item:
 // the first failure is logged, repeats stay silent so the console stays readable.
 var gpWarned = {};
+const coarsePointers = new WeakMap();
 function gpWarnOnce(key, message, error) {
   if (gpWarned[key]) return;
   gpWarned[key] = true;
@@ -121,7 +122,7 @@ PZ.ui.graph.prototype.create = function () {
   this.canvasEl.addEventListener("wheel", function (e) { self.mouseWheel(e); }, { passive: false });
   this.rulerEl.addEventListener("wheel", function (e) { self.mouseWheel(e); }, { passive: false });
   this.svg.addEventListener("pointerdown", function (e) {
-    if (e.button !== 0 || self._spaceDown) return;
+    if (e.button !== 0 || self._spaceDown || self.tool === "pan") return;
     var hit = self.pickTarget(e);
     if (hit) { e.stopPropagation(); hit.element._g2down(e); }
   }, true);
@@ -140,7 +141,8 @@ PZ.ui.graph.prototype.create = function () {
   this.rulerEl.addEventListener("pointerdown", function (e) {
     if (e.button !== 0 && e.button !== 2) return;
     e.preventDefault();
-    beginPointerDrag(self.rulerEl, e, function (ev) { self.scrubRuler(ev.clientX); }, null);
+    self._dragging = "scrub";
+    beginPointerDrag(self.rulerEl, e, function (ev) { self.scrubRuler(ev.clientX); }, function () { self._dragging = null; });
     self.scrubRuler(e.clientX);
   });
   this.bodyEl.addEventListener("contextmenu", function (e) { e.preventDefault(); });
@@ -189,13 +191,14 @@ PZ.ui.graph.prototype.onSvgPointerDown = function (e) {
         self.editor.playback.currentFrame = clamp(f, 0, totalFrames(self.editor) - 1);
       } catch (err) { gpWarnOnce("scrub", "playhead scrub failed", err); }
     };
-    beginPointerDrag(self.svg, e, scrub, null);
+    self._dragging = "scrub";
+    beginPointerDrag(self.svg, e, scrub, function () { self._dragging = null; });
     scrub(e);
     return;
   }
   if (e.button !== 0 && e.button !== 1) return;
-  if (e.button === 0 && !this._spaceDown && e.target && e.target.classList && e.target.classList.contains("g2-kf")) return; // handled by key handlers
-  if (e.button === 0 && !this._spaceDown && e.target && e.target.classList && e.target.classList.contains("g2-hdl")) return;
+  if (e.button === 0 && !this._spaceDown && this.tool !== "pan" && e.target && e.target.classList && e.target.classList.contains("g2-kf")) return; // handled by key handlers
+  if (e.button === 0 && !this._spaceDown && this.tool !== "pan" && e.target && e.target.classList && e.target.classList.contains("g2-hdl")) return;
   var self2 = this;
   var rect = this.svg.getBoundingClientRect();
   var startPx = { x: e.clientX - rect.left, y: e.clientY - rect.top };
@@ -203,7 +206,7 @@ PZ.ui.graph.prototype.onSvgPointerDown = function (e) {
   // 1) LMB on the red playhead line (within 7px) -> scrub
   var cfNow = currentFrame(this.editor);
   var pxDist = Math.abs((startG.x - cfNow) / Math.max(this.zoomX, 1e-9));
-  if (e.button === 0 && !this._spaceDown && (e.target === this.cursor || pxDist <= 7)) {
+  if (e.button === 0 && !this._spaceDown && this.tool !== "pan" && (e.target === this.cursor || pxDist <= 7)) {
     e.preventDefault();
     try { this.canvasEl.style.cursor = "col-resize"; } catch (err) {}
     var scrubTo = function (ev) {
@@ -215,7 +218,9 @@ PZ.ui.graph.prototype.onSvgPointerDown = function (e) {
       } catch (err) { gpWarnOnce("scrub", "playhead scrub failed", err); }
       self2.updateStatus("playhead " + currentFrame(self2.editor));
     };
+    this._dragging = "scrub";
     beginPointerDrag(this.svg, e, scrubTo, function () {
+      self2._dragging = null;
       try { self2.applyToolCursor(); } catch (err) {}
     });
     scrubTo(e);
@@ -282,6 +287,7 @@ PZ.ui.graph.prototype.onSvgPointerDown = function (e) {
   });
 };
 PZ.ui.graph.prototype.pickTarget = function (e) {
+  if (this._dragging) return;
   var targets = [];
   var bounds = this.svg.getBoundingClientRect();
   for (var group of this.propGroups()) {
@@ -298,10 +304,13 @@ PZ.ui.graph.prototype.pickTarget = function (e) {
       }
     }
   }
-  var coarse = this._win()?.matchMedia?.("(pointer: coarse)").matches;
+  var owner = this._win();
+  if (owner && !coarsePointers.has(owner)) coarsePointers.set(owner, !!owner.matchMedia?.("(pointer: coarse)").matches);
+  var coarse = owner && coarsePointers.get(owner);
   return nearestTarget(targets, e.clientX, e.clientY, coarse ? 20 : 12);
 };
 PZ.ui.graph.prototype.onSvgPointerMove = function (e) {
+  if (this._dragging) return;
   var rect = this.svg.getBoundingClientRect();
   var px = e.clientX - rect.left, py = e.clientY - rect.top;
   var g = this.screenToGraph(px, py);
@@ -315,7 +324,7 @@ PZ.ui.graph.prototype.onSvgPointerMove = function (e) {
   }
   var html = "f " + Math.round(g.x) + " · y " + (Math.round(g.y * 10) / 10);
   // hover keyframe?
-  var hit = this.pickTarget(e);
+  var hit = this._dragging ? null : this.pickTarget(e);
   if (this._hoverTarget) this._hoverTarget.classList.remove("g2-hover");
   this._hoverTarget = hit?.element;
   if (hit) { hit.element.classList.add("g2-hover"); this.canvasEl.style.cursor = "move"; }
