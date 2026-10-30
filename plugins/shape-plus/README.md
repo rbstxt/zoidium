@@ -583,7 +583,9 @@ Text is a live geometry source. Source Text uses native hold keys and supports
 expressions. Fills, strokes, gradients, path modifiers, Repeater, and Merge Paths
 operate on its glyph contours through the same compiler as other paths.
 
-Font Family and Fallback Font store native asset references. Fallback is explicit
+Font Family and Fallback Font store native asset references in held dynamic
+channels. Font Style, Caps, Alignment, and Text Mode also support native hold
+keys and expressions. Fallback is explicit
 and selected per grapheme cluster. Without a fallback, missing glyphs use the
 primary font's .notdef. Japanese text requires a font with Japanese glyphs.
 Missing assets and unsupported formats appear as an English status beside the
@@ -613,3 +615,18 @@ The HarfBuzz payload is in a verified optional bundle. Projects with no Text
 contents do not request it. Outlines are cached in font units with a bounded
 4 MiB accounting budget. The engine never uses system fonts or browser text
 metrics for output. See `vendor/README.md` for provenance and licenses.
+
+## Create Shapes from Text
+
+The preview context menu's **Convert to Path** command freezes the selected Text
+item at the current local frame. The Objects row also has **Create Shapes from
+Text**. Conversion replaces the item with named character groups at the same
+position in its parent. Each contour becomes an editable Path with six scalar
+channels per vertex. Holes retain their winding. Spaces do not create groups.
+
+A ligature's outline belongs to its first character's group. The remaining
+characters retain named empty groups. Combining marks remain with their base
+character's grapheme group. Paints and modifiers below the original text keep
+applying to the converted paths. Conversion is one undo operation. Undo restores
+the live text and its font references. The existing contents and path budgets
+also apply to the converted result.

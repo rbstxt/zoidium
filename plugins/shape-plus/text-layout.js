@@ -62,17 +62,19 @@ function layoutText(primary, fallback, p) {
       const last = lineIndex === lines.length - 1, align = p.alignment || "left";
       const justify = box && align.startsWith("justify") && (!last || align === "justifyAll");
       const spaces = shaped.glyphs.filter(g => /\s/u.test(g.character)).length;
-      const gap = justify && spaces ? Math.max(0, available - shaped.width) / spaces : 0;
+      const characterGaps = !spaces && cjk(text) ? Math.max(0, new Set(shaped.glyphs.map(g => g.cl)).size - 1) : 0;
+      const gaps = spaces || characterGaps;
+      const gap = justify && gaps ? Math.max(0, available - shaped.width) / gaps : 0;
       const effective = align === "justifyCenter" ? "center" : align === "justifyRight" ? "right" : align;
       let x = indent;
       if (!justify && effective === "center") x += (box ? available - shaped.width : -shaped.width) / 2;
       if (!justify && effective === "right") x += box ? available - shaped.width : -shaped.width;
       const visible = !box || -y < boxHeight;
-      if (visible) for (const g of shaped.glyphs) {
-        glyphs.push({ ...g, x: g.x + x + (p.position?.[0] || 0), y: g.y + y + (p.baselineShift || 0) + (p.position?.[1] || 0), coordinates });
-        if (/\s/u.test(g.character)) x += gap;
+      if (visible) for (const [glyphIndex, g] of shaped.glyphs.entries()) {
+        glyphs.push({ ...g, line: rows.length, x: g.x + x + (p.position?.[0] || 0), y: g.y + y + (p.baselineShift || 0) + (p.position?.[1] || 0), coordinates });
+        if (/\s/u.test(g.character) || characterGaps && shaped.glyphs[glyphIndex+1] && shaped.glyphs[glyphIndex+1].cl !== g.cl) x += gap;
       }
-      rows.push({ text, width: shaped.width, baseline: y, visible }); y -= leading;
+      rows.push({ text, characters: clusters(shaped.text), width: shaped.width, baseline: y, visible }); y -= leading;
     }
     y -= p.spaceAfter || 0;
   }

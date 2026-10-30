@@ -104,11 +104,21 @@ test("builder writes exact bundle digests and check mode rejects a stale registr
     const registryPath = path.join(root, "plugins/registry.json");
     fs.writeFileSync(registryPath, JSON.stringify({ schemaVersion: 1, plugins: [{ id: "fixture", manifest: "./plugins/fixture/manifest.json?v=1" }] }));
     const run = (...args) => spawnSync(process.execPath, [path.join(root, "tools/build-plugin-bundles.js"), ...args], { encoding: "utf8" });
+    const manifestFile = path.join(root, "plugins/fixture/manifest.json"), source = JSON.parse(fs.readFileSync(manifestFile));
+    source.resources = [{ id: "large", type: "text", source: "./plugins/fixture/large.js?v=1", optionalBundle: "engine" }];
+    fs.writeFileSync(manifestFile, JSON.stringify(source));
+    fs.writeFileSync(path.join(root, "plugins/fixture/large.js"), "optional payload");
     const built = run();
     assert.equal(built.status, 0, built.stderr);
     const registry = JSON.parse(fs.readFileSync(registryPath));
     assert.equal(registry.plugins[0].integrity, digest(fs.readFileSync(path.join(root, "plugins/fixture/bundle.json"))));
     assert.equal(run("--check").status, 0);
+    const main = JSON.parse(fs.readFileSync(path.join(root, "plugins/fixture/bundle.json")));
+    assert.equal(main.assets.text["/plugins/fixture/large.js"], undefined);
+    const optionalPath = path.join(root, "plugins/fixture/engine.bundle.json"), optional = fs.readFileSync(optionalPath);
+    assert.equal(main.assets.optional.engine.integrity, digest(optional));
+    fs.writeFileSync(optionalPath, "tampered"); assert.equal(run("--check").status, 1);
+    fs.writeFileSync(optionalPath, optional);
     registry.plugins[0].integrity = digest("stale");
     fs.writeFileSync(registryPath, JSON.stringify(registry));
     const checked = run("--check");
@@ -125,6 +135,9 @@ test("desktop staging preserves the registry digest and exact packaged bundle by
     for (const plugin of registry.plugins) {
       const file = path.join(root, plugin.bundle.split("?", 1)[0]);
       assert.equal(digest(await fs.promises.readFile(file)), plugin.integrity, plugin.id);
+      const bundle = JSON.parse(await fs.promises.readFile(file, "utf8"));
+      for (const optional of Object.values(bundle.assets.optional || {}))
+        assert.equal(digest(await fs.promises.readFile(path.join(root, optional.source.split("?",1)[0]))), optional.integrity);
     }
   } finally { await fs.promises.rm(root, { recursive: true, force: true }); }
 });

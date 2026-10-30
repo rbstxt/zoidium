@@ -276,22 +276,26 @@ Text supplies glyph contours to paints and modifiers above its following paints.
 | Control | Type | Default | Effect |
 | --- | --- | --- | --- |
 | **Source Text** | Dynamic text | Text | Hold keys and expressions. |
-| **Font Family** | Font asset | Native default font | Primary font reference. |
-| **Fallback Font** | Font asset | None | Explicit fallback for unmapped grapheme clusters. |
-| **Style** | Choice | Default | Writes the named instance's axis values. |
+| **Font Family** | Dynamic font asset | Native default font | Primary font reference. |
+| **Fallback Font** | Dynamic font asset | None | Explicit fallback for unmapped grapheme clusters. |
+| **Style** | Dynamic choice | Default | Writes the named instance's axis values. |
 | Axis tag | Dynamic number | Font default | Font-defined minimum and maximum. |
 | **Size** | Dynamic number | 100 | Composition pixels per em. |
 | **Tracking** | Dynamic number | 0 | Thousandths of Size between glyphs. |
 | **Leading** | Dynamic number | 120 | Baseline distance in composition pixels. |
 | **Baseline Shift** | Dynamic number | 0 | Positive values move glyphs upward. |
 | **Horizontal Scale (%)**, **Vertical Scale (%)** | Dynamic number | 100 | Glyph scale. |
-| **Caps** | Choice | normal | normal, all, or small. Small uses uppercase at 75 percent size. |
+| **Caps** | Dynamic choice | normal | normal, all, or small. Small uses uppercase at 75 percent size. |
 | **Position** | Dynamic vector | [0, 0] | Baseline origin. |
-| **Alignment** | Choice | left | left, center, right, justifyLeft, justifyCenter, justifyRight, justifyAll. |
-| **Text Mode** | Choice | point | point or box. |
+| **Alignment** | Dynamic choice | left | left, center, right, justifyLeft, justifyCenter, justifyRight, justifyAll. |
+| **Text Mode** | Dynamic choice | point | point or box. |
 | **Box Size** | Dynamic vector | [600, 400] | Wrap width and visible height. |
 | **First-Line Indent** | Dynamic number | 0 | First line of each paragraph. |
 | **Space Before**, **Space After** | Dynamic number | 0 | Paragraph spacing in composition pixels. |
+
+Discrete text controls use hold keys and support expressions. Animated Style
+sets coordinates for axes without their own animation. Animated axis channels
+retain their own values.
 
 TTF, OTF, variable TrueType, CFF2, and WOFF1 are supported. WOFF2 displays an
 unsupported-format status and retains the font reference. Missing fonts show a
@@ -300,7 +304,16 @@ the selected font's Japanese glyphs.
 
 Box text wraps Latin words and breaks CJK per grapheme. Oversized Latin words
 break per grapheme. Newlines start paragraphs. Lines outside the box height
-are hidden. Point text does not wrap. Justification expands spaces; a line
-without spaces retains its advances.
+are hidden. Point text does not wrap. Justification expands spaces. CJK lines without spaces distribute the extra
+width between grapheme clusters. Other lines without spaces retain their advances.
 
 The optional engine bundle loads on the first text use. Electron is untested.
+
+## Create Shapes from Text
+
+**Convert to Path** in the preview and **Create Shapes from Text** on the Objects
+row replace Text with character groups at the current frame. Each contour is
+a separate Path. Spaces produce no group. A ligature's outline belongs to its
+first character; its remaining characters have empty named groups. Combining
+marks stay in their base character's grapheme group. Winding and parent paint
+order are preserved. One history entry restores the live text on Undo.

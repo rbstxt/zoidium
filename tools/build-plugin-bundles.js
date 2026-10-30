@@ -4,9 +4,9 @@
  * Build one self-contained runtime bundle for every registered plugin.
  *
  * The source manifests and asset files remain readable authoring inputs. The
- * generated bundle is the only runtime package fetched by the plugin manager:
- * it contains the manifest plus the text, JSON, and embedded image assets
- * referenced by it.
+ * main bundle contains the manifest and eager assets. Resources grouped by
+ * optionalBundle are emitted separately with integrity digests and loaded
+ * only when the plugin requests them.
  */
 
 "use strict";

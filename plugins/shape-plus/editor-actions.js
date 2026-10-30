@@ -16,7 +16,7 @@ function installActions(s, root) {
     const item = s.active(),
       many = s.treeSelection.size > 1,
       path = !many && item?.kind === "path",
-      primitive = !many && ["rectangle", "ellipse", "polystar"].includes(item?.kind);
+      primitive = !many && ["rectangle", "ellipse", "polystar", "text"].includes(item?.kind);
     const local = point && s.canvasApi.local(point, { matrix: s.insertionMatrix() });
     const add = (kind) => () =>
       s.mutate(() => {

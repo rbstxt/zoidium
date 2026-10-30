@@ -46,3 +46,13 @@ To use paragraph text, set **Text Mode** to **box** and edit **Box Size**.
 To animate variable fonts, choose a **Style**, then animate the individual axis
 properties. See [Text](/reference/shape-plus/#text) for the supported formats
 and layout controls.
+
+## Create shapes from text
+
+1. Select a Text contents item.
+2. In the preview context menu, choose **Convert to Path**.
+3. To use the Objects row instead, click **Create Shapes from Text**.
+4. Expand the character groups to edit each contour as a Path.
+
+Conversion captures the current frame and creates one undo step. To restore
+the live text and its animation, use Undo.

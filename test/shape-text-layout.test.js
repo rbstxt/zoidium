@@ -37,3 +37,8 @@ test("justify, indentation, caps, empty lines and box overflow remain determinis
   const empty=layoutText(latin,null,{...p,sourceText:"\n\n",textMode:"box",boxSize:[200,100]});
   assert.equal(empty.rows.length,3); assert.equal(empty.glyphs.length,0); assert.equal(empty.rows[1].visible,false);
 });
+
+test("Japanese justification distributes spacing between grapheme clusters",()=>{
+ const result=layoutText(japanese,null,{...p,sourceText:"日本語",textMode:"box",boxSize:[600,400],alignment:"justifyAll"});
+ assert.equal(result.glyphs[0].x,0);assert.equal(result.glyphs[1].x,250);assert.equal(result.glyphs[2].x,500);
+});

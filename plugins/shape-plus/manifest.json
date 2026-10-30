@@ -349,6 +349,11 @@
       "id": "text-inline",
       "type": "text",
       "source": "./plugins/shape-plus/text-inline.js?v=24"
+    },
+    {
+      "id": "text-convert",
+      "type": "text",
+      "source": "./plugins/shape-plus/text-convert.js?v=24"
     }
   ]
 }

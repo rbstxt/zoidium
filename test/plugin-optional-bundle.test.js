@@ -9,11 +9,12 @@ function fixture() {
   const window = { ZoidiumPluginManagerInternals: manager, location: new URL("https://example.test/") };
   vm.runInNewContext(fs.readFileSync("zoidium/plugin-manager-assets.js", "utf8"), { window, URL, crypto: webcrypto, TextEncoder, Uint8Array, btoa,
     fetch: async () => { calls++; return { ok: true, text: async () => response }; } });
-  return { assets, resolve: manager.createPluginAssetResolver(assets), calls: () => calls, response: text => { response = text; } };
+  return { assets, manager, resolve: manager.createPluginAssetResolver(assets), calls: () => calls, response: text => { response = text; } };
 }
 test("optional bundle remains unloaded until requested, shares fetch, and merges verified assets", async () => {
   const f = fixture(); assert.equal(f.calls(), 0); assert.equal(f.resolve("text", "./plugins/example/large.js"), undefined);
   const a = f.resolve.loadOptional("engine"), b = f.resolve.loadOptional("engine"); assert.equal(a, b); await a;
+  await f.manager.createPluginAssetResolver(f.assets).loadOptional("engine");
   assert.equal(f.calls(), 1); assert.equal(f.resolve("text", "./plugins/example/large.js"), "large");
 });
 test("optional bundle rejects tampering before parse and can retry", async () => {

@@ -1,6 +1,7 @@
 "use strict";
 function install(context) {
   const PZ = context.PZ || window.PZ, editor = context.editor || window.CM;
+  const at = property => require("./text-properties.js").localFrame(property, editor, PZ);
   function transaction(work) {
     if (editor.history.operation !== null) return;
     editor.history.startOperation();
@@ -14,10 +15,10 @@ function install(context) {
     const input = document.createElement("textarea"); input.setAttribute("aria-label", "Source Text"); input.rows = 3;
     input.style.cssText = "width:100%;resize:vertical;box-sizing:border-box";
     let editing = false, frame;
-    input.pz_update = () => { if (!editing) input.value = String(require("./text-properties.js").holdValue(property, editor.playback.currentFrame - property.frameOffset)); };
+    input.pz_update = () => { if (!editing) input.value = String(require("./text-properties.js").holdValue(property, at(property))); };
     input.onfocus = () => {
       if (editor.history.operation !== null) return;
-      frame = editor.playback.currentFrame - property.frameOffset;
+      frame = at(property);
       editor.history.startOperation(); editing = editor.history.operation;
     };
     input.oninput = () => { if (editing && editor.history.operation === editing) set(new PZ.ui.properties(editor), property, input.value, frame); };
@@ -32,11 +33,11 @@ function install(context) {
       const items = property.definition.items || [];
       const signature = JSON.stringify(items);
       if (select.dataset.items !== signature) { select.replaceChildren(...items.map(item => new Option(item.name, item.value))); select.dataset.items = signature; }
-      select.value = property.get();
+      select.value = require("./text-properties.js").holdValue(property, at(property));
     };
     select.onchange = () => transaction(ops => {
       const node = property.parentObject, font = node.textState?.primary, instance = font?.instances.find(item => item.name === select.value);
-      const frame = editor.playback.currentFrame - property.frameOffset;
+      const frame = at(property);
       set(ops, property, select.value, frame);
       for (const [tag, value] of Object.entries(instance?.coordinates || {})) set(ops, node.properties["axis_" + tag], value, frame);
     });

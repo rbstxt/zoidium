@@ -194,7 +194,7 @@ function createEditorModel(s) {
       }
       s.selection.clear();
     });
-  s.convert = () =>
+  const convertPrimitive = () =>
     s.mutate(() => {
       const item = s.active();
       if (!item || !["rectangle", "ellipse", "polystar"].includes(item.kind))
@@ -234,6 +234,14 @@ function createEditorModel(s) {
       s.selection.clear();
       s.preview();
     });
+  s.convert = async () => {
+    const item = s.active();
+    if (item?.kind !== "text") return convertPrimitive();
+    try {
+      const ids = await require("./text-convert.js").convert(s.context, layer, item, Content, s.localFrame());
+      s.activeId = ids[0] || null; s.treeSelection = new Set(ids); s.selection.clear(); s.refresh();
+    } catch (error) { s.message(error.message); }
+  };
   s.keyframe = () =>
     s.mutate(() => {
       const item = s.active();

@@ -26,6 +26,14 @@ function createModel(PZ, textService) {
       if (kind === "group") { this.contents = new PZ.objectList(this, Content); this.contents.name = "Contents"; this.children.push(this.contents); }
       this.extra = {};
       if (kind === "text") {
+        for (const key of ["sourceText", "font", "fallbackFont", "fontStyle", "caps", "alignment", "textMode"]) {
+          const property = this.properties[key], get = property.get.bind(property);
+          property.get = frame => {
+            frame ??= this.textFrame || 0;
+            return !property.expression && (property.keyframes?.length || property.data?.keyframes?.length)
+              ? require("./text-properties.js").holdValue(property, frame) : get(frame);
+          };
+        }
         const name = this.properties.name, get = name.get.bind(name);
         const changed = () => name.onChanged?.update();
         this.properties.sourceText.onChanged?.watch(changed);
@@ -48,6 +56,11 @@ function createModel(PZ, textService) {
         this.children[0] = this.properties;
       }
       this.vertexModes = clone(data.vertexModes || this.vertexModes);
+      if (this.kind === "text" && data.properties) for (const key of ["sourceText", "font", "fallbackFont", "fontStyle", "caps", "alignment", "textMode"]) {
+        const value = data.properties[key];
+        if (value !== undefined && (value === null || typeof value !== "object"))
+          data.properties[key] = { animated: false, keyframes: [{ frame: 0, value, tween: 0 }] };
+      }
       this.extra = data;
       this.properties.load(data.properties);
       if (this.contents) {
@@ -66,16 +79,16 @@ function createModel(PZ, textService) {
       this.textFrame = frame;
       const properties = {};
       for (const key of Object.keys(this.properties)) {
-        const value = this.kind === "text" && key === "sourceText" ? require("./text-properties.js").holdValue(this.properties[key], frame) : this.properties[key].get(frame);
+        const value = this.kind === "text" && this.properties[key].definition.dynamic && [PZ.property.type.TEXT, PZ.property.type.ASSET, PZ.property.type.LIST].includes(this.properties[key].definition.type) ? require("./text-properties.js").holdValue(this.properties[key], frame) : this.properties[key].get(frame);
         if (typeof value === "number" && !Number.isFinite(value) || Array.isArray(value) && key !== "stops" && !value.every(Number.isFinite)) throw Error("Shape+ property must be finite");
         properties[key] = Array.isArray(value) ? value.slice() : value;
       }
       if (["wigglePaths", "wiggleTransform"].includes(this.kind)) properties.time = frame / rate;
       this.textFrame = frame;
-      const textLayout = this.kind === "text" ? textService?.evaluate(this, properties) || { glyphs: [], rows: [] } : null;
+      const textLayout = this.kind === "text" ? textService?.evaluate(this, properties, frame) || { glyphs: [], rows: [] } : null;
       return { ...(textLayout ? { textLayout } : {}), id: this.id, kind: this.kind, vertexIds: this.vertexIds.slice(), properties, ...(this.contents ? { contents: Array.from(this.contents, child => child.evaluate(frame, rate)) } : {}) };
     }
-    async prepare() { if (this.kind === "text") await textService?.prepare(this); for (const child of this.contents || []) await child.prepare(); }
+    async prepare(frame = this.textFrame || 0) { if (this.kind === "text") await textService?.prepare(this, frame); for (const child of this.contents || []) await child.prepare(frame); }
     unload() { if (this.kind === "text") textService?.release(this); for (const child of this.contents || []) child.unload(); }
     static create(kind) { return new Content(kind); }
   }

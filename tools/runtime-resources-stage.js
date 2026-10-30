@@ -282,7 +282,7 @@ async function copyPluginRuntime(stageRoot) {
     for (const entry of Object.values(bundle.assets?.optional || {})) {
       const optionalPath = normalizeResourcePath(entry.source);
       const directory = bundlePath.slice(0, bundlePath.lastIndexOf("/") + 1);
-      if (!optionalPath.startsWith(directory) || !/^[a-z0-9-]+\.bundle\.json$/.test(optionalPath.slice(directory.length))) throw new Error("Invalid optional bundle path");
+      if (!optionalPath.startsWith(directory) || !/^[a-z0-9_-]+\.bundle\.json$/.test(optionalPath.slice(directory.length))) throw new Error("Invalid optional bundle path");
       await copyEntry(stageRoot, optionalPath, { required: true });
     }
   }

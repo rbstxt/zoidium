@@ -50,6 +50,8 @@ test("GPOS kerning, ligatures, combining marks and unsupported glyphs remain exp
   assert.ok(width(font.shape("AV")) < width(font.shape("A")) + width(font.shape("V")));
   assert.ok(font.shape("office").length < "office".length);
   assert.ok(font.shape("a\u0301").every(glyph => glyph.g > 0));
+  const marks = font.shape("a\u0301\u0301");
+  assert.ok(marks.at(-1).dy > 0); assert.equal(marks.at(-1).ax, 0);
   assert.equal(font.shape("\u65e5")[0].g, 0);
   font.dispose();
 });
@@ -83,7 +85,7 @@ test("missing assets and compressed or corrupt font bytes produce explicit state
 });
 
 test("CFF2 outlines apply variations in font units", async () => {
-  const file = fs.readFileSync(path.join(__dirname, "fixtures/shape-text/SourceSerif-subset.otf"));
+  const file = fs.readFileSync(path.join(__dirname, "fixtures/shape-text/CFF2-test.otf"));
   const engine = await loader()(), font = engine.open(file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength), "cff2");
   const glyph = font.shape("A")[0].g;
   assert.ok(glyph > 0);
@@ -106,4 +108,23 @@ test("named instances, Japanese primary font and explicit grapheme fallback", as
   assert.equal(clusters("a\u0301").length, 1);
   assert.equal(shapeRuns(primary, null, "日")[0].g, 0);
   primary.dispose(); jp.dispose();
+});
+
+test("WOFF1 decompression preserves variable font shaping and outlines", async () => {
+  const { deflateSync } = require("node:zlib"), { decompress } = require("../plugins/shape-plus/text-font");
+  const raw = buffer(), view = new DataView(raw), count = view.getUint16(4), tables = [];
+  let size = 44 + count * 20;
+  for (let i=0;i<count;i++) {
+    const p=12+i*16, offset=view.getUint32(p+8), length=view.getUint32(p+12);
+    const original=Buffer.from(raw,offset,length), compressed=deflateSync(original), data=compressed.length<length?compressed:original;
+    tables.push({p,length,data,offset:size});size+=(data.length+3)&~3;
+  }
+  const woff=new ArrayBuffer(size), out=new DataView(woff);
+  out.setUint32(0,0x774f4646);out.setUint32(4,view.getUint32(0));out.setUint32(8,size);out.setUint16(12,count);out.setUint32(16,raw.byteLength);
+  for(const [i,t]of tables.entries()) {
+    const p=44+i*20;out.setUint32(p,view.getUint32(t.p));out.setUint32(p+4,t.offset);out.setUint32(p+8,t.data.length);out.setUint32(p+12,t.length);out.setUint32(p+16,view.getUint32(t.p+4));new Uint8Array(woff,t.offset,t.data.length).set(t.data);
+  }
+  const engine=await loader()(), a=engine.open(raw,"ttf"), b=engine.open(await decompress(woff),"woff");
+  assert.deepEqual(a.shape("AV office",{wght:700}),b.shape("AV office",{wght:700}));
+  const glyph=a.shape("A")[0].g;assert.deepEqual(a.outline(glyph,{wght:700}),b.outline(glyph,{wght:700}));a.dispose();b.dispose();
 });

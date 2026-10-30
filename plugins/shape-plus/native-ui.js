@@ -132,7 +132,19 @@ function install(PZ, Layer, Content, onDispose) {
   patch(proto, "generateItemCommands", original => function (element, object) {
     const previous = this.options.showListItemButtons;
     if (object instanceof Content) this.options.showListItemButtons = true;
-    try { return original.apply(this, arguments); } finally { this.options.showListItemButtons = previous; }
+    try {
+      const result = original.apply(this, arguments);
+      if (object instanceof Content && object.kind === "text") {
+        const button = this.generateButton("change"); button.title = "Create Shapes from Text"; button.setAttribute("aria-label", button.title);
+        button.onclick = event => {
+          event.stopPropagation();
+          const layer = object.tryGetParentOfType(Layer), frame = require("./text-properties.js").localFrame(object.properties.sourceText, this.editor, PZ);
+          require("./text-convert.js").convert({ editor: this.editor }, layer, object, Content, frame).catch(error => window.ZoidiumUI.notify({ title: "Shape+", message: error.message }));
+        };
+        element.children[1].prepend(button);
+      }
+      return result;
+    } finally { this.options.showListItemButtons = previous; }
   });
   patch(proto, "generateAdd", original => function(list) {
     const result=original.apply(this,arguments);

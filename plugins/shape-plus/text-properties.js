@@ -1,16 +1,17 @@
 "use strict";
 function definitions(PZ, number, vector, list) {
   const T = PZ.property.type;
-  const font = name => ({ name, type: T.ASSET, assetType: PZ.asset?.type.FONT, value: name === "Font Family" ? "/assets/fonts/2d/bebas.ttf" : null, accept: ".ttf,.otf,.woff,.woff2" });
+  const choice = (...args) => ({ ...list(...args), dynamic: true });
+  const font = name => ({ name, type: T.ASSET, dynamic: true, assetType: PZ.asset?.type.FONT, value: name === "Font Family" ? "/assets/fonts/2d/bebas.ttf" : null, accept: ".ttf,.otf,.woff,.woff2" });
   return {
     sourceText: { name: "Source Text", type: T.TEXT, dynamic: true, value: "Text", zoidiumControl: "shape-plus/source-text" },
     font: font("Font Family"), fallbackFont: font("Fallback Font"),
-    fontStyle: { ...list("Style", "", [""]), zoidiumControl: "shape-plus/font-style" },
+    fontStyle: { ...choice("Style", "", [""]), zoidiumControl: "shape-plus/font-style" },
     fontSize: number("Size", 100, { min: 0 }), tracking: number("Tracking", 0), leading: number("Leading", 120),
     baselineShift: number("Baseline Shift", 0), horizontalScale: number("Horizontal Scale (%)", 100), verticalScale: number("Vertical Scale (%)", 100),
-    caps: list("Caps", "normal", ["normal", "all", "small"]), position: vector("Position", [0,0]),
-    alignment: list("Alignment", "left", ["left", "center", "right", "justifyLeft", "justifyCenter", "justifyRight", "justifyAll"]),
-    textMode: list("Text Mode", "point", ["point", "box"]), boxSize: vector("Box Size", [600,400]),
+    caps: choice("Caps", "normal", ["normal", "all", "small"]), position: vector("Position", [0,0]),
+    alignment: choice("Alignment", "left", ["left", "center", "right", "justifyLeft", "justifyCenter", "justifyRight", "justifyAll"]),
+    textMode: choice("Text Mode", "point", ["point", "box"]), boxSize: vector("Box Size", [600,400]),
     firstLineIndent: number("First-Line Indent", 0), spaceBefore: number("Space Before", 0), spaceAfter: number("Space After", 0),
   };
 }
@@ -35,4 +36,8 @@ function axes(PZ, node, font) {
   p.fontStyle.definition.items = [{ name: font.style, value: "" }, ...font.instances.map(instance => ({ name: instance.name, value: instance.name }))];
   p.onListChanged?.update();
 }
-module.exports = { definitions, holdValue, axes };
+function localFrame(property, editor, PZ) {
+  const clip = property.tryGetParentOfType?.(PZ.clip);
+  return editor.playback.currentFrame - (clip?.start || 0) + (clip?.offset || 0);
+}
+module.exports = { definitions, holdValue, axes, localFrame };

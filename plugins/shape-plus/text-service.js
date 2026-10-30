@@ -10,10 +10,11 @@ function createService(context) {
     records.delete(node); record.alive = false;
     for (const entry of record.entries) { entry.font?.dispose(); if (entry.asset) record.project.assets.unload(entry.asset); }
   }
-  function prepare(node) {
+  function prepare(node, frame = node.textFrame || 0) {
     const project = node.tryGetParentOfType?.(PZ.project);
     if (!project) return Promise.resolve();
-    const refs = [node.properties.font.get(), node.properties.fallbackFont.get()];
+    const value = property => require("./text-properties.js").holdValue(property, frame);
+    const refs = [value(node.properties.font), value(node.properties.fallbackFont)];
     const signature = JSON.stringify(refs), previous = records.get(node);
     if (previous?.project === project && previous.signature === signature && previous.entries.every(entry => entry.file === entry.asset.file)) return previous.pending;
     release(node);
@@ -22,6 +23,7 @@ function createService(context) {
     record.pending = (async () => {
       const engine = await load();
       if (!record.alive) return;
+      record.cacheStats = engine.stats;
       for (const [index, ref] of refs.entries()) {
         if (!ref && index === 1) continue;
         if (!ref) { record.state = "missing"; record.message = "The text font is missing from the project."; return; }
@@ -40,10 +42,13 @@ function createService(context) {
     })().catch(error => { if (record.alive) { record.state = "error"; record.message = error.message; } });
     return record.pending;
   }
-  function evaluate(node, properties) {
-    prepare(node);
+  function evaluate(node, properties, frame) {
+    prepare(node, frame);
     const record = records.get(node);
     if (record?.state !== "ready") return { glyphs: [], rows: [] };
+    const instance = node.properties.fontStyle.animated && record.primary.instances.find(instance => instance.name === properties.fontStyle);
+    if (instance) for (const [tag, value] of Object.entries(instance.coordinates))
+      if (!node.properties["axis_" + tag]?.animated) properties["axis_" + tag] = value;
     return layoutText(record.primary, record.fallback, properties);
   }
   context.lifecycle.onDispose(() => { for (const node of records.keys()) release(node); });

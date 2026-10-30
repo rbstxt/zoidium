@@ -47,7 +47,7 @@
         const entry = assets?.optional?.[id];
         if (!entry || !/^sha256-[A-Za-z0-9+/]{43}=$/.test(entry.integrity)) throw new Error("Invalid optional plugin bundle: " + id);
         const url = new URL(entry.source, window.location.href);
-        if (url.origin !== window.location.origin || !/^\/plugins\/[a-z0-9-]+\/[a-z0-9-]+\.bundle\.json$/.test(url.pathname)) throw new Error("Invalid optional plugin bundle URL");
+        if (url.origin !== window.location.origin || !/^\/plugins\/[a-z0-9-]+\/[a-z0-9_-]+\.bundle\.json$/.test(url.pathname)) throw new Error("Invalid optional plugin bundle URL");
         const response = await fetch(url.href, { cache: "no-cache" });
         if (!response.ok) throw new Error("Optional plugin bundle request failed: " + response.status);
         const text = await response.text();
