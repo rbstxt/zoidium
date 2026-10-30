@@ -1,4 +1,5 @@
 "use strict";
+const { classifyWheel, wheelView } = require("./input.js");
 const { expressionOf } = require("./property-state.js");
 
 // Warn-once reporter for failure sites that run per pointer move or per item:
@@ -117,8 +118,9 @@ PZ.ui.graph.prototype.create = function () {
   this.canvasEl.appendChild(this.emptyEl);
 
   this.canvasEl.addEventListener("wheel", function (e) { self.mouseWheel(e); }, { passive: false });
+  this.rulerEl.addEventListener("wheel", function (e) { self.mouseWheel(e); }, { passive: false });
   this.svg.addEventListener("pointerdown", function (e) { self.onSvgPointerDown(e); });
-  // Windows middle-click autoscroll would hijack MMB marquee — kill it
+  // Windows middle-click autoscroll would hijack MMB pan — kill it
   this.svg.addEventListener("mousedown", function (e) { if (e.button === 1) e.preventDefault(); });
   this.svg.addEventListener("auxclick", function (e) { if (e.button === 1) e.preventDefault(); });
   this.rulerEl.addEventListener("mousedown", function (e) { if (e.button === 1) e.preventDefault(); });
@@ -145,17 +147,11 @@ PZ.ui.graph.prototype.create = function () {
 /* ---------- mouse ---------- */
 PZ.ui.graph.prototype.mouseWheel = function (e) {
   var r = this.svg.getBoundingClientRect();
-  var mx = e.clientX - r.left, my = e.clientY - r.top;
-  var before = this.screenToGraph(mx, my);
-  var t = 1;
-  if (e.deltaY < 0) t = 0.9; else if (e.deltaY > 0) t = 1.1111;
-  if (!e.ctrlKey) this.zoomX = clamp(this.zoomX * t, 0.05, 500);
-  if (!e.shiftKey) this.zoomY = clamp(this.zoomY * t, 0.001, 10000);
-  // anchor at mouse
-  var vx = before.x - (mx / Math.max(r.width, 1)) * this.viewW();
-  var vy = before.y - (my / Math.max(r.height, 1)) * this.viewH();
-  this.centerX = vx + 0.5 * this.viewW();
-  this.centerY = vy + 0.5 * this.viewH();
+  this._wheelGesture = classifyWheel(e, this._wheelGesture, Date.now());
+  var next = wheelView({ centerX: this.centerX, centerY: this.centerY,
+    zoomX: this.zoomX, zoomY: this.zoomY, width: r.width, height: r.height },
+    e, this._wheelGesture, { x: e.clientX - r.left, y: e.clientY - r.top }, e.currentTarget === this.rulerEl);
+  Object.assign(this, { centerX: next.centerX, centerY: next.centerY, zoomX: next.zoomX, zoomY: next.zoomY });
   this.updateViewBox();
   this.updateStatus();
   e.preventDefault();
@@ -210,9 +206,8 @@ PZ.ui.graph.prototype.onSvgPointerDown = function (e) {
     scrubTo(e);
     return;
   }
-  // 2) MMB always marquee-selects; LMB marquees with the marquee tool or
-  //    Shift, otherwise LMB-drag pans the view
-  var wantMarquee = (e.button === 1) || (this.tool === "sel") || e.shiftKey;
+  // Middle-drag and Space-drag pan. Select-tool left-drag selects keys.
+  var wantMarquee = e.button === 0 && !this._spaceDown && (this.tool === "sel" || e.shiftKey);
   var isPan = !wantMarquee;
   this._dragging = isPan ? "pan" : "marquee";
   try {
@@ -244,6 +239,7 @@ PZ.ui.graph.prototype.onSvgPointerDown = function (e) {
     var groups = self2.propGroups();
     for (var gi = 0; gi < groups.length; gi++) {
       var gel = groups[gi];
+      if (gel.style.display === "none" || expressionOf(gel.pz_object)) continue;
       var off = gel.pz_frameOffset || 0;
       var keys = gel._keys.children;
       for (var k = 0; k < keys.length; k++) {
