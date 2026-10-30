@@ -10,6 +10,12 @@ each line describes one visible change.
 
 ### Added
 
+- Graph Editor 2 shows expression output as a read-only dashed curve, draws
+  every easing preset in its true shape, and previews each preset in
+  Custom easings.
+- Graph Editor 2 lists vector and colour properties as one row with X, Y, Z
+  (or R, G, B, A) rows. Each axis can be shown, soloed, and edited alone.
+  **Link axes** moves same-frame keys on the other axes in time.
 - ExpressText+ by DaviFX: a container over 3D Text that moves each letter
   with Shake, Plain, Random, Formula, Delay, Spline, Orbit, Repeater, Twist,
   Wrap, and Voronoi effectors.
@@ -99,6 +105,9 @@ each line describes one visible change.
 
 ### Fixed
 
+- Graph Editor 2 curves stay sharp at extreme zoom. Undo after a key nudge or
+  tangent change restores the exact values. Moving many keys no longer slows
+  the graph, and deleted layers no longer leave curves behind.
 - Voronoi Fracture builds several pieces at once and skips work that cannot
   change the result. The first fractured frame and Cells or Seed changes are
   ready about three to five times sooner, with the same output.
@@ -224,6 +233,9 @@ each line describes one visible change.
 
 ### Docs
 
+- The user guides and reference pages are shorter and keep only what users
+  need. Saving and plugin-manager internals moved to the Plugin development
+  pages.
 - New documentation site served alongside the editor, with a Japanese
   locale.
 - Native FX reference: index, image filters, time, keying, generators,
