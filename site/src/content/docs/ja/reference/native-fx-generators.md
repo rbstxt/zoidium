@@ -13,7 +13,7 @@ sidebar:
 点の座標は、画像全体を 0～1 で表します。X は右へ、Y は下へ増加します。
 数値の制限が明示されていない点のプロパティは、画像の外にも図形を配置できます。
 時間を使用する生成エフェクトでは、評価フレームをプロジェクトフレームレートで割った値が秒数です。
-出力の表示期間は、クリップの配置で制限されます。
+出力の表示期間は、クリップの配置で制限されます。— は宣言された範囲がないことを示します。
 
 ## Radio Waves
 
@@ -21,10 +21,9 @@ sidebar:
 
 | プロパティ | 型 | 範囲または選択肢 | 既定値 | 出力への影響 |
 | --- | --- | --- | --- | --- |
-| **Enabled** | 選択肢 | **off**、**on** | **on** | off の場合はエフェクトを無効にします。 |
 | **Producer Point** | Vector2 | 各成分の行を参照 | `(0.5, 0.5)` | 正規化された画像座標の波の発生点です。 |
-| **Producer Point.X** | 数値 | 個別の数値制限なし | 0.5 | Producer Point の水平成分です。 |
-| **Producer Point.Y** | 数値 | 個別の数値制限なし | 0.5 | Producer Point の垂直成分です。 |
+| **Producer Point.X** | 数値 | — | 0.5 | Producer Point の水平成分です。 |
+| **Producer Point.Y** | 数値 | — | 0.5 | Producer Point の垂直成分です。 |
 | **Frequency (waves/sec)** | 数値 | 0.01～100 | 1 | 1 秒あたりの波の発生数です。 |
 | **Expansion (px/sec)** | 数値 | 0～10000 | 100 | レイヤーピクセル単位の、1 秒あたりの半径の増加量です。 |
 | **Orientation** | 数値 | -3600～3600 | 0 | 波の初期回転角度を度単位で指定します。 |
@@ -34,11 +33,11 @@ sidebar:
 | **Lifespan (sec)** | 数値 | 0.01～100 | 2 | 各波が存続する秒数です。 |
 | **Reflection** | 選択肢 | **off**、**on** | **off** | 移動する中心を画像の境界で反射させます。 |
 | **Wave Type** | 選択肢 | **Polygon**、**Circle** | **Polygon** | Polygon は Sides と Star を使用します。Circle は円を描画し、Star を無視します。 |
-| **Sides** | 数値 | 3～64 | 64 | 多角形の辺の数です。整数に丸めます。Star が off で 64 の場合は円になります。 |
+| **Sides** | 数値 | 3～64 | 64 | 多角形の辺の数です。Star が off で 64 の場合は円になります。 |
 | **Star** | 選択肢 | **off**、**on** | **off** | Polygon モードで半径を交互に変え、星形を生成します。 |
 | **Star Depth (inner radius)** | 数値 | -1～1 | -0.3 | 星形の交互の半径の倍率です。0 では半径が等しくなります。 |
 | **Stroke Profile** | 選択肢 | **Square**、**Taper Front**、**Taper Back**、**Taper Both**、**Sine**、**Sawtooth Out**、**Sawtooth In** | **Square** | 波の幅に沿った、線の明るさの分布です。 |
-| **Stroke Color** | 色 | 個別の数値制限なし | `[1, 1, 1]` | 波の線の色です。 |
+| **Stroke Color** | 色 | — | `[1, 1, 1]` | 波の線の色です。 |
 | **Opacity** | 数値 | 0～100 | 100 | フェード前の波の不透明度を百分率で指定します。 |
 | **Fade-in Time (sec)** | 数値 | 0～100 | 0 | 各波の発生後に、不透明度を線形に増加させる時間です。0 はこのフェードを無効にします。 |
 | **Fade-out Time (sec)** | 数値 | 0～100 | 0 | 各波の寿命が終わる前に、不透明度を線形に減少させる時間です。0 はこのフェードを無効にします。 |
@@ -62,20 +61,19 @@ sidebar:
 
 | プロパティ | 型 | 範囲または選択肢 | 既定値 | 出力への影響 |
 | --- | --- | --- | --- | --- |
-| **Enabled** | 選択肢 | **off**、**on** | **on** | off の場合はエフェクトを無効にします。 |
 | **Starting Point** | Vector2 | 各成分の行を参照 | `(0.25, 0.5)` | 正規化された画像座標の線分の始点です。 |
-| **Starting Point.X** | 数値 | 個別の数値制限なし | 0.25 | Starting Point の水平成分です。 |
-| **Starting Point.Y** | 数値 | 個別の数値制限なし | 0.5 | Starting Point の垂直成分です。 |
+| **Starting Point.X** | 数値 | — | 0.25 | Starting Point の水平成分です。 |
+| **Starting Point.Y** | 数値 | — | 0.5 | Starting Point の垂直成分です。 |
 | **Ending Point** | Vector2 | 各成分の行を参照 | `(0.75, 0.5)` | 正規化された画像座標の線分の終点です。 |
-| **Ending Point.X** | 数値 | 個別の数値制限なし | 0.75 | Ending Point の水平成分です。 |
-| **Ending Point.Y** | 数値 | 個別の数値制限なし | 0.5 | Ending Point の垂直成分です。 |
+| **Ending Point.X** | 数値 | — | 0.75 | Ending Point の水平成分です。 |
+| **Ending Point.Y** | 数値 | — | 0.5 | Ending Point の垂直成分です。 |
 | **Length (%)** | 数値 | 0～100 | 25 | 線分全体に対する表示部分の割合を百分率で指定します。 |
 | **Time (%)** | 数値 | 0～100 | 0 | 線分に沿った表示区間の位置を百分率で指定します。 |
 | **Starting Thickness (px)** | 数値 | 0～1000 | 8 | 始点側の太さをレイヤーピクセル単位で指定します。 |
 | **Ending Thickness (px)** | 数値 | 0～1000 | 8 | 終点側の太さをレイヤーピクセル単位で指定します。 |
 | **Softness (%)** | 数値 | 0～100 | 20 | ビームの半幅に対する、縁のアルファのフェード幅を百分率で指定します。色の勾配は、このコントロールに依存しません。 |
-| **Inside Color** | 色 | 個別の数値制限なし | `[1, 1, 1]` | ビームの中心の色です。 |
-| **Outside Color** | 色 | 個別の数値制限なし | `[0.4, 0.4, 1]` | ビームの縁の色です。 |
+| **Inside Color** | 色 | — | `[1, 1, 1]` | ビームの中心の色です。 |
+| **Outside Color** | 色 | — | `[0.4, 0.4, 1]` | ビームの縁の色です。 |
 | **3D Perspective** | 選択肢 | **off**、**on** | **on** | on は線分全体に沿って太さを補間します。off は表示区間に沿って太さを補間します。 |
 | **Composite on Original** | 選択肢 | **off**、**on** | **on** | on は元の入力の上にビームを合成します。off は透明な背景にビームを出力します。 |
 
@@ -87,23 +85,22 @@ sidebar:
 
 ## Numbers
 
-再現可能な数値、書式付き時刻、日付、または 16 進数を描画します。
+数値、書式付き時刻、日付、または 16 進数を描画します。
 
 | プロパティ | 型 | 範囲または選択肢 | 既定値 | 出力への影響 |
 | --- | --- | --- | --- | --- |
-| **Enabled** | 選択肢 | **off**、**on** | **on** | off の場合はエフェクトを無効にします。 |
 | **Type** | 選択肢 | **Number**、**Number (Leading Zeros)**、**Timecode (30)**、**Timecode (25)**、**Timecode (24)**、**Time**、**Numerical Date**、**Short Date**、**Long Date**、**Hexadecimal** | **Number** | 数値、時刻、日付、16 進数の書式を選択します。Leading Zeros は整数部分を最低 5 桁になるまで 0 で埋めます。 |
 | **Random Values** | 選択肢 | **off**、**on** | **off** | 値を、フレームとシードから求めた再現可能な乱数と Value/Offset/Random Max の積に置き換えます。 |
 | **Seed** | 数値 | 0～100000 | 1 | Random Values のシードです。 |
 | **Value/Offset/Random Max** | 数値 | -30000～30000 | 0 | Type に応じた基本値、秒単位の時刻オフセット、日単位の日付オフセット、または符号付きのランダム倍率です。 |
-| **Decimal Places** | 数値 | 0～10 | 2 | Number と Number (Leading Zeros) の小数桁数です。整数に丸めます。 |
+| **Decimal Places** | 数値 | 0～10 | 2 | Number と Number (Leading Zeros) の小数桁数です。 |
 | **Current Time/Date** | 選択肢 | **off**、**on** | **off** | Number、Timecode、Time の書式に、評価フレームの時刻を加えます。他の書式では無視します。 |
 | **Position** | Vector2 | 各成分の行を参照 | `(0.5, 0.5)` | 正規化された画像座標のテキストの中心です。 |
-| **Position.X** | 数値 | 個別の数値制限なし | 0.5 | Position の水平成分です。 |
-| **Position.Y** | 数値 | 個別の数値制限なし | 0.5 | Position の垂直成分です。 |
+| **Position.X** | 数値 | — | 0.5 | Position の水平成分です。 |
+| **Position.Y** | 数値 | — | 0.5 | Position の垂直成分です。 |
 | **Display Options** | 選択肢 | **Fill Only**、**Stroke Only**、**Fill Over Stroke**、**Stroke Over Fill** | **Fill Only** | 塗り、線、またはそれらの重ね順を選択します。 |
-| **Fill Color** | 色 | 個別の数値制限なし | `[1, 0, 0]` | 文字の塗りの色です。 |
-| **Stroke Color** | 色 | 個別の数値制限なし | `[1, 1, 1]` | 文字の輪郭の色です。 |
+| **Fill Color** | 色 | — | `[1, 0, 0]` | 文字の塗りの色です。 |
+| **Stroke Color** | 色 | — | `[1, 1, 1]` | 文字の輪郭の色です。 |
 | **Stroke Width (px)** | 数値 | 0～50 | 2 | 文字の輪郭の幅をピクセル単位で指定します。 |
 | **Size (px)** | 数値 | 0～512 | 36 | テキストサイズをピクセル単位で指定します。描画時の有効な最小値は 0.5 です。 |
 | **Tracking (px)** | 数値 | -100～100 | 0 | 文字間に追加する間隔をピクセル単位で指定します。 |
@@ -126,19 +123,18 @@ sidebar:
 
 | プロパティ | 型 | 範囲または選択肢 | 既定値 | 出力への影響 |
 | --- | --- | --- | --- | --- |
-| **Enabled** | 選択肢 | **off**、**on** | **on** | off の場合はエフェクトを無効にします。 |
 | **Display Format** | 選択肢 | **SMPTE HH:MM:SS:FF**、**Frames**、**Feet + Frames (35mm)**、**Feet + Frames (16mm)** | **SMPTE HH:MM:SS:FF** | SMPTE タイムコード、総フレーム数、またはフィートとフレーム数を選択します。35mm は 1 フィートあたり 16 フレーム、16mm は 40 フレームです。 |
-| **Time Source** | 選択肢 | **Layer Source**、**Composition**、**Custom** | **Layer Source** | Layer Source と Composition は、現在は同じ評価フレームの時計を使用します。Custom は Time Units (fps) と Starting Frame を使用します。 |
+| **Time Source** | 選択肢 | **Layer Source**、**Composition**、**Custom** | **Layer Source** | Layer Source と Composition は同じ時計を使用します。Custom は Time Units (fps) と Starting Frame を使用します。 |
 | **Time Units (fps)** | 数値 | 1～120 | 30 | Custom の場合にのみ使用する表示レートです。 |
 | **Drop Frame** | 選択肢 | **off**、**on** | **off** | 丸めた公称レートが 30 または 60 の SMPTE 出力に、ドロップフレームの番号付けを適用します。画像フレームは削除しません。 |
-| **Starting Frame** | 数値 | -1000000～1000000 | 0 | Custom の場合にのみ使用するフレーム番号のオフセットです。整数に丸めます。 |
+| **Starting Frame** | 数値 | -1000000～1000000 | 0 | Custom の場合にのみ使用するフレーム番号のオフセットです。 |
 | **Text Position** | Vector2 | 各成分の行を参照 | `(0.5, 0.9)` | 正規化された画像座標のテキストの中心です。 |
-| **Text Position.X** | 数値 | 個別の数値制限なし | 0.5 | Text Position の水平成分です。 |
-| **Text Position.Y** | 数値 | 個別の数値制限なし | 0.9 | Text Position の垂直成分です。 |
+| **Text Position.X** | 数値 | — | 0.5 | Text Position の水平成分です。 |
+| **Text Position.Y** | 数値 | — | 0.9 | Text Position の垂直成分です。 |
 | **Text Size (px)** | 数値 | 0～512 | 36 | テキストサイズをピクセル単位で指定します。描画時の有効な最小値は 0.5 です。 |
-| **Text Color** | 色 | 個別の数値制限なし | `[1, 1, 1]` | 文字の色です。 |
+| **Text Color** | 色 | — | `[1, 1, 1]` | 文字の色です。 |
 | **Show Box** | 選択肢 | **off**、**on** | **on** | on はテキストの背後に長方形の背景を描画します。 |
-| **Box Color** | 色 | 個別の数値制限なし | `[0, 0, 0]` | 背景のボックスの色です。 |
+| **Box Color** | 色 | — | `[0, 0, 0]` | 背景のボックスの色です。 |
 | **Opacity** | 数値 | 0～100 | 100 | テキストとボックスの不透明度を百分率で指定します。テキストテクスチャの不透明度は、文字列または配置が変わったときに更新します。 |
 | **Composite on Original** | 選択肢 | **off**、**on** | **on** | on は元の入力の上に表示を合成します。off は透明な背景に表示を出力します。 |
 
