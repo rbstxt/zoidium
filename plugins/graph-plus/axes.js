@@ -67,6 +67,6 @@ module.exports.axisInfo = axisInfo;
 module.exports.pasteKey = function (data, name, axis, singleDestination) {
   if (data[name]) return name;
   const keys = Object.keys(data);
-  const match = axis && keys.find(key => key.split(".").pop().toUpperCase() === axis);
-  return match || (singleDestination && keys.length === 1 ? keys[0] : null);
+  const matches = axis ? keys.filter(key => key.split(".").pop().toUpperCase() === axis) : [];
+  return (matches.length === 1 ? matches[0] : null) || (singleDestination && keys.length === 1 ? keys[0] : null);
 };

@@ -80,6 +80,11 @@ test("vector paste keeps exact property matches, maps sibling axes, and permits 
   assert.equal(pasteKey(data, "Scale.Y", "Y", false), "Position.Y");
   assert.equal(pasteKey({ "Position.X": [1] }, "Position.Y", "Y", true), "Position.X");
   assert.equal(pasteKey(data, "Scale.Z", "Z", false), null);
+  assert.equal(pasteKey(data, "Scale.X", "X", false), null, "two source X axes are ambiguous");
+  assert.equal(pasteKey(data, "Scale.X", "X", true), null, "a single destination does not resolve multiple sources");
+  const ambiguousY = { "Position.Y": [1], "Rotation.Y": [2] };
+  assert.equal(pasteKey(ambiguousY, "Scale.Y", "Y", false), null);
+  assert.equal(pasteKey(ambiguousY, "Rotation.Y", "Y", false), "Rotation.Y", "exact property matches still win");
 });
 
 test("pinned pruning unloads detached curve DOM even when the selection array emits no event", () => {
