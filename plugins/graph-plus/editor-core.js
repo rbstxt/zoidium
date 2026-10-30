@@ -483,6 +483,7 @@ PZ.ui.graph.prototype.fitAll = function (onlySelected) {
   if (this.width > 1) this.zoomX = clamp((r - l) / this.width, 0.02, 200);
   if (this.height > 1) this.zoomY = clamp((b - t) / this.height, 0.001, 5000);
   this.updateViewBox();
+  this.updateStatus?.();
 };
 PZ.ui.graph.prototype.frameSelected = function () {
   if (!this.selectedKeys().length) { this.fitAll(false); return; }
