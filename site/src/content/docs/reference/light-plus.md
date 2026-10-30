@@ -29,6 +29,6 @@ Light+ exposes native CM3 lights. Single Color, Image+, and Matcap materials do 
 | **Intensity** | Number | 0 to 100 | `1` | Multiplier of light output. |
 | **Angle** | Number | 0 to 90 | `60` | Spot cone angle in degrees. |
 
-Spot, Point, and Directional presets override Position to `0, 100, 100`. Hemisphere has no Position or Target rows. Other defaults come from the native light property definitions.
+Spot, Point, and Directional presets override Position to `0, 100, 100`. Hemisphere has no Position or Target rows.
 
 [Add native lights with Light+](/docs/features/light-plus/)

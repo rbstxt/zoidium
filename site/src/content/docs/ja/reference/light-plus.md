@@ -29,6 +29,6 @@ Light+ はネイティブの CM3 照明を公開します。Single Color、Image
 | **Intensity** | 数値 | 0 ～ 100 | `1` | 照明の出力の倍率です。 |
 | **Angle** | 数値 | 0 ～ 90 | `60` | スポットの円錐の角度です。度単位です。 |
 
-Spot、Point、Directional のプリセットは Position を `0, 100, 100` で上書きします。Hemisphere には Position と Target の行がありません。他の初期値はネイティブの照明のプロパティ定義に従います。
+Spot、Point、Directional のプリセットは Position を `0, 100, 100` で上書きします。Hemisphere には Position と Target の行がありません。
 
 [Light+ でネイティブの照明を追加する](/docs/ja/features/light-plus/)

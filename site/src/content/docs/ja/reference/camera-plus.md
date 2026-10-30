@@ -87,6 +87,6 @@ sidebar:
 
 Orthographic の基準の幅はシーケンスの 1 ピクセルあたり 0.1 シーン単位で、Zoom で割ります。Focal Length と Sensor はこの幅を設定しません。
 
-Vibrate はローカルのフレームとシード付きのノイズを使います。同じフレームへの直接移動では同じ揺れになります。Relative の揺れは基準値が 0 の軸では 0 です。
+揺れは再現性があります。同じフレームに戻ると同じ揺れになります。Relative の揺れは基準値が 0 の軸では 0 です。
 
 [Camera+ を使う](/docs/ja/features/camera-plus/)

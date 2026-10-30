@@ -87,6 +87,6 @@ Field of view depends on focal length, sensor, zoom, and sequence aspect ratio. 
 
 Orthographic uses a base span of 0.1 scene units per sequence pixel, divided by Zoom. Focal Length and Sensor do not set that span.
 
-Vibrate reads the local frame and uses seeded noise. A direct seek to the same frame produces the same shake. Relative shake is zero on an axis whose base value is zero.
+Shake is repeatable: returning to the same frame shows the same shake. Relative shake is zero on an axis whose base value is zero.
 
 [Use Camera+](/docs/features/camera-plus/)

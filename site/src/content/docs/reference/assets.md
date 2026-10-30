@@ -70,7 +70,7 @@ Dragging an item or folder onto a folder moves it there. Dropping on empty list 
 
 ## Undo limits
 
-Import, replacement, unused-file removal, consolidation, folder edits, label edits, and asset-property assignment use project history. Reload, collection, and download are resource or file operations, not source-edit recovery copies.
+Import, replacement, unused-file removal, consolidation, folder edits, label edits, and asset-property assignment can be undone. Reload, collection, and download cannot.
 
 Switching Precomp+ compositions clears Undo and Redo. An Undo operation cannot restore a file that was never available to the project.
 
