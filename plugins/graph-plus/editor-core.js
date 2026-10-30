@@ -413,9 +413,29 @@ PZ.ui.graph.prototype.updateViewBox = function () {
     if (gel._label) this.positionLabel(gel);
   }
   try { this.drawRuler(); } catch (e) { gpWarnOnce("ruler", "ruler redraw failed", e); }
+  if (this._pendingExpressionFit && groups.every(group => group.style.display === "none" ||
+      !expressionOf(group.pz_object) || group._samples?.complete)) {
+    var request = this._pendingExpressionFit;
+    this._pendingExpressionFit = null;
+    this.fitAll(request.onlySelected);
+  }
 };
 PZ.ui.graph.prototype.fitAll = function (onlySelected) {
   var groups = this.propGroups();
+  this._expressionBudget = { deadline: performance.now() + 6, remaining: 1024 };
+  var pending = false;
+  for (var group of groups) {
+    if (group.style.display === "none" || !expressionOf(group.pz_object)) continue;
+    this.drawExpression(group);
+    if (!group._samples?.complete) pending = true;
+  }
+  if (pending) {
+    // Keep the current range fixed until all of its expression samples exist.
+    // A partial prefix can miss a late peak and produce the wrong fit.
+    this._pendingExpressionFit = { onlySelected: onlySelected };
+    return;
+  }
+  this._pendingExpressionFit = null;
   var t = Infinity, b = -Infinity, l = Infinity, r = -Infinity;
   var tf = totalFrames(this.editor);
   var found = false;
