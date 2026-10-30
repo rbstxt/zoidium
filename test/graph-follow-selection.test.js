@@ -107,14 +107,14 @@ test("manual picks survive unchanged selection and playback; actual changes fit 
   model.objects([]); assert.deepEqual(graph._left.selection, []); assert.equal(graph._right.fits, 3);
 });
 
-test("animated object fallback traverses nested lists once and ignores unkeyed and expression channels", () => {
+test("animated object fallback traverses nested lists once and includes expression channels and ignores unkeyed channels", () => {
   const a = new Channel("Opacity", true), pos = new Group("Position", ["X", "Y", "Z"]), unkeyed = new Channel("Static"), expression = new Channel("Expression", true);
   expression.expression = {};
   pos.objects[0].animated = true;
   const material = { children: [new PropertyList([a, unkeyed, expression])] }, object = { children: [material, pos, material] };
-  assert.deepEqual(animatedCurves(PZ, [object]), [a, pos.objects[0]]);
+  assert.deepEqual(animatedCurves(PZ, [object]), [a, expression, pos.objects[0]]);
   const model = new Selection(PZ), graph = panel(); model.attach(graph); model.objects([object]);
-  assert.deepEqual(graph._left.selection, [a, pos.objects[0]]);
+  assert.deepEqual(graph._left.selection, [a, expression, pos.objects[0]]);
   const fits = graph._right.fits; model.objects([object]); assert.equal(graph._right.fits, fits);
 });
 

@@ -47,12 +47,13 @@ test("Graph+ curve rendering pins linear, hold and corrected Bezier paths", () =
   assert.equal(curve({ ...right, tween: 1, value: "text" }, { frame: NaN, value: 1 }).d, "M 0 0");
 });
 
-test("Graph+ sampled easing preserves all twenty segments", () => {
-  const expected = "M 2 -6" + Array.from({ length: 20 }, (_, i) => {
-    const u = (i + 1) / 20;
-    return " L " + (2 + 10 * u) + " " + (-((8 - 3) * (u * u) + 3) * 2);
-  }).join("");
-  assert.equal(curve({ ...right, tween: 2 }).d, expected);
+test("Graph+ adaptive easing vertices use the playback function", () => {
+  const values = curve({ ...right, tween: 2 }).d.match(/-?\d+(?:\.\d+)?/g).map(Number);
+  assert.ok(values.length > 40);
+  for (let i = 0; i < values.length; i += 2) {
+    const u = (values[i] - 2) / 10;
+    assert.ok(Math.abs(values[i + 1] + (3 + 5 * u * u) * 2) < 1e-10);
+  }
 });
 
 test("Graph+ curve coordinates remain finite at extreme anisotropic zoom", () => {

@@ -46,6 +46,7 @@ PZ.ui.graph.prototype.update = function () {
       this._lastRulerFrame = cf;
       try { this.drawRuler(); } catch (e2) { gpWarnOnce("ruler", "ruler redraw failed", e2); }
     }
+    if (this.propGroups().some(g => g._samples && !g._samples.complete)) this.updateViewBox();
     if ((this._legendTick = (this._legendTick + 1) % 20) === 0) this.updateLegendValues();
   } catch (e) { /* Per-frame DOM refresh is best-effort; the next frame retries. */ }
 };
@@ -156,7 +157,7 @@ PZ.ui.graph.prototype.applyEasingToSelected = function (easeIdx) {
   this.updateStatus("applied " + (nm || ("ease " + easeIdx)));
 };
 PZ.ui.graph.prototype.addKeyframeAtPlayhead = function () {
-  var groups = this.propGroups().filter(function (g) { return g.style.display !== "none"; });
+  var groups = this.propGroups().filter(function (g) { return g.style.display !== "none" && !g.pz_object.expression; });
   if (!groups.length) return;
   var cf = currentFrame(this.editor);
   this.editor.history.startOperation();
@@ -182,6 +183,7 @@ PZ.ui.graph.prototype.copySelected = function () {
   var groups = this.propGroups();
   for (var gi = 0; gi < groups.length; gi++) {
     var gel = groups[gi];
+    if (gel.pz_object.expression) continue;
     var sel = Array.prototype.slice.call(gel._keys.getElementsByClassName("selected"));
     if (sel.length) map[gel.pz_object.definition.name] = sel.map(function (e) { return e.pz_object; });
   }
@@ -220,6 +222,7 @@ PZ.ui.graph.prototype.pasteAtPlayhead = function () {
     var groups = self.propGroups();
     for (var gi = 0; gi < groups.length; gi++) {
       var prop = groups[gi].pz_object;
+      if (prop.expression || groups[gi].style.display === "none") continue;
       var off = groups[gi].pz_frameOffset || 0;
       for (var ai = 0; ai < arr.length; ai++) {
         var data = arr[ai].data;
@@ -283,7 +286,7 @@ PZ.ui.graph.prototype.updateLegend = function () {
     row.appendChild(dot);
     var nm = mk("span");
     nm.className = "g2-track-name";
-    nm.textContent = displayName(prop);
+    nm.textContent = displayName(prop) + (prop.expression ? " · Expression" : "");
     row.appendChild(nm);
     var val = mk("span");
     val.className = "g2-track-val";

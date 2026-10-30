@@ -390,9 +390,11 @@ PZ.ui.graph.prototype.updateViewBox = function () {
   }
   if (this.xGrid) this.xGrid.update();
   if (this.yGrid) this.yGrid.update();
+  this._expressionBudget = { deadline: performance.now() + 6, remaining: 1024 };
   var groups = this.propGroups();
   for (var g = 0; g < groups.length; g++) {
     var gel = groups[g];
+    if (gel.pz_object.expression) { this.drawExpression(gel); continue; }
     var keys = gel._keys ? Array.prototype.slice.call(gel._keys.children) : [];
     for (var k = 0; k < keys.length; k++) {
       this.updateKeyframe(keys[k]);
@@ -417,6 +419,15 @@ PZ.ui.graph.prototype.fitAll = function (onlySelected) {
     if (gel.style.display === "none") continue;
     var scale = gel.pz_valueScale || 1;
     var off = gel.pz_frameOffset || 0;
+    if (gel.pz_object.expression) {
+      this.drawExpression(gel);
+      for (var point of gel._samples?.points || []) {
+        if (!Number.isFinite(point[1])) continue;
+        l = Math.min(l, point[0] + off); r = Math.max(r, point[0] + off);
+        t = Math.min(t, -point[1] * scale); b = Math.max(b, -point[1] * scale); found = true;
+      }
+      continue;
+    }
     var keys = onlySelected
       ? Array.prototype.slice.call(gel._keys.querySelectorAll(".selected"))
       : Array.prototype.slice.call(gel._keys.children);

@@ -18,7 +18,7 @@ function animatedCurves(PZ, objects) {
     if (!object || seen.has(object)) return;
     seen.add(object);
     if (object instanceof PZ.property.dynamic.keyframes) {
-      if (object.animated && !object.expression && object.keyframes?.length) result.push(object);
+      if (object.expression || (object.animated && object.keyframes?.length)) result.push(object);
       return;
     }
     // CM3 children include property lists, nested materials, geometry and plugin lists.

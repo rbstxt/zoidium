@@ -71,6 +71,11 @@
       "id": "selection-host",
       "type": "text",
       "source": "./plugins/graph-plus/selection-host.js?v=13"
+    },
+    {
+      "id": "sampling",
+      "type": "text",
+      "source": "./plugins/graph-plus/sampling.js?v=13"
     }
   ]
 }
