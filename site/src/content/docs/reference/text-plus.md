@@ -11,7 +11,7 @@ Text+ adds six character animation modes and the **Character Material** parent f
 
 **Mode** is a static choice. Its default is **None**. Options are **None**, **Character Transform**, **Gradient Transform**, **Character Shake**, **Selected Character Transform**, **Selected Character Shake**, and **Random Scatter**.
 
-There are at most three categories: **Character**, **Character 2**, and **Character 3**. A later category appears when its previous category or its own Mode is active. Categories apply in order to the previous result.
+There are at most three categories: **Character**, **Character 2**, and **Character 3**. A later category appears when the previous category or its own Mode is active. Categories apply in order to the previous result.
 
 In 2D, position and scale have X and Y components. Rotation is a scalar angle in the layer plane. **Rotation order** and **Axis** are absent. The tables below describe the 3D parent controls.
 
@@ -28,7 +28,7 @@ The Selected variant adds **Characters**, default `1`. Empty selection affects n
 | **Rotation** | 3D vector | No declared bounds | `[0, 0, 0]` | Per-character Euler rotation in degrees. |
 | **Rotation order** | Choice | **XYZ**, **YZX**, **ZXY**, **XZY**, **YXZ**, **ZYX** | **XYZ** | Order of the three rotation axes. |
 | **Pivot** | Choice | **Character**, **Text** | **Character** | Rotation and scale pivot at the character or the whole text. |
-| **Delay** | Number | ≥ 0 | `0` | Frame delay between characters. Sampling stops at frame 0 for negative delayed times. |
+| **Delay** | Number | ≥ 0 | `0` | Frame delay between characters. |
 | **Delay order** | Choice | **Forward**, **Reverse**, **Center out**, **Random** | **Forward** | Order in which characters receive the delay. |
 | **Seed** | Number | No declared bounds | `1` | Seed for Random delay order. |
 
@@ -86,7 +86,7 @@ The Selected variant adds **Characters**, default `1`. Empty selection affects n
 
 **Front material** and **Side material** are material slots, both empty by default. Front material covers both caps. Side material covers extrusion walls and bevels. Empty slots use the source Text material.
 
-The innermost selecting Character Material parent controls both slots. Other object types retain their materials. Material properties retain their own animation controls.
+The closest Character Material parent that selects a character controls both slots. Other object types keep their materials.
 
 
 ## Native 3D Text additions
@@ -96,7 +96,7 @@ The innermost selecting Character Material parent controls both slots. Other obj
 | **Horizontal spacing** | Number | -200 to 200 | `0` | Additional horizontal character spacing. |
 | **Index offset** | Number | ≥ 0 | `0` | Offset of this Text within a shared character sequence. |
 | **Total characters** | Number | ≥ 0 | `0` | Character count used for delay and gradient math. Zero uses the local count. |
-| **Bevel size** | 2D vector | ≥ 0 | `[0.1, 0.5]` | Thickness and width of the bevel. Native defaults can supply these values. |
+| **Bevel size** | 2D vector | ≥ 0 | `[0.1, 0.5]` | Thickness and width of the bevel. |
 | **Bevel side** | Choice | **outside**, **inside** | **outside** | Direction of the bevel relative to the outline. |
 | **Bevel subdivision** | Number | 1 to 100 | `3` | Number of bevel subdivisions. |
 | **Cap profile** | Choice | **flat**, **round** | **round** | Flat or rounded cap profile. |
@@ -105,7 +105,7 @@ The innermost selecting Character Material parent controls both slots. Other obj
 
 ## Timing and composition
 
-Nested animation parents compose transforms. New scale controls multiply the source Text scale. Saved legacy scale modes can retain their older behavior.
+Nested animation parents compose transforms. New scale controls multiply the source Text scale.
 
 [Change the frame rate without changing timing](/docs/how-to/change-sequence-frame-rate/)
 

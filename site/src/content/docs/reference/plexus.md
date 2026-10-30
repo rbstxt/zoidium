@@ -4,7 +4,7 @@ description: Plexus controls, ranges, defaults, audio behavior, and evaluation l
 sidebar:
   label: Plexus
 ---
-Plexus is a suite object with native properties in its designer and property panel. Tables list schema defaults; presets and picker entries can override them.
+Plexus is a suite object with native properties in its designer and property panel. Tables list defaults for new controls; presets and picker entries can override them.
 
 
 ## Object
@@ -73,6 +73,6 @@ Plexus is a suite object with native properties in its designer and property pan
 
 Lines use at most 12,000 link points. Facets and triangulation use at most 4,000 mesh points and 20,000 triangles. Geometry input rejects text over 16 MiB or more than 500,000 vertices.
 
-Without an Audio layer, Sound Effector uses a deterministic time-based wave. With an asset, it uses decoded audio and the offset and trim window.
+Without an Audio layer, the Sound effector follows a built-in time-based wave. With an asset, it follows the audio in the offset and trim window.
 
 [Add suite objects and lights](/docs/features/trapcode-suite/)
