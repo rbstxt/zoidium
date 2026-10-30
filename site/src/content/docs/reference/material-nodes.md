@@ -8,7 +8,7 @@ The catalogue below lists visible Material+ nodes. Hidden compatibility nodes re
 
 Numeric and color fields also have input sockets. A connected socket replaces the stored field value. Texture links use luminance for numbers and RGB for colors.
 
-Pattern seeds, lattice dimensions, animation speeds, whole-image transforms, Random Color, and Fresnel settings reduce texture inputs to spatial means. Other supported pattern and color fields evaluate per pixel.
+Pattern seeds, lattice dimensions, animation speeds, whole-image transforms, Random Color, and Fresnel settings use a connected texture's average value. Other supported pattern and color fields evaluate the texture per pixel.
 
 
 ## Output

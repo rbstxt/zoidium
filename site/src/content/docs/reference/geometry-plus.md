@@ -114,6 +114,6 @@ Geometry+ adds eight procedural mesh types. Geometry properties below are separa
 
 **Point 1** through **Point 32** are animated 3D vectors with no declared numeric bounds. The active count comes from **Points**. New splines start at `[-20, 0, 0]`, `[0, 20, 0]`, and `[20, 0, 0]`. Additional points default to `[0, 0, 0]`.
 
-Geometry rebuilds from the current property values. Numeric counts round to integers. Source dimensions and radii can impose tighter geometric limits than the declared control ranges.
+Numeric counts round to integers. Source dimensions and radii can impose tighter limits than the listed ranges.
 
 [Add Geometry+ objects](/docs/features/geometry-plus/)

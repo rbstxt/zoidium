@@ -4,9 +4,9 @@ description: Native labels, defaults, ranges, LUT restrictions, and chain behavi
 sidebar:
   label: Magic Looks reference
 ---
-New Magic Looks effects use independent tool instances. A chain contains at most 64 instances, including repeated tool types. The chain order is the render order. Each instance keeps its own native animation channels when moved.
+Magic Looks effects use independent tool instances. A chain contains at most 64 instances, including repeated tool types. The chain order is the render order. Each instance keeps its own animation when moved.
 
-Tables show labels for instance `1` in **Parameters**. Other instances replace the numeric prefix with their stable identity. Fractional controls display stored numbers: `1` means 100 percent. Legacy setup fields can display percentages.
+Tables show labels for instance `1` in **Parameters**. Other instances replace the numeric prefix with their stable identity. Fractional controls display `1` for 100 percent.
 
 The effect-level **Enabled** choice is **off** or **on**, default **on**. Off bypasses the entire look.
 
@@ -412,6 +412,6 @@ The effect-level **Enabled** choice is **off** or **on**, default **on**. Off by
 
 ## Legacy chains
 
-Saved effects without instance data retain the legacy renderer. That format has at most one of each of the 29 tool types. Lens Distortion stays first. The instance format allows repeated tools and applies Lens Distortion at its chain position.
+Looks saved in the old format keep working, with at most one of each of the 29 tool types and Lens Distortion first. The current format allows repeated tools and applies Lens Distortion at its chain position.
 
 [Build a look with Magic Looks](/docs/features/magic-looks/)
