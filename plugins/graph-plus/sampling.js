@@ -1,4 +1,5 @@
 "use strict";
+const { expressionOf, evaluatedValue } = require("./property-state.js");
 
 // Subdivide in screen space. Seed intervals prevent symmetric oscillations
 // from hiding between equal endpoints and midpoints.
@@ -35,7 +36,7 @@ class ExpressionSamples {
     const step = Math.min(1, Math.max(zoom * 2, 1 / 64));
     const first = Math.floor(start / step) * step;
     const last = Math.ceil(end / step) * step;
-    const expression = property.expression;
+    const expression = expressionOf(property);
     const key = [expression?.source, first, last, step].join("|");
     const old = this.cache.get(property);
     if (old?.key === key && old.expression === expression && old.complete) return old;
@@ -46,7 +47,7 @@ class ExpressionSamples {
     while (record.next <= last && budget.remaining > 0 && this.now() < budget.deadline) {
       const frame = record.next;
       let value;
-      try { value = property.get(frame); } catch (_error) { value = NaN; }
+      try { value = evaluatedValue(property, frame); } catch (_error) { value = NaN; }
       record.points.push([frame, typeof value === "number" ? value : NaN]);
       record.next += step;
       budget.remaining--;

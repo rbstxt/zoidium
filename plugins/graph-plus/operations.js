@@ -1,4 +1,5 @@
 "use strict";
+const { expressionOf, evaluatedValue } = require("./property-state.js");
 const { pasteKey } = require("./axes.js");
 
 // Warn-once reporter for failure sites that run per frame or per item:
@@ -166,7 +167,7 @@ PZ.ui.graph.prototype.applyEasingToSelected = function (easeIdx) {
   this.updateStatus("applied " + (nm || ("ease " + easeIdx)));
 };
 PZ.ui.graph.prototype.addKeyframeAtPlayhead = function () {
-  var groups = this.editableGroups ? this.editableGroups() : this.propGroups().filter(function (g) { return g.style.display !== "none" && !g.pz_object.expression; });
+  var groups = this.editableGroups ? this.editableGroups() : this.propGroups().filter(function (g) { return g.style.display !== "none" && !expressionOf(g.pz_object); });
   if (!groups.length) return;
   var cf = currentFrame(this.editor);
   this.editor.history.startOperation();
@@ -192,7 +193,7 @@ PZ.ui.graph.prototype.copySelected = function () {
   var groups = this.propGroups();
   for (var gi = 0; gi < groups.length; gi++) {
     var gel = groups[gi];
-    if (gel.pz_object.expression || gel.style.display === "none" || (this._selectedAxes?.size && !this._selectedAxes.has(gel.pz_object))) continue;
+    if (expressionOf(gel.pz_object) || gel.style.display === "none" || (this._selectedAxes?.size && !this._selectedAxes.has(gel.pz_object))) continue;
     var sel = Array.prototype.slice.call(gel._keys.getElementsByClassName("selected"));
     if (sel.length) map[gel.pz_object.definition.name] = sel.map(function (e) { return e.pz_object; });
   }
@@ -231,7 +232,7 @@ PZ.ui.graph.prototype.pasteAtPlayhead = function () {
     var groups = self.editableGroups ? self.editableGroups() : self.propGroups();
     for (var gi = 0; gi < groups.length; gi++) {
       var prop = groups[gi].pz_object;
-      if (prop.expression || groups[gi].style.display === "none") continue;
+      if (expressionOf(prop) || groups[gi].style.display === "none") continue;
       var off = groups[gi].pz_frameOffset || 0;
       for (var ai = 0; ai < arr.length; ai++) {
         var data = arr[ai].data;
@@ -308,7 +309,7 @@ PZ.ui.graph.prototype.updateLegend = function () {
     row.appendChild(dot);
     var nm = mk("span");
     nm.className = "g2-track-name";
-    nm.textContent = (info ? "  " + info.axis : displayName(prop)) + (prop.expression ? " · Expression" : "");
+    nm.textContent = (info ? "  " + info.axis : displayName(prop)) + (expressionOf(prop) ? " · Expression" : "");
     row.appendChild(nm);
     var val = mk("span");
     val.className = "g2-track-val";
@@ -346,7 +347,7 @@ PZ.ui.graph.prototype.updateLegendValues = function () {
     var prop = rows[i]._prop, gel = rows[i]._gel;
     try {
       var off = (gel && gel.pz_frameOffset) || 0;
-      var v = prop.get(cf - off);
+      var v = evaluatedValue(prop, cf - off);
       rows[i].textContent = typeof v === "number" ? (Math.round(v * 100) / 100).toString() : "";
     } catch (e) { /* An unreadable property value leaves its cell blank. */ rows[i].textContent = ""; }
   }

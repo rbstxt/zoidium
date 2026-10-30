@@ -81,3 +81,13 @@ test("vector paste keeps exact property matches, maps sibling axes, and permits 
   assert.equal(pasteKey({ "Position.X": [1] }, "Position.Y", "Y", true), "Position.X");
   assert.equal(pasteKey(data, "Scale.Z", "Z", false), null);
 });
+
+test("pinned tracks release properties removed from the project", () => {
+  const { g, vector } = graph();
+  const property = vector.objects[1];
+  g.objects = [property];
+  // This fixture's owner is outside the sequence's registered child lists.
+  // Its address cannot resolve back to the property.
+  g.pruneDetachedProperties();
+  assert.equal(g.objects.length, 0);
+});

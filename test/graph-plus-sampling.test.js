@@ -72,3 +72,61 @@ test("native expression sampling preserves serialized project, playhead and undo
   assert.equal(editor.playback.currentFrame, 0);
   assert.equal(editor.history.undoStack.length, 0);
 });
+
+test("drawn Bezier segments match native playback for every Easing+ preset", () => {
+  const { PZ } = nativeHost();
+  const { PRESETS } = require("../plugins/easing-plus/easing-curves.js");
+  PZ.ui = { graph: function () {} };
+  require("../plugins/graph-plus/curves.js")({ PZ });
+  for (const preset of PRESETS) {
+    const prop = new PZ.property.dynamic.keyframes({ type: 0, name: "Curve", value: 0 });
+    const left = new PZ.keyframe(0, 0, 1), right = new PZ.keyframe(20, 100, 257);
+    left.controlPoints[1] = [100 * preset.points[0].outX, 20 * preset.points[0].outY];
+    right.controlPoints[0] = [100 * preset.points[1].inX, 20 * preset.points[1].inY];
+    prop.keyframes.push(left, right);
+    const attrs = {}, group = { pz_valueScale: 1, style: {} };
+    PZ.ui.graph.prototype.updateCurve.call({ options: { curveLineWidth: 2 } }, {
+      parentElement: { parentElement: group }, setAttributeNS(_ns, key, value) { attrs[key] = value; },
+    }, left, right);
+    const values = attrs.d.match(/-?\d+(?:\.\d+)?(?:e[+-]?\d+)?/gi).map(Number);
+    const cubic = (a, b, c, d, t) => PZ.tween.bezier(a, b, c, d, t);
+    for (let i = 1; i < 100; i++) {
+      const t = i / 100;
+      const x = cubic(values[0], values[2], values[4], values[6], t);
+      const y = cubic(values[1], values[3], values[5], values[7], t);
+      assert.ok(Math.abs(prop.get(x) + y) < 1e-5, preset.name);
+    }
+  }
+});
+
+test("step display agrees with native playback even when a Bezier flag remains set", () => {
+  const { PZ } = nativeHost();
+  PZ.ui = { graph: function () {} };
+  require("../plugins/graph-plus/curves.js")({ PZ });
+  const property = new PZ.property.dynamic.keyframes({ type: 0, name: "Step", value: 0 });
+  const left = new PZ.keyframe(0, 0, 1), right = new PZ.keyframe(20, 100, 256);
+  property.keyframes.push(left, right);
+  const attrs = {}, group = { pz_valueScale: 1, style: {} };
+  PZ.ui.graph.prototype.updateCurve.call({ options: { curveLineWidth: 2 } }, {
+    parentElement: { parentElement: group }, setAttributeNS(_ns, key, value) { attrs[key] = value; },
+  }, left, right);
+  assert.equal(attrs.d, "M 0 0 L 100 0 L 100 -20");
+  assert.equal(property.get(99.9), 0);
+  assert.equal(property.get(100), 20);
+});
+
+test("vector expressions supply component samples and override child keys", () => {
+  const { host, fixture } = require("./helpers/editor-identity-host.cjs");
+  const c = host(), { PZ } = c;
+  const { layer, clip } = fixture(c); clip.properties.load();
+  const vector = layer.properties.position;
+  vector.expression = new PZ.expression("[frame, frame * 2, frame * 3]");
+  const { expressionOf } = require("../plugins/graph-plus/property-state.js");
+  const sampler = new ExpressionSamples(() => 0);
+  for (let axis = 0; axis < vector.objects.length; axis++) {
+    const property = vector.objects[axis];
+    assert.equal(expressionOf(property), vector.expression);
+    const result = sampler.sample(property, 0, 10, 1, { deadline: 1, remaining: 100 });
+    assert.equal(result.points[10][1], 10 * (axis + 1));
+  }
+});

@@ -1,4 +1,5 @@
 "use strict";
+const { expressionOf } = require("./property-state.js");
 
 const { controllers } = require("./selection.js");
 
@@ -327,7 +328,7 @@ PZ.ui.graph.prototype.selectedKeys = function () {
   if (!this.svg) return [];
   return Array.prototype.slice.call(this.svg.querySelectorAll(".g2-kf.selected")).filter(el => {
     var group = el.parentElement.parentElement;
-    return !group.pz_object.expression && group.style.display !== "none" &&
+    return !expressionOf(group.pz_object) && group.style.display !== "none" &&
       (!this._selectedAxes?.size || this._selectedAxes.has(group.pz_object));
   });
 };
@@ -398,7 +399,7 @@ PZ.ui.graph.prototype.updateViewBox = function () {
   var groups = this.propGroups();
   for (var g = 0; g < groups.length; g++) {
     var gel = groups[g];
-    if (gel.pz_object.expression) { this.drawExpression(gel); continue; }
+    if (expressionOf(gel.pz_object)) { this.drawExpression(gel); continue; }
     var keys = gel._keys ? Array.prototype.slice.call(gel._keys.children) : [];
     for (var k = 0; k < keys.length; k++) {
       this.updateKeyframe(keys[k]);
@@ -423,8 +424,9 @@ PZ.ui.graph.prototype.fitAll = function (onlySelected) {
     if (gel.style.display === "none") continue;
     var scale = gel.pz_valueScale || 1;
     var off = gel.pz_frameOffset || 0;
-    if (gel.pz_object.expression) {
+    if (expressionOf(gel.pz_object)) {
       this.drawExpression(gel);
+      scale = gel.pz_valueScale || 1;
       for (var point of gel._samples?.points || []) {
         if (!Number.isFinite(point[1])) continue;
         l = Math.min(l, point[0] + off); r = Math.max(r, point[0] + off);

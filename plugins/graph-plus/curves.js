@@ -1,4 +1,5 @@
 "use strict";
+const { expressionOf } = require("./property-state.js");
 
 const { easingPoints, ExpressionSamples } = require("./sampling.js");
 var gpNextGroupId = 1;
@@ -210,7 +211,7 @@ PZ.ui.graph.prototype.updateKeyframe = function (kfEl) {
   else kfEl.removeAttribute("stroke-dasharray");
 };
 PZ.ui.graph.prototype.selectKeyframe = function (kfEl) {
-  if (kfEl.parentElement.parentElement.pz_object.expression) return;
+  if (expressionOf(kfEl.parentElement.parentElement.pz_object)) return;
   if (kfEl.classList.contains("selected")) return;
   var gel = kfEl.parentElement.parentElement;
   kfEl.pz_handles = this.createHandles(kfEl.pz_object);
@@ -311,13 +312,17 @@ PZ.ui.graph.prototype.updateCurve = function (path, leftKf, rightKf) {
   path.setAttributeNS(null, "d", d);
 };
 PZ.ui.graph.prototype.drawExpression = function (gel) {
-  if (!gel.pz_object.expression || !gel._expression) return;
+  if (!expressionOf(gel.pz_object) || !gel._expression) return;
   if (!this._expressionSamples) this._expressionSamples = new ExpressionSamples();
   var off = gel.pz_frameOffset || 0;
   var record = this._expressionSamples.sample(gel.pz_object,
     this.centerX - this.width * this.zoomX / 2 - off,
     this.centerX + this.width * this.zoomX / 2 - off, this.zoomX, this._expressionBudget);
   gel._samples = record;
+  if (this.options.normalize) {
+    var maxAbs = record.points.reduce((max, point) => Number.isFinite(point[1]) ? Math.max(max, Math.abs(point[1])) : max, 0);
+    gel.pz_valueScale = 80 / (maxAbs > 1e-9 ? maxAbs : 1);
+  }
   var ox = this.centerX - off, oy = this.centerY;
   var path = gel._expression, d = "", connected = false;
   record.points.forEach((point) => {
@@ -344,7 +349,7 @@ PZ.ui.graph.prototype.redrawAllKeyframes = function (gel) {
   while (gel._handles.firstChild) gel._handles.firstChild.remove();
   var prop = gel.pz_object;
   this.refreshScaleFor(gel);
-  if (prop.expression) {
+  if (expressionOf(prop)) {
     gel._expression = this.createCurve();
     gel._curves.appendChild(gel._expression);
     this.drawExpression(gel);
@@ -431,7 +436,18 @@ PZ.ui.graph.prototype.createProperty = function (prop) {
   } catch (e) { /* Properties outside clips need no offset tracking. */ }
   g.pz_expressionChanged = function () { self._expressionSamples?.invalidate(); self.redrawAllKeyframes(g); self.updateViewBox(); self.updateLegend(); };
   prop.onExpressionChanged?.watch(g.pz_expressionChanged);
-  g.pz_projectChanged = function () { self._expressionSamples?.invalidate(); self.updateViewBox(); };
+  g.pz_groupExpressionSignal = prop.parent?.parent?.onExpressionChanged;
+  g.pz_groupExpressionSignal?.watch(g.pz_expressionChanged);
+  g.pz_projectChanged = function () {
+    if (self._projectRefreshQueued) return;
+    self._projectRefreshQueued = true;
+    Promise.resolve().then(function () {
+      self._projectRefreshQueued = false;
+      self._expressionSamples?.invalidate();
+      self.pruneDetachedProperties();
+      self.updateViewBox();
+    });
+  };
   g.pz_projectSignal = this.editor.project?.ui?.onChanged;
   g.pz_projectSignal?.watch(g.pz_projectChanged);
   this.refreshScaleFor(g);
@@ -444,6 +460,7 @@ PZ.ui.graph.prototype.unloadProperty = function (g) {
   try {
     if (g.pz_nameChanged && prop.properties && prop.properties.name) prop.properties.name.onChanged.unwatch(g.pz_nameChanged);
     prop.onExpressionChanged?.unwatch(g.pz_expressionChanged);
+    g.pz_groupExpressionSignal?.unwatch(g.pz_expressionChanged);
     g.pz_projectSignal?.unwatch(g.pz_projectChanged);
     prop.onKeyframeCreated.unwatch(g.pz_keyframeCreated);
     prop.onKeyframeDeleted.unwatch(g.el_keyframeDeleted);

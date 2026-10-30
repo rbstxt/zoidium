@@ -1,4 +1,5 @@
 "use strict";
+const { expressionOf } = require("./property-state.js");
 const COLORS = { X: "#ed6a68", Y: "#81c784", Z: "#64b5f6", W: "#c792ea",
   R: "#ed6a68", G: "#81c784", B: "#64b5f6", A: "#c792ea" };
 function axisInfo(PZ, prop) {
@@ -13,8 +14,17 @@ function axisInfo(PZ, prop) {
 module.exports = function ({ PZ, addrString }) {
   const proto = PZ.ui.graph.prototype;
   proto.axisInfo = function (prop) { return axisInfo(PZ, prop); };
+  proto.pruneDetachedProperties = function () {
+    const project = this.editor.project;
+    if (!project?.addressLookup || !this.objects?.splice) return;
+    for (const property of Array.from(this.objects)) {
+      let live = false;
+      try { live = project.addressLookup(property.getAddress()) === property; } catch (_error) { /* Deleted properties have no live address. */ }
+      if (!live) this.objects.splice(this.objects.indexOf(property), 1);
+    }
+  };
   proto.editableGroups = function () {
-    return this.propGroups().filter(g => !g.pz_object.expression && g.style.display !== "none" &&
+    return this.propGroups().filter(g => !expressionOf(g.pz_object) && g.style.display !== "none" &&
       (!this._selectedAxes?.size || this._selectedAxes.has(g.pz_object)));
   };
   proto.selectAxes = function (groups, additive) {
@@ -36,7 +46,7 @@ module.exports = function ({ PZ, addrString }) {
       const info = this.axisInfo(group.pz_object);
       if (!info) continue;
       for (const sibling of this.propGroups()) {
-        if (sibling.pz_object.expression || this.axisInfo(sibling.pz_object)?.parent !== info.parent) continue;
+        if (expressionOf(sibling.pz_object) || this.axisInfo(sibling.pz_object)?.parent !== info.parent) continue;
         for (const candidate of sibling._keys.children) if (candidate.pz_object.frame === key.pz_object.frame) result.add(candidate);
       }
     }
