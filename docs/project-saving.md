@@ -1,10 +1,10 @@
 # Saving and restore points
 
-A failed save keeps your edits in the editor. Edits made while a save is running cancel that save. If a save or open takes a long time, a "Still working" question offers Keep waiting or Stop. It closes itself when the step finishes, so a valid project never fails on time alone. Automatic backups stop at that point instead of asking.
+A failed save keeps your edits in the editor. Edits made while a save is running cancel that save. Projects are limited to 2 GB of uncompressed input (32 MB per JSON entry, 10,000 entries, 128 nesting levels); inputs above these limits fail explicitly and leave the current project intact. If a save or open takes a long time, a "Still working" question offers Keep waiting or Stop. It closes itself when the step finishes, so a valid project never fails on time alone. Automatic backups stop at that point instead of asking.
 
 ## Restore points
 
-Zoidium stores restore points automatically every five minutes. Manual points are kept until you delete them. Open, New, Restore, and plugin disable store a restore point of the current project first. When that backup fails, for example because browser storage is full, you choose between keeping the current project and continuing without a backup.
+Zoidium stores restore points automatically every five minutes by default. To change the interval or turn automatic backups off, use **Automatic backup interval** in the **Restore** panel. Manual points are kept until you delete them. Open, New, Restore, and plugin disable store a restore point of the current project first. When that backup fails, for example because browser storage is full, you choose between keeping the current project and continuing without a backup.
 
 Restore checks the selected point first, then backs up the current project before loading it. A failure keeps the current project. If storage is full, Zoidium removes the oldest extra automatic points and keeps the newest one for each project.
 
