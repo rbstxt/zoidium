@@ -93,7 +93,7 @@ PBR+ keeps its own base properties from the table above. Node Material uses the 
 | **Environment rotation** | Number | No declared bounds | `0` | Environment image rotation in degrees. |
 | **Shadow side** | Choice | **Auto**, **Front**, **Back**, **Double** | **Auto** | Faces used for shadow casting. Auto uses Back for double-sided materials. |
 
-The **Open Node Editor** button appears while **Use node graph** is **on**. **Selected node image** is an image asset field for the selected Image or Texture node. Its default is empty.
+While **Use node graph** is **on**, the **Open Node Editor** button opens the graph. **Selected node image** holds the image for the selected Image or Texture node.
 
 
 ## Matcap
@@ -139,11 +139,11 @@ Image+ is unlit. **Image** is an image asset, default empty. **Transparency**, *
 
 ## Map composition and limits
 
-All materials that sample mesh UVs use the shared Material+ layout on 3D Text and extruded geometry. Caps use text bounds. Side walls unwrap along the outline. Matcap uses view direction instead of mesh UVs.
+On 3D Text and extruded shapes, caps map to the text bounds and side walls unwrap along the outline. Matcap uses view direction instead of mesh UVs.
 
-Normal map combines with graph Normal and bump detail. Bump Noise takes precedence over graph Bump. Ambient occlusion uses a map and does not calculate scene geometry occlusion.
+Normal map combines with graph Normal and bump detail. Bump Noise takes precedence over graph Bump. Ambient occlusion uses a map and does not calculate shadowing from scene geometry.
 
-Environment images use ordinary decoded image data, with power-of-two dimensions capped at 4096 by 2048. Intensity changes exposure. The image loader does not provide HDR or EXR radiance data.
+Environment images must use power-of-two dimensions up to 4096 by 2048. HDR and EXR files are not supported.
 
 [Material node properties](/docs/reference/material-nodes/)
 

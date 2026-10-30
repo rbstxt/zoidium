@@ -4,9 +4,9 @@ description: Graph sockets, local parameter defaults, exposed controls, and samp
 sidebar:
   label: Node Effect reference
 ---
-Node Effect compiles a graph into a native Custom Shader effect. Numeric and color fields have per-pixel sockets, except Parameter fields. Connected inputs replace local fields.
+Node Effect builds an effect from a node graph. Except for Parameter fields, numeric and color fields have per-pixel sockets. Connected inputs replace local fields.
 
-Numbers must be finite with absolute values no greater than `100000000`. The table lists narrower declared editor ranges where present. UV coordinates are normalized. Pixel Coordinate and Radius use pixels. Angles use radians.
+Number fields accept values up to ±100,000,000. UV coordinates are normalized. Pixel Coordinate and Radius use pixels. Angles use radians.
 
 
 ## Layer Color
@@ -65,7 +65,7 @@ Outputs: **Value**
 | **Minimum** | Number | No declared bounds | `0` | Minimum for the exposed control. |
 | **Maximum** | Number | No declared bounds | `1` | Maximum for the exposed control. |
 
-Creates a native animated property. Name is limited to 48 characters. Renaming retains the node identity.
+Creates a native animated property. Name is limited to 48 characters.
 
 
 ## Noise
@@ -274,7 +274,7 @@ Outputs: None
 | --- | --- | --- | --- | --- |
 | **Alpha** | Number | 0 to 1 | `1` | Output alpha. |
 
-Exactly one Output is required. Color is straight RGB here; output uses premultiplied alpha.
+Exactly one Output is required.
 
 
 ## Separate RGB
@@ -339,8 +339,6 @@ Outputs: **Color**, **Alpha**
 | **Center X** | Number | No declared bounds | `0.5` | Horizontal center in normalized UV coordinates. |
 | **Center Y** | Number | No declared bounds | `0.5` | Vertical center in normalized UV coordinates. |
 
-Box and Gaussian use a square grid no larger than 5 by 5. Directional and Radial use 1 to 32 taps.
-
 
 ## Edge Detect
 
@@ -353,11 +351,11 @@ Outputs: **Color**, **Value**, **Alpha**
 | **Radius (px)** | Number | No declared bounds | `1` | Radius of local sampling or dirt detail. |
 | **Strength** | Number | No declared bounds | `1` | Amount of the operation. |
 
-Calculates Sobel edges from premultiplied source luminance.
+Detects edges from image brightness.
 
 
 ## Graph and sampling limits
 
-Graphs accept at most 128 nodes, 256 links, and 196608 JSON characters. Cycles and duplicate destination connections are invalid. Reachable nodes may use at most 256 source samples per output pixel.
+Graphs accept at most 128 nodes and 256 links. Cycles and double connections to one input are rejected. Nodes may use at most 256 source samples per output pixel.
 
 [Build a Node Effect](/docs/features/node-effect/)

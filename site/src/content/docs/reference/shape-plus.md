@@ -9,9 +9,9 @@ Shape+ coordinates are composition pixels, centered at the origin with positive 
 
 ## Contents order and animation
 
-A paint draws enabled paths above it in the same group, including paths inside earlier nested groups. Modifiers act on earlier paths in their scope. Group Opacity isolates the group before compositing.
+A paint draws enabled paths above it in the same group, including paths inside earlier nested groups. Modifiers act on earlier paths in their scope.
 
-Every item has **Enabled**, an **off**, **on** choice that defaults to **on**. Numeric channels, vectors, colors, and gradients use native animation. Discrete choices and topology flags remain static.
+Every item has **Enabled**, an **off**, **on** choice that defaults to **on**. Numbers, vectors, colors, and gradients animate. Choices stay fixed.
 
 
 ## Group
@@ -47,7 +47,7 @@ Every item has **Enabled**, an **off**, **on** choice that defaults to **on**. N
 | Control | Type | Range or options | Default | Effect on output |
 | --- | --- | --- | --- | --- |
 | **Type** | Choice | **star**, **polygon** | **star** | Star or regular polygon. |
-| **Points** | Number | 3 to 128 | `5` | Rounded integer point count. |
+| **Points** | Number | 3 to 128 | `5` | Point count. |
 | **Position** | 2D vector | No declared bounds | `[0, 0]` | Translation in the containing coordinate space. |
 | **Inner radius** | Number | ≥ 0 | `50` | Radius of the star's inner vertices. |
 | **Outer radius** | Number | ≥ 0 | `100` | Radius of the outer vertices. |
@@ -61,7 +61,7 @@ Every item has **Enabled**, an **off**, **on** choice that defaults to **on**. N
 | Control | Type | Range or options | Default | Effect on output |
 | --- | --- | --- | --- | --- |
 | **Closed** | Choice | **off**, **on** | **on** | Connects the last vertex to the first. |
-| **Path** | Number | No declared bounds | Four-vertex rectangle | Six animated scalar channels per vertex: X, Y, In X, In Y, Out X, and Out Y. Tangents are relative to the vertex. |
+| **Path** | Number | No declared bounds | Four-vertex rectangle | Tangents are relative to the vertex. |
 
 
 ## Fill
@@ -263,7 +263,7 @@ An open path is offset on both sides into a closed outline. A **round** join giv
 
 ## Limits and related references
 
-Path tangents are relative to their vertices. Topology edits update every Path key. New native Contents paths start as four-vertex rectangles. Pen paths start open with one vertex.
+Path tangents are relative to their vertices. New native Contents paths start as four-vertex rectangles. Pen paths start open with one vertex.
 
 SVG import and native conversion create editable vector contents. Text+ character animation has no equivalent in the converted Shape+ outlines.
 

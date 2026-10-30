@@ -93,7 +93,7 @@ PBR+ は上の表の独自の基本プロパティを使います。Node Materia
 | **Environment rotation** | 数値 | 明示的な範囲指定なし | `0` | 環境画像の回転です。度単位です。 |
 | **Shadow side** | 選択肢 | **Auto**, **Front**, **Back**, **Double** | **Auto** | 影を落とす面です。Auto は両面のマテリアルに Back を使います。 |
 
-**Use node graph** が **on** の間は **Open Node Editor** ボタンが表示されます。**Selected node image** は選択した Image または Texture ノードの画像アセット欄です。初期値は空です。
+**Use node graph** が **on** の間は、**Open Node Editor** ボタンでグラフを開きます。**Selected node image** は選択した Image または Texture ノードの画像を保持します。
 
 
 ## Matcap
@@ -139,11 +139,11 @@ Image+ は照明を使いません。**Image** は画像アセットで、初期
 
 ## マップの合成と制限
 
-メッシュの UV を使うすべてのマテリアルは、3D Text と押し出し形状に共有の Material+ 配置を使います。キャップはテキストの範囲を使います。側面は輪郭に沿って展開します。Matcap はメッシュの UV の代わりに視線の方向を使います。
+3D Text と押し出し形状では、キャップはテキストの範囲に対応し、側面は輪郭に沿って展開します。Matcap はメッシュの UV の代わりに視線の方向を使います。
 
-Normal map はグラフの Normal とバンプの細部と合成されます。Bump Noise はグラフの Bump より優先します。アンビエントオクルージョンはマップを使い、シーンの形状による遮蔽を計算しません。
+Normal map はグラフの Normal とバンプの細部と合成されます。Bump Noise はグラフの Bump より優先します。アンビエントオクルージョンはマップを使い、シーンの形状による影の計算はしません。
 
-環境画像は通常のデコードされた画像データを使います。寸法は 2 の累乗で、上限は 4096×2048 です。Intensity は露出を変えます。画像ローダーは HDR または EXR の放射輝度データを提供しません。
+環境画像は 2 の累乗の寸法で、上限は 4096×2048 です。HDR と EXR には対応しません。
 
 [マテリアルのノードのプロパティ](/docs/ja/reference/material-nodes/)
 
