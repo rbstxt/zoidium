@@ -18,7 +18,7 @@ test("wheel classifier recognizes mouse steps, trackpad, pinch and inertial tail
 test("wheel math anchors zoom, pans both axes, and limits extreme input", () => {
   const next=wheelView(view,{deltaY:-1.25,ctrlKey:true},{kind:"zoom"},point);
   assert.ok(next.zoomX<view.zoomX && next.zoomY<view.zoomY);
-  assert.equal(next.centerX+(point.x-50)*next.zoomX,view.centerX+(point.x-50)*view.zoomX);
+  assert.ok(Math.abs(next.centerX+(point.x-50)*next.zoomX-(view.centerX+(point.x-50)*view.zoomX))<1e-10);
   assert.equal(next.centerY+(point.y-50)*next.zoomY,view.centerY+(point.y-50)*view.zoomY);
   const pan=wheelView(view,{deltaX:2,deltaY:3},{kind:"pan"},point);
   assert.equal(pan.centerX,52);assert.equal(pan.centerY,6);
@@ -29,4 +29,21 @@ test("wheel math anchors zoom, pans both axes, and limits extreme input", () => 
   const extreme=wheelView(view,{deltaY:1e99,ctrlKey:true},{kind:"zoom"},point);
   assert.ok(Object.values(extreme).every(Number.isFinite));
   assert.ok(extreme.zoomX>0 && extreme.zoomY>0);
+});
+const { nearestTarget, visibleHandle, constrainHandle } = require("../plugins/graph-plus/targets.js");
+test("selected handles win overlapping key hit areas and short handles stay visible", () => {
+  const key={x:0,y:0}, handle={x:3,y:0,handle:true};
+  assert.equal(nearestTarget([key,handle],0,0,12),handle);
+  assert.equal(nearestTarget([key],20,0,12),undefined);
+  assert.deepEqual(visibleHandle([0,0],2,3,1,0),[-48,0]);
+  const cp=[1,1], before=cp.slice();
+  const shown=visibleHandle(cp,1,1,1,1);
+  assert.ok(Math.abs(Math.hypot(...shown)-24)<1e-9);
+  assert.deepEqual(cp,before);
+});
+test("Shift constrains angles and Ctrl or Cmd snaps to flat or neighbour slope", () => {
+  assert.deepEqual(constrainHandle([10,.1],{ctrlKey:true},2),[10,0]);
+  assert.deepEqual(constrainHandle([10,19.9],{metaKey:true},2),[10,20]);
+  const shift=constrainHandle([10,8],{shiftKey:true},0);
+  assert.ok(Math.abs(shift[0]-shift[1])<1e-9);
 });

@@ -91,6 +91,11 @@
       "id": "input",
       "type": "text",
       "source": "./plugins/graph-plus/input.js?v=15"
+    },
+    {
+      "id": "targets",
+      "type": "text",
+      "source": "./plugins/graph-plus/targets.js?v=15"
     }
   ]
 }

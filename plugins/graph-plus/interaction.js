@@ -1,4 +1,5 @@
 "use strict";
+const { constrainHandle } = require("./targets.js");
 
 // Warn-once reporter for failure sites that run per layer on drop:
 // the first failure is logged, repeats stay silent so the console stays readable.
@@ -44,7 +45,7 @@ PZ.ui.graph.prototype.snapFrame = function (absFrame, excludeEls) {
 /* ---------- keyframe drag (pointer based) ---------- */
 PZ.ui.graph.prototype.attachKeyframeHandlers = function (el) {
   var self = this;
-  el.addEventListener("pointerdown", function (e) {
+  el._g2down = function (e) {
     if (e.button !== 0) return;
     e.stopPropagation();
     try { e.preventDefault(); } catch (err) { /* Synthetic host events may lack preventDefault. */ }
@@ -129,7 +130,8 @@ PZ.ui.graph.prototype.attachKeyframeHandlers = function (el) {
       self.updateStatus();
     };
     beginPointerDrag(el, e, mv, up);
-  });
+  };
+  el.addEventListener("pointerdown", el._g2down);
 };
 /* legacy shims: keep method names so old callers don't break */
 PZ.ui.graph.prototype.keyframeDragStart = function () {};
@@ -177,7 +179,7 @@ PZ.ui.graph.prototype.finishMovingKeyframes = function (selEls) {
 /* ---------- handle drag ---------- */
 PZ.ui.graph.prototype.attachHandleHandlers = function (el, cpIdx, kfEl) {
   var self = this;
-  el.addEventListener("pointerdown", function (e) {
+  el._g2down = function (e) {
     if (e.button !== 0) return;
     e.stopPropagation();
     try { e.preventDefault(); } catch (err) { /* Synthetic host events may lack preventDefault. */ }
@@ -192,10 +194,12 @@ PZ.ui.graph.prototype.attachHandleHandlers = function (el, cpIdx, kfEl) {
     var startVal = kf.value + kf.controlPoints[cpIdx][1];
     var sel = self.selectedKeys();
     if (!kfEl.classList.contains("selected")) sel = [kfEl];
+    if (!kfEl.classList.contains("selected")) { self.deselectAllKeyframes(); self.selectKeyframe(kfEl); }
     var snaps = sel.map(function (s) {
       return { el: s, kf: s.pz_object, gel: s.parentElement.parentElement, oldCP: JSON.parse(JSON.stringify(s.pz_object.controlPoints)) };
     });
     snaps.forEach(function (sn) { sn.el.pz_oldControlPoints = JSON.parse(JSON.stringify(sn.oldCP)); });
+    var originalContinuous = kf.continuousTangent;
     var moved = false;
     self.editor.history.startOperation();
     var mv = function (ev) {
@@ -205,16 +209,28 @@ PZ.ui.graph.prototype.attachHandleHandlers = function (el, cpIdx, kfEl) {
       moved = true;
       var dF = curG.x - startG.x;
       var dV = -(curG.y - startG.y);
-      var breakT = ev.shiftKey;
+      var breakT = e.altKey ? kf.continuousTangent : false;
+      if (!self._dragging) self._dragging = "handle";
       for (var i = 0; i < snaps.length; i++) {
         var sn = snaps[i];
         var sc = (sn.gel && sn.gel.pz_valueScale) || 1;
+        if (!sn.converted) {
+          // The right key owns a segment's easing, including the outgoing handle.
+          var owner = cpIdx === 1 ? sn.el.nextElementSibling : sn.el;
+          if (owner && owner.pz_object.tween !== 257) self.propertyOps.setTween({
+            property: sn.gel.pz_object.getAddress(), frame: owner.pz_object.frame, tween: 257 });
+          sn.converted = true;
+        }
         var cp = sn.kf.controlPoints[cpIdx];
         var wantF = sn.oldCP[cpIdx][0] + dF;
         if (cpIdx === 0) cp[0] = Math.min(wantF, 0);
         else cp[0] = Math.max(wantF, 0);
         cp[1] = sn.oldCP[cpIdx][1] + dV / sc;
-        if (sn.kf.continuousTangent && !breakT) {
+        var neighbour = cpIdx ? sn.el.nextElementSibling?.pz_object : sn.el.previousElementSibling?.pz_object;
+        var slope = neighbour ? (neighbour.value - sn.kf.value) / (neighbour.frame - sn.kf.frame) : 0;
+        var constrained = constrainHandle(cp, ev, slope);
+        cp[0] = constrained[0]; cp[1] = constrained[1];
+        if ((sn.kf.continuousTangent || (e.altKey && !kf.continuousTangent)) && !breakT) {
           var other = sn.kf.controlPoints[1 - cpIdx];
           // mirror: keep length of other? old code mirrors dragged length onto other
           var len = Math.sqrt(cp[0] * cp[0] + cp[1] * cp[1]);
@@ -228,11 +244,26 @@ PZ.ui.graph.prototype.attachHandleHandlers = function (el, cpIdx, kfEl) {
       }
     };
     var up = function (ev) {
-      if (moved) self.finishMovingHandles(ev && ev.shiftKey);
+      if (moved) {
+        self.finishMovingHandles(e.altKey && originalContinuous);
+        if (e.altKey && !originalContinuous) for (var sn of snaps)
+          self.setContinuousTangentExact(sn.gel.pz_object, sn.kf, true);
+      }
+      self._dragging = null;
+      self.updateStatus();
       self.editor.history.finishOperation();
     };
     beginPointerDrag(el, e, mv, up);
     void startAbsF; void startVal; void scale;
+  };
+  el.addEventListener("pointerdown", el._g2down);
+  el.addEventListener("dblclick", function (e) {
+    e.stopPropagation(); e.preventDefault();
+    self.editor.history.startOperation();
+    var gel = kfEl.parentElement.parentElement;
+    self.propertyOps.setControlPoints({ property: gel.pz_object.getAddress(), frame: kfEl.pz_object.frame,
+      controlPoints: [[-10, 0], [10, 0]] });
+    self.editor.history.finishOperation();
   });
 };
 PZ.ui.graph.prototype.handleDragStart = function () {};

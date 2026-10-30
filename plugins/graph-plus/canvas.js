@@ -1,4 +1,5 @@
 "use strict";
+const { nearestTarget } = require("./targets.js");
 const { classifyWheel, wheelView } = require("./input.js");
 const { expressionOf } = require("./property-state.js");
 
@@ -119,6 +120,11 @@ PZ.ui.graph.prototype.create = function () {
 
   this.canvasEl.addEventListener("wheel", function (e) { self.mouseWheel(e); }, { passive: false });
   this.rulerEl.addEventListener("wheel", function (e) { self.mouseWheel(e); }, { passive: false });
+  this.svg.addEventListener("pointerdown", function (e) {
+    if (e.button !== 0 || self._spaceDown) return;
+    var hit = self.pickTarget(e);
+    if (hit) { e.stopPropagation(); hit.element._g2down(e); }
+  }, true);
   this.svg.addEventListener("pointerdown", function (e) { self.onSvgPointerDown(e); });
   // Windows middle-click autoscroll would hijack MMB pan — kill it
   this.svg.addEventListener("mousedown", function (e) { if (e.button === 1) e.preventDefault(); });
@@ -266,6 +272,21 @@ PZ.ui.graph.prototype.onSvgPointerDown = function (e) {
     self2.updateStatus();
   });
 };
+PZ.ui.graph.prototype.pickTarget = function (e) {
+  var targets = [];
+  for (var group of this.propGroups()) {
+    if (group.style.display === "none") continue;
+    for (var key of group._keys.children) {
+      for (var element of [key, ...Array.from(key.pz_handles?.children || []).slice(0, 2)]) {
+        if (!element._g2down || (element !== key && key.pz_handles.style.display === "none")) continue;
+        var r = element.getBoundingClientRect();
+        targets.push({ element, handle: element !== key, x: r.left + r.width / 2, y: r.top + r.height / 2 });
+      }
+    }
+  }
+  var coarse = this._win()?.matchMedia?.("(pointer: coarse)").matches;
+  return nearestTarget(targets, e.clientX, e.clientY, coarse ? 20 : 12);
+};
 PZ.ui.graph.prototype.onSvgPointerMove = function (e) {
   var rect = this.svg.getBoundingClientRect();
   var px = e.clientX - rect.left, py = e.clientY - rect.top;
@@ -280,7 +301,12 @@ PZ.ui.graph.prototype.onSvgPointerMove = function (e) {
   }
   var html = "f " + Math.round(g.x) + " · y " + (Math.round(g.y * 10) / 10);
   // hover keyframe?
-  var t = e.target;
+  var hit = this.pickTarget(e);
+  if (this._hoverTarget) this._hoverTarget.classList.remove("g2-hover");
+  this._hoverTarget = hit?.element;
+  if (hit) { hit.element.classList.add("g2-hover"); this.canvasEl.style.cursor = "move"; }
+  var t = hit?.element || e.target;
+  if (hit?.handle) html = "Handle · frame " + t.parentElement.pz_object.frame + " · Alt: break/link · Shift: angle · Ctrl/Cmd: snap";
   if (t && t.classList && t.classList.contains("g2-kf") && t.pz_object) {
     var kf = t.pz_object;
     var gel = t.parentElement.parentElement;

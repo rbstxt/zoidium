@@ -1,4 +1,5 @@
 "use strict";
+const { visibleHandle } = require("./targets.js");
 const { expressionOf, segmentType } = require("./property-state.js");
 
 const { easingPoints, ExpressionSamples } = require("./sampling.js");
@@ -151,21 +152,23 @@ PZ.ui.graph.prototype.updateHandles = function (hEl) {
   // SVG g transform via attribute for reliability
   hEl.setAttributeNS(null, "transform", "translate(" + kf.frame + " " + (-kf.value * scale) + ")");
   var h0 = hEl.children[0], h1 = hEl.children[1], l0 = hEl.children[2], l1 = hEl.children[3];
-  var bez = segmentType(PZ, kf.tween) === "bezier";
+  var bez = segmentType(PZ, kf.tween) !== "step";
   hEl.style.display = bez ? "" : "none";
   if (!bez) return;
+  var cp0 = visibleHandle(kf.controlPoints[0], this.zoomX, this.zoomY, scale, 0);
+  var cp1 = visibleHandle(kf.controlPoints[1], this.zoomX, this.zoomY, scale, 1);
   h0.setAttributeNS(null, "rx", 0.5 * s * this.zoomX);
   h0.setAttributeNS(null, "ry", 0.5 * s * this.zoomY);
-  h0.setAttributeNS(null, "cx", kf.controlPoints[0][0]);
-  h0.setAttributeNS(null, "cy", -kf.controlPoints[0][1] * scale);
+  h0.setAttributeNS(null, "cx", cp0[0]);
+  h0.setAttributeNS(null, "cy", cp0[1]);
   h1.setAttributeNS(null, "rx", 0.5 * s * this.zoomX);
   h1.setAttributeNS(null, "ry", 0.5 * s * this.zoomY);
-  h1.setAttributeNS(null, "cx", kf.controlPoints[1][0]);
-  h1.setAttributeNS(null, "cy", -kf.controlPoints[1][1] * scale);
+  h1.setAttributeNS(null, "cx", cp1[0]);
+  h1.setAttributeNS(null, "cy", cp1[1]);
   l0.setAttributeNS(null, "x1", 0); l0.setAttributeNS(null, "y1", 0);
-  l0.setAttributeNS(null, "x2", kf.controlPoints[0][0]); l0.setAttributeNS(null, "y2", -kf.controlPoints[0][1] * scale);
+  l0.setAttributeNS(null, "x2", cp0[0]); l0.setAttributeNS(null, "y2", cp0[1]);
   l1.setAttributeNS(null, "x1", 0); l1.setAttributeNS(null, "y1", 0);
-  l1.setAttributeNS(null, "x2", kf.controlPoints[1][0]); l1.setAttributeNS(null, "y2", -kf.controlPoints[1][1] * scale);
+  l1.setAttributeNS(null, "x2", cp1[0]); l1.setAttributeNS(null, "y2", cp1[1]);
 };
 PZ.ui.graph.prototype.createKeyframe = function (kfObj) {
   var gelColor = "var(--zui-text-bright)";
