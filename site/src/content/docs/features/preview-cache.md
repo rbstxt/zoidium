@@ -34,8 +34,7 @@ cannot be retained or reused. A larger memory limit does not remove these checks
   The note identifies the required plugin and its version when available.
 - Time effects that cannot cache frames use live evaluation. Smart Motion Blur
   does not disable caching by itself, but its plugin version must pass verification.
-- Any loading plugin prevents caching. A required plugin's error also prevents
-  caching. Core errors always block caching.
+- Any loading plugin prevents caching. A bundle-load error from a plugin your project does not use still permits caching only if that plugin's activation never started; once activation starts, or for any enabled, required, or Core plugin, its error blocks caching for all projects. Disable or repair the named plugin.
 - Resource loading, frame preparation, and exact video decoding must finish before
   a frame can be retained.
 - If project validation is slow, caching waits until playback stops and
