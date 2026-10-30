@@ -15,6 +15,13 @@ sidebar:
 
 陰影を付ける視点依存の画像を使うには、Matcap を選択します。ライティングのない画像を使うには、Image+ を選択します。Material+ の UV レイアウトでネイティブの Custom Material コントロールを維持するには、UV Custom を選択します。
 
+## Color Ramp を追加する
+
+1. **Color Ramp** を **on** にします。
+2. **Color Ramp Curve** のグラデーションを編集します。
+3. **Color Ramp Source** でランプの入力を選択します。
+4. **Color Ramp Interpolation** と **Color Ramp Factor** でベースカラーへの混ぜ方を設定します。
+
 ## ノードマテリアルを作成する
 
 1. **Node Material** を選択します。
@@ -25,7 +32,5 @@ sidebar:
 6. メインビューポートでマテリアルを確認します。
 
 PBR+ グラフでは、エディターを開く前に **Use node graph** を有効にします。画像ノードでは、**Selected node image** を使用してアセットを選択します。スターターマテリアルを試すには、レシピを選択します。元に戻すと、直前のグラフが復元されます。
-
-[Material+ ソースコントラクト](https://github.com/rbstxt/zoidium/blob/dev/plugins/material-plus/README.md)に、ノード操作、ベイク、UV レイアウト、およびサーフェスコントロールについて記載されています。[PBR+ の互換性](/docs/ja/development/project-compatibility/#pbr-uv-レイアウト)に、レガシー UV について記載されています。
 
 コントロールのリファレンス: [material-plus](/docs/ja/reference/material-plus/), [material-nodes](/docs/ja/reference/material-nodes/).

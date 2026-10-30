@@ -33,7 +33,7 @@ For animated layer transforms under an **Adjustment** layer, select **Shutter Sa
 - With **Optical Flow**, to reduce differences between nearby motion estimates, increase **Vector Smoothness**. Reduce this value when separate objects move in different directions.
 - With **Optical Flow**, keep **Analysis Frames** at **Both** for normal use. To use one neighboring frame, choose **Previous** or **Next**.
 - For more shutter samples, set **Quality** to **High**. Use **Balanced** for a faster preview.
-- To reduce shutter target memory on large projects, lower the Player+ preview quality. Eight-tap batches reuse the capture targets. Each uncached frame still requires 32 or 64 scene evaluations.
+- To reduce shutter target memory on large projects, lower the Player+ preview quality. Each uncached frame still requires 32 or 64 scene evaluations.
 - With **Shutter Samples**, use **Blur Amount** and **Quality** to tune the result. The tracking controls do not change this result.
 - To inspect optical-flow tracking, set **View** to **Motion Vectors** or **Confidence**. Return to **Result** before export.
 
@@ -46,5 +46,4 @@ For repeated patterns or several objects with similar colors, inspect the trajec
 Optical flow cannot recover detail hidden in the current and neighboring frames.
 **Shutter Samples** captures scene visibility directly, but finite samples can leave bands in very fast motion.
 Complex scenes require more capture time. Recorded footage retains its source-frame cadence.
-Perspective motion requires additional processing.
 See the [property reference](/docs/reference/smart-motion-blur/) for defaults, ranges, and limits.

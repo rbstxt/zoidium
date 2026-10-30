@@ -38,8 +38,6 @@ If the message starts with `Video decode failed for clip`, record the clip name,
 
 To stop a render, click **Cancel**. Wait for cleanup before starting another export. Cancellation produces no completed MP4.
 
-MP4 uses a temporary browser file when writable private storage is available. Otherwise, it retains Blob chunks. Both paths can consume memory or disk space. Temporary files are removed after success, cancellation, or failure.
+MP4 uses temporary storage during the render, which can consume memory or disk space. Temporary files are removed after success, cancellation, or failure.
 
 If the error reports exhausted memory or temporary storage, close other projects or reduce the output size before retrying. Long source audio can require substantial memory even for a short export.
-
-[Saving and restore points](/docs/development/project-saving/) covers editable project archives.

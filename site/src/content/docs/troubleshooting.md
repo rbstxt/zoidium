@@ -7,7 +7,7 @@ Each entry names a symptom, its cause, and the fix.
 
 ## Material panel shows "undefined" or blank values
 
-**Cause:** the material panel failed while loading under the Zoidium gradient editor. The current beta falls back to the standard control instead of stopping the panel.
+**Cause:** the material panel failed while loading under the Zoidium gradient editor.
 
 **Fix:** reload the editor and reopen the panel. If the panel still fails, switch the gradient editor:
 
@@ -45,7 +45,7 @@ Each entry names a symptom, its cause, and the fix.
 
 **Cause:** the project uses community effects, and community effect export is unavailable in the developer preview.
 
-**Fix:** approve the one-export bypass when the editor offers **Export with missing or failed plugins**. The export skips every community effect at every frame, including effects in closed compositions. Project records stay unchanged, and the choice applies to one export only. Install or repair the missing package for a complete export.
+**Fix:** approve the one-export bypass when the editor offers **Export with missing or failed plugins**. The export skips every community effect at every frame, including effects in closed compositions. Project content stays unchanged, and the choice applies to one export only. Install or repair the missing package for a complete export.
 
 ## A project opens with missing plugins or assets
 

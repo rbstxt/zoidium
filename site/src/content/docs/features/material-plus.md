@@ -17,6 +17,13 @@ For a view-dependent image that supplies the shading, choose Matcap. For an
 unlit image, choose Image+. To keep native Custom Material controls with the
 Material+ UV layout, choose UV Custom.
 
+## Add a Color Ramp
+
+1. Set **Color Ramp** to **on**.
+2. Edit the **Color Ramp Curve** gradient.
+3. Choose the ramp input in **Color Ramp Source**.
+4. Set **Color Ramp Interpolation** and **Color Ramp Factor** to blend the ramp into the base color.
+
 ## Build a node material
 
 1. Choose **Node Material**.
@@ -29,10 +36,5 @@ Material+ UV layout, choose UV Custom.
 For a PBR+ graph, enable **Use node graph** before opening the editor. For image
 nodes, use **Selected node image** to choose the asset. To try a starter material,
 choose a recipe. Undo restores the previous graph.
-
-[Material+ source contract](https://github.com/rbstxt/zoidium/blob/dev/plugins/material-plus/README.md)
-describes node operations, baking, UV layout, and surface controls.
-[PBR+ compatibility](/docs/development/project-compatibility/#pbr-uv-layout)
-describes legacy UVs.
 
 Control reference: [material-plus](/docs/reference/material-plus/), [material-nodes](/docs/reference/material-nodes/).

@@ -11,7 +11,7 @@ sidebar:
 2. **LAYERS** から **Text** を追加します。
 3. Text レイヤーを選択します。
 4. ネイティブのプロパティパネルで **Character** カテゴリを開きます。
-5. **Mode** で **Character Transform** などを選択します。
+5. **Mode** を選択します。オフセットには **Character Transform**、テキスト全体のブレンドには **Gradient Transform**、フェーズ駆動の振動には **Character Shake**、特定の文字には **Selected** の種類、シード付きのばらつきには **Random Scatter** を使います。
 6. **Position**、**Scale**、または **Rotation** を設定します。
 7. 文字間のアニメーションをオフセットするには、**Delay** を設定します。
 8. **Delay order** を選択します。
@@ -70,7 +70,5 @@ Text+ を使用せずにネイティブの Text を描画するには、**Plugin
 同じ Text にアニメーションを設定するには、マテリアルの親と Text+ のアニメーションの親を入れ子にします。
 必要に応じて、他の種類のオブジェクトもグループに入れられます。Character Material が変更するのは 3D Text だけです。
 Text+ なしでプロジェクトを開くと、元の Text のマテリアルで描画します。保存したスロットは保持します。
-
-[Text+ のソースコントラクト](https://github.com/rbstxt/zoidium/blob/dev/plugins/text-plus/README.md)では、ピボット、ディレイ、シェイク、ネストされた親について説明しています。[Text+ の互換性](/docs/ja/development/project-compatibility/#text-スケール合成)では、保存されたスケールモードについて説明しています。
 
 コントロールのリファレンス: [text-plus](/docs/ja/reference/text-plus/).

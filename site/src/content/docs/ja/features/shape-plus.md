@@ -24,6 +24,4 @@ sidebar:
 
 複数のパスをまとめてペイントするには、同じグループ内のそれらのパスの下に Fill または Stroke を配置します。コンテンツをドラッグして、順序やグループを変更します。アイテムを非表示にするには、目のボタンを使用します。
 
-[Shape+ のソースコントラクト](https://github.com/rbstxt/zoidium/blob/dev/plugins/shape-plus/README.md)では、座標、ペイント範囲、モディファイア、保存データについて説明しています。
-
 コントロールのリファレンス: [shape-plus](/docs/ja/reference/shape-plus/).

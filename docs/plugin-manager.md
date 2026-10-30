@@ -1,35 +1,19 @@
-# Plugin manager overlays
+# Plugin manager
 
-`zoidium/runtime-config.js` loads the manager overlays after the shared plugin
-APIs, then runs `plugins/plugin-manager.js` last to start the manager.
+Open the **Plugins** page in the sidebar to enable or disable Zoidium plugins.
 
-The implementation overlays live under `zoidium/`, which the web and desktop
-staging tools copy as a directory. The implementation is split by responsibility:
+## Enable a plugin
 
-- `plugin-manager-state.js` creates constants, registries, trackers, and readiness state.
-- `plugin-manager-persistence.js` stores plugin choices and save approvals.
-- `plugin-manager-assets.js` resolves bundle assets, validates manifests, and loads packages.
-- `plugin-manager-picker.js` decorates picker entries and orders native effect search results.
-- `plugin-manager-factories.js` installs effect/material factories and tracks plugin usage.
-- `plugin-manager-lifecycle.js` activates, disposes, and unregisters modules and reports diagnostics.
-- `plugin-manager-scanners.js` detects dependencies in serialized projects.
-- `plugin-manager-fallbacks.js` preserves unavailable numeric objects and layers.
-- `plugin-manager-projects.js` hooks project loading, saving, and field preservation.
-- `plugin-manager-panel.js` builds the Plugins page and handles plugin/group toggles.
+1. Open **Plugins** in the sidebar.
+2. Find the plugin or group.
+3. Enable the plugin.
+4. Add its objects, effects, or materials from the matching picker.
 
-The overlays share `window.ZoidiumPluginManagerInternals`. This is an internal
-implementation table, not a plugin API. Immutable bindings are captured from
-that table. Mutable startup flags and the picker observer are read from the table
-when used. Cross-overlay function calls use forwarding closures so circular
-references resolve after all overlays load. Only the final startup script starts
-initialization. Existing `PZ.zoidium.define` names and events remain the public API.
+## Disable a plugin
 
-The body markers support the existing VM source-slice characterization tests.
-`test/plugin-manager-source.js` assembles those bodies in their original order;
-`test/plugin-manager-overlays.test.js` also executes the actual ordered overlays
-to check imports, shared state, and startup exports.
+1. Remove project content that requires the plugin.
+2. Disable the plugin in **Plugins**.
 
-`evaluatePluginSource` in the assets overlay is the manager's only dynamic source
-evaluator. It preserves the native factory receiver and the module's named
-arguments. Plugin code still runs with full origin privileges. The helper is a
-common point for future evaluation policy, not a security sandbox.
+Disabling stores a restore point of the current project first. When that backup fails, the switch stays enabled unless you choose to continue without a backup. A plugin that the project still uses cannot be disabled until its content is removed. Saved plugin settings stay in the project and return when the plugin is enabled again. There is no in-session plugin upgrade; before updating plugin code outside the session, download the project or keep a verified restore point.
+
+Implementation details for contributors: [Plugin manager internals](plugin-manager-internals.md).

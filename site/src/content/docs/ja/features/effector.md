@@ -1,10 +1,10 @@
 ---
 title: Effector でオブジェクトを複製・変形する
-description: 子オブジェクト、リピーター、変形フィールド、破砕、Delay を設定します。Scene+ とも呼ばれます。
+description: 子オブジェクト、リピーター、変形フィールド、破砕、Delay を設定します。
 sidebar:
   label: Effector
 ---
-**Effector** を使うと、3D オブジェクトのグループを手続き的に複製または変形できます。プラグインのソースディレクトリ名は Scene+ です。
+**Effector** を使うと、3D オブジェクトのグループを手続き的に複製または変形できます。
 
 ## 元のオブジェクトを子として追加する
 
@@ -60,4 +60,6 @@ sidebar:
 4. Plain の **Position offset**、**Rotation offset**、**Scale offset** のいずれかをアニメーションさせます。
 5. Delay で **Mode** を選び、**Strength** と **History frames** を調整します。
 
-この階層により、Delay は上流の Plain の動きをサンプリングできます。正確なコントロール、処理予算、旧プロジェクトの動作は [Effector リファレンス](/docs/ja/reference/effector/)を参照してください。
+この階層により、Delay は上流の Plain の動きをサンプリングできます。
+
+コントロールのリファレンス: [effector](/docs/ja/reference/effector/).

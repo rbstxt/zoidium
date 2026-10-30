@@ -11,7 +11,7 @@ Animate native 2D Text in its **Character** category, or animate 3D Text through
 2. Add **Text** from **LAYERS**.
 3. Select the Text layer.
 4. Open its **Character** category in the native properties panel.
-5. Choose a **Mode**, such as **Character Transform**.
+5. Choose a **Mode**. Use **Character Transform** for offsets, **Gradient Transform** for a blend across the text, **Character Shake** for phase-driven shake, a **Selected** variant for specific characters, or **Random Scatter** for seeded variation.
 6. Set **Position**, **Scale**, or **Rotation**.
 7. Set **Delay** to offset the animation between characters.
 8. Choose **Delay order**.
@@ -75,10 +75,5 @@ An empty inner slot uses the source Text material.
 To animate the same text, nest the material parent with any Text+ animation parent.
 Keep other object types in the group if needed. Character Material changes only 3D Text.
 When you open the project without Text+, the source Text materials render and the saved slots remain available.
-
-[Text+ source contract](https://github.com/rbstxt/zoidium/blob/dev/plugins/text-plus/README.md)
-describes pivots, delay, shake, and nested parents.
-[Text+ compatibility](/docs/development/project-compatibility/#text-scale-composition)
-describes saved scale modes.
 
 Control reference: [text-plus](/docs/reference/text-plus/).

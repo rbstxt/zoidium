@@ -18,8 +18,6 @@ sidebar:
 
 Blur または Edge Detect で以前のグラフの出力を読み取る必要がある場合は、Node Effect を別に重ねます。これらのノードは現在のエフェクトの入力画像をサンプリングします。
 
-[Node Effect のソースコントラクト](https://github.com/rbstxt/zoidium/blob/dev/plugins/node-effect/README.md)では、サンプリング、アルファ、パラメーター、制限について説明しています。[Node Effect の互換性](/docs/ja/development/project-compatibility/#node-effect)では、保存された GLSL とグラフのメタデータについて説明しています。
-
 [Native FX リファレンス](/docs/ja/reference/native-fx/)に、同じ **NATIVE FX** カテゴリーの既製フィルターについて記載しています。
 
 コントロールのリファレンス: [node-effect](/docs/ja/reference/node-effect/).

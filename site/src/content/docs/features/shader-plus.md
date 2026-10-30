@@ -20,6 +20,5 @@ For each control's declaration, read [Property kind examples](/docs/shaders/kind
 Use [Edit and check a shader](/docs/shaders/editor/) for completion, diagnostics,
 Declare, and templates.
 
-[Property controls](/docs/development/shader-properties/) describes settings and
-saved formats. [Shader+ compatibility](/docs/development/project-compatibility/#shader-property-kinds)
+[Property controls](/docs/development/shader-properties/) describes each setting. [Shader+ compatibility](/docs/development/project-compatibility/#shader-property-kinds)
 describes plugin requirements for texture and array properties.

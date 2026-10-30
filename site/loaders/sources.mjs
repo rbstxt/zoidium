@@ -4,7 +4,8 @@ import { fileURLToPath } from 'node:url';
 export const root = fileURLToPath(new URL('../../', import.meta.url));
 export const developerDocs = [
   'plugin-api', 'plugin-ui', 'expressions', 'shader-properties',
-  'project-compatibility', 'project-saving', 'desktop-app', 'plugin-manager',
+  'project-compatibility', 'project-saving', 'project-saving-internals',
+  'desktop-app', 'plugin-manager', 'plugin-manager-internals',
 ];
 export const featureIds = [
   'shape-plus', 'text-plus', 'geometry-plus', 'material-plus', 'node-effect',

@@ -26,7 +26,4 @@ To paint several paths together, place a Fill or Stroke below those paths in the
 same group. Drag contents to change their order or group. Use the eye button to
 hide an item.
 
-[Shape+ source contract](https://github.com/rbstxt/zoidium/blob/dev/plugins/shape-plus/README.md)
-describes coordinates, paint scope, modifiers, and saved data.
-
 Control reference: [shape-plus](/docs/reference/shape-plus/).

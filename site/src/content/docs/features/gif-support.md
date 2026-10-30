@@ -24,6 +24,6 @@ GIFs loop. Inside a clip, the selected GIF frame follows that clip's media time,
 3. Inspect a frame near the loop boundary.
 4. To verify repeatable timing, return to an earlier frame.
 
-Without a clip context, GIF animation follows project time. Export waits for GIF decoding through the image consumer's preparation chain.
+Without a clip context, GIF animation follows project time. Export waits for GIF decoding.
 
 The [GIF reference](/docs/reference/animated-gif/) describes frame delays, looping, and decode limits. Use the [export options](/docs/reference/export-options/) for output formats.

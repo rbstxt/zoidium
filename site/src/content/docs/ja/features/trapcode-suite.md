@@ -16,6 +16,4 @@ sidebar:
 
 スイートのライトを使用するには、ピッカーで **Trapcode Lights** を開きます。測光データを取り込むには、Photometric IES を選択し、TILT=NONE のローカル LM-63 Type C ファイルを選択します。
 
-[Suite のソースコントラクト](https://github.com/rbstxt/zoidium/blob/dev/plugins/trapcode-suite/README.md)では、決定論的モーション、音声分析、ライトの動作、制限について説明しています。
-
 コントロールのリファレンス: [trapcode-particular](/docs/ja/reference/trapcode-particular/), [trapcode-form](/docs/ja/reference/trapcode-form/), [plexus](/docs/ja/reference/plexus/), [trapcode-lights](/docs/ja/reference/trapcode-lights/).

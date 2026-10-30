@@ -22,11 +22,6 @@ or Duotone from **Recipes**. Undo restores the previous graph and channels.
 Stack separate Node Effects when Blur or Edge Detect must read an earlier
 graph's output. These nodes sample the current effect's input image.
 
-[Node Effect source contract](https://github.com/rbstxt/zoidium/blob/dev/plugins/node-effect/README.md)
-describes sampling, alpha, parameters, and limits.
-[Node Effect compatibility](/docs/development/project-compatibility/#node-effect)
-describes saved GLSL and graph metadata.
-
 [Native FX reference](/docs/reference/native-fx/) lists ready-made filters in the same **NATIVE FX** category.
 
 Control reference: [node-effect](/docs/reference/node-effect/).
