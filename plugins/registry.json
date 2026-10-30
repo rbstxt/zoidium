@@ -159,7 +159,7 @@
       "description": "Replaces the keyframe graph editor with DaviFX's Graph Editor 2: easing presets, tangent tools, ruler scrubbing, a track list with live values and a full keyboard set.",
       "manifest": "./plugins/graph-plus/manifest.json?v=15",
       "bundle": "./plugins/graph-plus/bundle.json?v=15",
-      "integrity": "sha256-x7Otl+AGNL/IOYdd94wZb2JmZYDpEke692oBHuTYh1M="
+      "integrity": "sha256-jMBiSDW7triKpPy3Jf7GZBDc+eLgHWtOwRxjR1vI4xw="
     },
     {
       "id": "motion-path",

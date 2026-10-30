@@ -484,6 +484,7 @@ PZ.ui.graph.prototype.objectAdded = function (prop) {
   this.updateViewBox();
   this.updateLegend();
   if (!this._didInitView) { this._didInitView = true; this.fitAll(false); }
+  this.updateStatus?.();
 };
 PZ.ui.graph.prototype.objectRemoved = function (prop) {
   var groups = this.propGroups();
@@ -496,6 +497,7 @@ PZ.ui.graph.prototype.objectRemoved = function (prop) {
   }
   this.updateLegend();
   this.updateViewBox();
+  this.updateStatus?.();
 };
 PZ.ui.graph.prototype.objectsChanged = function () {
   if (!this.curveLayer) return;
@@ -527,5 +529,6 @@ PZ.ui.graph.prototype.objectsChanged = function () {
   this.updateLegend();
   this.updateViewBox();
   if (!this._didInitView && this.propGroups().length) { this._didInitView = true; this.fitAll(false); }
+  this.updateStatus?.();
 };
 };
