@@ -26,6 +26,8 @@ test("wheel math anchors zoom, pans both axes, and limits extreme input", () => 
   assert.equal(y.zoomX,view.zoomX);assert.ok(y.zoomY>view.zoomY);
   const ruler=wheelView(view,{deltaY:100,ctrlKey:true},{kind:"zoom"},point,true);
   assert.equal(ruler.zoomY,view.zoomY);assert.equal(ruler.centerY,view.centerY);
+  const windows=wheelView(view,{deltaY:-120,ctrlKey:true},{kind:"zoom"},point);
+  assert.ok(windows.zoomX/view.zoomX>.7 && windows.zoomX/view.zoomX<1);
   const extreme=wheelView(view,{deltaY:1e99,ctrlKey:true},{kind:"zoom"},point);
   assert.ok(Object.values(extreme).every(Number.isFinite));
   assert.ok(extreme.zoomX>0 && extreme.zoomY>0);

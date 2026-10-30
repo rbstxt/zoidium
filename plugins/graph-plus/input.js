@@ -25,7 +25,10 @@ function wheelView(view, event, gesture, pointer, ruler) {
     result.centerX += dx * view.zoomX;
     if (!ruler) result.centerY += dy * view.zoomY;
   } else {
-    const factor = Math.exp(limit(dy * (event.ctrlKey ? .01 : .002), -2, 2));
+    // Physical Ctrl+wheel uses the same action as pinch, with a smaller
+    // gain for discrete notches so a Windows wheel does not jump 3x.
+    const gain = event.ctrlKey && Math.abs(dy) < 40 ? .01 : .002;
+    const factor = Math.exp(limit(dy * gain, -2, 2));
     const yOnly = event.altKey && !ruler;
     if (!yOnly) {
       result.zoomX = limit(view.zoomX * factor, .02, 500);
