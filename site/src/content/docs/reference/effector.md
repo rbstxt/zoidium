@@ -4,7 +4,7 @@ description: Controls for all nine Effector types, including repeaters, fracture
 sidebar:
   label: Effector reference
 ---
-Effector is the editor name for the Scene+ plugin. Its objects affect source children in their hierarchy. Top-level siblings are outside that hierarchy.
+Effector objects affect source children in their hierarchy. Top-level siblings are outside that hierarchy.
 
 ## Object types
 
@@ -40,13 +40,13 @@ Scale controls have a minimum of 0.001 per axis. Repeater rotation rows display 
 | **Twist** | **Axis** is X, Y, or Z, default Y. **Angle** defaults to 0 degrees and accepts -1440 to 1440. **Offset** moves the pivot along the axis. |
 | **Warp** | **Axis** is X or Z, default X. **Strength** defaults to 0 degrees and accepts -720 to 720. **Offset** moves the bend pivot. |
 
-**Subdivision** offers 1, 2, 4, 8, and 16 edge segments. The default is 4. These produce 1, 4, 16, 64, and 256 triangles per source triangle.
+**Subdivision** offers 1, 2, 4, 8, and 16 edge segments. The default is 4.
 
 The subdivision budget is 400,000 triangles per mesh. Subdivision drops by whole levels to fit the budget. It does not simplify a source that already exceeds that count.
 
 ## Fields
 
-Twist, Warp, Voronoi Fracture, and Plain share these field controls. The effector object's transform defines their local coordinate frame.
+Twist, Warp, Voronoi Fracture, and Plain share these field controls.
 
 | Control | Meaning and default |
 | --- | --- |
@@ -61,11 +61,11 @@ Twist, Warp, Voronoi Fracture, and Plain share these field controls. The effecto
 | **Noise scale** | Noise wavelength relative to field scale. Default 100. Range 0.01 to 10000. |
 | **Noise evolution** | Continuous seeded-noise offset. Default 0. |
 
-Twist and Warp evaluate fields per vertex. Fracture evaluates them at pristine fragment centroids, so each fragment stays rigid. Cylinder fields point along field Y.
+Each fracture fragment stays rigid. Cylinder fields point along field Y.
 
 The editor shows field and falloff guides for linear, box, sphere, and cylinder fields. Infinite and noise fields have no boundary guide. Guides do not appear in exports.
 
-Each completed drag creates one undo step. A selection change or exit from the editing camera leaves the mode.
+A selection change or exit from the editing camera leaves the mode.
 
 ## Voronoi Fracture
 
@@ -81,15 +81,15 @@ Each completed drag creates one undo step. A selection change or exit from the e
 | **Gravity**, **Randomness** | Gravity moves pieces along effector -Y. Randomness reduces motion strength by seeded amounts, 0 to 100. Both default to 0. |
 | **Characters**, **Invert selection** | One-based text ranges, such as `1,3-5`, and selection inversion. Spaces count. Newlines do not. Empty Characters selects all. Invalid nonempty ranges select none. |
 
-At full field strength, **Fragment scale** reaches the specified percentage independently of **Randomness**. A value of 0 collapses every vertex of each affected fragment, including inner faces, to one point. Partial field strength interpolates between the original size and the specified size. Zero field strength leaves the fragment unchanged. Existing projects with nonzero **Randomness** now use the specified scale instead of a randomized scale. Other motion controls retain their seeded variation.
+At full field strength, **Fragment scale** reaches the specified percentage independently of **Randomness**. A value of 0 collapses every vertex of each affected fragment, including inner faces, to one point.
 
 Character selection requires Text+. Non-text sources ignore character ranges. Invert selection does not change the empty selection's all-characters behavior.
 
-Fracture limits are 160,000 source triangles, 1,600,000 output triangles, 4,096 vertices per concave cap contour with holes, and 80,000,000 clipping operations per build. A build over those limits leaves the source unfractured. Invalid or excessive cap contours can fall back to open fragments.
+Fracture limits are 160,000 source triangles and 1,600,000 output triangles. A build over those limits leaves the source unfractured.
 
-Opaque fractured meshes overlap in source hierarchy order at equal depth, so some overlap-edge pixels can differ from earlier versions. Transparent materials keep their existing sorting.
+Opaque fractured meshes overlap in source hierarchy order at equal depth. Transparent materials keep their existing sorting.
 
-Preview and export produce the same result. After changes to Cells, Seed, or the source geometry, preview holds the last image and shows **Fracturing...** until the new result is ready. Playback can hold or drop frames. Scrubbing ends on the exact requested frame. Export and **Render once** wait for that exact result.
+Built-in effector chains produce the same result in preview and export. After changes to Cells, Seed, or the source geometry, preview holds the last image and shows **Fracturing...** until the new result is ready. Playback can hold or drop frames. Scrubbing ends on the exact requested frame. Export and **Render once** wait for that exact result.
 
 If evaluation fails, preview and export use the unbroken source and report a warning.
 
@@ -105,12 +105,10 @@ Plain transforms separate connected pieces, text characters, or upstream fractur
 | **Strength** | Blend with the filtered result, 0 to 100. Default 75. |
 | **History frames** | Earlier samples at one-frame steps, 1 to 24. Default 12. |
 
-Nested Delay histories share a total budget of 96 samples per mesh. Samples with different fracture topology are skipped. Delay re-evaluates upstream motion at earlier times instead of reusing rendered frames.
+Nested Delay histories share a total budget of 96 samples per mesh. Samples with different fracture topology are skipped.
 
 ## Legacy projects
 
-Old projects using numeric Twist, Warp, and fracture types keep working, with no new picker entries.
-
-Old field and subdivision settings keep their saved behavior, including when fracture character selection is active.
+Old projects keep working, with no new picker entries.
 
 For task steps, see [Repeat and deform objects with Effector](/docs/features/effector/).
