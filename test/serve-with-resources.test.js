@@ -17,6 +17,9 @@ test("development server recognizes live Zoidium runtime files", () => {
   assert.equal(shouldServeFromProject("/zoidium/community-runtime-source.js?v=1"), false);
   assert.equal(shouldServeFromProject("/plugins/core/temporal-render.js"), true);
   assert.equal(shouldServeFromProject("/plugins/player-plus/bundle.json?v=3"), true);
+  assert.equal(shouldServeFromProject("/plugins/player-plus/manifest.json?v=3"), true);
+  assert.equal(shouldServeFromProject("/plugins/player-plus/extra.bundle.json?v=3"), true);
+  assert.equal(shouldServeFromProject("/plugins/player-plus/bundle.json/extra"), false);
 });
 
 test("development server does not expose unrelated repository files", () => {
