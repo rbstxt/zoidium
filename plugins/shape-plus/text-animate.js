@@ -101,19 +101,53 @@ function shiftCodepoint(character, shift) {
   return character;
 }
 function sameCoords(a, b) { return JSON.stringify(a) === JSON.stringify(b); }
-// Reshape one glyph at new coordinates and/or a shifted character. Kerning
-// (dx/dy) stays from the base shaping; only the advance is replaced.
-function reshape(glyph, character, coordinates) {
-  const shaped = glyph.font.shape(character, coordinates);
+// Whole source text shaped into one glyph. A ligature spans several clusters
+// (its glyph carries the first cluster index), so the span runs to the next
+// glyph's cluster on the same line, else to the row text end. Falls back to
+// the glyph's own character when the row clusters do not cover it.
+function clusterText(layout, glyphs, index) {
+  const glyph = glyphs[index];
+  const row = layout.rows?.[glyph.line];
+  const clusters = row?.characters || [];
+  let next = Infinity;
+  for (let j = 0; j < glyphs.length; j++) {
+    const other = glyphs[j];
+    if (other.line === glyph.line && other.cl > glyph.cl && other.cl < next) next = other.cl;
+  }
+  let text = "";
+  for (const cluster of clusters) {
+    if (cluster.index >= glyph.cl && cluster.index < next) text += cluster.text;
+  }
+  return text || glyph.character;
+}
+function shiftCluster(text, shift) {
+  if (!shift) return text;
+  return Array.from(text, character => shiftCodepoint(character, shift)).join("");
+}
+// Reshape a whole cluster at new coordinates. The shaped result usually
+// keeps the ligature as one glyph; when it does not (shifted cluster text),
+// every result glyph's outline is drawn at its shaped offset and the advance
+// is their total. The cluster stays anchored by the base shaping: the
+// original baked-in dx/dy is replaced, never doubled. Kerning (later
+// advances) is recomputed downstream from the new advance.
+function reshape(glyph, text, coordinates) {
+  const shaped = glyph.font.shape(text, coordinates);
   if (!shaped.length) return null;
-  const first = shaped[0];
-  const outline = glyph.font.outline(first.g, coordinates);
-  const contours = outline.length ? parsePath(outline.map(c => c.type + c.values.join(",")).join("")) : [];
-  const paths = contours.map(path => ({ closed: path.closed, vertices: path.vertices.map(v => ({
-    point: [v.point[0] * glyph.scaleX + glyph.x, v.point[1] * glyph.scaleY + glyph.y],
-    in: [v.in[0] * glyph.scaleX, v.in[1] * glyph.scaleY], out: [v.out[0] * glyph.scaleX, v.out[1] * glyph.scaleY],
-  })) }));
-  return { ...glyph, character, g: first.g, contours, paths, advance: first.ax * glyph.scaleX, coordinates: { ...coordinates } };
+  const contours = [], paths = [];
+  let pen = 0;
+  for (const s of shaped) {
+    const outline = glyph.font.outline(s.g, coordinates);
+    const parsed = outline.length ? parsePath(outline.map(c => c.type + c.values.join(",")).join("")) : [];
+    contours.push(...parsed);
+    const baseX = glyph.x + (pen + (s.dx || 0) - (glyph.dx || 0)) * glyph.scaleX;
+    const baseY = glyph.y + ((s.dy || 0) - (glyph.dy || 0)) * glyph.scaleY;
+    paths.push(...parsed.map(path => ({ closed: path.closed, vertices: path.vertices.map(v => ({
+      point: [v.point[0] * glyph.scaleX + baseX, v.point[1] * glyph.scaleY + baseY],
+      in: [v.in[0] * glyph.scaleX, v.in[1] * glyph.scaleY], out: [v.out[0] * glyph.scaleX, v.out[1] * glyph.scaleY],
+    })) })));
+    pen += s.ax;
+  }
+  return { ...glyph, character: text, g: shaped[0].g, contours, paths, advance: pen * glyph.scaleX, coordinates: { ...coordinates } };
 }
 function enabledProps(properties) {
   return ANIMATED_KEYS.filter(key => properties[enabledKey(key)] === 1 || properties[enabledKey(key)] === true);
@@ -215,13 +249,18 @@ function applyAnimators(item, animators, opts = {}) {
         if (delta !== 0) { coords[tag] = (coords[tag] ?? 0) + delta; touchesCoords = true; }
       }
     }
+    if (shift === 0 && !touchesCoords) return glyph;
+    // A ligature reshapes as its whole cluster, never as its first character
+    // alone, and moves with its first character's selector value (already in
+    // scalar). AE breaks ligatures under per-character animation instead.
+    const original = clusterText(layout, glyphs, i);
+    const shifted = shiftCluster(original, shift);
     const clamped = glyph.font?.coordinates ? glyph.font.coordinates(coords) : coords;
-    const character = shiftCodepoint(glyph.character, shift);
-    const changedChar = shift !== 0 && character !== glyph.character;
-    if (!changedChar && (!touchesCoords || sameCoords(clamped, base))) return glyph;
+    const changedChar = shift !== 0 && shifted !== original;
+    if (!changedChar && sameCoords(clamped, base)) return glyph;
     if (!glyph.font?.shape || !glyph.font?.outline) return glyph;
     try {
-      return reshape(glyph, character, clamped) || glyph;
+      return reshape(glyph, changedChar ? shifted : original, clamped) || glyph;
     } catch (_error) { return glyph; }
   });
   // Glyph objects are reused when nothing reshaped them; the shift pass
@@ -335,4 +374,4 @@ function applyAnimators(item, animators, opts = {}) {
   if (!levels.size && !changed) return null;
   return { glyphs: finalGlyphs, levels };
 }
-module.exports = { levelMatrix, spanStats, belowAnimators, matchAnimators, computeUnits, shiftCodepoint, reshape, enabledProps, axisTags, selectorState, applyAnimators };
+module.exports = { levelMatrix, spanStats, belowAnimators, matchAnimators, computeUnits, shiftCodepoint, clusterText, shiftCluster, reshape, enabledProps, axisTags, selectorState, applyAnimators };

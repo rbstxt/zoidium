@@ -328,9 +328,9 @@ Color and Stroke Width are not yet supported.
 | **Skew**, **Skew Axis** | Dynamic number | 0 | Degrees. Skew applies after scale, before rotation. |
 | **Rotation** | Dynamic number | 0 | Degrees. |
 | **Tracking Amount** | Dynamic number | 0 | Adds value x s x Size / 1000 after each affected character. Alignment is computed before these shifts. |
-| **Character Offset** | Dynamic number | 0 | Integer shift of letters within a-z, A-Z or 0-9 with wraparound. The new advance replaces the old one; kerning stays from the base shaping. |
+| **Character Offset** | Dynamic number | 0 | Integer shift of letters within a-z, A-Z or 0-9 with wraparound. A ligature shifts every letter of its cluster and reshapes as one unit with its first character's selector value (AE breaks ligatures instead). The new advance replaces the old one; kerning stays from the base shaping. |
 | **Grouping Alignment (%)** | Dynamic vector | [0, 0] | Pivot shift as a percentage of the group box. |
-| Axis name (tag) | Dynamic number | 0 | Offset added to the glyph's axis coordinate, clamped to the axis range. Later characters shift by the advance difference. |
+| Axis name (tag) | Dynamic number | 0 | Offset added to the glyph's axis coordinate, clamped to the axis range. Ligature glyphs reshape as one cluster. Later characters shift by the advance difference. |
 | **Anchor Point Grouping** | Static choice | Character | Character, Word, Line or All pivot unit. |
 | Enabled flags, **Wiggly Selector** switch | Static | Off | Context-menu toggles; hidden rows. |
 

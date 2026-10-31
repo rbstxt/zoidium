@@ -707,11 +707,16 @@ evaluations of the same frame always agree.
 Tracking Amount adds value x s x Size / 1000 after each affected character,
 shifting later characters on the same line. Alignment is computed before these
 shifts. Character Offset shifts letters by round(value x s) within a-z, A-Z
-or 0-9 with wraparound; other characters are unchanged. The new advance
-replaces the old one for later characters. Kerning stays from the base
-shaping. Variable-axis offsets are clamped to the axis range; outlines and
-advances come from the engine at the new coordinates, and later characters
-shift by the advance difference.
+or 0-9 with wraparound; other characters are unchanged. A glyph that shapes
+several characters (a ligature) reshapes as its whole cluster: Character
+Offset shifts every letter in the cluster before reshaping, and the cluster
+moves as one unit with its first character's selector value. This differs
+from AE, which breaks ligatures under per-character animation. The new
+advance replaces the old one for later characters. Kerning stays from the
+base shaping. Variable-axis offsets are clamped to the axis range; outlines
+and advances come from the engine at the new coordinates, and later
+characters shift by the advance difference. Ligature glyphs reshape as one
+cluster in the same way.
 
 Create Shapes from Text bakes the displayed frame, animators included, into
 static paths. The animator items stay in the list.

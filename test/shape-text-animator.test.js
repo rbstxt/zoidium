@@ -290,6 +290,8 @@ test("zero-amount and empty-range animators compile identically to plain text", 
     const anim = setup("AV office", animatorProps).anim;
     assert.deepEqual(compile([text, anim, fill()]), plain);
   }
+  const axis = setupAxis("AV office", { axis_wght: held(300), enabled_axis_wght: 1, selectorStart: held(0), selectorEnd: held(100), selectorAmount: held(0) });
+  assert.deepEqual(compile([axis.text, axis.anim, fill()]), compile([setup("AV office").text, fill()]));
   const disabled = setup("AV office", { ...on("position"), position: held([10, 20]), ...fullRange }).anim;
   assert.deepEqual(compile([text, { ...disabled, properties: { ...disabled.properties, enabled: 0 } }, fill()]), plain);
 });
@@ -454,4 +456,32 @@ test("index End means end-of-text only while untouched", () => {
   const partial = applyAnimators(explicit.text, [explicit.anim]).levels;
   assert.ok(partial.has(late(99)));
   assert.ok(!partial.has(late(100)));
+});
+test("ligature clusters reshape as a whole under axis offsets", () => {
+  const { text } = setupAxis("office");
+  const base = text.textLayout.glyphs;
+  assert.equal(base.length, 4);
+  assert.equal(base[1].paths.length, 6);
+  // Select only the ligature owner's character unit (second of six).
+  const anim = setupAxis("office", { axis_wght: held(300), enabled_axis_wght: 1, selectorStart: held(20), selectorEnd: held(33), selectorAmount: held(100) }).anim;
+  const glyphs = applyAnimators(text, [anim]).glyphs;
+  assert.ok(glyphs.length > 0);
+  assert.equal(glyphs[1].character, "ffi");
+  assert.equal(glyphs[1].paths.length, base[1].paths.length);
+  assert.ok(glyphs[1].paths.length > 0);
+  assert.notEqual(glyphs[1].advance, base[1].advance);
+  assert.equal(glyphs[0].character, "o");
+  assert.equal(glyphs[3].character, "e");
+});
+test("character offset shifts every letter of a ligature cluster", () => {
+  const { text } = setup("office");
+  const anim = setup("office", { ...on("charOffset"), charOffset: held(-3), selectorStart: held(0), selectorEnd: held(34), selectorAmount: held(100) }).anim;
+  const glyphs = applyAnimators(text, [anim]).glyphs;
+  assert.ok(glyphs.length > 0);
+  assert.deepEqual(glyphs.map(g => g.character), ["l", "ccf", "c", "e"]);
+  assert.ok(glyphs[1].paths.length > 0);
+  close(glyphs[1].advance, 136.279296875);
+  const direct = font.shape("ccf", font.coordinates({}));
+  assert.equal(direct.length, 3);
+  assert.ok(direct.every(g => g.g !== 0));
 });
