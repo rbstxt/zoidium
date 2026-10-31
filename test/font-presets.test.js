@@ -224,22 +224,34 @@ test("stage copies carry every new preset to the host font path", async () => {
   }
 });
 
-test("preset patch extends the host list in place before the dropdown builds", () => {
-  const sandbox = { PZ: { asset: { font: { preset: ["vt323", "absender", "bebas"] } } } };
-  vm.createContext(sandbox);
-  const source = fs.readFileSync(path.join(root, "plugins", "core", "font-presets.js"), "utf8");
-  const before = sandbox.PZ.asset.font.preset;
-  vm.runInContext(source, sandbox);
-  vm.runInContext(source, sandbox);
-  const after = sandbox.PZ.asset.font.preset;
-  assert.equal(after, before, "patch must mutate the preset array in place");
-  assert.deepEqual(after, [...after].sort(), "patched preset order must be alphabetical");
-  for (const name of presetNames()) {
-    assert.ok(after.includes(name), `patched list misses ${name}`);
+test("preset patch runs twice and on a replaced array with exactly one copy", () => {
+  function run(preset) {
+    const sandbox = { PZ: { asset: { font: { preset } } } };
+    vm.createContext(sandbox);
+    vm.runInContext(source, sandbox);
+    return sandbox;
   }
+  const source = fs.readFileSync(path.join(root, "plugins", "core", "font-presets.js"), "utf8");
+  const before = ["vt323", "absender", "bebas"];
+  const first = run(before);
+  const patched = first.PZ.asset.font.preset;
+  assert.equal(patched, before, "patch must mutate the preset array in place");
+  run(patched);
+  assert.deepEqual(patched, [...patched].sort(), "patched preset order must be alphabetical");
   // The dropdown builds preset.length + 1 rows; the last row stays "custom".
-  assert.equal(after.length, 3 + presetNames().length);
-  assert.ok(!after.includes("custom"), "custom is a row, not a preset");
+  assert.equal(patched.length, 3 + presetNames().length);
+  assert.ok(!patched.includes("custom"), "custom is a row, not a preset");
+  for (const name of presetNames()) {
+    assert.equal(patched.filter(entry => entry === name).length, 1, `duplicate ${name} after re-run`);
+  }
+  assert.equal(patched.__zoidiumFontPresetsPatched, true, "marker lives on the list object");
+  assert.ok(!("__zoidiumFontPresetsPatched" in first), "no global re-run flag is set");
+  // A replaced array object is patched again instead of skipped.
+  const replaced = run(["bebas", "absender", "vt323"]).PZ.asset.font.preset;
+  assert.deepEqual([...replaced].sort(), [...patched].sort());
+  for (const name of presetNames()) {
+    assert.equal(replaced.filter(entry => entry === name).length, 1, `duplicate ${name} on replaced array`);
+  }
 });
 
 test("preset patch is registered as a pre-init core script", () => {
