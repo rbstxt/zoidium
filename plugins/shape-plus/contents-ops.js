@@ -113,14 +113,6 @@ function paintScope(contents) {
   walk(contents, true);
   return result;
 }
-function countTexts(list) {
-  let count = 0;
-  for (const item of list || []) {
-    if (item.kind === "text") count++;
-    else if (item.contents) count += countTexts(item.contents);
-  }
-  return count;
-}
 // Insert a Text Animator directly below a text item in the text's own list,
 // with one animated property enabled. Returns the new animator data.
 function planAnimator(contents, textId, nextId, propertyKey) {
