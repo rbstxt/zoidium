@@ -248,7 +248,11 @@ function offsetForPoint(source, rows, glyphs, spans, x, y, lineHeight) {
   const i = rowForY(rows, y, lineHeight);
   if (i < 0 || !spans[i]) return 0;
   const sub = subForX(lineGlyphs(glyphs, i), displayLength(rows[i]), rows[i], x);
-  return snapCluster(text, Math.min(Math.max(spans[i].srcStart + sub, spans[i].srcStart), spans[i].srcEnd));
+  const raw = Math.min(Math.max(spans[i].srcStart + sub, spans[i].srcStart), spans[i].srcEnd);
+  // snapCluster runs on the whole text and can land in a neighbouring span
+  // (for example the wrapped space at a box-wrap boundary); clamp the
+  // result back so clicks render at this row's edge.
+  return Math.min(Math.max(snapCluster(text, raw), spans[i].srcStart), spans[i].srcEnd);
 }
 
 function rectsForRange(rows, glyphs, spans, a, b, lineHeight, emptyX = 0) {

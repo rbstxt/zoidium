@@ -82,8 +82,9 @@ function mountOverlay(context, layer, Content, viewport, panels, tool) {
   const textEditor = require("./text-inline.js").install(s);
   let disposed = false;
   // Tool switches, native selection and teardown end an edit in progress but
-  // keep it: what the preview shows is what history records. Only Escape and
-  // undo (editor-actions.js) or an error roll a gesture back.
+  // keep it: what the preview shows is what history records. Only undo
+  // (editor-actions.js) or an error roll a gesture back; in-place text
+  // editing commits on Escape instead (see text-inline.js).
   function settle() { textEditor.finish(); s.pointer.commit(); s.finishNudge(); s.gesture.finish(); }
   const changed = () => { if (!disposed && s.valid()) s.refresh(); };
   s.project.ui.onChanged.watch(changed);
