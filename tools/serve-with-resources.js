@@ -322,6 +322,7 @@ async function main() {
     return docsLive ? siteDistRoot : null;
   };
   const fontPresetPattern = /^assets\/fonts\/2d\/(.+)\.ttf$/;
+  const fontVariablePattern = /^assets\/fonts\/2d-variable\/(.+)$/;
 
   const serveGenerated = async (request, response) => {
     const relativePath = requestPathname(request.url);
@@ -357,6 +358,12 @@ async function main() {
     const preset = fontPresetPattern.exec(relativePath);
     if (preset) {
       const bytes = await livePresets.getPresetBytes(preset[1]);
+      if (bytes == null) return false;
+      return devLive.sendBytes(request, response, { contentType: "font/ttf", bytes });
+    }
+    const variable = fontVariablePattern.exec(relativePath);
+    if (variable) {
+      const bytes = await livePresets.getPresetBytes(variable[1], "2d-variable");
       if (bytes == null) return false;
       return devLive.sendBytes(request, response, { contentType: "font/ttf", bytes });
     }

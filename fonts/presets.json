@@ -1,15 +1,15 @@
 [
-  { "name": "geist", "label": "Geist" },
-  { "name": "geist mono", "label": "Geist Mono" },
+  { "name": "geist", "label": "Geist", "variable": "geist.ttf" },
+  { "name": "geist mono", "label": "Geist Mono", "variable": "geist mono.ttf" },
   { "name": "geist pixel circle", "label": "Geist Pixel Circle" },
   { "name": "geist pixel grid", "label": "Geist Pixel Grid" },
   { "name": "geist pixel line", "label": "Geist Pixel Line" },
   { "name": "geist pixel square", "label": "Geist Pixel Square" },
   { "name": "geist pixel triangle", "label": "Geist Pixel Triangle" },
-  { "name": "geist serif", "label": "Geist Serif" },
+  { "name": "geist serif", "label": "Geist Serif", "variable": "geist serif.ttf" },
   { "name": "geist serif heart", "label": "Geist Serif Heart" },
   { "name": "geist serif square", "label": "Geist Serif Square" },
   { "name": "geist serif triangle", "label": "Geist Serif Triangle" },
-  { "name": "inter" },
+  { "name": "inter", "variable": "inter.ttf" },
   { "name": "paper mono" }
 ]

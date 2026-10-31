@@ -26,14 +26,14 @@
       "id": "core",
       "name": "Zoidium Core",
       "author": "Zoidium",
-      "version": "105",
+      "version": "106",
       "visibility": "hidden",
       "alwaysEnabled": true,
       "tagline": "Built-in core extensions",
       "description": "Hidden built-in extensions that always run. Not shown in the Plugins panel and never stored in projects.",
-      "manifest": "./plugins/core/manifest.json?v=105",
-      "bundle": "./plugins/core/bundle.json?v=105",
-      "integrity": "sha256-TE25dqCRXIBfq+WBJTInDaaUbOIk3w0Z9OnRaOIOgf4="
+      "manifest": "./plugins/core/manifest.json?v=106",
+      "bundle": "./plugins/core/bundle.json?v=106",
+      "integrity": "sha256-Yq+Fhzlilg7RiIRxDpyDT+kOISdv7bK3Rc3VrRUIAT8="
     },
     {
       "id": "easing-plus",
@@ -478,14 +478,14 @@
       "id": "shape-plus",
       "name": "Shape+",
       "author": "Zoidium",
-      "version": "30",
+      "version": "31",
       "tagline": "Animated vector layers",
       "description": "Animated vector layers, procedural contents, SVG import and native preview path editing.",
       "category": "scene",
       "defaultEnabled": true,
-      "manifest": "./plugins/shape-plus/manifest.json?v=30",
-      "bundle": "./plugins/shape-plus/bundle.json?v=30",
-      "integrity": "sha256-AN9EQef4R6aVk8+dnUPI9GnjIEHTpfr/OZwt1rtxBU4="
+      "manifest": "./plugins/shape-plus/manifest.json?v=31",
+      "bundle": "./plugins/shape-plus/bundle.json?v=31",
+      "integrity": "sha256-AHHQJ9HgM45bL+qV4Npw7KVWPXhaPGTpLa3poyy/dSY="
     },
     {
       "id": "constraints",

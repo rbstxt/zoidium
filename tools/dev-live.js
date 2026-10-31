@@ -407,22 +407,36 @@ function createLivePresets(options = {}) {
     if (!Array.isArray(entries) || entries.some((entry) => !entry || typeof entry.name !== "string")) {
       throw new Error("fonts/presets.json must be an array of {name, label?} entries.");
     }
-    return new Set(entries.map((entry) => entry.name));
+    return entries;
   };
 
-  // Returns the repository TTF bytes for a staged font URL name, or null
-  // when the preset is not listed (the caller falls through to the stage).
-  const getPresetBytes = async (name) => {
+  // Returns the repository TTF bytes for a staged font URL, or null when it
+  // is not listed (the caller falls through to the stage). Scope "2d" serves
+  // fonts/presets/<name>.ttf for a listed preset name; scope "2d-variable"
+  // serves fonts/presets-variable/<file> for a file named in some entry's
+  // variable field, so variable edits hot-reload like the static twins.
+  const getPresetBytes = async (name, scope = "2d") => {
     if (typeof name !== "string" || !PRESET_NAME_PATTERN.test(name)) return null;
-    let listed = null;
+    let entries = null;
     try {
-      listed = await withFsRetry(() => readPresetList());
+      entries = await withFsRetry(() => readPresetList());
     } catch (error) {
       onLog(`live font preset list unreadable (${error && error.message ? error.message : error})`);
       return null;
     }
-    if (!listed.has(name)) return null;
-    const source = path.resolve(root, "fonts", "presets", `${name}.ttf`);
+    let source = null;
+    if (scope === "2d-variable") {
+      const listed = entries
+        .filter((entry) => typeof entry.variable === "string")
+        .map((entry) => entry.variable);
+      if (!listed.includes(name)) return null;
+      source = path.resolve(root, "fonts", "presets-variable", name);
+    } else if (scope === "2d") {
+      if (!entries.some((entry) => entry.name === name)) return null;
+      source = path.resolve(root, "fonts", "presets", `${name}.ttf`);
+    } else {
+      return null;
+    }
     if (!source.startsWith(root + path.sep)) return null;
     try {
       const stat = await withFsRetry(() => fs.promises.lstat(source));
