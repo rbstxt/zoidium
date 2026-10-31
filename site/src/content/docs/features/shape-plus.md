@@ -44,7 +44,9 @@ for missing glyphs, set **Fallback Font**.
 
 To use paragraph text, set **Text Mode** to **box** and edit **Box Size**.
 To animate variable fonts, choose a **Style**, then animate the individual axis
-properties. See [Text](/reference/shape-plus/#text) for the supported formats
+properties. The built-in `geist`, `geist mono`, and `inter` presets are
+variable fonts with weight axes, and `geist serif` carries an ELSH shape axis,
+so no font import is needed to animate them. See [Text](/reference/shape-plus/#text) for the supported formats
 and layout controls.
 
 ## Animate text with animators

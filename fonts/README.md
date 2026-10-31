@@ -41,3 +41,37 @@ The additional font sources and checksums are:
 
 The complete OFL 1.1 text is included in [`LICENSE.md`](./LICENSE.md). The
 settings panel also provides a generic system monospace fallback.
+
+## Built-in font presets
+
+The files in `presets/` are TTF fonts served at `assets/fonts/2d/<name>.ttf`
+and offered in the CM3 font picker next to the host presets. The host renders
+preset fonts with its bundled parser (TTF and OTF; variable fonts render
+their default instance), so WOFF2 files cannot be used here. The picker
+preview sprite (`font-previews.svg`) is generated from these files; see
+"Adding a preset" below. None of these families declares a Reserved Font
+Name.
+
+- `presets/geist.ttf` — Geist variable (weight 100–900), from [geist-font v1.9.0](https://github.com/vercel/geist-font/releases/tag/v1.9.0), file `Geist/variable/Geist[wght].ttf`. Size: 169056 bytes. License: [LICENSE-Geist-OFL.txt](./LICENSE-Geist-OFL.txt).
+  SHA-256: `b85f4adce8f3fa245990c6b37237023ac9c5a6a034e35a427940372b1f4d210e`
+- `presets/geist mono.ttf` — Geist Mono variable (weight 100–900), from [geist-font v1.9.0](https://github.com/vercel/geist-font/releases/tag/v1.9.0), file `GeistMono/variable/GeistMono[wght].ttf`. Size: 171200 bytes. License: [LICENSE-Geist-OFL.txt](./LICENSE-Geist-OFL.txt).
+  SHA-256: `c8c0fe44e62e5452878455fd9e9b06891291bf80854395c177fdd3b4326ab6af`
+- `presets/geist pixel circle.ttf`, `presets/geist pixel grid.ttf`, `presets/geist pixel line.ttf`, `presets/geist pixel square.ttf`, `presets/geist pixel triangle.ttf` — the five official Geist Pixel static shapes, from [geist-font v1.9.0](https://github.com/vercel/geist-font/releases/tag/v1.9.0), files `GeistPixel/ttf/GeistPixel-*.ttf`. Sizes: 320304, 196564, 95804, 94764, 194596 bytes. License: [LICENSE-Geist-OFL.txt](./LICENSE-Geist-OFL.txt).
+  SHA-256: `9cd6bed2ba14b5a2ff6a04a2fdfafa3fbed201fc858910ef9e78a004206ad6a0` (circle), `49e93728ed05157fdeb5258fdee58aa955c44ebede8c59c96dda04e78ce0d90c` (grid), `c744abcc65c25d5c64f659ef8a82e53fe94050b8dc92bfe5e937ebd6a0d7948b` (line), `c1fbf7316997c1749857708998958e8ca0343416b3f8d2c7156d634a9520e997` (square), `981e4e468804f25c299beaa5d8f10054e9f1f74b73fdf7f820fcc7976e309a99` (triangle)
+- `presets/geist serif.ttf` — Geist Serif variable (ELSH shape axis 0–100, default Regular), from [geist-font v1.9.0](https://github.com/vercel/geist-font/releases/tag/v1.9.0), file `GeistSerif/variable/GeistSerif[ELSH].ttf`. Size: 155752 bytes. License: [LICENSE-Geist-OFL.txt](./LICENSE-Geist-OFL.txt).
+  SHA-256: `be21be58d3eb75eed89ffab625f2cbe2a3920ccfdac14cd4efee1c828424bf76`
+- `presets/inter.ttf` — Inter variable (weight 100–900, optical size 14–32), from [Inter v4.1](https://github.com/rsms/inter/releases/tag/v4.1), file `InterVariable.ttf`. Size: 879708 bytes. License: [LICENSE-Inter-OFL.txt](./LICENSE-Inter-OFL.txt) (byte-identical to the release `LICENSE.txt`).
+  SHA-256: `4989b125924991b90d05b2d16e0e388c48f7d5bb8b30539bbf9c755278d0ccaf`
+- `presets/paper mono.ttf` — Paper Mono Regular (static), from [paper-mono v1.000](https://github.com/paper-design/paper-mono/releases/tag/v1.000), file `fonts/ttf/PaperMono-Regular.ttf`. Size: 106088 bytes. License: [LICENSE-Paper-Mono-OFL.txt](./LICENSE-Paper-Mono-OFL.txt) (byte-identical to the release `OFL.txt`).
+  SHA-256: `d1ee286449d5276df35c34429891ef43ca5e54f4b526d5f985284457ef36fd64`
+
+## Adding a preset
+
+1. Drop the TTF into `presets/`, named `<preset name>.ttf`. The name must be
+   lowercase, must be a valid file name, and must not collide with a host
+   preset.
+2. Add the name to `presets.json` (alphabetical order).
+3. Run `node tools/build-font-previews.js` to rebuild `font-previews.svg`.
+4. Record the source URL, version, size, SHA-256, and license above.
+5. `pnpm run verify` fails when the sprite or the runtime preset list
+   (`plugins/core/font-presets.js`) is stale.
