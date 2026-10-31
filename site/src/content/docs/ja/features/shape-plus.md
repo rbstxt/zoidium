@@ -42,7 +42,7 @@ sidebar:
 
 段落テキストを使用する場合は、**Text Mode** を **box** に設定し、**Box Size** を編集します。
 可変フォントをアニメーションする場合は、**Style** を選択して各軸のプロパティをアニメーションします。
-組み込みフォントはスタティックであるため、軸の行は表示されません。可変軸を使用する場合は、可変の TTF、OTF、または WOFF フォントを Assets に読み込み、**Font Family** で選択します。軸は **Style** の直下に **Weight (wght)** のような名前付きの行として表示されます。スタティックフォントの Text 項目には、**Objects** の横に "Static font: no variable axes" と表示されます。
+ほとんどの組み込みフォントはスタティックであるため、軸の行は表示されません。組み込みの **Geist**、**Geist Mono**、**Inter** はウェイト軸を持つ可変フォントで、**Geist Serif** は ELSH シェイプ軸を持ちます。ほかの可変フォントを使用する場合は、可変の TTF、OTF、または WOFF フォントを Assets に読み込み、**Font Family** で選択します。軸は **Style** の直下に **Weight (wght)** のような名前付きの行として表示されます。スタティックフォントの Text 項目には、**Objects** の横に "Static font: no variable axes" と表示されます。
 対応する形式とレイアウト設定は、[Text](/ja/reference/shape-plus/#text) を参照してください。
 
 ## アニメーターでテキストをアニメーションする

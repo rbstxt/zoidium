@@ -305,6 +305,36 @@ async function copyProjectFiles(stageRoot, { includeDesktopFiles = false } = {})
   }
 }
 
+// Zoidium built-in font presets are stored in the repository as
+// fonts/presets/<name>.ttf (listed in fonts/presets.json) and served at the
+// path the host fetches: assets/fonts/2d/<name>.ttf, relative to the page.
+// Every stage (web build, development server, desktop packaging) is built by
+// copyProjectFiles, so one step here covers all of them.
+async function copyFontPresets(stageRoot) {
+  const listPath = path.join(projectRoot, "fonts", "presets.json");
+  const entries = JSON.parse(await fs.promises.readFile(listPath, "utf8"));
+  if (!Array.isArray(entries) || entries.some(entry => !entry || typeof entry.name !== "string")) {
+    throw new Error("fonts/presets.json must be an array of {name, label?} entries.");
+  }
+  for (const { name } of entries) {
+    const source = path.resolve(projectRoot, "fonts", "presets", `${name}.ttf`);
+    if (!isPathInside(projectRoot, source)) {
+      throw new Error(`Font preset escapes the repository: ${name}`);
+    }
+    let bytes;
+    try {
+      const stat = await fs.promises.lstat(source);
+      if (!stat.isFile() || stat.isSymbolicLink()) {
+        throw new Error(`Font preset is not a regular file: ${name}`);
+      }
+      bytes = await fs.promises.readFile(source);
+    } catch (error) {
+      throw new Error(`Missing font preset file fonts/presets/${name}.ttf: ${error.message}`);
+    }
+    await writeStageFile(stageRoot, `assets/fonts/2d/${name}.ttf`, bytes);
+  }
+}
+
 function cleanupStage(stageRoot) {
   if (!stageRoot) return Promise.resolve();
   return fs.promises.rm(stageRoot, { force: true, recursive: true });
@@ -491,6 +521,7 @@ module.exports = {
   buildResourceStage,
   cleanupStage,
   copyEntry,
+  copyFontPresets,
   copyPath,
   copyPluginRuntime,
   copyProjectFiles,

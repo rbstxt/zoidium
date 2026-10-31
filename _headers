@@ -7,5 +7,9 @@
 
 # Bundled fonts are stable file names that are not query-versioned. A one-week
 # cache avoids revalidating them on every visit.
+# The built-in preset fonts staged at assets/fonts/2d/ are stable too.
 /fonts/*
+  Cache-Control: public, max-age=604800
+
+/assets/fonts/2d/*
   Cache-Control: public, max-age=604800

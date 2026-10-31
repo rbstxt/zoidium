@@ -35,6 +35,7 @@ const { resourceRootFor, sourcePathFromUrl } = require("./runtime-resources-disc
 const {
   buildResourceStage,
   cleanupStage,
+  copyFontPresets,
   copyPath,
   copyProjectFiles,
   patchIndexHtml,
@@ -417,6 +418,10 @@ async function prepareRuntimeStage({
       });
     }
     await copyProjectFiles(stageRoot, { includeDesktopFiles });
+    // Zoidium preset fonts are a stage overlay, not cache contents: the
+    // cache keeps the CM3 graph plus project files, while every runtime
+    // stage also serves the preset TTFs at the host font path.
+    await copyFontPresets(stageRoot);
     await patchThreeRuntimeStage(stageRoot, cache.resources);
     return {
       ...cache,

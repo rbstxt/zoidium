@@ -44,8 +44,10 @@ for missing glyphs, set **Fallback Font**.
 
 To use paragraph text, set **Text Mode** to **box** and edit **Box Size**.
 To animate variable fonts, choose a **Style**, then animate the individual axis
-properties. The built-in fonts are static, so they show no axis rows. To use
-variable axes, import a variable TTF, OTF, or WOFF font in Assets and choose
+properties. Most built-in fonts are static, so they show no axis rows. The
+built-in **Geist**, **Geist Mono**, and **Inter** fonts are variable fonts with
+a weight axis, and **Geist Serif** has an ELSH shape axis. To use another
+variable font, import a variable TTF, OTF, or WOFF font in Assets and choose
 it in **Font Family**. Its axes then appear as named rows such as
 **Weight (wght)** directly below **Style**. A Text item with a static font
 shows "Static font: no variable axes" beside it in **Objects**.

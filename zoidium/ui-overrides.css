@@ -462,6 +462,22 @@ body > .pz-dropdown li > span[style],
   filter: invert(41%) sepia(13%) saturate(861%) hue-rotate(185deg) brightness(93%) contrast(92%) hue-rotate(var(--zoidium-theme-hue-shift, 0deg)) saturate(var(--zoidium-theme-saturation, 1)) !important;
 }
 
+/* The font preview sprite is generated from the preset list
+   (fonts/font-previews.svg, built by tools/build-font-previews.js), not
+   CM3's fonts.png. The !important background image overrides the inline
+   `url('fonts.png')` on the same spans, while the inline
+   background-position keeps selecting the row. The tint filter above still
+   applies. This also covers the Shader+ text font button, whose sprite span
+   carries no inline style until its row is selected. */
+.zoidium-editor-window button.pz-tweens[title="font"] > span,
+body > .pz-dropdown li > span[style],
+.zoidium-editor-window .pz-dropdown li > span[style],
+.zoidium-window button.pz-tweens[title="font"] > span,
+.zoidium-window .pz-dropdown li > span[style],
+.zsp-font-sprite {
+  background-image: url("../fonts/font-previews.svg") !important;
+}
+
 .zoidium-editor-window select,
 .zoidium-window select {
   color: var(--zoidium-theme-link, #7e8fb9);
