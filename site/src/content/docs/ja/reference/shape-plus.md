@@ -337,7 +337,7 @@ Grouping Alignment はグループボックスに対する割合でピボット�
 | Range Selector | 型 | 初期値 | 効果 |
 | --- | --- | --- | --- |
 | **Units** | 静的選択 | Percentage | 項目全体に対する Percentage または Index 単位。 |
-| **Range Start**、**Range End**、**Range Offset** | 動的数値 | 0、100、0 | Index 単位の未編集のセレクターは Start 0、End 単位の個数を使用します。両端が等しい場合は何も選択しません。 |
+| **Range Start**、**Range End**、**Range Offset** | 動的数値 | 0、100、0 | Index 単位では、キーと式がなく初期値 100 の End は最後の単位を意味します。それ以外の End は文字どおりに数えます。両端が等しい場合は何も選択しません。 |
 | **Based On** | 静的選択 | Characters | Characters、Characters Excluding Spaces、Words、Lines。Characters と Lines 以外では空白は 0 です。 |
 | **Mode** | 静的選択 | Add | 0 からの実行値に対する Add、Subtract、Intersect、Min、Max、Difference。[-1, 1] に収めます。 |
 | **Amount (%)** | 動的数値 | 100 | -100 から 100。セレクターの値に乗算します。 |

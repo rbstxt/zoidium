@@ -66,5 +66,6 @@ for the properties, grouping, and selectors.
 3. To use the Objects row instead, click **Create Shapes from Text**.
 4. Expand the character groups to edit each contour as a Path.
 
-Conversion captures the current frame and creates one undo step. To restore
-the live text and its animation, use Undo.
+Conversion captures the current frame and creates one undo step. With Text
+Animators, conversion bakes the displayed animated frame into the paths. To
+restore the live text and its animation, use Undo.

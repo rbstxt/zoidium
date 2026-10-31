@@ -684,7 +684,8 @@ For variable fonts the ascent and descent come from the font's hhea table.
 
 The Range Selector is always present. Units count Percentage (0-100) or Index
 units over the whole text item in logical order across lines. In Index units
-an untouched selector covers the text: Start 0, End the unit count, Offset 0.
+an End with no keys, no expression, and the default value 100 means the last
+unit; a keyed or expression-driven End of 100 counts literally.
 Based On counts Characters, Characters Excluding Spaces (spaces take 0),
 Words (spaces take 0) or Lines. Start, End and Offset define a normalised
 range; equal bounds select nothing. Shape Square measures the covered fraction

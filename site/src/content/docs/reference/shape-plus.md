@@ -342,7 +342,7 @@ span horizontally, font ascent to descent vertically).
 | Range Selector | Type | Default | Effect |
 | --- | --- | --- | --- |
 | **Units** | Static choice | Percentage | Percentage or Index units over the whole item. |
-| **Range Start**, **Range End**, **Range Offset** | Dynamic number | 0, 100, 0 | In Index units an untouched selector uses Start 0 and End the unit count. Equal bounds select nothing. |
+| **Range Start**, **Range End**, **Range Offset** | Dynamic number | 0, 100, 0 | In Index units an End with no keys, no expression, and the default 100 means the last unit; otherwise End counts literally. Equal bounds select nothing. |
 | **Based On** | Static choice | Characters | Characters, Characters Excluding Spaces, Words or Lines. Spaces take 0 except under Characters and Lines. |
 | **Mode** | Static choice | Add | Add, Subtract, Intersect, Min, Max or Difference against the running value from 0, clamped to [-1, 1]. |
 | **Amount (%)** | Dynamic number | 100 | -100 to 100; multiplies the selector value. |
