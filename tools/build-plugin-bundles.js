@@ -265,6 +265,141 @@ function normalizeManifestSources(manifest) {
   return changed;
 }
 
+// Build one plugin's bundles from its manifest. In write mode the manifest,
+// the main bundle, the optional bundles, and the registry entry are updated
+// on disk; in check mode any difference throws. Returns per-plugin change
+// flags so callers can summarize.
+function buildRegisteredPlugin(plugin, { checkOnly: check = false } = {}) {
+  if (!plugin?.id || typeof plugin.manifest !== "string") {
+    throw new Error(`Registry entry has no manifest: ${plugin?.id || "unknown"}`);
+  }
+
+  const manifestPath = localPath(plugin.manifest);
+  const manifest = readJson(manifestPath);
+  validateManifest(manifest, path.relative(projectRoot, manifestPath));
+  if (manifest.id !== plugin.id) {
+    throw new Error(`Manifest does not match registry entry: ${plugin.id}`);
+  }
+  const relativeManifest = path.relative(projectRoot, manifestPath);
+  let changedManifest = false;
+  if (normalizeManifestSources(manifest) > 0) {
+    if (check) {
+      throw new Error("Plugin manifest asset URLs are stale (run pnpm run build:plugin-bundles): " + relativeManifest);
+    }
+    if (writeIfChanged(manifestPath, JSON.stringify(manifest, null, 2) + "\n")) changedManifest = true;
+  }
+  const built = buildPluginContents(manifest, manifestPath);
+  const bundlePath = path.join(path.dirname(manifestPath), "bundle.json");
+  let changedBundle = false;
+  if (check) {
+    if (!fs.existsSync(bundlePath) || fs.readFileSync(bundlePath, "utf8") !== built.bundleContent) {
+      throw new Error(`Plugin bundle is stale or missing: ${path.relative(projectRoot, bundlePath)}`);
+    }
+    for (const [filename, content] of built.optionalContents) {
+      const target = path.join(path.dirname(manifestPath), filename);
+      if (!fs.existsSync(target) || fs.readFileSync(target, "utf8") !== content) throw new Error("Optional bundle is stale: " + filename);
+    }
+  } else {
+    for (const [filename, content] of built.optionalContents) {
+      writeIfChanged(path.join(path.dirname(manifestPath), filename), content);
+    }
+    if (writeIfChanged(bundlePath, built.bundleContent)) changedBundle = true;
+  }
+
+  let changedRegistry = false;
+  if (
+    plugin.integrity !== built.integrity ||
+    plugin.bundle !== built.bundleUrl ||
+    plugin.manifest !== built.manifestUrl ||
+    String(plugin.version ?? "") !== String(manifest.version ?? "")
+  ) {
+    if (check) {
+      throw new Error(`Registry metadata is stale for plugin: ${plugin.id}`);
+    }
+    plugin.integrity = built.integrity;
+    plugin.bundle = built.bundleUrl;
+    plugin.manifest = built.manifestUrl;
+    delete plugin.locale;
+    plugin.version = String(manifest.version ?? "");
+    changedRegistry = true;
+  }
+  return { changedBundle, changedManifest, changedRegistry };
+}
+
+// Pure content build shared by the file-writing builder above and the
+// development server's in-memory rebuild: same bytes, no disk writes.
+function buildPluginContents(manifest, manifestPath) {
+  const bundle = buildBundle(manifest);
+  const groups = [...new Set((manifest.resources || []).map(r => r.optionalBundle).filter(Boolean))];
+  const optionalContents = new Map();
+  for (const id of groups) {
+    const optional = buildBundle({ resources: manifest.resources.filter(r => r.optionalBundle === id).map(({ optionalBundle, ...r }) => r) });
+    const content = JSON.stringify({ schemaVersion: 1, assets: optional.assets }) + "\n";
+    const filename = id + ".bundle.json";
+    optionalContents.set(filename, content);
+    (bundle.assets.optional ||= {})[id] = {
+      source: "./" + path.relative(projectRoot, path.join(path.dirname(manifestPath), filename)).split(path.sep).join("/") + "?v=" + manifest.version,
+      integrity: "sha256-" + createHash("sha256").update(content).digest("base64"),
+    };
+  }
+  const bundleJson = JSON.stringify(bundle);
+  if (/[\r\n]/.test(bundleJson)) {
+    throw new Error(`Plugin bundle must be single-line JSON: ${manifest.id}`);
+  }
+  const bundleContent = `${bundleJson}\n`;
+  return {
+    bundleContent,
+    optionalContents,
+    integrity: "sha256-" + createHash("sha256").update(bundleContent, "utf8").digest("base64"),
+    bundleUrl: bundleUrl(manifestPath, manifest.version),
+    manifestUrl: manifestUrl(manifestPath, manifest.version),
+  };
+}
+
+// Build every registered plugin bundle and the registry in memory, using the
+// same content builder as the file-writing path. Nothing is written: the
+// development server serves these bytes so source edits show on reload.
+// Manifests are cloned before URL normalization so the caller's objects stay
+// untouched. Throws on the first invalid manifest or missing asset.
+function buildAllInMemory() {
+  const registry = readJson(registryPath);
+  if (registry.schemaVersion !== 1 || !Array.isArray(registry.plugins)) {
+    throw new Error("Invalid plugin registry");
+  }
+  const files = new Map();
+  const plugins = registry.plugins.map((plugin) => {
+    if (!plugin?.id || typeof plugin.manifest !== "string") {
+      throw new Error(`Registry entry has no manifest: ${plugin?.id || "unknown"}`);
+    }
+    const manifestPath = localPath(plugin.manifest);
+    const manifest = JSON.parse(JSON.stringify(readJson(manifestPath)));
+    validateManifest(manifest, path.relative(projectRoot, manifestPath));
+    if (manifest.id !== plugin.id) {
+      throw new Error(`Manifest does not match registry entry: ${plugin.id}`);
+    }
+    normalizeManifestSources(manifest);
+    const built = buildPluginContents(manifest, manifestPath);
+    const directory = path.dirname(path.relative(projectRoot, manifestPath)).split(path.sep).join("/");
+    files.set(`${directory}/bundle.json`, built.bundleContent);
+    for (const [filename, content] of built.optionalContents) {
+      files.set(`${directory}/${filename}`, content);
+    }
+    files.set(`${directory}/manifest.json`, `${JSON.stringify(manifest, null, 2)}\n`);
+    const { locale: _locale, ...rest } = plugin;
+    return {
+      ...rest,
+      integrity: built.integrity,
+      bundle: built.bundleUrl,
+      manifest: built.manifestUrl,
+      version: String(manifest.version ?? ""),
+    };
+  });
+  return {
+    files,
+    registry: `${JSON.stringify({ ...registry, plugins }, null, 2)}\n`,
+  };
+}
+
 function main() {
   const registry = readJson(registryPath);
   if (registry.schemaVersion !== 1 || !Array.isArray(registry.plugins)) {
@@ -275,70 +410,10 @@ function main() {
   let changedManifests = 0;
   let changedRegistry = false;
   for (const plugin of registry.plugins) {
-    if (!plugin?.id || typeof plugin.manifest !== "string") {
-      throw new Error(`Registry entry has no manifest: ${plugin?.id || "unknown"}`);
-    }
-
-    const manifestPath = localPath(plugin.manifest);
-    const manifest = readJson(manifestPath);
-    validateManifest(manifest, path.relative(projectRoot, manifestPath));
-    if (manifest.id !== plugin.id) {
-      throw new Error(`Manifest does not match registry entry: ${plugin.id}`);
-    }
-    const relativeManifest = path.relative(projectRoot, manifestPath);
-    if (normalizeManifestSources(manifest) > 0) {
-      if (checkOnly) {
-        throw new Error("Plugin manifest asset URLs are stale (run pnpm run build:plugin-bundles): " + relativeManifest);
-      }
-      if (writeIfChanged(manifestPath, JSON.stringify(manifest, null, 2) + "\n")) changedManifests += 1;
-    }
-    const bundle = buildBundle(manifest);
-    const groups = [...new Set((manifest.resources || []).map(r => r.optionalBundle).filter(Boolean))];
-    for (const id of groups) {
-      const optional = buildBundle({ resources: manifest.resources.filter(r => r.optionalBundle === id).map(({optionalBundle, ...r}) => r) });
-      const content = JSON.stringify({ schemaVersion: 1, assets: optional.assets }) + "\n";
-      const filename = id + ".bundle.json", target = path.join(path.dirname(manifestPath), filename);
-      if (checkOnly) {
-        if (!fs.existsSync(target) || fs.readFileSync(target, "utf8") !== content) throw new Error("Optional bundle is stale: " + id);
-      } else writeIfChanged(target, content);
-      (bundle.assets.optional ||= {})[id] = {
-        source: "./" + path.relative(projectRoot, target).split(path.sep).join("/") + "?v=" + manifest.version,
-        integrity: "sha256-" + createHash("sha256").update(content).digest("base64"),
-      };
-    }
-    const bundlePath = path.join(path.dirname(manifestPath), "bundle.json");
-    const bundleJson = JSON.stringify(bundle);
-    if (/[\r\n]/.test(bundleJson)) {
-      throw new Error(`Plugin bundle must be single-line JSON: ${plugin.id}`);
-    }
-    const bundleContent = `${bundleJson}\n`;
-    if (checkOnly) {
-      if (!fs.existsSync(bundlePath) || fs.readFileSync(bundlePath, "utf8") !== bundleContent) {
-        throw new Error(`Plugin bundle is stale or missing: ${path.relative(projectRoot, bundlePath)}`);
-      }
-    } else if (writeIfChanged(bundlePath, bundleContent)) {
-      changedBundles += 1;
-    }
-
-    const integrity = "sha256-" + createHash("sha256").update(bundleContent, "utf8").digest("base64");
-    const nextBundle = bundleUrl(manifestPath, manifest.version);
-    const nextManifest = manifestUrl(manifestPath, manifest.version);
-    if (
-      plugin.integrity !== integrity ||
-      plugin.bundle !== nextBundle ||
-      plugin.manifest !== nextManifest ||
-      String(plugin.version ?? "") !== String(manifest.version ?? "")
-    ) {
-      if (checkOnly) {
-        throw new Error(`Registry metadata is stale for plugin: ${plugin.id}`);
-      }
-      plugin.integrity = integrity;
-      plugin.bundle = nextBundle;
-      plugin.manifest = nextManifest;
-      delete plugin.locale;
-      plugin.version = String(manifest.version ?? "");
-      changedRegistry = true;
-    }
+    const built = buildRegisteredPlugin(plugin, { checkOnly });
+    if (built.changedManifest) changedManifests += 1;
+    if (built.changedBundle) changedBundles += 1;
+    if (built.changedRegistry) changedRegistry = true;
   }
 
   if (!checkOnly && changedRegistry) {
@@ -359,5 +434,18 @@ if (require.main === module) {
   }
 }
 
-module.exports = { writeIfChanged };
+module.exports = {
+  buildAllInMemory,
+  buildBundle,
+  buildPluginContents,
+  buildRegisteredPlugin,
+  bundleUrl,
+  localPath,
+  manifestUrl,
+  normalizeManifestSources,
+  projectRoot,
+  registryPath,
+  stripUrlQuery,
+  writeIfChanged,
+};
 
