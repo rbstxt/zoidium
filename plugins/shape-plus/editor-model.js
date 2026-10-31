@@ -58,6 +58,9 @@ function createEditorModel(s) {
   s.gesture = createGesture(editor.history, read, write, () => s.refresh?.(true), () => editor.project);
   s.preview = () => {
     layer.signature = null;
+    // A mutation ends the current read scope: later reads in the same event
+    // rebuild from the changed contents instead of reusing stale entries.
+    s.canvasApi?.invalidateScene?.();
     // Native playback redraws evaluated layer data continuously. Project
     // change notifications belong to finishOperation, once per gesture.
     s.dirty = true;

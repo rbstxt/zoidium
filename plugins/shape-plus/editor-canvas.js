@@ -73,10 +73,41 @@ function createCanvas(s, canvas) {
   const context = canvas.getContext("2d"),
     view = { width: 1, height: 1 };
   let projection = null;
+  // Operation-scoped scene snapshot. One read-only pointer event or one draw
+  // shares a single scene build across hit, active lookup, local conversion,
+  // snap and selection bounds. The scope is synchronous only: it never spans
+  // frames, and any mutation invalidates it so later reads see fresh data.
+  let scope = null;
+  function ensureScope() {
+    if (!scope)
+      scope = { list: null, byId: null };
+    if (!scope.list) {
+      scope.list = scene(s.layer.contents, s.localFrame());
+      scope.byId = new Map(scope.list.map((e) => [e.item.id, e]));
+    }
+    return scope;
+  }
+  function scoped(work) {
+    if (scope) return work();
+    scope = { list: null, byId: null };
+    try {
+      return work();
+    } finally {
+      scope = null;
+    }
+  }
+  function invalidateScope() {
+    if (scope) {
+      scope.list = null;
+      scope.byId = null;
+    }
+  }
   function entries() {
+    if (scope) return ensureScope().list;
     return scene(s.layer.contents, s.localFrame());
   }
   function active() {
+    if (scope) return ensureScope().byId.get(s.activeId);
     return entries().find((e) => e.item.id === s.activeId);
   }
   function screen(point, m = identity) {
@@ -238,20 +269,23 @@ function createCanvas(s, canvas) {
   }
   function draw() {
     if (!resize() || !view.width) return;
+    // One draw shares a single scene snapshot across outlines, active
+    // lookup, selection bounds and control handles.
+    scoped(() => {
     const dpr = canvas.width / view.width;
     context.setTransform(dpr, 0, 0, dpr, 0, 0);
     context.clearRect(0, 0, view.width, view.height);
     const selected = [...s.treeSelection];
     if (s.hover && !s.treeSelection.has(s.hover) && !s.pointer?.active)
       for (const e of outlines(s.hover)) strokeOutline(e, HOVER);
-    let scope = null;
+    let paint = null;
     for (const id of selected) {
       const item = s.find(id);
       if (!item) continue;
       if (PAINTS.includes(item.kind)) {
         // A selected fill/stroke shows exactly which paths it draws.
-        scope = scope || paintScope(JSON.parse(JSON.stringify(s.layer.contents)));
-        const targets = new Set(scope.get(id)?.targets || []);
+        paint = paint || paintScope(JSON.parse(JSON.stringify(s.layer.contents)));
+        const targets = new Set(paint.get(id)?.targets || []);
         for (const e of entries()) if (targets.has(e.item.id)) strokeOutline(e, ACCENT, 1, [5, 4]);
         continue;
       }
@@ -279,6 +313,7 @@ function createCanvas(s, canvas) {
       context.fillRect(...start, end[0] - start[0], end[1] - start[1]);
       context.strokeRect(...start, end[0] - start[0], end[1] - start[1]);
     }
+    });
   }
   function snap(point, exclude = []) {
     if (!s.snap) return point;
@@ -312,6 +347,8 @@ function createCanvas(s, canvas) {
     resize,
     entries,
     active,
+    scoped,
+    invalidateScene: invalidateScope,
     activeMatrix: () => [...(projection || []), ...(active()?.matrix || controls.handles(s)[0]?.matrix || [])],
     screen,
     local,

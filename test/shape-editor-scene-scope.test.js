@@ -7,8 +7,9 @@ const test = require("node:test"),
 const { PZ } = require("./shape-plus-host.js");
 const { createModel } = require("../plugins/shape-plus/model.js");
 const canvasModule = require("../plugins/shape-plus/editor-canvas.js");
-const { scene } = canvasModule;
-const { matrix, identity } = require("../plugins/shape-plus/compiler.js");
+const { scene, createCanvas } = canvasModule;
+const { matrix, identity, transform } = require("../plugins/shape-plus/compiler.js");
+const { find } = require("../plugins/shape-plus/editor-tree-data.js");
 const g = require("../plugins/shape-plus/editor-geometry.js");
 
 // Reference: the pre-fix walk. A group calls item.evaluate(), which evaluates
@@ -139,4 +140,319 @@ test("each node is evaluated exactly once per scene build", () => {
       if (item.contents) walk(item.contents);
     }
   })(layer.contents);
+});
+
+// A canvas harness with stub DOM: CSS pixels, a real display mapping, and a
+// recording 2d context. isPointInPath stays false so itemAt resolves through
+// the shared g.hit path in both old and new code.
+global.ResizeObserver ??= class { constructor() {} observe() {} disconnect() {} };
+function makeContext() {
+  const ctx = { calls: [] };
+  for (const name of ["save", "restore", "setTransform", "beginPath", "moveTo", "lineTo",
+    "bezierCurveTo", "closePath", "stroke", "fillRect", "strokeRect", "arc", "fill",
+    "clearRect", "setLineDash"])
+    ctx[name] = (...args) => { ctx.calls.push([name, ...args]); };
+  ctx.isPointInPath = () => false;
+  return ctx;
+}
+function pathValues(vertices) {
+  return vertices.flatMap(([[px, py], [ix, iy], [ox, oy]]) => [px, py, ix, iy, ox, oy]);
+}
+function buildCanvasLayer() {
+  const { Content } = createModel(PZ);
+  const layer = { contents: new PZ.objectList(null, Content) };
+  const data = [
+    {
+      id: "outer", kind: "group",
+      properties: { position: { animated: false, keyframes: [{ frame: 0, value: [100, 0], tween: 1 }] } },
+      contents: [
+        {
+          id: "inner", kind: "group",
+          properties: {
+            position: {
+              animated: true,
+              keyframes: [{ frame: 0, value: [0, 0], tween: 1 }, { frame: 30, value: [60, 20], tween: 1 }],
+            },
+            scale: { animated: false, keyframes: [{ frame: 0, value: [2, 2], tween: 1 }] },
+          },
+          contents: [
+            {
+              id: "path", kind: "path", vertexIds: ["a", "b", "c"],
+              properties: {
+                closed: 0,
+                path: {
+                  animated: false,
+                  keyframes: [{
+                    frame: 0,
+                    value: pathValues([
+                      [[10, 10], [0, 0], [0, 0]],
+                      [[110, 10], [0, 0], [30, -30]],
+                      [[110, 110], [-30, 30], [0, 0]],
+                    ]),
+                    tween: 1,
+                  }],
+                },
+              },
+            },
+            { id: "rect", kind: "rectangle", properties: {} },
+          ],
+        },
+        {
+          id: "off", kind: "group", properties: { enabled: 0 }, contents: [
+            {
+              id: "hidden-path", kind: "path", vertexIds: ["h1", "h2"],
+              properties: {
+                closed: 0,
+                path: {
+                  animated: false,
+                  keyframes: [{
+                    frame: 0,
+                    value: pathValues([[[300, 300], [0, 0], [0, 0]], [[350, 300], [0, 0], [0, 0]]]),
+                    tween: 1,
+                  }],
+                },
+              },
+            },
+          ],
+        },
+      ],
+    },
+    {
+      id: "top", kind: "path", vertexIds: ["t1", "t2", "t3", "t4"],
+      properties: {
+        closed: 1,
+        path: {
+          animated: false,
+          keyframes: [{
+            frame: 0,
+            value: pathValues([
+              [[400, 400], [0, 0], [0, 0]], [[500, 400], [0, 0], [0, 0]],
+              [[500, 500], [0, 0], [0, 0]], [[400, 500], [0, 0], [0, 0]],
+            ]),
+            tween: 1,
+          }],
+        },
+      },
+    },
+  ];
+  for (const item of data) { const node = new Content(item.kind, item); layer.contents.push(node); node.load(item); }
+  return layer;
+}
+function host(frameState) {
+  const layer = buildCanvasLayer();
+  layer.properties = {
+    position: { get: () => [0, 0] },
+    scale: { get: () => [1, 1] },
+    rotation: { get: () => 0 },
+  };
+  const rect = { left: 0, top: 0, width: 800, height: 600 };
+  const ctx = makeContext();
+  const canvas = {
+    style: {}, width: 0, height: 0,
+    ownerDocument: { defaultView: { devicePixelRatio: 1 } },
+    getContext: () => ctx,
+    getBoundingClientRect: () => ({ ...rect }),
+    focus() {},
+    addEventListener() {},
+    removeEventListener() {},
+  };
+  const s = {
+    layer, frame: frameState.value,
+    localFrame: () => s.frame,
+    activeId: "path",
+    selection: new Set(), treeSelection: new Set(["outer"]),
+    tool: "select", penFinished: false, snap: true,
+    hover: null, pointer: { active: false }, dirty: false,
+    viewport: {
+      canvas: { getBoundingClientRect: () => ({ ...rect }) },
+      el: { getBoundingClientRect: () => ({ left: 0, top: 0 }), clientLeft: 0 },
+    },
+    editor: { sequence: { properties: { resolution: { get: () => [1280, 720] } } } },
+    find: (id) => find(layer.contents, id)?.item || null,
+    active: () => s.find(s.activeId),
+    refresh() { s.dirty = true; },
+  };
+  const api = createCanvas(s, canvas);
+  s.canvasApi = api;
+  // Mirrors the production wiring in editor-model.js: a mutation ends the
+  // current read scope so later reads see fresh data.
+  s.preview = () => api.invalidateScene();
+  assert.ok(api.resize(), "projection builds");
+  return { s, api, layer, ctx };
+}
+// Independent reference for picks: the old walk plus the documented screen
+// projection, resolved through the same g.hit contract.
+function refCss(projection, entry) {
+  const combined = g.multiply(projection, entry.matrix);
+  return entry.path.vertices.map((v) => ({
+    point: transform(v.point, combined),
+    in: g.sub(transform(g.add(v.point, v.in), combined), transform(v.point, combined)),
+    out: g.sub(transform(g.add(v.point, v.out), combined), transform(v.point, combined)),
+  }));
+}
+function refHit(contents, frame, projection, activeId, point, tool = "select") {
+  const entry = oldScene(contents, frame).find((e) => e.item.id === activeId);
+  if (!entry?.enabled || entry.item.kind !== "path") return null;
+  return g.hit(refCss(projection, entry), entry.path.closed, point, 1, true, tool === "pen");
+}
+function refItemAt(contents, frame, projection, point) {
+  for (const e of oldScene(contents, frame)) {
+    if (!e.enabled) continue;
+    // isPointInPath is stubbed false, so only the shared outline band picks.
+    if (g.hit(refCss(projection, e), e.path.closed, point, 1, false)) return e.item.id;
+  }
+  return null;
+}
+function queryGrid() {
+  const points = [];
+  for (let x = 100; x <= 700; x += 40)
+    for (let y = 60; y <= 540; y += 40) points.push([x, y]);
+  return points;
+}
+// One scene build serves a whole read-only event: hit, active lookup, local
+// conversion, snap and selection outline reads share it.
+test("one scene build per read scope", () => {
+  const { s, api, layer } = host({ value: 15 });
+  let leaves = 0, counted = 0;
+  (function walk(list) {
+    for (const item of list) {
+      if (item.kind === "group") walk(item.contents);
+      else {
+        leaves++;
+        const original = item.evaluate.bind(item);
+        item.evaluate = (frame, rate) => { counted++; return original(frame, rate); };
+      }
+    }
+  })(layer.contents);
+  const results = api.scoped(() => {
+    api.active();
+    api.hit([300, 300]);
+    api.itemAt([300, 300]);
+    api.local([300, 300]);
+    api.snap([60, 30], []);
+    api.outlines("outer");
+    api.cssPoints(api.active());
+    return true;
+  });
+  assert.ok(results);
+  assert.equal(counted, leaves, `one build evaluates each leaf once (${leaves} leaves)`);
+});
+test("the scope ends after the event and a write starts a fresh build", () => {
+  const { s, api, layer } = host({ value: 15 });
+  let builds = 0;
+  const path = find(layer.contents, "path").item;
+  const original = path.evaluate.bind(path);
+  path.evaluate = (frame, rate) => { builds++; return original(frame, rate); };
+  api.scoped(() => { api.entries(); });
+  assert.equal(builds, 1);
+  api.scoped(() => { api.entries(); });
+  assert.equal(builds, 2, "no snapshot is retained across scopes");
+  const before = api.scoped(() => api.hit([494, 275])?.kind);
+  assert.equal(builds, 3, "each closed scope rebuilds");
+  api.scoped(() => {
+    api.entries();
+    assert.equal(builds, 4);
+    const points = g.vertices(path.properties.path.get(15));
+    points[0].point = [1000, 1000];
+    path.properties.path.set(g.values(points), 15);
+    s.preview();
+    assert.equal(api.hit([494, 275]), null, "the moved anchor no longer hits its old pixel");
+    assert.equal(builds, 5, "reads after the write rebuild once");
+  });
+  assert.equal(before, "anchor");
+});
+test("scoped reads match unscoped reads exactly", () => {
+  const { api } = host({ value: 15 });
+  const readAll = () => ({
+    hit: api.hit([300, 300]),
+    item: api.itemAt([300, 300])?.item.id || null,
+    local: api.local([300, 300]),
+    snap: api.snap([60, 30], []),
+    outlines: api.outlines("outer").map((e) => e.item.id),
+    css: api.cssPoints(api.active()),
+    entryIds: api.entries().map((e) => e.item.id),
+  });
+  const unscoped = readAll();
+  const scoped = api.scoped(readAll);
+  assert.deepEqual(scoped, unscoped);
+});
+test("picks match the old walk under nested transforms, disabled groups and frame changes", () => {
+  for (const frame of [0, 15, 30]) {
+    const { s, api, layer } = host({ value: frame });
+    s.frame = frame;
+    const projection = api.projection();
+    for (const point of queryGrid()) {
+      assert.deepEqual(api.hit(point), refHit(layer.contents, frame, projection, "path", point), `hit frame ${frame} point ${point}`);
+      assert.equal(api.itemAt(point)?.item.id || null, refItemAt(layer.contents, frame, projection, point), `itemAt frame ${frame} point ${point}`);
+    }
+    // Snapping and bounds inputs match too: css vertices per entry by id.
+    const fresh = {};
+    for (const e of oldScene(layer.contents, frame)) fresh[e.item.id] = refCss(projection, e);
+    for (const e of api.entries())
+      assert.deepEqual(api.cssPoints(e), fresh[e.item.id], `css frame ${frame} ${e.item.id}`);
+    for (const point of [[60, 30], [150, 40], [500, 300], [10, 10]]) {
+      assert.deepEqual(api.snap(point, []), (() => {
+        const entry = oldScene(layer.contents, frame).find((e) => e.item.id === "path");
+        const world = transform(point, g.multiply(projection, entry.matrix));
+        let closest = null, distance = 8;
+        for (const other of oldScene(layer.contents, frame).filter((e) => e.enabled))
+          other.path.vertices.forEach((v) => {
+            const p = transform(v.point, g.multiply(projection, other.matrix));
+            const d = Math.hypot(...g.sub(world, p));
+            if (d < distance) { closest = p; distance = d; }
+          });
+        if (!closest) return point;
+        const inv = g.inverse(g.multiply(projection, entry.matrix));
+        return inv ? transform(closest, inv) : point;
+      })(), `snap frame ${frame} point ${point}`);
+    }
+  }
+});
+test("marquee inputs match the old walk", () => {
+  const { api, layer } = host({ value: 15 });
+  const projection = api.projection();
+  const start = [450, 250], end = [650, 450];
+  const lo = [Math.min(start[0], end[0]), Math.min(start[1], end[1])],
+    hi = [Math.max(start[0], end[0]), Math.max(start[1], end[1])];
+  const inside = (p) => p[0] >= lo[0] && p[0] <= hi[0] && p[1] >= lo[1] && p[1] <= hi[1];
+  // Anchor marquee over the active path.
+  const pathEntry = api.scoped(() => api.active());
+  const selected = [];
+  api.scoped(() => {
+    api.cssPoints(pathEntry).forEach((v, i) => {
+      if (inside(v.point)) selected.push(pathEntry.item.vertexIds[i]);
+    });
+  });
+  const refSelected = [];
+  const refEntry = oldScene(layer.contents, 15).find((e) => e.item.id === "path");
+  refCss(projection, refEntry).forEach((v, i) => {
+    if (inside(v.point)) refSelected.push(refEntry.item.vertexIds[i]);
+  });
+  assert.deepEqual(selected, refSelected);
+  // Whole-item marquee over top-level items.
+  const picked = api.scoped(() => {
+    const result = new Set();
+    for (const top of layer.contents) {
+      const points = api.outlines(top.id).flatMap((leaf) => api.cssPoints(leaf).map((v) => v.point));
+      if (!points.length) continue;
+      const min = [Math.min(...points.map((v) => v[0])), Math.min(...points.map((v) => v[1]))],
+        max = [Math.max(...points.map((v) => v[0])), Math.max(...points.map((v) => v[1]))];
+      if (min[0] <= hi[0] && max[0] >= lo[0] && min[1] <= hi[1] && max[1] >= lo[1]) result.add(top.id);
+    }
+    return [...result];
+  });
+  const refPicked = [];
+  for (const top of layer.contents) {
+    const entry = find(layer.contents, top.id);
+    const insideIds = new Set([top.id]);
+    (function walk(item) { for (const child of item.contents || []) { insideIds.add(child.id); walk(child); } })(entry.item);
+    const points = oldScene(layer.contents, 15)
+      .filter((e) => e.enabled && insideIds.has(e.item.id))
+      .flatMap((e) => refCss(projection, e).map((v) => v.point));
+    if (!points.length) continue;
+    const min = [Math.min(...points.map((v) => v[0])), Math.min(...points.map((v) => v[1]))],
+      max = [Math.max(...points.map((v) => v[0])), Math.max(...points.map((v) => v[1]))];
+    if (min[0] <= hi[0] && max[0] >= lo[0] && min[1] <= hi[1] && max[1] >= lo[1]) refPicked.push(top.id);
+  }
+  assert.deepEqual(picked, refPicked);
 });
