@@ -3,12 +3,15 @@
 "use strict";
 
 const http = require("http");
+const fs = require("fs");
+const path = require("path");
 const { spawn } = require("child_process");
 const compression = require("compression");
 const handler = require("serve-handler");
 const { resolveDirectoryIndexUrl } = require("./directory-index");
 const { prepareRuntimeStage, projectRoot } = require("./runtime-resources");
 const { buildDocs } = require("./build-docs");
+const devLive = require("./dev-live");
 
 const liveProjectEntries = [
   "404.html",
@@ -25,6 +28,11 @@ const liveProjectEntries = [
   "zoidium-welcome-tour.js",
 ];
 const liveProjectBundlePattern = /^plugins\/[^/]+\/bundle\.json$/;
+// Optional per-group payloads (plugins/<id>/<group>.bundle.json) and the
+// authoring manifests are generated siblings of the main bundle. Serving them
+// from the repository keeps added and removed files visible without a restart.
+const liveProjectOptionalBundlePattern = /^plugins\/[^/]+\/[A-Za-z0-9_-]+\.bundle\.json$/;
+const liveProjectManifestPattern = /^plugins\/[^/]+\/manifest\.json$/;
 const portFallbackAttempts = 20;
 const liveProjectHeaders = [
   {
@@ -62,6 +70,8 @@ function isLiveProjectPath(relativePath) {
   // The fixed interpreter and Worker bytes exist only in the generated stage.
   if (relativePath === "zoidium/community-runtime-source.js") return false;
   if (liveProjectBundlePattern.test(relativePath)) return true;
+  if (liveProjectManifestPattern.test(relativePath)) return true;
+  if (liveProjectOptionalBundlePattern.test(relativePath)) return true;
   return liveProjectEntries.some(
     (entry) => relativePath === entry || relativePath.startsWith(`${entry}/`)
   );
@@ -119,10 +129,29 @@ function sendFaviconSilence(response) {
   response.end();
 }
 
+// The documentation build output is served at /docs/*, but its root is the
+// build directory itself: the /docs prefix must be stripped before resolving
+// files inside it, or every docs URL would 404.
+function stripDocsPrefix(requestUrl) {
+  let parsed;
+  try {
+    parsed = new URL(requestUrl, "http://zoidium.invalid");
+  } catch (_error) {
+    return null;
+  }
+  if (parsed.origin !== "http://zoidium.invalid") return null;
+  if (parsed.pathname === "/docs") return `/index.html${parsed.search}`;
+  if (parsed.pathname.startsWith("/docs/")) {
+    return parsed.pathname.slice("/docs".length) + parsed.search;
+  }
+  return null;
+}
+
 function parseOptions(argv) {
-  const options = { open: false, port: 8123 };
+  const options = { open: false, port: 8123, watch: true };
   for (const argument of argv) {
     if (argument === "--open") options.open = true;
+    else if (argument === "--no-watch") options.watch = false;
     else if (argument.startsWith("--port=")) options.port = Number(argument.slice(7));
     else if (argument === "--help" || argument === "-h") options.help = true;
     else throw new Error(`Unknown option: ${argument}`);
@@ -139,13 +168,18 @@ function printHelp() {
 Ensures the CM3 resource graph is available in the Git-ignored cache, then
 serves its patched index.html on both local loopback addresses. Zoidium-owned
 runtime files are served directly from the repository so a browser reload sees
-source changes without restarting this server. The cache remains after the
-server stops.
+source changes without restarting this server. Plugin bundles and the
+registry are rebuilt in memory from their sources, staged font presets and
+the community runtime source are re-read from the repository, and the docs
+are served from a fresh documentation build when one exists. The cache
+remains after the server stops.
 
 Options:
   --port=<number>      preferred listen port (default: 8123); falls forward to
                        the next free port when the preferred one is busy
   --open               open the local URL in the default browser
+  --no-watch           disable the file watcher (requests still rebuild from
+                       source, but nothing is refreshed proactively)
 `);
 }
 
@@ -243,10 +277,19 @@ async function main() {
 
   const runtime = await prepareRuntimeStage();
   let shuttingDown = false;
+  let liveWatcher = null;
   const listeners = [];
   const shutdown = async (exitCode = 0) => {
     if (shuttingDown) return;
     shuttingDown = true;
+    if (liveWatcher) {
+      try {
+        liveWatcher.close();
+      } catch (_ignored) {
+        // Watcher close is best effort.
+      }
+      liveWatcher = null;
+    }
     await Promise.all(listeners.map(({ server }) => close(server)));
     await runtime.cleanup().catch((error) => {
       console.error("[Zoidium] could not clean up the development runtime stage:", error);
@@ -254,60 +297,205 @@ async function main() {
     process.exitCode = exitCode;
   };
 
+  // Generated or staged bytes that are re-read from the repository per
+  // request (or warmed by the watcher below), so edits, additions, and
+  // removals show on the next page reload without restarting this server.
+  const liveLog = (message) => console.log(`[Zoidium] ${message}`);
+  const liveBundles = devLive.createLiveBundles({ onLog: liveLog });
+  const livePresets = devLive.createLivePresets({ onLog: liveLog });
+  const liveCommunity = devLive.createLiveCommunitySource({ onLog: liveLog });
+  const liveApprovals = devLive.createApprovalsCache({ bundles: liveBundles, onLog: liveLog });
+  const gate = devLive.createRequestGate({ maxConcurrent: 64 });
+  const siteDistRoot = path.join(projectRoot, "site", "dist");
+  let docsCheckAt = 0;
+  let docsLive = false;
+  const liveDocsRoot = () => {
+    const now = Date.now();
+    if (now - docsCheckAt > 5000) {
+      docsCheckAt = now;
+      try {
+        docsLive = fs.statSync(path.join(siteDistRoot, "index.html")).isFile();
+      } catch (_error) {
+        docsLive = false;
+      }
+    }
+    return docsLive ? siteDistRoot : null;
+  };
+  const fontPresetPattern = /^assets\/fonts\/2d\/(.+)\.ttf$/;
+
+  const serveGenerated = async (request, response) => {
+    const relativePath = requestPathname(request.url);
+    if (!relativePath) return false;
+    if (relativePath === "plugins/core/output-frame-approvals.js") {
+      // Live receipt without a child process per request.
+      const source = await liveApprovals.get();
+      return devLive.sendBytes(request, response, { contentType: "text/javascript; charset=utf-8", bytes: source });
+    }
+    if (relativePath === "plugins/registry.json") {
+      const registry = await liveBundles.getRegistry();
+      if (registry == null) return false;
+      return devLive.sendBytes(request, response, { contentType: "application/json; charset=utf-8", bytes: registry });
+    }
+    if (
+      liveProjectBundlePattern.test(relativePath) ||
+      liveProjectManifestPattern.test(relativePath) ||
+      liveProjectOptionalBundlePattern.test(relativePath)
+    ) {
+      const content = await liveBundles.getFile(relativePath);
+      if (content == null) return false;
+      return devLive.sendBytes(request, response, { contentType: "application/json; charset=utf-8", bytes: content });
+    }
+    if (relativePath === "zoidium/community-runtime-source.js") {
+      try {
+        const source = await liveCommunity.get();
+        return devLive.sendBytes(request, response, { contentType: "text/javascript; charset=utf-8", bytes: source });
+      } catch (error) {
+        console.error("[Zoidium] live community runtime source unavailable:", error && error.message ? error.message : error);
+        return false;
+      }
+    }
+    const preset = fontPresetPattern.exec(relativePath);
+    if (preset) {
+      const bytes = await livePresets.getPresetBytes(preset[1]);
+      if (bytes == null) return false;
+      return devLive.sendBytes(request, response, { contentType: "font/ttf", bytes });
+    }
+    return false;
+  };
+
+  // serve-handler opens one file per request. Under a page-load burst that
+  // fan-out can exhaust file handles; retry EMFILE/ENFILE with backoff and
+  // report 503 instead of crashing. Reads are re-entrant for GET requests.
+  const serveFromRoot = async (request, response, publicRoot, headers) => {
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        await handler(request, response, {
+          cleanUrls: false,
+          directoryListing: false,
+          etag: true,
+          headers,
+          public: publicRoot,
+          rewrites: [{ source: "/", destination: "/index.html" }],
+        });
+        return;
+      } catch (error) {
+        const retryable = error && (error.code === "EMFILE" || error.code === "ENFILE");
+        if (!retryable || attempt >= 3 || (response && response.headersSent)) throw error;
+        await new Promise((resolve) => setTimeout(resolve, 25 * 2 ** attempt));
+      }
+    }
+  };
+
+  const failRequest = (response, error) => {
+    console.error("[Zoidium] local server request failed:", error);
+    try {
+      const pressured = error && (error.code === "EMFILE" || error.code === "ENFILE");
+      if (!response.headersSent) {
+        response.writeHead(pressured ? 503 : 500, { "Content-Type": "text/plain" });
+      }
+      response.end(pressured ? "Server Busy" : "Internal Server Error");
+    } catch (_ignored) {
+      // The client is gone; nothing left to report to.
+    }
+  };
+
   try {
-    await buildDocs(runtime.root);
+    // The documentation build fans out into hundreds of files and can hit
+    // file-handle pressure on constrained machines. Retry it boundedly, then
+    // start without /docs: liveDocsRoot() below already falls back to the
+    // stage when no fresh build exists, so serving continues correctly.
+    await devLive.buildDocsWithFallback(() => buildDocs(runtime.root), {
+      warn: (message) => console.warn(`[Zoidium] ${message}`),
+    });
+    await liveBundles.rebuild();
+    if (options.watch) {
+      const refreshLive = async (changed) => {
+        try {
+          await liveBundles.rebuild();
+          liveApprovals.invalidate();
+          if (changed && changed.length) liveLog(`live reload: refreshed after ${changed.length} change(s)`);
+        } catch (error) {
+          console.error("[Zoidium] live reload failed:", error && error.message ? error.message : error);
+        }
+      };
+      try {
+        // One recursive watcher per root: bounded handles no matter how many
+        // files change underneath.
+        liveWatcher = devLive.createRecursiveWatcher(
+          [
+            path.join(projectRoot, "plugins"),
+            path.join(projectRoot, "zoidium"),
+            path.join(projectRoot, "fonts"),
+            path.join(projectRoot, "tools", "community-runtime-source.js"),
+          ],
+          (changed) => {
+            refreshLive(changed);
+          },
+          {
+            onError: (error) => console.error("[Zoidium] live watcher error:", error && error.message ? error.message : error),
+          }
+        );
+      } catch (error) {
+        console.error("[Zoidium] live watcher unavailable, requests still rebuild from source:", error && error.message ? error.message : error);
+      }
+    }
     let boundPort = options.port;
     const compressionMiddleware = compression();
     const handleRequest = (request, response) => {
-      if (!isAllowedHost(request.headers && request.headers.host, boundPort)) {
-        response.writeHead(403, { "Content-Type": "text/plain; charset=utf-8" });
-        response.end("Forbidden");
-        return;
-      }
-      if (isFaviconRequest(request.url)) {
-        sendFaviconSilence(response);
-        return;
-      }
-      compressionMiddleware(request, response, async () => {
-        try {
-          if (requestPathname(request.url) === "plugins/core/output-frame-approvals.js") {
-            const approvals = require("./preview-cache-approvals");
-            // Live source edits can make the checked-in receipt stale. Serve
-            // the same checked receipt that a runtime stage would contain.
-            response.writeHead(200, { "Content-Type": "text/javascript; charset=utf-8", "Cache-Control": "no-cache" });
-            response.end(approvals.stagedSource());
-            return;
-          }
-          const liveProjectFile = shouldServeFromProject(request.url);
-          const publicRoot = liveProjectFile ? projectRoot : runtime.root;
-          const directoryIndexUrl = await resolveDirectoryIndexUrl(request.url, publicRoot);
-          if (directoryIndexUrl) request.url = directoryIndexUrl;
-
-          const headers = publicRoot === projectRoot ? liveProjectHeaders : undefined;
-          handler(request, response, {
-            cleanUrls: false,
-            directoryListing: false,
-            etag: true,
-            headers,
-            public: publicRoot,
-            rewrites: [{ source: "/", destination: "/index.html" }],
-          }).catch((error) => {
-            console.error("[Zoidium] local server request failed:", error);
-            if (!response.headersSent) response.writeHead(500, { "Content-Type": "text/plain" });
-            response.end("Internal Server Error");
-          });
-        } catch (error) {
-          console.error("[Zoidium] local server request failed:", error);
-          if (!response.headersSent) response.writeHead(500, { "Content-Type": "text/plain" });
-          response.end("Internal Server Error");
+      gate.run(async () => {
+        if (!isAllowedHost(request.headers && request.headers.host, boundPort)) {
+          response.writeHead(403, { "Content-Type": "text/plain; charset=utf-8" });
+          response.end("Forbidden");
           return;
         }
+        if (isFaviconRequest(request.url)) {
+          sendFaviconSilence(response);
+          return;
+        }
+        compressionMiddleware(request, response, async () => {
+          try {
+            if (await serveGenerated(request, response)) return;
+            const relativePath = requestPathname(request.url);
+            let publicRoot = runtime.root;
+            let headers;
+            if (shouldServeFromProject(request.url)) {
+              publicRoot = projectRoot;
+              headers = liveProjectHeaders;
+            } else if (relativePath === "docs" || (relativePath && relativePath.startsWith("docs/"))) {
+              // A fresh documentation build is picked up without a restart.
+              const docsRoot = liveDocsRoot();
+              const stripped = docsRoot ? stripDocsPrefix(request.url) : null;
+              if (docsRoot && stripped) {
+                request.url = stripped;
+                publicRoot = docsRoot;
+                headers = liveProjectHeaders;
+              }
+            }
+            const directoryIndexUrl = await resolveDirectoryIndexUrl(request.url, publicRoot);
+            if (directoryIndexUrl) request.url = directoryIndexUrl;
+            await serveFromRoot(request, response, publicRoot, headers);
+          } catch (error) {
+            failRequest(response, error);
+          }
+        });
+      }).catch((error) => {
+        failRequest(response, error);
       });
     };
     listeners.push(
       { host: "127.0.0.1", server: http.createServer(handleRequest) },
       { host: "::1", server: http.createServer(handleRequest) },
     );
+    for (const { server } of listeners) {
+      // Aborted connections destroy their socket; that must never crash us.
+      server.on("clientError", (_error, socket) => {
+        try {
+          socket.destroy();
+        } catch (_ignored) {
+          // Destroy is best effort.
+        }
+      });
+    }
 
     process.once("SIGINT", () => shutdown(0).then(() => process.exit()));
     process.once("SIGTERM", () => shutdown(0).then(() => process.exit()));
@@ -344,4 +532,5 @@ module.exports = {
   requestPathname,
   sendFaviconSilence,
   shouldServeFromProject,
+  stripDocsPrefix,
 };

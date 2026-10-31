@@ -9,6 +9,7 @@ const {
   requestPathname,
   sendFaviconSilence,
   shouldServeFromProject,
+  stripDocsPrefix,
 } = require("../tools/serve-with-resources");
 
 test("development server recognizes live Zoidium runtime files", () => {
@@ -17,12 +18,24 @@ test("development server recognizes live Zoidium runtime files", () => {
   assert.equal(shouldServeFromProject("/zoidium/community-runtime-source.js?v=1"), false);
   assert.equal(shouldServeFromProject("/plugins/core/temporal-render.js"), true);
   assert.equal(shouldServeFromProject("/plugins/player-plus/bundle.json?v=3"), true);
+  assert.equal(shouldServeFromProject("/plugins/player-plus/manifest.json?v=3"), true);
+  assert.equal(shouldServeFromProject("/plugins/player-plus/extra.bundle.json?v=3"), true);
+  assert.equal(shouldServeFromProject("/plugins/player-plus/bundle.json/extra"), false);
 });
 
 test("development server does not expose unrelated repository files", () => {
   assert.equal(shouldServeFromProject("/plugins/player-plus/player-plus.js"), false);
   assert.equal(shouldServeFromProject("/package.json"), false);
   assert.equal(shouldServeFromProject("/plugins/../package.json"), false);
+});
+
+test("development server strips the docs prefix for the live docs root", () => {
+  assert.equal(stripDocsPrefix("/docs"), "/index.html");
+  assert.equal(stripDocsPrefix("/docs/"), "/");
+  assert.equal(stripDocsPrefix("/docs/about/"), "/about/");
+  assert.equal(stripDocsPrefix("/docs/_astro/app.css?v=2"), "/_astro/app.css?v=2");
+  assert.equal(stripDocsPrefix("/documentation/"), null);
+  assert.equal(stripDocsPrefix("/zoidium/runtime-loader.js"), null);
 });
 
 test("development server recognizes favicon requests at the site root only", () => {

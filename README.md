@@ -71,8 +71,11 @@ pnpm run verify     # check manifests, bundles, syntax, and tests
 
 The local web server reads Zoidium-owned runtime files directly from the
 checkout, so reloading the browser picks up edits without restarting the
-server. If a plugin source or manifest changed, rebuild its generated bundle
-with `pnpm run build:plugin-bundles`; the next reload then uses it immediately.
+server. Plugin bundles and the registry are rebuilt in memory from their
+sources, staged font presets and the community runtime source are re-read
+from the repository, and added or removed files show up on the next reload.
+Run `pnpm run build:plugin-bundles` only before committing, so the generated
+bundles stay consistent with their sources.
 
 Do not open the repository's `index.html` with `file://`. It is a bootstrap
 placeholder; the actual CM3 page is generated into the runtime stage, and

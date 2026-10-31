@@ -73,18 +73,22 @@ function stripUrlQuery(value) {
   return String(value).split(/[?#]/, 1)[0];
 }
 
-function localPath(source) {
+function resolveAssetPath(root, source) {
   const raw = stripUrlQuery(source);
   if (!raw || /^[a-z][a-z\d+.-]*:/i.test(raw)) {
     throw new Error(`Plugin bundle references a non-local asset: ${source}`);
   }
 
   const relative = raw.replace(/^\.\//, "").replace(/^\/+/, "");
-  const resolved = path.resolve(projectRoot, relative);
-  if (resolved !== projectRoot && !resolved.startsWith(`${projectRoot}${path.sep}`)) {
+  const resolved = path.resolve(root, relative);
+  if (resolved !== root && !resolved.startsWith(`${root}${path.sep}`)) {
     throw new Error(`Plugin bundle asset escapes the project root: ${source}`);
   }
   return resolved;
+}
+
+function localPath(source) {
+  return resolveAssetPath(projectRoot, source);
 }
 
 function assetKey(source) {
@@ -92,8 +96,8 @@ function assetKey(source) {
   return `/${raw.replace(/^\.\//, "").replace(/^\/+/, "")}`;
 }
 
-function readText(source) {
-  const filePath = localPath(source);
+function readText(source, root = projectRoot) {
+  const filePath = resolveAssetPath(root, source);
   try {
     return fs.readFileSync(filePath, "utf8");
   } catch (error) {
@@ -101,8 +105,8 @@ function readText(source) {
   }
 }
 
-function readAssetJson(source) {
-  return readJson(localPath(source));
+function readAssetJson(source, root = projectRoot) {
+  return readJson(resolveAssetPath(root, source));
 }
 
 function addAsset(map, source, value, description) {
@@ -120,18 +124,18 @@ function addAsset(map, source, value, description) {
   map[key] = value;
 }
 
-function addTextAsset(assets, source, description) {
+function addTextAsset(assets, source, description, root = projectRoot) {
   if (typeof source !== "string" || !source.trim()) {
     throw new Error(`Missing text asset source for ${description}`);
   }
-  addAsset(assets.text, source, readText(source), description);
+  addAsset(assets.text, source, readText(source, root), description);
 }
 
-function addJsonAsset(assets, source, description) {
+function addJsonAsset(assets, source, description, root = projectRoot) {
   if (typeof source !== "string" || !source.trim()) {
     throw new Error(`Missing JSON asset source for ${description}`);
   }
-  addAsset(assets.json, source, readAssetJson(source), description);
+  addAsset(assets.json, source, readAssetJson(source, root), description);
 }
 
 const IMAGE_MIME_TYPES = {
@@ -142,14 +146,14 @@ const IMAGE_MIME_TYPES = {
   ".webp": "image/webp",
 };
 
-function addImageAsset(assets, source, description) {
+function addImageAsset(assets, source, description, root = projectRoot) {
   if (typeof source !== "string" || !source.trim()) {
     throw new Error(`Missing image asset source for ${description}`);
   }
   const ext = path.extname(stripUrlQuery(source)).toLowerCase();
   const mime = IMAGE_MIME_TYPES[ext];
   if (!mime) throw new Error(`Unsupported image asset type for ${description}: ${source}`);
-  const data = fs.readFileSync(localPath(source));
+  const data = fs.readFileSync(resolveAssetPath(root, source));
   addAsset(assets.text, source, `data:${mime};base64,${data.toString("base64")}`, description);
 }
 
@@ -157,30 +161,30 @@ function sortObject(value) {
   return Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b, "en")));
 }
 
-function buildBundle(manifest) {
+function buildBundle(manifest, root = projectRoot) {
   const assets = { text: {}, json: {} };
 
   for (const definition of manifest.modules || []) {
-    addTextAsset(assets, definition.source, `module ${definition.id}`);
+    addTextAsset(assets, definition.source, `module ${definition.id}`, root);
   }
   for (const definition of manifest.nativeEffects || []) {
-    addTextAsset(assets, definition.source, `native effect ${definition.id}`);
+    addTextAsset(assets, definition.source, `native effect ${definition.id}`, root);
   }
   for (const definition of manifest.effects || []) {
-    addTextAsset(assets, definition.shader, `effect shader ${definition.id}`);
-    addJsonAsset(assets, definition.preset, `effect preset ${definition.id}`);
+    addTextAsset(assets, definition.shader, `effect shader ${definition.id}`, root);
+    addJsonAsset(assets, definition.preset, `effect preset ${definition.id}`, root);
   }
   for (const definition of manifest.groups || []) {
-    addJsonAsset(assets, definition.preset, `group preset ${definition.id}`);
+    addJsonAsset(assets, definition.preset, `group preset ${definition.id}`, root);
     for (const shader of definition.shaders || []) {
-      addTextAsset(assets, shader, `group shader ${definition.id}`);
+      addTextAsset(assets, shader, `group shader ${definition.id}`, root);
     }
   }
   for (const resource of manifest.resources || []) {
     if (resource.optionalBundle) continue;
-    if (resource.type === "text") addTextAsset(assets, resource.source, `resource ${resource.id}`);
-    else if (resource.type === "json") addJsonAsset(assets, resource.source, `resource ${resource.id}`);
-    else if (resource.type === "image") addImageAsset(assets, resource.source, `resource ${resource.id}`);
+    if (resource.type === "text") addTextAsset(assets, resource.source, `resource ${resource.id}`, root);
+    else if (resource.type === "json") addJsonAsset(assets, resource.source, `resource ${resource.id}`, root);
+    else if (resource.type === "image") addImageAsset(assets, resource.source, `resource ${resource.id}`, root);
     else throw new Error(`Unsupported plugin resource type for ${resource.id}: ${resource.type}`);
   }
 
@@ -190,7 +194,7 @@ function buildBundle(manifest) {
   // version-normalized: the runtime loader cache-busts them with the shared
   // assetVersion instead of per-file ?v= queries.
   for (const script of manifest.coreScripts || []) {
-    addTextAsset(assets, script.source, `core script ${script.id}`);
+    addTextAsset(assets, script.source, `core script ${script.id}`, root);
   }
 
   return {
@@ -265,6 +269,147 @@ function normalizeManifestSources(manifest) {
   return changed;
 }
 
+// Build one plugin's bundles from its manifest. In write mode the manifest,
+// the main bundle, the optional bundles, and the registry entry are updated
+// on disk; in check mode any difference throws. Returns per-plugin change
+// flags so callers can summarize.
+function buildRegisteredPlugin(plugin, { checkOnly: check = false } = {}) {
+  if (!plugin?.id || typeof plugin.manifest !== "string") {
+    throw new Error(`Registry entry has no manifest: ${plugin?.id || "unknown"}`);
+  }
+
+  const manifestPath = localPath(plugin.manifest);
+  const manifest = readJson(manifestPath);
+  validateManifest(manifest, path.relative(projectRoot, manifestPath));
+  if (manifest.id !== plugin.id) {
+    throw new Error(`Manifest does not match registry entry: ${plugin.id}`);
+  }
+  const relativeManifest = path.relative(projectRoot, manifestPath);
+  let changedManifest = false;
+  if (normalizeManifestSources(manifest) > 0) {
+    if (check) {
+      throw new Error("Plugin manifest asset URLs are stale (run pnpm run build:plugin-bundles): " + relativeManifest);
+    }
+    if (writeIfChanged(manifestPath, JSON.stringify(manifest, null, 2) + "\n")) changedManifest = true;
+  }
+  const built = buildPluginContents(manifest, manifestPath);
+  const bundlePath = path.join(path.dirname(manifestPath), "bundle.json");
+  let changedBundle = false;
+  if (check) {
+    if (!fs.existsSync(bundlePath) || fs.readFileSync(bundlePath, "utf8") !== built.bundleContent) {
+      throw new Error(`Plugin bundle is stale or missing: ${path.relative(projectRoot, bundlePath)}`);
+    }
+    for (const [filename, content] of built.optionalContents) {
+      const target = path.join(path.dirname(manifestPath), filename);
+      if (!fs.existsSync(target) || fs.readFileSync(target, "utf8") !== content) throw new Error("Optional bundle is stale: " + filename);
+    }
+  } else {
+    for (const [filename, content] of built.optionalContents) {
+      writeIfChanged(path.join(path.dirname(manifestPath), filename), content);
+    }
+    if (writeIfChanged(bundlePath, built.bundleContent)) changedBundle = true;
+  }
+
+  let changedRegistry = false;
+  if (
+    plugin.integrity !== built.integrity ||
+    plugin.bundle !== built.bundleUrl ||
+    plugin.manifest !== built.manifestUrl ||
+    String(plugin.version ?? "") !== String(manifest.version ?? "")
+  ) {
+    if (check) {
+      throw new Error(`Registry metadata is stale for plugin: ${plugin.id}`);
+    }
+    plugin.integrity = built.integrity;
+    plugin.bundle = built.bundleUrl;
+    plugin.manifest = built.manifestUrl;
+    delete plugin.locale;
+    plugin.version = String(manifest.version ?? "");
+    changedRegistry = true;
+  }
+  return { changedBundle, changedManifest, changedRegistry };
+}
+
+// Pure content build shared by the file-writing builder above and the
+// development server's in-memory rebuild: same bytes, no disk writes. The
+// root parameter exists for tests; production callers use the project root.
+function buildPluginContents(manifest, manifestPath, root = projectRoot) {
+  const bundle = buildBundle(manifest, root);
+  const groups = [...new Set((manifest.resources || []).map(r => r.optionalBundle).filter(Boolean))];
+  const optionalContents = new Map();
+  for (const id of groups) {
+    const optional = buildBundle({ resources: manifest.resources.filter(r => r.optionalBundle === id).map(({ optionalBundle, ...r }) => r) }, root);
+    const content = JSON.stringify({ schemaVersion: 1, assets: optional.assets }) + "\n";
+    const filename = id + ".bundle.json";
+    optionalContents.set(filename, content);
+    (bundle.assets.optional ||= {})[id] = {
+      source: "./" + path.relative(root, path.join(path.dirname(manifestPath), filename)).split(path.sep).join("/") + "?v=" + manifest.version,
+      integrity: "sha256-" + createHash("sha256").update(content).digest("base64"),
+    };
+  }
+  const bundleJson = JSON.stringify(bundle);
+  if (/[\r\n]/.test(bundleJson)) {
+    throw new Error(`Plugin bundle must be single-line JSON: ${manifest.id}`);
+  }
+  const bundleContent = `${bundleJson}\n`;
+  const relativeManifest = path.relative(root, manifestPath).split(path.sep).join("/");
+  const directory = path.dirname(relativeManifest).split(path.sep).join("/");
+  return {
+    bundleContent,
+    optionalContents,
+    integrity: "sha256-" + createHash("sha256").update(bundleContent, "utf8").digest("base64"),
+    bundleUrl: `./${directory}/bundle.json?v=${encodeURIComponent(String(manifest.version))}`,
+    manifestUrl: `./${relativeManifest}?v=${encodeURIComponent(String(manifest.version))}`,
+  };
+}
+
+// Build every registered plugin bundle and the registry in memory, using the
+// same content builder as the file-writing path. Nothing is written: the
+// development server serves these bytes so source edits show on reload.
+// Manifests are cloned before URL normalization so the caller's objects stay
+// untouched. Throws on the first invalid manifest or missing asset. The root
+// parameter exists for tests; production callers use the project root.
+function buildAllInMemory(root = projectRoot) {
+  const resolvedRoot = path.resolve(root);
+  const registryFile = path.join(resolvedRoot, "plugins", "registry.json");
+  const registry = readJson(registryFile);
+  if (registry.schemaVersion !== 1 || !Array.isArray(registry.plugins)) {
+    throw new Error("Invalid plugin registry");
+  }
+  const files = new Map();
+  const plugins = registry.plugins.map((plugin) => {
+    if (!plugin?.id || typeof plugin.manifest !== "string") {
+      throw new Error(`Registry entry has no manifest: ${plugin?.id || "unknown"}`);
+    }
+    const manifestPath = resolveAssetPath(resolvedRoot, plugin.manifest);
+    const manifest = JSON.parse(JSON.stringify(readJson(manifestPath)));
+    validateManifest(manifest, path.relative(resolvedRoot, manifestPath));
+    if (manifest.id !== plugin.id) {
+      throw new Error(`Manifest does not match registry entry: ${plugin.id}`);
+    }
+    normalizeManifestSources(manifest);
+    const built = buildPluginContents(manifest, manifestPath, resolvedRoot);
+    const directory = path.dirname(path.relative(resolvedRoot, manifestPath)).split(path.sep).join("/");
+    files.set(`${directory}/bundle.json`, built.bundleContent);
+    for (const [filename, content] of built.optionalContents) {
+      files.set(`${directory}/${filename}`, content);
+    }
+    files.set(`${directory}/manifest.json`, `${JSON.stringify(manifest, null, 2)}\n`);
+    const { locale: _locale, ...rest } = plugin;
+    return {
+      ...rest,
+      integrity: built.integrity,
+      bundle: built.bundleUrl,
+      manifest: built.manifestUrl,
+      version: String(manifest.version ?? ""),
+    };
+  });
+  return {
+    files,
+    registry: `${JSON.stringify({ ...registry, plugins }, null, 2)}\n`,
+  };
+}
+
 function main() {
   const registry = readJson(registryPath);
   if (registry.schemaVersion !== 1 || !Array.isArray(registry.plugins)) {
@@ -275,70 +420,10 @@ function main() {
   let changedManifests = 0;
   let changedRegistry = false;
   for (const plugin of registry.plugins) {
-    if (!plugin?.id || typeof plugin.manifest !== "string") {
-      throw new Error(`Registry entry has no manifest: ${plugin?.id || "unknown"}`);
-    }
-
-    const manifestPath = localPath(plugin.manifest);
-    const manifest = readJson(manifestPath);
-    validateManifest(manifest, path.relative(projectRoot, manifestPath));
-    if (manifest.id !== plugin.id) {
-      throw new Error(`Manifest does not match registry entry: ${plugin.id}`);
-    }
-    const relativeManifest = path.relative(projectRoot, manifestPath);
-    if (normalizeManifestSources(manifest) > 0) {
-      if (checkOnly) {
-        throw new Error("Plugin manifest asset URLs are stale (run pnpm run build:plugin-bundles): " + relativeManifest);
-      }
-      if (writeIfChanged(manifestPath, JSON.stringify(manifest, null, 2) + "\n")) changedManifests += 1;
-    }
-    const bundle = buildBundle(manifest);
-    const groups = [...new Set((manifest.resources || []).map(r => r.optionalBundle).filter(Boolean))];
-    for (const id of groups) {
-      const optional = buildBundle({ resources: manifest.resources.filter(r => r.optionalBundle === id).map(({optionalBundle, ...r}) => r) });
-      const content = JSON.stringify({ schemaVersion: 1, assets: optional.assets }) + "\n";
-      const filename = id + ".bundle.json", target = path.join(path.dirname(manifestPath), filename);
-      if (checkOnly) {
-        if (!fs.existsSync(target) || fs.readFileSync(target, "utf8") !== content) throw new Error("Optional bundle is stale: " + id);
-      } else writeIfChanged(target, content);
-      (bundle.assets.optional ||= {})[id] = {
-        source: "./" + path.relative(projectRoot, target).split(path.sep).join("/") + "?v=" + manifest.version,
-        integrity: "sha256-" + createHash("sha256").update(content).digest("base64"),
-      };
-    }
-    const bundlePath = path.join(path.dirname(manifestPath), "bundle.json");
-    const bundleJson = JSON.stringify(bundle);
-    if (/[\r\n]/.test(bundleJson)) {
-      throw new Error(`Plugin bundle must be single-line JSON: ${plugin.id}`);
-    }
-    const bundleContent = `${bundleJson}\n`;
-    if (checkOnly) {
-      if (!fs.existsSync(bundlePath) || fs.readFileSync(bundlePath, "utf8") !== bundleContent) {
-        throw new Error(`Plugin bundle is stale or missing: ${path.relative(projectRoot, bundlePath)}`);
-      }
-    } else if (writeIfChanged(bundlePath, bundleContent)) {
-      changedBundles += 1;
-    }
-
-    const integrity = "sha256-" + createHash("sha256").update(bundleContent, "utf8").digest("base64");
-    const nextBundle = bundleUrl(manifestPath, manifest.version);
-    const nextManifest = manifestUrl(manifestPath, manifest.version);
-    if (
-      plugin.integrity !== integrity ||
-      plugin.bundle !== nextBundle ||
-      plugin.manifest !== nextManifest ||
-      String(plugin.version ?? "") !== String(manifest.version ?? "")
-    ) {
-      if (checkOnly) {
-        throw new Error(`Registry metadata is stale for plugin: ${plugin.id}`);
-      }
-      plugin.integrity = integrity;
-      plugin.bundle = nextBundle;
-      plugin.manifest = nextManifest;
-      delete plugin.locale;
-      plugin.version = String(manifest.version ?? "");
-      changedRegistry = true;
-    }
+    const built = buildRegisteredPlugin(plugin, { checkOnly });
+    if (built.changedManifest) changedManifests += 1;
+    if (built.changedBundle) changedBundles += 1;
+    if (built.changedRegistry) changedRegistry = true;
   }
 
   if (!checkOnly && changedRegistry) {
@@ -359,5 +444,19 @@ if (require.main === module) {
   }
 }
 
-module.exports = { writeIfChanged };
+module.exports = {
+  buildAllInMemory,
+  buildBundle,
+  buildPluginContents,
+  buildRegisteredPlugin,
+  bundleUrl,
+  localPath,
+  manifestUrl,
+  normalizeManifestSources,
+  projectRoot,
+  registryPath,
+  resolveAssetPath,
+  stripUrlQuery,
+  writeIfChanged,
+};
 
