@@ -305,6 +305,24 @@
     global.dispatchEvent(new CustomEvent("zoidium:theme-changed"));
   }
 
+  function getDefaultFrameRate() {
+    return (state.settings || readSettings()).defaultFrameRate;
+  }
+
+  // Called from code (for example the frame rate change toast) to adopt a
+  // new default frame rate. Fractional rates such as 29.97 pass through
+  // unchanged; only out-of-range values are clamped and invalid values
+  // rejected. Persisting re-applies the settings, which also refreshes the
+  // open Settings row when it is visible.
+  function setDefaultFrameRate(rate) {
+    state.settings = state.settings || readSettings();
+    var frameRate = readFrameRate(rate, NaN);
+    if (!Number.isFinite(frameRate)) return false;
+    state.settings.defaultFrameRate = frameRate;
+    persistAndApply();
+    return true;
+  }
+
   function updateGeneratedRows() {
     if (!state.controls) return;
     Object.keys(state.controls).forEach(function (key) {
@@ -701,4 +719,9 @@
   } else {
     start();
   }
+
+  global.ZoidiumSettings = {
+    getDefaultFrameRate: getDefaultFrameRate,
+    setDefaultFrameRate: setDefaultFrameRate,
+  };
 })(window);
