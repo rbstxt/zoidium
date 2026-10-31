@@ -158,6 +158,9 @@ each line describes one visible change.
 
 ### Fixed
 
+- `pnpm dev` picks up source, plugin and font changes, including added and
+  removed files, without a restart, and no longer crashes with "too many open
+  files" under heavy request load.
 - Hovering a key or handle in Graph Editor 2 no longer wraps the status bar
   to a second row, so the graph no longer shifts under the pointer.
 - Time Offset on a video no longer shows black or unrelated frames when
