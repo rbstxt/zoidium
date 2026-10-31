@@ -482,7 +482,7 @@ function createApprovalsCache(options = {}) {
   let cached = null;
   let invalidated = true;
 
-  const readDiskBundle = async (relativePath) => {
+  const readDiskText = async (relativePath) => {
     try {
       return await fs.promises.readFile(path.join(approvals.root, relativePath), "utf8");
     } catch (error) {
@@ -495,25 +495,52 @@ function createApprovalsCache(options = {}) {
     if (!live || !bundles) return null;
     for (const [relativePath, content] of live.files) {
       if (!relativePath.endsWith("bundle.json")) continue;
-      const disk = await readDiskBundle(relativePath);
+      const disk = await readDiskText(relativePath);
       if (disk !== content) return false;
     }
     return true;
   };
 
+  // The old per-request check also caught a stale checked-in registry (its
+  // integrity/version/bundle URLs lagging the manifests). Compare the live
+  // registry string against the disk file the same way.
+  const registryFresh = async (live) => {
+    if (!live || !bundles || typeof live.registry !== "string") return null;
+    return (await readDiskText("plugins/registry.json")) === live.registry;
+  };
+
   const recompute = async () => {
     const file = path.join(approvals.root, approvals.approvalPath);
-    delete require.cache[require.resolve(file)];
-    const receipt = require(file);
+    let receipt = null;
+    try {
+      delete require.cache[require.resolve(file)];
+      receipt = require(file);
+    } catch (error) {
+      onLog(`live approvals receipt unreadable (${error && error.message ? error.message : error}); serving the last response`);
+      if (cached) return cached.source;
+      throw error;
+    }
     let current = false;
     try {
       const fingerprintCurrent = receipt.fingerprint === approvals.fingerprint();
-      const live = bundles ? await bundles.ensureFresh().catch(() => null) : null;
-      const fresh = live ? await bundlesFresh(live) : null;
-      current = fingerprintCurrent && (fresh === null || fresh === true);
+      // A recorded rebuild error may be transient; retry once here (bounded
+      // by the TTL) instead of withdrawing approvals until the next edit.
+      if (bundles && typeof bundles.rebuild === "function" &&
+          typeof bundles.getError === "function" && bundles.getError() != null) {
+        await bundles.rebuild();
+      }
+      const live = bundles ? await bundles.ensureFresh() : null;
+      // A failed rebuild keeps serving last-good bytes; like the old check,
+      // any broken window withdraws the approvals instead of blessing them.
+      const rebuildOk = !bundles || typeof bundles.getError !== "function" || bundles.getError() == null;
+      const bundlesOk = live ? await bundlesFresh(live) : null;
+      const registryOk = live ? await registryFresh(live) : null;
+      current = fingerprintCurrent && rebuildOk && bundlesOk !== false && registryOk !== false;
     } catch (error) {
-      onLog(`live approvals freshness check failed (${error && error.message ? error.message : error}); serving the receipt as-is`);
-      current = true;
+      // Fail closed, as the old path did on any check error: serve the stale
+      // receipt so preview frames render live until the tree is healthy again.
+      onLog(`live approvals freshness check failed (${error && error.message ? error.message : error}); serving the receipt without approvals`);
+      current = false;
     }
     const source = current
       ? await fs.promises.readFile(file, "utf8")

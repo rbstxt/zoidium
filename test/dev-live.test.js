@@ -289,6 +289,102 @@ test("live community source refreshes on edit and holds last good on removal", a
   assert.ok((await community.get()).includes("v2"), "expected the last good bytes after removal");
 });
 
+function writeApprovalsFixture(root, { diskBundle = "LIVE", diskRegistry = '{"ok":true}' } = {}) {
+  const receiptPath = writeFile(root, "receipt.js", "module.exports = { fingerprint: 'fp', plugins: {} };\n");
+  writeFile(root, "plugins/demo/bundle.json", diskBundle);
+  writeFile(root, "plugins/registry.json", diskRegistry);
+  const approvals = {
+    root,
+    approvalPath: "receipt.js",
+    fingerprint: () => "fp",
+    source: (receipt) => `STALE:${JSON.stringify(receipt)}`,
+  };
+  return { receiptPath, approvals };
+}
+
+function liveBundlesStub({ files, registry }) {
+  const calls = { rebuilds: 0 };
+  return {
+    calls,
+    async rebuild() {
+      calls.rebuilds += 1;
+    },
+    getError() {
+      return null;
+    },
+    async ensureFresh() {
+      return { files, registry };
+    },
+  };
+}
+
+test("approvals cache serves the stale receipt when the rebuild fails", async (t) => {
+  const root = makeTempRoot();
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const { approvals } = writeApprovalsFixture(root);
+  const logs = [];
+  const bundles = {
+    async ensureFresh() {
+      throw new Error("broken manifest");
+    },
+  };
+  const cache = createApprovalsCache({ approvals, bundles, ttlMs: 60_000, onLog: (message) => logs.push(message) });
+  const stale = await cache.get();
+  assert.ok(stale.startsWith("STALE:"), `expected the stale receipt, got ${stale.slice(0, 40)}`);
+  assert.ok(stale.includes('"stale":true'));
+  assert.ok(logs.some((message) => /freshness check failed/.test(message)),
+    `expected a logged error in ${JSON.stringify(logs)}`);
+});
+
+test("approvals cache serves the stale receipt when the disk registry lags", async (t) => {
+  const root = makeTempRoot();
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const { approvals } = writeApprovalsFixture(root, { diskRegistry: '{"old":true}' });
+  const bundles = liveBundlesStub({
+    files: new Map([["plugins/demo/bundle.json", "LIVE"]]),
+    registry: '{"new":true}',
+  });
+  const cache = createApprovalsCache({ approvals, bundles, ttlMs: 60_000, onLog: () => {} });
+  const stale = await cache.get();
+  assert.ok(stale.startsWith("STALE:"), `expected the stale receipt, got ${stale.slice(0, 40)}`);
+});
+
+test("approvals cache serves fresh bytes when bundles and registry match", async (t) => {
+  const root = makeTempRoot();
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const { receiptPath, approvals } = writeApprovalsFixture(root, { diskRegistry: '{"same":true}' });
+  const bundles = liveBundlesStub({
+    files: new Map([["plugins/demo/bundle.json", "LIVE"]]),
+    registry: '{"same":true}',
+  });
+  const cache = createApprovalsCache({ approvals, bundles, ttlMs: 60_000, onLog: () => {} });
+  assert.equal(await cache.get(), fs.readFileSync(receiptPath, "utf8"));
+  assert.equal(bundles.calls.rebuilds, 0);
+});
+
+test("approvals cache retries a recorded rebuild error before judging freshness", async (t) => {
+  const root = makeTempRoot();
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const { receiptPath, approvals } = writeApprovalsFixture(root, { diskRegistry: '{"same":true}' });
+  let broken = true;
+  const bundles = {
+    calls: { rebuilds: 0 },
+    async rebuild() {
+      this.calls.rebuilds += 1;
+      broken = false;
+    },
+    getError() {
+      return broken ? new Error("broken manifest") : null;
+    },
+    async ensureFresh() {
+      if (broken) throw new Error("broken manifest");
+      return { files: new Map([["plugins/demo/bundle.json", "LIVE"]]), registry: '{"same":true}' };
+    },
+  };
+  const cache = createApprovalsCache({ approvals, bundles, ttlMs: 60_000, onLog: () => {} });
+  assert.equal(await cache.get(), fs.readFileSync(receiptPath, "utf8"));
+  assert.equal(bundles.calls.rebuilds, 1);
+});
 test("approvals cache avoids recomputation within its TTL", async (t) => {
   const root = makeTempRoot();
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
