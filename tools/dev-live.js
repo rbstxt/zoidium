@@ -542,8 +542,31 @@ function createApprovalsCache(options = {}) {
 // Bounds concurrent request handling with a FIFO queue: a page load that
 // fans out into hundreds of parallel asset requests waits its turn instead
 // of exhausting file handles.
-function createRequestGate({ maxConcurrent = 64 } = {}) {
-  const limit = Math.max(1, Math.floor(maxConcurrent));
+// Runs the documentation build for the development server with bounded
+// retries, then degrades to serving without docs. Any failure is retried,
+// not only EMFILE-coded ones: the build runs in a child process whose file
+// pressure surfaces as a generic exit failure. Returns true when the docs
+// were built, false when the server should start without them.
+async function buildDocsWithFallback(buildFn, { attempts = 3, baseDelayMs = 500, warn = () => {} } = {}) {
+  const total = Math.max(1, Math.floor(attempts));
+  let lastError = null;
+  for (let attempt = 1; attempt <= total; attempt += 1) {
+    try {
+      await buildFn();
+      return true;
+    } catch (error) {
+      lastError = error;
+      if (attempt < total) {
+        warn(`documentation build attempt ${attempt} of ${total} failed (${error && error.message ? error.message : error}); retrying`);
+        await sleep(Math.min(baseDelayMs * 2 ** (attempt - 1), 5000));
+      }
+    }
+  }
+  warn(`documentation build failed after ${total} attempt(s) (${lastError && lastError.message ? lastError.message : lastError}); starting without /docs. Rebuild them with \`pnpm run docs:build\` and reload — no restart needed.`);
+  return false;
+}
+
+function createRequestGate({ maxConcurrent = 64 } = {}) {  const limit = Math.max(1, Math.floor(maxConcurrent));
   let active = 0;
   const queue = [];
   const pump = () => {
@@ -598,6 +621,7 @@ function sendBytes(request, response, { status = 200, contentType = "application
 
 module.exports = {
   RETRYABLE_FS_CODES,
+  buildDocsWithFallback,
   createApprovalsCache,
   createDebouncer,
   createLiveBundles,

@@ -382,7 +382,13 @@ async function main() {
   };
 
   try {
-    await buildDocs(runtime.root);
+    // The documentation build fans out into hundreds of files and can hit
+    // file-handle pressure on constrained machines. Retry it boundedly, then
+    // start without /docs: liveDocsRoot() below already falls back to the
+    // stage when no fresh build exists, so serving continues correctly.
+    await devLive.buildDocsWithFallback(() => buildDocs(runtime.root), {
+      warn: (message) => console.warn(`[Zoidium] ${message}`),
+    });
     await liveBundles.rebuild();
     if (options.watch) {
       const refreshLive = async (changed) => {

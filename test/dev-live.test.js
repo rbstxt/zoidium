@@ -9,6 +9,7 @@ const os = require("node:os");
 const path = require("node:path");
 const test = require("node:test");
 const {
+  buildDocsWithFallback,
   createApprovalsCache,
   createDebouncer,
   createLiveBundles,
@@ -336,8 +337,56 @@ test("request gate bounds concurrency and drains in order", async () => {
   assert.deepEqual(gate.stats(), { active: 0, queued: 0, limit: 2 });
 });
 
-test("sendBytes answers normally and stays silent on aborted requests", () => {
-  const sent = [];
+test("docs build fallback succeeds on the first try", async () => {
+  let calls = 0;
+  const warnings = [];
+  const built = await buildDocsWithFallback(async () => {
+    calls += 1;
+  }, { baseDelayMs: 1, warn: (message) => warnings.push(message) });
+  assert.equal(built, true);
+  assert.equal(calls, 1);
+  assert.deepEqual(warnings, []);
+});
+
+test("docs build fallback retries EMFILE, then succeeds", async () => {
+  let calls = 0;
+  const warnings = [];
+  const built = await buildDocsWithFallback(async () => {
+    calls += 1;
+    if (calls < 3) throw Object.assign(new Error("too many open files"), { code: "EMFILE" });
+  }, { baseDelayMs: 1, warn: (message) => warnings.push(message) });
+  assert.equal(built, true);
+  assert.equal(calls, 3);
+  assert.equal(warnings.length, 2);
+  assert.ok(warnings.every((message) => /retrying/.test(message)));
+});
+
+test("docs build fallback retries generic child failures, then succeeds", async () => {
+  let calls = 0;
+  const built = await buildDocsWithFallback(async () => {
+    calls += 1;
+    // A child build surfaces file pressure as a plain exit failure.
+    if (calls < 2) throw new Error("Documentation build exited with 1");
+  }, { baseDelayMs: 1, warn: () => {} });
+  assert.equal(built, true);
+  assert.equal(calls, 2);
+});
+
+test("docs build fallback degrades to starting without docs", async () => {
+  let calls = 0;
+  const warnings = [];
+  const built = await buildDocsWithFallback(async () => {
+    calls += 1;
+    throw new Error("Documentation build exited with 1");
+  }, { attempts: 3, baseDelayMs: 1, warn: (message) => warnings.push(message) });
+  assert.equal(built, false);
+  assert.equal(calls, 3);
+  assert.equal(warnings.length, 3);
+  assert.match(warnings[2], /starting without \/docs/);
+  assert.match(warnings[2], /docs:build/);
+});
+
+test("sendBytes answers normally and stays silent on aborted requests", () => {  const sent = [];
   const response = {
     destroyed: false,
     writableEnded: false,

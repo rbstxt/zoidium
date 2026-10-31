@@ -30,6 +30,10 @@ async function harness(t, failurePoint) {
       assert.equal(destination, stage);
       calls.push("docs");
       if (failurePoint === "docs") throw failure;
+      if (failurePoint === "docs-always-fail") throw new Error("docs build failed permanently");
+      if (failurePoint === "docs-emfile-flaky" && calls.filter((call) => call === "docs").length < 3) {
+        throw Object.assign(new Error("too many open files"), { code: "EMFILE" });
+      }
     } };
     if (name === "compression") return () => {
       calls.push("middleware");
@@ -68,14 +72,15 @@ async function harness(t, failurePoint) {
   requireFake.main = {};
   const moduleFake = { exports: {} };
   const source = await fs.readFile(require.resolve("../tools/serve-with-resources.js"), "utf8");
+  const warnings = [];
   vm.runInNewContext(source + "\nmodule.exports.main = main;", {
     module: moduleFake, require: requireFake, process: processFake, URL,
-    console: { log() {}, error() {}, warn() {} },
+    console: { log() {}, error() {}, warn(message) { warnings.push(String(message)); } },
   });
-  return { main: moduleFake.exports.main, failure, calls, stage, cache, processFake, exited };
+  return { main: moduleFake.exports.main, failure, calls, warnings, stage, cache, processFake, exited };
 }
 
-for (const point of ["docs", "middleware", "server", "listen"]) {
+for (const point of ["middleware", "server", "listen"]) {
   test(`development startup ${point} failure removes only the disposable stage`, async t => {
     const h = await harness(t, point);
     await assert.rejects(h.main(), error => error === h.failure);
@@ -94,5 +99,29 @@ test("normal development shutdown closes listeners and removes only the stage", 
   assert.deepEqual(h.calls, ["docs", "middleware", "listen", "listen", "close", "close", "cleanup"]);
   await assert.rejects(fs.stat(h.stage), { code: "ENOENT" });
   assert.ok((await fs.stat(h.cache)).isDirectory());
+  assert.equal(h.processFake.exitCode, 0);
+});
+
+test("development startup without docs still listens when the docs build keeps failing", async t => {
+  const h = await harness(t, "docs-always-fail");
+  await h.main();
+  await h.exited;
+  assert.deepEqual(h.calls.filter((call) => call === "docs"), ["docs", "docs", "docs"]);
+  assert.equal(h.calls.filter((call) => call === "listen").length, 2);
+  assert.ok(h.warnings.some((message) => /starting without \/docs/.test(message)),
+    `expected a docs-unavailable warning in ${JSON.stringify(h.warnings)}`);
+  await assert.rejects(fs.stat(h.stage), { code: "ENOENT" });
+  assert.ok((await fs.stat(h.cache)).isDirectory());
+  assert.equal(h.processFake.exitCode, 0);
+});
+
+test("development startup retries the docs build on EMFILE, then listens", async t => {
+  const h = await harness(t, "docs-emfile-flaky");
+  await h.main();
+  await h.exited;
+  assert.equal(h.calls.filter((call) => call === "docs").length, 3);
+  assert.ok(h.warnings.some((message) => /retrying/.test(message)),
+    `expected a retry warning in ${JSON.stringify(h.warnings)}`);
+  assert.equal(h.calls.filter((call) => call === "listen").length, 2);
   assert.equal(h.processFake.exitCode, 0);
 });
