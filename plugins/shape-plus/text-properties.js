@@ -1,4 +1,5 @@
 "use strict";
+const { axisLabel } = require("./text-font.js");
 function definitions(PZ, number, vector, list) {
   const T = PZ.property.type;
   const choice = (...args) => ({ ...list(...args), dynamic: true });
@@ -30,12 +31,12 @@ function axes(PZ, node, font) {
     hidden[key] = JSON.parse(JSON.stringify(before[key])); delete before[key];
   }
   for (const tag of Object.keys(font.axes)) {
-    const key = "axis_" + tag, axis = font.axes[tag];
+    const key = "axis_" + tag, axis = font.axes[tag], name = axisLabel(tag, axis.name);
     if (!p[key]) {
-      p.add(key, { name: tag, type: PZ.property.type.NUMBER, dynamic: true, value: axis.default, min: axis.min, max: axis.max, step: 1 });
+      p.add(key, { name, type: PZ.property.type.NUMBER, dynamic: true, value: axis.default, min: axis.min, max: axis.max, step: 1 });
       p[key].load(hidden[key] ?? before[key]);
       delete hidden[key];
-    } else Object.assign(p[key].definition, { min: axis.min, max: axis.max });
+    } else Object.assign(p[key].definition, { name, min: axis.min, max: axis.max });
   }
   for (const key of Object.keys(p)) if (key.startsWith("axis_") && !font.axes[key.slice(5)]) {
     hidden[key] = JSON.parse(JSON.stringify(p[key])); delete before[key]; p.remove(key);
