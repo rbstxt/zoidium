@@ -1,5 +1,5 @@
 "use strict";
-const { holdValue } = require("./text-properties.js");
+const { holdValue, localFrame } = require("./text-properties.js");
 const { definitions, titles } = require("./properties.js");
 const clone = value => JSON.parse(JSON.stringify(value));
 function validate(contents, depth = 0, state = { count: 0, ids: new Set() }) {
@@ -45,6 +45,10 @@ function createModel(PZ, textService) {
       if (kind === "text") {
         for (const key of ["sourceText", "font", "fallbackFont", "fontStyle", "caps", "alignment", "textMode"]) {
           const property = this.properties[key], get = property.get.bind(property);
+          if (property.set) {
+            const set = property.set.bind(property);
+            property.set = (value, frame) => set(value, frame ?? (typeof window !== "undefined" && window.CM ? localFrame(property, window.CM, PZ) : this.textFrame || 0));
+          }
           property.get = frame => {
             frame ??= this.textFrame || 0;
             return !property.expression && (property.keyframes?.length || property.data?.keyframes?.length)
