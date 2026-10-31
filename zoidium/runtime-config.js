@@ -8,7 +8,7 @@
     // loader appends it automatically, so per-file ?v= queries are never
     // hand-edited here. Plugin asset URLs are versioned separately by
     // tools/build-plugin-bundles.js from each manifest's own version.
-    assetVersion: 234,
+    assetVersion: 235,
     // Plugin registry consumed by plugins/plugin-manager.js. It is preloaded
     // below, so its URL lives here as the single source.
     registryUrl: "./plugins/registry.json?v=191",
@@ -97,7 +97,8 @@
       "./plugins/core/asset-registry-organize.js",
       "./plugins/core/asset-registry-zip.js",
       "./plugins/core/asset-registry-collect.js",
-      "./plugins/core/asset-registry.js"
+      "./plugins/core/asset-registry.js",
+      "./plugins/core/font-presets.js"
     ],
     postInitScripts: [
       // ui-panels.js queues its installer for ui-kit.js, so it loads first.
