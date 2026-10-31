@@ -88,6 +88,9 @@ each line describes one visible change.
 
 ### Changed
 
+- After a sequence frame rate change, the notice offers **Undo**, **Just this
+  project**, and **Make 60 fps default**, which also sets the default frame
+  rate for new projects.
 - Shape+ Text names variable font axes in full, for example "Weight (wght)",
   and lists them directly below **Style**. A static font shows "Static font:
   no variable axes" on its row.
