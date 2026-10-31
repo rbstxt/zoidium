@@ -173,6 +173,7 @@ function createCanvas(s, canvas) {
       shape = { css: cssPoints(entry), variants: new Map() };
       sc.shapes.set(entry, shape);
     }
+    closed = closed ? 1 : 0;
     let variant = shape.variants.get(closed);
     if (!variant) {
       const cubics = verticesToCubics(shape.css, closed);

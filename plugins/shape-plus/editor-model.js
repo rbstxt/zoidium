@@ -86,6 +86,7 @@ function createEditorModel(s) {
       entry.item.unload();
       entry.list.splice(entry.index, 1);
       layer.contentsState?.invalidate();
+      s.canvasApi?.invalidateScene?.();
       return;
     }
     const item = new Content(data.kind, data);
@@ -94,6 +95,7 @@ function createEditorModel(s) {
     entry.list.splice(entry.index, 1, item);
     layer.signature = null;
     layer.contentsState?.invalidate();
+    s.canvasApi?.invalidateScene?.();
   };
   s.topology = (operation) => {
     const item = s.active();
