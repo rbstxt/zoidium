@@ -308,6 +308,54 @@ Box の高さを超える行は表示しません。Point テキストは折り�
 
 追加のエンジンバンドルは、最初のテキスト使用時に読み込みます。Electron は未検証です。
 
+## Text Animator
+
+Text Animator は、同じグループ内で上にあるすべての Text 項目に作用します。
+上にある入れ子のグループ内のテキストも含みます。アニメーターはリストの順序で上から下へ重なります。
+上にテキストがないアニメーターは "No text above this animator" を表示します。
+各アニメーションプロパティは neutral + (value - neutral) x s として適用されます。s は単位ごとのセレクター合成値です。
+無効なプロパティは作用せず、行を非表示にします。アニメーターのコンテキストメニューの Add Property と Remove Property で切り替えます。
+文字ごとの Opacity、Fill Color、Stroke Color、Stroke Width には未対応です。
+
+| コントロール | 型 | 初期値 | 効果 |
+| --- | --- | --- | --- |
+| **Anchor Point** | 動的ベクトル | [0, 0] | 拡大・回転・スキューに使用するピボットのずれ。 |
+| **Position** | 動的ベクトル | [0, 0] | グリフ位置に加算します。Y は上向きです。 |
+| **Scale (%)** | 動的ベクトル | [100, 100] | 中立値は 100。 |
+| **Skew**、**Skew Axis** | 動的数値 | 0 | 度。スキューは拡大の後、回転の前に適用します。 |
+| **Rotation** | 動的数値 | 0 | 度。 |
+| **Tracking Amount** | 動的数値 | 0 | 作用する各文字の後に value x s x Size / 1000 を加算します。配置はこの移動の前に計算します。 |
+| **Character Offset** | 動的数値 | 0 | a-z、A-Z、0-9 の範囲で文字をずらす整数。折り返します。新しい送り幅が古い送り幅を置き換えます。カーニングは元のシェーピングのままです。 |
+| **Grouping Alignment (%)** | 動的ベクトル | [0, 0] | グループボックスに対する割合でピボットを移動します。 |
+| 軸名 (タグ) | 動的数値 | 0 | グリフの軸の値に加算するずれ。軸の範囲に収めます。後続の文字は送り幅の差だけ移動します。 |
+| **Anchor Point Grouping** | 静的選択 | Character | Character、Word、Line、All のピボット単位。 |
+| 有効フラグ、**Wiggly Selector** の切替 | 静的 | オフ | コンテキストメニューで切り替えます。行は非表示です。 |
+
+ピボットは単位の送り幅の水平方向の中央です。文字は自身の送り幅、単語・行・全体はグループの最初のベースライン上の範囲を使用します。
+Grouping Alignment はグループボックスに対する割合でピボットを移動します。水平方向は送り幅、垂直方向はフォントのアセントからディセントまでです。
+
+| Range Selector | 型 | 初期値 | 効果 |
+| --- | --- | --- | --- |
+| **Units** | 静的選択 | Percentage | 項目全体に対する Percentage または Index 単位。 |
+| **Range Start**、**Range End**、**Range Offset** | 動的数値 | 0、100、0 | Index 単位の未編集のセレクターは Start 0、End 単位の個数を使用します。両端が等しい場合は何も選択しません。 |
+| **Based On** | 静的選択 | Characters | Characters、Characters Excluding Spaces、Words、Lines。Characters と Lines 以外では空白は 0 です。 |
+| **Mode** | 静的選択 | Add | 0 からの実行値に対する Add、Subtract、Intersect、Min、Max、Difference。[-1, 1] に収めます。 |
+| **Amount (%)** | 動的数値 | 100 | -100 から 100。セレクターの値に乗算します。 |
+| **Shape** | 静的選択 | Square | Square は単位範囲の被覆率を測定します。Ramp Up、Ramp Down、Triangle、Round、Smooth は単位の中央を標本化します。 |
+| **Ease High (%)**、**Ease Low (%)** | 動的数値 | 0 | 1 または 0 に向けて変形します。0 は恒等変換です。 |
+| **Randomize Order**、**Random Seed** | 静的切替、動的数値 | オフ、0 | 決定的なシード付きの単位の置換。 |
+
+| Wiggly Selector | 型 | 初期値 | 効果 |
+| --- | --- | --- | --- |
+| **Wiggly Mode** | 静的選択 | Add | Range Selector と同じ合成モード。 |
+| **Maximum Amount (%)**、**Minimum Amount (%)** | 動的数値 | 100、-100 | この範囲に収めた滑らかなノイズ。 |
+| **Wiggly Based On** | 静的選択 | Characters | ノイズ専用の単位の数え方。 |
+| **Wiggles / Second** | 動的数値 | 2 | 1 秒あたりの周期数。 |
+| **Correlation (%)** | 動的数値 | 50 | 100 は全単位で共通の値、0 は独立です。 |
+| **Temporal Phase (degrees)**、**Spatial Phase (degrees)** | 動的数値 | 0 | 時間方向と単位ごとのずれ。 |
+| **Lock Dimensions** | 静的切替 | オフ | オンはベクトルの成分間で共通の値を使用します。 |
+| **Wiggly Random Seed** | 動的数値 | 0 | 決定的なフレーム基準のノイズ。 |
+
 ## Create Shapes from Text
 
 プレビューの **Convert to Path** と Objects 行の **Create Shapes from Text** は、
@@ -315,6 +363,9 @@ Box の高さを超える行は表示しません。Point テキストは折り�
 空白にはグループを作成しません。合字の輪郭は先頭文字に属し、残りの文字には空の名前付きグループを作成します。
 結合記号は基底文字の書記素グループに残ります。巻き方向と親のペイント順序を保持します。
 1 件の履歴により、Undo でライブテキストを復元します。
+
+変換は Text Animator を含む表示フレームを静的なパスに記録します。
+アニメーターの項目はリストに残ります。
 
 ## Text cache limits
 

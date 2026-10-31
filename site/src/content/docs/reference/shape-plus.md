@@ -309,6 +309,58 @@ width between grapheme clusters. Other lines without spaces retain their advance
 
 The optional engine bundle loads on the first text use. Electron is untested.
 
+## Text Animator
+
+A Text Animator acts on every Text item above it in the same group, including
+text in nested groups above it. Animators stack in list order from top to
+bottom. An animator with no text above it shows "No text above this animator".
+Each animated property applies as neutral + (value - neutral) x s, where s is
+the combined selector value for each unit. Disabled properties contribute
+nothing and hide their rows; toggle them with Add Property and Remove Property
+on the animator's context menu. Per-character Opacity, Fill Color, Stroke
+Color and Stroke Width are not yet supported.
+
+| Control | Type | Default | Effect |
+| --- | --- | --- | --- |
+| **Anchor Point** | Dynamic vector | [0, 0] | Pivot offset for scale, rotation and skew. |
+| **Position** | Dynamic vector | [0, 0] | Added to the glyph position. Y is up. |
+| **Scale (%)** | Dynamic vector | [100, 100] | Neutral 100. |
+| **Skew**, **Skew Axis** | Dynamic number | 0 | Degrees. Skew applies after scale, before rotation. |
+| **Rotation** | Dynamic number | 0 | Degrees. |
+| **Tracking Amount** | Dynamic number | 0 | Adds value x s x Size / 1000 after each affected character. Alignment is computed before these shifts. |
+| **Character Offset** | Dynamic number | 0 | Integer shift of letters within a-z, A-Z or 0-9 with wraparound. The new advance replaces the old one; kerning stays from the base shaping. |
+| **Grouping Alignment (%)** | Dynamic vector | [0, 0] | Pivot shift as a percentage of the group box. |
+| Axis name (tag) | Dynamic number | 0 | Offset added to the glyph's axis coordinate, clamped to the axis range. Later characters shift by the advance difference. |
+| **Anchor Point Grouping** | Static choice | Character | Character, Word, Line or All pivot unit. |
+| Enabled flags, **Wiggly Selector** switch | Static | Off | Context-menu toggles; hidden rows. |
+
+The pivot is the horizontal centre of the unit's advance span: a character's
+own advance, or a word, line or all span, on the group's first baseline.
+Grouping Alignment moves the pivot by a percentage of the group box (advance
+span horizontally, font ascent to descent vertically).
+
+| Range Selector | Type | Default | Effect |
+| --- | --- | --- | --- |
+| **Units** | Static choice | Percentage | Percentage or Index units over the whole item. |
+| **Range Start**, **Range End**, **Range Offset** | Dynamic number | 0, 100, 0 | In Index units an untouched selector uses Start 0 and End the unit count. Equal bounds select nothing. |
+| **Based On** | Static choice | Characters | Characters, Characters Excluding Spaces, Words or Lines. Spaces take 0 except under Characters and Lines. |
+| **Mode** | Static choice | Add | Add, Subtract, Intersect, Min, Max or Difference against the running value from 0, clamped to [-1, 1]. |
+| **Amount (%)** | Dynamic number | 100 | -100 to 100; multiplies the selector value. |
+| **Shape** | Static choice | Square | Square covers the unit span fractionally; Ramp Up, Ramp Down, Triangle, Round and Smooth sample the unit centre. |
+| **Ease High (%)**, **Ease Low (%)** | Dynamic number | 0 | Reshape toward 1 or 0; 0 is the identity. |
+| **Randomize Order**, **Random Seed** | Static switch, dynamic number | Off, 0 | Deterministic seeded unit permutation. |
+
+| Wiggly Selector | Type | Default | Effect |
+| --- | --- | --- | --- |
+| **Wiggly Mode** | Static choice | Add | Same combination modes as the Range Selector. |
+| **Maximum Amount (%)**, **Minimum Amount (%)** | Dynamic number | 100, -100 | Smooth noise scaled into this range. |
+| **Wiggly Based On** | Static choice | Characters | Independent unit counting for the noise. |
+| **Wiggles / Second** | Dynamic number | 2 | Noise rate in cycles per second. |
+| **Correlation (%)** | Dynamic number | 50 | 100 shares one value across units; 0 is independent. |
+| **Temporal Phase (degrees)**, **Spatial Phase (degrees)** | Dynamic number | 0 | Offsets in time and per unit. |
+| **Lock Dimensions** | Static switch | Off | On shares one value across vector components. |
+| **Wiggly Random Seed** | Dynamic number | 0 | Deterministic frame-based noise. |
+
 ## Create Shapes from Text
 
 **Convert to Path** in the preview and **Create Shapes from Text** on the Objects
@@ -317,6 +369,9 @@ a separate Path. Spaces produce no group. A ligature's outline belongs to its
 first character; its remaining characters have empty named groups. Combining
 marks stay in their base character's grapheme group. Winding and parent paint
 order are preserved. One history entry restores the live text on Undo.
+
+Conversion bakes the displayed frame with Text Animators into static paths.
+The animator items stay in the list.
 
 ## Text cache limits
 
