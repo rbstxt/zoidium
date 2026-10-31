@@ -187,16 +187,44 @@
     editor.history.pushCommand(restore, { editor, state: inverse, inverse: state });
   }
 
+  function undoFrameRateChange(editor, operation) {
+    const history = editor.history, stack = history.undoStack;
+    const latest = stack.stack[(stack.idx - 1 + stack.stack.length) % stack.stack.length];
+    if (editor.project === history.project && stack.length && latest === operation) history.undo();
+    else global.ZoidiumUI?.notify({ title: "Use Undo from the editor.",
+      message: "Undo later edits before undoing the frame rate change." });
+  }
+
+  function defaultFrameRateOf() {
+    const defaults = global.ZoidiumDefaultProjectSettings;
+    return defaults && typeof defaults.getFrameRate === "function" ? defaults.getFrameRate() : null;
+  }
+
   function notify(editor, operation) {
+    const newRate = editor.sequence.properties.rate.get();
+    const undo = () => undoFrameRateChange(editor, operation);
+    const actions = [
+      { label: "Undo", run: undo },
+      { label: "Just this project", run() {} },
+    ];
+    // When the new rate already is the default there is nothing to adopt,
+    // so the toast offers only Undo and keeping the change.
+    if (defaultFrameRateOf() !== newRate) {
+      const label = "Make " + String(newRate) + " fps default";
+      actions.push({ label, primary: true, run() {
+        const settings = global.ZoidiumSettings;
+        if (settings && typeof settings.setDefaultFrameRate === "function") settings.setDefaultFrameRate(newRate);
+        else if (global.ZoidiumDefaultProjectSettings
+          && typeof global.ZoidiumDefaultProjectSettings.setFrameRate === "function") {
+          global.ZoidiumDefaultProjectSettings.setFrameRate(newRate);
+        }
+        global.ZoidiumUI?.notify({ title: "New projects will use " + String(newRate) + " fps." });
+      } });
+    }
     global.ZoidiumUI?.notify({ title: "Frame rate changed. Timing kept in seconds.",
       message: "Expressions that use frame keep their per-frame meaning.",
-      action: { label: "Undo", run() {
-        const history = editor.history, stack = history.undoStack;
-        const latest = stack.stack[(stack.idx - 1 + stack.stack.length) % stack.stack.length];
-        if (editor.project === history.project && stack.length && latest === operation) history.undo();
-        else global.ZoidiumUI?.notify({ title: "Use Undo from the editor.",
-          message: "Undo later edits before undoing the frame rate change." });
-      } } });
+      action: { label: "Undo", run: undo },
+      actions });
   }
 
   prototype.setValue = function setValueWithTiming(params) {

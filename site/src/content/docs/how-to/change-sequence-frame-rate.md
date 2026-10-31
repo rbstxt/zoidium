@@ -19,6 +19,12 @@ If you use expressions based on `frame`, review them after the change. They keep
 
 At a lower frame rate, keyframes and clip boundaries can fall between frames. Keep these fractional positions to preserve timing and adjacent clip boundaries. The playhead displays the nearest whole frame.
 
+## Keep the change for this project or for new projects
+
+To keep the new rate for this project only, click **Just this project**.
+To also use the new rate for new projects, click **Make 60 fps default**. This choice appears only when the new rate differs from the current default. A follow-up notice confirms **New projects will use 60 fps.**
+To change the default without editing a sequence, change **Default frame rate** in **Settings**.
+
 ## Undo the change
 
 1. In the frame rate notice, click **Undo**.

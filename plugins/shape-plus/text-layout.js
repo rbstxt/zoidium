@@ -78,7 +78,9 @@ function layoutText(primary, fallback, p) {
         glyphs.push({ ...g, line: rows.length, x: g.x + x + (p.position?.[0] || 0), y: g.y + y + (p.baselineShift || 0) + (p.position?.[1] || 0), coordinates });
         if (/\s/u.test(g.character) || characterGaps && shaped.glyphs[glyphIndex+1] && shaped.glyphs[glyphIndex+1].cl !== g.cl) x += gap;
       }
-      rows.push({ text, characters: clusters(shaped.text), width: shaped.width, baseline: y, visible }); y -= leading;
+      // Rows carry the same offsets as their glyphs; the editor caret reads them.
+      rows.push({ text, characters: clusters(shaped.text), width: shaped.width, left: x + (p.position?.[0] || 0),
+        baseline: y + (p.baselineShift || 0) + (p.position?.[1] || 0), visible }); y -= leading;
     }
     y -= p.spaceAfter || 0;
   }

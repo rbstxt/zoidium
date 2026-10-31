@@ -61,7 +61,13 @@ temporary packaging stage is removed after Electron Builder finishes.
 ## Browser and Electron entry points
 
 `tools/serve-with-resources.js` serves the cached stage over HTTP. Workers and
-WASM depend on that HTTP origin.
+WASM depend on that HTTP origin. Zoidium-owned files are served live from the
+checkout: plugin bundles and the registry are rebuilt in memory from source,
+staged font presets and the community runtime source are re-read from the
+repository, and one debounced watcher per root warms the rebuilds, so a
+browser reload sees edits, additions, and removals without a restart.
+Concurrent requests wait in a bounded queue, and file-handle pressure gets a
+retry instead of a crash.
 
 `desktop/main.cjs` serves the packaged stage on a fixed loopback HTTP port and
 opens it in Electron. The stable origin keeps localStorage available across

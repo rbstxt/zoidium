@@ -88,6 +88,14 @@ each line describes one visible change.
 
 ### Changed
 
+- Shape+ Text edits in place, like After Effects: double-click the text to
+  place a caret on the rendered letters, type with live updates (IME
+  included), select with Shift or by dragging, and press Escape or click
+  outside to finish. One edit session is one undo step. The Source Text and
+  Style controls now match the rest of the panel.
+- After a sequence frame rate change, the notice offers **Undo**, **Just this
+  project**, and **Make 60 fps default**, which also sets the default frame
+  rate for new projects.
 - Shape+ Text names variable font axes in full, for example "Weight (wght)",
   and lists them directly below **Style**. A static font shows "Static font:
   no variable axes" on its row.
@@ -95,7 +103,10 @@ each line describes one visible change.
   Editor skips distant curves when it looks for what is under the pointer, and
   a Text Animator without a Wiggly Selector no longer rebuilds its text every
   frame. Animated shapes reuse their GPU buffers instead of recreating them.
-  Output is unchanged.
+  On large paths the Shape Editor evaluates the scene once per pointer event
+  and writes only the changed path values while dragging, so hovering,
+  selecting, and dragging points respond several times faster. Output is
+  unchanged.
 - Graph Editor 2 works with a mouse and a trackpad. The mouse wheel zooms
   time around the pointer. Two-finger scroll pans. Pinch or Ctrl+wheel
   zooms both axes. Middle-drag or Space-drag pans. The **?** button lists
@@ -147,6 +158,13 @@ each line describes one visible change.
 
 ### Fixed
 
+- The Shape+ Text editing caret and selection now sit on the text line
+  instead of below it, including text moved by Position or Baseline Shift.
+- `pnpm dev` picks up source, plugin and font changes, including added and
+  removed files, without a restart, and no longer crashes with "too many open
+  files" under heavy request load.
+- Hovering a key or handle in Graph Editor 2 no longer wraps the status bar
+  to a second row, so the graph no longer shifts under the pointer.
 - Time Offset on a video no longer shows black or unrelated frames when
   its offset jumps, for example with a `shake()` expression, and playback
   no longer jumps the playhead backwards.

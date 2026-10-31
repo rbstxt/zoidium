@@ -609,11 +609,19 @@ CJK character breaks, box size, justification with last-line alignment,
 first-line indent, and space before and after paragraphs. Explicit newlines
 start paragraphs. Box height hides overflow lines.
 
-Double-click a text item in the preview to edit it in a textarea positioned
-over its bounds. Enter adds a newline. Escape or focus loss commits one history
-operation. The textarea retains native IME composition. The native properties
-panel also provides a multiline Source Text field. Expression-driven text is
-read-only in the inline editor.
+Double-click a text item in the preview to edit it on the rendered text
+itself: the render stays visible while the overlay draws a caret and a
+selection highlight at the glyph positions. Typing replaces Source Text live
+and re-lays out the render. Enter adds a newline; Left and Right move by
+grapheme cluster and Up and Down move by line; Home and End move to the line
+edges; Shift extends the selection; double-clicking a word selects it and
+dragging selects a range; Cmd/Ctrl+A selects all. Escape or a click outside
+the text commits one history operation. The hidden input keeps native IME
+composition, underlined while composing. Expression-driven text is read-only
+in the inline editor. The native properties panel also provides a multiline
+Source Text field that follows the theme and grows from one line to about
+six before scrolling, and the Style control matches the native choice
+controls.
 
 The HarfBuzz payload is in a verified optional bundle. Projects with no Text
 contents do not request it. Outlines are cached in font units with a bounded

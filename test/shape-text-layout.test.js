@@ -15,7 +15,8 @@ test("alignment, tracking, leading, baseline and scaling use font-unit geometry"
   const tracked = layoutText(latin,null,{...p,tracking:100});
   assert.equal(tracked.rows[0].width-left.rows[0].width,(left.glyphs.length-1)*10);
   const lines = layoutText(latin,null,{...p,sourceText:"A\nV",baselineShift:10,spaceBefore:5,spaceAfter:7});
-  assert.equal(lines.rows[1].baseline,-137); assert.equal(lines.glyphs[0].y,5);
+  // Row baselines carry the same baseline shift as their glyphs.
+  assert.equal(lines.rows[1].baseline,-127); assert.equal(lines.glyphs[0].y,5);
   assert.equal(layoutText(latin,null,{...p,horizontalScale:200}).rows[0].width,left.rows[0].width*2);
 });
 test("box wrap keeps Latin words and breaks Japanese per grapheme", () => {

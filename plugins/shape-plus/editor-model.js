@@ -58,6 +58,9 @@ function createEditorModel(s) {
   s.gesture = createGesture(editor.history, read, write, () => s.refresh?.(true), () => editor.project);
   s.preview = () => {
     layer.signature = null;
+    // A mutation ends the current read scope: later reads in the same event
+    // rebuild from the changed contents instead of reusing stale entries.
+    s.canvasApi?.invalidateScene?.();
     // Native playback redraws evaluated layer data continuously. Project
     // change notifications belong to finishOperation, once per gesture.
     s.dirty = true;
@@ -83,6 +86,7 @@ function createEditorModel(s) {
       entry.item.unload();
       entry.list.splice(entry.index, 1);
       layer.contentsState?.invalidate();
+      s.canvasApi?.invalidateScene?.();
       return;
     }
     const item = new Content(data.kind, data);
@@ -91,6 +95,7 @@ function createEditorModel(s) {
     entry.list.splice(entry.index, 1, item);
     layer.signature = null;
     layer.contentsState?.invalidate();
+    s.canvasApi?.invalidateScene?.();
   };
   s.topology = (operation) => {
     const item = s.active();
@@ -111,7 +116,10 @@ function createEditorModel(s) {
       axes.some((axis) => axis.expression || axis.definition.readOnly)
     )
       throw Error("Expression-driven properties cannot be edited");
-    axes.forEach((axis, i) => {
+    // Auto-keys keep the old behavior: every animated axis without a key at
+    // this frame acquires one, once, before any channel is written. Later
+    // moves find the keys and only update the channels that changed.
+    axes.forEach((axis) => {
       if (axis.animated && !axis.hasKeyframe(frame)) {
         const closest = axis.keyframes[axis.getClosestKeyframeIndex(frame)];
         const key = new PZ.keyframe(
@@ -122,6 +130,18 @@ function createEditorModel(s) {
         axis.addKeyframe(key);
         axis.onKeyframeCreated.update(key);
       }
+    });
+    // A 240-vertex path holds 1,440 channels while a drag changes a few.
+    // Unchanged channels keep their keys, values and notifications: only the
+    // channels whose new value differs are written and announced.
+    let changed = null;
+    if (property.objects) {
+      const current = property.get(frame);
+      if (Array.isArray(current) && current.length === values.length)
+        changed = values.map((v, i) => v !== current[i]);
+    }
+    axes.forEach((axis, i) => {
+      if (changed && !changed[i]) return;
       axis.set(values[i], frame);
       const key = axis.keyframes?.[axis.getClosestKeyframeIndex(frame)];
       axis.onKeyframeChanged?.update(key);

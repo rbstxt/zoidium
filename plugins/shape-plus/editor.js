@@ -57,12 +57,14 @@ function mountOverlay(context, layer, Content, viewport, panels, tool) {
   }
   s.refresh = () => { s.dirty = true; syncSelection(); };
   s.selectItem = (id, extend = false) => {
+    s.finishTextEdit?.();
     s.pointer?.commit(); s.finishNudge?.();
     if (!extend) s.treeSelection.clear();
     s.treeSelection.add(id); s.activeId = id;
     s.selection.clear(); s.penFinished = false; s.refresh();
   };
   s.clearSelection = () => {
+    s.finishTextEdit?.();
     s.pointer?.commit(); s.finishNudge?.();
     s.treeSelection.clear(); s.activeId = null;
     s.selection.clear(); s.penFinished = false; s.refresh();
@@ -80,8 +82,9 @@ function mountOverlay(context, layer, Content, viewport, panels, tool) {
   const textEditor = require("./text-inline.js").install(s);
   let disposed = false;
   // Tool switches, native selection and teardown end an edit in progress but
-  // keep it: what the preview shows is what history records. Only Escape and
-  // undo (editor-actions.js) or an error roll a gesture back.
+  // keep it: what the preview shows is what history records. Only undo
+  // (editor-actions.js) or an error roll a gesture back; in-place text
+  // editing commits on Escape instead (see text-inline.js).
   function settle() { textEditor.finish(); s.pointer.commit(); s.finishNudge(); s.gesture.finish(); }
   const changed = () => { if (!disposed && s.valid()) s.refresh(); };
   s.project.ui.onChanged.watch(changed);

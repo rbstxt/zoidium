@@ -9,7 +9,8 @@ const { createCharacters } = require("../plugins/text-plus/text-plus-2d-properti
 const { createControlsStore } = require("../plugins/expressions-plus/controls.js");
 const copy = value => JSON.parse(JSON.stringify(value));
 
-function fixture() {
+function fixture(options) {
+  const defaultRate = options && options.defaultRate !== undefined ? options.defaultRate : 30;
   const context = host(), { PZ } = context;
   context.DOMAIN = "";
   context.fetch = async url => {
@@ -25,6 +26,13 @@ function fixture() {
   };
   editor.playback = new PZ.ui.playback(editor);
   context.ZoidiumUI = { notify(detail) { notes.push(detail); } };
+  const defaultSettings = { rate: defaultRate, setCalls: [] };
+  context.ZoidiumDefaultProjectSettings = {
+    getFrameRate() { return defaultSettings.rate; },
+    setFrameRate(value) { defaultSettings.rate = value; defaultSettings.setCalls.push(value); },
+  };
+  const settingsCalls = [];
+  context.ZoidiumSettings = { setDefaultFrameRate(value) { settingsCalls.push(value); return true; } };
   vm.runInContext(fs.readFileSync("plugins/core/sequence-timing.js", "utf8"), context);
   const ops = new PZ.ui.properties(editor);
   function clip(audio = false, start = 0, length = 90, trackIndex = 0, layerType = 1) {
@@ -42,7 +50,8 @@ function fixture() {
     ops.setValue({ property: property.getAddress(), ...(live ? { oldValue } : { value: rate }) });
     editor.history.finishOperation();
   }
-  return { context, PZ, project, editor, notes, ops, clip, edit, sequence: project.sequence };
+  return { context, PZ, project, editor, notes, ops, clip, edit, sequence: project.sequence,
+    defaultSettings, settingsCalls };
 }
 function animate(property, first = 0, last = 100, end = 30) {
   property.keyframes.splice(0, property.keyframes.length);
@@ -266,6 +275,39 @@ test("Camera+ master-track channels scale, while FPS, seconds, counters and shut
   assert.deepEqual(effects.map(property => property.get()), [12, 1.5, -6, 100, 3]);
 });
 
+
+test("frame rate notice offers Undo, keep, and make-default actions in order", async () => {
+  const h = fixture({ defaultRate: 30 }); h.clip(); h.edit(60);
+  await Promise.resolve();
+  const actions = h.notes.at(-1).actions;
+  assert.equal(actions.length, 3);
+  assert.deepEqual([...actions.map(entry => entry.label)], ["Undo", "Just this project", "Make 60 fps default"]);
+  assert.equal(h.notes.at(-1).action.label, "Undo");
+});
+
+test("frame rate notice hides Make default when the new rate already matches", async () => {
+  const h = fixture({ defaultRate: 60 }); h.clip(); h.edit(60);
+  await Promise.resolve();
+  assert.deepEqual([...h.notes.at(-1).actions.map(entry => entry.label)], ["Undo", "Just this project"]);
+});
+
+test("Make default stores the new rate and confirms it", async () => {
+  const h = fixture({ defaultRate: 30 }); h.clip(); h.edit(60);
+  await Promise.resolve();
+  h.notes.at(-1).actions[2].run();
+  assert.deepEqual(h.settingsCalls, [60]);
+  assert.equal(h.notes.at(-1).title, "New projects will use 60 fps.");
+});
+
+test("Make default keeps fractional rates exact", async () => {
+  const h = fixture({ defaultRate: 30 }); h.clip(); h.edit(29.97);
+  await Promise.resolve();
+  const actions = h.notes.at(-1).actions;
+  assert.equal(actions[2].label, "Make 29.97 fps default");
+  actions[2].run();
+  assert.deepEqual(h.settingsCalls, [29.97]);
+  assert.equal(h.notes.at(-1).title, "New projects will use 29.97 fps.");
+});
 
 test("adjacent boundaries agree exactly even when floating subtraction loses a bit", () => {
   const h = fixture(); h.sequence.properties.rate.set(3);
