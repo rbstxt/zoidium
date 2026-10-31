@@ -57,12 +57,14 @@ function mountOverlay(context, layer, Content, viewport, panels, tool) {
   }
   s.refresh = () => { s.dirty = true; syncSelection(); };
   s.selectItem = (id, extend = false) => {
+    s.finishTextEdit?.();
     s.pointer?.commit(); s.finishNudge?.();
     if (!extend) s.treeSelection.clear();
     s.treeSelection.add(id); s.activeId = id;
     s.selection.clear(); s.penFinished = false; s.refresh();
   };
   s.clearSelection = () => {
+    s.finishTextEdit?.();
     s.pointer?.commit(); s.finishNudge?.();
     s.treeSelection.clear(); s.activeId = null;
     s.selection.clear(); s.penFinished = false; s.refresh();

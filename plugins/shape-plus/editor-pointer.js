@@ -138,6 +138,13 @@ function createPointer(s, canvas) {
     const start = point(event);
     if (event.button !== 0) return null;
     s.editor.playback.speed = 0;
+    // A text caret session owns presses first: inside the edited text it
+    // moves the caret or drags a selection, outside it commits and the
+    // press continues as a normal selection gesture.
+    if (s.textEdit?.active) {
+      const textGesture = s.textEdit.press(event, start);
+      if (textGesture) return textGesture;
+    }
     const control = controls.beginHandle(s, start, point);
     if (control) return control;
     if (s.tool === "pen" && api.hit(start)?.kind !== "handle")
@@ -367,7 +374,11 @@ function createPointer(s, canvas) {
     }
     const entry = api.itemAt(p);
     if (entry) {
-      if (entry.item.kind === "text") { s.editText(entry.item); return; }
+      if (entry.item.kind === "text") {
+        if (s.textEdit?.activeOn?.(entry.item.id)) s.textEdit.selectWord(p);
+        else s.editText(entry.item, p);
+        return;
+      }
       if (s.activeId !== entry.item.id || s.treeSelection.size !== 1) s.selectItem(entry.item.id);
       return;
     }
