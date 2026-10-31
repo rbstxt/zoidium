@@ -165,6 +165,28 @@ function hit(
       return { kind: "anchor", index: i };
   let best = null;
   verticesToCubics(points, closed).forEach((c, index) => {
+    // A cubic Bezier curve lies inside the convex hull of its control
+    // points, hence inside their bounding box. Skipping a segment whose
+    // box expanded by the hit radius cannot exclude a point within the
+    // hit radius of the curve.
+    let minX = Infinity,
+      maxX = -Infinity,
+      minY = Infinity,
+      maxY = -Infinity;
+    for (let k = 0; k < c.length; k++) {
+      const p = c[k];
+      if (p[0] < minX) minX = p[0];
+      if (p[0] > maxX) maxX = p[0];
+      if (p[1] < minY) minY = p[1];
+      if (p[1] > maxY) maxY = p[1];
+    }
+    if (
+      point[0] < minX - radius ||
+      point[0] > maxX + radius ||
+      point[1] < minY - radius ||
+      point[1] > maxY + radius
+    )
+      return;
     const found = nearest(c, point);
     if (found.distance <= radius && (!best || found.distance < best.distance))
       best = { kind: "segment", index, ...found };
