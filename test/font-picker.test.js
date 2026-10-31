@@ -617,3 +617,9 @@ test("the stylesheet covers project rows, badges, and the separator", () => {
     assert.ok(css.includes(selector), "missing style: " + selector);
   }
 });
+
+test("project font previews accept the host's opentype Path, not only Path2D", () => {
+  const source = require("node:fs").readFileSync(require("node:path").join(__dirname, "..", "plugins", "core", "font-picker.js"), "utf8");
+  // The host's opentype getPath() returns an opentype Path; filling it directly throws and leaves the row blank.
+  assert.match(source, /toPathData\(/);
+});

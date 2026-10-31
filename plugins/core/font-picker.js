@@ -239,7 +239,16 @@
       } catch (_error) {
         return false;
       }
+      // The host's opentype getPath() returns an opentype Path, not a Path2D.
       try {
+        if (!(typeof Path2D === "function" && path instanceof Path2D)) {
+          if (typeof Path2D === "function" && path && typeof path.toPathData === "function") path = new Path2D(path.toPathData(3));
+          else if (path && typeof path.draw === "function") {
+            path.fill = "#ffffff";
+            path.draw(context);
+            return true;
+          }
+        }
         context.fill(path);
       } catch (_error) {
         return false;
