@@ -150,6 +150,8 @@ each line describes one visible change.
 
 ### Fixed
 
+- Hovering a key or handle in Graph Editor 2 no longer wraps the status bar
+  to a second row, so the graph no longer shifts under the pointer.
 - Time Offset on a video no longer shows black or unrelated frames when
   its offset jumps, for example with a `shake()` expression, and playback
   no longer jumps the playhead backwards.
