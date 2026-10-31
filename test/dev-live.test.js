@@ -287,6 +287,31 @@ test("live presets serve listed fonts and ignore anything else", async (t) => {
   assert.equal((await presets.getPresetBytes("_led.preset-1")).toString(), "dash-bytes");
 });
 
+test("live presets serve listed variable fonts and ignore anything else", async (t) => {
+  const root = makeTempRoot();
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  writeFile(root, "fonts/presets.json", JSON.stringify([{ name: "demo", variable: "demo.ttf" }]));
+  writeFile(root, "fonts/presets/demo.ttf", "fake-ttf-bytes");
+  writeFile(root, "fonts/presets-variable/demo.ttf", "fake-variable-bytes");
+  const presets = createLivePresets({ root, onLog: () => {} });
+
+  assert.equal((await presets.getPresetBytes("demo.ttf", "2d-variable")).toString(), "fake-variable-bytes");
+  assert.equal((await presets.getPresetBytes("demo", "2d")).toString(), "fake-ttf-bytes");
+  assert.equal(await presets.getPresetBytes("other.ttf", "2d-variable"), null);
+  assert.equal(await presets.getPresetBytes("demo.ttf", "2d"), null);
+  assert.equal(await presets.getPresetBytes("demo.ttf", "nope"), null);
+  assert.equal(await presets.getPresetBytes("../demo.ttf", "2d-variable"), null);
+  assert.equal(await presets.getPresetBytes("a/b.ttf", "2d-variable"), null);
+  assert.equal(await presets.getPresetBytes("", "2d-variable"), null);
+
+  writeFile(root, "fonts/presets-variable/demo.ttf", "variable-v2");
+  assert.equal((await presets.getPresetBytes("demo.ttf", "2d-variable")).toString(), "variable-v2");
+
+  writeFile(root, "fonts/presets.json", JSON.stringify([{ name: "demo" }]));
+  assert.equal(await presets.getPresetBytes("demo.ttf", "2d-variable"), null);
+  assert.equal((await presets.getPresetBytes("demo", "2d")).toString(), "fake-ttf-bytes");
+});
+
 test("live community source refreshes on edit and holds last good on removal", async (t) => {
   const root = makeTempRoot();
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
