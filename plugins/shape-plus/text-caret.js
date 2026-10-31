@@ -168,8 +168,11 @@ function subForX(line, length, row, x) {
   return best;
 }
 
+// Layout space is Y-up: a row box runs from its lower edge (below the
+// baseline by the descent share) up through lineHeight. rowTop() names the
+// box origin used by the rect helpers, which is that lower edge.
 function rowTop(baseline, lineHeight) {
-  return baseline - lineHeight * ASCENT_RATIO;
+  return baseline - lineHeight * (1 - ASCENT_RATIO);
 }
 
 function isRowVisible(row) {
@@ -202,6 +205,7 @@ function rowAtOffset(spans, offset) {
 function xForOffset(rows, glyphs, spans, offset, emptyX = 0) {
   const i = rowAtOffset(spans, offset);
   if (i < 0) return emptyX;
+  if (Number.isFinite(rows[i]?.left)) emptyX = rows[i].left;
   const length = displayLength(rows[i]);
   const sub = Math.min(Math.max(offset - spans[i].srcStart, 0), length);
   return xForSub(lineGlyphs(glyphs, i), length, sub, emptyX);

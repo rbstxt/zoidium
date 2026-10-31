@@ -547,7 +547,7 @@ function install(s) {
         context.lineWidth = 2;
         for (const rect of caret.rectsForRange(session.layout.rows, session.layout.glyphs, session.spans,
           session.compStart, session.compEnd, session.lineHeight)) {
-          const [a, b] = [toScreen([rect.x, rect.y + rect.height]), toScreen([rect.x + rect.width, rect.y + rect.height])];
+          const [a, b] = [toScreen([rect.x, rect.y]), toScreen([rect.x + rect.width, rect.y])];
           context.beginPath();
           context.moveTo(...a);
           context.lineTo(...b);
