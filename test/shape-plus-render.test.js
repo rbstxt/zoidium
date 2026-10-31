@@ -5,14 +5,24 @@ const { createRenderer } = require("../plugins/shape-plus/render");
 function host() {
   const resources = [], draws = [];
   class Resource { constructor() { this.disposals = 0; resources.push(this); } dispose() { this.disposals++; } }
-  class Geometry extends Resource { addAttribute() {} scale() {} }
+  class Geometry extends Resource {
+    constructor() { super(); this.attributes = {}; }
+    addAttribute(name, attribute) { this.attributes[name] = attribute; }
+    getAttribute(name) { return this.attributes[name]; }
+    scale() {}
+  }
+  class BufferAttribute {
+    constructor(array) { this.array = array; this.version = 0; this.needsUpdateFlag = false; }
+    set needsUpdate(value) { if (value === true) { this.version++; this.needsUpdateFlag = true; } }
+    get needsUpdate() { return this.needsUpdateFlag; }
+  }
   class Material extends Resource { constructor(spec) { super(); Object.assign(this, spec); } }
   class Scene { constructor() { this.children = []; } add(mesh) { this.children.push(mesh); } }
   class Mesh { constructor(geometry, material) { this.geometry = geometry; this.material = material; } }
   class Target extends Resource { constructor(w, h) { super(); this.texture = {}; this.setSize(w, h); } setSize(w, h) { this.width = w; this.height = h; } }
   class Camera { constructor() { this.position = {}; } updateProjectionMatrix() {} }
   class Vector { set(x, y) { this.x = x; this.y = y; } }
-  const THREE = { Scene, Mesh, OrthographicCamera: Camera, ShaderMaterial: Material, BufferGeometry: Geometry, PlaneBufferGeometry: Geometry, BufferAttribute: class {}, Color: class {}, Vector2: Vector, WebGLRenderTarget: Target };
+  const THREE = { Scene, Mesh, OrthographicCamera: Camera, ShaderMaterial: Material, BufferGeometry: Geometry, PlaneBufferGeometry: Geometry, BufferAttribute, Color: class {}, Vector2: Vector, WebGLRenderTarget: Target };
   const renderer = { capabilities: { maxTextureSize: 16384 }, autoClear: false, getClearColor: () => ({ clone: () => ({}) }), getClearAlpha: () => .7, setClearColor() {}, render(scene, camera, target) { draws.push({ scene, camera, target }); } };
   return { THREE, renderer, resources, draws };
 }
@@ -47,8 +57,14 @@ test("animation retains paint programs and render targets while retiring changed
   assert.equal(h.resources.length, count, "paint-only edits allocate no GPU objects");
   engine.setCommands([{ ...paint, positions: [0, 0, 0, 2, 0, 0, 0, 2, 0] }], [640, 360]);
   assert.equal(engine.scene.children[0].material, material);
-  assert.equal(geometry.disposals, 1);
+  assert.equal(engine.scene.children[0].geometry, geometry, "equal-length edits reuse the GPU buffer");
+  assert.equal(geometry.disposals, 0);
+  assert.deepEqual(Array.from(geometry.getAttribute("position").array), [0, 0, 0, 2, 0, 0, 0, 2, 0]);
+  assert.equal(geometry.getAttribute("position").needsUpdate, true);
   assert.equal(material.disposals, 0);
+  engine.setCommands([{ ...paint, positions: [0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 3, 0] }], [640, 360]);
+  assert.equal(geometry.disposals, 1, "a changed length keeps the dispose-and-replace route");
+  assert.notEqual(engine.scene.children[0].geometry, geometry);
   engine.dispose();
   assert.ok(h.resources.every(r => r.disposals === 1));
 });
