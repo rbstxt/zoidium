@@ -49,8 +49,8 @@ and offered in the CM3 font picker next to the host presets. The host renders
 preset fonts with its bundled parser (TTF and OTF), so WOFF2 files cannot be
 used here. The preset files are static instances: the variable fonts these
 families ship overlap contours for interpolation, and the host parser fills
-those overlaps wrongly (see `work/2026-10-31-font-ui/report-fonts.md` for the
-"Geist Mono i" root cause). Shape+ text keeps the variable axes by loading
+those overlaps wrongly (the variable "Geist Mono" i stem renders as a slab).
+Shape+ text keeps the variable axes by loading
 the matching file from `presets-variable/`, served at
 `assets/fonts/2d-variable/<name>.ttf` (see the optional `"variable"` field in
 `presets.json` and `plugins/shape-plus/preset-variables.js`). The picker
