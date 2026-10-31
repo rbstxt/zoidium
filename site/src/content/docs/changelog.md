@@ -95,7 +95,10 @@ each line describes one visible change.
   Editor skips distant curves when it looks for what is under the pointer, and
   a Text Animator without a Wiggly Selector no longer rebuilds its text every
   frame. Animated shapes reuse their GPU buffers instead of recreating them.
-  Output is unchanged.
+  On large paths the Shape Editor evaluates the scene once per pointer event
+  and writes only the changed path values while dragging, so hovering,
+  selecting, and dragging points respond several times faster. Output is
+  unchanged.
 - Graph Editor 2 works with a mouse and a trackpad. The mouse wheel zooms
   time around the pointer. Two-finger scroll pans. Pinch or Ctrl+wheel
   zooms both axes. Middle-drag or Space-drag pans. The **?** button lists
