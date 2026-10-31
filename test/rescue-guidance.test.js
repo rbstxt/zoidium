@@ -124,6 +124,14 @@ test("a single legacy action keeps its button and behaviour", async () => {
   assert.equal(runs, 1);
 });
 
+test("an empty actions list does not hide a legacy action", () => {
+  const { toasts, body } = loadToasts();
+  toasts.showToast({ title: "Notice.", actions: [], action: { label: "Show in Assets", run() {} } });
+  const custom = body.children[0].querySelector('[data-toast-action="custom"]');
+  assert.equal(custom.hidden, false);
+  assert.equal(custom.textContent, "Show in Assets");
+});
+
 test("an action click runs once and closes the toast", async () => {
   const { toasts, body } = loadToasts();
   let runs = 0;

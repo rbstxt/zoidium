@@ -132,11 +132,10 @@
   // in a single row. The legacy detail.action = { label, run } still renders
   // its single button, so every existing caller keeps working.
   function customActionsOf(detail) {
-    if (Array.isArray(detail.actions)) {
-      return detail.actions.filter(function (entry) {
-        return entry && typeof entry.run === "function";
-      });
-    }
+    var listed = Array.isArray(detail.actions) ? detail.actions.filter(function (entry) {
+      return entry && typeof entry.run === "function";
+    }) : [];
+    if (listed.length) return listed;
     var custom = detail.action && typeof detail.action.run === "function" ? detail.action : null;
     return custom ? [custom] : [];
   }
