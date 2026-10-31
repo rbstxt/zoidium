@@ -399,6 +399,9 @@ function createCanvas(s, canvas) {
       context.fillRect(...start, end[0] - start[0], end[1] - start[1]);
       context.strokeRect(...start, end[0] - start[0], end[1] - start[1]);
     }
+    // In-place text editing draws only the caret and selection highlight on
+    // top of the real render; see plugins/shape-plus/text-inline.js.
+    s.drawTextEdit?.(context);
     });
   }
   function snap(point, exclude = []) {

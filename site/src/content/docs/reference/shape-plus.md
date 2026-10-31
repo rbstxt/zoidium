@@ -275,7 +275,7 @@ Text supplies glyph contours to paints and modifiers above its following paints.
 
 | Control | Type | Default | Effect |
 | --- | --- | --- | --- |
-| **Source Text** | Dynamic text | Text | Hold keys and expressions. |
+| **Source Text** | Dynamic text | Text | Hold keys and expressions. The multiline field follows the theme and grows while editing. |
 | **Font Family** | Dynamic font asset | Native default font | Primary font reference. |
 | **Fallback Font** | Dynamic font asset | None | Explicit fallback for unmapped grapheme clusters. |
 | **Style** | Dynamic choice | Default | Writes the named instance's axis values. |

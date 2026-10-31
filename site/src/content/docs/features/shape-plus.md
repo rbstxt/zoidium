@@ -34,10 +34,14 @@ Control reference: [shape-plus](/docs/reference/shape-plus/).
 2. Open **Objects**, then the Contents **+** menu.
 3. Choose **Text**.
 4. Select the Text item and choose **Font Family**.
-5. Edit **Source Text** in the native properties panel.
-6. To edit in the preview, double-click the text.
-7. Press Enter to add a newline.
-8. Press Escape or click outside the editor to commit one undo step.
+5. Edit **Source Text** in the native properties panel. The multiline field
+   follows the theme and grows as you type.
+6. To edit in the preview, double-click the text. The render stays visible
+   while a caret and selection highlight mark the edit position.
+7. Type to replace the text; the render re-lays out as you type. Press Enter
+   to add a newline. Arrow keys move by character and line, Home and End
+   move to the line edges, and double-clicking selects a word.
+8. Press Escape or click outside the text to commit one undo step.
 
 For Japanese text, choose a font with Japanese glyphs. To use a second font
 for missing glyphs, set **Fallback Font**.
