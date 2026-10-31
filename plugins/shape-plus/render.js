@@ -145,10 +145,25 @@ function createRenderer(THREE, sampleScale = "auto") {
         } else entry.mesh.material.uniforms.color.value = new THREE.Color(...command.color);
         const changed = command.positions.length !== entry.positionsSnapshot.length || command.positions.some((value,i)=>value!==entry.positionsSnapshot[i]);
         if (changed) {
-          const previous = entry.mesh.geometry;
-          entry.mesh.geometry = geometry(command.positions); paintAllocations.add(entry.mesh.geometry);
-          previous.dispose(); allocations.delete(previous); paintAllocations.delete(previous);
-          entry.positionsSnapshot = Float64Array.from(command.positions);
+          if (command.positions.length === entry.positionsSnapshot.length) {
+            // Equal element counts reuse the GPU buffer: copy the new Float32
+            // values into the existing attribute and flag it with the r91
+            // update mechanism instead of reallocating. A changed length keeps
+            // the dispose-and-replace route below.
+            const values = new Float32Array(command.positions);
+            if (!values.every(Number.isFinite)) throw Error("Shape+ geometry exceeds Float32 range");
+            const attribute = typeof entry.mesh.geometry.getAttribute === "function"
+              ? entry.mesh.geometry.getAttribute("position")
+              : entry.mesh.geometry.attributes.position;
+            attribute.array.set(values);
+            attribute.needsUpdate = true;
+            entry.positionsSnapshot = Float64Array.from(command.positions);
+          } else {
+            const previous = entry.mesh.geometry;
+            entry.mesh.geometry = geometry(command.positions); paintAllocations.add(entry.mesh.geometry);
+            previous.dispose(); allocations.delete(previous); paintAllocations.delete(previous);
+            entry.positionsSnapshot = Float64Array.from(command.positions);
+          }
         }
       }
     });
