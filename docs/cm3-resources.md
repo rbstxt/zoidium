@@ -95,7 +95,9 @@ sources, staged font presets and the community runtime source are re-read
 from the repository, and the documentation is served from a fresh
 documentation build when one exists. Edits, additions, and removals show on
 the next browser reload without restarting the server. A failed rebuild keeps
-serving the last good bytes and logs the error. Pass `--no-watch` to disable
+serving the last good bytes and logs the error. If the documentation build
+fails at startup, the server still starts without `/docs` and logs how to
+rebuild them. Pass `--no-watch` to disable
 the proactive file watcher; requests still rebuild from source.
 
 ## How deployments get the runtime
