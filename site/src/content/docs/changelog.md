@@ -88,6 +88,11 @@ each line describes one visible change.
 
 ### Changed
 
+- Shape+ Text edits in place, like After Effects: double-click the text to
+  place a caret on the rendered letters, type with live updates (IME
+  included), select with Shift or by dragging, and press Escape or click
+  outside to finish. One edit session is one undo step. The Source Text and
+  Style controls now match the rest of the panel.
 - After a sequence frame rate change, the notice offers **Undo**, **Just this
   project**, and **Make 60 fps default**, which also sets the default frame
   rate for new projects.
