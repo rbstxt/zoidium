@@ -402,3 +402,56 @@ test("planAnimator places numbered animators directly below their text", () => {
   assert.throws(() => planAnimator(contents, "missing", () => "x", "position"), /Text item/);
   assert.throws(() => planAnimator(contents, "t", () => "x", "opacity"), /Unknown animator/);
 });
+test("expandText shares the animator collector with the live path", () => {
+  const { textPaths, expandText } = require("../plugins/shape-plus/text-paths");
+  const { applyAnimators } = require("../plugins/shape-plus/text-animate");
+  const { text, anim } = setup("AV", { ...on("position"), position: held([10, 0]), ...fullRange });
+  assert.deepEqual(expandText([text]), [textPaths(text)]);
+  const animated = expandText([text, anim]);
+  assert.deepEqual(animated, [textPaths(text, undefined, applyAnimators(text, [anim])), anim]);
+  assert.equal(animated.length, 2);
+  assert.equal(animated[0].contents.length, 2);
+  for (const group of animated[0].contents) {
+    assert.equal(group.contents.length, 1);
+    assert.ok(group.contents[0].contents.length > 0);
+    close(group.properties.position[0] - group.properties.anchor[0], 10);
+  }
+});
+test("line grouping visits each glyph once per span computation", () => {
+  const { spanStats } = require("../plugins/shape-plus/text-animate");
+  const source = "AB".repeat(200);
+  const { text, anim } = setup(source, { ...on("scale"), scale: held([50, 50]), anchorGrouping: "line", ...fullRange });
+  assert.equal(text.textLayout.glyphs.length, 400);
+  spanStats.visits = 0;
+  const animation = applyAnimators(text, [anim]);
+  assert.ok(animation);
+  assert.equal(spanStats.visits, 400);
+  const all = setup(source, { ...on("scale"), scale: held([50, 50]), anchorGrouping: "all", ...fullRange });
+  spanStats.visits = 0;
+  assert.ok(applyAnimators(all.text, [all.anim]));
+  assert.equal(spanStats.visits, 400);
+});
+test("index End means end-of-text only while untouched", () => {
+  const { rangeValues } = require("../plugins/shape-plus/text-selectors");
+  const base = { selectorUnits: "index", selectorStart: 0, selectorEnd: 100, selectorOffset: 0, selectorShape: "square", selectorAmount: 100 };
+  assert.deepEqual(rangeValues(base, 4), [1, 1, 1, 1]);
+  const long = rangeValues({ ...base, selectorEndIsDefault: false }, 200);
+  assert.equal(long[99], 1);
+  assert.equal(long[100], 0);
+  const { Content } = createModel(PZ, service());
+  const plain = new Content("textAnimator");
+  plain.load({ id: "a", properties: {} });
+  assert.equal(plain.evaluate(0).properties.selectorEndIsDefault, true);
+  const keyed = new Content("textAnimator");
+  keyed.load({ id: "b", properties: { selectorEnd: { animated: true, keyframes: [{ frame: 0, value: 100, tween: 1 }, { frame: 30, value: 100, tween: 1 }] } } });
+  assert.equal(keyed.evaluate(0).properties.selectorEndIsDefault, false);
+  const source = "A".repeat(150);
+  const late = key => "0:" + key;
+  const untouched = setup(source, { ...on("position"), position: held([8, 0]), selectorUnits: "index", selectorStart: held(0), selectorEnd: held(100), selectorAmount: held(100) });
+  const full = applyAnimators(untouched.text, [untouched.anim]).levels;
+  assert.ok(full.has(late(149)));
+  const explicit = setup(source, { ...on("position"), position: held([8, 0]), selectorUnits: "index", selectorStart: held(0), selectorEnd: { animated: true, keyframes: [{ frame: 0, value: 100, tween: 1 }, { frame: 30, value: 100, tween: 1 }] }, selectorAmount: held(100) });
+  const partial = applyAnimators(explicit.text, [explicit.anim]).levels;
+  assert.ok(partial.has(late(99)));
+  assert.ok(!partial.has(late(100)));
+});

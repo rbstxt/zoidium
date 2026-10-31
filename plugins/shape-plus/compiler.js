@@ -2,6 +2,7 @@
 const geometryBudget = require("./geometry-budget.js");
 const geometryFailure = require("./geometry-failure.js");
 const { procedural } = require("./compiler-procedural.js");
+const { levelMatrix } = require("./text-animate.js");
 const { hasText } = require("./text-paths.js");
 const { primitive } = require("./primitives.js");
 const { triangulate } = require("./fill.js");
@@ -10,7 +11,7 @@ const identity = [1, 0, 0, 1, 0, 0];
 function matrix(p) {
   // Skew is opt-in: items without it take the historical formula with
   // bit-identical output, so existing projects render exactly as before.
-  if (p.skew) return require("./text-animate.js").levelMatrix(p);
+  if (p.skew) return levelMatrix(p);
   const a = p.anchor || [0, 0], t = p.position || [0, 0], s = p.scale || [1, 1], c = Math.cos(p.rotation || 0), n = Math.sin(p.rotation || 0);
   const m = [c * s[0], n * s[0], -n * s[1], c * s[1], t[0], t[1]];
   m[4] -= m[0] * a[0] + m[2] * a[1]; m[5] -= m[1] * a[0] + m[3] * a[1];

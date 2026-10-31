@@ -90,6 +90,15 @@ function createModel(PZ, textService) {
         properties[key] = Array.isArray(value) ? value.slice() : value;
       }
       if (["wigglePaths", "wiggleTransform", "textAnimator"].includes(this.kind)) properties.time = frame / rate;
+      if (this.kind === "textAnimator") {
+        // An Index End of exactly the default means "the last unit" only
+        // while End has no keys, no expression, and the default value. The
+        // key check mirrors text-properties.js holdValue and works on the
+        // native property API as well as the test host.
+        const end = this.properties.selectorEnd;
+        const keys = end?.keyframes || end?.data?.keyframes || [];
+        properties.selectorEndIsDefault = !end?.expression && keys.length <= 1 && properties.selectorEnd === (end?.definition?.value ?? 100);
+      }
       const textLayout = this.kind === "text" ? textService?.evaluate(this, properties, frame) || { glyphs: [], rows: [] } : null;
       const result = { id: this.id, kind: this.kind, vertexIds: this.vertexIds.slice(), properties, ...(this.contents ? { contents: Array.from(this.contents, child => child.evaluate(frame, rate)) } : {}) };
       if (textLayout) {

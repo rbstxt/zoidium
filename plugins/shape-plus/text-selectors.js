@@ -77,13 +77,14 @@ function shapeValue(shape, i, n, start, end) {
   return 0.5 - 0.5 * Math.cos(t * Math.PI * 2);
 }
 // Normalise selector bounds. Percentage units divide by 100. Index units
-// divide by the unit count; a default triple of start 0, end 100, offset 0
-// means "to the last unit" (end = n) so an untouched Index selector covers
-// the whole text, matching the documented Index defaults.
+// divide by the unit count. An End of exactly 100 in Index units means "the
+// last unit" only while End is still untouched: no keys, no expression, and
+// the default value, as recorded by the model in selectorEndIsDefault.
+// A keyed or expression-driven End of 100 counts literally.
 function normalizeBounds(selector, n) {
   const start = numberValue(selector.selectorStart, 0), end = numberValue(selector.selectorEnd, 100), offset = numberValue(selector.selectorOffset, 0);
   if (selector.selectorUnits !== "index" || !(n > 0)) return { start: start / 100 + offset / 100, end: end / 100 + offset / 100 };
-  const rawEnd = start === 0 && offset === 0 && end === 100 ? n : end;
+  const rawEnd = selector.selectorEndIsDefault !== false && end === 100 ? n : end;
   return { start: start / n + offset / n, end: rawEnd / n + offset / n };
 }
 // Range value per unit before mode combination: shape, ease remap, amount.

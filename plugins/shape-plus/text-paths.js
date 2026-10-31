@@ -1,6 +1,14 @@
 "use strict";
 const { values } = require("./editor-geometry.js");
 const { matchAnimators, applyAnimators } = require("./text-animate.js");
+// One animated-expansion helper shared by the live compiler, expandText,
+// and conversion: null when the animators contribute nothing, so callers
+// keep the exact unanimated path.
+function expandAnimatedText(item, animators, nextId) {
+  const animation = (animators || []).length ? applyAnimators(item, animators) : null;
+  if (!animation) return null;
+  return textPaths(item, nextId, animation);
+}
 function textPaths(item, nextId = (() => { let id = 0; return () => item.id + "-text-" + id++; })(), animation = null) {
   const layoutGlyphs = animation?.glyphs || item.textLayout?.glyphs || [];
   const levels = animation?.levels;
@@ -28,13 +36,10 @@ function textPaths(item, nextId = (() => { let id = 0; return () => item.id + "-
 function expandText(contents) {
   const matches = matchAnimators(contents);
   const expand = list => list.map(item => {
-    if (item.kind === "text") {
-      const animators = matches.get(item.id) || [];
-      return textPaths(item, undefined, animators.length ? applyAnimators(item, animators) : null);
-    }
+    if (item.kind === "text") return expandAnimatedText(item, matches.get(item.id) || []) || textPaths(item);
     return item.contents ? { ...item, contents: expand(item.contents) } : item;
   });
   return expand(contents);
 }
 function hasText(contents) { return contents.some(item => item.kind === "text" || item.contents && hasText(item.contents)); }
-module.exports = { textPaths, expandText, hasText };
+module.exports = { textPaths, expandText, expandAnimatedText, hasText };

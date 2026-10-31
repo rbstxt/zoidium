@@ -1,6 +1,6 @@
 "use strict";
-const { textPaths } = require("./text-paths.js");
-const { applyAnimators, levelMatrix } = require("./text-animate.js");
+const { textPaths, expandAnimatedText } = require("./text-paths.js");
+const { levelMatrix } = require("./text-animate.js");
 function multiply(a, b) {
   return [
     a[0] * b[0] + a[2] * b[1], a[1] * b[0] + a[3] * b[1],
@@ -52,8 +52,7 @@ function toNative(groups) {
 function createShapes(evaluated, nextId, animators = []) {
   if (evaluated.kind !== "text") throw Error("Select a Text item to create shapes.");
   if (!evaluated.textLayout) throw Error("The text font is not ready.");
-  const animation = animators.length ? applyAnimators(evaluated, animators) : null;
-  const expanded = textPaths(evaluated, nextId, animation);
+  const expanded = expandAnimatedText(evaluated, animators, nextId) || textPaths(evaluated, nextId);
   return toNative(bakeGroups(expanded.contents));
 }
 async function convert(context, layer, item, Content, frame) {

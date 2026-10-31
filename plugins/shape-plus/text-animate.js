@@ -17,6 +17,9 @@ const { ANIMATED_KEYS, enabledKey } = require("./text-animator-properties.js");
 const { parsePath } = require("./svg-path.js");
 const DEG = Math.PI / 180;
 const isSpace = text => /\s/u.test(text);
+// Member-visit counter for grouping-span work. Tests reset visits to prove
+// linear scaling; production code never reads it.
+const spanStats = { visits: 0 };
 // Skew-aware group matrix shared by live rendering (compiler.js matrix())
 // and conversion baking. M = T(position) T(anchor) R(rotation) Sk T(-anchor)
 // with Sk = R(axis) Shear(skew) R(-axis) shearing x by tan(skew) in the
@@ -34,20 +37,22 @@ function levelMatrix(p) {
   const l10 = (n * sk00 + c * sk10) * s[0], l11 = (n * sk01 + c * sk11) * s[1];
   return [l00, l10, l01, l11, t[0] - (l00 * a[0] + l01 * a[1]), t[1] - (l10 * a[0] + l11 * a[1])];
 }
-// Collect, for one contents list, the animators applying to each text item:
-// animators below the text in the same list (top to bottom), then animators
-// inherited from ancestor lists. Animators inside a nested group apply only
-// within that group. Disabled animator items are skipped.
+// Animator collection shared by every consumer of evaluated lists: the live
+// compiler, expandText, and (by ordering) conversion's live-tree walk.
+// Below-text siblings apply top to bottom, then animators inherited from
+// ancestor lists. Animators inside a nested group apply only within that
+// group. Disabled animator items are skipped.
+function belowAnimators(list, index) {
+  return (list || []).slice(index + 1).filter(item => item?.kind === "textAnimator" && item.properties?.enabled !== 0);
+}
 function matchAnimators(list, outer = [], out = new Map()) {
-  const below = [];
-  for (let i = (list || []).length - 1; i >= 0; i--) {
-    const item = list[i];
-    if (item?.kind === "textAnimator") {
-      if (item.properties?.enabled !== 0) below.unshift(item);
-    } else if (item?.kind === "text") {
-      if (!out.has(item.id)) out.set(item.id, [...below, ...outer]);
+  const items = list || [];
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    if (item?.kind === "text") {
+      if (!out.has(item.id)) out.set(item.id, [...belowAnimators(items, i), ...outer]);
     } else if (item?.contents) {
-      matchAnimators(item.contents, [...below, ...outer], out);
+      matchAnimators(item.contents, [...belowAnimators(items, i), ...outer], out);
     }
   }
   return out;
@@ -134,6 +139,7 @@ function selectorState(animator, layout, time, rangeUnits, wigglyUnits) {
     selectorOffset: p.selectorOffset, selectorShape: p.selectorShape, selectorAmount: p.selectorAmount,
     selectorEaseHigh: p.selectorEaseHigh, selectorEaseLow: p.selectorEaseLow,
     selectorRandomize: p.selectorRandomize, selectorRandomSeed: p.selectorRandomSeed,
+    selectorEndIsDefault: p.selectorEndIsDefault,
   }, rangeUnits.count);
   let wiggly = null;
   if (p.wigglyOn === 1 || p.wigglyOn === true) {
@@ -141,9 +147,11 @@ function selectorState(animator, layout, time, rangeUnits, wigglyUnits) {
       wigglyMax: p.wigglyMax, wigglyMin: p.wigglyMin, wigglesPerSecond: p.wigglesPerSecond,
       correlation: p.correlation, temporalPhase: p.temporalPhase, spatialPhase: p.spatialPhase, wigglySeed: p.wigglySeed,
     };
+    const locked = p.lockDimensions === 1 || p.lockDimensions === true;
     const units = wigglyUnits.map;
     const at = (component, unit) => unit < 0 ? 0 : wigglyValue({ ...base, component }, unit, time);
-    wiggly = { locked: units.map(unit => at(0, unit)), x: units.map(unit => at(1, unit)), y: units.map(unit => at(2, unit)) };
+    wiggly = { locked: units.map(unit => at(0, unit)) };
+    if (!locked) { wiggly.x = units.map(unit => at(1, unit)); wiggly.y = units.map(unit => at(2, unit)); }
   }
   return { range, wiggly, mode: p.selectorMode || "add", wigglyMode: p.wigglyMode || "add", locked: p.lockDimensions === 1 || p.lockDimensions === true };
 }
@@ -155,31 +163,39 @@ function applyAnimators(item, animators, opts = {}) {
   const actives = list.filter(a => enabledProps(a.properties).length || axisTags(a.properties).length);
   if (!actives.length) return null;
   const time = animatorTime(actives, opts);
+  const n = glyphs.length;
+  // One units computation per animator: the wiggly count reuses the range
+  // count unless its Based On differs.
   const states = actives.map(animator => {
     const p = animator.properties;
-    const rangeUnits = computeUnits(layout, p.selectorBasedOn || "characters");
-    const wigglyUnits = (p.wigglyOn === 1 || p.wigglyOn === true) ? computeUnits(layout, p.wigglyBasedOn || "characters") : null;
-    return { animator, p, rangeUnits, wigglyUnits, state: selectorState(animator, layout, time, rangeUnits, wigglyUnits || rangeUnits) };
+    const rangeBasedOn = p.selectorBasedOn || "characters";
+    const wigglyBasedOn = p.wigglyBasedOn || "characters";
+    const wigglyOn = p.wigglyOn === 1 || p.wigglyOn === true;
+    const rangeUnits = computeUnits(layout, rangeBasedOn);
+    const wigglyUnits = !wigglyOn || wigglyBasedOn === rangeBasedOn ? rangeUnits : computeUnits(layout, wigglyBasedOn);
+    return { animator, p, rangeUnits, wigglyUnits, state: selectorState(animator, layout, time, rangeUnits, wigglyUnits) };
   });
-  // Per-glyph scalar (range) value and vector pair per animator.
-  const perGlyph = glyphs.map((glyph, i) => states.map(({ state, rangeUnits, wigglyUnits }) => {
-    const unit = rangeUnits.map[i] ?? -1;
-    const r = unit < 0 ? 0 : combine(state.mode, 0, (state.range[unit] ?? 0));
-    if (!state.wiggly) return { scalar: r, vec: [r, r] };
-    const unitW = (wigglyUnits.map[i] ?? -1);
-    const at = values => unitW < 0 ? 0 : (values[unitW] ?? 0);
-    if (state.locked) {
-      const s = combine(state.wigglyMode, r, at(state.wiggly.locked));
-      return { scalar: s, vec: [s, s] };
+  // Flat per-animator selector values: scalar plus unlocked vector pair.
+  // vx/vy alias s when locked or wiggly-free, so no per-glyph objects.
+  const values = states.map(({ state, rangeUnits, wigglyUnits }) => {
+    const s = new Float64Array(n);
+    let vx = s, vy = s;
+    if (state.wiggly && !state.locked) { vx = new Float64Array(n); vy = new Float64Array(n); }
+    const wMode = state.wigglyMode;
+    for (let i = 0; i < n; i++) {
+      const unit = rangeUnits.map[i] ?? -1;
+      const r = unit < 0 ? 0 : combine(state.mode, 0, (state.range[unit] ?? 0));
+      if (!state.wiggly) { s[i] = r; continue; }
+      const unitW = wigglyUnits.map[i] ?? -1;
+      const at = values => unitW < 0 ? 0 : (values[unitW] ?? 0);
+      s[i] = combine(wMode, r, at(state.wiggly.locked));
+      if (vx !== s) { vx[i] = combine(wMode, r, at(state.wiggly.x)); vy[i] = combine(wMode, r, at(state.wiggly.y)); }
     }
-    return {
-      scalar: combine(state.wigglyMode, r, at(state.wiggly.locked)),
-      vec: [combine(state.wigglyMode, r, at(state.wiggly.x)), combine(state.wigglyMode, r, at(state.wiggly.y))],
-    };
-  }));
+    return { s, vx, vy };
+  });
   let alive = false;
-  for (const row of perGlyph) for (const entry of row) {
-    if (entry.scalar !== 0 || entry.vec[0] !== 0 || entry.vec[1] !== 0) { alive = true; break; }
+  for (const v of values) {
+    for (let i = 0; i < n && !alive; i++) if (v.s[i] !== 0 || v.vx[i] !== 0 || v.vy[i] !== 0) alive = true;
   }
   if (!alive) return null;
   const size = Math.max(0, numberValue(item.properties?.fontSize, 100));
@@ -191,14 +207,14 @@ function applyAnimators(item, animators, opts = {}) {
     const base = glyph.font?.coordinates ? glyph.font.coordinates(glyph.coordinates || {}) : { ...(glyph.coordinates || {}) };
     const coords = { ...base };
     let touchesCoords = false;
-    perGlyph[i].forEach((entry, a) => {
-      const p = states[a].p;
-      if (p[enabledKey("charOffset")]) shift += Math.round(numberValue(p.charOffset, 0) * entry.scalar);
+    for (let a = 0; a < states.length; a++) {
+      const p = states[a].p, scalar = values[a].s[i];
+      if (p[enabledKey("charOffset")]) shift += Math.round(numberValue(p.charOffset, 0) * scalar);
       for (const tag of axisTags(p)) {
-        const delta = numberValue(p["axis_" + tag], 0) * entry.scalar;
+        const delta = numberValue(p["axis_" + tag], 0) * scalar;
         if (delta !== 0) { coords[tag] = (coords[tag] ?? 0) + delta; touchesCoords = true; }
       }
-    });
+    }
     const clamped = glyph.font?.coordinates ? glyph.font.coordinates(coords) : coords;
     const character = shiftCodepoint(glyph.character, shift);
     const changedChar = shift !== 0 && character !== glyph.character;
@@ -208,7 +224,9 @@ function applyAnimators(item, animators, opts = {}) {
       return reshape(glyph, character, clamped) || glyph;
     } catch (_error) { return glyph; }
   });
-  const finalGlyphs = reshaped.map(glyph => ({ ...glyph }));
+  // Glyph objects are reused when nothing reshaped them; the shift pass
+  // below copies a glyph on write only when its carry is nonzero.
+  const finalGlyphs = reshaped.slice();
   const byLine = new Map();
   finalGlyphs.forEach((glyph, i) => {
     if (!byLine.has(glyph.line)) byLine.set(glyph.line, []);
@@ -217,24 +235,27 @@ function applyAnimators(item, animators, opts = {}) {
   for (const indices of byLine.values()) {
     let carry = 0;
     for (const i of indices) {
-      finalGlyphs[i] = { ...finalGlyphs[i], x: finalGlyphs[i].x + carry };
       let step = (finalGlyphs[i].advance - glyphs[i].advance);
-      perGlyph[i].forEach((entry, a) => {
+      for (let a = 0; a < states.length; a++) {
         const p = states[a].p;
-        if (p[enabledKey("tracking")]) step += numberValue(p.tracking, 0) * entry.scalar * size / 1000;
-      });
+        if (p[enabledKey("tracking")]) step += numberValue(p.tracking, 0) * values[a].s[i] * size / 1000;
+      }
+      if (carry !== 0) finalGlyphs[i] = { ...finalGlyphs[i], x: finalGlyphs[i].x + carry };
       carry += step;
     }
   }
-  // Grouping spans on final positions. Character groups use the glyph's
-  // advance span; word, line and all groups use the member span and the
-  // first baseline of the group.
+  // Grouping spans on final positions. Each span is computed once per unit
+  // and shared by every animator, so Line and All groupings cost linear
+  // work. Character groups use the glyph's own advance span directly.
+  // spanStats counts member visits for the linearity test.
   const pen = glyph => glyph.x - (glyph.dx || 0) * glyph.scaleX;
   const baseline = glyph => glyph.y - (glyph.dy || 0) * glyph.scaleY;
-  const wordUnits = computeUnits({ glyphs: finalGlyphs, rows: layout.rows }, "words");
+  const kindsUsed = new Set(states.map(({ p }) => p.anchorGrouping || "character"));
+  const wordUnits = kindsUsed.has("word") ? computeUnits({ glyphs: finalGlyphs, rows: layout.rows }, "words") : null;
   function spanOf(members) {
     let left = Infinity, right = -Infinity, firstLine = Infinity, firstBase = 0;
     for (const i of members) {
+      spanStats.visits++;
       const glyph = finalGlyphs[i];
       left = Math.min(left, pen(glyph)); right = Math.max(right, pen(glyph) + glyph.advance);
       if (glyph.line < firstLine) { firstLine = glyph.line; firstBase = baseline(glyph); }
@@ -242,24 +263,37 @@ function applyAnimators(item, animators, opts = {}) {
     return { left, right, base: firstBase, width: Math.max(0, right - left) };
   }
   const wordMembers = new Map(), lineMembers = new Map();
-  finalGlyphs.forEach((glyph, i) => {
-    const word = wordUnits.map[i];
-    if (word >= 0) { if (!wordMembers.has(word)) wordMembers.set(word, []); wordMembers.get(word).push(i); }
-    if (!lineMembers.has(glyph.line)) lineMembers.set(glyph.line, []);
-    lineMembers.get(glyph.line).push(i);
-  });
-  const allSpan = spanOf(finalGlyphs.map((_, i) => i));
+  for (let i = 0; i < n; i++) {
+    const glyph = finalGlyphs[i];
+    if (wordUnits) {
+      const word = wordUnits.map[i];
+      if (word >= 0) { if (!wordMembers.has(word)) wordMembers.set(word, []); wordMembers.get(word).push(i); }
+    }
+    if (kindsUsed.has("line")) {
+      if (!lineMembers.has(glyph.line)) lineMembers.set(glyph.line, []);
+      lineMembers.get(glyph.line).push(i);
+    }
+  }
+  const wordSpans = new Map(), lineSpans = new Map();
+  for (const [word, members] of wordMembers) wordSpans.set(word, spanOf(members));
+  for (const [line, members] of lineMembers) lineSpans.set(line, spanOf(members));
+  const allSpan = kindsUsed.has("all") ? spanOf(finalGlyphs.map((_, i) => i)) : null;
   const sy = numberValue(item.properties?.verticalScale, 100) / 100;
   function metricsOf(glyph) {
     try { if (glyph.font?.metrics) return glyph.font.metrics(); } catch (_error) { /* Fall through. */ }
     return { ascent: glyph.font?.upem || 0, descent: 0 };
   }
+  // Per-glyph vertical box factor, hoisted out of the animator loop.
+  const boxOf = finalGlyphs.map(glyph => {
+    const metrics = metricsOf(glyph);
+    return (metrics.ascent + metrics.descent) * (size / (glyph.font?.upem || 1) * sy);
+  });
   function groupFrame(glyph, i, grouping) {
     if (grouping === "all") return allSpan;
-    if (grouping === "line") return spanOf(lineMembers.get(glyph.line) || [i]);
-    if (grouping === "word") {
+    if (grouping === "line") return lineSpans.get(glyph.line) || { left: pen(glyph), right: pen(glyph) + glyph.advance, base: baseline(glyph), width: Math.max(0, glyph.advance) };
+    if (grouping === "word" && wordUnits) {
       const word = wordUnits.map[i];
-      if (word >= 0 && wordMembers.has(word)) return spanOf(wordMembers.get(word));
+      if (word >= 0 && wordSpans.has(word)) return wordSpans.get(word);
     }
     return { left: pen(glyph), right: pen(glyph) + glyph.advance, base: baseline(glyph), width: Math.max(0, glyph.advance) };
   }
@@ -267,21 +301,20 @@ function applyAnimators(item, animators, opts = {}) {
   finalGlyphs.forEach((glyph, i) => {
     const key = glyph.line + ":" + glyph.cl;
     const glyphLevels = [];
-    perGlyph[i].forEach((entry, a) => {
-      const p = states[a].p;
+    for (let a = 0; a < states.length; a++) {
+      const p = states[a].p, v = values[a];
+      const sx = v.vx[i], syy = v.vy[i], scalar = v.s[i];
       const grouping = p.anchorGrouping || "character";
       const frame = groupFrame(glyph, i, grouping);
-      const metrics = metricsOf(glyph);
-      const unit = size / (glyph.font?.upem || 1) * sy;
-      const boxH = (metrics.ascent + metrics.descent) * unit;
+      const boxH = boxOf[i];
       const ref = [(frame.left + frame.right) / 2, frame.base];
-      const anchor = [numberValue(p.anchor?.[0], 0) * entry.vec[0], numberValue(p.anchor?.[1], 0) * entry.vec[1]];
-      const align = p[enabledKey("groupingAlignment")] ? [numberValue(p.groupingAlignment?.[0], 0) / 100 * frame.width * entry.vec[0], numberValue(p.groupingAlignment?.[1], 0) / 100 * boxH * entry.vec[1]] : [0, 0];
+      const anchor = [numberValue(p.anchor?.[0], 0) * sx, numberValue(p.anchor?.[1], 0) * syy];
+      const align = p[enabledKey("groupingAlignment")] ? [numberValue(p.groupingAlignment?.[0], 0) / 100 * frame.width * sx, numberValue(p.groupingAlignment?.[1], 0) / 100 * boxH * syy] : [0, 0];
       const pivot = [ref[0] + anchor[0] + align[0], ref[1] + anchor[1] + align[1]];
-      const offset = [numberValue(p.position?.[0], 0) * entry.vec[0], numberValue(p.position?.[1], 0) * entry.vec[1]];
-      const scale = [1 + (numberValue(p.scale?.[0], 100) / 100 - 1) * entry.vec[0], 1 + (numberValue(p.scale?.[1], 100) / 100 - 1) * entry.vec[1]];
-      const rotation = numberValue(p.rotation, 0) * entry.scalar;
-      const skew = numberValue(p.skew, 0) * entry.scalar;
+      const offset = [numberValue(p.position?.[0], 0) * sx, numberValue(p.position?.[1], 0) * syy];
+      const scale = [1 + (numberValue(p.scale?.[0], 100) / 100 - 1) * sx, 1 + (numberValue(p.scale?.[1], 100) / 100 - 1) * syy];
+      const rotation = numberValue(p.rotation, 0) * scalar;
+      const skew = numberValue(p.skew, 0) * scalar;
       const level = {
         name: states[a].animator.properties?.name,
         anchor: pivot,
@@ -291,15 +324,15 @@ function applyAnimators(item, animators, opts = {}) {
         scale,
         rotation,
         skew,
-        skewAxis: numberValue(p.skewAxis, 0) * entry.scalar,
+        skewAxis: numberValue(p.skewAxis, 0) * scalar,
       };
       const identity = offset[0] === 0 && offset[1] === 0 && scale[0] === 1 && scale[1] === 1 && rotation === 0 && skew === 0;
       if (!identity) glyphLevels.push(level);
-    });
+    }
     if (glyphLevels.length && !levels.has(key)) levels.set(key, glyphLevels);
   });
   const changed = finalGlyphs.some((glyph, i) => glyph.x !== glyphs[i].x || glyph.advance !== glyphs[i].advance || glyph.character !== glyphs[i].character || glyph.paths !== glyphs[i].paths);
   if (!levels.size && !changed) return null;
   return { glyphs: finalGlyphs, levels };
 }
-module.exports = { levelMatrix, matchAnimators, computeUnits, shiftCodepoint, reshape, enabledProps, axisTags, selectorState, applyAnimators };
+module.exports = { levelMatrix, spanStats, belowAnimators, matchAnimators, computeUnits, shiftCodepoint, reshape, enabledProps, axisTags, selectorState, applyAnimators };
