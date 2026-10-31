@@ -1,6 +1,7 @@
 "use strict";
-// The same slab vertices as fill.js, with spatially pruned intersections
-// and an active-edge sweep. Used only for text-origin paths.
+// The slab sweep shared with fill.js: spatial intersection pruning and an
+// active-edge sweep. Text-origin paths may pass per-glyph groups; ordinary
+// shapes call without groups and stay in one compound arrangement.
 const { check } = require("./geometry-budget.js");
 const cross = (a, b) => a[0] * b[1] - a[1] * b[0];
 function area(points) {
