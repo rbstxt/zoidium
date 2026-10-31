@@ -3,7 +3,7 @@ software. The bundled families and copyright notices are:
 
 - Source Code Pro — © 2023 Adobe, with Reserved Font Name 'Source'.
 - Geist — Copyright 2024 The Geist Project Authors. Original notice: [LICENSE-Geist-OFL.txt](./LICENSE-Geist-OFL.txt).
-- Geist Mono — Vercel and the Geist font contributors. Original notice: [LICENSE-Geist-OFL.txt](./LICENSE-Geist-OFL.txt).
+- Geist Mono — Copyright 2024 The Geist Project Authors. Original notice: [LICENSE-Geist-OFL.txt](./LICENSE-Geist-OFL.txt).
 - Geist Pixel (Circle, Grid, Line, Square, Triangle) — Copyright 2024 The Geist Project Authors. Original notice: [LICENSE-Geist-OFL.txt](./LICENSE-Geist-OFL.txt).
 - Geist Serif — Copyright 2024 The Geist Project Authors. Original notice: [LICENSE-Geist-OFL.txt](./LICENSE-Geist-OFL.txt).
 - IBM Plex Sans and IBM Plex Mono — Copyright © 2017 IBM Corp. with Reserved Font Name "Plex".

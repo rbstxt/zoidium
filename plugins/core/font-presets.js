@@ -11,7 +11,7 @@
   // is patched again instead of skipped. Keep this list synced with
   // fonts/presets.json: tools/build-font-previews.js --check fails when they
   // differ.
-  var PRESET_NAMES = ["geist", "geist mono", "geist pixel circle", "geist pixel grid", "geist pixel line", "geist pixel square", "geist pixel triangle", "geist serif", "inter", "paper mono"];
+  var PRESET_NAMES = ["geist", "geist mono", "geist pixel circle", "geist pixel grid", "geist pixel line", "geist pixel square", "geist pixel triangle", "geist serif", "geist serif heart", "geist serif square", "geist serif triangle", "inter", "paper mono"];
 
   var PZ = global.PZ;
   var list = PZ && PZ.asset && PZ.asset.font && PZ.asset.font.preset;

@@ -7,6 +7,9 @@
   { "name": "geist pixel square", "label": "Geist Pixel Square" },
   { "name": "geist pixel triangle", "label": "Geist Pixel Triangle" },
   { "name": "geist serif", "label": "Geist Serif" },
+  { "name": "geist serif heart", "label": "Geist Serif Heart" },
+  { "name": "geist serif square", "label": "Geist Serif Square" },
+  { "name": "geist serif triangle", "label": "Geist Serif Triangle" },
   { "name": "inter" },
   { "name": "paper mono" }
 ]

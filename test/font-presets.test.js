@@ -87,6 +87,9 @@ test("sprite rows render the display label in key order", { skip: skipCache }, a
   assert.equal(labels.get("geist"), "Geist");
   assert.equal(labels.get("geist pixel square"), "Geist Pixel Square");
   assert.equal(labels.get("geist serif"), "Geist Serif");
+  assert.equal(labels.get("geist serif square"), "Geist Serif Square");
+  assert.equal(labels.get("geist serif triangle"), "Geist Serif Triangle");
+  assert.equal(labels.get("geist serif heart"), "Geist Serif Heart");
   assert.equal(labels.get("inter"), "inter");
   assert.equal(labels.get("paper mono"), "paper mono");
   // The sprite row for a labelled preset matches label shaping, not key shaping.
