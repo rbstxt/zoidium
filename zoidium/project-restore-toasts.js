@@ -115,7 +115,6 @@
     state.toast._zoidiumRecover = null;
     state.toast._zoidiumCustom = null;
   }
-
   function runToastAction(action) {
     if (typeof action !== "function") return;
     Promise.resolve()
@@ -127,6 +126,29 @@
           retry: action,
         });
       });
+  }
+
+  // detail.actions = [{ label, run, primary? }] renders one button per entry
+  // in a single row. The legacy detail.action = { label, run } still renders
+  // its single button, so every existing caller keeps working.
+  function customActionsOf(detail) {
+    var listed = Array.isArray(detail.actions) ? detail.actions.filter(function (entry) {
+      return entry && typeof entry.run === "function";
+    }) : [];
+    if (listed.length) return listed;
+    var custom = detail.action && typeof detail.action.run === "function" ? detail.action : null;
+    return custom ? [custom] : [];
+  }
+
+  function clearCustomActionButtons(toast, actions) {
+    var old = toast._zoidiumCustomButtons || [];
+    if (!old.length) return;
+    old.forEach(function (button) {
+      if (button.parentNode === actions && typeof actions.removeChild === "function") {
+        actions.removeChild(button);
+      }
+    });
+    toast._zoidiumCustomButtons = [];
   }
 
   var toastHideTimer = null;
@@ -155,9 +177,35 @@
     var hasDownload = isError && typeof detail.download === "function";
     var hasRecover = isError && typeof detail.recover === "function";
     var hasReload = !!detail.reload;
-    // detail.action = { label, run } adds one feature-specific button, such
-    // as "Show in Assets" on an asset notice.
-    var custom = detail.action && typeof detail.action.run === "function" ? detail.action : null;
+    // detail.actions = [{ label, run, primary? }] renders one button per
+    // entry; the legacy detail.action = { label, run } still renders its
+    // single button, such as "Show in Assets" on an asset notice.
+    var customs = customActionsOf(detail);
+    // The legacy single action keeps its original button. Several actions
+    // get one button each, appended in order to the same flex row.
+    var useMultiButtons = customs.length > 1;
+    clearCustomActionButtons(toast, actions);
+    if (useMultiButtons) {
+      toast._zoidiumCustomButtons = customs.map(function (entry, index) {
+        var clicked = false;
+        var actionButton = global.ZoidiumUI.createButton({
+          title: entry.label || "Show",
+          className: entry.primary ? "zoidium-project-toast-primary" : "",
+          onClick: function () {
+            // The toast closes first so a repeated activation cannot run
+            // the action twice.
+            if (clicked) return;
+            clicked = true;
+            hideToast();
+            runToastAction(entry.run);
+          },
+        });
+        actionButton.setAttribute("data-toast-action", "custom-" + index);
+        actions.appendChild(actionButton);
+        return actionButton;
+      });
+    }
+    var custom = !useMultiButtons && customs.length === 1 ? customs[0] : null;
     customButton.hidden = !custom;
     customButton.disabled = !custom;
     if (custom) customButton.textContent = custom.label || "Show";
@@ -168,7 +216,7 @@
     retryButton.disabled = !hasRetry;
     downloadButton.disabled = !hasDownload;
     recoverButton.disabled = !hasRecover;
-    actions.hidden = !hasRetry && !hasDownload && !hasRecover && !hasReload && !custom;
+    actions.hidden = !hasRetry && !hasDownload && !hasRecover && !hasReload && customs.length === 0;
     toast._zoidiumRetry = detail.retry || null;
     toast._zoidiumDownload = detail.download || null;
     toast._zoidiumRecover = hasRecover ? detail.recover : null;
@@ -179,7 +227,7 @@
     // missed while the user reads the message.
     if (!isError && !hasReload) {
       // A notice with an action stays long enough to reach its button.
-      toastHideTimer = global.setTimeout(hideToast, custom ? 8000 : 3000);
+      toastHideTimer = global.setTimeout(hideToast, customs.length ? 8000 : 3000);
     }
   }
 
