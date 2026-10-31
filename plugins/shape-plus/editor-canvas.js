@@ -10,6 +10,19 @@ const { find } = require("./editor-tree-data.js");
 const { PAINTS, paintScope } = require("./contents-ops.js");
 const xf = require("./editor-transform.js");
 const ACCENT = "#58a6ff", HOVER = "rgba(88,166,255,.85)";
+// Only a group's own transform/enabled properties are read here. Calling
+// item.evaluate() on a group would evaluate its whole subtree first, while the
+// walk below evaluates every child again. This mirrors the own-property loop
+// in model.js evaluate() without the child recursion or text layout.
+function ownProperties(item, frame) {
+  const properties = {};
+  for (const key of Object.keys(item.properties)) {
+    const value = item.properties[key].get(frame);
+    if (typeof value === "number" && !Number.isFinite(value) || Array.isArray(value) && key !== "stops" && !value.every(Number.isFinite)) throw Error("Shape+ property must be finite");
+    properties[key] = Array.isArray(value) ? value.slice() : value;
+  }
+  return properties;
+}
 function scene(
   contents,
   frame,
@@ -18,9 +31,9 @@ function scene(
   result = [],
 ) {
   for (const item of contents) {
-    const p = item.evaluate(frame).properties,
-      visible = enabled && p.enabled !== 0;
-    if (item.kind === "group")
+    if (item.kind === "group") {
+      const p = ownProperties(item, frame),
+        visible = enabled && p.enabled !== 0;
       scene(
         item.contents,
         frame,
@@ -28,8 +41,13 @@ function scene(
         visible,
         result,
       );
-    else if (item.kind === "text") {
-      const layout = item.evaluate(frame).textLayout;
+      continue;
+    }
+    const evaluated = item.evaluate(frame),
+      p = evaluated.properties,
+      visible = enabled && p.enabled !== 0;
+    if (item.kind === "text") {
+      const layout = evaluated.textLayout;
       const points = layout.glyphs.flatMap(glyph => glyph.paths.flatMap(path => path.vertices.map(v => v.point)));
       const x = points.length ? Math.min(...points.map(p=>p[0])) : p.position[0], y = points.length ? Math.min(...points.map(p=>p[1])) : p.position[1];
       const right = points.length ? Math.max(...points.map(p=>p[0])) : x+200, top = points.length ? Math.max(...points.map(p=>p[1])) : y+100;
