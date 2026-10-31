@@ -37,6 +37,9 @@ async function harness(t, failurePoint) {
       return () => {};
     };
     if (name === "serve-handler" || name === "./directory-index") return {};
+    // Exercise the real live-reload helpers: startup builds the bundles and
+    // opens the watcher, shutdown must close it again.
+    if (name === "./dev-live") return require("../tools/dev-live");
     if (name === "http") return { createServer() {
       serversCreated++;
       if (failurePoint === "server" && serversCreated === 2) throw failure;
