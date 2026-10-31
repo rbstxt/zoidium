@@ -244,7 +244,22 @@ async function main() {
   else console.log("[Zoidium] fonts/font-previews.svg is already fresh.");
 }
 
-main().catch(error => {
-  console.error(`[Zoidium] ${error.message}`);
-  process.exitCode = 1;
-});
+if (require.main === module) {
+  main().catch(error => {
+    console.error(`[Zoidium] ${error.message}`);
+    process.exitCode = 1;
+  });
+}
+
+module.exports = {
+  BASELINE_PX,
+  CUSTOM_LABEL,
+  NOMINAL_EM_PX,
+  ROW_HEIGHT,
+  ROW_WIDTH,
+  buildSprite,
+  mergedPresets,
+  patchNames,
+  readHostPresets,
+  readPresetList,
+};
