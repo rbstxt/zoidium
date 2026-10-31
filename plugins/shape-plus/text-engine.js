@@ -44,6 +44,10 @@ function createEngine(hb, memoryBytes = () => 0, maxOutlineBytes = 4 * 1024 * 10
     const info = require("./text-font.js").metadata(bytes);
     const blob = hb.createBlob(bytes), face = hb.createFace(blob, 0), font = hb.createFont(face);
     const id = ++nextFont, axes = face.getAxisInfos();
+    // HarfBuzz reports ranges only; take display names from the fvar
+    // axisNameID records parsed above so axis rows read as "Weight (wght)".
+    const names = Object.fromEntries(info.axes.map(axis => [axis.tag, axis.name]));
+    for (const [tag, axis] of Object.entries(axes)) if (names[tag] && names[tag] !== tag) axis.name = names[tag];
     let disposed = false;
     function live() { if (disposed) throw new Error("The Shape+ text font has been released."); }
     function coordinates(values = {}) {

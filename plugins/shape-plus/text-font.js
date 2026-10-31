@@ -1,4 +1,12 @@
 "use strict";
+// Display names for variable-font axes. The fvar axisNameID (via the name
+// table) wins; registered five-letter tags fall back to their canonical
+// names; unknown custom tags without a name render as the bare tag.
+const REGISTERED_AXIS_NAMES = { wght: "Weight", wdth: "Width", slnt: "Slant", ital: "Italic", opsz: "Optical Size" };
+function axisLabel(tag, name) {
+  const base = name && name !== tag ? name : REGISTERED_AXIS_NAMES[tag];
+  return base ? base + " (" + tag + ")" : tag;
+}
 function metadata(bytes) {
   const v = new DataView(bytes), tag = offset => String.fromCharCode(...new Uint8Array(bytes, offset, 4));
   const tables = new Map();
@@ -65,4 +73,4 @@ async function decompress(bytes) {
   }
   return output;
 }
-module.exports = { metadata, decompress };
+module.exports = { metadata, decompress, axisLabel, REGISTERED_AXIS_NAMES };

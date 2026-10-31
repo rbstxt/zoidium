@@ -105,6 +105,20 @@ function decorate(panel, row, item) {
     header.addEventListener("mousedown", (event) => event.stopPropagation());
     header.addEventListener("click", (event) => event.stopPropagation());
   }
+  // Variable-axis rows are registered after the font loads, so the native
+  // list appends them last. Present them directly below Style instead, in
+  // registration order. Owners, addresses and serialization are untouched;
+  // only row order within the same list changes.
+  if (rows.has("fontStyle")) {
+    let after = rows.get("fontStyle")[1] || rows.get("fontStyle")[0];
+    for (const key of Object.keys(p)) {
+      if (!key.startsWith("axis_") || !rows.has(key)) continue;
+      const [element, children] = rows.get(key);
+      after.after(element);
+      if (children) element.after(children);
+      after = children || element;
+    }
+  }
   function refresh() {
     for (const [key, elements] of rows)
       for (const element of elements)

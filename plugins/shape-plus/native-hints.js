@@ -8,6 +8,7 @@ const { stops } = require("./paint.js");
 const RULE = "A fill or stroke draws the paths above it in the same group.";
 const NO_PAINT = "no fill or stroke", NO_PATHS = "no paths above";
 const NO_TEXT = "No text above this animator";
+const STATIC_FONT = "Static font: no variable axes";
 const HINT_STYLE = "color:#7d7d7d;margin-left:6px;font-size:11px;white-space:nowrap;pointer-events:none";
 const SWATCH_STYLE = "display:inline-block;box-sizing:border-box;width:10px;height:10px;margin-left:6px;vertical-align:middle;pointer-events:none;";
 const valueOf = property => property && typeof property.get === "function" ? property.get() : property;
@@ -27,6 +28,14 @@ function hintFor(scope, item) {
   if (!entry?.enabled) return "";
   if (GEOMETRY.includes(item.kind)) return entry.painted ? "" : NO_PAINT;
   if (PAINTS.includes(item.kind)) return entry.paths ? "" : NO_PATHS;
+  return "";
+}
+// Text rows report the loader status while the font is not ready; a ready
+// static font reports that it has no variable axes. Fonts with axes stay
+// quiet and keep the paint-scope hint.
+function textStatus(record) {
+  if (record?.state !== "ready") return record?.message || "Loading text font";
+  if (!Object.keys(record.primary?.axes || {}).length) return STATIC_FONT;
   return "";
 }
 const channel = value => Math.round(Math.max(0, Math.min(1, Number(value) || 0)) * 255);
@@ -66,10 +75,12 @@ function createHints({ PZ, Layer, Content, document, view = document.defaultView
   }
   function update(entry, state) {
     const { content, hint, swatch, cell } = entry;
-    const text = content.kind === "text" && content.textState?.state !== "ready" ? content.textState?.message || "Loading text font" : hintFor(state.scope, content);
+    const status = content.kind === "text" ? textStatus(content.textState) : "";
+    const text = status || hintFor(state.scope, content);
     if (entry.text !== text) {
       entry.text = text; hint.textContent = text;
-      if (text) cell.title = RULE; else cell.removeAttribute("title");
+      // Scope hints explain paints; text statuses keep no paint rule title.
+      if (text && !status) cell.title = RULE; else cell.removeAttribute("title");
     }
     if (!swatch) return;
     let css = null;
@@ -118,4 +129,4 @@ function createHints({ PZ, Layer, Content, document, view = document.defaultView
   }
   return { attach, detach, dispose, tick, get size() { return rows.size; } };
 }
-module.exports = { RULE, NO_PAINT, NO_PATHS, NO_TEXT, outline, hintFor, swatchStyle, gradientCss, createHints };
+module.exports = { RULE, NO_PAINT, NO_PATHS, NO_TEXT, STATIC_FONT, outline, hintFor, textStatus, swatchStyle, gradientCss, createHints };

@@ -44,7 +44,12 @@ for missing glyphs, set **Fallback Font**.
 
 To use paragraph text, set **Text Mode** to **box** and edit **Box Size**.
 To animate variable fonts, choose a **Style**, then animate the individual axis
-properties. See [Text](/reference/shape-plus/#text) for the supported formats
+properties. The built-in fonts are static, so they show no axis rows. To use
+variable axes, import a variable TTF, OTF, or WOFF font in Assets and choose
+it in **Font Family**. Its axes then appear as named rows such as
+**Weight (wght)** directly below **Style**. A Text item with a static font
+shows "Static font: no variable axes" beside it in **Objects**.
+See [Text](/reference/shape-plus/#text) for the supported formats
 and layout controls.
 
 ## Animate text with animators

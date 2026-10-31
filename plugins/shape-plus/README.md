@@ -594,7 +594,11 @@ unsupported and keeps its asset reference.
 
 Style lists named instances. Selecting a style writes its axis coordinates in
 one history operation. Each axis remains an ordinary native dynamic NUMBER
-property. Changing fonts retains channels for shared axes. Size, Tracking,
+property. Changing fonts retains channels for shared axes. The built-in fonts
+are static. To use variable axes, import a variable TTF, OTF, or WOFF font in
+Assets and choose it in Font Family. Its axes then appear as "Weight (wght)"
+and so on directly below Style. A text item with a static font shows
+"Static font: no variable axes" beside it in Objects. Size, Tracking,
 Leading, Baseline Shift, Horizontal Scale, Vertical Scale, and Position animate.
 Tracking is in thousandths of the font size. Leading is in composition pixels.
 Caps offers normal, all, and small capitals. Small capitals use uppercase glyphs

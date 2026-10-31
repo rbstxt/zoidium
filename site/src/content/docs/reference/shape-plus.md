@@ -279,7 +279,7 @@ Text supplies glyph contours to paints and modifiers above its following paints.
 | **Font Family** | Dynamic font asset | Native default font | Primary font reference. |
 | **Fallback Font** | Dynamic font asset | None | Explicit fallback for unmapped grapheme clusters. |
 | **Style** | Dynamic choice | Default | Writes the named instance's axis values. |
-| Axis tag | Dynamic number | Font default | Font-defined minimum and maximum. |
+| Axis name and tag, for example **Weight (wght)** | Dynamic number | Font default | One row per variable axis, directly below **Style**. Font-defined minimum and maximum. |
 | **Size** | Dynamic number | 100 | Composition pixels per em. |
 | **Tracking** | Dynamic number | 0 | Thousandths of Size between glyphs. |
 | **Leading** | Dynamic number | 120 | Baseline distance in composition pixels. |
@@ -301,6 +301,10 @@ TTF, OTF, variable TrueType, CFF2, and WOFF1 are supported. WOFF2 displays an
 unsupported-format status and retains the font reference. Missing fonts show a
 status beside the item. There is no implicit font fallback. Japanese text uses
 the selected font's Japanese glyphs.
+
+The built-in fonts are static and show no axis rows. A Text item with a
+static font shows "Static font: no variable axes" beside it. Axes appear
+only with an imported variable font chosen in **Font Family**.
 
 Box text wraps Latin words and breaks CJK per grapheme. Oversized Latin words
 break per grapheme. Newlines start paragraphs. Lines outside the box height

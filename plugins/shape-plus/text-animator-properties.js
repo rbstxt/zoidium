@@ -6,6 +6,7 @@
 // mode, shape, grouping and every enabled flag) are static values, never
 // tweened. Variable-axis properties are registered per font by animatorAxes()
 // below, mirroring text-properties.js axes().
+const { axisLabel } = require("./text-font.js");
 const DEG = Math.PI / 180;
 const ANIMATED_KEYS = ["anchor", "position", "scale", "skew", "skewAxis", "rotation", "tracking", "charOffset", "groupingAlignment"];
 const enabledKey = key => "enabled_" + key;
@@ -95,11 +96,11 @@ function animatorAxes(PZ, node, fonts) {
     let axis = null;
     for (const font of list) if (font.axes[tag]) { axis = font.axes[tag]; break; }
     if (!p[key]) {
-      const label = (axis.name || tag) + " (" + tag + ")";
+      const label = axisLabel(tag, axis.name);
       p.add(key, { name: label, type: PZ.property.type.NUMBER, dynamic: true, value: 0, step: 1 });
       p[key].load(hidden[key] ?? before[key]);
       delete hidden[key];
-    }
+    } else p[key].definition.name = axisLabel(tag, axis.name);
     if (!p[enabledKey(key)]) {
       p.add(enabledKey(key), { name: (p[key]?.definition?.name || tag) + " enabled", type: PZ.property.type.OPTION, value: 0, items: "off;on", visible: false });
       p[enabledKey(key)].load(hidden[enabledKey(key)] ?? before[enabledKey(key)]);
