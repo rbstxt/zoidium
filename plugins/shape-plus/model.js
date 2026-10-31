@@ -13,13 +13,29 @@ function validate(contents, depth = 0, state = { count: 0, ids: new Set() }) {
   return contents;
 }
 function createModel(PZ, textService) {
+  // Bounded generated-ID allocator. Generated IDs are strictly increasing, so
+  // no per-ID state is ever retained: every observed canonical ID advances the
+  // high-water mark instead, and later generated IDs cannot collide with
+  // imported, duplicated, or history-restored IDs. Undo restores old IDs
+  // through load(), which only moves the mark forward and never reuses a
+  // number. Live-tree duplicates are still detected by load()'s bounded walk.
   let sequence = 0;
-  const ownedIds = new Set();
-  function nextId() { let id; do { id = "s" + (++sequence).toString(36); } while (ownedIds.has(id)); ownedIds.add(id); return id; }
+  const CANONICAL = /^s([0-9a-z]+)$/;
+  function observeId(id) {
+    if (typeof id !== "string") return;
+    const match = CANONICAL.exec(id);
+    if (!match) return;
+    const value = parseInt(match[1], 36);
+    if (Number.isSafeInteger(value) && value > sequence) sequence = value;
+  }
+  function nextId() {
+    if (sequence >= Number.MAX_SAFE_INTEGER) throw Error("Shape+ generated-ID allocator exhausted");
+    return "s" + (++sequence).toString(36);
+  }
   class Content extends PZ.object {
     constructor(kind = "rectangle", data) {
       super();
-      this.kind = kind; this.type = kind; this.id = data?.id || nextId(); ownedIds.add(this.id);
+      this.kind = kind; this.type = kind; this.id = data?.id || nextId(); observeId(this.id);
       this.vertexIds = data?.vertexIds?.slice() || ["v1", "v2", "v3", "v4"];
       this.vertexModes = clone(data?.vertexModes || {});
       this.properties = new PZ.propertyList(definitions(PZ, kind, this.vertexIds), this);
@@ -49,7 +65,7 @@ function createModel(PZ, textService) {
         for (let current = this; current; current = current.parent ? current.parentObject : null) if (current.contents) root = current;
         const collision = nodes => Array.from(nodes || []).some(node => node !== this && (node.id === data.id || collision(node.contents)));
         this.id = collision(root.contents) ? nextId() : data.id;
-        ownedIds.add(this.id);
+        observeId(this.id);
       }
       if (this.kind === "path" && data.vertexIds && JSON.stringify(data.vertexIds) !== JSON.stringify(this.vertexIds)) {
         this.vertexIds = data.vertexIds.slice();
