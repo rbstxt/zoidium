@@ -9,6 +9,8 @@ sidebar:
 
 ### 追加
 
+- 組み込みフォントを追加しました。Geist、Geist Mono、Geist Pixel (Circle、Grid、Line、Square、Triangle)、Geist Serif (Square、Triangle、Heart の各スタイルを含む)、Inter、Paper Mono を、すべてのフォント選択欄で使用できます。Geist、Geist Mono、Inter は可変フォントのため、Shape+ Text ではフォントを読み込まずにウェイトをアニメーションできます。
+- フォント選択欄のプレビュー画像を、フォント一覧から生成するようにしました。追加した組み込みフォントも、それぞれの書体で表示されます。
 - Shape+ Text。Shape+ のコンテンツに置く、打ち直せるテキスト項目です。Fill、Stroke、グラデーション、パス修飾、Repeater、Merge Paths が、ほかのパスと同じように文字に効きます。Source Text、フォント、Fallback Font、サイズ、トラッキング、行送り、ベースラインシフト、比率、大文字、揃え、折り返し付きのボックステキストをアニメーションできます。プレビューでテキストをダブルクリックすると編集できます。
 - Shape+ Text の可変フォント対応。フォントの各軸 (太さ、幅など) をアニメーションできるプロパティとして使用でき、**Style** でフォントの名前付きスタイルを適用できます。TTF、OTF、WOFF のフォントを使用できます。WOFF2 には未対応形式の通知を表示します。
 - Shape+ の Text Animator。テキスト項目の下に置くと、選んだ文字を移動、拡大縮小、回転、傾斜、トラッキング、文字のずらしで動かし、可変フォントの軸を文字ごとにずらします。Range Selector (形、イーズ、モード、ランダム化) と、任意で追加する Wiggly Selector が、文字、単語、行の単位で対象を選びます。テキストの右クリックメニューから追加します。

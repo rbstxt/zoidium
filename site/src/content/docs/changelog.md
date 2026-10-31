@@ -10,6 +10,12 @@ each line describes one visible change.
 
 ### Added
 
+- Built-in fonts: Geist, Geist Mono, Geist Pixel (Circle, Grid, Line, Square,
+  Triangle), Geist Serif (with Square, Triangle, and Heart styles), Inter, and
+  Paper Mono, in every font picker. Geist, Geist Mono, and Inter are variable
+  fonts, so Shape+ Text can animate their weight without importing a font.
+- The font picker's preview image is now generated from the font list, so new
+  built-in fonts show their own lettering.
 - Shape+ Text: a live text item in Shape+ contents. Fills, strokes, gradients,
   path modifiers, Repeater and Merge Paths act on its letters like on any path.
   Source Text, font, Fallback Font, size, tracking, leading, baseline shift,
