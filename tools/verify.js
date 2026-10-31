@@ -14,6 +14,7 @@ if (process.env.ZOIDIUM_TEST_CONCURRENCY) {
 }
 const checks = [
   ["preview cache approval freshness", ["tools/preview-cache-approvals.js"]],
+  ["font preview freshness", ["tools/build-font-previews.js", "--check"]],
   ["plugin manifest schema", ["tools/validate-plugin-manifests.js"]],
   ["plugin bundle freshness", ["tools/build-plugin-bundles.js", "--check"]],
   ["JavaScript syntax", ["tools/check-syntax.js"]],
