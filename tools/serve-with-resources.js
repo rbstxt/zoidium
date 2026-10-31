@@ -129,6 +129,24 @@ function sendFaviconSilence(response) {
   response.end();
 }
 
+// The documentation build output is served at /docs/*, but its root is the
+// build directory itself: the /docs prefix must be stripped before resolving
+// files inside it, or every docs URL would 404.
+function stripDocsPrefix(requestUrl) {
+  let parsed;
+  try {
+    parsed = new URL(requestUrl, "http://zoidium.invalid");
+  } catch (_error) {
+    return null;
+  }
+  if (parsed.origin !== "http://zoidium.invalid") return null;
+  if (parsed.pathname === "/docs") return `/index.html${parsed.search}`;
+  if (parsed.pathname.startsWith("/docs/")) {
+    return parsed.pathname.slice("/docs".length) + parsed.search;
+  }
+  return null;
+}
+
 function parseOptions(argv) {
   const options = { open: false, port: 8123, watch: true };
   for (const argument of argv) {
@@ -446,7 +464,9 @@ async function main() {
             } else if (relativePath === "docs" || (relativePath && relativePath.startsWith("docs/"))) {
               // A fresh documentation build is picked up without a restart.
               const docsRoot = liveDocsRoot();
-              if (docsRoot) {
+              const stripped = docsRoot ? stripDocsPrefix(request.url) : null;
+              if (docsRoot && stripped) {
+                request.url = stripped;
                 publicRoot = docsRoot;
                 headers = liveProjectHeaders;
               }
@@ -512,4 +532,5 @@ module.exports = {
   requestPathname,
   sendFaviconSilence,
   shouldServeFromProject,
+  stripDocsPrefix,
 };
