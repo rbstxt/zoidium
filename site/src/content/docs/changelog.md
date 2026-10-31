@@ -94,7 +94,8 @@ each line describes one visible change.
 - Shape+ is faster: fills triangulate up to about 10 times faster, the Shape
   Editor skips distant curves when it looks for what is under the pointer, and
   a Text Animator without a Wiggly Selector no longer rebuilds its text every
-  frame. Output is unchanged.
+  frame. Animated shapes reuse their GPU buffers instead of recreating them.
+  Output is unchanged.
 - Graph Editor 2 works with a mouse and a trackpad. The mouse wheel zooms
   time around the pointer. Two-finger scroll pans. Pinch or Ctrl+wheel
   zooms both axes. Middle-drag or Space-drag pans. The **?** button lists
