@@ -102,8 +102,8 @@ function animatorAxes(PZ, node, fonts) {
     }
     if (!p[enabledKey(key)]) {
       p.add(enabledKey(key), { name: (p[key]?.definition?.name || tag) + " enabled", type: PZ.property.type.OPTION, value: 0, items: "off;on", visible: false });
-      const stored = hidden[enabledKey(key)] ?? before[enabledKey(key)];
-      if (stored) { p[enabledKey(key)].load(stored); delete hidden[enabledKey(key)]; }
+      p[enabledKey(key)].load(hidden[enabledKey(key)] ?? before[enabledKey(key)]);
+      delete hidden[enabledKey(key)];
     }
   }
   for (const key of Object.keys(p)) if (key.startsWith("axis_") && !tags.includes(key.slice(5))) {

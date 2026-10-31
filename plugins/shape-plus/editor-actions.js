@@ -48,6 +48,34 @@ function installActions(s, root) {
         { separator: true },
       );
     if (primitive) entries.push({ label: "Convert to Path", action: s.convert }, { separator: true });
+    const animatorLabels = { position: "Position", scale: "Scale", rotation: "Rotation", skew: "Skew", skewAxis: "Skew Axis", anchor: "Anchor Point", tracking: "Tracking Amount", charOffset: "Character Offset", groupingAlignment: "Grouping Alignment" };
+    const axisOf = (node) => Object.keys(node.properties || {}).filter(key => key.startsWith("axis_")).map(key => ({ key, label: node.properties[key].definition?.name || key.slice(5) }));
+    const flagOf = (node, key) => { try { return node.properties["enabled_" + key]?.get() ? true : false; } catch (_error) { return false; } };
+    if (!many && item?.kind === "text") {
+      const choices = [...Object.entries(animatorLabels).map(([key, label]) => ({ key, label })), ...axisOf(item)];
+      entries.push({ label: "Add Text Animator", action: () => menu.open(x, y, choices.map(({ key, label }) => ({
+        label, action: () => s.addAnimator(item.id, key),
+      })), { title: "Add Text Animator", focusReturn: s.canvas }) }, { separator: true });
+    }
+    if (!many && item?.kind === "textAnimator") {
+      const fixed = Object.entries(animatorLabels).map(([key, label]) => ({ key, label }));
+      const choices = [...fixed, ...axisOf(item)];
+      const on = choices.filter(({ key }) => flagOf(item, key)), off = choices.filter(({ key }) => !flagOf(item, key));
+      let wiggly = false;
+      try { wiggly = item.properties.wigglyOn?.get() ? true : false; } catch (_error) { /* Detached item. */ }
+      entries.push(
+        { label: "Add Property", disabled: !off.length, action: () => menu.open(x, y, off.map(({ key, label }) => ({
+          label, action: () => s.setAnimatorFlag(item.id, key, 1),
+        })), { title: "Add Property", focusReturn: s.canvas }) },
+        { label: "Remove Property", disabled: !on.length, action: () => menu.open(x, y, on.map(({ key, label }) => ({
+          label, action: () => s.setAnimatorFlag(item.id, key, 0),
+        })), { title: "Remove Property", focusReturn: s.canvas }) },
+        wiggly
+          ? { label: "Remove Wiggly Selector", action: () => s.setAnimatorFlag(item.id, "wiggly", 0) }
+          : { label: "Add Wiggly Selector", action: () => s.setAnimatorFlag(item.id, "wiggly", 1) },
+        { separator: true },
+      );
+    }
     entries.push(
       { label: "Add Fill", action: () => s.treeAction("paint", "fill") },
       { label: "Add Stroke", action: () => s.treeAction("paint", "stroke") },

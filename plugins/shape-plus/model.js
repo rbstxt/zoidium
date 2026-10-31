@@ -89,7 +89,7 @@ function createModel(PZ, textService) {
         if (typeof value === "number" && !Number.isFinite(value) || Array.isArray(value) && key !== "stops" && !value.every(Number.isFinite)) throw Error("Shape+ property must be finite");
         properties[key] = Array.isArray(value) ? value.slice() : value;
       }
-      if (["wigglePaths", "wiggleTransform"].includes(this.kind)) properties.time = frame / rate;
+      if (["wigglePaths", "wiggleTransform", "textAnimator"].includes(this.kind)) properties.time = frame / rate;
       const textLayout = this.kind === "text" ? textService?.evaluate(this, properties, frame) || { glyphs: [], rows: [] } : null;
       const result = { id: this.id, kind: this.kind, vertexIds: this.vertexIds.slice(), properties, ...(this.contents ? { contents: Array.from(this.contents, child => child.evaluate(frame, rate)) } : {}) };
       if (textLayout) {
@@ -98,7 +98,7 @@ function createModel(PZ, textService) {
       }
       return result;
     }
-    async prepare(frame = this.textFrame || 0) { if (this.kind === "text") await textService?.prepare(this, frame); for (const child of this.contents || []) await child.prepare(frame); }
+    async prepare(frame = this.textFrame || 0) { if (this.kind === "text") await textService?.prepare(this, frame); else if (this.kind === "textAnimator") await textService?.prepareAnimator?.(this, frame); for (const child of this.contents || []) await child.prepare(frame); }
     unload() { if (this.kind === "text") textService?.release(this); for (const child of this.contents || []) child.unload(); }
     static create(kind) { return new Content(kind); }
   }

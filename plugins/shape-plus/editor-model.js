@@ -196,6 +196,25 @@ function createEditorModel(s) {
       }
       s.selection.clear();
     });
+  // Text Animator items: one history step per add or feature toggle.
+  s.addAnimator = (textId, propertyKey) =>
+    s.mutate(() => {
+      const contents = read();
+      const { planAnimator } = require("./contents-ops.js");
+      const animator = planAnimator(contents, textId, s.nextId, propertyKey);
+      validate(contents);
+      write(contents);
+      s.activeId = animator.id;
+      s.treeSelection = new Set([animator.id]);
+      s.selection.clear();
+    });
+  s.setAnimatorFlag = (animatorId, key, value) =>
+    s.mutate(() => {
+      const contents = read();
+      require("./contents-ops.js").setAnimatorFlag(contents, animatorId, key, value);
+      validate(contents);
+      write(contents);
+    });
   const convertPrimitive = () =>
     s.mutate(() => {
       const item = s.active();

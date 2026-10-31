@@ -3,6 +3,7 @@
 // the Objects panel hints. Nothing here touches CM3 objects or the DOM.
 const { titles } = require("./properties.js");
 const { find } = require("./editor-tree-data.js");
+const { ANIMATED_KEYS, enabledKey } = require("./text-animator-properties.js");
 const GEOMETRY = ["rectangle", "ellipse", "polystar", "path", "text"];
 const PAINTS = ["fill", "stroke", "gradientFill", "gradientStroke"];
 const nameOf = item => typeof item.properties?.name === "string" ? item.properties.name : titles[item.kind];
@@ -112,4 +113,35 @@ function paintScope(contents) {
   walk(contents, true);
   return result;
 }
-module.exports = { GEOMETRY, PAINTS, uniqueName, contextGroup, planAdd, paintScope, itemData };
+function countTexts(list) {
+  let count = 0;
+  for (const item of list || []) {
+    if (item.kind === "text") count++;
+    else if (item.contents) count += countTexts(item.contents);
+  }
+  return count;
+}
+// Insert a Text Animator directly below a text item in the text's own list,
+// with one animated property enabled. Returns the new animator data.
+function planAnimator(contents, textId, nextId, propertyKey) {
+  const entry = find(contents, textId);
+  if (!entry || entry.item.kind !== "text") throw Error("Select a Text item to add an animator.");
+  if (!ANIMATED_KEYS.includes(propertyKey) && !propertyKey.startsWith("axis_")) throw Error("Unknown animator property: " + propertyKey);
+  const item = itemData("textAnimator", nextId);
+  item.properties.name = uniqueName(contents, "Animator");
+  item.properties[enabledKey(propertyKey)] = 1;
+  entry.list.splice(entry.index + 1, 0, item);
+  return item;
+}
+// Toggle one animator feature in plain contents data: an animated property
+// key, or "wiggly" for the Wiggly Selector. Each call is one history step
+// through the caller's gesture.
+function setAnimatorFlag(contents, animatorId, key, value) {
+  const entry = find(contents, animatorId);
+  if (!entry || entry.item.kind !== "textAnimator") throw Error("Select a Text Animator item.");
+  const flag = key === "wiggly" ? "wigglyOn" : enabledKey(key);
+  if (key !== "wiggly" && !ANIMATED_KEYS.includes(key) && !key.startsWith("axis_")) throw Error("Unknown animator property: " + key);
+  entry.item.properties = { ...(entry.item.properties || {}), [flag]: value ? 1 : 0 };
+  return entry.item;
+}
+module.exports = { GEOMETRY, PAINTS, uniqueName, contextGroup, planAdd, paintScope, itemData, planAnimator, setAnimatorFlag };

@@ -1,6 +1,11 @@
 "use strict";
 // Presentation groups only. Properties keep their native owners, addresses,
 // history and serialized keys; no synthetic property enters the model.
+const ANIMATED = require("./text-animator-properties.js").ANIMATED_KEYS;
+const WIGGLY = ["wigglyMode", "wigglyMax", "wigglyMin", "wigglyBasedOn", "wigglesPerSecond", "correlation", "temporalPhase", "spatialPhase", "lockDimensions", "wigglySeed"];
+function flagOn(p, key) {
+  try { return p[key]?.get() ? true : false; } catch (_error) { return false; }
+}
 const groups = {
   Dashes: [
     "dashPairs",
@@ -23,6 +28,16 @@ const groups = {
   Wave: ["waveAmount", "waveUnits", "wavelength", "waveCycles", "wavePhase"],
 };
 function visible(key, p) {
+  // Text Animator rows: a disabled animated property contributes nothing
+  // and hides its row; enabled flags and the wiggly switch hide always
+  // because the context menu owns them. Animator items carry selectorStart.
+  if (p.selectorStart !== undefined) {
+    if (key === "wigglyOn" || key.startsWith("enabled_")) return false;
+    if (key.startsWith("axis_")) return flagOn(p, "enabled_" + key);
+    if (ANIMATED.includes(key)) return flagOn(p, "enabled_" + key);
+    if (WIGGLY.includes(key)) return flagOn(p, "wigglyOn");
+    return true;
+  }
   const dash = /^(dash|gap)([123])$/.exec(key);
   if (dash) return Number(dash[2]) <= Number(p.dashPairs.get());
   if (key === "dashOffset") return Number(p.dashPairs.get()) > 0;

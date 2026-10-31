@@ -1,14 +1,23 @@
 "use strict";
 const { values } = require("./editor-geometry.js");
-function textPaths(item, nextId = (() => { let id = 0; return () => item.id + "-text-" + id++; })()) {
+const { matchAnimators, applyAnimators } = require("./text-animate.js");
+function textPaths(item, nextId = (() => { let id = 0; return () => item.id + "-text-" + id++; })(), animation = null) {
+  const layoutGlyphs = animation?.glyphs || item.textLayout?.glyphs || [];
+  const levels = animation?.levels;
   const contents = [], groups = new Map();
   function add(key, character) {
     const group = { id: nextId(), kind: "group", properties: { name: character, enabled: 1, anchor: [0,0], position: [0,0], scale: [1,1], rotation: 0, opacity: 1 }, contents: [] };
-    groups.set(key, group); contents.push(group);
+    let host = group;
+    // Stacked animators nest innermost-first so each level transforms about
+    // its own pivot, exactly as AE stacks Animator 1, Animator 2, and so on.
+    for (const level of levels?.get(key) || []) {
+      host = { id: nextId(), kind: "group", properties: { name: level.name || character, enabled: 1, anchor: level.anchor.slice(), position: level.position.slice(), scale: level.scale.slice(), rotation: level.rotation, skew: level.skew, skewAxis: level.skewAxis, opacity: 1 }, contents: [host] };
+    }
+    groups.set(key, group); contents.push(host);
   }
   for (const [line, row] of (item.textLayout?.rows || []).entries()) if (row.visible)
     for (const cluster of row.characters || []) if (!/\s/u.test(cluster.text)) add(line + ":" + cluster.index, cluster.text);
-  for (const glyph of item.textLayout?.glyphs || []) {
+  for (const glyph of layoutGlyphs) {
     if (!glyph.paths.length || /\s/u.test(glyph.character)) continue;
     const key = glyph.line + ":" + glyph.cl;
     if (!groups.has(key)) add(key, glyph.character);
@@ -17,7 +26,15 @@ function textPaths(item, nextId = (() => { let id = 0; return () => item.id + "-
   return { id: item.id, kind: "group", properties: { name: item.properties.name, enabled: item.properties.enabled, anchor: [0,0], position: [0,0], scale: [1,1], rotation: 0, opacity: 1 }, contents };
 }
 function expandText(contents) {
-  return contents.map(item => item.kind === "text" ? textPaths(item) : item.contents ? { ...item, contents: expandText(item.contents) } : item);
+  const matches = matchAnimators(contents);
+  const expand = list => list.map(item => {
+    if (item.kind === "text") {
+      const animators = matches.get(item.id) || [];
+      return textPaths(item, undefined, animators.length ? applyAnimators(item, animators) : null);
+    }
+    return item.contents ? { ...item, contents: expand(item.contents) } : item;
+  });
+  return expand(contents);
 }
 function hasText(contents) { return contents.some(item => item.kind === "text" || item.contents && hasText(item.contents)); }
 module.exports = { textPaths, expandText, hasText };
